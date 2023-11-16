@@ -34,7 +34,6 @@ use gsdk::{
     metadata::{
         balances::Event as BalancesEvent,
         gear::Event as GearEvent,
-        gear_runtime::RuntimeCall,
         runtime_types::{
             frame_system::pallet::Call as SystemCall,
             gear_common::{
@@ -43,13 +42,15 @@ use gsdk::{
             },
             pallet_balances::{pallet::Call as BalancesCall, AccountData},
             pallet_gear::pallet::Call as GearCall,
+            pallet_gear_bank::pallet::BankAccount,
             sp_weights::weight_v2::Weight,
         },
         system::Event as SystemEvent,
         utility::Event as UtilityEvent,
+        vara_runtime::RuntimeCall,
         Convert, Event,
     },
-    types, Error as GsdkError,
+    Error as GsdkError, GearGasNode, GearGasNodeId,
 };
 use hex::ToHex;
 use parity_scale_codec::{Decode, Encode};
@@ -98,7 +99,7 @@ impl GearApi {
     pub async fn transfer(&self, destination: ProgramId, value: u128) -> Result<H256> {
         let destination: [u8; 32] = destination.into();
 
-        let tx = self.0.transfer(destination, value).await?;
+        let tx = self.0.calls.transfer(destination, value).await?;
 
         for event in tx.wait_for_success().await?.iter() {
             if let Event::Balances(BalancesEvent::Transfer { .. }) =
@@ -165,6 +166,7 @@ impl GearApi {
 
         let tx = self
             .0
+            .calls
             .create_program(code_id, salt, payload, gas_limit, value)
             .await?;
 
@@ -202,13 +204,14 @@ impl GearApi {
                     init_payload: payload.as_ref().to_vec(),
                     gas_limit,
                     value,
+                    keep_alive: false,
                 })
             })
             .collect();
 
         let amount = calls.len();
 
-        let tx = self.0.force_batch(calls).await?;
+        let tx = self.0.calls.force_batch(calls).await?;
         let mut res = Vec::with_capacity(amount);
 
         for event in tx.wait_for_success().await?.iter() {
@@ -294,6 +297,33 @@ impl GearApi {
             }
         })?;
 
+        let src_program_account_bank_data = self
+            .bank_data_at(src_program_id, src_block_hash)
+            .await
+            .or_else(|e| {
+                if let Error::GearSDK(GsdkError::StorageNotFound) = e {
+                    Ok(BankAccount { gas: 0, value: 0 })
+                } else {
+                    Err(e)
+                }
+            })?;
+
+        let src_bank_account_data = self
+            .account_data_at(crate::bank_address(), src_block_hash)
+            .await
+            .or_else(|e| {
+                if let Error::GearSDK(GsdkError::StorageNotFound) = e {
+                    Ok(AccountData {
+                        free: 0u128,
+                        reserved: 0,
+                        misc_frozen: 0,
+                        fee_frozen: 0,
+                    })
+                } else {
+                    Err(e)
+                }
+            })?;
+
         let mut src_program = self
             .0
             .api()
@@ -306,7 +336,7 @@ impl GearApi {
             .gpages_at(src_program_id, &src_program, src_block_hash)
             .await?;
 
-        let src_program_reserved_gas_node_ids: Vec<types::GearGasNodeId> = src_program
+        let src_program_reserved_gas_node_ids: Vec<GearGasNodeId> = src_program
             .gas_reservation_map
             .iter()
             .map(|gr| gr.0.into())
@@ -321,7 +351,7 @@ impl GearApi {
         let mut src_program_reserved_gas_total = 0u64;
         let mut accounts_with_reserved_funds = HashSet::new();
         for gas_node in &src_program_reserved_gas_nodes {
-            if let types::GearGasNode::Reserved {
+            if let GearGasNode::Reserved {
                 id, value, lock, ..
             } = &gas_node.1
             {
@@ -356,17 +386,37 @@ impl GearApi {
             .await?;
 
         dest_node_api
+            .set_balance(
+                crate::bank_address(),
+                src_bank_account_data.free,
+                src_bank_account_data.reserved,
+            )
+            .await?;
+
+        dest_node_api
             .0
+            .storage
+            .set_bank_account_storage(
+                src_program_id.into_account_id(),
+                src_program_account_bank_data,
+            )
+            .await?;
+
+        dest_node_api
+            .0
+            .storage
             .set_code_storage(src_code_id, &src_code)
             .await?;
 
         dest_node_api
             .0
+            .storage
             .set_code_len_storage(src_code_id, src_code_len)
             .await?;
 
         dest_node_api
             .0
+            .storage
             .set_gas_nodes(&src_program_reserved_gas_nodes)
             .await?;
 
@@ -374,6 +424,17 @@ impl GearApi {
             let src_account_data = self
                 .account_data_at(account_with_reserved_funds, src_block_hash)
                 .await?;
+            let src_account_bank_data = self
+                .bank_data_at(account_with_reserved_funds, src_block_hash)
+                .await
+                .or_else(|e| {
+                    if let Error::GearSDK(GsdkError::StorageNotFound) = e {
+                        Ok(BankAccount { gas: 0, value: 0 })
+                    } else {
+                        Err(e)
+                    }
+                })?;
+
             let dest_account_data = dest_node_api
                 .account_data(account_with_reserved_funds)
                 .await
@@ -389,6 +450,17 @@ impl GearApi {
                         Err(e)
                     }
                 })?;
+            let dest_account_bank_data = self
+                .bank_data_at(account_with_reserved_funds, None)
+                .await
+                .or_else(|e| {
+                    if let Error::GearSDK(GsdkError::StorageNotFound) = e {
+                        Ok(BankAccount { gas: 0, value: 0 })
+                    } else {
+                        Err(e)
+                    }
+                })?;
+
             dest_node_api
                 .set_balance(
                     account_with_reserved_funds.into_account_id(),
@@ -396,6 +468,22 @@ impl GearApi {
                     dest_account_data
                         .reserved
                         .saturating_add(src_account_data.reserved),
+                )
+                .await?;
+
+            dest_node_api
+                .0
+                .storage
+                .set_bank_account_storage(
+                    account_with_reserved_funds.into_account_id(),
+                    BankAccount {
+                        gas: src_account_bank_data
+                            .gas
+                            .saturating_add(dest_account_bank_data.gas),
+                        value: src_account_bank_data
+                            .value
+                            .saturating_add(dest_account_bank_data.value),
+                    },
                 )
                 .await?;
         }
@@ -411,6 +499,7 @@ impl GearApi {
 
         dest_node_api
             .0
+            .storage
             .set_total_issuance(
                 dest_gas_total_issuance.saturating_add(src_program_reserved_gas_total),
             )
@@ -418,12 +507,18 @@ impl GearApi {
 
         dest_node_api
             .0
-            .set_gpages(dest_program_id, &src_program_pages)
+            .storage
+            .set_gpages(
+                dest_program_id,
+                src_program.memory_infix.0,
+                &src_program_pages,
+            )
             .await?;
 
         src_program.expiration_block = dest_node_api.last_block_number().await?;
         dest_node_api
             .0
+            .storage
             .set_gprog(dest_program_id, src_program)
             .await?;
 
@@ -513,7 +608,12 @@ impl GearApi {
         )
         .await?;
 
-        self.0.set_gpages(program_id, &pages).await?;
+        let program = self.0.api().gprog_at(program_id, None).await?;
+
+        self.0
+            .storage
+            .set_gpages(program_id, program.memory_infix.0, &pages)
+            .await?;
 
         Ok(())
     }
@@ -537,7 +637,7 @@ impl GearApi {
             .await?
             .map(|(message, _interval)| message.value());
 
-        let tx = self.0.claim_value(message_id).await?;
+        let tx = self.0.calls.claim_value(message_id).await?;
 
         for event in tx.wait_for_success().await?.iter() {
             if let Event::Gear(GearEvent::UserMessageRead { .. }) =
@@ -587,7 +687,7 @@ impl GearApi {
 
         let amount = calls.len();
 
-        let tx = self.0.force_batch(calls).await?;
+        let tx = self.0.calls.force_batch(calls).await?;
         let mut res = Vec::with_capacity(amount);
 
         for event in tx.wait_for_success().await?.iter() {
@@ -638,6 +738,7 @@ impl GearApi {
 
         let tx = self
             .0
+            .calls
             .send_message(destination, payload, gas_limit, value)
             .await?;
 
@@ -674,13 +775,14 @@ impl GearApi {
                     payload: payload.as_ref().to_vec(),
                     gas_limit,
                     value,
+                    keep_alive: false,
                 })
             })
             .collect();
 
         let amount = calls.len();
 
-        let tx = self.0.force_batch(calls).await?;
+        let tx = self.0.calls.force_batch(calls).await?;
         let mut res = Vec::with_capacity(amount);
 
         for event in tx.wait_for_success().await?.iter() {
@@ -750,6 +852,7 @@ impl GearApi {
 
         let tx = self
             .0
+            .calls
             .send_reply(reply_to_id, payload, gas_limit, value)
             .await?;
 
@@ -806,13 +909,14 @@ impl GearApi {
                     payload: payload.as_ref().to_vec(),
                     gas_limit,
                     value,
+                    keep_alive: false,
                 })
             })
             .collect();
 
         let amount = calls.len();
 
-        let tx = self.0.force_batch(calls).await?;
+        let tx = self.0.calls.force_batch(calls).await?;
         let mut res = Vec::with_capacity(amount);
 
         for event in tx.wait_for_success().await?.iter() {
@@ -874,7 +978,7 @@ impl GearApi {
     /// - [`upload_program`](Self::upload_program) function uploads a new
     ///   program and initialize it.
     pub async fn upload_code(&self, code: impl AsRef<[u8]>) -> Result<(CodeId, H256)> {
-        let tx = self.0.upload_code(code.as_ref().to_vec()).await?;
+        let tx = self.0.calls.upload_code(code.as_ref().to_vec()).await?;
 
         for event in tx.wait_for_success().await?.iter() {
             if let Event::Gear(GearEvent::CodeChanged {
@@ -910,7 +1014,7 @@ impl GearApi {
 
         let amount = calls.len();
 
-        let tx = self.0.force_batch(calls).await?;
+        let tx = self.0.calls.force_batch(calls).await?;
         let mut res = Vec::with_capacity(amount);
 
         for event in tx.wait_for_success().await?.iter() {
@@ -989,6 +1093,7 @@ impl GearApi {
 
         let tx = self
             .0
+            .calls
             .upload_program(code, salt, payload, gas_limit, value)
             .await?;
 
@@ -1034,13 +1139,14 @@ impl GearApi {
                     init_payload: payload.as_ref().to_vec(),
                     gas_limit,
                     value,
+                    keep_alive: false,
                 })
             })
             .collect();
 
         let amount = calls.len();
 
-        let tx = self.0.force_batch(calls).await?;
+        let tx = self.0.calls.force_batch(calls).await?;
         let mut res = Vec::with_capacity(amount);
 
         for event in tx.wait_for_success().await?.iter() {
@@ -1148,6 +1254,7 @@ impl GearApi {
     pub async fn set_code(&self, code: impl AsRef<[u8]>) -> Result<H256> {
         let events = self
             .0
+            .calls
             .sudo_unchecked_weight(
                 RuntimeCall::System(SystemCall::set_code {
                     code: code.as_ref().to_vec(),
@@ -1180,6 +1287,7 @@ impl GearApi {
     pub async fn set_code_without_checks(&self, code: impl AsRef<[u8]>) -> Result<H256> {
         let events = self
             .0
+            .calls
             .sudo_unchecked_weight(
                 RuntimeCall::System(SystemCall::set_code_without_checks {
                     code: code.as_ref().to_vec(),
@@ -1215,6 +1323,7 @@ impl GearApi {
     ) -> Result<H256> {
         let events = self
             .0
+            .calls
             .sudo_unchecked_weight(
                 RuntimeCall::Balances(BalancesCall::set_balance {
                     who: to.into().convert(),

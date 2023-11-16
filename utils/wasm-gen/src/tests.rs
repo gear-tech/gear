@@ -16,83 +16,63 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use std::mem;
-
-use crate::{
-    gen_gear_program_code, memory::ModuleBuilderWithData, utils, GearConfig, ModuleWithDebug,
-};
+use super::*;
 use arbitrary::Unstructured;
-use gear_wasm_instrument::parity_wasm::{
-    self,
-    elements::{self, External},
+use gear_core::{
+    code::Code,
+    ids::{CodeId, ProgramId},
+    memory::Memory,
+    message::{
+        ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext,
+        ReplyPacket,
+    },
+    pages::WASM_PAGE_SIZE,
 };
-use proptest::prelude::{proptest, ProptestConfig};
+use gear_core_backend::{
+    env::{BackendReport, Environment},
+    error::{TerminationReason, TrapExplanation},
+};
+use gear_core_processor::{ProcessorContext, ProcessorExternalities};
+use gear_utils::NonEmpty;
+use gear_wasm_instrument::{
+    parity_wasm::{
+        self,
+        elements::{Instruction, Module},
+    },
+    rules::CustomConstantCostRules,
+};
+use proptest::prelude::*;
 use rand::{rngs::SmallRng, RngCore, SeedableRng};
+use std::{mem, num::NonZeroUsize};
 
-#[allow(unused)]
-use indicatif::ProgressIterator;
-
-const MODULES_AMOUNT: usize = 100;
-const UNSTRUCTURED_SIZE: usize = 1000000;
-
-#[test]
-fn gen_wasm_normal() {
-    let mut rng = SmallRng::seed_from_u64(1234);
-    for _ in 0..MODULES_AMOUNT {
-        let mut buf = vec![0; UNSTRUCTURED_SIZE];
-        rng.fill_bytes(&mut buf);
-        let mut u = Unstructured::new(&buf);
-        let code = gen_gear_program_code(&mut u, GearConfig::new_normal(), &[]);
-        let _wat = wasmprinter::print_bytes(code).unwrap();
-    }
-}
-
-#[test]
-fn gen_wasm_rare() {
-    let mut rng = SmallRng::seed_from_u64(12345);
-    for _ in 0..MODULES_AMOUNT {
-        let mut buf = vec![0; UNSTRUCTURED_SIZE];
-        rng.fill_bytes(&mut buf);
-        let mut u = Unstructured::new(&buf);
-        let code = gen_gear_program_code(&mut u, GearConfig::new_for_rare_cases(), &[]);
-        let _wat = wasmprinter::print_bytes(code).unwrap();
-    }
-}
-
-#[test]
-fn gen_wasm_valid() {
-    let mut rng = SmallRng::seed_from_u64(33333);
-    let mut config = GearConfig::new_valid();
-    config.print_test_info = Some("HEY GEAR".to_owned());
-    for _ in 0..MODULES_AMOUNT {
-        let mut buf = vec![0; UNSTRUCTURED_SIZE];
-        rng.fill_bytes(&mut buf);
-        let mut u = Unstructured::new(&buf);
-        let code = gen_gear_program_code(&mut u, config.clone(), &[]);
-        let _wat = wasmprinter::print_bytes(&code).unwrap();
-        wasmparser::validate(&code).unwrap();
-    }
-}
+const UNSTRUCTURED_SIZE: usize = 1_000_000;
 
 #[test]
 fn remove_trivial_recursions() {
-    let wat = r#"
+    let wat1 = r#"
     (module
         (func (;0;)
             call 0
         )
     )"#;
 
-    let wasm = wat::parse_str(wat).unwrap();
-    let module: elements::Module = parity_wasm::deserialize_buffer(&wasm).unwrap();
-    let module = utils::remove_recursion(module);
-    let wasm = parity_wasm::serialize(module).unwrap();
-    wasmparser::validate(&wasm).unwrap();
+    let wasm_bytes = wat::parse_str(wat1).expect("invalid wat");
+    let module =
+        parity_wasm::deserialize_buffer::<Module>(&wasm_bytes).expect("invalid wasm bytes");
+    let no_recursions_module = utils::remove_recursion(module);
 
-    let wat = wasmprinter::print_bytes(&wasm).unwrap();
+    let wasm_bytes = no_recursions_module
+        .into_bytes()
+        .expect("invalid pw module");
+    assert!(wasmparser::validate(&wasm_bytes).is_ok());
+
+    let wat = wasmprinter::print_bytes(&wasm_bytes).expect("failed printing bytes");
     println!("wat = {wat}");
+}
 
-    let wat = r#"
+#[test]
+fn remove_multiple_recursions() {
+    let wat2 = r#"
     (module
         (func (;0;) (result i64)
             call 1
@@ -106,99 +86,365 @@ fn remove_trivial_recursions() {
         )
     )"#;
 
-    let wasm = wat::parse_str(wat).unwrap();
-    let module: elements::Module = parity_wasm::deserialize_buffer(&wasm).unwrap();
+    let wasm_bytes = wat::parse_str(wat2).expect("invalid wat");
+    let module =
+        parity_wasm::deserialize_buffer::<Module>(&wasm_bytes).expect("invalid wasm bytes");
     utils::find_recursion(&module, |path, call| {
         println!("path = {path:?}, call = {call}");
     });
-    let module = utils::remove_recursion(module);
-    utils::find_recursion(&module, |_path, _call| {
+    let no_recursions_module = utils::remove_recursion(module);
+    utils::find_recursion(&no_recursions_module, |_, _| {
         unreachable!("there should be no recursions")
     });
 
-    let wasm = parity_wasm::serialize(module).unwrap();
-    wasmparser::validate(&wasm).unwrap();
+    let wasm_bytes = no_recursions_module
+        .into_bytes()
+        .expect("invalid pw module");
+    assert!(wasmparser::validate(&wasm_bytes).is_ok());
 
-    let wat = wasmprinter::print_bytes(&wasm).unwrap();
+    let wat = wasmprinter::print_bytes(&wasm_bytes).expect("failed printing bytes");
     println!("wat = {wat}");
+}
+
+#[test]
+fn injecting_addresses_works() {
+    let mut rng = SmallRng::seed_from_u64(1234);
+    let mut buf = vec![0; UNSTRUCTURED_SIZE];
+    rng.fill_bytes(&mut buf);
+    let mut u = Unstructured::new(&buf);
+
+    let stack_end_page = 16;
+    let addresses = NonEmpty::from_vec(vec![[0; 32], [1; 32]]).expect("vec wasn't empty");
+    let config = GearWasmGeneratorConfigBuilder::new()
+        .with_memory_config(MemoryPagesConfig {
+            initial_size: 17,
+            upper_limit: None,
+            stack_end_page: Some(stack_end_page),
+        })
+        .with_syscalls_config(
+            SysCallsConfigBuilder::new(Default::default())
+                .with_data_offset_msg_dest(addresses)
+                .build(),
+        )
+        .build();
+    let wasm_module = GearWasmGenerator::new_with_config(
+        WasmModule::generate(&mut u).expect("failed module generation"),
+        &mut u,
+        config,
+    )
+    .generate()
+    .expect("failed gear-wasm generation");
+
+    let data_sections_entries_num = wasm_module
+        .data_section()
+        .expect("additional data was inserted")
+        .entries()
+        .len();
+    // 2 addresses in the upper `addresses`.
+    assert_eq!(data_sections_entries_num, 2);
+
+    let size = mem::size_of::<gsys::HashWithValue>() as i32;
+    let entries = wasm_module
+        .data_section()
+        .expect("additional data was inserted")
+        .entries();
+
+    let first_addr_offset = entries
+        .get(0)
+        .and_then(|segment| segment.offset().as_ref())
+        .map(|expr| &expr.code()[0])
+        .expect("checked");
+    let Instruction::I32Const(ptr) = first_addr_offset else {
+        panic!("invalid instruction in init expression")
+    };
+    // No additional data, except for addresses.
+    // First entry set to the 0 offset.
+    assert_eq!(*ptr, (stack_end_page * WASM_PAGE_SIZE as u32) as i32);
+
+    let second_addr_offset = entries
+        .get(1)
+        .and_then(|segment| segment.offset().as_ref())
+        .map(|expr| &expr.code()[0])
+        .expect("checked");
+    let Instruction::I32Const(ptr) = second_addr_offset else {
+        panic!("invalid instruction in init expression")
+    };
+    // No additional data, except for addresses.
+    // First entry set to the 0 offset.
+    assert_eq!(*ptr, size + (stack_end_page * WASM_PAGE_SIZE as u32) as i32);
+}
+
+#[test]
+fn error_processing_works_for_fallible_syscalls() {
+    use gear_core_backend::error::ActorTerminationReason;
+
+    gear_utils::init_default_logger();
+
+    // We create Unstructured from zeroes here as we just need any.
+    let buf = vec![0; UNSTRUCTURED_SIZE];
+    let mut unstructured = Unstructured::new(&buf);
+    let mut unstructured2 = Unstructured::new(&buf);
+
+    let fallible_syscalls = SysCallName::instrumentable()
+        .into_iter()
+        .filter_map(|syscall| {
+            let invocable_syscall = InvocableSysCall::Loose(syscall);
+            invocable_syscall.is_fallible().then_some(invocable_syscall)
+        });
+
+    for syscall in fallible_syscalls {
+        // Prepare syscalls config & context settings for test case.
+        let (params_config, initial_memory_write) = get_params_for_syscall_to_fail(syscall);
+
+        const INJECTED_SYSCALLS: u32 = 8;
+
+        let mut injection_types = SysCallsInjectionTypes::all_never();
+        injection_types.set(syscall, INJECTED_SYSCALLS, INJECTED_SYSCALLS);
+
+        let syscalls_config_builder =
+            SysCallsConfigBuilder::new(injection_types).with_params_config(params_config);
+
+        // Assert that syscalls results will be processed.
+        let termination_reason = execute_wasm_with_custom_configs(
+            &mut unstructured,
+            syscalls_config_builder
+                .clone()
+                .set_error_processing_config(ErrorProcessingConfig::All)
+                .build(),
+            initial_memory_write.clone(),
+            0,
+            true,
+        );
+
+        assert_eq!(
+            termination_reason,
+            TerminationReason::Actor(ActorTerminationReason::Trap(TrapExplanation::Unknown)),
+            "syscall: {}",
+            syscall.to_str()
+        );
+
+        // Assert that syscall results will be ignored.
+        let termination_reason = execute_wasm_with_custom_configs(
+            &mut unstructured2,
+            syscalls_config_builder.build(),
+            initial_memory_write.clone(),
+            0,
+            true,
+        );
+
+        assert_eq!(
+            termination_reason,
+            TerminationReason::Actor(ActorTerminationReason::Success),
+            "syscall: {}",
+            syscall.to_str()
+        );
+    }
+}
+
+#[test]
+fn precise_syscalls_works() {
+    use gear_core_backend::error::ActorTerminationReason;
+
+    gear_utils::init_default_logger();
+
+    // Pin a specific seed for this test.
+    let mut rng = SmallRng::seed_from_u64(1234);
+    let mut buf = vec![0; UNSTRUCTURED_SIZE];
+    rng.fill_bytes(&mut buf);
+    let mut unstructured = Unstructured::new(&buf);
+
+    let precise_syscalls = SysCallName::instrumentable()
+        .into_iter()
+        .filter_map(|syscall| {
+            InvocableSysCall::has_precise_variant(syscall)
+                .then_some(InvocableSysCall::Precise(syscall))
+        });
+
+    for syscall in precise_syscalls {
+        // Prepare syscalls config & context settings for test case.
+        const INJECTED_SYSCALLS: u32 = 1;
+
+        let mut injection_types = SysCallsInjectionTypes::all_never();
+        injection_types.set(syscall, INJECTED_SYSCALLS, INJECTED_SYSCALLS);
+
+        let mut param_config = SysCallsParamsConfig::default();
+        param_config.add_rule(ParamType::Gas, (0..=0).into());
+
+        // Assert that syscalls results will be processed.
+        let termination_reason = execute_wasm_with_custom_configs(
+            &mut unstructured,
+            SysCallsConfigBuilder::new(injection_types)
+                .with_params_config(param_config)
+                .with_precise_syscalls_config(PreciseSysCallsConfig::new(3..=3))
+                .with_source_msg_dest()
+                .set_error_processing_config(ErrorProcessingConfig::All)
+                .build(),
+            None,
+            1024,
+            false,
+        );
+
+        assert_eq!(
+            termination_reason,
+            TerminationReason::Actor(ActorTerminationReason::Success),
+            "syscall: {}",
+            syscall.to_str()
+        );
+    }
+}
+
+#[derive(Clone)]
+struct MemoryWrite {
+    offset: u32,
+    content: Vec<u8>,
+}
+
+fn get_params_for_syscall_to_fail(
+    syscall: InvocableSysCall,
+) -> (SysCallsParamsConfig, Option<MemoryWrite>) {
+    let syscall_name = match syscall {
+        InvocableSysCall::Loose(name) => name,
+        InvocableSysCall::Precise(name) => name,
+    };
+    let memory_write = match syscall_name {
+        SysCallName::PayProgramRent => Some(MemoryWrite {
+            offset: 0,
+            content: vec![255; WASM_PAGE_SIZE],
+        }),
+        _ => None,
+    };
+
+    (
+        SysCallsParamsConfig::all_constant_value(i32::MAX as i64),
+        memory_write,
+    )
+}
+
+fn execute_wasm_with_custom_configs(
+    unstructured: &mut Unstructured,
+    syscalls_config: SysCallsConfig,
+    initial_memory_write: Option<MemoryWrite>,
+    outgoing_limit: u32,
+    imitate_reply: bool,
+) -> TerminationReason {
+    const PROGRAM_STORAGE_PREFIX: [u8; 32] = *b"execute_wasm_with_custom_configs";
+    const INITIAL_PAGES: u16 = 1;
+
+    assert!(gear_lazy_pages_interface::try_to_enable_lazy_pages(
+        PROGRAM_STORAGE_PREFIX
+    ));
+
+    let gear_config = (
+        GearWasmGeneratorConfigBuilder::new()
+            .with_memory_config(MemoryPagesConfig {
+                initial_size: INITIAL_PAGES as u32,
+                ..MemoryPagesConfig::default()
+            })
+            .with_syscalls_config(syscalls_config)
+            .with_entry_points_config(EntryPointsSet::Init)
+            .build(),
+        SelectableParams {
+            allowed_instructions: vec![],
+            max_instructions: 0,
+            min_funcs: NonZeroUsize::new(1).unwrap(),
+            max_funcs: NonZeroUsize::new(1).unwrap(),
+        },
+    );
+
+    let code =
+        generate_gear_program_code(unstructured, gear_config).expect("failed wasm generation");
+    let code = Code::try_new(code, 1, |_| CustomConstantCostRules::new(0, 0, 0), None)
+        .expect("Failed to create Code");
+
+    let code_id = CodeId::generate(code.original_code());
+    let program_id = ProgramId::generate_from_user(code_id, b"");
+
+    let mut message_context = MessageContext::new(
+        IncomingDispatch::new(DispatchKind::Init, IncomingMessage::default(), None),
+        program_id,
+        ContextSettings::new(0, 0, 0, 0, 0, outgoing_limit),
+    );
+
+    if imitate_reply {
+        let _ = message_context.reply_commit(ReplyPacket::auto(), None);
+    }
+
+    let processor_context = ProcessorContext {
+        message_context,
+        max_pages: INITIAL_PAGES.into(),
+        rent_cost: 10,
+        program_id,
+        ..ProcessorContext::new_mock()
+    };
+
+    let ext = gear_core_processor::Ext::new(processor_context);
+    let env = Environment::new(
+        ext,
+        code.code(),
+        DispatchKind::Init,
+        vec![DispatchKind::Init].into_iter().collect(),
+        INITIAL_PAGES.into(),
+    )
+    .expect("Failed to create environment");
+
+    let report = env
+        .execute(|mem, _stack_end, globals_config| -> Result<(), u32> {
+            gear_core_processor::Ext::lazy_pages_init_for_program(
+                mem,
+                program_id,
+                Default::default(),
+                Some(mem.size()),
+                globals_config,
+                Default::default(),
+            );
+
+            if let Some(mem_write) = initial_memory_write {
+                return mem
+                    .write(mem_write.offset, &mem_write.content)
+                    .map_err(|_| 1);
+            };
+
+            Ok(())
+        })
+        .expect("Failed to execute WASM module");
+
+    let BackendReport {
+        termination_reason, ..
+    } = report;
+
+    termination_reason
 }
 
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(100))]
     #[test]
-    fn test_gen_reproduction(seed in 0..u64::MAX) {
-        let mut rng = SmallRng::seed_from_u64(seed);
-        let mut buf = vec![0; 100_000];
-        rng.fill_bytes(&mut buf);
+    // Test that valid config always generates a valid gear wasm.
+    fn test_standard_config(buf in prop::collection::vec(any::<u8>(), UNSTRUCTURED_SIZE)) {
+        use gear_wasm_instrument::rules::CustomConstantCostRules;
+        let mut u = Unstructured::new(&buf);
+        let configs_bundle: StandardGearWasmConfigsBundle = StandardGearWasmConfigsBundle {
+            log_info: Some("Some data".into()),
+            entry_points_set: EntryPointsSet::InitHandleHandleReply,
+            ..Default::default()
+        };
 
+        let original_code = generate_gear_program_code(&mut u, configs_bundle)
+            .expect("failed generating wasm");
+
+        let code_res = Code::try_new(original_code, 1, |_| CustomConstantCostRules::default(), None);
+        assert!(code_res.is_ok());
+    }
+
+    #[test]
+    fn test_reproduction(buf in prop::collection::vec(any::<u8>(), UNSTRUCTURED_SIZE)) {
         let mut u = Unstructured::new(&buf);
         let mut u2 = Unstructured::new(&buf);
 
-        let gear_config = GearConfig::new_normal();
+        let gear_config = StandardGearWasmConfigsBundle::<[u8; 32]>::default();
 
-        let first = gen_gear_program_code(&mut u, gear_config.clone(), &[]);
-        let second = gen_gear_program_code(&mut u2, gear_config, &[]);
+        let first = generate_gear_program_code(&mut u, gear_config.clone()).expect("failed wasm generation");
+        let second = generate_gear_program_code(&mut u2, gear_config).expect("failed wasm generation");
 
-        assert!(first == second);
+        assert_eq!(first, second);
     }
-}
-
-#[test]
-fn injecting_addresses_works() {
-    use gsys::HashWithValue;
-
-    let mut rng = SmallRng::seed_from_u64(1234);
-
-    let mut buf = vec![0; UNSTRUCTURED_SIZE];
-    rng.fill_bytes(&mut buf);
-    let mut u = Unstructured::new(&buf);
-    let code = gen_gear_program_code(&mut u, GearConfig::new_normal(), &[]);
-
-    let module: elements::Module = parity_wasm::deserialize_buffer(&code).unwrap();
-    let memory_pages = module
-        .import_section()
-        .map_or(0u32, |import_section| {
-            for entry in import_section.entries() {
-                if let External::Memory(memory) = entry.external() {
-                    return memory.limits().initial();
-                }
-            }
-
-            0u32
-        })
-        .into();
-    let builder = ModuleBuilderWithData::new(&[], module.clone(), memory_pages);
-    {
-        let module: ModuleWithDebug = builder.into();
-
-        assert_eq!(module.last_offset, 0);
-        assert!(module
-            .module
-            .data_section()
-            .map_or(true, |s| s.entries().is_empty()));
-    }
-
-    let addresses = [
-        HashWithValue {
-            hash: Default::default(),
-            value: 0,
-        },
-        HashWithValue {
-            hash: [1; 32],
-            value: 1,
-        },
-    ];
-    let builder = ModuleBuilderWithData::new(&addresses, module, memory_pages);
-    let module = ModuleWithDebug::from(builder);
-
-    let size = mem::size_of::<gsys::HashWithValue>() as u32;
-    assert_eq!(module.last_offset, 2 * size);
-
-    let data_section = module.module.data_section().unwrap();
-    let segments = data_section.entries();
-    assert_eq!(segments.len(), 2);
-
-    let code = parity_wasm::serialize(module.module).unwrap();
-    let wat = wasmprinter::print_bytes(code).unwrap();
-    println!("wat = {wat}");
 }

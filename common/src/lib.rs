@@ -17,6 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 #![cfg_attr(not(feature = "std"), no_std)]
+#![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
+#![doc(html_favicon_url = "https://gear-tech.io/favicons/favicon.ico")]
 
 #[macro_use]
 extern crate gear_common_codegen;
@@ -39,9 +41,13 @@ pub mod gas_provider;
 #[cfg(feature = "runtime-benchmarks")]
 pub mod benchmarking;
 
+#[cfg(feature = "std")]
+pub mod pallet_tests;
+
 use core::fmt;
 use frame_support::{
     codec::{self, Decode, Encode},
+    pallet_prelude::MaxEncodedLen,
     scale_info::{self, TypeInfo},
     sp_runtime::{
         self,
@@ -49,17 +55,17 @@ use frame_support::{
         traits::{Dispatchable, SignedExtension},
     },
     traits::Get,
-    weights::{ConstantMultiplier, Weight, WeightToFee},
 };
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
     memory::PageBuf,
     message::DispatchKind,
     pages::{GearPage, WasmPage},
+    program::MemoryInfix,
     reservation::GasReservationMap,
 };
 use primitive_types::H256;
-use sp_arithmetic::traits::{BaseArithmetic, Saturating, Unsigned};
+use sp_arithmetic::traits::{BaseArithmetic, One, Saturating, UniqueSaturatedInto, Unsigned};
 use sp_core::crypto::UncheckedFrom;
 use sp_std::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
@@ -72,6 +78,9 @@ extern crate alloc;
 pub use gas_provider::{
     LockId, LockableTree, Provider as GasProvider, ReservableTree, Tree as GasTree,
 };
+
+/// Type alias for gas entity.
+pub type Gas = u64;
 
 pub trait Origin: Sized {
     fn into_origin(self) -> H256;
@@ -143,17 +152,56 @@ impl Origin for CodeId {
     }
 }
 
-pub trait GasPrice {
-    type Balance: BaseArithmetic + From<u32> + Copy + Unsigned;
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Encode, Decode, MaxEncodedLen, TypeInfo,
+)]
+#[codec(crate = codec)]
+#[scale_info(crate = scale_info)]
+/// Type representing converter between gas and value in different relations.
+pub enum GasMultiplier<Balance, Gas> {
+    ValuePerGas(Balance),
+    GasPerValue(Gas),
+}
 
-    type GasToBalanceMultiplier: Get<Self::Balance>;
+impl<Balance: One, Gas> Default for GasMultiplier<Balance, Gas> {
+    fn default() -> Self {
+        Self::ValuePerGas(One::one())
+    }
+}
 
-    /// A price for the `gas` amount of gas.
-    /// In general case, this doesn't necessarily has to be constant.
-    fn gas_price(gas: u64) -> Self::Balance {
-        ConstantMultiplier::<Self::Balance, Self::GasToBalanceMultiplier>::weight_to_fee(
-            &Weight::from_parts(gas, 0),
-        )
+impl<Balance, Gas> GasMultiplier<Balance, Gas>
+where
+    Balance: BaseArithmetic + Copy + Unsigned,
+    Gas: BaseArithmetic + Copy + Unsigned + UniqueSaturatedInto<Balance>,
+{
+    /// Converts given gas amount into its value equivalent.
+    pub fn gas_to_value(&self, gas: Gas) -> Balance {
+        let gas: Balance = gas.unique_saturated_into();
+
+        match self {
+            Self::ValuePerGas(multiplier) => gas.saturating_mul(*multiplier),
+            Self::GasPerValue(_multiplier) => {
+                // Consider option to return `(*cost*, *amount of gas to be bought*)`.
+                unimplemented!("Currently unsupported that 1 Value > 1 Gas");
+            }
+        }
+    }
+}
+
+impl<Balance, Gas> From<GasMultiplier<Balance, Gas>> for gsys::GasMultiplier
+where
+    Balance: Copy + UniqueSaturatedInto<gsys::Value>,
+    Gas: Copy + UniqueSaturatedInto<gsys::Gas>,
+{
+    fn from(multiplier: GasMultiplier<Balance, Gas>) -> Self {
+        match multiplier {
+            GasMultiplier::ValuePerGas(multiplier) => {
+                Self::from_value_per_gas((multiplier).unique_saturated_into())
+            }
+            GasMultiplier::GasPerValue(multiplier) => {
+                Self::from_gas_per_value((multiplier).unique_saturated_into())
+            }
+        }
     }
 }
 
@@ -206,18 +254,6 @@ impl<BlockNumber: Copy + Saturating> Program<BlockNumber> {
             })
         )
     }
-
-    pub fn is_uninitialized(&self) -> Option<MessageId> {
-        if let Program::Active(ActiveProgram {
-            state: ProgramState::Uninitialized { message_id },
-            ..
-        }) = self
-        {
-            Some(*message_id)
-        } else {
-            None
-        }
-    }
 }
 
 #[derive(Clone, Debug, derive_more::Display)]
@@ -245,6 +281,7 @@ pub struct ActiveProgram<BlockNumber: Copy + Saturating> {
     pub allocations: BTreeSet<WasmPage>,
     /// Set of gear pages numbers, which has data in storage.
     pub pages_with_data: BTreeSet<GearPage>,
+    pub memory_infix: MemoryInfix,
     pub gas_reservation_map: GasReservationMap,
     pub code_hash: H256,
     pub code_exports: BTreeSet<DispatchKind>,
@@ -316,22 +353,14 @@ pub trait PaymentVoucher<AccountId, ProgramId, Balance> {
     type VoucherId;
     type Error;
 
-    fn redeem_with_id(
-        who: AccountId,
-        program: ProgramId,
-        amount: Balance,
-    ) -> Result<Self::VoucherId, Self::Error>;
+    fn voucher_id(who: AccountId, program: ProgramId) -> Self::VoucherId;
 }
 
-impl<AccountId, ProgramId, Balance> PaymentVoucher<AccountId, ProgramId, Balance> for () {
+impl<AccountId: Default, ProgramId, Balance> PaymentVoucher<AccountId, ProgramId, Balance> for () {
     type VoucherId = AccountId;
     type Error = &'static str;
 
-    fn redeem_with_id(
-        _who: AccountId,
-        _program: ProgramId,
-        _amount: Balance,
-    ) -> Result<AccountId, Self::Error> {
-        Err("Payment vouchers are not supported")
+    fn voucher_id(_who: AccountId, _program: ProgramId) -> Self::VoucherId {
+        unimplemented!()
     }
 }

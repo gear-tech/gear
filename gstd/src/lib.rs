@@ -127,12 +127,14 @@
     all(target_arch = "wasm32", any(feature = "debug", debug_assertions)),
     feature(panic_info_message)
 )]
-#![cfg_attr(target_arch = "wasm32", feature(panic_oom_payload))]
+#![cfg_attr(target_arch = "wasm32", feature(alloc_error_handler))]
 #![cfg_attr(feature = "strict", deny(warnings))]
 #![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
+#![doc(html_favicon_url = "https://gear-tech.io/favicons/favicon.ico")]
 #![doc(test(attr(deny(warnings), allow(unused_variables, unused_assignments))))]
 
 extern crate alloc;
+
 #[cfg(target_arch = "wasm32")]
 extern crate galloc;
 
@@ -140,18 +142,18 @@ mod async_runtime;
 mod common;
 mod config;
 pub mod exec;
-pub mod lock;
 mod macros;
 pub mod msg;
 pub mod prelude;
 pub mod prog;
 mod reservations;
+pub mod sync;
 pub mod util;
 
 pub use async_runtime::{handle_signal, message_loop, record_reply};
 pub use common::{errors, primitives::*};
 pub use config::Config;
-pub use gcore::ext;
+pub use gcore::{ext, BlockCount, BlockNumber, Gas, GasMultiplier, Percent, Value};
 pub use gstd_codegen::{async_init, async_main};
 pub use prelude::*;
 pub use reservations::*;

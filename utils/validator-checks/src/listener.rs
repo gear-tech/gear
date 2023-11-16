@@ -4,14 +4,13 @@ use crate::{
     cmd::Opt,
     result::{Error, Result},
 };
-use futures_util::StreamExt;
+use futures::StreamExt;
 use gsdk::{
     ext::{
         sp_core::crypto::{PublicError, Ss58Codec},
         sp_runtime::AccountId32,
     },
-    types::Blocks,
-    Api,
+    Api, Blocks,
 };
 use std::{result::Result as StdResult, time::Instant};
 
@@ -34,7 +33,10 @@ impl Listener {
 
     /// Listen to finalized blocks.
     pub async fn listen_finalized(&self) -> Result<Blocks> {
-        self.api.finalized_blocks().await.map_err(Into::into)
+        self.api
+            .subscribe_finalized_blocks()
+            .await
+            .map_err(Into::into)
     }
 
     /// Run validator checks.

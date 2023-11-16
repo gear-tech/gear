@@ -7,10 +7,9 @@ license.workspace = true
 
 [dependencies]
 # Internal
-vara-runtime = { workspace = true, optional = true }
-gear-runtime = { workspace = true, optional = true }
-gear-runtime-interface = { workspace = true, features = ["std"], optional = true }
+gear-runtime-interface.workspace = true
 runtime-primitives.workspace = true
+vara-runtime = { workspace = true, optional = true, features = ["dev"] }
 service = { workspace = true, optional = true }
 
 # Substrate Primitives
@@ -35,6 +34,7 @@ substrate-rpc-client.workspace = true
 # third-party
 codec.workspace = true
 clap = { workspace = true, features = ["derive"] }
+hex.workspace = true
 log.workspace = true
 tokio = { workspace = true, features = ["macros"] }
 
@@ -52,22 +52,15 @@ std = [
     "sp-externalities/std",
     "sc-executor/std",
     "frame-system/std",
-    "gear-runtime?/std",
+    "gear-runtime-interface/std",
     "vara-runtime?/std",
 ]
-always-wasm = [
-    "gear-runtime-interface",
-]
+always-wasm = []
 vara-native = [
-    "service/vara-native",
     "vara-runtime",
-]
-gear-native = [
-    "service/gear-native",
-    "gear-runtime",
+    "service/vara-native",
 ]
 try-runtime = [
-    "service/try-runtime",
-    "gear-runtime?/try-runtime",
     "vara-runtime?/try-runtime",
+    "service/try-runtime",
 ]

@@ -154,7 +154,7 @@ Let's do the upgrade step by step:
 
 3. Build your new node with
     ```bash
-    cargo build --release -p gear-runtime
+    cargo build --release -p vara-runtime
     ```
     It will be node state that we will be upgrading to.
 
@@ -175,7 +175,7 @@ toggle the "file upload" switch on the right-hand side of the "code" input field
 to the `setCode` function. Click the "code" input field, and select one of the Wasm binaries that defines the upgraded runtime:
 
 ```bash
-target/release/wbuild/gear-runtime/gear_runtime.compact.wasm
+target/release/wbuild/vara-runtime/vara_runtime.compact.wasm
 ```
 Leave the value for the `weight` parameter at the default of `0x00`. Click "Submit Transaction" and then "Sign and Submit".
 

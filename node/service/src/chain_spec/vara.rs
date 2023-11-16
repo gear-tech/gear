@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::chain_spec::{get_account_id_from_seed, get_from_seed, AccountId, Extensions};
-use gear_runtime_common;
+use gear_runtime_common::{self, constants::BANK_ADDRESS};
 use hex_literal::hex;
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use sc_chain_spec::Properties;
@@ -28,14 +28,11 @@ use sp_consensus_grandpa::AuthorityId as GrandpaId;
 use sp_core::{crypto::UncheckedInto, sr25519};
 use sp_runtime::{Perbill, Perquintill};
 use vara_runtime::{
-    constants::currency::UNITS as TOKEN, AuthorityDiscoveryConfig, BabeConfig, BalancesConfig,
-    GenesisConfig, GrandpaConfig, ImOnlineConfig, SessionConfig, SessionKeys, StakerStatus,
-    StakingConfig, StakingRewardsConfig, SudoConfig, SystemConfig, ValidatorSetConfig,
-    VestingConfig, WASM_BINARY,
+    constants::currency::{ECONOMIC_UNITS, EXISTENTIAL_DEPOSIT, UNITS as TOKEN},
+    AuthorityDiscoveryConfig, BabeConfig, BalancesConfig, GenesisConfig, GrandpaConfig,
+    ImOnlineConfig, NominationPoolsConfig, SessionConfig, SessionKeys, StakerStatus, StakingConfig,
+    StakingRewardsConfig, SudoConfig, SystemConfig, VestingConfig, WASM_BINARY,
 };
-
-// The URL for the telemetry server.
-// const STAGING_TELEMETRY_URL: &str = "wss://telemetry.polkadot.io/submit/";
 
 /// Specialized `ChainSpec`. This is a specialization of the general Substrate ChainSpec type.
 pub type ChainSpec = sc_service::GenericChainSpec<GenesisConfig, Extensions>;
@@ -115,6 +112,7 @@ pub fn development_config() -> Result<ChainSpec, String> {
                     get_account_id_from_seed::<sr25519::Public>("Alice"),
                     get_account_id_from_seed::<sr25519::Public>("Bob"),
                 ],
+                BANK_ADDRESS.into(),
                 true,
             )
         },
@@ -161,6 +159,7 @@ pub fn local_testnet_config() -> Result<ChainSpec, String> {
                     get_account_id_from_seed::<sr25519::Public>("Eve"),
                     get_account_id_from_seed::<sr25519::Public>("Ferdie"),
                 ],
+                BANK_ADDRESS.into(),
                 true,
             )
         },
@@ -179,7 +178,138 @@ pub fn local_testnet_config() -> Result<ChainSpec, String> {
     ))
 }
 
-/// Staging testnet config.
+/// Vara testnet config.
+pub fn testnet() -> Result<ChainSpec, String> {
+    let wasm_binary =
+        WASM_BINARY.ok_or_else(|| "Staging testnet wasm not available".to_string())?;
+
+    Ok(ChainSpec::from_genesis(
+        "Vara Network Testnet",
+        "vara_network_testnet",
+        ChainType::Live,
+        move || {
+            testnet_genesis(
+                wasm_binary,
+                // Initial PoA authorities
+                vec![
+                    (
+                        // Stash account
+                        // kGk5PxzdHH3dqmr4sAhrj38WtZe7C6TLcWDK6j1VhMgxyE6Rv
+                        hex!["c8e4df7eac6b52dc5281659f1f393903932ee4b1f69f311c3cb123bc40f9267a"]
+                            .into(),
+                        // Controller account
+                        // kGk5PxzdHH3dqmr4sAhrj38WtZe7C6TLcWDK6j1VhMgxyE6Rv
+                        hex!["c8e4df7eac6b52dc5281659f1f393903932ee4b1f69f311c3cb123bc40f9267a"]
+                            .into(),
+                        // BabeId: kGk5PxzdHH3dqmr4sAhrj38WtZe7C6TLcWDK6j1VhMgxyE6Rv
+                        hex!["c8e4df7eac6b52dc5281659f1f393903932ee4b1f69f311c3cb123bc40f9267a"]
+                            .unchecked_into(),
+                        // GrandpaId: kGkmyeZMTU5LxL52va9WuEvQGzgGr25nAJWhnaZa3uTNogMdy
+                        hex!["e7d812ca5322f9b735e6cef4953cb706ce349752d7c737ef7aac817ebb840de1"]
+                            .unchecked_into(),
+                        // ImOnlineId: kGk5PxzdHH3dqmr4sAhrj38WtZe7C6TLcWDK6j1VhMgxyE6Rv
+                        hex!["c8e4df7eac6b52dc5281659f1f393903932ee4b1f69f311c3cb123bc40f9267a"]
+                            .unchecked_into(),
+                        // AuthorityDiscoveryId: kGk5PxzdHH3dqmr4sAhrj38WtZe7C6TLcWDK6j1VhMgxyE6Rv
+                        hex!["c8e4df7eac6b52dc5281659f1f393903932ee4b1f69f311c3cb123bc40f9267a"]
+                            .unchecked_into(),
+                    ),
+                    (
+                        // Stash account
+                        // kGgu3wishk7ZwhQLdG6StPR8zNcE1roeeLbTLGxQXiUdrQ6vK
+                        hex!["3c4c519e3d7149c93181e8e3762562db6f580c27502e9a6ab2f7464d6185241b"]
+                            .into(),
+                        // Controller account
+                        // kGgu3wishk7ZwhQLdG6StPR8zNcE1roeeLbTLGxQXiUdrQ6vK
+                        hex!["3c4c519e3d7149c93181e8e3762562db6f580c27502e9a6ab2f7464d6185241b"]
+                            .into(),
+                        // BabeId: kGgu3wishk7ZwhQLdG6StPR8zNcE1roeeLbTLGxQXiUdrQ6vK
+                        hex!["3c4c519e3d7149c93181e8e3762562db6f580c27502e9a6ab2f7464d6185241b"]
+                            .unchecked_into(),
+                        // GrandpaId: kGhkmtR8b94qQhQLVukyTGyexoQyajydms3HFZeYLvxTwaEyt
+                        hex!["6238894f19edef4a4a638b3fab9b42909336912bd6ccdf835e9ecc24a64a8713"]
+                            .unchecked_into(),
+                        // ImOnlineId: kGgu3wishk7ZwhQLdG6StPR8zNcE1roeeLbTLGxQXiUdrQ6vK
+                        hex!["3c4c519e3d7149c93181e8e3762562db6f580c27502e9a6ab2f7464d6185241b"]
+                            .unchecked_into(),
+                        // AuthorityDiscoveryId: kGgu3wishk7ZwhQLdG6StPR8zNcE1roeeLbTLGxQXiUdrQ6vK
+                        hex!["3c4c519e3d7149c93181e8e3762562db6f580c27502e9a6ab2f7464d6185241b"]
+                            .unchecked_into(),
+                    ),
+                    (
+                        // Stash account
+                        // kGhY2DGv6j9xzy3mJ84R19V9FVDRcxtbZ7QaBQw4tYiFBKzB7
+                        hex!["587e919f8149e31f7d4e99e8fbdf30ff119593376f066e20dacda9054892b478"]
+                            .into(),
+                        // Controller account
+                        // kGhY2DGv6j9xzy3mJ84R19V9FVDRcxtbZ7QaBQw4tYiFBKzB7
+                        hex!["587e919f8149e31f7d4e99e8fbdf30ff119593376f066e20dacda9054892b478"]
+                            .into(),
+                        // BabeId: kGhY2DGv6j9xzy3mJ84R19V9FVDRcxtbZ7QaBQw4tYiFBKzB7
+                        hex!["587e919f8149e31f7d4e99e8fbdf30ff119593376f066e20dacda9054892b478"]
+                            .unchecked_into(),
+                        // GrandpaId: kGjxXy9tDgdthvcxjMacodRwDcF3EkLHw8YBnpKkcGdY8dm8c
+                        hex!["c3a91848c88b9481405fb29d07cc221c400763ce3ed3c8735c64a86c026bb5ee"]
+                            .unchecked_into(),
+                        // ImOnlineId: kGhY2DGv6j9xzy3mJ84R19V9FVDRcxtbZ7QaBQw4tYiFBKzB7
+                        hex!["587e919f8149e31f7d4e99e8fbdf30ff119593376f066e20dacda9054892b478"]
+                            .unchecked_into(),
+                        // AuthorityDiscoveryId: kGhY2DGv6j9xzy3mJ84R19V9FVDRcxtbZ7QaBQw4tYiFBKzB7
+                        hex!["587e919f8149e31f7d4e99e8fbdf30ff119593376f066e20dacda9054892b478"]
+                            .unchecked_into(),
+                    ),
+                    (
+                        // Stash account
+                        // kGm2bGRMnUR4XBJBTZ46chAypEVSA8NGXwCMzjX5UHnbMwPui
+                        hex!["f2fd6936b8ddad025d329ff2d6b5577e6381cb25333f6f17f592494b0b61ef55"]
+                            .into(),
+                        // Controller account
+                        // kGm2bGRMnUR4XBJBTZ46chAypEVSA8NGXwCMzjX5UHnbMwPui
+                        hex!["f2fd6936b8ddad025d329ff2d6b5577e6381cb25333f6f17f592494b0b61ef55"]
+                            .into(),
+                        // BabeId: kGm2bGRMnUR4XBJBTZ46chAypEVSA8NGXwCMzjX5UHnbMwPui
+                        hex!["f2fd6936b8ddad025d329ff2d6b5577e6381cb25333f6f17f592494b0b61ef55"]
+                            .unchecked_into(),
+                        // GrandpaId: kGhUFt5bRR4D63XbEvGTN9nv8E6X5priTLr2BaxrPdHqN9BMD
+                        hex!["559f99f172dcfef6c6894cfe53312b3f11d67c3ac0c29ead872d3ec37f7fcffa"]
+                            .unchecked_into(),
+                        // ImOnlineId: kGm2bGRMnUR4XBJBTZ46chAypEVSA8NGXwCMzjX5UHnbMwPui
+                        hex!["f2fd6936b8ddad025d329ff2d6b5577e6381cb25333f6f17f592494b0b61ef55"]
+                            .unchecked_into(),
+                        // AuthorityDiscoveryId: kGm2bGRMnUR4XBJBTZ46chAypEVSA8NGXwCMzjX5UHnbMwPui
+                        hex!["f2fd6936b8ddad025d329ff2d6b5577e6381cb25333f6f17f592494b0b61ef55"]
+                            .unchecked_into(),
+                    ),
+                ],
+                // Sudo account
+                // kGiV2zSRBY95vX3vsEa4YtvN2jo2pNsJKfUwye9t9w3fbDUnz
+                hex!["8273aff7a45330b7eff0807f3a888f442df36d8113e3a62fa99f9737520f1b04"].into(),
+                // Pre-funded accounts
+                vec![
+                    // root_key
+                    hex!["8273aff7a45330b7eff0807f3a888f442df36d8113e3a62fa99f9737520f1b04"].into(),
+                ],
+                BANK_ADDRESS.into(),
+                true,
+            )
+        },
+        // Bootnodes
+        vec![],
+        // Telemetry
+        // TODO: define telemetry endpoints
+        None,
+        // Protocol ID
+        None,
+        // Fork ID
+        None,
+        // Properties
+        Some(vara_properties()),
+        // Extensions
+        Default::default(),
+    ))
+}
+
+/// Vara Network config.
 pub fn main() -> Result<ChainSpec, String> {
     let wasm_binary =
         WASM_BINARY.ok_or_else(|| "Staging testnet wasm not available".to_string())?;
@@ -522,6 +652,7 @@ pub fn main() -> Result<ChainSpec, String> {
                     // root_key
                     hex!["2455655ad2a1f9fbe510699026fc810a2b3cb91d432c141db54a9968da944955"].into(),
                 ],
+                BANK_ADDRESS.into(),
                 true,
             )
         },
@@ -554,6 +685,7 @@ fn testnet_genesis(
     )>,
     root_key: AccountId,
     endowed_accounts: Vec<AccountId>,
+    bank_account: AccountId,
     _enable_println: bool,
 ) -> GenesisConfig {
     const ENDOWMENT: u128 = 1_000_000 * TOKEN;
@@ -562,24 +694,20 @@ fn testnet_genesis(
 
     let _num_endowed_accounts = endowed_accounts.len();
 
+    let mut balances = endowed_accounts
+        .iter()
+        .map(|k: &AccountId| (k.clone(), ENDOWMENT))
+        .chain(initial_authorities.iter().map(|x| (x.0.clone(), STASH)))
+        .collect::<Vec<_>>();
+
+    balances.push((bank_account, EXISTENTIAL_DEPOSIT));
+
     GenesisConfig {
         system: SystemConfig {
             // Add Wasm runtime to storage.
             code: wasm_binary.to_vec(),
         },
-        balances: BalancesConfig {
-            balances: endowed_accounts
-                .iter()
-                .map(|k: &AccountId| (k.clone(), ENDOWMENT))
-                .chain(initial_authorities.iter().map(|x| (x.0.clone(), STASH)))
-                .collect(),
-        },
-        validator_set: ValidatorSetConfig {
-            initial_validators: initial_authorities
-                .iter()
-                .map(|x| x.0.clone())
-                .collect::<Vec<_>>(),
-        },
+        balances: BalancesConfig { balances },
         babe: BabeConfig {
             authorities: Default::default(),
             epoch_config: Some(vara_runtime::BABE_GENESIS_EPOCH_CONFIG),
@@ -619,6 +747,11 @@ fn testnet_genesis(
         authority_discovery: AuthorityDiscoveryConfig { keys: vec![] },
         transaction_payment: Default::default(),
         treasury: Default::default(),
+        nomination_pools: NominationPoolsConfig {
+            min_create_bond: 10 * ECONOMIC_UNITS,
+            min_join_bond: ECONOMIC_UNITS,
+            ..Default::default()
+        },
         vesting: VestingConfig { vesting: vec![] },
         staking_rewards: StakingRewardsConfig {
             non_stakeable: Perquintill::from_rational(4108_u64, 10_000_u64), // 41.08%

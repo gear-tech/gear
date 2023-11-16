@@ -26,7 +26,7 @@ mod common;
 #[tokio::test]
 async fn api_timeout() {
     assert!(matches!(
-        Api::new_with_timeout(None, Some(10)).await.err(),
+        Api::new_with_timeout(None, Some(1)).await.err(),
         Some(Error::SubxtRpc(jsonrpsee::core::Error::Transport(..)))
     ));
 }
@@ -45,4 +45,9 @@ fn paths() {
             panic!("{} not found.", path)
         }
     })
+}
+
+#[test]
+fn ss58_prefix() {
+    assert_eq!(gcli::VARA_SS58_PREFIX, vara_runtime::SS58Prefix::get());
 }

@@ -86,17 +86,21 @@ Metadata {
         },
         output: Option<u8>,
     },
+    state:  {
+        input: (),
+        output: [Wallet { id: Id, person: Person }],
+    },
     reply: str,
     signal: (),
-    state: [Wallet { id: Id, person: Person }],
 }
 "#;
 
 #[test]
 fn test_command_program_metadata_works() -> Result<()> {
+    let node = common::dev()?;
     let meta = env::wasm_bin("demo_new_meta.meta.txt");
     let args = Args::new("program").action("meta").meta(meta);
-    let result = common::gcli(Vec::<String>::from(args)).expect("run gcli failed");
+    let result = node.run(args)?;
 
     let stdout = result.stdout.convert();
     assert_eq!(
@@ -110,13 +114,14 @@ fn test_command_program_metadata_works() -> Result<()> {
 #[test]
 fn test_command_program_metadata_derive_works() -> Result<()> {
     let meta = env::wasm_bin("demo_new_meta.meta.txt");
+    let node = common::dev()?;
     let args = Args::new("program")
         .action("meta")
         .meta(meta)
         .flag("--derive")
         .derive("Person");
 
-    let result = common::gcli(Vec::<String>::from(args)).expect("run gcli failed");
+    let result = node.run(args)?;
     let stdout = result.stdout.convert();
 
     let expected = "Person { surname: String, name: String }";
@@ -150,9 +155,10 @@ Exports {
 
 #[test]
 fn test_command_program_metawasm_works() -> Result<()> {
+    let node = common::dev()?;
     let meta = env::wasm_bin("demo_meta_state_v1.meta.wasm");
     let args = Args::new("program").action("meta").meta(meta);
-    let result = common::gcli(Vec::<String>::from(args)).expect("run gcli failed");
+    let result = node.run(args)?;
 
     let stdout = result.stdout.convert();
     assert_eq!(
@@ -165,6 +171,7 @@ fn test_command_program_metawasm_works() -> Result<()> {
 
 #[test]
 fn test_command_program_metawasm_derive_works() -> Result<()> {
+    let node = common::dev()?;
     let meta = env::wasm_bin("demo_meta_state_v1.meta.wasm");
     let args = Args::new("program")
         .action("meta")
@@ -172,7 +179,7 @@ fn test_command_program_metawasm_derive_works() -> Result<()> {
         .flag("--derive")
         .derive("Person");
 
-    let result = common::gcli(Vec::<String>::from(args)).expect("run gcli failed");
+    let result = node.run(args)?;
     let stdout = result.stdout.convert();
 
     let expected = "Person { surname: String, name: String }";

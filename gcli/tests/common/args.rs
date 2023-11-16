@@ -47,7 +47,7 @@ impl Args {
 
 impl From<Args> for Vec<String> {
     fn from(args: Args) -> Self {
-        vec![
+        [
             if let Some(endpoint) = args.endpoint {
                 vec!["--endpoint".into(), endpoint]
             } else {

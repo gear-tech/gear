@@ -1,9 +1,14 @@
 [package]
 name = "gear-common"
-version = "0.1.0"
+description = "Gear common library for the runtime"
+keywords = ["gear", "wasm"]
+categories = ["wasm"]
+version.workspace = true
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
+homepage.workspace = true
+repository.workspace = true
 
 [dependencies]
 primitive-types = { workspace = true, features = ["scale-info"] }
@@ -11,15 +16,12 @@ log.workspace = true
 derive_more.workspace = true
 enum-iterator.workspace = true
 fail = { workspace = true, features = [ "failpoints" ], optional = true }
-hex.workspace = true
-serde = { workspace = true, features = ["derive"] }
-serde_json.workspace = true
-path-clean.workspace = true
 
 # Internal deps
 gear-core.workspace = true
 gear-common-codegen.workspace = true
 gear-wasm-instrument = { workspace = true, optional = true }
+gsys.workspace = true
 
 # Substrate deps
 sp-core.workspace = true
@@ -43,6 +45,7 @@ std = [
     "sp-io/std",
     "sp-arithmetic/std",
     "frame-support/std",
+    "frame-system/std",
     "primitive-types/std",
     "gear-wasm-instrument?/std",
 ]

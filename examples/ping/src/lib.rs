@@ -27,15 +27,4 @@ mod code {
 pub use code::WASM_BINARY_OPT as WASM_BINARY;
 
 #[cfg(not(feature = "std"))]
-mod wasm {
-    use gstd::{msg, prelude::*};
-
-    #[no_mangle]
-    extern "C" fn handle() {
-        let payload = msg::load_bytes().expect("Failed to load payload");
-
-        if payload == b"PING" {
-            msg::reply_bytes("PONG", 0).expect("Failed to send reply");
-        }
-    }
-}
+mod wasm;

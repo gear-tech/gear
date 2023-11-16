@@ -16,9 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use demo_capacitor::WASM_BINARY;
+use demo_custom::{InitMessage, WASM_BINARY};
 use gclient::{EventListener, EventProcessor, GearApi, Result};
 use gear_core::ids::ProgramId;
+use parity_scale_codec::Encode;
 
 async fn charge_10(
     api: &GearApi,
@@ -70,7 +71,7 @@ async fn memory_dump() -> Result<()> {
     // Check that blocks are still running
     assert!(listener.blocks_running().await?);
     // Calculate gas amount needed for initialization
-    let payload = b"15".to_vec();
+    let payload = InitMessage::Capacitor("15".to_string()).encode();
     let gas_info = api
         .calculate_upload_gas(None, WASM_BINARY.to_vec(), payload.clone(), 0, true)
         .await?;
@@ -95,7 +96,7 @@ async fn memory_dump() -> Result<()> {
         path: "./296c6962726".to_string(),
     };
 
-    api.save_program_memory_dump_at(program_id, None, "./296c6962726/demo_capacitor.dump")
+    api.save_program_memory_dump_at(program_id, None, "./296c6962726/demo_custom.dump")
         .await
         .unwrap();
 
@@ -104,7 +105,7 @@ async fn memory_dump() -> Result<()> {
         "Discharged: 20"
     );
 
-    api.replace_program_memory(program_id, "./296c6962726/demo_capacitor.dump")
+    api.replace_program_memory(program_id, "./296c6962726/demo_custom.dump")
         .await
         .unwrap();
 

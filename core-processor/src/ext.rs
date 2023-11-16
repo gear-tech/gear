@@ -16,43 +16,47 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::configs::{BlockInfo, PageCosts};
+use crate::{
+    configs::{BlockInfo, PageCosts},
+    context::SystemReservationContext,
+};
 use alloc::{
     collections::{BTreeMap, BTreeSet},
     vec::Vec,
 };
-use gear_backend_common::{
-    lazy_pages::{GlobalsAccessConfig, LazyPagesWeights, Status},
-    memory::ProcessAccessError,
-    runtime::RunFallibleError,
-    ActorTerminationReason, BackendAllocSyscallError, BackendExternalities, BackendSyscallError,
-    ExtInfo, SystemReservationContext, TerminationReason, TrapExplanation,
-    UnrecoverableExecutionError, UnrecoverableExtError as UnrecoverableExtErrorCore,
-    UnrecoverableWaitError,
-};
 use gear_core::{
     costs::{HostFnWeights, RuntimeCosts},
     env::{Externalities, PayloadSliceLock, UnlockPayloadBound},
+    env_vars::{EnvVars, EnvVarsV1},
     gas::{
-        ChargeError, ChargeResult, CountersOwner, GasAllowanceCounter, GasAmount, GasCounter,
-        GasLeft, Token, ValueCounter,
+        ChargeError, ChargeResult, CounterType, CountersOwner, GasAllowanceCounter, GasAmount,
+        GasCounter, GasLeft, Token, ValueCounter,
     },
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{
-        AllocError, AllocationsContext, GrowHandler, Memory, MemoryError, MemoryInterval,
-        NoopGrowHandler, PageBuf,
+        AllocError, AllocationsContext, GrowHandler, Memory, MemoryError, MemoryInterval, PageBuf,
     },
     message::{
-        ContextOutcomeDrain, GasLimit, HandlePacket, InitPacket, MessageContext, Packet,
-        ReplyPacket,
+        ContextOutcomeDrain, ContextStore, Dispatch, GasLimit, HandlePacket, InitPacket,
+        MessageContext, Packet, ReplyPacket,
     },
     pages::{GearPage, PageU32Size, WasmPage},
+    program::MemoryInfix,
     reservation::GasReserver,
+};
+use gear_core_backend::{
+    error::{
+        ActorTerminationReason, BackendAllocSyscallError, BackendSyscallError, RunFallibleError,
+        TrapExplanation, UndefinedTerminationReason, UnrecoverableExecutionError,
+        UnrecoverableExtError as UnrecoverableExtErrorCore, UnrecoverableWaitError,
+    },
+    BackendExternalities,
 };
 use gear_core_errors::{
     ExecutionError as FallibleExecutionError, ExtError as FallibleExtErrorCore, MessageError,
     ProgramRentError, ReplyCode, ReservationError, SignalCode,
 };
+use gear_lazy_pages_common::{GlobalsAccessConfig, LazyPagesWeights, ProcessAccessError, Status};
 use gear_wasm_instrument::syscalls::SysCallName;
 
 /// Processor context.
@@ -73,6 +77,8 @@ pub struct ProcessorContext {
     pub message_context: MessageContext,
     /// Block info.
     pub block_info: BlockInfo,
+    /// Performance multiplier.
+    pub performance_multiplier: gsys::Percent,
     /// Max allowed wasm memory pages.
     pub max_pages: WasmPage,
     /// Allocations config.
@@ -104,21 +110,87 @@ pub struct ProcessorContext {
     pub random_data: (Vec<u8>, u32),
     /// Rent cost per block.
     pub rent_cost: u128,
+    /// Gas multiplier.
+    pub gas_multiplier: gsys::GasMultiplier,
+}
+
+#[cfg(any(feature = "mock", test))]
+impl ProcessorContext {
+    /// Create new mock [`ProcessorContext`] for usage in tests.
+    pub fn new_mock() -> ProcessorContext {
+        use gear_core::message::{ContextSettings, IncomingDispatch};
+
+        ProcessorContext {
+            gas_counter: GasCounter::new(0),
+            gas_allowance_counter: GasAllowanceCounter::new(0),
+            gas_reserver: GasReserver::new(
+                &<IncomingDispatch as Default>::default(),
+                Default::default(),
+                Default::default(),
+            ),
+            system_reservation: None,
+            value_counter: ValueCounter::new(0),
+            allocations_context: AllocationsContext::new(
+                Default::default(),
+                Default::default(),
+                Default::default(),
+            ),
+            message_context: MessageContext::new(
+                Default::default(),
+                Default::default(),
+                ContextSettings::new(0, 0, 0, 0, 0, 0),
+            ),
+            block_info: Default::default(),
+            performance_multiplier: gsys::Percent::new(100),
+            max_pages: 512.into(),
+            page_costs: Default::default(),
+            existential_deposit: 0,
+            program_id: Default::default(),
+            program_candidates_data: Default::default(),
+            program_rents: Default::default(),
+            host_fn_weights: Default::default(),
+            forbidden_funcs: Default::default(),
+            mailbox_threshold: 0,
+            waitlist_cost: 0,
+            dispatch_hold_cost: 0,
+            reserve_for: 0,
+            reservation: 0,
+            random_data: ([0u8; 32].to_vec(), 0),
+            rent_cost: 0,
+            gas_multiplier: gsys::GasMultiplier::from_value_per_gas(1),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct ExtInfo {
+    pub gas_amount: GasAmount,
+    pub gas_reserver: GasReserver,
+    pub system_reservation_context: SystemReservationContext,
+    pub allocations: BTreeSet<WasmPage>,
+    pub pages_data: BTreeMap<GearPage, PageBuf>,
+    pub generated_dispatches: Vec<(Dispatch, u32, Option<ReservationId>)>,
+    pub awakening: Vec<(MessageId, u32)>,
+    pub reply_deposits: Vec<(MessageId, u64)>,
+    pub program_candidates_data: BTreeMap<CodeId, Vec<(MessageId, ProgramId)>>,
+    pub program_rents: BTreeMap<ProgramId, u32>,
+    pub context_store: ContextStore,
 }
 
 /// Trait to which ext must have to work in processor wasm executor.
 /// Currently used only for lazy-pages support.
 pub trait ProcessorExternalities {
-    /// Whether this extension works with lazy pages.
-    const LAZY_PAGES_ENABLED: bool;
-
     /// Create new
     fn new(context: ProcessorContext) -> Self;
+
+    /// Convert externalities into info.
+    fn into_ext_info(self, memory: &impl Memory) -> Result<ExtInfo, MemoryError>;
 
     /// Protect and save storage keys for pages which has no data
     fn lazy_pages_init_for_program(
         mem: &mut impl Memory,
         prog_id: ProgramId,
+        memory_infix: MemoryInfix,
         stack_end: Option<WasmPage>,
         globals_config: GlobalsAccessConfig,
         lazy_pages_weights: LazyPagesWeights,
@@ -153,7 +225,7 @@ impl From<UnrecoverableWaitError> for UnrecoverableExtError {
 }
 
 impl BackendSyscallError for UnrecoverableExtError {
-    fn into_termination_reason(self) -> TerminationReason {
+    fn into_termination_reason(self) -> UndefinedTerminationReason {
         match self {
             UnrecoverableExtError::Core(err) => {
                 ActorTerminationReason::Trap(TrapExplanation::UnrecoverableExt(err)).into()
@@ -163,7 +235,7 @@ impl BackendSyscallError for UnrecoverableExtError {
     }
 
     fn into_run_fallible_error(self) -> RunFallibleError {
-        RunFallibleError::TerminationReason(self.into_termination_reason())
+        RunFallibleError::UndefinedTerminationReason(self.into_termination_reason())
     }
 }
 
@@ -207,12 +279,12 @@ impl From<FallibleExtError> for RunFallibleError {
         match err {
             FallibleExtError::Core(err) => RunFallibleError::FallibleExt(err),
             FallibleExtError::ForbiddenFunction => {
-                RunFallibleError::TerminationReason(TerminationReason::Actor(
+                RunFallibleError::UndefinedTerminationReason(UndefinedTerminationReason::Actor(
                     ActorTerminationReason::Trap(TrapExplanation::ForbiddenFunction),
                 ))
             }
             FallibleExtError::Charge(err) => {
-                RunFallibleError::TerminationReason(TerminationReason::from(err))
+                RunFallibleError::UndefinedTerminationReason(UndefinedTerminationReason::from(err))
             }
         }
     }
@@ -240,10 +312,45 @@ impl BackendAllocSyscallError for AllocExtError {
     }
 }
 
+struct LazyGrowHandler {
+    old_mem_addr: Option<u64>,
+    old_mem_size: WasmPage,
+}
+
+impl GrowHandler for LazyGrowHandler {
+    fn before_grow_action(mem: &mut impl Memory) -> Self {
+        // New pages allocation may change wasm memory buffer location.
+        // So we remove protections from lazy-pages
+        // and then in `after_grow_action` we set protection back for new wasm memory buffer.
+        let old_mem_addr = mem.get_buffer_host_addr();
+        gear_lazy_pages_interface::remove_lazy_pages_prot(mem);
+        Self {
+            old_mem_addr,
+            old_mem_size: mem.size(),
+        }
+    }
+
+    fn after_grow_action(self, mem: &mut impl Memory) {
+        // Add new allocations to lazy pages.
+        // Protect all lazy pages including new allocations.
+        let new_mem_addr = mem.get_buffer_host_addr().unwrap_or_else(|| {
+            unreachable!("Memory size cannot be zero after grow is applied for memory")
+        });
+        gear_lazy_pages_interface::update_lazy_pages_and_protect_again(
+            mem,
+            self.old_mem_addr,
+            self.old_mem_size,
+            new_mem_addr,
+        );
+    }
+}
+
 /// Structure providing externalities for running host functions.
 pub struct Ext {
     /// Processor context.
     pub context: ProcessorContext,
+    /// Actual gas counter type within wasm module's global.
+    pub current_counter: CounterType,
     // Counter of outgoing gasless messages.
     //
     // It's temporary field, used to solve `core-audit/issue#22`.
@@ -252,58 +359,123 @@ pub struct Ext {
 
 /// Empty implementation for non-substrate (and non-lazy-pages) using
 impl ProcessorExternalities for Ext {
-    const LAZY_PAGES_ENABLED: bool = false;
-
     fn new(context: ProcessorContext) -> Self {
+        let current_counter = if context.gas_counter.left() <= context.gas_allowance_counter.left()
+        {
+            CounterType::GasLimit
+        } else {
+            CounterType::GasAllowance
+        };
+
         Self {
             context,
+            current_counter,
             outgoing_gasless: 0,
         }
     }
 
-    fn lazy_pages_init_for_program(
-        _mem: &mut impl Memory,
-        _prog_id: ProgramId,
-        _stack_end: Option<WasmPage>,
-        _globals_config: GlobalsAccessConfig,
-        _lazy_pages_weights: LazyPagesWeights,
-    ) {
-        unreachable!("Must not be called: lazy-pages is unsupported by this ext")
+    fn into_ext_info(self, memory: &impl Memory) -> Result<ExtInfo, MemoryError> {
+        let ProcessorContext {
+            allocations_context,
+            message_context,
+            gas_counter,
+            gas_reserver,
+            system_reservation,
+            program_candidates_data,
+            program_rents,
+            ..
+        } = self.context;
+
+        let (static_pages, initial_allocations, allocations) = allocations_context.into_parts();
+
+        // Accessed pages are all pages, that had been released and are in allocations set or static.
+        let mut accessed_pages = gear_lazy_pages_interface::get_write_accessed_pages();
+        accessed_pages.retain(|p| {
+            let wasm_page = p.to_page();
+            wasm_page < static_pages || allocations.contains(&wasm_page)
+        });
+        log::trace!("accessed pages numbers = {:?}", accessed_pages);
+
+        let mut pages_data = BTreeMap::new();
+        for page in accessed_pages {
+            let mut buf = PageBuf::new_zeroed();
+            memory.read(page.offset(), &mut buf)?;
+            pages_data.insert(page, buf);
+        }
+
+        let (outcome, mut context_store) = message_context.drain();
+        let ContextOutcomeDrain {
+            outgoing_dispatches: generated_dispatches,
+            awakening,
+            reply_deposits,
+        } = outcome.drain();
+
+        let system_reservation_context = SystemReservationContext {
+            current_reservation: system_reservation,
+            previous_reservation: context_store.system_reservation(),
+        };
+
+        context_store.set_reservation_nonce(&gas_reserver);
+        if let Some(reservation) = system_reservation {
+            context_store.add_system_reservation(reservation);
+        }
+
+        let info = ExtInfo {
+            gas_amount: gas_counter.to_amount(),
+            gas_reserver,
+            system_reservation_context,
+            allocations: (allocations != initial_allocations)
+                .then_some(allocations)
+                .unwrap_or_default(),
+            pages_data,
+            generated_dispatches,
+            awakening,
+            reply_deposits,
+            context_store,
+            program_candidates_data,
+            program_rents,
+        };
+        Ok(info)
     }
 
-    fn lazy_pages_post_execution_actions(_mem: &mut impl Memory) {
-        unreachable!("Must not be called: lazy-pages is unsupported by this ext")
+    fn lazy_pages_init_for_program(
+        mem: &mut impl Memory,
+        prog_id: ProgramId,
+        memory_infix: MemoryInfix,
+        stack_end: Option<WasmPage>,
+        globals_config: GlobalsAccessConfig,
+        lazy_pages_weights: LazyPagesWeights,
+    ) {
+        gear_lazy_pages_interface::init_for_program(
+            mem,
+            prog_id,
+            memory_infix,
+            stack_end,
+            globals_config,
+            lazy_pages_weights,
+        );
+    }
+
+    fn lazy_pages_post_execution_actions(mem: &mut impl Memory) {
+        gear_lazy_pages_interface::remove_lazy_pages_prot(mem);
     }
 
     fn lazy_pages_status() -> Status {
-        unreachable!("Must not be called: lazy-pages is unsupported by this ext")
+        gear_lazy_pages_interface::get_status()
     }
 }
 
 impl BackendExternalities for Ext {
-    fn into_ext_info(self, memory: &impl Memory) -> Result<ExtInfo, MemoryError> {
-        let pages_for_data =
-            |static_pages: WasmPage, allocations: &BTreeSet<WasmPage>| -> Vec<GearPage> {
-                static_pages
-                    .iter_from_zero()
-                    .chain(allocations.iter().copied())
-                    .flat_map(|p| p.to_pages_iter())
-                    .collect()
-            };
-
-        self.into_ext_info_inner(memory, pages_for_data)
-    }
-
     fn gas_amount(&self) -> GasAmount {
         self.context.gas_counter.to_amount()
     }
 
     fn pre_process_memory_accesses(
-        _reads: &[MemoryInterval],
-        _writes: &[MemoryInterval],
-        _gas_left: &mut GasLeft,
+        reads: &[MemoryInterval],
+        writes: &[MemoryInterval],
+        gas_counter: &mut u64,
     ) -> Result<(), ProcessAccessError> {
-        Ok(())
+        gear_lazy_pages_interface::pre_process_memory_accesses(reads, writes, gas_counter)
     }
 }
 
@@ -433,10 +605,9 @@ impl Ext {
             return Err(ChargeError::GasLimitExceeded);
         }
         if gas_allowance_counter.charge_if_enough(amount) != ChargeResult::Enough {
-            if gas_counter.refund(amount) != ChargeResult::Enough {
-                // We have just charged `amount` from `self.gas_counter`, so this must be correct.
-                unreachable!("Cannot refund {amount} for `gas_counter`");
-            }
+            // Here might be refunds for gas counter, but it's meaningless since
+            // on gas allowance exceed we totally roll up the message and give
+            // it another try in next block with the same initial resources.
             return Err(ChargeError::GasAllowanceExceeded);
         }
         Ok(())
@@ -471,40 +642,57 @@ impl CountersOwner for Ext {
     }
 
     fn gas_left(&self) -> GasLeft {
-        GasLeft {
-            gas: self.context.gas_counter.left(),
-            allowance: self.context.gas_allowance_counter.left(),
+        (
+            self.context.gas_counter.left(),
+            self.context.gas_allowance_counter.left(),
+        )
+            .into()
+    }
+
+    fn current_counter_type(&self) -> CounterType {
+        self.current_counter
+    }
+
+    fn decrease_current_counter_to(&mut self, amount: u64) {
+        // For possible cases of non-atomic charges on backend side when global
+        // value is less than appropriate at the backend.
+        //
+        // Example:
+        // * While executing program calls some syscall.
+        // * Syscall ends up with unrecoverable error - gas limit exceeded.
+        // * We have to charge it so we leave backend and whole execution with 0 inner counter.
+        // * Meanwhile global is not zero, so for this case we have to skip decreasing.
+        if self.current_counter_value() <= amount {
+            log::trace!("Skipped decrease to global value");
+            return;
+        }
+
+        let GasLeft { gas, allowance } = self.gas_left();
+
+        let diff = match self.current_counter_type() {
+            CounterType::GasLimit => gas.checked_sub(amount),
+            CounterType::GasAllowance => allowance.checked_sub(amount),
+        }
+        .unwrap_or_else(|| unreachable!("Checked above"));
+
+        if self.context.gas_counter.charge(diff) == ChargeResult::NotEnough {
+            unreachable!("Tried to set gas limit left bigger than before")
+        }
+
+        if self.context.gas_allowance_counter.charge(diff) == ChargeResult::NotEnough {
+            unreachable!("Tried to set gas allowance left bigger than before")
         }
     }
 
-    fn set_gas_left(&mut self, gas_left: GasLeft) {
-        let GasLeft { gas, allowance } = gas_left;
+    fn define_current_counter(&mut self) -> u64 {
+        let GasLeft { gas, allowance } = self.gas_left();
 
-        let gas_left = self.context.gas_counter.left();
-        if gas_left > gas {
-            if self.context.gas_counter.charge_if_enough(gas_left - gas) != ChargeResult::Enough {
-                // We checked above that `gas_left` is bigger than `gas`
-                unreachable!("Cannot charge {gas} from `gas_counter`");
-            }
+        if gas <= allowance {
+            self.current_counter = CounterType::GasLimit;
+            gas
         } else {
-            self.context.gas_counter.refund(gas - gas_left);
-        }
-
-        let allowance_left = self.context.gas_allowance_counter.left();
-        if allowance_left > allowance {
-            if self
-                .context
-                .gas_allowance_counter
-                .charge_if_enough(allowance_left - allowance)
-                != ChargeResult::Enough
-            {
-                // We checked above that `allowance_left` is bigger than `allowance`
-                unreachable!("Cannot charge {allowance} from `gas_allowance_counter`");
-            }
-        } else {
-            self.context
-                .gas_allowance_counter
-                .refund(allowance - allowance_left);
+            self.current_counter = CounterType::GasAllowance;
+            allowance
         }
     }
 }
@@ -519,7 +707,18 @@ impl Externalities for Ext {
         pages_num: u32,
         mem: &mut impl Memory,
     ) -> Result<WasmPage, Self::AllocError> {
-        self.alloc_inner::<NoopGrowHandler>(pages_num, mem)
+        let pages = WasmPage::new(pages_num).map_err(|_| AllocError::ProgramAllocOutOfBounds)?;
+
+        self.context
+            .allocations_context
+            .alloc::<LazyGrowHandler>(pages, mem, |pages| {
+                Ext::charge_gas_if_enough(
+                    &mut self.context.gas_counter,
+                    &mut self.context.gas_allowance_counter,
+                    self.context.page_costs.mem_grow.calc(pages),
+                )
+            })
+            .map_err(Into::into)
     }
 
     fn free(&mut self, page: WasmPage) -> Result<(), Self::AllocError> {
@@ -527,6 +726,18 @@ impl Externalities for Ext {
             .allocations_context
             .free(page)
             .map_err(Into::into)
+    }
+
+    fn env_vars(&self, version: u32) -> Result<EnvVars, Self::UnrecoverableError> {
+        match version {
+            1 => Ok(EnvVars::V1(EnvVarsV1 {
+                performance_multiplier: self.context.performance_multiplier,
+                existential_deposit: self.context.existential_deposit,
+                mailbox_threshold: self.context.mailbox_threshold,
+                gas_multiplier: self.context.gas_multiplier,
+            })),
+            _ => Err(UnrecoverableExecutionError::UnsupportedEnvVarsVersion.into()),
+        }
     }
 
     fn block_height(&self) -> Result<u32, Self::UnrecoverableError> {
@@ -737,7 +948,11 @@ impl Externalities for Ext {
     }
 
     fn debug(&self, data: &str) -> Result<(), Self::UnrecoverableError> {
-        log::debug!(target: "gwasm", "DEBUG: {}", data);
+        let program_id = self.program_id()?;
+        let message_id = self.message_id()?;
+
+        log::debug!(target: "gwasm", "DEBUG: [handle({message_id:.2?})] {program_id:.2?}: {data}");
+
         Ok(())
     }
 
@@ -904,7 +1119,8 @@ impl Externalities for Ext {
         packet: InitPacket,
         delay: u32,
     ) -> Result<(MessageId, ProgramId), Self::FallibleError> {
-        self.check_forbidden_destination(packet.destination())?;
+        // We don't check for forbidden destination here, since dest is always unique and almost impossible to match SYSTEM_ID
+
         self.safe_gasfull_sends(&packet)?;
         self.charge_expiring_resources(&packet, true)?;
         self.charge_sending_fee(delay)?;
@@ -952,89 +1168,6 @@ impl Externalities for Ext {
 
     fn forbidden_funcs(&self) -> &BTreeSet<SysCallName> {
         &self.context.forbidden_funcs
-    }
-}
-
-impl Ext {
-    /// Inner alloc realization.
-    pub fn alloc_inner<G: GrowHandler>(
-        &mut self,
-        pages_num: u32,
-        mem: &mut impl Memory,
-    ) -> Result<WasmPage, AllocExtError> {
-        let pages = WasmPage::new(pages_num).map_err(|_| AllocError::ProgramAllocOutOfBounds)?;
-
-        self.context
-            .allocations_context
-            .alloc::<G>(pages, mem, |pages| {
-                Ext::charge_gas_if_enough(
-                    &mut self.context.gas_counter,
-                    &mut self.context.gas_allowance_counter,
-                    self.context.page_costs.mem_grow.calc(pages),
-                )
-            })
-            .map_err(Into::into)
-    }
-
-    /// Into ext info inner impl.
-    /// `pages_for_data` returns vector of pages which data will be stored in info.
-    pub fn into_ext_info_inner(
-        self,
-        memory: &impl Memory,
-        pages_for_data: impl FnOnce(WasmPage, &BTreeSet<WasmPage>) -> Vec<GearPage>,
-    ) -> Result<ExtInfo, MemoryError> {
-        let ProcessorContext {
-            allocations_context,
-            message_context,
-            gas_counter,
-            gas_reserver,
-            system_reservation,
-            program_candidates_data,
-            program_rents,
-            ..
-        } = self.context;
-
-        let (static_pages, initial_allocations, allocations) = allocations_context.into_parts();
-        let mut pages_data = BTreeMap::new();
-        for page in pages_for_data(static_pages, &allocations) {
-            let mut buf = PageBuf::new_zeroed();
-            memory.read(page.offset(), &mut buf)?;
-            pages_data.insert(page, buf);
-        }
-
-        let (outcome, mut context_store) = message_context.drain();
-        let ContextOutcomeDrain {
-            outgoing_dispatches: generated_dispatches,
-            awakening,
-            reply_deposits,
-        } = outcome.drain();
-
-        let system_reservation_context = SystemReservationContext {
-            current_reservation: system_reservation,
-            previous_reservation: context_store.system_reservation(),
-        };
-
-        context_store.set_reservation_nonce(&gas_reserver);
-        if let Some(reservation) = system_reservation {
-            context_store.add_system_reservation(reservation);
-        }
-
-        let info = ExtInfo {
-            gas_amount: gas_counter.to_amount(),
-            gas_reserver,
-            system_reservation_context,
-            allocations: (allocations != initial_allocations)
-                .then_some(allocations)
-                .unwrap_or_default(),
-            pages_data,
-            generated_dispatches,
-            awakening,
-            reply_deposits,
-            context_store,
-            program_candidates_data,
-            program_rents,
-        };
-        Ok(info)
     }
 }
 
@@ -1097,45 +1230,10 @@ mod tests {
 
     impl ProcessorContextBuilder {
         fn new() -> Self {
-            let default_pc = ProcessorContext {
-                gas_counter: GasCounter::new(0),
-                gas_allowance_counter: GasAllowanceCounter::new(0),
-                gas_reserver: GasReserver::new(
-                    &<IncomingDispatch as Default>::default(),
-                    Default::default(),
-                    Default::default(),
-                ),
-                system_reservation: None,
-                value_counter: ValueCounter::new(0),
-                allocations_context: AllocationsContext::new(
-                    Default::default(),
-                    Default::default(),
-                    Default::default(),
-                ),
-                message_context: MessageContext::new(
-                    Default::default(),
-                    Default::default(),
-                    ContextSettings::new(0, 0, 0, 0, 0, 0),
-                ),
-                block_info: Default::default(),
-                max_pages: 512.into(),
+            Self(ProcessorContext {
                 page_costs: PageCosts::new_for_tests(),
-                existential_deposit: 0,
-                program_id: Default::default(),
-                program_candidates_data: Default::default(),
-                program_rents: Default::default(),
-                host_fn_weights: Default::default(),
-                forbidden_funcs: Default::default(),
-                mailbox_threshold: 0,
-                waitlist_cost: 0,
-                dispatch_hold_cost: 0,
-                reserve_for: 0,
-                reservation: 0,
-                random_data: ([0u8; 32].to_vec(), 0),
-                rent_cost: 0,
-            };
-
-            Self(default_pc)
+                ..ProcessorContext::new_mock()
+            })
         }
 
         fn build(self) -> ProcessorContext {
@@ -1180,10 +1278,7 @@ mod tests {
         let initial_gas = 100;
         let initial_allowance = 10000;
 
-        let gas_left = GasLeft {
-            gas: initial_gas,
-            allowance: initial_allowance,
-        };
+        let gas_left = (initial_gas, initial_allowance).into();
 
         let existing_page = 99.into();
         let non_existing_page = 100.into();
@@ -1597,134 +1692,5 @@ mod tests {
             .expect("Send commit was ok");
 
         assert_eq!(dispatch.message().payload_bytes(), &[3, 4, 5]);
-    }
-
-    mod property_tests {
-        use super::*;
-        use gear_core::{
-            memory::HostPointer,
-            pages::{PageError, PageNumber},
-        };
-        use proptest::{
-            arbitrary::any,
-            collection::size_range,
-            prop_oneof, proptest,
-            strategy::{Just, Strategy},
-            test_runner::Config as ProptestConfig,
-        };
-
-        struct TestMemory(WasmPage);
-
-        impl Memory for TestMemory {
-            type GrowError = PageError;
-
-            fn grow(&mut self, pages: WasmPage) -> Result<(), Self::GrowError> {
-                self.0 = self.0.add(pages)?;
-                Ok(())
-            }
-
-            fn size(&self) -> WasmPage {
-                self.0
-            }
-
-            fn write(&mut self, _offset: u32, _buffer: &[u8]) -> Result<(), MemoryError> {
-                unimplemented!()
-            }
-
-            fn read(&self, _offset: u32, _buffer: &mut [u8]) -> Result<(), MemoryError> {
-                unimplemented!()
-            }
-
-            unsafe fn get_buffer_host_addr_unsafe(&mut self) -> HostPointer {
-                unimplemented!()
-            }
-        }
-
-        #[derive(Debug, Clone)]
-        enum Action {
-            Alloc { pages: WasmPage },
-            Free { page: WasmPage },
-        }
-
-        fn actions() -> impl Strategy<Value = Vec<Action>> {
-            let action = wasm_page_number().prop_flat_map(|page| {
-                prop_oneof![
-                    Just(Action::Alloc { pages: page }),
-                    Just(Action::Free { page })
-                ]
-            });
-            proptest::collection::vec(action, 0..1024)
-        }
-
-        fn allocations() -> impl Strategy<Value = BTreeSet<WasmPage>> {
-            proptest::collection::btree_set(wasm_page_number(), size_range(0..1024))
-        }
-
-        fn wasm_page_number() -> impl Strategy<Value = WasmPage> {
-            any::<u16>().prop_map(WasmPage::from)
-        }
-
-        fn proptest_config() -> ProptestConfig {
-            ProptestConfig {
-                cases: 1024,
-                ..Default::default()
-            }
-        }
-
-        #[track_caller]
-        fn assert_alloc_error(err: <Ext as Externalities>::AllocError) {
-            match err {
-                AllocExtError::Alloc(
-                    AllocError::IncorrectAllocationData(_) | AllocError::ProgramAllocOutOfBounds,
-                ) => {}
-                err => Err(err).unwrap(),
-            }
-        }
-
-        #[track_caller]
-        fn assert_free_error(err: <Ext as Externalities>::AllocError) {
-            match err {
-                AllocExtError::Alloc(AllocError::InvalidFree(_)) => {}
-                err => Err(err).unwrap(),
-            }
-        }
-
-        proptest! {
-            #![proptest_config(proptest_config())]
-            #[test]
-            fn alloc(
-                static_pages in wasm_page_number(),
-                allocations in allocations(),
-                max_pages in wasm_page_number(),
-                mem_size in wasm_page_number(),
-                actions in actions(),
-            ) {
-                let _ = env_logger::try_init();
-
-                let ctx = AllocationsContext::new(allocations, static_pages, max_pages);
-                let ctx = ProcessorContextBuilder::new()
-                    .with_gas(GasCounter::new(u64::MAX))
-                    .with_allowance(GasAllowanceCounter::new(u64::MAX))
-                    .with_allocation_context(ctx)
-                    .build();
-                let mut ext = Ext::new(ctx);
-                let mut mem = TestMemory(mem_size);
-
-                for action in actions {
-                    match action {
-                        Action::Alloc { pages } => {
-                            if let Err(err) = ext.alloc(pages.raw(), &mut mem) {
-                                assert_alloc_error(err);
-                            }
-                        }
-                        Action::Free { page } => {
-                            if let Err(err) = ext.free(page) {
-                                assert_free_error(err);
-                            }
-                        },
-                    }
-                }
-            }
-        }
     }
 }

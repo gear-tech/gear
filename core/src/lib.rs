@@ -24,21 +24,25 @@
 #![warn(missing_docs)]
 #![cfg_attr(feature = "strict", deny(warnings))]
 #![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
+#![doc(html_favicon_url = "https://gear-tech.io/favicons/favicon.ico")]
 
 extern crate alloc;
 
 pub mod code;
 pub mod costs;
 pub mod env;
+pub mod env_vars;
 pub mod gas;
 pub mod ids;
 pub mod memory;
 pub mod message;
 pub mod pages;
+pub mod percent;
 pub mod program;
 pub mod reservation;
 
 pub mod buffer;
+pub mod str;
 
 use core::mem::size_of;
 use static_assertions::const_assert;

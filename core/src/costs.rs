@@ -136,6 +136,9 @@ pub struct HostFnWeights {
     /// Weight per payload byte by `gr_read`.
     pub gr_read_per_byte: u64,
 
+    /// Weight of calling `gr_env_vars`.
+    pub gr_env_vars: u64,
+
     /// Weight of calling `gr_block_height`.
     pub gr_block_height: u64,
 
@@ -244,6 +247,9 @@ pub struct HostFnWeights {
     /// Weight of calling `gr_reply_to`.
     pub gr_reply_to: u64,
 
+    /// Weight of calling `gr_signal_code`.
+    pub gr_signal_code: u64,
+
     /// Weight of calling `gr_signal_from`.
     pub gr_signal_from: u64,
 
@@ -346,6 +352,8 @@ pub enum RuntimeCosts {
     Read,
     /// Weight of calling `gr_read` per read buffer bytes number.
     ReadPerByte(u32),
+    /// Weight of calling `gr_env_vars`.
+    EnvVars,
     /// Weight of calling `gr_block_height`.
     BlockHeight,
     /// Weight of calling `gr_block_timestamp`.
@@ -402,6 +410,8 @@ pub enum RuntimeCosts {
     ReplyPushInputPerByte(u32),
     /// Weight of calling `gr_reply_to`.
     ReplyTo,
+    /// Weight of calling `gr_signal_code`.
+    SignalCode,
     /// Weight of calling `gr_signal_from`.
     SignalFrom,
     /// Weight of calling `gr_debug`.
@@ -470,6 +480,7 @@ impl RuntimeCosts {
             Size => s.gr_size,
             Read => s.gr_read,
             ReadPerByte(len) => cost_per_byte(s.gr_read_per_byte, len),
+            EnvVars => s.gr_env_vars,
             BlockHeight => s.gr_block_height,
             BlockTimestamp => s.gr_block_timestamp,
             Random => s.gr_random,
@@ -498,6 +509,7 @@ impl RuntimeCosts {
             ReplyPushInput => s.gr_reply_push_input,
             ReplyPushInputPerByte(len) => cost_per_byte(s.gr_reply_push_input_per_byte, len),
             ReplyTo => s.gr_reply_to,
+            SignalCode => s.gr_signal_code,
             SignalFrom => s.gr_signal_from,
             Debug(len) => cost_with_weight_per_byte!(gr_debug, len),
             ReplyCode => s.gr_reply_code,

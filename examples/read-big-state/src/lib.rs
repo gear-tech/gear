@@ -16,19 +16,19 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-#![no_std]
+#![cfg_attr(not(feature = "std"), no_std)]
 
 extern crate alloc;
 
 use alloc::{collections::BTreeMap, string::String, vec, vec::Vec};
 use parity_scale_codec::{Decode, Encode};
 
-#[cfg(feature = "std")]
+#[cfg(feature = "wasm-wrapper")]
 mod code {
     include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 }
 
-#[cfg(feature = "std")]
+#[cfg(feature = "wasm-wrapper")]
 pub use code::WASM_BINARY_OPT as WASM_BINARY;
 
 #[derive(Encode, Decode, Default, Debug, Clone)]
@@ -59,25 +59,5 @@ impl State {
     }
 }
 
-#[cfg(not(feature = "std"))]
-mod wasm {
-    use super::*;
-    use gstd::{msg, prelude::*};
-
-    static mut STATE: Option<State> = None;
-
-    fn state_mut() -> &'static mut State {
-        unsafe { STATE.get_or_insert_with(State::new) }
-    }
-
-    #[no_mangle]
-    extern "C" fn handle() {
-        let strings = msg::load().expect("Failed to load state");
-        state_mut().insert(strings);
-    }
-
-    #[no_mangle]
-    extern "C" fn state() {
-        msg::reply(state_mut(), 0).expect("Error in reply of state");
-    }
-}
+#[cfg(not(feature = "wasm-wrapper"))]
+mod wasm;

@@ -27,64 +27,24 @@ use frame_support_test::TestRandomness;
 use frame_system::{self as system, limits::BlockWeights};
 use pallet_gear::GasAllowanceOf;
 use primitive_types::H256;
-use sp_core::ConstU128;
+use sp_core::ConstBool;
 use sp_runtime::{
-    testing::Header,
+    generic,
     traits::{BlakeTwo256, ConstU64, IdentityLookup},
 };
 use sp_std::convert::{TryFrom, TryInto};
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
-type AccountId = u64;
-type BlockNumber = u64;
+pub type AccountId = u64;
+pub type BlockNumber = u64;
 type Balance = u128;
 
 pub const BLOCK_AUTHOR: AccountId = 255;
 
-impl pallet_balances::Config for Test {
-    type MaxLocks = ();
-    type MaxReserves = ();
-    type ReserveIdentifier = [u8; 8];
-    type Balance = Balance;
-    type DustRemoval = ();
-    type RuntimeEvent = RuntimeEvent;
-    type ExistentialDeposit = ExistentialDeposit;
-    type AccountStore = System;
-    type WeightInfo = ();
-}
-
 parameter_types! {
-    pub const BlockHashCount: u64 = 250;
-    pub const SS58Prefix: u8 = 42;
+    pub const BlockHashCount: BlockNumber = 250;
     pub const ExistentialDeposit: Balance = 1;
-}
-
-impl system::Config for Test {
-    type BaseCallFilter = frame_support::traits::Everything;
-    type BlockWeights = ();
-    type BlockLength = ();
-    type DbWeight = ();
-    type RuntimeOrigin = RuntimeOrigin;
-    type RuntimeCall = RuntimeCall;
-    type Index = u64;
-    type BlockNumber = BlockNumber;
-    type Hash = H256;
-    type Hashing = BlakeTwo256;
-    type AccountId = AccountId;
-    type Lookup = IdentityLookup<Self::AccountId>;
-    type Header = Header;
-    type RuntimeEvent = RuntimeEvent;
-    type BlockHashCount = BlockHashCount;
-    type Version = ();
-    type PalletInfo = PalletInfo;
-    type AccountData = pallet_balances::AccountData<u128>;
-    type OnNewAccount = ();
-    type OnKilledAccount = ();
-    type SystemWeightInfo = ();
-    type SS58Prefix = SS58Prefix;
-    type OnSetCode = ();
-    type MaxConsumers = frame_support::traits::ConstU32<16>;
 }
 
 impl pallet_gear_debug::Config for Test {
@@ -95,45 +55,10 @@ impl pallet_gear_debug::Config for Test {
     type Messenger = GearMessenger;
 }
 
-pub struct FixedBlockAuthor;
-
-impl FindAuthor<u64> for FixedBlockAuthor {
-    fn find_author<'a, I>(_digests: I) -> Option<u64>
-    where
-        I: 'a + IntoIterator<Item = (sp_runtime::ConsensusEngineId, &'a [u8])>,
-    {
-        Some(BLOCK_AUTHOR)
-    }
-}
-
-impl pallet_authorship::Config for Test {
-    type FindAuthor = FixedBlockAuthor;
-
-    type EventHandler = ();
-}
-
 parameter_types! {
-    pub const MinimumPeriod: u64 = 500;
     pub const OutgoingLimit: u32 = 1024;
     pub const BlockGasLimit: u64 = 100_000_000_000;
-}
-
-impl pallet_timestamp::Config for Test {
-    type Moment = u64;
-    type OnTimestampSet = ();
-    type MinimumPeriod = MinimumPeriod;
-    type WeightInfo = ();
-}
-
-pub struct GasConverter;
-impl common::GasPrice for GasConverter {
-    type Balance = Balance;
-    type GasToBalanceMultiplier = ConstU128<1_000>;
-}
-
-impl pallet_gear_program::Config for Test {
-    type Scheduler = GearScheduler;
-    type CurrentBlockNumber = ();
+    pub const PerformanceMultiplier: u32 = 100;
 }
 
 parameter_types! {
@@ -141,49 +66,9 @@ parameter_types! {
     pub RentCostPerBlock: Balance = 11;
     pub ResumeMinimalPeriod: BlockNumber = 100;
     pub ResumeSessionDuration: BlockNumber = 1_000;
-}
-
-impl pallet_gear::Config for Test {
-    type RuntimeEvent = RuntimeEvent;
-    type Randomness = TestRandomness<Self>;
-    type Currency = Balances;
-    type GasPrice = GasConverter;
-    type WeightInfo = ();
-    type OutgoingLimit = OutgoingLimit;
-    type DebugInfo = super::Pallet<Test>;
-    type Schedule = ();
-    type CodeStorage = GearProgram;
-    type ProgramStorage = GearProgram;
-    type MailboxThreshold = ConstU64<3000>;
-    type ReservationsLimit = ConstU64<256>;
-    type Messenger = GearMessenger;
-    type GasProvider = GearGas;
-    type BlockLimiter = GearGas;
-    type Scheduler = GearScheduler;
-    type QueueRunner = Gear;
-    type Voucher = ();
-    type ProgramRentFreePeriod = RentFreePeriod;
-    type ProgramResumeMinimalRentPeriod = ResumeMinimalPeriod;
-    type ProgramRentCostPerBlock = RentCostPerBlock;
-    type ProgramResumeSessionDuration = ResumeSessionDuration;
-}
-
-impl pallet_gear_messenger::Config for Test {
-    type BlockLimiter = GearGas;
-    type CurrentBlockNumber = Gear;
-}
-
-impl pallet_gear_scheduler::Config for Test {
-    type BlockLimiter = GearGas;
-    type ReserveThreshold = ConstU64<1>;
-    type WaitlistCost = ConstU64<100>;
-    type MailboxCost = ConstU64<100>;
-    type ReservationCost = ConstU64<100>;
-    type DispatchHoldCost = ConstU64<100>;
-}
-
-impl pallet_gear_gas::Config for Test {
-    type BlockGasLimit = BlockGasLimit;
+    pub const BankAddress: AccountId = 15082001;
+    pub const GasMultiplier: common::GasMultiplier<Balance, u64> = common::GasMultiplier::ValuePerGas(25);
+    pub ReserveThreshold: BlockNumber = 1;
 }
 
 // Configure a mock runtime to test the pallet.
@@ -201,10 +86,22 @@ construct_runtime!(
         GearProgram: pallet_gear_program,
         GearMessenger: pallet_gear_messenger,
         GearScheduler: pallet_gear_scheduler,
+        GearBank: pallet_gear_bank,
         Gear: pallet_gear,
         GearGas: pallet_gear_gas,
     }
 );
+
+common::impl_pallet_system!(Test, DbWeight = (), BlockWeights = ());
+common::impl_pallet_balances!(Test);
+common::impl_pallet_authorship!(Test);
+common::impl_pallet_timestamp!(Test);
+pallet_gear_program::impl_config!(Test);
+pallet_gear_messenger::impl_config!(Test, CurrentBlockNumber = Gear);
+pallet_gear_scheduler::impl_config!(Test);
+pallet_gear_bank::impl_config!(Test);
+pallet_gear::impl_config!(Test, DebugInfo = pallet_gear_debug::Pallet<Test>, ProgramRentEnabled = ConstBool<false>);
+pallet_gear_gas::impl_config!(Test);
 
 // Build genesis storage according to the mock runtime.
 pub fn new_test_ext() -> sp_io::TestExternalities {
@@ -217,6 +114,7 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
             (1, 100_000_000_000_000_u128),
             (2, 2_000_u128),
             (BLOCK_AUTHOR, 1_000_u128),
+            (BankAddress::get(), ExistentialDeposit::get()),
         ],
     }
     .assimilate_storage(&mut t)
@@ -250,13 +148,13 @@ pub fn run_to_block(n: u64, remaining_weight: Option<u64>) {
             );
         }
 
-        Gear::run(frame_support::dispatch::RawOrigin::None.into()).unwrap();
+        Gear::run(frame_support::dispatch::RawOrigin::None.into(), None).unwrap();
         Gear::on_finalize(System::block_number());
 
         assert!(!System::events().iter().any(|e| {
             matches!(
                 e.event,
-                RuntimeEvent::Gear(pallet_gear::Event::QueueProcessingReverted)
+                RuntimeEvent::Gear(pallet_gear::Event::QueueNotProcessed)
             )
         }))
     }

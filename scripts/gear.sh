@@ -145,6 +145,10 @@ case "$COMMAND" in
         header "Checking gear workspace"
         gear_check "$@"; ;;
 
+      runtime-imports)
+        header "Checking runtime imports"
+        runtime_imports "$@"; ;;
+
       *)
         header  "Unknown option: '$SUBCOMMAND'"
         check_usage
@@ -295,15 +299,23 @@ case "$COMMAND" in
 
       fuzz)
         header "Running fuzzer for runtime panic checks"
-        run_fuzzer "$ROOT_DIR" ;;
+        run_fuzzer "$ROOT_DIR" "$1" "$2"; ;;
+
+      fuzz-repr)
+        header "Running fuzzer reproduction"
+        test_fuzzer_reproduction ;;
 
       syscalls)
         header "Running syscalls integrity test of pallet-gear 'benchmarking' module on WASMI executor"
         syscalls_integrity_test "$@"; ;;
 
-      doc)
+      docs)
         header "Testing examples in docs"
         doc_test "$ROOT_DIR/Cargo.toml" "$@"; ;;
+
+      time-consuming)
+        header "Running time consuming tests"
+        time_consuming_tests "$@"; ;;
 
       *)
         header  "Unknown option: '$SUBCOMMAND'"

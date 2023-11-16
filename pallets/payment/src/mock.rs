@@ -31,8 +31,9 @@ use frame_system as system;
 use pallet_transaction_payment::CurrencyAdapter;
 use primitive_types::H256;
 use sp_runtime::{
-    testing::{Header, TestXt},
-    traits::{BlakeTwo256, ConstU64, IdentityLookup},
+    generic,
+    testing::TestXt,
+    traits::{BlakeTwo256, ConstBool, ConstU64, IdentityLookup},
 };
 use sp_std::{
     convert::{TryFrom, TryInto},
@@ -70,83 +71,28 @@ construct_runtime!(
         GearPayment: pallet_gear_payment,
         GearProgram: pallet_gear_program,
         GearVoucher: pallet_gear_voucher,
+        GearBank: pallet_gear_bank,
     }
 );
 
-impl pallet_balances::Config for Test {
-    type MaxLocks = ();
-    type MaxReserves = ();
-    type ReserveIdentifier = [u8; 8];
-    type Balance = Balance;
-    type DustRemoval = ();
-    type RuntimeEvent = RuntimeEvent;
-    type ExistentialDeposit = ExistentialDeposit;
-    type AccountStore = System;
-    type WeightInfo = ();
-}
-
-pub struct FixedBlockAuthor;
-
-impl FindAuthor<u64> for FixedBlockAuthor {
-    fn find_author<'a, I>(_digests: I) -> Option<u64>
-    where
-        I: 'a + IntoIterator<Item = (sp_runtime::ConsensusEngineId, &'a [u8])>,
-    {
-        Some(BLOCK_AUTHOR)
-    }
-}
-
-impl pallet_authorship::Config for Test {
-    type FindAuthor = FixedBlockAuthor;
-
-    type EventHandler = ();
-}
+common::impl_pallet_system!(Test, DbWeight = (), BlockWeights = RuntimeBlockWeights);
+pallet_gear::impl_config!(Test, Schedule = GearSchedule);
+pallet_gear_gas::impl_config!(Test);
+common::impl_pallet_balances!(Test);
+common::impl_pallet_authorship!(Test);
+common::impl_pallet_timestamp!(Test);
+pallet_gear_messenger::impl_config!(Test, CurrentBlockNumber = Gear);
+pallet_gear_scheduler::impl_config!(Test);
+pallet_gear_program::impl_config!(Test);
+pallet_gear_bank::impl_config!(Test);
 
 parameter_types! {
-    pub const MinimumPeriod: u64 = 500;
-}
-
-impl pallet_timestamp::Config for Test {
-    type Moment = u64;
-    type OnTimestampSet = ();
-    type MinimumPeriod = MinimumPeriod;
-    type WeightInfo = ();
-}
-
-parameter_types! {
-    pub const BlockHashCount: u64 = 2400;
-    pub const SS58Prefix: u8 = 42;
+    pub const BlockHashCount: BlockNumber = 2_400;
     pub const ExistentialDeposit: Balance = 1;
     pub RuntimeBlockWeights: frame_system::limits::BlockWeights = frame_system::limits::BlockWeights::simple_max(
         Weight::from_parts(WEIGHT_REF_TIME_PER_SECOND / 2, u64::MAX)
     );
-}
-
-impl system::Config for Test {
-    type BaseCallFilter = frame_support::traits::Everything;
-    type BlockWeights = RuntimeBlockWeights;
-    type BlockLength = ();
-    type DbWeight = ();
-    type RuntimeOrigin = RuntimeOrigin;
-    type RuntimeCall = RuntimeCall;
-    type Index = u64;
-    type BlockNumber = BlockNumber;
-    type Hash = H256;
-    type Hashing = BlakeTwo256;
-    type AccountId = AccountId;
-    type Lookup = IdentityLookup<Self::AccountId>;
-    type Header = Header;
-    type RuntimeEvent = RuntimeEvent;
-    type BlockHashCount = BlockHashCount;
-    type Version = ();
-    type PalletInfo = PalletInfo;
-    type AccountData = pallet_balances::AccountData<u128>;
-    type OnNewAccount = ();
-    type OnKilledAccount = ();
-    type SystemWeightInfo = ();
-    type SS58Prefix = SS58Prefix;
-    type OnSetCode = ();
-    type MaxConsumers = frame_support::traits::ConstU32<16>;
+    pub ReserveThreshold: BlockNumber = 1;
 }
 
 parameter_types! {
@@ -163,68 +109,17 @@ impl pallet_transaction_payment::Config for Test {
     type FeeMultiplierUpdate = pallet_gear_payment::GearFeeMultiplier<Test, QueueLengthStep>;
 }
 
-pub struct GasConverter;
-impl common::GasPrice for GasConverter {
-    type Balance = Balance;
-    type GasToBalanceMultiplier = ConstU128<1_000>;
-}
-
 parameter_types! {
     pub const BlockGasLimit: u64 = 500_000;
     pub const OutgoingLimit: u32 = 1024;
+    pub const PerformanceMultiplier: u32 = 100;
     pub GearSchedule: pallet_gear::Schedule<Test> = <pallet_gear::Schedule<Test>>::default();
     pub RentFreePeriod: BlockNumber = 1_000;
     pub RentCostPerBlock: Balance = 11;
     pub ResumeMinimalPeriod: BlockNumber = 100;
     pub ResumeSessionDuration: BlockNumber = 1_000;
-}
-
-impl pallet_gear::Config for Test {
-    type RuntimeEvent = RuntimeEvent;
-    type Randomness = TestRandomness<Self>;
-    type Currency = Balances;
-    type GasPrice = GasConverter;
-    type WeightInfo = ();
-    type Schedule = GearSchedule;
-    type OutgoingLimit = OutgoingLimit;
-    type DebugInfo = ();
-    type CodeStorage = GearProgram;
-    type ProgramStorage = GearProgram;
-    type MailboxThreshold = ConstU64<3000>;
-    type ReservationsLimit = ConstU64<256>;
-    type Messenger = GearMessenger;
-    type GasProvider = GearGas;
-    type BlockLimiter = GearGas;
-    type Scheduler = GearScheduler;
-    type QueueRunner = Gear;
-    type Voucher = ();
-    type ProgramRentFreePeriod = RentFreePeriod;
-    type ProgramResumeMinimalRentPeriod = ResumeMinimalPeriod;
-    type ProgramRentCostPerBlock = RentCostPerBlock;
-    type ProgramResumeSessionDuration = ResumeSessionDuration;
-}
-
-impl pallet_gear_program::Config for Test {
-    type Scheduler = GearScheduler;
-    type CurrentBlockNumber = ();
-}
-
-impl pallet_gear_gas::Config for Test {
-    type BlockGasLimit = BlockGasLimit;
-}
-
-impl pallet_gear_scheduler::Config for Test {
-    type BlockLimiter = GearGas;
-    type ReserveThreshold = ConstU64<1>;
-    type WaitlistCost = ConstU64<100>;
-    type MailboxCost = ConstU64<100>;
-    type ReservationCost = ConstU64<100>;
-    type DispatchHoldCost = ConstU64<100>;
-}
-
-impl pallet_gear_messenger::Config for Test {
-    type BlockLimiter = GearGas;
-    type CurrentBlockNumber = Gear;
+    pub const BankAddress: AccountId = 15082001;
+    pub const GasMultiplier: common::GasMultiplier<Balance, u64> = common::GasMultiplier::ValuePerGas(25);
 }
 
 type NegativeImbalance = <Balances as Currency<u64>>::NegativeImbalance;
@@ -261,16 +156,16 @@ impl Contains<RuntimeCall> for ExtraFeeFilter {
 
 pub struct DelegateFeeAccountBuilder;
 // We want to test the way the fee delegate is calculated in real runtime
-// for the `send_reply_with_voucher` call. Hence, the actual trait implementation is used.
-// For the `send_message_with_voucher` call, a mock implementation is used.
+// for the gasless `send_reply` call. Hence, the actual trait implementation is used.
+// For the gasless `send_message` call, a mock implementation is used.
 impl DelegateFee<RuntimeCall, AccountId> for DelegateFeeAccountBuilder {
     fn delegate_fee(call: &RuntimeCall, who: &AccountId) -> Option<AccountId> {
         match call {
-            RuntimeCall::Gear(pallet_gear::Call::send_message_with_voucher { .. }) => {
-                Some(FEE_PAYER)
-            }
-            RuntimeCall::Gear(pallet_gear::Call::send_reply_with_voucher {
-                reply_to_id, ..
+            RuntimeCall::GearVoucher(pallet_gear_voucher::Call::call {
+                call: pallet_gear_voucher::PrepaidCall::SendMessage { .. },
+            }) => Some(FEE_PAYER),
+            RuntimeCall::GearVoucher(pallet_gear_voucher::Call::call {
+                call: pallet_gear_voucher::PrepaidCall::SendReply { reply_to_id, .. },
             }) => <MailboxOf<Test> as common::storage::Mailbox>::peek(who, reply_to_id).map(
                 |stored_message| GearVoucher::voucher_account_id(who, &stored_message.source()),
             ),
@@ -294,6 +189,7 @@ impl pallet_gear_voucher::Config for Test {
     type Currency = Balances;
     type PalletId = VoucherPalletId;
     type WeightInfo = ();
+    type CallsDispatcher = Gear;
 }
 
 // Build genesis storage according to the mock runtime.
@@ -308,6 +204,7 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
             (BOB, 1_000u128),
             (BLOCK_AUTHOR, 1_000u128),
             (FEE_PAYER, 10_000_000u128),
+            (BankAddress::get(), ExistentialDeposit::get()),
         ],
     }
     .assimilate_storage(&mut t)

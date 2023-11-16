@@ -190,10 +190,22 @@ pub fn with_read_on_stack<T>(f: impl FnOnce(Result<&mut [u8]>) -> T) -> T {
         let mut len = 0u32;
 
         if size > 0 {
-            unsafe { gsys::gr_read(0, size as u32, buffer.as_mut_ptr(), &mut len as *mut u32) }
+            unsafe {
+                gsys::gr_read(
+                    0,
+                    size as u32,
+                    buffer.as_mut_ptr() as *mut u8,
+                    &mut len as *mut u32,
+                )
+            }
         }
 
-        f(SyscallError(len).into_result().map(|_| buffer))
+        // SAFETY: same as `MaybeUninit::slice_assume_init_mut(&mut buffer[..size])`.
+        // It takes the slice `&mut buffer[..size]` and says that it was
+        // previously initialized with the `gr_read` system call.
+        f(SyscallError(len)
+            .into_result()
+            .map(|_| unsafe { &mut *(&mut buffer[..size] as *mut _ as *mut [u8]) }))
     })
 }
 
@@ -370,7 +382,7 @@ pub fn reply_with_gas(payload: &[u8], gas_limit: u64, value: u128) -> Result<Mes
 ///
 /// Some programs can rely on their messages to other programs, i.e., check
 /// another program's state and use it as a parameter for its own business
-/// logic. The basic implementation is covered in [`reply`](crate::msg::reply)
+/// logic. The basic implementation is covered in [`reply`]
 /// function.
 ///
 /// This function allows sending a reply message filled with payload parts via

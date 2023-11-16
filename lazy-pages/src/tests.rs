@@ -20,8 +20,10 @@ use crate::{
     common::Error, init_with_handler, mprotect, signal::ExceptionInfo, LazyPagesVersion,
     UserSignalHandler,
 };
-use gear_backend_common::LimitedStr;
-use gear_core::pages::{GearPage, PageDynSize, PageU32Size, WasmPage};
+use gear_core::{
+    pages::{GearPage, PageDynSize, PageU32Size, WasmPage},
+    str::LimitedStr,
+};
 use region::Protection;
 
 fn handler_tester<F: FnOnce()>(f: F) {
@@ -81,7 +83,7 @@ fn read_write_flag_works() {
             <WasmPage as PageU32Size>::size(),
             <GearPage as PageU32Size>::size(),
         ],
-        vec![LimitedStr::from_small_str(""); 2],
+        vec![LimitedStr::from_small_str("gear_gas")],
         Default::default(),
     )
     .unwrap();
@@ -139,7 +141,7 @@ fn test_mprotect_pages() {
             <WasmPage as PageU32Size>::size(),
             <GearPage as PageU32Size>::size(),
         ],
-        vec![LimitedStr::from_small_str(""); 2],
+        vec![LimitedStr::from_small_str("gear_gas")],
         Default::default(),
     )
     .unwrap();

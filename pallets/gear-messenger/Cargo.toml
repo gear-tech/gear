@@ -1,12 +1,12 @@
 [package]
 name = "pallet-gear-messenger"
-version = "1.0.0"
-authors = ['Gear Technologies']
-edition = '2021'
-license.workspace = true
-homepage = "https://gear-tech.io"
-repository = "https://github.com/gear-tech/gear"
 description = "Gear pallet to work with messages"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
 readme = "README.md"
 
 [package.metadata.docs.rs]
@@ -37,6 +37,7 @@ pallet-balances = { workspace = true, features = ["std"] }
 pallet-authorship = { workspace = true, features = ["std"] }
 pallet-timestamp = { workspace = true, features = ["std"] }
 env_logger.workspace = true
+common = { workspace = true, features = ["std"] }
 
 [features]
 default = ['std']

@@ -36,6 +36,7 @@ async fn test_command_send_works() -> Result<()> {
     // Send message to messager
     let dest = hex::encode(mailbox[0].0.source.0);
     let _ = node.run(Args::new("send").destination(dest).gas_limit("2000000000"))?;
+
     let mailbox = signer
         .api()
         .mailbox(Some(common::alice_account_id()), 10)

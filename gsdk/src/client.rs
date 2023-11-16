@@ -17,7 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! RPC client for Gear API.
-use crate::result::{Error, Result};
+use crate::{
+    config::GearConfig,
+    result::{Error, Result},
+};
 use futures_util::{StreamExt, TryStreamExt};
 use jsonrpsee::{
     core::{
@@ -29,14 +32,22 @@ use jsonrpsee::{
     types::SubscriptionId,
     ws_client::{WsClient, WsClientBuilder},
 };
-use std::{result::Result as StdResult, time::Duration};
+use sp_runtime::DeserializeOwned;
+use std::{ops::Deref, result::Result as StdResult, time::Duration};
 use subxt::{
+    backend::{
+        legacy::LegacyRpcMethods,
+        rpc::{
+            RawRpcFuture as RpcFuture, RawRpcSubscription as RpcSubscription, RawValue,
+            RpcClient as SubxtRpcClient, RpcClientT, RpcParams,
+        },
+    },
     error::RpcError,
-    rpc::{RawValue, RpcClientT, RpcFuture, RpcSubscription},
 };
 
-const DEFAULT_GEAR_ENDPOINT: &str = "wss://rpc-node.gear-tech.io:443";
+const DEFAULT_GEAR_ENDPOINT: &str = "wss://rpc.vara-network.io:443";
 const DEFAULT_TIMEOUT: u64 = 60_000;
+const ONE_HUNDRED_MEGA_BYTES: u32 = 100 * 1024 * 1024;
 
 struct Params(Option<Box<RawValue>>);
 
@@ -63,6 +74,11 @@ impl RpcClient {
         if url.starts_with("ws") {
             Ok(Self::Ws(
                 WsClientBuilder::default()
+                    // Actually that stand for the response too.
+                    // *WARNING*:
+                    // After updating jsonrpsee to 0.20.0 and higher
+                    // use another method created only for that.
+                    .max_request_body_size(ONE_HUNDRED_MEGA_BYTES)
                     .connection_timeout(Duration::from_millis(timeout))
                     .request_timeout(Duration::from_millis(timeout))
                     .build(url)
@@ -139,4 +155,42 @@ async fn subscription_stream<C: SubscriptionClientT>(
     SubscriptionClientT::subscribe::<Box<RawValue>, _>(client, sub, Params(params), unsub)
         .await
         .map_err(|e| RpcError::ClientError(Box::new(e)))
+}
+
+/// RPC client for Gear API.
+#[derive(Clone)]
+pub struct Rpc {
+    rpc: SubxtRpcClient,
+    methods: LegacyRpcMethods<GearConfig>,
+}
+
+impl Rpc {
+    /// Create RPC client from url and timeout.
+    pub async fn new(url: Option<&str>, timeout: Option<u64>) -> Result<Self> {
+        let rpc = SubxtRpcClient::new(RpcClient::new(url, timeout).await?);
+        let methods = LegacyRpcMethods::new(rpc.clone());
+        Ok(Self { rpc, methods })
+    }
+
+    /// Get RPC client.
+    pub fn client(&self) -> SubxtRpcClient {
+        self.rpc.clone()
+    }
+
+    /// Raw RPC request
+    pub async fn request<Res: DeserializeOwned>(
+        &self,
+        method: &str,
+        params: RpcParams,
+    ) -> Result<Res> {
+        self.rpc.request(method, params).await.map_err(Into::into)
+    }
+}
+
+impl Deref for Rpc {
+    type Target = LegacyRpcMethods<GearConfig>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.methods
+    }
 }

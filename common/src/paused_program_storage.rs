@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::{program_storage::MemoryMap, *};
-use crate::storage::{AppendMapStorage, MapStorage, ValueStorage};
+use crate::storage::{MapStorage, ValueStorage};
 use gear_core::{
     code::MAX_WASM_PAGE_COUNT,
     pages::{GEAR_PAGE_SIZE, WASM_PAGE_SIZE},
@@ -27,7 +27,7 @@ use sp_io::hashing;
 
 const SPLIT_COUNT: u16 = (WASM_PAGE_SIZE / GEAR_PAGE_SIZE) as u16 * MAX_WASM_PAGE_COUNT / 2;
 
-pub type SessionId = u128;
+pub type SessionId = u32;
 
 // The entity helps to calculate hash of program's data and memory pages.
 // Its structure designed that way to avoid memory allocation of more than MAX_POSSIBLE_ALLOCATION bytes.
@@ -78,6 +78,7 @@ pub struct ResumeSession<AccountId, BlockNumber> {
     user: AccountId,
     program_id: ProgramId,
     allocations: BTreeSet<WasmPage>,
+    pages_with_data: BTreeSet<GearPage>,
     code_hash: CodeId,
     end_block: BlockNumber,
 }
@@ -99,11 +100,6 @@ pub trait PausedProgramStorage: super::ProgramStorage {
     type ResumeSessions: MapStorage<
         Key = SessionId,
         Value = ResumeSession<Self::AccountId, Self::BlockNumber>,
-    >;
-    type SessionMemoryPages: AppendMapStorage<
-        (GearPage, PageBuf),
-        SessionId,
-        Vec<(GearPage, PageBuf)>,
     >;
 
     /// Attempt to remove all items from all the associated maps.
@@ -136,6 +132,7 @@ pub trait PausedProgramStorage: super::ProgramStorage {
 
             let memory_pages = match Self::get_program_data_for_pages(
                 program_id,
+                program.memory_infix,
                 program.pages_with_data.iter(),
             ) {
                 Ok(memory_pages) => memory_pages,
@@ -147,7 +144,7 @@ pub trait PausedProgramStorage: super::ProgramStorage {
             };
 
             Self::waiting_init_remove(program_id);
-            Self::remove_program_pages(program_id);
+            Self::remove_program_pages(program_id, program.memory_infix);
 
             Ok((program, memory_pages))
         })?;
@@ -192,6 +189,7 @@ pub trait PausedProgramStorage: super::ProgramStorage {
                 user,
                 program_id,
                 allocations,
+                pages_with_data: Default::default(),
                 code_hash,
                 end_block,
             });
@@ -211,6 +209,8 @@ pub trait PausedProgramStorage: super::ProgramStorage {
         user: Self::AccountId,
         memory_pages: Vec<(GearPage, PageBuf)>,
     ) -> Result<(), Self::Error> {
+        // TODO: #3447 additional check
+
         Self::ResumeSessions::mutate(session_id, |maybe_session| {
             let session = match maybe_session.as_mut() {
                 Some(s) if s.user == user => s,
@@ -219,8 +219,14 @@ pub trait PausedProgramStorage: super::ProgramStorage {
             };
 
             session.page_count += memory_pages.len() as u32;
-            for page in memory_pages {
-                Self::SessionMemoryPages::append(session_id, page);
+            for (page, page_buf) in memory_pages {
+                session.pages_with_data.insert(page);
+                Self::set_program_page_data(
+                    session.program_id,
+                    MemoryInfix::new(session_id),
+                    page,
+                    page_buf,
+                );
             }
 
             Ok(())
@@ -240,17 +246,18 @@ pub trait PausedProgramStorage: super::ProgramStorage {
                 None => return Err(Self::InternalError::resume_session_not_found().into()),
             };
 
-            let Some((_block_number, hash)) = Self::PausedProgramMap::get(&session.program_id) else {
+            let Some((_block_number, hash)) = Self::PausedProgramMap::get(&session.program_id)
+            else {
                 let result = ResumeResult {
                     end_block: session.end_block,
                     info: None,
                 };
 
                 // it means that the program has been already resumed within another session
-                Self::SessionMemoryPages::remove(session_id);
+                Self::remove_program_pages(session.program_id, MemoryInfix::new(session_id));
                 *maybe_session = None;
 
-                return Ok(result)
+                return Ok(result);
             };
 
             if !Self::CodeStorage::exists(session.code_hash) {
@@ -262,10 +269,12 @@ pub trait PausedProgramStorage: super::ProgramStorage {
                 return Err(Self::InternalError::program_code_not_found().into());
             }
 
-            let memory_pages: MemoryMap = Self::SessionMemoryPages::get(&session_id)
-                .unwrap_or_default()
-                .into_iter()
-                .collect();
+            let memory_pages = Self::get_program_data_for_pages(
+                session.program_id,
+                MemoryInfix::new(session_id),
+                session.pages_with_data.iter(),
+            )
+            .unwrap_or_default();
             let code_hash = session.code_hash.into_origin();
             let item = Item::from((session.allocations.clone(), code_hash, memory_pages));
             if item.hash() != hash {
@@ -292,6 +301,7 @@ pub trait PausedProgramStorage: super::ProgramStorage {
                 static_pages: code.static_pages(),
                 state: ProgramState::Initialized,
                 expiration_block,
+                memory_infix: MemoryInfix::new(session_id),
             };
 
             let program_id = session.program_id;
@@ -303,15 +313,6 @@ pub trait PausedProgramStorage: super::ProgramStorage {
             // wipe all uploaded data out
             *maybe_session = None;
             Self::PausedProgramMap::remove(program_id);
-            Self::SessionMemoryPages::remove(session_id);
-
-            // set program memory pages
-            for (page, page_buf) in memory_pages {
-                Self::set_program_page_data(program_id, page, page_buf);
-            }
-            for (page, page_buf) in remaining_pages {
-                Self::set_program_page_data(program_id, page, page_buf);
-            }
 
             // and finally start the program
             Self::ProgramMap::insert(program_id, Program::Active(program));
@@ -323,8 +324,8 @@ pub trait PausedProgramStorage: super::ProgramStorage {
     /// Remove all data created by a call to `resume_session_init`.
     fn remove_resume_session(session_id: SessionId) -> Result<(), Self::Error> {
         Self::ResumeSessions::mutate(session_id, |maybe_session| match maybe_session.take() {
-            Some(_) => {
-                Self::SessionMemoryPages::remove(session_id);
+            Some(session) => {
+                Self::remove_program_pages(session.program_id, MemoryInfix::new(session_id));
 
                 Ok(())
             }

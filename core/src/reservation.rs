@@ -185,7 +185,7 @@ impl GasReserver {
         Ok(id)
     }
 
-    /// Unreserves gas reserved withing `id` reservation.
+    /// Unreserves gas reserved within `id` reservation.
     ///
     /// Return error if:
     /// 1. Reservation doesn't exist.

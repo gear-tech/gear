@@ -19,22 +19,22 @@
 //! Gear storage apis
 use crate::{
     metadata::{
-        gear_runtime::RuntimeEvent,
         runtime_types::{
             frame_system::{AccountInfo, EventRecord},
             gear_common::{storage::primitives::Interval, ActiveProgram, Program},
             gear_core::{code::InstrumentedCode, message::user::UserStoredMessage},
             pallet_balances::AccountData,
+            pallet_gear_bank::pallet::BankAccount,
         },
         storage::{
-            GearGasStorage, GearMessengerStorage, GearProgramStorage, GearStorage, SessionStorage,
-            SystemStorage, TimestampStorage,
+            GearBankStorage, GearGasStorage, GearMessengerStorage, GearProgramStorage, GearStorage,
+            SessionStorage, SystemStorage, TimestampStorage,
         },
+        vara_runtime::RuntimeEvent,
     },
     result::{Error, Result},
-    types,
     utils::storage_address_bytes,
-    Api, BlockNumber,
+    Api, BlockNumber, GearGasNode, GearGasNodeId, GearPages,
 };
 use anyhow::anyhow;
 use gear_core::ids::*;
@@ -108,7 +108,7 @@ impl Api {
     }
 
     /// Get program pages from program id.
-    pub async fn program_pages(&self, pid: ProgramId) -> Result<types::GearPages> {
+    pub async fn program_pages(&self, pid: ProgramId) -> Result<GearPages> {
         let program = self.gprog(pid).await?;
         self.gpages(pid, &program).await
     }
@@ -183,9 +183,9 @@ impl Api {
     #[storage_fetch]
     pub async fn gas_nodes_at(
         &self,
-        gas_node_ids: &impl AsRef<[types::GearGasNodeId]>,
+        gas_node_ids: &impl AsRef<[GearGasNodeId]>,
         block_hash: Option<H256>,
-    ) -> Result<Vec<(types::GearGasNodeId, types::GearGasNode)>> {
+    ) -> Result<Vec<(GearGasNodeId, GearGasNode)>> {
         let gas_node_ids = gas_node_ids.as_ref();
         let mut gas_nodes = Vec::with_capacity(gas_node_ids.len());
 
@@ -195,6 +195,21 @@ impl Api {
             gas_nodes.push((*gas_node_id, gas_node));
         }
         Ok(gas_nodes)
+    }
+}
+
+// pallet-gear-bank
+impl Api {
+    /// Get Gear bank account data at specified block.
+    #[storage_fetch]
+    pub async fn bank_info_at(
+        &self,
+        account_id: AccountId32,
+        block_hash: Option<H256>,
+    ) -> Result<BankAccount<u128>> {
+        let addr = Self::storage(GearBankStorage::Bank, vec![Value::from_bytes(account_id)]);
+
+        self.fetch_storage_at(&addr, block_hash).await
     }
 }
 
@@ -299,13 +314,17 @@ impl Api {
         program_id: ProgramId,
         program: &ActiveProgram<BlockNumber>,
         block_hash: Option<H256>,
-    ) -> Result<types::GearPages> {
+    ) -> Result<GearPages> {
         let mut pages = HashMap::new();
 
         for page in &program.pages_with_data {
             let addr = Self::storage(
-                GearProgramStorage::MemoryPageStorage,
-                vec![Value::from_bytes(program_id), Value::u128(page.0 as u128)],
+                GearProgramStorage::MemoryPages,
+                vec![
+                    Value::from_bytes(program_id),
+                    Value::u128(program.memory_infix.0 as u128),
+                    Value::u128(page.0 as u128),
+                ],
             );
 
             let metadata = self.metadata();
@@ -314,7 +333,7 @@ impl Api {
             let encoded_page = self
                 .get_storage(block_hash)
                 .await?
-                .fetch_raw(&lookup_bytes)
+                .fetch_raw(lookup_bytes)
                 .await?
                 .ok_or_else(|| Error::PageNotFound(page.0, program_id.as_ref().encode_hex()))?;
             pages.insert(page.0, encoded_page);
@@ -358,16 +377,22 @@ impl Api {
             query_key.extend(account_id.encode());
         }
 
-        let keys = storage.fetch_keys(&query_key, count, None).await?;
-
+        let mut keys = storage.fetch_raw_keys(query_key).await?;
         let mut mailbox: Vec<(UserStoredMessage, Interval<u32>)> = vec![];
-        for key in keys {
-            if let Some(storage_data) = storage.fetch_raw(&key.0).await? {
+
+        let mut fetched_keys = 0;
+        while let Some(key) = keys.next().await {
+            if let Some(storage_data) = storage.fetch_raw(key?).await? {
                 if let Ok(value) =
                     <(UserStoredMessage, Interval<u32>)>::decode(&mut &storage_data[..])
                 {
                     mailbox.push(value);
                 }
+            }
+
+            fetched_keys += 1;
+            if fetched_keys >= count {
+                break;
             }
         }
 

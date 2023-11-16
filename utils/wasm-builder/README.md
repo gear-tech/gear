@@ -4,7 +4,7 @@ This is a helper crate that can be used in build scripts for building Gear progr
 
 ## Usage
 
-1. Add the `gear-wasm-buider` crate as a build dependency to the `Cargo.toml`:
+1. Add the `gear-wasm-builder` crate as a build dependency to the `Cargo.toml`:
 
 ```toml
 # ...

@@ -1,5 +1,5 @@
 use crate::{Call, Scheme};
-use gstd::{msg, BTreeMap, String, Vec};
+use gstd::{collections::BTreeMap, msg, String, Vec};
 
 pub(crate) static mut DATA: BTreeMap<String, Vec<u8>> = BTreeMap::new();
 static mut SCHEME: Option<Scheme> = None;
@@ -33,4 +33,9 @@ extern "C" fn handle() {
 #[no_mangle]
 extern "C" fn handle_reply() {
     process_fn(Scheme::handle_reply);
+}
+
+#[no_mangle]
+extern "C" fn handle_signal() {
+    process_fn(Scheme::handle_signal);
 }

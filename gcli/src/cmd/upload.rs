@@ -49,13 +49,14 @@ impl Upload {
     pub async fn exec(&self, signer: Signer) -> Result<()> {
         let code = fs::read(&self.code)?;
         if self.code_only {
-            signer.upload_code(code).await?;
+            signer.calls.upload_code(code).await?;
             return Ok(());
         }
 
         let payload = self.payload.to_vec()?;
         let gas = if self.gas_limit == 0 {
             signer
+                .rpc
                 .calculate_upload_gas(None, code.clone(), payload.clone(), self.value, false, None)
                 .await?
                 .min_limit
@@ -66,6 +67,7 @@ impl Upload {
         // Estimate gas and upload program.
         let gas_limit = signer.api().cmp_gas_limit(gas)?;
         signer
+            .calls
             .upload_program(code, self.salt.to_vec()?, payload, gas_limit, self.value)
             .await?;
 

@@ -52,18 +52,21 @@ use gear_core_errors::{ReplyCode, SignalCode};
 pub use journal::*;
 pub use task::*;
 
-use crate::{Config, CurrencyOf, GasHandlerOf, Pallet, ProgramStorageOf, QueueOf, TaskPoolOf};
+use crate::{
+    Config, CurrencyOf, Event, GasHandlerOf, Pallet, ProgramStorageOf, QueueOf, TaskPoolOf,
+    WaitlistOf,
+};
 use common::{
     event::*,
-    scheduler::{ScheduledTask, StorageType, TaskHandler, TaskPool},
-    storage::{Interval, Queue},
-    ActiveProgram, CodeStorage, Origin, ProgramState, ProgramStorage, ReservableTree,
+    scheduler::{ScheduledTask, StorageType, TaskPool},
+    storage::{Interval, IterableByKeyMap, Queue},
+    ActiveProgram, CodeStorage, Origin, Program, ProgramState, ProgramStorage, ReservableTree,
 };
 use core::fmt;
 use core_processor::common::{Actor, ExecutableActorData};
 use frame_support::{
     codec::{Decode, Encode},
-    traits::Currency,
+    traits::{Currency, ExistenceRequirement},
 };
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
@@ -71,13 +74,14 @@ use gear_core::{
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     message::{DispatchKind, SignalMessage},
     pages::WasmPage,
+    program::MemoryInfix,
     reservation::GasReservationSlot,
 };
 use primitive_types::H256;
-use sp_runtime::traits::UniqueSaturatedInto;
+use sp_runtime::traits::{UniqueSaturatedInto, Zero};
 use sp_std::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
-    convert::{TryFrom, TryInto},
+    convert::TryInto,
     marker::PhantomData,
     prelude::*,
 };
@@ -236,6 +240,7 @@ where
                 initialized: matches!(active.state, ProgramState::Initialized),
                 pages_with_data: active.pages_with_data,
                 gas_reservation_map: active.gas_reservation_map,
+                memory_infix: active.memory_infix,
             }),
         })
     }
@@ -266,36 +271,11 @@ where
             state: common::ProgramState::Uninitialized { message_id },
             gas_reservation_map: Default::default(),
             expiration_block,
+            memory_infix: Default::default(),
         };
 
         ProgramStorageOf::<T>::add_program(program_id, program)
             .expect("set_program shouldn't be called for the existing id");
-    }
-
-    fn clean_reservation_tasks(&mut self, program_id: ProgramId, maybe_inactive: bool) {
-        let maybe_active_program = ProgramStorageOf::<T>::get_program(program_id)
-            .and_then(|program| ActiveProgram::try_from(program).ok());
-
-        if maybe_active_program.is_none() && maybe_inactive {
-            return;
-        };
-
-        let active_program = maybe_active_program.unwrap_or_else(|| {
-            unreachable!("Clean reservations can only be called on active program")
-        });
-
-        for (reservation_id, reservation_slot) in active_program.gas_reservation_map {
-            <Self as TaskHandler<T::AccountId>>::remove_gas_reservation(
-                self,
-                program_id,
-                reservation_id,
-            );
-
-            let _ = TaskPoolOf::<T>::delete(
-                BlockNumberFor::<T>::from(reservation_slot.finish),
-                ScheduledTask::RemoveGasReservation(program_id, reservation_id),
-            );
-        }
     }
 
     fn remove_gas_reservation_slot(
@@ -387,5 +367,87 @@ where
         } else {
             log::trace!("Signal wasn't sent due to inappropriate supply");
         }
+    }
+
+    /// Removes memory pages of the program and transfers program balance to the `value_destination`.
+    fn clean_inactive_program(
+        program_id: ProgramId,
+        memory_infix: MemoryInfix,
+        value_destination: ProgramId,
+    ) {
+        ProgramStorageOf::<T>::remove_program_pages(program_id, memory_infix);
+
+        let program_account = &<T::AccountId as Origin>::from_origin(program_id.into_origin());
+        let balance = CurrencyOf::<T>::free_balance(program_account);
+        if !balance.is_zero() {
+            let destination = Pallet::<T>::inheritor_for(value_destination);
+            let destination = <T::AccountId as Origin>::from_origin(destination.into_origin());
+
+            CurrencyOf::<T>::transfer(
+                program_account,
+                &destination,
+                balance,
+                ExistenceRequirement::AllowDeath,
+            )
+            .unwrap_or_else(|e| unreachable!("Failed to transfer value: {e:?}"));
+        }
+    }
+
+    /// Removes all messages to `program_id` from the waitlist.
+    fn clean_waitlist(program_id: ProgramId) {
+        let reason = MessageWokenSystemReason::ProgramGotInitialized.into_reason();
+
+        WaitlistOf::<T>::drain_key(program_id).for_each(|entry| {
+            let message = Pallet::<T>::wake_dispatch_requirements(entry, reason.clone());
+
+            QueueOf::<T>::queue(message)
+                .unwrap_or_else(|e| unreachable!("Message queue corrupted! {e:?}"));
+        });
+
+        ProgramStorageOf::<T>::waiting_init_remove(program_id);
+    }
+
+    fn process_failed_init(program_id: ProgramId, origin: ProgramId, executed: bool) {
+        // Some messages addressed to the program could be processed
+        // in the queue before init message. For example, that could
+        // happen when init message had more gas limit then rest block
+        // gas allowance, but a dispatch message to the program was
+        // dequeued. The other case is async init.
+        Self::clean_waitlist(program_id);
+
+        ProgramStorageOf::<T>::update_program_if_active(program_id, |p, bn| {
+            let _ = TaskPoolOf::<T>::delete(bn, ScheduledTask::PauseProgram(program_id));
+
+            match p {
+                Program::Active(program) => {
+                    Self::remove_gas_reservation_map(
+                        program_id,
+                        core::mem::take(&mut program.gas_reservation_map),
+                    );
+
+                    Self::clean_inactive_program(program_id, program.memory_infix, origin);
+                }
+                _ if executed => unreachable!("Action executed only for active program"),
+                _ => (),
+            }
+
+            *p = Program::Terminated(origin);
+        })
+        .unwrap_or_else(|e| {
+            // If we run into `InitFailure` after real execution (not
+            // prepare or precharge) processor methods, then we are
+            // sure that it was active program.
+            if executed {
+                unreachable!(
+                    "Program terminated status may only be set to an existing active program: {:?}",
+                    e,
+                );
+            }
+        });
+
+        Pallet::<T>::deposit_event(Event::ProgramChanged {
+            id: program_id,
+            change: ProgramChangeKind::Terminated,
+        });
     }
 }

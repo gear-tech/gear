@@ -1,20 +1,16 @@
 [package]
 name = "gear-service"
-version = "0.1.0"
+version.workspace = true
 authors.workspace = true
-description = "Gear Node"
 edition.workspace = true
 license.workspace = true
-homepage = "https://gear-tech.io"
-repository = "https://github.com/gear-tech/gear"
+homepage.workspace = true
+repository.workspace = true
 
 [package.metadata.docs.rs]
 targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
-codec = { workspace = true, features = ["derive"] }
-futures.workspace = true
-futures-timer.workspace = true
 hex-literal.workspace = true
 jsonrpsee = { workspace = true, features = ["server", "macros"] }
 log.workspace = true
@@ -23,25 +19,22 @@ serde = { workspace = true, features = ["derive"] }
 # Gear
 pallet-gear-rpc.workspace = true
 pallet-gear-rpc-runtime-api = { workspace = true, features = ["std"] }
+pallet-gear-staking-rewards-rpc.workspace = true
+pallet-gear-staking-rewards-rpc-runtime-api = { workspace = true, features = ["std"] }
 runtime-primitives = { workspace = true, features = ["std"] }
 gear-runtime-interface = { workspace = true, features = ["std"] }
 authorship.workspace = true
 
 # Gear Runtimes
-common = { workspace = true, features = ["std"] }
 gear-runtime-common = { workspace = true, features = ["std"] }
-gear-runtime = { workspace = true, optional = true, features = ["std"] }
-vara-runtime = { workspace = true, optional = true, features = ["std"] }
+vara-runtime = { workspace = true, optional = true, features = ["std", "dev"] }
 
 # Substrate Client
-sc-block-builder.workspace = true
 sc-chain-spec.workspace = true
-sc-authority-discovery.workspace = true
 sc-executor.workspace = true
 sc-executor-common.workspace = true
 sc-service.workspace = true
 sc-telemetry.workspace = true
-sc-keystore.workspace = true
 sc-network.workspace = true
 sc-network-common.workspace = true
 sc-network-sync.workspace = true
@@ -81,7 +74,6 @@ sp-offchain = { workspace = true, features = ["std"] }
 sp-session = { workspace = true, features = ["std"] }
 
 # Frame Pallets
-pallet-transaction-payment.workspace = true
 pallet-transaction-payment-rpc.workspace = true
 pallet-transaction-payment-rpc-runtime-api = { workspace = true, features = ["std"] }
 pallet-staking = { workspace = true, optional = true }
@@ -91,9 +83,6 @@ pallet-im-online = { workspace = true, optional = true }
 frame-benchmarking = { workspace = true, features = ["std"] }
 frame-benchmarking-cli.workspace = true
 substrate-frame-rpc-system.workspace = true
-frame-support = { workspace = true, features = ["std"] }
-frame-system = { workspace = true, features = ["std"] }
-frame-system-rpc-runtime-api = { workspace = true, features = ["std"] }
 substrate-state-trie-migration-rpc.workspace = true
 try-runtime-cli = { workspace = true, optional = true }
 
@@ -101,35 +90,21 @@ try-runtime-cli = { workspace = true, optional = true }
 substrate-build-script-utils.workspace = true
 
 [features]
-gear-native = [
-	"gear-runtime",
-]
 vara-native = [
 	"vara-runtime",
 	"pallet-staking",
 	"pallet-im-online",
 	"sp-authority-discovery"
 ]
-lazy-pages = [
-	"gear-runtime?/lazy-pages",
-	"vara-runtime?/lazy-pages",
-]
 runtime-benchmarks = [
  	"frame-benchmarking/runtime-benchmarks",
  	"frame-benchmarking-cli/runtime-benchmarks",
-	"gear-runtime?/runtime-benchmarks",
 	"vara-runtime?/runtime-benchmarks",
 ]
 runtime-benchmarks-checkers = [
-	"gear-runtime?/runtime-benchmarks-checkers",
 	"vara-runtime?/runtime-benchmarks-checkers",
 ]
-debug-mode = [
-	"gear-runtime?/debug-mode",
-	"vara-runtime?/debug-mode",
-]
 try-runtime = [
-	"gear-runtime?/try-runtime",
 	"vara-runtime?/try-runtime",
 	"try-runtime-cli",
 ]

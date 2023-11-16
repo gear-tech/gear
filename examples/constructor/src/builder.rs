@@ -46,6 +46,8 @@ impl Calls {
         self
     }
 
+    // TODO #3452: remove this on next rust update
+    #[allow(clippy::useless_conversion)]
     pub fn add_from_iter(mut self, calls: impl Iterator<Item = Call>) -> Self {
         self.0.extend(calls.into_iter());
         self
@@ -77,15 +79,23 @@ impl Calls {
     }
 
     pub fn reply_code(self, key: impl AsRef<str>) -> Self {
-        self.add_call(Call::ReplyCode).store(key)
+        self.add_call(Call::ReplyCode).store_vec(key)
     }
 
     pub fn value(self, key: impl AsRef<str>) -> Self {
         self.add_call(Call::Value).store(key)
     }
 
+    pub fn value_available(self, key: impl AsRef<str>) -> Self {
+        self.add_call(Call::ValueAvailable).store(key)
+    }
+
     pub fn value_as_vec(self, key: impl AsRef<str>) -> Self {
         self.add_call(Call::Value).store_vec(key)
+    }
+
+    pub fn value_available_as_vec(self, key: impl AsRef<str>) -> Self {
+        self.add_call(Call::ValueAvailable).store_vec(key)
     }
 
     pub fn message_id(self, key: impl AsRef<str>) -> Self {
@@ -260,6 +270,10 @@ impl Calls {
         self.add_call(Call::Wait)
     }
 
+    pub fn wait_for(self, duration: impl Into<Arg<u32>>) -> Self {
+        self.add_call(Call::WaitFor(duration.into()))
+    }
+
     pub fn wake(self, message_id: impl Into<Arg<[u8; 32]>>) -> Self {
         self.add_call(Call::Wake(message_id.into()))
     }
@@ -310,5 +324,9 @@ impl Calls {
 
     pub fn infinite_loop(self) -> Self {
         self.add_call(Call::Loop)
+    }
+
+    pub fn system_reserve_gas(self, gas: impl Into<Arg<u64>>) -> Self {
+        self.add_call(Call::SystemReserveGas(gas.into()))
     }
 }

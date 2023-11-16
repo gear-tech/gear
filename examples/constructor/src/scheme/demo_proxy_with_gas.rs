@@ -1,5 +1,5 @@
 use crate::{Arg, Call, Calls, Scheme};
-use gstd::errors::{ReplyCode, SuccessReplyReason};
+use gcore::errors::{ReplyCode, SuccessReplyReason};
 use parity_scale_codec::Encode;
 
 pub const PROXIED_MESSAGE: &[u8] = b"proxied message";
@@ -65,6 +65,15 @@ pub fn handle_reply() -> Calls {
         )
 }
 
+pub fn handle_signal() -> Calls {
+    Calls::builder().noop()
+}
+
 pub fn scheme(destination: [u8; 32], delay: u32) -> Scheme {
-    Scheme::predefined(init(destination, delay), handle(), handle_reply())
+    Scheme::predefined(
+        init(destination, delay),
+        handle(),
+        handle_reply(),
+        handle_signal(),
+    )
 }

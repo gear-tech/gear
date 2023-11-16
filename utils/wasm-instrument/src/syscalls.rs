@@ -26,7 +26,7 @@ use enum_iterator::{self, Sequence};
 ///
 /// The type is mainly used to prevent from skipping sys-call integration test for
 /// a newly introduced sys-call or from typo in sys-call name.
-#[derive(Debug, Clone, Copy, Ord, PartialOrd, Eq, PartialEq, Sequence)]
+#[derive(Debug, Clone, Copy, Ord, PartialOrd, Eq, PartialEq, Sequence, Hash)]
 pub enum SysCallName {
     // Message sending related
     // --
@@ -74,6 +74,7 @@ pub enum SysCallName {
     // Program execution related
     // --
     // Execution environmental data
+    EnvVars,
     BlockHeight,
     BlockTimestamp,
     GasAvailable,
@@ -93,7 +94,6 @@ pub enum SysCallName {
     Alloc,
     Free,
     OutOfGas,
-    OutOfAllowance,
 
     // Miscellaneous
     ReplyDeposit,
@@ -109,6 +109,7 @@ impl SysCallName {
     pub fn to_str(&self) -> &'static str {
         match self {
             SysCallName::Alloc => "alloc",
+            SysCallName::EnvVars => "gr_env_vars",
             SysCallName::BlockHeight => "gr_block_height",
             SysCallName::BlockTimestamp => "gr_block_timestamp",
             SysCallName::CreateProgram => "gr_create_program",
@@ -122,7 +123,6 @@ impl SysCallName {
             SysCallName::GasAvailable => "gr_gas_available",
             SysCallName::Leave => "gr_leave",
             SysCallName::MessageId => "gr_message_id",
-            SysCallName::OutOfAllowance => "gr_out_of_allowance",
             SysCallName::OutOfGas => "gr_out_of_gas",
             SysCallName::PayProgramRent => "gr_pay_program_rent",
             SysCallName::ProgramId => "gr_program_id",
@@ -242,60 +242,339 @@ impl SysCallName {
         match self {
             Self::Alloc => SysCallSignature::system([Alloc], [I32]),
             Self::Free => SysCallSignature::system([Free], [I32]),
-            Self::Debug => SysCallSignature::gr([Ptr, Size]),
-            Self::Panic => SysCallSignature::gr([Ptr, Size]),
+            Self::Debug => SysCallSignature::gr([
+                Ptr(PtrInfo::new_immutable(PtrType::SizedBufferStart {
+                    length_param_idx: 1,
+                })),
+                Size,
+            ]),
+            Self::Panic => SysCallSignature::gr([
+                Ptr(PtrInfo::new_immutable(PtrType::SizedBufferStart {
+                    length_param_idx: 1,
+                })),
+                Size,
+            ]),
             Self::OomPanic => SysCallSignature::gr([]),
-            Self::BlockHeight => SysCallSignature::gr([Ptr]),
-            Self::BlockTimestamp => SysCallSignature::gr([Ptr]),
-            Self::Exit => SysCallSignature::gr([Ptr]),
-            Self::GasAvailable => SysCallSignature::gr([Ptr]),
-            Self::PayProgramRent => SysCallSignature::gr([Ptr, Ptr]),
-            Self::ProgramId => SysCallSignature::gr([Ptr]),
+            Self::BlockHeight => {
+                SysCallSignature::gr([Ptr(PtrInfo::new_mutable(PtrType::BlockNumber))])
+            }
+            Self::BlockTimestamp => {
+                SysCallSignature::gr([Ptr(PtrInfo::new_mutable(PtrType::BlockTimestamp))])
+            }
+            Self::Exit => SysCallSignature::gr([Ptr(PtrInfo::new_immutable(PtrType::Hash(
+                HashType::ActorId,
+            )))]),
+            Self::GasAvailable => SysCallSignature::gr([Ptr(PtrInfo::new_mutable(PtrType::Gas))]),
+            Self::PayProgramRent => SysCallSignature::gr([
+                Ptr(PtrInfo::new_immutable(PtrType::HashWithValue(
+                    HashType::ActorId,
+                ))),
+                Ptr(PtrInfo::new_mutable(PtrType::ErrorWithBlockNumberAndValue)),
+            ]),
+            Self::ProgramId => {
+                SysCallSignature::gr([Ptr(PtrInfo::new_mutable(PtrType::Hash(HashType::ActorId)))])
+            }
             Self::Leave => SysCallSignature::gr([]),
-            Self::ValueAvailable => SysCallSignature::gr([Ptr]),
+            Self::ValueAvailable => {
+                SysCallSignature::gr([Ptr(PtrInfo::new_mutable(PtrType::Value))])
+            }
             Self::Wait => SysCallSignature::gr([]),
             Self::WaitUpTo => SysCallSignature::gr([Duration]),
             Self::WaitFor => SysCallSignature::gr([Duration]),
-            Self::Wake => SysCallSignature::gr([Ptr, Delay, Ptr]),
-            Self::ReplyCode => SysCallSignature::gr([Ptr]),
-            Self::SignalCode => SysCallSignature::gr([Ptr]),
-            Self::MessageId => SysCallSignature::gr([Ptr]),
-            Self::Read => SysCallSignature::gr([MessagePosition, Size, Ptr, Ptr]),
-            Self::Reply => SysCallSignature::gr([Ptr, Size, Ptr, Ptr]),
-            Self::ReplyInput => SysCallSignature::gr([Size, Size, Ptr, Ptr]),
-            Self::ReplyWGas => SysCallSignature::gr([Ptr, Size, Gas, Ptr, Ptr]),
-            Self::ReplyInputWGas => SysCallSignature::gr([Size, Size, Gas, Ptr, Ptr]),
-            Self::ReplyCommit => SysCallSignature::gr([Ptr, Ptr]),
-            Self::ReplyCommitWGas => SysCallSignature::gr([Gas, Ptr, Ptr]),
-            Self::ReservationReply => SysCallSignature::gr([Ptr, Ptr, Size, Ptr]),
-            Self::ReservationReplyCommit => SysCallSignature::gr([Ptr, Ptr]),
-            Self::ReplyPush => SysCallSignature::gr([Ptr, Size, Ptr]),
-            Self::ReplyPushInput => SysCallSignature::gr([Size, Size, Ptr]),
-            Self::ReplyTo => SysCallSignature::gr([Ptr]),
-            Self::SignalFrom => SysCallSignature::gr([Ptr]),
-            Self::Send => SysCallSignature::gr([Ptr, Ptr, Size, Delay, Ptr]),
-            Self::SendInput => SysCallSignature::gr([Ptr, Size, Size, Delay, Ptr]),
-            Self::SendWGas => SysCallSignature::gr([Ptr, Ptr, Size, Gas, Delay, Ptr]),
-            Self::SendInputWGas => SysCallSignature::gr([Ptr, Size, Size, Gas, Delay, Ptr]),
-            Self::SendCommit => SysCallSignature::gr([Handler, Ptr, Delay, Ptr]),
-            Self::SendCommitWGas => SysCallSignature::gr([Handler, Ptr, Gas, Delay, Ptr]),
-            Self::SendInit => SysCallSignature::gr([Ptr]),
-            Self::SendPush => SysCallSignature::gr([Handler, Ptr, Size, Ptr]),
-            Self::SendPushInput => SysCallSignature::gr([Handler, Size, Size, Ptr]),
-            Self::ReservationSend => SysCallSignature::gr([Ptr, Ptr, Size, Delay, Ptr]),
-            Self::ReservationSendCommit => SysCallSignature::gr([Handler, Ptr, Delay, Ptr]),
-            Self::Size => SysCallSignature::gr([Ptr]),
-            Self::Source => SysCallSignature::gr([Ptr]),
-            Self::Value => SysCallSignature::gr([Ptr]),
-            Self::CreateProgram => SysCallSignature::gr([Ptr, Ptr, Size, Ptr, Size, Delay, Ptr]),
-            Self::CreateProgramWGas => {
-                SysCallSignature::gr([Ptr, Ptr, Size, Ptr, Size, Gas, Delay, Ptr])
+            Self::Wake => SysCallSignature::gr([
+                Ptr(PtrInfo::new_immutable(PtrType::Hash(HashType::MessageId))),
+                Delay,
+                Ptr(PtrInfo::new_mutable(PtrType::ErrorCode)),
+            ]),
+            Self::ReplyCode => {
+                SysCallSignature::gr([Ptr(PtrInfo::new_mutable(PtrType::ErrorWithReplyCode))])
             }
-            Self::ReplyDeposit => SysCallSignature::gr([Ptr, Gas, Ptr]),
-            Self::ReserveGas => SysCallSignature::gr([Gas, Duration, Ptr]),
-            Self::UnreserveGas => SysCallSignature::gr([Ptr, Ptr]),
-            Self::SystemReserveGas => SysCallSignature::gr([Gas, Ptr]),
-            Self::Random => SysCallSignature::gr([Ptr, Ptr]),
+            Self::SignalCode => {
+                SysCallSignature::gr([Ptr(PtrInfo::new_mutable(PtrType::ErrorWithSignalCode))])
+            }
+            Self::MessageId => SysCallSignature::gr([Ptr(PtrInfo::new_mutable(PtrType::Hash(
+                HashType::MessageId,
+            )))]),
+            Self::EnvVars => {
+                SysCallSignature::gr([Version, Ptr(PtrInfo::new_mutable(PtrType::BufferStart))])
+            }
+            Self::Read => SysCallSignature::gr([
+                MessagePosition,
+                Size,
+                Ptr(PtrInfo::new_mutable(PtrType::SizedBufferStart {
+                    length_param_idx: 1,
+                })),
+                Ptr(PtrInfo::new_mutable(PtrType::ErrorCode)),
+            ]),
+            Self::Reply => SysCallSignature::gr([
+                Ptr(PtrInfo::new_immutable(PtrType::SizedBufferStart {
+                    length_param_idx: 1,
+                })),
+                Size,
+                Ptr(PtrInfo::new_immutable(PtrType::Value)),
+                Ptr(PtrInfo::new_mutable(PtrType::ErrorWithHash(
+                    HashType::MessageId,
+                ))),
+            ]),
+            Self::ReplyInput => SysCallSignature::gr([
+                Size,
+                Size,
+                Ptr(PtrInfo::new_immutable(PtrType::Value)),
+                Ptr(PtrInfo::new_mutable(PtrType::ErrorWithHash(
+                    HashType::MessageId,
+                ))),
+            ]),
+            Self::ReplyWGas => SysCallSignature::gr([
+                Ptr(PtrInfo::new_immutable(PtrType::SizedBufferStart {
+                    length_param_idx: 1,
+                })),
+                Size,
+                Gas,
+                Ptr(PtrInfo::new_immutable(PtrType::Value)),
+                Ptr(PtrInfo::new_mutable(PtrType::ErrorWithHash(
+                    HashType::MessageId,
+                ))),
+            ]),
+            Self::ReplyInputWGas => SysCallSignature::gr([
+                Size,
+                Size,
+                Gas,
+                Ptr(PtrInfo::new_immutable(PtrType::Value)),
+                Ptr(PtrInfo::new_mutable(PtrType::ErrorWithHash(
+                    HashType::MessageId,
+                ))),
+            ]),
+            Self::ReplyCommit => SysCallSignature::gr([
+                Ptr(PtrInfo::new_immutable(PtrType::Value)),
+                Ptr(PtrInfo::new_mutable(PtrType::ErrorWithHash(
+                    HashType::MessageId,
+                ))),
+            ]),
+            Self::ReplyCommitWGas => SysCallSignature::gr([
+                Gas,
+                Ptr(PtrInfo::new_immutable(PtrType::Value)),
+                Ptr(PtrInfo::new_mutable(PtrType::ErrorWithHash(
+                    HashType::MessageId,
+                ))),
+            ]),
+            Self::ReservationReply => SysCallSignature::gr([
+                Ptr(PtrInfo::new_immutable(PtrType::HashWithValue(
+                    HashType::ReservationId,
+                ))),
+                Ptr(PtrInfo::new_immutable(PtrType::SizedBufferStart {
+                    length_param_idx: 2,
+                })),
+                Size,
+                Ptr(PtrInfo::new_mutable(PtrType::ErrorWithHash(
+                    HashType::MessageId,
+                ))),
+            ]),
+            Self::ReservationReplyCommit => SysCallSignature::gr([
+                Ptr(PtrInfo::new_immutable(PtrType::HashWithValue(
+                    HashType::ReservationId,
+                ))),
+                Ptr(PtrInfo::new_mutable(PtrType::ErrorWithHash(
+                    HashType::MessageId,
+                ))),
+            ]),
+            Self::ReplyPush => SysCallSignature::gr([
+                Ptr(PtrInfo::new_immutable(PtrType::SizedBufferStart {
+                    length_param_idx: 1,
+                })),
+                Size,
+                Ptr(PtrInfo::new_mutable(PtrType::ErrorCode)),
+            ]),
+            Self::ReplyPushInput => {
+                SysCallSignature::gr([Size, Size, Ptr(PtrInfo::new_mutable(PtrType::ErrorCode))])
+            }
+            Self::ReplyTo => SysCallSignature::gr([Ptr(PtrInfo::new_mutable(
+                PtrType::ErrorWithHash(HashType::MessageId),
+            ))]),
+            Self::SignalFrom => SysCallSignature::gr([Ptr(PtrInfo::new_mutable(
+                PtrType::ErrorWithHash(HashType::MessageId),
+            ))]),
+            Self::Send => SysCallSignature::gr([
+                Ptr(PtrInfo::new_immutable(PtrType::HashWithValue(
+                    HashType::ActorId,
+                ))),
+                Ptr(PtrInfo::new_immutable(PtrType::SizedBufferStart {
+                    length_param_idx: 2,
+                })),
+                Size,
+                Delay,
+                Ptr(PtrInfo::new_mutable(PtrType::ErrorWithHash(
+                    HashType::MessageId,
+                ))),
+            ]),
+            Self::SendInput => SysCallSignature::gr([
+                Ptr(PtrInfo::new_immutable(PtrType::HashWithValue(
+                    HashType::ActorId,
+                ))),
+                Size,
+                Size,
+                Delay,
+                Ptr(PtrInfo::new_mutable(PtrType::ErrorWithHash(
+                    HashType::MessageId,
+                ))),
+            ]),
+            Self::SendWGas => SysCallSignature::gr([
+                Ptr(PtrInfo::new_immutable(PtrType::HashWithValue(
+                    HashType::ActorId,
+                ))),
+                Ptr(PtrInfo::new_immutable(PtrType::SizedBufferStart {
+                    length_param_idx: 2,
+                })),
+                Size,
+                Gas,
+                Delay,
+                Ptr(PtrInfo::new_mutable(PtrType::ErrorWithHash(
+                    HashType::MessageId,
+                ))),
+            ]),
+            Self::SendInputWGas => SysCallSignature::gr([
+                Ptr(PtrInfo::new_immutable(PtrType::HashWithValue(
+                    HashType::ActorId,
+                ))),
+                Size,
+                Size,
+                Gas,
+                Delay,
+                Ptr(PtrInfo::new_mutable(PtrType::ErrorWithHash(
+                    HashType::MessageId,
+                ))),
+            ]),
+            Self::SendCommit => SysCallSignature::gr([
+                Handler,
+                Ptr(PtrInfo::new_immutable(PtrType::HashWithValue(
+                    HashType::ActorId,
+                ))),
+                Delay,
+                Ptr(PtrInfo::new_mutable(PtrType::ErrorWithHash(
+                    HashType::MessageId,
+                ))),
+            ]),
+            Self::SendCommitWGas => SysCallSignature::gr([
+                Handler,
+                Ptr(PtrInfo::new_immutable(PtrType::HashWithValue(
+                    HashType::ActorId,
+                ))),
+                Gas,
+                Delay,
+                Ptr(PtrInfo::new_mutable(PtrType::ErrorWithHash(
+                    HashType::MessageId,
+                ))),
+            ]),
+            Self::SendInit => {
+                SysCallSignature::gr([Ptr(PtrInfo::new_mutable(PtrType::ErrorWithHandle))])
+            }
+            Self::SendPush => SysCallSignature::gr([
+                Handler,
+                Ptr(PtrInfo::new_immutable(PtrType::SizedBufferStart {
+                    length_param_idx: 2,
+                })),
+                Size,
+                Ptr(PtrInfo::new_mutable(PtrType::ErrorCode)),
+            ]),
+            Self::SendPushInput => SysCallSignature::gr([
+                Handler,
+                Size,
+                Size,
+                Ptr(PtrInfo::new_mutable(PtrType::ErrorCode)),
+            ]),
+            Self::ReservationSend => SysCallSignature::gr([
+                Ptr(PtrInfo::new_immutable(PtrType::TwoHashesWithValue(
+                    HashType::ReservationId,
+                    HashType::ActorId,
+                ))),
+                Ptr(PtrInfo::new_immutable(PtrType::SizedBufferStart {
+                    length_param_idx: 2,
+                })),
+                Size,
+                Delay,
+                Ptr(PtrInfo::new_mutable(PtrType::ErrorWithHash(
+                    HashType::MessageId,
+                ))),
+            ]),
+            Self::ReservationSendCommit => SysCallSignature::gr([
+                Handler,
+                Ptr(PtrInfo::new_immutable(PtrType::TwoHashesWithValue(
+                    HashType::ReservationId,
+                    HashType::ActorId,
+                ))),
+                Delay,
+                Ptr(PtrInfo::new_mutable(PtrType::ErrorWithHash(
+                    HashType::MessageId,
+                ))),
+            ]),
+            Self::Size => SysCallSignature::gr([Ptr(PtrInfo::new_mutable(PtrType::Length))]),
+            Self::Source => {
+                SysCallSignature::gr([Ptr(PtrInfo::new_mutable(PtrType::Hash(HashType::ActorId)))])
+            }
+            Self::Value => SysCallSignature::gr([Ptr(PtrInfo::new_mutable(PtrType::Value))]),
+            Self::CreateProgram => SysCallSignature::gr([
+                Ptr(PtrInfo::new_immutable(PtrType::HashWithValue(
+                    HashType::CodeId,
+                ))),
+                Ptr(PtrInfo::new_immutable(PtrType::SizedBufferStart {
+                    length_param_idx: 2,
+                })),
+                Size,
+                Ptr(PtrInfo::new_immutable(PtrType::SizedBufferStart {
+                    length_param_idx: 4,
+                })),
+                Size,
+                Delay,
+                Ptr(PtrInfo::new_mutable(PtrType::ErrorWithTwoHashes(
+                    HashType::MessageId,
+                    HashType::ActorId,
+                ))),
+            ]),
+            Self::CreateProgramWGas => SysCallSignature::gr([
+                Ptr(PtrInfo::new_immutable(PtrType::HashWithValue(
+                    HashType::CodeId,
+                ))),
+                Ptr(PtrInfo::new_immutable(PtrType::SizedBufferStart {
+                    length_param_idx: 2,
+                })),
+                Size,
+                Ptr(PtrInfo::new_immutable(PtrType::SizedBufferStart {
+                    length_param_idx: 4,
+                })),
+                Size,
+                Gas,
+                Delay,
+                Ptr(PtrInfo::new_mutable(PtrType::ErrorWithTwoHashes(
+                    HashType::MessageId,
+                    HashType::ActorId,
+                ))),
+            ]),
+            Self::ReplyDeposit => SysCallSignature::gr([
+                Ptr(PtrInfo::new_immutable(PtrType::Hash(HashType::MessageId))),
+                Gas,
+                Ptr(PtrInfo::new_mutable(PtrType::ErrorCode)),
+            ]),
+            Self::ReserveGas => SysCallSignature::gr([
+                Gas,
+                Duration,
+                Ptr(PtrInfo::new_mutable(PtrType::ErrorWithHash(
+                    HashType::ReservationId,
+                ))),
+            ]),
+            Self::UnreserveGas => SysCallSignature::gr([
+                Ptr(PtrInfo::new_immutable(PtrType::Hash(
+                    HashType::ReservationId,
+                ))),
+                Ptr(PtrInfo::new_mutable(PtrType::ErrorWithGas)),
+            ]),
+            Self::SystemReserveGas => {
+                SysCallSignature::gr([Gas, Ptr(PtrInfo::new_mutable(PtrType::ErrorCode))])
+            }
+            Self::Random => SysCallSignature::gr([
+                Ptr(PtrInfo::new_immutable(PtrType::Hash(HashType::SubjectId))),
+                Ptr(PtrInfo::new_mutable(PtrType::BlockNumberWithHash(
+                    HashType::SubjectId,
+                ))),
+            ]),
             other => panic!("Unknown syscall: '{:?}'", other),
         }
     }
@@ -315,10 +594,13 @@ impl SysCallName {
 }
 
 /// Syscall param type.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+///
+/// `Ptr` variant contains additional data about the type this pointer
+/// belongs to. See [`PtrInfo`] and [`PtrType`] for more details.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum ParamType {
     Size,            // i32 buffers size in memory
-    Ptr,             // i32 pointer
+    Ptr(PtrInfo),    // i32 pointer
     Gas,             // i64 gas amount
     MessagePosition, // i32 message position
     Duration,        // i32 duration in blocks
@@ -326,6 +608,96 @@ pub enum ParamType {
     Handler,         // i32 handler number
     Alloc,           // i32 alloc pages
     Free,            // i32 free page
+    Version,         // i32 version number of exec settings
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct PtrInfo {
+    pub mutable: bool,
+    pub ty: PtrType,
+}
+
+impl PtrInfo {
+    pub fn new_immutable(ty: PtrType) -> PtrInfo {
+        PtrInfo { mutable: false, ty }
+    }
+
+    pub fn new_mutable(ty: PtrType) -> PtrInfo {
+        PtrInfo { mutable: true, ty }
+    }
+}
+
+/// Hash type.
+///
+/// Used to distinguish between different hash types in the syscall signatures.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum HashType {
+    ActorId,
+    CodeId,
+    MessageId,
+    ReservationId,
+    /// This enum variant is used for the `gr_random` syscall.
+    SubjectId,
+}
+
+/// Pointer type.
+///
+/// Used to distinguish between different pointer types in the syscall signatures.
+/// Basically it responds to different types from `gsys`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum PtrType {
+    BlockNumber,
+    BlockTimestamp,
+    SizedBufferStart { length_param_idx: usize },
+    BufferStart,
+    Hash(HashType),
+    Gas,
+    Length,
+    Value,
+
+    BlockNumberWithHash(HashType),
+    HashWithValue(HashType),
+    TwoHashes(HashType, HashType),
+    TwoHashesWithValue(HashType, HashType),
+
+    ErrorCode,
+
+    ErrorWithReplyCode,
+    ErrorWithSignalCode,
+    ErrorWithGas,
+    ErrorWithHandle,
+    ErrorWithHash(HashType),
+    ErrorWithTwoHashes(HashType, HashType),
+    ErrorWithBlockNumberAndValue,
+}
+
+impl PtrType {
+    pub fn is_error(self) -> bool {
+        use PtrType::*;
+
+        match self {
+            ErrorCode
+            | ErrorWithReplyCode
+            | ErrorWithSignalCode
+            | ErrorWithGas
+            | ErrorWithHandle
+            | ErrorWithHash(_)
+            | ErrorWithTwoHashes(_, _)
+            | ErrorWithBlockNumberAndValue => true,
+            BlockNumber
+            | BlockTimestamp
+            | SizedBufferStart { .. }
+            | BufferStart
+            | Hash(_)
+            | Gas
+            | Length
+            | Value
+            | BlockNumberWithHash(_)
+            | HashWithValue(_)
+            | TwoHashes(_, _)
+            | TwoHashesWithValue(_, _) => false,
+        }
+    }
 }
 
 impl From<ParamType> for ValueType {
@@ -338,21 +710,21 @@ impl From<ParamType> for ValueType {
 }
 
 /// Syscall signature.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SysCallSignature {
     pub params: Vec<ParamType>,
     pub results: Vec<ValueType>,
 }
 
 impl SysCallSignature {
-    fn gr<const N: usize>(params: [ParamType; N]) -> Self {
+    pub fn gr<const N: usize>(params: [ParamType; N]) -> Self {
         Self {
             params: params.to_vec(),
             results: Default::default(),
         }
     }
 
-    fn system<const N: usize, const M: usize>(
+    pub fn system<const N: usize, const M: usize>(
         params: [ParamType; N],
         results: [ValueType; M],
     ) -> Self {

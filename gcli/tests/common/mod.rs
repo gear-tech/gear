@@ -20,7 +20,7 @@
 pub use self::{
     args::Args,
     result::{Error, Result},
-    traits::NodeExec,
+    traits::{Convert, NodeExec},
 };
 use gear_core::ids::{CodeId, ProgramId};
 use gsdk::{
@@ -38,12 +38,10 @@ pub mod logs;
 mod result;
 pub mod traits;
 
-#[cfg(not(feature = "vara-testing"))]
 mod prelude {
     pub use scale_info::scale::Encode;
 
-    pub const ALICE_SS58_ADDRESS: &str = "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY";
-    pub const MESSAGER_SENT_VALUE: u128 = 5_000;
+    pub const ALICE_SS58_ADDRESS: &str = "kGkLEU3e3XXkJp2WK4eNpVmSab5xUNL9QtmLPh8QfCL2EgotW";
 }
 
 #[cfg(not(feature = "vara-testing"))]
@@ -62,27 +60,19 @@ impl NodeExec for Node {
 
 /// Run binary `gcli`
 pub fn gcli<T: ToString>(args: impl IntoIterator<Item = T>) -> Result<Output> {
-    Ok(Command::new(env::bin("gcli"))
+    Command::new(env::bin("gcli"))
         .args(
             args.into_iter()
                 .map(|v| v.to_string())
                 .collect::<Vec<String>>(),
         )
-        .output()?)
+        .output()
+        .map_err(Into::into)
 }
 
 /// Run the dev node
 pub fn dev() -> Result<Node> {
-    #[cfg(not(feature = "vara-testing"))]
     let args = vec!["--tmp", "--dev"];
-    #[cfg(feature = "vara-testing")]
-    let args = vec![
-        "--tmp",
-        "--chain=vara-dev",
-        "--alice",
-        "--validator",
-        "--reserved-only",
-    ];
 
     Node::try_from_path(env::bin("gear"), args).map_err(Into::into)
 }
@@ -102,12 +92,12 @@ pub fn login_as_alice() -> Result<()> {
 
 /// Generate program id from code id and salt
 pub fn program_id(bin: &[u8], salt: &[u8]) -> ProgramId {
-    ProgramId::generate(CodeId::generate(bin), salt)
+    ProgramId::generate_from_user(CodeId::generate(bin), salt)
 }
 
 /// AccountId32 of `addr`
 pub fn alice_account_id() -> AccountId32 {
-    AccountId32::from_ss58check("5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY")
+    AccountId32::from_ss58check("kGkLEU3e3XXkJp2WK4eNpVmSab5xUNL9QtmLPh8QfCL2EgotW")
         .expect("Invalid address")
 }
 
@@ -118,11 +108,6 @@ pub async fn create_messager() -> Result<Node> {
     node.wait_for_log_record(logs::gear_node::IMPORTING_BLOCKS)?;
 
     let args = Args::new("upload").program(env::wasm_bin("demo_messager.opt.wasm"));
-
-    #[cfg(not(feature = "vara-testing"))]
-    let args = args
-        .payload("0x".to_owned() + &hex::encode(MESSAGER_SENT_VALUE.encode()))
-        .value("10000000");
 
     let _ = node.run(args)?;
     Ok(node)

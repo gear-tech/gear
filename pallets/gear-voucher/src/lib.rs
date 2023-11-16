@@ -49,7 +49,6 @@
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
 
-pub mod migration;
 pub mod weights;
 
 #[cfg(test)]
@@ -64,18 +63,17 @@ use frame_support::{
     traits::{Currency, ExistenceRequirement, ReservableCurrency, StorageVersion},
     PalletId,
 };
-use gear_core::ids::ProgramId;
+use gear_core::ids::{MessageId, ProgramId};
 pub use primitive_types::H256;
 use sp_io::hashing::blake2_256;
 use sp_runtime::traits::{StaticLookup, TrailingZeroInput};
-use sp_std::convert::TryInto;
+use sp_std::{convert::TryInto, vec::Vec};
 pub use weights::WeightInfo;
 
 pub use pallet::*;
 
 pub(crate) type BalanceOf<T> =
     <<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
-pub(crate) type CurrencyOf<T> = <T as Config>::Currency;
 type AccountIdLookupOf<T> = <<T as frame_system::Config>::Lookup as StaticLookup>::Source;
 
 /// The current storage version.
@@ -100,6 +98,11 @@ pub mod pallet {
 
         /// Weight information for extrinsics in this pallet.
         type WeightInfo: WeightInfo;
+
+        type CallsDispatcher: PrepaidCallsDispatcher<
+            AccountId = Self::AccountId,
+            Balance = BalanceOf<Self>,
+        >;
     }
 
     #[pallet::pallet]
@@ -172,6 +175,18 @@ pub mod pallet {
 
             Ok(().into())
         }
+
+        /// Dispatch allowed with voucher call.
+        #[pallet::call_index(1)]
+        #[pallet::weight(T::CallsDispatcher::weight(call))]
+        pub fn call(
+            origin: OriginFor<T>,
+            call: PrepaidCall<BalanceOf<T>>,
+        ) -> DispatchResultWithPostInfo {
+            let origin = ensure_signed(origin)?;
+
+            T::CallsDispatcher::dispatch(origin, call)
+        }
     }
 }
 
@@ -188,16 +203,38 @@ impl<T: Config> PaymentVoucher<T::AccountId, ProgramId, BalanceOf<T>> for Pallet
     type VoucherId = T::AccountId;
     type Error = DispatchError;
 
-    fn redeem_with_id(
-        who: T::AccountId,
-        program: ProgramId,
-        amount: BalanceOf<T>,
-    ) -> Result<Self::VoucherId, Self::Error> {
-        let voucher_id = Self::voucher_account_id(&who, &program);
-        CurrencyOf::<T>::reserve(&voucher_id, amount).map_err(|e| {
-            log::debug!("Failed to reserve funds from the voucher account: {:?}", e);
-            Error::<T>::FailureToRedeemVoucher
-        })?;
-        Ok(voucher_id)
+    #[inline]
+    fn voucher_id(who: T::AccountId, program: ProgramId) -> Self::VoucherId {
+        Self::voucher_account_id(&who, &program)
     }
+}
+
+#[derive(Debug, Clone, Encode, Decode, TypeInfo, PartialEq, Eq, PartialOrd, Ord)]
+pub enum PrepaidCall<Balance> {
+    SendMessage {
+        destination: ProgramId,
+        payload: Vec<u8>,
+        gas_limit: u64,
+        value: Balance,
+        keep_alive: bool,
+    },
+    SendReply {
+        reply_to_id: MessageId,
+        payload: Vec<u8>,
+        gas_limit: u64,
+        value: Balance,
+        keep_alive: bool,
+    },
+}
+
+pub trait PrepaidCallsDispatcher {
+    type AccountId;
+    type Balance;
+
+    fn weight(call: &PrepaidCall<Self::Balance>) -> Weight;
+
+    fn dispatch(
+        account_id: Self::AccountId,
+        call: PrepaidCall<Self::Balance>,
+    ) -> DispatchResultWithPostInfo;
 }

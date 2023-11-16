@@ -1,28 +1,26 @@
 [package]
 name = "gear-lazy-pages"
-version = "0.1.0"
+description = "Gear lazy-pages implementation"
+version.workspace = true
 authors.workspace = true
-description = "Gear lazy-pages support"
 edition.workspace = true
 license.workspace = true
-homepage = "https://gear-tech.io"
-repository = "https://github.com/gear-tech/gear"
+homepage.workspace = true
+repository.workspace = true
 
 [dependencies]
 log = { workspace = true, features = ["std"] }
 sp-io = { workspace = true, features = ["std"] }
 sp-std = { workspace = true, features = ["std"] }
 sp-wasm-interface = { workspace = true, features = ["std"] }
-sc-executor-common.workspace = true
 cfg-if.workspace = true
 region.workspace = true
 derive_more.workspace = true
-static_assertions.workspace = true
 once_cell.workspace = true
 
 gear-sandbox-host.workspace = true
 gear-core.workspace = true
-gear-backend-common.workspace = true
+gear-lazy-pages-common.workspace = true
 
 [target."cfg(target_vendor = \"apple\")".dependencies.mach]
 version = "0.3.2"

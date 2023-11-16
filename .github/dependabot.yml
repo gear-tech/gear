@@ -5,24 +5,23 @@ updates:
     labels: ["A4-insubstantial", "E2-forcemacos"]
     schedule:
       interval: "weekly"
-      day: "friday"
+      day: "sunday"
     commit-message:
-      prefix: "[skip ci] "
-
-  - package-ecosystem: "cargo"
-    directory: "/examples/"
-    labels: ["A4-insubstantial"]
-    schedule:
-      interval: "weekly"
-      day: "friday"
-    commit-message:
-      prefix: "[skip ci] "
+      prefix: "[depbot] "
+    groups:
+      deps:
+        patterns:
+          - "*"
 
   - package-ecosystem: "github-actions"
     directory: "/"
     labels: ["A4-insubstantial"]
     schedule:
       interval: "weekly"
-      day: "friday"
+      day: "sunday"
     commit-message:
-      prefix: "[skip ci] "
+      prefix: "[depbot] "
+    groups:
+      deps:
+        patterns:
+          - "*"

@@ -17,20 +17,25 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate as pallet_gear_staking_rewards;
-use frame_election_provider_support::{onchain, SequentialPhragmen, VoteWeight};
+use frame_election_provider_support::{
+    onchain, ElectionDataProvider, SequentialPhragmen, VoteWeight,
+};
 use frame_support::{
     construct_runtime, parameter_types,
     traits::{
-        ConstU32, Contains, FindAuthor, GenesisBuild, OnFinalize, OnInitialize, U128CurrencyToVote,
+        ConstU32, Contains, Currency, FindAuthor, GenesisBuild, NeverEnsureOrigin, OnFinalize,
+        OnInitialize, U128CurrencyToVote,
     },
-    weights::constants::RocksDbWeight,
+    weights::{constants::RocksDbWeight, Weight},
     PalletId,
 };
 use frame_system::{self as system, pallet_prelude::BlockNumberFor, EnsureRoot};
+use pallet_election_provider_multi_phase::{self as multi_phase};
 use pallet_session::historical::{self as pallet_session_historical};
 use sp_core::{crypto::key_types, H256};
 use sp_runtime::{
-    testing::{Block as TestBlock, Header, UintAuthorityId},
+    generic,
+    testing::{Block as TestBlock, UintAuthorityId},
     traits::{BlakeTwo256, IdentityLookup, OpaqueKeys},
     KeyTypeId, Perbill, Permill, Perquintill,
 };
@@ -54,6 +59,7 @@ pub(crate) type Executive = frame_executive::Executive<
 
 pub(crate) const SIGNER: AccountId = 1;
 pub(crate) const VAL_1_STASH: AccountId = 10;
+pub(crate) const BLOCK_AUTHOR: AccountId = VAL_1_STASH;
 pub(crate) const VAL_1_CONTROLLER: AccountId = 11;
 pub(crate) const VAL_1_AUTH_ID: UintAuthorityId = UintAuthorityId(12);
 pub(crate) const VAL_2_STASH: AccountId = 20;
@@ -67,14 +73,11 @@ pub(crate) const NOM_1_CONTROLLER: AccountId = 41;
 pub(crate) const ROOT: AccountId = 101;
 
 pub(crate) const INITIAL_TOTAL_TOKEN_SUPPLY: u128 = 1_000_000 * UNITS;
-pub(crate) const EXISTENTIAL_DEPOSIT: u128 = 10 * MILLICENTS; // 10
+pub(crate) const EXISTENTIAL_DEPOSIT: u128 = 10 * UNITS / 100_000; // 10
 pub(crate) const VALIDATOR_STAKE: u128 = 100 * UNITS; // 10
 pub(crate) const ENDOWMENT: u128 = 100 * UNITS;
 
 pub(crate) const UNITS: u128 = 100_000; // 10^(-5) precision
-pub(crate) const DOLLARS: u128 = UNITS; // 1 to 1
-pub(crate) const CENTS: u128 = DOLLARS / 100; // 1_000
-pub(crate) const MILLICENTS: u128 = CENTS / 1_000; // 1
 pub(crate) const MILLISECONDS_PER_YEAR: u64 = 1_000 * 3_600 * 24 * 36_525 / 100;
 pub(crate) const MILLISECS_PER_BLOCK: u64 = 2_400;
 pub(crate) const SESSION_DURATION: u64 = 1000;
@@ -98,80 +101,18 @@ construct_runtime!(
         BagsList: pallet_bags_list::<Instance1>::{Pallet, Event<T>},
         Sudo: pallet_sudo::{Pallet, Call, Storage, Config<T>, Event<T>},
         Utility: pallet_utility::{Pallet, Call, Event},
+        ElectionProviderMultiPhase: multi_phase::{Pallet, Call, Event<T>},
     }
 );
 
-impl pallet_balances::Config for Test {
-    type MaxLocks = ();
-    type MaxReserves = ();
-    type ReserveIdentifier = [u8; 8];
-    type Balance = Balance;
-    type DustRemoval = ();
-    type RuntimeEvent = RuntimeEvent;
-    type ExistentialDeposit = ExistentialDeposit;
-    type AccountStore = System;
-    type WeightInfo = ();
-}
+common::impl_pallet_system!(Test, DbWeight = RocksDbWeight, BlockWeights = ());
+common::impl_pallet_balances!(Test);
+common::impl_pallet_authorship!(Test, EventHandler = Staking);
+common::impl_pallet_timestamp!(Test);
 
 parameter_types! {
-    pub const BlockHashCount: u64 = 250;
-    pub const SS58Prefix: u8 = 42;
+    pub const BlockHashCount: BlockNumber = 250;
     pub const ExistentialDeposit: Balance = EXISTENTIAL_DEPOSIT;
-}
-
-impl system::Config for Test {
-    type BaseCallFilter = frame_support::traits::Everything;
-    type BlockWeights = ();
-    type BlockLength = ();
-    type DbWeight = RocksDbWeight;
-    type RuntimeOrigin = RuntimeOrigin;
-    type RuntimeCall = RuntimeCall;
-    type Index = u64;
-    type BlockNumber = BlockNumber;
-    type Hash = H256;
-    type Hashing = BlakeTwo256;
-    type AccountId = AccountId;
-    type Lookup = IdentityLookup<Self::AccountId>;
-    type Header = Header;
-    type RuntimeEvent = RuntimeEvent;
-    type BlockHashCount = BlockHashCount;
-    type Version = ();
-    type PalletInfo = PalletInfo;
-    type AccountData = pallet_balances::AccountData<u128>;
-    type OnNewAccount = ();
-    type OnKilledAccount = ();
-    type SystemWeightInfo = ();
-    type SS58Prefix = SS58Prefix;
-    type OnSetCode = ();
-    type MaxConsumers = ConstU32<16>;
-}
-
-pub struct FixedBlockAuthor;
-
-impl FindAuthor<u64> for FixedBlockAuthor {
-    fn find_author<'a, I>(_digests: I) -> Option<u64>
-    where
-        I: 'a + IntoIterator<Item = (sp_runtime::ConsensusEngineId, &'a [u8])>,
-    {
-        Some(VAL_1_STASH)
-    }
-}
-
-impl pallet_authorship::Config for Test {
-    type FindAuthor = FixedBlockAuthor;
-
-    type EventHandler = Staking;
-}
-
-parameter_types! {
-    pub const MinimumPeriod: u64 = 500;
-}
-
-impl pallet_timestamp::Config for Test {
-    type Moment = u64;
-    type OnTimestampSet = ();
-    type MinimumPeriod = MinimumPeriod;
-    type WeightInfo = ();
 }
 
 impl pallet_sudo::Config for Test {
@@ -304,6 +245,16 @@ parameter_types! {
     pub const MaxOnChainElectableTargets: u16 = 100;
 }
 
+frame_election_provider_support::generate_solution_type!(
+    #[compact]
+    pub struct TestNposSolution::<
+        VoterIndex = u32,
+        TargetIndex = u16,
+        Accuracy = sp_runtime::PerU16,
+        MaxVoters = ConstU32::<2_000>,
+    >(16)
+);
+
 pub struct OnChainSeqPhragmen;
 impl onchain::Config for OnChainSeqPhragmen {
     type System = Test;
@@ -394,7 +345,7 @@ impl pallet_bags_list::Config<pallet_bags_list::Instance1> for Test {
 
 parameter_types! {
     pub const ProposalBond: Permill = Permill::from_percent(5);
-    pub const ProposalBondMinimum: u128 = DOLLARS;
+    pub const ProposalBondMinimum: u128 = UNITS;
     pub const SpendPeriod: u32 = 100;
     pub const Burn: Permill = Permill::from_percent(50);
     pub const TreasuryPalletId: PalletId = PalletId(*b"py/trsry");
@@ -417,7 +368,93 @@ impl pallet_treasury::Config for Test {
     type SpendFunds = ();
     type WeightInfo = ();
     type MaxApprovals = MaxApprovals;
-    type SpendOrigin = frame_support::traits::NeverEnsureOrigin<u128>;
+    type SpendOrigin = NeverEnsureOrigin<u128>;
+}
+
+parameter_types! {
+    // phase durations. 1/4 of the last session for each.
+    pub static SignedPhase: u64 = SESSION_DURATION / 4;
+    pub static UnsignedPhase: u64 = SESSION_DURATION / 4;
+
+    // signed config
+    pub static SignedRewardBase: Balance = 50 * UNITS;
+    pub static SignedDepositBase: Balance = 50 * UNITS;
+    pub static SignedDepositByte: Balance = 0;
+    pub static SignedMaxSubmissions: u32 = 5;
+    pub static SignedMaxRefunds: u32 = 2;
+    pub BetterUnsignedThreshold: Perbill = Perbill::zero();
+    pub SignedMaxWeight: Weight = Weight::from_parts(u64::MAX, u64::MAX);
+
+    // miner configs
+    pub static MinerTxPriority: u64 = 100;
+    pub static MinerMaxWeight: Weight = Weight::from_parts(u64::MAX, u64::MAX);
+    pub static MinerMaxLength: u32 = 256;
+}
+
+impl multi_phase::MinerConfig for Test {
+    type AccountId = AccountId;
+    type MaxLength = MinerMaxLength;
+    type MaxWeight = MinerMaxWeight;
+    type MaxVotesPerVoter = <Staking as ElectionDataProvider>::MaxVotesPerVoter;
+    type MaxWinners = MaxActiveValidators;
+    type Solution = TestNposSolution;
+
+    fn solution_weight(v: u32, t: u32, a: u32, d: u32) -> Weight {
+        <<Self as multi_phase::Config>::WeightInfo as multi_phase::WeightInfo>::submit_unsigned(
+            v, t, a, d,
+        )
+    }
+}
+
+pub struct TestBenchmarkingConfig;
+impl multi_phase::BenchmarkingConfig for TestBenchmarkingConfig {
+    const VOTERS: [u32; 2] = [1000, 2000];
+    const TARGETS: [u32; 2] = [500, 1000];
+    const ACTIVE_VOTERS: [u32; 2] = [500, 800];
+    const DESIRED_TARGETS: [u32; 2] = [200, 400];
+    const SNAPSHOT_MAXIMUM_VOTERS: u32 = 1000;
+    const MINER_MAXIMUM_VOTERS: u32 = 1000;
+    const MAXIMUM_TARGETS: u32 = 300;
+}
+
+impl multi_phase::Config for Test {
+    type RuntimeEvent = RuntimeEvent;
+    type Currency = Balances;
+    type EstimateCallFee = ConstU32<1_000>;
+    type SignedPhase = SignedPhase;
+    type UnsignedPhase = UnsignedPhase;
+    type BetterUnsignedThreshold = BetterUnsignedThreshold;
+    type BetterSignedThreshold = ();
+    type OffchainRepeat = OffchainRepeat;
+    type MinerTxPriority = MinerTxPriority;
+    type SignedRewardBase = SignedRewardBase;
+    type SignedDepositBase = SignedDepositBase;
+    type SignedDepositByte = ();
+    type SignedDepositWeight = ();
+    type SignedMaxWeight = SignedMaxWeight;
+    type SignedMaxSubmissions = SignedMaxSubmissions;
+    type SignedMaxRefunds = SignedMaxRefunds;
+    type SlashHandler = Treasury;
+    type RewardHandler = StakingRewards;
+    type DataProvider = Staking;
+    type Fallback = onchain::OnChainExecution<OnChainSeqPhragmen>;
+    type GovernanceFallback = onchain::OnChainExecution<OnChainSeqPhragmen>;
+    type ForceOrigin = frame_system::EnsureRoot<AccountId>;
+    type MaxElectableTargets = MaxElectableTargets;
+    type MaxWinners = MaxActiveValidators;
+    type MaxElectingVoters = MaxElectingVoters;
+    type WeightInfo = ();
+    type BenchmarkingConfig = TestBenchmarkingConfig;
+    type MinerConfig = Self;
+    type Solver = SequentialPhragmen<AccountId, multi_phase::SolutionAccuracyOf<Self>, ()>;
+}
+
+impl<C> frame_system::offchain::SendTransactionTypes<C> for Test
+where
+    RuntimeCall: From<C>,
+{
+    type OverarchingCall = RuntimeCall;
+    type Extrinsic = TestXt;
 }
 
 pub type ValidatorAccountId = (
@@ -576,9 +613,7 @@ impl ExtBuilder {
             if total_supply < self.total_supply {
                 // Mint the difference to SIGNER user
                 let diff = self.total_supply.saturating_sub(total_supply);
-                let _ = <Balances as frame_support::traits::Currency<_>>::deposit_creating(
-                    &SIGNER, diff,
-                );
+                let _ = <Balances as Currency<_>>::deposit_creating(&SIGNER, diff);
             }
         });
         ext
@@ -610,22 +645,36 @@ pub(crate) fn run_for_n_blocks(n: u64) {
     }
 }
 
+pub fn run_to_unsigned() {
+    while !matches!(
+        ElectionProviderMultiPhase::current_phase(),
+        multi_phase::Phase::Unsigned(_)
+    ) {
+        run_to_block(System::block_number() + 1);
+    }
+}
+
+pub fn run_to_signed() {
+    while !matches!(
+        ElectionProviderMultiPhase::current_phase(),
+        multi_phase::Phase::Signed
+    ) {
+        run_to_block(System::block_number() + 1);
+    }
+}
+
 // Run on_initialize hooks in order as they appear in AllPalletsWithSystem.
 pub(crate) fn on_initialize(new_block_number: BlockNumberFor<Test>) {
-    System::on_initialize(new_block_number);
     Timestamp::set_timestamp(new_block_number.saturating_mul(MILLISECS_PER_BLOCK));
-    Balances::on_initialize(new_block_number);
     Authorship::on_initialize(new_block_number);
     Session::on_initialize(new_block_number);
-    Staking::on_initialize(new_block_number);
+    ElectionProviderMultiPhase::on_initialize(new_block_number);
 }
 
 // Run on_finalize hooks (in pallets reverse order, as they appear in AllPalletsWithSystem)
 pub(crate) fn on_finalize(current_blk: BlockNumberFor<Test>) {
     Staking::on_finalize(current_blk);
     Authorship::on_finalize(current_blk);
-    Balances::on_finalize(current_blk);
-    System::on_finalize(current_blk);
 }
 
 pub fn default_test_ext() -> sp_io::TestExternalities {
@@ -653,7 +702,7 @@ pub(crate) fn nominators_total_balance() -> u128 {
         .fold(0_u128, |acc, x| acc.saturating_add(x))
 }
 
-// Retuns the chain state as a tuple
+// Returns the chain state as a tuple
 // (`total_issuance`, `stakeable_amount`, `treasury_balance`, `staking_rewards_pool_balance`)
 pub(crate) fn chain_state() -> (u128, u128, u128, u128) {
     (

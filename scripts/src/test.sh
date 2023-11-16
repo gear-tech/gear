@@ -20,11 +20,14 @@ test_usage() {
     gcli           run gcli package tests
     pallet         run pallet-gear tests
     client         run client tests via gclient
-    fuzz           run fuzzer with a fuzz target
+    fuzz           run fuzzer
+                   The scripts accepts a path to corpus dir as a first param,
+                   and a "wlogs" flag to enable logs while fuzzing.
+    fuzz-repr      run fuzzer reproduction test
     syscalls       run syscalls integrity test in benchmarking module of pallet-gear
     docs           run doc tests
     validators     run validator checks
-
+    time-consuming run time consuming tests
 EOF
 }
 
@@ -39,20 +42,16 @@ workspace_test() {
 gsdk_test() {
   if [ "$CARGO" = "cargo xwin" ]; then
     $CARGO test -p gsdk --no-fail-fast "$@"
-    $CARGO test -p gsdk --no-fail-fast --features vara-testing "$@"
   else
     cargo nextest run -p gsdk --profile ci --no-fail-fast "$@"
-    cargo nextest run -p gsdk --features vara-testing --profile ci --no-fail-fast "$@"
   fi
 }
 
 gcli_test() {
   if [ "$CARGO" = "cargo xwin" ]; then
     $CARGO test -p gcli --no-fail-fast "$@"
-    $CARGO test -p gcli --features vara-testing --no-fail-fast "$@"
   else
     cargo nextest run -p gcli --profile ci --no-fail-fast "$@"
-    cargo nextest run -p gcli --features vara-testing --profile ci --no-fail-fast "$@"
   fi
 }
 
@@ -79,14 +78,25 @@ validators() {
 }
 
 run_fuzzer() {
-  ROOT_DIR="$1"
+  . $(dirname "$SELF")/fuzzer_consts.sh
 
+  ROOT_DIR="$1"
+  CORPUS_DIR="$2"
   # Navigate to fuzzer dir
   cd $ROOT_DIR/utils/runtime-fuzzer
 
+  if [ "$3" = "wlogs" ]; then
+    LOG_TARGETS="debug,syscalls,runtime::sandbox=trace,gear_wasm_gen=trace,runtime_fuzzer=trace,gear_core_backend=trace"
+  else
+    LOG_TARGETS="off"
+  fi
+
   # Run fuzzer
-  RUST_LOG="debug,runtime_fuzzer_fuzz=debug,wasmi,libfuzzer_sys,node_fuzzer=debug,gear,pallet_gear,gear-core-processor,gear-backend-wasmi,gwasm'" \
-  cargo fuzz run --release --sanitizer=none main -- -rss_limit_mb=8192
+  RUST_LOG="$LOG_TARGETS" cargo fuzz run --release --sanitizer=none main $CORPUS_DIR -- -rss_limit_mb=$RSS_LIMIT_MB -max_len=$MAX_LEN -len_control=0
+}
+
+test_fuzzer_reproduction() {
+  cargo nextest run -p runtime-fuzzer -E 'test(=tests::test_fuzzer_reproduction)'
 }
 
 # TODO this is likely to be merged with `pallet_test` or `workspace_test` in #1802
@@ -98,5 +108,10 @@ doc_test() {
   MANIFEST="$1"
   shift
 
-  __GEAR_WASM_BUILDER_NO_BUILD=1 SKIP_WASM_BUILD=1 SKIP_GEAR_RUNTIME_WASM_BUILD=1 SKIP_VARA_RUNTIME_WASM_BUILD=1 $CARGO test --doc --workspace --exclude runtime-fuzzer --exclude runtime-fuzzer-fuzz --manifest-path="$MANIFEST" --no-fail-fast "$@"
+  __GEAR_WASM_BUILDER_NO_BUILD=1 SKIP_WASM_BUILD=1 SKIP_VARA_RUNTIME_WASM_BUILD=1 $CARGO test --doc --workspace --exclude runtime-fuzzer --exclude runtime-fuzzer-fuzz --manifest-path="$MANIFEST" --no-fail-fast "$@"
+}
+
+time_consuming_tests() {
+  $CARGO test -p demo-fungible-token --no-fail-fast "$@" -- --nocapture --ignored
+  $CARGO test -p gear-wasm-builder --no-fail-fast "$@" -- --nocapture --ignored
 }

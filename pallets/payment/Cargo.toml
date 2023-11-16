@@ -1,12 +1,11 @@
 [package]
 name = "pallet-gear-payment"
-version = "0.1.0"
-authors = ['Gear Technologies']
-edition = '2021'
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
 license.workspace = true
-homepage = "https://gear-tech.io"
-repository = "https://github.com/gear-tech/gear"
-description = "Gear main pallet"
+homepage.workspace = true
+repository.workspace = true
 readme = "README.md"
 
 [package.metadata.docs.rs]
@@ -35,11 +34,13 @@ pallet-transaction-payment.workspace = true
 [dev-dependencies]
 serde.workspace = true
 env_logger.workspace = true
+common = { workspace = true, features = ["std"] }
 wabt.workspace = true
 gear-core.workspace = true
 sp-io = { workspace = true, features = ["std"] }
 frame-support-test = { workspace = true, features = ["std"] }
 pallet-timestamp = { workspace = true, features = ["std"] }
+pallet-gear-bank = { workspace = true, features = ["std"] }
 pallet-gear = { workspace = true, features = ["std"] }
 pallet-gear-gas = { workspace = true, features = ["std"] }
 pallet-gear-messenger = { workspace = true, features = ["std"] }
@@ -75,5 +76,4 @@ runtime-benchmarks = [
 	"frame-support/runtime-benchmarks",
 	"parity-wasm",
 ]
-lazy-pages = ["pallet-gear/lazy-pages"]
 try-runtime = ["frame-support/try-runtime"]

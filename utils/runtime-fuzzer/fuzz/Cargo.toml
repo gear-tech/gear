@@ -11,9 +11,7 @@ cargo-fuzz = true
 libfuzzer-sys.workspace = true
 runtime-fuzzer = { path = ".." }
 gear-utils.workspace = true
-env_logger.workspace = true
 log.workspace = true
-once_cell.workspace = true
 
 [[bin]]
 name = "main"

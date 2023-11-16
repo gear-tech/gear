@@ -19,9 +19,8 @@
 //! # Gear Scheduler Pallet
 
 #![cfg_attr(not(feature = "std"), no_std)]
-
-// Database migration module.
-pub mod migration;
+#![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
+#![doc(html_favicon_url = "https://gear-tech.io/favicons/favicon.ico")]
 
 // Runtime mock for running tests.
 #[cfg(test)]
@@ -30,6 +29,20 @@ mod mock;
 // Unit tests module.
 #[cfg(test)]
 mod tests;
+
+#[macro_export]
+macro_rules! impl_config {
+    ($runtime:ty) => {
+        impl pallet_gear_scheduler::Config for $runtime {
+            type BlockLimiter = GearGas;
+            type ReserveThreshold = ReserveThreshold;
+            type WaitlistCost = ConstU64<100>;
+            type MailboxCost = ConstU64<100>;
+            type ReservationCost = ConstU64<100>;
+            type DispatchHoldCost = ConstU64<100>;
+        }
+    };
+}
 
 // Public exports from pallet.
 pub use pallet::*;

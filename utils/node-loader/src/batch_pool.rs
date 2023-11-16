@@ -28,14 +28,14 @@ mod report;
 
 type Seed = u64;
 type CallId = usize;
-type EventsReciever = Receiver<subxt::events::Events<gsdk::config::GearConfig>>;
+type EventsReceiver = Receiver<subxt::events::Events<gsdk::config::GearConfig>>;
 
 pub struct BatchPool<Rng: CallGenRng> {
     api: GearApiFacade,
     pool_size: usize,
     batch_size: usize,
     tasks_context: Context,
-    rx: EventsReciever,
+    rx: EventsReceiver,
     _phantom: PhantomData<Rng>,
 }
 
@@ -44,7 +44,7 @@ impl<Rng: CallGenRng> BatchPool<Rng> {
         api: GearApiFacade,
         batch_size: usize,
         pool_size: usize,
-        rx: EventsReciever,
+        rx: EventsReceiver,
     ) -> Self {
         Self {
             api,
@@ -63,7 +63,7 @@ impl<Rng: CallGenRng> BatchPool<Rng> {
     /// - `renew_balance_task` - periodically setting a new balance for the user account.
     ///
     /// Wait for any task to return result with `tokio::select!`.
-    pub async fn run(mut self, params: LoadParams, rx: EventsReciever) -> Result<()> {
+    pub async fn run(mut self, params: LoadParams, rx: EventsReceiver) -> Result<()> {
         let gear_api = self.api.clone().into_gear_api();
         let run_pool_task = self.run_pool_loop(params.loader_seed, params.code_seed_type);
         let inspect_crash_task = tokio::spawn(inspect_crash_events(rx));
@@ -131,12 +131,12 @@ impl<Rng: CallGenRng> BatchPool<Rng> {
     }
 }
 
-/// Runs the generated `BatchWithSeed` with the provided `GearApiFacade` and `EventsReciever` to handle produced events.
+/// Runs the generated `BatchWithSeed` with the provided `GearApiFacade` and `EventsReceiver` to handle produced events.
 #[instrument(skip_all, fields(seed = batch.seed, batch_type = batch.batch_str()))]
 async fn run_batch(
     api: GearApiFacade,
     batch: BatchWithSeed,
-    rx: EventsReciever,
+    rx: EventsReceiver,
 ) -> Result<BatchRunReport> {
     let (seed, batch) = batch.into();
     match run_batch_impl(api, batch, rx).await {
@@ -160,7 +160,7 @@ async fn run_batch(
 async fn run_batch_impl(
     mut api: GearApiFacade,
     batch: Batch,
-    rx: EventsReciever,
+    rx: EventsReceiver,
 ) -> Result<Report> {
     // Order of the results of each extrinsic execution in the batch
     // is the same as in the input set of calls in the batch.
@@ -259,30 +259,28 @@ async fn process_events(
     api: GearApi,
     mut messages: BTreeMap<MessageId, (ProgramId, usize)>,
     block_hash: H256,
-    mut rx: EventsReciever,
+    mut rx: EventsReceiver,
 ) -> Result<Report> {
     // States what amount of blocks we should wait for taking all the events about successful `messages` execution
     let wait_for_events_blocks = 30;
     // Multiply on five to be 100% sure if no events occurred, then node is crashed
-    let wait_for_events_millisec = api.expected_block_time()? as usize * wait_for_events_blocks * 5;
+    let wait_for_events_millisec = api.expected_block_time()? * wait_for_events_blocks * 5;
 
     let mut mailbox_added = BTreeSet::new();
 
     let results = {
         let mut events = rx.recv().await?;
 
-        // Wait with a timeout until the `EventsReciever` receives the expected block hash.
+        // Wait with a timeout until the `EventsReceiver` receives the expected block hash.
         while events.block_hash() != block_hash {
             tokio::time::sleep(Duration::new(0, 500)).await;
-            events = tokio::time::timeout(
-                Duration::from_millis(wait_for_events_millisec as u64),
-                rx.recv(),
-            )
-            .await
-            .map_err(|_| {
-                tracing::debug!("Timeout is reached while waiting for events");
-                anyhow!(utils::EVENTS_TIMEOUT_ERR_STR)
-            })??;
+            events =
+                tokio::time::timeout(Duration::from_millis(wait_for_events_millisec), rx.recv())
+                    .await
+                    .map_err(|_| {
+                        tracing::debug!("Timeout is reached while waiting for events");
+                        anyhow!(utils::EVENTS_TIMEOUT_ERR_STR)
+                    })??;
         }
 
         // Wait for next n blocks and push new events.
@@ -299,15 +297,13 @@ async fn process_events(
                 v.push(event);
             }
             tokio::time::sleep(Duration::new(0, 100)).await;
-            events = tokio::time::timeout(
-                Duration::from_millis(wait_for_events_millisec as u64),
-                rx.recv(),
-            )
-            .await
-            .map_err(|_| {
-                tracing::debug!("Timeout is reached while waiting for events");
-                anyhow!(utils::EVENTS_TIMEOUT_ERR_STR)
-            })??;
+            events =
+                tokio::time::timeout(Duration::from_millis(wait_for_events_millisec), rx.recv())
+                    .await
+                    .map_err(|_| {
+                        tracing::debug!("Timeout is reached while waiting for events");
+                        anyhow!(utils::EVENTS_TIMEOUT_ERR_STR)
+                    })??;
         }
 
         let mut mailbox_from_events = utils::capture_mailbox_messages(&api, &mut v)
@@ -350,15 +346,15 @@ async fn process_events(
     })
 }
 
-async fn inspect_crash_events(mut rx: EventsReciever) -> Result<()> {
+async fn inspect_crash_events(mut rx: EventsReceiver) -> Result<()> {
     // Error means either event is not found and can't be found
     // in the listener, or some other error during event
     // parsing occurred.
-    while let Ok(events) = tokio::time::timeout(Duration::from_secs(30), rx.recv()).await? {
+    while let Ok(events) = tokio::time::timeout(Duration::from_secs(90), rx.recv()).await? {
         let bh = events.block_hash();
         for event in events.iter() {
             let event = event?.as_root_event::<gsdk::metadata::Event>()?;
-            if matches!(event, Event::Gear(GearEvent::QueueProcessingReverted)) {
+            if matches!(event, Event::Gear(GearEvent::QueueNotProcessed)) {
                 let crash_err = CrashAlert::MsgProcessingStopped;
                 tracing::info!("{crash_err} at block hash {bh:?}");
                 return Err(crash_err.into());

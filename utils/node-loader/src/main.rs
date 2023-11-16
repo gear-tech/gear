@@ -35,10 +35,10 @@ async fn run(params: Params) -> Result<()> {
 
 /// Connect to API of provided node address and subscribe for events.
 ///
-/// Broadcast new events to recievers.
+/// Broadcast new events to receivers.
 async fn listen_events(tx: Sender<subxt::events::Events<GearConfig>>, node: String) -> Result<()> {
     let api = gsdk::Api::new(Some(&node)).await?;
-    let mut event_listener = api.finalized_blocks().await?;
+    let mut event_listener = api.subscribe_finalized_blocks().await?;
 
     while let Some(events) = event_listener.next_events().await {
         tx.send(events?)?;

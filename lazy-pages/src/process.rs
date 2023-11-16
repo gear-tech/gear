@@ -22,8 +22,8 @@ use crate::{
     common::{Error, LazyPagesExecutionContext},
     mprotect,
 };
-use gear_backend_common::lazy_pages::Status;
 use gear_core::pages::{GearPage, PageDynSize};
+use gear_lazy_pages_common::Status;
 use std::slice;
 
 /// `process_lazy_pages` use struct which implements this trait,
@@ -32,7 +32,7 @@ pub(crate) trait AccessHandler {
     type Pages;
     type Output;
 
-    /// Returns wether it is write access
+    /// Returns whether it is write access
     fn is_write(&self) -> bool;
 
     /// Returns whether gas exceeded status is allowed for current access.
@@ -44,7 +44,7 @@ pub(crate) trait AccessHandler {
     /// Returns whether write accessed memory access is allowed for the case.
     fn check_write_accessed_memory_access() -> Result<(), Error>;
 
-    /// Returns wether already accessed memory read access is allowed for the case.
+    /// Returns whether already accessed memory read access is allowed for the case.
     fn check_read_from_accessed_memory() -> Result<(), Error>;
 
     /// Charge for accessed gear page.
@@ -115,7 +115,7 @@ pub(crate) fn process_lazy_pages<H: AccessHandler>(
             // about future contract execution correctness, because gas limit or allowance exceed.
             match status {
                 Status::Normal => Ok(false),
-                Status::GasLimitExceeded | Status::GasAllowanceExceeded => {
+                Status::GasLimitExceeded => {
                     log::trace!(
                         "Gas limit or allowance exceed, so removes protection from all wasm memory \
                         and continues execution until the end of current wasm block"

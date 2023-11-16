@@ -26,22 +26,18 @@
 //! For `debug` mode it provides more extensive logging.
 
 #[cfg(target_arch = "wasm32")]
-use {crate::ext, alloc::alloc::AllocErrorPanicPayload, core::panic::PanicInfo};
+use {crate::ext, core::alloc::Layout, core::panic::PanicInfo};
+
+#[cfg(target_arch = "wasm32")]
+#[alloc_error_handler]
+pub fn oom(_: Layout) -> ! {
+    ext::oom_panic()
+}
 
 #[cfg(not(any(feature = "debug", debug_assertions)))]
 #[cfg(target_arch = "wasm32")]
 #[panic_handler]
-pub fn panic(panic_info: &PanicInfo) -> ! {
-    // Alloc error handling through panic message.
-    if panic_info
-        .payload()
-        .downcast_ref::<AllocErrorPanicPayload>()
-        .is_some()
-    {
-        ext::oom_panic()
-    }
-
-    // Common panic handling.
+pub fn panic(_: &PanicInfo) -> ! {
     ext::panic("no info")
 }
 
@@ -51,16 +47,6 @@ pub fn panic(panic_info: &PanicInfo) -> ! {
 pub fn panic(panic_info: &PanicInfo) -> ! {
     use crate::prelude::format;
 
-    // Alloc error handling through panic message.
-    if panic_info
-        .payload()
-        .downcast_ref::<AllocErrorPanicPayload>()
-        .is_some()
-    {
-        ext::oom_panic()
-    }
-
-    // Common panic handling.
     let msg = match (panic_info.message(), panic_info.location()) {
         (Some(msg), Some(loc)) => format!(
             "'{:?}', {}:{}:{}",
@@ -76,5 +62,6 @@ pub fn panic(panic_info: &PanicInfo) -> ! {
         _ => ext::panic("no info"),
     };
 
+    crate::debug!("panic occurred: {msg}");
     ext::panic(&msg)
 }

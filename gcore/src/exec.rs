@@ -25,9 +25,20 @@ use crate::{
     errors::{Result, SyscallError},
     ActorId, MessageId, ReservationId,
 };
+use core::mem::MaybeUninit;
 use gsys::{
-    BlockNumberWithHash, ErrorWithBlockNumberAndValue, ErrorWithGas, ErrorWithHash, HashWithValue,
+    BlockNumberWithHash, EnvVars, ErrorWithBlockNumberAndValue, ErrorWithGas, ErrorWithHash,
+    HashWithValue,
 };
+
+/// Get current version of environment variables.
+pub fn env_vars() -> EnvVars {
+    let mut vars = MaybeUninit::<EnvVars>::uninit();
+    unsafe {
+        gsys::gr_env_vars(1, vars.as_mut_ptr() as *mut u8);
+        vars.assume_init()
+    }
+}
 
 /// Get the current block height.
 ///
@@ -452,7 +463,7 @@ pub fn pay_program_rent(program_id: ActorId, value: u128) -> Result<(u128, u32)>
 pub fn random(subject: [u8; 32]) -> Result<([u8; 32], u32)> {
     let mut res: BlockNumberWithHash = Default::default();
 
-    unsafe { gsys::gr_random(subject.as_ptr(), res.as_mut_ptr()) };
+    unsafe { gsys::gr_random(&subject, res.as_mut_ptr()) };
 
     Ok((res.hash, res.bn))
 }

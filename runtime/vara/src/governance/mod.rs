@@ -53,7 +53,7 @@ impl pallet_conviction_voting::Config for Runtime {
 
 parameter_types! {
     pub const AlarmInterval: BlockNumber = 1;
-    pub const SubmissionDeposit: Balance = 10 * DOLLARS;
+    pub const SubmissionDeposit: Balance = 10 * ECONOMIC_UNITS;
     pub const UndecidingTimeout: BlockNumber = 14 * DAYS;
 }
 
@@ -83,7 +83,7 @@ impl pallet_referenda::Config for Runtime {
     type SubmitOrigin = frame_system::EnsureSigned<AccountId>;
     type CancelOrigin = ReferendumCanceller;
     type KillOrigin = ReferendumKiller;
-    type Slash = ();
+    type Slash = Treasury;
     type Votes = pallet_conviction_voting::VotesOf<Runtime>;
     type Tally = pallet_conviction_voting::TallyOf<Runtime>;
     type SubmissionDeposit = SubmissionDeposit;

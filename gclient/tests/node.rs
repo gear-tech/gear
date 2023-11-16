@@ -21,7 +21,7 @@ async fn two_nodes_run_independently() {
 async fn program_migrated_to_another_node() {
     const INIT_VALUE_PAYLOAD: u64 = 42;
     const MULTIPLICATOR_VALUE_PAYLOAD: u64 = 4;
-    const PROGRAM_FUNDS: u128 = 25_000;
+    const PROGRAM_FUNDS: u128 = 25_000_000_000_000;
 
     // Arrange
 

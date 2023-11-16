@@ -32,7 +32,7 @@ fn main() {
 // # NOTE
 //
 // using an extra tool for doing this is for preventing the
-// build-dependencies slow down the complation speed.
+// build-dependencies slow down the compilation speed.
 fn generate_api() -> Vec<u8> {
     let root = env!("CARGO_MANIFEST_DIR");
     let profile = env::var("PROFILE").expect("Environment PROFILE not found.");
@@ -40,11 +40,7 @@ fn generate_api() -> Vec<u8> {
     // NOTE: use vara here since vara includes all pallets gear have,
     // and the API we are building here is for both vara and gear.
     let [vara_runtime, api_gen] = [
-        (
-            VARA_RUNTIME_RELATIVE_PATH,
-            VARA_RUNTIME_PKG,
-            vec!["debug-mode"],
-        ),
+        (VARA_RUNTIME_RELATIVE_PATH, VARA_RUNTIME_PKG, vec!["dev"]),
         (GSDK_API_GEN_RELATIVE_PATH, GSDK_API_GEN_PKG, vec![]),
     ]
     .map(|(relative_path, pkg, features)| get_path(root, &profile, relative_path, pkg, features));
@@ -82,6 +78,7 @@ fn format(stream: &[u8]) -> String {
     String::from_utf8_lossy(&out)
         .to_string()
         .replace(":: subxt", "::subxt")
+        .replace(" : :: ", ": ::")
         .replace(" :: ", "::")
 }
 
