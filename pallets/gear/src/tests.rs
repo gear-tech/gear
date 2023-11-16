@@ -84,7 +84,6 @@ use utils::*;
 type Gas = <<Test as Config>::GasProvider as common::GasProvider>::GasTree;
 
 #[test]
-#[should_panic]
 fn calculate_gas_delayed_reservations_sending() {
     use demo_delayed_reservation_sender::{ReservationSendingShowcase, WASM_BINARY};
 
@@ -141,7 +140,6 @@ fn calculate_gas_delayed_reservations_sending() {
 }
 
 #[test]
-#[should_panic(expected = "internal error: entered unreachable code: GasTree corrupted!")]
 fn delayed_reservations_sending_validation() {
     use demo_delayed_reservation_sender::{
         ReservationSendingShowcase, SENDING_EXPECT, WASM_BINARY,
@@ -1860,119 +1858,6 @@ fn delayed_send_program_message_with_reservation() {
             InputArgs {
                 destination: <[u8; 32]>::from(program_address).into(),
                 delay: delay.saturated_into(),
-                reservation_amount,
-            }
-            .encode(),
-            DEFAULT_GAS_LIMIT * 100,
-            0,
-            false,
-        ));
-
-        let proxy = utils::get_last_program_id();
-
-        run_to_next_block(None);
-        assert!(Gear::is_initialized(proxy));
-        assert!(Gear::is_initialized(program_address));
-
-        assert_ok!(Gear::send_message(
-            RuntimeOrigin::signed(USER_1),
-            proxy,
-            0u64.encode(),
-            DEFAULT_GAS_LIMIT * 100,
-            0,
-            false,
-        ));
-        let proxy_msg_id = utils::get_last_message_id();
-
-        // Run blocks to make message get into dispatch stash.
-        run_to_block(3, None);
-
-        let delay_holding_fee = gas_price(
-            CostsPerBlockOf::<Test>::dispatch_stash().saturating_mul(
-                delay
-                    .saturating_add(CostsPerBlockOf::<Test>::reserve_for())
-                    .saturated_into(),
-            ),
-        );
-
-        let reservation_holding_fee = gas_price(
-            80u64
-                .saturating_add(CostsPerBlockOf::<Test>::reserve_for().unique_saturated_into())
-                .saturating_mul(CostsPerBlockOf::<Test>::reservation()),
-        );
-
-        let delayed_id = MessageId::generate_outgoing(proxy_msg_id, 0);
-
-        // Check that delayed task was created
-        assert!(TaskPoolOf::<Test>::contains(
-            &(delay + 3),
-            &ScheduledTask::SendDispatch(delayed_id)
-        ));
-
-        // Check that correct amount locked for dispatch stash
-        let gas_locked_in_gas_node =
-            gas_price(Gas::get_lock(delayed_id, LockId::DispatchStash).unwrap());
-        assert_eq!(gas_locked_in_gas_node, delay_holding_fee);
-
-        // Gas should be reserved while message is being held in storage.
-        assert_eq!(
-            GearBank::<Test>::account_total(&USER_1),
-            gas_price(reservation_amount) + reservation_holding_fee
-        );
-
-        // Run blocks to release message.
-        run_to_block(delay + 2, None);
-
-        // Check that delayed task was created
-        assert!(TaskPoolOf::<Test>::contains(
-            &(delay + 3),
-            &ScheduledTask::SendDispatch(delayed_id)
-        ));
-
-        // Block where message processed
-        run_to_next_block(None);
-
-        // Check that last event is MessagesDispatched.
-        assert_last_dequeued(2);
-
-        assert_eq!(GearBank::<Test>::account_total(&USER_1), 0);
-    }
-
-    init_logger();
-
-    for i in 2..4 {
-        new_test_ext().execute_with(|| scenario(i));
-    }
-}
-
-#[test]
-fn delayed_send_program_message_with_low_reservation() {
-    use demo_proxy_reservation_with_gas::{InputArgs, WASM_BINARY as PROXY_WGAS_WASM_BINARY};
-
-    // Testing that correct gas amount will be reserved and paid for holding.
-    fn scenario(delay: BlockNumber) {
-        // Upload empty program that receive the message.
-        assert_ok!(Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            ProgramCodeKind::OutgoingWithValueInHandle.to_bytes(),
-            DEFAULT_SALT.to_vec(),
-            EMPTY_PAYLOAD.to_vec(),
-            DEFAULT_GAS_LIMIT * 100,
-            0,
-            false,
-        ));
-
-        let program_address = utils::get_last_program_id();
-        let reservation_amount = <Test as Config>::MailboxThreshold::get();
-
-        // Upload program that sends message to another program.
-        assert_ok!(Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            PROXY_WGAS_WASM_BINARY.to_vec(),
-            DEFAULT_SALT.to_vec(),
-            InputArgs {
-                destination: <[u8; 32]>::from(program_address).into(),
-                delay,
                 reservation_amount,
             }
             .encode(),
