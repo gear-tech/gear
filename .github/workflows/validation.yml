@@ -52,7 +52,7 @@ jobs:
           context: .
           file: ./docker/Dockerfile
           push: true
-          tags: ghcr.io/gear-tech/node:latest, ${{ needs.tag-image.outputs.image_tag }}
+          tags: ${{ needs.tag-image.outputs.image_tag }}
 
       - name: SSH into VM
         uses: appleboy/ssh-action@v1.0.0

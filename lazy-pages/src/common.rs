@@ -18,14 +18,13 @@
 
 //! Lazy-pages structures for common usage.
 
-use std::{collections::BTreeSet, mem::size_of, num::NonZeroU32};
-
 use crate::{globals::GlobalsContext, mprotect::MprotectError};
 use gear_core::{
     pages::{GearPage, PageDynSize, PageSizeNo, SizeManager, WasmPage},
     str::LimitedStr,
 };
 use gear_lazy_pages_common::{GlobalsAccessError, Status};
+use std::{collections::BTreeSet, fmt, mem, num::NonZeroU32};
 
 // TODO: investigate error allocations #2441
 #[derive(Debug, derive_more::Display, derive_more::From)]
@@ -77,46 +76,100 @@ pub(crate) struct LazyPagesContext {
 }
 
 impl LazyPagesContext {
+    pub fn contexts(
+        &self,
+    ) -> Result<(&LazyPagesRuntimeContext, &LazyPagesExecutionContext), ContextError> {
+        Ok((self.runtime_context()?, self.execution_context()?))
+    }
+
+    pub fn contexts_mut(
+        &mut self,
+    ) -> Result<(&mut LazyPagesRuntimeContext, &mut LazyPagesExecutionContext), ContextError> {
+        let rt_ctx = self
+            .runtime_context
+            .as_mut()
+            .ok_or(ContextError::RuntimeContextIsNotSet)?;
+        let exec_ctx = self
+            .execution_context
+            .as_mut()
+            .ok_or(ContextError::ExecutionContextIsNotSet)?;
+        Ok((rt_ctx, exec_ctx))
+    }
+
+    pub fn runtime_context(&self) -> Result<&LazyPagesRuntimeContext, ContextError> {
+        self.runtime_context
+            .as_ref()
+            .ok_or(ContextError::RuntimeContextIsNotSet)
+    }
+
     pub fn runtime_context_mut(&mut self) -> Result<&mut LazyPagesRuntimeContext, ContextError> {
         self.runtime_context
             .as_mut()
             .ok_or(ContextError::RuntimeContextIsNotSet)
     }
+
     pub fn execution_context(&self) -> Result<&LazyPagesExecutionContext, ContextError> {
         self.execution_context
             .as_ref()
             .ok_or(ContextError::ExecutionContextIsNotSet)
     }
-    pub fn execution_context_mut(
-        &mut self,
-    ) -> Result<&mut LazyPagesExecutionContext, ContextError> {
-        self.execution_context
-            .as_mut()
-            .ok_or(ContextError::ExecutionContextIsNotSet)
-    }
+
     pub fn set_runtime_context(&mut self, ctx: LazyPagesRuntimeContext) {
         self.runtime_context = Some(ctx);
     }
+
     pub fn set_execution_context(&mut self, ctx: LazyPagesExecutionContext) {
         self.execution_context = Some(ctx);
     }
 }
 
 pub(crate) type Weights = [u64; WeightNo::Amount as usize];
-pub(crate) type PageSizes = [NonZeroU32; PageSizeNo::Amount as usize];
 pub(crate) type GlobalNames = Vec<LimitedStr<'static>>;
+pub type PageSizes = [NonZeroU32; PageSizeNo::Amount as usize];
 
 #[derive(Debug)]
 pub(crate) struct LazyPagesRuntimeContext {
     pub page_sizes: PageSizes,
     pub global_names: GlobalNames,
     pub pages_storage_prefix: Vec<u8>,
+    pub program_storage: Box<dyn LazyPagesStorage>,
+}
+
+impl LazyPagesRuntimeContext {
+    pub fn page_has_data_in_storage(&self, prefix: &mut PagePrefix, page: GearPage) -> bool {
+        let key = prefix.key_for_page(page);
+        self.program_storage.page_exists(key)
+    }
+
+    pub fn load_page_data_from_storage(
+        &mut self,
+        prefix: &mut PagePrefix,
+        page: GearPage,
+        buffer: &mut [u8],
+    ) -> Result<bool, Error> {
+        let key = prefix.key_for_page(page);
+        if let Some(size) = self.program_storage.load_page(key, buffer) {
+            if size != GearPage::size(self) {
+                return Err(Error::InvalidPageDataSize {
+                    expected: GearPage::size(self),
+                    actual: size,
+                });
+            }
+            Ok(true)
+        } else {
+            Ok(false)
+        }
+    }
+}
+
+pub trait LazyPagesStorage: fmt::Debug {
+    fn page_exists(&self, key: &[u8]) -> bool;
+
+    fn load_page(&mut self, key: &[u8], buffer: &mut [u8]) -> Option<u32>;
 }
 
 #[derive(Debug)]
 pub(crate) struct LazyPagesExecutionContext {
-    /// Lazy-pages page size.
-    pub page_sizes: PageSizes,
     /// Lazy-pages accesses weights.
     pub weights: Weights,
     /// Pointer to the begin of wasm memory buffer
@@ -148,12 +201,6 @@ pub enum LazyPagesVersion {
     Version1,
 }
 
-impl SizeManager for LazyPagesExecutionContext {
-    fn size_non_zero<P: PageDynSize>(&self) -> NonZeroU32 {
-        self.page_sizes[P::SIZE_NO]
-    }
-}
-
 impl SizeManager for LazyPagesRuntimeContext {
     fn size_non_zero<P: PageDynSize>(&self) -> NonZeroU32 {
         self.page_sizes[P::SIZE_NO]
@@ -181,32 +228,6 @@ impl LazyPagesExecutionContext {
         }
     }
 
-    pub fn key_for_page(&mut self, page: GearPage) -> &[u8] {
-        self.program_storage_prefix.calc_key_for_page(page)
-    }
-
-    pub fn page_has_data_in_storage(&mut self, page: GearPage) -> bool {
-        sp_io::storage::exists(self.key_for_page(page))
-    }
-
-    pub fn load_page_data_from_storage(
-        &mut self,
-        page: GearPage,
-        buffer: &mut [u8],
-    ) -> Result<bool, Error> {
-        if let Some(size) = sp_io::storage::read(self.key_for_page(page), buffer, 0) {
-            if size != GearPage::size(self) {
-                return Err(Error::InvalidPageDataSize {
-                    expected: GearPage::size(self),
-                    actual: size,
-                });
-            }
-            Ok(true)
-        } else {
-            Ok(false)
-        }
-    }
-
     pub fn weight(&self, no: WeightNo) -> u64 {
         self.weights[no as usize]
     }
@@ -225,18 +246,19 @@ pub(crate) struct PagePrefix {
 
 impl PagePrefix {
     /// New page prefix from program prefix
-    pub fn new_from_program_prefix(mut program_prefix: Vec<u8>) -> Self {
-        program_prefix.extend_from_slice(&u32::MAX.to_le_bytes());
+    pub(crate) fn new_from_program_prefix(mut storage_prefix: Vec<u8>) -> Self {
+        storage_prefix.extend_from_slice(&u32::MAX.to_le_bytes());
         Self {
-            buffer: program_prefix,
+            buffer: storage_prefix,
         }
     }
 
     /// Returns key in storage for `page`.
-    fn calc_key_for_page(&mut self, page: GearPage) -> &[u8] {
+    fn key_for_page(&mut self, page: GearPage) -> &[u8] {
         let len = self.buffer.len();
         let page_no: u32 = page.into();
-        self.buffer[len - size_of::<u32>()..len].copy_from_slice(page_no.to_le_bytes().as_slice());
+        self.buffer[len - mem::size_of::<u32>()..len]
+            .copy_from_slice(page_no.to_le_bytes().as_slice());
         &self.buffer
     }
 }
