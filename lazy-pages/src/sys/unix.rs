@@ -27,8 +27,7 @@ use nix::{
     libc::{c_void, siginfo_t},
     sys::{signal, signal::SigHandler},
 };
-use once_cell::sync::OnceCell;
-use std::io;
+use std::{io, sync::OnceLock};
 
 /// Signal handler which has been set before lazy-pages initialization.
 /// Currently use to support wasmer signal handler.
@@ -37,7 +36,7 @@ use std::io;
 /// see https://github.com/gear-tech/substrate/blob/gear-stable/client/executor/common/src/sandbox/wasmer_backend.rs
 /// and https://github.com/wasmerio/wasmer/blob/e6857d116134bdc9ab6a1dabc3544cf8e6aee22b/lib/vm/src/trap/traphandlers.rs#L548
 /// So, if we receive signal from unknown memory we should try to use old (wasmer) signal handler.
-static mut OLD_SIG_HANDLER: OnceCell<SigHandler> = OnceCell::new();
+static mut OLD_SIG_HANDLER: OnceLock<SigHandler> = OnceLock::new();
 
 cfg_if! {
     if #[cfg(all(target_os = "linux", target_arch = "x86_64"))] {
