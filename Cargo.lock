@@ -2065,6 +2065,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-delayed-reservation-sender"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+]
+
+[[package]]
 name = "demo-delayed-sender"
 version = "0.1.0"
 dependencies = [
@@ -7496,6 +7504,7 @@ dependencies = [
  "demo-compose",
  "demo-constructor",
  "demo-custom",
+ "demo-delayed-reservation-sender",
  "demo-delayed-sender",
  "demo-distributor",
  "demo-futures-unordered",
