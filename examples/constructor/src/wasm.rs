@@ -34,3 +34,8 @@ extern "C" fn handle() {
 extern "C" fn handle_reply() {
     process_fn(Scheme::handle_reply);
 }
+
+#[no_mangle]
+extern "C" fn handle_signal() {
+    process_fn(Scheme::handle_signal);
+}
