@@ -44,7 +44,7 @@ mod panic_handler {
 
     #[cfg(feature = "debug")]
     #[panic_handler]
-    pub fn panic(_: &PanicInfo) -> ! {
+    pub fn panic(panic_info: &PanicInfo) -> ! {
         use crate::prelude::format;
         #[cfg(not(feature = "panic-messages"))]
         let message = None::<&core::fmt::Arguments<'_>>;
