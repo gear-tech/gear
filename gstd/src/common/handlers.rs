@@ -32,29 +32,43 @@ pub fn oom(_: core::alloc::Layout) -> ! {
 }
 
 #[cfg(feature = "panic-handler")]
-#[panic_handler]
-pub fn panic(panic_info: &core::panic::PanicInfo) -> ! {
-    use crate::{ext, prelude::format};
+mod panic_handler {
+    use crate::ext;
+    use core::panic::PanicInfo;
 
-    let message = None::<&core::fmt::Arguments<'_>>;
-    #[cfg(all(feature = "panic-messages", feature = "debug"))]
-    let message = panic_info.message();
+    #[cfg(not(feature = "debug"))]
+    #[panic_handler]
+    pub fn panic(_: &PanicInfo) -> ! {
+        ext::panic("no info")
+    }
 
-    let msg = match (message, panic_info.location()) {
-        (Some(msg), Some(loc)) => format!(
-            "'{:?}', {}:{}:{}",
-            msg,
-            loc.file(),
-            loc.line(),
-            loc.column()
-        ),
-        (Some(msg), None) => format!("'{msg:?}'"),
-        (None, Some(loc)) => {
-            format!("{}:{}:{}", loc.file(), loc.line(), loc.column())
-        }
-        _ => ext::panic("no info"),
-    };
+    #[cfg(feature = "debug")]
+    #[panic_handler]
+    pub fn panic(_: &PanicInfo) -> ! {
+        use crate::prelude::format;
+        #[cfg(not(feature = "panic-messages"))]
+        let message = None::<&core::fmt::Arguments<'_>>;
+        #[cfg(feature = "panic-messages")]
+        let message = panic_info.message();
 
-    crate::debug!("panic occurred: {msg}");
-    ext::panic(&msg)
+        let msg = match (message, panic_info.location()) {
+            (Some(msg), Some(loc)) => format!(
+                "'{:?}', {}:{}:{}",
+                msg,
+                loc.file(),
+                loc.line(),
+                loc.column()
+            ),
+            (Some(msg), None) => format!("'{msg:?}'"),
+            (None, Some(loc)) => {
+                format!("{}:{}:{}", loc.file(), loc.line(), loc.column())
+            }
+            _ => ext::panic("no info"),
+        };
+
+        crate::debug!("panic occurred: {msg}");
+        ext::panic(&msg)
+    }
 }
+#[cfg(feature = "panic-handler")]
+pub use panic_handler::*;
