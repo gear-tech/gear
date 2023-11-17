@@ -362,7 +362,59 @@ impl<'a> Program<'a> {
     /// Create a program from file and initialize it with provided
     /// `path` and `id`.
     ///
-    /// See also [`Program::from_file`].
+    /// `id` may be built from:
+    /// - `u64`
+    /// - `[u8; 32]`
+    /// - `String`
+    /// - `&str`
+    /// - [`ProgramId`](https://docs.gear.rs/gear_core/ids/struct.ProgramId.html) (from `gear_core` one's, not from `gstd`).
+    ///
+    /// # Examples
+    ///
+    /// From numeric id:
+    ///
+    /// ```
+    /// let prog = Program::from_file_with_id(
+    ///     &sys,
+    ///     105,
+    ///     "./target/wasm32-unknown-unknown/release/demo_ping.wasm",
+    /// );
+    /// ```
+    ///
+    /// From hex string starting with `0x`:
+    ///
+    /// ```
+    /// let prog = Program::from_file_with_id(
+    ///     &sys,
+    ///     "0xe659a7a1628cdd93febc04a4e0646ea20e9f5f0ce097d9a05290d4a9e054df4e",
+    ///     "./target/wasm32-unknown-unknown/release/demo_ping.wasm",
+    /// );
+    /// ```
+    ///
+    /// From hex string starting without `0x`:
+    ///
+    /// ```
+    /// let prog = Program::from_file_with_id(
+    ///     &sys,
+    ///     "e659a7a1628cdd93febc04a4e0646ea20e9f5f0ce097d9a05290d4a9e054df5e",
+    ///     "./target/wasm32-unknown-unknown/release/demo_ping.wasm",
+    /// );
+    /// ```
+    ///
+    /// From array of bytes (e.g. filled with `5`):
+    ///
+    /// ```
+    /// let prog = Program::from_file_with_id(
+    ///     &sys,
+    ///     [5; 32],
+    ///     "./target/wasm32-unknown-unknown/release/demo_ping.wasm",
+    /// );
+    /// ```
+    ///
+    /// # See also
+    ///
+    /// - [`Program::from_file`] for creating a program from file with default id.
+    ///
     #[track_caller]
     pub fn from_file_with_id<P: AsRef<Path>, I: Into<ProgramIdWrapper> + Clone + Debug>(
         system: &'a System,

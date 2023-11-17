@@ -146,121 +146,123 @@
 //! cargo test
 //! ```
 //!
-//! ## `gtest` capabilities
+//! # `gtest` capabilities
 //!
-//! - Initialization of the common environment for running smart contracts:
-//! ```ignore
-//! // This emulates node's and chain's behavior.
-//! //
-//! // By default, sets:
-//! // - current block equals 0
-//! // - current timestamp equals UNIX timestamp of your system.
-//! // - minimal message id equal 0x010000..
-//! // - minimal program id equal 0x010000..
+//! Let's take a closer look at the `gtest` capabilities.
+//!
+//! ## Initialization of the common environment for running smart contracts
+//!
+//! ```
 //! let sys = System::new();
 //! ```
-//! - Program initialization:
-//! ```ignore
-//!     // Initialization of program structure from file.
-//!     //
-//!     // Takes as arguments reference to the related `System` and the path to wasm binary relatively
-//!     // the root of the crate where the test was written.
-//!     //
-//!     // Sets free program id from the related `System` to this program. For this case it equals 0x010000..
-//!     // Next program initialized without id specification will have id 0x020000.. and so on.
-//!     let _ = Program::from_file(
+//!
+//! This emulates node's and chain's behavior. By default, the [`System::new`] function sets the following parameters:
+//!
+//! - current block equals `0`
+//! - current timestamp equals UNIX timestamp of your system
+//! - starting message id equals `0x010000..`
+//! - starting program id equals `0x010000..`
+//!
+//! ## Program initialization
+//!
+//! There are several ways to initialize a program:
+//!
+//! - Initialize the current program using the [`Program::current`] function:
+//!
+//!     ```
+//!     let prog = Program::current(&sys);
+//!     ```
+//!
+//! - Initialize a program from a Wasm-file with a default id using the [`Program::from_file`] function:
+//!
+//!     ```
+//!     let prog = Program::from_file(
 //!         &sys,
 //!         "./target/wasm32-unknown-unknown/release/demo_ping.wasm",
 //!     );
+//!     ```
 //!
-//!     // Also, you may use the `Program::current()` function to load the current program.
-//!     let _ = Program::current(&sys);
+//! - Initialize a program from a Wasm-file with a custom id using the [`Program::from_file_with_id`] function:
 //!
-//!     // We can check the id of the program by calling `id()` function.
-//!     //
-//!     // It returns `ProgramId` type value.
-//!     let ping_pong_id = ping_pong.id();
-//!
-//!     // There is also a `from_file_with_id` constructor to manually specify the id of the program.
-//!     //
-//!     // Every place in this lib, where you need to specify some ids,
-//!     // it requires generic type 'ID`, which implements `Into<ProgramIdWrapper>`.
-//!     //
-//!     // `ProgramIdWrapper` may be built from:
-//!     // - u64;
-//!     // - [u8; 32];
-//!     // - String;
-//!     // - &str;
-//!     // - ProgramId (from `gear_core` one's, not from `gstd`).
-//!     //
-//!     // String implementation means the input as hex (with or without "0x")
-//!
-//!     // Numeric
-//!     let _ = Program::from_file_with_id(
+//!     ```
+//!     let prog = Program::from_file_with_id(
 //!         &sys,
 //!         105,
 //!         "./target/wasm32-unknown-unknown/release/demo_ping.wasm",
 //!     );
+//!     ```
 //!
-//!     // Hex with "0x"
-//!     let _ = Program::from_file_with_id(
-//!         &sys,
-//!         "0xe659a7a1628cdd93febc04a4e0646ea20e9f5f0ce097d9a05290d4a9e054df4e",
-//!         "./target/wasm32-unknown-unknown/release/demo_ping.wasm",
-//!     );
+//!     Every place in this lib, where you need to specify some ids, it requires generic type `ID`, which implements ``Into<ProgramIdWrapper>``.
 //!
-//!     // Hex without "0x"
-//!     let _ = Program::from_file_with_id(
-//!         &sys,
-//!         "e659a7a1628cdd93febc04a4e0646ea20e9f5f0ce097d9a05290d4a9e054df5e",
-//!         "./target/wasm32-unknown-unknown/release/demo_ping.wasm",
-//!     );
+//!     `ProgramIdWrapper` may be built from:
+//!     - `u64`
+//!     - `[u8; 32]`
+//!     - `String`
+//!     - `&str`
+//!     - [`ProgramId`](https://docs.gear.rs/gear_core/ids/struct.ProgramId.html) (from `gear_core` one's, not from `gstd`).
 //!
-//!     // Array [u8; 32] (e.g. filled with 5)
-//!     let _ = Program::from_file_with_id(
-//!         &sys,
-//!         [5; 32],
-//!         "./target/wasm32-unknown-unknown/release/demo_ping.wasm",
-//!     );
+//!     `String` implementation means the input as hex (with or without "0x").
 //!
-//!     // If you initialize program not in this scope, in cycle, in other conditions,
-//!     // where you didn't save the structure, you may get the object from the system by id.
-//!     let _ = sys.get_program(105);
+//! ## Getting the program from the system
+//!
+//! If you initialize program not in this scope, in cycle, in other conditions, where you didn't save the structure, you may get the object from the system by id.
+//!
 //! ```
-//! - Getting the program from the system:
-//! ```ignore
-//! // If you initialize program not in this scope, in cycle, in other conditions,
-//! // where you didn't save the structure, you may get the object from the system by id.
-//! let _ = sys.get_program(105);
+//! let prog = sys.get_program(105);
 //! ```
-//! - Initialization of styled `env_logger`:
-//! ```ignore
-//!     // Initialization of styled `env_logger` to print logs (only from `gwasm` by default) into stdout.
-//!     //
-//!     // To specify printed logs, set the env variable `RUST_LOG`:
-//!     // `RUST_LOG="target_1=logging_level,target_2=logging_level" cargo test`
-//!     //
-//!     // Gear smart contracts use `gwasm` target with `debug` logging level
-//!     sys.init_logger();
+//!
+//! ## Initialization of styled `env_logger`
+//!
+//! Initialization of styled `env_logger` to print logs (only from `gwasm` by default) into stdout:
+//!
 //! ```
-//! - Sending messages:
-//! ```ignore
-//!     // To send message to the program need to call one of two program's functions:
-//!     // `send()` or `send_bytes()` (or `send_with_value` and `send_bytes_with_value` if you need to send a message with attached funds).
-//!     //
-//!     // Both of the methods require sender id as the first argument and the payload as second.
-//!     //
-//!     // The difference between them is pretty simple and similar to `gstd` functions
-//!     // `msg::send()` and `msg::send_bytes()`.
-//!     //
-//!     // The first one requires payload to be CODEC Encodable, while the second requires payload
-//!     // implement `AsRef<[u8]>`, that means to be able to represent as bytes.
-//!     //
-//!     // `send()` uses `send_bytes()` under the hood with bytes from payload.encode().
-//!     //
-//!     // First message to the initialized program structure is always the init message.
-//!     let res = program.send_bytes(100001, "INIT MESSAGE");
+//! sys.init_logger();
 //! ```
+//!
+//! To specify printed logs, set the env variable `RUST_LOG`:
+//!
+//! ```bash
+//! RUST_LOG="target_1=logging_level,target_2=logging_level" cargo test
+//! ```
+//!
+//! ## Sending messages
+//!
+//! To send message to the program need to call one of two program's functions:
+//!
+//! - [`Program::send`] (or [`Program::send_with_value`] if you need to send a message with attached funds).
+//! - [`Program::send_bytes`] (or [`Program::send_bytes_with_value`] if you need to send a message with attached funds).
+//!
+//! Both of the methods require sender id as the first argument and the payload as second.
+//!
+//! The difference between them is pretty simple and similar to [`gstd`](https://docs.gear.rs/gstd/) functions [`msg::send`](https://docs.gear.rs/gstd/msg/fn.send.html) and [`msg::send_bytes`](https://docs.gear.rs/gstd/msg/fn.send_bytes.html).
+//!
+//! The first one requires payload to be CODEC Encodable, while the second requires payload implement `AsRef<[u8]>`, that means to be able to represent as bytes.
+//!
+//! [`Program::send`] uses [`Program::send_bytes`] under the hood with bytes from `payload.encode()`.
+//!
+//! First message to the initialized program structure is always the init message.
+//!
+//! ```
+//! let res = program.send_bytes(100001, "INIT MESSAGE");
+//! ```
+//!
+//! ## Processing the result of the program execution
+//!
+//! Any sending functions in the lib returns [`RunResult`] structure.
+//!
+//! It contains the final result of the processing message and others, which were created during the execution.
+//!
+//! It has 4 main functions:
+//!
+//! - [`RunResult::log`] — returns the reference to the Vec produced to users messages. You may assert them as you wish, iterating through them.
+//! - [`RunResult::main_failed`] — returns bool which shows that there was panic during the execution of the main message.
+//! - [`RunResult::others_failed`] — returns bool which shows that there was panic during the execution of the created messages during the main execution. Equals false if no others were called.
+//! - [`RunResult::contains`] — returns bool which shows that logs contain a given log. Syntax sugar around `res.log().iter().any(|v| v == arg)`.
+//!
+//! To build a log for assertion you need to use [`Log`] structure with its builders. All fields here are optional. Assertion with `Log`s from core are made on the `Some(..)` fields. You will run into panic if you try to set the already specified field.
+//!
+//!
+//!
 //! - Processing the result of the program execution:
 //! ```ignore
 //!     // Any sending functions in the lib returns `RunResult` structure.
