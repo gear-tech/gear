@@ -18,9 +18,10 @@
 
 //! Mock for crate property testing and also can be used in other crates for their numerated types impls.
 
-use crate::{Bound, BoundValue, Interval, IntervalsTree, Numerated, One, Zero};
+use crate::{Bound, BoundValue, Interval, IntervalsTree, NonEmptyInterval, Numerated, One, Zero};
 use alloc::{collections::BTreeSet, fmt::Debug, vec::Vec};
 
+/// Mock function for any [Numerated] implementation testing.
 pub fn test_numerated<T>(x: T, y: T)
 where
     T: Numerated + Debug,
@@ -53,12 +54,16 @@ where
     }
 }
 
+/// [Interval] testing action.
 #[derive(Debug)]
 pub enum IntervalAction<T: Numerated> {
+    /// Try to create interval from correct start..end.
     Correct(T::B, T::B),
+    /// Try to create interval from incorrect start..end.
     Incorrect(T::B, T::B),
 }
 
+/// Mock function for [Interval] testing for any [Numerated] implementation.
 pub fn test_interval<T>(action: IntervalAction<T>)
 where
     T: Numerated + Debug,
@@ -77,11 +82,11 @@ where
                 assert!(i.is_empty());
                 assert_eq!(i.into_range_inclusive(), None);
                 assert_eq!(i.into_inner(), None);
-                assert_eq!(i.into_not_empty(), None);
+                assert_eq!(NonEmptyInterval::try_from(i).ok(), None);
             } else {
                 assert_eq!(i.start(), start.get().unwrap());
                 assert!(!i.is_empty());
-                let i = i.into_not_empty().unwrap();
+                let i = NonEmptyInterval::try_from(i).unwrap();
                 match end.unbound() {
                     BoundValue::Value(e) => assert_eq!(i.end(), e.dec_if_gt(i.start()).unwrap()),
                     BoundValue::Upper(e) => assert_eq!(i.end(), e),
@@ -91,11 +96,16 @@ where
     }
 }
 
+/// [IntervalsTree] testing action.
 #[derive(Debug)]
 pub enum TreeAction<T> {
+    /// Inserts interval into tree action.
     Insert(Interval<T>),
+    /// Removes interval from tree action.
     Remove(Interval<T>),
+    /// Check voids iterator.
     Voids(Interval<T>),
+    /// Check and not iterator.
     AndNotIterator(BTreeSet<T>),
 }
 
@@ -103,6 +113,7 @@ fn btree_set_voids<T: Numerated>(set: &BTreeSet<T>, interval: Interval<T>) -> BT
     interval.filter(|p| !set.contains(p)).collect()
 }
 
+/// Mock function for [IntervalsTree] testing for any [Numerated] implementation.
 pub fn test_tree<T: Numerated + Debug>(initial: BTreeSet<T>, actions: Vec<TreeAction<T>>) {
     let mut tree: IntervalsTree<T> = initial.iter().collect();
     let mut expected: BTreeSet<T> = tree.points_iter().collect();

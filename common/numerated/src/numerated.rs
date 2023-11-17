@@ -20,9 +20,14 @@
 
 use num_traits::{bounds::UpperBounded, One, PrimInt, Unsigned};
 
+/// Represents a value or upper bound. Can be in two states:
+/// - Value: contains value.
+/// - Upper: contains max value for `T`.
+///
+/// See also trait [Bound].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BoundValue<T: Sized> {
-    /// The bound is a value.
+    /// The bound is a value. Contains `T` value.
     Value(T),
     /// The bound is an upper bound. Contains `T` max value.
     Upper(T),
@@ -69,6 +74,7 @@ pub trait Bound<T: Sized>: From<T> + Copy {
     /// - In case bound is __upper__, then returns Upper(max), where `max` is `T` max value.
     /// - Otherwise returns Value(value).
     fn unbound(self) -> BoundValue<T>;
+    /// Returns `T` if `self` is value, otherwise (self is __upper__) returns `None`.
     fn get(self) -> Option<T> {
         match self.unbound() {
             BoundValue::Value(v) => Some(v),
@@ -109,7 +115,7 @@ pub trait Numerated: Copy + Sized + Ord + Eq {
     fn inc_if_lt(self, other: Self) -> Option<Self> {
         self.add_if_enclosed_by(Self::N::one(), other)
     }
-    /// Decrements `self` if `self > other`.
+    /// Decrements `self` if `self` > `other`.
     fn dec_if_gt(self, other: Self) -> Option<Self> {
         self.sub_if_enclosed_by(Self::N::one(), other)
     }

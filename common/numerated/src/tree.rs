@@ -18,7 +18,7 @@
 
 //! [IntervalsTree] implementation.
 
-use crate::{Interval, IntoIntervalError, NotEmptyInterval, Numerated};
+use crate::{Interval, IntoIntervalError, NonEmptyInterval, Numerated};
 use alloc::{collections::BTreeMap, fmt, fmt::Debug, vec::Vec};
 use core::{fmt::Formatter, ops::RangeInclusive};
 use num_traits::{CheckedAdd, Zero};
@@ -92,20 +92,28 @@ pub struct IntervalsTree<T> {
 }
 
 impl<T: Copy> IntervalsTree<T> {
+    /// Creates new empty intervals tree.
     pub const fn new() -> Self {
         Self {
             inner: BTreeMap::new(),
         }
     }
+    /// Returns amount of not empty intervals in tree.
+    ///
+    /// Complexity: O(1).
     pub fn intervals_amount(&self) -> usize {
         self.inner.len()
     }
-    pub fn end(&self) -> Option<T> {
-        self.inner.iter().next_back().map(|(_, &e)| e)
-    }
+}
 
+impl<T: Copy + Ord> IntervalsTree<T> {
+    /// Returns the biggest point in tree.
+    pub fn end(&self) -> Option<T> {
+        self.inner.last_key_value().map(|(_, &e)| e)
+    }
+    /// Returns the smallest point in tree.
     pub fn start(&self) -> Option<T> {
-        self.inner.iter().next().map(|(&s, _)| s)
+        self.inner.first_key_value().map(|(&s, _)| s)
     }
 }
 
@@ -131,14 +139,14 @@ impl<T: Numerated> IntervalsTree<T> {
     }
 
     /// Returns iterator over all intervals in tree.
-    pub fn iter(&self) -> impl Iterator<Item = NotEmptyInterval<T>> + '_ {
+    pub fn iter(&self) -> impl Iterator<Item = NonEmptyInterval<T>> + '_ {
         self.inner.iter().map(|(&start, &end)| unsafe {
             // Safe, because `Self` guaranties, that inner contains only `start` <= `end`.
-            NotEmptyInterval::<T>::new_unchecked(start, end)
+            NonEmptyInterval::<T>::new_unchecked(start, end)
         })
     }
 
-    /// Returns whether tree contains `interval`.
+    /// Returns true if for each `p` ∈ `interval` ⇒ `p` ∈ `self`, otherwise returns false.
     pub fn contains<I: Into<Interval<T>>>(&self, interval: I) -> bool {
         let Some((start, end)) = Self::into_start_end(interval) else {
             // Empty interval is always contained.
@@ -152,7 +160,7 @@ impl<T: Numerated> IntervalsTree<T> {
         false
     }
 
-    /// The same as `contains`, but returns `None` if `try_into` fails.
+    /// The same as [`Self::contains`], but returns `None` if `try_into` fails.
     pub fn try_contains<I>(&self, interval: I) -> Option<bool>
     where
         I: TryInto<Interval<T>>,
@@ -163,10 +171,12 @@ impl<T: Numerated> IntervalsTree<T> {
     }
 
     /// Insert interval into tree.
-    /// If `interval` is empty, then nothing will be inserted.
-    /// If `interval` is not empty, then it will be inserted into tree,
-    /// taking in account all intersections with other intervals in tree
-    /// and merging with them if needed.
+    /// - if `interval` is empty, then nothing will be inserted.
+    /// - if `interval` is not empty, then after inserting for each `p` ∈ `interval` ⇒ `p` ∈ `self`.
+    ///
+    /// Complexity: `O(log(n) + m)`, where
+    /// - `n` is amount of intervals in `self`
+    /// - `m` is amount of intervals in `self` ⋂ `interval`
     pub fn insert<I: Into<Interval<T>>>(&mut self, interval: I) {
         let Some((start, end)) = Self::into_start_end(interval) else {
             // Empty interval - nothing to insert.
@@ -234,7 +244,9 @@ impl<T: Numerated> IntervalsTree<T> {
         debug_assert!(left_end < right_start);
         debug_assert!(left_start <= start);
         let Some(left_end) = left_end.inc_if_lt(right_start) else {
-            unreachable!("`T: Numerated` impl error: for each x: T, y: T, x < y => x.inc_if_lt(y) == Some(_)");
+            unreachable!(
+                "`T: Numerated` impl error: for each x: T, y: T, x < y ↔ x.inc_if_lt(y) == Some(_)"
+            );
         };
 
         if left_end >= start {
@@ -244,7 +256,7 @@ impl<T: Numerated> IntervalsTree<T> {
         }
     }
 
-    /// The same as `insert`, but returns `None` if `try_into` fails.
+    /// The same as [`Self::insert`], but returns `None` if `try_into` fails.
     pub fn try_insert<I: TryInto<Interval<T>>>(&mut self, interval: I) -> Result<(), I::Error> {
         let interval: Interval<T> = interval.try_into()?;
         self.insert(interval);
@@ -252,9 +264,12 @@ impl<T: Numerated> IntervalsTree<T> {
     }
 
     /// Remove `interval` from tree.
-    /// If `interval` is empty, then nothing will be removed.
-    /// If `interval` is not empty, then after `remove` for each `p` from `interval`
-    /// `tree` does not contains `p`.
+    /// - if `interval` is empty, then nothing will be removed.
+    /// - if `interval` is not empty, then after removing for each `p` ∈ `interval` ⇒ `p` ∉ `self`.
+    ///
+    /// Complexity: `O(log(n) + m)`, where
+    /// - `n` is amount of intervals in `self`
+    /// - `m` is amount of intervals in `self` ⋂ `interval`
     pub fn remove<I: Into<Interval<T>>>(&mut self, interval: I) {
         let Some((start, end)) = Self::into_start_end(interval) else {
             // Empty interval - nothing to remove.
@@ -309,24 +324,29 @@ impl<T: Numerated> IntervalsTree<T> {
             if let Some(start) = start.dec_if_gt(left_start) {
                 self.inner.insert(left_start, start);
             } else {
-                unreachable!("`T: Numerated` impl error: for each x: T, y: T, x > y => x.dec_if_gt(y) == Some(_)");
+                unreachable!("`T: Numerated` impl error: for each x: T, y: T, x > y ⇔ x.dec_if_gt(y) == Some(_)");
             }
         }
     }
 
-    /// The same as `remove`, but returns `None` if `try_into` fails.
+    /// The same as [`Self::remove`], but returns `None` if `try_into` fails.
     pub fn try_remove<I: TryInto<Interval<T>>>(&mut self, interval: I) -> Result<(), I::Error> {
         let interval: Interval<T> = interval.try_into()?;
         self.remove(interval);
         Ok(())
     }
 
-    /// Returns iterator over intervals which consist of points `p: T`.
-    /// For each `p`: `interval` contains `p`, `tree` does not contain `p`.
+    /// Returns iterator over non empty intervals, that consist of points `p: T`
+    /// where each `p` ∉ `self` and `p` ∈ `interval`.
+    /// Intervals in iterator are sorted in ascending order.
+    ///
+    /// Iterating complexity: `O(log(n) + m)`, where
+    /// - `n` is amount of intervals in `self`
+    /// - `m` is amount of intervals in `self` ⋂ `interval`
     pub fn voids<I: Into<Interval<T>>>(
         &self,
         interval: I,
-    ) -> VoidsIterator<T, impl Iterator<Item = NotEmptyInterval<T>> + '_> {
+    ) -> VoidsIterator<T, impl Iterator<Item = NonEmptyInterval<T>> + '_> {
         let Some((mut start, end)) = Self::into_start_end(interval) else {
             // Empty interval.
             return VoidsIterator { inner: None };
@@ -345,32 +365,36 @@ impl<T: Numerated> IntervalsTree<T> {
 
         let iter = self.inner.range(start..=end).map(|(&start, &end)| {
             // Safe, because `Self` guaranties, that inner contains only `start` <= `end`.
-            unsafe { NotEmptyInterval::new_unchecked(start, end) }
+            unsafe { NonEmptyInterval::new_unchecked(start, end) }
         });
 
         // Safe, because we have already checked, that `start` <= `end`.
-        let interval = unsafe { NotEmptyInterval::new_unchecked(start, end) };
+        let interval = unsafe { NonEmptyInterval::new_unchecked(start, end) };
 
         VoidsIterator {
             inner: Some((iter, interval)),
         }
     }
 
-    /// The same as `voids`, but returns `None` if `try_into` fails.
+    /// The same as [`Self::voids`], but returns `None` if `try_into` fails.
     pub fn try_voids<I: TryInto<Interval<T>>>(
         &self,
         interval: I,
-    ) -> Result<VoidsIterator<T, impl Iterator<Item = NotEmptyInterval<T>> + '_>, I::Error> {
+    ) -> Result<VoidsIterator<T, impl Iterator<Item = NonEmptyInterval<T>> + '_>, I::Error> {
         let interval: Interval<T> = interval.try_into()?;
         Ok(self.voids(interval))
     }
 
-    /// Returns iterator over intervals which consist of points `p: T`.
-    /// For each `p`: `tree` contains `p`, `interval` does not contain `p`.
+    /// Returns iterator over intervals which consist of points `p: T`,
+    /// where each `p` ∈ `self` and `p` ∉ `other`.
+    ///
+    /// Iterating complexity: `O(n + m)`, where
+    /// - `n` is amount of intervals in `self`
+    /// - `m` is amount of intervals in `other`
     pub fn and_not_iter<'a: 'b, 'b: 'a>(
         &'a self,
         other: &'b Self,
-    ) -> impl Iterator<Item = NotEmptyInterval<T>> + '_ {
+    ) -> impl Iterator<Item = NonEmptyInterval<T>> + '_ {
         AndNotIterator {
             iter1: self.iter(),
             iter2: other.iter(),
@@ -380,6 +404,8 @@ impl<T: Numerated> IntervalsTree<T> {
     }
 
     /// Number of points in tree set.
+    ///
+    /// Complexity: `O(n)`, where `n` is amount of intervals in `self`.
     pub fn points_amount(&self) -> Option<T::N> {
         let mut res = T::N::zero();
         for interval in self.iter() {
@@ -392,7 +418,7 @@ impl<T: Numerated> IntervalsTree<T> {
     pub fn points_iter(&self) -> impl Iterator<Item = T> + '_ {
         self.inner.iter().flat_map(|(&s, &e)| unsafe {
             // Safe, because `Self` guaranties, that it contains only `start` <= `end`
-            NotEmptyInterval::new_unchecked(s, e).iter()
+            NonEmptyInterval::new_unchecked(s, e).iter()
         })
     }
 
@@ -402,12 +428,15 @@ impl<T: Numerated> IntervalsTree<T> {
     }
 }
 
-pub struct VoidsIterator<T: Numerated, I: Iterator<Item = NotEmptyInterval<T>>> {
-    inner: Option<(I, NotEmptyInterval<T>)>,
+/// Helper struct to iterate over voids in tree.
+///
+/// See also [`IntervalsTree::voids`].
+pub struct VoidsIterator<T: Numerated, I: Iterator<Item = NonEmptyInterval<T>>> {
+    inner: Option<(I, NonEmptyInterval<T>)>,
 }
 
-impl<T: Numerated, I: Iterator<Item = NotEmptyInterval<T>>> Iterator for VoidsIterator<T, I> {
-    type Item = NotEmptyInterval<T>;
+impl<T: Numerated, I: Iterator<Item = NonEmptyInterval<T>>> Iterator for VoidsIterator<T, I> {
+    type Item = NonEmptyInterval<T>;
 
     fn next(&mut self) -> Option<Self::Item> {
         let (iter, interval) = self.inner.as_mut()?;
@@ -418,19 +447,19 @@ impl<T: Numerated, I: Iterator<Item = NotEmptyInterval<T>>> Iterator for VoidsIt
             debug_assert!(interval.start() < start);
 
             let void_end = start.dec_if_gt(interval.start()).unwrap_or_else(|| {
-                unreachable!("`T: Numerated` impl error: for each x: T, y: T, x > y => x.dec_if_gt(y) == Some(_)");
+                unreachable!("`T: Numerated` impl error: for each x: T, y: T, x > y ↔ x.dec_if_gt(y) == Some(_)");
             });
 
-            let res = NotEmptyInterval::new(interval.start(), void_end);
+            let res = NonEmptyInterval::new(interval.start(), void_end);
             if res.is_none() {
                 unreachable!(
-                    "`T: Numerated` impl error: for each x: T, y: T, x > y => x.dec_if_gt(y) >= y"
+                    "`T: Numerated` impl error: for each x: T, y: T, x > y ↔ x.dec_if_gt(y) >= y"
                 );
             }
 
             if let Some(new_start) = end.inc_if_lt(interval.end()) {
-                *interval = NotEmptyInterval::new(new_start, interval.end()).unwrap_or_else(|| {
-                    unreachable!("`T: Numerated` impl error: for each x: T, y: T, x < y => x.inc_if_lt(y) <= y");
+                *interval = NonEmptyInterval::new(new_start, interval.end()).unwrap_or_else(|| {
+                    unreachable!("`T: Numerated` impl error: for each x: T, y: T, x < y ↔ x.inc_if_lt(y) <= y");
                 });
             } else {
                 self.inner = None;
@@ -445,24 +474,27 @@ impl<T: Numerated, I: Iterator<Item = NotEmptyInterval<T>>> Iterator for VoidsIt
     }
 }
 
+/// Helper struct to iterate over intervals from `tree`, which are not in `other_tree`.
+///
+/// See also [`IntervalsTree::and_not_iter`].
 pub struct AndNotIterator<
     T: Numerated,
-    I1: Iterator<Item = NotEmptyInterval<T>>,
-    I2: Iterator<Item = NotEmptyInterval<T>>,
+    I1: Iterator<Item = NonEmptyInterval<T>>,
+    I2: Iterator<Item = NonEmptyInterval<T>>,
 > {
     iter1: I1,
     iter2: I2,
-    interval1: Option<NotEmptyInterval<T>>,
-    interval2: Option<NotEmptyInterval<T>>,
+    interval1: Option<NonEmptyInterval<T>>,
+    interval2: Option<NonEmptyInterval<T>>,
 }
 
 impl<
         T: Numerated,
-        I1: Iterator<Item = NotEmptyInterval<T>>,
-        I2: Iterator<Item = NotEmptyInterval<T>>,
+        I1: Iterator<Item = NonEmptyInterval<T>>,
+        I2: Iterator<Item = NonEmptyInterval<T>>,
     > Iterator for AndNotIterator<T, I1, I2>
 {
-    type Item = NotEmptyInterval<T>;
+    type Item = NonEmptyInterval<T>;
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
@@ -495,7 +527,7 @@ impl<
                 return Some(interval1);
             } else {
                 if let Some(new_start) = interval2.end().inc_if_lt(interval1.end()) {
-                    self.interval1 = NotEmptyInterval::new(new_start, interval1.end());
+                    self.interval1 = NonEmptyInterval::new(new_start, interval1.end());
                     if self.interval1.is_none() {
                         unreachable!("`T: Numerated` impl error: for each x: T, y: T, x < y => x.inc_if_lt(y) <= y");
                     }
@@ -507,7 +539,7 @@ impl<
                 }
 
                 if let Some(new_end) = interval2.start().dec_if_gt(interval1.start()) {
-                    let res = NotEmptyInterval::new(interval1.start(), new_end);
+                    let res = NonEmptyInterval::new(interval1.start(), new_end);
                     if res.is_none() {
                         unreachable!("`T: Numerated` impl error: for each x: T, y: T, x > y => x.dec_if_gt(y) >= y");
                     }

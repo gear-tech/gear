@@ -19,6 +19,7 @@
 //! Crate for working with numerated types and their sets.
 
 #![no_std]
+#![deny(missing_docs)]
 
 extern crate alloc;
 
@@ -26,9 +27,11 @@ mod interval;
 mod numerated;
 mod tree;
 
-pub use interval::{Interval, IntoIntervalError, NotEmptyInterval};
-pub use numerated::{Bound, BoundValue, Numerated};
-pub use tree::{IntervalsTree, VoidsIterator};
+pub use crate::{
+    interval::{Interval, IntoIntervalError, NonEmptyInterval},
+    numerated::{Bound, BoundValue, Numerated},
+    tree::{IntervalsTree, VoidsIterator},
+};
 
 pub use num_traits::{
     self,
