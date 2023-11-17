@@ -18,26 +18,40 @@
 
 //! Critical section that guarantees code section execution
 //!
-//! Code is executed in case of failure in `handle_signal` entry point
-//! only across [`wait`](crate::exec::wait) or `.await` calls.
+//! Code is executed in `handle_signal` entry point in case of failure
+//! only across [`wait`](crate::exec::wait) or `.await` calls
+//! because sections have to be saved.
 //!
-//! ```rust,ignore
+//! ```rust,no_run
 //! use gstd::msg;
 //! use gstd::critical;
+//!
+//! # async fn main() {
 //!
 //! // get source outside of critical section
 //! // because `gr_source` sys-call is forbidden inside `handle_signal` entry point
 //! let source = msg::source();
+//! // register section
 //! let section = critical::Section::new(move || {
 //!     msg::send(source, "example", 0).expect("Failed to send message");
 //! });
 //!
-//! msg::send_bytes_for_reply(msg::source(), b"for_reply", 0, 0)
+//! // section is now saved
+//! msg::send_for_reply(msg::source(), "for_reply", 0, 0)
 //!     .expect("Failed to send message")
 //!     .await
 //!     .expect("Received error reply");
 //!
+//! // if some code fails (panic, out of gas, etc) after `wait` (`send_for_reply` in our case)
+//! // then saved sections will be executed in `handle_signal`
+//!
+//! // your code
+//! // ...
+//!
+//! // execute section
 //! section.execute();
+//!
+//! # }
 //!
 //! ```
 
