@@ -201,9 +201,6 @@ impl<T: Into<Hash>> ConfigsBundle for StandardGearWasmConfigsBundle<T> {
         } else {
             syscalls_config_builder = syscalls_config_builder.with_source_msg_dest();
         }
-        if critical_gas_limit.is_some() {
-            syscalls_config_builder = syscalls_config_builder.with_critical_gas_limit();
-        }
         syscalls_config_builder = syscalls_config_builder.with_params_config(params_config);
 
         let memory_pages_config = MemoryPagesConfig {
