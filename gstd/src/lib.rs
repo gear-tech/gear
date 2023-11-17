@@ -141,6 +141,7 @@ extern crate galloc;
 mod async_runtime;
 mod common;
 mod config;
+pub mod critical;
 pub mod exec;
 mod macros;
 pub mod msg;
@@ -150,7 +151,7 @@ mod reservations;
 pub mod sync;
 pub mod util;
 
-pub use async_runtime::{critical, handle_signal, message_loop, record_reply};
+pub use async_runtime::{handle_signal, message_loop, record_reply};
 pub use common::{errors, primitives::*};
 pub use config::Config;
 pub use gcore::{ext, BlockCount, BlockNumber, Gas, GasMultiplier, Percent, Value};

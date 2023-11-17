@@ -16,7 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-pub mod critical;
 mod futures;
 mod locks;
 mod signals;
@@ -25,6 +24,7 @@ mod waker;
 pub use self::futures::message_loop;
 
 use self::futures::FuturesMap;
+use crate::critical;
 use hashbrown::HashMap;
 pub(crate) use locks::Lock;
 use locks::LocksMap;

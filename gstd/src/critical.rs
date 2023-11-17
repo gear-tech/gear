@@ -76,7 +76,10 @@ impl Sections {
         self.fns.remove(&TypeId::of::<F>());
     }
 
-    pub(crate) fn execute_all(&mut self) {
+    /// Executes every saved critical section once.
+    ///
+    /// Must be called in `handle_signal` entry point if you don't use async runtime.
+    pub fn execute_all(&mut self) {
         for (_, mut f) in mem::take(&mut self.fns) {
             (f)();
         }
