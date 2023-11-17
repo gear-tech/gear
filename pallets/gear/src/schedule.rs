@@ -56,7 +56,7 @@ pub const INSTR_BENCHMARK_BATCH_SIZE: u32 = 500;
 // To avoid potential stack overflow problems we have a panic in sandbox in case,
 // execution is ended with stack overflow error. So, process queue execution will be
 // stopped and we will be able to investigate the problem and decrease this constant if needed.
-pub const STACK_HEIGHT_LIMIT: u32 = 18_369;
+pub const STACK_HEIGHT_LIMIT: u32 = 36_743;
 
 /// Definition of the cost schedule and other parameterization for the wasm vm.
 ///

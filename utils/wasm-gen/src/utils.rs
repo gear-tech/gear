@@ -222,7 +222,7 @@ pub fn inject_stack_limiter(module: Module) -> Module {
     wasm_instrument::inject_stack_limiter_with_config(
         module,
         InjectionConfig {
-            stack_limit: 15_000,
+            stack_limit: 30_003,
             injection_fn: |signature| {
                 let results = signature.results();
                 let mut body = Vec::with_capacity(results.len() + 1);
