@@ -37,6 +37,7 @@ pallet-balances = { workspace = true, features = ["std"] }
 pallet-authorship = { workspace = true, features = ["std"] }
 pallet-timestamp = { workspace = true, features = ["std"] }
 env_logger.workspace = true
+common = { workspace = true, features = ["std"] }
 
 [features]
 default = ['std']
