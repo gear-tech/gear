@@ -32,38 +32,29 @@ pub fn oom(_: core::alloc::Layout) -> ! {
 }
 
 #[cfg(feature = "panic-handler")]
-mod panic_handler {
-    use crate::ext;
-    use core::panic::PanicInfo;
+#[panic_handler]
+pub fn panic(panic_info: &core::panic::PanicInfo) -> ! {
+    use crate::{ext, prelude::format};
 
-    #[cfg(not(all(feature = "panic-messages", feature = "debug")))]
-    #[panic_handler]
-    pub fn panic(_: &PanicInfo) -> ! {
-        ext::panic("no info")
-    }
-
+    let message = None::<&core::fmt::Arguments<'_>>;
     #[cfg(all(feature = "panic-messages", feature = "debug"))]
-    #[panic_handler]
-    pub fn panic(panic_info: &PanicInfo) -> ! {
-        use crate::prelude::format;
-        let msg = match (panic_info.message(), panic_info.location()) {
-            (Some(msg), Some(loc)) => format!(
-                "'{:?}', {}:{}:{}",
-                msg,
-                loc.file(),
-                loc.line(),
-                loc.column()
-            ),
-            (Some(msg), None) => format!("'{msg:?}'"),
-            (None, Some(loc)) => {
-                format!("{}:{}:{}", loc.file(), loc.line(), loc.column())
-            }
-            _ => ext::panic("no info"),
-        };
+    let message = panic_info.message();
 
-        crate::debug!("panic occurred: {msg}");
-        ext::panic(&msg)
-    }
+    let msg = match (message, panic_info.location()) {
+        (Some(msg), Some(loc)) => format!(
+            "'{:?}', {}:{}:{}",
+            msg,
+            loc.file(),
+            loc.line(),
+            loc.column()
+        ),
+        (Some(msg), None) => format!("'{msg:?}'"),
+        (None, Some(loc)) => {
+            format!("{}:{}:{}", loc.file(), loc.line(), loc.column())
+        }
+        _ => ext::panic("no info"),
+    };
+
+    crate::debug!("panic occurred: {msg}");
+    ext::panic(&msg)
 }
-#[cfg(feature = "panic-handler")]
-pub use panic_handler::*;
