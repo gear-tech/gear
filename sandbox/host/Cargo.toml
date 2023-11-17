@@ -17,9 +17,9 @@ codec = { workspace = true, features = ["std"] }
 environmental.workspace = true
 thiserror.workspace = true
 log = { workspace = true, features = ["std"] }
-wasmer = { workspace = true, features = ["singlepass"] }
+sandbox-wasmer.workspace = true
+sandbox-wasmer-types.workspace = true
 wasmi = { git = "https://github.com/gear-tech/wasmi", branch = "v0.13.2-sign-ext", features = ["virtual_memory"] }
-wasmer-types.workspace = true
 sp-allocator = { workspace = true, features = ["std"] }
 sp-wasm-interface = { workspace = true, features = ["std"] }
 gear-sandbox-env = { workspace = true, features = ["std"] }

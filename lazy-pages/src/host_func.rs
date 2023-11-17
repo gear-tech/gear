@@ -19,7 +19,7 @@
 //! Host function call `pre_process_memory_accesses` support in lazy-pages.
 
 use crate::{
-    common::{Error, GasCharger, LazyPagesExecutionContext, WeightNo},
+    common::{Error, GasCharger, LazyPagesExecutionContext, LazyPagesRuntimeContext, WeightNo},
     process::{self, AccessHandler},
     LAZY_PAGES_CONTEXT,
 };
@@ -97,7 +97,7 @@ impl<'a> AccessHandler for HostFuncAccessHandler<'a> {
 }
 
 fn accesses_pages(
-    ctx: &mut LazyPagesExecutionContext,
+    ctx: &LazyPagesRuntimeContext,
     accesses: &[MemoryInterval],
     pages: &mut BTreeSet<GearPage>,
 ) -> Result<(), Error> {
@@ -137,24 +137,25 @@ pub fn pre_process_memory_accesses(
     LAZY_PAGES_CONTEXT
         .with(|ctx| {
             let mut ctx = ctx.borrow_mut();
-            let ctx = ctx.execution_context_mut()?;
+            let (rt_ctx, exec_ctx) = ctx.contexts_mut()?;
 
             let gas_charger = {
                 GasCharger {
-                    read_cost: ctx.weight(WeightNo::HostFuncRead),
-                    write_cost: ctx.weight(WeightNo::HostFuncWrite),
-                    write_after_read_cost: ctx.weight(WeightNo::HostFuncWriteAfterRead),
-                    load_data_cost: ctx.weight(WeightNo::LoadPageDataFromStorage),
+                    read_cost: exec_ctx.weight(WeightNo::HostFuncRead),
+                    write_cost: exec_ctx.weight(WeightNo::HostFuncWrite),
+                    write_after_read_cost: exec_ctx.weight(WeightNo::HostFuncWriteAfterRead),
+                    load_data_cost: exec_ctx.weight(WeightNo::LoadPageDataFromStorage),
                 }
             };
             let mut status = Status::Normal;
 
             if !reads.is_empty() {
                 let mut read_pages = BTreeSet::new();
-                accesses_pages(ctx, reads, &mut read_pages)?;
+                accesses_pages(rt_ctx, reads, &mut read_pages)?;
 
                 status = process::process_lazy_pages(
-                    ctx,
+                    rt_ctx,
+                    exec_ctx,
                     HostFuncAccessHandler {
                         is_write: false,
                         gas_counter,
@@ -171,10 +172,11 @@ pub fn pre_process_memory_accesses(
 
             if !writes.is_empty() {
                 let mut write_pages = BTreeSet::new();
-                accesses_pages(ctx, writes, &mut write_pages)?;
+                accesses_pages(rt_ctx, writes, &mut write_pages)?;
 
                 status = process::process_lazy_pages(
-                    ctx,
+                    rt_ctx,
+                    exec_ctx,
                     HostFuncAccessHandler {
                         is_write: true,
                         gas_counter,
