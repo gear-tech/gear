@@ -26,6 +26,8 @@ extern crate alloc;
 pub mod backend_error;
 pub mod btree;
 pub mod capacitor;
+pub mod ping;
+pub mod vec;
 
 use alloc::string::String;
 use parity_scale_codec::{Decode, Encode};
@@ -43,50 +45,52 @@ pub enum InitMessage {
     Capacitor(String),
     BTree,
     BackendError,
+    Ping,
+    Vec,
+}
+
+pub trait Program {
+    fn init(args: gstd::Box<dyn gstd::any::Any>) -> Self
+    where
+        Self: Sized;
+
+    fn handle(&mut self) {}
+    fn state(&self) {}
 }
 
 #[cfg(not(feature = "std"))]
-mod wasm {
+pub mod wasm {
     use super::{
-        backend_error::wasm as backend_error, btree::wasm as btree, capacitor::wasm as capacitor,
-        InitMessage,
+        backend_error::wasm::BackendError, btree::wasm::BTree, capacitor::Capacitor, ping::Ping,
+        vec::Vec, InitMessage, Program,
     };
-    use gstd::msg;
+    use gstd::{msg, prelude::*, Box};
 
-    enum State {
-        Capacitor(capacitor::State),
-        BTree(btree::State),
-        BackendError(backend_error::State),
-    }
-
-    static mut STATE: Option<State> = None;
+    static mut PROGRAM: Option<Box<dyn Program>> = None;
 
     #[no_mangle]
     extern "C" fn init() {
         let init_message: InitMessage = msg::load().expect("Failed to load payload bytes");
-        let state = match init_message {
-            InitMessage::Capacitor(payload) => State::Capacitor(capacitor::init(payload)),
-            InitMessage::BTree => State::BTree(btree::init()),
-            InitMessage::BackendError => State::BackendError(backend_error::init()),
+        let unit = Box::new(());
+        let program: Box<dyn Program> = match init_message {
+            InitMessage::Capacitor(payload) => Box::new(Capacitor::init(Box::new(payload))),
+            InitMessage::BTree => Box::new(BTree::init(unit)),
+            InitMessage::BackendError => Box::new(BackendError::init(unit)),
+            InitMessage::Ping => Box::new(Ping::init(unit)),
+            InitMessage::Vec => Box::new(Vec::init(unit)),
         };
-        unsafe { STATE = Some(state) };
+        unsafe { PROGRAM = Some(program) };
     }
 
     #[no_mangle]
     extern "C" fn handle() {
-        let state = unsafe { STATE.as_mut().expect("State must be set in handle") };
-        match state {
-            State::Capacitor(state) => capacitor::handle(state),
-            State::BTree(state) => btree::handle(state),
-            _ => {}
-        }
+        let program = unsafe { PROGRAM.as_mut().expect("Program must be set at this point") };
+        program.handle()
     }
 
     #[no_mangle]
     extern "C" fn state() {
-        let state = unsafe { STATE.take().expect("State must be set in handle") };
-        if let State::BTree(state) = state {
-            btree::state(state);
-        }
+        let program = unsafe { PROGRAM.take().expect("Program must be set at this point") };
+        program.state()
     }
 }

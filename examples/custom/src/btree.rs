@@ -45,44 +45,50 @@ pub enum StateRequest {
 #[cfg(not(feature = "std"))]
 pub(crate) mod wasm {
     use super::*;
-    use gstd::{collections::BTreeMap, debug, msg, prelude::*};
+    use crate::Program;
+    use gstd::{any::Any, collections::BTreeMap, debug, msg, prelude::*};
 
-    pub(crate) type State = BTreeMap<u32, u32>;
+    #[derive(Default)]
+    pub(crate) struct BTree(BTreeMap<u32, u32>);
 
-    pub(crate) fn init() -> State {
-        msg::reply((), 0).unwrap();
-        BTreeMap::new()
-    }
+    impl BTree {
+        fn process(&mut self, request: Request) -> Reply {
+            use Request::*;
 
-    pub(crate) fn handle(state: &mut State) {
-        let reply = msg::load()
-            .map(|request| process(state, request))
-            .unwrap_or_else(|e| {
-                debug!("Error processing request: {e:?}");
-                Reply::Error
-            });
-        msg::reply(reply, 0).unwrap();
-    }
-
-    pub(crate) fn state(state: State) {
-        let request: StateRequest = msg::load().unwrap();
-        match request {
-            StateRequest::Full => msg::reply(state, 0).unwrap(),
-            StateRequest::ForKey(key) => msg::reply(state.get(&key), 0).unwrap(),
-        };
-    }
-
-    fn process(state: &mut State, request: Request) -> Reply {
-        use Request::*;
-
-        match request {
-            Insert(key, value) => Reply::Value(state.insert(key, value)),
-            Remove(key) => Reply::Value(state.remove(&key)),
-            List => Reply::List(state.iter().map(|(k, v)| (*k, *v)).collect()),
-            Clear => {
-                state.clear();
-                Reply::None
+            match request {
+                Insert(key, value) => Reply::Value(self.0.insert(key, value)),
+                Remove(key) => Reply::Value(self.0.remove(&key)),
+                List => Reply::List(self.0.iter().map(|(k, v)| (*k, *v)).collect()),
+                Clear => {
+                    self.0.clear();
+                    Reply::None
+                }
             }
+        }
+    }
+
+    impl Program for BTree {
+        fn init(_: Box<dyn Any>) -> Self {
+            msg::reply((), 0).unwrap();
+            Self::default()
+        }
+
+        fn handle(&mut self) {
+            let reply = msg::load()
+                .map(|request| self.process(request))
+                .unwrap_or_else(|e| {
+                    debug!("Error processing request: {e:?}");
+                    Reply::Error
+                });
+            msg::reply(reply, 0).unwrap();
+        }
+
+        fn state(&self) {
+            let request: StateRequest = msg::load().unwrap();
+            match request {
+                StateRequest::Full => msg::reply(self.0.clone(), 0).unwrap(),
+                StateRequest::ForKey(key) => msg::reply(self.0.get(&key), 0).unwrap(),
+            };
         }
     }
 }
