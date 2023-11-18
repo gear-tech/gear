@@ -23,8 +23,7 @@
 //! because sections have to be saved.
 //!
 //! ```rust,no_run
-//! use gstd::msg;
-//! use gstd::critical;
+//! use gstd::{critical, msg};
 //!
 //! # async fn main() {
 //!
@@ -52,7 +51,6 @@
 //! section.execute();
 //!
 //! # }
-//!
 //! ```
 
 use alloc::boxed::Box;
