@@ -36,7 +36,7 @@ use std::{io, sync::OnceLock};
 /// see https://github.com/gear-tech/substrate/blob/gear-stable/client/executor/common/src/sandbox/wasmer_backend.rs
 /// and https://github.com/wasmerio/wasmer/blob/e6857d116134bdc9ab6a1dabc3544cf8e6aee22b/lib/vm/src/trap/traphandlers.rs#L548
 /// So, if we receive signal from unknown memory we should try to use old (wasmer) signal handler.
-static mut OLD_SIG_HANDLER: OnceLock<SigHandler> = OnceLock::new();
+static OLD_SIG_HANDLER: OnceLock<SigHandler> = OnceLock::new();
 
 cfg_if! {
     if #[cfg(all(target_os = "linux", target_arch = "x86_64"))] {
