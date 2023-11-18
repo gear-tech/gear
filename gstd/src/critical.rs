@@ -55,24 +55,25 @@
 //!
 //! ```
 
-use alloc::{boxed::Box, collections::BTreeMap};
+use alloc::boxed::Box;
 use core::{any::TypeId, mem};
+use hashbrown::HashMap;
 
-static mut SECTIONS: Sections = Sections::new();
+static mut SECTIONS: Option<Sections> = None;
 
 pub(crate) struct Sections {
-    fns: BTreeMap<TypeId, Box<dyn FnMut()>>,
+    fns: HashMap<TypeId, Box<dyn FnMut()>>,
 }
 
 impl Sections {
-    const fn new() -> Self {
+    fn new() -> Self {
         Self {
-            fns: BTreeMap::new(),
+            fns: HashMap::new(),
         }
     }
 
     pub(crate) fn get() -> &'static mut Self {
-        unsafe { &mut SECTIONS }
+        unsafe { SECTIONS.get_or_insert_with(Self::new) }
     }
 
     fn register<F>(&mut self, f: F) -> Section<F>
