@@ -93,7 +93,8 @@ impl Sections {
 
     /// Executes every saved critical section once.
     ///
-    /// Must be called in `handle_signal` entry point if you don't use async runtime.
+    /// Must be called in `handle_signal` entry point
+    /// if you don't use async runtime.
     pub fn execute_all(&mut self) {
         for (_, mut f) in mem::take(&mut self.fns) {
             (f)();
