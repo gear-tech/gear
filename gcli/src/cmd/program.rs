@@ -105,7 +105,6 @@ impl Program {
         Ok(())
     }
 
-    /// Display meta.
     fn meta(path: &PathBuf, name: &Option<String>) -> Result<()> {
         let ext = path
             .extension()
