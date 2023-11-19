@@ -557,7 +557,7 @@ where
 
                     // If available gas is greater then threshold,
                     // than threshold can be used.
-                    (gas_limit >= threshold).then_some(threshold)
+                    (gas_limit.saturating_sub(gas_for_delay) >= threshold).then_some(threshold)
                 })
                 .unwrap_or_default();
 

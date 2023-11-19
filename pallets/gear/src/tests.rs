@@ -84,9 +84,8 @@ use utils::*;
 type Gas = <<Test as Config>::GasProvider as common::GasProvider>::GasTree;
 
 #[test]
-#[should_panic(expected = "internal error: entered unreachable code: GasTree corrupted!")]
 fn cascading_delayed_gasless_send_work() {
-    use demo_delayed_sender::{WASM_BINARY, DELAY};
+    use demo_delayed_sender::{DELAY, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -115,6 +114,7 @@ fn cascading_delayed_gasless_send_work() {
         )
         .expect("calculate_gas_info failed");
 
+        // Case when one of two goes into mailbox.
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
             pid,
@@ -136,6 +136,29 @@ fn cascading_delayed_gasless_send_work() {
         run_for_blocks(DELAY, None);
         assert!(MailboxOf::<Test>::contains(&USER_1, &first_outgoing));
         assert!(!MailboxOf::<Test>::contains(&USER_1, &second_outgoing));
+
+        // Similar case when two of two goes into mailbox.
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            EMPTY_PAYLOAD.to_vec(),
+            min_limit,
+            0,
+            false,
+        ));
+
+        let mid = get_last_message_id();
+
+        let first_outgoing = MessageId::generate_outgoing(mid, 0);
+        let second_outgoing = MessageId::generate_outgoing(mid, 1);
+
+        run_to_next_block(None);
+
+        assert_succeed(mid);
+
+        run_for_blocks(DELAY, None);
+        assert!(MailboxOf::<Test>::contains(&USER_1, &first_outgoing));
+        assert!(MailboxOf::<Test>::contains(&USER_1, &second_outgoing));
     });
 }
 

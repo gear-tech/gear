@@ -579,8 +579,27 @@ impl Ext {
         }
     }
 
-    fn charge_for_dispatch_stash_hold(&mut self, delay: u32) -> Result<(), FallibleExtError> {
+    fn charge_for_dispatch_stash_hold<T: Packet>(
+        &mut self,
+        packet: &T,
+        delay: u32,
+    ) -> Result<(), FallibleExtError> {
         if delay != 0 {
+            // In case of delayed sending from origin message we keep some gas
+            // for it while processing outgoing sending notes so gas for
+            // previously gasless sends should appear to prevent their
+            // invasion for gas for storing delayed message.
+            let outgoing_gasless = if packet.gas_limit().is_none() {
+                // Currently sending gasless isn't guaranteed to be provided with gas.
+                self.outgoing_gasless.saturating_sub(1)
+            } else {
+                self.outgoing_gasless
+            };
+
+            let prev_gasless_fee = outgoing_gasless.saturating_mul(self.context.mailbox_threshold);
+
+            self.reduce_gas(prev_gasless_fee)?;
+
             // Take delay and get cost of block.
             // reserve = wait_cost * (delay + reserve_for).
             let cost_per_block = self.context.dispatch_hold_cost;
@@ -785,7 +804,7 @@ impl Externalities for Ext {
         self.charge_expiring_resources(&msg, true)?;
         self.charge_sending_fee(delay)?;
 
-        self.charge_for_dispatch_stash_hold(delay)?;
+        self.charge_for_dispatch_stash_hold(&msg, delay)?;
 
         let msg_id = self
             .context
@@ -809,7 +828,7 @@ impl Externalities for Ext {
         self.charge_message_value(msg.value())?;
         self.charge_sending_fee(delay)?;
 
-        self.charge_for_dispatch_stash_hold(delay)?;
+        self.charge_for_dispatch_stash_hold(&msg, delay)?;
 
         self.context.gas_reserver.mark_used(id)?;
 
@@ -1125,7 +1144,7 @@ impl Externalities for Ext {
         self.charge_expiring_resources(&packet, true)?;
         self.charge_sending_fee(delay)?;
 
-        self.charge_for_dispatch_stash_hold(delay)?;
+        self.charge_for_dispatch_stash_hold(&packet, delay)?;
 
         let code_hash = packet.code_id();
 
