@@ -181,7 +181,7 @@ enum BackendInstance {
     Wasmi(wasmi::ModuleRef),
 
     /// Wasmer module instance
-    Wasmer(wasmer::Instance),
+    Wasmer(sandbox_wasmer::Instance),
 }
 
 /// Sandboxed instance of a wasm module.

@@ -226,7 +226,7 @@ where
                 })
             } else if prob_number >= load_prob + store_prob {
                 // Generate syscall
-                // We use syscall random here, because it has read and write access,
+                // We use syscall gr_random here, because it has read and write access,
                 // and cannot cause errors because of input params
                 let subject_size = gsys::Hash::max_encoded_len() as u32;
                 let bn_random_size = core::mem::size_of::<gsys::BlockNumberWithHash>() as u32;
