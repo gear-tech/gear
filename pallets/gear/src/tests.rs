@@ -186,7 +186,9 @@ fn delayed_reservations_sending_validation() {
         let error_text = if cfg!(any(feature = "debug", debug_assertions)) {
             format!(
                 "{SENDING_EXPECT}: {:?}",
-                GstdError::Core(ExtError::Reservation(ReservationError::NotEnoughGas).into())
+                GstdError::Core(
+                    ExtError::Message(MessageError::InsufficientGasForDelayedSending).into()
+                )
             )
         } else {
             String::from("no info")
@@ -224,7 +226,9 @@ fn delayed_reservations_sending_validation() {
         let error_text = if cfg!(any(feature = "debug", debug_assertions)) {
             format!(
                 "{SENDING_EXPECT}: {:?}",
-                GstdError::Core(ExtError::Reservation(ReservationError::NotEnoughGas).into())
+                GstdError::Core(
+                    ExtError::Message(MessageError::InsufficientGasForDelayedSending).into()
+                )
             )
         } else {
             String::from("no info")

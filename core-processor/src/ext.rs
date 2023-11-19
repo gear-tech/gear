@@ -505,19 +505,30 @@ impl Ext {
         }
     }
 
-    // TODO: gasful sending (#1828)
+    // TODO: gasful sending (#1828).
+    /// Check reservation gas for gasless sending.
+    /// Gas of reservation for sending should be [mailbox_threshold + delay price; +inf).
     fn check_reservation_gas_limit(
         &mut self,
         reservation_id: &ReservationId,
         delay: u32,
     ) -> Result<(), FallibleExtError> {
-        let Some(limit) = self.context.gas_reserver.limit_of(reservation_id) else {
-            // Case of using invalid reservation will be caught in mark_used call.
-            return Ok(());
-        };
+        let limit = self
+            .context
+            .gas_reserver
+            .limit_of(reservation_id)
+            .ok_or(ReservationError::InvalidReservationId)?;
 
-        let mut required_gas_limit = self.context.mailbox_threshold;
+        // Almost unreachable since reservation couldn't be created
+        // with gas less than mailbox_threshold.
+        //
+        // TODO: review this place once more in #1828.
+        let limit = limit
+            .checked_sub(self.context.mailbox_threshold)
+            .ok_or(MessageError::InsufficientGasLimit)?;
 
+        // Checking that reservation could be charged for
+        // dispatch stash with given delay.
         if delay != 0 {
             // Take delay and get cost of block.
             // reserve = wait_cost * (delay + reserve_for).
@@ -526,15 +537,12 @@ impl Ext {
                 .saturating_add(delay as u64)
                 .saturating_mul(cost_per_block);
 
-            required_gas_limit = required_gas_limit.saturating_add(waiting_reserve);
+            if limit < waiting_reserve {
+                return Err(MessageError::InsufficientGasForDelayedSending.into());
+            }
         }
 
-        // Gas of reservation should be [mailbox_threshold + delay price; +inf).
-        if limit >= required_gas_limit {
-            Ok(())
-        } else {
-            Err(ReservationError::NotEnoughGas.into())
-        }
+        Ok(())
     }
 
     fn reduce_gas(&mut self, gas_limit: GasLimit) -> Result<(), FallibleExtError> {
