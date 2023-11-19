@@ -84,6 +84,62 @@ use utils::*;
 type Gas = <<Test as Config>::GasProvider as common::GasProvider>::GasTree;
 
 #[test]
+#[should_panic(expected = "internal error: entered unreachable code: GasTree corrupted!")]
+fn cascading_delayed_gasless_send_work() {
+    use demo_delayed_sender::{WASM_BINARY, DELAY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            0u32.to_le_bytes().to_vec(),
+            10_000_000_000u64,
+            0,
+            false,
+        ));
+
+        let pid = get_last_program_id();
+
+        run_to_next_block(None);
+        assert!(Gear::is_initialized(pid));
+
+        let GasInfo { min_limit, .. } = Gear::calculate_gas_info(
+            USER_1.into_origin(),
+            HandleKind::Handle(pid),
+            EMPTY_PAYLOAD.to_vec(),
+            0,
+            true,
+            true,
+        )
+        .expect("calculate_gas_info failed");
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            EMPTY_PAYLOAD.to_vec(),
+            min_limit - <Test as Config>::MailboxThreshold::get(),
+            0,
+            false,
+        ));
+
+        let mid = get_last_message_id();
+
+        let first_outgoing = MessageId::generate_outgoing(mid, 0);
+        let second_outgoing = MessageId::generate_outgoing(mid, 1);
+
+        run_to_next_block(None);
+
+        assert_succeed(mid);
+
+        run_for_blocks(DELAY, None);
+        assert!(MailboxOf::<Test>::contains(&USER_1, &first_outgoing));
+        assert!(!MailboxOf::<Test>::contains(&USER_1, &second_outgoing));
+    });
+}
+
+#[test]
 fn default_wait_lock_timeout() {
     use demo_async_tester::{Kind, WASM_BINARY};
 
@@ -8827,7 +8883,8 @@ fn delayed_wake() {
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
             prog,
-            vec![],
+            // Non zero size payload to trigger other demos repr case.
+            vec![0],
             BlockGasLimitOf::<Test>::get(),
             0,
             false,
