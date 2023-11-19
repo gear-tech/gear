@@ -25,7 +25,7 @@
 //! ```rust,no_run
 //! use gstd::{critical, msg};
 //!
-//! # async fn main() {
+//! # async fn _dummy() {
 //!
 //! // get source outside of critical section
 //! // because `gr_source` sys-call is forbidden inside `handle_signal` entry point
