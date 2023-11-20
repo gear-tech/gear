@@ -26,6 +26,7 @@ members = [
     "examples/autoreply",
     "examples/calc-hash",
     "examples/custom",
+    "examples/delayed-reservation-sender",
     "examples/compose",
     "examples/constructor",
     "examples/delayed-sender",
@@ -384,6 +385,7 @@ demo-calc-hash = { path = "examples/calc-hash" }
 demo-calc-hash-in-one-block = { path = "examples/calc-hash/in-one-block" }
 demo-calc-hash-over-blocks = { path = "examples/calc-hash/over-blocks" }
 demo-custom = { path = "examples/custom" }
+demo-delayed-reservation-sender = { path = "examples/delayed-reservation-sender" }
 demo-compose = { path = "examples/compose" }
 demo-constructor = { path = "examples/constructor", default-features = false }
 demo-delayed-sender = { path = "examples/delayed-sender" }

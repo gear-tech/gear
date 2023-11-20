@@ -505,6 +505,46 @@ impl Ext {
         }
     }
 
+    // TODO: gasful sending (#1828).
+    /// Check reservation gas for gasless sending.
+    /// Gas of reservation for sending should be [mailbox_threshold + delay price; +inf).
+    fn check_reservation_gas_limit(
+        &mut self,
+        reservation_id: &ReservationId,
+        delay: u32,
+    ) -> Result<(), FallibleExtError> {
+        let limit = self
+            .context
+            .gas_reserver
+            .limit_of(reservation_id)
+            .ok_or(ReservationError::InvalidReservationId)?;
+
+        // Almost unreachable since reservation couldn't be created
+        // with gas less than mailbox_threshold.
+        //
+        // TODO: review this place once more in #1828.
+        let limit = limit
+            .checked_sub(self.context.mailbox_threshold)
+            .ok_or(MessageError::InsufficientGasLimit)?;
+
+        // Checking that reservation could be charged for
+        // dispatch stash with given delay.
+        if delay != 0 {
+            // Take delay and get cost of block.
+            // reserve = wait_cost * (delay + reserve_for).
+            let cost_per_block = self.context.dispatch_hold_cost;
+            let waiting_reserve = (self.context.reserve_for as u64)
+                .saturating_add(delay as u64)
+                .saturating_mul(cost_per_block);
+
+            if limit < waiting_reserve {
+                return Err(MessageError::InsufficientGasForDelayedSending.into());
+            }
+        }
+
+        Ok(())
+    }
+
     fn reduce_gas(&mut self, gas_limit: GasLimit) -> Result<(), FallibleExtError> {
         if self.context.gas_counter.reduce(gas_limit) != ChargeResult::Enough {
             Err(FallibleExecutionError::NotEnoughGas.into())
@@ -804,12 +844,10 @@ impl Externalities for Ext {
     ) -> Result<MessageId, Self::FallibleError> {
         self.check_forbidden_destination(msg.destination())?;
         self.check_message_value(msg.value())?;
-        self.check_gas_limit(msg.gas_limit())?;
+        self.check_reservation_gas_limit(&id, delay)?;
         // TODO: gasful sending (#1828)
         self.charge_message_value(msg.value())?;
         self.charge_sending_fee(delay)?;
-
-        self.charge_for_dispatch_stash_hold(delay)?;
 
         self.context.gas_reserver.mark_used(id)?;
 
@@ -843,6 +881,7 @@ impl Externalities for Ext {
     ) -> Result<MessageId, Self::FallibleError> {
         self.check_forbidden_destination(self.context.message_context.reply_destination())?;
         self.check_message_value(msg.value())?;
+        self.check_reservation_gas_limit(&id, 0)?;
         // TODO: gasful sending (#1828)
         self.charge_message_value(msg.value())?;
         self.charge_sending_fee(0)?;
