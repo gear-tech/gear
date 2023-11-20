@@ -671,10 +671,7 @@ where
         Self::prepare_handle(module, 10000000)
     }
 
-    pub fn gr_reservation_send(
-        r: u32,
-        payload_len: Option<u32>,
-    ) -> Result<Exec<T>, &'static str> {
+    pub fn gr_reservation_send(r: u32, payload_len: Option<u32>) -> Result<Exec<T>, &'static str> {
         let repetitions = r;
         assert!(repetitions <= MAX_REPETITIONS);
 

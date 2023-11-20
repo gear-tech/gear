@@ -155,7 +155,7 @@ where
         WASM_BINARY.to_vec(),
         salt,
         InitAction::Normal(vec![(50_000, 100)]).encode(),
-        10_000_000_000,
+        100_000_000_000,
         0u32.into(),
         false,
     )
