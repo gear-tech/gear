@@ -519,14 +519,6 @@ impl Ext {
             .limit_of(reservation_id)
             .ok_or(ReservationError::InvalidReservationId)?;
 
-        // Almost unreachable since reservation couldn't be created
-        // with gas less than mailbox_threshold.
-        //
-        // TODO: review this place once more in #1828.
-        let limit = limit
-            .checked_sub(self.context.mailbox_threshold)
-            .ok_or(MessageError::InsufficientGasLimit)?;
-
         // Checking that reservation could be charged for
         // dispatch stash with given delay.
         if delay != 0 {
@@ -863,6 +855,8 @@ impl Externalities for Ext {
     ) -> Result<MessageId, Self::FallibleError> {
         self.check_forbidden_destination(msg.destination())?;
         self.check_message_value(msg.value())?;
+        // TODO: unify logic around different source of gas (may be origin msg,
+        // or reservation) in order to implement #1828.
         self.check_reservation_gas_limit(&id, delay)?;
         // TODO: gasful sending (#1828)
         self.charge_message_value(msg.value())?;

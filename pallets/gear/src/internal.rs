@@ -556,6 +556,10 @@ where
 
                     // If available gas is greater then threshold,
                     // than threshold can be used.
+                    //
+                    // Here we subtract gas for delay from gas limit to prevent
+                    // case when gasless message steal threshold from gas for
+                    // delay payment and delay payment becomes insufficient.
                     (gas_limit.saturating_sub(gas_for_delay) >= threshold).then_some(threshold)
                 })
                 .unwrap_or_default();
