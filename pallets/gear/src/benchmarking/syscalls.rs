@@ -672,10 +672,10 @@ where
     }
 
     pub fn gr_reservation_send(
-        batches: u32,
+        r: u32,
         payload_len: Option<u32>,
     ) -> Result<Exec<T>, &'static str> {
-        let repetitions = batches;
+        let repetitions = r;
         assert!(repetitions <= MAX_REPETITIONS);
 
         let rid_pid_values: Vec<u8> = (0..MAX_REPETITIONS)
