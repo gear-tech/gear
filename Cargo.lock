@@ -4839,7 +4839,8 @@ dependencies = [
 [[package]]
 name = "gwasm-instrument"
 version = "0.2.2"
-source = "git+https://github.com/StackOverflowExcept1on/wasm-instrument?branch=v0.2.1-sign-ext-stack-height#711422af820190b05c4fca17cd1405bf484547cd"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ce321dd7831796f4c6b54bd7637468c81125f6e7eefd482968bcce471b620fbb"
 dependencies = [
  "gear-wasm",
 ]
