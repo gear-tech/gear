@@ -589,14 +589,38 @@ pub mod runtime_types {
             pub mod paused_program_storage {
                 use super::runtime_types;
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                pub struct PageBatch {
+                    pub hash: ::subxt::utils::H256,
+                    pub state: runtime_types::gear_common::paused_program_storage::PageBatchState,
+                }
+                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                pub enum PageBatchState {
+                    #[codec(index = 0)]
+                    Uploading(::std::vec::Vec<runtime_types::gear_core::pages::GearPage>),
+                    #[codec(index = 1)]
+                    Checked,
+                }
+                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                pub struct PausingProgramInfo<_0> {
+                    pub block_number: _0,
+                    pub batch_capacity: ::core::primitive::u16,
+                    pub memory_infix: runtime_types::gear_core::program::MemoryInfix,
+                    pub allocations: ::std::vec::Vec<runtime_types::gear_core::pages::WasmPage>,
+                    pub code_hash: ::subxt::utils::H256,
+                    pub remaining_pages: ::std::vec::Vec<runtime_types::gear_core::pages::GearPage>,
+                    pub hashes: ::std::vec::Vec<::subxt::utils::H256>,
+                }
+                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub struct ResumeSession<_0, _1> {
-                    pub page_count: ::core::primitive::u32,
                     pub user: _0,
                     pub program_id: runtime_types::gear_core::ids::ProgramId,
                     pub allocations: ::std::vec::Vec<runtime_types::gear_core::pages::WasmPage>,
                     pub pages_with_data: ::std::vec::Vec<runtime_types::gear_core::pages::GearPage>,
                     pub code_hash: runtime_types::gear_core::ids::CodeId,
                     pub end_block: _1,
+                    pub page_batches: ::std::vec::Vec<
+                        runtime_types::gear_common::paused_program_storage::PageBatch,
+                    >,
                 }
             }
             pub mod scheduler {
@@ -2577,6 +2601,7 @@ pub mod runtime_types {
                         program_id: runtime_types::gear_core::ids::ProgramId,
                         allocations: ::std::vec::Vec<runtime_types::gear_core::pages::WasmPage>,
                         code_hash: runtime_types::gear_core::ids::CodeId,
+                        hashes: ::std::vec::Vec<::subxt::utils::H256>,
                     },
                     #[codec(index = 10)]
                     #[doc = "Appends memory pages to the resume session."]
@@ -2588,6 +2613,7 @@ pub mod runtime_types {
                     #[doc = "- `memory_pages`: program memory (or its part) before it was paused."]
                     resume_session_push {
                         session_id: ::core::primitive::u32,
+                        batch_index: ::core::primitive::u32,
                         memory_pages: ::std::vec::Vec<(
                             runtime_types::gear_core::pages::GearPage,
                             runtime_types::gear_core::memory::PageBuf,
@@ -2604,6 +2630,19 @@ pub mod runtime_types {
                     resume_session_commit {
                         session_id: ::core::primitive::u32,
                         block_count: ::core::primitive::u32,
+                    },
+                    #[codec(index = 12)]
+                    #[doc = "Checks uploaded memory pages to the specified"]
+                    #[doc = "batch of the resume session."]
+                    #[doc = ""]
+                    #[doc = "The origin must be Signed and should be the owner of the session."]
+                    #[doc = ""]
+                    #[doc = "Parameters:"]
+                    #[doc = "- `session_id`: id of the resume session."]
+                    #[doc = "- `batch_index`: index of the memory pages batch."]
+                    resume_session_check {
+                        session_id: ::core::primitive::u32,
+                        batch_index: ::core::primitive::u32,
                     },
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
@@ -3225,6 +3264,12 @@ pub mod runtime_types {
                     ProgramCodeNotFound,
                     #[codec(index = 8)]
                     DuplicateResumeSession,
+                    #[codec(index = 9)]
+                    WrongInitData,
+                    #[codec(index = 10)]
+                    BatchNotFound,
+                    #[codec(index = 11)]
+                    IncorrectBatchHash,
                 }
             }
         }
@@ -9454,6 +9499,7 @@ pub mod calls {
         ResumeSessionInit,
         ResumeSessionPush,
         ResumeSessionCommit,
+        ResumeSessionCheck,
     }
     impl CallInfo for GearCall {
         const PALLET: &'static str = "Gear";
@@ -9471,6 +9517,7 @@ pub mod calls {
                 Self::ResumeSessionInit => "resume_session_init",
                 Self::ResumeSessionPush => "resume_session_push",
                 Self::ResumeSessionCommit => "resume_session_commit",
+                Self::ResumeSessionCheck => "resume_session_check",
             }
         }
     }
@@ -10310,6 +10357,7 @@ pub mod storage {
         PausedProgramStorage,
         ResumeSessionsNonce,
         ResumeSessions,
+        PausingProgramStorage,
     }
     impl StorageInfo for GearProgramStorage {
         const PALLET: &'static str = "GearProgram";
@@ -10325,6 +10373,7 @@ pub mod storage {
                 Self::PausedProgramStorage => "PausedProgramStorage",
                 Self::ResumeSessionsNonce => "ResumeSessionsNonce",
                 Self::ResumeSessions => "ResumeSessions",
+                Self::PausingProgramStorage => "PausingProgramStorage",
             }
         }
     }
