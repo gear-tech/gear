@@ -159,6 +159,26 @@ fn cascading_delayed_gasless_send_work() {
         run_for_blocks(DELAY, None);
         assert!(MailboxOf::<Test>::contains(&USER_1, &first_outgoing));
         assert!(MailboxOf::<Test>::contains(&USER_1, &second_outgoing));
+
+        // Similar case when none of them goes into mailbox
+        // (impossible because delayed sent after gasless).
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            EMPTY_PAYLOAD.to_vec(),
+            min_limit - 2 * <Test as Config>::MailboxThreshold::get(),
+            0,
+            false,
+        ));
+
+        let mid = get_last_message_id();
+
+        run_to_next_block(None);
+
+        assert_failed(
+            mid,
+            ActorExecutionErrorReplyReason::Trap(TrapExplanation::GasLimitExceeded),
+        );
     });
 }
 
