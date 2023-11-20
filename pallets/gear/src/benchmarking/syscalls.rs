@@ -235,14 +235,11 @@ where
 
         use Instruction::*;
         let mut instructions = vec![];
-        for _ in 0..API_BENCHMARK_RUNS {
-            instructions.extend([I32Const(r as i32), Call(0), I32Const(-1)]);
-            unreachable_condition(&mut instructions, I32Eq); // if alloc returns -1 then it's error
-
-            for page in 0..r {
-                instructions.extend([I32Const(page as i32), Call(1), I32Const(0)]);
-                unreachable_condition(&mut instructions, I32Ne); // if free returns 0 then it's error
-            }
+        instructions.extend([I32Const(r as i32), Call(0), I32Const(-1)]);
+        unreachable_condition(&mut instructions, I32Eq); // if alloc returns -1 then it's error
+        for page in 0..r {
+            instructions.extend([I32Const(page as i32), Call(1), I32Const(0)]);
+            unreachable_condition(&mut instructions, I32Ne); // if free returns 0 then it's error
         }
 
         let module = ModuleDefinition {

@@ -819,7 +819,7 @@ benchmarks! {
     }
 
     free {
-        let r in 0 .. API_BENCHMARK_RUNS;
+        let r in 0 .. MAX_PAGES;
         let mut res = None;
         let exec = Benches::<T>::free(r)?;
     }: {
