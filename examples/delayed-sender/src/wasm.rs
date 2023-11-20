@@ -34,7 +34,7 @@ extern "C" fn handle() {
     let size = msg::size();
 
     if size == 0 {
-        // Other case of delayed sending, representing possible panic case of
+        // Another case of delayed sending, representing possible panic case of
         // sending delayed gasless messages.
         msg::send_bytes_delayed(msg::source(), [], 0, DELAY).expect("Failed to send msg");
 
