@@ -40,7 +40,7 @@ pub enum BoundValue<T: Sized> {
 ///
 /// # Examples
 /// 1) For any `T`, which max value can be get by calling some static live time function,
-/// Option<T> can be used as `Bound<T>`. `None` is __upper__. Mapping: Some(t) -> t, t -> Some(t).
+/// `Option<T>`` can be used as `Bound<T>`. `None` is __upper__. Mapping: Some(t) -> t, t -> Some(t).
 ///
 /// 2) When `inner` field max value is always smaller than `inner` type max value, then we can use this variant:
 /// ```
@@ -85,6 +85,9 @@ pub trait Bound<T: Sized>: From<T> + Copy {
 
 /// Numerated type is a type, which has type for distances between any two values of `Self`,
 /// and provide an interface to add/subtract distance to/from value.
+///
+/// Default implementation is provided for all integer types:
+/// [i8] [u8] [i16] [u16] [i32] [u32] [i64] [u64] [i128] [u128] [isize] [usize].
 pub trait Numerated: Copy + Sized + Ord + Eq {
     /// Numerate type: type that describes the distances between two values of `Self`.
     type N: PrimInt + Unsigned;

@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Crate for working with numerated types and their sets.
+//! Crate for working with [Numerated] types and their sets: [Interval], [NonEmptyInterval] and [IntervalsTree].
 
 #![no_std]
 #![deny(missing_docs)]

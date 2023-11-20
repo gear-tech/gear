@@ -27,14 +27,15 @@ use scale_info::{
     TypeInfo,
 };
 
-/// # Non overlapping intervals tree.
+/// # Non overlapping intervals tree
 /// Can be considered as set of points, but with possibility to work with
 /// continuous sets of this points (the same as interval) as fast as with points.
-/// Insert and remove operations are O(log(n)) complexity, where n is amount of intervals.
-/// So, even if you insert for example points from 0u64 to u64::MAX,
+/// Insert and remove operations has complexity between `[O(log(n)), O(n)]`,
+/// where `n` is amount of intervals in tree.
+/// So, even if you insert for example points from [`0u64`] to [`u64::MAX`],
 /// then removing all of them or any part of them is as fast as removing one point.
 ///
-/// # Functionality examples:
+/// # Examples
 /// ```
 /// use numerated::IntervalsTree;
 /// use std::collections::BTreeSet;
@@ -50,7 +51,7 @@ use scale_info::{
 /// assert_eq!(set, tree.points_iter().collect());
 ///
 /// // We can add points from 3 to 100_000 only by one insert operation.
-/// // `try` is only for range check, that it has start <= end.
+/// // `try` is only for range check, that it has start ≤ end.
 /// tree.try_insert(3..=100_000).unwrap();
 /// // now `tree` contains two intervals: [1..=1] and [3..=100_000]
 /// set.extend(3..=100_000);
@@ -58,12 +59,12 @@ use scale_info::{
 /// assert_eq!(set, tree.points_iter().collect());
 ///
 /// // We can remove points from 1 to 99_000 not inclusive only by one remove operation.
-/// // `try` is only for range check, that it has start <= end.
+/// // `try` is only for range check, that it has start ≤ end.
 /// tree.try_remove(1..99_000).unwrap();
 /// // now `tree` contains two intervals: [99_000..=100_000]
 /// (1..99_000).for_each(|i| { set.remove(&i); });
 /// // remove complexity for set is O(n*log(m)),
-/// // where `n` is amount of elements in range and `m` size of set.
+/// // where `n` is amount of elements in range and `m` size of `tree`.
 /// assert_eq!(set, tree.points_iter().collect());
 ///
 /// // Can insert or remove all possible points just by one operation:
@@ -82,9 +83,9 @@ use scale_info::{
 /// assert_eq!(and_not, vec![1..=2, 6..=6]);
 /// ```
 ///
-/// # Possible panic cases.
+/// # Possible panic cases
 /// Using `IntervalsTree` for type `T: Numerated` cannot cause panics,
-/// if implementation `Numerated`, `Copy`, `Ord`, `Eq` are correct for `T`.
+/// if implementation [Numerated], [Copy], [Ord], [Eq] are correct for `T`.
 /// In other cases `IntervalsTree` does not guarantees execution without panics.
 #[derive(Clone, PartialEq, Eq, TypeInfo, Encode, Decode)]
 pub struct IntervalsTree<T> {
@@ -141,7 +142,7 @@ impl<T: Numerated> IntervalsTree<T> {
     /// Returns iterator over all intervals in tree.
     pub fn iter(&self) -> impl Iterator<Item = NonEmptyInterval<T>> + '_ {
         self.inner.iter().map(|(&start, &end)| unsafe {
-            // Safe, because `Self` guaranties, that inner contains only `start` <= `end`.
+            // Safe, because `Self` guaranties, that inner contains only `start` ≤ `end`.
             NonEmptyInterval::<T>::new_unchecked(start, end)
         })
     }
@@ -172,7 +173,7 @@ impl<T: Numerated> IntervalsTree<T> {
 
     /// Insert interval into tree.
     /// - if `interval` is empty, then nothing will be inserted.
-    /// - if `interval` is not empty, then after inserting for each `p` ∈ `interval` ⇒ `p` ∈ `self`.
+    /// - if `interval` is not empty, then after inserting: for each `p` ∈ `interval` ⇒ `p` ∈ `self`.
     ///
     /// Complexity: `O(log(n) + m)`, where
     /// - `n` is amount of intervals in `self`
@@ -231,7 +232,7 @@ impl<T: Numerated> IntervalsTree<T> {
             self.inner.remove(&start);
         }
 
-        // In this point `start` < `right_start` <= `end`, so in any cases it will be removed.
+        // In this point `start` < `right_start` ≤ `end`, so in any cases it will be removed.
         self.inner.remove(&right_start);
 
         let end = right_end.max(end);
@@ -364,11 +365,11 @@ impl<T: Numerated> IntervalsTree<T> {
         }
 
         let iter = self.inner.range(start..=end).map(|(&start, &end)| {
-            // Safe, because `Self` guaranties, that inner contains only `start` <= `end`.
+            // Safe, because `Self` guaranties, that inner contains only `start` ≤ `end`.
             unsafe { NonEmptyInterval::new_unchecked(start, end) }
         });
 
-        // Safe, because we have already checked, that `start` <= `end`.
+        // Safe, because we have already checked, that `start` ≤ `end`.
         let interval = unsafe { NonEmptyInterval::new_unchecked(start, end) };
 
         VoidsIterator {
@@ -417,7 +418,7 @@ impl<T: Numerated> IntervalsTree<T> {
     /// Iterator over all points in tree set.
     pub fn points_iter(&self) -> impl Iterator<Item = T> + '_ {
         self.inner.iter().flat_map(|(&s, &e)| unsafe {
-            // Safe, because `Self` guaranties, that it contains only `start` <= `end`
+            // Safe, because `Self` guaranties, that it contains only `start` ≤ `end`
             NonEmptyInterval::new_unchecked(s, e).iter()
         })
     }
@@ -453,13 +454,13 @@ impl<T: Numerated, I: Iterator<Item = NonEmptyInterval<T>>> Iterator for VoidsIt
             let res = NonEmptyInterval::new(interval.start(), void_end);
             if res.is_none() {
                 unreachable!(
-                    "`T: Numerated` impl error: for each x: T, y: T, x > y ↔ x.dec_if_gt(y) >= y"
+                    "`T: Numerated` impl error: for each x: T, y: T, x > y ↔ x.dec_if_gt(y) ≥ y"
                 );
             }
 
             if let Some(new_start) = end.inc_if_lt(interval.end()) {
                 *interval = NonEmptyInterval::new(new_start, interval.end()).unwrap_or_else(|| {
-                    unreachable!("`T: Numerated` impl error: for each x: T, y: T, x < y ↔ x.inc_if_lt(y) <= y");
+                    unreachable!("`T: Numerated` impl error: for each x: T, y: T, x < y ↔ x.inc_if_lt(y) ≤ y");
                 });
             } else {
                 self.inner = None;
@@ -529,7 +530,7 @@ impl<
                 if let Some(new_start) = interval2.end().inc_if_lt(interval1.end()) {
                     self.interval1 = NonEmptyInterval::new(new_start, interval1.end());
                     if self.interval1.is_none() {
-                        unreachable!("`T: Numerated` impl error: for each x: T, y: T, x < y => x.inc_if_lt(y) <= y");
+                        unreachable!("`T: Numerated` impl error: for each x: T, y: T, x < y ⇔ x.inc_if_lt(y) ≤ y");
                     }
                 } else if interval1.end() == interval2.end() {
                     self.interval1 = None;
@@ -541,7 +542,7 @@ impl<
                 if let Some(new_end) = interval2.start().dec_if_gt(interval1.start()) {
                     let res = NonEmptyInterval::new(interval1.start(), new_end);
                     if res.is_none() {
-                        unreachable!("`T: Numerated` impl error: for each x: T, y: T, x > y => x.dec_if_gt(y) >= y");
+                        unreachable!("`T: Numerated` impl error: for each x: T, y: T, x > y ⇔ x.dec_if_gt(y) ≥ y");
                     }
                     return res;
                 } else {

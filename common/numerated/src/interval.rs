@@ -69,7 +69,7 @@ impl<T: Numerated> NonEmptyInterval<T> {
         Self { start, end }
     }
 
-    /// Creates new interval start..=end if start <= end, else returns None.
+    /// Creates new interval start..=end if start  end, else returns None.
     pub fn new(start: T, end: T) -> Option<Self> {
         (start <= end).then_some(Self { start, end })
     }
@@ -106,7 +106,7 @@ impl<T: Numerated> TryFrom<&Interval<T>> for NonEmptyInterval<T> {
         interval
             .end
             .map(|end| unsafe {
-                // Guaranteed by `Self` that start <= end
+                // Guaranteed by `Self` that start ≤ end
                 NonEmptyInterval::new_unchecked(interval.start, end)
             })
             .ok_or(IntoNonEmptyIntervalError)
@@ -122,15 +122,15 @@ impl<T: Numerated> TryFrom<Interval<T>> for NonEmptyInterval<T> {
 }
 
 impl<T: Numerated> Interval<T> {
-    /// Creates new interval start..end if start <= end, else returns None.
+    /// Creates new interval start..end if start ≤ end, else returns None.
     /// If start == end, then returns empty interval.
     pub fn new<S: Into<T::B>, E: Into<T::B>>(start: S, end: E) -> Option<Self> {
         Self::try_from((start, end)).ok()
     }
-    /// Interval start.
-    /// If interval is empty, then returns any existed `T` point,
+    /// Returns interval start.
+    /// - if interval is empty, then returns any existed `T` point,
     /// which user set when creates this interval.
-    /// If interval is not empty, then returns the smallest value inside interval.
+    /// - if interval is not empty, then returns the smallest point inside interval.
     pub fn start(&self) -> T {
         self.start
     }
@@ -171,10 +171,10 @@ impl<T: Numerated> Iterator for Interval<T> {
 
                 let result = start;
                 let start = start.inc_if_lt(end).unwrap_or_else(|| {
-                    unreachable!("`T: Numerated` impl error: for each s: T, e: T, e > s => s.inc_if_lt(e) == Some(_)")
+                    unreachable!("`T: Numerated` impl error: for each s: T, e: T, e > s ⇔ s.inc_if_lt(e) == Some(_)")
                 });
                 *self = Interval::try_from(start..=end).unwrap_or_else(|_| {
-                    unreachable!("`T: Numerated` impl error: for each s: T, e: T, e > s => s.inc_if_lt(e) <= e")
+                    unreachable!("`T: Numerated` impl error: for each s: T, e: T, e > s ⇔ s.inc_if_lt(e) ≤ e")
                 });
                 Some(result)
             }
@@ -204,7 +204,7 @@ impl<T: Numerated + LowerBounded> From<RangeToInclusive<T>> for Interval<T> {
         NonEmptyInterval::new(T::min_value(), range.end)
             .unwrap_or_else(|| {
                 unreachable!(
-                    "`T: LowerBounded` impl error: for each x: T must be T::min_value() <= x"
+                    "`T: LowerBounded` impl error: for any x: T must be T::min_value() ≤ x"
                 )
             })
             .into()
@@ -218,7 +218,7 @@ impl<T: Numerated + UpperBounded, I: Into<T::B>> From<RangeFrom<I>> for Interval
             BoundValue::Value(start) => NonEmptyInterval::new(start, T::max_value())
                 .unwrap_or_else(|| {
                     unreachable!(
-                        "`T: UpperBounded` impl error: for each x: T must be x <= T::max_value()"
+                        "`T: UpperBounded` impl error: for any x: T must be x ≤ T::max_value()"
                     )
                 })
                 .into(),
@@ -230,7 +230,7 @@ impl<T: Numerated + UpperBounded, I: Into<T::B>> From<RangeFrom<I>> for Interval
 impl<T: Numerated + UpperBounded + LowerBounded> From<RangeFull> for Interval<T> {
     fn from(_: RangeFull) -> Self {
         NonEmptyInterval::new(T::min_value(), T::max_value()).unwrap_or_else(|| {
-            unreachable!("`T: UpperBounded + LowerBounded` impl error: must be T::min_value() <= T::max_value()")
+            unreachable!("`T: UpperBounded + LowerBounded` impl error: must be T::min_value() ≤ T::max_value()")
         }).into()
     }
 }
@@ -320,7 +320,7 @@ impl<T: Numerated> NonEmptyInterval<T> {
 
         let distance = end.distance(start).unwrap_or_else(|| {
             unreachable!(
-                "`T: Numerated` impl error: for each s: T, e: T, e >= s => e.distance(s) == Some(_)"
+                "`T: Numerated` impl error: for any s: T, e: T, e ≥ s ⇔ e.distance(s) == Some(_)"
             )
         });
 
@@ -389,7 +389,7 @@ impl<T: Numerated + UpperBounded> Interval<T> {
                 let c = c.map(|c| c - T::N::one()).unwrap_or(T::N::max_value());
                 s.add_if_enclosed_by(c, T::max_value())
                     .map(|e| NonEmptyInterval::new(s, e).unwrap_or_else(|| {
-                        unreachable!("`T: Numerated` impl error: for each s: T, c: T::N => s.add_if_between(c, _) >= s")
+                        unreachable!("`T: Numerated` impl error: for each s: T, c: T::N ⇔ s.add_if_between(c, _) ≥ s")
                     }).into())
             }
         }
