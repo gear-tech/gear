@@ -555,18 +555,17 @@ impl Ext {
 
     // It's temporary fn, used to solve `core-audit/issue#22`.
     fn safe_gasfull_sends<T: Packet>(&mut self, packet: &T) -> Result<(), FallibleExtError> {
-        let outgoing_gasless = self.outgoing_gasless;
-
         match packet.gas_limit() {
             Some(x) if x != 0 => {
-                self.outgoing_gasless = 0;
-
-                let prev_gasless_fee =
-                    outgoing_gasless.saturating_mul(self.context.mailbox_threshold);
+                let prev_gasless_fee = self
+                    .outgoing_gasless
+                    .saturating_mul(self.context.mailbox_threshold);
 
                 self.reduce_gas(prev_gasless_fee)?;
+
+                self.outgoing_gasless = 0;
             }
-            None => self.outgoing_gasless = outgoing_gasless.saturating_add(1),
+            None => self.outgoing_gasless = self.outgoing_gasless.saturating_add(1),
             _ => {}
         };
 
@@ -621,16 +620,24 @@ impl Ext {
             // for it while processing outgoing sending notes so gas for
             // previously gasless sends should appear to prevent their
             // invasion for gas for storing delayed message.
-            let outgoing_gasless = if packet.gas_limit().is_none() {
-                // Currently sending gasless isn't guaranteed to be provided with gas.
-                self.outgoing_gasless.saturating_sub(1)
-            } else {
-                self.outgoing_gasless
+            //
+            // In case of sending delayed gasfull message it's already
+            // charged in `safe_gasful_sending`.
+            if packet.gas_limit().is_none() {
+                // Currently sending gasless isn't guaranteed to be provided
+                // with gas, but previously sent gasless - must be.
+                let prev_gasless_fee = self
+                    .outgoing_gasless
+                    .saturating_sub(1)
+                    .saturating_mul(self.context.mailbox_threshold);
+
+                self.reduce_gas(prev_gasless_fee)?;
+
+                // Current message sent is gasless so there is no guarantee for
+                // it to be added in mailbox, and any future gasfull or delayed
+                // will guarantee + pay for that.
+                self.outgoing_gasless = 1;
             };
-
-            let prev_gasless_fee = outgoing_gasless.saturating_mul(self.context.mailbox_threshold);
-
-            self.reduce_gas(prev_gasless_fee)?;
 
             // Take delay and get cost of block.
             // reserve = wait_cost * (delay + reserve_for).
