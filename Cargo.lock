@@ -7672,6 +7672,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "pallet-gear-bridges"
+version = "1.0.2"
+dependencies = [
+ "frame-support",
+ "frame-system",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-runtime",
+]
+
+[[package]]
 name = "pallet-gear-debug"
 version = "1.0.2"
 dependencies = [
