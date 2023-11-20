@@ -1867,6 +1867,7 @@ benchmarks! {
                 Instruction::I64Const(42),
                 Instruction::Drop,
                 Instruction::End,
+                Instruction::End,
             ])),
             .. Default::default()
         }));
@@ -1927,12 +1928,15 @@ benchmarks! {
     // w_per_local = w_bench
     instr_call_per_local {
         let l in 0 .. T::Schedule::get().limits.locals;
-        let mut aux_body = body::empty();
+        let mut aux_body = body::plain(vec![
+            Instruction::End,
+        ]);
         body::inject_locals(&mut aux_body, l);
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
             aux_body: Some(aux_body),
             handle_body: Some(body::plain(vec![
                 Instruction::Call(2), // call aux
+                Instruction::End,
             ])),
             .. Default::default()
         }));
