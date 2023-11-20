@@ -22,9 +22,11 @@ use crate::{
     mock::{
         self,
         new_test_ext,
+        one_page_batch,
         run_for_blocks,
         run_to_block,
         run_to_block_maybe_with_queue,
+        run_to_block_step,
         run_to_next_block,
         Balances,
         BlockNumber,
@@ -14753,6 +14755,316 @@ fn test_gas_info_of_terminated_program() {
             true,
         )
         .expect("failed getting gas info");
+    })
+}
+
+#[test]
+fn pausing_program_and_runtime_upgrade() {
+    use demo_custom::{
+        btree::{Reply, Request},
+        InitMessage, WASM_BINARY,
+    };
+    use frame_support::pallet_prelude::*;
+    use sp_core::Get;
+
+    init_logger();
+
+    let mut t = frame_system::GenesisConfig::default()
+        .build_storage::<one_page_batch::Test>()
+        .unwrap();
+
+    pallet_balances::GenesisConfig::<one_page_batch::Test> {
+        balances: vec![
+            (USER_1, 5_000_000_000_000_000_u128),
+            (USER_2, 350_000_000_000_000_u128),
+            (USER_3, 500_000_000_000_000_u128),
+            (LOW_BALANCE_USER, 1_000_000_u128),
+            (BLOCK_AUTHOR, 500_000_u128),
+            (
+                crate::mock::BankAddress::get(),
+                crate::mock::ExistentialDeposit::get(),
+            ),
+        ],
+    }
+    .assimilate_storage(&mut t)
+    .unwrap();
+
+    let mut ext = sp_io::TestExternalities::new(t);
+    ext.execute_with(|| {
+        let block_number = 1;
+        frame_system::Pallet::<one_page_batch::Test>::set_block_number(block_number);
+        crate::Pallet::<one_page_batch::Test>::on_initialize(block_number);
+    });
+
+    let (program_id, memory_pages, allocations, code_hash) = ext.execute_with(|| {
+        use one_page_batch::{Gear, RuntimeOrigin, System, Test as Runtime};
+
+        assert_eq!(batch_capacity::<Runtime>(), 1,);
+
+        let code = WASM_BINARY;
+        let program_id = generate_program_id(code, DEFAULT_SALT);
+
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            code.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            InitMessage::BTree.encode(),
+            50_000_000_000,
+            0,
+            false,
+        ));
+
+        let request = Request::Insert(0, 1).encode();
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            program_id,
+            request,
+            10_000_000_000,
+            0,
+            false,
+        ));
+
+        one_page_batch::run_to_next_block(None);
+
+        // check that program created via extrinsic is paused
+        let program = ProgramStorageOf::<Runtime>::get_program(program_id)
+            .and_then(|p| ActiveProgram::try_from(p).ok())
+            .expect("program should exist");
+        log::debug!("pages_with_data = {:?}", program.pages_with_data);
+        let expected_block = program.expiration_block;
+        let memory_pages = ProgramStorageOf::<Runtime>::get_program_data_for_pages(
+            program_id,
+            program.memory_infix,
+            program.pages_with_data.iter(),
+        )
+        .unwrap();
+
+        System::set_block_number(expected_block - 1);
+        Gear::set_block_number(expected_block - 1);
+
+        // start to pause a program
+        assert!(TaskPoolOf::<Runtime>::contains(
+            &(System::block_number() + 1),
+            &ScheduledTask::PauseProgram(program_id)
+        ));
+
+        one_page_batch::run_to_next_block(None);
+        System::on_finalize(System::block_number());
+
+        (
+            program_id,
+            memory_pages,
+            program.allocations,
+            program.code_hash,
+        )
+    });
+
+    // runtime with different pause batch capacity
+    ext.execute_with(|| {
+        use mock::{Gear, RuntimeOrigin, System, Test as Runtime};
+
+        assert_eq!(
+            batch_capacity::<Runtime>(),
+            pallet_gear_program::pallet_tests::PauseBatchCapacity::get().get() as usize,
+        );
+        assert_ne!(
+            batch_capacity::<Runtime>(),
+            one_page_batch::PauseOnePageBatch::get().get() as usize,
+        );
+
+        // next step (hashing) of pausing a program
+        assert!(TaskPoolOf::<Runtime>::contains(
+            &(System::block_number() + 1),
+            &ScheduledTask::PauseProgram(program_id)
+        ));
+
+        run_to_block_step::<Runtime>(System::block_number() + 1, None, Some(true));
+
+        assert_err!(
+            Gear::upload_program(
+                RuntimeOrigin::signed(USER_1),
+                WASM_BINARY.to_vec(),
+                DEFAULT_SALT.to_vec(),
+                InitMessage::BTree.encode(),
+                50_000_000_000,
+                0,
+                false,
+            ),
+            Error::<Runtime>::ProgramAlreadyExists,
+        );
+
+        let request = Request::Insert(0, 1).encode();
+        assert_err!(
+            Gear::send_message(
+                RuntimeOrigin::signed(USER_1),
+                program_id,
+                request,
+                10_000_000_000,
+                0,
+                false,
+            ),
+            Error::<Runtime>::InactiveProgram,
+        );
+
+        // next step (hashing) of pausing a program
+        assert!(TaskPoolOf::<Runtime>::contains(
+            &(System::block_number() + 1),
+            &ScheduledTask::PauseProgram(program_id)
+        ));
+
+        run_to_next_block(None);
+
+        let hashes = memory_pages
+            .iter()
+            .map(|(index, data)| {
+                paused_program_storage::batch_hash(&BTreeMap::from([(*index, data.clone())]))
+            })
+            .collect::<Vec<_>>();
+
+        // attempt to resume a being paused program should fail
+        assert_err!(
+            Gear::resume_session_init(
+                RuntimeOrigin::signed(USER_1),
+                program_id,
+                allocations.clone(),
+                CodeId::from_origin(code_hash),
+                hashes.to_vec(),
+            ),
+            pallet_gear_program::Error::<Test>::ProgramNotFound,
+        );
+
+        assert!(!ProgramStorageOf::<Runtime>::program_exists(program_id));
+        assert!(!ProgramStorageOf::<Runtime>::paused_program_exists(
+            &program_id
+        ));
+        assert!(ProgramStorageOf::<Runtime>::pausing_program_exists(
+            &program_id
+        ));
+
+        // finish pausing
+        assert!(TaskPoolOf::<Runtime>::contains(
+            &(System::block_number() + 1),
+            &ScheduledTask::PauseProgram(program_id)
+        ));
+
+        run_to_next_block(None);
+
+        assert_ok!(Gear::resume_session_init(
+            RuntimeOrigin::signed(USER_1),
+            program_id,
+            allocations.clone(),
+            CodeId::from_origin(code_hash),
+            hashes.to_vec(),
+        ),);
+
+        let (session_id, ..) = get_last_session();
+        assert_err!(
+            Gear::resume_session_push(RuntimeOrigin::signed(USER_1), session_id, u32::MAX, vec![],),
+            pallet_gear_program::Error::<Test>::BatchNotFound,
+        );
+        assert_err!(
+            Gear::resume_session_check(
+                RuntimeOrigin::signed(USER_1),
+                session_id.wrapping_add(1),
+                u32::MAX,
+            ),
+            pallet_gear_program::Error::<Test>::ResumeSessionNotFound,
+        );
+        assert_err!(
+            Gear::resume_session_check(RuntimeOrigin::signed(USER_3), session_id, u32::MAX,),
+            pallet_gear_program::Error::<Test>::NotSessionOwner,
+        );
+        assert_err!(
+            Gear::resume_session_check(RuntimeOrigin::signed(USER_1), session_id, u32::MAX,),
+            pallet_gear_program::Error::<Test>::BatchNotFound,
+        );
+
+        run_to_next_block(None);
+
+        for (batch, (i, page_buf)) in memory_pages.iter().enumerate().skip(1) {
+            assert_ok!(Gear::resume_session_push(
+                RuntimeOrigin::signed(USER_1),
+                session_id,
+                batch as u32,
+                vec![(*i, page_buf.clone())],
+            ),);
+            assert_ok!(Gear::resume_session_check(
+                RuntimeOrigin::signed(USER_1),
+                session_id,
+                batch as u32,
+            ),);
+
+            run_to_next_block(None);
+        }
+
+        let block_count = ResumeMinimalPeriodOf::<Test>::get();
+        // resume session will fail since not all batches are pushed and checked
+        assert_err!(
+            Gear::resume_session_commit(RuntimeOrigin::signed(USER_1), session_id, block_count,),
+            pallet_gear_program::Error::<Test>::ResumeSessionFailed,
+        );
+
+        let (first_page_index, first_page_buf) = memory_pages.first_key_value().unwrap();
+        assert_ok!(Gear::resume_session_push(
+            RuntimeOrigin::signed(USER_1),
+            session_id,
+            0,
+            vec![(*first_page_index, {
+                // intentionally corrupt memory page data
+                let mut page_buf = first_page_buf.clone();
+                page_buf[0] = page_buf[0].wrapping_add(1);
+
+                page_buf
+            })],
+        ),);
+        // check will fail since incorrect data is pushed to the storage
+        assert_err!(
+            Gear::resume_session_check(RuntimeOrigin::signed(USER_1), session_id, 0,),
+            pallet_gear_program::Error::<Test>::IncorrectBatchHash,
+        );
+        assert_err!(
+            Gear::resume_session_commit(RuntimeOrigin::signed(USER_1), session_id, block_count,),
+            pallet_gear_program::Error::<Test>::ResumeSessionFailed,
+        );
+
+        // rewrite data of the batch with the correct one
+        assert_ok!(Gear::resume_session_push(
+            RuntimeOrigin::signed(USER_1),
+            session_id,
+            0,
+            vec![(*first_page_index, first_page_buf.clone())],
+        ),);
+        assert_ok!(Gear::resume_session_check(
+            RuntimeOrigin::signed(USER_1),
+            session_id,
+            0,
+        ),);
+        assert_ok!(Gear::resume_session_commit(
+            RuntimeOrigin::signed(USER_1),
+            session_id,
+            block_count,
+        ),);
+
+        // check that program operates properly after it was resumed
+        run_to_next_block(None);
+
+        System::reset_events();
+
+        let request = Request::List.encode();
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            program_id,
+            request,
+            10_000_000_000,
+            0,
+            false,
+        ));
+
+        run_to_next_block(None);
+
+        let message = maybe_any_last_message().expect("message to user should be sent");
+        let reply = Reply::decode(&mut message.payload_bytes()).unwrap();
+        assert!(matches!(reply, Reply::List(vec) if vec == vec![(0, 1)]));
     })
 }
 

@@ -866,6 +866,7 @@ pub mod pallet {
         pub fn program_exists(program_id: ProgramId) -> bool {
             ProgramStorageOf::<T>::program_exists(program_id)
                 || ProgramStorageOf::<T>::paused_program_exists(&program_id)
+                || ProgramStorageOf::<T>::pausing_program_exists(&program_id)
         }
 
         /// Returns exit argument of an exited program.

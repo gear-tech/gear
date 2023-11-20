@@ -315,3 +315,104 @@ pub fn run_for_blocks(block_count: BlockNumber, remaining_weight: Option<u64>) {
 pub fn run_to_next_block(remaining_weight: Option<u64>) {
     run_for_blocks(1, remaining_weight)
 }
+
+pub mod one_page_batch {
+    use super::*;
+    use core::num::NonZeroU16;
+
+    type UncheckedExtrinsic = MockUncheckedExtrinsic<Test>;
+    type Block = MockBlock<Test>;
+
+    pub fn run_to_next_block(remaining_weight: Option<u64>) {
+        run_for_blocks(1, remaining_weight)
+    }
+
+    pub fn run_for_blocks(block_count: BlockNumber, remaining_weight: Option<u64>) {
+        run_to_block(System::block_number() + block_count, remaining_weight);
+    }
+
+    pub fn run_to_block(n: BlockNumber, remaining_weight: Option<u64>) {
+        run_to_block_maybe_with_queue_impl::<Test>(n, remaining_weight, Some(true))
+    }
+
+    construct_runtime!(
+        pub enum Test where
+            Block = Block,
+            NodeBlock = Block,
+            UncheckedExtrinsic = UncheckedExtrinsic,
+        {
+            System: system,
+            GearProgram: pallet_gear_program,
+            GearMessenger: pallet_gear_messenger,
+            GearScheduler: pallet_gear_scheduler,
+            GearBank: pallet_gear_bank,
+            Gear: pallet_gear,
+            GearGas: pallet_gear_gas,
+            GearVoucher: pallet_gear_voucher,
+            Balances: pallet_balances,
+            Authorship: pallet_authorship,
+            Timestamp: pallet_timestamp,
+        }
+    );
+
+    common::impl_pallet_system!(Test);
+    pallet_gear_program::impl_config!(Test, PauseBatchCapacity = PauseOnePageBatch);
+    pallet_gear_messenger::impl_config!(Test, CurrentBlockNumber = Gear);
+    pallet_gear_scheduler::impl_config!(Test);
+    pallet_gear_bank::impl_config!(Test);
+    pallet_gear::impl_config!(Test, Schedule = DynamicSchedule, Voucher = GearVoucher);
+    pallet_gear_gas::impl_config!(Test);
+    common::impl_pallet_balances!(Test);
+    common::impl_pallet_authorship!(Test);
+    common::impl_pallet_timestamp!(Test);
+
+    impl pallet_gear_voucher::Config for Test {
+        type RuntimeEvent = RuntimeEvent;
+        type Currency = Balances;
+        type PalletId = VoucherPalletId;
+        type WeightInfo = ();
+        type CallsDispatcher = Gear;
+    }
+
+    pub struct PauseOnePageBatch;
+
+    impl sp_core::Get<NonZeroU16> for PauseOnePageBatch {
+        fn get() -> NonZeroU16 {
+            const CAPACITY: NonZeroU16 = unsafe { NonZeroU16::new_unchecked(1) };
+
+            CAPACITY
+        }
+    }
+
+    thread_local! {
+        static SCHEDULE: RefCell<Option<Schedule<Test>>> = RefCell::new(None);
+    }
+
+    #[derive(Debug)]
+    pub struct DynamicSchedule;
+
+    impl DynamicSchedule {
+        pub fn mutate<F>(f: F) -> DynamicScheduleReset
+        where
+            F: FnOnce(&mut Schedule<Test>),
+        {
+            SCHEDULE.with(|schedule| f(schedule.borrow_mut().as_mut().unwrap()));
+            DynamicScheduleReset(())
+        }
+
+        pub fn get() -> Schedule<Test> {
+            SCHEDULE.with(|schedule| {
+                schedule
+                    .borrow_mut()
+                    .get_or_insert_with(Default::default)
+                    .clone()
+            })
+        }
+    }
+
+    impl Get<Schedule<Test>> for DynamicSchedule {
+        fn get() -> Schedule<Test> {
+            Self::get()
+        }
+    }
+}
