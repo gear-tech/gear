@@ -1910,11 +1910,11 @@ fn delayed_program_creation_no_code() {
     init_logger();
 
     let wat = r#"
-	(module
-		(import "env" "memory" (memory 1))
+    (module
+        (import "env" "memory" (memory 1))
         (import "env" "gr_create_program_wgas" (func $create_program_wgas (param i32 i32 i32 i32 i32 i64 i32 i32)))
-		(export "init" (func $init))
-		(func $init
+        (export "init" (func $init))
+        (func $init
             i32.const 0                 ;; zeroed cid_value ptr
             i32.const 0                 ;; salt ptr
             i32.const 0                 ;; salt len
@@ -1933,7 +1933,7 @@ fn delayed_program_creation_no_code() {
                 (else)
             )
         )
-	)"#;
+    )"#;
 
     new_test_ext().execute_with(|| {
         let code = ProgramCodeKind::Custom(wat).to_bytes();
@@ -2292,14 +2292,14 @@ fn read_state_using_wasm_errors() {
     use demo_new_meta::{MessageInitIn, WASM_BINARY};
 
     let wat = r#"
-	(module
-		(export "loop" (func $loop))
+    (module
+        (export "loop" (func $loop))
         (export "empty" (func $empty))
         (func $empty)
         (func $loop
             (loop)
         )
-	)"#;
+    )"#;
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -3063,17 +3063,17 @@ fn unused_gas_released_back_works() {
 fn restrict_start_section() {
     // This test checks, that code with start section cannot be handled in process queue.
     let wat = r#"
-	(module
-		(import "env" "memory" (memory 1))
-		(export "handle" (func $handle))
-		(export "init" (func $init))
-		(start $start)
-		(func $init)
+    (module
+        (import "env" "memory" (memory 1))
+        (export "handle" (func $handle))
+        (export "init" (func $init))
+        (start $start)
+        (func $init)
         (func $handle)
         (func $start
             unreachable
         )
-	)"#;
+    )"#;
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -3335,6 +3335,79 @@ fn memory_access_cases() {
 }
 
 #[test]
+fn gas_limit_exceeded_oob_case() {
+    let wat = r#"(module
+        (import "env" "memory" (memory 512))
+        (import "env" "gr_send_init" (func $send_init (param i32)))
+        (import "env" "gr_send_push" (func $send_push (param i32 i32 i32 i32)))
+        (export "init" (func $init))
+        (func $init
+            (local $addr i32)
+            (local $handle i32)
+
+            ;; init message sending
+            i32.const 0x0
+            call $send_init
+
+            ;; load handle and set it to local
+            i32.const 0x0
+            i32.load
+            local.set $handle
+
+            ;; push message payload out of bounds
+            ;; each iteration we change gear page where error is returned
+            (loop
+                local.get $handle
+                i32.const 0x1000_0000 ;; out of bounds payload addr
+                i32.const 0x1
+                local.get $addr
+                call $send_push
+
+                local.get $addr
+                i32.const 0x4000
+                i32.add
+                local.tee $addr
+                i32.const 0x0200_0000
+                i32.ne
+                br_if 0
+            )
+        )
+    )"#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let gas_limit = 10_000_000_000;
+        let code = ProgramCodeKind::Custom(wat).to_bytes();
+        let salt = DEFAULT_SALT.to_vec();
+        Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            code,
+            salt,
+            EMPTY_PAYLOAD.to_vec(),
+            gas_limit,
+            0,
+            false,
+        )
+        .unwrap();
+
+        let message_id = get_last_message_id();
+
+        run_to_block(2, None);
+        assert_last_dequeued(1);
+
+        // We have sent message with `gas_limit`, but it must not be enough,
+        // because one write access to memory costs 100_000_000 gas (storage write cost).
+        // Fallible syscall error is written in each iteration to new gear page,
+        // so to successfully finish execution must be at least 100_000_000 * 512 * 4 = 204_800_000_000 gas,
+        // which is bigger than provided `gas_limit`.
+        assert_failed(
+            message_id,
+            ActorExecutionErrorReplyReason::Trap(TrapExplanation::GasLimitExceeded),
+        );
+    });
+}
+
+#[test]
 fn lazy_pages() {
     use gear_core::pages::{GearPage, PageU32Size};
     use gear_runtime_interface as gear_ri;
@@ -3344,12 +3417,12 @@ fn lazy_pages() {
     // and check that lazy-pages (see gear-lazy-pages) works correct:
     // For each page, which has been loaded from storage <=> page has been accessed.
     let wat = r#"
-	(module
-		(import "env" "memory" (memory 1))
+    (module
+        (import "env" "memory" (memory 1))
         (import "env" "alloc" (func $alloc (param i32) (result i32)))
-		(export "handle" (func $handle))
-		(export "init" (func $init))
-		(func $init
+        (export "handle" (func $handle))
+        (export "init" (func $init))
+        (func $init
             ;; allocate 9 pages in init, so mem will contain 10 pages
             i32.const 0x0
             i32.const 0x9
@@ -3379,8 +3452,8 @@ fn lazy_pages() {
             i32.const 0x8fffc
             i64.const 0xffffffffffffffff
             i64.store
-		)
-	)"#;
+        )
+    )"#;
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -3573,11 +3646,11 @@ fn block_gas_limit_works() {
 
     // Same as `ProgramCodeKind::GreedyInit`, but greedy handle
     let wat2 = r#"
-	(module
-		(import "env" "memory" (memory 1))
-		(export "handle" (func $handle))
-		(export "init" (func $init))
-		(func $init)
+    (module
+        (import "env" "memory" (memory 1))
+        (export "handle" (func $handle))
+        (export "init" (func $init))
+        (func $init)
         (func $doWork (param $size i32)
             (local $counter i32)
             i32.const 0
@@ -3598,8 +3671,8 @@ fn block_gas_limit_works() {
         (func $handle
             i32.const 10
             call $doWork
-		)
-	)"#;
+        )
+    )"#;
 
     init_logger();
 
@@ -3912,26 +3985,26 @@ fn program_lifecycle_works() {
 #[test]
 fn events_logging_works() {
     let wat_trap_in_handle = r#"
-	(module
-		(import "env" "memory" (memory 1))
-		(export "handle" (func $handle))
-		(export "init" (func $init))
-		(func $handle
-			unreachable
-		)
-		(func $init)
-	)"#;
-
-    let wat_trap_in_init = r#"
-	(module
-		(import "env" "memory" (memory 1))
-		(export "handle" (func $handle))
-		(export "init" (func $init))
-		(func $handle)
-		(func $init
+    (module
+        (import "env" "memory" (memory 1))
+        (export "handle" (func $handle))
+        (export "init" (func $init))
+        (func $handle
             unreachable
         )
-	)"#;
+        (func $init)
+    )"#;
+
+    let wat_trap_in_init = r#"
+    (module
+        (import "env" "memory" (memory 1))
+        (export "handle" (func $handle))
+        (export "init" (func $init))
+        (func $handle)
+        (func $init
+            unreachable
+        )
+    )"#;
 
     init_logger();
     new_test_ext().execute_with(|| {

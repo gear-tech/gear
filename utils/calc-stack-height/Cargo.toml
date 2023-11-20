@@ -1,0 +1,18 @@
+[package]
+name = "calc-stack-height"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+
+[dependencies]
+gear-core.workspace = true
+vara-runtime = { workspace = true, features = ["std", "dev"] }
+sandbox-wasmer.workspace = true
+sandbox-wasmer-types.workspace = true
+log.workspace = true
+env_logger.workspace = true
+wabt.workspace = true
+anyhow.workspace = true
