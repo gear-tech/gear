@@ -729,14 +729,13 @@ impl Externalities for Ext {
     }
 
     fn free_range(&mut self, start: WasmPage, end: WasmPage) -> Result<(), Self::AllocError> {
+        let err = AllocExtError::Alloc(AllocError::InvalidFreeRange(start.into(), end.into()));
+
         if start > end {
-            return Err(AllocExtError::Alloc(AllocError::InvalidRange(
-                start.into(),
-                end.into(),
-            )));
+            return Err(err);
         }
 
-        let page_count = u32::from(end) - u32::from(start);
+        let page_count = end.checked_sub(start).ok_or(err);
 
         Ext::charge_gas_if_enough(
             &mut self.context.gas_counter,
@@ -1200,7 +1199,9 @@ impl Externalities for Ext {
 mod tests {
     use super::*;
     use alloc::vec;
-    use gear_core::message::{ContextSettings, IncomingDispatch, Payload, MAX_PAYLOAD_SIZE};
+    use gear_core::message::{
+        pages::PageNumber, ContextSettings, IncomingDispatch, Payload, MAX_PAYLOAD_SIZE,
+    };
 
     struct MessageContextBuilder {
         incoming_dispatch: IncomingDispatch,
@@ -1316,13 +1317,53 @@ mod tests {
                 .build(),
         );
 
-        // Freeing existing and then non existing page.
-        // Counters still shouldn't be changed.
+        // Freeing existing page.
         assert!(ext.free(existing_page).is_ok());
         assert_eq!(ext.gas_left(), gas_left);
 
-        assert!(ext.free(non_existing_page).is_err());
+        // Freeing non existing page.
+        // Counters shouldn't be changed.
+        assert_eq!(
+            ext.free(non_existing_page),
+            Err(AllocExtError::Alloc(AllocError::InvalidFree(
+                non_existing_page.raw()
+            )))
+        );
+    }
+    #[test]
+    fn free_no_refund() {
+        // Set initial Ext state
+        let initial_gas = 100;
+        let initial_allowance = 10000;
+
+        let gas_left = (initial_gas, initial_allowance).into();
+
+        let existing_page = 99.into();
+        let non_existing_page = 100.into();
+
+        let allocations_context =
+            AllocationsContext::new(BTreeSet::from([existing_page]), 1.into(), 512.into());
+
+        let mut ext = Ext::new(
+            ProcessorContextBuilder::new()
+                .with_gas(GasCounter::new(initial_gas))
+                .with_allowance(GasAllowanceCounter::new(initial_allowance))
+                .with_allocation_context(allocations_context)
+                .build(),
+        );
+
+        // Freeing existing page.
+        assert!(ext.free(existing_page).is_ok());
         assert_eq!(ext.gas_left(), gas_left);
+
+        // Freeing non existing page.
+        // Counters shouldn't be changed.
+        assert_eq!(
+            ext.free(non_existing_page),
+            Err(AllocExtError::Alloc(AllocError::InvalidFree(
+                non_existing_page.raw()
+            )))
+        );
     }
 
     #[test]

@@ -686,6 +686,8 @@ where
             let start = WasmPage::new(start).map_err(page_err)?;
             let end = WasmPage::new(end).map_err(page_err)?;
 
+            log::trace!("Free range {start:?}:{end:?}");
+
             // TODO #3494
             ctx.ext_mut().free_range(start, end).map_err(|_| {
                 UndefinedTerminationReason::Actor(ActorTerminationReason::Trap(

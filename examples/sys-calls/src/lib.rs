@@ -107,8 +107,6 @@ pub enum Kind {
     ReservationReplyCommit(Vec<u8>, MessageId),
     // Param(reserve amount)
     SystemReserveGas(u64),
-    // Param(deposit amount)
-    ReplyDeposit(u64),
 }
 
 pub const PAY_PROGRAM_RENT_EXPECT: &str = "Unable to pay rent";
