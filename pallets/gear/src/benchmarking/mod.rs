@@ -55,9 +55,10 @@ use self::{
     sandbox::Sandbox,
 };
 use crate::{
-    manager::ExtManager, pallet, BalanceOf, BenchmarkStorage, Call, Config, CurrencyOf, Event,
-    Ext as Externalities, GasHandlerOf, GearBank, MailboxOf, Pallet as Gear, Pallet,
-    ProgramStorageOf, QueueOf, RentFreePeriodOf, ResumeMinimalPeriodOf, Schedule, TaskPoolOf,
+    manager::ExtManager, pallet, BalanceOf, BenchmarkStorage, BlockGasLimitOf, Call, Config,
+    CurrencyOf, Event, Ext as Externalities, GasHandlerOf, GearBank, MailboxOf, Pallet as Gear,
+    Pallet, ProgramStorageOf, QueueOf, RentFreePeriodOf, ResumeMinimalPeriodOf, Schedule,
+    TaskPoolOf,
 };
 use ::alloc::{
     collections::{BTreeMap, BTreeSet},
@@ -348,7 +349,7 @@ where
             module.code,
             salt,
             data,
-            250_000_000_000,
+            BlockGasLimitOf::<T>::get(),
             value,
         )?;
 
