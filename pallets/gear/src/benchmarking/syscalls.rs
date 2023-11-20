@@ -405,9 +405,9 @@ where
     }
 
     pub fn gr_read_per_byte(n: u32) -> Result<Exec<T>, &'static str> {
-        let repetitions = API_BENCHMARK_RUNS;
+        let repetitions = 1;
         let buffer_offset = COMMON_OFFSET;
-        let buffer_len = n * 1024;
+        let buffer_len = n;
         let res_offset = buffer_offset + buffer_len;
 
         assert!(buffer_len <= MAX_PAYLOAD_LEN);
@@ -590,20 +590,15 @@ where
     }
 
     pub fn gr_send_push_per_byte(n: u32) -> Result<Exec<T>, &'static str> {
-        let repetitions = API_BENCHMARK_RUNS;
         let payload_offset = COMMON_OFFSET;
-        let payload_len = n * 1024;
+        let payload_len = n;
         let res_offset = payload_offset + payload_len;
         let err_handle_offset = res_offset + ERR_LEN_SIZE;
 
-        let mut instructions = body::fallible_syscall_instr(
-            API_BENCHMARK_RUNS,
-            1,
-            Counter(err_handle_offset, ERR_HANDLE_SIZE),
-            &[],
-        );
+        let mut instructions =
+            body::fallible_syscall_instr(1, 1, Counter(err_handle_offset, ERR_HANDLE_SIZE), &[]);
         instructions.extend(body::fallible_syscall_instr(
-            repetitions,
+            1,
             0,
             InstrI32Const(res_offset),
             &[
@@ -628,7 +623,7 @@ where
     }
 
     pub fn gr_send_commit(r: u32, wgas: bool) -> Result<Exec<T>, &'static str> {
-        let repetitions = r * API_BENCHMARK_RUNS;
+        let repetitions = r;
         assert!(repetitions <= MAX_REPETITIONS);
 
         let pid_value_offset = COMMON_OFFSET;
@@ -875,7 +870,7 @@ where
     pub fn gr_reply_push_per_byte(n: u32) -> Result<Exec<T>, &'static str> {
         let repetitions = 1;
         let payload_offset = COMMON_OFFSET;
-        let payload_len = n * 1024;
+        let payload_len = n;
         let res_offset = payload_offset + payload_len;
 
         let module = ModuleDefinition {
@@ -984,7 +979,7 @@ where
         let repetitions = 1;
         let rid_value_offset = COMMON_OFFSET;
         let payload_offset = rid_value_offset + RID_VALUE_SIZE;
-        let payload_len = n * 1024;
+        let payload_len = n;
         let res_offset = payload_offset + payload_len;
 
         let module = ModuleDefinition {
@@ -1293,9 +1288,9 @@ where
     }
 
     pub fn gr_debug_per_byte(n: u32) -> Result<Exec<T>, &'static str> {
-        let repetitions = API_BENCHMARK_RUNS;
+        let repetitions = 1;
         let string_offset = COMMON_OFFSET;
-        let string_len = n * 1024;
+        let string_len = n;
 
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
