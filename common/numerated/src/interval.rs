@@ -63,13 +63,14 @@ impl<T: Numerated> NonEmptyInterval<T> {
     /// Creates new interval start..=end with checks only in debug mode.
     /// # Safety
     /// Unsafe, because allows to create invalid interval.
+    /// Safe, when start ≤ end.
     #[track_caller]
     pub unsafe fn new_unchecked(start: T, end: T) -> Self {
         debug_assert!(start <= end);
         Self { start, end }
     }
 
-    /// Creates new interval start..=end if start  end, else returns None.
+    /// Creates new interval start..=end if start ≤ end, else returns None.
     pub fn new(start: T, end: T) -> Option<Self> {
         (start <= end).then_some(Self { start, end })
     }
@@ -96,7 +97,7 @@ impl<T: Numerated> NonEmptyInterval<T> {
 }
 
 /// Error which occurs when trying to convert empty [Interval] into [NonEmptyInterval].
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct IntoNonEmptyIntervalError;
 
 impl<T: Numerated> TryFrom<&Interval<T>> for NonEmptyInterval<T> {
@@ -118,6 +119,14 @@ impl<T: Numerated> TryFrom<Interval<T>> for NonEmptyInterval<T> {
 
     fn try_from(interval: Interval<T>) -> Result<Self, Self::Error> {
         TryFrom::try_from(&interval)
+    }
+}
+
+impl<T: Numerated> TryFrom<Interval<T>> for RangeInclusive<T> {
+    type Error = IntoNonEmptyIntervalError;
+
+    fn try_from(interval: Interval<T>) -> Result<Self, Self::Error> {
+        NonEmptyInterval::try_from(interval).map(Into::into)
     }
 }
 
@@ -144,7 +153,7 @@ impl<T: Numerated> Interval<T> {
     }
     /// Tries to convert into range inclusive.
     pub fn into_range_inclusive(self) -> Option<RangeInclusive<T>> {
-        NonEmptyInterval::try_from(self).ok().map(Into::into)
+        RangeInclusive::try_from(self).ok()
     }
 }
 
@@ -187,7 +196,7 @@ impl<T: Numerated> Iterator for Interval<T> {
 impl<T: Numerated> From<T> for Interval<T> {
     fn from(point: T) -> Self {
         unsafe {
-            // Safe cause point <= point
+            // Safe cause `point` == `point`
             NonEmptyInterval::new_unchecked(point, point).into()
         }
     }
@@ -253,8 +262,8 @@ impl<T: Numerated + LowerBounded + UpperBounded, I: Into<T::B>> From<RangeTo<I>>
     }
 }
 
-/// Error which occurs when trying to convert `start` > `end` into `Interval`.
-#[derive(Debug, Clone, Copy)]
+/// Error, which occurs, when trying to convert `start` > `end` into `Interval`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct IntoIntervalError;
 
 impl<T: Numerated, S: Into<T::B>, E: Into<T::B>> TryFrom<(S, E)> for Interval<T> {
@@ -315,7 +324,7 @@ impl<T: Numerated> NonEmptyInterval<T> {
     pub fn raw_size(&self) -> Option<T::N> {
         let (start, end) = self.into_inner();
 
-        // Guarantied by NonEmptyInterval
+        // guarantied by `Self`
         debug_assert!(start <= end);
 
         let distance = end.distance(start).unwrap_or_else(|| {
@@ -357,9 +366,9 @@ impl<T: Numerated> Interval<T> {
 
 impl<T: Numerated + LowerBounded + UpperBounded> Interval<T> {
     /// Returns size of interval in `T` if it's possible.
-    /// If interval is empty, then returns `Some(T::min_value())`.
-    /// If interval size is bigger than `T` possible elements amount, then returns `None`.
-    /// If interval size is equal to some `T::N`, then returns `T` of corresponding numeration.
+    /// - if interval is empty, then returns `Some(T::min_value())`.
+    /// - if interval size is bigger than `T` possible elements amount, then returns `None`.
+    /// - if interval size is equal to some `T::N`, then returns `T` of corresponding numeration.
     pub fn size(&self) -> Option<T> {
         let Ok(interval) = NonEmptyInterval::try_from(self) else {
             return Some(T::min_value());
@@ -372,9 +381,9 @@ impl<T: Numerated + LowerBounded + UpperBounded> Interval<T> {
 impl<T: Numerated + UpperBounded> Interval<T> {
     /// Returns interval [`start`..`start` + `count`) if it's possible.
     /// Size of result interval is equal to `count`.
-    /// If `count` is None, then supposed that interval size must be `T::N::max_value()`.
-    /// If `start` + `count` - 1 is out of `T`, then returns `None`.
-    /// If `count` is zero, then returns empty interval.
+    /// - if `count` is None, then it is supposed, that interval size must be `T::N::max_value()`.
+    /// - if `start` + `count` - 1 is out of `T`, then returns `None`.
+    /// - if `count` is zero, then returns empty interval.
     pub fn count_from<S: Into<T::B>, C: Into<Option<T::N>>>(start: S, count: C) -> Option<Self> {
         use BoundValue::*;
         let start: T::B = start.into();

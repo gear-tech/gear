@@ -94,35 +94,38 @@ pub trait Numerated: Copy + Sized + Ord + Eq {
     /// Bound type: type for which any value can be mapped to `Self`,
     /// and also has __upper__ value, which is bigger than any value of `Self`.
     type B: Bound<Self>;
-    /// Adds `num` to `self` if `self + num` is enclosed by `self` and `other`.
-    /// This method must guaranties that:
+    /// Adds `num` to `self`, if `self + num` is enclosed by `self` and `other`.
+    ///
+    /// # Guaranties
     /// - iff `self + num` is enclosed by `self` and `other`, then returns `Some(_)`.
     /// - iff `self.add_if_enclosed_by(num, other).unwrap() == Some(a)`,
     /// then `a.sub_if_enclosed_by(num, self) == Some(self)`.
     fn add_if_enclosed_by(self, num: Self::N, other: Self) -> Option<Self>;
-    /// Subtracts `num` from `self` if `self - num` is enclosed by `self` and `other`.
-    /// This method must guaranties that:
+    /// Subtracts `num` from `self`, if `self - num` is enclosed by `self` and `other`.
+    ///
+    /// # Guaranties
     /// - iff `self - num` is enclosed by `self` and `other`, then returns `Some(_)`.
     /// - iff `self.sub_if_enclosed_by(num, other).unwrap() == Some(a)`,
     /// then `a.add_if_enclosed_by(num, self) == Some(self)`.
     fn sub_if_enclosed_by(self, num: Self::N, other: Self) -> Option<Self>;
-    /// Returns `self - other` if `self >= other`.
-    /// This method must guaranties that:
-    /// - iff `self >= other`, then returns `Some(_)`.
+    /// Returns `self - other`, if `self ≥ other`.
+    ///
+    /// # Guaranties
+    /// - iff `self ≥ other`, then returns `Some(_)`.
     /// - iff `self == other`, then returns `Some(0)`.
-    /// - iff `self.distance(other) == Some(a)`,
-    /// then `self.sub_if_enclosed_by(a, other) == Some(other)`
-    /// and `other.add_if_enclosed_by(a, self) == Some(self)`.
+    /// - iff `self.distance(other) == Some(a)`, then
+    ///   - `self.sub_if_enclosed_by(a, other) == Some(other)`
+    ///   - `other.add_if_enclosed_by(a, self) == Some(self)`
     fn distance(self, other: Self) -> Option<Self::N>;
-    /// Increments `self` if `self < other`.
+    /// Increments `self`, if `self < other`.
     fn inc_if_lt(self, other: Self) -> Option<Self> {
         self.add_if_enclosed_by(Self::N::one(), other)
     }
-    /// Decrements `self` if `self` > `other`.
+    /// Decrements `self`, if `self` > `other`.
     fn dec_if_gt(self, other: Self) -> Option<Self> {
         self.sub_if_enclosed_by(Self::N::one(), other)
     }
-    /// Returns `true` iff `self` is enclosed by `a` and `b`.
+    /// Returns `true`, if `self` is enclosed by `a` and `b`.
     fn enclosed_by(self, a: &Self, b: &Self) -> bool {
         self <= *a.max(b) && self >= *a.min(b)
     }
