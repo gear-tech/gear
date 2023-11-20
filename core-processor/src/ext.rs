@@ -621,23 +621,42 @@ impl Ext {
             // previously gasless sends should appear to prevent their
             // invasion for gas for storing delayed message.
             //
-            // In case of sending delayed gasfull message it's already
-            // charged in `safe_gasful_sending`.
-            if packet.gas_limit().is_none() {
-                // Currently sending gasless isn't guaranteed to be provided
-                // with gas, but previously sent gasless - must be.
-                let prev_gasless_fee = self
-                    .outgoing_gasless
-                    .saturating_sub(1)
-                    .saturating_mul(self.context.mailbox_threshold);
+            // In case of sending delayed gasfull message with non-zero gas
+            // it's already charged in `safe_gasful_sending`.
+            match packet.gas_limit() {
+                // Giving threshold for all previous gasless-es.
+                Some(0) => {
+                    let prev_gasless_fee = self
+                        .outgoing_gasless
+                        .saturating_mul(self.context.mailbox_threshold);
 
-                self.reduce_gas(prev_gasless_fee)?;
+                    self.reduce_gas(prev_gasless_fee)?;
 
-                // Current message sent is gasless so there is no guarantee for
-                // it to be added in mailbox, and any future gasfull or delayed
-                // will guarantee + pay for that.
-                self.outgoing_gasless = 1;
-            };
+                    self.outgoing_gasless = 0;
+                }
+                // Giving threshold for all previous gasless-es, except current.
+                None => {
+                    // This gasless sending isn't guaranteed to be provided
+                    // with gas, but previously sent gasless - must be.
+                    let prev_gasless_fee = self
+                        .outgoing_gasless
+                        .saturating_sub(1)
+                        .saturating_mul(self.context.mailbox_threshold);
+
+                    self.reduce_gas(prev_gasless_fee)?;
+
+                    // Current message sent is gasless so there is no guarantee for
+                    // it to be added in mailbox, and any future gasfull or delayed
+                    // will guarantee + pay for that.
+                    self.outgoing_gasless = 1;
+                }
+                // Check that threshold is given for all previous gasless-es.
+                _ => {
+                    if self.outgoing_gasless != 0 {
+                        unreachable!("`safe_gasfull_send` must be called before charging for dispatch stash hold!");
+                    }
+                }
+            }
 
             // Take delay and get cost of block.
             // reserve = wait_cost * (delay + reserve_for).
