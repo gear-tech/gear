@@ -1,16 +1,18 @@
 use crate::utils;
 use anyhow::{anyhow, Result};
 use gclient::{Error as GClientError, Result as GClientResult};
-use once_cell::sync::OnceCell;
 use parking_lot::{Mutex, MutexGuard};
 use std::{
     cmp::Reverse,
     collections::BinaryHeap,
-    sync::atomic::{AtomicU64, Ordering},
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        OnceLock,
+    },
 };
 
-pub static AVAILABLE_NONCE: OnceCell<AtomicU64> = OnceCell::new();
-pub static MISSED_NONCES: OnceCell<Mutex<MinHeap>> = OnceCell::new();
+pub static AVAILABLE_NONCE: OnceLock<AtomicU64> = OnceLock::new();
+pub static MISSED_NONCES: OnceLock<Mutex<MinHeap>> = OnceLock::new();
 
 pub type MinHeap = BinaryHeap<Reverse<u64>>;
 type MissedNoncesGuard<'a> = MutexGuard<'a, MinHeap>;

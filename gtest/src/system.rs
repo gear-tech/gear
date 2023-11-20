@@ -19,14 +19,61 @@
 use crate::{
     log::RunResult,
     mailbox::Mailbox,
-    manager::{Balance, ExtManager},
+    manager::{Actors, Balance, ExtManager},
     program::{Program, ProgramIdWrapper},
 };
+use codec::{Decode, DecodeAll};
 use colored::Colorize;
 use env_logger::{Builder, Env};
-use gear_core::{ids::CodeId, message::Dispatch};
+use gear_core::{
+    ids::{CodeId, ProgramId},
+    message::Dispatch,
+    pages::GearPage,
+};
+use gear_lazy_pages::{LazyPagesStorage, LazyPagesVersion};
+use gear_lazy_pages_common::LazyPagesInitContext;
 use path_clean::PathClean;
 use std::{borrow::Cow, cell::RefCell, env, fs, io::Write, path::Path, thread};
+
+#[derive(Decode)]
+#[codec(crate = codec)]
+struct PageKey {
+    _page_storage_prefix: [u8; 32],
+    program_id: ProgramId,
+    _memory_infix: u32,
+    page: GearPage,
+}
+
+#[derive(Debug)]
+struct PagesStorage {
+    actors: Actors,
+}
+
+impl LazyPagesStorage for PagesStorage {
+    fn page_exists(&self, mut key: &[u8]) -> bool {
+        let PageKey {
+            program_id, page, ..
+        } = PageKey::decode_all(&mut key).expect("Invalid key");
+        self.actors
+            .borrow()
+            .get(&program_id)
+            .and_then(|(actor, _)| actor.get_pages_data())
+            .map(|pages_data| pages_data.contains_key(&page))
+            .unwrap_or(false)
+    }
+
+    fn load_page(&mut self, mut key: &[u8], buffer: &mut [u8]) -> Option<u32> {
+        let PageKey {
+            program_id, page, ..
+        } = PageKey::decode_all(&mut key).expect("Invalid key");
+        let actors = self.actors.borrow();
+        let (actor, _balance) = actors.get(&program_id)?;
+        let pages_data = actor.get_pages_data()?;
+        let page_buf = pages_data.get(&page)?;
+        buffer.copy_from_slice(page_buf);
+        Some(page_buf.len() as u32)
+    }
+}
 
 /// The testing environment which simulates the chain state and its
 /// transactions but somehow the real on-chain execution environment
@@ -45,7 +92,7 @@ pub struct System(pub(crate) RefCell<ExtManager>);
 
 impl Default for System {
     fn default() -> Self {
-        Self(RefCell::new(ExtManager::new()))
+        Self::new()
     }
 }
 
@@ -55,10 +102,18 @@ impl System {
 
     /// Create a new testing environment.
     pub fn new() -> Self {
-        assert!(gear_lazy_pages_interface::try_to_enable_lazy_pages(
-            Self::PAGE_STORAGE_PREFIX
-        ));
-        Default::default()
+        let ext_manager = ExtManager::new();
+
+        let actors = ext_manager.actors.clone();
+        let pages_storage = PagesStorage { actors };
+        gear_lazy_pages::init(
+            LazyPagesVersion::Version1,
+            LazyPagesInitContext::new(Self::PAGE_STORAGE_PREFIX),
+            pages_storage,
+        )
+        .expect("Failed to init lazy-pages");
+
+        Self(RefCell::new(ext_manager))
     }
 
     /// Init logger with "gwasm" target set to `debug` level.

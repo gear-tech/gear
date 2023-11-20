@@ -448,7 +448,12 @@ impl<'a> Program<'a> {
         Self::program_with_id(
             system,
             id,
-            InnerProgram::new(program, code_id, Default::default(), Default::default()),
+            InnerProgram::Genuine {
+                program,
+                code_id,
+                pages_data: Default::default(),
+                gas_reservation_map: Default::default(),
+            },
         )
     }
 
@@ -502,7 +507,8 @@ impl<'a> Program<'a> {
             None,
         );
 
-        let (actor, _) = system.actors.get_mut(&self.id).expect("Can't fail");
+        let mut actors = system.actors.borrow_mut();
+        let (actor, _) = actors.get_mut(&self.id).expect("Can't fail");
 
         let kind = if let TestActor::Uninitialized(id @ None, _) = actor {
             *id = Some(message.id());
@@ -511,6 +517,7 @@ impl<'a> Program<'a> {
             DispatchKind::Handle
         };
 
+        drop(actors);
         system.validate_and_run_dispatch(Dispatch::new(kind, message))
     }
 
@@ -528,12 +535,14 @@ impl<'a> Program<'a> {
         );
         let message = SignalMessage::new(origin_msg_id, code);
 
-        let (actor, _) = system.actors.get_mut(&self.id).expect("Can't fail");
+        let mut actors = system.actors.borrow_mut();
+        let (actor, _) = actors.get_mut(&self.id).expect("Can't fail");
 
         if let TestActor::Uninitialized(id @ None, _) = actor {
             *id = Some(message.id());
         };
 
+        drop(actors);
         let dispatch = message.into_dispatch(origin_msg_id, self.id);
         system.validate_and_run_dispatch(dispatch)
     }
@@ -547,7 +556,7 @@ impl<'a> Program<'a> {
     pub fn read_state_bytes(&self, payload: Vec<u8>) -> Result<Vec<u8>> {
         self.manager
             .borrow_mut()
-            .with_externalities(|this| this.read_state_bytes(payload, &self.id))
+            .read_state_bytes(payload, &self.id)
     }
 
     /// Reads the program’s transformed state as a byte vector. The transformed
@@ -603,9 +612,9 @@ impl<'a> Program<'a> {
         wasm: Vec<u8>,
         args: Option<Vec<u8>>,
     ) -> Result<Vec<u8>> {
-        self.manager.borrow_mut().with_externalities(|this| {
-            this.read_state_bytes_using_wasm(payload, &self.id, fn_name, wasm, args)
-        })
+        self.manager
+            .borrow_mut()
+            .read_state_bytes_using_wasm(payload, &self.id, fn_name, wasm, args)
     }
 
     /// Reads and decodes the program's state .
@@ -729,7 +738,7 @@ impl<'a> Program<'a> {
 
         self.manager
             .borrow_mut()
-            .override_memory_pages(&self.id, mem);
+            .update_storage_pages(&self.id, mem);
         self.manager
             .borrow_mut()
             .override_balance(&self.id, balance);
