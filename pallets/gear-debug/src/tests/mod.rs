@@ -46,7 +46,7 @@ const DEFAULT_SALT: &[u8] = b"salt";
 
 #[test]
 fn vec() {
-    use demo_vec::WASM_BINARY;
+    use demo_custom::WASM_BINARY;
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -54,13 +54,13 @@ fn vec() {
             RuntimeOrigin::signed(1),
             WASM_BINARY.to_vec(),
             b"salt".to_vec(),
-            vec![],
+            demo_custom::InitMessage::Vec.encode(), // become vec program
             10_000_000_000,
             0,
             false,
         ));
 
-        let vec_id = get_last_program_id();
+        let program_id = get_last_program_id();
 
         run_to_next_block(None);
 
@@ -73,7 +73,7 @@ fn vec() {
 
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(1),
-            vec_id,
+            program_id,
             131072i32.encode(),
             10_000_000_000,
             0,
@@ -92,7 +92,7 @@ fn vec() {
         assert_eq!(snapshot.programs.len(), 1);
 
         let program_details = &snapshot.programs[0];
-        assert_eq!(program_details.id, vec_id);
+        assert_eq!(program_details.id, program_id);
 
         let crate::ProgramState::Active(ref program_info) = program_details.state else {
             panic!("Inactive program")

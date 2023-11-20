@@ -16,9 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-// TODO: #3058. Move here demo-vec, demo-ping, demo-distributor, demo-piggy-bank and others.
-// Also need to make implementation with dyn instead of using matches.
-
 #![no_std]
 
 extern crate alloc;
@@ -26,6 +23,8 @@ extern crate alloc;
 pub mod backend_error;
 pub mod btree;
 pub mod capacitor;
+pub mod distributor;
+pub mod piggy_bank;
 pub mod ping;
 pub mod vec;
 
@@ -40,13 +39,15 @@ mod code {
 #[cfg(feature = "std")]
 pub use code::WASM_BINARY_OPT as WASM_BINARY;
 
-#[derive(Decode, Encode)]
+#[derive(Debug, Decode, Encode)]
 pub enum InitMessage {
     Capacitor(String),
     BTree,
     BackendError,
     Ping,
     Vec,
+    PiggyBank,
+    Distributor,
 }
 
 pub trait Program {
@@ -54,15 +55,16 @@ pub trait Program {
     where
         Self: Sized;
 
-    fn handle(&mut self) {}
+    fn handle(&'static mut self) {}
     fn state(&self) {}
 }
 
 #[cfg(not(feature = "std"))]
 pub mod wasm {
     use super::{
-        backend_error::wasm::BackendError, btree::wasm::BTree, capacitor::Capacitor, ping::Ping,
-        vec::Vec, InitMessage, Program,
+        backend_error::wasm::BackendError, btree::wasm::BTree, capacitor::Capacitor,
+        distributor::wasm::Distributor, piggy_bank::PiggyBank, ping::Ping, vec::Vec, InitMessage,
+        Program,
     };
     use gstd::{msg, prelude::*, Box};
 
@@ -71,13 +73,16 @@ pub mod wasm {
     #[no_mangle]
     extern "C" fn init() {
         let init_message: InitMessage = msg::load().expect("Failed to load payload bytes");
-        let unit = Box::new(());
+
+        let unit = Box::new(()); // empty arg for programs that don't need any args
         let program: Box<dyn Program> = match init_message {
             InitMessage::Capacitor(payload) => Box::new(Capacitor::init(Box::new(payload))),
             InitMessage::BTree => Box::new(BTree::init(unit)),
             InitMessage::BackendError => Box::new(BackendError::init(unit)),
             InitMessage::Ping => Box::new(Ping::init(unit)),
             InitMessage::Vec => Box::new(Vec::init(unit)),
+            InitMessage::PiggyBank => Box::new(PiggyBank::init(unit)),
+            InitMessage::Distributor => Box::new(Distributor::init(unit)),
         };
         unsafe { PROGRAM = Some(program) };
     }
@@ -92,5 +97,10 @@ pub mod wasm {
     extern "C" fn state() {
         let program = unsafe { PROGRAM.take().expect("Program must be set at this point") };
         program.state()
+    }
+
+    #[no_mangle]
+    extern "C" fn handle_reply() {
+        gstd::record_reply();
     }
 }

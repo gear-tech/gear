@@ -47,7 +47,7 @@ pallet-gear-messenger = { workspace = true, features = ["std"] }
 pallet-gear-scheduler = { workspace = true, features = ["std"] }
 pallet-gear-program = { workspace = true, features = ["std"] }
 gear-wasm-instrument.workspace = true
-demo-vec.workspace = true
+demo-custom.workspace = true
 test-syscalls.workspace = true
 
 [features]

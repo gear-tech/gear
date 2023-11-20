@@ -819,14 +819,14 @@ mod tests {
         let mut prog = Program::from_opt_and_meta_code_with_id(
             &sys,
             137,
-            demo_ping::WASM_BINARY.to_vec(),
+            demo_custom::WASM_BINARY.to_vec(),
             None,
         );
 
         prog.mint(1000);
         assert_eq!(prog.balance(), 1000);
 
-        prog.send_with_value(user_id, "init".to_string(), 500);
+        prog.send_with_value(user_id, demo_custom::InitMessage::Ping, 500);
         assert_eq!(prog.balance(), 1500);
         assert_eq!(sys.balance_of(user_id), 4500);
 
@@ -853,11 +853,11 @@ mod tests {
         let prog = Program::from_opt_and_meta_code_with_id(
             &sys,
             137,
-            demo_piggy_bank::WASM_BINARY.to_vec(),
+            demo_custom::WASM_BINARY.to_vec(),
             None,
         );
 
-        prog.send_bytes(receiver, b"init");
+        prog.send(receiver, demo_custom::InitMessage::PiggyBank);
         assert_eq!(prog.balance(), 0);
 
         // Send values to the program
@@ -897,7 +897,7 @@ mod tests {
         let prog = Program::from_opt_and_meta_code_with_id(
             &sys,
             2,
-            demo_piggy_bank::WASM_BINARY.to_vec(),
+            demo_custom::WASM_BINARY.to_vec(),
             None,
         );
 
@@ -905,7 +905,11 @@ mod tests {
         sys.mint_to(user, crate::EXISTENTIAL_DEPOSIT);
         assert_eq!(sys.balance_of(user), crate::EXISTENTIAL_DEPOSIT);
 
-        prog.send_bytes_with_value(user, b"init", crate::EXISTENTIAL_DEPOSIT + 1);
+        prog.send_with_value(
+            user,
+            demo_custom::InitMessage::PiggyBank,
+            crate::EXISTENTIAL_DEPOSIT + 1,
+        );
     }
 
     #[test]
@@ -921,11 +925,11 @@ mod tests {
         let prog = Program::from_opt_and_meta_code_with_id(
             &sys,
             137,
-            demo_piggy_bank::WASM_BINARY.to_vec(),
+            demo_custom::WASM_BINARY.to_vec(),
             None,
         );
 
-        prog.send_bytes(receiver, b"init");
+        prog.send(receiver, demo_custom::InitMessage::PiggyBank);
 
         // Get zero value to the receiver's mailbox
         prog.send_bytes(receiver, b"smash");

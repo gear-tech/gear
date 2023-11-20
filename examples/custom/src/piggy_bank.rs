@@ -1,9 +1,9 @@
 use crate::Program;
-use gstd::{any::Any, msg, prelude::*};
+use gstd::{any::Any, debug, exec, msg, prelude::*};
 
 pub(crate) struct PiggyBank;
 
-impl Program for Ping {
+impl Program for PiggyBank {
     fn init(_: Box<dyn Any>) -> Self {
         PiggyBank
     }

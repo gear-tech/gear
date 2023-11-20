@@ -2073,16 +2073,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "demo-distributor"
-version = "0.1.0"
-dependencies = [
- "gear-wasm-builder",
- "gstd",
- "gtest",
- "parity-scale-codec",
-]
-
-[[package]]
 name = "demo-fungible-token"
 version = "0.1.4"
 dependencies = [
@@ -2250,22 +2240,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "demo-piggy-bank"
-version = "0.1.0"
-dependencies = [
- "gear-wasm-builder",
- "gstd",
-]
-
-[[package]]
-name = "demo-ping"
-version = "0.1.0"
-dependencies = [
- "gear-wasm-builder",
- "gstd",
-]
-
-[[package]]
 name = "demo-program-factory"
 version = "0.1.0"
 dependencies = [
@@ -2412,14 +2386,6 @@ dependencies = [
  "gsys",
  "gtest",
  "parity-scale-codec",
-]
-
-[[package]]
-name = "demo-vec"
-version = "0.1.0"
-dependencies = [
- "gear-wasm-builder",
- "gstd",
 ]
 
 [[package]]
@@ -3856,7 +3822,6 @@ dependencies = [
  "demo-calc-hash-in-one-block",
  "demo-constructor",
  "demo-custom",
- "demo-distributor",
  "demo-meta-io",
  "demo-mul-by-const",
  "demo-new-meta",
@@ -4817,8 +4782,6 @@ dependencies = [
  "demo-custom",
  "demo-futures-unordered",
  "demo-meta-io",
- "demo-piggy-bank",
- "demo-ping",
  "derive_more",
  "env_logger",
  "gear-core",
@@ -7497,7 +7460,6 @@ dependencies = [
  "demo-constructor",
  "demo-custom",
  "demo-delayed-sender",
- "demo-distributor",
  "demo-futures-unordered",
  "demo-gas-burned",
  "demo-incomplete-async-payloads",
@@ -7507,7 +7469,6 @@ dependencies = [
  "demo-mul-by-const",
  "demo-new-meta",
  "demo-out-of-memory",
- "demo-ping",
  "demo-program-factory",
  "demo-program-generator",
  "demo-proxy",
@@ -7599,7 +7560,7 @@ dependencies = [
 name = "pallet-gear-debug"
 version = "1.0.2"
 dependencies = [
- "demo-vec",
+ "demo-custom",
  "env_logger",
  "frame-benchmarking",
  "frame-support",

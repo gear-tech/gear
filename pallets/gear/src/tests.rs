@@ -4420,7 +4420,7 @@ fn uninitialized_program_zero_gas() {
 
 #[test]
 fn distributor_initialize() {
-    use demo_distributor::WASM_BINARY;
+    use demo_custom::WASM_BINARY;
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -4430,7 +4430,7 @@ fn distributor_initialize() {
             RuntimeOrigin::signed(USER_1),
             WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
-            EMPTY_PAYLOAD.to_vec(),
+            demo_custom::InitMessage::Distributor.encode(),
             10_000_000,
             0,
             false,
@@ -4449,7 +4449,7 @@ fn distributor_initialize() {
 
 #[test]
 fn distributor_distribute() {
-    use demo_distributor::{Request, WASM_BINARY};
+    use demo_custom::{distributor::Request, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -4464,7 +4464,7 @@ fn distributor_distribute() {
             RuntimeOrigin::signed(USER_1),
             WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
-            EMPTY_PAYLOAD.to_vec(),
+            demo_custom::InitMessage::Distributor.encode(),
             10_000_000_000,
             0,
             false,
@@ -12407,7 +12407,6 @@ fn missing_block_tasks_handled() {
 
 #[test]
 fn async_does_not_duplicate_sync() {
-    use demo_ping::WASM_BINARY as PING_BINARY;
     use demo_sync_duplicate::WASM_BINARY as SYNC_DUPLICATE_BINARY;
 
     init_logger();
@@ -12415,9 +12414,9 @@ fn async_does_not_duplicate_sync() {
     new_test_ext().execute_with(|| {
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            PING_BINARY.to_vec(),
+            demo_custom::WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
-            Default::default(),
+            demo_custom::InitMessage::Ping.encode(),
             BlockGasLimitOf::<Test>::get(),
             0,
             false,
@@ -12528,16 +12527,15 @@ fn state_rollback() {
 #[test]
 fn incomplete_async_payloads_kept() {
     use demo_incomplete_async_payloads::{Command, WASM_BINARY};
-    use demo_ping::WASM_BINARY as PING_BINARY;
 
     init_logger();
 
     new_test_ext().execute_with(|| {
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            PING_BINARY.to_vec(),
+            demo_custom::WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
-            Default::default(),
+            demo_custom::InitMessage::Ping.encode(),
             BlockGasLimitOf::<Test>::get(),
             0,
             false,
@@ -12594,7 +12592,6 @@ fn incomplete_async_payloads_kept() {
 
 #[test]
 fn rw_lock_works() {
-    use demo_ping::WASM_BINARY as PING_BINARY;
     use demo_rwlock::{Command, WASM_BINARY};
 
     init_logger();
@@ -12602,9 +12599,9 @@ fn rw_lock_works() {
     let upload = || {
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            PING_BINARY.to_vec(),
+            demo_custom::WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
-            Default::default(),
+            demo_custom::InitMessage::Ping.encode(),
             BlockGasLimitOf::<Test>::get(),
             0,
             false,
@@ -12727,16 +12724,15 @@ fn rw_lock_works() {
 #[test]
 fn async_works() {
     use demo_async::{Command, WASM_BINARY};
-    use demo_ping::WASM_BINARY as PING_BINARY;
 
     init_logger();
 
     let upload = || {
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            PING_BINARY.to_vec(),
+            demo_custom::WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
-            Default::default(),
+            demo_custom::InitMessage::Ping.encode(),
             BlockGasLimitOf::<Test>::get(),
             0,
             false,
@@ -12793,16 +12789,15 @@ fn async_works() {
 fn futures_unordered() {
     use demo_async::WASM_BINARY as DEMO_ASYNC_BINARY;
     use demo_futures_unordered::{Command, WASM_BINARY};
-    use demo_ping::WASM_BINARY as PING_BINARY;
 
     init_logger();
 
     let upload = || {
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            PING_BINARY.to_vec(),
+            demo_custom::WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
-            Default::default(),
+            demo_custom::InitMessage::Ping.encode(),
             BlockGasLimitOf::<Test>::get(),
             0,
             false,
@@ -12890,16 +12885,15 @@ fn futures_unordered() {
 #[test]
 fn async_recursion() {
     use demo_async_recursion::WASM_BINARY;
-    use demo_ping::WASM_BINARY as PING_BINARY;
 
     init_logger();
 
     let upload = || {
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            PING_BINARY.to_vec(),
+            demo_custom::WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
-            Default::default(),
+            demo_custom::InitMessage::Ping.encode(),
             BlockGasLimitOf::<Test>::get(),
             0,
             false,
@@ -12949,16 +12943,15 @@ fn async_recursion() {
 #[test]
 fn async_init() {
     use demo_async_init::{InputArgs, WASM_BINARY};
-    use demo_ping::WASM_BINARY as PING_BINARY;
 
     init_logger();
 
     let upload = || {
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_3),
-            PING_BINARY.to_vec(),
+            demo_custom::WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
-            Default::default(),
+            demo_custom::InitMessage::Ping.encode(),
             BlockGasLimitOf::<Test>::get(),
             0,
             false,

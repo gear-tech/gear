@@ -29,7 +29,6 @@ members = [
     "examples/compose",
     "examples/constructor",
     "examples/delayed-sender",
-    "examples/distributor",
     "examples/fungible-token",
     "examples/stack-allocations",
     "examples/futures-unordered",
@@ -44,8 +43,6 @@ members = [
     "examples/new-meta",
     "examples/node",
     "examples/out-of-memory",
-    "examples/piggy-bank",
-    "examples/ping",
     "examples/program-factory",
     "examples/program-generator",
     "examples/proxy",
@@ -61,7 +58,6 @@ members = [
     "examples/sync-duplicate",
     "examples/sys-calls",
     "examples/syscall-error",
-    "examples/vec",
     "examples/wait",
     "examples/wait-timeout",
     "examples/wait_wake",
@@ -378,7 +374,6 @@ demo-custom = { path = "examples/custom" }
 demo-compose = { path = "examples/compose" }
 demo-constructor = { path = "examples/constructor", default-features = false }
 demo-delayed-sender = { path = "examples/delayed-sender" }
-demo-distributor = { path = "examples/distributor" }
 demo-futures-unordered = { path = "examples/futures-unordered", features = ["debug"] }
 demo-gas-burned = { path = "examples/gas-burned" }
 demo-fungible-token = { path = "examples/fungible-token" }
@@ -392,8 +387,6 @@ demo-mul-by-const = { path = "examples/mul-by-const" }
 demo-new-meta = { path = "examples/new-meta" }
 demo-node = { path = "examples/node" }
 demo-out-of-memory = { path = "examples/out-of-memory" }
-demo-piggy-bank = { path = "examples/piggy-bank", features = ["debug"] }
-demo-ping = { path = "examples/ping" }
 demo-program-factory = { path = "examples/program-factory" }
 demo-program-generator = { path = "examples/program-generator" }
 demo-proxy = { path = "examples/proxy", default-features = false }
@@ -407,7 +400,6 @@ demo-send-from-reservation = { path = "examples/send-from-reservation" }
 demo-signal-entry = { path = "examples/signal-entry" }
 demo-state-rollback = { path = "examples/state-rollback" }
 demo-sync-duplicate = { path = "examples/sync-duplicate" }
-demo-vec = { path = "examples/vec" }
 demo-wait = { path = "examples/wait" }
 demo-waiter = { path = "examples/waiter", default-features = false }
 demo-wait-timeout = { path = "examples/wait-timeout" }
