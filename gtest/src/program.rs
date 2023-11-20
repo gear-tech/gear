@@ -813,8 +813,8 @@ mod tests {
         sys.init_logger();
 
         let user_id = 42;
-        sys.mint_to(user_id, 5000);
-        assert_eq!(sys.balance_of(user_id), 5000);
+        sys.mint_to(user_id, 10 * crate::EXISTENTIAL_DEPOSIT);
+        assert_eq!(sys.balance_of(user_id), 10 * crate::EXISTENTIAL_DEPOSIT);
 
         let mut prog = Program::from_opt_and_meta_code_with_id(
             &sys,
@@ -823,16 +823,16 @@ mod tests {
             None,
         );
 
-        prog.mint(1000);
-        assert_eq!(prog.balance(), 1000);
+        prog.mint(2 * crate::EXISTENTIAL_DEPOSIT);
+        assert_eq!(prog.balance(), 2 * crate::EXISTENTIAL_DEPOSIT);
 
-        prog.send_with_value(user_id, "init".to_string(), 500);
-        assert_eq!(prog.balance(), 1500);
-        assert_eq!(sys.balance_of(user_id), 4500);
+        prog.send_with_value(user_id, "init".to_string(), crate::EXISTENTIAL_DEPOSIT);
+        assert_eq!(prog.balance(), 3 * crate::EXISTENTIAL_DEPOSIT);
+        assert_eq!(sys.balance_of(user_id), 9 * crate::EXISTENTIAL_DEPOSIT);
 
-        prog.send_with_value(user_id, "PING".to_string(), 1000);
-        assert_eq!(prog.balance(), 2500);
-        assert_eq!(sys.balance_of(user_id), 3500);
+        prog.send_with_value(user_id, "PING".to_string(), 2 * crate::EXISTENTIAL_DEPOSIT);
+        assert_eq!(prog.balance(), 5 * crate::EXISTENTIAL_DEPOSIT);
+        assert_eq!(sys.balance_of(user_id), 7 * crate::EXISTENTIAL_DEPOSIT);
     }
 
     #[test]
@@ -846,9 +846,9 @@ mod tests {
         let sender2 = 45;
 
         // Top-up senders balances
-        sys.mint_to(sender0, 10000);
-        sys.mint_to(sender1, 10000);
-        sys.mint_to(sender2, 10000);
+        sys.mint_to(sender0, 20 * crate::EXISTENTIAL_DEPOSIT);
+        sys.mint_to(sender1, 20 * crate::EXISTENTIAL_DEPOSIT);
+        sys.mint_to(sender2, 20 * crate::EXISTENTIAL_DEPOSIT);
 
         let prog = Program::from_opt_and_meta_code_with_id(
             &sys,
@@ -861,27 +861,32 @@ mod tests {
         assert_eq!(prog.balance(), 0);
 
         // Send values to the program
-        prog.send_bytes_with_value(sender0, b"insert", 1000);
-        assert_eq!(sys.balance_of(sender0), 9000);
-        prog.send_bytes_with_value(sender1, b"insert", 2000);
-        assert_eq!(sys.balance_of(sender1), 8000);
-        prog.send_bytes_with_value(sender2, b"insert", 3000);
-        assert_eq!(sys.balance_of(sender2), 7000);
+        prog.send_bytes_with_value(sender0, b"insert", 2 * crate::EXISTENTIAL_DEPOSIT);
+        assert_eq!(sys.balance_of(sender0), 18 * crate::EXISTENTIAL_DEPOSIT);
+        prog.send_bytes_with_value(sender1, b"insert", 4 * crate::EXISTENTIAL_DEPOSIT);
+        assert_eq!(sys.balance_of(sender1), 16 * crate::EXISTENTIAL_DEPOSIT);
+        prog.send_bytes_with_value(sender2, b"insert", 6 * crate::EXISTENTIAL_DEPOSIT);
+        assert_eq!(sys.balance_of(sender2), 14 * crate::EXISTENTIAL_DEPOSIT);
 
         // Check program's balance
-        assert_eq!(prog.balance(), 1000 + 2000 + 3000);
+        assert_eq!(prog.balance(), (2 + 4 + 6) * crate::EXISTENTIAL_DEPOSIT);
 
         // Request to smash the piggy bank and send the value to the receiver address
         prog.send_bytes(receiver, b"smash");
         sys.claim_value_from_mailbox(receiver);
-        assert_eq!(sys.balance_of(receiver), 1000 + 2000 + 3000);
+        assert_eq!(
+            sys.balance_of(receiver),
+            (2 + 4 + 6) * crate::EXISTENTIAL_DEPOSIT
+        );
 
         // Check program's balance is empty
         assert_eq!(prog.balance(), 0);
     }
 
     #[test]
-    #[should_panic(expected = "An attempt to mint value (1) less than existential deposit (500)")]
+    #[should_panic(
+        expected = "An attempt to mint value (1) less than existential deposit (10000000000000)"
+    )]
     fn mint_less_than_deposit() {
         System::new().mint_to(1, 1);
     }
@@ -889,7 +894,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "Insufficient value: user \
     (0x0100000000000000000000000000000000000000000000000000000000000000) tries \
-    to send (501) value, while his balance (500)")]
+    to send (10000000000001) value, while his balance (10000000000000)")]
     fn fails_on_insufficient_balance() {
         let sys = System::new();
 
@@ -916,7 +921,7 @@ mod tests {
         let sender = 42;
         let receiver = 84;
 
-        sys.mint_to(sender, 10000);
+        sys.mint_to(sender, 20 * crate::EXISTENTIAL_DEPOSIT);
 
         let prog = Program::from_opt_and_meta_code_with_id(
             &sys,

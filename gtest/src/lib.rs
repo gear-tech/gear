@@ -327,21 +327,73 @@ pub use error::{Result, TestError};
 pub use program::{calculate_program_id, Gas, Program, WasmProgram};
 pub use system::System;
 
-const EXISTENTIAL_DEPOSIT: u128 = 500;
-const MAILBOX_THRESHOLD: u64 = 3000;
-const WAITLIST_COST: u64 = 100;
-const RESERVE_FOR: u32 = 1;
-const RESERVATION_COST: u64 = 100;
-const READ_COST: u64 = 20;
-const WRITE_COST: u64 = 100;
-const READ_PER_BYTE_COST: u64 = 10;
-const WRITE_PER_BYTE_COST: u64 = 10;
-const MODULE_INSTANTIATION_BYTE_COST: u64 = 20;
-const MAX_RESERVATIONS: u64 = 256;
-const EPOCH_DURATION_IN_BLOCKS: u32 = 600;
-const INITIAL_RANDOM_SEED: u64 = 42;
-const MODULE_INSTRUMENTATION_BYTE_COST: u64 = 13;
-const MODULE_INSTRUMENTATION_COST: u64 = 297;
-const DISPATCH_HOLD_COST: u64 = 200;
-const RENT_COST: u128 = 330;
-const VALUE_PER_GAS: u128 = 25;
+pub(crate) use constants::*;
+
+/// Module containing constants of Gear protocol.
+pub mod constants {
+    /* Constant types */
+
+    /// Numeric type representing value in Gear protocol.
+    pub type Value = u128;
+
+    /// Numeric type representing gas in Gear protocol.
+    pub type Gas = u64;
+
+    /// Numeric type representing blocks in Gear protocol.
+    pub type Block = u32;
+
+    /* Currency-related constants */
+
+    /// Value per token.
+    pub const UNITS: Value = 1_000_000_000_000;
+    /// Minimal amount of value able to be sent. Defines accounts existence
+    /// requirement.
+    pub const EXISTENTIAL_DEPOSIT: Value = 10 * UNITS;
+    /// Value per gas.
+    pub const VALUE_PER_GAS: Value = 25;
+    /// Duration of one epoch.
+    pub const EPOCH_DURATION_IN_BLOCKS: Block = 600;
+
+    /* Storage-related constants */
+    // TODO: use proper weights of db accesses (#3509).
+
+    /// Minimal amount of gas required to be inserted into Mailbox.
+    pub const MAILBOX_THRESHOLD: Gas = 3_000;
+    /// Extra amount of blocks must be reserved for storing in storage.
+    pub const RESERVE_FOR: Block = 1;
+    /// Cost of read access into storage.
+    pub const READ_COST: Gas = 25;
+    /// Per-byte extra cost of read access into storage.
+    pub const READ_PER_BYTE_COST: Gas = 10;
+    /// Cost of write access into storage.
+    pub const WRITE_COST: Gas = 100;
+    /// Per-byte extra cost of write access into storage.
+    pub const WRITE_PER_BYTE_COST: Gas = 10;
+
+    /* Rent-related constants */
+
+    /// Cost of storing waitlisted message per block.
+    pub const WAITLIST_COST: Gas = 100;
+    /// Cost of storing reservation per block.
+    pub const RESERVATION_COST: Gas = 100;
+    /// Cost of storing delayed message per block.
+    pub const DISPATCH_HOLD_COST: Gas = 100;
+    /// Cost of storing program per block.
+    ///
+    /// (!) Currently disabled: storing programs are free.
+    pub const RENT_COST: Value = 330;
+
+    /* Execution-related constants */
+    // TODO: use proper weights of instantiation and instrumentation (#3509).
+
+    /// Maximal amount of reservations program may have.
+    pub const MAX_RESERVATIONS: u64 = 256;
+    /// Cost of wasm module instantiation before execution per byte of code.
+    pub const MODULE_INSTANTIATION_BYTE_COST: Gas = 20;
+    /// Cost of instrumenting wasm code on upload.
+    pub const MODULE_INSTRUMENTATION_COST: Gas = 297;
+    /// Cost of instrumenting wasm code on upload per byte of code.
+    pub const MODULE_INSTRUMENTATION_BYTE_COST: Gas = 13;
+    /// Initial random seed for testing environment.
+    pub const INITIAL_RANDOM_SEED: u64 = 42;
+}
