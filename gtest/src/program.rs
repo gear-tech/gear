@@ -367,7 +367,8 @@ impl<'a> Program<'a> {
     /// - `[u8; 32]`
     /// - `String`
     /// - `&str`
-    /// - [`ProgramId`](https://docs.gear.rs/gear_core/ids/struct.ProgramId.html) (from `gear_core` one's, not from `gstd`).
+    /// - [`ProgramId`](https://docs.gear.rs/gear_core/ids/struct.ProgramId.html)
+    ///   (from `gear_core` one's, not from `gstd`).
     ///
     /// # Examples
     ///
@@ -413,8 +414,8 @@ impl<'a> Program<'a> {
     ///
     /// # See also
     ///
-    /// - [`Program::from_file`] for creating a program from file with default id.
-    ///
+    /// - [`Program::from_file`] for creating a program from file with default
+    ///   id.
     #[track_caller]
     pub fn from_file_with_id<P: AsRef<Path>, I: Into<ProgramIdWrapper> + Clone + Debug>(
         system: &'a System,

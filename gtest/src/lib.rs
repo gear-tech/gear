@@ -30,11 +30,16 @@
 //!
 //! ## Main concepts
 //!
-//! `gtest` is a library that provides a set of tools for testing Gear programs. The most important structures are:
+//! `gtest` is a library that provides a set of tools for testing Gear programs.
+//! The most important structures are:
 //!
-//! - [`System`] — a structure that represents the environment of the Gear network. It contains the current block number, timestamp, and other parameters. It also stores the mailbox and the list of programs.
-//! - [`Program`] — a structure that represents a Gear program. It contains the information about program and allows sending messages to other programs.
-//! - [`Log`] — a structure that represents a message log. It allows check the result of the program execution.
+//! - [`System`] — a structure that represents the environment of the Gear
+//!   network. It contains the current block number, timestamp, and other
+//!   parameters. It also stores the mailbox and the list of programs.
+//! - [`Program`] — a structure that represents a Gear program. It contains the
+//!   information about program and allows sending messages to other programs.
+//! - [`Log`] — a structure that represents a message log. It allows check the
+//!   result of the program execution.
 //!
 //! Let's take a closer look at how to write tests using `gtest`.
 //!
@@ -88,13 +93,16 @@
 //! }
 //! ```
 //!
-//! We will add a test that will check the program's behavior. To do this, we will use the `gtest` library.
+//! We will add a test that will check the program's behavior. To do this, we
+//! will use the `gtest` library.
 //!
 //! Our test will consist of the following steps:
 //!
 //! 1. Initialize the `System` structure.
 //! 2. Initialize the `Program` structure.
-//! 3. Send an init message to the program. We don't have an `init` function in our program, but the first message to the program is always the init message while using `gtest`.
+//! 3. Send an init message to the program. We don't have an `init` function in
+//!    our program, but the first message to the program is always the init
+//!    message while using `gtest`.
 //! 4. Send a handle message to the program.
 //! 5. Check the result of the program execution.
 //!
@@ -156,7 +164,8 @@
 //! let sys = System::new();
 //! ```
 //!
-//! This emulates node's and chain's behavior. By default, the [`System::new`] function sets the following parameters:
+//! This emulates node's and chain's behavior. By default, the [`System::new`]
+//! function sets the following parameters:
 //!
 //! - current block equals `0`
 //! - current timestamp equals UNIX timestamp of your system
@@ -173,7 +182,8 @@
 //!     let prog = Program::current(&sys);
 //!     ```
 //!
-//! - Initialize a program from a Wasm-file with a default id using the [`Program::from_file`] function:
+//! - Initialize a program from a Wasm-file with a default id using the
+//!   [`Program::from_file`] function:
 //!
 //!     ```
 //!     let prog = Program::from_file(
@@ -182,7 +192,8 @@
 //!     );
 //!     ```
 //!
-//! - Initialize a program from a Wasm-file with a custom id using the [`Program::from_file_with_id`] function:
+//! - Initialize a program from a Wasm-file with a custom id using the
+//!   [`Program::from_file_with_id`] function:
 //!
 //!     ```
 //!     let prog = Program::from_file_with_id(
@@ -192,20 +203,24 @@
 //!     );
 //!     ```
 //!
-//!     Every place in this lib, where you need to specify some ids, it requires generic type `ID`, which implements ``Into<ProgramIdWrapper>``.
+//!     Every place in this lib, where you need to specify some ids, it requires
+//! generic type `ID`, which implements ``Into<ProgramIdWrapper>``.
 //!
 //!     `ProgramIdWrapper` may be built from:
 //!     - `u64`
 //!     - `[u8; 32]`
 //!     - `String`
 //!     - `&str`
-//!     - [`ProgramId`](https://docs.gear.rs/gear_core/ids/struct.ProgramId.html) (from `gear_core` one's, not from `gstd`).
+//!     - [`ProgramId`](https://docs.gear.rs/gear_core/ids/struct.ProgramId.html)
+//!       (from `gear_core` one's, not from `gstd`).
 //!
 //!     `String` implementation means the input as hex (with or without "0x").
 //!
 //! ## Getting the program from the system
 //!
-//! If you initialize program not in this scope, in cycle, in other conditions, where you didn't save the structure, you may get the object from the system by id.
+//! If you initialize program not in this scope, in cycle, in other conditions,
+//! where you didn't save the structure, you may get the object from the system
+//! by id.
 //!
 //! ```
 //! let prog = sys.get_program(105);
@@ -213,7 +228,8 @@
 //!
 //! ## Initialization of styled `env_logger`
 //!
-//! Initialization of styled `env_logger` to print logs (only from `gwasm` by default) into stdout:
+//! Initialization of styled `env_logger` to print logs (only from `gwasm` by
+//! default) into stdout:
 //!
 //! ```
 //! sys.init_logger();
@@ -229,18 +245,25 @@
 //!
 //! To send message to the program need to call one of two program's functions:
 //!
-//! - [`Program::send`] (or [`Program::send_with_value`] if you need to send a message with attached funds).
-//! - [`Program::send_bytes`] (or [`Program::send_bytes_with_value`] if you need to send a message with attached funds).
+//! - [`Program::send`] (or [`Program::send_with_value`] if you need to send a
+//!   message with attached funds).
+//! - [`Program::send_bytes`] (or [`Program::send_bytes_with_value`] if you need
+//!   to send a message with attached funds).
 //!
-//! Both of the methods require sender id as the first argument and the payload as second.
+//! Both of the methods require sender id as the first argument and the payload
+//! as second.
 //!
 //! The difference between them is pretty simple and similar to [`gstd`](https://docs.gear.rs/gstd/) functions [`msg::send`](https://docs.gear.rs/gstd/msg/fn.send.html) and [`msg::send_bytes`](https://docs.gear.rs/gstd/msg/fn.send_bytes.html).
 //!
-//! The first one requires payload to be CODEC Encodable, while the second requires payload implement `AsRef<[u8]>`, that means to be able to represent as bytes.
+//! The first one requires payload to be CODEC Encodable, while the second
+//! requires payload implement `AsRef<[u8]>`, that means to be able to represent
+//! as bytes.
 //!
-//! [`Program::send`] uses [`Program::send_bytes`] under the hood with bytes from `payload.encode()`.
+//! [`Program::send`] uses [`Program::send_bytes`] under the hood with bytes
+//! from `payload.encode()`.
 //!
-//! First message to the initialized program structure is always the init message.
+//! First message to the initialized program structure is always the init
+//! message.
 //!
 //! ```
 //! let res = program.send_bytes(100001, "INIT MESSAGE");
@@ -250,103 +273,66 @@
 //!
 //! Any sending functions in the lib returns [`RunResult`] structure.
 //!
-//! It contains the final result of the processing message and others, which were created during the execution.
+//! It contains the final result of the processing message and others, which
+//! were created during the execution.
 //!
 //! It has 4 main functions:
 //!
-//! - [`RunResult::log`] — returns the reference to the Vec produced to users messages. You may assert them as you wish, iterating through them.
-//! - [`RunResult::main_failed`] — returns bool which shows that there was panic during the execution of the main message.
-//! - [`RunResult::others_failed`] — returns bool which shows that there was panic during the execution of the created messages during the main execution. Equals false if no others were called.
-//! - [`RunResult::contains`] — returns bool which shows that logs contain a given log. Syntax sugar around `res.log().iter().any(|v| v == arg)`.
+//! - [`RunResult::log`] — returns the reference to the Vec produced to users
+//!   messages. You may assert them as you wish, iterating through them.
+//! - [`RunResult::main_failed`] — returns bool which shows that there was panic
+//!   during the execution of the main message.
+//! - [`RunResult::others_failed`] — returns bool which shows that there was
+//!   panic during the execution of the created messages during the main
+//!   execution. Equals false if no others were called.
+//! - [`RunResult::contains`] — returns bool which shows that logs contain a
+//!   given log. Syntax sugar around `res.log().iter().any(|v| v == arg)`.
 //!
-//! To build a log for assertion you need to use [`Log`] structure with its builders. All fields here are optional. Assertion with `Log`s from core are made on the `Some(..)` fields. You will run into panic if you try to set the already specified field.
+//! To build a log for assertion you need to use [`Log`] structure with its
+//! builders. All fields here are optional. Assertion with `Log`s from core are
+//! made on the `Some(..)` fields. You will run into panic if you try to set the
+//! already specified field.
 //!
-//!
-//!
-//! - Processing the result of the program execution:
-//! ```ignore
-//!     // Any sending functions in the lib returns `RunResult` structure.
-//!     //
-//!     // It contains the final result of the processing message and others,
-//!     // which were created during the execution.
-//!     //
-//!     // It has 4 main functions.
-//!
-//!     // Returns the reference to the Vec produced to users messages.
-//!     // You may assert them as you wish, iterating through them.
-//!     assert!(res.log().is_empty());
-//!
-//!     // Returns bool which shows that there was panic during the execution
-//!     // of the main message.
-//!     assert!(!res.main_failed());
-//!
-//!     // Returns bool which shows that there was panic during the execution
-//!     // of the created messages during the main execution.
-//!     //
-//!     // Equals false if no others were called.
-//!     assert!(!res.others_failed());
-//!
-//!     // Returns bool which shows that logs contain a given log.
-//!     //
-//!     // Syntax sugar around `res.log().iter().any(|v| v == arg)`.
-//!     assert!(!res.contains(&Log::builder()));
-//!
-//!     // To build a log for assertion you need to use `Log` structure with its builders.
-//!     // All fields here are optional.
-//!     // Assertion with Logs from core are made on the Some(..) fields
-//!     // You will run into panic if you try to set the already specified field.
-//!     //
-//!     // Constructor for success log.
-//!     let _ = Log::builder();
-//!
-//!     // Constructor for error reply log.
-//!     let _ = Log::error_builder();
-//!
-//!     // The first message to uploaded program is INIT message.
-//!     //
-//!     // Let’s send a new message after the program has been initialized.
-//!     // The initialized program expects to receive a byte string "PING" and replies with a byte string "PONG".
-//!     let res = ping_pong.send_bytes(100001, "PING");
-//!
-//!     // Other fields are set optionally by `dest()`, `source()`, `payload()`, `payload_bytes()`.
-//!     //
-//!     // The logic for `payload()` and `payload_bytes()` is the same as for `send()` and `send_bytes()`.
-//!     // First requires an encodable struct. The second requires bytes.
-//!     let log = Log::builder()
-//!         .source(ping_pong_id)
-//!         .dest(100001)
-//!         .payload_bytes("PONG");
-//!
-//!     assert!(res.contains(&log));
-//!
-//!     let wrong_log = Log::builder().source(100001);
-//!
-//!     assert!(!res.contains(&wrong_log));
-//!
-//!     // Log also has `From` implementations from (ID, T) and from (ID_1, ID_2, T),
-//!     // where ID: Into<ProgramIdWrapper>, T: AsRef<[u8]>
-//!     let x = Log::builder().dest(5).payload_bytes("A");
-//!     let x_from: Log = (5, "A").into();
-//!
-//!     assert_eq!(x, x_from);
-//!
-//!     let y = Log::builder().dest(5).source(15).payload_bytes("A");
-//!     let y_from: Log = (15, 5, "A").into();
-//!
-//!     assert_eq!(y, y_from);
-//!
-//!     assert!(!res.contains(&(ping_pong_id, ping_pong_id, "PONG")));
-//!     assert!(res.contains(&(1, 100001, "PONG")));
 //! ```
-//! - Spending blocks:
-//! ```ignore
-//! // You may control time in the system by spending blocks.
-//! //
-//! // It adds the amount of blocks passed as arguments to the current block of the system.
-//! // Same for the timestamp. Note, that for now 1 block in Gear-based network is 3 sec
-//! // duration.
+//! // Constructor for success log.
+//! let log = Log::builder();
+//!
+//! // Constructor for error reply log.
+//! let log = Log::error_builder();
+//!
+//! // Other fields are set optionally by `dest()`, `source()`, `payload()`, `payload_bytes()`.
+//! let log = Log::builder()
+//!     .source(prog.id())
+//!     .dest(100001)
+//!     .payload_bytes("PONG");
+//! ```
+//!
+//! Log also has `From` implementations from `(ID, T)`` and from `(ID_1, ID_2,
+//! T)``, where `ID: Into<ProgramIdWrapper>`, `T: AsRef<[u8]>`.
+//!
+//! ```
+//! let x = Log::builder().dest(5).payload_bytes("A");
+//! let x_from: Log = (5, "A").into();
+//! assert_eq!(x, x_from);
+//!
+//! let y = Log::builder().dest(5).source(15).payload_bytes("A");
+//! let y_from: Log = (15, 5, "A").into();
+//! assert_eq!(y, y_from);
+//! ```
+//!
+//! ## Spending blocks
+//!
+//! You may control time in the system by spending blocks.
+//!
+//! It adds the amount of blocks passed as arguments to the current block of the
+//! system. Same for the timestamp. Note, that for now 1 block in Gear-based
+//! network is 3 sec duration.
+//!
+//! ```
+//! // Spend 150 blocks (7.5 mins for 3 sec block).
 //! sys.spend_blocks(150);
 //! ```
+//!
 //! <!--
 //! - Reading the program state:
 //! ```ignore
