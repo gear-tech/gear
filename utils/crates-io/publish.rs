@@ -14,9 +14,10 @@ use std::{
 };
 
 /// Packages need to be published.
-const PACKAGES: [&str; 17] = [
+const PACKAGES: [&str; 18] = [
     // Packages without local dependencies.
     "actor-system-error",
+    "galloc",
     "gear-common-codegen",
     "gear-core-errors",
     "gear-wasm-instrument",
