@@ -146,20 +146,7 @@ fn main() -> Result<()> {
         let path = path.to_string_lossy();
         let status = publish(&path)?;
         if !status.success() {
-            println!(
-                "Failed to publish package {}...\nRetry after 11 mins...",
-                &path
-            );
-            // The most likely reason for failure is that
-            // we have reached the rate limit of crates.io.
-            //
-            // Need to wait for 10 mins and try again. here
-            // we use 11 mins to be safe.
-            //
-            // Only retry for once, if it still fails, we
-            // will just give up.
-            thread::sleep(Duration::from_secs(660));
-            publish(&path)?;
+            panic!("Failed to publish package {path}...");
         }
     }
 
