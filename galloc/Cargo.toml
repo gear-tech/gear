@@ -12,4 +12,4 @@ license.workspace = true
 gear-dlmalloc.workspace = true
 
 [features]
-debug = ["dlmalloc/debug"]
+debug = ["gear-dlmalloc/debug"]
