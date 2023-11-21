@@ -30,6 +30,8 @@ use gear_core::{
     memory::{HostPointer, MemoryInterval},
     str::LimitedStr,
 };
+#[cfg(feature = "std")]
+use gear_lazy_pages::LazyPagesStorage;
 use gear_lazy_pages_common::{GlobalsAccessConfig, ProcessAccessError, Status};
 use sp_runtime_interface::{
     pass_by::{Codec, PassBy},
@@ -71,14 +73,60 @@ impl PassBy for LazyPagesProgramContext {
 
 #[derive(Debug, Clone, Encode, Decode)]
 #[codec(crate = codec)]
-pub struct LazyPagesRuntimeContext {
+pub struct LazyPagesInitContext {
     pub page_sizes: Vec<u32>,
     pub global_names: Vec<LimitedStr<'static>>,
     pub pages_storage_prefix: Vec<u8>,
 }
 
-impl PassBy for LazyPagesRuntimeContext {
-    type PassBy = Codec<LazyPagesRuntimeContext>;
+impl From<gear_lazy_pages_common::LazyPagesInitContext> for LazyPagesInitContext {
+    fn from(ctx: gear_lazy_pages_common::LazyPagesInitContext) -> Self {
+        let gear_lazy_pages_common::LazyPagesInitContext {
+            page_sizes,
+            global_names,
+            pages_storage_prefix,
+        } = ctx;
+
+        Self {
+            page_sizes,
+            global_names,
+            pages_storage_prefix,
+        }
+    }
+}
+
+impl From<LazyPagesInitContext> for gear_lazy_pages_common::LazyPagesInitContext {
+    fn from(ctx: LazyPagesInitContext) -> Self {
+        let LazyPagesInitContext {
+            page_sizes,
+            global_names,
+            pages_storage_prefix,
+        } = ctx;
+
+        Self {
+            page_sizes,
+            global_names,
+            pages_storage_prefix,
+        }
+    }
+}
+
+impl PassBy for LazyPagesInitContext {
+    type PassBy = Codec<LazyPagesInitContext>;
+}
+
+#[derive(Debug, Default)]
+struct SpIoProgramStorage;
+
+#[cfg(feature = "std")]
+impl LazyPagesStorage for SpIoProgramStorage {
+    fn page_exists(&self, key: &[u8]) -> bool {
+        sp_io::storage::exists(key)
+    }
+
+    fn load_page(&mut self, key: &[u8], buffer: &mut [u8]) -> Option<u32> {
+        sp_io::storage::read(key, buffer, 0)
+    }
 }
 
 fn deserialize_mem_intervals(bytes: &[u8], intervals: &mut Vec<MemoryInterval>) {
@@ -166,17 +214,12 @@ pub trait GearRI {
 
     /// Init lazy-pages.
     /// Returns whether initialization was successful.
-    fn init_lazy_pages(ctx: LazyPagesRuntimeContext) -> bool {
+    fn init_lazy_pages(ctx: LazyPagesInitContext) -> bool {
         use gear_lazy_pages::LazyPagesVersion;
 
-        gear_lazy_pages::init(
-            LazyPagesVersion::Version1,
-            ctx.page_sizes,
-            ctx.global_names,
-            ctx.pages_storage_prefix,
-        )
-        .map_err(|err| log::error!("Cannot initialize lazy-pages: {}", err))
-        .is_ok()
+        gear_lazy_pages::init(LazyPagesVersion::Version1, ctx.into(), SpIoProgramStorage)
+            .map_err(|err| log::error!("Cannot initialize lazy-pages: {}", err))
+            .is_ok()
     }
 
     /// Init lazy pages context for current program.

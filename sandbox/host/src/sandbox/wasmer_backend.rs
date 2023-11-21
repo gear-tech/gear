@@ -46,15 +46,15 @@ enum CachedModuleErr {
 
 #[cfg(feature = "wasmer-cache")]
 use {
-    once_cell::sync::OnceCell,
     sandbox_wasmer::Module,
+    std::sync::OnceLock,
     tempfile::TempDir,
     wasmer_cache::{Cache, FileSystemCache, Hash},
     CachedModuleErr::*,
 };
 
 #[cfg(feature = "wasmer-cache")]
-static CACHE_DIR: OnceCell<TempDir> = OnceCell::new();
+static CACHE_DIR: OnceLock<TempDir> = OnceLock::new();
 
 /// Wasmer specific context
 pub struct Backend {
@@ -533,6 +533,7 @@ impl MemoryWrapper {
     /// See `[memory_as_slice]`. In addition to those requirements, since a mutable reference is
     /// returned it must be ensured that only one mutable and no shared references to memory
     /// exists at the same time.
+    #[allow(clippy::needless_pass_by_ref_mut)]
     unsafe fn memory_as_slice_mut(memory: &mut sandbox_wasmer::Memory) -> &mut [u8] {
         let ptr = memory.data_ptr();
 

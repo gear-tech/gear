@@ -19,13 +19,13 @@
 #[cfg(not(test))]
 mod not_tests {
     use crate::InitError;
-    use once_cell::sync::OnceCell;
+    use std::sync::OnceLock;
 
-    pub struct InitializationFlag(OnceCell<Result<(), InitError>>);
+    pub struct InitializationFlag(OnceLock<Result<(), InitError>>);
 
     impl InitializationFlag {
         pub const fn new() -> Self {
-            Self(OnceCell::new())
+            Self(OnceLock::new())
         }
 
         pub fn get_or_init(

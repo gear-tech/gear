@@ -16,17 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-#![no_std]
-
-#[cfg(feature = "wasm-wrapper")]
-mod code {
-    include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
+fn main() {
+    gear_wasm_builder::build();
 }
-
-#[cfg(feature = "wasm-wrapper")]
-pub use code::WASM_BINARY_OPT as WASM_BINARY;
-
-pub const DELAY: u32 = 100;
-
-#[cfg(not(feature = "wasm-wrapper"))]
-mod wasm;
