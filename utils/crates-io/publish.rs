@@ -14,7 +14,7 @@ use std::{
 };
 
 /// Packages need to be published.
-const PACKAGES: [&str; 16] = [
+const PACKAGES: [&str; 17] = [
     // Packages without local dependencies.
     "actor-system-error",
     "gear-common-codegen",
@@ -29,6 +29,7 @@ const PACKAGES: [&str; 16] = [
     "gmeta",
     "gstd",
     "gear-core",
+    "gear-wasm-builder",
     "gear-utils",
     "gear-common",
     "gsdk",
