@@ -432,10 +432,10 @@ benchmarks! {
     // the most of the gear storages represented with this type.
     db_write_per_byte {
         // Code is the biggest data could be written into storage in gear runtime.
-        let c in 0 .. T::Schedule::get().limits.code_len / 1024;
+        let c in 0 .. T::Schedule::get().limits.code_len;
 
         // Data to be written.
-        let data = vec![c as u8; 1024 * c as usize];
+        let data = vec![c as u8; c as usize];
     }: {
         // Inserting data into the storage.
         BenchmarkStorage::<T>::insert(c, data);
@@ -445,10 +445,10 @@ benchmarks! {
     // the most of the gear storages represented with this type.
     db_read_per_byte {
         // Code is the biggest data could be written into storage in gear runtime.
-        let c in 0 .. T::Schedule::get().limits.code_len / 1024;
+        let c in 0 .. T::Schedule::get().limits.code_len;
 
         // Data to be queried further.
-        let data = vec![c as u8; 1024 * c as usize];
+        let data = vec![c as u8; c as usize];
 
         // Placing data in storage to be able to query it.
         BenchmarkStorage::<T>::insert(c, data);
@@ -459,9 +459,9 @@ benchmarks! {
 
     // `c`: Size of the code in bytes.
     instantiate_module_per_byte {
-        let c in 0 .. T::Schedule::get().limits.code_len / 1024;
+        let c in 0 .. T::Schedule::get().limits.code_len;
 
-        let WasmModule { code, .. } = WasmModule::<T>::sized(c * 1024, Location::Init);
+        let WasmModule { code, .. } = WasmModule::<T>::sized(c, Location::Init);
     }: {
         let ext = Externalities::new(default_processor_context::<T>());
         Environment::new(ext, &code, DispatchKind::Init, Default::default(), max_pages::<T>().into()).unwrap();
@@ -646,7 +646,7 @@ benchmarks! {
     //
     // `s`: Size of the salt in bytes.
     create_program {
-        let s in 0 .. code::max_pages::<T>() as u32 * 64 * 128;
+        let s in 0 .. MAX_PAYLOAD_LEN;
 
         let caller = whitelisted_caller();
         let origin = RawOrigin::Signed(caller);
@@ -680,7 +680,7 @@ benchmarks! {
     // to be larger than the maximum size **after instrumentation**.
     upload_program {
         let c in 0 .. Perbill::from_percent(49).mul_ceil(T::Schedule::get().limits.code_len);
-        let s in 0 .. code::max_pages::<T>() as u32 * 64 * 128 * 1024;
+        let s in 0 .. MAX_PAYLOAD_LEN;
         let salt = vec![42u8; s as usize];
         let value = CurrencyOf::<T>::minimum_balance();
         let caller = whitelisted_caller();
@@ -777,8 +777,8 @@ benchmarks! {
     // first time after a new schedule was deployed: For every new schedule a program needs
     // to re-run the instrumentation once.
     reinstrument_per_byte {
-        let c in 0 .. T::Schedule::get().limits.code_len / 1_024;
-        let WasmModule { code, hash, .. } = WasmModule::<T>::sized(c * 1_024, Location::Handle);
+        let c in 0 .. T::Schedule::get().limits.code_len;
+        let WasmModule { code, hash, .. } = WasmModule::<T>::sized(c, Location::Handle);
         let code = Code::try_new_mock_const_or_no_rules(code, false, Default::default()).unwrap();
         let code_and_id = CodeAndId::new(code);
         let code_id = code_and_id.code_id();
