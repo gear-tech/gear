@@ -1031,7 +1031,7 @@ impl<T: Config> Default for MemoryWeights<T> {
             load_page_data: to_weight!(to_cost_per_gear_page!(lazy_pages_load_page_storage_data)
                 .saturating_sub(to_cost_per_gear_page!(lazy_pages_signal_read))),
             upload_page_data: to_weight!(cost!(db_write_per_byte)
-                .saturating_mul(GEAR_PAGE_SIZE)
+                .saturating_mul(GEAR_PAGE_SIZE as u64)
                 .saturating_add(T::DbWeight::get().writes(1).ref_time())),
             // TODO: make benches to calculate static page cost and mem grow cost (issue #2226)
             static_page: Weight::from_parts(100, 0),
