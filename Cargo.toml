@@ -1,5 +1,5 @@
 [workspace.package]
-version = "1.0.2-354d660.5"
+version = "1.0.2-354d660.6"
 authors = ["Gear Technologies"]
 edition = "2021"
 license = "GPL-3.0"
@@ -109,7 +109,10 @@ colored = "2.0.0"
 const-str = "0.5"
 derive_more = "0.99.17"
 dirs = "4.0.0"
-dlmalloc = { git = "https://github.com/gear-tech/dlmalloc-rust.git" }
+# prev: "https://github.com/gear-tech/dlmalloc-rust.git"
+#
+# `gear-dlmalloc` is a published version of our fork.
+gear-dlmalloc = "0.1.4"
 dyn-clonable = "0.9.0"
 enum-iterator = "1.4.0"
 env_logger = "0.10"

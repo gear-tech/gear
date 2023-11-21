@@ -9,7 +9,7 @@ license.workspace = true
 
 [dependencies]
 # add "checks" feature to enable hard checks in allocator
-dlmalloc.workspace = true
+gear-dlmalloc.workspace = true
 
 [features]
 debug = ["dlmalloc/debug"]
