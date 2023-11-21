@@ -24,9 +24,7 @@ static_assertions.workspace = true
 [features]
 #! ## Default features
 
-default = ["default-stable", "nightly"]
-## Stable subset of default features.
-default-stable = ["panic-handler"]
+default = ["panic-handler"]
 ## When enabled, a panic handler is provided by this crate.
 panic-handler = []
 
