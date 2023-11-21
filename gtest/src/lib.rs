@@ -38,8 +38,8 @@
 //!   parameters. It also stores the mailbox and the list of programs.
 //! - [`Program`] — a structure that represents a Gear program. It contains the
 //!   information about program and allows sending messages to other programs.
-//! - [`Log`] — a structure that represents a message log. It allows check the
-//!   result of the program execution.
+//! - [`Log`] — a structure that represents a message log. It allows checking
+//!   the result of the program execution.
 //!
 //! Let's take a closer look at how to write tests using `gtest`.
 //!
@@ -100,9 +100,9 @@
 //!
 //! 1. Initialize the `System` structure.
 //! 2. Initialize the `Program` structure.
-//! 3. Send an init message to the program. We don't have an `init` function in
-//!    our program, but the first message to the program is always the init
-//!    message while using `gtest`.
+//! 3. Send an init message to the program. Even though we don't have the `init`
+//!    function in our program, the first message to the program sent via
+//!    `gtest` is always the init one.
 //! 4. Send a handle message to the program.
 //! 5. Check the result of the program execution.
 //!
@@ -133,7 +133,7 @@
 //!         let res = prog.send_bytes(USER_ID, b"PING");
 //!
 //!         // Check the result of the program execution.
-//!         // 1. Create a log with the expected result.
+//!         // 1. Create a log pattern with the expected result.
 //!         let log = Log::builder()
 //!             .source(prog.id())
 //!             .dest(USER_ID)
@@ -158,7 +158,7 @@
 //!
 //! Let's take a closer look at the `gtest` capabilities.
 //!
-//! ## Initialization of the common environment for running smart contracts
+//! ## Initialization of the network environment for running smart contracts
 //!
 //! ```
 //! let sys = System::new();
@@ -174,7 +174,7 @@
 //!
 //! ## Program initialization
 //!
-//! There are several ways to initialize a program:
+//! There are a few ways to initialize a program:
 //!
 //! - Initialize the current program using the [`Program::current`] function:
 //!
