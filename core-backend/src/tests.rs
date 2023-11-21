@@ -607,7 +607,7 @@ fn test_sys_calls_table() {
     use gear_core::message::DispatchKind;
     use gear_wasm_instrument::{
         gas_metering::ConstantCostRules,
-        inject,
+        inject, inject_system_break_import,
         parity_wasm::{self, builder},
         SysCallName,
     };
@@ -637,7 +637,8 @@ fn test_sys_calls_table() {
             .build();
     }
 
-    let module = inject(module, &ConstantCostRules::default(), "env").unwrap();
+    let (gr_system_break_index, module) = inject_system_break_import(module, "env").unwrap();
+    let module = inject(module, &ConstantCostRules::default(), gr_system_break_index).unwrap();
     let code = module.into_bytes().unwrap();
 
     // Execute wasm and check success.

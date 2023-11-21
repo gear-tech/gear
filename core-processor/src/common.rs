@@ -481,6 +481,7 @@ impl ActorExecutionErrorReplyReason {
                 }
                 TrapExplanation::ProgramAllocOutOfBounds => SimpleExecutionError::MemoryOverflow,
                 TrapExplanation::Panic(_) => SimpleExecutionError::UserspacePanic,
+                TrapExplanation::StackLimitExceeded => SimpleExecutionError::StackLimitExceeded,
                 TrapExplanation::Unknown => SimpleExecutionError::UnreachableInstruction,
             },
         }

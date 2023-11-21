@@ -93,7 +93,7 @@ pub enum SysCallName {
     // Hard under the hood calls, serving proper program execution
     Alloc,
     Free,
-    OutOfGas,
+    SystemBreak,
 
     // Miscellaneous
     ReplyDeposit,
@@ -123,7 +123,7 @@ impl SysCallName {
             SysCallName::GasAvailable => "gr_gas_available",
             SysCallName::Leave => "gr_leave",
             SysCallName::MessageId => "gr_message_id",
-            SysCallName::OutOfGas => "gr_out_of_gas",
+            SysCallName::SystemBreak => "gr_system_break",
             SysCallName::PayProgramRent => "gr_pay_program_rent",
             SysCallName::ProgramId => "gr_program_id",
             SysCallName::Random => "gr_random",

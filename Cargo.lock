@@ -2075,6 +2075,7 @@ name = "demo-calc-hash"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
+ "gstd",
  "parity-scale-codec",
  "sha2 0.10.8",
 ]
@@ -2239,6 +2240,7 @@ name = "demo-meta-io"
 version = "0.1.0"
 dependencies = [
  "gmeta",
+ "gstd",
  "parity-scale-codec",
  "scale-info",
 ]
@@ -4526,9 +4528,9 @@ dependencies = [
 
 [[package]]
 name = "gear-wasm"
-version = "0.45.0"
+version = "0.45.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f745ed9eb163f4509f01d5564e37db52ec43dd23569bafdba597a5f1e4c125c9"
+checksum = "bbfbfa701dc65e683fcd2fb24f046bcef22634acbdf47ad14724637dc39ad05b"
 
 [[package]]
 name = "gear-wasm-builder"
@@ -4907,9 +4909,8 @@ dependencies = [
 
 [[package]]
 name = "gwasm-instrument"
-version = "0.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bcb127cb43d375de7cdacffd0e4e1c746e52381d11a0465909ae6fbecb99c6c3"
+version = "0.2.2"
+source = "git+https://github.com/gear-tech/wasm-instrument?branch=v0.2.2-sign-ext-utils#8121bbe1f899fa96a45394278b1d1263b9bc4b38"
 dependencies = [
  "gear-wasm",
 ]

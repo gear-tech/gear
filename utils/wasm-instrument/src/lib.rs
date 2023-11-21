@@ -27,12 +27,14 @@ use gwasm_instrument::{
     gas_metering::Rules,
     parity_wasm::{
         builder,
-        elements::{self, BlockType, ImportCountType, Instruction, Instructions, Local, ValueType},
+        elements::{
+            self, BlockType, ImportCountType, Instruction, Instructions, Local, Module, ValueType,
+        },
     },
 };
 
 pub use crate::syscalls::SysCallName;
-pub use gwasm_instrument::{self as wasm_instrument, gas_metering, parity_wasm};
+pub use gwasm_instrument::{self as wasm_instrument, gas_metering, parity_wasm, utils};
 
 #[cfg(test)]
 mod tests;
@@ -48,16 +50,40 @@ pub const GLOBAL_NAME_FLAGS: &str = "gear_flags";
 /// it indicates the end of program stack memory.
 pub const STACK_END_EXPORT_NAME: &str = "__gear_stack_end";
 
-pub fn inject<R: Rules>(
+/// System break code for [`SysCallName::SystemBreak`] syscall.
+#[derive(Debug, Clone, Copy)]
+pub enum SystemBreakCode {
+    OutOfGas,
+    StackLimitExceeded,
+}
+
+impl SystemBreakCode {
+    pub const fn to_code(self) -> u64 {
+        match self {
+            Self::OutOfGas => 0,
+            Self::StackLimitExceeded => 1,
+        }
+    }
+
+    pub const fn from_code(code: u64) -> Option<Self> {
+        match code {
+            0 => Some(Self::OutOfGas),
+            1 => Some(Self::StackLimitExceeded),
+            _ => None,
+        }
+    }
+}
+
+pub fn inject_system_break_import(
     module: elements::Module,
-    rules: &R,
     gas_module_name: &str,
-) -> Result<elements::Module, elements::Module> {
+) -> Result<(u32, elements::Module), elements::Module> {
     if module
         .import_section()
         .map(|section| {
             section.entries().iter().any(|entry| {
-                entry.module() == gas_module_name && entry.field() == SysCallName::OutOfGas.to_str()
+                entry.module() == gas_module_name
+                    && entry.field() == SysCallName::SystemBreak.to_str()
             })
         })
         .unwrap_or(false)
@@ -65,6 +91,37 @@ pub fn inject<R: Rules>(
         return Err(module);
     }
 
+    let mut mbuilder = builder::from_module(module);
+
+    // fn gr_system_break(code: u64) -> !;
+    let import_sig =
+        mbuilder.push_signature(builder::signature().with_param(ValueType::I64).build_sig());
+
+    mbuilder.push_import(
+        builder::import()
+            .module(gas_module_name)
+            .field(SysCallName::SystemBreak.to_str())
+            .external()
+            .func(import_sig)
+            .build(),
+    );
+
+    // back to plain module
+    let module = mbuilder.build();
+
+    let import_count = module.import_count(ImportCountType::Function);
+    let inserted_index = import_count as u32 - 1;
+
+    let module = utils::rewrite_sections_after_insertion(module, inserted_index, 1)?;
+
+    Ok((inserted_index, module))
+}
+
+pub fn inject<R: Rules>(
+    module: Module,
+    rules: &R,
+    gr_system_break_index: u32,
+) -> Result<Module, Module> {
     if module
         .export_section()
         .map(|section| {
@@ -77,26 +134,6 @@ pub fn inject<R: Rules>(
     {
         return Err(module);
     }
-
-    let mut mbuilder = builder::from_module(module);
-
-    // fn out_of_gas() -> ();
-    let import_sig = mbuilder.push_signature(builder::signature().build_sig());
-
-    mbuilder.push_import(
-        builder::import()
-            .module(gas_module_name)
-            .field(SysCallName::OutOfGas.to_str())
-            .external()
-            .func(import_sig)
-            .build(),
-    );
-
-    // back to plain module
-    let module = mbuilder.build();
-
-    let import_count = module.import_count(ImportCountType::Function);
-    let out_of_gas_index = import_count as u32 - 1;
 
     let gas_charge_index = module.functions_space();
     let gas_index = module.globals_space() as u32;
@@ -143,7 +180,8 @@ pub fn inject<R: Rules>(
         // than we call `out_of_gas()` that will terminate execution.
         Instruction::I64LtU,
         Instruction::If(BlockType::NoResult),
-        Instruction::Call(out_of_gas_index),
+        Instruction::I64Const(SystemBreakCode::OutOfGas.to_code() as i64),
+        Instruction::Call(gr_system_break_index),
         Instruction::End,
         // IV. Calculating new global value by subtraction.
         //
@@ -225,5 +263,5 @@ pub fn inject<R: Rules>(
     // back to plain module
     let module = mbuilder.build();
 
-    gas_metering::post_injection_handler(module, rules, gas_charge_index, out_of_gas_index, 1)
+    gas_metering::post_injection_handler(module, rules, gas_charge_index)
 }

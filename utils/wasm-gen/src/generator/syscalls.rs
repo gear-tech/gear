@@ -243,7 +243,7 @@ impl InvocableSysCall {
             | SysCallName::Wait
             | SysCallName::Alloc
             | SysCallName::Free
-            | SysCallName::OutOfGas => false,
+            | SysCallName::SystemBreak => false,
             SysCallName::CreateProgramWGas
             | SysCallName::CreateProgram
             | SysCallName::ReplyDeposit

@@ -25,16 +25,17 @@ use crate::{
 };
 use alloc::{collections::BTreeSet, vec, vec::Vec};
 use gear_wasm_instrument::{
+    self,
     parity_wasm::{
         self,
-        builder::ModuleBuilder,
         elements::{ExportEntry, GlobalEntry, GlobalType, InitExpr, Instruction, Internal, Module},
     },
     wasm_instrument::{
         self,
         gas_metering::{ConstantCostRules, Rules},
+        InjectionConfig,
     },
-    STACK_END_EXPORT_NAME,
+    SystemBreakCode, STACK_END_EXPORT_NAME,
 };
 use scale_info::{
     scale::{Decode, Encode},
@@ -204,6 +205,9 @@ pub enum CodeError {
     /// Error occurred during decoding original program code.
     #[display(fmt = "The wasm bytecode is failed to be decoded")]
     Decode,
+    /// Error occurred during injecting `gr_system_break` import.
+    #[display(fmt = "Failed to inject `gr_system_break` import")]
+    ImportInjection,
     /// Error occurred during injecting gas metering instructions.
     ///
     /// This might be due to program contained unsupported/non-deterministic instructions
@@ -294,22 +298,6 @@ fn check_start_section(module: &Module) -> Result<(), CodeError> {
     } else {
         Ok(())
     }
-}
-
-fn export_stack_height(module: Module) -> Module {
-    let globals = module
-        .global_section()
-        .expect("Global section must be create by `inject_stack_limiter` before")
-        .entries()
-        .len();
-    ModuleBuilder::new()
-        .with_module(module)
-        .export()
-        .field("__gear_stack_height")
-        .internal()
-        .global(globals as u32 - 1)
-        .build()
-        .build()
 }
 
 /// Configuration for `Code::try_new_mock_`.
@@ -417,26 +405,45 @@ impl Code {
             return Err(CodeError::RequiredExportFnNotFound);
         }
 
-        if let Some(stack_limit) = config.stack_height {
-            let globals = config.export_stack_height.then(|| module.globals_space());
+        let maybe_gr_system_break_index: Option<u32>;
+        (maybe_gr_system_break_index, module) =
+            if config.stack_height.is_some() || get_gas_rules.is_some() {
+                let (gr_system_break_index, module) =
+                    gear_wasm_instrument::inject_system_break_import(module, "env")
+                        .map_err(|_| CodeError::ImportInjection)?;
+                (Some(gr_system_break_index), module)
+            } else {
+                (None, module)
+            };
 
-            module = wasm_instrument::inject_stack_limiter(module, stack_limit).map_err(|err| {
-                log::trace!("Failed to inject stack height limits: {err}");
-                CodeError::StackLimitInjection
-            })?;
+        if let Some((stack_limit, gr_system_break_index)) =
+            config.stack_height.zip(maybe_gr_system_break_index)
+        {
+            let injection_config = InjectionConfig {
+                stack_limit,
+                injection_fn: |_| {
+                    [
+                        Instruction::I64Const(SystemBreakCode::StackLimitExceeded.to_code() as i64),
+                        Instruction::Call(gr_system_break_index),
+                    ]
+                },
+                stack_height_export_name: config
+                    .export_stack_height
+                    .then_some("__gear_stack_height"),
+            };
 
-            if let Some(globals_before) = globals {
-                // ensure stack limiter injector has created global
-                let globals_after = module.globals_space();
-                assert_eq!(globals_after, globals_before + 1);
-
-                module = export_stack_height(module);
-            }
+            module = wasm_instrument::inject_stack_limiter_with_config(module, injection_config)
+                .map_err(|err| {
+                    log::trace!("Failed to inject stack height limits: {err}");
+                    CodeError::StackLimitInjection
+                })?;
         }
 
-        if let Some(mut get_gas_rules) = get_gas_rules {
+        if let Some((mut get_gas_rules, gr_system_break_index)) =
+            get_gas_rules.zip(maybe_gr_system_break_index)
+        {
             let gas_rules = get_gas_rules(&module);
-            module = gear_wasm_instrument::inject(module, &gas_rules, "env")
+            module = gear_wasm_instrument::inject(module, &gas_rules, gr_system_break_index)
                 .map_err(|_| CodeError::GasInjection)?;
         }
 

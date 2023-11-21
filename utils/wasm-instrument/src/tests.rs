@@ -83,7 +83,13 @@ fn simple_grow() {
         )"#,
     );
 
-    let injected_module = inject(module, &ConstantCostRules::new(1, 10_000, 0), "env").unwrap();
+    let (gr_system_break_index, module) = inject_system_break_import(module, "env").unwrap();
+    let injected_module = inject(
+        module,
+        &ConstantCostRules::new(1, 10_000, 0),
+        gr_system_break_index,
+    )
+    .unwrap();
 
     // two new imports (index 0), the original func (i = 1), so
     // gas charge will occupy the next index.
@@ -129,7 +135,9 @@ fn grow_no_gas_no_track() {
         )",
     );
 
-    let injected_module = inject(module, &ConstantCostRules::default(), "env").unwrap();
+    let (gr_system_break_index, module) = inject_system_break_import(module, "env").unwrap();
+    let injected_module =
+        inject(module, &ConstantCostRules::default(), gr_system_break_index).unwrap();
 
     let gas_charge_index = 2;
 
@@ -154,18 +162,18 @@ fn grow_no_gas_no_track() {
 fn duplicate_import() {
     let wat = format!(
         r#"(module
-            (import "env" "{out_of_gas}" (func))
+            (import "env" "{system_break}" (func (param i64)))
             (func (result i32)
                 global.get 0
                 memory.grow)
             (global i32 (i32.const 42))
             (memory 0 1)
             )"#,
-        out_of_gas = SysCallName::OutOfGas.to_str()
+        system_break = SysCallName::SystemBreak.to_str()
     );
     let module = parse_wat(&wat);
 
-    assert!(inject(module, &ConstantCostRules::default(), "env").is_err());
+    assert!(inject_system_break_import(module, "env").is_err());
 }
 
 #[test]
@@ -183,7 +191,8 @@ fn duplicate_export() {
     );
     let module = parse_wat(&wat);
 
-    assert!(inject(module, &ConstantCostRules::default(), "env").is_err());
+    let (gr_system_break_index, module) = inject_system_break_import(module, "env").unwrap();
+    assert!(inject(module, &ConstantCostRules::default(), gr_system_break_index).is_err());
 }
 
 #[test]
@@ -199,17 +208,21 @@ fn unsupported_instruction() {
         )"#,
     );
 
-    assert!(inject(module, &CustomConstantCostRules::default(), "env").is_err());
+    let (gr_system_break_index, module) = inject_system_break_import(module, "env").unwrap();
+    assert!(inject(
+        module,
+        &CustomConstantCostRules::default(),
+        gr_system_break_index
+    )
+    .is_err());
 }
 
 #[test]
 fn call_index() {
-    let injected_module = inject(
-        prebuilt_simple_module(),
-        &ConstantCostRules::default(),
-        "env",
-    )
-    .unwrap();
+    let (gr_system_break_index, module) =
+        inject_system_break_import(prebuilt_simple_module(), "env").unwrap();
+    let injected_module =
+        inject(module, &ConstantCostRules::default(), gr_system_break_index).unwrap();
 
     let empty_func_index = 1;
     let func_index = empty_func_index + 1;
@@ -241,11 +254,14 @@ fn call_index() {
 
 #[test]
 fn cost_overflow() {
+    let (gr_system_break_index, module) =
+        inject_system_break_import(prebuilt_simple_module(), "env").unwrap();
+
     let instruction_cost = u32::MAX / 2;
     let injected_module = inject(
-        prebuilt_simple_module(),
+        module,
         &ConstantCostRules::new(instruction_cost, 0, 0),
-        "env",
+        gr_system_break_index,
     )
     .unwrap();
 
@@ -298,8 +314,12 @@ macro_rules! test_gas_counter_injection {
             let input_module = parse_wat($input);
             let expected_module = parse_wat($expected);
 
-            let injected_module = inject(input_module, &ConstantCostRules::default(), "env")
-                .expect("inject_gas_counter call failed");
+            let (gr_system_break_index, module) =
+                inject_system_break_import(input_module, "env").unwrap();
+
+            let injected_module =
+                inject(module, &ConstantCostRules::default(), gr_system_break_index)
+                    .expect("inject_gas_counter call failed");
 
             let actual_func_body = get_function_body(&injected_module, 0)
                 .expect("injected module must have a function body");

@@ -1,9 +1,9 @@
 use gear_core::code::{Code, TryNewCodeConfig};
 use sandbox_wasmer::{
-    Exports, Extern, Function, ImportObject, Instance, Memory, MemoryType, Module, Singlepass,
-    Store, Universal,
+    Exports, Extern, Function, HostEnvInitError, ImportObject, Instance, Memory, MemoryType,
+    Module, RuntimeError, Singlepass, Store, Universal, WasmerEnv,
 };
-use sandbox_wasmer_types::TrapCode;
+use sandbox_wasmer_types::{FunctionType, TrapCode, Type};
 use std::{env, fs};
 
 fn main() -> anyhow::Result<()> {
@@ -35,8 +35,23 @@ fn main() -> anyhow::Result<()> {
     let memory = Memory::new(&store, MemoryType::new(0, None, false))?;
     env.insert("memory", Extern::Memory(memory));
 
-    let func = Function::new_native(&store, || {});
-    env.insert("gr_out_of_gas", func);
+    // taken from `gear_sandbox_host::sandbox::wasmer_backend::dispatch_function_v2`
+    #[derive(Default, Clone)]
+    struct Env;
+
+    impl WasmerEnv for Env {
+        fn init_with_instance(&mut self, _: &Instance) -> Result<(), HostEnvInitError> {
+            Ok(())
+        }
+    }
+
+    let ty = FunctionType::new(vec![Type::I64], vec![]);
+    let func = Function::new_with_env(&store, &ty, Env, |_, args| match args[0].unwrap_i64() {
+        1 => Err(RuntimeError::new("stack limit exceeded")),
+        _ => Ok(vec![]),
+    });
+
+    env.insert("gr_system_break", func);
 
     imports.register("env", env);
 
@@ -51,7 +66,7 @@ fn main() -> anyhow::Result<()> {
         .get()
         .i32()
         .expect("Unexpected global type") as u32;
-    log::info!("Stack has overflowed at {} height", stack_height);
+    log::info!("Stack has overflowed at {stack_height} height");
 
     log::info!("Binary search for maximum possible stack height");
 
@@ -60,7 +75,7 @@ fn main() -> anyhow::Result<()> {
 
     let mut stack_height = 0;
 
-    loop {
+    while low <= high {
         let mid = (low + high) / 2;
 
         let code = Code::try_new(
@@ -76,10 +91,8 @@ fn main() -> anyhow::Result<()> {
         let init = instance.exports.get_function("init")?;
         let err = init.call(&[]).unwrap_err();
 
-        let stop = low == high;
-
         match err.to_trap() {
-            Some(TrapCode::UnreachableCodeReached) => {
+            None => {
                 low = mid + 1;
 
                 stack_height = mid;
@@ -92,10 +105,6 @@ fn main() -> anyhow::Result<()> {
                 log::info!("Overflow at {} height", mid);
             }
             code => panic!("unexpected trap code: {:?}", code),
-        }
-
-        if stop {
-            break;
         }
     }
 

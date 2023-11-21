@@ -182,13 +182,13 @@ tempfile = "3.5.0"
 #
 # fork of `parity-wasm` with sign-ext enabled by default.
 #
-# https://github.com/gear-tech/parity-wasm/tree/v0.45.0-sign-ext
-# gear-wasm = "0.45.0"
+# https://github.com/gear-tech/parity-wasm/tree/v0.45.1-sign-ext
+# gear-wasm = "0.45.1"
 #
 # fork of `wasm-instrument`
 #
-# https://github.com/gear-tech/wasm-instrument/tree/v0.2.1-sign-ext
-gwasm-instrument = { version = "0.2.1", default-features = false }
+# https://github.com/gear-tech/wasm-instrument/tree/v0.2.2-sign-ext-utils
+gwasm-instrument = { version = "0.2.2", git = "https://github.com/gear-tech/wasm-instrument", branch = "v0.2.2-sign-ext-utils", default-features = false }
 
 # Internal deps
 authorship = { package = "gear-authorship", path = "node/authorship" }
