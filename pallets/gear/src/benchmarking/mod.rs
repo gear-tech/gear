@@ -513,7 +513,7 @@ benchmarks! {
             .expect("program should exist")
             .try_into()
             .expect("program should be active");
-        assert_eq!(program.expiration_block, RentFreePeriodOf::<T>::get() + block_count + 1u32.into());
+        assert_eq!(program.expiration_block, RentFreePeriodOf::<T>::get() + block_count);
     }
 
     resume_session_init {
