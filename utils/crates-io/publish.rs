@@ -14,19 +14,21 @@ use std::{
 };
 
 /// Packages need to be published.
-const PACKAGES: [&str; 18] = [
+const PACKAGES: [&str; 20] = [
     // Packages without local dependencies.
     "actor-system-error",
     "galloc",
-    "gear-common-codegen",
+    "gsys",
+    "gear-stack-buffer",
     "gear-core-errors",
+    "gear-common-codegen",
     "gear-wasm-instrument",
     "gmeta-codegen",
     "gsdk-codegen",
     "gstd-codegen",
-    "gsys",
     // The packages below have local dependencies,
     // and should be published in order.
+    "gcore",
     "gmeta",
     "gstd",
     "gear-core",
