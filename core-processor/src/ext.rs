@@ -40,7 +40,7 @@ use gear_core::{
         ContextOutcomeDrain, ContextStore, Dispatch, GasLimit, HandlePacket, InitPacket,
         MessageContext, Packet, ReplyPacket,
     },
-    pages::{GearPage, PageU32Size, WasmPage},
+    pages::{GearPage, PageNumber, PageU32Size, WasmPage},
     program::MemoryInfix,
     reservation::GasReserver,
 };
@@ -735,7 +735,7 @@ impl Externalities for Ext {
             return Err(err);
         }
 
-        let page_count = end.checked_sub(start).ok_or(err);
+        let page_count: u32 = end.checked_sub(start).ok_or(err)?.into();
 
         Ext::charge_gas_if_enough(
             &mut self.context.gas_counter,
@@ -1199,9 +1199,7 @@ impl Externalities for Ext {
 mod tests {
     use super::*;
     use alloc::vec;
-    use gear_core::message::{
-        pages::PageNumber, ContextSettings, IncomingDispatch, Payload, MAX_PAYLOAD_SIZE,
-    };
+    use gear_core::message::{ContextSettings, IncomingDispatch, Payload, MAX_PAYLOAD_SIZE};
 
     struct MessageContextBuilder {
         incoming_dispatch: IncomingDispatch,
@@ -1295,41 +1293,6 @@ mod tests {
     }
 
     // Invariant: Refund never occurs in `free` call.
-    #[test]
-    fn free_no_refund() {
-        // Set initial Ext state
-        let initial_gas = 100;
-        let initial_allowance = 10000;
-
-        let gas_left = (initial_gas, initial_allowance).into();
-
-        let existing_page = 99.into();
-        let non_existing_page = 100.into();
-
-        let allocations_context =
-            AllocationsContext::new(BTreeSet::from([existing_page]), 1.into(), 512.into());
-
-        let mut ext = Ext::new(
-            ProcessorContextBuilder::new()
-                .with_gas(GasCounter::new(initial_gas))
-                .with_allowance(GasAllowanceCounter::new(initial_allowance))
-                .with_allocation_context(allocations_context)
-                .build(),
-        );
-
-        // Freeing existing page.
-        assert!(ext.free(existing_page).is_ok());
-        assert_eq!(ext.gas_left(), gas_left);
-
-        // Freeing non existing page.
-        // Counters shouldn't be changed.
-        assert_eq!(
-            ext.free(non_existing_page),
-            Err(AllocExtError::Alloc(AllocError::InvalidFree(
-                non_existing_page.raw()
-            )))
-        );
-    }
     #[test]
     fn free_no_refund() {
         // Set initial Ext state

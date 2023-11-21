@@ -180,7 +180,7 @@ where
             | SysCallName::OomPanic => {/* tests here aren't required, read module docs for more info */},
             SysCallName::Alloc => check_mem::<T>(false),
             SysCallName::Free => check_mem::<T>(true),
-            SysCallName::FreeRange => { /* indirectly tested by check_mem */},
+            SysCallName::FreeRange => { check_free_range::<T>() },
             SysCallName::OutOfGas => { /*no need for tests */}
             SysCallName::Random => check_gr_random::<T>(),
             SysCallName::ReserveGas => check_gr_reserve_gas::<T>(),
@@ -430,6 +430,42 @@ where
         // no errors occurred
         assert!(MailboxOf::<T>::is_empty(&default_account));
     }
+
+    Gear::<T>::reset();
+}
+
+fn check_free_range<T>()
+where
+    T: Config,
+    T::AccountId: Origin,
+{
+    #[cfg(feature = "std")]
+    utils::init_logger();
+
+    let wasm_module = free_range_wasm::<T>();
+
+    let default_account = utils::default_account();
+    CurrencyOf::<T>::deposit_creating(
+        &default_account,
+        100_000_000_000_000_u128.unique_saturated_into(),
+    );
+
+    // Set default code-hash for create program calls
+    Gear::<T>::upload_program(
+        RawOrigin::Signed(default_account.clone()).into(),
+        wasm_module.code,
+        b"free-range-test".to_vec(),
+        b"".to_vec(),
+        50_000_000_000,
+        0u128.unique_saturated_into(),
+        false,
+    )
+    .expect("failed to upload test program");
+
+    utils::run_to_next_block::<T>(None);
+
+    // no errors occurred
+    assert!(MailboxOf::<T>::is_empty(&default_account));
 
     Gear::<T>::reset();
 }
@@ -1340,6 +1376,98 @@ where
                 // ;; check that the third page has data
                 Instruction::Block(BlockType::NoResult),
                 Instruction::I32Const(0x20001),
+                Instruction::I32Load(2, 0),
+                Instruction::I32Const(0x63),
+                Instruction::I32Eq,
+                Instruction::BrIf(0),
+                Instruction::Unreachable,
+                Instruction::End,
+                Instruction::End,
+            ]),
+        )),
+        ..Default::default()
+    }
+    .into()
+}
+
+fn free_range_wasm<T: Config>() -> WasmModule<T>
+where
+    T::AccountId: Origin,
+{
+    use gear_wasm_instrument::parity_wasm::elements::{FuncBody, Instructions};
+
+    ModuleDefinition {
+        memory: Some(ImportedMemory::new(1)),
+        imported_functions: vec![SysCallName::Alloc, SysCallName::FreeRange],
+        init_body: Some(FuncBody::new(
+            vec![],
+            Instructions::new(vec![
+                // ;; allocate 3 more pages with expected starting index 1
+                Instruction::Block(BlockType::NoResult),
+                Instruction::I32Const(0x3),
+                Instruction::Call(0),
+                Instruction::I32Const(0x1),
+                Instruction::I32Eq,
+                Instruction::BrIf(0),
+                Instruction::Unreachable,
+                Instruction::End,
+                // ;; put to page with index 3
+                Instruction::Block(BlockType::NoResult),
+                Instruction::I32Const(0x30001),
+                Instruction::I32Const(0x63),
+                Instruction::I32Store(2, 0),
+                Instruction::End,
+                // ;; put to page with index 2
+                Instruction::Block(BlockType::NoResult),
+                Instruction::I32Const(0x20001),
+                Instruction::I32Const(0x63),
+                Instruction::I32Store(2, 0),
+                Instruction::End,
+                // ;; put to page with index 1
+                Instruction::Block(BlockType::NoResult),
+                Instruction::I32Const(0x10001),
+                Instruction::I32Const(0x64),
+                Instruction::I32Store(2, 0),
+                Instruction::End,
+                // ;; check it has the value
+                Instruction::Block(BlockType::NoResult),
+                Instruction::I32Const(0x10001),
+                Instruction::I32Load(2, 0),
+                Instruction::I32Const(0x64),
+                Instruction::I32Eq,
+                Instruction::BrIf(0),
+                Instruction::Unreachable,
+                Instruction::End,
+                // ;; remove page with index 1-2 (the second and the third page)
+                Instruction::Block(BlockType::NoResult),
+                Instruction::Unreachable,
+                Instruction::I32Const(0x44),
+                Instruction::I32Const(0x2),
+                Instruction::Call(2),
+                Instruction::Drop,
+                Instruction::Drop,
+                Instruction::End,
+                // ;; check that the first page is empty
+                Instruction::Block(BlockType::NoResult),
+                Instruction::I32Const(0x10001),
+                Instruction::I32Load(2, 0),
+                Instruction::I32Const(0x0),
+                Instruction::I32Eq,
+                Instruction::BrIf(0),
+                Instruction::Unreachable,
+                Instruction::End,
+                // ;; check that the second page is empty
+                Instruction::Block(BlockType::NoResult),
+                Instruction::I32Const(0x20001),
+                Instruction::I32Load(2, 0),
+                Instruction::I32Const(0x0),
+                Instruction::I32Eq,
+                Instruction::BrIf(0),
+                Instruction::Unreachable,
+                Instruction::End,
+                // ;; check that the third page has data
+                Instruction::Block(BlockType::NoResult),
+                Instruction::I32Const(0x30001),
                 Instruction::I32Load(2, 0),
                 Instruction::I32Const(0x63),
                 Instruction::I32Eq,
