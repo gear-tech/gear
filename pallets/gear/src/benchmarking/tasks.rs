@@ -62,7 +62,7 @@ where
         code,
         salt,
         b"init_payload".to_vec(),
-        10_000_000_000,
+        100_000_000_000,
         0u32.into(),
         false,
     )
@@ -114,7 +114,7 @@ where
         code,
         salt,
         b"init_payload".to_vec(),
-        10_000_000_000,
+        100_000_000_000,
         0u32.into(),
         false,
     )
@@ -222,7 +222,7 @@ where
         WASM_BINARY.to_vec(),
         salt,
         Scheme::empty().encode(),
-        10_000_000_000,
+        500_000_000_000,
         0u32.into(),
         false,
     )
@@ -240,7 +240,7 @@ where
         RawOrigin::Signed(caller).into(),
         program_id,
         calls.encode(),
-        10_000_000_000,
+        100_000_000_000,
         0u32.into(),
         false,
     )
@@ -278,7 +278,7 @@ where
         WASM_BINARY.to_vec(),
         salt,
         vec![],
-        10_000_000_000,
+        100_000_000_000,
         0u32.into(),
         false,
     )
@@ -289,7 +289,7 @@ where
         RawOrigin::Signed(caller).into(),
         program_id,
         Command::Wait(WaitSubcommand::WaitFor(delay)).encode(),
-        10_000_000_000,
+        100_000_000_000,
         0u32.into(),
         false,
     )
@@ -328,7 +328,7 @@ where
         WASM_BINARY.to_vec(),
         salt,
         vec![],
-        10_000_000_000,
+        100_000_000_000,
         0u32.into(),
         false,
     )
@@ -338,7 +338,7 @@ where
         RawOrigin::Signed(caller).into(),
         program_id,
         Command::Wait(WaitSubcommand::Wait).encode(),
-        10_000_000_000,
+        100_000_000_000,
         0u32.into(),
         false,
     )

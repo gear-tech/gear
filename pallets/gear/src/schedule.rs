@@ -675,7 +675,7 @@ impl<T: Config> Default for Schedule<T> {
             memory_weights: Default::default(),
             db_write_per_byte: to_weight!(cost!(db_write_per_byte)),
             db_read_per_byte: to_weight!(cost!(db_read_per_byte)),
-            module_instantiation_per_byte: to_weight!(cost!(instantiate_module_per_byte)),
+            module_instantiation_per_byte: Weight::from_all(1),
             code_instrumentation_cost: call_zero!(reinstrument_per_byte, 0),
             code_instrumentation_byte_cost: to_weight!(cost!(reinstrument_per_byte)),
         }
