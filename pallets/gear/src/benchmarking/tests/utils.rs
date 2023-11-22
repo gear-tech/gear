@@ -61,8 +61,6 @@ where
 
         init_block::<T>(Some(SystemPallet::<T>::block_number()));
 
-        Gear::<T>::on_initialize(SystemPallet::<T>::block_number());
-
         if let Some(remaining_weight) = remaining_weight {
             GasAllowanceOf::<T>::put(remaining_weight);
             let max_block_weight =
