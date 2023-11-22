@@ -2075,6 +2075,7 @@ name = "demo-calc-hash"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
+ "gstd",
  "parity-scale-codec",
  "sha2 0.10.8",
 ]
@@ -2239,6 +2240,7 @@ name = "demo-meta-io"
 version = "0.1.0"
 dependencies = [
  "gmeta",
+ "gstd",
  "parity-scale-codec",
  "scale-info",
 ]
