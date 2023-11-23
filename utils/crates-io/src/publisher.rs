@@ -47,7 +47,7 @@ impl Publisher {
             }
 
             let mut manifest = workspace.manifest(&p.manifest_path)?;
-            rename::package(&p, &mut manifest.manifest)?;
+            rename::package(p, &mut manifest.manifest)?;
             rename::deps(
                 &mut manifest.manifest,
                 self.index.keys().collect(),

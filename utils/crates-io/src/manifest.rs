@@ -33,7 +33,7 @@ impl ManifestWithPath {
     pub fn manifest(&self, path: impl AsRef<Path>) -> Result<Self> {
         let mut manifest = Manifest::<Value>::from_slice_with_metadata(&fs::read(&path)?)?;
         manifest
-            .complete_from_path_and_workspace(&path.as_ref(), Some((&self.manifest, &self.path)))?;
+            .complete_from_path_and_workspace(path.as_ref(), Some((&self.manifest, &self.path)))?;
 
         Ok(Self {
             manifest,

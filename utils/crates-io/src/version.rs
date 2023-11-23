@@ -22,7 +22,7 @@ pub fn verify(name: &str, version: &str) -> Result<bool> {
         .build()?;
 
     let resp = client
-        .get(&format!("https://crates.io/api/v1/crates/{name}/versions"))
+        .get(format!("https://crates.io/api/v1/crates/{name}/versions"))
         .send()?
         .json::<Resp>()?;
 
