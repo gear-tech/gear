@@ -71,7 +71,7 @@
 //!
 //! `lib.rs`:
 //!
-//! ```
+//! ```ignore
 //! #![no_std]
 //! use gstd::msg;
 //!
@@ -87,7 +87,7 @@
 //!
 //! `build.rs`:
 //!
-//! ```
+//! ```ignore
 //! fn main() {
 //!     gear_wasm_builder::build();
 //! }
@@ -108,7 +108,7 @@
 //!
 //! Add these lines to the bottom of the `lib.rs` file:
 //!
-//! ```
+//! ```no_run
 //! #[cfg(test)]
 //! mod tests {
 //!     use gtest::{Log, Program, System};
@@ -160,7 +160,8 @@
 //!
 //! ## Initialization of the network environment for running smart contracts
 //!
-//! ```
+//! ```no_run
+//! # use gtest::System;
 //! let sys = System::new();
 //! ```
 //!
@@ -178,14 +179,18 @@
 //!
 //! - Initialize the current program using the [`Program::current`] function:
 //!
-//!     ```
+//!     ```no_run
+//!     # use gtest::Program;
+//!     # let sys = gtest::System::new();
 //!     let prog = Program::current(&sys);
 //!     ```
 //!
 //! - Initialize a program from a Wasm-file with a default id using the
 //!   [`Program::from_file`] function:
 //!
-//!     ```
+//!     ```no_run
+//!     # use gtest::Program;
+//!     # let sys = gtest::System::new();
 //!     let prog = Program::from_file(
 //!         &sys,
 //!         "./target/wasm32-unknown-unknown/release/demo_ping.wasm",
@@ -195,7 +200,9 @@
 //! - Initialize a program from a Wasm-file with a custom id using the
 //!   [`Program::from_file_with_id`] function:
 //!
-//!     ```
+//!     ```no_run
+//!     # use gtest::Program;
+//!     # let sys = gtest::System::new();
 //!     let prog = Program::from_file_with_id(
 //!         &sys,
 //!         105,
@@ -222,7 +229,8 @@
 //! where you didn't save the structure, you may get the object from the system
 //! by id.
 //!
-//! ```
+//! ```no_run
+//! # let sys = gtest::System::new();
 //! let prog = sys.get_program(105);
 //! ```
 //!
@@ -231,7 +239,8 @@
 //! Initialization of styled `env_logger` to print logs (only from `gwasm` by
 //! default) into stdout:
 //!
-//! ```
+//! ```no_run
+//! # let sys = gtest::System::new();
 //! sys.init_logger();
 //! ```
 //!
@@ -265,8 +274,10 @@
 //! First message to the initialized program structure is always the init
 //! message.
 //!
-//! ```
-//! let res = program.send_bytes(100001, "INIT MESSAGE");
+//! ```no_run
+//! # let sys = gtest::System::new();
+//! # let prog = gtest::Program::current(&sys);
+//! let res = prog.send_bytes(100001, "INIT MESSAGE");
 //! ```
 //!
 //! ## Processing the result of the program execution
@@ -293,13 +304,16 @@
 //! made on the `Some(..)` fields. You will run into panic if you try to set the
 //! already specified field.
 //!
-//! ```
+//! ```no_run
+//! # use gtest::Log;
+//! # use gear_core_errors::ErrorReplyReason;
 //! // Constructor for success log.
 //! let log = Log::builder();
 //!
 //! // Constructor for error reply log.
-//! let log = Log::error_builder();
-//!
+//! let log = Log::error_builder(ErrorReplyReason::InactiveProgram);
+//! # let sys = gtest::System::new();
+//! # let prog = gtest::Program::current(&sys);
 //! // Other fields are set optionally by `dest()`, `source()`, `payload()`, `payload_bytes()`.
 //! let log = Log::builder()
 //!     .source(prog.id())
@@ -307,10 +321,11 @@
 //!     .payload_bytes("PONG");
 //! ```
 //!
-//! Log also has `From` implementations from `(ID, T)`` and from `(ID_1, ID_2,
-//! T)``, where `ID: Into<ProgramIdWrapper>`, `T: AsRef<[u8]>`.
+//! Log also has `From` implementations from `(ID, T)` and from `(ID_1, ID_2,
+//! T)`, where `ID: Into<ProgramIdWrapper>`, `T: AsRef<[u8]>`.
 //!
-//! ```
+//! ```no_run
+//! # use gtest::Log;
 //! let x = Log::builder().dest(5).payload_bytes("A");
 //! let x_from: Log = (5, "A").into();
 //! assert_eq!(x, x_from);
@@ -328,9 +343,31 @@
 //! system. Same for the timestamp. Note, that for now 1 block in Gear-based
 //! network is 3 sec duration.
 //!
-//! ```
+//! ```no_run
+//! # let sys = gtest::System::new();
 //! // Spend 150 blocks (7.5 mins for 3 sec block).
 //! sys.spend_blocks(150);
+//! ```
+//!
+//! Note that processing messages (e.g. by using
+//! [`Program::send`]/[`Program::send_bytes`] methods) doesn't spend blocks, nor
+//! changes the timestamp. If you write time dependent logic, you should spend
+//! blocks manually.
+//!
+//! ## Balance:
+//!
+//! ```no_run
+//! # use gtest::Program;
+//! # let sys = gtest::System::new();
+//! // If you need to send a message with value you have to mint balance for the message sender:
+//! let user_id = 42;
+//! sys.mint_to(user_id, 5000);
+//! assert_eq!(sys.balance_of(user_id), 5000);
+//!
+//! // To give the balance to the program you should use `mint` method:
+//! let mut prog = Program::current(&sys);
+//! prog.mint(1000);
+//! assert_eq!(prog.balance(), 1000);
 //! ```
 //!
 //! <!--
@@ -382,18 +419,6 @@
 //! // without any arguments.
 //! ```
 //! -->
-//! - Balance:
-//! ```ignore
-//! // If you need to send a message with value you have to mint balance for the message sender:
-//! let user_id = 42;
-//! sys.mint_to(user_id, 5000);
-//! assert_eq!(sys.balance_of(user_id), 5000);
-//!
-//! // To give the balance to the program you should use `mint` method:
-//! let prog = Program::current(&sys);
-//! prog.mint(1000);
-//! assert_eq!(prog.balance(), 1000);
-//! ```
 #![deny(missing_docs)]
 #![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
 #![doc(html_favicon_url = "https://gear-tech.io/favicons/favicon.ico")]

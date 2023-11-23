@@ -374,7 +374,9 @@ impl<'a> Program<'a> {
     ///
     /// From numeric id:
     ///
-    /// ```
+    /// ```no_run
+    /// # use gtest::{Program, System};
+    /// # let sys = System::new();
     /// let prog = Program::from_file_with_id(
     ///     &sys,
     ///     105,
@@ -384,7 +386,9 @@ impl<'a> Program<'a> {
     ///
     /// From hex string starting with `0x`:
     ///
-    /// ```
+    /// ```no_run
+    /// # use gtest::{Program, System};
+    /// # let sys = System::new();
     /// let prog = Program::from_file_with_id(
     ///     &sys,
     ///     "0xe659a7a1628cdd93febc04a4e0646ea20e9f5f0ce097d9a05290d4a9e054df4e",
@@ -394,7 +398,9 @@ impl<'a> Program<'a> {
     ///
     /// From hex string starting without `0x`:
     ///
-    /// ```
+    /// ```no_run
+    /// # use gtest::{Program, System};
+    /// # let sys = System::new();
     /// let prog = Program::from_file_with_id(
     ///     &sys,
     ///     "e659a7a1628cdd93febc04a4e0646ea20e9f5f0ce097d9a05290d4a9e054df5e",
@@ -404,7 +410,9 @@ impl<'a> Program<'a> {
     ///
     /// From array of bytes (e.g. filled with `5`):
     ///
-    /// ```
+    /// ```no_run
+    /// # use gtest::{Program, System};
+    /// # let sys = System::new();
     /// let prog = Program::from_file_with_id(
     ///     &sys,
     ///     [5; 32],
