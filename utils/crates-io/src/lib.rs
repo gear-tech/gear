@@ -1,10 +1,13 @@
 //! crates-io-manager library
 
+mod manifest;
+mod publisher;
+pub mod rename;
 mod version;
 
+pub use self::{manifest::ManifestWithPath, publisher::Publisher, version::verify};
 use anyhow::Result;
 use std::process::{Command, ExitStatus};
-pub use version::verify;
 
 /// Packages need to be published.
 pub const PACKAGES: [&str; 20] = [
