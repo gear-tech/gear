@@ -30,13 +30,6 @@ pub use pallet::*;
 
 use frame_support::traits::StorageVersion;
 
-#[macro_export]
-macro_rules! impl_config {
-    ($runtime:ty) => {
-        impl pallet_gear_bridges::Config for $runtime {}
-    };
-}
-
 /// The current storage version.
 pub(crate) const STORAGE_VERSION: StorageVersion = StorageVersion::new(0);
 
@@ -77,6 +70,7 @@ pub mod pallet {
     type Queue<T: Config> = StorageValue<_, BoundedVec<HashOf<T>, T::MaxQueueLength>, ValueQuery>;
 
     #[pallet::storage]
+    #[pallet::getter(fn pending_bridging)]
     type PendingBridging<T: Config> = StorageValue<_, HashOf<T>, OptionQuery>;
 
     #[pallet::hooks]
@@ -100,7 +94,7 @@ pub mod pallet {
 
             Queue::<T>::mutate(|queue| {
                 if !queue.is_empty() {
-                    let message = queue.remove(queue.len() - 1);
+                    let message = queue.remove(0);
                     PendingBridging::<T>::put(message);
                 }
             });

@@ -15,9 +15,15 @@ frame-support.workspace = true
 frame-system.workspace = true
 sp-runtime.workspace = true
 
+[dev-dependencies]
+sp-io.workspace = true
+common = { workspace = true, features = ["std"] }
+primitive-types.workspace = true
+pallet-balances.workspace = true
+
 [features]
 default = ['std']
-std = ["frame-support/std", "frame-system/try-runtime"]
+std = ["frame-support/std", "frame-system/std", "pallet-balances/std"]
 runtime-benchmarks = [
     "frame-support/runtime-benchmarks",
     "frame-system/runtime-benchmarks",
