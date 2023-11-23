@@ -22,7 +22,7 @@
 
 use crate::{mock::*, *};
 use demo_staking_broker::WASM_BINARY;
-use frame_support::{assert_noop, assert_ok};
+use frame_support::assert_ok;
 use gear_built_in_actor_common::staking::*;
 use gear_core::ids::{CodeId, ProgramId};
 
@@ -70,7 +70,7 @@ fn send_bond_message(contract_id: ProgramId, amount: BalanceOf<Test>) {
     ));
 }
 
-fn assert_bonding_events(contract_id: ProgramId, bonded: BalanceOf<Test>) {
+fn assert_bonding_events(contract_id: impl Origin + Copy, bonded: BalanceOf<Test>) {
     assert!(System::events().into_iter().any(|e| {
         match e.event {
             RuntimeEvent::GearBuiltInActor(Event::MessageExecuted { result }) => result.is_ok(),
@@ -92,7 +92,7 @@ fn assert_execution_with_error() {
 }
 
 #[test]
-fn user_messages_to_built_in_actor_yield_error() {
+fn user_message_to_built_in_actor_work() {
     init_logger();
 
     let bank_address = <Test as pallet_gear_bank::Config>::BankAddress::get();
@@ -106,29 +106,41 @@ fn user_messages_to_built_in_actor_yield_error() {
         .stash(VALIDATOR_STAKE)
         .endowment(ENDOWMENT)
         .endowed_accounts(vec![bank_address, SIGNER])
-        .total_supply(INITIAL_TOTAL_TOKEN_SUPPLY)
         .build()
         .execute_with(|| {
-            let assert_issuance =
-                |balance: BalanceOf<Test>| assert_eq!(Balances::total_issuance(), balance);
-
-            // Asserting initial parameters.
-            assert_issuance(INITIAL_TOTAL_TOKEN_SUPPLY);
-
             let built_in_actor_id = pallet::Pallet::<Test>::staking_proxy_actor_id();
 
-            // Asserting bad destination.
-            assert_noop!(
-                Gear::send_message(
-                    RuntimeOrigin::signed(SIGNER),
-                    built_in_actor_id,
-                    vec![],
-                    10_000_000_000,
-                    0,
-                    false,
-                ),
-                pallet_gear::Error::<Test>::IllegalDestination
-            );
+            // Asserting success
+            assert_ok!(Gear::send_message(
+                RuntimeOrigin::signed(SIGNER),
+                built_in_actor_id,
+                StakingMessage::Bond { value: 100 * UNITS }.encode(),
+                10_000_000_000,
+                0,
+                false,
+            ));
+            run_to_next_block();
+
+            let signer_account_data = System::account(SIGNER).data;
+
+            let gas_burned =
+                <Test as Config>::RuntimeCall::from(pallet_staking::Call::<Test>::bond {
+                    controller: <Test as frame_system::Config>::Lookup::unlookup(SIGNER),
+                    value: 100 * UNITS,
+                    payee: RewardDestination::Stash,
+                })
+                .get_dispatch_info()
+                .weight
+                .ref_time();
+
+            // SIGNER has:
+            // - paid for some burned gas
+            assert_eq!(signer_account_data.free, ENDOWMENT - gas_price(gas_burned));
+            // - locked 100 * UNITS as bonded
+            assert_eq!(signer_account_data.misc_frozen, 100 * UNITS);
+
+            // Asserting the expected events are present
+            assert_bonding_events(SIGNER, 100 * UNITS);
         });
 }
 

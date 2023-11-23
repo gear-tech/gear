@@ -56,7 +56,6 @@ pub(crate) const VAL_3_CONTROLLER: AccountId = 31;
 pub(crate) const VAL_3_AUTH_ID: UintAuthorityId = UintAuthorityId(32);
 pub(crate) const BLOCK_AUTHOR: AccountId = VAL_1_STASH;
 
-pub(crate) const INITIAL_TOTAL_TOKEN_SUPPLY: u128 = 10_000_000 * UNITS;
 pub(crate) const EXISTENTIAL_DEPOSIT: u128 = 10 * UNITS;
 pub(crate) const VALIDATOR_STAKE: u128 = 100 * UNITS;
 pub(crate) const ENDOWMENT: u128 = 1_000 * UNITS;
@@ -333,11 +332,6 @@ impl ExtBuilder {
 
     pub fn endowed_accounts(mut self, accounts: Vec<AccountId>) -> Self {
         self.endowed_accounts = accounts;
-        self
-    }
-
-    pub fn total_supply(mut self, e: Balance) -> Self {
-        self.total_supply = e;
         self
     }
 

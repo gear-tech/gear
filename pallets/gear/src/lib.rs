@@ -485,10 +485,6 @@ pub mod pallet {
         GearRunAlreadyInBlock,
         /// The program rent logic is disabled.
         ProgramRentDisabled,
-        /// User messages to this destination are not allowed.
-        ///
-        /// Occurs if a user attempts to send a message to a built-in actor.
-        IllegalDestination,
     }
 
     #[cfg(feature = "runtime-benchmarks")]
@@ -870,11 +866,12 @@ pub mod pallet {
                 .unwrap_or(false)
         }
 
-        /// Returns true if id is a program and the program has active status.
+        /// Returns true if `program_id` is that of a in active status or the built-in actor.
         pub fn is_active(program_id: ProgramId) -> bool {
-            ProgramStorageOf::<T>::get_program(program_id)
-                .map(|program| program.is_active())
-                .unwrap_or_default()
+            T::BuiltInActor::ids().contains(&program_id)
+                || ProgramStorageOf::<T>::get_program(program_id)
+                    .map(|program| program.is_active())
+                    .unwrap_or_default()
         }
 
         /// Returns true if id is a program and the program has terminated status.
@@ -1882,12 +1879,6 @@ pub mod pallet {
                     gas_limit,
                     value.unique_saturated_into(),
                 ),
-            );
-
-            // Sending messages to a built-in actor is only allowed from programs.
-            ensure!(
-                !T::BuiltInActor::ids().contains(&destination),
-                Error::<T>::IllegalDestination
             );
 
             if Self::program_exists(destination) {
