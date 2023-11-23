@@ -42,6 +42,9 @@ pub fn deps(map: &mut Manifest, index: Vec<&String>, version: String) -> Result<
                 detail.branch = None;
                 detail.git = None;
             }
+            "parity-wasm" => {
+                detail.package = Some("gear-wasm".into());
+            }
             _ => detail.version = Some(version.clone()),
         }
 
