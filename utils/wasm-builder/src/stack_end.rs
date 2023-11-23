@@ -37,7 +37,7 @@ use pwasm_utils::parity_wasm::{
 pub fn insert_stack_end_export(module: &mut Module) -> Result<(), &'static str> {
     let module_bytes = module
         .clone()
-        .to_bytes()
+        .into_bytes()
         .map_err(|_| "cannot get code from module")?;
 
     let stack_pointer_index =
@@ -141,7 +141,7 @@ pub fn insert_start_call_in_export_funcs(module: &mut Module) -> Result<(), &'st
 pub fn move_mut_globals_to_static(module: &mut Module) -> Result<(), &'static str> {
     let module_bytes = module
         .clone()
-        .to_bytes()
+        .into_bytes()
         .map_err(|_| "cannot get code from module")?;
 
     // Identify stack pointer and data end globals

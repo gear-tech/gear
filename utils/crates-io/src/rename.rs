@@ -42,9 +42,6 @@ pub fn deps(map: &mut Manifest, index: Vec<&String>, version: String) -> Result<
                 detail.branch = None;
                 detail.git = None;
             }
-            "pwasm-utils" => {
-                detail.package = Some("gear-pwasm-utils".into());
-            }
             _ => detail.version = Some(version.clone()),
         }
 

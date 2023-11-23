@@ -37,7 +37,7 @@ pub const PACKAGES: [&str; 20] = [
 ];
 
 /// Packages need to be patched in dependencies.
-pub const PATCHED_PACKAGES: [&str; 2] = ["sp-arithmetic", "pwasm-utils"];
+pub const PATCHED_PACKAGES: [&str; 1] = ["sp-arithmetic"];
 
 /// Publish the input package
 pub fn publish(manifest: &str) -> Result<ExitStatus> {
