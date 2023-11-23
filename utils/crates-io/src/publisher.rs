@@ -1,4 +1,4 @@
-//! package publisher
+//! Packages publisher
 
 use crate::{rename, ManifestWithPath, PACKAGES};
 use anyhow::Result;
@@ -61,7 +61,7 @@ impl Publisher {
         Ok(self)
     }
 
-    /// publish packages
+    /// Publish packages
     pub fn publish(&self) -> Result<()> {
         for ManifestWithPath { path, manifest } in self.graph.values() {
             println!("Publishing {:?}", path);

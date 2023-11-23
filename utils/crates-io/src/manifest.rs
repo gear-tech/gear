@@ -1,4 +1,4 @@
-//! manifest utils for crates-io-manager
+//! Manifest utils for crates-io-manager
 
 use anyhow::Result;
 use cargo_toml::{Manifest, Value};
@@ -28,7 +28,7 @@ impl ManifestWithPath {
         })
     }
 
-    /// complete the manifest of the specified crate from
+    /// Complete the manifest of the specified crate from
     /// the current manifest
     pub fn manifest(&self, path: impl AsRef<Path>) -> Result<Self> {
         let mut manifest = Manifest::<Value>::from_slice_with_metadata(&fs::read(&path)?)?;
