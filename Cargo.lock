@@ -2075,7 +2075,6 @@ name = "demo-calc-hash"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
- "gstd",
  "parity-scale-codec",
  "sha2 0.10.8",
 ]
@@ -2240,7 +2239,6 @@ name = "demo-meta-io"
 version = "0.1.0"
 dependencies = [
  "gmeta",
- "gstd",
  "parity-scale-codec",
  "scale-info",
 ]
@@ -4909,8 +4907,8 @@ dependencies = [
 
 [[package]]
 name = "gwasm-instrument"
-version = "0.2.2"
-source = "git+https://github.com/gear-tech/wasm-instrument?branch=v0.2.2-sign-ext-utils#8121bbe1f899fa96a45394278b1d1263b9bc4b38"
+version = "0.3.0"
+source = "git+https://github.com/gear-tech/wasm-instrument?branch=v0.3.0-sign-ext-utils#3fe76d6c53818f6c33bdf411b8d993fd9c60958f"
 dependencies = [
  "gear-wasm",
 ]
