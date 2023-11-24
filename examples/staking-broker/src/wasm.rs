@@ -49,63 +49,70 @@ struct StakingBroker {
 
 static mut STATE: Option<StakingBroker> = None;
 
+/// Do the actual message sending and reply handling.
+async fn do_send_message(payload: &[u8], mut on_success: impl FnMut()) {
+    let response_bytes = match msg::send_bytes_for_reply(BUILT_IN, payload, 0, 0)
+        .expect("Error sending message")
+        .await
+    {
+        Ok(response_bytes) => {
+            debug!("[StakingBroker] Reply received: {response_bytes:?}");
+            response_bytes
+        }
+        Err(error_bytes) => {
+            debug!("[StakingBroker] Error reply received: {error_bytes:?}");
+            msg::reply_bytes(b"Error reply received", 0).expect("Failed to send reply");
+            return;
+        }
+    };
+
+    // Decoding the reply
+    let Ok(response) = StakingResponse::decode(&mut &response_bytes[..]) else {
+        debug!("[StakingBroker] Failed to decode response");
+        msg::reply_bytes(b"Failed to decode reply message", 0).expect("Failed to send reply");
+        return;
+    };
+    debug!("[StakingBroker] Decoded reply: {response:?}");
+
+    match response {
+        StakingResponse::Success => {
+            on_success();
+            msg::reply_bytes(b"Success", 0).expect("Failed to send reply");
+        }
+        StakingResponse::Failure(e) => {
+            let err_message = e.to_string();
+            debug!("[StakingBroker] DispatchError: {err_message:?}");
+            msg::reply_bytes(b"Error in dispatchable call", 0).expect("Failed to send reply");
+        }
+    }
+}
+
 impl StakingBroker {
     /// Add bonded amount for the contract as both stash and controller.
     async fn bond(&mut self, value: u128) {
-        let source = msg::source();
-
         // Prepare a message to the built-in actor
+        // Checking the flag to decide whether to use `Bond` or `BondExtra`
+        // Note: this is not how you'd do it in a real application, given the
+        // Staking pallet `unbonding` logic, but it's enough for the example.
         let payload = if !self.has_bonded_any {
             StakingMessage::Bond { value }.encode()
         } else {
             StakingMessage::BondExtra { value }.encode()
         };
         debug!(
-            "[StakingBroker::bond] source: {:?}, value: {:?}, payload = {:?}, built-in: {:?}",
-            hex::encode(source),
-            value,
-            payload,
-            hex::encode(BUILT_IN)
+            "[StakingBroker] Sending `bond` message {:?} at broker's state {:?}",
+            payload, self
         );
-        match msg::send_bytes_for_reply(BUILT_IN, &payload[..], 0, 0)
-            .expect("Error sending message")
-            .await
-        {
-            Ok(response_bytes) => {
-                debug!("[StakingBroker::bond] Reply received: {response_bytes:?}");
-                // Decoding the reply
-                if let Ok(response) = StakingResponse::decode(&mut &response_bytes[..]) {
-                    debug!("[StakingBroker::bond] Decoded reply: {response:?}");
-                    match response {
-                        StakingResponse::Success => {
-                            debug!("[StakingBroker::bond] Successfully bonded");
-                            // Update local state to account for value transfer in pallet
-                            self.bonded
-                                .entry(source)
-                                .and_modify(|old| *old += value)
-                                .or_insert(value);
-                            self.total_debit += value;
-                            self.has_bonded_any = true;
-                            msg::reply_bytes(b"Success", 0).expect("Failed to send reply");
-                        }
-                        StakingResponse::Failure(e) => {
-                            let err_message = e.to_string();
-                            debug!("[StakingBroker::bond] DispatchError: {err_message:?}");
-                            msg::reply_bytes(b"Error in dispatchable call", 0)
-                                .expect("Failed to send reply");
-                        }
-                    }
-                } else {
-                    debug!("[StakingBroker::bond] Failed to decode response");
-                    msg::reply_bytes(b"Failed to decode reply message", 0)
-                        .expect("Failed to send reply");
-                }
-            }
-            Err(error_bytes) => {
-                debug!("[StakingBroker::bond] Error reply received: {error_bytes:?}");
-                msg::reply_bytes(b"Error reply received", 0).expect("Failed to send reply");
-            }
-        }
+        do_send_message(&payload[..], || {
+            // Update local state to account for value transfer in pallet
+            self.bonded
+                .entry(msg::source())
+                .and_modify(|old| *old += value)
+                .or_insert(value);
+            self.total_debit += value;
+            self.has_bonded_any = true;
+        })
+        .await
     }
 
     async fn unbond(&mut self, value: u128) {
@@ -122,94 +129,27 @@ impl StakingBroker {
         // Prepare a message to the built-in actor
         let payload = StakingMessage::Unbond { value }.encode();
         debug!(
-            "[StakingBroker::unbond] source: {:?}, unbonded_value: {:?}, payload = {:?}, built-in: {:?}",
-            hex::encode(source),
-            value,
-            payload,
-            hex::encode(BUILT_IN)
+            "[StakingBroker] Sending `unbond` message {:?} at broker's state {:?}",
+            payload, self
         );
-        match msg::send_bytes_for_reply(BUILT_IN, &payload[..], 0, 0)
-            .expect("Error sending message")
-            .await
-        {
-            Ok(response_bytes) => {
-                debug!("[StakingBroker::unbond] Reply received: {response_bytes:?}");
-                // Decoding the reply
-                if let Ok(response) = StakingResponse::decode(&mut &response_bytes[..]) {
-                    debug!("[StakingBroker::handle] Decoded reply: {response:?}");
-                    match response {
-                        StakingResponse::Success => {
-                            debug!("[StakingBroker::handle] Successfully unbonded");
-                            // Update local state to account for value transfer in pallet
-                            if let Some(old) = self.bonded.get_mut(&source) {
-                                *old = old.saturating_sub(value);
-                            }
-                            self.total_debit = self.total_debit.saturating_sub(value);
-                            msg::reply_bytes(b"Success", 0).expect("Failed to send reply");
-                        }
-                        StakingResponse::Failure(e) => {
-                            let err_message = e.to_string();
-                            debug!("[StakingBroker::unbond] DispatchError: {err_message:?}");
-                            msg::reply_bytes(b"Error in dispatchable call", 0)
-                                .expect("Failed to send reply");
-                        }
-                    }
-                } else {
-                    debug!("[StakingBroker::unbond] Failed to decode response");
-                    msg::reply_bytes(b"Failed to decode reply message", 0)
-                        .expect("Failed to send reply");
-                }
+        do_send_message(&payload[..], || {
+            // Update local state
+            if let Some(old) = self.bonded.get_mut(&source) {
+                *old = old.saturating_sub(value);
             }
-            Err(error_bytes) => {
-                debug!("[StakingBroker::unbond] Error reply received: {error_bytes:?}");
-                msg::reply_bytes(b"Error reply received", 0).expect("Failed to send reply");
-            }
-        }
+            self.total_debit = self.total_debit.saturating_sub(value);
+        })
+        .await
     }
 
     async fn nominate(&mut self, targets: Vec<AccountId>) {
-        let source = msg::source();
-
         // Prepare a message to the built-in actor
         let payload = StakingMessage::Nominate { targets }.encode();
         debug!(
-            "[StakingBroker::nominate] source: {:?}, payload = {:?}, built-in: {:?}",
-            hex::encode(source),
-            payload,
-            hex::encode(BUILT_IN)
+            "[StakingBroker] Sending `nominate` message {:?} at broker's state {:?}",
+            payload, self
         );
-        match msg::send_bytes_for_reply(BUILT_IN, &payload[..], 0, 0)
-            .expect("Error sending message")
-            .await
-        {
-            Ok(response_bytes) => {
-                debug!("[StakingBroker::nominate] Reply received: {response_bytes:?}");
-                // Decoding the reply
-                if let Ok(response) = StakingResponse::decode(&mut &response_bytes[..]) {
-                    debug!("[StakingBroker::nominate] Decoded reply: {response:?}");
-                    match response {
-                        StakingResponse::Success => {
-                            debug!("[StakingBroker::nominate] Successfully bonded");
-                            msg::reply_bytes(b"Success", 0).expect("Failed to send reply");
-                        }
-                        StakingResponse::Failure(e) => {
-                            let err_message = e.to_string();
-                            debug!("[StakingBroker::nominate] DispatchError: {err_message:?}");
-                            msg::reply_bytes(b"Error in dispatchable call", 0)
-                                .expect("Failed to send reply");
-                        }
-                    }
-                } else {
-                    debug!("[StakingBroker::nominate] Failed to decode response");
-                    msg::reply_bytes(b"Failed to decode reply message", 0)
-                        .expect("Failed to send reply");
-                }
-            }
-            Err(error_bytes) => {
-                debug!("[StakingBroker::nominate] Error reply received: {error_bytes:?}");
-                msg::reply_bytes(b"Error reply received", 0).expect("Failed to send reply");
-            }
-        }
+        do_send_message(&payload[..], || {}).await
     }
 }
 

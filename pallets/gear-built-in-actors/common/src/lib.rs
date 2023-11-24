@@ -25,10 +25,6 @@ extern crate alloc;
 use alloc::vec::Vec;
 use scale_info::scale::{self, Decode, Encode};
 
-// /// Actor id as it is seen by a contract.
-// #[derive(Encode, Decode, Clone, Copy, Default, PartialEq, Eq, Debug)]
-// #[codec(crate = scale)]
-// pub struct ActorId(pub [u8; 32]);
 pub type AccountId = [u8; 32];
 
 /// Output of a built-in actor's `handle()` function to be encoded into a reply message.

@@ -18,18 +18,17 @@
 
 //! # Gear BuiltIn Actors Pallet
 //!
-//! The BuiltIn Actors pallet provides a a set of unique accounts that are treated as built-in
+//! The BuiltIn Actors pallet provides a set of unique accounts that are treated as built-in
 //! actors ids (`ProgramId`).
 //!
 //! - [`Config`]
-//! - [`Call`]
 //!
 //! ## Overview
 //!
 //! The pallet implements a set of actors to handle messages from the message queue that
 //! require some sort of runtime-related logic to shortcut the usual messages processing flow.
 //! This provides an easy way for programs to interact with "pure runtime" actors thereby
-//! allowing contracts to build on top of functionality provided by the Runtime.
+//! allowing them to embed the blockchain abstractions provided by the Runtime.
 //!
 //! The list of available actors currently includes:
 //! - `StakingProxy` actor to interact with the staking pallet from contracts.
@@ -85,7 +84,6 @@ use frame_support::{
         extract_actual_weight, DispatchInfo, Dispatchable, GetDispatchInfo, PostDispatchInfo,
     },
     traits::Get,
-    weights::Weight,
     PalletId,
 };
 use gear_built_in_actor_common::staking::*;
@@ -171,7 +169,7 @@ pub mod pallet {
         /// Weight information to calculate the weight of the `handle()` function call.
         type WeightInfo: WeightInfo;
 
-        /// The staking proxy actor pallet id, used for deriving its sovereign account ID.
+        /// The built-in actor pallet id, used for deriving its sovereign account ID.
         #[pallet::constant]
         type PalletId: Get<PalletId>;
     }
@@ -189,11 +187,7 @@ pub mod pallet {
     pub type Actors<T> = StorageMap<_, Identity, ActorType, ProgramId>;
 
     #[pallet::hooks]
-    impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
-        fn on_initialize(_n: T::BlockNumber) -> Weight {
-            Weight::zero()
-        }
-    }
+    impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {}
 
     impl<T: Config> Pallet<T> {
         /// The ID of the Staking Proxy built-in actor.
@@ -237,7 +231,7 @@ where
         let mut output = vec![];
         let actor_id = dispatch.destination();
         if actor_id == Self::staking_proxy_actor_id() {
-            output = Self::handle_staking_inner(&dispatch, gas_limit).map_or_else(
+            output = staking_proxy::handle::<T>(&dispatch, gas_limit).map_or_else(
                 |e| Self::process_error(&dispatch, e),
                 |(gas_spent, dispatch_result)| {
                     Self::process_success(&dispatch, gas_spent, dispatch_result.err())
@@ -404,11 +398,18 @@ where
 
         Ok((0, Ok(())))
     }
+}
 
-    fn handle_staking_inner(
+pub mod staking_proxy {
+    use super::*;
+
+    pub fn handle<T: Config>(
         dispatch: &StoredDispatch,
         gas_limit: u64,
-    ) -> Result<(u64, Result<(), StakingErrorReason>), BuiltInActorReason> {
+    ) -> Result<(u64, Result<(), StakingErrorReason>), BuiltInActorReason>
+    where
+        T::AccountId: Origin,
+    {
         let message = dispatch.message();
         let origin = <T::AccountId as Origin>::from_origin(dispatch.source().into_origin());
 
@@ -463,6 +464,6 @@ where
             }
             .into(),
         };
-        Self::dispatch_call(origin, call, gas_limit)
+        Pallet::<T>::dispatch_call(origin, call, gas_limit)
     }
 }

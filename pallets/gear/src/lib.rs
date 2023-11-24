@@ -274,7 +274,7 @@ pub mod pallet {
             VoucherId = Self::AccountId,
         >;
 
-        /// A built-in actor enabling staking features for programs.
+        /// The built-in actor type.
         type BuiltInActor: BuiltInActor<ProgramId, Message = StoredDispatch, Output = JournalNote>;
 
         /// The free of charge period of rent.
