@@ -82,16 +82,6 @@ impl TryFrom<u64> for SystemBreakCode {
     }
 }
 
-impl SystemBreakCode {
-    pub const fn from_code(code: u64) -> Option<Self> {
-        match code {
-            0 => Some(Self::OutOfGas),
-            1 => Some(Self::StackLimitExceeded),
-            _ => None,
-        }
-    }
-}
-
 pub fn inject_system_break_import(
     module: elements::Module,
     gas_module_name: &str,
