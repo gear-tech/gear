@@ -1,4 +1,5 @@
 use gear_core::code::{Code, TryNewCodeConfig};
+use gear_wasm_instrument::SystemBreakCode;
 use sandbox_wasmer::{
     Exports, Extern, Function, HostEnvInitError, ImportObject, Instance, Memory, MemoryType,
     Module, RuntimeError, Singlepass, Store, Universal, WasmerEnv,
@@ -46,8 +47,10 @@ fn main() -> anyhow::Result<()> {
     }
 
     let ty = FunctionType::new(vec![Type::I64], vec![]);
-    let func = Function::new_with_env(&store, &ty, Env, |_, args| match args[0].unwrap_i64() {
-        1 => Err(RuntimeError::new("stack limit exceeded")),
+    let func = Function::new_with_env(&store, &ty, Env, |_, args| match SystemBreakCode::try_from(
+        args[0].unwrap_i64(),
+    ) {
+        Ok(SystemBreakCode::StackLimitExceeded) => Err(RuntimeError::new("stack limit exceeded")),
         _ => Ok(vec![]),
     });
 

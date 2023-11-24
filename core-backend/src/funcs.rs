@@ -1319,12 +1319,12 @@ where
 
     pub fn system_break(_gas: Gas, code: u64) -> impl SysCall<Ext> {
         RawSysCall::new(move |ctx: &mut CallerWrap<Ext>| {
-            let termination_reason = match SystemBreakCode::from_code(code) {
-                Some(system_break_code) => match system_break_code {
+            let termination_reason = match SystemBreakCode::try_from(code) {
+                Ok(system_break_code) => match system_break_code {
                     SystemBreakCode::OutOfGas => Self::out_of_gas(ctx),
                     SystemBreakCode::StackLimitExceeded => Self::stack_limit_exceeded(),
                 },
-                None => TrapExplanation::Unknown.into(),
+                _ => TrapExplanation::Unknown.into(),
             };
 
             ctx.set_termination_reason(termination_reason);

@@ -53,18 +53,36 @@ pub const STACK_END_EXPORT_NAME: &str = "__gear_stack_end";
 /// System break code for [`SysCallName::SystemBreak`] syscall.
 #[derive(Debug, Clone, Copy)]
 pub enum SystemBreakCode {
-    OutOfGas,
-    StackLimitExceeded,
+    OutOfGas = 0,
+    StackLimitExceeded = 1,
+}
+
+/// The error type returned when a conversion from `i64` or `u64` to [`SystemBreakCode`] fails.
+#[derive(Clone, Debug, derive_more::Display)]
+#[display(fmt = "Unsupported system break code")]
+pub struct SystemBreakCodeTryFromError;
+
+impl TryFrom<i64> for SystemBreakCode {
+    type Error = SystemBreakCodeTryFromError;
+
+    fn try_from(value: i64) -> Result<Self, Self::Error> {
+        match value {
+            0 => Ok(Self::OutOfGas),
+            1 => Ok(Self::StackLimitExceeded),
+            _ => Err(SystemBreakCodeTryFromError),
+        }
+    }
+}
+
+impl TryFrom<u64> for SystemBreakCode {
+    type Error = SystemBreakCodeTryFromError;
+
+    fn try_from(value: u64) -> Result<Self, Self::Error> {
+        SystemBreakCode::try_from(value as i64)
+    }
 }
 
 impl SystemBreakCode {
-    pub const fn to_code(self) -> u64 {
-        match self {
-            Self::OutOfGas => 0,
-            Self::StackLimitExceeded => 1,
-        }
-    }
-
     pub const fn from_code(code: u64) -> Option<Self> {
         match code {
             0 => Some(Self::OutOfGas),
@@ -180,7 +198,7 @@ pub fn inject<R: Rules>(
         // than we call `out_of_gas()` that will terminate execution.
         Instruction::I64LtU,
         Instruction::If(BlockType::NoResult),
-        Instruction::I64Const(SystemBreakCode::OutOfGas.to_code() as i64),
+        Instruction::I64Const(SystemBreakCode::OutOfGas as i64),
         Instruction::Call(gr_system_break_index),
         Instruction::End,
         // IV. Calculating new global value by subtraction.

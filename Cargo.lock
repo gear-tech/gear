@@ -986,6 +986,7 @@ dependencies = [
  "anyhow",
  "env_logger",
  "gear-core",
+ "gear-wasm-instrument",
  "log",
  "vara-runtime",
  "wabt",
@@ -4584,6 +4585,7 @@ dependencies = [
 name = "gear-wasm-instrument"
 version = "1.0.2"
 dependencies = [
+ "derive_more",
  "enum-iterator 1.4.1",
  "gear-core",
  "gwasm-instrument",

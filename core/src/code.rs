@@ -423,7 +423,7 @@ impl Code {
                 stack_limit,
                 injection_fn: |_| {
                     [
-                        Instruction::I64Const(SystemBreakCode::StackLimitExceeded.to_code() as i64),
+                        Instruction::I64Const(SystemBreakCode::StackLimitExceeded as i64),
                         Instruction::Call(gr_system_break_index),
                     ]
                 },
