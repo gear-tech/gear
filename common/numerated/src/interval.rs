@@ -339,8 +339,11 @@ impl<T: Numerated> NonEmptyInterval<T> {
 
 impl<T: Numerated + LowerBounded + UpperBounded> NonEmptyInterval<T> {
     /// Returns size of interval in `T` if it's possible.
-    /// If interval size is bigger than `T` possible elements amount, then returns `None`.
-    /// If interval size is equal to some `T::N`, then returns `T` of corresponding numeration.
+    /// - If interval size is bigger than `T` possible elements amount, then returns `None`.
+    /// - If interval size is equal to some `T::N`, then returns `T` of corresponding numeration:
+    /// ````
+    ///   { T::N::zero() -> T::min_value(), T::N::one() -> T::min_value() + 1, ... }
+    /// ````
     pub fn size(&self) -> Option<T> {
         let raw_size = self.raw_size()?;
         let size = T::min_value()

@@ -15,11 +15,12 @@ num-traits.workspace = true
 derive_more.workspace = true
 scale-info = { workspace = true, features = ["derive"] }
 parity-scale-codec = { workspace = true, features = ["derive"] }
-log.workspace = true
+log = { workspace = true, optional = true }
 
 [dev-dependencies]
 env_logger.workspace = true
 proptest.workspace = true
+log.workspace = true
 
 [features]
-mock = []
+mock = ["log"]

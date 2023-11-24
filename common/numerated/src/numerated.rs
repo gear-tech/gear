@@ -98,14 +98,14 @@ pub trait Numerated: Copy + Sized + Ord + Eq {
     ///
     /// # Guaranties
     /// - iff `self + num` is enclosed by `self` and `other`, then returns `Some(_)`.
-    /// - iff `self.add_if_enclosed_by(num, other).unwrap() == Some(a)`,
+    /// - iff `self.add_if_enclosed_by(num, other) == Some(a)`,
     /// then `a.sub_if_enclosed_by(num, self) == Some(self)`.
     fn add_if_enclosed_by(self, num: Self::N, other: Self) -> Option<Self>;
     /// Subtracts `num` from `self`, if `self - num` is enclosed by `self` and `other`.
     ///
     /// # Guaranties
     /// - iff `self - num` is enclosed by `self` and `other`, then returns `Some(_)`.
-    /// - iff `self.sub_if_enclosed_by(num, other).unwrap() == Some(a)`,
+    /// - iff `self.sub_if_enclosed_by(num, other) == Some(a)`,
     /// then `a.add_if_enclosed_by(num, self) == Some(self)`.
     fn sub_if_enclosed_by(self, num: Self::N, other: Self) -> Option<Self>;
     /// Returns `self - other`, if `self ≥ other`.

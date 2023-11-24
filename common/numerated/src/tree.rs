@@ -18,7 +18,7 @@
 
 //! [IntervalsTree] implementation.
 
-use crate::{Interval, IntoIntervalError, NonEmptyInterval, Numerated};
+use crate::{Interval, NonEmptyInterval, Numerated};
 use alloc::{collections::BTreeMap, fmt, fmt::Debug, vec::Vec};
 use core::{fmt::Formatter, ops::RangeInclusive};
 use num_traits::{CheckedAdd, Zero};
@@ -161,14 +161,10 @@ impl<T: Numerated> IntervalsTree<T> {
         false
     }
 
-    /// The same as [`Self::contains`], but returns `None` if `try_into` fails.
-    pub fn try_contains<I>(&self, interval: I) -> Option<bool>
-    where
-        I: TryInto<Interval<T>>,
-        I::Error: Into<IntoIntervalError>,
-    {
-        let interval: Interval<T> = interval.try_into().ok()?;
-        Some(self.contains(interval))
+    /// The same as [`Self::contains`], but returns [`I::Error`] if `try_into` [Interval] fails.
+    pub fn try_contains<I: TryInto<Interval<T>>>(&self, interval: I) -> Result<bool, I::Error> {
+        let interval: Interval<T> = interval.try_into()?;
+        Ok(self.contains(interval))
     }
 
     /// Insert interval into tree.
@@ -257,7 +253,7 @@ impl<T: Numerated> IntervalsTree<T> {
         }
     }
 
-    /// The same as [`Self::insert`], but returns `None` if `try_into` fails.
+    /// The same as [`Self::insert`], but returns [`I::Error`] if `try_into` [Interval] fails.
     pub fn try_insert<I: TryInto<Interval<T>>>(&mut self, interval: I) -> Result<(), I::Error> {
         let interval: Interval<T> = interval.try_into()?;
         self.insert(interval);
@@ -330,7 +326,7 @@ impl<T: Numerated> IntervalsTree<T> {
         }
     }
 
-    /// The same as [`Self::remove`], but returns `None` if `try_into` fails.
+    /// The same as [`Self::remove`], but returns [`I::Error`] if `try_into` [Interval] fails.
     pub fn try_remove<I: TryInto<Interval<T>>>(&mut self, interval: I) -> Result<(), I::Error> {
         let interval: Interval<T> = interval.try_into()?;
         self.remove(interval);
@@ -377,7 +373,7 @@ impl<T: Numerated> IntervalsTree<T> {
         }
     }
 
-    /// The same as [`Self::voids`], but returns `None` if `try_into` fails.
+    /// The same as [`Self::voids`], but returns [`I::Error`] if `try_into` [Interval] fails.
     pub fn try_voids<I: TryInto<Interval<T>>>(
         &self,
         interval: I,
