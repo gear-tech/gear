@@ -65,6 +65,11 @@
 
 extern crate alloc;
 
+#[cfg(feature = "runtime-benchmarks")]
+mod benchmarking;
+
+pub mod weights;
+
 #[cfg(test)]
 mod mock;
 
@@ -96,15 +101,14 @@ use scale_info::TypeInfo;
 use sp_io::hashing::blake2_256;
 use sp_runtime::traits::{StaticLookup, TrailingZeroInput, UniqueSaturatedInto};
 use sp_std::{collections::btree_set::BTreeSet, prelude::*};
+pub use weights::WeightInfo;
 
 pub use pallet::*;
 
 pub type BalanceOf<T> = <T as pallet_staking::Config>::CurrencyBalance;
 
+#[allow(dead_code)]
 const LOG_TARGET: &str = "gear::built-in-actor";
-
-// TODO: update upon benchmarking
-const BASE_GAS_BURNED: u64 = 0;
 
 /// Available actor types.
 #[derive(Decode, Encode, Debug, Clone, Copy, PartialEq, Eq, Sequence, TypeInfo)]
@@ -163,6 +167,9 @@ pub mod pallet {
             + Dispatchable<RuntimeOrigin = Self::RuntimeOrigin, PostInfo = PostDispatchInfo>
             + GetDispatchInfo
             + From<pallet_staking::Call<Self>>;
+
+        /// Weight information to calculate the weight of the `handle()` function call.
+        type WeightInfo: WeightInfo;
 
         /// The staking proxy actor pallet id, used for deriving its sovereign account ID.
         #[pallet::constant]
@@ -261,7 +268,9 @@ where
         // No call dispatced, so no gas burned except for the base
         journal.push(JournalNote::GasBurned {
             message_id,
-            amount: BASE_GAS_BURNED.saturating_add(gas_spent),
+            amount: <T as Config>::WeightInfo::base_handle_weight()
+                .ref_time()
+                .saturating_add(gas_spent),
         });
 
         // Build the reply message
@@ -305,7 +314,7 @@ where
         // No call dispatced, so no gas burned except for the base
         journal.push(JournalNote::GasBurned {
             message_id,
-            amount: BASE_GAS_BURNED,
+            amount: <T as Config>::WeightInfo::base_handle_weight().ref_time(),
         });
 
         let err_payload = err
@@ -348,6 +357,7 @@ where
         Ok(())
     }
 
+    #[cfg(not(feature = "runtime-benchmarks"))]
     fn dispatch_call(
         origin: T::AccountId,
         call: <T as Config>::RuntimeCall,
@@ -378,6 +388,21 @@ where
                 Ok((actual_gas, Err(StakingErrorReason::DispatchError)))
             }
         }
+    }
+
+    #[cfg(feature = "runtime-benchmarks")]
+    fn dispatch_call(
+        _origin: T::AccountId,
+        call: <T as Config>::RuntimeCall,
+        gas_limit: u64,
+    ) -> Result<(u64, Result<(), StakingErrorReason>), BuiltInActorReason> {
+        let call_info = call.get_dispatch_info();
+        Self::check_gas_limit(gas_limit, &call_info)?;
+        // Skipping the actual call dispatch
+        let _ = extract_actual_weight(&Ok(Default::default()), &call_info).ref_time();
+        Self::deposit_event(Event::MessageExecuted { result: Ok(()) });
+
+        Ok((0, Ok(())))
     }
 
     fn handle_staking_inner(

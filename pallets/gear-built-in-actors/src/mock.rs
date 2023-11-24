@@ -287,6 +287,7 @@ parameter_types! {
 impl pallet_gear_built_in_actor::Config for Test {
     type RuntimeEvent = RuntimeEvent;
     type RuntimeCall = RuntimeCall;
+    type WeightInfo = ();
     type PalletId = BuiltInActorPalletId;
 }
 
@@ -471,4 +472,19 @@ pub(crate) fn rollback_transaction() {
             .expect("ongoing transaction must be there");
     })
     .expect("externalities should be set");
+}
+
+pub(crate) fn new_test_ext() -> sp_io::TestExternalities {
+    let bank_address = <Test as pallet_gear_bank::Config>::BankAddress::get();
+
+    ExtBuilder::default()
+        .initial_authorities(vec![
+            (VAL_1_STASH, VAL_1_CONTROLLER, VAL_1_AUTH_ID),
+            (VAL_2_STASH, VAL_2_CONTROLLER, VAL_2_AUTH_ID),
+            (VAL_3_STASH, VAL_3_CONTROLLER, VAL_3_AUTH_ID),
+        ])
+        .stash(VALIDATOR_STAKE)
+        .endowment(ENDOWMENT)
+        .endowed_accounts(vec![bank_address, SIGNER])
+        .build()
 }

@@ -203,6 +203,7 @@ runtime-benchmarks = [
   	"pallet-utility/runtime-benchmarks",
 	"pallet-gear/runtime-benchmarks",
 	"pallet-gear-voucher/runtime-benchmarks",
+	"pallet-gear-built-in-actor/runtime-benchmarks",
 	"sp-runtime/runtime-benchmarks",
 	"pallet-bags-list/runtime-benchmarks",
 	"pallet-staking/runtime-benchmarks",

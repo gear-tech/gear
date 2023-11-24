@@ -1044,6 +1044,7 @@ parameter_types! {
 impl pallet_gear_built_in_actor::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type RuntimeCall = RuntimeCall;
+    type WeightInfo = pallet_gear_built_in_actor::weights::SubstrateWeight<Runtime>;
     type PalletId = BuiltInActorPalletId;
 }
 
@@ -1309,6 +1310,7 @@ mod benches {
         // Gear pallets
         [pallet_gear, Gear]
         [pallet_gear_voucher, GearVoucher]
+        [pallet_gear_built_in_actor, GearBuiltInActor]
     );
 }
 
