@@ -127,6 +127,10 @@ where
     }
 }
 
+/// We can't use `test_signal_code_works` from pallet tests because
+/// this test runs on the wasmi executor and not the wasmer.
+///
+/// So we just copy the code from this test and put it into the pallet benchmarks.
 pub fn signal_stack_limit_exceeded_works<T>()
 where
     T: Config,

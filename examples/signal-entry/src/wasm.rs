@@ -177,7 +177,7 @@ extern "C" fn handle() {
         HandleAction::ExceedStackLimit => {
             exec::system_reserve_gas(1_000_000_000).unwrap();
 
-            #[allow(unconditional_recursion)]
+            #[allow(unconditional_recursion, clippy::unit_arg)]
             fn f() {
                 core::hint::black_box(f());
             }
