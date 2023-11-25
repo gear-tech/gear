@@ -172,13 +172,6 @@ macro_rules! impl_for_unsigned {
 
 impl_for_unsigned!(u8 u16 u32 u64 u128 usize);
 
-/// Toggles/inverts the most significant bit.
-macro_rules! toggle_msb {
-    ($num:expr) => {
-        $num ^ (1 << (core::mem::size_of_val(&$num) * 8 - 1))
-    };
-}
-
 macro_rules! impl_for_signed {
     ($($s:ty => $u:ty),*) => {
         $(
@@ -186,19 +179,15 @@ macro_rules! impl_for_signed {
                 type N = $u;
                 type B = BoundValue<$s>;
                 fn add_if_enclosed_by(self, num: $u, other: Self) -> Option<Self> {
-                    let a = toggle_msb!(self) as $u;
-                    let b = toggle_msb!(other) as $u;
-                    a.checked_add(num).and_then(|res| res.enclosed_by(&a, &b).then_some(toggle_msb!(res) as $s))
+                    let res = (self as $u).wrapping_add(num) as $s;
+                    res.enclosed_by(&self, &other).then_some(res)
                 }
                 fn sub_if_enclosed_by(self, num: Self::N, other: Self) -> Option<Self> {
-                    let a = toggle_msb!(self) as $u;
-                    let b = toggle_msb!(other) as $u;
-                    a.checked_sub(num).and_then(|res| res.enclosed_by(&a, &b).then_some(toggle_msb!(res) as $s))
+                    let res = (self as $u).wrapping_sub(num) as $s;
+                    res.enclosed_by(&self, &other).then_some(res)
                 }
                 fn distance(self, other: Self) -> Option<$u> {
-                    let a = toggle_msb!(self) as $u;
-                    let b = toggle_msb!(other) as $u;
-                    a.checked_sub(b)
+                    (self >= other).then_some(self.abs_diff(other))
                 }
             }
         )*
