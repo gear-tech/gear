@@ -11447,6 +11447,14 @@ fn signal_memory_overflow_works() {
     );
 }
 
+/*#[test]
+fn signal_stack_limit_exceeded_works() {
+    test_signal_code_works(
+        SimpleExecutionError::StackLimitExceeded.into(),
+        demo_signal_entry::HandleAction::ExceedStackLimit,
+    );
+}*/
+
 #[test]
 fn signal_removed_from_waitlist_works() {
     const GAS_LIMIT: u64 = 10_000_000_000;

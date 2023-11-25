@@ -415,7 +415,7 @@ demo-reservation-manager = { path = "examples/reservation-manager" }
 demo-reserve-gas = { path = "examples/reserve-gas", default-features = false }
 demo-rwlock = { path = "examples/rwlock" }
 demo-send-from-reservation = { path = "examples/send-from-reservation" }
-demo-signal-entry = { path = "examples/signal-entry" }
+demo-signal-entry = { path = "examples/signal-entry", default-features = false }
 demo-state-rollback = { path = "examples/state-rollback" }
 demo-sync-duplicate = { path = "examples/sync-duplicate" }
 demo-vec = { path = "examples/vec" }
