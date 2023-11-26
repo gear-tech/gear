@@ -186,8 +186,8 @@ tempfile = "3.5.0"
 #
 # fork of `wasm-instrument`
 #
-# https://github.com/gear-tech/wasm-instrument/tree/v0.2.2-sign-ext
-gwasm-instrument = { version = "0.2.2", default-features = false }
+# https://github.com/gear-tech/wasm-instrument/tree/v0.2.3-sign-ext
+gwasm-instrument = { version = "0.2.3", default-features = false }
 
 # Internal deps
 authorship = { package = "gear-authorship", path = "node/authorship" }
