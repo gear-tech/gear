@@ -211,7 +211,7 @@ impl WasmProject {
         // Copy original `Cargo.lock` if any
         let from_lock = self.original_dir.join("Cargo.lock");
         let to_lock = self.out_dir.join("Cargo.lock");
-        let _ = fs::copy(from_lock, to_lock);
+        drop(fs::copy(from_lock, to_lock));
 
         let mut source_code = "#![no_std] pub use orig_project::*;\n".to_owned();
 
