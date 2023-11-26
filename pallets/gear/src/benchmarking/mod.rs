@@ -1666,7 +1666,7 @@ benchmarks! {
     }
 
     mem_grow {
-        let r in 0 .. API_BENCHMARK_RUNS;
+        let r in 0 .. MAX_PAGES;
         let mut store = Store::new(None);
         let mem = ExecutorMemory::new(&mut store, 1, None).unwrap();
         let mut mem = MemoryWrap::<gear_core_backend::mock::MockExt>::new(mem, store);
