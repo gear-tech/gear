@@ -1679,7 +1679,7 @@ benchmarks! {
     // w_load = w_bench
     instr_i64load {
         // Increased interval in order to increase accuracy
-        let r in INSTR_BENCHMARK_RUNS .. 10 * INSTR_BENCHMARK_RUNS;
+        let r in 0 .. INSTR_BENCHMARK_RUNS;
         let mem_pages = code::max_pages::<T>();
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(mem_pages)),
@@ -1697,7 +1697,7 @@ benchmarks! {
     // w_load = w_bench
     instr_i32load {
         // Increased interval in order to increase accuracy
-        let r in INSTR_BENCHMARK_RUNS .. 10 * INSTR_BENCHMARK_RUNS;
+        let r in 0 .. INSTR_BENCHMARK_RUNS;
         let mem_pages = code::max_pages::<T>();
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(mem_pages)),
@@ -1715,7 +1715,7 @@ benchmarks! {
     // w_store = w_bench - w_i64const
     instr_i64store {
         // Increased interval in order to increase accuracy
-        let r in INSTR_BENCHMARK_RUNS .. 10 * INSTR_BENCHMARK_RUNS;
+        let r in 0 .. INSTR_BENCHMARK_RUNS;
         let mem_pages = code::max_pages::<T>();
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(mem_pages)),
@@ -1733,7 +1733,7 @@ benchmarks! {
     // w_store = w_bench
     instr_i32store {
         // Increased interval in order to increase accuracy
-        let r in INSTR_BENCHMARK_RUNS .. 10 * INSTR_BENCHMARK_RUNS;
+        let r in 0 .. INSTR_BENCHMARK_RUNS;
         let mem_pages = code::max_pages::<T>();
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(mem_pages)),
