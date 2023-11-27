@@ -49,8 +49,7 @@ mod panic_handler {
     pub fn panic(panic_info: &PanicInfo) -> ! {
         use crate::prelude::format;
 
-        let message = panic_info.message();
-        let msg = match (message, panic_info.location()) {
+        let msg = match (panic_info.message(), panic_info.location()) {
             (Some(msg), Some(loc)) => {
                 format!("'{msg}', {}:{}:{}", loc.file(), loc.line(), loc.column())
             }
