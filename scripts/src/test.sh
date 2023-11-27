@@ -95,8 +95,9 @@ run_fuzzer() {
   RUST_LOG="$LOG_TARGETS" cargo fuzz run --release --sanitizer=none main $CORPUS_DIR -- -rss_limit_mb=$RSS_LIMIT_MB -max_len=$MAX_LEN -len_control=0
 }
 
-test_fuzzer_reproduction() {
-  cargo nextest run -p runtime-fuzzer -E 'test(=tests::test_fuzzer_reproduction)'
+run_fuzzer_tests() {
+  # This includes property tests defined in runtime-fuzzer crate.
+  cargo nextest run -p runtime-fuzzer
 }
 
 # TODO this is likely to be merged with `pallet_test` or `workspace_test` in #1802

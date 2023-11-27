@@ -22,6 +22,7 @@ RUN apt update -y && \
     # Set rights \
     chmod +x ./scripts/gear.sh && \
     # Create dir for corpus \
+    # TODO !
     mkdir -p /corpus/main
 
 # Run the fuzzer
