@@ -4,6 +4,7 @@ use crate::{rename, ManifestWithPath, PACKAGES, SAFE_DEPENDENCIES, STACKED_DEPEN
 use anyhow::Result;
 use cargo_metadata::{Metadata, MetadataCommand};
 use std::{
+    borrow::Cow,
     collections::{BTreeMap, HashMap},
     fs,
 };
@@ -41,7 +42,6 @@ impl Publisher {
 
     /// Build package graphs
     pub fn build(mut self) -> Result<Self> {
-        // Build package graph.
         let workspace = ManifestWithPath::workspace()?;
         for p in self.metadata.packages.iter() {
             if !self.index.contains_key(&p.name) {
@@ -69,19 +69,42 @@ impl Publisher {
         Ok(self)
     }
 
-    /// Publish packages
-    pub fn publish(&self) -> Result<()> {
-        for ManifestWithPath { path, manifest } in self.graph.values() {
-            println!("Publishing {:?}", path);
-            fs::write(path, toml::to_string_pretty(&manifest)?)?;
-
-            let path = path.to_string_lossy();
-            let status = crate::publish(&path)?;
+    /// Check packages
+    pub fn check(&self) -> Result<()> {
+        for manifest in self.flush()?.iter() {
+            println!("Checking {:?}", manifest);
+            let status = crate::check(&manifest)?;
             if !status.success() {
-                panic!("Failed to publish package {path}...");
+                panic!("Package {manifest} didn't pass the check .");
             }
         }
 
         Ok(())
+    }
+
+    /// Publish packages
+    pub fn publish(&self) -> Result<()> {
+        for manifest in self.flush()?.iter() {
+            println!("Publishing {:?}", manifest);
+            let status = crate::publish(&manifest)?;
+            if !status.success() {
+                panic!("Failed to publish package {manifest}...");
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Flush new manifests to disk
+    fn flush(&self) -> Result<Vec<Cow<'_, str>>> {
+        let mut manifests = Vec::default();
+        for ManifestWithPath { path, manifest } in self.graph.values() {
+            fs::write(path, toml::to_string_pretty(&manifest)?)?;
+
+            let path = path.to_string_lossy();
+            manifests.push(path);
+        }
+
+        Ok(manifests)
     }
 }

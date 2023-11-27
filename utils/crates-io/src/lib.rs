@@ -33,11 +33,20 @@ pub const PACKAGES: [&str; 5] = ["gear-wasm-builder", "gstd", "gsdk", "gclient",
 /// Packages need to be patched in dependencies.
 pub const PATCHED_PACKAGES: [&str; 1] = ["sp-arithmetic"];
 
+/// Check the input package
+pub fn check(manifest: &str) -> Result<ExitStatus> {
+    Command::new("cargo")
+        .arg("check")
+        .arg("--manifest-path")
+        .arg(manifest)
+        .status()
+        .map_err(Into::into)
+}
+
 /// Publish the input package
 pub fn publish(manifest: &str) -> Result<ExitStatus> {
     Command::new("cargo")
         .arg("publish")
-        .arg("-vv")
         .arg("--manifest-path")
         .arg(manifest)
         .arg("--allow-dirty")
