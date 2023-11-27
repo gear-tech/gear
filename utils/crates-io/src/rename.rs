@@ -24,7 +24,7 @@ pub fn deps(map: &mut Manifest, index: Vec<&String>, version: String) -> Result<
     for (name, dep) in map.dependencies.iter_mut() {
         // No need to update dependencies for packages without
         // local dependencies.
-        if !index.contains(&name) && !PATCHED_PACKAGES.contains(&name.as_str()) {
+        if !index.contains(&name) && !name.starts_with("sp-") {
             continue;
         }
 
@@ -39,6 +39,10 @@ pub fn deps(map: &mut Manifest, index: Vec<&String>, version: String) -> Result<
             // git repo, but 7.0.0 in crates.io, so we need to fix it.
             "sp-arithmetic" => {
                 detail.version = Some("7.0.0".into());
+                detail.branch = None;
+                detail.git = None;
+            }
+            sp if sp.starts_with("sp-") => {
                 detail.branch = None;
                 detail.git = None;
             }

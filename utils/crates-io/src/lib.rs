@@ -30,9 +30,6 @@ pub const STACKED_DEPENDENCIES: [&str; 5] =
 /// Packages need to be published.
 pub const PACKAGES: [&str; 5] = ["gear-wasm-builder", "gstd", "gsdk", "gclient", "gcli"];
 
-/// Packages need to be patched in dependencies.
-pub const PATCHED_PACKAGES: [&str; 1] = ["sp-arithmetic"];
-
 /// Check the input package
 pub fn check(manifest: &str) -> Result<ExitStatus> {
     Command::new("cargo")
