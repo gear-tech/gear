@@ -128,7 +128,7 @@ const API_BENCHMARK_RUNS: u32 = 1600;
 ///
 /// Same rationale as for [`API_BENCHMARK_RUNS`]. The number is bigger because instruction
 /// benchmarks are faster.
-const INSTR_BENCHMARK_RUNS: u32 = 20000;
+const INSTR_BENCHMARK_RUNS: u32 = 25000;
 
 // Initializes new block.
 fn init_block<T: Config>(previous: Option<T::BlockNumber>)
@@ -1679,7 +1679,7 @@ benchmarks! {
     // w_load = w_bench
     instr_i64load {
         // Increased interval in order to increase accuracy
-        let r in 0 .. INSTR_BENCHMARK_RUNS;
+        let r in 0 .. INSTR_BENCHMARK_RUNS * 10;
         let mem_pages = code::max_pages::<T>();
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(mem_pages)),
@@ -1697,7 +1697,7 @@ benchmarks! {
     // w_load = w_bench
     instr_i32load {
         // Increased interval in order to increase accuracy
-        let r in 0 .. INSTR_BENCHMARK_RUNS;
+        let r in 0 .. INSTR_BENCHMARK_RUNS * 10;
         let mem_pages = code::max_pages::<T>();
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(mem_pages)),
@@ -1715,7 +1715,7 @@ benchmarks! {
     // w_store = w_bench - w_i64const
     instr_i64store {
         // Increased interval in order to increase accuracy
-        let r in 0 .. INSTR_BENCHMARK_RUNS;
+        let r in 0 .. INSTR_BENCHMARK_RUNS * 10;
         let mem_pages = code::max_pages::<T>();
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(mem_pages)),
@@ -1733,7 +1733,7 @@ benchmarks! {
     // w_store = w_bench
     instr_i32store {
         // Increased interval in order to increase accuracy
-        let r in 0 .. INSTR_BENCHMARK_RUNS;
+        let r in 0 .. INSTR_BENCHMARK_RUNS * 10;
         let mem_pages = code::max_pages::<T>();
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(mem_pages)),
