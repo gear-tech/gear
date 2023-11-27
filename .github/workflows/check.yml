@@ -78,6 +78,9 @@ jobs:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
 
+      - name: "MOUNT: Logs path"
+        run: ln -s /mnt/root/fuzzer_logs $PWD/utils/runtime-fuzzer/fuzz/artifacts/main 
+
       - name: "Install: Set cargo path"
         run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
 
