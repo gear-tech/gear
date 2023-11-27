@@ -1,6 +1,5 @@
 //! Renaming handler
 
-use crate::PATCHED_PACKAGES;
 use anyhow::Result;
 use cargo_metadata::Package;
 use cargo_toml::{Dependency, Manifest};

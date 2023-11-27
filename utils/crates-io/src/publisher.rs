@@ -4,7 +4,6 @@ use crate::{rename, ManifestWithPath, PACKAGES, SAFE_DEPENDENCIES, STACKED_DEPEN
 use anyhow::Result;
 use cargo_metadata::{Metadata, MetadataCommand};
 use std::{
-    borrow::Cow,
     collections::{BTreeMap, HashMap},
     fs,
 };
@@ -69,13 +68,19 @@ impl Publisher {
         Ok(self)
     }
 
-    /// Check packages
+    /// Check the to-be-published packages
     pub fn check(&self) -> Result<()> {
-        for manifest in self.flush()?.iter() {
-            println!("Checking {:?}", manifest);
-            let status = crate::check(&manifest)?;
+        self.flush()?;
+
+        for ManifestWithPath { path, name, .. } in self.graph.values() {
+            if !PACKAGES.contains(&name.as_str()) {
+                continue;
+            }
+
+            println!("Checking {path:?}");
+            let status = crate::check(&path.to_string_lossy())?;
             if !status.success() {
-                panic!("Package {manifest} didn't pass the check .");
+                panic!("Package {path:?} didn't pass the check .");
             }
         }
 
@@ -84,11 +89,13 @@ impl Publisher {
 
     /// Publish packages
     pub fn publish(&self) -> Result<()> {
-        for manifest in self.flush()?.iter() {
-            println!("Publishing {:?}", manifest);
-            let status = crate::publish(&manifest)?;
+        self.flush()?;
+
+        for ManifestWithPath { path, .. } in self.graph.values() {
+            println!("Publishing {path:?}");
+            let status = crate::publish(&path.to_string_lossy())?;
             if !status.success() {
-                panic!("Failed to publish package {manifest}...");
+                panic!("Failed to publish package {path:?}...");
             }
         }
 
@@ -96,15 +103,11 @@ impl Publisher {
     }
 
     /// Flush new manifests to disk
-    fn flush(&self) -> Result<Vec<Cow<'_, str>>> {
-        let mut manifests = Vec::default();
-        for ManifestWithPath { path, manifest } in self.graph.values() {
+    fn flush(&self) -> Result<()> {
+        for ManifestWithPath { path, manifest, .. } in self.graph.values() {
             fs::write(path, toml::to_string_pretty(&manifest)?)?;
-
-            let path = path.to_string_lossy();
-            manifests.push(path);
         }
 
-        Ok(manifests)
+        Ok(())
     }
 }

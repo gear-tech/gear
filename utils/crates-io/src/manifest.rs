@@ -9,6 +9,8 @@ use std::{
 
 /// Cargo manifest with path
 pub struct ManifestWithPath {
+    /// Crate name
+    pub name: String,
     /// Cargo manifest
     pub manifest: Manifest,
     /// Path of the manifest
@@ -23,6 +25,7 @@ impl ManifestWithPath {
             .canonicalize()?;
 
         Ok(Self {
+            name: "__gear_workspace".into(),
             manifest: Manifest::from_path(&path)?,
             path,
         })
@@ -36,6 +39,7 @@ impl ManifestWithPath {
             .complete_from_path_and_workspace(path.as_ref(), Some((&self.manifest, &self.path)))?;
 
         Ok(Self {
+            name: manifest.package.clone().map(|p| p.name).unwrap_or_default(),
             manifest,
             path: path.as_ref().to_path_buf(),
         })
