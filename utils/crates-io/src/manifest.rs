@@ -21,8 +21,10 @@ impl ManifestWithPath {
     /// Get the worksapce manifest
     pub fn workspace() -> Result<Self> {
         let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../../Cargo.toml")
-            .canonicalize()?;
+            .ancestors()
+            .nth(2)
+            .and_then(|workspace_dir| workspace_dir.join("Cargo.toml").canonicalize().ok())
+            .ok_or_else(|| anyhow::anyhow!("Cannot find workspace"))?;
 
         Ok(Self {
             name: "__gear_workspace".into(),
