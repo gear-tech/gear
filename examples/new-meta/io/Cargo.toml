@@ -8,6 +8,7 @@ homepage.workspace = true
 repository.workspace = true
 
 [dependencies]
+gstd.workspace = true
 gmeta.workspace = true
 scale-info.workspace = true
 parity-scale-codec.workspace = true

@@ -24,7 +24,6 @@ clap = { workspace = true, features = ["derive"] }
 futures.workspace = true
 futures-timer.workspace = true
 names = "0.14.0"
-once_cell.workspace = true
 parking_lot.workspace = true
 primitive-types = { workspace = true, features = ["scale-info"] }
 rand = { workspace = true, features = ["small_rng"] }

@@ -30,29 +30,24 @@ const skip = async ({ core, github }) => {
     ref: REF,
   });
 
-  core.info(`check runs: ${check_runs}`);
-
   const runs = linux
     ? check_runs.filter(
       (run) => run.name === "build" || run.name === "build / linux"
     )
     : check_runs.filter((run) => run.name === "build / macos-x86");
 
-  // Skip this action by default.
-  let skipped = false;
+  let skipAction = false;
   for (run of runs) {
-    // Process this action only if the previous build has been skipped.
+    // If there is already a build, skip this action.
     if (
-      (run.name === "build" && run.conclusion === "skipped")
-    )
-      skipped = true;
-
-    // If there is already a build, skip this action without more conditions.
-    if (run.name === "build / linux" || run.name === "build / macos-x86")
-      return true;
+      run.name === "build / linux"
+      || run.name === "build / macos-x86"
+      || (run.name === "build" && run.conclusion !== "skipped")) {
+      return [true];
+    }
   }
 
-  return !skipped;
+  return [skipAction, JSON.stringify(check_runs, null, 2)];
 };
 
 /**
@@ -147,8 +142,9 @@ const listJobs = async ({ github, core, run_id }) => {
  *  The main function.
  **/
 module.exports = async ({ github, core }) => {
-  if (await skip({ core, github })) {
-    core.info("Build has already been processed.");
+  const [skipAction, check_runs] = await skip({ core, github });
+  if (skipAction) {
+    core.info("Build has already been processed, check runs: " + check_runs);
     return;
   }
 

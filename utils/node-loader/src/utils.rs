@@ -116,7 +116,7 @@ pub async fn stop_node(monitor_url: String) -> Result<()> {
 
 pub async fn capture_mailbox_messages(
     api: &GearApi,
-    event_source: &mut [gsdk::metadata::Event],
+    event_source: &[gsdk::metadata::Event],
 ) -> Result<BTreeSet<MessageId>> {
     let to = ProgramId::from(api.account_id().as_ref());
     // Mailbox message expiration threshold block number: current(last) block number + 20.
