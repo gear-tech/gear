@@ -16,40 +16,30 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{
-    internal::HoldBoundBuilder,
-    manager::HandleKind,
-    mock::{
-        self,
-        new_test_ext,
-        run_for_blocks,
-        run_to_block,
-        run_to_block_maybe_with_queue,
-        run_to_next_block,
-        Balances,
-        BlockNumber,
-        DynamicSchedule,
-        Gear,
-        GearVoucher,
-        // Randomness,
-        RuntimeEvent as MockRuntimeEvent,
-        RuntimeOrigin,
-        System,
-        Test,
-        Timestamp,
-        BLOCK_AUTHOR,
-        LOW_BALANCE_USER,
-        USER_1,
-        USER_2,
-        USER_3,
-    },
-    pallet,
-    runtime_api::RUNTIME_API_BLOCK_LIMITS_COUNT,
-    BlockGasLimitOf, Config, CostsPerBlockOf, CurrencyOf, DbWeightOf, Error, Event, GasAllowanceOf,
-    GasBalanceOf, GasHandlerOf, GasInfo, GearBank, MailboxOf, ProgramStorageOf, QueueOf,
-    RentCostPerBlockOf, RentFreePeriodOf, ResumeMinimalPeriodOf, ResumeSessionDurationOf, Schedule,
-    TaskPoolOf, WaitlistOf,
-};
+use crate::{internal::HoldBoundBuilder, manager::HandleKind, mock::{
+    self,
+    new_test_ext,
+    run_for_blocks,
+    run_to_block,
+    run_to_block_maybe_with_queue,
+    run_to_next_block,
+    Balances,
+    BlockNumber,
+    DynamicSchedule,
+    Gear,
+    GearVoucher,
+    // Randomness,
+    RuntimeEvent as MockRuntimeEvent,
+    RuntimeOrigin,
+    System,
+    Test,
+    Timestamp,
+    BLOCK_AUTHOR,
+    LOW_BALANCE_USER,
+    USER_1,
+    USER_2,
+    USER_3,
+}, pallet, runtime_api::RUNTIME_API_BLOCK_LIMITS_COUNT, BlockGasLimitOf, Config, CostsPerBlockOf, CurrencyOf, DbWeightOf, Error, Event, GasAllowanceOf, GasBalanceOf, GasHandlerOf, GasInfo, GearBank, MailboxOf, ProgramStorageOf, QueueOf, RentCostPerBlockOf, RentFreePeriodOf, ResumeMinimalPeriodOf, ResumeSessionDurationOf, Schedule, TaskPoolOf, WaitlistOf};
 use common::{
     event::*, scheduler::*, storage::*, ActiveProgram, CodeStorage, GasTree, LockId, LockableTree,
     Origin as _, PausedProgramStorage, ProgramStorage, ReservableTree,
@@ -14695,6 +14685,73 @@ fn test_gas_info_of_terminated_program() {
         )
         .expect("failed getting gas info");
     })
+}
+
+#[test]
+fn test_constructor_if_else() {
+    use demo_constructor::{Calls, Scheme, Arg, Call, WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let init = Calls::builder().bool("switch", false);
+        let handle = Calls::builder().if_else(
+            Arg::get("switch"),
+            Calls::builder().add_call(Call::Bool(false)),
+            Calls::builder().add_call(Call::Bool(true)),
+        ).store("switch").if_else(
+            Arg::get("switch"),
+            Calls::builder().wait_for(1),
+            Calls::builder().wait(),
+        );
+
+        let scheme = Scheme::predefined(
+            init,
+            handle,
+            Default::default(),
+            Default::default(),
+        );
+
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            scheme.encode(),
+            100_000_000_000,
+            0,
+            false,
+        ));
+
+        let pid = get_last_program_id();
+
+        run_to_next_block(None);
+
+        assert!(Gear::is_active(pid));
+        assert!(Gear::is_initialized(pid));
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            EMPTY_PAYLOAD.to_vec(),
+            100_000_000_000,
+            0,
+            false,
+        ));
+
+        let mid = get_last_message_id();
+
+        run_to_next_block(None);
+
+        let task = ScheduledTask::WakeMessage(pid, mid);
+
+        assert!(WaitlistOf::<Test>::contains(&pid, &mid));
+        assert!(TaskPoolOf::<Test>::contains(&(Gear::block_number() + 1), &task));
+
+        run_to_next_block(None);
+
+        assert!(WaitlistOf::<Test>::contains(&pid, &mid));
+        assert!(!TaskPoolOf::<Test>::contains(&(Gear::block_number()), &task));
+        assert!(!TaskPoolOf::<Test>::contains(&(Gear::block_number() + 1), &task));
+    });
 }
 
 mod utils {
