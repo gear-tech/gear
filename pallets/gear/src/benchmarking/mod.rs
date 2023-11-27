@@ -128,7 +128,7 @@ const API_BENCHMARK_RUNS: u32 = 1600;
 ///
 /// Same rationale as for [`API_BENCHMARK_RUNS`]. The number is bigger because instruction
 /// benchmarks are faster.
-const INSTR_BENCHMARK_RUNS: u32 = 5000;
+const INSTR_BENCHMARK_RUNS: u32 = 20000;
 
 // Initializes new block.
 fn init_block<T: Config>(previous: Option<T::BlockNumber>)
