@@ -242,11 +242,11 @@ where
 
         use Instruction::*;
         let mut instructions = vec![];
-        for _ in 0..API_BENCHMARK_BATCH_SIZE {
+        for _ in 0..repetitions {
             instructions.extend([I32Const(r as i32), Call(0), I32Const(-1)]);
             unreachable_condition(&mut instructions, I32Eq); // if alloc returns -1 then it's error
 
-            for page in 0..r {
+            for page in 0..API_BENCHMARK_BATCH_SIZE {
                 instructions.extend([I32Const(page as i32), Call(1), I32Const(0)]);
                 unreachable_condition(&mut instructions, I32Ne); // if free returns 0 then it's error
             }
@@ -269,11 +269,11 @@ where
         assert!(n_pages <= max_pages::<T>() as u32);
 
         let mut instructions = vec![];
-        for _ in 0..API_BENCHMARK_BATCH_SIZE {
+        for _ in 0..repetitions {
             instructions.extend([I32Const(n_pages as i32), Call(0), I32Const(-1)]);
             unreachable_condition(&mut instructions, I32Eq); // if alloc returns -1 then it's error
 
-            for i in 0..repetitions {
+            for i in 0..API_BENCHMARK_BATCH_SIZE {
                 let start = i.checked_mul(pages_per_call).unwrap();
                 let end = pages_per_call
                     .checked_sub(1)
