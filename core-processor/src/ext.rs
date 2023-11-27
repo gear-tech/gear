@@ -729,13 +729,13 @@ impl Externalities for Ext {
     }
 
     fn free_range(&mut self, start: WasmPage, end: WasmPage) -> Result<(), Self::AllocError> {
-        let err = AllocExtError::Alloc(AllocError::InvalidFreeRange(start.into(), end.into()));
-
-        if start > end {
-            return Err(err);
-        }
-
-        let page_count: u32 = end.checked_sub(start).ok_or(err)?.into();
+        let page_count: u32 = end
+            .checked_sub(start)
+            .ok_or(AllocExtError::Alloc(AllocError::InvalidFreeRange(
+                start.into(),
+                end.into(),
+            )))?
+            .into();
 
         Ext::charge_gas_if_enough(
             &mut self.context.gas_counter,

@@ -178,9 +178,11 @@ where
             | SysCallName::Debug
             | SysCallName::Panic
             | SysCallName::OomPanic => {/* tests here aren't required, read module docs for more info */},
-            SysCallName::Alloc => check_mem::<T>(false),
-            SysCallName::Free => check_mem::<T>(true),
-            SysCallName::FreeRange => { check_free_range::<T>() },
+
+            SysCallName::Alloc
+            | SysCallName::Free
+            | SysCallName::FreeRange => check_mem::<T>(),
+
             SysCallName::OutOfGas => { /*no need for tests */}
             SysCallName::Random => check_gr_random::<T>(),
             SysCallName::ReserveGas => check_gr_reserve_gas::<T>(),
@@ -381,7 +383,7 @@ where
     });
 }
 
-fn check_mem<T>(check_free: bool)
+fn check_mem<T>()
 where
     T: Config,
     T::AccountId: Origin,
@@ -413,58 +415,24 @@ where
     utils::run_to_next_block::<T>(None);
 
     // no errors occurred
+    assert!(Gear::<T>::is_initialized(pid));
+    assert!(Gear::<T>::is_active(pid));
     assert!(MailboxOf::<T>::is_empty(&default_account));
 
-    if check_free {
-        Gear::<T>::send_message(
-            RawOrigin::Signed(default_account.clone()).into(),
-            pid,
-            b"".to_vec(),
-            50_000_000_000,
-            0u128.unique_saturated_into(),
-            false,
-        )
-        .expect("failed to send message to test program");
-        utils::run_to_next_block::<T>(None);
-
-        // no errors occurred
-        assert!(MailboxOf::<T>::is_empty(&default_account));
-    }
-
-    Gear::<T>::reset();
-}
-
-fn check_free_range<T>()
-where
-    T: Config,
-    T::AccountId: Origin,
-{
-    #[cfg(feature = "std")]
-    utils::init_logger();
-
-    let wasm_module = free_range_wasm::<T>();
-
-    let default_account = utils::default_account();
-    CurrencyOf::<T>::deposit_creating(
-        &default_account,
-        100_000_000_000_000_u128.unique_saturated_into(),
-    );
-
-    // Set default code-hash for create program calls
-    Gear::<T>::upload_program(
+    Gear::<T>::send_message(
         RawOrigin::Signed(default_account.clone()).into(),
-        wasm_module.code,
-        b"free-range-test".to_vec(),
+        pid,
         b"".to_vec(),
         50_000_000_000,
         0u128.unique_saturated_into(),
         false,
     )
-    .expect("failed to upload test program");
-
+    .expect("failed to send message to test program");
     utils::run_to_next_block::<T>(None);
 
     // no errors occurred
+    assert!(Gear::<T>::is_initialized(pid));
+    assert!(Gear::<T>::is_active(pid));
     assert!(MailboxOf::<T>::is_empty(&default_account));
 
     Gear::<T>::reset();
@@ -1246,70 +1214,6 @@ where
     .into()
 }
 
-// (module
-//     (import "env" "memory" (memory 1))
-//     (import "env" "alloc" (func $alloc (param i32) (result i32)))
-//     (import "env" "free" (func $free (param i32)))
-//     (export "init" (func $init))
-//     (export "handle" (func $handle))
-//     (func $init
-//         ;; allocate 2 more pages with expected starting index 1
-//         (block
-//             i32.const 0x2
-//             call $alloc
-//             i32.const 0x1
-//             i32.eq
-//             br_if 0
-//             unreachable
-//         )
-//         ;; put to page with index 2 (the third) some value
-//         (block
-//             i32.const 0x20001
-//             i32.const 0x63
-//             i32.store
-//         )
-//         ;; put to page with index 1 (the second) some value
-//         (block
-//             i32.const 0x10001
-//             i32.const 0x64
-//             i32.store
-//         )
-//         ;; check it has the value
-//         (block
-//             i32.const 0x10001
-//             i32.load
-//             i32.const 0x65
-//             i32.eq
-//             br_if 0
-//             unreachable
-//         )
-//         ;; remove page with index 1 (the second page)
-//         (block
-//             i32.const 0x1
-//             call $free
-//         )
-//     )
-//     (func $handle
-//         ;; check that the second page is empty
-//         (block
-//             i32.const 0x10001
-//             i32.load
-//             i32.const 0x0
-//             i32.eq
-//             br_if 0
-//             unreachable
-//         )
-//         ;; check that the third page has data
-//         (block
-//             i32.const 0x20001
-//             i32.load
-//             i32.const 0x63
-//             i32.eq
-//             br_if 0
-//             unreachable
-//         )
-//     )
-// )
 fn alloc_free_test_wasm<T: Config>() -> WasmModule<T>
 where
     T::AccountId: Origin,
@@ -1318,28 +1222,35 @@ where
 
     ModuleDefinition {
         memory: Some(ImportedMemory::new(1)),
-        imported_functions: vec![SysCallName::Alloc, SysCallName::Free],
+        imported_functions: vec![
+            SysCallName::Alloc,
+            SysCallName::Free,
+            SysCallName::FreeRange,
+        ],
         init_body: Some(FuncBody::new(
             vec![],
             Instructions::new(vec![
-                // ;; allocate 2 more pages with expected starting index 1
+                // ;; allocate 5 pages
                 Instruction::Block(BlockType::NoResult),
-                Instruction::I32Const(0x2),
+                Instruction::I32Const(0x5),
                 Instruction::Call(0),
                 Instruction::I32Const(0x1),
                 Instruction::I32Eq,
                 Instruction::BrIf(0),
                 Instruction::Unreachable,
                 Instruction::End,
-                // ;; put to page with index 2 (the third) some value
-                Instruction::Block(BlockType::NoResult),
-                Instruction::I32Const(0x20001),
-                Instruction::I32Const(0x63),
-                Instruction::I32Store(2, 0),
-                Instruction::End,
-                // ;; put to page with index 1 (the second) some value
+                // ;; put some values in pages 2-5
                 Instruction::Block(BlockType::NoResult),
                 Instruction::I32Const(0x10001),
+                Instruction::I32Const(0x61),
+                Instruction::I32Store(2, 0),
+                Instruction::I32Const(0x20001),
+                Instruction::I32Const(0x62),
+                Instruction::I32Store(2, 0),
+                Instruction::I32Const(0x30001),
+                Instruction::I32Const(0x63),
+                Instruction::I32Store(2, 0),
+                Instruction::I32Const(0x40001),
                 Instruction::I32Const(0x64),
                 Instruction::I32Store(2, 0),
                 Instruction::End,
@@ -1347,16 +1258,22 @@ where
                 Instruction::Block(BlockType::NoResult),
                 Instruction::I32Const(0x10001),
                 Instruction::I32Load(2, 0),
-                Instruction::I32Const(0x64),
+                Instruction::I32Const(0x61),
                 Instruction::I32Eq,
                 Instruction::BrIf(0),
                 Instruction::Unreachable,
                 Instruction::End,
-                // ;; remove page with index 1 (the second page)
+                // ;; remove second page
                 Instruction::Block(BlockType::NoResult),
                 Instruction::I32Const(0x1),
                 Instruction::Call(1),
                 Instruction::Drop,
+                Instruction::End,
+                // remove pages 2-4
+                Instruction::Block(BlockType::NoResult),
+                Instruction::I32Const(0x1),
+                Instruction::I32Const(0x3),
+                Instruction::Call(2),
                 Instruction::End,
                 Instruction::End,
             ]),
@@ -1364,7 +1281,7 @@ where
         handle_body: Some(FuncBody::new(
             vec![],
             Instructions::new(vec![
-                // ;; check that the second page is empty
+                // check that the second page is empty
                 Instruction::Block(BlockType::NoResult),
                 Instruction::I32Const(0x10001),
                 Instruction::I32Load(2, 0),
@@ -1373,11 +1290,20 @@ where
                 Instruction::BrIf(0),
                 Instruction::Unreachable,
                 Instruction::End,
-                // ;; check that the third page has data
+                // check that the third page is empty
                 Instruction::Block(BlockType::NoResult),
                 Instruction::I32Const(0x20001),
                 Instruction::I32Load(2, 0),
-                Instruction::I32Const(0x63),
+                Instruction::I32Const(0x0),
+                Instruction::I32Eq,
+                Instruction::BrIf(0),
+                Instruction::Unreachable,
+                Instruction::End,
+                // check that the 5th page still has data
+                Instruction::Block(BlockType::NoResult),
+                Instruction::I32Const(0x40001),
+                Instruction::I32Load(2, 0),
+                Instruction::I32Const(0x64),
                 Instruction::I32Eq,
                 Instruction::BrIf(0),
                 Instruction::Unreachable,
@@ -1389,95 +1315,91 @@ where
     }
     .into()
 }
+// fn alloc_free_test_wasm<T: Config>() -> WasmModule<T>
+// where
+//     T::AccountId: Origin,
+// {
+//     use gear_wasm_instrument::parity_wasm::elements::{FuncBody, Instructions};
 
-fn free_range_wasm<T: Config>() -> WasmModule<T>
-where
-    T::AccountId: Origin,
-{
-    use gear_wasm_instrument::parity_wasm::elements::{FuncBody, Instructions};
-
-    ModuleDefinition {
-        memory: Some(ImportedMemory::new(1)),
-        imported_functions: vec![SysCallName::Alloc, SysCallName::FreeRange],
-        init_body: Some(FuncBody::new(
-            vec![],
-            Instructions::new(vec![
-                // ;; allocate 3 more pages with expected starting index 1
-                Instruction::Block(BlockType::NoResult),
-                Instruction::I32Const(0x3),
-                Instruction::Call(0),
-                Instruction::I32Const(0x1),
-                Instruction::I32Eq,
-                Instruction::BrIf(0),
-                Instruction::Unreachable,
-                Instruction::End,
-                // ;; put to page with index 3
-                Instruction::Block(BlockType::NoResult),
-                Instruction::I32Const(0x30001),
-                Instruction::I32Const(0x63),
-                Instruction::I32Store(2, 0),
-                Instruction::End,
-                // ;; put to page with index 2
-                Instruction::Block(BlockType::NoResult),
-                Instruction::I32Const(0x20001),
-                Instruction::I32Const(0x63),
-                Instruction::I32Store(2, 0),
-                Instruction::End,
-                // ;; put to page with index 1
-                Instruction::Block(BlockType::NoResult),
-                Instruction::I32Const(0x10001),
-                Instruction::I32Const(0x64),
-                Instruction::I32Store(2, 0),
-                Instruction::End,
-                // ;; check it has the value
-                Instruction::Block(BlockType::NoResult),
-                Instruction::I32Const(0x10001),
-                Instruction::I32Load(2, 0),
-                Instruction::I32Const(0x64),
-                Instruction::I32Eq,
-                Instruction::BrIf(0),
-                Instruction::Unreachable,
-                Instruction::End,
-                // ;; remove page with index 1-2 (the second and the third page)
-                Instruction::Block(BlockType::NoResult),
-                Instruction::Unreachable,
-                Instruction::I32Const(0x44),
-                Instruction::I32Const(0x2),
-                Instruction::Call(2),
-                Instruction::Drop,
-                Instruction::Drop,
-                Instruction::End,
-                // ;; check that the first page is empty
-                Instruction::Block(BlockType::NoResult),
-                Instruction::I32Const(0x10001),
-                Instruction::I32Load(2, 0),
-                Instruction::I32Const(0x0),
-                Instruction::I32Eq,
-                Instruction::BrIf(0),
-                Instruction::Unreachable,
-                Instruction::End,
-                // ;; check that the second page is empty
-                Instruction::Block(BlockType::NoResult),
-                Instruction::I32Const(0x20001),
-                Instruction::I32Load(2, 0),
-                Instruction::I32Const(0x0),
-                Instruction::I32Eq,
-                Instruction::BrIf(0),
-                Instruction::Unreachable,
-                Instruction::End,
-                // ;; check that the third page has data
-                Instruction::Block(BlockType::NoResult),
-                Instruction::I32Const(0x30001),
-                Instruction::I32Load(2, 0),
-                Instruction::I32Const(0x63),
-                Instruction::I32Eq,
-                Instruction::BrIf(0),
-                Instruction::Unreachable,
-                Instruction::End,
-                Instruction::End,
-            ]),
-        )),
-        ..Default::default()
-    }
-    .into()
-}
+//     ModuleDefinition {
+//         memory: Some(ImportedMemory::new(1)),
+//         imported_functions: vec![
+//             SysCallName::Alloc,
+//             SysCallName::Free,
+//             SysCallName::Size,
+//             SysCallName::Debug,
+//         ],
+//         init_body: Some(FuncBody::new(
+//             vec![],
+//             Instructions::new(vec![
+//                 // ;; allocate 2 more pages with expected starting index 1
+//                 Instruction::Block(BlockType::NoResult),
+//                 Instruction::I32Const(0x2),
+//                 Instruction::Call(0),
+//                 Instruction::I32Const(0x1),
+//                 Instruction::I32Eq,
+//                 Instruction::BrIf(0),
+//                 Instruction::Unreachable,
+//                 Instruction::End,
+//                 // ;; put to page with index 2 (the third) some value
+//                 Instruction::Block(BlockType::NoResult),
+//                 Instruction::I32Const(0x20001),
+//                 Instruction::I32Const(0x63),
+//                 Instruction::I32Store(2, 0),
+//                 Instruction::End,
+//                 // ;; put to page with index 1 (the second) some value
+//                 Instruction::Block(BlockType::NoResult),
+//                 Instruction::I32Const(0x10001),
+//                 Instruction::I32Const(0x64),
+//                 Instruction::I32Store(2, 0),
+//                 Instruction::End,
+//                 // ;; check it has the value
+//                 Instruction::Block(BlockType::NoResult),
+//                 Instruction::I32Const(0x10001),
+//                 Instruction::I32Load(2, 0),
+//                 Instruction::I32Const(0x64),
+//                 Instruction::I32Eq,
+//                 Instruction::BrIf(0),
+//                 Instruction::Unreachable,
+//                 Instruction::End,
+//                 // ;; remove page with index 1 (the second page)
+//                 Instruction::Block(BlockType::NoResult),
+//                 Instruction::I32Const(0x1),
+//                 Instruction::Call(1),
+//                 Instruction::End,
+//                 Instruction::End,
+//             ]),
+//         )),
+//         handle_body: Some(FuncBody::new(
+//             vec![],
+//             Instructions::new(vec![
+//                 // ;; decide path
+//                 Instruction::Block(BlockType::NoResult),
+//                 Instruction::Call(2),
+//                 Instruction::Call(3),
+//                 Instruction::End,
+//                 // ;; check that the second page is empty
+//                 Instruction::Block(BlockType::NoResult),
+//                 Instruction::I32Const(0x10001),
+//                 Instruction::I32Load(2, 0),
+//                 Instruction::I32Const(0x0),
+//                 Instruction::I32Eq,
+//                 Instruction::BrIf(0),
+//                 Instruction::Unreachable,
+//                 Instruction::End,
+//                 // ;; check that the third page has data
+//                 Instruction::Block(BlockType::NoResult),
+//                 Instruction::I32Const(0x20001),
+//                 Instruction::I32Load(2, 0),
+//                 Instruction::I32Const(0x63),
+//                 Instruction::I32Eq,
+//                 Instruction::BrIf(0),
+//                 Instruction::Unreachable,
+//                 Instruction::End,
+//                 Instruction::End,
+//             ]),
+//         )),
+//         ..Default::default()
+//     }
+//     .into()
+// }
