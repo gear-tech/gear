@@ -42,7 +42,32 @@ mod panic_handler {
         ext::panic("no info")
     }
 
+    /// Panic handler for nightly Rust.
     #[cfg(feature = "debug")]
+    #[cfg(feature = "panic-messages")]
+    #[panic_handler]
+    pub fn panic(panic_info: &PanicInfo) -> ! {
+        use crate::prelude::format;
+
+        let message = panic_info.message();
+        let msg = match (message, panic_info.location()) {
+            (Some(msg), Some(loc)) => {
+                format!("'{msg}', {}:{}:{}", loc.file(), loc.line(), loc.column())
+            }
+            (Some(msg), None) => format!("'{msg}'"),
+            (None, Some(loc)) => {
+                format!("{}:{}:{}", loc.file(), loc.line(), loc.column())
+            }
+            _ => ext::panic("no info"),
+        };
+
+        crate::debug!("panic occurred: {msg}");
+        ext::panic(&msg)
+    }
+
+    /// Panic handler for stable Rust.
+    #[cfg(feature = "debug")]
+    #[cfg(not(feature = "panic-messages"))]
     #[panic_handler]
     pub fn panic(panic_info: &PanicInfo) -> ! {
         use crate::prelude::{borrow::Cow, format, ToString};

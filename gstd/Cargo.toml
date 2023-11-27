@@ -32,7 +32,10 @@ panic-handler = []
 
 ## Enables all features below.
 ## These features depend on unstable Rust API and require nightly toolchain.
-nightly = ["oom-handler"]
+nightly = ["panic-messages", "oom-handler"]
+## When enabled, additional context information is available from
+## panic messages in debug mode. Relies on [`panic_info_message`][rust-66745].
+panic-messages = []
 ## When enabled, an OOM error handler is provided.
 ## Relies on [`alloc_error_handler`][rust-51540],
 oom-handler = []
@@ -43,6 +46,7 @@ oom-handler = []
 ## and is therefore disabled by default.
 debug = ["galloc/debug", "gcore/debug"]
 
+#! [rust-66745]: https://github.com/rust-lang/rust/issues/66745
 #! [rust-51540]: https://github.com/rust-lang/rust/issues/51540
 
 [package.metadata.docs.rs]
