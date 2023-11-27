@@ -30,7 +30,7 @@ fn proptest_input_validity() {
 
 #[test]
 fn test_corpus_c6e2a597aebabecc9bbb11eefdaa4dd8a6770188() {
-    let input = include_bytes!("../fuzz/corpus/main/c6e2a597aebabecc9bbb11eefdaa4dd8a6770188");
+    let input = include_bytes!("../fuzz_corpus/c6e2a597aebabecc9bbb11eefdaa4dd8a6770188");
     assert!(run_impl(input).is_ok());
 }
 

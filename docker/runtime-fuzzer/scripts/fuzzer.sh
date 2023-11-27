@@ -90,7 +90,6 @@ function start_container_post {
     # Clear folder with corpus
     rm -rf $WORK_DIR/corpus/*
     # Generate new first seed
-    # TODO!
     dd if=/dev/urandom of=$WORK_DIR/corpus/first-seed bs=1 count=350000
 }
 
