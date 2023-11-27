@@ -28,6 +28,7 @@ fn proptest_input_validity() {
     assert!(MIN_GEAR_CALLS_BYTES <= MAX_GEAR_CALLS_BYTES);
 }
 
+// This is a crashing input before c85f4563ce35d822958a23a92d85f798252c8466 commit to master.
 #[test]
 fn test_corpus_c6e2a597aebabecc9bbb11eefdaa4dd8a6770188() {
     let input = include_bytes!("../fuzz_corpus/c6e2a597aebabecc9bbb11eefdaa4dd8a6770188");
