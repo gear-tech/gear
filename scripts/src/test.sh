@@ -96,7 +96,7 @@ run_fuzzer() {
 }
 
 run_fuzzer_tests() {
-  # This includes property tests defined in runtime-fuzzer crate.
+  # This includes property tests for runtime-fuzzer.
   cargo nextest run -p runtime-fuzzer
 }
 
