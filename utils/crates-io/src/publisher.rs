@@ -1,6 +1,6 @@
 //! Packages publisher
 
-use crate::{rename, ManifestWithPath, PACKAGES};
+use crate::{rename, ManifestWithPath, PACKAGES, SAFE_DEPENDENCIES, STACKED_DEPENDENCIES};
 use anyhow::Result;
 use cargo_metadata::{Metadata, MetadataCommand};
 use std::{
@@ -21,7 +21,15 @@ impl Publisher {
         let metadata = MetadataCommand::new().no_deps().exec()?;
         let graph = BTreeMap::new();
         let index = HashMap::<String, usize>::from_iter(
-            PACKAGES.into_iter().enumerate().map(|(i, p)| (p.into(), i)),
+            [
+                SAFE_DEPENDENCIES.to_vec(),
+                STACKED_DEPENDENCIES.into(),
+                PACKAGES.into(),
+            ]
+            .concat()
+            .into_iter()
+            .enumerate()
+            .map(|(i, p)| (p.into(), i)),
         );
 
         Ok(Self {
