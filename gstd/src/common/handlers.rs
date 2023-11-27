@@ -45,29 +45,38 @@ mod panic_handler {
     #[cfg(feature = "debug")]
     #[panic_handler]
     pub fn panic(panic_info: &PanicInfo) -> ! {
-        use crate::prelude::format;
-        #[cfg(not(feature = "panic-messages"))]
-        let message = None::<&core::fmt::Arguments<'_>>;
-        #[cfg(feature = "panic-messages")]
-        let message = panic_info.message();
+        use crate::prelude::{borrow::Cow, format, ToString};
 
-        let msg = match (message, panic_info.location()) {
-            (Some(msg), Some(loc)) => format!(
-                "'{:?}', {}:{}:{}",
-                msg,
-                loc.file(),
-                loc.line(),
-                loc.column()
-            ),
-            (Some(msg), None) => format!("'{msg:?}'"),
-            (None, Some(loc)) => {
-                format!("{}:{}:{}", loc.file(), loc.line(), loc.column())
-            }
-            _ => ext::panic("no info"),
+        // Default panic handler message format:
+        // Rust  <1.73: `panicked at '{message}', {location}`
+        // Rust >=1.73: `panicked at {location}:\n{message}`
+        // source: https://github.com/rust-lang/rust/pull/112849
+
+        const PANICKED_AT_LEN: usize = "panicked at ".len();
+
+        let default_panic_msg = panic_info.to_string();
+        let is_old_panic_format = default_panic_msg.as_bytes().get(PANICKED_AT_LEN) == Some(&b'\'');
+
+        let maybe_panic_msg = if is_old_panic_format {
+            default_panic_msg.get(PANICKED_AT_LEN..).map(Cow::Borrowed)
+        } else {
+            let mut iter = default_panic_msg.splitn(2, ":\n");
+            iter.next().zip(iter.next()).and_then(|(line1, line2)| {
+                let msg = line2;
+                line1
+                    .get(PANICKED_AT_LEN..line1.len())
+                    .map(|location| Cow::Owned(format!("'{msg}', {location}")))
+            })
         };
 
-        crate::debug!("panic occurred: {msg}");
-        ext::panic(&msg)
+        if let Some(ref panic_msg) = maybe_panic_msg {
+            let msg = panic_msg.as_ref();
+
+            crate::debug!("panic occurred: {msg}");
+            ext::panic(msg)
+        } else {
+            ext::panic("no info")
+        }
     }
 }
 #[cfg(feature = "panic-handler")]
