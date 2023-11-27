@@ -505,6 +505,35 @@ impl Ext {
         }
     }
 
+    /// Checking that reservation could be charged for
+    /// dispatch stash with given delay.
+    fn check_reservation_gas_limit_for_delayed_sending(
+        &mut self,
+        reservation_id: &ReservationId,
+        delay: u32,
+    ) -> Result<(), FallibleExtError> {
+        if delay != 0 {
+            let limit = self
+                .context
+                .gas_reserver
+                .limit_of(reservation_id)
+                .ok_or(ReservationError::InvalidReservationId)?;
+
+            // Take delay and get cost of block.
+            // reserve = wait_cost * (delay + reserve_for).
+            let cost_per_block = self.context.dispatch_hold_cost;
+            let waiting_reserve = (self.context.reserve_for as u64)
+                .saturating_add(delay as u64)
+                .saturating_mul(cost_per_block);
+
+            if limit < waiting_reserve {
+                return Err(MessageError::InsufficientGasForDelayedSending.into());
+            }
+        }
+
+        Ok(())
+    }
+
     fn reduce_gas(&mut self, gas_limit: GasLimit) -> Result<(), FallibleExtError> {
         if self.context.gas_counter.reduce(gas_limit) != ChargeResult::Enough {
             Err(FallibleExecutionError::NotEnoughGas.into())
@@ -522,20 +551,61 @@ impl Ext {
     }
 
     // It's temporary fn, used to solve `core-audit/issue#22`.
-    fn safe_gasfull_sends<T: Packet>(&mut self, packet: &T) -> Result<(), FallibleExtError> {
-        let outgoing_gasless = self.outgoing_gasless;
+    fn safe_gasfull_sends<T: Packet>(
+        &mut self,
+        packet: &T,
+        delay: u32,
+    ) -> Result<(), FallibleExtError> {
+        // In case of delayed sending from origin message we keep some gas
+        // for it while processing outgoing sending notes so gas for
+        // previously gasless sends should appear to prevent their
+        // invasion for gas for storing delayed message.
+        match (packet.gas_limit(), delay != 0) {
+            // Zero gasfull instant.
+            //
+            // In this case there is nothing to do.
+            (Some(0), false) => {}
 
-        match packet.gas_limit() {
-            Some(x) if x != 0 => {
-                self.outgoing_gasless = 0;
-
-                let prev_gasless_fee =
-                    outgoing_gasless.saturating_mul(self.context.mailbox_threshold);
+            // Any non-zero gasfull or zero gasfull with delay.
+            //
+            // In case of zero gasfull with delay it's pretty similar to
+            // gasless with delay case.
+            //
+            // In case of any non-zero gasfull we prevent stealing for any
+            // previous gasless-es's thresholds from gas supposed to be
+            // sent with this `packet`.
+            (Some(_), _) => {
+                let prev_gasless_fee = self
+                    .outgoing_gasless
+                    .saturating_mul(self.context.mailbox_threshold);
 
                 self.reduce_gas(prev_gasless_fee)?;
+
+                self.outgoing_gasless = 0;
             }
-            None => self.outgoing_gasless = outgoing_gasless.saturating_add(1),
-            _ => {}
+
+            // Gasless with delay.
+            //
+            // In this case we must give threshold for each uncovered gasless-es
+            // sent, otherwise they will steal gas from this `packet` that was
+            // supposed to pay for delay.
+            //
+            // It doesn't guarantee threshold for itself.
+            (None, true) => {
+                let prev_gasless_fee = self
+                    .outgoing_gasless
+                    .saturating_mul(self.context.mailbox_threshold);
+
+                self.reduce_gas(prev_gasless_fee)?;
+
+                self.outgoing_gasless = 1;
+            }
+
+            // Gasless instant.
+            //
+            // In this case there is no need to give any thresholds for previous
+            // gasless-es: only counter should be increased.
+            (None, false) => self.outgoing_gasless = self.outgoing_gasless.saturating_add(1),
         };
 
         Ok(())
@@ -593,6 +663,7 @@ impl Ext {
                 return Err(MessageError::InsufficientGasForDelayedSending.into());
             }
         }
+
         Ok(())
     }
 
@@ -805,10 +876,9 @@ impl Externalities for Ext {
         delay: u32,
     ) -> Result<MessageId, Self::FallibleError> {
         self.check_forbidden_destination(msg.destination())?;
-        self.safe_gasfull_sends(&msg)?;
+        self.safe_gasfull_sends(&msg, delay)?;
         self.charge_expiring_resources(&msg, true)?;
         self.charge_sending_fee(delay)?;
-
         self.charge_for_dispatch_stash_hold(delay)?;
 
         let msg_id = self
@@ -828,12 +898,12 @@ impl Externalities for Ext {
     ) -> Result<MessageId, Self::FallibleError> {
         self.check_forbidden_destination(msg.destination())?;
         self.check_message_value(msg.value())?;
-        self.check_gas_limit(msg.gas_limit())?;
+        // TODO: unify logic around different source of gas (may be origin msg,
+        // or reservation) in order to implement #1828.
+        self.check_reservation_gas_limit_for_delayed_sending(&id, delay)?;
         // TODO: gasful sending (#1828)
         self.charge_message_value(msg.value())?;
         self.charge_sending_fee(delay)?;
-
-        self.charge_for_dispatch_stash_hold(delay)?;
 
         self.context.gas_reserver.mark_used(id)?;
 
@@ -852,7 +922,7 @@ impl Externalities for Ext {
     // TODO: Consider per byte charge (issue #2255).
     fn reply_commit(&mut self, msg: ReplyPacket) -> Result<MessageId, Self::FallibleError> {
         self.check_forbidden_destination(self.context.message_context.reply_destination())?;
-        self.safe_gasfull_sends(&msg)?;
+        self.safe_gasfull_sends(&msg, 0)?;
         self.charge_expiring_resources(&msg, false)?;
         self.charge_sending_fee(0)?;
 
@@ -1144,11 +1214,9 @@ impl Externalities for Ext {
         delay: u32,
     ) -> Result<(MessageId, ProgramId), Self::FallibleError> {
         // We don't check for forbidden destination here, since dest is always unique and almost impossible to match SYSTEM_ID
-
-        self.safe_gasfull_sends(&packet)?;
+        self.safe_gasfull_sends(&packet, delay)?;
         self.charge_expiring_resources(&packet, true)?;
         self.charge_sending_fee(delay)?;
-
         self.charge_for_dispatch_stash_hold(delay)?;
 
         let code_hash = packet.code_id();

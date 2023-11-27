@@ -21,6 +21,7 @@ use crate::{
     mailbox::Mailbox,
     manager::{Actors, Balance, ExtManager},
     program::{Program, ProgramIdWrapper},
+    BLOCK_DURATION_IN_MSECS,
 };
 use codec::{Decode, DecodeAll};
 use colored::Colorize;
@@ -174,7 +175,10 @@ impl System {
 
                 let next_block_number = manager.block_info.height + 1;
                 manager.block_info.height = next_block_number;
-                manager.block_info.timestamp += 1000;
+                manager.block_info.timestamp = manager
+                    .block_info
+                    .timestamp
+                    .saturating_add(BLOCK_DURATION_IN_MSECS);
                 manager.process_delayed_dispatches(next_block_number)
             })
             .collect::<Vec<Vec<_>>>()

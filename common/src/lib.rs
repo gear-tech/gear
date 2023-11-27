@@ -66,7 +66,6 @@ use gear_core::{
 };
 use primitive_types::H256;
 use sp_arithmetic::traits::{BaseArithmetic, One, Saturating, UniqueSaturatedInto, Unsigned};
-use sp_core::crypto::UncheckedFrom;
 use sp_std::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
     prelude::*,
@@ -108,7 +107,7 @@ impl Origin for sp_runtime::AccountId32 {
     }
 
     fn from_origin(v: H256) -> Self {
-        sp_runtime::AccountId32::unchecked_from(v)
+        Self::new(v.0)
     }
 }
 

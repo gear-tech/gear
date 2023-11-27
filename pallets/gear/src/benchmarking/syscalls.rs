@@ -182,7 +182,7 @@ where
                 program.gas_reservation_map.insert(
                     ReservationId::from(x as u64),
                     GasReservationSlot {
-                        amount: 1_000,
+                        amount: 100_000,
                         start: 1,
                         finish: 100,
                     },

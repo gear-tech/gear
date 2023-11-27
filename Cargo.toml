@@ -1,5 +1,5 @@
 [workspace.package]
-version = "1.0.2"
+version = "1.0.3"
 authors = ["Gear Technologies"]
 edition = "2021"
 license = "GPL-3.0"
@@ -26,6 +26,7 @@ members = [
     "examples/autoreply",
     "examples/calc-hash",
     "examples/custom",
+    "examples/delayed-reservation-sender",
     "examples/compose",
     "examples/constructor",
     "examples/delayed-sender",
@@ -57,6 +58,7 @@ members = [
     "examples/rwlock",
     "examples/send-from-reservation",
     "examples/signal-entry",
+    "examples/signal-wait",
     "examples/state-rollback",
     "examples/sync-duplicate",
     "examples/sys-calls",
@@ -73,6 +75,7 @@ members = [
     "gclient",
     "gcore",
     "gmeta",
+    "gmeta/codegen",
     "gsdk",
     "gsdk/codegen",
     "gsdk/api-gen",
@@ -98,6 +101,8 @@ base64 = "0.21.5"
 byteorder = { version = "1.5.0", default-features = false }
 blake2-rfc = { version = "0.2.18", default-features = false }
 bs58 = { version = "0.5.0", default-features = false }
+# TODO: upgrade this package ( issue #2694 )
+cargo_metadata = "=0.15.3"
 clap = { version = "4.4.8" }
 codec = { package = "parity-scale-codec", version = "3.6.4", default-features = false }
 color-eyre = "0.6.2"
@@ -109,6 +114,7 @@ dlmalloc = { git = "https://github.com/gear-tech/dlmalloc-rust.git" }
 dyn-clonable = "0.9.0"
 enum-iterator = "1.4.0"
 env_logger = "0.10"
+environmental = "1.1.3"
 futures = { version = "0.3", default-features = false }
 futures-timer = "3.0.2"
 futures-util = "0.3.29"
@@ -161,13 +167,17 @@ syn = "2.0.39"
 thiserror = "1.0.50"
 tokio = { version = "1.34.0" }
 url = "2.4.1"
-wat = "1.0.79"
+wat = "1.0.80"
 wabt = "0.10.0"
+wasmer = "2.2"
+wasmer-cache = "2.2.1"
+wasmer-types = "2.2"
 wasmi = { version = "0.14.0", default-features = false }
 wasmparser = { package = "wasmparser-nostd", version = "0.100.1", default-features = false }
 which = "4.4.0"
 winapi = "0.3.9"
 paste = "1.0"
+tempfile = "3.8.1"
 
 # Published deps
 #
@@ -190,10 +200,11 @@ gcore = { path = "gcore" }
 gcli = { path = "gcli" }
 gclient = { path = "gclient" }
 gsdk = { path = "gsdk" }
-gstd = { path = "gstd" }
+gstd = { path = "gstd", features = [ "nightly" ] }
 gsys = { path = "gsys" }
 gtest = { path = "gtest" }
 gmeta = { path = "gmeta" }
+gmeta-codegen = { path = "gmeta/codegen" }
 gear-authorship = { path = "node/authorship" }
 gear-core-backend = { path = "core-backend", default-features = false }
 gear-call-gen = { path = "utils/call-gen" }
@@ -375,6 +386,7 @@ demo-calc-hash = { path = "examples/calc-hash" }
 demo-calc-hash-in-one-block = { path = "examples/calc-hash/in-one-block" }
 demo-calc-hash-over-blocks = { path = "examples/calc-hash/over-blocks" }
 demo-custom = { path = "examples/custom" }
+demo-delayed-reservation-sender = { path = "examples/delayed-reservation-sender" }
 demo-compose = { path = "examples/compose" }
 demo-constructor = { path = "examples/constructor", default-features = false }
 demo-delayed-sender = { path = "examples/delayed-sender" }
@@ -405,6 +417,7 @@ demo-reserve-gas = { path = "examples/reserve-gas", default-features = false }
 demo-rwlock = { path = "examples/rwlock" }
 demo-send-from-reservation = { path = "examples/send-from-reservation" }
 demo-signal-entry = { path = "examples/signal-entry" }
+demo-signal-wait = { path = "examples/signal-wait" }
 demo-state-rollback = { path = "examples/state-rollback" }
 demo-sync-duplicate = { path = "examples/sync-duplicate" }
 demo-vec = { path = "examples/vec" }
@@ -422,8 +435,6 @@ demo-wat = { path = "examples/wat" }
 cfg-if = "1.0.0"                                                          # gear-lazy-pages
 errno = "0.3"                                                             # gear-lazy-pages
 nix = "0.26.4"                                                            # gear-lazy-pages
-# TODO: upgrade this package ( issue #2694 )
-cargo_metadata = "=0.15.3"                                                # utils/wasm-builder
 impl-trait-for-tuples = "0.2.2"                                           # pallets/staking-rewards
 indexmap = "2.1.0"                                                        # utils/weight-diff
 indicatif = "*"                                                           # utils/wasm-gen
@@ -444,7 +455,7 @@ thousands = "0.2.0"                                                       # util
 toml = "0.7.8"                                                            # utils/wasm-builder
 tracing = "0.1.40"                                                        # utils/node-loder
 tracing-appender = "0.2"                                                  # utils/node-loder
-tracing-subscriber = "0.3.16"                                             # utils/node-loder
+tracing-subscriber = "0.3.18"                                             # utils/node-loder
 trybuild = "1"                                                            # gstd/codegen
 wasm-opt = "0.111.0"                                                      # utils/wasm-builder
 wasmprinter = "0.2"                                                       # utils/wasm-gen
@@ -453,6 +464,9 @@ fail = "0.5"                                                              # gear
 scale-value = "^0.12"                                                     # gsdk
 heck = "0.4.1"                                                            # gsdk-api-gen
 etc = "0.1.16"                                                            # gcli
+cargo_toml = "0.15.3"                                                     # crates-io
+crates-io = "0.37.0"                                                      # crates-io
+curl = "0.4.44"                                                           # crates-io
 scale-decode = "0.9.0"                                                    # gsdk
 directories = "5.0.1"                                                     # utils/key-finder
 num-traits = { version = "0.2", default-features = false }                # gear-core
