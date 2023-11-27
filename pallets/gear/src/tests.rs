@@ -15028,6 +15028,64 @@ fn test_gas_info_of_terminated_program() {
     })
 }
 
+#[test]
+fn test_handle_signal_wait() {
+    use demo_signal_wait::WASM_BINARY;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            100_000_000_000,
+            0,
+            false,
+        ));
+
+        let pid = get_last_program_id();
+
+        run_to_next_block(None);
+
+        assert!(Gear::is_active(pid));
+        assert!(Gear::is_initialized(pid));
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            EMPTY_PAYLOAD.to_vec(),
+            50_000_000_000,
+            0,
+            false,
+        ));
+
+        let mid = get_last_message_id();
+
+        run_to_next_block(None);
+
+        assert_ok!(GasHandlerOf::<Test>::get_system_reserve(mid));
+        assert!(WaitlistOf::<Test>::contains(&pid, &mid));
+
+        run_to_next_block(None);
+
+        let signal_mid = MessageId::generate_signal(mid);
+        assert!(WaitlistOf::<Test>::contains(&pid, &signal_mid));
+
+        let (mid, block) = get_last_message_waited();
+
+        assert_eq!(mid, signal_mid);
+
+        System::set_block_number(block - 1);
+        Gear::set_block_number(block - 1);
+        run_to_next_block(None);
+
+        assert!(!WaitlistOf::<Test>::contains(&pid, &signal_mid));
+
+        assert_total_dequeued(4);
+    });
+}
+
 mod utils {
     #![allow(unused)]
 
