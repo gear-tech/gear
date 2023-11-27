@@ -48,8 +48,9 @@ impl Publisher {
             }
 
             let version = p.version.to_string();
+            println!("Verifying {}@{} ...", &p.name, &version);
             if crate::verify(&p.name, &version)? {
-                println!("Package {}@{} already published.", &p.name, &version);
+                println!("Package {}@{} already published .", &p.name, &version);
                 continue;
             }
 
@@ -95,7 +96,7 @@ impl Publisher {
             println!("Publishing {path:?}");
             let status = crate::publish(&path.to_string_lossy())?;
             if !status.success() {
-                panic!("Failed to publish package {path:?}...");
+                panic!("Failed to publish package {path:?} ...");
             }
         }
 
