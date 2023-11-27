@@ -43,7 +43,7 @@ jobs:
           echo "cache: ${CACHE}"
           echo "cache=${CACHE}" >> $GITHUB_OUTPUT
 
-      - uses: actions/github-script@v6
+      - uses: actions/github-script@v7
         env:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           TITLE: ${{ github.event.pull_request.title }}

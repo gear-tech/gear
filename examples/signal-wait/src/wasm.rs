@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -16,9 +16,24 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Common modules for each Gear smart contract.
+use gstd::{exec, prelude::*};
 
-pub mod errors;
-#[cfg(target_arch = "wasm32")]
-mod handlers;
-pub mod primitives;
+static mut FIRST_EXEC: bool = true;
+
+#[no_mangle]
+extern "C" fn handle() {
+    if unsafe { FIRST_EXEC } {
+        unsafe {
+            FIRST_EXEC = false;
+        }
+        exec::system_reserve_gas(1_000_000_000).unwrap();
+        exec::wait_for(1);
+    } else {
+        panic!();
+    }
+}
+
+#[no_mangle]
+extern "C" fn handle_signal() {
+    exec::wait();
+}
