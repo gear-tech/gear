@@ -122,7 +122,7 @@ const MAX_PAGES: u32 = 512;
 /// This is picked more or less arbitrary. We experimented with different numbers until
 /// the results appeared to be stable. Reducing the number would speed up the benchmarks
 /// but might make the results less precise.
-const API_BENCHMARK_RUNS: u32 = 1600;
+const API_BENCHMARK_RUNS: u32 = 2000;
 
 /// How many runs we do per Instruction benchmark.
 ///
