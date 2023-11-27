@@ -179,12 +179,12 @@ impl ContextOutcome {
 /// Store of previous message execution context.
 #[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
 pub struct ContextStore {
-    outgoing: BTreeMap<u32, Option<Payload>>,
-    reply: Option<Payload>,
-    initialized: BTreeSet<ProgramId>,
-    reply_sent: bool,
-    reservation_nonce: ReservationNonce,
-    system_reservation: Option<u64>,
+    pub outgoing: BTreeMap<u32, Option<Payload>>,
+    pub reply: Option<Payload>,
+    pub initialized: BTreeSet<ProgramId>,
+    pub reply_sent: bool,
+    pub reservation_nonce: ReservationNonce,
+    pub system_reservation: Option<u64>,
 }
 
 impl ContextStore {

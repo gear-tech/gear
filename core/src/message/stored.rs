@@ -156,11 +156,11 @@ impl StoredMessage {
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
 pub struct StoredDispatch {
     /// Entry point.
-    kind: DispatchKind,
+    pub kind: DispatchKind,
     /// Stored message.
-    message: StoredMessage,
+    pub message: StoredMessage,
     /// Previous execution context.
-    context: Option<ContextStore>,
+    pub context: Option<ContextStore>,
 }
 
 impl From<StoredDispatch> for (DispatchKind, StoredMessage, Option<ContextStore>) {
