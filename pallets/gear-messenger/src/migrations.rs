@@ -33,10 +33,10 @@ use {
     sp_std::vec::Vec,
 };
 
-pub struct MigrateToV2<T: Config>(PhantomData<T>);
+pub struct MigrateToV3<T: Config>(PhantomData<T>);
 
-impl<T: Config> MigrateToV2<T> {
-    fn migrate_context_store(ctx: v1::ContextStore) -> ContextStore {
+impl<T: Config> MigrateToV3<T> {
+    fn migrate_context_store(ctx: v2::ContextStore) -> ContextStore {
         ContextStore {
             outgoing: ctx.outgoing,
             reply: ctx.reply,
@@ -47,7 +47,7 @@ impl<T: Config> MigrateToV2<T> {
     }
 }
 
-impl<T: Config> OnRuntimeUpgrade for MigrateToV2<T> {
+impl<T: Config> OnRuntimeUpgrade for MigrateToV3<T> {
     fn on_runtime_upgrade() -> Weight {
         let current = Pallet::<T>::current_storage_version();
         let onchain = Pallet::<T>::on_chain_storage_version();
@@ -59,9 +59,9 @@ impl<T: Config> OnRuntimeUpgrade for MigrateToV2<T> {
         // 1 read for on chain storage version
         let mut weight = T::DbWeight::get().reads(1);
 
-        if current == 2 && onchain == 1 {
+        if current == 3 && onchain == 2 {
             Waitlist::<T>::translate(
-                |_, _, store: (v1::StoredDispatch, Interval<T::BlockNumber>)| {
+                |_, _, store: (v2::StoredDispatch, Interval<T::BlockNumber>)| {
                     weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
                     Some((
                         StoredDispatch {
@@ -74,7 +74,7 @@ impl<T: Config> OnRuntimeUpgrade for MigrateToV2<T> {
                 },
             );
 
-            Dispatches::<T>::translate(|_, store: LinkedNode<MessageId, v1::StoredDispatch>| {
+            Dispatches::<T>::translate(|_, store: LinkedNode<MessageId, v2::StoredDispatch>| {
                 weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
                 Some(LinkedNode {
                     next: store.next,
@@ -87,7 +87,7 @@ impl<T: Config> OnRuntimeUpgrade for MigrateToV2<T> {
             });
 
             DispatchStash::<T>::translate(
-                |_, store: (v1::StoredDispatch, Interval<T::BlockNumber>)| {
+                |_, store: (v2::StoredDispatch, Interval<T::BlockNumber>)| {
                     weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
                     Some((
                         StoredDispatch {
@@ -113,9 +113,9 @@ impl<T: Config> OnRuntimeUpgrade for MigrateToV2<T> {
 
     #[cfg(feature = "try-runtime")]
     fn pre_upgrade() -> Result<Vec<u8>, &'static str> {
-        let mut count = v1::Waitlist::<T>::iter().count();
-        count += v1::Dispatches::<T>::iter().count();
-        count += v1::DispatchStash::<T>::iter().count();
+        let mut count = v2::Waitlist::<T>::iter().count();
+        count += v2::Dispatches::<T>::iter().count();
+        count += v2::DispatchStash::<T>::iter().count();
 
         Ok((count as u64).encode())
     }
@@ -134,7 +134,7 @@ impl<T: Config> OnRuntimeUpgrade for MigrateToV2<T> {
     }
 }
 
-mod v1 {
+mod v2 {
     use crate::{Config, Pallet};
     #[cfg(feature = "try-runtime")]
     use common::storage::{Interval, LinkedNode};
@@ -246,7 +246,7 @@ mod v1 {
 #[cfg(feature = "try-runtime")]
 mod tests {
     use crate::{
-        migrations::{v1, MigrateToV2},
+        migrations::{v2, MigrateToV3},
         mock::*,
     };
     use common::storage::{Interval, LinkedNode};
@@ -257,15 +257,15 @@ mod tests {
     };
 
     #[test]
-    fn migration_to_v2_works() {
+    fn migration_to_v3_works() {
         new_test_ext().execute_with(|| {
-            StorageVersion::new(1).put::<GearMessenger>();
+            StorageVersion::new(2).put::<GearMessenger>();
 
             let pid = ProgramId::from(1u64);
             let mid = MessageId::from(2u64);
             let pid2 = ProgramId::from(3u64);
 
-            let dispatch = v1::StoredDispatch {
+            let dispatch = v2::StoredDispatch {
                 kind: Default::default(),
                 message: StoredMessage::new(
                     mid,
@@ -275,7 +275,7 @@ mod tests {
                     Default::default(),
                     None,
                 ),
-                context: Some(v1::ContextStore {
+                context: Some(v2::ContextStore {
                     outgoing: Default::default(),
                     reply: None,
                     initialized: Default::default(),
@@ -286,7 +286,7 @@ mod tests {
                 }),
             };
 
-            v1::Waitlist::<Test>::insert(
+            v2::Waitlist::<Test>::insert(
                 pid,
                 mid,
                 (
@@ -298,7 +298,7 @@ mod tests {
                 ),
             );
 
-            v1::Dispatches::<Test>::insert(
+            v2::Dispatches::<Test>::insert(
                 mid,
                 LinkedNode {
                     next: None,
@@ -306,7 +306,7 @@ mod tests {
                 },
             );
 
-            v1::DispatchStash::<Test>::insert(
+            v2::DispatchStash::<Test>::insert(
                 mid,
                 (
                     dispatch,
@@ -317,11 +317,11 @@ mod tests {
                 ),
             );
 
-            let state = MigrateToV2::<Test>::pre_upgrade().unwrap();
-            let _ = MigrateToV2::<Test>::on_runtime_upgrade();
-            MigrateToV2::<Test>::post_upgrade(state).unwrap();
+            let state = MigrateToV3::<Test>::pre_upgrade().unwrap();
+            let _ = MigrateToV3::<Test>::on_runtime_upgrade();
+            MigrateToV3::<Test>::post_upgrade(state).unwrap();
 
-            assert_eq!(StorageVersion::get::<GearMessenger>(), 2);
+            assert_eq!(StorageVersion::get::<GearMessenger>(), 3);
         });
     }
 }
