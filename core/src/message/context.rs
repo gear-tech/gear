@@ -178,6 +178,7 @@ impl ContextOutcome {
 
 /// Store of previous message execution context.
 #[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
+#[allow(missing_docs)]
 pub struct ContextStore {
     pub outgoing: BTreeMap<u32, Option<Payload>>,
     pub reply: Option<Payload>,
