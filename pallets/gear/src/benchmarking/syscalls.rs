@@ -237,18 +237,22 @@ where
         Self::prepare_handle_override_max_pages(module, 0, MAX_PAGES_OVERRIDE.into())
     }
 
-    pub fn free(r: u32) -> Result<Exec<T>, &'static str> {
-        assert!(r <= max_pages::<T>() as u32);
+    pub fn free(batches: u32) -> Result<Exec<T>, &'static str> {
+        assert!(batches <= max_pages::<T>() as u32);
 
         use Instruction::*;
         let mut instructions = vec![];
-        for _ in 0..repetitions {
-            instructions.extend([I32Const(r as i32), Call(0), I32Const(-1)]);
+        for _ in 0..batches {
+            instructions.extend([
+                I32Const(API_BENCHMARK_BATCH_SIZE as i32),
+                Call(0),
+                I32Const(-1),
+            ]);
             unreachable_condition(&mut instructions, I32Eq); // if alloc returns -1 then it's error
 
             for page in 0..API_BENCHMARK_BATCH_SIZE {
                 instructions.extend([I32Const(page as i32), Call(1), I32Const(0)]);
-                unreachable_condition(&mut instructions, I32Ne); // if free returns 0 then it's error
+                unreachable_condition(&mut instructions, I32Ne); // if free doesn't returns 0 then it's error
             }
         }
 

@@ -127,6 +127,18 @@ impl From<u32> for SysCallReturnValue {
     }
 }
 
+impl From<i64> for SysCallReturnValue {
+    fn from(value: i64) -> Self {
+        Self(ReturnValue::Value(Value::I64(value)))
+    }
+}
+
+impl From<u64> for SysCallReturnValue {
+    fn from(value: u64) -> Self {
+        Self(ReturnValue::Value(Value::I64(value as i64)))
+    }
+}
+
 pub(crate) trait SysCallContext: Sized {
     fn from_args(args: &[Value]) -> Result<(Self, &[Value]), HostError>;
 }
@@ -675,7 +687,7 @@ where
         })
     }
 
-    pub fn free_range(start: u32, end: u32) -> impl SysCall<Ext> {
+    pub fn free_range(start: u32, end: u32) -> impl SysCall<Ext, i64> {
         InfallibleSysCall::new(RuntimeCosts::FreeRange, move |ctx: &mut CallerWrap<Ext>| {
             let page_err = |_| {
                 UndefinedTerminationReason::Actor(ActorTerminationReason::Trap(
@@ -693,7 +705,9 @@ where
                 UndefinedTerminationReason::Actor(ActorTerminationReason::Trap(
                     TrapExplanation::Unknown,
                 ))
-            })
+            })?;
+
+            Ok(0)
         })
     }
 

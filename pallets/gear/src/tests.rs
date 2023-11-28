@@ -13946,13 +13946,18 @@ fn free_range_oob_error() {
     const WAT: &str = r#"
 (module
     (import "env" "memory" (memory 1))
-    (import "env" "free_range" (func $free_range (param i32) (param i32)))
+    (import "env" "free_range" (func $free_range (param i32) (param i32) (result i64)))
     (export "init" (func $init))
     (func $init
         ;; free impossible and non-existing range
         i32.const 0x0
         i32.const 0xffffff
         call $free_range
+        i64.const 0x0
+        i64.ne
+        if
+            unreachable
+        end
     )
 )
     "#;
@@ -13987,13 +13992,15 @@ fn free_range_invalid_range_error() {
     const WAT: &str = r#"
 (module
     (import "env" "memory" (memory 1))
-    (import "env" "free_range" (func $free_range (param i32) (param i32)))
+    (import "env" "free_range" (func $free_range (param i32) (param i32) (result i64)))
     (export "init" (func $init))
     (func $init
         ;; free invalid range (start > end)
         i32.const 0x55
         i32.const 0x2
         call $free_range
+        ;; syscall should fail
+        unreachable
     )
 )
     "#;
@@ -14029,7 +14036,7 @@ fn free_range_success() {
     (import "env" "memory" (memory 1))
     (import "env" "alloc" (func $alloc (param i32) (result i32)))
     (import "env" "free" (func $free (param i32) (result i32)))
-    (import "env" "free_range" (func $free_range (param i32) (param i32)))
+    (import "env" "free_range" (func $free_range (param i32) (param i32) (result i64)))
     (export "init" (func $init))
     (func $init
         ;; allocate 4 pages
@@ -14056,6 +14063,7 @@ fn free_range_success() {
         i32.const 0x1
         i32.const 0x4
         call $free_range
+        drop ;; ignore result
     )
 )
     "#;
