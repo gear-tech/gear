@@ -52,7 +52,7 @@
 //! # }
 //! ```
 
-use crate::{msg, MessageId};
+use crate::{async_runtime::sections, msg, MessageId};
 use alloc::boxed::Box;
 use core::{
     future::Future,
@@ -62,11 +62,7 @@ use core::{
 use hashbrown::HashMap;
 use pin_project::{pin_project, pinned_drop};
 
-static mut SECTION: Option<HashMap<MessageId, Box<dyn FnMut()>>> = None;
-
-pub(crate) fn sections() -> &'static mut HashMap<MessageId, Box<dyn FnMut()>> {
-    unsafe { SECTION.get_or_insert_with(HashMap::new) }
-}
+pub(crate) type SectionsMap = HashMap<MessageId, Box<dyn FnMut()>>;
 
 /// Critical section future.
 #[pin_project(PinnedDrop)]

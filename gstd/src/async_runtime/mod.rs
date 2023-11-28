@@ -22,13 +22,14 @@ mod signals;
 mod waker;
 
 pub use self::futures::message_loop;
+pub(crate) use locks::Lock;
+pub(crate) use signals::ReplyPoll;
 
 use self::futures::FuturesMap;
-use crate::critical;
+use crate::{critical::SectionsMap, MessageId};
+use alloc::boxed::Box;
 use hashbrown::HashMap;
-pub(crate) use locks::Lock;
 use locks::LocksMap;
-pub(crate) use signals::ReplyPoll;
 use signals::WakeSignals;
 
 static mut FUTURES: Option<FuturesMap> = None;
@@ -49,6 +50,12 @@ pub(crate) fn locks() -> &'static mut LocksMap {
     unsafe { LOCKS.get_or_insert_with(LocksMap::default) }
 }
 
+static mut SECTIONS: Option<HashMap<MessageId, Box<dyn FnMut()>>> = None;
+
+pub(crate) fn sections() -> &'static mut SectionsMap {
+    unsafe { SECTIONS.get_or_insert_with(HashMap::new) }
+}
+
 /// Default reply handler.
 pub fn record_reply() {
     signals().record_reply();
@@ -60,7 +67,7 @@ pub fn handle_signal() {
         "`gstd::async_runtime::handle_signal()` must be called only in `handle_signal` entrypoint",
     );
 
-    if let Some(mut f) = critical::sections().remove(&msg_id) {
+    if let Some(mut f) = sections().remove(&msg_id) {
         f();
     }
 
