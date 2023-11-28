@@ -19,7 +19,7 @@
 //! Lazy-pages system signals accesses support.
 
 use crate::{
-    common::{Error, GasCharger, LazyPagesExecutionContext, WeightNo},
+    common::{Error, GasCharger, LazyPagesExecutionContext, LazyPagesRuntimeContext, WeightNo},
     globals::{self, GlobalNo},
     process::{self, AccessHandler},
     LAZY_PAGES_CONTEXT,
@@ -59,12 +59,13 @@ pub(crate) struct ExceptionInfo {
 /// instruction, which cause signal. Now memory which this instruction accesses
 /// is not protected and with correct data.
 unsafe fn user_signal_handler_internal(
-    ctx: &mut LazyPagesExecutionContext,
+    rt_ctx: &mut LazyPagesRuntimeContext,
+    exec_ctx: &mut LazyPagesExecutionContext,
     info: ExceptionInfo,
 ) -> Result<(), Error> {
     let native_addr = info.fault_addr as usize;
     let is_write = info.is_write.ok_or_else(|| Error::ReadOrWriteIsUnknown)?;
-    let wasm_mem_addr = ctx
+    let wasm_mem_addr = exec_ctx
         .wasm_mem_addr
         .ok_or_else(|| Error::WasmMemAddrIsNotSet)?;
 
@@ -74,14 +75,14 @@ unsafe fn user_signal_handler_internal(
 
     let offset =
         u32::try_from(native_addr - wasm_mem_addr).map_err(|_| Error::OutOfWasmMemoryAccess)?;
-    let page = GearPage::from_offset(ctx, offset);
+    let page = GearPage::from_offset(rt_ctx, offset);
 
-    let gas_ctx = if let Some(globals_config) = ctx.globals_context.as_ref() {
+    let gas_ctx = if let Some(globals_config) = exec_ctx.globals_context.as_ref() {
         let gas_charger = GasCharger {
-            read_cost: ctx.weight(WeightNo::SignalRead),
-            write_cost: ctx.weight(WeightNo::SignalWrite),
-            write_after_read_cost: ctx.weight(WeightNo::SignalWriteAfterRead),
-            load_data_cost: ctx.weight(WeightNo::LoadPageDataFromStorage),
+            read_cost: exec_ctx.weight(WeightNo::SignalRead),
+            write_cost: exec_ctx.weight(WeightNo::SignalWrite),
+            write_after_read_cost: exec_ctx.weight(WeightNo::SignalWriteAfterRead),
+            load_data_cost: exec_ctx.weight(WeightNo::LoadPageDataFromStorage),
         };
 
         let gas_counter = globals::apply_for_global(
@@ -96,7 +97,7 @@ unsafe fn user_signal_handler_internal(
     };
 
     let handler = SignalAccessHandler { is_write, gas_ctx };
-    process::process_lazy_pages(ctx, handler, page)
+    process::process_lazy_pages(rt_ctx, exec_ctx, handler, page)
 }
 
 /// User signal handler. Logic can depends on lazy-pages version.
@@ -105,8 +106,8 @@ pub(crate) unsafe fn user_signal_handler(info: ExceptionInfo) -> Result<(), Erro
     log::debug!("Interrupted, exception info = {:?}", info);
     LAZY_PAGES_CONTEXT.with(|ctx| {
         let mut ctx = ctx.borrow_mut();
-        let ctx = ctx.execution_context_mut()?;
-        user_signal_handler_internal(ctx, info)
+        let (rt_ctx, exec_ctx) = ctx.contexts_mut()?;
+        user_signal_handler_internal(rt_ctx, exec_ctx, info)
     })
 }
 

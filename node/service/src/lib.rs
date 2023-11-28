@@ -43,8 +43,6 @@ pub use sc_client_api::AuxStore;
 use sc_consensus_babe::{self, SlotProportion};
 pub use sp_blockchain::{HeaderBackend, HeaderMetadata};
 
-#[cfg(feature = "gear-native")]
-pub use gear_runtime;
 #[cfg(feature = "vara-native")]
 pub use vara_runtime;
 
@@ -54,17 +52,11 @@ mod client;
 pub mod rpc;
 
 pub trait IdentifyVariant {
-    /// Returns `true` if this is a configuration for gear network.
-    fn is_gear(&self) -> bool;
-
     /// Returns `true` if this is a configuration for the vara network.
     fn is_vara(&self) -> bool;
 }
 
 impl IdentifyVariant for Box<dyn ChainSpec> {
-    fn is_gear(&self) -> bool {
-        self.id().to_lowercase().starts_with("gear")
-    }
     fn is_vara(&self) -> bool {
         self.id().to_lowercase().starts_with("vara")
     }
@@ -122,17 +114,6 @@ pub fn new_chain_ops(
     ServiceError,
 > {
     match &config.chain_spec {
-        #[cfg(feature = "gear-native")]
-        spec if spec.is_gear() => {
-            chain_ops!(
-                config,
-                rpc_calculations_multiplier,
-                rpc_max_batch_size,
-                gear_runtime,
-                GearExecutorDispatch,
-                Gear
-            )
-        }
         #[cfg(feature = "vara-native")]
         spec if spec.is_vara() => {
             chain_ops!(
@@ -669,16 +650,6 @@ pub fn new_full(
     rpc_max_batch_size: u64,
 ) -> Result<TaskManager, ServiceError> {
     match &config.chain_spec {
-        #[cfg(feature = "gear-native")]
-        spec if spec.is_gear() => new_full_base::<gear_runtime::RuntimeApi, GearExecutorDispatch>(
-            config,
-            disable_hardware_benchmarks,
-            |_, _| (),
-            max_gas,
-            rpc_calculations_multiplier,
-            rpc_max_batch_size,
-        )
-        .map(|NewFullBase { task_manager, .. }| task_manager),
         #[cfg(feature = "vara-native")]
         spec if spec.is_vara() => new_full_base::<vara_runtime::RuntimeApi, VaraExecutorDispatch>(
             config,

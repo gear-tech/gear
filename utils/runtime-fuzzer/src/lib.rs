@@ -35,6 +35,7 @@ use runtime::*;
 use sha1::*;
 use std::{fmt::Debug, ops::RangeInclusive};
 use utils::default_generator_set;
+use vara_runtime::{AccountId, Gear, Runtime, RuntimeOrigin};
 
 /// This is a wrapper over random bytes provided from fuzzer.
 ///
@@ -143,6 +144,7 @@ fn execute_gear_call(
                 payload,
                 gas_limit,
                 value,
+                false,
             )
         }
         GearCall::SendMessage(args) => {
@@ -156,7 +158,7 @@ fn execute_gear_call(
                 payload,
                 gas_limit,
                 value,
-                prepaid,
+                false,
             )
         }
         GearCall::SendReply(args) => {
@@ -170,7 +172,7 @@ fn execute_gear_call(
                 payload,
                 gas_limit,
                 value,
-                prepaid,
+                false,
             )
         }
         GearCall::ClaimValue(args) => {

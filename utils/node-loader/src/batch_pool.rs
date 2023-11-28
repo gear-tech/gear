@@ -264,7 +264,7 @@ async fn process_events(
     // States what amount of blocks we should wait for taking all the events about successful `messages` execution
     let wait_for_events_blocks = 30;
     // Multiply on five to be 100% sure if no events occurred, then node is crashed
-    let wait_for_events_millisec = api.expected_block_time()? as usize * wait_for_events_blocks * 5;
+    let wait_for_events_millisec = api.expected_block_time()? * wait_for_events_blocks * 5;
 
     let mut mailbox_added = BTreeSet::new();
 
@@ -274,15 +274,13 @@ async fn process_events(
         // Wait with a timeout until the `EventsReceiver` receives the expected block hash.
         while events.block_hash() != block_hash {
             tokio::time::sleep(Duration::new(0, 500)).await;
-            events = tokio::time::timeout(
-                Duration::from_millis(wait_for_events_millisec as u64),
-                rx.recv(),
-            )
-            .await
-            .map_err(|_| {
-                tracing::debug!("Timeout is reached while waiting for events");
-                anyhow!(utils::EVENTS_TIMEOUT_ERR_STR)
-            })??;
+            events =
+                tokio::time::timeout(Duration::from_millis(wait_for_events_millisec), rx.recv())
+                    .await
+                    .map_err(|_| {
+                        tracing::debug!("Timeout is reached while waiting for events");
+                        anyhow!(utils::EVENTS_TIMEOUT_ERR_STR)
+                    })??;
         }
 
         // Wait for next n blocks and push new events.
@@ -299,18 +297,16 @@ async fn process_events(
                 v.push(event);
             }
             tokio::time::sleep(Duration::new(0, 100)).await;
-            events = tokio::time::timeout(
-                Duration::from_millis(wait_for_events_millisec as u64),
-                rx.recv(),
-            )
-            .await
-            .map_err(|_| {
-                tracing::debug!("Timeout is reached while waiting for events");
-                anyhow!(utils::EVENTS_TIMEOUT_ERR_STR)
-            })??;
+            events =
+                tokio::time::timeout(Duration::from_millis(wait_for_events_millisec), rx.recv())
+                    .await
+                    .map_err(|_| {
+                        tracing::debug!("Timeout is reached while waiting for events");
+                        anyhow!(utils::EVENTS_TIMEOUT_ERR_STR)
+                    })??;
         }
 
-        let mut mailbox_from_events = utils::capture_mailbox_messages(&api, &mut v)
+        let mut mailbox_from_events = utils::capture_mailbox_messages(&api, &v)
             .await
             .expect("always valid by definition");
         mailbox_added.append(&mut mailbox_from_events);
@@ -354,7 +350,7 @@ async fn inspect_crash_events(mut rx: EventsReceiver) -> Result<()> {
     // Error means either event is not found and can't be found
     // in the listener, or some other error during event
     // parsing occurred.
-    while let Ok(events) = tokio::time::timeout(Duration::from_secs(30), rx.recv()).await? {
+    while let Ok(events) = tokio::time::timeout(Duration::from_secs(90), rx.recv()).await? {
         let bh = events.block_hash();
         for event in events.iter() {
             let event = event?.as_root_event::<gsdk::metadata::Event>()?;

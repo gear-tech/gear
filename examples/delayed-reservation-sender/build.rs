@@ -16,11 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! A list of the different weight modules for our runtime.
-
-pub mod frame_system;
-pub mod pallet_balances;
-pub mod pallet_gear;
-pub mod pallet_gear_voucher;
-pub mod pallet_timestamp;
-pub mod pallet_utility;
+fn main() {
+    gear_wasm_builder::build();
+}

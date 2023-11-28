@@ -17,6 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 #![cfg_attr(not(feature = "std"), no_std)]
+#![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
+#![doc(html_favicon_url = "https://gear-tech.io/favicons/favicon.ico")]
 
 use common::{storage::*, ExtractCall};
 use frame_support::{
@@ -196,7 +198,7 @@ where
         who: &'a <T as frame_system::Config>::AccountId,
     ) -> Cow<'a, <T as frame_system::Config>::AccountId> {
         // Check if the extrinsic being called allows to charge fee payment to another account.
-        // The only such call at the moment is `Gear::send_message` with `prepaid == true`.
+        // The only such call at the moment is `GearVoucher::call`.
         if let Some(acc) = T::DelegateFee::delegate_fee(call, who) {
             Cow::Owned(acc)
         } else {

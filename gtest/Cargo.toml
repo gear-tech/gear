@@ -9,13 +9,12 @@ license.workspace = true
 gear-core.workspace = true
 gear-core-errors.workspace = true
 core-processor = { workspace = true, features = ["std"] }
-gear-lazy-pages-interface = { workspace = true, features = ["std"] }
-gear-wasm-builder.workspace = true
+gear-lazy-pages.workspace = true
+gear-lazy-pages-common.workspace = true
 gear-utils.workspace = true
+gear-wasm-instrument.workspace = true
+gsys.workspace = true
 
-sp-io = { workspace = true, features = ["std"] }
-
-anyhow.workspace = true
 codec = { workspace = true, features = ["derive"] }
 hex.workspace = true
 colored.workspace = true
@@ -23,7 +22,6 @@ derive_more = { workspace = true, features = ["add", "add_assign", "display", "m
 env_logger.workspace = true
 path-clean.workspace = true
 rand = { workspace = true, features = ["std", "std_rng"] }
-gear-wasm-instrument.workspace = true
 log.workspace = true
 
 [dev-dependencies]

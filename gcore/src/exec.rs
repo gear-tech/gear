@@ -25,9 +25,20 @@ use crate::{
     errors::{Result, SyscallError},
     ActorId, MessageId, ReservationId,
 };
+use core::mem::MaybeUninit;
 use gsys::{
-    BlockNumberWithHash, ErrorWithBlockNumberAndValue, ErrorWithGas, ErrorWithHash, HashWithValue,
+    BlockNumberWithHash, EnvVars, ErrorWithBlockNumberAndValue, ErrorWithGas, ErrorWithHash,
+    HashWithValue,
 };
+
+/// Get current version of environment variables.
+pub fn env_vars() -> EnvVars {
+    let mut vars = MaybeUninit::<EnvVars>::uninit();
+    unsafe {
+        gsys::gr_env_vars(1, vars.as_mut_ptr() as *mut u8);
+        vars.assume_init()
+    }
+}
 
 /// Get the current block height.
 ///

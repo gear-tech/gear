@@ -43,6 +43,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
+/// Gas for gear programs.
 #[derive(
     Default,
     Debug,
@@ -65,38 +66,66 @@ use std::{
 pub struct Gas(pub(crate) u64);
 
 impl Gas {
+    /// Gas with value zero.
     pub const fn zero() -> Self {
         Self(0)
     }
 
+    /// Computes a + b, saturating at numeric bounds.
     pub const fn saturating_add(self, rhs: Self) -> Self {
         Self(self.0.saturating_add(rhs.0))
     }
 
+    /// Computes a - b, saturating at numeric bounds.
     pub const fn saturating_sub(self, rhs: Self) -> Self {
         Self(self.0.saturating_sub(rhs.0))
     }
 
+    /// Computes a * b, saturating at numeric bounds.
     pub const fn saturating_mul(self, rhs: Self) -> Self {
         Self(self.0.saturating_mul(rhs.0))
     }
 
+    /// Computes a / b, saturating at numeric bounds.
     pub const fn saturating_div(self, rhs: Self) -> Self {
         Self(self.0.saturating_div(rhs.0))
     }
 }
 
+/// Trait for mocking gear programs.
+///
+/// See [`Program`] and [`Program::mock`] for the usages.
 pub trait WasmProgram: Debug {
+    /// Init wasm program with given `payload`.
+    ///
+    /// Returns `Ok(Some(payload))` if program has reply logic
+    /// with given `payload`.
+    ///
+    /// If error occurs, the program will be terminated which
+    /// means that `handle` and `handle_reply` will not be
+    /// called.
     fn init(&mut self, payload: Vec<u8>) -> Result<Option<Vec<u8>>, &'static str>;
+    /// Message handler with given `payload`.
+    ///
+    /// Returns `Ok(Some(payload))` if program has reply logic.
     fn handle(&mut self, payload: Vec<u8>) -> Result<Option<Vec<u8>>, &'static str>;
+    /// Reply message handler with given `payload`.
     fn handle_reply(&mut self, payload: Vec<u8>) -> Result<(), &'static str>;
+    /// Signal handler with given `payload`.
     fn handle_signal(&mut self, payload: Vec<u8>) -> Result<(), &'static str>;
+    /// State of wasm program.
+    ///
+    /// See [`Program::read_state`] for the usage.
     fn state(&mut self) -> Result<Vec<u8>, &'static str>;
+    /// Emit debug message in program with given `data`.
+    ///
+    /// Logging target `gwasm` is used in this method.
     fn debug(&mut self, data: &str) {
         log::debug!(target: "gwasm", "DEBUG: {data}");
     }
 }
 
+/// Wrapper for program id.
 #[derive(Clone, Debug)]
 pub struct ProgramIdWrapper(pub(crate) ProgramId);
 
@@ -173,6 +202,10 @@ impl From<&str> for ProgramIdWrapper {
     }
 }
 
+/// Construct state arguments.
+///
+/// Used for reading and decoding the program’s transformed state,
+/// see [`Program::read_state_using_wasm`] for example.
 #[macro_export]
 macro_rules! state_args {
     () => {
@@ -186,6 +219,10 @@ macro_rules! state_args {
     };
 }
 
+/// Construct encoded state arguments.
+///
+/// Used for reading the program’s transformed state as a byte vector,
+/// see [`Program::read_state_bytes_using_wasm`] for example.
 #[macro_export]
 macro_rules! state_args_encoded {
     () => {
@@ -205,6 +242,20 @@ macro_rules! state_args_encoded {
     };
 }
 
+/// Gear program instance.
+///
+/// ```ignore
+/// use gtest::{System, Program};
+///
+/// // Create a testing system.
+/// let system = System::new();
+///
+/// // Get the current program of the testing system.
+/// let program = Program::current(&system);
+///
+/// // Initialize the program from user 42 with message "init program".
+/// let _result = program.send(42, "init program");
+/// ```
 pub struct Program<'a> {
     pub(crate) manager: &'a RefCell<ExtManager>,
     pub(crate) id: ProgramId,
@@ -236,12 +287,21 @@ impl<'a> Program<'a> {
         }
     }
 
+    /// Get program of the root crate with provided `system`.
+    ///
+    /// It looks up the wasm binary of the root crate that contains
+    /// the current test, upload it to the testing system, then,
+    /// returns the program instance.
     pub fn current(system: &'a System) -> Self {
         let nonce = system.0.borrow_mut().free_id_nonce();
 
         Self::current_with_id(system, nonce)
     }
 
+    /// Get program of the root crate with provided `system` and
+    /// initialize it with given `id`.
+    ///
+    /// See also [`Program::current`].
     pub fn current_with_id<I: Into<ProgramIdWrapper> + Clone + Debug>(
         system: &'a System,
         id: I,
@@ -249,12 +309,19 @@ impl<'a> Program<'a> {
         Self::from_file_with_id(system, id, Self::wasm_path("wasm"))
     }
 
+    /// Get optimized program of the root crate with provided `system`,
+    ///
+    /// See also [`Program::current`].
     pub fn current_opt(system: &'a System) -> Self {
         let nonce = system.0.borrow_mut().free_id_nonce();
 
         Self::current_opt_with_id(system, nonce)
     }
 
+    /// Get optimized program of the root crate with provided `system` and
+    /// initialize it with provided `id`.
+    ///
+    /// See also [`Program::current_with_id`].
     pub fn current_opt_with_id<I: Into<ProgramIdWrapper> + Clone + Debug>(
         system: &'a System,
         id: I,
@@ -262,12 +329,19 @@ impl<'a> Program<'a> {
         Self::from_file_with_id(system, id, Self::wasm_path("opt.wasm"))
     }
 
+    /// Mock a program with provided `system` and `mock`.
+    ///
+    /// See [`WasmProgram`] for more details.
     pub fn mock<T: WasmProgram + 'static>(system: &'a System, mock: T) -> Self {
         let nonce = system.0.borrow_mut().free_id_nonce();
 
         Self::mock_with_id(system, nonce, mock)
     }
 
+    /// Create a mock program with provided `system` and `mock`,
+    /// and initialize it with provided `id`.
+    ///
+    /// See also [`Program::mock`].
     pub fn mock_with_id<T: WasmProgram + 'static, I: Into<ProgramIdWrapper> + Clone + Debug>(
         system: &'a System,
         id: I,
@@ -276,12 +350,80 @@ impl<'a> Program<'a> {
         Self::program_with_id(system, id, InnerProgram::new_mock(mock))
     }
 
+    /// Create a program instance from wasm file.
+    ///
+    /// See also [`Program::current`].
     pub fn from_file<P: AsRef<Path>>(system: &'a System, path: P) -> Self {
         let nonce = system.0.borrow_mut().free_id_nonce();
 
         Self::from_file_with_id(system, nonce, path)
     }
 
+    /// Create a program from file and initialize it with provided
+    /// `path` and `id`.
+    ///
+    /// `id` may be built from:
+    /// - `u64`
+    /// - `[u8; 32]`
+    /// - `String`
+    /// - `&str`
+    /// - [`ProgramId`](https://docs.gear.rs/gear_core/ids/struct.ProgramId.html)
+    ///   (from `gear_core` one's, not from `gstd`).
+    ///
+    /// # Examples
+    ///
+    /// From numeric id:
+    ///
+    /// ```no_run
+    /// # use gtest::{Program, System};
+    /// # let sys = System::new();
+    /// let prog = Program::from_file_with_id(
+    ///     &sys,
+    ///     105,
+    ///     "./target/wasm32-unknown-unknown/release/demo_ping.wasm",
+    /// );
+    /// ```
+    ///
+    /// From hex string starting with `0x`:
+    ///
+    /// ```no_run
+    /// # use gtest::{Program, System};
+    /// # let sys = System::new();
+    /// let prog = Program::from_file_with_id(
+    ///     &sys,
+    ///     "0xe659a7a1628cdd93febc04a4e0646ea20e9f5f0ce097d9a05290d4a9e054df4e",
+    ///     "./target/wasm32-unknown-unknown/release/demo_ping.wasm",
+    /// );
+    /// ```
+    ///
+    /// From hex string starting without `0x`:
+    ///
+    /// ```no_run
+    /// # use gtest::{Program, System};
+    /// # let sys = System::new();
+    /// let prog = Program::from_file_with_id(
+    ///     &sys,
+    ///     "e659a7a1628cdd93febc04a4e0646ea20e9f5f0ce097d9a05290d4a9e054df5e",
+    ///     "./target/wasm32-unknown-unknown/release/demo_ping.wasm",
+    /// );
+    /// ```
+    ///
+    /// From array of bytes (e.g. filled with `5`):
+    ///
+    /// ```no_run
+    /// # use gtest::{Program, System};
+    /// # let sys = System::new();
+    /// let prog = Program::from_file_with_id(
+    ///     &sys,
+    ///     [5; 32],
+    ///     "./target/wasm32-unknown-unknown/release/demo_ping.wasm",
+    /// );
+    /// ```
+    ///
+    /// # See also
+    ///
+    /// - [`Program::from_file`] for creating a program from file with default
+    ///   id.
     #[track_caller]
     pub fn from_file_with_id<P: AsRef<Path>, I: Into<ProgramIdWrapper> + Clone + Debug>(
         system: &'a System,
@@ -308,6 +450,9 @@ impl<'a> Program<'a> {
         Self::from_opt_and_meta_code_with_id(system, id, code, None)
     }
 
+    /// Create a program from optimized and metadata files.
+    ///
+    /// See also [`Program::from_file`].
     pub fn from_opt_and_meta<P: AsRef<Path>>(
         system: &'a System,
         optimized: P,
@@ -317,6 +462,10 @@ impl<'a> Program<'a> {
         Self::from_opt_and_meta_with_id(system, nonce, optimized, metadata)
     }
 
+    /// Create a program from optimized and metadata files and initialize
+    /// it with given `id`.
+    ///
+    /// See also [`Program::from_file`].
     pub fn from_opt_and_meta_with_id<P: AsRef<Path>, I: Into<ProgramIdWrapper> + Clone + Debug>(
         system: &'a System,
         id: I,
@@ -329,6 +478,10 @@ impl<'a> Program<'a> {
         Self::from_opt_and_meta_code_with_id(system, id, opt_code, Some(meta_code))
     }
 
+    /// Create a program from optimized and metadata code and initialize
+    /// it with given `id`.
+    ///
+    /// See also [`Program::from_file`].
     #[track_caller]
     pub fn from_opt_and_meta_code_with_id<I: Into<ProgramIdWrapper> + Clone + Debug>(
         system: &'a System,
@@ -351,19 +504,26 @@ impl<'a> Program<'a> {
         }
 
         let program_id = id.clone().into().0;
-        let program = CoreProgram::new(program_id, code);
+        let program = CoreProgram::new(program_id, Default::default(), code);
 
         Self::program_with_id(
             system,
             id,
-            InnerProgram::new(program, code_id, Default::default(), Default::default()),
+            InnerProgram::Genuine {
+                program,
+                code_id,
+                pages_data: Default::default(),
+                gas_reservation_map: Default::default(),
+            },
         )
     }
 
+    /// Send message to the program.
     pub fn send<ID: Into<ProgramIdWrapper>, C: Codec>(&self, from: ID, payload: C) -> RunResult {
         self.send_with_value(from, payload, 0)
     }
 
+    /// Send message to the program with value.
     pub fn send_with_value<ID: Into<ProgramIdWrapper>, C: Codec>(
         &self,
         from: ID,
@@ -373,6 +533,7 @@ impl<'a> Program<'a> {
         self.send_bytes_with_value(from, payload.encode(), value)
     }
 
+    /// Send message to the program with bytes payload.
     pub fn send_bytes<ID: Into<ProgramIdWrapper>, T: AsRef<[u8]>>(
         &self,
         from: ID,
@@ -381,6 +542,7 @@ impl<'a> Program<'a> {
         self.send_bytes_with_value(from, payload, 0)
     }
 
+    /// Send message to the program with bytes payload and value.
     #[track_caller]
     pub fn send_bytes_with_value<ID: Into<ProgramIdWrapper>, T: AsRef<[u8]>>(
         &self,
@@ -406,7 +568,8 @@ impl<'a> Program<'a> {
             None,
         );
 
-        let (actor, _) = system.actors.get_mut(&self.id).expect("Can't fail");
+        let mut actors = system.actors.borrow_mut();
+        let (actor, _) = actors.get_mut(&self.id).expect("Can't fail");
 
         let kind = if let TestActor::Uninitialized(id @ None, _) = actor {
             *id = Some(message.id());
@@ -415,9 +578,11 @@ impl<'a> Program<'a> {
             DispatchKind::Handle
         };
 
+        drop(actors);
         system.validate_and_run_dispatch(Dispatch::new(kind, message))
     }
 
+    /// Send signal to the program.
     #[track_caller]
     pub fn send_signal<ID: Into<ProgramIdWrapper>>(&self, from: ID, code: SignalCode) -> RunResult {
         let mut system = self.manager.borrow_mut();
@@ -431,16 +596,19 @@ impl<'a> Program<'a> {
         );
         let message = SignalMessage::new(origin_msg_id, code);
 
-        let (actor, _) = system.actors.get_mut(&self.id).expect("Can't fail");
+        let mut actors = system.actors.borrow_mut();
+        let (actor, _) = actors.get_mut(&self.id).expect("Can't fail");
 
         if let TestActor::Uninitialized(id @ None, _) = actor {
             *id = Some(message.id());
         };
 
+        drop(actors);
         let dispatch = message.into_dispatch(origin_msg_id, self.id);
         system.validate_and_run_dispatch(dispatch)
     }
 
+    /// Get program id.
     pub fn id(&self) -> ProgramId {
         self.id
     }
@@ -449,7 +617,7 @@ impl<'a> Program<'a> {
     pub fn read_state_bytes(&self, payload: Vec<u8>) -> Result<Vec<u8>> {
         self.manager
             .borrow_mut()
-            .with_externalities(|this| this.read_state_bytes(payload, &self.id))
+            .read_state_bytes(payload, &self.id)
     }
 
     /// Reads the program’s transformed state as a byte vector. The transformed
@@ -505,9 +673,9 @@ impl<'a> Program<'a> {
         wasm: Vec<u8>,
         args: Option<Vec<u8>>,
     ) -> Result<Vec<u8>> {
-        self.manager.borrow_mut().with_externalities(|this| {
-            this.read_state_bytes_using_wasm(payload, &self.id, fn_name, wasm, args)
-        })
+        self.manager
+            .borrow_mut()
+            .read_state_bytes_using_wasm(payload, &self.id, fn_name, wasm, args)
     }
 
     /// Reads and decodes the program's state .
@@ -574,14 +742,17 @@ impl<'a> Program<'a> {
         D::decode(&mut state_bytes.as_ref()).map_err(Into::into)
     }
 
+    /// Mint balance to the account.
     pub fn mint(&mut self, value: Balance) {
         self.manager.borrow_mut().mint_to(&self.id(), value)
     }
 
+    /// Returns the balance of the account.
     pub fn balance(&self) -> Balance {
         self.manager.borrow().balance_of(&self.id())
     }
 
+    /// Returns the wasm path with extension.
     #[track_caller]
     fn wasm_path(extension: &str) -> PathBuf {
         let current_dir = env::current_dir().expect("Unable to get current dir");
@@ -593,6 +764,7 @@ impl<'a> Program<'a> {
         current_dir.join(relative_path)
     }
 
+    /// Save the program's memory to path.
     pub fn save_memory_dump(&self, path: impl AsRef<Path>) {
         let manager = self.manager.borrow();
         let mem = manager.read_memory_pages(&self.id);
@@ -611,6 +783,7 @@ impl<'a> Program<'a> {
         .save_to_file(path);
     }
 
+    /// Load the program's memory from path.
     pub fn load_memory_dump(&mut self, path: impl AsRef<Path>) {
         let memory_dump = ProgramMemoryDump::load_from_file(path);
         let mem = memory_dump
@@ -626,7 +799,7 @@ impl<'a> Program<'a> {
 
         self.manager
             .borrow_mut()
-            .override_memory_pages(&self.id, mem);
+            .update_storage_pages(&self.id, mem);
         self.manager
             .borrow_mut()
             .override_balance(&self.id, balance);
@@ -649,6 +822,7 @@ fn read_file<P: AsRef<Path>>(path: P, extension: &str) -> Vec<u8> {
     fs::read(&path).unwrap_or_else(|_| panic!("Failed to read file {:?}", path))
 }
 
+/// Calculate program id from code id and salt.
 pub fn calculate_program_id(code_id: CodeId, salt: &[u8], id: Option<MessageId>) -> ProgramId {
     if let Some(id) = id {
         ProgramId::generate_from_program(code_id, salt, id)
@@ -700,8 +874,8 @@ mod tests {
         sys.init_logger();
 
         let user_id = 42;
-        sys.mint_to(user_id, 5000);
-        assert_eq!(sys.balance_of(user_id), 5000);
+        sys.mint_to(user_id, 10 * crate::EXISTENTIAL_DEPOSIT);
+        assert_eq!(sys.balance_of(user_id), 10 * crate::EXISTENTIAL_DEPOSIT);
 
         let mut prog = Program::from_opt_and_meta_code_with_id(
             &sys,
@@ -710,16 +884,16 @@ mod tests {
             None,
         );
 
-        prog.mint(1000);
-        assert_eq!(prog.balance(), 1000);
+        prog.mint(2 * crate::EXISTENTIAL_DEPOSIT);
+        assert_eq!(prog.balance(), 2 * crate::EXISTENTIAL_DEPOSIT);
 
-        prog.send_with_value(user_id, "init".to_string(), 500);
-        assert_eq!(prog.balance(), 1500);
-        assert_eq!(sys.balance_of(user_id), 4500);
+        prog.send_with_value(user_id, "init".to_string(), crate::EXISTENTIAL_DEPOSIT);
+        assert_eq!(prog.balance(), 3 * crate::EXISTENTIAL_DEPOSIT);
+        assert_eq!(sys.balance_of(user_id), 9 * crate::EXISTENTIAL_DEPOSIT);
 
-        prog.send_with_value(user_id, "PING".to_string(), 1000);
-        assert_eq!(prog.balance(), 2500);
-        assert_eq!(sys.balance_of(user_id), 3500);
+        prog.send_with_value(user_id, "PING".to_string(), 2 * crate::EXISTENTIAL_DEPOSIT);
+        assert_eq!(prog.balance(), 5 * crate::EXISTENTIAL_DEPOSIT);
+        assert_eq!(sys.balance_of(user_id), 7 * crate::EXISTENTIAL_DEPOSIT);
     }
 
     #[test]
@@ -733,9 +907,9 @@ mod tests {
         let sender2 = 45;
 
         // Top-up senders balances
-        sys.mint_to(sender0, 10000);
-        sys.mint_to(sender1, 10000);
-        sys.mint_to(sender2, 10000);
+        sys.mint_to(sender0, 20 * crate::EXISTENTIAL_DEPOSIT);
+        sys.mint_to(sender1, 20 * crate::EXISTENTIAL_DEPOSIT);
+        sys.mint_to(sender2, 20 * crate::EXISTENTIAL_DEPOSIT);
 
         let prog = Program::from_opt_and_meta_code_with_id(
             &sys,
@@ -748,27 +922,32 @@ mod tests {
         assert_eq!(prog.balance(), 0);
 
         // Send values to the program
-        prog.send_bytes_with_value(sender0, b"insert", 1000);
-        assert_eq!(sys.balance_of(sender0), 9000);
-        prog.send_bytes_with_value(sender1, b"insert", 2000);
-        assert_eq!(sys.balance_of(sender1), 8000);
-        prog.send_bytes_with_value(sender2, b"insert", 3000);
-        assert_eq!(sys.balance_of(sender2), 7000);
+        prog.send_bytes_with_value(sender0, b"insert", 2 * crate::EXISTENTIAL_DEPOSIT);
+        assert_eq!(sys.balance_of(sender0), 18 * crate::EXISTENTIAL_DEPOSIT);
+        prog.send_bytes_with_value(sender1, b"insert", 4 * crate::EXISTENTIAL_DEPOSIT);
+        assert_eq!(sys.balance_of(sender1), 16 * crate::EXISTENTIAL_DEPOSIT);
+        prog.send_bytes_with_value(sender2, b"insert", 6 * crate::EXISTENTIAL_DEPOSIT);
+        assert_eq!(sys.balance_of(sender2), 14 * crate::EXISTENTIAL_DEPOSIT);
 
         // Check program's balance
-        assert_eq!(prog.balance(), 1000 + 2000 + 3000);
+        assert_eq!(prog.balance(), (2 + 4 + 6) * crate::EXISTENTIAL_DEPOSIT);
 
         // Request to smash the piggy bank and send the value to the receiver address
         prog.send_bytes(receiver, b"smash");
         sys.claim_value_from_mailbox(receiver);
-        assert_eq!(sys.balance_of(receiver), 1000 + 2000 + 3000);
+        assert_eq!(
+            sys.balance_of(receiver),
+            (2 + 4 + 6) * crate::EXISTENTIAL_DEPOSIT
+        );
 
         // Check program's balance is empty
         assert_eq!(prog.balance(), 0);
     }
 
     #[test]
-    #[should_panic(expected = "An attempt to mint value (1) less than existential deposit (500)")]
+    #[should_panic(
+        expected = "An attempt to mint value (1) less than existential deposit (10000000000000)"
+    )]
     fn mint_less_than_deposit() {
         System::new().mint_to(1, 1);
     }
@@ -776,7 +955,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "Insufficient value: user \
     (0x0100000000000000000000000000000000000000000000000000000000000000) tries \
-    to send (501) value, while his balance (500)")]
+    to send (10000000000001) value, while his balance (10000000000000)")]
     fn fails_on_insufficient_balance() {
         let sys = System::new();
 
@@ -803,7 +982,7 @@ mod tests {
         let sender = 42;
         let receiver = 84;
 
-        sys.mint_to(sender, 10000);
+        sys.mint_to(sender, 20 * crate::EXISTENTIAL_DEPOSIT);
 
         let prog = Program::from_opt_and_meta_code_with_id(
             &sys,

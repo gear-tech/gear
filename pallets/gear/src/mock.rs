@@ -18,12 +18,12 @@
 
 use crate as pallet_gear;
 use crate::*;
+use common::pallet_tests::MAX_BLOCK;
 use frame_support::{
     construct_runtime,
     pallet_prelude::*,
     parameter_types,
     traits::{ConstU64, FindAuthor, Get},
-    weights::RuntimeDbWeight,
     PalletId,
 };
 use frame_support_test::TestRandomness;
@@ -32,7 +32,6 @@ use sp_core::H256;
 use sp_runtime::{
     generic,
     traits::{BlakeTwo256, IdentityLookup},
-    Perbill,
 };
 use sp_std::{
     cell::RefCell,
@@ -52,8 +51,6 @@ pub(crate) const USER_2: AccountId = 2;
 pub(crate) const USER_3: AccountId = 3;
 pub(crate) const LOW_BALANCE_USER: AccountId = 4;
 pub(crate) const BLOCK_AUTHOR: AccountId = 255;
-const NORMAL_DISPATCH_RATIO: Perbill = Perbill::from_percent(75);
-const MAX_BLOCK: u64 = 250_000_000_000;
 
 macro_rules! dry_run {
     (
@@ -91,59 +88,20 @@ construct_runtime!(
     }
 );
 
-impl pallet_balances::Config for Test {
-    type MaxLocks = ();
-    type MaxReserves = ();
-    type ReserveIdentifier = [u8; 8];
-    type Balance = Balance;
-    type DustRemoval = ();
-    type RuntimeEvent = RuntimeEvent;
-    type ExistentialDeposit = ExistentialDeposit;
-    type AccountStore = System;
-    type WeightInfo = ();
-}
+common::impl_pallet_system!(Test);
+pallet_gear_program::impl_config!(Test);
+pallet_gear_messenger::impl_config!(Test, CurrentBlockNumber = Gear);
+pallet_gear_scheduler::impl_config!(Test);
+pallet_gear_bank::impl_config!(Test);
+pallet_gear::impl_config!(Test, Schedule = DynamicSchedule, Voucher = GearVoucher);
+pallet_gear_gas::impl_config!(Test);
+common::impl_pallet_balances!(Test);
+common::impl_pallet_authorship!(Test);
+common::impl_pallet_timestamp!(Test);
 
 parameter_types! {
     pub const BlockHashCount: BlockNumber = 250;
-    pub RuntimeBlockWeights: BlockWeights = BlockWeights::with_sensible_defaults(
-        Weight::from_parts(MAX_BLOCK, u64::MAX),
-        NORMAL_DISPATCH_RATIO,
-    );
-    pub const SS58Prefix: u8 = 42;
     pub const ExistentialDeposit: Balance = 500;
-    pub const DbWeight: RuntimeDbWeight = RuntimeDbWeight { read: 1110, write: 2300 };
-}
-
-impl system::Config for Test {
-    type BaseCallFilter = frame_support::traits::Everything;
-    type BlockWeights = RuntimeBlockWeights;
-    type BlockLength = ();
-    type DbWeight = DbWeight;
-    type RuntimeOrigin = RuntimeOrigin;
-    type RuntimeCall = RuntimeCall;
-    type Index = u64;
-    type BlockNumber = BlockNumber;
-    type Hash = H256;
-    type Hashing = BlakeTwo256;
-    type AccountId = AccountId;
-    type Lookup = IdentityLookup<Self::AccountId>;
-    type Header = generic::Header<BlockNumber, BlakeTwo256>;
-    type RuntimeEvent = RuntimeEvent;
-    type BlockHashCount = BlockHashCount;
-    type Version = ();
-    type PalletInfo = PalletInfo;
-    type AccountData = pallet_balances::AccountData<u128>;
-    type OnNewAccount = ();
-    type OnKilledAccount = ();
-    type SystemWeightInfo = ();
-    type SS58Prefix = SS58Prefix;
-    type OnSetCode = ();
-    type MaxConsumers = frame_support::traits::ConstU32<16>;
-}
-
-impl pallet_gear_program::Config for Test {
-    type Scheduler = GearScheduler;
-    type CurrentBlockNumber = ();
 }
 
 parameter_types! {
@@ -206,84 +164,6 @@ parameter_types! {
     pub const GasMultiplier: common::GasMultiplier<Balance, u64> = common::GasMultiplier::ValuePerGas(25);
 }
 
-impl pallet_gear_bank::Config for Test {
-    type Currency = Balances;
-    type BankAddress = BankAddress;
-    type GasMultiplier = GasMultiplier;
-}
-
-impl pallet_gear::Config for Test {
-    type RuntimeEvent = RuntimeEvent;
-    type Randomness = TestRandomness<Self>;
-    type WeightInfo = pallet_gear::weights::SubstrateWeight<Self>;
-    type Schedule = DynamicSchedule;
-    type OutgoingLimit = OutgoingLimit;
-    type PerformanceMultiplier = PerformanceMultiplier;
-    type DebugInfo = ();
-    type CodeStorage = GearProgram;
-    type ProgramStorage = GearProgram;
-    type MailboxThreshold = ConstU64<3000>;
-    type ReservationsLimit = ConstU64<256>;
-    type Messenger = GearMessenger;
-    type GasProvider = GearGas;
-    type BlockLimiter = GearGas;
-    type Scheduler = GearScheduler;
-    type QueueRunner = Gear;
-    type Voucher = GearVoucher;
-    type ProgramRentFreePeriod = RentFreePeriod;
-    type ProgramResumeMinimalRentPeriod = ResumeMinimalPeriod;
-    type ProgramRentCostPerBlock = RentCostPerBlock;
-    type ProgramResumeSessionDuration = ResumeSessionDuration;
-    type ProgramRentEnabled = ConstBool<true>;
-    type ProgramRentDisabledDelta = RentFreePeriod;
-}
-
-impl pallet_gear_scheduler::Config for Test {
-    type BlockLimiter = GearGas;
-    type ReserveThreshold = ReserveThreshold;
-    type WaitlistCost = ConstU64<100>;
-    type MailboxCost = ConstU64<100>;
-    type ReservationCost = ConstU64<100>;
-    type DispatchHoldCost = ConstU64<100>;
-}
-
-impl pallet_gear_gas::Config for Test {
-    type BlockGasLimit = BlockGasLimit;
-}
-
-impl pallet_gear_messenger::Config for Test {
-    type BlockLimiter = GearGas;
-    type CurrentBlockNumber = Gear;
-}
-
-pub struct FixedBlockAuthor;
-
-impl FindAuthor<u64> for FixedBlockAuthor {
-    fn find_author<'a, I>(_digests: I) -> Option<u64>
-    where
-        I: 'a + IntoIterator<Item = (sp_runtime::ConsensusEngineId, &'a [u8])>,
-    {
-        Some(BLOCK_AUTHOR)
-    }
-}
-
-impl pallet_authorship::Config for Test {
-    type FindAuthor = FixedBlockAuthor;
-
-    type EventHandler = ();
-}
-
-parameter_types! {
-    pub const MinimumPeriod: u64 = 500;
-}
-
-impl pallet_timestamp::Config for Test {
-    type Moment = u64;
-    type OnTimestampSet = ();
-    type MinimumPeriod = MinimumPeriod;
-    type WeightInfo = ();
-}
-
 parameter_types! {
     pub const VoucherPalletId: PalletId = PalletId(*b"py/vouch");
 }
@@ -293,6 +173,7 @@ impl pallet_gear_voucher::Config for Test {
     type Currency = Balances;
     type PalletId = VoucherPalletId;
     type WeightInfo = ();
+    type CallsDispatcher = Gear;
 }
 
 // Build genesis storage according to the mock runtime.

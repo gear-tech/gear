@@ -19,11 +19,15 @@
 use gear_common::Origin;
 use gear_runtime::Runtime;
 use pallet_balances::Pallet as BalancesPallet;
+use pallet_gear::BlockGasLimitOf;
+use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use runtime_primitives::{AccountId, AccountPublic, Balance};
+use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 use sp_consensus_babe::AuthorityId as BabeId;
 use sp_consensus_grandpa::AuthorityId as GrandpaId;
 use sp_core::{sr25519::Public, Pair, Public as TPublic};
 use sp_runtime::{app_crypto::UncheckedFrom, traits::IdentifyAccount};
+use vara_runtime::Runtime;
 
 pub fn alice() -> AccountId {
     sp_keyring::Sr25519Keyring::Alice.to_account_id()
@@ -36,11 +40,21 @@ pub fn account<T: Origin>(v: T) -> AccountId {
 
 // TODO #2307 BabeId and GrandpaId are not needed at first?
 /// Generate authority keys.
-pub fn authority_keys_from_seed(s: &str) -> (AccountId, BabeId, GrandpaId) {
+pub fn authority_keys_from_seed(
+    s: &str,
+) -> (
+    AccountId,
+    BabeId,
+    GrandpaId,
+    ImOnlineId,
+    AuthorityDiscoveryId,
+) {
     (
         get_acc_id_from_seed::<Public>(s),
         get_pub_key_from_seed::<BabeId>(s),
         get_pub_key_from_seed::<GrandpaId>(s),
+        get_pub_key_from_seed::<ImOnlineId>(s),
+        get_pub_key_from_seed::<AuthorityDiscoveryId>(s),
     )
 }
 

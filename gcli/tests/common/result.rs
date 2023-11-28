@@ -19,6 +19,8 @@
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error(transparent)]
+    Anyhow(#[from] anyhow::Error),
+    #[error(transparent)]
     GCli(#[from] gcli::result::Error),
     #[error(transparent)]
     GSdk(#[from] gsdk::result::Error),

@@ -16,14 +16,35 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-fn main() {
-    substrate_build_script_utils::generate_cargo_keys();
-    #[cfg(all(feature = "std", not(feature = "fuzz")))]
-    {
-        substrate_wasm_builder::WasmBuilder::new()
-            .with_current_project()
-            .export_heap_base()
-            .import_memory()
-            .build()
-    }
+#![no_std]
+
+use gstd::codec::{Decode, Encode};
+
+#[cfg(feature = "std")]
+mod code {
+    include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 }
+
+#[cfg(feature = "std")]
+pub use code::WASM_BINARY_OPT as WASM_BINARY;
+
+pub const SENDING_EXPECT: &str = "Failed to send delayed message from reservation";
+
+#[derive(Encode, Decode, Debug, Clone, Copy)]
+#[codec(crate = gstd::codec)]
+pub enum ReservationSendingShowcase {
+    ToSourceInPlace {
+        reservation_amount: u64,
+        reservation_delay: u32,
+        sending_delay: u32,
+    },
+    ToSourceAfterWait {
+        reservation_amount: u64,
+        reservation_delay: u32,
+        wait_for: u32,
+        sending_delay: u32,
+    },
+}
+
+#[cfg(not(feature = "std"))]
+mod wasm;

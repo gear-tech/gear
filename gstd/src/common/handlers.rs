@@ -25,57 +25,50 @@
 //! debug and non-debug mode, for programs built in `wasm32` architecture.
 //! For `debug` mode it provides more extensive logging.
 
-#[cfg(target_arch = "wasm32")]
-use {crate::ext, alloc::alloc::AllocErrorPanicPayload, core::panic::PanicInfo};
-
-#[cfg(not(any(feature = "debug", debug_assertions)))]
-#[cfg(target_arch = "wasm32")]
-#[panic_handler]
-pub fn panic(panic_info: &PanicInfo) -> ! {
-    // Alloc error handling through panic message.
-    if panic_info
-        .payload()
-        .downcast_ref::<AllocErrorPanicPayload>()
-        .is_some()
-    {
-        ext::oom_panic()
-    }
-
-    // Common panic handling.
-    ext::panic("no info")
+#[cfg(feature = "oom-handler")]
+#[alloc_error_handler]
+pub fn oom(_: core::alloc::Layout) -> ! {
+    crate::ext::oom_panic()
 }
 
-#[cfg(any(feature = "debug", debug_assertions))]
-#[cfg(target_arch = "wasm32")]
-#[panic_handler]
-pub fn panic(panic_info: &PanicInfo) -> ! {
-    use crate::prelude::format;
+#[cfg(feature = "panic-handler")]
+mod panic_handler {
+    use crate::ext;
+    use core::panic::PanicInfo;
 
-    // Alloc error handling through panic message.
-    if panic_info
-        .payload()
-        .downcast_ref::<AllocErrorPanicPayload>()
-        .is_some()
-    {
-        ext::oom_panic()
+    #[cfg(not(feature = "debug"))]
+    #[panic_handler]
+    pub fn panic(_: &PanicInfo) -> ! {
+        ext::panic("no info")
     }
 
-    // Common panic handling.
-    let msg = match (panic_info.message(), panic_info.location()) {
-        (Some(msg), Some(loc)) => format!(
-            "'{:?}', {}:{}:{}",
-            msg,
-            loc.file(),
-            loc.line(),
-            loc.column()
-        ),
-        (Some(msg), None) => format!("'{msg:?}'"),
-        (None, Some(loc)) => {
-            format!("{}:{}:{}", loc.file(), loc.line(), loc.column())
-        }
-        _ => ext::panic("no info"),
-    };
+    #[cfg(feature = "debug")]
+    #[panic_handler]
+    pub fn panic(panic_info: &PanicInfo) -> ! {
+        use crate::prelude::format;
+        #[cfg(not(feature = "panic-messages"))]
+        let message = None::<&core::fmt::Arguments<'_>>;
+        #[cfg(feature = "panic-messages")]
+        let message = panic_info.message();
 
-    crate::debug!("panic occurred: {msg}");
-    ext::panic(&msg)
+        let msg = match (message, panic_info.location()) {
+            (Some(msg), Some(loc)) => format!(
+                "'{:?}', {}:{}:{}",
+                msg,
+                loc.file(),
+                loc.line(),
+                loc.column()
+            ),
+            (Some(msg), None) => format!("'{msg:?}'"),
+            (None, Some(loc)) => {
+                format!("{}:{}:{}", loc.file(), loc.line(), loc.column())
+            }
+            _ => ext::panic("no info"),
+        };
+
+        crate::debug!("panic occurred: {msg}");
+        ext::panic(&msg)
+    }
 }
+#[cfg(feature = "panic-handler")]
+pub use panic_handler::*;

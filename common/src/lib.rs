@@ -17,6 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 #![cfg_attr(not(feature = "std"), no_std)]
+#![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
+#![doc(html_favicon_url = "https://gear-tech.io/favicons/favicon.ico")]
 
 #[macro_use]
 extern crate gear_common_codegen;
@@ -39,6 +41,9 @@ pub mod gas_provider;
 #[cfg(feature = "runtime-benchmarks")]
 pub mod benchmarking;
 
+#[cfg(feature = "std")]
+pub mod pallet_tests;
+
 use core::fmt;
 use frame_support::{
     codec::{self, Decode, Encode},
@@ -56,11 +61,11 @@ use gear_core::{
     memory::PageBuf,
     message::DispatchKind,
     pages::{GearPage, WasmPage},
+    program::MemoryInfix,
     reservation::GasReservationMap,
 };
 use primitive_types::H256;
 use sp_arithmetic::traits::{BaseArithmetic, One, Saturating, UniqueSaturatedInto, Unsigned};
-use sp_core::crypto::UncheckedFrom;
 use sp_std::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
     prelude::*,
@@ -102,7 +107,7 @@ impl Origin for sp_runtime::AccountId32 {
     }
 
     fn from_origin(v: H256) -> Self {
-        sp_runtime::AccountId32::unchecked_from(v)
+        Self::new(v.0)
     }
 }
 
@@ -177,6 +182,23 @@ where
             Self::GasPerValue(_multiplier) => {
                 // Consider option to return `(*cost*, *amount of gas to be bought*)`.
                 unimplemented!("Currently unsupported that 1 Value > 1 Gas");
+            }
+        }
+    }
+}
+
+impl<Balance, Gas> From<GasMultiplier<Balance, Gas>> for gsys::GasMultiplier
+where
+    Balance: Copy + UniqueSaturatedInto<gsys::Value>,
+    Gas: Copy + UniqueSaturatedInto<gsys::Gas>,
+{
+    fn from(multiplier: GasMultiplier<Balance, Gas>) -> Self {
+        match multiplier {
+            GasMultiplier::ValuePerGas(multiplier) => {
+                Self::from_value_per_gas((multiplier).unique_saturated_into())
+            }
+            GasMultiplier::GasPerValue(multiplier) => {
+                Self::from_gas_per_value((multiplier).unique_saturated_into())
             }
         }
     }
@@ -258,6 +280,7 @@ pub struct ActiveProgram<BlockNumber: Copy + Saturating> {
     pub allocations: BTreeSet<WasmPage>,
     /// Set of gear pages numbers, which has data in storage.
     pub pages_with_data: BTreeSet<GearPage>,
+    pub memory_infix: MemoryInfix,
     pub gas_reservation_map: GasReservationMap,
     pub code_hash: H256,
     pub code_exports: BTreeSet<DispatchKind>,

@@ -71,7 +71,7 @@ jobs:
     steps:
       - name: Cancel Previous Runs
         if: ${{ github.event_name == 'pull_request' }}
-        uses: styfle/cancel-workflow-action@0.11.0
+        uses: styfle/cancel-workflow-action@0.12.0
         with:
           access_token: ${{ github.token }}
 
@@ -90,8 +90,8 @@ jobs:
       - name: Install cargo-fuzz
         run: cargo install cargo-fuzz
 
-      - name: "Check fuzzer with mutation test"
-        run: ./scripts/check-fuzzer.sh
+      - name: "Run runtime-fuzzer crate tests"
+        run: ./scripts/gear.sh test fuzzer-tests
 
-      - name: "Check fuzzer reproduction"
-        run: ./scripts/gear.sh test fuzz-repr
+      - name: "Check fuzzer competence with mutation test"
+        run: ./scripts/check-fuzzer.sh

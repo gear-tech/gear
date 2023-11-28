@@ -55,7 +55,7 @@ use testing::{
 use vara_runtime::{AccountId, Runtime, RuntimeCall, UncheckedExtrinsic, SLOT_DURATION, VERSION};
 
 const SOURCE: TransactionSource = TransactionSource::External;
-const DEFAULT_GAS_LIMIT: u64 = 865_000_000;
+const DEFAULT_GAS_LIMIT: u64 = 1_000_000_000;
 
 fn chain_event<B: BlockT>(header: B::Header) -> ChainEvent<B>
 where
@@ -96,6 +96,7 @@ fn checked_extrinsics(n: u32, signer: AccountId, nonce: &mut u32) -> Vec<Checked
                     init_payload: (i as u64).encode(),
                     gas_limit: DEFAULT_GAS_LIMIT,
                     value: 0,
+                    keep_alive: false,
                 }),
             };
             *nonce += 1;

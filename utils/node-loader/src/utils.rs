@@ -116,7 +116,7 @@ pub async fn stop_node(monitor_url: String) -> Result<()> {
 
 pub async fn capture_mailbox_messages(
     api: &GearApi,
-    event_source: &mut [gsdk::metadata::Event],
+    event_source: &[gsdk::metadata::Event],
 ) -> Result<BTreeSet<MessageId>> {
     let to = ProgramId::from(api.account_id().as_ref());
     // Mailbox message expiration threshold block number: current(last) block number + 20.
@@ -219,12 +219,13 @@ pub fn get_wasm_gen_config(
             (SysCallName::Leave, 0..=0),
             (SysCallName::Panic, 0..=0),
             (SysCallName::OomPanic, 0..=0),
+            (SysCallName::EnvVars, 0..=0),
             (SysCallName::Send, 10..=15),
             (SysCallName::Exit, 0..=1),
             (SysCallName::Alloc, 3..=6),
             (SysCallName::Free, 3..=6),
         ]
-        .map(|(sys_call, range)| (InvocableSysCall::Loose(sys_call), range))
+        .map(|(syscall, range)| (InvocableSysCall::Loose(syscall), range))
         .into_iter(),
     );
 
@@ -239,7 +240,6 @@ pub fn get_wasm_gen_config(
         injection_types,
         params_config,
         initial_pages: initial_pages as u32,
-        unreachable_enabled: false,
         ..Default::default()
     }
 }

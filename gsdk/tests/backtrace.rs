@@ -37,8 +37,8 @@ async fn transfer_backtrace() -> Result<()> {
     assert!(matches!(
         backtrace.values().collect::<Vec<_>>()[..],
         [
-            BacktraceStatus::InBlock { .. },
-            BacktraceStatus::Finalized { .. },
+            BacktraceStatus::InBestBlock { .. },
+            BacktraceStatus::InFinalizedBlock { .. },
         ]
     ));
     Ok(())

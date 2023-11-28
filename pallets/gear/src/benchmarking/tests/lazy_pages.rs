@@ -226,7 +226,7 @@ where
                 })
             } else if prob_number >= load_prob + store_prob {
                 // Generate syscall
-                // We use syscall random here, because it has read and write access,
+                // We use syscall gr_random here, because it has read and write access,
                 // and cannot cause errors because of input params
                 let subject_size = gsys::Hash::max_encoded_len() as u32;
                 let bn_random_size = core::mem::size_of::<gsys::BlockNumberWithHash>() as u32;
@@ -277,7 +277,12 @@ where
             .map(|_| GearPage::new(rng.gen_range(0..size_gear.raw())).unwrap())
         {
             page_sets.add_page_with_data(page);
-            ProgramStorageOf::<T>::set_program_page_data(program_id, page, PageBuf::new_zeroed());
+            ProgramStorageOf::<T>::set_program_page_data(
+                program_id,
+                Default::default(),
+                page,
+                PageBuf::new_zeroed(),
+            );
         }
 
         // execute program with random page costs

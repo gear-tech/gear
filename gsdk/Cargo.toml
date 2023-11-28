@@ -48,4 +48,3 @@ demo-waiter = { workspace = true, features = ["std"] }
 
 [features]
 testing = [ "rand" ]
-vara-testing = []

@@ -31,6 +31,7 @@
 //!
 //! ```
 //! #![no_std]
+//! #![feature(alloc_error_handler)]
 //!
 //! extern crate galloc;
 //!
@@ -48,6 +49,12 @@
 //! }
 //!
 //! # #[cfg(target = "wasm32")]
+//! #[alloc_error_handler]
+//! pub fn oom(_: core::alloc::Layout) -> ! {
+//!     core::arch::wasm32::unreachable()
+//! }
+//!
+//! # #[cfg(target = "wasm32")]
 //! #[panic_handler]
 //! fn panic(_: &core::panic::PanicInfo) -> ! {
 //!     core::arch::wasm32::unreachable()
@@ -59,9 +66,8 @@
 #![warn(missing_docs)]
 #![cfg_attr(feature = "strict", deny(warnings))]
 #![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
+#![doc(html_favicon_url = "https://gear-tech.io/favicons/favicon.ico")]
 #![doc(test(attr(deny(warnings), allow(unused_variables, unused_assignments))))]
-
-extern crate alloc;
 
 pub mod errors;
 pub mod exec;
@@ -75,7 +81,7 @@ pub use general::*;
 mod utils;
 pub use utils::ext;
 
-pub use gsys::{BlockCount, BlockNumber};
+pub use gsys::{BlockCount, BlockNumber, Gas, GasMultiplier, Percent, Value};
 
 use core::mem::size_of;
 use static_assertions::const_assert;

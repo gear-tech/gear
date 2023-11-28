@@ -16,9 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{client::RpcClient, config::GearConfig, signer::Signer, Blocks, Events, Result};
+use crate::{client::Rpc, config::GearConfig, signer::Signer, Blocks, Events, Result};
 use core::ops::{Deref, DerefMut};
-use std::sync::Arc;
 use subxt::OnlineClient;
 
 /// Gear api wrapper.
@@ -27,6 +26,9 @@ pub struct Api {
     /// How many times we'll retry when rpc requests failed.
     pub retry: u16,
     client: OnlineClient<GearConfig>,
+
+    /// Gear RPC client
+    rpc: Rpc,
 }
 
 impl Api {
@@ -35,13 +37,20 @@ impl Api {
         Self::new_with_timeout(url, None).await
     }
 
+    /// Gear RPC Client
+    pub fn rpc(&self) -> Rpc {
+        self.rpc.clone()
+    }
+
     /// Create new API client with timeout.
     pub async fn new_with_timeout(url: Option<&str>, timeout: Option<u64>) -> Result<Self> {
+        let rpc = Rpc::new(url, timeout).await?;
+
         Ok(Self {
             // Retry our failed RPC requests for 5 times by default.
             retry: 5,
-            client: OnlineClient::from_rpc_client(Arc::new(RpcClient::new(url, timeout).await?))
-                .await?,
+            client: OnlineClient::from_rpc_client(rpc.client()).await?,
+            rpc,
         })
     }
 
@@ -56,20 +65,20 @@ impl Api {
     ///
     /// ```ignore
     /// let api = Api::new(None).await?;
-    /// let blocks = api.blocks().await?;
+    /// let blocks = api.subscribe_blocks().await?;
     ///
     /// while let Ok(block) = blocks.next().await {
     ///   // ...
     /// }
     /// ```
-    pub async fn blocks(&self) -> Result<Blocks> {
+    pub async fn subscribe_blocks(&self) -> Result<Blocks> {
         Ok(self.client.blocks().subscribe_all().await?.into())
     }
 
     /// Subscribe finalized blocks
     ///
-    /// Same as `blocks` but only finalized blocks.
-    pub async fn finalized_blocks(&self) -> Result<Blocks> {
+    /// Same as `subscribe_blocks` but only finalized blocks.
+    pub async fn subscribe_finalized_blocks(&self) -> Result<Blocks> {
         Ok(self.client.blocks().subscribe_finalized().await?.into())
     }
 

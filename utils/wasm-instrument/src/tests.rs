@@ -316,13 +316,13 @@ test_gas_counter_injection! {
     input = r#"
     (module
         (func (result i32)
-            (get_global 0)))
+            (global.get 0)))
     "#;
     expected = r#"
     (module
         (func (result i32)
             (call 2 (i32.const 1))
-            (get_global 0)))
+            (global.get 0)))
     "#
 }
 
@@ -331,23 +331,23 @@ test_gas_counter_injection! {
     input = r#"
     (module
         (func (result i32)
-            (get_global 0)
+            (global.get 0)
             (block
-                (get_global 0)
-                (get_global 0)
-                (get_global 0))
-            (get_global 0)))
+                (global.get 0)
+                (global.get 0)
+                (global.get 0))
+            (global.get 0)))
     "#;
     expected = r#"
     (module
         (func (result i32)
             (call 2 (i32.const 6))
-            (get_global 0)
+            (global.get 0)
             (block
-                (get_global 0)
-                (get_global 0)
-                (get_global 0))
-            (get_global 0)))
+                (global.get 0)
+                (global.get 0)
+                (global.get 0))
+            (global.get 0)))
     "#
 }
 
@@ -356,33 +356,33 @@ test_gas_counter_injection! {
     input = r#"
     (module
         (func (result i32)
-            (get_global 0)
+            (global.get 0)
             (if
                 (then
-                    (get_global 0)
-                    (get_global 0)
-                    (get_global 0))
+                    (global.get 0)
+                    (global.get 0)
+                    (global.get 0))
                 (else
-                    (get_global 0)
-                    (get_global 0)))
-            (get_global 0)))
+                    (global.get 0)
+                    (global.get 0)))
+            (global.get 0)))
     "#;
     expected = r#"
     (module
         (func (result i32)
             (call 2 (i32.const 3))
-            (get_global 0)
+            (global.get 0)
             (if
                 (then
                     (call 2 (i32.const 3))
-                    (get_global 0)
-                    (get_global 0)
-                    (get_global 0))
+                    (global.get 0)
+                    (global.get 0)
+                    (global.get 0))
                 (else
                     (call 2 (i32.const 2))
-                    (get_global 0)
-                    (get_global 0)))
-            (get_global 0)))
+                    (global.get 0)
+                    (global.get 0)))
+            (global.get 0)))
     "#
 }
 
@@ -391,28 +391,28 @@ test_gas_counter_injection! {
     input = r#"
     (module
         (func (result i32)
-            (get_global 0)
+            (global.get 0)
             (block
-                (get_global 0)
+                (global.get 0)
                 (drop)
                 (br 0)
-                (get_global 0)
+                (global.get 0)
                 (drop))
-            (get_global 0)))
+            (global.get 0)))
     "#;
     expected = r#"
     (module
         (func (result i32)
             (call 2 (i32.const 6))
-            (get_global 0)
+            (global.get 0)
             (block
-                (get_global 0)
+                (global.get 0)
                 (drop)
                 (br 0)
                 (call 2 (i32.const 2))
-                (get_global 0)
+                (global.get 0)
                 (drop))
-            (get_global 0)))
+            (global.get 0)))
     "#
 }
 
@@ -421,37 +421,37 @@ test_gas_counter_injection! {
     input = r#"
     (module
         (func (result i32)
-            (get_global 0)
+            (global.get 0)
             (block
-                (get_global 0)
+                (global.get 0)
                 (if
                     (then
-                        (get_global 0)
-                        (get_global 0)
+                        (global.get 0)
+                        (global.get 0)
                         (drop)
                         (br_if 1)))
-                (get_global 0)
+                (global.get 0)
                 (drop))
-            (get_global 0)))
+            (global.get 0)))
     "#;
     expected = r#"
     (module
         (func (result i32)
             (call 2 (i32.const 5))
-            (get_global 0)
+            (global.get 0)
             (block
-                (get_global 0)
+                (global.get 0)
                 (if
                     (then
                         (call 2 (i32.const 4))
-                        (get_global 0)
-                        (get_global 0)
+                        (global.get 0)
+                        (global.get 0)
                         (drop)
                         (br_if 1)))
                 (call 2 (i32.const 2))
-                (get_global 0)
+                (global.get 0)
                 (drop))
-            (get_global 0)))
+            (global.get 0)))
     "#
 }
 
@@ -460,44 +460,44 @@ test_gas_counter_injection! {
     input = r#"
     (module
         (func (result i32)
-            (get_global 0)
+            (global.get 0)
             (loop
-                (get_global 0)
+                (global.get 0)
                 (if
                     (then
-                        (get_global 0)
+                        (global.get 0)
                         (br_if 0))
                     (else
-                        (get_global 0)
-                        (get_global 0)
+                        (global.get 0)
+                        (global.get 0)
                         (drop)
                         (br_if 1)))
-                (get_global 0)
+                (global.get 0)
                 (drop))
-            (get_global 0)))
+            (global.get 0)))
     "#;
     expected = r#"
     (module
         (func (result i32)
             (call 2 (i32.const 3))
-            (get_global 0)
+            (global.get 0)
             (loop
                 (call 2 (i32.const 4))
-                (get_global 0)
+                (global.get 0)
                 (if
                     (then
                         (call 2 (i32.const 2))
-                        (get_global 0)
+                        (global.get 0)
                         (br_if 0))
                     (else
                         (call 2 (i32.const 4))
-                        (get_global 0)
-                        (get_global 0)
+                        (global.get 0)
+                        (global.get 0)
                         (drop)
                         (br_if 1)))
-                (get_global 0)
+                (global.get 0)
                 (drop))
-            (get_global 0)))
+            (global.get 0)))
     "#
 }
 
@@ -506,23 +506,23 @@ test_gas_counter_injection! {
     input = r#"
     (module
         (func (result i32)
-            (get_global 0)
+            (global.get 0)
             (if
                 (then
                     (return)))
-            (get_global 0)))
+            (global.get 0)))
     "#;
     expected = r#"
     (module
         (func (result i32)
             (call 2 (i32.const 2))
-            (get_global 0)
+            (global.get 0)
             (if
                 (then
                     (call 2 (i32.const 1))
                     (return)))
             (call 2 (i32.const 1))
-            (get_global 0)))
+            (global.get 0)))
     "#
 }
 
@@ -531,23 +531,23 @@ test_gas_counter_injection! {
     input = r#"
     (module
         (func (result i32)
-            (get_global 0)
+            (global.get 0)
             (block
-                (get_global 0)
+                (global.get 0)
                 (if
                     (then (br 1))
                     (else (br 0)))
-                (get_global 0)
+                (global.get 0)
                 (drop))
-            (get_global 0)))
+            (global.get 0)))
     "#;
     expected = r#"
     (module
         (func (result i32)
             (call 2 (i32.const 5))
-            (get_global 0)
+            (global.get 0)
             (block
-                (get_global 0)
+                (global.get 0)
                 (if
                     (then
                         (call 2 (i32.const 1))
@@ -556,9 +556,9 @@ test_gas_counter_injection! {
                         (call 2 (i32.const 1))
                         (br 0)))
                 (call 2 (i32.const 2))
-                (get_global 0)
+                (global.get 0)
                 (drop))
-            (get_global 0)))
+            (global.get 0)))
     "#
 }
 
@@ -618,61 +618,6 @@ test_gas_counter_injection! {
     "#
 }
 
-/// Check that all sys calls are supported by backend.
-#[test]
-fn test_sys_calls_table() {
-    use gas_metering::ConstantCostRules;
-    use gear_core::message::DispatchKind;
-    use gear_core_backend::{
-        env::{BackendReport, Environment},
-        error::ActorTerminationReason,
-        mock::MockExt,
-    };
-    use parity_wasm::builder;
-
-    // Make module with one empty function.
-    let mut module = builder::module()
-        .function()
-        .signature()
-        .build()
-        .build()
-        .build();
-
-    // Insert syscalls imports.
-    for name in SysCallName::instrumentable() {
-        let sign = name.signature();
-        let types = module.type_section_mut().unwrap().types_mut();
-        let type_no = types.len() as u32;
-        types.push(parity_wasm::elements::Type::Function(sign.func_type()));
-
-        module = builder::from_module(module)
-            .import()
-            .module("env")
-            .external()
-            .func(type_no)
-            .field(name.to_str())
-            .build()
-            .build();
-    }
-
-    let module = inject(module, &ConstantCostRules::default(), "env").unwrap();
-    let code = module.into_bytes().unwrap();
-
-    // Execute wasm and check success.
-    let ext = MockExt::default();
-    let env =
-        Environment::new(ext, &code, DispatchKind::Init, Default::default(), 0.into()).unwrap();
-    let report = env
-        .execute(|_, _, _| -> Result<(), u32> { Ok(()) })
-        .unwrap();
-
-    let BackendReport {
-        termination_reason, ..
-    } = report;
-
-    assert_eq!(termination_reason, ActorTerminationReason::Success.into());
-}
-
 #[test]
 fn check_memory_array_pointers_definition_correctness() {
     let sys_calls = SysCallName::instrumentable();
@@ -683,7 +628,7 @@ fn check_memory_array_pointers_definition_correctness() {
             .iter()
             .filter_map(|param_ty| match param_ty {
                 ParamType::Ptr(PtrInfo {
-                    ty: PtrType::BufferStart { length_param_idx },
+                    ty: PtrType::SizedBufferStart { length_param_idx },
                     ..
                 }) => Some(*length_param_idx),
                 _ => None,

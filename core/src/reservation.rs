@@ -151,6 +151,15 @@ impl GasReserver {
         }
     }
 
+    /// Returns amount of gas in reservation, if exists.
+    pub fn limit_of(&self, reservation_id: &ReservationId) -> Option<u64> {
+        self.states.get(reservation_id).and_then(|v| match v {
+            GasReservationState::Exists { amount, .. }
+            | GasReservationState::Created { amount, .. } => Some(*amount),
+            _ => None,
+        })
+    }
+
     /// Reserves gas.
     ///
     /// Creates a new reservation and returns its id.

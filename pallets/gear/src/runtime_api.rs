@@ -21,7 +21,7 @@ use crate::queue::{ActorResult, QueueStep};
 use common::ActiveProgram;
 use core::convert::TryFrom;
 use core_processor::common::PrechargedDispatch;
-use gear_core::{code::TryNewCodeConfig, pages::WasmPage};
+use gear_core::{code::TryNewCodeConfig, pages::WasmPage, program::MemoryInfix};
 use gear_wasm_instrument::syscalls::SysCallName;
 
 // Multiplier 6 was experimentally found as median value for performance,
@@ -31,6 +31,7 @@ pub(crate) const RUNTIME_API_BLOCK_LIMITS_COUNT: u64 = 6;
 pub(crate) struct CodeWithMemoryData {
     pub instrumented_code: InstrumentedCode,
     pub allocations: BTreeSet<WasmPage>,
+    pub memory_infix: MemoryInfix,
 }
 
 impl<T: Config> Pallet<T>
@@ -71,16 +72,25 @@ where
         match kind {
             HandleKind::Init(code) => {
                 let salt = b"calculate_gas_salt".to_vec();
-                Self::upload_program(who.into(), code, salt, payload, initial_gas, value).map_err(
-                    |e| format!("Internal error: upload_program failed with '{e:?}'").into_bytes(),
-                )?;
+                Self::upload_program(who.into(), code, salt, payload, initial_gas, value, false)
+                    .map_err(|e| {
+                        format!("Internal error: upload_program failed with '{e:?}'").into_bytes()
+                    })?;
             }
             HandleKind::InitByHash(code_id) => {
                 let salt = b"calculate_gas_salt".to_vec();
-                Self::create_program(who.into(), code_id, salt, payload, initial_gas, value)
-                    .map_err(|e| {
-                        format!("Internal error: create_program failed with '{e:?}'").into_bytes()
-                    })?;
+                Self::create_program(
+                    who.into(),
+                    code_id,
+                    salt,
+                    payload,
+                    initial_gas,
+                    value,
+                    false,
+                )
+                .map_err(|e| {
+                    format!("Internal error: create_program failed with '{e:?}'").into_bytes()
+                })?;
             }
             HandleKind::Handle(destination) => {
                 Self::send_message(who.into(), destination, payload, initial_gas, value, false)
@@ -269,11 +279,10 @@ where
         let instrumented_code = T::CodeStorage::get_code(code_id)
             .ok_or_else(|| String::from("Failed to get code for given program id"))?;
 
-        let allocations = program.allocations;
-
         Ok(CodeWithMemoryData {
             instrumented_code,
-            allocations,
+            allocations: program.allocations,
+            memory_infix: program.memory_infix,
         })
     }
 
@@ -351,6 +360,7 @@ where
         let CodeWithMemoryData {
             instrumented_code,
             allocations,
+            memory_infix,
         } = Self::code_with_memory(program_id)?;
 
         let block_info = BlockInfo {
@@ -368,7 +378,7 @@ where
             String::from("state"),
             instrumented_code,
             Some(allocations),
-            Some(program_id),
+            Some((program_id, memory_infix)),
             payload,
             gas_allowance,
             block_info,
@@ -386,6 +396,7 @@ where
         let CodeWithMemoryData {
             instrumented_code,
             allocations,
+            memory_infix,
         } = Self::code_with_memory(program_id)?;
 
         let block_info = BlockInfo {
@@ -403,7 +414,7 @@ where
             String::from("metahash"),
             instrumented_code,
             Some(allocations),
-            Some(program_id),
+            Some((program_id, memory_infix)),
             Default::default(),
             gas_allowance,
             block_info,

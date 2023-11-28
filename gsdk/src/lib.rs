@@ -16,27 +16,29 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+#![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
+#![doc(html_favicon_url = "https://gear-tech.io/favicons/favicon.ico")]
+
 //! Gear api
 pub use crate::{
     api::Api,
+    config::GearConfig,
     metadata::Event,
     result::{Error, Result},
     signer::PairSigner,
     subscription::{Blocks, Events},
 };
-use crate::{
-    config::GearConfig,
-    metadata::runtime_types::gear_common::{
-        gas_provider::node::{GasNode, GasNodeId},
-        ActiveProgram,
-    },
-};
 pub use gear_core::gas::GasInfo;
+pub use subxt::dynamic::Value;
+
+use crate::metadata::runtime_types::gear_common::{
+    gas_provider::node::{GasNode, GasNodeId},
+    ActiveProgram,
+};
 use gear_core::ids::{MessageId, ReservationId};
 use parity_scale_codec::Decode;
 use sp_runtime::AccountId32;
 use std::collections::HashMap;
-pub use subxt::dynamic::Value;
 use subxt::{
     tx::{TxInBlock as SubxtTxInBlock, TxStatus as SubxtTxStatus},
     OnlineClient,

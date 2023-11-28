@@ -51,6 +51,13 @@ pub const API_BENCHMARK_BATCH_SIZE: u32 = 80;
 /// as for `API_BENCHMARK_BATCH_SIZE`.
 pub const INSTR_BENCHMARK_BATCH_SIZE: u32 = 500;
 
+// Constant for `stack_height` is calculated via `calc-stack-height` utility to be small enough
+// to avoid stack overflow in wasmer and wasmi executors.
+// To avoid potential stack overflow problems we have a panic in sandbox in case,
+// execution is ended with stack overflow error. So, process queue execution will be
+// stopped and we will be able to investigate the problem and decrease this constant if needed.
+pub const STACK_HEIGHT_LIMIT: u32 = 36_743;
+
 /// Definition of the cost schedule and other parameterization for the wasm vm.
 ///
 /// Its [`Default`] implementation is the designated way to initialize this type. It uses
@@ -375,6 +382,9 @@ pub struct HostFnWeights<T: Config> {
 
     /// Weight per payload byte by `gr_read`.
     pub gr_read_per_byte: Weight,
+
+    /// Weight of calling `gr_env_vars`.
+    pub gr_env_vars: Weight,
 
     /// Weight of calling `gr_block_height`.
     pub gr_block_height: Weight,
@@ -729,15 +739,7 @@ impl<T: Config> Default for Schedule<T> {
 impl Default for Limits {
     fn default() -> Self {
         Self {
-            // Constant for `stack_height` is chosen to be small enough to avoid stack overflow in
-            // wasmer and wasmi executors. Currently it's just heuristic value.
-            // Unfortunately it's very hard to calculate this value precisely,
-            // because of difference of how stack height is calculated in injection and
-            // how wasmer and wasmi actually uses stack.
-            // To avoid potential stack overflow problems we have a panic in sandbox in case,
-            // execution is ended with stack overflow error. So, process queue execution will be
-            // stopped and we will be able to investigate the problem and decrease this constant if needed.
-            stack_height: Some(20_000),
+            stack_height: Some(STACK_HEIGHT_LIMIT),
             globals: 256,
             locals: 1024,
             parameters: 128,
@@ -868,6 +870,7 @@ impl<T: Config> HostFnWeights<T> {
             gr_size: self.gr_size.ref_time(),
             gr_read: self.gr_read.ref_time(),
             gr_read_per_byte: self.gr_read_per_byte.ref_time(),
+            gr_env_vars: self.gr_env_vars.ref_time(),
             gr_block_height: self.gr_block_height.ref_time(),
             gr_block_timestamp: self.gr_block_timestamp.ref_time(),
             gr_random: self.gr_random.ref_time(),
@@ -989,6 +992,7 @@ impl<T: Config> Default for HostFnWeights<T> {
             gr_size: to_weight!(cost_batched!(gr_size)),
             gr_read: to_weight!(cost_batched!(gr_read)),
             gr_read_per_byte: to_weight!(cost_byte_batched!(gr_read_per_kb)),
+            gr_env_vars: to_weight!(cost_batched!(gr_env_vars)),
             gr_block_height: to_weight!(cost_batched!(gr_block_height)),
             gr_block_timestamp: to_weight!(cost_batched!(gr_block_timestamp)),
             gr_random: to_weight!(cost_batched!(gr_random)),

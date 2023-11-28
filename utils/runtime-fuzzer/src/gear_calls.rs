@@ -39,9 +39,12 @@ use gear_wasm_gen::{
     SysCallsInjectionTypes, SysCallsParamsConfig,
 };
 use std::ops::RangeInclusive;
+use std::mem;
 
-/// Maximum payload size for the fuzzer - 512 KiB.
-const MAX_PAYLOAD_SIZE: usize = 512 * 1024;
+/// Maximum payload size for the fuzzer - 1 KiB.
+///
+/// TODO: #3442
+const MAX_PAYLOAD_SIZE: usize = 1024;
 static_assertions::const_assert!(MAX_PAYLOAD_SIZE <= gear_core::message::MAX_PAYLOAD_SIZE);
 
 /// Maximum salt size for the fuzzer - 512 bytes.
@@ -51,6 +54,13 @@ static_assertions::const_assert!(MAX_PAYLOAD_SIZE <= gear_core::message::MAX_PAY
 /// corpus smaller.
 const MAX_SALT_SIZE: usize = 512;
 static_assertions::const_assert!(MAX_SALT_SIZE <= gear_core::message::MAX_PAYLOAD_SIZE);
+
+const ID_SIZE: usize = mem::size_of::<ProgramId>();
+const GAS_AND_VALUE_SIZE: usize = mem::size_of::<(u64, u128)>();
+// Used to make sure that generators will not exceed `Unstructured` size as it's used not only
+// to generate things like wasm code or message payload but also to generate some auxiliary
+// data, for example index in some vec.
+const AUXILIARY_SIZE: usize = 512;
 
 /// This trait provides ability for [`ExtrinsicGenerator`]s to fetch messages
 /// from mailbox, for example [`UploadProgramGenerator`] and
@@ -249,11 +259,10 @@ impl UploadProgramGenerator {
     }
 
     const fn unstructured_size_hint(&self) -> usize {
-        // Max code size - 50 KiB.
-        const MAX_CODE_SIZE: usize = 50 * 1024;
-        const AUXILIARY_SIZE: usize = 512;
+        // Max code size - 25 KiB.
+        const MAX_CODE_SIZE: usize = 25 * 1024;
 
-        MAX_CODE_SIZE + MAX_PAYLOAD_SIZE + MAX_SALT_SIZE + AUXILIARY_SIZE
+        MAX_CODE_SIZE + MAX_SALT_SIZE + MAX_PAYLOAD_SIZE + GAS_AND_VALUE_SIZE + AUXILIARY_SIZE
     }
 }
 
@@ -294,8 +303,7 @@ impl SendMessageGenerator {
     }
 
     const fn unstructured_size_hint(&self) -> usize {
-        // 512 KiB for payload.
-        520 * 1024
+        ID_SIZE + MAX_PAYLOAD_SIZE + GAS_AND_VALUE_SIZE + AUXILIARY_SIZE
     }
 }
 
@@ -341,8 +349,7 @@ impl SendReplyGenerator {
     }
 
     const fn unstructured_size_hint(&self) -> usize {
-        // 512 KiB for payload.
-        520 * 1024
+        ID_SIZE + MAX_PAYLOAD_SIZE + GAS_AND_VALUE_SIZE + AUXILIARY_SIZE
     }
 }
 
@@ -366,8 +373,7 @@ impl ClaimValueGenerator {
     }
 
     const fn unstructured_size_hint(&self) -> usize {
-        // 32 bytes for message id.
-        100
+        ID_SIZE + AUXILIARY_SIZE
     }
 }
 
@@ -416,12 +422,13 @@ fn config(
             (SysCallName::Leave, 0..=0),
             (SysCallName::Panic, 0..=0),
             (SysCallName::OomPanic, 0..=0),
+            (SysCallName::EnvVars, 0..=0),
             (SysCallName::Send, 10..=15),
             (SysCallName::Exit, 0..=1),
             (SysCallName::Alloc, 3..=6),
             (SysCallName::Free, 3..=6),
         ]
-        .map(|(sys_call, range)| (InvocableSysCall::Loose(sys_call), range))
+        .map(|(syscall, range)| (InvocableSysCall::Loose(syscall), range))
         .into_iter(),
     );
 
@@ -447,7 +454,6 @@ fn config(
         existing_addresses,
         log_info,
         params_config,
-        unreachable_enabled: false,
         initial_pages: initial_pages as u32,
         ..Default::default()
     }

@@ -180,7 +180,7 @@ impl<T: Config> HoldBound<T> {
 
 impl<T: Config> PartialOrd for HoldBound<T> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        self.expected.partial_cmp(&other.expected)
+        Some(self.cmp(other))
     }
 }
 
@@ -535,8 +535,7 @@ where
         let hold_builder = HoldBoundBuilder::<T>::new(StorageType::DispatchStash);
 
         // Calculating correct gas amount for delay.
-        let bn_delay = delay.saturated_into::<BlockNumberFor<T>>();
-        let delay_hold = hold_builder.clone().duration(bn_delay);
+        let delay_hold = hold_builder.duration(delay.saturated_into());
         let gas_for_delay = delay_hold.lock_amount();
 
         let interval_finish = if to_user {
@@ -557,7 +556,11 @@ where
 
                     // If available gas is greater then threshold,
                     // than threshold can be used.
-                    (gas_limit >= threshold).then_some(threshold)
+                    //
+                    // Here we subtract gas for delay from gas limit to prevent
+                    // case when gasless message steal threshold from gas for
+                    // delay payment and delay payment becomes insufficient.
+                    (gas_limit.saturating_sub(gas_for_delay) >= threshold).then_some(threshold)
                 })
                 .unwrap_or_default();
 
@@ -591,22 +594,18 @@ where
                 Self::remove_gas_reservation_with_task(dispatch.source(), reservation_id);
             }
 
-            // Calculating correct hold bound to lock gas.
-            let maximal_hold = hold_builder.maximum_for_message(dispatch.id());
-            let hold = delay_hold.min(maximal_hold);
-
             // Locking funds for holding.
-            let lock_id = hold.lock_id().unwrap_or_else(|| {
+            let lock_id = delay_hold.lock_id().unwrap_or_else(|| {
                 unreachable!("DispatchStash storage is guaranteed to have an associated lock id")
             });
-            GasHandlerOf::<T>::lock(dispatch.id(), lock_id, hold.lock_amount())
+            GasHandlerOf::<T>::lock(dispatch.id(), lock_id, delay_hold.lock_amount())
                 .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
-            if hold.expected_duration().is_zero() {
+            if delay_hold.expected_duration().is_zero() {
                 unreachable!("Hold duration cannot be zero");
             }
 
-            hold.expected()
+            delay_hold.expected()
         } else {
             match (dispatch.gas_limit(), reservation) {
                 (Some(gas_limit), None) => Self::split_with_value(
@@ -629,30 +628,23 @@ where
                 }
             }
 
-            // `HoldBound` builder.
-            let hold_builder = HoldBoundBuilder::<T>::new(StorageType::DispatchStash);
-
-            // Calculating correct hold bound to lock gas.
-            let maximal_hold = hold_builder.maximum_for_message(dispatch.id());
-            let hold = delay_hold.min(maximal_hold);
-
             // Locking funds for holding.
-            let lock_id = hold.lock_id().unwrap_or_else(|| {
+            let lock_id = delay_hold.lock_id().unwrap_or_else(|| {
                 unreachable!("DispatchStash storage is guaranteed to have an associated lock id")
             });
-            GasHandlerOf::<T>::lock(dispatch.id(), lock_id, hold.lock_amount())
+            GasHandlerOf::<T>::lock(dispatch.id(), lock_id, delay_hold.lock_amount())
                 .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
-            if hold.expected_duration().is_zero() {
+            if delay_hold.expected_duration().is_zero() {
                 unreachable!("Hold duration cannot be zero");
             }
 
-            hold.expected()
+            delay_hold.expected()
         };
 
         if !dispatch.value().is_zero() {
             // Reserving value from source for future transfer or unreserve.
-            GearBank::<T>::deposit_value(&from, value)
+            GearBank::<T>::deposit_value(&from, value, false)
                 .unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
         }
 
@@ -759,7 +751,7 @@ where
                 .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
             // Reserving value from source for future transfer or unreserve.
-            GearBank::<T>::deposit_value(&from, value)
+            GearBank::<T>::deposit_value(&from, value, false)
                 .unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
 
             // Lock the entire `gas_limit` since the only purpose of it is payment for storage.

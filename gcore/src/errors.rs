@@ -35,7 +35,7 @@ pub enum Error {
 }
 
 impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Error::SyscallUsage => write!(f, "syscall usage error"),
             Error::Ext(e) => write!(f, "{}", e),
@@ -61,9 +61,9 @@ impl From<SyscallError> for Result<()> {
     fn from(value: SyscallError) -> Self {
         match value.0 {
             0 => Ok(()),
-            code => {
-                Err(ExtError::from_u32(code).unwrap_or(ExtError::Unsupported)).map_err(Into::into)
-            }
+            code => Err(ExtError::from_u32(code)
+                .unwrap_or(ExtError::Unsupported)
+                .into()),
         }
     }
 }
