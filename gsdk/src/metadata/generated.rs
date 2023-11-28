@@ -812,7 +812,6 @@ pub mod runtime_types {
                             >,
                         >,
                         pub initialized: ::std::vec::Vec<runtime_types::gear_core::ids::ProgramId>,
-                        pub reply_sent: ::core::primitive::bool,
                         pub reservation_nonce:
                             runtime_types::gear_core::reservation::ReservationNonce,
                         pub system_reservation: ::core::option::Option<::core::primitive::u64>,

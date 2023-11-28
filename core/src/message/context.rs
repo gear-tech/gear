@@ -116,6 +116,8 @@ pub struct ContextOutcomeDrain {
     pub awakening: Vec<(MessageId, u32)>,
     /// Reply deposits to be provided.
     pub reply_deposits: Vec<(MessageId, u64)>,
+    /// Whether this execution sent out a reply.
+    pub reply_sent: bool,
 }
 
 /// Context outcome.
@@ -151,6 +153,7 @@ impl ContextOutcome {
     /// Destructs outcome after execution and returns provided dispatches and awaken message ids.
     pub fn drain(self) -> ContextOutcomeDrain {
         let mut dispatches = Vec::new();
+        let reply_sent = self.reply.is_some();
 
         for (msg, delay, reservation) in self.init.into_iter() {
             dispatches.push((msg.into_dispatch(self.program_id), delay, reservation));
@@ -172,6 +175,7 @@ impl ContextOutcome {
             outgoing_dispatches: dispatches,
             awakening: self.awakening.into_iter().collect(),
             reply_deposits: self.reply_deposits,
+            reply_sent,
         }
     }
 }
@@ -183,7 +187,6 @@ pub struct ContextStore {
     pub outgoing: BTreeMap<u32, Option<Payload>>,
     pub reply: Option<Payload>,
     pub initialized: BTreeSet<ProgramId>,
-    pub reply_sent: bool,
     pub reservation_nonce: ReservationNonce,
     pub system_reservation: Option<u64>,
 }
@@ -215,11 +218,6 @@ impl ContextStore {
     /// Get system reservation.
     pub fn system_reservation(&self) -> Option<u64> {
         self.system_reservation
-    }
-
-    /// Get info about was reply sent.
-    pub fn reply_sent(&self) -> bool {
-        self.reply_sent
     }
 }
 
@@ -266,7 +264,7 @@ impl MessageContext {
 
     /// Return bool defining was reply sent within the execution.
     pub fn reply_sent(&self) -> bool {
-        self.store.reply_sent
+        self.outcome.reply.is_some()
     }
 
     /// Send a new program initialization message.
@@ -434,7 +432,6 @@ impl MessageContext {
             let message = ReplyMessage::from_packet(message_id, packet);
 
             self.outcome.reply = Some((message, reservation));
-            self.store.reply_sent = true;
 
             Ok(message_id)
         } else {

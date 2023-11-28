@@ -91,6 +91,8 @@ pub struct DispatchResult {
     pub page_update: BTreeMap<GearPage, PageBuf>,
     /// New allocations set for program if it has been changed.
     pub allocations: BTreeSet<WasmPage>,
+    /// Whether this execution sent out a reply.
+    pub reply_sent: bool,
 }
 
 impl DispatchResult {
@@ -138,6 +140,7 @@ impl DispatchResult {
             system_reservation_context,
             page_update: Default::default(),
             allocations: Default::default(),
+            reply_sent: false,
         }
     }
 }

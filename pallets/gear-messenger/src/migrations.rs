@@ -41,7 +41,6 @@ impl<T: Config> MigrateToV2<T> {
             outgoing: ctx.outgoing,
             reply: ctx.reply,
             initialized: ctx.initialized,
-            reply_sent: ctx.reply_sent,
             reservation_nonce: ctx.reservation_nonce,
             system_reservation: ctx.system_reservation,
         }

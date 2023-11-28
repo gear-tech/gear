@@ -175,6 +175,7 @@ pub struct ExtInfo {
     pub program_candidates_data: BTreeMap<CodeId, Vec<(MessageId, ProgramId)>>,
     pub program_rents: BTreeMap<ProgramId, u32>,
     pub context_store: ContextStore,
+    pub reply_sent: bool,
 }
 
 /// Trait to which ext must have to work in processor wasm executor.
@@ -408,6 +409,7 @@ impl ProcessorExternalities for Ext {
             outgoing_dispatches: generated_dispatches,
             awakening,
             reply_deposits,
+            reply_sent,
         } = outcome.drain();
 
         let system_reservation_context = SystemReservationContext {
@@ -434,6 +436,7 @@ impl ProcessorExternalities for Ext {
             context_store,
             program_candidates_data,
             program_rents,
+            reply_sent,
         };
         Ok(info)
     }
