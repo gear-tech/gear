@@ -65,7 +65,7 @@ pub mod pallet {
         type Messenger: Messenger<QueuedDispatch = StoredDispatch>;
 
         type ProgramStorage: ProgramStorage
-            + IterableMap<(ProgramId, common::Program<Self::BlockNumber>)>;
+            + IterableMap<(ProgramId, common::Program<BlockNumberFor<Self>>)>;
     }
 
     #[pallet::pallet]

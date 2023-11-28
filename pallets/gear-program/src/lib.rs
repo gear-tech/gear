@@ -166,7 +166,7 @@ pub mod pallet {
     pub trait Config: frame_system::Config {
         /// Scheduler.
         type Scheduler: Scheduler<
-            BlockNumber = Self::BlockNumber,
+            BlockNumber = BlockNumberFor<Self>,
             Task = ScheduledTask<Self::AccountId>,
         >;
 
@@ -367,7 +367,7 @@ pub mod pallet {
     impl<T: Config> common::ProgramStorage for pallet::Pallet<T> {
         type InternalError = Error<T>;
         type Error = DispatchError;
-        type BlockNumber = T::BlockNumber;
+        type BlockNumber = BlockNumberFor<T>;
         type AccountId = T::AccountId;
 
         type ProgramMap = ProgramStorageWrap<T>;
