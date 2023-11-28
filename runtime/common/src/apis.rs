@@ -129,8 +129,8 @@ macro_rules! impl_runtime_apis_plus_common {
 				}
 			}
 
-			impl frame_system_rpc_runtime_api::AccountNonceApi<Block, AccountId, Index> for Runtime {
-				fn account_nonce(account: AccountId) -> Index {
+			impl frame_system_rpc_runtime_api::AccountNonceApi<Block, AccountId, Nonce> for Runtime {
+				fn account_nonce(account: AccountId) -> Nonce {
 					System::account_nonce(account)
 				}
 			}

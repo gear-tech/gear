@@ -76,7 +76,7 @@ pub use runtime_common::{
     GAS_LIMIT_MIN_PERCENTAGE_NUM, NORMAL_DISPATCH_RATIO, VALUE_PER_GAS,
 };
 pub use runtime_primitives::{AccountId, Signature};
-use runtime_primitives::{Balance, BlockNumber, Hash, Index, Moment};
+use runtime_primitives::{Balance, BlockNumber, Hash, Moment, Nonce};
 use sp_api::impl_runtime_apis;
 use sp_core::{crypto::KeyTypeId, ConstBool, ConstU64, OpaqueMetadata, H256};
 use sp_runtime::{
@@ -210,16 +210,14 @@ impl frame_system::Config for Runtime {
     type RuntimeCall = RuntimeCall;
     /// The lookup mechanism to get account ID from whatever is passed in dispatchers.
     type Lookup = AccountIdLookup<AccountId, ()>;
-    /// The index type for storing how many extrinsics an account has signed.
-    type Index = Index;
-    /// The index type for blocks.
-    type BlockNumber = BlockNumber;
+    /// The nonce type for storing how many extrinsics an account has signed.
+    type Nonce = Nonce;
     /// The type for hashing blocks and tries.
     type Hash = Hash;
     /// The hashing algorithm used.
     type Hashing = BlakeTwo256;
-    /// The header type.
-    type Header = generic::Header<BlockNumber, BlakeTwo256>;
+    /// The block type.
+    type Block = Block;
     /// The ubiquitous event type.
     type RuntimeEvent = RuntimeEvent;
     /// The ubiquitous origin type.
@@ -1128,10 +1126,7 @@ impl pallet_vesting::Config for Runtime {
 // Create the runtime by composing the FRAME pallets that were previously configured.
 #[cfg(feature = "dev")]
 construct_runtime!(
-    pub enum Runtime where
-        Block = Block,
-        NodeBlock = runtime_primitives::Block,
-        UncheckedExtrinsic = UncheckedExtrinsic
+    pub struct Runtime
     {
         System: frame_system = 0,
         Timestamp: pallet_timestamp = 1,
@@ -1191,10 +1186,7 @@ construct_runtime!(
 
 #[cfg(not(feature = "dev"))]
 construct_runtime!(
-    pub enum Runtime where
-        Block = Block,
-        NodeBlock = runtime_primitives::Block,
-        UncheckedExtrinsic = UncheckedExtrinsic
+    pub struct Runtime
     {
         System: frame_system = 0,
         Timestamp: pallet_timestamp = 1,
