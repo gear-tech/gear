@@ -86,8 +86,13 @@ where
 #[pinned_drop]
 impl<Fut> PinnedDrop for SectionFuture<Fut> {
     fn drop(self: Pin<&mut Self>) {
-        let func = sections().remove(&msg::id());
-        assert!(func.is_some());
+        let _func = sections().remove(&msg::id());
+        // future drops after `.await` is complete
+        // so `_func == Some(_)`
+        //
+        // and also drops in `handle_signal` during futures cleanup
+        // so `_func == None`
+        // because failing message ID must be obtained via `msg::signal_from()`
     }
 }
 
