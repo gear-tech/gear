@@ -49,7 +49,6 @@ impl<T: Config> MigrateToV2<T> {
 }
 
 impl<T: Config> OnRuntimeUpgrade for MigrateToV2<T> {
-
     fn on_runtime_upgrade() -> Weight {
         let current = Pallet::<T>::current_storage_version();
         let onchain = Pallet::<T>::on_chain_storage_version();
@@ -124,16 +123,16 @@ mod v1 {
     use crate::{Config, Pallet};
     #[cfg(feature = "try-runtime")]
     use common::storage::{Interval, LinkedNode};
-    #[cfg(feature = "try-runtime")]
-    use frame_support::{
-        pallet_prelude::{CountedStorageMap, StorageDoubleMap},
-        Identity
-    };
     use frame_support::{
         codec::{Decode, Encode},
         scale_info::TypeInfo,
         storage::types::CountedStorageMapInstance,
         traits::{PalletInfo, StorageInstance},
+    };
+    #[cfg(feature = "try-runtime")]
+    use frame_support::{
+        pallet_prelude::{CountedStorageMap, StorageDoubleMap},
+        Identity,
     };
     use gear_core::{
         ids::{MessageId, ProgramId},
@@ -141,9 +140,8 @@ mod v1 {
         reservation::ReservationNonce,
     };
     use sp_std::{
+        collections::{btree_map::BTreeMap, btree_set::BTreeSet},
         marker::PhantomData,
-        collections::btree_set::BTreeSet,
-        collections::btree_map::BTreeMap,
     };
 
     #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
