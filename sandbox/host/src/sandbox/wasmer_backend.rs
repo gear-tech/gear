@@ -46,15 +46,15 @@ enum CachedModuleErr {
 
 #[cfg(feature = "wasmer-cache")]
 use {
-    once_cell::sync::OnceCell,
     sandbox_wasmer::Module,
+    std::sync::OnceLock,
     tempfile::TempDir,
     wasmer_cache::{Cache, FileSystemCache, Hash},
     CachedModuleErr::*,
 };
 
 #[cfg(feature = "wasmer-cache")]
-static CACHE_DIR: OnceCell<TempDir> = OnceCell::new();
+static CACHE_DIR: OnceLock<TempDir> = OnceLock::new();
 
 /// Wasmer specific context
 pub struct Backend {
