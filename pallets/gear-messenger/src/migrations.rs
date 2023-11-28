@@ -244,7 +244,7 @@ mod v2 {
 
 #[cfg(test)]
 #[cfg(feature = "try-runtime")]
-mod tests {
+mod test {
     use crate::{
         migrations::{v2, MigrateToV3},
         mock::*,
