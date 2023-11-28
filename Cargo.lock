@@ -4863,6 +4863,7 @@ dependencies = [
  "hashbrown 0.14.2",
  "hex",
  "parity-scale-codec",
+ "pin-project",
  "primitive-types",
  "scale-info",
  "static_assertions",

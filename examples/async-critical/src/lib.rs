@@ -30,10 +30,9 @@ use gstd::{Decode, Encode};
 
 #[derive(Debug, Encode, Decode)]
 pub enum HandleAction {
-    Normal,
+    Simple,
     Panic,
-    Wait,
-    WaitAndPanic,
+    DropWorks,
 }
 
 #[cfg(target_arch = "wasm32")]

@@ -19,112 +19,94 @@
 //! Critical section that guarantees code section execution
 //!
 //! Code is executed in `handle_signal` entry point in case of failure
-//! only across [`wait`](crate::exec::wait) or `.await` calls
-//! because sections have to be saved.
+//! only across `.await` calls because section has to be saved.
 //!
 //! ```rust,no_run
-//! use gstd::{critical, msg};
+//! use gstd::{critical::{self, SectionFutureExt}, msg};
 //!
 //! # async fn _dummy() {
 //!
 //! // get source outside of critical section
 //! // because `gr_source` sys-call is forbidden inside `handle_signal` entry point
 //! let source = msg::source();
-//! // register section
-//! let section = critical::Section::new(move || {
-//!     msg::send(source, "example", 0).expect("Failed to send message");
-//! });
 //!
-//! // section is now saved
 //! msg::send_for_reply(msg::source(), "for_reply", 0, 0)
 //!     .expect("Failed to send message")
+//!     // register section
+//!     .critical(|| {
+//!         msg::send(source, "example", 0).expect("Failed to send message");
+//!     })
+//!     // section will be saved now during `.await`
 //!     .await
 //!     .expect("Received error reply");
 //!
-//! // if some code fails (panic, out of gas, etc) after `wait` (`send_for_reply` in our case)
-//! // then saved sections will be executed in `handle_signal`
+//! // if some code fails (panic, out of gas, etc) after `.await`
+//! // then saved section will be executed in `handle_signal`
 //!
 //! // your code
 //! // ...
-//!
-//! // execute section
-//! section.execute();
 //!
 //! # }
 //! ```
 
 use alloc::boxed::Box;
-use core::{any::TypeId, mem};
-use hashbrown::HashMap;
+use core::{
+    future::Future,
+    pin::Pin,
+    task::{Context, Poll},
+};
+use pin_project::{pin_project, pinned_drop};
 
-static mut SECTIONS: Option<Sections> = None;
+static mut SECTION: Option<Box<dyn FnMut()>> = None;
 
-pub(crate) struct Sections {
-    fns: HashMap<TypeId, Box<dyn FnMut()>>,
+pub(crate) fn section() -> &'static mut Option<Box<dyn FnMut()>> {
+    unsafe { &mut SECTION }
 }
 
-impl Sections {
-    fn new() -> Self {
-        Self {
-            fns: HashMap::new(),
-        }
-    }
-
-    pub(crate) fn get() -> &'static mut Self {
-        unsafe { SECTIONS.get_or_insert_with(Self::new) }
-    }
-
-    fn register<F>(&mut self, f: F) -> Section<F>
-    where
-        F: FnMut() + Clone + 'static,
-    {
-        self.fns.insert(TypeId::of::<F>(), Box::new(f.clone()));
-        Section(f)
-    }
-
-    fn unregister<F>(&mut self)
-    where
-        F: FnMut() + Clone + 'static,
-    {
-        self.fns.remove(&TypeId::of::<F>());
-    }
-
-    /// Executes every saved critical section once.
-    ///
-    /// Must be called in `handle_signal` entry point
-    /// if you don't use async runtime.
-    pub fn execute_all(&mut self) {
-        for (_, mut f) in mem::take(&mut self.fns) {
-            (f)();
-        }
-    }
+/// Critical section future.
+#[pin_project(PinnedDrop)]
+#[must_use = "Future must be polled"]
+pub struct SectionFuture<Fut> {
+    #[pin]
+    fut: Fut,
 }
 
-/// Critical section.
-pub struct Section<F>(F)
+impl<Fut> Future for SectionFuture<Fut>
 where
-    F: FnMut() + Clone + 'static;
-
-impl<F> Section<F>
-where
-    F: FnMut() + Clone + 'static,
+    Fut: Future,
 {
-    /// Creates a new critical section.
-    pub fn new(f: F) -> Self {
-        Sections::get().register(f)
-    }
+    type Output = Fut::Output;
 
-    /// Executes critical section.
-    pub fn execute(mut self) {
-        (self.0)()
+    fn poll(self: Pin<&mut SectionFuture<Fut>>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        self.project().fut.poll(cx)
     }
 }
 
-impl<F> Drop for Section<F>
+#[pinned_drop]
+impl<Fut> PinnedDrop for SectionFuture<Fut> {
+    fn drop(self: Pin<&mut Self>) {
+        let _ = section().take();
+    }
+}
+
+/// Extension for [`Future`](Future).
+pub trait SectionFutureExt: Future + Sized {
+    /// Register critical section.
+    fn critical<Func>(self, f: Func) -> SectionFuture<Self>
+    where
+        Func: FnMut() + 'static;
+}
+
+impl<F> SectionFutureExt for F
 where
-    F: FnMut() + Clone + 'static,
+    F: Future,
 {
-    fn drop(&mut self) {
-        Sections::get().unregister::<F>();
+    fn critical<Func>(self, func: Func) -> SectionFuture<Self>
+    where
+        Func: FnMut() + 'static,
+    {
+        let prev = section().replace(Box::new(func));
+        assert!(prev.is_none());
+        SectionFuture { fut: self }
     }
 }

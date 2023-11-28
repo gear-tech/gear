@@ -56,7 +56,9 @@ pub fn record_reply() {
 
 /// Default signal handler.
 pub fn handle_signal() {
-    critical::Sections::get().execute_all();
+    if let Some(mut f) = critical::section().take() {
+        f();
+    }
 
     let msg_id = crate::msg::signal_from().expect(
         "`gstd::async_runtime::handle_signal()` must be called only in `handle_signal` entrypoint",

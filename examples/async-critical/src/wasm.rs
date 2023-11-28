@@ -27,7 +27,7 @@
 //! If an approval is obtained the method replies with "PONG".
 
 use crate::HandleAction;
-use gstd::{critical::Section, exec, msg, prelude::*};
+use gstd::{critical::SectionFutureExt, exec, msg, prelude::*};
 
 #[gstd::async_init]
 async fn init() {}
@@ -37,51 +37,56 @@ async fn main() {
     let action: HandleAction = msg::load().expect("Failed to read handle action");
 
     match action {
-        HandleAction::Normal => {
-            let normal0 = Section::new(|| {
-                msg::send_bytes(msg::source(), b"normal0", 0).unwrap();
-            });
-
-            let normal1 = Section::new(|| {
-                msg::send_bytes(msg::source(), b"normal1", 0).unwrap();
-            });
-
-            normal0.execute();
-            normal1.execute();
-        }
-        HandleAction::Panic => {
-            // would not be executed
-            let _before_panic = Section::new(|| {
-                msg::send_bytes(msg::source(), b"before_panic", 0).unwrap();
-            });
-
-            panic!();
-        }
-        HandleAction::Wait => {
-            let section = Section::new(|| {
-                msg::send_bytes(msg::source(), b"before_wait", 0).unwrap();
-            });
-
-            gstd::msg::send_bytes_for_reply(msg::source(), b"for_reply", 0, 0)
-                .expect("Failed to send message")
-                .await
-                .expect("Received error reply");
-
-            section.execute();
-        }
-        HandleAction::WaitAndPanic => {
+        HandleAction::Simple => {
             // call `gr_source` outside because it is forbidden in `handle_signal`
             let source = msg::source();
-            let section = Section::new(move || {
-                msg::send_bytes(source, b"before_wait", 0).unwrap();
-            });
+
+            gstd::msg::send_bytes_for_reply(source, b"for_reply", 0, 0)
+                .expect("Failed to send message")
+                // should not send anything as execution will be completed
+                .critical(move || {
+                    msg::send_bytes(msg::source(), b"critical", 0).unwrap();
+                })
+                .await
+                .expect("Received error reply");
+        }
+        HandleAction::Panic => {
+            // call `gr_source` outside because it is forbidden in `handle_signal`
+            let source = msg::source();
 
             gstd::msg::send_bytes_for_reply(msg::source(), b"for_reply", 0, 0)
                 .expect("Failed to send message")
+                // should send message because panic occurs below
+                .critical(move || {
+                    msg::send_bytes(source, b"critical", 0).unwrap();
+                })
                 .await
                 .expect("Received error reply");
 
             panic!();
+        }
+        HandleAction::DropWorks => {
+            // call `gr_source` outside because it is forbidden in `handle_signal`
+            let source = msg::source();
+
+            gstd::msg::send_bytes_for_reply(msg::source(), b"for_reply0", 0, 0)
+                .expect("Failed to send message")
+                // set section
+                .critical(move || {
+                    msg::send_bytes(source, b"critical", 0).unwrap();
+                })
+                .await
+                // after wait section function should be removed
+                .expect("Received error reply");
+
+            gstd::msg::send_bytes_for_reply(msg::source(), b"for_reply1", 0, 0)
+                .expect("Failed to send message")
+                // check if inside assertion panics
+                .critical(move || {
+                    msg::send_bytes(source, b"critical", 0).unwrap();
+                })
+                .await
+                .expect("Received error reply");
         }
     }
 }
