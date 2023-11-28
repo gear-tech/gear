@@ -4545,9 +4545,9 @@ dependencies = [
 
 [[package]]
 name = "gear-wasm"
-version = "0.45.0"
+version = "0.45.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f745ed9eb163f4509f01d5564e37db52ec43dd23569bafdba597a5f1e4c125c9"
+checksum = "bbfbfa701dc65e683fcd2fb24f046bcef22634acbdf47ad14724637dc39ad05b"
 
 [[package]]
 name = "gear-wasm-builder"
@@ -4927,9 +4927,9 @@ dependencies = [
 
 [[package]]
 name = "gwasm-instrument"
-version = "0.2.1"
+version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bcb127cb43d375de7cdacffd0e4e1c746e52381d11a0465909ae6fbecb99c6c3"
+checksum = "69fe7c1db90c8183b2aecb6d3629b2e59b71dfb538d9138f9ae2fa76a2fc0c55"
 dependencies = [
  "gear-wasm",
 ]
