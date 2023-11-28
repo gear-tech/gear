@@ -56,13 +56,14 @@ pub fn record_reply() {
 
 /// Default signal handler.
 pub fn handle_signal() {
-    if let Some(mut f) = critical::section().take() {
-        f();
-    }
-
     let msg_id = crate::msg::signal_from().expect(
         "`gstd::async_runtime::handle_signal()` must be called only in `handle_signal` entrypoint",
     );
+
+    if let Some(mut f) = critical::sections().remove(&msg_id) {
+        f();
+    }
+
     futures().remove(&msg_id);
     locks().remove_message_entry(msg_id);
 }

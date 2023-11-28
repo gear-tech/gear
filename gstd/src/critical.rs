@@ -52,18 +52,20 @@
 //! # }
 //! ```
 
+use crate::{msg, MessageId};
 use alloc::boxed::Box;
 use core::{
     future::Future,
     pin::Pin,
     task::{Context, Poll},
 };
+use hashbrown::HashMap;
 use pin_project::{pin_project, pinned_drop};
 
-static mut SECTION: Option<Box<dyn FnMut()>> = None;
+static mut SECTION: Option<HashMap<MessageId, Box<dyn FnMut()>>> = None;
 
-pub(crate) fn section() -> &'static mut Option<Box<dyn FnMut()>> {
-    unsafe { &mut SECTION }
+pub(crate) fn sections() -> &'static mut HashMap<MessageId, Box<dyn FnMut()>> {
+    unsafe { SECTION.get_or_insert_with(HashMap::new) }
 }
 
 /// Critical section future.
@@ -88,7 +90,8 @@ where
 #[pinned_drop]
 impl<Fut> PinnedDrop for SectionFuture<Fut> {
     fn drop(self: Pin<&mut Self>) {
-        let _ = section().take();
+        let func = sections().remove(&msg::id());
+        assert!(func.is_some());
     }
 }
 
@@ -108,7 +111,7 @@ where
     where
         Func: FnMut() + 'static,
     {
-        let prev = section().replace(Box::new(func));
+        let prev = sections().insert(msg::id(), Box::new(func));
         assert!(prev.is_none());
         SectionFuture { fut: self }
     }
