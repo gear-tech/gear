@@ -79,7 +79,7 @@ pub mod pallet {
 
         /// Amount of blocks for extra delay used to secure from outdated tasks.
         #[pallet::constant]
-        type ReserveThreshold: Get<Self::BlockNumber>;
+        type ReserveThreshold: Get<BlockNumberFor<Self>>;
 
         /// Cost for storing in waitlist per block.
         #[pallet::constant]

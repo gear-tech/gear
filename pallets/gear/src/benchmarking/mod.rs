@@ -58,9 +58,9 @@ use crate::{
     manager::ExtManager,
     pallet,
     schedule::{API_BENCHMARK_BATCH_SIZE, INSTR_BENCHMARK_BATCH_SIZE},
-    BalanceOf, BenchmarkStorage, Call, Config, CurrencyOf, Event, Ext as Externalities,
-    GasHandlerOf, GearBank, MailboxOf, Pallet as Gear, Pallet, ProgramStorageOf, QueueOf,
-    RentFreePeriodOf, ResumeMinimalPeriodOf, Schedule, TaskPoolOf,
+    BalanceOf, BenchmarkStorage, BlockNumberFor, Call, Config, CurrencyOf, Event,
+    Ext as Externalities, GasHandlerOf, GearBank, MailboxOf, Pallet as Gear, Pallet,
+    ProgramStorageOf, QueueOf, RentFreePeriodOf, ResumeMinimalPeriodOf, Schedule, TaskPoolOf,
 };
 use ::alloc::{
     collections::{BTreeMap, BTreeSet},
@@ -127,7 +127,7 @@ const API_BENCHMARK_BATCHES: u32 = 20;
 const INSTR_BENCHMARK_BATCHES: u32 = 50;
 
 // Initializes new block.
-fn init_block<T: Config>(previous: Option<T::BlockNumber>)
+fn init_block<T: Config>(previous: Option<BlockNumberFor<T>>)
 where
     T::AccountId: Origin,
 {
@@ -270,7 +270,7 @@ where
 fn resume_session_prepare<T: Config>(
     c: u32,
     program_id: ProgramId,
-    program: ActiveProgram<T::BlockNumber>,
+    program: ActiveProgram<BlockNumberFor<T>>,
     caller: T::AccountId,
     memory_page: &PageBuf,
 ) -> (SessionId, Vec<(GearPage, PageBuf)>)
