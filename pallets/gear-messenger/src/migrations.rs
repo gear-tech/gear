@@ -16,13 +16,17 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use std::marker::PhantomData;
-use frame_support::traits::{Get, GetStorageVersion, OnRuntimeUpgrade};
-use frame_support::weights::Weight;
-use common::storage::{Interval, LinkedNode};
-use gear_core::ids::MessageId;
-use gear_core::message::{ContextStore, StoredDispatch};
 use crate::{Config, Dispatches, Pallet, Waitlist};
+use common::storage::{Interval, LinkedNode};
+use frame_support::{
+    traits::{Get, GetStorageVersion, OnRuntimeUpgrade},
+    weights::Weight,
+};
+use gear_core::{
+    ids::MessageId,
+    message::{ContextStore, StoredDispatch},
+};
+use std::marker::PhantomData;
 
 pub struct MigrateToV2<T: Config>(PhantomData<T>);
 
@@ -53,14 +57,19 @@ impl<T: Config> OnRuntimeUpgrade for MigrateToV2<T> {
         let mut weight = T::DbWeight::get().reads(1);
 
         if current == 2 && onchain == 1 {
-            Waitlist::<T>::translate(|_, _, store: (v1::StoredDispatch, Interval<T::BlockNumber>)| {
-                weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
-                Some((StoredDispatch {
-                    kind: store.0.kind,
-                    message: store.0.message,
-                    context: store.0.context.map(Self::migrate_context_store),
-                }, store.1))
-            });
+            Waitlist::<T>::translate(
+                |_, _, store: (v1::StoredDispatch, Interval<T::BlockNumber>)| {
+                    weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
+                    Some((
+                        StoredDispatch {
+                            kind: store.0.kind,
+                            message: store.0.message,
+                            context: store.0.context.map(Self::migrate_context_store),
+                        },
+                        store.1,
+                    ))
+                },
+            );
 
             Dispatches::<T>::translate(|_, store: LinkedNode<MessageId, v1::StoredDispatch>| {
                 weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
@@ -87,17 +96,25 @@ impl<T: Config> OnRuntimeUpgrade for MigrateToV2<T> {
 }
 
 mod v1 {
-    use std::collections::{BTreeMap, BTreeSet};
-    use std::marker::PhantomData;
-    use frame_support::{codec::{Decode, Encode}, Identity, scale_info::{TypeInfo}};
-    use frame_support::pallet_prelude::{CountedStorageMap, StorageDoubleMap};
-    use frame_support::storage::types::CountedStorageMapInstance;
-    use frame_support::traits::{PalletInfo, StorageInstance};
-    use common::storage::{Interval, LinkedNode};
-    use gear_core::ids::{MessageId, ProgramId};
-    use gear_core::message::{DispatchKind, Payload, StoredMessage};
-    use gear_core::reservation::ReservationNonce;
     use crate::{Config, Pallet};
+    use common::storage::{Interval, LinkedNode};
+    use frame_support::{
+        codec::{Decode, Encode},
+        pallet_prelude::{CountedStorageMap, StorageDoubleMap},
+        scale_info::TypeInfo,
+        storage::types::CountedStorageMapInstance,
+        traits::{PalletInfo, StorageInstance},
+        Identity,
+    };
+    use gear_core::{
+        ids::{MessageId, ProgramId},
+        message::{DispatchKind, Payload, StoredMessage},
+        reservation::ReservationNonce,
+    };
+    use std::{
+        collections::{BTreeMap, BTreeSet},
+        marker::PhantomData,
+    };
 
     #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
     pub struct StoredDispatch {
@@ -106,7 +123,9 @@ mod v1 {
         pub context: Option<ContextStore>,
     }
 
-    #[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
+    #[derive(
+        Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo,
+    )]
     pub struct ContextStore {
         pub outgoing: BTreeMap<u32, Option<Payload>>,
         pub reply: Option<Payload>,
@@ -132,7 +151,12 @@ mod v1 {
     }
 
     #[cfg(feature = "try-runtime")]
-    pub type Dispatches<T> = CountedStorageMap<DispatchesPrefix<T>, Identity, MessageId, LinkedNode<MessageId, StoredDispatch>>;
+    pub type Dispatches<T> = CountedStorageMap<
+        DispatchesPrefix<T>,
+        Identity,
+        MessageId,
+        LinkedNode<MessageId, StoredDispatch>,
+    >;
 
     pub struct WaitlistPrefix<T: Config>(PhantomData<T>);
 
@@ -159,13 +183,16 @@ mod v1 {
 #[cfg(test)]
 #[cfg(feature = "try-runtime")]
 mod tests {
-    use frame_support::pallet_prelude::StorageVersion;
-    use frame_support::traits::OnRuntimeUpgrade;
+    use crate::{
+        migrations::{v1, MigrateToV2},
+        mock::*,
+    };
     use common::storage::{Interval, LinkedNode};
-    use gear_core::ids::{MessageId, ProgramId};
-    use gear_core::message::StoredMessage;
-    use crate::migrations::{MigrateToV2, v1};
-    use crate::mock::*;
+    use frame_support::{pallet_prelude::StorageVersion, traits::OnRuntimeUpgrade};
+    use gear_core::{
+        ids::{MessageId, ProgramId},
+        message::StoredMessage,
+    };
 
     #[test]
     fn migration_to_v2_works() {
@@ -184,7 +211,7 @@ mod tests {
                     pid2,
                     Default::default(),
                     Default::default(),
-                    None
+                    None,
                 ),
                 context: Some(v1::ContextStore {
                     outgoing: Default::default(),
@@ -197,15 +224,25 @@ mod tests {
                 }),
             };
 
-            v1::Waitlist::<Test>::insert(pid, mid, (dispatch.clone(), Interval {
-                start: 0,
-                finish: 1,
-            }));
+            v1::Waitlist::<Test>::insert(
+                pid,
+                mid,
+                (
+                    dispatch.clone(),
+                    Interval {
+                        start: 0,
+                        finish: 1,
+                    },
+                ),
+            );
 
-            v1::Dispatches::<Test>::insert(mid, LinkedNode {
-                next: None,
-                value: dispatch,
-            });
+            v1::Dispatches::<Test>::insert(
+                mid,
+                LinkedNode {
+                    next: None,
+                    value: dispatch,
+                },
+            );
 
             let _weight = MigrateToV2::<Test>::on_runtime_upgrade();
 
