@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{Config, Dispatches, Pallet, Waitlist};
+use crate::{Config, DispatchStash, Dispatches, Pallet, Waitlist};
 use common::storage::{Interval, LinkedNode};
 use frame_support::{
     traits::{Get, GetStorageVersion, OnRuntimeUpgrade},
@@ -87,6 +87,20 @@ impl<T: Config> OnRuntimeUpgrade for MigrateToV2<T> {
                 })
             });
 
+            DispatchStash::<T>::translate(
+                |_, store: (v1::StoredDispatch, Interval<T::BlockNumber>)| {
+                    weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
+                    Some((
+                        StoredDispatch {
+                            kind: store.0.kind,
+                            message: store.0.message,
+                            context: store.0.context.map(Self::migrate_context_store),
+                        },
+                        store.1,
+                    ))
+                },
+            );
+
             weight = weight.saturating_add(T::DbWeight::get().writes(1));
             current.put::<Pallet<T>>();
 
@@ -102,6 +116,7 @@ impl<T: Config> OnRuntimeUpgrade for MigrateToV2<T> {
     fn pre_upgrade() -> Result<Vec<u8>, &'static str> {
         let mut count = v1::Waitlist::<T>::iter().count();
         count += v1::Dispatches::<T>::iter().count();
+        count += v1::DispatchStash::<T>::iter().count();
 
         Ok((count as u64).encode())
     }
@@ -110,6 +125,7 @@ impl<T: Config> OnRuntimeUpgrade for MigrateToV2<T> {
     fn post_upgrade(state: Vec<u8>) -> Result<(), &'static str> {
         let mut count = Waitlist::<T>::iter().count();
         count += Dispatches::<T>::iter().count();
+        count += DispatchStash::<T>::iter().count();
 
         let old_count: u64 =
             Decode::decode(&mut &state[..]).expect("pre_upgrade provides a valid state; qed");
@@ -131,7 +147,7 @@ mod v1 {
     };
     #[cfg(feature = "try-runtime")]
     use frame_support::{
-        pallet_prelude::{CountedStorageMap, StorageDoubleMap},
+        pallet_prelude::{CountedStorageMap, StorageDoubleMap, StorageMap},
         Identity,
     };
     use gear_core::{
@@ -184,6 +200,25 @@ mod v1 {
         Identity,
         MessageId,
         LinkedNode<MessageId, StoredDispatch>,
+    >;
+
+    pub struct DispatchStashPrefix<T: Config>(PhantomData<T>);
+
+    impl<T: Config> StorageInstance for DispatchStashPrefix<T> {
+        fn pallet_prefix() -> &'static str {
+            <<T as frame_system::Config>::PalletInfo as PalletInfo>::name::<Pallet<T>>()
+                .expect("No name found for the pallet in the runtime!")
+        }
+        const STORAGE_PREFIX: &'static str = "DispatchStash";
+    }
+
+    #[cfg(feature = "try-runtime")]
+    #[allow(type_alias_bounds)]
+    pub type DispatchStash<T: Config> = StorageMap<
+        DispatchStashPrefix<T>,
+        Identity,
+        MessageId,
+        (StoredDispatch, Interval<T::BlockNumber>),
     >;
 
     pub struct WaitlistPrefix<T: Config>(PhantomData<T>);
@@ -268,8 +303,19 @@ mod tests {
                 mid,
                 LinkedNode {
                     next: None,
-                    value: dispatch,
+                    value: dispatch.clone(),
                 },
+            );
+
+            v1::DispatchStash::<Test>::insert(
+                mid,
+                (
+                    dispatch,
+                    Interval {
+                        start: 0,
+                        finish: 1,
+                    },
+                ),
             );
 
             let state = MigrateToV2::<Test>::pre_upgrade().unwrap();
