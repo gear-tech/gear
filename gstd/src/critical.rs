@@ -22,7 +22,10 @@
 //! only across `.await` calls because section has to be saved.
 //!
 //! ```rust,no_run
-//! use gstd::{critical::{self, SectionFutureExt}, msg};
+//! use gstd::{
+//!     critical::{self, SectionFutureExt},
+//!     msg,
+//! };
 //!
 //! # async fn _dummy() {
 //!
