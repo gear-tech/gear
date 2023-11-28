@@ -1230,7 +1230,7 @@ where
         init_body: Some(FuncBody::new(
             vec![],
             Instructions::new(vec![
-                // ;; allocate 5 pages
+                // allocate 5 pages
                 Instruction::Block(BlockType::NoResult),
                 Instruction::I32Const(0x5),
                 Instruction::Call(0),
@@ -1239,7 +1239,7 @@ where
                 Instruction::BrIf(0),
                 Instruction::Unreachable,
                 Instruction::End,
-                // ;; put some values in pages 2-5
+                // put some values in pages 2-5
                 Instruction::Block(BlockType::NoResult),
                 Instruction::I32Const(0x10001),
                 Instruction::I32Const(0x61),
@@ -1254,7 +1254,7 @@ where
                 Instruction::I32Const(0x64),
                 Instruction::I32Store(2, 0),
                 Instruction::End,
-                // ;; check it has the value
+                // check it has the value
                 Instruction::Block(BlockType::NoResult),
                 Instruction::I32Const(0x10001),
                 Instruction::I32Load(2, 0),
@@ -1263,17 +1263,18 @@ where
                 Instruction::BrIf(0),
                 Instruction::Unreachable,
                 Instruction::End,
-                // ;; remove second page
+                // free second page
                 Instruction::Block(BlockType::NoResult),
                 Instruction::I32Const(0x1),
                 Instruction::Call(1),
                 Instruction::Drop,
                 Instruction::End,
-                // remove pages 2-4
+                // free_range pages 2-4
                 Instruction::Block(BlockType::NoResult),
                 Instruction::I32Const(0x1),
                 Instruction::I32Const(0x3),
                 Instruction::Call(2),
+                Instruction::Drop,
                 Instruction::End,
                 Instruction::End,
             ]),
@@ -1290,7 +1291,7 @@ where
                 Instruction::BrIf(0),
                 Instruction::Unreachable,
                 Instruction::End,
-                // check that the third page is empty
+                // check that the 3rd page is empty
                 Instruction::Block(BlockType::NoResult),
                 Instruction::I32Const(0x20001),
                 Instruction::I32Load(2, 0),
@@ -1315,91 +1316,3 @@ where
     }
     .into()
 }
-// fn alloc_free_test_wasm<T: Config>() -> WasmModule<T>
-// where
-//     T::AccountId: Origin,
-// {
-//     use gear_wasm_instrument::parity_wasm::elements::{FuncBody, Instructions};
-
-//     ModuleDefinition {
-//         memory: Some(ImportedMemory::new(1)),
-//         imported_functions: vec![
-//             SysCallName::Alloc,
-//             SysCallName::Free,
-//             SysCallName::Size,
-//             SysCallName::Debug,
-//         ],
-//         init_body: Some(FuncBody::new(
-//             vec![],
-//             Instructions::new(vec![
-//                 // ;; allocate 2 more pages with expected starting index 1
-//                 Instruction::Block(BlockType::NoResult),
-//                 Instruction::I32Const(0x2),
-//                 Instruction::Call(0),
-//                 Instruction::I32Const(0x1),
-//                 Instruction::I32Eq,
-//                 Instruction::BrIf(0),
-//                 Instruction::Unreachable,
-//                 Instruction::End,
-//                 // ;; put to page with index 2 (the third) some value
-//                 Instruction::Block(BlockType::NoResult),
-//                 Instruction::I32Const(0x20001),
-//                 Instruction::I32Const(0x63),
-//                 Instruction::I32Store(2, 0),
-//                 Instruction::End,
-//                 // ;; put to page with index 1 (the second) some value
-//                 Instruction::Block(BlockType::NoResult),
-//                 Instruction::I32Const(0x10001),
-//                 Instruction::I32Const(0x64),
-//                 Instruction::I32Store(2, 0),
-//                 Instruction::End,
-//                 // ;; check it has the value
-//                 Instruction::Block(BlockType::NoResult),
-//                 Instruction::I32Const(0x10001),
-//                 Instruction::I32Load(2, 0),
-//                 Instruction::I32Const(0x64),
-//                 Instruction::I32Eq,
-//                 Instruction::BrIf(0),
-//                 Instruction::Unreachable,
-//                 Instruction::End,
-//                 // ;; remove page with index 1 (the second page)
-//                 Instruction::Block(BlockType::NoResult),
-//                 Instruction::I32Const(0x1),
-//                 Instruction::Call(1),
-//                 Instruction::End,
-//                 Instruction::End,
-//             ]),
-//         )),
-//         handle_body: Some(FuncBody::new(
-//             vec![],
-//             Instructions::new(vec![
-//                 // ;; decide path
-//                 Instruction::Block(BlockType::NoResult),
-//                 Instruction::Call(2),
-//                 Instruction::Call(3),
-//                 Instruction::End,
-//                 // ;; check that the second page is empty
-//                 Instruction::Block(BlockType::NoResult),
-//                 Instruction::I32Const(0x10001),
-//                 Instruction::I32Load(2, 0),
-//                 Instruction::I32Const(0x0),
-//                 Instruction::I32Eq,
-//                 Instruction::BrIf(0),
-//                 Instruction::Unreachable,
-//                 Instruction::End,
-//                 // ;; check that the third page has data
-//                 Instruction::Block(BlockType::NoResult),
-//                 Instruction::I32Const(0x20001),
-//                 Instruction::I32Load(2, 0),
-//                 Instruction::I32Const(0x63),
-//                 Instruction::I32Eq,
-//                 Instruction::BrIf(0),
-//                 Instruction::Unreachable,
-//                 Instruction::End,
-//                 Instruction::End,
-//             ]),
-//         )),
-//         ..Default::default()
-//     }
-//     .into()
-// }

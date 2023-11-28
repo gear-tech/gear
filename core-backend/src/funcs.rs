@@ -700,13 +700,13 @@ where
 
             log::trace!("Free range {start:?}:{end:?}");
 
-            // TODO #3494
             ctx.ext_mut().free_range(start, end).map_err(|_| {
                 UndefinedTerminationReason::Actor(ActorTerminationReason::Trap(
                     TrapExplanation::Unknown,
                 ))
             })?;
 
+            // TODO #3494
             Ok(0)
         })
     }
