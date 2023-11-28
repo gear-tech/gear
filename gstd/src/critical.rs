@@ -89,7 +89,7 @@ impl<Fut> PinnedDrop for SectionFuture<Fut> {
     }
 }
 
-/// Extension for [`Future`](Future).
+/// Extension for [`Future`].
 pub trait SectionFutureExt: Future + Sized {
     /// Register critical section.
     fn critical<Func>(self, f: Func) -> SectionFuture<Self>
