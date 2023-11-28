@@ -48,6 +48,40 @@ use std::{mem, num::NonZeroUsize};
 const UNSTRUCTURED_SIZE: usize = 1_000_000;
 
 #[test]
+fn inject_critical_gas_limit_works() {
+    let wat1 = r#"
+    (module
+        (memory $memory0 (import "env" "memory") 16)
+        (export "handle" (func $handle))
+        (func $handle
+            call $f
+            drop
+        )
+        (func $f (result i64)
+            call $f
+        )
+        (func $g
+            (loop $my_loop
+                br $my_loop
+            )
+        )
+    )"#;
+
+    let wasm_bytes = wat::parse_str(wat1).expect("invalid wat");
+    let module =
+        parity_wasm::deserialize_buffer::<Module>(&wasm_bytes).expect("invalid wasm bytes");
+    let module_with_critical_gas_limit = utils::inject_critical_gas_limit(module, 1_000_000);
+
+    let wasm_bytes = module_with_critical_gas_limit
+        .into_bytes()
+        .expect("invalid pw module");
+    assert!(wasmparser::validate(&wasm_bytes).is_ok());
+
+    let wat = wasmprinter::print_bytes(&wasm_bytes).expect("failed printing bytes");
+    println!("wat = {wat}");
+}
+
+#[test]
 fn remove_trivial_recursions() {
     let wat1 = r#"
     (module

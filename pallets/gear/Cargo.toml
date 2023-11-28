@@ -106,6 +106,7 @@ demo-rwlock.workspace = true
 demo-reservation-manager.workspace = true
 demo-send-from-reservation.workspace = true
 demo-signal-entry.workspace = true
+demo-signal-wait.workspace = true
 demo-state-rollback.workspace = true
 demo-async-signal-entry.workspace = true
 demo-async-custom-entry.workspace = true
@@ -113,6 +114,7 @@ demo-out-of-memory.workspace = true
 demo-ping.workspace = true
 demo-sync-duplicate.workspace = true
 demo-custom.workspace = true
+demo-delayed-reservation-sender.workspace = true
 test-syscalls.workspace = true
 page_size.workspace = true
 frame-support-test = { workspace = true, features = ["std"] }

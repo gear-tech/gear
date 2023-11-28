@@ -139,6 +139,16 @@ impl<'a, 'b> GearWasmGenerator<'a, 'b> {
             .into_wasm_module()
             .into_inner();
 
+        let module = if let Some(critical_gas_limit) = config.critical_gas_limit {
+            log::trace!("Injecting critical gas limit");
+            utils::inject_critical_gas_limit(module, critical_gas_limit)
+        } else {
+            log::trace!("Critical gas limit is not set");
+            module
+        };
+
+        let module = utils::inject_stack_limiter(module);
+
         Ok(if config.remove_recursions {
             log::trace!("Removing recursions");
             utils::remove_recursion(module)
