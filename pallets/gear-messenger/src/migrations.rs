@@ -27,6 +27,11 @@ use gear_core::{
     message::{ContextStore, StoredDispatch},
 };
 use std::marker::PhantomData;
+#[cfg(feature = "try-runtime")]
+use {
+    frame_support::codec::{Decode, Encode},
+    sp_std::vec::Vec,
+};
 
 pub struct MigrateToV2<T: Config>(PhantomData<T>);
 
@@ -92,6 +97,26 @@ impl<T: Config> OnRuntimeUpgrade for MigrateToV2<T> {
         }
 
         weight
+    }
+
+    #[cfg(feature = "try-runtime")]
+    fn pre_upgrade() -> Result<Vec<u8>, &'static str> {
+        let mut count = v1::Waitlist::<T>::iter().count();
+        count += v1::Dispatches::<T>::iter().count();
+
+        Ok((count as u64).encode())
+    }
+
+    #[cfg(feature = "try-runtime")]
+    fn post_upgrade(state: Vec<u8>) -> Result<(), &'static str> {
+        let mut count = Waitlist::<T>::iter().count();
+        count += Dispatches::<T>::iter().count();
+
+        let old_count: u64 =
+            Decode::decode(&mut &state[..]).expect("pre_upgrade provides a valid state; qed");
+        assert_eq!(count as u64, old_count);
+
+        Ok(())
     }
 }
 
@@ -244,7 +269,9 @@ mod tests {
                 },
             );
 
-            let _weight = MigrateToV2::<Test>::on_runtime_upgrade();
+            let state = MigrateToV2::<Test>::pre_upgrade().unwrap();
+            let _ = MigrateToV2::<Test>::on_runtime_upgrade();
+            MigrateToV2::<Test>::post_upgrade(state).unwrap();
 
             assert_eq!(StorageVersion::get::<GearMessenger>(), 2);
         });
