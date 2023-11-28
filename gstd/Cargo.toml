@@ -17,7 +17,7 @@ parity-scale-codec = { workspace = true, features = [ "derive" ] }
 primitive-types = { workspace = true, features = ["scale-info"] }
 scale-info = { workspace = true, features = ["derive"] }
 futures = { workspace = true, features = ["alloc"] }
-pin-project = "1.1.3"
+pin-project.workspace = true
 
 static_assertions.workspace = true
 

@@ -454,6 +454,7 @@ toml = "0.7.8"                                                            # util
 tracing = "0.1.40"                                                        # utils/node-loder
 tracing-appender = "0.2"                                                  # utils/node-loder
 tracing-subscriber = "0.3.16"                                             # utils/node-loder
+pin-project = "1.1.3"                                                     # gstd
 trybuild = "1"                                                            # gstd/codegen
 wasm-opt = "0.111.0"                                                      # utils/wasm-builder
 wasmprinter = "0.2"                                                       # utils/wasm-gen
