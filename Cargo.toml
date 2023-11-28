@@ -343,6 +343,7 @@ sp-arithmetic = { version = "6.0.0", git = "https://github.com/gear-tech/substra
 sp-blockchain = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-ec-utils", default-features = false }
 sp-block-builder = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-ec-utils", default-features = false }
 sp-core = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-ec-utils", default-features = false }
+sp-crypto-ec-utils = { git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-ec-utils", default-features = false }
 sp-consensus = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-ec-utils", default-features = false }
 sp-consensus-babe = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-ec-utils", default-features = false }
 sp-consensus-slots = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-ec-utils", default-features = false }
