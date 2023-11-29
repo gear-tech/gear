@@ -90,14 +90,14 @@ impl InvocableSysCall {
                     ParamType::Ptr(PtrInfo::new_immutable(PtrType::SizedBufferStart {
                         length_param_idx: 2,
                     })),
-                    // Size of the payload
-                    ParamType::Size,
+                    // Length of the payload
+                    ParamType::Length,
                     // Number of blocks to delay the sending for
-                    ParamType::Delay,
+                    ParamType::DelayBlockNumber,
                     // Amount of gas to reserve
                     ParamType::Gas,
                     // Duration of the reservation
-                    ParamType::Duration,
+                    ParamType::DurationBlockNumber,
                     // Address of error returned
                     ParamType::Ptr(PtrInfo::new_mutable(PtrType::ErrorWithHash(
                         HashType::MessageId,
@@ -110,12 +110,12 @@ impl InvocableSysCall {
                     ParamType::Ptr(PtrInfo::new_immutable(PtrType::SizedBufferStart {
                         length_param_idx: 2,
                     })),
-                    // Size of the payload
-                    ParamType::Size,
+                    // Length of the payload
+                    ParamType::Length,
                     // Amount of gas to reserve
                     ParamType::Gas,
                     // Duration of the reservation
-                    ParamType::Duration,
+                    ParamType::DurationBlockNumber,
                     // Address of error returned
                     ParamType::Ptr(PtrInfo::new_mutable(PtrType::ErrorWithHash(
                         HashType::MessageId,
@@ -130,10 +130,10 @@ impl InvocableSysCall {
                     ParamType::Ptr(PtrInfo::new_immutable(PtrType::SizedBufferStart {
                         length_param_idx: 2,
                     })),
-                    // Size of the payload
-                    ParamType::Size,
+                    // Length of the payload
+                    ParamType::Length,
                     // Number of blocks to delay the sending for
-                    ParamType::Delay,
+                    ParamType::DelayBlockNumber,
                     // Address of error returned, `ErrorCode` here because underlying syscalls have different error types
                     ParamType::Ptr(PtrInfo::new_mutable(PtrType::ErrorCode)),
                 ]),
@@ -143,7 +143,7 @@ impl InvocableSysCall {
                         HashType::ActorId,
                     ))),
                     // Number of blocks to delay the sending for
-                    ParamType::Delay,
+                    ParamType::DelayBlockNumber,
                     // Amount of gas to reserve
                     ParamType::Gas,
                     // Address of error returned, `ErrorCode` here because underlying syscalls have different error types
@@ -157,11 +157,11 @@ impl InvocableSysCall {
                         HashType::ActorId,
                     ))),
                     // An offset defining starting index in the received payload (related to `gr_send_input`).
-                    ParamType::Size,
+                    ParamType::Index,
                     // Length of the slice of the received message payload (related to `gr_send_input`).
-                    ParamType::Size,
+                    ParamType::Length,
                     // Delay (related to `gr_send_input`).
-                    ParamType::Delay,
+                    ParamType::DelayBlockNumber,
                     // Amount of gas deposited for a message id got from `gr_send_input`.
                     // That's an actual input for `gr_reply_deposit`
                     ParamType::Gas,
@@ -239,68 +239,9 @@ impl InvocableSysCall {
     // If syscall changes from fallible into infallible or vice versa in future,
     // we'll see it by analyzing code coverage stats produced by fuzzer.
     pub(crate) fn is_fallible(&self) -> bool {
-        let underlying_syscall = match *self {
-            Self::Loose(sc) => sc,
-            Self::Precise(sc) => sc,
-        };
-
-        match underlying_syscall {
-            SysCallName::EnvVars
-            | SysCallName::BlockHeight
-            | SysCallName::BlockTimestamp
-            | SysCallName::Debug
-            | SysCallName::Panic
-            | SysCallName::OomPanic
-            | SysCallName::Exit
-            | SysCallName::GasAvailable
-            | SysCallName::Leave
-            | SysCallName::MessageId
-            | SysCallName::ProgramId
-            | SysCallName::Random
-            | SysCallName::Size
-            | SysCallName::Source
-            | SysCallName::ValueAvailable
-            | SysCallName::Value
-            | SysCallName::WaitFor
-            | SysCallName::WaitUpTo
-            | SysCallName::Wait
-            | SysCallName::Alloc
-            | SysCallName::Free
-            | SysCallName::OutOfGas => false,
-            SysCallName::CreateProgramWGas
-            | SysCallName::CreateProgram
-            | SysCallName::ReplyDeposit
-            | SysCallName::ReplyCode
-            | SysCallName::SignalCode
-            | SysCallName::PayProgramRent
-            | SysCallName::Read
-            | SysCallName::ReplyCommitWGas
-            | SysCallName::ReplyCommit
-            | SysCallName::ReplyPush
-            | SysCallName::ReplyPushInput
-            | SysCallName::ReplyTo
-            | SysCallName::SignalFrom
-            | SysCallName::ReplyInputWGas
-            | SysCallName::ReplyWGas
-            | SysCallName::Reply
-            | SysCallName::ReplyInput
-            | SysCallName::ReservationReplyCommit
-            | SysCallName::ReservationReply
-            | SysCallName::ReservationSendCommit
-            | SysCallName::ReservationSend
-            | SysCallName::ReserveGas
-            | SysCallName::SendCommitWGas
-            | SysCallName::SendCommit
-            | SysCallName::SendInit
-            | SysCallName::SendPush
-            | SysCallName::SendPushInput
-            | SysCallName::SendInputWGas
-            | SysCallName::SendWGas
-            | SysCallName::Send
-            | SysCallName::SendInput
-            | SysCallName::SystemReserveGas
-            | SysCallName::UnreserveGas
-            | SysCallName::Wake => true,
+        match self {
+            InvocableSysCall::Loose(syscall) => syscall.is_fallible(),
+            InvocableSysCall::Precise(syscall) => syscall.is_fallible(),
         }
     }
 }

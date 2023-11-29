@@ -34,8 +34,13 @@ pub type BlockCount = u32;
 /// Represents block number type.
 pub type BlockTimestamp = u64;
 
-/// Represents byte type.
+/// Represents byte type, which is a start of a buffer.
 pub type BufferStart = u8;
+
+/// Represents byte type, which is a start of a sized buffer.
+///
+/// This usually goes along with `Length` param.`
+pub type SizedBufferStart = u8;
 
 /// Represents gas type.
 pub type Gas = u64;
@@ -410,7 +415,7 @@ extern "C" {
     ///
     /// Arguments type:
     /// - `version`: `u32` defining version of vars to get.
-    /// - `settings`: `mut ptr` for buffer to store requested version of vars.
+    /// - `vars`: `mut ptr` for buffer to store requested version of vars.
     pub fn gr_env_vars(version: u32, vars: *mut BufferStart);
 
     /// Infallible `gr_block_height` get syscall.
@@ -439,9 +444,9 @@ extern "C" {
     ///   and program id.
     pub fn gr_create_program_wgas(
         cid_value: *const HashWithValue,
-        salt: *const BufferStart,
+        salt: *const SizedBufferStart,
         salt_len: Length,
-        payload: *const BufferStart,
+        payload: *const SizedBufferStart,
         payload_len: Length,
         gas_limit: Gas,
         delay: BlockNumber,
@@ -456,15 +461,14 @@ extern "C" {
     /// - `salt_len`: `u32` length of the salt buffer.
     /// - `payload`: `const ptr` for the begging of the payload buffer.
     /// - `payload_len`: `u32` length of the payload buffer.
-    /// - `gas_limit`: `u64` defining gas limit for sending.
     /// - `delay`: `u32` amount of blocks to delay.
     /// - `err_mid_pid`: `mut ptr` for concatenated error code, message id
     ///   and program id.
     pub fn gr_create_program(
         cid_value: *const HashWithValue,
-        salt: *const BufferStart,
+        salt: *const SizedBufferStart,
         salt_len: Length,
-        payload: *const BufferStart,
+        payload: *const SizedBufferStart,
         payload_len: Length,
         delay: BlockNumber,
         err_mid_pid: *mut ErrorWithTwoHashes,
@@ -483,7 +487,7 @@ extern "C" {
     /// Arguments type:
     /// - `payload`: `const ptr` for the begging of the payload buffer.
     /// - `len`: `u32` length of the payload buffer.
-    pub fn gr_debug(payload: *const BufferStart, len: Length);
+    pub fn gr_debug(payload: *const SizedBufferStart, len: Length);
 
     /// Infallible `gr_panic` control syscall.
     ///
@@ -492,7 +496,7 @@ extern "C" {
     /// Arguments type:
     /// - `payload`: `const ptr` for the begging of the payload buffer.
     /// - `len`: `u32` length of the payload buffer.
-    pub fn gr_panic(payload: *const BufferStart, len: Length) -> !;
+    pub fn gr_panic(payload: *const SizedBufferStart, len: Length) -> !;
 
     /// Infallible `gr_oom_panic` control syscall.
     pub fn gr_oom_panic() -> !;
@@ -530,7 +534,7 @@ extern "C" {
     /// - `message_id`: `const ptr` for message id.
     pub fn gr_message_id(message_id: *mut Hash);
 
-    /// Fallible `gr_pay_program_rent` syscall.
+    /// Fallible `gr_pay_program_rent` control syscall.
     ///
     /// Arguments type:
     /// - `rent_pid`: `const ptr` for program id and rent value.
@@ -557,11 +561,11 @@ extern "C" {
     /// Fallible `gr_read` get syscall.
     ///
     /// Arguments type:
-    /// - `at`: `u32` defining offset to read from.
+    /// - `at`: `u32` defining offset in the input buffer to read from.
     /// - `len`: `u32` length of the buffer to read.
     /// - `buffer`: `mut ptr` for buffer to store requested data.
     /// - `err`: `mut ptr` for `u32` error code.
-    pub fn gr_read(at: Length, len: Length, buffer: *mut BufferStart, err: *mut ErrorCode);
+    pub fn gr_read(at: Index, len: Length, buffer: *mut SizedBufferStart, err: *mut ErrorCode);
 
     /// Fallible `gr_reply_commit_wgas` send syscall.
     ///
@@ -586,7 +590,7 @@ extern "C" {
     /// - `payload`: `const ptr` for the begging of the payload buffer.
     /// - `len`: `u32` length of the payload buffer.
     /// - `err`: `mut ptr` for error code.
-    pub fn gr_reply_push(payload: *const BufferStart, len: Length, err: *mut ErrorCode);
+    pub fn gr_reply_push(payload: *const SizedBufferStart, len: Length, err: *mut ErrorCode);
 
     /// Fallible `gr_reply_push_input` send syscall.
     ///
@@ -635,7 +639,7 @@ extern "C" {
     ///   Ignored if equals u32::MAX (use this for zero value for optimization).
     /// - `err_mid`: `mut ptr` for concatenated error code and message id.
     pub fn gr_reply_wgas(
-        payload: *const BufferStart,
+        payload: *const SizedBufferStart,
         len: Length,
         gas_limit: Gas,
         value: *const Value,
@@ -651,7 +655,7 @@ extern "C" {
     ///   Ignored if equals u32::MAX (use this for zero value for optimization).
     /// - `err_mid`: `mut ptr` for concatenated error code and message id.
     pub fn gr_reply(
-        payload: *const BufferStart,
+        payload: *const SizedBufferStart,
         len: Length,
         value: *const Value,
         err_mid: *mut ErrorWithHash,
@@ -676,8 +680,6 @@ extern "C" {
     ///
     /// Arguments type:
     /// - `rid_value`: `const ptr` for concatenated reservation id and value.
-    /// - `payload`: `const ptr` for the begging of the payload buffer.
-    /// - `len`: `u32` length of the payload buffer.
     /// - `err_mid`: `mut ptr` for concatenated error code and message id.
     pub fn gr_reservation_reply_commit(
         rid_value: *const HashWithValue,
@@ -693,7 +695,7 @@ extern "C" {
     /// - `err_mid`: `mut ptr` for concatenated error code and message id.
     pub fn gr_reservation_reply(
         rid_value: *const HashWithValue,
-        payload: *const BufferStart,
+        payload: *const SizedBufferStart,
         len: Length,
         err_mid: *mut ErrorWithHash,
     );
@@ -724,7 +726,7 @@ extern "C" {
     /// - `err_mid`: `mut ptr` for concatenated error code and message id.
     pub fn gr_reservation_send(
         rid_pid_value: *const TwoHashesWithValue,
-        payload: *const BufferStart,
+        payload: *const SizedBufferStart,
         len: Length,
         delay: BlockNumber,
         err_mid: *mut ErrorWithHash,
@@ -734,7 +736,7 @@ extern "C" {
     ///
     /// Arguments type:
     /// - `gas`: `u64` defining amount of gas to reserve.
-    /// - `delay`: `u32` amount of blocks to delay.
+    /// - `duration`: `u32` reservation duration.
     /// - `err_rid`: `mut ptr` for concatenated error code and reservation id.
     pub fn gr_reserve_gas(gas: Gas, duration: BlockNumber, err_rid: *mut ErrorWithHash);
 
@@ -783,7 +785,7 @@ extern "C" {
     /// - `err`: `mut ptr` for error code.
     pub fn gr_send_push(
         handle: Handle,
-        payload: *const BufferStart,
+        payload: *const SizedBufferStart,
         len: Length,
         err: *mut ErrorCode,
     );
@@ -826,7 +828,7 @@ extern "C" {
     /// - `err_mid`: `mut ptr` for concatenated error code and message id.
     pub fn gr_send_wgas(
         pid_value: *const HashWithValue,
-        payload: *const BufferStart,
+        payload: *const SizedBufferStart,
         len: Length,
         gas_limit: Gas,
         delay: BlockNumber,
@@ -843,7 +845,7 @@ extern "C" {
     /// - `err_mid`: `mut ptr` for concatenated error code and message id.
     pub fn gr_send(
         pid_value: *const HashWithValue,
-        payload: *const BufferStart,
+        payload: *const SizedBufferStart,
         len: Length,
         delay: BlockNumber,
         err_mid: *mut ErrorWithHash,
@@ -853,7 +855,7 @@ extern "C" {
     ///
     /// Arguments type:
     /// - `pid_value`: `const ptr` for concatenated program id and value.
-    /// - `payload`: `const ptr` for the begging of the payload buffer.
+    /// - `offset`: `u32` defining start index of the input buffer to use.
     /// - `len`: `u32` length of the payload buffer.
     /// - `delay`: `u32` amount of blocks to delay.
     /// - `err_mid`: `mut ptr` for concatenated error code and message id.

@@ -620,9 +620,9 @@ test_gas_counter_injection! {
 
 #[test]
 fn check_memory_array_pointers_definition_correctness() {
-    let sys_calls = SysCallName::instrumentable();
-    for sys_call in sys_calls {
-        let signature = sys_call.signature();
+    let syscalls = SysCallName::instrumentable();
+    for syscall in syscalls {
+        let signature = syscall.signature();
         let size_param_indexes = signature
             .params
             .iter()
@@ -635,7 +635,23 @@ fn check_memory_array_pointers_definition_correctness() {
             });
 
         for idx in size_param_indexes {
-            assert_eq!(signature.params.get(idx), Some(&ParamType::Size));
+            assert_eq!(signature.params.get(idx), Some(&ParamType::Length));
+        }
+    }
+}
+
+#[test]
+fn check_error_pointer_position() {
+    for syscall in SysCallName::instrumentable() {
+        if syscall.is_fallible() {
+            let signature = syscall.signature();
+            let err_ptr = signature
+                .params
+                .last()
+                .expect("fallible syscall has at least err ptr");
+            assert!(
+                matches!(err_ptr, ParamType::Ptr(PtrInfo { mutable: true, ty }) if ty.is_error())
+            );
         }
     }
 }
