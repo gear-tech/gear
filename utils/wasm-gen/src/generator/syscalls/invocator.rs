@@ -505,7 +505,7 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
         let mut setters = Vec::with_capacity(params.len());
         let mut memory_array_definition: Option<(i32, Option<i32>)> = None;
         // TODO !
-        for processed_param in process_sys_call_params(
+        for processed_param in process_syscall_params(
             params,
             self.config.params_config(),
             self.config.pointer_writes_config(),
