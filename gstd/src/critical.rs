@@ -22,10 +22,7 @@
 //! only across `.await` calls because section has to be saved.
 //!
 //! ```rust,no_run
-//! use gstd::{
-//!     critical::{self, SectionFutureExt},
-//!     msg,
-//! };
+//! use gstd::{critical::SectionFutureExt, msg};
 //!
 //! # async fn _dummy() {
 //!
@@ -36,7 +33,7 @@
 //! msg::send_for_reply(msg::source(), "for_reply", 0, 0)
 //!     .expect("Failed to send message")
 //!     // register section
-//!     .critical(|| {
+//!     .critical(move || {
 //!         msg::send(source, "example", 0).expect("Failed to send message");
 //!     })
 //!     // section will be saved now during `.await`
