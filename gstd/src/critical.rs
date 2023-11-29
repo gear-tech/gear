@@ -64,24 +64,32 @@ pub(crate) type SectionsMap = HashMap<MessageId, Box<dyn FnMut()>>;
 /// Critical section future.
 #[pin_project(PinnedDrop)]
 #[must_use = "Future must be polled"]
-pub struct SectionFuture<Fut> {
+pub struct SectionFuture<Fut, Func> {
     #[pin]
     fut: Fut,
+    func: Option<Func>,
 }
 
-impl<Fut> Future for SectionFuture<Fut>
+impl<Fut, Func> Future for SectionFuture<Fut, Func>
 where
     Fut: Future,
+    Func: FnMut() + 'static,
 {
     type Output = Fut::Output;
 
-    fn poll(self: Pin<&mut SectionFuture<Fut>>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        self.project().fut.poll(cx)
+    fn poll(self: Pin<&mut SectionFuture<Fut, Func>>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let this = self.project();
+        if let Some(func) = this.func.take() {
+            let prev = sections().insert(msg::id(), Box::new(func));
+            assert!(prev.is_none());
+        }
+
+        this.fut.poll(cx)
     }
 }
 
 #[pinned_drop]
-impl<Fut> PinnedDrop for SectionFuture<Fut> {
+impl<Fut, Func> PinnedDrop for SectionFuture<Fut, Func> {
     fn drop(self: Pin<&mut Self>) {
         let _func = sections().remove(&msg::id());
         // future drops after `.await` is complete
@@ -96,7 +104,7 @@ impl<Fut> PinnedDrop for SectionFuture<Fut> {
 /// Extension for [`Future`].
 pub trait SectionFutureExt: Future + Sized {
     /// Register critical section.
-    fn critical<Func>(self, f: Func) -> SectionFuture<Self>
+    fn critical<Func>(self, f: Func) -> SectionFuture<Self, Func>
     where
         Func: FnMut() + 'static;
 }
@@ -105,12 +113,13 @@ impl<F> SectionFutureExt for F
 where
     F: Future,
 {
-    fn critical<Func>(self, func: Func) -> SectionFuture<Self>
+    fn critical<Func>(self, func: Func) -> SectionFuture<Self, Func>
     where
         Func: FnMut() + 'static,
     {
-        let prev = sections().insert(msg::id(), Box::new(func));
-        assert!(prev.is_none());
-        SectionFuture { fut: self }
+        SectionFuture {
+            fut: self,
+            func: Some(func),
+        }
     }
 }
