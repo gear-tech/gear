@@ -267,10 +267,13 @@ where
     }
 
     pub fn free_range(repetitions: u32, pages_per_call: u32) -> Result<Exec<T>, &'static str> {
+        const MAX_PAGES_OVERRIDE: u16 = u16::MAX;
+
         use Instruction::*;
 
-        let n_pages = repetitions.checked_mul(pages_per_call).unwrap();
-        assert!(n_pages <= max_pages::<T>() as u32);
+        let n_pages = API_BENCHMARK_BATCH_SIZE
+            .checked_mul(pages_per_call)
+            .unwrap();
 
         let mut instructions = vec![];
         for _ in 0..repetitions {
@@ -300,7 +303,7 @@ where
             ..Default::default()
         };
 
-        Self::prepare_handle(module, 0)
+        Self::prepare_handle_override_max_pages(module, 0, MAX_PAGES_OVERRIDE.into())
     }
 
     pub fn gr_reserve_gas(r: u32) -> Result<Exec<T>, &'static str> {
