@@ -344,10 +344,10 @@ impl<T: Numerated + LowerBounded + UpperBounded> NonEmptyInterval<T> {
     /// ````
     pub fn size(&self) -> Option<T> {
         let raw_size = self.raw_size()?;
-        let size = T::min_value()
-            .add_if_enclosed_by(raw_size, T::max_value())
-            .unwrap_or_else(|| unreachable!("`T: Numerated` impl error"));
-        Some(size)
+        // It's ok if `add_if_enclosed_by` returns `None`,
+        // because `raw_size` can be bigger than `T` possible elements amount,
+        // in that case `size` must return `None`.
+        T::min_value().add_if_enclosed_by(raw_size, T::max_value())
     }
 }
 
