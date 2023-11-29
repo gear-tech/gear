@@ -133,7 +133,7 @@ where
 
         Self::update_gas_allowance(gas_allowance);
 
-        let built_in_actor_ids = T::BuiltInActor::ids();
+        let builtin_actor_ids = T::BuiltInActor::ids();
 
         loop {
             if QueueProcessingOf::<T>::denied() {
@@ -156,7 +156,7 @@ where
                 .map_err(|_| b"Internal error: unable to get gas limit".to_vec())?;
             let mut skip_if_allowed = false;
 
-            let journal = if built_in_actor_ids.contains(&actor_id)
+            let journal = if builtin_actor_ids.contains(&actor_id)
                 && matches!(queued_dispatch.kind(), DispatchKind::Handle)
             {
                 T::BuiltInActor::handle(queued_dispatch, gas_limit)

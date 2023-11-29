@@ -93,8 +93,8 @@ macro_rules! impl_config_inner {
         $crate::impl_config_inner!($runtime, $($( $rest )*)?);
     };
 
-    ($runtime:ty, BuiltInActor = $built_in_actor:ty $(, $( $rest:tt )*)?) => {
-        type GearConfigBuiltInActor = $built_in_actor;
+    ($runtime:ty, BuiltInActor = $builtin_actor:ty $(, $( $rest:tt )*)?) => {
+        type GearConfigBuiltInActor = $builtin_actor;
 
         $crate::impl_config_inner!($runtime, $($( $rest )*)?);
     };

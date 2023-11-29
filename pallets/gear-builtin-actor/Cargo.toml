@@ -1,5 +1,5 @@
 [package]
-name = "pallet-gear-built-in-actor"
+name = "pallet-gear-builtin-actor"
 description = "Built-in runtime actor providing runtime-related logic to program actors"
 version.workspace = true
 authors.workspace = true
@@ -35,7 +35,7 @@ sp-io.workspace = true
 pallet-balances.workspace = true
 pallet-staking.workspace = true
 pallet-gear.workspace = true
-gear-built-in-actor-common.workspace = true
+gear-builtin-actor-common.workspace = true
 
 [dev-dependencies]
 demo-staking-broker.workspace = true

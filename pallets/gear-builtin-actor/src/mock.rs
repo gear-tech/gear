@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate as pallet_gear_built_in_actor;
+use crate as pallet_gear_builtin_actor;
 use frame_election_provider_support::{onchain, SequentialPhragmen, VoteWeight};
 use frame_support::{
     construct_runtime, parameter_types,
@@ -85,7 +85,7 @@ construct_runtime!(
         GearBank: pallet_gear_bank,
         Gear: pallet_gear,
         GearGas: pallet_gear_gas,
-        GearBuiltInActor: pallet_gear_built_in_actor,
+        GearBuiltinActor: pallet_gear_builtin_actor,
     }
 );
 
@@ -277,14 +277,14 @@ pallet_gear_messenger::impl_config!(Test, CurrentBlockNumber = Gear);
 pallet_gear::impl_config!(
     Test,
     Schedule = GearSchedule,
-    BuiltInActor = GearBuiltInActor
+    BuiltInActor = GearBuiltinActor
 );
 
 parameter_types! {
     pub const BuiltInActorPalletId: PalletId = PalletId(*b"py/biact");
 }
 
-impl pallet_gear_built_in_actor::Config for Test {
+impl pallet_gear_builtin_actor::Config for Test {
     type RuntimeEvent = RuntimeEvent;
     type RuntimeCall = RuntimeCall;
     type WeightInfo = ();

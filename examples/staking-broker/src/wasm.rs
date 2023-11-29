@@ -22,7 +22,7 @@
 
 use gstd::{
     debug,
-    msg::{self, built_in::staking::*},
+    msg::{self, builtin::staking::*},
     prelude::*,
     ActorId,
 };
@@ -35,6 +35,7 @@ const BUILT_IN: ActorId = ActorId::new(hex!(
     "9d765baea1938d17096421e4f881af7dc4ce5c15bb5022f409fc0d6265d97c3a"
 ));
 
+// Runtime AccountId type
 pub type AccountId = [u8; 32];
 
 #[derive(Debug, Default)]
@@ -50,8 +51,8 @@ struct StakingBroker {
 static mut STATE: Option<StakingBroker> = None;
 
 /// Do the actual message sending and reply handling.
-async fn do_send_message(payload: &[u8], mut on_success: impl FnMut()) {
-    let response_bytes = match msg::send_bytes_for_reply(BUILT_IN, payload, 0, 0)
+async fn do_send_message<E: Encode>(payload: E, mut on_success: impl FnMut()) {
+    let response_bytes = match msg::send_for_reply(BUILT_IN, payload, 0, 0)
         .expect("Error sending message")
         .await
     {
@@ -95,15 +96,15 @@ impl StakingBroker {
         // Note: this is not how you'd do it in a real application, given the
         // Staking pallet `unbonding` logic, but it's enough for the example.
         let payload = if !self.has_bonded_any {
-            StakingMessage::Bond { value }.encode()
+            StakingMessage::Bond { value }
         } else {
-            StakingMessage::BondExtra { value }.encode()
+            StakingMessage::BondExtra { value }
         };
         debug!(
             "[StakingBroker] Sending `bond` message {:?} at broker's state {:?}",
             payload, self
         );
-        do_send_message(&payload[..], || {
+        do_send_message(payload, || {
             // Update local state to account for value transfer in pallet
             self.bonded
                 .entry(msg::source())
@@ -127,12 +128,12 @@ impl StakingBroker {
         }
 
         // Prepare a message to the built-in actor
-        let payload = StakingMessage::Unbond { value }.encode();
+        let payload = StakingMessage::Unbond { value };
         debug!(
             "[StakingBroker] Sending `unbond` message {:?} at broker's state {:?}",
             payload, self
         );
-        do_send_message(&payload[..], || {
+        do_send_message(payload, || {
             // Update local state
             if let Some(old) = self.bonded.get_mut(&source) {
                 *old = old.saturating_sub(value);
@@ -144,12 +145,12 @@ impl StakingBroker {
 
     async fn nominate(&mut self, targets: Vec<AccountId>) {
         // Prepare a message to the built-in actor
-        let payload = StakingMessage::Nominate { targets }.encode();
+        let payload = StakingMessage::Nominate { targets };
         debug!(
             "[StakingBroker] Sending `nominate` message {:?} at broker's state {:?}",
             payload, self
         );
-        do_send_message(&payload[..], || {}).await
+        do_send_message(payload, || {}).await
     }
 }
 
@@ -157,7 +158,7 @@ impl StakingBroker {
 async fn main() {
     let broker = unsafe { STATE.get_or_insert(Default::default()) };
 
-    let payload = msg::load().unwrap();
+    let payload = msg::load().expect("Expecting a valid payload");
     match payload {
         StakingMessage::Bond { value } | StakingMessage::BondExtra { value } => {
             broker.bond(msg::value().min(value)).await;

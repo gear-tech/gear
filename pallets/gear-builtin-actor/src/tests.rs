@@ -23,7 +23,7 @@
 use crate::{mock::*, *};
 use demo_staking_broker::WASM_BINARY;
 use frame_support::assert_ok;
-use gear_built_in_actor_common::staking::*;
+use gear_builtin_actor_common::staking::*;
 use gear_core::ids::{CodeId, ProgramId};
 
 type AccountIdOf<T> = <T as frame_system::Config>::AccountId;
@@ -61,7 +61,7 @@ fn send_bond_message(contract_id: ProgramId, amount: BalanceOf<Test>) {
 fn assert_bonding_events(contract_id: impl Origin + Copy, bonded: BalanceOf<Test>) {
     assert!(System::events().into_iter().any(|e| {
         match e.event {
-            RuntimeEvent::GearBuiltInActor(Event::MessageExecuted { result }) => result.is_ok(),
+            RuntimeEvent::GearBuiltinActor(Event::MessageExecuted { result }) => result.is_ok(),
             RuntimeEvent::Staking(pallet_staking::Event::<Test>::Bonded { stash, amount }) => {
                 stash.into_origin() == contract_id.into_origin() && bonded == amount
             }
@@ -73,23 +73,23 @@ fn assert_bonding_events(contract_id: impl Origin + Copy, bonded: BalanceOf<Test
 fn assert_execution_with_error() {
     assert!(System::events().into_iter().any(|e| {
         match e.event {
-            RuntimeEvent::GearBuiltInActor(Event::MessageExecuted { result }) => result.is_err(),
+            RuntimeEvent::GearBuiltinActor(Event::MessageExecuted { result }) => result.is_err(),
             _ => false,
         }
     }))
 }
 
 #[test]
-fn user_message_to_built_in_actor_works() {
+fn user_message_to_builtin_actor_works() {
     init_logger();
 
     new_test_ext().execute_with(|| {
-        let built_in_actor_id = pallet::Pallet::<Test>::staking_proxy_actor_id();
+        let builtin_actor_id = pallet::Pallet::<Test>::staking_proxy_actor_id();
 
         // Asserting success
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(SIGNER),
-            built_in_actor_id,
+            builtin_actor_id,
             StakingMessage::Bond { value: 100 * UNITS }.encode(),
             10_000_000_000,
             0,
@@ -128,7 +128,7 @@ fn bonding_works() {
         let contract_id = ProgramId::generate_from_user(CodeId::generate(WASM_BINARY), b"contract");
         let contract_account_id = AccountIdOf::<Test>::from_origin(contract_id.into_origin());
 
-        let _built_in_actor_id = pallet::Pallet::<Test>::staking_proxy_actor_id();
+        let _builtin_actor_id = pallet::Pallet::<Test>::staking_proxy_actor_id();
 
         deploy_contract();
         run_to_next_block();
@@ -221,7 +221,7 @@ fn unbonding_works() {
 
     new_test_ext().execute_with(|| {
         let contract_id = ProgramId::generate_from_user(CodeId::generate(WASM_BINARY), b"contract");
-        let _built_in_actor_id = pallet::Pallet::<Test>::staking_proxy_actor_id();
+        let _builtin_actor_id = pallet::Pallet::<Test>::staking_proxy_actor_id();
 
         deploy_contract();
         run_to_next_block();
@@ -264,7 +264,7 @@ fn unbonding_works() {
         // Asserting the expected events are present
         assert!(System::events().into_iter().any(|e| {
             match e.event {
-                RuntimeEvent::GearBuiltInActor(Event::MessageExecuted { result }) => result.is_ok(),
+                RuntimeEvent::GearBuiltinActor(Event::MessageExecuted { result }) => result.is_ok(),
                 RuntimeEvent::Staking(pallet_staking::Event::<Test>::Unbonded {
                     stash,
                     amount,
@@ -281,7 +281,7 @@ fn nominating_works() {
 
     new_test_ext().execute_with(|| {
         let contract_id = ProgramId::generate_from_user(CodeId::generate(WASM_BINARY), b"contract");
-        let _built_in_actor_id = pallet::Pallet::<Test>::staking_proxy_actor_id();
+        let _builtin_actor_id = pallet::Pallet::<Test>::staking_proxy_actor_id();
         let contract_account_id = AccountIdOf::<Test>::from_origin(contract_id.into_origin());
 
         deploy_contract();

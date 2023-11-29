@@ -995,7 +995,7 @@ impl pallet_gear::Config for Runtime {
     type Scheduler = GearScheduler;
     type QueueRunner = Gear;
     type Voucher = GearVoucher;
-    type BuiltInActor = GearBuiltInActor;
+    type BuiltInActor = GearBuiltinActor;
     type ProgramRentFreePeriod = ConstU32<{ MONTHS * RENT_FREE_PERIOD_MONTH_FACTOR }>;
     type ProgramResumeMinimalRentPeriod = ConstU32<{ WEEKS * RENT_RESUME_WEEK_FACTOR }>;
     type ProgramRentCostPerBlock = ConstU128<RENT_COST_PER_BLOCK>;
@@ -1041,10 +1041,10 @@ parameter_types! {
     pub const BuiltInActorPalletId: PalletId = PalletId(*b"py/biact");
 }
 
-impl pallet_gear_built_in_actor::Config for Runtime {
+impl pallet_gear_builtin_actor::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type RuntimeCall = RuntimeCall;
-    type WeightInfo = pallet_gear_built_in_actor::weights::SubstrateWeight<Runtime>;
+    type WeightInfo = pallet_gear_builtin_actor::weights::SubstrateWeight<Runtime>;
     type PalletId = BuiltInActorPalletId;
 }
 
@@ -1179,7 +1179,7 @@ construct_runtime!(
         StakingRewards: pallet_gear_staking_rewards = 106,
         GearVoucher: pallet_gear_voucher = 107,
         GearBank: pallet_gear_bank = 108,
-        GearBuiltInActor: pallet_gear_built_in_actor = 109,
+        GearBuiltinActor: pallet_gear_builtin_actor = 109,
 
         Sudo: pallet_sudo = 99,
 
@@ -1243,7 +1243,7 @@ construct_runtime!(
         StakingRewards: pallet_gear_staking_rewards = 106,
         GearVoucher: pallet_gear_voucher = 107,
         GearBank: pallet_gear_bank = 108,
-        GearBuiltInActor: pallet_gear_built_in_actor = 109,
+        GearBuiltinActor: pallet_gear_builtin_actor = 109,
 
         // NOTE (!): `pallet_sudo` used to be idx(99).
         // NOTE (!): `pallet_airdrop` used to be idx(198).
@@ -1310,7 +1310,7 @@ mod benches {
         // Gear pallets
         [pallet_gear, Gear]
         [pallet_gear_voucher, GearVoucher]
-        [pallet_gear_built_in_actor, GearBuiltInActor]
+        [pallet_gear_builtin_actor, GearBuiltinActor]
     );
 }
 

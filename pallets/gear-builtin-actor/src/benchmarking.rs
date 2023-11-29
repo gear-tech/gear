@@ -24,7 +24,7 @@ use crate::*;
 use common::{benchmarking, Origin};
 use frame_benchmarking::{benchmarks, impl_benchmark_test_suite};
 use frame_support::traits::Currency;
-use gear_built_in_actor_common::staking::StakingMessage;
+use gear_builtin_actor_common::staking::StakingMessage;
 use gear_core::message::{DispatchKind, StoredDispatch, StoredMessage};
 use pallet_gear::BuiltInActor as BuiltInActorT;
 use parity_scale_codec::Encode;

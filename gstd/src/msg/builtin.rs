@@ -43,7 +43,7 @@
 ///
 /// ```ignore
 /// use gstd::ActorId;
-/// use gstd::msg::{self, built_in::staking::StakingMessage};
+/// use gstd::msg::{self, builtin::staking::StakingMessage};
 /// use parity_scale_codec::Encode;
 ///
 /// const BUILT_IN: ActorId = ActorId::new(hex_literal::hex!(
@@ -60,4 +60,4 @@
 /// }
 /// # fn main() {}
 /// ```
-pub use gear_built_in_actor_common::*;
+pub use gear_builtin_actor_common::*;

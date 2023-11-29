@@ -86,7 +86,7 @@ use frame_support::{
     traits::Get,
     PalletId,
 };
-use gear_built_in_actor_common::staking::*;
+use gear_builtin_actor_common::staking::*;
 use gear_core::{
     ids::{MessageId, ProgramId},
     message::{ReplyMessage, ReplyPacket, StoredDispatch},
@@ -106,7 +106,7 @@ pub use pallet::*;
 pub type BalanceOf<T> = <T as pallet_staking::Config>::CurrencyBalance;
 
 #[allow(dead_code)]
-const LOG_TARGET: &str = "gear::built-in-actor";
+const LOG_TARGET: &str = "gear::builtin-actor";
 
 /// Available actor types.
 #[derive(Decode, Encode, Debug, Clone, Copy, PartialEq, Eq, Sequence, TypeInfo)]
@@ -237,6 +237,12 @@ where
                     Self::process_success(&dispatch, gas_spent, dispatch_result.err())
                 },
             );
+        } else {
+            log::debug!(
+                target: LOG_TARGET,
+                "Unknown built-in actor id: {:?}",
+                actor_id,
+            );
         }
 
         output
@@ -259,7 +265,6 @@ where
 
         let mut journal = vec![];
 
-        // No call dispatced, so no gas burned except for the base
         journal.push(JournalNote::GasBurned {
             message_id,
             amount: <T as Config>::WeightInfo::base_handle_weight()

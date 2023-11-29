@@ -244,8 +244,8 @@ pallet-gear-staking-rewards-rpc = { path = "pallets/staking-rewards/rpc" }
 pallet-gear-staking-rewards-rpc-runtime-api = { path = "pallets/staking-rewards/rpc/runtime-api", default-features = false }
 pallet-gear-voucher = { path = "pallets/gear-voucher", default-features = false }
 pallet-gear-bank = { path = "pallets/gear-bank", default-features = false }
-pallet-gear-built-in-actor = { path = "pallets/gear-built-in-actors", default-features = false }
-gear-built-in-actor-common = { path = "pallets/gear-built-in-actors/common", default-features = false }
+pallet-gear-builtin-actor = { path = "pallets/gear-builtin-actor", default-features = false }
+gear-builtin-actor-common = { path = "pallets/gear-builtin-actor/common", default-features = false }
 runtime-common = { package = "gear-runtime-common", path = "runtime/common", default-features = false }
 runtime-primitives = { package = "gear-runtime-primitives", path = "runtime/primitives", default-features = false }
 service = { package = "gear-service", path = "node/service", default-features = false }

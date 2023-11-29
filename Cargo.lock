@@ -4043,8 +4043,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "gear-built-in-actor-common"
-version = "1.0.0"
+name = "gear-builtin-actor-common"
+version = "1.0.2"
 dependencies = [
  "derive_more",
  "scale-info",
@@ -4879,7 +4879,7 @@ dependencies = [
  "futures",
  "galloc",
  "gcore",
- "gear-built-in-actor-common",
+ "gear-builtin-actor-common",
  "gear-core-errors",
  "gstd-codegen",
  "hashbrown 0.14.2",
@@ -7706,7 +7706,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "pallet-gear-built-in-actor"
+name = "pallet-gear-builtin-actor"
 version = "1.0.2"
 dependencies = [
  "demo-staking-broker",
@@ -7719,7 +7719,7 @@ dependencies = [
  "frame-support",
  "frame-support-test",
  "frame-system",
- "gear-built-in-actor-common",
+ "gear-builtin-actor-common",
  "gear-common",
  "gear-core",
  "gear-core-errors",
@@ -13726,7 +13726,7 @@ dependencies = [
  "pallet-election-provider-multi-phase",
  "pallet-gear",
  "pallet-gear-bank",
- "pallet-gear-built-in-actor",
+ "pallet-gear-builtin-actor",
  "pallet-gear-debug",
  "pallet-gear-gas",
  "pallet-gear-messenger",

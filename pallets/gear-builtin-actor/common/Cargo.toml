@@ -1,6 +1,6 @@
 [package]
-name = "gear-built-in-actor-common"
-version = "1.0.0"
+name = "gear-builtin-actor-common"
+version.workspace = true
 authors.workspace = true
 edition.workspace = true
 license.workspace = true

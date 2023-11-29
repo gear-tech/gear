@@ -3019,7 +3019,7 @@ pub mod runtime_types {
                 }
             }
         }
-        pub mod pallet_gear_built_in_actor {
+        pub mod pallet_gear_builtin_actor {
             use super::runtime_types;
             pub mod pallet {
                 use super::runtime_types;
@@ -9244,7 +9244,7 @@ pub mod runtime_types {
                 #[codec(index = 107)]
                 GearVoucher(runtime_types::pallet_gear_voucher::pallet::Event),
                 #[codec(index = 109)]
-                GearBuiltInActor(runtime_types::pallet_gear_built_in_actor::pallet::Event),
+                GearBuiltinActor(runtime_types::pallet_gear_builtin_actor::pallet::Event),
                 #[codec(index = 99)]
                 Sudo(runtime_types::pallet_sudo::pallet::Event),
                 #[codec(index = 199)]
@@ -10259,12 +10259,12 @@ pub mod storage {
             }
         }
     }
-    #[doc = "Storage of pallet `GearBuiltInActor`."]
-    pub enum GearBuiltInActorStorage {
+    #[doc = "Storage of pallet `GearBuiltinActor`."]
+    pub enum GearBuiltinActorStorage {
         Actors,
     }
-    impl StorageInfo for GearBuiltInActorStorage {
-        const PALLET: &'static str = "GearBuiltInActor";
+    impl StorageInfo for GearBuiltinActorStorage {
+        const PALLET: &'static str = "GearBuiltinActor";
         fn storage_name(&self) -> &'static str {
             match self {
                 Self::Actors => "Actors",
@@ -10933,8 +10933,8 @@ pub mod exports {
     pub mod gear_voucher {
         pub use super::runtime_types::pallet_gear_voucher::pallet::Event;
     }
-    pub mod gear_built_in_actor {
-        pub use super::runtime_types::pallet_gear_built_in_actor::pallet::Event;
+    pub mod gear_builtin_actor {
+        pub use super::runtime_types::pallet_gear_builtin_actor::pallet::Event;
     }
     pub mod sudo {
         pub use super::runtime_types::pallet_sudo::pallet::Event;
