@@ -4868,6 +4868,7 @@ dependencies = [
 name = "gstd"
 version = "1.0.3"
 dependencies = [
+ "arrayvec 0.7.4",
  "bs58 0.5.0",
  "document-features",
  "futures",
@@ -4879,6 +4880,7 @@ dependencies = [
  "hex",
  "parity-scale-codec",
  "primitive-types",
+ "rustversion",
  "scale-info",
  "static_assertions",
 ]

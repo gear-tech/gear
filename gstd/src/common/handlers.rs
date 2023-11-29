@@ -42,65 +42,114 @@ mod panic_handler {
         ext::panic("no info")
     }
 
+    #[cfg(feature = "debug")]
+    mod constants {
+        pub const TRIMMED_MAX_LEN: usize = 1024; //TODO: find better way to access it
+        pub const PANIC_OCCURRED: &str = "panic occurred: ";
+        #[cfg(not(feature = "panic-messages"))]
+        pub const PANICKED_AT: &str = "panicked at ";
+    }
+
+    #[cfg(feature = "debug")]
+    use constants::*;
+
     /// Panic handler for nightly Rust.
     #[cfg(feature = "debug")]
     #[cfg(feature = "panic-messages")]
     #[panic_handler]
     pub fn panic(panic_info: &PanicInfo) -> ! {
-        use crate::prelude::format;
+        use crate::prelude::fmt::Write;
+        use arrayvec::ArrayString;
 
-        let msg = match (panic_info.message(), panic_info.location()) {
-            (Some(msg), Some(loc)) => {
-                format!("'{msg}', {}:{}:{}", loc.file(), loc.line(), loc.column())
-            }
-            (Some(msg), None) => format!("'{msg}'"),
-            (None, Some(loc)) => {
-                format!("{}:{}:{}", loc.file(), loc.line(), loc.column())
-            }
-            _ => ext::panic("no info"),
-        };
+        let option = panic_info.message().zip(panic_info.location());
+        let (message, location) = unsafe { option.unwrap_unchecked() };
 
-        crate::debug!("panic occurred: {msg}");
+        let mut debug_msg = ArrayString::<{ PANIC_OCCURRED.len() + TRIMMED_MAX_LEN }>::new();
+        let _ = write!(&mut debug_msg, "{PANIC_OCCURRED}'{message}', {location}");
+
+        let _ = ext::debug(&debug_msg);
+
+        let msg = unsafe { debug_msg.get_unchecked(PANIC_OCCURRED.len()..) };
         ext::panic(&msg)
     }
 
-    /// Panic handler for stable Rust.
+    // Default panic handler message format:
+    // Rust  <1.73: `panicked at '{message}', {location}`
+    // Rust >=1.73: `panicked at {location}:\n{message}`
+    // source: https://github.com/rust-lang/rust/pull/112849
+
+    /// Panic handler for stable Rust <1.73.
+    #[rustversion::before(1.73)]
     #[cfg(feature = "debug")]
     #[cfg(not(feature = "panic-messages"))]
     #[panic_handler]
     pub fn panic(panic_info: &PanicInfo) -> ! {
-        use crate::prelude::{borrow::Cow, format, ToString};
+        use crate::prelude::fmt::Write;
+        use arrayvec::ArrayString;
 
-        // Default panic handler message format:
-        // Rust  <1.73: `panicked at '{message}', {location}`
-        // Rust >=1.73: `panicked at {location}:\n{message}`
-        // source: https://github.com/rust-lang/rust/pull/112849
+        static_assertions::const_assert!(PANICKED_AT.len() == (PANIC_OCCURRED.len() - 4));
 
-        const PANICKED_AT_LEN: usize = "panicked at ".len();
+        let mut debug_msg = ArrayString::<{ PANIC_OCCURRED.len() + TRIMMED_MAX_LEN }>::new();
 
-        let default_panic_msg = panic_info.to_string();
-        let is_old_panic_format = default_panic_msg.as_bytes().get(PANICKED_AT_LEN) == Some(&b'\'');
+        let _ = debug_msg.try_push_str(&PANIC_OCCURRED[..4]);
+        let _ = write!(&mut debug_msg, "{panic_info}");
 
-        let maybe_panic_msg = if is_old_panic_format {
-            default_panic_msg.get(PANICKED_AT_LEN..).map(Cow::Borrowed)
-        } else {
-            let mut iter = default_panic_msg.splitn(2, ":\n");
-            iter.next().zip(iter.next()).and_then(|(line1, line2)| {
-                let msg = line2;
-                line1
-                    .get(PANICKED_AT_LEN..line1.len())
-                    .map(|location| Cow::Owned(format!("'{msg}', {location}")))
-            })
+        let src = (&PANIC_OCCURRED[4..]).as_bytes();
+        let dest = unsafe {
+            debug_msg
+                .as_bytes_mut()
+                .get_unchecked_mut(4..PANIC_OCCURRED.len())
         };
+        dest.copy_from_slice(src);
 
-        if let Some(ref panic_msg) = maybe_panic_msg {
-            let msg = panic_msg.as_ref();
+        let _ = ext::debug(&debug_msg);
 
-            crate::debug!("panic occurred: {msg}");
-            ext::panic(msg)
-        } else {
-            ext::panic("no info")
+        let msg = unsafe { debug_msg.get_unchecked(PANIC_OCCURRED.len()..) };
+        ext::panic(&msg)
+    }
+
+    /// Panic handler for stable Rust >=1.73.
+    #[rustversion::since(1.73)]
+    #[cfg(feature = "debug")]
+    #[cfg(not(feature = "panic-messages"))]
+    #[panic_handler]
+    pub fn panic(panic_info: &PanicInfo) -> ! {
+        use crate::prelude::{fmt::Write, str};
+        use arrayvec::ArrayString;
+
+        let mut default_panic_msg = ArrayString::<{ PANICKED_AT.len() + TRIMMED_MAX_LEN }>::new();
+        let _ = write!(&mut default_panic_msg, "{panic_info}");
+
+        fn parse_panic_msg(msg: &str) -> Option<(&str, &str)> {
+            const NEEDLE: [u8; 2] = *b":\n";
+
+            let msg_bytes = msg.as_bytes();
+            msg_bytes
+                .windows(NEEDLE.len())
+                .position(|window| NEEDLE.eq(window))
+                .map(|pos| unsafe {
+                    (
+                        str::from_utf8_unchecked(msg_bytes.get_unchecked(PANICKED_AT.len()..pos)),
+                        str::from_utf8_unchecked(msg_bytes.get_unchecked((pos + NEEDLE.len())..)),
+                    )
+                })
         }
+
+        let option = parse_panic_msg(&default_panic_msg);
+        let (location, message) = unsafe { option.unwrap_unchecked() };
+
+        let mut debug_msg = ArrayString::<{ PANIC_OCCURRED.len() + TRIMMED_MAX_LEN }>::new();
+
+        let _ = debug_msg.try_push_str(PANIC_OCCURRED);
+        let _ = debug_msg.try_push('\'');
+        let _ = debug_msg.try_push_str(message);
+        let _ = debug_msg.try_push_str("', ");
+        let _ = debug_msg.try_push_str(location);
+
+        let _ = ext::debug(&debug_msg);
+
+        let msg = unsafe { debug_msg.get_unchecked(PANIC_OCCURRED.len()..) };
+        ext::panic(&msg)
     }
 }
 #[cfg(feature = "panic-handler")]
