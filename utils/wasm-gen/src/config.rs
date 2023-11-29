@@ -62,7 +62,8 @@
 //! let wasm_gen_config = GearWasmGeneratorConfig {
 //!     memory_config: memory_pages_config,
 //!     entry_points_config: entry_points_set,
-//!     remove_recursions: true,
+//!     remove_recursions: false,
+//!     critical_gas_limit: Some(1_000_000),
 //!     syscalls_config,
 //! };
 //! ```
@@ -140,6 +141,13 @@ pub struct StandardGearWasmConfigsBundle<T = [u8; 32]> {
     pub existing_addresses: Option<NonEmpty<T>>,
     /// Flag which signals whether recursions must be removed.
     pub remove_recursion: bool,
+    /// If the limit is set to `Some(_)`, programs will try to stop execution
+    /// after reaching a critical gas limit, which can be useful to exit from
+    /// heavy loops and recursions that waste all gas.
+    ///
+    /// The `gr_gas_available` syscall is called at the beginning of each
+    /// function and for each control instruction (blocks, loops, conditions).
+    pub critical_gas_limit: Option<u64>,
     /// Injection type for each syscall.
     pub injection_types: SysCallsInjectionTypes,
     /// Config of gear wasm call entry-points (exports).
@@ -158,6 +166,7 @@ impl<T> Default for StandardGearWasmConfigsBundle<T> {
             log_info: Some("StandardGearWasmConfigsBundle".into()),
             existing_addresses: None,
             remove_recursion: false,
+            critical_gas_limit: Some(1_000_000),
             injection_types: SysCallsInjectionTypes::all_once(),
             entry_points_set: Default::default(),
             initial_pages: DEFAULT_INITIAL_SIZE,
@@ -173,6 +182,7 @@ impl<T: Into<Hash>> ConfigsBundle for StandardGearWasmConfigsBundle<T> {
             log_info,
             existing_addresses,
             remove_recursion,
+            critical_gas_limit,
             injection_types,
             entry_points_set,
             initial_pages,
@@ -187,7 +197,7 @@ impl<T: Into<Hash>> ConfigsBundle for StandardGearWasmConfigsBundle<T> {
             syscalls_config_builder = syscalls_config_builder.with_log_info(log_info);
         }
         if let Some(addresses) = existing_addresses {
-            syscalls_config_builder = syscalls_config_builder.with_data_offset_msg_dest(addresses);
+            syscalls_config_builder = syscalls_config_builder.with_addresses_msg_dest(addresses);
         } else {
             syscalls_config_builder = syscalls_config_builder.with_source_msg_dest();
         }
@@ -199,6 +209,7 @@ impl<T: Into<Hash>> ConfigsBundle for StandardGearWasmConfigsBundle<T> {
             upper_limit: None,
         };
         let gear_wasm_generator_config = GearWasmGeneratorConfigBuilder::new()
+            .with_critical_gas_limit(critical_gas_limit)
             .with_recursions_removed(remove_recursion)
             .with_syscalls_config(syscalls_config_builder.build())
             .with_entry_points_config(entry_points_set)

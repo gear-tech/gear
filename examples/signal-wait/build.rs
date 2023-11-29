@@ -16,9 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Common modules for each Gear smart contract.
-
-pub mod errors;
-#[cfg(target_arch = "wasm32")]
-mod handlers;
-pub mod primitives;
+fn main() {
+    gear_wasm_builder::build();
+}

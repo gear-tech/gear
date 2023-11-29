@@ -18,8 +18,6 @@
 
 //! Provides macros for async runtime of Gear contracts.
 
-extern crate proc_macro;
-
 use core::fmt::Display;
 use proc_macro::TokenStream;
 use proc_macro2::Ident;
@@ -77,7 +75,7 @@ impl MainAttrs {
 }
 
 impl Parse for MainAttrs {
-    fn parse(input: ParseStream) -> syn::Result<Self> {
+    fn parse(input: ParseStream<'_>) -> syn::Result<Self> {
         let punctuated: Punctuated<MainAttr, Token![,]> = Punctuated::parse_terminated(input)?;
         let mut attrs = MainAttrs {
             handle_reply: None,
@@ -114,7 +112,7 @@ struct MainAttr {
 }
 
 impl Parse for MainAttr {
-    fn parse(input: ParseStream) -> syn::Result<Self> {
+    fn parse(input: ParseStream<'_>) -> syn::Result<Self> {
         let name: Ident = input.parse()?;
         let _: Token![=] = input.parse()?;
         let path: Path = input.parse()?;
