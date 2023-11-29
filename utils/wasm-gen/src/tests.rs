@@ -159,7 +159,7 @@ fn injecting_addresses_works() {
         })
         .with_syscalls_config(
             SysCallsConfigBuilder::new(Default::default())
-                .with_data_offset_msg_dest(addresses)
+                .with_addresses_msg_dest(addresses)
                 .build(),
         )
         .build();
@@ -359,7 +359,7 @@ fn precise_syscalls_works() {
             SysCallsConfigBuilder::new(injection_types)
                 .with_params_config(param_config)
                 .with_pointer_writes_config(PointerWritesConfig::empty())
-                .with_precise_syscalls_config(PreciseSysCallsConfig::new(3..=3))
+                .with_precise_syscalls_config(PreciseSysCallsConfig::new(3..=3, 3..=3))
                 .with_source_msg_dest()
                 .with_error_processing_config(ErrorProcessingConfig::All)
                 .build(),

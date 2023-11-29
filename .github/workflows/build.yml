@@ -178,8 +178,6 @@ jobs:
         with:
           path: artifact
 
-      - run: sccache --show-stats
-
   win-cross:
     runs-on: [kuberunner, github-runner-03]
     env:
