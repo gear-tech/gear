@@ -25,20 +25,29 @@
 //! use gstd::{critical::SectionFutureExt, msg};
 //!
 //! # async fn _dummy() {
-//!
 //! // get source outside of critical section
 //! // because `gr_source` sys-call is forbidden inside `handle_signal` entry point
 //! let source = msg::source();
 //!
-//! msg::send_for_reply(msg::source(), "for_reply", 0, 0)
-//!     .expect("Failed to send message")
-//!     // register section
-//!     .critical(move || {
-//!         msg::send(source, "example", 0).expect("Failed to send message");
-//!     })
-//!     // section will be saved now during `.await`
-//!     .await
-//!     .expect("Received error reply");
+//! let (msg0, msg1) = async {
+//!     let msg0 = msg::send_for_reply(source, "send_for_reply", 0, 0)
+//!         .expect("Failed to send message")
+//!         .await
+//!         .expect("Received error reply");
+//!
+//!     let msg1 = msg::send_with_gas_for_reply(source, "send_with_gas_for_reply", 100_000, 0, 0)
+//!         .expect("Failed to send message")
+//!         .await
+//!         .expect("Received error reply");
+//!
+//!     (msg0, msg1)
+//! }
+//! // can be used on any future
+//! .critical(move || {
+//!     msg::send(source, "sends failed", 0).expect("Failed to send emergency message");
+//! })
+//! // critical section will be saved now during `.await`
+//! .await;
 //!
 //! // if some code fails (panic, out of gas, etc) after `.await`
 //! // then saved section will be executed in `handle_signal`
@@ -103,7 +112,8 @@ impl<Fut, Func> PinnedDrop for SectionFuture<Fut, Func> {
 
 /// Extension for [`Future`].
 pub trait SectionFutureExt: Future + Sized {
-    /// Register critical section.
+    /// Creates future that registers critical section during polling
+    /// (e.g. `.await`).
     fn critical<Func>(self, f: Func) -> SectionFuture<Self, Func>
     where
         Func: FnMut() + 'static;
