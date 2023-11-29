@@ -16,6 +16,20 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! This program demonstrates the use of async `init` entry point, as well as custom entry point
+//! functions for `handle_reply` and `handle_signal`, using of `gstd::async_init` and
+//! `gstd::async_main` macros.
+//!
+//! `Init` is async and saves the source of the message it receives.
+//!
+//! `Handle` is async and goes into an infinite loop.
+//!
+//! `HandleReply` and `HandleSignal` are custom functions, defined as parameters in the
+//! `gstd::async_init` macro. They send a message using [`send_bytes()`] containing their function name to the user saved
+//! by the `Init` method.
+//!
+//! [`send_bytes()`]: msg::send_bytes
+
 use gstd::{msg, ActorId};
 
 static mut USER: ActorId = ActorId::zero();

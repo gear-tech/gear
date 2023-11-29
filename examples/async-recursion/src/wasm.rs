@@ -16,6 +16,15 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! This program demonstrates the use of an async recursive function using the [`async_recursion`]
+//! macro.
+//!
+//! `Init` method gets one address in the payload, which is saves.
+//!
+//! `Handle` is async and calls the recursive function with the payload as an i32 parameter `val`.
+//! The function then sends a message with payload "PING" and awaits reply, then calls itself with
+//! `val - reply.len()` while `val - reply.len() > 0`.
+
 use async_recursion::async_recursion;
 use gstd::{msg, prelude::*, ActorId};
 

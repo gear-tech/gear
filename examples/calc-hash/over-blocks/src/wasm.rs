@@ -1,3 +1,47 @@
+// This file is part of Gear.
+
+// Copyright (C) 2021-2023 Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+//! This program runs a hashing computation over several executions.
+//!
+//! `Init` method gets a u64 `threshold` in the payload, and saves it.
+//!
+//! `Handle` method gets a [`Method`] in the payload, and it executes some code based on the method.
+//!
+//! [`Start { expected, id, src }`] uses the given values to make a new [`Package`], saving it in
+//! a static `registry`, mapping the `id` to a [`Package`]. We check if the [`Package`] is finished,
+//! and if it is, we [`reply()`] with the result in the payload. Otherwise, we [`wait()`], halting execution.
+//!
+//! [`Refuel(id)`] creates a message which is sent to this program, with the payload being
+//! [`Calculate(id)`].
+//!
+//! [`Calculate(id)`] checks that it has been called from this program, as it is a private method.
+//! The [`Package`] is retrieved from the static `registry` based on the `id`. While we have more
+//! gas than the `threshold`, we calculate the [`Package`] until it is finished. If out gas goes
+//! below the `threshold`, the execution is halted. If the [`Package`] is finished, we [`wake()`] the
+//! original message which sent the [`Start { expected, id, src }`].
+//!
+//! [`Start { expected, id, src }`]: Method::Start
+//! [`Refuel(id)`]: Method::Refuel
+//! [`Calculate(id)`]: Method::Calculate
+//! [`wait()`]: exec::wait
+//! [`wake()`]: exec::wake
+//! [`reply()`]: msg::reply
+
 use crate::Method;
 use gstd::{exec, msg};
 use types::Package;

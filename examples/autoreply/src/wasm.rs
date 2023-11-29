@@ -16,6 +16,20 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! This program demonstrates receiving an autoreply after sending a message and creating a reply
+//! deposit. It uses a flag `RECEIVED_AUTO_REPLY` which is false by default.
+//!
+//! `Init` method gets an address of a program in the payload, which will be sending the autoreply,
+//! and saves it.
+//!
+//! `Handle` method sends the payload "Hi" to the saved address, as long as it is not zero. Then it
+//! creates a reply deposit with `1_000_000_000` gas, to handle the reply.
+//!
+//! `HandleReply` receives the reply and sets a flag `RECEIVED_AUTO_REPLY` to `true`.
+//!
+//! `State` is a custom function which is exported, and it replies with the current value of the
+//! flag `RECEIVED_AUTO_REPLY`.
+
 use gstd::{debug, exec, msg, prelude::*, ActorId};
 
 static mut DESTINATION: ActorId = ActorId::zero();

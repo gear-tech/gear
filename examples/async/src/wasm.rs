@@ -16,6 +16,27 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! This program demonstrates use of an async `handle` entry point using the `gstd::async_main`
+//! macro.
+//!
+//! `Init` method gets an address of a program in the payload, which should accept "PING" messages
+//! and reply with "PONG".
+//!
+//! `Handle` is async and gets a [`Command`] in the payload, executes a certain action based on it,
+//! and send a [`reply()`] with a payload containing the id of the current message. There are two commands
+//! that can be executed: [`Common`] and [`Mutex`].
+//!
+//! [`Common`] sends three async messages to the ping program, with the payload "PING",
+//! awaits the reply and asserts that the reply is "PONG".
+//!
+//! [`Mutex`] asynchronously locks the mutex, awaiting it, sends a message back to the
+//! source of the current message, containing the current message id in the payload, and then
+//! it sends a ping message, awaiting the reply and asserting that the reply is "PONG".
+//!
+//! [`Common`]: Command::Common
+//! [`Mutex`]: Command::Mutex
+//! [`reply()`]: msg::reply
+
 use crate::Command;
 use gstd::{msg, prelude::*, sync::Mutex, ActorId};
 
