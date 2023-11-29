@@ -182,9 +182,7 @@ impl<T: Numerated> Iterator for Interval<T> {
                 let start = start.inc_if_lt(end).unwrap_or_else(|| {
                     unreachable!("`T: Numerated` impl error: for each s: T, e: T, e > s ⇔ s.inc_if_lt(e) == Some(_)")
                 });
-                *self = Interval::try_from(start..=end).unwrap_or_else(|_| {
-                    unreachable!("`T: Numerated` impl error: for each s: T, e: T, e > s ⇔ s.inc_if_lt(e) ≤ e")
-                });
+                self.start = start;
                 Some(result)
             }
         } else {

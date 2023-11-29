@@ -186,8 +186,10 @@ impl<T: Numerated> IntervalsTree<T> {
             return;
         };
 
-        let mut iter = if let Some(end) = end.inc_if_lt(last) {
-            self.inner.range(..=end)
+        let mut iter = if let Some(point_after_end) = end.inc_if_lt(last) {
+            // If `end` < `last`, then we must take in account next point after `end`,
+            // because there can be neighbor interval which must be merged with `interval`.
+            self.inner.range(..=point_after_end)
         } else {
             self.inner.range(..=end)
         }
