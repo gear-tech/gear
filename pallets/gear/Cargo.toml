@@ -70,7 +70,7 @@ demo-init-wait = { workspace = true, optional = true }
 wabt.workspace = true
 hex.workspace = true
 blake2-rfc.workspace = true
-gstd = { workspace = true, features = ["debug"] }
+gstd.workspace = true
 demo-async.workspace = true
 demo-async-init.workspace = true
 demo-async-recursion.workspace = true
@@ -98,7 +98,7 @@ demo-compose.workspace = true
 demo-constructor.workspace = true
 demo-mul-by-const.workspace = true
 demo-wait.workspace = true
-demo-waiter = { workspace = true, features = ["debug"] } # The 'debug' feature is required for some assertion in tests
+demo-waiter.workspace = true
 demo-wait-timeout.workspace = true
 demo-wait-wake.workspace = true
 demo-reserve-gas.workspace = true
@@ -195,3 +195,10 @@ runtime-benchmarks = [
 runtime-benchmarks-checkers = []
 try-runtime = ["frame-support/try-runtime"]
 fuzz = ["pallet-gear-gas/fuzz", "common/fuzz"]
+debug = [
+	"demo-async-tester/debug",
+	"demo-constructor/debug",
+	"demo-delayed-reservation-sender/debug",
+	"demo-waiter/debug",
+	"test-syscalls/debug",
+]

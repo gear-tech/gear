@@ -337,7 +337,7 @@ fn delayed_reservations_sending_validation() {
 
         run_to_next_block(None);
 
-        let error_text = if cfg!(any(feature = "debug", debug_assertions)) {
+        let error_text = if cfg!(feature = "debug") {
             format!(
                 "{SENDING_EXPECT}: {:?}",
                 GstdError::Core(
@@ -377,7 +377,7 @@ fn delayed_reservations_sending_validation() {
 
         run_for_blocks(wait_for + 1, None);
 
-        let error_text = if cfg!(any(feature = "debug", debug_assertions)) {
+        let error_text = if cfg!(feature = "debug") {
             format!(
                 "{SENDING_EXPECT}: {:?}",
                 GstdError::Core(
@@ -492,7 +492,7 @@ fn default_wait_lock_timeout() {
 
         run_to_block(expiration_block, None);
 
-        let error_text = if cfg!(any(feature = "debug", debug_assertions)) {
+        let error_text = if cfg!(feature = "debug") {
             format!(
                 "ran into error-reply: {:?}",
                 GstdError::Timeout(expiration_block, expiration_block)
@@ -7402,7 +7402,7 @@ fn pay_program_rent_syscall_works() {
 
         run_to_next_block(None);
 
-        let error_text = if cfg!(any(feature = "debug", debug_assertions)) {
+        let error_text = if cfg!(feature = "debug") {
             format!(
                 "{PAY_PROGRAM_RENT_EXPECT}: {:?}",
                 GstdError::Core(ExtError::Execution(ExecutionError::NotEnoughValue).into())
@@ -7448,7 +7448,7 @@ fn pay_program_rent_syscall_works() {
 
         run_to_next_block(None);
 
-        let error_text = if cfg!(any(feature = "debug", debug_assertions)) {
+        let error_text = if cfg!(feature = "debug") {
             format!(
                 "{PAY_PROGRAM_RENT_EXPECT}: {:?}",
                 GstdError::Core(
@@ -8658,7 +8658,7 @@ fn test_create_program_with_value_lt_ed() {
         // to send init message with value in invalid range.
         assert_total_dequeued(1);
 
-        let error_text = if cfg!(any(feature = "debug", debug_assertions)) {
+        let error_text = if cfg!(feature = "debug") {
             format!(
                 "Failed to create program: {:?}",
                 GstdError::Core(ExtError::Message(MessageError::InsufficientValue).into())
@@ -8712,7 +8712,7 @@ fn test_create_program_with_exceeding_value() {
         // to send init message with value in invalid range.
         assert_total_dequeued(1);
 
-        let error_text = if cfg!(any(feature = "debug", debug_assertions)) {
+        let error_text = if cfg!(feature = "debug") {
             format!(
                 "Failed to create program: {:?}",
                 GstdError::Core(ExtError::Execution(ExecutionError::NotEnoughValue).into())
@@ -8804,7 +8804,7 @@ fn demo_constructor_works() {
 
         run_to_next_block(None);
 
-        let error_text = if cfg!(any(feature = "debug", debug_assertions)) {
+        let error_text = if cfg!(feature = "debug") {
             "I just panic every time"
         } else {
             "no info"
@@ -9799,10 +9799,14 @@ fn mx_lock_ownership_exceedance() {
 
             let get_lock_ownership_exceeded_trap = |command_msg_id| {
                 ActorExecutionErrorReplyReason::Trap(TrapExplanation::Panic(
-                    format!(
-                        "Message 0x{} has exceeded lock ownership time",
-                        hex::encode(command_msg_id)
-                    )
+                    if cfg!(feature = "debug") {
+                        format!(
+                            "Message 0x{} has exceeded lock ownership time",
+                            hex::encode(command_msg_id)
+                        )
+                    } else {
+                        "no info".to_owned()
+                    }
                     .into(),
                 ))
             };
