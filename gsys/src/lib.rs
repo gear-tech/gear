@@ -52,7 +52,7 @@ pub type Handle = u32;
 pub type Hash = [u8; 32];
 
 /// Represents index type.
-pub type Index = u32;
+pub type Offset = u32;
 
 /// Represents length type.
 pub type Length = u32;
@@ -565,7 +565,7 @@ extern "C" {
     /// - `len`: `u32` length of the buffer to read.
     /// - `buffer`: `mut ptr` for buffer to store requested data.
     /// - `err`: `mut ptr` for `u32` error code.
-    pub fn gr_read(at: Index, len: Length, buffer: *mut SizedBufferStart, err: *mut ErrorCode);
+    pub fn gr_read(at: Offset, len: Length, buffer: *mut SizedBufferStart, err: *mut ErrorCode);
 
     /// Fallible `gr_reply_commit_wgas` send syscall.
     ///
@@ -598,7 +598,7 @@ extern "C" {
     /// - `offset`: `u32` defining start index of the input buffer to use.
     /// - `len`: `u32` defining slice length of the input buffer to use.
     /// - `err`: `mut ptr` for error code.
-    pub fn gr_reply_push_input(offset: Index, len: Length, err: *mut ErrorCode);
+    pub fn gr_reply_push_input(offset: Offset, len: Length, err: *mut ErrorCode);
 
     /// Fallible `gr_reply_to` get syscall.
     ///
@@ -622,7 +622,7 @@ extern "C" {
     ///   Ignored if equals u32::MAX (use this for zero value for optimization).
     /// - `err_mid`: `mut ptr` for concatenated error code and message id.
     pub fn gr_reply_input_wgas(
-        offset: Index,
+        offset: Offset,
         len: Length,
         gas_limit: Gas,
         value: *const Value,
@@ -670,7 +670,7 @@ extern "C" {
     ///   Ignored if equals u32::MAX (use this for zero value for optimization).
     /// - `err_mid`: `mut ptr` for concatenated error code and message id.
     pub fn gr_reply_input(
-        offset: Index,
+        offset: Offset,
         len: Length,
         value: *const Value,
         err_mid: *mut ErrorWithHash,
@@ -797,7 +797,7 @@ extern "C" {
     /// - `offset`: `u32` defining start index of the input buffer to use.
     /// - `len`: `u32` defining slice length of the input buffer to use.
     /// - `err`: `mut ptr` for error code.
-    pub fn gr_send_push_input(handle: Handle, offset: Index, len: Length, err: *mut ErrorCode);
+    pub fn gr_send_push_input(handle: Handle, offset: Offset, len: Length, err: *mut ErrorCode);
 
     /// Fallible `gr_send_input_wgas` send syscall.
     ///
@@ -810,7 +810,7 @@ extern "C" {
     /// - `err_mid`: `mut ptr` for concatenated error code and message id.
     pub fn gr_send_input_wgas(
         pid_value: *const HashWithValue,
-        offset: Index,
+        offset: Offset,
         len: Length,
         gas_limit: Gas,
         delay: BlockNumber,
@@ -861,7 +861,7 @@ extern "C" {
     /// - `err_mid`: `mut ptr` for concatenated error code and message id.
     pub fn gr_send_input(
         pid_value: *const HashWithValue,
-        offset: Index,
+        offset: Offset,
         len: Length,
         delay: BlockNumber,
         err_mid: *mut ErrorWithHash,
