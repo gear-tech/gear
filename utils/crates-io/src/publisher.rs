@@ -42,7 +42,7 @@ impl Publisher {
     /// Build package graphs
     pub fn build(mut self) -> Result<Self> {
         let workspace = ManifestWithPath::workspace()?;
-        for p in self.metadata.packages.iter() {
+        for p in &self.metadata.packages {
             if !self.index.contains_key(&p.name) {
                 continue;
             }
@@ -56,11 +56,7 @@ impl Publisher {
 
             let mut manifest = workspace.manifest(&p.manifest_path)?;
             rename::package(p, &mut manifest.manifest)?;
-            rename::deps(
-                &mut manifest.manifest,
-                self.index.keys().collect(),
-                version.to_string(),
-            )?;
+            rename::deps(&mut manifest.manifest, self.index.keys().collect(), version)?;
 
             self.graph
                 .insert(self.index.get(&p.name).cloned(), manifest);

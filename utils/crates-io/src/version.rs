@@ -1,9 +1,7 @@
 //! Crate verifier
-#![allow(unused)]
 
 use anyhow::Result;
 use serde::Deserialize;
-use std::collections::HashMap;
 
 #[derive(Debug, Deserialize)]
 struct Resp {

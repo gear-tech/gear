@@ -18,7 +18,7 @@ pub struct ManifestWithPath {
 }
 
 impl ManifestWithPath {
-    /// Get the worksapce manifest
+    /// Get the workspace manifest
     pub fn workspace() -> Result<Self> {
         let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .ancestors()
