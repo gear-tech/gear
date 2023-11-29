@@ -60,7 +60,7 @@ fn main() -> anyhow::Result<()> {
 
     let mut stack_height = 0;
 
-    loop {
+    while low <= high {
         let mid = (low + high) / 2;
 
         let code = Code::try_new(
@@ -76,8 +76,6 @@ fn main() -> anyhow::Result<()> {
         let init = instance.exports.get_function("init")?;
         let err = init.call(&[]).unwrap_err();
 
-        let stop = low == high;
-
         match err.to_trap() {
             Some(TrapCode::UnreachableCodeReached) => {
                 low = mid + 1;
@@ -92,10 +90,6 @@ fn main() -> anyhow::Result<()> {
                 log::info!("Overflow at {} height", mid);
             }
             code => panic!("unexpected trap code: {:?}", code),
-        }
-
-        if stop {
-            break;
         }
     }
 

@@ -8252,6 +8252,11 @@ fn gas_spent_vs_balance() {
 
 #[test]
 fn gas_spent_precalculated() {
+    use gear_wasm_instrument::parity_wasm::{
+        self,
+        elements::{Instruction, Module},
+    };
+
     // After instrumentation will be:
     // (export "handle" (func $handle_export))
     // (func $add
@@ -8292,101 +8297,24 @@ fn gas_spent_precalculated() {
         )
     )"#;
 
-    // After instrumentation will be:
-    // (export "init" (func $init_export))
-    // (func $init)
-    // (func $init_export
-    //      <-- call gas_charge -->
-    //      <-- stack limit check and increase -->
-    //      call $init
-    //      <-- stack limit decrease -->
-    // )
-    let wat_empty_init = r#"
-    (module
-        (import "env" "memory" (memory 1))
-        (export "init" (func $init))
-        (func $init)
-    )"#;
-
-    // After instrumentation will be:
-    // (export "init" (func $init_export))
-    // (func $f1)
-    // (func $init
-    //      <-- call gas_charge -->
-    //      <-- stack limit check and increase -->
-    //      call $f1
-    //      <-- stack limit decrease -->
-    // )
-    // (func $init_export
-    //      <-- call gas_charge -->
-    //      <-- stack limit check and increase -->
-    //      call $init
-    //      <-- stack limit decrease -->
-    // )
-    let wat_two_stack_limits = r#"
-    (module
-        (import "env" "memory" (memory 1))
-        (export "init" (func $init))
-        (func $f1)
-        (func $init
-            (call $f1)
-        )
-    )"#;
-
-    // After instrumentation will be:
-    // (export "init" (func $init_export))
-    // (func $init
-    //      <-- call gas_charge -->
-    //      <-- stack limit check and increase -->
-    //      i32.const 1
-    //      local.set $1
-    //      <-- stack limit decrease -->
-    // )
-    // (func $init_export
-    //      <-- call gas_charge -->
-    //      <-- stack limit check and increase -->
-    //      call $init
-    //      <-- stack limit decrease -->
-    // )
-    let wat_two_gas_charge = r#"
-    (module
-        (import "env" "memory" (memory 1))
-        (export "init" (func $init))
-        (func $init
-            (local $1 i32)
-            i32.const 1
-            local.set $1
-        )
-    )"#;
-
     init_logger();
     new_test_ext().execute_with(|| {
         let pid = upload_program_default(USER_1, ProgramCodeKind::Custom(wat))
             .expect("submit result was asserted");
-        let empty_init_pid =
-            upload_program_default(USER_3, ProgramCodeKind::Custom(wat_empty_init))
-                .expect("submit result was asserted");
-        let init_two_gas_charge_pid =
-            upload_program_default(USER_3, ProgramCodeKind::Custom(wat_two_gas_charge))
-                .expect("submit result was asserted");
-        let init_two_stack_limits_pid =
-            upload_program_default(USER_3, ProgramCodeKind::Custom(wat_two_stack_limits))
-                .expect("submit result was asserted");
 
         run_to_block(2, None);
 
-        let get_program_code_len = |pid| {
+        let get_program_code = |pid| {
             let code_id = CodeId::from_origin(
                 ProgramStorageOf::<Test>::get_program(pid)
                     .and_then(|program| common::ActiveProgram::try_from(program).ok())
                     .expect("program must exist")
                     .code_hash,
             );
-            <Test as Config>::CodeStorage::get_code(code_id)
-                .unwrap()
-                .code()
-                .len() as u64
+            <Test as Config>::CodeStorage::get_code(code_id).unwrap()
         };
+
+        let get_program_code_len = |pid| get_program_code(pid).code().len() as u64;
 
         let get_gas_charged_for_code = |pid| {
             let schedule = <Test as Config>::Schedule::get();
@@ -8398,22 +8326,37 @@ fn gas_spent_precalculated() {
                 + module_instantiation_per_byte * code_len
         };
 
-        let calc_gas_spent_for_init = |wat| {
-            Gear::calculate_gas_info(
-                USER_1.into_origin(),
-                HandleKind::Init(ProgramCodeKind::Custom(wat).to_bytes()),
-                EMPTY_PAYLOAD.to_vec(),
-                0,
-                true,
-                true,
-            )
-            .unwrap()
-            .min_limit
-        };
+        let instrumented_code = get_program_code(pid);
+        let module = parity_wasm::deserialize_buffer::<Module>(instrumented_code.code())
+            .expect("invalid wasm bytes");
 
-        let gas_two_gas_charge = calc_gas_spent_for_init(wat_two_gas_charge);
-        let gas_two_stack_limits = calc_gas_spent_for_init(wat_two_stack_limits);
-        let gas_empty_init = calc_gas_spent_for_init(wat_empty_init);
+        let (handle_export_func_body, gas_charge_func_body) = module
+            .code_section()
+            .and_then(|section| match section.bodies() {
+                [.., handle_export, gas_charge] => Some((handle_export, gas_charge)),
+                _ => None,
+            })
+            .expect("failed to locate `handle_export()` and `gas_charge()` functions");
+
+        let gas_charge_call_cost = gas_charge_func_body
+            .code()
+            .elements()
+            .iter()
+            .find_map(|instruction| match instruction {
+                Instruction::I64Const(cost) => Some(*cost as u64),
+                _ => None,
+            })
+            .expect("failed to get cost of `gas_charge()` function");
+
+        let handle_export_instructions = handle_export_func_body.code().elements();
+        assert!(matches!(
+            handle_export_instructions,
+            [
+                Instruction::I32Const(_), //stack check limit cost
+                Instruction::Call(_),     //call to `gas_charge()`
+                ..
+            ]
+        ));
 
         macro_rules! cost {
             ($name:ident) => {
@@ -8421,30 +8364,14 @@ fn gas_spent_precalculated() {
             };
         }
 
-        // `wat_empty_init` has 1 gas_charge call and
-        // `wat_two_gas_charge` has 2 gas_charge calls, so we can calculate
-        // gas_charge function call cost as difference between them,
-        // taking in account difference in other aspects.
-        let gas_charge_call_cost = (gas_two_gas_charge - gas_empty_init)
-            // Take in account difference in executed instructions
-            - cost!(i64const)
-            - cost!(local_set)
-            // Take in account difference in gas depended on code len
-            - (get_gas_charged_for_code(init_two_gas_charge_pid)
-                - get_gas_charged_for_code(empty_init_pid));
-
-        // `wat_empty_init` has 1 stack limit check and
-        // `wat_two_stack_limits` has 2 stack limit checks, so we can calculate
-        // stack limit check cost as difference between them,
-        // taking in account difference in other aspects.
-        let stack_check_limit_cost = (gas_two_stack_limits - gas_empty_init)
-            // Take in account difference in executed instructions
-            - cost!(call)
-            // Take in account additional gas_charge call
-            - gas_charge_call_cost
-            // Take in account difference in gas depended on code len
-            - (get_gas_charged_for_code(init_two_stack_limits_pid)
-                - get_gas_charged_for_code(empty_init_pid));
+        let stack_check_limit_cost = handle_export_instructions
+            .iter()
+            .find_map(|instruction| match instruction {
+                Instruction::I32Const(cost) => Some(*cost as u64),
+                _ => None,
+            })
+            .expect("failed to get stack check limit cost")
+            - cost!(call);
 
         let gas_spent_expected = {
             let execution_cost = cost!(call) * 2
@@ -15026,6 +14953,64 @@ fn test_gas_info_of_terminated_program() {
         )
         .expect("failed getting gas info");
     })
+}
+
+#[test]
+fn test_handle_signal_wait() {
+    use demo_signal_wait::WASM_BINARY;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            100_000_000_000,
+            0,
+            false,
+        ));
+
+        let pid = get_last_program_id();
+
+        run_to_next_block(None);
+
+        assert!(Gear::is_active(pid));
+        assert!(Gear::is_initialized(pid));
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            EMPTY_PAYLOAD.to_vec(),
+            50_000_000_000,
+            0,
+            false,
+        ));
+
+        let mid = get_last_message_id();
+
+        run_to_next_block(None);
+
+        assert_ok!(GasHandlerOf::<Test>::get_system_reserve(mid));
+        assert!(WaitlistOf::<Test>::contains(&pid, &mid));
+
+        run_to_next_block(None);
+
+        let signal_mid = MessageId::generate_signal(mid);
+        assert!(WaitlistOf::<Test>::contains(&pid, &signal_mid));
+
+        let (mid, block) = get_last_message_waited();
+
+        assert_eq!(mid, signal_mid);
+
+        System::set_block_number(block - 1);
+        Gear::set_block_number(block - 1);
+        run_to_next_block(None);
+
+        assert!(!WaitlistOf::<Test>::contains(&pid, &signal_mid));
+
+        assert_total_dequeued(4);
+    });
 }
 
 mod utils {

@@ -301,9 +301,9 @@ case "$COMMAND" in
         header "Running fuzzer for runtime panic checks"
         run_fuzzer "$ROOT_DIR" "$1" "$2"; ;;
 
-      fuzz-repr)
-        header "Running fuzzer reproduction"
-        test_fuzzer_reproduction ;;
+      fuzzer-tests)
+        header "Running runtime-fuzzer crate tests"
+        run_fuzzer_tests ;;
 
       syscalls)
         header "Running syscalls integrity test of pallet-gear 'benchmarking' module on WASMI executor"

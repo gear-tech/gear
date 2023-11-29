@@ -197,7 +197,7 @@ impl<T: Into<Hash>> ConfigsBundle for StandardGearWasmConfigsBundle<T> {
             syscalls_config_builder = syscalls_config_builder.with_log_info(log_info);
         }
         if let Some(addresses) = existing_addresses {
-            syscalls_config_builder = syscalls_config_builder.with_data_offset_msg_dest(addresses);
+            syscalls_config_builder = syscalls_config_builder.with_addresses_msg_dest(addresses);
         } else {
             syscalls_config_builder = syscalls_config_builder.with_source_msg_dest();
         }
