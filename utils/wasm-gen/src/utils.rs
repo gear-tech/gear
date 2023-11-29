@@ -26,6 +26,7 @@ use gear_wasm_instrument::{
         },
     },
     syscalls::SysCallName,
+    wasm_instrument::{self, InjectionConfig},
 };
 use gsys::HashWithValue;
 use std::{
@@ -220,6 +221,37 @@ fn find_recursion_impl<Callback>(
 
     colored.insert(call_index, Color::Black);
     path.pop();
+}
+
+pub fn inject_stack_limiter(module: Module) -> Module {
+    wasm_instrument::inject_stack_limiter_with_config(
+        module,
+        InjectionConfig {
+            stack_limit: 30_003,
+            injection_fn: |signature| {
+                let results = signature.results();
+                let mut body = Vec::with_capacity(results.len() + 1);
+
+                for result in results {
+                    let instruction = match result {
+                        ValueType::I32 => Instruction::I32Const(u32::MAX as i32),
+                        ValueType::I64 => Instruction::I64Const(u64::MAX as i64),
+                        ValueType::F32 | ValueType::F64 => {
+                            unreachable!("f32/64 types are not supported")
+                        }
+                    };
+
+                    body.push(instruction);
+                }
+
+                body.push(Instruction::Return);
+
+                body
+            },
+            stack_height_export_name: None,
+        },
+    )
+    .expect("Failed to inject stack height limits")
 }
 
 /// Injects a critical gas limit to a given wasm module.
