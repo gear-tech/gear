@@ -640,8 +640,9 @@ fn check_memory_array_pointers_definition_correctness() {
     }
 }
 
+// Basically checks that mutable error pointer is always last in every fallible syscall params set.
 #[test]
-fn check_error_pointer_position() {
+fn check_syscall_err_ptr_position() {
     for syscall in SysCallName::instrumentable() {
         if syscall.is_fallible() {
             let signature = syscall.signature();
