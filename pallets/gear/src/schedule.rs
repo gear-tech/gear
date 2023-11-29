@@ -56,7 +56,7 @@ pub const INSTR_BENCHMARK_BATCH_SIZE: u32 = 500;
 // To avoid potential stack overflow problems we have a panic in sandbox in case,
 // execution is ended with stack overflow error. So, process queue execution will be
 // stopped and we will be able to investigate the problem and decrease this constant if needed.
-pub const STACK_HEIGHT_LIMIT: u32 = 18_369;
+pub const STACK_HEIGHT_LIMIT: u32 = 36_743;
 
 /// Definition of the cost schedule and other parameterization for the wasm vm.
 ///
@@ -739,8 +739,7 @@ impl<T: Config> Default for Schedule<T> {
 impl Default for Limits {
     fn default() -> Self {
         Self {
-            // TODO #3435. Disabled stack height is a temp solution.
-            stack_height: cfg!(not(feature = "fuzz")).then_some(STACK_HEIGHT_LIMIT),
+            stack_height: Some(STACK_HEIGHT_LIMIT),
             globals: 256,
             locals: 1024,
             parameters: 128,

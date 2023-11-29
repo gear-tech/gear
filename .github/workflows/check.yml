@@ -61,8 +61,6 @@ jobs:
       - name: "Check: Compiling gstd on stable"
         run: cargo +stable check -p gstd
 
-      - run: sccache --show-stats
-
   fuzzer:
     runs-on: [kuberunner, github-runner-01]
     env:
@@ -77,6 +75,13 @@ jobs:
 
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
+
+      - name: "MOUNT: Logs path"
+        run: |
+          FUZZER_LOGS_PATH=/mnt/fuzzer_logs
+          sudo mkdir -p $FUZZER_LOGS_PATH
+          sudo ln -s $FUZZER_LOGS_PATH/artifacts $PWD/utils/runtime-fuzzer/fuzz/artifacts
+          sudo ln -s $FUZZER_LOGS_PATH/proptest-regressions $PWD/utils/runtime-fuzzer/proptest-regressions
 
       - name: "Install: Set cargo path"
         run: echo "/tmp/cargo/bin" >> $GITHUB_PATH

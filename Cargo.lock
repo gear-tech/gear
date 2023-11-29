@@ -4931,7 +4931,7 @@ dependencies = [
 [[package]]
 name = "gwasm-instrument"
 version = "0.3.0"
-source = "git+https://github.com/gear-tech/wasm-instrument?branch=v0.3.0-sign-ext-utils#3fe76d6c53818f6c33bdf411b8d993fd9c60958f"
+source = "git+https://github.com/gear-tech/wasm-instrument?branch=v0.3.0-sign-ext-utils#77c70b359bfe5b408aff4b875e2df78154cfb441"
 dependencies = [
  "gear-wasm",
 ]

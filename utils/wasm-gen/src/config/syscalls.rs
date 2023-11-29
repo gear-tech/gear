@@ -68,7 +68,7 @@ impl SysCallsConfigBuilder {
         self
     }
 
-    /// Set whether `gr_send*` and `gr_exit` syscalls must use `gr_source` result for syscall destination.
+    /// Set whether syscalls with destination param (like `gr_*send*` or `gr_exit`) must use `gr_source` syscall result for a destination param.
     pub fn with_source_msg_dest(mut self) -> Self {
         self.0.syscall_destination = SysCallDestination::Source;
         self.0
@@ -78,9 +78,9 @@ impl SysCallsConfigBuilder {
         self
     }
 
-    /// Set whether `gr_send*` and `gr_exit` syscalls must use some address from `addresses` collection
-    /// as a syscall destination.
-    pub fn with_data_offset_msg_dest<T: Into<Hash>>(mut self, addresses: NonEmpty<T>) -> Self {
+    /// Set whether syscalls with destination param (like `gr_*send*` or `gr_exit`) must use addresses from `addresses` collection
+    /// for a destination param.
+    pub fn with_addresses_msg_dest<T: Into<Hash>>(mut self, addresses: NonEmpty<T>) -> Self {
         let addresses = NonEmpty::collect(addresses.into_iter().map(|pid| HashWithValue {
             hash: pid.into(),
             value: 0,
