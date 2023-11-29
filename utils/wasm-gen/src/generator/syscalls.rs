@@ -71,6 +71,7 @@ impl InvocableSysCall {
                 SysCallName::ReservationReply => "precise_gr_reservation_reply",
                 SysCallName::SendCommit => "precise_gr_send_commit",
                 SysCallName::SendCommitWGas => "precise_gr_send_commit_wgas",
+                SysCallName::ReplyDeposit => "precise_gr_reply_deposit",
                 _ => unimplemented!(),
             },
         }
@@ -148,6 +149,27 @@ impl InvocableSysCall {
                     // Address of error returned, `ErrorCode` here because underlying syscalls have different error types
                     ParamType::Ptr(PtrInfo::new_mutable(PtrType::ErrorCode)),
                 ]),
+                SysCallName::ReplyDeposit => SysCallSignature::gr([
+                    // Address of recipient and value (HashWithValue struct). That's needed
+                    // because first `gr_send_input` is invoked and resulting message id is
+                    // used as an input to `gr_reply_deposit`.
+                    ParamType::Ptr(PtrInfo::new_immutable(PtrType::HashWithValue(
+                        HashType::ActorId,
+                    ))),
+                    // An offset defining starting index in the received payload (related to `gr_send_input`).
+                    ParamType::Size,
+                    // Length of the slice of the received message payload (related to `gr_send_input`).
+                    ParamType::Size,
+                    // Delay (related to `gr_send_input`).
+                    ParamType::Delay,
+                    // Amount of gas deposited for a message id got from `gr_send_input`.
+                    // That's an actual input for `gr_reply_deposit`
+                    ParamType::Gas,
+                    // Error pointer
+                    ParamType::Ptr(PtrInfo::new_mutable(PtrType::ErrorWithHash(
+                        HashType::MessageId,
+                    ))),
+                ]),
                 _ => unimplemented!(),
             },
         }
@@ -189,6 +211,7 @@ impl InvocableSysCall {
                 SysCallName::SendPushInput,
                 SysCallName::SendCommitWGas,
             ],
+            SysCallName::ReplyDeposit => &[SysCallName::SendInput, SysCallName::ReplyDeposit],
             _ => return None,
         })
     }
@@ -200,7 +223,7 @@ impl InvocableSysCall {
 
         match *self {
             Loose(Send | SendWGas | SendInput | SendInputWGas | Exit)
-            | Precise(ReservationSend | SendCommit | SendCommitWGas) => Some(0),
+            | Precise(ReservationSend | SendCommit | SendCommitWGas | ReplyDeposit) => Some(0),
             Loose(SendCommit | SendCommitWGas) => Some(1),
             _ => None,
         }
