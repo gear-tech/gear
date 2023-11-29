@@ -45,9 +45,7 @@ use sp_runtime::{
     traits::{Block as BlockT, Header as HeaderT},
     DeserializeOwned,
 };
-use sp_state_machine::{
-    backend::BackendRuntimeCode, ExecutionStrategy, OverlayedChanges, StateMachine,
-};
+use sp_state_machine::{backend::BackendRuntimeCode, OverlayedChanges, StateMachine};
 use std::{fmt::Debug, str::FromStr, sync::Arc};
 use substrate_rpc_client::{ChainApi, WsClient};
 
@@ -191,8 +189,7 @@ pub(crate) fn state_machine_call<Executor: CodeExecutor>(
     executor: &Executor,
     method: &'static str,
     data: &[u8],
-    extensions: Extensions,
-    strategy: ExecutionStrategy,
+    mut extensions: Extensions,
 ) -> sc_cli::Result<(OverlayedChanges, Vec<u8>)> {
     let mut changes = Default::default();
     let encoded_results = StateMachine::new(
@@ -201,11 +198,11 @@ pub(crate) fn state_machine_call<Executor: CodeExecutor>(
         executor,
         method,
         data,
-        extensions,
+        &mut extensions,
         &BackendRuntimeCode::new(&ext.backend).runtime_code()?,
         CallContext::Offchain,
     )
-    .execute(strategy)
+    .execute()
     .map_err(|e| format!("failed to execute '{method}': {e}"))
     .map_err::<sc_cli::Error, _>(Into::into)?;
 
