@@ -299,7 +299,7 @@ impl SysCallName {
                 SysCallSignature::gr([Version, Ptr(PtrInfo::new_mutable(PtrType::BufferStart))])
             }
             Self::Read => SysCallSignature::gr([
-                Index,
+                Offset,
                 Length,
                 Ptr(PtrInfo::new_mutable(PtrType::SizedBufferStart {
                     length_param_idx: 1,
@@ -317,7 +317,7 @@ impl SysCallName {
                 ))),
             ]),
             Self::ReplyInput => SysCallSignature::gr([
-                Index,
+                Offset,
                 Length,
                 Ptr(PtrInfo::new_immutable(PtrType::Value)),
                 Ptr(PtrInfo::new_mutable(PtrType::ErrorWithHash(
@@ -336,7 +336,7 @@ impl SysCallName {
                 ))),
             ]),
             Self::ReplyInputWGas => SysCallSignature::gr([
-                Index,
+                Offset,
                 Length,
                 Gas,
                 Ptr(PtrInfo::new_immutable(PtrType::Value)),
@@ -384,9 +384,11 @@ impl SysCallName {
                 Length,
                 Ptr(PtrInfo::new_mutable(PtrType::ErrorCode)),
             ]),
-            Self::ReplyPushInput => {
-                SysCallSignature::gr([Index, Length, Ptr(PtrInfo::new_mutable(PtrType::ErrorCode))])
-            }
+            Self::ReplyPushInput => SysCallSignature::gr([
+                Offset,
+                Length,
+                Ptr(PtrInfo::new_mutable(PtrType::ErrorCode)),
+            ]),
             Self::ReplyTo => SysCallSignature::gr([Ptr(PtrInfo::new_mutable(
                 PtrType::ErrorWithHash(HashType::MessageId),
             ))]),
@@ -410,7 +412,7 @@ impl SysCallName {
                 Ptr(PtrInfo::new_immutable(PtrType::HashWithValue(
                     HashType::ActorId,
                 ))),
-                Index,
+                Offset,
                 Length,
                 DelayBlockNumber,
                 Ptr(PtrInfo::new_mutable(PtrType::ErrorWithHash(
@@ -435,7 +437,7 @@ impl SysCallName {
                 Ptr(PtrInfo::new_immutable(PtrType::HashWithValue(
                     HashType::ActorId,
                 ))),
-                Index,
+                Offset,
                 Length,
                 Gas,
                 DelayBlockNumber,
@@ -477,7 +479,7 @@ impl SysCallName {
             ]),
             Self::SendPushInput => SysCallSignature::gr([
                 Handler,
-                Index,
+                Offset,
                 Length,
                 Ptr(PtrInfo::new_mutable(PtrType::ErrorCode)),
             ]),
@@ -611,7 +613,7 @@ pub enum ParamType {
     Length,              // i32 buffers length
     Ptr(PtrInfo),        // i32 pointer
     Gas,                 // i64 gas amount
-    Index,               // i32 offset in the input buffer (message payload)
+    Offset,              // i32 offset in the input buffer (message payload)
     DurationBlockNumber, // i32 duration in blocks
     DelayBlockNumber,    // i32 delay in blocks
     Handler,             // i32 handler number

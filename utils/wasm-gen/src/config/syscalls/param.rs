@@ -55,7 +55,7 @@ impl SysCallsParamsConfig {
             [
                 ParamType::Length,
                 ParamType::Gas,
-                ParamType::Index,
+                ParamType::Offset,
                 ParamType::DurationBlockNumber,
                 ParamType::DelayBlockNumber,
                 ParamType::Handler,
@@ -92,7 +92,7 @@ impl Default for SysCallsParamsConfig {
                 // There are no rules for memory arrays and pointers as they are chosen
                 // in accordance to memory pages config.
                 (ParamType::Gas, (0..=250_000_000_000).into()),
-                (ParamType::Index, (0..=10).into()),
+                (ParamType::Offset, (0..=10).into()),
                 (ParamType::DurationBlockNumber, (1..=8).into()),
                 (ParamType::DelayBlockNumber, (0..=4).into()),
                 (ParamType::Handler, (0..=100).into()),

@@ -157,7 +157,7 @@ impl InvocableSysCall {
                         HashType::ActorId,
                     ))),
                     // An offset defining starting index in the received payload (related to `gr_send_input`).
-                    ParamType::Index,
+                    ParamType::Offset,
                     // Length of the slice of the received message payload (related to `gr_send_input`).
                     ParamType::Length,
                     // Delay (related to `gr_send_input`).
