@@ -21,7 +21,6 @@ use sc_block_builder::{BlockBuilder, BlockBuilderApi, BuiltBlock};
 use sc_client_api::backend;
 use sp_api::{ApiExt, ApiRef, ProvideRuntimeApi, TransactionOutcome};
 use sp_blockchain::Error;
-use sp_core::ExecutionContext;
 use sp_runtime::traits::Block as BlockT;
 
 pub struct BlockBuilderExt<'a, Block: BlockT, A: ProvideRuntimeApi<Block>, B> {
@@ -82,11 +81,7 @@ where
         let block_hash = self.parent_hash;
         self.api
             .execute_in_transaction(move |api| {
-                TransactionOutcome::Rollback(api.gear_run_extrinsic_with_context(
-                    block_hash,
-                    ExecutionContext::BlockConstruction,
-                    max_gas,
-                ))
+                TransactionOutcome::Rollback(api.gear_run_extrinsic(block_hash, max_gas))
             })
             .map_err(|e| Error::Application(Box::new(e)))
     }

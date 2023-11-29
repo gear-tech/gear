@@ -18,7 +18,7 @@
 
 use crate::cli::{Cli, Subcommand};
 use runtime_primitives::Block;
-use sc_cli::{ChainSpec, ExecutionStrategy, RuntimeVersion, SubstrateCli};
+use sc_cli::{ChainSpec, ExecutionStrategy, SubstrateCli};
 use sc_service::config::BasePath;
 use service::{chain_spec, IdentifyVariant};
 
@@ -110,14 +110,6 @@ impl SubstrateCli for Cli {
                 }
             }
         })
-    }
-
-    fn native_runtime_version(spec: &Box<dyn ChainSpec>) -> &'static RuntimeVersion {
-        match spec {
-            #[cfg(feature = "vara-native")]
-            spec if spec.is_vara() => &service::vara_runtime::VERSION,
-            _ => panic!("Invalid chain spec"),
-        }
     }
 }
 
@@ -251,6 +243,7 @@ pub fn run() -> sc_cli::Result<()> {
             use frame_benchmarking_cli::{
                 BenchmarkCmd, ExtrinsicFactory, SUBSTRATE_REFERENCE_HARDWARE,
             };
+            use sc_executor::{sp_wasm_interface::ExtendedHostFunctions, NativeExecutionDispatch};
             use sp_keyring::Sr25519Keyring;
 
             let runner = cli.create_runner(cmd)?;
@@ -270,7 +263,10 @@ pub fn run() -> sc_cli::Result<()> {
                         match &config.chain_spec {
                             #[cfg(feature = "vara-native")]
                             spec if spec.is_vara() => cmd
-                                .run::<service::vara_runtime::Block, service::VaraExecutorDispatch>(
+                                .run::<service::vara_runtime::Block, ExtendedHostFunctions<
+                                sp_io::SubstrateHostFunctions,
+                                <service::VaraExecutorDispatch as NativeExecutionDispatch>::ExtendHostFunctions,
+                            >>(
                                     config,
                                 ),
                             _ => Err("invalid chain spec".into()),

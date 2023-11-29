@@ -12,6 +12,7 @@ targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
 hex-literal.workspace = true
+futures.workspace = true
 jsonrpsee = { workspace = true, features = ["server"] }
 log.workspace = true
 serde = { workspace = true, features = ["derive"] }
@@ -50,6 +51,7 @@ sc-consensus-babe-rpc.workspace = true
 sc-consensus-grandpa.workspace = true
 sc-consensus-grandpa-rpc.workspace = true
 sc-client-api.workspace = true
+sc-offchain.workspace = true
 sc-rpc.workspace = true
 sc-rpc-spec-v2.workspace = true
 sc-sync-state-rpc.workspace = true

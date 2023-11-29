@@ -4484,6 +4484,7 @@ version = "1.0.2"
 dependencies = [
  "frame-benchmarking",
  "frame-benchmarking-cli",
+ "futures",
  "gear-authorship",
  "gear-runtime-common",
  "gear-runtime-interface",
@@ -4514,6 +4515,7 @@ dependencies = [
  "sc-network-common",
  "sc-network-statement",
  "sc-network-sync",
+ "sc-offchain",
  "sc-rpc",
  "sc-rpc-api",
  "sc-rpc-spec-v2",
