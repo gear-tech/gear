@@ -16,6 +16,20 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! This program shows the use of the `handle_signal` entry point, which is reserved for system
+//! usage in the case of some error during an execution, such as:
+//!
+//! - Panic after wait and system reserve gas
+//! - Panic after system reserve gas
+//! - Accumulate system gas reserves (and usages of the gas) across waits
+//! - Run out of gas from execution
+//! - Forbidden action (send message to system address)
+//! - Run out of memory
+//! - unreachable!()
+//! - Invalid debug!()
+//! - Unrecoverable ext error
+//! - Invalid free() call
+
 use crate::{HandleAction, WAIT_AND_RESERVE_WITH_PANIC_GAS};
 use gear_core::ids::ProgramId;
 use gstd::{

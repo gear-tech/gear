@@ -16,6 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! This program sends the previous payload (if any) to the source, then saves the new payload.
+//! If the new payload is "panic" or "leave", the program panics or leaves respectively.
+
 use gstd::{exec, msg, prelude::*};
 
 static mut PAYLOAD: Option<Vec<u8>> = None;

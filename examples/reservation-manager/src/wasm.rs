@@ -16,6 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! This program allows you to reserve gas multiple times, with different durations and gas amounts.
+//! It can also send a message from the reservation that was previously created.
+
 use crate::Action;
 use gstd::{msg, prelude::*, Reservations};
 

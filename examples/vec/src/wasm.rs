@@ -16,6 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! This program allows you to make a vector of a given length, and then it will debug print
+//! the pointer address of the last element of the vector. It will also save how many requests
+//! have been made to make new vectors.
+
 use gstd::{debug, msg, prelude::*};
 
 static mut MESSAGE_LOG: Vec<String> = vec![];

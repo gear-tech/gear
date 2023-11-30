@@ -16,6 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! This smart contract tests the [`ProgramGenerator`], by creating a program with a predefined
+//! `CodeId`, and then checking that the salts this generates are all unique.
+
 use gstd::{collections::BTreeSet, prelude::*, prog::ProgramGenerator, CodeId};
 
 fn check_salt_uniqueness() {

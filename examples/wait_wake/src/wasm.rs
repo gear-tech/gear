@@ -16,6 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! This program can be asked to wait a message, after putting it into a map, or wake a message
+//! that is currently in the map. After being woken, the message will be removed from the map and
+//! it will send a reply.
+
 use crate::Request;
 use gstd::{collections::BTreeMap, exec, msg, prelude::*, MessageId};
 

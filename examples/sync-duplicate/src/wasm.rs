@@ -16,6 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! This program increments a counter and sends a message in an async block, before resetting the
+//! counter back to 0. If a second message happens while the first is waiting for the reply, the
+//! counter will be at 2.
+
 use gstd::{msg, prelude::*, ActorId};
 
 static mut COUNTER: i32 = 0;

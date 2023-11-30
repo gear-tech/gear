@@ -16,6 +16,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! This program acts like a relay, where in `init`, a certain setting is given to it, and based
+//! on that setting, it handles messages differently. It can proxy the messages to other programs,
+//! do so with gas, reply or reply with gas, and it can also send multiple messages using a
+//! [`MessageHandle`] to a predefined destination.
+
 use crate::{RelayCall, ResendPushData};
 use gstd::msg::{self, MessageHandle};
 

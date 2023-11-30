@@ -16,6 +16,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! This program is a reservation system, it has a list of reservations, and has several functions
+//! that can be used from the `handle` method. It also has the option to wait during the `init`
+//! method, needing to be awakened by a reply in the `handle_reply` method. You are able to reserve,
+//! unreserve, use the reserved gas to send a message or reply, or send a message and unreserve the
+//! gas.
+
 use crate::{
     HandleAction, InitAction, ReplyAction, REPLY_FROM_RESERVATION_PAYLOAD, RESERVATION_AMOUNT,
 };

@@ -16,6 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! This program proxies the input to a predetermined destination, through an async function,
+//! awaiting a reply and sending it back to the source of the message.
+
 use gstd::{msg, ActorId};
 
 static mut DESTINATION: ActorId = ActorId::new([0u8; 32]);

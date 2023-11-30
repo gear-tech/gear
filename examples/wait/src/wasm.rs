@@ -16,6 +16,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! This program contains a state, which starts at 0, every time it gets incremented, and then the
+//! program waits, when it reaches 2, it wakes the two waiting messages that started on states 0
+//! and 1, and the messages now have state 3, where they send a message to the source containing
+//! their message id as the payload.
+
 // for panic/oom handlers
 extern crate gstd;
 

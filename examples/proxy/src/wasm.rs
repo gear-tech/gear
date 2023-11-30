@@ -16,6 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! This smart contract acts like a proxy to another contract. The other program is given to it
+//! in the `init` method, and any messages sent to it are forwarded to the other contract.
+
 use crate::{InputArgs, HANDLE_REPLY_EXPECT};
 use gstd::{msg, ActorId};
 

@@ -16,6 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! This program has a large state, which is filled with strings from the `handle` method. We can
+//! then call the `state` method to read the large state.
+
 use crate::State;
 use gstd::{msg, prelude::*};
 

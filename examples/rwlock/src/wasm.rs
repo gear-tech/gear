@@ -16,6 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! This program shows the use of a [`RwLock`] from an async context. Showing both reading and
+//! writing from the lock, aswell as waiting for a ping program while having the lock, keeping
+//! other executions from using the lock.
+
 use crate::Command;
 use core::{
     future::Future,

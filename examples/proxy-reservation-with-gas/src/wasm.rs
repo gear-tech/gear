@@ -16,6 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! This contract creates a reservation for a certain amount of gas, and then sends a message from
+//! this reservation with a delay to some destination.
+
 use crate::InputArgs;
 use gstd::{msg, ActorId, ReservationId};
 

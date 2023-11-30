@@ -16,6 +16,14 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! This program shows all the different ways to send a message from a reservation. This includes:
+//! - Send to user
+//! - Send to user delayed
+//! - Send to program
+//! - Send to program delayed
+//! - Reply to user
+//! - Reply to program (by calling itself)
+
 use crate::HandleAction;
 use gstd::{msg, prelude::*, ReservationId};
 

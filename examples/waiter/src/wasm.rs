@@ -16,6 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! This contract receives a command, and uses it to determine what to do. It can wait, send
+//! messages and use the MessageFuture to wait, reply and wait, wake messages, and wait for mutex
+//! and read write locks.
+
 use crate::{
     Command, LockContinuation, LockStaticAccessSubcommand, MxLockContinuation, RwLockContinuation,
     RwLockType, SleepForWaitType, WaitSubcommand,

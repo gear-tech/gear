@@ -16,6 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! This program can timeout itself using [`MessageFuture`](msg::MessageFuture) for a certain
+//! number of blocks, or wake the message that is currently in timeout, aswell as use join and
+//! select to join multiple futures which are entering a timeout.
+
 use crate::Command;
 use futures::future;
 use gstd::{exec, msg, MessageId};

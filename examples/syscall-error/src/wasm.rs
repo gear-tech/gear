@@ -16,6 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! This program sends a message to an invalid id, asserting that it returns an error.
+
 use gstd::{
     errors::{Error, ExtError, MessageError},
     msg,
