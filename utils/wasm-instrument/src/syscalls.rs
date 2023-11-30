@@ -594,11 +594,138 @@ impl SysCallName {
         })
     }
 
+    /// Checks whether the syscall returns error either by writing to input error pointer
+    /// or by returning value indicating an error.
+    ///
+    /// There are only 2 syscalls returning error value: `Alloc`` and `Free`
+    pub fn returns_error(self) -> bool {
+        use SysCallName::*;
+
+        match self {
+            // These syscalls return value indicating error.
+            Alloc | Free => true,
+            // These syscalls has an input mut err ptr param.
+            fallible_syscall @ (Read
+            | Send
+            | SendWGas
+            | SendCommit
+            | SendCommitWGas
+            | SendInit
+            | SendPush
+            | SendInput
+            | SendInputWGas
+            | SendPushInput
+            | ReservationSend
+            | ReservationSendCommit
+            | Reply
+            | ReplyWGas
+            | ReplyCommit
+            | ReplyCommitWGas
+            | ReplyPush
+            | ReplyInput
+            | ReplyPushInput
+            | ReplyInputWGas
+            | ReservationReply
+            | ReservationReplyCommit
+            | CreateProgram
+            | CreateProgramWGas
+            | ReplyTo
+            | SignalFrom
+            | ReplyCode
+            | SignalCode
+            | ReserveGas
+            | UnreserveGas
+            | SystemReserveGas
+            | ReplyDeposit
+            | PayProgramRent
+            | Wake) => {
+                assert!(
+                    Self::check_has_mut_err_pointer(fallible_syscall),
+                    "error-prone syscall doesn't have mutable err ptr."
+                );
+
+                true
+            }
+            infallible_syscall @ (EnvVars | BlockHeight | BlockTimestamp | MessageId
+            | ProgramId | Source | Value | GasAvailable | ValueAvailable
+            | Size | Exit | Leave | Wait | WaitFor | WaitUpTo | Panic
+            | OomPanic | OutOfGas | Debug | Random) => {
+                assert!(
+                    !Self::check_has_mut_err_pointer(infallible_syscall),
+                    "infallible syscall has mutable err ptr."
+                );
+
+                false
+            }
+        }
+    }
+
     /// Checks whether the syscall is fallible.
     ///
-    /// Literally checks whether syscall contains mutable error pointer.
-    pub fn is_fallible(&self) -> bool {
-        self.signature().params.into_iter().any(
+    /// ### Note:
+    /// This differs from `SysCallName::returns_error` as fallible syscalls
+    /// are those last param of which is a mutable error pointer.
+    pub fn is_fallible(self) -> bool {
+        use SysCallName::*;
+
+        match self {
+            fallible_syscall @ (Read
+            | Send
+            | SendWGas
+            | SendCommit
+            | SendCommitWGas
+            | SendInit
+            | SendPush
+            | SendInput
+            | SendInputWGas
+            | SendPushInput
+            | ReservationSend
+            | ReservationSendCommit
+            | Reply
+            | ReplyWGas
+            | ReplyCommit
+            | ReplyCommitWGas
+            | ReplyPush
+            | ReplyInput
+            | ReplyPushInput
+            | ReplyInputWGas
+            | ReservationReply
+            | ReservationReplyCommit
+            | CreateProgram
+            | CreateProgramWGas
+            | ReplyTo
+            | SignalFrom
+            | ReplyCode
+            | SignalCode
+            | ReserveGas
+            | UnreserveGas
+            | SystemReserveGas
+            | ReplyDeposit
+            | PayProgramRent
+            | Wake) => {
+                assert!(
+                    Self::check_has_mut_err_pointer(fallible_syscall),
+                    "fallible syscall doesn't have mutable err ptr."
+                );
+
+                true
+            }
+            infallible_syscall @ (EnvVars | BlockHeight | BlockTimestamp | MessageId
+            | ProgramId | Source | Value | GasAvailable | ValueAvailable
+            | Size | Alloc | Free | Exit | Leave | Wait | WaitFor
+            | WaitUpTo | Panic | OomPanic | OutOfGas | Debug | Random) => {
+                assert!(
+                    !Self::check_has_mut_err_pointer(infallible_syscall),
+                    "infallible syscall has mutable err ptr."
+                );
+
+                false
+            }
+        }
+    }
+
+    fn check_has_mut_err_pointer(syscall: SysCallName) -> bool {
+        syscall.signature().params.into_iter().any(
             |param| matches!(param, ParamType::Ptr(PtrInfo { mutable: true, ty }) if ty.is_error()),
         )
     }
@@ -719,6 +846,10 @@ impl From<ParamType> for ValueType {
         }
     }
 }
+
+// TODO: convert to enum SysCallSignature { Gr(param), System { param, results } }
+// by that you have a guarantee that gr syscall won't have results until design is rapidly changed.
+// it gives more guarantees.
 
 /// Syscall signature.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]

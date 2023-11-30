@@ -22,15 +22,16 @@
 mod injection;
 mod param;
 mod precise;
+mod process_errors;
 
 use gear_utils::NonEmpty;
 use gear_wasm_instrument::syscalls::SysCallName;
 use gsys::{Hash, HashWithValue};
-use std::collections::HashSet;
 
 pub use injection::*;
 pub use param::*;
 pub use precise::*;
+pub use process_errors::*;
 
 use crate::InvocableSysCall;
 
@@ -114,30 +115,6 @@ impl SysCallsConfigBuilder {
     /// Build the [`SysCallsConfig`].
     pub fn build(self) -> SysCallsConfig {
         self.0
-    }
-}
-
-#[derive(Debug, Clone, Default)]
-pub enum ErrorProcessingConfig {
-    /// Process errors on all the fallible syscalls.
-    All,
-    /// Process only errors on provided syscalls.
-    Whitelist(HashSet<InvocableSysCall>),
-    /// Process errors on all the syscalls excluding provided.
-    Blacklist(HashSet<InvocableSysCall>),
-    /// Don't process syscall errors at all.
-    #[default]
-    None,
-}
-
-impl ErrorProcessingConfig {
-    pub fn error_should_be_processed(&self, syscall: &InvocableSysCall) -> bool {
-        match self {
-            Self::All => true,
-            Self::Whitelist(wl) => wl.contains(syscall),
-            Self::Blacklist(bl) => !bl.contains(syscall),
-            Self::None => false,
-        }
     }
 }
 
