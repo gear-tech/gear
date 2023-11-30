@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Critical hook that guarantees code section execution
+//! Critical hook that guarantees code section execution.
 //!
 //! Code is executed in `handle_signal` entry point in case of failure
 //! only across [`exec::wait()`] calls because hook has to be saved.
@@ -33,9 +33,10 @@
 //!     msg::send(source, "sends failed", 0).expect("Failed to send emergency message");
 //! });
 //!
-//! let msg0 = msg::send_for_reply(source, "send_for_reply", 0, 0)
+//! let msg = msg::send_for_reply(source, "send_for_reply", 0, 0)
 //!     .expect("Failed to send message")
 //!     // await on `MessageFuture` which calls `exec::wait()` inside
+//!     // so program state will be saved and thus hook will too
 //!     .await
 //!     .expect("Received error reply");
 //!
