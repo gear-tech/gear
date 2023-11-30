@@ -3944,6 +3944,7 @@ dependencies = [
  "gear-core",
  "gear-node-testing",
  "gear-runtime-common",
+ "gear-runtime-interface",
  "gear-runtime-primitives",
  "log",
  "pallet-balances",
