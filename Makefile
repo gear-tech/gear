@@ -219,7 +219,7 @@ test-gcli-release: node-release
 
 .PHONY: test-pallet
 test-pallet:
-	@ ./scripts/gear.sh test pallet
+	@ ./scripts/gear.sh test pallet -F debug
 
 .PHONY: test-pallet-release
 test-pallet-release:
