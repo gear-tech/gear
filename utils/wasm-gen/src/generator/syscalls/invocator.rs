@@ -73,7 +73,7 @@ pub(crate) fn process_syscall_params(
             ParamType::Alloc => ProcessedSysCallParams::Alloc {
                 allowed_values: params_config.get_rule(&param),
             },
-            ParamType::Size if length_param_indexes.contains(&param_idx) => {
+            ParamType::Length if length_param_indexes.contains(&param_idx) => {
                 // Due to match guard `ParamType::Size` can be processed in two ways:
                 // 1. The function will return `ProcessedSysCallParams::MemoryArraySize`
                 //    if this parameter is associated with PtrType::BufferStart { .. }`.

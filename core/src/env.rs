@@ -324,11 +324,11 @@ pub trait Externalities {
     /// like lock.
     ///
     /// Due to details of implementation of the runtime which executes gear
-    /// sys-calls inside wasm execution environment (either wasmi or sp_sandbox),
-    /// to prevent additional memory allocation on payload read op, we give
-    /// ownership over payload to the caller. Giving ownership over payload actually
-    /// means, that the payload value in the currently executed message will become
-    /// empty. To prevent from the risk of payload being not "returned" back to the
+    /// syscalls inside wasm execution environment, to prevent additional memory
+    /// allocation on payload read op, we give ownership over payload to the caller.
+    /// Giving ownership over payload actually means, that the payload value in the
+    /// currently executed message will become empty.
+    /// To prevent from the risk of payload being not "returned" back to the
     /// message a [`Externalities::unlock_payload`] is introduced. For more info,
     /// read docs to [`PayloadSliceLock`], [`DropPayloadLockBound`],
     /// [`UnlockPayloadBound`], [`PayloadSliceAccess`] types and their methods.

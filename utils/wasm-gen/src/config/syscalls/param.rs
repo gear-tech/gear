@@ -53,11 +53,11 @@ impl SysCallsParamsConfig {
         let allowed_values: SysCallParamAllowedValues = (value..=value).into();
         Self(
             [
-                ParamType::Size,
+                ParamType::Length,
                 ParamType::Gas,
-                ParamType::MessagePosition,
-                ParamType::Duration,
-                ParamType::Delay,
+                ParamType::Offset,
+                ParamType::DurationBlockNumber,
+                ParamType::DelayBlockNumber,
                 ParamType::Handler,
                 ParamType::Free,
                 ParamType::Version,
@@ -88,13 +88,13 @@ impl Default for SysCallsParamsConfig {
         let free_end = free_start + 5;
         Self(
             [
-                (ParamType::Size, (0..=0x10000).into()),
+                (ParamType::Length, (0..=0x10000).into()),
                 // There are no rules for memory arrays and pointers as they are chosen
                 // in accordance to memory pages config.
                 (ParamType::Gas, (0..=250_000_000_000).into()),
-                (ParamType::MessagePosition, (0..=10).into()),
-                (ParamType::Duration, (1..=8).into()),
-                (ParamType::Delay, (0..=4).into()),
+                (ParamType::Offset, (0..=10).into()),
+                (ParamType::DurationBlockNumber, (1..=8).into()),
+                (ParamType::DelayBlockNumber, (0..=4).into()),
                 (ParamType::Handler, (0..=100).into()),
                 (ParamType::Free, (free_start..=free_end).into()),
                 (ParamType::Version, (1..=1).into()),
