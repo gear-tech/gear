@@ -19,7 +19,7 @@
 //! Critical hook that guarantees code section execution
 //!
 //! Code is executed in `handle_signal` entry point in case of failure
-//! only across `.await` calls because section has to be saved.
+//! only across [`exec::wait()`] calls because hook has to be saved.
 //!
 //! ```rust,no_run
 //! use gstd::{critical, msg};
@@ -35,10 +35,11 @@
 //!
 //! let msg0 = msg::send_for_reply(source, "send_for_reply", 0, 0)
 //!     .expect("Failed to send message")
+//!     // await on `MessageFuture` which calls `exec::wait()` inside
 //!     .await
 //!     .expect("Received error reply");
 //!
-//! // if some code fails (panic, out of gas, etc) after `.await` or [`exec::wait()`] and friends
+//! // if some code fails (panic, out of gas, etc) after `exec::wait()` and friends
 //! // then saved hook will be executed in `handle_signal`
 //!
 //! // your code
