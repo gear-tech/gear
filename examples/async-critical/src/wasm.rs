@@ -16,16 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! The program demonstrates asynchronous execution and
-//! how to use macros `gstd::async_init`/`gstd::async_main`.
-//!
-//!  `Init` method gets three addresses, sends "PING" messages
-//! to them and waits for at least two replies with any payload ("approvals").
-//!
-//! `Handle` processes only "PING" messages. When `handle` gets such message
-//! it sends empty requests to the three addresses and waits for just one approval.
-//! If an approval is obtained the method replies with "PONG".
-
 use crate::HandleAction;
 use gstd::{critical, exec, msg, prelude::*};
 
