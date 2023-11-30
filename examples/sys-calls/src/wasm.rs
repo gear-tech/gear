@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! This program allows you to send a list of syscalls and other minor fucntions that it should
+//! This program allows you to send a list of syscalls and other minor functions that it should
 //! execute.
 
 use crate::Kind;
