@@ -15124,7 +15124,7 @@ fn critical_section_with_panic() {
 }
 
 #[test]
-fn critical_section_drop_works() {
+fn critical_section_hook_reset() {
     use demo_async_critical::{HandleAction, WASM_BINARY};
 
     init_logger();
@@ -15148,7 +15148,7 @@ fn critical_section_drop_works() {
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
             pid,
-            HandleAction::DropWorks.encode(),
+            HandleAction::HookReset.encode(),
             10_000_000_000,
             0,
             false,

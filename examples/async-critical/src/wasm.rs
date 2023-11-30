@@ -27,7 +27,7 @@
 //! If an approval is obtained the method replies with "PONG".
 
 use crate::HandleAction;
-use gstd::{critical::SectionFutureExt, exec, msg, prelude::*};
+use gstd::{critical, exec, msg, prelude::*};
 
 #[gstd::async_init]
 async fn init() {}
@@ -41,12 +41,14 @@ async fn main() {
             // call `gr_source` outside because it is forbidden in `handle_signal`
             let source = msg::source();
 
+            // should not send anything because execution will be completed
+            critical::set_hook(move || {
+                msg::send_bytes(msg::source(), b"critical", 0).unwrap();
+            });
+
+            // wait occurs inside so hook is saved
             gstd::msg::send_bytes_for_reply(source, b"for_reply", 0, 0)
                 .expect("Failed to send message")
-                // should not send anything as execution will be completed
-                .critical(move || {
-                    msg::send_bytes(msg::source(), b"critical", 0).unwrap();
-                })
                 .await
                 .expect("Received error reply");
         }
@@ -54,37 +56,39 @@ async fn main() {
             // call `gr_source` outside because it is forbidden in `handle_signal`
             let source = msg::source();
 
+            // should send message because panic occurs below
+            critical::set_hook(move || {
+                msg::send_bytes(source, b"critical", 0).unwrap();
+            });
+
+            // wait occurs inside so hook is saved
             gstd::msg::send_bytes_for_reply(msg::source(), b"for_reply", 0, 0)
                 .expect("Failed to send message")
-                // should send message because panic occurs below
-                .critical(move || {
-                    msg::send_bytes(source, b"critical", 0).unwrap();
-                })
                 .await
                 .expect("Received error reply");
 
+            // panic occurs so `handle_signal` will execute hook
             panic!();
         }
-        HandleAction::DropWorks => {
+        HandleAction::HookReset => {
             // call `gr_source` outside because it is forbidden in `handle_signal`
             let source = msg::source();
 
+            critical::set_hook(move || {
+                msg::send_bytes(source, b"critical0", 0).unwrap();
+            });
+
             gstd::msg::send_bytes_for_reply(msg::source(), b"for_reply0", 0, 0)
                 .expect("Failed to send message")
-                // set section
-                .critical(move || {
-                    msg::send_bytes(source, b"critical", 0).unwrap();
-                })
                 .await
-                // after wait section function should be removed
                 .expect("Received error reply");
+
+            critical::set_hook(move || {
+                msg::send_bytes(source, b"critical1", 0).unwrap();
+            });
 
             gstd::msg::send_bytes_for_reply(msg::source(), b"for_reply1", 0, 0)
                 .expect("Failed to send message")
-                // check if inside assertion panics
-                .critical(move || {
-                    msg::send_bytes(source, b"critical", 0).unwrap();
-                })
                 .await
                 .expect("Received error reply");
         }

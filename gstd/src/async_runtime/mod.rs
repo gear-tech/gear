@@ -26,7 +26,7 @@ pub(crate) use locks::Lock;
 pub(crate) use signals::ReplyPoll;
 
 use self::futures::FuturesMap;
-use crate::{critical::SectionsMap, MessageId};
+use crate::{critical, critical::HooksMap, MessageId};
 use alloc::boxed::Box;
 use hashbrown::HashMap;
 use locks::LocksMap;
@@ -50,10 +50,10 @@ pub(crate) fn locks() -> &'static mut LocksMap {
     unsafe { LOCKS.get_or_insert_with(LocksMap::default) }
 }
 
-static mut SECTIONS: Option<HashMap<MessageId, Box<dyn FnMut()>>> = None;
+static mut HOOKS: Option<HashMap<MessageId, Box<dyn FnMut()>>> = None;
 
-pub(crate) fn sections() -> &'static mut SectionsMap {
-    unsafe { SECTIONS.get_or_insert_with(HashMap::new) }
+pub(crate) fn hooks() -> &'static mut HooksMap {
+    unsafe { HOOKS.get_or_insert_with(HashMap::new) }
 }
 
 /// Default reply handler.
@@ -67,9 +67,7 @@ pub fn handle_signal() {
         "`gstd::async_runtime::handle_signal()` must be called only in `handle_signal` entrypoint",
     );
 
-    if let Some(mut f) = sections().remove(&msg_id) {
-        f();
-    }
+    critical::execute_hook_once();
 
     futures().remove(&msg_id);
     locks().remove_message_entry(msg_id);

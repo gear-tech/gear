@@ -16,120 +16,64 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Critical section that guarantees code section execution
+//! Critical hook that guarantees code section execution
 //!
 //! Code is executed in `handle_signal` entry point in case of failure
 //! only across `.await` calls because section has to be saved.
 //!
 //! ```rust,no_run
-//! use gstd::{critical::SectionFutureExt, msg};
+//! use gstd::{critical, msg};
 //!
 //! # async fn _dummy() {
-//! // get source outside of critical section
+//! // get source outside of critical hook
 //! // because `gr_source` sys-call is forbidden inside `handle_signal` entry point
 //! let source = msg::source();
 //!
-//! let (msg0, msg1) = async {
-//!     let msg0 = msg::send_for_reply(source, "send_for_reply", 0, 0)
-//!         .expect("Failed to send message")
-//!         .await
-//!         .expect("Received error reply");
-//!
-//!     let msg1 = msg::send_with_gas_for_reply(source, "send_with_gas_for_reply", 100_000, 0, 0)
-//!         .expect("Failed to send message")
-//!         .await
-//!         .expect("Received error reply");
-//!
-//!     (msg0, msg1)
-//! }
-//! // can be used on any future
-//! .critical(move || {
+//! critical::set_hook(|| {
 //!     msg::send(source, "sends failed", 0).expect("Failed to send emergency message");
-//! })
-//! // critical section will be saved now during `.await`
-//! .await;
+//! });
 //!
-//! // if some code fails (panic, out of gas, etc) after `.await`
-//! // then saved section will be executed in `handle_signal`
+//! let msg0 = msg::send_for_reply(source, "send_for_reply", 0, 0)
+//!     .expect("Failed to send message")
+//!     .await
+//!     .expect("Received error reply");
+//!
+//! // if some code fails (panic, out of gas, etc) after `.await` or [`exec::wait()`] and friends
+//! // then saved hook will be executed in `handle_signal`
 //!
 //! // your code
 //! // ...
 //!
 //! # }
 //! ```
+//!
+//! [`exec::wait()`]: crate::exec::wait
 
-use crate::{async_runtime::sections, msg, MessageId};
+use crate::{async_runtime::hooks, msg, MessageId};
 use alloc::boxed::Box;
-use core::{
-    future::Future,
-    pin::Pin,
-    task::{Context, Poll},
-};
 use hashbrown::HashMap;
-use pin_project::{pin_project, pinned_drop};
 
-pub(crate) type SectionsMap = HashMap<MessageId, Box<dyn FnMut()>>;
+pub(crate) type HooksMap = HashMap<MessageId, Box<dyn FnMut()>>;
 
-/// Critical section future.
-#[pin_project(PinnedDrop)]
-#[must_use = "Future must be polled"]
-pub struct SectionFuture<Fut, Func> {
-    #[pin]
-    fut: Fut,
-    func: Option<Func>,
+/// Sets critical hook.
+pub fn set_hook<F: FnMut() + 'static>(f: F) {
+    hooks().insert(msg::id(), Box::new(f));
 }
 
-impl<Fut, Func> Future for SectionFuture<Fut, Func>
-where
-    Fut: Future,
-    Func: FnMut() + 'static,
-{
-    type Output = Fut::Output;
+/// Executes critical hook and removes it.
+///
+/// Must be called inside `handle_signal` or
+/// don't be used at all if you use
+/// [`#[gstd::async_init]`] or [`#[gstd::async_main]`].
+///
+/// [`#[gstd::async_init]`]: crate::async_init
+/// [`#[gstd::async_main]`]: crate::async_main
+pub fn execute_hook_once() {
+    let msg_id = msg::signal_from().expect(
+        "`gstd::critical::execute_hook_once()` must be called only in `handle_signal` entrypoint",
+    );
 
-    fn poll(self: Pin<&mut SectionFuture<Fut, Func>>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let this = self.project();
-        if let Some(func) = this.func.take() {
-            let prev = sections().insert(msg::id(), Box::new(func));
-            assert!(prev.is_none());
-        }
-
-        this.fut.poll(cx)
-    }
-}
-
-#[pinned_drop]
-impl<Fut, Func> PinnedDrop for SectionFuture<Fut, Func> {
-    fn drop(self: Pin<&mut Self>) {
-        let _func = sections().remove(&msg::id());
-        // future drops after `.await` is complete
-        // so `_func == Some(_)`
-        //
-        // and also drops in `handle_signal` during futures cleanup
-        // so `_func == None`
-        // because failing message ID must be obtained via `msg::signal_from()`
-    }
-}
-
-/// Extension for [`Future`].
-pub trait SectionFutureExt: Future + Sized {
-    /// Creates future that registers critical section during polling
-    /// (e.g. `.await`).
-    fn critical<Func>(self, f: Func) -> SectionFuture<Self, Func>
-    where
-        Func: FnMut() + 'static;
-}
-
-impl<F> SectionFutureExt for F
-where
-    F: Future,
-{
-    fn critical<Func>(self, func: Func) -> SectionFuture<Self, Func>
-    where
-        Func: FnMut() + 'static,
-    {
-        SectionFuture {
-            fut: self,
-            func: Some(func),
-        }
+    if let Some(mut f) = hooks().remove(&msg_id) {
+        f();
     }
 }
