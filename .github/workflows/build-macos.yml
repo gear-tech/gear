@@ -54,4 +54,3 @@ jobs:
           -p "pallet-*"
           -p gear-lazy-pages
           -p gear-runtime-interface
-          -F debug

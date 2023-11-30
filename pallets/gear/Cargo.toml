@@ -74,7 +74,7 @@ gstd.workspace = true
 demo-async.workspace = true
 demo-async-init.workspace = true
 demo-async-recursion.workspace = true
-demo-async-tester.workspace = true
+demo-async-tester = { workspace = true, features = [ "debug" ] }
 demo-delayed-sender.workspace = true
 demo-distributor.workspace = true
 demo-init-fail-sender.workspace = true
@@ -95,10 +95,10 @@ demo-calc-hash.workspace = true
 demo-calc-hash-over-blocks.workspace = true
 demo-calc-hash-in-one-block.workspace = true
 demo-compose.workspace = true
-demo-constructor.workspace = true
+demo-constructor = { workspace = true, features = [ "debug" ] }
 demo-mul-by-const.workspace = true
 demo-wait.workspace = true
-demo-waiter.workspace = true
+demo-waiter = { workspace = true, features = [ "debug" ] }
 demo-wait-timeout.workspace = true
 demo-wait-wake.workspace = true
 demo-reserve-gas.workspace = true
@@ -114,8 +114,8 @@ demo-out-of-memory.workspace = true
 demo-ping.workspace = true
 demo-sync-duplicate.workspace = true
 demo-custom.workspace = true
-demo-delayed-reservation-sender.workspace = true
-test-syscalls.workspace = true
+demo-delayed-reservation-sender = { workspace = true, features = [ "debug" ] }
+test-syscalls = { workspace = true, features = [ "debug" ] }
 page_size.workspace = true
 frame-support-test = { workspace = true, features = ["std"] }
 common = { workspace = true, features = ["std"] }
@@ -195,10 +195,3 @@ runtime-benchmarks = [
 runtime-benchmarks-checkers = []
 try-runtime = ["frame-support/try-runtime"]
 fuzz = ["pallet-gear-gas/fuzz", "common/fuzz"]
-debug = [
-	"demo-async-tester/debug",
-	"demo-constructor/debug",
-	"demo-delayed-reservation-sender/debug",
-	"demo-waiter/debug",
-	"test-syscalls/debug",
-]

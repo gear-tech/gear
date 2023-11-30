@@ -337,16 +337,12 @@ fn delayed_reservations_sending_validation() {
 
         run_to_next_block(None);
 
-        let error_text = if cfg!(feature = "debug") {
-            format!(
-                "{SENDING_EXPECT}: {:?}",
-                GstdError::Core(
-                    ExtError::Message(MessageError::InsufficientGasForDelayedSending).into()
-                )
+        let error_text = format!(
+            "{SENDING_EXPECT}: {:?}",
+            GstdError::Core(
+                ExtError::Message(MessageError::InsufficientGasForDelayedSending).into()
             )
-        } else {
-            String::from("no info")
-        };
+        );
 
         assert_failed(
             mid,
@@ -377,16 +373,12 @@ fn delayed_reservations_sending_validation() {
 
         run_for_blocks(wait_for + 1, None);
 
-        let error_text = if cfg!(feature = "debug") {
-            format!(
-                "{SENDING_EXPECT}: {:?}",
-                GstdError::Core(
-                    ExtError::Message(MessageError::InsufficientGasForDelayedSending).into()
-                )
+        let error_text = format!(
+            "{SENDING_EXPECT}: {:?}",
+            GstdError::Core(
+                ExtError::Message(MessageError::InsufficientGasForDelayedSending).into()
             )
-        } else {
-            String::from("no info")
-        };
+        );
 
         assert_failed(
             mid,
@@ -492,14 +484,10 @@ fn default_wait_lock_timeout() {
 
         run_to_block(expiration_block, None);
 
-        let error_text = if cfg!(feature = "debug") {
-            format!(
-                "ran into error-reply: {:?}",
-                GstdError::Timeout(expiration_block, expiration_block)
-            )
-        } else {
-            String::from("no info")
-        };
+        let error_text = format!(
+            "ran into error-reply: {:?}",
+            GstdError::Timeout(expiration_block, expiration_block)
+        );
 
         assert_failed(
             mid,
@@ -7402,14 +7390,10 @@ fn pay_program_rent_syscall_works() {
 
         run_to_next_block(None);
 
-        let error_text = if cfg!(feature = "debug") {
-            format!(
-                "{PAY_PROGRAM_RENT_EXPECT}: {:?}",
-                GstdError::Core(ExtError::Execution(ExecutionError::NotEnoughValue).into())
-            )
-        } else {
-            String::from("no info")
-        };
+        let error_text = format!(
+            "{PAY_PROGRAM_RENT_EXPECT}: {:?}",
+            GstdError::Core(ExtError::Execution(ExecutionError::NotEnoughValue).into())
+        );
 
         assert_failed(
             message_id,
@@ -7448,16 +7432,10 @@ fn pay_program_rent_syscall_works() {
 
         run_to_next_block(None);
 
-        let error_text = if cfg!(feature = "debug") {
-            format!(
-                "{PAY_PROGRAM_RENT_EXPECT}: {:?}",
-                GstdError::Core(
-                    ExtError::ProgramRent(ProgramRentError::MaximumBlockCountPaid).into()
-                )
-            )
-        } else {
-            String::from("no info")
-        };
+        let error_text = format!(
+            "{PAY_PROGRAM_RENT_EXPECT}: {:?}",
+            GstdError::Core(ExtError::ProgramRent(ProgramRentError::MaximumBlockCountPaid).into())
+        );
         assert_failed(
             message_id,
             ActorExecutionErrorReplyReason::Trap(TrapExplanation::Panic(error_text.into())),
@@ -8658,14 +8636,10 @@ fn test_create_program_with_value_lt_ed() {
         // to send init message with value in invalid range.
         assert_total_dequeued(1);
 
-        let error_text = if cfg!(feature = "debug") {
-            format!(
-                "Failed to create program: {:?}",
-                GstdError::Core(ExtError::Message(MessageError::InsufficientValue).into())
-            )
-        } else {
-            String::from("no info")
-        };
+        let error_text = format!(
+            "Failed to create program: {:?}",
+            GstdError::Core(ExtError::Message(MessageError::InsufficientValue).into())
+        );
 
         assert_failed(
             msg_id,
@@ -8712,15 +8686,10 @@ fn test_create_program_with_exceeding_value() {
         // to send init message with value in invalid range.
         assert_total_dequeued(1);
 
-        let error_text = if cfg!(feature = "debug") {
-            format!(
-                "Failed to create program: {:?}",
-                GstdError::Core(ExtError::Execution(ExecutionError::NotEnoughValue).into())
-            )
-        } else {
-            String::from("no info")
-        };
-
+        let error_text = format!(
+            "Failed to create program: {:?}",
+            GstdError::Core(ExtError::Execution(ExecutionError::NotEnoughValue).into())
+        );
         assert_failed(
             msg_id,
             ActorExecutionErrorReplyReason::Trap(TrapExplanation::Panic(error_text.into())),
@@ -8804,17 +8773,11 @@ fn demo_constructor_works() {
 
         run_to_next_block(None);
 
-        let error_text = if cfg!(feature = "debug") {
-            "I just panic every time"
-        } else {
-            "no info"
-        };
+        let error_text = "I just panic every time".to_owned();
 
         assert_failed(
             message_id,
-            ActorExecutionErrorReplyReason::Trap(TrapExplanation::Panic(
-                error_text.to_string().into(),
-            )),
+            ActorExecutionErrorReplyReason::Trap(TrapExplanation::Panic(error_text.into())),
         );
 
         let reply = maybe_any_last_message().expect("Should be");
@@ -9799,14 +9762,10 @@ fn mx_lock_ownership_exceedance() {
 
             let get_lock_ownership_exceeded_trap = |command_msg_id| {
                 ActorExecutionErrorReplyReason::Trap(TrapExplanation::Panic(
-                    if cfg!(feature = "debug") {
-                        format!(
-                            "Message 0x{} has exceeded lock ownership time",
-                            hex::encode(command_msg_id)
-                        )
-                    } else {
-                        "no info".to_owned()
-                    }
+                    format!(
+                        "Message 0x{} has exceeded lock ownership time",
+                        hex::encode(command_msg_id)
+                    )
                     .into(),
                 ))
             };
