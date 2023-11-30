@@ -51,7 +51,7 @@ pub type Handle = u32;
 /// Represents hash type.
 pub type Hash = [u8; 32];
 
-/// Represents index type.
+/// Represents offset type.
 pub type Offset = u32;
 
 /// Represents length type.
