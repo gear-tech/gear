@@ -146,22 +146,9 @@ serde_json = "^1"
 serde_yaml = "0.8.26"
 sha-1 = "0.10.1"
 static_assertions = "1"
-# # NOTE
-#
-# 1. subxt v0.29.0 breaks the logging in gsdk, our fork is based on the
-# unpublished v0.29.0 from the main repo with fixes.
-#
-# 2. subxt v0.29.0 upgrades the substrate dependencies which are not
-# compatible with our current dependencies.
-#
-# 3. changing but patching the source here for making these work out of
-# workspace.
-#
-# 4. subxt-metadata and subxt-codegen are just used by gsdk-codegen for now
-# gathering them here for easy management.
-subxt = { version = "0.32.1" }
-subxt-metadata = { version = "0.32.1" }
-subxt-codegen = { version = "0.32.1" }
+subxt = "0.32.1"
+subxt-metadata = "0.32.1"
+subxt-codegen = "0.32.1"
 syn = "2.0.39"
 thiserror = "1.0.50"
 tokio = { version = "1.34.0" }
