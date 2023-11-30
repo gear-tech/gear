@@ -132,7 +132,6 @@ fn custom_extrinsic_is_placed_in_each_block() {
 
     let client = Arc::new(
         TestClientBuilder::new()
-            .set_execution_strategy(sc_client_api::ExecutionStrategy::NativeWhenPossible)
             .build(),
     );
     let spawner = sp_core::testing::TaskExecutor::new();
@@ -217,8 +216,7 @@ fn custom_extrinsic_is_placed_in_each_block() {
 fn proposed_storage_changes_match_execute_block_storage_changes() {
     init_logger();
 
-    let client_builder = TestClientBuilder::new()
-        .set_execution_strategy(sc_client_api::ExecutionStrategy::NativeWhenPossible);
+    let client_builder = TestClientBuilder::new();
     let backend = client_builder.backend();
     let client = Arc::new(client_builder.build());
     let spawner = sp_core::testing::TaskExecutor::new();
@@ -326,8 +324,7 @@ fn queue_remains_intact_if_processing_fails() {
 
     init_logger();
 
-    let client_builder = TestClientBuilder::new()
-        .set_execution_strategy(sc_client_api::ExecutionStrategy::NativeWhenPossible);
+    let client_builder = TestClientBuilder::new();
     let backend = client_builder.backend();
     let mut client = Arc::new(client_builder.build());
     let spawner = sp_core::testing::TaskExecutor::new();
@@ -517,12 +514,12 @@ fn block_max_gas_works() {
     use sp_state_machine::IterArgs;
 
     init_logger();
+    gear_runtime_interface::sandbox_init();
 
     // Enough to fit 2 messages
     const MAX_GAS: u64 = 2 * DEFAULT_GAS_LIMIT + 25_000_100;
 
-    let client_builder = TestClientBuilder::new()
-        .set_execution_strategy(sc_client_api::ExecutionStrategy::NativeWhenPossible);
+    let client_builder = TestClientBuilder::new();
     let backend = client_builder.backend();
     let mut client = Arc::new(client_builder.build());
     let spawner = sp_core::testing::TaskExecutor::new();
@@ -658,8 +655,7 @@ fn block_max_gas_works() {
 fn terminal_extrinsic_discarded_from_txpool() {
     init_logger();
 
-    let client_builder = TestClientBuilder::new()
-        .set_execution_strategy(sc_client_api::ExecutionStrategy::NativeWhenPossible);
+    let client_builder = TestClientBuilder::new();
     let mut client = Arc::new(client_builder.build());
     let spawner = sp_core::testing::TaskExecutor::new();
     let txpool = BasicPool::new_full(

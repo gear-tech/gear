@@ -61,14 +61,17 @@ pub fn config_endowed(code: Option<&[u8]>, extra_endowed: Vec<AccountId>) -> Gen
             code: code
                 .map(|x| x.to_vec())
                 .unwrap_or_else(|| wasm_binary().to_vec()),
+            ..Default::default()
         },
         balances: BalancesConfig { balances: endowed },
         babe: BabeConfig {
             authorities: vec![],
             epoch_config: Some(BABE_GENESIS_EPOCH_CONFIG),
+            ..Default::default()
         },
         grandpa: GrandpaConfig {
             authorities: vec![],
+            _config: Default::default(),
         },
         session: SessionConfig {
             keys: vec![

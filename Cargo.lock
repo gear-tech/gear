@@ -4037,6 +4037,7 @@ dependencies = [
  "futures-timer",
  "gear-common",
  "gear-node-testing",
+ "gear-runtime-interface",
  "gear-runtime-primitives",
  "gear-service",
  "log",
