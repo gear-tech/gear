@@ -26,8 +26,7 @@ pub(crate) use locks::Lock;
 pub(crate) use signals::ReplyPoll;
 
 use self::futures::FuturesMap;
-use crate::{critical, critical::HooksMap, MessageId};
-use alloc::boxed::Box;
+use crate::critical;
 use hashbrown::HashMap;
 use locks::LocksMap;
 use signals::WakeSignals;
@@ -48,12 +47,6 @@ static mut LOCKS: Option<LocksMap> = None;
 
 pub(crate) fn locks() -> &'static mut LocksMap {
     unsafe { LOCKS.get_or_insert_with(LocksMap::default) }
-}
-
-static mut HOOKS: Option<HashMap<MessageId, Box<dyn FnMut()>>> = None;
-
-pub(crate) fn hooks() -> &'static mut HooksMap {
-    unsafe { HOOKS.get_or_insert_with(HashMap::new) }
 }
 
 /// Default reply handler.

@@ -50,11 +50,17 @@
 //!
 //! [`exec::wait()`]: crate::exec::wait
 
-use crate::{async_runtime::hooks, msg, MessageId};
+use crate::{msg, MessageId};
 use alloc::boxed::Box;
 use hashbrown::HashMap;
 
-pub(crate) type HooksMap = HashMap<MessageId, Box<dyn FnMut()>>;
+type HooksMap = HashMap<MessageId, Box<dyn FnMut()>>;
+
+static mut HOOKS: Option<HooksMap> = None;
+
+fn hooks() -> &'static mut HooksMap {
+    unsafe { HOOKS.get_or_insert_with(HashMap::new) }
+}
 
 /// Sets critical hook.
 pub fn set_hook<F: FnMut() + 'static>(f: F) {
@@ -63,12 +69,20 @@ pub fn set_hook<F: FnMut() + 'static>(f: F) {
 
 /// Executes critical hook and removes it.
 ///
-/// Must be called inside `handle_signal` or
-/// don't be used at all if you use
-/// [`#[gstd::async_init]`] or [`#[gstd::async_main]`].
+/// Must be called inside `handle_signal`:
 ///
-/// [`#[gstd::async_init]`]: crate::async_init
-/// [`#[gstd::async_main]`]: crate::async_main
+/// ```rust,no_run
+/// use gstd::critical;
+///
+/// #[no_mangle]
+/// extern "C" fn handle_signal() {
+///     critical::execute_hook_once();
+/// }
+/// ```
+///
+/// or __don't__ be used at all if you use
+/// [`#[gstd::async_init]`](crate::async_init) or
+/// [`#[gstd::async_main]`](crate::async_main).
 pub fn execute_hook_once() {
     let msg_id = msg::signal_from().expect(
         "`gstd::critical::execute_hook_once()` must be called only in `handle_signal` entrypoint",
