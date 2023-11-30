@@ -29,7 +29,7 @@
 //! // because `gr_source` sys-call is forbidden inside `handle_signal` entry point
 //! let source = msg::source();
 //!
-//! critical::set_hook(|| {
+//! critical::set_hook(move || {
 //!     msg::send(source, "sends failed", 0).expect("Failed to send emergency message");
 //! });
 //!
