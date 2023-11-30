@@ -16,6 +16,26 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! This contract contains a node state, which is created during `init`, using the input for the
+//! status. The `handle` method sends a request to the node:
+//!
+//! `IsReady` - returns `Yes` if the transition is empty, `No` otherwise.
+//!
+//! `Begin(Operation)` - starts a transition if one is not already in progress, if there are
+//! subnodes, the request it sent to the subnode, and the program calls [`wait()`](exec::wait).
+//! Otherwise, it sets the transition state to `Ready` and returns `Success`.
+//!
+//! `Commit` - checks if there are subnodes, if there are, and the transition state is `Ready`, it
+//! sends the request to the first subnode, and the program calls [`wait()`](exec::wait). Otherwise,
+//! it check that the current transition was called by the same source that this message is sent
+//! from, and if so, it ends the transition and returns `Success`.
+//!
+//! `Add(ActorId)` - adds a subnode to the program state.
+//!
+//! The `handle_reply` method verifies that the message was sent from the correct source for the
+//! current transition, and if so, wakes the message which was waited. If the reply failed, it
+//! sets the transition state to `Failed`.
+
 use crate::{Initialization, Operation, Reply, Request};
 use gstd::{collections::BTreeSet, debug, exec, msg, prelude::*, ActorId, MessageId};
 

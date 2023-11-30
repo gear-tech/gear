@@ -16,6 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! This contract shows how a program may call [`wait()`](exec::wait) from the `init` function,
+//! after sending a message to some other address, in this case, the source of the message.
+//! When receiving a reply, this program will wake the init message and finish initializing.
+
 use gstd::{collections::BTreeMap, exec, msg, MessageId};
 
 #[derive(PartialEq, Debug)]

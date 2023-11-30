@@ -16,6 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! This program signals an allocation error of a massive byte array.
+
 use alloc::alloc::Layout;
 
 #[no_mangle]

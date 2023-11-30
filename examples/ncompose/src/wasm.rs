@@ -16,12 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-// This contract recursively composes itself with another contract (the other contract
-// being applied to the input data first): `c(f) = (c(f) . f) x`.
-// Every call to the auto_composer contract increments the internal `ITER` counter.
-// As soon as the counter reaches the `MAX_ITER`, the recursion stops.
-// Effectively, this procedure executes a composition of `MAX_ITER` contracts `f`
-// where the output of the previous call is fed to the input of the next call.
+//! This contract will recursively call itself and some other program, given during `init`, up until
+//! a certain depth, `max_iter` is reached, providing a [`Vec<u8>`] in the payload, being the output
+//! of the previous call. Once the iteration is done, the resulting vector is sent in a reply.
 
 extern crate alloc;
 

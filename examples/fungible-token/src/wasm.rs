@@ -16,6 +16,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Smart contract for fungible tokens. When initializing, it is provided with the name, symbol,
+//! decimals and initial amount of accounts. When reading the state through the `state` function,
+//! we remove the fungible token from the program memory. The `handle` method allows us to interact
+//! with the fungible token. We can read the balance of an account, or read the total supply. We can
+//! also make transfers between two accounts, approve tokens for allowances, burn tokens from our
+//! account and mint tokens to our account.
+
 use core::ops::Range;
 use ft_io::*;
 use gstd::{msg, prelude::*, ActorId};

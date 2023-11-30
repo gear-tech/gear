@@ -16,6 +16,20 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! This contract shows 3 ways of running two separate futures (async blocks). The contract is given
+//! two addresses of two programs, "async" and "ping". The `handle` method is given a command, which
+//! tells it which method to use to run the two futures. Each future sends a message to the given
+//! program, containing an empty vec and "PING" as the payload respectively.
+//!
+//! [`Unordered`](Command::Unordered) uses [`FuturesUnordered`] and runs the two futures
+//! sequentially, waiting for one to finish before running the next.
+//!
+//! [`Select`](Command::Select) uses [`select_biased`] to run both futures concurrently, waiting for
+//! the future that completes first.
+//!
+//! [`Join`](Command::Join) uses [`join`] to run both futures concurrently, waiting for both futures
+//! to complete.
+
 use crate::Command;
 use futures::{
     join, select_biased,

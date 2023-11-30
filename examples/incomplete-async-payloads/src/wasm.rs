@@ -16,6 +16,22 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! This contract gets an address of a ping program when initialized. It can be sent one of four
+//! commands.
+//!
+//! [`HandleStore`](Command::HandleStore) will create a new [`MessageHandle`], push some data to it,
+//! ping the ping program, then push some more data and commit the reply.
+//!
+//! [`ReplyStore`](Command::ReplyStore) will push some data to the default reply, ping the ping
+//! program, then push some more data and commit the reply.
+//!
+//! [`Handle`](Command::Handle) will create a new [`MessageHandle`] and push some data to it, then
+//! commit the reply.
+//!
+//! [`Reply`](Command::Reply) will push some data to the default reply, then commit the reply.
+//!
+//! [`MessageHandle`]: msg::MessageHandle
+
 use crate::Command;
 use gstd::{
     msg::{self, MessageHandle},

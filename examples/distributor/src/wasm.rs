@@ -16,6 +16,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! This contract allows for a tree of programs to store values. When receiving a value, a program,
+//! which is a node in the tree, will try to distribute the value to its subnodes, keeping the
+//! leftover and any failed subnodes amounts for itself. Subnodes are assumed to be running the
+//! same code, resulting in them distributing any value they get over their respective subnodes.
+//! A subnode can be added via a request, containing the ActorId of the subnode. The final request
+//! which can be sent will reply with the current value of this node.
+
 use crate::{Program, Reply, Request};
 use core::future::Future;
 use gstd::{collections::BTreeSet, debug, msg, prelude::*, sync::Mutex, ActorId};

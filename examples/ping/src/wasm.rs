@@ -16,6 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Ping contract, when it receives a message with the payload "PING", it replies with "PONG".
+
 use gstd::{msg, prelude::*};
 
 #[no_mangle]

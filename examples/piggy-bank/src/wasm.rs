@@ -16,6 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! This program loads the payload directly from the stack, and if the payload is "smash", then it
+//! sends all the available value in the reply, otherwise it keeps any value it was given in the
+//! program.
+
 use gstd::{debug, exec, msg};
 
 #[no_mangle]

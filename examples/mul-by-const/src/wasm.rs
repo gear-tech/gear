@@ -16,12 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-// This contract recursively composes itself with another contract (the other contract
-// being applied to the input data first): `c(f) = (c(f) . f) x`.
-// Every call to the auto_composer contract increments the internal `ITER` counter.
-// As soon as the counter reaches the `MAX_ITER`, the recursion stops.
-// Effectively, this procedure executes a composition of `MAX_ITER` contracts `f`
-// where the output of the previous call is fed to the input of the next call.
+//! This contract recursively multiplies a state by a number. A value is provided during `init`,
+//! and it is saved along with the program id. `handle` is given another value in the payload,
+//! which it uses to multiply the state, saving the new state and replying with the new state.
 
 extern crate alloc;
 

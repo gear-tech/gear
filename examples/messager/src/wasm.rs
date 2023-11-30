@@ -16,6 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! This contract will send an empty message with a value provided by the payload back to the source
+//! when initialized. `handle` and `handle_reply` will send a message containing [`SEND_REPLY`] and
+//! [`REPLY_REPLY`] back to the source respectively.
+
 use crate::{REPLY_REPLY, SEND_REPLY};
 use gstd::msg;
 
