@@ -16,6 +16,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! This contract calls [`send_bytes_delayed_from_reservation()`] with an empty payload and a
+//! reservation id created by the input provided to the contract. It can either instantly call
+//! the send syscall, or it can be asked to [`wait_for()`](exec::wait_for) a given amount of blocks
+//! before calling it.
+//!
+//! [`send_bytes_delayed_from_reservation()`]: msg::send_bytes_delayed_from_reservation
+
 use crate::{ReservationSendingShowcase, SENDING_EXPECT};
 use gstd::{exec, msg, prelude::*, ReservationId};
 

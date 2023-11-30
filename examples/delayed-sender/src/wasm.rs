@@ -16,6 +16,19 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! This contract shows the use of `delayed` syscalls, which make the syscall wait a given number
+//! of blocks before being executed.
+//!
+//! The `init()` function calls [`send_bytes_delayed()`](msg::send_bytes_delayed), with a delay
+//! which is taken from the payload.
+//!
+//! The `handle()` method, when given any non empty payload, will save the current message id, and
+//! then call [`wait()`](exec::wait). A second execution of the `handle()` method will call
+//! [`wake_delayed()`](exec::wake_delayed) with the saved message id, and a delay which is taken
+//! from the payload. If the payload is empty however, it will
+//! [`send_bytes_delayed()`](msg::send_bytes_delayed) twice to the source, with an empty payload
+//! and a delay of [`DELAY`](crate::DELAY).
+
 use crate::DELAY;
 use gstd::{exec, msg, MessageId};
 

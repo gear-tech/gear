@@ -16,6 +16,23 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! This program demonstrates the automatically generated `handle_signal` function when using
+//! `gstd::async_init` or `gstd::async_main`.
+//!
+//! `Init` is async and gets an [`InitAction`] in the payload, if the action is
+//! [`Panic`](InitAction::Panic), we send a message using [`send_for_reply()`] back to the source
+//! containing "init" as the payload, and then we [`panic!()`](core::panic), triggering a signal.
+//!
+//! `Handle` is async and calls [`send()`] a message back to the source containing "handle_signal"
+//! as the payload, then calls [`wait()`].
+//!
+//! The automatically generated `handle_signal` contains a call to [`gstd::handle_signal()`]
+//!
+//! [`send_for_reply()`]: msg::send_for_reply
+//! [`send()`]: msg::send
+//! [`wait()`]: exec::wait
+//! [`gstd::handle_signal()`]: gstd::handle_signal
+
 use crate::InitAction;
 use gstd::{exec, msg};
 
