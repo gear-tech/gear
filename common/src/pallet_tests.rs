@@ -39,7 +39,7 @@ macro_rules! impl_pallet_balances {
             type WeightInfo = ();
             type FreezeIdentifier = ();
             type MaxFreezes = ();
-            type HoldIdentifier = ();
+            type RuntimeHoldReason = RuntimeHoldReason;
             type MaxHolds = ();
         }
     };
@@ -84,13 +84,12 @@ macro_rules! impl_pallet_system_inner {
             type DbWeight = SystemConfigDbWeight;
             type RuntimeOrigin = RuntimeOrigin;
             type RuntimeCall = RuntimeCall;
-            type Index = u64;
-            type BlockNumber = BlockNumber;
+            type Nonce = u64;
             type Hash = H256;
             type Hashing = BlakeTwo256;
             type AccountId = AccountId;
             type Lookup = IdentityLookup<Self::AccountId>;
-            type Header = generic::Header<BlockNumber, BlakeTwo256>;
+            type Block = Block;
             type RuntimeEvent = RuntimeEvent;
             type BlockHashCount = BlockHashCount;
             type Version = ();

@@ -130,10 +130,7 @@ pub(crate) fn init_logger() {
 fn custom_extrinsic_is_placed_in_each_block() {
     init_logger();
 
-    let client = Arc::new(
-        TestClientBuilder::new()
-            .build(),
-    );
+    let client = Arc::new(TestClientBuilder::new().build());
     let spawner = sp_core::testing::TaskExecutor::new();
     let txpool = BasicPool::new_full(
         Default::default(),

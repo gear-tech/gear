@@ -533,7 +533,7 @@ pub mod pallet {
         ///
         /// For tests only.
         #[cfg(any(feature = "std", feature = "runtime-benchmarks", test))]
-        pub fn set_block_number(bn: u32) {
+        pub fn set_block_number(bn: BlockNumberFor<T>) {
             use sp_runtime::SaturatedConversion;
 
             <BlockNumber<T>>::put(bn.saturated_into::<BlockNumberFor<T>>());
