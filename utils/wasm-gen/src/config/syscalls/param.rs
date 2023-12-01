@@ -18,7 +18,7 @@
 
 //! Entities describing syscall param, more precisely, it's allowed values.
 //!
-//! Types here are used to create [`crate::SysCallsConfig`].
+//! Types here are used to create [`crate::SyscallsConfig`].
 
 use crate::DEFAULT_INITIAL_SIZE;
 use arbitrary::{Result, Unstructured};
@@ -41,16 +41,16 @@ pub use gear_wasm_instrument::syscalls::ParamType;
 ///  - [`ParamType::Size`] will be ignored when it means length of some in-memory
 /// array.
 #[derive(Debug, Clone)]
-pub struct SysCallsParamsConfig(HashMap<ParamType, SysCallParamAllowedValues>);
+pub struct SyscallsParamsConfig(HashMap<ParamType, SyscallParamAllowedValues>);
 
-impl SysCallsParamsConfig {
+impl SyscallsParamsConfig {
     pub fn empty() -> Self {
         Self(HashMap::new())
     }
 
-    /// New [`SysCallsParamsConfig`] with all rules set to produce one constant value.
+    /// New [`SyscallsParamsConfig`] with all rules set to produce one constant value.
     pub fn all_constant_value(value: i64) -> Self {
-        let allowed_values: SysCallParamAllowedValues = (value..=value).into();
+        let allowed_values: SyscallParamAllowedValues = (value..=value).into();
         Self(
             [
                 ParamType::Length,
@@ -69,20 +69,20 @@ impl SysCallsParamsConfig {
     }
 
     /// Get allowed values for the `param`.
-    pub fn get_rule(&self, param: &ParamType) -> Option<SysCallParamAllowedValues> {
+    pub fn get_rule(&self, param: &ParamType) -> Option<SyscallParamAllowedValues> {
         self.0.get(param).cloned()
     }
 
     /// Set allowed values for the `param`.
-    pub fn add_rule(&mut self, param: ParamType, allowed_values: SysCallParamAllowedValues) {
+    pub fn add_rule(&mut self, param: ParamType, allowed_values: SyscallParamAllowedValues) {
         matches!(param, ParamType::Ptr(..))
-            .then(|| panic!("ParamType::Ptr(..) isn't supported in SysCallsParamsConfig"));
+            .then(|| panic!("ParamType::Ptr(..) isn't supported in SyscallsParamsConfig"));
 
         self.0.insert(param, allowed_values);
     }
 }
 
-impl Default for SysCallsParamsConfig {
+impl Default for SyscallsParamsConfig {
     fn default() -> Self {
         let free_start = DEFAULT_INITIAL_SIZE as i64;
         let free_end = free_start + 5;
@@ -107,15 +107,15 @@ impl Default for SysCallsParamsConfig {
 
 /// Range of allowed values for the syscall param.
 #[derive(Debug, Clone)]
-pub struct SysCallParamAllowedValues(RangeInclusive<i64>);
+pub struct SyscallParamAllowedValues(RangeInclusive<i64>);
 
-impl From<RangeInclusive<i64>> for SysCallParamAllowedValues {
+impl From<RangeInclusive<i64>> for SyscallParamAllowedValues {
     fn from(range: RangeInclusive<i64>) -> Self {
         Self(range)
     }
 }
 
-impl SysCallParamAllowedValues {
+impl SyscallParamAllowedValues {
     /// Zero param value.
     ///
     /// That means that for particular param `0` will be always
@@ -133,13 +133,13 @@ impl SysCallParamAllowedValues {
     }
 }
 
-impl Default for SysCallParamAllowedValues {
+impl Default for SyscallParamAllowedValues {
     fn default() -> Self {
         Self::zero()
     }
 }
 
-impl SysCallParamAllowedValues {
+impl SyscallParamAllowedValues {
     /// Get i32 value for the param from it's allowed range.
     pub fn get_i32(&self, unstructured: &mut Unstructured) -> Result<i32> {
         let current_range_start = *self.0.start();

@@ -156,7 +156,7 @@ fn injecting_addresses_works() {
             stack_end_page: Some(stack_end_page),
         })
         .with_syscalls_config(
-            SysCallsConfigBuilder::new(Default::default())
+            SyscallsConfigBuilder::new(Default::default())
                 .with_addresses_msg_dest(addresses)
                 .build(),
         )
@@ -219,10 +219,10 @@ fn error_processing_works_for_fallible_syscalls() {
     let mut unstructured = Unstructured::new(&buf);
     let mut unstructured2 = Unstructured::new(&buf);
 
-    let fallible_syscalls = SysCallName::instrumentable()
+    let fallible_syscalls = SyscallName::instrumentable()
         .into_iter()
         .filter_map(|syscall| {
-            let invocable_syscall = InvocableSysCall::Loose(syscall);
+            let invocable_syscall = InvocableSyscall::Loose(syscall);
             invocable_syscall.is_fallible().then_some(invocable_syscall)
         });
 
@@ -232,11 +232,11 @@ fn error_processing_works_for_fallible_syscalls() {
 
         const INJECTED_SYSCALLS: u32 = 8;
 
-        let mut injection_types = SysCallsInjectionTypes::all_never();
+        let mut injection_types = SyscallsInjectionTypes::all_never();
         injection_types.set(syscall, INJECTED_SYSCALLS, INJECTED_SYSCALLS);
 
         let syscalls_config_builder =
-            SysCallsConfigBuilder::new(injection_types).with_params_config(params_config);
+            SyscallsConfigBuilder::new(injection_types).with_params_config(params_config);
 
         // Assert that syscalls results will be processed.
         let termination_reason = execute_wasm_with_custom_configs(
@@ -287,29 +287,29 @@ fn precise_syscalls_works() {
     rng.fill_bytes(&mut buf);
     let mut unstructured = Unstructured::new(&buf);
 
-    let precise_syscalls = SysCallName::instrumentable()
+    let precise_syscalls = SyscallName::instrumentable()
         .into_iter()
         .filter_map(|syscall| {
-            InvocableSysCall::has_precise_variant(syscall)
-                .then_some(InvocableSysCall::Precise(syscall))
+            InvocableSyscall::has_precise_variant(syscall)
+                .then_some(InvocableSyscall::Precise(syscall))
         });
 
     for syscall in precise_syscalls {
         // Prepare syscalls config & context settings for test case.
         const INJECTED_SYSCALLS: u32 = 1;
 
-        let mut injection_types = SysCallsInjectionTypes::all_never();
+        let mut injection_types = SyscallsInjectionTypes::all_never();
         injection_types.set(syscall, INJECTED_SYSCALLS, INJECTED_SYSCALLS);
 
-        let mut param_config = SysCallsParamsConfig::default();
+        let mut param_config = SyscallsParamsConfig::default();
         param_config.add_rule(ParamType::Gas, (0..=0).into());
 
         // Assert that syscalls results will be processed.
         let termination_reason = execute_wasm_with_custom_configs(
             &mut unstructured,
-            SysCallsConfigBuilder::new(injection_types)
+            SyscallsConfigBuilder::new(injection_types)
                 .with_params_config(param_config)
-                .with_precise_syscalls_config(PreciseSysCallsConfig::new(3..=3, 3..=3))
+                .with_precise_syscalls_config(PreciseSyscallsConfig::new(3..=3, 3..=3))
                 .with_source_msg_dest()
                 .set_error_processing_config(ErrorProcessingConfig::All)
                 .build(),
@@ -334,14 +334,14 @@ struct MemoryWrite {
 }
 
 fn get_params_for_syscall_to_fail(
-    syscall: InvocableSysCall,
-) -> (SysCallsParamsConfig, Option<MemoryWrite>) {
+    syscall: InvocableSyscall,
+) -> (SyscallsParamsConfig, Option<MemoryWrite>) {
     let syscall_name = match syscall {
-        InvocableSysCall::Loose(name) => name,
-        InvocableSysCall::Precise(name) => name,
+        InvocableSyscall::Loose(name) => name,
+        InvocableSyscall::Precise(name) => name,
     };
     let memory_write = match syscall_name {
-        SysCallName::PayProgramRent => Some(MemoryWrite {
+        SyscallName::PayProgramRent => Some(MemoryWrite {
             offset: 0,
             content: vec![255; WASM_PAGE_SIZE],
         }),
@@ -349,14 +349,14 @@ fn get_params_for_syscall_to_fail(
     };
 
     (
-        SysCallsParamsConfig::all_constant_value(i32::MAX as i64),
+        SyscallsParamsConfig::all_constant_value(i32::MAX as i64),
         memory_write,
     )
 }
 
 fn execute_wasm_with_custom_configs(
     unstructured: &mut Unstructured,
-    syscalls_config: SysCallsConfig,
+    syscalls_config: SyscallsConfig,
     initial_memory_write: Option<MemoryWrite>,
     outgoing_limit: u32,
     imitate_reply: bool,
