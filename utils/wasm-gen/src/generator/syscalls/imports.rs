@@ -91,8 +91,8 @@ impl<'a, 'b>
 
 impl<'a, 'b> From<SyscallsImportsGeneratorInstantiator<'a, 'b>>
     for (
-    SyscallsImportsGenerator<'a, 'b>,
-    FrozenGearWasmGenerator<'a, 'b>,
+        SyscallsImportsGenerator<'a, 'b>,
+        FrozenGearWasmGenerator<'a, 'b>,
     )
 {
     fn from(instantiator: SyscallsImportsGeneratorInstantiator<'a, 'b>) -> Self {
