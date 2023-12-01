@@ -104,7 +104,7 @@ impl From<CounterType> for ActorTerminationReason {
 #[derive(Debug, Clone, Eq, PartialEq, derive_more::Display)]
 pub struct SystemTerminationReason;
 
-/// Execution error in infallible sys-call.
+/// Execution error in infallible syscall.
 #[derive(
     Decode,
     Encode,
@@ -119,7 +119,7 @@ pub struct SystemTerminationReason;
 )]
 #[codec(crate = codec)]
 pub enum UnrecoverableExecutionError {
-    #[display(fmt = "Invalid debug string passed in `gr_debug` sys-call")]
+    #[display(fmt = "Invalid debug string passed in `gr_debug` syscall")]
     InvalidDebugString,
     #[display(fmt = "Not enough gas for operation")]
     NotEnoughGas,
@@ -131,7 +131,7 @@ pub enum UnrecoverableExecutionError {
     UnsupportedEnvVarsVersion,
 }
 
-/// Memory error in infallible sys-call.
+/// Memory error in infallible syscall.
 #[derive(
     Decode,
     Encode,
@@ -154,7 +154,7 @@ pub enum UnrecoverableMemoryError {
     RuntimeAllocOutOfBounds,
 }
 
-/// Wait error in infallible sys-call.
+/// Wait error in infallible syscall.
 #[derive(
     Decode,
     Encode,
@@ -216,14 +216,14 @@ pub enum TrapExplanation {
     /// An error occurs in attempt to charge more gas than available during execution.
     #[display(fmt = "Not enough gas to continue execution")]
     GasLimitExceeded,
-    /// An error occurs in attempt to call forbidden sys-call.
+    /// An error occurs in attempt to call forbidden syscall.
     #[display(fmt = "Unable to call a forbidden function")]
     ForbiddenFunction,
     /// The error occurs when a program tries to allocate more memory than
     /// allowed.
     #[display(fmt = "Trying to allocate more wasm program memory than allowed")]
     ProgramAllocOutOfBounds,
-    #[display(fmt = "Sys-call unrecoverable error: {_0}")]
+    #[display(fmt = "Syscall unrecoverable error: {_0}")]
     UnrecoverableExt(UnrecoverableExtError),
     #[display(fmt = "{_0}")]
     Panic(LimitedStr<'static>),
@@ -233,7 +233,7 @@ pub enum TrapExplanation {
     Unknown,
 }
 
-/// Error returned by fallible sys-call.
+/// Error returned by fallible syscall.
 #[derive(Debug, Clone)]
 pub enum RunFallibleError {
     UndefinedTerminationReason(UndefinedTerminationReason),

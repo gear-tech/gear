@@ -19,7 +19,7 @@
 use super::*;
 use crate::{
     rules::CustomConstantCostRules,
-    syscalls::{ParamType, PtrInfo, PtrType, SysCallName},
+    syscalls::{ParamType, PtrInfo, PtrType, SyscallName},
 };
 use alloc::format;
 use elements::Instruction::*;
@@ -169,7 +169,7 @@ fn duplicate_import() {
             (global i32 (i32.const 42))
             (memory 0 1)
             )"#,
-        system_break = SysCallName::SystemBreak.to_str()
+        system_break = SyscallName::SystemBreak.to_str()
     );
     let module = parse_wat(&wat);
 
@@ -640,9 +640,9 @@ test_gas_counter_injection! {
 
 #[test]
 fn check_memory_array_pointers_definition_correctness() {
-    let sys_calls = SysCallName::instrumentable();
-    for sys_call in sys_calls {
-        let signature = sys_call.signature();
+    let syscalls = SyscallName::instrumentable();
+    for syscall in syscalls {
+        let signature = syscall.signature();
         let size_param_indexes = signature
             .params
             .iter()
@@ -655,7 +655,24 @@ fn check_memory_array_pointers_definition_correctness() {
             });
 
         for idx in size_param_indexes {
-            assert_eq!(signature.params.get(idx), Some(&ParamType::Size));
+            assert_eq!(signature.params.get(idx), Some(&ParamType::Length));
+        }
+    }
+}
+
+// Basically checks that mutable error pointer is always last in every fallible syscall params set.
+#[test]
+fn check_syscall_err_ptr_position() {
+    for syscall in SyscallName::instrumentable() {
+        if syscall.is_fallible() {
+            let signature = syscall.signature();
+            let err_ptr = signature
+                .params
+                .last()
+                .expect("fallible syscall has at least err ptr");
+            assert!(
+                matches!(err_ptr, ParamType::Ptr(PtrInfo { mutable: true, ty }) if ty.is_error())
+            );
         }
     }
 }

@@ -33,7 +33,7 @@ use gwasm_instrument::{
     },
 };
 
-pub use crate::syscalls::SysCallName;
+pub use crate::syscalls::SyscallName;
 pub use gwasm_instrument::{self as wasm_instrument, gas_metering, parity_wasm, utils};
 
 #[cfg(test)]
@@ -50,7 +50,7 @@ pub const GLOBAL_NAME_FLAGS: &str = "gear_flags";
 /// it indicates the end of program stack memory.
 pub const STACK_END_EXPORT_NAME: &str = "__gear_stack_end";
 
-/// System break code for [`SysCallName::SystemBreak`] syscall.
+/// System break code for [`SyscallName::SystemBreak`] syscall.
 #[derive(Debug, Clone, Copy)]
 pub enum SystemBreakCode {
     OutOfGas = 0,
@@ -91,7 +91,7 @@ pub fn inject_system_break_import(
         .map(|section| {
             section.entries().iter().any(|entry| {
                 entry.module() == gas_module_name
-                    && entry.field() == SysCallName::SystemBreak.to_str()
+                    && entry.field() == SyscallName::SystemBreak.to_str()
             })
         })
         .unwrap_or(false)
@@ -108,7 +108,7 @@ pub fn inject_system_break_import(
     mbuilder.push_import(
         builder::import()
             .module(gas_module_name)
-            .field(SysCallName::SystemBreak.to_str())
+            .field(SyscallName::SystemBreak.to_str())
             .external()
             .func(import_sig)
             .build(),
