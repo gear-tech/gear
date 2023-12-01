@@ -298,7 +298,7 @@ where
 
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(0)),
-            imported_functions: vec![SysCallName::Alloc, SysCallName::FreeRange],
+            imported_functions: vec![SyscallName::Alloc, SyscallName::FreeRange],
             handle_body: Some(body::from_instructions(instructions)),
             ..Default::default()
         };

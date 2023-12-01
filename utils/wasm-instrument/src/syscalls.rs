@@ -241,11 +241,11 @@ impl SyscallName {
     /// Returns signature for syscall by name.
     pub fn signature(self) -> SyscallSignature {
         use ParamType::*;
-        use ValueType::{I32, I64};
+        use ValueType::I32;
         match self {
             Self::Alloc => SyscallSignature::system([Alloc], [I32]),
             Self::Free => SyscallSignature::system([Free], [I32]),
-            Self::FreeRange => SyscallSignature::system([Free, FreeUpperBound], [I64]),
+            Self::FreeRange => SyscallSignature::system([Free, FreeUpperBound], [I32]),
             Self::Debug => SyscallSignature::gr([
                 Ptr(PtrInfo::new_immutable(PtrType::SizedBufferStart {
                     length_param_idx: 1,
