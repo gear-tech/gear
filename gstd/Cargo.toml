@@ -31,6 +31,7 @@ rustversion = "1.0"
 
 default = ["common-handlers"]
 ## When enabled, a panic handler and an OOM error handler are provided by this crate.
+## Note that the OOM error handler is provided when "nightly" feature is enabled.
 common-handlers = []
 
 #! ## Nightly features
