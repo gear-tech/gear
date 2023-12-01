@@ -77,13 +77,19 @@ fn get_exports(
     }
 
     if reject_unnecessary {
+        let funcs = module
+            .function_section()
+            .ok_or(CodeError::FunctionSectionNotFound)?
+            .entries();
+
         let types = module
             .type_section()
             .ok_or(CodeError::TypeSectionNotFound)?
             .types();
 
         for i in raw_exports {
-            let Type::Function(ref f) = types[i as usize];
+            let type_id = funcs[i as usize].type_ref();
+            let Type::Function(ref f) = types[type_id as usize];
             if !f.params().is_empty() || !f.results().is_empty() {
                 return Err(CodeError::InvalidExportFnSignature);
             }
@@ -262,6 +268,9 @@ pub enum CodeError {
     /// The type section of the wasm module is not present.
     #[display(fmt = "Type section not found")]
     TypeSectionNotFound,
+    /// The function section of the wasm module is not present.
+    #[display(fmt = "Function section not found")]
+    FunctionSectionNotFound,
     /// The signature of an exported function is invalid.
     #[display(fmt = "Invalid function signature for exported function")]
     InvalidExportFnSignature,
