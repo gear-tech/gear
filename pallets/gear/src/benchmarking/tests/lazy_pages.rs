@@ -263,7 +263,7 @@ where
         // Upload program with code
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec![SysCallName::Random],
+            imported_functions: vec![SyscallName::Random],
             handle_body: Some(body::from_instructions(instrs)),
             stack_end: Some(0.into()),
             ..Default::default()

@@ -25,7 +25,7 @@ use gear_wasm_instrument::{
             Module, Section, Type, ValueType,
         },
     },
-    syscalls::SysCallName,
+    syscalls::SyscallName,
     wasm_instrument::{self, InjectionConfig},
 };
 use gsys::HashWithValue;
@@ -314,7 +314,7 @@ pub fn inject_critical_gas_limit(module: Module, critical_gas_limit: u64) -> Mod
             .filter(|entry| matches!(entry.external(), External::Function(_)))
             .enumerate()
             .find_map(|(i, entry)| {
-                (entry.module() == "env" && entry.field() == SysCallName::GasAvailable.to_str())
+                (entry.module() == "env" && entry.field() == SyscallName::GasAvailable.to_str())
                     .then_some(i as u32)
             })
     });
@@ -333,7 +333,7 @@ pub fn inject_critical_gas_limit(module: Module, critical_gas_limit: u64) -> Mod
             mbuilder.push_import(
                 builder::import()
                     .module("env")
-                    .field(SysCallName::GasAvailable.to_str())
+                    .field(SyscallName::GasAvailable.to_str())
                     .external()
                     .func(import_sig)
                     .build(),

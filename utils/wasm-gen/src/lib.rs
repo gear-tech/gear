@@ -36,7 +36,7 @@ mod utils;
 mod wasm;
 
 pub use config::*;
-pub use gear_wasm_instrument::syscalls::SysCallName;
+pub use gear_wasm_instrument::syscalls::SyscallName;
 pub use generator::*;
 pub use wasm::WasmModule;
 pub use wasm_gen_arbitrary::*;
