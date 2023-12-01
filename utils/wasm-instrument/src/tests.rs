@@ -19,7 +19,7 @@
 use super::*;
 use crate::{
     rules::CustomConstantCostRules,
-    syscalls::{ParamType, PtrInfo, PtrType, SysCallName},
+    syscalls::{ParamType, PtrInfo, PtrType, SyscallName},
 };
 use alloc::format;
 use elements::Instruction::*;
@@ -161,7 +161,7 @@ fn duplicate_import() {
             (global i32 (i32.const 42))
             (memory 0 1)
             )"#,
-        out_of_gas = SysCallName::OutOfGas.to_str()
+        out_of_gas = SyscallName::OutOfGas.to_str()
     );
     let module = parse_wat(&wat);
 
@@ -620,7 +620,7 @@ test_gas_counter_injection! {
 
 #[test]
 fn check_memory_array_pointers_definition_correctness() {
-    let syscalls = SysCallName::instrumentable();
+    let syscalls = SyscallName::instrumentable();
     for syscall in syscalls {
         let signature = syscall.signature();
         let size_param_indexes = signature
@@ -643,7 +643,7 @@ fn check_memory_array_pointers_definition_correctness() {
 // Basically checks that mutable error pointer is always last in every fallible syscall params set.
 #[test]
 fn check_syscall_err_ptr_position() {
-    for syscall in SysCallName::instrumentable() {
+    for syscall in SyscallName::instrumentable() {
         if syscall.is_fallible() {
             let signature = syscall.signature();
             let err_ptr = signature

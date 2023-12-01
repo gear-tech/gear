@@ -62,7 +62,7 @@ members = [
     "examples/signal-wait",
     "examples/state-rollback",
     "examples/sync-duplicate",
-    "examples/sys-calls",
+    "examples/syscalls",
     "examples/syscall-error",
     "examples/vec",
     "examples/wait",
@@ -377,7 +377,7 @@ substrate-wasm-builder = { version = "5.0.0-dev", git = "https://github.com/gear
 try-runtime-cli = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes" }
 
 # Examples
-test-syscalls = { path = "examples/sys-calls", default-features = false }
+test-syscalls = { path = "examples/syscalls", default-features = false }
 demo-async = { path = "examples/async" }
 demo-async-custom-entry = { path = "examples/async-custom-entry" }
 demo-async-init = { path = "examples/async-init" }

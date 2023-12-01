@@ -598,7 +598,7 @@ fn test_register_write_as_with_zero_size() {
 
 /// Check that all sys calls are supported by backend.
 #[test]
-fn test_sys_calls_table() {
+fn test_syscalls_table() {
     use crate::{
         env::{BackendReport, Environment},
         error::ActorTerminationReason,
@@ -609,7 +609,7 @@ fn test_sys_calls_table() {
         gas_metering::ConstantCostRules,
         inject,
         parity_wasm::{self, builder},
-        SysCallName,
+        SyscallName,
     };
 
     // Make module with one empty function.
@@ -621,7 +621,7 @@ fn test_sys_calls_table() {
         .build();
 
     // Insert syscalls imports.
-    for name in SysCallName::instrumentable() {
+    for name in SyscallName::instrumentable() {
         let sign = name.signature();
         let types = module.type_section_mut().unwrap().types_mut();
         let type_no = types.len() as u32;

@@ -43,7 +43,7 @@ use gear_wasm_instrument::{
             self, BlockType, CustomSection, FuncBody, Instruction, Instructions, Section, ValueType,
         },
     },
-    syscalls::SysCallName,
+    syscalls::SyscallName,
     STACK_END_EXPORT_NAME,
 };
 use sp_std::{borrow::ToOwned, convert::TryFrom, marker::PhantomData, prelude::*};
@@ -70,7 +70,7 @@ pub struct ModuleDefinition {
     /// Creates the supplied amount of i64 mutable globals initialized with random values.
     pub num_globals: u32,
     /// List of syscalls that the module should import. They start with index 0.
-    pub imported_functions: Vec<SysCallName>,
+    pub imported_functions: Vec<SyscallName>,
     /// Function body of the exported `init` function. Body is empty if `None`.
     /// Its index is `imported_functions.len()`.
     pub init_body: Option<FuncBody>,
