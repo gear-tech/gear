@@ -28,7 +28,9 @@ use gear_wasm_instrument::{
     parity_wasm::{
         self,
         builder::ModuleBuilder,
-        elements::{ExportEntry, GlobalEntry, GlobalType, InitExpr, Instruction, Internal, Module},
+        elements::{
+            ExportEntry, GlobalEntry, GlobalType, InitExpr, Instruction, Internal, Module, Type,
+        },
     },
     wasm_instrument::{
         self,
@@ -40,7 +42,6 @@ use scale_info::{
     scale::{Decode, Encode},
     TypeInfo,
 };
-use gear_wasm_instrument::parity_wasm::elements::Type;
 
 /// Defines maximal permitted count of memory pages.
 pub const MAX_WASM_PAGE_COUNT: u16 = 512;
@@ -76,7 +77,8 @@ fn get_exports(
     }
 
     if reject_unnecessary {
-        let types = module.type_section()
+        let types = module
+            .type_section()
             .ok_or(CodeError::TypeSectionNotFound)?
             .types();
 
