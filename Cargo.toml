@@ -1,5 +1,5 @@
 [workspace.package]
-version = "1.0.2"
+version = "1.0.3"
 authors = ["Gear Technologies"]
 edition = "2021"
 license = "GPL-3.0"
@@ -14,6 +14,7 @@ default-members = ["node/cli"]
 members = [
     "common",
     "common/codegen",
+    "common/numerated",
     "core",
     "core-backend",
     "core-processor",
@@ -26,6 +27,7 @@ members = [
     "examples/autoreply",
     "examples/calc-hash",
     "examples/custom",
+    "examples/delayed-reservation-sender",
     "examples/compose",
     "examples/constructor",
     "examples/delayed-sender",
@@ -57,9 +59,10 @@ members = [
     "examples/rwlock",
     "examples/send-from-reservation",
     "examples/signal-entry",
+    "examples/signal-wait",
     "examples/state-rollback",
     "examples/sync-duplicate",
-    "examples/sys-calls",
+    "examples/syscalls",
     "examples/syscall-error",
     "examples/vec",
     "examples/wait",
@@ -73,6 +76,7 @@ members = [
     "gclient",
     "gcore",
     "gmeta",
+    "gmeta/codegen",
     "gsdk",
     "gsdk/codegen",
     "gsdk/api-gen",
@@ -98,7 +102,9 @@ base64 = "0.21.5"
 byteorder = { version = "1.5.0", default-features = false }
 blake2-rfc = { version = "0.2.18", default-features = false }
 bs58 = { version = "0.5.0", default-features = false }
-clap = { version = "4.4.7" }
+# TODO: upgrade this package ( issue #2694 )
+cargo_metadata = "=0.15.3"
+clap = { version = "4.4.10" }
 codec = { package = "parity-scale-codec", version = "3.6.4", default-features = false }
 color-eyre = "0.6.2"
 colored = "2.0.0"
@@ -109,6 +115,7 @@ dlmalloc = { git = "https://github.com/gear-tech/dlmalloc-rust.git" }
 dyn-clonable = "0.9.0"
 enum-iterator = "1.4.0"
 env_logger = "0.10"
+environmental = "1.1.3"
 futures = { version = "0.3", default-features = false }
 futures-timer = "3.0.2"
 futures-util = "0.3.29"
@@ -127,7 +134,7 @@ parking_lot = "0.12.1"
 path-clean = "1.0.1"
 primitive-types = { version = "0.12.2", default-features = false }
 proc-macro2 = { version = "1", default-features = false }
-proptest = "1.3.1"
+proptest = "1.4.0"
 quick-xml = "0.28"
 quote = { version = "1.0.33", default-features = false }
 rand = { version = "0.8", default-features = false }
@@ -157,31 +164,36 @@ static_assertions = "1"
 subxt = { version = "0.32.1" }
 subxt-metadata = { version = "0.32.1" }
 subxt-codegen = { version = "0.32.1" }
-syn = "2.0.38"
+syn = "2.0.39"
 thiserror = "1.0.50"
-tokio = { version = "1.33.0" }
-url = "2.4.1"
-wat = "1.0.78"
+tokio = { version = "1.34.0" }
+url = "2.5.0"
+wat = "1.0.81"
 wabt = "0.10.0"
+wasmer = "2.2"
+wasmer-cache = "2.2.1"
+wasmer-types = "2.2"
 wasmi = { version = "0.14.0", default-features = false }
 wasmparser = { package = "wasmparser-nostd", version = "0.100.1", default-features = false }
-which = "4.4.0"
+which = "4.4.2"
 winapi = "0.3.9"
 paste = "1.0"
+tempfile = "3.8.1"
 
 # Published deps
 #
 # fork of `parity-wasm` with sign-ext enabled by default.
 #
-# https://github.com/gear-tech/parity-wasm/tree/v0.45.0-sign-ext
-# gear-wasm = "0.45.0"
+# https://github.com/gear-tech/parity-wasm/tree/v0.45.1-sign-ext
+# gear-wasm = "0.45.1"
 #
 # fork of `wasm-instrument`
 #
-# https://github.com/gear-tech/wasm-instrument/tree/v0.2.1-sign-ext
-gwasm-instrument = { version = "0.2.1", default-features = false }
+# https://github.com/gear-tech/wasm-instrument/tree/v0.2.3-sign-ext
+gwasm-instrument = { version = "0.2.3", default-features = false }
 
 # Internal deps
+numerated = { path = "common/numerated" }
 authorship = { package = "gear-authorship", path = "node/authorship" }
 common = { package = "gear-common", path = "common", default-features = false }
 core-processor = { package = "gear-core-processor", path = "core-processor", default-features = false }
@@ -190,10 +202,11 @@ gcore = { path = "gcore" }
 gcli = { path = "gcli" }
 gclient = { path = "gclient" }
 gsdk = { path = "gsdk" }
-gstd = { path = "gstd" }
+gstd = { path = "gstd", features = [ "nightly" ] }
 gsys = { path = "gsys" }
 gtest = { path = "gtest" }
 gmeta = { path = "gmeta" }
+gmeta-codegen = { path = "gmeta/codegen" }
 gear-authorship = { path = "node/authorship" }
 gear-core-backend = { path = "core-backend", default-features = false }
 gear-call-gen = { path = "utils/call-gen" }
@@ -219,6 +232,7 @@ gear-wasm-gen = { path = "utils/wasm-gen" }
 gear-wasm-instrument = { path = "utils/wasm-instrument", default-features = false }
 junit-common = { path = "utils/junit-common" }
 actor-system-error = { path = "utils/actor-system-error" }
+calc-stack-height = { path = "utils/calc-stack-height" }
 pallet-gear = { path = "pallets/gear", default-features = false }
 pallet-gear-debug = { path = "pallets/gear-debug", default-features = false }
 pallet-gear-gas = { path = "pallets/gas", default-features = false }
@@ -239,6 +253,10 @@ service = { package = "gear-service", path = "node/service", default-features = 
 testing = { package = "gear-node-testing", path = "node/testing" }
 vara-runtime = { path = "runtime/vara", default-features = false }
 wasm-smith = { version = "0.12.21", git = "https://github.com/gear-tech/wasm-tools.git", branch = "gear-stable" }
+
+# Common executors between `sandbox-host` and `calc-stack-height`
+sandbox-wasmer = { package = "wasmer", version = "2.2", features = ["singlepass"] }
+sandbox-wasmer-types = { package = "wasmer-types", version = "2.2" }
 
 # Substrate deps
 frame-benchmarking = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.43-canary-no-sandbox", default-features = false }
@@ -360,7 +378,7 @@ substrate-wasm-builder = { version = "5.0.0-dev", git = "https://github.com/gear
 try-runtime-cli = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.43-canary-no-sandbox" }
 
 # Examples
-test-syscalls = { path = "examples/sys-calls", default-features = false }
+test-syscalls = { path = "examples/syscalls", default-features = false }
 demo-async = { path = "examples/async" }
 demo-async-custom-entry = { path = "examples/async-custom-entry" }
 demo-async-init = { path = "examples/async-init" }
@@ -371,6 +389,7 @@ demo-calc-hash = { path = "examples/calc-hash" }
 demo-calc-hash-in-one-block = { path = "examples/calc-hash/in-one-block" }
 demo-calc-hash-over-blocks = { path = "examples/calc-hash/over-blocks" }
 demo-custom = { path = "examples/custom" }
+demo-delayed-reservation-sender = { path = "examples/delayed-reservation-sender" }
 demo-compose = { path = "examples/compose" }
 demo-constructor = { path = "examples/constructor", default-features = false }
 demo-delayed-sender = { path = "examples/delayed-sender" }
@@ -401,6 +420,7 @@ demo-reserve-gas = { path = "examples/reserve-gas", default-features = false }
 demo-rwlock = { path = "examples/rwlock" }
 demo-send-from-reservation = { path = "examples/send-from-reservation" }
 demo-signal-entry = { path = "examples/signal-entry" }
+demo-signal-wait = { path = "examples/signal-wait" }
 demo-state-rollback = { path = "examples/state-rollback" }
 demo-sync-duplicate = { path = "examples/sync-duplicate" }
 demo-vec = { path = "examples/vec" }
@@ -416,9 +436,8 @@ demo-wat = { path = "examples/wat" }
 #
 # TODO: remove these dependencies (from this file?) or add more docs.
 cfg-if = "1.0.0"                                                          # gear-lazy-pages
-# TODO: upgrade this package ( issue #2694 )
-cargo_metadata = "=0.15.4"                                                # utils/wasm-builder
 errno = "0.3"                                                             # gear-lazy-pages
+nix = "0.26.4"                                                            # gear-lazy-pages
 impl-trait-for-tuples = "0.2.2"                                           # pallets/staking-rewards
 indexmap = "2.1.0"                                                        # utils/weight-diff
 indicatif = "*"                                                           # utils/wasm-gen
@@ -426,7 +445,6 @@ keyring = "1.2.1"                                                         # gcli
 libp2p = "=0.50.1"                                                        # gcli (same version as sc-consensus)
 mimalloc = { version = "0.1.39", default-features = false }               # node/cli
 nacl = "0.5.3"                                                            # gcli
-nix = "0.26.4"                                                            # gear-lazy-pages
 nonempty = "0.8.1"                                                        # utils/utils
 libfuzzer-sys = "0.4"                                                     # utils/runtime-fuzzer/fuzz
 pwasm-utils = "0.19.0"                                                    # utils/wasm-builder
@@ -440,7 +458,7 @@ thousands = "0.2.0"                                                       # util
 toml = "0.7.8"                                                            # utils/wasm-builder
 tracing = "0.1.40"                                                        # utils/node-loder
 tracing-appender = "0.2"                                                  # utils/node-loder
-tracing-subscriber = "0.3.16"                                             # utils/node-loder
+tracing-subscriber = "0.3.18"                                             # utils/node-loder
 trybuild = "1"                                                            # gstd/codegen
 wasm-opt = "0.112"                                                      # utils/wasm-builder
 wasmprinter = "0.2"                                                       # utils/wasm-gen
@@ -449,6 +467,9 @@ fail = "0.5"                                                              # gear
 scale-value = "^0.12"                                                     # gsdk
 heck = "0.4.1"                                                            # gsdk-api-gen
 etc = "0.1.16"                                                            # gcli
+cargo_toml = "0.15.3"                                                     # crates-io
+crates-io = "0.37.0"                                                      # crates-io
+curl = "0.4.44"                                                           # crates-io
 scale-decode = "0.9.0"                                                    # gsdk
 directories = "5.0.1"                                                     # utils/key-finder
 num-traits = { version = "0.2", default-features = false }                # gear-core

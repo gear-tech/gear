@@ -18,7 +18,7 @@
 
 //! Configs related to instantiation of gear wasm module generators.
 
-use crate::SysCallsConfig;
+use crate::SyscallsConfig;
 
 pub(crate) const DEFAULT_INITIAL_SIZE: u32 = 16;
 
@@ -47,7 +47,7 @@ impl GearWasmGeneratorConfigBuilder {
     }
 
     /// Defines syscalls config for the gear wasm generator.
-    pub fn with_syscalls_config(mut self, syscalls_config: SysCallsConfig) -> Self {
+    pub fn with_syscalls_config(mut self, syscalls_config: SyscallsConfig) -> Self {
         self.0.syscalls_config = syscalls_config;
 
         self
@@ -56,6 +56,13 @@ impl GearWasmGeneratorConfigBuilder {
     /// Defines whether recursions must be removed from the resulting gear wasm.
     pub fn with_recursions_removed(mut self, remove_recursions: bool) -> Self {
         self.0.remove_recursions = remove_recursions;
+
+        self
+    }
+
+    /// Defines whether programs should have a critical gas limit.
+    pub fn with_critical_gas_limit(mut self, critical_gas_limit: Option<u64>) -> Self {
+        self.0.critical_gas_limit = critical_gas_limit;
 
         self
     }
@@ -77,10 +84,13 @@ pub struct GearWasmGeneratorConfig {
     /// Entry points config.
     pub entry_points_config: EntryPointsSet,
     /// Syscalls generator module config.
-    pub syscalls_config: SysCallsConfig,
+    pub syscalls_config: SyscallsConfig,
     /// Flag, signalizing whether recursions
     /// should be removed from resulting module.
     pub remove_recursions: bool,
+    /// The critical gas limit after which the program
+    /// will attempt to terminate successfully.
+    pub critical_gas_limit: Option<u64>,
 }
 
 /// Memory pages config used by [`crate::MemoryGenerator`].

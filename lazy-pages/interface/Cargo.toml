@@ -16,7 +16,6 @@ gear-core.workspace = true
 gear-common.workspace = true
 gear-lazy-pages-common.workspace = true
 gear-runtime-interface.workspace = true
-gear-wasm-instrument.workspace = true
 
 sp-std.workspace = true
 

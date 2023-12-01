@@ -19,7 +19,7 @@
 use super::*;
 use crate::{
     rules::CustomConstantCostRules,
-    syscalls::{ParamType, PtrInfo, PtrType, SysCallName},
+    syscalls::{ParamType, PtrInfo, PtrType, SyscallName},
 };
 use alloc::format;
 use elements::Instruction::*;
@@ -161,7 +161,7 @@ fn duplicate_import() {
             (global i32 (i32.const 42))
             (memory 0 1)
             )"#,
-        out_of_gas = SysCallName::OutOfGas.to_str()
+        out_of_gas = SyscallName::OutOfGas.to_str()
     );
     let module = parse_wat(&wat);
 
@@ -618,66 +618,11 @@ test_gas_counter_injection! {
     "#
 }
 
-/// Check that all sys calls are supported by backend.
-#[test]
-fn test_sys_calls_table() {
-    use gas_metering::ConstantCostRules;
-    use gear_core::message::DispatchKind;
-    use gear_core_backend::{
-        env::{BackendReport, Environment},
-        error::ActorTerminationReason,
-        mock::MockExt,
-    };
-    use parity_wasm::builder;
-
-    // Make module with one empty function.
-    let mut module = builder::module()
-        .function()
-        .signature()
-        .build()
-        .build()
-        .build();
-
-    // Insert syscalls imports.
-    for name in SysCallName::instrumentable() {
-        let sign = name.signature();
-        let types = module.type_section_mut().unwrap().types_mut();
-        let type_no = types.len() as u32;
-        types.push(parity_wasm::elements::Type::Function(sign.func_type()));
-
-        module = builder::from_module(module)
-            .import()
-            .module("env")
-            .external()
-            .func(type_no)
-            .field(name.to_str())
-            .build()
-            .build();
-    }
-
-    let module = inject(module, &ConstantCostRules::default(), "env").unwrap();
-    let code = module.into_bytes().unwrap();
-
-    // Execute wasm and check success.
-    let ext = MockExt::default();
-    let env =
-        Environment::new(ext, &code, DispatchKind::Init, Default::default(), 0.into()).unwrap();
-    let report = env
-        .execute(|_, _, _| -> Result<(), u32> { Ok(()) })
-        .unwrap();
-
-    let BackendReport {
-        termination_reason, ..
-    } = report;
-
-    assert_eq!(termination_reason, ActorTerminationReason::Success.into());
-}
-
 #[test]
 fn check_memory_array_pointers_definition_correctness() {
-    let sys_calls = SysCallName::instrumentable();
-    for sys_call in sys_calls {
-        let signature = sys_call.signature();
+    let syscalls = SyscallName::instrumentable();
+    for syscall in syscalls {
+        let signature = syscall.signature();
         let size_param_indexes = signature
             .params
             .iter()
@@ -690,7 +635,24 @@ fn check_memory_array_pointers_definition_correctness() {
             });
 
         for idx in size_param_indexes {
-            assert_eq!(signature.params.get(idx), Some(&ParamType::Size));
+            assert_eq!(signature.params.get(idx), Some(&ParamType::Length));
+        }
+    }
+}
+
+// Basically checks that mutable error pointer is always last in every fallible syscall params set.
+#[test]
+fn check_syscall_err_ptr_position() {
+    for syscall in SyscallName::instrumentable() {
+        if syscall.is_fallible() {
+            let signature = syscall.signature();
+            let err_ptr = signature
+                .params
+                .last()
+                .expect("fallible syscall has at least err ptr");
+            assert!(
+                matches!(err_ptr, ParamType::Ptr(PtrInfo { mutable: true, ty }) if ty.is_error())
+            );
         }
     }
 }

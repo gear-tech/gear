@@ -16,12 +16,17 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+#![cfg_attr(feature = "strict", deny(warnings))]
+#![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
+#![doc(html_favicon_url = "https://gear-tech.io/favicons/favicon.ico")]
+
 use crate::{cargo_command::CargoCommand, cargo_toolchain::Toolchain, wasm_project::WasmProject};
 use anyhow::{Context, Result};
 use gmeta::{Metadata, MetadataRepr};
 use regex::Regex;
 use std::{env, path::PathBuf, process};
 use wasm_project::ProjectType;
+pub use wasm_project::{PreProcessOutput, PreProcessor};
 
 mod builder_error;
 mod cargo_command;
@@ -68,6 +73,12 @@ impl WasmBuilder {
     /// Exclude features from the build.
     pub fn exclude_features(mut self, features: impl Into<Vec<&'static str>>) -> Self {
         self.excluded_features = features.into();
+        self
+    }
+
+    /// Add pre-processor for wasm file
+    pub fn with_pre_processor(mut self, pre_processor: Box<dyn PreProcessor>) -> Self {
+        self.wasm_project.add_preprocessor(pre_processor);
         self
     }
 

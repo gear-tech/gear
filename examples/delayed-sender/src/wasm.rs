@@ -16,6 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use crate::DELAY;
 use gstd::{exec, msg, MessageId};
 
 static mut MID: Option<MessageId> = None;
@@ -30,6 +31,19 @@ extern "C" fn init() {
 
 #[no_mangle]
 extern "C" fn handle() {
+    let size = msg::size();
+
+    if size == 0 {
+        // Another case of delayed sending, representing possible panic case of
+        // sending delayed gasless messages.
+        msg::send_bytes_delayed(msg::source(), [], 0, DELAY).expect("Failed to send msg");
+
+        msg::send_bytes_delayed(msg::source(), [], 0, DELAY).expect("Failed to send msg");
+
+        return;
+    }
+
+    // Common delayed sender case.
     if let Some(message_id) = unsafe { MID.take() } {
         let delay: u32 = msg::load().unwrap();
 
