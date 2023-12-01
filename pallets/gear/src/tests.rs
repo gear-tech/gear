@@ -1982,8 +1982,10 @@ fn delayed_send_program_message_payment() {
         let program_address = utils::get_last_program_id();
 
         // Upload program that sends message to another program.
-        let (_init_mid, proxy) =
-            init_constructor(demo_proxy_with_gas::scheme(program_address.into(), delay.saturated_into()));
+        let (_init_mid, proxy) = init_constructor(demo_proxy_with_gas::scheme(
+            program_address.into(),
+            delay.saturated_into(),
+        ));
         assert!(Gear::is_initialized(program_address));
 
         assert_ok!(Gear::send_message(

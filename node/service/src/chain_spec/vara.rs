@@ -29,9 +29,9 @@ use sp_core::{crypto::UncheckedInto, sr25519};
 use sp_runtime::{Perbill, Perquintill};
 use vara_runtime::{
     constants::currency::{ECONOMIC_UNITS, EXISTENTIAL_DEPOSIT, UNITS as TOKEN},
-    AuthorityDiscoveryConfig, BabeConfig, BalancesConfig, RuntimeGenesisConfig, GrandpaConfig,
-    ImOnlineConfig, NominationPoolsConfig, SessionConfig, SessionKeys, StakerStatus, StakingConfig,
-    StakingRewardsConfig, SudoConfig, SystemConfig, VestingConfig, WASM_BINARY,
+    AuthorityDiscoveryConfig, BabeConfig, BalancesConfig, GrandpaConfig, ImOnlineConfig,
+    NominationPoolsConfig, RuntimeGenesisConfig, SessionConfig, SessionKeys, StakerStatus,
+    StakingConfig, StakingRewardsConfig, SudoConfig, SystemConfig, VestingConfig, WASM_BINARY,
 };
 
 /// Specialized `ChainSpec`. This is a specialization of the general Substrate ChainSpec type.
