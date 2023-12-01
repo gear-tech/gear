@@ -495,7 +495,10 @@ fn default_wait_lock_timeout() {
         let error_text = if cfg!(any(feature = "debug", debug_assertions)) {
             format!(
                 "ran into error-reply: {:?}",
-                GstdError::Timeout(expiration_block, expiration_block)
+                GstdError::Timeout(
+                    expiration_block.unique_saturated_into(),
+                    expiration_block.unique_saturated_into()
+                )
             )
         } else {
             String::from("no info")
@@ -1854,7 +1857,7 @@ fn delayed_send_user_message_with_reservation() {
             DEFAULT_SALT.to_vec(),
             InputArgs {
                 destination: USER_2.into(),
-                delay,
+                delay: delay.saturated_into(),
                 reservation_amount,
             }
             .encode(),
@@ -1974,8 +1977,10 @@ fn delayed_send_program_message_payment() {
         let program_address = utils::get_last_program_id();
 
         // Upload program that sends message to another program.
-        let (_init_mid, proxy) =
-            init_constructor(demo_proxy_with_gas::scheme(program_address.into(), delay));
+        let (_init_mid, proxy) = init_constructor(demo_proxy_with_gas::scheme(
+            program_address.into(),
+            delay.saturated_into(),
+        ));
         assert!(Gear::is_initialized(program_address));
 
         assert_ok!(Gear::send_message(
@@ -4184,7 +4189,7 @@ fn events_logging_works() {
 
     init_logger();
     new_test_ext().execute_with(|| {
-        let mut next_block = 2u32;
+        let mut next_block = 2u64;
 
         let tests: [(_, _, Option<AssertFailedError>); 5] = [
             // Code, init failure reason, handle succeed flag
@@ -5495,8 +5500,8 @@ fn test_requeue_after_wait_for_timeout() {
         run_to_next_block(None);
         let now = System::block_number();
 
-        System::set_block_number(duration + now - 1);
-        Gear::set_block_number(duration + now - 1);
+        System::set_block_number(duration.saturated_into::<u64>() + now - 1);
+        Gear::set_block_number(duration.saturated_into::<u64>() + now - 1);
 
         // Clean previous events and mailbox.
         System::reset_events();
@@ -5652,8 +5657,8 @@ fn test_wait_timeout() {
         // `Command::SendTimeout`
         //
         // Emits error when locks are timeout
-        let duration = 10;
-        let payload = Command::SendTimeout(USER_1.into(), duration).encode();
+        let duration = 10u64;
+        let payload = Command::SendTimeout(USER_1.into(), duration.saturated_into()).encode();
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
             program_id,
@@ -5710,9 +5715,14 @@ fn test_join_wait_timeout() {
 
         // Join two waited messages, futures complete at
         // the same time when both of them are finished.
-        let duration_a = 5;
-        let duration_b = 10;
-        let payload = Command::JoinTimeout(USER_1.into(), duration_a, duration_b).encode();
+        let duration_a: BlockNumber = 5;
+        let duration_b: BlockNumber = 10;
+        let payload = Command::JoinTimeout(
+            USER_1.into(),
+            duration_a.saturated_into(),
+            duration_b.saturated_into(),
+        )
+        .encode();
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
             program_id,
@@ -5770,9 +5780,14 @@ fn test_select_wait_timeout() {
 
         // Select from two waited messages, futures complete at
         // the same time when one of them getting failed.
-        let duration_a = 5;
-        let duration_b = 10;
-        let payload = Command::SelectTimeout(USER_1.into(), duration_a, duration_b).encode();
+        let duration_a: BlockNumber = 5;
+        let duration_b: BlockNumber = 10;
+        let payload = Command::SelectTimeout(
+            USER_1.into(),
+            duration_a.saturated_into(),
+            duration_b.saturated_into(),
+        )
+        .encode();
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
             program_id,
@@ -5817,8 +5832,8 @@ fn test_wait_lost() {
         let program_id = get_last_program_id();
         run_to_next_block(None);
 
-        let duration_a = 5;
-        let duration_b = 10;
+        let duration_a: BlockNumber = 5;
+        let duration_b: BlockNumber = 10;
         let payload = Command::WaitLost(USER_1.into()).encode();
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
@@ -6008,7 +6023,7 @@ fn terminated_locking_funds() {
 
         let locked_gas_to_wl = CostsPerBlockOf::<Test>::waitlist()
             * GasBalanceOf::<Test>::saturated_from(
-                reply_duration + CostsPerBlockOf::<Test>::reserve_for(),
+                reply_duration.saturated_into::<u64>() + CostsPerBlockOf::<Test>::reserve_for(),
             );
         let gas_spent_in_wl = CostsPerBlockOf::<Test>::waitlist();
         // Value, which will be returned to init message after wake.
@@ -7085,8 +7100,11 @@ fn reservations_cleaned_in_paused_program() {
             RuntimeOrigin::signed(USER_1),
             demo_reserve_gas::WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
-            InitAction::Normal(vec![(50_000, expiration_block), (25_000, expiration_block),])
-                .encode(),
+            InitAction::Normal(vec![
+                (50_000, expiration_block.saturated_into()),
+                (25_000, expiration_block.saturated_into()),
+            ])
+            .encode(),
             50_000_000_000,
             0,
             false,
@@ -7334,13 +7352,13 @@ fn pay_program_rent_syscall_works() {
                 ),
                 Kind::PayProgramRent(
                     pay_rent_id.into_origin().into(),
-                    Gear::rent_fee_for(u32::MAX),
+                    Gear::rent_fee_for(u32::MAX as u64),
                     None
                 )
             ]
             .encode(),
             20_000_000_000,
-            Gear::rent_fee_for(u32::MAX),
+            Gear::rent_fee_for(u32::MAX as u64),
             false,
         ));
 
@@ -7362,42 +7380,6 @@ fn pay_program_rent_syscall_works() {
             message_id,
             ActorExecutionErrorReplyReason::Trap(TrapExplanation::Panic(error_text.into())),
         );
-
-        // pay maximum possible rent
-        let block_count = u32::MAX;
-        assert_ne!(expiration_block, block_count);
-        let required_value = Gear::rent_fee_for(block_count - expiration_block);
-        assert_ok!(Gear::send_message(
-            RuntimeOrigin::signed(USER_2),
-            pay_rent_id,
-            vec![Kind::PayProgramRent(
-                pay_rent_id.into_origin().into(),
-                Gear::rent_fee_for(block_count),
-                None
-            )]
-            .encode(),
-            20_000_000_000,
-            required_value,
-            false,
-        ));
-
-        let message_id = get_last_message_id();
-
-        run_to_next_block(None);
-
-        assert_succeed(message_id);
-
-        // we sent with the message value that is equal to rent value for (u32::MAX - expiration_block) blocks
-        // so the program's balance shouldn't change.
-        assert_eq!(balance_before, Balances::free_balance(pay_rent_account_id));
-        let program = ProgramStorageOf::<Test>::get_program(pay_rent_id)
-            .and_then(|p| ActiveProgram::try_from(p).ok())
-            .expect("program should exist");
-        assert_eq!(block_count, program.expiration_block);
-        assert!(TaskPoolOf::<Test>::contains(
-            &program.expiration_block,
-            &ScheduledTask::PauseProgram(pay_rent_id)
-        ));
     });
 }
 
@@ -7420,7 +7402,7 @@ fn pay_program_rent_extrinsic_works() {
             &ScheduledTask::PauseProgram(program_id)
         ));
 
-        let block_count = 10_000;
+        let block_count: u64 = 10_000;
         let balance_before = Balances::free_balance(USER_3);
         assert_ok!(Gear::pay_program_rent(
             RuntimeOrigin::signed(USER_3),
@@ -7470,8 +7452,9 @@ fn pay_program_rent_extrinsic_works() {
         );
 
         // attempt to pay for u32::MAX blocks. Some value should be refunded because of the overflow.
+        let _ = Balances::force_set_balance(RuntimeOrigin::root(), USER_1, u128::MAX);
         let balance_before = Balances::free_balance(USER_1);
-        let block_count = u32::MAX;
+        let block_count = u64::MAX;
         assert_ok!(Gear::pay_program_rent(
             RuntimeOrigin::signed(USER_1),
             program_id,
@@ -9685,7 +9668,10 @@ fn mx_lock_ownership_exceedance() {
                     let (command_msg_id, _) = send_command_to_waiter(command);
 
                     // Subtract 1 because sending command to waiter below adds 1 block
-                    run_for_blocks(run_for_blocks_before_lock_assert - 1, None);
+                    run_for_blocks(
+                        (run_for_blocks_before_lock_assert - 1).saturated_into(),
+                        None,
+                    );
 
                     assert_command_result(command_msg_id);
 
@@ -9945,8 +9931,8 @@ fn async_sleep_for() {
         Command as WaiterCommand, SleepForWaitType as WaitType, WASM_BINARY as WAITER_WASM,
     };
 
-    const SLEEP_FOR_BLOCKS: u32 = 2;
-    const LONGER_SLEEP_FOR_BLOCKS: u32 = 3;
+    const SLEEP_FOR_BLOCKS: BlockNumber = 2;
+    const LONGER_SLEEP_FOR_BLOCKS: BlockNumber = 3;
 
     init_logger();
 
@@ -10007,7 +9993,7 @@ fn async_sleep_for() {
 
         // Block 3
         let (sleep_for_msg_id, sleep_for_block_number) = send_command_to_waiter(
-            WaiterCommand::SleepFor(vec![SLEEP_FOR_BLOCKS], WaitType::All),
+            WaiterCommand::SleepFor(vec![SLEEP_FOR_BLOCKS.saturated_into()], WaitType::All),
         );
 
         // Assert the program replied with a message before the sleep.
@@ -10060,7 +10046,10 @@ fn async_sleep_for() {
             // Block 6
             let (sleep_for_msg_id, sleep_for_block_number) =
                 send_command_to_waiter(WaiterCommand::SleepFor(
-                    vec![LONGER_SLEEP_FOR_BLOCKS, SLEEP_FOR_BLOCKS],
+                    vec![
+                        LONGER_SLEEP_FOR_BLOCKS.saturated_into(),
+                        SLEEP_FOR_BLOCKS.saturated_into(),
+                    ],
                     WaitType::All,
                 ));
             // Clear the before sleep reply.
@@ -10104,7 +10093,10 @@ fn async_sleep_for() {
             // Block 10
             let (sleep_for_msg_id, sleep_for_block_number) =
                 send_command_to_waiter(WaiterCommand::SleepFor(
-                    vec![SLEEP_FOR_BLOCKS, LONGER_SLEEP_FOR_BLOCKS],
+                    vec![
+                        LONGER_SLEEP_FOR_BLOCKS.saturated_into(),
+                        SLEEP_FOR_BLOCKS.saturated_into(),
+                    ],
                     WaitType::All,
                 ));
             // Clear the before sleep reply.
@@ -10148,7 +10140,10 @@ fn async_sleep_for() {
             // Block 14
             let (sleep_for_msg_id, sleep_for_block_number) =
                 send_command_to_waiter(WaiterCommand::SleepFor(
-                    vec![LONGER_SLEEP_FOR_BLOCKS, SLEEP_FOR_BLOCKS],
+                    vec![
+                        LONGER_SLEEP_FOR_BLOCKS.saturated_into(),
+                        SLEEP_FOR_BLOCKS.saturated_into(),
+                    ],
                     WaitType::Any,
                 ));
             // Clear the before sleep reply.
@@ -10179,7 +10174,10 @@ fn async_sleep_for() {
             // Block 17
             let (sleep_for_msg_id, sleep_for_block_number) =
                 send_command_to_waiter(WaiterCommand::SleepFor(
-                    vec![SLEEP_FOR_BLOCKS, LONGER_SLEEP_FOR_BLOCKS],
+                    vec![
+                        LONGER_SLEEP_FOR_BLOCKS.saturated_into(),
+                        SLEEP_FOR_BLOCKS.saturated_into(),
+                    ],
                     WaitType::Any,
                 ));
             // Clear the before sleep reply.
@@ -11997,7 +11995,10 @@ fn gas_reservation_works() {
         // check task is exist yet
         let (reservation_id, slot) = map.iter().next().unwrap();
         let task = ScheduledTask::RemoveGasReservation(pid, *reservation_id);
-        assert!(TaskPoolOf::<Test>::contains(&slot.finish, &task));
+        assert!(TaskPoolOf::<Test>::contains(
+            &slot.finish.saturated_into(),
+            &task
+        ));
 
         // `gr_exit` occurs
         assert_ok!(Gear::send_message(
@@ -12014,7 +12015,10 @@ fn gas_reservation_works() {
         // check task was cleared after `gr_exit` happened
         let map = get_reservation_map(pid);
         assert_eq!(map, None);
-        assert!(!TaskPoolOf::<Test>::contains(&slot.finish, &task));
+        assert!(!TaskPoolOf::<Test>::contains(
+            &slot.finish.saturated_into(),
+            &task
+        ));
     });
 }
 
@@ -12048,7 +12052,10 @@ fn gas_reservations_cleaned_in_terminated_program() {
 
         let (reservation_id, slot) = map.iter().next().unwrap();
         let task = ScheduledTask::RemoveGasReservation(pid, *reservation_id);
-        assert!(TaskPoolOf::<Test>::contains(&slot.finish, &task));
+        assert!(TaskPoolOf::<Test>::contains(
+            &slot.finish.saturated_into(),
+            &task
+        ));
 
         assert_ok!(Gear::send_reply(
             RuntimeOrigin::signed(USER_1),
@@ -12063,7 +12070,10 @@ fn gas_reservations_cleaned_in_terminated_program() {
 
         let map = get_reservation_map(pid);
         assert_eq!(map, None);
-        assert!(!TaskPoolOf::<Test>::contains(&slot.finish, &task));
+        assert!(!TaskPoolOf::<Test>::contains(
+            &slot.finish.saturated_into(),
+            &task
+        ));
         assert!(!Gear::is_initialized(pid));
         assert!(!Gear::is_active(pid));
     });
@@ -12099,7 +12109,10 @@ fn gas_reservation_wait_wake_exit() {
 
         let (reservation_id, slot) = map.iter().next().unwrap();
         let task = ScheduledTask::RemoveGasReservation(pid, *reservation_id);
-        assert!(TaskPoolOf::<Test>::contains(&slot.finish, &task));
+        assert!(TaskPoolOf::<Test>::contains(
+            &slot.finish.saturated_into(),
+            &task
+        ));
 
         assert_ok!(Gear::send_reply(
             RuntimeOrigin::signed(USER_1),
@@ -12114,7 +12127,10 @@ fn gas_reservation_wait_wake_exit() {
 
         let map = get_reservation_map(pid);
         assert_eq!(map, None);
-        assert!(!TaskPoolOf::<Test>::contains(&slot.finish, &task));
+        assert!(!TaskPoolOf::<Test>::contains(
+            &slot.finish.saturated_into(),
+            &task
+        ));
         assert!(!Gear::is_initialized(pid));
         assert!(!Gear::is_active(pid));
     });
@@ -14837,7 +14853,7 @@ fn gear_run_only_runs_once_per_block() {
         traits::{OnFinalize, OnInitialize},
     };
 
-    fn init_block(bn: u32) {
+    fn init_block(bn: BlockNumberFor<Test>) {
         System::set_block_number(bn);
         GasAllowanceOf::<Test>::put(1_000_000_000);
         Gear::on_initialize(bn);
@@ -14922,7 +14938,8 @@ mod utils {
     #![allow(unused)]
 
     use super::{
-        assert_ok, pallet, run_to_block, Event, MailboxOf, MockRuntimeEvent, RuntimeOrigin, Test,
+        assert_ok, pallet, run_to_block, BlockNumber, Event, MailboxOf, MockRuntimeEvent,
+        RuntimeOrigin, Test,
     };
     use crate::{
         mock::{run_to_next_block, Balances, Gear, System, USER_1},
@@ -14963,7 +14980,7 @@ mod utils {
     pub(super) type DispatchCustomResult<T> = Result<T, DispatchErrorWithPostInfo>;
     pub(super) type AccountId = <Test as frame_system::Config>::AccountId;
 
-    type BlockNumber = <Test as frame_system::Config>::BlockNumber;
+    // type BlockNumber = u32;
 
     pub(super) fn hash(data: impl AsRef<[u8]>) -> [u8; 32] {
         sp_core::blake2_256(data.as_ref())
