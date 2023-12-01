@@ -57,7 +57,7 @@ use gear_core_errors::{
     ProgramRentError, ReplyCode, ReservationError, SignalCode,
 };
 use gear_lazy_pages_common::{GlobalsAccessConfig, LazyPagesWeights, ProcessAccessError, Status};
-use gear_wasm_instrument::syscalls::SysCallName;
+use gear_wasm_instrument::syscalls::SyscallName;
 
 /// Processor context.
 pub struct ProcessorContext {
@@ -95,7 +95,7 @@ pub struct ProcessorContext {
     /// Weights of host functions.
     pub host_fn_weights: HostFnWeights,
     /// Functions forbidden to be called.
-    pub forbidden_funcs: BTreeSet<SysCallName>,
+    pub forbidden_funcs: BTreeSet<SyscallName>,
     /// Mailbox threshold.
     pub mailbox_threshold: u64,
     /// Cost for single block waitlist holding.
@@ -244,7 +244,7 @@ impl BackendSyscallError for UnrecoverableExtError {
 pub enum FallibleExtError {
     /// Basic error
     Core(FallibleExtErrorCore),
-    /// An error occurs in attempt to call forbidden sys-call.
+    /// An error occurs in attempt to call forbidden syscall.
     ForbiddenFunction,
     /// Charge error
     Charge(ChargeError),
@@ -617,7 +617,7 @@ impl Ext {
         check_gas_limit: bool,
     ) -> Result<(), FallibleExtError> {
         self.check_message_value(packet.value())?;
-        // Charge for using expiring resources. Charge for calling sys-call was done earlier.
+        // Charge for using expiring resources. Charge for calling syscall was done earlier.
         let gas_limit = if check_gas_limit {
             self.check_gas_limit(packet.gas_limit())?
         } else {
@@ -1258,7 +1258,7 @@ impl Externalities for Ext {
         Ok((&self.context.random_data.0, self.context.random_data.1))
     }
 
-    fn forbidden_funcs(&self) -> &BTreeSet<SysCallName> {
+    fn forbidden_funcs(&self) -> &BTreeSet<SyscallName> {
         &self.context.forbidden_funcs
     }
 }

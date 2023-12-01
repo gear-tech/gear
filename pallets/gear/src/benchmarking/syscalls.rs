@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Benchmarks for gear sys-calls.
+//! Benchmarks for gear syscalls.
 
 use super::{
     code::{
@@ -42,7 +42,7 @@ use gear_core::{
     reservation::GasReservationSlot,
 };
 use gear_core_errors::*;
-use gear_wasm_instrument::{parity_wasm::elements::Instruction, syscalls::SysCallName};
+use gear_wasm_instrument::{parity_wasm::elements::Instruction, syscalls::SyscallName};
 use sp_core::Get;
 use sp_runtime::{codec::Encode, traits::UniqueSaturatedInto};
 
@@ -226,7 +226,7 @@ where
 
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(0)),
-            imported_functions: vec![SysCallName::Alloc],
+            imported_functions: vec![SyscallName::Alloc],
             handle_body: Some(body::repeated(
                 repetitions * API_BENCHMARK_BATCH_SIZE,
                 &instructions,
@@ -258,7 +258,7 @@ where
 
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(0)),
-            imported_functions: vec![SysCallName::Alloc, SysCallName::Free],
+            imported_functions: vec![SyscallName::Alloc, SyscallName::Free],
             handle_body: Some(body::from_instructions(instructions)),
             ..Default::default()
         };
@@ -315,7 +315,7 @@ where
 
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(SMALL_MEM_SIZE)),
-            imported_functions: vec![SysCallName::ReserveGas],
+            imported_functions: vec![SyscallName::ReserveGas],
             handle_body: Some(body::fallible_syscall(
                 repetitions,
                 res_offset,
@@ -347,7 +347,7 @@ where
 
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(SMALL_MEM_SIZE)),
-            imported_functions: vec![SysCallName::UnreserveGas],
+            imported_functions: vec![SyscallName::UnreserveGas],
             data_segments: vec![DataSegment {
                 offset: reservation_id_offset,
                 value: reservation_id_bytes,
@@ -372,7 +372,7 @@ where
 
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(SMALL_MEM_SIZE)),
-            imported_functions: vec![SysCallName::SystemReserveGas],
+            imported_functions: vec![SyscallName::SystemReserveGas],
             handle_body: Some(body::fallible_syscall(
                 repetitions,
                 res_offset,
@@ -387,7 +387,7 @@ where
         Self::prepare_handle(module, 0)
     }
 
-    pub fn getter(name: SysCallName, r: u32) -> Result<Exec<T>, &'static str> {
+    pub fn getter(name: SyscallName, r: u32) -> Result<Exec<T>, &'static str> {
         let repetitions = r * API_BENCHMARK_BATCH_SIZE;
         let res_offset = COMMON_OFFSET;
 
@@ -413,7 +413,7 @@ where
 
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(SMALL_MEM_SIZE)),
-            imported_functions: vec![SysCallName::EnvVars],
+            imported_functions: vec![SyscallName::EnvVars],
             handle_body: Some(body::syscall(
                 repetitions,
                 &[
@@ -439,7 +439,7 @@ where
 
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(SMALL_MEM_SIZE)),
-            imported_functions: vec![SysCallName::Read],
+            imported_functions: vec![SyscallName::Read],
             handle_body: Some(body::fallible_syscall(
                 repetitions,
                 res_offset,
@@ -468,7 +468,7 @@ where
 
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec![SysCallName::Read],
+            imported_functions: vec![SyscallName::Read],
             handle_body: Some(body::fallible_syscall(
                 repetitions,
                 res_offset,
@@ -494,7 +494,7 @@ where
 
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(SMALL_MEM_SIZE)),
-            imported_functions: vec![SysCallName::Random],
+            imported_functions: vec![SyscallName::Random],
             handle_body: Some(body::syscall(
                 repetitions,
                 &[
@@ -521,7 +521,7 @@ where
         // so `gr_reply_deposit` can be called and won't fail.
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec![SysCallName::ReplyDeposit, SysCallName::Send],
+            imported_functions: vec![SyscallName::ReplyDeposit, SyscallName::Send],
             handle_body: Some(body::fallible_syscall(
                 repetitions,
                 res_offset,
@@ -576,9 +576,9 @@ where
 
         let name = if wgas {
             params.insert(3, InstrI64Const(100_000_000));
-            SysCallName::SendWGas
+            SyscallName::SendWGas
         } else {
-            SysCallName::Send
+            SyscallName::Send
         };
 
         let module = ModuleDefinition {
@@ -597,7 +597,7 @@ where
 
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(SMALL_MEM_SIZE)),
-            imported_functions: vec![SysCallName::SendInit],
+            imported_functions: vec![SyscallName::SendInit],
             handle_body: Some(body::fallible_syscall(repetitions, res_offset, &[])),
             ..Default::default()
         };
@@ -637,7 +637,7 @@ where
 
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(SMALL_MEM_SIZE)),
-            imported_functions: vec![SysCallName::SendPush, SysCallName::SendInit],
+            imported_functions: vec![SyscallName::SendPush, SyscallName::SendInit],
             handle_body: Some(body::from_instructions(instructions)),
             ..Default::default()
         };
@@ -675,7 +675,7 @@ where
 
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec![SysCallName::SendPush, SysCallName::SendInit],
+            imported_functions: vec![SyscallName::SendPush, SyscallName::SendInit],
             handle_body: Some(body::from_instructions(instructions)),
             ..Default::default()
         };
@@ -710,9 +710,9 @@ where
         ];
         let name = if wgas {
             commit_params.insert(3, InstrI64Const(100_000_000));
-            SysCallName::SendCommitWGas
+            SyscallName::SendCommitWGas
         } else {
-            SysCallName::SendCommit
+            SyscallName::SendCommit
         };
 
         instructions.extend(body::fallible_syscall_instr(
@@ -724,7 +724,7 @@ where
 
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(SMALL_MEM_SIZE)),
-            imported_functions: vec![name, SysCallName::SendInit],
+            imported_functions: vec![name, SyscallName::SendInit],
             handle_body: Some(body::from_instructions(instructions)),
             ..Default::default()
         };
@@ -756,7 +756,7 @@ where
 
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec![SysCallName::ReservationSend],
+            imported_functions: vec![SyscallName::ReservationSend],
             data_segments: vec![DataSegment {
                 offset: rid_pid_value_offset,
                 value: rid_pid_values,
@@ -823,7 +823,7 @@ where
         let module = ModuleDefinition {
             // `SMALL_MEM_SIZE + 2` in order to fit data segments and err handle offsets.
             memory: Some(ImportedMemory::new(SMALL_MEM_SIZE + 2)),
-            imported_functions: vec![SysCallName::ReservationSendCommit, SysCallName::SendInit],
+            imported_functions: vec![SyscallName::ReservationSendCommit, SyscallName::SendInit],
             data_segments: vec![DataSegment {
                 offset: rid_pid_value_offset,
                 value: rid_pid_values,
@@ -862,9 +862,9 @@ where
         let name = match wgas {
             true => {
                 params.insert(2, InstrI64Const(100_000_000));
-                SysCallName::ReplyWGas
+                SyscallName::ReplyWGas
             }
-            false => SysCallName::Reply,
+            false => SyscallName::Reply,
         };
 
         let module = ModuleDefinition {
@@ -891,14 +891,14 @@ where
                 InstrI32Const(value_offset),
             ];
 
-            (SysCallName::ReplyCommitWGas, params)
+            (SyscallName::ReplyCommitWGas, params)
         } else {
             let params = vec![
                 // value offset
                 InstrI32Const(value_offset),
             ];
 
-            (SysCallName::ReplyCommit, params)
+            (SyscallName::ReplyCommit, params)
         };
 
         let module = ModuleDefinition {
@@ -919,7 +919,7 @@ where
 
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(SMALL_MEM_SIZE)),
-            imported_functions: vec![SysCallName::ReplyPush],
+            imported_functions: vec![SyscallName::ReplyPush],
             handle_body: Some(body::fallible_syscall(
                 repetitions,
                 res_offset,
@@ -944,7 +944,7 @@ where
 
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec![SysCallName::ReplyPush],
+            imported_functions: vec![SyscallName::ReplyPush],
             handle_body: Some(body::fallible_syscall(
                 repetitions,
                 res_offset,
@@ -986,7 +986,7 @@ where
 
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec![SysCallName::ReservationReply],
+            imported_functions: vec![SyscallName::ReservationReply],
             data_segments: vec![DataSegment {
                 offset: rid_value_offset,
                 value: rid_values,
@@ -1027,7 +1027,7 @@ where
 
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(SMALL_MEM_SIZE)),
-            imported_functions: vec![SysCallName::ReservationReplyCommit],
+            imported_functions: vec![SyscallName::ReservationReplyCommit],
             data_segments: vec![DataSegment {
                 offset: rid_value_offset,
                 value: rid_values,
@@ -1055,7 +1055,7 @@ where
 
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec![SysCallName::ReservationReply],
+            imported_functions: vec![SyscallName::ReservationReply],
             handle_body: Some(body::fallible_syscall(
                 repetitions,
                 res_offset,
@@ -1080,7 +1080,7 @@ where
 
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(SMALL_MEM_SIZE)),
-            imported_functions: vec![SysCallName::ReplyTo],
+            imported_functions: vec![SyscallName::ReplyTo],
             reply_body: Some(body::fallible_syscall(repetitions, res_offset, &[])),
             ..Default::default()
         };
@@ -1118,7 +1118,7 @@ where
 
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(SMALL_MEM_SIZE)),
-            imported_functions: vec![SysCallName::SignalCode],
+            imported_functions: vec![SyscallName::SignalCode],
             signal_body: Some(body::fallible_syscall(repetitions, res_offset, &[])),
             ..Default::default()
         };
@@ -1132,7 +1132,7 @@ where
 
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(SMALL_MEM_SIZE)),
-            imported_functions: vec![SysCallName::SignalFrom],
+            imported_functions: vec![SyscallName::SignalFrom],
             signal_body: Some(body::fallible_syscall(repetitions, res_offset, &[])),
             ..Default::default()
         };
@@ -1165,9 +1165,9 @@ where
         let name = match wgas {
             true => {
                 params.insert(2, InstrI64Const(100_000_000));
-                SysCallName::ReplyInputWGas
+                SyscallName::ReplyInputWGas
             }
-            false => SysCallName::ReplyInput,
+            false => SyscallName::ReplyInput,
         };
 
         let module = ModuleDefinition {
@@ -1198,7 +1198,7 @@ where
 
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec![SysCallName::ReplyPushInput],
+            imported_functions: vec![SyscallName::ReplyPushInput],
             handle_body: Some(body::fallible_syscall(
                 repetitions,
                 res_offset,
@@ -1243,9 +1243,9 @@ where
         let name = match wgas {
             true => {
                 params.insert(3, InstrI64Const(100_000_000));
-                SysCallName::SendInputWGas
+                SyscallName::SendInputWGas
             }
-            false => SysCallName::SendInput,
+            false => SyscallName::SendInput,
         };
 
         let module = ModuleDefinition {
@@ -1291,7 +1291,7 @@ where
 
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec![SysCallName::SendPushInput, SysCallName::SendInit],
+            imported_functions: vec![SyscallName::SendPushInput, SyscallName::SendInit],
             handle_body: Some(body::from_instructions(instructions)),
             ..Default::default()
         };
@@ -1305,7 +1305,7 @@ where
 
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(SMALL_MEM_SIZE)),
-            imported_functions: vec![SysCallName::ReplyCode],
+            imported_functions: vec![SyscallName::ReplyCode],
             reply_body: Some(body::fallible_syscall(repetitions, res_offset, &[])),
             ..Default::default()
         };
@@ -1344,7 +1344,7 @@ where
 
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(SMALL_MEM_SIZE)),
-            imported_functions: vec![SysCallName::Debug],
+            imported_functions: vec![SyscallName::Debug],
             handle_body: Some(body::syscall(
                 repetitions,
                 &[
@@ -1367,7 +1367,7 @@ where
 
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec![SysCallName::Debug],
+            imported_functions: vec![SyscallName::Debug],
             handle_body: Some(body::syscall(
                 repetitions,
                 &[
@@ -1384,7 +1384,7 @@ where
     }
 
     pub fn termination_bench(
-        name: SysCallName,
+        name: SyscallName,
         param: Option<u32>,
         r: u32,
     ) -> Result<Exec<T>, &'static str> {
@@ -1422,7 +1422,7 @@ where
 
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(SMALL_MEM_SIZE)),
-            imported_functions: vec![SysCallName::Wake],
+            imported_functions: vec![SyscallName::Wake],
             data_segments: vec![DataSegment {
                 offset: message_id_offset,
                 value: message_ids,
@@ -1488,9 +1488,9 @@ where
         let name = match wgas {
             true => {
                 params.insert(5, InstrI64Const(100_000_000));
-                SysCallName::CreateProgramWGas
+                SyscallName::CreateProgramWGas
             }
-            false => SysCallName::CreateProgram,
+            false => SyscallName::CreateProgram,
         };
 
         let module = ModuleDefinition {
@@ -1513,7 +1513,7 @@ where
 
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(SMALL_MEM_SIZE)),
-            imported_functions: vec![SysCallName::PayProgramRent],
+            imported_functions: vec![SyscallName::PayProgramRent],
             handle_body: Some(body::fallible_syscall(
                 r,
                 res_offset,
@@ -1586,7 +1586,7 @@ where
     pub fn lazy_pages_host_func_read(wasm_pages: WasmPage) -> Result<Exec<T>, &'static str> {
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec![SysCallName::Debug],
+            imported_functions: vec![SyscallName::Debug],
             handle_body: Some(body::from_instructions(vec![
                 // payload offset
                 Instruction::I32Const(0),
@@ -1604,7 +1604,7 @@ where
     pub fn lazy_pages_host_func_write(wasm_pages: WasmPage) -> Result<Exec<T>, &'static str> {
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec![SysCallName::Read],
+            imported_functions: vec![SyscallName::Read],
             handle_body: Some(body::from_instructions(vec![
                 // at
                 Instruction::I32Const(0),
@@ -1649,7 +1649,7 @@ where
 
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec![SysCallName::Read],
+            imported_functions: vec![SyscallName::Read],
             handle_body: Some(body::from_instructions(instrs)),
             stack_end: Some(0.into()),
             ..Default::default()

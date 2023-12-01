@@ -24,12 +24,12 @@ use crate::{
         DisabledAdditionalDataInjector, FunctionIndex, ModuleWithCallIndexes,
     },
     wasm::{PageCount as WasmPageCount, WasmModule},
-    InvocableSysCall, SysCallParamAllowedValues, SysCallsConfig, SysCallsParamsConfig,
+    InvocableSyscall, SyscallParamAllowedValues, SyscallsConfig, SyscallsParamsConfig,
 };
 use arbitrary::{Result, Unstructured};
 use gear_wasm_instrument::{
     parity_wasm::elements::{BlockType, Instruction, Internal, ValueType},
-    syscalls::{ParamType, PtrInfo, PtrType, SysCallName, SysCallSignature},
+    syscalls::{ParamType, PtrInfo, PtrType, SyscallName, SyscallSignature},
 };
 use gsys::Hash;
 use std::{
@@ -39,26 +39,26 @@ use std::{
 };
 
 #[derive(Debug)]
-pub(crate) enum ProcessedSysCallParams {
+pub(crate) enum ProcessedSyscallParams {
     Alloc {
-        allowed_values: Option<SysCallParamAllowedValues>,
+        allowed_values: Option<SyscallParamAllowedValues>,
     },
     Value {
         value_type: ValueType,
-        allowed_values: Option<SysCallParamAllowedValues>,
+        allowed_values: Option<SyscallParamAllowedValues>,
     },
     MemoryArraySize,
     MemoryArrayPtr,
     MemoryPtrValue,
     FreeUpperBound {
-        allowed_values: Option<SysCallParamAllowedValues>,
+        allowed_values: Option<SyscallParamAllowedValues>,
     },
 }
 
 pub(crate) fn process_syscall_params(
     params: &[ParamType],
-    params_config: &SysCallsParamsConfig,
-) -> Vec<ProcessedSysCallParams> {
+    params_config: &SyscallsParamsConfig,
+) -> Vec<ProcessedSyscallParams> {
     let length_param_indexes = params
         .iter()
         .filter_map(|&param| match param {
@@ -73,26 +73,26 @@ pub(crate) fn process_syscall_params(
     let mut res = Vec::with_capacity(params.len());
     for (param_idx, &param) in params.iter().enumerate() {
         let processed_param = match param {
-            ParamType::Alloc => ProcessedSysCallParams::Alloc {
+            ParamType::Alloc => ProcessedSyscallParams::Alloc {
                 allowed_values: params_config.get_rule(&param),
             },
-            ParamType::Size if length_param_indexes.contains(&param_idx) => {
+            ParamType::Length if length_param_indexes.contains(&param_idx) => {
                 // Due to match guard `ParamType::Size` can be processed in two ways:
-                // 1. The function will return `ProcessedSysCallParams::MemoryArraySize`
+                // 1. The function will return `ProcessedSyscallParams::MemoryArraySize`
                 //    if this parameter is associated with PtrType::BufferStart { .. }`.
-                // 2. Otherwise, `ProcessedSysCallParams::Value` will be returned from the function.
-                ProcessedSysCallParams::MemoryArraySize
+                // 2. Otherwise, `ProcessedSyscallParams::Value` will be returned from the function.
+                ProcessedSyscallParams::MemoryArraySize
             }
             ParamType::Ptr(PtrInfo {
                 ty: PtrType::SizedBufferStart { .. },
                 ..
-            }) => ProcessedSysCallParams::MemoryArrayPtr,
-            ParamType::Ptr(_) => ProcessedSysCallParams::MemoryPtrValue,
+            }) => ProcessedSyscallParams::MemoryArrayPtr,
             ParamType::FreeUpperBound => {
                 let allowed_values = params_config.get_rule(&param);
-                ProcessedSysCallParams::FreeUpperBound { allowed_values }
+                ProcessedSyscallParams::FreeUpperBound { allowed_values }
             }
-            _ => ProcessedSysCallParams::Value {
+            ParamType::Ptr(_) => ProcessedSyscallParams::MemoryPtrValue,
+            _ => ProcessedSyscallParams::Value {
                 value_type: param.into(),
                 allowed_values: params_config.get_rule(&param),
             },
@@ -117,20 +117,20 @@ pub(crate) fn process_syscall_params(
 /// additional data injector was disabled, before injecting addresses from the config. As a result,
 /// invocator would set un-intended by config values as messages destination. To avoid such
 /// inconsistency the [`AddressesInjectionOutcome`] gives additional required guarantees.
-pub struct SysCallsInvocator<'a, 'b> {
+pub struct SyscallsInvocator<'a, 'b> {
     unstructured: &'b mut Unstructured<'a>,
     call_indexes: CallIndexes,
     module: WasmModule,
-    config: SysCallsConfig,
+    config: SyscallsConfig,
     offsets: Option<AddressesOffsets>,
-    syscalls_imports: BTreeMap<InvocableSysCall, (Option<NonZeroU32>, CallIndexesHandle)>,
+    syscalls_imports: BTreeMap<InvocableSyscall, (Option<NonZeroU32>, CallIndexesHandle)>,
 }
 
 impl<'a, 'b>
     From<(
         DisabledAdditionalDataInjector<'a, 'b>,
         AddressesInjectionOutcome,
-    )> for SysCallsInvocator<'a, 'b>
+    )> for SyscallsInvocator<'a, 'b>
 {
     fn from(
         (disabled_gen, outcome): (
@@ -187,14 +187,14 @@ impl ParamSetter {
     }
 }
 
-pub type SysCallInvokeInstructions = Vec<Instruction>;
+pub type SyscallInvokeInstructions = Vec<Instruction>;
 
-impl<'a, 'b> SysCallsInvocator<'a, 'b> {
+impl<'a, 'b> SyscallsInvocator<'a, 'b> {
     /// Insert syscalls invokes.
     ///
     /// The method builds instructions, which describe how each syscall is called, and then
     /// insert these instructions into any random function. In the end, all call indexes are resolved.
-    pub fn insert_invokes(mut self) -> Result<DisabledSysCallsInvocator> {
+    pub fn insert_invokes(mut self) -> Result<DisabledSyscallsInvocator> {
         log::trace!(
             "Random data before inserting all syscalls invocations - {}",
             self.unstructured.len()
@@ -209,7 +209,7 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
 
         self.resolves_calls_indexes();
 
-        Ok(DisabledSysCallsInvocator {
+        Ok(DisabledSyscallsInvocator {
             module: self.module,
             call_indexes: self.call_indexes,
         })
@@ -229,7 +229,7 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
     /// Returns mapping `func_id` <-> `syscalls which should be inserted into func_id`.
     fn build_syscalls_insertion_mapping(
         &mut self,
-    ) -> Result<BTreeMap<usize, Vec<InvocableSysCall>>> {
+    ) -> Result<BTreeMap<usize, Vec<InvocableSyscall>>> {
         let insert_into_funcs = self.call_indexes.predefined_funcs_indexes();
         let syscalls = self
             .syscalls_imports
@@ -259,7 +259,7 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
     fn insert_syscalls_into_fn(
         &mut self,
         insert_into_fn: usize,
-        syscalls: Vec<InvocableSysCall>,
+        syscalls: Vec<InvocableSyscall>,
     ) -> Result<()> {
         log::trace!(
             "Random data before inserting syscalls invoke instructions into function with index {insert_into_fn} - {}",
@@ -323,10 +323,10 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
 
     fn build_syscall_invoke_instructions(
         &mut self,
-        invocable: InvocableSysCall,
-        signature: SysCallSignature,
+        invocable: InvocableSyscall,
+        signature: SyscallSignature,
         call_indexes_handle: CallIndexesHandle,
-    ) -> Result<SysCallInvokeInstructions> {
+    ) -> Result<SyscallInvokeInstructions> {
         log::trace!(
             "Random data before building `{}` syscall invoke instructions - {}",
             invocable.to_str(),
@@ -357,8 +357,8 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
 
     fn build_call_with_destination(
         &mut self,
-        invocable: InvocableSysCall,
-        signature: SysCallSignature,
+        invocable: InvocableSyscall,
+        signature: SyscallSignature,
         call_indexes_handle: CallIndexesHandle,
         destination_arg_idx: usize,
     ) -> Result<Vec<Instruction>> {
@@ -372,7 +372,7 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
 
             let gr_source_call_indexes_handle = self
                 .syscalls_imports
-                .get(&InvocableSysCall::Loose(SysCallName::Source))
+                .get(&InvocableSyscall::Loose(SyscallName::Source))
                 .map(|&(_, call_indexes_handle)| call_indexes_handle as u32)
                 .expect("by config if destination is source, then `gr_source` is generated");
 
@@ -380,7 +380,7 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
                 .module
                 .initial_mem_size()
                 .map(Into::<WasmPageCount>::into)
-                // To instantiate this generator, we must instantiate SysCallImportsGenerator, which can be
+                // To instantiate this generator, we must instantiate SyscallImportsGenerator, which can be
                 // instantiated only with memory import generation proof.
                 .expect("generator is instantiated with a memory import generation proof")
                 .memory_size();
@@ -441,8 +441,8 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
 
     fn build_call(
         &mut self,
-        invocable: InvocableSysCall,
-        signature: SysCallSignature,
+        invocable: InvocableSyscall,
+        signature: SyscallSignature,
         call_indexes_handle: CallIndexesHandle,
     ) -> Result<Vec<Instruction>> {
         let param_setters = self.build_param_setters(&signature.params)?;
@@ -480,7 +480,7 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
         let mem_size_pages = self
             .module
             .initial_mem_size()
-            // To instantiate this generator, we must instantiate SysCallImportsGenerator, which can be
+            // To instantiate this generator, we must instantiate SyscallImportsGenerator, which can be
             // instantiated only with memory import generation proof.
             .expect("generator is instantiated with a memory import generation proof");
         let mem_size = Into::<WasmPageCount>::into(mem_size_pages).memory_size();
@@ -490,7 +490,7 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
 
         for processed_param in process_syscall_params(params, self.config.params_config()) {
             match processed_param {
-                ProcessedSysCallParams::Alloc { allowed_values } => {
+                ProcessedSyscallParams::Alloc { allowed_values } => {
                     let pages_to_alloc = if let Some(allowed_values) = allowed_values {
                         allowed_values.get_i32(self.unstructured)?
                     } else {
@@ -502,7 +502,7 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
 
                     setters.push(ParamSetter::new_i32(pages_to_alloc));
                 }
-                ProcessedSysCallParams::Value {
+                ProcessedSyscallParams::Value {
                     value_type,
                     allowed_values,
                 } => {
@@ -529,7 +529,7 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
 
                     setters.push(setter);
                 }
-                ProcessedSysCallParams::MemoryArraySize => {
+                ProcessedSyscallParams::MemoryArraySize => {
                     let length;
                     let upper_limit = mem_size.saturating_sub(1) as i32;
 
@@ -547,7 +547,7 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
                     log::trace!("  ----  Memory array length - {length}");
                     setters.push(ParamSetter::new_i32(length));
                 }
-                ProcessedSysCallParams::MemoryArrayPtr => {
+                ProcessedSyscallParams::MemoryArrayPtr => {
                     let offset;
                     let upper_limit = mem_size.saturating_sub(1) as i32;
 
@@ -562,7 +562,7 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
                     log::trace!("  ----  Memory array offset - {offset}");
                     setters.push(ParamSetter::new_i32(offset));
                 }
-                ProcessedSysCallParams::MemoryPtrValue => {
+                ProcessedSyscallParams::MemoryPtrValue => {
                     // Subtract a bit more so entities from `gsys` fit.
                     let upper_limit = mem_size.saturating_sub(100);
                     let offset = self.unstructured.int_in_range(0..=upper_limit)? as i32;
@@ -572,7 +572,7 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
 
                     setters.push(setter);
                 }
-                ProcessedSysCallParams::FreeUpperBound { allowed_values } => {
+                ProcessedSyscallParams::FreeUpperBound { allowed_values } => {
                     let previous_param = setters
                         .last()
                         .expect("expected Free parameter before FreeUpperBound")
@@ -602,14 +602,14 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
         Ok(setters)
     }
 
-    fn build_result_processing_ignored(signature: SysCallSignature) -> Vec<Instruction> {
+    fn build_result_processing_ignored(signature: SyscallSignature) -> Vec<Instruction> {
         iter::repeat(Instruction::Drop)
             .take(signature.results.len())
             .collect()
     }
 
     fn build_result_processing_fallible(
-        signature: SysCallSignature,
+        signature: SyscallSignature,
         param_setters: &[ParamSetter],
     ) -> Vec<Instruction> {
         // TODO: #3129.
@@ -648,7 +648,7 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
         }
     }
 
-    fn build_result_processing_infallible(signature: SysCallSignature) -> Vec<Instruction> {
+    fn build_result_processing_infallible(signature: SyscallSignature) -> Vec<Instruction> {
         // TODO: #3129
         // For now we don't check anywhere that `alloc` and `free` return
         // error codes as described here. Also we don't assert that only `alloc` and `free`
@@ -726,7 +726,7 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
 
             let export_funcs_call_indexes_handles = module
                 .export_section_mut()
-                // This generator is instantiated from SysCallsImportsGenerator, which can only be
+                // This generator is instantiated from SyscallsImportsGenerator, which can only be
                 // generated if entry points and memory import were generated.
                 .expect("has at least 1 export")
                 .entries_mut()
@@ -765,13 +765,13 @@ impl<'a, 'b> SysCallsInvocator<'a, 'b> {
 ///
 /// This type signals that syscalls imports generation, additional data injection and
 /// syscalls invocation (with further call indexes resolution) is done.
-pub struct DisabledSysCallsInvocator {
+pub struct DisabledSyscallsInvocator {
     module: WasmModule,
     call_indexes: CallIndexes,
 }
 
-impl From<DisabledSysCallsInvocator> for ModuleWithCallIndexes {
-    fn from(disabled_syscalls_invocator: DisabledSysCallsInvocator) -> Self {
+impl From<DisabledSyscallsInvocator> for ModuleWithCallIndexes {
+    fn from(disabled_syscalls_invocator: DisabledSyscallsInvocator) -> Self {
         ModuleWithCallIndexes {
             module: disabled_syscalls_invocator.module,
             call_indexes: disabled_syscalls_invocator.call_indexes,

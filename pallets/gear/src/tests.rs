@@ -8486,7 +8486,7 @@ fn test_two_contracts_composition_works() {
 }
 
 // Before introducing this test, upload_program extrinsic didn't check the value.
-// Also value wasn't check in `create_program` sys-call. There could be the next test case, which could affect badly.
+// Also value wasn't check in `create_program` syscall. There could be the next test case, which could affect badly.
 //
 // User submits program with value X, which is not checked. Say X < ED. If we send handle and reply messages with
 // values during the init message processing, internal checks will result in errors (either, because sending value
@@ -8602,7 +8602,7 @@ fn test_create_program_with_value_lt_ed() {
 }
 
 // Before introducing this test, upload_program extrinsic didn't check the value.
-// Also value wasn't check in `create_program` sys-call. There could be the next test case, which could affect badly.
+// Also value wasn't check in `create_program` syscall. There could be the next test case, which could affect badly.
 //
 // For instance, we have a guarantee that provided init message value is more than ED before executing message.
 // User sends init message to the program, which, for example, in init function sends different kind of messages.
