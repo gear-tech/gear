@@ -23,12 +23,15 @@ futures = { workspace = true, features = ["alloc"] }
 
 static_assertions.workspace = true
 
+[dev-dependencies]
+rustversion = "1.0"
+
 [features]
 #! ## Default features
 
-default = ["panic-handler"]
-## When enabled, a panic handler is provided by this crate.
-panic-handler = []
+default = ["common-handlers"]
+## When enabled, a panic handler and an OOM error handler are provided by this crate.
+common-handlers = []
 
 #! ## Nightly features
 

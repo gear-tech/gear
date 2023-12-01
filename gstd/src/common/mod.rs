@@ -19,6 +19,6 @@
 //! Common modules for each Gear smart contract.
 
 pub mod errors;
-#[cfg(target_arch = "wasm32")]
+#[cfg(feature = "common-handlers")]
 mod handlers;
 pub mod primitives;
