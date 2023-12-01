@@ -22,7 +22,7 @@ use crate::parity_wasm::elements::{FunctionType, ValueType};
 use alloc::{collections::BTreeSet, vec::Vec};
 use enum_iterator::{self, Sequence};
 
-/// All available sys calls.
+/// All available syscalls.
 ///
 /// The type is mainly used to prevent from skipping syscall integration test for
 /// a newly introduced syscall or from typo in syscall name.

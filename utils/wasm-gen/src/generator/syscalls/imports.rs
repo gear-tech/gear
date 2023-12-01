@@ -295,7 +295,7 @@ impl<'a, 'b> SyscallsImportsGenerator<'a, 'b> {
         self.module.with(|module| {
             let mut module_builder = builder::from_module(module);
 
-            // Build signature applicable for the parity-wasm for the sys call
+            // Build signature applicable for the parity-wasm for the syscall
             let syscall_signature = syscall.signature().func_type();
             let signature_idx = module_builder.push_signature(
                 builder::signature()

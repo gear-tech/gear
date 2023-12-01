@@ -991,7 +991,7 @@ where
     Id: Clone + Origin,
     // Post check
     P: FnOnce(),
-    // Get sys call and post check
+    // Get syscall and post check
     S: FnOnce(ProgramId, CodeId) -> (TestCall<Id>, Option<P>),
 {
     #[cfg(feature = "std")]

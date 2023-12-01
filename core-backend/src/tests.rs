@@ -596,7 +596,7 @@ fn test_register_write_as_with_zero_size() {
     );
 }
 
-/// Check that all sys calls are supported by backend.
+/// Check that all syscalls are supported by backend.
 #[test]
 fn test_syscalls_table() {
     use crate::{
