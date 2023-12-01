@@ -306,7 +306,7 @@ async fn process_events(
                     })??;
         }
 
-        let mut mailbox_from_events = utils::capture_mailbox_messages(&api, &mut v)
+        let mut mailbox_from_events = utils::capture_mailbox_messages(&api, &v)
             .await
             .expect("always valid by definition");
         mailbox_added.append(&mut mailbox_from_events);

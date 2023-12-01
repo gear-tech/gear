@@ -148,9 +148,10 @@ pub fn run() -> sc_cli::Result<()> {
         .execution
         .get_or_insert(ExecutionStrategy::Wasm);
 
+    let is_dev = base.shared_params.dev;
+
     // Checking if node supposed to be validator (explicitly or by shortcuts).
     let is_validator = base.validator
-        || base.shared_params.dev
         || base.alice
         || base.bob
         || base.charlie
@@ -161,7 +162,7 @@ pub fn run() -> sc_cli::Result<()> {
         || base.two;
 
     // Denying ability to validate blocks with non-wasm execution.
-    if is_validator && *execution_strategy != ExecutionStrategy::Wasm {
+    if !is_dev && is_validator && *execution_strategy != ExecutionStrategy::Wasm {
         return Err(
             "Node can be --validator only with wasm execution strategy. To enable it run the node with `--execution wasm` or without the flag for default value."
                 .into(),

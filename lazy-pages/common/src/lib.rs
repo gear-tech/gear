@@ -20,12 +20,23 @@
 
 #![no_std]
 
+extern crate alloc;
+
+use alloc::{vec, vec::Vec};
 use codec::{Decode, Encode};
 use core::{any::Any, fmt::Debug};
-use gear_core::{costs::CostPerPage, memory::HostPointer, pages::GearPage, str::LimitedStr};
+use gear_core::{
+    costs::CostPerPage,
+    memory::HostPointer,
+    pages::{GearPage, PageU32Size, WasmPage},
+    str::LimitedStr,
+};
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 
-/// Memory access error during sys-call that lazy-pages have caught.
+// TODO #3057
+const GLOBAL_NAME_GAS: &str = "gear_gas";
+
+/// Memory access error during syscall that lazy-pages have caught.
 /// 0 index is reserved for an ok result.
 #[derive(Debug, Clone, IntoPrimitive, TryFromPrimitive)]
 #[repr(u8)]
@@ -125,5 +136,22 @@ impl Status {
     /// Returns bool defining if status is `Normal`.
     pub fn is_normal(&self) -> bool {
         *self == Self::Normal
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct LazyPagesInitContext {
+    pub page_sizes: Vec<u32>,
+    pub global_names: Vec<LimitedStr<'static>>,
+    pub pages_storage_prefix: Vec<u8>,
+}
+
+impl LazyPagesInitContext {
+    pub fn new(prefix: [u8; 32]) -> Self {
+        Self {
+            page_sizes: vec![WasmPage::size(), GearPage::size()],
+            global_names: vec![LimitedStr::from_small_str(GLOBAL_NAME_GAS)],
+            pages_storage_prefix: prefix.to_vec(),
+        }
     }
 }

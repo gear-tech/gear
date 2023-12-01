@@ -290,7 +290,9 @@ impl GearApi {
                     free: 0u128,
                     reserved: 0,
                     frozen: 0,
-                    flags: gsdk::metadata::runtime_types::pallet_balances::types::ExtraFlags(0),
+                    flags: gsdk::metadata::runtime_types::pallet_balances::types::ExtraFlags(
+                        170141183460469231731687303715884105728,
+                    ),
                 })
             } else {
                 Err(e)
@@ -317,7 +319,9 @@ impl GearApi {
                         free: 0u128,
                         reserved: 0,
                         frozen: 0,
-                        flags: gsdk::metadata::runtime_types::pallet_balances::types::ExtraFlags(0),
+                        flags: gsdk::metadata::runtime_types::pallet_balances::types::ExtraFlags(
+                            170141183460469231731687303715884105728,
+                        ),
                     })
                 } else {
                     Err(e)
@@ -434,9 +438,12 @@ impl GearApi {
                     if let Error::GearSDK(GsdkError::StorageNotFound) = e {
                         Ok(AccountData {
                             free: 0u128,
-                                reserved: 0,
-                                frozen: 0,
-                                flags: gsdk::metadata::runtime_types::pallet_balances::types::ExtraFlags(0),
+                            reserved: 0,
+                            frozen: 0,
+                            flags:
+                                gsdk::metadata::runtime_types::pallet_balances::types::ExtraFlags(
+                                    170141183460469231731687303715884105728,
+                                ),
                         })
                     } else {
                         Err(e)
@@ -550,20 +557,24 @@ impl GearApi {
             })
             .collect();
 
-        let program_account_data = self.account_data_at(program_id, block_hash).await.or_else(
-            |e| {
-                if let Error::GearSDK(GsdkError::StorageNotFound) = e {
-                    Ok(AccountData {
-                        free: 0u128,
-                        reserved: 0,
-                        frozen: 0,
-                        flags: gsdk::metadata::runtime_types::pallet_balances::types::ExtraFlags(0),
-                    })
-                } else {
-                    Err(e)
-                }
-            },
-        )?;
+        let program_account_data =
+            self.account_data_at(program_id, block_hash)
+                .await
+                .or_else(|e| {
+                    if let Error::GearSDK(GsdkError::StorageNotFound) = e {
+                        Ok(AccountData {
+                            free: 0u128,
+                            reserved: 0,
+                            frozen: 0,
+                            flags:
+                                gsdk::metadata::runtime_types::pallet_balances::types::ExtraFlags(
+                                    170141183460469231731687303715884105728,
+                                ),
+                        })
+                    } else {
+                        Err(e)
+                    }
+                })?;
 
         ProgramMemoryDump {
             pages: program_pages,

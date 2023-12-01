@@ -1,7 +1,12 @@
 [package]
 name = "actor-system-error"
-version = "0.1.0"
-edition = "2021"
+description = "Helper crate for implementation of errors on gear backend"
+edition.workspace = true
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
 
 [dependencies]
 derive_more.workspace = true

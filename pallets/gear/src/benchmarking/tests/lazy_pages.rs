@@ -226,7 +226,7 @@ where
                 })
             } else if prob_number >= load_prob + store_prob {
                 // Generate syscall
-                // We use syscall random here, because it has read and write access,
+                // We use syscall gr_random here, because it has read and write access,
                 // and cannot cause errors because of input params
                 let subject_size = gsys::Hash::max_encoded_len() as u32;
                 let bn_random_size = core::mem::size_of::<gsys::BlockNumberWithHash>() as u32;
@@ -263,7 +263,7 @@ where
         // Upload program with code
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec![SysCallName::Random],
+            imported_functions: vec![SyscallName::Random],
             handle_body: Some(body::from_instructions(instrs)),
             stack_end: Some(0.into()),
             ..Default::default()

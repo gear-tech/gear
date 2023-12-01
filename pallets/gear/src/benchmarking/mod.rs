@@ -102,7 +102,7 @@ use gear_core_errors::*;
 use gear_sandbox::{default_executor::Store, SandboxMemory, SandboxStore};
 use gear_wasm_instrument::{
     parity_wasm::elements::{BlockType, BrTableData, Instruction, SignExtInstruction, ValueType},
-    syscalls::SysCallName,
+    syscalls::SyscallName,
 };
 use pallet_authorship::Pallet as AuthorshipPallet;
 use sp_consensus_babe::{
@@ -862,7 +862,7 @@ benchmarks! {
     gr_message_id {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
-        let exec = Benches::<T>::getter(SysCallName::MessageId, r)?;
+        let exec = Benches::<T>::getter(SyscallName::MessageId, r)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -873,7 +873,7 @@ benchmarks! {
     gr_program_id {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
-        let exec = Benches::<T>::getter(SysCallName::ProgramId, r)?;
+        let exec = Benches::<T>::getter(SyscallName::ProgramId, r)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -884,7 +884,7 @@ benchmarks! {
     gr_source {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
-        let exec = Benches::<T>::getter(SysCallName::Source, r)?;
+        let exec = Benches::<T>::getter(SyscallName::Source, r)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -895,7 +895,7 @@ benchmarks! {
     gr_value {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
-        let exec = Benches::<T>::getter(SysCallName::Value, r)?;
+        let exec = Benches::<T>::getter(SyscallName::Value, r)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -906,7 +906,7 @@ benchmarks! {
     gr_value_available {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
-        let exec = Benches::<T>::getter(SysCallName::ValueAvailable, r)?;
+        let exec = Benches::<T>::getter(SyscallName::ValueAvailable, r)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -917,7 +917,7 @@ benchmarks! {
     gr_gas_available {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
-        let exec = Benches::<T>::getter(SysCallName::GasAvailable, r)?;
+        let exec = Benches::<T>::getter(SyscallName::GasAvailable, r)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -928,7 +928,7 @@ benchmarks! {
     gr_size {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
-        let exec = Benches::<T>::getter(SysCallName::Size, r)?;
+        let exec = Benches::<T>::getter(SyscallName::Size, r)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -972,7 +972,7 @@ benchmarks! {
     gr_block_height {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
-        let exec = Benches::<T>::getter(SysCallName::BlockHeight, r)?;
+        let exec = Benches::<T>::getter(SyscallName::BlockHeight, r)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -983,7 +983,7 @@ benchmarks! {
     gr_block_timestamp {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
-        let exec = Benches::<T>::getter(SysCallName::BlockTimestamp, r)?;
+        let exec = Benches::<T>::getter(SyscallName::BlockTimestamp, r)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -1452,7 +1452,7 @@ benchmarks! {
     gr_exit {
         let r in 0 .. 1;
         let mut res = None;
-        let exec = Benches::<T>::termination_bench(SysCallName::Exit, Some(0xff), r)?;
+        let exec = Benches::<T>::termination_bench(SyscallName::Exit, Some(0xff), r)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -1465,7 +1465,7 @@ benchmarks! {
     gr_leave {
         let r in 0 .. 1;
         let mut res = None;
-        let exec = Benches::<T>::termination_bench(SysCallName::Leave, None, r)?;
+        let exec = Benches::<T>::termination_bench(SyscallName::Leave, None, r)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -1478,7 +1478,7 @@ benchmarks! {
     gr_wait {
         let r in 0 .. 1;
         let mut res = None;
-        let exec = Benches::<T>::termination_bench(SysCallName::Wait, None, r)?;
+        let exec = Benches::<T>::termination_bench(SyscallName::Wait, None, r)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -1491,7 +1491,7 @@ benchmarks! {
     gr_wait_for {
         let r in 0 .. 1;
         let mut res = None;
-        let exec = Benches::<T>::termination_bench(SysCallName::WaitFor, Some(10), r)?;
+        let exec = Benches::<T>::termination_bench(SyscallName::WaitFor, Some(10), r)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -1504,7 +1504,7 @@ benchmarks! {
     gr_wait_up_to {
         let r in 0 .. 1;
         let mut res = None;
-        let exec = Benches::<T>::termination_bench(SysCallName::WaitUpTo, Some(100), r)?;
+        let exec = Benches::<T>::termination_bench(SyscallName::WaitUpTo, Some(100), r)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -1536,7 +1536,7 @@ benchmarks! {
 
     gr_create_program_per_kb {
         let p in 0 .. MAX_PAYLOAD_LEN_KB;
-        // salt cannot be zero because we cannot execute batch of sys-calls
+        // salt cannot be zero because we cannot execute batch of syscalls
         // as salt will be the same and we will get `ProgramAlreadyExists` error
         let s in 1 .. MAX_PAYLOAD_LEN_KB;
         let mut res = None;
@@ -1561,7 +1561,7 @@ benchmarks! {
 
     gr_create_program_wgas_per_kb {
         let p in 0 .. MAX_PAYLOAD_LEN_KB;
-        // salt cannot be zero because we cannot execute batch of sys-calls
+        // salt cannot be zero because we cannot execute batch of syscalls
         // as salt will be the same and we will get `ProgramAlreadyExists` error
         let s in 1 .. MAX_PAYLOAD_LEN_KB;
         let mut res = None;

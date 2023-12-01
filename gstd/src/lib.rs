@@ -28,6 +28,11 @@
 //! asynchronous programming primitives, arbitrary types encoding/decoding,
 //! providing convenient instruments for creating programs from programs, etc.
 //!
+//! # Crate features
+#![cfg_attr(
+    feature = "document-features",
+    cfg_attr(doc, doc = ::document_features::document_features!())
+)]
 //! # Examples
 //!
 //! Decode input payload using a custom type:
@@ -124,12 +129,16 @@
 #![no_std]
 #![warn(missing_docs)]
 #![cfg_attr(
-    all(target_arch = "wasm32", any(feature = "debug", debug_assertions)),
+    all(target_arch = "wasm32", feature = "panic-messages",),
     feature(panic_info_message)
 )]
-#![cfg_attr(target_arch = "wasm32", feature(alloc_error_handler))]
+#![cfg_attr(
+    all(target_arch = "wasm32", feature = "oom-handler"),
+    feature(alloc_error_handler)
+)]
 #![cfg_attr(feature = "strict", deny(warnings))]
 #![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
+#![doc(html_favicon_url = "https://gear-tech.io/favicons/favicon.ico")]
 #![doc(test(attr(deny(warnings), allow(unused_variables, unused_assignments))))]
 
 extern crate alloc;

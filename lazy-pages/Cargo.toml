@@ -10,13 +10,10 @@ repository.workspace = true
 
 [dependencies]
 log = { workspace = true, features = ["std"] }
-sp-io = { workspace = true, features = ["std"] }
-sp-std = { workspace = true, features = ["std"] }
 sp-wasm-interface = { workspace = true, features = ["std"] }
 cfg-if.workspace = true
 region.workspace = true
 derive_more.workspace = true
-once_cell.workspace = true
 
 gear-sandbox-host.workspace = true
 gear-core.workspace = true
