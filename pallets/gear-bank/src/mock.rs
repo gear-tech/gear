@@ -27,11 +27,12 @@ use pallet_balances::AccountData;
 use primitive_types::H256;
 use sp_io::TestExternalities;
 use sp_runtime::{
-    testing::Header,
     traits::{BlakeTwo256, ConstU32, IdentityLookup},
+    BuildStorage,
 };
 
 pub type AccountId = u8;
+type Block = frame_system::mocking::MockBlock<Test>;
 pub type Balance = u128;
 
 mod consts {
@@ -67,10 +68,7 @@ parameter_types! {
 }
 
 construct_runtime!(
-    pub enum Test where
-        Block = MockBlock<Test>,
-        NodeBlock = MockBlock<Test>,
-        UncheckedExtrinsic = MockUncheckedExtrinsic<Test>,
+    pub enum Test
     {
         System: frame_system,
         Authorship: pallet_authorship,
@@ -142,8 +140,8 @@ impl pallet_gear_bank::Config for Test {
 }
 
 pub fn new_test_ext() -> TestExternalities {
-    let mut storage = frame_system::GenesisConfig::default()
-        .build_storage::<Test>()
+    let mut storage = frame_system::GenesisConfig::<Test>::default()
+        .build_storage()
         .unwrap();
 
     let balances = vec![
