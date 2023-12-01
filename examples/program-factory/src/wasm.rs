@@ -16,9 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! An example of `create_program_with_gas` sys-call.
+//! An example of `create_program_with_gas` syscall.
 //!
-//! The program is mainly used for testing the sys-call logic in pallet `gear` tests.
+//! The program is mainly used for testing the syscall logic in pallet `gear` tests.
 //! It works as a program factory: depending on input type it sends program creation
 //! request (message).
 
