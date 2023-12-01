@@ -192,7 +192,7 @@ pub mod panic_handler {
             let mut debug_msg = ArrayString::<{ PANIC_OCCURRED.len() + TRIMMED_MAX_LEN }>::new();
 
             let _ = debug_msg.try_push_str(PANIC_OCCURRED);
-            let _ = debug_msg.try_push('\'');
+            let _ = debug_msg.try_push_str("'");
             let _ = debug_msg.try_push_str(message);
             let _ = debug_msg.try_push_str("', ");
             let _ = debug_msg.try_push_str(location);
