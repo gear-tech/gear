@@ -174,6 +174,7 @@ pub mod pallet {
     pub type FilteredAccounts<T: Config> = StorageValue<_, BTreeSet<T::AccountId>, ValueQuery>;
 
     #[pallet::genesis_config]
+    #[derive(frame_support::DefaultNoBound)]
     pub struct GenesisConfig<T: Config> {
         pub pool_balance: BalanceOf<T>,
         pub non_stakeable: Perquintill,
@@ -182,32 +183,8 @@ pub mod pallet {
         pub filtered_accounts: Vec<T::AccountId>,
     }
 
-    #[cfg(feature = "std")]
-    impl<T: Config> Default for GenesisConfig<T> {
-        fn default() -> Self {
-            Self {
-                pool_balance: Default::default(),
-                non_stakeable: Default::default(),
-                ideal_stake: Default::default(),
-                target_inflation: Default::default(),
-                filtered_accounts: Default::default(),
-            }
-        }
-    }
-
-    #[cfg(feature = "std")]
-    impl<T: Config> GenesisConfig<T> {
-        /// Direct implementation of `GenesisBuild::assimilate_storage`.
-        #[deprecated(
-            note = "use `<GensisConfig<T> as GenesisBuild<T>>::assimilate_storage` instead"
-        )]
-        pub fn assimilate_storage(&self, storage: &mut sp_runtime::Storage) -> Result<(), String> {
-            <Self as GenesisBuild<T>>::assimilate_storage(self, storage)
-        }
-    }
-
     #[pallet::genesis_build]
-    impl<T: Config> GenesisBuild<T> for GenesisConfig<T> {
+    impl<T: Config> BuildGenesisConfig for GenesisConfig<T> {
         fn build(&self) {
             // Create StakingRewards account
             let account_id = <Pallet<T>>::account_id();
@@ -255,7 +232,7 @@ pub mod pallet {
 
     #[pallet::hooks]
     impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
-        fn on_initialize(_n: T::BlockNumber) -> Weight {
+        fn on_initialize(_n: BlockNumberFor<T>) -> Weight {
             Weight::zero()
         }
     }
