@@ -40,6 +40,7 @@ use scale_info::{
     scale::{Decode, Encode},
     TypeInfo,
 };
+use gear_wasm_instrument::parity_wasm::elements::Type;
 
 /// Defines maximal permitted count of memory pages.
 pub const MAX_WASM_PAGE_COUNT: u16 = 512;
@@ -54,17 +55,35 @@ fn get_exports(
 ) -> Result<BTreeSet<DispatchKind>, CodeError> {
     let mut exports = BTreeSet::<DispatchKind>::new();
 
+    let mut raw_exports = Vec::new();
+
     for entry in module
         .export_section()
         .ok_or(CodeError::ExportSectionNotFound)?
         .entries()
         .iter()
     {
-        if let Internal::Function(_) = entry.internal() {
+        if let Internal::Function(i) = entry.internal() {
+            if reject_unnecessary {
+                raw_exports.push(*i);
+            }
             if let Some(kind) = DispatchKind::try_from_entry(entry.field()) {
                 exports.insert(kind);
             } else if !STATE_EXPORTS.contains(&entry.field()) && reject_unnecessary {
                 return Err(CodeError::NonGearExportFnFound);
+            }
+        }
+    }
+
+    if reject_unnecessary {
+        let types = module.type_section()
+            .ok_or(CodeError::TypeSectionNotFound)?
+            .types();
+
+        for i in raw_exports {
+            let Type::Function(ref f) = types[i as usize];
+            if !f.params().is_empty() || !f.results().is_empty() {
+                return Err(CodeError::InvalidExportFnSignature);
             }
         }
     }
@@ -238,6 +257,12 @@ pub enum CodeError {
     /// Gear protocol restriction for now.
     #[display(fmt = "Program cannot have mutable globals in export section")]
     MutGlobalExport,
+    /// The type section of the wasm module is not present.
+    #[display(fmt = "Type section not found")]
+    TypeSectionNotFound,
+    /// The signature of an exported function is invalid.
+    #[display(fmt = "Invalid function signature for exported function")]
+    InvalidExportFnSignature,
 }
 
 /// Contains instrumented binary code of a program and initial memory size from memory import.
@@ -794,5 +819,23 @@ mod tests {
             Some(16 * 1024),
         )
         .unwrap();
+    }
+
+    #[test]
+    fn test_invalid_signature() {
+        const WAT: &str = r#"
+        (module
+            (import "env" "memory" (memory 1))
+            (export "handle" (func $handle))
+            (func $handle (param i32))
+        )
+        "#;
+
+        let original_code = wat2wasm(WAT);
+
+        assert_eq!(
+            Code::try_new(original_code, 1, |_| ConstantCostRules::default(), None),
+            Err(CodeError::InvalidExportFnSignature)
+        );
     }
 }
