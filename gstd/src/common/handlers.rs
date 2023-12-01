@@ -35,8 +35,10 @@ pub fn oom(_: core::alloc::Layout) -> ! {
 /// We currently support 2 panic handler modes:
 /// - non-debug: it prints `no info`
 /// - debug: it prints `'{message}', {location}`
-///   - In nightly Rust, we use `#![feature(panic_info_message)]` and the [`write!`] macro.
-///   - In stable Rust, we need to modify the default panic handler message format.
+///   - In nightly Rust, we use `#![feature(panic_info_message)]` and the
+///     [`write!`] macro.
+///   - In stable Rust, we need to modify the default panic handler message
+///     format.
 ///
 /// Default panic handler message format (according to <https://github.com/rust-lang/rust/pull/112849>):
 /// - Rust  <1.73: `panicked at '{message}', {location}`
@@ -45,7 +47,8 @@ pub fn oom(_: core::alloc::Layout) -> ! {
 /// We parse the output of `impl Display for PanicInfo<'_>` and
 /// then convert it to custom format: `'{message}', {location}`.
 ///
-/// Here is a test to verify that the default panic handler message format has not changed:
+/// Here is a test to verify that the default panic handler message format
+/// has not changed:
 /// ```
 /// use std::panic::{self, PanicInfo};
 ///
@@ -87,9 +90,11 @@ pub mod panic_handler {
 
         #[cfg(feature = "debug")]
         mod constants {
-            /// Max amount of bytes allowed to be thrown as string explanation of the error.
+            /// Max amount of bytes allowed to be thrown as string explanation
+            /// of the error.
             pub const TRIMMED_MAX_LEN: usize = 1024; //TODO: do not duplicate `gear_core::str::TRIMMED_MAX_LEN`
-            /// This prefix is used to print debug message: `debug!("panic occurred: {msg}")`.
+            /// This prefix is used to print debug message:
+            /// `debug!("panic occurred: {msg}")`.
             pub const PANIC_OCCURRED: &str = "panic occurred: ";
             /// This prefix is used by `impl Display for PanicInfo<'_>`.
             #[cfg(not(feature = "panic-messages"))]
