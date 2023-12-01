@@ -22,7 +22,7 @@ use frame_election_provider_support::{
 };
 use frame_support::{
     construct_runtime, parameter_types,
-    traits::{ConstU32, Contains, Currency, FindAuthor, GenesisBuild, Hooks, NeverEnsureOrigin},
+    traits::{ConstU32, Contains, Currency, FindAuthor, Hooks, NeverEnsureOrigin},
     weights::{constants::RocksDbWeight, Weight},
     PalletId,
 };
@@ -31,17 +31,15 @@ use pallet_election_provider_multi_phase::{self as multi_phase};
 use pallet_session::historical::{self as pallet_session_historical};
 use sp_core::{crypto::key_types, H256};
 use sp_runtime::{
-    generic,
     testing::{Block as TestBlock, UintAuthorityId},
     traits::{BlakeTwo256, IdentityLookup, OpaqueKeys},
-    KeyTypeId, Perbill, Permill, Perquintill,
+    BuildStorage, KeyTypeId, Perbill, Permill, Perquintill,
 };
 use sp_std::convert::{TryFrom, TryInto};
 
 pub(crate) type SignedExtra = pallet_gear_staking_rewards::StakingBlackList<Test>;
 type TestXt = sp_runtime::testing::TestXt<RuntimeCall, SignedExtra>;
 type Block = TestBlock<TestXt>;
-type UncheckedExtrinsic = TestXt;
 type AccountId = u64;
 type BlockNumber = u64;
 type Balance = u128;
@@ -77,10 +75,7 @@ pub(crate) const SESSION_DURATION: u64 = 1000;
 
 // Configure a mock runtime to test the pallet.
 construct_runtime!(
-    pub enum Test where
-        Block = Block,
-        NodeBlock = Block,
-        UncheckedExtrinsic = UncheckedExtrinsic,
+    pub enum Test
     {
         System: system,
         Timestamp: pallet_timestamp,
@@ -265,7 +260,7 @@ impl pallet_staking::Config for Test {
     type Currency = Balances;
     type UnixTime = Timestamp;
     type CurrencyBalance = <Self as pallet_balances::Config>::Balance;
-    type CurrencyToVote = frame_support::traits::SaturatingCurrencyToVote;
+    type CurrencyToVote = ();
     type ElectionProvider = onchain::OnChainExecution<OnChainSeqPhragmen>;
     type GenesisElectionProvider = onchain::OnChainExecution<OnChainSeqPhragmen>;
     type RewardRemainder = ();
@@ -285,7 +280,7 @@ impl pallet_staking::Config for Test {
     type TargetList = pallet_staking::UseValidatorsMap<Self>;
     type MaxUnlockingChunks = ConstU32<32>;
     type HistoryDepth = HistoryDepth;
-    type OnStakerSlash = ();
+    type EventListeners = ();
     type WeightInfo = ();
     type BenchmarkingConfig = pallet_staking::TestBenchmarkingConfig;
 }
@@ -530,8 +525,8 @@ impl ExtBuilder {
     }
 
     pub fn build(self) -> sp_io::TestExternalities {
-        let mut storage = system::GenesisConfig::default()
-            .build_storage::<Test>()
+        let mut storage = system::GenesisConfig::<Test>::default()
+            .build_storage()
             .unwrap();
 
         let balances: Vec<(AccountId, u128)> = self
@@ -545,7 +540,9 @@ impl ExtBuilder {
             .assimilate_storage(&mut storage)
             .unwrap();
 
-        GenesisBuild::<Test>::assimilate_storage(&TreasuryConfig {}, &mut storage).unwrap();
+        TreasuryConfig::default()
+            .assimilate_storage(&mut storage)
+            .unwrap();
 
         SessionConfig {
             keys: self
@@ -583,16 +580,14 @@ impl ExtBuilder {
         .assimilate_storage(&mut storage)
         .unwrap();
 
-        GenesisBuild::<Test>::assimilate_storage(
-            &StakingRewardsConfig {
-                pool_balance: self.pool_balance,
-                non_stakeable: self.non_stakeable,
-                ideal_stake: self.ideal_stake,
-                target_inflation: self.target_inflation,
-                filtered_accounts: self.filtered_accounts,
-            },
-            &mut storage,
-        )
+        StakingRewardsConfig {
+            pool_balance: self.pool_balance,
+            non_stakeable: self.non_stakeable,
+            ideal_stake: self.ideal_stake,
+            target_inflation: self.target_inflation,
+            filtered_accounts: self.filtered_accounts,
+        }
+        .assimilate_storage(&mut storage)
         .unwrap();
 
         let mut ext: sp_io::TestExternalities = storage.into();

@@ -31,19 +31,18 @@ use frame_system as system;
 use pallet_transaction_payment::CurrencyAdapter;
 use primitive_types::H256;
 use sp_runtime::{
-    generic,
     testing::TestXt,
     traits::{BlakeTwo256, ConstBool, ConstU64, IdentityLookup},
+    BuildStorage,
 };
 use sp_std::{
     convert::{TryFrom, TryInto},
     prelude::*,
 };
 
-type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
 type AccountId = u64;
-type BlockNumber = u64;
+type BlockNumber = u32;
 type Balance = u128;
 
 pub const ALICE: AccountId = 1;
@@ -54,10 +53,7 @@ pub(crate) type MailboxOf<T> = <<T as Config>::Messenger as Messenger>::Mailbox;
 
 // Configure a mock runtime to test the pallet.
 construct_runtime!(
-    pub enum Test where
-        Block = Block,
-        NodeBlock = Block,
-        UncheckedExtrinsic = UncheckedExtrinsic,
+    pub enum Test
     {
         System: system,
         Gear: pallet_gear,
@@ -194,8 +190,8 @@ impl pallet_gear_voucher::Config for Test {
 
 // Build genesis storage according to the mock runtime.
 pub fn new_test_ext() -> sp_io::TestExternalities {
-    let mut t = system::GenesisConfig::default()
-        .build_storage::<Test>()
+    let mut t = system::GenesisConfig::<Test>::default()
+        .build_storage()
         .unwrap();
 
     pallet_balances::GenesisConfig::<Test> {
