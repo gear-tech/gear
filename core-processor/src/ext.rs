@@ -1384,17 +1384,19 @@ mod tests {
         );
 
         // Freeing existing page.
+        // Counters shouldn't be changed.
         assert!(ext.free(existing_page).is_ok());
         assert_eq!(ext.gas_left(), gas_left);
 
         // Freeing non existing page.
-        // Counters shouldn't be changed.
+        // Counters still shouldn't be changed.
         assert_eq!(
             ext.free(non_existing_page),
             Err(AllocExtError::Alloc(AllocError::InvalidFree(
                 non_existing_page.raw()
             )))
         );
+        assert_eq!(ext.gas_left(), gas_left);
     }
 
     #[test]

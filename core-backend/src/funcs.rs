@@ -685,8 +685,8 @@ where
                     log::trace!("Free range {start:?}:{end:?} success");
                     Ok(0)
                 }
-                Err(_) => {
-                    log::trace!("Free range {start:?}:{end:?} failed");
+                Err(e) => {
+                    log::trace!("Free range {start:?}:{end:?} failed: {e}");
                     Ok(1)
                 }
             }
