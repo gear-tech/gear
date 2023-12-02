@@ -1600,7 +1600,7 @@ pub mod pallet {
             // overlay and never be committed to storage.
             GearRunInBlock::<T>::set(Some(()));
 
-            // Substract current block weight for Normal dispatches from the maximum block weight.
+            // Subtract current block weight for Normal dispatches from the maximum block weight.
             let max_weight = <T as frame_system::Config>::BlockWeights::get().max_block;
             let remaining_weight = max_weight.saturating_sub(
                 *<frame_system::Pallet<T>>::block_weight().get(DispatchClass::Normal),
