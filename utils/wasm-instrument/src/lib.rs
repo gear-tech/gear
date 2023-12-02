@@ -84,13 +84,13 @@ impl TryFrom<u64> for SystemBreakCode {
 
 pub fn inject_system_break_import(
     module: elements::Module,
-    gas_module_name: &str,
+    break_module_name: &str,
 ) -> Result<(u32, elements::Module), elements::Module> {
     if module
         .import_section()
         .map(|section| {
             section.entries().iter().any(|entry| {
-                entry.module() == gas_module_name
+                entry.module() == break_module_name
                     && entry.field() == SyscallName::SystemBreak.to_str()
             })
         })
@@ -107,7 +107,7 @@ pub fn inject_system_break_import(
 
     mbuilder.push_import(
         builder::import()
-            .module(gas_module_name)
+            .module(break_module_name)
             .field(SyscallName::SystemBreak.to_str())
             .external()
             .func(import_sig)
