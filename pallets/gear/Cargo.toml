@@ -107,7 +107,7 @@ demo-reserve-gas.workspace = true
 demo-rwlock.workspace = true
 demo-reservation-manager.workspace = true
 demo-send-from-reservation.workspace = true
-demo-signal-entry = { workspace = true, features = ["debug"] } # The 'debug' feature is required for some assertion in tests
+demo-signal-entry = { workspace = true, features = ["debug"] }
 demo-signal-wait.workspace = true
 demo-state-rollback.workspace = true
 demo-async-signal-entry.workspace = true
