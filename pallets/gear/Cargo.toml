@@ -67,15 +67,16 @@ demo-waiter = { workspace = true, optional = true }
 demo-init-wait = { workspace = true, optional = true }
 demo-signal-entry = { workspace = true, optional = true }
 
+# Some of tests require `debug` feature enabled
 [dev-dependencies]
 wabt.workspace = true
 hex.workspace = true
 blake2-rfc.workspace = true
-gstd = { workspace = true, features = ["debug"] }
+gstd.workspace = true
 demo-async.workspace = true
 demo-async-init.workspace = true
 demo-async-recursion.workspace = true
-demo-async-tester.workspace = true
+demo-async-tester = { workspace = true, features = ["debug"] }
 demo-delayed-sender.workspace = true
 demo-distributor.workspace = true
 demo-init-fail-sender.workspace = true
@@ -96,10 +97,10 @@ demo-calc-hash.workspace = true
 demo-calc-hash-over-blocks.workspace = true
 demo-calc-hash-in-one-block.workspace = true
 demo-compose.workspace = true
-demo-constructor.workspace = true
+demo-constructor = { workspace = true, features = ["debug"] }
 demo-mul-by-const.workspace = true
 demo-wait.workspace = true
-demo-waiter = { workspace = true, features = ["debug"] } # The 'debug' feature is required for some assertion in tests
+demo-waiter = { workspace = true, features = ["debug"] }
 demo-wait-timeout.workspace = true
 demo-wait-wake.workspace = true
 demo-reserve-gas.workspace = true
@@ -115,8 +116,8 @@ demo-out-of-memory.workspace = true
 demo-ping.workspace = true
 demo-sync-duplicate.workspace = true
 demo-custom.workspace = true
-demo-delayed-reservation-sender.workspace = true
-test-syscalls.workspace = true
+demo-delayed-reservation-sender = { workspace = true, features = ["debug"] }
+test-syscalls = { workspace = true, features = ["debug"] }
 page_size.workspace = true
 frame-support-test = { workspace = true, features = ["std"] }
 common = { workspace = true, features = ["std"] }
