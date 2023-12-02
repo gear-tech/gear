@@ -259,7 +259,7 @@ where
             | SyscallName::OomPanic => {/* tests here aren't required, read module docs for more info */},
             SyscallName::Alloc => check_mem::<T>(false),
             SyscallName::Free => check_mem::<T>(true),
-            SyscallName::SystemBreak => { /*no need for tests */}
+            SyscallName::SystemBreak => {/* no need for tests because tested in other bench test */}
             SyscallName::Random => check_gr_random::<T>(),
             SyscallName::ReserveGas => check_gr_reserve_gas::<T>(),
             SyscallName::UnreserveGas => check_gr_unreserve_gas::<T>(),
