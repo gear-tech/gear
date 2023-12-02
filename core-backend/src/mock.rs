@@ -37,7 +37,7 @@ use gear_core::{
 };
 use gear_core_errors::{ReplyCode, SignalCode};
 use gear_lazy_pages_common::ProcessAccessError;
-use gear_wasm_instrument::syscalls::SysCallName;
+use gear_wasm_instrument::syscalls::SyscallName;
 
 /// Mock error
 #[derive(Debug, Clone, Encode, Decode)]
@@ -70,7 +70,7 @@ impl BackendAllocSyscallError for Error {
 
 /// Mock ext
 #[derive(Debug, PartialEq, Eq, Clone, Default)]
-pub struct MockExt(BTreeSet<SysCallName>);
+pub struct MockExt(BTreeSet<SyscallName>);
 
 impl CountersOwner for MockExt {
     fn charge_gas_runtime(&mut self, _cost: RuntimeCosts) -> Result<(), ChargeError> {
@@ -236,7 +236,7 @@ impl Externalities for MockExt {
     ) -> Result<(), Self::UnrecoverableError> {
         Ok(())
     }
-    fn forbidden_funcs(&self) -> &BTreeSet<SysCallName> {
+    fn forbidden_funcs(&self) -> &BTreeSet<SyscallName> {
         &self.0
     }
     fn reserve_gas(

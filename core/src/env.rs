@@ -28,7 +28,7 @@ use crate::{
 use alloc::collections::BTreeSet;
 use core::{fmt::Display, mem};
 use gear_core_errors::{ReplyCode, SignalCode};
-use gear_wasm_instrument::syscalls::SysCallName;
+use gear_wasm_instrument::syscalls::SyscallName;
 
 /// Lock for the payload of the incoming/currently executing message.
 ///
@@ -174,10 +174,10 @@ impl From<(&mut MessageContext, &mut PayloadSliceLock)> for UnlockPayloadBound {
 /// use by an executing program to trigger state transition
 /// in runtime.
 pub trait Externalities {
-    /// An error issued in infallible sys-call.
+    /// An error issued in infallible syscall.
     type UnrecoverableError;
 
-    /// An error issued in fallible sys-call.
+    /// An error issued in fallible syscall.
     type FallibleError;
 
     /// An error issued during allocation.
@@ -396,5 +396,5 @@ pub trait Externalities {
     ) -> Result<(), Self::FallibleError>;
 
     /// Return the set of functions that are forbidden to be called.
-    fn forbidden_funcs(&self) -> &BTreeSet<SysCallName>;
+    fn forbidden_funcs(&self) -> &BTreeSet<SyscallName>;
 }

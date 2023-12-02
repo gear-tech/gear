@@ -36,7 +36,7 @@ use num_enum::{IntoPrimitive, TryFromPrimitive};
 // TODO #3057
 const GLOBAL_NAME_GAS: &str = "gear_gas";
 
-/// Memory access error during sys-call that lazy-pages have caught.
+/// Memory access error during syscall that lazy-pages have caught.
 /// 0 index is reserved for an ok result.
 #[derive(Debug, Clone, IntoPrimitive, TryFromPrimitive)]
 #[repr(u8)]
