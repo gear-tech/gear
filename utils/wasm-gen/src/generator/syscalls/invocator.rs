@@ -424,7 +424,7 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
         call_indexes_handle: CallIndexesHandle,
     ) -> Result<Vec<Instruction>> {
         let signature = invocable.into_signature();
-        let param_setters = self.build_param_setters(&signature.params)?;
+        let param_setters = self.build_param_setters(signature.params())?;
         let mut instructions: Vec<_> = param_setters
             .iter()
             .cloned()
@@ -438,12 +438,22 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
             .error_processing_config()
             .error_should_be_processed(invocable);
 
-        let mut result_processing = if !invocable.returns_error() {
-            Self::build_result_processing()
-        } else if process_error {
-            Self::build_error_processing(invocable.is_fallible(), signature, param_setters)
-        } else {
-            Self::build_error_processing_ignored(signature)
+        let mut result_processing = match signature {
+            SyscallSignature::GrInfallible { .. } => {
+                // It's guaranteed here that infallible has no errors to process
+                // as it has not mut err pointers or error indicating values returned.
+                Vec::new()
+            },
+            signature @ (SyscallSignature::GrFallible { .. } | SyscallSignature::System { .. }) => {
+                // It's guaranteed by definition that these variants return an error either by returning
+                // error indicating value or by having err mut pointer in params.
+                assert!(invocable.returns_error());
+                if process_error {
+                    Self::build_error_processing(signature, param_setters)
+                } else {
+                    Self::build_error_processing_ignored(signature)
+                }
+            },
         };
         instructions.append(&mut result_processing);
 
@@ -564,57 +574,42 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
         Ok(setters)
     }
 
-    /// Build result processing for syscalls that are infallible syscalls
-    /// and aren't alloc or free.
-    #[inline]
-    fn build_result_processing() -> Vec<Instruction> {
-        todo!("assert that is a gr syscall -> that means no results vector, no err ptr.");
-        Vec::new()
-    }
+    fn build_error_processing(signature: SyscallSignature, param_setters: Vec<ParamSetter>) -> Vec<Instruction> {
+        match signature {
+            SyscallSignature::GrFallible { params } => {
+                // TODO: #3129.
+                // Assume here that:
+                // 1. All the fallible syscalls write error to the pointer located in the last argument in syscall.
+                // 2. All the errors contain `ErrorCode` in the start of memory where pointer points.
 
-    fn build_error_processing(
-        is_fallible: bool,
-        signature: SyscallSignature,
-        param_setters: Vec<ParamSetter>,
-    ) -> Vec<Instruction> {
-        let SyscallSignature {
-            params: syscall_params,
-            results: syscall_results,
-        } = signature;
+                static_assertions::assert_eq_size!(gsys::ErrorCode, u32);
+                let no_error_val = gsys::ErrorCode::default() as i32;
 
-        if is_fallible {
-            // TODO: #3129.
-            // Assume here that:
-            // 1. All the fallible syscalls write error to the pointer located in the last argument in syscall.
-            // 2. All the errors contain `ErrorCode` in the start of memory where pointer points.
-
-            static_assertions::assert_eq_size!(gsys::ErrorCode, u32);
-            let no_error_val = gsys::ErrorCode::default() as i32;
-
-            assert_eq!(syscall_params.len(), param_setters.len());
-            if let Some(res_ptr) = param_setters
-                .last()
-                .expect("At least one argument in fallible syscall")
-                .as_i32()
-            {
-                vec![
-                    Instruction::I32Const(res_ptr),
-                    Instruction::I32Load(2, 0),
-                    Instruction::I32Const(no_error_val),
-                    Instruction::I32Ne,
-                    Instruction::If(BlockType::NoResult),
-                    Instruction::Unreachable,
-                    Instruction::End,
-                ]
-            } else {
-                panic!("Incorrect last parameter type: expected pointer");
-            }
-        } else {
+                assert_eq!(params.len(), param_setters.len());
+                if let Some(res_ptr) = param_setters
+                    .last()
+                    .expect("At least one argument in fallible syscall")
+                    .as_i32()
+                {
+                    vec![
+                        Instruction::I32Const(res_ptr),
+                        Instruction::I32Load(2, 0),
+                        Instruction::I32Const(no_error_val),
+                        Instruction::I32Ne,
+                        Instruction::If(BlockType::NoResult),
+                        Instruction::Unreachable,
+                        Instruction::End,
+                    ]
+                } else {
+                    panic!("Incorrect last parameter type: expected pointer");
+                }
+            },
+        SyscallSignature::System { params, results } => {
             // That's basically those syscalls, that doesn't have an error pointer,
             // but return value indicating error. These are currently `Alloc` and `Free`.
-            assert_eq!(syscall_results.len(), 1);
+            assert_eq!(results.len(), 1);
 
-            let error_code = match syscall_params[0] {
+            let error_code = match params[0] {
                 ParamType::Alloc => {
                     // Alloc syscall: returns u32::MAX (= -1i32) in case of error.
                     -1
@@ -635,13 +630,21 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                 Instruction::Unreachable,
                 Instruction::End,
             ]
+        },
+            SyscallSignature::GrInfallible { .. } => unreachable!("Invalid implementation. This function is called only for returning errors syscall"),
         }
     }
 
     fn build_error_processing_ignored(signature: SyscallSignature) -> Vec<Instruction> {
-        todo!(
-            "here are returning error syscalls -> match signature and explicitly handle everything"
-        )
+        match signature {
+            SyscallSignature::System { results, .. } => {
+                iter::repeat(Instruction::Drop)
+                    .take(results.len())
+                    .collect()
+            },
+            SyscallSignature::GrFallible { .. } => Vec::new(),
+            SyscallSignature::GrInfallible { .. } => unreachable!("Invalid implementation. This function is called only for returning errors syscall"),
+        }
     }
 
     fn resolves_calls_indexes(&mut self) {

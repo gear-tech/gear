@@ -812,6 +812,14 @@ impl SyscallSignature {
         }
     }
 
+    pub fn params(&self) -> &[ParamType] {
+        match self {
+            SyscallSignature::GrFallible { params } => params,
+            SyscallSignature::GrInfallible { params } => params,
+            SyscallSignature::System { params, .. } => params,
+        }
+    }
+
     pub fn func_type(&self) -> FunctionType {
         let (params, results) = match self {
             SyscallSignature::GrFallible { params } => (params, Vec::new()),

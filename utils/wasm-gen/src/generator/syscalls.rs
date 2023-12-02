@@ -249,17 +249,4 @@ impl InvocableSyscall {
             InvocableSyscall::Precise(syscall) => syscall.returns_error(),
         }
     }
-
-    /// Checks whether syscall is fallible.
-    ///
-    /// For more info see [`SysCallName::is_fallible`].
-    ///
-    /// If syscall changes from fallible into infallible or vice versa in future,
-    /// we'll see it by analyzing code coverage stats produced by fuzzer.
-    pub(crate) fn is_fallible(&self) -> bool {
-        match self {
-            InvocableSyscall::Loose(syscall) => syscall.is_fallible(),
-            InvocableSyscall::Precise(syscall) => syscall.is_fallible(),
-        }
-    }
 }
