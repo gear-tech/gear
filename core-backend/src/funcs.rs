@@ -680,7 +680,9 @@ where
             let start = WasmPage::new(start).map_err(page_err)?;
             let end = WasmPage::new(end).map_err(page_err)?;
 
-            match ctx.ext_mut().free_range(start, end) {
+            let result = ctx.ext_mut().free_range(start, end);
+
+            match ctx.process_alloc_func_result(result)? {
                 Ok(()) => {
                     log::trace!("Free range {start:?}:{end:?} success");
                     Ok(0)

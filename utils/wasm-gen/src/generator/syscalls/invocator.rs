@@ -43,6 +43,9 @@ pub(crate) enum ProcessedSyscallParams {
     Alloc {
         allowed_values: Option<SyscallParamAllowedValues>,
     },
+    FreeUpperBound {
+        allowed_values: Option<SyscallParamAllowedValues>,
+    },
     Value {
         value_type: ValueType,
         allowed_values: Option<SyscallParamAllowedValues>,
@@ -50,9 +53,6 @@ pub(crate) enum ProcessedSyscallParams {
     MemoryArraySize,
     MemoryArrayPtr,
     MemoryPtrValue,
-    FreeUpperBound {
-        allowed_values: Option<SyscallParamAllowedValues>,
-    },
 }
 
 pub(crate) fn process_syscall_params(
@@ -666,12 +666,12 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                 // Alloc syscall: returns u32::MAX (= -1i32) in case of error.
                 -1
             }
-            ParamType::Free => {
-                // Free syscall: returns 1 in case of error.
+            ParamType::Free | ParamType::FreeUpperBound => {
+                // free/free_range syscall: returns 1 in case of error.
                 1
             }
             _ => {
-                unimplemented!("Only alloc and free are supported for now")
+                unimplemented!("Only alloc and free/free_range are supported for now")
             }
         };
 
