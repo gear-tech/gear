@@ -534,7 +534,16 @@ mod tests {
             Ok(137.into())
         );
 
-        // if we have 2 in a row we can allocate even 2
+        // if we free 2 in a row we can allocate even 2
+        ctx.free(117.into()).unwrap();
+        ctx.free(118.into()).unwrap();
+
+        assert_eq!(
+            ctx.alloc::<NoopGrowHandler>(2.into(), &mut mem_wrap, |_| Ok(())),
+            Ok(117.into())
+        );
+
+        // same as above, if we free_range 2 in a row we can allocate 2
         ctx.free_range(117.into()..=118.into()).unwrap();
 
         assert_eq!(
