@@ -242,63 +242,66 @@ impl SyscallName {
         match self {
             Self::Alloc => SyscallSignature::system([Alloc], [I32]),
             Self::Free => SyscallSignature::system([Free], [I32]),
-            Self::Debug => SyscallSignature::gr([
+            Self::Debug => SyscallSignature::gr_infallible([
                 Ptr(PtrInfo::new_immutable(PtrType::SizedBufferStart {
                     length_param_idx: 1,
                 })),
                 Length,
             ]),
-            Self::Panic => SyscallSignature::gr([
+            Self::Panic => SyscallSignature::gr_infallible([
                 Ptr(PtrInfo::new_immutable(PtrType::SizedBufferStart {
                     length_param_idx: 1,
                 })),
                 Length,
             ]),
-            Self::OomPanic => SyscallSignature::gr([]),
+            Self::OomPanic => SyscallSignature::gr_infallible([]),
             Self::BlockHeight => {
-                SyscallSignature::gr([Ptr(PtrInfo::new_mutable(PtrType::BlockNumber))])
+                SyscallSignature::gr_infallible([Ptr(PtrInfo::new_mutable(PtrType::BlockNumber))])
             }
-            Self::BlockTimestamp => {
-                SyscallSignature::gr([Ptr(PtrInfo::new_mutable(PtrType::BlockTimestamp))])
+            Self::BlockTimestamp => SyscallSignature::gr_infallible([Ptr(PtrInfo::new_mutable(
+                PtrType::BlockTimestamp,
+            ))]),
+            Self::Exit => SyscallSignature::gr_infallible([Ptr(PtrInfo::new_immutable(
+                PtrType::Hash(HashType::ActorId),
+            ))]),
+            Self::GasAvailable => {
+                SyscallSignature::gr_infallible([Ptr(PtrInfo::new_mutable(PtrType::Gas))])
             }
-            Self::Exit => SyscallSignature::gr([Ptr(PtrInfo::new_immutable(PtrType::Hash(
-                HashType::ActorId,
-            )))]),
-            Self::GasAvailable => SyscallSignature::gr([Ptr(PtrInfo::new_mutable(PtrType::Gas))]),
-            Self::PayProgramRent => SyscallSignature::gr([
+            Self::PayProgramRent => SyscallSignature::gr_fallible([
                 Ptr(PtrInfo::new_immutable(PtrType::HashWithValue(
                     HashType::ActorId,
                 ))),
                 Ptr(PtrInfo::new_mutable(PtrType::ErrorWithBlockNumberAndValue)),
             ]),
-            Self::ProgramId => {
-                SyscallSignature::gr([Ptr(PtrInfo::new_mutable(PtrType::Hash(HashType::ActorId)))])
-            }
-            Self::Leave => SyscallSignature::gr([]),
+            Self::ProgramId => SyscallSignature::gr_infallible([Ptr(PtrInfo::new_mutable(
+                PtrType::Hash(HashType::ActorId),
+            ))]),
+            Self::Leave => SyscallSignature::gr_infallible([]),
             Self::ValueAvailable => {
-                SyscallSignature::gr([Ptr(PtrInfo::new_mutable(PtrType::Value))])
+                SyscallSignature::gr_infallible([Ptr(PtrInfo::new_mutable(PtrType::Value))])
             }
-            Self::Wait => SyscallSignature::gr([]),
-            Self::WaitUpTo => SyscallSignature::gr([DurationBlockNumber]),
-            Self::WaitFor => SyscallSignature::gr([DurationBlockNumber]),
-            Self::Wake => SyscallSignature::gr([
+            Self::Wait => SyscallSignature::gr_infallible([]),
+            Self::WaitUpTo => SyscallSignature::gr_infallible([DurationBlockNumber]),
+            Self::WaitFor => SyscallSignature::gr_infallible([DurationBlockNumber]),
+            Self::Wake => SyscallSignature::gr_fallible([
                 Ptr(PtrInfo::new_immutable(PtrType::Hash(HashType::MessageId))),
                 DelayBlockNumber,
                 Ptr(PtrInfo::new_mutable(PtrType::ErrorCode)),
             ]),
-            Self::ReplyCode => {
-                SyscallSignature::gr([Ptr(PtrInfo::new_mutable(PtrType::ErrorWithReplyCode))])
-            }
-            Self::SignalCode => {
-                SyscallSignature::gr([Ptr(PtrInfo::new_mutable(PtrType::ErrorWithSignalCode))])
-            }
-            Self::MessageId => SyscallSignature::gr([Ptr(PtrInfo::new_mutable(PtrType::Hash(
-                HashType::MessageId,
-            )))]),
-            Self::EnvVars => {
-                SyscallSignature::gr([Version, Ptr(PtrInfo::new_mutable(PtrType::BufferStart))])
-            }
-            Self::Read => SyscallSignature::gr([
+            Self::ReplyCode => SyscallSignature::gr_fallible([Ptr(PtrInfo::new_mutable(
+                PtrType::ErrorWithReplyCode,
+            ))]),
+            Self::SignalCode => SyscallSignature::gr_fallible([Ptr(PtrInfo::new_mutable(
+                PtrType::ErrorWithSignalCode,
+            ))]),
+            Self::MessageId => SyscallSignature::gr_infallible([Ptr(PtrInfo::new_mutable(
+                PtrType::Hash(HashType::MessageId),
+            ))]),
+            Self::EnvVars => SyscallSignature::gr_infallible([
+                Version,
+                Ptr(PtrInfo::new_mutable(PtrType::BufferStart)),
+            ]),
+            Self::Read => SyscallSignature::gr_fallible([
                 Offset,
                 Length,
                 Ptr(PtrInfo::new_mutable(PtrType::SizedBufferStart {
@@ -306,7 +309,7 @@ impl SyscallName {
                 })),
                 Ptr(PtrInfo::new_mutable(PtrType::ErrorCode)),
             ]),
-            Self::Reply => SyscallSignature::gr([
+            Self::Reply => SyscallSignature::gr_fallible([
                 Ptr(PtrInfo::new_immutable(PtrType::SizedBufferStart {
                     length_param_idx: 1,
                 })),
@@ -316,7 +319,7 @@ impl SyscallName {
                     HashType::MessageId,
                 ))),
             ]),
-            Self::ReplyInput => SyscallSignature::gr([
+            Self::ReplyInput => SyscallSignature::gr_fallible([
                 Offset,
                 Length,
                 Ptr(PtrInfo::new_immutable(PtrType::Value)),
@@ -324,7 +327,7 @@ impl SyscallName {
                     HashType::MessageId,
                 ))),
             ]),
-            Self::ReplyWGas => SyscallSignature::gr([
+            Self::ReplyWGas => SyscallSignature::gr_fallible([
                 Ptr(PtrInfo::new_immutable(PtrType::SizedBufferStart {
                     length_param_idx: 1,
                 })),
@@ -335,7 +338,7 @@ impl SyscallName {
                     HashType::MessageId,
                 ))),
             ]),
-            Self::ReplyInputWGas => SyscallSignature::gr([
+            Self::ReplyInputWGas => SyscallSignature::gr_fallible([
                 Offset,
                 Length,
                 Gas,
@@ -344,20 +347,20 @@ impl SyscallName {
                     HashType::MessageId,
                 ))),
             ]),
-            Self::ReplyCommit => SyscallSignature::gr([
+            Self::ReplyCommit => SyscallSignature::gr_fallible([
                 Ptr(PtrInfo::new_immutable(PtrType::Value)),
                 Ptr(PtrInfo::new_mutable(PtrType::ErrorWithHash(
                     HashType::MessageId,
                 ))),
             ]),
-            Self::ReplyCommitWGas => SyscallSignature::gr([
+            Self::ReplyCommitWGas => SyscallSignature::gr_fallible([
                 Gas,
                 Ptr(PtrInfo::new_immutable(PtrType::Value)),
                 Ptr(PtrInfo::new_mutable(PtrType::ErrorWithHash(
                     HashType::MessageId,
                 ))),
             ]),
-            Self::ReservationReply => SyscallSignature::gr([
+            Self::ReservationReply => SyscallSignature::gr_fallible([
                 Ptr(PtrInfo::new_immutable(PtrType::HashWithValue(
                     HashType::ReservationId,
                 ))),
@@ -369,7 +372,7 @@ impl SyscallName {
                     HashType::MessageId,
                 ))),
             ]),
-            Self::ReservationReplyCommit => SyscallSignature::gr([
+            Self::ReservationReplyCommit => SyscallSignature::gr_fallible([
                 Ptr(PtrInfo::new_immutable(PtrType::HashWithValue(
                     HashType::ReservationId,
                 ))),
@@ -377,25 +380,25 @@ impl SyscallName {
                     HashType::MessageId,
                 ))),
             ]),
-            Self::ReplyPush => SyscallSignature::gr([
+            Self::ReplyPush => SyscallSignature::gr_fallible([
                 Ptr(PtrInfo::new_immutable(PtrType::SizedBufferStart {
                     length_param_idx: 1,
                 })),
                 Length,
                 Ptr(PtrInfo::new_mutable(PtrType::ErrorCode)),
             ]),
-            Self::ReplyPushInput => SyscallSignature::gr([
+            Self::ReplyPushInput => SyscallSignature::gr_fallible([
                 Offset,
                 Length,
                 Ptr(PtrInfo::new_mutable(PtrType::ErrorCode)),
             ]),
-            Self::ReplyTo => SyscallSignature::gr([Ptr(PtrInfo::new_mutable(
+            Self::ReplyTo => SyscallSignature::gr_fallible([Ptr(PtrInfo::new_mutable(
                 PtrType::ErrorWithHash(HashType::MessageId),
             ))]),
-            Self::SignalFrom => SyscallSignature::gr([Ptr(PtrInfo::new_mutable(
+            Self::SignalFrom => SyscallSignature::gr_fallible([Ptr(PtrInfo::new_mutable(
                 PtrType::ErrorWithHash(HashType::MessageId),
             ))]),
-            Self::Send => SyscallSignature::gr([
+            Self::Send => SyscallSignature::gr_fallible([
                 Ptr(PtrInfo::new_immutable(PtrType::HashWithValue(
                     HashType::ActorId,
                 ))),
@@ -408,7 +411,7 @@ impl SyscallName {
                     HashType::MessageId,
                 ))),
             ]),
-            Self::SendInput => SyscallSignature::gr([
+            Self::SendInput => SyscallSignature::gr_fallible([
                 Ptr(PtrInfo::new_immutable(PtrType::HashWithValue(
                     HashType::ActorId,
                 ))),
@@ -419,7 +422,7 @@ impl SyscallName {
                     HashType::MessageId,
                 ))),
             ]),
-            Self::SendWGas => SyscallSignature::gr([
+            Self::SendWGas => SyscallSignature::gr_fallible([
                 Ptr(PtrInfo::new_immutable(PtrType::HashWithValue(
                     HashType::ActorId,
                 ))),
@@ -433,7 +436,7 @@ impl SyscallName {
                     HashType::MessageId,
                 ))),
             ]),
-            Self::SendInputWGas => SyscallSignature::gr([
+            Self::SendInputWGas => SyscallSignature::gr_fallible([
                 Ptr(PtrInfo::new_immutable(PtrType::HashWithValue(
                     HashType::ActorId,
                 ))),
@@ -445,7 +448,7 @@ impl SyscallName {
                     HashType::MessageId,
                 ))),
             ]),
-            Self::SendCommit => SyscallSignature::gr([
+            Self::SendCommit => SyscallSignature::gr_fallible([
                 Handler,
                 Ptr(PtrInfo::new_immutable(PtrType::HashWithValue(
                     HashType::ActorId,
@@ -455,7 +458,7 @@ impl SyscallName {
                     HashType::MessageId,
                 ))),
             ]),
-            Self::SendCommitWGas => SyscallSignature::gr([
+            Self::SendCommitWGas => SyscallSignature::gr_fallible([
                 Handler,
                 Ptr(PtrInfo::new_immutable(PtrType::HashWithValue(
                     HashType::ActorId,
@@ -467,9 +470,9 @@ impl SyscallName {
                 ))),
             ]),
             Self::SendInit => {
-                SyscallSignature::gr([Ptr(PtrInfo::new_mutable(PtrType::ErrorWithHandle))])
+                SyscallSignature::gr_fallible([Ptr(PtrInfo::new_mutable(PtrType::ErrorWithHandle))])
             }
-            Self::SendPush => SyscallSignature::gr([
+            Self::SendPush => SyscallSignature::gr_fallible([
                 Handler,
                 Ptr(PtrInfo::new_immutable(PtrType::SizedBufferStart {
                     length_param_idx: 2,
@@ -477,13 +480,13 @@ impl SyscallName {
                 Length,
                 Ptr(PtrInfo::new_mutable(PtrType::ErrorCode)),
             ]),
-            Self::SendPushInput => SyscallSignature::gr([
+            Self::SendPushInput => SyscallSignature::gr_fallible([
                 Handler,
                 Offset,
                 Length,
                 Ptr(PtrInfo::new_mutable(PtrType::ErrorCode)),
             ]),
-            Self::ReservationSend => SyscallSignature::gr([
+            Self::ReservationSend => SyscallSignature::gr_fallible([
                 Ptr(PtrInfo::new_immutable(PtrType::TwoHashesWithValue(
                     HashType::ReservationId,
                     HashType::ActorId,
@@ -497,7 +500,7 @@ impl SyscallName {
                     HashType::MessageId,
                 ))),
             ]),
-            Self::ReservationSendCommit => SyscallSignature::gr([
+            Self::ReservationSendCommit => SyscallSignature::gr_fallible([
                 Handler,
                 Ptr(PtrInfo::new_immutable(PtrType::TwoHashesWithValue(
                     HashType::ReservationId,
@@ -508,12 +511,16 @@ impl SyscallName {
                     HashType::MessageId,
                 ))),
             ]),
-            Self::Size => SyscallSignature::gr([Ptr(PtrInfo::new_mutable(PtrType::Length))]),
-            Self::Source => {
-                SyscallSignature::gr([Ptr(PtrInfo::new_mutable(PtrType::Hash(HashType::ActorId)))])
+            Self::Size => {
+                SyscallSignature::gr_infallible([Ptr(PtrInfo::new_mutable(PtrType::Length))])
             }
-            Self::Value => SyscallSignature::gr([Ptr(PtrInfo::new_mutable(PtrType::Value))]),
-            Self::CreateProgram => SyscallSignature::gr([
+            Self::Source => SyscallSignature::gr_infallible([Ptr(PtrInfo::new_mutable(
+                PtrType::Hash(HashType::ActorId),
+            ))]),
+            Self::Value => {
+                SyscallSignature::gr_infallible([Ptr(PtrInfo::new_mutable(PtrType::Value))])
+            }
+            Self::CreateProgram => SyscallSignature::gr_fallible([
                 Ptr(PtrInfo::new_immutable(PtrType::HashWithValue(
                     HashType::CodeId,
                 ))),
@@ -531,7 +538,7 @@ impl SyscallName {
                     HashType::ActorId,
                 ))),
             ]),
-            Self::CreateProgramWGas => SyscallSignature::gr([
+            Self::CreateProgramWGas => SyscallSignature::gr_fallible([
                 Ptr(PtrInfo::new_immutable(PtrType::HashWithValue(
                     HashType::CodeId,
                 ))),
@@ -550,34 +557,34 @@ impl SyscallName {
                     HashType::ActorId,
                 ))),
             ]),
-            Self::ReplyDeposit => SyscallSignature::gr([
+            Self::ReplyDeposit => SyscallSignature::gr_fallible([
                 Ptr(PtrInfo::new_immutable(PtrType::Hash(HashType::MessageId))),
                 Gas,
                 Ptr(PtrInfo::new_mutable(PtrType::ErrorCode)),
             ]),
-            Self::ReserveGas => SyscallSignature::gr([
+            Self::ReserveGas => SyscallSignature::gr_fallible([
                 Gas,
                 DurationBlockNumber,
                 Ptr(PtrInfo::new_mutable(PtrType::ErrorWithHash(
                     HashType::ReservationId,
                 ))),
             ]),
-            Self::UnreserveGas => SyscallSignature::gr([
+            Self::UnreserveGas => SyscallSignature::gr_fallible([
                 Ptr(PtrInfo::new_immutable(PtrType::Hash(
                     HashType::ReservationId,
                 ))),
                 Ptr(PtrInfo::new_mutable(PtrType::ErrorWithGas)),
             ]),
             Self::SystemReserveGas => {
-                SyscallSignature::gr([Gas, Ptr(PtrInfo::new_mutable(PtrType::ErrorCode))])
+                SyscallSignature::gr_fallible([Gas, Ptr(PtrInfo::new_mutable(PtrType::ErrorCode))])
             }
-            Self::Random => SyscallSignature::gr([
+            Self::Random => SyscallSignature::gr_infallible([
                 Ptr(PtrInfo::new_immutable(PtrType::Hash(HashType::SubjectId))),
                 Ptr(PtrInfo::new_mutable(PtrType::BlockNumberWithHash(
                     HashType::SubjectId,
                 ))),
             ]),
-            other => panic!("Unknown syscall: '{:?}'", other),
+            Self::OutOfGas => unimplemented!("Unsupported syscall signature for out_of_gas"),
         }
     }
 
@@ -599,65 +606,28 @@ impl SyscallName {
     ///
     /// There are only 2 syscalls returning error value: `Alloc`` and `Free`
     pub fn returns_error(self) -> bool {
-        use SysCallName::*;
+        let signature = self.signature();
+        let has_err_ptr = signature.has_mut_err_pointer();
 
-        match self {
-            // These syscalls return value indicating error.
-            Alloc | Free => true,
-            // These syscalls has an input mut err ptr param.
-            fallible_syscall @ (Read
-            | Send
-            | SendWGas
-            | SendCommit
-            | SendCommitWGas
-            | SendInit
-            | SendPush
-            | SendInput
-            | SendInputWGas
-            | SendPushInput
-            | ReservationSend
-            | ReservationSendCommit
-            | Reply
-            | ReplyWGas
-            | ReplyCommit
-            | ReplyCommitWGas
-            | ReplyPush
-            | ReplyInput
-            | ReplyPushInput
-            | ReplyInputWGas
-            | ReservationReply
-            | ReservationReplyCommit
-            | CreateProgram
-            | CreateProgramWGas
-            | ReplyTo
-            | SignalFrom
-            | ReplyCode
-            | SignalCode
-            | ReserveGas
-            | UnreserveGas
-            | SystemReserveGas
-            | ReplyDeposit
-            | PayProgramRent
-            | Wake) => {
-                assert!(
-                    Self::check_has_mut_err_pointer(fallible_syscall),
-                    "error-prone syscall doesn't have mutable err ptr."
-                );
+        let returns_error = match &signature {
+            signature @ (SyscallSignature::GrFallible { .. } | SyscallSignature::System { .. }) => {
+                if signature.is_fallible() {
+                    assert!(
+                        has_err_ptr,
+                        "error-prone syscall doesn't have mutable err ptr."
+                    );
+                }
 
                 true
             }
-            infallible_syscall @ (EnvVars | BlockHeight | BlockTimestamp | MessageId
-            | ProgramId | Source | Value | GasAvailable | ValueAvailable
-            | Size | Exit | Leave | Wait | WaitFor | WaitUpTo | Panic
-            | OomPanic | OutOfGas | Debug | Random) => {
-                assert!(
-                    !Self::check_has_mut_err_pointer(infallible_syscall),
-                    "infallible syscall has mutable err ptr."
-                );
+            SyscallSignature::GrInfallible { .. } => {
+                assert!(!has_err_ptr, "infallible syscall has mutable err ptr.");
 
                 false
             }
-        }
+        };
+
+        returns_error
     }
 
     /// Checks whether the syscall is fallible.
@@ -666,68 +636,7 @@ impl SyscallName {
     /// This differs from `SysCallName::returns_error` as fallible syscalls
     /// are those last param of which is a mutable error pointer.
     pub fn is_fallible(self) -> bool {
-        use SysCallName::*;
-
-        match self {
-            fallible_syscall @ (Read
-            | Send
-            | SendWGas
-            | SendCommit
-            | SendCommitWGas
-            | SendInit
-            | SendPush
-            | SendInput
-            | SendInputWGas
-            | SendPushInput
-            | ReservationSend
-            | ReservationSendCommit
-            | Reply
-            | ReplyWGas
-            | ReplyCommit
-            | ReplyCommitWGas
-            | ReplyPush
-            | ReplyInput
-            | ReplyPushInput
-            | ReplyInputWGas
-            | ReservationReply
-            | ReservationReplyCommit
-            | CreateProgram
-            | CreateProgramWGas
-            | ReplyTo
-            | SignalFrom
-            | ReplyCode
-            | SignalCode
-            | ReserveGas
-            | UnreserveGas
-            | SystemReserveGas
-            | ReplyDeposit
-            | PayProgramRent
-            | Wake) => {
-                assert!(
-                    Self::check_has_mut_err_pointer(fallible_syscall),
-                    "fallible syscall doesn't have mutable err ptr."
-                );
-
-                true
-            }
-            infallible_syscall @ (EnvVars | BlockHeight | BlockTimestamp | MessageId
-            | ProgramId | Source | Value | GasAvailable | ValueAvailable
-            | Size | Alloc | Free | Exit | Leave | Wait | WaitFor
-            | WaitUpTo | Panic | OomPanic | OutOfGas | Debug | Random) => {
-                assert!(
-                    !Self::check_has_mut_err_pointer(infallible_syscall),
-                    "infallible syscall has mutable err ptr."
-                );
-
-                false
-            }
-        }
-    }
-
-    fn check_has_mut_err_pointer(syscall: SysCallName) -> bool {
-        syscall.signature().params.into_iter().any(
-            |param| matches!(param, ParamType::Ptr(PtrInfo { mutable: true, ty }) if ty.is_error()),
-        )
+        self.signature().is_fallible()
     }
 }
 
@@ -853,33 +762,121 @@ impl From<ParamType> for ValueType {
 
 /// Syscall signature.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct SyscallSignature {
-    pub params: Vec<ParamType>,
-    pub results: Vec<ValueType>,
+pub enum SyscallSignature {
+    GrFallible {
+        params: Vec<ParamType>,
+    },
+    GrInfallible {
+        params: Vec<ParamType>,
+    },
+    System {
+        params: Vec<ParamType>,
+        results: Vec<ValueType>,
+    },
 }
 
 impl SyscallSignature {
-    pub fn gr<const N: usize>(params: [ParamType; N]) -> Self {
-        Self {
+    pub fn gr_fallible<const N: usize>(params: [ParamType; N]) -> Self {
+        let last_param = params
+            .last()
+            .expect("fallible syscall has at least one pointer");
+        if !matches!(last_param, ParamType::Ptr(PtrInfo { mutable: true, ty }) if ty.is_error()) {
+            panic!("Invalid fallible syscall signature.");
+        }
+
+        Self::GrFallible {
             params: params.to_vec(),
-            results: Default::default(),
+        }
+    }
+
+    pub fn gr_infallible<const N: usize>(params: [ParamType; N]) -> Self {
+        if let Some(last_param) = params.last() {
+            if matches!(last_param, ParamType::Ptr(PtrInfo { mutable: true, ty }) if ty.is_error())
+            {
+                panic!("Infallible syscall has mut err ptr.");
+            }
+        }
+
+        Self::GrInfallible {
+            params: params.to_vec(),
         }
     }
 
     pub fn system<const N: usize, const M: usize>(
         params: [ParamType; N],
-        results: [ValueType; M],
+        result: [ValueType; M],
     ) -> Self {
-        Self {
+        Self::System {
             params: params.to_vec(),
-            results: results.to_vec(),
+            results: result.to_vec(),
         }
     }
 
     pub fn func_type(&self) -> FunctionType {
-        FunctionType::new(
-            self.params.iter().copied().map(Into::into).collect(),
-            self.results.clone(),
+        let (params, results) = match self {
+            SyscallSignature::GrFallible { params } => (params, Vec::new()),
+            SyscallSignature::GrInfallible { params } => (params, Vec::new()),
+            SyscallSignature::System { params, results } => (params, results.clone()),
+        };
+
+        FunctionType::new(params.iter().copied().map(Into::into).collect(), results)
+    }
+
+    pub fn is_fallible(&self) -> bool {
+        matches!(self, SyscallSignature::GrFallible { .. })
+    }
+
+    pub fn is_infallible(&self) -> bool {
+        matches!(self, SyscallSignature::GrInfallible { .. })
+    }
+
+    pub fn is_system(&self) -> bool {
+        matches!(self, SyscallSignature::System { .. })
+    }
+
+    // TODO remove that by introducing type level guarantees.
+    fn has_mut_err_pointer(&self) -> bool {
+        let params = match self {
+            SyscallSignature::GrFallible { params } => params,
+            SyscallSignature::GrInfallible { params } => params,
+            SyscallSignature::System { params, .. } => params,
+        };
+
+        params.into_iter().any(
+            |param| matches!(param, ParamType::Ptr(PtrInfo { mutable: true, ty }) if ty.is_error()),
         )
     }
 }
+
+// /// Syscall signature.
+// #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+// pub struct SyscallSignature {
+//     pub params: Vec<ParamType>,
+//     pub results: Vec<ValueType>,
+// }
+
+// impl SyscallSignature {
+//     pub fn gr<const N: usize>(params: [ParamType; N]) -> Self {
+//         Self {
+//             params: params.to_vec(),
+//             results: Default::default(),
+//         }
+//     }
+
+//     pub fn system<const N: usize, const M: usize>(
+//         params: [ParamType; N],
+//         results: [ValueType; M],
+//     ) -> Self {
+//         Self {
+//             params: params.to_vec(),
+//             results: results.to_vec(),
+//         }
+//     }
+
+// pub fn func_type(&self) -> FunctionType {
+//     FunctionType::new(
+//         self.params.iter().copied().map(Into::into).collect(),
+//         self.results.clone(),
+//     )
+// }
+// }

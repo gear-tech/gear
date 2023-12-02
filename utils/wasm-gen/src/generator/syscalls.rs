@@ -81,7 +81,7 @@ impl InvocableSyscall {
         match self {
             InvocableSyscall::Loose(name) => name.signature(),
             InvocableSyscall::Precise(name) => match name {
-                SyscallName::ReservationSend => SyscallSignature::gr([
+                SyscallName::ReservationSend => SyscallSignature::gr_fallible([
                     // Address of recipient and value (HashWithValue struct)
                     ParamType::Ptr(PtrInfo::new_immutable(PtrType::HashWithValue(
                         HashType::ActorId,
@@ -103,7 +103,7 @@ impl InvocableSyscall {
                         HashType::MessageId,
                     ))),
                 ]),
-                SyscallName::ReservationReply => SyscallSignature::gr([
+                SyscallName::ReservationReply => SyscallSignature::gr_fallible([
                     // Address of value
                     ParamType::Ptr(PtrInfo::new_immutable(PtrType::Value)),
                     // Pointer to payload
@@ -121,7 +121,7 @@ impl InvocableSyscall {
                         HashType::MessageId,
                     ))),
                 ]),
-                SyscallName::SendCommit => SyscallSignature::gr([
+                SyscallName::SendCommit => SyscallSignature::gr_fallible([
                     // Address of recipient and value (HashWithValue struct)
                     ParamType::Ptr(PtrInfo::new_immutable(PtrType::HashWithValue(
                         HashType::ActorId,
@@ -137,7 +137,7 @@ impl InvocableSyscall {
                     // Address of error returned, `ErrorCode` here because underlying syscalls have different error types
                     ParamType::Ptr(PtrInfo::new_mutable(PtrType::ErrorCode)),
                 ]),
-                SyscallName::SendCommitWGas => SyscallSignature::gr([
+                SyscallName::SendCommitWGas => SyscallSignature::gr_fallible([
                     // Address of recipient and value (HashWithValue struct)
                     ParamType::Ptr(PtrInfo::new_immutable(PtrType::HashWithValue(
                         HashType::ActorId,
@@ -149,7 +149,7 @@ impl InvocableSyscall {
                     // Address of error returned, `ErrorCode` here because underlying syscalls have different error types
                     ParamType::Ptr(PtrInfo::new_mutable(PtrType::ErrorCode)),
                 ]),
-                SyscallName::ReplyDeposit => SyscallSignature::gr([
+                SyscallName::ReplyDeposit => SyscallSignature::gr_fallible([
                     // Address of recipient and value (HashWithValue struct). That's needed
                     // because first `gr_send_input` is invoked and resulting message id is
                     // used as an input to `gr_reply_deposit`.
@@ -245,8 +245,8 @@ impl InvocableSyscall {
     /// we'll see it by analyzing code coverage stats produced by fuzzer.
     pub(crate) fn returns_error(&self) -> bool {
         match self {
-            InvocableSysCall::Loose(syscall) => syscall.returns_error(),
-            InvocableSysCall::Precise(syscall) => syscall.returns_error(),
+            InvocableSyscall::Loose(syscall) => syscall.returns_error(),
+            InvocableSyscall::Precise(syscall) => syscall.returns_error(),
         }
     }
 

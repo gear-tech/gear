@@ -20,7 +20,7 @@
 
 use std::collections::HashSet;
 
-use crate::InvocableSysCall;
+use crate::InvocableSyscall;
 
 #[derive(Debug, Clone, Default)]
 pub enum ErrorProcessingConfig {
@@ -36,7 +36,7 @@ pub enum ErrorProcessingConfig {
 }
 
 impl ErrorProcessingConfig {
-    pub fn error_should_be_processed(&self, syscall: InvocableSysCall) -> bool {
+    pub fn error_should_be_processed(&self, syscall: InvocableSyscall) -> bool {
         match self {
             Self::All => true,
             Self::Whitelist(wl) => wl.contains(syscall),
@@ -57,7 +57,7 @@ impl ErrorProcessingConfig {
 /// Basically, it's a wrapper over a hash set of [`InvocableSysCall`],
 /// that controls types of inserted syscalls.
 #[derive(Debug, Clone, Default)]
-pub struct ErrorProneSyscalls(HashSet<InvocableSysCall>);
+pub struct ErrorProneSyscalls(HashSet<InvocableSyscall>);
 
 impl ErrorProneSyscalls {
     /// Create an empty set of returning error syscalls.
@@ -66,7 +66,7 @@ impl ErrorProneSyscalls {
     }
 
     /// Insert an error-prone syscall into the set.
-    pub fn insert(&mut self, syscall: InvocableSysCall) {
+    pub fn insert(&mut self, syscall: InvocableSyscall) {
         if syscall.returns_error() {
             self.0.insert(syscall);
         } else {
@@ -78,7 +78,7 @@ impl ErrorProneSyscalls {
     }
 
     /// Check if the `syscall` is in the set.
-    pub fn contains(&self, syscall: InvocableSysCall) -> bool {
+    pub fn contains(&self, syscall: InvocableSyscall) -> bool {
         self.0.contains(&syscall)
     }
 }

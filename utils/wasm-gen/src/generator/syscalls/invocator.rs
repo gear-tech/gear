@@ -577,7 +577,7 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
         signature: SyscallSignature,
         param_setters: Vec<ParamSetter>,
     ) -> Vec<Instruction> {
-        let SysCallSignature {
+        let SyscallSignature {
             params: syscall_params,
             results: syscall_results,
         } = signature;
