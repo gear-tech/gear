@@ -97,6 +97,7 @@ impl Default for SyscallsParamsConfig {
                 (ParamType::DelayBlockNumber, (0..=4).into()),
                 (ParamType::Handler, (0..=100).into()),
                 (ParamType::Free, (free_start..=free_end).into()),
+                (ParamType::FreeUpperBound, (0..=10).into()),
                 (ParamType::Version, (1..=1).into()),
             ]
             .into_iter()
