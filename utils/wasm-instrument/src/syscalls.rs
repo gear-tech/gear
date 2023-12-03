@@ -239,22 +239,24 @@ impl SyscallName {
 
     /// Returns signature for syscall by name.
     pub fn signature(self) -> SyscallSignature {
+        use RegularParamType::*;
+
         match self {
-            Self::Alloc => SyscallSignature::system(([RegularParamType::Alloc], [ValueType::I32])),
-            Self::Free => SyscallSignature::system(([RegularParamType::Free], [ValueType::I32])),
+            Self::Alloc => SyscallSignature::system(([Alloc], [ValueType::I32])),
+            Self::Free => SyscallSignature::system(([Free], [ValueType::I32])),
             Self::Debug => SyscallSignature::gr_infallible([
                 Ptr::SizedBufferStart {
                     length_param_idx: 1,
                 }
                 .into(),
-                RegularParamType::Length,
+                Length,
             ]),
             Self::Panic => SyscallSignature::gr_infallible([
                 Ptr::SizedBufferStart {
                     length_param_idx: 1,
                 }
                 .into(),
-                RegularParamType::Length,
+                Length,
             ]),
             Self::OomPanic => SyscallSignature::gr_infallible([]),
             Self::BlockHeight => SyscallSignature::gr_infallible([Ptr::MutBlockNumber.into()]),
@@ -274,15 +276,15 @@ impl SyscallName {
             Self::ValueAvailable => SyscallSignature::gr_infallible([Ptr::MutValue.into()]),
             Self::Wait => SyscallSignature::gr_infallible([]),
             Self::WaitUpTo => {
-                SyscallSignature::gr_infallible([RegularParamType::DurationBlockNumber])
+                SyscallSignature::gr_infallible([DurationBlockNumber])
             }
             Self::WaitFor => {
-                SyscallSignature::gr_infallible([RegularParamType::DurationBlockNumber])
+                SyscallSignature::gr_infallible([DurationBlockNumber])
             }
             Self::Wake => SyscallSignature::gr_fallible((
                 [
                     Ptr::Hash(HashType::MessageId).into(),
-                    RegularParamType::DelayBlockNumber,
+                    DelayBlockNumber,
                 ]
                 .into(),
                 ErrPtr::ErrorCode,
@@ -297,13 +299,13 @@ impl SyscallName {
                 SyscallSignature::gr_infallible([Ptr::MutHash(HashType::MessageId).into()])
             }
             Self::EnvVars => SyscallSignature::gr_infallible([
-                RegularParamType::Version,
+                Version,
                 Ptr::MutBufferStart.into(),
             ]),
             Self::Read => SyscallSignature::gr_fallible((
                 [
-                    RegularParamType::Offset,
-                    RegularParamType::Length,
+                    Offset,
+                    Length,
                     Ptr::SizedBufferStart {
                         length_param_idx: 1,
                     }
@@ -318,7 +320,7 @@ impl SyscallName {
                         length_param_idx: 1,
                     }
                     .into(),
-                    RegularParamType::Length,
+                    Length,
                     Ptr::Value.into(),
                 ]
                 .into(),
@@ -326,8 +328,8 @@ impl SyscallName {
             )),
             Self::ReplyInput => SyscallSignature::gr_fallible((
                 [
-                    RegularParamType::Offset,
-                    RegularParamType::Length,
+                    Offset,
+                    Length,
                     Ptr::Value.into(),
                 ]
                 .into(),
@@ -339,8 +341,8 @@ impl SyscallName {
                         length_param_idx: 1,
                     }
                     .into(),
-                    RegularParamType::Length,
-                    RegularParamType::Gas,
+                    Length,
+                    Gas,
                     Ptr::Value.into(),
                 ]
                 .into(),
@@ -348,9 +350,9 @@ impl SyscallName {
             )),
             Self::ReplyInputWGas => SyscallSignature::gr_fallible((
                 [
-                    RegularParamType::Offset,
-                    RegularParamType::Length,
-                    RegularParamType::Gas,
+                    Offset,
+                    Length,
+                    Gas,
                     Ptr::Value.into(),
                 ]
                 .into(),
@@ -361,7 +363,7 @@ impl SyscallName {
                 ErrPtr::ErrorWithHash(HashType::MessageId),
             )),
             Self::ReplyCommitWGas => SyscallSignature::gr_fallible((
-                [RegularParamType::Gas, Ptr::Value.into()].into(),
+                [Gas, Ptr::Value.into()].into(),
                 ErrPtr::ErrorWithHash(HashType::MessageId),
             )),
             Self::ReservationReply => SyscallSignature::gr_fallible((
@@ -371,7 +373,7 @@ impl SyscallName {
                         length_param_idx: 2,
                     }
                     .into(),
-                    RegularParamType::Length,
+                    Length,
                 ]
                 .into(),
                 ErrPtr::ErrorWithHash(HashType::MessageId),
@@ -386,13 +388,13 @@ impl SyscallName {
                         length_param_idx: 1,
                     }
                     .into(),
-                    RegularParamType::Length,
+                    Length,
                 ]
                 .into(),
                 ErrPtr::ErrorCode,
             )),
             Self::ReplyPushInput => SyscallSignature::gr_fallible((
-                [RegularParamType::Offset, RegularParamType::Length].into(),
+                [Offset, Length].into(),
                 ErrPtr::ErrorCode,
             )),
             // Self::ReplyTo => SyscallSignature::gr_fallible([Ptr(PtrInfo::new_mutable(
@@ -640,16 +642,16 @@ pub enum ParamType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum RegularParamType {
-    Length,              // i32 buffers length
-    Ptr(PtrInfo<Ptr>),   // i32 non-error pointer
-    Gas,                 // i64 gas amount
-    Offset,              // i32 offset in the input buffer (message payload)
-    DurationBlockNumber, // i32 duration in blocks
-    DelayBlockNumber,    // i32 delay in blocks
-    Handler,             // i32 handler number
-    Alloc,               // i32 pages to alloc
-    Free,                // i32 page number to free
-    Version,             // i32 version number of exec settings
+    Length,                // i32 buffers length
+    Pointer(PtrInfo<Ptr>), // i32 non-error pointer
+    Gas,                   // i64 gas amount
+    Offset,                // i32 offset in the input buffer (message payload)
+    DurationBlockNumber,   // i32 duration in blocks
+    DelayBlockNumber,      // i32 delay in blocks
+    Handler,               // i32 handler number
+    Alloc,                 // i32 pages to alloc
+    Free,                  // i32 page number to free
+    Version,               // i32 version number of exec settings
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -923,7 +925,7 @@ mod pointers {
 
     impl From<Ptr> for RegularParamType {
         fn from(ptr: Ptr) -> RegularParamType {
-            RegularParamType::Ptr(PtrInfo {
+            RegularParamType::Pointer(PtrInfo {
                 mutable: ptr.is_mutable(),
                 ty: ptr,
             })
