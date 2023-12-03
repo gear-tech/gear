@@ -131,6 +131,7 @@ mod env {
                 "gr_size" => gr_size(store, memory),
                 // methods may be used by programs but not required by metadata.
                 "free" => func!(@result store, i32),
+                "free_range" => func!(@result store, i32, i32),
                 "gr_block_height" => func!(store, u32),
                 "gr_block_timestamp" => func!(store, u32),
                 "gr_create_program_wgas" => func!(store, i32, i32, u32, i32, u32, u64, u32, i32),

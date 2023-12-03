@@ -344,6 +344,12 @@ pub struct HostFnWeights<T: Config> {
     /// Weight of calling `free`.
     pub free: Weight,
 
+    /// Weight of calling `free_range`.
+    pub free_range: Weight,
+
+    /// Weight of calling `free_range` per page.
+    pub free_range_per_page: Weight,
+
     /// Weight of calling `gr_reserve_gas`.
     pub gr_reserve_gas: Weight,
 
@@ -857,6 +863,8 @@ impl<T: Config> HostFnWeights<T> {
             alloc: self.alloc.ref_time(),
             alloc_per_page: self.alloc_per_page.ref_time(),
             free: self.free.ref_time(),
+            free_range: self.free_range.ref_time(),
+            free_range_per_page: self.free_range_per_page.ref_time(),
             gr_reserve_gas: self.gr_reserve_gas.ref_time(),
             gr_unreserve_gas: self.gr_unreserve_gas.ref_time(),
             gr_system_reserve_gas: self.gr_system_reserve_gas.ref_time(),
@@ -979,6 +987,8 @@ impl<T: Config> Default for HostFnWeights<T> {
                 .saturating_sub(to_weight!(cost_batched!(mem_grow))),
             alloc_per_page: to_weight!(cost_batched!(alloc_per_page)),
             free: to_weight!(cost_batched!(free)),
+            free_range: to_weight!(cost_batched!(free_range)),
+            free_range_per_page: to_weight!(cost_batched!(free_range_per_page)),
             gr_reserve_gas: to_weight!(cost!(gr_reserve_gas)),
             gr_system_reserve_gas: to_weight!(cost_batched!(gr_system_reserve_gas)),
             gr_unreserve_gas: to_weight!(cost!(gr_unreserve_gas)),

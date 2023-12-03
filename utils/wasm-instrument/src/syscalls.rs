@@ -93,6 +93,7 @@ pub enum SyscallName {
     // Hard under the hood calls, serving proper program execution
     Alloc,
     Free,
+    FreeRange,
     SystemBreak,
 
     // Miscellaneous
@@ -120,6 +121,7 @@ impl SyscallName {
             SyscallName::OomPanic => "gr_oom_panic",
             SyscallName::Exit => "gr_exit",
             SyscallName::Free => "free",
+            SyscallName::FreeRange => "free_range",
             SyscallName::GasAvailable => "gr_gas_available",
             SyscallName::Leave => "gr_leave",
             SyscallName::MessageId => "gr_message_id",
@@ -180,6 +182,7 @@ impl SyscallName {
         [
             Self::Alloc,
             Self::Free,
+            Self::FreeRange,
             Self::Debug,
             Self::Panic,
             Self::OomPanic,
@@ -242,6 +245,7 @@ impl SyscallName {
         match self {
             Self::Alloc => SyscallSignature::system([Alloc], [I32]),
             Self::Free => SyscallSignature::system([Free], [I32]),
+            Self::FreeRange => SyscallSignature::system([Free, FreeUpperBound], [I32]),
             Self::Debug => SyscallSignature::gr([
                 Ptr(PtrInfo::new_immutable(PtrType::SizedBufferStart {
                     length_param_idx: 1,
@@ -610,16 +614,19 @@ impl SyscallName {
 /// belongs to. See [`PtrInfo`] and [`PtrType`] for more details.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum ParamType {
-    Length,              // i32 buffers length
+    Length,              // i32 buffers size in memory
     Ptr(PtrInfo),        // i32 pointer
     Gas,                 // i64 gas amount
     Offset,              // i32 offset in the input buffer (message payload)
+    MessagePosition,     // i32 message position
     DurationBlockNumber, // i32 duration in blocks
     DelayBlockNumber,    // i32 delay in blocks
     Handler,             // i32 handler number
-    Alloc,               // i32 pages to alloc
-    Free,                // i32 page number to free
-    Version,             // i32 version number of exec settings
+    Alloc,               // i32 alloc pages
+    Free,                // i32 free page
+    // i32 free upper bound for use with free_range. Should be placed after Free in fn signature
+    FreeUpperBound,
+    Version, // i32 version number of exec settings
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]

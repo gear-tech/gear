@@ -2780,6 +2780,8 @@ pub mod runtime_types {
                     pub alloc: runtime_types::sp_weights::weight_v2::Weight,
                     pub alloc_per_page: runtime_types::sp_weights::weight_v2::Weight,
                     pub free: runtime_types::sp_weights::weight_v2::Weight,
+                    pub free_range: runtime_types::sp_weights::weight_v2::Weight,
+                    pub free_range_per_page: runtime_types::sp_weights::weight_v2::Weight,
                     pub gr_reserve_gas: runtime_types::sp_weights::weight_v2::Weight,
                     pub gr_unreserve_gas: runtime_types::sp_weights::weight_v2::Weight,
                     pub gr_system_reserve_gas: runtime_types::sp_weights::weight_v2::Weight,

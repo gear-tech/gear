@@ -241,6 +241,7 @@ where
 
         builder.add_func(Alloc, wrap_syscall!(alloc));
         builder.add_func(Free, wrap_syscall!(free));
+        builder.add_func(FreeRange, wrap_syscall!(free_range));
     }
 }
 

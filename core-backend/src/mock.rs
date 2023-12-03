@@ -115,6 +115,9 @@ impl Externalities for MockExt {
     fn free(&mut self, _page: WasmPage) -> Result<(), Self::AllocError> {
         Err(Error)
     }
+    fn free_range(&mut self, _start: WasmPage, _end: WasmPage) -> Result<(), Self::AllocError> {
+        Err(Error)
+    }
     fn env_vars(&self, version: u32) -> Result<EnvVars, Self::UnrecoverableError> {
         match version {
             1 => Ok(EnvVars::V1(EnvVarsV1 {
