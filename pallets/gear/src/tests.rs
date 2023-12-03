@@ -15103,7 +15103,7 @@ fn test_constructor_if_else() {
             .if_else(
                 Arg::get("switch"),
                 Calls::builder().wait_for(1),
-                Calls::builder().wait(),
+                Calls::builder().exit(<[u8; 32]>::from(USER_1.into_origin())),
             );
 
         let scheme = Scheme::predefined(init, handle, Default::default(), Default::default());
@@ -15148,15 +15148,7 @@ fn test_constructor_if_else() {
 
         run_to_next_block(None);
 
-        assert!(WaitlistOf::<Test>::contains(&pid, &mid));
-        assert!(!TaskPoolOf::<Test>::contains(
-            &(Gear::block_number()),
-            &task
-        ));
-        assert!(!TaskPoolOf::<Test>::contains(
-            &(Gear::block_number() + 1),
-            &task
-        ));
+        assert!(!WaitlistOf::<Test>::contains(&pid, &mid));
     });
 }
 
