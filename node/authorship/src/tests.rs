@@ -445,6 +445,7 @@ fn queue_remains_intact_if_processing_fails() {
         genesis_hash,
     );
     submit_txs!(client, txpool, BlockId::number(0), extrinsics);
+    assert_eq!(txpool.ready().count(), 7);
 
     let timestamp = Timestamp::current();
 
@@ -461,7 +462,7 @@ fn queue_remains_intact_if_processing_fails() {
         None,
         proposal
     );
-    // Terminal extrinsic rolled back, therefore only have 1 inherent + 6 normal
+    // Pseudo-inherent rolled back, therefore only have 1 inherent + 7 normal
     assert_eq!(proposal.block.extrinsics().len(), 8);
 
     // Ensure message queue still has 5 messages
@@ -489,6 +490,7 @@ fn queue_remains_intact_if_processing_fails() {
         genesis_hash,
     );
     submit_txs!(client, txpool, BlockId::Hash(best_hash), extrinsics);
+    assert_eq!(txpool.ready().count(), 3);
 
     propose_block!(
         client,
@@ -503,11 +505,11 @@ fn queue_remains_intact_if_processing_fails() {
         None,
         proposal
     );
-    // Terminal extrinsic rolled back, therefore only have 1 inherent + 3 normal
+    // Terminal extrinsic rolled back, therefore only have 1 inherent + another 3 normal
     assert_eq!(proposal.block.extrinsics().len(), 4);
 
     let state = backend.state_at(best_hash).unwrap();
-    // Ensure message queue has not been drained and has now 8 messages
+    // Ensure message queue has not been drained again, and now has 8 messages
     let mut queue_len = 0_u32;
     let mut queue_entry_args = IterArgs::default();
     queue_entry_args.prefix = Some(&queue_entry_prefix);
@@ -938,7 +940,6 @@ mod basic_tests {
     fn should_cease_building_block_when_deadline_is_reached() {
         init_logger();
 
-        // given
         init!(client, backend, txpool, spawner, genesis_hash);
 
         let extrinsics = sign_extrinsics(
@@ -1089,7 +1090,6 @@ mod basic_tests {
     fn should_not_remove_invalid_transactions_when_skipping() {
         init_logger();
 
-        // given
         init!(client, backend, txpool, spawner, genesis_hash);
 
         let alice = alice();
@@ -1264,10 +1264,8 @@ mod basic_tests {
 
     #[test]
     fn should_keep_adding_transactions_after_exhausts_resources_before_soft_deadline() {
-        // given
         init_logger();
 
-        // given
         init!(client, backend, txpool, spawner, genesis_hash);
 
         let alice = alice();
@@ -1311,7 +1309,6 @@ mod basic_tests {
 
     #[test]
     fn should_only_skip_up_to_some_limit_after_soft_deadline() {
-        // given
         init_logger();
 
         init!(client, backend, txpool, spawner, genesis_hash);

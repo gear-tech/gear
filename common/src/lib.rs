@@ -347,7 +347,7 @@ impl<AccountId: Default, ProgramId, Balance> PaymentVoucher<AccountId, ProgramId
 pub trait Deconstructable<C> {
     type Params: Send;
 
-    fn deconstruct(self) -> (&'static C, Self::Params);
+    fn into_parts(self) -> (&'static C, Self::Params);
 
-    fn restore(call: &C, params: Self::Params) -> Self;
+    fn from_parts(call: &C, params: Self::Params) -> Self;
 }

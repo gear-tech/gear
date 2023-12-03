@@ -656,7 +656,7 @@ where
         // break it down into parts (that are `Send`) and then reconstruct it in the new thread.
         // If changes applied successfully, the updated extrinsics and api parts will be sent back
         // to update the original block builder and finalize the block.
-        let (_, api_params) = api.deref().clone().deconstruct();
+        let (_, api_params) = api.deref().clone().into_parts();
 
         let update_block = async move {
             let (tx, rx) = oneshot::channel();
@@ -669,7 +669,7 @@ where
                     debug!(target: "gear::authorship", "⚙️  Pushing Gear::run extrinsic into the block...");
                     let mut block_builder = BlockBuilder::<'_, Block, C, B>::from_parts(
                         extrinsics,
-                        ApiRef::from(C::Api::restore(client.as_ref(), api_params)),
+                        ApiRef::from(C::Api::from_parts(client.as_ref(), api_params)),
                         version,
                         parent_hash,
                         backend.as_ref(),
@@ -677,7 +677,7 @@ where
                     let outcome = block_builder.push_final(max_gas).map(|_| {
                         let (extrinsics, api, _, _, _, _) =
                             block_builder.deconstruct();
-                        let (_, api_params) = api.deref().clone().deconstruct();
+                        let (_, api_params) = api.deref().clone().into_parts();
                         (extrinsics, api_params)
                     });
                     if tx.send(outcome).is_err() {
@@ -705,7 +705,7 @@ where
                 match res {
                     Ok((extrinsics, api_params)) => {
                         debug!(target: "gear::authorship", "⚙️  ... pushed to the block");
-                        let mut api = C::Api::restore(self.client.as_ref(), api_params);
+                        let mut api = C::Api::from_parts(self.client.as_ref(), api_params);
                         block_builder.set_api(&mut api);
                         block_builder.set_extrinsics(extrinsics);
                     }

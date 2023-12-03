@@ -1473,7 +1473,7 @@ where
         Option<ProofRecorder<B>>,
     );
 
-    fn deconstruct(self) -> (&'static C, Self::Params) {
+    fn into_parts(self) -> (&'static C, Self::Params) {
         (
             self.call,
             (
@@ -1485,7 +1485,7 @@ where
         )
     }
 
-    fn restore(call: &C, params: Self::Params) -> Self {
+    fn from_parts(call: &C, params: Self::Params) -> Self {
         Self {
             call: unsafe { std::mem::transmute(call) },
             commit_on_success: params.0.into(),
