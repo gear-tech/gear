@@ -417,7 +417,6 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
         Ok(original_instructions)
     }
 
-    // TODO what if non error syscall return any kind of value?!
     fn build_call(
         &mut self,
         invocable: InvocableSyscall,
