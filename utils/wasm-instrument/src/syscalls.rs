@@ -306,7 +306,7 @@ impl SyscallName {
                 [
                     Offset,
                     Length,
-                    Ptr::SizedBufferStart {
+                    Ptr::MutSizedBufferStart {
                         length_param_idx: 1,
                     }
                     .into(),
