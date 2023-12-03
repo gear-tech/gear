@@ -137,6 +137,58 @@ where
         })
     }
 
+    /// Try to fetch the `pseudo-inherent` via the RuntimeAPI call and, if successful,
+    /// push it at the end of the block's list of extrinsics.
+    ///
+    /// This will ensure the extrinsic can be validly executed (by executing it).
+    pub fn push_final(&mut self, max_gas: Option<u64>) -> Result<(), Error> {
+        let parent_hash = self.parent_hash;
+        let extrinsics = &mut self.extrinsics;
+        let version = self.version;
+
+        self.api.execute_in_transaction(|api| {
+            let block_hash = self.parent_hash;
+            let xt = match TransactionOutcome::Rollback(api.gear_run_extrinsic_with_context(
+                block_hash,
+                ExecutionContext::BlockConstruction,
+                max_gas,
+            ))
+            .into_inner()
+            .map_err(|e| Error::Application(Box::new(e)))
+            {
+                Ok(xt) => xt,
+                Err(e) => return TransactionOutcome::Rollback(Err(e)),
+            };
+
+            let res = if version < 6 {
+                #[allow(deprecated)]
+                api.apply_extrinsic_before_version_6_with_context(
+                    parent_hash,
+                    ExecutionContext::BlockConstruction,
+                    xt.clone(),
+                )
+                .map(legacy::byte_sized_error::convert_to_latest)
+            } else {
+                api.apply_extrinsic_with_context(
+                    parent_hash,
+                    ExecutionContext::BlockConstruction,
+                    xt.clone(),
+                )
+            };
+
+            match res {
+                Ok(Ok(_)) => {
+                    extrinsics.push(xt);
+                    TransactionOutcome::Commit(Ok(()))
+                }
+                Ok(Err(tx_validity)) => TransactionOutcome::Rollback(Err(
+                    ApplyExtrinsicFailed::Validity(tx_validity).into(),
+                )),
+                Err(e) => TransactionOutcome::Rollback(Err(Error::from(e))),
+            }
+        })
+    }
+
     /// Consume the builder to build a valid `Block` containing all pushed extrinsics.
     ///
     /// Returns the build `Block`, the changes to the storage and an optional `StorageProof`
@@ -208,23 +260,6 @@ where
         } else {
             size
         }
-    }
-
-    /// Call runtime-api to get the correct extrinsic that should conclude the block.
-    pub fn create_terminal_extrinsic(
-        &mut self,
-        max_gas: Option<u64>,
-    ) -> Result<Block::Extrinsic, Error> {
-        let block_hash = self.parent_hash;
-        self.api
-            .execute_in_transaction(move |api| {
-                TransactionOutcome::Rollback(api.gear_run_extrinsic_with_context(
-                    block_hash,
-                    ExecutionContext::BlockConstruction,
-                    max_gas,
-                ))
-            })
-            .map_err(|e| Error::Application(Box::new(e)))
     }
 
     #[cfg(test)]

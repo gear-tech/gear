@@ -325,7 +325,7 @@ mod wasm {
 
             let end = count.value();
             for i in 0_u64..end {
-                unsafe { DATA.insert("value".into(), i.encode()) };
+                unsafe { DATA.insert("last_written_n".into(), i.encode()) };
             }
 
             None

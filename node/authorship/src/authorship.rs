@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use codec::Encode;
-use common::RuntimeApiExt;
+use common::Deconstructable;
 use futures::{
     channel::oneshot,
     future,
@@ -43,7 +43,7 @@ use sp_runtime::{
 };
 use std::{
     marker::PhantomData,
-    ops::Deref,
+    ops::{Add, Deref},
     pin::Pin,
     sync::Arc,
     time::{Duration, Instant},
@@ -62,7 +62,41 @@ use sc_proposer_metrics::{EndProposingReason, MetricsLink as PrometheusMetrics};
 /// transferred to other nodes.
 pub const DEFAULT_BLOCK_SIZE_LIMIT: usize = 4 * 1024 * 1024 + 512;
 
-const DEFAULT_SOFT_DEADLINE_PERCENT: Percent = Percent::from_percent(20);
+const DEFAULT_SOFT_DEADLINE_PERCENT: Percent = Percent::from_percent(50);
+
+/// A unit type wrapper to express a duration multiplier.
+#[derive(Clone, Copy)]
+pub struct DurationMultiplier(pub f32);
+
+impl Add for DurationMultiplier {
+    type Output = Self;
+
+    fn add(self, other: Self) -> Self {
+        Self(self.0 + other.0)
+    }
+}
+
+impl DurationMultiplier {
+    fn plus_one(self) -> Self {
+        Self(self.0 + 1.0)
+    }
+}
+
+/// Default deadline slippage used by [`Proposer`].
+///
+/// Can be overwritten by [`ProposerFactory::set_deadline_slippage`].
+pub const DEFAULT_DEADLINE_SLIPPAGE: DurationMultiplier = DurationMultiplier(0.1);
+
+/// Default extrinsics application deadline fraction used by [`Proposer`].
+///
+/// Equivalent to the `NORMAL_DISPATCH_RATIO` in `Runtime`
+/// Can be overwritten by [`ProposerFactory::set_deadline`].
+pub const DEFAULT_DISPATCH_RATIO: DurationMultiplier = DurationMultiplier(0.25);
+
+/// Default gas allowance for the pseudo-inherent.
+///
+/// Used to align the gas allowance in `Runtime` to avoid proposing deadline slippage.
+pub const DEFAULT_GAS_ALLOWANCE: u64 = 750_000_000_000;
 
 /// [`Proposer`] factory.
 pub struct ProposerFactory<A, B, C, PR> {
@@ -93,6 +127,17 @@ pub struct ProposerFactory<A, B, C, PR> {
     include_proof_in_block_size_estimation: bool,
     /// Hard limit for the gas allowed to burn in one block.
     max_gas: Option<u64>,
+    /// Block proposing deadline slippage.
+    ///
+    /// The value is used to compute the deadline slippage during block production
+    /// that can be tolerated before the terminal `pseudo-inherent` is considered
+    /// to be "taking too long" and dropped.
+    deadline_slippage: DurationMultiplier,
+    /// Dispatch ratio for deadline calculation.
+    ///
+    /// The share of the block proposing deadline that is allowed to be used for
+    /// extrinsics application.
+    dispatch_ratio: DurationMultiplier,
     /// phantom member to pin the `ProofRecording` type.
     _phantom: PhantomData<PR>,
 }
@@ -122,6 +167,8 @@ impl<A, B, C> ProposerFactory<A, B, C, DisableProofRecording> {
             backend,
             include_proof_in_block_size_estimation: false,
             max_gas,
+            deadline_slippage: DEFAULT_DEADLINE_SLIPPAGE,
+            dispatch_ratio: DEFAULT_DISPATCH_RATIO,
             _phantom: PhantomData,
         }
     }
@@ -154,6 +201,8 @@ impl<A, B, C> ProposerFactory<A, B, C, EnableProofRecording> {
             telemetry,
             include_proof_in_block_size_estimation: true,
             max_gas,
+            deadline_slippage: DEFAULT_DEADLINE_SLIPPAGE,
+            dispatch_ratio: DEFAULT_DISPATCH_RATIO,
             _phantom: PhantomData,
         }
     }
@@ -190,6 +239,20 @@ impl<A, B, C, PR> ProposerFactory<A, B, C, PR> {
     /// are being tried with no success, hence block producer ends up creating an empty block.
     pub fn set_soft_deadline(&mut self, percent: Percent) {
         self.soft_deadline_percent = percent;
+    }
+
+    /// Set block proposing deadline slippage percentage.
+    ///
+    /// The default value is [`DEFAULT_DEADLINE_SLIPPAGE`].
+    pub fn set_deadline_slippage(&mut self, multiplier: DurationMultiplier) {
+        self.deadline_slippage = multiplier;
+    }
+
+    /// Set extrinsics application deadline share within block proposing.
+    ///
+    /// The default value is [`DEFAULT_DISPATCH_RATIO`].
+    pub fn set_dispatch_ratio(&mut self, multiplier: DurationMultiplier) {
+        self.dispatch_ratio = multiplier;
     }
 }
 
@@ -234,6 +297,8 @@ where
             soft_deadline_percent: self.soft_deadline_percent,
             telemetry: self.telemetry.clone(),
             max_gas: self.max_gas,
+            deadline_slippage: self.deadline_slippage,
+            dispatch_ratio: self.dispatch_ratio,
             _phantom: PhantomData,
             include_proof_in_block_size_estimation: self.include_proof_in_block_size_estimation,
         };
@@ -257,7 +322,7 @@ where
         + BlockBuilderApi<Block>
         + GearRuntimeApi<Block>
         + Clone
-        + RuntimeApiExt<C>,
+        + Deconstructable<C>,
     PR: ProofRecording,
 {
     type CreateProposer = future::Ready<Result<Self::Proposer, Self::Error>>;
@@ -284,6 +349,8 @@ pub struct Proposer<B, Block: BlockT, C, A: TransactionPool, PR> {
     soft_deadline_percent: Percent,
     telemetry: Option<TelemetryHandle>,
     max_gas: Option<u64>,
+    deadline_slippage: DurationMultiplier,
+    dispatch_ratio: DurationMultiplier,
     _phantom: PhantomData<PR>,
 }
 
@@ -302,7 +369,7 @@ where
         + BlockBuilderApi<Block>
         + GearRuntimeApi<Block>
         + Clone
-        + RuntimeApiExt<C>,
+        + Deconstructable<C>,
     PR: ProofRecording,
 {
     type Transaction = backend::TransactionFor<B, Block>;
@@ -365,7 +432,7 @@ where
         + BlockBuilderApi<Block>
         + GearRuntimeApi<Block>
         + Clone
-        + RuntimeApiExt<C>,
+        + Deconstructable<C>,
     PR: ProofRecording,
 {
     async fn propose_with(
@@ -423,10 +490,16 @@ where
             }
         }
 
-        // proceed with transactions
-        // We calculate soft deadline used only in case we start skipping transactions.
+        // Proceed with transactions
         let now = (self.now)();
-        let left = deadline.saturating_duration_since(now);
+        // Duration until the "ultimate" deadline.
+        let remaining_proposal_duration = deadline.saturating_duration_since(now);
+        // Calculate the max duration of the extrinsics application phase.
+        let deadline_multiplier = self.dispatch_ratio + self.deadline_slippage;
+        let left = remaining_proposal_duration.mul_f32(deadline_multiplier.0);
+        // Adjusted hard deadline for extrinsics application.
+        let extrinsics_hard_deadline = now + left;
+        // Soft deadline used only in case we start skipping transactions.
         let left_micros: u64 = left.as_micros().saturated_into();
         let soft_deadline =
             now + Duration::from_micros(self.soft_deadline_percent.mul_floor(left_micros));
@@ -435,8 +508,9 @@ where
         let mut unqueue_invalid = Vec::new();
 
         let mut t1 = self.transaction_pool.ready_at(self.parent_number).fuse();
+        // Let more time to wait for the pool to be ready (1/4 of the deadline instead of 1/8)
         let mut t2 =
-            futures_timer::Delay::new(deadline.saturating_duration_since((self.now)()) / 8).fuse();
+            futures_timer::Delay::new(deadline.saturating_duration_since((self.now)()) / 4).fuse();
 
         let mut pending_iterator = select! {
             res = t1 => res,
@@ -464,7 +538,7 @@ where
             };
 
             let now = (self.now)();
-            if now > deadline {
+            if now > extrinsics_hard_deadline {
                 debug!(target: "gear::authorship",
                     "Consensus deadline reached when pushing block transactions, \
                     proceeding with proposing."
@@ -550,10 +624,31 @@ where
         self.transaction_pool.remove_invalid(&unqueue_invalid);
 
         // Attempt to apply pseudo-inherent on top of the current overlay in a separate thread.
-        // In case the timeout is hit, we will proceed without it.
+        // In case the timeout was hit at previous step, adjust the `max_gas`.
+        let mut max_gas = self.max_gas;
+        if matches!(end_reason, EndProposingReason::HitDeadline) {
+            // Ideally, we want to let the pseudo-inherent to use at least the
+            // DEFAULT_GAS_ALLOWANCE amount of gas. But if the remaining time is
+            // too short, we will have to adjust the `max_gas` accordingly.
+            let now = (self.now)();
+            let left = deadline.saturating_duration_since(now);
+            let relaxed_duration = left.mul_f32(self.deadline_slippage.plus_one().0);
+            let relaxed_picos: u64 = relaxed_duration
+                .as_nanos()
+                .saturating_mul(1000)
+                .saturated_into();
+            max_gas = max_gas.map_or(Some(relaxed_picos.min(DEFAULT_GAS_ALLOWANCE)), |gas| {
+                Some(gas.min(relaxed_picos.min(DEFAULT_GAS_ALLOWANCE)))
+            });
+
+            warn!(target: "gear::authorship",
+                "Adjusted the GasAllowance to {} for the pseudo-inherent.",
+                max_gas.unwrap_or(0),
+            );
+        }
+
         let client = self.client.clone();
         let backend = self.backend.clone();
-        let pseudo_inherent = block_builder.create_terminal_extrinsic(self.max_gas)?;
         let (extrinsics, api, version, _, _, estimated_header_size) =
             block_builder.clone().deconstruct();
         // We need the overlay changes and transaction storage cache to send to a new thread.
@@ -579,7 +674,7 @@ where
                         parent_hash,
                         backend.as_ref(),
                         estimated_header_size);
-                    let outcome = block_builder.push(pseudo_inherent).map(|_| {
+                    let outcome = block_builder.push_final(max_gas).map(|_| {
                         let (extrinsics, api, _, _, _, _) =
                             block_builder.deconstruct();
                         let (_, api_params) = api.deref().clone().deconstruct();
@@ -597,10 +692,12 @@ where
         }.boxed();
         match futures::future::select(
             update_block,
-            // TODO: consider adding some tolerance here like `deadline` + 20% or something.
-            // We know we have almost 0.5s for block finalization while `on_finalize` hooks
-            // for the pallets in our Runtime take almost no weight.
-            Delay::new(deadline.saturating_duration_since((self.now)())),
+            // Allowing small deadline slippage.
+            Delay::new(
+                deadline
+                    .add(remaining_proposal_duration.mul_f32(self.deadline_slippage.0))
+                    .saturating_duration_since((self.now)()),
+            ),
         )
         .await
         {

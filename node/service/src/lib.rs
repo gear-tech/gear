@@ -380,7 +380,7 @@ where
         + 'static,
     RuntimeApi::RuntimeApi: RuntimeApiCollection<StateBackend = sc_client_api::StateBackendFor<FullBackend, Block>>
         + Clone
-        + common::RuntimeApiExt<FullClient<RuntimeApi, ExecutorDispatch>>,
+        + common::Deconstructable<FullClient<RuntimeApi, ExecutorDispatch>>,
     ExecutorDispatch: NativeExecutionDispatch + 'static,
 {
     let hwbench = (!disable_hardware_benchmarks)

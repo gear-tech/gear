@@ -965,13 +965,12 @@ mod basic_tests {
             old
         });
 
-        // `max_duration` of 3s will be converted into 2s dealine inside `propose()`,
-        // which allows the `self.now()` to be called 4 times before `deadline` is reached`:
-        // - in `proposer::propose()` (1st time)
-        // - after the inherents processing (2nd time)
-        // - to limit the waiting time of the txpool (3rd time)
-        // - at the 1st iteration of the tx processing `loop` (4th time)
-        let max_duration = 3000_u64;
+        // `max_duration` of 6s will be converted into 1.4s hard deadline inside `propose_with()`:
+        //  - 4s after the first two calls to `self.now()` * 0.35 factor = 1.4s,
+        // of which another 1s will be consumed by the `self.now()` called while waiting for the
+        // tx pool to be ready, leaving 0.4s for the actual extrinsics processing.
+        // Therefore we exit from the tx loop immediately without having processed any extrinsics.
+        let max_duration = 6000_u64;
 
         propose_block!(
             client,
@@ -988,21 +987,13 @@ mod basic_tests {
         );
 
         // then
-        // The block should have 2 extrinsics: the timestamp and one ordinary one.
-        // However, there is a tiny chance the `pseudo-inherent` can make it into the block
-        // before the future measuring the timeout gets a chance to run.
-        // We must account for the latter case, as well, to avoid ambiguity.
-        if proposal.block.extrinsics().len() > 2 {
-            assert_eq!(proposal.block.extrinsics().len(), 3);
-            // A "hacky" way to ensure the unaccounted extrinsic is the pseudo-inherent:
-            // its (current) encoded representation is `vec![16, 4, 104, 6, 0]`
-            assert_eq!(
-                proposal.block.extrinsics()[2].encode(),
-                vec![16_u8, 4, 104, 6, 0]
-            );
-        } else {
-            assert_eq!(proposal.block.extrinsics().len(), 2);
-        }
+        // The block should have 2 extrinsics: the timestamp and the pseudo-inherent.
+        assert_eq!(proposal.block.extrinsics().len(), 2);
+        // A "hacky" way to ensure the unaccounted extrinsic is the pseudo-inherent:
+        // in this case the encoded representation should start with `&[48, 4, 104, 6]`
+        assert!(proposal.block.extrinsics()[1]
+            .encode()
+            .starts_with(&[48_u8, 4, 104, 6]));
         assert_eq!(txpool.ready().count(), 2);
     }
 
@@ -1325,13 +1316,13 @@ mod basic_tests {
 
         init!(client, backend, txpool, spawner, genesis_hash);
 
-        let bob = bob();
+        let alice = alice();
         let extrinsics = (0_usize..MAX_SKIPPED_TRANSACTIONS + 2)
-            .map(|i| exhausts_resources_extrinsic(i as u32, &bob, genesis_hash))
+            .map(|i| exhausts_resources_extrinsic(i as u32, &alice, genesis_hash))
             // and some transactions that are okay.
             .chain(
                 (MAX_SKIPPED_TRANSACTIONS + 2..2_usize * MAX_SKIPPED_TRANSACTIONS + 2)
-                    .map(|i| extrinsic(i as u32, &bob, genesis_hash)),
+                    .map(|i| extrinsic(i as u32, &alice, genesis_hash)),
             )
             .collect();
         let block_id = BlockId::number(0);
@@ -1347,8 +1338,9 @@ mod basic_tests {
             let (called, old) = *value;
             // add time after deadline is calculated internally (hence 1)
             let increase = if called == 1 {
-                // we start after the soft_deadline should have already been reached.
-                time::Duration::from_millis(max_duration) / 2
+                // We start after the `soft_deadline` should have already been reached.
+                // `soft_deadline` is approx. 1/2 of `max_duration` * 0.35
+                time::Duration::from_millis(max_duration) / 5
             } else {
                 // but we make sure to never reach the actual deadline
                 time::Duration::from_millis(0)

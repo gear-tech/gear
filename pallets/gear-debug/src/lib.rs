@@ -298,9 +298,10 @@ pub mod pallet {
             }
         })]
         pub fn exhaust_block_resources(
-            _origin: OriginFor<T>,
+            origin: OriginFor<T>,
             _fraction: Percent,
         ) -> DispatchResultWithPostInfo {
+            ensure_root(origin)?;
             Ok(Pays::No.into())
         }
     }

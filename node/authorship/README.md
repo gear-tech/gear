@@ -16,7 +16,7 @@ In the default Substrate's implementation the deadline for the block creation go
     <img src="../../images/block-proposing-timing.svg" width="80%" alt="Gear">
 </p>
 
-The original "source of truth" in terms of the block creation time is the same - the `SLOT_DURATOIN` runtime constant. Eventually, the time allocated for processing of extirnsics of all `DispatchClass`'es will constitute almost exactly 1/3 of the overall block time. The same idea is true for the `Runtime` - the `MAXIMUM_BLOCK_WEIGHT` constant calculated as 1/3 of the total possible block `Weight`:
+The original "source of truth" in terms of the block creation time is the same - the `SLOT_DURATION` runtime constant. Eventually, the time allocated for processing of extirnsics of all `DispatchClass`'es will constitute almost exactly 1/3 of the overall block time. The same idea is true for the `Runtime` - the `MAXIMUM_BLOCK_WEIGHT` constant calculated as 1/3 of the total possible block `Weight`:
 
 ```
 `  time, |                        weight |
@@ -36,38 +36,44 @@ The original "source of truth" in terms of the block creation time is the same -
 As long as this synchronization between how the client counts the remaining time and the `Runtime` that tracks the current block weight (provided the extrinsics benchmarking is adequate) is maintained, we can be almost sure the block timing is consistent: the `DispatchClass::Normal` extrinsics by default are allowed to take up to 80% of the weight, the rest being taken by the inherents, therefore the probability of exhausting the weight before the time has run out (and vise versa) is relatively low.
 The finalization of the block is not supposed to be included in this time frame.
 
-## Gear flow specifics
+## Gear specifics
 
-In our case there is a couple of potential pitfalls:
-- the share of the `DispatchClass::Normal` extrinsics in the `Runtime` is about 25% as opposed to the default Substrate's 80% (see `NORMAL_DISPATCH_RATIO` constant).
-This means that, provided the block proposing deadline is left intact in the client, in case the number of transactions in the `txpool`'s' `ready` queue is high, we can exhaust the allowed block weight for normal extrinsics way before the deadline is reached. It will lead to a situation when extrinsics are "skipped" (marked as "invalid" based on the `check_weight` signed extension) and placed into the `revalidation` queue for the following blocks, while the consumed weight in the current block doesn't change. This could in theory take up to the `soft_deadline` point, which is currently 50% of the whole proposing time. Then, the `Gear::run()` pseudo-inherent is executed before the block finalization, and it assumes it still has at least 3/4 of the block weight to spend. Even if the `Gear::run()` gas consumption matches the expected remaining weight this still may lead to the "Block production took too long" error and the block will be rejected.
-<br/>
+In Gear we have a special pseudo-inherent that called `Gear::run()` has to be added at the end of each block after all the normal extrinsics have been pushed. This pseudo-inherent is responsible for processing the message queue.
 
-- The amount of time the `Gear::run()` pseudo-inherent actually takes can also be somewhat indeterministic and depend on lots of variables we can't accurately measure and benchmark upfront. This can result in the same error, as well.
+The `Runtime` specifies the so-called `NORMAL_DISPATCH_RATIO` constant that defines the share of the `DispatchClass::Normal` extrinsics in the overall block weight. In Gear this constant is set to 25% (as opposed to the default 80% in Substrate). This means that the want the `DispatchClass::Normal` extrinsics to take up to 25% of the block time, leaving the rest to `DispatchClass::Mandatory` (including the `Gear::run()`) and `DispatchClass::Operational` extrinsics.
+
+<p align="lift">
+    <img src="../../images/substrate-vs-gear-block.svg" width="80%" alt="Gear">
+</p>
+
+The question, therefore, is how we should partition the proposal `duration` in the `BlockBuilder` (in terms of time) to maintain the desired proportion between the extrinsics application and the message queue processing.
+
+In the ideal world the synchronization between the time taken so far by the proposer and the used weight is always maintained so that we can rely on the `Runtime` weights to predict how many more extrinsics we can take from the transaction pool so that the `Gear::run()` has as much time as it thinks it has to do messages processing.
+
+<p align="lift">
+    <img src="../../images/time-weight-synchronization.svg" width="80%" alt="Gear">
+</p>
+
+
+In reality though, a discrepancy between actual time and weight can grow as extrinsics are being applied.
+
+In case we have more "conservative" weights we can end up having under-populated blocks (the block weight is exhaused much earlier than the actual time deadline).
+
+The opposite situation is more dangerous: it can turn out that by the time we start skipping extrinsics (by being close to the block weight limit for the `DispatchClass::Normal` extrinsics) we have already almost hit the deadline for the block proposal (and way passed the `soft_deadline` however small that one might be, because the `soft_deadline` is only checked after we have already skipped enough extrinsics). Even more so, if we happen to hit the deadline for the block proposal, the `Gear::run()` will run anyway, assuming it still has 3/4 of the block time to spend whereas in reality it has none.
+
+Another issue is how to impose a deadline on the `Gear::run()` itself because it also has a time budget - 3/4 of the proposal duration, but it operates in terms of gas (which is assumed to be just another representation of weight), and once started running, it won't stop until it has burned all the remaining gas allowance.
 
 ## Custom Proposer implementation
 
-To mitigte the above and keep the block timing consistent a couple of things can be done in our custom block proposer implementation:
+There are two main invariants the `BlockBuilder` implementation should enforce to keep the block timing consistent:
+- the `Gear::run()` pseudo-inherent always runs with a certain "honest" units of gas. By "honest" we mean that there is sufficient time left inside the block proposing, equivalent to this amount of gas. Ideally, this amount of gas should be equal or exceed the 3/4 of the `max_total` per block;
+- the `Gear::run()` can only spill over the desired block proposal deadline up to some well-defined "slippage".
 
-- Align the proposing deadline with the block weight corresponding to the normal extrinsics.
-There are two ways to go about it:
-  1) Manually reduce the "hard" deadline for the extrinsics application proportionally to the respective block weight quota.
-  2) Lower the `soft_deadline` percentage to limit the number of tries to add another extrinsic upon the block resources exhaustion.
+To guarantee these invariants, we suggest the following approach:
+- In addition to the overall proposal "hard" deadline introduce another "hard" deadline (as opposed to the existing `soft_deadline` which has a specific meaning and will remain) to limit the normal extrinsics application time to protect ourselves from the situation when the weight for the `DisptachClass:Normal` extrinsics hasn't been exhausted while timing-wise this stage has taken more than expected. In most cases, however, this deadline is never supposed to be hit, provided the benchmarked weights of all the extrinsics are correct;
+- In case the normal extrinsics application stage hit the deadline, we can't anymore rely on the remaining block `gas_allowance` in the `Runtime`; if we did, the `Gear::run()` would think it has more gas to spend when it actually does. Therefore, we need to adjust the gas budget for the `Gear::run()` by passing it an explicit `Some(max_gas)` parameter;
+- To calculate the extrinsic stage deadline, we can use a "relaxed" version of the `NORMAL_DISPATCH_RATIO` constant, say, 35% instead of 25%. This means that in the worst case, if we have run the extrinsics application phase for the entire 35% of the block proposal duration, we can then still let the `Gear::run()` run for 3/4 of the original proposal duration thereby expecting to exceed the ultimate deadline by 10% tops, which is still affordable given we have 1/3 of the `SlotProportion` for the block finalization and are never supposed to use up all of that. This `max_slippage` percentage can be made configurable;
+- To calculate the `max_gas` for the `Gear::run()` we have to resort to euristic knowledge of the `time` to `gas` conversion: 1 pico-second is equivalent to 1 unit of gas. Therefore, the reasonable expectaion is that if we manually set the `max_gas` to `7.5*10^11`, the `Gear::run()` will run for `750 ms`, or 3/4 of the block proposal duration so that the ultimate "relaxed" deadline is not exceeded;
+- Despite the `max_gas` provided explicitly, we still make the `Gear::run()` to execute against a timeout to avoid skipping the enitre block. The timeout will be set to the same value in pico-seconds as the `max_gas` absolute value. If triggered, the `Gear::run()` will be dropped entirely and all the changes in the storage overlay will be reverted. However, this is a very much undesirable situation and should be avoidedm because it'll lead to the message queue inflation, higher latency and transaction cost. 
 
-  Both solutions serve the same purpose - to have a deterministic deadline for the extrinsics application in a block.
-  The difference is in nuances.
-  Following the first approach, we can set the proposal deadline to, say, `~300ms`, which should be sufficient to use up all the associated weight, at the same time setting the deterministic upper bound on the time interval during which the `Gear::run()` pseudo-inherent starts.
-  Following the second approach, we can lower the `soft_deadline` to roughly 20% to ensure that if it turns out we have started skipping extrinsics (exhausted the weight portion), it better be beyond the `soft_deadline` point, so that the maximum attempts to try adding more extrinsics will be limited to the `MAX_SKIPPED_TRANSACTIONS` constant (reduced to 5 from the default 8). This will also set more rigorous bounds on when the `Gear::run()` can start executing. The caveat is, however, that setting an inadeqate `soft_deadline` (too low) can lead to under-populated blocks.
-
-  Current implementation follows the second approach as "less invasive" and more flexible. In case the "Block production took too long" issue persists, switching to the first approach can be considered.
-<br/>
-- Introduce a timeout for the `Gear::run()` pseudo-inherent to make sure it doesn't spill over the allowed time (in milliseconds). If the timeout is triggered, the pseudo-inherent is dropped and the block is finalized as is (without message queue processing). If this issue persists for a number of blocks, action can be taken offchain to mitigate the problem (like restarting validators with the `--max-gas` option etc.).
-
-## Extended BlockBuilder implementation
-
-In order to serve the purpose, a `BlockBuilder` implementation must be able to:
-- Call the Gear specific runtime api to obtain the encoded `Gear::run()` pseudo-inherent from the runtime.
-<br/>
-- Clone self in order to maintain the underlying runtime api instance with the overlay that contains all the changes made to the state during the extrinsics application and wait for the `Gear::run()` pseudo-inherent completion on the cloned runtime api instance in a separate thread as long as the deadline is not reached. If the deadline has been slipped, the "backup" overlay is used to build the block. Otherwise, the updated overlay returned from the `Gear::run()` thread is used as per normal.
-
-The last point requires quite drastic changes in the original `BlockBuilder` implementation (also to the extent of making changes in the underlying Substrate code in our fork to make some times cloneable, which are not by default). Specifically, we need to be able to clone and destruct the runtime api object into parts and send those parts in a separate thread to restore the `BlockBuilder` in such a way that it has the same state as if it had called the block initialization and all the extrinsics application runtime apis before the `Gear::run()` extrinsic can be applied.
+The `soft_deadline` for the extrinsics application phase can be left at `50%`, as it is in the default Substrate block authorship implementation to serve the same purpose.

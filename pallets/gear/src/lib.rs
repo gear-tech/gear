@@ -1261,10 +1261,6 @@ pub mod pallet {
             Ok(())
         }
 
-        pub fn run_call(max_gas: Option<GasBalanceOf<T>>) -> Call<T> {
-            Call::run { max_gas }
-        }
-
         pub fn rent_fee_for(block_count: BlockNumberFor<T>) -> BalanceOf<T> {
             let block_count: u64 = block_count.unique_saturated_into();
 

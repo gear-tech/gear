@@ -344,7 +344,7 @@ impl<AccountId: Default, ProgramId, Balance> PaymentVoucher<AccountId, ProgramId
 /// Trait that the RuntimeApi should implement in order to allow deconstruction and reconstruction
 /// to and from its components.
 #[cfg(any(feature = "std", test))]
-pub trait RuntimeApiExt<C> {
+pub trait Deconstructable<C> {
     type Params: Send;
 
     fn deconstruct(self) -> (&'static C, Self::Params);
