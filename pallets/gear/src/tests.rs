@@ -15130,6 +15130,72 @@ fn test_handle_signal_wait() {
     });
 }
 
+#[test]
+fn test_constructor_if_else() {
+    use demo_constructor::{Arg, Call, Calls, Scheme, WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let init = Calls::builder().bool("switch", false);
+        let handle = Calls::builder()
+            .if_else(
+                Arg::get("switch"),
+                Calls::builder().add_call(Call::Bool(false)),
+                Calls::builder().add_call(Call::Bool(true)),
+            )
+            .store("switch")
+            .if_else(
+                Arg::get("switch"),
+                Calls::builder().wait_for(1),
+                Calls::builder().exit(<[u8; 32]>::from(USER_1.into_origin())),
+            );
+
+        let scheme = Scheme::predefined(init, handle, Default::default(), Default::default());
+
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            scheme.encode(),
+            100_000_000_000,
+            0,
+            false,
+        ));
+
+        let pid = get_last_program_id();
+
+        run_to_next_block(None);
+
+        assert!(Gear::is_active(pid));
+        assert!(Gear::is_initialized(pid));
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            EMPTY_PAYLOAD.to_vec(),
+            100_000_000_000,
+            0,
+            false,
+        ));
+
+        let mid = get_last_message_id();
+
+        run_to_next_block(None);
+
+        let task = ScheduledTask::WakeMessage(pid, mid);
+
+        assert!(WaitlistOf::<Test>::contains(&pid, &mid));
+        assert!(TaskPoolOf::<Test>::contains(
+            &(Gear::block_number() + 1),
+            &task
+        ));
+
+        run_to_next_block(None);
+
+        assert!(!WaitlistOf::<Test>::contains(&pid, &mid));
+    });
+}
+
 mod utils {
     #![allow(unused)]
 
