@@ -2465,14 +2465,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "demo-signal-wait"
-version = "0.1.0"
-dependencies = [
- "gear-wasm-builder",
- "gstd",
-]
-
-[[package]]
 name = "demo-stack-allocations"
 version = "0.1.0"
 dependencies = [
@@ -7663,7 +7655,6 @@ dependencies = [
  "demo-rwlock",
  "demo-send-from-reservation",
  "demo-signal-entry",
- "demo-signal-wait",
  "demo-state-rollback",
  "demo-sync-duplicate",
  "demo-wait",

@@ -15074,15 +15074,29 @@ fn test_gas_info_of_terminated_program() {
 
 #[test]
 fn test_handle_signal_wait() {
-    use demo_signal_wait::WASM_BINARY;
+    use demo_constructor::{Arg, Calls, Scheme, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
+        let init = Calls::builder().bool("first", true);
+        let handle = Calls::builder()
+            .if_else(
+                Arg::get("first"),
+                Calls::builder()
+                    .bool("first", false)
+                    .system_reserve_gas(10_000_000_000)
+                    .wait_for(1),
+                Calls::builder().panic(None)
+            );
+        let handle_signal = Calls::builder().wait();
+
+        let scheme = Scheme::predefined(init, handle, Default::default(), handle_signal);
+
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
             WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
-            EMPTY_PAYLOAD.to_vec(),
+            scheme.encode(),
             100_000_000_000,
             0,
             false,
@@ -15099,7 +15113,7 @@ fn test_handle_signal_wait() {
             RuntimeOrigin::signed(USER_1),
             pid,
             EMPTY_PAYLOAD.to_vec(),
-            50_000_000_000,
+            100_000_000_000,
             0,
             false,
         ));
