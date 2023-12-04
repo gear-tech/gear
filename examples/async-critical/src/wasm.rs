@@ -19,9 +19,6 @@
 use crate::HandleAction;
 use gstd::{critical, exec, msg, prelude::*};
 
-#[gstd::async_init]
-async fn init() {}
-
 #[gstd::async_main]
 async fn main() {
     let action: HandleAction = msg::load().expect("Failed to read handle action");
