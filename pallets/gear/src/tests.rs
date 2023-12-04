@@ -15007,7 +15007,13 @@ fn critical_section_works() {
             false,
         ));
 
+        let mid = get_last_message_id();
+
         run_to_block(3, None);
+
+        let (waited, _) = get_last_message_waited();
+        assert_eq!(mid, waited);
+        assert_eq!(dispatch_status(mid), None);
 
         let msg = get_last_mail(USER_1);
         assert_eq!(msg.payload_bytes(), b"for_reply");
@@ -15023,6 +15029,7 @@ fn critical_section_works() {
 
         run_to_block(4, None);
 
+        assert_succeed(mid);
         assert_eq!(MailboxOf::<Test>::iter_key(USER_1).count(), 0);
     });
 }
