@@ -88,9 +88,12 @@ impl Publisher {
     }
 
     /// Check the to-be-published packages
+    ///
+    /// TODO: Complete the check process (#3565)
     pub fn check(&self) -> Result<()> {
         self.flush()?;
 
+        let mut failed = Vec::new();
         for ManifestWithPath { path, name, .. } in self.graph.values() {
             if !PACKAGES.contains(&name.as_str()) {
                 continue;
@@ -99,8 +102,12 @@ impl Publisher {
             println!("Checking {path:?}");
             let status = crate::check(&path.to_string_lossy())?;
             if !status.success() {
-                panic!("Package {path:?} didn't pass the check .");
+                failed.push(path);
             }
+        }
+
+        if !failed.is_empty() {
+            panic!("Packages {failed:?} failed to pass the check ...");
         }
 
         Ok(())
