@@ -19,7 +19,7 @@
 //! command `upload_program`
 use crate::{result::Result, utils::Hex};
 use clap::Parser;
-use gsdk::signer::Signer;
+use gsdk::{metadata::gear::Event as GearEvent, signer::Signer, Event};
 use std::{fs, path::PathBuf};
 
 /// Deploy program to gear node or save program `code` in storage.
@@ -66,10 +66,18 @@ impl Upload {
 
         // Estimate gas and upload program.
         let gas_limit = signer.api().cmp_gas_limit(gas)?;
-        signer
+        let tx = signer
             .calls
             .upload_program(code, self.salt.to_vec()?, payload, gas_limit, self.value)
             .await?;
+
+        for event in signer.api().events_of(&tx).await? {
+            if let Event::Gear(GearEvent::ProgramChanged { id, change }) = event {
+                log::info!("Program ID: 0x{}", hex::encode(id.0));
+                log::info!("Program status: {:?}", change);
+                break;
+            }
+        }
 
         Ok(())
     }
