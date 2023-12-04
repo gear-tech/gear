@@ -31,7 +31,7 @@ use gwasm_instrument::{
     },
 };
 
-pub use crate::syscalls::SysCallName;
+pub use crate::syscalls::SyscallName;
 pub use gwasm_instrument::{self as wasm_instrument, gas_metering, parity_wasm};
 
 #[cfg(test)]
@@ -57,7 +57,7 @@ pub fn inject<R: Rules>(
         .import_section()
         .map(|section| {
             section.entries().iter().any(|entry| {
-                entry.module() == gas_module_name && entry.field() == SysCallName::OutOfGas.to_str()
+                entry.module() == gas_module_name && entry.field() == SyscallName::OutOfGas.to_str()
             })
         })
         .unwrap_or(false)
@@ -86,7 +86,7 @@ pub fn inject<R: Rules>(
     mbuilder.push_import(
         builder::import()
             .module(gas_module_name)
-            .field(SysCallName::OutOfGas.to_str())
+            .field(SyscallName::OutOfGas.to_str())
             .external()
             .func(import_sig)
             .build(),

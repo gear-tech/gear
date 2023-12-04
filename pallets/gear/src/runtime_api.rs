@@ -22,7 +22,7 @@ use common::ActiveProgram;
 use core::convert::TryFrom;
 use core_processor::common::PrechargedDispatch;
 use gear_core::{code::TryNewCodeConfig, pages::WasmPage, program::MemoryInfix};
-use gear_wasm_instrument::syscalls::SysCallName;
+use gear_wasm_instrument::syscalls::SyscallName;
 
 // Multiplier 6 was experimentally found as median value for performance,
 // security and abilities for calculations on-chain.
@@ -119,7 +119,7 @@ where
             })?;
 
         let mut block_config = Self::block_config();
-        block_config.forbidden_funcs = [SysCallName::GasAvailable].into();
+        block_config.forbidden_funcs = [SyscallName::GasAvailable].into();
 
         let mut min_limit = 0;
         let mut reserved = 0;
