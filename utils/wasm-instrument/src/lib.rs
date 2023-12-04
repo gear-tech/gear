@@ -57,15 +57,15 @@ pub enum SystemBreakCode {
     StackLimitExceeded = 1,
 }
 
-/// The error type returned when a conversion from `i64` or `u64` to [`SystemBreakCode`] fails.
+/// The error type returned when a conversion from `i32` or `u32` to [`SystemBreakCode`] fails.
 #[derive(Clone, Debug, derive_more::Display)]
 #[display(fmt = "Unsupported system break code")]
 pub struct SystemBreakCodeTryFromError;
 
-impl TryFrom<i64> for SystemBreakCode {
+impl TryFrom<i32> for SystemBreakCode {
     type Error = SystemBreakCodeTryFromError;
 
-    fn try_from(value: i64) -> Result<Self, Self::Error> {
+    fn try_from(value: i32) -> Result<Self, Self::Error> {
         match value {
             0 => Ok(Self::OutOfGas),
             1 => Ok(Self::StackLimitExceeded),
@@ -74,11 +74,11 @@ impl TryFrom<i64> for SystemBreakCode {
     }
 }
 
-impl TryFrom<u64> for SystemBreakCode {
+impl TryFrom<u32> for SystemBreakCode {
     type Error = SystemBreakCodeTryFromError;
 
-    fn try_from(value: u64) -> Result<Self, Self::Error> {
-        SystemBreakCode::try_from(value as i64)
+    fn try_from(value: u32) -> Result<Self, Self::Error> {
+        SystemBreakCode::try_from(value as i32)
     }
 }
 
@@ -101,7 +101,7 @@ pub fn inject_system_break_import(
 
     let mut mbuilder = builder::from_module(module);
 
-    // fn gr_system_break(code: u64) -> !;
+    // fn gr_system_break(code: u32) -> !;
     let import_sig =
         mbuilder.push_signature(builder::signature().with_param(ValueType::I64).build_sig());
 
@@ -188,7 +188,7 @@ pub fn inject<R: Rules>(
         // than we call `out_of_gas()` that will terminate execution.
         Instruction::I64LtU,
         Instruction::If(BlockType::NoResult),
-        Instruction::I64Const(SystemBreakCode::OutOfGas as i64),
+        Instruction::I32Const(SystemBreakCode::OutOfGas as i32),
         Instruction::Call(gr_system_break_index),
         Instruction::End,
         // IV. Calculating new global value by subtraction.

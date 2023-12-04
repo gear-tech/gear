@@ -1337,16 +1337,14 @@ where
         TrapExplanation::StackLimitExceeded.into()
     }
 
-    pub fn system_break(_gas: Gas, code: u64) -> impl Syscall<Ext> {
+    pub fn system_break(_gas: Gas, code: u32) -> impl Syscall<Ext> {
         RawSyscall::new(move |ctx: &mut CallerWrap<Ext>| {
-            let termination_reason = match SystemBreakCode::try_from(code) {
-                Ok(system_break_code) => match system_break_code {
+            let termination_reason = SystemBreakCode::try_from(code)
+                .map(|system_break_code| match system_break_code {
                     SystemBreakCode::OutOfGas => Self::out_of_gas(ctx),
                     SystemBreakCode::StackLimitExceeded => Self::stack_limit_exceeded(),
-                },
-                _ => TrapExplanation::Unknown.into(),
-            };
-
+                })
+                .unwrap_or_else(|e| unreachable!("{e}"));
             ctx.set_termination_reason(termination_reason);
             Err(HostError)
         })

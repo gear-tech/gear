@@ -141,7 +141,7 @@ mod env {
                 "gr_gas_available" => func!(store, i32),
                 "gr_leave" => func!(store),
                 "gr_message_id" => func!(store, i32),
-                "gr_system_break" => func!(store, u64),
+                "gr_system_break" => func!(store, u32),
                 "gr_pay_program_rent" => func!(store, i32, i32),
                 "gr_program_id" => func!(store, i32),
                 "gr_random" => func!(store, i32, i32),

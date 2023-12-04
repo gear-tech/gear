@@ -46,9 +46,9 @@ fn main() -> anyhow::Result<()> {
         }
     }
 
-    let ty = FunctionType::new(vec![Type::I64], vec![]);
+    let ty = FunctionType::new(vec![Type::I32], vec![]);
     let func = Function::new_with_env(&store, &ty, Env, |_, args| match SystemBreakCode::try_from(
-        args[0].unwrap_i64(),
+        args[0].unwrap_i32(),
     ) {
         Ok(SystemBreakCode::StackLimitExceeded) => Err(RuntimeError::new("stack limit exceeded")),
         _ => Ok(vec![]),
