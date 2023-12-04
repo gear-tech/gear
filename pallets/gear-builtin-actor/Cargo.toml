@@ -29,6 +29,7 @@ gear-core-errors.workspace = true
 frame-support.workspace = true
 frame-system.workspace = true
 frame-benchmarking = { workspace = true, optional = true }
+sp-crypto-ec-utils = { workspace = true, features = ["bls12-381"] }
 sp-core = { workspace = true, optional = true }
 sp-std.workspace = true
 sp-runtime.workspace = true
@@ -37,6 +38,13 @@ pallet-balances.workspace = true
 pallet-staking.workspace = true
 pallet-gear.workspace = true
 gear-builtin-actor-common.workspace = true
+
+ark-std = { version = "0.4.0", default-features = false, optional = true }
+ark-bls12-381 = { version = "0.4.0", features = ["curve"], default-features = false, optional = true }
+ark-serialize = { version = "0.4", features = ["derive"], default-features = false, optional = true }
+ark-ec = { version = "0.4.2", default-features = false, optional = true }
+ark-ff = { version = "0.4.2", default-features = false, optional = true }
+ark-scale = { version = "0.0.11", features = ["hazmat"], default-features = false, optional = true }
 
 [dev-dependencies]
 demo-staking-broker.workspace = true
@@ -71,10 +79,17 @@ std = [
     "parity-scale-codec/std",
 	"scale-info/std",
 	"serde",
+	"sp-crypto-ec-utils/std",
 	"sp-core?/std",
 	"sp-runtime/std",
 	"sp-std/std",
 	"sp-io/std",
+	"ark-bls12-381?/std",
+	"ark-std?/std",
+	"ark-serialize?/std",
+	"ark-ec?/std",
+	"ark-ff?/std",
+	"ark-scale?/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",
@@ -82,5 +97,11 @@ runtime-benchmarks = [
 	"frame-system/runtime-benchmarks",
 	"common/runtime-benchmarks",
 	"sp-core",
+	"ark-bls12-381",
+	"ark-std",
+	"ark-serialize",
+	"ark-ec",
+	"ark-ff",
+	"ark-scale",
 ]
 try-runtime = ["frame-support/try-runtime"]

@@ -7996,6 +7996,12 @@ dependencies = [
 name = "pallet-gear-builtin-actor"
 version = "1.0.3"
 dependencies = [
+ "ark-bls12-381",
+ "ark-ec",
+ "ark-ff",
+ "ark-scale",
+ "ark-serialize",
+ "ark-std",
  "demo-staking-broker",
  "derive_more",
  "enum-iterator 1.4.1",
@@ -8031,6 +8037,7 @@ dependencies = [
  "serde",
  "sp-authority-discovery",
  "sp-core",
+ "sp-crypto-ec-utils",
  "sp-externalities",
  "sp-io",
  "sp-runtime",

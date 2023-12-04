@@ -51,6 +51,7 @@ use sp_std::marker::PhantomData;
 pub trait WeightInfo {
     fn base_handle_weight() -> Weight;
     fn decode_bytes(a: u32, ) -> Weight;
+    fn bls12_381_multi_miller_loop(c: u32, ) -> Weight;
 }
 
 /// Weights for `pallet_gear_builtin_actor` using a Gear node and recommended hardware.
@@ -77,6 +78,16 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
             // Standard Error: 0
             .saturating_add(Weight::from_parts(160, 0).saturating_mul(a.into()))
     }
+    /// The range of component `c` is `[0, 100]`.
+    fn bls12_381_multi_miller_loop(c: u32, ) -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `0`
+        //  Estimated: `0`
+        // Minimum execution time: 7_000_000 picoseconds.
+        Weight::from_parts(273_990_134, 0)
+            // Standard Error: 723_591
+            .saturating_add(Weight::from_parts(149_551_274, 0).saturating_mul(c.into()))
+    }
 }
 
 // Weights implementation for backwards compatibility and tests
@@ -101,5 +112,15 @@ impl WeightInfo for () {
         Weight::from_parts(0, 0)
             // Standard Error: 0
             .saturating_add(Weight::from_parts(160, 0).saturating_mul(a.into()))
+    }
+    /// The range of component `c` is `[0, 100]`.
+    fn bls12_381_multi_miller_loop(c: u32, ) -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `0`
+        //  Estimated: `0`
+        // Minimum execution time: 7_000_000 picoseconds.
+        Weight::from_parts(273_990_134, 0)
+            // Standard Error: 723_591
+            .saturating_add(Weight::from_parts(149_551_274, 0).saturating_mul(c.into()))
     }
 }
