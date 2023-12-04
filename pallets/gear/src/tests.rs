@@ -15079,15 +15079,14 @@ fn test_handle_signal_wait() {
     init_logger();
     new_test_ext().execute_with(|| {
         let init = Calls::builder().bool("first", true);
-        let handle = Calls::builder()
-            .if_else(
-                Arg::get("first"),
-                Calls::builder()
-                    .bool("first", false)
-                    .system_reserve_gas(10_000_000_000)
-                    .wait_for(1),
-                Calls::builder().panic(None)
-            );
+        let handle = Calls::builder().if_else(
+            Arg::get("first"),
+            Calls::builder()
+                .bool("first", false)
+                .system_reserve_gas(10_000_000_000)
+                .wait_for(1),
+            Calls::builder().panic(None),
+        );
         let handle_signal = Calls::builder().wait();
 
         let scheme = Scheme::predefined(init, handle, Default::default(), handle_signal);
