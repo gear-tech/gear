@@ -34,6 +34,7 @@ use frame_support::{assert_ok, storage::storage_prefix, traits::PalletInfoAccess
 use futures::executor::block_on;
 use gear_runtime_common::constants::BANK_ADDRESS;
 use pallet_gear_rpc_runtime_api::GearApi;
+use parking_lot::Mutex;
 use runtime_primitives::BlockNumber;
 use sc_client_api::{Backend as _, ExecutionStrategy};
 use sc_service::client::Client;
@@ -799,11 +800,17 @@ fn proposal_timing_consistent() {
     };
     let mut checked = vec![pre_fund_bank_xt];
 
-    // Creating a bunch of extrinsics to use up the quota for txpool processing
-    // so that about 100 time-consuming init messages should end up in the queue.
-    // It's possible though that not all of them make it into the block - it can depend on a
-    // number of factors (timer on the target machine, log level, etc).
-    checked.extend(checked_extrinsics(100, bob(), 0, || {
+    // Disable queue processing in block #1
+    checked.push(CheckedExtrinsic {
+        signed: Some((alice(), signed_extra(1))),
+        function: CallBuilder::toggle_run_queue(false).build(),
+    });
+
+    // Creating a bunch of extrinsics that will put N time-consuming init messages
+    // to the message queue. The number of extrinsics should better allow all of
+    // them to fit in one block to know deterministically the number of messages.
+    // Empirically, 15 extrinsics is a good number.
+    checked.extend(checked_extrinsics(15, bob(), 0, || {
         // TODO: this is a "hand-wavy" workaround to have a long-running init message.
         // Should be replaced with a more reliable solution (like zero-cost syscalls
         // in init message that would guarantee incorrect gas estimation)
@@ -817,16 +824,9 @@ fn proposal_timing_consistent() {
     );
 
     submit_txs!(client, txpool, BlockId::number(0), extrinsics);
-    let num_ready_1 = txpool.ready().count();
 
     let timestamp = Timestamp::current();
-
-    // Simulate the situation when the `Gear::run()` takes longer time to execute than forecasted
-    // (for instance, if the gas metering is not quite precise etc.) by setting the deadline to a
-    // smaller value than in reality. On Vara the `max_duration` is 1.5s (which is then transformed
-    // into 1s inside the `Proposer` and corresponds to 10^12 `max_block` weight).
-    // Here we set it to 0.25s to try hit the timeout during the queue processing.
-    let max_duration = 250_u64;
+    let max_duration = 15_000_u64; // sufficient time
 
     propose_block!(
         client,
@@ -844,6 +844,65 @@ fn proposal_timing_consistent() {
 
     let state = backend.state_at(best_hash).unwrap();
 
+    let queue_entry_prefix = storage_prefix(
+        pallet_gear_messenger::Pallet::<Runtime>::name().as_bytes(),
+        "Dispatches".as_bytes(),
+    );
+    let mut queue_entry_args = IterArgs::default();
+    queue_entry_args.prefix = Some(&queue_entry_prefix);
+
+    let queue_len_at_1 = state.keys(queue_entry_args).unwrap().count();
+
+    // Preparing block #2
+    // Re-enable queue processing in block #2
+    let extrinsics = sign_extrinsics(
+        vec![CheckedExtrinsic {
+            signed: Some((alice(), signed_extra(2))),
+            function: CallBuilder::toggle_run_queue(true).build(),
+        }],
+        VERSION.spec_version,
+        VERSION.transaction_version,
+        genesis_hash,
+    );
+    submit_txs!(client, txpool, BlockId::Hash(best_hash), extrinsics);
+
+    // Simulate the situation when the `Gear::run()` takes longer time to execute than
+    // the actual time that remains till the deadline.
+    // Here we set `max_duration` to 0.3s to try to hit the timeout during the queue processing.
+    let max_duration = 300_u64;
+    let cell = Arc::new(Mutex::new((0, time::Instant::now())));
+    // The time function that makes longer jumps in time every time it's called
+    // (starting from the third call)
+    let now = Box::new(move || {
+        let mut value = cell.lock();
+        let (called, old) = *value;
+        let increase = if called > 1 {
+            time::Duration::from_millis(max_duration)
+                .mul_f32(0.2)
+                .mul_f32(called as f32 - 1.0)
+        } else {
+            time::Duration::from_millis(0)
+        };
+        *value = (called + 1, old + increase);
+        old
+    });
+
+    propose_block!(
+        client,
+        backend,
+        txpool,
+        spawner,
+        best_hash,
+        BlockId::Hash(best_hash),
+        now,
+        Timestamp::new(timestamp.as_millis() + SLOT_DURATION),
+        max_duration,
+        None,
+        proposal
+    );
+
+    let state = backend.state_at(best_hash).unwrap();
+
     // Check that the message queue has all messages pushed to it
     let queue_entry_prefix = storage_prefix(
         pallet_gear_messenger::Pallet::<Runtime>::name().as_bytes(),
@@ -854,20 +913,15 @@ fn proposal_timing_consistent() {
 
     let queue_len = state.keys(queue_entry_args).unwrap().count();
 
-    // Draining tx pool in preparation for block #2
-    submit_txs!(client, txpool, BlockId::Hash(best_hash), vec![]);
-
-    let num_ready_2 = txpool.ready().count();
-
-    // `-1` for the bank account pre-funding which did't put anything in the queue.
-    let num_messages = num_ready_1 - num_ready_2 - 1;
-
-    // We expect the `Gear::run()` to have been dropped, hence the queue should
-    // still have all the messages originally pushed to it.
-    assert_eq!(queue_len, num_messages);
+    // `Gear::run()` should have triggered timeout, therefore the
+    // queue should still have all the original messages
+    assert_eq!(queue_len, queue_len_at_1);
 
     // Let the `Gear::run()` thread a little more time to finish
     std::thread::sleep(time::Duration::from_millis(500));
+
+    // Preparing block #3
+    submit_txs!(client, txpool, BlockId::Hash(best_hash), vec![]);
 
     // In the meantime make sure we can still keep creating blocks
     // This time we set the deadline to a very high value to ensure that all messages go through.
@@ -881,20 +935,14 @@ fn proposal_timing_consistent() {
         best_hash,
         BlockId::Hash(best_hash),
         Box::new(time::Instant::now),
-        Timestamp::new(timestamp.as_millis() + SLOT_DURATION),
+        Timestamp::new(timestamp.as_millis() + 2 * SLOT_DURATION),
         max_duration,
         None,
         proposal
     );
-    // Importing block #2
-    block_on(client.import(BlockOrigin::Own, proposal.block.clone())).unwrap();
 
     let state = backend.state_at(best_hash).unwrap();
 
-    let queue_entry_prefix = storage_prefix(
-        pallet_gear_messenger::Pallet::<Runtime>::name().as_bytes(),
-        "Dispatches".as_bytes(),
-    );
     let mut queue_entry_args = IterArgs::default();
     queue_entry_args.prefix = Some(&queue_entry_prefix);
 
@@ -905,8 +953,6 @@ fn proposal_timing_consistent() {
 // Original tests from Substrate's `sc-basic-authorship` crate adjusted for actual Vara runtime
 mod basic_tests {
     use super::*;
-
-    use parking_lot::Mutex;
 
     fn extrinsic<E>(nonce: u32, signer: &AccountId, genesis_hash: [u8; 32]) -> E
     where
@@ -936,42 +982,54 @@ mod basic_tests {
         .clone()
     }
 
+    fn disable_gear_run<E>(nonce: u32, genesis_hash: [u8; 32]) -> E
+    where
+        E: From<UncheckedExtrinsic> + Clone,
+    {
+        sign_extrinsics::<E>(
+            vec![CheckedExtrinsic {
+                signed: Some((alice(), signed_extra(nonce))),
+                function: CallBuilder::toggle_run_queue(false).build(),
+            }],
+            VERSION.spec_version,
+            VERSION.transaction_version,
+            genesis_hash,
+        )[0]
+        .clone()
+    }
+
     #[test]
     fn should_cease_building_block_when_deadline_is_reached() {
         init_logger();
 
         init!(client, backend, txpool, spawner, genesis_hash);
 
-        let extrinsics = sign_extrinsics(
-            checked_extrinsics(2, bob(), 0_u32, || CallBuilder::noop().build()),
+        let mut extrinsics = vec![disable_gear_run(0, genesis_hash)];
+
+        extrinsics.extend(sign_extrinsics(
+            checked_extrinsics(2, alice(), 1_u32, || CallBuilder::noop().build()),
             VERSION.spec_version,
             VERSION.transaction_version,
             genesis_hash,
-        );
+        ));
         submit_txs!(client, txpool, BlockId::number(0), extrinsics);
 
-        let cell = Mutex::new((false, time::Instant::now()));
+        let cell = Mutex::new((0_u32, time::Instant::now()));
 
         // Proposer's `self.now()` function increments the `Instant` by 1s each time it's called
-        // (starting from the moment of the second call)
+        // (starting from the moment we enter tx processing loop, that is from the 4th call)
         let now = Box::new(move || {
             let mut value = cell.lock();
-            if !value.0 {
-                value.0 = true;
-                return value.1;
-            }
+            let increment = if value.0 < 3 { 0_u64 } else { 1_u64 };
             let old = value.1;
-            let new = old + time::Duration::from_secs(1);
-            *value = (true, new);
+            let new = old + time::Duration::from_secs(increment);
+            *value = (value.0 + 1, new);
             old
         });
 
-        // `max_duration` of 6s will be converted into 1.4s hard deadline inside `propose_with()`:
-        //  - 4s after the first two calls to `self.now()` * 0.35 factor = 1.4s,
-        // of which another 1s will be consumed by the `self.now()` called while waiting for the
-        // tx pool to be ready, leaving 0.4s for the actual extrinsics processing.
-        // Therefore we exit from the tx loop immediately without having processed any extrinsics.
-        let max_duration = 6000_u64;
+        // `max_duration` of 3s will be converted into 0.7s hard deadline inside extrinsics loop:
+        //  (2/3) * 3s * 0.35 = 0.7s, which will allow to include in the block 1 normal extrinsic
+        let max_duration = 3000_u64;
 
         propose_block!(
             client,
@@ -988,14 +1046,11 @@ mod basic_tests {
         );
 
         // then
-        // The block should have 2 extrinsics: the timestamp and the pseudo-inherent.
+        // The block has 2 txs: the timestamp inherent and one normal.
+        // The pseudo-inherent is disabled.
         assert_eq!(proposal.block.extrinsics().len(), 2);
-        // A "hacky" way to ensure the unaccounted extrinsic is the pseudo-inherent:
-        // in this case the encoded representation should start with `&[48, 4, 104, 6]`
-        assert!(proposal.block.extrinsics()[1]
-            .encode()
-            .starts_with(&[48_u8, 4, 104, 6]));
-        assert_eq!(txpool.ready().count(), 2);
+
+        assert_eq!(txpool.ready().count(), 3);
     }
 
     #[test]
@@ -1316,7 +1371,6 @@ mod basic_tests {
         let alice = alice();
         let extrinsics = (0_usize..MAX_SKIPPED_TRANSACTIONS + 2)
             .map(|i| exhausts_resources_extrinsic(i as u32, &alice, genesis_hash))
-            // and some transactions that are okay.
             .chain(
                 (MAX_SKIPPED_TRANSACTIONS + 2..2_usize * MAX_SKIPPED_TRANSACTIONS + 2)
                     .map(|i| extrinsic(i as u32, &alice, genesis_hash)),

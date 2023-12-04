@@ -508,9 +508,8 @@ where
         let mut unqueue_invalid = Vec::new();
 
         let mut t1 = self.transaction_pool.ready_at(self.parent_number).fuse();
-        // Let more time to wait for the pool to be ready (1/4 of the deadline instead of 1/8)
         let mut t2 =
-            futures_timer::Delay::new(deadline.saturating_duration_since((self.now)()) / 4).fuse();
+            futures_timer::Delay::new(deadline.saturating_duration_since((self.now)()) / 8).fuse();
 
         let mut pending_iterator = select! {
             res = t1 => res,
