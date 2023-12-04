@@ -68,7 +68,7 @@ impl Send {
         let api = signer.api();
         for event in api.events_of(&tx).await? {
             if let Event::Gear(gear::Event::MessageQueued { id, .. }) = event {
-                log::info!("Message ID: 0x{}", hex::encode(&id.0));
+                log::info!("Message ID: 0x{}", hex::encode(id.0));
                 break;
             }
         }
