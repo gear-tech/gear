@@ -1602,9 +1602,8 @@ pub mod pallet {
 
             // Subtract current block weight for Normal dispatches from the maximum block weight.
             let max_weight = <T as frame_system::Config>::BlockWeights::get().max_block;
-            let remaining_weight = max_weight.saturating_sub(
-                *<frame_system::Pallet<T>>::block_weight().get(DispatchClass::Normal),
-            );
+            let weight_used = <frame_system::Pallet<T>>::block_weight().total().saturating_sub(max_weight);
+            let remaining_weight = max_weight.saturating_sub(weight_used);
 
             // Remaining weight may exceed the minimum block gas limit set by the Limiter trait.
             let mut adjusted_gas = GasAllowanceOf::<T>::get().max(remaining_weight.ref_time());
