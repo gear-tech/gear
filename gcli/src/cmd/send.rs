@@ -17,9 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Command `send`
-use crate::{result::Result, utils::Hex};
+use crate::{cmd::info::Mail, result::Result, utils::Hex};
 use clap::Parser;
-use gsdk::signer::Signer;
+use futures::future;
+use gsdk::{metadata::gear, signer::Signer, Event};
 
 /// Sends a message to a program or to another account.
 ///
@@ -55,7 +56,7 @@ pub struct Send {
 
 impl Send {
     pub async fn exec(&self, signer: Signer) -> Result<()> {
-        signer
+        let tx = signer
             .calls
             .send_message(
                 self.destination.to_hash()?.into(),
@@ -64,6 +65,30 @@ impl Send {
                 self.value,
             )
             .await?;
+
+        let api = signer.api();
+        for event in api.events_of(&tx).await? {
+            if let Event::Gear(gear::Event::MessagesDispatched { statuses, .. }) = event {
+                let messages = statuses
+                    .into_iter()
+                    .map(|(message, _)| message.0)
+                    .collect::<Vec<_>>();
+
+                let mails = future::join_all(messages.iter().map(|message| {
+                    api.get_mailbox_account_message(signer.account_id().clone(), message.clone())
+                }))
+                .await;
+
+                for (id, mail) in messages.into_iter().zip(mails.into_iter()) {
+                    let mut info = format!("Message 0x{} dispatched", hex::encode(&id));
+                    if let Some(mail) = mail? {
+                        info.push_str(&format!(", mail: {:#?}", Mail::from(mail)));
+                    }
+
+                    log::info!("{info}");
+                }
+            }
+        }
 
         Ok(())
     }

@@ -3923,6 +3923,7 @@ dependencies = [
  "dirs",
  "env_logger",
  "etc",
+ "futures",
  "gear-core",
  "gear-core-errors",
  "gmeta",
