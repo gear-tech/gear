@@ -203,12 +203,12 @@ impl<'a, 'b> SyscallsImportsGenerator<'a, 'b> {
         let precise_syscalls: [(
             SyscallName,
             fn(&mut Self, SyscallName) -> Result<CallIndexesHandle, PreciseSyscallError>,
-        ); 1] = [
+        ); 5] = [
             (ReservationSend, Self::generate_send_from_reservation),
-            // (ReservationReply, Self::generate_reply_from_reservation),
-            // (SendCommit, Self::generate_send_commit),
-            // (SendCommitWGas, Self::generate_send_commit_with_gas),
-            // (ReplyDeposit, Self::generate_reply_deposit),
+            (ReservationReply, Self::generate_reply_from_reservation),
+            (SendCommit, Self::generate_send_commit),
+            (SendCommitWGas, Self::generate_send_commit_with_gas),
+            (ReplyDeposit, Self::generate_reply_deposit),
         ];
 
         for (precise_syscall, generate_method) in precise_syscalls {

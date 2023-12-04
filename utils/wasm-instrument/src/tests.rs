@@ -19,7 +19,7 @@
 use super::*;
 use crate::{
     rules::CustomConstantCostRules,
-    syscalls::{ParamType, PtrInfo, PtrType, SyscallName},
+    syscalls::{ParamType::*, Ptr, PtrInfo, RegularParamType::*, SyscallName},
 };
 use alloc::format;
 use elements::Instruction::*;
@@ -624,18 +624,18 @@ fn check_memory_array_pointers_definition_correctness() {
     for syscall in syscalls {
         let signature = syscall.signature();
         let size_param_indexes = signature
-            .params
+            .params()
             .iter()
             .filter_map(|param_ty| match param_ty {
-                ParamType::Ptr(PtrInfo {
-                    ty: PtrType::SizedBufferStart { length_param_idx },
+                Regular(Pointer(PtrInfo {
+                    ty: Ptr::SizedBufferStart { length_param_idx },
                     ..
-                }) => Some(*length_param_idx),
+                })) => Some(*length_param_idx),
                 _ => None,
             });
 
         for idx in size_param_indexes {
-            assert_eq!(signature.params.get(idx), Some(&ParamType::Length));
+            assert_eq!(signature.params().get(idx), Some(&Regular(Length)));
         }
     }
 }
@@ -648,12 +648,10 @@ fn check_syscall_err_ptr_position() {
         if syscall.is_fallible() {
             let signature = syscall.signature();
             let err_ptr = signature
-                .params
+                .params()
                 .last()
                 .expect("fallible syscall has at least err ptr");
-            assert!(
-                matches!(err_ptr, ParamType::Ptr(PtrInfo { mutable: true, ty }) if ty.is_error())
-            );
+            assert!(matches!(err_ptr, Error(PtrInfo { mutable: true, .. })));
         }
     }
 }

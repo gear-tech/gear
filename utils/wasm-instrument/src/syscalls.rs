@@ -19,10 +19,10 @@
 //! Gear syscalls for smart contracts execution signatures.
 
 use crate::parity_wasm::elements::{FunctionType, ValueType};
-use alloc::{collections::BTreeSet, vec::Vec, borrow::ToOwned};
+use alloc::{borrow::ToOwned, collections::BTreeSet, vec::Vec};
+use core::iter;
 use enum_iterator::{self, Sequence};
 pub use pointers::*;
-use core::iter;
 
 /// All available syscalls.
 ///
