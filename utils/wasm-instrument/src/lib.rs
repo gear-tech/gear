@@ -103,7 +103,7 @@ pub fn inject_system_break_import(
 
     // fn gr_system_break(code: u32) -> !;
     let import_sig =
-        mbuilder.push_signature(builder::signature().with_param(ValueType::I64).build_sig());
+        mbuilder.push_signature(builder::signature().with_param(ValueType::I32).build_sig());
 
     mbuilder.push_import(
         builder::import()
