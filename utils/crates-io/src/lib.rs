@@ -1,6 +1,5 @@
 //! crates-io-manager library
 #![deny(missing_docs)]
-#![deny(unused_crate_dependencies)]
 
 mod manifest;
 mod publisher;

@@ -1603,6 +1603,7 @@ dependencies = [
  "anyhow",
  "cargo_metadata",
  "cargo_toml",
+ "clap 4.4.8",
  "reqwest",
  "serde",
  "toml 0.7.8",

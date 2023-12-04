@@ -40,6 +40,10 @@ impl Publisher {
     }
 
     /// Build package graphs
+    ///
+    /// 1. Replace git dependencies to crates-io dependencies.
+    /// 2. Rename version of all local packages
+    /// 3. Patch dependencies if needed
     pub fn build(mut self) -> Result<Self> {
         let workspace = ManifestWithPath::workspace()?;
         for p in &self.metadata.packages {
