@@ -607,7 +607,7 @@ pub enum RegularParamType {
     Handler,               // i32 handler number
     Alloc,                 // i32 pages to alloc
     Free,                  // i32 page number to free
-    FreeUpperBound,        // i32 free upper bound for use with free_range. Should be placed after Free in fn signature
+    FreeUpperBound,        // i32 free upper bound for use with free_range
     Version,               // i32 version number of exec settings
 }
 

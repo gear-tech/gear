@@ -653,7 +653,9 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                         // Alloc syscall: returns u32::MAX (= -1i32) in case of error.
                         -1
                     }
-                    ParamType::Regular(RegularParamType::Free | RegularParamType::FreeUpperBound) => {
+                    ParamType::Regular(
+                        RegularParamType::Free | RegularParamType::FreeUpperBound,
+                    ) => {
                         // Free/FreeRange syscall: returns 1 in case of error.
                         1
                     }
