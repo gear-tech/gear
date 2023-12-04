@@ -4822,6 +4822,7 @@ version = "1.0.3"
 dependencies = [
  "anyhow",
  "base64 0.21.5",
+ "colored",
  "demo-messager",
  "demo-new-meta",
  "demo-waiter",

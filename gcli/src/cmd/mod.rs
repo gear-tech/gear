@@ -21,7 +21,6 @@ use crate::{keystore, result::Result};
 use clap::Parser;
 use env_logger::{Builder, Env};
 use gsdk::Api;
-use log::LevelFilter;
 
 pub mod claim;
 pub mod create;
@@ -86,7 +85,7 @@ impl Opt {
     /// setup logs
     fn setup_logs(&self) -> Result<()> {
         let mut builder = if self.verbose {
-            Builder::from_env(Env::default().default_filter_or("gcli=debug"))
+            Builder::from_env(Env::default().default_filter_or("debug"))
         } else {
             match &self.command {
                 Command::Claim(_)
@@ -99,8 +98,7 @@ impl Opt {
                     builder
                         .format_target(false)
                         .format_module_path(false)
-                        .format_timestamp(None)
-                        .filter_level(LevelFilter::Info);
+                        .format_timestamp(None);
 
                     builder
                 }
