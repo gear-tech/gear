@@ -25,7 +25,7 @@ use crate::{
     reservation::{GasReserver, ReservationNonce},
 };
 use alloc::{
-    collections::{btree_map::Entry, BTreeMap, BTreeSet},
+    collections::{BTreeMap, BTreeSet},
     vec::Vec,
 };
 use gear_core_errors::{ExecutionError, ExtError, MessageError as Error, MessageError};
@@ -129,7 +129,8 @@ pub struct ContextOutcome {
     handle: Vec<OutgoingMessageInfo<HandleMessage>>,
     reply: Option<OutgoingMessageInfoNoDelay<ReplyMessage>>,
     // u32 is delay
-    awakening: BTreeMap<MessageId, u32>,
+    awakening: Vec<(MessageId, u32)>,
+    awoken: BTreeSet<MessageId>,
     // u64 is gas limit
     // TODO: add Option<ReservationId> after #1828
     reply_deposits: Vec<(MessageId, u64)>,
@@ -173,7 +174,7 @@ impl ContextOutcome {
 
         ContextOutcomeDrain {
             outgoing_dispatches: dispatches,
-            awakening: self.awakening.into_iter().collect(),
+            awakening: self.awakening,
             reply_deposits: self.reply_deposits,
             reply_sent,
         }
@@ -182,16 +183,32 @@ impl ContextOutcome {
 
 /// Store of previous message execution context.
 #[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
-#[allow(missing_docs)]
 pub struct ContextStore {
-    pub outgoing: BTreeMap<u32, Option<Payload>>,
-    pub reply: Option<Payload>,
-    pub initialized: BTreeSet<ProgramId>,
-    pub reservation_nonce: ReservationNonce,
-    pub system_reservation: Option<u64>,
+    outgoing: BTreeMap<u32, Option<Payload>>,
+    reply: Option<Payload>,
+    initialized: BTreeSet<ProgramId>,
+    reservation_nonce: ReservationNonce,
+    system_reservation: Option<u64>,
 }
 
 impl ContextStore {
+    /// Create a new context store with the provided parameters.
+    pub fn new(
+        outgoing: BTreeMap<u32, Option<Payload>>,
+        reply: Option<Payload>,
+        initialized: BTreeSet<ProgramId>,
+        reservation_nonce: ReservationNonce,
+        system_reservation: Option<u64>,
+    ) -> Self {
+        Self {
+            outgoing,
+            reply,
+            initialized,
+            reservation_nonce,
+            system_reservation,
+        }
+    }
+
     /// Returns stored within message context reservation nonce.
     ///
     /// Will be non zero, if any reservations were created during
@@ -481,8 +498,8 @@ impl MessageContext {
 
     /// Wake message by it's message id.
     pub fn wake(&mut self, waker_id: MessageId, delay: u32) -> Result<(), Error> {
-        if let Entry::Vacant(entry) = self.outcome.awakening.entry(waker_id) {
-            entry.insert(delay);
+        if self.outcome.awoken.insert(waker_id) {
+            self.outcome.awakening.push((waker_id, delay));
             Ok(())
         } else {
             Err(Error::DuplicateWaking)

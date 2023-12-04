@@ -37,13 +37,13 @@ pub struct MigrateToV3<T: Config>(PhantomData<T>);
 
 impl<T: Config> MigrateToV3<T> {
     fn migrate_context_store(ctx: v2::ContextStore) -> ContextStore {
-        ContextStore {
-            outgoing: ctx.outgoing,
-            reply: ctx.reply,
-            initialized: ctx.initialized,
-            reservation_nonce: ctx.reservation_nonce,
-            system_reservation: ctx.system_reservation,
-        }
+        ContextStore::new(
+            ctx.outgoing,
+            ctx.reply,
+            ctx.initialized,
+            ctx.reservation_nonce,
+            ctx.system_reservation,
+        )
     }
 }
 
@@ -64,11 +64,11 @@ impl<T: Config> OnRuntimeUpgrade for MigrateToV3<T> {
                 |_, _, store: (v2::StoredDispatch, Interval<T::BlockNumber>)| {
                     weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
                     Some((
-                        StoredDispatch {
-                            kind: store.0.kind,
-                            message: store.0.message,
-                            context: store.0.context.map(Self::migrate_context_store),
-                        },
+                        StoredDispatch::new(
+                            store.0.kind,
+                            store.0.message,
+                            store.0.context.map(Self::migrate_context_store),
+                        ),
                         store.1,
                     ))
                 },
@@ -78,11 +78,11 @@ impl<T: Config> OnRuntimeUpgrade for MigrateToV3<T> {
                 weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
                 Some(LinkedNode {
                     next: store.next,
-                    value: StoredDispatch {
-                        kind: store.value.kind,
-                        message: store.value.message,
-                        context: store.value.context.map(Self::migrate_context_store),
-                    },
+                    value: StoredDispatch::new(
+                        store.value.kind,
+                        store.value.message,
+                        store.value.context.map(Self::migrate_context_store),
+                    ),
                 })
             });
 
@@ -90,11 +90,11 @@ impl<T: Config> OnRuntimeUpgrade for MigrateToV3<T> {
                 |_, store: (v2::StoredDispatch, Interval<T::BlockNumber>)| {
                     weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
                     Some((
-                        StoredDispatch {
-                            kind: store.0.kind,
-                            message: store.0.message,
-                            context: store.0.context.map(Self::migrate_context_store),
-                        },
+                        StoredDispatch::new(
+                            store.0.kind,
+                            store.0.message,
+                            store.0.context.map(Self::migrate_context_store),
+                        ),
                         store.1,
                     ))
                 },
@@ -286,11 +286,31 @@ mod test {
                 }),
             };
 
+            let dispatch2 = v2::StoredDispatch {
+                kind: Default::default(),
+                message: StoredMessage::new(mid, pid2, pid, Default::default(), 100, None),
+                context: Some(v2::ContextStore {
+                    outgoing: Default::default(),
+                    reply: None,
+                    initialized: Default::default(),
+                    awaken: Default::default(),
+                    reply_sent: true,
+                    reservation_nonce: Default::default(),
+                    system_reservation: Some(1_000_000_000),
+                }),
+            };
+
+            let dispatch3 = v2::StoredDispatch {
+                kind: Default::default(),
+                message: StoredMessage::new(mid, pid, pid2, Default::default(), 1_000_000, None),
+                context: None,
+            };
+
             v2::Waitlist::<Test>::insert(
                 pid,
                 mid,
                 (
-                    dispatch.clone(),
+                    dispatch,
                     Interval {
                         start: 0,
                         finish: 1,
@@ -302,14 +322,14 @@ mod test {
                 mid,
                 LinkedNode {
                     next: None,
-                    value: dispatch.clone(),
+                    value: dispatch2,
                 },
             );
 
             v2::DispatchStash::<Test>::insert(
                 mid,
                 (
-                    dispatch,
+                    dispatch3,
                     Interval {
                         start: 0,
                         finish: 1,
