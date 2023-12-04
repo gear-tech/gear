@@ -2,10 +2,10 @@
 name = "gear-wasm-builder"
 version.workspace = true
 edition.workspace = true
-license = "GPL-3.0-or-later WITH Classpath-exception-2.0"
+license.workspace = true
+repository.workspace = true
 description = "Utility for building Gear programs"
 include = ["build.rs", "src/**/*", "Cargo.toml", "README.md"]
-repository = "https://github.com/gear-tech/gear"
 readme = "README.md"
 
 [dependencies]
