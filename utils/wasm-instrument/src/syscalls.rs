@@ -95,6 +95,7 @@ pub enum SyscallName {
     // Hard under the hood calls, serving proper program execution
     Alloc,
     Free,
+    FreeRange,
     OutOfGas,
 
     // Miscellaneous
@@ -122,6 +123,7 @@ impl SyscallName {
             SyscallName::OomPanic => "gr_oom_panic",
             SyscallName::Exit => "gr_exit",
             SyscallName::Free => "free",
+            SyscallName::FreeRange => "free_range",
             SyscallName::GasAvailable => "gr_gas_available",
             SyscallName::Leave => "gr_leave",
             SyscallName::MessageId => "gr_message_id",
@@ -182,6 +184,7 @@ impl SyscallName {
         [
             Self::Alloc,
             Self::Free,
+            Self::FreeRange,
             Self::Debug,
             Self::Panic,
             Self::OomPanic,
@@ -244,6 +247,7 @@ impl SyscallName {
         match self {
             Self::Alloc => SyscallSignature::system(([Alloc], [ValueType::I32])),
             Self::Free => SyscallSignature::system(([Free], [ValueType::I32])),
+            Self::FreeRange => SyscallSignature::system(([Free, FreeUpperBound], [ValueType::I32])),
             Self::Debug => SyscallSignature::gr_infallible([
                 Ptr::SizedBufferStart {
                     length_param_idx: 1,
@@ -603,6 +607,7 @@ pub enum RegularParamType {
     Handler,               // i32 handler number
     Alloc,                 // i32 pages to alloc
     Free,                  // i32 page number to free
+    FreeUpperBound,        // i32 free upper bound for use with free_range. Should be placed after Free in fn signature
     Version,               // i32 version number of exec settings
 }
 

@@ -70,12 +70,6 @@ impl From<u32> for SyscallValue {
     }
 }
 
-impl From<i64> for SyscallValue {
-    fn from(value: i64) -> Self {
-        SyscallValue(Value::I64(value))
-    }
-}
-
 impl TryFrom<SyscallValue> for u32 {
     type Error = HostError;
 
@@ -672,6 +666,32 @@ where
             };
 
             Ok(res.is_err() as i32)
+        })
+    }
+
+    pub fn free_range(start: u32, end: u32) -> impl Syscall<Ext, i32> {
+        InfallibleSyscall::new(RuntimeCosts::FreeRange, move |ctx: &mut CallerWrap<Ext>| {
+            let page_err = |_| {
+                UndefinedTerminationReason::Actor(ActorTerminationReason::Trap(
+                    TrapExplanation::Unknown,
+                ))
+            };
+
+            let start = WasmPage::new(start).map_err(page_err)?;
+            let end = WasmPage::new(end).map_err(page_err)?;
+
+            let result = ctx.ext_mut().free_range(start, end);
+
+            match ctx.process_alloc_func_result(result)? {
+                Ok(()) => {
+                    log::trace!("Free range {start:?}:{end:?} success");
+                    Ok(0)
+                }
+                Err(e) => {
+                    log::trace!("Free range {start:?}:{end:?} failed: {e}");
+                    Ok(1)
+                }
+            }
         })
     }
 

@@ -104,6 +104,7 @@ impl Default for SyscallsParamsConfig {
                 (Regular(Handler), (0..=100).into()),
                 (Regular(Free), (free_start..=free_end).into()),
                 (Regular(Version), (1..=1).into()),
+                (Regular(FreeUpperBound), (0..=10).into()),
             ]
             .into_iter()
             .collect(),

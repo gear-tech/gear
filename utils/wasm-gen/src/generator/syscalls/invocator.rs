@@ -43,6 +43,9 @@ pub(crate) enum ProcessedSyscallParams {
     Alloc {
         allowed_values: Option<SyscallParamAllowedValues>,
     },
+    FreeUpperBound {
+        allowed_values: Option<SyscallParamAllowedValues>,
+    },
     Value {
         value_type: ValueType,
         allowed_values: Option<SyscallParamAllowedValues>,
@@ -91,6 +94,10 @@ pub(crate) fn process_syscall_params(
             })) => ProcessedSyscallParams::MemoryArrayPtr,
             // It's guaranteed that fallible syscall has error pointer as a last param.
             Regular(Pointer(_)) | Error(_) => ProcessedSyscallParams::MemoryPtrValue,
+            Regular(FreeUpperBound) => {
+                let allowed_values = params_config.get_rule(&param);
+                ProcessedSyscallParams::FreeUpperBound { allowed_values }
+            }
             _ => ProcessedSyscallParams::Value {
                 value_type: param.into(),
                 allowed_values: params_config.get_rule(&param),
@@ -173,6 +180,10 @@ impl ParamSetter {
         }
     }
 
+    /// Get value of the instruction.
+    ///
+    /// # Panics
+    /// Panics if the instruction is not `I32Const` or `I64Const`.
     fn get_value(&self) -> i64 {
         match self.0 {
             Instruction::I32Const(value) => value as i64,
@@ -518,7 +529,7 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                         ParamSetter::new_i64(self.unstructured.arbitrary()?)
                     };
 
-                    log::trace!("  ----  Pointer value - {}", setter.get_value());
+                    log::trace!("  ----  Value - {}", setter.get_value());
 
                     setters.push(setter);
                 }
@@ -564,6 +575,23 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                     log::trace!("  ----  Memory pointer value - {offset}");
 
                     setters.push(setter);
+                }
+                ProcessedSyscallParams::FreeUpperBound { allowed_values } => {
+                    // This is the case only for `free_range` syscall.
+                    let previous_param = setters
+                        .last()
+                        .expect("free_range syscall has at least 2 params")
+                        .as_i32()
+                        .expect("referenced param should evaluate to I32Const");
+
+                    let delta = allowed_values
+                        .expect("allowed_values should be set for FreeUpperBound")
+                        .get_i32(self.unstructured)?;
+                    let param = previous_param.saturating_add(delta);
+
+                    log::trace!("  ----  Free upper bound - {param}, and delta - {delta}");
+
+                    setters.push(ParamSetter::new_i32(param))
                 }
             }
         }
@@ -625,12 +653,12 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                         // Alloc syscall: returns u32::MAX (= -1i32) in case of error.
                         -1
                     }
-                    ParamType::Regular(RegularParamType::Free) => {
-                        // Free syscall: returns 1 in case of error.
+                    ParamType::Regular(RegularParamType::Free | RegularParamType::FreeUpperBound) => {
+                        // Free/FreeRange syscall: returns 1 in case of error.
                         1
                     }
                     _ => {
-                        unimplemented!("Only alloc and free are supported for now")
+                        unimplemented!("Only alloc, free/free_range are supported for now")
                     }
                 };
 
