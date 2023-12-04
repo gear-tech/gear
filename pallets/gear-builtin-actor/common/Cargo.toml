@@ -10,3 +10,4 @@ repository = "https://github.com/gear-tech/gear"
 [dependencies]
 derive_more.workspace = true
 scale-info = { workspace = true, features = ["derive"] }
+gear-core-errors.workspace = true

@@ -51,7 +51,7 @@ fn send_bond_message(contract_id: ProgramId, amount: BalanceOf<Test>) {
     assert_ok!(Gear::send_message(
         RuntimeOrigin::signed(SIGNER),
         contract_id,
-        StakingMessage::Bond { value: amount }.encode(),
+        Request::Bond { value: amount }.encode(),
         10_000_000_000,
         amount,
         false,
@@ -90,7 +90,7 @@ fn user_message_to_builtin_actor_works() {
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(SIGNER),
             builtin_actor_id,
-            StakingMessage::Bond { value: 100 * UNITS }.encode(),
+            Request::Bond { value: 100 * UNITS }.encode(),
             10_000_000_000,
             0,
             false,
@@ -141,7 +141,7 @@ fn bonding_works() {
             let res = Gear::calculate_gas_info(
                 SIGNER.into_origin(),
                 pallet_gear::manager::HandleKind::Handle(contract_id),
-                StakingMessage::Bond { value: bonded }.encode(),
+                Request::Bond { value: bonded }.encode(),
                 value.unwrap_or(bonded),
                 true,
                 None,
@@ -189,7 +189,7 @@ fn bonding_works() {
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(SIGNER),
             contract_id,
-            StakingMessage::Bond { value: 50 * UNITS }.encode(),
+            Request::Bond { value: 50 * UNITS }.encode(),
             10_000_000_000,
             100 * UNITS,
             false,
@@ -239,7 +239,7 @@ fn unbonding_works() {
         let _gas_info = Gear::calculate_gas_info(
             SIGNER.into_origin(),
             pallet_gear::manager::HandleKind::Handle(contract_id),
-            StakingMessage::Unbond { value: 200 * UNITS }.encode(),
+            Request::Unbond { value: 200 * UNITS }.encode(),
             0,
             true,
             None,
@@ -253,7 +253,7 @@ fn unbonding_works() {
             RuntimeOrigin::signed(SIGNER),
             contract_id,
             // expecting to unbond only 100 UNITS despite 200 UNITS are being requested
-            StakingMessage::Unbond { value: 200 * UNITS }.encode(),
+            Request::Unbond { value: 200 * UNITS }.encode(),
             10_000_000_000,
             0,
             false,
@@ -296,7 +296,7 @@ fn nominating_works() {
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(SIGNER),
             contract_id,
-            StakingMessage::Nominate {
+            Request::Nominate {
                 targets: targets.clone()
             }
             .encode(),
@@ -323,7 +323,7 @@ fn nominating_works() {
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(SIGNER),
             contract_id,
-            StakingMessage::Nominate {
+            Request::Nominate {
                 targets: targets.clone()
             }
             .encode(),

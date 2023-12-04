@@ -86,7 +86,7 @@ use frame_support::{
     traits::Get,
     PalletId,
 };
-use gear_builtin_actor_common::staking::*;
+use gear_builtin_actor_common::{staking::*, BuiltInActorError, DispatchErrorReason, Response};
 use gear_core::{
     ids::{MessageId, ProgramId},
     message::{ReplyMessage, ReplyPacket, StoredDispatch},
@@ -106,39 +106,13 @@ pub use pallet::*;
 pub type BalanceOf<T> = <T as pallet_staking::Config>::CurrencyBalance;
 
 #[allow(dead_code)]
-const LOG_TARGET: &str = "gear::builtin-actor";
+const LOG_TARGET: &str = "gear::builtin_actor";
 
 /// Available actor types.
 #[derive(Decode, Encode, Debug, Clone, Copy, PartialEq, Eq, Sequence, TypeInfo)]
 #[repr(u32)]
 pub enum ActorType {
     StakingProxy = 100,
-}
-
-/// Built-in actor error
-#[derive(Encode, Decode, Debug, PartialEq, Eq, PartialOrd, Ord, derive_more::Display)]
-pub enum BuiltInActorReason {
-    /// Not enough gas to dispatch a call.
-    #[display(fmt = "Not enough gas to dispatch a call")]
-    InsufficientGas,
-    /// Error transferring value due to insufficient funds or existence requirements violation.
-    #[display(fmt = "Error transferring value")]
-    TransferError,
-    /// Protocol error (encoding/decoding)
-    #[display(fmt = "Failure to decode message")]
-    UnknownMessageType,
-}
-
-impl From<BuiltInActorReason> for SimpleExecutionError {
-    /// Convert [`BuiltInActorReason`] into [`gear_core_errors::SimpleExecutionError`].
-    // TODO: think of a better mapping.
-    fn from(reason: BuiltInActorReason) -> Self {
-        match reason {
-            BuiltInActorReason::InsufficientGas => SimpleExecutionError::RanOutOfGas,
-            BuiltInActorReason::TransferError => SimpleExecutionError::UserspacePanic,
-            BuiltInActorReason::UnknownMessageType => SimpleExecutionError::UserspacePanic,
-        }
-    }
 }
 
 #[frame_support::pallet]
@@ -257,7 +231,7 @@ where
     fn process_success(
         dispatch: &StoredDispatch,
         gas_spent: u64,
-        reason: Option<StakingErrorReason>,
+        reason: Option<DispatchErrorReason>,
     ) -> Vec<JournalNote> {
         let message_id = dispatch.id();
         let origin = dispatch.source();
@@ -273,7 +247,7 @@ where
         });
 
         // Build the reply message
-        let response: StakingResponse = reason.map(Err).unwrap_or(Ok(())).into();
+        let response: Response = reason.map(Err).unwrap_or(Ok(())).into();
         let payload = response
             .encode()
             .try_into()
@@ -303,7 +277,7 @@ where
     }
 
     // Error in the actor, generates error reply
-    fn process_error(dispatch: &StoredDispatch, err: BuiltInActorReason) -> Vec<JournalNote> {
+    fn process_error(dispatch: &StoredDispatch, err: BuiltInActorError) -> Vec<JournalNote> {
         let message_id = dispatch.id();
         let origin = dispatch.source();
         let actor_id = dispatch.destination();
@@ -348,10 +322,10 @@ where
         journal
     }
 
-    fn check_gas_limit(gas_limit: u64, info: &DispatchInfo) -> Result<(), BuiltInActorReason> {
+    fn check_gas_limit(gas_limit: u64, info: &DispatchInfo) -> Result<(), BuiltInActorError> {
         let weight = info.weight;
         if gas_limit < weight.ref_time() {
-            return Err(BuiltInActorReason::InsufficientGas);
+            return Err(BuiltInActorError::InsufficientGas);
         }
         Ok(())
     }
@@ -361,7 +335,7 @@ where
         origin: T::AccountId,
         call: <T as Config>::RuntimeCall,
         gas_limit: u64,
-    ) -> Result<(u64, Result<(), StakingErrorReason>), BuiltInActorReason> {
+    ) -> Result<(u64, Result<(), DispatchErrorReason>), BuiltInActorError> {
         let call_info = call.get_dispatch_info();
         Self::check_gas_limit(gas_limit, &call_info)?;
         // Execute call
@@ -384,7 +358,7 @@ where
                     "Error disptaching call: {:?}",
                     e,
                 );
-                Ok((actual_gas, Err(StakingErrorReason::DispatchError)))
+                Ok((actual_gas, Err(DispatchErrorReason::RuntimeError)))
             }
         }
     }
@@ -394,7 +368,7 @@ where
         _origin: T::AccountId,
         call: <T as Config>::RuntimeCall,
         gas_limit: u64,
-    ) -> Result<(u64, Result<(), StakingErrorReason>), BuiltInActorReason> {
+    ) -> Result<(u64, Result<(), DispatchErrorReason>), BuiltInActorError> {
         let call_info = call.get_dispatch_info();
         Self::check_gas_limit(gas_limit, &call_info)?;
         // Skipping the actual call dispatch
@@ -411,7 +385,7 @@ pub mod staking_proxy {
     pub fn handle<T: Config>(
         dispatch: &StoredDispatch,
         gas_limit: u64,
-    ) -> Result<(u64, Result<(), StakingErrorReason>), BuiltInActorReason>
+    ) -> Result<(u64, Result<(), DispatchErrorReason>), BuiltInActorError>
     where
         T::AccountId: Origin,
     {
@@ -419,27 +393,27 @@ pub mod staking_proxy {
         let origin = <T::AccountId as Origin>::from_origin(dispatch.source().into_origin());
 
         // Decode the message payload to derive the desired action
-        let msg: StakingMessage = Decode::decode(&mut message.payload_bytes())
-            .map_err(|_| BuiltInActorReason::UnknownMessageType)?;
+        let msg: Request = Decode::decode(&mut message.payload_bytes())
+            .map_err(|_| BuiltInActorError::UnknownMessageType)?;
         let call = match msg {
-            StakingMessage::Bond { value } => pallet_staking::Call::<T>::bond {
+            Request::Bond { value } => pallet_staking::Call::<T>::bond {
                 controller: T::Lookup::unlookup(origin.clone()),
                 value: value.unique_saturated_into(),
                 payee: RewardDestination::Stash,
             }
             .into(),
-            StakingMessage::BondExtra { value } => pallet_staking::Call::<T>::bond_extra {
+            Request::BondExtra { value } => pallet_staking::Call::<T>::bond_extra {
                 max_additional: value.unique_saturated_into(),
             }
             .into(),
-            StakingMessage::Unbond { value } => pallet_staking::Call::<T>::unbond {
+            Request::Unbond { value } => pallet_staking::Call::<T>::unbond {
                 value: value.unique_saturated_into(),
             }
             .into(),
-            StakingMessage::WithdrawUnbonded { num_slashing_spans } => {
+            Request::WithdrawUnbonded { num_slashing_spans } => {
                 pallet_staking::Call::<T>::withdraw_unbonded { num_slashing_spans }.into()
             }
-            StakingMessage::Nominate { targets } => pallet_staking::Call::<T>::nominate {
+            Request::Nominate { targets } => pallet_staking::Call::<T>::nominate {
                 targets: targets
                     .into_iter()
                     .map(|account_id| {
@@ -451,7 +425,7 @@ pub mod staking_proxy {
                     .collect(),
             }
             .into(),
-            StakingMessage::PayoutStakers {
+            Request::PayoutStakers {
                 validator_stash,
                 era,
             } => {
@@ -464,7 +438,7 @@ pub mod staking_proxy {
                 }
                 .into()
             }
-            StakingMessage::Rebond { value } => pallet_staking::Call::<T>::rebond {
+            Request::Rebond { value } => pallet_staking::Call::<T>::rebond {
                 value: value.unique_saturated_into(),
             }
             .into(),

@@ -22,7 +22,10 @@
 
 use gstd::{
     debug,
-    msg::{self, builtin::staking::*},
+    msg::{
+        self,
+        builtin::{staking::*, Response},
+    },
     prelude::*,
     ActorId,
 };
@@ -68,7 +71,7 @@ async fn do_send_message<E: Encode>(payload: E, mut on_success: impl FnMut()) {
     };
 
     // Decoding the reply
-    let Ok(response) = StakingResponse::decode(&mut &response_bytes[..]) else {
+    let Ok(response) = Response::decode(&mut &response_bytes[..]) else {
         debug!("[StakingBroker] Failed to decode response");
         msg::reply_bytes(b"Failed to decode reply message", 0).expect("Failed to send reply");
         return;
@@ -76,12 +79,12 @@ async fn do_send_message<E: Encode>(payload: E, mut on_success: impl FnMut()) {
     debug!("[StakingBroker] Decoded reply: {response:?}");
 
     match response {
-        StakingResponse::Success => {
+        Response::Success => {
             on_success();
             msg::reply_bytes(b"Success", 0).expect("Failed to send reply");
         }
-        StakingResponse::Failure(e) => {
-            let err_message = e.to_string();
+        Response::Failure(reason) => {
+            let err_message = reason.to_string();
             debug!("[StakingBroker] DispatchError: {err_message:?}");
             msg::reply_bytes(b"Error in dispatchable call", 0).expect("Failed to send reply");
         }
@@ -96,9 +99,9 @@ impl StakingBroker {
         // Note: this is not how you'd do it in a real application, given the
         // Staking pallet `unbonding` logic, but it's enough for the example.
         let payload = if !self.has_bonded_any {
-            StakingMessage::Bond { value }
+            Request::Bond { value }
         } else {
-            StakingMessage::BondExtra { value }
+            Request::BondExtra { value }
         };
         debug!(
             "[StakingBroker] Sending `bond` message {:?} at broker's state {:?}",
@@ -128,7 +131,7 @@ impl StakingBroker {
         }
 
         // Prepare a message to the built-in actor
-        let payload = StakingMessage::Unbond { value };
+        let payload = Request::Unbond { value };
         debug!(
             "[StakingBroker] Sending `unbond` message {:?} at broker's state {:?}",
             payload, self
@@ -145,7 +148,7 @@ impl StakingBroker {
 
     async fn nominate(&mut self, targets: Vec<AccountId>) {
         // Prepare a message to the built-in actor
-        let payload = StakingMessage::Nominate { targets };
+        let payload = Request::Nominate { targets };
         debug!(
             "[StakingBroker] Sending `nominate` message {:?} at broker's state {:?}",
             payload, self
@@ -160,22 +163,22 @@ async fn main() {
 
     let payload = msg::load().expect("Expecting a valid payload");
     match payload {
-        StakingMessage::Bond { value } | StakingMessage::BondExtra { value } => {
+        Request::Bond { value } | Request::BondExtra { value } => {
             broker.bond(msg::value().min(value)).await;
         }
-        StakingMessage::Unbond { value } => {
+        Request::Unbond { value } => {
             broker.unbond(value).await;
         }
-        StakingMessage::WithdrawUnbonded { .. } => {
+        Request::WithdrawUnbonded { .. } => {
             unimplemented!("Withdrawing unbonded is not supported yet");
         }
-        StakingMessage::Nominate { targets } => {
+        Request::Nominate { targets } => {
             broker.nominate(targets).await;
         }
-        StakingMessage::PayoutStakers { .. } => {
+        Request::PayoutStakers { .. } => {
             unimplemented!("Payout stakers is not supported yet");
         }
-        StakingMessage::Rebond { .. } => {
+        Request::Rebond { .. } => {
             unimplemented!("Rebonding is not supported yet");
         }
     }

@@ -26,13 +26,13 @@
 ///
 /// Currently supported message types include:
 ///
-/// - [`StakingMessage::Bond { value }`] - bond up to the `value` to self as the
+/// - [`staking::Request::Bond { value }`] - bond up to the `value` to self as the
 ///   controller
-/// - [`StakingMessage::BondExtra { value }`] - add more `value` to the sender's
+/// - [`staking::Request::BondExtra { value }`] - add more `value` to the sender's
 ///   bonded amount
-/// - [`StakingMessage::Unbond { value }`] - unbond up to the `value` for future
+/// - [`staking::Request::Unbond { value }`] - unbond up to the `value` for future
 ///   withdrawal
-/// - [`StakingMessage::Nominate { targets }`] - nominate `targets` as
+/// - [`staking::Request::Nominate { targets }`] - nominate `targets` as
 ///   validators
 
 /// # Examples
@@ -43,7 +43,7 @@
 ///
 /// ```ignore
 /// use gstd::ActorId;
-/// use gstd::msg::{self, builtin::staking::StakingMessage};
+/// use gstd::msg::{self, builtin::staking::Request};
 /// use parity_scale_codec::Encode;
 ///
 /// const BUILT_IN: ActorId = ActorId::new(hex_literal::hex!(
@@ -53,7 +53,7 @@
 /// #[gstd::async_main]
 /// async fn main() {
 ///     let value = msg::value();
-///     let payload = StakingMessage::Bond { value }.encode();
+///     let payload = Request::Bond { value }.encode();
 ///     let _ = msg::send_bytes_for_reply(BUILT_IN, &payload[..], 0, 0)
 ///         .expect("Error sending message")
 ///         .await;
