@@ -302,14 +302,14 @@ fn precise_syscalls_works() {
         injection_types.set(syscall, INJECTED_SYSCALLS, INJECTED_SYSCALLS);
 
         let mut param_config = SyscallsParamsConfig::default();
-        param_config.add_rule(ParamType::Gas, (0..=0).into());
+        param_config.add_rule(ParamType::Regular(RegularParamType::Gas), (0..=0).into());
 
         // Assert that syscalls results will be processed.
         let termination_reason = execute_wasm_with_custom_configs(
             &mut unstructured,
             SyscallsConfigBuilder::new(injection_types)
                 .with_params_config(param_config)
-                .with_precise_syscalls_config(PreciseSyscallsConfig::new(3..=3, 3..=3))
+                .with_precise_syscalls_config(PreciseSyscallsConfig::new(1..=1, 1..=1))
                 .with_source_msg_dest()
                 .set_error_processing_config(ErrorProcessingConfig::All)
                 .build(),

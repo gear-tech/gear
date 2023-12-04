@@ -43,7 +43,7 @@ pub use imports::*;
 pub use invocator::*;
 
 use gear_wasm_instrument::syscalls::{
-    HashType, ParamType, PtrInfo, PtrType, SyscallName, SyscallSignature,
+    HashType, Ptr, ErrPtr, SyscallName, SyscallSignature, RegularParamType,
 };
 
 /// Type of invocable syscall.
@@ -81,95 +81,85 @@ impl InvocableSyscall {
         match self {
             InvocableSyscall::Loose(name) => name.signature(),
             InvocableSyscall::Precise(name) => match name {
-                SyscallName::ReservationSend => SyscallSignature::gr_fallible([
-                    // Address of recipient and value (HashWithValue struct)
-                    ParamType::Ptr(PtrInfo::new_immutable(PtrType::HashWithValue(
-                        HashType::ActorId,
-                    ))),
-                    // Pointer to payload
-                    ParamType::Ptr(PtrInfo::new_immutable(PtrType::SizedBufferStart {
-                        length_param_idx: 2,
-                    })),
-                    // Length of the payload
-                    ParamType::Length,
-                    // Number of blocks to delay the sending for
-                    ParamType::DelayBlockNumber,
-                    // Amount of gas to reserve
-                    ParamType::Gas,
-                    // Duration of the reservation
-                    ParamType::DurationBlockNumber,
+                SyscallName::ReservationSend => SyscallSignature::gr_fallible((
+                    [
+                        // Address of recipient and value (HashWithValue struct)
+                        Ptr::HashWithValue(HashType::ActorId).into(),
+                        // Pointer to payload
+                        Ptr::SizedBufferStart { length_param_idx: 2 }.into(),
+                        // Length of the payload
+                        RegularParamType::Length,
+                        // Number of blocks to delay the sending for
+                        RegularParamType::DelayBlockNumber,
+                        // Amount of gas to reserve
+                        RegularParamType::Gas,
+                        // Duration of the reservation
+                        RegularParamType::DurationBlockNumber,
+                    ].into(),
                     // Address of error returned
-                    ParamType::Ptr(PtrInfo::new_mutable(PtrType::ErrorWithHash(
-                        HashType::MessageId,
-                    ))),
-                ]),
-                SyscallName::ReservationReply => SyscallSignature::gr_fallible([
-                    // Address of value
-                    ParamType::Ptr(PtrInfo::new_immutable(PtrType::Value)),
-                    // Pointer to payload
-                    ParamType::Ptr(PtrInfo::new_immutable(PtrType::SizedBufferStart {
-                        length_param_idx: 2,
-                    })),
-                    // Length of the payload
-                    ParamType::Length,
-                    // Amount of gas to reserve
-                    ParamType::Gas,
-                    // Duration of the reservation
-                    ParamType::DurationBlockNumber,
+                    ErrPtr::ErrorWithHash(HashType::MessageId),
+                )),
+                SyscallName::ReservationReply => SyscallSignature::gr_fallible((
+                    [
+                        // Address of value
+                        Ptr::Value.into(),
+                        // Pointer to payload
+                        Ptr::SizedBufferStart { length_param_idx: 2 }.into(),
+                        // Length of the payload
+                        RegularParamType::Length,
+                        // Amount of gas to reserve
+                        RegularParamType::Gas,
+                        // Duration of the reservation
+                        RegularParamType::DurationBlockNumber,
+                    ].into(),
                     // Address of error returned
-                    ParamType::Ptr(PtrInfo::new_mutable(PtrType::ErrorWithHash(
-                        HashType::MessageId,
-                    ))),
-                ]),
-                SyscallName::SendCommit => SyscallSignature::gr_fallible([
-                    // Address of recipient and value (HashWithValue struct)
-                    ParamType::Ptr(PtrInfo::new_immutable(PtrType::HashWithValue(
-                        HashType::ActorId,
-                    ))),
-                    // Pointer to payload
-                    ParamType::Ptr(PtrInfo::new_immutable(PtrType::SizedBufferStart {
-                        length_param_idx: 2,
-                    })),
-                    // Length of the payload
-                    ParamType::Length,
-                    // Number of blocks to delay the sending for
-                    ParamType::DelayBlockNumber,
+                    ErrPtr::ErrorWithHash(HashType::MessageId),
+                )),
+                SyscallName::SendCommit => SyscallSignature::gr_fallible((
+                    [
+                        // Address of recipient and value (HashWithValue struct)
+                        Ptr::HashWithValue(HashType::ActorId).into(),
+                        // Pointer to payload
+                        Ptr::SizedBufferStart { length_param_idx: 2 }.into(),
+                        // Length of the payload
+                        RegularParamType::Length,
+                        // Number of blocks to delay the sending for
+                        RegularParamType::DelayBlockNumber,
+                    ].into(),
                     // Address of error returned, `ErrorCode` here because underlying syscalls have different error types
-                    ParamType::Ptr(PtrInfo::new_mutable(PtrType::ErrorCode)),
-                ]),
-                SyscallName::SendCommitWGas => SyscallSignature::gr_fallible([
-                    // Address of recipient and value (HashWithValue struct)
-                    ParamType::Ptr(PtrInfo::new_immutable(PtrType::HashWithValue(
-                        HashType::ActorId,
-                    ))),
-                    // Number of blocks to delay the sending for
-                    ParamType::DelayBlockNumber,
-                    // Amount of gas to reserve
-                    ParamType::Gas,
+                    ErrPtr::ErrorCode,
+                )),
+                SyscallName::SendCommitWGas => SyscallSignature::gr_fallible((
+                    [
+                        // Address of recipient and value (HashWithValue struct)
+                        Ptr::HashWithValue(HashType::ActorId).into(),
+                        // Number of blocks to delay the sending for
+                        RegularParamType::DelayBlockNumber,
+                        // Amount of gas to reserve
+                        RegularParamType::Gas,
+                    ].into(),
                     // Address of error returned, `ErrorCode` here because underlying syscalls have different error types
-                    ParamType::Ptr(PtrInfo::new_mutable(PtrType::ErrorCode)),
-                ]),
-                SyscallName::ReplyDeposit => SyscallSignature::gr_fallible([
+                    ErrPtr::ErrorCode,
+                )),
+                SyscallName::ReplyDeposit => SyscallSignature::gr_fallible((
+                    [
                     // Address of recipient and value (HashWithValue struct). That's needed
                     // because first `gr_send_input` is invoked and resulting message id is
                     // used as an input to `gr_reply_deposit`.
-                    ParamType::Ptr(PtrInfo::new_immutable(PtrType::HashWithValue(
-                        HashType::ActorId,
-                    ))),
+                    Ptr::HashWithValue(HashType::ActorId).into(),
                     // An offset defining starting index in the received payload (related to `gr_send_input`).
-                    ParamType::Offset,
+                    RegularParamType::Offset,
                     // Length of the slice of the received message payload (related to `gr_send_input`).
-                    ParamType::Length,
+                    RegularParamType::Length,
                     // Delay (related to `gr_send_input`).
-                    ParamType::DelayBlockNumber,
+                    RegularParamType::DelayBlockNumber,
                     // Amount of gas deposited for a message id got from `gr_send_input`.
                     // That's an actual input for `gr_reply_deposit`
-                    ParamType::Gas,
+                    RegularParamType::Gas,
+                    ].into(),
                     // Error pointer
-                    ParamType::Ptr(PtrInfo::new_mutable(PtrType::ErrorWithHash(
-                        HashType::MessageId,
-                    ))),
-                ]),
+                    ErrPtr::ErrorWithHash(HashType::MessageId),
+                )),
                 _ => unimplemented!(),
             },
         }
@@ -197,21 +187,21 @@ impl InvocableSyscall {
             SyscallName::ReservationSend => {
                 &[SyscallName::ReserveGas, SyscallName::ReservationSend]
             }
-            SyscallName::ReservationReply => {
-                &[SyscallName::ReserveGas, SyscallName::ReservationReply]
-            }
-            SyscallName::SendCommit => &[
-                SyscallName::SendInit,
-                SyscallName::SendPush,
-                SyscallName::SendCommit,
-            ],
-            SyscallName::SendCommitWGas => &[
-                SyscallName::Size,
-                SyscallName::SendInit,
-                SyscallName::SendPushInput,
-                SyscallName::SendCommitWGas,
-            ],
-            SyscallName::ReplyDeposit => &[SyscallName::SendInput, SyscallName::ReplyDeposit],
+            // SyscallName::ReservationReply => {
+            //     &[SyscallName::ReserveGas, SyscallName::ReservationReply]
+            // }
+            // SyscallName::SendCommit => &[
+            //     SyscallName::SendInit,
+            //     SyscallName::SendPush,
+            //     SyscallName::SendCommit,
+            // ],
+            // SyscallName::SendCommitWGas => &[
+            //     SyscallName::Size,
+            //     SyscallName::SendInit,
+            //     SyscallName::SendPushInput,
+            //     SyscallName::SendCommitWGas,
+            // ],
+            // SyscallName::ReplyDeposit => &[SyscallName::SendInput, SyscallName::ReplyDeposit],
             _ => return None,
         })
     }
@@ -247,6 +237,14 @@ impl InvocableSyscall {
         match self {
             InvocableSyscall::Loose(syscall) => syscall.returns_error(),
             InvocableSyscall::Precise(syscall) => syscall.returns_error(),
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn is_fallible(&self) -> bool {
+        match self {
+            InvocableSyscall::Loose(syscall) => syscall.is_fallible(),
+            InvocableSyscall::Precise(syscall) => syscall.is_fallible(),
         }
     }
 }

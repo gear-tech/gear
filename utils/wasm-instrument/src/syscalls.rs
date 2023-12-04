@@ -19,10 +19,10 @@
 //! Gear syscalls for smart contracts execution signatures.
 
 use crate::parity_wasm::elements::{FunctionType, ValueType};
-use alloc::{collections::BTreeSet, vec::Vec};
+use alloc::{collections::BTreeSet, vec::Vec, borrow::ToOwned};
 use enum_iterator::{self, Sequence};
 pub use pointers::*;
-use std::iter;
+use core::iter;
 
 /// All available syscalls.
 ///
@@ -608,8 +608,8 @@ pub enum RegularParamType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct PtrInfo<T> {
-    mutable: bool,
-    ty: T,
+    pub mutable: bool,
+    pub ty: T,
 }
 
 /// Hash type.
@@ -665,9 +665,9 @@ impl SyscallSignature {
 
     pub fn func_type(&self) -> FunctionType {
         let (params, results) = match self {
-            SyscallSignature::GrFallible(fallible) => (&fallible.0, Vec::new()),
-            SyscallSignature::GrInfallible(infallible) => (&infallible.0, Vec::new()),
-            SyscallSignature::System(system) => (&system.params, system.results.clone()),
+            SyscallSignature::GrFallible(fallible) => (fallible.params(), Vec::new()),
+            SyscallSignature::GrInfallible(infallible) => (infallible.params(), Vec::new()),
+            SyscallSignature::System(system) => (system.params(), system.results().to_owned()),
         };
 
         FunctionType::new(params.iter().copied().map(Into::into).collect(), results)
@@ -699,6 +699,10 @@ impl FallibleSyscallSignature {
 
         FallibleSyscallSignature(params)
     }
+
+    pub fn params(&self) -> &[ParamType] {
+        &self.0
+    }
 }
 
 impl<const N: usize> From<([RegularParamType; N], ErrPtr)> for FallibleSyscallSignature {
@@ -719,6 +723,10 @@ pub struct InfallibleSyscallSignature(Vec<ParamType>);
 impl InfallibleSyscallSignature {
     pub fn new<const N: usize>(params: [RegularParamType; N]) -> Self {
         InfallibleSyscallSignature(params.into_iter().map(ParamType::Regular).collect())
+    }
+
+    pub fn params(&self) -> &[ParamType] {
+        &self.0
     }
 }
 
@@ -743,6 +751,14 @@ impl SystemSyscallSignature {
             params: params.into_iter().map(ParamType::Regular).collect(),
             results: results.to_vec(),
         }
+    }
+
+    pub fn params(&self) -> &[ParamType] {
+        &self.params
+    }
+
+    pub fn results(&self) -> &[ValueType] {
+        &self.results
     }
 }
 

@@ -29,7 +29,7 @@ use crate::{
 use arbitrary::{Result, Unstructured};
 use gear_wasm_instrument::{
     parity_wasm::elements::{BlockType, Instruction, Internal, ValueType},
-    syscalls::{ParamType, PtrInfo, PtrType, SyscallName, SyscallSignature},
+    syscalls::{ParamType, Ptr, PtrInfo, RegularParamType, SyscallName, SyscallSignature},
 };
 use gsys::Hash;
 use std::{
@@ -47,7 +47,7 @@ pub(crate) enum ProcessedSyscallParams {
         value_type: ValueType,
         allowed_values: Option<SyscallParamAllowedValues>,
     },
-    MemoryArraySize,
+    MemoryArrayLength,
     MemoryArrayPtr,
     MemoryPtrValue,
 }
@@ -56,13 +56,16 @@ pub(crate) fn process_syscall_params(
     params: &[ParamType],
     params_config: &SyscallsParamsConfig,
 ) -> Vec<ProcessedSyscallParams> {
+    use ParamType::*;
+    use RegularParamType::*;
+
     let length_param_indexes = params
         .iter()
         .filter_map(|&param| match param {
-            ParamType::Ptr(PtrInfo {
-                ty: PtrType::SizedBufferStart { length_param_idx },
+            Regular(Pointer(PtrInfo {
+                ty: Ptr::SizedBufferStart { length_param_idx } | Ptr::MutSizedBufferStart { length_param_idx },
                 ..
-            }) => Some(length_param_idx),
+            })) => Some(length_param_idx),
             _ => None,
         })
         .collect::<HashSet<_>>();
@@ -70,21 +73,21 @@ pub(crate) fn process_syscall_params(
     let mut res = Vec::with_capacity(params.len());
     for (param_idx, &param) in params.iter().enumerate() {
         let processed_param = match param {
-            ParamType::Alloc => ProcessedSyscallParams::Alloc {
+            Regular(Alloc) => ProcessedSyscallParams::Alloc {
                 allowed_values: params_config.get_rule(&param),
             },
-            ParamType::Length if length_param_indexes.contains(&param_idx) => {
+            Regular(Length) if length_param_indexes.contains(&param_idx) => {
                 // Due to match guard `ParamType::Size` can be processed in two ways:
                 // 1. The function will return `ProcessedSyscallParams::MemoryArraySize`
                 //    if this parameter is associated with PtrType::BufferStart { .. }`.
                 // 2. Otherwise, `ProcessedSyscallParams::Value` will be returned from the function.
-                ProcessedSyscallParams::MemoryArraySize
+                ProcessedSyscallParams::MemoryArrayLength
             }
-            ParamType::Ptr(PtrInfo {
-                ty: PtrType::SizedBufferStart { .. },
+            Regular(Pointer(PtrInfo {
+                ty: Ptr::SizedBufferStart { .. },
                 ..
-            }) => ProcessedSyscallParams::MemoryArrayPtr,
-            ParamType::Ptr(_) => ProcessedSyscallParams::MemoryPtrValue,
+            })) => ProcessedSyscallParams::MemoryArrayPtr,
+            Regular(Pointer(_)) => ProcessedSyscallParams::MemoryPtrValue,
             _ => ProcessedSyscallParams::Value {
                 value_type: param.into(),
                 allowed_values: params_config.get_rule(&param),
@@ -438,15 +441,14 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
             .error_should_be_processed(invocable);
 
         let mut result_processing = match signature {
-            SyscallSignature::GrInfallible { .. } => {
+            SyscallSignature::GrInfallible(_) => {
                 // It's guaranteed here that infallible has no errors to process
                 // as it has not mut err pointers or error indicating values returned.
                 Vec::new()
             },
-            signature @ (SyscallSignature::GrFallible { .. } | SyscallSignature::System { .. }) => {
+            signature @ (SyscallSignature::GrFallible(_) | SyscallSignature::System(_)) => {
                 // It's guaranteed by definition that these variants return an error either by returning
                 // error indicating value or by having err mut pointer in params.
-                assert!(invocable.returns_error());
                 if process_error {
                     Self::build_error_processing(signature, param_setters)
                 } else {
@@ -517,7 +519,7 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
 
                     setters.push(setter);
                 }
-                ProcessedSyscallParams::MemoryArraySize => {
+                ProcessedSyscallParams::MemoryArrayLength => {
                     let length;
                     let upper_limit = mem_size.saturating_sub(1) as i32;
 
@@ -575,7 +577,7 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
 
     fn build_error_processing(signature: SyscallSignature, param_setters: Vec<ParamSetter>) -> Vec<Instruction> {
         match signature {
-            SyscallSignature::GrFallible { params } => {
+            SyscallSignature::GrFallible(fallible) => {
                 // TODO: #3129.
                 // Assume here that:
                 // 1. All the fallible syscalls write error to the pointer located in the last argument in syscall.
@@ -584,7 +586,7 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                 static_assertions::assert_eq_size!(gsys::ErrorCode, u32);
                 let no_error_val = gsys::ErrorCode::default() as i32;
 
-                assert_eq!(params.len(), param_setters.len());
+                assert_eq!(fallible.params().len(), param_setters.len(), "ParamsSetter is inconsistent with syscall params.");
                 if let Some(res_ptr) = param_setters
                     .last()
                     .expect("At least one argument in fallible syscall")
@@ -603,17 +605,17 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                     panic!("Incorrect last parameter type: expected pointer");
                 }
             },
-        SyscallSignature::System { params, results } => {
+        SyscallSignature::System(system) => {
             // That's basically those syscalls, that doesn't have an error pointer,
             // but return value indicating error. These are currently `Alloc` and `Free`.
-            assert_eq!(results.len(), 1);
+            assert_eq!(system.results().len(), 1);
 
-            let error_code = match params[0] {
-                ParamType::Alloc => {
+            let error_code = match system.params()[0] {
+                ParamType::Regular(RegularParamType::Alloc) => {
                     // Alloc syscall: returns u32::MAX (= -1i32) in case of error.
                     -1
                 }
-                ParamType::Free => {
+                ParamType::Regular(RegularParamType::Free) => {
                     // Free syscall: returns 1 in case of error.
                     1
                 }
@@ -630,19 +632,19 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                 Instruction::End,
             ]
         },
-            SyscallSignature::GrInfallible { .. } => unreachable!("Invalid implementation. This function is called only for returning errors syscall"),
+            SyscallSignature::GrInfallible(_) => unreachable!("Invalid implementation. This function is called only for returning errors syscall"),
         }
     }
 
     fn build_error_processing_ignored(signature: SyscallSignature) -> Vec<Instruction> {
         match signature {
-            SyscallSignature::System { results, .. } => {
+            SyscallSignature::System(system) => {
                 iter::repeat(Instruction::Drop)
-                    .take(results.len())
+                    .take(system.results().len())
                     .collect()
             },
-            SyscallSignature::GrFallible { .. } => Vec::new(),
-            SyscallSignature::GrInfallible { .. } => unreachable!("Invalid implementation. This function is called only for returning errors syscall"),
+            SyscallSignature::GrFallible(_) => Vec::new(),
+            SyscallSignature::GrInfallible(_) => unreachable!("Invalid implementation. This function is called only for returning errors syscall"),
         }
     }
 
