@@ -14,6 +14,7 @@ default-members = ["node/cli"]
 members = [
     "common",
     "common/codegen",
+    "common/numerated",
     "core",
     "core-backend",
     "core-processor",
@@ -61,7 +62,7 @@ members = [
     "examples/signal-wait",
     "examples/state-rollback",
     "examples/sync-duplicate",
-    "examples/sys-calls",
+    "examples/syscalls",
     "examples/syscall-error",
     "examples/vec",
     "examples/wait",
@@ -101,9 +102,8 @@ base64 = "0.21.5"
 byteorder = { version = "1.5.0", default-features = false }
 blake2-rfc = { version = "0.2.18", default-features = false }
 bs58 = { version = "0.5.0", default-features = false }
-# TODO: upgrade this package ( issue #2694 )
-cargo_metadata = "=0.15.3"
-clap = { version = "4.4.8" }
+cargo_metadata = "0.18.1"
+clap = "4.4.8"
 codec = { package = "parity-scale-codec", version = "3.6.4", default-features = false }
 color-eyre = "0.6.2"
 colored = "2.0.0"
@@ -146,34 +146,21 @@ serde_json = "^1"
 serde_yaml = "0.8.26"
 sha-1 = "0.10.1"
 static_assertions = "1"
-# # NOTE
-#
-# 1. subxt v0.29.0 breaks the logging in gsdk, our fork is based on the
-# unpublished v0.29.0 from the main repo with fixes.
-#
-# 2. subxt v0.29.0 upgrades the substrate dependencies which are not
-# compatible with our current dependencies.
-#
-# 3. changing but patching the source here for making these work out of
-# workspace.
-#
-# 4. subxt-metadata and subxt-codegen are just used by gsdk-codegen for now
-# gathering them here for easy management.
-subxt = { version = "0.32.1" }
-subxt-metadata = { version = "0.32.1" }
-subxt-codegen = { version = "0.32.1" }
+subxt = "0.32.1"
+subxt-metadata = "0.32.1"
+subxt-codegen = "0.32.1"
 syn = "2.0.39"
 thiserror = "1.0.50"
 tokio = { version = "1.34.0" }
-url = "2.4.1"
-wat = "1.0.80"
+url = "2.5.0"
+wat = "1.0.81"
 wabt = "0.10.0"
 wasmer = "2.2"
 wasmer-cache = "2.2.1"
 wasmer-types = "2.2"
 wasmi = { version = "0.14.0", default-features = false }
 wasmparser = { package = "wasmparser-nostd", version = "0.100.1", default-features = false }
-which = "4.4.0"
+which = "4.4.2"
 winapi = "0.3.9"
 paste = "1.0"
 tempfile = "3.8.1"
@@ -188,6 +175,7 @@ gwasm-instrument = { version = "0.2.3", default-features = false }
 pwasm-utils = { version = "0.19.0", package = "gear-pwasm-utils" }
 
 # Internal deps
+numerated = { path = "common/numerated" }
 authorship = { package = "gear-authorship", path = "node/authorship" }
 common = { package = "gear-common", path = "common", default-features = false }
 core-processor = { package = "gear-core-processor", path = "core-processor", default-features = false }
@@ -371,7 +359,7 @@ substrate-wasm-builder = { version = "5.0.0-dev", git = "https://github.com/gear
 try-runtime-cli = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes" }
 
 # Examples
-test-syscalls = { path = "examples/sys-calls", default-features = false }
+test-syscalls = { path = "examples/syscalls", default-features = false }
 demo-async = { path = "examples/async" }
 demo-async-custom-entry = { path = "examples/async-custom-entry" }
 demo-async-init = { path = "examples/async-init" }

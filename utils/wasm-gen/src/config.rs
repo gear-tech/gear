@@ -54,7 +54,7 @@
 //!     stack_end_page: Some(64),
 //! };
 //! let entry_points_set = EntryPointsSet::InitHandle;
-//! let syscalls_config = SysCallsConfigBuilder::new(SysCallsInjectionTypes::all_once())
+//! let syscalls_config = SyscallsConfigBuilder::new(SyscallsInjectionTypes::all_once())
 //!     .with_source_msg_dest()
 //!     .with_log_info("I'm from wasm-gen".into())
 //!     .build();
@@ -149,7 +149,7 @@ pub struct StandardGearWasmConfigsBundle<T = [u8; 32]> {
     /// function and for each control instruction (blocks, loops, conditions).
     pub critical_gas_limit: Option<u64>,
     /// Injection type for each syscall.
-    pub injection_types: SysCallsInjectionTypes,
+    pub injection_types: SyscallsInjectionTypes,
     /// Config of gear wasm call entry-points (exports).
     pub entry_points_set: EntryPointsSet,
     /// Initial wasm memory pages.
@@ -157,7 +157,7 @@ pub struct StandardGearWasmConfigsBundle<T = [u8; 32]> {
     /// Optional stack end pages.
     pub stack_end_page: Option<u32>,
     /// Syscalls params config
-    pub params_config: SysCallsParamsConfig,
+    pub params_config: SyscallsParamsConfig,
 }
 
 impl<T> Default for StandardGearWasmConfigsBundle<T> {
@@ -167,11 +167,11 @@ impl<T> Default for StandardGearWasmConfigsBundle<T> {
             existing_addresses: None,
             remove_recursion: false,
             critical_gas_limit: Some(1_000_000),
-            injection_types: SysCallsInjectionTypes::all_once(),
+            injection_types: SyscallsInjectionTypes::all_once(),
             entry_points_set: Default::default(),
             initial_pages: DEFAULT_INITIAL_SIZE,
             stack_end_page: None,
-            params_config: SysCallsParamsConfig::default(),
+            params_config: SyscallsParamsConfig::default(),
         }
     }
 }
@@ -192,7 +192,7 @@ impl<T: Into<Hash>> ConfigsBundle for StandardGearWasmConfigsBundle<T> {
 
         let selectable_params = SelectableParams::default();
 
-        let mut syscalls_config_builder = SysCallsConfigBuilder::new(injection_types);
+        let mut syscalls_config_builder = SyscallsConfigBuilder::new(injection_types);
         if let Some(log_info) = log_info {
             syscalls_config_builder = syscalls_config_builder.with_log_info(log_info);
         }
