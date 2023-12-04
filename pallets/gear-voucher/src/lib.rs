@@ -57,7 +57,6 @@ mod mock;
 #[cfg(test)]
 mod tests;
 
-use common::PaymentVoucher;
 use frame_support::{
     pallet_prelude::*,
     traits::{Currency, ExistenceRequirement, ReservableCurrency, StorageVersion},
@@ -158,7 +157,7 @@ pub mod pallet {
             let to = T::Lookup::lookup(to)?;
 
             // Generate unique account id corresponding to the pair (user, program)
-            let voucher_id = Self::voucher_account_id(&to, &program);
+            let voucher_id = Self::voucher_id(&to, &program);
 
             // Transfer funds to the keyless account
             T::Currency::transfer(&who, &voucher_id, value, ExistenceRequirement::KeepAlive)
@@ -192,20 +191,10 @@ pub mod pallet {
 
 impl<T: Config> Pallet<T> {
     /// Derive a synthesized account ID from an account ID and a program ID.
-    pub fn voucher_account_id(who: &T::AccountId, program_id: &ProgramId) -> T::AccountId {
+    pub fn voucher_id(who: &T::AccountId, program_id: &ProgramId) -> T::AccountId {
         let entropy = (b"modlpy/voucher__", who, program_id).using_encoded(blake2_256);
         Decode::decode(&mut TrailingZeroInput::new(entropy.as_ref()))
             .expect("infinite length input; no invalid inputs for type; qed")
-    }
-}
-
-impl<T: Config> PaymentVoucher<T::AccountId, ProgramId, BalanceOf<T>> for Pallet<T> {
-    type VoucherId = T::AccountId;
-    type Error = DispatchError;
-
-    #[inline]
-    fn voucher_id(who: T::AccountId, program: ProgramId) -> Self::VoucherId {
-        Self::voucher_account_id(&who, &program)
     }
 }
 

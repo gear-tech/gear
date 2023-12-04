@@ -994,7 +994,6 @@ impl pallet_gear::Config for Runtime {
     type BlockLimiter = GearGas;
     type Scheduler = GearScheduler;
     type QueueRunner = Gear;
-    type Voucher = GearVoucher;
     type ProgramRentFreePeriod = ConstU32<{ MONTHS * RENT_FREE_PERIOD_MONTH_FACTOR }>;
     type ProgramResumeMinimalRentPeriod = ConstU32<{ WEEKS * RENT_RESUME_WEEK_FACTOR }>;
     type ProgramRentCostPerBlock = ConstU128<RENT_COST_PER_BLOCK>;
@@ -1060,12 +1059,11 @@ impl DelegateFee<RuntimeCall, AccountId> for DelegateFeeAccountBuilder {
         match call {
             RuntimeCall::GearVoucher(pallet_gear_voucher::Call::call {
                 call: pallet_gear_voucher::PrepaidCall::SendMessage { destination, .. },
-            }) => Some(GearVoucher::voucher_account_id(who, destination)),
+            }) => Some(GearVoucher::voucher_id(who, destination)),
             RuntimeCall::GearVoucher(pallet_gear_voucher::Call::call {
                 call: pallet_gear_voucher::PrepaidCall::SendReply { reply_to_id, .. },
-            }) => <<GearMessenger as Messenger>::Mailbox as Mailbox>::peek(who, reply_to_id).map(
-                |stored_message| GearVoucher::voucher_account_id(who, &stored_message.source()),
-            ),
+            }) => <<GearMessenger as Messenger>::Mailbox as Mailbox>::peek(who, reply_to_id)
+                .map(|stored_message| GearVoucher::voucher_id(who, &stored_message.source())),
             _ => None,
         }
     }

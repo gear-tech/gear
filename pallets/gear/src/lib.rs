@@ -54,7 +54,7 @@ use alloc::{format, string::String};
 use common::{
     self, event::*, gas_provider::GasNodeId, paused_program_storage::SessionId, scheduler::*,
     storage::*, BlockLimiter, CodeMetadata, CodeStorage, GasProvider, GasTree, Origin,
-    PausedProgramStorage, PaymentVoucher, Program, ProgramState, ProgramStorage, QueueRunner,
+    PausedProgramStorage, Program, ProgramState, ProgramStorage, QueueRunner,
 };
 use core::marker::PhantomData;
 use core_processor::{
@@ -119,7 +119,6 @@ pub type RentFreePeriodOf<T> = <T as Config>::ProgramRentFreePeriod;
 pub type RentCostPerBlockOf<T> = <T as Config>::ProgramRentCostPerBlock;
 pub type ResumeMinimalPeriodOf<T> = <T as Config>::ProgramResumeMinimalRentPeriod;
 pub type ResumeSessionDurationOf<T> = <T as Config>::ProgramResumeSessionDuration;
-pub(crate) type VoucherOf<T> = <T as Config>::Voucher;
 pub(crate) type GearBank<T> = pallet_gear_bank::Pallet<T>;
 
 /// The current storage version.
@@ -239,14 +238,6 @@ pub mod pallet {
 
         /// Message Queue processing routing provider.
         type QueueRunner: QueueRunner<Gas = GasBalanceOf<Self>>;
-
-        /// Type that allows to check caller's eligibility for using voucher for payment.
-        type Voucher: PaymentVoucher<
-            Self::AccountId,
-            ProgramId,
-            BalanceOf<Self>,
-            VoucherId = Self::AccountId,
-        >;
 
         /// The free of charge period of rent.
         #[pallet::constant]
@@ -1862,7 +1853,8 @@ pub mod pallet {
                 let external_node = if prepaid {
                     // If voucher is used, we attempt to reserve funds on the respective account.
                     // If no such voucher exists, the call is invalidated.
-                    let voucher_id = VoucherOf::<T>::voucher_id(who.clone(), destination);
+                    // TODO (breathx): replace.
+                    let voucher_id = AccountIdOf::<T>::from_origin(0.into_origin());
 
                     GearBank::<T>::deposit_gas(&voucher_id, gas_limit, keep_alive).map_err(|e| {
                         log::debug!(
@@ -1964,7 +1956,8 @@ pub mod pallet {
             let external_node = if prepaid {
                 // If voucher is used, we attempt to reserve funds on the respective account.
                 // If no such voucher exists, the call is invalidated.
-                let voucher_id = VoucherOf::<T>::voucher_id(origin.clone(), destination);
+                // TODO (breathx): replace.
+                let voucher_id = AccountIdOf::<T>::from_origin(0.into_origin());
 
                 GearBank::<T>::deposit_gas(&voucher_id, gas_limit, keep_alive).map_err(|e| {
                     log::debug!(

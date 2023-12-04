@@ -347,19 +347,3 @@ where
         self.function.clone()
     }
 }
-
-pub trait PaymentVoucher<AccountId, ProgramId, Balance> {
-    type VoucherId;
-    type Error;
-
-    fn voucher_id(who: AccountId, program: ProgramId) -> Self::VoucherId;
-}
-
-impl<AccountId: Default, ProgramId, Balance> PaymentVoucher<AccountId, ProgramId, Balance> for () {
-    type VoucherId = AccountId;
-    type Error = &'static str;
-
-    fn voucher_id(_who: AccountId, _program: ProgramId) -> Self::VoucherId {
-        unimplemented!()
-    }
-}

@@ -14335,7 +14335,7 @@ fn send_gasless_message_works() {
 
         // Balance check
         // Voucher has been issued, but not used yet, so funds should be still in the respective account
-        let voucher_id = GearVoucher::voucher_account_id(&USER_2, &program_id);
+        let voucher_id = GearVoucher::voucher_id(&USER_2, &program_id);
         assert_eq!(
             Balances::free_balance(voucher_id),
             gas_price(DEFAULT_GAS_LIMIT)
@@ -14417,7 +14417,7 @@ fn send_gasless_reply_works() {
             prog_id,
             gas_price(DEFAULT_GAS_LIMIT),
         ));
-        let voucher_id = GearVoucher::voucher_account_id(&USER_1, &prog_id);
+        let voucher_id = GearVoucher::voucher_id(&USER_1, &prog_id);
 
         run_to_block(3, None);
 
