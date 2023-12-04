@@ -27,7 +27,8 @@ use frame_support::traits::Currency;
 use gear_builtin_actor_common::staking::StakingMessage;
 use gear_core::message::{DispatchKind, StoredDispatch, StoredMessage};
 use pallet_gear::BuiltInActor as BuiltInActorT;
-use parity_scale_codec::Encode;
+use parity_scale_codec::{Compact, Encode, Input};
+use sp_core::MAX_POSSIBLE_ALLOCATION;
 use sp_runtime::traits::UniqueSaturatedInto;
 
 pub(crate) type CurrencyOf<T> = <T as pallet_staking::Config>::Currency;
@@ -68,6 +69,25 @@ benchmarks! {
         )
     } verify {
         // No changes in runtime are expected since the actual dispatch doesn't take place.
+    }
+
+    decode_bytes {
+        let a in 0 .. (MAX_POSSIBLE_ALLOCATION - 100);
+
+        let bytes = vec![1u8; a as usize];
+        let encoded = bytes.encode();
+        let mut _decoded = vec![];
+    }: {
+        let mut input = encoded.as_slice();
+        let len = u32::from(Compact::<u32>::decode(&mut input).unwrap()) as usize;
+
+        let mut items = vec![0u8; len];
+        let bytes_slice = items.as_mut_slice();
+        input.read(bytes_slice).unwrap();
+
+        _decoded = items;
+    } verify {
+        assert_eq!(bytes, _decoded);
     }
 }
 

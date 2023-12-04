@@ -50,6 +50,7 @@ use sp_std::marker::PhantomData;
 /// Weight functions for `pallet_gear_builtin_actor`.
 pub trait WeightInfo {
     fn base_handle_weight() -> Weight;
+    fn decode_bytes(a: u32, ) -> Weight;
 }
 
 /// Weights for `pallet_gear_builtin_actor` using a Gear node and recommended hardware.
@@ -66,6 +67,16 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 			.saturating_add(Weight::from_parts(0, 3598))
 			.saturating_add(T::DbWeight::get().reads(1))
 	}
+    /// The range of component `a` is `[0, 33554332]`.
+    fn decode_bytes(a: u32, ) -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `0`
+        //  Estimated: `0`
+        // Minimum execution time: 0_000 picoseconds.
+        Weight::from_parts(0, 0)
+            // Standard Error: 0
+            .saturating_add(Weight::from_parts(160, 0).saturating_mul(a.into()))
+    }
 }
 
 // Weights implementation for backwards compatibility and tests
@@ -81,4 +92,14 @@ impl WeightInfo for () {
 			.saturating_add(Weight::from_parts(0, 3598))
 			.saturating_add(RocksDbWeight::get().reads(1))
 	}
+    /// The range of component `a` is `[0, 33554332]`.
+    fn decode_bytes(a: u32, ) -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `0`
+        //  Estimated: `0`
+        // Minimum execution time: 0_000 picoseconds.
+        Weight::from_parts(0, 0)
+            // Standard Error: 0
+            .saturating_add(Weight::from_parts(160, 0).saturating_mul(a.into()))
+    }
 }
