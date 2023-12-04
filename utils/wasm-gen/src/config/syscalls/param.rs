@@ -63,6 +63,7 @@ impl SyscallsParamsConfig {
                 Regular(DelayBlockNumber),
                 Regular(Handler),
                 Regular(Free),
+                Regular(FreeUpperBound),
                 Regular(Version),
             ]
             .into_iter()

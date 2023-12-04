@@ -309,7 +309,7 @@ fn precise_syscalls_works() {
             &mut unstructured,
             SyscallsConfigBuilder::new(injection_types)
                 .with_params_config(param_config)
-                .with_precise_syscalls_config(PreciseSyscallsConfig::new(1..=1, 1..=1))
+                .with_precise_syscalls_config(PreciseSyscallsConfig::new(3..=3, 3..=3))
                 .with_source_msg_dest()
                 .set_error_processing_config(ErrorProcessingConfig::All)
                 .build(),
