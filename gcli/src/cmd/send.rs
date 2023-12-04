@@ -17,9 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Command `send`
-use crate::{cmd::info::Mail, result::Result, utils::Hex};
+use crate::{result::Result, utils::Hex};
 use clap::Parser;
-use futures::future;
 use gsdk::{metadata::gear, signer::Signer, Event};
 
 /// Sends a message to a program or to another account.
@@ -68,25 +67,9 @@ impl Send {
 
         let api = signer.api();
         for event in api.events_of(&tx).await? {
-            if let Event::Gear(gear::Event::MessagesDispatched { statuses, .. }) = event {
-                let messages = statuses
-                    .into_iter()
-                    .map(|(message, _)| message.0)
-                    .collect::<Vec<_>>();
-
-                let mails = future::join_all(messages.iter().map(|message| {
-                    api.get_mailbox_account_message(signer.account_id().clone(), message.clone())
-                }))
-                .await;
-
-                for (id, mail) in messages.into_iter().zip(mails.into_iter()) {
-                    let mut info = format!("Message 0x{} dispatched", hex::encode(&id));
-                    if let Some(mail) = mail? {
-                        info.push_str(&format!(", mail: {:#?}", Mail::from(mail)));
-                    }
-
-                    log::info!("{info}");
-                }
+            if let Event::Gear(gear::Event::MessageQueued { id, .. }) = event {
+                log::info!("Message ID: 0x{}", hex::encode(&id.0));
+                break;
             }
         }
 
