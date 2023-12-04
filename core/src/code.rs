@@ -42,6 +42,7 @@ use scale_info::{
     scale::{Decode, Encode},
     TypeInfo,
 };
+use gear_wasm_instrument::parity_wasm::elements::External;
 
 /// Defines maximal permitted count of memory pages.
 pub const MAX_WASM_PAGE_COUNT: u16 = 512;
@@ -87,8 +88,16 @@ fn get_exports(
             .ok_or(CodeError::TypeSectionNotFound)?
             .types();
 
+        let import_count = module
+            .import_section()
+            .ok_or(CodeError::ImportSectionNotFound)?
+            .entries()
+            .iter()
+            .filter(|e| matches!(e.external(), External::Function(_)))
+            .count();
+
         for i in raw_exports {
-            let type_id = funcs[i as usize].type_ref();
+            let type_id = funcs[i as usize - import_count].type_ref();
             let Type::Function(ref f) = types[type_id as usize];
             if !f.params().is_empty() || !f.results().is_empty() {
                 return Err(CodeError::InvalidExportFnSignature);
