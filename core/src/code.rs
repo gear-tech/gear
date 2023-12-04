@@ -29,7 +29,8 @@ use gear_wasm_instrument::{
         self,
         builder::ModuleBuilder,
         elements::{
-            ExportEntry, GlobalEntry, GlobalType, InitExpr, Instruction, Internal, Module, Type,
+            ExportEntry, External, GlobalEntry, GlobalType, InitExpr, Instruction, Internal,
+            Module, Type,
         },
     },
     wasm_instrument::{
@@ -42,7 +43,6 @@ use scale_info::{
     scale::{Decode, Encode},
     TypeInfo,
 };
-use gear_wasm_instrument::parity_wasm::elements::External;
 
 /// Defines maximal permitted count of memory pages.
 pub const MAX_WASM_PAGE_COUNT: u16 = 512;
