@@ -54,10 +54,7 @@ impl<T: Origin> KeyFor for MailboxKeyGen<T> {
     type Value = UserStoredMessage;
 
     fn key_for(value: &Self::Value) -> Self::Key {
-        (
-            T::from_origin(value.destination().into_origin()),
-            value.id(),
-        )
+        (value.destination().cast(), value.id())
     }
 }
 

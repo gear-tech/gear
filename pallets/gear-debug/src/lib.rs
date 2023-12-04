@@ -37,7 +37,7 @@ pub mod pallet {
     use frame_support::{dispatch::DispatchResultWithPostInfo, pallet_prelude::*};
     use frame_system::pallet_prelude::*;
     use gear_core::{
-        ids::{CodeId, ProgramId},
+        ids::ProgramId,
         memory::PageBuf,
         message::{StoredDispatch, StoredMessage},
         pages::{GearPage, PageU32Size, WasmPage},
@@ -184,8 +184,8 @@ pub mod pallet {
 
         let message = StoredMessage::new(
             msg.id(),
-            ProgramId::from_origin(source),
-            ProgramId::from_origin(destination),
+            source.cast(),
+            destination.cast(),
             (*msg.payload_bytes()).to_vec().try_into().unwrap(),
             msg.value(),
             msg.details(),
@@ -211,8 +211,7 @@ pub mod pallet {
                             }
                         }
                     };
-                    let code_id = CodeId::from_origin(active.code_hash);
-                    let static_pages = match T::CodeStorage::get_code(code_id) {
+                    let static_pages = match T::CodeStorage::get_code(active.code_hash.cast()) {
                         Some(code) => code.static_pages(),
                         None => WasmPage::zero(),
                     };
