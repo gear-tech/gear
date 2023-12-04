@@ -26,10 +26,10 @@ use sp_runtime::traits::Block as BlockT;
 use sp_std::vec::Vec;
 
 sp_api::decl_runtime_apis! {
-    #[api_version(2)]
+    #[api_version(3)]
     pub trait GearApi {
         #[allow(clippy::too_many_arguments)]
-        fn calculate_gas_info(source: H256, kind: HandleKind, payload: Vec<u8>, value: u128, allow_other_panics: bool, initial_gas: Option<u64>, allowance_multiplier: Option<u64>) -> Result<GasInfo, Vec<u8>>;
+        fn calculate_gas_info(source: H256, kind: HandleKind, payload: Vec<u8>, value: u128, is_prepaid: bool, allow_other_panics: bool, initial_gas: Option<u64>, allowance_multiplier: Option<u64>) -> Result<GasInfo, Vec<u8>>;
 
         /// Generate inherent-like extrinsic that runs message queue processing.
         fn gear_run_extrinsic(max_gas: Option<u64>) -> <Block as BlockT>::Extrinsic;
@@ -42,6 +42,10 @@ sp_api::decl_runtime_apis! {
         fn read_metahash(program_id: H256, allowance_multiplier: Option<u64>) -> Result<H256, Vec<u8>>;
 
         // DEPRECATED APIS
+
+        #[allow(clippy::too_many_arguments)]
+        #[changed_in(3)]
+        fn calculate_gas_info(source: H256, kind: HandleKind, payload: Vec<u8>, value: u128, allow_other_panics: bool, initial_gas: Option<u64>, allowance_multiplier: Option<u64>) -> Result<GasInfo, Vec<u8>>;
 
         #[allow(clippy::too_many_arguments)]
         #[changed_in(2)]

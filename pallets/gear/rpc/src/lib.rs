@@ -95,6 +95,28 @@ pub trait GearApi<BlockHash, ResponseType> {
         at: Option<BlockHash>,
     ) -> RpcResult<GasInfo>;
 
+    #[method(name = "unstable_gear_voucher_calculateHandleGas")]
+    fn get_voucher_handle_gas_spent(
+        &self,
+        source: H256,
+        dest: H256,
+        payload: Bytes,
+        value: u128,
+        allow_other_panics: bool,
+        at: Option<BlockHash>,
+    ) -> RpcResult<GasInfo>;
+
+    #[method(name = "unstable_gear_voucher_calculateReplyGas")]
+    fn get_voucher_reply_gas_spent(
+        &self,
+        source: H256,
+        message_id: H256,
+        payload: Bytes,
+        value: u128,
+        allow_other_panics: bool,
+        at: Option<BlockHash>,
+    ) -> RpcResult<GasInfo>;
+
     #[method(name = "gear_readState")]
     fn read_state(
         &self,
@@ -197,6 +219,7 @@ where
         kind: HandleKind,
         payload: Vec<u8>,
         value: u128,
+        is_prepaid: bool,
         allow_other_panics: bool,
         min_limit: Option<u64>,
     ) -> RpcResult<GasInfo> {
@@ -214,6 +237,18 @@ where
                     allow_other_panics,
                     min_limit,
                 )
+            } else if api_version < 3 {
+                #[allow(deprecated)]
+                api.calculate_gas_info_before_version_3(
+                    at_hash,
+                    source,
+                    kind,
+                    payload,
+                    value,
+                    allow_other_panics,
+                    min_limit,
+                    Some(self.allowance_multiplier),
+                )
             } else {
                 api.calculate_gas_info(
                     at_hash,
@@ -221,6 +256,7 @@ where
                     kind,
                     payload,
                     value,
+                    is_prepaid,
                     allow_other_panics,
                     min_limit,
                     Some(self.allowance_multiplier),
@@ -258,6 +294,8 @@ where
     C: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block>,
     C::Api: GearRuntimeApi<Block>,
 {
+    // Calculate gas spent
+
     fn get_init_create_gas_spent(
         &self,
         source: H256,
@@ -275,6 +313,7 @@ where
             HandleKind::InitByHash(CodeId::from_origin(code_id)),
             payload.to_vec(),
             value,
+            false,
             allow_other_panics,
             None,
         )?;
@@ -285,6 +324,7 @@ where
             HandleKind::InitByHash(CodeId::from_origin(code_id)),
             payload.to_vec(),
             value,
+            false,
             allow_other_panics,
             Some(min_limit),
         )
@@ -307,6 +347,7 @@ where
             HandleKind::Init(code.to_vec()),
             payload.to_vec(),
             value,
+            false,
             allow_other_panics,
             None,
         )?;
@@ -317,6 +358,7 @@ where
             HandleKind::Init(code.to_vec()),
             payload.to_vec(),
             value,
+            false,
             allow_other_panics,
             Some(min_limit),
         )
@@ -339,6 +381,7 @@ where
             HandleKind::Handle(ProgramId::from_origin(dest)),
             payload.to_vec(),
             value,
+            false,
             allow_other_panics,
             None,
         )?;
@@ -349,6 +392,7 @@ where
             HandleKind::Handle(ProgramId::from_origin(dest)),
             payload.to_vec(),
             value,
+            false,
             allow_other_panics,
             Some(min_limit),
         )
@@ -374,6 +418,7 @@ where
             ),
             payload.to_vec(),
             value,
+            false,
             allow_other_panics,
             None,
         )?;
@@ -387,10 +432,89 @@ where
             ),
             payload.to_vec(),
             value,
+            false,
             allow_other_panics,
             Some(min_limit),
         )
     }
+
+    // Voucher
+
+    fn get_voucher_reply_gas_spent(
+        &self,
+        source: H256,
+        message_id: H256,
+        payload: Bytes,
+        value: u128,
+        allow_other_panics: bool,
+        at: Option<<Block as BlockT>::Hash>,
+    ) -> RpcResult<GasInfo> {
+        let at_hash = at.unwrap_or_else(|| self.client.info().best_hash);
+
+        let GasInfo { min_limit, .. } = self.calculate_gas_info(
+            at_hash,
+            source,
+            HandleKind::Reply(
+                MessageId::from_origin(message_id),
+                ReplyCode::Success(SuccessReplyReason::Manual),
+            ),
+            payload.to_vec(),
+            value,
+            true,
+            allow_other_panics,
+            None,
+        )?;
+
+        self.calculate_gas_info(
+            at_hash,
+            source,
+            HandleKind::Reply(
+                MessageId::from_origin(message_id),
+                ReplyCode::Success(SuccessReplyReason::Manual),
+            ),
+            payload.to_vec(),
+            value,
+            true,
+            allow_other_panics,
+            Some(min_limit),
+        )
+    }
+
+    fn get_voucher_handle_gas_spent(
+        &self,
+        source: H256,
+        dest: H256,
+        payload: Bytes,
+        value: u128,
+        allow_other_panics: bool,
+        at: Option<<Block as BlockT>::Hash>,
+    ) -> RpcResult<GasInfo> {
+        let at_hash = at.unwrap_or_else(|| self.client.info().best_hash);
+
+        let GasInfo { min_limit, .. } = self.calculate_gas_info(
+            at_hash,
+            source,
+            HandleKind::Handle(ProgramId::from_origin(dest)),
+            payload.to_vec(),
+            value,
+            true,
+            allow_other_panics,
+            None,
+        )?;
+
+        self.calculate_gas_info(
+            at_hash,
+            source,
+            HandleKind::Handle(ProgramId::from_origin(dest)),
+            payload.to_vec(),
+            value,
+            true,
+            allow_other_panics,
+            Some(min_limit),
+        )
+    }
+
+    // Read state
 
     fn read_state(
         &self,

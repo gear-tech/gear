@@ -50,6 +50,7 @@ where
         initial_gas: u64,
         payload: Vec<u8>,
         value: u128,
+        is_prepaid: bool,
         allow_other_panics: bool,
         allow_skip_zero_replies: bool,
         allowance_multiplier: Option<u64>,
@@ -64,23 +65,32 @@ where
             + value.unique_saturated_into();
         CurrencyOf::<T>::deposit_creating(&account, max_balance.saturating_sub(balance));
 
-        let who = frame_support::dispatch::RawOrigin::Signed(account);
         let value: BalanceOf<T> = value.unique_saturated_into();
 
         QueueOf::<T>::clear();
 
         match kind {
             HandleKind::Init(code) => {
+                let origin = frame_support::dispatch::RawOrigin::Signed(account);
                 let salt = b"calculate_gas_salt".to_vec();
-                Self::upload_program(who.into(), code, salt, payload, initial_gas, value, false)
-                    .map_err(|e| {
-                        format!("Internal error: upload_program failed with '{e:?}'").into_bytes()
-                    })?;
+                Self::upload_program(
+                    origin.into(),
+                    code,
+                    salt,
+                    payload,
+                    initial_gas,
+                    value,
+                    false,
+                )
+                .map_err(|e| {
+                    format!("Internal error: upload_program failed with '{e:?}'").into_bytes()
+                })?;
             }
             HandleKind::InitByHash(code_id) => {
+                let origin = frame_support::dispatch::RawOrigin::Signed(account);
                 let salt = b"calculate_gas_salt".to_vec();
                 Self::create_program(
-                    who.into(),
+                    origin.into(),
                     code_id,
                     salt,
                     payload,
@@ -93,16 +103,32 @@ where
                 })?;
             }
             HandleKind::Handle(destination) => {
-                Self::send_message(who.into(), destination, payload, initial_gas, value, false)
-                    .map_err(|e| {
-                        format!("Internal error: send_message failed with '{e:?}'").into_bytes()
-                    })?;
+                Self::send_message_impl(
+                    account,
+                    destination,
+                    payload,
+                    initial_gas,
+                    value,
+                    is_prepaid,
+                    false,
+                )
+                .map_err(|e| {
+                    format!("Internal error: send_message failed with '{e:?}'").into_bytes()
+                })?;
             }
             HandleKind::Reply(reply_to_id, _status_code) => {
-                Self::send_reply(who.into(), reply_to_id, payload, initial_gas, value, false)
-                    .map_err(|e| {
-                        format!("Internal error: send_reply failed with '{e:?}'").into_bytes()
-                    })?;
+                Self::send_reply_impl(
+                    account,
+                    reply_to_id,
+                    payload,
+                    initial_gas,
+                    value,
+                    is_prepaid,
+                    false,
+                )
+                .map_err(|e| {
+                    format!("Internal error: send_reply failed with '{e:?}'").into_bytes()
+                })?;
             }
             HandleKind::Signal(_signal_from, _status_code) => {
                 return Err(b"Gas calculation for `handle_signal` is not supported".to_vec());

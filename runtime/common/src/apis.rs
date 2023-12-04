@@ -155,11 +155,12 @@ macro_rules! impl_runtime_apis_plus_common {
 					kind: HandleKind,
 					payload: Vec<u8>,
 					value: u128,
+					is_prepaid: bool,
 					allow_other_panics: bool,
 					initial_gas: Option<u64>,
 					gas_allowance: Option<u64>,
 				) -> Result<pallet_gear::GasInfo, Vec<u8>> {
-					Gear::calculate_gas_info(account_id, kind, payload, value, allow_other_panics, initial_gas, gas_allowance)
+					Gear::calculate_gas_info(account_id, kind, payload, value, is_prepaid, allow_other_panics, initial_gas, gas_allowance)
 				}
 
 				fn gear_run_extrinsic(max_gas: Option<u64>) -> <Block as BlockT>::Extrinsic {
