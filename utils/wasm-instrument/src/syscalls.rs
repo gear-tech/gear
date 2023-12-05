@@ -566,13 +566,13 @@ impl SyscallName {
     /// Checks whether the syscall returns error either by writing to input error pointer
     /// or by returning value indicating an error.
     ///
-    /// There are only 2 syscalls returning error value: `Alloc`` and `Free`
+    /// There are only 3 syscalls returning error value: `Alloc`, `Free` & `FreeRange`.
     pub fn returns_error(self) -> bool {
         let signature = self.signature();
 
         match &signature {
-            SyscallSignature::GrFallible(_) | SyscallSignature::System(_) => true,
-            SyscallSignature::GrInfallible(_) => false,
+            SyscallSignature::Fallible(_) | SyscallSignature::System(_) => true,
+            SyscallSignature::Infallible(_) => false,
         }
     }
 
@@ -632,9 +632,15 @@ pub enum HashType {
 
 impl From<ParamType> for ValueType {
     fn from(value: ParamType) -> Self {
+        use RegularParamType::*;
+
         match value {
-            ParamType::Regular(RegularParamType::Gas) => ValueType::I64,
-            _ => ValueType::I32,
+            ParamType::Regular(regular_ptr) => match regular_ptr {
+                Length | Pointer(_) | Offset | DurationBlockNumber | DelayBlockNumber | Handler
+                | Alloc | Free | FreeUpperBound | Version => ValueType::I32,
+                Gas => ValueType::I64,
+            },
+            ParamType::Error(_) => ValueType::I32,
         }
     }
 }
@@ -642,18 +648,18 @@ impl From<ParamType> for ValueType {
 /// Syscall signature.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum SyscallSignature {
-    GrFallible(FallibleSyscallSignature),
-    GrInfallible(InfallibleSyscallSignature),
+    Fallible(FallibleSyscallSignature),
+    Infallible(InfallibleSyscallSignature),
     System(SystemSyscallSignature),
 }
 
 impl SyscallSignature {
     pub fn gr_fallible(fallible: impl Into<FallibleSyscallSignature>) -> Self {
-        Self::GrFallible(fallible.into())
+        Self::Fallible(fallible.into())
     }
 
     pub fn gr_infallible(infallible: impl Into<InfallibleSyscallSignature>) -> Self {
-        Self::GrInfallible(infallible.into())
+        Self::Infallible(infallible.into())
     }
 
     pub fn system(system: impl Into<SystemSyscallSignature>) -> Self {
@@ -662,16 +668,16 @@ impl SyscallSignature {
 
     pub fn params(&self) -> &[ParamType] {
         match self {
-            SyscallSignature::GrFallible(fallible) => &fallible.0,
-            SyscallSignature::GrInfallible(infallible) => &infallible.0,
+            SyscallSignature::Fallible(fallible) => &fallible.0,
+            SyscallSignature::Infallible(infallible) => &infallible.0,
             SyscallSignature::System(system) => &system.params,
         }
     }
 
     pub fn func_type(&self) -> FunctionType {
         let (params, results) = match self {
-            SyscallSignature::GrFallible(fallible) => (fallible.params(), Vec::new()),
-            SyscallSignature::GrInfallible(infallible) => (infallible.params(), Vec::new()),
+            SyscallSignature::Fallible(fallible) => (fallible.params(), Vec::new()),
+            SyscallSignature::Infallible(infallible) => (infallible.params(), Vec::new()),
             SyscallSignature::System(system) => (system.params(), system.results().to_owned()),
         };
 
@@ -679,11 +685,11 @@ impl SyscallSignature {
     }
 
     pub fn is_fallible(&self) -> bool {
-        matches!(self, SyscallSignature::GrFallible(_))
+        matches!(self, SyscallSignature::Fallible(_))
     }
 
     pub fn is_infallible(&self) -> bool {
-        matches!(self, SyscallSignature::GrInfallible(_))
+        matches!(self, SyscallSignature::Infallible(_))
     }
 
     pub fn is_system(&self) -> bool {
