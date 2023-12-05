@@ -19,7 +19,7 @@
 use super::*;
 use crate::{
     rules::CustomConstantCostRules,
-    syscalls::{ParamType::*, Ptr, PtrInfo, RegularParamType::*, SyscallName},
+    syscalls::{ParamType::*, Ptr, RegularParamType::*, SyscallName},
 };
 use alloc::format;
 use elements::Instruction::*;
@@ -627,10 +627,7 @@ fn check_memory_array_pointers_definition_correctness() {
             .params()
             .iter()
             .filter_map(|param_ty| match param_ty {
-                Regular(Pointer(PtrInfo {
-                    ty: Ptr::SizedBufferStart { length_param_idx },
-                    ..
-                })) => Some(*length_param_idx),
+                Regular(Pointer(Ptr::SizedBufferStart { length_param_idx })) => Some(*length_param_idx),
                 _ => None,
             });
 
@@ -651,7 +648,7 @@ fn check_syscall_err_ptr_position() {
                 .params()
                 .last()
                 .expect("fallible syscall has at least err ptr");
-            assert!(matches!(err_ptr, Error(PtrInfo { mutable: true, .. })));
+            assert!(matches!(err_ptr, Error(_)));
         }
     }
 }
