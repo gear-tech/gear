@@ -650,6 +650,13 @@ impl SyscallSignature {
         }
     }
 
+    pub fn results(&self) -> Option<&[ValueType]> {
+        match self {
+            SyscallSignature::Fallible(_) | SyscallSignature::Infallible(_) => None,
+            SyscallSignature::System(system) => Some(&system.results),
+        }
+    }
+
     pub fn func_type(&self) -> FunctionType {
         let (params, results) = match self {
             SyscallSignature::Fallible(fallible) => (fallible.params(), Vec::new()),

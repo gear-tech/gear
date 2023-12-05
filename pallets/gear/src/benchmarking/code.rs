@@ -236,10 +236,13 @@ where
         // Import supervisor functions. They start with idx 0.
         for name in def.imported_functions {
             let sign = name.signature();
-            let sig = builder::signature()
-                .with_params(sign.params.into_iter().map(Into::into))
-                .with_results(sign.results.into_iter())
-                .build_sig();
+            let sig_builder = builder::signature()
+                .with_params(sign.params().into_iter().copied().map(Into::into));
+            let results = sign
+                .results()
+                .map(|results| results.to_vec())
+                .unwrap_or_default();
+            let sig = sig_builder.with_results(results.into_iter()).build_sig();
             let sig = program.push_signature(sig);
             program = program
                 .import()
