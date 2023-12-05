@@ -53,6 +53,7 @@ pub trait WeightInfo {
     fn decode_bytes(a: u32, ) -> Weight;
     fn bls12_381_multi_miller_loop(c: u32, ) -> Weight;
     fn bls12_381_final_exponentiation() -> Weight;
+    fn bls12_381_msm_g1(c: u32, ) -> Weight;
 }
 
 /// Weights for `pallet_gear_builtin_actor` using a Gear node and recommended hardware.
@@ -96,6 +97,16 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
         // Minimum execution time: 539_000_000 picoseconds.
         Weight::from_parts(554_000_000, 0)
     }
+    /// The range of component `c` is `[0, 1000]`.
+    fn bls12_381_msm_g1(c: u32, ) -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `0`
+        //  Estimated: `0`
+        // Minimum execution time: 25_000_000 picoseconds.
+        Weight::from_parts(522_081_240, 0)
+            // Standard Error: 103_908
+            .saturating_add(Weight::from_parts(4_129_174, 0).saturating_mul(c.into()))
+    }
 }
 
 // Weights implementation for backwards compatibility and tests
@@ -137,5 +148,15 @@ impl WeightInfo for () {
         //  Estimated: `0`
         // Minimum execution time: 539_000_000 picoseconds.
         Weight::from_parts(554_000_000, 0)
+    }
+    /// The range of component `c` is `[0, 1000]`.
+    fn bls12_381_msm_g1(c: u32, ) -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `0`
+        //  Estimated: `0`
+        // Minimum execution time: 25_000_000 picoseconds.
+        Weight::from_parts(522_081_240, 0)
+            // Standard Error: 103_908
+            .saturating_add(Weight::from_parts(4_129_174, 0).saturating_mul(c.into()))
     }
 }
