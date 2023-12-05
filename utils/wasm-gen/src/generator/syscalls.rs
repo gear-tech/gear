@@ -98,8 +98,7 @@ impl InvocableSyscall {
                         RegularParamType::Gas,
                         // Duration of the reservation
                         RegularParamType::DurationBlockNumber,
-                    ]
-                    .into(),
+                    ],
                     // Address of error returned
                     ErrPtr::ErrorWithHash(HashType::MessageId),
                 )),
@@ -118,8 +117,7 @@ impl InvocableSyscall {
                         RegularParamType::Gas,
                         // Duration of the reservation
                         RegularParamType::DurationBlockNumber,
-                    ]
-                    .into(),
+                    ],
                     // Address of error returned
                     ErrPtr::ErrorWithHash(HashType::MessageId),
                 )),
@@ -136,8 +134,7 @@ impl InvocableSyscall {
                         RegularParamType::Length,
                         // Number of blocks to delay the sending for
                         RegularParamType::DelayBlockNumber,
-                    ]
-                    .into(),
+                    ],
                     // Address of error returned, `ErrorCode` here because underlying syscalls have different error types
                     ErrPtr::ErrorCode,
                 )),
@@ -149,8 +146,7 @@ impl InvocableSyscall {
                         RegularParamType::DelayBlockNumber,
                         // Amount of gas to reserve
                         RegularParamType::Gas,
-                    ]
-                    .into(),
+                    ],
                     // Address of error returned, `ErrorCode` here because underlying syscalls have different error types
                     ErrPtr::ErrorCode,
                 )),
@@ -169,8 +165,7 @@ impl InvocableSyscall {
                         // Amount of gas deposited for a message id got from `gr_send_input`.
                         // That's an actual input for `gr_reply_deposit`
                         RegularParamType::Gas,
-                    ]
-                    .into(),
+                    ],
                     // Error pointer
                     ErrPtr::ErrorWithHash(HashType::MessageId),
                 )),

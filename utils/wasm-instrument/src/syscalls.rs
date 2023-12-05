@@ -270,7 +270,7 @@ impl SyscallName {
             Self::Exit => SyscallSignature::gr_infallible([Ptr::Hash(HashType::ActorId).into()]),
             Self::GasAvailable => SyscallSignature::gr_infallible([Ptr::MutGas.into()]),
             Self::PayProgramRent => SyscallSignature::gr_fallible((
-                [Ptr::HashWithValue(HashType::ActorId).into()].into(),
+                [Ptr::HashWithValue(HashType::ActorId).into()],
                 ErrPtr::ErrorWithBlockNumberAndValue,
             )),
             Self::ProgramId => {
@@ -282,7 +282,7 @@ impl SyscallName {
             Self::WaitUpTo => SyscallSignature::gr_infallible([DurationBlockNumber]),
             Self::WaitFor => SyscallSignature::gr_infallible([DurationBlockNumber]),
             Self::Wake => SyscallSignature::gr_fallible((
-                [Ptr::Hash(HashType::MessageId).into(), DelayBlockNumber].into(),
+                [Ptr::Hash(HashType::MessageId).into(), DelayBlockNumber],
                 ErrPtr::ErrorCode,
             )),
             Self::ReplyCode => SyscallSignature::gr_fallible(ErrPtr::ErrorWithReplyCode),
@@ -299,8 +299,7 @@ impl SyscallName {
                         length_param_idx: 1,
                     }
                     .into(),
-                ]
-                .into(),
+                ],
                 ErrPtr::ErrorCode,
             )),
             Self::Reply => SyscallSignature::gr_fallible((
@@ -311,12 +310,11 @@ impl SyscallName {
                     .into(),
                     Length,
                     Ptr::Value.into(),
-                ]
-                .into(),
+                ],
                 ErrPtr::ErrorWithHash(HashType::MessageId),
             )),
             Self::ReplyInput => SyscallSignature::gr_fallible((
-                [Offset, Length, Ptr::Value.into()].into(),
+                [Offset, Length, Ptr::Value.into()],
                 ErrPtr::ErrorWithHash(HashType::MessageId),
             )),
             Self::ReplyWGas => SyscallSignature::gr_fallible((
@@ -328,20 +326,19 @@ impl SyscallName {
                     Length,
                     Gas,
                     Ptr::Value.into(),
-                ]
-                .into(),
+                ],
                 ErrPtr::ErrorWithHash(HashType::MessageId),
             )),
             Self::ReplyInputWGas => SyscallSignature::gr_fallible((
-                [Offset, Length, Gas, Ptr::Value.into()].into(),
+                [Offset, Length, Gas, Ptr::Value.into()],
                 ErrPtr::ErrorWithHash(HashType::MessageId),
             )),
             Self::ReplyCommit => SyscallSignature::gr_fallible((
-                [Ptr::Value.into()].into(),
+                [Ptr::Value.into()],
                 ErrPtr::ErrorWithHash(HashType::MessageId),
             )),
             Self::ReplyCommitWGas => SyscallSignature::gr_fallible((
-                [Gas, Ptr::Value.into()].into(),
+                [Gas, Ptr::Value.into()],
                 ErrPtr::ErrorWithHash(HashType::MessageId),
             )),
             Self::ReservationReply => SyscallSignature::gr_fallible((
@@ -352,12 +349,11 @@ impl SyscallName {
                     }
                     .into(),
                     Length,
-                ]
-                .into(),
+                ],
                 ErrPtr::ErrorWithHash(HashType::MessageId),
             )),
             Self::ReservationReplyCommit => SyscallSignature::gr_fallible((
-                [Ptr::HashWithValue(HashType::ReservationId).into()].into(),
+                [Ptr::HashWithValue(HashType::ReservationId).into()],
                 ErrPtr::ErrorWithHash(HashType::MessageId),
             )),
             Self::ReplyPush => SyscallSignature::gr_fallible((
@@ -367,12 +363,11 @@ impl SyscallName {
                     }
                     .into(),
                     Length,
-                ]
-                .into(),
+                ],
                 ErrPtr::ErrorCode,
             )),
             Self::ReplyPushInput => {
-                SyscallSignature::gr_fallible(([Offset, Length].into(), ErrPtr::ErrorCode))
+                SyscallSignature::gr_fallible(([Offset, Length], ErrPtr::ErrorCode))
             }
             Self::ReplyTo => {
                 SyscallSignature::gr_fallible(ErrPtr::ErrorWithHash(HashType::MessageId))
@@ -389,8 +384,7 @@ impl SyscallName {
                     .into(),
                     Length,
                     DelayBlockNumber,
-                ]
-                .into(),
+                ],
                 ErrPtr::ErrorWithHash(HashType::MessageId),
             )),
             Self::SendInput => SyscallSignature::gr_fallible((
@@ -399,8 +393,7 @@ impl SyscallName {
                     Offset,
                     Length,
                     DelayBlockNumber,
-                ]
-                .into(),
+                ],
                 ErrPtr::ErrorWithHash(HashType::MessageId),
             )),
             Self::SendWGas => SyscallSignature::gr_fallible((
@@ -413,8 +406,7 @@ impl SyscallName {
                     Length,
                     Gas,
                     DelayBlockNumber,
-                ]
-                .into(),
+                ],
                 ErrPtr::ErrorWithHash(HashType::MessageId),
             )),
             Self::SendInputWGas => SyscallSignature::gr_fallible((
@@ -424,8 +416,7 @@ impl SyscallName {
                     Length,
                     Gas,
                     DelayBlockNumber,
-                ]
-                .into(),
+                ],
                 ErrPtr::ErrorWithHash(HashType::MessageId),
             )),
             Self::SendCommit => SyscallSignature::gr_fallible((
@@ -433,8 +424,7 @@ impl SyscallName {
                     Handler,
                     Ptr::HashWithValue(HashType::ActorId).into(),
                     DelayBlockNumber,
-                ]
-                .into(),
+                ],
                 ErrPtr::ErrorWithHash(HashType::MessageId),
             )),
             Self::SendCommitWGas => SyscallSignature::gr_fallible((
@@ -443,8 +433,7 @@ impl SyscallName {
                     Ptr::HashWithValue(HashType::ActorId).into(),
                     Gas,
                     DelayBlockNumber,
-                ]
-                .into(),
+                ],
                 ErrPtr::ErrorWithHash(HashType::MessageId),
             )),
             Self::SendInit => SyscallSignature::gr_fallible(ErrPtr::ErrorWithHandle),
@@ -456,12 +445,11 @@ impl SyscallName {
                     }
                     .into(),
                     Length,
-                ]
-                .into(),
+                ],
                 ErrPtr::ErrorCode,
             )),
             Self::SendPushInput => {
-                SyscallSignature::gr_fallible(([Handler, Offset, Length].into(), ErrPtr::ErrorCode))
+                SyscallSignature::gr_fallible(([Handler, Offset, Length], ErrPtr::ErrorCode))
             }
             Self::ReservationSend => SyscallSignature::gr_fallible((
                 [
@@ -472,8 +460,7 @@ impl SyscallName {
                     .into(),
                     Length,
                     DelayBlockNumber,
-                ]
-                .into(),
+                ],
                 ErrPtr::ErrorWithHash(HashType::MessageId),
             )),
             Self::ReservationSendCommit => SyscallSignature::gr_fallible((
@@ -481,8 +468,7 @@ impl SyscallName {
                     Handler,
                     Ptr::TwoHashesWithValue(HashType::ReservationId, HashType::ActorId).into(),
                     DelayBlockNumber,
-                ]
-                .into(),
+                ],
                 ErrPtr::ErrorWithHash(HashType::MessageId),
             )),
             Self::Size => SyscallSignature::gr_infallible([Ptr::MutLength.into()]),
@@ -504,8 +490,7 @@ impl SyscallName {
                     .into(),
                     Length,
                     DelayBlockNumber,
-                ]
-                .into(),
+                ],
                 ErrPtr::ErrorWithTwoHashes(HashType::MessageId, HashType::ActorId),
             )),
             Self::CreateProgramWGas => SyscallSignature::gr_fallible((
@@ -523,25 +508,22 @@ impl SyscallName {
                     Length,
                     Gas,
                     DelayBlockNumber,
-                ]
-                .into(),
+                ],
                 ErrPtr::ErrorWithTwoHashes(HashType::MessageId, HashType::ActorId),
             )),
             Self::ReplyDeposit => SyscallSignature::gr_fallible((
-                [Ptr::Hash(HashType::MessageId).into(), Gas].into(),
+                [Ptr::Hash(HashType::MessageId).into(), Gas],
                 ErrPtr::ErrorCode,
             )),
             Self::ReserveGas => SyscallSignature::gr_fallible((
-                [Gas, DurationBlockNumber].into(),
+                [Gas, DurationBlockNumber],
                 ErrPtr::ErrorWithHash(HashType::ReservationId),
             )),
             Self::UnreserveGas => SyscallSignature::gr_fallible((
-                [Ptr::Hash(HashType::ReservationId).into()].into(),
+                [Ptr::Hash(HashType::ReservationId).into()],
                 ErrPtr::ErrorWithGas,
             )),
-            Self::SystemReserveGas => {
-                SyscallSignature::gr_fallible(([Gas].into(), ErrPtr::ErrorCode))
-            }
+            Self::SystemReserveGas => SyscallSignature::gr_fallible(([Gas], ErrPtr::ErrorCode)),
             Self::Random => SyscallSignature::gr_infallible([
                 Ptr::Hash(HashType::SubjectId).into(),
                 Ptr::MutBlockNumberWithHash(HashType::SubjectId).into(),
