@@ -200,19 +200,9 @@ pub enum CodeError {
     /// Error occurred during decoding original program code.
     #[display(fmt = "The wasm bytecode is failed to be decoded")]
     Decode,
-    /// Error occurred during injecting `gr_system_break` import.
-    #[display(fmt = "Failed to inject `gr_system_break` import")]
-    ImportInjection, //TODO: move
-    /// Error occurred during injecting gas metering instructions.
-    ///
-    /// This might be due to program contained unsupported/non-deterministic instructions
-    /// (floats, memory grow, etc.).
-    #[display(fmt = "Failed to inject instructions for gas metrics: may be in case \
-        program contains unsupported instructions (floats, memory grow, etc.)")]
-    GasInjection, //TODO: move
-    /// Error occurred during stack height instrumentation.
-    #[display(fmt = "Failed to set stack height limits")]
-    StackLimitInjection, //TODO: move
+    /// Error occurred during instrumentation WASM module.
+    #[display(fmt = "Failed to instrument WASM module")]
+    Instrumentation,
     /// Error occurred during encoding instrumented program.
     #[display(fmt = "Failed to encode instrumented program")]
     Encode,
@@ -412,7 +402,7 @@ impl Code {
 
         module = instrumentation_builder.instrument(module).map_err(|err| {
             log::trace!("Failed to instrument program: {err}");
-            CodeError::GasInjection
+            CodeError::Instrumentation
         })?;
 
         let code = parity_wasm::elements::serialize(module).map_err(|err| {
