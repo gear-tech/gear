@@ -593,28 +593,22 @@ impl SyscallName {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum ParamType {
     Regular(RegularParamType),
-    Error(PtrInfo<ErrPtr>),
+    Error(ErrPtr),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum RegularParamType {
-    Length,                // i32 buffers length
-    Pointer(PtrInfo<Ptr>), // i32 non-error pointer
-    Gas,                   // i64 gas amount
-    Offset,                // i32 offset in the input buffer (message payload)
-    DurationBlockNumber,   // i32 duration in blocks
-    DelayBlockNumber,      // i32 delay in blocks
-    Handler,               // i32 handler number
-    Alloc,                 // i32 pages to alloc
-    Free,                  // i32 page number to free
-    FreeUpperBound,        // i32 free upper bound for use with free_range
-    Version,               // i32 version number of exec settings
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct PtrInfo<T> {
-    pub mutable: bool,
-    pub ty: T,
+    Length,              // i32 buffers length
+    Pointer(Ptr),        // i32 non-error pointer
+    Gas,                 // i64 gas amount
+    Offset,              // i32 offset in the input buffer (message payload)
+    DurationBlockNumber, // i32 duration in blocks
+    DelayBlockNumber,    // i32 delay in blocks
+    Handler,             // i32 handler number
+    Alloc,               // i32 pages to alloc
+    Free,                // i32 page number to free
+    FreeUpperBound,      // i32 free upper bound for use with free_range
+    Version,             // i32 version number of exec settings
 }
 
 /// Hash type.
@@ -783,7 +777,7 @@ impl<const N: usize, const M: usize> From<([RegularParamType; N], [ValueType; M]
 
 // TODO: issue write macros
 mod pointers {
-    use super::{HashType, ParamType, PtrInfo, RegularParamType};
+    use super::{HashType, ParamType, RegularParamType};
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
     pub enum Ptr {
@@ -850,10 +844,7 @@ mod pointers {
 
     impl From<Ptr> for RegularParamType {
         fn from(ptr: Ptr) -> RegularParamType {
-            RegularParamType::Pointer(PtrInfo {
-                mutable: ptr.is_mutable(),
-                ty: ptr,
-            })
+            RegularParamType::Pointer(ptr)
         }
     }
 
@@ -871,10 +862,7 @@ mod pointers {
 
     impl From<ErrPtr> for ParamType {
         fn from(err_ptr: ErrPtr) -> ParamType {
-            ParamType::Error(PtrInfo {
-                mutable: true,
-                ty: err_ptr,
-            })
+            ParamType::Error(err_ptr)
         }
     }
 }

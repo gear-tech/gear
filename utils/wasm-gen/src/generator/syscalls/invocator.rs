@@ -30,8 +30,8 @@ use arbitrary::{Result, Unstructured};
 use gear_wasm_instrument::{
     parity_wasm::elements::{BlockType, Instruction, Internal, ValueType},
     syscalls::{
-        FallibleSyscallSignature, ParamType, Ptr, PtrInfo, RegularParamType, SyscallName,
-        SyscallSignature, SystemSyscallSignature,
+        FallibleSyscallSignature, ParamType, Ptr, RegularParamType, SyscallName, SyscallSignature,
+        SystemSyscallSignature,
     },
 };
 use gsys::Hash;
@@ -68,12 +68,10 @@ pub(crate) fn process_syscall_params(
     let length_param_indexes = params
         .iter()
         .filter_map(|&param| match param {
-            Regular(Pointer(PtrInfo {
-                ty:
-                    Ptr::SizedBufferStart { length_param_idx }
-                    | Ptr::MutSizedBufferStart { length_param_idx },
-                ..
-            })) => Some(length_param_idx),
+            Regular(Pointer(
+                Ptr::SizedBufferStart { length_param_idx }
+                | Ptr::MutSizedBufferStart { length_param_idx },
+            )) => Some(length_param_idx),
             _ => None,
         })
         .collect::<HashSet<_>>();
@@ -91,10 +89,9 @@ pub(crate) fn process_syscall_params(
                 // 2. Otherwise, `ProcessedSyscallParams::Value` will be returned from the function.
                 ProcessedSyscallParams::MemoryArrayLength
             }
-            Regular(Pointer(PtrInfo {
-                ty: Ptr::SizedBufferStart { .. },
-                ..
-            })) => ProcessedSyscallParams::MemoryArrayPtr,
+            Regular(Pointer(Ptr::SizedBufferStart { .. })) => {
+                ProcessedSyscallParams::MemoryArrayPtr
+            }
             // It's guaranteed that fallible syscall has error pointer as a last param.
             Regular(Pointer(_)) | Error(_) => ProcessedSyscallParams::MemoryPtrValue,
             Regular(FreeUpperBound) => {
