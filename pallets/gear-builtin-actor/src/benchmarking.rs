@@ -22,7 +22,8 @@
 use crate::Pallet as BuiltInActor;
 use crate::*;
 use ark_bls12_381::{Bls12_381, G1Affine, G1Projective as G1, G2Affine, G2Projective as G2};
-use ark_ec::{pairing::Pairing, Group, ScalarMul};
+use ark_ec::{pairing::Pairing, Group, ScalarMul, short_weierstrass::SWCurveConfig};
+use ark_ff::biginteger::BigInt;
 use ark_scale::hazmat::ArkScaleProjective;
 use ark_std::{ops::Mul, UniformRand};
 use common::{benchmarking, Origin};
@@ -39,6 +40,8 @@ type ArkScale<T> = ark_scale::ArkScale<T, { ark_scale::HOST_CALL }>;
 type ScalarField = <G2 as Group>::ScalarField;
 
 pub(crate) type CurrencyOf<T> = <T as pallet_staking::Config>::Currency;
+
+const MAX_BIG_INT: u32 = 100;
 
 fn naive_var_base_msm<G: ScalarMul>(bases: &[G::MulBase], scalars: &[G::ScalarField]) -> G {
     let mut acc = G::zero();
@@ -231,6 +234,30 @@ benchmarks! {
         let encoded = _result.unwrap();
         let fast = ArkScaleProjective::<G2>::decode(&mut &encoded[..]).unwrap();
         assert_eq!(naive, fast.0);
+    }
+
+    bls12_381_mul_projective_g1 {
+        let c in 1 .. MAX_BIG_INT;
+
+        let mut rng = ark_std::test_rng();
+
+        let bigint = BigInt::<{ MAX_BIG_INT as usize }>::rand(&mut rng);
+        let bigint = bigint.as_ref()[..c as usize].to_vec();
+        let ark_bigint: ArkScale<Vec<u64>> = bigint.clone().into();
+        let encoded_bigint = ark_bigint.encode();
+
+        let base = G1::rand(&mut rng);
+        let ark_base: ArkScaleProjective<G1> = base.clone().into();
+        let encoded_base = ark_base.encode();
+
+        let mut _result: Result<Vec<u8>, ()> = Err(());
+    }: {
+        _result = sp_crypto_ec_utils::bls12_381::host_calls::bls12_381_mul_projective_g1(encoded_base, encoded_bigint);
+    } verify {
+        let encoded = _result.unwrap();
+        let result = ArkScaleProjective::<G1>::decode(&mut &encoded[..]).unwrap();
+        let standard = <ark_bls12_381::g1::Config as SWCurveConfig>::mul_projective(&base, &bigint);
+        assert_eq!(standard, result.0);
     }
 }
 
