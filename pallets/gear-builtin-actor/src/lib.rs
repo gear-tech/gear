@@ -89,7 +89,7 @@ use frame_support::{
 use gear_builtin_actor_common::staking::*;
 use gear_core::{
     ids::{MessageId, ProgramId},
-    message::{ReplyMessage, ReplyPacket, StoredDispatch, Dispatch},
+    message::{Dispatch, ReplyMessage, ReplyPacket, StoredDispatch},
 };
 use gear_core_errors::SimpleExecutionError;
 use pallet_gear::BuiltInActor;
@@ -238,11 +238,9 @@ where
 
     fn ids() -> BTreeSet<ProgramId> {
         enum_iterator::all::<ActorType>()
-            .map(|t| {
-                match t {
-                    ActorType::StakingProxy => Self::staking_proxy_actor_id(),
-                    ActorType::Bls12_381 => Self::bls12_381_actor_id(),
-                }
+            .map(|t| match t {
+                ActorType::StakingProxy => Self::staking_proxy_actor_id(),
+                ActorType::Bls12_381 => Self::bls12_381_actor_id(),
             })
             .collect()
     }
@@ -253,7 +251,13 @@ where
         let actor_id = dispatch.destination();
         if actor_id == Self::staking_proxy_actor_id() {
             output = staking_proxy::handle::<T>(&dispatch, gas_limit).map_or_else(
-                |e| Self::process_error(&dispatch, <T as Config>::WeightInfo::base_handle_weight().ref_time(), e),
+                |e| {
+                    Self::process_error(
+                        &dispatch,
+                        <T as Config>::WeightInfo::base_handle_weight().ref_time(),
+                        e,
+                    )
+                },
                 |(gas_spent, dispatch_result)| {
                     let gas_burned = <T as Config>::WeightInfo::base_handle_weight()
                         .ref_time()
@@ -264,15 +268,16 @@ where
                     let actor_id = dispatch.destination();
 
                     // Build the reply message
-                    let response: StakingResponse = dispatch_result.err().map(Err).unwrap_or(Ok(())).into();
+                    let response: StakingResponse =
+                        dispatch_result.err().map(Err).unwrap_or(Ok(())).into();
                     let payload = response
                         .encode()
                         .try_into()
                         .unwrap_or_else(|_| unreachable!("Response message is too large"));
                     let reply_id = MessageId::generate_reply(message_id);
                     let packet = ReplyPacket::new(payload, 0);
-                    let reply_dispatch =
-                        ReplyMessage::from_packet(reply_id, packet).into_dispatch(actor_id, origin, message_id);
+                    let reply_dispatch = ReplyMessage::from_packet(reply_id, packet)
+                        .into_dispatch(actor_id, origin, message_id);
 
                     Self::process_success(message_id, origin, gas_burned, reply_dispatch)
                 },
@@ -292,8 +297,8 @@ where
                         .unwrap_or_else(|_| unreachable!("Response message is too large"));
                     let reply_id = MessageId::generate_reply(message_id);
                     let packet = ReplyPacket::new(payload, 0);
-                    let reply_dispatch =
-                        ReplyMessage::from_packet(reply_id, packet).into_dispatch(actor_id, origin, message_id);
+                    let reply_dispatch = ReplyMessage::from_packet(reply_id, packet)
+                        .into_dispatch(actor_id, origin, message_id);
 
                     Self::process_success(message_id, origin, gas_spent, reply_dispatch)
                 }
@@ -343,7 +348,11 @@ where
     }
 
     // Error in the actor, generates error reply
-    fn process_error(dispatch: &StoredDispatch, gas_burned: u64, err: BuiltInActorReason) -> Vec<JournalNote> {
+    fn process_error(
+        dispatch: &StoredDispatch,
+        gas_burned: u64,
+        err: BuiltInActorReason,
+    ) -> Vec<JournalNote> {
         let message_id = dispatch.id();
         let origin = dispatch.source();
         let actor_id = dispatch.destination();
