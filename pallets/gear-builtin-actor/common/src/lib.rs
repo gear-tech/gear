@@ -25,6 +25,8 @@ extern crate alloc;
 use alloc::vec::Vec;
 use scale_info::scale::{self, Decode, Encode};
 
+pub mod bls12_381;
+
 pub type AccountId = [u8; 32];
 
 /// Output of a built-in actor's `handle()` function to be encoded into a reply message.

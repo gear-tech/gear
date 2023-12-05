@@ -89,7 +89,7 @@ use frame_support::{
 use gear_builtin_actor_common::staking::*;
 use gear_core::{
     ids::{MessageId, ProgramId},
-    message::{ReplyMessage, ReplyPacket, StoredDispatch},
+    message::{ReplyMessage, ReplyPacket, StoredDispatch, Dispatch},
 };
 use gear_core_errors::SimpleExecutionError;
 use pallet_gear::BuiltInActor;
@@ -103,6 +103,8 @@ pub use weights::WeightInfo;
 
 pub use pallet::*;
 
+pub mod bls12_381;
+
 pub type BalanceOf<T> = <T as pallet_staking::Config>::CurrencyBalance;
 
 #[allow(dead_code)]
@@ -113,6 +115,7 @@ const LOG_TARGET: &str = "gear::builtin-actor";
 #[repr(u32)]
 pub enum ActorType {
     StakingProxy = 100,
+    Bls12_381 = 101,
 }
 
 /// Built-in actor error
@@ -205,6 +208,24 @@ pub mod pallet {
             Actors::<T>::insert(ActorType::StakingProxy, actor_id);
             actor_id
         }
+
+        /// The ID of the Bls12_381 built-in actor.
+        ///
+        /// This does computations, and is used in each block therefore we
+        /// cache the value to ensure this function is only called once.
+        pub fn bls12_381_actor_id() -> ProgramId {
+            if let Some(actor_id) = Self::actors(ActorType::Bls12_381) {
+                return actor_id;
+            }
+
+            let entropy =
+                (T::PalletId::get(), ActorType::Bls12_381 as u32).using_encoded(blake2_256);
+            let actor_id = Decode::decode(&mut TrailingZeroInput::new(entropy.as_ref()))
+                .expect("infinite length input; no invalid inputs for type; qed");
+            Actors::<T>::insert(ActorType::Bls12_381, actor_id);
+
+            actor_id
+        }
     }
 }
 
@@ -219,8 +240,8 @@ where
         enum_iterator::all::<ActorType>()
             .map(|t| {
                 match t {
-                    // For the moment we only have one built-in actor type
                     ActorType::StakingProxy => Self::staking_proxy_actor_id(),
+                    ActorType::Bls12_381 => Self::bls12_381_actor_id(),
                 }
             })
             .collect()
@@ -232,11 +253,52 @@ where
         let actor_id = dispatch.destination();
         if actor_id == Self::staking_proxy_actor_id() {
             output = staking_proxy::handle::<T>(&dispatch, gas_limit).map_or_else(
-                |e| Self::process_error(&dispatch, e),
+                |e| Self::process_error(&dispatch, <T as Config>::WeightInfo::base_handle_weight().ref_time(), e),
                 |(gas_spent, dispatch_result)| {
-                    Self::process_success(&dispatch, gas_spent, dispatch_result.err())
+                    let gas_burned = <T as Config>::WeightInfo::base_handle_weight()
+                        .ref_time()
+                        .saturating_add(gas_spent);
+
+                    let message_id = dispatch.id();
+                    let origin = dispatch.source();
+                    let actor_id = dispatch.destination();
+
+                    // Build the reply message
+                    let response: StakingResponse = dispatch_result.err().map(Err).unwrap_or(Ok(())).into();
+                    let payload = response
+                        .encode()
+                        .try_into()
+                        .unwrap_or_else(|_| unreachable!("Response message is too large"));
+                    let reply_id = MessageId::generate_reply(message_id);
+                    let packet = ReplyPacket::new(payload, 0);
+                    let reply_dispatch =
+                        ReplyMessage::from_packet(reply_id, packet).into_dispatch(actor_id, origin, message_id);
+
+                    Self::process_success(message_id, origin, gas_burned, reply_dispatch)
                 },
             );
+        } else if actor_id == Self::bls12_381_actor_id() {
+            let (gas_spent, result) = bls12_381::handle::<T>(&dispatch, gas_limit);
+            output = match result {
+                Ok(response) => {
+                    let message_id = dispatch.id();
+                    let origin = dispatch.source();
+                    let actor_id = dispatch.destination();
+
+                    // Build the reply message
+                    let payload = response
+                        .encode()
+                        .try_into()
+                        .unwrap_or_else(|_| unreachable!("Response message is too large"));
+                    let reply_id = MessageId::generate_reply(message_id);
+                    let packet = ReplyPacket::new(payload, 0);
+                    let reply_dispatch =
+                        ReplyMessage::from_packet(reply_id, packet).into_dispatch(actor_id, origin, message_id);
+
+                    Self::process_success(message_id, origin, gas_spent, reply_dispatch)
+                }
+                Err(e) => Self::process_error(&dispatch, gas_spent, e),
+            };
         } else {
             log::debug!(
                 target: LOG_TARGET,
@@ -255,67 +317,36 @@ where
 {
     // Successful call, generates the reply message to be sent out
     fn process_success(
-        dispatch: &StoredDispatch,
-        gas_spent: u64,
-        reason: Option<StakingErrorReason>,
+        message_id: MessageId,
+        origin: ProgramId,
+        gas_burned: u64,
+        reply_dispatch: Dispatch,
     ) -> Vec<JournalNote> {
-        let message_id = dispatch.id();
-        let origin = dispatch.source();
-        let actor_id = dispatch.destination();
-
-        let mut journal = vec![];
-
-        journal.push(JournalNote::GasBurned {
-            message_id,
-            amount: <T as Config>::WeightInfo::base_handle_weight()
-                .ref_time()
-                .saturating_add(gas_spent),
-        });
-
-        // Build the reply message
-        let response: StakingResponse = reason.map(Err).unwrap_or(Ok(())).into();
-        let payload = response
-            .encode()
-            .try_into()
-            .unwrap_or_else(|_| unreachable!("Response message is too large"));
-        let reply_id = MessageId::generate_reply(message_id);
-        let packet = ReplyPacket::new(payload, 0);
-        let dispatch =
-            ReplyMessage::from_packet(reply_id, packet).into_dispatch(actor_id, origin, message_id);
-
-        journal.push(JournalNote::SendDispatch {
-            message_id,
-            dispatch,
-            delay: 0,
-            reservation: None,
-        });
-
-        let outcome = DispatchOutcome::Success;
-        journal.push(JournalNote::MessageDispatched {
-            message_id,
-            source: origin,
-            outcome,
-        });
-
-        journal.push(JournalNote::MessageConsumed(message_id));
-
-        journal
+        vec![
+            JournalNote::GasBurned {
+                message_id,
+                amount: gas_burned,
+            },
+            JournalNote::SendDispatch {
+                message_id,
+                dispatch: reply_dispatch,
+                delay: 0,
+                reservation: None,
+            },
+            JournalNote::MessageDispatched {
+                message_id,
+                source: origin,
+                outcome: DispatchOutcome::Success,
+            },
+            JournalNote::MessageConsumed(message_id),
+        ]
     }
 
     // Error in the actor, generates error reply
-    fn process_error(dispatch: &StoredDispatch, err: BuiltInActorReason) -> Vec<JournalNote> {
+    fn process_error(dispatch: &StoredDispatch, gas_burned: u64, err: BuiltInActorReason) -> Vec<JournalNote> {
         let message_id = dispatch.id();
         let origin = dispatch.source();
         let actor_id = dispatch.destination();
-
-        let mut journal = vec![];
-
-        // No call dispatced, so no gas burned except for the base
-        journal.push(JournalNote::GasBurned {
-            message_id,
-            amount: <T as Config>::WeightInfo::base_handle_weight().ref_time(),
-        });
-
         let err_payload = err
             .to_string()
             .into_bytes()
@@ -323,29 +354,28 @@ where
             .unwrap_or_else(|_| unreachable!("Error message is too large"));
         let err: SimpleExecutionError = err.into();
 
-        let dispatch = ReplyMessage::system(message_id, err_payload, err)
-            .into_dispatch(actor_id, origin, message_id);
-
-        journal.push(JournalNote::SendDispatch {
-            message_id,
-            dispatch,
-            delay: 0,
-            reservation: None,
-        });
-
-        let outcome = DispatchOutcome::MessageTrap {
-            program_id: actor_id,
-            trap: err.to_string(),
-        };
-        journal.push(JournalNote::MessageDispatched {
-            message_id,
-            source: origin,
-            outcome,
-        });
-
-        journal.push(JournalNote::MessageConsumed(message_id));
-
-        journal
+        vec![
+            JournalNote::GasBurned {
+                message_id,
+                amount: gas_burned,
+            },
+            JournalNote::SendDispatch {
+                message_id,
+                dispatch: ReplyMessage::system(message_id, err_payload, err)
+                    .into_dispatch(actor_id, origin, message_id),
+                delay: 0,
+                reservation: None,
+            },
+            JournalNote::MessageDispatched {
+                message_id,
+                source: origin,
+                outcome: DispatchOutcome::MessageTrap {
+                    program_id: actor_id,
+                    trap: err.to_string(),
+                },
+            },
+            JournalNote::MessageConsumed(message_id),
+        ]
     }
 
     fn check_gas_limit(gas_limit: u64, info: &DispatchInfo) -> Result<(), BuiltInActorReason> {
