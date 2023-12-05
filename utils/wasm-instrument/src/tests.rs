@@ -30,7 +30,7 @@ fn inject<R, GetRulesFn>(
     module: elements::Module,
     get_gas_rules: GetRulesFn,
     module_name: &str,
-) -> Result<Module, &str>
+) -> Result<Module, InstrumentationError>
 where
     R: Rules,
     GetRulesFn: FnMut(&Module) -> R,
@@ -179,7 +179,10 @@ fn duplicate_import() {
     );
     let module = parse_wat(&wat);
 
-    assert!(inject(module, |_| ConstantCostRules::default(), "env").is_err());
+    assert_eq!(
+        inject(module, |_| ConstantCostRules::default(), "env"),
+        Err(InstrumentationError::SystemBreakImportAlreadyExists)
+    );
 }
 
 #[test]
@@ -197,7 +200,10 @@ fn duplicate_export() {
     );
     let module = parse_wat(&wat);
 
-    assert!(inject(module, |_| ConstantCostRules::default(), "env").is_err());
+    assert_eq!(
+        inject(module, |_| ConstantCostRules::default(), "env"),
+        Err(InstrumentationError::GasGlobalAlreadyExists)
+    );
 }
 
 #[test]
@@ -213,7 +219,10 @@ fn unsupported_instruction() {
         )"#,
     );
 
-    assert!(inject(module, |_| CustomConstantCostRules::default(), "env").is_err());
+    assert_eq!(
+        inject(module, |_| CustomConstantCostRules::default(), "env"),
+        Err(InstrumentationError::GasInjection)
+    );
 }
 
 #[test]
