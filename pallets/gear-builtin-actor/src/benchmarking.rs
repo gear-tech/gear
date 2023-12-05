@@ -204,6 +204,34 @@ benchmarks! {
         let fast = ArkScaleProjective::<G1>::decode(&mut &encoded[..]).unwrap();
         assert_eq!(naive, fast.0);
     }
+
+    bls12_381_msm_g2 {
+        let c in 0 .. 1_000;
+
+        let count = c as usize;
+
+        let mut rng = ark_std::test_rng();
+
+        let scalars = (0..count)
+            .map(|_| <G2 as Group>::ScalarField::rand(&mut rng))
+            .collect::<Vec<_>>();
+        let ark_scalars: ArkScale<Vec<<G2 as Group>::ScalarField>> = scalars.clone().into();
+        let encoded_scalars = ark_scalars.encode();
+
+        let bases = (0..count).map(|_| G2::rand(&mut rng)).collect::<Vec<_>>();
+        let bases = G2::batch_convert_to_mul_base(&bases);
+        let ark_bases: ArkScale<Vec<G2Affine>> = bases.clone().into();
+        let encoded_bases = ark_bases.encode();
+
+        let mut _result: Result<Vec<u8>, ()> = Err(());
+    }: {
+        _result = sp_crypto_ec_utils::bls12_381::host_calls::bls12_381_msm_g2(encoded_bases, encoded_scalars);
+    } verify {
+        let naive = naive_var_base_msm::<G2>(bases.as_slice(), scalars.as_slice());
+        let encoded = _result.unwrap();
+        let fast = ArkScaleProjective::<G2>::decode(&mut &encoded[..]).unwrap();
+        assert_eq!(naive, fast.0);
+    }
 }
 
 impl_benchmark_test_suite!(BuiltInActor, crate::mock::new_test_ext(), crate::mock::Test,);
