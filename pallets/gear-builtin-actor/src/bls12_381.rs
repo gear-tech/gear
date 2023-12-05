@@ -38,6 +38,7 @@ where
     match payload.first().copied() {
         Some(REQUEST_MULTI_MILLER_LOOP) => multi_miller_loop::<T>(&payload[1..], gas_limit),
         Some(REQUEST_FINAL_EXPONENTIATION) => final_exponentiation::<T>(&payload[1..], gas_limit),
+        Some(REQUEST_MULTI_SCALAR_MULTIPLICATION_G1) => msm_g1::<T>(&payload[1..], gas_limit),
         _ => (0, Err(BuiltInActorReason::UnknownMessageType)),
     }
 }
@@ -142,4 +143,77 @@ fn final_exponentiation<T: Config>(
     gas_spent += to_spend;
 
     (gas_spent, Ok(Response::FinalExponentiation(bls12_381::host_calls::bls12_381_final_exponentiation(f))))
+}
+
+fn msm<T: Config>(
+    mut payload: &[u8],
+    gas_limit: u64,
+    gas_to_spend: impl FnOnce(u32) -> u64,
+    call: impl FnOnce(Vec<u8>, Vec<u8>) -> Result<Vec<u8>, ()>,
+) -> (u64, Result<Response, BuiltInActorReason>)
+{
+    let (gas_spent, result) = decode_vec::<T, _>(gas_limit, 0, &mut payload);
+    let bases = match result {
+        Some(Ok(array)) => array,
+        Some(Err(e)) => return (gas_spent, Ok(e.into())),
+        None => return (gas_spent, Err(BuiltInActorReason::InsufficientGas)),
+    };
+
+    let (mut gas_spent, result) = decode_vec::<T, _>(gas_limit, gas_spent, &mut payload);
+    let scalars = match result {
+        Some(Ok(array)) => array,
+        Some(Err(e)) => return (gas_spent, Ok(e.into())),
+        None => return (gas_spent, Err(BuiltInActorReason::InsufficientGas)),
+    };
+
+    // decode the count of items
+
+    let mut slice = bases.as_slice();
+    let mut reader = ark_scale::rw::InputAsRead(&mut slice);
+    let Ok(count) = u64::deserialize_with_mode(&mut reader, IS_COMPRESSED, IS_VALIDATED,) else {
+        log::debug!(
+            target: LOG_TARGET,
+            "Failed to decode item count in bases",
+        );
+
+        return (gas_spent, Ok(CommonError::DecodeItemCount.into()));
+    };
+
+    let mut slice = scalars.as_slice();
+    let mut reader = ark_scale::rw::InputAsRead(&mut slice);
+    match u64::deserialize_with_mode(&mut reader, IS_COMPRESSED, IS_VALIDATED,) {
+        Ok(count_b) if count_b != count => return (gas_spent, Ok(MultiScalarMultiplicationResult::NonEqualItemCount.into())),
+        Err(_) => {
+            log::debug!(
+                target: LOG_TARGET,
+                "Failed to decode item count in scalars",
+            );
+
+            return (gas_spent, Ok(CommonError::DecodeItemCount.into()));
+        }
+        Ok(_) => (),
+    }
+
+    let to_spend = gas_to_spend(count as u32);
+    if gas_limit < gas_spent + to_spend {
+        return (gas_spent, Err(BuiltInActorReason::InsufficientGas));
+    }
+
+    gas_spent += to_spend;
+    let result: MultiScalarMultiplicationResult = call(bases, scalars).into();
+
+    (gas_spent, Ok(result.into()))
+}
+
+fn msm_g1<T: Config>(
+    payload: &[u8],
+    gas_limit: u64,
+) -> (u64, Result<Response, BuiltInActorReason>)
+{
+    msm::<T>(
+        payload,
+        gas_limit,
+        |count| <T as Config>::WeightInfo::bls12_381_msm_g1(count).ref_time(),
+        |bases, scalars| bls12_381::host_calls::bls12_381_msm_g1(bases, scalars),
+    )
 }
