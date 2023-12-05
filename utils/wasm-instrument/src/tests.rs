@@ -627,7 +627,9 @@ fn check_memory_array_pointers_definition_correctness() {
             .params()
             .iter()
             .filter_map(|param_ty| match param_ty {
-                Regular(Pointer(Ptr::SizedBufferStart { length_param_idx })) => Some(*length_param_idx),
+                Regular(Pointer(Ptr::SizedBufferStart { length_param_idx })) => {
+                    Some(*length_param_idx)
+                }
                 _ => None,
             });
 
