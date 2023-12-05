@@ -1,5 +1,5 @@
 use gear_core::code::{Code, TryNewCodeConfig};
-use gear_wasm_instrument::SystemBreakCode;
+use gear_wasm_instrument::{SystemBreakCode, STACK_HEIGHT_EXPORT_NAME};
 use sandbox_wasmer::{
     Exports, Extern, Function, HostEnvInitError, ImportObject, Instance, Memory, MemoryType,
     Module, RuntimeError, Singlepass, Store, Universal, WasmerEnv,
@@ -65,7 +65,7 @@ fn main() -> anyhow::Result<()> {
 
     let stack_height = instance
         .exports
-        .get_global("__gear_stack_height")?
+        .get_global(STACK_HEIGHT_EXPORT_NAME)?
         .get()
         .i32()
         .expect("Unexpected global type") as u32;

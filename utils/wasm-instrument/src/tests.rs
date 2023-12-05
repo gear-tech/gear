@@ -26,6 +26,20 @@ use elements::Instruction::*;
 use gas_metering::ConstantCostRules;
 use parity_wasm::serialize;
 
+fn inject<R, GetRulesFn>(
+    module: elements::Module,
+    get_gas_rules: GetRulesFn,
+    module_name: &str,
+) -> Result<Module, &str>
+where
+    R: Rules,
+    GetRulesFn: FnMut(&Module) -> R,
+{
+    InstrumentationBuilder::new(module_name)
+        .with_gas_limiter(get_gas_rules)
+        .instrument(module)
+}
+
 fn get_function_body(module: &elements::Module, index: usize) -> Option<&[elements::Instruction]> {
     module
         .code_section()
@@ -83,13 +97,7 @@ fn simple_grow() {
         )"#,
     );
 
-    let (gr_system_break_index, module) = inject_system_break_import(module, "env").unwrap();
-    let injected_module = inject(
-        module,
-        &ConstantCostRules::new(1, 10_000, 0),
-        gr_system_break_index,
-    )
-    .unwrap();
+    let injected_module = inject(module, |_| ConstantCostRules::new(1, 10_000, 0), "env").unwrap();
 
     // two new imports (index 0), the original func (i = 1), so
     // gas charge will occupy the next index.
@@ -135,9 +143,7 @@ fn grow_no_gas_no_track() {
         )",
     );
 
-    let (gr_system_break_index, module) = inject_system_break_import(module, "env").unwrap();
-    let injected_module =
-        inject(module, &ConstantCostRules::default(), gr_system_break_index).unwrap();
+    let injected_module = inject(module, |_| ConstantCostRules::default(), "env").unwrap();
 
     let gas_charge_index = 2;
 
@@ -162,7 +168,7 @@ fn grow_no_gas_no_track() {
 fn duplicate_import() {
     let wat = format!(
         r#"(module
-            (import "env" "{system_break}" (func (param i64)))
+            (import "env" "{system_break}" (func))
             (func (result i32)
                 global.get 0
                 memory.grow)
@@ -173,7 +179,7 @@ fn duplicate_import() {
     );
     let module = parse_wat(&wat);
 
-    assert!(inject_system_break_import(module, "env").is_err());
+    assert!(inject(module, |_| ConstantCostRules::default(), "env").is_err());
 }
 
 #[test]
@@ -191,8 +197,7 @@ fn duplicate_export() {
     );
     let module = parse_wat(&wat);
 
-    let (gr_system_break_index, module) = inject_system_break_import(module, "env").unwrap();
-    assert!(inject(module, &ConstantCostRules::default(), gr_system_break_index).is_err());
+    assert!(inject(module, |_| ConstantCostRules::default(), "env").is_err());
 }
 
 #[test]
@@ -208,21 +213,17 @@ fn unsupported_instruction() {
         )"#,
     );
 
-    let (gr_system_break_index, module) = inject_system_break_import(module, "env").unwrap();
-    assert!(inject(
-        module,
-        &CustomConstantCostRules::default(),
-        gr_system_break_index
-    )
-    .is_err());
+    assert!(inject(module, |_| CustomConstantCostRules::default(), "env").is_err());
 }
 
 #[test]
 fn call_index() {
-    let (gr_system_break_index, module) =
-        inject_system_break_import(prebuilt_simple_module(), "env").unwrap();
-    let injected_module =
-        inject(module, &ConstantCostRules::default(), gr_system_break_index).unwrap();
+    let injected_module = inject(
+        prebuilt_simple_module(),
+        |_| ConstantCostRules::default(),
+        "env",
+    )
+    .unwrap();
 
     let empty_func_index = 1;
     let func_index = empty_func_index + 1;
@@ -254,14 +255,11 @@ fn call_index() {
 
 #[test]
 fn cost_overflow() {
-    let (gr_system_break_index, module) =
-        inject_system_break_import(prebuilt_simple_module(), "env").unwrap();
-
     let instruction_cost = u32::MAX / 2;
     let injected_module = inject(
-        module,
-        &ConstantCostRules::new(instruction_cost, 0, 0),
-        gr_system_break_index,
+        prebuilt_simple_module(),
+        |_| ConstantCostRules::new(instruction_cost, 0, 0),
+        "env",
     )
     .unwrap();
 
@@ -314,12 +312,8 @@ macro_rules! test_gas_counter_injection {
             let input_module = parse_wat($input);
             let expected_module = parse_wat($expected);
 
-            let (gr_system_break_index, module) =
-                inject_system_break_import(input_module, "env").unwrap();
-
-            let injected_module =
-                inject(module, &ConstantCostRules::default(), gr_system_break_index)
-                    .expect("inject_gas_counter call failed");
+            let injected_module = inject(input_module, |_| ConstantCostRules::default(), "env")
+                .expect("inject_gas_counter call failed");
 
             let actual_func_body = get_function_body(&injected_module, 0)
                 .expect("injected module must have a function body");

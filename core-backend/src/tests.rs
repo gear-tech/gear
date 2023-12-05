@@ -607,9 +607,8 @@ fn test_syscalls_table() {
     use gear_core::message::DispatchKind;
     use gear_wasm_instrument::{
         gas_metering::ConstantCostRules,
-        inject, inject_system_break_import,
         parity_wasm::{self, builder},
-        SyscallName,
+        InstrumentationBuilder, SyscallName,
     };
 
     // Make module with one empty function.
@@ -637,8 +636,10 @@ fn test_syscalls_table() {
             .build();
     }
 
-    let (gr_system_break_index, module) = inject_system_break_import(module, "env").unwrap();
-    let module = inject(module, &ConstantCostRules::default(), gr_system_break_index).unwrap();
+    let module = InstrumentationBuilder::new("env")
+        .with_gas_limiter(|_| ConstantCostRules::default())
+        .instrument(module)
+        .unwrap();
     let code = module.into_bytes().unwrap();
 
     // Execute wasm and check success.

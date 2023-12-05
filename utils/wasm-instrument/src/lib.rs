@@ -31,6 +31,7 @@ use gwasm_instrument::{
             self, BlockType, ImportCountType, Instruction, Instructions, Local, Module, ValueType,
         },
     },
+    InjectionConfig,
 };
 
 pub use crate::syscalls::SyscallName;
@@ -49,6 +50,9 @@ pub const GLOBAL_NAME_FLAGS: &str = "gear_flags";
 /// '__gear_stack_end' export is inserted by wasm-proc or wasm-builder,
 /// it indicates the end of program stack memory.
 pub const STACK_END_EXPORT_NAME: &str = "__gear_stack_end";
+/// '__gear_stack_height' export is inserted by gwasm-instrument,
+/// it points to stack height global that is used by [`gwasm_instrument::stack_limiter`].
+pub const STACK_HEIGHT_EXPORT_NAME: &str = "__gear_stack_height";
 
 /// System break code for [`SyscallName::SystemBreak`] syscall.
 #[derive(Debug, Clone, Copy)]
@@ -82,10 +86,79 @@ impl TryFrom<u32> for SystemBreakCode {
     }
 }
 
-pub fn inject_system_break_import(
+/// This is an auxiliary builder that allows to instrument WASM module.
+pub struct InstrumentationBuilder<'a, R, GetRulesFn>
+where
+    R: Rules,
+    GetRulesFn: FnMut(&Module) -> R,
+{
+    /// name of module to import syscalls
+    module_name: &'a str,
+    /// configuration of stack_limiter
+    stack_limiter: Option<(u32, bool)>,
+    /// configuration of gas limiter
+    gas_limiter: Option<GetRulesFn>,
+}
+
+impl<'a, R, GetRulesFn> InstrumentationBuilder<'a, R, GetRulesFn>
+where
+    R: Rules,
+    GetRulesFn: FnMut(&Module) -> R,
+{
+    pub fn new(module_name: &'a str) -> Self {
+        Self {
+            module_name,
+            stack_limiter: None,
+            gas_limiter: None,
+        }
+    }
+
+    pub fn with_stack_limiter(&mut self, stack_limit: u32, export_stack_height: bool) -> &mut Self {
+        self.stack_limiter = Some((stack_limit, export_stack_height));
+        self
+    }
+
+    pub fn with_gas_limiter(&mut self, get_gas_rules: GetRulesFn) -> &mut Self {
+        self.gas_limiter = Some(get_gas_rules);
+        self
+    }
+
+    pub fn instrument(&mut self, module: Module) -> Result<Module, &'static str> {
+        if !(self.stack_limiter.is_some() || self.gas_limiter.is_some()) {
+            return Ok(module);
+        }
+
+        let (gr_system_break_index, mut module) =
+            inject_system_break_import(module, self.module_name)?;
+
+        if let Some((stack_limit, export_stack_height)) = self.stack_limiter {
+            let injection_config = InjectionConfig {
+                stack_limit,
+                injection_fn: |_| {
+                    [
+                        Instruction::I32Const(SystemBreakCode::StackLimitExceeded as i32),
+                        Instruction::Call(gr_system_break_index),
+                    ]
+                },
+                stack_height_export_name: export_stack_height.then_some(STACK_HEIGHT_EXPORT_NAME),
+            };
+
+            module = wasm_instrument::inject_stack_limiter_with_config(module, injection_config)?;
+        }
+
+        if let Some(ref mut get_gas_rules) = self.gas_limiter {
+            let gas_rules = get_gas_rules(&module);
+            module = inject_gas_limiter(module, &gas_rules, gr_system_break_index)?;
+        }
+
+        Ok(module)
+    }
+}
+
+fn inject_system_break_import(
     module: elements::Module,
     break_module_name: &str,
-) -> Result<(u32, elements::Module), elements::Module> {
+) -> Result<(u32, elements::Module), &'static str> {
     if module
         .import_section()
         .map(|section| {
@@ -96,7 +169,7 @@ pub fn inject_system_break_import(
         })
         .unwrap_or(false)
     {
-        return Err(module);
+        return Err("WASM module already has `gr_system_break` import");
     }
 
     let mut mbuilder = builder::from_module(module);
@@ -120,16 +193,17 @@ pub fn inject_system_break_import(
     let import_count = module.import_count(ImportCountType::Function);
     let inserted_index = import_count as u32 - 1;
 
-    let module = utils::rewrite_sections_after_insertion(module, inserted_index, 1)?;
+    let module = utils::rewrite_sections_after_insertion(module, inserted_index, 1)
+        .map_err(|_| "Failed to rewrite sections")?;
 
     Ok((inserted_index, module))
 }
 
-pub fn inject<R: Rules>(
+fn inject_gas_limiter<R: Rules>(
     module: Module,
     rules: &R,
     gr_system_break_index: u32,
-) -> Result<Module, Module> {
+) -> Result<Module, &'static str> {
     if module
         .export_section()
         .map(|section| {
@@ -140,7 +214,7 @@ pub fn inject<R: Rules>(
         })
         .unwrap_or(false)
     {
-        return Err(module);
+        return Err("WASM module already has `gear_gas` global");
     }
 
     let gas_charge_index = module.functions_space();
@@ -205,7 +279,7 @@ pub fn inject<R: Rules>(
     // determine cost for successful execution
     let mut block_of_code = false;
 
-    let cost_blocks = match elements
+    let cost_blocks = elements
         .iter()
         .filter(|instruction| match instruction {
             Instruction::If(_) => {
@@ -222,20 +296,18 @@ pub fn inject<R: Rules>(
             rules
                 .instruction_cost(instruction)
                 .and_then(|c| cost.checked_add(c.into()))
-        }) {
-        Some(c) => c,
-        None => return Err(mbuilder.build()),
-    };
+        })
+        .ok_or("An overflow occurred while calculating the cost of successful execution of the `gas_charge` function")?;
 
-    let cost_push_arg = match rules.instruction_cost(&Instruction::I32Const(0)) {
-        Some(c) => c as u64,
-        None => return Err(mbuilder.build()),
-    };
+    let cost_push_arg = rules
+        .instruction_cost(&Instruction::I32Const(0))
+        .map(|c| c as u64)
+        .ok_or("Failed to get instruction cost")?;
 
-    let cost_call = match rules.instruction_cost(&Instruction::Call(0)) {
-        Some(c) => c as u64,
-        None => return Err(mbuilder.build()),
-    };
+    let cost_call = rules
+        .instruction_cost(&Instruction::Call(0))
+        .map(|c| c as u64)
+        .ok_or("Failed to get instruction cost")?;
 
     let cost_local_var = rules.call_per_local_cost() as u64;
 
@@ -245,7 +317,7 @@ pub fn inject<R: Rules>(
     // exceed u32::MAX value. This check ensures
     // there is no u64 overflow.
     if cost > u64::MAX - u64::from(u32::MAX) {
-        return Err(mbuilder.build());
+        return Err("The cost added to gas_to_charge exceeds u32::MAX value");
     }
 
     // update cost for 'gas_charge' function itself
@@ -272,4 +344,5 @@ pub fn inject<R: Rules>(
     let module = mbuilder.build();
 
     gas_metering::post_injection_handler(module, rules, gas_charge_index)
+        .map_err(|_| "Failed to insert gas readings into WASM module")
 }

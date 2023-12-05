@@ -25,17 +25,12 @@ use crate::{
 };
 use alloc::{collections::BTreeSet, vec, vec::Vec};
 use gear_wasm_instrument::{
-    self,
     parity_wasm::{
         self,
         elements::{ExportEntry, GlobalEntry, GlobalType, InitExpr, Instruction, Internal, Module},
     },
-    wasm_instrument::{
-        self,
-        gas_metering::{ConstantCostRules, Rules},
-        InjectionConfig,
-    },
-    SystemBreakCode, STACK_END_EXPORT_NAME,
+    wasm_instrument::gas_metering::{ConstantCostRules, Rules},
+    InstrumentationBuilder, STACK_END_EXPORT_NAME,
 };
 use scale_info::{
     scale::{Decode, Encode},
@@ -207,17 +202,17 @@ pub enum CodeError {
     Decode,
     /// Error occurred during injecting `gr_system_break` import.
     #[display(fmt = "Failed to inject `gr_system_break` import")]
-    ImportInjection,
+    ImportInjection, //TODO: move
     /// Error occurred during injecting gas metering instructions.
     ///
     /// This might be due to program contained unsupported/non-deterministic instructions
     /// (floats, memory grow, etc.).
     #[display(fmt = "Failed to inject instructions for gas metrics: may be in case \
         program contains unsupported instructions (floats, memory grow, etc.)")]
-    GasInjection,
+    GasInjection, //TODO: move
     /// Error occurred during stack height instrumentation.
     #[display(fmt = "Failed to set stack height limits")]
-    StackLimitInjection,
+    StackLimitInjection, //TODO: move
     /// Error occurred during encoding instrumented program.
     #[display(fmt = "Failed to encode instrumented program")]
     Encode,
@@ -307,7 +302,7 @@ pub struct TryNewCodeConfig {
     pub version: u32,
     /// Stack height limit
     pub stack_height: Option<u32>,
-    /// Export `__gear_stack_height` global
+    /// Export `STACK_HEIGHT_EXPORT_NAME` global
     pub export_stack_height: bool,
     /// Check exports (wasm contains init or handle exports)
     pub check_exports: bool,
@@ -405,47 +400,20 @@ impl Code {
             return Err(CodeError::RequiredExportFnNotFound);
         }
 
-        let maybe_gr_system_break_index: Option<u32>;
-        (maybe_gr_system_break_index, module) =
-            if config.stack_height.is_some() || get_gas_rules.is_some() {
-                let (gr_system_break_index, module) =
-                    gear_wasm_instrument::inject_system_break_import(module, "env")
-                        .map_err(|_| CodeError::ImportInjection)?;
-                (Some(gr_system_break_index), module)
-            } else {
-                (None, module)
-            };
+        let mut instrumentation_builder = InstrumentationBuilder::new("env");
 
-        if let Some((stack_limit, gr_system_break_index)) =
-            config.stack_height.zip(maybe_gr_system_break_index)
-        {
-            let injection_config = InjectionConfig {
-                stack_limit,
-                injection_fn: |_| {
-                    [
-                        Instruction::I32Const(SystemBreakCode::StackLimitExceeded as i32),
-                        Instruction::Call(gr_system_break_index),
-                    ]
-                },
-                stack_height_export_name: config
-                    .export_stack_height
-                    .then_some("__gear_stack_height"),
-            };
-
-            module = wasm_instrument::inject_stack_limiter_with_config(module, injection_config)
-                .map_err(|err| {
-                    log::trace!("Failed to inject stack height limits: {err}");
-                    CodeError::StackLimitInjection
-                })?;
+        if let Some(stack_limit) = config.stack_height {
+            instrumentation_builder.with_stack_limiter(stack_limit, config.export_stack_height);
         }
 
-        if let Some((mut get_gas_rules, gr_system_break_index)) =
-            get_gas_rules.zip(maybe_gr_system_break_index)
-        {
-            let gas_rules = get_gas_rules(&module);
-            module = gear_wasm_instrument::inject(module, &gas_rules, gr_system_break_index)
-                .map_err(|_| CodeError::GasInjection)?;
+        if let Some(get_gas_rules) = get_gas_rules {
+            instrumentation_builder.with_gas_limiter(get_gas_rules);
         }
+
+        module = instrumentation_builder.instrument(module).map_err(|err| {
+            log::trace!("Failed to instrument program: {err}");
+            CodeError::GasInjection
+        })?;
 
         let code = parity_wasm::elements::serialize(module).map_err(|err| {
             log::trace!("Failed to encode instrumented program: {err}");
