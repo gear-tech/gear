@@ -39,6 +39,7 @@ where
         Some(REQUEST_MULTI_MILLER_LOOP) => multi_miller_loop::<T>(&payload[1..], gas_limit),
         Some(REQUEST_FINAL_EXPONENTIATION) => final_exponentiation::<T>(&payload[1..], gas_limit),
         Some(REQUEST_MULTI_SCALAR_MULTIPLICATION_G1) => msm_g1::<T>(&payload[1..], gas_limit),
+        Some(REQUEST_MULTI_SCALAR_MULTIPLICATION_G2) => msm_g2::<T>(&payload[1..], gas_limit),
         _ => (0, Err(BuiltInActorReason::UnknownMessageType)),
     }
 }
@@ -215,5 +216,18 @@ fn msm_g1<T: Config>(
         gas_limit,
         |count| <T as Config>::WeightInfo::bls12_381_msm_g1(count).ref_time(),
         |bases, scalars| bls12_381::host_calls::bls12_381_msm_g1(bases, scalars),
+    )
+}
+
+fn msm_g2<T: Config>(
+    payload: &[u8],
+    gas_limit: u64,
+) -> (u64, Result<Response, BuiltInActorReason>)
+{
+    msm::<T>(
+        payload,
+        gas_limit,
+        |count| <T as Config>::WeightInfo::bls12_381_msm_g2(count).ref_time(),
+        |bases, scalars| bls12_381::host_calls::bls12_381_msm_g2(bases, scalars),
     )
 }
