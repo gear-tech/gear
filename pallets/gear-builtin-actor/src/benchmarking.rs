@@ -259,6 +259,30 @@ benchmarks! {
         let standard = <ark_bls12_381::g1::Config as SWCurveConfig>::mul_projective(&base, &bigint);
         assert_eq!(standard, result.0);
     }
+
+    bls12_381_mul_projective_g2 {
+        let c in 1 .. MAX_BIG_INT;
+
+        let mut rng = ark_std::test_rng();
+
+        let bigint = BigInt::<{ MAX_BIG_INT as usize }>::rand(&mut rng);
+        let bigint = bigint.as_ref()[..c as usize].to_vec();
+        let ark_bigint: ArkScale<Vec<u64>> = bigint.clone().into();
+        let encoded_bigint = ark_bigint.encode();
+
+        let base = G2::rand(&mut rng);
+        let ark_base: ArkScaleProjective<G2> = base.clone().into();
+        let encoded_base = ark_base.encode();
+
+        let mut _result: Result<Vec<u8>, ()> = Err(());
+    }: {
+        _result = sp_crypto_ec_utils::bls12_381::host_calls::bls12_381_mul_projective_g2(encoded_base, encoded_bigint);
+    } verify {
+        let encoded = _result.unwrap();
+        let result = ArkScaleProjective::<G2>::decode(&mut &encoded[..]).unwrap();
+        let standard = <ark_bls12_381::g2::Config as SWCurveConfig>::mul_projective(&base, &bigint);
+        assert_eq!(standard, result.0);
+    }
 }
 
 impl_benchmark_test_suite!(BuiltInActor, crate::mock::new_test_ext(), crate::mock::Test,);
