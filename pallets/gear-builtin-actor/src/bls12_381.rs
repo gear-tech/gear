@@ -37,6 +37,7 @@ where
     let payload = message.payload_bytes();
     match payload.first().copied() {
         Some(REQUEST_MULTI_MILLER_LOOP) => multi_miller_loop::<T>(&payload[1..], gas_limit),
+        Some(REQUEST_FINAL_EXPONENTIATION) => final_exponentiation::<T>(&payload[1..], gas_limit),
         _ => (0, Err(BuiltInActorReason::UnknownMessageType)),
     }
 }
@@ -119,4 +120,26 @@ fn multi_miller_loop<T: Config>(
     let result: MultiMillerLoopResult = bls12_381::host_calls::bls12_381_multi_miller_loop(a, b).into();
 
     (gas_spent, Ok(result.into()))
+}
+
+fn final_exponentiation<T: Config>(
+    mut payload: &[u8],
+    gas_limit: u64,
+) -> (u64, Result<Response, BuiltInActorReason>)
+{
+    let (mut gas_spent, result) = decode_vec::<T, _>(gas_limit, 0, &mut payload);
+    let f = match result {
+        Some(Ok(array)) => array,
+        Some(Err(e)) => return (gas_spent, Ok(e.into())),
+        None => return (gas_spent, Err(BuiltInActorReason::InsufficientGas)),
+    };
+
+    let to_spend = <T as Config>::WeightInfo::bls12_381_final_exponentiation().ref_time();
+    if gas_limit < gas_spent + to_spend {
+        return (gas_spent, Err(BuiltInActorReason::InsufficientGas));
+    }
+
+    gas_spent += to_spend;
+
+    (gas_spent, Ok(Response::FinalExponentiation(bls12_381::host_calls::bls12_381_final_exponentiation(f))))
 }
