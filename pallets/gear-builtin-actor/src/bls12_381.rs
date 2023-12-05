@@ -41,6 +41,7 @@ where
         Some(REQUEST_MULTI_SCALAR_MULTIPLICATION_G1) => msm_g1::<T>(&payload[1..], gas_limit),
         Some(REQUEST_MULTI_SCALAR_MULTIPLICATION_G2) => msm_g2::<T>(&payload[1..], gas_limit),
         Some(REQUEST_PROJECTIVE_MULTIPLICATION_G1) => projective_multiplication_g1::<T>(&payload[1..], gas_limit),
+        Some(REQUEST_PROJECTIVE_MULTIPLICATION_G2) => projective_multiplication_g2::<T>(&payload[1..], gas_limit),
         _ => (0, Err(BuiltInActorReason::UnknownMessageType)),
     }
 }
@@ -287,5 +288,18 @@ fn projective_multiplication_g1<T: Config>(
         gas_limit,
         |count| <T as Config>::WeightInfo::bls12_381_mul_projective_g1(count).ref_time(),
         |base, scalar| bls12_381::host_calls::bls12_381_mul_projective_g1(base, scalar),
+    )
+}
+
+fn projective_multiplication_g2<T: Config>(
+    payload: &[u8],
+    gas_limit: u64,
+) -> (u64, Result<Response, BuiltInActorReason>)
+{
+    projective_multiplication::<T>(
+        payload,
+        gas_limit,
+        |count| <T as Config>::WeightInfo::bls12_381_mul_projective_g2(count).ref_time(),
+        |base, scalar| bls12_381::host_calls::bls12_381_mul_projective_g2(base, scalar),
     )
 }
