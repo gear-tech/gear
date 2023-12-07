@@ -31,7 +31,7 @@ use vara_runtime::{
 };
 
 pub use account::{account, alice};
-pub use block::{default_gas_limit, run_to_block, run_to_next_block};
+pub use block::{default_gas_limit, run_to_next_block};
 pub use mailbox::get_mailbox_messages;
 
 mod account;

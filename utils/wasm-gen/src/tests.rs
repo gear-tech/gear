@@ -184,7 +184,7 @@ fn injecting_addresses_works() {
         .entries();
 
     let first_addr_offset = entries
-        .get(0)
+        .first()
         .and_then(|segment| segment.offset().as_ref())
         .map(|expr| &expr.code()[0])
         .expect("checked");

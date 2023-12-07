@@ -17,11 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Common utils for integration tests
-pub use self::{
-    args::Args,
-    result::{Error, Result},
-    traits::{Convert, NodeExec},
-};
+pub use self::{args::Args, result::Result, traits::NodeExec};
 use gear_core::ids::{CodeId, ProgramId};
 use gsdk::{
     ext::{sp_core::crypto::Ss58Codec, sp_runtime::AccountId32},
@@ -39,8 +35,6 @@ mod result;
 pub mod traits;
 
 mod prelude {
-    pub use scale_info::scale::Encode;
-
     pub const ALICE_SS58_ADDRESS: &str = "kGkLEU3e3XXkJp2WK4eNpVmSab5xUNL9QtmLPh8QfCL2EgotW";
 }
 

@@ -19,8 +19,6 @@
 pub(crate) mod account_id;
 mod block;
 
-pub use block::*;
-
 use super::{GearApi, Result};
 use crate::Error;
 use account_id::IntoAccountId32;

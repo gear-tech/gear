@@ -103,7 +103,7 @@ pub async fn run() -> sc_cli::Result<()> {
         true => VARA_SS58_PREFIX,
         false => GEAR_SS58_PREFIX,
     };
-    sp_core::crypto::set_default_ss58_version(ss58_prefix.try_into().unwrap());
+    sp_core::crypto::set_default_ss58_version(ss58_prefix.into());
 
     match &options.command {
         Command::ReplayBlock(cmd) => {

@@ -70,7 +70,7 @@ impl Node {
     pub fn wait_for_log_record(&mut self, log: &str) -> Result<String> {
         let stderr = self.process.stderr.as_mut();
         let reader = BufReader::new(stderr.ok_or(Error::EmptyStderr)?);
-        for line in reader.lines().flatten() {
+        for line in reader.lines().map_while(|result| result.ok()) {
             if line.contains(log) {
                 return Ok(line);
             }
@@ -83,7 +83,7 @@ impl Node {
     pub fn print_logs(&mut self) {
         let stderr = self.process.stderr.as_mut();
         let reader = BufReader::new(stderr.expect("Unable to get stderr"));
-        for line in reader.lines().flatten() {
+        for line in reader.lines().map_while(|result| result.ok()) {
             println!("{line}");
         }
     }
