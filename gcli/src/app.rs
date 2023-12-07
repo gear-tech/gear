@@ -15,7 +15,7 @@ pub trait App: Parser {
     }
 
     /// The verbosity logging level.
-    fn verbosity(&self) -> u16 {
+    fn verbose(&self) -> u16 {
         0
     }
 
@@ -30,7 +30,7 @@ pub trait App: Parser {
     }
 
     /// Exec program from the parsed arguments.
-    fn exec(&self, signer: Signer) -> anyhow::Result<()>;
+    async fn exec(self, signer: Signer) -> anyhow::Result<()>;
 
     /// Run application.
     ///
@@ -41,7 +41,7 @@ pub trait App: Parser {
 
         let app = Self::parse();
         let name = Self::command().get_name().to_string();
-        let filter = match app.verbosity() {
+        let filter = match app.verbose() {
             0 => format!("{name}=info"),
             1 => format!("{name}=debug"),
             2 => format!("debug"),
@@ -70,7 +70,7 @@ pub trait App: Parser {
         };
 
         app.exec(signer)
-            .map_err(|e| eyre!("Failed to run app, {e}"))?;
-        Ok(())
+            .await
+            .map_err(|e| eyre!("Failed to run app, {e}"))
     }
 }

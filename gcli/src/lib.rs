@@ -122,13 +122,15 @@
 //!
 //! GPL v3.0
 
-pub mod app;
+mod app;
 pub mod cmd;
 pub mod keystore;
 pub mod meta;
 pub mod result;
 pub mod template;
 pub mod utils;
+
+pub use self::app::App;
 
 /// SS58 prefix for vara network.
 pub const VARA_SS58_PREFIX: u8 = 137;
