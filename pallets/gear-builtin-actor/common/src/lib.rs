@@ -28,12 +28,6 @@ use scale_info::scale::{self, Decode, Encode};
 
 pub type AccountId = [u8; 32];
 
-// /// Output of a built-in actor's `handle()` function to be encoded into a reply message.
-// pub type BuiltInActorResult = Result<RuntimeCallOutcome, error::BuiltInActorError>;
-
-// /// Output of an underlying runtime call.
-// pub type RuntimeCallOutcome = Result<u64, error::RuntimeCallErrorReason>;
-
 pub use error::{BuiltInActorError, DispatchErrorReason};
 
 /// Message processing output
@@ -68,7 +62,7 @@ pub mod error {
 
     impl From<BuiltInActorError> for SimpleExecutionError {
         /// Convert [`BuiltInActorError`] into [`gear_core_errors::SimpleExecutionError`].
-        // TODO: think of a better mapping.
+        // TODO: should we think of a better mapping?
         fn from(err: BuiltInActorError) -> Self {
             match err {
                 BuiltInActorError::InsufficientGas => SimpleExecutionError::RanOutOfGas,
@@ -77,8 +71,8 @@ pub mod error {
         }
     }
 
-    /// Type representing a dispatched Runtiem call internal error.
-    // TODO: add more granularity to the error type (e.g. describe the pallet etc.)
+    /// Type representing a dispatched Runtime call internal error.
+    // TODO: see if we can add more granularity to the error type (e.g. describe the pallet etc.)
     #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq, derive_more::Display)]
     #[codec(crate = scale)]
     pub enum DispatchErrorReason {
@@ -91,13 +85,17 @@ pub mod staking {
     use super::*;
 
     /// Type that should be used to create a message to the staking built-in actor.
-    /// It is a [partial] mirror of the staking pallet interface. Not all extrinsics
+    ///
+    /// A [partial] mirror of the staking pallet interface. Not all extrinsics
     /// are supported, more can be added as needed for real-world use cases.
     #[derive(Encode, Decode, Clone, PartialEq, Eq, Debug)]
     #[codec(crate = scale)]
     pub enum Request {
         /// Bond up to the `value` from the sender to self as the controller.
-        Bond { value: u128 },
+        Bond {
+            value: u128,
+            payee: Option<RewardAccount>,
+        },
         /// Add up to the `value` to the sender's bonded amount.
         BondExtra { value: u128 },
         /// Unbond up to the `value` to allow withdrawal after undonding period.
@@ -113,5 +111,20 @@ pub mod staking {
         },
         /// Rebond a portion of the sender's stash scheduled to be unlocked.
         Rebond { value: u128 },
+        /// Set the reward destination.
+        SetPayee { payee: RewardAccount },
+    }
+
+    /// An account where the rewards should accumulate on.
+    ///
+    /// In order to separate the contract's own balance from the rewards earned by users funds,
+    /// a separate account for the rewards can be assigned.
+    #[derive(Encode, Decode, Clone, PartialEq, Eq, Debug)]
+    #[codec(crate = scale)]
+    pub enum RewardAccount {
+        /// Accumulate the rewards on contract's account derived from its `program_id`.
+        Program,
+        /// Accumulate the rewards on a separate account.
+        Custom(AccountId),
     }
 }

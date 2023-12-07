@@ -62,7 +62,7 @@ pub(crate) const ENDOWMENT: u128 = 1_000 * UNITS;
 
 pub(crate) const UNITS: u128 = 1_000_000_000_000; // 10^(-12) precision
 const MILLISECS_PER_BLOCK: u64 = 2_400;
-const SESSION_DURATION: u64 = 1_000;
+pub(crate) const SESSION_DURATION: u64 = 250;
 
 // Configure a mock runtime to test the pallet.
 construct_runtime!(
@@ -150,11 +150,11 @@ impl pallet_staking::EraPayout<u128> for DummyEraPayout {
     }
 }
 parameter_types! {
-    // 6 sessions in an era
-    pub const SessionsPerEra: u32 = 6;
-    // 14 eras for unbonding
-    pub const BondingDuration: u32 = 14;
-    pub const SlashDeferDuration: u32 = 13;
+    // 2 sessions in an era
+    pub const SessionsPerEra: u32 = 2;
+    // 4 eras for unbonding
+    pub const BondingDuration: u32 = 4;
+    pub const SlashDeferDuration: u32 = 3;
     pub const MaxNominatorRewardedPerValidator: u32 = 256;
     pub const OffendingValidatorsThreshold: Perbill = Perbill::from_percent(17);
     pub const MaxActiveValidators: u32 = 100;
@@ -260,7 +260,7 @@ parameter_types! {
     pub const OutgoingLimit: u32 = 1024;
     pub ReserveThreshold: BlockNumber = 1;
     pub GearSchedule: pallet_gear::Schedule<Test> = <pallet_gear::Schedule<Test>>::default();
-    pub RentFreePeriod: BlockNumber = 1_000;
+    pub RentFreePeriod: BlockNumber = 10_000;
     pub RentCostPerBlock: Balance = 11;
     pub ResumeMinimalPeriod: BlockNumber = 100;
     pub ResumeSessionDuration: BlockNumber = 1_000;

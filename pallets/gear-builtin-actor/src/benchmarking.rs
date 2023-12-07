@@ -24,7 +24,7 @@ use crate::*;
 use common::{benchmarking, Origin};
 use frame_benchmarking::{benchmarks, impl_benchmark_test_suite};
 use frame_support::traits::Currency;
-use gear_builtin_actor_common::staking::StakingMessage;
+use gear_builtin_actor_common::staking::Request;
 use gear_core::message::{DispatchKind, StoredDispatch, StoredMessage};
 use pallet_gear::BuiltInActor as BuiltInActorT;
 use parity_scale_codec::Encode;
@@ -45,7 +45,7 @@ benchmarks! {
         );
         let built_in_actor_id = BuiltInActor::<T>::staking_proxy_actor_id();
         let value = 100_000_000_000_000_u128;
-        let payload = StakingMessage::Bond { value }.encode();
+        let payload = Request::Bond { value, payee: None }.encode();
         let source = ProgramId::from_origin(issuer.clone().into_origin());
 
         let dispatch = StoredDispatch::new(

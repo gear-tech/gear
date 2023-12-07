@@ -47,23 +47,52 @@ fn deploy_contract() {
     ));
 }
 
-fn send_bond_message(contract_id: ProgramId, amount: BalanceOf<Test>) {
+fn send_bond_message(
+    contract_id: ProgramId,
+    amount: BalanceOf<Test>,
+    payee: Option<RewardAccount>,
+) {
     assert_ok!(Gear::send_message(
         RuntimeOrigin::signed(SIGNER),
         contract_id,
-        Request::Bond { value: amount }.encode(),
+        Request::Bond {
+            value: amount,
+            payee
+        }
+        .encode(),
         10_000_000_000,
         amount,
         false,
     ));
 }
 
-fn assert_bonding_events(contract_id: impl Origin + Copy, bonded: BalanceOf<Test>) {
+fn assert_message_executed() {
     assert!(System::events().into_iter().any(|e| {
         match e.event {
             RuntimeEvent::GearBuiltinActor(Event::MessageExecuted { result }) => result.is_ok(),
+            _ => false,
+        }
+    }))
+}
+
+#[derive(PartialEq)]
+enum EventType {
+    Bonded,
+    Unbonded,
+    Withdrawn,
+}
+
+fn assert_staking_events(contract_id: AccountIdOf<Test>, balance: BalanceOf<Test>, t: EventType) {
+    assert!(System::events().into_iter().any(|e| {
+        match e.event {
             RuntimeEvent::Staking(pallet_staking::Event::<Test>::Bonded { stash, amount }) => {
-                stash.into_origin() == contract_id.into_origin() && bonded == amount
+                t == EventType::Bonded && stash == contract_id && balance == amount
+            }
+            RuntimeEvent::Staking(pallet_staking::Event::<Test>::Unbonded { stash, amount }) => {
+                t == EventType::Unbonded && stash == contract_id && balance == amount
+            }
+            RuntimeEvent::Staking(pallet_staking::Event::<Test>::Withdrawn { stash, amount }) => {
+                t == EventType::Withdrawn && stash == contract_id && balance == amount
             }
             _ => false,
         }
@@ -90,7 +119,11 @@ fn user_message_to_builtin_actor_works() {
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(SIGNER),
             builtin_actor_id,
-            Request::Bond { value: 100 * UNITS }.encode(),
+            Request::Bond {
+                value: 100 * UNITS,
+                payee: None
+            }
+            .encode(),
             10_000_000_000,
             0,
             false,
@@ -116,7 +149,8 @@ fn user_message_to_builtin_actor_works() {
         assert_eq!(signer_account_data.misc_frozen, 100 * UNITS);
 
         // Asserting the expected events are present
-        assert_bonding_events(SIGNER, 100 * UNITS);
+        assert_message_executed();
+        assert_staking_events(SIGNER, 100 * UNITS, EventType::Bonded);
     });
 }
 
@@ -127,8 +161,6 @@ fn bonding_works() {
     new_test_ext().execute_with(|| {
         let contract_id = ProgramId::generate_from_user(CodeId::generate(WASM_BINARY), b"contract");
         let contract_account_id = AccountIdOf::<Test>::from_origin(contract_id.into_origin());
-
-        let _builtin_actor_id = pallet::Pallet::<Test>::staking_proxy_actor_id();
 
         deploy_contract();
         run_to_next_block();
@@ -141,7 +173,11 @@ fn bonding_works() {
             let res = Gear::calculate_gas_info(
                 SIGNER.into_origin(),
                 pallet_gear::manager::HandleKind::Handle(contract_id),
-                Request::Bond { value: bonded }.encode(),
+                Request::Bond {
+                    value: bonded,
+                    payee: None,
+                }
+                .encode(),
                 value.unwrap_or(bonded),
                 true,
                 None,
@@ -154,7 +190,7 @@ fn bonding_works() {
         let gas_burned = gas_info(100 * UNITS, None).burned;
 
         // Asserting success
-        send_bond_message(contract_id, 100 * UNITS);
+        send_bond_message(contract_id, 100 * UNITS, None);
         run_to_next_block();
 
         let signer_current_balance_at_blk_2 = Balances::free_balance(SIGNER);
@@ -174,7 +210,8 @@ fn bonding_works() {
         assert_eq!(contract_account_data.misc_frozen, 100 * UNITS);
 
         // Asserting the expected events are present
-        assert_bonding_events(contract_id, 100 * UNITS);
+        assert_message_executed();
+        assert_staking_events(contract_account_id, 100 * UNITS, EventType::Bonded);
 
         System::reset_events();
 
@@ -189,7 +226,11 @@ fn bonding_works() {
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(SIGNER),
             contract_id,
-            Request::Bond { value: 50 * UNITS }.encode(),
+            Request::Bond {
+                value: 50 * UNITS,
+                payee: None
+            }
+            .encode(),
             10_000_000_000,
             100 * UNITS,
             false,
@@ -211,7 +252,8 @@ fn bonding_works() {
         );
 
         // Asserting the expected events are present
-        assert_bonding_events(contract_id, 50 * UNITS);
+        assert_message_executed();
+        assert_staking_events(contract_account_id, 50 * UNITS, EventType::Bonded);
     });
 }
 
@@ -221,16 +263,17 @@ fn unbonding_works() {
 
     new_test_ext().execute_with(|| {
         let contract_id = ProgramId::generate_from_user(CodeId::generate(WASM_BINARY), b"contract");
-        let _builtin_actor_id = pallet::Pallet::<Test>::staking_proxy_actor_id();
+        let contract_account_id = AccountIdOf::<Test>::from_origin(contract_id.into_origin());
 
         deploy_contract();
         run_to_next_block();
 
-        send_bond_message(contract_id, 100 * UNITS);
+        send_bond_message(contract_id, 100 * UNITS, None);
         run_to_next_block();
 
         // Asserting the expected events are present
-        assert_bonding_events(contract_id, 100 * UNITS);
+        assert_message_executed();
+        assert_staking_events(contract_account_id, 100 * UNITS, EventType::Bonded);
 
         System::reset_events();
 
@@ -262,16 +305,8 @@ fn unbonding_works() {
         run_to_next_block();
 
         // Asserting the expected events are present
-        assert!(System::events().into_iter().any(|e| {
-            match e.event {
-                RuntimeEvent::GearBuiltinActor(Event::MessageExecuted { result }) => result.is_ok(),
-                RuntimeEvent::Staking(pallet_staking::Event::<Test>::Unbonded {
-                    stash,
-                    amount,
-                }) => stash.into_origin() == contract_id.into_origin() && amount == 100 * UNITS,
-                _ => false,
-            }
-        }));
+        assert_message_executed();
+        assert_staking_events(contract_account_id, 100 * UNITS, EventType::Unbonded);
     });
 }
 
@@ -281,7 +316,6 @@ fn nominating_works() {
 
     new_test_ext().execute_with(|| {
         let contract_id = ProgramId::generate_from_user(CodeId::generate(WASM_BINARY), b"contract");
-        let _builtin_actor_id = pallet::Pallet::<Test>::staking_proxy_actor_id();
         let contract_account_id = AccountIdOf::<Test>::from_origin(contract_id.into_origin());
 
         deploy_contract();
@@ -311,9 +345,10 @@ fn nominating_works() {
 
         System::reset_events();
 
-        send_bond_message(contract_id, 100 * UNITS);
+        send_bond_message(contract_id, 100 * UNITS, None);
         run_to_next_block();
-        assert_bonding_events(contract_id, 100 * UNITS);
+        assert_message_executed();
+        assert_staking_events(contract_account_id, 100 * UNITS, EventType::Bonded);
 
         let targets_before = pallet_staking::Nominators::<Test>::get(contract_account_id)
             .map_or_else(Vec::new, |x| x.targets.into_inner());
@@ -337,5 +372,79 @@ fn nominating_works() {
         let targets_after = pallet_staking::Nominators::<Test>::get(contract_account_id)
             .map_or_else(Vec::new, |x| x.targets.into_inner());
         assert_eq!(targets_after.len(), targets.len());
+    });
+}
+
+#[test]
+fn withdraw_unbonded_works() {
+    init_logger();
+
+    new_test_ext().execute_with(|| {
+        let contract_id = ProgramId::generate_from_user(CodeId::generate(WASM_BINARY), b"contract");
+        let contract_account_id = AccountIdOf::<Test>::from_origin(contract_id.into_origin());
+
+        deploy_contract();
+        run_to_next_block();
+
+        send_bond_message(contract_id, 500 * UNITS, None);
+        run_to_next_block();
+        assert_message_executed();
+        assert_staking_events(contract_account_id, 500 * UNITS, EventType::Bonded);
+
+        let contract_account_data = System::account(contract_account_id).data;
+
+        // Locked 500 * UNITS as bonded on contracts's account
+        assert_eq!(contract_account_data.misc_frozen, 500 * UNITS);
+
+        System::reset_events();
+
+        // Sending `unbond` message
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(SIGNER),
+            contract_id,
+            Request::Unbond { value: 200 * UNITS }.encode(),
+            10_000_000_000,
+            0,
+            false,
+        ));
+
+        run_to_next_block();
+        assert_message_executed();
+        assert_staking_events(contract_account_id, 200 * UNITS, EventType::Unbonded);
+
+        // The funds are still locked
+        assert_eq!(
+            System::account(contract_account_id).data.misc_frozen,
+            500 * UNITS
+        );
+
+        // Roll to the end of the unbonding period
+        run_for_n_blocks(
+            SESSION_DURATION
+                * <Test as pallet_staking::Config>::SessionsPerEra::get() as u64
+                * <Test as pallet_staking::Config>::BondingDuration::get() as u64,
+        );
+
+        // Sending `withdraw_unbond` message
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(SIGNER),
+            contract_id,
+            Request::WithdrawUnbonded {
+                num_slashing_spans: 0
+            }
+            .encode(),
+            10_000_000_000,
+            0,
+            false,
+        ));
+
+        run_to_next_block();
+
+        // 200 * UNITS have been released, 300 * UNITS remain locked
+        assert_eq!(
+            System::account(contract_account_id).data.misc_frozen,
+            300 * UNITS
+        );
+        assert_staking_events(contract_account_id, 200 * UNITS, EventType::Withdrawn);
     });
 }

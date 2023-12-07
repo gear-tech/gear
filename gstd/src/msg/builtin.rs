@@ -26,12 +26,12 @@
 ///
 /// Currently supported message types include:
 ///
-/// - [`staking::Request::Bond { value }`] - bond up to the `value` to self as the
-///   controller
-/// - [`staking::Request::BondExtra { value }`] - add more `value` to the sender's
-///   bonded amount
-/// - [`staking::Request::Unbond { value }`] - unbond up to the `value` for future
-///   withdrawal
+/// - [`staking::Request::Bond { value }`] - bond up to the `value` to self as
+///   the controller
+/// - [`staking::Request::BondExtra { value }`] - add more `value` to the
+///   sender's bonded amount
+/// - [`staking::Request::Unbond { value }`] - unbond up to the `value` for
+///   future withdrawal
 /// - [`staking::Request::Nominate { targets }`] - nominate `targets` as
 ///   validators
 

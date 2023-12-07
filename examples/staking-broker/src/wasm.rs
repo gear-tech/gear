@@ -99,7 +99,7 @@ impl StakingBroker {
         // Note: this is not how you'd do it in a real application, given the
         // Staking pallet `unbonding` logic, but it's enough for the example.
         let payload = if !self.has_bonded_any {
-            Request::Bond { value }
+            Request::Bond { value, payee: None }
         } else {
             Request::BondExtra { value }
         };
@@ -155,6 +155,18 @@ impl StakingBroker {
         );
         do_send_message(payload, || {}).await
     }
+
+    async fn witdraw_unbonded(&mut self) {
+        // Prepare a message to the built-in actor
+        let payload = Request::WithdrawUnbonded {
+            num_slashing_spans: 0,
+        };
+        debug!(
+            "[StakingBroker] Sending `withdraw_unbonded` message {:?} at broker's state {:?}",
+            payload, self
+        );
+        do_send_message(payload, || {}).await
+    }
 }
 
 #[gstd::async_main]
@@ -163,14 +175,20 @@ async fn main() {
 
     let payload = msg::load().expect("Expecting a valid payload");
     match payload {
-        Request::Bond { value } | Request::BondExtra { value } => {
+        Request::Bond {
+            value,
+            payee: _payee,
+        } => {
+            broker.bond(msg::value().min(value)).await;
+        }
+        Request::BondExtra { value } => {
             broker.bond(msg::value().min(value)).await;
         }
         Request::Unbond { value } => {
             broker.unbond(value).await;
         }
         Request::WithdrawUnbonded { .. } => {
-            unimplemented!("Withdrawing unbonded is not supported yet");
+            broker.witdraw_unbonded().await;
         }
         Request::Nominate { targets } => {
             broker.nominate(targets).await;
@@ -180,6 +198,9 @@ async fn main() {
         }
         Request::Rebond { .. } => {
             unimplemented!("Rebonding is not supported yet");
+        }
+        Request::SetPayee { .. } => {
+            unimplemented!("Set payee is not supported yet");
         }
     }
 }

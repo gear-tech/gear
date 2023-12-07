@@ -396,12 +396,27 @@ pub mod staking_proxy {
         let msg: Request = Decode::decode(&mut message.payload_bytes())
             .map_err(|_| BuiltInActorError::UnknownMessageType)?;
         let call = match msg {
-            Request::Bond { value } => pallet_staking::Call::<T>::bond {
-                controller: T::Lookup::unlookup(origin.clone()),
-                value: value.unique_saturated_into(),
-                payee: RewardDestination::Stash,
+            Request::Bond { value, payee } => {
+                let payee = if let Some(payee) = payee {
+                    match payee {
+                        RewardAccount::Program => RewardDestination::Stash,
+                        RewardAccount::Custom(account_id) => {
+                            let dest = <T::AccountId as Origin>::from_origin(
+                                ProgramId::from(&account_id[..]).into_origin(),
+                            );
+                            RewardDestination::Account(dest)
+                        }
+                    }
+                } else {
+                    RewardDestination::Stash
+                };
+                pallet_staking::Call::<T>::bond {
+                    controller: T::Lookup::unlookup(origin.clone()),
+                    value: value.unique_saturated_into(),
+                    payee,
+                }
+                .into()
             }
-            .into(),
             Request::BondExtra { value } => pallet_staking::Call::<T>::bond_extra {
                 max_additional: value.unique_saturated_into(),
             }
@@ -442,6 +457,18 @@ pub mod staking_proxy {
                 value: value.unique_saturated_into(),
             }
             .into(),
+            Request::SetPayee { payee } => {
+                let payee = match payee {
+                    RewardAccount::Program => RewardDestination::Stash,
+                    RewardAccount::Custom(account_id) => {
+                        let dest = <T::AccountId as Origin>::from_origin(
+                            ProgramId::from(&account_id[..]).into_origin(),
+                        );
+                        RewardDestination::Account(dest)
+                    }
+                };
+                pallet_staking::Call::<T>::set_payee { payee }.into()
+            }
         };
         Pallet::<T>::dispatch_call(origin, call, gas_limit)
     }
