@@ -18,6 +18,7 @@ name = "gcli"
 [dependencies]
 gsdk.workspace = true
 anyhow.workspace = true
+async-trait.workspace = true
 base64.workspace = true
 color-eyre.workspace = true
 dirs.workspace = true

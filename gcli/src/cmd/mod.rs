@@ -55,12 +55,6 @@ pub enum Command {
 }
 
 /// gear command-line tools
-///    ___     ___     _       ___
-///   / __|   / __|   | |     |_ _|
-///  | (_ |  | (__    | |__    | |
-///   \___|   \___|   |____|  |___|
-/// _|"""""|_|"""""|_|"""""|_|"""""|
-/// "`-0-0-'"`-0-0-'"`-0-0-'"`-0-0-'
 #[derive(Debug, Parser)]
 #[clap(author, version, verbatim_doc_comment)]
 #[command(name = "gcli")]
@@ -124,13 +118,6 @@ impl Opt {
     /// Create api client from endpoint
     async fn api(&self) -> Result<Api> {
         Api::new(self.endpoint.as_deref()).await.map_err(Into::into)
-    }
-
-    /// Execute command sync
-    pub fn exec_sync(&self) -> color_eyre::Result<()> {
-        let rt = tokio::runtime::Runtime::new().unwrap();
-
-        rt.block_on(self.exec()).map_err(Into::into)
     }
 
     /// Execute command.

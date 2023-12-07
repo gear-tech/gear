@@ -122,6 +122,7 @@
 //!
 //! GPL v3.0
 
+pub mod app;
 pub mod cmd;
 pub mod keystore;
 pub mod meta;
