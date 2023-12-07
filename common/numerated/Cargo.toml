@@ -1,0 +1,26 @@
+[package]
+name = "numerated"
+description = "A library for working with intervals and sets of numerated values"
+keywords = ["gear", "tree", "interval", "numerated", "no-std", "math"]
+categories = ["mathematics", "no-std"]
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+
+[dependencies]
+num-traits.workspace = true
+derive_more.workspace = true
+scale-info = { workspace = true, features = ["derive"] }
+parity-scale-codec = { workspace = true, features = ["derive"] }
+log = { workspace = true, optional = true }
+
+[dev-dependencies]
+env_logger.workspace = true
+proptest.workspace = true
+log.workspace = true
+
+[features]
+mock = ["log"]

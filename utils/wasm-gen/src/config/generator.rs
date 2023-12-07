@@ -18,7 +18,7 @@
 
 //! Configs related to instantiation of gear wasm module generators.
 
-use crate::SysCallsConfig;
+use crate::SyscallsConfig;
 
 pub(crate) const DEFAULT_INITIAL_SIZE: u32 = 16;
 
@@ -47,7 +47,7 @@ impl GearWasmGeneratorConfigBuilder {
     }
 
     /// Defines syscalls config for the gear wasm generator.
-    pub fn with_syscalls_config(mut self, syscalls_config: SysCallsConfig) -> Self {
+    pub fn with_syscalls_config(mut self, syscalls_config: SyscallsConfig) -> Self {
         self.0.syscalls_config = syscalls_config;
 
         self
@@ -84,7 +84,7 @@ pub struct GearWasmGeneratorConfig {
     /// Entry points config.
     pub entry_points_config: EntryPointsSet,
     /// Syscalls generator module config.
-    pub syscalls_config: SysCallsConfig,
+    pub syscalls_config: SyscallsConfig,
     /// Flag, signalizing whether recursions
     /// should be removed from resulting module.
     pub remove_recursions: bool,
