@@ -2452,7 +2452,7 @@ dependencies = [
  "gear-core",
  "gear-wasm-builder",
  "gstd",
- "hashbrown 0.14.2",
+ "hashbrown 0.14.3",
  "hex",
  "hex-literal",
  "parity-scale-codec",
