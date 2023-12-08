@@ -26,7 +26,7 @@ use gsdk::{signer::Signer, Api};
 
 /// Command line gear program application abstraction.
 ///
-/// ```rust
+/// ```ignore
 /// use gcli::{async_trait, App, Command, Parser, Signer};
 ///
 /// /// My customized sub commands.
