@@ -48,8 +48,8 @@ use gsdk::{signer::Signer, Api};
 ///
 /// #[async_trait]
 /// impl App for MyGCli {
-///     async fn exec(self, signer: Signer) -> anyhow::Result<()> {
-///         match self.command {
+///     async fn exec(&self, signer: Signer) -> anyhow::Result<()> {
+///         match &self.command {
 ///             SubCommand::GCliCommands(command) => command.exec(signer).await,
 ///             SubCommand::Ping => {
 ///                 println!("pong");
@@ -87,13 +87,13 @@ pub trait App: Parser {
     }
 
     /// Exec program from the parsed arguments.
-    async fn exec(self, signer: Signer) -> anyhow::Result<()>;
+    async fn exec(&self, signer: Signer) -> anyhow::Result<()>;
 
     /// Run application.
     ///
     /// This is a wrapper of [`Self::exec`] with preset retry
     /// and verbose level.
-    async fn run(self) -> Result<()> {
+    async fn run(&self) -> Result<()> {
         color_eyre::install()?;
         sp_core::crypto::set_default_ss58_version(crate::VARA_SS58_PREFIX.into());
 

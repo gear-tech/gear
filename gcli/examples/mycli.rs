@@ -37,8 +37,8 @@ pub struct MyGCli {
 
 #[async_trait]
 impl App for MyGCli {
-    async fn exec(self, signer: Signer) -> anyhow::Result<()> {
-        match self.command {
+    async fn exec(&self, signer: Signer) -> anyhow::Result<()> {
+        match &self.command {
             SubCommand::GCliCommands(command) => command.exec(signer).await,
             SubCommand::Ping => {
                 println!("pong");

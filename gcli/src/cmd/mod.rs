@@ -54,7 +54,7 @@ pub enum Command {
 
 impl Command {
     /// Execute the command.
-    pub async fn exec(self, signer: Signer) -> anyhow::Result<()> {
+    pub async fn exec(&self, signer: Signer) -> anyhow::Result<()> {
         match self {
             Command::Key(key) => key.exec()?,
             Command::Login(login) => login.exec()?,
@@ -114,14 +114,14 @@ impl App for Opt {
         self.passwd.clone()
     }
 
-    async fn exec(self, signer: Signer) -> anyhow::Result<()> {
+    async fn exec(&self, signer: Signer) -> anyhow::Result<()> {
         self.command.exec(signer).await
     }
 }
 
 impl Opt {
     /// Run command sync.
-    pub fn exec_sync(self) -> color_eyre::Result<()> {
+    pub fn exec_sync(&self) -> color_eyre::Result<()> {
         let rt = tokio::runtime::Runtime::new().unwrap();
         rt.block_on(self.run()).map_err(Into::into)
     }
