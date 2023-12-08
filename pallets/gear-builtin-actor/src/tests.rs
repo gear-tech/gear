@@ -425,7 +425,7 @@ fn withdraw_unbonded_works() {
                 * <Test as pallet_staking::Config>::BondingDuration::get() as u64,
         );
 
-        // Sending `withdraw_unbond` message
+        // Sending `withdraw_unbonded` message
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(SIGNER),
             contract_id,
@@ -446,5 +446,218 @@ fn withdraw_unbonded_works() {
             300 * UNITS
         );
         assert_staking_events(contract_account_id, 200 * UNITS, EventType::Withdrawn);
+        let ledger = pallet_staking::Pallet::<Test>::ledger(contract_account_id).unwrap();
+        assert_eq!(ledger.active, 300 * UNITS);
+    });
+}
+
+#[test]
+fn set_payee_works() {
+    init_logger();
+
+    new_test_ext().execute_with(|| {
+        let contract_id = ProgramId::generate_from_user(CodeId::generate(WASM_BINARY), b"contract");
+        let contract_account_id = AccountIdOf::<Test>::from_origin(contract_id.into_origin());
+
+        deploy_contract();
+        run_to_next_block();
+
+        // Bond funds with the `payee`` set to contract's stash (default)
+        send_bond_message(contract_id, 100 * UNITS, None);
+        run_to_next_block();
+        assert_message_executed();
+        assert_staking_events(contract_account_id, 100 * UNITS, EventType::Bonded);
+
+        // Assert the `payee` is set to contract's stash
+        let payee = pallet_staking::Pallet::<Test>::payee(contract_account_id);
+        assert_eq!(payee, RewardDestination::Stash);
+
+        // Set the `payee` to SIGNER
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(SIGNER),
+            contract_id,
+            Request::SetPayee {
+                payee: RewardAccount::Custom(REWARD_PAYEE.into_origin().into())
+            }
+            .encode(),
+            10_000_000_000,
+            0,
+            false,
+        ));
+
+        run_to_next_block();
+
+        // Assert the `payee` is now set to SIGNER
+        let payee = pallet_staking::Pallet::<Test>::payee(contract_account_id);
+        assert_eq!(payee, RewardDestination::Account(REWARD_PAYEE));
+    });
+}
+
+#[test]
+fn rebond_works() {
+    init_logger();
+
+    new_test_ext().execute_with(|| {
+        let contract_id = ProgramId::generate_from_user(CodeId::generate(WASM_BINARY), b"contract");
+        let contract_account_id = AccountIdOf::<Test>::from_origin(contract_id.into_origin());
+
+        deploy_contract();
+        run_to_next_block();
+
+        send_bond_message(contract_id, 500 * UNITS, None);
+        run_to_next_block();
+        assert_message_executed();
+        assert_staking_events(contract_account_id, 500 * UNITS, EventType::Bonded);
+
+        let contract_account_data = System::account(contract_account_id).data;
+
+        // Locked 500 * UNITS as bonded on contracts's account
+        assert_eq!(contract_account_data.misc_frozen, 500 * UNITS);
+
+        System::reset_events();
+
+        // Sending `unbond` message
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(SIGNER),
+            contract_id,
+            Request::Unbond { value: 400 * UNITS }.encode(),
+            10_000_000_000,
+            0,
+            false,
+        ));
+
+        run_to_next_block();
+        assert_message_executed();
+        assert_staking_events(contract_account_id, 400 * UNITS, EventType::Unbonded);
+
+        // All the bonded funds are still locked
+        assert_eq!(
+            System::account(contract_account_id).data.misc_frozen,
+            500 * UNITS
+        );
+
+        // However, the ledger has been updated
+        let ledger = pallet_staking::Pallet::<Test>::ledger(contract_account_id).unwrap();
+        assert_eq!(ledger.active, 100 * UNITS);
+        assert_eq!(ledger.unlocking.len(), 1);
+
+        // Sending `rebond` message
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(SIGNER),
+            contract_id,
+            Request::Rebond { value: 200 * UNITS }.encode(),
+            10_000_000_000,
+            0,
+            false,
+        ));
+
+        run_to_next_block();
+
+        // All the bonded funds are still locked
+        assert_eq!(
+            System::account(contract_account_id).data.misc_frozen,
+            500 * UNITS
+        );
+
+        // However, the ledger has been updated again
+        let ledger = pallet_staking::Pallet::<Test>::ledger(contract_account_id).unwrap();
+        assert_eq!(ledger.active, 300 * UNITS);
+        assert_eq!(ledger.unlocking.len(), 1);
+
+        // Sending another `rebond` message, with `value` exceeding the unlocking amount
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(SIGNER),
+            contract_id,
+            Request::Rebond { value: 300 * UNITS }.encode(),
+            10_000_000_000,
+            0,
+            false,
+        ));
+
+        run_to_next_block();
+
+        // All the bonded funds are still locked
+        assert_eq!(
+            System::account(contract_account_id).data.misc_frozen,
+            500 * UNITS
+        );
+
+        // The ledger has been updated again, however, the rebonded amount was limited
+        // by the actual unlocking amount - not the `value` sent in the message.
+        let ledger = pallet_staking::Pallet::<Test>::ledger(contract_account_id).unwrap();
+        assert_eq!(ledger.active, 500 * UNITS);
+        assert_eq!(ledger.unlocking.len(), 0);
+    });
+}
+
+#[test]
+fn payout_stakers_works() {
+    init_logger();
+
+    new_test_ext().execute_with(|| {
+        let contract_id = ProgramId::generate_from_user(CodeId::generate(WASM_BINARY), b"contract");
+        let contract_account_id = AccountIdOf::<Test>::from_origin(contract_id.into_origin());
+
+        deploy_contract();
+        run_to_next_block();
+
+        // Only nominating one target
+        let targets: Vec<[u8; 32]> = vec![VAL_1_STASH.into_origin().into()];
+
+        send_bond_message(
+            contract_id,
+            800 * UNITS,
+            Some(RewardAccount::Custom(REWARD_PAYEE.into_origin().into())),
+        );
+        run_to_next_block();
+        assert_message_executed();
+        assert_staking_events(contract_account_id, 800 * UNITS, EventType::Bonded);
+
+        // Nomintate the validator
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(SIGNER),
+            contract_id,
+            Request::Nominate {
+                targets: targets.clone()
+            }
+            .encode(),
+            10_000_000_000,
+            0,
+            false,
+        ));
+
+        run_to_next_block();
+
+        let targets = pallet_staking::Nominators::<Test>::get(contract_account_id)
+            .unwrap()
+            .targets
+            .into_inner();
+        assert_eq!(targets, vec![VAL_1_STASH]);
+
+        let rewards_payee_initial_balance = Balances::free_balance(REWARD_PAYEE);
+        assert_eq!(rewards_payee_initial_balance, ENDOWMENT);
+
+        // Run the chain for a few eras (5) to accumulate some rewards
+        run_for_n_blocks(
+            5 * SESSION_DURATION
+                * <Test as pallet_staking::Config>::SessionsPerEra::get() as u64
+                * <Test as pallet_staking::Config>::BondingDuration::get() as u64,
+        );
+
+        // Send `payout_stakers` message for an era for which the rewards should have been earned
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(SIGNER),
+            contract_id,
+            Request::PayoutStakers {
+                validator_stash: VAL_1_STASH.into_origin().into(),
+                era: 4
+            }
+            .encode(),
+            10_000_000_000,
+            0,
+            false,
+        ));
+
+        run_to_next_block();
     });
 }

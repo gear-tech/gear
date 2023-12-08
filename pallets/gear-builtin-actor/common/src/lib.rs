@@ -119,7 +119,7 @@ pub mod staking {
     ///
     /// In order to separate the contract's own balance from the rewards earned by users funds,
     /// a separate account for the rewards can be assigned.
-    #[derive(Encode, Decode, Clone, PartialEq, Eq, Debug)]
+    #[derive(Encode, Decode, Clone, Copy, PartialEq, Eq, Debug)]
     #[codec(crate = scale)]
     pub enum RewardAccount {
         /// Accumulate the rewards on contract's account derived from its `program_id`.

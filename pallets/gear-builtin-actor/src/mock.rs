@@ -45,6 +45,7 @@ type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
 
 pub(crate) const SIGNER: AccountId = 1;
+pub(crate) const REWARD_PAYEE: AccountId = 2;
 pub(crate) const VAL_1_STASH: AccountId = 10;
 pub(crate) const VAL_1_CONTROLLER: AccountId = 11;
 pub(crate) const VAL_1_AUTH_ID: UintAuthorityId = UintAuthorityId(12);
@@ -260,7 +261,7 @@ parameter_types! {
     pub const OutgoingLimit: u32 = 1024;
     pub ReserveThreshold: BlockNumber = 1;
     pub GearSchedule: pallet_gear::Schedule<Test> = <pallet_gear::Schedule<Test>>::default();
-    pub RentFreePeriod: BlockNumber = 10_000;
+    pub RentFreePeriod: BlockNumber = 12_000;
     pub RentCostPerBlock: Balance = 11;
     pub ResumeMinimalPeriod: BlockNumber = 100;
     pub ResumeSessionDuration: BlockNumber = 1_000;
@@ -485,6 +486,6 @@ pub(crate) fn new_test_ext() -> sp_io::TestExternalities {
         ])
         .stash(VALIDATOR_STAKE)
         .endowment(ENDOWMENT)
-        .endowed_accounts(vec![bank_address, SIGNER])
+        .endowed_accounts(vec![bank_address, SIGNER, REWARD_PAYEE])
         .build()
 }
