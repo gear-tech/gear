@@ -32,7 +32,7 @@ use core::{
 use futures::future::FusedFuture;
 use scale_info::scale::Decode;
 
-fn poll<F, R>(waiting_reply_to: MessageId, cx: &Context<'_>, f: F) -> Poll<Result<R>>
+fn poll<F, R>(waiting_reply_to: MessageId, cx: &mut Context<'_>, f: F) -> Poll<Result<R>>
 where
     F: Fn(Vec<u8>) -> Result<R>,
 {
