@@ -126,7 +126,7 @@ pub mod panic_handler {
                     }
                 }
                 unsafe {
-                    core::str::from_utf8_unchecked(
+                    str::from_utf8_unchecked(
                         &*(buffer.get_unchecked(idx..) as *const [_] as *const _),
                     )
                 }
