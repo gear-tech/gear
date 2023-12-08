@@ -82,9 +82,9 @@ pub struct Opt {
     /// Commands.
     #[command(subcommand)]
     pub command: Command,
-    /// How many times we'll retry when RPC requests failed.
-    #[arg(short, long, default_value = "5")]
-    pub retry: u16,
+    /// Timeout for rpc requests.
+    #[arg(short, long, default_value = "60000")]
+    pub timeout: u64,
     /// Enable verbose logs.
     #[clap(short, long, action = clap::ArgAction::Count)]
     pub verbose: u16,
@@ -98,8 +98,8 @@ pub struct Opt {
 
 #[async_trait::async_trait]
 impl App for Opt {
-    fn retry(&self) -> u16 {
-        self.retry
+    fn timeout(&self) -> u64 {
+        self.timeout
     }
 
     fn verbose(&self) -> u16 {

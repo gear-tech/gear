@@ -22,6 +22,7 @@ pub use self::{
     result::{Error, Result},
     traits::{Convert, NodeExec},
 };
+use anyhow::anyhow;
 use gear_core::ids::{CodeId, ProgramId};
 use gsdk::{
     ext::{sp_core::crypto::Ss58Codec, sp_runtime::AccountId32},
@@ -73,8 +74,9 @@ pub fn gcli<T: ToString>(args: impl IntoIterator<Item = T>) -> Result<Output> {
 /// Run the dev node
 pub fn dev() -> Result<Node> {
     let args = vec!["--tmp", "--dev"];
-
-    Node::try_from_path(env::bin("gear"), args).map_err(Into::into)
+    let node = env::bin("gear");
+    Node::try_from_path(&node, args)
+        .map_err(|e| anyhow!("gear-node {} not found, {e}", node).into())
 }
 
 /// Init env logger

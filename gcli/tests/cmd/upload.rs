@@ -32,9 +32,10 @@ async fn test_command_upload_works() {
     node.wait_for_log_record(logs::gear_node::IMPORTING_BLOCKS)
         .expect("node timeout");
 
-    let signer = Api::new(Some(&node.ws()))
+    let ws = node.ws();
+    let signer = Api::new(Some(&ws))
         .await
-        .expect("build api failed")
+        .expect(&format!("failed to connect to {ws}"))
         .signer("//Alice", None)
         .expect("get signer failed");
 
@@ -53,8 +54,8 @@ async fn test_command_upload_works() {
             .stderr
             .convert()
             .contains(logs::gear_program::EX_UPLOAD_PROGRAM),
-        "code should be uploaded, but got: {:?}",
-        output.stderr
+        "code should be uploaded, but got: {}",
+        output.stderr.convert(),
     );
     assert!(
         signer.api().code_storage(code_id).await.is_ok(),

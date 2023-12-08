@@ -66,9 +66,9 @@ use gsdk::{signer::Signer, Api};
 /// ```
 #[async_trait::async_trait]
 pub trait App: Parser {
-    /// How many times we'll retry when RPC requests failed.
-    fn retry(&self) -> u16 {
-        5
+    /// Timeout of rpc requests.
+    fn timeout(&self) -> u64 {
+        60000
     }
 
     /// The verbosity logging level.
@@ -99,8 +99,8 @@ pub trait App: Parser {
 
         let name = Self::command().get_name().to_string();
         let filter = match self.verbose() {
-            0 => format!("{name}=info"),
-            1 => format!("{name}=debug"),
+            0 => format!("{name}=info,gsdk=info"),
+            1 => format!("{name}=debug,gsdk=debug"),
             2 => "debug".into(),
             _ => "trace".into(),
         };
@@ -114,9 +114,10 @@ pub trait App: Parser {
 
         let signer = {
             let endpoint = self.endpoint().clone();
-            let retry = self.retry();
+            let timeout = self.timeout();
             let passwd = self.passwd();
-            let api = Api::new_with_timeout(endpoint.as_deref(), Some(retry.into())).await?;
+
+            let api = Api::new_with_timeout(endpoint.as_deref(), Some(timeout)).await?;
             let pair = if let Ok(s) = keystore::cache(passwd.as_deref()) {
                 s
             } else {
