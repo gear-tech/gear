@@ -41,10 +41,10 @@ gear-builtin-actor-common.workspace = true
 
 ark-std = { version = "0.4.0", default-features = false, optional = true }
 ark-bls12-381 = { version = "0.4.0", features = ["curve"], default-features = false, optional = true }
-ark-serialize = { version = "0.4", features = ["derive"], default-features = false, optional = true }
+ark-serialize = { version = "0.4", features = ["derive"], default-features = false }
 ark-ec = { version = "0.4.2", default-features = false, optional = true }
 ark-ff = { version = "0.4.2", default-features = false, optional = true }
-ark-scale = { version = "0.0.11", features = ["hazmat"], default-features = false, optional = true }
+ark-scale = { version = "0.0.11", features = ["hazmat"], default-features = false }
 
 [dev-dependencies]
 demo-staking-broker.workspace = true
@@ -86,10 +86,10 @@ std = [
 	"sp-io/std",
 	"ark-bls12-381?/std",
 	"ark-std?/std",
-	"ark-serialize?/std",
+	"ark-serialize/std",
 	"ark-ec?/std",
 	"ark-ff?/std",
-	"ark-scale?/std",
+	"ark-scale/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",
@@ -99,9 +99,7 @@ runtime-benchmarks = [
 	"sp-core",
 	"ark-bls12-381",
 	"ark-std",
-	"ark-serialize",
 	"ark-ec",
 	"ark-ff",
-	"ark-scale",
 ]
 try-runtime = ["frame-support/try-runtime"]
