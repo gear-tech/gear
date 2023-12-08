@@ -19,8 +19,9 @@
 use crate as pallet_gear_debug;
 use common::storage::Limiter;
 use frame_support::{
+    construct_runtime,
     dispatch::DispatchClass,
-    construct_runtime, parameter_types,
+    parameter_types,
     traits::{FindAuthor, Get, OnFinalize, OnInitialize},
     weights::Weight,
 };
