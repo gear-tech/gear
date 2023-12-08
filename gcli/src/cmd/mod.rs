@@ -17,6 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! commands
+use crate::App;
 use clap::Parser;
 use gsdk::signer::Signer;
 
@@ -70,5 +71,58 @@ impl Command {
         }
 
         Ok(())
+    }
+}
+
+/// Gear command-line interface.
+#[derive(Debug, Parser)]
+#[clap(author, version)]
+#[command(name = "gcli")]
+pub struct Opt {
+    /// Commands.
+    #[command(subcommand)]
+    pub command: Command,
+    /// How many times we'll retry when RPC requests failed.
+    #[arg(short, long, default_value = "5")]
+    pub retry: u16,
+    /// Enable verbose logs.
+    #[clap(short, long, action = clap::ArgAction::Count)]
+    pub verbose: u16,
+    /// Gear node rpc endpoint.
+    #[arg(short, long)]
+    pub endpoint: Option<String>,
+    /// Password of the signer account.
+    #[arg(short, long)]
+    pub passwd: Option<String>,
+}
+
+#[async_trait::async_trait]
+impl App for Opt {
+    fn retry(&self) -> u16 {
+        self.retry
+    }
+
+    fn verbose(&self) -> u16 {
+        self.verbose
+    }
+
+    fn endpoint(&self) -> Option<String> {
+        self.endpoint.clone()
+    }
+
+    fn passwd(&self) -> Option<String> {
+        self.passwd.clone()
+    }
+
+    async fn exec(self, signer: Signer) -> anyhow::Result<()> {
+        self.command.exec(signer).await
+    }
+}
+
+impl Opt {
+    /// Run command sync.
+    pub fn exec_sync(self) -> color_eyre::Result<()> {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(self.run()).map_err(Into::into)
     }
 }

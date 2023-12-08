@@ -50,6 +50,5 @@ impl App for MyGCli {
 
 #[tokio::main]
 async fn main() -> color_eyre::Result<()> {
-    MyGCli::run().await?;
-    Ok(())
+    MyGCli::parse().run().await
 }

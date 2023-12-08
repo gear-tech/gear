@@ -61,8 +61,7 @@ use gsdk::{signer::Signer, Api};
 ///
 /// #[tokio::main]
 /// async fn main() -> color_eyre::Result<()> {
-///     MyGCli::run().await?;
-///     Ok(())
+///     MyGCli::parse().run().await
 /// }
 /// ```
 #[async_trait::async_trait]
@@ -94,13 +93,12 @@ pub trait App: Parser {
     ///
     /// This is a wrapper of [`Self::exec`] with preset retry
     /// and verbose level.
-    async fn run() -> Result<()> {
+    async fn run(self) -> Result<()> {
         color_eyre::install()?;
         sp_core::crypto::set_default_ss58_version(crate::VARA_SS58_PREFIX.into());
 
-        let app = Self::parse();
         let name = Self::command().get_name().to_string();
-        let filter = match app.verbose() {
+        let filter = match self.verbose() {
             0 => format!("{name}=info"),
             1 => format!("{name}=debug"),
             2 => "debug".into(),
@@ -115,9 +113,9 @@ pub trait App: Parser {
         builder.try_init()?;
 
         let signer = {
-            let endpoint = app.endpoint().clone();
-            let retry = app.retry();
-            let passwd = app.passwd();
+            let endpoint = self.endpoint().clone();
+            let retry = self.retry();
+            let passwd = self.passwd();
             let api = Api::new_with_timeout(endpoint.as_deref(), Some(retry.into())).await?;
             let pair = if let Ok(s) = keystore::cache(passwd.as_deref()) {
                 s
@@ -128,7 +126,7 @@ pub trait App: Parser {
             (api, pair).into()
         };
 
-        app.exec(signer)
+        self.exec(signer)
             .await
             .map_err(|e| eyre!("Failed to run app, {e}"))
     }
