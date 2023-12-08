@@ -1602,7 +1602,7 @@ pub mod pallet {
 
             let max_weight = <T as frame_system::Config>::BlockWeights::get().max_block;
 
-            // Subtract extrinsic weight from the current block weight to get.
+            // Subtract extrinsic weight from the current block weight to get used weight in the current block.
             let weight_used = <frame_system::Pallet<T>>::block_weight()
                 .total()
                 .saturating_sub(max_weight);
