@@ -109,14 +109,41 @@ pub mod panic_handler {
         #[cfg(feature = "panic-messages")]
         #[panic_handler]
         pub fn panic(panic_info: &PanicInfo) -> ! {
-            use crate::prelude::fmt::Write;
+            use crate::prelude::{fmt::Write, mem::MaybeUninit, str};
             use arrayvec::ArrayString;
 
             let option = panic_info.message().zip(panic_info.location());
             let (message, location) = unsafe { option.unwrap_unchecked() };
 
+            fn itoa_u32(buffer: &mut [MaybeUninit<u8>; 10], mut n: u32) -> &str {
+                let mut idx = buffer.len();
+                loop {
+                    idx -= 1;
+                    unsafe { buffer.get_unchecked_mut(idx) }.write((n % 10) as u8 + b'0');
+                    n /= 10;
+                    if n == 0 {
+                        break;
+                    }
+                }
+                unsafe {
+                    core::str::from_utf8_unchecked(
+                        &*(buffer.get_unchecked(idx..) as *const [_] as *const _),
+                    )
+                }
+            }
+
             let mut debug_msg = ArrayString::<{ PANIC_OCCURRED.len() + TRIMMED_MAX_LEN }>::new();
-            let _ = write!(&mut debug_msg, "{PANIC_OCCURRED}'{message}', {location}");
+            let mut buffer = unsafe { MaybeUninit::uninit().assume_init() };
+
+            let _ = debug_msg.try_push_str(PANIC_OCCURRED);
+            let _ = debug_msg.try_push_str("'");
+            let _ = write!(&mut debug_msg, "{message}");
+            let _ = debug_msg.try_push_str("', ");
+            let _ = debug_msg.try_push_str(location.file());
+            let _ = debug_msg.try_push_str(":");
+            let _ = debug_msg.try_push_str(itoa_u32(&mut buffer, location.line()));
+            let _ = debug_msg.try_push_str(":");
+            let _ = debug_msg.try_push_str(itoa_u32(&mut buffer, location.column()));
 
             let _ = ext::debug(&debug_msg);
 
