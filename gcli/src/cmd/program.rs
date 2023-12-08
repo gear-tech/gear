@@ -23,7 +23,7 @@ use gsdk::{ext::sp_core::H256, Api};
 use std::{fs, path::PathBuf};
 
 /// Read program state, etc.
-#[derive(Clone, Debug, Parser)]
+#[derive(Debug, Parser)]
 pub enum Program {
     /// Display metadata of the program.
     ///

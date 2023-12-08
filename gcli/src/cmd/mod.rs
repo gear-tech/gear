@@ -17,7 +17,6 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! commands
-use crate::App;
 use clap::Parser;
 use gsdk::signer::Signer;
 
@@ -52,9 +51,9 @@ pub enum Command {
     Update(update::Update),
 }
 
-#[async_trait::async_trait]
-impl App for Command {
-    async fn exec(self, signer: Signer) -> anyhow::Result<()> {
+impl Command {
+    /// Execute the command.
+    pub async fn exec(self, signer: Signer) -> anyhow::Result<()> {
         match self {
             Command::Key(key) => key.exec()?,
             Command::Login(login) => login.exec()?,

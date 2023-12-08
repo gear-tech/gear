@@ -130,7 +130,10 @@ pub mod result;
 pub mod template;
 pub mod utils;
 
-pub use self::app::App;
+pub use self::{app::App, cmd::Command};
+pub use async_trait::async_trait;
+pub use clap::Parser;
+pub use gsdk::signer::Signer;
 
 /// SS58 prefix for vara network.
 pub const VARA_SS58_PREFIX: u8 = 137;
