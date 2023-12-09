@@ -51,7 +51,7 @@ where
     utils::init_logger();
 
     let origin = benchmarking::account::<T::AccountId>("origin", 0, 0);
-    CurrencyOf::<T>::deposit_creating(
+    let _ = CurrencyOf::<T>::deposit_creating(
         &origin,
         100_000_000_000_000_000_u128.unique_saturated_into(),
     );
@@ -204,7 +204,7 @@ where
 {
     run_tester::<T, _, _, T::AccountId>(|tester_pid, _| {
         let default_account = utils::default_account();
-        CurrencyOf::<T>::deposit_creating(
+        let _ = CurrencyOf::<T>::deposit_creating(
             &default_account,
             100_000_000_000_000_u128.unique_saturated_into(),
         );
@@ -394,7 +394,7 @@ where
     let wasm_module = alloc_free_test_wasm::<T>();
 
     let default_account = utils::default_account();
-    CurrencyOf::<T>::deposit_creating(
+    let _ = CurrencyOf::<T>::deposit_creating(
         &default_account,
         100_000_000_000_000_u128.unique_saturated_into(),
     );
@@ -486,7 +486,7 @@ where
 {
     run_tester::<T, _, _, T::AccountId>(|_, _| {
         let message_sender = benchmarking::account::<T::AccountId>("some_user", 0, 0);
-        CurrencyOf::<T>::deposit_creating(
+        let _ = CurrencyOf::<T>::deposit_creating(
             &message_sender,
             50_000_000_000_000_u128.unique_saturated_into(),
         );
@@ -1011,7 +1011,7 @@ where
 
     // Deploy program with valid code hash
     let child_deployer = benchmarking::account::<T::AccountId>("child_deployer", 0, 0);
-    CurrencyOf::<T>::deposit_creating(
+    let _ = CurrencyOf::<T>::deposit_creating(
         &child_deployer,
         100_000_000_000_000_u128.unique_saturated_into(),
     );
@@ -1028,7 +1028,7 @@ where
 
     // Set default code-hash for create program calls
     let default_account = utils::default_account();
-    CurrencyOf::<T>::deposit_creating(
+    let _ = CurrencyOf::<T>::deposit_creating(
         &default_account,
         100_000_000_000_000_u128.unique_saturated_into(),
     );
@@ -1089,7 +1089,7 @@ where
 
     // Manually reset the storage
     Gear::<T>::reset();
-    CurrencyOf::<T>::slash(
+    let _ = CurrencyOf::<T>::slash(
         &Id::from_origin(tester_pid.into_origin()),
         CurrencyOf::<T>::free_balance(&Id::from_origin(tester_pid.into_origin())),
     );

@@ -62,7 +62,7 @@ where
         let max_balance: BalanceOf<T> = <T as pallet_gear_bank::Config>::GasMultiplier::get()
             .gas_to_value(initial_gas)
             + value.unique_saturated_into();
-        CurrencyOf::<T>::deposit_creating(&account, max_balance.saturating_sub(balance));
+        let _ = CurrencyOf::<T>::deposit_creating(&account, max_balance.saturating_sub(balance));
 
         let who = frame_support::dispatch::RawOrigin::Signed(account);
         let value: BalanceOf<T> = value.unique_saturated_into();

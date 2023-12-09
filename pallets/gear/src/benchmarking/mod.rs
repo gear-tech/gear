@@ -465,9 +465,9 @@ benchmarks! {
 
     claim_value {
         let caller = benchmarking::account("caller", 0, 0);
-        CurrencyOf::<T>::deposit_creating(&caller, 100_000_000_000_000_u128.unique_saturated_into());
+        let _ = CurrencyOf::<T>::deposit_creating(&caller, 100_000_000_000_000_u128.unique_saturated_into());
         let program_id = benchmarking::account::<T::AccountId>("program", 0, 100);
-        CurrencyOf::<T>::deposit_creating(&program_id, 100_000_000_000_000_u128.unique_saturated_into());
+        let _ = CurrencyOf::<T>::deposit_creating(&program_id, 100_000_000_000_000_u128.unique_saturated_into());
         let code = benchmarking::generate_wasm2(16.into()).unwrap();
         benchmarking::set_program::<ProgramStorageOf::<T>, _>(ProgramId::from_origin(program_id.clone().into_origin()), code, 1.into());
         let original_message_id = MessageId::from_origin(benchmarking::account::<T::AccountId>("message", 0, 100).into_origin());
@@ -497,7 +497,7 @@ benchmarks! {
 
     pay_program_rent {
         let caller = benchmarking::account("caller", 0, 0);
-        CurrencyOf::<T>::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
+        let _ = CurrencyOf::<T>::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
         let minimum_balance = CurrencyOf::<T>::minimum_balance();
         let code = benchmarking::generate_wasm2(16.into()).unwrap();
         let salt = vec![];
@@ -518,7 +518,7 @@ benchmarks! {
 
     resume_session_init {
         let caller = benchmarking::account("caller", 0, 0);
-        CurrencyOf::<T>::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
+        let _ = CurrencyOf::<T>::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
         let code = benchmarking::generate_wasm2(16.into()).unwrap();
         let salt = vec![];
         let program_id = ProgramId::generate_from_user(CodeId::generate(&code), &salt);
@@ -543,7 +543,7 @@ benchmarks! {
     resume_session_push {
         let c in 0 .. 16 * (WASM_PAGE_SIZE / GEAR_PAGE_SIZE) as u32;
         let caller = benchmarking::account("caller", 0, 0);
-        CurrencyOf::<T>::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
+        let _ = CurrencyOf::<T>::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
         let code = benchmarking::generate_wasm2(16.into()).unwrap();
         let salt = vec![];
         let program_id = ProgramId::generate_from_user(CodeId::generate(&code), &salt);
@@ -579,7 +579,7 @@ benchmarks! {
     resume_session_commit {
         let c in 0 .. (MAX_PAGES - 1) * (WASM_PAGE_SIZE / GEAR_PAGE_SIZE) as u32;
         let caller = benchmarking::account("caller", 0, 0);
-        CurrencyOf::<T>::deposit_creating(&caller, 400_000_000_000_000u128.unique_saturated_into());
+        let _ = CurrencyOf::<T>::deposit_creating(&caller, 400_000_000_000_000u128.unique_saturated_into());
         let code = benchmarking::generate_wasm2(0.into()).unwrap();
         let salt = vec![];
         let program_id = ProgramId::generate_from_user(CodeId::generate(&code), &salt);
@@ -693,7 +693,7 @@ benchmarks! {
     send_message {
         let p in 0 .. MAX_PAYLOAD_LEN;
         let caller = benchmarking::account("caller", 0, 0);
-        CurrencyOf::<T>::deposit_creating(&caller, 100_000_000_000_000_u128.unique_saturated_into());
+        let _ = CurrencyOf::<T>::deposit_creating(&caller, 100_000_000_000_000_u128.unique_saturated_into());
         let minimum_balance = CurrencyOf::<T>::minimum_balance();
         let program_id = ProgramId::from_origin(benchmarking::account::<T::AccountId>("program", 0, 100).into_origin());
         let code = benchmarking::generate_wasm2(16.into()).unwrap();
@@ -709,10 +709,10 @@ benchmarks! {
     send_reply {
         let p in 0 .. MAX_PAYLOAD_LEN;
         let caller = benchmarking::account("caller", 0, 0);
-        CurrencyOf::<T>::deposit_creating(&caller, 100_000_000_000_000_u128.unique_saturated_into());
+        let _ = CurrencyOf::<T>::deposit_creating(&caller, 100_000_000_000_000_u128.unique_saturated_into());
         let minimum_balance = CurrencyOf::<T>::minimum_balance();
         let program_id = benchmarking::account::<T::AccountId>("program", 0, 100);
-        CurrencyOf::<T>::deposit_creating(&program_id, 100_000_000_000_000_u128.unique_saturated_into());
+        let _ = CurrencyOf::<T>::deposit_creating(&program_id, 100_000_000_000_000_u128.unique_saturated_into());
         let code = benchmarking::generate_wasm2(16.into()).unwrap();
         benchmarking::set_program::<ProgramStorageOf::<T>, _>(ProgramId::from_origin(program_id.clone().into_origin()), code, 1.into());
         let original_message_id = MessageId::from_origin(benchmarking::account::<T::AccountId>("message", 0, 100).into_origin());
@@ -743,7 +743,7 @@ benchmarks! {
         let q in 1 .. MAX_PAGES;
         let q = q as u16;
         let caller: T::AccountId = benchmarking::account("caller", 0, 0);
-        CurrencyOf::<T>::deposit_creating(&caller, (1u128 << 60).unique_saturated_into());
+        let _ = CurrencyOf::<T>::deposit_creating(&caller, (1u128 << 60).unique_saturated_into());
         let code = benchmarking::generate_wasm(q.into()).unwrap();
         let salt = vec![255u8; 32];
     }: {
@@ -758,7 +758,7 @@ benchmarks! {
         let q in 0 .. MAX_PAGES;
         let q = q as u16;
         let caller: T::AccountId = benchmarking::account("caller", 0, 0);
-        CurrencyOf::<T>::deposit_creating(&caller, (1_u128 << 60).unique_saturated_into());
+        let _ = CurrencyOf::<T>::deposit_creating(&caller, (1_u128 << 60).unique_saturated_into());
         let code = benchmarking::generate_wasm2(q.into()).unwrap();
         let salt = vec![255u8; 32];
     }: {
