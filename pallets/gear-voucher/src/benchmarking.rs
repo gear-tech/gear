@@ -36,7 +36,7 @@ benchmarks! {
 
     issue {
         let issuer = benchmarking::account::<T::AccountId>("caller", 0, 0);
-        CurrencyOf::<T>::deposit_creating(
+        let _ = CurrencyOf::<T>::deposit_creating(
             &issuer,
             100_000_000_000_000_u128.unique_saturated_into()
         );
