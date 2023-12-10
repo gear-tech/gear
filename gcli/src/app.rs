@@ -27,7 +27,7 @@ use gsdk::{signer::Signer, Api};
 /// Command line gear program application abstraction.
 ///
 /// ```ignore
-/// use gcli::{async_trait, App, Command, Parser, Signer};
+/// use gcli::{async_trait, App, Command, Parser};
 ///
 /// /// My customized sub commands.
 /// #[derive(Debug, Parser)]
@@ -48,9 +48,9 @@ use gsdk::{signer::Signer, Api};
 ///
 /// #[async_trait]
 /// impl App for MyGCli {
-///     async fn exec(&self, signer: Signer) -> anyhow::Result<()> {
+///     async fn exec(&self) -> anyhow::Result<()> {
 ///         match &self.command {
-///             SubCommand::GCliCommands(command) => command.exec(signer).await,
+///             SubCommand::GCliCommands(command) => command.exec(self).await,
 ///             SubCommand::Ping => {
 ///                 println!("pong");
 ///                 Ok(())
@@ -65,7 +65,7 @@ use gsdk::{signer::Signer, Api};
 /// }
 /// ```
 #[async_trait::async_trait]
-pub trait App: Parser {
+pub trait App: Parser + Sync {
     /// Timeout of rpc requests.
     fn timeout(&self) -> u64 {
         60000
@@ -87,7 +87,23 @@ pub trait App: Parser {
     }
 
     /// Exec program from the parsed arguments.
-    async fn exec(&self, signer: Signer) -> anyhow::Result<()>;
+    async fn exec(&self) -> anyhow::Result<()>;
+
+    /// Get signer.
+    async fn signer(&self) -> anyhow::Result<Signer> {
+        let endpoint = self.endpoint().clone();
+        let timeout = self.timeout();
+        let passwd = self.passwd();
+
+        let api = Api::new_with_timeout(endpoint.as_deref(), Some(timeout)).await?;
+        let pair = if let Ok(s) = keystore::cache(passwd.as_deref()) {
+            s
+        } else {
+            keystore::keyring(passwd.as_deref())?
+        };
+
+        Ok((api, pair).into())
+    }
 
     /// Run application.
     ///
@@ -112,22 +128,7 @@ pub trait App: Parser {
             .format_timestamp(None);
         builder.try_init()?;
 
-        let signer = {
-            let endpoint = self.endpoint().clone();
-            let timeout = self.timeout();
-            let passwd = self.passwd();
-
-            let api = Api::new_with_timeout(endpoint.as_deref(), Some(timeout)).await?;
-            let pair = if let Ok(s) = keystore::cache(passwd.as_deref()) {
-                s
-            } else {
-                keystore::keyring(passwd.as_deref())?
-            };
-
-            (api, pair).into()
-        };
-
-        self.exec(signer)
+        self.exec()
             .await
             .map_err(|e| eyre!("Failed to run app, {e}"))
     }

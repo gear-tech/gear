@@ -18,7 +18,7 @@
 
 //! Integration tests for command `send`
 
-use crate::common::{self, logs, traits::NodeExec, Args, Result, ALICE_SS58_ADDRESS as ADDRESS};
+use crate::common::{self, logs, node::NodeExec, Args, Result, ALICE_SS58_ADDRESS as ADDRESS};
 use gsdk::Api;
 
 const REWARD_PER_BLOCK: u128 = 75_000; // 3_000 gas * 25 value per gas

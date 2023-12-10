@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Command `program`.
-use crate::{meta::Meta, result::Result};
+use crate::{meta::Meta, result::Result, App};
 use clap::Parser;
 use gsdk::{ext::sp_core::H256, Api};
 use std::{fs, path::PathBuf};
@@ -61,7 +61,7 @@ pub enum Program {
 
 impl Program {
     /// Run command program.
-    pub async fn exec(&self, api: Api) -> Result<()> {
+    pub async fn exec(&self, app: &impl App) -> Result<()> {
         match self {
             Program::State {
                 pid,
@@ -70,6 +70,7 @@ impl Program {
                 args,
                 at,
             } => {
+                let api = app.signer().await?.api().clone();
                 if let (Some(wasm), Some(method)) = (wasm, method) {
                     // read state from wasm.
                     Self::wasm_state(api, *pid, wasm.to_vec(), method, args.clone(), *at).await?;

@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use gcli::{async_trait, App, Command, Parser, Signer};
+use gcli::{async_trait, App, Command, Parser};
 
 /// My customized sub commands.
 #[derive(Debug, Parser)]
@@ -37,9 +37,9 @@ pub struct MyGCli {
 
 #[async_trait]
 impl App for MyGCli {
-    async fn exec(&self, signer: Signer) -> anyhow::Result<()> {
+    async fn exec(&self) -> anyhow::Result<()> {
         match &self.command {
-            SubCommand::GCliCommands(command) => command.exec(signer).await,
+            SubCommand::GCliCommands(command) => command.exec(self).await,
             SubCommand::Ping => {
                 println!("pong");
                 Ok(())

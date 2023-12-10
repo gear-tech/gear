@@ -19,7 +19,7 @@
 //! Integration tests for command `upload`
 use crate::common::{
     self, env, logs,
-    traits::{Convert, NodeExec},
+    node::{Convert, NodeExec},
     Args, Result,
 };
 use gear_core::ids::CodeId;

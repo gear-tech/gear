@@ -19,7 +19,6 @@
 //! commands
 use crate::App;
 use clap::Parser;
-use gsdk::signer::Signer;
 
 pub mod claim;
 pub mod create;
@@ -54,20 +53,20 @@ pub enum Command {
 
 impl Command {
     /// Execute the command.
-    pub async fn exec(&self, signer: Signer) -> anyhow::Result<()> {
+    pub async fn exec(&self, app: &impl App) -> anyhow::Result<()> {
         match self {
             Command::Key(key) => key.exec()?,
             Command::Login(login) => login.exec()?,
             Command::New(new) => new.exec().await?,
-            Command::Program(program) => program.exec(signer.api().clone()).await?,
+            Command::Program(program) => program.exec(app).await?,
             Command::Update(update) => update.exec().await?,
-            Command::Claim(claim) => claim.exec(signer).await?,
-            Command::Create(create) => create.exec(signer).await?,
-            Command::Info(info) => info.exec(signer).await?,
-            Command::Send(send) => send.exec(signer).await?,
-            Command::Upload(upload) => upload.exec(signer).await?,
-            Command::Transfer(transfer) => transfer.exec(signer).await?,
-            Command::Reply(reply) => reply.exec(signer).await?,
+            Command::Claim(claim) => claim.exec(app.signer().await?).await?,
+            Command::Create(create) => create.exec(app.signer().await?).await?,
+            Command::Info(info) => info.exec(app.signer().await?).await?,
+            Command::Send(send) => send.exec(app.signer().await?).await?,
+            Command::Upload(upload) => upload.exec(app.signer().await?).await?,
+            Command::Transfer(transfer) => transfer.exec(app.signer().await?).await?,
+            Command::Reply(reply) => reply.exec(app.signer().await?).await?,
         }
 
         Ok(())
@@ -114,8 +113,8 @@ impl App for Opt {
         self.passwd.clone()
     }
 
-    async fn exec(&self, signer: Signer) -> anyhow::Result<()> {
-        self.command.exec(signer).await
+    async fn exec(&self) -> anyhow::Result<()> {
+        self.command.exec(self).await
     }
 }
 

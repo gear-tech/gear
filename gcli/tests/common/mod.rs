@@ -19,8 +19,8 @@
 //! Common utils for integration tests
 pub use self::{
     args::Args,
+    node::{Convert, NodeExec},
     result::{Error, Result},
-    traits::{Convert, NodeExec},
 };
 use anyhow::anyhow;
 use gear_core::ids::{CodeId, ProgramId};
@@ -28,6 +28,7 @@ use gsdk::{
     ext::{sp_core::crypto::Ss58Codec, sp_runtime::AccountId32},
     testing::Node,
 };
+pub use scale_info::scale::Encode;
 use std::{
     iter::IntoIterator,
     process::{Command, Output},
@@ -36,17 +37,10 @@ use std::{
 mod args;
 pub mod env;
 pub mod logs;
+pub mod node;
 mod result;
-pub mod traits;
 
-mod prelude {
-    pub use scale_info::scale::Encode;
-
-    pub const ALICE_SS58_ADDRESS: &str = "kGkLEU3e3XXkJp2WK4eNpVmSab5xUNL9QtmLPh8QfCL2EgotW";
-}
-
-#[cfg(not(feature = "vara-testing"))]
-pub use prelude::*;
+pub const ALICE_SS58_ADDRESS: &str = "kGkLEU3e3XXkJp2WK4eNpVmSab5xUNL9QtmLPh8QfCL2EgotW";
 
 impl NodeExec for Node {
     fn ws(&self) -> String {
