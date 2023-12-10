@@ -35,7 +35,7 @@ async fn test_command_upload_works() {
     let ws = node.ws();
     let signer = Api::new(Some(&ws))
         .await
-        .expect(&format!("failed to connect to {ws}"))
+        .unwrap_or_else(|_| panic!("failed to connect to {ws}"))
         .signer("//Alice", None)
         .expect("get signer failed");
 
