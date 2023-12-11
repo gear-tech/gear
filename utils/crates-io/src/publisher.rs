@@ -21,10 +21,7 @@
 use crate::{Manifest, PACKAGES, SAFE_DEPENDENCIES, STACKED_DEPENDENCIES};
 use anyhow::Result;
 use cargo_metadata::{Metadata, MetadataCommand};
-use std::{
-    collections::{BTreeMap, HashMap},
-    fs,
-};
+use std::collections::{BTreeMap, HashMap};
 
 /// crates-io packages publisher.
 pub struct Publisher {
@@ -83,11 +80,14 @@ impl Publisher {
         }
 
         // Flush new manifests to disk
-        for Manifest { path, manifest, .. } in self.graph.values() {
-            fs::write(path, manifest.to_string())?;
-        }
-
         workspace.complete_versions(&index)?;
+        let mut manifests = self.graph.values().collect::<Vec<_>>();
+        manifests.push(&workspace);
+        manifests
+            .iter()
+            .map(|m| m.write())
+            .collect::<Result<Vec<_>>>()?;
+
         Ok(self)
     }
 

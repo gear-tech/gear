@@ -63,7 +63,6 @@ impl Manifest {
         let mut manifest: Document = fs::read_to_string(&pkg.manifest_path)?.parse()?;
         let name = pkg.name.clone();
         manifest["package"]["documentation"] = toml_edit::value(format!("https://docs.rs/{name}"));
-        self.rename_deps(&mut manifest)?;
 
         Ok(Self {
             name,
@@ -96,6 +95,7 @@ impl Manifest {
             dep["version"] = toml_edit::value(version.clone());
         }
 
+        self.rename_deps()?;
         Ok(())
     }
 
@@ -129,11 +129,16 @@ impl Manifest {
             .to_string())
     }
 
+    /// Write manifest to disk.
+    pub fn write(&self) -> Result<()> {
+        fs::write(&self.path, self.manifest.to_string()).map_err(Into::into)
+    }
+
     /// Rename dependencies
-    fn rename_deps(&self, manifest: &mut Document) -> Result<()> {
+    fn rename_deps(&mut self) -> Result<()> {
         self.ensure_workspace()?;
 
-        let Some(deps) = manifest["dependencies"].as_table_like_mut() else {
+        let Some(deps) = self.manifest["workspace"]["dependencies"].as_table_like_mut() else {
             return Ok(());
         };
 
@@ -149,13 +154,14 @@ impl Manifest {
                 table.remove("git");
                 table.remove("workspace");
 
-                let version = match name {
+                match name {
                     // NOTE: the required version of sp-arithmetic is 6.0.0 in
                     // git repo, but 7.0.0 in crates.io, so we need to fix it.
-                    "sp-arithmetic" => "7.0.0",
-                    _ => self.version_of(name)?,
+                    "sp-arithmetic" => {
+                        table.insert("version", toml_edit::value("7.0.0"));
+                    }
+                    _ => {}
                 };
-                table.insert("version", toml_edit::value(version));
 
                 // Force the dep to be inline table in case of losing
                 // documentation.
@@ -166,15 +172,6 @@ impl Manifest {
         }
 
         Ok(())
-    }
-
-    /// Get the version of a dependency.
-    fn version_of(&self, dep: &str) -> Result<&str> {
-        self.ensure_workspace()?;
-
-        self.manifest["workspace"]["dependencies"][dep]["version"]
-            .as_str()
-            .ok_or_else(|| anyhow!("faild to get version of dep {dep}"))
     }
 
     /// Ensure the current function is called on the workspace manifest
