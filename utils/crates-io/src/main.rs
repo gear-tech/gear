@@ -20,7 +20,7 @@
 
 use anyhow::Result;
 use clap::Parser;
-use crates_io_manager::Publisher;
+use crates_io::Publisher;
 
 /// The command to run.
 #[derive(Clone, Debug, Parser)]

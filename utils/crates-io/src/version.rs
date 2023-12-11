@@ -49,7 +49,7 @@ pub fn verify(name: &str, version: &str) -> Result<bool> {
 /// Get the short hash of the current commit.
 pub fn hash() -> Result<String> {
     Ok(Command::new("git")
-        .args(&["rev-parse", "--short", "HEAD"])
+        .args(["rev-parse", "--short", "HEAD"])
         .output()
         .map_err(|e| anyhow!("failed to execute command git, {e}"))?
         .stdout

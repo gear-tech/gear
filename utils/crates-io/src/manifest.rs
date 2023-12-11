@@ -73,6 +73,8 @@ impl Manifest {
 
     /// complete the versions of the specified crates
     pub fn complete_versions(&mut self, index: &[&str]) -> Result<()> {
+        self.ensure_workspace()?;
+
         let version = self.manifest["workspace"]["package"]["version"]
             .clone()
             .as_str()
@@ -154,14 +156,11 @@ impl Manifest {
                 table.remove("git");
                 table.remove("workspace");
 
-                match name {
+                if name == "sp-arithmetic" {
                     // NOTE: the required version of sp-arithmetic is 6.0.0 in
                     // git repo, but 7.0.0 in crates.io, so we need to fix it.
-                    "sp-arithmetic" => {
-                        table.insert("version", toml_edit::value("7.0.0"));
-                    }
-                    _ => {}
-                };
+                    table.insert("version", toml_edit::value("7.0.0"));
+                }
 
                 // Force the dep to be inline table in case of losing
                 // documentation.
