@@ -1339,6 +1339,8 @@ where
 
     pub fn system_break(_gas: Gas, code: u32) -> impl Syscall<Ext> {
         RawSyscall::new(move |ctx: &mut CallerWrap<Ext>| {
+            // At the instrumentation level, we can only use variants of the `SystemBreakCode`,
+            // so we should never reach `unreachable!("{e}")`.
             let termination_reason = SystemBreakCode::try_from(code)
                 .map(|system_break_code| match system_break_code {
                     SystemBreakCode::OutOfGas => Self::out_of_gas(ctx),
