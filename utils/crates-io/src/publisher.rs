@@ -18,7 +18,7 @@
 
 //! Packages publisher
 
-use crate::{rename, Manifest, PACKAGES, SAFE_DEPENDENCIES, STACKED_DEPENDENCIES};
+use crate::{Manifest, PACKAGES, SAFE_DEPENDENCIES, STACKED_DEPENDENCIES};
 use anyhow::Result;
 use cargo_metadata::{Metadata, MetadataCommand};
 use std::{
@@ -78,11 +78,8 @@ impl Publisher {
                 continue;
             }
 
-            let mut manifest = workspace.manifest(p)?;
-            rename::deps(&mut manifest, &index)?;
-
             self.graph
-                .insert(self.index.get(&p.name).cloned(), manifest);
+                .insert(self.index.get(&p.name).cloned(), workspace.manifest(p)?);
         }
 
         // Flush new manifests to disk

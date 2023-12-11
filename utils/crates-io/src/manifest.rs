@@ -63,6 +63,7 @@ impl Manifest {
         let mut manifest: Document = fs::read_to_string(&pkg.manifest_path)?.parse()?;
         let name = pkg.name.clone();
         manifest["package"]["documentation"] = toml_edit::value(format!("https://docs.rs/{name}"));
+        Self::rename_deps(&mut manifest)?;
 
         Ok(Self {
             name,
@@ -136,6 +137,42 @@ impl Manifest {
             return Err(anyhow!(
                 "This method can only be called on the workspace manifest"
             ));
+        }
+
+        Ok(())
+    }
+
+    /// Rename dependencies
+    fn rename_deps(manifest: &mut Document) -> Result<()> {
+        let Some(deps) = manifest["dependencies"].as_table_like_mut() else {
+            return Ok(());
+        };
+
+        for (name, dep) in deps.iter_mut() {
+            let name = name.get();
+            if !name.starts_with("sp-") {
+                continue;
+            }
+
+            match name {
+                // NOTE: the required version of sp-arithmetic is 6.0.0 in
+                // git repo, but 7.0.0 in crates.io, so we need to fix it.
+                "sp-arithmetic" => dep["version"] = toml_edit::value("7.0.0"),
+                _ => {}
+            };
+
+            // Format dotted values into inline table.
+            if let Some(table) = dep.as_table_mut() {
+                table.remove("branch");
+                table.remove("git");
+                table.remove("workspace");
+
+                // Force the dep to be inline table in case of losing
+                // documentation.
+                let mut inline = table.clone().into_inline_table();
+                inline.fmt();
+                *dep = toml_edit::value(inline);
+            };
         }
 
         Ok(())

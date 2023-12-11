@@ -21,7 +21,6 @@
 
 mod manifest;
 mod publisher;
-pub mod rename;
 mod version;
 
 pub use self::{manifest::Manifest, publisher::Publisher, version::verify};
