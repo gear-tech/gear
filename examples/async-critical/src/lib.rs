@@ -32,6 +32,8 @@ use gstd::{Decode, Encode};
 pub enum HandleAction {
     Simple,
     Panic,
+    InHandleReply,
+    InHandleSignal,
 }
 
 #[cfg(target_arch = "wasm32")]

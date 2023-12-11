@@ -19,7 +19,10 @@
 use crate::HandleAction;
 use gstd::{critical, exec, msg, prelude::*};
 
-#[gstd::async_main]
+static mut REPLY_SET_HOOK: bool = false;
+static mut SIGNAL_SET_HOOK: bool = false;
+
+#[gstd::async_main(handle_reply = my_handle_reply, handle_signal = my_handle_signal)]
 async fn main() {
     let action: HandleAction = msg::load().expect("Failed to read handle action");
 
@@ -56,6 +59,46 @@ async fn main() {
 
             // panic occurs so `handle_signal` will execute hook
             panic!();
+        }
+        HandleAction::InHandleReply => {
+            unsafe {
+                REPLY_SET_HOOK = true;
+            }
+
+            gstd::msg::send_bytes_for_reply(msg::source(), b"for_reply", 0, 0)
+                .expect("Failed to send message")
+                .await
+                .expect("Received error reply");
+        }
+        HandleAction::InHandleSignal => {
+            unsafe {
+                SIGNAL_SET_HOOK = true;
+            }
+
+            gstd::msg::send_bytes_for_reply(msg::source(), b"for_reply", 0, 0)
+                .expect("Failed to send message")
+                .await
+                .expect("Received error reply");
+
+            panic!()
+        }
+    }
+}
+
+fn my_handle_reply() {
+    unsafe {
+        if REPLY_SET_HOOK {
+            // should panic in this entrypoint
+            critical::set_hook(|| {});
+        }
+    }
+}
+
+fn my_handle_signal() {
+    unsafe {
+        if SIGNAL_SET_HOOK {
+            // should panic in this entrypoint
+            critical::set_hook(|| {});
         }
     }
 }

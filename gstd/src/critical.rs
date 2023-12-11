@@ -66,6 +66,14 @@ fn hooks() -> &'static mut HooksMap {
 
 /// Sets critical hook.
 pub fn set_hook<F: FnMut() + 'static>(f: F) {
+    if msg::reply_code().is_ok() {
+        panic!("`gstd::critical::set_hook()` must not be called in `handle_reply` entrypoint")
+    }
+
+    if msg::signal_code().is_ok() {
+        panic!("`gstd::critical::set_hook()` must not be called in `handle_signal` entrypoint")
+    }
+
     hooks().insert(msg::id(), Box::new(f));
 }
 
