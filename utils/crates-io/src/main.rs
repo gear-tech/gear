@@ -25,6 +25,8 @@ use crates_io_manager::Publisher;
 /// The command to run.
 #[derive(Clone, Debug, Parser)]
 enum Command {
+    /// Build manifests for packages that to be published.
+    Build,
     /// Check packages that to be published.
     Check,
     /// Publish packages.
@@ -44,9 +46,13 @@ pub struct Opt {
 fn main() -> Result<()> {
     let Opt { command } = Opt::parse();
 
-    let publisher = Publisher::new()?.build()?;
+    let publisher = Publisher::new()?;
     match command {
-        Command::Check => publisher.check(),
-        Command::Publish => publisher.publish(),
+        Command::Check => publisher.build()?.check(),
+        Command::Publish => publisher.build()?.publish(),
+        Command::Build => {
+            publisher.build()?;
+            Ok(())
+        }
     }
 }

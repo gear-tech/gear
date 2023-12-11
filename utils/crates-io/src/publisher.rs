@@ -87,6 +87,11 @@ impl Publisher {
                 .insert(self.index.get(&p.name).cloned(), manifest);
         }
 
+        // Flush new manifests to disk
+        for Manifest { path, manifest, .. } in self.graph.values() {
+            fs::write(path, manifest.to_string())?;
+        }
+
         Ok(self)
     }
 
@@ -94,8 +99,6 @@ impl Publisher {
     ///
     /// TODO: Complete the check process (#3565)
     pub fn check(&self) -> Result<()> {
-        self.flush()?;
-
         let mut failed = Vec::new();
         for Manifest { path, name, .. } in self.graph.values() {
             if !PACKAGES.contains(&name.as_str()) {
@@ -118,23 +121,12 @@ impl Publisher {
 
     /// Publish packages
     pub fn publish(&self) -> Result<()> {
-        self.flush()?;
-
         for Manifest { path, .. } in self.graph.values() {
             println!("Publishing {path:?}");
             let status = crate::publish(&path.to_string_lossy())?;
             if !status.success() {
                 panic!("Failed to publish package {path:?} ...");
             }
-        }
-
-        Ok(())
-    }
-
-    /// Flush new manifests to disk
-    fn flush(&self) -> Result<()> {
-        for Manifest { path, manifest, .. } in self.graph.values() {
-            fs::write(path, manifest.to_string())?;
         }
 
         Ok(())
