@@ -26,14 +26,6 @@ use toml_edit::Document;
 use crate::version;
 
 const WORKSPACE_NAME: &str = "__gear_workspace";
-const INHERITS: [&str; 6] = [
-    "version",
-    "authors",
-    "edition",
-    "license",
-    "homepage",
-    "repository",
-];
 
 /// Cargo manifest with path
 pub struct Manifest {
@@ -62,43 +54,13 @@ impl Manifest {
         })
     }
 
-    /// Set version for the workspace.
-    pub fn with_version(mut self, version: Option<String>) -> Result<Self> {
-        self.ensure_workspace()?;
-
-        let version = if let Some(version) = version {
-            version
-        } else {
-            let cur = self.manifest["workspace"]["package"]
-                .get_mut("version")
-                .ok_or_else(|| {
-                    anyhow!(
-                        "Could not find version in workspace manifest: {}",
-                        self.path.display()
-                    )
-                })?
-                .to_string();
-
-            cur + "-" + &version::hash()?
-        };
-
-        self.manifest["workspace"]["package"]["version"] = toml_edit::value(version);
-
-        Ok(self)
-    }
-
     /// Complete the manifest of the specified crate from
     /// the workspace manifest
     pub fn manifest(&self, pkg: &Package) -> Result<Self> {
         self.ensure_workspace()?;
 
-        // Inherit metadata from workspace
-        let mut manifest: Document = fs::read_to_string(&pkg.manifest_path)?.parse()?;
-        for inherit in INHERITS {
-            manifest["package"][inherit] = self.manifest["workspace"]["package"][inherit].clone();
-        }
-
         // Complete documentation as from <https://docs.rs>
+        let mut manifest: Document = fs::read_to_string(&pkg.manifest_path)?.parse()?;
         let name = pkg.name.clone();
         manifest["package"]["documentation"] = toml_edit::value(format!("https://docs.rs/{name}"));
 
@@ -109,7 +71,66 @@ impl Manifest {
         })
     }
 
+    /// complete the versions of the specified crates
+    pub fn complete_versions(&mut self, index: &[&str]) -> Result<()> {
+        let version = self.manifest["workspace"]["package"]["version"]
+            .clone()
+            .as_str()
+            .ok_or_else(|| anyhow!("Could not find version in workspace manifest"))?
+            .to_string();
+
+        let Some(deps) = self.manifest["workspace"]["dependencies"].as_table_mut() else {
+            return Err(anyhow!(
+                "Failed to parse dependencies from workspace {}",
+                self.path.display()
+            ));
+        };
+
+        for (key, dep) in deps.iter_mut() {
+            let name = key.get();
+            if !index.contains(&name) {
+                continue;
+            }
+
+            dep["version"] = toml_edit::value(version.clone());
+        }
+
+        Ok(())
+    }
+
+    /// Set version for the workspace.
+    pub fn with_version(mut self, version: Option<String>) -> Result<Self> {
+        self.ensure_workspace()?;
+
+        let version = if let Some(version) = version {
+            version
+        } else {
+            self.version()? + "-" + &version::hash()?
+        };
+
+        self.manifest["workspace"]["package"]["version"] = toml_edit::value(version);
+
+        Ok(self)
+    }
+
+    /// Get version from the current manifest.
+    pub fn version(&self) -> Result<String> {
+        self.ensure_workspace()?;
+
+        Ok(self.manifest["workspace"]["package"]["version"]
+            .as_str()
+            .ok_or_else(|| {
+                anyhow!(
+                    "Could not find version in workspace manifest: {}",
+                    self.path.display()
+                )
+            })?
+            .to_string())
+    }
+
     /// Ensure the current function is called on the workspace manifest
+    ///
+    /// TODO: remove this interface after #3565
     fn ensure_workspace(&self) -> Result<()> {
         if self.name != WORKSPACE_NAME {
             return Err(anyhow!(

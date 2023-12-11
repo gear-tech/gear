@@ -22,14 +22,14 @@ use crate::Manifest;
 use anyhow::Result;
 
 /// Rename a dependencies
-pub fn deps(pkg: &mut Manifest, index: Vec<&str>, version: &str) -> Result<()> {
+pub fn deps(pkg: &mut Manifest) -> Result<()> {
     let Some(deps) = pkg.manifest["dependencies"].as_table_like_mut() else {
         return Ok(());
     };
 
     for (name, dep) in deps.iter_mut() {
         let name = name.get();
-        if !index.contains(&name) && !name.starts_with("sp-") {
+        if !name.starts_with("sp-") {
             continue;
         }
 
@@ -37,17 +37,16 @@ pub fn deps(pkg: &mut Manifest, index: Vec<&str>, version: &str) -> Result<()> {
             // NOTE: the required version of sp-arithmetic is 6.0.0 in
             // git repo, but 7.0.0 in crates.io, so we need to fix it.
             "sp-arithmetic" => dep["version"] = toml_edit::value("7.0.0"),
-            _ => dep["version"] = toml_edit::value(version),
+            _ => {}
         };
 
         // Format dotted values into inline table.
         if let Some(table) = dep.as_table_mut() {
-            if name.starts_with("sp") {
-                table.remove("branch");
-                table.remove("git");
-            }
+            table.remove("branch");
+            table.remove("git");
+            table.remove("workspace");
 
-            // Force the dep to be inline table incase losing
+            // Force the dep to be inline table in case of losing
             // documentation.
             let mut inline = table.clone().into_inline_table();
             inline.fmt();

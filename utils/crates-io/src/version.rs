@@ -54,6 +54,11 @@ pub fn hash() -> Result<String> {
         .map_err(|e| anyhow!("failed to execute command git, {e}"))?
         .stdout
         .iter()
-        .map(|&c| c as char)
+        .filter_map(|&c| {
+            if c.is_ascii_whitespace() {
+                return None;
+            }
+            Some(c as char)
+        })
         .collect())
 }

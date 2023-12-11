@@ -63,13 +63,15 @@ impl Publisher {
     /// 2. Rename version of all local packages
     /// 3. Patch dependencies if needed
     pub fn build(mut self, version: Option<String>) -> Result<Self> {
-        let workspace = Manifest::workspace()?.with_version(version)?;
+        let index = self.index.keys().map(|s| s.as_ref()).collect::<Vec<_>>();
+        let mut workspace = Manifest::workspace()?.with_version(version)?;
+        let version = workspace.version()?;
+
         for p in &self.metadata.packages {
-            if !self.index.contains_key(&p.name) {
+            if !index.contains(&p.name.as_ref()) {
                 continue;
             }
 
-            let version = p.version.to_string();
             println!("Verifying {}@{} ...", &p.name, &version);
             if crate::verify(&p.name, &version)? {
                 println!("Package {}@{} already published .", &p.name, &version);
@@ -77,11 +79,7 @@ impl Publisher {
             }
 
             let mut manifest = workspace.manifest(p)?;
-            rename::deps(
-                &mut manifest,
-                self.index.keys().map(|s| s.as_ref()).collect(),
-                &version,
-            )?;
+            rename::deps(&mut manifest, &index)?;
 
             self.graph
                 .insert(self.index.get(&p.name).cloned(), manifest);
@@ -92,6 +90,7 @@ impl Publisher {
             fs::write(path, manifest.to_string())?;
         }
 
+        workspace.complete_versions(&index)?;
         Ok(self)
     }
 
