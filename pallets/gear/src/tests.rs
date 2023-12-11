@@ -15197,7 +15197,7 @@ fn test_constructor_if_else() {
 }
 
 #[test]
-fn critical_section_works() {
+fn critical_hook_works() {
     use demo_async_critical::{HandleAction, WASM_BINARY};
 
     init_logger();
@@ -15255,7 +15255,7 @@ fn critical_section_works() {
 }
 
 #[test]
-fn critical_section_with_panic() {
+fn critical_hook_with_panic() {
     use demo_async_critical::{HandleAction, WASM_BINARY};
 
     init_logger();
