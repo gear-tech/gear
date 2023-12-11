@@ -1653,26 +1653,11 @@ pub mod pallet {
         #[pallet::call_index(8)]
         #[pallet::weight(<T as Config>::WeightInfo::pay_program_rent())]
         pub fn pay_program_rent(
-            origin: OriginFor<T>,
-            program_id: ProgramId,
-            block_count: BlockNumberFor<T>,
+            _origin: OriginFor<T>,
+            _program_id: ProgramId,
+            _block_count: BlockNumberFor<T>,
         ) -> DispatchResultWithPostInfo {
-            let who = ensure_signed(origin)?;
-
-            ensure!(
-                <T as Config>::ProgramRentEnabled::get(),
-                Error::<T>::ProgramRentDisabled,
-            );
-
-            ProgramStorageOf::<T>::update_active_program(
-                program_id,
-                |program| -> Result<(), Error<T>> {
-                    Self::pay_program_rent_impl(program_id, program, &who, block_count)
-                        .map_err(|_| Error::<T>::InsufficientBalance)
-                },
-            )??;
-
-            Ok(().into())
+            Err(Error::<T>::ProgramRentDisabled.into())
         }
 
         /// Starts a resume session of the previously paused program.
@@ -1686,40 +1671,12 @@ pub mod pallet {
         #[pallet::call_index(9)]
         #[pallet::weight(<T as Config>::WeightInfo::resume_session_init())]
         pub fn resume_session_init(
-            origin: OriginFor<T>,
-            program_id: ProgramId,
-            allocations: BTreeSet<WasmPage>,
-            code_hash: CodeId,
+            _origin: OriginFor<T>,
+            _program_id: ProgramId,
+            _allocations: BTreeSet<WasmPage>,
+            _code_hash: CodeId,
         ) -> DispatchResultWithPostInfo {
-            let who = ensure_signed(origin)?;
-
-            ensure!(
-                <T as Config>::ProgramRentEnabled::get(),
-                Error::<T>::ProgramRentDisabled
-            );
-
-            let session_end_block =
-                Self::block_number().saturating_add(ResumeSessionDurationOf::<T>::get());
-            let session_id = ProgramStorageOf::<T>::resume_session_init(
-                who.clone(),
-                session_end_block,
-                program_id,
-                allocations,
-                code_hash,
-            )?;
-
-            let task = ScheduledTask::RemoveResumeSession(session_id);
-            TaskPoolOf::<T>::add(session_end_block, task)
-                .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
-
-            Self::deposit_event(Event::ProgramResumeSessionStarted {
-                session_id,
-                account_id: who,
-                program_id,
-                session_end_block,
-            });
-
-            Ok(().into())
+            Err(Error::<T>::ProgramRentDisabled.into())
         }
 
         /// Appends memory pages to the resume session.
@@ -1730,22 +1687,13 @@ pub mod pallet {
         /// - `session_id`: id of the resume session.
         /// - `memory_pages`: program memory (or its part) before it was paused.
         #[pallet::call_index(10)]
-        #[pallet::weight(<T as Config>::WeightInfo::resume_session_push(memory_pages.len() as u32))]
+        #[pallet::weight(DbWeightOf::<T>::get().reads(1))]
         pub fn resume_session_push(
-            origin: OriginFor<T>,
-            session_id: SessionId,
-            memory_pages: Vec<(GearPage, PageBuf)>,
+            _origin: OriginFor<T>,
+            _session_id: SessionId,
+            _memory_pages: Vec<(GearPage, PageBuf)>,
         ) -> DispatchResultWithPostInfo {
-            let who = ensure_signed(origin)?;
-
-            ensure!(
-                <T as Config>::ProgramRentEnabled::get(),
-                Error::<T>::ProgramRentDisabled
-            );
-
-            ProgramStorageOf::<T>::resume_session_push(session_id, who, memory_pages)?;
-
-            Ok(().into())
+            Err(Error::<T>::ProgramRentDisabled.into())
         }
 
         /// Finishes the program resume session.
@@ -1756,63 +1704,13 @@ pub mod pallet {
         /// - `session_id`: id of the resume session.
         /// - `block_count`: the specified period of rent.
         #[pallet::call_index(11)]
-        #[pallet::weight(DbWeightOf::<T>::get().reads(1) + <T as Config>::WeightInfo::resume_session_commit(ProgramStorageOf::<T>::resume_session_page_count(session_id).unwrap_or(0)))]
+        #[pallet::weight(DbWeightOf::<T>::get().reads(1))]
         pub fn resume_session_commit(
-            origin: OriginFor<T>,
-            session_id: SessionId,
-            block_count: BlockNumberFor<T>,
+            _origin: OriginFor<T>,
+            _session_id: SessionId,
+            _block_count: BlockNumberFor<T>,
         ) -> DispatchResultWithPostInfo {
-            let who = ensure_signed(origin)?;
-
-            ensure!(
-                <T as Config>::ProgramRentEnabled::get(),
-                Error::<T>::ProgramRentDisabled
-            );
-
-            ensure!(
-                block_count >= ResumeMinimalPeriodOf::<T>::get(),
-                Error::<T>::ResumePeriodLessThanMinimal
-            );
-
-            let rent_fee = Self::rent_fee_for(block_count);
-            ensure!(
-                CurrencyOf::<T>::free_balance(&who) >= rent_fee,
-                Error::<T>::InsufficientBalance
-            );
-
-            let result = ProgramStorageOf::<T>::resume_session_commit(
-                session_id,
-                who.clone(),
-                Self::block_number().saturating_add(block_count),
-            )?;
-
-            let task = ScheduledTask::RemoveResumeSession(session_id);
-            TaskPoolOf::<T>::delete(result.end_block, task)
-                .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
-
-            let block_author = Authorship::<T>::author()
-                .unwrap_or_else(|| unreachable!("Failed to find block author!"));
-            if let Some((program_id, expiration_block)) = result.info {
-                let task = ScheduledTask::PauseProgram(program_id);
-                TaskPoolOf::<T>::add(expiration_block, task)
-                    .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
-
-                CurrencyOf::<T>::transfer(
-                    &who,
-                    &block_author,
-                    rent_fee,
-                    ExistenceRequirement::AllowDeath,
-                )?;
-
-                Self::deposit_event(Event::ProgramChanged {
-                    id: program_id,
-                    change: ProgramChangeKind::Active {
-                        expiration: expiration_block,
-                    },
-                });
-            }
-
-            Ok(().into())
+            Err(Error::<T>::ProgramRentDisabled.into())
         }
     }
 
