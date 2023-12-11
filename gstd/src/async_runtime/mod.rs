@@ -60,7 +60,7 @@ pub fn handle_signal() {
         "`gstd::async_runtime::handle_signal()` must be called only in `handle_signal` entrypoint",
     );
 
-    if let Some(f) = critical::take_hook() {
+    if let Some(mut f) = critical::take_hook() {
         f();
     }
 
