@@ -16,6 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+// TODO: describe denied sys-calls in entrypoint (#3580)
 //! Critical hook that guarantees code section execution.
 //!
 //! Code is executed in `handle_signal` entry point in case of failure
