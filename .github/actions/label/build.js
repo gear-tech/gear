@@ -20,8 +20,12 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /**
  *  If skipping this action.
+ *
+ * @returns {Promise<[boolean, string]>} [skip, String(check_runs)]
  **/
-const skip = async ({ core, github }) => {
+const skip = async ({ github }) => {
+  if (TITLE.includes("[depbot]")) return [true, ""]
+
   const {
     data: { check_runs },
   } = await github.rest.checks.listForRef({
@@ -142,7 +146,8 @@ const listJobs = async ({ github, core, run_id }) => {
  *  The main function.
  **/
 module.exports = async ({ github, core }) => {
-  const [skipAction, check_runs] = await skip({ core, github });
+  const [skipAction, check_runs] = await skip({ github });
+
   if (skipAction) {
     core.info("Build has already been processed, check runs: " + check_runs);
     return;
