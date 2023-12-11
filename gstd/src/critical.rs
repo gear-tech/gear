@@ -19,6 +19,8 @@
 // TODO: describe denied sys-calls in entrypoint (#3580)
 //! Critical hook that guarantees code section execution.
 //!
+//! __Hook is set on per-message basis.__
+//!
 //! Code is executed in `handle_signal` entry point in case of failure
 //! only across [`exec::wait()`] calls because hook has to be saved.
 //!
