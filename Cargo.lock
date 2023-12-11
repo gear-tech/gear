@@ -1602,7 +1602,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "crates-io-manager"
+name = "crates-io"
 version = "1.0.3"
 dependencies = [
  "anyhow",

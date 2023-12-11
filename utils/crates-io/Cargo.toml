@@ -1,5 +1,5 @@
 [package]
-name = "crates-io-manager"
+name = "crates-io"
 version.workspace = true
 edition.workspace = true
 
