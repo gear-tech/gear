@@ -63,7 +63,7 @@ impl Manifest {
         let mut manifest: Document = fs::read_to_string(&pkg.manifest_path)?.parse()?;
         let name = pkg.name.clone();
         manifest["package"]["documentation"] = toml_edit::value(format!("https://docs.rs/{name}"));
-        Self::rename_deps(&mut manifest)?;
+        self.rename_deps(&mut manifest)?;
 
         Ok(Self {
             name,
@@ -129,21 +129,10 @@ impl Manifest {
             .to_string())
     }
 
-    /// Ensure the current function is called on the workspace manifest
-    ///
-    /// TODO: remove this interface after #3565
-    fn ensure_workspace(&self) -> Result<()> {
-        if self.name != WORKSPACE_NAME {
-            return Err(anyhow!(
-                "This method can only be called on the workspace manifest"
-            ));
-        }
-
-        Ok(())
-    }
-
     /// Rename dependencies
-    fn rename_deps(manifest: &mut Document) -> Result<()> {
+    fn rename_deps(&self, manifest: &mut Document) -> Result<()> {
+        self.ensure_workspace()?;
+
         let Some(deps) = manifest["dependencies"].as_table_like_mut() else {
             return Ok(());
         };
@@ -154,18 +143,19 @@ impl Manifest {
                 continue;
             }
 
-            match name {
-                // NOTE: the required version of sp-arithmetic is 6.0.0 in
-                // git repo, but 7.0.0 in crates.io, so we need to fix it.
-                "sp-arithmetic" => dep["version"] = toml_edit::value("7.0.0"),
-                _ => {}
-            };
-
             // Format dotted values into inline table.
             if let Some(table) = dep.as_table_mut() {
                 table.remove("branch");
                 table.remove("git");
                 table.remove("workspace");
+
+                let version = match name {
+                    // NOTE: the required version of sp-arithmetic is 6.0.0 in
+                    // git repo, but 7.0.0 in crates.io, so we need to fix it.
+                    "sp-arithmetic" => "7.0.0",
+                    _ => self.version_of(name)?,
+                };
+                table.insert("version", toml_edit::value(version));
 
                 // Force the dep to be inline table in case of losing
                 // documentation.
@@ -173,6 +163,28 @@ impl Manifest {
                 inline.fmt();
                 *dep = toml_edit::value(inline);
             };
+        }
+
+        Ok(())
+    }
+
+    /// Get the version of a dependency.
+    fn version_of(&self, dep: &str) -> Result<&str> {
+        self.ensure_workspace()?;
+
+        self.manifest["workspace"]["dependencies"][dep]["version"]
+            .as_str()
+            .ok_or_else(|| anyhow!("faild to get version of dep {dep}"))
+    }
+
+    /// Ensure the current function is called on the workspace manifest
+    ///
+    /// TODO: remove this interface after #3565
+    fn ensure_workspace(&self) -> Result<()> {
+        if self.name != WORKSPACE_NAME {
+            return Err(anyhow!(
+                "This method can only be called on the workspace manifest"
+            ));
         }
 
         Ok(())
