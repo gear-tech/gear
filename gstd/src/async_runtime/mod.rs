@@ -60,7 +60,9 @@ pub fn handle_signal() {
         "`gstd::async_runtime::handle_signal()` must be called only in `handle_signal` entrypoint",
     );
 
-    critical::execute_hook_once();
+    if let Some(f) = critical::take_hook() {
+        f();
+    }
 
     futures().remove(&msg_id);
     locks().remove_message_entry(msg_id);

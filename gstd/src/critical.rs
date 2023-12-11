@@ -77,7 +77,7 @@ pub fn set_hook<F: FnMut() + 'static>(f: F) {
     hooks().insert(msg::id(), Box::new(f));
 }
 
-/// Executes critical hook and removes it.
+/// Removes current hook and returns it.
 ///
 /// Must be called inside `handle_signal`:
 ///
@@ -86,19 +86,19 @@ pub fn set_hook<F: FnMut() + 'static>(f: F) {
 ///
 /// #[no_mangle]
 /// extern "C" fn handle_signal() {
-///     critical::execute_hook_once();
+///     if let Some(f) = critical::take_hook() {
+///         f();
+///     }
 /// }
 /// ```
 ///
 /// or __don't__ be used at all if you use
 /// [`#[gstd::async_init]`](crate::async_init) or
 /// [`#[gstd::async_main]`](crate::async_main).
-pub fn execute_hook_once() {
+pub fn take_hook() -> Option<Box<dyn FnMut()>> {
     let msg_id = msg::signal_from().expect(
         "`gstd::critical::execute_hook_once()` must be called only in `handle_signal` entrypoint",
     );
 
-    if let Some(mut f) = hooks().remove(&msg_id) {
-        f();
-    }
+    hooks().remove(&msg_id)
 }
