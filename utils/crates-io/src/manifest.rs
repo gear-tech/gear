@@ -72,12 +72,12 @@ impl Manifest {
         // Inherit metadata from workspace
         let mut manifest: Document = fs::read_to_string(&pkg.manifest_path)?.parse()?;
         for inherit in INHERITS {
-            manifest[inherit] = self.manifest[inherit].clone();
+            manifest["package"][inherit] = self.manifest["workspace"]["package"][inherit].clone();
         }
 
         // Complete documentation as from <https://docs.rs>
         let name = pkg.name.clone();
-        manifest["documentation"] = toml_edit::value(format!("https://docs.rs/{name}"));
+        manifest["package"]["documentation"] = toml_edit::value(format!("https://docs.rs/{name}"));
 
         Ok(Self {
             name,
