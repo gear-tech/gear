@@ -30,7 +30,11 @@ enum Command {
     /// Check packages that to be published.
     Check,
     /// Publish packages.
-    Publish,
+    Publish {
+        /// The version to publish.
+        #[clap(long, short)]
+        version: Option<String>,
+    },
 }
 
 /// Gear crates-io manager command line interface
@@ -48,10 +52,10 @@ fn main() -> Result<()> {
 
     let publisher = Publisher::new()?;
     match command {
-        Command::Check => publisher.build()?.check(),
-        Command::Publish => publisher.build()?.publish(),
+        Command::Check => publisher.build(None)?.check(),
+        Command::Publish { version } => publisher.build(version)?.publish(),
         Command::Build => {
-            publisher.build()?;
+            publisher.build(None)?;
             Ok(())
         }
     }

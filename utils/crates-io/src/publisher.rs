@@ -62,8 +62,8 @@ impl Publisher {
     /// 1. Replace git dependencies to crates-io dependencies.
     /// 2. Rename version of all local packages
     /// 3. Patch dependencies if needed
-    pub fn build(mut self) -> Result<Self> {
-        let workspace = Manifest::workspace()?;
+    pub fn build(mut self, version: Option<String>) -> Result<Self> {
+        let workspace = Manifest::workspace()?.with_version(version)?;
         for p in &self.metadata.packages {
             if !self.index.contains_key(&p.name) {
                 continue;
