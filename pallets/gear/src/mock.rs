@@ -383,6 +383,10 @@ pub fn run_to_block_maybe_with_queue(
                 QueueProcessingOf::<Test>::deny();
             }
 
+            // Spend the maximum weight of the block to account for the weight of Gear::run() in the current block.
+            let max_block_weight = <BlockWeightsOf<Test> as Get<BlockWeights>>::get().max_block;
+            System::register_extra_weight_unchecked(max_block_weight, DispatchClass::Mandatory);
+
             Gear::run(frame_support::dispatch::RawOrigin::None.into(), None).unwrap();
         }
 

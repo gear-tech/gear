@@ -1572,7 +1572,7 @@ pub mod pallet {
 
         /// Process message queue
         #[pallet::call_index(6)]
-        #[pallet::weight((Weight::zero(), DispatchClass::Mandatory))]
+        #[pallet::weight((<T as frame_system::Config>::BlockWeights::get().max_block, DispatchClass::Mandatory))]
         pub fn run(
             origin: OriginFor<T>,
             max_gas: Option<GasBalanceOf<T>>,
@@ -1593,9 +1593,13 @@ pub mod pallet {
             // overlay and never be committed to storage.
             GearRunInBlock::<T>::set(Some(()));
 
-            let weight_used = <frame_system::Pallet<T>>::block_weight();
             let max_weight = <T as frame_system::Config>::BlockWeights::get().max_block;
-            let remaining_weight = max_weight.saturating_sub(weight_used.total());
+
+            // Subtract extrinsic weight from the current block weight to get used weight in the current block.
+            let weight_used = <frame_system::Pallet<T>>::block_weight()
+                .total()
+                .saturating_sub(max_weight);
+            let remaining_weight = max_weight.saturating_sub(weight_used);
 
             // Remaining weight may exceed the minimum block gas limit set by the Limiter trait.
             let mut adjusted_gas = GasAllowanceOf::<T>::get().max(remaining_weight.ref_time());
