@@ -33,23 +33,25 @@ pub fn deps(pkg: &mut Manifest, index: Vec<&str>, version: &str) -> Result<()> {
             continue;
         }
 
-        let Some(dep) = dep.as_table_like_mut() else {
-            continue;
-        };
-
         match name {
             // NOTE: the required version of sp-arithmetic is 6.0.0 in
             // git repo, but 7.0.0 in crates.io, so we need to fix it.
-            "sp-arithmetic" => {
-                dep.insert(version, toml_edit::value("7.0.0"));
-                dep.remove("branch");
-                dep.remove("git")
+            "sp-arithmetic" => dep["version"] = toml_edit::value("7.0.0"),
+            _ => dep["version"] = toml_edit::value(version),
+        };
+
+        // Format dotted values into inline table.
+        if let Some(table) = dep.as_table_mut() {
+            if name.starts_with("sp") {
+                table.remove("branch");
+                table.remove("git");
             }
-            sp if sp.starts_with("sp-") => {
-                dep.remove("branch");
-                dep.remove("git")
-            }
-            _ => dep.insert(version, toml_edit::value("7.0.0")),
+
+            // Force the dep to be inline table incase losing
+            // documentation.
+            let mut inline = table.clone().into_inline_table();
+            inline.fmt();
+            *dep = toml_edit::value(inline);
         };
     }
 
