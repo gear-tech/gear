@@ -86,7 +86,7 @@ pub fn set_hook<F: FnMut() + 'static>(f: F) {
 /// [`#[gstd::async_main]`](crate::async_main).__
 ///
 /// Must be called at the end of `init` or `handle`
-/// to now blow up map because hook is set on per-message basis:
+/// to not blow up map because hook is set on per-message basis:
 ///
 /// ```rust,no_run
 /// use gstd::critical;
@@ -102,23 +102,32 @@ pub fn set_hook<F: FnMut() + 'static>(f: F) {
 ///     let _ = critical::take_hook();
 /// }
 /// ```
+pub fn take_hook() -> Option<Box<dyn FnMut()>> {
+    hooks().remove(&msg::id())
+}
+
+/// Removes current hook and executes it.
 ///
-/// And must be called inside `handle_signal`:
+/// __Don't use it at all if you use
+/// [`#[gstd::async_init]`](crate::async_init) or
+/// [`#[gstd::async_main]`](crate::async_main).__
+///
+/// Must be called inside `handle_signal`:
 ///
 /// ```rust,no_run
 /// use gstd::critical;
 ///
 /// #[no_mangle]
 /// extern "C" fn handle_signal() {
-///     if let Some(mut f) = critical::take_hook() {
-///         f();
-///     }
+///     critical::take_and_execute();
 /// }
 /// ```
-pub fn take_hook() -> Option<Box<dyn FnMut()>> {
+pub fn take_and_execute() {
     let msg_id = msg::signal_from().expect(
         "`gstd::critical::execute_hook_once()` must be called only in `handle_signal` entrypoint",
     );
 
-    hooks().remove(&msg_id)
+    if let Some(mut f) = hooks().remove(&msg_id) {
+        f();
+    }
 }

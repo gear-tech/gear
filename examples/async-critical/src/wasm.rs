@@ -88,8 +88,12 @@ async fn main() {
 fn my_handle_reply() {
     unsafe {
         if REPLY_SET_HOOK {
+            let source = msg::source();
+
             // should panic in this entrypoint
-            critical::set_hook(|| {});
+            critical::set_hook(move || {
+                msg::send_bytes(source, b"from_handle_reply", 0).unwrap();
+            });
         }
     }
 }
@@ -97,8 +101,12 @@ fn my_handle_reply() {
 fn my_handle_signal() {
     unsafe {
         if SIGNAL_SET_HOOK {
+            let source = msg::source();
+
             // should panic in this entrypoint
-            critical::set_hook(|| {});
+            critical::set_hook(move || {
+                msg::send_bytes(source, b"from_handle_signal", 0).unwrap();
+            });
         }
     }
 }

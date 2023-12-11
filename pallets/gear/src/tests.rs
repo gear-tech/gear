@@ -15362,10 +15362,9 @@ fn critical_hook_in_handle_reply() {
 
         run_to_block(4, None);
 
-        assert_failed(
-            mid,
-            ErrorReplyReason::Execution(SimpleExecutionError::UserspacePanic),
-        );
+        assert_eq!(MailboxOf::<Test>::iter_key(USER_1).last(), None);
+        let status = dispatch_status(mid);
+        assert_eq!(status, Some(DispatchStatus::Failed));
     });
 }
 
