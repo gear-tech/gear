@@ -32,7 +32,6 @@ use gstd::{Decode, Encode};
 pub enum HandleAction {
     Simple,
     Panic,
-    HookReset,
 }
 
 #[cfg(target_arch = "wasm32")]

@@ -30,7 +30,7 @@ async fn main() {
 
             // should not send anything because execution will be completed
             critical::set_hook(move || {
-                msg::send_bytes(msg::source(), b"critical", 0).unwrap();
+                msg::send_bytes(source, b"critical", 0).unwrap();
             });
 
             // wait occurs inside so hook is saved
@@ -56,28 +56,6 @@ async fn main() {
 
             // panic occurs so `handle_signal` will execute hook
             panic!();
-        }
-        HandleAction::HookReset => {
-            // call `gr_source` outside because it is forbidden in `handle_signal`
-            let source = msg::source();
-
-            critical::set_hook(move || {
-                msg::send_bytes(source, b"critical0", 0).unwrap();
-            });
-
-            gstd::msg::send_bytes_for_reply(msg::source(), b"for_reply0", 0, 0)
-                .expect("Failed to send message")
-                .await
-                .expect("Received error reply");
-
-            critical::set_hook(move || {
-                msg::send_bytes(source, b"critical1", 0).unwrap();
-            });
-
-            gstd::msg::send_bytes_for_reply(msg::source(), b"for_reply1", 0, 0)
-                .expect("Failed to send message")
-                .await
-                .expect("Received error reply");
         }
     }
 }

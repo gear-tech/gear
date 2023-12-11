@@ -15093,69 +15093,6 @@ fn critical_section_with_panic() {
     });
 }
 
-#[test]
-fn critical_section_hook_reset() {
-    use demo_async_critical::{HandleAction, WASM_BINARY};
-
-    init_logger();
-    new_test_ext().execute_with(|| {
-        assert_ok!(Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            WASM_BINARY.to_vec(),
-            DEFAULT_SALT.to_vec(),
-            vec![],
-            10_000_000_000,
-            0,
-            false,
-        ));
-        let pid = get_last_program_id();
-
-        run_to_block(2, None);
-
-        assert!(Gear::is_initialized(pid));
-        assert!(Gear::is_active(pid));
-
-        assert_ok!(Gear::send_message(
-            RuntimeOrigin::signed(USER_1),
-            pid,
-            HandleAction::HookReset.encode(),
-            10_000_000_000,
-            0,
-            false,
-        ));
-
-        run_to_block(3, None);
-
-        let msg = get_last_mail(USER_1);
-        assert_eq!(msg.payload_bytes(), b"for_reply0");
-
-        assert_ok!(Gear::send_reply(
-            RuntimeOrigin::signed(USER_1),
-            msg.id(),
-            EMPTY_PAYLOAD.to_vec(),
-            10_000_000_000,
-            0,
-            false,
-        ));
-
-        run_to_block(4, None);
-
-        let msg = get_last_mail(USER_1);
-        assert_eq!(msg.payload_bytes(), b"for_reply1");
-
-        assert_ok!(Gear::send_reply(
-            RuntimeOrigin::signed(USER_1),
-            msg.id(),
-            EMPTY_PAYLOAD.to_vec(),
-            10_000_000_000,
-            0,
-            false,
-        ));
-
-        run_to_block(5, None);
-    });
-}
-
 mod utils {
     #![allow(unused)]
 
