@@ -18,7 +18,7 @@
 
 //! Packages publisher
 
-use crate::{rename, ManifestWithPath, PACKAGES, SAFE_DEPENDENCIES, STACKED_DEPENDENCIES};
+use crate::{rename, Manifest, PACKAGES, SAFE_DEPENDENCIES, STACKED_DEPENDENCIES};
 use anyhow::Result;
 use cargo_metadata::{Metadata, MetadataCommand};
 use std::{
@@ -29,7 +29,7 @@ use std::{
 /// crates-io packages publisher.
 pub struct Publisher {
     metadata: Metadata,
-    graph: BTreeMap<Option<usize>, ManifestWithPath>,
+    graph: BTreeMap<Option<usize>, Manifest>,
     index: HashMap<String, usize>,
 }
 
@@ -63,7 +63,7 @@ impl Publisher {
     /// 2. Rename version of all local packages
     /// 3. Patch dependencies if needed
     pub fn build(mut self) -> Result<Self> {
-        let workspace = ManifestWithPath::workspace()?;
+        let workspace = Manifest::workspace()?;
         for p in &self.metadata.packages {
             if !self.index.contains_key(&p.name) {
                 continue;
@@ -76,9 +76,12 @@ impl Publisher {
                 continue;
             }
 
-            let mut manifest = workspace.manifest(&p.manifest_path)?;
-            rename::package(p, &mut manifest.manifest)?;
-            rename::deps(&mut manifest.manifest, self.index.keys().collect(), version)?;
+            let mut manifest = workspace.manifest(p)?;
+            rename::deps(
+                &mut manifest,
+                self.index.keys().map(|s| s.as_ref()).collect(),
+                &version,
+            )?;
 
             self.graph
                 .insert(self.index.get(&p.name).cloned(), manifest);
@@ -94,7 +97,7 @@ impl Publisher {
         self.flush()?;
 
         let mut failed = Vec::new();
-        for ManifestWithPath { path, name, .. } in self.graph.values() {
+        for Manifest { path, name, .. } in self.graph.values() {
             if !PACKAGES.contains(&name.as_str()) {
                 continue;
             }
@@ -117,7 +120,7 @@ impl Publisher {
     pub fn publish(&self) -> Result<()> {
         self.flush()?;
 
-        for ManifestWithPath { path, .. } in self.graph.values() {
+        for Manifest { path, .. } in self.graph.values() {
             println!("Publishing {path:?}");
             let status = crate::publish(&path.to_string_lossy())?;
             if !status.success() {
@@ -130,8 +133,8 @@ impl Publisher {
 
     /// Flush new manifests to disk
     fn flush(&self) -> Result<()> {
-        for ManifestWithPath { path, manifest, .. } in self.graph.values() {
-            fs::write(path, toml::to_string_pretty(&manifest)?)?;
+        for Manifest { path, manifest, .. } in self.graph.values() {
+            fs::write(path, manifest.to_string())?;
         }
 
         Ok(())

@@ -18,24 +18,32 @@
 
 //! Manifest utils for crates-io-manager
 
-use anyhow::Result;
-use cargo_toml::{Manifest, Value};
-use std::{
-    fs,
-    path::{Path, PathBuf},
-};
+use anyhow::{anyhow, Result};
+use cargo_metadata::Package;
+use std::{fs, path::PathBuf};
+use toml_edit::Document;
+
+const WORKSPACE_NAME: &str = "__gear_workspace";
+const INHERITS: [&str; 6] = [
+    "version",
+    "authors",
+    "edition",
+    "license",
+    "homepage",
+    "repository",
+];
 
 /// Cargo manifest with path
-pub struct ManifestWithPath {
+pub struct Manifest {
     /// Crate name
     pub name: String,
     /// Cargo manifest
-    pub manifest: Manifest,
+    pub manifest: Document,
     /// Path of the manifest
     pub path: PathBuf,
 }
 
-impl ManifestWithPath {
+impl Manifest {
     /// Get the workspace manifest
     pub fn workspace() -> Result<Self> {
         let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -46,23 +54,35 @@ impl ManifestWithPath {
             .canonicalize()?;
 
         Ok(Self {
-            name: "__gear_workspace".into(),
-            manifest: Manifest::from_path(&path)?,
+            name: WORKSPACE_NAME.to_string(),
+            manifest: fs::read_to_string(&path)?.parse()?,
             path,
         })
     }
 
     /// Complete the manifest of the specified crate from
-    /// the current manifest
-    pub fn manifest(&self, path: impl AsRef<Path>) -> Result<Self> {
-        let mut manifest = Manifest::<Value>::from_slice_with_metadata(&fs::read(&path)?)?;
-        manifest
-            .complete_from_path_and_workspace(path.as_ref(), Some((&self.manifest, &self.path)))?;
+    /// the workspace manifest
+    pub fn manifest(&self, pkg: &Package) -> Result<Self> {
+        if self.name != WORKSPACE_NAME {
+            return Err(anyhow!(
+                "This method can only be called on the workspace manifest"
+            ));
+        }
+
+        // Inherit metadata from workspace
+        let mut manifest: Document = fs::read_to_string(&pkg.manifest_path)?.parse()?;
+        for inherit in INHERITS {
+            manifest[inherit] = self.manifest[inherit].clone();
+        }
+
+        // Complete documentation as from <https://docs.rs>
+        let name = pkg.name.clone();
+        manifest["documentation"] = toml_edit::value(format!("https://docs.rs/{name}"));
 
         Ok(Self {
-            name: manifest.package.clone().map(|p| p.name).unwrap_or_default(),
+            name,
             manifest,
-            path: path.as_ref().to_path_buf(),
+            path: pkg.manifest_path.clone().into(),
         })
     }
 }
