@@ -353,11 +353,7 @@ where
                 Ok((actual_gas, Ok(())))
             }
             Err(e) => {
-                log::error!(
-                    target: LOG_TARGET,
-                    "Error disptaching call: {:?}",
-                    e,
-                );
+                log::error!(target: LOG_TARGET, "Error disptaching call: {:?}", e);
                 Ok((actual_gas, Err(DispatchErrorReason::RuntimeError)))
             }
         }
@@ -396,9 +392,71 @@ pub mod staking_proxy {
         let msg: Request = Decode::decode(&mut message.payload_bytes())
             .map_err(|_| BuiltInActorError::UnknownMessageType)?;
         let call = match msg {
-            Request::Bond { value, payee } => {
-                let payee = if let Some(payee) = payee {
-                    match payee {
+            // Handle the V1 staking requests
+            Request::V1(msg) => match msg {
+                RequestV1::Bond { value, payee } => {
+                    let payee = if let Some(payee) = payee {
+                        match payee {
+                            RewardAccount::Program => RewardDestination::Stash,
+                            RewardAccount::Custom(account_id) => {
+                                let dest = <T::AccountId as Origin>::from_origin(
+                                    ProgramId::from(&account_id[..]).into_origin(),
+                                );
+                                RewardDestination::Account(dest)
+                            }
+                        }
+                    } else {
+                        RewardDestination::Stash
+                    };
+                    pallet_staking::Call::<T>::bond {
+                        controller: T::Lookup::unlookup(origin.clone()),
+                        value: value.unique_saturated_into(),
+                        payee,
+                    }
+                    .into()
+                }
+                RequestV1::BondExtra { value } => pallet_staking::Call::<T>::bond_extra {
+                    max_additional: value.unique_saturated_into(),
+                }
+                .into(),
+                RequestV1::Unbond { value } => pallet_staking::Call::<T>::unbond {
+                    value: value.unique_saturated_into(),
+                }
+                .into(),
+                RequestV1::WithdrawUnbonded { num_slashing_spans } => {
+                    pallet_staking::Call::<T>::withdraw_unbonded { num_slashing_spans }.into()
+                }
+                RequestV1::Nominate { targets } => pallet_staking::Call::<T>::nominate {
+                    targets: targets
+                        .into_iter()
+                        .map(|account_id| {
+                            let origin = <T::AccountId as Origin>::from_origin(
+                                ProgramId::from(&account_id[..]).into_origin(),
+                            );
+                            T::Lookup::unlookup(origin)
+                        })
+                        .collect(),
+                }
+                .into(),
+                RequestV1::PayoutStakers {
+                    validator_stash,
+                    era,
+                } => {
+                    let stash_id = <T::AccountId as Origin>::from_origin(
+                        ProgramId::from(&validator_stash[..]).into_origin(),
+                    );
+                    pallet_staking::Call::<T>::payout_stakers {
+                        validator_stash: stash_id,
+                        era,
+                    }
+                    .into()
+                }
+                RequestV1::Rebond { value } => pallet_staking::Call::<T>::rebond {
+                    value: value.unique_saturated_into(),
+                }
+                .into(),
+                RequestV1::SetPayee { payee } => {
+                    let payee = match payee {
                         RewardAccount::Program => RewardDestination::Stash,
                         RewardAccount::Custom(account_id) => {
                             let dest = <T::AccountId as Origin>::from_origin(
@@ -406,69 +464,11 @@ pub mod staking_proxy {
                             );
                             RewardDestination::Account(dest)
                         }
-                    }
-                } else {
-                    RewardDestination::Stash
-                };
-                pallet_staking::Call::<T>::bond {
-                    controller: T::Lookup::unlookup(origin.clone()),
-                    value: value.unique_saturated_into(),
-                    payee,
+                    };
+                    pallet_staking::Call::<T>::set_payee { payee }.into()
                 }
-                .into()
-            }
-            Request::BondExtra { value } => pallet_staking::Call::<T>::bond_extra {
-                max_additional: value.unique_saturated_into(),
-            }
-            .into(),
-            Request::Unbond { value } => pallet_staking::Call::<T>::unbond {
-                value: value.unique_saturated_into(),
-            }
-            .into(),
-            Request::WithdrawUnbonded { num_slashing_spans } => {
-                pallet_staking::Call::<T>::withdraw_unbonded { num_slashing_spans }.into()
-            }
-            Request::Nominate { targets } => pallet_staking::Call::<T>::nominate {
-                targets: targets
-                    .into_iter()
-                    .map(|account_id| {
-                        let origin = <T::AccountId as Origin>::from_origin(
-                            ProgramId::from(&account_id[..]).into_origin(),
-                        );
-                        T::Lookup::unlookup(origin)
-                    })
-                    .collect(),
-            }
-            .into(),
-            Request::PayoutStakers {
-                validator_stash,
-                era,
-            } => {
-                let stash_id = <T::AccountId as Origin>::from_origin(
-                    ProgramId::from(&validator_stash[..]).into_origin(),
-                );
-                pallet_staking::Call::<T>::payout_stakers {
-                    validator_stash: stash_id,
-                    era,
-                }
-                .into()
-            }
-            Request::Rebond { value } => pallet_staking::Call::<T>::rebond {
-                value: value.unique_saturated_into(),
-            }
-            .into(),
-            Request::SetPayee { payee } => {
-                let payee = match payee {
-                    RewardAccount::Program => RewardDestination::Stash,
-                    RewardAccount::Custom(account_id) => {
-                        let dest = <T::AccountId as Origin>::from_origin(
-                            ProgramId::from(&account_id[..]).into_origin(),
-                        );
-                        RewardDestination::Account(dest)
-                    }
-                };
-                pallet_staking::Call::<T>::set_payee { payee }.into()
-            }
+            },
+            // More arms can be added in the future
         };
         Pallet::<T>::dispatch_call(origin, call, gas_limit)
     }

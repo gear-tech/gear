@@ -91,6 +91,13 @@ pub mod staking {
     #[derive(Encode, Decode, Clone, PartialEq, Eq, Debug)]
     #[codec(crate = scale)]
     pub enum Request {
+        /// Version 1 of the staking built-in actor protocol.
+        V1(RequestV1),
+    }
+
+    #[derive(Encode, Decode, Clone, PartialEq, Eq, Debug)]
+    #[codec(crate = scale)]
+    pub enum RequestV1 {
         /// Bond up to the `value` from the sender to self as the controller.
         Bond {
             value: u128,

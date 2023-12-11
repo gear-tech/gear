@@ -45,7 +45,7 @@ benchmarks! {
         );
         let built_in_actor_id = BuiltInActor::<T>::staking_proxy_actor_id();
         let value = 100_000_000_000_000_u128;
-        let payload = Request::Bond { value, payee: None }.encode();
+        let payload = Request::V1(RequestV1::Bond { value, payee: None }).encode();
         let source = ProgramId::from_origin(issuer.clone().into_origin());
 
         let dispatch = StoredDispatch::new(

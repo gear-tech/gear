@@ -55,10 +55,10 @@ fn send_bond_message(
     assert_ok!(Gear::send_message(
         RuntimeOrigin::signed(SIGNER),
         contract_id,
-        Request::Bond {
+        Request::V1(RequestV1::Bond {
             value: amount,
             payee
-        }
+        })
         .encode(),
         10_000_000_000,
         amount,
@@ -119,10 +119,10 @@ fn user_message_to_builtin_actor_works() {
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(SIGNER),
             builtin_actor_id,
-            Request::Bond {
+            Request::V1(RequestV1::Bond {
                 value: 100 * UNITS,
                 payee: None
-            }
+            })
             .encode(),
             10_000_000_000,
             0,
@@ -173,10 +173,10 @@ fn bonding_works() {
             let res = Gear::calculate_gas_info(
                 SIGNER.into_origin(),
                 pallet_gear::manager::HandleKind::Handle(contract_id),
-                Request::Bond {
+                Request::V1(RequestV1::Bond {
                     value: bonded,
                     payee: None,
-                }
+                })
                 .encode(),
                 value.unwrap_or(bonded),
                 true,
@@ -226,10 +226,10 @@ fn bonding_works() {
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(SIGNER),
             contract_id,
-            Request::Bond {
+            Request::V1(RequestV1::Bond {
                 value: 50 * UNITS,
                 payee: None
-            }
+            })
             .encode(),
             10_000_000_000,
             100 * UNITS,
@@ -282,7 +282,7 @@ fn unbonding_works() {
         let _gas_info = Gear::calculate_gas_info(
             SIGNER.into_origin(),
             pallet_gear::manager::HandleKind::Handle(contract_id),
-            Request::Unbond { value: 200 * UNITS }.encode(),
+            Request::V1(RequestV1::Unbond { value: 200 * UNITS }).encode(),
             0,
             true,
             None,
@@ -296,7 +296,7 @@ fn unbonding_works() {
             RuntimeOrigin::signed(SIGNER),
             contract_id,
             // expecting to unbond only 100 UNITS despite 200 UNITS are being requested
-            Request::Unbond { value: 200 * UNITS }.encode(),
+            Request::V1(RequestV1::Unbond { value: 200 * UNITS }).encode(),
             10_000_000_000,
             0,
             false,
@@ -330,9 +330,9 @@ fn nominating_works() {
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(SIGNER),
             contract_id,
-            Request::Nominate {
+            Request::V1(RequestV1::Nominate {
                 targets: targets.clone()
-            }
+            })
             .encode(),
             10_000_000_000,
             0,
@@ -358,9 +358,9 @@ fn nominating_works() {
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(SIGNER),
             contract_id,
-            Request::Nominate {
+            Request::V1(RequestV1::Nominate {
                 targets: targets.clone()
-            }
+            })
             .encode(),
             10_000_000_000,
             0,
@@ -402,7 +402,7 @@ fn withdraw_unbonded_works() {
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(SIGNER),
             contract_id,
-            Request::Unbond { value: 200 * UNITS }.encode(),
+            Request::V1(RequestV1::Unbond { value: 200 * UNITS }).encode(),
             10_000_000_000,
             0,
             false,
@@ -429,9 +429,9 @@ fn withdraw_unbonded_works() {
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(SIGNER),
             contract_id,
-            Request::WithdrawUnbonded {
+            Request::V1(RequestV1::WithdrawUnbonded {
                 num_slashing_spans: 0
-            }
+            })
             .encode(),
             10_000_000_000,
             0,
@@ -476,9 +476,9 @@ fn set_payee_works() {
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(SIGNER),
             contract_id,
-            Request::SetPayee {
+            Request::V1(RequestV1::SetPayee {
                 payee: RewardAccount::Custom(REWARD_PAYEE.into_origin().into())
-            }
+            })
             .encode(),
             10_000_000_000,
             0,
@@ -520,7 +520,7 @@ fn rebond_works() {
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(SIGNER),
             contract_id,
-            Request::Unbond { value: 400 * UNITS }.encode(),
+            Request::V1(RequestV1::Unbond { value: 400 * UNITS }).encode(),
             10_000_000_000,
             0,
             false,
@@ -545,7 +545,7 @@ fn rebond_works() {
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(SIGNER),
             contract_id,
-            Request::Rebond { value: 200 * UNITS }.encode(),
+            Request::V1(RequestV1::Rebond { value: 200 * UNITS }).encode(),
             10_000_000_000,
             0,
             false,
@@ -568,7 +568,7 @@ fn rebond_works() {
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(SIGNER),
             contract_id,
-            Request::Rebond { value: 300 * UNITS }.encode(),
+            Request::V1(RequestV1::Rebond { value: 300 * UNITS }).encode(),
             10_000_000_000,
             0,
             false,
@@ -617,9 +617,9 @@ fn payout_stakers_works() {
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(SIGNER),
             contract_id,
-            Request::Nominate {
+            Request::V1(RequestV1::Nominate {
                 targets: targets.clone()
-            }
+            })
             .encode(),
             10_000_000_000,
             0,
@@ -648,10 +648,10 @@ fn payout_stakers_works() {
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(SIGNER),
             contract_id,
-            Request::PayoutStakers {
+            Request::V1(RequestV1::PayoutStakers {
                 validator_stash: VAL_1_STASH.into_origin().into(),
                 era: 4
-            }
+            })
             .encode(),
             10_000_000_000,
             0,

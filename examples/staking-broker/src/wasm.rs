@@ -101,9 +101,9 @@ impl StakingBroker {
         // Note: this is not how you'd do it in a real application, given the
         // Staking pallet `unbonding` logic, but it's enough for the example.
         let payload = if !self.has_bonded_any {
-            Request::Bond { value, payee }
+            Request::V1(RequestV1::Bond { value, payee })
         } else {
-            Request::BondExtra { value }
+            Request::V1(RequestV1::BondExtra { value })
         };
         debug!(
             "[StakingBroker] Sending `bond` message {:?} at broker's state {:?}",
@@ -137,7 +137,7 @@ impl StakingBroker {
         }
 
         // Prepare a message to the built-in actor
-        let payload = Request::Unbond { value };
+        let payload = Request::V1(RequestV1::Unbond { value });
         debug!(
             "[StakingBroker] Sending `unbond` message {:?} at broker's state {:?}",
             payload, self
@@ -154,7 +154,7 @@ impl StakingBroker {
 
     async fn nominate(&mut self, targets: Vec<AccountId>) {
         // Prepare a message to the built-in actor
-        let payload = Request::Nominate { targets };
+        let payload = Request::V1(RequestV1::Nominate { targets });
         debug!(
             "[StakingBroker] Sending `nominate` message {:?} at broker's state {:?}",
             payload, self
@@ -166,7 +166,7 @@ impl StakingBroker {
         let source = msg::source();
 
         // Prepare a message to the built-in actor
-        let payload = Request::Rebond { value };
+        let payload = Request::V1(RequestV1::Rebond { value });
         debug!(
             "[StakingBroker] Sending `rebond` message {:?} at broker's state {:?}",
             payload, self
@@ -185,9 +185,9 @@ impl StakingBroker {
         let _sender = msg::source();
 
         // Prepare a message to the built-in actor
-        let payload = Request::WithdrawUnbonded {
+        let payload = Request::V1(RequestV1::WithdrawUnbonded {
             num_slashing_spans: 0,
-        };
+        });
         debug!(
             "[StakingBroker] Sending `withdraw_unbonded` message {:?} at broker's state {:?}",
             payload, self
@@ -201,7 +201,7 @@ impl StakingBroker {
 
     async fn set_payee(&mut self, payee: RewardAccount) {
         // Prepare a message to the built-in actor
-        let payload = Request::SetPayee { payee };
+        let payload = Request::V1(RequestV1::SetPayee { payee });
         debug!(
             "[StakingBroker] Sending `set_payee` message {:?} at broker's state {:?}",
             payload, self
@@ -217,10 +217,10 @@ impl StakingBroker {
 
     async fn payout_stakers(&mut self, validator_stash: AccountId, era: u32) {
         // Prepare a message to the built-in actor
-        let payload = Request::PayoutStakers {
+        let payload = Request::V1(RequestV1::PayoutStakers {
             validator_stash,
             era,
-        };
+        });
         debug!(
             "[StakingBroker] Sending `payout_stakers` message {:?} at broker's state {:?}",
             payload, self
@@ -238,33 +238,37 @@ async fn main() {
 
     let payload = msg::load().expect("Expecting a valid payload");
     match payload {
-        Request::Bond { value, payee } => {
-            broker.bond(msg::value().min(value), payee).await;
-        }
-        Request::BondExtra { value } => {
-            broker.bond(msg::value().min(value), None).await;
-        }
-        Request::Unbond { value } => {
-            broker.unbond(value).await;
-        }
-        Request::WithdrawUnbonded { .. } => {
-            broker.witdraw_unbonded().await;
-        }
-        Request::Nominate { targets } => {
-            broker.nominate(targets).await;
-        }
-        Request::PayoutStakers {
-            validator_stash,
-            era,
-        } => {
-            broker.payout_stakers(validator_stash, era).await;
-        }
-        Request::Rebond { value } => {
-            broker.rebond(value).await;
-        }
-        Request::SetPayee { payee } => {
-            broker.set_payee(payee).await;
-        }
+        // Handle the V1 staking requests
+        Request::V1(request) => match request {
+            RequestV1::Bond { value, payee } => {
+                broker.bond(msg::value().min(value), payee).await;
+            }
+            RequestV1::BondExtra { value } => {
+                broker.bond(msg::value().min(value), None).await;
+            }
+            RequestV1::Unbond { value } => {
+                broker.unbond(value).await;
+            }
+            RequestV1::WithdrawUnbonded { .. } => {
+                broker.witdraw_unbonded().await;
+            }
+            RequestV1::Nominate { targets } => {
+                broker.nominate(targets).await;
+            }
+            RequestV1::PayoutStakers {
+                validator_stash,
+                era,
+            } => {
+                broker.payout_stakers(validator_stash, era).await;
+            }
+            RequestV1::Rebond { value } => {
+                broker.rebond(value).await;
+            }
+            RequestV1::SetPayee { payee } => {
+                broker.set_payee(payee).await;
+            }
+        },
+        // More arms can be added in the future
     }
 }
 
