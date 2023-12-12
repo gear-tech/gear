@@ -18,7 +18,7 @@
 
 //! Integration tests for command `upload`
 use crate::common::{
-    self, env, logs,
+    self, env,
     traits::{Convert, NodeExec},
     Args, Result,
 };
@@ -27,10 +27,7 @@ use gsdk::Api;
 
 #[tokio::test]
 async fn test_command_upload_works() -> Result<()> {
-    common::login_as_alice().expect("login failed");
-    let mut node = common::dev().expect("failed to start node");
-    node.wait_while_initialized()?;
-
+    let node = common::dev()?;
     let signer = Api::new(Some(&node.ws()))
         .await
         .expect("build api failed")
@@ -44,12 +41,11 @@ async fn test_command_upload_works() -> Result<()> {
     );
 
     let output = node.run(Args::new("upload").program(env::wasm_bin("demo_new_meta.opt.wasm")))?;
-
     assert!(
         output
             .stderr
             .convert()
-            .contains(logs::gear_program::EX_UPLOAD_PROGRAM),
+            .contains("Submitted Gear::upload_program"),
         "code should be uploaded, but got: {:?}",
         output.stderr
     );
@@ -62,11 +58,8 @@ async fn test_command_upload_works() -> Result<()> {
 }
 
 #[tokio::test]
-async fn test_command_upload_program_works() -> Result<()> {
-    common::login_as_alice().expect("login failed");
-    let mut node = common::dev()?;
-    node.wait_while_initialized()?;
-
+async fn test_command_upload_code_works() -> Result<()> {
+    let node = common::dev()?;
     let output = node.run(
         Args::new("upload")
             .flag("--code-only")
@@ -76,7 +69,7 @@ async fn test_command_upload_program_works() -> Result<()> {
     let stderr = output.stderr.convert();
 
     assert!(
-        stderr.contains("Submitted Gear::upload_program"),
+        stderr.contains("Submitted Gear::upload_code"),
         "code should be uploaded, but got: {stderr:?}",
     );
     Ok(())

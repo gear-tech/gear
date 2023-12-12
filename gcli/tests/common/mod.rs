@@ -71,9 +71,16 @@ pub fn gcli<T: ToString>(args: impl IntoIterator<Item = T>) -> Result<Output> {
 
 /// Run the dev node
 pub fn dev() -> Result<Node> {
-    let args = vec!["--tmp", "--dev"];
+    login_as_alice()?;
 
-    Node::try_from_path(env::bin("gear"), args).map_err(Into::into)
+    let args = vec!["--tmp", "--dev"];
+    let mut node = Node::try_from_path(env::bin("gear"), args)?;
+
+    // TODO: use [`Node::wait_while_initialized`] instead,
+    // it currently presents infinit loop even after capturing
+    // the specfied log #3304.
+    node.wait_for_log_record("Imported #1")?;
+    Ok(node)
 }
 
 /// Init env logger
@@ -102,12 +109,10 @@ pub fn alice_account_id() -> AccountId32 {
 
 /// Create program messager
 pub async fn create_messager() -> Result<Node> {
-    login_as_alice()?;
-    let mut node = dev()?;
-    node.wait_for_log_record(logs::gear_node::IMPORTING_BLOCKS)?;
+    let node = dev()?;
 
     let args = Args::new("upload").program(env::wasm_bin("demo_messager.opt.wasm"));
-
     let _ = node.run(args)?;
+
     Ok(node)
 }

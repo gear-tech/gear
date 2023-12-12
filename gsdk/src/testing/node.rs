@@ -70,15 +70,17 @@ impl Node {
 
     /// Wait the provided log record is emitted.
     pub fn wait_for_log_record(&mut self, log: &str) -> Result<String> {
-        let stderr = self.process.stderr.as_mut();
-        let reader = BufReader::new(stderr.ok_or(Error::EmptyStderr)?);
-        for line in reader.lines().flatten() {
+        let Some(stderr) = self.process.stderr.as_mut() else {
+            return Err(Error::EmptyStderr);
+        };
+
+        for line in BufReader::new(stderr).lines().flatten() {
             if line.contains(log) {
                 return Ok(line);
             }
         }
 
-        Err(Error::EmptyStderr)
+        return Err(Error::EmptyStderr);
     }
 
     /// Print node logs
