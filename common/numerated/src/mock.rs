@@ -18,78 +18,82 @@
 
 //! Mock for crate property testing and also can be used in other crates for their numerated types impls.
 
-use crate::{Bound, BoundValue, Interval, IntervalsTree, NonEmptyInterval, Numerated, One, Zero};
+use crate::{Bound, IntervalIterator, IntervalsTree, Numerated};
 use alloc::{collections::BTreeSet, fmt::Debug, vec::Vec};
+use num_traits::{bounds::UpperBounded, One, Zero};
 
 /// Mock function for any [Numerated] implementation testing.
 pub fn test_numerated<T>(x: T, y: T)
 where
     T: Numerated + Debug,
-    T::N: Debug,
+    T::Distance: Debug,
 {
-    assert_eq!(x.add_if_enclosed_by(T::N::one(), y), x.inc_if_lt(y));
-    assert_eq!(x.sub_if_enclosed_by(T::N::one(), y), x.dec_if_gt(y));
-    assert_eq!(y.add_if_enclosed_by(T::N::one(), x), y.inc_if_lt(x));
-    assert_eq!(y.sub_if_enclosed_by(T::N::one(), x), y.dec_if_gt(x));
+    assert_eq!(x.add_if_enclosed_by(T::Distance::one(), y), x.inc_if_lt(y));
+    assert_eq!(x.sub_if_enclosed_by(T::Distance::one(), y), x.dec_if_gt(y));
+    assert_eq!(y.add_if_enclosed_by(T::Distance::one(), x), y.inc_if_lt(x));
+    assert_eq!(y.sub_if_enclosed_by(T::Distance::one(), x), y.dec_if_gt(x));
 
-    assert_eq!(x.add_if_enclosed_by(T::N::zero(), y), Some(x));
-    assert_eq!(x.sub_if_enclosed_by(T::N::zero(), y), Some(x));
-    assert_eq!(y.add_if_enclosed_by(T::N::zero(), x), Some(y));
-    assert_eq!(y.sub_if_enclosed_by(T::N::zero(), x), Some(y));
+    assert_eq!(x.add_if_enclosed_by(T::Distance::zero(), y), Some(x));
+    assert_eq!(x.sub_if_enclosed_by(T::Distance::zero(), y), Some(x));
+    assert_eq!(y.add_if_enclosed_by(T::Distance::zero(), x), Some(y));
+    assert_eq!(y.sub_if_enclosed_by(T::Distance::zero(), x), Some(y));
 
     let (x, y) = (x.min(y), x.max(y));
     if x == y {
         assert_eq!(x.inc_if_lt(y), None);
         assert_eq!(x.dec_if_gt(y), None);
-        assert_eq!(x.distance(y), Some(T::N::zero()));
+        assert_eq!(x.distance(y), T::Distance::zero());
+        assert_eq!(y.distance(x), T::Distance::zero());
     } else {
-        assert!(x.inc_if_lt(y).is_some());
+        let inc_x = x.inc_if_lt(y).unwrap();
+        assert!(x.distance(inc_x) == T::Distance::one());
         assert!(x.dec_if_gt(y).is_none());
+
+        let dec_y = y.dec_if_gt(x).unwrap();
+        assert!(y.distance(dec_y) == T::Distance::one());
         assert!(y.inc_if_lt(y).is_none());
-        assert!(y.dec_if_gt(x).is_some());
-        assert!(x.distance(y).is_none());
-        let d = y.distance(x).unwrap();
+
+        let d = y.distance(x);
+        assert_eq!(d, x.distance(y));
         assert_eq!(x.add_if_enclosed_by(d, y), Some(y));
         assert_eq!(y.sub_if_enclosed_by(d, x), Some(x));
     }
 }
 
-/// [Interval] testing action.
+/// [IntervalIterator] testing action.
 #[derive(Debug)]
 pub enum IntervalAction<T: Numerated> {
     /// Try to create interval from correct start..end.
-    Correct(T::B, T::B),
+    Correct(T::Bound, T::Bound),
     /// Try to create interval from incorrect start..end.
-    Incorrect(T::B, T::B),
+    Incorrect(T::Bound, T::Bound),
 }
 
-/// Mock function for [Interval] testing for any [Numerated] implementation.
+/// Mock function for [IntervalIterator] testing for any [Numerated] implementation.
 pub fn test_interval<T>(action: IntervalAction<T>)
 where
-    T: Numerated + Debug,
-    T::B: Debug,
+    T: Numerated + UpperBounded + Debug,
+    T::Bound: Debug,
 {
     log::debug!("{:?}", action);
     match action {
         IntervalAction::Incorrect(start, end) => {
-            assert!(Interval::<T>::new(start, end).is_none());
-            assert!(Interval::<T>::try_from(start..end).is_err());
-            assert!(Interval::<T>::try_from((start, end)).is_err());
+            assert!(IntervalIterator::<T>::try_from(start..end).is_err());
+            assert!(IntervalIterator::<T>::try_from((start, end)).is_err());
         }
         IntervalAction::Correct(start, end) => {
-            let i = Interval::<T>::new(start, end).unwrap();
-            if start.get() == end.get() {
+            let i = IntervalIterator::<T>::try_from(start..end).unwrap();
+            assert_eq!(i, IntervalIterator::<T>::try_from((start, end)).unwrap());
+            if start.unbound() == end.unbound() {
                 assert!(i.is_empty());
-                assert_eq!(i.into_range_inclusive(), None);
-                assert_eq!(i.into_inner(), None);
-                assert_eq!(NonEmptyInterval::try_from(i).ok(), None);
+                assert_eq!(i.inner(), None);
             } else {
-                assert_eq!(i.start(), start.get().unwrap());
                 assert!(!i.is_empty());
-                let i = NonEmptyInterval::try_from(i).unwrap();
+                let i = i.inner().unwrap();
+                assert_eq!(i.start(), start.unbound().unwrap());
                 match end.unbound() {
-                    BoundValue::Value(e) => assert_eq!(i.end(), e.dec_if_gt(i.start()).unwrap()),
-                    BoundValue::Upper(e) => assert_eq!(i.end(), e),
+                    Some(e) => assert_eq!(i.end(), e.dec_if_gt(i.start()).unwrap()),
+                    None => assert_eq!(i.end(), T::max_value()),
                 }
             }
         }
@@ -100,22 +104,25 @@ where
 #[derive(Debug)]
 pub enum TreeAction<T> {
     /// Inserts interval into tree action.
-    Insert(Interval<T>),
+    Insert(IntervalIterator<T>),
     /// Removes interval from tree action.
-    Remove(Interval<T>),
+    Remove(IntervalIterator<T>),
     /// Check voids iterator.
-    Voids(Interval<T>),
-    /// Check and not iterator.
-    AndNotIterator(BTreeSet<T>),
+    Voids(IntervalIterator<T>),
+    /// Check difference iterator.
+    Difference(BTreeSet<T>),
 }
 
-fn btree_set_voids<T: Numerated>(set: &BTreeSet<T>, interval: Interval<T>) -> BTreeSet<T> {
+fn btree_set_voids<T: Numerated>(set: &BTreeSet<T>, interval: IntervalIterator<T>) -> BTreeSet<T> {
     interval.filter(|p| !set.contains(p)).collect()
 }
 
 /// Mock function for [IntervalsTree] testing for any [Numerated] implementation.
-pub fn test_tree<T: Numerated + Debug>(initial: BTreeSet<T>, actions: Vec<TreeAction<T>>) {
-    let mut tree: IntervalsTree<T> = initial.iter().collect();
+pub fn test_tree<T: Numerated + UpperBounded + Debug>(
+    initial: BTreeSet<T>,
+    actions: Vec<TreeAction<T>>,
+) {
+    let mut tree: IntervalsTree<T> = initial.iter().copied().collect();
     let mut expected: BTreeSet<T> = tree.points_iter().collect();
     assert_eq!(expected, initial);
 
@@ -136,9 +143,9 @@ pub fn test_tree<T: Numerated + Debug>(initial: BTreeSet<T>, actions: Vec<TreeAc
                 let voids: BTreeSet<T> = tree.voids(interval).flat_map(|i| i.iter()).collect();
                 assert_eq!(voids, btree_set_voids(&expected, interval));
             }
-            TreeAction::AndNotIterator(x) => {
-                let y = x.iter().collect();
-                let z: BTreeSet<T> = tree.and_not_iter(&y).flat_map(|i| i.iter()).collect();
+            TreeAction::Difference(x) => {
+                let y = x.iter().copied().collect();
+                let z: BTreeSet<T> = tree.difference(&y).flat_map(|i| i.iter()).collect();
                 assert_eq!(z, expected.difference(&x).copied().collect());
             }
         }
