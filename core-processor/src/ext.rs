@@ -1002,39 +1002,10 @@ impl Externalities for Ext {
 
     fn pay_program_rent(
         &mut self,
-        program_id: ProgramId,
-        rent: u128,
+        _program_id: ProgramId,
+        _rent: u128,
     ) -> Result<(u128, u32), Self::FallibleError> {
-        if self.context.rent_cost == 0 {
-            return Ok((rent, 0));
-        }
-
-        let block_count = u32::try_from(rent / self.context.rent_cost).unwrap_or(u32::MAX);
-        let old_paid_blocks = self
-            .context
-            .program_rents
-            .get(&program_id)
-            .copied()
-            .unwrap_or(0);
-
-        let (paid_blocks, blocks_to_pay) = match old_paid_blocks.overflowing_add(block_count) {
-            (count, false) => (count, block_count),
-            (_, true) => return Err(ProgramRentError::MaximumBlockCountPaid.into()),
-        };
-
-        if blocks_to_pay == 0 {
-            return Ok((rent, 0));
-        }
-
-        let cost = self.context.rent_cost.saturating_mul(blocks_to_pay.into());
-        match self.context.value_counter.reduce(cost) {
-            ChargeResult::Enough => {
-                self.context.program_rents.insert(program_id, paid_blocks);
-            }
-            ChargeResult::NotEnough => return Err(FallibleExecutionError::NotEnoughValue.into()),
-        }
-
-        Ok((rent.saturating_sub(cost), blocks_to_pay))
+        Err(FallibleExtErrorCore::Unsupported.into())
     }
 
     fn program_id(&self) -> Result<ProgramId, Self::UnrecoverableError> {
