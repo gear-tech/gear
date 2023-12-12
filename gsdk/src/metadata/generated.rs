@@ -3025,6 +3025,16 @@ pub mod runtime_types {
                     enable_debug_mode {
                         debug_mode_on: ::core::primitive::bool,
                     },
+                    #[codec(index = 1)]
+                    #[doc = "A dummy extrinsic with programmatically set weight."]
+                    #[doc = ""]
+                    #[doc = "Used in tests to exhaust block resources."]
+                    #[doc = ""]
+                    #[doc = "Parameters:"]
+                    #[doc = "- `_fraction`: the fraction of the `max_extrinsic` the extrinsic will use."]
+                    exhaust_block_resources {
+                        fraction: runtime_types::sp_arithmetic::per_things::Percent,
+                    },
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub struct DebugData {
@@ -9463,12 +9473,14 @@ pub mod calls {
     #[doc = "Calls of pallet `GearDebug`."]
     pub enum GearDebugCall {
         EnableDebugMode,
+        ExhaustBlockResources,
     }
     impl CallInfo for GearDebugCall {
         const PALLET: &'static str = "GearDebug";
         fn call_name(&self) -> &'static str {
             match self {
                 Self::EnableDebugMode => "enable_debug_mode",
+                Self::ExhaustBlockResources => "exhaust_block_resources",
             }
         }
     }

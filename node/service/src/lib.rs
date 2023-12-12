@@ -172,8 +172,8 @@ where
         + Send
         + Sync
         + 'static,
-    RuntimeApi::RuntimeApi:
-        RuntimeApiCollection<StateBackend = sc_client_api::StateBackendFor<FullBackend, Block>>,
+    RuntimeApi::RuntimeApi: RuntimeApiCollection<StateBackend = sc_client_api::StateBackendFor<FullBackend, Block>>
+        + Clone,
     ExecutorDispatch: NativeExecutionDispatch + 'static,
 {
     if config.keystore_remote.is_some() {
@@ -339,8 +339,8 @@ where
         + Send
         + Sync
         + 'static,
-    RuntimeApi::RuntimeApi:
-        RuntimeApiCollection<StateBackend = sc_client_api::StateBackendFor<FullBackend, Block>>,
+    RuntimeApi::RuntimeApi: RuntimeApiCollection<StateBackend = sc_client_api::StateBackendFor<FullBackend, Block>>
+        + Clone,
     ExecutorDispatch: NativeExecutionDispatch + 'static,
 {
     /// The task manager of the node.
@@ -378,8 +378,9 @@ where
         + Send
         + Sync
         + 'static,
-    RuntimeApi::RuntimeApi:
-        RuntimeApiCollection<StateBackend = sc_client_api::StateBackendFor<FullBackend, Block>>,
+    RuntimeApi::RuntimeApi: RuntimeApiCollection<StateBackend = sc_client_api::StateBackendFor<FullBackend, Block>>
+        + Clone
+        + common::Deconstructable<FullClient<RuntimeApi, ExecutorDispatch>>,
     ExecutorDispatch: NativeExecutionDispatch + 'static,
 {
     let hwbench = (!disable_hardware_benchmarks)
@@ -452,7 +453,7 @@ where
 
     let rpc_handlers = sc_service::spawn_tasks(sc_service::SpawnTasksParams {
         config,
-        backend,
+        backend: backend.clone(),
         client: client.clone(),
         keystore: keystore_container.sync_keystore(),
         network: network.clone(),
@@ -491,6 +492,7 @@ where
         let proposer = authorship::ProposerFactory::new(
             task_manager.spawn_handle(),
             client.clone(),
+            backend.clone(),
             transaction_pool.clone(),
             prometheus_registry.as_ref(),
             telemetry.as_ref().map(|x| x.handle()),
