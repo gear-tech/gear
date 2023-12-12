@@ -59,7 +59,6 @@ members = [
     "examples/rwlock",
     "examples/send-from-reservation",
     "examples/signal-entry",
-    "examples/signal-wait",
     "examples/state-rollback",
     "examples/sync-duplicate",
     "examples/syscalls",
@@ -401,7 +400,6 @@ demo-reserve-gas = { path = "examples/reserve-gas", default-features = false }
 demo-rwlock = { path = "examples/rwlock" }
 demo-send-from-reservation = { path = "examples/send-from-reservation" }
 demo-signal-entry = { path = "examples/signal-entry" }
-demo-signal-wait = { path = "examples/signal-wait" }
 demo-state-rollback = { path = "examples/state-rollback" }
 demo-sync-duplicate = { path = "examples/sync-duplicate" }
 demo-vec = { path = "examples/vec" }
