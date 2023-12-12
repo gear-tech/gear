@@ -528,7 +528,7 @@ impl SyscallName {
                 Ptr::Hash(HashType::SubjectId).into(),
                 Ptr::MutBlockNumberWithHash(HashType::SubjectId).into(),
             ]),
-            Self::OutOfGas => unimplemented!("Unsupported syscall signature for out_of_gas"),
+            Self::SystemBreak => unimplemented!("Unsupported syscall signature for system_break"),
         }
     }
 
