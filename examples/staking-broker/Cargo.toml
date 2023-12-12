@@ -8,6 +8,7 @@ homepage.workspace = true
 repository.workspace = true
 
 [dependencies]
+gbuiltin.workspace = true
 gstd.workspace = true
 hashbrown.workspace = true
 hex.workspace = true

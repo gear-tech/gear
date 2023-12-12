@@ -19,14 +19,14 @@
 //! Benchmarks for the gear-built-in-actor pallet
 
 #[allow(unused)]
-use crate::Pallet as BuiltInActor;
+use crate::Pallet as BuiltinActor;
 use crate::*;
 use common::{benchmarking, Origin};
 use frame_benchmarking::{benchmarks, impl_benchmark_test_suite};
 use frame_support::traits::Currency;
-use gear_builtin_actor_common::staking::Request;
+use gbuiltin::staking::Request;
 use gear_core::message::{DispatchKind, StoredDispatch, StoredMessage};
-use pallet_gear::BuiltInActor as BuiltInActorT;
+use pallet_gear::BuiltinActor as _;
 use parity_scale_codec::Encode;
 use sp_runtime::traits::UniqueSaturatedInto;
 
@@ -43,7 +43,7 @@ benchmarks! {
             &issuer,
             1_000_000_000_000_000_u128.unique_saturated_into()
         );
-        let built_in_actor_id = BuiltInActor::<T>::staking_proxy_actor_id();
+        let built_in_actor_id = BuiltinActor::<T>::staking_proxy_actor_id();
         let value = 100_000_000_000_000_u128;
         let payload = Request::V1(RequestV1::Bond { value, payee: None }).encode();
         let source = ProgramId::from_origin(issuer.clone().into_origin());
@@ -62,7 +62,7 @@ benchmarks! {
         );
         let gas_limit = 10_000_000_000_u64;
     }: {
-        BuiltInActor::<T>::handle(
+        BuiltinActor::<T>::handle(
             dispatch,
             gas_limit,
         )
@@ -71,4 +71,4 @@ benchmarks! {
     }
 }
 
-impl_benchmark_test_suite!(BuiltInActor, crate::mock::new_test_ext(), crate::mock::Test,);
+impl_benchmark_test_suite!(BuiltinActor, crate::mock::new_test_ext(), crate::mock::Test,);

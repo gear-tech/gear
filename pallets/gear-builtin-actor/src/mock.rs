@@ -278,18 +278,18 @@ pallet_gear_messenger::impl_config!(Test, CurrentBlockNumber = Gear);
 pallet_gear::impl_config!(
     Test,
     Schedule = GearSchedule,
-    BuiltInActor = GearBuiltinActor
+    BuiltinActor = GearBuiltinActor
 );
 
 parameter_types! {
-    pub const BuiltInActorPalletId: PalletId = PalletId(*b"py/biact");
+    pub const BuiltinActorPalletId: PalletId = PalletId(*b"py/biact");
 }
 
 impl pallet_gear_builtin_actor::Config for Test {
     type RuntimeEvent = RuntimeEvent;
     type RuntimeCall = RuntimeCall;
     type WeightInfo = ();
-    type PalletId = BuiltInActorPalletId;
+    type PalletId = BuiltinActorPalletId;
 }
 
 impl<C> frame_system::offchain::SendTransactionTypes<C> for Test

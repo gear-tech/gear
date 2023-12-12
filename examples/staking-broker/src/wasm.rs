@@ -20,15 +20,8 @@
 // users messages and bond, unbond or nominate some validators on their behalf.
 // It is not concerned with some important constraints like unbonding period etc.
 
-use gstd::{
-    debug,
-    msg::{
-        self,
-        builtin::{staking::*, Response},
-    },
-    prelude::*,
-    ActorId,
-};
+use gbuiltin::{staking::*, Response};
+use gstd::{debug, msg, prelude::*, ActorId};
 use hashbrown::HashMap;
 use hex_literal::hex;
 use parity_scale_codec::Encode;

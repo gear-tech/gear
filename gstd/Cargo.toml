@@ -13,10 +13,10 @@ repository.workspace = true
 [dependencies]
 document-features = { version = "0.2.7", optional = true }
 galloc.workspace = true
+gbuiltin.workspace = true
 gcore = { workspace = true, features = ["codec"] }
 gstd-codegen = { path = "codegen" }
 gear-core-errors.workspace = true
-gear-builtin-actor-common.workspace = true
 hashbrown.workspace = true
 bs58 = { workspace = true, features = ["alloc"] }
 hex = { workspace = true, features = ["alloc"] }

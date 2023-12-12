@@ -995,7 +995,7 @@ impl pallet_gear::Config for Runtime {
     type Scheduler = GearScheduler;
     type QueueRunner = Gear;
     type Voucher = GearVoucher;
-    type BuiltInActor = GearBuiltinActor;
+    type BuiltinActor = GearBuiltinActor;
     type ProgramRentFreePeriod = ConstU32<{ MONTHS * RENT_FREE_PERIOD_MONTH_FACTOR }>;
     type ProgramResumeMinimalRentPeriod = ConstU32<{ WEEKS * RENT_RESUME_WEEK_FACTOR }>;
     type ProgramRentCostPerBlock = ConstU128<RENT_COST_PER_BLOCK>;
@@ -1038,14 +1038,14 @@ impl pallet_gear_messenger::Config for Runtime {
 }
 
 parameter_types! {
-    pub const BuiltInActorPalletId: PalletId = PalletId(*b"py/biact");
+    pub const BuiltinActorPalletId: PalletId = PalletId(*b"py/biact");
 }
 
 impl pallet_gear_builtin_actor::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type RuntimeCall = RuntimeCall;
     type WeightInfo = pallet_gear_builtin_actor::weights::SubstrateWeight<Runtime>;
-    type PalletId = BuiltInActorPalletId;
+    type PalletId = BuiltinActorPalletId;
 }
 
 pub struct ExtraFeeFilter;

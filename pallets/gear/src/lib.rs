@@ -145,7 +145,7 @@ impl DebugInfo for () {
 
 /// A trait representing an interface of a built-in actor that can receive a message
 /// and produce a set of outputs that can then be converted into a reply message.
-pub trait BuiltInActor<ActorId> {
+pub trait BuiltinActor<ActorId> {
     type Message;
     type Output;
 
@@ -156,7 +156,7 @@ pub trait BuiltInActor<ActorId> {
     fn handle(message: Self::Message, gas_limit: u64) -> Vec<Self::Output>;
 }
 
-impl<ActorId> BuiltInActor<ActorId> for () {
+impl<ActorId> BuiltinActor<ActorId> for () {
     type Message = StoredDispatch;
     type Output = JournalNote;
 
@@ -275,7 +275,7 @@ pub mod pallet {
         >;
 
         /// The built-in actor type.
-        type BuiltInActor: BuiltInActor<ProgramId, Message = StoredDispatch, Output = JournalNote>;
+        type BuiltinActor: BuiltinActor<ProgramId, Message = StoredDispatch, Output = JournalNote>;
 
         /// The free of charge period of rent.
         #[pallet::constant]
@@ -868,7 +868,7 @@ pub mod pallet {
 
         /// Returns true if `program_id` is that of a in active status or the built-in actor.
         pub fn is_active(program_id: ProgramId) -> bool {
-            T::BuiltInActor::ids().contains(&program_id)
+            T::BuiltinActor::ids().contains(&program_id)
                 || ProgramStorageOf::<T>::get_program(program_id)
                     .map(|program| program.is_active())
                     .unwrap_or_default()
@@ -893,7 +893,7 @@ pub mod pallet {
         pub fn program_exists(program_id: ProgramId) -> bool {
             ProgramStorageOf::<T>::program_exists(program_id)
                 || ProgramStorageOf::<T>::paused_program_exists(&program_id)
-                || T::BuiltInActor::ids().contains(&program_id)
+                || T::BuiltinActor::ids().contains(&program_id)
         }
 
         /// Returns exit argument of an exited program.

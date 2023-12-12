@@ -16,7 +16,43 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Helper crate defining necessary types for messages to Gear built-in actor.
+//! Helper crate defining Gear built-in actors communication protocol.
+//!
+//! This crate defines a set of types that contracts can use to interact
+//! with the so-called "builtin" actors - that is the actors that are defined
+//! for any Gear runtime and provide an API for the applications to build on top
+//! of some blockchain logic like staking, governance, etc.
+
+//! For a builtin actor to process a message, it should be able to decode its
+//! payload into one of the supported message types.
+//!
+//! # Examples
+//!
+//! The following example shows how a contract can send a message to a builtin actor
+//! (specifically, a staking actor) to bond some `value` to self as the controller
+//! so that the contract can later use the staking API to nominate validators.
+//!
+//! ```
+//! use gstd::{msg, ActorId};
+//! use gbuiltin::staking::{Request, RequestV1, RewardAccount};
+//! use parity_scale_codec::Encode;
+//!
+//! const BUILT_IN: ActorId = ActorId::new(hex_literal::hex!(
+//!     "9d765baea1938d17096421e4f881af7dc4ce5c15bb5022f409fc0d6265d97c3a"
+//! ));
+//!
+//! #[gstd::async_main]
+//! async fn main() {
+//!     let value = msg::value();
+//!     let payee: Option<RewardAccount> = None;
+//!     let payload = Request::V1(RequestV1::Bond { value, payee }).encode();
+//!     let _ = msg::send_bytes_for_reply(BUILT_IN, &payload[..], 0, 0)
+//!         .expect("Error sending message")
+//!         .await;
+//! }
+//! # fn main() {}
+//! ```
+//!
 
 #![no_std]
 
@@ -28,7 +64,7 @@ use scale_info::scale::{self, Decode, Encode};
 
 pub type AccountId = [u8; 32];
 
-pub use error::{BuiltInActorError, DispatchErrorReason};
+pub use error::{BuiltinActorError, DispatchErrorReason};
 
 /// Message processing output
 #[derive(Encode, Decode, Clone, PartialEq, Eq, Debug)]
@@ -51,7 +87,7 @@ pub mod error {
     /// decoding errors, insufficient resources etc.)
     #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq, derive_more::Display)]
     #[codec(crate = scale)]
-    pub enum BuiltInActorError {
+    pub enum BuiltinActorError {
         /// Occurs if the underlying call has the weight greater than the `gas_limit`.
         #[display(fmt = "Not enough gas supplied")]
         InsufficientGas,
@@ -60,13 +96,13 @@ pub mod error {
         UnknownMessageType,
     }
 
-    impl From<BuiltInActorError> for SimpleExecutionError {
-        /// Convert [`BuiltInActorError`] into [`gear_core_errors::SimpleExecutionError`].
+    impl From<BuiltinActorError> for SimpleExecutionError {
+        /// Convert [`BuiltinActorError`] into [`gear_core_errors::SimpleExecutionError`].
         // TODO: should we think of a better mapping?
-        fn from(err: BuiltInActorError) -> Self {
+        fn from(err: BuiltinActorError) -> Self {
             match err {
-                BuiltInActorError::InsufficientGas => SimpleExecutionError::RanOutOfGas,
-                BuiltInActorError::UnknownMessageType => SimpleExecutionError::UserspacePanic,
+                BuiltinActorError::InsufficientGas => SimpleExecutionError::RanOutOfGas,
+                BuiltinActorError::UnknownMessageType => SimpleExecutionError::UserspacePanic,
             }
         }
     }

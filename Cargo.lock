@@ -2448,6 +2448,7 @@ name = "demo-staking-broker"
 version = "0.1.0"
 dependencies = [
  "futures",
+ "gbuiltin",
  "gclient",
  "gear-core",
  "gear-wasm-builder",
@@ -3889,6 +3890,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "gbuiltin"
+version = "1.0.3"
+dependencies = [
+ "derive_more",
+ "gear-core-errors",
+ "scale-info",
+]
+
+[[package]]
 name = "gcli"
 version = "1.0.3"
 dependencies = [
@@ -4034,15 +4044,6 @@ dependencies = [
  "clap 4.4.10",
  "generate-bags",
  "vara-runtime",
-]
-
-[[package]]
-name = "gear-builtin-actor-common"
-version = "1.0.3"
-dependencies = [
- "derive_more",
- "gear-core-errors",
- "scale-info",
 ]
 
 [[package]]
@@ -4898,8 +4899,8 @@ dependencies = [
  "document-features",
  "futures",
  "galloc",
+ "gbuiltin",
  "gcore",
- "gear-builtin-actor-common",
  "gear-core-errors",
  "gstd-codegen",
  "hashbrown 0.14.3",
@@ -7825,7 +7826,7 @@ dependencies = [
  "frame-support",
  "frame-support-test",
  "frame-system",
- "gear-builtin-actor-common",
+ "gbuiltin",
  "gear-common",
  "gear-core",
  "gear-core-errors",

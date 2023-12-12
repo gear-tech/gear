@@ -33,7 +33,7 @@
 //! The list of available actors currently includes:
 //! - `StakingProxy` actor to interact with the staking pallet from contracts.
 //!
-//! The pallet implements the [`pallet_gear::BuiltInActor`] trait so that it can be plugged into
+//! The pallet implements the [`pallet_gear::BuiltinActor`] trait so that it can be plugged into
 //! the `Gear` pallet to intercept messages popped from the queue.
 //!
 //! The built-in actor does three things:
@@ -86,13 +86,13 @@ use frame_support::{
     traits::Get,
     PalletId,
 };
-use gear_builtin_actor_common::{staking::*, BuiltInActorError, DispatchErrorReason, Response};
+use gbuiltin::{staking::*, BuiltinActorError, DispatchErrorReason, Response};
 use gear_core::{
     ids::{MessageId, ProgramId},
     message::{ReplyMessage, ReplyPacket, StoredDispatch},
 };
 use gear_core_errors::SimpleExecutionError;
-use pallet_gear::BuiltInActor;
+use pallet_gear::BuiltinActor;
 use pallet_staking::RewardDestination;
 use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
@@ -182,7 +182,7 @@ pub mod pallet {
     }
 }
 
-impl<T: Config> BuiltInActor<ProgramId> for Pallet<T>
+impl<T: Config> BuiltinActor<ProgramId> for Pallet<T>
 where
     T::AccountId: Origin,
 {
@@ -277,7 +277,7 @@ where
     }
 
     // Error in the actor, generates error reply
-    fn process_error(dispatch: &StoredDispatch, err: BuiltInActorError) -> Vec<JournalNote> {
+    fn process_error(dispatch: &StoredDispatch, err: BuiltinActorError) -> Vec<JournalNote> {
         let message_id = dispatch.id();
         let origin = dispatch.source();
         let actor_id = dispatch.destination();
@@ -322,10 +322,10 @@ where
         journal
     }
 
-    fn check_gas_limit(gas_limit: u64, info: &DispatchInfo) -> Result<(), BuiltInActorError> {
+    fn check_gas_limit(gas_limit: u64, info: &DispatchInfo) -> Result<(), BuiltinActorError> {
         let weight = info.weight;
         if gas_limit < weight.ref_time() {
-            return Err(BuiltInActorError::InsufficientGas);
+            return Err(BuiltinActorError::InsufficientGas);
         }
         Ok(())
     }
@@ -335,7 +335,7 @@ where
         origin: T::AccountId,
         call: <T as Config>::RuntimeCall,
         gas_limit: u64,
-    ) -> Result<(u64, Result<(), DispatchErrorReason>), BuiltInActorError> {
+    ) -> Result<(u64, Result<(), DispatchErrorReason>), BuiltinActorError> {
         let call_info = call.get_dispatch_info();
         Self::check_gas_limit(gas_limit, &call_info)?;
         // Execute call
@@ -364,7 +364,7 @@ where
         _origin: T::AccountId,
         call: <T as Config>::RuntimeCall,
         gas_limit: u64,
-    ) -> Result<(u64, Result<(), DispatchErrorReason>), BuiltInActorError> {
+    ) -> Result<(u64, Result<(), DispatchErrorReason>), BuiltinActorError> {
         let call_info = call.get_dispatch_info();
         Self::check_gas_limit(gas_limit, &call_info)?;
         // Skipping the actual call dispatch
@@ -381,7 +381,7 @@ pub mod staking_proxy {
     pub fn handle<T: Config>(
         dispatch: &StoredDispatch,
         gas_limit: u64,
-    ) -> Result<(u64, Result<(), DispatchErrorReason>), BuiltInActorError>
+    ) -> Result<(u64, Result<(), DispatchErrorReason>), BuiltinActorError>
     where
         T::AccountId: Origin,
     {
@@ -390,7 +390,7 @@ pub mod staking_proxy {
 
         // Decode the message payload to derive the desired action
         let msg: Request = Decode::decode(&mut message.payload_bytes())
-            .map_err(|_| BuiltInActorError::UnknownMessageType)?;
+            .map_err(|_| BuiltinActorError::UnknownMessageType)?;
         let call = match msg {
             // Handle the V1 staking requests
             Request::V1(msg) => match msg {

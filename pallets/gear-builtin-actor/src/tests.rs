@@ -23,7 +23,7 @@
 use crate::{mock::*, *};
 use demo_staking_broker::WASM_BINARY;
 use frame_support::assert_ok;
-use gear_builtin_actor_common::staking::*;
+use gbuiltin::staking::*;
 use gear_core::ids::{CodeId, ProgramId};
 
 type AccountIdOf<T> = <T as frame_system::Config>::AccountId;

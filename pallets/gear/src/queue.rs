@@ -168,7 +168,7 @@ where
         }
 
         // Retrieving the built-in actor's ids (chaching them if missing in storage).
-        let builtin_actor_ids = T::BuiltInActor::ids();
+        let builtin_actor_ids = T::BuiltinActor::ids();
 
         while QueueProcessingOf::<T>::allowed() {
             let dispatch = match QueueOf::<T>::dequeue()
@@ -214,7 +214,7 @@ where
                 // To play safe, check the dispatch kind is correct
                 match dispatch.kind() {
                     DispatchKind::Handle => {
-                        let journal = T::BuiltInActor::handle(dispatch, gas_limit);
+                        let journal = T::BuiltinActor::handle(dispatch, gas_limit);
                         core_processor::handle_journal(journal, &mut ext_manager);
                     }
                     _ => unreachable!("Built-in actor can only handle messages"),

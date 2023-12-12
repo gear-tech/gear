@@ -133,7 +133,7 @@ where
 
         Self::update_gas_allowance(gas_allowance);
 
-        let builtin_actor_ids = T::BuiltInActor::ids();
+        let builtin_actor_ids = T::BuiltinActor::ids();
 
         loop {
             if QueueProcessingOf::<T>::denied() {
@@ -159,7 +159,7 @@ where
             let journal = if builtin_actor_ids.contains(&actor_id)
                 && matches!(queued_dispatch.kind(), DispatchKind::Handle)
             {
-                T::BuiltInActor::handle(queued_dispatch, gas_limit)
+                T::BuiltinActor::handle(queued_dispatch, gas_limit)
             } else {
                 let balance = CurrencyOf::<T>::free_balance(
                     &<T::AccountId as Origin>::from_origin(actor_id.into_origin()),

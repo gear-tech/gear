@@ -180,6 +180,7 @@ authorship = { package = "gear-authorship", path = "node/authorship" }
 common = { package = "gear-common", path = "common", default-features = false }
 core-processor = { package = "gear-core-processor", path = "core-processor", default-features = false }
 galloc = { path = "galloc" }
+gbuiltin = { path = "gbuiltin" }
 gcore = { path = "gcore" }
 gcli = { path = "gcli" }
 gclient = { path = "gclient" }
@@ -230,7 +231,6 @@ pallet-gear-staking-rewards-rpc-runtime-api = { path = "pallets/staking-rewards/
 pallet-gear-voucher = { path = "pallets/gear-voucher", default-features = false }
 pallet-gear-bank = { path = "pallets/gear-bank", default-features = false }
 pallet-gear-builtin-actor = { path = "pallets/gear-builtin-actor", default-features = false }
-gear-builtin-actor-common = { path = "pallets/gear-builtin-actor/common", default-features = false }
 runtime-common = { package = "gear-runtime-common", path = "runtime/common", default-features = false }
 runtime-primitives = { package = "gear-runtime-primitives", path = "runtime/primitives", default-features = false }
 service = { package = "gear-service", path = "node/service", default-features = false }
