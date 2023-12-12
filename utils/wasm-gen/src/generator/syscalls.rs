@@ -228,21 +228,6 @@ impl InvocableSyscall {
         }
     }
 
-    /// This fn assumes that fallible syscalls will have pointer to the returned error
-    /// among their params.
-    pub(crate) fn is_fallible(&self) -> bool {
-        let params = self.into_signature().params;
-        params.into_iter().any(|param| {
-            matches!(
-                param,
-                ParamType::Ptr(PtrInfo {
-                    mutable: true,
-                    ty
-                }) if ty.is_error()
-            )
-        })
-    }
-
     /// Returns `true` for every syscall which has a destination param idx and that is not `gr_exit` syscall,
     /// as it only has destination param.
     fn has_destination_param_with_value(&self) -> bool {
