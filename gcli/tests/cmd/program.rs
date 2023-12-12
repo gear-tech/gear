@@ -19,7 +19,7 @@
 //! Integration tests for command `program`
 use crate::common::{
     self, env,
-    traits::{Convert, NodeExec},
+    node::{Convert, NodeExec},
     Args, Result,
 };
 use demo_new_meta::{MessageInitIn, Wallet};
@@ -96,9 +96,8 @@ fn test_command_program_metadata_works() -> Result<()> {
     let node = common::dev()?;
     let meta = env::wasm_bin("demo_new_meta.meta.txt");
     let args = Args::new("program").action("meta").meta(meta);
-    let result = node.run(args)?;
+    let stdout = node.stdout(args)?;
 
-    let stdout = result.stdout.convert();
     assert_eq!(
         stdout.trim(),
         DEMO_NEW_META_METADATA.trim(),
@@ -117,9 +116,7 @@ fn test_command_program_metadata_derive_works() -> Result<()> {
         .flag("--derive")
         .derive("Person");
 
-    let result = node.run(args)?;
-    let stdout = result.stdout.convert();
-
+    let stdout = node.stdout(args)?;
     let expected = "Person { surname: String, name: String }";
     assert_eq!(
         stdout.trim(),
@@ -154,9 +151,8 @@ fn test_command_program_metawasm_works() -> Result<()> {
     let node = common::dev()?;
     let meta = env::wasm_bin("demo_meta_state_v1.meta.wasm");
     let args = Args::new("program").action("meta").meta(meta);
-    let result = node.run(args)?;
+    let stdout = node.stdout(args)?;
 
-    let stdout = result.stdout.convert();
     assert_eq!(
         stdout.trim(),
         META_WASM_V1_OUTPUT.trim(),
@@ -175,8 +171,7 @@ fn test_command_program_metawasm_derive_works() -> Result<()> {
         .flag("--derive")
         .derive("Person");
 
-    let result = node.run(args)?;
-    let stdout = result.stdout.convert();
+    let stdout = node.stdout(args)?;
 
     let expected = "Person { surname: String, name: String }";
     assert_eq!(

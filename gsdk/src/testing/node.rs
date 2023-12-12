@@ -18,6 +18,7 @@
 
 use crate::testing::{port, Error, Result};
 use std::{
+    env,
     ffi::OsStr,
     io::{BufRead, BufReader},
     net::{Ipv4Addr, SocketAddrV4},
@@ -43,10 +44,13 @@ impl Node {
         let port_string = port.to_string();
 
         let mut args = args;
-        args.push("--ws-port");
-        args.push(&port_string);
+        args.extend_from_slice(&["--ws-port", &port_string]);
 
         let process = Command::new(path)
+            .env(
+                "RUST_LOG",
+                env::var("RUST_LOG").unwrap_or_else(|_| "".into()),
+            )
             .args(args)
             .stderr(Stdio::piped())
             .stdout(Stdio::piped())
@@ -80,7 +84,7 @@ impl Node {
             }
         }
 
-        return Err(Error::EmptyStderr);
+        Err(Error::EmptyStderr)
     }
 
     /// Print node logs

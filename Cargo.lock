@@ -167,14 +167,15 @@ dependencies = [
 
 [[package]]
 name = "ahash"
-version = "0.8.3"
+version = "0.8.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2c99f64d1e06488f620f932677e24bc6e2897582980441ae90a671415bd7ec2f"
+checksum = "91429305e9f0a25f6205c5b8e0d2db09e0708a7a6df0f42212bb56c32c8ac97a"
 dependencies = [
  "cfg-if",
  "getrandom 0.2.10",
  "once_cell",
  "version_check",
+ "zerocopy",
 ]
 
 [[package]]
@@ -1611,28 +1612,15 @@ dependencies = [
 ]
 
 [[package]]
-name = "crates-io"
-version = "0.37.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "876aa69b4afca5f2eb5e23daa3445930faf829bcb67075a20ffa884f11f8c57c"
-dependencies = [
- "anyhow",
- "curl",
- "percent-encoding",
- "serde",
- "serde_json",
- "url",
-]
-
-[[package]]
 name = "crates-io-manager"
 version = "1.0.3"
 dependencies = [
  "anyhow",
  "cargo_metadata 0.18.1",
  "cargo_toml",
- "crates-io",
- "curl",
+ "clap 4.4.10",
+ "reqwest",
+ "serde",
  "toml 0.7.8",
 ]
 
@@ -1778,36 +1766,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0369ee1ad671834580515889b80f2ea915f23b8be8d0daa4bbaf2ac5c7590835"
 dependencies = [
  "cipher 0.4.4",
-]
-
-[[package]]
-name = "curl"
-version = "0.4.44"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "509bd11746c7ac09ebd19f0b17782eae80aadee26237658a6b4808afb5c11a22"
-dependencies = [
- "curl-sys",
- "libc",
- "openssl-probe",
- "openssl-sys",
- "schannel",
- "socket2 0.4.9",
- "winapi",
-]
-
-[[package]]
-name = "curl-sys"
-version = "0.4.68+curl-8.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b4a0d18d88360e374b16b2273c832b5e57258ffc1d4aa4f96b108e0738d5752f"
-dependencies = [
- "cc",
- "libc",
- "libz-sys",
- "openssl-sys",
- "pkg-config",
- "vcpkg",
- "windows-sys 0.48.0",
 ]
 
 [[package]]
@@ -2182,7 +2140,7 @@ dependencies = [
  "gear-wasm-builder",
  "gmeta",
  "gstd",
- "hashbrown 0.14.2",
+ "hashbrown 0.14.3",
  "rand 0.8.5",
  "statrs",
  "tokio",
@@ -2841,18 +2799,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "86e3bdc80eee6e16b2b6b0f87fbc98c04bee3455e35174c0de1a125d0688c632"
 
 [[package]]
-name = "dlmalloc"
-version = "0.1.4"
-source = "git+https://github.com/gear-tech/dlmalloc-rust.git#15352f969112faa463302f2490bbb7f6e1cb904d"
-dependencies = [
- "libc",
- "libc-print",
- "page_size",
- "static_assertions",
- "str-buf",
-]
-
-[[package]]
 name = "document-features"
 version = "0.2.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3393,6 +3339,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3f9eec918d3f24069decb9af1554cad7c880e2da24a9afd88aca000531ab82c1"
 
 [[package]]
+name = "foreign-types"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f6f339eb8adc052cd2ca78910fda869aefa38d22d5cb648e6485e4d3fc06f3b1"
+dependencies = [
+ "foreign-types-shared",
+]
+
+[[package]]
+name = "foreign-types-shared"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "00b0228411908ca8685dba7fc2cdd70ec9990a6e753e89b6ac91a84c40fbaf4b"
+
+[[package]]
 name = "fork-tree"
 version = "3.0.0"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes#27779e0eaaa2161ba165ff8f0b0ff103bb63e5a1"
@@ -3906,7 +3867,7 @@ dependencies = [
 name = "galloc"
 version = "1.0.3"
 dependencies = [
- "dlmalloc",
+ "gear-dlmalloc",
 ]
 
 [[package]]
@@ -3914,6 +3875,7 @@ name = "gcli"
 version = "1.0.3"
 dependencies = [
  "anyhow",
+ "async-trait",
  "base64 0.21.5",
  "clap 4.4.10",
  "color-eyre",
@@ -4150,7 +4112,7 @@ dependencies = [
  "gear-core-errors",
  "gear-wasm-instrument",
  "gsys",
- "hashbrown 0.14.2",
+ "hashbrown 0.14.3",
  "hex",
  "log",
  "num-traits",
@@ -4209,6 +4171,19 @@ dependencies = [
  "gsys",
  "log",
  "scale-info",
+]
+
+[[package]]
+name = "gear-dlmalloc"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d5c1d3d820d57acd0c4129b3551f5fe5b01e61c8cb2863bad2b183a4b32dc978"
+dependencies = [
+ "libc",
+ "libc-print",
+ "page_size",
+ "static_assertions",
+ "str-buf",
 ]
 
 [[package]]
@@ -4326,6 +4301,17 @@ dependencies = [
  "sp-std 5.0.0",
  "substrate-test-client",
  "vara-runtime",
+]
+
+[[package]]
+name = "gear-pwasm-utils"
+version = "0.19.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1ea09901ce41f64d1be7369b8c2efc774e89b200ac434496ab24e6af96e68f97"
+dependencies = [
+ "byteorder",
+ "gear-wasm",
+ "log",
 ]
 
 [[package]]
@@ -4566,7 +4552,7 @@ checksum = "bbfbfa701dc65e683fcd2fb24f046bcef22634acbdf47ad14724637dc39ad05b"
 
 [[package]]
 name = "gear-wasm-builder"
-version = "0.1.2"
+version = "1.0.3"
 dependencies = [
  "anyhow",
  "cargo_metadata 0.18.1",
@@ -4574,12 +4560,12 @@ dependencies = [
  "colored",
  "dirs",
  "gear-core",
+ "gear-pwasm-utils",
  "gear-wasm-instrument",
  "gmeta",
  "log",
  "once_cell",
  "pathdiff",
- "pwasm-utils",
  "regex",
  "thiserror",
  "toml 0.7.8",
@@ -4891,7 +4877,7 @@ dependencies = [
  "gcore",
  "gear-core-errors",
  "gstd-codegen",
- "hashbrown 0.14.2",
+ "hashbrown 0.14.3",
  "hex",
  "parity-scale-codec",
  "primitive-types",
@@ -4901,7 +4887,7 @@ dependencies = [
 
 [[package]]
 name = "gstd-codegen"
-version = "0.1.0"
+version = "1.0.3"
 dependencies = [
  "gstd",
  "proc-macro2",
@@ -5022,16 +5008,16 @@ version = "0.13.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "43a3c133739dddd0d2990f9a4bdf8eb4b21ef50e4851ca85ab661199821d510e"
 dependencies = [
- "ahash 0.8.3",
+ "ahash 0.8.6",
 ]
 
 [[package]]
 name = "hashbrown"
-version = "0.14.2"
+version = "0.14.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f93e7192158dbcda357bdec5fb5788eebf8bbac027f3f33e719d29135ae84156"
+checksum = "290f1a1d9242c78d09ce40a5e87e7554ee637af1351968159f4952f028f75604"
 dependencies = [
- "ahash 0.8.3",
+ "ahash 0.8.6",
  "allocator-api2",
  "serde",
 ]
@@ -5251,6 +5237,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "hyper-tls"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d6183ddfa99b85da61a140bea0efc93fdf56ceaa041b37d553518030827f9905"
+dependencies = [
+ "bytes",
+ "hyper",
+ "native-tls",
+ "tokio",
+ "tokio-native-tls",
+]
+
+[[package]]
 name = "iana-time-zone"
 version = "0.1.57"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5382,7 +5381,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d530e1a18b1cb4c484e6e34556a0d948706958449fca0cab753d649f2bce3d1f"
 dependencies = [
  "equivalent",
- "hashbrown 0.14.2",
+ "hashbrown 0.14.3",
  "serde",
 ]
 
@@ -7003,6 +7002,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "native-tls"
+version = "0.2.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "07226173c32f2926027b63cce4bcd8076c3552846cbe7925f3aaffeac0a3b92e"
+dependencies = [
+ "lazy_static",
+ "libc",
+ "log",
+ "openssl",
+ "openssl-probe",
+ "openssl-sys",
+ "schannel",
+ "security-framework",
+ "security-framework-sys",
+ "tempfile",
+]
+
+[[package]]
 name = "nb-connect"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7372,6 +7389,32 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "624a8340c38c1b80fd549087862da4ba43e08858af025b236e509b6649fc13d5"
 
 [[package]]
+name = "openssl"
+version = "0.10.60"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "79a4c6c3a2b158f7f8f2a2fc5a969fa3a068df6fc9dbb4a43845436e3af7c800"
+dependencies = [
+ "bitflags 2.4.0",
+ "cfg-if",
+ "foreign-types",
+ "libc",
+ "once_cell",
+ "openssl-macros",
+ "openssl-sys",
+]
+
+[[package]]
+name = "openssl-macros"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a948666b637a0f465e8564c73e89d4dde00d72d4d473cc972f390fc3dcee7d9c"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.39",
+]
+
+[[package]]
 name = "openssl-probe"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7379,9 +7422,9 @@ checksum = "ff011a302c396a5197692431fc1948019154afc178baf7d8e37367442a4601cf"
 
 [[package]]
 name = "openssl-sys"
-version = "0.9.95"
+version = "0.9.96"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "40a4130519a360279579c2053038317e40eff64d13fd3f004f9e1b72b8a6aaf9"
+checksum = "3812c071ba60da8b5677cc12bcb1d42989a65553772897a7e0355545a819838f"
 dependencies = [
  "cc",
  "libc",
@@ -7797,7 +7840,7 @@ dependencies = [
  "pallet-gear-scheduler",
  "pallet-timestamp",
  "parity-scale-codec",
- "parity-wasm 0.45.0",
+ "parity-wasm",
  "primitive-types",
  "scale-info",
  "serde",
@@ -7855,7 +7898,7 @@ dependencies = [
  "pallet-timestamp",
  "pallet-transaction-payment",
  "parity-scale-codec",
- "parity-wasm 0.45.0",
+ "parity-wasm",
  "primitive-types",
  "scale-info",
  "serde",
@@ -7882,7 +7925,7 @@ dependencies = [
  "frame-system",
  "gear-common",
  "gear-core",
- "hashbrown 0.14.2",
+ "hashbrown 0.14.3",
  "log",
  "pallet-authorship",
  "pallet-balances",
@@ -8025,7 +8068,7 @@ dependencies = [
  "log",
  "pallet-balances",
  "parity-scale-codec",
- "parity-wasm 0.45.0",
+ "parity-wasm",
  "primitive-types",
  "scale-info",
  "serde",
@@ -8505,12 +8548,6 @@ name = "parity-send-wrapper"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "aa9777aa91b8ad9dd5aaa04a9b6bcb02c7f1deb952fca5a66034d5e63afc5c6f"
-
-[[package]]
-name = "parity-wasm"
-version = "0.42.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "be5e13c266502aadf83426d87d81a0f5d1ef45b8027f5a471c360abfe4bfae92"
 
 [[package]]
 name = "parity-wasm"
@@ -9119,17 +9156,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "pwasm-utils"
-version = "0.19.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2ecdabd73c8beaf98c66e45aff3032b56260ee49eb5d0d1222ecce269bfafda7"
-dependencies = [
- "byteorder",
- "log",
- "parity-wasm 0.42.2",
-]
-
-[[package]]
 name = "quick-error"
 version = "1.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -9532,10 +9558,12 @@ dependencies = [
  "http-body",
  "hyper",
  "hyper-rustls 0.24.1",
+ "hyper-tls",
  "ipnet",
  "js-sys",
  "log",
  "mime",
+ "native-tls",
  "once_cell",
  "percent-encoding",
  "pin-project-lite 0.2.13",
@@ -9546,6 +9574,7 @@ dependencies = [
  "serde_urlencoded",
  "system-configuration",
  "tokio",
+ "tokio-native-tls",
  "tokio-rustls 0.24.1",
  "tower-service",
  "url",
@@ -10199,7 +10228,7 @@ name = "sc-consensus-grandpa"
 version = "0.10.0-dev"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes#27779e0eaaa2161ba165ff8f0b0ff103bb63e5a1"
 dependencies = [
- "ahash 0.8.3",
+ "ahash 0.8.6",
  "array-bytes",
  "async-trait",
  "dyn-clone",
@@ -10473,7 +10502,7 @@ name = "sc-network-gossip"
 version = "0.10.0-dev"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes#27779e0eaaa2161ba165ff8f0b0ff103bb63e5a1"
 dependencies = [
- "ahash 0.8.3",
+ "ahash 0.8.6",
  "futures",
  "futures-timer",
  "libp2p",
@@ -11082,7 +11111,7 @@ version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "772575a524feeb803e5b0fcbc6dd9f367e579488197c94c6e4023aad2305774d"
 dependencies = [
- "ahash 0.8.3",
+ "ahash 0.8.6",
  "cfg-if",
  "hashbrown 0.13.2",
 ]
@@ -11585,7 +11614,7 @@ dependencies = [
  "fnv",
  "futures-channel",
  "futures-util",
- "hashbrown 0.14.2",
+ "hashbrown 0.14.3",
  "hex",
  "hmac 0.12.1",
  "itertools",
@@ -11630,7 +11659,7 @@ dependencies = [
  "fnv",
  "futures-channel",
  "futures-util",
- "hashbrown 0.14.2",
+ "hashbrown 0.14.3",
  "hex",
  "itertools",
  "log",
@@ -12331,7 +12360,7 @@ name = "sp-trie"
 version = "7.0.0"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes#27779e0eaaa2161ba165ff8f0b0ff103bb63e5a1"
 dependencies = [
- "ahash 0.8.3",
+ "ahash 0.8.6",
  "hash-db",
  "hashbrown 0.12.3",
  "lazy_static",
@@ -12356,7 +12385,7 @@ source = "git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0
 dependencies = [
  "impl-serde",
  "parity-scale-codec",
- "parity-wasm 0.45.0",
+ "parity-wasm",
  "scale-info",
  "serde",
  "sp-core-hashing-proc-macro",
@@ -13131,6 +13160,16 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.39",
+]
+
+[[package]]
+name = "tokio-native-tls"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bbae76ab933c85776efabc971569dd6119c580d8f5d448769dec1764bf796ef2"
+dependencies = [
+ "native-tls",
+ "tokio",
 ]
 
 [[package]]
@@ -13967,9 +14006,9 @@ dependencies = [
 
 [[package]]
 name = "wasm-encoder"
-version = "0.38.0"
+version = "0.38.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7b09bc5df933a3dabbdb72ae4b6b71be8ae07f58774d5aa41bd20adcd41a235a"
+checksum = "0ad2b51884de9c7f4fe2fd1043fccb8dcad4b1e29558146ee57a144d15779f3f"
 dependencies = [
  "leb128",
 ]
@@ -13980,7 +14019,7 @@ version = "0.1.0"
 dependencies = [
  "clap 4.4.10",
  "hex",
- "parity-wasm 0.45.0",
+ "parity-wasm",
 ]
 
 [[package]]
@@ -13988,7 +14027,7 @@ name = "wasm-instrument"
 version = "0.3.0"
 source = "git+https://github.com/gear-tech/wasm-instrument?branch=v0.3.0-sign-ext#7d5226a805b39ed297e78427c21ee2cb39795139"
 dependencies = [
- "parity-wasm 0.45.0",
+ "parity-wasm",
 ]
 
 [[package]]
@@ -14040,7 +14079,7 @@ dependencies = [
  "env_logger",
  "gear-wasm-builder",
  "log",
- "parity-wasm 0.45.0",
+ "parity-wasm",
 ]
 
 [[package]]
@@ -14339,7 +14378,7 @@ name = "wasmi"
 version = "0.13.2"
 source = "git+https://github.com/gear-tech/wasmi?branch=v0.13.2-sign-ext#3a0b1022377919e62aadf4d78b762abd1c3e9a04"
 dependencies = [
- "parity-wasm 0.45.0",
+ "parity-wasm",
  "wasmi-validation",
  "wasmi_core 0.2.1 (git+https://github.com/gear-tech/wasmi?branch=v0.13.2-sign-ext)",
 ]
@@ -14387,7 +14426,7 @@ name = "wasmi-validation"
 version = "0.5.0"
 source = "git+https://github.com/gear-tech/wasmi?branch=v0.13.2-sign-ext#3a0b1022377919e62aadf4d78b762abd1c3e9a04"
 dependencies = [
- "parity-wasm 0.45.0",
+ "parity-wasm",
 ]
 
 [[package]]
@@ -14478,9 +14517,9 @@ dependencies = [
 
 [[package]]
 name = "wasmparser"
-version = "0.118.0"
+version = "0.118.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ebbb91574de0011ded32b14db12777e7dd5e9ea2f9d7317a1ab51a9495c75924"
+checksum = "95ee9723b928e735d53000dec9eae7b07a60e490c85ab54abb66659fc61bfcd9"
 dependencies = [
  "indexmap 2.1.0",
  "semver 1.0.18",
@@ -14503,12 +14542,12 @@ dependencies = [
 
 [[package]]
 name = "wasmprinter"
-version = "0.2.74"
+version = "0.2.75"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "61a7a046e6636d25c06a5df00bdc34e02f9e6e0e8a356d738299b961a6126114"
+checksum = "3d027eb8294904fc715ac0870cebe6b0271e96b90605ee21511e7565c4ce568c"
 dependencies = [
  "anyhow",
- "wasmparser 0.118.0",
+ "wasmparser 0.118.1",
 ]
 
 [[package]]
@@ -14692,21 +14731,21 @@ dependencies = [
 
 [[package]]
 name = "wast"
-version = "69.0.0"
+version = "69.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "efa51b5ad1391943d1bfad537e50f28fe938199ee76b115be6bae83802cd5185"
+checksum = "c1ee37317321afde358e4d7593745942c48d6d17e0e6e943704de9bbee121e7a"
 dependencies = [
  "leb128",
  "memchr",
  "unicode-width",
- "wasm-encoder 0.38.0",
+ "wasm-encoder 0.38.1",
 ]
 
 [[package]]
 name = "wat"
-version = "1.0.81"
+version = "1.0.82"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "74a4c2488d058326466e086a43f5d4ea448241a8d0975e3eb0642c0828be1eb3"
+checksum = "aeb338ee8dee4d4cd05e6426683f21c5087dc7cfc8903e839ccf48d43332da3c"
 dependencies = [
  "wast",
 ]
@@ -15506,6 +15545,26 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 1.0.109",
+]
+
+[[package]]
+name = "zerocopy"
+version = "0.7.28"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7d6f15f7ade05d2a4935e34a457b936c23dc70a05cc1d97133dc99e7a3fe0f0e"
+dependencies = [
+ "zerocopy-derive",
+]
+
+[[package]]
+name = "zerocopy-derive"
+version = "0.7.28"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dbbad221e3f78500350ecbd7dfa4e63ef945c05f4c61cb7f4d3f84cd0bba649b"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.39",
 ]
 
 [[package]]
