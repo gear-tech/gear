@@ -386,7 +386,7 @@ pub mod staking_proxy {
         T::AccountId: Origin,
     {
         let message = dispatch.message();
-        let origin = dispatch.source().cast();
+        let origin: T::AccountId = dispatch.source().cast();
 
         // Decode the message payload to derive the desired action
         let msg: Request = Decode::decode(&mut message.payload_bytes())
