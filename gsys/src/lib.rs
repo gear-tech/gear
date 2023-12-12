@@ -474,7 +474,7 @@ extern "C" {
         err_mid_pid: *mut ErrorWithTwoHashes,
     );
 
-    /// Fallible `gr_reply_deposit` syscall.
+    /// Fallible `gr_reply_deposit` control syscall.
     ///
     /// Arguments type:
     /// - `message_id`: `const ptr` for message id.

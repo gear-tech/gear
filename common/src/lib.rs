@@ -84,6 +84,9 @@ pub type Gas = u64;
 pub trait Origin: Sized {
     fn into_origin(self) -> H256;
     fn from_origin(val: H256) -> Self;
+    fn cast<T: Origin>(self) -> T {
+        T::from_origin(self.into_origin())
+    }
 }
 
 impl Origin for u64 {

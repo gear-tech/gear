@@ -7,8 +7,8 @@ use gear_core::ids::{MessageId, ProgramId};
 use gear_core_errors::ReplyCode;
 use gear_utils::NonEmpty;
 use gear_wasm_gen::{
-    EntryPointsSet, InvocableSyscall, ParamType, StandardGearWasmConfigsBundle, SyscallName,
-    SyscallsInjectionTypes, SyscallsParamsConfig,
+    EntryPointsSet, InvocableSyscall, ParamType, RegularParamType, StandardGearWasmConfigsBundle,
+    SyscallName, SyscallsInjectionTypes, SyscallsParamsConfig,
 };
 use gsdk::metadata::runtime_types::{
     gear_common::event::DispatchStatus as GenDispatchStatus,
@@ -230,8 +230,11 @@ pub fn get_wasm_gen_config(
     );
 
     let mut params_config = SyscallsParamsConfig::default();
-    params_config.add_rule(ParamType::Alloc, (1..=10).into());
-    params_config.add_rule(ParamType::Free, (initial_pages..=initial_pages + 50).into());
+    params_config.add_rule(ParamType::Regular(RegularParamType::Alloc), (1..=10).into());
+    params_config.add_rule(
+        ParamType::Regular(RegularParamType::Free),
+        (initial_pages..=initial_pages + 50).into(),
+    );
 
     StandardGearWasmConfigsBundle {
         log_info: Some(format!("Gear program seed = '{seed}'")),

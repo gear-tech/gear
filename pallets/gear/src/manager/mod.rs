@@ -222,11 +222,9 @@ where
     /// program with `id` doesn't exist or it's terminated
     pub fn get_actor(&self, id: ProgramId) -> Option<Actor> {
         let active: ActiveProgram<_> = ProgramStorageOf::<T>::get_program(id)?.try_into().ok()?;
-        let code_id = CodeId::from_origin(active.code_hash);
+        let code_id = active.code_hash.cast();
 
-        let balance =
-            CurrencyOf::<T>::free_balance(&<T::AccountId as Origin>::from_origin(id.into_origin()))
-                .unique_saturated_into();
+        let balance = CurrencyOf::<T>::free_balance(&id.cast()).unique_saturated_into();
 
         Some(Actor {
             balance,
@@ -256,7 +254,7 @@ where
         //
         // Code can exist without program, but the latter can't exist without code.
         debug_assert!(
-            T::CodeStorage::exists(CodeId::from_origin(code_info.id)),
+            T::CodeStorage::exists(code_info.id.cast()),
             "Program set must be called only when code exists",
         );
 
@@ -376,14 +374,13 @@ where
     ) {
         ProgramStorageOf::<T>::remove_program_pages(program_id, memory_infix);
 
-        let program_account = &<T::AccountId as Origin>::from_origin(program_id.into_origin());
-        let balance = CurrencyOf::<T>::free_balance(program_account);
+        let program_account = program_id.cast();
+        let balance = CurrencyOf::<T>::free_balance(&program_account);
         if !balance.is_zero() {
-            let destination = Pallet::<T>::inheritor_for(value_destination);
-            let destination = <T::AccountId as Origin>::from_origin(destination.into_origin());
+            let destination = Pallet::<T>::inheritor_for(value_destination).cast();
 
             CurrencyOf::<T>::transfer(
-                program_account,
+                &program_account,
                 &destination,
                 balance,
                 ExistenceRequirement::AllowDeath,
