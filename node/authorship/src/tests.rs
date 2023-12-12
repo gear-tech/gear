@@ -176,11 +176,12 @@ impl CallBuilder {
     fn build(self) -> RuntimeCall {
         match self.call {
             TestCall::DepositToBank => RuntimeCall::Sudo(pallet_sudo::Call::sudo {
-                call: Box::new(RuntimeCall::Balances(pallet_balances::Call::set_balance {
-                    who: sp_runtime::MultiAddress::Id(AccountId::from(BANK_ADDRESS)),
-                    new_free: 1_000_000_000_000_000,
-                    new_reserved: 0,
-                })),
+                call: Box::new(RuntimeCall::Balances(
+                    pallet_balances::Call::force_set_balance {
+                        who: sp_runtime::MultiAddress::Id(AccountId::from(BANK_ADDRESS)),
+                        new_free: 1_000_000_000_000_000,
+                    },
+                )),
             }),
             TestCall::Noop => RuntimeCall::Gear(pallet_gear::Call::upload_program {
                 code: WASM_BINARY.to_vec(),

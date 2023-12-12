@@ -398,7 +398,7 @@ async fn create_renew_balance_task(
             };
             tracing::debug!("User balance demand {user_balance_demand}");
 
-            // Calling `set_balance` for `user` is potentially dangerous, because getting actual
+            // Calling `force_set_balance` for `user` is potentially dangerous, because getting actual
             // reserved balance is a complicated task, as reserved balance is changed by another
             // task, which loads the node.
             //
