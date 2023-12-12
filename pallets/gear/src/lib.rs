@@ -1651,7 +1651,7 @@ pub mod pallet {
 
         /// Pay additional rent for the program.
         #[pallet::call_index(8)]
-        #[pallet::weight(<T as Config>::WeightInfo::pay_program_rent())]
+        #[pallet::weight(DbWeightOf::<T>::get().reads(1))]
         pub fn pay_program_rent(
             _origin: OriginFor<T>,
             _program_id: ProgramId,
@@ -1669,7 +1669,7 @@ pub mod pallet {
         /// - `allocations`: memory allocations of program prior to stop.
         /// - `code_hash`: id of the program binary code.
         #[pallet::call_index(9)]
-        #[pallet::weight(<T as Config>::WeightInfo::resume_session_init())]
+        #[pallet::weight(DbWeightOf::<T>::get().reads(1))]
         pub fn resume_session_init(
             _origin: OriginFor<T>,
             _program_id: ProgramId,

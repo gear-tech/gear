@@ -60,10 +60,10 @@ use crate::{
     schedule::{API_BENCHMARK_BATCH_SIZE, INSTR_BENCHMARK_BATCH_SIZE},
     BalanceOf, BenchmarkStorage, Call, Config, CurrencyOf, Event, Ext as Externalities,
     GasHandlerOf, GearBank, MailboxOf, Pallet as Gear, Pallet, ProgramStorageOf, QueueOf,
-    RentFreePeriodOf, ResumeMinimalPeriodOf, Schedule, TaskPoolOf,
+    Schedule, TaskPoolOf,
 };
 use ::alloc::{
-    collections::{BTreeMap, BTreeSet},
+    collections::BTreeMap,
     vec,
 };
 use common::{
@@ -91,7 +91,7 @@ use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
     memory::{AllocationsContext, Memory, PageBuf},
     message::{ContextSettings, DispatchKind, IncomingDispatch, MessageContext},
-    pages::{GearPage, PageU32Size, WasmPage, GEAR_PAGE_SIZE, WASM_PAGE_SIZE},
+    pages::{GearPage, PageU32Size, WasmPage},
     reservation::GasReserver,
 };
 use gear_core_backend::{
@@ -264,39 +264,6 @@ where
             event.ok()
         })
         .find_map(mapping_filter)
-}
-
-#[track_caller]
-fn resume_session_prepare<T: Config>(
-    c: u32,
-    program_id: ProgramId,
-    program: ActiveProgram<T::BlockNumber>,
-    caller: T::AccountId,
-    memory_page: &PageBuf,
-) -> (SessionId, Vec<(GearPage, PageBuf)>)
-where
-    T::AccountId: Origin,
-{
-    ProgramStorageOf::<T>::pause_program(program_id, 100u32.into()).unwrap();
-
-    Gear::<T>::resume_session_init(
-        RawOrigin::Signed(caller).into(),
-        program_id,
-        program.allocations,
-        CodeId::from_origin(program.code_hash),
-    )
-    .expect("failed to start resume session");
-
-    let memory_pages = {
-        let mut pages = Vec::with_capacity(c as usize);
-        for i in 0..c {
-            pages.push((GearPage::from(i as u16), memory_page.clone()));
-        }
-
-        pages
-    };
-
-    (get_last_session_id::<T>().unwrap(), memory_pages)
 }
 
 /// An instantiated and deployed program.
@@ -493,130 +460,6 @@ benchmarks! {
         assert!(auto_reply.payload_bytes().is_empty());
         assert_eq!(auto_reply.reply_details().expect("Should be").to_reply_code(), ReplyCode::Success(SuccessReplyReason::Auto));
         assert!(MailboxOf::<T>::is_empty(&caller));
-    }
-
-    pay_program_rent {
-        let caller = benchmarking::account("caller", 0, 0);
-        CurrencyOf::<T>::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
-        let minimum_balance = CurrencyOf::<T>::minimum_balance();
-        let code = benchmarking::generate_wasm2(16.into()).unwrap();
-        let salt = vec![];
-        let program_id = ProgramId::generate_from_user(CodeId::generate(&code), &salt);
-        Gear::<T>::upload_program(RawOrigin::Signed(caller.clone()).into(), code, salt, b"init_payload".to_vec(), 10_000_000_000, 0u32.into(), false).expect("submit program failed");
-
-        let block_count = 1_000u32.into();
-
-        init_block::<T>(None);
-    }: _(RawOrigin::Signed(caller.clone()), program_id, block_count)
-    verify {
-        let program: ActiveProgram<_> = ProgramStorageOf::<T>::get_program(program_id)
-            .expect("program should exist")
-            .try_into()
-            .expect("program should be active");
-        assert_eq!(program.expiration_block, RentFreePeriodOf::<T>::get() + block_count);
-    }
-
-    resume_session_init {
-        let caller = benchmarking::account("caller", 0, 0);
-        CurrencyOf::<T>::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
-        let code = benchmarking::generate_wasm2(16.into()).unwrap();
-        let salt = vec![];
-        let program_id = ProgramId::generate_from_user(CodeId::generate(&code), &salt);
-        Gear::<T>::upload_program(RawOrigin::Signed(caller.clone()).into(), code, salt, b"init_payload".to_vec(), 10_000_000_000, 0u32.into(), false).expect("submit program failed");
-
-        init_block::<T>(None);
-
-        let program: ActiveProgram<_> = ProgramStorageOf::<T>::get_program(program_id)
-            .expect("program should exist")
-            .try_into()
-            .expect("program should be active");
-        ProgramStorageOf::<T>::pause_program(program_id, 100u32.into()).unwrap();
-    }: _(RawOrigin::Signed(caller.clone()), program_id, program.allocations, CodeId::from_origin(program.code_hash))
-    verify {
-        assert!(ProgramStorageOf::<T>::paused_program_exists(&program_id));
-        assert!(
-            !Gear::<T>::is_active(program_id)
-        );
-        assert!(!ProgramStorageOf::<T>::program_exists(program_id));
-    }
-
-    resume_session_push {
-        let c in 0 .. 16 * (WASM_PAGE_SIZE / GEAR_PAGE_SIZE) as u32;
-        let caller = benchmarking::account("caller", 0, 0);
-        CurrencyOf::<T>::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
-        let code = benchmarking::generate_wasm2(16.into()).unwrap();
-        let salt = vec![];
-        let program_id = ProgramId::generate_from_user(CodeId::generate(&code), &salt);
-        Gear::<T>::upload_program(RawOrigin::Signed(caller.clone()).into(), code, salt, b"init_payload".to_vec(), 10_000_000_000, 0u32.into(), false,).expect("submit program failed");
-
-        init_block::<T>(None);
-
-        let program: ActiveProgram<_> = ProgramStorageOf::<T>::get_program(program_id)
-            .expect("program should exist")
-            .try_into()
-            .expect("program should be active");
-
-        let memory_page = {
-            let mut page = PageBuf::new_zeroed();
-            page[0] = 1;
-
-            page
-        };
-
-        let (session_id, memory_pages) = resume_session_prepare::<T>(c, program_id, program, caller.clone(), &memory_page);
-    }: _(RawOrigin::Signed(caller.clone()), session_id, memory_pages)
-    verify {
-        assert!(
-            matches!(ProgramStorageOf::<T>::resume_session_page_count(&session_id), Some(count) if count == c)
-        );
-        assert!(ProgramStorageOf::<T>::paused_program_exists(&program_id));
-        assert!(
-            !Gear::<T>::is_active(program_id)
-        );
-        assert!(!ProgramStorageOf::<T>::program_exists(program_id));
-    }
-
-    resume_session_commit {
-        let c in 0 .. (MAX_PAGES - 1) * (WASM_PAGE_SIZE / GEAR_PAGE_SIZE) as u32;
-        let caller = benchmarking::account("caller", 0, 0);
-        CurrencyOf::<T>::deposit_creating(&caller, 400_000_000_000_000u128.unique_saturated_into());
-        let code = benchmarking::generate_wasm2(0.into()).unwrap();
-        let salt = vec![];
-        let program_id = ProgramId::generate_from_user(CodeId::generate(&code), &salt);
-        Gear::<T>::upload_program(RawOrigin::Signed(caller.clone()).into(), code, salt, b"init_payload".to_vec(), 10_000_000_000, 0u32.into(), false,).expect("submit program failed");
-
-        init_block::<T>(None);
-
-        let memory_page = {
-            let mut page = PageBuf::new_zeroed();
-            page[0] = 1;
-
-            page
-        };
-
-        let program: ActiveProgram<_> = ProgramStorageOf::<T>::update_active_program(program_id, |program| {
-            for i in 0 .. c {
-                let page = GearPage::from(i as u16);
-                ProgramStorageOf::<T>::set_program_page_data(program_id, program.memory_infix, page, memory_page.clone());
-                program.pages_with_data.insert(page);
-            }
-
-            let wasm_pages = (c as usize * GEAR_PAGE_SIZE) / WASM_PAGE_SIZE;
-            program.allocations = BTreeSet::from_iter((0..wasm_pages).map(|i| WasmPage::from(i as u16)));
-
-            program.clone()
-        }).expect("program should exist");
-
-        let (session_id, memory_pages) = resume_session_prepare::<T>(c, program_id, program, caller.clone(), &memory_page);
-
-        Gear::<T>::resume_session_push(RawOrigin::Signed(caller.clone()).into(), session_id, memory_pages).expect("failed to append memory pages");
-    }: _(RawOrigin::Signed(caller.clone()), session_id, ResumeMinimalPeriodOf::<T>::get())
-    verify {
-        assert!(ProgramStorageOf::<T>::program_exists(program_id));
-        assert!(
-            Gear::<T>::is_active(program_id)
-        );
-        assert!(!ProgramStorageOf::<T>::paused_program_exists(&program_id));
     }
 
     // This constructs a program that is maximal expensive to instrument.
