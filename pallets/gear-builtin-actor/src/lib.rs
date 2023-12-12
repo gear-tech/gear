@@ -386,7 +386,7 @@ pub mod staking_proxy {
         T::AccountId: Origin,
     {
         let message = dispatch.message();
-        let origin = <T::AccountId as Origin>::from_origin(dispatch.source().into_origin());
+        let origin = dispatch.source().cast();
 
         // Decode the message payload to derive the desired action
         let msg: Request = Decode::decode(&mut message.payload_bytes())
@@ -399,9 +399,7 @@ pub mod staking_proxy {
                         match payee {
                             RewardAccount::Program => RewardDestination::Stash,
                             RewardAccount::Custom(account_id) => {
-                                let dest = <T::AccountId as Origin>::from_origin(
-                                    ProgramId::from(&account_id[..]).into_origin(),
-                                );
+                                let dest = ProgramId::from(&account_id[..]).cast();
                                 RewardDestination::Account(dest)
                             }
                         }
@@ -430,9 +428,7 @@ pub mod staking_proxy {
                     targets: targets
                         .into_iter()
                         .map(|account_id| {
-                            let origin = <T::AccountId as Origin>::from_origin(
-                                ProgramId::from(&account_id[..]).into_origin(),
-                            );
+                            let origin = ProgramId::from(&account_id[..]).cast();
                             T::Lookup::unlookup(origin)
                         })
                         .collect(),
@@ -442,9 +438,7 @@ pub mod staking_proxy {
                     validator_stash,
                     era,
                 } => {
-                    let stash_id = <T::AccountId as Origin>::from_origin(
-                        ProgramId::from(&validator_stash[..]).into_origin(),
-                    );
+                    let stash_id = ProgramId::from(&validator_stash[..]).cast();
                     pallet_staking::Call::<T>::payout_stakers {
                         validator_stash: stash_id,
                         era,
@@ -459,9 +453,7 @@ pub mod staking_proxy {
                     let payee = match payee {
                         RewardAccount::Program => RewardDestination::Stash,
                         RewardAccount::Custom(account_id) => {
-                            let dest = <T::AccountId as Origin>::from_origin(
-                                ProgramId::from(&account_id[..]).into_origin(),
-                            );
+                            let dest = ProgramId::from(&account_id[..]).cast();
                             RewardDestination::Account(dest)
                         }
                     };

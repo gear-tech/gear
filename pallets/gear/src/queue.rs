@@ -217,14 +217,12 @@ where
                         let journal = T::BuiltinActor::handle(dispatch, gas_limit);
                         core_processor::handle_journal(journal, &mut ext_manager);
                     }
-                    _ => unreachable!("Built-in actor can only handle messages"),
+                    _ => unreachable!("Builtin actor can only handle messages"),
                 }
                 continue;
             }
 
-            let balance = CurrencyOf::<T>::free_balance(&<T::AccountId as Origin>::from_origin(
-                program_id.into_origin(),
-            ));
+            let balance = CurrencyOf::<T>::free_balance(&program_id.cast());
 
             let get_actor_data = |precharged_dispatch: PrechargedDispatch| {
                 // At this point gas counters should be changed accordingly so fetch the program data.
@@ -316,7 +314,7 @@ where
 
         ActorResult::Data(Some(ExecutableActorData {
             allocations: program.allocations,
-            code_id: CodeId::from_origin(program.code_hash),
+            code_id: program.code_hash.cast(),
             code_exports: program.code_exports,
             static_pages: program.static_pages,
             initialized: matches!(program.state, ProgramState::Initialized),

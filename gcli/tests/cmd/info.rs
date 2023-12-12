@@ -19,7 +19,7 @@
 //! Integration tests for command `deploy`
 use crate::common::{
     self, logs,
-    traits::{Convert, NodeExec},
+    node::{Convert, NodeExec},
     Args, Result,
 };
 

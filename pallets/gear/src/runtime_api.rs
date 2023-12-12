@@ -56,7 +56,7 @@ where
     ) -> Result<GasInfo, Vec<u8>> {
         Self::enable_lazy_pages();
 
-        let account = <T::AccountId as Origin>::from_origin(source);
+        let account = source.cast();
 
         let balance = CurrencyOf::<T>::free_balance(&account);
         let max_balance: BalanceOf<T> = <T as pallet_gear_bank::Config>::GasMultiplier::get()
@@ -161,9 +161,7 @@ where
             {
                 T::BuiltinActor::handle(queued_dispatch, gas_limit)
             } else {
-                let balance = CurrencyOf::<T>::free_balance(
-                    &<T::AccountId as Origin>::from_origin(actor_id.into_origin()),
-                );
+                let balance = CurrencyOf::<T>::free_balance(&actor_id.cast());
 
                 let get_actor_data = |precharged_dispatch: PrechargedDispatch| {
                     // At this point gas counters should be changed accordingly so fetch the program data.
@@ -228,8 +226,8 @@ where
 
                 match note {
                     JournalNote::SendDispatch { dispatch, .. } => {
-                        let destination =
-                            T::AccountId::from_origin(dispatch.destination().into_origin());
+                        let destination = dispatch.destination().cast();
+
                         if MailboxOf::<T>::contains(&destination, &dispatch.id())
                             && from_main_chain(dispatch.id())?
                         {
@@ -284,8 +282,7 @@ where
         let program = ActiveProgram::try_from(program)
             .map_err(|e| format!("Get active program error: {e:?}"))?;
 
-        let code_id = CodeId::from_origin(program.code_hash);
-        let instrumented_code = T::CodeStorage::get_code(code_id)
+        let instrumented_code = T::CodeStorage::get_code(program.code_hash.cast())
             .ok_or_else(|| String::from("Failed to get code for given program id"))?;
 
         Ok(CodeWithMemoryData {
