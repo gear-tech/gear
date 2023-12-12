@@ -34,7 +34,6 @@ use std::{
 
 mod args;
 pub mod env;
-pub mod logs;
 mod result;
 pub mod traits;
 

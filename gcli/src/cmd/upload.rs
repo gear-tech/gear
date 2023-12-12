@@ -19,7 +19,11 @@
 //! command `upload_program`
 use crate::{result::Result, utils::Hex};
 use clap::Parser;
-use gsdk::{metadata::gear::Event as GearEvent, signer::Signer, Event};
+use gsdk::{
+    metadata::{gear::Event as GearEvent, runtime_types::gear_common::event::MessageEntry},
+    signer::Signer,
+    Event,
+};
 use std::{fs, path::PathBuf};
 
 /// Deploy program to gear node or save program `code` in storage.
@@ -72,10 +76,20 @@ impl Upload {
             .await?;
 
         for event in signer.api().events_of(&tx).await? {
-            if let Event::Gear(GearEvent::ProgramChanged { id, change }) = event {
-                log::info!("Program ID: 0x{}", hex::encode(id.0));
-                log::info!("Program status: {:?}", change);
-                break;
+            match event {
+                Event::Gear(GearEvent::MessageQueued {
+                    id,
+                    destination,
+                    entry: MessageEntry::Init,
+                    ..
+                }) => {
+                    log::info!("Program ID: 0x{}", hex::encode(destination.0));
+                    log::info!("Init Message ID: 0x{}", hex::encode(id.0));
+                }
+                Event::Gear(GearEvent::CodeChanged { id, .. }) => {
+                    log::info!("Code ID: 0x{}", hex::encode(id.0));
+                }
+                _ => {}
             }
         }
 
