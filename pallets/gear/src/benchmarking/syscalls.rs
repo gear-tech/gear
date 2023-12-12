@@ -1385,10 +1385,10 @@ where
         assert!(repetitions <= 1);
 
         let params = if let Some(c) = param {
-            assert!(name.signature().params.len() == 1);
+            assert!(name.signature().params().len() == 1);
             vec![InstrI32Const(c)]
         } else {
-            assert!(name.signature().params.is_empty());
+            assert!(name.signature().params().is_empty());
             vec![]
         };
 
