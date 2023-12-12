@@ -29,7 +29,7 @@ use sp_std::borrow::ToOwned;
 
 pub fn account<AccountId: Origin>(name: &'static str, index: u32, seed: u32) -> AccountId {
     let entropy = (name, index, seed).using_encoded(blake2_256);
-    AccountId::from_origin(H256::from_slice(&entropy[..]))
+    H256::from_slice(&entropy[..]).cast()
 }
 
 // A wasm module that allocates `$num_pages` of memory in `init` function.

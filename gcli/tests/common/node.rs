@@ -16,9 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Shared traits.
+//! Shared node.
 
 use crate::common::{Args, Output, Result};
+use anyhow::anyhow;
 
 /// Convert self into `String`.
 pub trait Convert<T> {
@@ -47,6 +48,18 @@ pub trait NodeExec {
     /// // ...
     /// ```
     fn run(&self, args: Args) -> Result<Output>;
+
+    /// Execute command gcli with Node instance
+    /// and return stdout.
+    fn stdout(&self, args: Args) -> Result<String> {
+        let output = self.run(args)?;
+
+        if output.stdout.is_empty() {
+            return Err(anyhow!("stdout is empty, stderr: {}", output.stderr.convert()).into());
+        }
+
+        Ok(output.stdout.convert())
+    }
 
     /// Formats websocket address to string.
     ///

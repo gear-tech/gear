@@ -2425,14 +2425,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "demo-signal-wait"
-version = "0.1.0"
-dependencies = [
- "gear-wasm-builder",
- "gstd",
-]
-
-[[package]]
 name = "demo-stack-allocations"
 version = "0.1.0"
 dependencies = [
@@ -3877,6 +3869,7 @@ name = "gcli"
 version = "1.0.3"
 dependencies = [
  "anyhow",
+ "async-trait",
  "base64 0.21.5",
  "clap 4.4.10",
  "color-eyre",
@@ -7707,7 +7700,6 @@ dependencies = [
  "demo-rwlock",
  "demo-send-from-reservation",
  "demo-signal-entry",
- "demo-signal-wait",
  "demo-state-rollback",
  "demo-sync-duplicate",
  "demo-wait",

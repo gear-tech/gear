@@ -18,7 +18,7 @@
 
 //! Integration tests for command `send`
 
-use crate::common::{self, logs, traits::NodeExec, Args, Result, ALICE_SS58_ADDRESS as ADDRESS};
+use crate::common::{self, logs, node::NodeExec, Args, Result, ALICE_SS58_ADDRESS as ADDRESS};
 use gsdk::Api;
 
 const REWARD_PER_BLOCK: u128 = 75_000; // 3_000 gas * 25 value per gas
@@ -68,9 +68,7 @@ async fn test_command_claim_works() -> Result<()> {
     let burned_after = signer.api().get_balance(&signer.address()).await? - initial_stash;
     let after = signer.api().get_balance(ADDRESS).await?;
 
-    assert_eq!(initial_balance - before - burned_before, REWARD_PER_BLOCK,);
-
+    assert_eq!(initial_balance - before - burned_before, REWARD_PER_BLOCK);
     assert_eq!(initial_balance - burned_after, after);
-
     Ok(())
 }

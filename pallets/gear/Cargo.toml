@@ -108,7 +108,6 @@ demo-rwlock.workspace = true
 demo-reservation-manager.workspace = true
 demo-send-from-reservation.workspace = true
 demo-signal-entry = { workspace = true, features = ["debug"] }
-demo-signal-wait.workspace = true
 demo-state-rollback.workspace = true
 demo-async-signal-entry.workspace = true
 demo-async-custom-entry.workspace = true

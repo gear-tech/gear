@@ -18,6 +18,7 @@
 
 //! command `upload_program`
 use crate::{result::Result, utils::Hex};
+use anyhow::anyhow;
 use clap::Parser;
 use gsdk::signer::Signer;
 use std::{fs, path::PathBuf};
@@ -47,7 +48,8 @@ pub struct Upload {
 impl Upload {
     /// Exec command submit
     pub async fn exec(&self, signer: Signer) -> Result<()> {
-        let code = fs::read(&self.code)?;
+        let code =
+            fs::read(&self.code).map_err(|e| anyhow!("program {:?} not found, {e}", &self.code))?;
         if self.code_only {
             signer.calls.upload_code(code).await?;
             return Ok(());

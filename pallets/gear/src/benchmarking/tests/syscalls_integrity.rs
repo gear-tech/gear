@@ -441,7 +441,7 @@ where
         let expected_mid = MessageId::generate_reply(next_user_mid);
 
         let post_test = move || {
-            let source = ProgramId::from_origin(default_sender.into_origin());
+            let source = default_sender.cast();
             assert!(SystemPallet::<T>::events().into_iter().any(|e| {
                 let bytes = e.event.encode();
                 let Ok(gear_event): Result<Event<T>, _> = Event::decode(&mut bytes[1..].as_ref()) else { return false };
@@ -771,7 +771,7 @@ where
         let expected_mid = MessageId::generate_reply(next_user_mid);
 
         let post_test = move || {
-            let source = ProgramId::from_origin(default_sender.into_origin());
+            let source = default_sender.cast();
             assert!(SystemPallet::<T>::events().into_iter().any(|e| {
                 let bytes = e.event.encode();
                 let Ok(gear_event): Result<Event<T>, _> = Event::decode(&mut bytes[1..].as_ref()) else { return false };
@@ -802,7 +802,7 @@ where
         let message = payload.clone().into();
 
         let post_test = move || {
-            let source = ProgramId::from_origin(default_sender.into_origin());
+            let source = default_sender.cast();
             assert!(SystemPallet::<T>::events().into_iter().any(|e| {
                 let bytes = e.event.encode();
                 let Ok(gear_event): Result<Event<T>, _> = Event::decode(&mut bytes[1..].as_ref()) else { return false };
@@ -829,7 +829,7 @@ where
         let message = payload.clone().into();
 
         let post_test = move || {
-            let source = ProgramId::from_origin(default_sender.into_origin());
+            let source = default_sender.cast();
             assert!(SystemPallet::<T>::events().into_iter().any(|e| {
                 let bytes = e.event.encode();
                 let Ok(gear_event): Result<Event<T>, _> = Event::decode(&mut bytes[1..].as_ref()) else { return false };
@@ -1167,8 +1167,8 @@ where
     // Manually reset the storage
     Gear::<T>::reset();
     CurrencyOf::<T>::slash(
-        &Id::from_origin(tester_pid.into_origin()),
-        CurrencyOf::<T>::free_balance(&Id::from_origin(tester_pid.into_origin())),
+        &tester_pid.cast(),
+        CurrencyOf::<T>::free_balance(&tester_pid.cast()),
     );
 }
 
