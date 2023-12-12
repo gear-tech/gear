@@ -22,8 +22,10 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           LABEL: ${{ github.event.label.name }}
           REF: ${{ github.head_ref || github.ref_name }}
+          REF_NAME: ${{ github.ref_name }}
           TITLE: ${{ github.event.pull_request.title }}
           NUMBER: ${{ github.event.number }}
+          IS_FORK: ${{ github.event.pull_request.head.repo.full_name != 'gear-tech/gear' }}
         with:
           script: |
             const script = require('./.github/actions/label/build.js');
