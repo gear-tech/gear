@@ -18,19 +18,19 @@
 
 //! Costs module.
 
-use crate::{gas::Token, pages::PageU32Size};
+use crate::gas::Token;
 use core::{fmt::Debug, marker::PhantomData};
 use paste::paste;
 use scale_info::scale::{Decode, Encode};
 
 /// Cost per one memory page.
 #[derive(Clone, Copy, PartialEq, Eq, Encode, Decode)]
-pub struct CostPerPage<P: PageU32Size> {
+pub struct CostPerPage<P: Into<u32>> {
     cost: u64,
     _phantom: PhantomData<P>,
 }
 
-impl<P: PageU32Size> CostPerPage<P> {
+impl<P: Into<u32>> CostPerPage<P> {
     /// Const constructor
     pub const fn new(cost: u64) -> Self {
         Self {
@@ -41,7 +41,7 @@ impl<P: PageU32Size> CostPerPage<P> {
 
     /// Calculate cost for `pages`.
     pub fn calc(&self, pages: P) -> u64 {
-        self.cost.saturating_mul(pages.raw() as u64)
+        self.cost.saturating_mul(Into::<u32>::into(pages) as u64)
     }
 
     /// Cost for one page.
@@ -55,13 +55,13 @@ impl<P: PageU32Size> CostPerPage<P> {
     }
 }
 
-impl<P: PageU32Size> Debug for CostPerPage<P> {
+impl<P: Into<u32>> Debug for CostPerPage<P> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.write_fmt(format_args!("{}", &self.cost))
     }
 }
 
-impl<P: PageU32Size> From<u64> for CostPerPage<P> {
+impl<P: Into<u32>> From<u64> for CostPerPage<P> {
     fn from(cost: u64) -> Self {
         CostPerPage {
             cost,
@@ -70,13 +70,13 @@ impl<P: PageU32Size> From<u64> for CostPerPage<P> {
     }
 }
 
-impl<P: PageU32Size> From<CostPerPage<P>> for u64 {
+impl<P: Into<u32>> From<CostPerPage<P>> for u64 {
     fn from(value: CostPerPage<P>) -> Self {
         value.cost
     }
 }
 
-impl<P: PageU32Size> Default for CostPerPage<P> {
+impl<P: Into<u32>> Default for CostPerPage<P> {
     fn default() -> Self {
         Self {
             cost: 0,
@@ -85,14 +85,18 @@ impl<P: PageU32Size> Default for CostPerPage<P> {
     }
 }
 
+// TODO: rename, cause HostFn is already used as name for RuntimeInterface host calls #_+_+_
 /// Describes the weight for each imported function that a program is allowed to call.
 #[derive(Clone, Encode, Decode, PartialEq, Eq, Default)]
 pub struct HostFnWeights {
     /// Weight of calling `alloc`.
     pub alloc: u64,
 
-    /// Weight per allocated page for `alloc`.
+    /// Weight per allocated pages amount for `alloc`.
     pub alloc_per_page: u64,
+
+    /// Weight per already allocated intervals amount for `alloc`.
+    pub alloc_per_intervals_amount: u64,
 
     /// Weight of calling `free`.
     pub free: u64,

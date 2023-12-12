@@ -14,6 +14,8 @@ sp-wasm-interface = { workspace = true, features = ["std"] }
 cfg-if.workspace = true
 region.workspace = true
 derive_more.workspace = true
+static_assertions.workspace = true
+numerated.workspace = true
 
 gear-sandbox-host.workspace = true
 gear-core.workspace = true
@@ -32,3 +34,5 @@ winapi = { workspace = true, features = ["excpt", "memoryapi"] }
 
 [dev-dependencies]
 env_logger.workspace = true
+proptest.workspace = true
+numerated = { workspace = true, features = ["mock"] }

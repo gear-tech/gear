@@ -67,7 +67,7 @@ use gear_core::{
     code::{self, Code},
     ids::{CodeId, MessageId, ProgramId},
     message::UserStoredMessage,
-    pages::{PageNumber, PageU32Size, WasmPage},
+    pages::PageNumber,
 };
 use gear_core_backend::error::{
     TrapExplanation, UnrecoverableExecutionError, UnrecoverableExtError, UnrecoverableWaitError,
@@ -6814,7 +6814,7 @@ fn resume_session_push_works() {
         let memory_pages = ProgramStorageOf::<Test>::get_program_data_for_pages(
             program_id,
             program.memory_infix,
-            program.pages_with_data.iter(),
+            program.pages_with_data.points_iter(),
         )
         .unwrap();
 
@@ -6881,7 +6881,7 @@ fn resume_session_push_works() {
         assert!(ProgramStorageOf::<Test>::get_program_data_for_pages(
             program_id,
             program.memory_infix,
-            program.pages_with_data.iter(),
+            program.pages_with_data.points_iter(),
         )
         .is_err());
 
@@ -6932,7 +6932,7 @@ fn resume_program_works() {
         let memory_pages = ProgramStorageOf::<Test>::get_program_data_for_pages(
             program_id,
             program.memory_infix,
-            program.pages_with_data.iter(),
+            program.pages_with_data.points_iter(),
         )
         .unwrap();
 
@@ -6948,7 +6948,7 @@ fn resume_program_works() {
         assert_ok!(Gear::resume_session_init(
             RuntimeOrigin::signed(USER_1),
             program_id,
-            program.allocations.clone(),
+            program.allocations.points_iter().collect(),
             program.code_hash.cast(),
         ));
         assert_ne!(
@@ -6959,7 +6959,7 @@ fn resume_program_works() {
         assert_ok!(Gear::resume_session_init(
             RuntimeOrigin::signed(USER_3),
             program_id,
-            program.allocations.clone(),
+            program.allocations.points_iter().collect(),
             program.code_hash.cast(),
         ));
 
@@ -6969,7 +6969,7 @@ fn resume_program_works() {
         assert_ok!(Gear::resume_session_init(
             RuntimeOrigin::signed(USER_2),
             program_id,
-            program.allocations,
+            program.allocations.points_iter().collect(),
             program.code_hash.cast(),
         ));
 
@@ -7276,12 +7276,12 @@ fn uninitialized_program_terminates_on_pause() {
 
         assert!(WaitlistOf::<Test>::iter_key(program_id).next().is_none());
         assert!(ProgramStorageOf::<Test>::waiting_init_get_messages(program_id).is_empty());
-        for page in program.pages_with_data.iter() {
+        for page in program.pages_with_data.points_iter() {
             assert_err!(
                 ProgramStorageOf::<Test>::get_program_data_for_pages(
                     program_id,
                     program.memory_infix,
-                    Some(*page).iter()
+                    Some(page).into_iter()
                 ),
                 pallet_gear_program::Error::<Test>::CannotFindDataForPage
             );
@@ -10538,15 +10538,23 @@ fn missing_handle_is_not_executed() {
 }
 
 #[test]
-fn invalid_memory_page_count_rejected() {
+fn invalid_memory_page_amount_rejected() {
+    let Some(incorrect_amount) = code::MAX_WASM_PAGES_AMOUNT
+        .to_page_number()
+        .map(|p| p.inc().raw())
+    else {
+        // In case max memory is 4GB, then it's impossible to make invalid memory pages amount.
+        return;
+    };
+
     let wat = format!(
         r#"
-    (module
-        (import "env" "memory" (memory {}))
-        (export "init" (func $init))
-        (func $init)
-    )"#,
-        code::MAX_WASM_PAGE_COUNT + 1
+            (module
+                (import "env" "memory" (memory {incorrect_amount}))
+                (export "init" (func $init))
+                (func $init)
+            )
+        "#
     );
 
     init_logger();
@@ -13165,10 +13173,7 @@ fn check_gear_stack_end_fail() {
         assert_failed(
             message_id,
             ActorExecutionErrorReplyReason::PrepareMemory(
-                ActorPrepareMemoryError::StackEndPageBiggerWasmMemSize(
-                    WasmPage::new(5).unwrap(),
-                    WasmPage::new(4).unwrap(),
-                ),
+                ActorPrepareMemoryError::StackEndPageBiggerWasmMemSize(5.into(), 4.into()),
             ),
         );
 

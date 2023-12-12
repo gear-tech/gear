@@ -28,6 +28,7 @@ codec.workspace = true
 
 [dev-dependencies]
 codec.workspace = true
+env_logger.workspace = true
 
 [features]
 default = ["std"]

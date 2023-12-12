@@ -18,12 +18,13 @@
 
 //! Module for programs.
 
-use crate::{code::InstrumentedCode, ids::ProgramId, pages::WasmPage};
-use alloc::collections::BTreeSet;
-use scale_info::{
-    scale::{Decode, Encode},
-    TypeInfo,
+use crate::{
+    code::InstrumentedCode,
+    ids::ProgramId,
+    pages::{IntervalsTree, WasmPage, WasmPagesAmount},
 };
+use parity_scale_codec::{Decode, Encode};
+use scale_info::TypeInfo;
 
 /// Struct defines infix of memory pages storage.
 #[derive(Clone, Copy, Debug, Default, Decode, Encode, PartialEq, Eq, TypeInfo)]
@@ -42,13 +43,13 @@ impl MemoryInfix {
 }
 
 /// Program.
-#[derive(Clone, Debug, Decode, Encode)]
+#[derive(Clone, Debug)]
 pub struct Program {
     id: ProgramId,
     memory_infix: MemoryInfix,
     code: InstrumentedCode,
     /// Wasm pages allocated by program.
-    allocations: BTreeSet<WasmPage>,
+    allocations: IntervalsTree<WasmPage>,
     /// Program is initialized.
     is_initialized: bool,
 }
@@ -70,7 +71,7 @@ impl Program {
         id: ProgramId,
         memory_infix: MemoryInfix,
         code: InstrumentedCode,
-        allocations: BTreeSet<WasmPage>,
+        allocations: IntervalsTree<WasmPage>,
         is_initialized: bool,
     ) -> Self {
         Self {
@@ -80,6 +81,26 @@ impl Program {
             allocations,
             is_initialized,
         }
+    }
+
+    // TODO: is_initialized is used only in gtest, so may be we should remove it #_+_+_
+    /// Get program parts
+    pub fn into_parts(
+        self,
+    ) -> (
+        ProgramId,
+        InstrumentedCode,
+        IntervalsTree<WasmPage>,
+        bool,
+        MemoryInfix,
+    ) {
+        (
+            self.id,
+            self.code,
+            self.allocations,
+            self.is_initialized,
+            self.memory_infix,
+        )
     }
 
     /// Reference to [`InstrumentedCode`] of this program.
@@ -103,7 +124,7 @@ impl Program {
     }
 
     /// Get initial memory size for this program.
-    pub fn static_pages(&self) -> WasmPage {
+    pub fn static_pages(&self) -> WasmPagesAmount {
         self.code.static_pages()
     }
 
@@ -121,12 +142,12 @@ impl Program {
     }
 
     /// Get allocations as a set of page numbers.
-    pub fn allocations(&self) -> &BTreeSet<WasmPage> {
+    pub fn allocations(&self) -> &IntervalsTree<WasmPage> {
         &self.allocations
     }
 
     /// Set allocations as a set of page numbers.
-    pub fn set_allocations(&mut self, allocations: BTreeSet<WasmPage>) {
+    pub fn set_allocations(&mut self, allocations: IntervalsTree<WasmPage>) {
         self.allocations = allocations;
     }
 }
@@ -136,7 +157,7 @@ impl Program {
 /// and ProgramId's `fn from_slice(s: &[u8]) -> Self` constructor
 mod tests {
     use super::Program;
-    use crate::{code::Code, ids::ProgramId};
+    use crate::{code::Code, ids::ProgramId, pages::PageNumber};
     use alloc::vec::Vec;
     use gear_wasm_instrument::wasm_instrument::gas_metering::ConstantCostRules;
 
@@ -187,9 +208,9 @@ mod tests {
         let program = Program::new(ProgramId::from(1), Default::default(), code);
 
         // 2 static pages
-        assert_eq!(program.static_pages(), 2.into());
+        assert_eq!(program.static_pages().raw(), 2);
 
         // Has no allocations because we do not set them in new
-        assert_eq!(program.allocations().len(), 0);
+        assert_eq!(program.allocations().points_amount(), Some(0));
     }
 }

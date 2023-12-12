@@ -18,14 +18,9 @@
 
 use super::{program_storage::MemoryMap, *};
 use crate::storage::{MapStorage, ValueStorage};
-use gear_core::{
-    code::MAX_WASM_PAGE_COUNT,
-    pages::{GEAR_PAGE_SIZE, WASM_PAGE_SIZE},
-};
+use gear_core::{code::MAX_WASM_PAGES_AMOUNT, pages::PageNumber};
 use sp_core::MAX_POSSIBLE_ALLOCATION;
 use sp_io::hashing;
-
-const SPLIT_COUNT: u16 = (WASM_PAGE_SIZE / GEAR_PAGE_SIZE) as u16 * MAX_WASM_PAGE_COUNT / 2;
 
 pub type SessionId = u32;
 
@@ -40,7 +35,8 @@ impl From<(BTreeSet<WasmPage>, H256, MemoryMap)> for Item {
     fn from(
         (allocations, code_hash, mut memory_pages): (BTreeSet<WasmPage>, H256, MemoryMap),
     ) -> Self {
-        let remaining_pages = memory_pages.split_off(&GearPage::from(SPLIT_COUNT));
+        let split_page = (WasmPage::SIZE / GearPage::SIZE) * MAX_WASM_PAGES_AMOUNT.raw() / 2;
+        let remaining_pages = memory_pages.split_off(&GearPage::from(split_page as u16));
         Self {
             data: (allocations, code_hash, memory_pages),
             remaining_pages,
@@ -50,7 +46,11 @@ impl From<(BTreeSet<WasmPage>, H256, MemoryMap)> for Item {
 
 impl<BlockNumber: Copy + Saturating> From<(ActiveProgram<BlockNumber>, MemoryMap)> for Item {
     fn from((program, memory_pages): (ActiveProgram<BlockNumber>, MemoryMap)) -> Self {
-        From::from((program.allocations, program.code_hash, memory_pages))
+        From::from((
+            program.allocations.points_iter().collect(),
+            program.code_hash,
+            memory_pages,
+        ))
     }
 }
 
@@ -133,7 +133,7 @@ pub trait PausedProgramStorage: super::ProgramStorage {
             let memory_pages = match Self::get_program_data_for_pages(
                 program_id,
                 program.memory_infix,
-                program.pages_with_data.iter(),
+                program.pages_with_data.points_iter(),
             ) {
                 Ok(memory_pages) => memory_pages,
                 Err(e) => {
@@ -272,7 +272,7 @@ pub trait PausedProgramStorage: super::ProgramStorage {
             let memory_pages = Self::get_program_data_for_pages(
                 session.program_id,
                 MemoryInfix::new(session_id),
-                session.pages_with_data.iter(),
+                session.pages_with_data.iter().copied(),
             )
             .unwrap_or_default();
             let code_hash = session.code_hash.into_origin();
@@ -289,7 +289,7 @@ pub trait PausedProgramStorage: super::ProgramStorage {
                 remaining_pages,
             } = item;
             let program = ActiveProgram {
-                allocations,
+                allocations: allocations.into_iter().collect(),
                 pages_with_data: memory_pages
                     .keys()
                     .copied()

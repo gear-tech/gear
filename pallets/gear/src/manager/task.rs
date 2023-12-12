@@ -33,10 +33,10 @@ use common::{
 };
 use core::cmp;
 use gear_core::{
-    code::MAX_WASM_PAGE_COUNT,
+    code::MAX_WASM_PAGES_AMOUNT,
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     message::{DispatchKind, ReplyMessage},
-    pages::{GEAR_PAGE_SIZE, WASM_PAGE_SIZE},
+    pages::{GearPage, PageNumber, WasmPage},
 };
 use gear_core_errors::{ErrorReplyReason, SignalCode};
 use sp_core::Get;
@@ -49,8 +49,7 @@ pub fn get_maximum_task_gas<T: Config>(task: &ScheduledTask<T::AccountId>) -> Ga
         PauseProgram(_) => {
             // TODO: #3079
             if <T as Config>::ProgramRentEnabled::get() {
-                let count =
-                    u32::from(MAX_WASM_PAGE_COUNT * (WASM_PAGE_SIZE / GEAR_PAGE_SIZE) as u16 / 2);
+                let count = MAX_WASM_PAGES_AMOUNT.raw() * (WasmPage::SIZE / GearPage::SIZE) / 2;
                 cmp::max(
                     <T as Config>::WeightInfo::tasks_pause_program(count).ref_time(),
                     <T as Config>::WeightInfo::tasks_pause_program_uninited(count).ref_time(),
@@ -121,7 +120,9 @@ where
             .try_into()
             .unwrap_or_else(|e| unreachable!("Pause program task logic corrupted: {e:?}"));
 
-        let pages_with_data = program.pages_with_data.len() as u32;
+        let pages_with_data = program.pages_with_data.points_amount().unwrap_or_else(|| {
+            unreachable!("Pages with data amount is bigger then u32::MAX, which is impossible",)
+        });
 
         let ProgramState::Uninitialized {
             message_id: init_message_id,

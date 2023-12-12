@@ -40,7 +40,7 @@ pub mod pallet {
         ids::ProgramId,
         memory::PageBuf,
         message::{StoredDispatch, StoredMessage},
-        pages::{GearPage, PageU32Size, WasmPage},
+        pages::{GearPage, WasmPagesAmount},
     };
     use primitive_types::H256;
     use scale_info::TypeInfo;
@@ -86,7 +86,7 @@ pub mod pallet {
     /// Program debug info.
     #[derive(Encode, Decode, Clone, Default, PartialEq, Eq, TypeInfo)]
     pub struct ProgramInfo {
-        pub static_pages: WasmPage,
+        pub static_pages: WasmPagesAmount,
         pub persistent_pages: BTreeMap<GearPage, PageBuf>,
         pub code_hash: H256,
     }
@@ -213,12 +213,12 @@ pub mod pallet {
                     };
                     let static_pages = match T::CodeStorage::get_code(active.code_hash.cast()) {
                         Some(code) => code.static_pages(),
-                        None => WasmPage::zero(),
+                        None => 0.into(),
                     };
                     let persistent_pages = T::ProgramStorage::get_program_data_for_pages(
                         id,
                         active.memory_infix,
-                        active.pages_with_data.iter(),
+                        active.pages_with_data.points_iter(),
                     )
                     .unwrap();
 

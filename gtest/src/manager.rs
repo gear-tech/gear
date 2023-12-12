@@ -38,7 +38,7 @@ use gear_core::{
         Dispatch, DispatchKind, MessageWaitedType, ReplyMessage, ReplyPacket, StoredDispatch,
         StoredMessage,
     },
-    pages::{GearPage, PageU32Size, WasmPage},
+    pages::{GearPage, IntervalIterator, IntervalsTree, PageU32Size, WasmPage},
     program::Program as CoreProgram,
     reservation::{GasReservationMap, GasReserver},
 };
@@ -47,7 +47,7 @@ use gear_wasm_instrument::wasm_instrument::gas_metering::ConstantCostRules;
 use rand::{rngs::StdRng, RngCore, SeedableRng};
 use std::{
     cell::{Ref, RefCell, RefMut},
-    collections::{BTreeMap, BTreeSet, HashMap, VecDeque},
+    collections::{BTreeMap, HashMap, VecDeque},
     convert::TryInto,
     rc::Rc,
     time::{SystemTime, UNIX_EPOCH},
@@ -1027,7 +1027,7 @@ impl JournalHandler for ExtManager {
     }
 
     #[track_caller]
-    fn update_allocations(&mut self, program_id: ProgramId, allocations: BTreeSet<WasmPage>) {
+    fn update_allocations(&mut self, program_id: ProgramId, allocations: IntervalsTree<WasmPage>) {
         let mut actors = self.actors.borrow_mut();
         let (actor, _) = actors
             .get_mut(&program_id)
@@ -1047,13 +1047,14 @@ impl JournalHandler for ExtManager {
                     ..
                 }),
             ) => {
-                program
+                for page in program
                     .allocations()
                     .difference(&allocations)
-                    .flat_map(PageU32Size::to_pages_iter)
-                    .for_each(|ref page| {
-                        pages_data.remove(page);
-                    });
+                    .flat_map(IntervalIterator::from)
+                    .flat_map(|p| p.to_iter())
+                {
+                    pages_data.remove(&page);
+                }
                 program.set_allocations(allocations);
             }
             _ => unreachable!("No pages data found for program"),

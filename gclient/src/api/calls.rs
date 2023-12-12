@@ -22,7 +22,7 @@ use gear_core::{
     gas::LockId,
     ids::*,
     memory::PageBuf,
-    pages::{GearPage, PageNumber, PageU32Size, GEAR_PAGE_SIZE, WASM_PAGE_SIZE},
+    pages::{GearPage, PageNumber, GEAR_PAGE_SIZE, WASM_PAGE_SIZE},
 };
 use gear_utils::{MemoryPageDump, ProgramMemoryDump};
 use gsdk::{
@@ -552,7 +552,7 @@ impl GearApi {
                     None
                 } else {
                     Some(MemoryPageDump::new(
-                        GearPage::new(page_number).unwrap_or_else(|_| {
+                        GearPage::try_from(page_number).unwrap_or_else(|_| {
                             panic!("Couldn't decode GearPage from u32: {}", page_number)
                         }),
                         PageBuf::decode(&mut &*page_data).expect("Couldn't decode PageBuf"),

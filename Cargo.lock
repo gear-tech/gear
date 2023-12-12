@@ -4096,6 +4096,7 @@ dependencies = [
  "hex",
  "log",
  "num-traits",
+ "numerated",
  "parity-scale-codec",
  "paste",
  "proptest",
@@ -4114,6 +4115,7 @@ dependencies = [
  "actor-system-error",
  "blake2-rfc",
  "derive_more",
+ "env_logger",
  "gear-core",
  "gear-core-errors",
  "gear-lazy-pages-common",
@@ -4189,8 +4191,11 @@ dependencies = [
  "log",
  "mach",
  "nix 0.26.4",
+ "numerated",
+ "proptest",
  "region",
  "sp-wasm-interface",
+ "static_assertions",
  "winapi",
 ]
 
@@ -7900,6 +7905,7 @@ dependencies = [
 name = "pallet-gear-program"
 version = "1.0.4"
 dependencies = [
+ "env_logger",
  "frame-support",
  "frame-system",
  "gear-common",

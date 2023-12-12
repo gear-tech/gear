@@ -27,7 +27,7 @@ use core::fmt;
 use gear_core::{
     ids::ProgramId,
     memory::{HostPointer, Memory, MemoryInterval},
-    pages::{GearPage, PageNumber, PageU32Size, WasmPage},
+    pages::{GearPage, PageNumber, WasmPage, WasmPagesAmount},
     program::MemoryInfix,
 };
 use gear_lazy_pages_common::{GlobalsAccessConfig, LazyPagesWeights, ProcessAccessError, Status};
@@ -97,7 +97,7 @@ pub fn remove_lazy_pages_prot(mem: &mut impl Memory) {
 pub fn update_lazy_pages_and_protect_again(
     mem: &mut impl Memory,
     old_mem_addr: Option<HostPointer>,
-    old_mem_size: WasmPage,
+    old_mem_size: WasmPagesAmount,
     new_mem_addr: HostPointer,
 ) {
     struct PointerDisplay(HostPointer);
@@ -138,8 +138,9 @@ pub fn get_write_accessed_pages() -> Vec<GearPage> {
     gear_ri::write_accessed_pages()
         .into_iter()
         .map(|p| {
-            GearPage::new(p)
-                .unwrap_or_else(|_| unreachable!("Lazy pages backend returns wrong pages"))
+            GearPage::try_from(p).unwrap_or_else(|_| {
+                unreachable!("Lazy pages backend returns wrong write accessed pages")
+            })
         })
         .collect()
 }

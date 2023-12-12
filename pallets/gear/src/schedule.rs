@@ -32,7 +32,7 @@ use gear_core::{
     code,
     costs::HostFnWeights as CoreHostFnWeights,
     message,
-    pages::{GearPage, PageU32Size, WasmPage, GEAR_PAGE_SIZE},
+    pages::{GearPage, PageNumber, PageU32Size, WasmPage, GEAR_PAGE_SIZE},
 };
 use gear_wasm_instrument::{parity_wasm::elements, wasm_instrument::gas_metering};
 use pallet_gear_proc_macro::{ScheduleDebug, WeightDebug};
@@ -169,7 +169,7 @@ pub struct Limits {
     pub parameters: u32,
 
     /// Maximum number of memory pages allowed for a program.
-    pub memory_pages: u16,
+    pub memory_pages: u32,
 
     /// Maximum number of elements allowed in a table.
     ///
@@ -197,7 +197,7 @@ pub struct Limits {
 impl Limits {
     /// The maximum memory size in bytes that a program can occupy.
     pub fn max_memory_size(&self) -> u32 {
-        self.memory_pages as u32 * 64 * 1024
+        self.memory_pages * 64 * 1024
     }
 }
 
@@ -340,6 +340,9 @@ pub struct HostFnWeights<T: Config> {
 
     /// Weight per page in `alloc`.
     pub alloc_per_page: Weight,
+
+    /// Weight per intervals amount in program allocations set.
+    pub alloc_per_intervals_amount: Weight,
 
     /// Weight of calling `free`.
     pub free: Weight,
@@ -604,6 +607,9 @@ pub struct MemoryWeights<T: Config> {
     /// Cost per one [WasmPage] for memory growing.
     pub mem_grow: Weight,
 
+    /// Cost per one [WasmPage] for memory growing.
+    pub mem_grow_per_page: Weight,
+
     /// Cost per one [GearPage].
     /// When we read page data from storage in para-chain, then it should be sent to relay-chain,
     /// in order to use it for process queue execution. So, reading from storage cause
@@ -633,7 +639,8 @@ impl<T: Config> From<MemoryWeights<T>> for PageCosts {
             load_page_data: val.load_page_data.ref_time().into(),
             upload_page_data: val.upload_page_data.ref_time().into(),
             static_page: val.static_page.ref_time().into(),
-            mem_grow: val.mem_grow.ref_time().into(),
+            mem_grow: val.mem_grow.ref_time(),
+            mem_grow_per_page: val.mem_grow_per_page.ref_time().into(),
             parachain_load_heuristic: val.parachain_read_heuristic.ref_time().into(),
         }
     }
@@ -749,7 +756,7 @@ impl Default for Limits {
             globals: 256,
             locals: 1024,
             parameters: 128,
-            memory_pages: code::MAX_WASM_PAGE_COUNT,
+            memory_pages: code::MAX_WASM_PAGES_AMOUNT.raw(),
             // 4k function pointers (This is in count not bytes).
             table_size: 4096,
             br_table_size: 256,
@@ -862,6 +869,7 @@ impl<T: Config> HostFnWeights<T> {
         CoreHostFnWeights {
             alloc: self.alloc.ref_time(),
             alloc_per_page: self.alloc_per_page.ref_time(),
+            alloc_per_intervals_amount: self.alloc_per_intervals_amount.ref_time(),
             free: self.free.ref_time(),
             free_range: self.free_range.ref_time(),
             free_range_per_page: self.free_range_per_page.ref_time(),
@@ -981,14 +989,14 @@ impl<T: Config> Default for HostFnWeights<T> {
             gr_reply_push_input: to_weight!(cost_batched!(gr_reply_push_input)),
             gr_reply_push_input_per_byte: to_weight!(cost_byte!(gr_reply_push_input_per_kb)),
 
-            // Alloc benchmark causes grow memory calls so we subtract it here as grow is charged separately.
             alloc: to_weight!(cost_batched!(alloc))
-                .saturating_sub(to_weight!(cost_batched!(alloc_per_page)))
-                .saturating_sub(to_weight!(cost_batched!(mem_grow))),
+                .saturating_sub(to_weight!(cost_batched!(alloc_per_page))),
             alloc_per_page: to_weight!(cost_batched!(alloc_per_page)),
+            alloc_per_intervals_amount: to_weight!(cost_batched!(alloc_per_intervals_amount)),
             free: to_weight!(cost_batched!(free)),
             free_range: to_weight!(cost_batched!(free_range)),
             free_range_per_page: to_weight!(cost_batched!(free_range_per_page)),
+
             gr_reserve_gas: to_weight!(cost!(gr_reserve_gas)),
             gr_system_reserve_gas: to_weight!(cost_batched!(gr_system_reserve_gas)),
             gr_unreserve_gas: to_weight!(cost!(gr_unreserve_gas)),
@@ -1102,6 +1110,7 @@ impl<T: Config> Default for MemoryWeights<T> {
             // TODO: make benches to calculate static page cost and mem grow cost (issue #2226)
             static_page: Weight::from_parts(100, 0),
             mem_grow: to_weight!(cost_batched!(mem_grow)),
+            mem_grow_per_page: to_weight!(cost_batched!(mem_grow_per_page)),
             // TODO: make it non-zero for para-chains (issue #2225)
             parachain_read_heuristic: Weight::zero(),
             _phantom: PhantomData,

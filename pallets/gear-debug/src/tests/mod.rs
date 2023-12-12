@@ -69,7 +69,7 @@ fn vec() {
         let code = <Test as pallet_gear::Config>::CodeStorage::get_code(code_id)
             .expect("code should be in the storage");
 
-        let static_pages = code.static_pages().raw();
+        let static_pages = code.static_pages();
 
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(1),
@@ -99,13 +99,15 @@ fn vec() {
         };
         assert_eq!(program_info.code_hash, code_id.into_origin());
 
+        log::trace!("persistent_pages: {:?}", program_info.persistent_pages);
+
         let pages = program_info
             .persistent_pages
             .keys()
             .fold(BTreeSet::new(), |mut set, page| {
-                let page = page.to_page::<WasmPage>().raw();
-                if page >= static_pages {
-                    set.insert(page);
+                let wasm_page: WasmPage = page.to_page();
+                if static_pages <= wasm_page {
+                    set.insert(wasm_page.raw());
                 }
                 set
             });
