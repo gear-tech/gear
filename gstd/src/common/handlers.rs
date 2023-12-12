@@ -133,7 +133,7 @@ pub mod panic_handler {
             }
 
             let mut debug_msg = ArrayString::<{ PANIC_OCCURRED.len() + TRIMMED_MAX_LEN }>::new();
-            let mut buffer = unsafe { MaybeUninit::uninit().assume_init() };
+            let mut buffer = [MaybeUninit::uninit(); 10];
 
             let _ = debug_msg.try_push_str(PANIC_OCCURRED);
             let _ = debug_msg.try_push_str("'");
