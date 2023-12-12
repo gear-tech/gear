@@ -45,43 +45,6 @@ where
 }
 
 #[track_caller]
-pub(super) fn remove_resume_session<T>() -> SessionId
-where
-    T: Config,
-    T::AccountId: Origin,
-{
-    let caller = benchmarking::account("caller", 0, 0);
-    CurrencyOf::<T>::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
-    let code = benchmarking::generate_wasm2(16.into()).unwrap();
-    let salt = vec![];
-    let program_id = ProgramId::generate_from_user(CodeId::generate(&code), &salt);
-    Gear::<T>::upload_program(
-        RawOrigin::Signed(caller.clone()).into(),
-        code,
-        salt,
-        b"init_payload".to_vec(),
-        10_000_000_000,
-        0u32.into(),
-        false,
-    )
-    .expect("submit program failed");
-
-    init_block::<T>(None);
-
-    ProgramStorageOf::<T>::pause_program(program_id, 100u32.into()).unwrap();
-
-    Gear::<T>::resume_session_init(
-        RawOrigin::Signed(caller).into(),
-        program_id,
-        Default::default(),
-        CodeId::default(),
-    )
-    .expect("failed to start resume session");
-
-    get_last_session_id::<T>().unwrap()
-}
-
-#[track_caller]
 pub(super) fn remove_gas_reservation<T>() -> (ProgramId, ReservationId)
 where
     T: Config,

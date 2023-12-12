@@ -68,10 +68,9 @@ use ::alloc::{
 };
 use common::{
     self, benchmarking,
-    paused_program_storage::SessionId,
     scheduler::{ScheduledTask, TaskHandler},
     storage::{Counter, *},
-    ActiveProgram, CodeMetadata, CodeStorage, GasTree, Origin, PausedProgramStorage,
+    ActiveProgram, CodeMetadata, CodeStorage, GasTree, Origin,
     ProgramStorage, ReservableTree,
 };
 use core_processor::{
@@ -240,13 +239,6 @@ where
 {
     core_processor::process::<Ext>(&exec.block_config, exec.context, exec.random_data)
         .unwrap_or_else(|e| unreachable!("core-processor logic invalidated: {}", e))
-}
-
-fn get_last_session_id<T: Config>() -> Option<SessionId> {
-    find_latest_event::<T, _, _>(|event| match event {
-        Event::ProgramResumeSessionStarted { session_id, .. } => Some(session_id),
-        _ => None,
-    })
 }
 
 pub fn find_latest_event<T, F, R>(mapping_filter: F) -> Option<R>
@@ -2633,13 +2625,6 @@ benchmarks! {
         ));
     }: {
         sbox.invoke();
-    }
-
-    tasks_remove_resume_session {
-        let session_id = tasks::remove_resume_session::<T>();
-        let mut ext_manager = ExtManager::<T>::default();
-    }: {
-        ext_manager.remove_resume_session(session_id);
     }
 
     tasks_remove_gas_reservation {

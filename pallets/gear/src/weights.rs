@@ -215,7 +215,6 @@ pub trait WeightInfo {
     fn instr_i32rotl(r: u32, ) -> Weight;
     fn instr_i64rotr(r: u32, ) -> Weight;
     fn instr_i32rotr(r: u32, ) -> Weight;
-    fn tasks_remove_resume_session() -> Weight;
     fn tasks_remove_gas_reservation() -> Weight;
     fn tasks_send_user_message_to_mailbox() -> Weight;
     fn tasks_send_user_message() -> Weight;
@@ -2066,15 +2065,6 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
         Weight::from_parts(2_513_000, 0)
             // Standard Error: 5_878
             .saturating_add(Weight::from_parts(722_117, 0).saturating_mul(r.into()))
-    }
-    fn tasks_remove_resume_session() -> Weight {
-        // Proof Size summary in bytes:
-        //  Measured:  `352`
-        //  Estimated: `4169`
-        // Minimum execution time: 5_941_000 picoseconds.
-        Weight::from_parts(6_194_000, 4169)
-            .saturating_add(T::DbWeight::get().reads(1_u64))
-            .saturating_add(T::DbWeight::get().writes(2_u64))
     }
     fn tasks_remove_gas_reservation() -> Weight {
         // Proof Size summary in bytes:
@@ -3983,15 +3973,6 @@ impl WeightInfo for () {
         Weight::from_parts(2_513_000, 0)
             // Standard Error: 5_878
             .saturating_add(Weight::from_parts(722_117, 0).saturating_mul(r.into()))
-    }
-    fn tasks_remove_resume_session() -> Weight {
-        // Proof Size summary in bytes:
-        //  Measured:  `352`
-        //  Estimated: `4169`
-        // Minimum execution time: 5_941_000 picoseconds.
-        Weight::from_parts(6_194_000, 4169)
-            .saturating_add(RocksDbWeight::get().reads(1_u64))
-            .saturating_add(RocksDbWeight::get().writes(2_u64))
     }
     fn tasks_remove_gas_reservation() -> Weight {
         // Proof Size summary in bytes:

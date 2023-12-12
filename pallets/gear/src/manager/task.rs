@@ -18,7 +18,7 @@
 
 use crate::{
     manager::ExtManager, weights::WeightInfo, Config, DispatchStashOf, Event, Pallet,
-    ProgramStorageOf, QueueOf,
+    QueueOf,
 };
 use alloc::string::ToString;
 use common::{
@@ -29,7 +29,7 @@ use common::{
     paused_program_storage::SessionId,
     scheduler::*,
     storage::*,
-    Gas, Origin, PausedProgramStorage,
+    Gas, Origin,
 };
 use core::cmp;
 use gear_core::{
@@ -63,9 +63,7 @@ pub fn get_maximum_task_gas<T: Config>(task: &ScheduledTask<T::AccountId>) -> Ga
         RemoveGasReservation(_, _) => {
             <T as Config>::WeightInfo::tasks_remove_gas_reservation().ref_time()
         }
-        RemoveResumeSession(_) => {
-            <T as Config>::WeightInfo::tasks_remove_resume_session().ref_time()
-        }
+        RemoveResumeSession(_) => 0,
     }
 }
 
@@ -276,13 +274,7 @@ where
         gas
     }
 
-    fn remove_resume_session(&mut self, session_id: SessionId) -> Gas {
-        ProgramStorageOf::<T>::remove_resume_session(session_id)
-            .unwrap_or_else(|e| unreachable!("ProgramStorage corrupted! {:?}", e));
-
-        let gas = <T as Config>::WeightInfo::tasks_remove_resume_session().ref_time();
-        log::trace!("Task gas: tasks_remove_resume_session = {gas}");
-
-        gas
+    fn remove_resume_session(&mut self, _session_id: SessionId) -> Gas {
+        0
     }
 }
