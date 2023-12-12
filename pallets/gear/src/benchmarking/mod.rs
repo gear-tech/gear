@@ -2854,27 +2854,6 @@ benchmarks! {
         ext_manager.remove_from_mailbox(T::AccountId::from_origin(user.into_origin()), message_id);
     }
 
-    tasks_pause_program {
-        let c in 0 .. (MAX_PAGES - 1) * (WASM_PAGE_SIZE / GEAR_PAGE_SIZE) as u32;
-
-        let code = benchmarking::generate_wasm2(0.into()).unwrap();
-        let program_id = tasks::pause_program_prepare::<T>(c, code);
-
-        let mut ext_manager = ExtManager::<T>::default();
-    }: {
-        ext_manager.pause_program(program_id);
-    }
-
-    tasks_pause_program_uninited {
-        let c in 0 .. (MAX_PAGES - 1) * (WASM_PAGE_SIZE / GEAR_PAGE_SIZE) as u32;
-
-        let program_id = tasks::pause_program_prepare::<T>(c, demo_init_wait::WASM_BINARY.to_vec());
-
-        let mut ext_manager = ExtManager::<T>::default();
-    }: {
-        ext_manager.pause_program(program_id);
-    }
-
     // This is no benchmark. It merely exist to have an easy way to pretty print the currently
     // configured `Schedule` during benchmark development.
     // It can be outputted using the following command:
