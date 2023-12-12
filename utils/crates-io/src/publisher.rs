@@ -20,7 +20,7 @@
 
 use crate::{Manifest, PACKAGES, SAFE_DEPENDENCIES, STACKED_DEPENDENCIES};
 use anyhow::Result;
-use cargo_metadata::{Metadata, MetadataCommand};
+use cargo_metadata::{Metadata, MetadataCommand, Package};
 use std::collections::{BTreeMap, HashMap};
 
 /// crates-io packages publisher.
@@ -64,19 +64,19 @@ impl Publisher {
         let mut workspace = Manifest::workspace()?.with_version(version)?;
         let version = workspace.version()?;
 
-        for p in &self.metadata.packages {
-            if !index.contains(&p.name.as_ref()) {
+        for pkg @ Package { name, .. } in &self.metadata.packages {
+            if !index.contains(&name.as_ref()) {
                 continue;
             }
 
-            println!("Verifying {}@{} ...", &p.name, &version);
-            if crate::verify(&p.name, &version)? {
-                println!("Package {}@{} already published .", &p.name, &version);
+            println!("Verifying {}@{} ...", &name, &version);
+            if crate::verify(name, &version)? {
+                println!("Package {}@{} already published .", &name, &version);
                 continue;
             }
 
             self.graph
-                .insert(self.index.get(&p.name).cloned(), workspace.manifest(p)?);
+                .insert(self.index.get(name).cloned(), workspace.manifest(pkg)?);
         }
 
         // Flush new manifests to disk
