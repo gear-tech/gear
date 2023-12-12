@@ -19,7 +19,11 @@
 //! Command `send`
 use crate::{result::Result, utils::Hex};
 use clap::Parser;
-use gsdk::{metadata::gear, signer::Signer, Event};
+use gsdk::{
+    metadata::{gear, runtime_types::gear_common::event::MessageEntry},
+    signer::Signer,
+    Event,
+};
 
 /// Sends a message to a program or to another account.
 ///
@@ -67,7 +71,12 @@ impl Send {
 
         let api = signer.api();
         for event in api.events_of(&tx).await? {
-            if let Event::Gear(gear::Event::MessageQueued { id, .. }) = event {
+            if let Event::Gear(gear::Event::MessageQueued {
+                id,
+                entry: MessageEntry::Handle,
+                ..
+            }) = event
+            {
                 log::info!("Message ID: 0x{}", hex::encode(id.0));
                 break;
             }
