@@ -46,7 +46,7 @@ impl<'a> AccessHandler for HostFuncAccessHandler<'a> {
     }
 
     fn check_status_is_gas_exceeded() -> Result<(), Error> {
-        // Currently, we charge gas for sys-call after memory processing, so this can appear.
+        // Currently, we charge gas for syscall after memory processing, so this can appear.
         // In this case we do nothing, because all memory is already unprotected, and no need
         // to take in account pages data from storage, because gas is exceeded.
         Ok(())

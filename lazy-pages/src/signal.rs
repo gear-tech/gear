@@ -31,7 +31,7 @@ use std::convert::TryFrom;
 pub(crate) trait UserSignalHandler {
     /// # Safety
     ///
-    /// It's expected handler calls sys-calls to protect memory
+    /// It's expected handler calls syscalls to protect memory
     unsafe fn handle(info: ExceptionInfo) -> Result<(), Error>;
 }
 

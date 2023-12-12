@@ -19,7 +19,7 @@
 use super::*;
 use crate::{
     rules::CustomConstantCostRules,
-    syscalls::{ParamType, PtrInfo, PtrType, SysCallName},
+    syscalls::{ParamType::*, Ptr, RegularParamType::*, SyscallName},
 };
 use alloc::format;
 use elements::Instruction::*;
@@ -161,7 +161,7 @@ fn duplicate_import() {
             (global i32 (i32.const 42))
             (memory 0 1)
             )"#,
-        out_of_gas = SysCallName::OutOfGas.to_str()
+        out_of_gas = SyscallName::OutOfGas.to_str()
     );
     let module = parse_wat(&wat);
 
@@ -620,22 +620,37 @@ test_gas_counter_injection! {
 
 #[test]
 fn check_memory_array_pointers_definition_correctness() {
-    let sys_calls = SysCallName::instrumentable();
-    for sys_call in sys_calls {
-        let signature = sys_call.signature();
+    let syscalls = SyscallName::instrumentable();
+    for syscall in syscalls {
+        let signature = syscall.signature();
         let size_param_indexes = signature
-            .params
+            .params()
             .iter()
             .filter_map(|param_ty| match param_ty {
-                ParamType::Ptr(PtrInfo {
-                    ty: PtrType::SizedBufferStart { length_param_idx },
-                    ..
-                }) => Some(*length_param_idx),
+                Regular(Pointer(Ptr::SizedBufferStart { length_param_idx })) => {
+                    Some(*length_param_idx)
+                }
                 _ => None,
             });
 
         for idx in size_param_indexes {
-            assert_eq!(signature.params.get(idx), Some(&ParamType::Size));
+            assert_eq!(signature.params().get(idx), Some(&Regular(Length)));
+        }
+    }
+}
+
+// Basically checks that mutable error pointer is always last in every fallible syscall params set.
+// WARNING: this test must never fail, unless a huge redesign in syscalls signatures has occurred.
+#[test]
+fn check_syscall_err_ptr_position() {
+    for syscall in SyscallName::instrumentable() {
+        if syscall.is_fallible() {
+            let signature = syscall.signature();
+            let err_ptr = signature
+                .params()
+                .last()
+                .expect("fallible syscall has at least err ptr");
+            assert!(matches!(err_ptr, Error(_)));
         }
     }
 }
