@@ -71,8 +71,8 @@ pub fn dev() -> Result<Node> {
     let mut node = Node::try_from_path(env::bin("gear"), args)?;
 
     // TODO: use [`Node::wait_while_initialized`] instead,
-    // it currently presents infinit loop even after capturing
-    // the specfied log #3304.
+    // it currently presents infinite loop even after capturing
+    // the specified log #3304.
     node.wait_for_log_record("Imported #1")?;
     Ok(node)
 }
