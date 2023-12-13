@@ -47,7 +47,7 @@ fn voucher_issue_works() {
         // Insufficient funds
         assert_noop!(
             Voucher::issue(RuntimeOrigin::signed(ALICE), BOB, program_id, 100_000_000,),
-            Error::<Test>::FailureToCreateVoucher
+            Error::<Test>::InsufficientBalance
         );
     });
 }

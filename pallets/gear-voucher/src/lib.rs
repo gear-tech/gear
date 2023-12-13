@@ -123,8 +123,8 @@ pub mod pallet {
     // Gas pallet error.
     #[pallet::error]
     pub enum Error<T> {
-        FailureToCreateVoucher,
-        FailureToRedeemVoucher,
+        InsufficientBalance,
+        InvalidVoucher,
     }
 
     #[pallet::hooks]
@@ -163,7 +163,7 @@ pub mod pallet {
             T::Currency::transfer(&who, &voucher_id, value, ExistenceRequirement::KeepAlive)
                 .map_err(|e| {
                     log::debug!("Failed to transfer funds to the voucher account: {:?}", e);
-                    Error::<T>::FailureToCreateVoucher
+                    Error::<T>::InsufficientBalance
                 })?;
 
             Self::deposit_event(Event::VoucherIssued {
@@ -184,7 +184,7 @@ pub mod pallet {
         ) -> DispatchResultWithPostInfo {
             let origin = ensure_signed(origin)?;
 
-            let sponsor = Self::sponsor_of(&origin, &call);
+            let sponsor = Self::sponsor_of(&origin, &call).ok_or(Error::<T>::InvalidVoucher)?;
 
             T::CallsDispatcher::dispatch(origin, sponsor, call)
         }
@@ -199,9 +199,14 @@ pub mod pallet {
         }
 
         /// Return synthesized account ID based on call data.
-        pub fn sponsor_of(who: &T::AccountId, call: &PrepaidCall<BalanceOf<T>>) -> T::AccountId {
+        pub fn sponsor_of(
+            who: &T::AccountId,
+            call: &PrepaidCall<BalanceOf<T>>,
+        ) -> Option<T::AccountId> {
             match call {
-                PrepaidCall::SendMessage { destination, .. } => Self::voucher_id(who, destination),
+                PrepaidCall::SendMessage { destination, .. } => {
+                    Some(Self::voucher_id(who, destination))
+                }
                 PrepaidCall::SendReply { .. } => todo!("TODO (breathx): extract mailbox here"),
             }
         }
