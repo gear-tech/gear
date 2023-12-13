@@ -164,10 +164,9 @@ impl DelegateFee<RuntimeCall, AccountId> for DelegateFeeAccountBuilder {
             RuntimeCall::GearVoucher(pallet_gear_voucher::Call::call {
                 call: pallet_gear_voucher::PrepaidCall::SendMessage { .. },
             }) => Some(FEE_PAYER),
-            RuntimeCall::GearVoucher(pallet_gear_voucher::Call::call {
-                call: pallet_gear_voucher::PrepaidCall::SendReply { reply_to_id, .. },
-            }) => <MailboxOf<Test> as common::storage::Mailbox>::peek(who, reply_to_id)
-                .map(|stored_message| GearVoucher::voucher_id(who, &stored_message.source())),
+            RuntimeCall::GearVoucher(pallet_gear_voucher::Call::call { call }) => {
+                GearVoucher::sponsor_of(who, call)
+            }
             _ => None,
         }
     }

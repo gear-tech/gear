@@ -24,7 +24,7 @@
 #[cfg(all(feature = "std", not(feature = "fuzz")))]
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
-use common::storage::{Mailbox, Messenger};
+use common::storage::Messenger;
 use frame_election_provider_support::{
     onchain, ElectionDataProvider, NposSolution, SequentialPhragmen, VoteWeight,
 };
@@ -1057,13 +1057,9 @@ pub struct DelegateFeeAccountBuilder;
 impl DelegateFee<RuntimeCall, AccountId> for DelegateFeeAccountBuilder {
     fn delegate_fee(call: &RuntimeCall, who: &AccountId) -> Option<AccountId> {
         match call {
-            RuntimeCall::GearVoucher(pallet_gear_voucher::Call::call {
-                call: pallet_gear_voucher::PrepaidCall::SendMessage { destination, .. },
-            }) => Some(GearVoucher::voucher_id(who, destination)),
-            RuntimeCall::GearVoucher(pallet_gear_voucher::Call::call {
-                call: pallet_gear_voucher::PrepaidCall::SendReply { reply_to_id, .. },
-            }) => <<GearMessenger as Messenger>::Mailbox as Mailbox>::peek(who, reply_to_id)
-                .map(|stored_message| GearVoucher::voucher_id(who, &stored_message.source())),
+            RuntimeCall::GearVoucher(pallet_gear_voucher::Call::call { call }) => {
+                GearVoucher::sponsor_of(who, call)
+            }
             _ => None,
         }
     }

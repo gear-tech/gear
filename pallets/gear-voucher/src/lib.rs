@@ -211,7 +211,8 @@ pub mod pallet {
                 PrepaidCall::SendMessage { destination, .. } => {
                     Some(Self::voucher_id(who, destination))
                 }
-                PrepaidCall::SendReply { .. } => todo!("TODO (breathx): extract mailbox here"),
+                PrepaidCall::SendReply { reply_to_id, .. } => T::Mailbox::peek(who, reply_to_id)
+                    .map(|stored_message| Self::voucher_id(who, &stored_message.source())),
             }
         }
     }
