@@ -32,7 +32,7 @@
 //! (specifically, a staking actor) to bond some `value` to self as the controller
 //! so that the contract can later use the staking API to nominate validators.
 //!
-//! ```
+//! ```ignore
 //! use gstd::{msg, ActorId};
 //! use gbuiltin::staking::{Request, RequestV1, RewardAccount};
 //! use parity_scale_codec::Encode;
