@@ -152,17 +152,27 @@ pub mod panic_handler {
             }
 
             let mut debug_msg = ArrayString::<{ PANIC_OCCURRED.len() + TRIMMED_MAX_LEN }>::new();
-            let mut buffer = [MaybeUninit::uninit(); ITOA_U32_BUF_SIZE];
 
             let _ = debug_msg.try_push_str(PANIC_OCCURRED);
-            let _ = debug_msg.try_push_str("'");
-            let _ = write!(&mut debug_msg, "{message}");
-            let _ = debug_msg.try_push_str("', ");
-            let _ = debug_msg.try_push_str(location.file());
-            let _ = debug_msg.try_push_str(":");
-            let _ = debug_msg.try_push_str(itoa_u32(&mut buffer, location.line()));
-            let _ = debug_msg.try_push_str(":");
-            let _ = debug_msg.try_push_str(itoa_u32(&mut buffer, location.column()));
+            if write!(&mut debug_msg, "'{message}', ").is_ok() {
+                for s in [
+                    location.file(),
+                    ":",
+                    itoa_u32(
+                        &mut [MaybeUninit::uninit(); ITOA_U32_BUF_SIZE],
+                        location.line(),
+                    ),
+                    ":",
+                    itoa_u32(
+                        &mut [MaybeUninit::uninit(); ITOA_U32_BUF_SIZE],
+                        location.column(),
+                    ),
+                ] {
+                    if debug_msg.try_push_str(s).is_err() {
+                        break;
+                    }
+                }
+            }
 
             let _ = ext::debug(&debug_msg);
 
