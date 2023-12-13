@@ -14284,20 +14284,19 @@ fn send_gasless_message_works() {
 
         // Test 1: USER_2 sends a gasless message to the program (intending to use a voucher).
         // Expect failure because USER_2 has no voucher.
-        // TODO (breathx): replace.
-        // assert_noop!(
-        //     GearVoucher::call(
-        //         RuntimeOrigin::signed(USER_2),
-        //         PrepaidCall::SendMessage {
-        //             destination: program_id,
-        //             payload: EMPTY_PAYLOAD.to_vec(),
-        //             gas_limit: DEFAULT_GAS_LIMIT,
-        //             value: 0,
-        //             keep_alive: false,
-        //         }
-        //     ),
-        //     Error::<Test>::FailureRedeemingVoucher
-        // );
+        assert_noop!(
+            GearVoucher::call(
+                RuntimeOrigin::signed(USER_2),
+                PrepaidCall::SendMessage {
+                    destination: program_id,
+                    payload: EMPTY_PAYLOAD.to_vec(),
+                    gas_limit: DEFAULT_GAS_LIMIT,
+                    value: 0,
+                    keep_alive: false,
+                }
+            ),
+            pallet_gear_bank::Error::<Test>::InsufficientBalance
+        );
 
         // USER_1 as the program owner issues a voucher for USER_2 enough to send a message
         assert_ok!(GearVoucher::issue(
