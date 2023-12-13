@@ -256,7 +256,10 @@ pub mod panic_handler {
             let option = parse_panic_msg(&default_panic_msg);
             let (location, message) = unsafe { option.unwrap_unchecked() };
 
-            let mut debug_msg = ArrayString::<{ PANIC_OCCURRED.len() + TRIMMED_MAX_LEN }>::new();
+            // Add 2 byte difference between panic message formats (for single quotes).
+            const EXTRA_SPACE: usize = 2;
+            let mut debug_msg =
+                ArrayString::<{ PANIC_OCCURRED.len() + TRIMMED_MAX_LEN + EXTRA_SPACE }>::new();
 
             let _ = debug_msg.try_push_str(PANIC_OCCURRED);
             let _ = debug_msg.try_push_str("'");
