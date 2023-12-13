@@ -2622,11 +2622,8 @@ fn mailbox_rent_out_of_rent() {
             let user_2_balance = Balances::free_balance(USER_2);
             assert_eq!(GearBank::<Test>::account_total(&USER_2), 0);
 
-            let prog_balance = Balances::free_balance(AccountId::from_origin(sender.into_origin()));
-            assert_eq!(
-                GearBank::<Test>::account_total(&AccountId::from_origin(sender.into_origin())),
-                0
-            );
+            let prog_balance = Balances::free_balance(sender.cast::<AccountId>());
+            assert_eq!(GearBank::<Test>::account_total(&sender.cast()), 0);
 
             let (_, gas_info) = utils::calculate_handle_and_send_with_extra(
                 USER_1,
@@ -2716,16 +2713,12 @@ fn mailbox_rent_claimed() {
 
             let user_2_balance = Balances::free_balance(USER_2);
             assert_eq!(GearBank::<Test>::account_total(&USER_2), 0);
-
-            let prog_balance = Balances::free_balance(AccountId::from_origin(sender.into_origin()));
-            assert_eq!(
-                GearBank::<Test>::account_total(&AccountId::from_origin(sender.into_origin())),
-                0
-            );
+            let prog_balance = Balances::free_balance(sender.cast::<AccountId>());
+            assert_eq!(GearBank::<Test>::account_total(&sender.cast()), 0);
 
             let (_, gas_info) = utils::calculate_handle_and_send_with_extra(
                 USER_1,
-                sender,
+                sender.cast(),
                 data.request(USER_2.into_origin()).encode(),
                 Some(data.extra_gas),
                 0,
@@ -2806,11 +2799,8 @@ fn mailbox_sending_instant_transfer() {
             let user_2_balance = Balances::free_balance(USER_2);
             assert_eq!(GearBank::<Test>::account_total(&USER_2), 0);
 
-            let prog_balance = Balances::free_balance(AccountId::from_origin(sender.into_origin()));
-            assert_eq!(
-                GearBank::<Test>::account_total(&AccountId::from_origin(sender.into_origin())),
-                0
-            );
+            let prog_balance = Balances::free_balance(sender.cast::<AccountId>());
+            assert_eq!(GearBank::<Test>::account_total(&sender.cast()), 0);
 
             let payload = if let Some(gas_limit) = gas_limit {
                 TestData::gasful(gas_limit, value)
@@ -3005,7 +2995,7 @@ fn mailbox_threshold_works() {
         let check_result = |sufficient: bool| -> MessageId {
             run_to_next_block(None);
 
-            let mailbox_key = AccountId::from_origin(USER_1.into_origin());
+            let mailbox_key = USER_1.cast();
             let message_id = get_last_message_id();
 
             if sufficient {
@@ -4370,7 +4360,7 @@ fn send_reply_works() {
         // Top up program's account balance by 2000 to allow user claim 1000 from mailbox
         assert_ok!(<Balances as frame_support::traits::Currency<_>>::transfer(
             &USER_1,
-            &AccountId::from_origin(prog_id.into_origin()),
+            &prog_id.cast(),
             2000,
             frame_support::traits::ExistenceRequirement::AllowDeath
         ));
@@ -4413,7 +4403,7 @@ fn send_reply_failure_to_claim_from_mailbox() {
         assert_noop!(
             Gear::send_reply(
                 RuntimeOrigin::signed(USER_1),
-                MessageId::from_origin(5.into_origin()), // non existent `reply_to_id`
+                5.cast(), // non existent `reply_to_id`
                 EMPTY_PAYLOAD.to_vec(),
                 DEFAULT_GAS_LIMIT,
                 0,
@@ -4461,7 +4451,7 @@ fn send_reply_value_claiming_works() {
         let send_to_program_amount = locked_value * 2;
         assert_ok!(<Balances as frame_support::traits::Currency<_>>::transfer(
             &USER_1,
-            &AccountId::from_origin(prog_id.into_origin()),
+            &prog_id.cast(),
             send_to_program_amount,
             frame_support::traits::ExistenceRequirement::AllowDeath
         ));
@@ -4746,8 +4736,7 @@ fn test_code_submission_pass() {
     init_logger();
     new_test_ext().execute_with(|| {
         let code = ProgramCodeKind::Default.to_bytes();
-        let code_hash = generate_code_hash(&code).into();
-        let code_id = CodeId::from_origin(code_hash);
+        let code_id = CodeId::generate(&code);
 
         assert_ok!(Gear::upload_code(
             RuntimeOrigin::signed(USER_1),
@@ -4811,7 +4800,7 @@ fn test_code_is_not_submitted_twice_after_program_submission() {
     init_logger();
     new_test_ext().execute_with(|| {
         let code = ProgramCodeKind::Default.to_bytes();
-        let code_id = generate_code_hash(&code).into();
+        let code_id = CodeId::generate(&code);
 
         // First submit program, which will set code and metadata
         assert_ok!(Gear::upload_program(
@@ -4849,8 +4838,7 @@ fn test_code_is_not_reset_within_program_submission() {
     init_logger();
     new_test_ext().execute_with(|| {
         let code = ProgramCodeKind::Default.to_bytes();
-        let code_hash = generate_code_hash(&code).into();
-        let code_id = CodeId::from_origin(code_hash);
+        let code_id = CodeId::generate(&code);
 
         // First submit code
         assert_ok!(Gear::upload_code(
@@ -7309,12 +7297,12 @@ fn gas_spent_precalculated() {
         run_to_block(2, None);
 
         let get_program_code = |pid| {
-            let code_id = CodeId::from_origin(
-                ProgramStorageOf::<Test>::get_program(pid)
-                    .and_then(|program| common::ActiveProgram::try_from(program).ok())
-                    .expect("program must exist")
-                    .code_hash,
-            );
+            let code_id = ProgramStorageOf::<Test>::get_program(pid)
+                .and_then(|program| common::ActiveProgram::try_from(program).ok())
+                .expect("program must exist")
+                .code_hash
+                .cast();
+
             <Test as Config>::CodeStorage::get_code(code_id).unwrap()
         };
 
@@ -7557,8 +7545,7 @@ fn test_create_program_with_value_lt_ed() {
         // programs deployed by user and by program
         assert_init_success(2);
 
-        let origin_msg_id =
-            MessageId::generate_from_user(1, ProgramId::from_origin(USER_1.into_origin()), 0);
+        let origin_msg_id = MessageId::generate_from_user(1, USER_1.cast(), 0);
         let msg1_mailbox = MessageId::generate_outgoing(origin_msg_id, 0);
         let msg2_mailbox = MessageId::generate_outgoing(origin_msg_id, 1);
         assert!(MailboxOf::<Test>::contains(&msg_receiver_1, &msg1_mailbox));
@@ -8157,11 +8144,8 @@ fn free_storage_hold_on_scheduler_overwhelm() {
         let user_2_balance = Balances::free_balance(USER_2);
         assert_eq!(GearBank::<Test>::account_total(&USER_2), 0);
 
-        let prog_balance = Balances::free_balance(AccountId::from_origin(sender.into_origin()));
-        assert_eq!(
-            GearBank::<Test>::account_total(&AccountId::from_origin(sender.into_origin())),
-            0
-        );
+        let prog_balance = Balances::free_balance(sender.cast::<AccountId>());
+        assert_eq!(GearBank::<Test>::account_total(&sender.cast()), 0);
 
         let (_, gas_info) = utils::calculate_handle_and_send_with_extra(
             USER_1,
@@ -9453,7 +9437,7 @@ fn missing_functions_are_not_executed() {
         let locked_value = 1_000;
         assert_ok!(<Balances as frame_support::traits::Currency<_>>::transfer(
             &USER_1,
-            &AccountId::from_origin(program_id.into_origin()),
+            &program_id.cast(),
             locked_value,
             frame_support::traits::ExistenceRequirement::AllowDeath
         ));
@@ -13432,7 +13416,7 @@ fn send_gasless_reply_works() {
 
         // Top up program's account balance with some funds
         CurrencyOf::<Test>::resolve_creating(
-            &AccountId::from_origin(prog_id.into_origin()),
+            &prog_id.cast(),
             CurrencyOf::<Test>::issue(2_000_u128),
         );
 
@@ -13740,7 +13724,7 @@ fn test_send_to_terminated_from_program() {
 
     init_logger();
     new_test_ext().execute_with(|| {
-        let user_1_bytes = ProgramId::from_origin(USER_1.into_origin()).into_bytes();
+        let user_1_bytes = USER_1.into_origin().to_fixed_bytes();
 
         // Dies in init
         let init = Calls::builder().panic("Die in init");
@@ -14094,15 +14078,28 @@ fn test_gas_info_of_terminated_program() {
 
 #[test]
 fn test_handle_signal_wait() {
-    use demo_signal_wait::WASM_BINARY;
+    use demo_constructor::{Arg, Calls, Scheme, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
+        let init = Calls::builder().bool("first", true);
+        let handle = Calls::builder().if_else(
+            Arg::get("first"),
+            Calls::builder()
+                .bool("first", false)
+                .system_reserve_gas(10_000_000_000)
+                .wait_for(1),
+            Calls::builder().panic(None),
+        );
+        let handle_signal = Calls::builder().wait();
+
+        let scheme = Scheme::predefined(init, handle, Default::default(), handle_signal);
+
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
             WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
-            EMPTY_PAYLOAD.to_vec(),
+            scheme.encode(),
             100_000_000_000,
             0,
             false,
@@ -14119,7 +14116,7 @@ fn test_handle_signal_wait() {
             RuntimeOrigin::signed(USER_1),
             pid,
             EMPTY_PAYLOAD.to_vec(),
-            50_000_000_000,
+            100_000_000_000,
             0,
             false,
         ));
@@ -14328,7 +14325,7 @@ mod utils {
         free: impl Into<BalanceOf<Test>>,
         reserved: impl Into<BalanceOf<Test>>,
     ) {
-        let account_id = AccountId::from_origin(origin.into_origin());
+        let account_id = origin.cast();
         assert_eq!(Balances::free_balance(account_id), free.into());
         assert_eq!(
             GearBank::<Test>::account_total(&account_id),
@@ -14503,7 +14500,7 @@ mod utils {
         // If value can't be reserved, message is skipped.
         assert_ok!(<Balances as frame_support::traits::Currency<_>>::transfer(
             &sender,
-            &AccountId::from_origin(program_id.into_origin()),
+            &program_id.cast(),
             locked_value,
             frame_support::traits::ExistenceRequirement::AllowDeath
         ));

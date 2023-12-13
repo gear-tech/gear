@@ -16,18 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! gear command entry
-use color_eyre::eyre::Result;
+use gcli::{cmd::Opt, App, Parser};
 
 #[tokio::main]
-async fn main() -> Result<()> {
-    color_eyre::install()?;
-
-    sp_core::crypto::set_default_ss58_version(gcli::VARA_SS58_PREFIX.into());
-
-    if let Err(e) = gcli::cmd::Opt::run().await {
-        log::error!("{}", e);
-    }
-
-    Ok(())
+async fn main() -> color_eyre::Result<()> {
+    Opt::parse().run().await
 }
