@@ -96,6 +96,9 @@ pub struct Key {
     /// Key actions
     #[command(subcommand)]
     action: Action,
+    /// Passphrase override
+    #[arg(short, long)]
+    passwd: Option<String>,
 }
 
 macro_rules! match_scheme {
@@ -121,15 +124,15 @@ impl Key {
     /// # NOTE
     ///
     /// Reserved the `passwd` for getting suri from cache.
-    pub fn exec(&self, passwd: Option<&str>) -> Result<()> {
+    pub fn exec(&self) -> Result<()> {
         match &self.action {
-            Action::Generate => self.generate(passwd)?,
+            Action::Generate => self.generate()?,
             #[cfg(feature = "node-key")]
             Action::GenerateNodeKey => Self::generate_node_key(),
-            Action::Inspect { suri } => self.inspect(suri, passwd)?,
+            Action::Inspect { suri } => self.inspect(suri)?,
             #[cfg(feature = "node-key")]
             Action::InspectNodeKey { secret } => Self::inspect_node_key(secret)?,
-            Action::Sign { suri, message } => self.sign(suri, message, passwd)?,
+            Action::Sign { suri, message } => self.sign(suri, message)?,
             Action::Verify {
                 signature,
                 message,
@@ -140,7 +143,8 @@ impl Key {
         Ok(())
     }
 
-    fn generate(&self, passwd: Option<&str>) -> Result<()> {
+    fn generate(&self) -> Result<()> {
+        let passwd = self.passwd.as_deref();
         match_scheme!(self.scheme, generate_with_phrase(passwd), res, {
             let (pair, phrase, seed) = res;
             let signer = pair.signer();
@@ -181,9 +185,10 @@ impl Key {
         println!("	SS58 Address: {}", signer.public().into_account());
     }
 
-    fn inspect(&self, suri: &str, passwd: Option<&str>) -> Result<()> {
+    fn inspect(&self, suri: &str) -> Result<()> {
         let key = KeyT::from_string(suri);
         let key_ref = &key;
+        let passwd = self.passwd.as_deref();
         match_scheme!(self.scheme, pair(key_ref, passwd), pair, {
             Self::info(&format!("Secret Key URI `{suri}`"), pair.0.signer(), pair.1)
         });
@@ -209,9 +214,10 @@ impl Key {
         Ok(())
     }
 
-    fn sign(&self, suri: &str, message: &str, passwd: Option<&str>) -> Result<()> {
+    fn sign(&self, suri: &str, message: &str) -> Result<()> {
         let key = KeyT::from_string(suri);
         let key_ref = &key;
+        let passwd = self.passwd.as_deref();
 
         match_scheme!(self.scheme, pair(key_ref, passwd), pair, {
             let signer = pair.0.signer();

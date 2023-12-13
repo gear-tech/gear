@@ -107,7 +107,7 @@ where
         let instance = Program::<T>::new(module.into(), vec![])?;
         utils::prepare_exec::<T>(
             instance.caller.into_origin(),
-            HandleKind::Handle(ProgramId::from_origin(instance.addr)),
+            HandleKind::Handle(instance.addr.cast()),
             vec![],
             PrepareConfig {
                 value: value.into(),
@@ -159,7 +159,7 @@ where
         let instance = Program::<T>::new(module.into(), vec![])?;
         utils::prepare_exec::<T>(
             instance.caller.into_origin(),
-            HandleKind::Handle(ProgramId::from_origin(instance.addr)),
+            HandleKind::Handle(instance.addr.cast()),
             vec![],
             PrepareConfig {
                 value: value.into(),
@@ -176,7 +176,7 @@ where
         let instance = Program::<T>::new(module.into(), vec![])?;
 
         // insert gas reservation slots
-        let program_id = ProgramId::from_origin(instance.addr);
+        let program_id = instance.addr.cast();
         ProgramStorageOf::<T>::update_active_program(program_id, |program| {
             for x in 0..repetitions {
                 program.gas_reservation_map.insert(
@@ -205,7 +205,7 @@ where
         let instance = Program::<T>::new(module.into(), vec![])?;
         utils::prepare_exec::<T>(
             instance.caller.into_origin(),
-            HandleKind::Handle(ProgramId::from_origin(instance.addr)),
+            HandleKind::Handle(instance.addr.cast()),
             vec![0xff; MAX_PAYLOAD_LEN as usize],
             Default::default(),
         )
@@ -1385,10 +1385,10 @@ where
         assert!(repetitions <= 1);
 
         let params = if let Some(c) = param {
-            assert!(name.signature().params.len() == 1);
+            assert!(name.signature().params().len() == 1);
             vec![InstrI32Const(c)]
         } else {
-            assert!(name.signature().params.is_empty());
+            assert!(name.signature().params().is_empty());
             vec![]
         };
 

@@ -24,7 +24,7 @@ use crate::DEFAULT_INITIAL_SIZE;
 use arbitrary::{Result, Unstructured};
 use std::{collections::HashMap, ops::RangeInclusive};
 
-pub use gear_wasm_instrument::syscalls::ParamType;
+pub use gear_wasm_instrument::syscalls::{ParamType, RegularParamType};
 
 /// Syscalls params config.
 ///
@@ -50,17 +50,21 @@ impl SyscallsParamsConfig {
 
     /// New [`SyscallsParamsConfig`] with all rules set to produce one constant value.
     pub fn all_constant_value(value: i64) -> Self {
+        use ParamType::*;
+        use RegularParamType::*;
+
         let allowed_values: SyscallParamAllowedValues = (value..=value).into();
         Self(
             [
-                ParamType::Length,
-                ParamType::Gas,
-                ParamType::Offset,
-                ParamType::DurationBlockNumber,
-                ParamType::DelayBlockNumber,
-                ParamType::Handler,
-                ParamType::Free,
-                ParamType::Version,
+                Regular(Length),
+                Regular(Gas),
+                Regular(Offset),
+                Regular(DurationBlockNumber),
+                Regular(DelayBlockNumber),
+                Regular(Handler),
+                Regular(Free),
+                Regular(FreeUpperBound),
+                Regular(Version),
             ]
             .into_iter()
             .map(|param_type| (param_type, allowed_values.clone()))
@@ -75,7 +79,7 @@ impl SyscallsParamsConfig {
 
     /// Set allowed values for the `param`.
     pub fn add_rule(&mut self, param: ParamType, allowed_values: SyscallParamAllowedValues) {
-        matches!(param, ParamType::Ptr(..))
+        matches!(param, ParamType::Regular(RegularParamType::Pointer(_)))
             .then(|| panic!("ParamType::Ptr(..) isn't supported in SyscallsParamsConfig"));
 
         self.0.insert(param, allowed_values);
@@ -84,21 +88,24 @@ impl SyscallsParamsConfig {
 
 impl Default for SyscallsParamsConfig {
     fn default() -> Self {
+        use ParamType::*;
+        use RegularParamType::*;
+
         let free_start = DEFAULT_INITIAL_SIZE as i64;
         let free_end = free_start + 5;
         Self(
             [
-                (ParamType::Length, (0..=0x10000).into()),
+                (Regular(Length), (0..=0x10000).into()),
                 // There are no rules for memory arrays and pointers as they are chosen
                 // in accordance to memory pages config.
-                (ParamType::Gas, (0..=250_000_000_000).into()),
-                (ParamType::Offset, (0..=10).into()),
-                (ParamType::DurationBlockNumber, (1..=8).into()),
-                (ParamType::DelayBlockNumber, (0..=4).into()),
-                (ParamType::Handler, (0..=100).into()),
-                (ParamType::Free, (free_start..=free_end).into()),
-                (ParamType::FreeUpperBound, (0..=10).into()),
-                (ParamType::Version, (1..=1).into()),
+                (Regular(Gas), (0..=250_000_000_000).into()),
+                (Regular(Offset), (0..=10).into()),
+                (Regular(DurationBlockNumber), (1..=8).into()),
+                (Regular(DelayBlockNumber), (0..=4).into()),
+                (Regular(Handler), (0..=100).into()),
+                (Regular(Free), (free_start..=free_end).into()),
+                (Regular(Version), (1..=1).into()),
+                (Regular(FreeUpperBound), (0..=10).into()),
             ]
             .into_iter()
             .collect(),
