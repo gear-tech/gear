@@ -21,9 +21,9 @@
 
 mod injection;
 mod param;
-mod pointer_write;
 mod precise;
 mod process_errors;
+mod ptr_filler;
 
 use gear_utils::NonEmpty;
 use gear_wasm_instrument::syscalls::SyscallName;
@@ -31,9 +31,9 @@ use gsys::{Hash, HashWithValue};
 
 pub use injection::*;
 pub use param::*;
-pub use pointer_write::*;
 pub use precise::*;
 pub use process_errors::*;
+pub use ptr_filler::*;
 
 use crate::InvocableSyscall;
 
@@ -47,7 +47,7 @@ impl SyscallsConfigBuilder {
         Self(SyscallsConfig {
             injection_types,
             params_config: SyscallsParamsConfig::default(),
-            pointer_writes_config: PointerWritesConfig::default(),
+            pointer_writes_config: PtrParamFillerConfig::default(),
             precise_syscalls_config: PreciseSyscallsConfig::default(),
             syscall_destination: SyscallDestination::default(),
             error_processing_config: ErrorProcessingConfig::None,
@@ -65,7 +65,7 @@ impl SyscallsConfigBuilder {
     /// Set config for pointer writes.
     pub fn with_pointer_writes_config(
         mut self,
-        pointer_writes_config: PointerWritesConfig,
+        pointer_writes_config: PtrParamFillerConfig,
     ) -> Self {
         self.0.pointer_writes_config = pointer_writes_config;
 
@@ -133,10 +133,10 @@ impl SyscallsConfigBuilder {
 
 /// United config for all entities in syscalls generator module.
 #[derive(Debug, Clone, Default)]
-pub struct SysCallsConfig {
+pub struct SyscallsConfig {
     injection_types: SyscallsInjectionTypes,
     params_config: SyscallsParamsConfig,
-    pointer_writes_config: PointerWritesConfig,
+    pointer_writes_config: PtrParamFillerConfig,
     precise_syscalls_config: PreciseSyscallsConfig,
     syscall_destination: SyscallDestination,
     error_processing_config: ErrorProcessingConfig,
@@ -169,7 +169,7 @@ impl SyscallsConfig {
     }
 
     /// Get pointer writes config.
-    pub fn pointer_writes_config(&self) -> &PointerWritesConfig {
+    pub fn pointer_writes_config(&self) -> &PtrParamFillerConfig {
         &self.pointer_writes_config
     }
 

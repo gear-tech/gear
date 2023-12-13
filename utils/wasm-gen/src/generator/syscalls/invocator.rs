@@ -24,7 +24,8 @@ use crate::{
         DisabledAdditionalDataInjector, FunctionIndex, ModuleWithCallIndexes,
     },
     wasm::{PageCount as WasmPageCount, WasmModule},
-    InvocableSyscall, PointerWriteGenerator, PointerWritesConfig, SyscallParamAllowedValues, SyscallsConfig, SyscallsParamsConfig,
+    InvocableSyscall, PtrParamFiller, PtrParamFillerConfig, SyscallParamAllowedValues,
+    SyscallsConfig, SyscallsParamsConfig,
 };
 use arbitrary::{Result, Unstructured};
 use gear_wasm_instrument::{
@@ -37,8 +38,8 @@ use gear_wasm_instrument::{
 use gsys::Hash;
 use std::{
     collections::{btree_map::Entry, BTreeMap, BinaryHeap, HashSet},
-    iter, mem,
     fmt::{self, Display},
+    iter, mem,
     num::NonZeroU32,
 };
 
@@ -57,14 +58,14 @@ pub(crate) enum ProcessedSyscallParams {
     MemoryArrayLength,
     MemoryArrayPtr,
     MemoryPtrValue {
-        ptr_writes: Vec<PointerWriteGenerator>,
+        ptr_writes: Vec<PtrParamFiller>,
     },
 }
 
 pub(crate) fn process_syscall_params(
     params: &[ParamType],
     params_config: &SyscallsParamsConfig,
-    pointer_writes_config: &PointerWritesConfig,
+    pointer_writes_config: &PtrParamFillerConfig,
 ) -> Vec<ProcessedSyscallParams> {
     use ParamType::*;
     use RegularParamType::*;
@@ -103,7 +104,9 @@ pub(crate) fn process_syscall_params(
                 ProcessedSyscallParams::MemoryArrayPtr
             }
             // It's guaranteed that fallible syscall has error pointer as a last param.
-            Regular(Pointer(_)) | Error(_) => ProcessedSyscallParams::MemoryPtrValue,
+            Regular(Pointer(_)) | Error(_) => ProcessedSyscallParams::MemoryPtrValue {
+                ptr_writes: todo!(),
+            },
             Regular(FreeUpperBound) => {
                 let allowed_values = params_config.get_rule(&param);
                 ProcessedSyscallParams::FreeUpperBound { allowed_values }
@@ -182,6 +185,22 @@ enum ParamSetter {
 }
 
 impl ParamSetter {
+    fn new_i32(value: i32) -> Self {
+        Self::I32(value)
+    }
+
+    fn new_i64(value: i64) -> Self {
+        Self::I64(value)
+    }
+
+    fn as_i32(&self) -> Option<i32> {
+        if let &ParamSetter::I32(value) = self {
+            Some(value)
+        } else {
+            None
+        }
+    }
+
     fn into_ixs(self) -> Vec<Instruction> {
         match self {
             Self::I32(value) => vec![Instruction::I32Const(value)],
@@ -205,10 +224,11 @@ impl ParamSetter {
     /// # Panics
     /// Panics if the instruction is not `I32Const` or `I64Const`.
     fn get_value(&self) -> i64 {
-        match self.0 {
-            Instruction::I32Const(value) => value as i64,
-            Instruction::I64Const(value) => value,
-            _ => unimplemented!("Incorrect instruction found"),
+        match self {
+            &ParamSetter::I32(value) => value as i64,
+            &ParamSetter::I64(value) => value,
+            // TODO
+            ParamSetter::Ptr { address, data } => todo!(),
         }
     }
 }
@@ -605,7 +625,7 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                     log::trace!("  ----  Memory array offset - {offset}");
                     setters.push(ParamSetter::new_i32(offset));
                 }
-                ProcessedSyscallParams::MemoryPtrValue => {
+                ProcessedSyscallParams::MemoryPtrValue { .. } => {
                     // Subtract a bit more so entities from `gsys` fit.
                     let upper_limit = mem_size.saturating_sub(100);
                     let offset = self.unstructured.int_in_range(0..=upper_limit)? as i32;
@@ -648,14 +668,14 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
     fn ptr_writes_into_param_setter(
         &mut self,
         address: i32,
-        ptr_writes: Vec<PointerWriteGenerator>,
+        ptr_writes: Vec<PtrParamFiller>,
     ) -> Result<ParamSetter> {
         let word_writes = ptr_writes
             .into_iter()
             .map(|ptr_write| {
                 Ok((
-                    ptr_write.offset,
-                    ptr_write.data.generate(self.unstructured)?,
+                    ptr_write.value_offset,
+                    ptr_write.ptr_data.generate(self.unstructured)?,
                 ))
             })
             .collect::<Result<Vec<_>>>()?;
@@ -667,7 +687,7 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                     .into_iter()
                     .enumerate()
                     .map(move |(word_id, data)| PtrDataSetter {
-                        offset: offset + word_id * size_of::<i32>(),
+                        offset: offset + word_id * mem::size_of::<i32>(),
                         data,
                     })
             })

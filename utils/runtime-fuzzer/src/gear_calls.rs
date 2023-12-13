@@ -38,8 +38,7 @@ use gear_wasm_gen::{
     EntryPointsSet, InvocableSyscall, ParamType, RegularParamType, StandardGearWasmConfigsBundle,
     SyscallName, SyscallsInjectionTypes, SyscallsParamsConfig,
 };
-use std::ops::RangeInclusive;
-use std::mem;
+use std::{mem, ops::RangeInclusive};
 
 /// Maximum payload size for the fuzzer - 1 KiB.
 ///

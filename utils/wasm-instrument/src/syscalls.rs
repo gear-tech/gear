@@ -596,7 +596,7 @@ pub enum RegularParamType {
 /// Hash type.
 ///
 /// Used to distinguish between different hash types in the syscall signatures.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Sequence)]
 pub enum HashType {
     ActorId,
     CodeId,
@@ -604,6 +604,12 @@ pub enum HashType {
     ReservationId,
     /// This enum variant is used for the `gr_random` syscall.
     SubjectId,
+}
+
+impl HashType {
+    pub fn all() -> Vec<HashType> {
+        enum_iterator::all::<Self>().collect()
+    }
 }
 
 impl From<ParamType> for ValueType {

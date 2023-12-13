@@ -219,12 +219,12 @@ fn ptr_setters_work() {
     let mut unstructured = Unstructured::new(&buf);
 
     let params_config = SysCallsParamsConfig::default();
-    let mut pointer_writes_config = PointerWritesConfig::empty();
+    let mut pointer_writes_config = PtrParamFillerConfig::empty();
     pointer_writes_config.set_rule(
         PtrType::Value,
-        vec![PointerWriteGenerator {
-            offset: 0,
-            data: PointerWriteDataGenerator::U128(REPLY_VALUE..=REPLY_VALUE),
+        vec![PtrParamFiller {
+            value_offset: 0,
+            ptr_data: FillingPtrParamData::U128(REPLY_VALUE..=REPLY_VALUE),
         }],
     );
 
@@ -358,7 +358,7 @@ fn precise_syscalls_works() {
             &mut unstructured,
             SyscallsConfigBuilder::new(injection_types)
                 .with_params_config(param_config)
-                .with_pointer_writes_config(PointerWritesConfig::empty())
+                .with_pointer_writes_config(PtrParamFillerConfig::empty())
                 .with_precise_syscalls_config(PreciseSyscallsConfig::new(3..=3, 3..=3))
                 .with_source_msg_dest()
                 .with_error_processing_config(ErrorProcessingConfig::All)
@@ -486,15 +486,15 @@ fn execute_wasm_with_custom_configs(
                 Default::default(),
             );
 
-        if let Some(mem_write) = initial_memory_write {
-            return mem
-                .write(mem_write.offset, &mem_write.content)
-                .map_err(|_| 1);
-        };
+            if let Some(mem_write) = initial_memory_write {
+                return mem
+                    .write(mem_write.offset, &mem_write.content)
+                    .map_err(|_| 1);
+            };
 
-        Ok(())
-    })
-    .expect("Failed to execute WASM module")
+            Ok(())
+        })
+        .expect("Failed to execute WASM module");
 }
 
 proptest! {
