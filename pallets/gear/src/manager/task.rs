@@ -17,14 +17,13 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    manager::ExtManager, weights::WeightInfo, Config, DispatchStashOf, Event, Pallet,
-    QueueOf,
+    manager::ExtManager, weights::WeightInfo, Config, DispatchStashOf, Event, Pallet, QueueOf,
 };
 use alloc::string::ToString;
 use common::{
     event::{
-        MessageWokenRuntimeReason, MessageWokenSystemReason, RuntimeReason,
-        SystemReason, UserMessageReadSystemReason,
+        MessageWokenRuntimeReason, MessageWokenSystemReason, RuntimeReason, SystemReason,
+        UserMessageReadSystemReason,
     },
     paused_program_storage::SessionId,
     scheduler::*,

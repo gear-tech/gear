@@ -47,8 +47,7 @@ use crate::{
     runtime_api::RUNTIME_API_BLOCK_LIMITS_COUNT,
     BlockGasLimitOf, Config, CostsPerBlockOf, CurrencyOf, DbWeightOf, DispatchStashOf, Error,
     Event, GasAllowanceOf, GasBalanceOf, GasHandlerOf, GasInfo, GearBank, MailboxOf,
-    ProgramStorageOf, QueueOf,
-    Schedule, TaskPoolOf, WaitlistOf,
+    ProgramStorageOf, QueueOf, Schedule, TaskPoolOf, WaitlistOf,
 };
 use common::{
     event::*, scheduler::*, storage::*, ActiveProgram, CodeStorage, GasTree, LockId, LockableTree,

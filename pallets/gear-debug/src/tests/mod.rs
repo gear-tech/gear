@@ -18,13 +18,8 @@
 
 use super::*;
 use crate::mock::*;
-use common::{
-    self,
-    event::MessageEntry,
-    scheduler::{ScheduledTask, TaskPool},
-    ActiveProgram, CodeStorage, Origin as _, PausedProgramStorage, ProgramStorage,
-};
-use frame_support::{assert_err, assert_ok};
+use common::{self, event::MessageEntry, CodeStorage, Origin as _};
+use frame_support::assert_ok;
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
     memory::PageBuf,
@@ -32,11 +27,9 @@ use gear_core::{
     pages::{GearPage, PageNumber, PageU32Size, WasmPage},
 };
 use gear_wasm_instrument::STACK_END_EXPORT_NAME;
-use pallet_gear::{
-    DebugInfo, Event, Pallet as PalletGear, ProgramStorageOf, RentCostPerBlockOf, TaskPoolOf,
-};
+use pallet_gear::{DebugInfo, Event, Pallet as PalletGear};
 use parity_scale_codec::Encode;
-use sp_core::{Get, H256};
+use sp_core::H256;
 use sp_std::collections::{btree_map::BTreeMap, btree_set::BTreeSet};
 
 mod utils;
