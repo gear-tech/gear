@@ -81,7 +81,9 @@ const STORAGE_VERSION: StorageVersion = StorageVersion::new(0);
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
+    use common::storage::Mailbox;
     use frame_system::pallet_prelude::*;
+    use gear_core::message::UserStoredMessage;
 
     #[pallet::config]
     pub trait Config: frame_system::Config {
@@ -102,6 +104,8 @@ pub mod pallet {
             AccountId = Self::AccountId,
             Balance = BalanceOf<Self>,
         >;
+
+        type Mailbox: Mailbox<Key1 = Self::AccountId, Key2 = MessageId, Value = UserStoredMessage>;
     }
 
     #[pallet::pallet]

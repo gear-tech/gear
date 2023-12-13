@@ -17,10 +17,12 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate as pallet_gear_voucher;
+use common::storage::{Interval, Mailbox};
 use frame_support::{
     construct_runtime, parameter_types, weights::constants::RocksDbWeight, PalletId,
 };
 use frame_system as system;
+use gear_core::{ids::MessageId, message::UserStoredMessage};
 use primitive_types::H256;
 use sp_runtime::{
     generic,
@@ -78,12 +80,43 @@ impl crate::PrepaidCallsDispatcher for () {
     }
 }
 
+pub struct MailboxMock;
+
+impl Mailbox for MailboxMock {
+    type BlockNumber = ();
+    type Error = ();
+    type Key1 = AccountId;
+    type Key2 = MessageId;
+    type Value = UserStoredMessage;
+    type OutputError = ();
+
+    fn clear() {
+        unimplemented!()
+    }
+    fn contains(_key1: &Self::Key1, _key2: &Self::Key2) -> bool {
+        unimplemented!()
+    }
+    fn insert(_value: Self::Value, _bn: Self::BlockNumber) -> Result<(), Self::OutputError> {
+        unimplemented!()
+    }
+    fn peek(_key1: &Self::Key1, _key2: &Self::Key2) -> Option<Self::Value> {
+        unimplemented!()
+    }
+    fn remove(
+        _key1: Self::Key1,
+        _key2: Self::Key2,
+    ) -> Result<(Self::Value, Interval<Self::BlockNumber>), Self::OutputError> {
+        unimplemented!()
+    }
+}
+
 impl pallet_gear_voucher::Config for Test {
     type RuntimeEvent = RuntimeEvent;
     type Currency = Balances;
     type PalletId = VoucherPalletId;
     type WeightInfo = ();
     type CallsDispatcher = ();
+    type Mailbox = MailboxMock;
 }
 
 // Build genesis storage according to the mock runtime.

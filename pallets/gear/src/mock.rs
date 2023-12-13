@@ -174,6 +174,7 @@ impl pallet_gear_voucher::Config for Test {
     type PalletId = VoucherPalletId;
     type WeightInfo = ();
     type CallsDispatcher = Gear;
+    type Mailbox = MailboxOf<Self>;
 }
 
 // Build genesis storage according to the mock runtime.

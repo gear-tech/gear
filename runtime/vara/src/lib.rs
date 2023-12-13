@@ -1085,6 +1085,7 @@ impl pallet_gear_voucher::Config for Runtime {
     type PalletId = VoucherPalletId;
     type WeightInfo = weights::pallet_gear_voucher::SubstrateWeight<Runtime>;
     type CallsDispatcher = Gear;
+    type Mailbox = <GearMessenger as Messenger>::Mailbox;
 }
 
 impl<C> frame_system::offchain::SendTransactionTypes<C> for Runtime
