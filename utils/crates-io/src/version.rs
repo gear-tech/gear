@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2023 Gear Technologies Inc.
+// Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -16,24 +16,31 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use gstd::{exec, prelude::*};
+//! Crate verifier
 
-static mut FIRST_EXEC: bool = true;
+use anyhow::Result;
+use serde::Deserialize;
 
-#[no_mangle]
-extern "C" fn handle() {
-    if unsafe { FIRST_EXEC } {
-        unsafe {
-            FIRST_EXEC = false;
-        }
-        exec::system_reserve_gas(1_000_000_000).unwrap();
-        exec::wait_for(1);
-    } else {
-        panic!();
-    }
+#[derive(Debug, Deserialize)]
+struct Resp {
+    pub versions: Vec<Version>,
 }
 
-#[no_mangle]
-extern "C" fn handle_signal() {
-    exec::wait();
+#[derive(Debug, Deserialize)]
+struct Version {
+    pub num: String,
+}
+
+/// Verify if the package has already been published.
+pub fn verify(name: &str, version: &str) -> Result<bool> {
+    let client = reqwest::blocking::Client::builder()
+        .user_agent("gear-crates-io-manager")
+        .build()?;
+
+    let resp = client
+        .get(format!("https://crates.io/api/v1/crates/{name}/versions"))
+        .send()?
+        .json::<Resp>()?;
+
+    Ok(resp.versions.into_iter().any(|v| v.num == version))
 }

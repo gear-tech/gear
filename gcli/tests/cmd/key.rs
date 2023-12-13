@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Integration tests for command `key`
-use crate::common::{self, traits::Convert, Result};
+use crate::common::{self, node::Convert, Result};
 
 const SIGNATURE_PATT: &str = "Signature:";
 const SEED_PATT: &str = "Seed:";
@@ -27,6 +27,10 @@ const PUBLIC_PATT: &str = "Public key:";
 
 fn parse_from<'s>(log: &'s str, patt: &'s str) -> &'s str {
     let arr = log.split(patt).collect::<Vec<&str>>();
+    if arr.len() != 2 {
+        panic!("Failed to parse {patt}, log: {log}");
+    }
+
     arr[1].split_whitespace().collect::<Vec<&str>>()[0]
 }
 

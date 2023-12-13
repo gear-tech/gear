@@ -25,7 +25,8 @@ use gear_wasm_instrument::{
             Module, Section, Type, ValueType,
         },
     },
-    syscalls::SysCallName,
+    syscalls::SyscallName,
+    wasm_instrument::{self, InjectionConfig},
 };
 use gsys::HashWithValue;
 use std::{
@@ -222,6 +223,37 @@ fn find_recursion_impl<Callback>(
     path.pop();
 }
 
+pub fn inject_stack_limiter(module: Module) -> Module {
+    wasm_instrument::inject_stack_limiter_with_config(
+        module,
+        InjectionConfig {
+            stack_limit: 30_003,
+            injection_fn: |signature| {
+                let results = signature.results();
+                let mut body = Vec::with_capacity(results.len() + 1);
+
+                for result in results {
+                    let instruction = match result {
+                        ValueType::I32 => Instruction::I32Const(u32::MAX as i32),
+                        ValueType::I64 => Instruction::I64Const(u64::MAX as i64),
+                        ValueType::F32 | ValueType::F64 => {
+                            unreachable!("f32/64 types are not supported")
+                        }
+                    };
+
+                    body.push(instruction);
+                }
+
+                body.push(Instruction::Return);
+
+                body
+            },
+            stack_height_export_name: None,
+        },
+    )
+    .expect("Failed to inject stack height limits")
+}
+
 /// Injects a critical gas limit to a given wasm module.
 ///
 /// Code before injection gas limiter:
@@ -282,7 +314,7 @@ pub fn inject_critical_gas_limit(module: Module, critical_gas_limit: u64) -> Mod
             .filter(|entry| matches!(entry.external(), External::Function(_)))
             .enumerate()
             .find_map(|(i, entry)| {
-                (entry.module() == "env" && entry.field() == SysCallName::GasAvailable.to_str())
+                (entry.module() == "env" && entry.field() == SyscallName::GasAvailable.to_str())
                     .then_some(i as u32)
             })
     });
@@ -301,7 +333,7 @@ pub fn inject_critical_gas_limit(module: Module, critical_gas_limit: u64) -> Mod
             mbuilder.push_import(
                 builder::import()
                     .module("env")
-                    .field(SysCallName::GasAvailable.to_str())
+                    .field(SyscallName::GasAvailable.to_str())
                     .external()
                     .func(import_sig)
                     .build(),

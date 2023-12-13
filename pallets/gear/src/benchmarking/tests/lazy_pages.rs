@@ -263,14 +263,14 @@ where
         // Upload program with code
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
-            imported_functions: vec![SysCallName::Random],
+            imported_functions: vec![SyscallName::Random],
             handle_body: Some(body::from_instructions(instrs)),
             stack_end: Some(0.into()),
             ..Default::default()
         };
         let instance = Program::<T>::new(module.into(), vec![]).unwrap();
         let source = instance.caller.into_origin();
-        let program_id = ProgramId::from_origin(instance.addr);
+        let program_id = instance.addr.cast();
 
         // Append data in storage for some pages.
         for page in (0..rng.gen_range(0..MAX_PAGES_WITH_DATA))
@@ -369,7 +369,7 @@ where
             let instance = instance.clone();
             let mut exec = common_utils::prepare_exec::<T>(
                 instance.caller.into_origin(),
-                HandleKind::Handle(ProgramId::from_origin(instance.addr)),
+                HandleKind::Handle(instance.addr.cast()),
                 vec![],
                 Default::default(),
             )
@@ -529,7 +529,7 @@ where
     let gas_burned = {
         let mut exec = common_utils::prepare_exec::<T>(
             source,
-            HandleKind::Handle(ProgramId::from_origin(origin)),
+            HandleKind::Handle(origin.cast()),
             vec![],
             Default::default(),
         )
@@ -563,7 +563,7 @@ where
     {
         let mut exec = common_utils::prepare_exec::<T>(
             source,
-            HandleKind::Handle(ProgramId::from_origin(origin)),
+            HandleKind::Handle(origin.cast()),
             vec![],
             PrepareConfig {
                 gas_limit: gas_burned,
@@ -601,7 +601,7 @@ where
     {
         let mut exec = common_utils::prepare_exec::<T>(
             source,
-            HandleKind::Handle(ProgramId::from_origin(origin)),
+            HandleKind::Handle(origin.cast()),
             vec![],
             PrepareConfig {
                 gas_allowance: gas_burned,

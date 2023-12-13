@@ -24,7 +24,7 @@ use crate::{
         GearWasmGenerator, MemoryImportGenerationProof, ModuleWithCallIndexes,
     },
     wasm::{PageCount as WasmPageCount, WasmModule},
-    InvocableSysCall, SysCallInjectionType, SysCallsConfig,
+    InvocableSyscall, SyscallInjectionType, SyscallsConfig,
 };
 use arbitrary::{Error as ArbitraryError, Result, Unstructured};
 use gear_wasm_instrument::{
@@ -32,24 +32,24 @@ use gear_wasm_instrument::{
         builder,
         elements::{BlockType, Instruction, Instructions},
     },
-    syscalls::SysCallName,
+    syscalls::SyscallName,
 };
 use gsys::{Handle, Hash, Length};
 use std::{collections::BTreeMap, mem, num::NonZeroU32};
 
 /// Gear syscalls imports generator.
-pub struct SysCallsImportsGenerator<'a, 'b> {
+pub struct SyscallsImportsGenerator<'a, 'b> {
     unstructured: &'b mut Unstructured<'a>,
     call_indexes: CallIndexes,
     module: WasmModule,
-    config: SysCallsConfig,
-    syscalls_imports: BTreeMap<InvocableSysCall, (Option<NonZeroU32>, CallIndexesHandle)>,
+    config: SyscallsConfig,
+    syscalls_imports: BTreeMap<InvocableSyscall, (Option<NonZeroU32>, CallIndexesHandle)>,
 }
 
 /// Syscalls imports generator instantiator.
 ///
 /// Serves as a new type in order to create the generator from gear wasm generator and proofs.
-pub struct SysCallsImportsGeneratorInstantiator<'a, 'b>(
+pub struct SyscallsImportsGeneratorInstantiator<'a, 'b>(
     (
         GearWasmGenerator<'a, 'b>,
         MemoryImportGenerationProof,
@@ -60,13 +60,13 @@ pub struct SysCallsImportsGeneratorInstantiator<'a, 'b>(
 /// The set of syscalls that need to be imported to create precise syscall.
 #[derive(thiserror::Error, Debug)]
 #[error("The following syscalls must be imported: {0:?}")]
-pub struct RequiredSysCalls(&'static [SysCallName]);
+pub struct RequiredSyscalls(&'static [SyscallName]);
 
 /// An error that occurs when generating precise syscall.
 #[derive(thiserror::Error, Debug)]
-pub enum PreciseSysCallError {
+pub enum PreciseSyscallError {
     #[error("{0}")]
-    RequiredImports(#[from] RequiredSysCalls),
+    RequiredImports(#[from] RequiredSyscalls),
     #[error("{0}")]
     Arbitrary(#[from] ArbitraryError),
 }
@@ -76,7 +76,7 @@ impl<'a, 'b>
         GearWasmGenerator<'a, 'b>,
         MemoryImportGenerationProof,
         GearEntryPointGenerationProof,
-    )> for SysCallsImportsGeneratorInstantiator<'a, 'b>
+    )> for SyscallsImportsGeneratorInstantiator<'a, 'b>
 {
     fn from(
         inner: (
@@ -89,19 +89,19 @@ impl<'a, 'b>
     }
 }
 
-impl<'a, 'b> From<SysCallsImportsGeneratorInstantiator<'a, 'b>>
+impl<'a, 'b> From<SyscallsImportsGeneratorInstantiator<'a, 'b>>
     for (
-        SysCallsImportsGenerator<'a, 'b>,
+        SyscallsImportsGenerator<'a, 'b>,
         FrozenGearWasmGenerator<'a, 'b>,
     )
 {
-    fn from(instantiator: SysCallsImportsGeneratorInstantiator<'a, 'b>) -> Self {
-        let SysCallsImportsGeneratorInstantiator((
+    fn from(instantiator: SyscallsImportsGeneratorInstantiator<'a, 'b>) -> Self {
+        let SyscallsImportsGeneratorInstantiator((
             generator,
             _mem_import_gen_proof,
             _gen_ep_gen_proof,
         )) = instantiator;
-        let syscall_gen = SysCallsImportsGenerator {
+        let syscall_gen = SyscallsImportsGenerator {
             unstructured: generator.unstructured,
             call_indexes: generator.call_indexes,
             module: generator.module,
@@ -118,14 +118,14 @@ impl<'a, 'b> From<SysCallsImportsGeneratorInstantiator<'a, 'b>>
     }
 }
 
-impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
+impl<'a, 'b> SyscallsImportsGenerator<'a, 'b> {
     /// Instantiate a new gear syscalls imports generator.
     ///
     /// The generator instantiations requires having type-level proof that the wasm module has memory import in it.
     /// This proof could be gotten from memory generator.
     pub fn new(
         module_with_indexes: ModuleWithCallIndexes,
-        config: SysCallsConfig,
+        config: SyscallsConfig,
         unstructured: &'b mut Unstructured<'a>,
         _mem_import_gen_proof: MemoryImportGenerationProof,
         _gen_ep_gen_proof: GearEntryPointGenerationProof,
@@ -145,12 +145,12 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
     }
 
     /// Disable current generator.
-    pub fn disable(self) -> DisabledSysCallsImportsGenerator<'a, 'b> {
+    pub fn disable(self) -> DisabledSyscallsImportsGenerator<'a, 'b> {
         log::trace!(
             "Random data when disabling syscalls imports generator - {}",
             self.unstructured.len()
         );
-        DisabledSysCallsImportsGenerator {
+        DisabledSyscallsImportsGenerator {
             unstructured: self.unstructured,
             call_indexes: self.call_indexes,
             module: self.module,
@@ -166,8 +166,8 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
     pub fn generate(
         mut self,
     ) -> Result<(
-        DisabledSysCallsImportsGenerator<'a, 'b>,
-        SysCallsImportsGenerationProof,
+        DisabledSyscallsImportsGenerator<'a, 'b>,
+        SyscallsImportsGenerationProof,
     )> {
         log::trace!("Generating syscalls imports");
 
@@ -178,48 +178,49 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
     }
 
     /// Generates syscalls imports from config, used to instantiate the generator.
-    pub fn generate_syscalls_imports(&mut self) -> Result<SysCallsImportsGenerationProof> {
+    pub fn generate_syscalls_imports(&mut self) -> Result<SyscallsImportsGenerationProof> {
         log::trace!(
             "Random data before syscalls imports - {}",
             self.unstructured.len()
         );
 
-        for syscall in SysCallName::instrumentable() {
+        for syscall in SyscallName::instrumentable() {
             let syscall_generation_data = self.generate_syscall_import(syscall)?;
             if let Some(syscall_generation_data) = syscall_generation_data {
                 self.syscalls_imports
-                    .insert(InvocableSysCall::Loose(syscall), syscall_generation_data);
+                    .insert(InvocableSyscall::Loose(syscall), syscall_generation_data);
             }
         }
 
-        Ok(SysCallsImportsGenerationProof(()))
+        Ok(SyscallsImportsGenerationProof(()))
     }
 
     /// Generates precise syscalls and handles errors if any occurred during generation.
     fn generate_precise_syscalls(&mut self) -> Result<()> {
-        use SysCallName::*;
+        use SyscallName::*;
 
         #[allow(clippy::type_complexity)]
         let precise_syscalls: [(
-            SysCallName,
-            fn(&mut Self, SysCallName) -> Result<CallIndexesHandle, PreciseSysCallError>,
-        ); 4] = [
+            SyscallName,
+            fn(&mut Self, SyscallName) -> Result<CallIndexesHandle, PreciseSyscallError>,
+        ); 5] = [
             (ReservationSend, Self::generate_send_from_reservation),
             (ReservationReply, Self::generate_reply_from_reservation),
             (SendCommit, Self::generate_send_commit),
             (SendCommitWGas, Self::generate_send_commit_with_gas),
+            (ReplyDeposit, Self::generate_reply_deposit),
         ];
 
         for (precise_syscall, generate_method) in precise_syscalls {
             let syscall_injection_type = self
                 .config
-                .injection_types(InvocableSysCall::Precise(precise_syscall));
-            if let SysCallInjectionType::Function(syscall_amount_range) = syscall_injection_type {
+                .injection_types(InvocableSyscall::Precise(precise_syscall));
+            if let SyscallInjectionType::Function(syscall_amount_range) = syscall_injection_type {
                 let precise_syscall_amount =
                     NonZeroU32::new(self.unstructured.int_in_range(syscall_amount_range)?);
                 log::trace!(
                     "Constructing `{name}` syscall...",
-                    name = InvocableSysCall::Precise(precise_syscall).to_str()
+                    name = InvocableSyscall::Precise(precise_syscall).to_str()
                 );
 
                 if precise_syscall_amount.is_none() {
@@ -230,11 +231,11 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
                 match generate_method(self, precise_syscall) {
                     Ok(call_indexes_handle) => {
                         self.syscalls_imports.insert(
-                            InvocableSysCall::Precise(precise_syscall),
+                            InvocableSyscall::Precise(precise_syscall),
                             (precise_syscall_amount, call_indexes_handle),
                         );
                     }
-                    Err(PreciseSysCallError::RequiredImports(err)) => {
+                    Err(PreciseSyscallError::RequiredImports(err)) => {
                         // By syscalls injection types config all required syscalls for
                         // precise syscalls are set.
                         // By generator's implementation, precise calls are generated after
@@ -243,7 +244,7 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
                             "Invalid generators configuration or implementation: required syscalls aren't set: {err}"
                         )
                     }
-                    Err(PreciseSysCallError::Arbitrary(err)) => return Err(err),
+                    Err(PreciseSyscallError::Arbitrary(err)) => return Err(err),
                 }
             }
         }
@@ -260,22 +261,22 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
     /// If no import is required, `None` is returned.
     fn generate_syscall_import(
         &mut self,
-        syscall: SysCallName,
+        syscall: SyscallName,
     ) -> Result<Option<(Option<NonZeroU32>, CallIndexesHandle)>> {
         let syscall_injection_type = self
             .config
-            .injection_types(InvocableSysCall::Loose(syscall));
+            .injection_types(InvocableSyscall::Loose(syscall));
 
         let syscall_amount = match syscall_injection_type {
-            SysCallInjectionType::Import => 0,
-            SysCallInjectionType::Function(syscall_amount_range) => {
+            SyscallInjectionType::Import => 0,
+            SyscallInjectionType::Function(syscall_amount_range) => {
                 self.unstructured.int_in_range(syscall_amount_range)?
             }
             _ => return Ok(None),
         };
 
-        // Insert import either for case of `SysCallInjectionType::Import`, or
-        // if `SysCallInjectionType::Function(syscall_amount_range)` yielded zero.
+        // Insert import either for case of `SyscallInjectionType::Import`, or
+        // if `SyscallInjectionType::Function(syscall_amount_range)` yielded zero.
         let call_indexes_handle = self.insert_syscall_import(syscall);
         log::trace!(
             " -- Syscall `{}` will be invoked {} times",
@@ -287,14 +288,14 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
     }
 
     /// Inserts gear syscall defined by the `syscall` param.
-    fn insert_syscall_import(&mut self, syscall: SysCallName) -> CallIndexesHandle {
+    fn insert_syscall_import(&mut self, syscall: SyscallName) -> CallIndexesHandle {
         let syscall_import_idx = self.module.count_import_funcs();
 
         // Insert syscall import to the module
         self.module.with(|module| {
             let mut module_builder = builder::from_module(module);
 
-            // Build signature applicable for the parity-wasm for the sys call
+            // Build signature applicable for the parity-wasm for the syscall
             let syscall_signature = syscall.signature().func_type();
             let signature_idx = module_builder.push_signature(
                 builder::signature()
@@ -323,17 +324,17 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
     }
 }
 
-impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
+impl<'a, 'b> SyscallsImportsGenerator<'a, 'b> {
     /// The amount of memory used to create a precise syscall.
-    const PRECISE_SYS_CALL_MEMORY_SIZE: u32 = 100;
+    const PRECISE_SYSCALL_MEMORY_SIZE: u32 = 100;
 
     /// Generates a function which calls "properly" the `gr_reservation_send`.
     fn generate_send_from_reservation(
         &mut self,
-        syscall: SysCallName,
-    ) -> Result<CallIndexesHandle, PreciseSysCallError> {
+        syscall: SyscallName,
+    ) -> Result<CallIndexesHandle, PreciseSyscallError> {
         let [reserve_gas_idx, reservation_send_idx] =
-            self.invocable_syscalls_indexes(InvocableSysCall::required_imports(syscall))?;
+            self.invocable_syscalls_indexes(InvocableSyscall::required_imports(syscall))?;
 
         // subtract to be sure we are in memory boundaries.
         let rid_pid_value_ptr = self.reserve_memory();
@@ -421,10 +422,10 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
     /// Generates a function which calls "properly" the `gr_reservation_reply`.
     fn generate_reply_from_reservation(
         &mut self,
-        syscall: SysCallName,
-    ) -> Result<CallIndexesHandle, PreciseSysCallError> {
+        syscall: SyscallName,
+    ) -> Result<CallIndexesHandle, PreciseSyscallError> {
         let [reserve_gas_idx, reservation_reply_idx] =
-            self.invocable_syscalls_indexes(InvocableSysCall::required_imports(syscall))?;
+            self.invocable_syscalls_indexes(InvocableSyscall::required_imports(syscall))?;
 
         // subtract to be sure we are in memory boundaries.
         let rid_value_ptr = self.reserve_memory();
@@ -493,10 +494,10 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
     /// Generates a function which calls "properly" the `gr_send_commit`.
     fn generate_send_commit(
         &mut self,
-        syscall: SysCallName,
-    ) -> Result<CallIndexesHandle, PreciseSysCallError> {
+        syscall: SyscallName,
+    ) -> Result<CallIndexesHandle, PreciseSyscallError> {
         let [send_init_idx, send_push_idx, send_commit_idx] =
-            self.invocable_syscalls_indexes(InvocableSysCall::required_imports(syscall))?;
+            self.invocable_syscalls_indexes(InvocableSyscall::required_imports(syscall))?;
 
         // subtract to be sure we are in memory boundaries.
         let handle_ptr = self.reserve_memory();
@@ -592,10 +593,10 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
     /// Generates a function which calls "properly" the `gr_send_commit_wgas`.
     fn generate_send_commit_with_gas(
         &mut self,
-        syscall: SysCallName,
-    ) -> Result<CallIndexesHandle, PreciseSysCallError> {
+        syscall: SyscallName,
+    ) -> Result<CallIndexesHandle, PreciseSyscallError> {
         let [size_idx, send_init_idx, send_push_input_idx, send_commit_wgas_idx] =
-            self.invocable_syscalls_indexes(InvocableSysCall::required_imports(syscall))?;
+            self.invocable_syscalls_indexes(InvocableSyscall::required_imports(syscall))?;
 
         // subtract to be sure we are in memory boundaries.
         let handle_ptr = self.reserve_memory();
@@ -695,19 +696,106 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
         Ok(call_indexes_handle)
     }
 
+    fn generate_reply_deposit(
+        &mut self,
+        syscall: SyscallName,
+    ) -> Result<CallIndexesHandle, PreciseSyscallError> {
+        let [send_input_idx, reply_deposit_idx] =
+            self.invocable_syscalls_indexes(InvocableSyscall::required_imports(syscall))?;
+
+        let mid_ptr = self.reserve_memory();
+
+        let precise_reply_deposit_invocation = [
+            // Pointer to pid_value argument of HashWithValue type.
+            Instruction::GetLocal(0),
+            // Offset value defining starting index in the received message payload.
+            Instruction::GetLocal(1),
+            // Length of the slice of the received message payload.
+            Instruction::GetLocal(2),
+            // Delay.
+            Instruction::GetLocal(3),
+            // Pointer to the result of the `gr_send_input`, which is of type ErrorWithHash.
+            Instruction::GetLocal(5),
+            // Invocation of the `gr_send_input`.
+            Instruction::Call(send_input_idx as u32),
+            // Load ErrorWithHash.
+            Instruction::GetLocal(5),
+            // Take first 4 bytes from the data of ErrorWithHash type, which is error code, i.e.
+            // ErrorWithHash.error.
+            Instruction::I32Load(2, 0),
+            // Check if ErrorWithHash.error == 0.
+            Instruction::I32Eqz,
+            // If ErrorWithHash.error == 0.
+            Instruction::If(BlockType::NoResult),
+            // Copy Hash struct (32 bytes) containing message id.
+            // Push on stack ptr to address where message id will be defined.
+            Instruction::I32Const(mid_ptr),
+            // Get the ErrorWithHash result of the `gr_send_input` call
+            Instruction::GetLocal(5),
+            // Load 8 bytes from the ErrorWithHash skipping first 4 bytes,
+            // which are bytes of i32 error_code value.
+            Instruction::I64Load(3, 4),
+            // Store these 8 bytes in the `mid_ptr` starting from the byte 0.
+            Instruction::I64Store(3, 0),
+            // Perform same procedure 3 times more to complete
+            // 32 bytes message id value under `mid_ptr`.
+            Instruction::I32Const(mid_ptr),
+            Instruction::GetLocal(5),
+            Instruction::I64Load(3, 12),
+            Instruction::I64Store(3, 8),
+            Instruction::I32Const(mid_ptr),
+            Instruction::GetLocal(5),
+            Instruction::I64Load(3, 20),
+            Instruction::I64Store(3, 16),
+            Instruction::I32Const(mid_ptr),
+            Instruction::GetLocal(5),
+            Instruction::I64Load(3, 28),
+            Instruction::I64Store(3, 24),
+            // Pointer to message id.
+            Instruction::I32Const(mid_ptr),
+            // Pointer to gas value for `gr_reply_deposit`.
+            Instruction::GetLocal(4),
+            // Pointer to the result of the `gr_reply_deposit`.
+            Instruction::GetLocal(5),
+            // Invocation of `gr_reply_deposit`.
+            Instruction::Call(reply_deposit_idx as u32),
+            Instruction::End,
+        ];
+
+        let invocations_amount = self.unstructured.int_in_range(
+            self.config
+                .precise_syscalls_config()
+                .range_of_send_input_calls(),
+        )?;
+
+        // The capacity is amount of times `gr_reply_deposit` is invoked precisely + 1 for `End` instruction.
+        let mut func_instructions =
+            Vec::with_capacity(precise_reply_deposit_invocation.len() * invocations_amount + 1);
+        for _ in 0..invocations_amount {
+            func_instructions.extend_from_slice(&precise_reply_deposit_invocation);
+        }
+        func_instructions.push(Instruction::End);
+
+        let func_instructions = Instructions::new(func_instructions);
+        let call_indexes_handle =
+            self.generate_proper_syscall_invocation(syscall, func_instructions);
+
+        Ok(call_indexes_handle)
+    }
+
     /// Returns the indexes of invocable syscalls.
     fn invocable_syscalls_indexes<const N: usize>(
         &mut self,
-        syscalls: &'static [SysCallName; N],
-    ) -> Result<[usize; N], RequiredSysCalls> {
+        syscalls: &'static [SyscallName; N],
+    ) -> Result<[usize; N], RequiredSyscalls> {
         let mut indexes = [0; N];
 
         for (index, &syscall) in indexes.iter_mut().zip(syscalls.iter()) {
             *index = self
                 .syscalls_imports
-                .get(&InvocableSysCall::Loose(syscall))
+                .get(&InvocableSyscall::Loose(syscall))
                 .map(|&(_, call_indexes_handle)| call_indexes_handle)
-                .ok_or_else(|| RequiredSysCalls(&syscalls[..]))?;
+                .ok_or_else(|| RequiredSyscalls(&syscalls[..]))?;
         }
 
         Ok(indexes)
@@ -716,7 +804,7 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
     /// Reserves enough memory build precise syscall.
     fn reserve_memory(&self) -> i32 {
         self.memory_size_in_bytes()
-            .saturating_sub(Self::PRECISE_SYS_CALL_MEMORY_SIZE) as i32
+            .saturating_sub(Self::PRECISE_SYSCALL_MEMORY_SIZE) as i32
     }
 
     /// Returns the size of the memory in bytes that can be used to build precise syscall.
@@ -732,10 +820,10 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
     /// Generates a function which calls "properly" the given syscall.
     fn generate_proper_syscall_invocation(
         &mut self,
-        syscall: SysCallName,
+        syscall: SyscallName,
         func_instructions: Instructions,
     ) -> CallIndexesHandle {
-        let invocable_syscall = InvocableSysCall::Precise(syscall);
+        let invocable_syscall = InvocableSyscall::Precise(syscall);
         let signature = invocable_syscall.into_signature();
 
         let func_ty = signature.func_type();
@@ -770,24 +858,24 @@ impl<'a, 'b> SysCallsImportsGenerator<'a, 'b> {
     }
 }
 
-/// Proof that there was an instance of syscalls imports generator and `SysCallsImportsGenerator::generate_syscalls_imports` was called.
-pub struct SysCallsImportsGenerationProof(());
+/// Proof that there was an instance of syscalls imports generator and `SyscallsImportsGenerator::generate_syscalls_imports` was called.
+pub struct SyscallsImportsGenerationProof(());
 
 /// Disabled gear wasm syscalls generator.
 ///
 /// Instance of this types signals that there was once active syscalls generator,
 /// but it ended up it's work.
-pub struct DisabledSysCallsImportsGenerator<'a, 'b> {
+pub struct DisabledSyscallsImportsGenerator<'a, 'b> {
     pub(super) unstructured: &'b mut Unstructured<'a>,
     pub(super) call_indexes: CallIndexes,
     pub(super) module: WasmModule,
-    pub(super) config: SysCallsConfig,
+    pub(super) config: SyscallsConfig,
     pub(super) syscalls_imports:
-        BTreeMap<InvocableSysCall, (Option<NonZeroU32>, CallIndexesHandle)>,
+        BTreeMap<InvocableSyscall, (Option<NonZeroU32>, CallIndexesHandle)>,
 }
 
-impl<'a, 'b> From<DisabledSysCallsImportsGenerator<'a, 'b>> for ModuleWithCallIndexes {
-    fn from(disabled_syscall_gen: DisabledSysCallsImportsGenerator<'a, 'b>) -> Self {
+impl<'a, 'b> From<DisabledSyscallsImportsGenerator<'a, 'b>> for ModuleWithCallIndexes {
+    fn from(disabled_syscall_gen: DisabledSyscallsImportsGenerator<'a, 'b>) -> Self {
         ModuleWithCallIndexes {
             module: disabled_syscall_gen.module,
             call_indexes: disabled_syscall_gen.call_indexes,
