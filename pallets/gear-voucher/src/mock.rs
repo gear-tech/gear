@@ -71,6 +71,7 @@ impl crate::PrepaidCallsDispatcher for () {
     }
     fn dispatch(
         _account_id: Self::AccountId,
+        _sponsor_id: Self::AccountId,
         _call: pallet_gear_voucher::PrepaidCall<Balance>,
     ) -> frame_support::pallet_prelude::DispatchResultWithPostInfo {
         unimplemented!()

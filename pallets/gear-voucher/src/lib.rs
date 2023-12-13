@@ -184,17 +184,27 @@ pub mod pallet {
         ) -> DispatchResultWithPostInfo {
             let origin = ensure_signed(origin)?;
 
-            T::CallsDispatcher::dispatch(origin, call)
+            let sponsor = Self::sponsor_of(&origin, &call);
+
+            T::CallsDispatcher::dispatch(origin, sponsor, call)
         }
     }
-}
 
-impl<T: Config> Pallet<T> {
-    /// Derive a synthesized account ID from an account ID and a program ID.
-    pub fn voucher_id(who: &T::AccountId, program_id: &ProgramId) -> T::AccountId {
-        let entropy = (b"modlpy/voucher__", who, program_id).using_encoded(blake2_256);
-        Decode::decode(&mut TrailingZeroInput::new(entropy.as_ref()))
-            .expect("infinite length input; no invalid inputs for type; qed")
+    impl<T: Config> Pallet<T> {
+        /// Derive a synthesized account ID from an account ID and a program ID.
+        pub fn voucher_id(who: &T::AccountId, program_id: &ProgramId) -> T::AccountId {
+            let entropy = (b"modlpy/voucher__", who, program_id).using_encoded(blake2_256);
+            Decode::decode(&mut TrailingZeroInput::new(entropy.as_ref()))
+                .expect("infinite length input; no invalid inputs for type; qed")
+        }
+
+        /// Return synthesized account ID based on call data.
+        pub fn sponsor_of(who: &T::AccountId, call: &PrepaidCall<BalanceOf<T>>) -> T::AccountId {
+            match call {
+                PrepaidCall::SendMessage { destination, .. } => Self::voucher_id(who, destination),
+                PrepaidCall::SendReply { .. } => todo!("TODO (breathx): extract mailbox here"),
+            }
+        }
     }
 }
 
@@ -224,6 +234,7 @@ pub trait PrepaidCallsDispatcher {
 
     fn dispatch(
         account_id: Self::AccountId,
+        sponsor_id: Self::AccountId,
         call: PrepaidCall<Self::Balance>,
     ) -> DispatchResultWithPostInfo;
 }

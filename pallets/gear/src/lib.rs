@@ -1992,6 +1992,7 @@ pub mod pallet {
 
         fn dispatch(
             account_id: Self::AccountId,
+            sponsor_id: Self::AccountId,
             call: PrepaidCall<Self::Balance>,
         ) -> DispatchResultWithPostInfo {
             match call {
@@ -2008,7 +2009,7 @@ pub mod pallet {
                     gas_limit,
                     value,
                     keep_alive,
-                    None, // TODO (breathx): replace.
+                    Some(sponsor_id),
                 ),
                 PrepaidCall::SendReply {
                     reply_to_id,
@@ -2023,7 +2024,7 @@ pub mod pallet {
                     gas_limit,
                     value,
                     keep_alive,
-                    None, // TODO (breathx): replace.
+                    Some(sponsor_id),
                 ),
             }
         }
