@@ -112,12 +112,24 @@ pub mod panic_handler {
             use crate::prelude::{fmt::Write, mem::MaybeUninit, str};
             use arrayvec::ArrayString;
 
+            // SAFETY: The current implementation always returns Some.
+            // https://github.com/rust-lang/rust/blob/5b8bc568d28b2e922290c9a966b3231d0ce9398b/library/std/src/panicking.rs#L643-L644
             let option = panic_info.message().zip(panic_info.location());
             let (message, location) = unsafe { option.unwrap_unchecked() };
 
-            fn itoa_u32(buffer: &mut [MaybeUninit<u8>; 10], mut n: u32) -> &str {
+            /// Maximum number of digits in `u32`.
+            const ITOA_U32_BUF_SIZE: usize = 10;
+
+            /// Converts `u32` to `&str`, `&str` is written to temp buffer.
+            ///
+            /// We use our own function because `impl Display for u32` is very
+            /// large in WASM binary format (~2.5 KiB).
+            fn itoa_u32(buffer: &mut [MaybeUninit<u8>; ITOA_U32_BUF_SIZE], mut n: u32) -> &str {
                 let mut idx = buffer.len();
                 loop {
+                    // SAFETY: The bounds are always correct because this loop iterates over each
+                    // digit in `u32`, and the maximum number of digits is defined in
+                    // `ITOA_U32_BUF_SIZE` constant.
                     idx -= 1;
                     unsafe { buffer.get_unchecked_mut(idx) }.write((n % 10) as u8 + b'0');
                     n /= 10;
@@ -125,6 +137,13 @@ pub mod panic_handler {
                         break;
                     }
                 }
+                // SAFETY: Since we are using a loop with a postcondition, the boundaries will
+                // always be: `idx < buffer.len()`, i.e. we can do `get_unchecked(idx)`.
+                // The expression `&*(buffer as *const [_] as *const _)` is equivalent to
+                // `MaybeUninit::slice_assume_init_ref(&buffer[..idx])` and it gets the
+                // initialized part of `buffer`.
+                // Since the initialized part is filled with ascii digits, we can do
+                // `str::from_utf8_unchecked`.
                 unsafe {
                     str::from_utf8_unchecked(
                         &*(buffer.get_unchecked(idx..) as *const [_] as *const _),
@@ -133,7 +152,7 @@ pub mod panic_handler {
             }
 
             let mut debug_msg = ArrayString::<{ PANIC_OCCURRED.len() + TRIMMED_MAX_LEN }>::new();
-            let mut buffer = [MaybeUninit::uninit(); 10];
+            let mut buffer = [MaybeUninit::uninit(); ITOA_U32_BUF_SIZE];
 
             let _ = debug_msg.try_push_str(PANIC_OCCURRED);
             let _ = debug_msg.try_push_str("'");
@@ -147,6 +166,9 @@ pub mod panic_handler {
 
             let _ = ext::debug(&debug_msg);
 
+            // SAFETY: `debug_msg` is guaranteed to be initialized since `try_push_str` does
+            // `memcpy`. If `memcpy` fails (e.g. isn't enough stack), the program will be
+            // aborted by the executor with unreachable instruction.
             let msg = unsafe { debug_msg.get_unchecked(PANIC_OCCURRED.len()..) };
             ext::panic(&msg)
         }
@@ -167,6 +189,9 @@ pub mod panic_handler {
             let _ = debug_msg.try_push_str(&PANIC_OCCURRED[..4]);
             let _ = write!(&mut debug_msg, "{panic_info}");
 
+            // SAFETY: `debug_msg.len() >= PANIC_OCCURRED.len()` because `try_push_str`
+            // pushes string `"pani"` and `write!()` pushes string `"panicked at "`.
+            // The capacity of `debug_msg` is always enough to do this.
             unsafe {
                 debug_msg
                     .as_bytes_mut()
@@ -176,6 +201,8 @@ pub mod panic_handler {
 
             let _ = ext::debug(&debug_msg);
 
+            // SAFETY: `debug_msg` is guaranteed to be initialized since `try_push_str` does
+            // `memcpy` (see panic handler for nightly rust for more details).
             let msg = unsafe { debug_msg.get_unchecked(PANIC_OCCURRED.len()..) };
             ext::panic(&msg)
         }
@@ -196,6 +223,9 @@ pub mod panic_handler {
             fn parse_panic_msg(msg: &str) -> Option<(&str, &str)> {
                 const NEEDLE: [u8; 2] = *b":\n";
 
+                // SAFETY: We can use `str::from_utf8_unchecked` because the delimiter is ascii
+                // characters. Therefore, the strings between the delimiter will be a valid
+                // UTF-8 sequence (see https://en.wikipedia.org/wiki/UTF-8#Encoding).
                 let msg_bytes = msg.as_bytes();
                 msg_bytes
                     .windows(NEEDLE.len())
@@ -212,6 +242,7 @@ pub mod panic_handler {
                     })
             }
 
+            // FIXME
             let option = parse_panic_msg(&default_panic_msg);
             let (location, message) = unsafe { option.unwrap_unchecked() };
 
@@ -225,6 +256,8 @@ pub mod panic_handler {
 
             let _ = ext::debug(&debug_msg);
 
+            // SAFETY: `debug_msg` is guaranteed to be initialized since `try_push_str` does
+            // `memcpy` (see panic handler for nightly rust for more details).
             let msg = unsafe { debug_msg.get_unchecked(PANIC_OCCURRED.len()..) };
             ext::panic(&msg)
         }
