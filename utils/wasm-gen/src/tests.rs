@@ -219,7 +219,7 @@ fn ptr_setters_work() {
     let mut unstructured = Unstructured::new(&buf);
 
     let params_config = SysCallsParamsConfig::default();
-    let mut pointer_writes_config = PtrParamFillerConfig::empty();
+    let mut pointer_writes_config = PtrParamFillersConfig::empty();
     pointer_writes_config.set_rule(
         PtrType::Value,
         vec![PtrParamFiller {
@@ -358,7 +358,7 @@ fn precise_syscalls_works() {
             &mut unstructured,
             SyscallsConfigBuilder::new(injection_types)
                 .with_params_config(param_config)
-                .with_pointer_writes_config(PtrParamFillerConfig::empty())
+                .with_pointer_writes_config(PtrParamFillersConfig::empty())
                 .with_precise_syscalls_config(PreciseSyscallsConfig::new(3..=3, 3..=3))
                 .with_source_msg_dest()
                 .with_error_processing_config(ErrorProcessingConfig::All)

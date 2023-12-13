@@ -45,10 +45,10 @@ const HASH_WORDS_COUNT: usize = mem::size_of::<Hash>() / mem::size_of::<i32>();
 ///
 /// This config will not work for [`PtrType::BufferStart`].
 #[derive(Debug, Clone)]
-pub struct PtrParamFillerConfig(HashMap<Ptr, PtrParamFiller>);
+pub struct PtrParamFillersConfig(HashMap<Ptr, PtrParamFiller>);
 
-impl Default for PtrParamFillerConfig {
-    fn default() -> PtrParamFillerConfig {
+impl Default for PtrParamFillersConfig {
+    fn default() -> PtrParamFillersConfig {
         let mut this = Self::empty();
         this.set_rule(PtrParamDataGenerator::Value(0..=100_000_000_000));
         for ty in HashType::all() {
@@ -67,9 +67,9 @@ impl Default for PtrParamFillerConfig {
     }
 }
 
-impl PtrParamFillerConfig {
-    pub fn empty() -> PtrParamFillerConfig {
-        PtrParamFillerConfig(HashMap::new())
+impl PtrParamFillersConfig {
+    pub fn empty() -> PtrParamFillersConfig {
+        PtrParamFillersConfig(HashMap::new())
     }
 
     /// Set the `PointerWrite`s for the specified pointer type.
@@ -172,7 +172,7 @@ impl PtrParamDataGenerator {
                     .to_le_bytes()
                     .chunks(mem::size_of::<u128>() / mem::size_of::<i32>())
                     .map(|word_bytes| {
-                        i32::from_le_bytes(word_bytes.try_into().expect("Correct amount of bytes"))
+                        i32::from_le_bytes(word_bytes.try_into().expect("Chunks are of the exact size."))
                     })
                     .collect())
             }

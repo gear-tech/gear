@@ -47,7 +47,7 @@ impl SyscallsConfigBuilder {
         Self(SyscallsConfig {
             injection_types,
             params_config: SyscallsParamsConfig::default(),
-            pointer_writes_config: PtrParamFillerConfig::default(),
+            pointer_writes_config: PtrParamFillersConfig::default(),
             precise_syscalls_config: PreciseSyscallsConfig::default(),
             syscall_destination: SyscallDestination::default(),
             error_processing_config: ErrorProcessingConfig::None,
@@ -65,7 +65,7 @@ impl SyscallsConfigBuilder {
     /// Set config for pointer writes.
     pub fn with_pointer_writes_config(
         mut self,
-        pointer_writes_config: PtrParamFillerConfig,
+        pointer_writes_config: PtrParamFillersConfig,
     ) -> Self {
         self.0.pointer_writes_config = pointer_writes_config;
 
@@ -136,7 +136,7 @@ impl SyscallsConfigBuilder {
 pub struct SyscallsConfig {
     injection_types: SyscallsInjectionTypes,
     params_config: SyscallsParamsConfig,
-    pointer_writes_config: PtrParamFillerConfig,
+    pointer_writes_config: PtrParamFillersConfig,
     precise_syscalls_config: PreciseSyscallsConfig,
     syscall_destination: SyscallDestination,
     error_processing_config: ErrorProcessingConfig,
@@ -169,7 +169,7 @@ impl SyscallsConfig {
     }
 
     /// Get pointer writes config.
-    pub fn pointer_writes_config(&self) -> &PtrParamFillerConfig {
+    pub fn pointer_writes_config(&self) -> &PtrParamFillersConfig {
         &self.pointer_writes_config
     }
 
