@@ -228,6 +228,7 @@ gear-service = { path = "node/service", default-features = false }
 gear-stack-buffer = { path = "stack-buffer" }
 gear-utils = { path = "utils/utils" }
 gear-wasm-builder = { path = "utils/wasm-builder", default-features = false }
+wasm-dep-builder = { path = "utils/wasm-dep-builder" }
 gear-wasm-gen = { path = "utils/wasm-gen" }
 gear-wasm-instrument = { path = "utils/wasm-instrument", default-features = false }
 junit-common = { path = "utils/junit-common" }
