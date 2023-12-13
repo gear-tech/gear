@@ -59,7 +59,6 @@ members = [
     "examples/rwlock",
     "examples/send-from-reservation",
     "examples/signal-entry",
-    "examples/signal-wait",
     "examples/state-rollback",
     "examples/sync-duplicate",
     "examples/syscalls",
@@ -103,14 +102,13 @@ byteorder = { version = "1.5.0", default-features = false }
 blake2-rfc = { version = "0.2.18", default-features = false }
 bs58 = { version = "0.5.0", default-features = false }
 cargo_metadata = "0.18.1"
-clap = "4.4.8"
+clap = "4.4.11"
 codec = { package = "parity-scale-codec", version = "3.6.4", default-features = false }
 color-eyre = "0.6.2"
-colored = "2.0.0"
+colored = "2.1.0"
 const-str = "0.5"
 derive_more = "0.99.17"
 dirs = "4.0.0"
-dlmalloc = { git = "https://github.com/gear-tech/dlmalloc-rust.git" }
 dyn-clonable = "0.9.0"
 enum-iterator = "1.4.0"
 env_logger = "0.10"
@@ -126,7 +124,7 @@ lazy_static = "1.4.0"
 libc = { version = "0.2", default-features = false }
 log = { version = "0.4.20", default-features = false }
 num_enum = { version = "0.6.1", default-features = false }
-once_cell = "1.17.1"
+once_cell = "1.19.0"
 parity-scale-codec = { version = "3.6.4", default-features = false }
 parity-wasm = "0.45.0"
 parking_lot = "0.12.1"
@@ -150,9 +148,9 @@ static_assertions = "1"
 subxt = "0.32.1"
 subxt-metadata = "0.32.1"
 subxt-codegen = "0.32.1"
-syn = "2.0.39"
+syn = "2.0.40"
 thiserror = "1.0.50"
-tokio = { version = "1.34.0" }
+tokio = { version = "1.35.0" }
 url = "2.5.0"
 wat = "1.0.82"
 wabt = "0.10.0"
@@ -168,15 +166,12 @@ tempfile = "3.8.1"
 
 # Published deps
 #
-# fork of `parity-wasm` with sign-ext enabled by default.
-#
-# https://github.com/gear-tech/parity-wasm/tree/v0.45.1-sign-ext
-# gear-wasm = "0.45.1"
-#
-# fork of `wasm-instrument`
-#
+# https://github.com/gear-tech/dlmalloc-rust/tree/v0.1.4
+dlmalloc = { package = "gear-dlmalloc", version = "0.1.4" }
 # https://github.com/gear-tech/wasm-instrument/tree/v0.2.3-sign-ext
 gwasm-instrument = { version = "0.2.3", default-features = false }
+# https://github.com/gear-tech/wasm-utils/tree/v0.19.0
+pwasm-utils = { version = "0.19.0", package = "gear-pwasm-utils" }
 
 # Internal deps
 numerated = { path = "common/numerated" }
@@ -405,7 +400,6 @@ demo-reserve-gas = { path = "examples/reserve-gas", default-features = false }
 demo-rwlock = { path = "examples/rwlock" }
 demo-send-from-reservation = { path = "examples/send-from-reservation" }
 demo-signal-entry = { path = "examples/signal-entry" }
-demo-signal-wait = { path = "examples/signal-wait" }
 demo-state-rollback = { path = "examples/state-rollback" }
 demo-sync-duplicate = { path = "examples/sync-duplicate" }
 demo-vec = { path = "examples/vec" }
@@ -432,7 +426,6 @@ mimalloc = { version = "0.1.39", default-features = false }               # node
 nacl = "0.5.3"                                                            # gcli
 nonempty = "0.8.1"                                                        # utils/utils
 libfuzzer-sys = "0.4"                                                     # utils/runtime-fuzzer/fuzz
-pwasm-utils = "0.19.0"                                                    # utils/wasm-builder
 page_size = { version = "0.6", default-features = false }                 # pallets/gear
 pathdiff = { version = "0.2.1", default-features = false }                # utils/wasm-builder
 rand_pcg = "0.3.1"                                                        # pallets/gear

@@ -25,7 +25,7 @@ use primitive_types::H256;
 #[test]
 fn voucher_issue_works() {
     new_test_ext().execute_with(|| {
-        let program_id = ProgramId::from_origin(H256::from(b"some//quasy//random//program//id"));
+        let program_id = H256::from(b"some//quasy//random//program//id").cast();
         let synthesized = Voucher::voucher_id(&BOB, &program_id);
 
         assert_ok!(Voucher::issue(
@@ -55,7 +55,7 @@ fn voucher_issue_works() {
 #[test]
 fn voucher_redemption_works() {
     new_test_ext().execute_with(|| {
-        let program_id = ProgramId::from_origin(H256::from(b"some//quasy//random//program//id"));
+        let program_id = H256::from(b"some//quasy//random//program//id").cast();
         let synthesized = Voucher::voucher_id(&BOB, &program_id);
 
         assert_ok!(Voucher::issue(

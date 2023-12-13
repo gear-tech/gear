@@ -621,9 +621,7 @@ pub mod pallet {
             );
 
             let message = InitMessage::from_packet(message_id, packet);
-            let dispatch = message
-                .into_dispatch(ProgramId::from_origin(origin))
-                .into_stored();
+            let dispatch = message.into_dispatch(origin.cast()).into_stored();
 
             QueueOf::<T>::queue(dispatch)
                 .unwrap_or_else(|e| unreachable!("Messages storage corrupted: {e:?}"));
@@ -670,13 +668,11 @@ pub mod pallet {
             argument: Option<Vec<u8>>,
             gas_allowance: Option<u64>,
         ) -> Result<Vec<u8>, Vec<u8>> {
-            let program_id = ProgramId::from_origin(program_id.into_origin());
-
             let fn_name = String::from_utf8(fn_name)
                 .map_err(|_| "Non-utf8 function name".as_bytes().to_vec())?;
 
             Self::read_state_using_wasm_impl(
-                program_id,
+                program_id.cast(),
                 payload,
                 fn_name,
                 wasm,
@@ -691,18 +687,15 @@ pub mod pallet {
             payload: Vec<u8>,
             gas_allowance: Option<u64>,
         ) -> Result<Vec<u8>, Vec<u8>> {
-            let program_id = ProgramId::from_origin(program_id.into_origin());
-
-            Self::read_state_impl(program_id, payload, gas_allowance).map_err(String::into_bytes)
+            Self::read_state_impl(program_id.cast(), payload, gas_allowance)
+                .map_err(String::into_bytes)
         }
 
         pub fn read_metahash(
             program_id: H256,
             gas_allowance: Option<u64>,
         ) -> Result<H256, Vec<u8>> {
-            let program_id = ProgramId::from_origin(program_id.into_origin());
-
-            Self::read_metahash_impl(program_id, gas_allowance).map_err(String::into_bytes)
+            Self::read_metahash_impl(program_id.cast(), gas_allowance).map_err(String::into_bytes)
         }
 
         #[cfg(not(test))]
@@ -884,9 +877,8 @@ pub mod pallet {
             let nonce = SentOf::<T>::get();
             SentOf::<T>::increase();
             let block_number = <frame_system::Pallet<T>>::block_number().unique_saturated_into();
-            let user_id = ProgramId::from_origin(user_id);
 
-            MessageId::generate_from_user(block_number, user_id, nonce.into())
+            MessageId::generate_from_user(block_number, user_id.cast(), nonce.into())
         }
 
         /// Delayed tasks processing.
@@ -1229,9 +1221,7 @@ pub mod pallet {
             );
 
             let message = InitMessage::from_packet(message_id, packet);
-            let dispatch = message
-                .into_dispatch(ProgramId::from_origin(origin))
-                .into_stored();
+            let dispatch = message.into_dispatch(origin.cast()).into_stored();
 
             let event = Event::MessageQueued {
                 id: dispatch.id(),
@@ -1552,11 +1542,8 @@ pub mod pallet {
                 Self::create(origin.clone(), message.id(), 0, true);
 
                 // Converting reply message into appropriate type for queueing.
-                let dispatch = message.into_stored_dispatch(
-                    ProgramId::from_origin(origin.into_origin()),
-                    mailboxed.source(),
-                    mailboxed.id(),
-                );
+                let dispatch =
+                    message.into_stored_dispatch(origin.cast(), mailboxed.source(), mailboxed.id());
 
                 // Queueing dispatch.
                 QueueOf::<T>::queue(dispatch)
@@ -1568,7 +1555,7 @@ pub mod pallet {
 
         /// Process message queue
         #[pallet::call_index(6)]
-        #[pallet::weight((Weight::zero(), DispatchClass::Mandatory))]
+        #[pallet::weight((<T as frame_system::Config>::BlockWeights::get().max_block, DispatchClass::Mandatory))]
         pub fn run(
             origin: OriginFor<T>,
             max_gas: Option<GasBalanceOf<T>>,
@@ -1589,9 +1576,13 @@ pub mod pallet {
             // overlay and never be committed to storage.
             GearRunInBlock::<T>::set(Some(()));
 
-            let weight_used = <frame_system::Pallet<T>>::block_weight();
             let max_weight = <T as frame_system::Config>::BlockWeights::get().max_block;
-            let remaining_weight = max_weight.saturating_sub(weight_used.total());
+
+            // Subtract extrinsic weight from the current block weight to get used weight in the current block.
+            let weight_used = <frame_system::Pallet<T>>::block_weight()
+                .total()
+                .saturating_sub(max_weight);
+            let remaining_weight = max_weight.saturating_sub(weight_used);
 
             // Remaining weight may exceed the minimum block gas limit set by the Limiter trait.
             let mut adjusted_gas = GasAllowanceOf::<T>::get().max(remaining_weight.ref_time());
@@ -1854,7 +1845,7 @@ pub mod pallet {
                 GearBank::<T>::deposit_gas(&gas_sponsor, gas_limit, keep_alive)?;
                 Self::create(gas_sponsor, message.id(), gas_limit, false);
 
-                let message = message.into_stored_dispatch(ProgramId::from_origin(origin));
+                let message = message.into_stored_dispatch(origin.cast());
 
                 Self::deposit_event(Event::MessageQueued {
                     id: message.id(),
@@ -1866,7 +1857,7 @@ pub mod pallet {
                 QueueOf::<T>::queue(message)
                     .unwrap_or_else(|e| unreachable!("Messages storage corrupted: {e:?}"));
             } else {
-                let message = message.into_stored(ProgramId::from_origin(origin));
+                let message = message.into_stored(origin.cast());
                 let message: UserMessage = message
                     .try_into()
                     .unwrap_or_else(|_| unreachable!("Signal message sent to user"));
@@ -1879,9 +1870,7 @@ pub mod pallet {
 
                 CurrencyOf::<T>::transfer(
                     &who,
-                    &<T as frame_system::Config>::AccountId::from_origin(
-                        message.destination().into_origin(),
-                    ),
+                    &message.destination().cast(),
                     value.unique_saturated_into(),
                     existence_requirement,
                 )?;
@@ -1947,11 +1936,8 @@ pub mod pallet {
             );
 
             // Converting reply message into appropriate type for queueing.
-            let dispatch = message.into_stored_dispatch(
-                ProgramId::from_origin(origin.clone().into_origin()),
-                destination,
-                mailboxed.id(),
-            );
+            let dispatch =
+                message.into_stored_dispatch(origin.clone().cast(), destination, mailboxed.id());
 
             // Pre-generating appropriate event to avoid dispatch cloning.
             let event = Event::MessageQueued {

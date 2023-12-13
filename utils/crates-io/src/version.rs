@@ -1,29 +1,46 @@
 // This file is part of Gear.
-//
+
 // Copyright (C) 2021-2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-//
+
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
-//
+
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 // GNU General Public License for more details.
-//
+
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Logs from binaries
+//! Crate verifier
 
-pub mod gear_node {
-    // `#1` is enough here.
-    pub const IMPORTING_BLOCKS: &str = "Imported #1";
+use anyhow::Result;
+use serde::Deserialize;
+
+#[derive(Debug, Deserialize)]
+struct Resp {
+    pub versions: Vec<Version>,
 }
 
-pub mod gear_program {
-    pub const EX_UPLOAD_PROGRAM: &str = "Successfully submitted call Gear::upload_program";
-    pub const EX_UPLOAD_CODE: &str = "Successfully submitted call Gear::upload_code";
+#[derive(Debug, Deserialize)]
+struct Version {
+    pub num: String,
+}
+
+/// Verify if the package has already been published.
+pub fn verify(name: &str, version: &str) -> Result<bool> {
+    let client = reqwest::blocking::Client::builder()
+        .user_agent("gear-crates-io-manager")
+        .build()?;
+
+    let resp = client
+        .get(format!("https://crates.io/api/v1/crates/{name}/versions"))
+        .send()?
+        .json::<Resp>()?;
+
+    Ok(resp.versions.into_iter().any(|v| v.num == version))
 }

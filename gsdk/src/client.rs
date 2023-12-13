@@ -71,6 +71,7 @@ impl RpcClient {
             timeout.unwrap_or(DEFAULT_TIMEOUT),
         );
 
+        log::info!("Connecting to {url} ...");
         if url.starts_with("ws") {
             Ok(Self::Ws(
                 WsClientBuilder::default()

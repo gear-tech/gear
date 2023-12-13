@@ -78,7 +78,7 @@ impl Optimizer {
     }
 
     pub fn flush_to_file(self, path: &PathBuf) {
-        fs::write(path, self.module.to_bytes().unwrap()).unwrap();
+        fs::write(path, self.module.into_bytes().unwrap()).unwrap();
     }
 
     /// Process optimization.
