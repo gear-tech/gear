@@ -167,13 +167,12 @@ pub mod panic_handler {
             let _ = debug_msg.try_push_str(&PANIC_OCCURRED[..4]);
             let _ = write!(&mut debug_msg, "{panic_info}");
 
-            let src = (&PANIC_OCCURRED[4..]).as_bytes();
-            let dest = unsafe {
+            unsafe {
                 debug_msg
                     .as_bytes_mut()
                     .get_unchecked_mut(4..PANIC_OCCURRED.len())
-            };
-            dest.copy_from_slice(src);
+                    .copy_from_slice(&PANIC_OCCURRED[4..].as_bytes());
+            }
 
             let _ = ext::debug(&debug_msg);
 
