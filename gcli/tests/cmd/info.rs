@@ -18,7 +18,7 @@
 
 //! Integration tests for command `deploy`
 use crate::common::{
-    self, logs,
+    self,
     node::{Convert, NodeExec},
     Args, Result,
 };
@@ -46,9 +46,7 @@ const EXPECTED_MAILBOX: &str = r#"
 
 #[tokio::test]
 async fn test_action_balance_works() -> Result<()> {
-    common::login_as_alice().expect("login failed");
-    let mut node = common::dev()?;
-    node.wait_for_log_record(logs::gear_node::IMPORTING_BLOCKS)?;
+    let node = common::dev()?;
 
     let output = node.run(Args::new("info").address("//Alice").action("balance"))?;
     let stdout = output.stdout.convert();

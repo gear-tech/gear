@@ -18,7 +18,7 @@
 
 //! Integration tests for command `program`
 use crate::common::{
-    self, env, logs,
+    self, env,
     node::{Convert, NodeExec},
     Args, Result,
 };
@@ -27,11 +27,7 @@ use scale_info::scale::Encode;
 
 #[tokio::test]
 async fn test_command_program_state_works() -> Result<()> {
-    common::login_as_alice().expect("login failed");
-
-    // Setup node.
-    let mut node = common::dev()?;
-    node.wait_for_log_record(logs::gear_node::IMPORTING_BLOCKS)?;
+    let node = common::dev()?;
 
     // Deploy demo_new_meta.
     let opt = env::wasm_bin("demo_new_meta.opt.wasm");
