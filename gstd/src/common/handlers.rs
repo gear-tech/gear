@@ -252,7 +252,6 @@ pub mod panic_handler {
                     })
             }
 
-            // FIXME
             let option = parse_panic_msg(&default_panic_msg);
             let (location, message) = unsafe { option.unwrap_unchecked() };
 

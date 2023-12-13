@@ -16,7 +16,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use alloc::alloc::Layout;
+
 #[no_mangle]
 extern "C" fn init() {
-    panic!("msg");
+    unsafe {
+        // Force rustc not to remove memory import
+        *(10usize as *mut u8) = 10;
+    }
+    alloc::alloc::handle_alloc_error(Layout::new::<[u8; 64 * 1024]>());
 }
