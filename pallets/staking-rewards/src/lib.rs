@@ -74,7 +74,7 @@ pub use pallet::*;
 pub use weights::WeightInfo;
 
 pub type BalanceOf<T> = <T as pallet_staking::Config>::CurrencyBalance;
-pub type StakingCurrency<T> = <T as pallet_staking::Config>::Currency;
+pub type CurrencyOf<T> = <T as pallet_staking::Config>::Currency;
 pub type PositiveImbalanceOf<T> = <<T as pallet_staking::Config>::Currency as Currency<
     <T as frame_system::Config>::AccountId,
 >>::PositiveImbalance;
@@ -471,22 +471,22 @@ impl<T: Config> OnUnbalanced<NegativeImbalanceOf<T>> for OffsetPool<T> {
 
 // DustRemoval handler
 pub struct OffsetPoolDust<T>(sp_std::marker::PhantomData<T>);
-impl<T: Config> OnUnbalanced<fungible::Credit<T::AccountId, StakingCurrency<T>>>
+impl<T: Config> OnUnbalanced<fungible::Credit<T::AccountId, CurrencyOf<T>>>
     for OffsetPoolDust<T>
 where
-    StakingCurrency<T>: fungible::Balanced<<T as frame_system::Config>::AccountId>,
+    CurrencyOf<T>: fungible::Balanced<<T as frame_system::Config>::AccountId>,
     <T as pallet_staking::Config>::CurrencyBalance: From<
-        <StakingCurrency<T> as fungible::Inspect<<T as frame_system::Config>::AccountId>>::Balance,
+        <CurrencyOf<T> as fungible::Inspect<<T as frame_system::Config>::AccountId>>::Balance,
     >,
 {
-    fn on_nonzero_unbalanced(amount: fungible::Credit<T::AccountId, StakingCurrency<T>>)
+    fn on_nonzero_unbalanced(amount: fungible::Credit<T::AccountId, CurrencyOf<T>>)
     where
-        StakingCurrency<T>: fungible::Balanced<<T as frame_system::Config>::AccountId>
+        CurrencyOf<T>: fungible::Balanced<<T as frame_system::Config>::AccountId>
             + fungible::Inspect<<T as frame_system::Config>::AccountId>,
     {
         let numeric_amount = amount.peek();
 
-        let result = <StakingCurrency<T> as fungible::Balanced<_>>::resolve(
+        let result = <CurrencyOf<T> as fungible::Balanced<_>>::resolve(
             &Pallet::<T>::account_id(),
             amount,
         );
