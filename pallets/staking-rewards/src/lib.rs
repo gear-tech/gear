@@ -471,13 +471,11 @@ impl<T: Config> OnUnbalanced<NegativeImbalanceOf<T>> for OffsetPool<T> {
 
 // DustRemoval handler
 pub struct OffsetPoolDust<T>(sp_std::marker::PhantomData<T>);
-impl<T: Config> OnUnbalanced<fungible::Credit<T::AccountId, CurrencyOf<T>>>
-    for OffsetPoolDust<T>
+impl<T: Config> OnUnbalanced<fungible::Credit<T::AccountId, CurrencyOf<T>>> for OffsetPoolDust<T>
 where
     CurrencyOf<T>: fungible::Balanced<<T as frame_system::Config>::AccountId>,
-    <T as pallet_staking::Config>::CurrencyBalance: From<
-        <CurrencyOf<T> as fungible::Inspect<<T as frame_system::Config>::AccountId>>::Balance,
-    >,
+    <T as pallet_staking::Config>::CurrencyBalance:
+        From<<CurrencyOf<T> as fungible::Inspect<<T as frame_system::Config>::AccountId>>::Balance>,
 {
     fn on_nonzero_unbalanced(amount: fungible::Credit<T::AccountId, CurrencyOf<T>>)
     where
@@ -486,10 +484,8 @@ where
     {
         let numeric_amount = amount.peek();
 
-        let result = <CurrencyOf<T> as fungible::Balanced<_>>::resolve(
-            &Pallet::<T>::account_id(),
-            amount,
-        );
+        let result =
+            <CurrencyOf<T> as fungible::Balanced<_>>::resolve(&Pallet::<T>::account_id(), amount);
         match result {
             Ok(()) => Pallet::deposit_event(Event::<T>::Minted {
                 amount: numeric_amount.into(),
