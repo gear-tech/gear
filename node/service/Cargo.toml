@@ -15,7 +15,7 @@ codec = { workspace = true, features = ["derive"] }
 futures.workspace = true
 futures-timer.workspace = true
 hex-literal.workspace = true
-jsonrpsee = { workspace = true, features = ["server", "macros"] }
+jsonrpsee = { workspace = true, features = ["server"] }
 log.workspace = true
 serde = { workspace = true, features = ["derive"] }
 
@@ -45,6 +45,7 @@ sc-keystore.workspace = true
 sc-network.workspace = true
 sc-network-common.workspace = true
 sc-network-sync.workspace = true
+sc-network-statement.workspace = true
 sc-consensus-slots.workspace = true
 sc-transaction-pool.workspace = true
 sc-transaction-pool-api.workspace = true

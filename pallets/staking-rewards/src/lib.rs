@@ -53,7 +53,8 @@ mod tests;
 
 use frame_support::{
     traits::{
-        Contains, Currency, ExistenceRequirement, Get, Imbalance, OnUnbalanced, WithdrawReasons,
+        fungible, Contains, Currency, ExistenceRequirement, Get, Imbalance, OnUnbalanced,
+        WithdrawReasons,
     },
     weights::Weight,
     PalletId,
@@ -65,7 +66,7 @@ use sp_runtime::{
     traits::{AccountIdConversion, Saturating, StaticLookup},
     PerThing, Perquintill,
 };
-use sp_std::collections::btree_set::BTreeSet;
+use sp_std::{collections::btree_set::BTreeSet, vec::Vec};
 
 pub use extension::StakingBlackList;
 pub use inflation::compute_total_payout;
@@ -73,6 +74,7 @@ pub use pallet::*;
 pub use weights::WeightInfo;
 
 pub type BalanceOf<T> = <T as pallet_staking::Config>::CurrencyBalance;
+pub type CurrencyOf<T> = <T as pallet_staking::Config>::Currency;
 pub type PositiveImbalanceOf<T> = <<T as pallet_staking::Config>::Currency as Currency<
     <T as frame_system::Config>::AccountId,
 >>::PositiveImbalance;
@@ -464,6 +466,32 @@ impl<T: Config> OnUnbalanced<NegativeImbalanceOf<T>> for OffsetPool<T> {
         Pallet::deposit_event(Event::<T>::Minted {
             amount: numeric_amount,
         });
+    }
+}
+
+// DustRemoval handler
+pub struct OffsetPoolDust<T>(sp_std::marker::PhantomData<T>);
+impl<T: Config> OnUnbalanced<fungible::Credit<T::AccountId, CurrencyOf<T>>> for OffsetPoolDust<T>
+where
+    CurrencyOf<T>: fungible::Balanced<<T as frame_system::Config>::AccountId>,
+    <T as pallet_staking::Config>::CurrencyBalance:
+        From<<CurrencyOf<T> as fungible::Inspect<<T as frame_system::Config>::AccountId>>::Balance>,
+{
+    fn on_nonzero_unbalanced(amount: fungible::Credit<T::AccountId, CurrencyOf<T>>)
+    where
+        CurrencyOf<T>: fungible::Balanced<<T as frame_system::Config>::AccountId>
+            + fungible::Inspect<<T as frame_system::Config>::AccountId>,
+    {
+        let numeric_amount = amount.peek();
+
+        let result =
+            <CurrencyOf<T> as fungible::Balanced<_>>::resolve(&Pallet::<T>::account_id(), amount);
+        match result {
+            Ok(()) => Pallet::deposit_event(Event::<T>::Minted {
+                amount: numeric_amount.into(),
+            }),
+            Err(amount) => log::error!("Balanced::resolve() err: {:?}", amount.peek()),
+        }
     }
 }
 

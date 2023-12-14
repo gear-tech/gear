@@ -398,17 +398,16 @@ async fn create_renew_balance_task(
             };
             tracing::debug!("User balance demand {user_balance_demand}");
 
-            // Calling `set_balance` for `user` is potentially dangerous, because getting actual
+            // Calling `force_set_balance` for `user` is potentially dangerous, because getting actual
             // reserved balance is a complicated task, as reserved balance is changed by another
             // task, which loads the node.
             //
             // Reserved balance mustn't be changed as it can cause runtime panics within reserving
             // or unreserving funds logic.
             root_api
-                .set_balance(
+                .force_set_balance(
                     root_address.clone(),
                     root_target_balance + user_balance_demand,
-                    0,
                 )
                 .await
                 .map_err(|e| {
