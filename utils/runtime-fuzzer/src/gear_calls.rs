@@ -35,10 +35,10 @@ use gear_call_gen::{ClaimValueArgs, SendReplyArgs};
 use gear_core::ids::{CodeId, MessageId, ProgramId};
 use gear_utils::NonEmpty;
 use gear_wasm_gen::{
-    EntryPointsSet, InvocableSyscall, RegularParamType, StandardGearWasmConfigsBundle,
-    SyscallName, SyscallsInjectionTypes, SyscallsParamsConfig,
+    EntryPointsSet, InvocableSyscall, RegularParamType, StandardGearWasmConfigsBundle, SyscallName,
+    SyscallsInjectionTypes, SyscallsParamsConfig,
 };
-use std::{mem, ops::RangeInclusive};
+use std::mem;
 
 /// Maximum payload size for the fuzzer - 1 KiB.
 ///
@@ -97,16 +97,16 @@ pub(crate) struct GearCalls<'a> {
 
 impl<'a> GearCalls<'a> {
     pub(crate) fn new(
-        unstructured: Unstructured<'a>,
+        data: &'a [u8],
         generators: ExtrinsicGeneratorSet,
         existing_users: Vec<ProgramId>,
     ) -> Result<GearCalls<'a>> {
-        if unstructured.len() < generators.unstructured_size_hint() {
+        if data.len() < generators.unstructured_size_hint() {
             return Err(Error::NotEnoughData);
         }
 
         Ok(GearCalls {
-            unstructured,
+            unstructured: Unstructured::new(data),
             intermediate_data: TempData {
                 existing_addresses: existing_users,
             },
@@ -208,7 +208,7 @@ impl ExtrinsicGenerator {
 /// Extrinsic generator that's capable of generating `UploadProgram` calls.
 pub(crate) struct UploadProgramGenerator {
     pub gas: u64,
-    pub value: RangeInclusive<u128>,
+    pub value: u128,
     pub test_input_id: String,
 }
 
@@ -251,10 +251,8 @@ impl UploadProgramGenerator {
 
         intermediate_data.existing_addresses.push(program_id);
 
-        let value = unstructured.int_in_range(self.value.clone())?;
-
         Ok(Some(
-            UploadProgramArgs((code, salt, payload, self.gas, value)).into(),
+            UploadProgramArgs((code, salt, payload, self.gas, self.value)).into(),
         ))
     }
 
@@ -275,8 +273,7 @@ impl From<UploadProgramGenerator> for ExtrinsicGenerator {
 /// Extrinsic generator that's capable of generating `SendMessage` calls.
 pub(crate) struct SendMessageGenerator {
     pub gas: u64,
-    pub value: RangeInclusive<u128>,
-    pub prepaid: bool,
+    pub value: u128,
 }
 
 impl SendMessageGenerator {
@@ -295,10 +292,8 @@ impl SendMessageGenerator {
         );
         log::trace!("Payload (send_message) length {:?}", payload.len());
 
-        let value = unstructured.int_in_range(self.value.clone())?;
-
         Ok(Some(
-            SendMessageArgs((program_id, payload, self.gas, value, self.prepaid)).into(),
+            SendMessageArgs((program_id, payload, self.gas, self.value)).into(),
         ))
     }
 
@@ -318,8 +313,7 @@ pub(crate) struct SendReplyGenerator {
     pub mailbox_provider: Box<dyn MailboxProvider>,
 
     pub gas: u64,
-    pub value: RangeInclusive<u128>,
-    pub prepaid: bool,
+    pub value: u128,
 }
 
 impl SendReplyGenerator {
@@ -341,9 +335,7 @@ impl SendReplyGenerator {
                 );
                 log::trace!("Payload (send_reply) length {:?}", payload.len());
 
-                let value = unstructured.int_in_range(self.value.clone())?;
-
-                Some(SendReplyArgs((message_id, payload, self.gas, value, self.prepaid)).into())
+                Some(SendReplyArgs((message_id, payload, self.gas, self.value)).into())
             }
         })
     }
@@ -433,12 +425,9 @@ fn config(
     );
 
     let mut params_config = SyscallsParamsConfig::default();
+    params_config.set_rule(RegularParamType::Alloc, (10..=20).into());
     params_config.set_rule(
-        ParamType::Regular(RegularParamType::Alloc),
-        (10..=20).into(),
-    );
-    params_config.set_rule(
-        ParamType::Regular(RegularParamType::Free),
+        RegularParamType::Free,
         (initial_pages..=initial_pages + 35).into(),
     );
 

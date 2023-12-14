@@ -7,8 +7,8 @@ use gear_core::ids::{MessageId, ProgramId};
 use gear_core_errors::ReplyCode;
 use gear_utils::NonEmpty;
 use gear_wasm_gen::{
-    EntryPointsSet, InvocableSyscall, RegularParamType, StandardGearWasmConfigsBundle,
-    SyscallName, SyscallsInjectionTypes, SyscallsParamsConfig,
+    EntryPointsSet, InvocableSyscall, RegularParamType, StandardGearWasmConfigsBundle, SyscallName,
+    SyscallsInjectionTypes, SyscallsParamsConfig,
 };
 use gsdk::metadata::runtime_types::{
     gear_common::event::DispatchStatus as GenDispatchStatus,
