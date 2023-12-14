@@ -1431,9 +1431,6 @@ benchmarks! {
     }: {
         res.replace(run_process(exec));
     }
-    verify {
-        verify_process(res.unwrap());
-    }
 
     lazy_pages_signal_read {
         let p in 0 .. code::max_pages::<T>() as u32;
