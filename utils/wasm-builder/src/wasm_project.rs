@@ -207,7 +207,13 @@ impl WasmProject {
 
         let mut features = Table::new();
         for feature in crate_info.features.keys() {
-            if feature != "default" {
+            // NOTE: Skipping feature `cli`
+            //
+            // Feature `cli` is now specified for dependency `gcli`,
+            // which is for building CLI for the target program, here
+            // we skip this feature on compiling project into WASM
+            // since it's not needed.
+            if feature != "default" && feature != "cli" {
                 features.insert(
                     feature.into(),
                     vec![format!("orig-project/{feature}")].into(),

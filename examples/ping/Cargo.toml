@@ -9,11 +9,13 @@ repository.workspace = true
 
 [dependencies]
 gstd.workspace = true
+gcli = { workspace = true, optional = true }
 
 [build-dependencies]
 gear-wasm-builder.workspace = true
 
 [features]
+cli = ["gcli"]
 debug = ["gstd/debug"]
 default = ["std"]
 std = []
