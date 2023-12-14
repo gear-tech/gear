@@ -38,7 +38,7 @@ use gear_wasm_instrument::{
 use gsys::Hash;
 use std::{
     collections::{btree_map::Entry, BTreeMap, BinaryHeap, HashSet},
-    fmt::{self, Display},
+    fmt::{self, Debug, Display},
     iter, mem,
     num::NonZeroU32,
 };
@@ -412,10 +412,7 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
         let mut instructions = param_setters
             .iter()
             .cloned()
-            .map(|pt| pt.translate(self.unstructured))
-            .collect::<Result<Vec<_>>>()?
-            .into_iter()
-            .flatten()
+            .flat_map(|pt| pt.translate())
             .collect::<Vec<_>>();
 
         instructions.push(Instruction::Call(call_indexes_handle as u32));
@@ -499,7 +496,7 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                         ParamsTranslator::new_i64(self.unstructured.arbitrary()?)
                     };
 
-                    log::trace!("  ----  Value - {}", setter.get_value());
+                    log::trace!("  ----  Value - {setter}");
 
                     setters.push(setter);
                 }
@@ -542,7 +539,10 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                     let offset = self.unstructured.int_in_range(0..=upper_limit)? as i32;
 
                     let setter = if let Some(allowed_values) = allowed_values {
-                        ParamsTranslator::new_i32_with_data(offset, allowed_values)
+                        ParamsTranslator::new_i32_with_data(
+                            offset,
+                            allowed_values.get(self.unstructured)?,
+                        )
                     } else {
                         ParamsTranslator::new_i32(offset)
                     };
@@ -765,11 +765,11 @@ impl From<DisabledSyscallsInvocator> for ModuleWithCallIndexes {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 enum ParamsTranslator {
     I32(i32),
     I64(i64),
-    I32WithData(i32, PtrParamAllowedValues),
+    I32WithData { start_offset: i32, data: Vec<i32> },
 }
 
 impl ParamsTranslator {
@@ -781,8 +781,8 @@ impl ParamsTranslator {
         Self::I64(value)
     }
 
-    fn new_i32_with_data(start_offset: i32, data_filler: PtrParamAllowedValues) -> Self {
-        Self::I32WithData(start_offset, data_filler)
+    fn new_i32_with_data(start_offset: i32, data: Vec<i32>) -> Self {
+        Self::I32WithData { start_offset, data }
     }
 
     fn as_i32(&self) -> Option<i32> {
@@ -793,57 +793,43 @@ impl ParamsTranslator {
         }
     }
 
-    /// Get value of the instruction.
-    ///
-    /// # Panics
-    /// Panics if the instruction is not `I32Const` or `I64Const`.
-    fn get_value(&self) -> i64 {
+    fn translate(self) -> Vec<Instruction> {
         match self {
-            &ParamsTranslator::I32(value) => value as i64,
-            &ParamsTranslator::I64(value) => value,
-            // TODO
-            ParamsTranslator::I32WithData(..) => todo!(),
-        }
-    }
-
-    fn translate<'b, 'a>(self, unstructured: &'b mut Unstructured<'a>) -> Result<Vec<Instruction>> {
-        Ok(match self {
             Self::I32(value) => vec![Instruction::I32Const(value)],
             Self::I64(value) => vec![Instruction::I64Const(value)],
-            Self::I32WithData(start_offset, allowed_values) => allowed_values
-                .get(unstructured)?
+            Self::I32WithData { start_offset, data } => data
                 .into_iter()
                 .enumerate()
                 .flat_map(|(word_idx, word)| {
                     vec![
                         Instruction::I32Const(start_offset),
                         Instruction::I32Const(word),
-                        Instruction::I32Store(
-                            2,
-                            (allowed_values.value_offset() + word_idx * mem::size_of::<i32>())
-                                as u32,
-                        ),
+                        Instruction::I32Store(2, (word_idx * mem::size_of::<i32>()) as u32),
                     ]
                 })
                 .chain(iter::once(Instruction::I32Const(start_offset)))
                 .collect(),
-        })
+        }
     }
 }
 
-// TODO: debug!
-impl Display for ParamsTranslator {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+impl Debug for ParamsTranslator {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::I32(val) => write!(f, "set value: {val}"),
-            Self::I64(val) => write!(f, "set value: {val}"),
-            _ => todo!(),
-            // Self::I32WithData { address, data } if data.is_empty() => {
-            //     write!(f, "set pointer {address}")
-            // }
-            // Self::I32WithData { address, data } => {
-            //     write!(f, "set pointer {address} and write {data:?} to it")
-            // }
+            Self::I32(val) => write!(f, "set i32 value: {val}"),
+            Self::I64(val) => write!(f, "set i64 value: {val}"),
+            Self::I32WithData { start_offset, data } => {
+                write!(
+                    f,
+                    "set to pointer {start_offset} the following data - {data:?}"
+                )
+            }
         }
+    }
+}
+
+impl Display for ParamsTranslator {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        <Self as Debug>::fmt(&self, f)
     }
 }

@@ -27,12 +27,6 @@ use std::{collections::HashMap, mem, ops::RangeInclusive};
 
 pub use gear_wasm_instrument::syscalls::{HashType, Ptr, RegularParamType};
 
-/// Amount of words required to write the `Hash` to the memory.
-///
-/// So if `Hash` is 32 bytes on a 32 bit (4 bytes) memory word size system,
-/// 8 words will be used to store the `Hash` value in the memory.
-const HASH_WORDS_COUNT: usize = mem::size_of::<Hash>() / mem::size_of::<i32>();
-
 /// Syscalls params config.
 ///
 /// This is basically a map, which creates a relationship between each kind of
@@ -167,16 +161,14 @@ impl Default for SyscallsParamsConfig {
 
         // Setting ptr params rules.
         this.set_ptr_rule(PtrParamAllowedValues::Value(0..=100_000_000_000));
-        for ty in HashType::all() {
-            this.set_ptr_rule(PtrParamAllowedValues::HashWithValue {
-                ty,
-                value: 0..=100_000_000_000,
-            });
-        }
+        PtrParamAllowedValues::all_hash_with_range(0..=100_000_000_000)
+            .into_iter()
+            .for_each(|rule| this.set_ptr_rule(rule));
+
         this.set_ptr_rule(PtrParamAllowedValues::TwoHashesWithValue {
             ty1: HashType::ReservationId,
             ty2: HashType::ActorId,
-            value: 0..=100_000_000_000,
+            range: 0..=100_000_000_000,
         });
 
         this
@@ -241,68 +233,85 @@ impl Default for RegularParamAllowedValues {
     }
 }
 
-// /// Extended version of `PtrParamAllowedValues`, which
-// /// also has `value_offset` data. For more info, read
-// /// docs to the field.
-// #[derive(Debug, Clone)]
-// pub(crate) struct PtrParamAllowedValuesExt {
-//     /// Value offset in params bytes.
-//     pub(crate) value_offset: usize,
-//     pub(crate) allowed_values: PtrParamAllowedValues,
-// }
-
 /// Allowed values for syscalls pointer params.
 ///
-/// Currently it allows defining only values for
-/// pointer types requiring them.
-// TODO: support hashes
+/// Currently it allows defining only message
+/// values for.
+// TODO #3591 Support hashes to be defined from config.
 #[derive(Debug, Clone)]
 pub enum PtrParamAllowedValues {
     Value(RangeInclusive<u128>),
     HashWithValue {
         ty: HashType,
-        value: RangeInclusive<u128>,
-        // TODO: add todo for hash data.
-        // hash: [u8; 32]
+        range: RangeInclusive<u128>,
     },
     TwoHashesWithValue {
         ty1: HashType,
         ty2: HashType,
-        value: RangeInclusive<u128>,
-        // TODO: add todo for hash data.
-        // hash1: [u8; 32]
-        // hash2: [u8; 32]
+        range: RangeInclusive<u128>,
     },
 }
 
 impl PtrParamAllowedValues {
+    pub fn all_hash_with_range(range: RangeInclusive<u128>) -> Vec<Self> {
+        HashType::all()
+            .into_iter()
+            .map(|ty| PtrParamAllowedValues::HashWithValue {
+                ty,
+                range: range.clone(),
+            })
+            .collect()
+    }
+
     /// Get the actual data that should be written into the memory.
     pub fn get(&self, unstructured: &mut Unstructured) -> Result<Vec<i32>> {
         match self {
-            Self::Value(range) => {
-                let value = unstructured.int_in_range(range.clone())?;
-                Ok(value
-                    .to_le_bytes()
-                    .chunks(mem::size_of::<u128>() / mem::size_of::<i32>())
-                    .map(|word_bytes| {
-                        i32::from_le_bytes(
-                            word_bytes
-                                .try_into()
-                                .expect("Chunks are of the exact size."),
-                        )
-                    })
-                    .collect())
+            PtrParamAllowedValues::Value(range) => Self::get_value(unstructured, range.clone()),
+            PtrParamAllowedValues::HashWithValue { range, .. } => {
+                let mut ret = Vec::with_capacity(8 + 4);
+                ret.extend(Self::get_default_hash());
+                ret.extend(Self::get_value(unstructured, range.clone())?);
+
+                Ok(ret)
             }
-            _ => todo!("TODO"),
+            PtrParamAllowedValues::TwoHashesWithValue { range, .. } => {
+                let mut ret = Vec::with_capacity(8 + 8 + 4);
+                ret.extend(Self::get_default_hash());
+                ret.extend(Self::get_default_hash());
+                ret.extend(Self::get_value(unstructured, range.clone())?);
+
+                Ok(ret)
+            }
         }
     }
 
-    pub const fn value_offset(&self) -> usize {
-        match self {
-            PtrParamAllowedValues::Value(_) => 0,
-            PtrParamAllowedValues::HashWithValue { .. } => HASH_WORDS_COUNT,
-            PtrParamAllowedValues::TwoHashesWithValue { .. } => 2 * HASH_WORDS_COUNT,
-        }
+    fn get_value(unstructured: &mut Unstructured, range: RangeInclusive<u128>) -> Result<Vec<i32>> {
+        let value = unstructured.int_in_range(range)?;
+        Ok(Self::get_for_instructions(value.to_le_bytes()))
+    }
+
+    fn get_default_hash() -> Vec<i32> {
+        Self::get_for_instructions(Hash::default())
+    }
+
+    fn get_for_instructions<const N: usize>(raw_data: [u8; N]) -> Vec<i32> {
+        let data_size = mem::size_of_val(&raw_data);
+        let wasm_ptr = mem::size_of::<i32>();
+
+        let chunk_size = (data_size % wasm_ptr == 0)
+            .then_some(data_size / wasm_ptr)
+            .unwrap_or_else(|| panic!("data size isn't multiply of wasm word size"));
+
+        raw_data
+            .chunks(chunk_size)
+            .map(|word_bytes| {
+                i32::from_le_bytes(
+                    word_bytes
+                        .try_into()
+                        .expect("Chunks are of the exact size."),
+                )
+            })
+            .collect()
     }
 }
 
