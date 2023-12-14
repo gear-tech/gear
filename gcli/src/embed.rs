@@ -17,11 +17,55 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Utils for embedded commands.
+#![cfg(feature = "embed")]
 
-use crate::result::Result;
+use std::path::PathBuf;
 
-/// Look up `*.opt.wasm` file from the primary package.
-pub fn lookup_opt() -> Result<Vec<u8>> {
-    println!("primary package: {}", env!("CARGO_MANIFEST_DIR"));
-    Ok(Default::default())
+/// This macro is used to lookup the artifact from the `OUT_DIR`.
+#[macro_export]
+macro_rules! lookup {
+    () => {{
+        ::gcli::embed::Artifact::from_out_dir(env!("OUT_DIR"))
+    }};
+}
+
+/// The length of the suffix of the output folder.
+///
+/// Example: `[gcli]-1234567890abcdef`
+const OUT_SUFFIX_LENGTH: usize = 17;
+
+/// Program info for embedded commands.
+#[derive(Debug)]
+pub struct Artifact {
+    /// Path of the optitmized WASM binary.
+    pub opt: PathBuf,
+}
+
+impl Artifact {
+    /// Parse the artifact from the `OUT_DIR`
+    /// environment variable.
+    pub fn from_out_dir(out: &str) -> Option<Self> {
+        let out_dir = PathBuf::from(out);
+        let mut ancestors = out_dir.ancestors();
+
+        let [name, profile, target] = [
+            ancestors
+                .nth(1)?
+                .file_name()?
+                .to_str()
+                .map(|name| name.get(..name.len().checked_sub(OUT_SUFFIX_LENGTH)?))
+                .flatten()?,
+            (ancestors.nth(1)?.file_name()?.to_str()? == "debug")
+                .then(|| "debug")
+                .unwrap_or("release"),
+            ancestors.next()?.to_str()?,
+        ];
+
+        let opt = PathBuf::from(format!(
+            "{target}/wasm32-unknown-unknown/{profile}/{}.opt.wasm",
+            name.replace('-', "_")
+        ));
+
+        opt.exists().then(|| Self { opt })
+    }
 }

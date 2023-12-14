@@ -57,6 +57,7 @@ vara-runtime = { workspace = true, features = [ "std", "dev" ] }
 which.workspace = true
 
 [features]
+embed = []
 node-key = [ "libp2p" ]
 
 [package.metadata.docs.rs]

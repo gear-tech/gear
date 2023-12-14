@@ -7,6 +7,11 @@ license.workspace = true
 homepage.workspace = true
 repository.workspace = true
 
+[[bin]]
+name = "demo_ping"
+path = "src/bin/ping.rs"
+required-features = ["gcli"]
+
 [dependencies]
 gstd.workspace = true
 gcli = { workspace = true, optional = true }
@@ -17,4 +22,5 @@ gear-wasm-builder.workspace = true
 [features]
 debug = ["gstd/debug"]
 default = ["std"]
-std = ["gcli"]
+std = []
+gcli = ["gcli/embed"]
