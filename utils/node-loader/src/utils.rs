@@ -7,7 +7,7 @@ use gear_core::ids::{MessageId, ProgramId};
 use gear_core_errors::ReplyCode;
 use gear_utils::NonEmpty;
 use gear_wasm_gen::{
-    EntryPointsSet, InvocableSyscall, ParamType, RegularParamType, StandardGearWasmConfigsBundle,
+    EntryPointsSet, InvocableSyscall, RegularParamType, StandardGearWasmConfigsBundle,
     SyscallName, SyscallsInjectionTypes, SyscallsParamsConfig,
 };
 use gsdk::metadata::runtime_types::{
@@ -230,9 +230,9 @@ pub fn get_wasm_gen_config(
     );
 
     let mut params_config = SyscallsParamsConfig::default();
-    params_config.set_rule(ParamType::Regular(RegularParamType::Alloc), (1..=10).into());
+    params_config.set_rule(RegularParamType::Alloc, (1..=10).into());
     params_config.set_rule(
-        ParamType::Regular(RegularParamType::Free),
+        RegularParamType::Free,
         (initial_pages..=initial_pages + 50).into(),
     );
 

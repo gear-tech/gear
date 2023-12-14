@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use gear_common::Origin;
-use gear_runtime::Runtime;
+use vara_runtime::Runtime;
 use pallet_balances::Pallet as BalancesPallet;
 use pallet_gear::BlockGasLimitOf;
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
@@ -73,6 +73,6 @@ pub fn get_pub_key_from_seed<T: TPublic>(seed: &str) -> <T::Pair as Pair>::Publi
         .public()
 }
 
-pub fn get_account_balance(account: &AccountId) -> Balance {
-    BalancesPallet::<Runtime>::free_balance(account)
+pub fn acc_max_balance() -> Balance {
+    BlockGasLimitOf::<Runtime>::get().saturating_mul(20) as u128
 }

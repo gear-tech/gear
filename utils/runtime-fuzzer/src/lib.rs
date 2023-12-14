@@ -24,15 +24,16 @@ mod runtime;
 mod tests;
 mod utils;
 
-use crate::utils::default_fuzzing_config;
 use arbitrary::{Arbitrary, Error, Result, Unstructured};
 use frame_support::pallet_prelude::DispatchResultWithPostInfo;
 use gear_call_gen::{ClaimValueArgs, GearCall, SendMessageArgs, SendReplyArgs, UploadProgramArgs};
 use gear_calls::GearCalls;
 use gear_core::ids::ProgramId;
-use gear_runtime::{AccountId, Gear, RuntimeOrigin};
+use pallet_balances::Pallet as BalancesPallet;
+use vara_runtime::{AccountId, Gear, RuntimeOrigin};
 use runtime::*;
 use sha1::*;
+use std::fmt::Debug;
 use std::{fmt::Debug, ops::RangeInclusive};
 use utils::default_generator_set;
 use vara_runtime::{AccountId, Gear, Runtime, RuntimeOrigin};
@@ -62,12 +63,6 @@ impl Debug for RuntimeFuzzerInput<'_> {
     }
 }
 
-/// Contains some general configs for fuzzer.
-pub(crate) struct FuzzingConfig {
-    initial_sender_balance: RangeInclusive<u128>,
-    allow_overspend: bool,
-}
-
 /// Runs all the fuzz testing internal machinery.
 pub fn run(RuntimeFuzzerInput(data): RuntimeFuzzerInput<'_>) -> Result<()> {
     run_impl(data).map(|_| ())
@@ -81,18 +76,11 @@ fn run_impl(data: &[u8]) -> Result<sp_io::TestExternalities> {
     let test_input_id = get_sha1_string(data);
     log::trace!("Generating GearCalls from corpus - {}", test_input_id);
 
-    let fuzzing_config = default_fuzzing_config();
-
     let sender = runtime::account(runtime::alice());
     let sender_prog_id = ProgramId::from(*<AccountId as AsRef<[u8; 32]>>::as_ref(&sender));
 
-    let mut unstructured = Unstructured::new(data);
-
-    let initial_sender_balance =
-        unstructured.int_in_range(fuzzing_config.initial_sender_balance.clone())?;
-
     let generators = default_generator_set(test_input_id);
-    let gear_calls = GearCalls::new(unstructured, generators, vec![sender_prog_id])?;
+    let gear_calls = GearCalls::new(data, generators, vec![sender_prog_id])?;
 
     let mut test_ext = new_test_ext();
     test_ext.execute_with(|| -> Result<()> {

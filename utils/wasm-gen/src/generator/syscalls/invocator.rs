@@ -830,6 +830,6 @@ impl Debug for ParamsTranslator {
 
 impl Display for ParamsTranslator {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        <Self as Debug>::fmt(&self, f)
+        <Self as Debug>::fmt(self, f)
     }
 }

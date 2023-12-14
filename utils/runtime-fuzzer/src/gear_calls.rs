@@ -35,7 +35,7 @@ use gear_call_gen::{ClaimValueArgs, SendReplyArgs};
 use gear_core::ids::{CodeId, MessageId, ProgramId};
 use gear_utils::NonEmpty;
 use gear_wasm_gen::{
-    EntryPointsSet, InvocableSyscall, ParamType, RegularParamType, StandardGearWasmConfigsBundle,
+    EntryPointsSet, InvocableSyscall, RegularParamType, StandardGearWasmConfigsBundle,
     SyscallName, SyscallsInjectionTypes, SyscallsParamsConfig,
 };
 use std::{mem, ops::RangeInclusive};
