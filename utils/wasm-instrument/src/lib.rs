@@ -158,7 +158,7 @@ where
     /// Performs instrumentation of a given WASM module depending
     /// on the parameters with which the [`InstrumentationBuilder`] was created.
     pub fn instrument(&mut self, module: Module) -> Result<Module, InstrumentationError> {
-        if !(self.stack_limiter.is_some() || self.gas_limiter.is_some()) {
+        if let (None, None) = (self.stack_limiter, &self.gas_limiter) {
             return Ok(module);
         }
 
