@@ -15,7 +15,6 @@ gcli = { workspace = true, optional = true }
 gear-wasm-builder.workspace = true
 
 [features]
-cli = ["gcli"]
 debug = ["gstd/debug"]
 default = ["std"]
-std = []
+std = ["gcli"]

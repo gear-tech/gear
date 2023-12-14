@@ -1,3 +1,5 @@
+#![cfg(feature = "std")]
+
 use gcli::embed;
 
 fn main() {
