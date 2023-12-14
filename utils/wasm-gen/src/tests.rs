@@ -222,9 +222,9 @@ fn ptr_setters_work() {
     let mut pointer_writes_config = PtrParamFillersConfig::empty();
     pointer_writes_config.set_rule(
         PtrType::Value,
-        vec![PtrParamFiller {
+        vec![PtrParamAllowedValuesExt {
             value_offset: 0,
-            ptr_data: FillingPtrParamData::U128(REPLY_VALUE..=REPLY_VALUE),
+            allowed_values: FillingPtrParamData::U128(REPLY_VALUE..=REPLY_VALUE),
         }],
     );
 
@@ -351,7 +351,7 @@ fn precise_syscalls_works() {
         injection_types.set(syscall, INJECTED_SYSCALLS, INJECTED_SYSCALLS);
 
         let mut param_config = SyscallsParamsConfig::default();
-        param_config.add_rule(ParamType::Regular(RegularParamType::Gas), (0..=0).into());
+        param_config.set_rule(ParamType::Regular(RegularParamType::Gas), (0..=0).into());
 
         // Assert that syscalls results will be processed.
         let termination_reason = execute_wasm_with_custom_configs(
@@ -401,7 +401,7 @@ fn get_params_for_syscall_to_fail(
     };
 
     (
-        SyscallsParamsConfig::all_constant_value(i32::MAX as i64),
+        SyscallsParamsConfig::const_regular_params(i32::MAX as i64),
         memory_write,
     )
 }

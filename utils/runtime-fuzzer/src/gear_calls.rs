@@ -433,11 +433,11 @@ fn config(
     );
 
     let mut params_config = SyscallsParamsConfig::default();
-    params_config.add_rule(
+    params_config.set_rule(
         ParamType::Regular(RegularParamType::Alloc),
         (10..=20).into(),
     );
-    params_config.add_rule(
+    params_config.set_rule(
         ParamType::Regular(RegularParamType::Free),
         (initial_pages..=initial_pages + 35).into(),
     );

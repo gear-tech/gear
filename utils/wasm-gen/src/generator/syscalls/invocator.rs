@@ -24,8 +24,8 @@ use crate::{
         DisabledAdditionalDataInjector, FunctionIndex, ModuleWithCallIndexes,
     },
     wasm::{PageCount as WasmPageCount, WasmModule},
-    InvocableSyscall, PtrParamFiller, PtrParamFillersConfig, SyscallParamAllowedValues,
-    SyscallsConfig, SyscallsParamsConfig,
+    InvocableSyscall, PtrParamAllowedValues, RegularParamAllowedValues, SyscallsConfig,
+    SyscallsParamsConfig,
 };
 use arbitrary::{Result, Unstructured};
 use gear_wasm_instrument::{
@@ -46,26 +46,25 @@ use std::{
 #[derive(Debug)]
 pub(crate) enum ProcessedSyscallParams {
     Alloc {
-        allowed_values: Option<SyscallParamAllowedValues>,
+        allowed_values: Option<RegularParamAllowedValues>,
     },
     FreeUpperBound {
-        allowed_values: Option<SyscallParamAllowedValues>,
+        allowed_values: Option<RegularParamAllowedValues>,
     },
     Value {
         value_type: ValueType,
-        allowed_values: Option<SyscallParamAllowedValues>,
+        allowed_values: Option<RegularParamAllowedValues>,
     },
     MemoryArrayLength,
     MemoryArrayPtr,
     MemoryPtrValue {
-        ptr_filler: Option<PtrParamFiller>,
+        allowed_values: Option<PtrParamAllowedValues>,
     },
 }
 
 pub(crate) fn process_syscall_params(
     params: &[ParamType],
     params_config: &SyscallsParamsConfig,
-    ptr_fillers_config: &PtrParamFillersConfig,
 ) -> Vec<ProcessedSyscallParams> {
     use ParamType::*;
     use RegularParamType::*;
@@ -84,30 +83,32 @@ pub(crate) fn process_syscall_params(
     let mut res = Vec::with_capacity(params.len());
     for (param_idx, &param) in params.iter().enumerate() {
         let processed_param = match param {
-            Regular(Alloc) => ProcessedSyscallParams::Alloc {
-                allowed_values: params_config.get_rule(&param),
+            Regular(regular) => match regular {
+                alloc @ Alloc => ProcessedSyscallParams::Alloc {
+                    allowed_values: params_config.get_rule(alloc),
+                },
+                free_upped_bound @ FreeUpperBound => ProcessedSyscallParams::FreeUpperBound {
+                    allowed_values: params_config.get_rule(free_upped_bound),
+                },
+                Length if length_param_indexes.contains(&param_idx) => {
+                    // Due to match guard `RegularParamType::Length` can be processed in two ways:
+                    // 1. The function will return `ProcessedSyscallParams::MemoryArraySize`
+                    //    if this parameter is associated with Ptr::BufferStart { .. }`.
+                    // 2. Otherwise, `ProcessedSyscallParams::Value` will be returned from the function.
+                    ProcessedSyscallParams::MemoryArrayLength
+                }
+                Pointer(Ptr::SizedBufferStart { .. }) => ProcessedSyscallParams::MemoryArrayPtr,
+                // It's guaranteed that fallible syscall has error pointer as a last param.
+                Pointer(ptr) => ProcessedSyscallParams::MemoryPtrValue {
+                    allowed_values: params_config.get_ptr_rule(ptr),
+                },
+                regular_param => ProcessedSyscallParams::Value {
+                    value_type: param.into(),
+                    allowed_values: params_config.get_rule(regular_param),
+                },
             },
-            Regular(FreeUpperBound) => ProcessedSyscallParams::FreeUpperBound { 
-                allowed_values: params_config.get_rule(&param), 
-            },
-            Regular(Length) if length_param_indexes.contains(&param_idx) => {
-                // Due to match guard `RegularParamType::Length` can be processed in two ways:
-                // 1. The function will return `ProcessedSyscallParams::MemoryArraySize`
-                //    if this parameter is associated with Ptr::BufferStart { .. }`.
-                // 2. Otherwise, `ProcessedSyscallParams::Value` will be returned from the function.
-                ProcessedSyscallParams::MemoryArrayLength
-            }
-            Regular(Pointer(Ptr::SizedBufferStart { .. })) => {
-                ProcessedSyscallParams::MemoryArrayPtr
-            }
-            // It's guaranteed that fallible syscall has error pointer as a last param.
-            Regular(Pointer(ptr)) => ProcessedSyscallParams::MemoryPtrValue {
-                ptr_filler: ptr_fillers_config.get_rule(ptr),
-            },
-            Error(_) => ProcessedSyscallParams::MemoryPtrValue { ptr_filler: None },
-            _ => ProcessedSyscallParams::Value {
-                value_type: param.into(),
-                allowed_values: params_config.get_rule(&param),
+            Error(_) => ProcessedSyscallParams::MemoryPtrValue {
+                allowed_values: None,
             },
         };
 
@@ -461,12 +462,7 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
 
         let mut setters = Vec::with_capacity(params.len());
         let mut memory_array_definition: Option<(i32, Option<i32>)> = None;
-        // TODO !
-        for processed_param in process_syscall_params(
-            params,
-            self.config.params_config(),
-            self.config.pointer_writes_config(),
-        ) {
+        for processed_param in process_syscall_params(params, self.config.params_config()) {
             match processed_param {
                 ProcessedSyscallParams::Alloc { allowed_values } => {
                     let pages_to_alloc = if let Some(allowed_values) = allowed_values {
@@ -540,13 +536,13 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                     log::trace!("  ----  Memory array offset - {offset}");
                     setters.push(ParamsTranslator::new_i32(offset));
                 }
-                ProcessedSyscallParams::MemoryPtrValue { ptr_filler } => {
+                ProcessedSyscallParams::MemoryPtrValue { allowed_values } => {
                     // Subtract a bit more so entities from `gsys` fit.
                     let upper_limit = mem_size.saturating_sub(100);
                     let offset = self.unstructured.int_in_range(0..=upper_limit)? as i32;
 
-                    let setter = if let Some(ptr_filler) = ptr_filler {
-                        ParamsTranslator::new_i32_with_data(offset, ptr_filler)
+                    let setter = if let Some(allowed_values) = allowed_values {
+                        ParamsTranslator::new_i32_with_data(offset, allowed_values)
                     } else {
                         ParamsTranslator::new_i32(offset)
                     };
@@ -773,7 +769,7 @@ impl From<DisabledSyscallsInvocator> for ModuleWithCallIndexes {
 enum ParamsTranslator {
     I32(i32),
     I64(i64),
-    I32WithData(i32, PtrParamFiller),
+    I32WithData(i32, PtrParamAllowedValues),
 }
 
 impl ParamsTranslator {
@@ -785,7 +781,7 @@ impl ParamsTranslator {
         Self::I64(value)
     }
 
-    fn new_i32_with_data(start_offset: i32, data_filler: PtrParamFiller) -> Self {
+    fn new_i32_with_data(start_offset: i32, data_filler: PtrParamAllowedValues) -> Self {
         Self::I32WithData(start_offset, data_filler)
     }
 
@@ -806,7 +802,7 @@ impl ParamsTranslator {
             &ParamsTranslator::I32(value) => value as i64,
             &ParamsTranslator::I64(value) => value,
             // TODO
-            ParamsTranslator::I32WithData( .. ) => todo!(),
+            ParamsTranslator::I32WithData(..) => todo!(),
         }
     }
 
@@ -814,23 +810,28 @@ impl ParamsTranslator {
         Ok(match self {
             Self::I32(value) => vec![Instruction::I32Const(value)],
             Self::I64(value) => vec![Instruction::I64Const(value)],
-            Self::I32WithData(start_offset, data_filler) => {
-                let PtrParamFiller { value_offset, ptr_data  } = data_filler;
-                ptr_data.generate(unstructured)?
-                    .into_iter()
-                    .enumerate()
-                    .flat_map(|(word_idx, word)| vec![
+            Self::I32WithData(start_offset, allowed_values) => allowed_values
+                .get(unstructured)?
+                .into_iter()
+                .enumerate()
+                .flat_map(|(word_idx, word)| {
+                    vec![
                         Instruction::I32Const(start_offset),
                         Instruction::I32Const(word),
-                        Instruction::I32Store(2, (value_offset + word_idx * mem::size_of::<i32>()) as u32)
-                    ])
-                    .chain(iter::once(Instruction::I32Const(start_offset)))
-                    .collect()
-            }
+                        Instruction::I32Store(
+                            2,
+                            (allowed_values.value_offset() + word_idx * mem::size_of::<i32>())
+                                as u32,
+                        ),
+                    ]
+                })
+                .chain(iter::once(Instruction::I32Const(start_offset)))
+                .collect(),
         })
     }
 }
 
+// TODO: debug!
 impl Display for ParamsTranslator {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {

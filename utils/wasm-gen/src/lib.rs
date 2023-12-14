@@ -79,5 +79,4 @@ pub fn generate_gear_program_module(
 // 2. re-write docs to all types (separate PR)
 // 3. impl value generation for all params in PtrParamDataGenerator.
 // 4. check works correctly for non zero hashes.
-// 5. merge params config and ptr filler
 // 6. resolve all todos

@@ -23,7 +23,6 @@ mod injection;
 mod param;
 mod precise;
 mod process_errors;
-mod ptr_filler;
 
 use gear_utils::NonEmpty;
 use gear_wasm_instrument::syscalls::SyscallName;
@@ -33,7 +32,6 @@ pub use injection::*;
 pub use param::*;
 pub use precise::*;
 pub use process_errors::*;
-pub use ptr_filler::*;
 
 use crate::InvocableSyscall;
 
@@ -47,7 +45,6 @@ impl SyscallsConfigBuilder {
         Self(SyscallsConfig {
             injection_types,
             params_config: SyscallsParamsConfig::default(),
-            pointer_writes_config: PtrParamFillersConfig::default(),
             precise_syscalls_config: PreciseSyscallsConfig::default(),
             syscall_destination: SyscallDestination::default(),
             error_processing_config: ErrorProcessingConfig::None,
@@ -58,16 +55,6 @@ impl SyscallsConfigBuilder {
     /// Set config for syscalls params.
     pub fn with_params_config(mut self, params_config: SyscallsParamsConfig) -> Self {
         self.0.params_config = params_config;
-
-        self
-    }
-
-    /// Set config for pointer writes.
-    pub fn with_pointer_writes_config(
-        mut self,
-        pointer_writes_config: PtrParamFillersConfig,
-    ) -> Self {
-        self.0.pointer_writes_config = pointer_writes_config;
 
         self
     }
@@ -136,7 +123,6 @@ impl SyscallsConfigBuilder {
 pub struct SyscallsConfig {
     injection_types: SyscallsInjectionTypes,
     params_config: SyscallsParamsConfig,
-    pointer_writes_config: PtrParamFillersConfig,
     precise_syscalls_config: PreciseSyscallsConfig,
     syscall_destination: SyscallDestination,
     error_processing_config: ErrorProcessingConfig,
@@ -166,11 +152,6 @@ impl SyscallsConfig {
     /// Get syscalls params config.
     pub fn params_config(&self) -> &SyscallsParamsConfig {
         &self.params_config
-    }
-
-    /// Get pointer writes config.
-    pub fn pointer_writes_config(&self) -> &PtrParamFillersConfig {
-        &self.pointer_writes_config
     }
 
     /// Get precise syscalls config.

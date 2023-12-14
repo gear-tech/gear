@@ -230,8 +230,8 @@ pub fn get_wasm_gen_config(
     );
 
     let mut params_config = SyscallsParamsConfig::default();
-    params_config.add_rule(ParamType::Regular(RegularParamType::Alloc), (1..=10).into());
-    params_config.add_rule(
+    params_config.set_rule(ParamType::Regular(RegularParamType::Alloc), (1..=10).into());
+    params_config.set_rule(
         ParamType::Regular(RegularParamType::Free),
         (initial_pages..=initial_pages + 50).into(),
     );
