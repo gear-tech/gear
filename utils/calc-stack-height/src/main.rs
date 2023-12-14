@@ -36,7 +36,11 @@ fn main() -> anyhow::Result<()> {
     let memory = Memory::new(&store, MemoryType::new(0, None, false))?;
     env.insert("memory", Extern::Memory(memory));
 
-    // taken from `gear_sandbox_host::sandbox::wasmer_backend::dispatch_function_v2`
+    // Here we need to repeat the code from
+    // `gear_sandbox_host::sandbox::wasmer_backend::dispatch_function_v2`, as we
+    // want to be as close as possible to how the executor uses the stack in the
+    // node.
+
     #[derive(Default, Clone)]
     struct Env;
 
