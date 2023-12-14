@@ -3791,14 +3791,14 @@ dependencies = [
 
 [[package]]
 name = "galloc"
-version = "1.0.2"
+version = "1.0.3"
 dependencies = [
  "dlmalloc",
 ]
 
 [[package]]
 name = "gcli"
-version = "1.0.2"
+version = "1.0.3"
 dependencies = [
  "anyhow",
  "base64 0.21.3",
@@ -3840,7 +3840,7 @@ dependencies = [
 
 [[package]]
 name = "gclient"
-version = "1.0.2"
+version = "1.0.3"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3884,7 +3884,7 @@ dependencies = [
 
 [[package]]
 name = "gcore"
-version = "1.0.2"
+version = "1.0.3"
 dependencies = [
  "galloc",
  "gear-core-errors",
@@ -3897,7 +3897,7 @@ dependencies = [
 
 [[package]]
 name = "gear-authorship"
-version = "1.0.2"
+version = "1.0.3"
 dependencies = [
  "demo-constructor",
  "env_logger",
@@ -3966,7 +3966,7 @@ dependencies = [
 
 [[package]]
 name = "gear-cli"
-version = "1.0.2"
+version = "1.0.3"
 dependencies = [
  "clap 4.4.2",
  "frame-benchmarking 4.0.0-dev (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.43-canary-no-sandbox)",
@@ -3999,7 +3999,7 @@ dependencies = [
 
 [[package]]
 name = "gear-common"
-version = "1.0.2"
+version = "1.0.3"
 dependencies = [
  "derive_more",
  "enum-iterator 1.4.1",
@@ -4027,7 +4027,7 @@ dependencies = [
 
 [[package]]
 name = "gear-common-codegen"
-version = "1.0.2"
+version = "1.0.3"
 dependencies = [
  "quote",
  "syn 2.0.31",
@@ -4035,7 +4035,7 @@ dependencies = [
 
 [[package]]
 name = "gear-core"
-version = "1.0.2"
+version = "1.0.3"
 dependencies = [
  "blake2-rfc",
  "byteorder",
@@ -4061,7 +4061,7 @@ dependencies = [
 
 [[package]]
 name = "gear-core-backend"
-version = "1.0.2"
+version = "1.0.3"
 dependencies = [
  "actor-system-error",
  "blake2-rfc",
@@ -4080,7 +4080,7 @@ dependencies = [
 
 [[package]]
 name = "gear-core-backend-codegen"
-version = "1.0.2"
+version = "1.0.3"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4089,7 +4089,7 @@ dependencies = [
 
 [[package]]
 name = "gear-core-errors"
-version = "1.0.2"
+version = "1.0.3"
 dependencies = [
  "derive_more",
  "enum-iterator 1.4.1",
@@ -4098,7 +4098,7 @@ dependencies = [
 
 [[package]]
 name = "gear-core-processor"
-version = "1.0.2"
+version = "1.0.3"
 dependencies = [
  "actor-system-error",
  "derive_more",
@@ -4117,7 +4117,7 @@ dependencies = [
 
 [[package]]
 name = "gear-key-finder"
-version = "1.0.2"
+version = "1.0.3"
 dependencies = [
  "directories 5.0.1",
  "hex",
@@ -4125,7 +4125,7 @@ dependencies = [
 
 [[package]]
 name = "gear-lazy-pages"
-version = "1.0.2"
+version = "1.0.3"
 dependencies = [
  "cfg-if",
  "derive_more",
@@ -4150,7 +4150,7 @@ dependencies = [
 
 [[package]]
 name = "gear-lazy-pages-common"
-version = "1.0.2"
+version = "1.0.3"
 dependencies = [
  "gear-core",
  "num_enum",
@@ -4159,7 +4159,7 @@ dependencies = [
 
 [[package]]
 name = "gear-lazy-pages-interface"
-version = "1.0.2"
+version = "1.0.3"
 dependencies = [
  "byteorder",
  "derive_more",
@@ -4174,7 +4174,7 @@ dependencies = [
 
 [[package]]
 name = "gear-node-loader"
-version = "1.0.2"
+version = "1.0.3"
 dependencies = [
  "anyhow",
  "arbitrary",
@@ -4206,7 +4206,7 @@ dependencies = [
 
 [[package]]
 name = "gear-node-testing"
-version = "1.0.2"
+version = "1.0.3"
 dependencies = [
  "frame-benchmarking 4.0.0-dev (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.43-canary-no-sandbox)",
  "frame-support 4.0.0-dev (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.43-canary-no-sandbox)",
@@ -4274,7 +4274,7 @@ dependencies = [
 
 [[package]]
 name = "gear-runtime-common"
-version = "1.0.2"
+version = "1.0.3"
 dependencies = [
  "frame-benchmarking 4.0.0-dev (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.43-canary-no-sandbox)",
  "frame-support 4.0.0-dev (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.43-canary-no-sandbox)",
@@ -4300,7 +4300,7 @@ dependencies = [
 
 [[package]]
 name = "gear-runtime-interface"
-version = "1.0.2"
+version = "1.0.3"
 dependencies = [
  "byteorder",
  "derive_more",
@@ -4322,7 +4322,7 @@ dependencies = [
 
 [[package]]
 name = "gear-runtime-primitives"
-version = "1.0.2"
+version = "1.0.3"
 dependencies = [
  "sp-core 7.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.43-canary-no-sandbox)",
  "sp-runtime 7.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.43-canary-no-sandbox)",
@@ -4375,7 +4375,7 @@ dependencies = [
 
 [[package]]
 name = "gear-service"
-version = "1.0.2"
+version = "1.0.3"
 dependencies = [
  "frame-benchmarking 4.0.0-dev (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.43-canary-no-sandbox)",
  "frame-benchmarking-cli",
@@ -4456,7 +4456,7 @@ dependencies = [
 
 [[package]]
 name = "gear-stack-buffer"
-version = "1.0.2"
+version = "1.0.3"
 dependencies = [
  "cc",
 ]
@@ -4549,7 +4549,7 @@ dependencies = [
 
 [[package]]
 name = "gear-wasm-instrument"
-version = "1.0.2"
+version = "1.0.3"
 dependencies = [
  "enum-iterator 1.4.1",
  "gear-core",
@@ -4717,7 +4717,7 @@ dependencies = [
 
 [[package]]
 name = "gmeta"
-version = "1.0.2"
+version = "1.0.3"
 dependencies = [
  "blake2-rfc",
  "derive_more",
@@ -4731,7 +4731,7 @@ dependencies = [
 
 [[package]]
 name = "gmeta-codegen"
-version = "1.0.2"
+version = "1.0.3"
 dependencies = [
  "gmeta",
  "gstd",
@@ -4766,7 +4766,7 @@ dependencies = [
 
 [[package]]
 name = "gsdk"
-version = "1.0.2"
+version = "1.0.3"
 dependencies = [
  "anyhow",
  "base64 0.21.3",
@@ -4819,7 +4819,7 @@ dependencies = [
 
 [[package]]
 name = "gsdk-codegen"
-version = "1.0.2"
+version = "1.0.3"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4828,7 +4828,7 @@ dependencies = [
 
 [[package]]
 name = "gstd"
-version = "1.0.2"
+version = "1.0.3"
 dependencies = [
  "bs58 0.4.0",
  "futures",
@@ -4857,7 +4857,7 @@ dependencies = [
 
 [[package]]
 name = "gsys"
-version = "1.0.2"
+version = "1.0.3"
 
 [[package]]
 name = "gtest"
@@ -7557,7 +7557,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear"
-version = "1.0.2"
+version = "1.0.3"
 dependencies = [
  "blake2-rfc",
  "demo-async",
@@ -7656,7 +7656,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-bank"
-version = "1.0.2"
+version = "1.0.3"
 dependencies = [
  "frame-benchmarking 4.0.0-dev (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.43-canary-no-sandbox)",
  "frame-support 4.0.0-dev (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.43-canary-no-sandbox)",
@@ -7674,7 +7674,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-debug"
-version = "1.0.2"
+version = "1.0.3"
 dependencies = [
  "demo-vec",
  "env_logger",
@@ -7710,7 +7710,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-gas"
-version = "1.0.2"
+version = "1.0.3"
 dependencies = [
  "env_logger",
  "frame-benchmarking 4.0.0-dev (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.43-canary-no-sandbox)",
@@ -7739,7 +7739,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-messenger"
-version = "1.0.2"
+version = "1.0.3"
 dependencies = [
  "env_logger",
  "frame-benchmarking 4.0.0-dev (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.43-canary-no-sandbox)",
@@ -7763,7 +7763,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-payment"
-version = "1.0.2"
+version = "1.0.3"
 dependencies = [
  "env_logger",
  "frame-benchmarking 4.0.0-dev (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.43-canary-no-sandbox)",
@@ -7797,7 +7797,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-proc-macro"
-version = "1.0.2"
+version = "1.0.3"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -7806,7 +7806,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-program"
-version = "1.0.2"
+version = "1.0.3"
 dependencies = [
  "frame-support 4.0.0-dev (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.43-canary-no-sandbox)",
  "frame-system 4.0.0-dev (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.43-canary-no-sandbox)",
@@ -7831,7 +7831,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-rpc"
-version = "1.0.2"
+version = "1.0.3"
 dependencies = [
  "gear-common",
  "gear-core",
@@ -7847,7 +7847,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-rpc-runtime-api"
-version = "1.0.2"
+version = "1.0.3"
 dependencies = [
  "pallet-gear",
  "sp-api 4.0.0-dev (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.43-canary-no-sandbox)",
@@ -7858,7 +7858,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-scheduler"
-version = "1.0.2"
+version = "1.0.3"
 dependencies = [
  "env_logger",
  "frame-benchmarking 4.0.0-dev (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.43-canary-no-sandbox)",
@@ -7889,7 +7889,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-staking-rewards"
-version = "1.0.2"
+version = "1.0.3"
 dependencies = [
  "env_logger",
  "frame-benchmarking 4.0.0-dev (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.43-canary-no-sandbox)",
@@ -7943,7 +7943,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-voucher"
-version = "1.0.2"
+version = "1.0.3"
 dependencies = [
  "env_logger",
  "frame-benchmarking 4.0.0-dev (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.43-canary-no-sandbox)",
@@ -14140,7 +14140,7 @@ checksum = "830b7e5d4d90034032940e4ace0d9a9a057e7a45cd94e6c007832e39edb82f6d"
 
 [[package]]
 name = "vara-runtime"
-version = "1.0.2"
+version = "1.0.3"
 dependencies = [
  "const-str",
  "env_logger",
