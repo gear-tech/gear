@@ -90,8 +90,6 @@ pub struct ProcessorContext {
     /// Map of code hashes to program ids of future programs, which are planned to be
     /// initialized with the corresponding code (with the same code hash).
     pub program_candidates_data: BTreeMap<CodeId, Vec<(MessageId, ProgramId)>>,
-    /// Map of program ids to paid blocks.
-    pub program_rents: BTreeMap<ProgramId, u32>,
     /// Weights of host functions.
     pub host_fn_weights: HostFnWeights,
     /// Functions forbidden to be called.
@@ -108,8 +106,6 @@ pub struct ProcessorContext {
     pub reservation: u64,
     /// Output from Randomness.
     pub random_data: (Vec<u8>, u32),
-    /// Rent cost per block.
-    pub rent_cost: u128,
     /// Gas multiplier.
     pub gas_multiplier: gsys::GasMultiplier,
 }
@@ -147,7 +143,6 @@ impl ProcessorContext {
             existential_deposit: 0,
             program_id: Default::default(),
             program_candidates_data: Default::default(),
-            program_rents: Default::default(),
             host_fn_weights: Default::default(),
             forbidden_funcs: Default::default(),
             mailbox_threshold: 0,
@@ -156,7 +151,6 @@ impl ProcessorContext {
             reserve_for: 0,
             reservation: 0,
             random_data: ([0u8; 32].to_vec(), 0),
-            rent_cost: 0,
             gas_multiplier: gsys::GasMultiplier::from_value_per_gas(1),
         }
     }
@@ -173,7 +167,6 @@ pub struct ExtInfo {
     pub awakening: Vec<(MessageId, u32)>,
     pub reply_deposits: Vec<(MessageId, u64)>,
     pub program_candidates_data: BTreeMap<CodeId, Vec<(MessageId, ProgramId)>>,
-    pub program_rents: BTreeMap<ProgramId, u32>,
     pub context_store: ContextStore,
 }
 
@@ -382,7 +375,6 @@ impl ProcessorExternalities for Ext {
             gas_reserver,
             system_reservation,
             program_candidates_data,
-            program_rents,
             ..
         } = self.context;
 
@@ -433,7 +425,6 @@ impl ProcessorExternalities for Ext {
             reply_deposits,
             context_store,
             program_candidates_data,
-            program_rents,
         };
         Ok(info)
     }

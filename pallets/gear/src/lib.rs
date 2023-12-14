@@ -113,10 +113,6 @@ pub type GasNodeIdOf<T> = <GasHandlerOf<T> as GasTree>::NodeId;
 pub type BlockGasLimitOf<T> = <<T as Config>::BlockLimiter as BlockLimiter>::BlockGasLimit;
 pub type GasBalanceOf<T> = <<T as Config>::GasProvider as GasProvider>::Balance;
 pub type ProgramStorageOf<T> = <T as Config>::ProgramStorage;
-pub type RentFreePeriodOf<T> = <T as Config>::ProgramRentFreePeriod;
-pub type RentCostPerBlockOf<T> = <T as Config>::ProgramRentCostPerBlock;
-pub type ResumeMinimalPeriodOf<T> = <T as Config>::ProgramResumeMinimalRentPeriod;
-pub type ResumeSessionDurationOf<T> = <T as Config>::ProgramResumeSessionDuration;
 pub(crate) type VoucherOf<T> = <T as Config>::Voucher;
 pub(crate) type GearBank<T> = pallet_gear_bank::Pallet<T>;
 
@@ -619,7 +615,7 @@ pub mod pallet {
                 program_id,
                 &code_info,
                 message_id,
-                block_number.saturating_add(RentFreePeriodOf::<T>::get()),
+                block_number,
             );
 
             Self::create(
@@ -1047,7 +1043,6 @@ pub mod pallet {
                 max_reservations: T::ReservationsLimit::get(),
                 code_instrumentation_cost: schedule.code_instrumentation_cost.ref_time(),
                 code_instrumentation_byte_cost: schedule.code_instrumentation_byte_cost.ref_time(),
-                rent_cost: RentCostPerBlockOf::<T>::get().unique_saturated_into(),
                 gas_multiplier: <T as pallet_gear_bank::Config>::GasMultiplier::get().into(),
             }
         }
@@ -1205,20 +1200,19 @@ pub mod pallet {
 
             let message_id = Self::next_message_id(origin);
             let block_number = Self::block_number();
-            let expiration_block = block_number.saturating_add(RentFreePeriodOf::<T>::get());
 
             ExtManager::<T>::default().set_program(
                 packet.destination(),
                 &code_info,
                 message_id,
-                expiration_block,
+                block_number,
             );
 
             let program_id = packet.destination();
             let program_event = Event::ProgramChanged {
                 id: program_id,
                 change: ProgramChangeKind::ProgramSet {
-                    expiration: expiration_block,
+                    expiration: block_number,
                 },
             };
 
@@ -1242,10 +1236,6 @@ pub mod pallet {
             QueueOf::<T>::queue(dispatch)
                 .unwrap_or_else(|e| unreachable!("Messages storage corrupted: {e:?}"));
 
-            let task = ScheduledTask::PauseProgram(program_id);
-            TaskPoolOf::<T>::add(expiration_block, task)
-                .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
-
             Self::deposit_event(program_event);
             Self::deposit_event(event);
 
@@ -1254,12 +1244,6 @@ pub mod pallet {
 
         pub fn run_call(max_gas: Option<GasBalanceOf<T>>) -> Call<T> {
             Call::run { max_gas }
-        }
-
-        pub fn rent_fee_for(block_count: BlockNumberFor<T>) -> BalanceOf<T> {
-            let block_count: u64 = block_count.unique_saturated_into();
-
-            RentCostPerBlockOf::<T>::get().saturating_mul(block_count.unique_saturated_into())
         }
     }
 

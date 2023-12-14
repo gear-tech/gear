@@ -50,8 +50,8 @@ use crate::{
     ProgramStorageOf, QueueOf, Schedule, TaskPoolOf, WaitlistOf,
 };
 use common::{
-    event::*, scheduler::*, storage::*, ActiveProgram, CodeStorage, GasTree, LockId, LockableTree,
-    Origin as _, ProgramStorage, ReservableTree,
+    event::*, scheduler::*, storage::*, CodeStorage, GasTree, LockId, LockableTree, Origin as _,
+    ProgramStorage, ReservableTree,
 };
 use core_processor::{common::ActorExecutionErrorReplyReason, ActorPrepareMemoryError};
 use frame_support::{
@@ -6190,73 +6190,6 @@ fn terminated_locking_funds() {
             Balances::free_balance(USER_1),
             user_1_balance + extra_gas_to_mb
         );
-    });
-}
-
-#[test]
-fn pause_terminated_exited_program() {
-    use demo_constructor::{demo_exit_init, Calls, Scheme, WASM_BINARY};
-
-    let test = |program_id| {
-        let code_id = CodeId::generate(WASM_BINARY);
-        let program = ProgramStorageOf::<Test>::get_program(program_id)
-            .and_then(|p| ActiveProgram::try_from(p).ok())
-            .expect("program should exist");
-        let expected_block = program.expiration_block;
-        assert!(TaskPoolOf::<Test>::contains(
-            &expected_block,
-            &ScheduledTask::PauseProgram(program_id)
-        ));
-
-        run_to_block(2, None);
-
-        assert!(!Gear::is_active(program_id));
-        assert!(!Gear::is_initialized(program_id));
-        assert!(MailboxOf::<Test>::is_empty(&USER_1));
-        assert!(!TaskPoolOf::<Test>::contains(
-            &expected_block,
-            &ScheduledTask::PauseProgram(program_id)
-        ));
-
-        // Program is not removed and can't be submitted again
-        assert_noop!(
-            Gear::create_program(
-                RuntimeOrigin::signed(USER_1),
-                code_id,
-                DEFAULT_SALT.to_vec(),
-                Vec::new(),
-                2_000_000_000,
-                0u128,
-                false,
-            ),
-            Error::<Test>::ProgramAlreadyExists,
-        );
-    };
-
-    new_test_ext().execute_with(|| {
-        // exit init
-        let (_, exited_pid) =
-            submit_constructor_with_args(USER_1, DEFAULT_SALT, demo_exit_init::scheme(false), 0);
-
-        test(exited_pid);
-    });
-
-    new_test_ext().execute_with(|| {
-        // failed in init
-        let init = Calls::builder().panic("panicked in init");
-        let (_, terminated_pid) = submit_constructor_with_args(
-            USER_1,
-            DEFAULT_SALT,
-            Scheme::predefined(
-                init,
-                Default::default(),
-                Default::default(),
-                Default::default(),
-            ),
-            0,
-        );
-
-        test(terminated_pid);
     });
 }
 
@@ -13788,125 +13721,6 @@ fn test_send_to_terminated_from_program() {
             .filter(|(msg, _)| msg.source() == pid_terminated)
             .count();
         assert_eq!(mails_from_terminated_count, 0);
-    })
-}
-
-#[test]
-fn pause_waited_uninited_program() {
-    use demo_init_wait::WASM_BINARY;
-
-    init_logger();
-
-    // closure to get corresponding block numbers
-    let get_remove_block = |current_gas: u64| {
-        assert_ok!(Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            WASM_BINARY.to_vec(),
-            current_gas.to_le_bytes().to_vec(),
-            Vec::new(),
-            current_gas,
-            0u128,
-            false,
-        ));
-
-        let program_id = utils::get_last_program_id();
-
-        assert!(!Gear::is_initialized(program_id));
-        assert!(Gear::is_active(program_id));
-
-        run_to_next_block(None);
-
-        let (_, remove_from_waitlist_block) = get_last_message_waited();
-
-        let program = ProgramStorageOf::<Test>::get_program(program_id)
-            .and_then(|p| ActiveProgram::try_from(p).ok())
-            .expect("program should exist");
-
-        (remove_from_waitlist_block, program.expiration_block)
-    };
-
-    // determine such gas value that init message will be removed
-    // from the waitlist before an execution of the PauseProgram task
-    let gas = new_test_ext().execute_with(|| {
-        let GasInfo {
-            waited: init_waited,
-            burned,
-            ..
-        } = Gear::calculate_gas_info(
-            USER_1.into_origin(),
-            HandleKind::Init(WASM_BINARY.to_vec()),
-            vec![],
-            0,
-            true,
-            true,
-        )
-        .expect("calculate_gas_info failed");
-
-        assert!(init_waited);
-
-        let mut current_gas = 2 * burned;
-
-        let (mut remove_from_waitlist_block, mut expiration_block) = get_remove_block(current_gas);
-
-        while remove_from_waitlist_block >= expiration_block {
-            current_gas = (current_gas + burned) / 2;
-
-            (remove_from_waitlist_block, expiration_block) = get_remove_block(current_gas);
-        }
-
-        current_gas
-    });
-
-    new_test_ext().execute_with(|| {
-        assert_ok!(Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            WASM_BINARY.to_vec(),
-            vec![],
-            Vec::new(),
-            gas,
-            0u128,
-            false,
-        ));
-
-        let program_id = utils::get_last_program_id();
-
-        assert!(!Gear::is_initialized(program_id));
-        assert!(Gear::is_active(program_id));
-
-        run_to_next_block(None);
-
-        let (_, remove_from_waitlist_block) = get_last_message_waited();
-
-        let program = ProgramStorageOf::<Test>::get_program(program_id)
-            .and_then(|p| ActiveProgram::try_from(p).ok())
-            .expect("program should exist");
-        let expiration_block = program.expiration_block;
-
-        assert!(TaskPoolOf::<Test>::contains(
-            &expiration_block,
-            &ScheduledTask::PauseProgram(program_id)
-        ));
-
-        assert!(!Gear::is_initialized(program_id));
-        assert!(Gear::is_active(program_id));
-
-        run_to_next_block(None);
-
-        System::set_block_number(remove_from_waitlist_block - 1);
-        Gear::set_block_number(remove_from_waitlist_block - 1);
-
-        run_to_next_block(None);
-
-        assert!(Gear::is_terminated(program_id));
-        assert!(!TaskPoolOf::<Test>::contains(
-            &expiration_block,
-            &ScheduledTask::PauseProgram(program_id)
-        ));
-
-        System::set_block_number(expiration_block - 1);
-        Gear::set_block_number(expiration_block - 1);
-
-        run_to_next_block(None);
     })
 }
 
