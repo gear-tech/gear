@@ -49,9 +49,9 @@ fn supply_alignment_works() {
 
     ExtBuilder::default()
         .initial_authorities(vec![
-            (VAL_1_STASH, VAL_1_STASH, VAL_1_AUTH_ID),
-            (VAL_2_STASH, VAL_2_STASH, VAL_2_AUTH_ID),
-            (VAL_3_STASH, VAL_3_STASH, VAL_3_AUTH_ID),
+            (VAL_1_STASH, VAL_1_AUTH_ID),
+            (VAL_2_STASH, VAL_2_AUTH_ID),
+            (VAL_3_STASH, VAL_3_AUTH_ID),
         ])
         .stash(VALIDATOR_STAKE)
         .endowment(ENDOWMENT)
@@ -145,9 +145,9 @@ fn genesis_config_works() {
     init_logger();
     ExtBuilder::default()
         .initial_authorities(vec![
-            (VAL_1_STASH, VAL_1_STASH, VAL_1_AUTH_ID),
-            (VAL_2_STASH, VAL_2_STASH, VAL_2_AUTH_ID),
-            (VAL_3_STASH, VAL_3_STASH, VAL_3_AUTH_ID),
+            (VAL_1_STASH, VAL_1_AUTH_ID),
+            (VAL_2_STASH, VAL_2_AUTH_ID),
+            (VAL_3_STASH, VAL_3_AUTH_ID),
         ])
         .stash(VALIDATOR_STAKE)
         .endowment(ENDOWMENT)
@@ -177,9 +177,9 @@ fn pool_refill_works() {
 fn burning_works() {
     ExtBuilder::default()
         .initial_authorities(vec![
-            (VAL_1_STASH, VAL_1_STASH, VAL_1_AUTH_ID),
-            (VAL_2_STASH, VAL_2_STASH, VAL_2_AUTH_ID),
-            (VAL_3_STASH, VAL_3_STASH, VAL_3_AUTH_ID),
+            (VAL_1_STASH, VAL_1_AUTH_ID),
+            (VAL_2_STASH, VAL_2_AUTH_ID),
+            (VAL_3_STASH, VAL_3_AUTH_ID),
         ])
         .stash(VALIDATOR_STAKE)
         .endowment(ENDOWMENT)
@@ -202,9 +202,9 @@ fn burning_works() {
 fn rewards_account_doesnt_get_deleted() {
     ExtBuilder::default()
         .initial_authorities(vec![
-            (VAL_1_STASH, VAL_1_STASH, VAL_1_AUTH_ID),
-            (VAL_2_STASH, VAL_2_STASH, VAL_2_AUTH_ID),
-            (VAL_3_STASH, VAL_3_STASH, VAL_3_AUTH_ID),
+            (VAL_1_STASH, VAL_1_AUTH_ID),
+            (VAL_2_STASH, VAL_2_AUTH_ID),
+            (VAL_3_STASH, VAL_3_AUTH_ID),
         ])
         .stash(VALIDATOR_STAKE)
         .endowment(ENDOWMENT)
@@ -225,9 +225,9 @@ fn validators_rewards_disbursement_works() {
 
     let mut ext = ExtBuilder::default()
         .initial_authorities(vec![
-            (VAL_1_STASH, VAL_1_STASH, VAL_1_AUTH_ID),
-            (VAL_2_STASH, VAL_2_STASH, VAL_2_AUTH_ID),
-            (VAL_3_STASH, VAL_3_STASH, VAL_3_AUTH_ID),
+            (VAL_1_STASH, VAL_1_AUTH_ID),
+            (VAL_2_STASH, VAL_2_AUTH_ID),
+            (VAL_3_STASH, VAL_3_AUTH_ID),
         ])
         .stash(VALIDATOR_STAKE)
         .endowment(ENDOWMENT)
@@ -668,9 +668,9 @@ fn staking_blacklist_works() {
 
     ExtBuilder::default()
         .initial_authorities(vec![
-            (VAL_1_STASH, VAL_1_STASH, VAL_1_AUTH_ID),
-            (VAL_2_STASH, VAL_2_STASH, VAL_2_AUTH_ID),
-            (VAL_3_STASH, VAL_3_STASH, VAL_3_AUTH_ID),
+            (VAL_1_STASH, VAL_1_AUTH_ID),
+            (VAL_2_STASH, VAL_2_AUTH_ID),
+            (VAL_3_STASH, VAL_3_AUTH_ID),
         ])
         .stash(VALIDATOR_STAKE)
         .endowment(ENDOWMENT)
@@ -1331,9 +1331,9 @@ fn election_solution_rewards_add_up() {
     let accounts = (0_u64..5).map(|i| 100 + i).collect::<Vec<_>>();
     let mut ext = ExtBuilder::default()
         .initial_authorities(vec![
-            (VAL_1_STASH, VAL_1_STASH, VAL_1_AUTH_ID),
-            (VAL_2_STASH, VAL_2_STASH, VAL_2_AUTH_ID),
-            (VAL_3_STASH, VAL_3_STASH, VAL_3_AUTH_ID),
+            (VAL_1_STASH, VAL_1_AUTH_ID),
+            (VAL_2_STASH, VAL_2_AUTH_ID),
+            (VAL_3_STASH, VAL_3_AUTH_ID),
         ])
         .stash(VALIDATOR_STAKE)
         .endowment(ENDOWMENT)
@@ -1453,9 +1453,9 @@ fn with_parameters(
 ) -> sp_io::TestExternalities {
     ExtBuilder::default()
         .initial_authorities(vec![
-            (VAL_1_STASH, VAL_1_STASH, VAL_1_AUTH_ID),
-            (VAL_2_STASH, VAL_2_STASH, VAL_2_AUTH_ID),
-            (VAL_3_STASH, VAL_3_STASH, VAL_3_AUTH_ID),
+            (VAL_1_STASH, VAL_1_AUTH_ID),
+            (VAL_2_STASH, VAL_2_AUTH_ID),
+            (VAL_3_STASH, VAL_3_AUTH_ID),
         ])
         .stash(VALIDATOR_STAKE)
         .endowment(ENDOWMENT)

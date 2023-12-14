@@ -521,7 +521,6 @@ where
 
 pub type ValidatorAccountId = (
     AccountId,       // stash
-    AccountId,       // controller
     UintAuthorityId, // authority discovery ID
 );
 
@@ -619,7 +618,7 @@ impl ExtBuilder {
             keys: self
                 .initial_authorities
                 .iter()
-                .map(|x| (x.0, x.0, x.2.clone()))
+                .map(|x| (x.0, x.0, x.1.clone()))
                 .collect(),
         }
         .assimilate_storage(&mut storage)
@@ -638,7 +637,7 @@ impl ExtBuilder {
                 .map(|x| {
                     (
                         x.0,
-                        x.1,
+                        x.0,
                         self.stash,
                         pallet_staking::StakerStatus::<AccountId>::Validator,
                     )
@@ -743,9 +742,9 @@ pub(crate) fn on_finalize(current_blk: BlockNumberFor<Test>) {
 pub fn default_test_ext() -> sp_io::TestExternalities {
     ExtBuilder::default()
         .initial_authorities(vec![
-            (VAL_1_STASH, VAL_1_STASH, VAL_1_AUTH_ID),
-            (VAL_2_STASH, VAL_2_STASH, VAL_2_AUTH_ID),
-            (VAL_3_STASH, VAL_3_STASH, VAL_3_AUTH_ID),
+            (VAL_1_STASH, VAL_1_AUTH_ID),
+            (VAL_2_STASH, VAL_2_AUTH_ID),
+            (VAL_3_STASH, VAL_3_AUTH_ID),
         ])
         .stash(VALIDATOR_STAKE)
         .endowment(ENDOWMENT)
