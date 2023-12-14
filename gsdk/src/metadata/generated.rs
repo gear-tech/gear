@@ -2558,53 +2558,6 @@ pub mod runtime_types {
                     #[doc = ""]
                     #[doc = "Requires root origin (eventually, will only be set via referendum)"]
                     set_execute_inherent { value: ::core::primitive::bool },
-                    #[codec(index = 8)]
-                    #[doc = "Pay additional rent for the program."]
-                    pay_program_rent {
-                        program_id: runtime_types::gear_core::ids::ProgramId,
-                        block_count: ::core::primitive::u32,
-                    },
-                    #[codec(index = 9)]
-                    #[doc = "Starts a resume session of the previously paused program."]
-                    #[doc = ""]
-                    #[doc = "The origin must be Signed."]
-                    #[doc = ""]
-                    #[doc = "Parameters:"]
-                    #[doc = "- `program_id`: id of the program to resume."]
-                    #[doc = "- `allocations`: memory allocations of program prior to stop."]
-                    #[doc = "- `code_hash`: id of the program binary code."]
-                    resume_session_init {
-                        program_id: runtime_types::gear_core::ids::ProgramId,
-                        allocations: ::std::vec::Vec<runtime_types::gear_core::pages::WasmPage>,
-                        code_hash: runtime_types::gear_core::ids::CodeId,
-                    },
-                    #[codec(index = 10)]
-                    #[doc = "Appends memory pages to the resume session."]
-                    #[doc = ""]
-                    #[doc = "The origin must be Signed and should be the owner of the session."]
-                    #[doc = ""]
-                    #[doc = "Parameters:"]
-                    #[doc = "- `session_id`: id of the resume session."]
-                    #[doc = "- `memory_pages`: program memory (or its part) before it was paused."]
-                    resume_session_push {
-                        session_id: ::core::primitive::u32,
-                        memory_pages: ::std::vec::Vec<(
-                            runtime_types::gear_core::pages::GearPage,
-                            runtime_types::gear_core::memory::PageBuf,
-                        )>,
-                    },
-                    #[codec(index = 11)]
-                    #[doc = "Finishes the program resume session."]
-                    #[doc = ""]
-                    #[doc = "The origin must be Signed and should be the owner of the session."]
-                    #[doc = ""]
-                    #[doc = "Parameters:"]
-                    #[doc = "- `session_id`: id of the resume session."]
-                    #[doc = "- `block_count`: the specified period of rent."]
-                    resume_session_commit {
-                        session_id: ::core::primitive::u32,
-                        block_count: ::core::primitive::u32,
-                    },
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
@@ -9452,10 +9405,6 @@ pub mod calls {
         ClaimValue,
         Run,
         SetExecuteInherent,
-        PayProgramRent,
-        ResumeSessionInit,
-        ResumeSessionPush,
-        ResumeSessionCommit,
     }
     impl CallInfo for GearCall {
         const PALLET: &'static str = "Gear";
@@ -9469,10 +9418,6 @@ pub mod calls {
                 Self::ClaimValue => "claim_value",
                 Self::Run => "run",
                 Self::SetExecuteInherent => "set_execute_inherent",
-                Self::PayProgramRent => "pay_program_rent",
-                Self::ResumeSessionInit => "resume_session_init",
-                Self::ResumeSessionPush => "resume_session_push",
-                Self::ResumeSessionCommit => "resume_session_commit",
             }
         }
     }
