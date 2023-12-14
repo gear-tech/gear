@@ -1,13 +1,12 @@
 [package]
-name = "crates-io-manager"
+name = "crates-io"
 version.workspace = true
 edition.workspace = true
 
 [dependencies]
 anyhow.workspace = true
 cargo_metadata.workspace = true
-cargo_toml.workspace = true
 clap = { workspace = true, features = ["derive"] }
-reqwest = { workspace = true, features = ["blocking", "json", "default-tls"] }
 serde = { workspace = true, features = ["derive"] }
-toml.workspace = true
+reqwest = { workspace = true, features = ["blocking", "json", "default-tls"] }
+toml_edit.workspace = true
