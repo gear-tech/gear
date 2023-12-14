@@ -71,6 +71,21 @@ impl Command {
 
         Ok(())
     }
+
+    #[cfg(feature = "embed")]
+    pub async fn exec_embedded(
+        self,
+        app: &impl App,
+        artifact: crate::embed::Artifact,
+    ) -> anyhow::Result<()> {
+        let this = match self {
+            Command::Upload(upload) => Command::Upload(upload.override_code(artifact.opt)),
+            Command::Program(program) => Command::Program(program.try_override_meta(artifact.meta)),
+            _ => self,
+        };
+
+        Self::exec(&this, app).await
+    }
 }
 
 /// Gear command-line interface.

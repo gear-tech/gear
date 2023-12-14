@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Command `program`.
-use crate::{meta::Meta, result::Result, App};
+use crate::{meta::Meta, result::Result, utils, App};
 use clap::Parser;
 use gsdk::{ext::sp_core::H256, Api};
 use std::{fs, path::PathBuf};
@@ -33,7 +33,8 @@ pub enum Program {
         ///
         /// - "*.meta.txt" describes the metadata of the program
         /// - "*.meta.wasm" describes the wasm exports of the program
-        meta: PathBuf,
+        #[arg(short, long)]
+        meta: Option<PathBuf>,
         /// Derive the description of the specified type from registry.
         #[arg(short, long)]
         derive: Option<String>,
@@ -60,6 +61,17 @@ pub enum Program {
 }
 
 impl Program {
+    /// Try override meta path.
+    pub fn try_override_meta(mut self, meta: Option<PathBuf>) -> Self {
+        if let Program::Meta { meta: m, .. } = &mut self {
+            if m.is_none() {
+                *m = meta;
+            }
+        }
+
+        self
+    }
+
     /// Run command program.
     pub async fn exec(&self, app: &impl App) -> Result<()> {
         match self {
@@ -79,7 +91,9 @@ impl Program {
                     Self::full_state(api, *pid, *at).await?;
                 }
             }
-            Program::Meta { meta, derive } => Self::meta(meta, derive)?,
+            Program::Meta { meta, derive } => {
+                Self::meta(&utils::meta_path(meta.clone(), "meta")?, derive)?
+            }
         }
 
         Ok(())

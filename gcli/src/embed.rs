@@ -21,7 +21,11 @@
 
 use std::path::PathBuf;
 
-/// This macro is used to lookup the artifact from the `OUT_DIR`.
+/// This macro is used to lookup the artifact from the `OUT_DIR`,
+/// it's just a wrapper around [`Artifact::from_out_dir`] for
+/// avoiding importing [`Artifact`] in users' code.
+///
+/// NOTE: This macro should only be used in external crates.
 #[macro_export]
 macro_rules! lookup {
     () => {{
@@ -38,7 +42,13 @@ const OUT_SUFFIX_LENGTH: usize = 17;
 #[derive(Debug)]
 pub struct Artifact {
     /// Path of the optitmized WASM binary.
+    ///
+    /// TODO: load the binary into memory instead of file path in
+    /// case of users renaming the binary after the build. (#3592)
     pub opt: PathBuf,
+
+    /// Path of the metadata WASM binary.
+    pub meta: Option<PathBuf>,
 }
 
 impl Artifact {
@@ -53,19 +63,28 @@ impl Artifact {
                 .nth(1)?
                 .file_name()?
                 .to_str()
-                .map(|name| name.get(..name.len().checked_sub(OUT_SUFFIX_LENGTH)?))
-                .flatten()?,
-            (ancestors.nth(1)?.file_name()?.to_str()? == "debug")
-                .then(|| "debug")
-                .unwrap_or("release"),
+                .and_then(|name| name.get(..name.len().checked_sub(OUT_SUFFIX_LENGTH)?))?,
+            if ancestors.nth(1)?.file_name()?.to_str()? == "debug" {
+                "debug"
+            } else {
+                "release"
+            },
             ancestors.next()?.to_str()?,
         ];
 
-        let opt = PathBuf::from(format!(
-            "{target}/wasm32-unknown-unknown/{profile}/{}.opt.wasm",
-            name.replace('-', "_")
-        ));
+        let [bin, stem] = [
+            PathBuf::from(format!("{target}/wasm32-unknown-unknown/{profile}")),
+            PathBuf::from(name.replace('-', "_")),
+        ];
 
-        opt.exists().then(|| Self { opt })
+        let [opt, meta] = [
+            bin.join(stem.with_extension("wasm")),
+            bin.join(stem.with_extension("meta.wasm")),
+        ];
+
+        opt.exists().then(|| Self {
+            opt,
+            meta: meta.exists().then_some(meta),
+        })
     }
 }

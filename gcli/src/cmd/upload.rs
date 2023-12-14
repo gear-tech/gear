@@ -30,7 +30,8 @@ use std::{fs, path::PathBuf};
 /// Deploy program to gear node or save program `code` in storage.
 #[derive(Parser, Debug)]
 pub struct Upload {
-    /// gear program code <*.wasm>
+    /// Gear program code <*.wasm>.
+    #[cfg_attr(feature = "embed", clap(skip))]
     code: PathBuf,
     /// Save program `code` in storage only.
     #[arg(short, long)]
@@ -50,6 +51,12 @@ pub struct Upload {
 }
 
 impl Upload {
+    /// Override code path.
+    pub fn override_code(mut self, code: PathBuf) -> Self {
+        self.code = code;
+        self
+    }
+
     /// Exec command submit
     pub async fn exec(&self, signer: Signer) -> Result<()> {
         let code =
