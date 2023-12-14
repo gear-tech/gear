@@ -73,9 +73,7 @@ use frame_system::pallet_prelude::{BlockNumberFor, *};
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
-    memory::PageBuf,
     message::*,
-    pages::{GearPage, WasmPage},
     percent::Percent,
 };
 use manager::{CodeInfo, QueuePostProcessingData};
@@ -1638,70 +1636,6 @@ pub mod pallet {
             ExecuteInherent::<T>::put(value);
 
             Ok(())
-        }
-
-        /// Pay additional rent for the program.
-        #[pallet::call_index(8)]
-        #[pallet::weight(DbWeightOf::<T>::get().reads(1))]
-        pub fn pay_program_rent(
-            _origin: OriginFor<T>,
-            _program_id: ProgramId,
-            _block_count: BlockNumberFor<T>,
-        ) -> DispatchResultWithPostInfo {
-            Err(Error::<T>::ProgramRentDisabled.into())
-        }
-
-        /// Starts a resume session of the previously paused program.
-        ///
-        /// The origin must be Signed.
-        ///
-        /// Parameters:
-        /// - `program_id`: id of the program to resume.
-        /// - `allocations`: memory allocations of program prior to stop.
-        /// - `code_hash`: id of the program binary code.
-        #[pallet::call_index(9)]
-        #[pallet::weight(DbWeightOf::<T>::get().reads(1))]
-        pub fn resume_session_init(
-            _origin: OriginFor<T>,
-            _program_id: ProgramId,
-            _allocations: BTreeSet<WasmPage>,
-            _code_hash: CodeId,
-        ) -> DispatchResultWithPostInfo {
-            Err(Error::<T>::ProgramRentDisabled.into())
-        }
-
-        /// Appends memory pages to the resume session.
-        ///
-        /// The origin must be Signed and should be the owner of the session.
-        ///
-        /// Parameters:
-        /// - `session_id`: id of the resume session.
-        /// - `memory_pages`: program memory (or its part) before it was paused.
-        #[pallet::call_index(10)]
-        #[pallet::weight(DbWeightOf::<T>::get().reads(1))]
-        pub fn resume_session_push(
-            _origin: OriginFor<T>,
-            _session_id: SessionId,
-            _memory_pages: Vec<(GearPage, PageBuf)>,
-        ) -> DispatchResultWithPostInfo {
-            Err(Error::<T>::ProgramRentDisabled.into())
-        }
-
-        /// Finishes the program resume session.
-        ///
-        /// The origin must be Signed and should be the owner of the session.
-        ///
-        /// Parameters:
-        /// - `session_id`: id of the resume session.
-        /// - `block_count`: the specified period of rent.
-        #[pallet::call_index(11)]
-        #[pallet::weight(DbWeightOf::<T>::get().reads(1))]
-        pub fn resume_session_commit(
-            _origin: OriginFor<T>,
-            _session_id: SessionId,
-            _block_count: BlockNumberFor<T>,
-        ) -> DispatchResultWithPostInfo {
-            Err(Error::<T>::ProgramRentDisabled.into())
         }
     }
 
