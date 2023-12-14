@@ -42,11 +42,13 @@ impl<
     > OnRuntimeUpgrade for UpdatePalletsVersions<T>
 {
     fn on_runtime_upgrade() -> Weight {
+        let mut writes = 0;
         // pallet_multisig
         let onchain = pallet_multisig::Pallet::<T>::on_chain_storage_version();
         if onchain == 0 {
             log::info!("pallet_multisig onchain: {:?}", onchain);
             StorageVersion::new(1).put::<pallet_multisig::Pallet<T>>();
+            writes += 1;
         }
 
         let onchain = pallet_multisig::Pallet::<T>::on_chain_storage_version();
@@ -57,6 +59,7 @@ impl<
         if onchain == 0 {
             log::info!("pallet_nomination_pools onchain: {:?}", onchain);
             StorageVersion::new(5).put::<pallet_nomination_pools::Pallet<T>>();
+            writes += 1;
         }
 
         let onchain = pallet_nomination_pools::Pallet::<T>::on_chain_storage_version();
@@ -70,6 +73,7 @@ impl<
                 onchain
             );
             StorageVersion::new(1).put::<pallet_election_provider_multi_phase::Pallet<T>>();
+            writes += 1;
         }
 
         let onchain = pallet_election_provider_multi_phase::Pallet::<T>::on_chain_storage_version();
@@ -80,8 +84,9 @@ impl<
 
         // pallet_bounties
         StorageVersion::new(4).put::<pallet_bounties::Pallet<T>>();
+        writes += 1;
 
-        Weight::zero()
+        T::DbWeight::get().reads_writes(6, writes)
     }
 }
 
