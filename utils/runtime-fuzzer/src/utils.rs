@@ -40,6 +40,7 @@ pub(crate) fn default_generator_set(test_input_id: String) -> ExtrinsicGenerator
     const UPLOAD_PROGRAM_CALLS: usize = 10;
     const SEND_MESSAGE_CALLS: usize = 15;
     const SEND_REPLY_CALLS: usize = 1;
+
     ExtrinsicGeneratorSet::new(vec![
         RepeatedGenerator::new(
             UPLOAD_PROGRAM_CALLS,
@@ -55,7 +56,6 @@ pub(crate) fn default_generator_set(test_input_id: String) -> ExtrinsicGenerator
             SendMessageGenerator {
                 gas: default_gas_limit(),
                 value: 0,
-                prepaid: false,
             }
             .into(),
         ),
@@ -67,7 +67,6 @@ pub(crate) fn default_generator_set(test_input_id: String) -> ExtrinsicGenerator
                 }),
                 gas: default_gas_limit(),
                 value: 0,
-                prepaid: false,
             }
             .into(),
         ),

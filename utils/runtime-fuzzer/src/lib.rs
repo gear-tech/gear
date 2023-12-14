@@ -30,11 +30,9 @@ use gear_call_gen::{ClaimValueArgs, GearCall, SendMessageArgs, SendReplyArgs, Up
 use gear_calls::GearCalls;
 use gear_core::ids::ProgramId;
 use pallet_balances::Pallet as BalancesPallet;
-use vara_runtime::{AccountId, Gear, RuntimeOrigin};
 use runtime::*;
 use sha1::*;
 use std::fmt::Debug;
-use std::{fmt::Debug, ops::RangeInclusive};
 use utils::default_generator_set;
 use vara_runtime::{AccountId, Gear, Runtime, RuntimeOrigin};
 
@@ -84,19 +82,19 @@ fn run_impl(data: &[u8]) -> Result<sp_io::TestExternalities> {
 
     let mut test_ext = new_test_ext();
     test_ext.execute_with(|| -> Result<()> {
-        // Set balance of the `sender`.
+        // Increase maximum balance of the `sender`.
         {
-            set_account_balance(sender.clone(), initial_sender_balance)
+            increase_to_max_balance(sender.clone())
                 .unwrap_or_else(|e| unreachable!("Balance update failed: {e:?}"));
             log::info!(
                 "Current balance of the sender - {}",
-                get_account_balance(&sender)
+                BalancesPallet::<Runtime>::free_balance(&sender)
             );
         }
 
         for gear_call in gear_calls {
             let gear_call = gear_call?;
-            let call_res = execute_gear_call(sender.clone(), gear_call, &fuzzing_config);
+            let call_res = execute_gear_call(sender.clone(), gear_call);
             log::info!("Extrinsic result: {call_res:?}");
             // Run task and message queues with max possible gas limit.
             run_to_next_block();
@@ -108,23 +106,10 @@ fn run_impl(data: &[u8]) -> Result<sp_io::TestExternalities> {
     Ok(test_ext)
 }
 
-fn execute_gear_call(
-    sender: AccountId,
-    call: GearCall,
-    fuzzing_config: &FuzzingConfig,
-) -> DispatchResultWithPostInfo {
-    let allowed_to_spend_value = if fuzzing_config.allow_overspend {
-        u128::MAX
-    } else {
-        get_account_balance(&sender).saturating_sub(block_gas_cost())
-    };
-
+fn execute_gear_call(sender: AccountId, call: GearCall) -> DispatchResultWithPostInfo {
     match call {
         GearCall::UploadProgram(args) => {
             let UploadProgramArgs((code, salt, payload, gas_limit, value)) = args;
-
-            let value = allowed_to_spend_value.min(value);
-
             Gear::upload_program(
                 RuntimeOrigin::signed(sender),
                 code,
@@ -136,10 +121,7 @@ fn execute_gear_call(
             )
         }
         GearCall::SendMessage(args) => {
-            let SendMessageArgs((destination, payload, gas_limit, value, prepaid)) = args;
-
-            let value = allowed_to_spend_value.min(value);
-
+            let SendMessageArgs((destination, payload, gas_limit, value)) = args;
             Gear::send_message(
                 RuntimeOrigin::signed(sender),
                 destination,
@@ -150,10 +132,7 @@ fn execute_gear_call(
             )
         }
         GearCall::SendReply(args) => {
-            let SendReplyArgs((message_id, payload, gas_limit, value, prepaid)) = args;
-
-            let value = allowed_to_spend_value.min(value);
-
+            let SendReplyArgs((message_id, payload, gas_limit, value)) = args;
             Gear::send_reply(
                 RuntimeOrigin::signed(sender),
                 message_id,

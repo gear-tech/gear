@@ -24,9 +24,7 @@ use frame_support::{
 };
 use frame_system::GenesisConfig as SystemConfig;
 use pallet_balances::{GenesisConfig as BalancesConfig, Pallet as BalancesPallet};
-use pallet_gear::BlockGasLimitOf;
 use pallet_gear_bank::Config as GearBankConfig;
-use runtime_primitives::Balance;
 use sp_io::TestExternalities;
 use vara_runtime::{
     AccountId, Balances, BankAddress, Runtime, RuntimeOrigin, SessionConfig, SessionKeys,
@@ -47,10 +45,7 @@ pub fn new_test_ext() -> TestExternalities {
     let authorities = vec![authority_keys_from_seed("Authority")];
     // Vector of tuples of accounts and their balances
     let balances = vec![
-        (
-            account(account::alice()),
-            account::acc_max_balance()
-        ),
+        (account(account::alice()), account::acc_max_balance()),
         (BankAddress::get(), Balances::minimum_balance()),
     ];
 
