@@ -21,7 +21,7 @@
 use anyhow::{anyhow, Result};
 use cargo_metadata::Package;
 use std::{fs, path::PathBuf};
-use toml_edit::Document;
+use toml_edit::{Document, InlineTable};
 
 use crate::version;
 
@@ -97,7 +97,7 @@ impl Manifest {
             dep["version"] = toml_edit::value(version.clone());
         }
 
-        self.rename_deps()?;
+        self.rename_workspace()?;
         Ok(())
     }
 
@@ -136,8 +136,8 @@ impl Manifest {
         fs::write(&self.path, self.manifest.to_string()).map_err(Into::into)
     }
 
-    /// Rename dependencies
-    fn rename_deps(&mut self) -> Result<()> {
+    /// Rename worskapce manifest.
+    fn rename_workspace(&mut self) -> Result<()> {
         self.ensure_workspace()?;
 
         let Some(deps) = self.manifest["workspace"]["dependencies"].as_table_like_mut() else {
@@ -146,31 +146,53 @@ impl Manifest {
 
         for (name, dep) in deps.iter_mut() {
             let name = name.get();
-            if !name.starts_with("sp-") {
-                continue;
-            }
-
-            // Format dotted values into inline table.
-            if let Some(table) = dep.as_table_mut() {
-                table.remove("branch");
-                table.remove("git");
-                table.remove("workspace");
-
-                if name == "sp-arithmetic" {
-                    // NOTE: the required version of sp-arithmetic is 6.0.0 in
-                    // git repo, but 7.0.0 in crates.io, so we need to fix it.
-                    table.insert("version", toml_edit::value("7.0.0"));
-                }
-
-                // Force the dep to be inline table in case of losing
-                // documentation.
-                let mut inline = table.clone().into_inline_table();
-                inline.fmt();
-                *dep = toml_edit::value(inline);
-            };
+            name.starts_with("sp-").then(|| {
+                dep.as_inline_table_mut()
+                    .map(|table| Self::rename_sp(name, table));
+            });
         }
 
         Ok(())
+    }
+
+    /// Rename substrate primitive dependency.
+    fn rename_sp(name: &str, table: &mut InlineTable) {
+        table.remove("branch");
+        table.remove("git");
+        table.remove("workspace");
+
+        match name {
+            // NOTE: use sp-arithmetic-7.0.0 on crates.io
+            //
+            // The required version of sp-arithmetic is 6.0.0 in the
+            // git repo, but 7.0.0 on crates.io.
+            "sp-arithmetic" => {
+                table.insert("version", "7.0.0".into());
+            }
+            // NOTE: use gear-sp-allocator on crates.io
+            //
+            // sp-allocator is outdated on crates.io, aka, last 3.0.0
+            // forever, here we use gear-sp-allocator instead.
+            //
+            // TODO: add the branch name.
+            "sp-allocator" => {
+                table.insert("version", "4.1.0".into());
+                table.insert("package", "gp-allocator".into());
+            }
+            // NOTE: use forked sp-wasm-interface.
+            //
+            // sp-wasm-interface is not compatible with sandbox-host.
+            "sp-wasm-interface" => {
+                table.insert("package", "gp-wasm-interface".into());
+            }
+            // NOTE: use forked sp-wasm-interface-common.
+            //
+            // In case of we have replaced sp-wasm-interface.
+            "sp-wasm-interface-common" => {
+                table.insert("package", "gp-wasm-interface-common".into());
+            }
+            _ => {}
+        }
     }
 
     /// Ensure the current function is called on the workspace manifest

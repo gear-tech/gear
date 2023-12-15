@@ -81,8 +81,7 @@ impl Publisher {
 
         // Flush new manifests to disk
         workspace.complete_versions(&index)?;
-        let mut manifests = self.graph.values().collect::<Vec<_>>();
-        manifests.push(&workspace);
+        let manifests = [self.graph.values().collect::<Vec<_>>(), vec![&workspace]].concat();
         manifests
             .iter()
             .map(|m| m.write())
