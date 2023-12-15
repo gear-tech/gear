@@ -7730,6 +7730,7 @@ dependencies = [
  "static_assertions",
  "test-syscalls",
  "wabt",
+ "wasm-dep-builder",
 ]
 
 [[package]]

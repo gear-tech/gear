@@ -127,6 +127,9 @@ pallet-gear-program = { workspace = true, features = ["std"] }
 pallet-gear-voucher = { workspace = true, features = ["std"] }
 gmeta.workspace = true
 
+[build-dependencies]
+wasm-dep-builder.workspace = true
+
 [features]
 default = ['std']
 std = [

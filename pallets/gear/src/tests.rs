@@ -81,6 +81,10 @@ use sp_std::convert::TryFrom;
 pub use utils::init_logger;
 use utils::*;
 
+mod binaries {
+    include!(concat!(env!("OUT_DIR"), "/wasm_binaries.rs"));
+}
+
 type Gas = <<Test as Config>::GasProvider as common::GasProvider>::GasTree;
 
 #[test]
@@ -12205,7 +12209,7 @@ fn gas_reservations_existing_reserve_unreserve() {
 
 #[test]
 fn custom_async_entrypoint_works() {
-    use demo_async_custom_entry::WASM_BINARY;
+    use binaries::demo_async_custom_entry::WASM_BINARY_OPT as WASM_BINARY;
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -12874,7 +12878,8 @@ fn rw_lock_works() {
 
 #[test]
 fn async_works() {
-    use demo_async::{Command, WASM_BINARY};
+    use binaries::demo_async::WASM_BINARY_OPT as WASM_BINARY;
+    use demo_async::Command;
     use demo_ping::WASM_BINARY as PING_BINARY;
 
     init_logger();
@@ -12939,7 +12944,7 @@ fn async_works() {
 
 #[test]
 fn futures_unordered() {
-    use demo_async::WASM_BINARY as DEMO_ASYNC_BINARY;
+    use binaries::demo_async::WASM_BINARY_OPT as DEMO_ASYNC_BINARY;
     use demo_futures_unordered::{Command, WASM_BINARY};
     use demo_ping::WASM_BINARY as PING_BINARY;
 

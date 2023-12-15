@@ -32,7 +32,7 @@ pub const BUILDER_OCCURRED: &str = "builder has built this demo";
 #[derive(Default, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 struct PackageMetadata {
-    wasm_dep_builder: Config,
+    wasm_dep_builder: Option<Config>,
 }
 
 #[derive(Default, Deserialize)]
@@ -90,23 +90,45 @@ pub fn builder() {
     let metadata = MetadataCommand::new().no_deps().exec().unwrap();
     let package = metadata
         .packages
-        .into_iter()
+        .iter()
         .find(|package| package.name == pkg_name)
         .unwrap();
 
-    let pkg_metadata = serde_json::from_value::<Option<PackageMetadata>>(package.metadata)
+    let pkg_metadata = serde_json::from_value::<Option<PackageMetadata>>(package.metadata.clone())
         .unwrap()
         .unwrap_or_default();
-    let config = pkg_metadata.wasm_dep_builder;
+    let config = pkg_metadata.wasm_dep_builder.unwrap_or_default();
 
     let mut wasm_binaries = String::new();
 
     for dep in package
         .dependencies
-        .into_iter()
+        .iter()
         .filter(|dep| dep.kind == DependencyKind::Development)
         .filter(|dep| !config.exclude.contains(&dep.name))
         .filter(|dep| dep.name.starts_with("demo-"))
+        // check if demo has `wasm-dep-builder` dependency
+        .filter(|dep| {
+            let contains = metadata
+                .packages
+                .iter()
+                .find(|pkg| pkg.name == dep.name)
+                .map(|pkg| {
+                    pkg.dependencies
+                        .iter()
+                        .any(|dep| dep.name == "wasm-dep-builder")
+                })
+                .unwrap_or(false);
+
+            if !contains {
+                println!(
+                    "cargo:warning=`{}` doesn't have `wasm-dep-builder` dependency, skipping",
+                    dep.name
+                );
+            }
+
+            contains
+        })
     {
         let dep_name = dep.name.replace('-', "_");
 
@@ -126,12 +148,12 @@ pub mod {dep_name} {{
             .filter(|(key, _)| key.starts_with("CARGO_FEATURE_"))
             .for_each(|(key, _)| env::remove_var(key));
 
-        for feature in dep.features {
+        for feature in &dep.features {
             let key = format!("CARGO_FEATURE_{}", feature.to_uppercase());
             env::set_var(key, "1")
         }
 
-        let path = dep.path.expect("Rust version >= 1.51 expected");
+        let path = dep.path.as_ref().expect("Rust version >= 1.51 expected");
         env::set_var("CARGO_MANIFEST_DIR", path);
 
         let lock = wasm32_target_dir.join(format!("{}.lock", dep_name));
