@@ -2021,19 +2021,19 @@ dependencies = [
 name = "demo-async"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder",
  "gstd",
  "parity-scale-codec",
+ "wasm-dep-builder",
 ]
 
 [[package]]
 name = "demo-async-custom-entry"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder",
  "gstd",
  "gtest",
  "parity-scale-codec",
+ "wasm-dep-builder",
 ]
 
 [[package]]
@@ -3752,6 +3752,16 @@ name = "fs4"
 version = "0.6.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2eeb4ed9e12f43b7fa0baae3f9cdda28352770132ef2e09a23760c29cae8bd47"
+dependencies = [
+ "rustix 0.38.25",
+ "windows-sys 0.48.0",
+]
+
+[[package]]
+name = "fs4"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "29f9df8a11882c4e3335eb2d18a0137c505d9ca927470b0cac9c6f0ae07d28f7"
 dependencies = [
  "rustix 0.38.25",
  "windows-sys 0.48.0",
@@ -10787,7 +10797,7 @@ version = "0.1.0"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes#27779e0eaaa2161ba165ff8f0b0ff103bb63e5a1"
 dependencies = [
  "clap 4.4.10",
- "fs4",
+ "fs4 0.6.6",
  "futures",
  "log",
  "sc-client-db",
@@ -12944,7 +12954,7 @@ name = "test-wasm-dep"
 version = "1.0.3"
 dependencies = [
  "demo-async",
- "demo-async-init",
+ "demo-async-custom-entry",
  "wasm-dep-builder",
 ]
 
@@ -13969,6 +13979,7 @@ name = "wasm-dep-builder"
 version = "1.0.3"
 dependencies = [
  "cargo_metadata 0.18.1",
+ "fs4 0.7.0",
  "gear-wasm-builder",
  "serde",
  "serde_json",

@@ -13,7 +13,7 @@ repository.workspace = true
 
 [dev-dependencies]
 demo-async = { path = "../../examples/async" }
-demo-async-init = { path = "../../examples/async-init" }
+demo-async-custom-entry = { path = "../../examples/async-custom-entry" }
 
 [build-dependencies]
 wasm-dep-builder = { path = "../wasm-dep-builder" }

@@ -12,3 +12,4 @@ cargo_metadata = "0.18.1"
 gear-wasm-builder.workspace = true
 serde_json.workspace = true
 serde = { workspace = true, features = ["derive"] }
+fs4 = "0.7"
