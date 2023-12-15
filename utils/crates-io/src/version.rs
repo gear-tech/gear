@@ -38,12 +38,15 @@ pub fn verify(name: &str, version: &str) -> Result<bool> {
         .user_agent("gear-crates-io-manager")
         .build()?;
 
-    let resp = client
+    if let Ok(resp) = client
         .get(format!("https://crates.io/api/v1/crates/{name}/versions"))
         .send()?
-        .json::<Resp>()?;
+        .json::<Resp>()
+    {
+        return Ok(resp.versions.into_iter().any(|v| v.num == version));
+    }
 
-    Ok(resp.versions.into_iter().any(|v| v.num == version))
+    Ok(false)
 }
 
 /// Get the short hash of the current commit.
