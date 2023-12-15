@@ -46,7 +46,8 @@ pub const STACKED_DEPENDENCIES: [&str; 5] =
     ["gcore", "gmeta", "gear-core", "gear-utils", "gear-common"];
 
 /// Packages need to be published.
-pub const PACKAGES: [&str; 5] = ["gear-wasm-builder", "gstd", "gsdk", "gclient", "gcli"];
+// pub const PACKAGES: [&str; 5] = ["gear-wasm-builder", "gstd", "gsdk", "gclient", "gcli"];
+pub const PACKAGES: [&str; 1] = ["gtest"];
 
 /// Check the input package
 pub fn check(manifest: &str) -> Result<ExitStatus> {
