@@ -213,17 +213,15 @@ fn inject_system_break_import(
     let import_sig =
         mbuilder.push_signature(builder::signature().with_param(ValueType::I32).build_sig());
 
-    mbuilder.push_import(
-        builder::import()
-            .module(break_module_name)
-            .field(SyscallName::SystemBreak.to_str())
-            .external()
-            .func(import_sig)
-            .build(),
-    );
-
     // back to plain module
-    let module = mbuilder.build();
+    let module = mbuilder
+        .import()
+        .module(break_module_name)
+        .field(SyscallName::SystemBreak.to_str())
+        .external()
+        .func(import_sig)
+        .build()
+        .build();
 
     let import_count = module.import_count(ImportCountType::Function);
     let inserted_index = import_count as u32 - 1;
