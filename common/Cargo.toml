@@ -17,7 +17,7 @@ derive_more.workspace = true
 enum-iterator.workspace = true
 fail = { workspace = true, features = [ "failpoints" ], optional = true }
 hex.workspace = true
-serde = { workspace = true, features = ["derive"] }
+serde = { workspace = true, features = ["derive"], optional = true }
 serde_json.workspace = true
 path-clean.workspace = true
 
@@ -43,6 +43,7 @@ gear-utils.workspace = true
 [features]
 default = ["std"]
 std = [
+    "serde",
     "sp-core/std",
     "sp-std/std",
     "sp-io/std",

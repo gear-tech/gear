@@ -706,14 +706,17 @@ fn testnet_genesis(
         system: SystemConfig {
             // Add Wasm runtime to storage.
             code: wasm_binary.to_vec(),
+            ..Default::default()
         },
         balances: BalancesConfig { balances },
         babe: BabeConfig {
             authorities: Default::default(),
             epoch_config: Some(vara_runtime::BABE_GENESIS_EPOCH_CONFIG),
+            ..Default::default()
         },
         grandpa: GrandpaConfig {
             authorities: Default::default(),
+            _config: Default::default(),
         },
         session: SessionConfig {
             keys: initial_authorities
@@ -744,7 +747,10 @@ fn testnet_genesis(
             key: Some(root_key),
         },
         im_online: ImOnlineConfig { keys: vec![] },
-        authority_discovery: AuthorityDiscoveryConfig { keys: vec![] },
+        authority_discovery: AuthorityDiscoveryConfig {
+            keys: vec![],
+            ..Default::default()
+        },
         transaction_payment: Default::default(),
         treasury: Default::default(),
         nomination_pools: NominationPoolsConfig {
