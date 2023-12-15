@@ -633,7 +633,7 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
         // 1. All the fallible syscalls write error to the pointer located in the last argument in syscall.
         // 2. All the errors contain `ErrorCode` in the start of memory where pointer points.
 
-        static_assertions::assert_eq_size!(gsys::ErrorCode, u32);
+        const _: () = assert!(mem::size_of::<gsys::ErrorCode>() == mem::size_of::<u32>());
         let no_error_val = gsys::ErrorCode::default() as i32;
 
         assert_eq!(

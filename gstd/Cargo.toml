@@ -24,8 +24,6 @@ primitive-types = { workspace = true, features = ["scale-info"] }
 scale-info = { workspace = true, features = ["derive"] }
 futures = { workspace = true, features = ["alloc"] }
 
-static_assertions.workspace = true
-
 [features]
 #! ## Default features
 

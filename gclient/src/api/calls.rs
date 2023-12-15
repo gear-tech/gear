@@ -536,7 +536,7 @@ impl GearApi {
     ) -> Result {
         let program = self.0.api().gprog_at(program_id, block_hash).await?;
 
-        static_assertions::const_assert_eq!(WASM_PAGE_SIZE % GEAR_PAGE_SIZE, 0);
+        const _: () = assert!(WASM_PAGE_SIZE % GEAR_PAGE_SIZE == 0);
         assert!(program.static_pages.0 > 0);
         let static_page_count =
             (program.static_pages.0 as usize - 1) * WASM_PAGE_SIZE / GEAR_PAGE_SIZE;

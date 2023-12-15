@@ -92,7 +92,6 @@ use sp_std::{
 #[cfg(feature = "std")]
 use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
-use static_assertions::const_assert;
 
 #[cfg(any(feature = "std", test))]
 pub use frame_system::Call as SystemCall;
@@ -167,8 +166,8 @@ pub const BABE_GENESIS_EPOCH_CONFIG: sp_consensus_babe::BabeEpochConfiguration =
 
 // We'll verify that WEIGHT_REF_TIME_PER_SECOND does not overflow, allowing us to use
 // simple multiply and divide operators instead of saturating or checked ones.
-const_assert!(WEIGHT_REF_TIME_PER_SECOND.checked_div(3).is_some());
-const_assert!((WEIGHT_REF_TIME_PER_SECOND / 3).checked_mul(2).is_some());
+const _: () = assert!(WEIGHT_REF_TIME_PER_SECOND.checked_div(3).is_some());
+const _: () = assert!((WEIGHT_REF_TIME_PER_SECOND / 3).checked_mul(2).is_some());
 
 /// We allow for 1/3 of block time for computations, with maximum proof size.
 ///
