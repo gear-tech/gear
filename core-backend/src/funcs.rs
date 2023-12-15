@@ -1333,7 +1333,6 @@ where
     }
 
     fn stack_limit_exceeded() -> UndefinedTerminationReason {
-        log::trace!(target: "syscalls", "system_break(StackLimitExceeded)");
         TrapExplanation::StackLimitExceeded.into()
     }
 
