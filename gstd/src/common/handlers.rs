@@ -180,7 +180,7 @@ pub mod panic_handler {
             // `memcpy`. If `memcpy` fails (e.g. isn't enough stack), the program will be
             // aborted by the executor with unreachable instruction.
             let msg = unsafe { debug_msg.get_unchecked(PANIC_OCCURRED.len()..) };
-            ext::panic(&msg)
+            ext::panic(msg)
         }
 
         /// Panic handler for stable Rust <1.73.
@@ -206,7 +206,7 @@ pub mod panic_handler {
                 debug_msg
                     .as_bytes_mut()
                     .get_unchecked_mut(4..PANIC_OCCURRED.len())
-                    .copy_from_slice(&PANIC_OCCURRED[4..].as_bytes());
+                    .copy_from_slice(PANIC_OCCURRED[4..].as_bytes());
             }
 
             let _ = ext::debug(&debug_msg);
@@ -214,7 +214,7 @@ pub mod panic_handler {
             // SAFETY: `debug_msg` is guaranteed to be initialized since `try_push_str` does
             // `memcpy` (see panic handler for nightly rust for more details).
             let msg = unsafe { debug_msg.get_unchecked(PANIC_OCCURRED.len()..) };
-            ext::panic(&msg)
+            ext::panic(msg)
         }
 
         /// Panic handler for stable Rust >=1.73.
@@ -223,55 +223,74 @@ pub mod panic_handler {
         #[cfg(not(feature = "panic-messages"))]
         #[panic_handler]
         pub fn panic(panic_info: &PanicInfo) -> ! {
-            use crate::prelude::{fmt::Write, str};
+            use crate::prelude::fmt::{self, Write};
             use arrayvec::ArrayString;
 
-            let mut default_panic_msg =
-                ArrayString::<{ PANICKED_AT.len() + TRIMMED_MAX_LEN }>::new();
-            let _ = write!(&mut default_panic_msg, "{panic_info}");
-
-            fn parse_panic_msg(msg: &str) -> Option<(&str, &str)> {
-                const NEEDLE: [u8; 2] = *b":\n";
-
-                // SAFETY: We can use `str::from_utf8_unchecked` because the delimiter is ascii
-                // characters. Therefore, the strings between the delimiter will be a valid
-                // UTF-8 sequence (see https://en.wikipedia.org/wiki/UTF-8#Encoding).
-                let msg_bytes = msg.as_bytes();
-                msg_bytes
-                    .windows(NEEDLE.len())
-                    .position(|window| NEEDLE.eq(window))
-                    .map(|pos| unsafe {
-                        (
-                            str::from_utf8_unchecked(
-                                msg_bytes.get_unchecked(PANICKED_AT.len()..pos),
-                            ),
-                            str::from_utf8_unchecked(
-                                msg_bytes.get_unchecked((pos + NEEDLE.len())..),
-                            ),
-                        )
-                    })
+            #[derive(Default)]
+            struct TempBuffer<const CAP: usize> {
+                overflowed: bool,
+                buffer: ArrayString<CAP>,
             }
 
-            let option = parse_panic_msg(&default_panic_msg);
-            let (location, message) = unsafe { option.unwrap_unchecked() };
+            impl<const CAP: usize> TempBuffer<CAP> {
+                #[inline]
+                fn write_str(&mut self, s: &str) {
+                    if !self.overflowed && self.buffer.write_str(s).is_err() {
+                        self.overflowed = true;
+                    }
+                }
+            }
 
-            // Add 2 byte difference between panic message formats (for single quotes).
-            const EXTRA_SPACE: usize = 2;
-            let mut debug_msg =
-                ArrayString::<{ PANIC_OCCURRED.len() + TRIMMED_MAX_LEN + EXTRA_SPACE }>::new();
+            #[derive(Default)]
+            struct TempOutput {
+                found_prefix: bool,
+                found_delimiter: bool,
+                location: TempBuffer<TRIMMED_MAX_LEN>,
+                message: TempBuffer<TRIMMED_MAX_LEN>,
+            }
+
+            impl fmt::Write for TempOutput {
+                fn write_str(&mut self, s: &str) -> fmt::Result {
+                    if !self.found_prefix && s.len() == PANICKED_AT.len() {
+                        self.found_prefix = true;
+                        return Ok(());
+                    }
+
+                    if !self.found_delimiter {
+                        if s == ":\n" {
+                            self.found_delimiter = true;
+                            return Ok(());
+                        }
+                        self.location.write_str(s);
+                    } else {
+                        self.message.write_str(s);
+                    }
+
+                    Ok(())
+                }
+            }
+
+            let mut output = TempOutput::default();
+            let _ = write!(&mut output, "{panic_info}");
+
+            let location = &*output.location.buffer;
+            let message = &*output.message.buffer;
+
+            let mut debug_msg = ArrayString::<{ PANIC_OCCURRED.len() + TRIMMED_MAX_LEN }>::new();
 
             let _ = debug_msg.try_push_str(PANIC_OCCURRED);
-            let _ = debug_msg.try_push_str("'");
-            let _ = debug_msg.try_push_str(message);
-            let _ = debug_msg.try_push_str("', ");
-            let _ = debug_msg.try_push_str(location);
+            for s in ["'", message, "', ", location] {
+                if debug_msg.try_push_str(s).is_err() {
+                    break;
+                }
+            }
 
             let _ = ext::debug(&debug_msg);
 
             // SAFETY: `debug_msg` is guaranteed to be initialized since `try_push_str` does
             // `memcpy` (see panic handler for nightly rust for more details).
             let msg = unsafe { debug_msg.get_unchecked(PANIC_OCCURRED.len()..) };
-            ext::panic(&msg)
+            ext::panic(msg)
         }
     }
 }
