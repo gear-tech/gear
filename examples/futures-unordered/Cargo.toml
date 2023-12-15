@@ -13,7 +13,7 @@ parity-scale-codec.workspace = true
 futures = { workspace = true, features = ["async-await"] }
 
 [build-dependencies]
-gear-wasm-builder.workspace = true
+wasm-dep-builder.workspace = true
 
 [features]
 debug = ["gstd/debug"]

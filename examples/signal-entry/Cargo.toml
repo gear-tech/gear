@@ -15,7 +15,7 @@ parity-scale-codec.workspace = true
 gear-core.workspace = true
 
 [build-dependencies]
-gear-wasm-builder.workspace = true
+wasm-dep-builder.workspace = true
 
 [dev-dependencies]
 gtest.workspace = true

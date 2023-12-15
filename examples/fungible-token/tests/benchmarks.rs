@@ -92,7 +92,13 @@ async fn stress_test() -> Result<()> {
     .encode();
 
     let (message_id, program_id, _hash) = api
-        .upload_program_bytes(WASM_BINARY.to_vec(), [137u8], init_msg, MAX_GAS_LIMIT, 0)
+        .upload_program_bytes(
+            WASM_BINARY_OPT.to_vec(),
+            [137u8],
+            init_msg,
+            MAX_GAS_LIMIT,
+            0,
+        )
         .await?;
 
     assert!(listener.message_processed(message_id).await?.succeed());
@@ -229,7 +235,7 @@ async fn stress_transfer() -> Result<()> {
 
     let salt: u8 = rng.gen();
     let (message_id, program_id, _hash) = api
-        .upload_program_bytes(WASM_BINARY.to_vec(), [salt], init_msg, MAX_GAS_LIMIT, 0)
+        .upload_program_bytes(WASM_BINARY_OPT.to_vec(), [salt], init_msg, MAX_GAS_LIMIT, 0)
         .await
         .unwrap();
 

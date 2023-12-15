@@ -1,3 +1,3 @@
 fn main() {
-    gear_wasm_builder::build();
+    wasm_dep_builder::demo();
 }

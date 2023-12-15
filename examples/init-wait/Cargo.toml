@@ -7,11 +7,14 @@ license.workspace = true
 homepage.workspace = true
 repository.workspace = true
 
+[package.metadata.wasm-dep-builder.demo]
+exclude-features = ["std", "wasm-wrapper"]
+
 [dependencies]
 gstd.workspace = true
 
 [build-dependencies]
-gear-wasm-builder.workspace = true
+wasm-dep-builder.workspace = true
 
 [features]
 debug = ["gstd/debug"]

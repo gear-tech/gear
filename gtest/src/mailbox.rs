@@ -330,7 +330,7 @@ mod tests {
         Program::from_opt_and_meta_code_with_id(
             &system,
             restricted_user_id,
-            demo_futures_unordered::WASM_BINARY.to_vec(),
+            demo_futures_unordered::WASM_BINARY_OPT.to_vec(),
             None,
         );
 

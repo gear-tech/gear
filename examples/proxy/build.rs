@@ -16,10 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use gear_wasm_builder::WasmBuilder;
-
 fn main() {
-    WasmBuilder::new()
-        .exclude_features(vec!["std", "wasm-wrapper"])
-        .build();
+    wasm_dep_builder::demo();
 }

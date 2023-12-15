@@ -17,6 +17,7 @@ demo-meta-state-v3 = { path = "state-v3", default-features = false, optional = t
 
 [build-dependencies]
 demo-meta-io = { path = "io" }
+# TODO: how to compile metadata??? 
 gear-wasm-builder.workspace = true
 
 [dev-dependencies]

@@ -26,17 +26,47 @@ use std::{
     path::PathBuf,
 };
 
-pub const DEMO_OCCURRED: &str = "demo's script has been executed";
-pub const BUILDER_OCCURRED: &str = "builder has built this demo";
+const DEMO_OCCURRED: &str = "demo's script has been executed";
+const BUILDER_OCCURRED: &str = "builder has built this demo";
 
 #[derive(Default, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 struct PackageMetadata {
-    wasm_dep_builder: Option<Config>,
+    wasm_dep_builder: Option<WasmDepBuilderMetadata>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "kebab-case")]
+enum WasmDepBuilderMetadata {
+    Demo(DemoMetadata),
+    Builder(BuilderMetadata),
+}
+
+impl WasmDepBuilderMetadata {
+    fn into_demo(self) -> Option<DemoMetadata> {
+        match self {
+            WasmDepBuilderMetadata::Demo(demo) => Some(demo),
+            WasmDepBuilderMetadata::Builder(_) => None,
+        }
+    }
+
+    fn into_builder(self) -> Option<BuilderMetadata> {
+        match self {
+            WasmDepBuilderMetadata::Demo(_) => None,
+            WasmDepBuilderMetadata::Builder(builder) => Some(builder),
+        }
+    }
 }
 
 #[derive(Default, Deserialize)]
-struct Config {
+#[serde(rename_all = "kebab-case")]
+struct DemoMetadata {
+    exclude_features: BTreeSet<String>,
+}
+
+#[derive(Default, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+struct BuilderMetadata {
     exclude: BTreeSet<String>,
 }
 
@@ -84,8 +114,17 @@ pub fn builder() {
 
     fs::create_dir_all(&wasm32_target_dir).unwrap();
 
+    // track if demo is being added or removed
     let cargo_toml = manifest_dir.join("Cargo.toml");
     println!("cargo:rerun-if-changed={}", cargo_toml.display());
+
+    // track `OUT_DIR` because cargo can change it during development
+    // and all of `wasm_binary.rs` files will be gone
+    println!("cargo:rerun-if-env-changed=OUT_DIR");
+
+    // don't track features because they are resolved by `cargo metadata`
+    // and always set in TOML files and not via CLI
+    env::set_var("__GEAR_WASM_BUILDER_NO_FEATURES_TRACKING", "1");
 
     let metadata = MetadataCommand::new().no_deps().exec().unwrap();
     let package = metadata
@@ -94,10 +133,12 @@ pub fn builder() {
         .find(|package| package.name == pkg_name)
         .unwrap();
 
-    let pkg_metadata = serde_json::from_value::<Option<PackageMetadata>>(package.metadata.clone())
+    let config = serde_json::from_value::<Option<PackageMetadata>>(package.metadata.clone())
         .unwrap()
+        .unwrap_or_default()
+        .wasm_dep_builder
+        .map(|config| config.into_builder().expect("Builder config expected"))
         .unwrap_or_default();
-    let config = pkg_metadata.wasm_dep_builder.unwrap_or_default();
 
     let mut wasm_binaries = String::new();
 
@@ -107,30 +148,33 @@ pub fn builder() {
         .filter(|dep| dep.kind == DependencyKind::Development)
         .filter(|dep| !config.exclude.contains(&dep.name))
         .filter(|dep| dep.name.starts_with("demo-"))
-        // check if demo has `wasm-dep-builder` dependency
-        .filter(|dep| {
-            let contains = metadata
-                .packages
-                .iter()
-                .find(|pkg| pkg.name == dep.name)
-                .map(|pkg| {
-                    pkg.dependencies
-                        .iter()
-                        .any(|dep| dep.name == "wasm-dep-builder")
-                })
-                .unwrap_or(false);
-
-            if !contains {
-                println!(
-                    "cargo:warning=`{}` doesn't have `wasm-dep-builder` dependency, skipping",
-                    dep.name
-                );
-            }
-
-            contains
-        })
     {
+        let pkg = metadata
+            .packages
+            .iter()
+            .find(|pkg| pkg.name == dep.name)
+            .unwrap();
+
+        // check if demo has this crate as dependency
+        let contains = pkg
+            .dependencies
+            .iter()
+            .any(|dep| dep.name == env!("CARGO_PKG_NAME"));
+        if !contains {
+            println!(
+                "cargo:warning=`{}` doesn't have `wasm-dep-builder` dependency, skipping",
+                dep.name
+            );
+            continue;
+        }
+
         let dep_name = dep.name.replace('-', "_");
+        let pkg_metadata = serde_json::from_value::<Option<PackageMetadata>>(pkg.metadata.clone())
+            .unwrap()
+            .unwrap_or_default()
+            .wasm_dep_builder
+            .map(|config| config.into_demo().expect("Demo config expected"))
+            .unwrap_or_default();
 
         let wasm_out_dir = out_dir.join(&dep_name);
         fs::create_dir_all(&wasm_out_dir).unwrap();
@@ -148,7 +192,9 @@ pub mod {dep_name} {{
             .filter(|(key, _)| key.starts_with("CARGO_FEATURE_"))
             .for_each(|(key, _)| env::remove_var(key));
 
-        for feature in &dep.features {
+        let features: BTreeSet<String> = dep.features.iter().cloned().collect();
+        let excluded_features = pkg_metadata.exclude_features;
+        for feature in features.difference(&excluded_features) {
             let key = format!("CARGO_FEATURE_{}", feature.to_uppercase());
             env::set_var(key, "1")
         }
@@ -204,7 +250,7 @@ pub fn demo() {
     fs::create_dir_all(&wasm32_target_dir).unwrap();
 
     let lock = wasm32_target_dir.join(format!("{}.lock", pkg_name));
-    println!("cargo:warning=writing to {}", lock.display());
+    println!("cargo:warning=[DEMO] {}", lock.display());
     let mut lock = fs::File::options()
         .create(true)
         .write(true)

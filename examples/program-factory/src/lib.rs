@@ -28,14 +28,6 @@
 use gstd::prelude::*;
 use parity_scale_codec::{Decode, Encode};
 
-#[cfg(feature = "std")]
-mod code {
-    include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
-}
-
-#[cfg(feature = "std")]
-pub use code::WASM_BINARY_OPT as WASM_BINARY;
-
 #[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 pub enum CreateProgram {
     Default,

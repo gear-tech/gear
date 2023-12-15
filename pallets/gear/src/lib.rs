@@ -23,6 +23,11 @@
 
 extern crate alloc;
 
+#[cfg(any(feature = "runtime-benchmarks", test))]
+mod binaries {
+    include!(concat!(env!("OUT_DIR"), "/wasm_binaries.rs"));
+}
+
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
 

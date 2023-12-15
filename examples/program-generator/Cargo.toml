@@ -12,7 +12,7 @@ gstd.workspace = true
 hex-literal.workspace = true
 
 [build-dependencies]
-gear-wasm-builder.workspace = true
+wasm-dep-builder.workspace = true
 
 [features]
 debug = ["gstd/debug"]

@@ -14,6 +14,7 @@
 // GNU General Public License for more details.
 
 use super::*;
+use crate::binaries;
 use gear_core::ids::ReservationId;
 
 #[track_caller]
@@ -22,7 +23,7 @@ where
     T: Config,
     T::AccountId: Origin,
 {
-    use demo_delayed_sender::WASM_BINARY;
+    use binaries::demo_delayed_sender::WASM_BINARY_OPT;
 
     let caller = benchmarking::account("caller", 0, 0);
     CurrencyOf::<T>::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
@@ -32,7 +33,7 @@ where
     let salt = vec![];
     Gear::<T>::upload_program(
         RawOrigin::Signed(caller).into(),
-        WASM_BINARY.to_vec(),
+        WASM_BINARY_OPT.to_vec(),
         salt,
         delay.encode(),
         100_000_000_000,
@@ -141,7 +142,8 @@ where
     T: Config,
     T::AccountId: Origin,
 {
-    use demo_reserve_gas::{InitAction, WASM_BINARY};
+    use binaries::demo_reserve_gas::WASM_BINARY_OPT;
+    use demo_reserve_gas::InitAction;
 
     let caller = benchmarking::account("caller", 0, 0);
     CurrencyOf::<T>::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
@@ -149,10 +151,10 @@ where
     init_block::<T>(None);
 
     let salt = vec![];
-    let program_id = ProgramId::generate_from_user(CodeId::generate(WASM_BINARY), &salt);
+    let program_id = ProgramId::generate_from_user(CodeId::generate(WASM_BINARY_OPT), &salt);
     Gear::<T>::upload_program(
         RawOrigin::Signed(caller).into(),
-        WASM_BINARY.to_vec(),
+        WASM_BINARY_OPT.to_vec(),
         salt,
         InitAction::Normal(vec![(50_000, 100)]).encode(),
         10_000_000_000,
@@ -208,7 +210,8 @@ where
     T: Config,
     T::AccountId: Origin,
 {
-    use demo_constructor::{Call, Calls, Scheme, WASM_BINARY};
+    use binaries::demo_constructor::WASM_BINARY_OPT;
+    use demo_constructor::{Call, Calls, Scheme};
 
     let caller = benchmarking::account("caller", 0, 0);
     CurrencyOf::<T>::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
@@ -216,10 +219,10 @@ where
     init_block::<T>(None);
 
     let salt = vec![];
-    let program_id = ProgramId::generate_from_user(CodeId::generate(WASM_BINARY), &salt);
+    let program_id = ProgramId::generate_from_user(CodeId::generate(WASM_BINARY_OPT), &salt);
     Gear::<T>::upload_program(
         RawOrigin::Signed(caller.clone()).into(),
-        WASM_BINARY.to_vec(),
+        WASM_BINARY_OPT.to_vec(),
         salt,
         Scheme::empty().encode(),
         10_000_000_000,
@@ -264,7 +267,8 @@ where
     T: Config,
     T::AccountId: Origin,
 {
-    use demo_waiter::{Command, WaitSubcommand, WASM_BINARY};
+    use binaries::demo_waiter::WASM_BINARY_OPT;
+    use demo_waiter::{Command, WaitSubcommand};
 
     let caller = benchmarking::account("caller", 0, 0);
     CurrencyOf::<T>::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
@@ -272,10 +276,10 @@ where
     init_block::<T>(None);
 
     let salt = vec![];
-    let program_id = ProgramId::generate_from_user(CodeId::generate(WASM_BINARY), &salt);
+    let program_id = ProgramId::generate_from_user(CodeId::generate(WASM_BINARY_OPT), &salt);
     Gear::<T>::upload_program(
         RawOrigin::Signed(caller.clone()).into(),
-        WASM_BINARY.to_vec(),
+        WASM_BINARY_OPT.to_vec(),
         salt,
         vec![],
         10_000_000_000,
@@ -314,7 +318,8 @@ where
     T: Config,
     T::AccountId: Origin,
 {
-    use demo_waiter::{Command, WaitSubcommand, WASM_BINARY};
+    use binaries::demo_waiter::WASM_BINARY_OPT;
+    use demo_waiter::{Command, WaitSubcommand};
 
     let caller = benchmarking::account("caller", 0, 0);
     CurrencyOf::<T>::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
@@ -322,10 +327,10 @@ where
     init_block::<T>(None);
 
     let salt = vec![];
-    let program_id = ProgramId::generate_from_user(CodeId::generate(WASM_BINARY), &salt);
+    let program_id = ProgramId::generate_from_user(CodeId::generate(WASM_BINARY_OPT), &salt);
     Gear::<T>::upload_program(
         RawOrigin::Signed(caller.clone()).into(),
-        WASM_BINARY.to_vec(),
+        WASM_BINARY_OPT.to_vec(),
         salt,
         vec![],
         10_000_000_000,

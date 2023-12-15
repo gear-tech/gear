@@ -2041,9 +2041,9 @@ name = "demo-async-init"
 version = "0.1.0"
 dependencies = [
  "futures",
- "gear-wasm-builder",
  "gstd",
  "parity-scale-codec",
+ "wasm-dep-builder",
 ]
 
 [[package]]
@@ -2051,27 +2051,27 @@ name = "demo-async-recursion"
 version = "0.1.0"
 dependencies = [
  "async-recursion",
- "gear-wasm-builder",
  "gstd",
+ "wasm-dep-builder",
 ]
 
 [[package]]
 name = "demo-async-signal-entry"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder",
  "gstd",
  "gtest",
  "parity-scale-codec",
+ "wasm-dep-builder",
 ]
 
 [[package]]
 name = "demo-async-tester"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder",
  "gstd",
  "parity-scale-codec",
+ "wasm-dep-builder",
 ]
 
 [[package]]
@@ -2088,7 +2088,6 @@ dependencies = [
 name = "demo-calc-hash"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder",
  "gstd",
  "parity-scale-codec",
  "sha2 0.10.8",
@@ -2099,9 +2098,9 @@ name = "demo-calc-hash-in-one-block"
 version = "0.1.0"
 dependencies = [
  "demo-calc-hash",
- "gear-wasm-builder",
  "gstd",
  "parity-scale-codec",
+ "wasm-dep-builder",
 ]
 
 [[package]]
@@ -2109,18 +2108,18 @@ name = "demo-calc-hash-over-blocks"
 version = "0.1.0"
 dependencies = [
  "demo-calc-hash",
- "gear-wasm-builder",
  "gstd",
  "parity-scale-codec",
+ "wasm-dep-builder",
 ]
 
 [[package]]
 name = "demo-compose"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder",
  "gstd",
  "hex",
+ "wasm-dep-builder",
 ]
 
 [[package]]
@@ -2128,47 +2127,47 @@ name = "demo-constructor"
 version = "0.1.0"
 dependencies = [
  "gcore",
- "gear-wasm-builder",
  "gstd",
  "hex",
  "parity-scale-codec",
+ "wasm-dep-builder",
 ]
 
 [[package]]
 name = "demo-custom"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder",
  "gstd",
  "gsys",
  "gtest",
  "parity-scale-codec",
+ "wasm-dep-builder",
 ]
 
 [[package]]
 name = "demo-delayed-reservation-sender"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder",
  "gstd",
+ "wasm-dep-builder",
 ]
 
 [[package]]
 name = "demo-delayed-sender"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder",
  "gstd",
+ "wasm-dep-builder",
 ]
 
 [[package]]
 name = "demo-distributor"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder",
  "gstd",
  "gtest",
  "parity-scale-codec",
+ "wasm-dep-builder",
 ]
 
 [[package]]
@@ -2193,52 +2192,52 @@ name = "demo-futures-unordered"
 version = "0.1.0"
 dependencies = [
  "futures",
- "gear-wasm-builder",
  "gstd",
  "parity-scale-codec",
+ "wasm-dep-builder",
 ]
 
 [[package]]
 name = "demo-gas-burned"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder",
  "gstd",
  "gtest",
  "log",
+ "wasm-dep-builder",
 ]
 
 [[package]]
 name = "demo-incomplete-async-payloads"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder",
  "gstd",
  "parity-scale-codec",
+ "wasm-dep-builder",
 ]
 
 [[package]]
 name = "demo-init-fail-sender"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder",
  "gstd",
+ "wasm-dep-builder",
 ]
 
 [[package]]
 name = "demo-init-wait"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder",
  "gstd",
+ "wasm-dep-builder",
 ]
 
 [[package]]
 name = "demo-init-wait-reply-exit"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder",
  "gstd",
+ "wasm-dep-builder",
 ]
 
 [[package]]
@@ -2293,9 +2292,9 @@ dependencies = [
 name = "demo-mul-by-const"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder",
  "gstd",
  "hex",
+ "wasm-dep-builder",
 ]
 
 [[package]]
@@ -2335,8 +2334,8 @@ dependencies = [
 name = "demo-out-of-memory"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder",
  "gstd",
+ "wasm-dep-builder",
 ]
 
 [[package]]
@@ -2351,106 +2350,106 @@ dependencies = [
 name = "demo-ping"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder",
  "gstd",
+ "wasm-dep-builder",
 ]
 
 [[package]]
 name = "demo-program-factory"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder",
  "gstd",
  "gtest",
  "hex-literal",
  "parity-scale-codec",
+ "wasm-dep-builder",
 ]
 
 [[package]]
 name = "demo-program-generator"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder",
  "gstd",
  "hex-literal",
+ "wasm-dep-builder",
 ]
 
 [[package]]
 name = "demo-proxy"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder",
  "gstd",
  "parity-scale-codec",
  "scale-info",
+ "wasm-dep-builder",
 ]
 
 [[package]]
 name = "demo-proxy-relay"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder",
  "gstd",
  "parity-scale-codec",
  "scale-info",
+ "wasm-dep-builder",
 ]
 
 [[package]]
 name = "demo-proxy-reservation-with-gas"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder",
  "gstd",
  "parity-scale-codec",
  "scale-info",
+ "wasm-dep-builder",
 ]
 
 [[package]]
 name = "demo-read-big-state"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder",
  "gstd",
  "parity-scale-codec",
+ "wasm-dep-builder",
 ]
 
 [[package]]
 name = "demo-reservation-manager"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder",
  "gstd",
  "gtest",
  "parity-scale-codec",
+ "wasm-dep-builder",
 ]
 
 [[package]]
 name = "demo-reserve-gas"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder",
  "gstd",
  "gtest",
  "parity-scale-codec",
+ "wasm-dep-builder",
 ]
 
 [[package]]
 name = "demo-rwlock"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder",
  "gstd",
  "parity-scale-codec",
+ "wasm-dep-builder",
 ]
 
 [[package]]
 name = "demo-send-from-reservation"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder",
  "gstd",
  "gtest",
  "parity-scale-codec",
+ "wasm-dep-builder",
 ]
 
 [[package]]
@@ -2458,18 +2457,18 @@ name = "demo-signal-entry"
 version = "0.1.0"
 dependencies = [
  "gear-core",
- "gear-wasm-builder",
  "gstd",
  "gtest",
  "parity-scale-codec",
+ "wasm-dep-builder",
 ]
 
 [[package]]
 name = "demo-signal-wait"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder",
  "gstd",
+ "wasm-dep-builder",
 ]
 
 [[package]]
@@ -2489,16 +2488,16 @@ dependencies = [
 name = "demo-state-rollback"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder",
  "gstd",
+ "wasm-dep-builder",
 ]
 
 [[package]]
 name = "demo-sync-duplicate"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder",
  "gstd",
+ "wasm-dep-builder",
 ]
 
 [[package]]
@@ -2525,8 +2524,8 @@ name = "demo-wait"
 version = "0.1.0"
 dependencies = [
  "gcore",
- "gear-wasm-builder",
  "gstd",
+ "wasm-dep-builder",
 ]
 
 [[package]]
@@ -2534,19 +2533,19 @@ name = "demo-wait-timeout"
 version = "0.1.0"
 dependencies = [
  "futures",
- "gear-wasm-builder",
  "gstd",
  "parity-scale-codec",
+ "wasm-dep-builder",
 ]
 
 [[package]]
 name = "demo-wait-wake"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder",
  "gstd",
  "gtest",
  "parity-scale-codec",
+ "wasm-dep-builder",
 ]
 
 [[package]]
@@ -2557,18 +2556,18 @@ dependencies = [
  "futures",
  "gcore",
  "gear-core",
- "gear-wasm-builder",
  "gstd",
  "gtest",
  "parity-scale-codec",
+ "wasm-dep-builder",
 ]
 
 [[package]]
 name = "demo-waiting-proxy"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder",
  "gstd",
+ "wasm-dep-builder",
 ]
 
 [[package]]

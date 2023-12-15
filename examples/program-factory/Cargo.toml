@@ -13,7 +13,7 @@ parity-scale-codec.workspace = true
 hex-literal.workspace = true
 
 [build-dependencies]
-gear-wasm-builder.workspace = true
+wasm-dep-builder.workspace = true
 
 [dev-dependencies]
 gtest.workspace = true

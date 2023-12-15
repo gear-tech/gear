@@ -33,7 +33,13 @@ async fn get_state() -> anyhow::Result<()> {
 
     // Calculate gas amount needed for initialization
     let gas_info = api
-        .calculate_upload_gas(None, demo_new_meta::WASM_BINARY.to_vec(), vec![], 0, true)
+        .calculate_upload_gas(
+            None,
+            demo_new_meta::WASM_BINARY_OPT.to_vec(),
+            vec![],
+            0,
+            true,
+        )
         .await?;
 
     // Upload and init the program

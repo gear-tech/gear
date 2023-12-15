@@ -29,7 +29,7 @@
 
 use super::*;
 
-use crate::{BlockGasLimitOf, CurrencyOf, Event, RentCostPerBlockOf, String, WaitlistOf};
+use crate::{binaries, BlockGasLimitOf, CurrencyOf, Event, RentCostPerBlockOf, String, WaitlistOf};
 use common::event::DispatchStatus;
 use frame_support::traits::Randomness;
 use gear_core::ids::{CodeId, ReservationId};
@@ -45,7 +45,8 @@ where
     T: Config,
     T::AccountId: Origin,
 {
-    use demo_read_big_state::{State, Strings, WASM_BINARY};
+    use binaries::demo_read_big_state::WASM_BINARY_OPT;
+    use demo_read_big_state::{State, Strings};
 
     #[cfg(feature = "std")]
     utils::init_logger();
@@ -60,7 +61,7 @@ where
 
     Gear::<T>::upload_program(
         RawOrigin::Signed(origin.clone()).into(),
-        WASM_BINARY.to_vec(),
+        WASM_BINARY_OPT.to_vec(),
         salt.to_vec(),
         Default::default(),
         BlockGasLimitOf::<T>::get(),
@@ -69,7 +70,7 @@ where
     )
     .expect("Failed to upload read_big_state binary");
 
-    let pid = ProgramId::generate_from_user(CodeId::generate(WASM_BINARY), salt);
+    let pid = ProgramId::generate_from_user(CodeId::generate(WASM_BINARY_OPT), salt);
     utils::run_to_next_block::<T>(None);
 
     let string = String::from("hi").repeat(4095);

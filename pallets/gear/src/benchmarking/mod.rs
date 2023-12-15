@@ -55,6 +55,7 @@ use self::{
     sandbox::Sandbox,
 };
 use crate::{
+    binaries,
     manager::ExtManager,
     pallet,
     schedule::{API_BENCHMARK_BATCH_SIZE, INSTR_BENCHMARK_BATCH_SIZE},
@@ -2846,7 +2847,8 @@ benchmarks! {
     tasks_pause_program_uninited {
         let c in 0 .. (MAX_PAGES - 1) * (WASM_PAGE_SIZE / GEAR_PAGE_SIZE) as u32;
 
-        let program_id = tasks::pause_program_prepare::<T>(c, demo_init_wait::WASM_BINARY.to_vec());
+        let code = binaries::demo_init_wait::WASM_BINARY_OPT.to_vec();
+        let program_id = tasks::pause_program_prepare::<T>(c, code);
 
         let mut ext_manager = ExtManager::<T>::default();
     }: {
