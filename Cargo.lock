@@ -4395,9 +4395,9 @@ name = "gear-sandbox-env"
 version = "1.0.3"
 dependencies = [
  "parity-scale-codec",
- "sp-core",
+ "sp-debug-derive",
  "sp-std 5.0.0",
- "sp-wasm-interface",
+ "sp-wasm-interface-common",
 ]
 
 [[package]]
