@@ -192,11 +192,11 @@ pub trait Externalities {
         mem: &mut impl Memory,
     ) -> Result<WasmPage, Self::AllocError>;
 
-    /// Free specific memory page.
-    ///
-    /// Unlike traditional allocator, if multiple pages allocated via `alloc`, all pages
-    /// should be `free`-d separately.
+    /// Free specific page.
     fn free(&mut self, page: WasmPage) -> Result<(), Self::AllocError>;
+
+    /// Free specific memory range.
+    fn free_range(&mut self, start: WasmPage, end: WasmPage) -> Result<(), Self::AllocError>;
 
     /// Get environment variables currently set in the system and in the form
     /// corresponded to the requested version.

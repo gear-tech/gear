@@ -221,7 +221,8 @@ pub mod {dep_name} {{
             !lock_exists,
             content == DEMO_OCCURRED
         );
-        if !lock_exists || content == DEMO_OCCURRED {
+        #[allow(clippy::overly_complex_bool_expr)]
+        if true || !lock_exists || content == DEMO_OCCURRED {
             println!("cargo:warning=rebuilding...");
 
             packages_to_build.insert(pkg.name.clone(), features);

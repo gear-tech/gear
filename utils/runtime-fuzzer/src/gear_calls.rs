@@ -35,8 +35,8 @@ use gear_call_gen::{ClaimValueArgs, SendReplyArgs};
 use gear_core::ids::{CodeId, MessageId, ProgramId};
 use gear_utils::NonEmpty;
 use gear_wasm_gen::{
-    EntryPointsSet, InvocableSyscall, ParamType, StandardGearWasmConfigsBundle, SyscallName,
-    SyscallsInjectionTypes, SyscallsParamsConfig,
+    EntryPointsSet, InvocableSyscall, ParamType, RegularParamType, StandardGearWasmConfigsBundle,
+    SyscallName, SyscallsInjectionTypes, SyscallsParamsConfig,
 };
 use std::mem;
 
@@ -425,8 +425,14 @@ fn config(
     );
 
     let mut params_config = SyscallsParamsConfig::default();
-    params_config.add_rule(ParamType::Alloc, (10..=20).into());
-    params_config.add_rule(ParamType::Free, (initial_pages..=initial_pages + 35).into());
+    params_config.add_rule(
+        ParamType::Regular(RegularParamType::Alloc),
+        (10..=20).into(),
+    );
+    params_config.add_rule(
+        ParamType::Regular(RegularParamType::Free),
+        (initial_pages..=initial_pages + 35).into(),
+    );
 
     let existing_addresses = NonEmpty::collect(
         programs

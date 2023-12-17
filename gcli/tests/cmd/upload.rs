@@ -18,41 +18,29 @@
 
 //! Integration tests for command `upload`
 use crate::common::{
-    self, env, logs,
-    traits::{Convert, NodeExec},
+    self, env,
+    node::{Convert, NodeExec},
     Args, Result,
 };
 use gear_core::ids::CodeId;
 use gsdk::Api;
 
 #[tokio::test]
-async fn test_command_upload_works() {
-    common::login_as_alice().expect("login failed");
-    let mut node = common::dev().expect("failed to start node");
-    node.wait_for_log_record(logs::gear_node::IMPORTING_BLOCKS)
-        .expect("node timeout");
-
-    let signer = Api::new(Some(&node.ws()))
-        .await
-        .expect("build api failed")
-        .signer("//Alice", None)
-        .expect("get signer failed");
-
+async fn test_command_upload_works() -> Result<()> {
+    let node = common::dev()?;
+    let signer = Api::new(Some(&node.ws())).await?.signer("//Alice", None)?;
     let code_id = CodeId::generate(demo_new_meta::WASM_BINARY);
     assert!(
         signer.api().code_storage(code_id).await.is_err(),
         "code should not exist"
     );
 
-    let output = node
-        .run(Args::new("upload").program(env::wasm_bin("demo_new_meta.opt.wasm")))
-        .expect("run command upload failed");
-
+    let output = node.run(Args::new("upload").program(env::wasm_bin("demo_new_meta.opt.wasm")))?;
     assert!(
         output
             .stderr
             .convert()
-            .contains(logs::gear_program::EX_UPLOAD_PROGRAM),
+            .contains("Submitted Gear::upload_program"),
         "code should be uploaded, but got: {:?}",
         output.stderr
     );
@@ -60,14 +48,13 @@ async fn test_command_upload_works() {
         signer.api().code_storage(code_id).await.is_ok(),
         "code should exist"
     );
+
+    Ok(())
 }
 
 #[tokio::test]
-async fn test_command_upload_program_works() -> Result<()> {
-    common::login_as_alice().expect("login failed");
-    let mut node = common::dev()?;
-    node.wait_for_log_record(logs::gear_node::IMPORTING_BLOCKS)?;
-
+async fn test_command_upload_code_works() -> Result<()> {
+    let node = common::dev()?;
     let output = node.run(
         Args::new("upload")
             .flag("--code-only")
@@ -77,7 +64,7 @@ async fn test_command_upload_program_works() -> Result<()> {
     let stderr = output.stderr.convert();
 
     assert!(
-        stderr.contains(logs::gear_program::EX_UPLOAD_CODE),
+        stderr.contains("Submitted Gear::upload_code"),
         "code should be uploaded, but got: {stderr:?}",
     );
     Ok(())

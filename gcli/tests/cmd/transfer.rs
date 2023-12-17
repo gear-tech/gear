@@ -18,7 +18,7 @@
 
 //! Integration tests for command `deploy`
 
-use crate::common::{self, logs, Args, NodeExec, Result};
+use crate::common::{self, Args, NodeExec, Result};
 use gsdk::Api;
 
 // Testing account
@@ -27,10 +27,7 @@ const ADDRESS: &str = "kGhmTEymraqSPa1NYjXzqbko2p4Ge1CmEfACtC1s4aC5hTPYk";
 
 #[tokio::test]
 async fn test_command_transfer_works() -> Result<()> {
-    common::login_as_alice()?;
-    let mut node = common::dev()?;
-
-    node.wait_for_log_record(logs::gear_node::IMPORTING_BLOCKS)?;
+    let node = common::dev()?;
 
     // Get balance of the testing address
     let signer = Api::new(Some(&node.ws())).await?.signer(SURI, None)?;
