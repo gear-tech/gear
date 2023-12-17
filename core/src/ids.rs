@@ -21,8 +21,11 @@
 use blake2_rfc::blake2b;
 use core::convert::TryInto;
 
-const HASH_LENGTH: usize = 32;
-type Hash = [u8; HASH_LENGTH];
+/// Hash length used in gear protocol.
+pub const HASH_LENGTH: usize = 32;
+
+/// Hash type used in gear protocol.
+pub type Hash = [u8; HASH_LENGTH];
 
 /// Creates a unique identifier by passing given argument to blake2b hash-function.
 ///
@@ -38,6 +41,7 @@ fn hash(argument: &[u8]) -> Hash {
 
 /// Declares data type for storing any kind of id for gear-core,
 /// which stores 32 bytes under the hood.
+#[macro_export]
 macro_rules! declare_id {
     ($name:ident: $doc: literal) => {
         #[doc=$doc]
@@ -56,17 +60,17 @@ macro_rules! declare_id {
             derive_more::From,
             scale_info::TypeInfo,
         )]
-        pub struct $name(Hash);
+        pub struct $name($crate::ids::Hash);
 
         impl $name {
             /// Returns id as bytes array.
-            pub fn into_bytes(self) -> Hash {
+            pub fn into_bytes(self) -> $crate::ids::Hash {
                 self.0
             }
         }
 
-        impl From<$name> for Hash {
-            fn from(val: $name) -> Hash {
+        impl From<$name> for $crate::ids::Hash {
+            fn from(val: $name) -> $crate::ids::Hash {
                 val.0
             }
         }
@@ -93,11 +97,11 @@ macro_rules! declare_id {
 
         impl From<&[u8]> for $name {
             fn from(slice: &[u8]) -> Self {
-                if slice.len() != HASH_LENGTH {
+                if slice.len() != $crate::ids::HASH_LENGTH {
                     panic!("Identifier must be 32 length");
                 }
 
-                let mut arr: Hash = Default::default();
+                let mut arr: $crate::ids::Hash = Default::default();
                 arr[..].copy_from_slice(slice);
 
                 Self(arr)
