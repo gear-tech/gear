@@ -74,6 +74,7 @@ pub use weights::WeightInfo;
 pub use internal::*;
 pub use pallet::*;
 
+type AccountIdOf<T> = <T as frame_system::Config>::AccountId;
 pub(crate) type BalanceOf<T> =
     <<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 type AccountIdLookupOf<T> = <<T as frame_system::Config>::Lookup as StaticLookup>::Source;
@@ -84,7 +85,7 @@ const STORAGE_VERSION: StorageVersion = StorageVersion::new(0);
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
-    use common::storage::Mailbox;
+    use common::storage::{Mailbox, ValueStorage};
     use frame_system::pallet_prelude::*;
     use gear_core::message::UserStoredMessage;
 
@@ -135,6 +136,21 @@ pub mod pallet {
         InsufficientBalance,
         InvalidVoucher,
     }
+
+    // Private storage for amount of messages sent.
+    #[pallet::storage]
+    type Issued<T> = StorageValue<_, u64>;
+
+    // Public wrap of the amount of messages sent.
+    common::wrap_storage_value!(storage: Issued, name: IssuedWrap, value: u64);
+
+    #[pallet::storage]
+    pub type Vouchers<T> = StorageMap<
+        _,
+        Identity,
+        VoucherId,
+        VoucherInfo<AccountIdOf<T>, BalanceOf<T>, BlockNumberFor<T>>,
+    >;
 
     #[pallet::call]
     impl<T: Config> Pallet<T> {

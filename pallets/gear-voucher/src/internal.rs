@@ -19,10 +19,21 @@
 #![allow(unused)]
 
 use crate::*;
-use common::storage::Mailbox;
-use gear_core::declare_id;
+use common::storage::{Counter, CounterImpl, Mailbox};
+use gear_core::{declare_id, ids};
 
 declare_id!(VoucherId: "Voucher identifier");
+
+impl VoucherId {
+    pub fn generate<T: Config>() -> Self {
+        const SALT: &[u8] = b"voucher";
+
+        let nonce = CounterImpl::<u64, IssuedWrap<T>>::inc_get();
+
+        let argument = [SALT, &nonce.to_le_bytes()].concat();
+        ids::hash(&argument).into()
+    }
+}
 
 /// Type containing all data about voucher.
 #[derive(Debug, Encode, Decode, TypeInfo)]

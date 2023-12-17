@@ -30,7 +30,7 @@ pub type Hash = [u8; HASH_LENGTH];
 /// Creates a unique identifier by passing given argument to blake2b hash-function.
 ///
 /// # SAFETY: DO NOT ADJUST HASH FUNCTION, BECAUSE MESSAGE ID IS SENSITIVE FOR IT.
-fn hash(argument: &[u8]) -> Hash {
+pub fn hash(argument: &[u8]) -> Hash {
     let blake2b_hash = blake2b::blake2b(HASH_LENGTH, &[], argument);
 
     blake2b_hash
