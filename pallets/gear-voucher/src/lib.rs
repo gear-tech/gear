@@ -49,6 +49,8 @@
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
 
+mod internal;
+
 pub mod weights;
 
 #[cfg(test)]
@@ -69,6 +71,7 @@ use sp_runtime::traits::{StaticLookup, TrailingZeroInput};
 use sp_std::{convert::TryInto, vec::Vec};
 pub use weights::WeightInfo;
 
+pub use internal::*;
 pub use pallet::*;
 
 pub(crate) type BalanceOf<T> =
@@ -100,11 +103,13 @@ pub mod pallet {
         /// Weight information for extrinsics in this pallet.
         type WeightInfo: WeightInfo;
 
+        /// Prepaid calls executor.
         type CallsDispatcher: PrepaidCallsDispatcher<
             AccountId = Self::AccountId,
             Balance = BalanceOf<Self>,
         >;
 
+        /// Mailbox to extract destination for some prepaid cases (e.g. `Gear::send_reply`).
         type Mailbox: Mailbox<Key1 = Self::AccountId, Key2 = MessageId, Value = UserStoredMessage>;
     }
 
@@ -130,9 +135,6 @@ pub mod pallet {
         InsufficientBalance,
         InvalidVoucher,
     }
-
-    #[pallet::hooks]
-    impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {}
 
     #[pallet::call]
     impl<T: Config> Pallet<T> {
@@ -193,58 +195,4 @@ pub mod pallet {
             T::CallsDispatcher::dispatch(origin, sponsor, call)
         }
     }
-
-    impl<T: Config> Pallet<T> {
-        /// Derive a synthesized account ID from an account ID and a program ID.
-        pub fn voucher_id(who: &T::AccountId, program_id: &ProgramId) -> T::AccountId {
-            let entropy = (b"modlpy/voucher__", who, program_id).using_encoded(blake2_256);
-            Decode::decode(&mut TrailingZeroInput::new(entropy.as_ref()))
-                .expect("infinite length input; no invalid inputs for type; qed")
-        }
-
-        /// Return synthesized account ID based on call data.
-        pub fn sponsor_of(
-            who: &T::AccountId,
-            call: &PrepaidCall<BalanceOf<T>>,
-        ) -> Option<T::AccountId> {
-            match call {
-                PrepaidCall::SendMessage { destination, .. } => {
-                    Some(Self::voucher_id(who, destination))
-                }
-                PrepaidCall::SendReply { reply_to_id, .. } => T::Mailbox::peek(who, reply_to_id)
-                    .map(|stored_message| Self::voucher_id(who, &stored_message.source())),
-            }
-        }
-    }
-}
-
-#[derive(Debug, Clone, Encode, Decode, TypeInfo, PartialEq, Eq, PartialOrd, Ord)]
-pub enum PrepaidCall<Balance> {
-    SendMessage {
-        destination: ProgramId,
-        payload: Vec<u8>,
-        gas_limit: u64,
-        value: Balance,
-        keep_alive: bool,
-    },
-    SendReply {
-        reply_to_id: MessageId,
-        payload: Vec<u8>,
-        gas_limit: u64,
-        value: Balance,
-        keep_alive: bool,
-    },
-}
-
-pub trait PrepaidCallsDispatcher {
-    type AccountId;
-    type Balance;
-
-    fn weight(call: &PrepaidCall<Self::Balance>) -> Weight;
-
-    fn dispatch(
-        account_id: Self::AccountId,
-        sponsor_id: Self::AccountId,
-        call: PrepaidCall<Self::Balance>,
-    ) -> DispatchResultWithPostInfo;
 }
