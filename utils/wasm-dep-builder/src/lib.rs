@@ -98,7 +98,6 @@ fn wasm_projects_dir() -> PathBuf {
 
     out_dir()
         .ancestors()
-        .inspect(|p| println!("cargo:warning=ancestor: {}", p.display()))
         .find(|path| path.ends_with(&profile))
         .and_then(|path| path.parent())
         .map(|p| p.to_owned())

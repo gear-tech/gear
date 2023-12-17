@@ -9,7 +9,19 @@ mod tests {
         let code = binaries::demo_async::WASM_BINARY;
         println!("demo-async: {:.2} MB", code.len() as f32 / 1024.0 / 1024.00);
 
+        let code = binaries::demo_async::WASM_BINARY_OPT;
+        println!(
+            "demo-async opt: {:.2} MB",
+            code.len() as f32 / 1024.0 / 1024.00
+        );
+
         let code = binaries::demo_async_custom_entry::WASM_BINARY;
         println!("demo-async: {:.2} MB", code.len() as f32 / 1024.0 / 1024.00);
+
+        let code = binaries::demo_async_custom_entry::WASM_BINARY_OPT;
+        println!(
+            "demo-async opt: {:.2} MB",
+            code.len() as f32 / 1024.0 / 1024.00
+        );
     }
 }

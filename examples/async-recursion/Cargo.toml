@@ -7,6 +7,9 @@ license.workspace = true
 homepage.workspace = true
 repository.workspace = true
 
+[lib]
+crate-type = ["lib", "cdylib"]
+
 [dependencies]
 gstd.workspace = true
 async-recursion.workspace = true

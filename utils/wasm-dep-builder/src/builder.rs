@@ -17,6 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{out_dir, profile, wasm32_target_dir, wasm_projects_dir};
+use gear_wasm_builder::{
+    optimize,
+    optimize::{OptType, Optimizer},
+};
 use std::{
     collections::{BTreeMap, BTreeSet},
     env, fs,
@@ -58,7 +62,9 @@ pub fn build_wasm(packages: BTreeMap<String, BTreeSet<String>>) {
         .arg(profile().replace("debug", "dev"))
         .env("__GEAR_WASM_BUILDER_NO_BUILD", "1")
         .env("CARGO_BUILD_TARGET", "wasm32-unknown-unknown")
-        .env("CARGO_TARGET_DIR", wasm_projects_dir());
+        .env("CARGO_TARGET_DIR", wasm_projects_dir())
+        // remove host flags
+        .env_remove("CARGO_ENCODED_RUSTFLAGS");
     println!("cargo:warning={:?}", cargo);
     let status = cargo.status().expect("Failed to execute cargo command");
     assert!(status.success());
@@ -69,6 +75,23 @@ pub fn build_wasm(packages: BTreeMap<String, BTreeSet<String>>) {
         let out_dir = out_dir().join(&pkg);
         fs::create_dir_all(&out_dir).unwrap();
 
+        let wasm = wasm32_target_dir.join(format!("{}.wasm", pkg));
+        let mut wasm_opt = wasm.clone();
+        wasm_opt.set_extension("opt.wasm");
+
+        println!("cargo:warning=wasm: {}", wasm.display());
+        println!("cargo:warning=wasm_opt: {}", wasm_opt.display());
+        optimize::optimize_wasm(wasm.clone(), wasm_opt.clone(), "4", true).unwrap();
+
+        let mut optimizer = Optimizer::new(wasm_opt.clone()).unwrap();
+        optimizer.insert_stack_end_export().unwrap_or_else(|err| {
+            println!("cargo:warning=Cannot insert stack end export into `{pkg}`: {err}")
+        });
+        optimizer.strip_custom_sections();
+
+        let binary_opt = optimizer.optimize(OptType::Opt).unwrap();
+        fs::write(&wasm_opt, binary_opt).unwrap();
+
         // TODO: optimize binary
         fs::write(
             out_dir.join("wasm_binary.rs"),
@@ -77,9 +100,10 @@ pub fn build_wasm(packages: BTreeMap<String, BTreeSet<String>>) {
     #[allow(unused)]
     pub const WASM_BINARY: &[u8] = include_bytes!("{}");
     #[allow(unused)]
-    pub const WASM_BINARY_OPT: &[u8] = WASM_BINARY;
+    pub const WASM_BINARY_OPT: &[u8] = include_bytes!("{}");
     "#,
-                wasm32_target_dir.join(format!("{}.wasm", pkg)).display()
+                wasm.display(),
+                wasm_opt.display()
             ),
         )
         .unwrap();
