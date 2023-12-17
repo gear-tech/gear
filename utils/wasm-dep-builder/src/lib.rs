@@ -16,11 +16,14 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+mod builder;
+
+use crate::builder::build_wasm;
 use cargo_metadata::{DependencyKind, MetadataCommand};
 use fs4::FileExt;
 use serde::Deserialize;
 use std::{
-    collections::BTreeSet,
+    collections::{BTreeMap, BTreeSet},
     env, fs,
     io::{Read, Seek, SeekFrom, Write},
     path::PathBuf,
@@ -74,10 +77,8 @@ fn out_dir() -> PathBuf {
     env::var("OUT_DIR").unwrap().into()
 }
 
-fn wasm32_target_dir() -> PathBuf {
-    let out_dir = out_dir();
-
-    let profile: String = out_dir
+fn profile() -> String {
+    out_dir()
         .components()
         .rev()
         .take_while(|c| c.as_os_str() != "target")
@@ -89,20 +90,30 @@ fn wasm32_target_dir() -> PathBuf {
         .expect("Path should have subdirs in the `target` dir")
         .as_os_str()
         .to_string_lossy()
-        .into();
+        .into()
+}
 
-    let target_dir = out_dir
+fn wasm_projects_dir() -> PathBuf {
+    let profile = profile();
+
+    out_dir()
         .ancestors()
+        .inspect(|p| println!("cargo:warning=ancestor: {}", p.display()))
         .find(|path| path.ends_with(&profile))
         .and_then(|path| path.parent())
         .map(|p| p.to_owned())
-        .expect("Could not find target directory");
-
-    target_dir
+        .expect("Could not find target directory")
         .join("wasm-projects")
-        .join(&profile)
-        .join("wasm32-unknown-unknown")
-        .join(&profile)
+}
+
+fn wasm32_target_dir() -> PathBuf {
+    wasm_projects_dir().join("wasm32-unknown-unknown")
+}
+
+fn lock_file(pkg_name: String) -> PathBuf {
+    wasm32_target_dir()
+        .join(profile())
+        .join(format!("{}.lock", pkg_name))
 }
 
 pub fn builder() {
@@ -110,7 +121,7 @@ pub fn builder() {
     let manifest_dir: PathBuf = manifest_dir.into();
     let pkg_name = env::var("CARGO_PKG_NAME").unwrap();
     let out_dir = out_dir();
-    let wasm32_target_dir = wasm32_target_dir();
+    let wasm32_target_dir = wasm32_target_dir().join(profile());
 
     fs::create_dir_all(&wasm32_target_dir).unwrap();
 
@@ -120,6 +131,7 @@ pub fn builder() {
 
     // track `OUT_DIR` because cargo can change it during development
     // and all of `wasm_binary.rs` files will be gone
+    // TODO: possibly env tracking is not enough to generate `wasm_binary.rs` files
     println!("cargo:rerun-if-env-changed=OUT_DIR");
 
     // don't track features because they are resolved by `cargo metadata`
@@ -141,6 +153,7 @@ pub fn builder() {
         .unwrap_or_default();
 
     let mut wasm_binaries = String::new();
+    let mut packages_to_build = BTreeMap::new();
 
     for dep in package
         .dependencies
@@ -176,10 +189,6 @@ pub fn builder() {
             .map(|config| config.into_demo().expect("Demo config expected"))
             .unwrap_or_default();
 
-        let wasm_out_dir = out_dir.join(&dep_name);
-        fs::create_dir_all(&wasm_out_dir).unwrap();
-        env::set_var("OUT_DIR", wasm_out_dir);
-
         wasm_binaries += &format!(
             r#"
 pub mod {dep_name} {{
@@ -188,21 +197,11 @@ pub mod {dep_name} {{
             "#,
         );
 
-        env::vars()
-            .filter(|(key, _)| key.starts_with("CARGO_FEATURE_"))
-            .for_each(|(key, _)| env::remove_var(key));
-
         let features: BTreeSet<String> = dep.features.iter().cloned().collect();
         let excluded_features = pkg_metadata.exclude_features;
-        for feature in features.difference(&excluded_features) {
-            let key = format!("CARGO_FEATURE_{}", feature.to_uppercase());
-            env::set_var(key, "1")
-        }
+        let features: BTreeSet<String> = features.difference(&excluded_features).cloned().collect();
 
-        let path = dep.path.as_ref().expect("Rust version >= 1.51 expected");
-        env::set_var("CARGO_MANIFEST_DIR", path);
-
-        let lock = wasm32_target_dir.join(format!("{}.lock", dep_name));
+        let lock = lock_file(dep_name);
         println!("cargo:rerun-if-changed={}", lock.display());
         println!("cargo:warning=tracking {}", lock.display());
 
@@ -226,12 +225,17 @@ pub mod {dep_name} {{
         if !lock_exists || content == DEMO_OCCURRED {
             println!("cargo:warning=rebuilding...");
 
-            gear_wasm_builder::build();
+            packages_to_build.insert(pkg.name.clone(), features);
 
             lock.set_len(0).unwrap();
             lock.seek(SeekFrom::Start(0)).unwrap();
             write!(lock, "{BUILDER_OCCURRED}").unwrap();
         }
+    }
+
+    println!("cargo:warning={:?}", packages_to_build);
+    if !packages_to_build.is_empty() {
+        build_wasm(packages_to_build);
     }
 
     fs::write(out_dir.join("wasm_binaries.rs"), wasm_binaries).unwrap();
@@ -245,11 +249,11 @@ pub fn demo() {
 
     let pkg_name = env::var("CARGO_PKG_NAME").unwrap();
     let pkg_name = pkg_name.replace('-', "_");
-    let wasm32_target_dir = wasm32_target_dir();
+    let wasm32_target_dir = wasm32_target_dir().join(profile());
 
-    fs::create_dir_all(&wasm32_target_dir).unwrap();
+    fs::create_dir_all(wasm32_target_dir).unwrap();
 
-    let lock = wasm32_target_dir.join(format!("{}.lock", pkg_name));
+    let lock = lock_file(pkg_name);
     println!("cargo:warning=[DEMO] {}", lock.display());
     let mut lock = fs::File::options()
         .create(true)
