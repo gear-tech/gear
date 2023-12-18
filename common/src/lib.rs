@@ -350,3 +350,13 @@ where
         self.function.clone()
     }
 }
+
+pub trait DelegateFee<C, A> {
+    fn delegate_fee(call: &C, who: &A) -> Option<A>;
+}
+
+impl<C, A> DelegateFee<C, A> for () {
+    fn delegate_fee(_call: &C, _who: &A) -> Option<A> {
+        None
+    }
+}

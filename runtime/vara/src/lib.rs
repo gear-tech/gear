@@ -24,7 +24,7 @@
 #[cfg(all(feature = "std", not(feature = "fuzz")))]
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
-use common::storage::Messenger;
+use common::{storage::Messenger, DelegateFee};
 use frame_election_provider_support::{
     onchain, ElectionDataProvider, NposSolution, SequentialPhragmen, VoteWeight,
 };
@@ -55,7 +55,7 @@ use frame_system::{
 };
 use pallet_election_provider_multi_phase::SolutionAccuracyOf;
 pub use pallet_gear::manager::{ExtManager, HandleKind};
-pub use pallet_gear_payment::{CustomChargeTransactionPayment, DelegateFee};
+pub use pallet_gear_payment::CustomChargeTransactionPayment;
 pub use pallet_gear_staking_rewards::StakingBlackList;
 use pallet_grandpa::{
     fg_primitives, AuthorityId as GrandpaId, AuthorityList as GrandpaAuthorityList,
