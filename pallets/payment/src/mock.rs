@@ -189,6 +189,7 @@ impl pallet_gear_voucher::Config for Test {
     type WeightInfo = ();
     type CallsDispatcher = Gear;
     type Mailbox = MailboxOf<Self>;
+    type MaxProgramsAmount = ConstU8<32>;
 }
 
 // Build genesis storage according to the mock runtime.

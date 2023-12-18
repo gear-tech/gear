@@ -28,7 +28,7 @@ use frame_support::{
 };
 use frame_support_test::TestRandomness;
 use frame_system::{self as system, limits::BlockWeights};
-use sp_core::H256;
+use sp_core::{ConstU8, H256};
 use sp_runtime::{
     generic,
     traits::{BlakeTwo256, IdentityLookup},
@@ -175,6 +175,7 @@ impl pallet_gear_voucher::Config for Test {
     type WeightInfo = ();
     type CallsDispatcher = Gear;
     type Mailbox = MailboxOf<Self>;
+    type MaxProgramsAmount = ConstU8<32>;
 }
 
 // Build genesis storage according to the mock runtime.

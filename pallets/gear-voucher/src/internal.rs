@@ -19,7 +19,10 @@
 #![allow(unused)]
 
 use crate::*;
-use common::storage::{Counter, CounterImpl, Mailbox};
+use common::{
+    storage::{Counter, CounterImpl, Mailbox},
+    Origin,
+};
 use gear_core::{declare_id, ids};
 
 declare_id!(VoucherId: "Voucher identifier");
@@ -35,15 +38,37 @@ impl VoucherId {
     }
 }
 
+impl Origin for VoucherId {
+    fn into_origin(self) -> H256 {
+        self.0.into()
+    }
+
+    fn from_origin(val: H256) -> Self {
+        Self(val.to_fixed_bytes())
+    }
+}
+
 /// Type containing all data about voucher.
 #[derive(Debug, Encode, Decode, TypeInfo)]
-pub struct VoucherInfo<AccountId, Balance, BlockNumber> {
+pub struct VoucherInfo<AccountId, BlockNumber> {
+    /// Owner of the voucher.
+    /// May be different to original issuer.
+    /// Owner manages and claims back remaining balance of the voucher.
     pub owner: AccountId,
-    pub spender: AccountId,
-    pub balance: Balance,
-    pub max_value: Option<Balance>,
-    pub valid_until: BlockNumber,
-    pub destinations: Vec<ProgramId>,
+    /// Set of programs this voucher could be used to interact with.
+    /// In case of None means any gear program.
+    pub programs: Option<Vec<ProgramId>>,
+    /// Block number since voucher couldn't be used (able to be revoked by owner).
+    pub validity: BlockNumber,
+}
+
+impl<AccountId, BlockNumber> VoucherInfo<AccountId, BlockNumber> {
+    pub fn contains(&self, program_id: ProgramId) -> bool {
+        self.programs
+            .as_ref()
+            .map(|v| v.contains(&program_id))
+            .unwrap_or(true)
+    }
 }
 
 /// Prepaid call to be executed on-chain.
@@ -100,6 +125,19 @@ impl<T: Config> Pallet<T> {
             }
             PrepaidCall::SendReply { reply_to_id, .. } => T::Mailbox::peek(who, reply_to_id)
                 .map(|stored_message| Self::voucher_id(who, &stored_message.source())),
+        }
+    }
+
+    /// Return destination program of the PrepaidCall.
+    pub fn destination_program(
+        who: &T::AccountId,
+        call: &PrepaidCall<BalanceOf<T>>,
+    ) -> Option<ProgramId> {
+        match call {
+            PrepaidCall::SendMessage { destination, .. } => Some(*destination),
+            PrepaidCall::SendReply { reply_to_id, .. } => {
+                T::Mailbox::peek(who, reply_to_id).map(|stored_message| stored_message.source())
+            }
         }
     }
 }

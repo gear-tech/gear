@@ -85,9 +85,13 @@ const STORAGE_VERSION: StorageVersion = StorageVersion::new(0);
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
-    use common::storage::{Mailbox, ValueStorage};
+    use common::{
+        storage::{Mailbox, ValueStorage},
+        Origin,
+    };
     use frame_system::pallet_prelude::*;
     use gear_core::message::UserStoredMessage;
+    use sp_runtime::Saturating;
 
     #[pallet::config]
     pub trait Config: frame_system::Config {
@@ -112,6 +116,10 @@ pub mod pallet {
 
         /// Mailbox to extract destination for some prepaid cases (e.g. `Gear::send_reply`).
         type Mailbox: Mailbox<Key1 = Self::AccountId, Key2 = MessageId, Value = UserStoredMessage>;
+
+        /// Maximal amount of programs to be specified to interact with.
+        #[pallet::constant]
+        type MaxProgramsAmount: Get<u8>;
     }
 
     #[pallet::pallet]
@@ -128,13 +136,24 @@ pub mod pallet {
             program: ProgramId,
             value: BalanceOf<T>,
         },
+
+        /// Revokable voucher (v2) has been updated.
+        VoucherUpdated { voucher_id: VoucherId },
+
+        /// Revokable voucher (v2) has been issued.
+        RevokableVoucherIssued { voucher_id: VoucherId },
     }
 
     // Gas pallet error.
     #[pallet::error]
     pub enum Error<T> {
-        InsufficientBalance,
-        InvalidVoucher,
+        BalanceTransfer,
+        InexistentVoucher,
+        VoucherExpired,
+        IrrevocableYet,
+        BadOrigin,
+        MaxProgramsLimitExceeded,
+        UnknownDestination,
     }
 
     // Private storage for amount of messages sent.
@@ -145,15 +164,21 @@ pub mod pallet {
     common::wrap_storage_value!(storage: Issued, name: IssuedWrap, value: u64);
 
     #[pallet::storage]
-    pub type Vouchers<T> = StorageMap<
+    // TODO (breathx): change to spender/voucher_id -> voucher data
+    pub type Vouchers<T> = StorageDoubleMap<
         _,
         Identity,
+        AccountIdOf<T>,
+        Identity,
         VoucherId,
-        VoucherInfo<AccountIdOf<T>, BalanceOf<T>, BlockNumberFor<T>>,
+        VoucherInfo<AccountIdOf<T>, BlockNumberFor<T>>,
     >;
 
     #[pallet::call]
-    impl<T: Config> Pallet<T> {
+    impl<T: Config> Pallet<T>
+    where
+        T::AccountId: Origin,
+    {
         /// Issue a new voucher for a `user` to be used to pay for sending messages
         /// to `program_id` program.
         ///
@@ -183,10 +208,7 @@ pub mod pallet {
 
             // Transfer funds to the keyless account
             T::Currency::transfer(&who, &voucher_id, value, ExistenceRequirement::KeepAlive)
-                .map_err(|e| {
-                    log::debug!("Failed to transfer funds to the voucher account: {:?}", e);
-                    Error::<T>::InsufficientBalance
-                })?;
+                .map_err(|_| Error::<T>::BalanceTransfer)?;
 
             Self::deposit_event(Event::VoucherIssued {
                 holder: to,
@@ -206,9 +228,173 @@ pub mod pallet {
         ) -> DispatchResultWithPostInfo {
             let origin = ensure_signed(origin)?;
 
-            let sponsor = Self::sponsor_of(&origin, &call).ok_or(Error::<T>::InvalidVoucher)?;
+            let sponsor = Self::sponsor_of(&origin, &call).ok_or(Error::<T>::InexistentVoucher)?;
 
             T::CallsDispatcher::dispatch(origin, sponsor, call)
+        }
+
+        #[pallet::call_index(2)]
+        #[pallet::weight(Weight::zero())] // TODO (breathx)
+        pub fn new_issue(
+            origin: OriginFor<T>,
+            spender: AccountIdOf<T>,
+            balance: BalanceOf<T>,
+            programs: Option<Vec<ProgramId>>,
+            validity: BlockNumberFor<T>,
+        ) -> DispatchResultWithPostInfo {
+            let owner = ensure_signed(origin)?;
+
+            if let Some(ref programs) = programs {
+                ensure!(
+                    programs.len() <= T::MaxProgramsAmount::get().into(),
+                    Error::<T>::MaxProgramsLimitExceeded
+                )
+            }
+
+            let voucher_id = VoucherId::generate::<T>();
+
+            T::Currency::transfer(
+                &owner,
+                &voucher_id.cast(),
+                balance,
+                ExistenceRequirement::KeepAlive,
+            )
+            .map_err(|_| Error::<T>::BalanceTransfer)?;
+
+            let validity = <frame_system::Pallet<T>>::block_number().saturating_add(validity);
+
+            let voucher_info = VoucherInfo {
+                owner,
+                programs,
+                validity,
+            };
+
+            Vouchers::<T>::insert(spender, voucher_id, voucher_info);
+
+            Self::deposit_event(Event::RevokableVoucherIssued { voucher_id });
+
+            Ok(().into())
+        }
+
+        #[pallet::call_index(3)]
+        #[pallet::weight(Weight::zero())] // TODO (breathx)
+        pub fn revoke(
+            origin: OriginFor<T>,
+            spender: AccountIdOf<T>,
+            voucher_id: VoucherId,
+        ) -> DispatchResultWithPostInfo {
+            let origin = ensure_signed(origin)?;
+
+            let Some(voucher) = Vouchers::<T>::take(spender, voucher_id) else {
+                return Err(Error::<T>::InexistentVoucher.into());
+            };
+
+            // TODO (breathx/consider): should anyone be eligible to revoke?
+            ensure!(voucher.owner == origin, Error::<T>::BadOrigin);
+
+            ensure!(
+                <frame_system::Pallet<T>>::block_number() >= voucher.validity,
+                Error::<T>::IrrevocableYet
+            );
+
+            let voucher_id_acc = voucher_id.cast();
+
+            T::Currency::transfer(
+                &voucher_id_acc,
+                &origin,
+                T::Currency::free_balance(&voucher_id_acc),
+                ExistenceRequirement::AllowDeath,
+            )
+            .map_err(|_| Error::<T>::BalanceTransfer)?;
+
+            Ok(().into())
+        }
+
+        #[pallet::call_index(4)]
+        #[pallet::weight(Weight::zero())] // TODO (breathx)
+        pub fn update(
+            origin: OriginFor<T>,
+            spender: AccountIdOf<T>,
+            voucher_id: VoucherId,
+            move_ownership: Option<AccountIdOf<T>>,
+            balance_top_up: Option<BalanceOf<T>>,
+            append_programs: Option<Vec<ProgramId>>,
+            prolong_validity: Option<BlockNumberFor<T>>,
+        ) -> DispatchResultWithPostInfo {
+            let origin = ensure_signed(origin)?;
+
+            let Some(mut voucher) = Vouchers::<T>::get(spender.clone(), voucher_id) else {
+                return Err(Error::<T>::InexistentVoucher.into());
+            };
+
+            ensure!(voucher.owner == origin, Error::<T>::BadOrigin);
+
+            if let Some(owner) = move_ownership {
+                voucher.owner = owner;
+            }
+
+            if let Some(amount) = balance_top_up {
+                T::Currency::transfer(
+                    &origin,
+                    &voucher_id.cast(),
+                    amount,
+                    ExistenceRequirement::AllowDeath,
+                )
+                .map_err(|_| Error::<T>::BalanceTransfer)?;
+            }
+
+            if let Some(mut extra_programs) = append_programs {
+                if let Some(ref mut programs) = voucher.programs {
+                    ensure!(
+                        programs.len().saturating_add(extra_programs.len())
+                            <= T::MaxProgramsAmount::get().into(),
+                        Error::<T>::MaxProgramsLimitExceeded
+                    );
+
+                    programs.append(&mut extra_programs)
+                }
+            }
+
+            if let Some(duration) = prolong_validity {
+                voucher.validity = voucher
+                    .validity
+                    .max(<frame_system::Pallet<T>>::block_number())
+                    .saturating_add(duration);
+            }
+
+            Vouchers::<T>::insert(spender, voucher_id, voucher);
+
+            Self::deposit_event(Event::VoucherUpdated { voucher_id });
+
+            Ok(().into())
+        }
+
+        #[pallet::call_index(5)]
+        #[pallet::weight(T::CallsDispatcher::weight(call))] // TODO (breathx)
+        pub fn call_new(
+            origin: OriginFor<T>,
+            voucher_id: VoucherId,
+            call: PrepaidCall<BalanceOf<T>>,
+        ) -> DispatchResultWithPostInfo {
+            let origin = ensure_signed(origin)?;
+
+            let Some(voucher) = Vouchers::<T>::get(origin.clone(), voucher_id) else {
+                return Err(Error::<T>::InexistentVoucher.into());
+            };
+
+            ensure!(
+                <frame_system::Pallet<T>>::block_number() < voucher.validity,
+                Error::<T>::VoucherExpired
+            );
+
+            let destination =
+                Self::destination_program(&origin, &call).ok_or(Error::<T>::UnknownDestination)?;
+
+            if voucher.contains(destination) {
+                unreachable!("Should be filtered in `SignedExt`");
+            }
+
+            T::CallsDispatcher::dispatch(origin, voucher_id.cast(), call)
         }
     }
 }

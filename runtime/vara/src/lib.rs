@@ -78,7 +78,7 @@ pub use runtime_common::{
 pub use runtime_primitives::{AccountId, Signature};
 use runtime_primitives::{Balance, BlockNumber, Hash, Index, Moment};
 use sp_api::impl_runtime_apis;
-use sp_core::{crypto::KeyTypeId, ConstBool, ConstU64, OpaqueMetadata, H256};
+use sp_core::{crypto::KeyTypeId, ConstBool, ConstU64, ConstU8, OpaqueMetadata, H256};
 use sp_runtime::{
     create_runtime_str, generic, impl_opaque_keys,
     traits::{AccountIdLookup, BlakeTwo256, Block as BlockT, ConvertInto, NumberFor, OpaqueKeys},
@@ -1082,6 +1082,7 @@ impl pallet_gear_voucher::Config for Runtime {
     type WeightInfo = weights::pallet_gear_voucher::SubstrateWeight<Runtime>;
     type CallsDispatcher = Gear;
     type Mailbox = <GearMessenger as Messenger>::Mailbox;
+    type MaxProgramsAmount = ConstU8<32>;
 }
 
 impl<C> frame_system::offchain::SendTransactionTypes<C> for Runtime

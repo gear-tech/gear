@@ -19,11 +19,14 @@
 use crate as pallet_gear_voucher;
 use common::storage::{Interval, Mailbox};
 use frame_support::{
-    construct_runtime, parameter_types, weights::constants::RocksDbWeight, PalletId,
+    construct_runtime, parameter_types,
+    weights::{constants::RocksDbWeight, Weight},
+    PalletId,
 };
 use frame_system as system;
 use gear_core::{ids::MessageId, message::UserStoredMessage};
 use primitive_types::H256;
+use sp_core::ConstU8;
 use sp_runtime::{
     generic,
     traits::{BlakeTwo256, IdentityLookup},
@@ -68,7 +71,7 @@ impl crate::PrepaidCallsDispatcher for () {
     type AccountId = AccountId;
     type Balance = Balance;
 
-    fn weight(_call: &pallet_gear_voucher::PrepaidCall<Balance>) -> frame_support::weights::Weight {
+    fn weight(_call: &pallet_gear_voucher::PrepaidCall<Balance>) -> Weight {
         unimplemented!();
     }
     fn dispatch(
@@ -117,6 +120,7 @@ impl pallet_gear_voucher::Config for Test {
     type WeightInfo = ();
     type CallsDispatcher = ();
     type Mailbox = MailboxMock;
+    type MaxProgramsAmount = ConstU8<32>;
 }
 
 // Build genesis storage according to the mock runtime.
