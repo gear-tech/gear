@@ -142,6 +142,9 @@ pub mod pallet {
 
         /// Revokable voucher (v2) has been issued.
         RevokableVoucherIssued { voucher_id: VoucherId },
+
+        /// Voucher has been refunded and deleted by owner.
+        VoucherRevoked { voucher_id: VoucherId },
     }
 
     // Gas pallet error.
@@ -307,6 +310,8 @@ pub mod pallet {
                 ExistenceRequirement::AllowDeath,
             )
             .map_err(|_| Error::<T>::BalanceTransfer)?;
+
+            Self::deposit_event(Event::VoucherRevoked { voucher_id });
 
             Ok(().into())
         }
