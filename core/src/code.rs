@@ -29,8 +29,7 @@ use gear_wasm_instrument::{
         self,
         builder::ModuleBuilder,
         elements::{
-            ExportEntry, External, GlobalEntry, GlobalType, InitExpr, Instruction, Internal,
-            Module, Type,
+            ExportEntry, GlobalEntry, GlobalType, InitExpr, Instruction, Internal, Module, Type,
         },
     },
     wasm_instrument::{
