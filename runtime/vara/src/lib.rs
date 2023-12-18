@@ -79,7 +79,10 @@ pub use runtime_primitives::{AccountId, Signature};
 use runtime_primitives::{Balance, BlockNumber, Hash, Moment, Nonce};
 use sp_api::impl_runtime_apis;
 #[cfg(any(feature = "std", test))]
-use sp_api::{CallApiAt, OverlayedChanges, ProofRecorder, StateBackend, StorageTransactionCache};
+use sp_api::{
+    CallApiAt, CallContext, Extensions, OverlayedChanges, ProofRecorder, StateBackend,
+    StorageTransactionCache,
+};
 use sp_core::{crypto::KeyTypeId, ConstBool, ConstU64, OpaqueMetadata, H256};
 #[cfg(any(feature = "std", test))]
 use sp_runtime::traits::HashFor;
@@ -1447,10 +1450,13 @@ where
     fn clone(&self) -> Self {
         Self {
             call: <&C>::clone(&self.call),
-            commit_on_success: self.commit_on_success.clone(),
+            transaction_depth: self.transaction_depth.clone(),
             changes: self.changes.clone(),
             storage_transaction_cache: self.storage_transaction_cache.clone(),
             recorder: self.recorder.clone(),
+            call_context: self.call_context.clone(),
+            extensions: self.extensions.clone(),
+            extensions_generated_for: self.extensions_generated_for.clone(),
         }
     }
 }
@@ -1468,20 +1474,26 @@ where
     <C::StateBackend as StateBackend<HashFor<B>>>::Transaction: Clone,
 {
     type Params = (
-        bool,
+        u16,
         OverlayedChanges,
         StorageTransactionCache<B, C::StateBackend>,
         Option<ProofRecorder<B>>,
+        CallContext,
+        Extensions,
+        Option<B::Hash>,
     );
 
     fn into_parts(self) -> (&'static C, Self::Params) {
         (
             self.call,
             (
-                *core::cell::RefCell::borrow(&self.commit_on_success),
+                *core::cell::RefCell::borrow(&self.transaction_depth),
                 core::cell::RefCell::borrow(&self.changes).clone(),
                 core::cell::RefCell::borrow(&self.storage_transaction_cache).clone(),
                 self.recorder,
+                self.call_context,
+                *core::cell::RefCell::borrow(&self.extensions),
+                core::cell::RefCell::borrow(&self.extensions_generated_for).clone(),
             ),
         )
     }
@@ -1489,10 +1501,13 @@ where
     fn from_parts(call: &C, params: Self::Params) -> Self {
         Self {
             call: unsafe { std::mem::transmute(call) },
-            commit_on_success: params.0.into(),
+            transaction_depth: params.0.into(),
             changes: core::cell::RefCell::new(params.1),
             storage_transaction_cache: core::cell::RefCell::new(params.2),
             recorder: params.3,
+            call_context: params.4,
+            extensions: core::cell::RefCell::new(params.5),
+            extensions_generated_for: core::cell::RefCell::new(params.6),
         }
     }
 }
