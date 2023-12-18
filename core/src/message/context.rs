@@ -130,7 +130,6 @@ pub struct ContextOutcome {
     reply: Option<OutgoingMessageInfoNoDelay<ReplyMessage>>,
     // u32 is delay
     awakening: Vec<(MessageId, u32)>,
-    awoken: BTreeSet<MessageId>,
     // u64 is gas limit
     // TODO: add Option<ReservationId> after #1828
     reply_deposits: Vec<(MessageId, u64)>,
@@ -192,6 +191,7 @@ pub struct ContextStore {
 }
 
 impl ContextStore {
+    //TODO: Remove, only used in migrations
     /// Create a new context store with the provided parameters.
     pub fn new(
         outgoing: BTreeMap<u32, Option<Payload>>,
@@ -498,7 +498,7 @@ impl MessageContext {
 
     /// Wake message by it's message id.
     pub fn wake(&mut self, waker_id: MessageId, delay: u32) -> Result<(), Error> {
-        if self.outcome.awoken.insert(waker_id) {
+        if self.outcome.awakening.iter().any(|v| v.0 == waker_id) {
             self.outcome.awakening.push((waker_id, delay));
             Ok(())
         } else {

@@ -140,6 +140,8 @@ impl DispatchResult {
             system_reservation_context,
             page_update: Default::default(),
             allocations: Default::default(),
+            // This function is only used to generate a dispatch result if nothing is executed,
+            // therefore reply_sent will always be false
             reply_sent: false,
         }
     }

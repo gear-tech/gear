@@ -22,10 +22,7 @@ use frame_support::{
     traits::{Get, GetStorageVersion, OnRuntimeUpgrade},
     weights::Weight,
 };
-use gear_core::{
-    ids::MessageId,
-    message::{ContextStore, StoredDispatch},
-};
+use gear_core::ids::MessageId;
 use sp_std::marker::PhantomData;
 #[cfg(feature = "try-runtime")]
 use {
@@ -34,18 +31,6 @@ use {
 };
 
 pub struct MigrateToV3<T: Config>(PhantomData<T>);
-
-impl<T: Config> MigrateToV3<T> {
-    fn migrate_context_store(ctx: v2::ContextStore) -> ContextStore {
-        ContextStore::new(
-            ctx.outgoing,
-            ctx.reply,
-            ctx.initialized,
-            ctx.reservation_nonce,
-            ctx.system_reservation,
-        )
-    }
-}
 
 impl<T: Config> OnRuntimeUpgrade for MigrateToV3<T> {
     fn on_runtime_upgrade() -> Weight {
@@ -63,14 +48,7 @@ impl<T: Config> OnRuntimeUpgrade for MigrateToV3<T> {
             Waitlist::<T>::translate(
                 |_, _, store: (v2::StoredDispatch, Interval<T::BlockNumber>)| {
                     weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
-                    Some((
-                        StoredDispatch::new(
-                            store.0.kind,
-                            store.0.message,
-                            store.0.context.map(Self::migrate_context_store),
-                        ),
-                        store.1,
-                    ))
+                    Some((store.0.into(), store.1))
                 },
             );
 
@@ -78,25 +56,14 @@ impl<T: Config> OnRuntimeUpgrade for MigrateToV3<T> {
                 weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
                 Some(LinkedNode {
                     next: store.next,
-                    value: StoredDispatch::new(
-                        store.value.kind,
-                        store.value.message,
-                        store.value.context.map(Self::migrate_context_store),
-                    ),
+                    value: store.value.into(),
                 })
             });
 
             DispatchStash::<T>::translate(
                 |_, store: (v2::StoredDispatch, Interval<T::BlockNumber>)| {
                     weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
-                    Some((
-                        StoredDispatch::new(
-                            store.0.kind,
-                            store.0.message,
-                            store.0.context.map(Self::migrate_context_store),
-                        ),
-                        store.1,
-                    ))
+                    Some((store.0.into(), store.1))
                 },
             );
 
@@ -166,6 +133,16 @@ mod v2 {
         pub context: Option<ContextStore>,
     }
 
+    impl Into<gear_core::message::StoredDispatch> for StoredDispatch {
+        fn into(self) -> gear_core::message::StoredDispatch {
+            gear_core::message::StoredDispatch::new(
+                self.kind,
+                self.message,
+                self.context.map(Into::into),
+            )
+        }
+    }
+
     #[derive(
         Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo,
     )]
@@ -177,6 +154,18 @@ mod v2 {
         pub reply_sent: bool,
         pub reservation_nonce: ReservationNonce,
         pub system_reservation: Option<u64>,
+    }
+
+    impl Into<gear_core::message::ContextStore> for ContextStore {
+        fn into(self) -> gear_core::message::ContextStore {
+            gear_core::message::ContextStore::new(
+                self.outgoing,
+                self.reply,
+                self.initialized,
+                self.reservation_nonce,
+                self.system_reservation,
+            )
+        }
     }
 
     pub struct DispatchesPrefix<T: Config>(PhantomData<T>);
@@ -248,6 +237,7 @@ mod test {
     use crate::{
         migrations::{v2, MigrateToV3},
         mock::*,
+        DispatchStash, Dispatches, Waitlist,
     };
     use common::storage::{Interval, LinkedNode};
     use frame_support::{pallet_prelude::StorageVersion, traits::OnRuntimeUpgrade};
@@ -310,7 +300,7 @@ mod test {
                 pid,
                 mid,
                 (
-                    dispatch,
+                    dispatch.clone(),
                     Interval {
                         start: 0,
                         finish: 1,
@@ -322,14 +312,14 @@ mod test {
                 mid,
                 LinkedNode {
                     next: None,
-                    value: dispatch2,
+                    value: dispatch2.clone(),
                 },
             );
 
             v2::DispatchStash::<Test>::insert(
                 mid,
                 (
-                    dispatch3,
+                    dispatch3.clone(),
                     Interval {
                         start: 0,
                         finish: 1,
@@ -342,6 +332,27 @@ mod test {
             MigrateToV3::<Test>::post_upgrade(state).unwrap();
 
             assert_eq!(StorageVersion::get::<GearMessenger>(), 3);
+
+            assert_eq!(
+                Waitlist::<Test>::get(pid, mid)
+                    .expect("Waitlist failed to migrate.")
+                    .0,
+                dispatch.into()
+            );
+
+            assert_eq!(
+                Dispatches::<Test>::get(mid)
+                    .expect("Waitlist failed to migrate.")
+                    .value,
+                dispatch2.into()
+            );
+
+            assert_eq!(
+                DispatchStash::<Test>::get(mid)
+                    .expect("Waitlist failed to migrate.")
+                    .0,
+                dispatch3.into()
+            );
         });
     }
 }
