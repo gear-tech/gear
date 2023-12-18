@@ -133,13 +133,9 @@ mod v2 {
         pub context: Option<ContextStore>,
     }
 
-    impl Into<gear_core::message::StoredDispatch> for StoredDispatch {
-        fn into(self) -> gear_core::message::StoredDispatch {
-            gear_core::message::StoredDispatch::new(
-                self.kind,
-                self.message,
-                self.context.map(Into::into),
-            )
+    impl From<StoredDispatch> for gear_core::message::StoredDispatch {
+        fn from(value: StoredDispatch) -> Self {
+            Self::new(value.kind, value.message, value.context.map(Into::into))
         }
     }
 
@@ -156,14 +152,14 @@ mod v2 {
         pub system_reservation: Option<u64>,
     }
 
-    impl Into<gear_core::message::ContextStore> for ContextStore {
-        fn into(self) -> gear_core::message::ContextStore {
-            gear_core::message::ContextStore::new(
-                self.outgoing,
-                self.reply,
-                self.initialized,
-                self.reservation_nonce,
-                self.system_reservation,
+    impl From<ContextStore> for gear_core::message::ContextStore {
+        fn from(value: ContextStore) -> Self {
+            Self::new(
+                value.outgoing,
+                value.reply,
+                value.initialized,
+                value.reservation_nonce,
+                value.system_reservation,
             )
         }
     }
