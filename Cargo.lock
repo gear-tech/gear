@@ -4409,7 +4409,7 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "sp-allocator",
- "sp-wasm-interface",
+ "sp-wasm-interface-common",
  "tempfile",
  "thiserror",
  "wasmer",

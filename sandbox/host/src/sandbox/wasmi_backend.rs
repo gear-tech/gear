@@ -22,7 +22,7 @@ use std::fmt;
 
 use codec::{Decode, Encode};
 use gear_sandbox_env::HostError;
-use sp_wasm_interface::{util, Pointer, ReturnValue, Value, WordSize};
+use sp_wasm_interface_common::{Pointer, ReturnValue, Value, WordSize};
 use wasmi::{
     memory_units::Pages, ImportResolver, MemoryInstance, Module, ModuleInstance, RuntimeArgs,
     RuntimeValue, Trap, TrapCode,
@@ -34,7 +34,7 @@ use crate::{
         BackendInstance, GuestEnvironment, GuestExternals, GuestFuncIndex, Imports,
         InstantiationError, Memory, SandboxContext, SandboxInstance,
     },
-    util::MemoryTransfer,
+    util::{self, MemoryTransfer},
 };
 
 environmental::environmental!(SandboxContextStore: trait SandboxContext);
