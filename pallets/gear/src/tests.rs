@@ -78,6 +78,8 @@ use gstd::{collections::BTreeMap, errors::Error as GstdError};
 use pallet_gear_voucher::PrepaidCall;
 use sp_runtime::{traits::UniqueSaturatedInto, SaturatedConversion};
 use sp_std::convert::TryFrom;
+use gear_core::code::CodeError;
+use gear_wasm_instrument::gas_metering::ConstantCostRules;
 pub use utils::init_logger;
 use utils::*;
 
@@ -13802,24 +13804,12 @@ fn wrong_entry_type() {
 
     init_logger();
     new_test_ext().execute_with(|| {
-        let pid = Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            ProgramCodeKind::Custom(wat).to_bytes(),
-            DEFAULT_SALT.to_vec(),
-            EMPTY_PAYLOAD.to_vec(),
-            50_000_000_000,
-            0,
-            false,
-        )
-        .map(|_| get_last_program_id())
-        .unwrap();
-        let mid = get_last_message_id();
-
-        run_to_next_block(None);
-
-        assert!(Gear::is_terminated(pid));
-        let err = get_last_event_error(mid);
-        assert!(err.starts_with(&ActorExecutionErrorReplyReason::Environment.to_string()));
+        assert_err!(
+            Code::try_new(
+                ProgramCodeKind::Custom(wat).to_bytes(), 1, |_| ConstantCostRules::default(), None
+            ),
+            CodeError::InvalidExportFnSignature
+        );
     });
 }
 
