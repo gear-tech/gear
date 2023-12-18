@@ -28,12 +28,12 @@ use gsdk::{
 use std::{fs, path::PathBuf};
 
 /// Deploy program to gear node or save program `code` in storage.
-#[derive(Parser, Debug)]
+#[derive(Clone, Debug, Parser)]
 pub struct Upload {
     /// Gear program code <*.wasm>.
     #[cfg_attr(feature = "embed", clap(skip))]
     code: PathBuf,
-    /// Overrided code if feature embed is enabled.
+    /// Overridden code if feature embed is enabled.
     #[clap(skip)]
     code_override: Vec<u8>,
     /// Save program `code` in storage only.
@@ -55,9 +55,10 @@ pub struct Upload {
 
 impl Upload {
     /// Override code path.
-    pub fn override_code(mut self, code: Vec<u8>) -> Self {
-        self.code_override = code;
-        self
+    pub fn override_code(&self, code: Vec<u8>) -> Self {
+        let mut overridden = self.clone();
+        overridden.code_override = code;
+        overridden
     }
 
     /// Exec command submit

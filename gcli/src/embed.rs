@@ -29,7 +29,12 @@ use std::{fs, path::PathBuf};
 #[macro_export]
 macro_rules! lookup {
     () => {{
-        ::gcli::embed::Artifact::from_out_dir(env!("OUT_DIR"))
+        if let Some(artifact) = ::gcli::embed::Artifact::from_out_dir(env!("OUT_DIR")) {
+            artifact
+        } else {
+            ::gcli::log::warn!("No artifact is found from the out_dir");
+            Default::default()
+        }
     }};
 }
 
@@ -39,7 +44,7 @@ macro_rules! lookup {
 const OUT_SUFFIX_LENGTH: usize = 17;
 
 /// Program binaries for embedded commands.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Artifact {
     /// The optitmized WASM binary.
     pub opt: Vec<u8>,

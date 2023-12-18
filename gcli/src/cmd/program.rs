@@ -23,7 +23,7 @@ use gsdk::{ext::sp_core::H256, Api};
 use std::{fs, path::PathBuf};
 
 /// Read program state, etc.
-#[derive(Debug, Parser)]
+#[derive(Clone, Debug, Parser)]
 pub enum Program {
     /// Display metadata of the program.
     ///
@@ -35,7 +35,7 @@ pub enum Program {
         /// - "*.meta.wasm" describes the wasm exports of the program
         #[arg(short, long)]
         meta: Option<PathBuf>,
-        /// Overrided metadata binary if feature embed is enabled.
+        /// Overridden metadata binary if feature embed is enabled.
         #[clap(skip)]
         meta_override: Vec<u8>,
         /// Derive the description of the specified type from registry.
@@ -65,11 +65,12 @@ pub enum Program {
 
 impl Program {
     /// Override metadata binary.
-    pub fn override_meta(mut self, meta: Vec<u8>) -> Self {
-        if let Program::Meta { meta_override, .. } = &mut self {
+    pub fn override_meta(&self, meta: Vec<u8>) -> Self {
+        let mut overridden = self.clone();
+        if let Program::Meta { meta_override, .. } = &mut overridden {
             *meta_override = meta;
         };
-        self
+        overridden
     }
 
     /// Run command program.

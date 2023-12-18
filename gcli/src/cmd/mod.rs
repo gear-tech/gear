@@ -33,22 +33,27 @@ pub mod transfer;
 pub mod update;
 pub mod upload;
 
+pub use self::{
+    claim::Claim, create::Create, info::Info, key::Key, login::Login, new::New, program::Program,
+    reply::Reply, send::Send, transfer::Transfer, update::Update, upload::Upload,
+};
+
 /// All SubCommands of gear command line interface.
-#[derive(Debug, Parser)]
+#[derive(Clone, Debug, Parser)]
 pub enum Command {
-    Claim(claim::Claim),
-    Create(create::Create),
-    Info(info::Info),
-    Key(key::Key),
-    Login(login::Login),
-    New(new::New),
+    Claim(Claim),
+    Create(Create),
+    Info(Info),
+    Key(Key),
+    Login(Login),
+    New(New),
     #[clap(subcommand)]
-    Program(program::Program),
-    Reply(reply::Reply),
-    Send(send::Send),
-    Upload(upload::Upload),
-    Transfer(transfer::Transfer),
-    Update(update::Update),
+    Program(Program),
+    Reply(Reply),
+    Send(Send),
+    Upload(Upload),
+    Transfer(Transfer),
+    Update(Update),
 }
 
 impl Command {
@@ -74,14 +79,14 @@ impl Command {
 
     #[cfg(feature = "embed")]
     pub async fn exec_embedded(
-        self,
+        &self,
         app: &impl App,
         artifact: crate::embed::Artifact,
     ) -> anyhow::Result<()> {
         let this = match self {
             Command::Upload(upload) => Command::Upload(upload.override_code(artifact.opt)),
             Command::Program(program) => Command::Program(program.override_meta(artifact.meta)),
-            _ => self,
+            _ => self.clone(),
         };
 
         Self::exec(&this, app).await

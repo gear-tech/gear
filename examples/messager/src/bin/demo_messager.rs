@@ -17,6 +17,40 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 #![cfg(feature = "gcli")]
 
-fn main() {
-    println!("{:?}", gcli::lookup!());
+use gcli::{
+    anyhow, async_trait,
+    clap::{self, Parser},
+    cmd::Upload,
+    color_eyre, tokio, App,
+};
+
+#[derive(Debug, Parser)]
+pub enum Command {
+    Upload(Upload),
+}
+
+#[derive(Debug, Parser)]
+pub struct Messager {
+    #[clap(subcommand)]
+    command: Command,
+}
+
+#[async_trait]
+impl App for Messager {
+    async fn exec(&self) -> anyhow::Result<()> {
+        let lookup = gcli::lookup!();
+        let signer = self.signer().await?;
+
+        let Command::Upload(upload) = &self.command;
+        upload
+            .override_code(lookup.opt)
+            .exec(signer)
+            .await
+            .map_err(Into::into)
+    }
+}
+
+#[tokio::main]
+async fn main() -> color_eyre::Result<()> {
+    Messager::parse().run().await
 }
