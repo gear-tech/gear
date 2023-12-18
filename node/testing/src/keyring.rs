@@ -24,7 +24,7 @@ use sp_keyring::{AccountKeyring, Ed25519Keyring, Sr25519Keyring};
 use sp_runtime::generic::Era;
 use vara_runtime::{
     CustomChargeTransactionPayment, RuntimeCall, SessionKeys, SignedExtra, StakingBlackList,
-    UncheckedExtrinsic,
+    UncheckedExtrinsic, VoucherLegitimate,
 };
 
 pub type CheckedExtrinsic =
@@ -76,6 +76,7 @@ pub fn to_session_keys(
 /// Creates transaction extra.
 pub fn signed_extra(nonce: Index) -> SignedExtra {
     (
+        VoucherLegitimate,
         StakingBlackList::new(),
         frame_system::CheckNonZeroSender::new(),
         frame_system::CheckSpecVersion::new(),

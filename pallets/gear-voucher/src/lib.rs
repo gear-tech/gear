@@ -154,6 +154,7 @@ pub mod pallet {
         BadOrigin,
         MaxProgramsLimitExceeded,
         UnknownDestination,
+        InappropriateDestination,
     }
 
     // Private storage for amount of messages sent.
@@ -378,21 +379,7 @@ pub mod pallet {
         ) -> DispatchResultWithPostInfo {
             let origin = ensure_signed(origin)?;
 
-            let Some(voucher) = Vouchers::<T>::get(origin.clone(), voucher_id) else {
-                return Err(Error::<T>::InexistentVoucher.into());
-            };
-
-            ensure!(
-                <frame_system::Pallet<T>>::block_number() < voucher.validity,
-                Error::<T>::VoucherExpired
-            );
-
-            let destination =
-                Self::destination_program(&origin, &call).ok_or(Error::<T>::UnknownDestination)?;
-
-            if voucher.contains(destination) {
-                unreachable!("Should be filtered in `SignedExt`");
-            }
+            Self::validate_prepaid(origin.clone(), voucher_id, &call)?;
 
             T::CallsDispatcher::dispatch(origin, voucher_id.cast(), call)
         }

@@ -77,12 +77,19 @@ pub use runtime_common::{
 };
 pub use runtime_primitives::{AccountId, Signature};
 use runtime_primitives::{Balance, BlockNumber, Hash, Index, Moment};
+use scale_info::TypeInfo;
 use sp_api::impl_runtime_apis;
 use sp_core::{crypto::KeyTypeId, ConstBool, ConstU64, ConstU8, OpaqueMetadata, H256};
 use sp_runtime::{
     create_runtime_str, generic, impl_opaque_keys,
-    traits::{AccountIdLookup, BlakeTwo256, Block as BlockT, ConvertInto, NumberFor, OpaqueKeys},
-    transaction_validity::{TransactionPriority, TransactionSource, TransactionValidity},
+    traits::{
+        AccountIdLookup, BlakeTwo256, Block as BlockT, ConvertInto, DispatchInfoOf, NumberFor,
+        OpaqueKeys, SignedExtension,
+    },
+    transaction_validity::{
+        InvalidTransaction, TransactionPriority, TransactionSource, TransactionValidity,
+        TransactionValidityError,
+    },
     ApplyExtrinsicResult, FixedU128, Perbill, Percent, Permill, Perquintill,
 };
 use sp_std::{
@@ -1057,9 +1064,7 @@ pub struct DelegateFeeAccountBuilder;
 impl DelegateFee<RuntimeCall, AccountId> for DelegateFeeAccountBuilder {
     fn delegate_fee(call: &RuntimeCall, who: &AccountId) -> Option<AccountId> {
         match call {
-            RuntimeCall::GearVoucher(pallet_gear_voucher::Call::call { call }) => {
-                GearVoucher::sponsor_of(who, call)
-            }
+            RuntimeCall::GearVoucher(voucher_call) => voucher_call.sponsored_by(who.clone()),
             _ => None,
         }
     }
@@ -1107,6 +1112,62 @@ impl pallet_vesting::Config for Runtime {
     type WeightInfo = pallet_vesting::weights::SubstrateWeight<Runtime>;
     type UnvestedFundsAllowedWithdrawReasons = UnvestedFundsAllowedWithdrawReasons;
     const MAX_VESTING_SCHEDULES: u32 = 28;
+}
+
+#[derive(Encode, Decode, Clone, Eq, PartialEq, Default, TypeInfo)]
+pub struct VoucherLegitimate;
+
+impl SignedExtension for VoucherLegitimate {
+    const IDENTIFIER: &'static str = "VoucherLegitimate";
+    type AccountId = AccountId;
+    type Call = RuntimeCall;
+    type AdditionalSigned = ();
+    type Pre = ();
+
+    fn additional_signed(&self) -> Result<Self::AdditionalSigned, TransactionValidityError> {
+        Ok(())
+    }
+
+    fn validate(
+        &self,
+        from: &Self::AccountId,
+        call: &Self::Call,
+        _: &DispatchInfoOf<Self::Call>,
+        _: usize,
+    ) -> TransactionValidity {
+        match call {
+            RuntimeCall::GearVoucher(voucher_call) => {
+                if voucher_call.is_legit(from.clone()) {
+                    Ok(Default::default())
+                } else {
+                    Err(TransactionValidityError::Invalid(InvalidTransaction::Call))
+                }
+            }
+            _ => Ok(Default::default()),
+        }
+    }
+
+    fn pre_dispatch(
+        self,
+        _: &Self::AccountId,
+        _: &Self::Call,
+        _: &DispatchInfoOf<Self::Call>,
+        _: usize,
+    ) -> Result<Self::Pre, TransactionValidityError> {
+        Ok(())
+    }
+}
+
+impl sp_std::fmt::Debug for VoucherLegitimate {
+    #[cfg(feature = "std")]
+    fn fmt(&self, f: &mut sp_std::fmt::Formatter) -> sp_std::fmt::Result {
+        write!(f, "VoucherLegitimate")
+    }
+
+    #[cfg(not(feature = "std"))]
+    fn fmt(&self, _: &mut sp_std::fmt::Formatter) -> sp_std::fmt::Result {
+        Ok(())
+    }
 }
 
 // Create the runtime by composing the FRAME pallets that were previously configured.
@@ -1240,6 +1301,7 @@ pub type Header = generic::Header<BlockNumber, BlakeTwo256>;
 pub type Block = generic::Block<Header, UncheckedExtrinsic>;
 /// The SignedExtension to the basic transaction logic.
 pub type SignedExtra = (
+    VoucherLegitimate,
     // Keep as long as it's needed
     StakingBlackList<Runtime>,
     frame_system::CheckNonZeroSender<Runtime>,

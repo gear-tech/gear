@@ -73,6 +73,7 @@ macro_rules! with_signed_payload {
                 $( $setup )*
 
                 let $extra: runtime::SignedExtra = (
+                    runtime::VoucherLegitimate,
                     pallet_gear_staking_rewards::StakingBlackList::<runtime::Runtime>::new(),
                     frame_system::CheckNonZeroSender::<runtime::Runtime>::new(),
                     frame_system::CheckSpecVersion::<runtime::Runtime>::new(),
@@ -90,6 +91,7 @@ macro_rules! with_signed_payload {
                     $call.clone(),
                     $extra.clone(),
                     (
+                        (),
                         (),
                         (),
                         runtime::VERSION.spec_version,

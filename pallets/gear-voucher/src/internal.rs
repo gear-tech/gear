@@ -21,7 +21,7 @@
 use crate::*;
 use common::{
     storage::{Counter, CounterImpl, Mailbox},
-    Origin,
+    DelegateFee, Origin,
 };
 use gear_core::{declare_id, ids};
 
@@ -138,6 +138,62 @@ impl<T: Config> Pallet<T> {
             PrepaidCall::SendReply { reply_to_id, .. } => {
                 T::Mailbox::peek(who, reply_to_id).map(|stored_message| stored_message.source())
             }
+        }
+    }
+
+    pub fn validate_prepaid(
+        origin: AccountIdOf<T>,
+        voucher_id: VoucherId,
+        call: &PrepaidCall<BalanceOf<T>>,
+    ) -> Result<(), Error<T>> {
+        let Some(voucher) = Vouchers::<T>::get(origin.clone(), voucher_id) else {
+            return Err(Error::<T>::InexistentVoucher);
+        };
+
+        if let Some(ref programs) = voucher.programs {
+            let destination =
+                Self::destination_program(&origin, call).ok_or(Error::<T>::UnknownDestination)?;
+
+            ensure!(
+                programs.contains(&destination),
+                Error::<T>::InappropriateDestination
+            );
+        }
+
+        ensure!(
+            <frame_system::Pallet<T>>::block_number() < voucher.validity,
+            Error::<T>::VoucherExpired
+        );
+
+        Ok(())
+    }
+}
+
+impl<T: Config> crate::Call<T>
+where
+    T::AccountId: Origin,
+{
+    pub fn is_legit(&self, who: AccountIdOf<T>) -> bool {
+        match self {
+            Self::call_new { voucher_id, call } => {
+                Pallet::<T>::validate_prepaid(who, *voucher_id, call).is_ok()
+            }
+            _ => true,
+        }
+    }
+
+    // TODO: delete None return once fn call() is removed.
+    pub fn sponsored_by(&self, who: AccountIdOf<T>) -> Option<AccountIdOf<T>> {
+        match self {
+            crate::Call::call { call } => Pallet::<T>::sponsor_of(&who, call),
+            crate::Call::call_new { voucher_id, call } => {
+                if Pallet::<T>::validate_prepaid(who, *voucher_id, call).is_err() {
+                    unreachable!("Should be pre-validated by SignedExtension")
+                }
+
+                Some((*voucher_id).cast())
+            }
+            _ => None,
         }
     }
 }
