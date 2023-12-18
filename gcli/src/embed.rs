@@ -19,7 +19,7 @@
 //! Utils for embedded commands.
 #![cfg(feature = "embed")]
 
-use std::path::PathBuf;
+use std::{fs, path::PathBuf};
 
 /// This macro is used to lookup the artifact from the `OUT_DIR`,
 /// it's just a wrapper around [`Artifact::from_out_dir`] for
@@ -38,17 +38,14 @@ macro_rules! lookup {
 /// Example: `[gcli]-1234567890abcdef`
 const OUT_SUFFIX_LENGTH: usize = 17;
 
-/// Program info for embedded commands.
+/// Program binaries for embedded commands.
 #[derive(Debug)]
 pub struct Artifact {
-    /// Path of the optitmized WASM binary.
-    ///
-    /// TODO: load the binary into memory instead of file path in
-    /// case of users renaming the binary after the build. (#3592)
-    pub opt: PathBuf,
+    /// The optitmized WASM binary.
+    pub opt: Vec<u8>,
 
-    /// Path of the metadata WASM binary.
-    pub meta: Option<PathBuf>,
+    /// The metadata WASM binary if any.
+    pub meta: Vec<u8>,
 }
 
 impl Artifact {
@@ -78,13 +75,10 @@ impl Artifact {
         ];
 
         let [opt, meta] = [
-            bin.join(stem.with_extension("wasm")),
-            bin.join(stem.with_extension("meta.wasm")),
+            fs::read(bin.join(stem.with_extension("wasm"))).ok()?,
+            fs::read(bin.join(stem.with_extension("meta.wasm"))).unwrap_or_default(),
         ];
 
-        opt.exists().then(|| Self {
-            opt,
-            meta: meta.exists().then_some(meta),
-        })
+        Some(Self { opt, meta })
     }
 }

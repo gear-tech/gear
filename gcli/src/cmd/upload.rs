@@ -33,6 +33,9 @@ pub struct Upload {
     /// Gear program code <*.wasm>.
     #[cfg_attr(feature = "embed", clap(skip))]
     code: PathBuf,
+    /// Overrided code if feature embed is enabled.
+    #[clap(skip)]
+    code_override: Vec<u8>,
     /// Save program `code` in storage only.
     #[arg(short, long)]
     code_only: bool,
@@ -52,15 +55,19 @@ pub struct Upload {
 
 impl Upload {
     /// Override code path.
-    pub fn override_code(mut self, code: PathBuf) -> Self {
-        self.code = code;
+    pub fn override_code(mut self, code: Vec<u8>) -> Self {
+        self.code_override = code;
         self
     }
 
     /// Exec command submit
     pub async fn exec(&self, signer: Signer) -> Result<()> {
-        let code =
-            fs::read(&self.code).map_err(|e| anyhow!("program {:?} not found, {e}", &self.code))?;
+        let code = if self.code_override.is_empty() {
+            fs::read(&self.code).map_err(|e| anyhow!("program {:?} not found, {e}", &self.code))?
+        } else {
+            self.code_override.clone()
+        };
+
         if self.code_only {
             signer.calls.upload_code(code).await?;
             return Ok(());

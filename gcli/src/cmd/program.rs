@@ -35,6 +35,9 @@ pub enum Program {
         /// - "*.meta.wasm" describes the wasm exports of the program
         #[arg(short, long)]
         meta: Option<PathBuf>,
+        /// Overrided metadata binary if feature embed is enabled.
+        #[clap(skip)]
+        meta_override: Vec<u8>,
         /// Derive the description of the specified type from registry.
         #[arg(short, long)]
         derive: Option<String>,
@@ -61,14 +64,11 @@ pub enum Program {
 }
 
 impl Program {
-    /// Try override meta path.
-    pub fn try_override_meta(mut self, meta: Option<PathBuf>) -> Self {
-        if let Program::Meta { meta: m, .. } = &mut self {
-            if m.is_none() {
-                *m = meta;
-            }
-        }
-
+    /// Override metadata binary.
+    pub fn override_meta(mut self, meta: Vec<u8>) -> Self {
+        if let Program::Meta { meta_override, .. } = &mut self {
+            *meta_override = meta;
+        };
         self
     }
 
@@ -91,8 +91,18 @@ impl Program {
                     Self::full_state(api, *pid, *at).await?;
                 }
             }
-            Program::Meta { meta, derive } => {
-                Self::meta(&utils::meta_path(meta.clone(), "meta")?, derive)?
+            Program::Meta {
+                meta,
+                derive,
+                meta_override,
+            } => {
+                let meta = if meta_override.is_empty() {
+                    Self::resolve_meta(&utils::meta_path(meta.clone(), "meta")?)
+                } else {
+                    Meta::decode_wasm(meta_override)
+                }?;
+
+                Self::meta(meta, derive)?
             }
         }
 
@@ -110,17 +120,17 @@ impl Program {
         let state = api
             .read_state_using_wasm(pid, Default::default(), method, wasm, args, at)
             .await?;
-        println!("{}", state);
+        println!("{state}");
         Ok(())
     }
 
     async fn full_state(api: Api, pid: H256, at: Option<H256>) -> Result<()> {
         let state = api.read_state(pid, Default::default(), at).await?;
-        println!("{}", state);
+        println!("{state}");
         Ok(())
     }
 
-    fn meta(path: &PathBuf, name: &Option<String>) -> Result<()> {
+    fn resolve_meta(path: &PathBuf) -> Result<Meta> {
         let ext = path
             .extension()
             .ok_or_else(|| anyhow::anyhow!("Invalid file extension"))?;
@@ -136,11 +146,14 @@ impl Program {
             return Err(anyhow::anyhow!(format!("Unsupported file extension {:?}", ext)).into());
         };
 
-        // Format types.
+        Ok(meta)
+    }
+
+    fn meta(meta: Meta, name: &Option<String>) -> Result<()> {
         let fmt = if let Some(name) = name {
             format!("{:#}", meta.derive(name)?)
         } else {
-            format!("{:#}", meta)
+            format!("{meta:#}")
         };
 
         // println result.

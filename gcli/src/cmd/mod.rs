@@ -80,7 +80,7 @@ impl Command {
     ) -> anyhow::Result<()> {
         let this = match self {
             Command::Upload(upload) => Command::Upload(upload.override_code(artifact.opt)),
-            Command::Program(program) => Command::Program(program.try_override_meta(artifact.meta)),
+            Command::Program(program) => Command::Program(program.override_meta(artifact.meta)),
             _ => self,
         };
 
