@@ -22,7 +22,7 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           LABEL: ${{ github.event.label.name }}
           REF: ${{ github.head_ref || github.ref_name }}
-          REF_NAME: ${{ github.ref_name }}
+          HEAD_REF: ${{ github.head_ref }}
           TITLE: ${{ github.event.pull_request.title }}
           NUMBER: ${{ github.event.number }}
           REPO: ${{ github.event.pull_request.head.repo.full_name }}

@@ -3,7 +3,7 @@
  */
 
 const [owner, repo] = ["gear-tech", "gear"];
-const { LABEL, REF, HEAD_SHA, TITLE, NUMBER, REPO, REF_NAME } = process.env;
+const { LABEL, REF, HEAD_SHA, TITLE, NUMBER, REPO, HEAD_REF } = process.env;
 const linux =
   LABEL === "A0-pleasereview" ||
   LABEL === "A4-insubstantial" ||
@@ -24,8 +24,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
  * @returns {Promise<[boolean, string]>} [skip, String(check_runs)]
  **/
 const skip = async ({ github, core }) => {
-  core.info(`Checking if need to skip dispatch from ${REPO}:${REF_NAME}`);
-  if (REPO === "gear-tech/gear" && REF_NAME.startsWith("dependabot")) return [true, ""]
+  core.info(`The env REF is: ${REF}`);
+  core.info(`Checking if need to skip dispatch from ${REPO}:${HEAD_REF}`);
+  if (REPO === "gear-tech/gear" && REF.startsWith("dependabot")) return [true, ""]
 
   const {
     data: { check_runs },
