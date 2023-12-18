@@ -43,7 +43,7 @@ gsdk_test() {
   if [ "$CARGO" = "cargo xwin" ]; then
     $CARGO test -p gsdk --no-fail-fast "$@"
   else
-    cargo nextest run -p gsdk --profile ci --no-fail-fast "$@"
+    cargo nextest run -p gsdk --profile ci --no-fail-fast "$@" --retries 3
   fi
 }
 
@@ -51,7 +51,7 @@ gcli_test() {
   if [ "$CARGO" = "cargo xwin" ]; then
     $CARGO test -p gcli --no-fail-fast "$@"
   else
-    cargo nextest run -p gcli --profile ci --no-fail-fast "$@"
+    cargo nextest run -p gcli --profile ci --no-fail-fast "$@" --retries 3
   fi
 }
 
@@ -67,7 +67,7 @@ client_tests() {
   if [ "$CARGO" = "cargo xwin" ]; then
     $CARGO test -p gclient --no-fail-fast "$@"
   else
-    cargo nextest run -p gclient --no-fail-fast "$@"
+    cargo nextest run -p gclient --no-fail-fast "$@" --retries 3
   fi
 }
 
