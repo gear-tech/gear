@@ -57,7 +57,20 @@ fn get_exports(
 ) -> Result<BTreeSet<DispatchKind>, CodeError> {
     let mut exports = BTreeSet::<DispatchKind>::new();
 
-    let mut raw_exports = Vec::new();
+    let funcs = module
+        .function_section()
+        .ok_or(CodeError::FunctionSectionNotFound)?
+        .entries();
+
+    let types = module
+        .type_section()
+        .ok_or(CodeError::TypeSectionNotFound)?
+        .types();
+
+    let import_count = module
+        .import_section()
+        .ok_or(CodeError::ImportSectionNotFound)?
+        .functions();
 
     for entry in module
         .export_section()
@@ -67,40 +80,16 @@ fn get_exports(
     {
         if let Internal::Function(i) = entry.internal() {
             if reject_unnecessary {
-                raw_exports.push(*i);
+                let type_id = funcs[*i as usize - import_count].type_ref();
+                let Type::Function(ref f) = types[type_id as usize];
+                if !f.params().is_empty() || !f.results().is_empty() {
+                    return Err(CodeError::InvalidExportFnSignature);
+                }
             }
             if let Some(kind) = DispatchKind::try_from_entry(entry.field()) {
                 exports.insert(kind);
             } else if !STATE_EXPORTS.contains(&entry.field()) && reject_unnecessary {
                 return Err(CodeError::NonGearExportFnFound);
-            }
-        }
-    }
-
-    if reject_unnecessary {
-        let funcs = module
-            .function_section()
-            .ok_or(CodeError::FunctionSectionNotFound)?
-            .entries();
-
-        let types = module
-            .type_section()
-            .ok_or(CodeError::TypeSectionNotFound)?
-            .types();
-
-        let import_count = module
-            .import_section()
-            .ok_or(CodeError::ImportSectionNotFound)?
-            .entries()
-            .iter()
-            .filter(|e| matches!(e.external(), External::Function(_)))
-            .count();
-
-        for i in raw_exports {
-            let type_id = funcs[i as usize - import_count].type_ref();
-            let Type::Function(ref f) = types[type_id as usize];
-            if !f.params().is_empty() || !f.results().is_empty() {
-                return Err(CodeError::InvalidExportFnSignature);
             }
         }
     }
@@ -839,23 +828,5 @@ mod tests {
             Some(16 * 1024),
         )
         .unwrap();
-    }
-
-    #[test]
-    fn test_invalid_signature() {
-        const WAT: &str = r#"
-        (module
-            (import "env" "memory" (memory 1))
-            (export "handle" (func $handle))
-            (func $handle (param i32))
-        )
-        "#;
-
-        let original_code = wat2wasm(WAT);
-
-        assert_eq!(
-            Code::try_new(original_code, 1, |_| ConstantCostRules::default(), None),
-            Err(CodeError::InvalidExportFnSignature)
-        );
     }
 }

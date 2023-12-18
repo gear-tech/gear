@@ -13791,7 +13791,6 @@ fn module_instantiation_error() {
 }
 
 #[test]
-#[ignore = "issue #3100"]
 fn wrong_entry_type() {
     let wat = r#"
     (module
