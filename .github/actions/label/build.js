@@ -23,7 +23,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
  *
  * @returns {Promise<[boolean, string]>} [skip, String(check_runs)]
  **/
-const skip = async ({ github }) => {
+const skip = async ({ github, core }) => {
+  core.info("Checking if need to skip dispatch from ${REF_NAME}, is fork: ${IS_FORK}");
   if (!IS_FORK && REF_NAME.startsWith("dependabot")) return [true, ""]
 
   const {
@@ -146,7 +147,7 @@ const listJobs = async ({ github, core, run_id }) => {
  *  The main function.
  **/
 module.exports = async ({ github, core }) => {
-  const [skipAction, check_runs] = await skip({ github });
+  const [skipAction, check_runs] = await skip({ github, core });
 
   if (skipAction) {
     core.info("Build has already been processed, check runs: " + check_runs);
