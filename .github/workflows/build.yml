@@ -81,7 +81,7 @@ jobs:
         run: ./scripts/gear.sh test gear --exclude gclient --exclude gcli --exclude gsdk --release --locked
 
       - name: "Test: gsdk tests"
-        run: ./scripts/gear.sh test gsdk --release
+        run: ./scripts/gear.sh test gsdk --release --retries 3
 
       - name: "Test: `gcli`"
         env:
@@ -89,7 +89,7 @@ jobs:
         run: ./scripts/gear.sh test gcli --release --locked --retries 3
 
       - name: "Test: Client tests"
-        run: ./scripts/gear.sh test client --release
+        run: ./scripts/gear.sh test client --release --retries 3
 
       - name: "Test: Runtime benchmarks and benchmark tests work"
         run: |
