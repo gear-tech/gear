@@ -92,7 +92,7 @@ impl pallet_balances::Config for Test {
     type MaxFreezes = ();
     type MaxReserves = ();
     type FreezeIdentifier = ();
-    type HoldIdentifier = ();
+    type RuntimeHoldReason = RuntimeHoldReason;
     type ReserveIdentifier = [u8; 8];
     type Balance = Balance;
     type DustRemoval = ();
@@ -120,13 +120,12 @@ impl system::Config for Test {
     type DbWeight = DbWeight;
     type RuntimeOrigin = RuntimeOrigin;
     type RuntimeCall = RuntimeCall;
-    type Index = u64;
-    type BlockNumber = BlockNumber;
+    type Nonce = u64;
     type Hash = H256;
     type Hashing = BlakeTwo256;
     type AccountId = AccountId;
     type Lookup = IdentityLookup<Self::AccountId>;
-    type Header = generic::Header<BlockNumber, BlakeTwo256>;
+    type Block = Block;
     type RuntimeEvent = RuntimeEvent;
     type BlockHashCount = BlockHashCount;
     type Version = ();

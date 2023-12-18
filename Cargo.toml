@@ -242,7 +242,6 @@ service = { package = "gear-service", path = "node/service", default-features = 
 testing = { package = "gear-node-testing", path = "node/testing" }
 vara-runtime = { path = "runtime/vara", default-features = false }
 wasm-smith = { version = "0.12.21", git = "https://github.com/gear-tech/wasm-tools.git", branch = "gear-stable" }
-validator-set = { package = 'substrate-validator-set', git = 'https://github.com/gear-tech/substrate-validator-set.git', branch = 'gear-polkadot-v0.9.41-canary-revert-oom-changes', default-features = false }
 
 # Substrate deps
 frame-benchmarking = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v1.0.0-canary", default-features = false }

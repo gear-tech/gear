@@ -22,7 +22,6 @@ use frame_support::{
     traits::{Everything, FindAuthor},
     weights::constants::RocksDbWeight,
 };
-use frame_system::mocking::{MockBlock, MockUncheckedExtrinsic};
 use pallet_balances::AccountData;
 use primitive_types::H256;
 use sp_io::TestExternalities;
@@ -84,13 +83,12 @@ impl frame_system::Config for Test {
     type DbWeight = RocksDbWeight;
     type RuntimeOrigin = RuntimeOrigin;
     type RuntimeCall = RuntimeCall;
-    type Index = u64;
-    type BlockNumber = u64;
+    type Nonce = u64;
     type Hash = H256;
     type Hashing = BlakeTwo256;
     type AccountId = AccountId;
     type Lookup = IdentityLookup<Self::AccountId>;
-    type Header = Header;
+    type Block = Block;
     type RuntimeEvent = RuntimeEvent;
     type BlockHashCount = BlockHashCount;
     type Version = ();
@@ -123,7 +121,7 @@ impl pallet_balances::Config for Test {
     type MaxFreezes = ();
     type MaxReserves = ();
     type FreezeIdentifier = ();
-    type HoldIdentifier = ();
+    type RuntimeHoldReason = RuntimeHoldReason;
     type ReserveIdentifier = [u8; 8];
     type Balance = Balance;
     type DustRemoval = ();

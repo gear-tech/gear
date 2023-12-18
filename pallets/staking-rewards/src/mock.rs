@@ -23,7 +23,7 @@ use frame_election_provider_support::{
 use frame_support::{
     construct_runtime, parameter_types,
     traits::{
-        ConstU32, Contains, Currency, Everything, FindAuthor, GenesisBuild, Hooks,
+        ConstU32, Contains, Currency, Everything, FindAuthor, Hooks,
         NeverEnsureOrigin,
     },
     weights::{constants::RocksDbWeight, Weight},
@@ -44,7 +44,7 @@ pub(crate) type SignedExtra = pallet_gear_staking_rewards::StakingBlackList<Test
 type TestXt = sp_runtime::testing::TestXt<RuntimeCall, SignedExtra>;
 type Block = TestBlock<TestXt>;
 type AccountId = u64;
-type BlockNumber = u64;
+// type BlockNumber = u64;
 type Balance = u128;
 
 pub(crate) type Executive = frame_executive::Executive<
@@ -107,7 +107,7 @@ impl pallet_balances::Config for Test {
     type WeightInfo = ();
     type FreezeIdentifier = ();
     type MaxFreezes = ();
-    type HoldIdentifier = ();
+    type RuntimeHoldReason = RuntimeHoldReason;
     type MaxHolds = ();
 }
 
@@ -124,13 +124,12 @@ impl system::Config for Test {
     type DbWeight = RocksDbWeight;
     type RuntimeOrigin = RuntimeOrigin;
     type RuntimeCall = RuntimeCall;
-    type Index = u64;
-    type BlockNumber = BlockNumber;
+    type Nonce = u64;
     type Hash = H256;
     type Hashing = BlakeTwo256;
     type AccountId = AccountId;
     type Lookup = IdentityLookup<Self::AccountId>;
-    type Header = Header;
+    type Block = Block;
     type RuntimeEvent = RuntimeEvent;
     type BlockHashCount = BlockHashCount;
     type Version = ();

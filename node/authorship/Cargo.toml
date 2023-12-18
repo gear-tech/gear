@@ -42,7 +42,6 @@ prometheus-endpoint.workspace = true
 
 [dev-dependencies]
 gear-runtime-interface = { workspace = true, features = ["std"] }
-common = { workspace = true, features = ["std"] }
 sc-transaction-pool.workspace = true
 frame-support = { workspace = true, features = ["std"] }
 frame-system = { workspace = true, features = ["std"] }
