@@ -64,7 +64,7 @@ use frame_support::{
 };
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
-    code::{self, Code},
+    code::{self, Code, CodeError},
     ids::{CodeId, MessageId, ProgramId},
     message::UserStoredMessage,
     pages::{PageNumber, PageU32Size, WasmPage},
@@ -73,13 +73,11 @@ use gear_core_backend::error::{
     TrapExplanation, UnrecoverableExecutionError, UnrecoverableExtError, UnrecoverableWaitError,
 };
 use gear_core_errors::*;
-use gear_wasm_instrument::STACK_END_EXPORT_NAME;
+use gear_wasm_instrument::{gas_metering::ConstantCostRules, STACK_END_EXPORT_NAME};
 use gstd::{collections::BTreeMap, errors::Error as GstdError};
 use pallet_gear_voucher::PrepaidCall;
 use sp_runtime::{traits::UniqueSaturatedInto, SaturatedConversion};
 use sp_std::convert::TryFrom;
-use gear_core::code::CodeError;
-use gear_wasm_instrument::gas_metering::ConstantCostRules;
 pub use utils::init_logger;
 use utils::*;
 
@@ -13806,7 +13804,10 @@ fn wrong_entry_type() {
     new_test_ext().execute_with(|| {
         assert_err!(
             Code::try_new(
-                ProgramCodeKind::Custom(wat).to_bytes(), 1, |_| ConstantCostRules::default(), None
+                ProgramCodeKind::Custom(wat).to_bytes(),
+                1,
+                |_| ConstantCostRules::default(),
+                None
             ),
             CodeError::InvalidExportFnSignature
         );
