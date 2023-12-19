@@ -2297,6 +2297,7 @@ dependencies = [
 name = "demo-ping"
 version = "0.1.0"
 dependencies = [
+ "gcli",
  "gear-wasm-builder",
  "gstd",
 ]

@@ -166,6 +166,8 @@ impl WasmBuilder {
                 unmatched_features.join(", ")
             );
         }
+
+        println!("\n\n{matched_features:?}\n\n");
         Ok(matched_features)
     }
 

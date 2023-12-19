@@ -10,10 +10,40 @@ repository.workspace = true
 [dependencies]
 gstd.workspace = true
 
+# `gcli` which is a std library, mocking a situation
+# that users adding dependencies like this as parts of
+# their `std` feature.
+gcli = { workspace = true, optional = true }
+
 [build-dependencies]
 gear-wasm-builder.workspace = true
 
 [features]
 debug = ["gstd/debug"]
 default = ["std"]
-std = []
+
+# since wasm-builder skips the `std` feature by default
+# and `gcli` is part of the `std` feature, ideally,
+# `gcli` will be stripped as well.
+std = [ "gcli" ]
+
+# As a result, the `std` feature above seems expand to
+#
+# - feature=std
+# - feature=gcli
+#
+# in compilation, but not just
+#
+# - feature=std
+#
+# So feature `gcli` is  embedded in the matched features anyway.
+#
+# # TO REPREDUCE IT:
+#
+# ```
+# cargo b -vvv
+# ```
+#
+# And `gcli` will be appeared in matched_features.
+#
+# `gear/utils/wasm-builder/src/lib.rs#170`
