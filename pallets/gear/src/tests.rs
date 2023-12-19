@@ -188,7 +188,7 @@ fn cascading_delayed_gasless_send_work() {
 
         assert_succeed(mid);
 
-        run_for_blocks(DELAY, None);
+        run_for_blocks(DELAY as u64, None);
         assert!(MailboxOf::<Test>::contains(&USER_1, &first_outgoing));
         assert!(!MailboxOf::<Test>::contains(&USER_1, &second_outgoing));
 
@@ -211,7 +211,7 @@ fn cascading_delayed_gasless_send_work() {
 
         assert_succeed(mid);
 
-        run_for_blocks(DELAY, None);
+        run_for_blocks(DELAY as u64, None);
         assert!(MailboxOf::<Test>::contains(&USER_1, &first_outgoing));
         assert!(MailboxOf::<Test>::contains(&USER_1, &second_outgoing));
 
@@ -323,9 +323,10 @@ fn delayed_reservations_sending_validation() {
             ReservationSendingShowcase::ToSourceInPlace {
                 reservation_amount: 10 * <Test as Config>::MailboxThreshold::get(),
                 reservation_delay: 1_000,
-                sending_delay: 1_000 * <Test as Config>::MailboxThreshold::get() as u32
+                sending_delay: (1_000 * <Test as Config>::MailboxThreshold::get()
                     + CostsPerBlockOf::<Test>::reserve_for()
-                        / CostsPerBlockOf::<Test>::dispatch_stash() as u32,
+                        / CostsPerBlockOf::<Test>::dispatch_stash())
+                    as u32,
             }
             .encode(),
             BlockGasLimitOf::<Test>::get(),
@@ -363,9 +364,10 @@ fn delayed_reservations_sending_validation() {
                 reservation_amount: 10 * <Test as Config>::MailboxThreshold::get(),
                 reservation_delay: 1_000,
                 wait_for,
-                sending_delay: 1_000 * <Test as Config>::MailboxThreshold::get() as u32
+                sending_delay: (1_000 * <Test as Config>::MailboxThreshold::get()
                     + CostsPerBlockOf::<Test>::reserve_for()
-                        / CostsPerBlockOf::<Test>::dispatch_stash() as u32,
+                        / CostsPerBlockOf::<Test>::dispatch_stash())
+                    as u32,
             }
             .encode(),
             BlockGasLimitOf::<Test>::get(),
@@ -375,7 +377,7 @@ fn delayed_reservations_sending_validation() {
 
         let mid = utils::get_last_message_id();
 
-        run_for_blocks(wait_for + 1, None);
+        run_for_blocks(wait_for as u64 + 1, None);
 
         let error_text = if cfg!(any(feature = "debug", debug_assertions)) {
             format!(
@@ -440,7 +442,7 @@ fn delayed_reservations_to_mailbox() {
 
         assert!(MailboxOf::<Test>::is_empty(&USER_1));
 
-        run_for_blocks(sending_delay, None);
+        run_for_blocks(sending_delay as u64, None);
 
         assert!(!MailboxOf::<Test>::is_empty(&USER_1));
 
