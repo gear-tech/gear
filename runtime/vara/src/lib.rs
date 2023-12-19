@@ -1454,7 +1454,7 @@ where
             changes: self.changes.clone(),
             storage_transaction_cache: self.storage_transaction_cache.clone(),
             recorder: self.recorder.clone(),
-            call_context: self.call_context.clone(),
+            call_context: self.call_context,
             extensions: Default::default(),
             extensions_generated_for: self.extensions_generated_for.clone(),
         }
