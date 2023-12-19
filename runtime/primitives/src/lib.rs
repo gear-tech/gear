@@ -68,3 +68,6 @@ pub type Header = generic::Header<BlockNumber, BlakeTwo256>;
 pub type Block = generic::Block<Header, OpaqueExtrinsic>;
 /// Block ID.
 pub type BlockId = generic::BlockId<Block>;
+
+/// SS58 prefix of VARA.
+pub const VARA_SS58_PREFIX: u8 = 137;

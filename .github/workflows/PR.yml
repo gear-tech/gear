@@ -74,8 +74,10 @@ jobs:
     if: >-
       needs.status.outputs.skip-ci != '1'
       && (
-        contains(github.event.pull_request.title, '[depbot]')
-        || (
+        (
+          github.event.pull_request.head.repo.full_name == 'gear-tech/gear'
+          && contains(github.event.pull_request.title, '[depbot]')
+        ) || (
           contains(github.event.pull_request.labels.*.name, 'A0-pleasereview')
           || contains(github.event.pull_request.labels.*.name, 'A4-insubstantial')
           || contains(github.event.pull_request.labels.*.name, 'A2-mergeoncegreen')

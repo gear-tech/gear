@@ -645,7 +645,7 @@ fn reply_with_voucher_pays_fee_from_voucher_ok() {
             program_id,
             200_000_000,
         ));
-        let voucher_id = GearVoucher::voucher_account_id(&BOB, &program_id);
+        let voucher_id = GearVoucher::voucher_id(&BOB, &program_id);
 
         run_to_block(2);
 

@@ -20,15 +20,21 @@
 
 use anyhow::Result;
 use clap::Parser;
-use crates_io_manager::Publisher;
+use crates_io::Publisher;
 
 /// The command to run.
 #[derive(Clone, Debug, Parser)]
 enum Command {
+    /// Build manifests for packages that to be published.
+    Build,
     /// Check packages that to be published.
     Check,
     /// Publish packages.
-    Publish,
+    Publish {
+        /// The version to publish.
+        #[clap(long, short)]
+        version: Option<String>,
+    },
 }
 
 /// Gear crates-io manager command line interface
@@ -44,9 +50,13 @@ pub struct Opt {
 fn main() -> Result<()> {
     let Opt { command } = Opt::parse();
 
-    let publisher = Publisher::new()?.build()?;
+    let publisher = Publisher::new()?;
     match command {
-        Command::Check => publisher.check(),
-        Command::Publish => publisher.publish(),
+        Command::Check => publisher.build(None)?.check(),
+        Command::Publish { version } => publisher.build(version)?.publish(),
+        Command::Build => {
+            publisher.build(None)?;
+            Ok(())
+        }
     }
 }

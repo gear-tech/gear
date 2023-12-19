@@ -26,7 +26,7 @@ use primitive_types::H256;
 fn voucher_issue_works() {
     new_test_ext().execute_with(|| {
         let program_id = H256::from(b"some//quasy//random//program//id").cast();
-        let synthesized = Voucher::voucher_account_id(&BOB, &program_id);
+        let synthesized = Voucher::voucher_id(&BOB, &program_id);
 
         assert_ok!(Voucher::issue(
             RuntimeOrigin::signed(ALICE),
@@ -47,7 +47,7 @@ fn voucher_issue_works() {
         // Insufficient funds
         assert_noop!(
             Voucher::issue(RuntimeOrigin::signed(ALICE), BOB, program_id, 100_000_000,),
-            Error::<Test>::FailureToCreateVoucher
+            Error::<Test>::InsufficientBalance
         );
     });
 }
@@ -56,7 +56,7 @@ fn voucher_issue_works() {
 fn voucher_redemption_works() {
     new_test_ext().execute_with(|| {
         let program_id = H256::from(b"some//quasy//random//program//id").cast();
-        let synthesized = Voucher::voucher_account_id(&BOB, &program_id);
+        let synthesized = Voucher::voucher_id(&BOB, &program_id);
 
         assert_ok!(Voucher::issue(
             RuntimeOrigin::signed(ALICE),
@@ -69,13 +69,13 @@ fn voucher_redemption_works() {
 
         // Redemption ok
         assert_ok!(Balances::reserve(
-            &Voucher::voucher_id(BOB, program_id),
+            &Voucher::voucher_id(&BOB, &program_id),
             2_000
         ));
 
         // Redemption fails
         assert_noop!(
-            Balances::reserve(&Voucher::voucher_id(BOB, program_id), 100_000_000),
+            Balances::reserve(&Voucher::voucher_id(&BOB, &program_id), 100_000_000),
             pallet_balances::Error::<Test>::InsufficientBalance
         );
     });
