@@ -31,7 +31,7 @@ async fn api_timeout() {
             error,
             Some(Error::SubxtRpc(jsonrpsee::core::Error::Transport(..)))
         ),
-        "Unexpected error occured: {error:?}"
+        "Unexpected error occurred: {error:?}"
     );
 }
 
