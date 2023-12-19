@@ -36,7 +36,7 @@ use gear_runtime_common::constants::BANK_ADDRESS;
 use pallet_gear_rpc_runtime_api::GearApi;
 use parking_lot::Mutex;
 use runtime_primitives::BlockNumber;
-use sc_client_api::{Backend as _, ExecutionStrategy};
+use sc_client_api::{Backend as _};
 use sc_service::client::Client;
 use sc_transaction_pool::BasicPool;
 use sc_transaction_pool_api::{
@@ -231,7 +231,7 @@ macro_rules! init {
         $genesis_hash:ident
     } => {
         let client_builder =
-            TestClientBuilder::new().set_execution_strategy(ExecutionStrategy::NativeWhenPossible);
+            TestClientBuilder::new();
         let $backend = client_builder.backend();
         let mut $client = Arc::new(client_builder.build());
         let $spawner = sp_core::testing::TaskExecutor::new();
@@ -708,7 +708,7 @@ fn block_builder_cloned_ok() {
     init_logger();
 
     let client_builder =
-        TestClientBuilder::new().set_execution_strategy(ExecutionStrategy::NativeWhenPossible);
+        TestClientBuilder::new();
     let backend = client_builder.backend();
     let client = Arc::new(client_builder.build());
 
