@@ -331,6 +331,7 @@ macro_rules! propose_block {
 #[test]
 fn custom_extrinsic_is_placed_in_each_block() {
     init_logger();
+    gear_runtime_interface::sandbox_init();
 
     init!(client, backend, txpool, spawner, genesis_hash);
 
@@ -365,6 +366,7 @@ fn custom_extrinsic_is_placed_in_each_block() {
 #[test]
 fn proposed_storage_changes_match_execute_block_storage_changes() {
     init_logger();
+    gear_runtime_interface::sandbox_init();
 
     init!(client, backend, txpool, spawner, genesis_hash);
 
@@ -420,6 +422,7 @@ fn queue_remains_intact_if_processing_fails() {
     use sp_state_machine::IterArgs;
 
     init_logger();
+    gear_runtime_interface::sandbox_init();
 
     init!(client, backend, txpool, spawner, genesis_hash);
 
@@ -530,6 +533,7 @@ fn block_max_gas_works() {
     const FIXED_BLOCK_GAS: u64 = 25_000_000;
 
     init_logger();
+    gear_runtime_interface::sandbox_init();
     gear_runtime_interface::sandbox_init();
 
     init!(client, backend, txpool, spawner, genesis_hash);
@@ -649,6 +653,7 @@ fn block_max_gas_works() {
 #[test]
 fn terminal_extrinsic_discarded_from_txpool() {
     init_logger();
+    gear_runtime_interface::sandbox_init();
 
     init!(client, backend, txpool, spawner, genesis_hash);
 
@@ -706,6 +711,7 @@ fn terminal_extrinsic_discarded_from_txpool() {
 #[test]
 fn block_builder_cloned_ok() {
     init_logger();
+    gear_runtime_interface::sandbox_init();
 
     let client_builder = TestClientBuilder::new();
     let backend = client_builder.backend();
@@ -791,6 +797,7 @@ fn proposal_timing_consistent() {
     use sp_state_machine::IterArgs;
 
     init_logger();
+    gear_runtime_interface::sandbox_init();
 
     init!(client, backend, txpool, spawner, genesis_hash);
 
@@ -810,8 +817,8 @@ fn proposal_timing_consistent() {
     // Creating a bunch of extrinsics that will put N time-consuming init messages
     // to the message queue. The number of extrinsics should better allow all of
     // them to fit in one block to know deterministically the number of messages.
-    // Empirically, 15 extrinsics is a good number.
-    checked.extend(checked_extrinsics(15, bob(), 0, || {
+    // Empirically, 50 extrinsics is a good number.
+    checked.extend(checked_extrinsics(50, bob(), 0, || {
         // TODO: this is a "hand-wavy" workaround to have a long-running init message.
         // Should be replaced with a more reliable solution (like zero-cost syscalls
         // in init message that would guarantee incorrect gas estimation)
@@ -1002,6 +1009,7 @@ mod basic_tests {
     #[test]
     fn should_cease_building_block_when_deadline_is_reached() {
         init_logger();
+        gear_runtime_interface::sandbox_init();
 
         init!(client, backend, txpool, spawner, genesis_hash);
 
@@ -1057,6 +1065,7 @@ mod basic_tests {
     #[test]
     fn should_not_panic_when_deadline_is_reached() {
         init_logger();
+        gear_runtime_interface::sandbox_init();
 
         init!(client, backend, txpool, spawner, _genesis_hash);
 
@@ -1093,6 +1102,7 @@ mod basic_tests {
     #[test]
     fn proposed_storage_changes_should_match_execute_block_storage_changes() {
         init_logger();
+        gear_runtime_interface::sandbox_init();
 
         init!(client, backend, txpool, spawner, genesis_hash);
 
@@ -1145,6 +1155,7 @@ mod basic_tests {
     #[test]
     fn should_not_remove_invalid_transactions_when_skipping() {
         init_logger();
+        gear_runtime_interface::sandbox_init();
 
         init!(client, backend, txpool, spawner, genesis_hash);
 
@@ -1208,6 +1219,7 @@ mod basic_tests {
     #[test]
     fn should_cease_building_block_when_block_limit_is_reached() {
         init_logger();
+        gear_runtime_interface::sandbox_init();
 
         init!(client, backend, txpool, spawner, genesis_hash);
 
@@ -1321,6 +1333,7 @@ mod basic_tests {
     #[test]
     fn should_keep_adding_transactions_after_exhausts_resources_before_soft_deadline() {
         init_logger();
+        gear_runtime_interface::sandbox_init();
 
         init!(client, backend, txpool, spawner, genesis_hash);
 
@@ -1366,6 +1379,7 @@ mod basic_tests {
     #[test]
     fn should_only_skip_up_to_some_limit_after_soft_deadline() {
         init_logger();
+        gear_runtime_interface::sandbox_init();
 
         init!(client, backend, txpool, spawner, genesis_hash);
 
