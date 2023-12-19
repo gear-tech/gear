@@ -1455,7 +1455,7 @@ where
             storage_transaction_cache: self.storage_transaction_cache.clone(),
             recorder: self.recorder.clone(),
             call_context: self.call_context.clone(),
-            extensions: self.extensions.clone(),
+            extensions: Default::default(),
             extensions_generated_for: self.extensions_generated_for.clone(),
         }
     }
@@ -1488,12 +1488,12 @@ where
             self.call,
             (
                 *core::cell::RefCell::borrow(&self.transaction_depth),
-                core::cell::RefCell::borrow(&self.changes).clone(),
-                core::cell::RefCell::borrow(&self.storage_transaction_cache).clone(),
+                self.changes.into_inner(),
+                self.storage_transaction_cache.into_inner(),
                 self.recorder,
                 self.call_context,
-                *core::cell::RefCell::borrow(&self.extensions),
-                core::cell::RefCell::borrow(&self.extensions_generated_for).clone(),
+                self.extensions.into_inner(),
+                self.extensions_generated_for.into_inner(),
             ),
         )
     }
