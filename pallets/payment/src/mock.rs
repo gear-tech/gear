@@ -29,19 +29,27 @@ use frame_support::{
 use frame_support_test::TestRandomness;
 use frame_system as system;
 use pallet_transaction_payment::CurrencyAdapter;
+use parity_scale_codec::{Decode, Encode};
 use primitive_types::H256;
+use scale_info::TypeInfo;
 use sp_runtime::{
     generic,
     testing::TestXt,
-    traits::{BlakeTwo256, ConstBool, ConstU64, IdentityLookup},
+    traits::{BlakeTwo256, ConstBool, ConstU64, DispatchInfoOf, IdentityLookup, SignedExtension},
+    transaction_validity::{InvalidTransaction, TransactionValidity, TransactionValidityError},
 };
 use sp_std::{
     convert::{TryFrom, TryInto},
     prelude::*,
 };
+use system::pallet_prelude::BlockNumberFor;
 
-type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
-type Block = frame_system::mocking::MockBlock<Test>;
+type UncheckedExtrinsic =
+    frame_system::mocking::MockUncheckedExtrinsic<Test, (), VoucherLegitimate>;
+type Block = generic::Block<
+    generic::Header<BlockNumberFor<Test>, sp_runtime::traits::BlakeTwo256>,
+    UncheckedExtrinsic,
+>;
 type AccountId = u64;
 type BlockNumber = u64;
 type Balance = u128;
@@ -51,6 +59,62 @@ pub const BOB: AccountId = 2;
 pub const BLOCK_AUTHOR: AccountId = 255;
 pub const FEE_PAYER: AccountId = 201;
 pub(crate) type MailboxOf<T> = <<T as Config>::Messenger as Messenger>::Mailbox;
+
+#[derive(Encode, Decode, Clone, Eq, PartialEq, Default, TypeInfo)]
+pub struct VoucherLegitimate;
+
+impl SignedExtension for VoucherLegitimate {
+    const IDENTIFIER: &'static str = "VoucherLegitimate";
+    type AccountId = AccountId;
+    type Call = RuntimeCall;
+    type AdditionalSigned = ();
+    type Pre = ();
+
+    fn additional_signed(&self) -> Result<Self::AdditionalSigned, TransactionValidityError> {
+        Ok(())
+    }
+
+    fn validate(
+        &self,
+        from: &Self::AccountId,
+        call: &Self::Call,
+        _: &DispatchInfoOf<Self::Call>,
+        _: usize,
+    ) -> TransactionValidity {
+        match call {
+            RuntimeCall::GearVoucher(voucher_call) => {
+                if voucher_call.is_legit(*from) {
+                    Ok(Default::default())
+                } else {
+                    Err(TransactionValidityError::Invalid(InvalidTransaction::Call))
+                }
+            }
+            _ => Ok(Default::default()),
+        }
+    }
+
+    fn pre_dispatch(
+        self,
+        _: &Self::AccountId,
+        _: &Self::Call,
+        _: &DispatchInfoOf<Self::Call>,
+        _: usize,
+    ) -> Result<Self::Pre, TransactionValidityError> {
+        Ok(())
+    }
+}
+
+impl sp_std::fmt::Debug for VoucherLegitimate {
+    #[cfg(feature = "std")]
+    fn fmt(&self, f: &mut sp_std::fmt::Formatter) -> sp_std::fmt::Result {
+        write!(f, "VoucherLegitimate")
+    }
+
+    #[cfg(not(feature = "std"))]
+    fn fmt(&self, _: &mut sp_std::fmt::Formatter) -> sp_std::fmt::Result {
+        Ok(())
+    }
+}
 
 // Configure a mock runtime to test the pallet.
 construct_runtime!(
