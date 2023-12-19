@@ -42,7 +42,7 @@ fn paths() {
     .into_iter()
     .for_each(|path| {
         if !PathBuf::from(&path).exists() {
-            panic!("{} not found.", path)
+            panic!("{path} not found.")
         }
     })
 }

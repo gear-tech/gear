@@ -29,7 +29,7 @@ lazy_static! {
 
 fn bin_path(name: &str, wasm: bool) -> String {
     ROOT.clone()
-        + [
+        + &[
             if wasm { WASM_TARGET } else { TARGET },
             "/",
             if cfg!(debug_assertions) {
@@ -41,7 +41,6 @@ fn bin_path(name: &str, wasm: bool) -> String {
             name,
         ]
         .concat()
-        .as_str()
 }
 
 /// path of binaries
