@@ -32,7 +32,14 @@ fn demo_messager() -> Result<PathBuf> {
 
     if !path.exists()
         && !Command::new("cargo")
-            .args(["build", "-p", "demo-messager", "--features", "gcli"])
+            .args([
+                "build",
+                "-p",
+                "demo-messager",
+                &format!("--{}", *env::PROFILE),
+                "--features",
+                "gcli",
+            ])
             .status()?
             .success()
     {
