@@ -270,25 +270,7 @@ where
             registry: config.prometheus_registry(),
             telemetry: telemetry.as_ref().map(|x| x.handle()),
             offchain_tx_pool_factory: OffchainTransactionPoolFactory::new(transaction_pool.clone()),
-        }, // babe_link.clone(),
-           // block_import.clone(),
-           // Some(Box::new(justification_import)),
-           // client.clone(),
-           // select_chain.clone(),
-           // move |_, ()| async move {
-           //     let timestamp = sp_timestamp::InherentDataProvider::from_system_time();
-
-           //     let slot =
-           //         sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
-           //             *timestamp,
-           //             slot_duration,
-           //         );
-
-           //     Ok((slot, timestamp))
-           // },
-           // &task_manager.spawn_essential_handle(),
-           // config.prometheus_registry(),
-           // telemetry.as_ref().map(|x| x.handle()),
+        },
     )?;
 
     let import_setup = (block_import, grandpa_link, babe_link);
@@ -581,7 +563,6 @@ where
     };
 
     let grandpa_config = sc_consensus_grandpa::Config {
-        // FIXME #1578 make this available through chainspec
         gossip_duration: std::time::Duration::from_millis(1000),
         justification_period: 512,
         name: Some(name),

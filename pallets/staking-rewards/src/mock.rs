@@ -41,7 +41,6 @@ pub(crate) type SignedExtra = pallet_gear_staking_rewards::StakingBlackList<Test
 type TestXt = sp_runtime::testing::TestXt<RuntimeCall, SignedExtra>;
 type Block = TestBlock<TestXt>;
 type AccountId = u64;
-// type BlockNumber = u64;
 type Balance = u128;
 
 pub(crate) type Executive = frame_executive::Executive<
