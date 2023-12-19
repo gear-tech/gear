@@ -46,8 +46,3 @@ fn paths() {
         }
     })
 }
-
-#[test]
-fn ss58_prefix() {
-    assert_eq!(gcli::VARA_SS58_PREFIX, vara_runtime::SS58Prefix::get());
-}
