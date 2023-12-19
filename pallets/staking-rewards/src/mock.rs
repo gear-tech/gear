@@ -22,10 +22,7 @@ use frame_election_provider_support::{
 };
 use frame_support::{
     construct_runtime, parameter_types,
-    traits::{
-        ConstU32, Contains, Currency, Everything, FindAuthor, Hooks,
-        NeverEnsureOrigin,
-    },
+    traits::{ConstU32, Contains, Currency, Everything, FindAuthor, Hooks, NeverEnsureOrigin},
     weights::{constants::RocksDbWeight, Weight},
     PalletId,
 };

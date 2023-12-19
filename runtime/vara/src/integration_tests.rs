@@ -19,7 +19,7 @@
 use crate::*;
 use frame_support::{
     assert_noop, assert_ok,
-    traits::{GenesisBuild, OnFinalize, OnInitialize},
+    traits::{OnFinalize, OnInitialize},
 };
 use frame_system::pallet_prelude::BlockNumberFor;
 use sp_consensus_babe::{

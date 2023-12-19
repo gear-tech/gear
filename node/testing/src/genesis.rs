@@ -22,9 +22,9 @@ use crate::keyring::*;
 use sp_keyring::{Ed25519Keyring, Sr25519Keyring};
 use sp_runtime::{Perbill, Perquintill};
 use vara_runtime::{
-    constants::currency::*, AccountId, BabeConfig, BalancesConfig, RuntimeGenesisConfig, GrandpaConfig,
-    SessionConfig, StakerStatus, StakingConfig, StakingRewardsConfig, SudoConfig, SystemConfig,
-    BABE_GENESIS_EPOCH_CONFIG, WASM_BINARY,
+    constants::currency::*, AccountId, BabeConfig, BalancesConfig, GrandpaConfig,
+    RuntimeGenesisConfig, SessionConfig, StakerStatus, StakingConfig, StakingRewardsConfig,
+    SudoConfig, SystemConfig, BABE_GENESIS_EPOCH_CONFIG, WASM_BINARY,
 };
 
 fn wasm_binary() -> &'static [u8] {
