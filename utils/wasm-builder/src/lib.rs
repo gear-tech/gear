@@ -167,16 +167,7 @@ impl WasmBuilder {
             );
         }
 
-        // NOTE: Filter out feature `gcli`.
-        //
-        // dependency feature `gcli` could be captured here
-        // but it is not needed for the build.
-        //
-        // TODO: Filter dep features in this function (#3588)
-        Ok(matched_features
-            .into_iter()
-            .filter(|feature| feature != "gcli")
-            .collect())
+        Ok(matched_features)
     }
 
     fn paths_to_remap(&self) -> Result<Vec<(PathBuf, &'static str)>> {
