@@ -534,7 +534,6 @@ fn block_max_gas_works() {
 
     init_logger();
     gear_runtime_interface::sandbox_init();
-    gear_runtime_interface::sandbox_init();
 
     init!(client, backend, txpool, spawner, genesis_hash);
 
