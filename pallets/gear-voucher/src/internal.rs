@@ -175,7 +175,7 @@ where
 {
     pub fn is_legit(&self, who: AccountIdOf<T>) -> bool {
         match self {
-            Self::call_new { voucher_id, call } => {
+            Self::call { voucher_id, call } => {
                 Pallet::<T>::validate_prepaid(who, *voucher_id, call).is_ok()
             }
             _ => true,
@@ -185,8 +185,8 @@ where
     // TODO: delete None return once fn call() is removed.
     pub fn sponsored_by(&self, who: AccountIdOf<T>) -> Option<AccountIdOf<T>> {
         match self {
-            crate::Call::call { call } => Pallet::<T>::sponsor_of(&who, call),
-            crate::Call::call_new { voucher_id, call } => {
+            crate::Call::call_deprecated { call } => Pallet::<T>::sponsor_of(&who, call),
+            crate::Call::call { voucher_id, call } => {
                 if Pallet::<T>::validate_prepaid(who, *voucher_id, call).is_err() {
                     unreachable!("Should be pre-validated by SignedExtension")
                 }

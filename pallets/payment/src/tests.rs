@@ -18,7 +18,7 @@
 
 #![allow(clippy::identity_op)]
 
-use crate::{mock::*, Config, CustomChargeTransactionPayment, QueueOf};
+use crate::{mock::*, AccountIdOf, Config, CustomChargeTransactionPayment, QueueOf};
 use common::{storage::*, Origin};
 use frame_support::{
     assert_ok,
@@ -561,14 +561,29 @@ fn query_info_and_fee_details_work() {
 #[test]
 fn fee_payer_replacement_works() {
     new_test_ext().execute_with(|| {
-        let alice_initial_balance = Balances::free_balance(ALICE);
+        let bob_initial_balance = Balances::free_balance(BOB);
         let author_initial_balance = Balances::free_balance(BLOCK_AUTHOR);
-        let synthesized_initial_balance = Balances::free_balance(FEE_PAYER);
+        let synthesized_initial_balance = 200_000_000;
 
         let program_id = H256::random().cast();
 
+        assert_ok!(GearVoucher::issue(
+            RuntimeOrigin::signed(ALICE),
+            BOB,
+            synthesized_initial_balance,
+            Some(vec![program_id]),
+            100,
+        ));
+        let voucher_id = get_last_voucher_id();
+
+        assert_eq!(
+            Balances::free_balance(voucher_id.cast::<AccountIdOf<Test>>()),
+            synthesized_initial_balance
+        );
+
         let call: &<Test as frame_system::Config>::RuntimeCall =
             &RuntimeCall::GearVoucher(pallet_gear_voucher::Call::call {
+                voucher_id,
                 call: pallet_gear_voucher::PrepaidCall::SendMessage {
                     destination: program_id,
                     payload: Default::default(),
@@ -584,17 +599,17 @@ fn fee_payer_replacement_works() {
         let weight = Weight::from_parts(1_000, 0);
 
         let pre = CustomChargeTransactionPayment::<Test>::from(0)
-            .pre_dispatch(&ALICE, call, &info_from_weight(weight), len)
+            .pre_dispatch(&BOB, call, &info_from_weight(weight), len)
             .unwrap();
 
         let fee_weight = WeightToFeeFor::<Test>::weight_to_fee(&weight);
 
         // Alice hasn't paid fees
-        assert_eq!(Balances::free_balance(ALICE), alice_initial_balance);
+        assert_eq!(Balances::free_balance(BOB), bob_initial_balance);
 
         // But the Synthesized account has
         assert_eq!(
-            Balances::free_balance(FEE_PAYER),
+            Balances::free_balance(voucher_id.cast::<AccountIdOf<Test>>()),
             synthesized_initial_balance - fee_weight - fee_length
         );
 
@@ -605,9 +620,9 @@ fn fee_payer_replacement_works() {
             len,
             &Ok(())
         ));
-        assert_eq!(Balances::free_balance(ALICE), alice_initial_balance);
+        assert_eq!(Balances::free_balance(BOB), bob_initial_balance);
         assert_eq!(
-            Balances::free_balance(FEE_PAYER),
+            Balances::free_balance(voucher_id.cast::<AccountIdOf<Test>>()),
             synthesized_initial_balance - fee_weight - fee_length
         );
         assert_eq!(
@@ -642,15 +657,19 @@ fn reply_with_voucher_pays_fee_from_voucher_ok() {
         assert_ok!(GearVoucher::issue(
             RuntimeOrigin::signed(ALICE),
             BOB,
-            program_id,
             200_000_000,
+            Some(vec![program_id]),
+            100,
         ));
-        let voucher_id = GearVoucher::voucher_id(&BOB, &program_id);
+        let voucher_id = get_last_voucher_id();
 
         run_to_block(2);
 
         // Balance check
-        assert_eq!(Balances::free_balance(voucher_id), 200_000_000);
+        assert_eq!(
+            Balances::free_balance(voucher_id.cast::<AccountIdOf<Test>>()),
+            200_000_000
+        );
         assert_eq!(
             Balances::free_balance(ALICE),
             alice_initial_balance.saturating_sub(200_000_000)
@@ -660,6 +679,7 @@ fn reply_with_voucher_pays_fee_from_voucher_ok() {
         let gas_limit = 100_000_u64;
         let call: &<Test as frame_system::Config>::RuntimeCall =
             &RuntimeCall::GearVoucher(pallet_gear_voucher::Call::call {
+                voucher_id,
                 call: pallet_gear_voucher::PrepaidCall::SendReply {
                     reply_to_id: msg_id,
                     payload: vec![],
@@ -674,7 +694,8 @@ fn reply_with_voucher_pays_fee_from_voucher_ok() {
 
         let weight = Weight::from_parts(100_000, 0);
 
-        let voucher_initial_balance = Balances::free_balance(voucher_id);
+        let voucher_initial_balance =
+            Balances::free_balance(voucher_id.cast::<AccountIdOf<Test>>());
 
         let pre = CustomChargeTransactionPayment::<Test>::from(0)
             .pre_dispatch(&BOB, call, &info_from_weight(weight), len)
@@ -687,7 +708,7 @@ fn reply_with_voucher_pays_fee_from_voucher_ok() {
 
         // But the voucher account has
         assert_eq!(
-            Balances::free_balance(voucher_id),
+            Balances::free_balance(voucher_id.cast::<AccountIdOf<Test>>()),
             voucher_initial_balance - fee_weight - fee_length
         );
 
@@ -699,7 +720,7 @@ fn reply_with_voucher_pays_fee_from_voucher_ok() {
             &Ok(())
         ));
 
-        // Block autho has got his cut
+        // Block author has got his cut.
         assert_eq!(
             Balances::free_balance(BLOCK_AUTHOR),
             author_initial_balance + fee_weight + fee_length

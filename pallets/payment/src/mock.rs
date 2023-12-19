@@ -28,6 +28,7 @@ use frame_support::{
 };
 use frame_support_test::TestRandomness;
 use frame_system as system;
+use pallet_gear_voucher::VoucherId;
 use pallet_transaction_payment::CurrencyAdapter;
 use parity_scale_codec::{Decode, Encode};
 use primitive_types::H256;
@@ -225,12 +226,7 @@ pub struct DelegateFeeAccountBuilder;
 impl DelegateFee<RuntimeCall, AccountId> for DelegateFeeAccountBuilder {
     fn delegate_fee(call: &RuntimeCall, who: &AccountId) -> Option<AccountId> {
         match call {
-            RuntimeCall::GearVoucher(pallet_gear_voucher::Call::call {
-                call: pallet_gear_voucher::PrepaidCall::SendMessage { .. },
-            }) => Some(FEE_PAYER),
-            RuntimeCall::GearVoucher(pallet_gear_voucher::Call::call { call }) => {
-                GearVoucher::sponsor_of(who, call)
-            }
+            RuntimeCall::GearVoucher(voucher_call) => voucher_call.sponsored_by(*who),
             _ => None,
         }
     }
@@ -296,4 +292,22 @@ impl common::ExtractCall<RuntimeCall> for TestXt<RuntimeCall, ()> {
     fn extract_call(&self) -> RuntimeCall {
         self.call.clone()
     }
+}
+
+pub fn get_last_voucher_id() -> VoucherId {
+    System::events()
+        .iter()
+        .rev()
+        .filter_map(|r| {
+            if let RuntimeEvent::GearVoucher(e) = r.event.clone() {
+                Some(e)
+            } else {
+                None
+            }
+        })
+        .find_map(|e| match e {
+            pallet_gear_voucher::Event::VoucherIssued { voucher_id } => Some(voucher_id),
+            _ => None,
+        })
+        .expect("can't find message send event")
 }

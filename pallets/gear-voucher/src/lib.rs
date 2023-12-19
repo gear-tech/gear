@@ -67,7 +67,7 @@ use frame_support::{
 use gear_core::ids::{MessageId, ProgramId};
 pub use primitive_types::H256;
 use sp_io::hashing::blake2_256;
-use sp_runtime::traits::{StaticLookup, TrailingZeroInput};
+use sp_runtime::traits::TrailingZeroInput;
 use sp_std::{convert::TryInto, vec::Vec};
 pub use weights::WeightInfo;
 
@@ -77,7 +77,6 @@ pub use pallet::*;
 type AccountIdOf<T> = <T as frame_system::Config>::AccountId;
 type BalanceOf<T> =
     <<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
-type AccountIdLookupOf<T> = <<T as frame_system::Config>::Lookup as StaticLookup>::Source;
 
 /// The current storage version.
 const STORAGE_VERSION: StorageVersion = StorageVersion::new(0);
@@ -130,18 +129,11 @@ pub mod pallet {
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
     pub enum Event<T: Config> {
-        /// A new voucher issued.
-        VoucherIssued {
-            holder: T::AccountId,
-            program: ProgramId,
-            value: BalanceOf<T>,
-        },
+        /// Voucher has been issued.
+        VoucherIssued { voucher_id: VoucherId },
 
-        /// Revokable voucher (v2) has been updated.
+        /// Voucher has been updated.
         VoucherUpdated { voucher_id: VoucherId },
-
-        /// Revokable voucher (v2) has been issued.
-        RevokableVoucherIssued { voucher_id: VoucherId },
 
         /// Voucher has been refunded and deleted by owner.
         VoucherRevoked { voucher_id: VoucherId },
@@ -183,63 +175,9 @@ pub mod pallet {
     where
         T::AccountId: Origin,
     {
-        /// Issue a new voucher for a `user` to be used to pay for sending messages
-        /// to `program_id` program.
-        ///
-        /// The dispatch origin for this call must be _Signed_.
-        ///
-        /// - `to`: The voucher holder account id.
-        /// - `program`: The program id, messages to whom can be paid with the voucher.
-        /// NOTE: the fact a program with such id exists in storage is not checked - it's
-        /// a caller's responsibility to ensure the consistency of the input parameters.
-        /// - `amount`: The voucher amount.
-        ///
-        /// ## Complexity
-        /// O(Z + C) where Z is the length of the call and C its execution weight.
         #[pallet::call_index(0)]
-        #[pallet::weight(<T as Config>::WeightInfo::issue())]
-        pub fn issue(
-            origin: OriginFor<T>,
-            to: AccountIdLookupOf<T>,
-            program: ProgramId,
-            value: BalanceOf<T>,
-        ) -> DispatchResultWithPostInfo {
-            let who = ensure_signed(origin)?;
-            let to = T::Lookup::lookup(to)?;
-
-            // Generate unique account id corresponding to the pair (user, program)
-            let voucher_id = Self::voucher_id(&to, &program);
-
-            // Transfer funds to the keyless account
-            T::Currency::transfer(&who, &voucher_id, value, ExistenceRequirement::KeepAlive)
-                .map_err(|_| Error::<T>::BalanceTransfer)?;
-
-            Self::deposit_event(Event::VoucherIssued {
-                holder: to,
-                program,
-                value,
-            });
-
-            Ok(().into())
-        }
-
-        /// Dispatch allowed with voucher call.
-        #[pallet::call_index(1)]
-        #[pallet::weight(T::CallsDispatcher::weight(call))]
-        pub fn call(
-            origin: OriginFor<T>,
-            call: PrepaidCall<BalanceOf<T>>,
-        ) -> DispatchResultWithPostInfo {
-            let origin = ensure_signed(origin)?;
-
-            let sponsor = Self::sponsor_of(&origin, &call).ok_or(Error::<T>::InexistentVoucher)?;
-
-            T::CallsDispatcher::dispatch(origin, sponsor, call)
-        }
-
-        #[pallet::call_index(2)]
         #[pallet::weight(Weight::zero())] // TODO (breathx)
-        pub fn new_issue(
+        pub fn issue(
             origin: OriginFor<T>,
             spender: AccountIdOf<T>,
             balance: BalanceOf<T>,
@@ -275,12 +213,26 @@ pub mod pallet {
 
             Vouchers::<T>::insert(spender, voucher_id, voucher_info);
 
-            Self::deposit_event(Event::RevokableVoucherIssued { voucher_id });
+            Self::deposit_event(Event::VoucherIssued { voucher_id });
 
             Ok(().into())
         }
 
-        #[pallet::call_index(3)]
+        #[pallet::call_index(1)]
+        #[pallet::weight(T::CallsDispatcher::weight(call))] // TODO (breathx)
+        pub fn call(
+            origin: OriginFor<T>,
+            voucher_id: VoucherId,
+            call: PrepaidCall<BalanceOf<T>>,
+        ) -> DispatchResultWithPostInfo {
+            let origin = ensure_signed(origin)?;
+
+            Self::validate_prepaid(origin.clone(), voucher_id, &call)?;
+
+            T::CallsDispatcher::dispatch(origin, voucher_id.cast(), call)
+        }
+
+        #[pallet::call_index(2)]
         #[pallet::weight(Weight::zero())] // TODO (breathx)
         pub fn revoke(
             origin: OriginFor<T>,
@@ -316,7 +268,7 @@ pub mod pallet {
             Ok(().into())
         }
 
-        #[pallet::call_index(4)]
+        #[pallet::call_index(3)]
         #[pallet::weight(Weight::zero())] // TODO (breathx)
         pub fn update(
             origin: OriginFor<T>,
@@ -375,18 +327,18 @@ pub mod pallet {
             Ok(().into())
         }
 
-        #[pallet::call_index(5)]
-        #[pallet::weight(T::CallsDispatcher::weight(call))] // TODO (breathx)
-        pub fn call_new(
+        /// Dispatch allowed with voucher call.
+        #[pallet::call_index(4)]
+        #[pallet::weight(T::CallsDispatcher::weight(call))]
+        pub fn call_deprecated(
             origin: OriginFor<T>,
-            voucher_id: VoucherId,
             call: PrepaidCall<BalanceOf<T>>,
         ) -> DispatchResultWithPostInfo {
             let origin = ensure_signed(origin)?;
 
-            Self::validate_prepaid(origin.clone(), voucher_id, &call)?;
+            let sponsor = Self::sponsor_of(&origin, &call).ok_or(Error::<T>::InexistentVoucher)?;
 
-            T::CallsDispatcher::dispatch(origin, voucher_id.cast(), call)
+            T::CallsDispatcher::dispatch(origin, sponsor, call)
         }
     }
 }
