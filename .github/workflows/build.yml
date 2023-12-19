@@ -81,7 +81,7 @@ jobs:
         run: ./scripts/gear.sh test gear --exclude gclient --exclude gcli --exclude gsdk --release --locked
 
       - name: "Test: gsdk tests"
-        run: ./scripts/gear.sh test gsdk --release --retries 3
+        run: ./scripts/gear.sh test gsdk --release
 
       - name: "Test: `gcli`"
         env:
@@ -89,7 +89,7 @@ jobs:
         run: ./scripts/gear.sh test gcli --release --locked --retries 3
 
       - name: "Test: Client tests"
-        run: ./scripts/gear.sh test client --release --retries 3
+        run: ./scripts/gear.sh test client --release
 
       - name: "Test: Runtime benchmarks and benchmark tests work"
         run: |
@@ -174,7 +174,7 @@ jobs:
 
       - name: Upload artifacts
         if: github.event_name == 'push'
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           path: artifact
 
