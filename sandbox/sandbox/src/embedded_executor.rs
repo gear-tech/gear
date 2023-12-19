@@ -528,14 +528,14 @@ mod tests {
 				;; assert that $x = 0x12345678
 				(call $assert
 					(i32.eq
-						(get_local $x)
+						(local.get $x)
 						(i32.const 0x12345678)
 					)
 				)
 
 				(call $assert
 					(i64.eq
-						(get_local $y)
+						(local.get $y)
 						(i64.const 0x1234567887654321)
 					)
 				)
@@ -562,7 +562,7 @@ mod tests {
 
 			(func (export "call") (param $x i32) (result i32)
 				(i32.add
-					(get_local $x)
+					(local.get $x)
 					(i32.const 1)
 				)
 			)
