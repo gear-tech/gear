@@ -30,14 +30,13 @@ use std::{
 fn demo_messager() -> Result<PathBuf> {
     let path = PathBuf::from(env::bin("demo_messager"));
 
-    if !path.exists() {
-        if !Command::new("cargo")
-            .args(&["build", "-p", "demo-messager", "--features", "gcli"])
+    if !path.exists()
+        && !Command::new("cargo")
+            .args(["build", "-p", "demo-messager", "--features", "gcli"])
             .status()?
             .success()
-        {
-            return Err(anyhow!("Failed to build demo-messager with feature gcli"));
-        }
+    {
+        return Err(anyhow!("Failed to build demo-messager with feature gcli"));
     }
 
     Ok(path)
