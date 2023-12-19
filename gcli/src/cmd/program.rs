@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Command `program`.
-use crate::{meta::Meta, result::Result, utils, App};
+use crate::{meta::Meta, result::Result, App};
 use clap::Parser;
 use gsdk::{ext::sp_core::H256, Api};
 use std::{fs, path::PathBuf};
@@ -33,8 +33,8 @@ pub enum Program {
         ///
         /// - "*.meta.txt" describes the metadata of the program
         /// - "*.meta.wasm" describes the wasm exports of the program
-        #[arg(short, long)]
-        meta: Option<PathBuf>,
+        #[cfg_attr(feature = "embed", clap(skip))]
+        meta: PathBuf,
         /// Overridden metadata binary if feature embed is enabled.
         #[clap(skip)]
         meta_override: Vec<u8>,
@@ -98,7 +98,7 @@ impl Program {
                 meta_override,
             } => {
                 let meta = if meta_override.is_empty() {
-                    Self::resolve_meta(&utils::meta_path(meta.clone(), "meta")?)
+                    Self::resolve_meta(meta)
                 } else {
                     Meta::decode_wasm(meta_override)
                 }?;

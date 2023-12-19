@@ -20,7 +20,7 @@
 
 use crate::result::Result;
 use anyhow::anyhow;
-use std::{env, fs, path::PathBuf};
+use std::{fs, path::PathBuf};
 
 /// home directory of cli `gear`
 pub fn home() -> PathBuf {
@@ -31,26 +31,6 @@ pub fn home() -> PathBuf {
     }
 
     home
-}
-
-/// Parse the metadata path with result.
-pub fn meta_path(meta: Option<PathBuf>, opt: &str) -> Result<PathBuf> {
-    if let Some(meta) = meta {
-        return Ok(meta);
-    }
-
-    let cwd = env::current_dir()?;
-    for entry in fs::read_dir(&cwd)? {
-        let file = entry?.path();
-        if file.ends_with(".meta.wasm") {
-            return Ok(file);
-        }
-    }
-
-    Err(anyhow!(
-        "Could not find any *.meta.wasm in {cwd:?}, please specify the metadata path with --{opt}",
-    )
-    .into())
 }
 
 pub trait Hex {
