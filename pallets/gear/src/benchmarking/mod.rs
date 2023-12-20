@@ -283,7 +283,7 @@ where
         RawOrigin::Signed(caller).into(),
         program_id,
         program.allocations,
-        CodeId::from_origin(program.code_hash),
+        program.code_hash.cast(),
     )
     .expect("failed to start resume session");
 
@@ -469,8 +469,8 @@ benchmarks! {
         let program_id = benchmarking::account::<T::AccountId>("program", 0, 100);
         CurrencyOf::<T>::deposit_creating(&program_id, 100_000_000_000_000_u128.unique_saturated_into());
         let code = benchmarking::generate_wasm2(16.into()).unwrap();
-        benchmarking::set_program::<ProgramStorageOf::<T>, _>(ProgramId::from_origin(program_id.clone().into_origin()), code, 1.into());
-        let original_message_id = MessageId::from_origin(benchmarking::account::<T::AccountId>("message", 0, 100).into_origin());
+        benchmarking::set_program::<ProgramStorageOf::<T>, _>(program_id.clone().cast(), code, 1.into());
+        let original_message_id = benchmarking::account::<T::AccountId>("message", 0, 100).cast();
         let gas_limit = 50000;
         let value = 10000u32.into();
         let multiplier = <T as pallet_gear_bank::Config>::GasMultiplier::get();
@@ -479,8 +479,8 @@ benchmarks! {
         GearBank::<T>::deposit_value(&program_id, value, true).unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
         MailboxOf::<T>::insert(gear_core::message::StoredMessage::new(
             original_message_id,
-            ProgramId::from_origin(program_id.into_origin()),
-            ProgramId::from_origin(caller.clone().into_origin()),
+            program_id.cast(),
+            caller.clone().cast(),
             Default::default(),
             value.unique_saturated_into(),
             None,
@@ -531,7 +531,7 @@ benchmarks! {
             .try_into()
             .expect("program should be active");
         ProgramStorageOf::<T>::pause_program(program_id, 100u32.into()).unwrap();
-    }: _(RawOrigin::Signed(caller.clone()), program_id, program.allocations, CodeId::from_origin(program.code_hash))
+    }: _(RawOrigin::Signed(caller.clone()), program_id, program.allocations, program.code_hash.cast())
     verify {
         assert!(ProgramStorageOf::<T>::paused_program_exists(&program_id));
         assert!(
@@ -695,7 +695,7 @@ benchmarks! {
         let caller = benchmarking::account("caller", 0, 0);
         CurrencyOf::<T>::deposit_creating(&caller, 100_000_000_000_000_u128.unique_saturated_into());
         let minimum_balance = CurrencyOf::<T>::minimum_balance();
-        let program_id = ProgramId::from_origin(benchmarking::account::<T::AccountId>("program", 0, 100).into_origin());
+        let program_id = benchmarking::account::<T::AccountId>("program", 0, 100).cast();
         let code = benchmarking::generate_wasm2(16.into()).unwrap();
         benchmarking::set_program::<ProgramStorageOf::<T>, _>(program_id, code, 1.into());
         let payload = vec![0_u8; p as usize];
@@ -714,8 +714,8 @@ benchmarks! {
         let program_id = benchmarking::account::<T::AccountId>("program", 0, 100);
         CurrencyOf::<T>::deposit_creating(&program_id, 100_000_000_000_000_u128.unique_saturated_into());
         let code = benchmarking::generate_wasm2(16.into()).unwrap();
-        benchmarking::set_program::<ProgramStorageOf::<T>, _>(ProgramId::from_origin(program_id.clone().into_origin()), code, 1.into());
-        let original_message_id = MessageId::from_origin(benchmarking::account::<T::AccountId>("message", 0, 100).into_origin());
+        benchmarking::set_program::<ProgramStorageOf::<T>, _>(program_id.clone().cast(), code, 1.into());
+        let original_message_id = benchmarking::account::<T::AccountId>("message", 0, 100).cast();
         let gas_limit = 50000;
         let value = (p % 2).into();
         let multiplier = <T as pallet_gear_bank::Config>::GasMultiplier::get();
@@ -724,8 +724,8 @@ benchmarks! {
         GearBank::<T>::deposit_value(&program_id, value, true).unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
         MailboxOf::<T>::insert(gear_core::message::StoredMessage::new(
             original_message_id,
-            ProgramId::from_origin(program_id.into_origin()),
-            ProgramId::from_origin(caller.clone().into_origin()),
+            program_id.cast(),
+            caller.clone().cast(),
             Default::default(),
             value.unique_saturated_into(),
             None,
@@ -2851,7 +2851,7 @@ benchmarks! {
         let (user, message_id) = tasks::remove_from_mailbox::<T>();
         let mut ext_manager = ExtManager::<T>::default();
     }: {
-        ext_manager.remove_from_mailbox(T::AccountId::from_origin(user.into_origin()), message_id);
+        ext_manager.remove_from_mailbox(user.cast(), message_id);
     }
 
     tasks_pause_program {

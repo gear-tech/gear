@@ -466,8 +466,8 @@ where
         Self::consume_and_retrieve(mailboxed.id());
 
         // Taking data for funds transfer.
-        let user_id = <T::AccountId as Origin>::from_origin(mailboxed.destination().into_origin());
-        let from = <T::AccountId as Origin>::from_origin(mailboxed.source().into_origin());
+        let user_id = mailboxed.destination().cast();
+        let from = mailboxed.source().cast();
 
         // Transferring reserved funds, associated with the message.
         GearBank::<T>::transfer_value(&from, &user_id, mailboxed.value().unique_saturated_into())
@@ -528,7 +528,7 @@ where
             .unwrap_or_else(|| origin_msg.into());
 
         // Taking data for funds manipulations.
-        let from = <T::AccountId as Origin>::from_origin(dispatch.source().into_origin());
+        let from = dispatch.source().cast();
         let value = dispatch.value().unique_saturated_into();
 
         // `HoldBound` builder.
@@ -731,8 +731,8 @@ where
             .unwrap_or_else(|_| unreachable!("Signal message sent to user"));
 
         // Taking data for funds manipulations.
-        let from = <T::AccountId as Origin>::from_origin(message.source().into_origin());
-        let to = <T::AccountId as Origin>::from_origin(message.destination().into_origin());
+        let from = message.source().cast();
+        let to = message.destination().cast();
         let value = message.value().unique_saturated_into();
 
         // If gas limit can cover threshold, message will be added to mailbox,
@@ -842,8 +842,8 @@ where
         };
 
         // Taking data for funds manipulations.
-        let from = <T::AccountId as Origin>::from_origin(message.source().into_origin());
-        let to = <T::AccountId as Origin>::from_origin(message.destination().into_origin());
+        let from = message.source().cast();
+        let to = message.destination().cast();
         let value = message.value().unique_saturated_into();
 
         // If gas limit can cover threshold, message will be added to mailbox,

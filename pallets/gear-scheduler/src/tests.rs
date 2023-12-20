@@ -51,9 +51,9 @@ fn dispatch_from(src: impl Into<ProgramId>) -> StoredDispatch {
     StoredDispatch::new(
         DispatchKind::Handle,
         StoredMessage::new(
-            MessageId::from_origin(H256::random().into_origin()),
+            H256::random().cast(),
             src.into(),
-            ProgramId::from_origin(H256::random().into_origin()),
+            H256::random().cast(),
             Default::default(),
             0,
             None,
@@ -111,7 +111,7 @@ fn out_of_rent_reply_exists(
     mid: impl Into<MessageId>,
     pid: impl Into<ProgramId>,
 ) -> bool {
-    let src = ProgramId::from_origin(user_id.into_origin());
+    let src = user_id.cast();
     let mid = mid.into();
     let pid = pid.into();
 

@@ -24,7 +24,6 @@
 #![doc(html_favicon_url = "https://gear-tech.io/favicons/favicon.ico")]
 
 use gear_common::Origin;
-use gear_core::ids::{CodeId, MessageId, ProgramId};
 use gear_core_errors::*;
 use jsonrpsee::{
     core::{async_trait, Error as JsonRpseeError, RpcResult},
@@ -272,7 +271,7 @@ where
         let GasInfo { min_limit, .. } = self.calculate_gas_info(
             at_hash,
             source,
-            HandleKind::InitByHash(CodeId::from_origin(code_id)),
+            HandleKind::InitByHash(code_id.cast()),
             payload.to_vec(),
             value,
             allow_other_panics,
@@ -282,7 +281,7 @@ where
         self.calculate_gas_info(
             at_hash,
             source,
-            HandleKind::InitByHash(CodeId::from_origin(code_id)),
+            HandleKind::InitByHash(code_id.cast()),
             payload.to_vec(),
             value,
             allow_other_panics,
@@ -336,7 +335,7 @@ where
         let GasInfo { min_limit, .. } = self.calculate_gas_info(
             at_hash,
             source,
-            HandleKind::Handle(ProgramId::from_origin(dest)),
+            HandleKind::Handle(dest.cast()),
             payload.to_vec(),
             value,
             allow_other_panics,
@@ -346,7 +345,7 @@ where
         self.calculate_gas_info(
             at_hash,
             source,
-            HandleKind::Handle(ProgramId::from_origin(dest)),
+            HandleKind::Handle(dest.cast()),
             payload.to_vec(),
             value,
             allow_other_panics,
@@ -369,7 +368,7 @@ where
             at_hash,
             source,
             HandleKind::Reply(
-                MessageId::from_origin(message_id),
+                message_id.cast(),
                 ReplyCode::Success(SuccessReplyReason::Manual),
             ),
             payload.to_vec(),
@@ -382,7 +381,7 @@ where
             at_hash,
             source,
             HandleKind::Reply(
-                MessageId::from_origin(message_id),
+                message_id.cast(),
                 ReplyCode::Success(SuccessReplyReason::Manual),
             ),
             payload.to_vec(),

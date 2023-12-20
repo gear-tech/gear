@@ -97,7 +97,8 @@ impl Info {
     }
 }
 
-struct Mail {
+/// Program mail for display
+pub(crate) struct Mail {
     message: UserStoredMessage,
     interval: Interval<u32>,
 }

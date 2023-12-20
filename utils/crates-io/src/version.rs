@@ -18,8 +18,9 @@
 
 //! Crate verifier
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use serde::Deserialize;
+use std::process::Command;
 
 #[derive(Debug, Deserialize)]
 struct Resp {
@@ -43,4 +44,16 @@ pub fn verify(name: &str, version: &str) -> Result<bool> {
         .json::<Resp>()?;
 
     Ok(resp.versions.into_iter().any(|v| v.num == version))
+}
+
+/// Get the short hash of the current commit.
+pub fn hash() -> Result<String> {
+    Ok(Command::new("git")
+        .args(["rev-parse", "--short", "HEAD"])
+        .output()
+        .map_err(|e| anyhow!("failed to execute command git, {e}"))?
+        .stdout
+        .iter()
+        .filter_map(|&c| (!c.is_ascii_whitespace()).then_some(c as char))
+        .collect())
 }
