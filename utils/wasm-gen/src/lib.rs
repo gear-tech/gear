@@ -77,3 +77,4 @@ pub fn generate_gear_program_module(
 // TODOs:
 // 2. re-write docs to all types (separate PR)
 // 4. check works correctly for non zero hashes.
+// 5. update tasks list for fuzzer

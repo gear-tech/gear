@@ -55,6 +55,46 @@ pub struct SyscallsParamsConfig {
 }
 
 impl SyscallsParamsConfig {
+    pub fn default_regular() -> Self {
+        use RegularParamType::*;
+
+        let free_start = DEFAULT_INITIAL_SIZE as i64;
+        let free_end = free_start + 5;
+
+        let mut this = Self::empty();
+
+        // Setting regular params rules.
+        this.set_rule(Length, (0..=1600).into());
+        this.set_rule(Gas, (0..=250_000_000_000).into());
+        this.set_rule(Offset, (0..=10).into());
+        this.set_rule(DurationBlockNumber, (1..=8).into());
+        this.set_rule(DelayBlockNumber, (0..=4).into());
+        this.set_rule(Handler, (0..=100).into());
+        this.set_rule(Free, (free_start..=free_end).into());
+        this.set_rule(FreeUpperBound, (0..=10).into());
+        this.set_rule(Version, (1..=1).into());
+
+        this
+    }
+
+    pub fn default_ptr() -> Self {
+        let mut this = Self::empty();
+
+        // Setting ptr params rules.
+        this.set_ptr_rule(PtrParamAllowedValues::Value(0..=100_000_000_000));
+        PtrParamAllowedValues::all_hash_with_range(0..=100_000_000_000)
+            .into_iter()
+            .for_each(|rule| this.set_ptr_rule(rule));
+
+        this.set_ptr_rule(PtrParamAllowedValues::TwoHashesWithValue {
+            ty1: HashType::ReservationId,
+            ty2: HashType::ActorId,
+            range: 0..=100_000_000_000,
+        });
+
+        this
+    }
+
     pub fn empty() -> Self {
         Self {
             regular: HashMap::new(),
@@ -120,7 +160,7 @@ impl SyscallsParamsConfig {
             | Gas
             | Length
             | BlockNumberWithHash(_)
-            => panic!("Impossible to set rules for param defined by `SyscallsParamsConfig`."),
+            => panic!("Impossible to set rules for non ptr params."),
             MutBlockNumber
             | MutBlockTimestamp
             | MutSizedBufferStart { .. }
@@ -141,37 +181,10 @@ impl SyscallsParamsConfig {
 
 impl Default for SyscallsParamsConfig {
     fn default() -> Self {
-        use RegularParamType::*;
+        let SyscallsParamsConfig { regular, .. } = Self::default_regular();
+        let SyscallsParamsConfig { ptr, .. } = Self::default_ptr();
 
-        let free_start = DEFAULT_INITIAL_SIZE as i64;
-        let free_end = free_start + 5;
-
-        let mut this = Self::empty();
-
-        // Setting regular params rules.
-        this.set_rule(Length, (0..=1600).into());
-        this.set_rule(Gas, (0..=250_000_000_000).into());
-        this.set_rule(Offset, (0..=10).into());
-        this.set_rule(DurationBlockNumber, (1..=8).into());
-        this.set_rule(DelayBlockNumber, (0..=4).into());
-        this.set_rule(Handler, (0..=100).into());
-        this.set_rule(Free, (free_start..=free_end).into());
-        this.set_rule(FreeUpperBound, (0..=10).into());
-        this.set_rule(Version, (1..=1).into());
-
-        // Setting ptr params rules.
-        this.set_ptr_rule(PtrParamAllowedValues::Value(0..=100_000_000_000));
-        PtrParamAllowedValues::all_hash_with_range(0..=100_000_000_000)
-            .into_iter()
-            .for_each(|rule| this.set_ptr_rule(rule));
-
-        this.set_ptr_rule(PtrParamAllowedValues::TwoHashesWithValue {
-            ty1: HashType::ReservationId,
-            ty2: HashType::ActorId,
-            range: 0..=100_000_000_000,
-        });
-
-        this
+        Self { regular, ptr }
     }
 }
 
@@ -296,14 +309,14 @@ impl PtrParamAllowedValues {
 
     fn get_for_instructions<const N: usize>(raw_data: [u8; N]) -> Vec<i32> {
         let data_size = mem::size_of_val(&raw_data);
-        let wasm_ptr = mem::size_of::<i32>();
+        let wasm_ptr_size = mem::size_of::<i32>();
 
-        let chunk_size = (data_size % wasm_ptr == 0)
-            .then_some(data_size / wasm_ptr)
-            .unwrap_or_else(|| panic!("data size isn't multiply of wasm word size"));
+        if data_size % wasm_ptr_size != 0 {
+            panic!("data size isn't multiply of wasm word size")
+        }
 
         raw_data
-            .chunks(chunk_size)
+            .chunks(wasm_ptr_size)
             .map(|word_bytes| {
                 i32::from_le_bytes(
                     word_bytes

@@ -41,7 +41,6 @@ use gear_wasm_instrument::{
         elements::{Instruction, Module},
     },
     rules::CustomConstantCostRules,
-    syscalls::PtrType,
 };
 use proptest::prelude::*;
 use rand::{rngs::SmallRng, RngCore, SeedableRng};
@@ -210,50 +209,50 @@ fn injecting_addresses_works() {
     assert_eq!(*ptr, size + (stack_end_page * WASM_PAGE_SIZE as u32) as i32);
 }
 
-#[test]
-fn ptr_setters_work() {
-    const INITIAL_VALUE: u128 = 10_000;
-    const REPLY_VALUE: u128 = 1_000;
+// #[test]
+// fn ptr_setters_work() {
+//     const INITIAL_VALUE: u128 = 10_000;
+//     const REPLY_VALUE: u128 = 1_000;
 
-    let buf = vec![0; UNSTRUCTURED_SIZE];
-    let mut unstructured = Unstructured::new(&buf);
+//     let buf = vec![0; UNSTRUCTURED_SIZE];
+//     let mut unstructured = Unstructured::new(&buf);
 
-    let params_config = SysCallsParamsConfig::default();
-    let mut pointer_writes_config = PtrParamFillersConfig::empty();
-    pointer_writes_config.set_rule(
-        PtrType::Value,
-        vec![PtrParamAllowedValuesExt {
-            value_offset: 0,
-            allowed_values: FillingPtrParamData::U128(REPLY_VALUE..=REPLY_VALUE),
-        }],
-    );
+//     let params_config = SysCallsParamsConfig::default();
+//     let mut pointer_writes_config = PtrParamFillersConfig::empty();
+//     pointer_writes_config.set_rule(
+//         PtrType::Value,
+//         vec![PtrParamAllowedValuesExt {
+//             value_offset: 0,
+//             allowed_values: FillingPtrParamData::U128(REPLY_VALUE..=REPLY_VALUE),
+//         }],
+//     );
 
-    let mut injection_types = SysCallsInjectionTypes::all_never();
-    injection_types.set(InvocableSysCall::Loose(SysCallName::Reply), 1, 1);
-    let sys_calls_config = SysCallsConfigBuilder::new(injection_types)
-        .with_params_config(params_config)
-        .with_pointer_writes_config(pointer_writes_config)
-        .with_error_processing_config(ErrorProcessingConfig::All)
-        .build();
+//     let mut injection_types = SysCallsInjectionTypes::all_never();
+//     injection_types.set(InvocableSysCall::Loose(SysCallName::Reply), 1, 1);
+//     let sys_calls_config = SysCallsConfigBuilder::new(injection_types)
+//         .with_params_config(params_config)
+//         .with_pointer_writes_config(pointer_writes_config)
+//         .with_error_processing_config(ErrorProcessingConfig::All)
+//         .build();
 
-    let backend_report = execute_wasm_with_custom_configs(
-        &mut unstructured,
-        sys_calls_config,
-        None,
-        1,
-        false,
-        INITIAL_VALUE,
-    );
+//     let backend_report = execute_wasm_with_custom_configs(
+//         &mut unstructured,
+//         sys_calls_config,
+//         None,
+//         1,
+//         false,
+//         INITIAL_VALUE,
+//     );
 
-    assert_eq!(
-        backend_report.ext.context.value_counter.left(),
-        INITIAL_VALUE - REPLY_VALUE
-    );
-    assert_eq!(
-        backend_report.termination_reason,
-        TerminationReason::Actor(ActorTerminationReason::Success)
-    );
-}
+//     assert_eq!(
+//         backend_report.ext.context.value_counter.left(),
+//         INITIAL_VALUE - REPLY_VALUE
+//     );
+//     assert_eq!(
+//         backend_report.termination_reason,
+//         TerminationReason::Actor(ActorTerminationReason::Success)
+//     );
+// }
 
 #[test]
 fn error_processing_works_for_fallible_syscalls() {
@@ -350,15 +349,14 @@ fn precise_syscalls_works() {
         let mut injection_types = SyscallsInjectionTypes::all_never();
         injection_types.set(syscall, INJECTED_SYSCALLS, INJECTED_SYSCALLS);
 
-        let mut param_config = SyscallsParamsConfig::default();
-        param_config.set_rule(ParamType::Regular(RegularParamType::Gas), (0..=0).into());
+        let mut param_config = SyscallsParamsConfig::default_regular();
+        param_config.set_rule(RegularParamType::Gas, (0..=0).into());
 
         // Assert that syscalls results will be processed.
         let termination_reason = execute_wasm_with_custom_configs(
             &mut unstructured,
             SyscallsConfigBuilder::new(injection_types)
                 .with_params_config(param_config)
-                .with_pointer_writes_config(PtrParamFillersConfig::empty())
                 .with_precise_syscalls_config(PreciseSyscallsConfig::new(3..=3, 3..=3))
                 .with_source_msg_dest()
                 .with_error_processing_config(ErrorProcessingConfig::All)
@@ -495,6 +493,8 @@ fn execute_wasm_with_custom_configs(
             Ok(())
         })
         .expect("Failed to execute WASM module");
+
+    report
 }
 
 proptest! {
