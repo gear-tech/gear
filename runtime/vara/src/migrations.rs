@@ -94,6 +94,9 @@ impl<
 ///
 /// Should be cleared after every release.
 pub type Migrations = (
+    // v1030
+    UpdatePalletsVersions<Runtime>,
+    pallet_offences::migration::v1::MigrateToV1<Runtime>,
     // v1040
     pallet_im_online::migration::v1::Migration<Runtime>,
 );
