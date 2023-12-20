@@ -32,10 +32,9 @@ use gear_wasm_instrument::{
     parity_wasm::elements::{BlockType, Instruction, Internal, ValueType},
     syscalls::{
         FallibleSyscallSignature, ParamType, Ptr, RegularParamType, SyscallName, SyscallSignature,
-        SystemSyscallSignature,
+        SystemSyscallSignature, HashType,
     },
 };
-use gsys::Hash;
 use std::{
     collections::{btree_map::Entry, BTreeMap, BinaryHeap, HashSet},
     fmt::{self, Debug, Display},
@@ -326,6 +325,17 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
         call_indexes_handle: CallIndexesHandle,
         destination_arg_idx: usize,
     ) -> Result<Vec<Instruction>> {
+        use ParamType::*;
+        use RegularParamType::*;
+
+        // Check syscall destination param type.
+        let Regular(Pointer(ptr @ Ptr::HashWithValue(HashType::ActorId))) = invocable.into_signature().params()[destination_arg_idx] else {
+            panic!(
+                "{syscall_str} syscall's param under index {destination_arg_idx} is not `HashWithValue`",
+                syscall_str = invocable.to_str(),
+            )
+        };
+
         // The value for the destination param is chosen from config.
         // It's either the result of `gr_source`, some existing address (set in the data section) or a completely random value.
         let mut original_instructions = self.build_call(invocable, call_indexes_handle)?;
@@ -349,30 +359,35 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                 .memory_size();
             // Subtract a bit more so entities from `gsys` fit.
             let upper_limit = mem_size.saturating_sub(100);
-            let offset = self.unstructured.int_in_range(0..=upper_limit)?;
+            let offset = self.unstructured.int_in_range(0..=upper_limit)? as i32;
 
-            // 3 instructions for invoking `gsys::gr_source` and possibly 3 more
-            // for defining value param so HashWithValue will be constructed.
-            let mut ret = Vec::with_capacity(6);
+            let mut ret = if invocable.has_destination_param_with_value() {
+                let data = if let Some(allowed_values) = self.config.params_config().get_ptr_rule(ptr) {
+                    allowed_values.get(self.unstructured)?
+                } else {
+                    PtrParamAllowedValues::default_hash_with_value()
+                };
+
+                // The last instruction is `I32Const(offset)`.
+                ParamsTranslator::new_i32_with_data(offset, data)
+                        .translate()
+            } else {
+                vec![Instruction::I32Const(offset)]
+            };
+
+            assert!(
+                matches!(ret.last(), Some(Instruction::I32Const(actual_offset)) if *actual_offset == offset),
+                "Invalid instructions prepared to set destination for the syscall."
+            );
+
             ret.extend_from_slice(&[
-                // call `gsys::gr_source` storing actor id and some `offset` pointer.
-                Instruction::I32Const(offset as i32),
+                // Call `gsys::gr_source` storing actor id at `offset`.
+                // If syscall has destination with value, then actor id
+                // bytes were already set. So it's only required to re-set
+                // actor id by calling `gr_source` on the same offset.
                 Instruction::Call(gr_source_call_indexes_handle),
-                Instruction::I32Const(offset as i32),
+                Instruction::I32Const(offset),
             ]);
-
-            if invocable.has_destination_param_with_value() {
-                // We have to skip actor id bytes to define the following value param.
-                let skip_bytes = mem::size_of::<Hash>();
-                ret.extend_from_slice(&[
-                    // Define 0 value for HashWithValue
-                    Instruction::I32Const(0),
-                    // Store value on the offset + skip_bytes. That will form HashWithValue.
-                    Instruction::I32Store(2, skip_bytes as u32),
-                    // Pass the offset as the first argument to the syscall with destination.
-                    Instruction::I32Const(offset as i32),
-                ]);
-            }
 
             ret
         } else {

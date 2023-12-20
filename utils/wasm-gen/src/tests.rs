@@ -209,10 +209,12 @@ fn injecting_addresses_works() {
     assert_eq!(*ptr, size + (stack_end_page * WASM_PAGE_SIZE as u32) as i32);
 }
 
-// test for syscalls with destination
-// test for syscalls with destination and existing addresses
+// TODO test for syscalls with destination and existing addresses
 
 // Syscalls of a `gr_*reply*` kind are the only of those, which has `Value` input param.
+// Message value param for these syscalls is set during the common syscalls params
+// processing flow.
+// todo check for precis reservation_reply
 #[test]
 fn test_msg_value_ptr() {
     const INITIAL_BALANCE: u128 = 10_000;
@@ -235,7 +237,7 @@ fn test_msg_value_ptr() {
         &mut unstructured,
         syscalls_config,
         None,
-        1,
+        1024,
         false,
         INITIAL_BALANCE,
     );
@@ -249,6 +251,64 @@ fn test_msg_value_ptr() {
         TerminationReason::Actor(ActorTerminationReason::Success)
     );
 }
+
+// Syscalls which have destination with value param.
+// Params for these syscalls aren't processed the usual way: destination argument is
+// set from existing config or set by calling `gr_source`. Should be mentioned that
+// destination is not only 32 bytes hash value, but a struct of hash and message value.
+// So here it tests that message value in this struct is properly set.
+#[test]
+fn test_msg_value_ptr_dest() {
+    gear_utils::init_default_logger();
+    const INITIAL_BALANCE: u128 = 10_000;
+    const REPLY_VALUE: u128 = 1_000;
+
+    let mut params_config = SyscallsParamsConfig::default_regular();
+    params_config.set_rule(RegularParamType::Gas, (0..=0).into());
+    params_config.set_ptr_rule(PtrParamAllowedValues::HashWithValue {
+        ty: HashType::ActorId,
+        range: REPLY_VALUE..=REPLY_VALUE,
+    });
+
+    let tested_syscalls = [
+        // InvocableSyscall::Loose(SyscallName::Send),
+        // InvocableSyscall::Loose(SyscallName::SendInput),
+        // InvocableSyscall::Precise(SyscallName::ReservationSend),
+        InvocableSyscall::Precise(SyscallName::SendCommit),
+        // InvocableSyscall::Precise(SyscallName::ReplyDeposit),
+    ];
+
+    for syscall in tested_syscalls {
+        let mut buf = vec![2; UNSTRUCTURED_SIZE];
+        let mut unstructured = Unstructured::new(&buf);
+
+        let mut injection_types = SyscallsInjectionTypes::all_never();
+        injection_types.set(syscall, 1, 1);
+        let syscalls_config = SyscallsConfigBuilder::new(injection_types)
+            .with_params_config(params_config.clone())
+            .with_error_processing_config(ErrorProcessingConfig::All)
+            .build();
+
+        let backend_report = execute_wasm_with_custom_configs(
+            &mut unstructured,
+            syscalls_config,
+            None,
+            1024,
+            false,
+            INITIAL_BALANCE,
+        );
+
+        assert_eq!(
+            backend_report.ext.context.value_counter.left(),
+            INITIAL_BALANCE - REPLY_VALUE
+        );
+        assert_eq!(
+            backend_report.termination_reason,
+            TerminationReason::Actor(ActorTerminationReason::Success)
+        );
+    }
+}
+
 
 #[test]
 fn error_processing_works_for_fallible_syscalls() {

@@ -266,6 +266,11 @@ pub enum PtrParamAllowedValues {
 }
 
 impl PtrParamAllowedValues {
+    const VALUE_WORDS: usize = mem::size_of::<u128>() / mem::size_of::<i32>();
+    const HASH_WORDS: usize = mem::size_of::<Hash>() / mem::size_of::<i32>();
+    const HASH_WITH_VALUE_WORDS: usize = Self::HASH_WORDS + Self::VALUE_WORDS;
+    const TWO_HASHES_WITH_VALUE_WORDS: usize = 2 * Self::HASH_WORDS + Self::VALUE_WORDS;
+
     pub fn all_hash_with_range(range: RangeInclusive<u128>) -> Vec<Self> {
         HashType::all()
             .into_iter()
@@ -281,14 +286,14 @@ impl PtrParamAllowedValues {
         match self {
             PtrParamAllowedValues::Value(range) => Self::get_value(unstructured, range.clone()),
             PtrParamAllowedValues::HashWithValue { range, .. } => {
-                let mut ret = Vec::with_capacity(8 + 4);
+                let mut ret = Vec::with_capacity(Self::HASH_WITH_VALUE_WORDS);
                 ret.extend(Self::get_default_hash());
                 ret.extend(Self::get_value(unstructured, range.clone())?);
 
                 Ok(ret)
             }
             PtrParamAllowedValues::TwoHashesWithValue { range, .. } => {
-                let mut ret = Vec::with_capacity(8 + 8 + 4);
+                let mut ret = Vec::with_capacity(Self::TWO_HASHES_WITH_VALUE_WORDS);
                 ret.extend(Self::get_default_hash());
                 ret.extend(Self::get_default_hash());
                 ret.extend(Self::get_value(unstructured, range.clone())?);
@@ -296,6 +301,10 @@ impl PtrParamAllowedValues {
                 Ok(ret)
             }
         }
+    }
+
+    pub(crate) fn default_hash_with_value() -> Vec<i32> {
+        vec![0i32; Self::HASH_WITH_VALUE_WORDS]
     }
 
     fn get_value(unstructured: &mut Unstructured, range: RangeInclusive<u128>) -> Result<Vec<i32>> {
