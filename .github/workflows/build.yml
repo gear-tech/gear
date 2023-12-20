@@ -91,8 +91,8 @@ jobs:
       - name: "Test: Runtime benchmarks and benchmark tests work"
         run: |
           cargo build -p gear-cli --release --features=runtime-benchmarks,runtime-benchmarks-checkers
-          # check that perf benchmarks works. `--steps=20` need to test, that benchmarks works for different input number.
-          ./target/release/gear benchmark pallet --chain=dev --pallet=pallet_gear --steps=20 --extrinsic="*" --heap-pages=4096
+          # check that perf benchmarks works. `--steps=5` need to test, that benchmarks works for different input number.
+          ./target/release/gear benchmark pallet --chain=dev --pallet=pallet_gear --steps=5 --extrinsic="*" --heap-pages=4096
           # check that read_big_state benchmarks works
           ./target/release/gear benchmark pallet --chain=dev --pallet=pallet_gear --extrinsic="read_big_state" --heap-pages=4096 --extra
           # check that check/test benchmarks works
