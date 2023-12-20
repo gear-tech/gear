@@ -211,8 +211,14 @@ where
             for note in journal {
                 core_processor::handle_journal(vec![note.clone()], &mut ext_manager);
 
-                if let Some(remaining_gas) = get_main_limit() {
-                    min_limit = min_limit.max(initial_gas.saturating_sub(remaining_gas));
+                match get_main_limit() {
+                    Some(remaining_gas) => {
+                        min_limit = min_limit.max(initial_gas.saturating_sub(remaining_gas))
+                    }
+                    None if matches!(note, JournalNote::WaitDispatch { .. }) => {
+                        min_limit = initial_gas
+                    }
+                    _ => (),
                 }
 
                 match note {
