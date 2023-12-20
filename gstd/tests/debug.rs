@@ -17,7 +17,7 @@ fn test_debug() {
     let value = 42;
 
     debug!("{value}");
-    assert!(unsafe { DEBUG_MSG == b"42" });
+    assert_eq!(unsafe { &DEBUG_MSG }, b"42");
 
     debug!("Formatted: value = {value}");
     assert_eq!(unsafe { &DEBUG_MSG }, b"Formatted: value = 42");
