@@ -1030,7 +1030,7 @@ impl JournalHandler for ExtManager {
         self.wait_list.insert((dest, id), dispatch);
         if let Some(duration) = duration {
             self.wait_list_schedules
-                .entry(self.block_info.height + duration)
+                .entry(self.block_info.height.saturating_add(duration))
                 .or_default()
                 .push((dest, id));
         }
