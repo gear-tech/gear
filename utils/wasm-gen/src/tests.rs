@@ -209,50 +209,46 @@ fn injecting_addresses_works() {
     assert_eq!(*ptr, size + (stack_end_page * WASM_PAGE_SIZE as u32) as i32);
 }
 
-// #[test]
-// fn ptr_setters_work() {
-//     const INITIAL_VALUE: u128 = 10_000;
-//     const REPLY_VALUE: u128 = 1_000;
+// test for syscalls with destination
+// test for syscalls with destination and existing addresses
 
-//     let buf = vec![0; UNSTRUCTURED_SIZE];
-//     let mut unstructured = Unstructured::new(&buf);
+// Syscalls of a `gr_*reply*` kind are the only of those, which has `Value` input param.
+#[test]
+fn test_msg_value_ptr() {
+    const INITIAL_BALANCE: u128 = 10_000;
+    const REPLY_VALUE: u128 = 1_000;
 
-//     let params_config = SysCallsParamsConfig::default();
-//     let mut pointer_writes_config = PtrParamFillersConfig::empty();
-//     pointer_writes_config.set_rule(
-//         PtrType::Value,
-//         vec![PtrParamAllowedValuesExt {
-//             value_offset: 0,
-//             allowed_values: FillingPtrParamData::U128(REPLY_VALUE..=REPLY_VALUE),
-//         }],
-//     );
+    let buf = vec![0; UNSTRUCTURED_SIZE];
+    let mut unstructured = Unstructured::new(&buf);
 
-//     let mut injection_types = SysCallsInjectionTypes::all_never();
-//     injection_types.set(InvocableSysCall::Loose(SysCallName::Reply), 1, 1);
-//     let sys_calls_config = SysCallsConfigBuilder::new(injection_types)
-//         .with_params_config(params_config)
-//         .with_pointer_writes_config(pointer_writes_config)
-//         .with_error_processing_config(ErrorProcessingConfig::All)
-//         .build();
+    let mut params_config = SyscallsParamsConfig::default_regular();
+    params_config.set_ptr_rule(PtrParamAllowedValues::Value(REPLY_VALUE..=REPLY_VALUE));
 
-//     let backend_report = execute_wasm_with_custom_configs(
-//         &mut unstructured,
-//         sys_calls_config,
-//         None,
-//         1,
-//         false,
-//         INITIAL_VALUE,
-//     );
+    let mut injection_types = SyscallsInjectionTypes::all_never();
+    injection_types.set(InvocableSyscall::Loose(SyscallName::Reply), 1, 1);
+    let syscalls_config = SyscallsConfigBuilder::new(injection_types)
+        .with_params_config(params_config)
+        .with_error_processing_config(ErrorProcessingConfig::All)
+        .build();
 
-//     assert_eq!(
-//         backend_report.ext.context.value_counter.left(),
-//         INITIAL_VALUE - REPLY_VALUE
-//     );
-//     assert_eq!(
-//         backend_report.termination_reason,
-//         TerminationReason::Actor(ActorTerminationReason::Success)
-//     );
-// }
+    let backend_report = execute_wasm_with_custom_configs(
+        &mut unstructured,
+        syscalls_config,
+        None,
+        1,
+        false,
+        INITIAL_BALANCE,
+    );
+
+    assert_eq!(
+        backend_report.ext.context.value_counter.left(),
+        INITIAL_BALANCE - REPLY_VALUE
+    );
+    assert_eq!(
+        backend_report.termination_reason,
+        TerminationReason::Actor(ActorTerminationReason::Success)
+    );
+}
 
 #[test]
 fn error_processing_works_for_fallible_syscalls() {
