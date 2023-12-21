@@ -20,8 +20,8 @@
 
 use super::{
     code::{
-        body::{self, unreachable_condition, DynInstr::*},
-        max_pages, DataSegment, ImportedMemory, ModuleDefinition, WasmModule,
+        body::{self, unreachable_condition_i32, DynInstr::*},
+        DataSegment, ImportedMemory, ModuleDefinition, WasmModule,
     },
     utils::{self, PrepareConfig},
     Exec, Program, API_BENCHMARK_BATCHES,
@@ -38,14 +38,14 @@ use gear_core::{
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{PageBuf, PageBufInner},
     message::{Message, Value},
-    pages::{GearPage, IntervalIterator, PageNumber, PageU32Size, WasmPage, WasmPagesAmount},
+    pages::{
+        GearPage, Interval, IntervalIterator, IntervalsTree, PageNumber, PageU32Size, WasmPage,
+        WasmPagesAmount,
+    },
     reservation::GasReservationSlot,
 };
 use gear_core_errors::*;
-use gear_wasm_instrument::{
-    parity_wasm::elements::{BlockType, Instruction},
-    syscalls::SyscallName,
-};
+use gear_wasm_instrument::{parity_wasm::elements::Instruction, syscalls::SyscallName};
 use sp_core::Get;
 use sp_runtime::{codec::Encode, traits::UniqueSaturatedInto};
 
@@ -198,26 +198,19 @@ where
 
     fn prepare_handle_with_allocations(
         module: ModuleDefinition,
-        allocations_amount: u32,
+        allocations: impl Iterator<Item = WasmPage>,
     ) -> Result<Exec<T>, &'static str> {
         let instance = Program::<T>::new(module.into(), vec![])?;
+
+        let mut allocations: IntervalsTree<_> = allocations.collect();
+        // In order to avoid memory grow host call, which is benchmarked separately:
+        // add last possible page in 32-bit address space.
+        allocations.insert(WasmPage::UPPER);
 
         // insert gas reservation slots
         let program_id = ProgramId::from_origin(instance.addr);
         ProgramStorageOf::<T>::update_active_program(program_id, |program| {
-            // Creates allocations: 0, 2, 4, 6, 8, ..., 2 * allocations_amount.
-            // So, between each allocation there is a space in 1 WasmPage, so to allocate
-            // 2 * WasmPage, sys-call alloc need to iterate over all allocations till the end.
-            for p in 0..allocations_amount {
-                program
-                    .allocations
-                    .insert(WasmPage::try_from(p * 2).unwrap());
-            }
-
-            // In order to avoid memory grow host call, which is benchmarked separately.
-            program
-                .allocations
-                .insert(WasmPage::try_from(max_pages::<T>().raw() - 1).unwrap());
+            program.allocations = allocations;
         })
         .expect("Program must be active");
 
@@ -225,37 +218,26 @@ where
             instance.caller.into_origin(),
             HandleKind::Handle(program_id),
             vec![],
-            Default::default(),
+            PrepareConfig {
+                max_pages: Some(WasmPagesAmount::UPPER),
+                ..Default::default()
+            },
         )
     }
 
     pub fn alloc(
         repetitions: u32,
-        allocations_amount: u32,
+        allocation_intervals: u32,
         allocation_size: u32,
     ) -> Result<Exec<T>, &'static str> {
         let repetitions = repetitions * API_BENCHMARK_BATCH_SIZE;
+        let allocation_intervals = u16::try_from(allocation_intervals).unwrap();
 
-        // `allocations_amount.checked_mul(2)` cause between each allocation interval
-        // there is a space which has size equal to 1 WaspPage.
-        assert!(
-            allocations_amount
-                .checked_mul(2)
-                .unwrap()
-                .checked_add(repetitions.checked_mul(allocation_size).unwrap())
-                .unwrap()
-                <= max_pages::<T>().raw()
-        );
-
-        let instructions = vec![
-            Instruction::I32Const(allocation_size.try_into().unwrap()),
+        let mut instructions = vec![
+            Instruction::I32Const(allocation_size as i32),
             Instruction::Call(0),
-            Instruction::I32Const(-1),
-            Instruction::I32Eq,
-            Instruction::If(BlockType::NoResult),
-            Instruction::Unreachable,
-            Instruction::End,
         ];
+        unreachable_condition_i32(&mut instructions, Instruction::I32Eq, -1);
 
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(0)),
@@ -264,69 +246,95 @@ where
             ..Default::default()
         };
 
-        Self::prepare_handle_with_allocations(module, allocations_amount)
+        // multiply by `2` in order to have voids between allocations
+        let allocations =
+            (0..allocation_intervals).map(|p| WasmPage::from(p.checked_mul(2).unwrap()));
+        Self::prepare_handle_with_allocations(module, allocations)
     }
 
-    pub fn free(r: u32) -> Result<Exec<T>, &'static str> {
-        assert!(r <= max_pages::<T>().raw());
-
+    pub fn free(repetitions: u32, allocation_intervals: u32) -> Result<Exec<T>, &'static str> {
         use Instruction::*;
-        let mut instructions = vec![];
-        for _ in 0..API_BENCHMARK_BATCH_SIZE {
-            instructions.extend([I32Const(r as i32), Call(0), I32Const(-1)]);
-            unreachable_condition(&mut instructions, I32Eq); // if alloc returns -1 then it's error
 
-            for page in 0..r {
-                instructions.extend([I32Const(page as i32), Call(1), I32Const(0)]);
-                unreachable_condition(&mut instructions, I32Ne); // if free returns 0 then it's error
-            }
+        let repetitions = repetitions.checked_mul(API_BENCHMARK_BATCH_SIZE).unwrap();
+
+        let (allocations, pages_to_free): (Vec<_>, Vec<_>) = if allocation_intervals == 0 {
+            let allocations = IntervalIterator::<WasmPage>::from(..);
+            let last_page = WasmPage::from(u16::try_from(repetitions).unwrap());
+            let pages_to_free = IntervalIterator::<WasmPage>::from(..last_page);
+            (allocations.collect(), pages_to_free.collect())
+        } else {
+            // multiply by `2` in order to have voids between allocations
+            let allocations = (0..allocation_intervals)
+                .map(|p| WasmPage::try_from(p.checked_mul(2).unwrap()).unwrap());
+            let pages_to_free = allocations.clone().take(repetitions as usize);
+            (allocations.collect(), pages_to_free.collect())
+        };
+
+        let mut instructions = vec![];
+        for page in pages_to_free {
+            instructions.extend([I32Const(page.raw() as i32), Call(0)]);
+            unreachable_condition_i32(&mut instructions, I32Ne, 0);
         }
 
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(0)),
-            imported_functions: vec![SyscallName::Alloc, SyscallName::Free],
+            imported_functions: vec![SyscallName::Free],
             handle_body: Some(body::from_instructions(instructions)),
             ..Default::default()
         };
 
-        Self::prepare_handle(module, 0)
+        Self::prepare_handle_with_allocations(module, allocations.into_iter())
     }
 
-    pub fn free_range(repetitions: u32, pages_per_call: u32) -> Result<Exec<T>, &'static str> {
+    pub fn free_range(
+        repetitions: u32,
+        allocation_intervals: u32,
+        pages_per_call: u32,
+    ) -> Result<Exec<T>, &'static str> {
         use Instruction::*;
 
-        let n_pages = repetitions.checked_mul(pages_per_call).unwrap();
-        assert!(n_pages <= max_pages::<T>().raw());
+        let repetitions = repetitions.checked_mul(API_BENCHMARK_BATCH_SIZE).unwrap();
+
+        let (allocations, intervals_to_free): (Vec<_>, Vec<_>) = if allocation_intervals == 0 {
+            let allocations = IntervalIterator::<WasmPage>::from(..);
+            let intervals_to_free = (0..repetitions).map(|r| {
+                let start = WasmPage::try_from(r.checked_mul(pages_per_call).unwrap()).unwrap();
+                Interval::<WasmPage>::new_with_len(start, pages_per_call).unwrap()
+            });
+            (allocations.collect(), intervals_to_free.collect())
+        } else {
+            // multiply by `2` in order to have voids between allocations
+            let allocations = (0..allocation_intervals)
+                .map(|p| WasmPage::try_from(p.checked_mul(2).unwrap()).unwrap());
+            let intervals_to_free = (0..repetitions).map(|r| {
+                let start = WasmPage::try_from(r.checked_mul(pages_per_call).unwrap()).unwrap();
+                Interval::<WasmPage>::new_with_len(start, pages_per_call).unwrap()
+            });
+            (allocations.collect(), intervals_to_free.collect())
+        };
+
+        if let Some(last) = intervals_to_free.last() {
+            assert!(last.end() <= *allocations.last().unwrap());
+        }
 
         let mut instructions = vec![];
-        for _ in 0..API_BENCHMARK_BATCH_SIZE {
-            instructions.extend([I32Const(n_pages as i32), Call(0), I32Const(-1)]);
-            unreachable_condition(&mut instructions, I32Eq); // if alloc returns -1 then it's error
-
-            for i in 0..repetitions {
-                let start = i.checked_mul(pages_per_call).unwrap();
-                let end = pages_per_call
-                    .checked_sub(1)
-                    .and_then(|x| start.checked_add(x))
-                    .unwrap();
-                instructions.extend([
-                    I32Const(start as i32),
-                    I32Const(end as i32),
-                    Call(1),
-                    I32Const(0),
-                ]);
-                unreachable_condition(&mut instructions, I32Ne);
-            }
+        for interval in intervals_to_free {
+            instructions.extend([
+                I32Const(interval.start().raw() as i32),
+                I32Const(interval.end().raw() as i32),
+                Call(0),
+            ]);
+            unreachable_condition_i32(&mut instructions, I32Ne, 0);
         }
 
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(0)),
-            imported_functions: vec![SyscallName::Alloc, SyscallName::FreeRange],
+            imported_functions: vec![SyscallName::FreeRange],
             handle_body: Some(body::from_instructions(instructions)),
             ..Default::default()
         };
 
-        Self::prepare_handle(module, 0)
+        Self::prepare_handle_with_allocations(module, allocations.into_iter())
     }
 
     pub fn gr_reserve_gas(r: u32) -> Result<Exec<T>, &'static str> {

@@ -782,7 +782,7 @@ benchmarks! {
     }
 
     alloc_per_intervals_amount {
-        let i in 0 .. 10000;
+        let i in 0 .. 20_000;
         let mut res = None;
         let exec = Benches::<T>::alloc(1, i, 2)?;
     }: {
@@ -817,7 +817,18 @@ benchmarks! {
     free {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
-        let exec = Benches::<T>::free(r)?;
+        let exec = Benches::<T>::free(r, 0)?;
+    }: {
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
+    }
+
+    free_per_intervals {
+        let i in 1_000 .. 20_000;
+        let mut res = None;
+        let exec = Benches::<T>::free(1, i)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -828,7 +839,7 @@ benchmarks! {
     free_range {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
-        let exec = Benches::<T>::free_range(r, 1)?;
+        let exec = Benches::<T>::free_range(r, 0, 1)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -837,9 +848,20 @@ benchmarks! {
     }
 
     free_range_per_page {
-        let p in 1 .. API_BENCHMARK_BATCHES;
+        let p in 1 .. 400;
         let mut res = None;
-        let exec = Benches::<T>::free_range(1, p)?;
+        let exec = Benches::<T>::free_range(1, 20_000, p)?;
+    }: {
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
+    }
+
+    free_range_per_intervals {
+        let i in 1_000 .. 20_000;
+        let mut res = None;
+        let exec = Benches::<T>::free_range(1, i, 2)?;
     }: {
         res.replace(run_process(exec));
     }
