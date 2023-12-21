@@ -341,6 +341,32 @@ impl<'a, 'b> SyscallsImportsGenerator<'a, 'b> {
         let pid_value_ptr = rid_pid_value_ptr + mem::size_of::<Hash>() as i32;
 
         let func_instructions = Instructions::new(vec![
+            // Copy the HashWithValue struct (48 bytes) containing
+            // the recipient and value
+            Instruction::I32Const(pid_value_ptr),
+            Instruction::GetLocal(0),
+            Instruction::I64Load(3, 0),
+            Instruction::I64Store(3, 0),
+            Instruction::I32Const(pid_value_ptr),
+            Instruction::GetLocal(0),
+            Instruction::I64Load(3, 8),
+            Instruction::I64Store(3, 8),
+            Instruction::I32Const(pid_value_ptr),
+            Instruction::GetLocal(0),
+            Instruction::I64Load(3, 16),
+            Instruction::I64Store(3, 16),
+            Instruction::I32Const(pid_value_ptr),
+            Instruction::GetLocal(0),
+            Instruction::I64Load(3, 24),
+            Instruction::I64Store(3, 24),
+            Instruction::I32Const(pid_value_ptr),
+            Instruction::GetLocal(0),
+            Instruction::I64Load(3, 32),
+            Instruction::I64Store(3, 32),
+            Instruction::I32Const(pid_value_ptr),
+            Instruction::GetLocal(0),
+            Instruction::I64Load(3, 40),
+            Instruction::I64Store(3, 40),
             // Amount of gas to reserve
             Instruction::GetLocal(4),
             // Duration of the reservation
@@ -373,32 +399,6 @@ impl<'a, 'b> SyscallsImportsGenerator<'a, 'b> {
             Instruction::GetLocal(6),
             Instruction::I64Load(3, 28),
             Instruction::I64Store(3, 24),
-            // Copy the HashWithValue struct (48 bytes) containing
-            // the recipient and value after the obtained reservation ID
-            Instruction::I32Const(pid_value_ptr),
-            Instruction::GetLocal(0),
-            Instruction::I64Load(3, 0),
-            Instruction::I64Store(3, 0),
-            Instruction::I32Const(pid_value_ptr),
-            Instruction::GetLocal(0),
-            Instruction::I64Load(3, 8),
-            Instruction::I64Store(3, 8),
-            Instruction::I32Const(pid_value_ptr),
-            Instruction::GetLocal(0),
-            Instruction::I64Load(3, 16),
-            Instruction::I64Store(3, 16),
-            Instruction::I32Const(pid_value_ptr),
-            Instruction::GetLocal(0),
-            Instruction::I64Load(3, 24),
-            Instruction::I64Store(3, 24),
-            Instruction::I32Const(pid_value_ptr),
-            Instruction::GetLocal(0),
-            Instruction::I64Load(3, 32),
-            Instruction::I64Store(3, 32),
-            Instruction::I32Const(pid_value_ptr),
-            Instruction::GetLocal(0),
-            Instruction::I64Load(3, 40),
-            Instruction::I64Store(3, 40),
             // Pointer to reservation ID, recipient ID and value
             Instruction::I32Const(rid_pid_value_ptr),
             // Pointer to payload
