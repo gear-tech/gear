@@ -235,6 +235,14 @@ impl InvocableSyscall {
             && !matches!(self, InvocableSyscall::Loose(SyscallName::Exit))
     }
 
+    /// Returns `true` for wait syscalls.
+    fn is_wait_syscall(&self) -> bool {
+        use InvocableSyscall::*;
+        use SyscallName::*;
+
+        matches!(self, Loose(Wait | WaitFor | WaitUpTo))
+    }
+
     /// Checks whether syscall is error-prone either by returning error indicating value
     /// or by providing error pointer as a syscall param.
     ///

@@ -342,6 +342,17 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
             );
 
             self.build_call_with_destination(invocable, call_indexes_handle, argument_index)
+        } else if let Some(wait_frequency) = self
+            .config
+            .waiting_frequency()
+            .filter(|_| invocable.is_wait_syscall())
+        {
+            log::trace!(
+                " -- Building call instructions for a `{}` wait syscall",
+                invocable.to_str()
+            );
+
+            self.build_call_for_wait_syscall(invocable, call_indexes_handle, wait_frequency)
         } else {
             log::trace!(
                 " -- Building call for a common syscall `{}`",
@@ -432,6 +443,48 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
         );
 
         Ok(original_instructions)
+    }
+
+    fn build_call_for_wait_syscall(
+        &mut self,
+        invocable: InvocableSyscall,
+        call_indexes_handle: CallIndexesHandle,
+        wait_frequency: u32,
+    ) -> Result<Vec<Instruction>> {
+        let mem_size_pages = self
+            .module
+            .initial_mem_size()
+            // To instantiate this generator, we must instantiate SyscallImportsGenerator, which can be
+            // instantiated only with memory import generation proof.
+            .expect("generator is instantiated with a memory import generation proof");
+        let mem_size = Into::<WasmPageCount>::into(mem_size_pages).memory_size();
+
+        let upper_limit = mem_size.saturating_sub(1) as i32;
+        let wait_called_ptr = upper_limit.saturating_sub(50);
+
+        let mut original_instructions = self.build_call(invocable, call_indexes_handle)?;
+        let mut instructions = Vec::with_capacity(13 + original_instructions.len());
+
+        instructions.extend_from_slice(&[
+            Instruction::I32Const(wait_called_ptr),
+            Instruction::I32Load(2, 0),
+            Instruction::I32Const(wait_frequency as i32),
+            Instruction::I32RemU,
+            Instruction::I32Eqz,
+            Instruction::If(BlockType::NoResult),
+        ]);
+        instructions.append(&mut original_instructions);
+        instructions.extend_from_slice(&[
+            Instruction::End,
+            Instruction::I32Const(wait_called_ptr),
+            Instruction::I32Const(wait_called_ptr),
+            Instruction::I32Load(2, 0),
+            Instruction::I32Const(1),
+            Instruction::I32Add,
+            Instruction::I32Store(2, 0),
+        ]);
+
+        Ok(instructions)
     }
 
     fn build_call(

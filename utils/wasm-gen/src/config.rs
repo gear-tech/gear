@@ -135,6 +135,11 @@ impl ConfigsBundle for (GearWasmGeneratorConfig, SelectableParams) {
 pub struct StandardGearWasmConfigsBundle<T = [u8; 32]> {
     /// Externalities to be logged.
     pub log_info: Option<String>,
+    /// Frequency of wait syscalls.
+    ///
+    /// For example, if this parameter is 4, wait syscalls will be invoked
+    /// with probability 1/4.
+    pub waiting_frequency: Option<u32>,
     /// Set of existing addresses, which will be used as message destinations.
     ///
     /// If is `None`, then `gr_source` result will be used as a message destination.
@@ -164,6 +169,7 @@ impl<T> Default for StandardGearWasmConfigsBundle<T> {
     fn default() -> Self {
         Self {
             log_info: Some("StandardGearWasmConfigsBundle".into()),
+            waiting_frequency: Some(4),
             existing_addresses: None,
             remove_recursion: false,
             critical_gas_limit: Some(1_000_000),
@@ -180,6 +186,7 @@ impl<T: Into<Hash>> ConfigsBundle for StandardGearWasmConfigsBundle<T> {
     fn into_parts(self) -> (GearWasmGeneratorConfig, SelectableParams) {
         let StandardGearWasmConfigsBundle {
             log_info,
+            waiting_frequency,
             existing_addresses,
             remove_recursion,
             critical_gas_limit,
@@ -195,6 +202,10 @@ impl<T: Into<Hash>> ConfigsBundle for StandardGearWasmConfigsBundle<T> {
         let mut syscalls_config_builder = SyscallsConfigBuilder::new(injection_types);
         if let Some(log_info) = log_info {
             syscalls_config_builder = syscalls_config_builder.with_log_info(log_info);
+        }
+        if let Some(waiting_frequency) = waiting_frequency {
+            syscalls_config_builder =
+                syscalls_config_builder.with_waiting_frequency(waiting_frequency);
         }
         if let Some(addresses) = existing_addresses {
             syscalls_config_builder = syscalls_config_builder.with_addresses_msg_dest(addresses);

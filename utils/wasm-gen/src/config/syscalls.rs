@@ -49,6 +49,7 @@ impl SyscallsConfigBuilder {
             syscall_destination: SyscallDestination::default(),
             error_processing_config: ErrorProcessingConfig::None,
             log_info: None,
+            waiting_frequency: None,
         })
     }
 
@@ -105,6 +106,13 @@ impl SyscallsConfigBuilder {
         self
     }
 
+    /// Set frequency of wait syscalls.
+    pub fn with_waiting_frequency(mut self, waiting_frequency: u32) -> Self {
+        self.0.waiting_frequency = Some(waiting_frequency);
+
+        self
+    }
+
     /// Setup fallible syscalls error processing options.
     pub fn set_error_processing_config(mut self, config: ErrorProcessingConfig) -> Self {
         self.0.error_processing_config = config;
@@ -127,6 +135,7 @@ pub struct SyscallsConfig {
     syscall_destination: SyscallDestination,
     error_processing_config: ErrorProcessingConfig,
     log_info: Option<String>,
+    waiting_frequency: Option<u32>,
 }
 
 impl SyscallsConfig {
@@ -162,6 +171,11 @@ impl SyscallsConfig {
     /// Error processing config for fallible syscalls.
     pub fn error_processing_config(&self) -> &ErrorProcessingConfig {
         &self.error_processing_config
+    }
+
+    /// Get frequency of wait syscalls.
+    pub fn waiting_frequency(&self) -> Option<u32> {
+        self.waiting_frequency
     }
 }
 
