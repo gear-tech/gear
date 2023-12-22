@@ -21,6 +21,7 @@
 
 // Reexports from Rust's libraries
 
+pub use crate::dbg;
 pub use ::alloc::{
     borrow,
     borrow::ToOwned,
