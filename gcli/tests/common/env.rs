@@ -17,31 +17,24 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! environment paths and binaries
-use lazy_static::lazy_static;
+
+use std::env;
 
 /// target path from the root workspace
 const TARGET: &str = "target";
 const WASM_TARGET: &str = "target/wasm32-unknown-unknown";
-
-lazy_static! {
-    static ref ROOT: String = env!("CARGO_MANIFEST_DIR").to_owned() + "/../";
-}
+const ROOT: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../");
 
 fn bin_path(name: &str, wasm: bool) -> String {
-    ROOT.clone()
-        + [
-            if wasm { WASM_TARGET } else { TARGET },
-            "/",
-            if cfg!(debug_assertions) {
-                "debug"
-            } else {
-                "release"
-            },
-            "/",
-            name,
-        ]
-        .concat()
-        .as_str()
+    let target = if wasm { WASM_TARGET } else { TARGET };
+    let profile = if env::var("CI").is_ok() {
+        "ci"
+    } else if cfg!(debug_assertions) {
+        "debug"
+    } else {
+        "release"
+    };
+    format!("{ROOT}{target}/{profile}/{name}")
 }
 
 /// path of binaries
