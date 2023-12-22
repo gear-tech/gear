@@ -25,11 +25,13 @@ pub struct Keystore {
     /// The encoded keypair in base58.
     pub encoded: String,
     /// Encoding format.
+    #[serde(default)]
     pub encoding: Encoding,
     /// The address of the keypair.
-    pub address: Option<String>,
+    pub address: String,
     /// The meta data of the keypair.
-    pub meta: Option<Meta>,
+    #[serde(default)]
+    pub meta: Meta,
 }
 
 /// Encoding format for the keypair.
@@ -54,12 +56,24 @@ pub struct Encoding {
     pub version: u8,
 }
 
+impl Default for Encoding {
+    fn default() -> Self {
+        Self {
+            content: ["pkcs8".into(), "sr25519".into()],
+            ty: ["scrypt".into(), "xsalsa20-poly1305".into()],
+            version: 3,
+        }
+    }
+}
+
 /// The metadata of the key pair.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Meta {
-    /// The genesis hash of the chain.
+    /// The genesis hash of the chain in hex.
+    #[serde(default = "0x")]
     pub genesis_hash: String,
     /// The name of the key pair.
+    #[serde(default = "vara")]
     pub name: String,
     /// The timestamp when the key pair is created.
     pub when_created: u64,
