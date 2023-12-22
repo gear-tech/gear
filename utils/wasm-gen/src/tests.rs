@@ -406,7 +406,6 @@ fn execute_wasm_with_custom_configs(
     let processor_context = ProcessorContext {
         message_context,
         max_pages: INITIAL_PAGES.into(),
-        rent_cost: 10,
         program_id,
         ..ProcessorContext::new_mock()
     };

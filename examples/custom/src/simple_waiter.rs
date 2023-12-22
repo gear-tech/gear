@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -16,24 +16,25 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use super::*;
+#[cfg(not(feature = "std"))]
+pub(crate) mod wasm {
+    use gstd::{exec, msg, prelude::*};
 
-pub fn init_logger() {
-    let _ = env_logger::Builder::from_default_env()
-        .format_module_path(false)
-        .format_level(true)
-        .try_init();
-}
+    #[derive(Default)]
+    pub(crate) struct State {
+        triggered: bool,
+    }
 
-pub fn parse_wat(source: &str) -> Vec<u8> {
-    wabt::Wat2Wasm::new()
-        .validate(true)
-        .convert(source)
-        .expect("failed to parse module")
-        .as_ref()
-        .to_vec()
-}
+    pub(crate) fn init() -> State {
+        Default::default()
+    }
 
-pub fn h256_code_hash(code: &[u8]) -> H256 {
-    CodeId::generate(code).into_origin()
+    pub(crate) fn handle(state: &mut State) {
+        if !state.triggered {
+            state.triggered = true;
+            exec::wait_for(20);
+        }
+
+        msg::send_bytes(msg::source(), b"hello", 0).unwrap();
+    }
 }

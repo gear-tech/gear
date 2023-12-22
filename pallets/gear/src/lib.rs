@@ -73,9 +73,7 @@ use frame_system::pallet_prelude::{BlockNumberFor, *};
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
-    memory::PageBuf,
     message::*,
-    pages::{GearPage, WasmPage},
     percent::Percent,
 };
 use manager::{CodeInfo, QueuePostProcessingData};
@@ -115,10 +113,6 @@ pub type GasNodeIdOf<T> = <GasHandlerOf<T> as GasTree>::NodeId;
 pub type BlockGasLimitOf<T> = <<T as Config>::BlockLimiter as BlockLimiter>::BlockGasLimit;
 pub type GasBalanceOf<T> = <<T as Config>::GasProvider as GasProvider>::Balance;
 pub type ProgramStorageOf<T> = <T as Config>::ProgramStorage;
-pub type RentFreePeriodOf<T> = <T as Config>::ProgramRentFreePeriod;
-pub type RentCostPerBlockOf<T> = <T as Config>::ProgramRentCostPerBlock;
-pub type ResumeMinimalPeriodOf<T> = <T as Config>::ProgramResumeMinimalRentPeriod;
-pub type ResumeSessionDurationOf<T> = <T as Config>::ProgramResumeSessionDuration;
 pub(crate) type GearBank<T> = pallet_gear_bank::Pallet<T>;
 
 /// The current storage version.
@@ -610,7 +604,7 @@ pub mod pallet {
                 program_id,
                 &code_info,
                 message_id,
-                block_number.saturating_add(RentFreePeriodOf::<T>::get()),
+                block_number,
             );
 
             Self::create(
@@ -1045,7 +1039,6 @@ pub mod pallet {
                 max_reservations: T::ReservationsLimit::get(),
                 code_instrumentation_cost: schedule.code_instrumentation_cost.ref_time(),
                 code_instrumentation_byte_cost: schedule.code_instrumentation_byte_cost.ref_time(),
-                rent_cost: RentCostPerBlockOf::<T>::get().unique_saturated_into(),
                 gas_multiplier: <T as pallet_gear_bank::Config>::GasMultiplier::get().into(),
             }
         }
@@ -1203,20 +1196,19 @@ pub mod pallet {
 
             let message_id = Self::next_message_id(origin);
             let block_number = Self::block_number();
-            let expiration_block = block_number.saturating_add(RentFreePeriodOf::<T>::get());
 
             ExtManager::<T>::default().set_program(
                 packet.destination(),
                 &code_info,
                 message_id,
-                expiration_block,
+                block_number,
             );
 
             let program_id = packet.destination();
             let program_event = Event::ProgramChanged {
                 id: program_id,
                 change: ProgramChangeKind::ProgramSet {
-                    expiration: expiration_block,
+                    expiration: block_number,
                 },
             };
 
@@ -1240,10 +1232,6 @@ pub mod pallet {
             QueueOf::<T>::queue(dispatch)
                 .unwrap_or_else(|e| unreachable!("Messages storage corrupted: {e:?}"));
 
-            let task = ScheduledTask::PauseProgram(program_id);
-            TaskPoolOf::<T>::add(expiration_block, task)
-                .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
-
             Self::deposit_event(program_event);
             Self::deposit_event(event);
 
@@ -1252,12 +1240,6 @@ pub mod pallet {
 
         pub fn run_call(max_gas: Option<GasBalanceOf<T>>) -> Call<T> {
             Call::run { max_gas }
-        }
-
-        pub fn rent_fee_for(block_count: BlockNumberFor<T>) -> BalanceOf<T> {
-            let block_count: u64 = block_count.unique_saturated_into();
-
-            RentCostPerBlockOf::<T>::get().saturating_mul(block_count.unique_saturated_into())
         }
     }
 
@@ -1634,172 +1616,6 @@ pub mod pallet {
             ExecuteInherent::<T>::put(value);
 
             Ok(())
-        }
-
-        /// Pay additional rent for the program.
-        #[pallet::call_index(8)]
-        #[pallet::weight(<T as Config>::WeightInfo::pay_program_rent())]
-        pub fn pay_program_rent(
-            origin: OriginFor<T>,
-            program_id: ProgramId,
-            block_count: BlockNumberFor<T>,
-        ) -> DispatchResultWithPostInfo {
-            let who = ensure_signed(origin)?;
-
-            ensure!(
-                <T as Config>::ProgramRentEnabled::get(),
-                Error::<T>::ProgramRentDisabled,
-            );
-
-            ProgramStorageOf::<T>::update_active_program(
-                program_id,
-                |program| -> Result<(), Error<T>> {
-                    Self::pay_program_rent_impl(program_id, program, &who, block_count)
-                        .map_err(|_| Error::<T>::InsufficientBalance)
-                },
-            )??;
-
-            Ok(().into())
-        }
-
-        /// Starts a resume session of the previously paused program.
-        ///
-        /// The origin must be Signed.
-        ///
-        /// Parameters:
-        /// - `program_id`: id of the program to resume.
-        /// - `allocations`: memory allocations of program prior to stop.
-        /// - `code_hash`: id of the program binary code.
-        #[pallet::call_index(9)]
-        #[pallet::weight(<T as Config>::WeightInfo::resume_session_init())]
-        pub fn resume_session_init(
-            origin: OriginFor<T>,
-            program_id: ProgramId,
-            allocations: BTreeSet<WasmPage>,
-            code_hash: CodeId,
-        ) -> DispatchResultWithPostInfo {
-            let who = ensure_signed(origin)?;
-
-            ensure!(
-                <T as Config>::ProgramRentEnabled::get(),
-                Error::<T>::ProgramRentDisabled
-            );
-
-            let session_end_block =
-                Self::block_number().saturating_add(ResumeSessionDurationOf::<T>::get());
-            let session_id = ProgramStorageOf::<T>::resume_session_init(
-                who.clone(),
-                session_end_block,
-                program_id,
-                allocations,
-                code_hash,
-            )?;
-
-            let task = ScheduledTask::RemoveResumeSession(session_id);
-            TaskPoolOf::<T>::add(session_end_block, task)
-                .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
-
-            Self::deposit_event(Event::ProgramResumeSessionStarted {
-                session_id,
-                account_id: who,
-                program_id,
-                session_end_block,
-            });
-
-            Ok(().into())
-        }
-
-        /// Appends memory pages to the resume session.
-        ///
-        /// The origin must be Signed and should be the owner of the session.
-        ///
-        /// Parameters:
-        /// - `session_id`: id of the resume session.
-        /// - `memory_pages`: program memory (or its part) before it was paused.
-        #[pallet::call_index(10)]
-        #[pallet::weight(<T as Config>::WeightInfo::resume_session_push(memory_pages.len() as u32))]
-        pub fn resume_session_push(
-            origin: OriginFor<T>,
-            session_id: SessionId,
-            memory_pages: Vec<(GearPage, PageBuf)>,
-        ) -> DispatchResultWithPostInfo {
-            let who = ensure_signed(origin)?;
-
-            ensure!(
-                <T as Config>::ProgramRentEnabled::get(),
-                Error::<T>::ProgramRentDisabled
-            );
-
-            ProgramStorageOf::<T>::resume_session_push(session_id, who, memory_pages)?;
-
-            Ok(().into())
-        }
-
-        /// Finishes the program resume session.
-        ///
-        /// The origin must be Signed and should be the owner of the session.
-        ///
-        /// Parameters:
-        /// - `session_id`: id of the resume session.
-        /// - `block_count`: the specified period of rent.
-        #[pallet::call_index(11)]
-        #[pallet::weight(DbWeightOf::<T>::get().reads(1) + <T as Config>::WeightInfo::resume_session_commit(ProgramStorageOf::<T>::resume_session_page_count(session_id).unwrap_or(0)))]
-        pub fn resume_session_commit(
-            origin: OriginFor<T>,
-            session_id: SessionId,
-            block_count: BlockNumberFor<T>,
-        ) -> DispatchResultWithPostInfo {
-            let who = ensure_signed(origin)?;
-
-            ensure!(
-                <T as Config>::ProgramRentEnabled::get(),
-                Error::<T>::ProgramRentDisabled
-            );
-
-            ensure!(
-                block_count >= ResumeMinimalPeriodOf::<T>::get(),
-                Error::<T>::ResumePeriodLessThanMinimal
-            );
-
-            let rent_fee = Self::rent_fee_for(block_count);
-            ensure!(
-                CurrencyOf::<T>::free_balance(&who) >= rent_fee,
-                Error::<T>::InsufficientBalance
-            );
-
-            let result = ProgramStorageOf::<T>::resume_session_commit(
-                session_id,
-                who.clone(),
-                Self::block_number().saturating_add(block_count),
-            )?;
-
-            let task = ScheduledTask::RemoveResumeSession(session_id);
-            TaskPoolOf::<T>::delete(result.end_block, task)
-                .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
-
-            let block_author = Authorship::<T>::author()
-                .unwrap_or_else(|| unreachable!("Failed to find block author!"));
-            if let Some((program_id, expiration_block)) = result.info {
-                let task = ScheduledTask::PauseProgram(program_id);
-                TaskPoolOf::<T>::add(expiration_block, task)
-                    .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
-
-                CurrencyOf::<T>::transfer(
-                    &who,
-                    &block_author,
-                    rent_fee,
-                    ExistenceRequirement::AllowDeath,
-                )?;
-
-                Self::deposit_event(Event::ProgramChanged {
-                    id: program_id,
-                    change: ProgramChangeKind::Active {
-                        expiration: expiration_block,
-                    },
-                });
-            }
-
-            Ok(().into())
         }
     }
 

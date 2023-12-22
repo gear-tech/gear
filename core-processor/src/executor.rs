@@ -207,7 +207,6 @@ where
         existential_deposit: settings.existential_deposit,
         program_id,
         program_candidates_data: Default::default(),
-        program_rents: Default::default(),
         host_fn_weights: settings.host_fn_weights,
         forbidden_funcs: settings.forbidden_funcs,
         mailbox_threshold: settings.mailbox_threshold,
@@ -216,7 +215,6 @@ where
         reserve_for: settings.reserve_for,
         reservation: settings.reservation,
         random_data: settings.random_data,
-        rent_cost: settings.rent_cost,
         gas_multiplier: settings.gas_multiplier,
     };
 
@@ -325,7 +323,6 @@ where
         awakening: info.awakening,
         reply_deposits: info.reply_deposits,
         program_candidates,
-        program_rents: info.program_rents,
         gas_amount: info.gas_amount,
         gas_reserver: Some(info.gas_reserver),
         system_reservation_context: info.system_reservation_context,
@@ -390,7 +387,6 @@ where
         existential_deposit: Default::default(),
         program_id: program.id(),
         program_candidates_data: Default::default(),
-        program_rents: Default::default(),
         host_fn_weights: Default::default(),
         forbidden_funcs: Default::default(),
         mailbox_threshold: Default::default(),
@@ -400,7 +396,6 @@ where
         reservation: Default::default(),
         random_data: Default::default(),
         system_reservation: Default::default(),
-        rent_cost: Default::default(),
         gas_multiplier: gsys::GasMultiplier::from_value_per_gas(1),
     };
 
