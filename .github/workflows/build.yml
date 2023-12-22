@@ -66,34 +66,34 @@ jobs:
         run: ./scripts/gear.sh init cargo
 
       - name: "Build: Gear"
-        run: ./scripts/gear.sh build gear --locked --release
+        run: ./scripts/gear.sh build gear --locked --profile=ci
 
       - name: "Build fuzzer"
-        run: ./scripts/gear.sh build fuzz --locked --release
+        run: ./scripts/gear.sh build fuzz --locked --profile=ci
 
       - name: "Check: Vara runtime imports"
         run: ./target/release/wasm-proc --check-runtime-imports target/release/wbuild/vara-runtime/vara_runtime.compact.wasm
 
       - name: "Check: Stack height limit"
-        run: cargo run -p calc-stack-height --release --locked
+        run: cargo run -p calc-stack-height --profile=ci --locked
 
       - name: "Test: Gear workspace"
-        run: ./scripts/gear.sh test gear --exclude gclient --exclude gcli --exclude gsdk --release --locked
+        run: ./scripts/gear.sh test gear --exclude gclient --exclude gcli --exclude gsdk --profile=ci --locked
 
       - name: "Test: gsdk tests"
-        run: ./scripts/gear.sh test gsdk --release
+        run: ./scripts/gear.sh test gsdk --profile=ci
 
       - name: "Test: `gcli`"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: ./scripts/gear.sh test gcli --release --locked --retries 3
+        run: ./scripts/gear.sh test gcli --profile=ci --locked --retries 3
 
       - name: "Test: Client tests"
-        run: ./scripts/gear.sh test client --release
+        run: ./scripts/gear.sh test client --profile=ci
 
       - name: "Test: Runtime benchmarks and benchmark tests work"
         run: |
-          cargo build -p gear-cli --release --features=runtime-benchmarks,runtime-benchmarks-checkers
+          cargo build -p gear-cli --profile=ci --features=runtime-benchmarks,runtime-benchmarks-checkers
           # check that perf benchmarks works. `--steps=20` need to test, that benchmarks works for different input number.
           ./target/release/gear benchmark pallet --chain=dev --pallet=pallet_gear --steps=20 --extrinsic="*" --execution=wasm --wasm-execution=compiled --heap-pages=4096
           # check that read_big_state benchmarks works
@@ -104,15 +104,15 @@ jobs:
           ./target/release/gear benchmark pallet --chain=dev --pallet=pallet_gear --extrinsic="check_lazy_pages_all" --execution=native --heap-pages=4096 --extra
 
       - name: "Test: Syscalls Wasmi integrity"
-        run: ./scripts/gear.sh test syscalls --release
+        run: ./scripts/gear.sh test syscalls --profile=ci
 
       - name: "Test: `try-runtime` feature tests"
         run: |
-          cargo test -p "pallet-*" --features try-runtime --release --locked
+          cargo test -p "pallet-*" --features try-runtime --profile=ci --locked
 
       - name: "Test: Try runtime migrations"
         run: |
-          cargo build -p gear-cli --features try-runtime --release --locked
+          cargo build -p gear-cli --features try-runtime --profile=ci --locked
           ./target/release/gear try-runtime --runtime ./target/release/wbuild/vara-runtime/vara_runtime.wasm on-runtime-upgrade --checks live --uri ws://rpc-private.vara-network.io:9944
         env:
           RUST_LOG: info
@@ -225,12 +225,12 @@ jobs:
           mv ./cargo-xwin ${CARGO_HOME:-~/.cargo}/bin/
 
       - name: "Build: Node"
-        run: ./scripts/gear.sh build node --release --locked
+        run: ./scripts/gear.sh build node --profile=ci --locked
         env:
           CARGO_BUILD_TARGET: x86_64-pc-windows-msvc
 
       - name: "Check: Stack height limit"
-        run: cargo xwin run -p calc-stack-height --release --locked
+        run: cargo xwin run -p calc-stack-height --profile=ci --locked
         env:
           CARGO_BUILD_TARGET: x86_64-pc-windows-msvc
 
@@ -249,7 +249,7 @@ jobs:
           -p "pallet-*"
           -p gear-lazy-pages
           -p gear-runtime-interface
-          --release
+          --profile=ci
         env:
           CARGO_BUILD_TARGET: x86_64-pc-windows-msvc
 
