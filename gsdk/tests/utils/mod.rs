@@ -20,10 +20,12 @@ use gsdk::{
     ext::{sp_core::crypto::Ss58Codec, sp_runtime::AccountId32},
     testing::Node,
 };
+use std::env;
 
 pub fn dev_node() -> Node {
-    // Use release build because of performance reasons.
-    let bin_path = env!("CARGO_MANIFEST_DIR").to_owned() + "/../target/release/gear";
+    // Use release or CI profile because of performance reasons.
+    let profile = env::var("CI").map(|_| "ci").unwrap_or_else(|_| "release");
+    let bin_path = format!("{}/../target/{}/gear", env!("CARGO_MANIFEST_DIR"), profile);
 
     let args = vec!["--tmp", "--dev"];
 
