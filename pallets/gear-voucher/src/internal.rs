@@ -24,6 +24,7 @@ use common::{
     DelegateFee, Origin,
 };
 use gear_core::{declare_id, ids};
+use sp_std::collections::btree_set::BTreeSet;
 
 declare_id!(VoucherId: "Voucher identifier");
 
@@ -57,7 +58,7 @@ pub struct VoucherInfo<AccountId, BlockNumber> {
     pub owner: AccountId,
     /// Set of programs this voucher could be used to interact with.
     /// In case of None means any gear program.
-    pub programs: Option<Vec<ProgramId>>,
+    pub programs: Option<BTreeSet<ProgramId>>,
     /// Block number since voucher couldn't be used (able to be revoked by owner).
     pub validity: BlockNumber,
 }

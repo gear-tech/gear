@@ -571,7 +571,7 @@ fn fee_payer_replacement_works() {
             RuntimeOrigin::signed(ALICE),
             BOB,
             synthesized_initial_balance,
-            Some(vec![program_id]),
+            Some([program_id].into()),
             100,
         ));
         let voucher_id = get_last_voucher_id();
@@ -658,7 +658,7 @@ fn reply_with_voucher_pays_fee_from_voucher_ok() {
             RuntimeOrigin::signed(ALICE),
             BOB,
             200_000_000,
-            Some(vec![program_id]),
+            Some([program_id].into()),
             100,
         ));
         let voucher_id = get_last_voucher_id();

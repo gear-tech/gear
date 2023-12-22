@@ -90,7 +90,8 @@ pub mod pallet {
     };
     use frame_system::pallet_prelude::*;
     use gear_core::message::UserStoredMessage;
-    use sp_runtime::Saturating;
+    use sp_runtime::{SaturatedConversion, Saturating};
+    use sp_std::collections::btree_set::BTreeSet;
 
     #[pallet::config]
     pub trait Config: frame_system::Config {
@@ -181,14 +182,14 @@ pub mod pallet {
             origin: OriginFor<T>,
             spender: AccountIdOf<T>,
             balance: BalanceOf<T>,
-            programs: Option<Vec<ProgramId>>,
+            programs: Option<BTreeSet<ProgramId>>,
             validity: BlockNumberFor<T>,
         ) -> DispatchResultWithPostInfo {
             let owner = ensure_signed(origin)?;
 
             if let Some(ref programs) = programs {
                 ensure!(
-                    programs.len() <= T::MaxProgramsAmount::get().into(),
+                    programs.len() <= T::MaxProgramsAmount::get().saturated_into(),
                     Error::<T>::MaxProgramsLimitExceeded
                 )
             }
@@ -276,7 +277,7 @@ pub mod pallet {
             voucher_id: VoucherId,
             move_ownership: Option<AccountIdOf<T>>,
             balance_top_up: Option<BalanceOf<T>>,
-            append_programs: Option<Vec<ProgramId>>,
+            append_programs: Option<BTreeSet<ProgramId>>,
             prolong_validity: Option<BlockNumberFor<T>>,
         ) -> DispatchResultWithPostInfo {
             let origin = ensure_signed(origin)?;

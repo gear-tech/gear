@@ -14304,7 +14304,7 @@ fn send_gasless_message_works() {
             RuntimeOrigin::signed(USER_1),
             USER_2,
             gas_price(DEFAULT_GAS_LIMIT),
-            Some(vec![program_id]),
+            Some([program_id].into()),
             100,
         ));
 
@@ -14405,7 +14405,7 @@ fn send_gasless_reply_works() {
             RuntimeOrigin::signed(USER_2),
             USER_1,
             gas_price(DEFAULT_GAS_LIMIT),
-            Some(vec![prog_id]),
+            Some([prog_id].into()),
             100,
         ));
         let voucher_id = utils::get_last_voucher_id();
