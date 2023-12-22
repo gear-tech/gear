@@ -32,16 +32,6 @@
 //! to sponsor contract users by allocating some funds in such a way that these funds
 //! can only be spent to pay for gas and transaction fees if a user sends a message
 //! to the contract.
-//!
-//! The Gear Voucher Pallet provides functions for:
-//! - Issuing a voucher for an account by any other account.
-//! - Deriving a unique keyless account id for a pair (user, program) to hold allocated funds.
-//!
-//! ## Interface
-//!
-//! ### Dispatchable Functions
-//!
-//! * `issue` - Issue an `amount` tokens worth voucher for a `user` to be used to pay fees and gas when sending messages to `program`.
 
 #![cfg_attr(not(feature = "std"), no_std)]
 #![allow(clippy::items_after_test_module)]
@@ -90,7 +80,7 @@ pub mod pallet {
     };
     use frame_system::pallet_prelude::*;
     use gear_core::message::UserStoredMessage;
-    use sp_runtime::{SaturatedConversion, Saturating};
+    use sp_runtime::{traits::Zero, SaturatedConversion, Saturating};
     use sp_std::collections::btree_set::BTreeSet;
 
     #[pallet::config]
@@ -129,6 +119,7 @@ pub mod pallet {
 
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
+    // TODO (breathx): add extra data
     pub enum Event<T: Config> {
         /// Voucher has been issued.
         VoucherIssued { voucher_id: VoucherId },
@@ -151,6 +142,7 @@ pub mod pallet {
         MaxProgramsLimitExceeded,
         UnknownDestination,
         InappropriateDestination,
+        ZeroValidity,
     }
 
     // Private storage for amount of messages sent.
@@ -204,6 +196,8 @@ pub mod pallet {
             )
             .map_err(|_| Error::<T>::BalanceTransfer)?;
 
+            ensure!(!validity.is_zero(), Error::<T>::ZeroValidity);
+
             let validity = <frame_system::Pallet<T>>::block_number().saturating_add(validity);
 
             let voucher_info = VoucherInfo {
@@ -221,6 +215,7 @@ pub mod pallet {
 
         #[pallet::call_index(1)]
         #[pallet::weight(T::CallsDispatcher::weight(call))] // TODO (breathx)
+                                                            // TODO (breathx): add doc about errors that they only take place in dispatcher.
         pub fn call(
             origin: OriginFor<T>,
             voucher_id: VoucherId,
@@ -235,6 +230,7 @@ pub mod pallet {
 
         #[pallet::call_index(2)]
         #[pallet::weight(Weight::zero())] // TODO (breathx)
+                                          // TODO (breathx): don't delete
         pub fn revoke(
             origin: OriginFor<T>,
             spender: AccountIdOf<T>,
@@ -242,11 +238,12 @@ pub mod pallet {
         ) -> DispatchResultWithPostInfo {
             let origin = ensure_signed(origin)?;
 
-            let Some(voucher) = Vouchers::<T>::take(spender, voucher_id) else {
+            // TODO (breathx): add comment on it
+            let Some(voucher) = Vouchers::<T>::get(spender, voucher_id) else {
                 return Err(Error::<T>::InexistentVoucher.into());
             };
 
-            // TODO (breathx/consider): should anyone be eligible to revoke?
+            // TODO (breathx): add proper comment.
             ensure!(voucher.owner == origin, Error::<T>::BadOrigin);
 
             ensure!(
@@ -256,15 +253,20 @@ pub mod pallet {
 
             let voucher_id_acc = voucher_id.cast();
 
-            T::Currency::transfer(
-                &voucher_id_acc,
-                &origin,
-                T::Currency::free_balance(&voucher_id_acc),
-                ExistenceRequirement::AllowDeath,
-            )
-            .map_err(|_| Error::<T>::BalanceTransfer)?;
+            let voucher_balance = T::Currency::free_balance(&voucher_id_acc);
 
-            Self::deposit_event(Event::VoucherRevoked { voucher_id });
+            if !voucher_balance.is_zero() {
+                // Supposed to be infallible.
+                T::Currency::transfer(
+                    &voucher_id_acc,
+                    &voucher.owner,
+                    voucher_balance,
+                    ExistenceRequirement::AllowDeath,
+                )
+                .map_err(|_| Error::<T>::BalanceTransfer)?;
+
+                Self::deposit_event(Event::VoucherRevoked { voucher_id });
+            }
 
             Ok(().into())
         }
@@ -277,7 +279,7 @@ pub mod pallet {
             voucher_id: VoucherId,
             move_ownership: Option<AccountIdOf<T>>,
             balance_top_up: Option<BalanceOf<T>>,
-            append_programs: Option<BTreeSet<ProgramId>>,
+            append_programs: Option<Option<BTreeSet<ProgramId>>>,
             prolong_validity: Option<BlockNumberFor<T>>,
         ) -> DispatchResultWithPostInfo {
             let origin = ensure_signed(origin)?;
@@ -288,42 +290,64 @@ pub mod pallet {
 
             ensure!(voucher.owner == origin, Error::<T>::BadOrigin);
 
+            let mut updated = false;
+
             if let Some(owner) = move_ownership {
-                voucher.owner = owner;
+                if owner != voucher.owner {
+                    voucher.owner = owner;
+                    updated = true;
+                }
             }
 
             if let Some(amount) = balance_top_up {
-                T::Currency::transfer(
-                    &origin,
-                    &voucher_id.cast(),
-                    amount,
-                    ExistenceRequirement::AllowDeath,
-                )
-                .map_err(|_| Error::<T>::BalanceTransfer)?;
+                if !amount.is_zero() {
+                    T::Currency::transfer(
+                        &origin,
+                        &voucher_id.cast(),
+                        amount,
+                        ExistenceRequirement::AllowDeath,
+                    )
+                    .map_err(|_| Error::<T>::BalanceTransfer)?;
+                    updated = true;
+                }
             }
 
-            if let Some(mut extra_programs) = append_programs {
-                if let Some(ref mut programs) = voucher.programs {
-                    ensure!(
-                        programs.len().saturating_add(extra_programs.len())
-                            <= T::MaxProgramsAmount::get().into(),
-                        Error::<T>::MaxProgramsLimitExceeded
-                    );
+            if let Some(extra_programs) = append_programs {
+                if let Some(mut new_programs) = extra_programs {
+                    if let Some(ref mut programs) = voucher.programs {
+                        let prev_len = programs.len();
 
-                    programs.append(&mut extra_programs)
+                        ensure!(
+                            prev_len.saturating_add(new_programs.len())
+                                <= T::MaxProgramsAmount::get().into(),
+                            Error::<T>::MaxProgramsLimitExceeded
+                        );
+
+                        programs.append(&mut new_programs);
+
+                        updated |= programs.len() != prev_len;
+                    }
+                } else {
+                    updated |= voucher.programs.is_some();
+                    voucher.programs = None;
                 }
             }
 
             if let Some(duration) = prolong_validity {
-                voucher.validity = voucher
-                    .validity
-                    .max(<frame_system::Pallet<T>>::block_number())
-                    .saturating_add(duration);
+                if !duration.is_zero() {
+                    voucher.validity = voucher
+                        .validity
+                        .max(<frame_system::Pallet<T>>::block_number())
+                        .saturating_add(duration);
+                    updated = true;
+                }
             }
 
-            Vouchers::<T>::insert(spender, voucher_id, voucher);
+            if updated {
+                Vouchers::<T>::insert(spender, voucher_id, voucher);
 
-            Self::deposit_event(Event::VoucherUpdated { voucher_id });
+                Self::deposit_event(Event::VoucherUpdated { voucher_id });
+            }
 
             Ok(().into())
         }
@@ -337,7 +361,7 @@ pub mod pallet {
         ) -> DispatchResultWithPostInfo {
             let origin = ensure_signed(origin)?;
 
-            let sponsor = Self::sponsor_of(&origin, &call).ok_or(Error::<T>::InexistentVoucher)?;
+            let sponsor = Self::sponsor_of(&origin, &call).ok_or(Error::<T>::UnknownDestination)?;
 
             T::CallsDispatcher::dispatch(origin, sponsor, call)
         }
