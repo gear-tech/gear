@@ -63,6 +63,13 @@ macro_rules! declare_id {
         pub struct $name($crate::ids::Hash);
 
         impl $name {
+            /// Creates new id.
+            ///
+            /// Never use it in production!
+            pub const fn test_new(hash: $crate::ids::Hash) -> Self {
+                Self(hash)
+            }
+
             /// Returns id as bytes array.
             pub fn into_bytes(self) -> $crate::ids::Hash {
                 self.0
