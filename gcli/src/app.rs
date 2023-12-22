@@ -72,7 +72,7 @@ pub trait App: Parser + Sync {
     }
 
     /// The verbosity logging level.
-    fn verbose(&self) -> u16 {
+    fn verbose(&self) -> u8 {
         0
     }
 
