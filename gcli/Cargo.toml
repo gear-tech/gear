@@ -42,6 +42,7 @@ reqwest = { workspace = true, default-features = false, features = [ "json", "ru
 etc.workspace = true
 sp-io = { workspace = true, features = [ "std" ] }
 sp-core = { workspace = true, features = [ "std" ] }
+runtime-primitives.workspace = true
 # TODO: use wasmi from workspace (#3214)
 wasmi = { version = "0.30.0", features = ["std"] }
 
@@ -51,7 +52,6 @@ demo-messager.workspace = true
 demo-new-meta.workspace = true
 demo-waiter.workspace = true
 gsdk = { workspace = true, features = ["testing"] }
-vara-runtime = { workspace = true, features = [ "std", "dev" ] }
 
 [build-dependencies]
 which.workspace = true

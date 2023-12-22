@@ -111,7 +111,7 @@ pub trait App: Parser + Sync {
     /// and verbose level.
     async fn run(&self) -> Result<()> {
         color_eyre::install()?;
-        sp_core::crypto::set_default_ss58_version(crate::VARA_SS58_PREFIX.into());
+        sp_core::crypto::set_default_ss58_version(runtime_primitives::VARA_SS58_PREFIX.into());
 
         let name = Self::command().get_name().to_string();
         let filter = match self.verbose() {
