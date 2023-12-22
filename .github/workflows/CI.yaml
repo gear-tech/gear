@@ -131,7 +131,7 @@ jobs:
         run: cargo run -p calc-stack-height --profile=ci --locked
 
       - name: "Test: gsdk tests"
-        run: ./scripts/gear.sh test gsdk --profile=ci
+        run: ./scripts/gear.sh test gsdk --cargo-profile=ci
 
       - name: "Test: Client tests"
         run: ./scripts/gear.sh test client --profile=ci
