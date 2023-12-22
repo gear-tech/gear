@@ -25,7 +25,7 @@ use sandbox_wasmer_types::TrapCode;
 
 use codec::{Decode, Encode};
 use gear_sandbox_env::{HostError, Instantiate, WasmReturnValue, GLOBAL_NAME_GAS};
-use sp_wasm_interface_common::{Pointer, ReturnValue, Value, WordSize};
+use sp_wasm_interface_common::{util, Pointer, ReturnValue, Value, WordSize};
 
 use crate::{
     error::{Error, Result},
@@ -33,7 +33,7 @@ use crate::{
         BackendInstance, GuestEnvironment, InstantiationError, Memory, SandboxContext,
         SandboxInstance, SupervisorFuncIndex,
     },
-    util::{self, MemoryTransfer},
+    util::MemoryTransfer,
 };
 
 environmental::environmental!(SandboxContextStore: trait SandboxContext);
