@@ -189,10 +189,14 @@ impl WasmProject {
         let mut production_profile = Table::new();
         production_profile.insert("inherits".into(), "release".into());
 
+        let mut ci_profile = Table::new();
+        ci_profile.insert("inherits".into(), "dev".into());
+
         let mut profile = Table::new();
         profile.insert("dev".into(), dev_profile.clone().into());
         profile.insert("release".into(), release_profile.into());
         profile.insert("production".into(), production_profile.into());
+        profile.insert("ci".into(), ci_profile.into());
 
         let mut crate_package = Table::new();
         crate_package.insert("package".into(), crate_info.name.into());
