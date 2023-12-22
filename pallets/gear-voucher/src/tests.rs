@@ -330,7 +330,13 @@ fn voucher_revoke_works() {
             voucher_id
         ));
 
-        System::assert_has_event(crate::Event::VoucherRevoked { voucher_id }.into());
+        System::assert_has_event(
+            crate::Event::VoucherRevoked {
+                spender: BOB,
+                voucher_id,
+            }
+            .into(),
+        );
 
         // TODO (breathx): add comment.
         assert!(Vouchers::<Test>::get(BOB, voucher_id).is_some());
@@ -428,7 +434,14 @@ fn voucher_update_works() {
             Some(validity_prolong),
         ));
 
-        System::assert_has_event(crate::Event::VoucherUpdated { voucher_id }.into());
+        System::assert_has_event(
+            crate::Event::VoucherUpdated {
+                spender: BOB,
+                voucher_id,
+                new_owner: Some(BOB),
+            }
+            .into(),
+        );
 
         let voucher = Vouchers::<Test>::get(BOB, voucher_id).unwrap();
 
@@ -463,7 +476,14 @@ fn voucher_update_works() {
             None,
         ));
 
-        System::assert_has_event(crate::Event::VoucherUpdated { voucher_id }.into());
+        System::assert_has_event(
+            crate::Event::VoucherUpdated {
+                spender: BOB,
+                voucher_id,
+                new_owner: None,
+            }
+            .into(),
+        );
 
         let voucher = Vouchers::<Test>::get(BOB, voucher_id).unwrap();
 
@@ -620,7 +640,7 @@ mod utils {
                 }
             })
             .find_map(|e| match e {
-                crate::Event::VoucherIssued { voucher_id } => Some(voucher_id),
+                crate::Event::VoucherIssued { voucher_id, .. } => Some(voucher_id),
                 _ => None,
             })
             .expect("can't find voucher issued event")

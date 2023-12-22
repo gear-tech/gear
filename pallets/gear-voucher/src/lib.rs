@@ -119,16 +119,26 @@ pub mod pallet {
 
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
-    // TODO (breathx): add extra data
     pub enum Event<T: Config> {
         /// Voucher has been issued.
-        VoucherIssued { voucher_id: VoucherId },
+        VoucherIssued {
+            owner: AccountIdOf<T>,
+            spender: AccountIdOf<T>,
+            voucher_id: VoucherId,
+        },
 
         /// Voucher has been updated.
-        VoucherUpdated { voucher_id: VoucherId },
+        VoucherUpdated {
+            spender: AccountIdOf<T>,
+            voucher_id: VoucherId,
+            new_owner: Option<AccountIdOf<T>>,
+        },
 
-        /// Voucher has been refunded and deleted by owner.
-        VoucherRevoked { voucher_id: VoucherId },
+        /// Voucher has been refunded by owner.
+        VoucherRevoked {
+            spender: AccountIdOf<T>,
+            voucher_id: VoucherId,
+        },
     }
 
     // Gas pallet error.
@@ -201,14 +211,18 @@ pub mod pallet {
             let validity = <frame_system::Pallet<T>>::block_number().saturating_add(validity);
 
             let voucher_info = VoucherInfo {
-                owner,
+                owner: owner.clone(),
                 programs,
                 validity,
             };
 
-            Vouchers::<T>::insert(spender, voucher_id, voucher_info);
+            Vouchers::<T>::insert(spender.clone(), voucher_id, voucher_info);
 
-            Self::deposit_event(Event::VoucherIssued { voucher_id });
+            Self::deposit_event(Event::VoucherIssued {
+                owner,
+                spender,
+                voucher_id,
+            });
 
             Ok(().into())
         }
@@ -239,7 +253,7 @@ pub mod pallet {
             let origin = ensure_signed(origin)?;
 
             // TODO (breathx): add comment on it
-            let Some(voucher) = Vouchers::<T>::get(spender, voucher_id) else {
+            let Some(voucher) = Vouchers::<T>::get(spender.clone(), voucher_id) else {
                 return Err(Error::<T>::InexistentVoucher.into());
             };
 
@@ -265,7 +279,10 @@ pub mod pallet {
                 )
                 .map_err(|_| Error::<T>::BalanceTransfer)?;
 
-                Self::deposit_event(Event::VoucherRevoked { voucher_id });
+                Self::deposit_event(Event::VoucherRevoked {
+                    spender,
+                    voucher_id,
+                });
             }
 
             Ok(().into())
@@ -292,11 +309,11 @@ pub mod pallet {
 
             let mut updated = false;
 
-            if let Some(owner) = move_ownership {
-                if owner != voucher.owner {
-                    voucher.owner = owner;
-                    updated = true;
-                }
+            let new_owner = move_ownership.and_then(|addr| addr.ne(&voucher.owner).then_some(addr));
+
+            if let Some(ref owner) = new_owner {
+                voucher.owner = owner.clone();
+                updated = true;
             }
 
             if let Some(amount) = balance_top_up {
@@ -344,9 +361,13 @@ pub mod pallet {
             }
 
             if updated {
-                Vouchers::<T>::insert(spender, voucher_id, voucher);
+                Vouchers::<T>::insert(spender.clone(), voucher_id, voucher);
 
-                Self::deposit_event(Event::VoucherUpdated { voucher_id });
+                Self::deposit_event(Event::VoucherUpdated {
+                    spender,
+                    voucher_id,
+                    new_owner,
+                });
             }
 
             Ok(().into())

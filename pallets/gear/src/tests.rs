@@ -15755,7 +15755,7 @@ mod utils {
                 }
             })
             .find_map(|e| match e {
-                pallet_gear_voucher::Event::VoucherIssued { voucher_id } => Some(voucher_id),
+                pallet_gear_voucher::Event::VoucherIssued { voucher_id, .. } => Some(voucher_id),
                 _ => None,
             })
             .expect("can't find message send event")
