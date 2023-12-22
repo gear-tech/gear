@@ -12579,6 +12579,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "sub-keystore"
+version = "1.0.4"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "substrate-bip39"
 version = "0.4.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
