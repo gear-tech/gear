@@ -1,9 +1,10 @@
+mod utils;
+
+use crate::utils::gear_api;
 use gclient::{Error, EventProcessor, GearApi};
 use gear_core::ids::ProgramId;
 use hex::ToHex;
 use parity_scale_codec::{Decode, Encode};
-
-const GEAR_PATH: &str = "../target/release/gear";
 
 /// Running this test requires gear node to be built in advance.
 #[tokio::test]
@@ -40,7 +41,7 @@ async fn program_migrated_to_another_node() {
         .expect("Unable to transfer funds to source program");
 
     // Initialize destination node
-    let dest_node_api = GearApi::dev_from_path(GEAR_PATH)
+    let dest_node_api = gear_api()
         .await
         .expect("Unable to connect to destination node api");
 
@@ -110,7 +111,7 @@ async fn program_migration_fails_if_program_exists() {
     .await;
 
     // Initialize destination node
-    let dest_node_api = GearApi::dev_from_path(GEAR_PATH)
+    let dest_node_api = gear_api()
         .await
         .expect("Unable to connect to destination node api");
 
@@ -181,7 +182,7 @@ async fn program_with_gas_reservation_migrated_to_another_node() {
         .expect("Unable to get source node last block hash");
 
     // Initialize the destination node api
-    let dest_node_api = GearApi::dev_from_path(GEAR_PATH)
+    let dest_node_api = gear_api()
         .await
         .expect("Unable to connect to destination node api");
 
@@ -234,9 +235,7 @@ async fn upload_program_to_node<E>(
 where
     E: Encode,
 {
-    let api = GearApi::dev_from_path(GEAR_PATH)
-        .await
-        .expect("Unable to connect to node api");
+    let api = gear_api().await.expect("Unable to connect to node api");
 
     let gas_limit = api
         .block_gas_limit()

@@ -16,6 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+mod utils;
+
+use crate::utils::gear_api;
 use demo_custom::{InitMessage, WASM_BINARY};
 use gclient::{EventListener, EventProcessor, GearApi, Result};
 use gear_core::ids::ProgramId;
@@ -65,7 +68,7 @@ impl Drop for CleanupFolderOnDrop {
 #[tokio::test]
 async fn memory_dump() -> Result<()> {
     // Create API instance
-    let api = GearApi::dev_from_path("../target/release/gear").await?;
+    let api = gear_api().await?;
     // Subscribe to events
     let mut listener = api.subscribe().await?;
     // Check that blocks are still running

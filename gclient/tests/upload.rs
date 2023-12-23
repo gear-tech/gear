@@ -18,8 +18,11 @@
 
 //! Test for harmful demos, checking their init can't brake the chain.
 
+mod utils;
+
 use std::time::Duration;
 
+use crate::utils::gear_api;
 use demo_wat::WatExample;
 use gclient::{errors, Error, EventProcessor, GearApi};
 
@@ -84,9 +87,7 @@ async fn harmless_upload() -> anyhow::Result<()> {
     // Creating gear api.
     //
     // By default, login as Alice, than re-login as Bob.
-    let api = GearApi::dev_from_path("../target/release/gear")
-        .await?
-        .with("//Bob")?;
+    let api = gear_api().await?.with("//Bob")?;
 
     upload_programs_and_check(&api, codes, None).await?;
 
@@ -111,9 +112,7 @@ async fn alloc_zero_pages() -> anyhow::Result<()> {
                 drop
             )
         )"#;
-    let api = GearApi::dev_from_path("../target/release/gear")
-        .await?
-        .with("//Bob")?;
+    let api = gear_api().await?.with("//Bob")?;
     let codes = vec![wat::parse_str(wat_code).unwrap()];
     upload_programs_and_check(&api, codes, Some(Duration::from_secs(15))).await
 }
@@ -123,9 +122,7 @@ async fn get_mailbox() -> anyhow::Result<()> {
     // Creating gear api.
     //
     // By default, login as Alice, than re-login as Bob.
-    let api = GearApi::dev_from_path("../target/release/gear")
-        .await?
-        .with("//Bob")?;
+    let api = gear_api().await?.with("//Bob")?;
 
     // Subscribe to events
     let mut listener = api.subscribe().await?;
@@ -221,7 +218,7 @@ async fn get_mailbox() -> anyhow::Result<()> {
 
 #[tokio::test]
 async fn test_upload_failed() -> anyhow::Result<()> {
-    let api = GearApi::dev_from_path("../target/release/gear").await?;
+    let api = gear_api().await?;
 
     let err = api
         .upload_program(vec![], vec![], b"", u64::MAX, 0)

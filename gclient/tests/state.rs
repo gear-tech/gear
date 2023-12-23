@@ -16,14 +16,17 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+mod utils;
+
+use crate::utils::gear_api;
 use demo_meta_io::Wallet;
-use gclient::{EventProcessor, GearApi};
+use gclient::EventProcessor;
 use gmeta::MetadataRepr;
 use parity_scale_codec::{Decode, Encode};
 
 #[tokio::test]
 async fn get_state() -> anyhow::Result<()> {
-    let api = GearApi::dev_from_path("../target/release/gear").await?;
+    let api = gear_api().await?;
 
     // Subscribe to events
     let mut listener = api.subscribe().await?;
@@ -88,7 +91,7 @@ async fn get_state_request() -> anyhow::Result<()> {
 
     let gas_limit = 100_000_000_000;
 
-    let api = GearApi::dev_from_path("../target/release/gear").await?;
+    let api = gear_api().await?;
 
     // Or use this comment to run test on custom node
     // let api = GearApi::dev().await?.with("//Alice")?;
