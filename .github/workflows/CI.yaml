@@ -128,7 +128,7 @@ jobs:
         run: ./scripts/gear.sh build node --locked
 
       - name: "Check: Stack height limit"
-        run: cargo run -p calc-stack-height --locked
+        run: cargo run -p calc-stack-height --release --locked
 
       - name: "Test: gsdk tests"
         run: ./scripts/gear.sh test gsdk
