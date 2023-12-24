@@ -74,16 +74,12 @@ impl Artifact {
             ancestors.next()?.to_str()?,
         ];
 
-        let [bin, stem] = [
-            PathBuf::from(format!("{target}/wasm32-unknown-unknown/{profile}")),
-            PathBuf::from(name.replace('-', "_")),
-        ];
+        let bin = PathBuf::from(format!("{target}/wasm32-unknown-unknown/{profile}"));
+        let stem = PathBuf::from(name.replace('-', "_"));
 
-        let [opt, meta] = [
-            fs::read(bin.join(stem.with_extension("wasm"))).ok()?,
-            fs::read(bin.join(stem.with_extension("meta.wasm"))).unwrap_or_default(),
-        ];
-
-        Some(Self { opt, meta })
+        Some(Self {
+            opt: fs::read(bin.join(stem.with_extension("wasm"))).ok()?,
+            meta: fs::read(bin.join(stem.with_extension("meta.wasm"))).unwrap_or_default(),
+        })
     }
 }

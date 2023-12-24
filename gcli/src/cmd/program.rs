@@ -64,8 +64,8 @@ pub enum Program {
 }
 
 impl Program {
-    /// Override metadata binary.
-    pub fn override_meta(&self, meta: Vec<u8>) -> Self {
+    /// Clone self with metadata overridden.
+    pub fn clone_with_meta_overridden(&self, meta: Vec<u8>) -> Self {
         let mut overridden = self.clone();
         if let Program::Meta { meta_override, .. } = &mut overridden {
             *meta_override = meta;

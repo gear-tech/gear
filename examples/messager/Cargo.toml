@@ -12,7 +12,7 @@ required-features = ["gcli"]
 
 [dependencies]
 gstd.workspace = true
-gcli = { workspace = true, optional = true, features = [ "embed" ] }
+gcli = { workspace = true, optional = true, features = ["embed"] }
 
 [build-dependencies]
 gear-wasm-builder.workspace = true

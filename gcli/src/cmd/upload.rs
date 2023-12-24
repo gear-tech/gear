@@ -54,8 +54,8 @@ pub struct Upload {
 }
 
 impl Upload {
-    /// Override code path.
-    pub fn override_code(&self, code: Vec<u8>) -> Self {
+    /// Clone self with code overridden.
+    pub fn clone_with_code_overridden(&self, code: Vec<u8>) -> Self {
         let mut overridden = self.clone();
         overridden.code_override = code;
         overridden

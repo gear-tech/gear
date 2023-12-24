@@ -84,8 +84,12 @@ impl Command {
         artifact: crate::embed::Artifact,
     ) -> anyhow::Result<()> {
         let this = match self {
-            Command::Upload(upload) => Command::Upload(upload.override_code(artifact.opt)),
-            Command::Program(program) => Command::Program(program.override_meta(artifact.meta)),
+            Command::Upload(upload) => {
+                Command::Upload(upload.clone_with_code_overridden(artifact.opt))
+            }
+            Command::Program(program) => {
+                Command::Program(program.clone_with_meta_overridden(artifact.meta))
+            }
             _ => self.clone(),
         };
 
