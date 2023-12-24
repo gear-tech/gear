@@ -20,17 +20,19 @@ use gsdk::{
     ext::{sp_core::crypto::Ss58Codec, sp_runtime::AccountId32},
     testing::Node,
 };
-use std::env;
 
 pub fn dev_node() -> Node {
-    // Use release or CI profile because of performance reasons.
-    let profile = env::var("CI").map(|_| "ci").unwrap_or_else(|_| "release");
-    let bin_path = format!("{}/../target/{}/gear", env!("CARGO_MANIFEST_DIR"), profile);
+    let profile = if cfg!(debug_assertions) {
+        "debug"
+    } else {
+        "release"
+    };
+    let bin_path = format!("{}/../target/{profile}/gear", env!("CARGO_MANIFEST_DIR"));
 
     let args = vec!["--tmp", "--dev"];
 
     Node::try_from_path(bin_path, args)
-        .expect("Failed to start node: Maybe it isn't built with --release flag?")
+        .expect("Failed to start node: Maybe it isn't built with optimizations?")
 }
 
 pub fn node_uri(node: &Node) -> String {

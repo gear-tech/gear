@@ -62,11 +62,11 @@ vara-release:
 
 .PHONY: gear-replay
 gear-replay:
-	@ ./scripts/gear.sh build gear-replay --release
+	@ ./scripts/gear.sh build gear-replay
 
 .PHONY: gear-replay-vara-native
 gear-replay-vara-native:
-	@ ./scripts/gear.sh build gear-replay --release --no-default-features --features=std,vara-native
+	@ ./scripts/gear.sh build gear-replay --no-default-features --features=std,vara-native
 
 # Check section
 .PHONY: check

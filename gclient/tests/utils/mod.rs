@@ -17,10 +17,14 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use gclient::{GearApi, Result};
-use std::{env, path::PathBuf};
+use std::path::PathBuf;
 
 pub fn target_dir() -> PathBuf {
-    let profile = env::var("CI").map(|_| "ci").unwrap_or_else(|_| "release");
+    let profile = if cfg!(debug_assertions) {
+        "debug"
+    } else {
+        "release"
+    };
     PathBuf::from("../target").join(profile)
 }
 

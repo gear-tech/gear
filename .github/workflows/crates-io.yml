@@ -32,8 +32,8 @@ jobs:
         uses: dsherret/rust-toolchain-file@v1
 
       - name: "Check packages"
-        run: cargo run --release -p crates-io check
+        run: cargo run -p crates-io check
 
       - name: "Publish packages"
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish }}
-        run: cargo run --release -p crates-io publish -v ${{ inputs.version }}
+        run: cargo run -p crates-io publish -v ${{ inputs.version }}

@@ -125,16 +125,16 @@ jobs:
         shell: powershell
 
       - name: "Build: Node"
-        run: ./scripts/gear.sh build node --profile=ci --locked
+        run: ./scripts/gear.sh build node --locked
 
       - name: "Check: Stack height limit"
-        run: cargo run -p calc-stack-height --profile=ci --locked
+        run: cargo run -p calc-stack-height --locked
 
       - name: "Test: gsdk tests"
-        run: ./scripts/gear.sh test gsdk --cargo-profile=ci
+        run: ./scripts/gear.sh test gsdk
 
       - name: "Test: Client tests"
-        run: ./scripts/gear.sh test client --profile=ci
+        run: ./scripts/gear.sh test client
 
       - name: "Test: Lazy pages"
         run: >-
@@ -142,7 +142,6 @@ jobs:
           -p "pallet-*"
           -p gear-lazy-pages
           -p gear-runtime-interface
-          --profile=ci
 
   upload:
     if: github.event_name == 'push' && github.ref_name == 'master'

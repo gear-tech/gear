@@ -46,7 +46,7 @@ jobs:
         run: cargo build -p gear-cli
         
       - name: "Check: Stack height limit"
-        run: cargo run -p calc-stack-height --profile=ci --locked
+        run: cargo run -p calc-stack-height --locked
 
       - name: "Test: Lazy pages"
         run: >-

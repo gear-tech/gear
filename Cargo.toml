@@ -450,6 +450,16 @@ scale-decode = "0.9.0"                                                    # gsdk
 directories = "5.0.1"                                                     # utils/key-finder
 num-traits = { version = "0.2", default-features = false }                # gear-core
 
+# compile non-workspace dependencies in release
+# to reach fast block production in node binary
+[profile.dev.package."*"]
+opt-level = 3
+
+# TODO: remove after wasmer bug is fixed:
+# `misaligned pointer dereference: address must be a multiple of 0x8 but is...`
+[profile.dev.package."wasmer-vm"]
+debug-assertions = false
+
 [profile.release]
 panic = "unwind"
 
@@ -478,17 +488,6 @@ codegen-units = 1
 [profile.profiling]
 inherits = "release"
 debug = true
-
-[profile.ci]
-inherits = "dev"
-
-[profile.ci.package."*"]
-opt-level = 3
-
-# TODO: remove after wasmer bug is fixed:
-# `misaligned pointer dereference: address must be a multiple of 0x8 but is...`
-[profile.ci.package."wasmer-vm"]
-debug-assertions = false
 
 [patch.crates-io]
 parity-wasm = { version = "0.45.0", git = "https://github.com/gear-tech/parity-wasm", branch = "v0.45.0-sign-ext" }
