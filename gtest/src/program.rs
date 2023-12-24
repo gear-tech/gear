@@ -1065,4 +1065,34 @@ mod tests {
         assert!(response.contains(&log));
         sys.claim_value_from_mailbox(signer);
     }
+
+    #[test]
+    fn process_wait_for() {
+        use demo_custom::{InitMessage, WASM_BINARY};
+        let sys = System::new();
+        sys.init_logger();
+
+        let prog = Program::from_opt_and_meta_code_with_id(&sys, 420, WASM_BINARY.to_vec(), None);
+
+        let signer = 42;
+
+        // Init simple waiter
+        prog.send(signer, InitMessage::SimpleWaiter);
+
+        // Invoke `exec::wait_for` when running for the first time
+        let result = prog.send_bytes(signer, b"doesn't matter");
+
+        // No log entries as the program is waiting
+        assert!(result.log().is_empty());
+
+        // Spend 20 blocks and make the waiter to wake up
+        let results = sys.spend_blocks(20);
+
+        let log = Log::builder()
+            .source(prog.id())
+            .dest(signer)
+            .payload_bytes("hello");
+
+        assert!(results.iter().any(|result| result.contains(&log)));
+    }
 }

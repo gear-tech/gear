@@ -26,6 +26,7 @@ extern crate alloc;
 pub mod backend_error;
 pub mod btree;
 pub mod capacitor;
+pub mod simple_waiter;
 
 use alloc::string::String;
 use parity_scale_codec::{Decode, Encode};
@@ -35,13 +36,14 @@ pub enum InitMessage {
     Capacitor(String),
     BTree,
     BackendError,
+    SimpleWaiter,
 }
 
 #[cfg(not(feature = "std"))]
 mod wasm {
     use super::{
         backend_error::wasm as backend_error, btree::wasm as btree, capacitor::wasm as capacitor,
-        InitMessage,
+        simple_waiter::wasm as simple_waiter, InitMessage,
     };
     use gstd::msg;
 
@@ -49,6 +51,7 @@ mod wasm {
         Capacitor(capacitor::State),
         BTree(btree::State),
         BackendError(backend_error::State),
+        SimpleWaiter(simple_waiter::State),
     }
 
     static mut STATE: Option<State> = None;
@@ -60,6 +63,7 @@ mod wasm {
             InitMessage::Capacitor(payload) => State::Capacitor(capacitor::init(payload)),
             InitMessage::BTree => State::BTree(btree::init()),
             InitMessage::BackendError => State::BackendError(backend_error::init()),
+            InitMessage::SimpleWaiter => State::SimpleWaiter(simple_waiter::init()),
         };
         unsafe { STATE = Some(state) };
     }
@@ -70,6 +74,7 @@ mod wasm {
         match state {
             State::Capacitor(state) => capacitor::handle(state),
             State::BTree(state) => btree::handle(state),
+            State::SimpleWaiter(state) => simple_waiter::handle(state),
             _ => {}
         }
     }

@@ -1,48 +1,40 @@
 // This file is part of Gear.
-//
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+
+// Copyright (C) 2023 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-//
+
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
-//
+
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 // GNU General Public License for more details.
-//
+
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use common::env;
-use gsdk::{result::Error, Api};
-use std::path::PathBuf;
+#[cfg(not(feature = "std"))]
+pub(crate) mod wasm {
+    use gstd::{exec, msg, prelude::*};
 
-mod cmd;
-mod common;
+    #[derive(Default)]
+    pub(crate) struct State {
+        triggered: bool,
+    }
 
-#[tokio::test]
-async fn api_timeout() {
-    assert!(matches!(
-        Api::new_with_timeout(None, Some(1)).await.err(),
-        Some(Error::SubxtRpc(jsonrpsee::core::Error::Transport(..)))
-    ));
-}
+    pub(crate) fn init() -> State {
+        Default::default()
+    }
 
-#[test]
-fn paths() {
-    [
-        env::bin("gear"),
-        env::bin("gcli"),
-        env::wasm_bin("demo_new_meta.opt.wasm"),
-        env::wasm_bin("demo_new_meta.meta.txt"),
-    ]
-    .into_iter()
-    .for_each(|path| {
-        if !PathBuf::from(&path).exists() {
-            panic!("{} not found.", path)
+    pub(crate) fn handle(state: &mut State) {
+        if !state.triggered {
+            state.triggered = true;
+            exec::wait_for(20);
         }
-    })
+
+        msg::send_bytes(msg::source(), b"hello", 0).unwrap();
+    }
 }
