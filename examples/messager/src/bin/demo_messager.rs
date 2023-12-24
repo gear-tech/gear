@@ -43,7 +43,7 @@ impl App for Messager {
 
         let Command::Upload(upload) = &self.command;
         upload
-            .override_code(lookup.opt)
+            .clone_with_code_overridden(lookup.opt)
             .exec(signer)
             .await
             .map_err(Into::into)
