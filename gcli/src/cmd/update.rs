@@ -24,7 +24,7 @@ use std::process::{self, Command};
 const REPO: &str = "https://github.com/gear-tech/gear-program";
 
 /// Update self from crates.io or github
-#[derive(Debug, Parser)]
+#[derive(Clone, Debug, Parser)]
 pub struct Update {
     /// Force update self from <https://github.com/gear-tech/gear-program>
     #[arg(short, long)]

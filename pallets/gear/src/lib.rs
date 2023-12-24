@@ -54,7 +54,7 @@ use alloc::{format, string::String};
 use common::{
     self, event::*, gas_provider::GasNodeId, paused_program_storage::SessionId, scheduler::*,
     storage::*, BlockLimiter, CodeMetadata, CodeStorage, GasProvider, GasTree, Origin,
-    PausedProgramStorage, PaymentVoucher, Program, ProgramState, ProgramStorage, QueueRunner,
+    PausedProgramStorage, Program, ProgramState, ProgramStorage, QueueRunner,
 };
 use core::marker::PhantomData;
 use core_processor::{
@@ -119,7 +119,6 @@ pub type RentFreePeriodOf<T> = <T as Config>::ProgramRentFreePeriod;
 pub type RentCostPerBlockOf<T> = <T as Config>::ProgramRentCostPerBlock;
 pub type ResumeMinimalPeriodOf<T> = <T as Config>::ProgramResumeMinimalRentPeriod;
 pub type ResumeSessionDurationOf<T> = <T as Config>::ProgramResumeSessionDuration;
-pub(crate) type VoucherOf<T> = <T as Config>::Voucher;
 pub(crate) type GearBank<T> = pallet_gear_bank::Pallet<T>;
 
 /// The current storage version.
@@ -239,14 +238,6 @@ pub mod pallet {
 
         /// Message Queue processing routing provider.
         type QueueRunner: QueueRunner<Gas = GasBalanceOf<Self>>;
-
-        /// Type that allows to check caller's eligibility for using voucher for payment.
-        type Voucher: PaymentVoucher<
-            Self::AccountId,
-            ProgramId,
-            BalanceOf<Self>,
-            VoucherId = Self::AccountId,
-        >;
 
         /// The free of charge period of rent.
         #[pallet::constant]
@@ -450,8 +441,6 @@ pub mod pallet {
         ResumePeriodLessThanMinimal,
         /// Program with the specified id is not found.
         ProgramNotFound,
-        /// Voucher can't be redeemed
-        FailureRedeemingVoucher,
         /// Gear::run() already included in current block.
         GearRunAlreadyInBlock,
         /// The program rent logic is disabled.
@@ -1480,8 +1469,8 @@ pub mod pallet {
                 payload,
                 gas_limit,
                 value,
-                false,
                 keep_alive,
+                None,
             )
         }
 
@@ -1517,8 +1506,8 @@ pub mod pallet {
                 payload,
                 gas_limit,
                 value,
-                false,
                 keep_alive,
+                None,
             )
         }
 
@@ -1818,8 +1807,8 @@ pub mod pallet {
             payload: Vec<u8>,
             gas_limit: u64,
             value: BalanceOf<T>,
-            prepaid: bool,
             keep_alive: bool,
+            gas_sponsor: Option<AccountIdOf<T>>,
         ) -> DispatchResultWithPostInfo {
             let payload = payload
                 .try_into()
@@ -1850,27 +1839,11 @@ pub mod pallet {
                 // a voucher exists. The latter can only be used to pay for gas or transaction fee.
                 GearBank::<T>::deposit_value(&who, value, keep_alive)?;
 
-                let external_node = if prepaid {
-                    // If voucher is used, we attempt to reserve funds on the respective account.
-                    // If no such voucher exists, the call is invalidated.
-                    let voucher_id = VoucherOf::<T>::voucher_id(who.clone(), destination);
-
-                    GearBank::<T>::deposit_gas(&voucher_id, gas_limit, keep_alive).map_err(|e| {
-                        log::debug!(
-                            "Failed to redeem voucher for user {who:?} and program {destination:?}: {e:?}"
-                        );
-                        Error::<T>::FailureRedeemingVoucher
-                    })?;
-
-                    voucher_id
-                } else {
-                    // If voucher is not used, we reserve gas limit on the user's account.
-                    GearBank::<T>::deposit_gas(&who, gas_limit, keep_alive)?;
-
-                    who.clone()
-                };
-
-                Self::create(external_node, message.id(), gas_limit, false);
+                // If voucher or any other prepaid mechanism is not used,
+                // gas limit is taken from user's account.
+                let gas_sponsor = gas_sponsor.unwrap_or_else(|| who.clone());
+                GearBank::<T>::deposit_gas(&gas_sponsor, gas_limit, keep_alive)?;
+                Self::create(gas_sponsor, message.id(), gas_limit, false);
 
                 let message = message.into_stored_dispatch(origin.cast());
 
@@ -1918,8 +1891,8 @@ pub mod pallet {
             payload: Vec<u8>,
             gas_limit: u64,
             value: BalanceOf<T>,
-            prepaid: bool,
             keep_alive: bool,
+            gas_sponsor: Option<AccountIdOf<T>>,
         ) -> DispatchResultWithPostInfo {
             let payload = payload
                 .try_into()
@@ -1950,28 +1923,11 @@ pub mod pallet {
 
             GearBank::<T>::deposit_value(&origin, value, keep_alive)?;
 
-            let external_node = if prepaid {
-                // If voucher is used, we attempt to reserve funds on the respective account.
-                // If no such voucher exists, the call is invalidated.
-                let voucher_id = VoucherOf::<T>::voucher_id(origin.clone(), destination);
-
-                GearBank::<T>::deposit_gas(&voucher_id, gas_limit, keep_alive).map_err(|e| {
-                    log::debug!(
-                        "Failed to redeem voucher for user {origin:?} and program {destination:?}: {e:?}"
-                    );
-                    Error::<T>::FailureRedeemingVoucher
-                })?;
-
-                voucher_id
-            } else {
-                // If voucher is not used, we reserve gas limit on the user's account.
-                GearBank::<T>::deposit_gas(&origin, gas_limit, keep_alive)?;
-
-                origin.clone()
-            };
-
-            // Following up with a gas node creation.
-            Self::create(external_node, reply_id, gas_limit, true);
+            // If voucher or any other prepaid mechanism is not used,
+            // gas limit is taken from user's account.
+            let gas_sponsor = gas_sponsor.unwrap_or_else(|| origin.clone());
+            GearBank::<T>::deposit_gas(&gas_sponsor, gas_limit, keep_alive)?;
+            Self::create(gas_sponsor, reply_id, gas_limit, true);
 
             // Creating reply message.
             let message = ReplyMessage::from_packet(
@@ -2022,6 +1978,7 @@ pub mod pallet {
 
         fn dispatch(
             account_id: Self::AccountId,
+            sponsor_id: Self::AccountId,
             call: PrepaidCall<Self::Balance>,
         ) -> DispatchResultWithPostInfo {
             match call {
@@ -2037,8 +1994,8 @@ pub mod pallet {
                     payload,
                     gas_limit,
                     value,
-                    true,
                     keep_alive,
+                    Some(sponsor_id),
                 ),
                 PrepaidCall::SendReply {
                     reply_to_id,
@@ -2052,8 +2009,8 @@ pub mod pallet {
                     payload,
                     gas_limit,
                     value,
-                    true,
                     keep_alive,
+                    Some(sponsor_id),
                 ),
             }
         }

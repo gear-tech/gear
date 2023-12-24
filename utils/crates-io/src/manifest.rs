@@ -147,8 +147,9 @@ impl Manifest {
         for (name, dep) in deps.iter_mut() {
             let name = name.get();
             name.starts_with("sp-").then(|| {
-                dep.as_inline_table_mut()
-                    .map(|table| Self::rename_sp(name, table));
+                if let Some(table) = dep.as_inline_table_mut() {
+                    Self::rename_sp(name, table);
+                }
             });
         }
 

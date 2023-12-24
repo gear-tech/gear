@@ -24,7 +24,7 @@
 #[cfg(all(feature = "std", not(feature = "fuzz")))]
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
-use common::storage::{Mailbox, Messenger};
+use common::storage::Messenger;
 use frame_election_provider_support::{
     onchain, ElectionDataProvider, NposSolution, SequentialPhragmen, VoteWeight,
 };
@@ -75,7 +75,7 @@ pub use runtime_common::{
     impl_runtime_apis_plus_common, BlockHashCount, DealWithFees, AVERAGE_ON_INITIALIZE_RATIO,
     GAS_LIMIT_MIN_PERCENTAGE_NUM, NORMAL_DISPATCH_RATIO, VALUE_PER_GAS,
 };
-pub use runtime_primitives::{AccountId, Signature};
+pub use runtime_primitives::{AccountId, Signature, VARA_SS58_PREFIX};
 use runtime_primitives::{Balance, BlockNumber, Hash, Index, Moment};
 use sp_api::impl_runtime_apis;
 use sp_core::{crypto::KeyTypeId, ConstBool, ConstU64, OpaqueMetadata, H256};
@@ -151,7 +151,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     // The version of the runtime specification. A full node will not attempt to use its native
     //   runtime in substitute for the on-chain Wasm runtime unless all of `spec_name`,
     //   `spec_version`, and `authoring_version` are the same between Wasm and native.
-    spec_version: 1030,
+    spec_version: 1040,
     impl_version: 1,
     apis: RUNTIME_API_VERSIONS,
     transaction_version: 1,
@@ -189,7 +189,7 @@ pub fn native_version() -> NativeVersion {
 
 parameter_types! {
     pub const Version: RuntimeVersion = VERSION;
-    pub const SS58Prefix: u8 = 137;
+    pub const SS58Prefix: u8 = VARA_SS58_PREFIX;
     pub RuntimeBlockWeights: BlockWeights = runtime_common::block_weights_for(MAXIMUM_BLOCK_WEIGHT);
     pub RuntimeBlockLength: BlockLength =
         BlockLength::max_with_normal_ratio(5 * 1024 * 1024, NORMAL_DISPATCH_RATIO);
@@ -994,7 +994,6 @@ impl pallet_gear::Config for Runtime {
     type BlockLimiter = GearGas;
     type Scheduler = GearScheduler;
     type QueueRunner = Gear;
-    type Voucher = GearVoucher;
     type ProgramRentFreePeriod = ConstU32<{ MONTHS * RENT_FREE_PERIOD_MONTH_FACTOR }>;
     type ProgramResumeMinimalRentPeriod = ConstU32<{ WEEKS * RENT_RESUME_WEEK_FACTOR }>;
     type ProgramRentCostPerBlock = ConstU128<RENT_COST_PER_BLOCK>;
@@ -1058,14 +1057,9 @@ pub struct DelegateFeeAccountBuilder;
 impl DelegateFee<RuntimeCall, AccountId> for DelegateFeeAccountBuilder {
     fn delegate_fee(call: &RuntimeCall, who: &AccountId) -> Option<AccountId> {
         match call {
-            RuntimeCall::GearVoucher(pallet_gear_voucher::Call::call {
-                call: pallet_gear_voucher::PrepaidCall::SendMessage { destination, .. },
-            }) => Some(GearVoucher::voucher_account_id(who, destination)),
-            RuntimeCall::GearVoucher(pallet_gear_voucher::Call::call {
-                call: pallet_gear_voucher::PrepaidCall::SendReply { reply_to_id, .. },
-            }) => <<GearMessenger as Messenger>::Mailbox as Mailbox>::peek(who, reply_to_id).map(
-                |stored_message| GearVoucher::voucher_account_id(who, &stored_message.source()),
-            ),
+            RuntimeCall::GearVoucher(pallet_gear_voucher::Call::call { call }) => {
+                GearVoucher::sponsor_of(who, call)
+            }
             _ => None,
         }
     }
@@ -1087,6 +1081,7 @@ impl pallet_gear_voucher::Config for Runtime {
     type PalletId = VoucherPalletId;
     type WeightInfo = weights::pallet_gear_voucher::SubstrateWeight<Runtime>;
     type CallsDispatcher = Gear;
+    type Mailbox = <GearMessenger as Messenger>::Mailbox;
 }
 
 impl<C> frame_system::offchain::SendTransactionTypes<C> for Runtime
