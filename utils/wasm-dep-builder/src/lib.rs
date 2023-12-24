@@ -19,7 +19,7 @@
 mod builder;
 
 use crate::builder::build_wasm;
-use cargo_metadata::{DependencyKind, MetadataCommand};
+use cargo_metadata::MetadataCommand;
 use fs4::FileExt;
 use serde::Deserialize;
 use std::{
@@ -128,11 +128,6 @@ pub fn builder() {
     let cargo_toml = manifest_dir.join("Cargo.toml");
     println!("cargo:rerun-if-changed={}", cargo_toml.display());
 
-    // track `OUT_DIR` because cargo can change it during development
-    // and all of `wasm_binary.rs` files will be gone
-    // TODO: possibly env tracking is not enough to generate `wasm_binary.rs` files
-    println!("cargo:rerun-if-env-changed=OUT_DIR");
-
     // don't track features because they are resolved by `cargo metadata`
     // and always set in TOML files and not via CLI
     env::set_var("__GEAR_WASM_BUILDER_NO_FEATURES_TRACKING", "1");
@@ -151,13 +146,11 @@ pub fn builder() {
         .map(|config| config.into_builder().expect("Builder config expected"))
         .unwrap_or_default();
 
-    let mut wasm_binaries = String::new();
-    let mut packages_to_build = BTreeMap::new();
+    let mut packages = BTreeMap::new();
 
     for dep in package
         .dependencies
         .iter()
-        .filter(|dep| dep.kind == DependencyKind::Development)
         .filter(|dep| !config.exclude.contains(&dep.name))
         .filter(|dep| dep.name.starts_with("demo-"))
     {
@@ -188,14 +181,6 @@ pub fn builder() {
             .map(|config| config.into_demo().expect("Demo config expected"))
             .unwrap_or_default();
 
-        wasm_binaries += &format!(
-            r#"
-pub mod {dep_name} {{
-    include!(concat!(env!("OUT_DIR"), "/{dep_name}/wasm_binary.rs"));
-}}
-            "#,
-        );
-
         let features: BTreeSet<String> = dep.features.iter().cloned().collect();
         let excluded_features = pkg_metadata.exclude_features;
         let features: BTreeSet<String> = features.difference(&excluded_features).cloned().collect();
@@ -221,23 +206,22 @@ pub mod {dep_name} {{
             !lock_exists,
             content == DEMO_OCCURRED
         );
-        #[allow(clippy::overly_complex_bool_expr)]
-        if true || !lock_exists || content == DEMO_OCCURRED {
+        let features = if !lock_exists || content == DEMO_OCCURRED {
             println!("cargo:warning=rebuilding...");
-
-            packages_to_build.insert(pkg.name.clone(), features);
 
             lock.set_len(0).unwrap();
             lock.seek(SeekFrom::Start(0)).unwrap();
             write!(lock, "{BUILDER_OCCURRED}").unwrap();
-        }
+
+            Some(features)
+        } else {
+            None
+        };
+        packages.insert(pkg.name.clone(), features);
     }
 
-    println!("cargo:warning={:?}", packages_to_build);
-    if !packages_to_build.is_empty() {
-        build_wasm(packages_to_build);
-    }
-
+    println!("cargo:warning={:?}", packages);
+    let wasm_binaries = build_wasm(packages);
     fs::write(out_dir.join("wasm_binaries.rs"), wasm_binaries).unwrap();
 }
 

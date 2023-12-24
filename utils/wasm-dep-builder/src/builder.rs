@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{out_dir, profile, wasm32_target_dir, wasm_projects_dir};
+use crate::{profile, wasm32_target_dir, wasm_projects_dir};
 use gear_wasm_builder::{
     optimize,
     optimize::{OptType, Optimizer},
@@ -27,13 +27,13 @@ use std::{
     process::Command,
 };
 
-pub fn build_wasm(packages: BTreeMap<String, BTreeSet<String>>) {
+pub fn build_wasm(packages: BTreeMap<String, Option<BTreeSet<String>>>) -> String {
     let cargo = env::var("CARGO").unwrap_or_else(|_| "cargo".into());
-
     let wasm32_target_dir = wasm32_target_dir().join(profile());
 
     let packages_and_features = packages
         .iter()
+        .filter_map(|(pkg, features)| Some((pkg, features.as_ref()?)))
         .map(|(pkg, features)| {
             (
                 pkg,
@@ -51,33 +51,52 @@ pub fn build_wasm(packages: BTreeMap<String, BTreeSet<String>>) {
                 "--features".to_string(),
                 features,
             ]
-        });
+        })
+        .collect::<Vec<String>>();
 
-    let mut cargo = Command::new(cargo);
-    cargo
-        .arg("build")
-        .arg("--no-default-features")
-        .args(packages_and_features)
-        .arg("--profile")
-        .arg(profile().replace("debug", "dev"))
-        .env("__GEAR_WASM_BUILDER_NO_BUILD", "1")
-        .env("CARGO_BUILD_TARGET", "wasm32-unknown-unknown")
-        .env("CARGO_TARGET_DIR", wasm_projects_dir())
-        // remove host flags
-        .env_remove("CARGO_ENCODED_RUSTFLAGS");
-    println!("cargo:warning={:?}", cargo);
-    let status = cargo.status().expect("Failed to execute cargo command");
-    assert!(status.success());
+    if !packages_and_features.is_empty() {
+        let mut cargo = Command::new(cargo);
+        cargo
+            .arg("build")
+            .arg("--no-default-features")
+            .args(packages_and_features)
+            .arg("--profile")
+            .arg(profile().replace("debug", "dev"))
+            .env("__GEAR_WASM_BUILDER_NO_BUILD", "1")
+            .env("CARGO_BUILD_TARGET", "wasm32-unknown-unknown")
+            .env("CARGO_TARGET_DIR", wasm_projects_dir())
+            // remove host flags
+            .env_remove("CARGO_ENCODED_RUSTFLAGS");
+        println!("cargo:warning={:?}", cargo);
+        let status = cargo.status().expect("Failed to execute cargo command");
+        assert!(status.success());
+    }
 
-    for (pkg, _) in packages {
+    let mut wasm_binaries = String::new();
+
+    for (pkg, build_required) in packages {
         let pkg = pkg.replace('-', "_");
-
-        let out_dir = out_dir().join(&pkg);
-        fs::create_dir_all(&out_dir).unwrap();
 
         let wasm = wasm32_target_dir.join(format!("{}.wasm", pkg));
         let mut wasm_opt = wasm.clone();
         wasm_opt.set_extension("opt.wasm");
+
+        wasm_binaries += &format!(
+            r#"
+pub mod {pkg} {{
+    pub use ::{pkg}::*;
+    
+    pub const WASM_BINARY: &[u8] = include_bytes!("{}");
+    pub const WASM_BINARY_OPT: &[u8] = include_bytes!("{}");
+}}
+                    "#,
+            wasm.display(),
+            wasm_opt.display()
+        );
+
+        if build_required.is_none() {
+            continue;
+        }
 
         println!("cargo:warning=wasm: {}", wasm.display());
         println!("cargo:warning=wasm_opt: {}", wasm_opt.display());
@@ -91,21 +110,7 @@ pub fn build_wasm(packages: BTreeMap<String, BTreeSet<String>>) {
 
         let binary_opt = optimizer.optimize(OptType::Opt).unwrap();
         fs::write(&wasm_opt, binary_opt).unwrap();
-
-        // TODO: optimize binary
-        fs::write(
-            out_dir.join("wasm_binary.rs"),
-            format!(
-                r#"
-    #[allow(unused)]
-    pub const WASM_BINARY: &[u8] = include_bytes!("{}");
-    #[allow(unused)]
-    pub const WASM_BINARY_OPT: &[u8] = include_bytes!("{}");
-    "#,
-                wasm.display(),
-                wasm_opt.display()
-            ),
-        )
-        .unwrap();
     }
+
+    wasm_binaries
 }
