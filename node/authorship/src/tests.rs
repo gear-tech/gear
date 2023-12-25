@@ -91,7 +91,7 @@ fn checked_extrinsics(n: u32, signer: AccountId, nonce: &mut u32) -> Vec<Checked
             let tx = CheckedExtrinsic {
                 signed: Some((signer.clone(), signed_extra(*nonce))),
                 function: RuntimeCall::Gear(pallet_gear::Call::upload_program {
-                    code: WASM_BINARY_OPT.to_vec(),
+                    code: WASM_BINARY.to_vec(),
                     salt: salt.as_bytes().to_vec(),
                     init_payload: (i as u64).encode(),
                     gas_limit: DEFAULT_GAS_LIMIT,

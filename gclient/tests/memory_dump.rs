@@ -73,7 +73,7 @@ async fn memory_dump() -> Result<()> {
     // Calculate gas amount needed for initialization
     let payload = InitMessage::Capacitor("15".to_string()).encode();
     let gas_info = api
-        .calculate_upload_gas(None, WASM_BINARY_OPT.to_vec(), payload.clone(), 0, true)
+        .calculate_upload_gas(None, WASM_BINARY.to_vec(), payload.clone(), 0, true)
         .await?;
     // Upload and init the program
     let (message_id, program_id, _hash) = api

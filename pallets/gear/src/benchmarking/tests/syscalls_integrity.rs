@@ -47,7 +47,7 @@ where
     T: Config,
     T::AccountId: Origin,
 {
-    use demo_read_big_state::{State, Strings, WASM_BINARY_OPT};
+    use demo_read_big_state::{State, Strings, WASM_BINARY};
 
     #[cfg(feature = "std")]
     utils::init_logger();
@@ -62,7 +62,7 @@ where
 
     Gear::<T>::upload_program(
         RawOrigin::Signed(origin.clone()).into(),
-        WASM_BINARY_OPT.to_vec(),
+        WASM_BINARY.to_vec(),
         salt.to_vec(),
         Default::default(),
         BlockGasLimitOf::<T>::get(),
@@ -71,7 +71,7 @@ where
     )
     .expect("Failed to upload read_big_state binary");
 
-    let pid = ProgramId::generate_from_user(CodeId::generate(WASM_BINARY_OPT), salt);
+    let pid = ProgramId::generate_from_user(CodeId::generate(WASM_BINARY), salt);
     utils::run_to_next_block::<T>(None);
 
     let string = String::from("hi").repeat(4095);

@@ -847,7 +847,7 @@ mod tests {
         let prog = Program::from_opt_and_meta_code_with_id(
             &sys,
             137,
-            demo_futures_unordered::WASM_BINARY_OPT.to_vec(),
+            demo_futures_unordered::WASM_BINARY.to_vec(),
             None,
         );
 
@@ -880,7 +880,7 @@ mod tests {
         let mut prog = Program::from_opt_and_meta_code_with_id(
             &sys,
             137,
-            demo_ping::WASM_BINARY_OPT.to_vec(),
+            demo_ping::WASM_BINARY.to_vec(),
             None,
         );
 
@@ -914,7 +914,7 @@ mod tests {
         let prog = Program::from_opt_and_meta_code_with_id(
             &sys,
             137,
-            demo_piggy_bank::WASM_BINARY_OPT.to_vec(),
+            demo_piggy_bank::WASM_BINARY.to_vec(),
             None,
         );
 
@@ -963,7 +963,7 @@ mod tests {
         let prog = Program::from_opt_and_meta_code_with_id(
             &sys,
             2,
-            demo_piggy_bank::WASM_BINARY_OPT.to_vec(),
+            demo_piggy_bank::WASM_BINARY.to_vec(),
             None,
         );
 
@@ -987,7 +987,7 @@ mod tests {
         let prog = Program::from_opt_and_meta_code_with_id(
             &sys,
             137,
-            demo_piggy_bank::WASM_BINARY_OPT.to_vec(),
+            demo_piggy_bank::WASM_BINARY.to_vec(),
             None,
         );
 
@@ -1023,7 +1023,7 @@ mod tests {
         sys.init_logger();
 
         let mut prog =
-            Program::from_opt_and_meta_code_with_id(&sys, 420, WASM_BINARY_OPT.to_vec(), None);
+            Program::from_opt_and_meta_code_with_id(&sys, 420, WASM_BINARY.to_vec(), None);
 
         let signer = 42;
 

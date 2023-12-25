@@ -52,7 +52,7 @@ fn vec() {
     new_test_ext().execute_with(|| {
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(1),
-            WASM_BINARY_OPT.to_vec(),
+            WASM_BINARY.to_vec(),
             b"salt".to_vec(),
             vec![],
             10_000_000_000,

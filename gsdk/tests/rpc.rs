@@ -37,7 +37,7 @@ async fn test_calculate_upload_gas() -> Result<()> {
 
     api.calculate_upload_gas(
         alice.into(),
-        demo_messager::WASM_BINARY_OPT.to_vec(),
+        demo_messager::WASM_BINARY.to_vec(),
         vec![],
         0,
         true,
@@ -91,7 +91,7 @@ async fn test_calculate_handle_gas() -> Result<()> {
     signer
         .calls
         .upload_program(
-            demo_messager::WASM_BINARY_OPT.to_vec(),
+            demo_messager::WASM_BINARY.to_vec(),
             salt,
             vec![],
             100_000_000_000,
@@ -133,7 +133,7 @@ async fn test_calculate_reply_gas() -> Result<()> {
     signer
         .calls
         .upload_program(
-            demo_waiter::WASM_BINARY_OPT.to_vec(),
+            demo_waiter::WASM_BINARY.to_vec(),
             salt,
             vec![],
             100_000_000_000,
@@ -276,7 +276,7 @@ async fn test_original_code_storage() -> Result<()> {
     signer
         .calls
         .upload_program(
-            demo_messager::WASM_BINARY_OPT.to_vec(),
+            demo_messager::WASM_BINARY.to_vec(),
             salt,
             vec![],
             100_000_000_000,

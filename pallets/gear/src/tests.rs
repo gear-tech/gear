@@ -86,13 +86,13 @@ type Gas = <<Test as Config>::GasProvider as common::GasProvider>::GasTree;
 
 #[test]
 fn delayed_send_from_reservation_not_for_mailbox() {
-    use demo_delayed_reservation_sender::{ReservationSendingShowcase, WASM_BINARY_OPT};
+    use demo_delayed_reservation_sender::{ReservationSendingShowcase, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            WASM_BINARY_OPT.to_vec(),
+            WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
             10_000_000_000u64,
@@ -141,13 +141,13 @@ fn delayed_send_from_reservation_not_for_mailbox() {
 
 #[test]
 fn cascading_delayed_gasless_send_work() {
-    use demo_delayed_sender::{DELAY, WASM_BINARY_OPT};
+    use demo_delayed_sender::{DELAY, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            WASM_BINARY_OPT.to_vec(),
+            WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             0u32.to_le_bytes().to_vec(),
             10_000_000_000u64,
@@ -240,13 +240,13 @@ fn cascading_delayed_gasless_send_work() {
 
 #[test]
 fn calculate_gas_delayed_reservations_sending() {
-    use demo_delayed_reservation_sender::{ReservationSendingShowcase, WASM_BINARY_OPT};
+    use demo_delayed_reservation_sender::{ReservationSendingShowcase, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            WASM_BINARY_OPT.to_vec(),
+            WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
             10_000_000_000u64,
@@ -297,14 +297,14 @@ fn calculate_gas_delayed_reservations_sending() {
 #[test]
 fn delayed_reservations_sending_validation() {
     use demo_delayed_reservation_sender::{
-        ReservationSendingShowcase, SENDING_EXPECT, WASM_BINARY_OPT,
+        ReservationSendingShowcase, SENDING_EXPECT, WASM_BINARY,
     };
 
     init_logger();
     new_test_ext().execute_with(|| {
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            WASM_BINARY_OPT.to_vec(),
+            WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
             10_000_000_000u64,
@@ -390,13 +390,13 @@ fn delayed_reservations_sending_validation() {
 
 #[test]
 fn delayed_reservations_to_mailbox() {
-    use demo_delayed_reservation_sender::{ReservationSendingShowcase, WASM_BINARY_OPT};
+    use demo_delayed_reservation_sender::{ReservationSendingShowcase, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            WASM_BINARY_OPT.to_vec(),
+            WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
             10_000_000_000u64,
@@ -448,13 +448,13 @@ fn delayed_reservations_to_mailbox() {
 
 #[test]
 fn default_wait_lock_timeout() {
-    use demo_async_tester::{Kind, WASM_BINARY_OPT};
+    use demo_async_tester::{Kind, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            WASM_BINARY_OPT.to_vec(),
+            WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
             10_000_000_000u64,
@@ -565,7 +565,7 @@ fn value_counter_set_correctly_for_interruptions() {
 
 #[test]
 fn calculate_gas_returns_not_block_limit() {
-    use demo_program_generator::{CHILD_WAT, WASM_BINARY_OPT};
+    use demo_program_generator::{CHILD_WAT, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -573,7 +573,7 @@ fn calculate_gas_returns_not_block_limit() {
         assert_ok!(Gear::upload_code(RuntimeOrigin::signed(USER_1), code));
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            WASM_BINARY_OPT.to_vec(),
+            WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
             BlockGasLimitOf::<Test>::get(),
@@ -602,14 +602,14 @@ fn calculate_gas_returns_not_block_limit() {
 
 #[test]
 fn read_big_state() {
-    use demo_read_big_state::{State, Strings, WASM_BINARY_OPT};
+    use demo_read_big_state::{State, Strings, WASM_BINARY};
 
     init_logger();
 
     new_test_ext().execute_with(|| {
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            WASM_BINARY_OPT.to_vec(),
+            WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
             BlockGasLimitOf::<Test>::get(),
@@ -784,8 +784,8 @@ fn auto_reply_from_user_no_mailbox() {
 
 #[test]
 fn auto_reply_out_of_rent_waitlist() {
-    use demo_proxy::{InputArgs as ProxyInputArgs, WASM_BINARY_OPT as PROXY_WASM_BINARY};
-    use demo_waiter::{Command, WaitSubcommand, WASM_BINARY_OPT as WAITER_WASM_BINARY};
+    use demo_proxy::{InputArgs as ProxyInputArgs, WASM_BINARY as PROXY_WASM_BINARY};
+    use demo_waiter::{Command, WaitSubcommand, WASM_BINARY as WAITER_WASM_BINARY};
 
     init_logger();
 
@@ -1255,13 +1255,13 @@ fn reply_deposit_to_user_out_of_rent() {
 
 #[test]
 fn reply_deposit_gstd_async() {
-    use demo_waiting_proxy::WASM_BINARY_OPT;
+    use demo_waiting_proxy::WASM_BINARY;
 
     init_logger();
     new_test_ext().execute_with(|| {
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            WASM_BINARY_OPT.to_vec(),
+            WASM_BINARY.to_vec(),
             b"salt".to_vec(),
             (USER_2.into_origin().as_fixed_bytes(), 10_000_000_000u64).encode(),
             30_000_000_000,
@@ -1404,13 +1404,13 @@ fn gasfull_after_gasless() {
 
 #[test]
 fn backend_errors_handled_in_program() {
-    use demo_custom::{InitMessage, WASM_BINARY_OPT};
+    use demo_custom::{InitMessage, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            WASM_BINARY_OPT.to_vec(),
+            WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             InitMessage::BackendError.encode(),
             DEFAULT_GAS_LIMIT * 100,
@@ -1835,7 +1835,7 @@ fn delayed_send_user_message_payment() {
 
 #[test]
 fn delayed_send_user_message_with_reservation() {
-    use demo_proxy_reservation_with_gas::{InputArgs, WASM_BINARY_OPT as PROXY_WGAS_WASM_BINARY};
+    use demo_proxy_reservation_with_gas::{InputArgs, WASM_BINARY as PROXY_WGAS_WASM_BINARY};
 
     // Testing that correct gas amount will be reserved and paid for holding.
     fn scenario(delay: BlockNumber) {
@@ -2037,7 +2037,7 @@ fn delayed_send_program_message_payment() {
 
 #[test]
 fn delayed_send_program_message_with_reservation() {
-    use demo_proxy_reservation_with_gas::{InputArgs, WASM_BINARY_OPT as PROXY_WGAS_WASM_BINARY};
+    use demo_proxy_reservation_with_gas::{InputArgs, WASM_BINARY as PROXY_WGAS_WASM_BINARY};
 
     // Testing that correct gas amount will be reserved and paid for holding.
     fn scenario(delay: BlockNumber) {
@@ -4613,7 +4613,7 @@ fn claim_value_works() {
 
 #[test]
 fn uninitialized_program_zero_gas() {
-    use demo_init_wait::WASM_BINARY_OPT;
+    use demo_init_wait::WASM_BINARY;
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -4621,7 +4621,7 @@ fn uninitialized_program_zero_gas() {
 
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            WASM_BINARY_OPT.to_vec(),
+            WASM_BINARY.to_vec(),
             vec![],
             Vec::new(),
             50_000_000_000u64,
@@ -4656,7 +4656,7 @@ fn uninitialized_program_zero_gas() {
 
 #[test]
 fn distributor_initialize() {
-    use demo_distributor::WASM_BINARY_OPT;
+    use demo_distributor::WASM_BINARY;
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -4664,7 +4664,7 @@ fn distributor_initialize() {
 
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            WASM_BINARY_OPT.to_vec(),
+            WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
             10_000_000,
@@ -4685,7 +4685,7 @@ fn distributor_initialize() {
 
 #[test]
 fn distributor_distribute() {
-    use demo_distributor::{Request, WASM_BINARY_OPT};
+    use demo_distributor::{Request, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -4694,11 +4694,11 @@ fn distributor_distribute() {
         // Initial value in all gas trees is 0
         assert_eq!(GasHandlerOf::<Test>::total_supply(), 0);
 
-        let program_id = generate_program_id(WASM_BINARY_OPT, DEFAULT_SALT);
+        let program_id = generate_program_id(WASM_BINARY, DEFAULT_SALT);
 
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            WASM_BINARY_OPT.to_vec(),
+            WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
             10_000_000_000,
@@ -4882,7 +4882,7 @@ fn test_code_is_not_reset_within_program_submission() {
 
 #[test]
 fn messages_to_uninitialized_program_wait() {
-    use demo_init_wait::WASM_BINARY_OPT;
+    use demo_init_wait::WASM_BINARY;
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -4890,7 +4890,7 @@ fn messages_to_uninitialized_program_wait() {
 
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(1),
-            WASM_BINARY_OPT.to_vec(),
+            WASM_BINARY.to_vec(),
             vec![],
             Vec::new(),
             50_000_000_000u64,
@@ -4928,7 +4928,7 @@ fn messages_to_uninitialized_program_wait() {
 
 #[test]
 fn uninitialized_program_should_accept_replies() {
-    use demo_init_wait::WASM_BINARY_OPT;
+    use demo_init_wait::WASM_BINARY;
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -4936,7 +4936,7 @@ fn uninitialized_program_should_accept_replies() {
 
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            WASM_BINARY_OPT.to_vec(),
+            WASM_BINARY.to_vec(),
             vec![],
             Vec::new(),
             10_000_000_000u64,
@@ -4975,7 +4975,7 @@ fn uninitialized_program_should_accept_replies() {
 
 #[test]
 fn defer_program_initialization() {
-    use demo_init_wait::WASM_BINARY_OPT;
+    use demo_init_wait::WASM_BINARY;
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -4983,7 +4983,7 @@ fn defer_program_initialization() {
 
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            WASM_BINARY_OPT.to_vec(),
+            WASM_BINARY.to_vec(),
             vec![],
             Vec::new(),
             10_000_000_000u64,
@@ -5034,7 +5034,7 @@ fn defer_program_initialization() {
 
 #[test]
 fn wake_messages_after_program_inited() {
-    use demo_init_wait::WASM_BINARY_OPT;
+    use demo_init_wait::WASM_BINARY;
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -5042,7 +5042,7 @@ fn wake_messages_after_program_inited() {
 
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            WASM_BINARY_OPT.to_vec(),
+            WASM_BINARY.to_vec(),
             vec![],
             Vec::new(),
             10_000_000_000u64,
@@ -5105,13 +5105,13 @@ fn wake_messages_after_program_inited() {
 
 #[test]
 fn test_different_waits_success() {
-    use demo_waiter::{Command, WaitSubcommand, WASM_BINARY_OPT};
+    use demo_waiter::{Command, WaitSubcommand, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            WASM_BINARY_OPT.to_vec(),
+            WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
             100_000_000u64,
@@ -5250,13 +5250,13 @@ fn test_different_waits_success() {
 
 #[test]
 fn test_different_waits_fail() {
-    use demo_waiter::{Command, WaitSubcommand, WASM_BINARY_OPT};
+    use demo_waiter::{Command, WaitSubcommand, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            WASM_BINARY_OPT.to_vec(),
+            WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
             100_000_000u64,
@@ -5463,7 +5463,7 @@ fn test_different_waits_fail() {
 
 #[test]
 fn wait_after_reply() {
-    use demo_waiter::{Command, WaitSubcommand, WASM_BINARY_OPT};
+    use demo_waiter::{Command, WaitSubcommand, WASM_BINARY};
 
     let test = |subcommand: WaitSubcommand| {
         new_test_ext().execute_with(|| {
@@ -5471,7 +5471,7 @@ fn wait_after_reply() {
 
             assert_ok!(Gear::upload_program(
                 RuntimeOrigin::signed(USER_1),
-                WASM_BINARY_OPT.to_vec(),
+                WASM_BINARY.to_vec(),
                 DEFAULT_SALT.to_vec(),
                 EMPTY_PAYLOAD.to_vec(),
                 100_000_000u64,
@@ -5516,13 +5516,13 @@ fn wait_after_reply() {
 // introduce new tests for this in #1485
 #[test]
 fn test_requeue_after_wait_for_timeout() {
-    use demo_waiter::{Command, WASM_BINARY_OPT};
+    use demo_waiter::{Command, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            WASM_BINARY_OPT.to_vec(),
+            WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
             100_000_000u64,
@@ -5579,7 +5579,7 @@ fn test_requeue_after_wait_for_timeout() {
 
 #[test]
 fn test_sending_waits() {
-    use demo_waiter::{Command, WASM_BINARY_OPT};
+    use demo_waiter::{Command, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -5591,7 +5591,7 @@ fn test_sending_waits() {
         // upload program
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            WASM_BINARY_OPT.to_vec(),
+            WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
             20_000_000_000u64,
@@ -5686,14 +5686,14 @@ fn test_sending_waits() {
 
 #[test]
 fn test_wait_timeout() {
-    use demo_wait_timeout::{Command, WASM_BINARY_OPT};
+    use demo_wait_timeout::{Command, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
         // upload program
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            WASM_BINARY_OPT.to_vec(),
+            WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
             10_000_000u64,
@@ -5746,13 +5746,13 @@ fn test_wait_timeout() {
 
 #[test]
 fn test_join_wait_timeout() {
-    use demo_wait_timeout::{Command, WASM_BINARY_OPT};
+    use demo_wait_timeout::{Command, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            WASM_BINARY_OPT.to_vec(),
+            WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
             10_000_000u64,
@@ -5806,13 +5806,13 @@ fn test_join_wait_timeout() {
 
 #[test]
 fn test_select_wait_timeout() {
-    use demo_wait_timeout::{Command, WASM_BINARY_OPT};
+    use demo_wait_timeout::{Command, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            WASM_BINARY_OPT.to_vec(),
+            WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
             10_000_000u64,
@@ -5855,13 +5855,13 @@ fn test_select_wait_timeout() {
 
 #[test]
 fn test_wait_lost() {
-    use demo_wait_timeout::{Command, WASM_BINARY_OPT};
+    use demo_wait_timeout::{Command, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            WASM_BINARY_OPT.to_vec(),
+            WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
             10_000_000u64,
@@ -6019,7 +6019,7 @@ fn exit_locking_funds() {
 
 #[test]
 fn terminated_locking_funds() {
-    use demo_init_fail_sender::WASM_BINARY_OPT;
+    use demo_init_fail_sender::WASM_BINARY;
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -6029,7 +6029,7 @@ fn terminated_locking_funds() {
             ..
         } = Gear::calculate_gas_info(
             USER_1.into_origin(),
-            HandleKind::Init(WASM_BINARY_OPT.to_vec()),
+            HandleKind::Init(WASM_BINARY.to_vec()),
             USER_3.into_origin().encode(),
             5_000,
             true,
@@ -6041,7 +6041,7 @@ fn terminated_locking_funds() {
 
         assert_ok!(Gear::upload_code(
             RuntimeOrigin::signed(USER_1),
-            WASM_BINARY_OPT.to_vec(),
+            WASM_BINARY.to_vec(),
         ));
 
         let schedule = Schedule::<Test>::default();
@@ -6197,10 +6197,10 @@ fn terminated_locking_funds() {
 
 #[test]
 fn pause_terminated_exited_program() {
-    use demo_constructor::{demo_exit_init, Calls, Scheme, WASM_BINARY_OPT};
+    use demo_constructor::{demo_exit_init, Calls, Scheme, WASM_BINARY};
 
     let test = |program_id| {
-        let code_id = CodeId::generate(WASM_BINARY_OPT);
+        let code_id = CodeId::generate(WASM_BINARY);
         let program = ProgramStorageOf::<Test>::get_program(program_id)
             .and_then(|p| ActiveProgram::try_from(p).ok())
             .expect("program should exist");
@@ -6264,14 +6264,14 @@ fn pause_terminated_exited_program() {
 
 #[test]
 fn test_create_program_works() {
-    use demo_init_wait::WASM_BINARY_OPT;
+    use demo_init_wait::WASM_BINARY;
 
     init_logger();
 
     new_test_ext().execute_with(|| {
         System::reset_events();
 
-        let code = WASM_BINARY_OPT.to_vec();
+        let code = WASM_BINARY.to_vec();
         assert_ok!(Gear::upload_code(
             RuntimeOrigin::signed(USER_1),
             code.clone(),
@@ -6335,7 +6335,7 @@ fn test_create_program_works() {
 
 #[test]
 fn test_create_program_no_code_hash() {
-    use demo_program_factory::{CreateProgram, WASM_BINARY_OPT as PROGRAM_FACTORY_WASM_BINARY};
+    use demo_program_factory::{CreateProgram, WASM_BINARY as PROGRAM_FACTORY_WASM_BINARY};
 
     let non_constructable_wat = r#"
     (module)
@@ -6438,7 +6438,7 @@ fn test_create_program_no_code_hash() {
 
 #[test]
 fn test_create_program_simple() {
-    use demo_program_factory::{CreateProgram, WASM_BINARY_OPT as PROGRAM_FACTORY_WASM_BINARY};
+    use demo_program_factory::{CreateProgram, WASM_BINARY as PROGRAM_FACTORY_WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -6531,7 +6531,7 @@ fn test_create_program_simple() {
 
 #[test]
 fn test_pausing_programs_works() {
-    use demo_program_factory::{CreateProgram, WASM_BINARY_OPT as PROGRAM_FACTORY_WASM_BINARY};
+    use demo_program_factory::{CreateProgram, WASM_BINARY as PROGRAM_FACTORY_WASM_BINARY};
     init_logger();
     new_test_ext().execute_with(|| {
         let factory_code = PROGRAM_FACTORY_WASM_BINARY;
@@ -6730,10 +6730,10 @@ fn state_request() {
     new_test_ext().execute_with(|| {
         use demo_custom::{
             btree::{Request, StateRequest},
-            InitMessage, WASM_BINARY_OPT,
+            InitMessage, WASM_BINARY,
         };
 
-        let code = WASM_BINARY_OPT;
+        let code = WASM_BINARY;
         let program_id = generate_program_id(code, DEFAULT_SALT);
 
         assert_ok!(Gear::upload_program(
@@ -6780,9 +6780,9 @@ fn state_request() {
 fn resume_session_push_works() {
     init_logger();
     new_test_ext().execute_with(|| {
-        use demo_custom::{btree::Request, InitMessage, WASM_BINARY_OPT};
+        use demo_custom::{btree::Request, InitMessage, WASM_BINARY};
 
-        let code = WASM_BINARY_OPT;
+        let code = WASM_BINARY;
         let program_id = generate_program_id(code, DEFAULT_SALT);
 
         assert_ok!(Gear::upload_program(
@@ -6896,11 +6896,11 @@ fn resume_program_works() {
     new_test_ext().execute_with(|| {
         use demo_custom::{
             btree::{Reply, Request},
-            InitMessage, WASM_BINARY_OPT,
+            InitMessage, WASM_BINARY,
         };
         use frame_support::traits::ReservableCurrency;
 
-        let code = WASM_BINARY_OPT;
+        let code = WASM_BINARY;
         let program_id = generate_program_id(code, DEFAULT_SALT);
 
         assert_ok!(Gear::upload_program(
@@ -7112,7 +7112,7 @@ fn resume_program_works() {
 fn test_no_messages_to_paused_program() {
     init_logger();
     new_test_ext().execute_with(|| {
-        let code = demo_wait_wake::WASM_BINARY_OPT;
+        let code = demo_wait_wake::WASM_BINARY;
         let program_id = generate_program_id(code, DEFAULT_SALT);
 
         assert_ok!(Gear::upload_program(
@@ -7159,7 +7159,7 @@ fn reservations_cleaned_in_paused_program() {
         let expiration_block = RentFreePeriodOf::<Test>::get() + 10;
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            demo_reserve_gas::WASM_BINARY_OPT.to_vec(),
+            demo_reserve_gas::WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             InitAction::Normal(vec![(50_000, expiration_block), (25_000, expiration_block),])
                 .encode(),
@@ -7217,7 +7217,7 @@ fn uninitialized_program_terminates_on_pause() {
     new_test_ext().execute_with(|| {
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            demo_reserve_gas::WASM_BINARY_OPT.to_vec(),
+            demo_reserve_gas::WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             InitAction::Wait.encode(),
             50_000_000_000,
@@ -7556,7 +7556,7 @@ fn pay_program_rent_extrinsic_works() {
 
 #[test]
 fn test_create_program_duplicate() {
-    use demo_program_factory::{CreateProgram, WASM_BINARY_OPT as PROGRAM_FACTORY_WASM_BINARY};
+    use demo_program_factory::{CreateProgram, WASM_BINARY as PROGRAM_FACTORY_WASM_BINARY};
     init_logger();
     new_test_ext().execute_with(|| {
         let factory_code = PROGRAM_FACTORY_WASM_BINARY;
@@ -7649,7 +7649,7 @@ fn test_create_program_duplicate() {
 
 #[test]
 fn test_create_program_duplicate_in_one_execution() {
-    use demo_program_factory::{CreateProgram, WASM_BINARY_OPT as PROGRAM_FACTORY_WASM_BINARY};
+    use demo_program_factory::{CreateProgram, WASM_BINARY as PROGRAM_FACTORY_WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -7716,7 +7716,7 @@ fn test_create_program_duplicate_in_one_execution() {
 
 #[test]
 fn test_create_program_miscellaneous() {
-    use demo_program_factory::{CreateProgram, WASM_BINARY_OPT as PROGRAM_FACTORY_WASM_BINARY};
+    use demo_program_factory::{CreateProgram, WASM_BINARY as PROGRAM_FACTORY_WASM_BINARY};
 
     // Same as ProgramCodeKind::Default, but has a different hash (init and handle method are swapped)
     // So code hash is different
@@ -7822,11 +7822,11 @@ fn test_create_program_miscellaneous() {
 
 #[test]
 fn exit_handle() {
-    use demo_constructor::{demo_exit_handle, WASM_BINARY_OPT};
+    use demo_constructor::{demo_exit_handle, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
-        let code_id = CodeId::generate(WASM_BINARY_OPT);
+        let code_id = CodeId::generate(WASM_BINARY);
 
         let (_init_mid, program_id) = init_constructor(demo_exit_handle::scheme());
 
@@ -7925,7 +7925,7 @@ fn no_redundant_gas_value_after_exiting() {
 
 #[test]
 fn init_wait_reply_exit_cleaned_storage() {
-    use demo_init_wait_reply_exit::WASM_BINARY_OPT;
+    use demo_init_wait_reply_exit::WASM_BINARY;
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -7933,7 +7933,7 @@ fn init_wait_reply_exit_cleaned_storage() {
 
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            WASM_BINARY_OPT.to_vec(),
+            WASM_BINARY.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
             Vec::new(),
             50_000_000_000u64,
@@ -8000,7 +8000,7 @@ fn init_wait_reply_exit_cleaned_storage() {
 #[test]
 fn locking_gas_for_waitlist() {
     use demo_constructor::{Calls, Scheme};
-    use demo_gas_burned::WASM_BINARY_OPT as GAS_BURNED_BINARY;
+    use demo_gas_burned::WASM_BINARY as GAS_BURNED_BINARY;
 
     let wat = r#"
     (module
@@ -8079,13 +8079,13 @@ fn locking_gas_for_waitlist() {
 
 #[test]
 fn calculate_init_gas() {
-    use demo_gas_burned::WASM_BINARY_OPT;
+    use demo_gas_burned::WASM_BINARY;
 
     init_logger();
     let gas_info_1 = new_test_ext().execute_with(|| {
         Gear::calculate_gas_info(
             USER_1.into_origin(),
-            HandleKind::Init(WASM_BINARY_OPT.to_vec()),
+            HandleKind::Init(WASM_BINARY.to_vec()),
             EMPTY_PAYLOAD.to_vec(),
             0,
             true,
@@ -8097,7 +8097,7 @@ fn calculate_init_gas() {
     let gas_info_2 = new_test_ext().execute_with(|| {
         assert_ok!(Gear::upload_code(
             RuntimeOrigin::signed(USER_1),
-            WASM_BINARY_OPT.to_vec()
+            WASM_BINARY.to_vec()
         ));
 
         let code_id = get_last_code_id();
@@ -8136,7 +8136,7 @@ fn calculate_init_gas() {
 
 #[test]
 fn gas_spent_vs_balance() {
-    use demo_custom::{btree::Request, InitMessage, WASM_BINARY_OPT};
+    use demo_custom::{btree::Request, InitMessage, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -8144,7 +8144,7 @@ fn gas_spent_vs_balance() {
 
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            WASM_BINARY_OPT.to_vec(),
+            WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             InitMessage::BTree.encode(),
             50_000_000_000,
@@ -8178,7 +8178,7 @@ fn gas_spent_vs_balance() {
             ..
         } = Gear::calculate_gas_info(
             USER_1.into_origin(),
-            HandleKind::Init(WASM_BINARY_OPT.to_vec()),
+            HandleKind::Init(WASM_BINARY.to_vec()),
             InitMessage::BTree.encode(),
             0,
             true,
@@ -8386,8 +8386,8 @@ fn gas_spent_precalculated() {
 
 #[test]
 fn test_two_contracts_composition_works() {
-    use demo_compose::WASM_BINARY_OPT as COMPOSE_WASM_BINARY;
-    use demo_mul_by_const::WASM_BINARY_OPT as MUL_CONST_WASM_BINARY;
+    use demo_compose::WASM_BINARY as COMPOSE_WASM_BINARY;
+    use demo_mul_by_const::WASM_BINARY as MUL_CONST_WASM_BINARY;
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -8466,7 +8466,7 @@ fn test_two_contracts_composition_works() {
 // But it's is not preferable to enter that `if` clause.
 #[test]
 fn test_create_program_with_value_lt_ed() {
-    use demo_constructor::{Calls, Scheme, WASM_BINARY_OPT};
+    use demo_constructor::{Calls, Scheme, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -8535,7 +8535,7 @@ fn test_create_program_with_value_lt_ed() {
 
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            WASM_BINARY_OPT.to_vec(),
+            WASM_BINARY.to_vec(),
             b"test2".to_vec(),
             Scheme::direct(calls).encode(),
             10_000_000_000,
@@ -8576,7 +8576,7 @@ fn test_create_program_with_value_lt_ed() {
 // But it's is not preferable to enter that `if` clause.
 #[test]
 fn test_create_program_with_exceeding_value() {
-    use demo_constructor::{Calls, Scheme, WASM_BINARY_OPT};
+    use demo_constructor::{Calls, Scheme, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -8585,7 +8585,7 @@ fn test_create_program_with_exceeding_value() {
 
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            WASM_BINARY_OPT.to_vec(),
+            WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             Scheme::direct(calls).encode(),
             10_000_000_000,
@@ -8874,7 +8874,7 @@ fn calculate_gas_info_for_wait_dispatch_works() {
         // Test should still be valid once #1173 solved.
         let GasInfo { waited, .. } = Gear::calculate_gas_info(
             USER_1.into_origin(),
-            HandleKind::Init(demo_init_wait::WASM_BINARY_OPT.to_vec()),
+            HandleKind::Init(demo_init_wait::WASM_BINARY.to_vec()),
             EMPTY_PAYLOAD.to_vec(),
             0,
             true,
@@ -8888,7 +8888,7 @@ fn calculate_gas_info_for_wait_dispatch_works() {
 
 #[test]
 fn delayed_sending() {
-    use demo_delayed_sender::WASM_BINARY_OPT;
+    use demo_delayed_sender::WASM_BINARY;
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -8896,7 +8896,7 @@ fn delayed_sending() {
         // Deploy program, which sends mail in "payload" amount of blocks.
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            WASM_BINARY_OPT.to_vec(),
+            WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             delay.to_le_bytes().to_vec(),
             BlockGasLimitOf::<Test>::get(),
@@ -8936,13 +8936,13 @@ fn delayed_sending() {
 
 #[test]
 fn delayed_wake() {
-    use demo_delayed_sender::WASM_BINARY_OPT;
+    use demo_delayed_sender::WASM_BINARY;
 
     init_logger();
     new_test_ext().execute_with(|| {
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            WASM_BINARY_OPT.to_vec(),
+            WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             0u32.to_le_bytes().to_vec(),
             BlockGasLimitOf::<Test>::get(),
@@ -9002,8 +9002,8 @@ fn delayed_wake() {
 
 #[test]
 fn cascading_messages_with_value_do_not_overcharge() {
-    use demo_mul_by_const::WASM_BINARY_OPT as MUL_CONST_WASM_BINARY;
-    use demo_waiting_proxy::WASM_BINARY_OPT as WAITING_PROXY_WASM_BINARY;
+    use demo_mul_by_const::WASM_BINARY as MUL_CONST_WASM_BINARY;
+    use demo_waiting_proxy::WASM_BINARY as WAITING_PROXY_WASM_BINARY;
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -9197,13 +9197,13 @@ fn execution_over_blocks() {
     };
 
     let estimate_gas_per_calc = || -> (u64, u64) {
-        use demo_calc_hash_in_one_block::{Package, WASM_BINARY_OPT};
+        use demo_calc_hash_in_one_block::{Package, WASM_BINARY};
 
         let (src, times) = ([0; 32], 1);
 
         let init_gas = Gear::calculate_gas_info(
             USER_1.into_origin(),
-            HandleKind::Init(WASM_BINARY_OPT.to_vec()),
+            HandleKind::Init(WASM_BINARY.to_vec()),
             EMPTY_PAYLOAD.to_vec(),
             0,
             true,
@@ -9214,7 +9214,7 @@ fn execution_over_blocks() {
         // deploy demo-calc-in-one-block
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            WASM_BINARY_OPT.to_vec(),
+            WASM_BINARY.to_vec(),
             b"estimate threshold".to_vec(),
             EMPTY_PAYLOAD.to_vec(),
             init_gas.burned,
@@ -9241,7 +9241,7 @@ fn execution_over_blocks() {
     };
 
     new_test_ext().execute_with(|| {
-        use demo_calc_hash_in_one_block::{Package, WASM_BINARY_OPT};
+        use demo_calc_hash_in_one_block::{Package, WASM_BINARY};
 
         // We suppose that gas limit is less than gas allowance
         let block_gas_limit = MAX_BLOCK - 10_000;
@@ -9249,7 +9249,7 @@ fn execution_over_blocks() {
         // Deploy demo-calc-hash-in-one-block.
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            WASM_BINARY_OPT.to_vec(),
+            WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
             5_000_000_000,
@@ -9296,7 +9296,7 @@ fn execution_over_blocks() {
 
     new_test_ext().execute_with(|| {
         use demo_calc_hash::sha2_512_256;
-        use demo_calc_hash_over_blocks::{Method, WASM_BINARY_OPT};
+        use demo_calc_hash_over_blocks::{Method, WASM_BINARY};
         let block_gas_limit = MAX_BLOCK;
 
         let (_, calc_threshold) = estimate_gas_per_calc();
@@ -9304,7 +9304,7 @@ fn execution_over_blocks() {
         // deploy demo-calc-hash-over-blocks
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            WASM_BINARY_OPT.to_vec(),
+            WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             calc_threshold.encode(),
             9_000_000_000,
@@ -9397,8 +9397,7 @@ fn call_forbidden_function() {
 #[test]
 fn waking_message_waiting_for_mx_lock_does_not_lead_to_deadlock() {
     use demo_waiter::{
-        Command as WaiterCommand, LockContinuation, MxLockContinuation,
-        WASM_BINARY_OPT as WAITER_WASM,
+        Command as WaiterCommand, LockContinuation, MxLockContinuation, WASM_BINARY as WAITER_WASM,
     };
 
     fn execution() {
@@ -9483,7 +9482,7 @@ fn waking_message_waiting_for_mx_lock_does_not_lead_to_deadlock() {
 fn waking_message_waiting_for_rw_lock_does_not_lead_to_deadlock() {
     use demo_waiter::{
         Command as WaiterCommand, LockContinuation, RwLockContinuation, RwLockType,
-        WASM_BINARY_OPT as WAITER_WASM,
+        WASM_BINARY as WAITER_WASM,
     };
 
     fn execution() {
@@ -9613,8 +9612,7 @@ fn waking_message_waiting_for_rw_lock_does_not_lead_to_deadlock() {
 #[test]
 fn mx_lock_ownership_exceedance() {
     use demo_waiter::{
-        Command as WaiterCommand, LockContinuation, MxLockContinuation,
-        WASM_BINARY_OPT as WAITER_WASM,
+        Command as WaiterCommand, LockContinuation, MxLockContinuation, WASM_BINARY as WAITER_WASM,
     };
 
     const LOCK_HOLD_DURATION: u32 = 3;
@@ -9919,7 +9917,7 @@ fn mx_lock_ownership_exceedance() {
 #[test]
 fn async_sleep_for() {
     use demo_waiter::{
-        Command as WaiterCommand, SleepForWaitType as WaitType, WASM_BINARY_OPT as WAITER_WASM,
+        Command as WaiterCommand, SleepForWaitType as WaitType, WASM_BINARY as WAITER_WASM,
     };
 
     const SLEEP_FOR_BLOCKS: u32 = 2;
@@ -10184,7 +10182,7 @@ fn async_sleep_for() {
 
 #[test]
 fn test_async_messages() {
-    use demo_async_tester::{Kind, WASM_BINARY_OPT};
+    use demo_async_tester::{Kind, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -10192,7 +10190,7 @@ fn test_async_messages() {
 
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            WASM_BINARY_OPT.to_vec(),
+            WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
             10_000_000_000u64,
@@ -10251,7 +10249,7 @@ fn test_async_messages() {
 
 #[test]
 fn program_generator_works() {
-    use demo_program_generator::{CHILD_WAT, WASM_BINARY_OPT};
+    use demo_program_generator::{CHILD_WAT, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -10262,7 +10260,7 @@ fn program_generator_works() {
 
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            WASM_BINARY_OPT.to_vec(),
+            WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
             BlockGasLimitOf::<Test>::get(),
@@ -10299,14 +10297,14 @@ fn program_generator_works() {
 
 #[test]
 fn wait_state_machine() {
-    use demo_wait::WASM_BINARY_OPT;
+    use demo_wait::WASM_BINARY;
 
     init_logger();
 
     let init = || {
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            WASM_BINARY_OPT.to_vec(),
+            WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             Default::default(),
             BlockGasLimitOf::<Test>::get(),
@@ -10678,13 +10676,13 @@ fn reject_incorrect_binary() {
 
 #[test]
 fn send_from_reservation() {
-    use demo_send_from_reservation::{HandleAction, WASM_BINARY_OPT};
+    use demo_send_from_reservation::{HandleAction, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
         let pid = Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            WASM_BINARY_OPT.to_vec(),
+            WASM_BINARY.to_vec(),
             vec![],
             EMPTY_PAYLOAD.to_vec(),
             10_000_000_000,
@@ -10696,7 +10694,7 @@ fn send_from_reservation() {
 
         let pid2 = Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            WASM_BINARY_OPT.to_vec(),
+            WASM_BINARY.to_vec(),
             vec![2],
             EMPTY_PAYLOAD.to_vec(),
             10_000_000_000,
@@ -10817,13 +10815,13 @@ fn send_from_reservation() {
 
 #[test]
 fn reply_from_reservation() {
-    use demo_send_from_reservation::{HandleAction, WASM_BINARY_OPT};
+    use demo_send_from_reservation::{HandleAction, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
         let pid = Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            WASM_BINARY_OPT.to_vec(),
+            WASM_BINARY.to_vec(),
             vec![],
             EMPTY_PAYLOAD.to_vec(),
             10_000_000_000,
@@ -10835,7 +10833,7 @@ fn reply_from_reservation() {
 
         let pid2 = Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            WASM_BINARY_OPT.to_vec(),
+            WASM_BINARY.to_vec(),
             vec![2],
             EMPTY_PAYLOAD.to_vec(),
             10_000_000_000,
@@ -10899,13 +10897,13 @@ fn reply_from_reservation() {
 
 #[test]
 fn signal_recursion_not_occurs() {
-    use demo_signal_entry::{HandleAction, WASM_BINARY_OPT};
+    use demo_signal_entry::{HandleAction, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            WASM_BINARY_OPT.to_vec(),
+            WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             USER_1.encode(),
             10_000_000_000,
@@ -10973,13 +10971,13 @@ fn signal_recursion_not_occurs() {
 
 #[test]
 fn signal_during_precharge() {
-    use demo_signal_entry::{HandleAction, WASM_BINARY_OPT};
+    use demo_signal_entry::{HandleAction, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            WASM_BINARY_OPT.to_vec(),
+            WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             USER_1.encode(),
             10_000_000_000,
@@ -11038,13 +11036,13 @@ fn signal_during_precharge() {
 
 #[test]
 fn signal_during_prepare() {
-    use demo_signal_entry::{HandleAction, WASM_BINARY_OPT};
+    use demo_signal_entry::{HandleAction, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            WASM_BINARY_OPT.to_vec(),
+            WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             USER_1.encode(),
             10_000_000_000,
@@ -11110,13 +11108,13 @@ fn signal_during_prepare() {
 
 #[test]
 fn signal_async_wait_works() {
-    use demo_async_signal_entry::{InitAction, WASM_BINARY_OPT};
+    use demo_async_signal_entry::{InitAction, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            WASM_BINARY_OPT.to_vec(),
+            WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             InitAction::None.encode(),
             10_000_000_000,
@@ -11195,7 +11193,7 @@ fn signal_run_out_of_gas_works() {
 
 #[test]
 fn signal_run_out_of_gas_memory_access_works() {
-    use demo_signal_entry::{HandleAction, WASM_BINARY_OPT};
+    use demo_signal_entry::{HandleAction, WASM_BINARY};
 
     const GAS_LIMIT: u64 = 10_000_000_000;
 
@@ -11204,7 +11202,7 @@ fn signal_run_out_of_gas_memory_access_works() {
         // Upload program
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            WASM_BINARY_OPT.to_vec(),
+            WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             USER_1.encode(),
             GAS_LIMIT,
@@ -11327,14 +11325,14 @@ fn signal_memory_overflow_works() {
 #[test]
 fn signal_removed_from_waitlist_works() {
     const GAS_LIMIT: u64 = 10_000_000_000;
-    use demo_signal_entry::{HandleAction, WASM_BINARY_OPT};
+    use demo_signal_entry::{HandleAction, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
         // Upload program
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            WASM_BINARY_OPT.to_vec(),
+            WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             USER_1.encode(),
             GAS_LIMIT,
@@ -11397,13 +11395,13 @@ fn signal_removed_from_waitlist_works() {
 
 #[test]
 fn system_reservation_unreserve_works() {
-    use demo_signal_entry::{HandleAction, WASM_BINARY_OPT};
+    use demo_signal_entry::{HandleAction, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            WASM_BINARY_OPT.to_vec(),
+            WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             USER_1.encode(),
             10_000_000_000,
@@ -11452,13 +11450,13 @@ fn system_reservation_unreserve_works() {
 
 #[test]
 fn few_system_reservations_across_waits_works() {
-    use demo_signal_entry::{HandleAction, WASM_BINARY_OPT};
+    use demo_signal_entry::{HandleAction, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            WASM_BINARY_OPT.to_vec(),
+            WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             USER_1.encode(),
             10_000_000_000,
@@ -11505,13 +11503,13 @@ fn few_system_reservations_across_waits_works() {
 
 #[test]
 fn system_reservation_panic_works() {
-    use demo_signal_entry::{HandleAction, WASM_BINARY_OPT};
+    use demo_signal_entry::{HandleAction, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            WASM_BINARY_OPT.to_vec(),
+            WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             USER_1.encode(),
             10_000_000_000,
@@ -11546,13 +11544,13 @@ fn system_reservation_panic_works() {
 
 #[test]
 fn system_reservation_exit_works() {
-    use demo_signal_entry::{HandleAction, WASM_BINARY_OPT};
+    use demo_signal_entry::{HandleAction, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            WASM_BINARY_OPT.to_vec(),
+            WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             USER_1.encode(),
             10_000_000_000,
@@ -11589,13 +11587,13 @@ fn system_reservation_exit_works() {
 
 #[test]
 fn system_reservation_wait_and_panic_works() {
-    use demo_signal_entry::{HandleAction, WASM_BINARY_OPT};
+    use demo_signal_entry::{HandleAction, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            WASM_BINARY_OPT.to_vec(),
+            WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             USER_1.encode(),
             10_000_000_000,
@@ -11641,13 +11639,13 @@ fn system_reservation_wait_and_panic_works() {
 
 #[test]
 fn system_reservation_wait_works() {
-    use demo_signal_entry::{HandleAction, WASM_BINARY_OPT};
+    use demo_signal_entry::{HandleAction, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            WASM_BINARY_OPT.to_vec(),
+            WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             USER_1.encode(),
             10_000_000_000,
@@ -11702,13 +11700,13 @@ fn system_reservation_wait_works() {
 
 #[test]
 fn system_reservation_wait_and_exit_works() {
-    use demo_signal_entry::{HandleAction, WASM_BINARY_OPT};
+    use demo_signal_entry::{HandleAction, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            WASM_BINARY_OPT.to_vec(),
+            WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             USER_1.encode(),
             10_000_000_000,
@@ -11758,13 +11756,13 @@ fn system_reservation_wait_and_exit_works() {
 
 #[test]
 fn system_reservation_wait_and_reserve_with_panic_works() {
-    use demo_signal_entry::{HandleAction, WAIT_AND_RESERVE_WITH_PANIC_GAS, WASM_BINARY_OPT};
+    use demo_signal_entry::{HandleAction, WAIT_AND_RESERVE_WITH_PANIC_GAS, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            WASM_BINARY_OPT.to_vec(),
+            WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             USER_1.encode(),
             10_000_000_000,
@@ -11816,13 +11814,13 @@ fn system_reservation_wait_and_reserve_with_panic_works() {
 
 #[test]
 fn system_reservation_accumulate_works() {
-    use demo_signal_entry::{HandleAction, WASM_BINARY_OPT};
+    use demo_signal_entry::{HandleAction, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            WASM_BINARY_OPT.to_vec(),
+            WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             USER_1.encode(),
             10_000_000_000,
@@ -11855,13 +11853,13 @@ fn system_reservation_accumulate_works() {
 
 #[test]
 fn system_reservation_zero_amount_panics() {
-    use demo_signal_entry::{HandleAction, WASM_BINARY_OPT};
+    use demo_signal_entry::{HandleAction, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            WASM_BINARY_OPT.to_vec(),
+            WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             USER_1.encode(),
             10_000_000_000,
@@ -11898,7 +11896,7 @@ fn gas_reservation_works() {
     new_test_ext().execute_with(|| {
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            demo_reserve_gas::WASM_BINARY_OPT.to_vec(),
+            demo_reserve_gas::WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             InitAction::Normal(vec![
                 // orphan reservation; will be removed automatically
@@ -12003,7 +12001,7 @@ fn gas_reservations_cleaned_in_terminated_program() {
     new_test_ext().execute_with(|| {
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            demo_reserve_gas::WASM_BINARY_OPT.to_vec(),
+            demo_reserve_gas::WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             InitAction::Wait.encode(),
             10_000_000_000,
@@ -12054,7 +12052,7 @@ fn gas_reservation_wait_wake_exit() {
     new_test_ext().execute_with(|| {
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            demo_reserve_gas::WASM_BINARY_OPT.to_vec(),
+            demo_reserve_gas::WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             InitAction::Wait.encode(),
             10_000_000_000,
@@ -12105,7 +12103,7 @@ fn gas_reservations_check_params() {
     new_test_ext().execute_with(|| {
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            demo_reserve_gas::WASM_BINARY_OPT.to_vec(),
+            demo_reserve_gas::WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             InitAction::CheckArgs {
                 mailbox_threshold: <Test as Config>::MailboxThreshold::get(),
@@ -12132,7 +12130,7 @@ fn gas_reservations_fresh_reserve_unreserve() {
     new_test_ext().execute_with(|| {
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            demo_reserve_gas::WASM_BINARY_OPT.to_vec(),
+            demo_reserve_gas::WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             InitAction::FreshReserveUnreserve.encode(),
             10_000_000_000,
@@ -12157,7 +12155,7 @@ fn gas_reservations_existing_reserve_unreserve() {
     new_test_ext().execute_with(|| {
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            demo_reserve_gas::WASM_BINARY_OPT.to_vec(),
+            demo_reserve_gas::WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             InitAction::Normal(vec![]).encode(),
             10_000_000_000,
@@ -12192,13 +12190,13 @@ fn gas_reservations_existing_reserve_unreserve() {
 
 #[test]
 fn custom_async_entrypoint_works() {
-    use demo_async_custom_entry::WASM_BINARY_OPT;
+    use demo_async_custom_entry::WASM_BINARY;
 
     init_logger();
     new_test_ext().execute_with(|| {
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            WASM_BINARY_OPT.to_vec(),
+            WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             USER_1.encode(),
             30_000_000_000,
@@ -12242,13 +12240,13 @@ fn custom_async_entrypoint_works() {
 
 #[test]
 fn dispatch_kind_forbidden_function() {
-    use demo_signal_entry::{HandleAction, WASM_BINARY_OPT};
+    use demo_signal_entry::{HandleAction, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            WASM_BINARY_OPT.to_vec(),
+            WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             USER_1.encode(),
             10_000_000_000,
@@ -12316,13 +12314,13 @@ fn dispatch_kind_forbidden_function() {
 
 #[test]
 fn system_reservation_gas_allowance_rollbacks() {
-    use demo_signal_entry::{HandleAction, WASM_BINARY_OPT};
+    use demo_signal_entry::{HandleAction, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            WASM_BINARY_OPT.to_vec(),
+            WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             USER_1.encode(),
             10_000_000_000,
@@ -12363,13 +12361,13 @@ fn system_reservation_gas_allowance_rollbacks() {
 
 #[test]
 fn system_reservation_wait_and_exit_across_executions() {
-    use demo_signal_entry::{HandleAction, WASM_BINARY_OPT};
+    use demo_signal_entry::{HandleAction, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            WASM_BINARY_OPT.to_vec(),
+            WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             USER_1.encode(),
             10_000_000_000,
@@ -12440,14 +12438,14 @@ fn system_reservation_wait_and_exit_across_executions() {
 
 #[test]
 fn signal_on_uninitialized_program() {
-    use demo_async_signal_entry::{InitAction, WASM_BINARY_OPT};
+    use demo_async_signal_entry::{InitAction, WASM_BINARY};
 
     init_logger();
 
     new_test_ext().execute_with(|| {
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            WASM_BINARY_OPT.to_vec(),
+            WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             InitAction::Panic.encode(),
             10_000_000_000,
@@ -12542,8 +12540,8 @@ fn missing_block_tasks_handled() {
 
 #[test]
 fn async_does_not_duplicate_sync() {
-    use demo_ping::WASM_BINARY_OPT as PING_BINARY;
-    use demo_sync_duplicate::WASM_BINARY_OPT as SYNC_DUPLICATE_BINARY;
+    use demo_ping::WASM_BINARY as PING_BINARY;
+    use demo_sync_duplicate::WASM_BINARY as SYNC_DUPLICATE_BINARY;
 
     init_logger();
 
@@ -12593,14 +12591,14 @@ fn async_does_not_duplicate_sync() {
 
 #[test]
 fn state_rollback() {
-    use demo_state_rollback::WASM_BINARY_OPT;
+    use demo_state_rollback::WASM_BINARY;
 
     init_logger();
 
     let init = || {
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            WASM_BINARY_OPT.to_vec(),
+            WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             Default::default(),
             BlockGasLimitOf::<Test>::get(),
@@ -12662,8 +12660,8 @@ fn state_rollback() {
 
 #[test]
 fn incomplete_async_payloads_kept() {
-    use demo_incomplete_async_payloads::{Command, WASM_BINARY_OPT};
-    use demo_ping::WASM_BINARY_OPT as PING_BINARY;
+    use demo_incomplete_async_payloads::{Command, WASM_BINARY};
+    use demo_ping::WASM_BINARY as PING_BINARY;
 
     init_logger();
 
@@ -12682,7 +12680,7 @@ fn incomplete_async_payloads_kept() {
 
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            WASM_BINARY_OPT.to_vec(),
+            WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             ping.encode(),
             BlockGasLimitOf::<Test>::get(),
@@ -12729,8 +12727,8 @@ fn incomplete_async_payloads_kept() {
 
 #[test]
 fn rw_lock_works() {
-    use demo_ping::WASM_BINARY_OPT as PING_BINARY;
-    use demo_rwlock::{Command, WASM_BINARY_OPT};
+    use demo_ping::WASM_BINARY as PING_BINARY;
+    use demo_rwlock::{Command, WASM_BINARY};
 
     init_logger();
 
@@ -12749,7 +12747,7 @@ fn rw_lock_works() {
 
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            WASM_BINARY_OPT.to_vec(),
+            WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             ping.encode(),
             BlockGasLimitOf::<Test>::get(),
@@ -12861,8 +12859,8 @@ fn rw_lock_works() {
 
 #[test]
 fn async_works() {
-    use demo_async::{Command, WASM_BINARY_OPT};
-    use demo_ping::WASM_BINARY_OPT as PING_BINARY;
+    use demo_async::{Command, WASM_BINARY};
+    use demo_ping::WASM_BINARY as PING_BINARY;
 
     init_logger();
 
@@ -12881,7 +12879,7 @@ fn async_works() {
 
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            WASM_BINARY_OPT.to_vec(),
+            WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             ping.encode(),
             BlockGasLimitOf::<Test>::get(),
@@ -12926,9 +12924,9 @@ fn async_works() {
 
 #[test]
 fn futures_unordered() {
-    use demo_async::WASM_BINARY_OPT as DEMO_ASYNC_BINARY;
-    use demo_futures_unordered::{Command, WASM_BINARY_OPT};
-    use demo_ping::WASM_BINARY_OPT as PING_BINARY;
+    use demo_async::WASM_BINARY as DEMO_ASYNC_BINARY;
+    use demo_futures_unordered::{Command, WASM_BINARY};
+    use demo_ping::WASM_BINARY as PING_BINARY;
 
     init_logger();
 
@@ -12959,7 +12957,7 @@ fn futures_unordered() {
 
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            WASM_BINARY_OPT.to_vec(),
+            WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             (demo_async, ping).encode(),
             BlockGasLimitOf::<Test>::get(),
@@ -13024,8 +13022,8 @@ fn futures_unordered() {
 
 #[test]
 fn async_recursion() {
-    use demo_async_recursion::WASM_BINARY_OPT;
-    use demo_ping::WASM_BINARY_OPT as PING_BINARY;
+    use demo_async_recursion::WASM_BINARY;
+    use demo_ping::WASM_BINARY as PING_BINARY;
 
     init_logger();
 
@@ -13044,7 +13042,7 @@ fn async_recursion() {
 
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            WASM_BINARY_OPT.to_vec(),
+            WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             ping.encode(),
             BlockGasLimitOf::<Test>::get(),
@@ -13083,8 +13081,8 @@ fn async_recursion() {
 
 #[test]
 fn async_init() {
-    use demo_async_init::{InputArgs, WASM_BINARY_OPT};
-    use demo_ping::WASM_BINARY_OPT as PING_BINARY;
+    use demo_async_init::{InputArgs, WASM_BINARY};
+    use demo_ping::WASM_BINARY as PING_BINARY;
 
     init_logger();
 
@@ -13103,7 +13101,7 @@ fn async_init() {
 
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            WASM_BINARY_OPT.to_vec(),
+            WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             InputArgs::from_two(ping, ping).encode(),
             BlockGasLimitOf::<Test>::get(),
@@ -13401,7 +13399,7 @@ fn check_random_works() {
 
 #[test]
 fn reply_with_small_non_zero_gas() {
-    use demo_proxy_relay::{RelayCall, WASM_BINARY_OPT};
+    use demo_proxy_relay::{RelayCall, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -13410,7 +13408,7 @@ fn reply_with_small_non_zero_gas() {
 
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            WASM_BINARY_OPT.to_vec(),
+            WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             RelayCall::RereplyWithGas(gas_limit).encode(),
             50_000_000_000,
@@ -13449,13 +13447,13 @@ fn reply_with_small_non_zero_gas() {
 
 #[test]
 fn replies_denied_in_handle_reply() {
-    use demo_proxy::{InputArgs, WASM_BINARY_OPT};
+    use demo_proxy::{InputArgs, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            WASM_BINARY_OPT.to_vec(),
+            WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             InputArgs {
                 destination: USER_1.into_origin().into()
@@ -13505,7 +13503,7 @@ fn replies_denied_in_handle_reply() {
 
 #[test]
 fn relay_messages() {
-    use demo_proxy_relay::{RelayCall, ResendPushData, WASM_BINARY_OPT};
+    use demo_proxy_relay::{RelayCall, ResendPushData, WASM_BINARY};
 
     struct Expected {
         user: AccountId,
@@ -13523,7 +13521,7 @@ fn relay_messages() {
             assert!(
                 Gear::upload_program(
                     RuntimeOrigin::signed(source),
-                    WASM_BINARY_OPT.to_vec(),
+                    WASM_BINARY.to_vec(),
                     vec![],
                     relay_call.encode(),
                     50_000_000_000u64,
@@ -13776,13 +13774,13 @@ fn wrong_entry_type() {
 
 #[test]
 fn oom_handler_works() {
-    use demo_out_of_memory::WASM_BINARY_OPT;
+    use demo_out_of_memory::WASM_BINARY;
 
     init_logger();
     new_test_ext().execute_with(|| {
         let pid = Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            WASM_BINARY_OPT.to_vec(),
+            WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
             100_000_000_000_u64,
@@ -14079,13 +14077,13 @@ fn reject_incorrect_stack_pointer() {
 
 #[test]
 fn calculate_gas_fails_when_calculation_limit_exceeded() {
-    use demo_reserve_gas::{HandleAction as Command, InitAction as Init, WASM_BINARY_OPT};
+    use demo_reserve_gas::{HandleAction as Command, InitAction as Init, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
         let pid = Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            WASM_BINARY_OPT.to_vec(),
+            WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             Init::Normal(vec![]).encode(),
             BlockGasLimitOf::<Test>::get(),
@@ -14147,14 +14145,14 @@ fn calculate_gas_fails_when_calculation_limit_exceeded() {
 
 #[test]
 fn reservation_manager() {
-    use demo_reservation_manager::{Action, WASM_BINARY_OPT};
+    use demo_reservation_manager::{Action, WASM_BINARY};
     use utils::Assertion;
 
     init_logger();
     new_test_ext().execute_with(|| {
         let pid = Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            WASM_BINARY_OPT.to_vec(),
+            WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             vec![],
             BlockGasLimitOf::<Test>::get(),
@@ -14770,7 +14768,7 @@ fn test_send_to_terminated_from_program() {
 
 #[test]
 fn pause_waited_uninited_program() {
-    use demo_init_wait::WASM_BINARY_OPT;
+    use demo_init_wait::WASM_BINARY;
 
     init_logger();
 
@@ -14778,7 +14776,7 @@ fn pause_waited_uninited_program() {
     let get_remove_block = |current_gas: u64| {
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            WASM_BINARY_OPT.to_vec(),
+            WASM_BINARY.to_vec(),
             current_gas.to_le_bytes().to_vec(),
             Vec::new(),
             current_gas,
@@ -14811,7 +14809,7 @@ fn pause_waited_uninited_program() {
             ..
         } = Gear::calculate_gas_info(
             USER_1.into_origin(),
-            HandleKind::Init(WASM_BINARY_OPT.to_vec()),
+            HandleKind::Init(WASM_BINARY.to_vec()),
             vec![],
             0,
             true,
@@ -14837,7 +14835,7 @@ fn pause_waited_uninited_program() {
     new_test_ext().execute_with(|| {
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            WASM_BINARY_OPT.to_vec(),
+            WASM_BINARY.to_vec(),
             vec![],
             Vec::new(),
             gas,
@@ -15061,7 +15059,7 @@ fn test_gas_info_of_terminated_program() {
 
 #[test]
 fn test_handle_signal_wait() {
-    use demo_constructor::{Arg, Calls, Scheme, WASM_BINARY_OPT};
+    use demo_constructor::{Arg, Calls, Scheme, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -15080,7 +15078,7 @@ fn test_handle_signal_wait() {
 
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            WASM_BINARY_OPT.to_vec(),
+            WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             scheme.encode(),
             100_000_000_000,
@@ -15132,7 +15130,7 @@ fn test_handle_signal_wait() {
 
 #[test]
 fn test_constructor_if_else() {
-    use demo_constructor::{Arg, Call, Calls, Scheme, WASM_BINARY_OPT};
+    use demo_constructor::{Arg, Call, Calls, Scheme, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -15154,7 +15152,7 @@ fn test_constructor_if_else() {
 
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            WASM_BINARY_OPT.to_vec(),
+            WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             scheme.encode(),
             100_000_000_000,
@@ -15216,7 +15214,7 @@ mod utils {
     };
     use core::fmt::Display;
     use core_processor::common::ActorExecutionErrorReplyReason;
-    use demo_constructor::{Scheme, WASM_BINARY_OPT as DEMO_CONSTRUCTOR_WASM_BINARY};
+    use demo_constructor::{Scheme, WASM_BINARY as DEMO_CONSTRUCTOR_WASM_BINARY};
     use frame_support::{
         codec::Decode,
         dispatch::{DispatchErrorWithPostInfo, DispatchResultWithPostInfo},
@@ -16064,7 +16062,7 @@ mod utils {
         action: demo_signal_entry::HandleAction,
     ) {
         use crate::tests::new_test_ext;
-        use demo_signal_entry::{HandleAction, WASM_BINARY_OPT};
+        use demo_signal_entry::{HandleAction, WASM_BINARY};
 
         const GAS_LIMIT: u64 = 10_000_000_000;
 
@@ -16073,7 +16071,7 @@ mod utils {
             // Upload program
             assert_ok!(Gear::upload_program(
                 RuntimeOrigin::signed(USER_1),
-                WASM_BINARY_OPT.to_vec(),
+                WASM_BINARY.to_vec(),
                 DEFAULT_SALT.to_vec(),
                 USER_1.encode(),
                 GAS_LIMIT,

@@ -2839,7 +2839,7 @@ benchmarks! {
     tasks_pause_program_uninited {
         let c in 0 .. (MAX_PAGES - 1) * (WASM_PAGE_SIZE / GEAR_PAGE_SIZE) as u32;
 
-        let code = demo_init_wait::WASM_BINARY_OPT.to_vec();
+        let code = demo_init_wait::WASM_BINARY.to_vec();
         let program_id = tasks::pause_program_prepare::<T>(c, code);
 
         let mut ext_manager = ExtManager::<T>::default();
