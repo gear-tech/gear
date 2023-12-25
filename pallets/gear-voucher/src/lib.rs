@@ -163,7 +163,6 @@ pub mod pallet {
     common::wrap_storage_value!(storage: Issued, name: IssuedWrap, value: u64);
 
     #[pallet::storage]
-    // TODO (breathx): change to spender/voucher_id -> voucher data
     pub type Vouchers<T> = StorageDoubleMap<
         _,
         Identity,
@@ -244,7 +243,6 @@ pub mod pallet {
 
         #[pallet::call_index(2)]
         #[pallet::weight(Weight::zero())] // TODO (breathx)
-                                          // TODO (breathx): don't delete
         pub fn revoke(
             origin: OriginFor<T>,
             spender: AccountIdOf<T>,
