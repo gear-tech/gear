@@ -58,7 +58,6 @@ serde = { workspace = true, optional = true, features = ["derive"] }
 rand = { workspace = true, optional = true }
 rand_pcg = { workspace = true, optional = true }
 sp-consensus-slots = { workspace = true, optional = true }
-test-syscalls = { workspace = true, optional = true }
 
 # Some of tests require `debug` feature enabled
 [dev-dependencies]
@@ -68,7 +67,6 @@ blake2-rfc.workspace = true
 gstd.workspace = true
 demo-new-meta.workspace = true
 demo-calc-hash.workspace = true
-test-syscalls = { workspace = true, features = ["debug"] }
 page_size.workspace = true
 frame-support-test = { workspace = true, features = ["std"] }
 common = { workspace = true, features = ["std"] }
@@ -114,7 +112,6 @@ std = [
 	"primitive-types/std",
 	"serde/std",
 	"sp-consensus-babe/std",
-	"test-syscalls?/std",
 	"pallet-gear-binaries/std",
 ]
 runtime-benchmarks = [
@@ -129,7 +126,6 @@ runtime-benchmarks = [
 	"sp-consensus-babe",
 	"rand",
 	"rand_pcg",
-	"test-syscalls/wasm-wrapper",
 	"gsys",
 	"pallet-gear-binaries",
 	"pallet-gear-binaries/wasm-wrapper"

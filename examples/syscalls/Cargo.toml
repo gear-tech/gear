@@ -7,12 +7,18 @@ license.workspace = true
 homepage.workspace = true
 repository.workspace = true
 
+[package.metadata.wasm-dep-builder.demo]
+exclude-features = ["std", "wasm-wrapper"]
+
+[lib]
+crate-type = ["lib", "cdylib"]
+
 [dependencies]
 gstd.workspace = true
 parity-scale-codec.workspace = true
 
 [build-dependencies]
-gear-wasm-builder.workspace = true
+wasm-dep-builder.workspace = true
 
 [features]
 debug = ["gstd/debug"]

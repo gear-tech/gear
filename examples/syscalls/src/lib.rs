@@ -23,14 +23,6 @@ extern crate alloc;
 use alloc::{string::String, vec::Vec};
 use parity_scale_codec::{Decode, Encode};
 
-#[cfg(feature = "wasm-wrapper")]
-mod code {
-    include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
-}
-
-#[cfg(feature = "wasm-wrapper")]
-pub use code::WASM_BINARY_OPT as WASM_BINARY;
-
 type MessageId = [u8; 32];
 type ActorId = [u8; 32];
 type Value = u128;

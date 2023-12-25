@@ -3,6 +3,9 @@ name = "pallet-gear-binaries"
 version = "0.1.0"
 edition = "2021"
 
+[package.metadata.wasm-dep-builder.builder]
+include = ["demo-*", "test-syscalls"]
+
 [dependencies]
 demo-async.workspace = true
 demo-async-init.workspace = true
@@ -45,6 +48,7 @@ demo-ping.workspace = true
 demo-sync-duplicate.workspace = true
 demo-custom.workspace = true
 demo-delayed-reservation-sender = { workspace = true, features = ["debug"] }
+test-syscalls = { workspace = true, features = ["debug"] }
 
 [build-dependencies]
 wasm-dep-builder.workspace = true
@@ -59,6 +63,7 @@ std = [
     "demo-constructor/std",
     "demo-waiter/std",
     "demo-init-wait/std",
+    "test-syscalls/std",
 ]
 wasm-wrapper = [
     "demo-read-big-state/wasm-wrapper",
@@ -68,4 +73,5 @@ wasm-wrapper = [
     "demo-constructor/wasm-wrapper",
     "demo-waiter/wasm-wrapper",
     "demo-init-wait/wasm-wrapper",
+    "test-syscalls/wasm-wrapper",
 ]

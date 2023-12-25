@@ -21,6 +21,7 @@ mod builder;
 use crate::builder::build_wasm;
 use cargo_metadata::MetadataCommand;
 use fs4::FileExt;
+use globset::GlobSet;
 use serde::Deserialize;
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -38,39 +39,39 @@ struct PackageMetadata {
     wasm_dep_builder: Option<WasmDepBuilderMetadata>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, derive_more::Unwrap)]
 #[serde(rename_all = "kebab-case")]
 enum WasmDepBuilderMetadata {
     Demo(DemoMetadata),
     Builder(BuilderMetadata),
 }
 
-impl WasmDepBuilderMetadata {
-    fn into_demo(self) -> Option<DemoMetadata> {
-        match self {
-            WasmDepBuilderMetadata::Demo(demo) => Some(demo),
-            WasmDepBuilderMetadata::Builder(_) => None,
-        }
-    }
-
-    fn into_builder(self) -> Option<BuilderMetadata> {
-        match self {
-            WasmDepBuilderMetadata::Demo(_) => None,
-            WasmDepBuilderMetadata::Builder(builder) => Some(builder),
-        }
-    }
-}
-
 #[derive(Default, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 struct DemoMetadata {
+    #[serde(default)]
     exclude_features: BTreeSet<String>,
 }
 
 #[derive(Default, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 struct BuilderMetadata {
+    include: Option<GlobSet>,
+    #[serde(default)]
     exclude: BTreeSet<String>,
+}
+
+impl BuilderMetadata {
+    fn excludes(&self, pkg_name: &str) -> bool {
+        self.exclude.contains(pkg_name)
+    }
+
+    fn includes(&self, pkg_name: &str) -> bool {
+        self.include
+            .as_ref()
+            .map(|set| set.is_match(pkg_name))
+            .unwrap_or(false)
+    }
 }
 
 fn out_dir() -> PathBuf {
@@ -143,7 +144,7 @@ pub fn builder() {
         .unwrap()
         .unwrap_or_default()
         .wasm_dep_builder
-        .map(|config| config.into_builder().expect("Builder config expected"))
+        .map(|config| config.unwrap_builder())
         .unwrap_or_default();
 
     let mut packages = BTreeMap::new();
@@ -151,8 +152,8 @@ pub fn builder() {
     for dep in package
         .dependencies
         .iter()
-        .filter(|dep| !config.exclude.contains(&dep.name))
-        .filter(|dep| dep.name.starts_with("demo-"))
+        .filter(|dep| !config.excludes(&dep.name))
+        .filter(|dep| config.includes(&dep.name))
     {
         let pkg = metadata
             .packages
@@ -178,7 +179,7 @@ pub fn builder() {
             .unwrap()
             .unwrap_or_default()
             .wasm_dep_builder
-            .map(|config| config.into_demo().expect("Demo config expected"))
+            .map(|config| config.unwrap_demo())
             .unwrap_or_default();
 
         let features: BTreeSet<String> = dep.features.iter().cloned().collect();
