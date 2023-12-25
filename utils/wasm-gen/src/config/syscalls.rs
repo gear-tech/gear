@@ -26,7 +26,7 @@ mod process_errors;
 
 use gear_utils::NonEmpty;
 use gear_wasm_instrument::syscalls::SyscallName;
-use gsys::{Hash, HashWithValue};
+use gsys::Hash;
 
 pub use injection::*;
 pub use param::*;

@@ -23,15 +23,14 @@ use crate::{
         CallIndexes, CallIndexesHandle, DisabledSyscallsImportsGenerator, ModuleWithCallIndexes,
         SyscallsImportsGenerationProof,
     },
-    utils, EntryPointName, InvocableSyscall, SyscallDestination, SyscallsConfig, WasmModule,
+    EntryPointName, InvocableSyscall, SyscallsConfig, WasmModule,
 };
 use arbitrary::Unstructured;
-use gear_core::ids::ProgramId;
 use gear_wasm_instrument::{
     parity_wasm::{builder, elements::Instruction},
     syscalls::SyscallName,
 };
-use std::{collections::BTreeMap, iter::Cycle, num::NonZeroU32, vec::IntoIter};
+use std::{collections::BTreeMap, num::NonZeroU32};
 
 /// Additional data injector.
 ///

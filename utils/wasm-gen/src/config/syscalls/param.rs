@@ -335,10 +335,6 @@ impl From<PtrParamAllowedValues> for Ptr {
             PtrParamAllowedValues::Value(_) => Ptr::Value,
             PtrParamAllowedValues::ActorIdWithValue { .. } => Ptr::HashWithValue(HashType::ActorId),
             PtrParamAllowedValues::ActorId(_) => Ptr::Hash(HashType::ActorId),
-            // PtrParamAllowedValues::HashWithValue { ty, .. } => Ptr::HashWithValue(ty),
-            // PtrParamAllowedValues::TwoHashesWithValue { ty1, ty2, .. } => {
-            //     Ptr::TwoHashesWithValue(ty1, ty2)
-            // }
         }
     }
 }

@@ -28,10 +28,9 @@ use gear_wasm_instrument::{
     syscalls::SyscallName,
     wasm_instrument::{self, InjectionConfig},
 };
-use gsys::HashWithValue;
 use std::{
     collections::{BTreeMap, BTreeSet},
-    mem, slice,
+    mem,
 };
 
 const PREALLOCATE: usize = 1_000;
@@ -462,19 +461,4 @@ pub fn inject_critical_gas_limit(module: Module, critical_gas_limit: u64) -> Mod
     }
 
     module
-}
-
-pub(crate) fn hash_with_value_to_vec(hash_with_value: &HashWithValue) -> Vec<u8> {
-    let address_data_size = mem::size_of::<HashWithValue>();
-    let address_data_slice = unsafe {
-        // # Safety:
-        // The `unsafe` block constructs raw bytes vector of an existing rust struct
-        // received by reference.
-        slice::from_raw_parts(
-            hash_with_value as *const HashWithValue as *const u8,
-            address_data_size,
-        )
-    };
-
-    address_data_slice.to_vec()
 }

@@ -520,25 +520,30 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                                         ];
 
                                         let value = self.unstructured.int_in_range(range)?;
-                                        PtrParamAllowedValues::get_for_instructions(
-                                            value.to_le_bytes(),
-                                        )
-                                        .into_iter()
-                                        .enumerate()
-                                        .flat_map(|(word_idx, word)| {
-                                            vec![
-                                                Instruction::I32Const(
-                                                    offset + mem::size_of::<Hash>() as i32,
-                                                ),
-                                                Instruction::I32Const(word),
-                                                Instruction::I32Store(
-                                                    2,
-                                                    (word_idx * mem::size_of::<i32>()) as u32,
-                                                ),
-                                            ]
-                                        })
-                                        .chain(iter::once(Instruction::I32Const(offset)))
-                                        .collect()
+                                        let mut value_instructions =
+                                            PtrParamAllowedValues::get_for_instructions(
+                                                value.to_le_bytes(),
+                                            )
+                                            .into_iter()
+                                            .enumerate()
+                                            .flat_map(|(word_idx, word)| {
+                                                vec![
+                                                    Instruction::I32Const(
+                                                        offset + mem::size_of::<Hash>() as i32,
+                                                    ),
+                                                    Instruction::I32Const(word),
+                                                    Instruction::I32Store(
+                                                        2,
+                                                        (word_idx * mem::size_of::<i32>()) as u32,
+                                                    ),
+                                                ]
+                                            })
+                                            .chain(iter::once(Instruction::I32Const(offset)))
+                                            .collect();
+
+                                        gr_source_instr.append(&mut value_instructions);
+
+                                        gr_source_instr
                                     }
                                     SyscallDestination::ExistingAddresses(addresses) => {
                                         let mut ret = Vec::with_capacity(
@@ -671,7 +676,7 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
 
     fn build_fallible_syscall_error_processing(
         fallible_signature: FallibleSyscallSignature,
-        mut param_instructions: Vec<ParamInstructions>,
+        param_instructions: Vec<ParamInstructions>,
     ) -> Vec<Instruction> {
         static_assertions::assert_eq_size!(gsys::ErrorCode, u32);
         let no_error_val = gsys::ErrorCode::default() as i32;
@@ -869,75 +874,6 @@ impl From<i64> for ParamInstructions {
 }
 
 impl Display for ParamInstructions {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        <Self as Debug>::fmt(self, f)
-    }
-}
-
-#[derive(Clone)]
-enum ParamsTranslator {
-    I32(i32),
-    I64(i64),
-    I32WithData { start_offset: i32, data: Vec<i32> },
-}
-
-impl ParamsTranslator {
-    fn new_i32(value: i32) -> Self {
-        Self::I32(value)
-    }
-
-    fn new_i64(value: i64) -> Self {
-        Self::I64(value)
-    }
-
-    fn new_i32_with_data(start_offset: i32, data: Vec<i32>) -> Self {
-        Self::I32WithData { start_offset, data }
-    }
-
-    fn as_i32(&self) -> Option<i32> {
-        if let &ParamsTranslator::I32(value) = self {
-            Some(value)
-        } else {
-            None
-        }
-    }
-
-    fn translate(self) -> Vec<Instruction> {
-        match self {
-            Self::I32(value) => vec![Instruction::I32Const(value)],
-            Self::I64(value) => vec![Instruction::I64Const(value)],
-            Self::I32WithData { start_offset, data } => data
-                .into_iter()
-                .enumerate()
-                .flat_map(|(word_idx, word)| {
-                    vec![
-                        Instruction::I32Const(start_offset),
-                        Instruction::I32Const(word),
-                        Instruction::I32Store(2, (word_idx * mem::size_of::<i32>()) as u32),
-                    ]
-                })
-                .chain(iter::once(Instruction::I32Const(start_offset)))
-                .collect(),
-        }
-    }
-}
-
-impl Debug for ParamsTranslator {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::I32(val) => write!(f, "set i32 value: {val}"),
-            Self::I64(val) => write!(f, "set i64 value: {val}"),
-            Self::I32WithData { start_offset, data } => {
-                write!(
-                    f,
-                    "set to pointer {start_offset} the following data - {data:?}"
-                )
-            }
-        }
-    }
-}
-
-impl Display for ParamsTranslator {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         <Self as Debug>::fmt(self, f)
     }

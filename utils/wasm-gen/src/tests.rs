@@ -36,15 +36,12 @@ use gear_core_backend::{
 use gear_core_processor::{ProcessorContext, ProcessorExternalities};
 use gear_utils::NonEmpty;
 use gear_wasm_instrument::{
-    parity_wasm::{
-        self,
-        elements::{Instruction, Module},
-    },
+    parity_wasm::{self, elements::Module},
     rules::CustomConstantCostRules,
 };
 use proptest::prelude::*;
 use rand::{rngs::SmallRng, RngCore, SeedableRng};
-use std::{mem, num::NonZeroUsize};
+use std::num::NonZeroUsize;
 
 const UNSTRUCTURED_SIZE: usize = 1_000_000;
 
@@ -310,7 +307,7 @@ fn test_msg_value_ptr_dest() {
         InvocableSyscall::Precise(SyscallName::ReplyDeposit),
     ];
 
-    let some_address = [5; 32];
+    let some_address = [10; 32];
     let destination_variants = [
         SyscallDestination::Random,
         SyscallDestination::Source,
@@ -320,7 +317,7 @@ fn test_msg_value_ptr_dest() {
         let mut params_config = SyscallsParamsConfig::default_regular();
         params_config.set_rule(RegularParamType::Gas, (0..=0).into());
         params_config.set_ptr_rule(PtrParamAllowedValues::ActorIdWithValue {
-            actor: dest_var,
+            actor: dest_var.clone(),
             range: REPLY_VALUE..=REPLY_VALUE,
         });
 
@@ -354,6 +351,26 @@ fn test_msg_value_ptr_dest() {
                 backend_report.termination_reason,
                 TerminationReason::Actor(ActorTerminationReason::Success)
             );
+
+            if !dest_var.is_random() {
+                let dispatch = {
+                    let (context_outcome, _) = backend_report.ext.context.message_context.drain();
+
+                    let mut dispatches = context_outcome.drain().outgoing_dispatches;
+                    assert_eq!(dispatches.len(), 1);
+
+                    dispatches.pop().expect("checked").0
+                };
+                let destination = dispatch.destination();
+
+                match dest_var {
+                    SyscallDestination::Source => assert_eq!(destination, message_sender()),
+                    SyscallDestination::ExistingAddresses(_) => {
+                        assert_eq!(destination, ProgramId::from(some_address.as_ref()))
+                    }
+                    SyscallDestination::Random => {}
+                }
+            }
         }
     }
 }

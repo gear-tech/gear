@@ -101,9 +101,6 @@ pub use generator::*;
 pub use module::*;
 pub use syscalls::*;
 
-use gear_utils::NonEmpty;
-use gsys::Hash;
-
 /// Trait which describes a type that stores and manages data for generating
 /// [`GearWasmGeneratorConfig`] and [`SelectableParams`], which are both used
 /// by [`crate::generate_gear_program_code`] and [`crate::generate_gear_program_module`]
