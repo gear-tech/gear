@@ -9,6 +9,7 @@ repository.workspace = true
 
 [dependencies]
 gear-core.workspace = true
+gear-wasm-instrument.workspace = true
 vara-runtime = { workspace = true, features = ["std", "dev"] }
 sandbox-wasmer.workspace = true
 sandbox-wasmer-types.workspace = true
