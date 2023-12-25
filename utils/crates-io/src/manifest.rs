@@ -177,8 +177,19 @@ impl Manifest {
             //
             // TODO: add the branch name.
             "sp-allocator" => {
-                table.insert("version", "4.1.0".into());
+                table.insert("version", "4.1.1".into());
                 table.insert("package", "gp-allocator".into());
+            }
+            "sp-runtime-interface" => {
+                table.insert("version", "7.0.2".into());
+                table.insert("package", "gp-runtime-interface".into());
+            }
+            // NOTE: use forked sp-wasm-interface.
+            //
+            // In case of we have modifed the original sp-wasm-interface.
+            "sp-wasm-interface" => {
+                table.insert("package", "gp-wasm-interface".into());
+                table.insert("version", "7.0.1".into());
             }
             // NOTE: use forked sp-wasm-interface-common.
             //
