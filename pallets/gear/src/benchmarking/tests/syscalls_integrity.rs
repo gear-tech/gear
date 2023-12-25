@@ -45,8 +45,7 @@ where
     T: Config,
     T::AccountId: Origin,
 {
-    use binaries::demo_read_big_state::WASM_BINARY_OPT;
-    use demo_read_big_state::{State, Strings};
+    use binaries::demo_read_big_state::{State, Strings, WASM_BINARY_OPT};
 
     #[cfg(feature = "std")]
     utils::init_logger();

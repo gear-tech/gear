@@ -12,9 +12,6 @@ readme = "README.md"
 [package.metadata.docs.rs]
 targets = ["x86_64-unknown-linux-gnu"]
 
-[package.metadata.wasm-dep-builder.builder]
-exclude = ["demo-calc-hash"]
-
 [dependencies]
 parity-scale-codec = { workspace = true, features = ["derive"] }
 scale-info = { workspace = true, features = ["derive"] }
@@ -36,6 +33,7 @@ gear-core.workspace = true
 gear-core-errors.workspace = true
 gear-core-backend.workspace = true
 pallet-gear-proc-macro = { path = "proc-macro" }
+pallet-gear-binaries = { path = "binaries" }
 gsys = { workspace = true, optional = true }
 pallet-gear-voucher.workspace = true
 pallet-gear-bank.workspace = true
@@ -61,13 +59,6 @@ rand = { workspace = true, optional = true }
 rand_pcg = { workspace = true, optional = true }
 sp-consensus-slots = { workspace = true, optional = true }
 test-syscalls = { workspace = true, optional = true }
-demo-read-big-state = { workspace = true, optional = true }
-demo-proxy = { workspace = true, optional = true }
-demo-reserve-gas = { workspace = true, optional = true }
-demo-delayed-sender = { workspace = true, optional = true }
-demo-constructor = { workspace = true, optional = true }
-demo-waiter = { workspace = true, optional = true }
-demo-init-wait = { workspace = true, optional = true }
 
 # Some of tests require `debug` feature enabled
 [dev-dependencies]
@@ -75,49 +66,8 @@ wabt.workspace = true
 hex.workspace = true
 blake2-rfc.workspace = true
 gstd.workspace = true
-demo-async.workspace = true
-demo-async-init.workspace = true
-demo-async-recursion.workspace = true
-demo-async-tester = { workspace = true, features = ["debug"] }
-demo-delayed-sender.workspace = true
-demo-distributor.workspace = true
-demo-init-fail-sender.workspace = true
-demo-init-wait.workspace = true
-demo-init-wait-reply-exit.workspace = true
 demo-new-meta.workspace = true
-demo-futures-unordered.workspace = true
-demo-program-factory.workspace = true
-demo-program-generator.workspace = true
-demo-proxy.workspace = true
-demo-proxy-relay.workspace = true
-demo-proxy-reservation-with-gas.workspace = true
-demo-read-big-state.workspace = true
-demo-incomplete-async-payloads.workspace = true
-demo-gas-burned.workspace = true
-demo-waiting-proxy.workspace = true
 demo-calc-hash.workspace = true
-demo-calc-hash-over-blocks.workspace = true
-demo-calc-hash-in-one-block.workspace = true
-demo-compose.workspace = true
-demo-constructor = { workspace = true, features = ["debug"] }
-demo-mul-by-const.workspace = true
-demo-wait.workspace = true
-demo-waiter = { workspace = true, features = ["debug"] }
-demo-wait-timeout.workspace = true
-demo-wait-wake.workspace = true
-demo-reserve-gas.workspace = true
-demo-rwlock.workspace = true
-demo-reservation-manager.workspace = true
-demo-send-from-reservation.workspace = true
-demo-signal-entry.workspace = true
-demo-state-rollback.workspace = true
-demo-async-signal-entry.workspace = true
-demo-async-custom-entry.workspace = true
-demo-out-of-memory.workspace = true
-demo-ping.workspace = true
-demo-sync-duplicate.workspace = true
-demo-custom.workspace = true
-demo-delayed-reservation-sender = { workspace = true, features = ["debug"] }
 test-syscalls = { workspace = true, features = ["debug"] }
 page_size.workspace = true
 frame-support-test = { workspace = true, features = ["std"] }
@@ -128,9 +78,6 @@ pallet-gear-scheduler = { workspace = true, features = ["std"] }
 pallet-gear-program = { workspace = true, features = ["std"] }
 pallet-gear-voucher = { workspace = true, features = ["std"] }
 gmeta.workspace = true
-
-[build-dependencies]
-wasm-dep-builder.workspace = true
 
 [features]
 default = ['std']
@@ -167,14 +114,7 @@ std = [
 	"serde/std",
 	"sp-consensus-babe/std",
 	"test-syscalls?/std",
-	"demo-read-big-state?/std",
-	"demo-proxy?/std",
-	"demo-reserve-gas?/std",
-	"demo-delayed-sender?/std",
-	"demo-constructor?/std",
-	"demo-waiter?/std",
-	"demo-init-wait?/std",
-	"gear-runtime-interface/std",
+	"pallet-gear-binaries/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",
@@ -189,14 +129,8 @@ runtime-benchmarks = [
 	"rand",
 	"rand_pcg",
 	"test-syscalls/wasm-wrapper",
-	"demo-read-big-state/wasm-wrapper",
-	"demo-proxy/wasm-wrapper",
 	"gsys",
-	"demo-reserve-gas/wasm-wrapper",
-	"demo-delayed-sender/wasm-wrapper",
-	"demo-constructor/wasm-wrapper",
-	"demo-waiter/wasm-wrapper",
-	"demo-init-wait/wasm-wrapper",
+	"pallet-gear-binaries/wasm-wrapper"
 ]
 runtime-benchmarks-checkers = []
 try-runtime = ["frame-support/try-runtime"]

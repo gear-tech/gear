@@ -7661,49 +7661,8 @@ name = "pallet-gear"
 version = "1.0.4"
 dependencies = [
  "blake2-rfc",
- "demo-async",
- "demo-async-custom-entry",
- "demo-async-init",
- "demo-async-recursion",
- "demo-async-signal-entry",
- "demo-async-tester",
  "demo-calc-hash",
- "demo-calc-hash-in-one-block",
- "demo-calc-hash-over-blocks",
- "demo-compose",
- "demo-constructor",
- "demo-custom",
- "demo-delayed-reservation-sender",
- "demo-delayed-sender",
- "demo-distributor",
- "demo-futures-unordered",
- "demo-gas-burned",
- "demo-incomplete-async-payloads",
- "demo-init-fail-sender",
- "demo-init-wait",
- "demo-init-wait-reply-exit",
- "demo-mul-by-const",
  "demo-new-meta",
- "demo-out-of-memory",
- "demo-ping",
- "demo-program-factory",
- "demo-program-generator",
- "demo-proxy",
- "demo-proxy-relay",
- "demo-proxy-reservation-with-gas",
- "demo-read-big-state",
- "demo-reservation-manager",
- "demo-reserve-gas",
- "demo-rwlock",
- "demo-send-from-reservation",
- "demo-signal-entry",
- "demo-state-rollback",
- "demo-sync-duplicate",
- "demo-wait",
- "demo-wait-timeout",
- "demo-wait-wake",
- "demo-waiter",
- "demo-waiting-proxy",
  "derive_more",
  "env_logger",
  "frame-benchmarking",
@@ -7729,6 +7688,7 @@ dependencies = [
  "pallet-authorship",
  "pallet-balances",
  "pallet-gear-bank",
+ "pallet-gear-binaries",
  "pallet-gear-gas",
  "pallet-gear-messenger",
  "pallet-gear-proc-macro",
@@ -7753,7 +7713,6 @@ dependencies = [
  "static_assertions",
  "test-syscalls",
  "wabt",
- "wasm-dep-builder",
 ]
 
 [[package]]
@@ -7772,6 +7731,54 @@ dependencies = [
  "scale-info",
  "sp-io",
  "sp-runtime",
+]
+
+[[package]]
+name = "pallet-gear-binaries"
+version = "0.1.0"
+dependencies = [
+ "demo-async",
+ "demo-async-custom-entry",
+ "demo-async-init",
+ "demo-async-recursion",
+ "demo-async-signal-entry",
+ "demo-async-tester",
+ "demo-calc-hash-in-one-block",
+ "demo-calc-hash-over-blocks",
+ "demo-compose",
+ "demo-constructor",
+ "demo-custom",
+ "demo-delayed-reservation-sender",
+ "demo-delayed-sender",
+ "demo-distributor",
+ "demo-futures-unordered",
+ "demo-gas-burned",
+ "demo-incomplete-async-payloads",
+ "demo-init-fail-sender",
+ "demo-init-wait",
+ "demo-init-wait-reply-exit",
+ "demo-mul-by-const",
+ "demo-out-of-memory",
+ "demo-ping",
+ "demo-program-factory",
+ "demo-program-generator",
+ "demo-proxy",
+ "demo-proxy-relay",
+ "demo-proxy-reservation-with-gas",
+ "demo-read-big-state",
+ "demo-reservation-manager",
+ "demo-reserve-gas",
+ "demo-rwlock",
+ "demo-send-from-reservation",
+ "demo-signal-entry",
+ "demo-state-rollback",
+ "demo-sync-duplicate",
+ "demo-wait",
+ "demo-wait-timeout",
+ "demo-wait-wake",
+ "demo-waiter",
+ "demo-waiting-proxy",
+ "wasm-dep-builder",
 ]
 
 [[package]]
@@ -12961,7 +12968,7 @@ dependencies = [
 
 [[package]]
 name = "test-wasm-dep"
-version = "1.0.3"
+version = "1.0.4"
 dependencies = [
  "demo-async",
  "demo-async-custom-entry",
@@ -14007,7 +14014,7 @@ checksum = "ca6ad05a4870b2bf5fe995117d3728437bd27d7cd5f06f13c17443ef369775a1"
 
 [[package]]
 name = "wasm-dep-builder"
-version = "1.0.3"
+version = "1.0.4"
 dependencies = [
  "cargo_metadata 0.18.1",
  "fs4 0.7.0",
