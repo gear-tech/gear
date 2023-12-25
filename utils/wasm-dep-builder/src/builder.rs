@@ -98,8 +98,6 @@ pub mod {pkg} {{
             continue;
         }
 
-        println!("cargo:warning=wasm: {}", wasm.display());
-        println!("cargo:warning=wasm_opt: {}", wasm_opt.display());
         optimize::optimize_wasm(wasm.clone(), wasm_opt.clone(), "4", true).unwrap();
 
         let mut optimizer = Optimizer::new(wasm_opt.clone()).unwrap();

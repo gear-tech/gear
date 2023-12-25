@@ -84,11 +84,28 @@ enum WasmDepBuilderMetadata {
     Builder(BuilderMetadata),
 }
 
+impl WasmDepBuilderMetadata {
+    fn from_value(value: serde_json::Value) -> Option<Self> {
+        serde_json::from_value::<Option<PackageMetadata>>(value)
+            .unwrap()
+            .unwrap_or_default()
+            .wasm_dep_builder
+    }
+}
+
 #[derive(Default, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 struct DemoMetadata {
     #[serde(default)]
     exclude_features: BTreeSet<String>,
+}
+
+impl DemoMetadata {
+    fn from_value(value: serde_json::Value) -> Self {
+        WasmDepBuilderMetadata::from_value(value)
+            .map(|metadata| metadata.unwrap_demo())
+            .unwrap_or_default()
+    }
 }
 
 #[derive(Default, Deserialize)]
@@ -100,6 +117,12 @@ struct BuilderMetadata {
 }
 
 impl BuilderMetadata {
+    fn from_value(value: serde_json::Value) -> Self {
+        WasmDepBuilderMetadata::from_value(value)
+            .map(|metadata| metadata.unwrap_builder())
+            .unwrap_or_default()
+    }
+
     fn excludes(&self, pkg_name: &str) -> bool {
         self.exclude.contains(pkg_name)
     }
@@ -254,20 +277,15 @@ pub fn builder() {
         .find(|package| package.name == pkg_name)
         .unwrap();
 
-    let config = serde_json::from_value::<Option<PackageMetadata>>(package.metadata.clone())
-        .unwrap()
-        .unwrap_or_default()
-        .wasm_dep_builder
-        .map(|config| config.unwrap_builder())
-        .unwrap_or_default();
+    let builder_metadata = BuilderMetadata::from_value(package.metadata.clone());
 
     let mut packages = BTreeMap::new();
 
     for dep in package
         .dependencies
         .iter()
-        .filter(|dep| !config.excludes(&dep.name))
-        .filter(|dep| config.includes(&dep.name))
+        .filter(|dep| !builder_metadata.excludes(&dep.name))
+        .filter(|dep| builder_metadata.includes(&dep.name))
     {
         let pkg = metadata
             .packages
@@ -288,12 +306,7 @@ pub fn builder() {
             continue;
         }
 
-        let pkg_metadata = serde_json::from_value::<Option<PackageMetadata>>(pkg.metadata.clone())
-            .unwrap()
-            .unwrap_or_default()
-            .wasm_dep_builder
-            .map(|config| config.unwrap_demo())
-            .unwrap_or_default();
+        let demo_metadata = DemoMetadata::from_value(pkg.metadata.clone());
 
         let lock = LockFile::path(&dep.name);
         println!("cargo:rerun-if-changed={}", lock.display());
@@ -301,9 +314,10 @@ pub fn builder() {
         let mut lock = LockFile::open_for_builder(lock);
 
         let config = lock.read();
+        println!("cargo:warning={:?}", config);
 
         let features = if let Some(LockFileConfig::Demo(config)) = config {
-            let excluded_features = pkg_metadata
+            let excluded_features = demo_metadata
                 .exclude_features
                 .into_iter()
                 .map(UnderscoreString)
