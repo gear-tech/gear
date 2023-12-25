@@ -29,7 +29,9 @@
 
 use super::*;
 
-use crate::{binaries, BlockGasLimitOf, CurrencyOf, Event, RentCostPerBlockOf, String, WaitlistOf};
+use crate::{
+    binaries::*, BlockGasLimitOf, CurrencyOf, Event, RentCostPerBlockOf, String, WaitlistOf,
+};
 use common::event::DispatchStatus;
 use frame_support::traits::Randomness;
 use gear_core::ids::{CodeId, ReservationId};
@@ -45,7 +47,7 @@ where
     T: Config,
     T::AccountId: Origin,
 {
-    use binaries::demo_read_big_state::{State, Strings, WASM_BINARY_OPT};
+    use demo_read_big_state::{State, Strings, WASM_BINARY_OPT};
 
     #[cfg(feature = "std")]
     utils::init_logger();

@@ -14,7 +14,7 @@
 // GNU General Public License for more details.
 
 use super::*;
-use crate::binaries;
+use crate::binaries::*;
 use gear_core::ids::ReservationId;
 
 #[track_caller]
@@ -23,7 +23,7 @@ where
     T: Config,
     T::AccountId: Origin,
 {
-    use binaries::demo_delayed_sender::WASM_BINARY_OPT;
+    use demo_delayed_sender::WASM_BINARY_OPT;
 
     let caller = benchmarking::account("caller", 0, 0);
     CurrencyOf::<T>::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
@@ -142,7 +142,7 @@ where
     T: Config,
     T::AccountId: Origin,
 {
-    use binaries::demo_reserve_gas::{InitAction, WASM_BINARY_OPT};
+    use demo_reserve_gas::{InitAction, WASM_BINARY_OPT};
 
     let caller = benchmarking::account("caller", 0, 0);
     CurrencyOf::<T>::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
@@ -209,7 +209,7 @@ where
     T: Config,
     T::AccountId: Origin,
 {
-    use binaries::demo_constructor::{Call, Calls, Scheme, WASM_BINARY_OPT};
+    use demo_constructor::{Call, Calls, Scheme, WASM_BINARY_OPT};
 
     let caller = benchmarking::account("caller", 0, 0);
     CurrencyOf::<T>::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
@@ -265,7 +265,7 @@ where
     T: Config,
     T::AccountId: Origin,
 {
-    use binaries::demo_waiter::{Command, WaitSubcommand, WASM_BINARY_OPT};
+    use demo_waiter::{Command, WaitSubcommand, WASM_BINARY_OPT};
 
     let caller = benchmarking::account("caller", 0, 0);
     CurrencyOf::<T>::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
@@ -315,7 +315,7 @@ where
     T: Config,
     T::AccountId: Origin,
 {
-    use binaries::demo_waiter::{Command, WaitSubcommand, WASM_BINARY_OPT};
+    use demo_waiter::{Command, WaitSubcommand, WASM_BINARY_OPT};
 
     let caller = benchmarking::account("caller", 0, 0);
     CurrencyOf::<T>::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());

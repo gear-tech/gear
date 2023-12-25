@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::binaries;
+use crate::binaries::*;
 use crate::{
     internal::HoldBoundBuilder,
     manager::HandleKind,
@@ -86,7 +86,7 @@ type Gas = <<Test as Config>::GasProvider as common::GasProvider>::GasTree;
 
 #[test]
 fn delayed_send_from_reservation_not_for_mailbox() {
-    use binaries::demo_delayed_reservation_sender::{ReservationSendingShowcase, WASM_BINARY_OPT};
+    use demo_delayed_reservation_sender::{ReservationSendingShowcase, WASM_BINARY_OPT};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -141,7 +141,7 @@ fn delayed_send_from_reservation_not_for_mailbox() {
 
 #[test]
 fn cascading_delayed_gasless_send_work() {
-    use binaries::demo_delayed_sender::{DELAY, WASM_BINARY_OPT};
+    use demo_delayed_sender::{DELAY, WASM_BINARY_OPT};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -240,7 +240,7 @@ fn cascading_delayed_gasless_send_work() {
 
 #[test]
 fn calculate_gas_delayed_reservations_sending() {
-    use binaries::demo_delayed_reservation_sender::{ReservationSendingShowcase, WASM_BINARY_OPT};
+    use demo_delayed_reservation_sender::{ReservationSendingShowcase, WASM_BINARY_OPT};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -296,7 +296,7 @@ fn calculate_gas_delayed_reservations_sending() {
 
 #[test]
 fn delayed_reservations_sending_validation() {
-    use binaries::demo_delayed_reservation_sender::{
+    use demo_delayed_reservation_sender::{
         ReservationSendingShowcase, SENDING_EXPECT, WASM_BINARY_OPT,
     };
 
@@ -390,7 +390,7 @@ fn delayed_reservations_sending_validation() {
 
 #[test]
 fn delayed_reservations_to_mailbox() {
-    use binaries::demo_delayed_reservation_sender::{ReservationSendingShowcase, WASM_BINARY_OPT};
+    use demo_delayed_reservation_sender::{ReservationSendingShowcase, WASM_BINARY_OPT};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -448,7 +448,7 @@ fn delayed_reservations_to_mailbox() {
 
 #[test]
 fn default_wait_lock_timeout() {
-    use binaries::demo_async_tester::{Kind, WASM_BINARY_OPT};
+    use demo_async_tester::{Kind, WASM_BINARY_OPT};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -499,7 +499,7 @@ fn default_wait_lock_timeout() {
 
 #[test]
 fn value_counter_set_correctly_for_interruptions() {
-    use binaries::demo_constructor::{Arg, Calls, Scheme};
+    use demo_constructor::{Arg, Calls, Scheme};
 
     // Equivalent of:
     //
@@ -565,7 +565,7 @@ fn value_counter_set_correctly_for_interruptions() {
 
 #[test]
 fn calculate_gas_returns_not_block_limit() {
-    use binaries::demo_program_generator::{CHILD_WAT, WASM_BINARY_OPT};
+    use demo_program_generator::{CHILD_WAT, WASM_BINARY_OPT};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -602,7 +602,7 @@ fn calculate_gas_returns_not_block_limit() {
 
 #[test]
 fn read_big_state() {
-    use binaries::demo_read_big_state::{State, Strings, WASM_BINARY_OPT};
+    use demo_read_big_state::{State, Strings, WASM_BINARY_OPT};
 
     init_logger();
 
@@ -730,7 +730,7 @@ fn auto_reply_sent() {
 
 #[test]
 fn auto_reply_from_user_no_mailbox() {
-    use binaries::demo_constructor::{Call, Calls, Scheme};
+    use demo_constructor::{Call, Calls, Scheme};
 
     init_logger();
     // no delay case
@@ -784,10 +784,8 @@ fn auto_reply_from_user_no_mailbox() {
 
 #[test]
 fn auto_reply_out_of_rent_waitlist() {
-    use binaries::{
-        demo_proxy::{InputArgs as ProxyInputArgs, WASM_BINARY_OPT as PROXY_WASM_BINARY},
-        demo_waiter::{Command, WaitSubcommand, WASM_BINARY_OPT as WAITER_WASM_BINARY},
-    };
+    use demo_proxy::{InputArgs as ProxyInputArgs, WASM_BINARY_OPT as PROXY_WASM_BINARY};
+    use demo_waiter::{Command, WaitSubcommand, WASM_BINARY_OPT as WAITER_WASM_BINARY};
 
     init_logger();
 
@@ -937,7 +935,7 @@ fn auto_reply_out_of_rent_mailbox() {
 
 #[test]
 fn reply_deposit_to_program() {
-    use binaries::demo_constructor::demo_reply_deposit;
+    use demo_constructor::demo_reply_deposit;
 
     init_logger();
 
@@ -975,7 +973,7 @@ fn reply_deposit_to_program() {
 
 #[test]
 fn reply_deposit_to_user_auto_reply() {
-    use binaries::demo_constructor::demo_reply_deposit;
+    use demo_constructor::demo_reply_deposit;
 
     init_logger();
 
@@ -1007,7 +1005,7 @@ fn reply_deposit_to_user_auto_reply() {
 
 #[test]
 fn reply_deposit_panic_in_handle_reply() {
-    use binaries::demo_constructor::demo_reply_deposit;
+    use demo_constructor::demo_reply_deposit;
 
     init_logger();
 
@@ -1039,7 +1037,7 @@ fn reply_deposit_panic_in_handle_reply() {
 
 #[test]
 fn reply_deposit_to_user_reply() {
-    use binaries::demo_constructor::demo_reply_deposit;
+    use demo_constructor::demo_reply_deposit;
 
     init_logger();
 
@@ -1116,7 +1114,7 @@ fn reply_deposit_to_user_reply() {
 
 #[test]
 fn reply_deposit_to_user_claim() {
-    use binaries::demo_constructor::demo_reply_deposit;
+    use demo_constructor::demo_reply_deposit;
 
     init_logger();
 
@@ -1183,7 +1181,7 @@ fn reply_deposit_to_user_claim() {
 
 #[test]
 fn reply_deposit_to_user_out_of_rent() {
-    use binaries::demo_constructor::demo_reply_deposit;
+    use demo_constructor::demo_reply_deposit;
 
     init_logger();
 
@@ -1257,7 +1255,7 @@ fn reply_deposit_to_user_out_of_rent() {
 
 #[test]
 fn reply_deposit_gstd_async() {
-    use binaries::demo_waiting_proxy::WASM_BINARY_OPT;
+    use demo_waiting_proxy::WASM_BINARY_OPT;
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -1317,7 +1315,7 @@ fn reply_deposit_gstd_async() {
 #[test]
 #[should_panic]
 fn pseudo_duplicate_wake() {
-    use binaries::demo_constructor::{Calls, Scheme};
+    use demo_constructor::{Calls, Scheme};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -1406,7 +1404,7 @@ fn gasfull_after_gasless() {
 
 #[test]
 fn backend_errors_handled_in_program() {
-    use binaries::demo_custom::{InitMessage, WASM_BINARY_OPT};
+    use demo_custom::{InitMessage, WASM_BINARY_OPT};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -1658,7 +1656,7 @@ fn exited_program_zero_gas() {
 
 #[test]
 fn delayed_user_replacement() {
-    use binaries::demo_constructor::demo_proxy_with_gas;
+    use demo_constructor::demo_proxy_with_gas;
 
     fn scenario(gas_limit_to_forward: u64, to_mailbox: bool) {
         let code = ProgramCodeKind::OutgoingWithValueInHandle.to_bytes();
@@ -1752,7 +1750,7 @@ fn delayed_user_replacement() {
 
 #[test]
 fn delayed_send_user_message_payment() {
-    use binaries::demo_constructor::demo_proxy_with_gas;
+    use demo_constructor::demo_proxy_with_gas;
 
     // Testing that correct gas amount will be reserved and paid for holding.
     fn scenario(delay: BlockNumber) {
@@ -1837,9 +1835,7 @@ fn delayed_send_user_message_payment() {
 
 #[test]
 fn delayed_send_user_message_with_reservation() {
-    use binaries::demo_proxy_reservation_with_gas::{
-        InputArgs, WASM_BINARY_OPT as PROXY_WGAS_WASM_BINARY,
-    };
+    use demo_proxy_reservation_with_gas::{InputArgs, WASM_BINARY_OPT as PROXY_WGAS_WASM_BINARY};
 
     // Testing that correct gas amount will be reserved and paid for holding.
     fn scenario(delay: BlockNumber) {
@@ -1954,7 +1950,7 @@ fn delayed_send_user_message_with_reservation() {
 
 #[test]
 fn delayed_send_program_message_payment() {
-    use binaries::demo_constructor::demo_proxy_with_gas;
+    use demo_constructor::demo_proxy_with_gas;
 
     // Testing that correct gas amount will be reserved and paid for holding.
     fn scenario(delay: BlockNumber) {
@@ -2041,9 +2037,7 @@ fn delayed_send_program_message_payment() {
 
 #[test]
 fn delayed_send_program_message_with_reservation() {
-    use binaries::demo_proxy_reservation_with_gas::{
-        InputArgs, WASM_BINARY_OPT as PROXY_WGAS_WASM_BINARY,
-    };
+    use demo_proxy_reservation_with_gas::{InputArgs, WASM_BINARY_OPT as PROXY_WGAS_WASM_BINARY};
 
     // Testing that correct gas amount will be reserved and paid for holding.
     fn scenario(delay: BlockNumber) {
@@ -2604,7 +2598,7 @@ fn read_state_using_wasm_errors() {
 
 #[test]
 fn mailbox_rent_out_of_rent() {
-    use binaries::demo_constructor::{demo_value_sender::TestData, Scheme};
+    use demo_constructor::{demo_value_sender::TestData, Scheme};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -2694,7 +2688,7 @@ fn mailbox_rent_out_of_rent() {
 
 #[test]
 fn mailbox_rent_claimed() {
-    use binaries::demo_constructor::{demo_value_sender::TestData, Scheme};
+    use demo_constructor::{demo_value_sender::TestData, Scheme};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -2784,7 +2778,7 @@ fn mailbox_rent_claimed() {
 
 #[test]
 fn mailbox_sending_instant_transfer() {
-    use binaries::demo_constructor::{demo_value_sender::TestData, Scheme};
+    use demo_constructor::{demo_value_sender::TestData, Scheme};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -2991,7 +2985,7 @@ fn send_message_works() {
 
 #[test]
 fn mailbox_threshold_works() {
-    use binaries::demo_constructor::demo_proxy_with_gas;
+    use demo_constructor::demo_proxy_with_gas;
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -4619,7 +4613,7 @@ fn claim_value_works() {
 
 #[test]
 fn uninitialized_program_zero_gas() {
-    use binaries::demo_init_wait::WASM_BINARY_OPT;
+    use demo_init_wait::WASM_BINARY_OPT;
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -4662,7 +4656,7 @@ fn uninitialized_program_zero_gas() {
 
 #[test]
 fn distributor_initialize() {
-    use binaries::demo_distributor::WASM_BINARY_OPT;
+    use demo_distributor::WASM_BINARY_OPT;
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -4691,7 +4685,7 @@ fn distributor_initialize() {
 
 #[test]
 fn distributor_distribute() {
-    use binaries::demo_distributor::{Request, WASM_BINARY_OPT};
+    use demo_distributor::{Request, WASM_BINARY_OPT};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -4888,7 +4882,7 @@ fn test_code_is_not_reset_within_program_submission() {
 
 #[test]
 fn messages_to_uninitialized_program_wait() {
-    use binaries::demo_init_wait::WASM_BINARY_OPT;
+    use demo_init_wait::WASM_BINARY_OPT;
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -4934,7 +4928,7 @@ fn messages_to_uninitialized_program_wait() {
 
 #[test]
 fn uninitialized_program_should_accept_replies() {
-    use binaries::demo_init_wait::WASM_BINARY_OPT;
+    use demo_init_wait::WASM_BINARY_OPT;
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -4981,7 +4975,7 @@ fn uninitialized_program_should_accept_replies() {
 
 #[test]
 fn defer_program_initialization() {
-    use binaries::demo_init_wait::WASM_BINARY_OPT;
+    use demo_init_wait::WASM_BINARY_OPT;
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -5040,7 +5034,7 @@ fn defer_program_initialization() {
 
 #[test]
 fn wake_messages_after_program_inited() {
-    use binaries::demo_init_wait::WASM_BINARY_OPT;
+    use demo_init_wait::WASM_BINARY_OPT;
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -5111,7 +5105,7 @@ fn wake_messages_after_program_inited() {
 
 #[test]
 fn test_different_waits_success() {
-    use binaries::demo_waiter::{Command, WaitSubcommand, WASM_BINARY_OPT};
+    use demo_waiter::{Command, WaitSubcommand, WASM_BINARY_OPT};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -5145,7 +5139,7 @@ fn test_different_waits_success() {
             Gear::block_number().saturating_add(duration.unique_saturated_into())
         };
 
-        let system_reservation = binaries::demo_waiter::system_reserve();
+        let system_reservation = demo_waiter::system_reserve();
 
         // Command::Wait case.
         let payload = Command::Wait(WaitSubcommand::Wait).encode();
@@ -5256,7 +5250,7 @@ fn test_different_waits_success() {
 
 #[test]
 fn test_different_waits_fail() {
-    use binaries::demo_waiter::{Command, WaitSubcommand, WASM_BINARY_OPT};
+    use demo_waiter::{Command, WaitSubcommand, WASM_BINARY_OPT};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -5276,7 +5270,7 @@ fn test_different_waits_fail() {
 
         assert!(Gear::is_active(program_id));
 
-        let system_reservation = binaries::demo_waiter::system_reserve();
+        let system_reservation = demo_waiter::system_reserve();
 
         // Command::Wait case no gas.
         let payload = Command::Wait(WaitSubcommand::Wait).encode();
@@ -5469,7 +5463,7 @@ fn test_different_waits_fail() {
 
 #[test]
 fn wait_after_reply() {
-    use binaries::demo_waiter::{Command, WaitSubcommand, WASM_BINARY_OPT};
+    use demo_waiter::{Command, WaitSubcommand, WASM_BINARY_OPT};
 
     let test = |subcommand: WaitSubcommand| {
         new_test_ext().execute_with(|| {
@@ -5522,7 +5516,7 @@ fn wait_after_reply() {
 // introduce new tests for this in #1485
 #[test]
 fn test_requeue_after_wait_for_timeout() {
-    use binaries::demo_waiter::{Command, WASM_BINARY_OPT};
+    use demo_waiter::{Command, WASM_BINARY_OPT};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -5585,7 +5579,7 @@ fn test_requeue_after_wait_for_timeout() {
 
 #[test]
 fn test_sending_waits() {
-    use binaries::demo_waiter::{Command, WASM_BINARY_OPT};
+    use demo_waiter::{Command, WASM_BINARY_OPT};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -5685,14 +5679,14 @@ fn test_sending_waits() {
 
         assert_eq!(
             get_waitlist_expiration(wait_wait),
-            expiration(binaries::demo_waiter::default_wait_up_to_duration())
+            expiration(demo_waiter::default_wait_up_to_duration())
         );
     });
 }
 
 #[test]
 fn test_wait_timeout() {
-    use binaries::demo_wait_timeout::{Command, WASM_BINARY_OPT};
+    use demo_wait_timeout::{Command, WASM_BINARY_OPT};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -5752,7 +5746,7 @@ fn test_wait_timeout() {
 
 #[test]
 fn test_join_wait_timeout() {
-    use binaries::demo_wait_timeout::{Command, WASM_BINARY_OPT};
+    use demo_wait_timeout::{Command, WASM_BINARY_OPT};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -5812,7 +5806,7 @@ fn test_join_wait_timeout() {
 
 #[test]
 fn test_select_wait_timeout() {
-    use binaries::demo_wait_timeout::{Command, WASM_BINARY_OPT};
+    use demo_wait_timeout::{Command, WASM_BINARY_OPT};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -5861,7 +5855,7 @@ fn test_select_wait_timeout() {
 
 #[test]
 fn test_wait_lost() {
-    use binaries::demo_wait_timeout::{Command, WASM_BINARY_OPT};
+    use demo_wait_timeout::{Command, WASM_BINARY_OPT};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -5977,7 +5971,7 @@ fn test_message_processing_for_non_existing_destination() {
 
 #[test]
 fn exit_locking_funds() {
-    use binaries::demo_constructor::{Calls, Scheme};
+    use demo_constructor::{Calls, Scheme};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -6025,7 +6019,7 @@ fn exit_locking_funds() {
 
 #[test]
 fn terminated_locking_funds() {
-    use binaries::demo_init_fail_sender::WASM_BINARY_OPT;
+    use demo_init_fail_sender::WASM_BINARY_OPT;
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -6058,8 +6052,8 @@ fn terminated_locking_funds() {
         let read_cost = DbWeightOf::<Test>::get().reads(1).ref_time();
         let module_instantiation =
             schedule.module_instantiation_per_byte.ref_time() * code_length as u64;
-        let system_reservation = binaries::demo_init_fail_sender::system_reserve();
-        let reply_duration = binaries::demo_init_fail_sender::reply_duration();
+        let system_reservation = demo_init_fail_sender::system_reserve();
+        let reply_duration = demo_init_fail_sender::reply_duration();
         let gas_for_code_len = read_cost;
 
         // Value which must be returned to `USER1` after init message processing complete.
@@ -6203,7 +6197,7 @@ fn terminated_locking_funds() {
 
 #[test]
 fn pause_terminated_exited_program() {
-    use binaries::demo_constructor::{demo_exit_init, Calls, Scheme, WASM_BINARY_OPT};
+    use demo_constructor::{demo_exit_init, Calls, Scheme, WASM_BINARY_OPT};
 
     let test = |program_id| {
         let code_id = CodeId::generate(WASM_BINARY_OPT);
@@ -6270,7 +6264,7 @@ fn pause_terminated_exited_program() {
 
 #[test]
 fn test_create_program_works() {
-    use binaries::demo_init_wait::WASM_BINARY_OPT;
+    use demo_init_wait::WASM_BINARY_OPT;
 
     init_logger();
 
@@ -6341,9 +6335,7 @@ fn test_create_program_works() {
 
 #[test]
 fn test_create_program_no_code_hash() {
-    use binaries::demo_program_factory::{
-        CreateProgram, WASM_BINARY_OPT as PROGRAM_FACTORY_WASM_BINARY,
-    };
+    use demo_program_factory::{CreateProgram, WASM_BINARY_OPT as PROGRAM_FACTORY_WASM_BINARY};
 
     let non_constructable_wat = r#"
     (module)
@@ -6446,9 +6438,7 @@ fn test_create_program_no_code_hash() {
 
 #[test]
 fn test_create_program_simple() {
-    use binaries::demo_program_factory::{
-        CreateProgram, WASM_BINARY_OPT as PROGRAM_FACTORY_WASM_BINARY,
-    };
+    use demo_program_factory::{CreateProgram, WASM_BINARY_OPT as PROGRAM_FACTORY_WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -6541,9 +6531,7 @@ fn test_create_program_simple() {
 
 #[test]
 fn test_pausing_programs_works() {
-    use binaries::demo_program_factory::{
-        CreateProgram, WASM_BINARY_OPT as PROGRAM_FACTORY_WASM_BINARY,
-    };
+    use demo_program_factory::{CreateProgram, WASM_BINARY_OPT as PROGRAM_FACTORY_WASM_BINARY};
     init_logger();
     new_test_ext().execute_with(|| {
         let factory_code = PROGRAM_FACTORY_WASM_BINARY;
@@ -6740,7 +6728,7 @@ fn resume_session_init_works() {
 fn state_request() {
     init_logger();
     new_test_ext().execute_with(|| {
-        use binaries::demo_custom::{
+        use demo_custom::{
             btree::{Request, StateRequest},
             InitMessage, WASM_BINARY_OPT,
         };
@@ -6792,7 +6780,7 @@ fn state_request() {
 fn resume_session_push_works() {
     init_logger();
     new_test_ext().execute_with(|| {
-        use binaries::demo_custom::{btree::Request, InitMessage, WASM_BINARY_OPT};
+        use demo_custom::{btree::Request, InitMessage, WASM_BINARY_OPT};
 
         let code = WASM_BINARY_OPT;
         let program_id = generate_program_id(code, DEFAULT_SALT);
@@ -6906,7 +6894,7 @@ fn resume_session_push_works() {
 fn resume_program_works() {
     init_logger();
     new_test_ext().execute_with(|| {
-        use binaries::demo_custom::{
+        use demo_custom::{
             btree::{Reply, Request},
             InitMessage, WASM_BINARY_OPT,
         };
@@ -7124,7 +7112,7 @@ fn resume_program_works() {
 fn test_no_messages_to_paused_program() {
     init_logger();
     new_test_ext().execute_with(|| {
-        let code = binaries::demo_wait_wake::WASM_BINARY_OPT;
+        let code = demo_wait_wake::WASM_BINARY_OPT;
         let program_id = generate_program_id(code, DEFAULT_SALT);
 
         assert_ok!(Gear::upload_program(
@@ -7141,7 +7129,7 @@ fn test_no_messages_to_paused_program() {
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
             program_id,
-            binaries::demo_wait_wake::Request::EchoWait(10).encode(),
+            demo_wait_wake::Request::EchoWait(10).encode(),
             50_000_000_000,
             0,
             false,
@@ -7164,14 +7152,14 @@ fn test_no_messages_to_paused_program() {
 
 #[test]
 fn reservations_cleaned_in_paused_program() {
-    use binaries::demo_reserve_gas::InitAction;
+    use demo_reserve_gas::InitAction;
 
     init_logger();
     new_test_ext().execute_with(|| {
         let expiration_block = RentFreePeriodOf::<Test>::get() + 10;
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            binaries::demo_reserve_gas::WASM_BINARY_OPT.to_vec(),
+            demo_reserve_gas::WASM_BINARY_OPT.to_vec(),
             DEFAULT_SALT.to_vec(),
             InitAction::Normal(vec![(50_000, expiration_block), (25_000, expiration_block),])
                 .encode(),
@@ -7223,13 +7211,13 @@ fn reservations_cleaned_in_paused_program() {
 
 #[test]
 fn uninitialized_program_terminates_on_pause() {
-    use binaries::demo_reserve_gas::InitAction;
+    use demo_reserve_gas::InitAction;
 
     init_logger();
     new_test_ext().execute_with(|| {
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            binaries::demo_reserve_gas::WASM_BINARY_OPT.to_vec(),
+            demo_reserve_gas::WASM_BINARY_OPT.to_vec(),
             DEFAULT_SALT.to_vec(),
             InitAction::Wait.encode(),
             50_000_000_000,
@@ -7568,9 +7556,7 @@ fn pay_program_rent_extrinsic_works() {
 
 #[test]
 fn test_create_program_duplicate() {
-    use binaries::demo_program_factory::{
-        CreateProgram, WASM_BINARY_OPT as PROGRAM_FACTORY_WASM_BINARY,
-    };
+    use demo_program_factory::{CreateProgram, WASM_BINARY_OPT as PROGRAM_FACTORY_WASM_BINARY};
     init_logger();
     new_test_ext().execute_with(|| {
         let factory_code = PROGRAM_FACTORY_WASM_BINARY;
@@ -7663,9 +7649,7 @@ fn test_create_program_duplicate() {
 
 #[test]
 fn test_create_program_duplicate_in_one_execution() {
-    use binaries::demo_program_factory::{
-        CreateProgram, WASM_BINARY_OPT as PROGRAM_FACTORY_WASM_BINARY,
-    };
+    use demo_program_factory::{CreateProgram, WASM_BINARY_OPT as PROGRAM_FACTORY_WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -7732,9 +7716,7 @@ fn test_create_program_duplicate_in_one_execution() {
 
 #[test]
 fn test_create_program_miscellaneous() {
-    use binaries::demo_program_factory::{
-        CreateProgram, WASM_BINARY_OPT as PROGRAM_FACTORY_WASM_BINARY,
-    };
+    use demo_program_factory::{CreateProgram, WASM_BINARY_OPT as PROGRAM_FACTORY_WASM_BINARY};
 
     // Same as ProgramCodeKind::Default, but has a different hash (init and handle method are swapped)
     // So code hash is different
@@ -7840,7 +7822,7 @@ fn test_create_program_miscellaneous() {
 
 #[test]
 fn exit_handle() {
-    use binaries::demo_constructor::{demo_exit_handle, WASM_BINARY_OPT};
+    use demo_constructor::{demo_exit_handle, WASM_BINARY_OPT};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -7887,7 +7869,7 @@ fn exit_handle() {
 fn no_redundant_gas_value_after_exiting() {
     init_logger();
     new_test_ext().execute_with(|| {
-        use binaries::demo_constructor::demo_exit_handle;
+        use demo_constructor::demo_exit_handle;
 
         let (_init_mid, prog_id) = init_constructor(demo_exit_handle::scheme());
 
@@ -7943,7 +7925,7 @@ fn no_redundant_gas_value_after_exiting() {
 
 #[test]
 fn init_wait_reply_exit_cleaned_storage() {
-    use binaries::demo_init_wait_reply_exit::WASM_BINARY_OPT;
+    use demo_init_wait_reply_exit::WASM_BINARY_OPT;
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -8017,10 +7999,8 @@ fn init_wait_reply_exit_cleaned_storage() {
 
 #[test]
 fn locking_gas_for_waitlist() {
-    use binaries::{
-        demo_constructor::{Calls, Scheme},
-        demo_gas_burned::WASM_BINARY_OPT as GAS_BURNED_BINARY,
-    };
+    use demo_constructor::{Calls, Scheme};
+    use demo_gas_burned::WASM_BINARY_OPT as GAS_BURNED_BINARY;
 
     let wat = r#"
     (module
@@ -8099,7 +8079,7 @@ fn locking_gas_for_waitlist() {
 
 #[test]
 fn calculate_init_gas() {
-    use binaries::demo_gas_burned::WASM_BINARY_OPT;
+    use demo_gas_burned::WASM_BINARY_OPT;
 
     init_logger();
     let gas_info_1 = new_test_ext().execute_with(|| {
@@ -8156,7 +8136,7 @@ fn calculate_init_gas() {
 
 #[test]
 fn gas_spent_vs_balance() {
-    use binaries::demo_custom::{btree::Request, InitMessage, WASM_BINARY_OPT};
+    use demo_custom::{btree::Request, InitMessage, WASM_BINARY_OPT};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -8406,10 +8386,8 @@ fn gas_spent_precalculated() {
 
 #[test]
 fn test_two_contracts_composition_works() {
-    use binaries::{
-        demo_compose::WASM_BINARY_OPT as COMPOSE_WASM_BINARY,
-        demo_mul_by_const::WASM_BINARY_OPT as MUL_CONST_WASM_BINARY,
-    };
+    use demo_compose::WASM_BINARY_OPT as COMPOSE_WASM_BINARY;
+    use demo_mul_by_const::WASM_BINARY_OPT as MUL_CONST_WASM_BINARY;
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -8488,7 +8466,7 @@ fn test_two_contracts_composition_works() {
 // But it's is not preferable to enter that `if` clause.
 #[test]
 fn test_create_program_with_value_lt_ed() {
-    use binaries::demo_constructor::{Calls, Scheme, WASM_BINARY_OPT};
+    use demo_constructor::{Calls, Scheme, WASM_BINARY_OPT};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -8598,7 +8576,7 @@ fn test_create_program_with_value_lt_ed() {
 // But it's is not preferable to enter that `if` clause.
 #[test]
 fn test_create_program_with_exceeding_value() {
-    use binaries::demo_constructor::{Calls, Scheme, WASM_BINARY_OPT};
+    use demo_constructor::{Calls, Scheme, WASM_BINARY_OPT};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -8636,7 +8614,7 @@ fn test_create_program_with_exceeding_value() {
 
 #[test]
 fn test_create_program_without_gas_works() {
-    use binaries::demo_constructor::{Calls, Scheme};
+    use demo_constructor::{Calls, Scheme};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -8658,7 +8636,7 @@ fn test_create_program_without_gas_works() {
 fn demo_constructor_works() {
     init_logger();
     new_test_ext().execute_with(|| {
-        use binaries::demo_constructor::{Arg, Calls, Scheme};
+        use demo_constructor::{Arg, Calls, Scheme};
 
         let (_init_mid, constructor_id) = utils::init_constructor(Scheme::empty());
 
@@ -8730,7 +8708,7 @@ fn demo_constructor_works() {
 fn demo_constructor_value_eq() {
     init_logger();
     new_test_ext().execute_with(|| {
-        use binaries::demo_constructor::{Arg, Calls, Scheme};
+        use demo_constructor::{Arg, Calls, Scheme};
 
         let (_init_mid, constructor_id) = utils::init_constructor(Scheme::empty());
 
@@ -8777,7 +8755,7 @@ fn demo_constructor_value_eq() {
 fn demo_constructor_is_demo_ping() {
     init_logger();
     new_test_ext().execute_with(|| {
-        use binaries::demo_constructor::{Arg, Calls, Scheme};
+        use demo_constructor::{Arg, Calls, Scheme};
 
         let ping = Arg::bytes("PING");
         let pong = Arg::bytes("PONG");
@@ -8847,7 +8825,7 @@ fn demo_constructor_is_demo_ping() {
 
 #[test]
 fn test_reply_to_terminated_program() {
-    use binaries::demo_constructor::demo_exit_init;
+    use demo_constructor::demo_exit_init;
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -8896,7 +8874,7 @@ fn calculate_gas_info_for_wait_dispatch_works() {
         // Test should still be valid once #1173 solved.
         let GasInfo { waited, .. } = Gear::calculate_gas_info(
             USER_1.into_origin(),
-            HandleKind::Init(binaries::demo_init_wait::WASM_BINARY_OPT.to_vec()),
+            HandleKind::Init(demo_init_wait::WASM_BINARY_OPT.to_vec()),
             EMPTY_PAYLOAD.to_vec(),
             0,
             true,
@@ -8910,7 +8888,7 @@ fn calculate_gas_info_for_wait_dispatch_works() {
 
 #[test]
 fn delayed_sending() {
-    use binaries::demo_delayed_sender::WASM_BINARY_OPT;
+    use demo_delayed_sender::WASM_BINARY_OPT;
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -8958,7 +8936,7 @@ fn delayed_sending() {
 
 #[test]
 fn delayed_wake() {
-    use binaries::demo_delayed_sender::WASM_BINARY_OPT;
+    use demo_delayed_sender::WASM_BINARY_OPT;
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -9024,10 +9002,8 @@ fn delayed_wake() {
 
 #[test]
 fn cascading_messages_with_value_do_not_overcharge() {
-    use binaries::{
-        demo_mul_by_const::WASM_BINARY_OPT as MUL_CONST_WASM_BINARY,
-        demo_waiting_proxy::WASM_BINARY_OPT as WAITING_PROXY_WASM_BINARY,
-    };
+    use demo_mul_by_const::WASM_BINARY_OPT as MUL_CONST_WASM_BINARY;
+    use demo_waiting_proxy::WASM_BINARY_OPT as WAITING_PROXY_WASM_BINARY;
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -9126,7 +9102,7 @@ fn cascading_messages_with_value_do_not_overcharge() {
 
 #[test]
 fn free_storage_hold_on_scheduler_overwhelm() {
-    use binaries::demo_constructor::{demo_value_sender::TestData, Scheme};
+    use demo_constructor::{demo_value_sender::TestData, Scheme};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -9221,7 +9197,7 @@ fn execution_over_blocks() {
     };
 
     let estimate_gas_per_calc = || -> (u64, u64) {
-        use binaries::demo_calc_hash_in_one_block::{Package, WASM_BINARY_OPT};
+        use demo_calc_hash_in_one_block::{Package, WASM_BINARY_OPT};
 
         let (src, times) = ([0; 32], 1);
 
@@ -9265,7 +9241,7 @@ fn execution_over_blocks() {
     };
 
     new_test_ext().execute_with(|| {
-        use binaries::demo_calc_hash_in_one_block::{Package, WASM_BINARY_OPT};
+        use demo_calc_hash_in_one_block::{Package, WASM_BINARY_OPT};
 
         // We suppose that gas limit is less than gas allowance
         let block_gas_limit = MAX_BLOCK - 10_000;
@@ -9319,8 +9295,8 @@ fn execution_over_blocks() {
     });
 
     new_test_ext().execute_with(|| {
-        use binaries::demo_calc_hash_over_blocks::{Method, WASM_BINARY_OPT};
         use demo_calc_hash::sha2_512_256;
+        use demo_calc_hash_over_blocks::{Method, WASM_BINARY_OPT};
         let block_gas_limit = MAX_BLOCK;
 
         let (_, calc_threshold) = estimate_gas_per_calc();
@@ -9420,7 +9396,7 @@ fn call_forbidden_function() {
 
 #[test]
 fn waking_message_waiting_for_mx_lock_does_not_lead_to_deadlock() {
-    use binaries::demo_waiter::{
+    use demo_waiter::{
         Command as WaiterCommand, LockContinuation, MxLockContinuation,
         WASM_BINARY_OPT as WAITER_WASM,
     };
@@ -9505,7 +9481,7 @@ fn waking_message_waiting_for_mx_lock_does_not_lead_to_deadlock() {
 
 #[test]
 fn waking_message_waiting_for_rw_lock_does_not_lead_to_deadlock() {
-    use binaries::demo_waiter::{
+    use demo_waiter::{
         Command as WaiterCommand, LockContinuation, RwLockContinuation, RwLockType,
         WASM_BINARY_OPT as WAITER_WASM,
     };
@@ -9636,7 +9612,7 @@ fn waking_message_waiting_for_rw_lock_does_not_lead_to_deadlock() {
 
 #[test]
 fn mx_lock_ownership_exceedance() {
-    use binaries::demo_waiter::{
+    use demo_waiter::{
         Command as WaiterCommand, LockContinuation, MxLockContinuation,
         WASM_BINARY_OPT as WAITER_WASM,
     };
@@ -9942,7 +9918,7 @@ fn mx_lock_ownership_exceedance() {
 
 #[test]
 fn async_sleep_for() {
-    use binaries::demo_waiter::{
+    use demo_waiter::{
         Command as WaiterCommand, SleepForWaitType as WaitType, WASM_BINARY_OPT as WAITER_WASM,
     };
 
@@ -10208,7 +10184,7 @@ fn async_sleep_for() {
 
 #[test]
 fn test_async_messages() {
-    use binaries::demo_async_tester::{Kind, WASM_BINARY_OPT};
+    use demo_async_tester::{Kind, WASM_BINARY_OPT};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -10275,7 +10251,7 @@ fn test_async_messages() {
 
 #[test]
 fn program_generator_works() {
-    use binaries::demo_program_generator::{CHILD_WAT, WASM_BINARY_OPT};
+    use demo_program_generator::{CHILD_WAT, WASM_BINARY_OPT};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -10323,7 +10299,7 @@ fn program_generator_works() {
 
 #[test]
 fn wait_state_machine() {
-    use binaries::demo_wait::WASM_BINARY_OPT;
+    use demo_wait::WASM_BINARY_OPT;
 
     init_logger();
 
@@ -10702,7 +10678,7 @@ fn reject_incorrect_binary() {
 
 #[test]
 fn send_from_reservation() {
-    use binaries::demo_send_from_reservation::{HandleAction, WASM_BINARY_OPT};
+    use demo_send_from_reservation::{HandleAction, WASM_BINARY_OPT};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -10841,7 +10817,7 @@ fn send_from_reservation() {
 
 #[test]
 fn reply_from_reservation() {
-    use binaries::demo_send_from_reservation::{HandleAction, WASM_BINARY_OPT};
+    use demo_send_from_reservation::{HandleAction, WASM_BINARY_OPT};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -10923,7 +10899,7 @@ fn reply_from_reservation() {
 
 #[test]
 fn signal_recursion_not_occurs() {
-    use binaries::demo_signal_entry::{HandleAction, WASM_BINARY_OPT};
+    use demo_signal_entry::{HandleAction, WASM_BINARY_OPT};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -10997,7 +10973,7 @@ fn signal_recursion_not_occurs() {
 
 #[test]
 fn signal_during_precharge() {
-    use binaries::demo_signal_entry::{HandleAction, WASM_BINARY_OPT};
+    use demo_signal_entry::{HandleAction, WASM_BINARY_OPT};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -11062,7 +11038,7 @@ fn signal_during_precharge() {
 
 #[test]
 fn signal_during_prepare() {
-    use binaries::demo_signal_entry::{HandleAction, WASM_BINARY_OPT};
+    use demo_signal_entry::{HandleAction, WASM_BINARY_OPT};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -11134,7 +11110,7 @@ fn signal_during_prepare() {
 
 #[test]
 fn signal_async_wait_works() {
-    use binaries::demo_async_signal_entry::{InitAction, WASM_BINARY_OPT};
+    use demo_async_signal_entry::{InitAction, WASM_BINARY_OPT};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -11213,13 +11189,13 @@ fn signal_async_wait_works() {
 fn signal_run_out_of_gas_works() {
     test_signal_code_works(
         SimpleExecutionError::RanOutOfGas.into(),
-        binaries::demo_signal_entry::HandleAction::OutOfGas,
+        demo_signal_entry::HandleAction::OutOfGas,
     );
 }
 
 #[test]
 fn signal_run_out_of_gas_memory_access_works() {
-    use binaries::demo_signal_entry::{HandleAction, WASM_BINARY_OPT};
+    use demo_signal_entry::{HandleAction, WASM_BINARY_OPT};
 
     const GAS_LIMIT: u64 = 10_000_000_000;
 
@@ -11260,7 +11236,7 @@ fn signal_run_out_of_gas_memory_access_works() {
         let GasInfo { min_limit, .. } = Gear::calculate_gas_info(
             USER_1.into_origin(),
             HandleKind::Handle(pid),
-            binaries::demo_signal_entry::HandleAction::MemoryAccess.encode(),
+            demo_signal_entry::HandleAction::MemoryAccess.encode(),
             0,
             true,
             true,
@@ -11271,7 +11247,7 @@ fn signal_run_out_of_gas_memory_access_works() {
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
             pid,
-            binaries::demo_signal_entry::HandleAction::MemoryAccess.encode(),
+            demo_signal_entry::HandleAction::MemoryAccess.encode(),
             min_limit - 1,
             0,
             false,
@@ -11296,7 +11272,7 @@ fn signal_run_out_of_gas_memory_access_works() {
 fn signal_userspace_panic_works() {
     test_signal_code_works(
         SimpleExecutionError::UserspacePanic.into(),
-        binaries::demo_signal_entry::HandleAction::Panic,
+        demo_signal_entry::HandleAction::Panic,
     );
 }
 
@@ -11304,7 +11280,7 @@ fn signal_userspace_panic_works() {
 fn signal_backend_error_forbidden_action_works() {
     test_signal_code_works(
         SimpleExecutionError::BackendError.into(),
-        binaries::demo_signal_entry::HandleAction::ForbiddenAction,
+        demo_signal_entry::HandleAction::ForbiddenAction,
     );
 }
 
@@ -11312,7 +11288,7 @@ fn signal_backend_error_forbidden_action_works() {
 fn signal_backend_error_invalid_debug_works() {
     test_signal_code_works(
         SimpleExecutionError::BackendError.into(),
-        binaries::demo_signal_entry::HandleAction::InvalidDebugCall,
+        demo_signal_entry::HandleAction::InvalidDebugCall,
     );
 }
 
@@ -11320,7 +11296,7 @@ fn signal_backend_error_invalid_debug_works() {
 fn signal_backend_error_unrecoverable_ext_works() {
     test_signal_code_works(
         SimpleExecutionError::BackendError.into(),
-        binaries::demo_signal_entry::HandleAction::UnrecoverableExt,
+        demo_signal_entry::HandleAction::UnrecoverableExt,
     );
 }
 
@@ -11328,7 +11304,7 @@ fn signal_backend_error_unrecoverable_ext_works() {
 fn signal_unreachable_instruction_works() {
     test_signal_code_works(
         SimpleExecutionError::UnreachableInstruction.into(),
-        binaries::demo_signal_entry::HandleAction::UnreachableInstruction,
+        demo_signal_entry::HandleAction::UnreachableInstruction,
     );
 }
 
@@ -11336,7 +11312,7 @@ fn signal_unreachable_instruction_works() {
 fn signal_unreachable_instruction_incorrect_free_works() {
     test_signal_code_works(
         SimpleExecutionError::UnreachableInstruction.into(),
-        binaries::demo_signal_entry::HandleAction::IncorrectFree,
+        demo_signal_entry::HandleAction::IncorrectFree,
     );
 }
 
@@ -11344,14 +11320,14 @@ fn signal_unreachable_instruction_incorrect_free_works() {
 fn signal_memory_overflow_works() {
     test_signal_code_works(
         SimpleExecutionError::MemoryOverflow.into(),
-        binaries::demo_signal_entry::HandleAction::ExceedMemory,
+        demo_signal_entry::HandleAction::ExceedMemory,
     );
 }
 
 #[test]
 fn signal_removed_from_waitlist_works() {
     const GAS_LIMIT: u64 = 10_000_000_000;
-    use binaries::demo_signal_entry::{HandleAction, WASM_BINARY_OPT};
+    use demo_signal_entry::{HandleAction, WASM_BINARY_OPT};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -11421,7 +11397,7 @@ fn signal_removed_from_waitlist_works() {
 
 #[test]
 fn system_reservation_unreserve_works() {
-    use binaries::demo_signal_entry::{HandleAction, WASM_BINARY_OPT};
+    use demo_signal_entry::{HandleAction, WASM_BINARY_OPT};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -11476,7 +11452,7 @@ fn system_reservation_unreserve_works() {
 
 #[test]
 fn few_system_reservations_across_waits_works() {
-    use binaries::demo_signal_entry::{HandleAction, WASM_BINARY_OPT};
+    use demo_signal_entry::{HandleAction, WASM_BINARY_OPT};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -11529,7 +11505,7 @@ fn few_system_reservations_across_waits_works() {
 
 #[test]
 fn system_reservation_panic_works() {
-    use binaries::demo_signal_entry::{HandleAction, WASM_BINARY_OPT};
+    use demo_signal_entry::{HandleAction, WASM_BINARY_OPT};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -11570,7 +11546,7 @@ fn system_reservation_panic_works() {
 
 #[test]
 fn system_reservation_exit_works() {
-    use binaries::demo_signal_entry::{HandleAction, WASM_BINARY_OPT};
+    use demo_signal_entry::{HandleAction, WASM_BINARY_OPT};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -11613,7 +11589,7 @@ fn system_reservation_exit_works() {
 
 #[test]
 fn system_reservation_wait_and_panic_works() {
-    use binaries::demo_signal_entry::{HandleAction, WASM_BINARY_OPT};
+    use demo_signal_entry::{HandleAction, WASM_BINARY_OPT};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -11665,7 +11641,7 @@ fn system_reservation_wait_and_panic_works() {
 
 #[test]
 fn system_reservation_wait_works() {
-    use binaries::demo_signal_entry::{HandleAction, WASM_BINARY_OPT};
+    use demo_signal_entry::{HandleAction, WASM_BINARY_OPT};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -11726,7 +11702,7 @@ fn system_reservation_wait_works() {
 
 #[test]
 fn system_reservation_wait_and_exit_works() {
-    use binaries::demo_signal_entry::{HandleAction, WASM_BINARY_OPT};
+    use demo_signal_entry::{HandleAction, WASM_BINARY_OPT};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -11782,9 +11758,7 @@ fn system_reservation_wait_and_exit_works() {
 
 #[test]
 fn system_reservation_wait_and_reserve_with_panic_works() {
-    use binaries::demo_signal_entry::{
-        HandleAction, WAIT_AND_RESERVE_WITH_PANIC_GAS, WASM_BINARY_OPT,
-    };
+    use demo_signal_entry::{HandleAction, WAIT_AND_RESERVE_WITH_PANIC_GAS, WASM_BINARY_OPT};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -11842,7 +11816,7 @@ fn system_reservation_wait_and_reserve_with_panic_works() {
 
 #[test]
 fn system_reservation_accumulate_works() {
-    use binaries::demo_signal_entry::{HandleAction, WASM_BINARY_OPT};
+    use demo_signal_entry::{HandleAction, WASM_BINARY_OPT};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -11881,7 +11855,7 @@ fn system_reservation_accumulate_works() {
 
 #[test]
 fn system_reservation_zero_amount_panics() {
-    use binaries::demo_signal_entry::{HandleAction, WASM_BINARY_OPT};
+    use demo_signal_entry::{HandleAction, WASM_BINARY_OPT};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -11918,13 +11892,13 @@ fn system_reservation_zero_amount_panics() {
 
 #[test]
 fn gas_reservation_works() {
-    use binaries::demo_reserve_gas::{HandleAction, InitAction, RESERVATION_AMOUNT};
+    use demo_reserve_gas::{HandleAction, InitAction, RESERVATION_AMOUNT};
 
     init_logger();
     new_test_ext().execute_with(|| {
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            binaries::demo_reserve_gas::WASM_BINARY_OPT.to_vec(),
+            demo_reserve_gas::WASM_BINARY_OPT.to_vec(),
             DEFAULT_SALT.to_vec(),
             InitAction::Normal(vec![
                 // orphan reservation; will be removed automatically
@@ -12023,13 +11997,13 @@ fn gas_reservation_works() {
 
 #[test]
 fn gas_reservations_cleaned_in_terminated_program() {
-    use binaries::demo_reserve_gas::{InitAction, ReplyAction};
+    use demo_reserve_gas::{InitAction, ReplyAction};
 
     init_logger();
     new_test_ext().execute_with(|| {
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            binaries::demo_reserve_gas::WASM_BINARY_OPT.to_vec(),
+            demo_reserve_gas::WASM_BINARY_OPT.to_vec(),
             DEFAULT_SALT.to_vec(),
             InitAction::Wait.encode(),
             10_000_000_000,
@@ -12074,13 +12048,13 @@ fn gas_reservations_cleaned_in_terminated_program() {
 
 #[test]
 fn gas_reservation_wait_wake_exit() {
-    use binaries::demo_reserve_gas::{InitAction, ReplyAction};
+    use demo_reserve_gas::{InitAction, ReplyAction};
 
     init_logger();
     new_test_ext().execute_with(|| {
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            binaries::demo_reserve_gas::WASM_BINARY_OPT.to_vec(),
+            demo_reserve_gas::WASM_BINARY_OPT.to_vec(),
             DEFAULT_SALT.to_vec(),
             InitAction::Wait.encode(),
             10_000_000_000,
@@ -12125,13 +12099,13 @@ fn gas_reservation_wait_wake_exit() {
 
 #[test]
 fn gas_reservations_check_params() {
-    use binaries::demo_reserve_gas::InitAction;
+    use demo_reserve_gas::InitAction;
 
     init_logger();
     new_test_ext().execute_with(|| {
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            binaries::demo_reserve_gas::WASM_BINARY_OPT.to_vec(),
+            demo_reserve_gas::WASM_BINARY_OPT.to_vec(),
             DEFAULT_SALT.to_vec(),
             InitAction::CheckArgs {
                 mailbox_threshold: <Test as Config>::MailboxThreshold::get(),
@@ -12152,13 +12126,13 @@ fn gas_reservations_check_params() {
 
 #[test]
 fn gas_reservations_fresh_reserve_unreserve() {
-    use binaries::demo_reserve_gas::InitAction;
+    use demo_reserve_gas::InitAction;
 
     init_logger();
     new_test_ext().execute_with(|| {
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            binaries::demo_reserve_gas::WASM_BINARY_OPT.to_vec(),
+            demo_reserve_gas::WASM_BINARY_OPT.to_vec(),
             DEFAULT_SALT.to_vec(),
             InitAction::FreshReserveUnreserve.encode(),
             10_000_000_000,
@@ -12177,13 +12151,13 @@ fn gas_reservations_fresh_reserve_unreserve() {
 
 #[test]
 fn gas_reservations_existing_reserve_unreserve() {
-    use binaries::demo_reserve_gas::{HandleAction, InitAction};
+    use demo_reserve_gas::{HandleAction, InitAction};
 
     init_logger();
     new_test_ext().execute_with(|| {
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            binaries::demo_reserve_gas::WASM_BINARY_OPT.to_vec(),
+            demo_reserve_gas::WASM_BINARY_OPT.to_vec(),
             DEFAULT_SALT.to_vec(),
             InitAction::Normal(vec![]).encode(),
             10_000_000_000,
@@ -12218,7 +12192,7 @@ fn gas_reservations_existing_reserve_unreserve() {
 
 #[test]
 fn custom_async_entrypoint_works() {
-    use binaries::demo_async_custom_entry::WASM_BINARY_OPT;
+    use demo_async_custom_entry::WASM_BINARY_OPT;
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -12268,7 +12242,7 @@ fn custom_async_entrypoint_works() {
 
 #[test]
 fn dispatch_kind_forbidden_function() {
-    use binaries::demo_signal_entry::{HandleAction, WASM_BINARY_OPT};
+    use demo_signal_entry::{HandleAction, WASM_BINARY_OPT};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -12342,7 +12316,7 @@ fn dispatch_kind_forbidden_function() {
 
 #[test]
 fn system_reservation_gas_allowance_rollbacks() {
-    use binaries::demo_signal_entry::{HandleAction, WASM_BINARY_OPT};
+    use demo_signal_entry::{HandleAction, WASM_BINARY_OPT};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -12389,7 +12363,7 @@ fn system_reservation_gas_allowance_rollbacks() {
 
 #[test]
 fn system_reservation_wait_and_exit_across_executions() {
-    use binaries::demo_signal_entry::{HandleAction, WASM_BINARY_OPT};
+    use demo_signal_entry::{HandleAction, WASM_BINARY_OPT};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -12466,7 +12440,7 @@ fn system_reservation_wait_and_exit_across_executions() {
 
 #[test]
 fn signal_on_uninitialized_program() {
-    use binaries::demo_async_signal_entry::{InitAction, WASM_BINARY_OPT};
+    use demo_async_signal_entry::{InitAction, WASM_BINARY_OPT};
 
     init_logger();
 
@@ -12568,10 +12542,8 @@ fn missing_block_tasks_handled() {
 
 #[test]
 fn async_does_not_duplicate_sync() {
-    use binaries::{
-        demo_ping::WASM_BINARY_OPT as PING_BINARY,
-        demo_sync_duplicate::WASM_BINARY_OPT as SYNC_DUPLICATE_BINARY,
-    };
+    use demo_ping::WASM_BINARY_OPT as PING_BINARY;
+    use demo_sync_duplicate::WASM_BINARY_OPT as SYNC_DUPLICATE_BINARY;
 
     init_logger();
 
@@ -12621,7 +12593,7 @@ fn async_does_not_duplicate_sync() {
 
 #[test]
 fn state_rollback() {
-    use binaries::demo_state_rollback::WASM_BINARY_OPT;
+    use demo_state_rollback::WASM_BINARY_OPT;
 
     init_logger();
 
@@ -12690,10 +12662,8 @@ fn state_rollback() {
 
 #[test]
 fn incomplete_async_payloads_kept() {
-    use binaries::{
-        demo_incomplete_async_payloads::{Command, WASM_BINARY_OPT},
-        demo_ping::WASM_BINARY_OPT as PING_BINARY,
-    };
+    use demo_incomplete_async_payloads::{Command, WASM_BINARY_OPT};
+    use demo_ping::WASM_BINARY_OPT as PING_BINARY;
 
     init_logger();
 
@@ -12759,10 +12729,8 @@ fn incomplete_async_payloads_kept() {
 
 #[test]
 fn rw_lock_works() {
-    use binaries::{
-        demo_ping::WASM_BINARY_OPT as PING_BINARY,
-        demo_rwlock::{Command, WASM_BINARY_OPT},
-    };
+    use demo_ping::WASM_BINARY_OPT as PING_BINARY;
+    use demo_rwlock::{Command, WASM_BINARY_OPT};
 
     init_logger();
 
@@ -12893,10 +12861,8 @@ fn rw_lock_works() {
 
 #[test]
 fn async_works() {
-    use binaries::{
-        demo_async::{Command, WASM_BINARY_OPT},
-        demo_ping::WASM_BINARY_OPT as PING_BINARY,
-    };
+    use demo_async::{Command, WASM_BINARY_OPT};
+    use demo_ping::WASM_BINARY_OPT as PING_BINARY;
 
     init_logger();
 
@@ -12960,11 +12926,9 @@ fn async_works() {
 
 #[test]
 fn futures_unordered() {
-    use binaries::{
-        demo_async::WASM_BINARY_OPT as DEMO_ASYNC_BINARY,
-        demo_futures_unordered::{Command, WASM_BINARY_OPT},
-        demo_ping::WASM_BINARY_OPT as PING_BINARY,
-    };
+    use demo_async::WASM_BINARY_OPT as DEMO_ASYNC_BINARY;
+    use demo_futures_unordered::{Command, WASM_BINARY_OPT};
+    use demo_ping::WASM_BINARY_OPT as PING_BINARY;
 
     init_logger();
 
@@ -13060,9 +13024,8 @@ fn futures_unordered() {
 
 #[test]
 fn async_recursion() {
-    use binaries::{
-        demo_async_recursion::WASM_BINARY_OPT, demo_ping::WASM_BINARY_OPT as PING_BINARY,
-    };
+    use demo_async_recursion::WASM_BINARY_OPT;
+    use demo_ping::WASM_BINARY_OPT as PING_BINARY;
 
     init_logger();
 
@@ -13120,10 +13083,8 @@ fn async_recursion() {
 
 #[test]
 fn async_init() {
-    use binaries::{
-        demo_async_init::{InputArgs, WASM_BINARY_OPT},
-        demo_ping::WASM_BINARY_OPT as PING_BINARY,
-    };
+    use demo_async_init::{InputArgs, WASM_BINARY_OPT};
+    use demo_ping::WASM_BINARY_OPT as PING_BINARY;
 
     init_logger();
 
@@ -13440,7 +13401,7 @@ fn check_random_works() {
 
 #[test]
 fn reply_with_small_non_zero_gas() {
-    use binaries::demo_proxy_relay::{RelayCall, WASM_BINARY_OPT};
+    use demo_proxy_relay::{RelayCall, WASM_BINARY_OPT};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -13488,7 +13449,7 @@ fn reply_with_small_non_zero_gas() {
 
 #[test]
 fn replies_denied_in_handle_reply() {
-    use binaries::demo_proxy::{InputArgs, WASM_BINARY_OPT};
+    use demo_proxy::{InputArgs, WASM_BINARY_OPT};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -13544,7 +13505,7 @@ fn replies_denied_in_handle_reply() {
 
 #[test]
 fn relay_messages() {
-    use binaries::demo_proxy_relay::{RelayCall, ResendPushData, WASM_BINARY_OPT};
+    use demo_proxy_relay::{RelayCall, ResendPushData, WASM_BINARY_OPT};
 
     struct Expected {
         user: AccountId,
@@ -13815,7 +13776,7 @@ fn wrong_entry_type() {
 
 #[test]
 fn oom_handler_works() {
-    use binaries::demo_out_of_memory::WASM_BINARY_OPT;
+    use demo_out_of_memory::WASM_BINARY_OPT;
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -14118,9 +14079,7 @@ fn reject_incorrect_stack_pointer() {
 
 #[test]
 fn calculate_gas_fails_when_calculation_limit_exceeded() {
-    use binaries::demo_reserve_gas::{
-        HandleAction as Command, InitAction as Init, WASM_BINARY_OPT,
-    };
+    use demo_reserve_gas::{HandleAction as Command, InitAction as Init, WASM_BINARY_OPT};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -14188,7 +14147,7 @@ fn calculate_gas_fails_when_calculation_limit_exceeded() {
 
 #[test]
 fn reservation_manager() {
-    use binaries::demo_reservation_manager::{Action, WASM_BINARY_OPT};
+    use demo_reservation_manager::{Action, WASM_BINARY_OPT};
     use utils::Assertion;
 
     init_logger();
@@ -14507,7 +14466,7 @@ fn send_gasless_reply_works() {
 /// message.
 #[test]
 fn double_read_works() {
-    use binaries::demo_constructor::{Calls, Scheme};
+    use demo_constructor::{Calls, Scheme};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -14610,8 +14569,8 @@ fn test_gas_allowance_exceed_no_context() {
 #[test]
 fn test_gas_allowance_exceed_with_context() {
     use crate::QueueProcessingOf;
-    use binaries::demo_constructor::{Arg, Calls, Scheme};
     use common::storage::*;
+    use demo_constructor::{Arg, Calls, Scheme};
 
     init_logger();
 
@@ -14738,7 +14697,7 @@ fn test_gas_allowance_exceed_with_context() {
 /// then no panic occurs and the message is not executed.
 #[test]
 fn test_send_to_terminated_from_program() {
-    use binaries::demo_constructor::{Calls, Scheme};
+    use demo_constructor::{Calls, Scheme};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -14811,7 +14770,7 @@ fn test_send_to_terminated_from_program() {
 
 #[test]
 fn pause_waited_uninited_program() {
-    use binaries::demo_init_wait::WASM_BINARY_OPT;
+    use demo_init_wait::WASM_BINARY_OPT;
 
     init_logger();
 
@@ -14930,7 +14889,7 @@ fn pause_waited_uninited_program() {
 
 #[test]
 fn remove_from_waitlist_after_exit_reply() {
-    use binaries::demo_constructor::demo_wait_init_exit_reply;
+    use demo_constructor::demo_wait_init_exit_reply;
 
     init_logger();
 
@@ -15058,7 +15017,7 @@ fn gear_block_number_math_adds_up() {
 
 #[test]
 fn test_gas_info_of_terminated_program() {
-    use binaries::demo_constructor::{Calls, Scheme};
+    use demo_constructor::{Calls, Scheme};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -15102,7 +15061,7 @@ fn test_gas_info_of_terminated_program() {
 
 #[test]
 fn test_handle_signal_wait() {
-    use binaries::demo_constructor::{Arg, Calls, Scheme, WASM_BINARY_OPT};
+    use demo_constructor::{Arg, Calls, Scheme, WASM_BINARY_OPT};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -15173,7 +15132,7 @@ fn test_handle_signal_wait() {
 
 #[test]
 fn test_constructor_if_else() {
-    use binaries::demo_constructor::{Arg, Call, Calls, Scheme, WASM_BINARY_OPT};
+    use demo_constructor::{Arg, Call, Calls, Scheme, WASM_BINARY_OPT};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -15241,15 +15200,14 @@ mod utils {
     #![allow(unused)]
 
     use super::{
-        assert_ok, binaries, pallet, run_to_block, Event, MailboxOf, MockRuntimeEvent,
-        RuntimeOrigin, Test,
+        assert_ok, pallet, run_to_block, Event, MailboxOf, MockRuntimeEvent, RuntimeOrigin, Test,
     };
     use crate::{
+        binaries::*,
         mock::{run_to_next_block, Balances, Gear, System, USER_1},
         BalanceOf, BlockGasLimitOf, CurrencyOf, GasHandlerOf, GasInfo, GearBank, HandleKind,
         ProgramStorageOf, SentOf,
     };
-    use binaries::demo_constructor::{Scheme, WASM_BINARY_OPT as DEMO_CONSTRUCTOR_WASM_BINARY};
     use common::{
         event::*,
         paused_program_storage::SessionId,
@@ -15258,6 +15216,7 @@ mod utils {
     };
     use core::fmt::Display;
     use core_processor::common::ActorExecutionErrorReplyReason;
+    use demo_constructor::{Scheme, WASM_BINARY_OPT as DEMO_CONSTRUCTOR_WASM_BINARY};
     use frame_support::{
         codec::Decode,
         dispatch::{DispatchErrorWithPostInfo, DispatchResultWithPostInfo},
@@ -16102,10 +16061,10 @@ mod utils {
     #[track_caller]
     pub(super) fn test_signal_code_works(
         signal_code: SignalCode,
-        action: binaries::demo_signal_entry::HandleAction,
+        action: demo_signal_entry::HandleAction,
     ) {
         use crate::tests::new_test_ext;
-        use binaries::demo_signal_entry::{HandleAction, WASM_BINARY_OPT};
+        use demo_signal_entry::{HandleAction, WASM_BINARY_OPT};
 
         const GAS_LIMIT: u64 = 10_000_000_000;
 
