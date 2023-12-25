@@ -215,6 +215,7 @@ where
                         min_limit = min_limit.max(initial_gas.saturating_sub(remaining_gas))
                     }
                     None => match note {
+                        // take into account that 'wait' syscall greedily consumes all available gas
                         JournalNote::WaitDispatch { ref dispatch, .. }
                             if from_main_chain(dispatch.id())? =>
                         {
