@@ -28,33 +28,33 @@ use anyhow::Result;
 use std::process::{Command, ExitStatus};
 
 /// Required Packages without local dependencies.
-pub const SAFE_DEPENDENCIES: [&str; 10] = [
-    "actor-system-error",
-    "galloc",
-    "gear-stack-buffer",
-    "gear-core-errors",
-    "gear-common-codegen",
-    "gear-wasm-instrument",
-    "gmeta-codegen",
-    "gsdk-codegen",
-    "gstd-codegen",
-    "gsys",
+pub const SAFE_DEPENDENCIES: [&str; 1] = [
+    // "actor-system-error",
+    // "galloc",
+    // "gear-stack-buffer",
+    // "gear-core-errors",
+    // "gear-common-codegen",
+    "gear-sandbox-env",
+    // "gear-wasm-instrument",
+    // "gmeta-codegen",
+    // "gsdk-codegen",
+    // "gstd-codegen",
+    // "gsys",
 ];
 
 /// Required packages with local dependencies.
 ///
 /// NOTE: DO NOT change the order of this array.
-pub const STACKED_DEPENDENCIES: [&str; 10] = [
-    "gcore",
-    "gmeta",
-    "gear-core",
-    "gear-utils",
-    "gear-common",
-    "gear-sandbox-env",
+pub const STACKED_DEPENDENCIES: [&str; 1] = [
+    // "gcore",
+    // "gmeta",
+    // "gear-core",
+    // "gear-utils",
+    // "gear-common",
     "gear-sandbox-host",
-    "gear-lazy-pages-common",
-    "gear-lazy-pages",
-    "gear-runtime-interface",
+    // "gear-lazy-pages-common",
+    // "gear-lazy-pages",
+    // "gear-runtime-interface",
     // "gear-core-backend",
 ];
 

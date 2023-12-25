@@ -180,17 +180,11 @@ impl Manifest {
                 table.insert("version", "4.1.0".into());
                 table.insert("package", "gp-allocator".into());
             }
-            // NOTE: use forked sp-wasm-interface.
-            //
-            // sp-wasm-interface is not compatible with sandbox-host.
-            "sp-wasm-interface" => {
-                table.insert("package", "gp-wasm-interface".into());
-            }
             // NOTE: use forked sp-wasm-interface-common.
             //
             // In case of we have replaced sp-wasm-interface.
             "sp-wasm-interface-common" => {
-                table.insert("package", "gp-wasm-interface-common".into());
+                table.insert("version", "7.0.1".into());
             }
             _ => {}
         }
