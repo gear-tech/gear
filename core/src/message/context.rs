@@ -498,7 +498,7 @@ impl MessageContext {
 
     /// Wake message by it's message id.
     pub fn wake(&mut self, waker_id: MessageId, delay: u32) -> Result<(), Error> {
-        if self.outcome.awakening.iter().any(|v| v.0 == waker_id) {
+        if !self.outcome.awakening.iter().any(|v| v.0 == waker_id) {
             self.outcome.awakening.push((waker_id, delay));
             Ok(())
         } else {
