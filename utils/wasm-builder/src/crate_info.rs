@@ -18,7 +18,7 @@
 
 use anyhow::{Context, Result};
 use cargo_metadata::{Metadata, MetadataCommand, Package};
-use std::{collections::HashMap, path::Path};
+use std::{collections::BTreeMap, path::Path};
 
 use crate::builder_error::BuilderError;
 
@@ -32,7 +32,7 @@ pub struct CrateInfo {
     /// Crate version.
     pub version: String,
     /// Crate features.
-    pub features: HashMap<String, Vec<String>>,
+    pub features: BTreeMap<String, Vec<String>>,
 }
 
 impl CrateInfo {

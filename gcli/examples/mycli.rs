@@ -16,18 +16,39 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! gear command entry
-use color_eyre::eyre::Result;
+use gcli::{async_trait, clap::Parser, App, Command};
+
+/// My customized sub commands.
+#[derive(Debug, Parser)]
+pub enum SubCommand {
+    /// GCli preset commands.
+    #[clap(flatten)]
+    GCliCommands(Command),
+    /// My customized ping command.
+    Ping,
+}
+
+/// My customized gcli.
+#[derive(Debug, Parser)]
+pub struct MyGCli {
+    #[clap(subcommand)]
+    command: SubCommand,
+}
+
+#[async_trait]
+impl App for MyGCli {
+    async fn exec(&self) -> anyhow::Result<()> {
+        match &self.command {
+            SubCommand::GCliCommands(command) => command.exec(self).await,
+            SubCommand::Ping => {
+                println!("pong");
+                Ok(())
+            }
+        }
+    }
+}
 
 #[tokio::main]
-async fn main() -> Result<()> {
-    color_eyre::install()?;
-
-    sp_core::crypto::set_default_ss58_version(gcli::VARA_SS58_PREFIX.into());
-
-    if let Err(e) = gcli::cmd::Opt::run().await {
-        log::error!("{}", e);
-    }
-
-    Ok(())
+async fn main() -> color_eyre::Result<()> {
+    MyGCli::parse().run().await
 }

@@ -22,7 +22,7 @@ use clap::Parser;
 use gsdk::signer::Signer;
 
 /// Claim value from mailbox.
-#[derive(Parser, Debug)]
+#[derive(Clone, Debug, Parser)]
 pub struct Claim {
     /// Claim value from.
     message_id: String,

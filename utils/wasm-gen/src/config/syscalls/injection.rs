@@ -109,7 +109,7 @@ impl SyscallsInjectionTypes {
         }
     }
 
-    /// Imports the given syscall, if necessary.
+    /// Imports the given syscall, if possible.
     pub(crate) fn enable_syscall_import(&mut self, name: InvocableSyscall) {
         if let Some(injection_type @ SyscallInjectionType::None) = self.0.get_mut(&name) {
             *injection_type = SyscallInjectionType::Import;

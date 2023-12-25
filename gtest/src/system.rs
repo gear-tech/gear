@@ -179,7 +179,9 @@ impl System {
                     .block_info
                     .timestamp
                     .saturating_add(BLOCK_DURATION_IN_MSECS);
-                manager.process_delayed_dispatches(next_block_number)
+                let mut results = manager.process_delayed_dispatches(next_block_number);
+                results.extend(manager.process_scheduled_wait_list(next_block_number));
+                results
             })
             .collect::<Vec<Vec<_>>>()
             .concat()

@@ -157,7 +157,7 @@ where
                 DispatchKind::Init,
                 Message::new(
                     root_message_id,
-                    ProgramId::from_origin(source),
+                    source.cast(),
                     program_id,
                     payload.try_into()?,
                     Some(u64::MAX),
@@ -183,7 +183,7 @@ where
                 DispatchKind::Init,
                 Message::new(
                     root_message_id,
-                    ProgramId::from_origin(source),
+                    source.cast(),
                     program_id,
                     payload.try_into()?,
                     Some(u64::MAX),
@@ -196,7 +196,7 @@ where
             DispatchKind::Handle,
             Message::new(
                 root_message_id,
-                ProgramId::from_origin(source),
+                source.cast(),
                 dest,
                 payload.try_into()?,
                 Some(u64::MAX),
@@ -205,14 +205,13 @@ where
             ),
         ),
         HandleKind::Reply(msg_id, exit_code) => {
-            let (msg, _bn) =
-                MailboxOf::<T>::remove(<T::AccountId as Origin>::from_origin(source), msg_id)
-                    .map_err(|_| "Internal error: unable to find message in mailbox")?;
+            let (msg, _bn) = MailboxOf::<T>::remove(source.cast(), msg_id)
+                .map_err(|_| "Internal error: unable to find message in mailbox")?;
             Dispatch::new(
                 DispatchKind::Reply,
                 Message::new(
                     root_message_id,
-                    ProgramId::from_origin(source),
+                    source.cast(),
                     msg.source(),
                     payload.try_into()?,
                     Some(u64::MAX),
@@ -222,14 +221,13 @@ where
             )
         }
         HandleKind::Signal(msg_id, status_code) => {
-            let (msg, _bn) =
-                MailboxOf::<T>::remove(<T::AccountId as Origin>::from_origin(source), msg_id)
-                    .map_err(|_| "Internal error: unable to find message in mailbox")?;
+            let (msg, _bn) = MailboxOf::<T>::remove(source.cast(), msg_id)
+                .map_err(|_| "Internal error: unable to find message in mailbox")?;
             Dispatch::new(
                 DispatchKind::Signal,
                 Message::new(
                     root_message_id,
-                    ProgramId::from_origin(source),
+                    source.cast(),
                     msg.source(),
                     payload.try_into()?,
                     Some(u64::MAX),
