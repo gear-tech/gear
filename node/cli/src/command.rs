@@ -18,7 +18,7 @@
 
 use crate::cli::{Cli, Subcommand};
 use runtime_primitives::Block;
-use sc_cli::{ChainSpec, ExecutionStrategy, SubstrateCli};
+use sc_cli::{ChainSpec, SubstrateCli};
 use sc_service::config::BasePath;
 use service::{chain_spec, IdentifyVariant};
 
@@ -131,41 +131,12 @@ macro_rules! unwrap_client {
 
 /// Parse and run command line arguments
 pub fn run() -> sc_cli::Result<()> {
-    let mut cli = Cli::from_args();
+    let cli = Cli::from_args();
 
     let old_base = BasePath::from_project("", "", "gear-node");
     let new_base = BasePath::from_project("", "", &Cli::executable_name());
     if old_base.path().exists() && !new_base.path().exists() {
         _ = std::fs::rename(old_base.path(), new_base.path());
-    }
-
-    let base = &mut cli.run.base;
-
-    // Force setting `Wasm` as default execution strategy.
-    let execution_strategy = base
-        .import_params
-        .execution_strategies
-        .execution
-        .get_or_insert(ExecutionStrategy::Wasm);
-
-    // Checking if node supposed to be validator (explicitly or by shortcuts).
-    let is_validator = base.validator
-        || base.shared_params.dev
-        || base.alice
-        || base.bob
-        || base.charlie
-        || base.dave
-        || base.eve
-        || base.ferdie
-        || base.one
-        || base.two;
-
-    // Denying ability to validate blocks with non-wasm execution.
-    if is_validator && *execution_strategy != ExecutionStrategy::Wasm {
-        return Err(
-            "Node can be --validator only with wasm execution strategy. To enable it run the node with `--execution wasm` or without the flag for default value."
-                .into(),
-        );
     }
 
     match &cli.subcommand {
