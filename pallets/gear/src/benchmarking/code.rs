@@ -127,7 +127,7 @@ impl ImportedMemory {
 impl Default for ImportedMemory {
     fn default() -> Self {
         Self {
-            min_pages: (super::MAX_PAGES as u16).into(),
+            min_pages: (super::DEFAULT_PAGES as u16).into(),
         }
     }
 }

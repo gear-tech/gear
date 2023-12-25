@@ -112,7 +112,8 @@ use sp_std::prelude::*;
 
 const MAX_PAYLOAD_LEN: u32 = 32 * 64 * 1024;
 const MAX_PAYLOAD_LEN_KB: u32 = MAX_PAYLOAD_LEN / 1024;
-const MAX_PAGES: u32 = 512;
+const DEFAULT_PAGES: u32 = 512;
+const MAX_SALT_SIZE_BYTES: usize = 4 * 1024 * 1024;
 
 /// How many batches we do per API benchmark.
 const API_BENCHMARK_BATCHES: u32 = 20;
@@ -412,7 +413,7 @@ benchmarks! {
         let WasmModule { code, .. } = WasmModule::<T>::sized(c * 1024, Location::Init);
     }: {
         let ext = Externalities::new(default_processor_context::<T>());
-        Environment::new(ext, &code, DispatchKind::Init, Default::default(), (MAX_PAGES as u16).into()).unwrap();
+        Environment::new(ext, &code, DispatchKind::Init, Default::default(), (DEFAULT_PAGES as u32).into()).unwrap();
     }
 
     claim_value {
@@ -465,12 +466,12 @@ benchmarks! {
         assert!(<T as pallet::Config>::CodeStorage::exists(code_id));
     }
 
-    // The size of the salt influences the runtime because is is hashed in order to
+    // The size of the salt influences the runtime because it is hashed in order to
     // determine the program address.
     //
-    // `s`: Size of the salt in kilobytes.
+    // `s`: Size of the salt in bytes.
     create_program {
-        let s in 0 .. MAX_PAGES * 64 * 128;
+        let s in 0 .. MAX_SALT_SIZE_BYTES;
 
         let caller = whitelisted_caller();
         let origin = RawOrigin::Signed(caller);
@@ -496,7 +497,7 @@ benchmarks! {
     // determine the program address.
     //
     // `c`: Size of the code in kilobytes.
-    // `s`: Size of the salt in kilobytes.
+    // `s`: Size of the salt in bytes.
     //
     // # Note
     //
@@ -504,7 +505,7 @@ benchmarks! {
     // to be larger than the maximum size **after instrumentation**.
     upload_program {
         let c in 0 .. Perbill::from_percent(49).mul_ceil(T::Schedule::get().limits.code_len) / 1024;
-        let s in 0 .. MAX_PAGES * 64 * 128;
+        let s in 0 .. MAX_SALT_SIZE_BYTES;
         let salt = vec![42u8; s as usize];
         let value = CurrencyOf::<T>::minimum_balance();
         let caller = whitelisted_caller();
@@ -1456,7 +1457,7 @@ benchmarks! {
     }
 
     lazy_pages_signal_read {
-        let p in 0 .. MAX_PAGES;
+        let p in 0 .. DEFAULT_PAGES;
         let mut res = None;
         let exec = Benches::<T>::lazy_pages_signal_read((p as u16).into())?;
     }: {
@@ -1467,7 +1468,7 @@ benchmarks! {
     }
 
     lazy_pages_signal_write {
-        let p in 0 .. MAX_PAGES;
+        let p in 0 .. DEFAULT_PAGES;
         let mut res = None;
         let exec = Benches::<T>::lazy_pages_signal_write((p as u16).into())?;
     }: {
@@ -1478,7 +1479,7 @@ benchmarks! {
     }
 
     lazy_pages_signal_write_after_read {
-        let p in 0 .. MAX_PAGES;
+        let p in 0 .. DEFAULT_PAGES;
         let mut res = None;
         let exec = Benches::<T>::lazy_pages_signal_write_after_read((p as u16).into())?;
     }: {
@@ -1489,7 +1490,7 @@ benchmarks! {
     }
 
     lazy_pages_load_page_storage_data {
-        let p in 0 .. MAX_PAGES;
+        let p in 0 .. DEFAULT_PAGES;
         let mut res = None;
         let exec = Benches::<T>::lazy_pages_load_page_storage_data((p as u16).into())?;
     }: {
@@ -1537,9 +1538,9 @@ benchmarks! {
         // Increased interval in order to increase accuracy
         let r in INSTR_BENCHMARK_BATCHES .. 10 * INSTR_BENCHMARK_BATCHES;
         let module = ModuleDefinition {
-            memory: Some(ImportedMemory::new(MAX_PAGES as u16)),
+            memory: Some(ImportedMemory::new(DEFAULT_PAGES as u16)),
             handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
-                        RandomUnaligned(0, MAX_PAGES * WasmPage::size() - 8),
+                        RandomUnaligned(0, DEFAULT_PAGES * WasmPage::size() - 8),
                         Regular(Instruction::I64Load(3, 0)),
                         Regular(Instruction::Drop)])),
             .. Default::default()
@@ -1554,9 +1555,9 @@ benchmarks! {
         // Increased interval in order to increase accuracy
         let r in INSTR_BENCHMARK_BATCHES .. 10 * INSTR_BENCHMARK_BATCHES;
         let module = ModuleDefinition {
-            memory: Some(ImportedMemory::new(MAX_PAGES as u16)),
+            memory: Some(ImportedMemory::new(DEFAULT_PAGES as u16)),
             handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
-                        RandomUnaligned(0, MAX_PAGES * WasmPage::size() - 4),
+                        RandomUnaligned(0, DEFAULT_PAGES * WasmPage::size() - 4),
                         Regular(Instruction::I32Load(2, 0)),
                         Regular(Instruction::Drop)])),
             .. Default::default()
@@ -1571,9 +1572,9 @@ benchmarks! {
         // Increased interval in order to increase accuracy
         let r in INSTR_BENCHMARK_BATCHES .. 10 * INSTR_BENCHMARK_BATCHES;
         let module = ModuleDefinition {
-            memory: Some(ImportedMemory::new(MAX_PAGES as u16)),
+            memory: Some(ImportedMemory::new(DEFAULT_PAGES as u16)),
             handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
-                        RandomUnaligned(0, MAX_PAGES * WasmPage::size() - 8),
+                        RandomUnaligned(0, DEFAULT_PAGES * WasmPage::size() - 8),
                         RandomI64Repeated(1),
                         Regular(Instruction::I64Store(3, 0))])),
             .. Default::default()
@@ -1588,9 +1589,9 @@ benchmarks! {
         // Increased interval in order to increase accuracy
         let r in INSTR_BENCHMARK_BATCHES .. 10 * INSTR_BENCHMARK_BATCHES;
         let module = ModuleDefinition {
-            memory: Some(ImportedMemory::new(MAX_PAGES as u16)),
+            memory: Some(ImportedMemory::new(DEFAULT_PAGES as u16)),
             handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
-                        RandomUnaligned(0, MAX_PAGES * WasmPage::size() - 4),
+                        RandomUnaligned(0, DEFAULT_PAGES * WasmPage::size() - 4),
                         RandomI32Repeated(1),
                         Regular(Instruction::I32Store(2, 0))])),
             .. Default::default()

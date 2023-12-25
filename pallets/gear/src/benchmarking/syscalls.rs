@@ -1584,7 +1584,7 @@ where
     pub fn lazy_pages_signal_write_after_read(
         wasm_pages: WasmPagesAmount,
     ) -> Result<Exec<T>, &'static str> {
-        let instrs = body::read_access_all_pages_instrs((super::MAX_PAGES as u16).into(), vec![]);
+        let instrs = body::read_access_all_pages_instrs((super::DEFAULT_PAGES as u16).into(), vec![]);
         let instrs = body::write_access_all_pages_instrs(wasm_pages, instrs);
         let module = ModuleDefinition {
             memory: Some(Default::default()),
