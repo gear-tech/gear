@@ -160,7 +160,6 @@ where
                 }
             };
 
-            let dispatch_id = queued_dispatch.id();
             let success_reply = queued_dispatch
                 .reply_details()
                 .map(|rd| rd.to_reply_code().is_success())
@@ -215,10 +214,14 @@ where
                     Some(remaining_gas) => {
                         min_limit = min_limit.max(initial_gas.saturating_sub(remaining_gas))
                     }
-                    None if matches!(note, JournalNote::WaitDispatch { .. }) => {
-                        min_limit = initial_gas
-                    }
-                    _ => (),
+                    None => match note {
+                        JournalNote::WaitDispatch { ref dispatch, .. }
+                            if from_main_chain(dispatch.id())? =>
+                        {
+                            min_limit = initial_gas
+                        }
+                        _ => (),
+                    },
                 }
 
                 match note {
