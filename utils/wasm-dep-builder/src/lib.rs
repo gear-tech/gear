@@ -28,7 +28,7 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     env, fmt, fs,
     io::{Read, Seek, SeekFrom},
-    ops::Not,
+    marker::PhantomData,
     path::PathBuf,
 };
 
@@ -114,14 +114,84 @@ impl BuilderMetadata {
 
 #[derive(Debug, Serialize, Deserialize, derive_more::Unwrap)]
 #[serde(rename_all = "kebab-case")]
-enum LockConfig {
-    Demo(DemoLockConfig),
+enum LockFileConfig {
+    Demo(DemoLockFileConfig),
     Builder,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct DemoLockConfig {
+struct DemoLockFileConfig {
     features: BTreeSet<UnderscoreString>,
+}
+
+struct DemoLockFile(());
+
+struct BuilderLockFile(());
+
+struct LockFile<T> {
+    file: fs::File,
+    _marker: PhantomData<T>,
+}
+
+impl LockFile<()> {
+    fn path(pkg_name: impl AsRef<str>) -> PathBuf {
+        let pkg_name = pkg_name.as_ref().replace('-', "_");
+        wasm32_target_dir()
+            .join(profile())
+            .join(format!("{}.lock", pkg_name))
+    }
+}
+
+impl LockFile<DemoLockFile> {
+    fn open_for_demo(pkg_name: impl AsRef<str>) -> Self {
+        let path = LockFile::path(pkg_name);
+        println!("cargo:warning=[DEMO] {}", path.display());
+        let file = fs::File::options()
+            .create(true)
+            .write(true)
+            .truncate(true)
+            .open(path)
+            .unwrap();
+        file.lock_exclusive().unwrap();
+
+        Self {
+            file,
+            _marker: PhantomData,
+        }
+    }
+
+    fn write(&mut self, config: DemoLockFileConfig) {
+        serde_json::to_writer(&mut self.file, &LockFileConfig::Demo(config)).unwrap();
+    }
+}
+
+impl LockFile<BuilderLockFile> {
+    fn open_for_builder(path: PathBuf) -> Self {
+        let file = fs::File::options()
+            .create(true)
+            .write(true)
+            .read(true)
+            .open(path)
+            .unwrap();
+        file.lock_exclusive().unwrap();
+
+        Self {
+            file,
+            _marker: PhantomData,
+        }
+    }
+
+    fn read(&mut self) -> Option<LockFileConfig> {
+        let mut config = String::new();
+        self.file.read_to_string(&mut config).unwrap();
+        (!config.is_empty()).then(|| serde_json::from_str(&config).unwrap())
+    }
+
+    fn write(&mut self) {
+        self.file.set_len(0).unwrap();
+        self.file.seek(SeekFrom::Start(0)).unwrap();
+        serde_json::to_writer(&mut self.file, &LockFileConfig::Builder).unwrap();
+    }
 }
 
 fn out_dir() -> PathBuf {
@@ -158,13 +228,6 @@ fn wasm_projects_dir() -> PathBuf {
 
 fn wasm32_target_dir() -> PathBuf {
     wasm_projects_dir().join("wasm32-unknown-unknown")
-}
-
-fn lock_file(pkg_name: impl AsRef<str>) -> PathBuf {
-    let pkg_name = pkg_name.as_ref().replace('-', "_");
-    wasm32_target_dir()
-        .join(profile())
-        .join(format!("{}.lock", pkg_name))
 }
 
 pub fn builder() {
@@ -232,26 +295,14 @@ pub fn builder() {
             .map(|config| config.unwrap_demo())
             .unwrap_or_default();
 
-        let lock = lock_file(&dep.name);
+        let lock = LockFile::path(&dep.name);
         println!("cargo:rerun-if-changed={}", lock.display());
         println!("cargo:warning=tracking {}", lock.display());
+        let mut lock = LockFile::open_for_builder(lock);
 
-        let mut lock = fs::File::options()
-            .create(true)
-            .write(true)
-            .read(true)
-            .open(lock)
-            .unwrap();
-        lock.lock_exclusive().unwrap();
+        let config = lock.read();
 
-        let mut config = String::new();
-        lock.read_to_string(&mut config).unwrap();
-        let config: Option<LockConfig> = config
-            .is_empty()
-            .not()
-            .then(|| serde_json::from_str(&config).unwrap());
-
-        let features = if let Some(LockConfig::Demo(config)) = config {
+        let features = if let Some(LockFileConfig::Demo(config)) = config {
             let excluded_features = pkg_metadata
                 .exclude_features
                 .into_iter()
@@ -285,9 +336,7 @@ pub fn builder() {
         };
         packages.insert(pkg.name.clone(), features);
 
-        lock.set_len(0).unwrap();
-        lock.seek(SeekFrom::Start(0)).unwrap();
-        serde_json::to_writer(lock, &LockConfig::Builder).unwrap();
+        lock.write();
     }
 
     println!("cargo:warning={:?}", packages);
@@ -310,17 +359,8 @@ pub fn demo() {
         .filter_map(|(key, _val)| key.strip_prefix("CARGO_FEATURE_").map(str::to_lowercase))
         .map(UnderscoreString)
         .collect();
-    let config = LockConfig::Demo(DemoLockConfig { features });
+    let config = DemoLockFileConfig { features };
 
-    let lock = lock_file(pkg_name);
-    println!("cargo:warning=[DEMO] {}", lock.display());
-    let lock = fs::File::options()
-        .create(true)
-        .write(true)
-        .truncate(true)
-        .open(lock)
-        .unwrap();
-    lock.lock_exclusive().unwrap();
-
-    serde_json::to_writer(lock, &config).unwrap();
+    let mut lock = LockFile::open_for_demo(pkg_name);
+    lock.write(config);
 }
