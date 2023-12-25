@@ -20,6 +20,10 @@
 
 use blake2_rfc::blake2b;
 use core::convert::TryInto;
+use scale_info::{
+    scale::{Decode, Encode},
+    TypeInfo,
+};
 
 const HASH_LENGTH: usize = 32;
 type Hash = [u8; HASH_LENGTH];
@@ -50,11 +54,11 @@ macro_rules! declare_id {
             Ord,
             PartialEq,
             PartialOrd,
-            scale_info::scale::Decode,
-            scale_info::scale::Encode,
+            Decode,
+            Encode,
             parity_scale_codec::MaxEncodedLen,
             derive_more::From,
-            scale_info::TypeInfo,
+            TypeInfo,
         )]
         pub struct $name(Hash);
 
@@ -231,6 +235,11 @@ impl ReservationId {
         hash(&argument).into()
     }
 }
+
+/// A builtin actor type identifier. Serves as a seed for a builtin actor ID generation.
+#[derive(Clone, Copy, Debug, Decode, Encode, Eq, PartialEq, TypeInfo)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
+pub struct BuiltinId(pub [u8; 8]);
 
 #[test]
 fn formatting_test() {

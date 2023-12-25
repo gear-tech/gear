@@ -20,7 +20,9 @@ use super::*;
 use crate::queue::{ActorResult, QueueStep};
 use common::ActiveProgram;
 use core::convert::TryFrom;
-use core_processor::common::PrechargedDispatch;
+use core_processor::{
+    common::PrechargedDispatch, process_non_executable, SystemReservationContext,
+};
 use gear_core::{code::TryNewCodeConfig, pages::WasmPage, program::MemoryInfix};
 use gear_wasm_instrument::syscalls::SyscallName;
 
@@ -150,34 +152,58 @@ where
             let dispatch_id = queued_dispatch.id();
             let dispatch_reply = queued_dispatch.reply_details().is_some();
 
-            let balance = CurrencyOf::<T>::free_balance(&actor_id.cast());
-
-            let get_actor_data = |precharged_dispatch: PrechargedDispatch| {
-                // At this point gas counters should be changed accordingly so fetch the program data.
-                match Self::get_active_actor_data(actor_id, dispatch_id, dispatch_reply) {
-                    ActorResult::Data(data) => Ok((precharged_dispatch, data)),
-                    ActorResult::Continue => Err(precharged_dispatch),
-                }
-            };
-
-            let success_reply = queued_dispatch
-                .reply_details()
-                .map(|rd| rd.to_reply_code().is_success())
-                .unwrap_or(false);
             let gas_limit = GasHandlerOf::<T>::get_limit(dispatch_id)
                 .map_err(|_| b"Internal error: unable to get gas limit".to_vec())?;
+            let mut skip_if_allowed = false;
 
-            let skip_if_allowed = success_reply && gas_limit == 0;
+            let journal = if let Some(builtin_id) = T::BuiltinRegistry::lookup(&actor_id) {
+                let no_op_handler = |dispatch: StoredDispatch,
+                                     gas_limit: u64|
+                 -> Vec<JournalNote> {
+                    let dispatch = dispatch.into_incoming(gas_limit);
+                    let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
+                    process_non_executable(dispatch, actor_id, system_reservation_ctx)
+                };
 
-            let step = QueueStep {
-                block_config: &block_config,
-                ext_manager: &mut ext_manager,
-                gas_limit,
-                dispatch: queued_dispatch,
-                balance: balance.unique_saturated_into(),
-                get_actor_data,
+                match queued_dispatch.kind() {
+                    DispatchKind::Handle => {
+                        T::BuiltinActor::handle(builtin_id, queued_dispatch.clone(), gas_limit)
+                            .unwrap_or_else(|_e| no_op_handler(queued_dispatch, gas_limit))
+                    }
+                    _ => {
+                        // Builtin actors can only execute `handle` messages.
+                        // All other cases result in no-execution outcome.
+                        no_op_handler(queued_dispatch, gas_limit)
+                    }
+                }
+            } else {
+                let balance = CurrencyOf::<T>::free_balance(&actor_id.cast());
+
+                let get_actor_data = |precharged_dispatch: PrechargedDispatch| {
+                    // At this point gas counters should be changed accordingly so fetch the program data.
+                    match Self::get_active_actor_data(actor_id, dispatch_id, dispatch_reply) {
+                        ActorResult::Data(data) => Ok((precharged_dispatch, data)),
+                        ActorResult::Continue => Err(precharged_dispatch),
+                    }
+                };
+
+                let success_reply = queued_dispatch
+                    .reply_details()
+                    .map(|rd| rd.to_reply_code().is_success())
+                    .unwrap_or(false);
+
+                skip_if_allowed = success_reply && gas_limit == 0;
+
+                let step = QueueStep {
+                    block_config: &block_config,
+                    ext_manager: &mut ext_manager,
+                    gas_limit,
+                    dispatch: queued_dispatch,
+                    balance: balance.unique_saturated_into(),
+                    get_actor_data,
+                };
+                step.execute().unwrap_or_else(|e| unreachable!("{e:?}"))
             };
-            let journal = step.execute().unwrap_or_else(|e| unreachable!("{e:?}"));
 
             let get_main_limit = || {
                 // For case when node is not consumed and has any (even zero) balance

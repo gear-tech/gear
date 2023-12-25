@@ -27,6 +27,10 @@ macro_rules! impl_config {
         type GearConfigProgramRentEnabled = ConstBool<true>;
         #[allow(dead_code)]
         type GearConfigSchedule = ();
+        #[allow(dead_code)]
+        type GearConfigBuiltinRegistry = ();
+        #[allow(dead_code)]
+        type GearConfigBuiltinActor = ();
 
         mod pallet_tests_gear_config_impl {
             use super::*;
@@ -56,6 +60,8 @@ macro_rules! impl_config_inner {
             type BlockLimiter = GearGas;
             type Scheduler = GearScheduler;
             type QueueRunner = Gear;
+            type BuiltinRegistry = GearConfigBuiltinRegistry;
+            type BuiltinActor = GearConfigBuiltinActor;
             type ProgramRentFreePeriod = RentFreePeriod;
             type ProgramResumeMinimalRentPeriod = ResumeMinimalPeriod;
             type ProgramRentCostPerBlock = RentCostPerBlock;
@@ -79,6 +85,18 @@ macro_rules! impl_config_inner {
 
     ($runtime:ty, ProgramRentEnabled = $program_rent_enabled:ty $(, $( $rest:tt )*)?) => {
         type GearConfigProgramRentEnabled = $program_rent_enabled;
+
+        $crate::impl_config_inner!($runtime, $($( $rest )*)?);
+    };
+
+    ($runtime:ty, BuiltinRegistry = $builtin_registry:ty $(, $( $rest:tt )*)?) => {
+        type GearConfigBuiltinRegistry = $builtin_registry;
+
+        $crate::impl_config_inner!($runtime, $($( $rest )*)?);
+    };
+
+    ($runtime:ty, BuiltinActor = $builtin_actor:ty $(, $( $rest:tt )*)?) => {
+        type GearConfigBuiltinActor = $builtin_actor;
 
         $crate::impl_config_inner!($runtime, $($( $rest )*)?);
     };

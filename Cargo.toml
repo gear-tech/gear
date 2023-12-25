@@ -179,6 +179,7 @@ authorship = { package = "gear-authorship", path = "node/authorship" }
 common = { package = "gear-common", path = "common", default-features = false }
 core-processor = { package = "gear-core-processor", path = "core-processor", default-features = false }
 galloc = { path = "galloc" }
+gbuiltin = { path = "gbuiltin" }
 gcore = { path = "gcore" }
 gcli = { path = "gcli" }
 gclient = { path = "gclient" }
@@ -228,6 +229,7 @@ pallet-gear-staking-rewards-rpc = { path = "pallets/staking-rewards/rpc" }
 pallet-gear-staking-rewards-rpc-runtime-api = { path = "pallets/staking-rewards/rpc/runtime-api", default-features = false }
 pallet-gear-voucher = { path = "pallets/gear-voucher", default-features = false }
 pallet-gear-bank = { path = "pallets/gear-bank", default-features = false }
+pallet-gear-builtin-actor = { path = "pallets/gear-builtin-actor", default-features = false }
 runtime-common = { package = "gear-runtime-common", path = "runtime/common", default-features = false }
 runtime-primitives = { package = "gear-runtime-primitives", path = "runtime/primitives", default-features = false }
 service = { package = "gear-service", path = "node/service", default-features = false }
@@ -419,7 +421,7 @@ demo-wat = { path = "examples/wat" }
 cfg-if = "1.0.0"                                                          # gear-lazy-pages
 errno = "0.3"                                                             # gear-lazy-pages
 nix = "0.26.4"                                                            # gear-lazy-pages
-impl-trait-for-tuples = "0.2.2"                                           # pallets/staking-rewards
+impl-trait-for-tuples = "0.2.2"                                           # pallets/gear
 indexmap = "2.1.0"                                                        # utils/weight-diff
 indicatif = "*"                                                           # utils/wasm-gen
 keyring = "1.2.1"                                                         # gcli

@@ -3854,6 +3854,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "gbuiltin"
+version = "1.0.4"
+dependencies = [
+ "derive_more",
+ "gear-core-errors",
+ "scale-info",
+]
+
+[[package]]
 name = "gcli"
 version = "1.0.4"
 dependencies = [
@@ -4858,6 +4867,7 @@ dependencies = [
  "document-features",
  "futures",
  "galloc",
+ "gbuiltin",
  "gcore",
  "gear-core-errors",
  "gstd-codegen",
@@ -7719,6 +7729,7 @@ dependencies = [
  "gstd",
  "gsys",
  "hex",
+ "impl-trait-for-tuples",
  "log",
  "page_size",
  "pallet-authorship",
@@ -7766,6 +7777,48 @@ dependencies = [
  "scale-info",
  "sp-io",
  "sp-runtime",
+]
+
+[[package]]
+name = "pallet-gear-builtin-actor"
+version = "1.0.4"
+dependencies = [
+ "demo-waiting-proxy",
+ "env_logger",
+ "frame-benchmarking",
+ "frame-election-provider-support",
+ "frame-executive",
+ "frame-support",
+ "frame-support-test",
+ "frame-system",
+ "gear-common",
+ "gear-core",
+ "gear-core-processor",
+ "hex",
+ "hex-literal",
+ "log",
+ "pallet-authorship",
+ "pallet-bags-list",
+ "pallet-balances",
+ "pallet-gear",
+ "pallet-gear-bank",
+ "pallet-gear-gas",
+ "pallet-gear-messenger",
+ "pallet-gear-program",
+ "pallet-gear-scheduler",
+ "pallet-session",
+ "pallet-staking",
+ "pallet-timestamp",
+ "parity-scale-codec",
+ "primitive-types",
+ "scale-info",
+ "serde",
+ "sp-authority-discovery",
+ "sp-core",
+ "sp-externalities",
+ "sp-io",
+ "sp-runtime",
+ "sp-std 5.0.0",
 ]
 
 [[package]]
@@ -7994,7 +8047,6 @@ dependencies = [
  "frame-support",
  "frame-system",
  "gear-common",
- "impl-trait-for-tuples",
  "log",
  "pallet-authorship",
  "pallet-bags-list",
@@ -13772,6 +13824,7 @@ dependencies = [
  "pallet-election-provider-multi-phase",
  "pallet-gear",
  "pallet-gear-bank",
+ "pallet-gear-builtin-actor",
  "pallet-gear-debug",
  "pallet-gear-gas",
  "pallet-gear-messenger",

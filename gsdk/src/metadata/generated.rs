@@ -738,6 +738,8 @@ pub mod runtime_types {
             }
             pub mod ids {
                 use super::runtime_types;
+                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                pub struct BuiltinId(pub [::core::primitive::u8; 8usize]);
                 #[derive(
                     Copy, Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
@@ -10234,6 +10236,18 @@ pub mod storage {
             match self {
                 Self::Bank => "Bank",
                 Self::UnusedValue => "UnusedValue",
+            }
+        }
+    }
+    #[doc = "Storage of pallet `GearBuiltinActor`."]
+    pub enum GearBuiltinActorStorage {
+        Actors,
+    }
+    impl StorageInfo for GearBuiltinActorStorage {
+        const PALLET: &'static str = "GearBuiltinActor";
+        fn storage_name(&self) -> &'static str {
+            match self {
+                Self::Actors => "Actors",
             }
         }
     }
