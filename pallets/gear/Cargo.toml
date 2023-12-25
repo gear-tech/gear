@@ -76,7 +76,7 @@ pallet-gear-scheduler = { workspace = true, features = ["std"] }
 pallet-gear-program = { workspace = true, features = ["std"] }
 pallet-gear-voucher = { workspace = true, features = ["std"] }
 gmeta.workspace = true
-pallet-gear-binaries = { path = "binaries" }
+pallet-gear-binaries = { path = "binaries", features = ["debug"] }
 
 [features]
 default = ['std']
