@@ -215,7 +215,10 @@ where
                         min_limit = min_limit.max(initial_gas.saturating_sub(remaining_gas))
                     }
                     None => match note {
-                        // take into account that 'wait' syscall greedily consumes all available gas
+                        // take into account that 'wait' syscall greedily consumes all available gas.
+                        // 'wait_for' and 'wait_up_to' should not consume all available gas
+                        // because of the limited durations. If a duration is a big enough then it
+                        // won't matter how to calculate the limit: it will be the same.
                         JournalNote::WaitDispatch { ref dispatch, .. }
                             if from_main_chain(dispatch.id())? =>
                         {
