@@ -35,8 +35,8 @@ use gear_core::{
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::PageBuf,
     message::{
-        Dispatch, DispatchKind, MessageWaitedType, ReplyMessage, ReplyPacket, StoredDispatch,
-        StoredMessage,
+        Dispatch, DispatchKind, Message, MessageWaitedType, ReplyMessage, ReplyPacket,
+        StoredDispatch, StoredMessage,
     },
     pages::{GearPage, PageU32Size, WasmPage},
     program::Program as CoreProgram,
@@ -236,6 +236,7 @@ pub(crate) struct ExtManager {
     pub(crate) dispatches: VecDeque<StoredDispatch>,
     pub(crate) mailbox: HashMap<ProgramId, Vec<StoredMessage>>,
     pub(crate) wait_list: BTreeMap<(ProgramId, MessageId), StoredDispatch>,
+    pub(crate) wait_list_schedules: BTreeMap<u32, Vec<(ProgramId, MessageId)>>,
     pub(crate) wait_init_list: BTreeMap<ProgramId, Vec<MessageId>>,
     pub(crate) gas_limits: BTreeMap<MessageId, u64>,
     pub(crate) delayed_dispatches: HashMap<u32, Vec<Dispatch>>,
@@ -327,6 +328,36 @@ impl ExtManager {
                 dispatches
                     .into_iter()
                     .map(|dispatch| self.run_dispatch(dispatch))
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    /// Process scheduled wait list.
+    pub(crate) fn process_scheduled_wait_list(&mut self, bn: u32) -> Vec<RunResult> {
+        self.wait_list_schedules
+            .remove(&bn)
+            .map(|ids| {
+                ids.into_iter()
+                    .filter_map(|key| {
+                        self.wait_list.remove(&key).map(|dispatch| {
+                            let (kind, message, ..) = dispatch.into_parts();
+                            let message = Message::new(
+                                message.id(),
+                                message.source(),
+                                message.destination(),
+                                message
+                                    .payload_bytes()
+                                    .to_vec()
+                                    .try_into()
+                                    .unwrap_or_default(),
+                                self.gas_limits.get(&message.id()).copied(),
+                                message.value(),
+                                message.details(),
+                            );
+                            self.run_dispatch(Dispatch::new(kind, message))
+                        })
+                    })
                     .collect()
             })
             .unwrap_or_default()
@@ -630,11 +661,6 @@ impl ExtManager {
         self.others_failed = false;
         self.main_gas_burned = Gas::zero();
         self.others_gas_burned = Gas::zero();
-
-        // TODO: Remove this check after #349.
-        if !self.dispatches.is_empty() {
-            panic!("Message queue isn't empty");
-        }
     }
 
     fn mark_failed(&mut self, msg_id: MessageId) {
@@ -993,14 +1019,21 @@ impl JournalHandler for ExtManager {
     fn wait_dispatch(
         &mut self,
         dispatch: StoredDispatch,
-        _duration: Option<u32>,
+        duration: Option<u32>,
         _: MessageWaitedType,
     ) {
         log::debug!("[{}] wait", dispatch.id());
 
         self.message_consumed(dispatch.id());
-        self.wait_list
-            .insert((dispatch.destination(), dispatch.id()), dispatch);
+        let dest = dispatch.destination();
+        let id = dispatch.id();
+        self.wait_list.insert((dest, id), dispatch);
+        if let Some(duration) = duration {
+            self.wait_list_schedules
+                .entry(self.block_info.height.saturating_add(duration))
+                .or_default()
+                .push((dest, id));
+        }
     }
 
     fn wake_message(

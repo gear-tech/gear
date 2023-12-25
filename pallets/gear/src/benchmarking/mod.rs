@@ -473,7 +473,7 @@ benchmarks! {
         CurrencyOf::<T>::deposit_creating(&caller, 100_000_000_000_000_u128.unique_saturated_into());
         let program_id = benchmarking::account::<T::AccountId>("program", 0, 100);
         CurrencyOf::<T>::deposit_creating(&program_id, 100_000_000_000_000_u128.unique_saturated_into());
-        let code = benchmarking::generate_wasm2(16.into()).unwrap();
+        let code = benchmarking::generate_wasm(16.into()).unwrap();
         benchmarking::set_program::<ProgramStorageOf::<T>, _>(program_id.clone().cast(), code, 1.into());
         let original_message_id = benchmarking::account::<T::AccountId>("message", 0, 100).cast();
         let gas_limit = 50000;
@@ -504,7 +504,7 @@ benchmarks! {
         let caller = benchmarking::account("caller", 0, 0);
         CurrencyOf::<T>::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
         let minimum_balance = CurrencyOf::<T>::minimum_balance();
-        let code = benchmarking::generate_wasm2(16.into()).unwrap();
+        let code = benchmarking::generate_wasm(16.into()).unwrap();
         let salt = vec![];
         let program_id = ProgramId::generate_from_user(CodeId::generate(&code), &salt);
         Gear::<T>::upload_program(RawOrigin::Signed(caller.clone()).into(), code, salt, b"init_payload".to_vec(), 10_000_000_000, 0u32.into(), false).expect("submit program failed");
@@ -524,7 +524,7 @@ benchmarks! {
     resume_session_init {
         let caller = benchmarking::account("caller", 0, 0);
         CurrencyOf::<T>::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
-        let code = benchmarking::generate_wasm2(16.into()).unwrap();
+        let code = benchmarking::generate_wasm(16.into()).unwrap();
         let salt = vec![];
         let program_id = ProgramId::generate_from_user(CodeId::generate(&code), &salt);
         Gear::<T>::upload_program(RawOrigin::Signed(caller.clone()).into(), code, salt, b"init_payload".to_vec(), 10_000_000_000, 0u32.into(), false).expect("submit program failed");
@@ -549,7 +549,7 @@ benchmarks! {
         let c in 0 .. 16 * (WASM_PAGE_SIZE / GEAR_PAGE_SIZE) as u32;
         let caller = benchmarking::account("caller", 0, 0);
         CurrencyOf::<T>::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
-        let code = benchmarking::generate_wasm2(16.into()).unwrap();
+        let code = benchmarking::generate_wasm(16.into()).unwrap();
         let salt = vec![];
         let program_id = ProgramId::generate_from_user(CodeId::generate(&code), &salt);
         Gear::<T>::upload_program(RawOrigin::Signed(caller.clone()).into(), code, salt, b"init_payload".to_vec(), 10_000_000_000, 0u32.into(), false,).expect("submit program failed");
@@ -585,7 +585,7 @@ benchmarks! {
         let c in 0 .. (MAX_PAGES - 1) * (WASM_PAGE_SIZE / GEAR_PAGE_SIZE) as u32;
         let caller = benchmarking::account("caller", 0, 0);
         CurrencyOf::<T>::deposit_creating(&caller, 400_000_000_000_000u128.unique_saturated_into());
-        let code = benchmarking::generate_wasm2(0.into()).unwrap();
+        let code = benchmarking::generate_wasm(0.into()).unwrap();
         let salt = vec![];
         let program_id = ProgramId::generate_from_user(CodeId::generate(&code), &salt);
         Gear::<T>::upload_program(RawOrigin::Signed(caller.clone()).into(), code, salt, b"init_payload".to_vec(), 10_000_000_000, 0u32.into(), false,).expect("submit program failed");
@@ -701,7 +701,7 @@ benchmarks! {
         CurrencyOf::<T>::deposit_creating(&caller, 100_000_000_000_000_u128.unique_saturated_into());
         let minimum_balance = CurrencyOf::<T>::minimum_balance();
         let program_id = benchmarking::account::<T::AccountId>("program", 0, 100).cast();
-        let code = benchmarking::generate_wasm2(16.into()).unwrap();
+        let code = benchmarking::generate_wasm(16.into()).unwrap();
         benchmarking::set_program::<ProgramStorageOf::<T>, _>(program_id, code, 1.into());
         let payload = vec![0_u8; p as usize];
 
@@ -718,7 +718,7 @@ benchmarks! {
         let minimum_balance = CurrencyOf::<T>::minimum_balance();
         let program_id = benchmarking::account::<T::AccountId>("program", 0, 100);
         CurrencyOf::<T>::deposit_creating(&program_id, 100_000_000_000_000_u128.unique_saturated_into());
-        let code = benchmarking::generate_wasm2(16.into()).unwrap();
+        let code = benchmarking::generate_wasm(16.into()).unwrap();
         benchmarking::set_program::<ProgramStorageOf::<T>, _>(program_id.clone().cast(), code, 1.into());
         let original_message_id = benchmarking::account::<T::AccountId>("message", 0, 100).cast();
         let gas_limit = 50000;
@@ -742,36 +742,6 @@ benchmarks! {
     verify {
         assert!(matches!(QueueOf::<T>::dequeue(), Ok(Some(_))));
         assert!(MailboxOf::<T>::is_empty(&caller))
-    }
-
-    initial_allocation {
-        let q in 1 .. MAX_PAGES;
-        let q = q as u16;
-        let caller: T::AccountId = benchmarking::account("caller", 0, 0);
-        CurrencyOf::<T>::deposit_creating(&caller, (1u128 << 60).unique_saturated_into());
-        let code = benchmarking::generate_wasm(q.into()).unwrap();
-        let salt = vec![255u8; 32];
-    }: {
-        let _ = Gear::<T>::upload_program(RawOrigin::Signed(caller).into(), code, salt, vec![], 100_000_000u64, 0u32.into(), false,);
-        process_queue::<T>();
-    }
-    verify {
-        assert!(matches!(QueueOf::<T>::dequeue(), Ok(None)));
-    }
-
-    alloc_in_handle {
-        let q in 0 .. MAX_PAGES;
-        let q = q as u16;
-        let caller: T::AccountId = benchmarking::account("caller", 0, 0);
-        CurrencyOf::<T>::deposit_creating(&caller, (1_u128 << 60).unique_saturated_into());
-        let code = benchmarking::generate_wasm2(q.into()).unwrap();
-        let salt = vec![255u8; 32];
-    }: {
-        let _ = Gear::<T>::upload_program(RawOrigin::Signed(caller).into(), code, salt, vec![], 100_000_000u64, 0u32.into(), false,);
-        process_queue::<T>();
-    }
-    verify {
-        assert!(matches!(QueueOf::<T>::dequeue(), Ok(None)));
     }
 
     // This benchmarks the additional weight that is charged when a program is executed the
@@ -2862,7 +2832,7 @@ benchmarks! {
     tasks_pause_program {
         let c in 0 .. (MAX_PAGES - 1) * (WASM_PAGE_SIZE / GEAR_PAGE_SIZE) as u32;
 
-        let code = benchmarking::generate_wasm2(0.into()).unwrap();
+        let code = benchmarking::generate_wasm(0.into()).unwrap();
         let program_id = tasks::pause_program_prepare::<T>(c, code);
 
         let mut ext_manager = ExtManager::<T>::default();
