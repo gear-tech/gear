@@ -93,7 +93,7 @@ pallet_gear_program::impl_config!(Test);
 pallet_gear_messenger::impl_config!(Test, CurrentBlockNumber = Gear);
 pallet_gear_scheduler::impl_config!(Test);
 pallet_gear_bank::impl_config!(Test);
-pallet_gear::impl_config!(Test, Schedule = DynamicSchedule, Voucher = GearVoucher);
+pallet_gear::impl_config!(Test, Schedule = DynamicSchedule);
 pallet_gear_gas::impl_config!(Test);
 common::impl_pallet_balances!(Test);
 common::impl_pallet_authorship!(Test);
@@ -174,6 +174,7 @@ impl pallet_gear_voucher::Config for Test {
     type PalletId = VoucherPalletId;
     type WeightInfo = ();
     type CallsDispatcher = Gear;
+    type Mailbox = MailboxOf<Self>;
 }
 
 // Build genesis storage according to the mock runtime.
@@ -258,6 +259,10 @@ pub fn run_to_block_maybe_with_queue(
             if !process_messages {
                 QueueProcessingOf::<Test>::deny();
             }
+
+            // Spend the maximum weight of the block to account for the weight of Gear::run() in the current block.
+            let max_block_weight = <BlockWeightsOf<Test> as Get<BlockWeights>>::get().max_block;
+            System::register_extra_weight_unchecked(max_block_weight, DispatchClass::Mandatory);
 
             Gear::run(frame_support::dispatch::RawOrigin::None.into(), None).unwrap();
         }

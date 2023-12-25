@@ -31,7 +31,7 @@ type Gas = <Pallet<Test> as common::GasProvider>::GasTree;
 type GasTree = GasNodes<Test>;
 
 fn random_node_id() -> MessageId {
-    MessageId::from_origin(H256::random())
+    H256::random().cast()
 }
 
 const MULTIPLIER: GasMultiplier<u128, u64> = GasMultiplier::ValuePerGas(25);

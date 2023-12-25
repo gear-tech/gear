@@ -103,7 +103,7 @@ jobs:
           # check also lazy-pages benchmarks tests for native runtime
           ./target/release/gear benchmark pallet --chain=dev --pallet=pallet_gear --extrinsic="check_lazy_pages_all" --execution=native --heap-pages=4096 --extra
 
-      - name: "Test: Sys-calls Wasmi integrity"
+      - name: "Test: Syscalls Wasmi integrity"
         run: ./scripts/gear.sh test syscalls --release
 
       - name: "Test: `try-runtime` feature tests"
@@ -174,7 +174,7 @@ jobs:
 
       - name: Upload artifacts
         if: github.event_name == 'push'
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           path: artifact
 

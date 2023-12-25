@@ -19,7 +19,9 @@
 use crate as pallet_gear_debug;
 use common::storage::Limiter;
 use frame_support::{
-    construct_runtime, parameter_types,
+    construct_runtime,
+    dispatch::DispatchClass,
+    parameter_types,
     traits::{FindAuthor, Get, OnFinalize, OnInitialize},
     weights::Weight,
 };
@@ -148,6 +150,10 @@ pub fn run_to_block(n: u64, remaining_weight: Option<u64>) {
             );
         }
 
+        // Spend the maximum weight of the block to account for the weight of Gear::run() in the current block.
+        let max_block_weight =
+            <<Test as frame_system::Config>::BlockWeights as Get<BlockWeights>>::get().max_block;
+        System::register_extra_weight_unchecked(max_block_weight, DispatchClass::Mandatory);
         Gear::run(frame_support::dispatch::RawOrigin::None.into(), None).unwrap();
         Gear::on_finalize(System::block_number());
 

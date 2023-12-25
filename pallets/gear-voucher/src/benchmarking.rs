@@ -41,16 +41,16 @@ benchmarks! {
             100_000_000_000_000_u128.unique_saturated_into()
         );
         let holder = benchmarking::account::<T::AccountId>("caller", 0, 1);
-        let program_id = ProgramId::from_origin(
-            benchmarking::account::<T::AccountId>("program", 0, 100).into_origin()
-        );
+        let program_id =
+            benchmarking::account::<T::AccountId>("program", 0, 100).cast()
+        ;
 
         let holder_lookup = T::Lookup::unlookup(holder.clone());
     }: _(RawOrigin::Signed(issuer), holder_lookup, program_id, 10_000_000_000_000_u128.unique_saturated_into())
     verify {
-        let voucher_account_id = GearVoucher::<T>::voucher_account_id(&holder, &program_id);
+        let voucher_id = GearVoucher::<T>::voucher_id(&holder, &program_id);
         assert_eq!(
-            CurrencyOf::<T>::free_balance(&voucher_account_id),
+            CurrencyOf::<T>::free_balance(&voucher_id),
             10_000_000_000_000_u128.unique_saturated_into(),
         );
     }

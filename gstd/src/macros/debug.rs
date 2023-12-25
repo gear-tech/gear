@@ -59,3 +59,39 @@ macro_rules! debug {
 macro_rules! debug {
     ($($arg:tt)*) => {};
 }
+
+/// Prints and returns the value of a given expression for quick and dirty
+/// debugging.
+///
+/// Similar to the standard library's
+/// [`dbg!`](https://doc.rust-lang.org/std/macro.dbg.html) macro.
+#[cfg(any(feature = "debug", debug_assertions))]
+#[macro_export]
+macro_rules! dbg {
+    () => {
+        $crate::debug!("[{}:{}]", $crate::prelude::file!(), $crate::prelude::line!())
+    };
+    ($val:expr $(,)?) => {
+        match $val {
+            tmp => {
+                $crate::debug!("[{}:{}] {} = {:#?}",
+                    $crate::prelude::file!(),
+                    $crate::prelude::line!(),
+                    $crate::prelude::stringify!($val),
+                    &tmp,
+                );
+                tmp
+            }
+        }
+    };
+    ($($val:expr),+ $(,)?) => {
+        ($($crate::dbg!($val)),+,)
+    };
+}
+
+#[cfg(not(any(feature = "debug", debug_assertions)))]
+#[allow(missing_docs)]
+#[macro_export]
+macro_rules! dbg {
+    ($($arg:tt)*) => {};
+}

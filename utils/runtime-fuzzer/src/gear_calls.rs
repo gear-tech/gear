@@ -35,8 +35,8 @@ use gear_call_gen::{ClaimValueArgs, SendReplyArgs};
 use gear_core::ids::{CodeId, MessageId, ProgramId};
 use gear_utils::NonEmpty;
 use gear_wasm_gen::{
-    EntryPointsSet, InvocableSysCall, ParamType, StandardGearWasmConfigsBundle, SysCallName,
-    SysCallsInjectionTypes, SysCallsParamsConfig,
+    EntryPointsSet, InvocableSyscall, ParamType, RegularParamType, StandardGearWasmConfigsBundle,
+    SyscallName, SyscallsInjectionTypes, SyscallsParamsConfig,
 };
 use std::mem;
 
@@ -408,25 +408,31 @@ fn config(
     log_info: Option<String>,
 ) -> StandardGearWasmConfigsBundle<ProgramId> {
     let initial_pages = 2;
-    let mut injection_types = SysCallsInjectionTypes::all_once();
+    let mut injection_types = SyscallsInjectionTypes::all_once();
     injection_types.set_multiple(
         [
-            (SysCallName::Leave, 0..=0),
-            (SysCallName::Panic, 0..=0),
-            (SysCallName::OomPanic, 0..=0),
-            (SysCallName::EnvVars, 0..=0),
-            (SysCallName::Send, 10..=15),
-            (SysCallName::Exit, 0..=1),
-            (SysCallName::Alloc, 3..=6),
-            (SysCallName::Free, 3..=6),
+            (SyscallName::Leave, 0..=0),
+            (SyscallName::Panic, 0..=0),
+            (SyscallName::OomPanic, 0..=0),
+            (SyscallName::EnvVars, 0..=0),
+            (SyscallName::Send, 10..=15),
+            (SyscallName::Exit, 0..=1),
+            (SyscallName::Alloc, 3..=6),
+            (SyscallName::Free, 3..=6),
         ]
-        .map(|(syscall, range)| (InvocableSysCall::Loose(syscall), range))
+        .map(|(syscall, range)| (InvocableSyscall::Loose(syscall), range))
         .into_iter(),
     );
 
-    let mut params_config = SysCallsParamsConfig::default();
-    params_config.add_rule(ParamType::Alloc, (10..=20).into());
-    params_config.add_rule(ParamType::Free, (initial_pages..=initial_pages + 35).into());
+    let mut params_config = SyscallsParamsConfig::default();
+    params_config.add_rule(
+        ParamType::Regular(RegularParamType::Alloc),
+        (10..=20).into(),
+    );
+    params_config.add_rule(
+        ParamType::Regular(RegularParamType::Free),
+        (initial_pages..=initial_pages + 35).into(),
+    );
 
     let existing_addresses = NonEmpty::collect(
         programs

@@ -18,13 +18,13 @@
 
 //! Entities describing syscall param, more precisely, it's allowed values.
 //!
-//! Types here are used to create [`crate::SysCallsConfig`].
+//! Types here are used to create [`crate::SyscallsConfig`].
 
 use crate::DEFAULT_INITIAL_SIZE;
 use arbitrary::{Result, Unstructured};
 use std::{collections::HashMap, ops::RangeInclusive};
 
-pub use gear_wasm_instrument::syscalls::ParamType;
+pub use gear_wasm_instrument::syscalls::{ParamType, RegularParamType};
 
 /// Syscalls params config.
 ///
@@ -41,26 +41,30 @@ pub use gear_wasm_instrument::syscalls::ParamType;
 ///  - [`ParamType::Size`] will be ignored when it means length of some in-memory
 /// array.
 #[derive(Debug, Clone)]
-pub struct SysCallsParamsConfig(HashMap<ParamType, SysCallParamAllowedValues>);
+pub struct SyscallsParamsConfig(HashMap<ParamType, SyscallParamAllowedValues>);
 
-impl SysCallsParamsConfig {
+impl SyscallsParamsConfig {
     pub fn empty() -> Self {
         Self(HashMap::new())
     }
 
-    /// New [`SysCallsParamsConfig`] with all rules set to produce one constant value.
+    /// New [`SyscallsParamsConfig`] with all rules set to produce one constant value.
     pub fn all_constant_value(value: i64) -> Self {
-        let allowed_values: SysCallParamAllowedValues = (value..=value).into();
+        use ParamType::*;
+        use RegularParamType::*;
+
+        let allowed_values: SyscallParamAllowedValues = (value..=value).into();
         Self(
             [
-                ParamType::Size,
-                ParamType::Gas,
-                ParamType::MessagePosition,
-                ParamType::Duration,
-                ParamType::Delay,
-                ParamType::Handler,
-                ParamType::Free,
-                ParamType::Version,
+                Regular(Length),
+                Regular(Gas),
+                Regular(Offset),
+                Regular(DurationBlockNumber),
+                Regular(DelayBlockNumber),
+                Regular(Handler),
+                Regular(Free),
+                Regular(FreeUpperBound),
+                Regular(Version),
             ]
             .into_iter()
             .map(|param_type| (param_type, allowed_values.clone()))
@@ -69,35 +73,39 @@ impl SysCallsParamsConfig {
     }
 
     /// Get allowed values for the `param`.
-    pub fn get_rule(&self, param: &ParamType) -> Option<SysCallParamAllowedValues> {
+    pub fn get_rule(&self, param: &ParamType) -> Option<SyscallParamAllowedValues> {
         self.0.get(param).cloned()
     }
 
     /// Set allowed values for the `param`.
-    pub fn add_rule(&mut self, param: ParamType, allowed_values: SysCallParamAllowedValues) {
-        matches!(param, ParamType::Ptr(..))
-            .then(|| panic!("ParamType::Ptr(..) isn't supported in SysCallsParamsConfig"));
+    pub fn add_rule(&mut self, param: ParamType, allowed_values: SyscallParamAllowedValues) {
+        matches!(param, ParamType::Regular(RegularParamType::Pointer(_)))
+            .then(|| panic!("ParamType::Ptr(..) isn't supported in SyscallsParamsConfig"));
 
         self.0.insert(param, allowed_values);
     }
 }
 
-impl Default for SysCallsParamsConfig {
+impl Default for SyscallsParamsConfig {
     fn default() -> Self {
+        use ParamType::*;
+        use RegularParamType::*;
+
         let free_start = DEFAULT_INITIAL_SIZE as i64;
         let free_end = free_start + 5;
         Self(
             [
-                (ParamType::Size, (0..=0x10000).into()),
+                (Regular(Length), (0..=0x10000).into()),
                 // There are no rules for memory arrays and pointers as they are chosen
                 // in accordance to memory pages config.
-                (ParamType::Gas, (0..=250_000_000_000).into()),
-                (ParamType::MessagePosition, (0..=10).into()),
-                (ParamType::Duration, (1..=8).into()),
-                (ParamType::Delay, (0..=4).into()),
-                (ParamType::Handler, (0..=100).into()),
-                (ParamType::Free, (free_start..=free_end).into()),
-                (ParamType::Version, (1..=1).into()),
+                (Regular(Gas), (0..=250_000_000_000).into()),
+                (Regular(Offset), (0..=10).into()),
+                (Regular(DurationBlockNumber), (1..=8).into()),
+                (Regular(DelayBlockNumber), (0..=4).into()),
+                (Regular(Handler), (0..=100).into()),
+                (Regular(Free), (free_start..=free_end).into()),
+                (Regular(Version), (1..=1).into()),
+                (Regular(FreeUpperBound), (0..=10).into()),
             ]
             .into_iter()
             .collect(),
@@ -107,15 +115,15 @@ impl Default for SysCallsParamsConfig {
 
 /// Range of allowed values for the syscall param.
 #[derive(Debug, Clone)]
-pub struct SysCallParamAllowedValues(RangeInclusive<i64>);
+pub struct SyscallParamAllowedValues(RangeInclusive<i64>);
 
-impl From<RangeInclusive<i64>> for SysCallParamAllowedValues {
+impl From<RangeInclusive<i64>> for SyscallParamAllowedValues {
     fn from(range: RangeInclusive<i64>) -> Self {
         Self(range)
     }
 }
 
-impl SysCallParamAllowedValues {
+impl SyscallParamAllowedValues {
     /// Zero param value.
     ///
     /// That means that for particular param `0` will be always
@@ -133,13 +141,13 @@ impl SysCallParamAllowedValues {
     }
 }
 
-impl Default for SysCallParamAllowedValues {
+impl Default for SyscallParamAllowedValues {
     fn default() -> Self {
         Self::zero()
     }
 }
 
-impl SysCallParamAllowedValues {
+impl SyscallParamAllowedValues {
     /// Get i32 value for the param from it's allowed range.
     pub fn get_i32(&self, unstructured: &mut Unstructured) -> Result<i32> {
         let current_range_start = *self.0.start();

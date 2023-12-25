@@ -2665,12 +2665,9 @@ pub mod runtime_types {
                     #[doc = "Program with the specified id is not found."]
                     ProgramNotFound,
                     #[codec(index = 14)]
-                    #[doc = "Voucher can't be redeemed"]
-                    FailureRedeemingVoucher,
-                    #[codec(index = 15)]
                     #[doc = "Gear::run() already included in current block."]
                     GearRunAlreadyInBlock,
-                    #[codec(index = 16)]
+                    #[codec(index = 15)]
                     #[doc = "The program rent logic is disabled."]
                     ProgramRentDisabled,
                 }
@@ -2776,6 +2773,8 @@ pub mod runtime_types {
                     pub alloc: runtime_types::sp_weights::weight_v2::Weight,
                     pub alloc_per_page: runtime_types::sp_weights::weight_v2::Weight,
                     pub free: runtime_types::sp_weights::weight_v2::Weight,
+                    pub free_range: runtime_types::sp_weights::weight_v2::Weight,
+                    pub free_range_per_page: runtime_types::sp_weights::weight_v2::Weight,
                     pub gr_reserve_gas: runtime_types::sp_weights::weight_v2::Weight,
                     pub gr_unreserve_gas: runtime_types::sp_weights::weight_v2::Weight,
                     pub gr_system_reserve_gas: runtime_types::sp_weights::weight_v2::Weight,
@@ -3335,9 +3334,9 @@ pub mod runtime_types {
                 #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
                 pub enum Error {
                     #[codec(index = 0)]
-                    FailureToCreateVoucher,
+                    InsufficientBalance,
                     #[codec(index = 1)]
-                    FailureToRedeemVoucher,
+                    InvalidVoucher,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
