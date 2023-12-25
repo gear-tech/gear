@@ -62,14 +62,18 @@ pub fn build_wasm(packages: BTreeMap<String, Option<BTreeSet<String>>>) -> Strin
             .args(packages_and_features)
             .arg("--profile")
             .arg(profile().replace("debug", "dev"))
+            .arg("-v")
             .env("__GEAR_WASM_BUILDER_NO_BUILD", "1")
             .env("CARGO_BUILD_TARGET", "wasm32-unknown-unknown")
             .env("CARGO_TARGET_DIR", wasm_projects_dir())
             // remove host flags
             .env_remove("CARGO_ENCODED_RUSTFLAGS");
         println!("cargo:warning={:?}", cargo);
-        let status = cargo.status().expect("Failed to execute cargo command");
-        assert!(status.success());
+        let output = cargo.output().expect("Failed to execute cargo command");
+        assert!(output.status.success());
+        for line in String::from_utf8(output.stderr).unwrap().lines() {
+            println!("cargo:warning={line}",);
+        }
     }
 
     let mut wasm_binaries = String::new();

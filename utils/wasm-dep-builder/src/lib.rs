@@ -139,12 +139,17 @@ impl BuilderMetadata {
 #[serde(rename_all = "kebab-case")]
 enum LockFileConfig {
     Demo(DemoLockFileConfig),
-    Builder,
+    Builder(BuilderLockFileConfig),
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 struct DemoLockFileConfig {
     features: BTreeSet<UnderscoreString>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct BuilderLockFileConfig {
+    features: BTreeSet<String>,
 }
 
 struct DemoLockFile(());
@@ -210,10 +215,10 @@ impl LockFile<BuilderLockFile> {
         (!config.is_empty()).then(|| serde_json::from_str(&config).unwrap())
     }
 
-    fn write(&mut self) {
+    fn write(&mut self, config: BuilderLockFileConfig) {
         self.file.set_len(0).unwrap();
         self.file.seek(SeekFrom::Start(0)).unwrap();
-        serde_json::to_writer(&mut self.file, &LockFileConfig::Builder).unwrap();
+        serde_json::to_writer(&mut self.file, &LockFileConfig::Builder(config)).unwrap();
     }
 }
 
@@ -312,41 +317,44 @@ pub fn builder() {
         let config = lock.read();
         println!("cargo:warning={:?}", config);
 
-        let features = if let Some(LockFileConfig::Demo(config)) = config {
-            let excluded_features = demo_metadata
-                .exclude_features
-                .into_iter()
-                .map(UnderscoreString)
-                .chain(
-                    DEFAULT_EXCLUDED_FEATURES
-                        .map(str::to_string)
-                        .map(UnderscoreString),
-                )
-                .collect();
-            let underscore_features: BTreeSet<UnderscoreString> = config
-                .features
-                .difference(&excluded_features)
-                .cloned()
-                .collect();
+        let features = match &config {
+            Some(LockFileConfig::Demo(DemoLockFileConfig { features })) => {
+                let excluded_features = demo_metadata
+                    .exclude_features
+                    .into_iter()
+                    .map(UnderscoreString)
+                    .chain(
+                        DEFAULT_EXCLUDED_FEATURES
+                            .map(str::to_string)
+                            .map(UnderscoreString),
+                    )
+                    .collect();
+                let features: BTreeSet<UnderscoreString> =
+                    features.difference(&excluded_features).cloned().collect();
 
-            let orig_features: BTreeSet<UnderscoreString> =
-                pkg.features.keys().cloned().map(UnderscoreString).collect();
+                let orig_features: BTreeSet<UnderscoreString> =
+                    pkg.features.keys().cloned().map(UnderscoreString).collect();
 
-            let features = orig_features
-                .intersection(&underscore_features)
-                .cloned()
-                .map(|s| s.0)
-                .collect();
+                let features: BTreeSet<String> = orig_features
+                    .intersection(&features)
+                    .cloned()
+                    .map(|s| s.0)
+                    .collect();
 
-            println!("cargo:warning=rebuilding...");
+                println!("cargo:warning=rebuilding...");
 
-            Some(features)
-        } else {
-            None
+                lock.write(BuilderLockFileConfig {
+                    features: features.clone(),
+                });
+
+                Some(features)
+            }
+            Some(LockFileConfig::Builder(BuilderLockFileConfig { features })) => {
+                Some(features.clone())
+            }
+            None => None,
         };
         packages.insert(pkg.name.clone(), features);
-
-        lock.write();
     }
 
     println!("cargo:warning={:?}", packages);
