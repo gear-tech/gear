@@ -20,7 +20,7 @@
 //!
 //! Types here are used to create [`crate::SyscallsConfig`].
 
-use crate::DEFAULT_INITIAL_SIZE;
+use crate::{DEFAULT_INITIAL_SIZE, SyscallDestination};
 use arbitrary::{Result, Unstructured};
 use gsys::Hash;
 use std::{collections::HashMap, mem, ops::RangeInclusive};
@@ -51,7 +51,7 @@ pub use gear_wasm_instrument::syscalls::{HashType, Ptr, RegularParamType};
 #[derive(Debug, Clone)]
 pub struct SyscallsParamsConfig {
     regular: HashMap<RegularParamType, RegularParamAllowedValues>,
-    ptr: HashMap<Ptr, PtrParamAllowedValues>,
+    pub(super) ptr: HashMap<Ptr, PtrParamAllowedValues>,
 }
 
 impl SyscallsParamsConfig {
@@ -80,17 +80,11 @@ impl SyscallsParamsConfig {
     pub fn default_ptr() -> Self {
         let mut this = Self::empty();
 
+        let range = 0..=100_000_000_000;
         // Setting ptr params rules.
-        this.set_ptr_rule(PtrParamAllowedValues::Value(0..=100_000_000_000));
-        PtrParamAllowedValues::all_hash_with_range(0..=100_000_000_000)
-            .into_iter()
-            .for_each(|rule| this.set_ptr_rule(rule));
-
-        this.set_ptr_rule(PtrParamAllowedValues::TwoHashesWithValue {
-            ty1: HashType::ReservationId,
-            ty2: HashType::ActorId,
-            range: 0..=100_000_000_000,
-        });
+        this.set_ptr_rule(PtrParamAllowedValues::Value(range.clone()));
+        this.set_ptr_rule(PtrParamAllowedValues::ActorIdWithValue { actor: SyscallDestination::default(), range: range.clone() });
+        this.set_ptr_rule(PtrParamAllowedValues::ActorId(SyscallDestination::default()));
 
         this
     }
@@ -150,9 +144,10 @@ impl SyscallsParamsConfig {
         use Ptr::*;
 
         let ptr = allowed_values.clone().into();
+        // TODO review prcessing and adding rules for ptrs
         let allowed_values = match ptr {
-            Value | HashWithValue(_) | TwoHashesWithValue(_, _) => allowed_values,
-            Hash(_) | TwoHashes(_, _) => todo!("Currently unsupported defining ptr param filler config for `Hash` and `TwoHashes`."),
+            Hash(_) | Value | HashWithValue(_) | TwoHashesWithValue(_, _) => allowed_values,
+            TwoHashes(_, _) => unimplemented!("Currently unsupported defining ptr param filler config for `TwoHashes`."),
             BlockNumber
             | BlockTimestamp
             | SizedBufferStart { .. }
@@ -254,69 +249,62 @@ impl Default for RegularParamAllowedValues {
 #[derive(Debug, Clone)]
 pub enum PtrParamAllowedValues {
     Value(RangeInclusive<u128>),
-    HashWithValue {
-        ty: HashType,
+    ActorIdWithValue {
+        actor: SyscallDestination,
         range: RangeInclusive<u128>,
     },
-    TwoHashesWithValue {
-        ty1: HashType,
-        ty2: HashType,
-        range: RangeInclusive<u128>,
-    },
+    ActorId(SyscallDestination),
+
+
+    // HashWithValue {
+    //     ty: HashType,
+    //     range: RangeInclusive<u128>,
+    // },
+    // TwoHashesWithValue {
+    //     ty1: HashType,
+    //     ty2: HashType,
+    //     range: RangeInclusive<u128>,
+    // },
 }
 
 impl PtrParamAllowedValues {
-    const VALUE_WORDS: usize = mem::size_of::<u128>() / mem::size_of::<i32>();
-    const HASH_WORDS: usize = mem::size_of::<Hash>() / mem::size_of::<i32>();
-    const HASH_WITH_VALUE_WORDS: usize = Self::HASH_WORDS + Self::VALUE_WORDS;
-    const TWO_HASHES_WITH_VALUE_WORDS: usize = 2 * Self::HASH_WORDS + Self::VALUE_WORDS;
+    pub const VALUE_WORDS: usize = mem::size_of::<u128>() / mem::size_of::<i32>();
+    pub const HASH_WORDS: usize = mem::size_of::<Hash>() / mem::size_of::<i32>();
+    pub const HASH_WITH_VALUE_WORDS: usize = Self::HASH_WORDS + Self::VALUE_WORDS;
+    pub const TWO_HASHES_WITH_VALUE_WORDS: usize = 2 * Self::HASH_WORDS + Self::VALUE_WORDS;
 
-    pub fn all_hash_with_range(range: RangeInclusive<u128>) -> Vec<Self> {
-        HashType::all()
-            .into_iter()
-            .map(|ty| PtrParamAllowedValues::HashWithValue {
-                ty,
-                range: range.clone(),
-            })
-            .collect()
-    }
+    // /// Get the actual data that should be written into the memory.
+    // pub fn get(&self, unstructured: &mut Unstructured) -> Result<Vec<i32>> {
+    //     match self {
+    //         PtrParamAllowedValues::Value(range) => Self::get_value(unstructured, range.clone()),
+    //         PtrParamAllowedValues::HashWithValue { range, .. } => {
+    //             let mut ret = Vec::with_capacity(Self::HASH_WITH_VALUE_WORDS);
+    //             ret.extend(Self::get_default_hash());
+    //             ret.extend(Self::get_value(unstructured, range.clone())?);
 
-    /// Get the actual data that should be written into the memory.
-    pub fn get(&self, unstructured: &mut Unstructured) -> Result<Vec<i32>> {
-        match self {
-            PtrParamAllowedValues::Value(range) => Self::get_value(unstructured, range.clone()),
-            PtrParamAllowedValues::HashWithValue { range, .. } => {
-                let mut ret = Vec::with_capacity(Self::HASH_WITH_VALUE_WORDS);
-                ret.extend(Self::get_default_hash());
-                ret.extend(Self::get_value(unstructured, range.clone())?);
+    //             Ok(ret)
+    //         }
+    //         PtrParamAllowedValues::TwoHashesWithValue { range, .. } => {
+    //             let mut ret = Vec::with_capacity(Self::TWO_HASHES_WITH_VALUE_WORDS);
+    //             ret.extend(Self::get_default_hash());
+    //             ret.extend(Self::get_default_hash());
+    //             ret.extend(Self::get_value(unstructured, range.clone())?);
 
-                Ok(ret)
-            }
-            PtrParamAllowedValues::TwoHashesWithValue { range, .. } => {
-                let mut ret = Vec::with_capacity(Self::TWO_HASHES_WITH_VALUE_WORDS);
-                ret.extend(Self::get_default_hash());
-                ret.extend(Self::get_default_hash());
-                ret.extend(Self::get_value(unstructured, range.clone())?);
+    //             Ok(ret)
+    //         }
+    //     }
+    // }
 
-                Ok(ret)
-            }
-        }
-    }
+    // fn get_value(unstructured: &mut Unstructured, range: RangeInclusive<u128>) -> Result<Vec<i32>> {
+    //     let value = unstructured.int_in_range(range)?;
+    //     Ok(Self::get_for_instructions(value.to_le_bytes()))
+    // }
 
-    pub(crate) fn default_hash_with_value() -> Vec<i32> {
-        vec![0i32; Self::HASH_WITH_VALUE_WORDS]
-    }
+    // fn get_default_hash() -> Vec<i32> {
+    //     Self::get_for_instructions(Hash::default())
+    // }
 
-    fn get_value(unstructured: &mut Unstructured, range: RangeInclusive<u128>) -> Result<Vec<i32>> {
-        let value = unstructured.int_in_range(range)?;
-        Ok(Self::get_for_instructions(value.to_le_bytes()))
-    }
-
-    fn get_default_hash() -> Vec<i32> {
-        Self::get_for_instructions(Hash::default())
-    }
-
-    fn get_for_instructions<const N: usize>(raw_data: [u8; N]) -> Vec<i32> {
+    pub(crate) fn get_for_instructions<const N: usize>(raw_data: [u8; N]) -> Vec<i32> {
         let data_size = mem::size_of_val(&raw_data);
         let wasm_ptr_size = mem::size_of::<i32>();
 
@@ -341,10 +329,13 @@ impl From<PtrParamAllowedValues> for Ptr {
     fn from(ptr_data: PtrParamAllowedValues) -> Self {
         match ptr_data {
             PtrParamAllowedValues::Value(_) => Ptr::Value,
-            PtrParamAllowedValues::HashWithValue { ty, .. } => Ptr::HashWithValue(ty),
-            PtrParamAllowedValues::TwoHashesWithValue { ty1, ty2, .. } => {
-                Ptr::TwoHashesWithValue(ty1, ty2)
-            }
+            PtrParamAllowedValues::ActorIdWithValue { .. } => Ptr::HashWithValue(HashType::ActorId),
+            PtrParamAllowedValues::ActorId(_) => Ptr::Hash(HashType::ActorId),
+
+            // PtrParamAllowedValues::HashWithValue { ty, .. } => Ptr::HashWithValue(ty),
+            // PtrParamAllowedValues::TwoHashesWithValue { ty1, ty2, .. } => {
+            //     Ptr::TwoHashesWithValue(ty1, ty2)
+            // }
         }
     }
 }

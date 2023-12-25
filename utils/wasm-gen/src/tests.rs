@@ -48,6 +48,43 @@ use std::{mem, num::NonZeroUsize};
 
 const UNSTRUCTURED_SIZE: usize = 1_000_000;
 
+// TODO refactor tests.
+
+proptest! {
+    #![proptest_config(ProptestConfig::with_cases(100))]
+    #[test]
+    // Test that valid config always generates a valid gear wasm.
+    fn test_standard_config(buf in prop::collection::vec(any::<u8>(), UNSTRUCTURED_SIZE)) {
+        use gear_wasm_instrument::rules::CustomConstantCostRules;
+        let mut u = Unstructured::new(&buf);
+        let configs_bundle: StandardGearWasmConfigsBundle = StandardGearWasmConfigsBundle {
+            log_info: Some("Some data".into()),
+            entry_points_set: EntryPointsSet::InitHandleHandleReply,
+            ..Default::default()
+        };
+
+        let original_code = generate_gear_program_code(&mut u, configs_bundle)
+            .expect("failed generating wasm");
+
+        let code_res = Code::try_new(original_code, 1, |_| CustomConstantCostRules::default(), None);
+        assert!(code_res.is_ok());
+    }
+
+    #[test]
+    fn test_reproduction(buf in prop::collection::vec(any::<u8>(), UNSTRUCTURED_SIZE)) {
+        let mut u = Unstructured::new(&buf);
+        let mut u2 = Unstructured::new(&buf);
+
+        let gear_config = StandardGearWasmConfigsBundle::default();
+
+        let first = generate_gear_program_code(&mut u, gear_config.clone()).expect("failed wasm generation");
+        let second = generate_gear_program_code(&mut u2, gear_config).expect("failed wasm generation");
+
+        assert_eq!(first, second);
+    }
+}
+
+
 #[test]
 fn inject_critical_gas_limit_works() {
     let wat1 = r#"
@@ -142,85 +179,101 @@ fn remove_multiple_recursions() {
 }
 
 #[test]
-fn injecting_addresses_works() {
-    let mut rng = SmallRng::seed_from_u64(1234);
+fn test_source_as_address_param() {
+    let mut rng = SmallRng::seed_from_u64(123);
     let mut buf = vec![0; UNSTRUCTURED_SIZE];
     rng.fill_bytes(&mut buf);
-    let mut u = Unstructured::new(&buf);
+    let mut unstructured = Unstructured::new(&buf);
 
-    let stack_end_page = 16;
-    let addresses = NonEmpty::from_vec(vec![[0; 32], [1; 32]]).expect("vec wasn't empty");
-    let config = GearWasmGeneratorConfigBuilder::new()
-        .with_memory_config(MemoryPagesConfig {
-            initial_size: 17,
-            upper_limit: None,
-            stack_end_page: Some(stack_end_page),
-        })
-        .with_syscalls_config(
-            SyscallsConfigBuilder::new(Default::default())
-                .with_addresses_msg_dest(addresses)
-                .build(),
-        )
+    let mut params_config = SyscallsParamsConfig::default_regular();
+    params_config.set_ptr_rule(PtrParamAllowedValues::ActorId(SyscallDestination::Source));
+
+    let mut injection_types = SyscallsInjectionTypes::all_never();
+    injection_types.set(InvocableSyscall::Loose(SyscallName::Exit), 1, 1);
+    let syscalls_config = SyscallsConfigBuilder::new(injection_types)
+        .with_params_config(params_config)
+        .with_error_processing_config(ErrorProcessingConfig::All)
         .build();
-    let wasm_module = GearWasmGenerator::new_with_config(
-        WasmModule::generate(&mut u).expect("failed module generation"),
-        &mut u,
-        config,
-    )
-    .generate()
-    .expect("failed gear-wasm generation");
 
-    let data_sections_entries_num = wasm_module
-        .data_section()
-        .expect("additional data was inserted")
-        .entries()
-        .len();
-    // 2 addresses in the upper `addresses`.
-    assert_eq!(data_sections_entries_num, 2);
+    let backend_report = execute_wasm_with_custom_configs(
+        &mut unstructured,
+        syscalls_config,
+        None,
+        1024,
+        false,
+        0,
+    );
 
-    let size = mem::size_of::<gsys::HashWithValue>() as i32;
-    let entries = wasm_module
-        .data_section()
-        .expect("additional data was inserted")
-        .entries();
-
-    let first_addr_offset = entries
-        .get(0)
-        .and_then(|segment| segment.offset().as_ref())
-        .map(|expr| &expr.code()[0])
-        .expect("checked");
-    let Instruction::I32Const(ptr) = first_addr_offset else {
-        panic!("invalid instruction in init expression")
-    };
-    // No additional data, except for addresses.
-    // First entry set to the 0 offset.
-    assert_eq!(*ptr, (stack_end_page * WASM_PAGE_SIZE as u32) as i32);
-
-    let second_addr_offset = entries
-        .get(1)
-        .and_then(|segment| segment.offset().as_ref())
-        .map(|expr| &expr.code()[0])
-        .expect("checked");
-    let Instruction::I32Const(ptr) = second_addr_offset else {
-        panic!("invalid instruction in init expression")
-    };
-    // No additional data, except for addresses.
-    // First entry set to the 0 offset.
-    assert_eq!(*ptr, size + (stack_end_page * WASM_PAGE_SIZE as u32) as i32);
+    assert_eq!(
+        backend_report.termination_reason,
+        TerminationReason::Actor(ActorTerminationReason::Exit(message_sender()))
+    );
 }
 
-// TODO test for syscalls with destination and existing addresses
+#[test]
+fn test_existing_address_as_address_param() {
+    gear_utils::init_default_logger();
+
+    let mut rng = SmallRng::seed_from_u64(123);
+    let mut buf = vec![0; UNSTRUCTURED_SIZE];
+    rng.fill_bytes(&mut buf);
+    let mut unstructured = Unstructured::new(&buf);
+
+    let some_address = [5; 32];
+    let mut params_config = SyscallsParamsConfig::default_regular();
+    params_config.set_ptr_rule(PtrParamAllowedValues::ActorIdWithValue {
+        actor: SyscallDestination::ExistingAddresses(NonEmpty::new(some_address)),
+        range: 0..=0
+    });
+
+    let mut injection_types = SyscallsInjectionTypes::all_never();
+    injection_types.set(InvocableSyscall::Loose(SyscallName::Send), 1, 1);
+    let syscalls_config = SyscallsConfigBuilder::new(injection_types)
+        .with_params_config(params_config)
+        .with_error_processing_config(ErrorProcessingConfig::All)
+        .build();
+
+    let backend_report = execute_wasm_with_custom_configs(
+        &mut unstructured,
+        syscalls_config,
+        None,
+        1024,
+        false,
+        0,
+    );
+
+    assert_eq!(
+        backend_report.termination_reason,
+        TerminationReason::Actor(ActorTerminationReason::Success)
+    );
+
+    let dispatch = {
+        let (context_outcome, _) = backend_report
+        .ext
+        .context
+        .message_context
+        .drain();
+
+        let mut dispatches = context_outcome.drain().outgoing_dispatches;
+        assert_eq!(dispatches.len(), 1);
+
+        dispatches.pop().expect("checked").0
+    };
+
+    assert_eq!(dispatch.destination(), ProgramId::from(some_address.as_ref()));
+}
 
 // Syscalls of a `gr_*reply*` kind are the only of those, which has `Value` input param.
 // Message value param for these syscalls is set during the common syscalls params
 // processing flow.
-// todo check for precis reservation_reply
 #[test]
 fn test_msg_value_ptr() {
     const INITIAL_BALANCE: u128 = 10_000;
     const REPLY_VALUE: u128 = 1_000;
 
-    let buf = vec![0; UNSTRUCTURED_SIZE];
+    let mut rng = SmallRng::seed_from_u64(123);
+    let mut buf = vec![0; UNSTRUCTURED_SIZE];
+    rng.fill_bytes(&mut buf);
     let mut unstructured = Unstructured::new(&buf);
 
     let mut params_config = SyscallsParamsConfig::default_regular();
@@ -252,7 +305,7 @@ fn test_msg_value_ptr() {
     );
 }
 
-// Syscalls which have destination with value param.
+// Syscalls which have destination with value param, i.e. `HashWithValue`.
 // Params for these syscalls aren't processed the usual way: destination argument is
 // set from existing config or set by calling `gr_source`. Should be mentioned that
 // destination is not only 32 bytes hash value, but a struct of hash and message value.
@@ -263,52 +316,54 @@ fn test_msg_value_ptr_dest() {
     const INITIAL_BALANCE: u128 = 10_000;
     const REPLY_VALUE: u128 = 1_000;
 
-    let mut params_config = SyscallsParamsConfig::default_regular();
-    params_config.set_rule(RegularParamType::Gas, (0..=0).into());
-    params_config.set_ptr_rule(PtrParamAllowedValues::HashWithValue {
-        ty: HashType::ActorId,
-        range: REPLY_VALUE..=REPLY_VALUE,
-    });
-
     let tested_syscalls = [
-        // InvocableSyscall::Loose(SyscallName::Send),
-        // InvocableSyscall::Loose(SyscallName::SendInput),
-        // InvocableSyscall::Precise(SyscallName::ReservationSend),
+        InvocableSyscall::Loose(SyscallName::Send),
+        InvocableSyscall::Loose(SyscallName::SendInput),
+        InvocableSyscall::Precise(SyscallName::ReservationSend),
         InvocableSyscall::Precise(SyscallName::SendCommit),
-        // InvocableSyscall::Precise(SyscallName::ReplyDeposit),
+        InvocableSyscall::Precise(SyscallName::ReplyDeposit),
     ];
 
-    for syscall in tested_syscalls {
-        let mut buf = vec![2; UNSTRUCTURED_SIZE];
-        let mut unstructured = Unstructured::new(&buf);
+    let some_address = [5; 32];
+    let destination_variants = [SyscallDestination::Random, SyscallDestination::Source, SyscallDestination::ExistingAddresses(NonEmpty::new(some_address))];
+    for dest_var in destination_variants {
+        let mut params_config = SyscallsParamsConfig::default_regular();
+        params_config.set_rule(RegularParamType::Gas, (0..=0).into());
+        params_config.set_ptr_rule(PtrParamAllowedValues::ActorIdWithValue { actor: dest_var, range: REPLY_VALUE..=REPLY_VALUE });
 
-        let mut injection_types = SyscallsInjectionTypes::all_never();
-        injection_types.set(syscall, 1, 1);
-        let syscalls_config = SyscallsConfigBuilder::new(injection_types)
-            .with_params_config(params_config.clone())
-            .with_error_processing_config(ErrorProcessingConfig::All)
-            .build();
-
-        let backend_report = execute_wasm_with_custom_configs(
-            &mut unstructured,
-            syscalls_config,
-            None,
-            1024,
-            false,
-            INITIAL_BALANCE,
-        );
-
-        assert_eq!(
-            backend_report.ext.context.value_counter.left(),
-            INITIAL_BALANCE - REPLY_VALUE
-        );
-        assert_eq!(
-            backend_report.termination_reason,
-            TerminationReason::Actor(ActorTerminationReason::Success)
-        );
+        for syscall in tested_syscalls {
+            let mut rng = SmallRng::seed_from_u64(123);
+            let mut buf = vec![0; UNSTRUCTURED_SIZE];
+            rng.fill_bytes(&mut buf);
+            let mut unstructured = Unstructured::new(&buf);
+    
+            let mut injection_types = SyscallsInjectionTypes::all_never();
+            injection_types.set(syscall, 1, 1);
+            let syscalls_config = SyscallsConfigBuilder::new(injection_types)
+                .with_params_config(params_config.clone())
+                .with_error_processing_config(ErrorProcessingConfig::All)
+                .build();
+    
+            let backend_report = execute_wasm_with_custom_configs(
+                &mut unstructured,
+                syscalls_config,
+                None,
+                1024,
+                false,
+                INITIAL_BALANCE,
+            );
+    
+            assert_eq!(
+                backend_report.ext.context.value_counter.left(),
+                INITIAL_BALANCE - REPLY_VALUE
+            );
+            assert_eq!(
+                backend_report.termination_reason,
+                TerminationReason::Actor(ActorTerminationReason::Success)
+            );
+        }
     }
 }
-
 
 #[test]
 fn error_processing_works_for_fallible_syscalls() {
@@ -414,7 +469,6 @@ fn precise_syscalls_works() {
             SyscallsConfigBuilder::new(injection_types)
                 .with_params_config(param_config)
                 .with_precise_syscalls_config(PreciseSyscallsConfig::new(3..=3, 3..=3))
-                .with_source_msg_dest()
                 .with_error_processing_config(ErrorProcessingConfig::All)
                 .build(),
             None,
@@ -500,8 +554,16 @@ fn execute_wasm_with_custom_configs(
     let code_id = CodeId::generate(code.original_code());
     let program_id = ProgramId::generate_from_user(code_id, b"");
 
+    let incoming_message = IncomingMessage::new(
+        Default::default(),
+        message_sender(),
+        Default::default(),
+        Default::default(),
+        Default::default(),
+        Default::default()
+    );
     let mut message_context = MessageContext::new(
-        IncomingDispatch::new(DispatchKind::Init, IncomingMessage::default(), None),
+        IncomingDispatch::new(DispatchKind::Init, incoming_message, None),
         program_id,
         ContextSettings::new(0, 0, 0, 0, 0, outgoing_limit),
     );
@@ -553,36 +615,7 @@ fn execute_wasm_with_custom_configs(
     report
 }
 
-proptest! {
-    #![proptest_config(ProptestConfig::with_cases(100))]
-    #[test]
-    // Test that valid config always generates a valid gear wasm.
-    fn test_standard_config(buf in prop::collection::vec(any::<u8>(), UNSTRUCTURED_SIZE)) {
-        use gear_wasm_instrument::rules::CustomConstantCostRules;
-        let mut u = Unstructured::new(&buf);
-        let configs_bundle: StandardGearWasmConfigsBundle = StandardGearWasmConfigsBundle {
-            log_info: Some("Some data".into()),
-            entry_points_set: EntryPointsSet::InitHandleHandleReply,
-            ..Default::default()
-        };
-
-        let original_code = generate_gear_program_code(&mut u, configs_bundle)
-            .expect("failed generating wasm");
-
-        let code_res = Code::try_new(original_code, 1, |_| CustomConstantCostRules::default(), None);
-        assert!(code_res.is_ok());
-    }
-
-    #[test]
-    fn test_reproduction(buf in prop::collection::vec(any::<u8>(), UNSTRUCTURED_SIZE)) {
-        let mut u = Unstructured::new(&buf);
-        let mut u2 = Unstructured::new(&buf);
-
-        let gear_config = StandardGearWasmConfigsBundle::<[u8; 32]>::default();
-
-        let first = generate_gear_program_code(&mut u, gear_config.clone()).expect("failed wasm generation");
-        let second = generate_gear_program_code(&mut u2, gear_config).expect("failed wasm generation");
-
-        assert_eq!(first, second);
-    }
+fn message_sender() -> ProgramId {
+    let bytes = [1, 2, 3, 4].repeat(8);
+    ProgramId::from(bytes.as_ref())
 }

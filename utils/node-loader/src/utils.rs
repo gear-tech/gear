@@ -229,7 +229,7 @@ pub fn get_wasm_gen_config(
         .into_iter(),
     );
 
-    let mut params_config = SyscallsParamsConfig::default();
+    let mut params_config = SyscallsParamsConfig::default_regular();
     params_config.set_rule(RegularParamType::Alloc, (1..=10).into());
     params_config.set_rule(
         RegularParamType::Free,

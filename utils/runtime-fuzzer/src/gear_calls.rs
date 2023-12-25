@@ -424,7 +424,7 @@ fn config(
         .into_iter(),
     );
 
-    let mut params_config = SyscallsParamsConfig::default();
+    let mut params_config = SyscallsParamsConfig::default_regular();
     params_config.set_rule(RegularParamType::Alloc, (10..=20).into());
     params_config.set_rule(
         RegularParamType::Free,

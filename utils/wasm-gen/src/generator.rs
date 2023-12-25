@@ -139,7 +139,6 @@ impl<'a, 'b> GearWasmGenerator<'a, 'b> {
             .into_wasm_module()
             .into_inner();
 
-        // TODO: Uncomment after tests
         // let module = if let Some(critical_gas_limit) = config.critical_gas_limit {
         //     log::trace!("Injecting critical gas limit");
         //     utils::inject_critical_gas_limit(module, critical_gas_limit)

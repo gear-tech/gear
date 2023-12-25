@@ -216,6 +216,7 @@ impl InvocableSyscall {
     }
 
     /// Returns the index of the destination param if a syscall has it.
+    #[allow(unused)]
     fn destination_param_idx(&self) -> Option<usize> {
         use InvocableSyscall::*;
         use SyscallName::*;
@@ -230,6 +231,7 @@ impl InvocableSyscall {
 
     /// Returns `true` for every syscall which has a destination param idx and that is not `gr_exit` syscall,
     /// as it only has destination param.
+    #[allow(unused)]
     fn has_destination_param_with_value(&self) -> bool {
         self.destination_param_idx().is_some()
             && !matches!(self, InvocableSyscall::Loose(SyscallName::Exit))
