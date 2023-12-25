@@ -22,16 +22,54 @@ use crate::builder::build_wasm;
 use cargo_metadata::MetadataCommand;
 use fs4::FileExt;
 use globset::GlobSet;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::{
+    cmp::Ordering,
     collections::{BTreeMap, BTreeSet},
-    env, fs,
-    io::{Read, Seek, SeekFrom, Write},
+    env, fmt, fs,
+    io::{Read, Seek, SeekFrom},
+    ops::Not,
     path::PathBuf,
 };
 
-const DEMO_OCCURRED: &str = "demo's script has been executed";
-const BUILDER_OCCURRED: &str = "builder has built this demo";
+const DEFAULT_EXCLUDED_FEATURES: [&str; 3] = ["default", "std", "wasm-wrapper"];
+
+#[derive(derive_more::Display, Clone, Serialize, Deserialize)]
+#[display(fmt = "{_0}")]
+#[serde(transparent)]
+struct UnderscoreString(String);
+
+impl UnderscoreString {
+    fn underscore(&self) -> String {
+        self.0.replace('-', "_")
+    }
+}
+
+impl fmt::Debug for UnderscoreString {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Debug::fmt(&self.0, f)
+    }
+}
+
+impl PartialEq for UnderscoreString {
+    fn eq(&self, other: &Self) -> bool {
+        self.underscore() == other.underscore()
+    }
+}
+
+impl Eq for UnderscoreString {}
+
+impl PartialOrd for UnderscoreString {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        self.underscore().partial_cmp(&other.underscore())
+    }
+}
+
+impl Ord for UnderscoreString {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.underscore().cmp(&other.underscore())
+    }
+}
 
 #[derive(Default, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -74,6 +112,18 @@ impl BuilderMetadata {
     }
 }
 
+#[derive(Debug, Serialize, Deserialize, derive_more::Unwrap)]
+#[serde(rename_all = "kebab-case")]
+enum LockConfig {
+    Demo(DemoLockConfig),
+    Builder,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct DemoLockConfig {
+    features: BTreeSet<UnderscoreString>,
+}
+
 fn out_dir() -> PathBuf {
     env::var("OUT_DIR").unwrap().into()
 }
@@ -110,7 +160,8 @@ fn wasm32_target_dir() -> PathBuf {
     wasm_projects_dir().join("wasm32-unknown-unknown")
 }
 
-fn lock_file(pkg_name: String) -> PathBuf {
+fn lock_file(pkg_name: impl AsRef<str>) -> PathBuf {
+    let pkg_name = pkg_name.as_ref().replace('-', "_");
     wasm32_target_dir()
         .join(profile())
         .join(format!("{}.lock", pkg_name))
@@ -174,7 +225,6 @@ pub fn builder() {
             continue;
         }
 
-        let dep_name = dep.name.replace('-', "_");
         let pkg_metadata = serde_json::from_value::<Option<PackageMetadata>>(pkg.metadata.clone())
             .unwrap()
             .unwrap_or_default()
@@ -182,15 +232,10 @@ pub fn builder() {
             .map(|config| config.unwrap_demo())
             .unwrap_or_default();
 
-        let features: BTreeSet<String> = dep.features.iter().cloned().collect();
-        let excluded_features = pkg_metadata.exclude_features;
-        let features: BTreeSet<String> = features.difference(&excluded_features).cloned().collect();
-
-        let lock = lock_file(dep_name);
+        let lock = lock_file(&dep.name);
         println!("cargo:rerun-if-changed={}", lock.display());
         println!("cargo:warning=tracking {}", lock.display());
 
-        let lock_exists = lock.exists();
         let mut lock = fs::File::options()
             .create(true)
             .write(true)
@@ -199,26 +244,50 @@ pub fn builder() {
             .unwrap();
         lock.lock_exclusive().unwrap();
 
-        let mut content = String::new();
-        lock.read_to_string(&mut content).unwrap();
+        let mut config = String::new();
+        lock.read_to_string(&mut config).unwrap();
+        let config: Option<LockConfig> = config
+            .is_empty()
+            .not()
+            .then(|| serde_json::from_str(&config).unwrap());
 
-        println!(
-            r#"cargo:warning=!lock_exists || content == "{DEMO_OCCURRED}" <=> {} || {}"#,
-            !lock_exists,
-            content == DEMO_OCCURRED
-        );
-        let features = if !lock_exists || content == DEMO_OCCURRED {
+        let features = if let Some(LockConfig::Demo(config)) = config {
+            let excluded_features = pkg_metadata
+                .exclude_features
+                .into_iter()
+                .map(UnderscoreString)
+                .chain(
+                    DEFAULT_EXCLUDED_FEATURES
+                        .map(str::to_string)
+                        .map(UnderscoreString),
+                )
+                .collect();
+            let underscore_features: BTreeSet<UnderscoreString> = config
+                .features
+                .difference(&excluded_features)
+                .cloned()
+                .collect();
+
+            let orig_features: BTreeSet<UnderscoreString> =
+                pkg.features.keys().cloned().map(UnderscoreString).collect();
+
+            let features = orig_features
+                .intersection(&underscore_features)
+                .cloned()
+                .map(|s| s.0)
+                .collect();
+
             println!("cargo:warning=rebuilding...");
-
-            lock.set_len(0).unwrap();
-            lock.seek(SeekFrom::Start(0)).unwrap();
-            write!(lock, "{BUILDER_OCCURRED}").unwrap();
 
             Some(features)
         } else {
             None
         };
         packages.insert(pkg.name.clone(), features);
+
+        lock.set_len(0).unwrap();
+        lock.seek(SeekFrom::Start(0)).unwrap();
+        serde_json::to_writer(lock, &LockConfig::Builder).unwrap();
     }
 
     println!("cargo:warning={:?}", packages);
@@ -233,14 +302,19 @@ pub fn demo() {
     }
 
     let pkg_name = env::var("CARGO_PKG_NAME").unwrap();
-    let pkg_name = pkg_name.replace('-', "_");
     let wasm32_target_dir = wasm32_target_dir().join(profile());
 
     fs::create_dir_all(wasm32_target_dir).unwrap();
 
+    let features = env::vars()
+        .filter_map(|(key, _val)| key.strip_prefix("CARGO_FEATURE_").map(str::to_lowercase))
+        .map(UnderscoreString)
+        .collect();
+    let config = LockConfig::Demo(DemoLockConfig { features });
+
     let lock = lock_file(pkg_name);
     println!("cargo:warning=[DEMO] {}", lock.display());
-    let mut lock = fs::File::options()
+    let lock = fs::File::options()
         .create(true)
         .write(true)
         .truncate(true)
@@ -248,5 +322,5 @@ pub fn demo() {
         .unwrap();
     lock.lock_exclusive().unwrap();
 
-    write!(lock, "{DEMO_OCCURRED}").unwrap();
+    serde_json::to_writer(lock, &config).unwrap();
 }
