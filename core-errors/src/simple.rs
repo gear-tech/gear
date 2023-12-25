@@ -254,6 +254,10 @@ pub enum SimpleExecutionError {
     #[display(fmt = "Program called WASM `unreachable` instruction")]
     UnreachableInstruction = 4,
 
+    /// Program has reached stack limit while executing.
+    #[display(fmt = "Program reached stack limit")]
+    StackLimitExceeded = 5,
+
     /// Unsupported reason of execution error.
     /// Variant exists for backward compatibility.
     #[default]
@@ -273,6 +277,7 @@ impl SimpleExecutionError {
             b if Self::BackendError as u8 == b => Self::BackendError,
             b if Self::UserspacePanic as u8 == b => Self::UserspacePanic,
             b if Self::UnreachableInstruction as u8 == b => Self::UnreachableInstruction,
+            b if Self::StackLimitExceeded as u8 == b => Self::StackLimitExceeded,
             _ => Self::Unsupported,
         }
     }
@@ -354,6 +359,7 @@ impl SignalCode {
             Self::Execution(SimpleExecutionError::BackendError) => 102,
             Self::Execution(SimpleExecutionError::MemoryOverflow) => 103,
             Self::Execution(SimpleExecutionError::UnreachableInstruction) => 104,
+            Self::Execution(SimpleExecutionError::StackLimitExceeded) => 105,
             Self::RemovedFromWaitlist => 200,
             // Must be unreachable.
             Self::Execution(SimpleExecutionError::Unsupported) => u32::MAX,
@@ -377,6 +383,9 @@ impl SignalCode {
             }
             v if Self::Execution(SimpleExecutionError::UnreachableInstruction).to_u32() == v => {
                 Self::Execution(SimpleExecutionError::UnreachableInstruction)
+            }
+            v if Self::Execution(SimpleExecutionError::StackLimitExceeded).to_u32() == v => {
+                Self::Execution(SimpleExecutionError::StackLimitExceeded)
             }
             v if Self::RemovedFromWaitlist.to_u32() == v => Self::RemovedFromWaitlist,
             _ => return None,

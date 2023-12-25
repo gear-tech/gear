@@ -1001,6 +1001,8 @@ pub mod runtime_types {
                     UserspacePanic,
                     #[codec(index = 4)]
                     UnreachableInstruction,
+                    #[codec(index = 5)]
+                    StackLimitExceeded,
                     #[codec(index = 255)]
                     Unsupported,
                 }
