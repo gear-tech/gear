@@ -80,10 +80,7 @@ impl<'a, 'b> AdditionalDataInjector<'a, 'b> {
     /// Injects additional data from config to the wasm module.
     ///
     /// Returns disabled additional data injector and injection outcome.
-    pub fn inject(
-        mut self,
-    ) -> DisabledAdditionalDataInjector<'a, 'b>
-    {
+    pub fn inject(mut self) -> DisabledAdditionalDataInjector<'a, 'b> {
         log::trace!("Injecting additional data");
 
         self.inject_log_info_printing();

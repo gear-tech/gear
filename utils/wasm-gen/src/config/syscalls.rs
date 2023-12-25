@@ -65,7 +65,6 @@ impl SyscallsConfigBuilder {
         }
         self.0.params_config = params_config;
 
-
         self
     }
 

@@ -84,7 +84,6 @@ proptest! {
     }
 }
 
-
 #[test]
 fn inject_critical_gas_limit_works() {
     let wat1 = r#"
@@ -195,14 +194,8 @@ fn test_source_as_address_param() {
         .with_error_processing_config(ErrorProcessingConfig::All)
         .build();
 
-    let backend_report = execute_wasm_with_custom_configs(
-        &mut unstructured,
-        syscalls_config,
-        None,
-        1024,
-        false,
-        0,
-    );
+    let backend_report =
+        execute_wasm_with_custom_configs(&mut unstructured, syscalls_config, None, 1024, false, 0);
 
     assert_eq!(
         backend_report.termination_reason,
@@ -223,7 +216,7 @@ fn test_existing_address_as_address_param() {
     let mut params_config = SyscallsParamsConfig::default_regular();
     params_config.set_ptr_rule(PtrParamAllowedValues::ActorIdWithValue {
         actor: SyscallDestination::ExistingAddresses(NonEmpty::new(some_address)),
-        range: 0..=0
+        range: 0..=0,
     });
 
     let mut injection_types = SyscallsInjectionTypes::all_never();
@@ -233,14 +226,8 @@ fn test_existing_address_as_address_param() {
         .with_error_processing_config(ErrorProcessingConfig::All)
         .build();
 
-    let backend_report = execute_wasm_with_custom_configs(
-        &mut unstructured,
-        syscalls_config,
-        None,
-        1024,
-        false,
-        0,
-    );
+    let backend_report =
+        execute_wasm_with_custom_configs(&mut unstructured, syscalls_config, None, 1024, false, 0);
 
     assert_eq!(
         backend_report.termination_reason,
@@ -248,11 +235,7 @@ fn test_existing_address_as_address_param() {
     );
 
     let dispatch = {
-        let (context_outcome, _) = backend_report
-        .ext
-        .context
-        .message_context
-        .drain();
+        let (context_outcome, _) = backend_report.ext.context.message_context.drain();
 
         let mut dispatches = context_outcome.drain().outgoing_dispatches;
         assert_eq!(dispatches.len(), 1);
@@ -260,7 +243,10 @@ fn test_existing_address_as_address_param() {
         dispatches.pop().expect("checked").0
     };
 
-    assert_eq!(dispatch.destination(), ProgramId::from(some_address.as_ref()));
+    assert_eq!(
+        dispatch.destination(),
+        ProgramId::from(some_address.as_ref())
+    );
 }
 
 // Syscalls of a `gr_*reply*` kind are the only of those, which has `Value` input param.
@@ -325,25 +311,32 @@ fn test_msg_value_ptr_dest() {
     ];
 
     let some_address = [5; 32];
-    let destination_variants = [SyscallDestination::Random, SyscallDestination::Source, SyscallDestination::ExistingAddresses(NonEmpty::new(some_address))];
+    let destination_variants = [
+        SyscallDestination::Random,
+        SyscallDestination::Source,
+        SyscallDestination::ExistingAddresses(NonEmpty::new(some_address)),
+    ];
     for dest_var in destination_variants {
         let mut params_config = SyscallsParamsConfig::default_regular();
         params_config.set_rule(RegularParamType::Gas, (0..=0).into());
-        params_config.set_ptr_rule(PtrParamAllowedValues::ActorIdWithValue { actor: dest_var, range: REPLY_VALUE..=REPLY_VALUE });
+        params_config.set_ptr_rule(PtrParamAllowedValues::ActorIdWithValue {
+            actor: dest_var,
+            range: REPLY_VALUE..=REPLY_VALUE,
+        });
 
         for syscall in tested_syscalls {
             let mut rng = SmallRng::seed_from_u64(123);
             let mut buf = vec![0; UNSTRUCTURED_SIZE];
             rng.fill_bytes(&mut buf);
             let mut unstructured = Unstructured::new(&buf);
-    
+
             let mut injection_types = SyscallsInjectionTypes::all_never();
             injection_types.set(syscall, 1, 1);
             let syscalls_config = SyscallsConfigBuilder::new(injection_types)
                 .with_params_config(params_config.clone())
                 .with_error_processing_config(ErrorProcessingConfig::All)
                 .build();
-    
+
             let backend_report = execute_wasm_with_custom_configs(
                 &mut unstructured,
                 syscalls_config,
@@ -352,7 +345,7 @@ fn test_msg_value_ptr_dest() {
                 false,
                 INITIAL_BALANCE,
             );
-    
+
             assert_eq!(
                 backend_report.ext.context.value_counter.left(),
                 INITIAL_BALANCE - REPLY_VALUE
@@ -560,7 +553,7 @@ fn execute_wasm_with_custom_configs(
         Default::default(),
         Default::default(),
         Default::default(),
-        Default::default()
+        Default::default(),
     );
     let mut message_context = MessageContext::new(
         IncomingDispatch::new(DispatchKind::Init, incoming_message, None),

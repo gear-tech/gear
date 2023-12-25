@@ -20,12 +20,12 @@
 
 use crate::{
     generator::{
-        CallIndexes, CallIndexesHandle,
-        DisabledAdditionalDataInjector, FunctionIndex, ModuleWithCallIndexes,
+        CallIndexes, CallIndexesHandle, DisabledAdditionalDataInjector, FunctionIndex,
+        ModuleWithCallIndexes,
     },
     wasm::{PageCount as WasmPageCount, WasmModule},
-    InvocableSyscall, PtrParamAllowedValues, RegularParamAllowedValues, SyscallsConfig,
-    SyscallsParamsConfig, SyscallDestination,
+    InvocableSyscall, PtrParamAllowedValues, RegularParamAllowedValues, SyscallDestination,
+    SyscallsConfig, SyscallsParamsConfig,
 };
 use arbitrary::{Result, Unstructured};
 use gear_wasm_instrument::{
@@ -139,8 +139,7 @@ pub struct SyscallsInvocator<'a, 'b> {
     syscalls_imports: BTreeMap<InvocableSyscall, (Option<NonZeroU32>, CallIndexesHandle)>,
 }
 
-impl<'a, 'b> From<DisabledAdditionalDataInjector<'a, 'b>> for SyscallsInvocator<'a, 'b>
-{
+impl<'a, 'b> From<DisabledAdditionalDataInjector<'a, 'b>> for SyscallsInvocator<'a, 'b> {
     fn from(disabled_gen: DisabledAdditionalDataInjector<'a, 'b>) -> Self {
         Self {
             unstructured: disabled_gen.unstructured,
@@ -292,104 +291,12 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
             self.unstructured.len()
         );
 
-        self.build_call(invocable, call_indexes_handle)
-
-        // todo after building?
-    }
-
-    // fn build_call_with_destination(
-    //     &mut self,
-    //     invocable: InvocableSyscall,
-    //     call_indexes_handle: CallIndexesHandle,
-    //     destination_arg_idx: usize,
-    // ) -> Result<Vec<Instruction>> {
-        // // The value for the destination param is chosen from config.
-        // // It's either the result of `gr_source`, some existing address (set in the data section) or a completely random value.
-        // let mut original_instructions = self.build_call(invocable, call_indexes_handle)?;
-
-        // let destination_instructions = if self.config.syscall_destination().is_source() {
-        //     log::trace!("  ---  Syscall destination is result of `gr_source`");
-
-        //     let gr_source_call_indexes_handle = self
-        //         .syscalls_imports
-        //         .get(&InvocableSyscall::Loose(SyscallName::Source))
-        //         .map(|&(_, call_indexes_handle)| call_indexes_handle as u32)
-        //         .expect("by config if destination is source, then `gr_source` is generated");
-
-        //     let mem_size = self
-        //         .module
-        //         .initial_mem_size()
-        //         .map(Into::<WasmPageCount>::into)
-        //         // To instantiate this generator, we must instantiate SyscallImportsGenerator, which can be
-        //         // instantiated only with memory import generation proof.
-        //         .expect("generator is instantiated with a memory import generation proof")
-        //         .memory_size();
-        //     // Subtract a bit more so entities from `gsys` fit.
-        //     let upper_limit = mem_size.saturating_sub(100);
-        //     let offset = self.unstructured.int_in_range(0..=upper_limit)? as i32;
-
-        //     // 3 instructions for invoking `gsys::gr_source` and possibly 3 more
-        //     // for defining value param so HashWithValue will be constructed.
-        //     let mut ret = Vec::with_capacity(6);
-        //     ret.extend_from_slice(&[
-        //         // call `gsys::gr_source` storing actor id and some `offset` pointer.
-        //         Instruction::I32Const(offset as i32),
-        //         Instruction::Call(gr_source_call_indexes_handle),
-        //         Instruction::I32Const(offset as i32),
-        //     ]);
-
-        //     if invocable.has_destination_param_with_value() {
-        //         // We have to skip actor id bytes to define the following value param.
-        //         let skip_bytes = mem::size_of::<Hash>();
-        //         ret.extend_from_slice(&[
-        //             // Define 0 value for HashWithValue
-        //             Instruction::I32Const(0),
-        //             // Store value on the offset + skip_bytes. That will form HashWithValue.
-        //             Instruction::I32Store(2, skip_bytes as u32),
-        //             // Pass the offset as the first argument to the syscall with destination.
-        //             Instruction::I32Const(offset as i32),
-        //         ]);
-        //     }
-
-        //     ret
-        // } else {
-        //     let address_offset = match self.offsets.as_mut() {
-        //         Some(offsets) => {
-        //             assert!(self.config.syscall_destination().is_existing_addresses());
-        //             log::trace!("  ----  Syscall destination is an existing program address");
-
-        //             offsets.next_offset()
-        //         }
-        //         None => {
-        //             assert!(self.config.syscall_destination().is_random());
-        //             log::trace!("  ----  Syscall destination is a random address");
-
-        //             self.unstructured.arbitrary()?
-        //         }
-        //     };
-
-        //     vec![Instruction::I32Const(address_offset as i32)]
-        // };
-
-        // original_instructions.splice(
-        //     destination_arg_idx..destination_arg_idx + 1,
-        //     destination_instructions,
-        // );
-
-        // Ok(original_instructions)
-    // }
-
-    fn build_call(
-        &mut self,
-        invocable: InvocableSyscall,
-        call_indexes_handle: CallIndexesHandle,
-    ) -> Result<Vec<Instruction>> {
         let signature = invocable.into_signature();
-        let param_instructions = self.build_param_instructions(signature.params())?;
+        let param_instructions = self.build_params_instructions(signature.params())?;
         let mut instructions = param_instructions
             .iter()
             .cloned()
-            .flat_map(|pt| pt.0)
+            .flat_map(ParamInstructions::into_inner)
             .collect::<Vec<_>>();
 
         instructions.push(Instruction::Call(call_indexes_handle as u32));
@@ -420,9 +327,12 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
         Ok(instructions)
     }
 
-    fn build_param_instructions(&mut self, params: &[ParamType]) -> Result<Vec<ParamInstructions>> {
+    fn build_params_instructions(
+        &mut self,
+        params: &[ParamType],
+    ) -> Result<Vec<ParamInstructions>> {
         log::trace!(
-            "  -- Random data before building param setters - {}",
+            "  -- Random data before building param instructions - {}",
             self.unstructured.len()
         );
 
@@ -434,7 +344,7 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
             .expect("generator is instantiated with a memory import generation proof");
         let mem_size = Into::<WasmPageCount>::into(mem_size_pages).memory_size();
 
-        let mut instrcs = Vec::with_capacity(params.len());
+        let mut ret = Vec::with_capacity(params.len());
         let mut memory_array_definition: Option<(i32, Option<i32>)> = None;
         for processed_param in process_syscall_params(params, self.config.params_config()) {
             match processed_param {
@@ -448,7 +358,7 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
 
                     log::trace!("  ----  Allocate memory - {pages_to_alloc}");
 
-                    instrcs.push(ParamInstructions(vec![Instruction::I32Const(pages_to_alloc)]));
+                    ret.push(pages_to_alloc.into());
                 }
                 ProcessedSyscallParams::Value {
                     value_type,
@@ -461,21 +371,21 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                             panic!("gear wasm must not have any floating nums")
                         }
                     };
-                    let setter = if let Some(allowed_values) = allowed_values {
+                    let param_instrs = if let Some(allowed_values) = allowed_values {
                         if is_i32 {
-                            ParamInstructions(vec![Instruction::I32Const(allowed_values.get_i32(self.unstructured)?)])
+                            allowed_values.get_i32(self.unstructured)?.into()
                         } else {
-                            ParamInstructions(vec![Instruction::I64Const(allowed_values.get_i64(self.unstructured)?)])
+                            allowed_values.get_i64(self.unstructured)?.into()
                         }
                     } else if is_i32 {
-                        ParamInstructions(vec![Instruction::I32Const(self.unstructured.arbitrary()?)])
+                        self.unstructured.arbitrary::<i32>()?.into()
                     } else {
-                        ParamInstructions(vec![Instruction::I64Const(self.unstructured.arbitrary()?)])
+                        self.unstructured.arbitrary::<i64>()?.into()
                     };
 
-                    log::trace!("  ----  Value - {setter:?}");
+                    log::trace!("  ----  Value param instrs - {param_instrs}");
 
-                    instrcs.push(setter);
+                    ret.push(param_instrs);
                 }
                 ProcessedSyscallParams::MemoryArrayLength => {
                     let length;
@@ -493,7 +403,8 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                     };
 
                     log::trace!("  ----  Memory array length - {length}");
-                    instrcs.push(ParamInstructions(vec![Instruction::I32Const(length)]));
+
+                    ret.push(length.into());
                 }
                 ProcessedSyscallParams::MemoryArrayPtr => {
                     let offset;
@@ -508,7 +419,8 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                         };
 
                     log::trace!("  ----  Memory array offset - {offset}");
-                    instrcs.push(ParamInstructions(vec![Instruction::I32Const(offset)]));
+
+                    ret.push(offset.into());
                 }
                 ProcessedSyscallParams::MemoryPtrValue { allowed_values } => {
                     // Subtract a bit more so entities from `gsys` fit.
@@ -526,12 +438,15 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                                         vec![
                                             Instruction::I32Const(offset),
                                             Instruction::I32Const(word),
-                                            Instruction::I32Store(2, (word_idx * mem::size_of::<i32>()) as u32),
+                                            Instruction::I32Store(
+                                                2,
+                                                (word_idx * mem::size_of::<i32>()) as u32,
+                                            ),
                                         ]
                                     })
                                     .chain(iter::once(Instruction::I32Const(offset)))
                                     .collect()
-                            },
+                            }
                             PtrParamAllowedValues::ActorId(actor) => {
                                 match actor {
                                     SyscallDestination::Source => {
@@ -541,16 +456,17 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                                             .map(|&(_, call_indexes_handle)| call_indexes_handle as u32)
                                             .expect("by config if destination is source, then `gr_source` is generated");
 
-
                                         vec![
                                             // call `gsys::gr_source` storing actor id and some `offset` pointer.
                                             Instruction::I32Const(offset as i32),
                                             Instruction::Call(gr_source_call_indexes_handle),
                                             Instruction::I32Const(offset as i32),
                                         ]
-                                    },
+                                    }
                                     SyscallDestination::ExistingAddresses(addresses) => {
-                                        let idx = self.unstructured.int_in_range(0..=(addresses.len() - 1))?;
+                                        let idx = self
+                                            .unstructured
+                                            .int_in_range(0..=(addresses.len() - 1))?;
                                         PtrParamAllowedValues::get_for_instructions(addresses[idx])
                                             .into_iter()
                                             .enumerate()
@@ -558,14 +474,18 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                                                 vec![
                                                     Instruction::I32Const(offset),
                                                     Instruction::I32Const(word),
-                                                    Instruction::I32Store(2, (word_idx * mem::size_of::<i32>()) as u32),
+                                                    Instruction::I32Store(
+                                                        2,
+                                                        (word_idx * mem::size_of::<i32>()) as u32,
+                                                    ),
                                                 ]
                                             })
                                             .chain(iter::once(Instruction::I32Const(offset)))
                                             .collect()
-                                    },
+                                    }
                                     SyscallDestination::Random => {
-                                        let random_address: [u8; 32] = self.unstructured.arbitrary()?;
+                                        let random_address: [u8; 32] =
+                                            self.unstructured.arbitrary()?;
                                         PtrParamAllowedValues::get_for_instructions(random_address)
                                             .into_iter()
                                             .enumerate()
@@ -573,14 +493,17 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                                                 vec![
                                                     Instruction::I32Const(offset),
                                                     Instruction::I32Const(word),
-                                                    Instruction::I32Store(2, (word_idx * mem::size_of::<i32>()) as u32),
+                                                    Instruction::I32Store(
+                                                        2,
+                                                        (word_idx * mem::size_of::<i32>()) as u32,
+                                                    ),
                                                 ]
                                             })
                                             .chain(iter::once(Instruction::I32Const(offset)))
                                             .collect()
                                     }
                                 }
-                            },
+                            }
                             PtrParamAllowedValues::ActorIdWithValue { actor, range } => {
                                 match actor {
                                     SyscallDestination::Source => {
@@ -597,26 +520,42 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                                         ];
 
                                         let value = self.unstructured.int_in_range(range)?;
-                                        PtrParamAllowedValues::get_for_instructions(value.to_le_bytes())
-                                            .into_iter()
-                                            .enumerate()
-                                            .flat_map(|(word_idx, word)| {
-                                                vec![
-                                                    Instruction::I32Const(offset + mem::size_of::<Hash>() as i32),
-                                                    Instruction::I32Const(word),
-                                                    Instruction::I32Store(2, (word_idx * mem::size_of::<i32>()) as u32),
-                                                ]
-                                            })
-                                            .chain(iter::once(Instruction::I32Const(offset)))
-                                            .collect()
-
-                                    },
+                                        PtrParamAllowedValues::get_for_instructions(
+                                            value.to_le_bytes(),
+                                        )
+                                        .into_iter()
+                                        .enumerate()
+                                        .flat_map(|(word_idx, word)| {
+                                            vec![
+                                                Instruction::I32Const(
+                                                    offset + mem::size_of::<Hash>() as i32,
+                                                ),
+                                                Instruction::I32Const(word),
+                                                Instruction::I32Store(
+                                                    2,
+                                                    (word_idx * mem::size_of::<i32>()) as u32,
+                                                ),
+                                            ]
+                                        })
+                                        .chain(iter::once(Instruction::I32Const(offset)))
+                                        .collect()
+                                    }
                                     SyscallDestination::ExistingAddresses(addresses) => {
-                                        let mut ret = Vec::with_capacity(PtrParamAllowedValues::HASH_WITH_VALUE_WORDS);
-                                        let idx = self.unstructured.int_in_range(0..=(addresses.len() - 1))?;
-                                        let address_words = PtrParamAllowedValues::get_for_instructions(addresses[idx]);
+                                        let mut ret = Vec::with_capacity(
+                                            PtrParamAllowedValues::HASH_WITH_VALUE_WORDS,
+                                        );
+                                        let idx = self
+                                            .unstructured
+                                            .int_in_range(0..=(addresses.len() - 1))?;
+                                        let address_words =
+                                            PtrParamAllowedValues::get_for_instructions(
+                                                addresses[idx],
+                                            );
                                         let value = self.unstructured.int_in_range(range)?;
-                                        let value_words = PtrParamAllowedValues::get_for_instructions(value.to_le_bytes());
+                                        let value_words =
+                                            PtrParamAllowedValues::get_for_instructions(
+                                                value.to_le_bytes(),
+                                            );
 
                                         ret.extend(address_words);
                                         ret.extend(value_words);
@@ -627,18 +566,30 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                                                 vec![
                                                     Instruction::I32Const(offset),
                                                     Instruction::I32Const(word),
-                                                    Instruction::I32Store(2, (word_idx * mem::size_of::<i32>()) as u32),
+                                                    Instruction::I32Store(
+                                                        2,
+                                                        (word_idx * mem::size_of::<i32>()) as u32,
+                                                    ),
                                                 ]
                                             })
                                             .chain(iter::once(Instruction::I32Const(offset)))
                                             .collect()
-                                    },
+                                    }
                                     SyscallDestination::Random => {
-                                        let mut ret = Vec::with_capacity(PtrParamAllowedValues::HASH_WITH_VALUE_WORDS);
-                                        let random_address: [u8; 32] = self.unstructured.arbitrary()?;
-                                        let random_address_words = PtrParamAllowedValues::get_for_instructions(random_address);
+                                        let mut ret = Vec::with_capacity(
+                                            PtrParamAllowedValues::HASH_WITH_VALUE_WORDS,
+                                        );
+                                        let random_address: [u8; 32] =
+                                            self.unstructured.arbitrary()?;
+                                        let random_address_words =
+                                            PtrParamAllowedValues::get_for_instructions(
+                                                random_address,
+                                            );
                                         let value = self.unstructured.int_in_range(range)?;
-                                        let value_words = PtrParamAllowedValues::get_for_instructions(value.to_le_bytes());
+                                        let value_words =
+                                            PtrParamAllowedValues::get_for_instructions(
+                                                value.to_le_bytes(),
+                                            );
 
                                         ret.extend(random_address_words);
                                         ret.extend(value_words);
@@ -649,27 +600,30 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                                                 vec![
                                                     Instruction::I32Const(offset),
                                                     Instruction::I32Const(word),
-                                                    Instruction::I32Store(2, (word_idx * mem::size_of::<i32>()) as u32),
+                                                    Instruction::I32Store(
+                                                        2,
+                                                        (word_idx * mem::size_of::<i32>()) as u32,
+                                                    ),
                                                 ]
                                             })
                                             .chain(iter::once(Instruction::I32Const(offset)))
                                             .collect()
-                                    },
+                                    }
                                 }
-                            },
+                            }
                         };
                         ParamInstructions(instr)
                     } else {
-                        ParamInstructions(vec![Instruction::I32Const(offset)])
+                        offset.into()
                     };
 
-                    log::trace!("  ----  Memory pointer value - {param_instrs:?}");
+                    log::trace!("  ----  Memory pointer value instructions - {param_instrs}");
 
-                    instrcs.push(param_instrs);
+                    ret.push(param_instrs);
                 }
                 ProcessedSyscallParams::FreeUpperBound { allowed_values } => {
                     // This is the case only for `free_range` syscall.
-                    let previous_param = instrcs
+                    let previous_param = ret
                         .last()
                         .expect("free_range syscall has at least 2 params")
                         .as_i32()
@@ -680,9 +634,9 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                         .get_i32(self.unstructured)?;
                     let param = previous_param.saturating_add(delta);
 
-                    log::trace!("  ----  Free upper bound - {param}, and delta - {delta}");
+                    log::trace!("  ----  Free upper bound param - {param}, and delta - {delta}");
 
-                    instrcs.push(ParamInstructions(vec![Instruction::I32Const(param)]));
+                    ret.push(param.into());
                 }
             }
         }
@@ -692,9 +646,9 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
             self.unstructured.len()
         );
 
-        assert_eq!(instrcs.len(), params.len());
+        assert_eq!(ret.len(), params.len());
 
-        Ok(instrcs)
+        Ok(ret)
     }
 
     fn build_error_processing(
@@ -885,6 +839,10 @@ impl From<DisabledSyscallsInvocator> for ModuleWithCallIndexes {
 struct ParamInstructions(Vec<Instruction>);
 
 impl ParamInstructions {
+    fn into_inner(self) -> Vec<Instruction> {
+        self.0
+    }
+
     fn as_i32(&self) -> Option<i32> {
         if self.0.len() != 1 {
             return None;
@@ -898,7 +856,23 @@ impl ParamInstructions {
     }
 }
 
-// impl convert from i32 and i64 values.
+impl From<i32> for ParamInstructions {
+    fn from(value: i32) -> Self {
+        ParamInstructions(vec![Instruction::I32Const(value)])
+    }
+}
+
+impl From<i64> for ParamInstructions {
+    fn from(value: i64) -> Self {
+        ParamInstructions(vec![Instruction::I64Const(value)])
+    }
+}
+
+impl Display for ParamInstructions {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        <Self as Debug>::fmt(self, f)
+    }
+}
 
 #[derive(Clone)]
 enum ParamsTranslator {

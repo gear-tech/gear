@@ -20,7 +20,7 @@
 //!
 //! Types here are used to create [`crate::SyscallsConfig`].
 
-use crate::{DEFAULT_INITIAL_SIZE, SyscallDestination};
+use crate::{SyscallDestination, DEFAULT_INITIAL_SIZE};
 use arbitrary::{Result, Unstructured};
 use gsys::Hash;
 use std::{collections::HashMap, mem, ops::RangeInclusive};
@@ -83,7 +83,10 @@ impl SyscallsParamsConfig {
         let range = 0..=100_000_000_000;
         // Setting ptr params rules.
         this.set_ptr_rule(PtrParamAllowedValues::Value(range.clone()));
-        this.set_ptr_rule(PtrParamAllowedValues::ActorIdWithValue { actor: SyscallDestination::default(), range: range.clone() });
+        this.set_ptr_rule(PtrParamAllowedValues::ActorIdWithValue {
+            actor: SyscallDestination::default(),
+            range: range.clone(),
+        });
         this.set_ptr_rule(PtrParamAllowedValues::ActorId(SyscallDestination::default()));
 
         this
@@ -147,15 +150,16 @@ impl SyscallsParamsConfig {
         // TODO review prcessing and adding rules for ptrs
         let allowed_values = match ptr {
             Hash(_) | Value | HashWithValue(_) | TwoHashesWithValue(_, _) => allowed_values,
-            TwoHashes(_, _) => unimplemented!("Currently unsupported defining ptr param filler config for `TwoHashes`."),
+            TwoHashes(_, _) => unimplemented!(
+                "Currently unsupported defining ptr param filler config for `TwoHashes`."
+            ),
             BlockNumber
             | BlockTimestamp
             | SizedBufferStart { .. }
             | BufferStart
             | Gas
             | Length
-            | BlockNumberWithHash(_)
-            => panic!("Impossible to set rules for non ptr params."),
+            | BlockNumberWithHash(_) => panic!("Impossible to set rules for non ptr params."),
             MutBlockNumber
             | MutBlockTimestamp
             | MutSizedBufferStart { .. }
@@ -167,7 +171,9 @@ impl SyscallsParamsConfig {
             | MutBlockNumberWithHash(_)
             | MutHashWithValue(_)
             | MutTwoHashes(_, _)
-            | MutTwoHashesWithValue(_, _) => panic!("Mutable pointers values are set by executor, not by wasm itself."),
+            | MutTwoHashesWithValue(_, _) => {
+                panic!("Mutable pointers values are set by executor, not by wasm itself.")
+            }
         };
 
         self.ptr.insert(ptr, allowed_values);
@@ -254,8 +260,6 @@ pub enum PtrParamAllowedValues {
         range: RangeInclusive<u128>,
     },
     ActorId(SyscallDestination),
-
-
     // HashWithValue {
     //     ty: HashType,
     //     range: RangeInclusive<u128>,
@@ -331,7 +335,6 @@ impl From<PtrParamAllowedValues> for Ptr {
             PtrParamAllowedValues::Value(_) => Ptr::Value,
             PtrParamAllowedValues::ActorIdWithValue { .. } => Ptr::HashWithValue(HashType::ActorId),
             PtrParamAllowedValues::ActorId(_) => Ptr::Hash(HashType::ActorId),
-
             // PtrParamAllowedValues::HashWithValue { ty, .. } => Ptr::HashWithValue(ty),
             // PtrParamAllowedValues::TwoHashesWithValue { ty1, ty2, .. } => {
             //     Ptr::TwoHashesWithValue(ty1, ty2)
