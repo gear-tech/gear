@@ -17,7 +17,6 @@ enum-iterator.workspace = true
 [dev-dependencies]
 wasmparser.workspace = true
 wat.workspace = true
-gear-core.workspace = true
 
 [features]
 default = ["std"]

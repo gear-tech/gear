@@ -11,14 +11,11 @@ homepage.workspace = true
 repository.workspace = true
 
 [dependencies]
-gear-core-errors = { workspace = true, features = ["codec"] }
-gsys.workspace = true
 blake2-rfc.workspace = true
 parity-scale-codec = { workspace = true, features = ["derive", "max-encoded-len"] }
 scale-info = { workspace = true, features = ["derive"] }
 derive_more.workspace = true
 log.workspace = true
-gear-wasm-instrument.workspace = true
 wasmparser.workspace = true
 hex = { workspace = true, features = ["alloc"] }
 hashbrown.workspace = true
@@ -27,6 +24,11 @@ paste.workspace = true
 enum-iterator.workspace = true
 byteorder.workspace = true
 num-traits.workspace = true
+
+# local dependencies
+gear-core-errors = { workspace = true, features = ["codec"] }
+gear-wasm-instrument.workspace = true
+gsys.workspace = true
 
 # Optional dependencies
 serde = { workspace = true, features = ["derive"], optional = true }

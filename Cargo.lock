@@ -4191,7 +4191,7 @@ dependencies = [
  "mach",
  "nix 0.26.4",
  "region",
- "sp-wasm-interface",
+ "sp-wasm-interface-common",
  "winapi",
 ]
 
@@ -4386,7 +4386,7 @@ dependencies = [
  "parity-scale-codec",
  "sp-core",
  "sp-std 5.0.0",
- "sp-wasm-interface",
+ "sp-wasm-interface-common",
  "wasmi 0.30.0 (git+https://github.com/gear-tech/wasmi?branch=gear-v0.30.0)",
  "wat",
 ]
@@ -4586,7 +4586,6 @@ name = "gear-wasm-instrument"
 version = "1.0.4"
 dependencies = [
  "enum-iterator 1.4.1",
- "gear-core",
  "gwasm-instrument",
  "wasmparser-nostd 0.100.1",
  "wat",

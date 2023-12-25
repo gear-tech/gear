@@ -18,7 +18,7 @@ log.workspace = true
 wasmi = { git = "https://github.com/gear-tech/wasmi", branch = "gear-v0.30.0", default-features = false }
 sp-core.workspace = true
 sp-std.workspace = true
-sp-wasm-interface.workspace = true
+sp-wasm-interface-common.workspace = true
 gear-runtime-interface.workspace = true
 gear-sandbox-env.workspace = true
 
@@ -33,7 +33,7 @@ std = [
 	"log/std",
 	"sp-core/std",
 	"sp-std/std",
-	"sp-wasm-interface/std",
+	"sp-wasm-interface-common/std",
 	"gear-runtime-interface/std",
 	"gear-sandbox-env/std",
 	"wasmi/std",
