@@ -33,7 +33,7 @@ gear-core.workspace = true
 gear-core-errors.workspace = true
 gear-core-backend.workspace = true
 pallet-gear-proc-macro = { path = "proc-macro" }
-pallet-gear-binaries = { path = "binaries" }
+pallet-gear-binaries = { path = "binaries", optional = true }
 gsys = { workspace = true, optional = true }
 pallet-gear-voucher.workspace = true
 pallet-gear-bank.workspace = true
@@ -78,6 +78,7 @@ pallet-gear-scheduler = { workspace = true, features = ["std"] }
 pallet-gear-program = { workspace = true, features = ["std"] }
 pallet-gear-voucher = { workspace = true, features = ["std"] }
 gmeta.workspace = true
+pallet-gear-binaries = { path = "binaries" }
 
 [features]
 default = ['std']
@@ -130,6 +131,7 @@ runtime-benchmarks = [
 	"rand_pcg",
 	"test-syscalls/wasm-wrapper",
 	"gsys",
+	"pallet-gear-binaries",
 	"pallet-gear-binaries/wasm-wrapper"
 ]
 runtime-benchmarks-checkers = []
