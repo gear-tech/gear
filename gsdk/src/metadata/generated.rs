@@ -3300,34 +3300,81 @@ pub mod runtime_types {
         }
         pub mod pallet_gear_voucher {
             use super::runtime_types;
+            pub mod internal {
+                use super::runtime_types;
+                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                pub enum PrepaidCall<_0> {
+                    #[codec(index = 0)]
+                    SendMessage {
+                        destination: runtime_types::gear_core::ids::ProgramId,
+                        payload: ::std::vec::Vec<::core::primitive::u8>,
+                        gas_limit: ::core::primitive::u64,
+                        value: _0,
+                        keep_alive: ::core::primitive::bool,
+                    },
+                    #[codec(index = 1)]
+                    SendReply {
+                        reply_to_id: runtime_types::gear_core::ids::MessageId,
+                        payload: ::std::vec::Vec<::core::primitive::u8>,
+                        gas_limit: ::core::primitive::u64,
+                        value: _0,
+                        keep_alive: ::core::primitive::bool,
+                    },
+                }
+                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                pub struct VoucherId(pub [::core::primitive::u8; 32usize]);
+                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                pub struct VoucherInfo<_0, _1> {
+                    pub owner: _0,
+                    pub programs: ::core::option::Option<
+                        ::std::vec::Vec<runtime_types::gear_core::ids::ProgramId>,
+                    >,
+                    pub validity: _1,
+                }
+            }
             pub mod pallet {
                 use super::runtime_types;
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
                 pub enum Call {
                     #[codec(index = 0)]
-                    #[doc = "Issue a new voucher for a `user` to be used to pay for sending messages"]
-                    #[doc = "to `program_id` program."]
-                    #[doc = ""]
-                    #[doc = "The dispatch origin for this call must be _Signed_."]
-                    #[doc = ""]
-                    #[doc = "- `to`: The voucher holder account id."]
-                    #[doc = "- `program`: The program id, messages to whom can be paid with the voucher."]
-                    #[doc = "NOTE: the fact a program with such id exists in storage is not checked - it's"]
-                    #[doc = "a caller's responsibility to ensure the consistency of the input parameters."]
-                    #[doc = "- `amount`: The voucher amount."]
-                    #[doc = ""]
-                    #[doc = "## Complexity"]
-                    #[doc = "O(Z + C) where Z is the length of the call and C its execution weight."]
                     issue {
-                        to: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
-                        program: runtime_types::gear_core::ids::ProgramId,
-                        value: ::core::primitive::u128,
+                        spender: ::subxt::utils::AccountId32,
+                        balance: ::core::primitive::u128,
+                        programs: ::core::option::Option<
+                            ::std::vec::Vec<runtime_types::gear_core::ids::ProgramId>,
+                        >,
+                        validity: ::core::primitive::u32,
                     },
                     #[codec(index = 1)]
-                    #[doc = "Dispatch allowed with voucher call."]
                     call {
-                        call: runtime_types::pallet_gear_voucher::PrepaidCall<
+                        voucher_id: runtime_types::pallet_gear_voucher::internal::VoucherId,
+                        call: runtime_types::pallet_gear_voucher::internal::PrepaidCall<
+                            ::core::primitive::u128,
+                        >,
+                    },
+                    #[codec(index = 2)]
+                    revoke {
+                        spender: ::subxt::utils::AccountId32,
+                        voucher_id: runtime_types::pallet_gear_voucher::internal::VoucherId,
+                    },
+                    #[codec(index = 3)]
+                    update {
+                        spender: ::subxt::utils::AccountId32,
+                        voucher_id: runtime_types::pallet_gear_voucher::internal::VoucherId,
+                        move_ownership: ::core::option::Option<::subxt::utils::AccountId32>,
+                        balance_top_up: ::core::option::Option<::core::primitive::u128>,
+                        append_programs: ::core::option::Option<
+                            ::core::option::Option<
+                                ::std::vec::Vec<runtime_types::gear_core::ids::ProgramId>,
+                            >,
+                        >,
+                        prolong_validity: ::core::option::Option<::core::primitive::u32>,
+                    },
+                    #[codec(index = 4)]
+                    #[doc = "Dispatch allowed with voucher call."]
+                    call_deprecated {
+                        call: runtime_types::pallet_gear_voucher::internal::PrepaidCall<
                             ::core::primitive::u128,
                         >,
                     },
@@ -3336,40 +3383,48 @@ pub mod runtime_types {
                 #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
                 pub enum Error {
                     #[codec(index = 0)]
-                    InsufficientBalance,
+                    BalanceTransfer,
                     #[codec(index = 1)]
-                    InvalidVoucher,
+                    InexistentVoucher,
+                    #[codec(index = 2)]
+                    VoucherExpired,
+                    #[codec(index = 3)]
+                    IrrevocableYet,
+                    #[codec(index = 4)]
+                    BadOrigin,
+                    #[codec(index = 5)]
+                    MaxProgramsLimitExceeded,
+                    #[codec(index = 6)]
+                    UnknownDestination,
+                    #[codec(index = 7)]
+                    InappropriateDestination,
+                    #[codec(index = 8)]
+                    ZeroValidity,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
                 pub enum Event {
                     #[codec(index = 0)]
-                    #[doc = "A new voucher issued."]
+                    #[doc = "Voucher has been issued."]
                     VoucherIssued {
-                        holder: ::subxt::utils::AccountId32,
-                        program: runtime_types::gear_core::ids::ProgramId,
-                        value: ::core::primitive::u128,
+                        owner: ::subxt::utils::AccountId32,
+                        spender: ::subxt::utils::AccountId32,
+                        voucher_id: runtime_types::pallet_gear_voucher::internal::VoucherId,
+                    },
+                    #[codec(index = 1)]
+                    #[doc = "Voucher has been updated."]
+                    VoucherUpdated {
+                        spender: ::subxt::utils::AccountId32,
+                        voucher_id: runtime_types::pallet_gear_voucher::internal::VoucherId,
+                        new_owner: ::core::option::Option<::subxt::utils::AccountId32>,
+                    },
+                    #[codec(index = 2)]
+                    #[doc = "Voucher has been refunded by owner."]
+                    VoucherRevoked {
+                        spender: ::subxt::utils::AccountId32,
+                        voucher_id: runtime_types::pallet_gear_voucher::internal::VoucherId,
                     },
                 }
-            }
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-            pub enum PrepaidCall<_0> {
-                #[codec(index = 0)]
-                SendMessage {
-                    destination: runtime_types::gear_core::ids::ProgramId,
-                    payload: ::std::vec::Vec<::core::primitive::u8>,
-                    gas_limit: ::core::primitive::u64,
-                    value: _0,
-                    keep_alive: ::core::primitive::bool,
-                },
-                #[codec(index = 1)]
-                SendReply {
-                    reply_to_id: runtime_types::gear_core::ids::MessageId,
-                    payload: ::std::vec::Vec<::core::primitive::u8>,
-                    gas_limit: ::core::primitive::u64,
-                    value: _0,
-                    keep_alive: ::core::primitive::bool,
-                },
             }
         }
         pub mod pallet_grandpa {
@@ -9233,6 +9288,8 @@ pub mod runtime_types {
                 pub im_online: runtime_types::pallet_im_online::sr25519::app_sr25519::Public,
                 pub authority_discovery: runtime_types::sp_authority_discovery::app::Public,
             }
+            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            pub struct VoucherLegitimate;
         }
     }
 }
@@ -9489,6 +9546,9 @@ pub mod calls {
     pub enum GearVoucherCall {
         Issue,
         Call,
+        Revoke,
+        Update,
+        CallDeprecated,
     }
     impl CallInfo for GearVoucherCall {
         const PALLET: &'static str = "GearVoucher";
@@ -9496,6 +9556,9 @@ pub mod calls {
             match self {
                 Self::Issue => "issue",
                 Self::Call => "call",
+                Self::Revoke => "revoke",
+                Self::Update => "update",
+                Self::CallDeprecated => "call_deprecated",
             }
         }
     }
@@ -10338,6 +10401,20 @@ pub mod storage {
             match self {
                 Self::FirstIncompleteTasksBlock => "FirstIncompleteTasksBlock",
                 Self::TaskPool => "TaskPool",
+            }
+        }
+    }
+    #[doc = "Storage of pallet `GearVoucher`."]
+    pub enum GearVoucherStorage {
+        Issued,
+        Vouchers,
+    }
+    impl StorageInfo for GearVoucherStorage {
+        const PALLET: &'static str = "GearVoucher";
+        fn storage_name(&self) -> &'static str {
+            match self {
+                Self::Issued => "Issued",
+                Self::Vouchers => "Vouchers",
             }
         }
     }
