@@ -266,10 +266,6 @@ pub fn builder() {
     let cargo_toml = manifest_dir.join("Cargo.toml");
     println!("cargo:rerun-if-changed={}", cargo_toml.display());
 
-    // don't track features because they are resolved by `cargo metadata`
-    // and always set in TOML files and not via CLI
-    env::set_var("__GEAR_WASM_BUILDER_NO_FEATURES_TRACKING", "1");
-
     let metadata = MetadataCommand::new().no_deps().exec().unwrap();
     let package = metadata
         .packages
