@@ -33,12 +33,12 @@ pub fn build_wasm(packages: BTreeMap<String, Option<BTreeSet<String>>>) -> Strin
 
     let packages_and_features = packages
         .iter()
-        .filter_map(|(pkg, features)| Some((pkg, features.as_ref()?)))
         .map(|(pkg, features)| {
             (
                 pkg,
                 features
                     .iter()
+                    .flatten()
                     .map(|feature| format!("{}/{}", pkg, feature))
                     .collect::<Vec<_>>()
                     .join(","),
