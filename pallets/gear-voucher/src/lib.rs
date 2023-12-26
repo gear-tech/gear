@@ -318,7 +318,7 @@ pub mod pallet {
         /// * spender:    account id of the voucher spender;
         /// * voucher_id: voucher id to be revoked.
         #[pallet::call_index(2)]
-        #[pallet::weight(Weight::zero())] // TODO (breathx)
+        #[pallet::weight(T::WeightInfo::revoke())]
         pub fn revoke(
             origin: OriginFor<T>,
             spender: AccountIdOf<T>,

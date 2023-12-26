@@ -20,10 +20,10 @@
 
 use crate::*;
 use common::{benchmarking, Origin};
-use frame_benchmarking::{benchmarks, impl_benchmark_test_suite};
+use frame_benchmarking::{benchmarks, impl_benchmark_test_suite, Zero};
 use frame_support::traits::Currency;
 use frame_system::RawOrigin;
-use sp_runtime::traits::UniqueSaturatedInto;
+use sp_runtime::traits::{One, UniqueSaturatedInto};
 
 pub(crate) type CurrencyOf<T> = <T as Config>::Currency;
 
@@ -64,6 +64,33 @@ benchmarks! {
             CurrencyOf::<T>::free_balance(&voucher_id.cast::<T::AccountId>()),
             balance,
         );
+    }
+
+    revoke {
+        // Origin account.
+        let origin = benchmarking::account::<T::AccountId>("origin", 0, 0);
+        CurrencyOf::<T>::deposit_creating(
+            &origin,
+            100_000_000_000_000_u128.unique_saturated_into()
+        );
+
+        // Spender account.
+        let spender = benchmarking::account::<T::AccountId>("spender", 0, 1);
+
+        // Voucher balance.
+        let balance = 10_000_000_000_000_u128.unique_saturated_into();
+
+        // Voucher validity.
+        let validity = 100u32.unique_saturated_into();
+
+        // Issue voucher.
+        assert!(Pallet::<T>::issue(RawOrigin::Signed(origin.clone()).into(), spender.clone(), balance, None, validity).is_ok());
+        let (_, voucher_id, _) = Vouchers::<T>::iter().next().expect("Couldn't find voucher");
+
+        frame_system::Pallet::<T>::set_block_number(frame_system::Pallet::<T>::block_number() + validity + One::one());
+    }: _(RawOrigin::Signed(origin.clone()), spender.clone(), voucher_id)
+    verify {
+        assert!(CurrencyOf::<T>::free_balance(&voucher_id.cast::<T::AccountId>()).is_zero());
     }
 }
 

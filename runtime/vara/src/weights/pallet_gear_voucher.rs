@@ -52,6 +52,15 @@ impl<T: frame_system::Config> pallet_gear_voucher::WeightInfo for SubstrateWeigh
             .saturating_add(T::DbWeight::get().reads(2_u64))
             .saturating_add(T::DbWeight::get().writes(2_u64))
     }
+    fn revoke() -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `101`
+        //  Estimated: `6196`
+        // Minimum execution time: 26_880_000 picoseconds.
+        Weight::from_parts(27_991_000, 6196)
+            .saturating_add(T::DbWeight::get().reads(2_u64))
+            .saturating_add(T::DbWeight::get().writes(2_u64))
+    }
 }
 
 // For backwards compatibility and tests
