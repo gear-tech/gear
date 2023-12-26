@@ -987,6 +987,7 @@ dependencies = [
  "anyhow",
  "env_logger",
  "gear-core",
+ "gear-wasm-instrument",
  "log",
  "vara-runtime",
  "wabt",
@@ -2404,6 +2405,7 @@ dependencies = [
 name = "demo-signal-entry"
 version = "0.1.0"
 dependencies = [
+ "gcore",
  "gear-core",
  "gear-wasm-builder",
  "gstd",
@@ -4585,6 +4587,7 @@ dependencies = [
 name = "gear-wasm-instrument"
 version = "1.0.4"
 dependencies = [
+ "derive_more",
  "enum-iterator 1.4.1",
  "gear-core",
  "gwasm-instrument",
@@ -4910,9 +4913,9 @@ dependencies = [
 
 [[package]]
 name = "gwasm-instrument"
-version = "0.2.3"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "69fe7c1db90c8183b2aecb6d3629b2e59b71dfb538d9138f9ae2fa76a2fc0c55"
+checksum = "09c5fda64a6f7f331a6425df8d678dfc542f3135b43e3cc229d431d391ff3c7d"
 dependencies = [
  "gear-wasm",
 ]
