@@ -33,7 +33,7 @@ use gsdk::signer::Signer;
 /// - `value`: balance to be transferred to the program once it's been created.
 ///
 /// - `DispatchMessageEnqueued(H256)` when dispatch message is placed in the queue.
-#[derive(Parser, Debug)]
+#[derive(Clone, Debug, Parser)]
 pub struct Reply {
     /// Reply to
     reply_to_id: String,

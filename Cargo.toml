@@ -168,8 +168,8 @@ tempfile = "3.8.1"
 #
 # https://github.com/gear-tech/dlmalloc-rust/tree/v0.1.4
 dlmalloc = { package = "gear-dlmalloc", version = "0.1.4" }
-# https://github.com/gear-tech/wasm-instrument/tree/v0.2.3-sign-ext
-gwasm-instrument = { version = "0.2.3", default-features = false }
+# https://github.com/gear-tech/wasm-instrument/tree/gear-stable-v0.3.0
+gwasm-instrument = { version = "0.3.0", default-features = false }
 # https://github.com/gear-tech/wasm-utils/tree/v0.19.0
 pwasm-utils = { version = "0.19.0", package = "gear-pwasm-utils" }
 
@@ -349,6 +349,7 @@ sp-transaction-storage-proof = { version = "4.0.0-dev", git = "https://github.co
 sp-trie = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
 sp-version = { version = "5.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
 sp-wasm-interface = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
+sp-wasm-interface-common = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
 substrate-build-script-utils = { version = "3.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes" }
 substrate-frame-rpc-system = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes" }
 substrate-rpc-client = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes" }
@@ -399,7 +400,7 @@ demo-reservation-manager = { path = "examples/reservation-manager" }
 demo-reserve-gas = { path = "examples/reserve-gas", default-features = false }
 demo-rwlock = { path = "examples/rwlock" }
 demo-send-from-reservation = { path = "examples/send-from-reservation" }
-demo-signal-entry = { path = "examples/signal-entry" }
+demo-signal-entry = { path = "examples/signal-entry", default-features = false }
 demo-state-rollback = { path = "examples/state-rollback" }
 demo-sync-duplicate = { path = "examples/sync-duplicate" }
 demo-vec = { path = "examples/vec" }

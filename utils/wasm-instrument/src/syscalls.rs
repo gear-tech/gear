@@ -96,7 +96,7 @@ pub enum SyscallName {
     Alloc,
     Free,
     FreeRange,
-    OutOfGas,
+    SystemBreak,
 
     // Miscellaneous
     ReplyDeposit,
@@ -127,7 +127,7 @@ impl SyscallName {
             SyscallName::GasAvailable => "gr_gas_available",
             SyscallName::Leave => "gr_leave",
             SyscallName::MessageId => "gr_message_id",
-            SyscallName::OutOfGas => "gr_out_of_gas",
+            SyscallName::SystemBreak => "gr_system_break",
             SyscallName::PayProgramRent => "gr_pay_program_rent",
             SyscallName::ProgramId => "gr_program_id",
             SyscallName::Random => "gr_random",
@@ -528,7 +528,7 @@ impl SyscallName {
                 Ptr::Hash(HashType::SubjectId).into(),
                 Ptr::MutBlockNumberWithHash(HashType::SubjectId).into(),
             ]),
-            Self::OutOfGas => unimplemented!("Unsupported syscall signature for out_of_gas"),
+            Self::SystemBreak => unimplemented!("Unsupported syscall signature for system_break"),
         }
     }
 
