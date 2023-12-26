@@ -84,7 +84,7 @@ impl SyscallsParamsConfig {
         this.set_ptr_rule(PtrParamAllowedValues::Value(range.clone()));
         this.set_ptr_rule(PtrParamAllowedValues::ActorIdWithValue {
             actor: SyscallDestination::default(),
-            range: range.clone(),
+            range,
         });
         this.set_ptr_rule(PtrParamAllowedValues::ActorId(SyscallDestination::default()));
 

@@ -500,9 +500,9 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
 
                         vec![
                             // call `gsys::gr_source` storing actor id at `value_set_ptr` pointer.
-                            Instruction::I32Const(value_set_ptr as i32),
+                            Instruction::I32Const(value_set_ptr),
                             Instruction::Call(gr_source_call_indexes_handle),
-                            Instruction::I32Const(value_set_ptr as i32),
+                            Instruction::I32Const(value_set_ptr),
                         ]
                     }
                     SyscallDestination::ExistingAddresses(addresses) => {
@@ -536,7 +536,7 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                         // Put call to `gr_source`` instructions
                         let mut ret_instr = vec![
                             // call `gsys::gr_source` storing actor id at `value_set_ptr` pointer.
-                            Instruction::I32Const(value_set_ptr as i32),
+                            Instruction::I32Const(value_set_ptr),
                             Instruction::Call(gr_source_call_indexes_handle),
                         ];
                         // Generate value definition instructions.
