@@ -38,6 +38,8 @@ use sp_std::marker::PhantomData;
 /// Weight functions needed for pallet_gear_voucher.
 pub trait WeightInfo {
     fn issue() -> Weight;
+    fn revoke() -> Weight;
+    fn update() -> Weight;
 }
 
 /// Weights for pallet_gear_voucher using the Gear node and recommended hardware.
@@ -61,11 +63,38 @@ impl<T: frame_system::Config> pallet_gear_voucher::WeightInfo for SubstrateWeigh
             .saturating_add(T::DbWeight::get().reads(2_u64))
             .saturating_add(T::DbWeight::get().writes(2_u64))
     }
+    fn update() -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `101`
+        //  Estimated: `6196`
+        // Minimum execution time: 26_880_000 picoseconds.
+        Weight::from_parts(27_991_000, 6196)
+            .saturating_add(T::DbWeight::get().reads(2_u64))
+            .saturating_add(T::DbWeight::get().writes(2_u64))
+    }
 }
 
 // For backwards compatibility and tests
 impl WeightInfo for () {
     fn issue() -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `101`
+        //  Estimated: `6196`
+        // Minimum execution time: 26_880_000 picoseconds.
+        Weight::from_parts(27_991_000, 6196)
+            .saturating_add(RocksDbWeight::get().reads(2_u64))
+            .saturating_add(RocksDbWeight::get().writes(2_u64))
+    }
+    fn revoke() -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `101`
+        //  Estimated: `6196`
+        // Minimum execution time: 26_880_000 picoseconds.
+        Weight::from_parts(27_991_000, 6196)
+            .saturating_add(RocksDbWeight::get().reads(2_u64))
+            .saturating_add(RocksDbWeight::get().writes(2_u64))
+    }
+    fn update() -> Weight {
         // Proof Size summary in bytes:
         //  Measured:  `101`
         //  Estimated: `6196`

@@ -49,6 +49,7 @@ use sp_std::marker::PhantomData;
 pub trait WeightInfo {
     fn issue() -> Weight;
     fn revoke() -> Weight;
+    fn update() -> Weight;
 }
 
 /// Weight functions for `pallet_gear_voucher`.
@@ -64,6 +65,11 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
             .saturating_add(T::DbWeight::get().reads(2_u64))
             .saturating_add(T::DbWeight::get().writes(2_u64))
 	}
+    fn update() -> Weight {
+		Weight::from_parts(44_271_000, 6196)
+            .saturating_add(T::DbWeight::get().reads(2_u64))
+            .saturating_add(T::DbWeight::get().writes(2_u64))
+	}
 }
 
 impl WeightInfo for () {
@@ -73,6 +79,11 @@ impl WeightInfo for () {
             .saturating_add(RocksDbWeight::get().writes(2_u64))
     }
     fn revoke() -> Weight {
+        Weight::from_parts(44_271_000, 6196)
+            .saturating_add(RocksDbWeight::get().reads(2_u64))
+            .saturating_add(RocksDbWeight::get().writes(2_u64))
+    }
+    fn update() -> Weight {
         Weight::from_parts(44_271_000, 6196)
             .saturating_add(RocksDbWeight::get().reads(2_u64))
             .saturating_add(RocksDbWeight::get().writes(2_u64))
