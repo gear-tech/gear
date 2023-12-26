@@ -17,6 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::wasm::PageCount as WasmPageCount;
+use gear_utils::NonEmpty;
 use gear_wasm_instrument::{
     parity_wasm::{
         builder,
@@ -28,10 +29,9 @@ use gear_wasm_instrument::{
     syscalls::SyscallName,
     wasm_instrument::{self, InjectionConfig},
 };
-use gsys::HashWithValue;
 use std::{
     collections::{BTreeMap, BTreeSet},
-    mem, slice,
+    iter, mem,
 };
 
 const PREALLOCATE: usize = 1_000;
@@ -464,17 +464,63 @@ pub fn inject_critical_gas_limit(module: Module, critical_gas_limit: u64) -> Mod
     module
 }
 
-pub(crate) fn hash_with_value_to_vec(hash_with_value: &HashWithValue) -> Vec<u8> {
-    let address_data_size = mem::size_of::<HashWithValue>();
-    let address_data_slice = unsafe {
-        // # Safety:
-        // The `unsafe` block constructs raw bytes vector of an existing rust struct
-        // received by reference.
-        slice::from_raw_parts(
-            hash_with_value as *const HashWithValue as *const u8,
-            address_data_size,
-        )
-    };
+pub(crate) struct WasmWords(Vec<i32>);
 
-    address_data_slice.to_vec()
+impl WasmWords {
+    pub(crate) fn new(data: impl AsRef<[u8]>) -> Self {
+        let data = data.as_ref();
+
+        let data_size = data.len();
+        let wasm_ptr_size = mem::size_of::<i32>();
+
+        if data_size % wasm_ptr_size != 0 {
+            panic!("data size isn't multiply of wasm word size")
+        }
+
+        let words = data
+            .chunks(wasm_ptr_size)
+            .map(|word_bytes| {
+                i32::from_le_bytes(
+                    word_bytes
+                        .try_into()
+                        .expect("Chunks are of the exact size."),
+                )
+            })
+            .collect();
+
+        Self(words)
+    }
+
+    pub(crate) fn merge(mut self, other: Self) -> Self {
+        let Self(mut other) = other;
+        self.0.append(&mut other);
+
+        Self(self.0)
+    }
+}
+
+pub(crate) fn translate_ptr_data(
+    words: WasmWords,
+    (start_offset, end_offset): (i32, i32),
+) -> Vec<Instruction> {
+    let WasmWords(words) = words;
+    words
+        .into_iter()
+        .enumerate()
+        .flat_map(|(word_idx, word)| {
+            vec![
+                Instruction::I32Const(start_offset),
+                Instruction::I32Const(word),
+                Instruction::I32Store(2, (word_idx * mem::size_of::<i32>()) as u32),
+            ]
+        })
+        .chain(iter::once(Instruction::I32Const(end_offset)))
+        .collect()
+}
+
+pub(crate) fn non_empty_to_vec<T>(non_empty: NonEmpty<T>) -> Vec<T> {
+    let (head, mut tail) = non_empty.into();
+    tail.push(head);
+
+    tail
 }

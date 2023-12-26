@@ -73,3 +73,7 @@ pub fn generate_gear_program_module(
 
     GearWasmGenerator::new_with_config(wasm_module, u, gear_wasm_generator_config).generate()
 }
+
+// TODOs:
+// 1. re-write docs to all types (separate PR)
+// 2. update tasks list for fuzzer
