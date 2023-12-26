@@ -49,7 +49,7 @@ pub struct Optimizer {
 
 impl Optimizer {
     pub fn new(file: PathBuf) -> Result<Self> {
-        let contents = fs::read(&file)?;
+        let contents = fs::read(&file).context("Failed to read file by optimizer")?;
         let module = parity_wasm::deserialize_buffer(&contents)
             .with_context(|| format!("File path: {file:?}"))?;
         Ok(Self { module, file })
@@ -78,7 +78,7 @@ impl Optimizer {
     }
 
     pub fn flush_to_file(self, path: &PathBuf) {
-        fs::write(path, self.module.to_bytes().unwrap()).unwrap();
+        fs::write(path, self.module.into_bytes().unwrap()).unwrap();
     }
 
     /// Process optimization.

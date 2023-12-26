@@ -14,7 +14,7 @@ repository.workspace = true
 scale-info.workspace = true
 blake2-rfc.workspace = true
 hex = { workspace = true, features = ["alloc"] }
-gmeta-codegen = { path = "codegen", optional = true }
+gmeta-codegen = { workspace = true, optional = true }
 derive_more.workspace = true
 
 [dev-dependencies]

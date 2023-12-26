@@ -1,5 +1,5 @@
 use crate::{Arg, Call};
-use alloc::{boxed::Box, string::ToString, vec, vec::Vec};
+use alloc::{string::ToString, vec, vec::Vec};
 use core::{fmt::Debug, ops::Deref};
 use parity_scale_codec::{WrapperTypeDecode, WrapperTypeEncode};
 
@@ -297,20 +297,13 @@ impl Calls {
     pub fn if_else(
         self,
         bool_arg: impl Into<Arg<bool>>,
-        mut true_call: Self,
-        mut false_call: Self,
+        true_calls: Self,
+        false_calls: Self,
     ) -> Self {
-        if true_call.len() != 1 || false_call.len() != 1 {
-            unimplemented!()
-        };
-
-        let true_call = true_call.0.remove(0);
-        let false_call = false_call.0.remove(0);
-
         self.add_call(Call::IfElse(
             bool_arg.into(),
-            Box::new(true_call),
-            Box::new(false_call),
+            true_calls.calls(),
+            false_calls.calls(),
         ))
     }
 
@@ -324,5 +317,9 @@ impl Calls {
 
     pub fn infinite_loop(self) -> Self {
         self.add_call(Call::Loop)
+    }
+
+    pub fn system_reserve_gas(self, gas: impl Into<Arg<u64>>) -> Self {
+        self.add_call(Call::SystemReserveGas(gas.into()))
     }
 }

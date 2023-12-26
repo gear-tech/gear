@@ -105,7 +105,7 @@ macro_rules! declare_id {
         }
 
         impl core::fmt::Display for $name {
-            fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+            fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
                 let len = self.0.len();
                 let median = (len + 1) / 2;
 
@@ -132,7 +132,7 @@ macro_rules! declare_id {
         }
 
         impl core::fmt::Debug for $name {
-            fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+            fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
                 core::fmt::Display::fmt(self, f)
             }
         }

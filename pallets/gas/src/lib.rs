@@ -123,6 +123,8 @@
 //! The Gear Gas Pallet doesn't depend on the `GenesisConfig`.
 
 #![cfg_attr(not(feature = "std"), no_std)]
+#![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
+#![doc(html_favicon_url = "https://gear-tech.io/favicons/favicon.ico")]
 
 use common::{
     storage::{MapStorage, ValueStorage},
@@ -144,6 +146,15 @@ type AccountIdOf<T> = <T as frame_system::Config>::AccountId;
 
 /// The current storage version.
 const STORAGE_VERSION: StorageVersion = StorageVersion::new(3);
+
+#[macro_export]
+macro_rules! impl_config {
+    ($runtime:ty) => {
+        impl pallet_gear_gas::Config for $runtime {
+            type BlockGasLimit = BlockGasLimit;
+        }
+    };
+}
 
 #[frame_support::pallet]
 pub mod pallet {

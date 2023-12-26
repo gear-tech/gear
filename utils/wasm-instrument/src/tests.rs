@@ -19,12 +19,26 @@
 use super::*;
 use crate::{
     rules::CustomConstantCostRules,
-    syscalls::{ParamType, PtrInfo, PtrType, SysCallName},
+    syscalls::{ParamType::*, Ptr, RegularParamType::*, SyscallName},
 };
 use alloc::format;
 use elements::Instruction::*;
 use gas_metering::ConstantCostRules;
 use parity_wasm::serialize;
+
+fn inject<R, GetRulesFn>(
+    module: elements::Module,
+    get_gas_rules: GetRulesFn,
+    module_name: &str,
+) -> Result<Module, InstrumentationError>
+where
+    R: Rules,
+    GetRulesFn: FnMut(&Module) -> R,
+{
+    InstrumentationBuilder::new(module_name)
+        .with_gas_limiter(get_gas_rules)
+        .instrument(module)
+}
 
 fn get_function_body(module: &elements::Module, index: usize) -> Option<&[elements::Instruction]> {
     module
@@ -83,7 +97,7 @@ fn simple_grow() {
         )"#,
     );
 
-    let injected_module = inject(module, &ConstantCostRules::new(1, 10_000, 0), "env").unwrap();
+    let injected_module = inject(module, |_| ConstantCostRules::new(1, 10_000, 0), "env").unwrap();
 
     // two new imports (index 0), the original func (i = 1), so
     // gas charge will occupy the next index.
@@ -129,7 +143,7 @@ fn grow_no_gas_no_track() {
         )",
     );
 
-    let injected_module = inject(module, &ConstantCostRules::default(), "env").unwrap();
+    let injected_module = inject(module, |_| ConstantCostRules::default(), "env").unwrap();
 
     let gas_charge_index = 2;
 
@@ -154,18 +168,21 @@ fn grow_no_gas_no_track() {
 fn duplicate_import() {
     let wat = format!(
         r#"(module
-            (import "env" "{out_of_gas}" (func))
+            (import "env" "{system_break}" (func))
             (func (result i32)
                 global.get 0
                 memory.grow)
             (global i32 (i32.const 42))
             (memory 0 1)
             )"#,
-        out_of_gas = SysCallName::OutOfGas.to_str()
+        system_break = SyscallName::SystemBreak.to_str()
     );
     let module = parse_wat(&wat);
 
-    assert!(inject(module, &ConstantCostRules::default(), "env").is_err());
+    assert_eq!(
+        inject(module, |_| ConstantCostRules::default(), "env"),
+        Err(InstrumentationError::SystemBreakImportAlreadyExists)
+    );
 }
 
 #[test]
@@ -183,7 +200,10 @@ fn duplicate_export() {
     );
     let module = parse_wat(&wat);
 
-    assert!(inject(module, &ConstantCostRules::default(), "env").is_err());
+    assert_eq!(
+        inject(module, |_| ConstantCostRules::default(), "env"),
+        Err(InstrumentationError::GasGlobalAlreadyExists)
+    );
 }
 
 #[test]
@@ -199,14 +219,17 @@ fn unsupported_instruction() {
         )"#,
     );
 
-    assert!(inject(module, &CustomConstantCostRules::default(), "env").is_err());
+    assert_eq!(
+        inject(module, |_| CustomConstantCostRules::default(), "env"),
+        Err(InstrumentationError::GasInjection)
+    );
 }
 
 #[test]
 fn call_index() {
     let injected_module = inject(
         prebuilt_simple_module(),
-        &ConstantCostRules::default(),
+        |_| ConstantCostRules::default(),
         "env",
     )
     .unwrap();
@@ -244,7 +267,7 @@ fn cost_overflow() {
     let instruction_cost = u32::MAX / 2;
     let injected_module = inject(
         prebuilt_simple_module(),
-        &ConstantCostRules::new(instruction_cost, 0, 0),
+        |_| ConstantCostRules::new(instruction_cost, 0, 0),
         "env",
     )
     .unwrap();
@@ -298,7 +321,7 @@ macro_rules! test_gas_counter_injection {
             let input_module = parse_wat($input);
             let expected_module = parse_wat($expected);
 
-            let injected_module = inject(input_module, &ConstantCostRules::default(), "env")
+            let injected_module = inject(input_module, |_| ConstantCostRules::default(), "env")
                 .expect("inject_gas_counter call failed");
 
             let actual_func_body = get_function_body(&injected_module, 0)
@@ -618,79 +641,39 @@ test_gas_counter_injection! {
     "#
 }
 
-/// Check that all sys calls are supported by backend.
-#[test]
-fn test_sys_calls_table() {
-    use gas_metering::ConstantCostRules;
-    use gear_core::message::DispatchKind;
-    use gear_core_backend::{
-        env::{BackendReport, Environment},
-        error::ActorTerminationReason,
-        mock::MockExt,
-    };
-    use parity_wasm::builder;
-
-    // Make module with one empty function.
-    let mut module = builder::module()
-        .function()
-        .signature()
-        .build()
-        .build()
-        .build();
-
-    // Insert syscalls imports.
-    for name in SysCallName::instrumentable() {
-        let sign = name.signature();
-        let types = module.type_section_mut().unwrap().types_mut();
-        let type_no = types.len() as u32;
-        types.push(parity_wasm::elements::Type::Function(sign.func_type()));
-
-        module = builder::from_module(module)
-            .import()
-            .module("env")
-            .external()
-            .func(type_no)
-            .field(name.to_str())
-            .build()
-            .build();
-    }
-
-    let module = inject(module, &ConstantCostRules::default(), "env").unwrap();
-    let code = module.into_bytes().unwrap();
-
-    // Execute wasm and check success.
-    let ext = MockExt::default();
-    let env =
-        Environment::new(ext, &code, DispatchKind::Init, Default::default(), 0.into()).unwrap();
-    let report = env
-        .execute(|_, _, _| -> Result<(), u32> { Ok(()) })
-        .unwrap();
-
-    let BackendReport {
-        termination_reason, ..
-    } = report;
-
-    assert_eq!(termination_reason, ActorTerminationReason::Success.into());
-}
-
 #[test]
 fn check_memory_array_pointers_definition_correctness() {
-    let sys_calls = SysCallName::instrumentable();
-    for sys_call in sys_calls {
-        let signature = sys_call.signature();
+    let syscalls = SyscallName::instrumentable();
+    for syscall in syscalls {
+        let signature = syscall.signature();
         let size_param_indexes = signature
-            .params
+            .params()
             .iter()
             .filter_map(|param_ty| match param_ty {
-                ParamType::Ptr(PtrInfo {
-                    ty: PtrType::SizedBufferStart { length_param_idx },
-                    ..
-                }) => Some(*length_param_idx),
+                Regular(Pointer(Ptr::SizedBufferStart { length_param_idx })) => {
+                    Some(*length_param_idx)
+                }
                 _ => None,
             });
 
         for idx in size_param_indexes {
-            assert_eq!(signature.params.get(idx), Some(&ParamType::Size));
+            assert_eq!(signature.params().get(idx), Some(&Regular(Length)));
+        }
+    }
+}
+
+// Basically checks that mutable error pointer is always last in every fallible syscall params set.
+// WARNING: this test must never fail, unless a huge redesign in syscalls signatures has occurred.
+#[test]
+fn check_syscall_err_ptr_position() {
+    for syscall in SyscallName::instrumentable() {
+        if syscall.is_fallible() {
+            let signature = syscall.signature();
+            let err_ptr = signature
+                .params()
+                .last()
+                .expect("fallible syscall has at least err ptr");
+            assert!(matches!(err_ptr, Error(_)));
         }
     }
 }

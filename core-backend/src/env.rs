@@ -54,7 +54,7 @@ use gear_sandbox::{
     SandboxMemory, SandboxStore, Value,
 };
 use gear_wasm_instrument::{
-    syscalls::SysCallName::{self, *},
+    syscalls::SyscallName::{self, *},
     GLOBAL_NAME_GAS, STACK_END_EXPORT_NAME,
 };
 
@@ -135,7 +135,7 @@ where
 // It makes adding functions to `EnvironmentDefinitionBuilder` shorter.
 struct EnvBuilder<Ext: BackendExternalities> {
     env_def_builder: EnvironmentDefinitionBuilder<HostState<Ext, DefaultExecutorMemory>>,
-    forbidden_funcs: BTreeSet<SysCallName>,
+    forbidden_funcs: BTreeSet<SyscallName>,
     funcs_count: usize,
 }
 
@@ -148,7 +148,7 @@ where
 {
     fn add_func(
         &mut self,
-        name: SysCallName,
+        name: SyscallName,
         f: HostFuncType<HostState<Ext, DefaultExecutorMemory>>,
     ) {
         if self.forbidden_funcs.contains(&name) {
@@ -237,10 +237,11 @@ where
         builder.add_func(ReservationReplyCommit, wrap_syscall!(reservation_reply_commit));
         builder.add_func(ReservationSend, wrap_syscall!(reservation_send));
         builder.add_func(ReservationSendCommit, wrap_syscall!(reservation_send_commit));
-        builder.add_func(OutOfGas, wrap_syscall!(out_of_gas));
+        builder.add_func(SystemBreak, wrap_syscall!(system_break));
 
         builder.add_func(Alloc, wrap_syscall!(alloc));
         builder.add_func(Free, wrap_syscall!(free));
+        builder.add_func(FreeRange, wrap_syscall!(free_range));
     }
 }
 
@@ -317,13 +318,13 @@ where
 
         Self::bind_funcs(&mut builder);
 
-        // Check that we have implementations for all the sys-calls.
+        // Check that we have implementations for all the syscalls.
         // This is intended to panic during any testing, when the
         // condition is not met.
         assert_eq!(
             builder.funcs_count,
-            SysCallName::count(),
-            "Not all existing sys-calls were added to the module's env."
+            SyscallName::count(),
+            "Not all existing syscalls were added to the module's env."
         );
 
         let env_builder: EnvironmentDefinitionBuilder<_> = builder.into();

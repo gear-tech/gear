@@ -23,8 +23,6 @@
 use anyhow::{anyhow, Result};
 use wasmi::{AsContextMut, Engine, Extern, Linker, Memory, MemoryType, Module, Store};
 
-const PAGE_STORAGE_PREFIX: [u8; 32] = *b"gcligcligcligcligcligcligcligcli";
-
 /// HostState for the WASM executor
 #[derive(Default)]
 pub struct HostState {
@@ -39,10 +37,6 @@ pub fn call_metadata(wasm: &[u8]) -> Result<Vec<u8>> {
 
 /// Executes the WASM code.
 fn execute(wasm: &[u8], method: &str) -> Result<Vec<u8>> {
-    assert!(gear_lazy_pages_interface::try_to_enable_lazy_pages(
-        PAGE_STORAGE_PREFIX
-    ));
-
     let engine = Engine::default();
     let module = Module::new(&engine, wasm).unwrap();
 
@@ -137,6 +131,7 @@ mod env {
                 "gr_size" => gr_size(store, memory),
                 // methods may be used by programs but not required by metadata.
                 "free" => func!(@result store, i32),
+                "free_range" => func!(@result store, i32, i32),
                 "gr_block_height" => func!(store, u32),
                 "gr_block_timestamp" => func!(store, u32),
                 "gr_create_program_wgas" => func!(store, i32, i32, u32, i32, u32, u64, u32, i32),
@@ -146,7 +141,7 @@ mod env {
                 "gr_gas_available" => func!(store, i32),
                 "gr_leave" => func!(store),
                 "gr_message_id" => func!(store, i32),
-                "gr_out_of_gas" => func!(store),
+                "gr_system_break" => func!(store, u32),
                 "gr_pay_program_rent" => func!(store, i32, i32),
                 "gr_program_id" => func!(store, i32),
                 "gr_random" => func!(store, i32, i32),

@@ -127,6 +127,9 @@ jobs:
       - name: "Build: Node"
         run: ./scripts/gear.sh build node --release --locked
 
+      - name: "Check: Stack height limit"
+        run: cargo run -p calc-stack-height --release --locked
+
       - name: "Test: gsdk tests"
         run: ./scripts/gear.sh test gsdk --release
 
@@ -147,7 +150,7 @@ jobs:
     needs: build
     steps:
       - name: Download artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
 
       - name: Delete previous release
         uses: dev-drprasad/delete-tag-and-release@v1.0.1

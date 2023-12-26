@@ -12,17 +12,16 @@ repository.workspace = true
 
 [dependencies]
 gwasm-instrument = { workspace = true, features = ["sign_ext"] }
+derive_more.workspace = true
 enum-iterator.workspace = true
 
 [dev-dependencies]
 wasmparser.workspace = true
 wat.workspace = true
-gear-core-backend = { workspace = true, features = ["mock"] }
 gear-core.workspace = true
 
 [features]
 default = ["std"]
 std = [
-    "gear-core-backend/std",
     "gwasm-instrument/std",
 ]

@@ -19,6 +19,7 @@
 #![no_std]
 #![cfg_attr(feature = "strict", deny(warnings))]
 #![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
+#![doc(html_favicon_url = "https://gear-tech.io/favicons/favicon.ico")]
 
 // until https://github.com/alexcrichton/dlmalloc-rs/pull/26 is merged
 #[cfg(not(windows))]

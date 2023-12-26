@@ -25,23 +25,23 @@ const WASM_TARGET: &str = "target/wasm32-unknown-unknown";
 
 lazy_static! {
     static ref ROOT: String = env!("CARGO_MANIFEST_DIR").to_owned() + "/../";
+    pub static ref PROFILE: &'static str = if cfg!(debug_assertions) {
+        "debug"
+    } else {
+        "release"
+    };
 }
 
 fn bin_path(name: &str, wasm: bool) -> String {
     ROOT.clone()
-        + [
+        + &[
             if wasm { WASM_TARGET } else { TARGET },
             "/",
-            if cfg!(debug_assertions) {
-                "debug"
-            } else {
-                "release"
-            },
+            *PROFILE,
             "/",
             name,
         ]
         .concat()
-        .as_str()
 }
 
 /// path of binaries

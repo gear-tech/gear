@@ -1,11 +1,17 @@
 [package]
 name = "gstd"
+description = "Gear programs standard library"
+keywords = ["gear", "std", "no-std", "wasm", "smart-contracts"]
+categories = ["api-bindings"]
 version.workspace = true
-authors.workspace = true
 edition.workspace = true
+authors.workspace = true
 license.workspace = true
+homepage.workspace = true
+repository.workspace = true
 
 [dependencies]
+document-features = { version = "0.2.7", optional = true }
 galloc.workspace = true
 gcore = { workspace = true, features = ["codec"] }
 gstd-codegen = { path = "codegen" }
@@ -13,7 +19,7 @@ gear-core-errors.workspace = true
 hashbrown.workspace = true
 bs58 = { workspace = true, features = ["alloc"] }
 hex = { workspace = true, features = ["alloc"] }
-parity-scale-codec = { workspace = true, features = [ "derive" ] }
+parity-scale-codec = { workspace = true, features = ["derive"] }
 primitive-types = { workspace = true, features = ["scale-info"] }
 scale-info = { workspace = true, features = ["derive"] }
 futures = { workspace = true, features = ["alloc"] }
@@ -21,6 +27,32 @@ futures = { workspace = true, features = ["alloc"] }
 static_assertions.workspace = true
 
 [features]
+#! ## Default features
+
 default = ["panic-handler"]
+## When enabled, a panic handler is provided by this crate.
 panic-handler = []
+
+#! ## Nightly features
+
+## Enables all features below.
+## These features depend on unstable Rust API and require nightly toolchain.
+nightly = ["panic-messages", "oom-handler"]
+## When enabled, additional context information is available from
+## panic messages in debug mode. Relies on [`panic_info_message`][rust-66745].
+panic-messages = []
+## When enabled, an OOM error handler is provided.
+## Relies on [`alloc_error_handler`][rust-51540],
+oom-handler = []
+
+#! ## Additional features
+
+## Enables debug logging; this heavily impacts gas cost 
+## and is therefore disabled by default.
 debug = ["galloc/debug", "gcore/debug"]
+
+#! [rust-66745]: https://github.com/rust-lang/rust/issues/66745
+#! [rust-51540]: https://github.com/rust-lang/rust/issues/51540
+
+[package.metadata.docs.rs]
+all-features = true

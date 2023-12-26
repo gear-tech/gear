@@ -7,8 +7,8 @@ use gear_core::ids::{MessageId, ProgramId};
 use gear_core_errors::ReplyCode;
 use gear_utils::NonEmpty;
 use gear_wasm_gen::{
-    EntryPointsSet, InvocableSysCall, ParamType, StandardGearWasmConfigsBundle, SysCallName,
-    SysCallsInjectionTypes, SysCallsParamsConfig,
+    EntryPointsSet, InvocableSyscall, ParamType, RegularParamType, StandardGearWasmConfigsBundle,
+    SyscallName, SyscallsInjectionTypes, SyscallsParamsConfig,
 };
 use gsdk::metadata::runtime_types::{
     gear_common::event::DispatchStatus as GenDispatchStatus,
@@ -116,7 +116,7 @@ pub async fn stop_node(monitor_url: String) -> Result<()> {
 
 pub async fn capture_mailbox_messages(
     api: &GearApi,
-    event_source: &mut [gsdk::metadata::Event],
+    event_source: &[gsdk::metadata::Event],
 ) -> Result<BTreeSet<MessageId>> {
     let to = ProgramId::from(api.account_id().as_ref());
     // Mailbox message expiration threshold block number: current(last) block number + 20.
@@ -213,25 +213,28 @@ pub fn get_wasm_gen_config(
     existing_programs: impl Iterator<Item = ProgramId>,
 ) -> StandardGearWasmConfigsBundle<ProgramId> {
     let initial_pages = 2;
-    let mut injection_types = SysCallsInjectionTypes::all_once();
+    let mut injection_types = SyscallsInjectionTypes::all_once();
     injection_types.set_multiple(
         [
-            (SysCallName::Leave, 0..=0),
-            (SysCallName::Panic, 0..=0),
-            (SysCallName::OomPanic, 0..=0),
-            (SysCallName::EnvVars, 0..=0),
-            (SysCallName::Send, 10..=15),
-            (SysCallName::Exit, 0..=1),
-            (SysCallName::Alloc, 3..=6),
-            (SysCallName::Free, 3..=6),
+            (SyscallName::Leave, 0..=0),
+            (SyscallName::Panic, 0..=0),
+            (SyscallName::OomPanic, 0..=0),
+            (SyscallName::EnvVars, 0..=0),
+            (SyscallName::Send, 10..=15),
+            (SyscallName::Exit, 0..=1),
+            (SyscallName::Alloc, 3..=6),
+            (SyscallName::Free, 3..=6),
         ]
-        .map(|(syscall, range)| (InvocableSysCall::Loose(syscall), range))
+        .map(|(syscall, range)| (InvocableSyscall::Loose(syscall), range))
         .into_iter(),
     );
 
-    let mut params_config = SysCallsParamsConfig::default();
-    params_config.add_rule(ParamType::Alloc, (1..=10).into());
-    params_config.add_rule(ParamType::Free, (initial_pages..=initial_pages + 50).into());
+    let mut params_config = SyscallsParamsConfig::default();
+    params_config.add_rule(ParamType::Regular(RegularParamType::Alloc), (1..=10).into());
+    params_config.add_rule(
+        ParamType::Regular(RegularParamType::Free),
+        (initial_pages..=initial_pages + 50).into(),
+    );
 
     StandardGearWasmConfigsBundle {
         log_info: Some(format!("Gear program seed = '{seed}'")),

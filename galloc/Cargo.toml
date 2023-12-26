@@ -1,5 +1,7 @@
 [package]
 name = "galloc"
+description = "Gear Wasm allocator"
+keywords = ["gear", "allocator", "wasm"]
 version.workspace = true
 authors.workspace = true
 edition.workspace = true

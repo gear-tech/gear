@@ -29,11 +29,8 @@ use gear_wasm_instrument::{
         self,
         elements::{ExportEntry, GlobalEntry, GlobalType, InitExpr, Instruction, Internal, Module},
     },
-    wasm_instrument::{
-        self,
-        gas_metering::{ConstantCostRules, Rules},
-    },
-    STACK_END_EXPORT_NAME,
+    wasm_instrument::gas_metering::{ConstantCostRules, Rules},
+    InstrumentationBuilder, STACK_END_EXPORT_NAME,
 };
 use scale_info::{
     scale::{Decode, Encode},
@@ -203,16 +200,9 @@ pub enum CodeError {
     /// Error occurred during decoding original program code.
     #[display(fmt = "The wasm bytecode is failed to be decoded")]
     Decode,
-    /// Error occurred during injecting gas metering instructions.
-    ///
-    /// This might be due to program contained unsupported/non-deterministic instructions
-    /// (floats, memory grow, etc.).
-    #[display(fmt = "Failed to inject instructions for gas metrics: may be in case \
-        program contains unsupported instructions (floats, memory grow, etc.)")]
-    GasInjection,
-    /// Error occurred during stack height instrumentation.
-    #[display(fmt = "Failed to set stack height limits")]
-    StackLimitInjection,
+    /// Error occurred during instrumentation WASM module.
+    #[display(fmt = "Failed to instrument WASM module")]
+    Instrumentation,
     /// Error occurred during encoding instrumented program.
     #[display(fmt = "Failed to encode instrumented program")]
     Encode,
@@ -302,6 +292,8 @@ pub struct TryNewCodeConfig {
     pub version: u32,
     /// Stack height limit
     pub stack_height: Option<u32>,
+    /// Export `STACK_HEIGHT_EXPORT_NAME` global
+    pub export_stack_height: bool,
     /// Check exports (wasm contains init or handle exports)
     pub check_exports: bool,
     /// Check and canonize stack end
@@ -319,6 +311,7 @@ impl Default for TryNewCodeConfig {
         Self {
             version: 1,
             stack_height: None,
+            export_stack_height: false,
             check_exports: true,
             check_and_canonize_stack_end: true,
             check_mut_global_exports: true,
@@ -397,18 +390,20 @@ impl Code {
             return Err(CodeError::RequiredExportFnNotFound);
         }
 
+        let mut instrumentation_builder = InstrumentationBuilder::new("env");
+
         if let Some(stack_limit) = config.stack_height {
-            module = wasm_instrument::inject_stack_limiter(module, stack_limit).map_err(|err| {
-                log::trace!("Failed to inject stack height limits: {err}");
-                CodeError::StackLimitInjection
-            })?;
+            instrumentation_builder.with_stack_limiter(stack_limit, config.export_stack_height);
         }
 
-        if let Some(mut get_gas_rules) = get_gas_rules {
-            let gas_rules = get_gas_rules(&module);
-            module = gear_wasm_instrument::inject(module, &gas_rules, "env")
-                .map_err(|_| CodeError::GasInjection)?;
+        if let Some(get_gas_rules) = get_gas_rules {
+            instrumentation_builder.with_gas_limiter(get_gas_rules);
         }
+
+        module = instrumentation_builder.instrument(module).map_err(|err| {
+            log::trace!("Failed to instrument program: {err}");
+            CodeError::Instrumentation
+        })?;
 
         let code = parity_wasm::elements::serialize(module).map_err(|err| {
             log::trace!("Failed to encode instrumented program: {err}");

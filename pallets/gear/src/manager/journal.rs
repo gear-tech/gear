@@ -230,7 +230,7 @@ where
 
             if dispatch.value() != 0 {
                 GearBank::<T>::deposit_value(
-                    &<T::AccountId as Origin>::from_origin(dispatch.source().into_origin()),
+                    &dispatch.source().cast(),
                     dispatch.value().unique_saturated_into(),
                     false,
                 )
@@ -375,9 +375,8 @@ where
     }
 
     fn send_value(&mut self, from: ProgramId, to: Option<ProgramId>, value: u128) {
-        let to = Pallet::<T>::inheritor_for(to.unwrap_or(from));
-        let to = <T::AccountId as Origin>::from_origin(to.into_origin());
-        let from = <T::AccountId as Origin>::from_origin(from.into_origin());
+        let to = Pallet::<T>::inheritor_for(to.unwrap_or(from)).cast();
+        let from = from.cast();
         let value = value.unique_saturated_into();
 
         GearBank::<T>::transfer_value(&from, &to, value)
@@ -539,7 +538,7 @@ where
     }
 
     fn pay_program_rent(&mut self, payer: ProgramId, program_id: ProgramId, block_count: u32) {
-        let from = <T::AccountId as Origin>::from_origin(payer.into_origin());
+        let from = payer.cast();
         let block_count = block_count.unique_saturated_into();
 
         ProgramStorageOf::<T>::update_active_program(program_id, |program| {

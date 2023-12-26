@@ -139,6 +139,16 @@ impl<'a, 'b> GearWasmGenerator<'a, 'b> {
             .into_wasm_module()
             .into_inner();
 
+        let module = if let Some(critical_gas_limit) = config.critical_gas_limit {
+            log::trace!("Injecting critical gas limit");
+            utils::inject_critical_gas_limit(module, critical_gas_limit)
+        } else {
+            log::trace!("Critical gas limit is not set");
+            module
+        };
+
+        let module = utils::inject_stack_limiter(module);
+
         Ok(if config.remove_recursions {
             log::trace!("Removing recursions");
             utils::remove_recursion(module)
@@ -183,16 +193,16 @@ impl<'a, 'b> GearWasmGenerator<'a, 'b> {
         self,
         mem_import_gen_proof: MemoryImportGenerationProof,
         ep_gen_proof: GearEntryPointGenerationProof,
-    ) -> Result<(DisabledSysCallsInvocator, FrozenGearWasmGenerator<'a, 'b>)> {
+    ) -> Result<(DisabledSyscallsInvocator, FrozenGearWasmGenerator<'a, 'b>)> {
         let syscalls_imports_gen_instantiator =
-            SysCallsImportsGeneratorInstantiator::from((self, mem_import_gen_proof, ep_gen_proof));
+            SyscallsImportsGeneratorInstantiator::from((self, mem_import_gen_proof, ep_gen_proof));
         let (syscalls_imports_gen, frozen_gear_wasm_gen) = syscalls_imports_gen_instantiator.into();
         let syscalls_imports_gen_res = syscalls_imports_gen.generate()?;
 
         let ad_injector = AdditionalDataInjector::from(syscalls_imports_gen_res);
         let data_injection_res = ad_injector.inject();
 
-        let syscalls_invocator = SysCallsInvocator::from(data_injection_res);
+        let syscalls_invocator = SyscallsInvocator::from(data_injection_res);
         let disabled_syscalls_invocator = syscalls_invocator.insert_invokes()?;
 
         Ok((disabled_syscalls_invocator, frozen_gear_wasm_gen))
@@ -217,7 +227,7 @@ struct CallIndexes {
     /// These are indexes of functions which aren't generated from
     /// `wasm-smith` but from the current crate generators. All gear
     /// entry points ([`EntryPointsGenerator`]) and custom precise syscalls
-    /// (generated in [`SysCallsImportsGenerator`]) are considered to be
+    /// (generated in [`SyscallsImportsGenerator`]) are considered to be
     /// "custom" functions.
     ///
     /// Separating "pre-defined" functions from newly generated ones is important

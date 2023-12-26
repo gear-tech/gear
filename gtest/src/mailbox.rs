@@ -357,17 +357,20 @@ mod tests {
             receiver_id.into(),
             payload.encode().try_into().unwrap(),
             Default::default(),
-            1000,
+            2 * crate::EXISTENTIAL_DEPOSIT,
             None,
         );
 
-        system.mint_to(sender_id, 1000);
+        system.mint_to(sender_id, 2 * crate::EXISTENTIAL_DEPOSIT);
         system.send_dispatch(Dispatch::new(DispatchKind::Handle, message));
 
         let receiver_mailbox = system.get_mailbox(receiver_id);
         receiver_mailbox.claim_value(log);
 
-        assert_eq!(system.balance_of(receiver_id), 1000);
+        assert_eq!(
+            system.balance_of(receiver_id),
+            2 * crate::EXISTENTIAL_DEPOSIT
+        );
     }
 
     #[test]
