@@ -26,7 +26,7 @@ use alloc::string::String;
 use codec::{Decode, Encode};
 use sp_core::RuntimeDebug;
 use sp_std::vec::Vec;
-use sp_wasm_interface::ReturnValue;
+use sp_wasm_interface_common::ReturnValue;
 
 #[derive(Clone, Copy, Debug)]
 pub enum Instantiate {

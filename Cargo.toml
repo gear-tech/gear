@@ -1,5 +1,5 @@
 [workspace.package]
-version = "1.0.3"
+version = "1.0.4"
 authors = ["Gear Technologies"]
 edition = "2021"
 license = "GPL-3.0"
@@ -148,8 +148,8 @@ static_assertions = "1"
 subxt = "0.32.1"
 subxt-metadata = "0.32.1"
 subxt-codegen = "0.32.1"
-syn = "2.0.40"
-thiserror = "1.0.50"
+syn = "2.0.41"
+thiserror = "1.0.51"
 tokio = { version = "1.35.0" }
 url = "2.5.0"
 wat = "1.0.82"
@@ -168,8 +168,8 @@ tempfile = "3.8.1"
 #
 # https://github.com/gear-tech/dlmalloc-rust/tree/v0.1.4
 dlmalloc = { package = "gear-dlmalloc", version = "0.1.4" }
-# https://github.com/gear-tech/wasm-instrument/tree/v0.2.3-sign-ext
-gwasm-instrument = { version = "0.2.3", default-features = false }
+# https://github.com/gear-tech/wasm-instrument/tree/gear-stable-v0.3.0
+gwasm-instrument = { version = "0.3.0", default-features = false }
 # https://github.com/gear-tech/wasm-utils/tree/v0.19.0
 pwasm-utils = { version = "0.19.0", package = "gear-pwasm-utils" }
 
@@ -349,6 +349,7 @@ sp-transaction-storage-proof = { version = "4.0.0-dev", git = "https://github.co
 sp-trie = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
 sp-version = { version = "5.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
 sp-wasm-interface = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
+sp-wasm-interface-common = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
 substrate-build-script-utils = { version = "3.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes" }
 substrate-frame-rpc-system = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes" }
 substrate-rpc-client = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes" }
@@ -399,7 +400,7 @@ demo-reservation-manager = { path = "examples/reservation-manager" }
 demo-reserve-gas = { path = "examples/reserve-gas", default-features = false }
 demo-rwlock = { path = "examples/rwlock" }
 demo-send-from-reservation = { path = "examples/send-from-reservation" }
-demo-signal-entry = { path = "examples/signal-entry" }
+demo-signal-entry = { path = "examples/signal-entry", default-features = false }
 demo-state-rollback = { path = "examples/state-rollback" }
 demo-sync-duplicate = { path = "examples/sync-duplicate" }
 demo-vec = { path = "examples/vec" }
@@ -445,9 +446,7 @@ fail = "0.5"                                                              # gear
 scale-value = "^0.12"                                                     # gsdk
 heck = "0.4.1"                                                            # gsdk-api-gen
 etc = "0.1.16"                                                            # gcli
-cargo_toml = "0.15.3"                                                     # crates-io
-crates-io = "0.37.0"                                                      # crates-io
-curl = "0.4.44"                                                           # crates-io
+toml_edit = "0.21.0"                                                      # crates-io
 scale-decode = "0.9.0"                                                    # gsdk
 directories = "5.0.1"                                                     # utils/key-finder
 num-traits = { version = "0.2", default-features = false }                # gear-core

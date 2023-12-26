@@ -12,6 +12,7 @@ repository.workspace = true
 
 [dependencies]
 gwasm-instrument = { workspace = true, features = ["sign_ext"] }
+derive_more.workspace = true
 enum-iterator.workspace = true
 
 [dev-dependencies]

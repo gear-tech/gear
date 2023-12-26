@@ -21,10 +21,9 @@
 
 mod manifest;
 mod publisher;
-pub mod rename;
 mod version;
 
-pub use self::{manifest::ManifestWithPath, publisher::Publisher, version::verify};
+pub use self::{manifest::Manifest, publisher::Publisher, version::verify};
 use anyhow::Result;
 use std::process::{Command, ExitStatus};
 
