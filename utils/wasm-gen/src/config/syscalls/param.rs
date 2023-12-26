@@ -22,8 +22,7 @@
 
 use crate::{SyscallDestination, DEFAULT_INITIAL_SIZE};
 use arbitrary::{Result, Unstructured};
-use gsys::Hash;
-use std::{collections::HashMap, mem, ops::RangeInclusive};
+use std::{collections::HashMap, ops::RangeInclusive};
 
 pub use gear_wasm_instrument::syscalls::{HashType, Ptr, RegularParamType};
 
@@ -250,7 +249,8 @@ impl Default for RegularParamAllowedValues {
 /// Allowed values for syscalls pointer params.
 ///
 /// Currently it allows defining only message
-/// values for.
+/// values for syscalls that send messages to actors
+/// and actors kind (for more info, see `SyscallDestination`).
 // TODO #3591 Support hashes to be defined from config.
 #[derive(Debug, Clone)]
 pub enum PtrParamAllowedValues {
@@ -260,73 +260,6 @@ pub enum PtrParamAllowedValues {
         range: RangeInclusive<u128>,
     },
     ActorId(SyscallDestination),
-    // HashWithValue {
-    //     ty: HashType,
-    //     range: RangeInclusive<u128>,
-    // },
-    // TwoHashesWithValue {
-    //     ty1: HashType,
-    //     ty2: HashType,
-    //     range: RangeInclusive<u128>,
-    // },
-}
-
-impl PtrParamAllowedValues {
-    pub const VALUE_WORDS: usize = mem::size_of::<u128>() / mem::size_of::<i32>();
-    pub const HASH_WORDS: usize = mem::size_of::<Hash>() / mem::size_of::<i32>();
-    pub const HASH_WITH_VALUE_WORDS: usize = Self::HASH_WORDS + Self::VALUE_WORDS;
-    pub const TWO_HASHES_WITH_VALUE_WORDS: usize = 2 * Self::HASH_WORDS + Self::VALUE_WORDS;
-
-    // /// Get the actual data that should be written into the memory.
-    // pub fn get(&self, unstructured: &mut Unstructured) -> Result<Vec<i32>> {
-    //     match self {
-    //         PtrParamAllowedValues::Value(range) => Self::get_value(unstructured, range.clone()),
-    //         PtrParamAllowedValues::HashWithValue { range, .. } => {
-    //             let mut ret = Vec::with_capacity(Self::HASH_WITH_VALUE_WORDS);
-    //             ret.extend(Self::get_default_hash());
-    //             ret.extend(Self::get_value(unstructured, range.clone())?);
-
-    //             Ok(ret)
-    //         }
-    //         PtrParamAllowedValues::TwoHashesWithValue { range, .. } => {
-    //             let mut ret = Vec::with_capacity(Self::TWO_HASHES_WITH_VALUE_WORDS);
-    //             ret.extend(Self::get_default_hash());
-    //             ret.extend(Self::get_default_hash());
-    //             ret.extend(Self::get_value(unstructured, range.clone())?);
-
-    //             Ok(ret)
-    //         }
-    //     }
-    // }
-
-    // fn get_value(unstructured: &mut Unstructured, range: RangeInclusive<u128>) -> Result<Vec<i32>> {
-    //     let value = unstructured.int_in_range(range)?;
-    //     Ok(Self::get_for_instructions(value.to_le_bytes()))
-    // }
-
-    // fn get_default_hash() -> Vec<i32> {
-    //     Self::get_for_instructions(Hash::default())
-    // }
-
-    pub(crate) fn get_for_instructions<const N: usize>(raw_data: [u8; N]) -> Vec<i32> {
-        let data_size = mem::size_of_val(&raw_data);
-        let wasm_ptr_size = mem::size_of::<i32>();
-
-        if data_size % wasm_ptr_size != 0 {
-            panic!("data size isn't multiply of wasm word size")
-        }
-
-        raw_data
-            .chunks(wasm_ptr_size)
-            .map(|word_bytes| {
-                i32::from_le_bytes(
-                    word_bytes
-                        .try_into()
-                        .expect("Chunks are of the exact size."),
-                )
-            })
-            .collect()
-    }
 }
 
 impl From<PtrParamAllowedValues> for Ptr {

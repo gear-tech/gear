@@ -23,6 +23,7 @@ use crate::{
         CallIndexes, CallIndexesHandle, DisabledAdditionalDataInjector, FunctionIndex,
         ModuleWithCallIndexes,
     },
+    utils::{self, WasmWords},
     wasm::{PageCount as WasmPageCount, WasmModule},
     InvocableSyscall, PtrParamAllowedValues, RegularParamAllowedValues, SyscallDestination,
     SyscallsConfig, SyscallsParamsConfig,
@@ -428,24 +429,13 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                     let offset = self.unstructured.int_in_range(0..=upper_limit)? as i32;
 
                     let param_instrs = if let Some(allowed_values) = allowed_values {
-                        let instr = match allowed_values {
+                        let instructions = match allowed_values {
                             PtrParamAllowedValues::Value(range) => {
                                 let value = self.unstructured.int_in_range(range)?;
-                                PtrParamAllowedValues::get_for_instructions(value.to_le_bytes())
-                                    .into_iter()
-                                    .enumerate()
-                                    .flat_map(|(word_idx, word)| {
-                                        vec![
-                                            Instruction::I32Const(offset),
-                                            Instruction::I32Const(word),
-                                            Instruction::I32Store(
-                                                2,
-                                                (word_idx * mem::size_of::<i32>()) as u32,
-                                            ),
-                                        ]
-                                    })
-                                    .chain(iter::once(Instruction::I32Const(offset)))
-                                    .collect()
+                                utils::translate_ptr_data(
+                                    WasmWords::new(value.to_le_bytes()),
+                                    (offset, offset),
+                                )
                             }
                             PtrParamAllowedValues::ActorId(actor) => {
                                 match actor {
@@ -464,43 +454,20 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                                         ]
                                     }
                                     SyscallDestination::ExistingAddresses(addresses) => {
-                                        let idx = self
-                                            .unstructured
-                                            .int_in_range(0..=(addresses.len() - 1))?;
-                                        PtrParamAllowedValues::get_for_instructions(addresses[idx])
-                                            .into_iter()
-                                            .enumerate()
-                                            .flat_map(|(word_idx, word)| {
-                                                vec![
-                                                    Instruction::I32Const(offset),
-                                                    Instruction::I32Const(word),
-                                                    Instruction::I32Store(
-                                                        2,
-                                                        (word_idx * mem::size_of::<i32>()) as u32,
-                                                    ),
-                                                ]
-                                            })
-                                            .chain(iter::once(Instruction::I32Const(offset)))
-                                            .collect()
+                                        let addresses = utils::non_empty_to_vec(addresses);
+                                        let address = self.unstructured.choose(&addresses)?;
+                                        utils::translate_ptr_data(
+                                            WasmWords::new(*address),
+                                            (offset, offset),
+                                        )
                                     }
                                     SyscallDestination::Random => {
                                         let random_address: [u8; 32] =
                                             self.unstructured.arbitrary()?;
-                                        PtrParamAllowedValues::get_for_instructions(random_address)
-                                            .into_iter()
-                                            .enumerate()
-                                            .flat_map(|(word_idx, word)| {
-                                                vec![
-                                                    Instruction::I32Const(offset),
-                                                    Instruction::I32Const(word),
-                                                    Instruction::I32Store(
-                                                        2,
-                                                        (word_idx * mem::size_of::<i32>()) as u32,
-                                                    ),
-                                                ]
-                                            })
-                                            .chain(iter::once(Instruction::I32Const(offset)))
-                                            .collect()
+                                        utils::translate_ptr_data(
+                                            WasmWords::new(random_address),
+                                            (offset, offset),
+                                        )
                                     }
                                 }
                             }
@@ -513,111 +480,56 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                                             .map(|&(_, call_indexes_handle)| call_indexes_handle as u32)
                                             .expect("by config if destination is source, then `gr_source` is generated");
 
-                                        let mut gr_source_instr = vec![
+                                        // Put call to `gr_source`` instructions
+                                        let mut ret_instr = vec![
                                             // call `gsys::gr_source` storing actor id and some `offset` pointer.
                                             Instruction::I32Const(offset as i32),
                                             Instruction::Call(gr_source_call_indexes_handle),
                                         ];
+                                        // Generate value definition instructions.
+                                        // Value data is put right after `gr_source` bytes (offset + hash len).
+                                        let mut value_instr = utils::translate_ptr_data(
+                                            WasmWords::new(
+                                                self.unstructured
+                                                    .int_in_range(range)?
+                                                    .to_le_bytes(),
+                                            ),
+                                            (offset + mem::size_of::<Hash>() as i32, offset),
+                                        );
+                                        ret_instr.append(&mut value_instr);
 
-                                        let value = self.unstructured.int_in_range(range)?;
-                                        let mut value_instructions =
-                                            PtrParamAllowedValues::get_for_instructions(
-                                                value.to_le_bytes(),
-                                            )
-                                            .into_iter()
-                                            .enumerate()
-                                            .flat_map(|(word_idx, word)| {
-                                                vec![
-                                                    Instruction::I32Const(
-                                                        offset + mem::size_of::<Hash>() as i32,
-                                                    ),
-                                                    Instruction::I32Const(word),
-                                                    Instruction::I32Store(
-                                                        2,
-                                                        (word_idx * mem::size_of::<i32>()) as u32,
-                                                    ),
-                                                ]
-                                            })
-                                            .chain(iter::once(Instruction::I32Const(offset)))
-                                            .collect();
-
-                                        gr_source_instr.append(&mut value_instructions);
-
-                                        gr_source_instr
+                                        ret_instr
                                     }
                                     SyscallDestination::ExistingAddresses(addresses) => {
-                                        let mut ret = Vec::with_capacity(
-                                            PtrParamAllowedValues::HASH_WITH_VALUE_WORDS,
+                                        let address_words = WasmWords::new(
+                                            *self
+                                                .unstructured
+                                                .choose(&utils::non_empty_to_vec(addresses))?,
                                         );
-                                        let idx = self
-                                            .unstructured
-                                            .int_in_range(0..=(addresses.len() - 1))?;
-                                        let address_words =
-                                            PtrParamAllowedValues::get_for_instructions(
-                                                addresses[idx],
-                                            );
-                                        let value = self.unstructured.int_in_range(range)?;
-                                        let value_words =
-                                            PtrParamAllowedValues::get_for_instructions(
-                                                value.to_le_bytes(),
-                                            );
-
-                                        ret.extend(address_words);
-                                        ret.extend(value_words);
-
-                                        ret.into_iter()
-                                            .enumerate()
-                                            .flat_map(|(word_idx, word)| {
-                                                vec![
-                                                    Instruction::I32Const(offset),
-                                                    Instruction::I32Const(word),
-                                                    Instruction::I32Store(
-                                                        2,
-                                                        (word_idx * mem::size_of::<i32>()) as u32,
-                                                    ),
-                                                ]
-                                            })
-                                            .chain(iter::once(Instruction::I32Const(offset)))
-                                            .collect()
+                                        let value_words = WasmWords::new(
+                                            self.unstructured.int_in_range(range)?.to_le_bytes(),
+                                        );
+                                        utils::translate_ptr_data(
+                                            address_words.merge(value_words),
+                                            (offset, offset),
+                                        )
                                     }
                                     SyscallDestination::Random => {
-                                        let mut ret = Vec::with_capacity(
-                                            PtrParamAllowedValues::HASH_WITH_VALUE_WORDS,
+                                        let random_address_words = WasmWords::new(
+                                            self.unstructured.arbitrary::<[u8; 32]>()?,
                                         );
-                                        let random_address: [u8; 32] =
-                                            self.unstructured.arbitrary()?;
-                                        let random_address_words =
-                                            PtrParamAllowedValues::get_for_instructions(
-                                                random_address,
-                                            );
-                                        let value = self.unstructured.int_in_range(range)?;
-                                        let value_words =
-                                            PtrParamAllowedValues::get_for_instructions(
-                                                value.to_le_bytes(),
-                                            );
-
-                                        ret.extend(random_address_words);
-                                        ret.extend(value_words);
-
-                                        ret.into_iter()
-                                            .enumerate()
-                                            .flat_map(|(word_idx, word)| {
-                                                vec![
-                                                    Instruction::I32Const(offset),
-                                                    Instruction::I32Const(word),
-                                                    Instruction::I32Store(
-                                                        2,
-                                                        (word_idx * mem::size_of::<i32>()) as u32,
-                                                    ),
-                                                ]
-                                            })
-                                            .chain(iter::once(Instruction::I32Const(offset)))
-                                            .collect()
+                                        let value_words = WasmWords::new(
+                                            self.unstructured.int_in_range(range)?.to_le_bytes(),
+                                        );
+                                        utils::translate_ptr_data(
+                                            random_address_words.merge(value_words),
+                                            (offset, offset),
+                                        )
                                     }
                                 }
                             }
                         };
-                        ParamInstructions(instr)
+                        ParamInstructions(instructions)
                     } else {
                         offset.into()
                     };
