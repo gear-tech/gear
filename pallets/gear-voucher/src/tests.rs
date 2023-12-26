@@ -51,7 +51,7 @@ fn voucher_issue_works() {
         assert_eq!(voucher_info.programs, Some([program_id].into()));
         assert_eq!(
             voucher_info.validity,
-            System::block_number().saturating_add(utils::DEFAULT_EXPIRATION)
+            System::block_number().saturating_add(utils::DEFAULT_VALIDITY)
         );
     });
 }
@@ -154,7 +154,7 @@ fn voucher_call_works() {
             BOB,
             1_000,
             None,
-            utils::DEFAULT_EXPIRATION,
+            utils::DEFAULT_VALIDITY,
         ));
         let voucher_id_any = utils::get_last_voucher_id();
 
@@ -273,7 +273,7 @@ fn voucher_call_err_cases() {
         );
 
         // Voucher is out of date.
-        System::set_block_number(System::block_number() + utils::DEFAULT_EXPIRATION);
+        System::set_block_number(System::block_number() + utils::DEFAULT_VALIDITY + 1);
 
         assert_noop!(
             Voucher::call(
@@ -317,7 +317,7 @@ fn voucher_revoke_works() {
         let voucher_id = voucher_id.unwrap();
         let voucher_id_acc = voucher_id.cast::<AccountIdOf<Test>>();
 
-        System::set_block_number(System::block_number() + utils::DEFAULT_EXPIRATION);
+        System::set_block_number(System::block_number() + utils::DEFAULT_VALIDITY + 1);
 
         let alice_balance = Balances::free_balance(ALICE);
         let voucher_balance = Balances::free_balance(voucher_id_acc);
@@ -338,7 +338,7 @@ fn voucher_revoke_works() {
             .into(),
         );
 
-        // TODO (breathx): add comment.
+        // NOTE: To be changed to `assert_ne!` once `revoke()` deletes voucher.
         assert!(Vouchers::<Test>::get(BOB, voucher_id).is_some());
         assert!(Balances::free_balance(voucher_id_acc).is_zero());
         assert_eq!(
@@ -374,7 +374,7 @@ fn voucher_revoke_err_cases() {
             Error::<Test>::InexistentVoucher
         );
 
-        // TODO (breathx): add comment.
+        // NOTE: To be changed once `revoke()` could be called by non-owner.
         // Non-owner revoke.
         assert_noop!(
             Voucher::revoke(RuntimeOrigin::signed(BOB), BOB, voucher_id,),
@@ -457,7 +457,7 @@ fn voucher_update_works() {
         assert_eq!(voucher.programs, Some([program_id, new_program_id].into()));
         assert_eq!(
             voucher.validity,
-            System::block_number() + utils::DEFAULT_EXPIRATION + validity_prolong
+            System::block_number() + utils::DEFAULT_VALIDITY + validity_prolong
         );
 
         let voucher_balance = Balances::free_balance(voucher_id_acc);
@@ -492,7 +492,7 @@ fn voucher_update_works() {
         assert_eq!(voucher.programs, None);
         assert_eq!(
             voucher.validity,
-            System::block_number() + utils::DEFAULT_EXPIRATION + validity_prolong
+            System::block_number() + utils::DEFAULT_VALIDITY + validity_prolong
         );
 
         assert_storage_noop!(assert_ok!(Voucher::update(
@@ -624,7 +624,7 @@ mod utils {
     use frame_support::dispatch::DispatchErrorWithPostInfo;
     use frame_system::pallet_prelude::BlockNumberFor;
 
-    pub(crate) const DEFAULT_EXPIRATION: BlockNumberFor<Test> = 100;
+    pub(crate) const DEFAULT_VALIDITY: BlockNumberFor<Test> = 100;
     pub(crate) const DEFAULT_BALANCE: BalanceOf<Test> = ExistentialDeposit::get() * 1_000;
 
     #[track_caller]
@@ -658,7 +658,7 @@ mod utils {
             to,
             balance,
             Some([program].into()),
-            DEFAULT_EXPIRATION,
+            DEFAULT_VALIDITY,
         )
         .map(|_| get_last_voucher_id())
     }

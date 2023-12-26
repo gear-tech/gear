@@ -162,7 +162,7 @@ impl<T: Config> Pallet<T> {
         }
 
         ensure!(
-            <frame_system::Pallet<T>>::block_number() < voucher.validity,
+            <frame_system::Pallet<T>>::block_number() <= voucher.validity,
             Error::<T>::VoucherExpired
         );
 
@@ -183,13 +183,15 @@ where
         }
     }
 
-    // TODO: delete None return once fn call() is removed.
+    // NOTE: delete None return once fn `GearVoucher::call_deprecated()` is removed.
     pub fn sponsored_by(&self, who: AccountIdOf<T>) -> Option<AccountIdOf<T>> {
         match self {
             crate::Call::call_deprecated { call } => Pallet::<T>::sponsor_of(&who, call),
             crate::Call::call { voucher_id, call } => {
                 if Pallet::<T>::validate_prepaid(who, *voucher_id, call).is_err() {
-                    unreachable!("Should be pre-validated by SignedExtension")
+                    log::error!("Signed extension of voucher validity passed invalid voucher for fee delegation");
+                    // This place may be considered as unreachable due to checks in `SignedExtension`.
+                    return None;
                 }
 
                 Some((*voucher_id).cast())
