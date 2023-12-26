@@ -332,23 +332,23 @@ impl AllocationsContext {
             return Ok(0.into());
         }
 
-        let mut res: Option<Interval<WasmPage>> = None;
+        let mut suitable_interval: Option<Interval<WasmPage>> = None;
         for v in self
             .allocations
-            .try_voids((self.static_pages, mem_size))
+            .try_voids(self.static_pages..mem_size)
             .map_err(|_| AllocError::IncorrectAllocationData)?
         {
             let interval = Interval::<WasmPage>::new_with_len(v.start(), Some(pages.raw()))
                 .map_err(|_| AllocError::ProgramAllocOutOfBounds)?;
             if WasmPagesAmount::from(v.len()) >= pages {
-                res = Some(interval);
+                suitable_interval = Some(interval);
                 break;
             }
         }
 
-        if let Some(v) = res {
-            self.allocations.insert(v);
-            return Ok(v.start());
+        if let Some(interval) = suitable_interval {
+            self.allocations.insert(interval);
+            return Ok(interval.start());
         }
 
         let start = self
@@ -407,7 +407,7 @@ impl AllocationsContext {
             ));
         }
 
-        // TODO: change range to interval
+        // TODO: change range to interval +_+_+
         self.allocations.try_remove(range).unwrap();
         Ok(())
     }
