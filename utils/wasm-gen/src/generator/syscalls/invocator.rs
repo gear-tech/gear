@@ -428,115 +428,15 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                     let upper_limit = mem_size.saturating_sub(100);
                     let offset = self.unstructured.int_in_range(0..=upper_limit)? as i32;
 
-                    let param_instrs = if let Some(allowed_values) = allowed_values {
-                        let instructions = match allowed_values {
-                            PtrParamAllowedValues::Value(range) => {
-                                let value = self.unstructured.int_in_range(range)?;
-                                utils::translate_ptr_data(
-                                    WasmWords::new(value.to_le_bytes()),
-                                    (offset, offset),
-                                )
-                            }
-                            PtrParamAllowedValues::ActorId(actor) => {
-                                match actor {
-                                    SyscallDestination::Source => {
-                                        let gr_source_call_indexes_handle = self
-                                            .syscalls_imports
-                                            .get(&InvocableSyscall::Loose(SyscallName::Source))
-                                            .map(|&(_, call_indexes_handle)| call_indexes_handle as u32)
-                                            .expect("by config if destination is source, then `gr_source` is generated");
-
-                                        vec![
-                                            // call `gsys::gr_source` storing actor id and some `offset` pointer.
-                                            Instruction::I32Const(offset as i32),
-                                            Instruction::Call(gr_source_call_indexes_handle),
-                                            Instruction::I32Const(offset as i32),
-                                        ]
-                                    }
-                                    SyscallDestination::ExistingAddresses(addresses) => {
-                                        let addresses = utils::non_empty_to_vec(addresses);
-                                        let address = self.unstructured.choose(&addresses)?;
-                                        utils::translate_ptr_data(
-                                            WasmWords::new(*address),
-                                            (offset, offset),
-                                        )
-                                    }
-                                    SyscallDestination::Random => {
-                                        let random_address: [u8; 32] =
-                                            self.unstructured.arbitrary()?;
-                                        utils::translate_ptr_data(
-                                            WasmWords::new(random_address),
-                                            (offset, offset),
-                                        )
-                                    }
-                                }
-                            }
-                            PtrParamAllowedValues::ActorIdWithValue { actor, range } => {
-                                match actor {
-                                    SyscallDestination::Source => {
-                                        let gr_source_call_indexes_handle = self
-                                            .syscalls_imports
-                                            .get(&InvocableSyscall::Loose(SyscallName::Source))
-                                            .map(|&(_, call_indexes_handle)| call_indexes_handle as u32)
-                                            .expect("by config if destination is source, then `gr_source` is generated");
-
-                                        // Put call to `gr_source`` instructions
-                                        let mut ret_instr = vec![
-                                            // call `gsys::gr_source` storing actor id and some `offset` pointer.
-                                            Instruction::I32Const(offset as i32),
-                                            Instruction::Call(gr_source_call_indexes_handle),
-                                        ];
-                                        // Generate value definition instructions.
-                                        // Value data is put right after `gr_source` bytes (offset + hash len).
-                                        let mut value_instr = utils::translate_ptr_data(
-                                            WasmWords::new(
-                                                self.unstructured
-                                                    .int_in_range(range)?
-                                                    .to_le_bytes(),
-                                            ),
-                                            (offset + mem::size_of::<Hash>() as i32, offset),
-                                        );
-                                        ret_instr.append(&mut value_instr);
-
-                                        ret_instr
-                                    }
-                                    SyscallDestination::ExistingAddresses(addresses) => {
-                                        let address_words = WasmWords::new(
-                                            *self
-                                                .unstructured
-                                                .choose(&utils::non_empty_to_vec(addresses))?,
-                                        );
-                                        let value_words = WasmWords::new(
-                                            self.unstructured.int_in_range(range)?.to_le_bytes(),
-                                        );
-                                        utils::translate_ptr_data(
-                                            address_words.merge(value_words),
-                                            (offset, offset),
-                                        )
-                                    }
-                                    SyscallDestination::Random => {
-                                        let random_address_words = WasmWords::new(
-                                            self.unstructured.arbitrary::<[u8; 32]>()?,
-                                        );
-                                        let value_words = WasmWords::new(
-                                            self.unstructured.int_in_range(range)?.to_le_bytes(),
-                                        );
-                                        utils::translate_ptr_data(
-                                            random_address_words.merge(value_words),
-                                            (offset, offset),
-                                        )
-                                    }
-                                }
-                            }
-                        };
-                        ParamInstructions(instructions)
+                    let param_instructions = if let Some(allowed_values) = allowed_values {
+                        self.build_ptr_param_instructions(allowed_values, offset)?
                     } else {
                         offset.into()
                     };
 
-                    log::trace!("  ----  Memory pointer value instructions - {param_instrs}");
+                    log::trace!("  ----  Memory pointer value instructions - {param_instructions}");
 
-                    ret.push(param_instrs);
+                    ret.push(param_instructions);
                 }
                 ProcessedSyscallParams::FreeUpperBound { allowed_values } => {
                     // This is the case only for `free_range` syscall.
@@ -566,6 +466,111 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
         assert_eq!(ret.len(), params.len());
 
         Ok(ret)
+    }
+
+    fn build_ptr_param_instructions(
+        &mut self,
+        ptr_allowed_values: PtrParamAllowedValues,
+        value_set_ptr: i32,
+    ) -> Result<ParamInstructions> {
+        let ret = match ptr_allowed_values {
+            PtrParamAllowedValues::Value(range) => {
+                let value = self.unstructured.int_in_range(range)?;
+                utils::translate_ptr_data(
+                    WasmWords::new(value.to_le_bytes()),
+                    (value_set_ptr, value_set_ptr),
+                )
+            }
+            PtrParamAllowedValues::ActorId(actor) => {
+                match actor {
+                    SyscallDestination::Source => {
+                        let gr_source_call_indexes_handle = self
+                            .syscalls_imports
+                            .get(&InvocableSyscall::Loose(SyscallName::Source))
+                            .map(|&(_, call_indexes_handle)| call_indexes_handle as u32)
+                            .expect(
+                                "by config if destination is source, then `gr_source` is generated",
+                            );
+
+                        vec![
+                            // call `gsys::gr_source` storing actor id at `value_set_ptr` pointer.
+                            Instruction::I32Const(value_set_ptr as i32),
+                            Instruction::Call(gr_source_call_indexes_handle),
+                            Instruction::I32Const(value_set_ptr as i32),
+                        ]
+                    }
+                    SyscallDestination::ExistingAddresses(addresses) => {
+                        let addresses = utils::non_empty_to_vec(addresses);
+                        let address = self.unstructured.choose(&addresses)?;
+                        utils::translate_ptr_data(
+                            WasmWords::new(*address),
+                            (value_set_ptr, value_set_ptr),
+                        )
+                    }
+                    SyscallDestination::Random => {
+                        let random_address: [u8; 32] = self.unstructured.arbitrary()?;
+                        utils::translate_ptr_data(
+                            WasmWords::new(random_address),
+                            (value_set_ptr, value_set_ptr),
+                        )
+                    }
+                }
+            }
+            PtrParamAllowedValues::ActorIdWithValue { actor, range } => {
+                match actor {
+                    SyscallDestination::Source => {
+                        let gr_source_call_indexes_handle = self
+                            .syscalls_imports
+                            .get(&InvocableSyscall::Loose(SyscallName::Source))
+                            .map(|&(_, call_indexes_handle)| call_indexes_handle as u32)
+                            .expect(
+                                "by config if destination is source, then `gr_source` is generated",
+                            );
+
+                        // Put call to `gr_source`` instructions
+                        let mut ret_instr = vec![
+                            // call `gsys::gr_source` storing actor id at `value_set_ptr` pointer.
+                            Instruction::I32Const(value_set_ptr as i32),
+                            Instruction::Call(gr_source_call_indexes_handle),
+                        ];
+                        // Generate value definition instructions.
+                        // Value data is put right after `gr_source` bytes (value_set_ptr + hash len).
+                        let mut value_instr = utils::translate_ptr_data(
+                            WasmWords::new(self.unstructured.int_in_range(range)?.to_le_bytes()),
+                            (value_set_ptr + mem::size_of::<Hash>() as i32, value_set_ptr),
+                        );
+                        ret_instr.append(&mut value_instr);
+
+                        ret_instr
+                    }
+                    SyscallDestination::ExistingAddresses(addresses) => {
+                        let address_words = WasmWords::new(
+                            *self
+                                .unstructured
+                                .choose(&utils::non_empty_to_vec(addresses))?,
+                        );
+                        let value_words =
+                            WasmWords::new(self.unstructured.int_in_range(range)?.to_le_bytes());
+                        utils::translate_ptr_data(
+                            address_words.merge(value_words),
+                            (value_set_ptr, value_set_ptr),
+                        )
+                    }
+                    SyscallDestination::Random => {
+                        let random_address_words =
+                            WasmWords::new(self.unstructured.arbitrary::<[u8; 32]>()?);
+                        let value_words =
+                            WasmWords::new(self.unstructured.int_in_range(range)?.to_le_bytes());
+                        utils::translate_ptr_data(
+                            random_address_words.merge(value_words),
+                            (value_set_ptr, value_set_ptr),
+                        )
+                    }
+                }
+            }
+        };
+
+        Ok(ParamInstructions(ret))
     }
 
     fn build_error_processing(
