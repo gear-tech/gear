@@ -325,6 +325,12 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
         };
         instructions.append(&mut result_processing);
 
+        log::trace!(
+            "Random data after building `{}` syscall invoke instructions - {}",
+            invocable.to_str(),
+            self.unstructured.len()
+        );
+
         Ok(instructions)
     }
 
@@ -372,7 +378,7 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                             panic!("gear wasm must not have any floating nums")
                         }
                     };
-                    let param_instrs = if let Some(allowed_values) = allowed_values {
+                    let param_instructions = if let Some(allowed_values) = allowed_values {
                         if is_i32 {
                             allowed_values.get_i32(self.unstructured)?.into()
                         } else {
@@ -384,9 +390,9 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                         self.unstructured.arbitrary::<i64>()?.into()
                     };
 
-                    log::trace!("  ----  Value param instrs - {param_instrs}");
+                    log::trace!("  ----  Value param instrs - {param_instructions}");
 
-                    ret.push(param_instrs);
+                    ret.push(param_instructions);
                 }
                 ProcessedSyscallParams::MemoryArrayLength => {
                     let length;
@@ -459,7 +465,7 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
         }
 
         log::trace!(
-            "  -- Random data after building param setters - {}",
+            "  -- Random data after building param instructions - {}",
             self.unstructured.len()
         );
 

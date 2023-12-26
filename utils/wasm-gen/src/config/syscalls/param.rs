@@ -146,12 +146,13 @@ impl SyscallsParamsConfig {
         use Ptr::*;
 
         let ptr = allowed_values.clone().into();
-        // TODO review prcessing and adding rules for ptrs
         let allowed_values = match ptr {
-            Hash(_) | Value | HashWithValue(_) | TwoHashesWithValue(_, _) => allowed_values,
-            TwoHashes(_, _) => unimplemented!(
-                "Currently unsupported defining ptr param filler config for `TwoHashes`."
-            ),
+            Hash(HashType::ActorId) | Value | HashWithValue(HashType::ActorId) => allowed_values,
+            ptr_ty @ (Hash(_) | HashWithValue(_) | TwoHashes(_, _) | TwoHashesWithValue(_, _)) => {
+                unimplemented!(
+                    "Currently unsupported defining ptr param filler config for {ptr_ty:?}."
+                )
+            }
             BlockNumber
             | BlockTimestamp
             | SizedBufferStart { .. }
@@ -248,10 +249,9 @@ impl Default for RegularParamAllowedValues {
 
 /// Allowed values for syscalls pointer params.
 ///
-/// Currently it allows defining only message
-/// values for syscalls that send messages to actors
-/// and actors kind (for more info, see `SyscallDestination`).
-// TODO #3591 Support hashes to be defined from config.
+/// Currently it allows defining only actor kinds (`SyscallDestination`)
+/// and message values for syscalls that send messages to actors.
+// TODO #3591 Support other hash types.
 #[derive(Debug, Clone)]
 pub enum PtrParamAllowedValues {
     Value(RangeInclusive<u128>),
