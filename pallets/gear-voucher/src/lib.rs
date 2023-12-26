@@ -492,7 +492,7 @@ pub mod pallet {
         ///
         /// It has `SignedExtension` check similar to [`Self::call`].
         #[pallet::call_index(4)]
-        #[pallet::weight(T::CallsDispatcher::weight(call))]
+        #[pallet::weight(T::CallsDispatcher::weight(call).saturating_add(T::DbWeight::get().reads(1)))]
         pub fn call_deprecated(
             origin: OriginFor<T>,
             call: PrepaidCall<BalanceOf<T>>,
