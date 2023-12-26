@@ -18,7 +18,7 @@
 
 use crate::cargo_toolchain::Toolchain;
 use anyhow::{ensure, Context, Result};
-use std::{env, path::PathBuf, process::Command};
+use std::{path::PathBuf, process::Command};
 
 use crate::builder_error::BuilderError;
 
