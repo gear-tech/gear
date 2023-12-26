@@ -124,8 +124,10 @@ pub mod panic_handler {
 
             let _ = ext::debug(&debug_msg);
 
-            let msg = debug_msg.get(PANIC_OCCURRED.len()..).unwrap();
-            ext::panic(msg)
+            match debug_msg.get(PANIC_OCCURRED.len()..) {
+                Some(msg) => ext::panic(msg),
+                _ => ext::panic("no info"),
+            }
         }
 
         /// Panic handler for stable Rust <1.73.
@@ -171,8 +173,10 @@ pub mod panic_handler {
 
             let _ = ext::debug(&debug_msg);
 
-            let msg = debug_msg.get(PANIC_OCCURRED.len()..).unwrap();
-            ext::panic(msg)
+            match debug_msg.get(PANIC_OCCURRED.len()..) {
+                Some(msg) => ext::panic(msg),
+                _ => ext::panic("no info"),
+            }
         }
 
         /// Panic handler for stable Rust >=1.73.
@@ -245,8 +249,10 @@ pub mod panic_handler {
 
             let _ = ext::debug(&debug_msg);
 
-            let msg = debug_msg.get(PANIC_OCCURRED.len()..).unwrap();
-            ext::panic(msg)
+            match debug_msg.get(PANIC_OCCURRED.len()..) {
+                Some(msg) => ext::panic(msg),
+                _ => ext::panic("no info"),
+            }
         }
     }
 }
