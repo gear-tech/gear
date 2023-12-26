@@ -45,11 +45,11 @@ pub const SAFE_DEPENDENCIES: [&str; 6] = [
 /// Required packages with local dependencies.
 ///
 /// NOTE: DO NOT change the order of this array.
-pub const STACKED_DEPENDENCIES: [&str; 10] = [
+pub const STACKED_DEPENDENCIES: [&str; 11] = [
     // "gcore",
     // "gmeta",
     "gear-core",
-    // "gear-utils",
+    "gear-utils",
     "gear-common",
     "gear-sandbox-host",
     "gear-lazy-pages-common",
@@ -64,8 +64,14 @@ pub const STACKED_DEPENDENCIES: [&str; 10] = [
 /// Packages need to be published.
 ///
 /// NOTE: DO NOT change the order of this array.
-// pub const PACKAGES: [&str; 5] = ["gear-wasm-builder", "gstd", "gsdk", "gclient", "gcli"];
-pub const PACKAGES: [&str; 0] = [];
+pub const PACKAGES: [&str; 1] = [
+    // "gstd",
+    "gtest",
+    // "gsdk",
+    // "gclient",
+    // "gcli",
+    // "gear-wasm-builder",
+];
 
 /// Check the input package
 pub fn check(manifest: &str) -> Result<ExitStatus> {
