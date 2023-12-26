@@ -327,6 +327,11 @@ impl AllocationsContext {
             return Err(AllocError::IncorrectAllocationData);
         }
 
+        // If trying to allocate zero pages, then returns WasmPage(0) page as result always.
+        if pages == WasmPagesAmount::from(0) {
+            return Ok(0.into());
+        }
+
         let mut res: Option<Interval<WasmPage>> = None;
         for v in self
             .allocations
@@ -344,8 +349,6 @@ impl AllocationsContext {
         if let Some(v) = res {
             self.allocations.insert(v);
             return Ok(v.start());
-        } else if pages == WasmPagesAmount::from(0) {
-            return Ok(WasmPage::UPPER);
         }
 
         let start = self

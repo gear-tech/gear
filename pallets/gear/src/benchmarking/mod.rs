@@ -83,9 +83,9 @@ use gear_core::{
     code::{Code, CodeAndId},
     gas::{GasAllowanceCounter, GasCounter, ValueCounter},
     ids::{CodeId, MessageId, ProgramId},
-    memory::{AllocationsContext, Memory, PageBuf},
+    memory::{AllocationsContext, Memory},
     message::{ContextSettings, DispatchKind, IncomingDispatch, MessageContext},
-    pages::{GearPage, PageU32Size, WasmPage},
+    pages::{PageU32Size, WasmPage},
     reservation::GasReserver,
 };
 use gear_core_backend::{
@@ -113,7 +113,7 @@ use sp_std::prelude::*;
 const MAX_PAYLOAD_LEN: u32 = 32 * 64 * 1024;
 const MAX_PAYLOAD_LEN_KB: u32 = MAX_PAYLOAD_LEN / 1024;
 const DEFAULT_PAGES: u32 = 512;
-const MAX_SALT_SIZE_BYTES: usize = 4 * 1024 * 1024;
+const MAX_SALT_SIZE_BYTES: u32 = 4 * 1024 * 1024;
 
 /// How many batches we do per API benchmark.
 const API_BENCHMARK_BATCHES: u32 = 20;
@@ -413,7 +413,7 @@ benchmarks! {
         let WasmModule { code, .. } = WasmModule::<T>::sized(c * 1024, Location::Init);
     }: {
         let ext = Externalities::new(default_processor_context::<T>());
-        Environment::new(ext, &code, DispatchKind::Init, Default::default(), (DEFAULT_PAGES as u32).into()).unwrap();
+        Environment::new(ext, &code, DispatchKind::Init, Default::default(), (DEFAULT_PAGES as u16).into()).unwrap();
     }
 
     claim_value {
@@ -613,7 +613,7 @@ benchmarks! {
         verify_process(res.unwrap());
     }
 
-    alloc_per_intervals_amount {
+    alloc_per_interval {
         let i in 0 .. 20_000;
         let mut res = None;
         let exec = Benches::<T>::alloc(1, i, 2)?;
@@ -657,7 +657,7 @@ benchmarks! {
         verify_process(res.unwrap());
     }
 
-    free_per_intervals {
+    free_per_interval {
         let i in 1_000 .. 20_000;
         let mut res = None;
         let exec = Benches::<T>::free(1, i)?;
@@ -690,7 +690,7 @@ benchmarks! {
         verify_process(res.unwrap());
     }
 
-    free_range_per_intervals {
+    free_range_per_interval {
         let i in 1_000 .. 20_000;
         let mut res = None;
         let exec = Benches::<T>::free_range(1, i, 2)?;

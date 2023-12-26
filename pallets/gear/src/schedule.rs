@@ -338,20 +338,26 @@ pub struct HostFnWeights<T: Config> {
     /// Weight of calling `alloc`.
     pub alloc: Weight,
 
-    /// Weight per page in `alloc`.
+    /// Weight of calling `alloc` per page.
     pub alloc_per_page: Weight,
 
-    /// Weight per intervals amount in program allocations set.
-    pub alloc_per_intervals_amount: Weight,
+    /// Weight of calling `alloc` per intervals amount in program allocations.
+    pub alloc_per_interval: Weight,
 
     /// Weight of calling `free`.
     pub free: Weight,
+
+    /// Weight of calling `free` per intervals amount in program allocations.
+    pub free_per_interval: Weight,
 
     /// Weight of calling `free_range`.
     pub free_range: Weight,
 
     /// Weight of calling `free_range` per page.
     pub free_range_per_page: Weight,
+
+    /// Weight of calling `free_range` per intervals amount in program allocations.
+    pub free_range_per_interval: Weight,
 
     /// Weight of calling `gr_reserve_gas`.
     pub gr_reserve_gas: Weight,
@@ -869,10 +875,12 @@ impl<T: Config> HostFnWeights<T> {
         CoreHostFnWeights {
             alloc: self.alloc.ref_time(),
             alloc_per_page: self.alloc_per_page.ref_time(),
-            alloc_per_intervals_amount: self.alloc_per_intervals_amount.ref_time(),
+            alloc_per_interval: self.alloc_per_interval.ref_time(),
             free: self.free.ref_time(),
+            free_per_interval: self.free_per_interval.ref_time(),
             free_range: self.free_range.ref_time(),
             free_range_per_page: self.free_range_per_page.ref_time(),
+            free_range_per_interval: self.free_range_per_interval.ref_time(),
             gr_reserve_gas: self.gr_reserve_gas.ref_time(),
             gr_unreserve_gas: self.gr_unreserve_gas.ref_time(),
             gr_system_reserve_gas: self.gr_system_reserve_gas.ref_time(),
@@ -992,10 +1000,12 @@ impl<T: Config> Default for HostFnWeights<T> {
             alloc: to_weight!(cost_batched!(alloc))
                 .saturating_sub(to_weight!(cost_batched!(alloc_per_page))),
             alloc_per_page: to_weight!(cost_batched!(alloc_per_page)),
-            alloc_per_intervals_amount: to_weight!(cost_batched!(alloc_per_intervals_amount)),
+            alloc_per_interval: to_weight!(cost_batched!(alloc_per_interval)),
             free: to_weight!(cost_batched!(free)),
+            free_per_interval: to_weight!(cost_batched!(free_per_interval)),
             free_range: to_weight!(cost_batched!(free_range)),
             free_range_per_page: to_weight!(cost_batched!(free_range_per_page)),
+            free_range_per_interval: to_weight!(cost_batched!(free_range_per_interval)),
 
             gr_reserve_gas: to_weight!(cost!(gr_reserve_gas)),
             gr_system_reserve_gas: to_weight!(cost_batched!(gr_system_reserve_gas)),

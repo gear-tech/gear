@@ -85,27 +85,33 @@ impl<P: Into<u32>> Default for CostPerPage<P> {
     }
 }
 
-// TODO: rename, cause HostFn is already used as name for RuntimeInterface host calls #_+_+_
+// TODO: rename, cause HostFn is already used as name for RuntimeInterface host calls #+_+_+
 /// Describes the weight for each imported function that a program is allowed to call.
 #[derive(Clone, Encode, Decode, PartialEq, Eq, Default)]
 pub struct HostFnWeights {
     /// Weight of calling `alloc`.
     pub alloc: u64,
 
-    /// Weight per allocated pages amount for `alloc`.
+    /// Weight of calling `alloc` per page.
     pub alloc_per_page: u64,
 
-    /// Weight per already allocated intervals amount for `alloc`.
-    pub alloc_per_intervals_amount: u64,
+    /// Weight of calling `alloc` per intervals amount in program allocations.
+    pub alloc_per_interval: u64,
 
     /// Weight of calling `free`.
     pub free: u64,
 
-    /// Weight of calling `free_range`
+    /// Weight of calling `free` per intervals amount in program allocations.
+    pub free_per_interval: u64,
+
+    /// Weight of calling `free_range`.
     pub free_range: u64,
 
-    /// Weight of calling `free_range` per page
+    /// Weight of calling `free_range` per page.
     pub free_range_per_page: u64,
+
+    /// Weight of calling `free_range` per intervals amount in program allocations.
+    pub free_range_per_interval: u64,
 
     /// Weight of calling `gr_reserve_gas`.
     pub gr_reserve_gas: u64,
@@ -338,8 +344,6 @@ pub enum RuntimeCosts {
     Free,
     /// Base weight of calling `free_range`
     FreeRange,
-    /// Weight of calling `free_range` per amount of pages.
-    FreeRangePerPage(u32),
     /// Weight of calling `gr_reserve_gas`.
     ReserveGas,
     /// Weight of calling `gr_unreserve_gas`.
@@ -482,7 +486,6 @@ impl RuntimeCosts {
             Alloc(pages) => cost_with_weight_per_page(s.alloc, s.alloc_per_page, pages),
             Free => s.free,
             FreeRange => s.free_range,
-            FreeRangePerPage(pages) => cost_with_weight_per_page(0, s.free_range_per_page, pages),
             ReserveGas => s.gr_reserve_gas,
             UnreserveGas => s.gr_unreserve_gas,
             SystemReserveGas => s.gr_system_reserve_gas,

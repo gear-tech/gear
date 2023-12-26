@@ -83,7 +83,7 @@ impl Program {
         }
     }
 
-    // TODO: is_initialized is used only in gtest, so may be we should remove it #_+_+_
+    // TODO: is_initialized is used only in gtest, so may be we should remove it #+_+_+
     /// Get program parts
     pub fn into_parts(
         self,
