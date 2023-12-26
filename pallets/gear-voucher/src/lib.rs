@@ -392,7 +392,7 @@ pub mod pallet {
         ///                     `None` passed;
         /// * prolong validity: optionally increases validity block number.
         #[pallet::call_index(3)]
-        #[pallet::weight(Weight::zero())] // TODO (breathx)
+        #[pallet::weight(T::WeightInfo::update())]
         pub fn update(
             origin: OriginFor<T>,
             spender: AccountIdOf<T>,
