@@ -7,8 +7,9 @@ use gear_core::ids::{MessageId, ProgramId};
 use gear_core_errors::ReplyCode;
 use gear_utils::NonEmpty;
 use gear_wasm_gen::{
-    EntryPointsSet, InvocableSyscall, ParamType, RegularParamType, StandardGearWasmConfigsBundle,
-    SyscallName, SyscallsInjectionTypes, SyscallsParamsConfig,
+    EntryPointsSet, InvocableSyscall, PtrParamAllowedValues, RegularParamType,
+    StandardGearWasmConfigsBundle, SyscallDestination, SyscallName, SyscallsInjectionTypes,
+    SyscallsParamsConfig,
 };
 use gsdk::metadata::runtime_types::{
     gear_common::event::DispatchStatus as GenDispatchStatus,
@@ -211,7 +212,7 @@ pub fn err_waited_or_succeed_batch(
 pub fn get_wasm_gen_config(
     seed: Seed,
     existing_programs: impl Iterator<Item = ProgramId>,
-) -> StandardGearWasmConfigsBundle<ProgramId> {
+) -> StandardGearWasmConfigsBundle {
     let initial_pages = 2;
     let mut injection_types = SyscallsInjectionTypes::all_once();
     injection_types.set_multiple(
@@ -229,16 +230,30 @@ pub fn get_wasm_gen_config(
         .into_iter(),
     );
 
-    let mut params_config = SyscallsParamsConfig::default();
-    params_config.add_rule(ParamType::Regular(RegularParamType::Alloc), (1..=10).into());
-    params_config.add_rule(
-        ParamType::Regular(RegularParamType::Free),
+    let mut params_config = SyscallsParamsConfig::default_regular();
+    params_config.set_rule(RegularParamType::Alloc, (1..=10).into());
+    params_config.set_rule(
+        RegularParamType::Free,
         (initial_pages..=initial_pages + 50).into(),
     );
+    params_config.set_ptr_rule(PtrParamAllowedValues::Value(0..=0));
+
+    let syscall_destination = NonEmpty::collect(
+        existing_programs
+            .filter(|&pid| pid != ProgramId::default())
+            .map(|pid| pid.into()),
+    )
+    .map(|non_empty| SyscallDestination::ExistingAddresses(non_empty))
+    .unwrap_or(SyscallDestination::Source);
+
+    params_config.set_ptr_rule(PtrParamAllowedValues::ActorId(syscall_destination.clone()));
+    params_config.set_ptr_rule(PtrParamAllowedValues::ActorIdWithValue {
+        actor: syscall_destination.clone(),
+        range: 0..=0,
+    });
 
     StandardGearWasmConfigsBundle {
         log_info: Some(format!("Gear program seed = '{seed}'")),
-        existing_addresses: NonEmpty::collect(existing_programs),
         entry_points_set: EntryPointsSet::InitHandleHandleReply,
         injection_types,
         params_config,

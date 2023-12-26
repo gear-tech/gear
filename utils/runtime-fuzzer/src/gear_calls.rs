@@ -35,8 +35,9 @@ use gear_call_gen::{ClaimValueArgs, SendReplyArgs};
 use gear_core::ids::{CodeId, MessageId, ProgramId};
 use gear_utils::NonEmpty;
 use gear_wasm_gen::{
-    EntryPointsSet, InvocableSyscall, ParamType, RegularParamType, StandardGearWasmConfigsBundle,
-    SyscallName, SyscallsInjectionTypes, SyscallsParamsConfig,
+    EntryPointsSet, InvocableSyscall, PtrParamAllowedValues, RegularParamType,
+    StandardGearWasmConfigsBundle, SyscallDestination, SyscallName, SyscallsInjectionTypes,
+    SyscallsParamsConfig,
 };
 use std::mem;
 
@@ -403,10 +404,7 @@ fn arbitrary_limited_bytes(u: &mut Unstructured, limit: usize) -> Result<Vec<u8>
     u.bytes(arb_size).map(|bytes| bytes.to_vec())
 }
 
-fn config(
-    programs: &[ProgramId],
-    log_info: Option<String>,
-) -> StandardGearWasmConfigsBundle<ProgramId> {
+fn config(programs: &[ProgramId], log_info: Option<String>) -> StandardGearWasmConfigsBundle {
     let initial_pages = 2;
     let mut injection_types = SyscallsInjectionTypes::all_once();
     injection_types.set_multiple(
@@ -424,32 +422,35 @@ fn config(
         .into_iter(),
     );
 
-    let mut params_config = SyscallsParamsConfig::default();
-    params_config.add_rule(
-        ParamType::Regular(RegularParamType::Alloc),
-        (10..=20).into(),
-    );
-    params_config.add_rule(
-        ParamType::Regular(RegularParamType::Free),
+    let mut params_config = SyscallsParamsConfig::default_regular();
+    params_config.set_rule(RegularParamType::Alloc, (10..=20).into());
+    params_config.set_rule(
+        RegularParamType::Free,
         (initial_pages..=initial_pages + 35).into(),
     );
+    params_config.set_ptr_rule(PtrParamAllowedValues::Value(0..=0));
 
-    let existing_addresses = NonEmpty::collect(
+    let syscall_destination = NonEmpty::collect(
         programs
             .iter()
             .copied()
-            .filter(|&pid| pid != ProgramId::default()),
-    );
+            .filter(|&pid| pid != ProgramId::default())
+            .map(|pid| pid.into()),
+    )
+    .map(|non_empty| SyscallDestination::ExistingAddresses(non_empty))
+    .unwrap_or(SyscallDestination::Source);
 
-    log::trace!(
-        "Messages will be sent to existing addresses {:?}",
-        existing_addresses
-    );
+    log::trace!("Messages destination config: {:?}", syscall_destination);
+
+    params_config.set_ptr_rule(PtrParamAllowedValues::ActorId(syscall_destination.clone()));
+    params_config.set_ptr_rule(PtrParamAllowedValues::ActorIdWithValue {
+        actor: syscall_destination.clone(),
+        range: 0..=0,
+    });
 
     StandardGearWasmConfigsBundle {
         entry_points_set: EntryPointsSet::InitHandleHandleReply,
         injection_types,
-        existing_addresses,
         log_info,
         params_config,
         initial_pages: initial_pages as u32,
