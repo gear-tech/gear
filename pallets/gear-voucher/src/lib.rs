@@ -286,7 +286,7 @@ pub mod pallet {
         ///               within the call;
         /// * call:       prepaid call that is requested to execute.
         #[pallet::call_index(1)]
-        #[pallet::weight(T::CallsDispatcher::weight(call))] // TODO (breathx)
+        #[pallet::weight(T::CallsDispatcher::weight(call).saturating_add(T::DbWeight::get().reads(2)))]
         pub fn call(
             origin: OriginFor<T>,
             voucher_id: VoucherId,
