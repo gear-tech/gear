@@ -86,11 +86,10 @@ impl CargoCommand {
     /// Execute the `cargo` command with invoking supplied arguments.
     pub fn run(&self) -> Result<()> {
         let mut cargo = Command::new(&self.path);
-        self.clean_up_environment(&mut cargo);
 
         cargo
             .arg("run")
-            .arg(self.toolchain.try_switch_to_nightly_toolchain()?)
+            .arg(self.toolchain.raw_toolchain_str().as_ref())
             .arg("cargo")
             .arg("rustc")
             .arg("--target=wasm32-unknown-unknown")
@@ -109,6 +108,8 @@ impl CargoCommand {
             .args(&self.rustc_flags)
             .env("CARGO_TARGET_DIR", &self.target_dir)
             .env("__GEAR_WASM_BUILDER_NO_BUILD", "1"); // Don't build the original crate recursively
+
+        self.remove_cargo_encoded_rustflags(&mut cargo);
 
         if !self.paths_to_remap.is_empty() {
             // `--remap-path-prefix` is used to remove username from panic messages
@@ -135,42 +136,10 @@ impl CargoCommand {
         Ok(())
     }
 
-    fn clean_up_environment(&self, command: &mut Command) {
-        // Inherited build script environment variables must be removed
-        // so that they cannot change the behavior of the cargo package manager.
-
-        // https://doc.rust-lang.org/cargo/reference/environment-variables.html
-        // `RUSTC_WRAPPER` and `RUSTC_WORKSPACE_WRAPPER` are not removed due to tools like sccache.
-        const INHERITED_ENV_VARS: &[&str] = &[
-            "CARGO",
-            "CARGO_MANIFEST_DIR",
-            "CARGO_MANIFEST_LINKS",
-            "CARGO_MAKEFLAGS",
-            "OUT_DIR",
-            "TARGET",
-            "HOST",
-            "NUM_JOBS",
-            "OPT_LEVEL",
-            "PROFILE",
-            "RUSTC",
-            "RUSTDOC",
-            "RUSTC_LINKER",
-            "CARGO_ENCODED_RUSTFLAGS",
-        ];
-
-        for env_var in INHERITED_ENV_VARS {
-            command.env_remove(env_var);
-        }
-
-        const INHERITED_ENV_VARS_WITH_PREFIX: &[&str] =
-            &["CARGO_FEATURE_", "CARGO_CFG_", "DEP_", "CARGO_PKG_"];
-
-        for (env_var, _) in env::vars() {
-            for prefix in INHERITED_ENV_VARS_WITH_PREFIX {
-                if env_var.starts_with(prefix) {
-                    command.env_remove(&env_var);
-                }
-            }
-        }
+    fn remove_cargo_encoded_rustflags(&self, command: &mut Command) {
+        // substrate's wasm-builder removes these vars so do we
+        // check its source for details
+        command.env_remove("CARGO_ENCODED_RUSTFLAGS");
+        command.env_remove("RUSTFLAGS");
     }
 }

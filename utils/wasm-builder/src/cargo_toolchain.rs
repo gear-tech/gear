@@ -20,7 +20,7 @@ use crate::builder_error::BuilderError;
 use anyhow::{Context, Result};
 use once_cell::sync::Lazy;
 use regex::Regex;
-use std::process::Command;
+use std::{borrow::Cow, process::Command};
 
 // The channel patterns we support (borrowed from the rustup code)
 static TOOLCHAIN_CHANNELS: &[&str] = &[
@@ -35,14 +35,6 @@ static TOOLCHAIN_CHANNELS: &[&str] = &[
 pub(crate) struct Toolchain(String);
 
 impl Toolchain {
-    /// This is a version of nightly toolchain, tested on our CI.
-    const PINNED_NIGHTLY_TOOLCHAIN: &'static str = match option_env!("WORKSPACE_TOOLCHAIN") {
-        // get pinned toolchain from rust-toolchain.toml file
-        Some(toolchain) => toolchain,
-        // fallback to hardcoded constant (this will work for crates.io package)
-        None => "nightly-2023-09-18",
-    };
-
     /// Returns `Toolchain` representing the most recent nightly version.
     pub fn nightly() -> Self {
         Self("nightly".into())
@@ -89,25 +81,15 @@ impl Toolchain {
         Ok(Self(toolchain))
     }
 
-    /// Tries to switch to pinned nightly toolchain and
-    /// returns toolchain string specification without target triple
-    /// and with raw `<channel>` substituted by [`Self::PINNED_NIGHTLY_TOOLCHAIN`].
+    /// Returns toolchain string specification without target triple
+    /// as it was passed during initialization.
     ///
-    /// `nightly[-<date>]`
+    /// `<channel>[-<date>]`
+    ///
+    /// `<channel> = stable|beta|nightly|<major.minor>|<major.minor.patch>`
     ///
     /// `<date>    = YYYY-MM-DD`
-    pub fn try_switch_to_nightly_toolchain(&self) -> Result<&str> {
-        let toolchain = Self::PINNED_NIGHTLY_TOOLCHAIN;
-        let output = Command::new("rustup")
-            .args(["run", toolchain, "rustc", "--version"])
-            .output()
-            .context("`rustup` command failed")?;
-
-        anyhow::ensure!(
-            output.status.success(),
-            BuilderError::RecommendedToolchainNotFound(toolchain.into()),
-        );
-
-        Ok(toolchain)
+    pub fn raw_toolchain_str(&'_ self) -> Cow<'_, str> {
+        self.0.as_str().into()
     }
 }
