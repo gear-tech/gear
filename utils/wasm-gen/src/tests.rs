@@ -45,8 +45,6 @@ use std::num::NonZeroUsize;
 
 const UNSTRUCTURED_SIZE: usize = 1_000_000;
 
-// TODO refactor tests.
-
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(100))]
     #[test]
@@ -202,8 +200,6 @@ fn test_source_as_address_param() {
 
 #[test]
 fn test_existing_address_as_address_param() {
-    gear_utils::init_default_logger();
-
     let mut rng = SmallRng::seed_from_u64(123);
     let mut buf = vec![0; UNSTRUCTURED_SIZE];
     rng.fill_bytes(&mut buf);
