@@ -216,7 +216,7 @@ pub mod pallet {
         ///             and couldn't be revoked by owner,
         ///             couldn't be zero.
         #[pallet::call_index(0)]
-        #[pallet::weight(Weight::zero())] // TODO (breathx)
+        #[pallet::weight(T::WeightInfo::issue())]
         pub fn issue(
             origin: OriginFor<T>,
             spender: AccountIdOf<T>,

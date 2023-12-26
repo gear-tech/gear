@@ -16,11 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Benchmarks for the gear-voucher pallet
+//! Benchmarks for Pallet Gear Voucher.
 
-#![allow(unused)]
-
-use crate::{Pallet as GearVoucher, *};
+use crate::*;
 use common::{benchmarking, Origin};
 use frame_benchmarking::{benchmarks, impl_benchmark_test_suite};
 use frame_support::traits::Currency;
@@ -35,30 +33,38 @@ benchmarks! {
     }
 
     issue {
-        // TODO (breathx)
-        //
-        // let issuer = benchmarking::account::<T::AccountId>("caller", 0, 0);
-        // CurrencyOf::<T>::deposit_creating(
-        //     &issuer,
-        //     100_000_000_000_000_u128.unique_saturated_into()
-        // );
-        // let holder = benchmarking::account::<T::AccountId>("caller", 0, 1);
-        // let program_id =
-        //     benchmarking::account::<T::AccountId>("program", 0, 100).cast()
-        // ;
+        // Origin account.
+        let origin = benchmarking::account::<T::AccountId>("origin", 0, 0);
+        CurrencyOf::<T>::deposit_creating(
+            &origin,
+            100_000_000_000_000_u128.unique_saturated_into()
+        );
 
-        // let holder_lookup = T::Lookup::unlookup(holder.clone());
-    // }: _(RawOrigin::Signed(issuer), holder_lookup, program_id, 10_000_000_000_000_u128.unique_saturated_into())
-    }: {}
+        // Spender account.
+        let spender = benchmarking::account::<T::AccountId>("spender", 0, 1);
+
+        // Voucher balance.
+        let balance = 10_000_000_000_000_u128.unique_saturated_into();
+
+        // Programs set.
+        let set = (0..=<<T as Config>::MaxProgramsAmount as Get<u8>>::get() as u32)
+            .map(|i| benchmarking::account::<T::AccountId>("program", 0, i).cast())
+            .collect();
+
+        // Voucher validity.
+        let validity = 100u32.unique_saturated_into();
+
+    }: _(RawOrigin::Signed(origin.clone()), spender.clone(), balance, Some(set), validity)
     verify {
-        // TODO (breathx)
-        //
-        // let voucher_id = GearVoucher::<T>::voucher_id(&holder, &program_id);
-        // assert_eq!(
-        //     CurrencyOf::<T>::free_balance(&voucher_id),
-        //     10_000_000_000_000_u128.unique_saturated_into(),
-        // );
+        let (key_spender, voucher_id, voucher_info) = Vouchers::<T>::iter().next().expect("Couldn't find voucher");
+
+        assert_eq!(key_spender, spender);
+        assert_eq!(voucher_info.owner, origin);
+        assert_eq!(
+            CurrencyOf::<T>::free_balance(&voucher_id.cast::<T::AccountId>()),
+            balance,
+        );
     }
 }
 
-impl_benchmark_test_suite!(GearVoucher, crate::mock::new_test_ext(), crate::mock::Test,);
+impl_benchmark_test_suite!(Pallet, crate::mock::new_test_ext(), crate::mock::Test);
