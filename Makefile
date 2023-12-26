@@ -246,7 +246,7 @@ test-syscalls-integrity-release:
 doc:
 	@ RUSTDOCFLAGS="--enable-index-page --generate-link-to-definition -Zunstable-options -D warnings" cargo doc --no-deps \
 		-p galloc -p gclient -p gcore -p gear-core-backend \
-		-p gear-core -p gear-core-processor -p gear-lazy-pages -p gear-core-errors \
+		-p gear-core -p core-processor -p gear-lazy-pages -p gear-core-errors \
 		-p gmeta -p gstd -p gtest -p gear-wasm-builder -p gear-common \
 		-p pallet-gear -p pallet-gear-gas -p pallet-gear-messenger -p pallet-gear-payment \
 		-p pallet-gear-program -p pallet-gear-rpc-runtime-api -p pallet-gear-rpc -p pallet-gear-scheduler -p gsdk

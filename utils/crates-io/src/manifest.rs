@@ -186,7 +186,7 @@ impl Manifest {
             }
             // NOTE: use forked sp-wasm-interface.
             //
-            // In case of we have modifed the original sp-wasm-interface.
+            // In case of we have modified the original sp-wasm-interface.
             "sp-wasm-interface" => {
                 table.insert("package", "gp-wasm-interface".into());
                 table.insert("version", "7.0.1".into());
