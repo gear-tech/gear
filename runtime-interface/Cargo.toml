@@ -14,14 +14,16 @@ gear-lazy-pages-common.workspace = true
 gear-lazy-pages = { workspace = true, optional = true }
 gear-sandbox-host = { workspace = true, optional = true }
 
-log = { workspace = true, optional = true }
+sp-io.workspace = true
 sp-runtime-interface.workspace = true
 sp-std.workspace = true
 sp-wasm-interface.workspace = true
-sp-io.workspace = true
-codec = { workspace = true }
-static_assertions.workspace = true
+
 byteorder.workspace = true
+codec = { workspace = true }
+log = { workspace = true, optional = true }
+static_assertions.workspace = true
+
 
 [target.'cfg(windows)'.dependencies]
 winapi = { workspace = true, features = ["memoryapi"] }
@@ -30,13 +32,15 @@ winapi = { workspace = true, features = ["memoryapi"] }
 default = ["std"]
 std = [
 	"gear-core/std",
-	"sp-runtime-interface/std",
-	"sp-std/std",
+	"gear-lazy-pages",
+	"gear-sandbox-host",
+
 	"sp-io/std",
+	"sp-std/std",
+	"sp-runtime-interface/std",
 	"sp-wasm-interface/std",
+
 	"byteorder/std",
 	"codec/std",
 	"log",
-	"gear-lazy-pages",
-	"gear-sandbox-host",
 ]
