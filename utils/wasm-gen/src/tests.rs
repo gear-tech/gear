@@ -597,7 +597,7 @@ fn execute_wasm_with_custom_configs(
     )
     .expect("Failed to create environment");
 
-    let report = env
+    env
         .execute(|mem, _stack_end, globals_config| -> Result<(), u32> {
             gear_core_processor::Ext::lazy_pages_init_for_program(
                 mem,
@@ -616,9 +616,7 @@ fn execute_wasm_with_custom_configs(
 
             Ok(())
         })
-        .expect("Failed to execute WASM module");
-
-    report
+        .expect("Failed to execute WASM module")
 }
 
 fn message_sender() -> ProgramId {
