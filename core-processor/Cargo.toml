@@ -1,5 +1,5 @@
 [package]
-name = "gear-core-processor"
+name = "core-processor"
 description = "The core processor for Gear programs"
 keywords = ["gear", "wasm"]
 categories = ["wasm"]

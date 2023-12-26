@@ -28,12 +28,12 @@ use anyhow::Result;
 use std::process::{Command, ExitStatus};
 
 /// Required Packages without local dependencies.
-pub const SAFE_DEPENDENCIES: [&str; 5] = [
+pub const SAFE_DEPENDENCIES: [&str; 6] = [
     "actor-system-error",
     // "galloc",
     // "gear-stack-buffer",
     "gear-core-errors",
-    // "gear-common-codegen",
+    "gear-common-codegen",
     "gear-sandbox-env",
     "gear-wasm-instrument",
     // "gmeta-codegen",
@@ -45,18 +45,20 @@ pub const SAFE_DEPENDENCIES: [&str; 5] = [
 /// Required packages with local dependencies.
 ///
 /// NOTE: DO NOT change the order of this array.
-pub const STACKED_DEPENDENCIES: [&str; 7] = [
+pub const STACKED_DEPENDENCIES: [&str; 10] = [
     // "gcore",
     // "gmeta",
     "gear-core",
     // "gear-utils",
-    // "gear-common",
+    "gear-common",
     "gear-sandbox-host",
     "gear-lazy-pages-common",
     "gear-lazy-pages",
     "gear-runtime-interface",
+    "gear-lazy-pages-interface",
     "gear-sandbox",
     "gear-core-backend",
+    "core-processor",
 ];
 
 /// Packages need to be published.
