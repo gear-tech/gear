@@ -124,7 +124,7 @@ pub mod panic_handler {
 
             let _ = ext::debug(&debug_msg);
 
-            let msg = &debug_msg.get(PANIC_OCCURRED.len()..).unwrap();
+            let msg = debug_msg.get(PANIC_OCCURRED.len()..).unwrap();
             ext::panic(msg)
         }
 
@@ -134,29 +134,44 @@ pub mod panic_handler {
         #[cfg(not(feature = "panic-messages"))]
         #[panic_handler]
         pub fn panic(panic_info: &PanicInfo) -> ! {
-            use crate::prelude::fmt::Write;
+            use crate::prelude::{
+                fmt::{self, Write},
+                ops::Deref,
+            };
             use arrayvec::ArrayString;
 
-            static_assertions::const_assert!(PANICKED_AT.len() == (PANIC_OCCURRED.len() - 4));
-
-            let mut debug_msg = ArrayString::<{ PANIC_OCCURRED.len() + TRIMMED_MAX_LEN }>::new();
-
-            let _ = debug_msg.try_push_str(&PANIC_OCCURRED[..4]);
-            let _ = write!(&mut debug_msg, "{panic_info}");
-
-            // SAFETY: `debug_msg.len() >= PANIC_OCCURRED.len()` because `try_push_str`
-            // pushes string `"pani"` and `write!()` pushes string `"panicked at "`.
-            // The capacity of `debug_msg` is always enough to do this.
-            unsafe {
-                debug_msg
-                    .as_bytes_mut()
-                    .get_unchecked_mut(4..PANIC_OCCURRED.len())
-                    .copy_from_slice(PANIC_OCCURRED[4..].as_bytes());
+            #[derive(Default)]
+            struct TempBuffer<const CAP: usize> {
+                found_prefix: bool,
+                buffer: ArrayString<CAP>,
             }
+
+            impl<const CAP: usize> Deref for TempBuffer<CAP> {
+                type Target = str;
+
+                #[inline]
+                fn deref(&self) -> &str {
+                    &self.buffer
+                }
+            }
+
+            impl<const CAP: usize> fmt::Write for TempBuffer<CAP> {
+                fn write_str(&mut self, s: &str) -> fmt::Result {
+                    if !self.found_prefix && s.len() == PANICKED_AT.len() {
+                        self.found_prefix = true;
+                        self.buffer.write_str(PANIC_OCCURRED)
+                    } else {
+                        self.buffer.write_str(s)
+                    }
+                }
+            }
+
+            let mut debug_msg = TempBuffer::<{ PANIC_OCCURRED.len() + TRIMMED_MAX_LEN }>::default();
+            let _ = write!(&mut debug_msg, "{panic_info}");
 
             let _ = ext::debug(&debug_msg);
 
-            let msg = &debug_msg.get(PANIC_OCCURRED.len()..).unwrap();
+            let msg = debug_msg.get(PANIC_OCCURRED.len()..).unwrap();
             ext::panic(msg)
         }
 
@@ -230,7 +245,7 @@ pub mod panic_handler {
 
             let _ = ext::debug(&debug_msg);
 
-            let msg = &debug_msg.get(PANIC_OCCURRED.len()..).unwrap();
+            let msg = debug_msg.get(PANIC_OCCURRED.len()..).unwrap();
             ext::panic(msg)
         }
     }
