@@ -27,12 +27,8 @@ tempfile.workspace = true
 
 # TODO: update wasmi (#3017)
 [dependencies.wasmi]
-git = "https://github.com/gear-tech/wasmi"
-branch = "v0.13.2-sign-ext"
+workspace = true
 features = ["virtual_memory"]
-# The specified version here is required for publishing
-# this package on crates.io.
-version = "0.13.2"
 
 [features]
 default = ["wasmer-cache"]

@@ -28,26 +28,26 @@ use anyhow::Result;
 use std::process::{Command, ExitStatus};
 
 /// Required Packages without local dependencies.
-pub const SAFE_DEPENDENCIES: [&str; 6] = [
+pub const SAFE_DEPENDENCIES: [&str; 11] = [
     "actor-system-error",
-    // "galloc",
-    // "gear-stack-buffer",
+    "galloc",
+    "gear-stack-buffer",
     "gear-core-errors",
     "gear-common-codegen",
     "gear-sandbox-env",
     "gear-wasm-instrument",
-    // "gmeta-codegen",
-    // "gsdk-codegen",
-    // "gstd-codegen",
+    "gmeta-codegen",
+    "gsdk-codegen",
+    "gstd-codegen",
     "gsys",
 ];
 
 /// Required packages with local dependencies.
 ///
 /// NOTE: DO NOT change the order of this array.
-pub const STACKED_DEPENDENCIES: [&str; 11] = [
-    // "gcore",
-    // "gmeta",
+pub const STACKED_DEPENDENCIES: [&str; 13] = [
+    "gcore",
+    "gmeta",
     "gear-core",
     "gear-utils",
     "gear-common",
@@ -64,19 +64,20 @@ pub const STACKED_DEPENDENCIES: [&str; 11] = [
 /// Packages need to be published.
 ///
 /// NOTE: DO NOT change the order of this array.
-pub const PACKAGES: [&str; 1] = [
-    // "gstd",
+pub const PACKAGES: [&str; 6] = [
+    "gstd",
     "gtest",
-    // "gsdk",
-    // "gclient",
-    // "gcli",
-    // "gear-wasm-builder",
+    "gsdk",
+    "gclient",
+    "gcli",
+    "gear-wasm-builder",
 ];
 
 /// Check the input package
 pub fn check(manifest: &str) -> Result<ExitStatus> {
     Command::new("cargo")
         .arg("check")
+        .arg("--lib")
         .arg("--manifest-path")
         .arg(manifest)
         .status()

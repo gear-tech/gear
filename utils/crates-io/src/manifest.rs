@@ -146,59 +146,61 @@ impl Manifest {
 
         for (name, dep) in deps.iter_mut() {
             let name = name.get();
-            name.starts_with("sp-").then(|| {
-                if let Some(table) = dep.as_inline_table_mut() {
-                    Self::rename_sp(name, table);
-                }
-            });
+            ["sp-", "frame-"]
+                .iter()
+                .any(|patt| name.starts_with(patt))
+                .then(|| {
+                    let Some(table) = dep.as_inline_table_mut() else {
+                        return;
+                    };
+                    Self::rename_sub(name, table);
+                });
         }
 
         Ok(())
     }
 
-    /// Rename substrate primitive dependency.
-    fn rename_sp(name: &str, table: &mut InlineTable) {
-        table.remove("branch");
-        table.remove("git");
-        table.remove("workspace");
-
+    /// Rename substrate dependencies.
+    ///
+    /// NOTE: The packages inside of this function are located at
+    /// <https://github.com/gear-tech/substrate/tree/cl/1.0.3-crates-io>.
+    fn rename_sub(name: &str, table: &mut InlineTable) {
         match name {
-            // NOTE: use sp-arithmetic-7.0.0 on crates.io
-            //
-            // The required version of sp-arithmetic is 6.0.0 in the
-            // git repo, but 7.0.0 on crates.io.
-            "sp-arithmetic" => {
-                table.insert("version", "7.0.0".into());
-            }
-            // NOTE: use gear-sp-allocator on crates.io
-            //
-            // sp-allocator is outdated on crates.io, aka, last 3.0.0
-            // forever, here we use gear-sp-allocator instead.
-            //
-            // TODO: add the branch name.
+            // sp-allocator is outdated on crates.io, last
+            // 3.0.0 forever, here we use gp-allocator instead.
             "sp-allocator" => {
                 table.insert("version", "4.1.1".into());
                 table.insert("package", "gp-allocator".into());
             }
-            "sp-runtime-interface" => {
-                table.insert("version", "7.0.2".into());
-                table.insert("package", "gp-runtime-interface".into());
-            }
-            // NOTE: use forked sp-wasm-interface.
-            //
-            // In case of we have modified the original sp-wasm-interface.
+            // Our sp-wasm-interface is different from the
+            // original one.
             "sp-wasm-interface" => {
                 table.insert("package", "gp-wasm-interface".into());
                 table.insert("version", "7.0.1".into());
             }
-            // NOTE: use forked sp-wasm-interface-common.
-            //
-            // In case of we have replaced sp-wasm-interface.
+            // Related to sp-wasm-interface.
             "sp-wasm-interface-common" => {
                 table.insert("version", "7.0.1".into());
             }
+            // Related to sp-wasm-interface.
+            "sp-runtime-interface" => {
+                table.insert("version", "7.0.3".into());
+                table.insert("package", "gp-runtime-interface".into());
+            }
+            // The verions of these packages on crates.io are incorrect.
+            "sp-arithmetic" | "sp-core" | "sp-rpc" | "sp-version" => {
+                table.insert("version", "7.0.0".into());
+            }
+            // Filter out this package for local testing.
+            "frame-support-test" => {
+                return;
+            }
             _ => {}
         }
+
+        table.remove("branch");
+        table.remove("git");
+        table.remove("workspace");
     }
 
     /// Ensure the current function is called on the workspace manifest
