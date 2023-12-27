@@ -166,8 +166,8 @@ tempfile = "3.8.1"
 
 # Published deps
 #
-# https://github.com/gear-tech/dlmalloc-rust/tree/v0.1.4
-dlmalloc = { package = "gear-dlmalloc", version = "0.1.4" }
+# https://github.com/gear-tech/gear-dlmalloc/tree/0.2.0
+dlmalloc = { package = "gear-dlmalloc", version = "0.2.0" }
 # https://github.com/gear-tech/wasm-instrument/tree/gear-stable-v0.3.0
 gwasm-instrument = { version = "0.3.0", default-features = false }
 # https://github.com/gear-tech/wasm-utils/tree/v0.19.0
@@ -327,6 +327,7 @@ sp-core = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git
 sp-consensus = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
 sp-consensus-babe = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
 sp-consensus-slots = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
+sp-debug-derive = { version = "5.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
 sp-externalities = { version = "0.13.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
 sp-consensus-grandpa = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
 sp-inherents = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
@@ -350,7 +351,6 @@ sp-trie = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git
 sp-version = { version = "5.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
 sp-wasm-interface = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
 sp-wasm-interface-common = { version = "7.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
-sp-debug-derive = { version = "5.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes", default-features = false }
 substrate-build-script-utils = { version = "3.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes" }
 substrate-frame-rpc-system = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes" }
 substrate-rpc-client = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v0.9.41-canary-no-sandbox-revert-oom-changes" }

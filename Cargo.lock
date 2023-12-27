@@ -3891,7 +3891,7 @@ dependencies = [
  "sp-io",
  "thiserror",
  "tokio",
- "wasmi 0.30.0",
+ "wasmi 0.30.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "which",
  "whoami",
 ]
@@ -4158,9 +4158,9 @@ dependencies = [
 
 [[package]]
 name = "gear-dlmalloc"
-version = "0.1.4"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d5c1d3d820d57acd0c4129b3551f5fe5b01e61c8cb2863bad2b183a4b32dc978"
+checksum = "6b88fcd5524e7ab9f156c17b14e754d6ba122ef9b00586d632d2ae3dbc7bfadb"
 dependencies = [
  "libc",
  "libc-print",
@@ -4384,12 +4384,12 @@ dependencies = [
  "assert_matches",
  "gear-runtime-interface",
  "gear-sandbox-env",
- "gwasmi",
  "log",
  "parity-scale-codec",
  "sp-core",
  "sp-std 5.0.0",
  "sp-wasm-interface-common",
+ "wasmi 0.30.0 (git+https://github.com/gear-tech/wasmi?branch=gear-v0.30.0)",
  "wat",
 ]
 
@@ -4917,33 +4917,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "09c5fda64a6f7f331a6425df8d678dfc542f3135b43e3cc229d431d391ff3c7d"
 dependencies = [
  "gear-wasm",
-]
-
-[[package]]
-name = "gwasmi"
-version = "0.30.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "540bef71ad072d770140dc3f47f6bcc2b2b0492aa6a3ff236a13a7cd9427c58b"
-dependencies = [
- "gwasmi_core",
- "intx",
- "smallvec",
- "spin 0.9.8",
- "wasmi_arena",
- "wasmparser-nostd 0.100.1",
-]
-
-[[package]]
-name = "gwasmi_core"
-version = "0.12.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "47443d9a0eaa456c80525cebb42178fc47690fee77f9729eeece6ff70906fdcf"
-dependencies = [
- "downcast-rs",
- "libm",
- "num-traits",
- "paste",
- "region",
 ]
 
 [[package]]
@@ -11651,7 +11624,7 @@ dependencies = [
  "soketto",
  "tiny-keccak",
  "twox-hash",
- "wasmi 0.30.0",
+ "wasmi 0.30.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -14423,8 +14396,21 @@ dependencies = [
  "intx",
  "smallvec",
  "spin 0.9.8",
- "wasmi_arena",
- "wasmi_core 0.12.0",
+ "wasmi_arena 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "wasmi_core 0.12.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "wasmparser-nostd 0.100.1",
+]
+
+[[package]]
+name = "wasmi"
+version = "0.30.0"
+source = "git+https://github.com/gear-tech/wasmi?branch=gear-v0.30.0#c8b0be9c2012e0478959a59074fd953a942782bc"
+dependencies = [
+ "intx",
+ "smallvec",
+ "spin 0.9.8",
+ "wasmi_arena 0.4.0 (git+https://github.com/gear-tech/wasmi?branch=gear-v0.30.0)",
+ "wasmi_core 0.12.0 (git+https://github.com/gear-tech/wasmi?branch=gear-v0.30.0)",
  "wasmparser-nostd 0.100.1",
 ]
 
@@ -14441,6 +14427,11 @@ name = "wasmi_arena"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "401c1f35e413fac1846d4843745589d9ec678977ab35a384db8ae7830525d468"
+
+[[package]]
+name = "wasmi_arena"
+version = "0.4.0"
+source = "git+https://github.com/gear-tech/wasmi?branch=gear-v0.30.0#c8b0be9c2012e0478959a59074fd953a942782bc"
 
 [[package]]
 name = "wasmi_core"
@@ -14478,6 +14469,18 @@ dependencies = [
  "libm",
  "num-traits",
  "paste",
+]
+
+[[package]]
+name = "wasmi_core"
+version = "0.12.0"
+source = "git+https://github.com/gear-tech/wasmi?branch=gear-v0.30.0#c8b0be9c2012e0478959a59074fd953a942782bc"
+dependencies = [
+ "downcast-rs",
+ "libm",
+ "num-traits",
+ "paste",
+ "region",
 ]
 
 [[package]]
