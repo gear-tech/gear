@@ -597,26 +597,25 @@ fn execute_wasm_with_custom_configs(
     )
     .expect("Failed to create environment");
 
-    env
-        .execute(|mem, _stack_end, globals_config| -> Result<(), u32> {
-            gear_core_processor::Ext::lazy_pages_init_for_program(
-                mem,
-                program_id,
-                Default::default(),
-                Some(mem.size()),
-                globals_config,
-                Default::default(),
-            );
+    env.execute(|mem, _stack_end, globals_config| -> Result<(), u32> {
+        gear_core_processor::Ext::lazy_pages_init_for_program(
+            mem,
+            program_id,
+            Default::default(),
+            Some(mem.size()),
+            globals_config,
+            Default::default(),
+        );
 
-            if let Some(mem_write) = initial_memory_write {
-                return mem
-                    .write(mem_write.offset, &mem_write.content)
-                    .map_err(|_| 1);
-            };
+        if let Some(mem_write) = initial_memory_write {
+            return mem
+                .write(mem_write.offset, &mem_write.content)
+                .map_err(|_| 1);
+        };
 
-            Ok(())
-        })
-        .expect("Failed to execute WASM module")
+        Ok(())
+    })
+    .expect("Failed to execute WASM module")
 }
 
 fn message_sender() -> ProgramId {
