@@ -187,7 +187,7 @@ impl Manifest {
                 table.insert("version", "7.0.3".into());
                 table.insert("package", "gp-runtime-interface".into());
             }
-            // The verions of these packages on crates.io are incorrect.
+            // The versions of these packages on crates.io are incorrect.
             "sp-arithmetic" | "sp-core" | "sp-rpc" | "sp-version" => {
                 table.insert("version", "7.0.0".into());
             }
