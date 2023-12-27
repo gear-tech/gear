@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! This program demonstrates the use of async `init` entry point, as well as custom entry point
-//! functions for `handle_reply` and `handle_signal`, using of `gstd::async_init` and
+//! functions for `handle_reply` and `handle_signal`, using `gstd::async_init` and
 //! `gstd::async_main` macros.
 //!
 //! `Init` is async and saves the source of the message it receives.

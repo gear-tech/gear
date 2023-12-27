@@ -27,7 +27,7 @@
 //! that can be executed: [`Common`] and [`Mutex`].
 //!
 //! [`Common`] sends three async messages to the ping program, with the payload "PING",
-//! awaits the reply and asserts that the reply is "PONG".
+//! asynchronously awaits the reply and asserts that the reply is "PONG".
 //!
 //! [`Mutex`] asynchronously locks the mutex, awaiting it, sends a message back to the
 //! source of the current message, containing the current message id in the payload, and then

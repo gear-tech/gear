@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! This program demonstrates the use of [`msg`] syscalls from an async environment.
+//! This program demonstrates the use of [`gstd::msg`] syscalls from an async environment.
 //!
 //! `Handle` is async and gets a [`Kind`] in the payload, executing a syscall based on the `Kind`,
 //! and sending a message back to the source with the payload "PONG".

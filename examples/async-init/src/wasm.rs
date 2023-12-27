@@ -17,7 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! This program demonstrates asynchronous execution and how to use macros `gstd::async_init` and
-//! `gstd::async_main`.
+//! `gstd::async_main`. It uses async to be able to wait for replies to messages it sent during the execution without
+//! having to halt the execution and use `handle_reply`.
 //!
 //! `Init` is async and gets three addresses in the payload, sends "PING" messages to them and waits for
 //! at least two replies with any payload ("approvals").
