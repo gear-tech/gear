@@ -822,6 +822,13 @@ pub mod runtime_types {
                     #[derive(
                         Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                     )]
+                    pub struct StoredDelayedDispatch {
+                        pub kind: runtime_types::gear_core::message::DispatchKind,
+                        pub message: runtime_types::gear_core::message::stored::StoredMessage,
+                    }
+                    #[derive(
+                        Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
+                    )]
                     pub struct StoredDispatch {
                         pub kind: runtime_types::gear_core::message::DispatchKind,
                         pub message: runtime_types::gear_core::message::stored::StoredMessage,
