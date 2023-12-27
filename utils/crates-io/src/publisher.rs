@@ -18,7 +18,7 @@
 
 //! Packages publisher
 
-use crate::{Manifest, PACKAGES, SAFE_DEPENDENCIES, STACKED_DEPENDENCIES};
+use crate::{manifest::Workspace, Manifest, PACKAGES, SAFE_DEPENDENCIES, STACKED_DEPENDENCIES};
 use anyhow::Result;
 use cargo_metadata::{Metadata, MetadataCommand, Package};
 use std::collections::{BTreeMap, HashMap};
@@ -61,7 +61,7 @@ impl Publisher {
     /// 3. Patch dependencies if needed
     pub fn build(mut self, version: Option<String>) -> Result<Self> {
         let index = self.index.keys().map(|s| s.as_ref()).collect::<Vec<_>>();
-        let mut workspace = Manifest::workspace()?.with_version(version)?;
+        let mut workspace = Workspace::lookup()?.with_version(version)?;
         let version = workspace.version()?;
 
         for pkg @ Package { name, .. } in &self.metadata.packages {
@@ -75,13 +75,18 @@ impl Publisher {
                 continue;
             }
 
-            self.graph
-                .insert(self.index.get(name).cloned(), workspace.manifest(pkg)?);
+            let mut manifest = Manifest::new(pkg)?;
+            if manifest.name == "gear-core-processor" {
+                manifest.manifest["package"]["name"] = toml_edit::value("core-processor");
+            }
+
+            self.graph.insert(self.index.get(name).cloned(), manifest);
         }
 
-        // Flush new manifests to disk
+        // Complete package versions from workspace.
         workspace.complete_versions(&index)?;
-        let manifests = [self.graph.values().collect::<Vec<_>>(), vec![&workspace]].concat();
+        let manifest = workspace.into();
+        let manifests = [self.graph.values().collect::<Vec<_>>(), vec![&manifest]].concat();
         manifests
             .iter()
             .map(|m| m.write())

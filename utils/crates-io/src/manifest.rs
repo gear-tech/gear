@@ -20,7 +20,11 @@
 
 use anyhow::{anyhow, Result};
 use cargo_metadata::Package;
-use std::{fs, path::PathBuf};
+use std::{
+    fs,
+    ops::{Deref, DerefMut},
+    path::PathBuf,
+};
 use toml_edit::{Document, InlineTable};
 
 use crate::version;
@@ -38,27 +42,9 @@ pub struct Manifest {
 }
 
 impl Manifest {
-    /// Get the workspace manifest
-    pub fn workspace() -> Result<Self> {
-        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .ancestors()
-            .nth(2)
-            .map(|workspace_dir| workspace_dir.join("Cargo.toml"))
-            .ok_or_else(|| anyhow::anyhow!("Could not find workspace manifest"))?
-            .canonicalize()?;
-
-        Ok(Self {
-            name: WORKSPACE_NAME.to_string(),
-            manifest: fs::read_to_string(&path)?.parse()?,
-            path,
-        })
-    }
-
     /// Complete the manifest of the specified crate from
     /// the workspace manifest
-    pub fn manifest(&self, pkg: &Package) -> Result<Self> {
-        self.ensure_workspace()?;
-
+    pub fn new(pkg: &Package) -> Result<Self> {
         // Complete documentation as from <https://docs.rs>
         let mut manifest: Document = fs::read_to_string(&pkg.manifest_path)?.parse()?;
         let name = pkg.name.clone();
@@ -71,11 +57,36 @@ impl Manifest {
         })
     }
 
+    /// Write manifest to disk.
+    pub fn write(&self) -> Result<()> {
+        fs::write(&self.path, self.manifest.to_string()).map_err(Into::into)
+    }
+}
+
+/// Workspace instance, which is a wrapper of [`Manifest`].
+pub struct Workspace(Manifest);
+
+impl Workspace {
+    /// Get the workspace manifest
+    pub fn lookup() -> Result<Self> {
+        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .ancestors()
+            .nth(2)
+            .map(|workspace_dir| workspace_dir.join("Cargo.toml"))
+            .ok_or_else(|| anyhow::anyhow!("Could not find workspace manifest"))?
+            .canonicalize()?;
+
+        Ok(Manifest {
+            name: WORKSPACE_NAME.to_string(),
+            manifest: fs::read_to_string(&path)?.parse()?,
+            path,
+        }
+        .into())
+    }
+
     /// complete the versions of the specified crates
     pub fn complete_versions(&mut self, index: &[&str]) -> Result<()> {
-        self.ensure_workspace()?;
-
-        let version = self.manifest["workspace"]["package"]["version"]
+        let version = self.0.manifest["workspace"]["package"]["version"]
             .clone()
             .as_str()
             .ok_or_else(|| anyhow!("Could not find version in workspace manifest"))?
@@ -97,14 +108,12 @@ impl Manifest {
             dep["version"] = toml_edit::value(version.clone());
         }
 
-        self.rename_workspace()?;
+        self.rename()?;
         Ok(())
     }
 
     /// Set version for the workspace.
     pub fn with_version(mut self, version: Option<String>) -> Result<Self> {
-        self.ensure_workspace()?;
-
         let version = if let Some(version) = version {
             version
         } else {
@@ -112,14 +121,11 @@ impl Manifest {
         };
 
         self.manifest["workspace"]["package"]["version"] = toml_edit::value(version);
-
         Ok(self)
     }
 
     /// Get version from the current manifest.
     pub fn version(&self) -> Result<String> {
-        self.ensure_workspace()?;
-
         Ok(self.manifest["workspace"]["package"]["version"]
             .as_str()
             .ok_or_else(|| {
@@ -131,15 +137,8 @@ impl Manifest {
             .to_string())
     }
 
-    /// Write manifest to disk.
-    pub fn write(&self) -> Result<()> {
-        fs::write(&self.path, self.manifest.to_string()).map_err(Into::into)
-    }
-
     /// Rename worskapce manifest.
-    fn rename_workspace(&mut self) -> Result<()> {
-        self.ensure_workspace()?;
-
+    fn rename(&mut self) -> Result<()> {
         let Some(deps) = self.manifest["workspace"]["dependencies"].as_table_like_mut() else {
             return Ok(());
         };
@@ -202,17 +201,30 @@ impl Manifest {
         table.remove("git");
         table.remove("workspace");
     }
+}
 
-    /// Ensure the current function is called on the workspace manifest
-    ///
-    /// TODO: remove this interface after #3565
-    fn ensure_workspace(&self) -> Result<()> {
-        if self.name != WORKSPACE_NAME {
-            return Err(anyhow!(
-                "This method can only be called on the workspace manifest"
-            ));
-        }
+impl From<Workspace> for Manifest {
+    fn from(workspace: Workspace) -> Self {
+        workspace.0
+    }
+}
 
-        Ok(())
+impl From<Manifest> for Workspace {
+    fn from(manifest: Manifest) -> Self {
+        Self(manifest)
+    }
+}
+
+impl Deref for Workspace {
+    type Target = Manifest;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for Workspace {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
     }
 }
