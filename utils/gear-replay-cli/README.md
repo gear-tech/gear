@@ -38,7 +38,7 @@ Other than that it's a good tool.
   - current latest finalized block on Vara chain
 
     ```bash
-    gear try-runtime --chain=vara --runtime vara_runtime.compact.compressed.wasm execute-block live --uri wss://archive-rpc.vara-network.io:443
+    gear try-runtime --chain=vara --runtime vara_runtime.compact.compressed.wasm execute-block live --uri wss://archive-rpc.vara.network:443
     ```
 
   - at block `$HASH`
@@ -46,7 +46,7 @@ Other than that it's a good tool.
     ```bash
     export HASH=0x8dc1e32576c1ad4e28dc141769576efdbc19d0170d427b69edb2261cfc36e905
 
-    gear try-runtime --chain=vara --runtime vara_runtime.compact.compressed.wasm execute-block live --uri wss://archive-rpc.vara-network.io:443 --at "$HASH"
+    gear try-runtime --chain=vara --runtime vara_runtime.compact.compressed.wasm execute-block live --uri wss://archive-rpc.vara.network:443 --at "$HASH"
     ```
 
   _Note:_ The `--at` parameter provides the hash of the block which determines the current state of the blockchain. Then the following block is fetched and applied to this state. Therefore if we want to replay extrinsics from the block `N` we must provide the hash of the block `N-1` as the height.
@@ -60,7 +60,7 @@ Other than that it's a good tool.
     ```bash
     export HASH=0x8dc1e32576c1ad4e28dc141769576efdbc19d0170d427b69edb2261cfc36e905
 
-    gear try-runtime --chain=vara --runtime existing create-snapshot --uri wss://archive-rpc.vara-network.io:443 [--at "$HASH"] [$SNAPSHOT_PATH]
+    gear try-runtime --chain=vara --runtime existing create-snapshot --uri wss://archive-rpc.vara.network:443 [--at "$HASH"] [$SNAPSHOT_PATH]
     ```
 
     If `$SNAPSHOT_PATH` is not provided the default filename for a snapshot would be `$chain`-`$spec_version`@`$block_hash`.snap (for instance, `vara-140@8dc1e32576c1ad4e28dc141769576efdbc19d0170d427b69edb2261cfc36e905.snap` or `vara-140@latest.snap`).
@@ -70,14 +70,14 @@ Other than that it's a good tool.
     ```bash
     export SNAPSHOT="vara-140@8dc1e32576c1ad4e28dc141769576efdbc19d0170d427b69edb2261cfc36e905.snap"
 
-    gear try-runtime --chain=vara --runtime vara_runtime.compact.compressed.wasm execute-block --block-ws-uri wss://archive-rpc.vara-network.io:443 snap --snapshot-path "$SNAPSHOT"
+    gear try-runtime --chain=vara --runtime vara_runtime.compact.compressed.wasm execute-block --block-ws-uri wss://archive-rpc.vara.network:443 snap --snapshot-path "$SNAPSHOT"
     ```
 
     <b>Warning:</b> By default the `try-runtime execute-block` command runs with the `--try-state` option value set to `all`, that is it will try to validate the state of all the pallets in the snapshot. This may result in an error caused by inconsistencies in some pallets storage (for instance, at the moment of this writing the `BagsList` pallet has inconsistent data). This is, of course, something to look into, but it goes beyond the scope of the problem in question.
     Since this doesn't affect the internal logic of the Gear flow we want to reproduce, we might consider either completely omitting setting the `try_state` by setting the respective option to `none`
 
     ```bash
-    gear try-runtime --chain=vara --runtime vara_runtime.compact.compressed.wasm execute-block --try-state none live --uri wss://archive-rpc.vara-network.io:443
+    gear try-runtime --chain=vara --runtime vara_runtime.compact.compressed.wasm execute-block --try-state none live --uri wss://archive-rpc.vara.network:443
     ```
 
     or enumerate a number of pallets in the runtime we are only concerned with:
@@ -85,7 +85,7 @@ Other than that it's a good tool.
     ```bash
     export TRY_PALLETS=System,Babe,Grandpa,Balances,Staking,Vesting,Gear,GearGas,GearProgram,GearMessenger,GearScheduler,GearPayment,StakingRewards
 
-    gear try-runtime --chain=vara --runtime vara_runtime.compact.compressed.wasm execute-block --try-state "$TRY_PALLETS" live --uri wss://archive-rpc.vara-network.io:443
+    gear try-runtime --chain=vara --runtime vara_runtime.compact.compressed.wasm execute-block --try-state "$TRY_PALLETS" live --uri wss://archive-rpc.vara.network:443
     ```
 
 <br/>
@@ -118,7 +118,7 @@ General command format and available subcommand are:
     help          Print this message or the help of the given subcommand(s)
 
     Options:
-    -u, --uri <URI>            The RPC url [default: wss://archive-rpc.vara-network.io:443]
+    -u, --uri <URI>            The RPC url [default: wss://archive-rpc.vara.network:443]
     -l, --log [<NODE_LOG>...]  Sets a custom logging filter. Syntax is `<target>=<level>`, e.g. -lsync=debug
     -h, --help                 Print help (see more with '--help')
 ```
@@ -130,7 +130,7 @@ Currently supported cases include:
   - current latest finalized block on Vara chain
 
     ```bash
-    gear-replay-cli --uri wss://archive-rpc.vara-network.io:443 -lgear::runtime,pallet_gear,gear_common,pallet_gear_scheduler=debug replay-block
+    gear-replay-cli --uri wss://archive-rpc.vara.network:443 -lgear::runtime,pallet_gear,gear_common,pallet_gear_scheduler=debug replay-block
     ```
 
   - block with `$HASH` or `$BLOCK_NUM`
@@ -139,8 +139,8 @@ Currently supported cases include:
     export HASH=0x8dc1e32576c1ad4e28dc141769576efdbc19d0170d427b69edb2261cfc36e905
     export BLOCK_NUM=2000000
 
-    gear-replay-cli --uri wss://archive-rpc.vara-network.io:443 -lgear::runtime,pallet_gear,gear_common=debug replay-block --block "$HASH"
-    gear-replay-cli --uri wss://archive-rpc.vara-network.io:443 -lgear::runtime,pallet_gear,gear_common=debug replay-block --block "$BLOCK_NUM"
+    gear-replay-cli --uri wss://archive-rpc.vara.network:443 -lgear::runtime,pallet_gear,gear_common=debug replay-block --block "$HASH"
+    gear-replay-cli --uri wss://archive-rpc.vara.network:443 -lgear::runtime,pallet_gear,gear_common=debug replay-block --block "$BLOCK_NUM"
     ```
 
 <br/>

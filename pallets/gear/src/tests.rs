@@ -64,7 +64,7 @@ use frame_support::{
 };
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
-    code::{self, Code},
+    code::{self, Code, CodeError},
     ids::{CodeId, MessageId, ProgramId},
     message::UserStoredMessage,
     pages::{PageNumber, PageU32Size, WasmPage},
@@ -73,7 +73,7 @@ use gear_core_backend::error::{
     TrapExplanation, UnrecoverableExecutionError, UnrecoverableExtError, UnrecoverableWaitError,
 };
 use gear_core_errors::*;
-use gear_wasm_instrument::STACK_END_EXPORT_NAME;
+use gear_wasm_instrument::{gas_metering::ConstantCostRules, STACK_END_EXPORT_NAME};
 use gstd::{collections::BTreeMap, errors::Error as GstdError};
 use pallet_gear_voucher::PrepaidCall;
 use sp_runtime::{traits::UniqueSaturatedInto, SaturatedConversion};
@@ -13729,7 +13729,6 @@ fn module_instantiation_error() {
 }
 
 #[test]
-#[ignore = "issue #3100"]
 fn wrong_entry_type() {
     let wat = r#"
     (module
@@ -13741,24 +13740,15 @@ fn wrong_entry_type() {
 
     init_logger();
     new_test_ext().execute_with(|| {
-        let pid = Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            ProgramCodeKind::Custom(wat).to_bytes(),
-            DEFAULT_SALT.to_vec(),
-            EMPTY_PAYLOAD.to_vec(),
-            50_000_000_000,
-            0,
-            false,
-        )
-        .map(|_| get_last_program_id())
-        .unwrap();
-        let mid = get_last_message_id();
-
-        run_to_next_block(None);
-
-        assert!(Gear::is_terminated(pid));
-        let err = get_last_event_error(mid);
-        assert!(err.starts_with(&ActorExecutionErrorReplyReason::Environment.to_string()));
+        assert_err!(
+            Code::try_new(
+                ProgramCodeKind::Custom(wat).to_bytes(),
+                1,
+                |_| ConstantCostRules::default(),
+                None
+            ),
+            CodeError::InvalidExportFnSignature
+        );
     });
 }
 
