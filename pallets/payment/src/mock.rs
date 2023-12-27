@@ -42,7 +42,7 @@ use sp_std::{
 
 type Block = frame_system::mocking::MockBlock<Test>;
 type AccountId = u64;
-type BlockNumber = u32;
+type BlockNumber = u64;
 type Balance = u128;
 
 pub const ALICE: AccountId = 1;

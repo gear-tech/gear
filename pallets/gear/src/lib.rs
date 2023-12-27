@@ -534,7 +534,7 @@ pub mod pallet {
         pub fn set_block_number(bn: BlockNumberFor<T>) {
             use sp_runtime::SaturatedConversion;
 
-            <BlockNumber<T>>::put(bn.saturated_into::<BlockNumberFor<T>>());
+            <BlockNumber<T>>::put(bn);
         }
 
         /// Upload program to the chain without stack limit injection and
