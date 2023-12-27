@@ -50,7 +50,7 @@ where
         initial_gas: u64,
         payload: Vec<u8>,
         value: u128,
-        is_prepaid: bool,
+        gas_sponsor: Option<H256>,
         allow_other_panics: bool,
         allow_skip_zero_replies: bool,
         allowance_multiplier: Option<u64>,
@@ -109,8 +109,8 @@ where
                     payload,
                     initial_gas,
                     value,
-                    is_prepaid,
                     false,
+                    gas_sponsor.map(|addr| addr.cast()),
                 )
                 .map_err(|e| {
                     format!("Internal error: send_message failed with '{e:?}'").into_bytes()
@@ -123,8 +123,8 @@ where
                     payload,
                     initial_gas,
                     value,
-                    is_prepaid,
                     false,
+                    gas_sponsor.map(|addr| addr.cast()),
                 )
                 .map_err(|e| {
                     format!("Internal error: send_reply failed with '{e:?}'").into_bytes()

@@ -32,6 +32,7 @@ use jsonrpsee::{
 };
 pub use pallet_gear_rpc_runtime_api::GearApi as GearRuntimeApi;
 use pallet_gear_rpc_runtime_api::{GasInfo, HandleKind};
+use serde::Deserialize;
 use sp_api::{ApiError, ApiExt, ApiRef, ProvideRuntimeApi};
 use sp_blockchain::HeaderBackend;
 use sp_core::{Bytes, H256};
@@ -46,6 +47,12 @@ fn runtime_error_into_rpc_error(err: impl std::fmt::Debug) -> JsonRpseeError {
         Some(format!("{err:?}")),
     ))
     .into()
+}
+
+#[derive(Debug, Deserialize)]
+pub enum VoucherCall {
+    Send(H256),
+    Reply(H256),
 }
 
 #[rpc(server)]
@@ -94,22 +101,11 @@ pub trait GearApi<BlockHash, ResponseType> {
         at: Option<BlockHash>,
     ) -> RpcResult<GasInfo>;
 
-    #[method(name = "unstable_gear_voucher_calculateHandleGas")]
-    fn get_voucher_handle_gas_spent(
+    #[method(name = "unstable_gear_voucher_calculateGas")]
+    fn get_voucher_gas_spent(
         &self,
         source: H256,
-        dest: H256,
-        payload: Bytes,
-        value: u128,
-        allow_other_panics: bool,
-        at: Option<BlockHash>,
-    ) -> RpcResult<GasInfo>;
-
-    #[method(name = "unstable_gear_voucher_calculateReplyGas")]
-    fn get_voucher_reply_gas_spent(
-        &self,
-        source: H256,
-        message_id: H256,
+        entry_point: VoucherCall,
         payload: Bytes,
         value: u128,
         allow_other_panics: bool,
@@ -218,7 +214,7 @@ where
         kind: HandleKind,
         payload: Vec<u8>,
         value: u128,
-        is_prepaid: bool,
+        gas_sponsor: Option<H256>,
         allow_other_panics: bool,
         min_limit: Option<u64>,
     ) -> RpcResult<GasInfo> {
@@ -255,7 +251,7 @@ where
                     kind,
                     payload,
                     value,
-                    is_prepaid,
+                    gas_sponsor,
                     allow_other_panics,
                     min_limit,
                     Some(self.allowance_multiplier),
@@ -312,7 +308,7 @@ where
             HandleKind::InitByHash(code_id.cast()),
             payload.to_vec(),
             value,
-            false,
+            None,
             allow_other_panics,
             None,
         )?;
@@ -323,7 +319,7 @@ where
             HandleKind::InitByHash(code_id.cast()),
             payload.to_vec(),
             value,
-            false,
+            None,
             allow_other_panics,
             Some(min_limit),
         )
@@ -346,7 +342,7 @@ where
             HandleKind::Init(code.to_vec()),
             payload.to_vec(),
             value,
-            false,
+            None,
             allow_other_panics,
             None,
         )?;
@@ -357,7 +353,7 @@ where
             HandleKind::Init(code.to_vec()),
             payload.to_vec(),
             value,
-            false,
+            None,
             allow_other_panics,
             Some(min_limit),
         )
@@ -380,7 +376,7 @@ where
             HandleKind::Handle(dest.cast()),
             payload.to_vec(),
             value,
-            false,
+            None,
             allow_other_panics,
             None,
         )?;
@@ -391,7 +387,7 @@ where
             HandleKind::Handle(dest.cast()),
             payload.to_vec(),
             value,
-            false,
+            None,
             allow_other_panics,
             Some(min_limit),
         )
@@ -417,7 +413,7 @@ where
             ),
             payload.to_vec(),
             value,
-            false,
+            None,
             allow_other_panics,
             None,
         )?;
@@ -431,7 +427,7 @@ where
             ),
             payload.to_vec(),
             value,
-            false,
+            None,
             allow_other_panics,
             Some(min_limit),
         )
@@ -439,10 +435,10 @@ where
 
     // Voucher
 
-    fn get_voucher_reply_gas_spent(
+    fn get_voucher_gas_spent(
         &self,
         source: H256,
-        message_id: H256,
+        entry_point: VoucherCall,
         payload: Bytes,
         value: u128,
         allow_other_panics: bool,
@@ -450,16 +446,21 @@ where
     ) -> RpcResult<GasInfo> {
         let at_hash = at.unwrap_or_else(|| self.client.info().best_hash);
 
+        let handle_kind = match entry_point {
+            VoucherCall::Reply(msg_id) => HandleKind::Reply(
+                msg_id.cast(),
+                ReplyCode::Success(SuccessReplyReason::Manual),
+            ),
+            VoucherCall::Send(dest) => HandleKind::Handle(dest.cast()),
+        };
+
         let GasInfo { min_limit, .. } = self.calculate_gas_info(
             at_hash,
             source,
-            HandleKind::Reply(
-                MessageId::from_origin(message_id),
-                ReplyCode::Success(SuccessReplyReason::Manual),
-            ),
+            handle_kind.clone(),
             payload.to_vec(),
             value,
-            true,
+            Some(source.into()),
             allow_other_panics,
             None,
         )?;
@@ -467,47 +468,10 @@ where
         self.calculate_gas_info(
             at_hash,
             source,
-            HandleKind::Reply(
-                MessageId::from_origin(message_id),
-                ReplyCode::Success(SuccessReplyReason::Manual),
-            ),
+            handle_kind,
             payload.to_vec(),
             value,
-            true,
-            allow_other_panics,
-            Some(min_limit),
-        )
-    }
-
-    fn get_voucher_handle_gas_spent(
-        &self,
-        source: H256,
-        dest: H256,
-        payload: Bytes,
-        value: u128,
-        allow_other_panics: bool,
-        at: Option<<Block as BlockT>::Hash>,
-    ) -> RpcResult<GasInfo> {
-        let at_hash = at.unwrap_or_else(|| self.client.info().best_hash);
-
-        let GasInfo { min_limit, .. } = self.calculate_gas_info(
-            at_hash,
-            source,
-            HandleKind::Handle(ProgramId::from_origin(dest)),
-            payload.to_vec(),
-            value,
-            true,
-            allow_other_panics,
-            None,
-        )?;
-
-        self.calculate_gas_info(
-            at_hash,
-            source,
-            HandleKind::Handle(ProgramId::from_origin(dest)),
-            payload.to_vec(),
-            value,
-            true,
+            Some(source.into()),
             allow_other_panics,
             Some(min_limit),
         )

@@ -7934,6 +7934,7 @@ dependencies = [
  "gear-core-errors",
  "jsonrpsee 0.16.3",
  "pallet-gear-rpc-runtime-api",
+ "serde",
  "sp-api",
  "sp-blockchain",
  "sp-core",

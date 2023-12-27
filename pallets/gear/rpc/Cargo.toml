@@ -9,6 +9,7 @@ repository.workspace = true
 
 [dependencies]
 jsonrpsee = { workspace = true, features = ["server", "macros"] }
+serde.workspace = true
 
 # Substrate packages
 sp-api.workspace = true
