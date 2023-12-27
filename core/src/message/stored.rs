@@ -216,3 +216,59 @@ impl Deref for StoredDispatch {
         self.message()
     }
 }
+
+impl From<StoredDelayedDispatch> for StoredDispatch {
+    fn from(dispatch: StoredDelayedDispatch) -> Self {
+        StoredDispatch::new(dispatch.kind, dispatch.message, None)
+    }
+}
+
+/// Stored message with entry point.
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
+pub struct StoredDelayedDispatch {
+    /// Entry point.
+    kind: DispatchKind,
+    /// Stored message.
+    message: StoredMessage,
+}
+
+impl From<StoredDelayedDispatch> for (DispatchKind, StoredMessage) {
+    fn from(dispatch: StoredDelayedDispatch) -> (DispatchKind, StoredMessage) {
+        (dispatch.kind, dispatch.message)
+    }
+}
+
+impl StoredDelayedDispatch {
+    /// Create new StoredDelayedDispatch.
+    pub fn new(kind: DispatchKind, message: StoredMessage) -> Self {
+        Self { kind, message }
+    }
+
+    /// Convert StoredDispatch into IncomingDispatch for program processing.
+    pub fn into_incoming(self, gas_limit: GasLimit) -> IncomingDispatch {
+        IncomingDispatch::new(self.kind, self.message.into_incoming(gas_limit), None)
+    }
+
+    /// Decompose StoredDelayedDispatch for it's components: DispatchKind, StoredMessage.
+    pub fn into_parts(self) -> (DispatchKind, StoredMessage) {
+        self.into()
+    }
+
+    /// Entry point for the message.
+    pub fn kind(&self) -> DispatchKind {
+        self.kind
+    }
+
+    /// Dispatch message reference.
+    pub fn message(&self) -> &StoredMessage {
+        &self.message
+    }
+}
+
+impl Deref for StoredDelayedDispatch {
+    type Target = StoredMessage;
+
+    fn deref(&self) -> &Self::Target {
+        self.message()
+    }
+}

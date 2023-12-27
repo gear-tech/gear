@@ -59,6 +59,10 @@ pub trait Messenger {
     ///
     /// Present to clarify compiler behavior over associated types.
     type QueuedDispatch;
+    /// Stored values type for `Self::DispatchStash`.
+    ///
+    /// Present to clarify compiler behavior over associated types.
+    type DelayedDispatch;
     /// First key of the waitlist storage.
     ///
     /// Present to clarify compiler behavior over associated types.
@@ -167,7 +171,7 @@ pub trait Messenger {
 
     type DispatchStash: MapStorage<
         Key = Self::DispatchStashKey,
-        Value = (Self::QueuedDispatch, Interval<Self::BlockNumber>),
+        Value = (Self::DelayedDispatch, Interval<Self::BlockNumber>),
     >;
 
     /// Resets all related to messenger storages.

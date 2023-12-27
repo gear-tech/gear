@@ -27,6 +27,7 @@ use scale_info::{
     scale::{Decode, Encode},
     TypeInfo,
 };
+use crate::message::StoredDelayedDispatch;
 
 /// An entity that is used for interaction between actors.
 /// Can transfer value and executes by programs in corresponding function: init, handle or handle_reply.
@@ -297,6 +298,12 @@ impl From<Dispatch> for StoredDispatch {
     }
 }
 
+impl From<Dispatch> for StoredDelayedDispatch {
+    fn from(dispatch: Dispatch) -> StoredDelayedDispatch {
+        StoredDelayedDispatch::new(dispatch.kind, dispatch.message.into())
+    }
+}
+
 impl From<Dispatch> for (DispatchKind, Message) {
     fn from(dispatch: Dispatch) -> (DispatchKind, Message) {
         (dispatch.kind, dispatch.message)
@@ -311,6 +318,11 @@ impl Dispatch {
 
     /// Convert Dispatch into gasless StoredDispatch with empty previous context.
     pub fn into_stored(self) -> StoredDispatch {
+        self.into()
+    }
+
+    /// Convert Dispatch into gasless StoredDelayedDispatch.
+    pub fn into_stored_delayed(self) -> StoredDelayedDispatch {
         self.into()
     }
 

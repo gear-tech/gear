@@ -22,7 +22,7 @@ use frame_support::{
     traits::{Get, GetStorageVersion, OnRuntimeUpgrade},
     weights::Weight,
 };
-use gear_core::ids::MessageId;
+use gear_core::{ids::MessageId, message::StoredDelayedDispatch};
 use sp_std::marker::PhantomData;
 #[cfg(feature = "try-runtime")]
 use {
@@ -62,8 +62,14 @@ impl<T: Config> OnRuntimeUpgrade for MigrateToV3<T> {
 
             DispatchStash::<T>::translate(
                 |_, store: (v2::StoredDispatch, Interval<T::BlockNumber>)| {
+                    if store.0.context.is_some() {
+                        log::error!("Previous context on StoredDispatch in DispatchStash should always be None, but was {:?}", store.0.context);
+                    }
                     weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
-                    Some((store.0.into(), store.1))
+                    Some((
+                        StoredDelayedDispatch::new(store.0.kind, store.0.message),
+                        store.1,
+                    ))
                 },
             );
 
@@ -239,7 +245,7 @@ mod test {
     use frame_support::{pallet_prelude::StorageVersion, traits::OnRuntimeUpgrade};
     use gear_core::{
         ids::{MessageId, ProgramId},
-        message::StoredMessage,
+        message::{StoredDelayedDispatch, StoredMessage},
     };
 
     #[test]
@@ -347,7 +353,7 @@ mod test {
                 DispatchStash::<Test>::get(mid)
                     .expect("Waitlist failed to migrate.")
                     .0,
-                dispatch3.into()
+                StoredDelayedDispatch::new(dispatch3.kind, dispatch3.message)
             );
         });
     }

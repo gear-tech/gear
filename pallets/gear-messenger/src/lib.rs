@@ -163,7 +163,7 @@ pub mod pallet {
     use frame_system::pallet_prelude::BlockNumberFor;
     use gear_core::{
         ids::{MessageId, ProgramId},
-        message::{StoredDispatch, UserStoredMessage},
+        message::{StoredDelayedDispatch, StoredDispatch, UserStoredMessage},
     };
     use sp_std::{convert::TryInto, marker::PhantomData};
 
@@ -415,14 +415,14 @@ pub mod pallet {
     // Private storage for dispatch stash elements.
     #[pallet::storage]
     pub type DispatchStash<T: Config> =
-        StorageMap<_, Identity, MessageId, (StoredDispatch, Interval<T::BlockNumber>)>;
+        StorageMap<_, Identity, MessageId, (StoredDelayedDispatch, Interval<T::BlockNumber>)>;
 
     // Public wrap of the dispatch stash elements.
     common::wrap_storage_map!(
         storage: DispatchStash,
         name: DispatchStashWrap,
         key: MessageId,
-        value: (StoredDispatch, Interval<T::BlockNumber>)
+        value: (StoredDelayedDispatch, Interval<T::BlockNumber>)
     );
 
     // ----
@@ -593,6 +593,7 @@ pub mod pallet {
         type MailboxSecondKey = MessageId;
         type MailboxedMessage = UserStoredMessage;
         type QueuedDispatch = StoredDispatch;
+        type DelayedDispatch = StoredDelayedDispatch;
         type WaitlistFirstKey = ProgramId;
         type WaitlistSecondKey = MessageId;
         type WaitlistedMessage = StoredDispatch;
