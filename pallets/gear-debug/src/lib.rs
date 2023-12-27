@@ -39,13 +39,12 @@ pub mod pallet {
     use gear_core::{
         ids::ProgramId,
         memory::PageBuf,
-        message::{StoredDispatch, StoredMessage},
+        message::{StoredDelayedDispatch, StoredDispatch, StoredMessage},
         pages::{GearPage, PageU32Size, WasmPage},
     };
     use primitive_types::H256;
     use scale_info::TypeInfo;
     use sp_std::{collections::btree_map::BTreeMap, convert::TryInto, prelude::*};
-    use gear_core::message::StoredDelayedDispatch;
 
     pub(crate) type QueueOf<T> = <<T as Config>::Messenger as Messenger>::Queue;
 
@@ -62,7 +61,10 @@ pub mod pallet {
         /// Storage with codes for programs.
         type CodeStorage: CodeStorage;
 
-        type Messenger: Messenger<QueuedDispatch = StoredDispatch, DelayedDispatch = StoredDelayedDispatch>;
+        type Messenger: Messenger<
+            QueuedDispatch = StoredDispatch,
+            DelayedDispatch = StoredDelayedDispatch,
+        >;
 
         type ProgramStorage: ProgramStorage
             + IterableMap<(ProgramId, common::Program<Self::BlockNumber>)>;

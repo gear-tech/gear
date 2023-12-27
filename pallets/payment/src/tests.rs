@@ -26,7 +26,9 @@ use frame_support::{
     dispatch::{DispatchInfo, GetDispatchInfo, PostDispatchInfo},
     weights::{Weight, WeightToFee},
 };
-use gear_core::message::{Dispatch, DispatchKind, Message, StoredDelayedDispatch, StoredDispatch, UserStoredMessage};
+use gear_core::message::{
+    Dispatch, DispatchKind, Message, StoredDelayedDispatch, StoredDispatch, UserStoredMessage,
+};
 use pallet_transaction_payment::{FeeDetails, InclusionFee, Multiplier, RuntimeDispatchInfo};
 use primitive_types::H256;
 use sp_runtime::{testing::TestXt, traits::SignedExtension, FixedPointNumber};
@@ -64,7 +66,8 @@ fn default_post_info() -> PostDispatchInfo {
 fn populate_message_queue<T>(n: u64)
 where
     T: Config,
-    T::Messenger: Messenger<QueuedDispatch = StoredDispatch, DelayedDispatch = StoredDelayedDispatch>,
+    T::Messenger:
+        Messenger<QueuedDispatch = StoredDispatch, DelayedDispatch = StoredDelayedDispatch>,
 {
     QueueOf::<T>::clear();
 
