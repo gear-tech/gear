@@ -123,7 +123,7 @@ impl WSAddress {
     /// ```
     /// use gclient::WSAddress;
     ///
-    /// let address = WSAddress::testnet();
+    /// let address = WSAddress::vara_testnet();
     /// assert_eq!(address, WSAddress::new("wss://testnet.vara.network", 443));
     /// ```
     pub fn vara_testnet() -> Self {
