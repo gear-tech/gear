@@ -4193,7 +4193,7 @@ dependencies = [
  "mach",
  "nix 0.26.4",
  "region",
- "sp-wasm-interface",
+ "sp-wasm-interface-common",
  "winapi",
 ]
 
