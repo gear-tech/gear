@@ -79,7 +79,7 @@ impl Publisher {
 
             let mut manifest = Manifest::new(pkg)?;
 
-            // NOTE: reanme gear-core-processor to core-processor
+            // NOTE: rename gear-core-processor to core-processor
             //
             // gear-core-processor has already been taken by others.
             if manifest.name == "gear-core-processor" {
