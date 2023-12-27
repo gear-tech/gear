@@ -26,9 +26,7 @@ wasmer-cache = { workspace = true, optional = true }
 tempfile.workspace = true
 
 # TODO: update wasmi (#3017)
-[dependencies.wasmi]
-workspace = true
-features = ["virtual_memory"]
+wasmi = { workspace = true, features = ["virtual_memory"] }
 
 [features]
 default = ["wasmer-cache"]

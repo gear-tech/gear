@@ -1404,25 +1404,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e496a50fda8aacccc86d7529e2c1e0892dbd0f898a6b5645b5561b89c3210efa"
 
 [[package]]
-name = "core-processor"
-version = "1.0.4"
-dependencies = [
- "actor-system-error",
- "derive_more",
- "enum-iterator 1.4.1",
- "env_logger",
- "gear-core",
- "gear-core-backend",
- "gear-core-errors",
- "gear-lazy-pages-common",
- "gear-lazy-pages-interface",
- "gear-wasm-instrument",
- "gsys",
- "log",
- "scale-info",
-]
-
-[[package]]
 name = "core2"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4157,6 +4138,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "gear-core-processor"
+version = "1.0.4"
+dependencies = [
+ "actor-system-error",
+ "derive_more",
+ "enum-iterator 1.4.1",
+ "env_logger",
+ "gear-core",
+ "gear-core-backend",
+ "gear-core-errors",
+ "gear-lazy-pages-common",
+ "gear-lazy-pages-interface",
+ "gear-wasm-instrument",
+ "gsys",
+ "log",
+ "scale-info",
+]
+
+[[package]]
 name = "gear-dlmalloc"
 version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4329,13 +4329,13 @@ dependencies = [
 name = "gear-runtime-common"
 version = "1.0.4"
 dependencies = [
- "core-processor",
  "frame-benchmarking",
  "frame-support",
  "frame-system",
  "frame-system-benchmarking",
  "gear-common",
  "gear-core",
+ "gear-core-processor",
  "gear-lazy-pages-common",
  "gear-runtime-primitives",
  "log",
@@ -4564,9 +4564,9 @@ name = "gear-wasm-gen"
 version = "0.1.0"
 dependencies = [
  "arbitrary",
- "core-processor",
  "gear-core",
  "gear-core-backend",
+ "gear-core-processor",
  "gear-lazy-pages-interface",
  "gear-utils",
  "gear-wasm-instrument",
@@ -4888,7 +4888,6 @@ name = "gtest"
 version = "1.0.4"
 dependencies = [
  "colored",
- "core-processor",
  "demo-custom",
  "demo-futures-unordered",
  "demo-meta-io",
@@ -4898,6 +4897,7 @@ dependencies = [
  "env_logger",
  "gear-core",
  "gear-core-errors",
+ "gear-core-processor",
  "gear-lazy-pages",
  "gear-lazy-pages-common",
  "gear-utils",
@@ -7682,7 +7682,6 @@ name = "pallet-gear"
 version = "1.0.4"
 dependencies = [
  "blake2-rfc",
- "core-processor",
  "demo-async",
  "demo-async-custom-entry",
  "demo-async-init",
@@ -7736,6 +7735,7 @@ dependencies = [
  "gear-core",
  "gear-core-backend",
  "gear-core-errors",
+ "gear-core-processor",
  "gear-lazy-pages-common",
  "gear-lazy-pages-interface",
  "gear-runtime-interface",
@@ -7982,7 +7982,6 @@ dependencies = [
 name = "pallet-gear-scheduler"
 version = "1.0.4"
 dependencies = [
- "core-processor",
  "env_logger",
  "frame-benchmarking",
  "frame-support",
@@ -7991,6 +7990,7 @@ dependencies = [
  "gear-common",
  "gear-core",
  "gear-core-errors",
+ "gear-core-processor",
  "log",
  "pallet-authorship",
  "pallet-balances",
@@ -13771,7 +13771,6 @@ name = "vara-runtime"
 version = "1.0.4"
 dependencies = [
  "const-str",
- "core-processor",
  "env_logger",
  "frame-benchmarking",
  "frame-election-provider-support",
@@ -13782,6 +13781,7 @@ dependencies = [
  "frame-system-rpc-runtime-api",
  "frame-try-runtime",
  "gear-common",
+ "gear-core-processor",
  "gear-lazy-pages-common",
  "gear-runtime-common",
  "gear-runtime-primitives",

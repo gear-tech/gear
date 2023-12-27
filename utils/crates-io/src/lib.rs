@@ -19,6 +19,7 @@
 //! crates-io-manager library
 #![deny(missing_docs)]
 
+mod handler;
 mod manifest;
 mod publisher;
 mod version;
@@ -58,7 +59,7 @@ pub const STACKED_DEPENDENCIES: [&str; 13] = [
     "gear-lazy-pages-interface",
     "gear-sandbox",
     "gear-core-backend",
-    "core-processor",
+    "gear-core-processor",
 ];
 
 /// Packages need to be published.
