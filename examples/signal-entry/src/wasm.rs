@@ -174,6 +174,16 @@ extern "C" fn handle() {
 
             oom_panic();
         }
+        HandleAction::ExceedStackLimit => {
+            exec::system_reserve_gas(1_000_000_000).unwrap();
+
+            #[allow(unconditional_recursion, clippy::unit_arg)]
+            fn f() {
+                core::hint::black_box(f());
+            }
+
+            f();
+        }
         HandleAction::UnreachableInstruction => {
             exec::system_reserve_gas(1_000_000_000).unwrap();
 

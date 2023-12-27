@@ -107,7 +107,7 @@ where
         let instance = Program::<T>::new(module.into(), vec![])?;
         utils::prepare_exec::<T>(
             instance.caller.into_origin(),
-            HandleKind::Handle(ProgramId::from_origin(instance.addr)),
+            HandleKind::Handle(instance.addr.cast()),
             vec![],
             PrepareConfig {
                 value: value.into(),
@@ -159,7 +159,7 @@ where
         let instance = Program::<T>::new(module.into(), vec![])?;
         utils::prepare_exec::<T>(
             instance.caller.into_origin(),
-            HandleKind::Handle(ProgramId::from_origin(instance.addr)),
+            HandleKind::Handle(instance.addr.cast()),
             vec![],
             PrepareConfig {
                 value: value.into(),
@@ -176,7 +176,7 @@ where
         let instance = Program::<T>::new(module.into(), vec![])?;
 
         // insert gas reservation slots
-        let program_id = ProgramId::from_origin(instance.addr);
+        let program_id = instance.addr.cast();
         ProgramStorageOf::<T>::update_active_program(program_id, |program| {
             for x in 0..repetitions {
                 program.gas_reservation_map.insert(
@@ -205,7 +205,7 @@ where
         let instance = Program::<T>::new(module.into(), vec![])?;
         utils::prepare_exec::<T>(
             instance.caller.into_origin(),
-            HandleKind::Handle(ProgramId::from_origin(instance.addr)),
+            HandleKind::Handle(instance.addr.cast()),
             vec![0xff; MAX_PAYLOAD_LEN as usize],
             Default::default(),
         )
@@ -255,6 +255,43 @@ where
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(0)),
             imported_functions: vec![SyscallName::Alloc, SyscallName::Free],
+            handle_body: Some(body::from_instructions(instructions)),
+            ..Default::default()
+        };
+
+        Self::prepare_handle(module, 0)
+    }
+
+    pub fn free_range(repetitions: u32, pages_per_call: u32) -> Result<Exec<T>, &'static str> {
+        use Instruction::*;
+
+        let n_pages = repetitions.checked_mul(pages_per_call).unwrap();
+        assert!(n_pages <= max_pages::<T>() as u32);
+
+        let mut instructions = vec![];
+        for _ in 0..API_BENCHMARK_BATCH_SIZE {
+            instructions.extend([I32Const(n_pages as i32), Call(0), I32Const(-1)]);
+            unreachable_condition(&mut instructions, I32Eq); // if alloc returns -1 then it's error
+
+            for i in 0..repetitions {
+                let start = i.checked_mul(pages_per_call).unwrap();
+                let end = pages_per_call
+                    .checked_sub(1)
+                    .and_then(|x| start.checked_add(x))
+                    .unwrap();
+                instructions.extend([
+                    I32Const(start as i32),
+                    I32Const(end as i32),
+                    Call(1),
+                    I32Const(0),
+                ]);
+                unreachable_condition(&mut instructions, I32Ne);
+            }
+        }
+
+        let module = ModuleDefinition {
+            memory: Some(ImportedMemory::new(0)),
+            imported_functions: vec![SyscallName::Alloc, SyscallName::FreeRange],
             handle_body: Some(body::from_instructions(instructions)),
             ..Default::default()
         };
@@ -1348,10 +1385,10 @@ where
         assert!(repetitions <= 1);
 
         let params = if let Some(c) = param {
-            assert!(name.signature().params.len() == 1);
+            assert!(name.signature().params().len() == 1);
             vec![InstrI32Const(c)]
         } else {
-            assert!(name.signature().params.is_empty());
+            assert!(name.signature().params().is_empty());
             vec![]
         };
 

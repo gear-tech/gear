@@ -1,15 +1,20 @@
 [package]
 name = "gstd-codegen"
-version = "0.1.0"
-authors.workspace = true
+description = "Code generation library for the Gear standard library"
+keywords = ["gear", "codegen", "std"]
+categories = ["api-bindings"]
+version.workspace = true
 edition.workspace = true
+authors.workspace = true
 license.workspace = true
+homepage.workspace = true
+repository.workspace = true
 
 [lib]
 proc-macro = true
 
 [dependencies]
-syn = { workspace = true, features = ["full"] }
+syn = { workspace = true, features = ["default", "full"] }
 quote.workspace = true
 proc-macro2.workspace = true
 

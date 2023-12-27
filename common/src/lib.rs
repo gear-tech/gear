@@ -84,6 +84,9 @@ pub type Gas = u64;
 pub trait Origin: Sized {
     fn into_origin(self) -> H256;
     fn from_origin(val: H256) -> Self;
+    fn cast<T: Origin>(self) -> T {
+        T::from_origin(self.into_origin())
+    }
 }
 
 impl Origin for u64 {
@@ -345,21 +348,5 @@ where
 {
     fn extract_call(&self) -> Call {
         self.function.clone()
-    }
-}
-
-pub trait PaymentVoucher<AccountId, ProgramId, Balance> {
-    type VoucherId;
-    type Error;
-
-    fn voucher_id(who: AccountId, program: ProgramId) -> Self::VoucherId;
-}
-
-impl<AccountId: Default, ProgramId, Balance> PaymentVoucher<AccountId, ProgramId, Balance> for () {
-    type VoucherId = AccountId;
-    type Error = &'static str;
-
-    fn voucher_id(_who: AccountId, _program: ProgramId) -> Self::VoucherId {
-        unimplemented!()
     }
 }

@@ -237,10 +237,11 @@ where
         builder.add_func(ReservationReplyCommit, wrap_syscall!(reservation_reply_commit));
         builder.add_func(ReservationSend, wrap_syscall!(reservation_send));
         builder.add_func(ReservationSendCommit, wrap_syscall!(reservation_send_commit));
-        builder.add_func(OutOfGas, wrap_syscall!(out_of_gas));
+        builder.add_func(SystemBreak, wrap_syscall!(system_break));
 
         builder.add_func(Alloc, wrap_syscall!(alloc));
         builder.add_func(Free, wrap_syscall!(free));
+        builder.add_func(FreeRange, wrap_syscall!(free_range));
     }
 }
 

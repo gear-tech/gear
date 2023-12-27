@@ -26,10 +26,7 @@ use frame_support::{
     dispatch::{DispatchInfo, GetDispatchInfo, PostDispatchInfo},
     weights::{Weight, WeightToFee},
 };
-use gear_core::{
-    ids::{MessageId, ProgramId},
-    message::{Dispatch, DispatchKind, Message, StoredDispatch, UserStoredMessage},
-};
+use gear_core::message::{Dispatch, DispatchKind, Message, StoredDispatch, UserStoredMessage};
 use pallet_transaction_payment::{FeeDetails, InclusionFee, Multiplier, RuntimeDispatchInfo};
 use primitive_types::H256;
 use sp_runtime::{testing::TestXt, traits::SignedExtension, FixedPointNumber};
@@ -169,7 +166,7 @@ fn fee_rounding_error_bounded_by_multiplier() {
         // rounding error only arises for calls that do not affect MQ
         let call: &<Test as frame_system::Config>::RuntimeCall =
             &RuntimeCall::Gear(pallet_gear::Call::claim_value {
-                message_id: MessageId::from_origin(H256::from_low_u64_le(1)),
+                message_id: H256::from_low_u64_le(1).cast(),
             });
 
         let weights = vec![
@@ -210,7 +207,7 @@ fn mq_size_affecting_fee_works() {
         let alice_initial_balance = Balances::free_balance(ALICE);
         let author_initial_balance = Balances::free_balance(BLOCK_AUTHOR);
 
-        let program_id = ProgramId::from_origin(H256::random());
+        let program_id = H256::random().cast();
 
         let call: &<Test as frame_system::Config>::RuntimeCall =
             &RuntimeCall::Gear(pallet_gear::Call::send_message {
@@ -308,7 +305,7 @@ fn mq_size_not_affecting_fee_works() {
 
         let call: &<Test as frame_system::Config>::RuntimeCall =
             &RuntimeCall::Gear(pallet_gear::Call::claim_value {
-                message_id: MessageId::from_origin(H256::from_low_u64_le(1)),
+                message_id: H256::from_low_u64_le(1).cast(),
             });
 
         let len = 100usize;
@@ -393,7 +390,7 @@ fn mq_size_not_affecting_fee_works() {
 #[test]
 #[allow(clippy::let_unit_value)]
 fn query_info_and_fee_details_work() {
-    let program_id = ProgramId::from_origin(H256::random());
+    let program_id = H256::random().cast();
     let call_affecting_mq = RuntimeCall::Gear(pallet_gear::Call::send_message {
         destination: program_id,
         payload: Default::default(),
@@ -568,7 +565,7 @@ fn fee_payer_replacement_works() {
         let author_initial_balance = Balances::free_balance(BLOCK_AUTHOR);
         let synthesized_initial_balance = Balances::free_balance(FEE_PAYER);
 
-        let program_id = ProgramId::from_origin(H256::random());
+        let program_id = H256::random().cast();
 
         let call: &<Test as frame_system::Config>::RuntimeCall =
             &RuntimeCall::GearVoucher(pallet_gear_voucher::Call::call {
@@ -627,14 +624,14 @@ fn reply_with_voucher_pays_fee_from_voucher_ok() {
         let author_initial_balance = Balances::free_balance(BLOCK_AUTHOR);
         let bob_initial_balance = Balances::free_balance(BOB);
 
-        let msg_id = MessageId::from_origin(H256::random());
-        let program_id = ProgramId::from_origin(H256::random());
+        let msg_id = H256::random().cast();
+        let program_id = H256::random().cast();
         // Put message in BOB's mailbox
         assert_ok!(MailboxOf::<Test>::insert(
             UserStoredMessage::new(
                 msg_id,
                 program_id,
-                ProgramId::from_origin(BOB.into_origin()),
+                BOB.cast(),
                 Default::default(),
                 Default::default(),
             ),
@@ -648,7 +645,7 @@ fn reply_with_voucher_pays_fee_from_voucher_ok() {
             program_id,
             200_000_000,
         ));
-        let voucher_id = GearVoucher::voucher_account_id(&BOB, &program_id);
+        let voucher_id = GearVoucher::voucher_id(&BOB, &program_id);
 
         run_to_block(2);
 

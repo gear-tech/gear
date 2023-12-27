@@ -40,7 +40,7 @@ use gear_core::{
         ContextOutcomeDrain, ContextStore, Dispatch, GasLimit, HandlePacket, InitPacket,
         MessageContext, Packet, ReplyPacket,
     },
-    pages::{GearPage, PageU32Size, WasmPage},
+    pages::{GearPage, PageNumber, PageU32Size, WasmPage},
     program::MemoryInfix,
     reservation::GasReserver,
 };
@@ -799,6 +799,30 @@ impl Externalities for Ext {
             .map_err(Into::into)
     }
 
+    fn free_range(&mut self, start: WasmPage, end: WasmPage) -> Result<(), Self::AllocError> {
+        let page_count: u32 = end
+            .checked_sub(start)
+            .ok_or(AllocExtError::Alloc(AllocError::InvalidFreeRange(
+                start.into(),
+                end.into(),
+            )))?
+            .into();
+
+        Ext::charge_gas_if_enough(
+            &mut self.context.gas_counter,
+            &mut self.context.gas_allowance_counter,
+            self.context
+                .host_fn_weights
+                .free_range_per_page
+                .saturating_mul(page_count as u64),
+        )?;
+
+        self.context
+            .allocations_context
+            .free_range(start..=end)
+            .map_err(Into::into)
+    }
+
     fn env_vars(&self, version: u32) -> Result<EnvVars, Self::UnrecoverableError> {
         match version {
             1 => Ok(EnvVars::V1(EnvVarsV1 {
@@ -1243,10 +1267,7 @@ impl Externalities for Ext {
 mod tests {
     use super::*;
     use alloc::vec;
-    use gear_core::{
-        message::{ContextSettings, IncomingDispatch, Payload, MAX_PAYLOAD_SIZE},
-        pages::PageNumber,
-    };
+    use gear_core::message::{ContextSettings, IncomingDispatch, Payload, MAX_PAYLOAD_SIZE};
 
     struct MessageContextBuilder {
         incoming_dispatch: IncomingDispatch,
@@ -1363,12 +1384,12 @@ mod tests {
         );
 
         // Freeing existing page.
-        // Counters still shouldn't be changed.
+        // Counters shouldn't be changed.
         assert!(ext.free(existing_page).is_ok());
         assert_eq!(ext.gas_left(), gas_left);
 
         // Freeing non existing page.
-        // Counters shouldn't be changed.
+        // Counters still shouldn't be changed.
         assert_eq!(
             ext.free(non_existing_page),
             Err(AllocExtError::Alloc(AllocError::InvalidFree(
