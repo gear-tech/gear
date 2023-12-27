@@ -27,7 +27,6 @@ use alloc::{collections::BTreeSet, vec, vec::Vec};
 use gear_wasm_instrument::{
     parity_wasm::{
         self,
-        builder::ModuleBuilder,
         elements::{
             ExportEntry, GlobalEntry, GlobalType, InitExpr, Instruction, Internal, Module, Type,
         },
