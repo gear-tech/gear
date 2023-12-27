@@ -3340,6 +3340,20 @@ pub mod runtime_types {
                 #[doc = "Contains one variant per dispatchable that can be called by an extrinsic."]
                 pub enum Call {
                     #[codec(index = 0)]
+                    #[doc = "Issue a new voucher."]
+                    #[doc = ""]
+                    #[doc = "Deposits event `VoucherIssued`, that contains `VoucherId` to be"]
+                    #[doc = "used by spender for balance-less on-chain interactions."]
+                    #[doc = ""]
+                    #[doc = "Arguments:"]
+                    #[doc = "* spender:  user id that is eligible to use the voucher;"]
+                    #[doc = "* balance:  voucher balance could be used for tx fees and gas,"]
+                    #[doc = "* programs: pool of programs spender can interact with,"]
+                    #[doc = "            if None - means any program,"]
+                    #[doc = "            limited by Config param;"]
+                    #[doc = "* validity: amount of blocks voucher could be used by spender"]
+                    #[doc = "            and couldn't be revoked by owner,"]
+                    #[doc = "            couldn't be zero."]
                     issue {
                         spender: ::subxt::utils::AccountId32,
                         balance: ::core::primitive::u128,
@@ -3349,6 +3363,18 @@ pub mod runtime_types {
                         validity: ::core::primitive::u32,
                     },
                     #[codec(index = 1)]
+                    #[doc = "Execute prepaid call with given voucher id."]
+                    #[doc = ""]
+                    #[doc = "This extrinsic is supposed to return errors only from dispatcher of"]
+                    #[doc = "the prepaid call, because all of the validations on eligibility are"]
+                    #[doc = "made using SignedExtension for being able to use the voucher by the"]
+                    #[doc = "origin spender."]
+                    #[doc = ""]
+                    #[doc = "Arguments:"]
+                    #[doc = "* voucher_id: associated with origin existing vouchers id,"]
+                    #[doc = "              that should be used to pay for fees and gas"]
+                    #[doc = "              within the call;"]
+                    #[doc = "* call:       prepaid call that is requested to execute."]
                     call {
                         voucher_id: runtime_types::pallet_gear_voucher::internal::VoucherId,
                         call: runtime_types::pallet_gear_voucher::internal::PrepaidCall<
@@ -3356,11 +3382,42 @@ pub mod runtime_types {
                         >,
                     },
                     #[codec(index = 2)]
+                    #[doc = "Revoke existing voucher."]
+                    #[doc = ""]
+                    #[doc = "This extrinsic revokes existing voucher, if current block is greater"]
+                    #[doc = "than expiration block of the voucher (its no longer valid)."]
+                    #[doc = ""]
+                    #[doc = "Currently it means sending of all balance from voucher account to"]
+                    #[doc = "voucher owner without voucher removal from storage map, but this"]
+                    #[doc = "behavior may change in future, as well as the origin validation:"]
+                    #[doc = "only owner is able to revoke voucher now."]
+                    #[doc = ""]
+                    #[doc = "Arguments:"]
+                    #[doc = "* spender:    account id of the voucher spender;"]
+                    #[doc = "* voucher_id: voucher id to be revoked."]
                     revoke {
                         spender: ::subxt::utils::AccountId32,
                         voucher_id: runtime_types::pallet_gear_voucher::internal::VoucherId,
                     },
                     #[codec(index = 3)]
+                    #[doc = "Update existing voucher."]
+                    #[doc = ""]
+                    #[doc = "This extrinsic updates existing voucher: it can only extend vouchers"]
+                    #[doc = "rights in terms of balance, validity or programs to interact pool."]
+                    #[doc = ""]
+                    #[doc = "Can only be called by the voucher owner."]
+                    #[doc = ""]
+                    #[doc = "Arguments:"]
+                    #[doc = "* spender:          account id of the voucher spender;"]
+                    #[doc = "* voucher_id:       voucher id to be updated;"]
+                    #[doc = "* move_ownership:   optionally moves ownership to another account;"]
+                    #[doc = "* balance_top_up:   optionally top ups balance of the voucher from"]
+                    #[doc = "                    origins balance;"]
+                    #[doc = "* append_programs:  optionally extends pool of programs by"]
+                    #[doc = "                    `Some(programs_set)` passed or allows"]
+                    #[doc = "                    it to interact with any program by"]
+                    #[doc = "                    `None` passed;"]
+                    #[doc = "* prolong validity: optionally increases validity block number."]
                     update {
                         spender: ::subxt::utils::AccountId32,
                         voucher_id: runtime_types::pallet_gear_voucher::internal::VoucherId,
@@ -3374,7 +3431,9 @@ pub mod runtime_types {
                         prolong_validity: ::core::option::Option<::core::primitive::u32>,
                     },
                     #[codec(index = 4)]
-                    #[doc = "Dispatch allowed with voucher call."]
+                    #[doc = "Legacy call for using irrevocable vouchers."]
+                    #[doc = ""]
+                    #[doc = "It has `SignedExtension` check similar to [`Self::call`]."]
                     call_deprecated {
                         call: runtime_types::pallet_gear_voucher::internal::PrepaidCall<
                             ::core::primitive::u128,
@@ -3385,26 +3444,35 @@ pub mod runtime_types {
                 #[doc = "\n\t\t\tCustom [dispatch errors](https://docs.substrate.io/main-docs/build/events-errors/)\n\t\t\tof this pallet.\n\t\t\t"]
                 pub enum Error {
                     #[codec(index = 0)]
-                    BalanceTransfer,
-                    #[codec(index = 1)]
-                    InexistentVoucher,
-                    #[codec(index = 2)]
-                    VoucherExpired,
-                    #[codec(index = 3)]
-                    IrrevocableYet,
-                    #[codec(index = 4)]
+                    #[doc = "The origin is not eligible to execute call."]
                     BadOrigin,
+                    #[codec(index = 1)]
+                    #[doc = "Error trying transfer balance to/from voucher account."]
+                    BalanceTransfer,
+                    #[codec(index = 2)]
+                    #[doc = "Destination program is not in whitelisted set for voucher."]
+                    InappropriateDestination,
+                    #[codec(index = 3)]
+                    #[doc = "Voucher with given identifier doesn't exist for given spender id."]
+                    InexistentVoucher,
+                    #[codec(index = 4)]
+                    #[doc = "Voucher still valid and couldn't be revoked."]
+                    IrrevocableYet,
                     #[codec(index = 5)]
+                    #[doc = "Try to whitelist more programs than allowed."]
                     MaxProgramsLimitExceeded,
                     #[codec(index = 6)]
+                    #[doc = "Failed to query destination of the prepaid call."]
                     UnknownDestination,
                     #[codec(index = 7)]
-                    InappropriateDestination,
+                    #[doc = "Voucher has expired and couldn't be used."]
+                    VoucherExpired,
                     #[codec(index = 8)]
+                    #[doc = "Zero validity given while issuing voucher."]
                     ZeroValidity,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-                #[doc = "\n\t\t\tThe [event](https://docs.substrate.io/main-docs/build/events-errors/) emitted\n\t\t\tby this pallet.\n\t\t\t"]
+                #[doc = "Pallet Gear Voucher event."]
                 pub enum Event {
                     #[codec(index = 0)]
                     #[doc = "Voucher has been issued."]
@@ -3414,17 +3482,19 @@ pub mod runtime_types {
                         voucher_id: runtime_types::pallet_gear_voucher::internal::VoucherId,
                     },
                     #[codec(index = 1)]
+                    #[doc = "Voucher has been revoked by owner."]
+                    #[doc = ""]
+                    #[doc = "NOTE: currently means only \"refunded\"."]
+                    VoucherRevoked {
+                        spender: ::subxt::utils::AccountId32,
+                        voucher_id: runtime_types::pallet_gear_voucher::internal::VoucherId,
+                    },
+                    #[codec(index = 2)]
                     #[doc = "Voucher has been updated."]
                     VoucherUpdated {
                         spender: ::subxt::utils::AccountId32,
                         voucher_id: runtime_types::pallet_gear_voucher::internal::VoucherId,
                         new_owner: ::core::option::Option<::subxt::utils::AccountId32>,
-                    },
-                    #[codec(index = 2)]
-                    #[doc = "Voucher has been refunded by owner."]
-                    VoucherRevoked {
-                        spender: ::subxt::utils::AccountId32,
-                        voucher_id: runtime_types::pallet_gear_voucher::internal::VoucherId,
                     },
                 }
             }
