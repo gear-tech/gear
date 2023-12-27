@@ -16,7 +16,26 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Handlers for specified manifest.
+//! Handlers for patching manifests.
+
+use crate::Manifest;
+use anyhow::Result;
+use cargo_metadata::Package;
+
+/// Patch specified manifest by provided name.
+pub fn patch(pkg: &Package) -> Result<Manifest> {
+    let mut manifest = Manifest::new(pkg)?;
+    let doc = &mut manifest.manifest;
+
+    match manifest.name.as_str() {
+        "gear-core-processor" => core_processor::patch(doc),
+        "gear-sandbox" => sandbox::patch(doc),
+        "gear-sandbox-host" => sandbox_host::patch(doc),
+        _ => {}
+    }
+
+    Ok(manifest)
+}
 
 /// gear-core-processor handler.
 pub mod core_processor {
@@ -88,7 +107,23 @@ pub mod substrate {
     }
 }
 
-/// wasmi handler.
+/// sandbox handler.
+pub mod sandbox {
+    use toml_edit::Document;
+
+    /// Convert the wasmi module to the crates-io version.
+    pub fn patch(manifest: &mut Document) {
+        let Some(wasmi) = manifest["dependencies"]["wasmi"].as_inline_table_mut() else {
+            return;
+        };
+        wasmi.insert("package", "gwasmi".into());
+        wasmi.insert("version", "0.30.0".into());
+        wasmi.remove("branch");
+        wasmi.remove("git");
+    }
+}
+
+/// sandbox_host handler.
 pub mod sandbox_host {
     use toml_edit::Document;
 
@@ -97,7 +132,7 @@ pub mod sandbox_host {
         let Some(wasmi) = manifest["dependencies"]["wasmi"].as_inline_table_mut() else {
             return;
         };
-
+        wasmi.insert("version", "0.13.2".into());
         wasmi.remove("branch");
         wasmi.remove("git");
     }
