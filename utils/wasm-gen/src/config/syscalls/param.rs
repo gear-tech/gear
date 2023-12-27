@@ -254,11 +254,16 @@ impl Default for RegularParamAllowedValues {
 // TODO #3591 Support other hash types.
 #[derive(Debug, Clone)]
 pub enum PtrParamAllowedValues {
+    /// Possible range of values for `Ptr::Value` pointer type. This pointer
+    /// type is usually define as a message value param type for "reply" syscalls
+    /// kind.
     Value(RangeInclusive<u128>),
+    /// Variant of `Ptr::HashWithValue` pointer type, where hash is actor id.
     ActorIdWithValue {
         actor: SyscallDestination,
         range: RangeInclusive<u128>,
     },
+    /// Variant of `Ptr::Hash` pointer type, where hash is actor id.
     ActorId(SyscallDestination),
 }
 

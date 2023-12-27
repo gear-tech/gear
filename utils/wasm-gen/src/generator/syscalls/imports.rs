@@ -159,8 +159,8 @@ impl<'a, 'b> SyscallsImportsGenerator<'a, 'b> {
         }
     }
 
-    /// Generates syscalls imports and a function, that calls `gr_reservation_send` from config,
-    /// used to instantiate the generator.
+    /// Generates syscalls imports and precise syscalls, which are functions that call syscalls which have
+    /// a precise version of them. For more info on precise syscalls see [`InvocableSyscall`].
     ///
     /// Returns disabled syscalls imports generator and a proof that imports from config were generated.
     pub fn generate(
@@ -413,8 +413,7 @@ impl<'a, 'b> SyscallsImportsGenerator<'a, 'b> {
             Instruction::End,
             Instruction::End,
         ]);
-        let call_indexes_handle =
-            self.generate_proper_syscall_invocation(syscall, func_instructions);
+        let call_indexes_handle = self.generate_proper_syscall_function(syscall, func_instructions);
 
         Ok(call_indexes_handle)
     }
@@ -485,8 +484,7 @@ impl<'a, 'b> SyscallsImportsGenerator<'a, 'b> {
             Instruction::End,
             Instruction::End,
         ]);
-        let call_indexes_handle =
-            self.generate_proper_syscall_invocation(syscall, func_instructions);
+        let call_indexes_handle = self.generate_proper_syscall_function(syscall, func_instructions);
 
         Ok(call_indexes_handle)
     }
@@ -584,8 +582,7 @@ impl<'a, 'b> SyscallsImportsGenerator<'a, 'b> {
             Instruction::End,
         ]);
         let func_instructions = Instructions::new(elements);
-        let call_indexes_handle =
-            self.generate_proper_syscall_invocation(syscall, func_instructions);
+        let call_indexes_handle = self.generate_proper_syscall_function(syscall, func_instructions);
 
         Ok(call_indexes_handle)
     }
@@ -690,12 +687,12 @@ impl<'a, 'b> SyscallsImportsGenerator<'a, 'b> {
             Instruction::End,
         ]);
         let func_instructions = Instructions::new(elements);
-        let call_indexes_handle =
-            self.generate_proper_syscall_invocation(syscall, func_instructions);
+        let call_indexes_handle = self.generate_proper_syscall_function(syscall, func_instructions);
 
         Ok(call_indexes_handle)
     }
 
+    /// Generates a function which calls "properly" the `gr_reply_deposit`.
     fn generate_reply_deposit(
         &mut self,
         syscall: SyscallName,
@@ -777,8 +774,7 @@ impl<'a, 'b> SyscallsImportsGenerator<'a, 'b> {
         func_instructions.push(Instruction::End);
 
         let func_instructions = Instructions::new(func_instructions);
-        let call_indexes_handle =
-            self.generate_proper_syscall_invocation(syscall, func_instructions);
+        let call_indexes_handle = self.generate_proper_syscall_function(syscall, func_instructions);
 
         Ok(call_indexes_handle)
     }
@@ -818,7 +814,7 @@ impl<'a, 'b> SyscallsImportsGenerator<'a, 'b> {
     }
 
     /// Generates a function which calls "properly" the given syscall.
-    fn generate_proper_syscall_invocation(
+    fn generate_proper_syscall_function(
         &mut self,
         syscall: SyscallName,
         func_instructions: Instructions,

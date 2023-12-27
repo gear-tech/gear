@@ -137,7 +137,7 @@ impl SyscallsConfig {
         &self.precise_syscalls_config
     }
 
-    /// Error processing config for fallible syscalls.
+    /// Get error processing config for fallible syscalls.
     pub fn error_processing_config(&self) -> &ErrorProcessingConfig {
         &self.error_processing_config
     }
@@ -145,10 +145,11 @@ impl SyscallsConfig {
 
 /// Syscall destination choice.
 ///
-/// `gr_send*` and `gr_exit` syscalls generated from this crate can be sent
-/// to different destination in accordance to the config.
-/// It's either to the message source, to some existing known address,
-/// or to some random, most probably non-existing, address.
+/// `gr_send*`, `gr_exit` and other message sending syscalls generated
+/// from this crate can send messages to different destination
+/// in accordance to the config. It's either to the message source,
+/// to some existing known address, or to some random, most probably
+/// non-existing, address.
 #[derive(Debug, Clone, Default)]
 pub enum SyscallDestination {
     Source,

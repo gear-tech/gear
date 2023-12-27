@@ -464,6 +464,12 @@ pub fn inject_critical_gas_limit(module: Module, critical_gas_limit: u64) -> Mod
     module
 }
 
+/// Bytes data converted into wasm words, i.e. i32 words.
+///
+/// This type is mainly used to define values for syscalls
+/// params of a pointer type. The value is converted first
+/// to bytes and then to wasm words, which are later translated
+/// to wasm instructions (see [`translate_ptr_data`]).
 pub(crate) struct WasmWords(Vec<i32>);
 
 impl WasmWords {
@@ -499,6 +505,14 @@ impl WasmWords {
     }
 }
 
+/// Translates ptr data wasm words to instructions that set this data
+/// to wasm memory.
+///
+/// The `start_offset` is the index in memory where data should start.
+///
+/// The `end_offset` is usually the same as `start_offset` when the translated
+/// data (words) is desired to be used as a param for the syscall. In this case
+/// end offset just points to the start of the param value.
 pub(crate) fn translate_ptr_data(
     words: WasmWords,
     (start_offset, end_offset): (i32, i32),
@@ -518,6 +532,7 @@ pub(crate) fn translate_ptr_data(
         .collect()
 }
 
+/// Convert `NonEmpty` vector to `Vec`.
 pub(crate) fn non_empty_to_vec<T>(non_empty: NonEmpty<T>) -> Vec<T> {
     let (head, mut tail) = non_empty.into();
     tail.push(head);

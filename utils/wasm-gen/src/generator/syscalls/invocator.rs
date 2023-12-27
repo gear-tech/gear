@@ -20,8 +20,9 @@
 
 use crate::{
     generator::{
-        CallIndexes, CallIndexesHandle, DisabledAdditionalDataInjector, FunctionIndex,
-        ModuleWithCallIndexes,
+        CallIndexes, CallIndexesHandle, DisabledAdditionalDataInjector,
+        DisabledSyscallsImportsGenerator, FunctionIndex, ModuleWithCallIndexes,
+        SyscallsImportsGenerationProof,
     },
     utils::{self, WasmWords},
     wasm::{PageCount as WasmPageCount, WasmModule},
@@ -122,16 +123,6 @@ pub(crate) fn process_syscall_params(
 /// Syscalls invocator.
 ///
 /// Inserts syscalls invokes randomly into internal functions.
-///
-/// This type is instantiated from disable additional data injector and
-/// data injection outcome ([`AddressesInjectionOutcome`]). The latter was introduced
-/// to give additional guarantees for config and generators consistency. Otherwise,
-/// if there wasn't any addresses injection outcome, which signals that there was a try to
-/// inject addresses, syscalls invocator could falsely set `gr_send*` and `gr_exit` call's destination param
-/// to random value. For example, existing addresses could have been defined in the config, but
-/// additional data injector was disabled, before injecting addresses from the config. As a result,
-/// invocator would set un-intended by config values as messages destination. To avoid such
-/// inconsistency the [`AddressesInjectionOutcome`] gives additional required guarantees.
 pub struct SyscallsInvocator<'a, 'b> {
     unstructured: &'b mut Unstructured<'a>,
     call_indexes: CallIndexes,
@@ -142,6 +133,32 @@ pub struct SyscallsInvocator<'a, 'b> {
 
 impl<'a, 'b> From<DisabledAdditionalDataInjector<'a, 'b>> for SyscallsInvocator<'a, 'b> {
     fn from(disabled_gen: DisabledAdditionalDataInjector<'a, 'b>) -> Self {
+        Self {
+            unstructured: disabled_gen.unstructured,
+            call_indexes: disabled_gen.call_indexes,
+            module: disabled_gen.module,
+            config: disabled_gen.config,
+            syscalls_imports: disabled_gen.syscalls_imports,
+        }
+    }
+}
+
+impl<'a, 'b>
+    From<(
+        DisabledSyscallsImportsGenerator<'a, 'b>,
+        SyscallsImportsGenerationProof,
+    )> for SyscallsInvocator<'a, 'b>
+{
+    fn from(
+        (disabled_gen, _syscalls_gen_proof): (
+            DisabledSyscallsImportsGenerator<'a, 'b>,
+            SyscallsImportsGenerationProof,
+        ),
+    ) -> Self {
+        let data_offset = disabled_gen
+            .module
+            .get_stack_end_offset()
+            .unwrap_or_default();
         Self {
             unstructured: disabled_gen.unstructured,
             call_indexes: disabled_gen.call_indexes,
@@ -747,8 +764,8 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
 
 /// Disabled syscalls invocator.
 ///
-/// This type signals that syscalls imports generation, additional data injection and
-/// syscalls invocation (with further call indexes resolution) is done.
+/// This type signals that syscalls imports generation and syscalls invocation
+/// (with further call indexes resolution) is done.
 pub struct DisabledSyscallsInvocator {
     module: WasmModule,
     call_indexes: CallIndexes,

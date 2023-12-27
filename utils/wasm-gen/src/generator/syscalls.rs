@@ -21,15 +21,18 @@
 //! Generators from this module form a state machine:
 //! ```text
 //! # Zero syscalls generators nesting level.
-//! SyscallsImport--->DisabledSyscallsImport--->ModuleWithCallIndexes--->WasmModule
+//! SyscallsImportGenerator--->DisabledSyscallsImportsGenerator--->ModuleWithCallIndexes--->WasmModule
 //!
 //! # First syscalls generators nesting level.
-//! SyscallsImport--->DisabledSyscallsImport--(SyscallsImportsGenerationProof)-->AdditionalDataInjector---\
+//! SyscallsImportGenerator--->DisabledSyscallsImportsGenerator--(SyscallsImportsGenerationProof)-->AdditionalDataInjector---\
 //! |--->DisabledAdditionalDataInjector--->ModuleWithCallIndexes--->WasmModule
 //!
-//! # Third syscalls generators nesting level
-//! SyscallsImport--->DisabledSyscallsImport--(SyscallsImportsGenerationProof)-->AdditionalDataInjector---\
-//! |--->DisabledAdditionalDataInjector--(AddressesInjectionOutcome)-->SyscallsInvocator--->DisabledSyscallsInvocator--->ModuleWithCallIndexes--->WasmModule
+//! SyscallsImportGenerator--->DisabledSyscallsImportsGenerator--(SyscallsImportsGenerationProof)-->SyscallsInvocator---\
+//! |--->DisabledSyscallsInvocator--->ModuleWithCallIndexes--->WasmModule
+//!
+//! # Second syscalls generators nesting level
+//! SyscallsImportGenerator--->DisabledSyscallsImportsGenerator--(SyscallsImportsGenerationProof)-->AdditionalDataInjector---\
+//! |--->DisabledAdditionalDataInjector-->SyscallsInvocator--->DisabledSyscallsInvocator--->ModuleWithCallIndexes--->WasmModule
 //! ```
 //! Entities in curly brackets are those, which are required for the next transition.
 //! Also all transitions require previous entity to be disabled.
