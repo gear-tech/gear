@@ -4443,6 +4443,8 @@ dependencies = [
  "hex-literal",
  "jsonrpsee 0.16.3",
  "log",
+ "pallet-gear-builtin-actor-rpc",
+ "pallet-gear-builtin-actor-rpc-runtime-api",
  "pallet-gear-rpc",
  "pallet-gear-rpc-runtime-api",
  "pallet-gear-staking-rewards-rpc",
@@ -7819,6 +7821,26 @@ dependencies = [
  "sp-io",
  "sp-runtime",
  "sp-std 5.0.0",
+]
+
+[[package]]
+name = "pallet-gear-builtin-actor-rpc"
+version = "1.0.0"
+dependencies = [
+ "jsonrpsee 0.16.3",
+ "pallet-gear-builtin-actor-rpc-runtime-api",
+ "sp-api",
+ "sp-blockchain",
+ "sp-core",
+ "sp-runtime",
+]
+
+[[package]]
+name = "pallet-gear-builtin-actor-rpc-runtime-api"
+version = "1.0.0"
+dependencies = [
+ "sp-api",
+ "sp-core",
 ]
 
 [[package]]
@@ -13825,6 +13847,7 @@ dependencies = [
  "pallet-gear",
  "pallet-gear-bank",
  "pallet-gear-builtin-actor",
+ "pallet-gear-builtin-actor-rpc-runtime-api",
  "pallet-gear-debug",
  "pallet-gear-gas",
  "pallet-gear-messenger",

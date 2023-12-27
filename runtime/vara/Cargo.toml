@@ -100,6 +100,7 @@ pallet-gear-staking-rewards.workspace = true
 pallet-gear-voucher.workspace = true
 pallet-gear-rpc-runtime-api.workspace = true
 pallet-gear-staking-rewards-rpc-runtime-api.workspace = true
+pallet-gear-builtin-actor-rpc-runtime-api.workspace = true
 runtime-primitives.workspace = true
 
 [dev-dependencies]
@@ -148,6 +149,7 @@ std = [
 	"pallet-gear-staking-rewards/std",
 	"pallet-gear-rpc-runtime-api/std",
 	"pallet-gear-staking-rewards-rpc-runtime-api/std",
+	"pallet-gear-builtin-actor-rpc-runtime-api/std",
 	"pallet-grandpa/std",
 	"pallet-identity/std",
 	"pallet-im-online/std",

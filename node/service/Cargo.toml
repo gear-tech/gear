@@ -21,6 +21,8 @@ pallet-gear-rpc.workspace = true
 pallet-gear-rpc-runtime-api = { workspace = true, features = ["std"] }
 pallet-gear-staking-rewards-rpc.workspace = true
 pallet-gear-staking-rewards-rpc-runtime-api = { workspace = true, features = ["std"] }
+pallet-gear-builtin-actor-rpc.workspace = true
+pallet-gear-builtin-actor-rpc-runtime-api = { workspace = true, features = ["std"] }
 runtime-primitives = { workspace = true, features = ["std"] }
 gear-runtime-interface = { workspace = true, features = ["std"] }
 authorship.workspace = true

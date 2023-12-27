@@ -1406,6 +1406,12 @@ impl_runtime_apis_plus_common! {
         }
     }
 
+    impl pallet_gear_builtin_actor_rpc_runtime_api::GearBuiltinActorApi<Block> for Runtime {
+        fn generate_actor_id(builtin_id: u64) -> H256 {
+            GearBuiltinActor::generate_actor_id(builtin_id.into()).into_bytes().into()
+        }
+    }
+
     #[cfg(feature = "try-runtime")]
     impl frame_try_runtime::TryRuntime<Block> for Runtime {
         fn on_runtime_upgrade(checks: frame_try_runtime::UpgradeCheckSelect) -> (Weight, Weight) {

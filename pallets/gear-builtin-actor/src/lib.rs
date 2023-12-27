@@ -39,7 +39,6 @@ mod mock;
 mod tests;
 
 use common::Origin;
-use frame_support::{traits::Get, PalletId};
 use gear_core::ids::{BuiltinId, ProgramId};
 use pallet_gear::{BuiltinLookup, RegisteredBuiltinActor};
 use parity_scale_codec::{Decode, Encode};
@@ -54,7 +53,7 @@ const LOG_TARGET: &str = "gear::builtin_actor";
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
-    use frame_support::pallet_prelude::*;
+    use frame_support::{pallet_prelude::*, traits::Get, PalletId};
     use frame_system::pallet_prelude::*;
 
     /// The current storage version.
@@ -76,6 +75,13 @@ pub mod pallet {
     #[pallet::storage]
     #[pallet::getter(fn actors)]
     pub type Actors<T> = StorageMap<_, Identity, ProgramId, BuiltinId>;
+
+    /// Error for the gear-builtin-actor pallet.
+    #[pallet::error]
+    pub enum Error<T> {
+        /// `BuiltinId` already existd.
+        BuiltinIdAlreadyExists,
+    }
 
     #[pallet::genesis_config]
     pub struct GenesisConfig<T: Config> {
@@ -134,13 +140,18 @@ pub mod pallet {
         /// This function is supposed to be called during the Runtime upgrade to update the
         /// builtin actors cache (if new actors are being added).
         #[allow(unused)]
-        pub(crate) fn register_actor<B, D, O>()
+        pub(crate) fn register_actor<B, D, O>() -> DispatchResult
         where
             B: RegisteredBuiltinActor<D, O>,
         {
             let builtin_id = <B as RegisteredBuiltinActor<D, O>>::ID;
             let actor_id = Self::generate_actor_id(builtin_id);
+            ensure!(
+                !Actors::<T>::contains_key(actor_id),
+                Error::<T>::BuiltinIdAlreadyExists
+            );
             Actors::<T>::insert(actor_id, builtin_id);
+            Ok(())
         }
     }
 }

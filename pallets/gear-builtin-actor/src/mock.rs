@@ -356,7 +356,7 @@ impl BuiltinActor<StoredDispatch, JournalNote> for SuccessBuiltinActor {
     }
 }
 impl RegisteredBuiltinActor<StoredDispatch, JournalNote> for SuccessBuiltinActor {
-    const ID: BuiltinId = BuiltinId(*b"bltn/suc");
+    const ID: BuiltinId = BuiltinId(u64::from_le_bytes(*b"bltn/suc"));
 }
 
 pub struct ErrorBuiltinActor {}
@@ -386,7 +386,7 @@ impl BuiltinActor<StoredDispatch, JournalNote> for ErrorBuiltinActor {
     }
 }
 impl RegisteredBuiltinActor<StoredDispatch, JournalNote> for ErrorBuiltinActor {
-    const ID: BuiltinId = BuiltinId(*b"bltn/err");
+    const ID: BuiltinId = BuiltinId(u64::from_le_bytes(*b"bltn/err"));
 }
 
 pallet_gear::impl_config!(
