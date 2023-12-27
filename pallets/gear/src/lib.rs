@@ -532,7 +532,6 @@ pub mod pallet {
         /// For tests only.
         #[cfg(any(feature = "std", feature = "runtime-benchmarks", test))]
         pub fn set_block_number(bn: BlockNumberFor<T>) {
-
             <BlockNumber<T>>::put(bn);
         }
 
