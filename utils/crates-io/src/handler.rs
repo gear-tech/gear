@@ -89,12 +89,16 @@ pub mod substrate {
 }
 
 /// wasmi handler.
-pub mod wasmi {
-    use toml_edit::InlineTable;
+pub mod sandbox_host {
+    use toml_edit::Document;
 
     /// Convert the wasmi module to the crates-io version.
-    pub fn patch_workspace(table: &mut InlineTable) {
-        table.remove("branch");
-        table.remove("git");
+    pub fn patch(manifest: &mut Document) {
+        let Some(wasmi) = manifest["dependencies"]["wasmi"].as_inline_table_mut() else {
+            return;
+        };
+
+        wasmi.remove("branch");
+        wasmi.remove("git");
     }
 }

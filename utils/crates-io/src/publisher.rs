@@ -78,12 +78,16 @@ impl Publisher {
             }
 
             let mut manifest = Manifest::new(pkg)?;
-
-            // NOTE: rename gear-core-processor to core-processor
-            //
-            // gear-core-processor has already been taken by others.
-            if manifest.name == "gear-core-processor" {
-                handler::core_processor::patch(&mut manifest.manifest);
+            match manifest.name.as_str() {
+                // gear-core-processor has already been taken by others.
+                "gear-core-processor" => {
+                    handler::core_processor::patch(&mut manifest.manifest);
+                }
+                // convert git dependencies to crates-io dependencies.
+                "gear-sandbox-host" => {
+                    handler::sandbox_host::patch(&mut manifest.manifest);
+                }
+                _ => {}
             }
 
             self.graph.insert(self.index.get(name).cloned(), manifest);

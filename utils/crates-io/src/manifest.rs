@@ -123,9 +123,6 @@ impl Workspace {
                 "core-processor" | "gear-core-processor" => {
                     handler::core_processor::patch_workspace(name, table);
                 }
-                "wasmi" => {
-                    handler::wasmi::patch_workspace(table);
-                }
                 sub if sub.starts_with("sp-") || sub.starts_with("frame-") => {
                     handler::substrate::patch_workspace(sub, table);
                 }
