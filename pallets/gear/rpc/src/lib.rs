@@ -460,7 +460,7 @@ where
             handle_kind.clone(),
             payload.to_vec(),
             value,
-            Some(source.into()),
+            Some(source),
             allow_other_panics,
             None,
         )?;
@@ -471,7 +471,7 @@ where
             handle_kind,
             payload.to_vec(),
             value,
-            Some(source.into()),
+            Some(source),
             allow_other_panics,
             Some(min_limit),
         )

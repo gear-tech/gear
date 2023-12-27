@@ -699,6 +699,7 @@ pub mod pallet {
         }
 
         #[cfg(not(test))]
+        #[allow(clippy::too_many_arguments)]
         pub fn calculate_gas_info(
             source: H256,
             kind: HandleKind,
@@ -746,7 +747,7 @@ pub mod pallet {
                     initial_gas,
                     payload.clone(),
                     value,
-                    false,
+                    None,
                     allow_other_panics,
                     allow_skip_zero_replies,
                     None,
