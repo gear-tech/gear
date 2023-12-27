@@ -280,7 +280,7 @@ pub(crate) struct SendMessageGenerator {
 impl SendMessageGenerator {
     fn generate(
         &self,
-        intermediate_data: &mut TempData,
+        intermediate_data: &TempData,
         unstructured: &mut Unstructured,
     ) -> Result<Option<GearCall>> {
         let program_id = unstructured
@@ -437,7 +437,7 @@ fn config(programs: &[ProgramId], log_info: Option<String>) -> StandardGearWasmC
             .filter(|&pid| pid != ProgramId::default())
             .map(|pid| pid.into()),
     )
-    .map(|non_empty| SyscallDestination::ExistingAddresses(non_empty))
+    .map(SyscallDestination::ExistingAddresses)
     .unwrap_or(SyscallDestination::Source);
 
     log::trace!("Messages destination config: {:?}", syscall_destination);

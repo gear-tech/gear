@@ -243,7 +243,7 @@ pub fn get_wasm_gen_config(
             .filter(|&pid| pid != ProgramId::default())
             .map(|pid| pid.into()),
     )
-    .map(|non_empty| SyscallDestination::ExistingAddresses(non_empty))
+    .map(SyscallDestination::ExistingAddresses)
     .unwrap_or(SyscallDestination::Source);
 
     params_config.set_ptr_rule(PtrParamAllowedValues::ActorId(syscall_destination.clone()));
