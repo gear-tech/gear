@@ -230,8 +230,7 @@ macro_rules! init {
         $spawner:ident,
         $genesis_hash:ident
     } => {
-        let client_builder =
-            TestClientBuilder::new();
+        let client_builder = TestClientBuilder::new();
         let $backend = client_builder.backend();
         let mut $client = Arc::new(client_builder.build());
         let $spawner = sp_core::testing::TaskExecutor::new();
