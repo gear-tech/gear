@@ -75,6 +75,7 @@ fn get_exports(
     {
         if let Internal::Function(i) = entry.internal() {
             if reject_unnecessary {
+                // Index access into arrays cannot panic unless the Module structure is invalid
                 let type_id = funcs[*i as usize - import_count].type_ref();
                 let Type::Function(ref f) = types[type_id as usize];
                 if !f.params().is_empty() || !f.results().is_empty() {
