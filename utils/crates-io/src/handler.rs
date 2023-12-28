@@ -23,6 +23,8 @@ use anyhow::Result;
 use cargo_metadata::Package;
 use toml_edit::Document;
 
+const SP_WASM_INTERFACE_VERSION: &str = "7.0.5";
+
 /// Patch specified manifest by provided name.
 pub fn patch(pkg: &Package) -> Result<Manifest> {
     let mut manifest = Manifest::new(pkg)?;
@@ -30,6 +32,7 @@ pub fn patch(pkg: &Package) -> Result<Manifest> {
 
     match manifest.name.as_str() {
         "gear-core-processor" => core_processor::patch(doc),
+        "gear-runtime-interface" => runtime_interface::patch(doc),
         "gear-sandbox" => sandbox::patch(doc),
         "gear-sandbox-host" => sandbox_host::patch(doc),
         "gmeta" => gmeta::patch(doc),
@@ -104,6 +107,22 @@ pub mod gmeta_codegen {
     }
 }
 
+/// runtime interface handler
+pub mod runtime_interface {
+    use super::SP_WASM_INTERFACE_VERSION;
+    use toml_edit::Document;
+
+    /// Convert the wasmi module to the crates-io version.
+    pub fn patch(manifest: &mut Document) {
+        let Some(wi) = manifest["dependencies"]["sp-runtime-interface"].as_table_mut() else {
+            return;
+        };
+        wi.insert("version", toml_edit::value(SP_WASM_INTERFACE_VERSION));
+        wi.insert("package", toml_edit::value("gp-runtime-interface"));
+        wi.remove("workspace");
+    }
+}
+
 /// sandbox handler.
 pub mod sandbox {
     use toml_edit::Document;
@@ -137,6 +156,7 @@ pub mod sandbox_host {
 
 /// substrate handler.
 pub mod substrate {
+    use super::SP_WASM_INTERFACE_VERSION;
     use toml_edit::InlineTable;
 
     /// Patch the substrate packages in the manifest of workspace.
@@ -163,7 +183,7 @@ pub mod substrate {
             }
             // Related to sp-wasm-interface.
             "sp-runtime-interface" => {
-                table.insert("version", "7.0.3".into());
+                table.insert("version", SP_WASM_INTERFACE_VERSION.into());
                 table.insert("package", "gp-runtime-interface".into());
             }
             // The versions of these packages on crates.io are incorrect.
