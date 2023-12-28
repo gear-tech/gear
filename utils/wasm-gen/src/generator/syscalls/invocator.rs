@@ -26,8 +26,8 @@ use crate::{
     },
     utils::{self, WasmWords},
     wasm::{PageCount as WasmPageCount, WasmModule},
-    InvocableSyscall, PtrParamAllowedValues, RegularParamAllowedValues, SyscallDestination,
-    SyscallsConfig, SyscallsParamsConfig,
+    ActorKind, InvocableSyscall, PtrParamAllowedValues, RegularParamAllowedValues, SyscallsConfig,
+    SyscallsParamsConfig,
 };
 use arbitrary::{Result, Unstructured};
 use gear_wasm_instrument::{
@@ -95,7 +95,7 @@ pub(crate) fn process_syscall_params(
                 Length if length_param_indexes.contains(&param_idx) => {
                     // Due to match guard `RegularParamType::Length` can be processed in two ways:
                     // 1. The function will return `ProcessedSyscallParams::MemoryArraySize`
-                    //    if this parameter is associated with Ptr::BufferStart { .. }`.
+                    //    if this parameter is associated with Ptr::SizedBufferStart { .. }`.
                     // 2. Otherwise, `ProcessedSyscallParams::Value` will be returned from the function.
                     ProcessedSyscallParams::MemoryArrayLength
                 }
@@ -506,7 +506,7 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
             }
             PtrParamAllowedValues::ActorId(actor) => {
                 match actor {
-                    SyscallDestination::Source => {
+                    ActorKind::Source => {
                         let gr_source_call_indexes_handle = self
                             .syscalls_imports
                             .get(&InvocableSyscall::Loose(SyscallName::Source))
@@ -522,7 +522,7 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                             Instruction::I32Const(value_set_ptr),
                         ]
                     }
-                    SyscallDestination::ExistingAddresses(addresses) => {
+                    ActorKind::ExistingAddresses(addresses) => {
                         let addresses = utils::non_empty_to_vec(addresses);
                         let address = self.unstructured.choose(&addresses)?;
                         utils::translate_ptr_data(
@@ -530,7 +530,7 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                             (value_set_ptr, value_set_ptr),
                         )
                     }
-                    SyscallDestination::Random => {
+                    ActorKind::Random => {
                         let random_address: [u8; 32] = self.unstructured.arbitrary()?;
                         utils::translate_ptr_data(
                             WasmWords::new(random_address),
@@ -539,9 +539,12 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                     }
                 }
             }
-            PtrParamAllowedValues::ActorIdWithValue { actor, range } => {
+            PtrParamAllowedValues::ActorIdWithValue {
+                actor_kind: actor,
+                range,
+            } => {
                 match actor {
-                    SyscallDestination::Source => {
+                    ActorKind::Source => {
                         let gr_source_call_indexes_handle = self
                             .syscalls_imports
                             .get(&InvocableSyscall::Loose(SyscallName::Source))
@@ -566,7 +569,7 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
 
                         ret_instr
                     }
-                    SyscallDestination::ExistingAddresses(addresses) => {
+                    ActorKind::ExistingAddresses(addresses) => {
                         let address_words = WasmWords::new(
                             *self
                                 .unstructured
@@ -579,7 +582,7 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                             (value_set_ptr, value_set_ptr),
                         )
                     }
-                    SyscallDestination::Random => {
+                    ActorKind::Random => {
                         let random_address_words =
                             WasmWords::new(self.unstructured.arbitrary::<[u8; 32]>()?);
                         let value_words =

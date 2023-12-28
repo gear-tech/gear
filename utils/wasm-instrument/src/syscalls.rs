@@ -771,15 +771,9 @@ mod pointers {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
     pub enum Ptr {
         // Const ptrs.
-        BlockNumber,
-        BlockTimestamp,
         SizedBufferStart { length_param_idx: usize },
-        BufferStart,
         Hash(HashType),
-        Gas,
-        Length,
         Value,
-        BlockNumberWithHash(HashType),
         HashWithValue(HashType),
         TwoHashes(HashType, HashType),
         TwoHashesWithValue(HashType, HashType),
@@ -793,9 +787,6 @@ mod pointers {
         MutLength,
         MutValue,
         MutBlockNumberWithHash(HashType),
-        MutHashWithValue(HashType),
-        MutTwoHashes(HashType, HashType),
-        MutTwoHashesWithValue(HashType, HashType),
     }
 
     impl Ptr {
@@ -803,15 +794,9 @@ mod pointers {
             use Ptr::*;
 
             match self {
-                BlockNumber
-                | BlockTimestamp
-                | SizedBufferStart { .. }
-                | BufferStart
+                SizedBufferStart { .. }
                 | Hash(_)
-                | Gas
-                | Length
                 | Value
-                | BlockNumberWithHash(_)
                 | HashWithValue(_)
                 | TwoHashes(_, _)
                 | TwoHashesWithValue(_, _) => false,
@@ -823,10 +808,7 @@ mod pointers {
                 | MutGas
                 | MutLength
                 | MutValue
-                | MutBlockNumberWithHash(_)
-                | MutHashWithValue(_)
-                | MutTwoHashes(_, _)
-                | MutTwoHashesWithValue(_, _) => true,
+                | MutBlockNumberWithHash(_) => true,
             }
         }
     }

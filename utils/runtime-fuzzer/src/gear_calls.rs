@@ -35,9 +35,8 @@ use gear_call_gen::{ClaimValueArgs, SendReplyArgs};
 use gear_core::ids::{CodeId, MessageId, ProgramId};
 use gear_utils::NonEmpty;
 use gear_wasm_gen::{
-    EntryPointsSet, InvocableSyscall, PtrParamAllowedValues, RegularParamType,
-    StandardGearWasmConfigsBundle, SyscallDestination, SyscallName, SyscallsInjectionTypes,
-    SyscallsParamsConfig,
+    ActorKind, EntryPointsSet, InvocableSyscall, PtrParamAllowedValues, RegularParamType,
+    StandardGearWasmConfigsBundle, SyscallName, SyscallsInjectionTypes, SyscallsParamsConfig,
 };
 use std::mem;
 
@@ -280,7 +279,7 @@ pub(crate) struct SendMessageGenerator {
 impl SendMessageGenerator {
     fn generate(
         &self,
-        intermediate_data: &mut TempData,
+        intermediate_data: &TempData,
         unstructured: &mut Unstructured,
     ) -> Result<Option<GearCall>> {
         let program_id = unstructured
@@ -437,14 +436,14 @@ fn config(programs: &[ProgramId], log_info: Option<String>) -> StandardGearWasmC
             .filter(|&pid| pid != ProgramId::default())
             .map(|pid| pid.into()),
     )
-    .map(|non_empty| SyscallDestination::ExistingAddresses(non_empty))
-    .unwrap_or(SyscallDestination::Source);
+    .map(ActorKind::ExistingAddresses)
+    .unwrap_or(ActorKind::Source);
 
     log::trace!("Messages destination config: {:?}", syscall_destination);
 
     params_config.set_ptr_rule(PtrParamAllowedValues::ActorId(syscall_destination.clone()));
     params_config.set_ptr_rule(PtrParamAllowedValues::ActorIdWithValue {
-        actor: syscall_destination.clone(),
+        actor_kind: syscall_destination.clone(),
         range: 0..=0,
     });
 

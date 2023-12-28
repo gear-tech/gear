@@ -24,9 +24,7 @@ mod param;
 mod precise;
 mod process_errors;
 
-use gear_utils::NonEmpty;
 use gear_wasm_instrument::syscalls::SyscallName;
-use gsys::Hash;
 
 pub use injection::*;
 pub use param::*;
@@ -55,7 +53,11 @@ impl SyscallsConfigBuilder {
     pub fn with_params_config(mut self, params_config: SyscallsParamsConfig) -> Self {
         use PtrParamAllowedValues::*;
         for v in params_config.ptr.values() {
-            if let ActorId(actor) | ActorIdWithValue { actor, .. } = v {
+            if let ActorId(actor)
+            | ActorIdWithValue {
+                actor_kind: actor, ..
+            } = v
+            {
                 if actor.is_source() {
                     self.0
                         .injection_types
@@ -140,37 +142,5 @@ impl SyscallsConfig {
     /// Get error processing config for fallible syscalls.
     pub fn error_processing_config(&self) -> &ErrorProcessingConfig {
         &self.error_processing_config
-    }
-}
-
-/// Syscall destination choice.
-///
-/// `gr_send*`, `gr_exit` and other message sending syscalls generated
-/// from this crate can send messages to different destination
-/// in accordance to the config. It's either to the message source,
-/// to some existing known address, or to some random, most probably
-/// non-existing, address.
-#[derive(Debug, Clone, Default)]
-pub enum SyscallDestination {
-    Source,
-    ExistingAddresses(NonEmpty<Hash>),
-    #[default]
-    Random,
-}
-
-impl SyscallDestination {
-    /// Check whether syscall destination is a result of `gr_source`.
-    pub fn is_source(&self) -> bool {
-        matches!(&self, SyscallDestination::Source)
-    }
-
-    /// Check whether syscall destination is defined randomly.
-    pub fn is_random(&self) -> bool {
-        matches!(&self, SyscallDestination::Random)
-    }
-
-    /// Check whether syscall destination is defined from a collection of existing addresses.
-    pub fn is_existing_addresses(&self) -> bool {
-        matches!(&self, SyscallDestination::ExistingAddresses(_))
     }
 }

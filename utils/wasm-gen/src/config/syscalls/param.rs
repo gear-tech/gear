@@ -20,8 +20,10 @@
 //!
 //! Types here are used to create [`crate::SyscallsConfig`].
 
-use crate::{SyscallDestination, DEFAULT_INITIAL_SIZE};
+use crate::DEFAULT_INITIAL_SIZE;
 use arbitrary::{Result, Unstructured};
+use gear_utils::NonEmpty;
+use gsys::Hash;
 use std::{collections::HashMap, ops::RangeInclusive};
 
 pub use gear_wasm_instrument::syscalls::{HashType, Ptr, RegularParamType};
@@ -83,10 +85,10 @@ impl SyscallsParamsConfig {
         // Setting ptr params rules.
         this.set_ptr_rule(PtrParamAllowedValues::Value(range.clone()));
         this.set_ptr_rule(PtrParamAllowedValues::ActorIdWithValue {
-            actor: SyscallDestination::default(),
+            actor_kind: ActorKind::default(),
             range,
         });
-        this.set_ptr_rule(PtrParamAllowedValues::ActorId(SyscallDestination::default()));
+        this.set_ptr_rule(PtrParamAllowedValues::ActorId(ActorKind::default()));
 
         this
     }
@@ -143,37 +145,10 @@ impl SyscallsParamsConfig {
 
     /// Set rules for memory pointer syscall param.
     pub fn set_ptr_rule(&mut self, allowed_values: PtrParamAllowedValues) {
-        use Ptr::*;
-
-        let ptr = allowed_values.clone().into();
-        let allowed_values = match ptr {
-            Hash(HashType::ActorId) | Value | HashWithValue(HashType::ActorId) => allowed_values,
-            ptr_ty @ (Hash(_) | HashWithValue(_) | TwoHashes(_, _) | TwoHashesWithValue(_, _)) => {
-                unimplemented!(
-                    "Currently unsupported defining ptr param filler config for {ptr_ty:?}."
-                )
-            }
-            BlockNumber
-            | BlockTimestamp
-            | SizedBufferStart { .. }
-            | BufferStart
-            | Gas
-            | Length
-            | BlockNumberWithHash(_) => panic!("Impossible to set rules for non ptr params."),
-            MutBlockNumber
-            | MutBlockTimestamp
-            | MutSizedBufferStart { .. }
-            | MutBufferStart
-            | MutHash(_)
-            | MutGas
-            | MutLength
-            | MutValue
-            | MutBlockNumberWithHash(_)
-            | MutHashWithValue(_)
-            | MutTwoHashes(_, _)
-            | MutTwoHashesWithValue(_, _) => {
-                panic!("Mutable pointers values are set by executor, not by wasm itself.")
-            }
+        let ptr = match allowed_values {
+            PtrParamAllowedValues::Value(_) => Ptr::Value,
+            PtrParamAllowedValues::ActorIdWithValue { .. } => Ptr::HashWithValue(HashType::ActorId),
+            PtrParamAllowedValues::ActorId(_) => Ptr::Hash(HashType::ActorId),
         };
 
         self.ptr.insert(ptr, allowed_values);
@@ -260,19 +235,41 @@ pub enum PtrParamAllowedValues {
     Value(RangeInclusive<u128>),
     /// Variant of `Ptr::HashWithValue` pointer type, where hash is actor id.
     ActorIdWithValue {
-        actor: SyscallDestination,
+        actor_kind: ActorKind,
         range: RangeInclusive<u128>,
     },
     /// Variant of `Ptr::Hash` pointer type, where hash is actor id.
-    ActorId(SyscallDestination),
+    ActorId(ActorKind),
 }
 
-impl From<PtrParamAllowedValues> for Ptr {
-    fn from(ptr_data: PtrParamAllowedValues) -> Self {
-        match ptr_data {
-            PtrParamAllowedValues::Value(_) => Ptr::Value,
-            PtrParamAllowedValues::ActorIdWithValue { .. } => Ptr::HashWithValue(HashType::ActorId),
-            PtrParamAllowedValues::ActorId(_) => Ptr::Hash(HashType::ActorId),
-        }
+/// Actor kind, which is actually a syscall destination choice.
+///
+/// `gr_send*`, `gr_exit` and other message sending syscalls generated
+/// from this crate can send messages to different destination
+/// in accordance to the config. It's either to the message source,
+/// to some existing known address, or to some random, most probably
+/// non-existing, address.
+#[derive(Debug, Clone, Default)]
+pub enum ActorKind {
+    Source,
+    ExistingAddresses(NonEmpty<Hash>),
+    #[default]
+    Random,
+}
+
+impl ActorKind {
+    /// Check whether syscall destination is a result of `gr_source`.
+    pub fn is_source(&self) -> bool {
+        matches!(&self, ActorKind::Source)
+    }
+
+    /// Check whether syscall destination is defined randomly.
+    pub fn is_random(&self) -> bool {
+        matches!(&self, ActorKind::Random)
+    }
+
+    /// Check whether syscall destination is defined from a collection of existing addresses.
+    pub fn is_existing_addresses(&self) -> bool {
+        matches!(&self, ActorKind::ExistingAddresses(_))
     }
 }

@@ -180,7 +180,7 @@ fn test_source_as_address_param() {
     let mut unstructured = Unstructured::new(&buf);
 
     let mut params_config = SyscallsParamsConfig::default_regular();
-    params_config.set_ptr_rule(PtrParamAllowedValues::ActorId(SyscallDestination::Source));
+    params_config.set_ptr_rule(PtrParamAllowedValues::ActorId(ActorKind::Source));
 
     let mut injection_types = SyscallsInjectionTypes::all_never();
     injection_types.set(InvocableSyscall::Loose(SyscallName::Exit), 1, 1);
@@ -208,7 +208,7 @@ fn test_existing_address_as_address_param() {
     let some_address = [5; 32];
     let mut params_config = SyscallsParamsConfig::default_regular();
     params_config.set_ptr_rule(PtrParamAllowedValues::ActorIdWithValue {
-        actor: SyscallDestination::ExistingAddresses(NonEmpty::new(some_address)),
+        actor_kind: ActorKind::ExistingAddresses(NonEmpty::new(some_address)),
         range: 0..=0,
     });
 
@@ -305,15 +305,15 @@ fn test_msg_value_ptr_dest() {
 
     let some_address = [10; 32];
     let destination_variants = [
-        SyscallDestination::Random,
-        SyscallDestination::Source,
-        SyscallDestination::ExistingAddresses(NonEmpty::new(some_address)),
+        ActorKind::Random,
+        ActorKind::Source,
+        ActorKind::ExistingAddresses(NonEmpty::new(some_address)),
     ];
     for dest_var in destination_variants {
         let mut params_config = SyscallsParamsConfig::default_regular();
         params_config.set_rule(RegularParamType::Gas, (0..=0).into());
         params_config.set_ptr_rule(PtrParamAllowedValues::ActorIdWithValue {
-            actor: dest_var.clone(),
+            actor_kind: dest_var.clone(),
             range: REPLY_VALUE..=REPLY_VALUE,
         });
 
@@ -360,11 +360,11 @@ fn test_msg_value_ptr_dest() {
                 let destination = dispatch.destination();
 
                 match dest_var {
-                    SyscallDestination::Source => assert_eq!(destination, message_sender()),
-                    SyscallDestination::ExistingAddresses(_) => {
+                    ActorKind::Source => assert_eq!(destination, message_sender()),
+                    ActorKind::ExistingAddresses(_) => {
                         assert_eq!(destination, ProgramId::from(some_address.as_ref()))
                     }
-                    SyscallDestination::Random => {}
+                    ActorKind::Random => {}
                 }
             }
         }

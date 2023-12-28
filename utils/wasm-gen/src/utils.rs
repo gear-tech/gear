@@ -473,18 +473,18 @@ pub fn inject_critical_gas_limit(module: Module, critical_gas_limit: u64) -> Mod
 pub(crate) struct WasmWords(Vec<i32>);
 
 impl WasmWords {
+    const WASM_WORD_SIZE: usize = mem::size_of::<i32>();
+
     pub(crate) fn new(data: impl AsRef<[u8]>) -> Self {
         let data = data.as_ref();
-
         let data_size = data.len();
-        let wasm_ptr_size = mem::size_of::<i32>();
 
-        if data_size % wasm_ptr_size != 0 {
+        if data_size % Self::WASM_WORD_SIZE != 0 {
             panic!("data size isn't multiply of wasm word size")
         }
 
         let words = data
-            .chunks(wasm_ptr_size)
+            .chunks_exact(Self::WASM_WORD_SIZE)
             .map(|word_bytes| {
                 i32::from_le_bytes(
                     word_bytes
@@ -497,8 +497,7 @@ impl WasmWords {
         Self(words)
     }
 
-    pub(crate) fn merge(mut self, other: Self) -> Self {
-        let Self(mut other) = other;
+    pub(crate) fn merge(mut self, Self(mut other): Self) -> Self {
         self.0.append(&mut other);
 
         Self(self.0)
@@ -514,10 +513,9 @@ impl WasmWords {
 /// data (words) is desired to be used as a param for the syscall. In this case
 /// end offset just points to the start of the param value.
 pub(crate) fn translate_ptr_data(
-    words: WasmWords,
+    WasmWords(words): WasmWords,
     (start_offset, end_offset): (i32, i32),
 ) -> Vec<Instruction> {
-    let WasmWords(words) = words;
     words
         .into_iter()
         .enumerate()
