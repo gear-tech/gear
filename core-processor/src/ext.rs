@@ -951,8 +951,6 @@ impl Externalities for Ext {
         })
     }
 
-    // ms{ms(iself.atomic_gas<esc><right>imove<space>||<space><esc>:fmt<ret>
-
     fn reservation_reply_commit(
         &mut self,
         id: ReservationId,
