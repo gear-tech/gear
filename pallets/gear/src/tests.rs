@@ -12704,14 +12704,14 @@ fn wrong_entry_type() {
 
     init_logger();
     new_test_ext().execute_with(|| {
-        assert_err!(
+        assert_eq!(
             Code::try_new(
                 ProgramCodeKind::Custom(wat).to_bytes(),
                 1,
                 |_| ConstantCostRules::default(),
                 None
             ),
-            CodeError::InvalidExportFnSignature
+            Err(CodeError::InvalidExportFnSignature)
         );
     });
 }
