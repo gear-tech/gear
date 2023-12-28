@@ -18,14 +18,14 @@
 
 mod builder;
 
-use crate::builder::build_wasm;
+use crate::builder::{BuildPackage, BuildPackages, RebuildKind};
 use cargo_metadata::MetadataCommand;
 use fs4::FileExt;
 use globset::GlobSet;
 use serde::{Deserialize, Serialize};
 use std::{
     cmp::Ordering,
-    collections::{BTreeMap, BTreeSet},
+    collections::BTreeSet,
     env, fmt, fs,
     io::{Read, Seek, SeekFrom},
     marker::PhantomData,
@@ -34,14 +34,29 @@ use std::{
 
 const DEFAULT_EXCLUDED_FEATURES: [&str; 3] = ["default", "std", "wasm-wrapper"];
 
-#[derive(derive_more::Display, Clone, Serialize, Deserialize)]
-#[display(fmt = "{_0}")]
+#[derive(Clone, Serialize, Deserialize)]
 #[serde(transparent)]
 struct UnderscoreString(String);
 
 impl UnderscoreString {
+    pub fn original(&self) -> &String {
+        &self.0
+    }
+
     fn underscore(&self) -> String {
         self.0.replace('-', "_")
+    }
+}
+
+impl<T: Into<String>> From<T> for UnderscoreString {
+    fn from(s: T) -> Self {
+        Self(s.into())
+    }
+}
+
+impl fmt::Display for UnderscoreString {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Display::fmt(&self.underscore(), f)
     }
 }
 
@@ -280,7 +295,7 @@ pub fn builder() {
 
     let builder_metadata = BuilderMetadata::from_value(package.metadata.clone());
 
-    let mut packages = BTreeMap::new();
+    let mut packages = BuildPackages::default();
 
     for dep in package
         .dependencies
@@ -311,13 +326,10 @@ pub fn builder() {
 
         let lock = LockFile::path(&dep.name);
         println!("cargo:rerun-if-changed={}", lock.display());
-        println!("cargo:warning=tracking {}", lock.display());
         let mut lock = LockFile::open_for_builder(lock);
 
         let config = lock.read();
-        println!("cargo:warning={:?}", config);
-
-        let features = match &config {
+        let (rebuild_kind, features) = match &config {
             Some(LockFileConfig::Demo(DemoLockFileConfig { features })) => {
                 let excluded_features = demo_metadata
                     .exclude_features
@@ -347,18 +359,27 @@ pub fn builder() {
                     features: features.clone(),
                 });
 
-                Some(features)
+                (RebuildKind::Changed, features)
             }
             Some(LockFileConfig::Builder(BuilderLockFileConfig { features })) => {
-                Some(features.clone())
+                (RebuildKind::Still, features.clone())
             }
-            None => None,
+            None => unreachable!(),
         };
-        packages.insert(pkg.name.clone(), features);
+
+        packages.insert(
+            pkg.name.clone(),
+            BuildPackage {
+                rebuild_kind,
+                features,
+            },
+        );
     }
 
     println!("cargo:warning={:?}", packages);
-    let wasm_binaries = build_wasm(packages);
+    packages.build();
+
+    let wasm_binaries = packages.wasm_binaries();
     fs::write(out_dir.join("wasm_binaries.rs"), wasm_binaries).unwrap();
 }
 

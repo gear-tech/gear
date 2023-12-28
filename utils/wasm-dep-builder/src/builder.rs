@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{profile, wasm32_target_dir, wasm_projects_dir};
+use crate::{profile, wasm32_target_dir, wasm_projects_dir, UnderscoreString};
 use gear_wasm_builder::{
     optimize,
     optimize::{OptType, Optimizer},
@@ -24,42 +24,101 @@ use gear_wasm_builder::{
 use std::{
     collections::{BTreeMap, BTreeSet},
     env, fs,
+    path::PathBuf,
     process::Command,
 };
 
-pub fn build_wasm(packages: BTreeMap<String, Option<BTreeSet<String>>>) -> String {
-    let cargo = env::var("CARGO").unwrap_or_else(|_| "cargo".into());
-    let wasm32_target_dir = wasm32_target_dir().join(profile());
+#[derive(Debug, Eq, PartialEq)]
+pub enum RebuildKind {
+    Changed,
+    Still,
+}
 
-    let packages_and_features = packages
-        .iter()
-        .map(|(pkg, features)| {
-            (
-                pkg,
-                features
-                    .iter()
-                    .flatten()
-                    .map(|feature| format!("{}/{}", pkg, feature))
-                    .collect::<Vec<_>>()
-                    .join(","),
-            )
-        })
-        .flat_map(|(pkg, features)| {
-            vec![
-                "--package".to_string(),
-                pkg.clone(),
-                "--features".to_string(),
-                features,
-            ]
-        })
-        .collect::<Vec<String>>();
+#[derive(Debug)]
+pub struct BuildPackage {
+    pub rebuild_kind: RebuildKind,
+    pub features: BTreeSet<String>,
+}
 
-    if !packages_and_features.is_empty() {
+#[derive(Debug, Default)]
+pub struct BuildPackages {
+    packages: BTreeMap<UnderscoreString, BuildPackage>,
+}
+
+impl BuildPackages {
+    pub fn insert(&mut self, pkg_name: String, pkg: BuildPackage) {
+        self.packages.insert(UnderscoreString(pkg_name), pkg);
+    }
+
+    fn rebuild_required(&self) -> bool {
+        self.packages
+            .values()
+            .any(|pkg| pkg.rebuild_kind == RebuildKind::Changed)
+    }
+
+    fn cargo_args(&self) -> impl Iterator<Item = String> + '_ {
+        self.packages
+            .iter()
+            .map(|(pkg_name, pkg)| {
+                (
+                    pkg_name.original().clone(),
+                    pkg.features
+                        .iter()
+                        .map(|feature| format!("{}/{feature}", pkg_name.original()))
+                        .collect::<Vec<_>>()
+                        .join(","),
+                )
+            })
+            .flat_map(|(pkg, features)| {
+                [
+                    "--package".to_string(),
+                    pkg,
+                    "--features".to_string(),
+                    features,
+                ]
+            })
+    }
+
+    fn wasm_paths(pkg_name: &UnderscoreString) -> (PathBuf, PathBuf) {
+        let wasm32_target_dir = wasm32_target_dir().join(profile());
+        let wasm = wasm32_target_dir.join(format!("{pkg_name}.wasm"));
+        let mut wasm_opt = wasm.clone();
+        wasm_opt.set_extension("opt.wasm");
+        (wasm, wasm_opt)
+    }
+
+    fn optimize(&self) {
+        for (pkg_name, _pkg) in self
+            .packages
+            .iter()
+            .filter(|(_, pkg)| pkg.rebuild_kind == RebuildKind::Changed)
+        {
+            let (wasm, wasm_opt) = Self::wasm_paths(pkg_name);
+
+            optimize::optimize_wasm(wasm.clone(), wasm_opt.clone(), "4", true).unwrap();
+
+            let mut optimizer = Optimizer::new(wasm_opt.clone()).unwrap();
+            optimizer.insert_stack_end_export().unwrap_or_else(|err| {
+                println!("cargo:warning=Cannot insert stack end export into `{pkg_name}`: {err}")
+            });
+            optimizer.strip_custom_sections();
+
+            let binary_opt = optimizer.optimize(OptType::Opt).unwrap();
+            fs::write(&wasm_opt, binary_opt).unwrap();
+        }
+    }
+
+    pub fn build(&self) {
+        if !self.rebuild_required() {
+            return;
+        }
+
+        let cargo = env::var("CARGO").unwrap_or_else(|_| "cargo".into());
         let mut cargo = Command::new(cargo);
         cargo
             .arg("build")
             .arg("--no-default-features")
-            .args(packages_and_features)
+            .args(self.cargo_args())
             .arg("--profile")
             .arg(profile().replace("debug", "dev"))
             .arg("-v")
@@ -71,48 +130,28 @@ pub fn build_wasm(packages: BTreeMap<String, Option<BTreeSet<String>>>) -> Strin
         println!("cargo:warning={:?}", cargo);
         let output = cargo.output().expect("Failed to execute cargo command");
         assert!(output.status.success());
-        for line in String::from_utf8(output.stderr).unwrap().lines() {
-            println!("cargo:warning={line}",);
-        }
+
+        self.optimize();
     }
 
-    let mut wasm_binaries = String::new();
-
-    for (pkg, build_required) in packages {
-        let pkg = pkg.replace('-', "_");
-
-        let wasm = wasm32_target_dir.join(format!("{}.wasm", pkg));
-        let mut wasm_opt = wasm.clone();
-        wasm_opt.set_extension("opt.wasm");
-
-        wasm_binaries += &format!(
-            r#"
-pub mod {pkg} {{
-    pub use ::{pkg}::*;
+    pub fn wasm_binaries(&self) -> String {
+        self.packages
+            .iter()
+            .map(|(pkg_name, _pkg)| {
+                let (wasm, wasm_opt) = Self::wasm_paths(pkg_name);
+                format!(
+                    r#"
+pub mod {pkg_name} {{
+    pub use ::{pkg_name}::*;
     
     pub const WASM_BINARY_BLOATY: &[u8] = include_bytes!("{}");
     pub const WASM_BINARY: &[u8] = include_bytes!("{}");
 }}
                     "#,
-            wasm.display(),
-            wasm_opt.display()
-        );
-
-        if build_required.is_none() {
-            continue;
-        }
-
-        optimize::optimize_wasm(wasm.clone(), wasm_opt.clone(), "4", true).unwrap();
-
-        let mut optimizer = Optimizer::new(wasm_opt.clone()).unwrap();
-        optimizer.insert_stack_end_export().unwrap_or_else(|err| {
-            println!("cargo:warning=Cannot insert stack end export into `{pkg}`: {err}")
-        });
-        optimizer.strip_custom_sections();
-
-        let binary_opt = optimizer.optimize(OptType::Opt).unwrap();
-        fs::write(&wasm_opt, binary_opt).unwrap();
+                    wasm.display(),
+                    wasm_opt.display()
+                )
+            })
+            .collect()
     }
-
-    wasm_binaries
 }
