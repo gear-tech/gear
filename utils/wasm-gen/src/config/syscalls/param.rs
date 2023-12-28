@@ -251,8 +251,15 @@ pub enum PtrParamAllowedValues {
 /// non-existing, address.
 #[derive(Debug, Clone, Default)]
 pub enum ActorKind {
+    /// The source of the incoming message will be used as
+    /// a destination for an outgoing message.
     Source,
+    /// Some random address from the collection of existing
+    /// addresses will be used as a destination for an outgoing
+    /// message.
     ExistingAddresses(NonEmpty<Hash>),
+    /// Absolutely random address will be generated for
+    /// an outgoing message destination.
     #[default]
     Random,
 }
