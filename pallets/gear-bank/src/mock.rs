@@ -22,16 +22,16 @@ use frame_support::{
     traits::{Everything, FindAuthor},
     weights::constants::RocksDbWeight,
 };
-use frame_system::mocking::{MockBlock, MockUncheckedExtrinsic};
 use pallet_balances::AccountData;
 use primitive_types::H256;
 use sp_io::TestExternalities;
 use sp_runtime::{
-    testing::Header,
     traits::{BlakeTwo256, ConstU32, IdentityLookup},
+    BuildStorage,
 };
 
 pub type AccountId = u8;
+type Block = frame_system::mocking::MockBlock<Test>;
 pub type Balance = u128;
 
 mod consts {
@@ -67,10 +67,7 @@ parameter_types! {
 }
 
 construct_runtime!(
-    pub enum Test where
-        Block = MockBlock<Test>,
-        NodeBlock = MockBlock<Test>,
-        UncheckedExtrinsic = MockUncheckedExtrinsic<Test>,
+    pub enum Test
     {
         System: frame_system,
         Authorship: pallet_authorship,
@@ -86,13 +83,12 @@ impl frame_system::Config for Test {
     type DbWeight = RocksDbWeight;
     type RuntimeOrigin = RuntimeOrigin;
     type RuntimeCall = RuntimeCall;
-    type Index = u64;
-    type BlockNumber = u64;
+    type Nonce = u64;
     type Hash = H256;
     type Hashing = BlakeTwo256;
     type AccountId = AccountId;
     type Lookup = IdentityLookup<Self::AccountId>;
-    type Header = Header;
+    type Block = Block;
     type RuntimeEvent = RuntimeEvent;
     type BlockHashCount = BlockHashCount;
     type Version = ();
@@ -125,7 +121,7 @@ impl pallet_balances::Config for Test {
     type MaxFreezes = ();
     type MaxReserves = ();
     type FreezeIdentifier = ();
-    type HoldIdentifier = ();
+    type RuntimeHoldReason = RuntimeHoldReason;
     type ReserveIdentifier = [u8; 8];
     type Balance = Balance;
     type DustRemoval = ();
@@ -142,8 +138,8 @@ impl pallet_gear_bank::Config for Test {
 }
 
 pub fn new_test_ext() -> TestExternalities {
-    let mut storage = frame_system::GenesisConfig::default()
-        .build_storage::<Test>()
+    let mut storage = frame_system::GenesisConfig::<Test>::default()
+        .build_storage()
         .unwrap();
 
     let balances = vec![

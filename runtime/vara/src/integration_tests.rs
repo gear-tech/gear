@@ -19,7 +19,7 @@
 use crate::*;
 use frame_support::{
     assert_noop, assert_ok,
-    traits::{GenesisBuild, OnFinalize, OnInitialize},
+    traits::{OnFinalize, OnInitialize},
 };
 use frame_system::pallet_prelude::BlockNumberFor;
 use sp_consensus_babe::{
@@ -28,7 +28,7 @@ use sp_consensus_babe::{
 };
 use sp_core::{ed25519, sr25519, Pair};
 use sp_keyring::AccountKeyring;
-use sp_runtime::{Digest, DigestItem};
+use sp_runtime::{BuildStorage, Digest, DigestItem};
 
 const ENDOWMENT: u128 = 100_000 * UNITS;
 const STASH: u128 = 1_000 * UNITS;
@@ -136,8 +136,8 @@ impl ExtBuilder {
     }
 
     pub fn build(self) -> sp_io::TestExternalities {
-        let mut storage = frame_system::GenesisConfig::default()
-            .build_storage::<Runtime>()
+        let mut storage = frame_system::GenesisConfig::<Runtime>::default()
+            .build_storage()
             .unwrap();
 
         let mut balances = self
@@ -182,13 +182,15 @@ impl ExtBuilder {
         SudoConfig { key: self.root }
             .assimilate_storage(&mut storage)
             .unwrap();
-        GenesisBuild::<Runtime>::assimilate_storage(&TreasuryConfig {}, &mut storage).unwrap();
-        GenesisBuild::<Runtime>::assimilate_storage(
-            &VestingConfig {
-                vesting: self.vested_accounts,
-            },
-            &mut storage,
-        )
+
+        TreasuryConfig::default()
+            .assimilate_storage(&mut storage)
+            .unwrap();
+
+        VestingConfig {
+            vesting: self.vested_accounts,
+        }
+        .assimilate_storage(&mut storage)
         .unwrap();
 
         let mut ext: sp_io::TestExternalities = storage.into();

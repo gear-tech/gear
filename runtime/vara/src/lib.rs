@@ -38,8 +38,7 @@ pub use frame_support::{
     traits::{
         ConstU128, ConstU16, ConstU32, Contains, Currency, EitherOf, EitherOfDiverse,
         EqualPrivilegeOnly, Everything, FindAuthor, InstanceFilter, KeyOwnerProofSystem,
-        LockIdentifier, Nothing, OnUnbalanced, Randomness, StorageInfo, U128CurrencyToVote,
-        WithdrawReasons,
+        LockIdentifier, Nothing, OnUnbalanced, Randomness, StorageInfo, WithdrawReasons,
     },
     weights::{
         constants::{
@@ -77,10 +76,13 @@ pub use runtime_common::{
     GAS_LIMIT_MIN_PERCENTAGE_NUM, NORMAL_DISPATCH_RATIO, VALUE_PER_GAS,
 };
 pub use runtime_primitives::{AccountId, Signature};
-use runtime_primitives::{Balance, BlockNumber, Hash, Index, Moment};
+use runtime_primitives::{Balance, BlockNumber, Hash, Moment, Nonce};
 use sp_api::impl_runtime_apis;
 #[cfg(any(feature = "std", test))]
-use sp_api::{CallApiAt, OverlayedChanges, ProofRecorder, StateBackend, StorageTransactionCache};
+use sp_api::{
+    CallApiAt, CallContext, Extensions, OverlayedChanges, ProofRecorder, StateBackend,
+    StorageTransactionCache,
+};
 use sp_core::{crypto::KeyTypeId, ConstBool, ConstU64, OpaqueMetadata, H256};
 #[cfg(any(feature = "std", test))]
 use sp_runtime::traits::HashFor;
@@ -215,16 +217,14 @@ impl frame_system::Config for Runtime {
     type RuntimeCall = RuntimeCall;
     /// The lookup mechanism to get account ID from whatever is passed in dispatchers.
     type Lookup = AccountIdLookup<AccountId, ()>;
-    /// The index type for storing how many extrinsics an account has signed.
-    type Index = Index;
-    /// The index type for blocks.
-    type BlockNumber = BlockNumber;
+    /// The nonce type for storing how many extrinsics an account has signed.
+    type Nonce = Nonce;
     /// The type for hashing blocks and tries.
     type Hash = Hash;
     /// The hashing algorithm used.
     type Hashing = BlakeTwo256;
-    /// The header type.
-    type Header = generic::Header<BlockNumber, BlakeTwo256>;
+    /// The block type.
+    type Block = Block;
     /// The ubiquitous event type.
     type RuntimeEvent = RuntimeEvent;
     /// The ubiquitous origin type.
@@ -359,7 +359,7 @@ impl pallet_balances::Config for Runtime {
     type WeightInfo = ();
     type FreezeIdentifier = ();
     type MaxFreezes = ();
-    type HoldIdentifier = ();
+    type RuntimeHoldReason = RuntimeHoldReason;
     type MaxHolds = ConstU32<2>;
 }
 
@@ -620,7 +620,7 @@ impl pallet_staking::Config for Runtime {
     type Currency = Balances;
     type CurrencyBalance = Balance;
     type UnixTime = Timestamp;
-    type CurrencyToVote = U128CurrencyToVote;
+    type CurrencyToVote = sp_staking::currency_to_vote::U128CurrencyToVote;
     type ElectionProvider = ElectionProviderMultiPhase;
     type GenesisElectionProvider = onchain::OnChainExecution<OnChainSeqPhragmen>;
     // Burning the reward remainder for now.
@@ -642,7 +642,7 @@ impl pallet_staking::Config for Runtime {
     type TargetList = pallet_staking::UseValidatorsMap<Self>;
     type MaxUnlockingChunks = ConstU32<32>;
     type HistoryDepth = HistoryDepth;
-    type OnStakerSlash = NominationPools;
+    type EventListeners = NominationPools;
     type WeightInfo = pallet_staking::weights::SubstrateWeight<Runtime>;
     type BenchmarkingConfig = StakingBenchmarkingConfig;
 }
@@ -777,7 +777,6 @@ parameter_types! {
     pub const MaxAuthorities: u32 = 100_000;
     pub const MaxKeys: u32 = 10_000;
     pub const MaxPeerInHeartbeats: u32 = 10_000;
-    pub const MaxPeerDataEncodingSize: u32 = 1_000;
 }
 
 impl pallet_im_online::Config for Runtime {
@@ -790,7 +789,6 @@ impl pallet_im_online::Config for Runtime {
     type WeightInfo = pallet_im_online::weights::SubstrateWeight<Runtime>;
     type MaxKeys = MaxKeys;
     type MaxPeerInHeartbeats = MaxPeerInHeartbeats;
-    type MaxPeerDataEncodingSize = MaxPeerDataEncodingSize;
 }
 
 impl pallet_authority_discovery::Config for Runtime {
@@ -1133,10 +1131,7 @@ impl pallet_vesting::Config for Runtime {
 // Create the runtime by composing the FRAME pallets that were previously configured.
 #[cfg(feature = "dev")]
 construct_runtime!(
-    pub enum Runtime where
-        Block = Block,
-        NodeBlock = runtime_primitives::Block,
-        UncheckedExtrinsic = UncheckedExtrinsic
+    pub struct Runtime
     {
         System: frame_system = 0,
         Timestamp: pallet_timestamp = 1,
@@ -1196,10 +1191,7 @@ construct_runtime!(
 
 #[cfg(not(feature = "dev"))]
 construct_runtime!(
-    pub enum Runtime where
-        Block = Block,
-        NodeBlock = runtime_primitives::Block,
-        UncheckedExtrinsic = UncheckedExtrinsic
+    pub struct Runtime
     {
         System: frame_system = 0,
         Timestamp: pallet_timestamp = 1,
@@ -1458,10 +1450,13 @@ where
     fn clone(&self) -> Self {
         Self {
             call: <&C>::clone(&self.call),
-            commit_on_success: self.commit_on_success.clone(),
+            transaction_depth: self.transaction_depth.clone(),
             changes: self.changes.clone(),
             storage_transaction_cache: self.storage_transaction_cache.clone(),
             recorder: self.recorder.clone(),
+            call_context: self.call_context,
+            extensions: Default::default(),
+            extensions_generated_for: self.extensions_generated_for.clone(),
         }
     }
 }
@@ -1479,20 +1474,26 @@ where
     <C::StateBackend as StateBackend<HashFor<B>>>::Transaction: Clone,
 {
     type Params = (
-        bool,
+        u16,
         OverlayedChanges,
         StorageTransactionCache<B, C::StateBackend>,
         Option<ProofRecorder<B>>,
+        CallContext,
+        Extensions,
+        Option<B::Hash>,
     );
 
     fn into_parts(self) -> (&'static C, Self::Params) {
         (
             self.call,
             (
-                *core::cell::RefCell::borrow(&self.commit_on_success),
-                core::cell::RefCell::borrow(&self.changes).clone(),
-                core::cell::RefCell::borrow(&self.storage_transaction_cache).clone(),
+                *core::cell::RefCell::borrow(&self.transaction_depth),
+                self.changes.into_inner(),
+                self.storage_transaction_cache.into_inner(),
                 self.recorder,
+                self.call_context,
+                self.extensions.into_inner(),
+                self.extensions_generated_for.into_inner(),
             ),
         )
     }
@@ -1500,10 +1501,13 @@ where
     fn from_parts(call: &C, params: Self::Params) -> Self {
         Self {
             call: unsafe { std::mem::transmute(call) },
-            commit_on_success: params.0.into(),
+            transaction_depth: params.0.into(),
             changes: core::cell::RefCell::new(params.1),
             storage_transaction_cache: core::cell::RefCell::new(params.2),
             recorder: params.3,
+            call_context: params.4,
+            extensions: core::cell::RefCell::new(params.5),
+            extensions_generated_for: core::cell::RefCell::new(params.6),
         }
     }
 }

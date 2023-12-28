@@ -156,7 +156,7 @@ pub mod pallet {
             + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 
         /// The generator used to supply randomness to contracts through `seal_random`
-        type Randomness: Randomness<Self::Hash, Self::BlockNumber>;
+        type Randomness: Randomness<Self::Hash, BlockNumberFor<Self>>;
 
         /// Weight information for extrinsics in this pallet.
         type WeightInfo: WeightInfo;
@@ -180,7 +180,7 @@ pub mod pallet {
 
         /// Implementation of a storage for programs.
         type ProgramStorage: PausedProgramStorage<
-            BlockNumber = Self::BlockNumber,
+            BlockNumber = BlockNumberFor<Self>,
             Error = DispatchError,
             AccountId = Self::AccountId,
         >;
@@ -201,7 +201,7 @@ pub mod pallet {
 
         /// Messenger.
         type Messenger: Messenger<
-            BlockNumber = Self::BlockNumber,
+            BlockNumber = BlockNumberFor<Self>,
             Capacity = u32,
             OutputError = DispatchError,
             MailboxFirstKey = Self::AccountId,
@@ -228,7 +228,7 @@ pub mod pallet {
 
         /// Scheduler.
         type Scheduler: Scheduler<
-            BlockNumber = Self::BlockNumber,
+            BlockNumber = BlockNumberFor<Self>,
             Cost = u64,
             Task = ScheduledTask<Self::AccountId>,
         >;
@@ -305,7 +305,7 @@ pub mod pallet {
             ///
             /// Equals `None` if message wasn't inserted to
             /// `Mailbox` and appears as only `Event`.
-            expiration: Option<T::BlockNumber>,
+            expiration: Option<BlockNumberFor<T>>,
         },
 
         /// Message marked as "read" and removes it from `Mailbox`.
@@ -350,7 +350,7 @@ pub mod pallet {
             ///
             /// Equals block number when message will be removed from `Waitlist`
             /// due to some reasons (see #642, #646 and #1010).
-            expiration: T::BlockNumber,
+            expiration: BlockNumberFor<T>,
         },
 
         /// Message is ready to continue its execution
@@ -371,7 +371,7 @@ pub mod pallet {
             /// Change applied on code with current id.
             ///
             /// NOTE: See more docs about change kinds at `gear_common::event`.
-            change: CodeChangeKind<T::BlockNumber>,
+            change: CodeChangeKind<BlockNumberFor<T>>,
         },
 
         /// Any data related to programs changed.
@@ -381,7 +381,7 @@ pub mod pallet {
             /// Change applied on program with current id.
             ///
             /// NOTE: See more docs about change kinds at `gear_common::event`.
-            change: ProgramChangeKind<T::BlockNumber>,
+            change: ProgramChangeKind<BlockNumberFor<T>>,
         },
 
         /// The pseudo-inherent extrinsic that runs queue processing rolled back or not executed.
@@ -396,7 +396,7 @@ pub mod pallet {
             /// Id of the program affected.
             program_id: ProgramId,
             /// Block number when the session will be removed if not finished.
-            session_end_block: T::BlockNumber,
+            session_end_block: BlockNumberFor<T>,
         },
     }
 
@@ -472,7 +472,7 @@ pub mod pallet {
     /// May be less than system pallet block number if panic occurred previously.
     #[pallet::storage]
     #[pallet::getter(fn block_number)]
-    pub(crate) type BlockNumber<T: Config> = StorageValue<_, T::BlockNumber, ValueQuery>;
+    pub(crate) type BlockNumber<T: Config> = StorageValue<_, BlockNumberFor<T>, ValueQuery>;
 
     impl<T: Config> Get<BlockNumberFor<T>> for Pallet<T> {
         fn get() -> BlockNumberFor<T> {
@@ -531,10 +531,8 @@ pub mod pallet {
         ///
         /// For tests only.
         #[cfg(any(feature = "std", feature = "runtime-benchmarks", test))]
-        pub fn set_block_number(bn: u32) {
-            use sp_runtime::SaturatedConversion;
-
-            <BlockNumber<T>>::put(bn.saturated_into::<T::BlockNumber>());
+        pub fn set_block_number(bn: BlockNumberFor<T>) {
+            <BlockNumber<T>>::put(bn);
         }
 
         /// Upload program to the chain without stack limit injection and

@@ -22,6 +22,7 @@ extern crate alloc;
 
 use crate::{mock::*, *};
 use common::{scheduler::*, storage::*, GasTree, LockId, LockableTree as _, Origin};
+use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{ids::*, message::*};
 use gear_core_errors::ErrorReplyReason;
 use pallet_gear::{GasAllowanceOf, GasHandlerOf};
@@ -64,7 +65,7 @@ fn dispatch_from(src: impl Into<ProgramId>) -> StoredDispatch {
 
 fn populate_wl_from(
     src: <Test as frame_system::Config>::AccountId,
-    bn: <Test as frame_system::Config>::BlockNumber,
+    bn: BlockNumberFor<Test>,
 ) -> (MessageId, ProgramId) {
     let dispatch = dispatch_from(src);
     let mid = dispatch.id();
@@ -93,7 +94,7 @@ fn populate_wl_from(
 fn task_and_wl_message_exist(
     mid: impl Into<MessageId>,
     pid: impl Into<ProgramId>,
-    bn: <Test as frame_system::Config>::BlockNumber,
+    bn: BlockNumberFor<Test>,
 ) -> bool {
     let mid = mid.into();
     let pid = pid.into();
