@@ -22,7 +22,7 @@ use clap::Parser;
 use gsdk::signer::Signer;
 
 /// Deploy program to gear node
-#[derive(Parser, Debug)]
+#[derive(Clone, Debug, Parser)]
 pub struct Create {
     /// gear program code id
     code_id: String,

@@ -57,6 +57,7 @@ gsdk = { workspace = true, features = ["testing"] }
 which.workspace = true
 
 [features]
+embed = []
 node-key = [ "libp2p" ]
 
 [package.metadata.docs.rs]

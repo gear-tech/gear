@@ -46,6 +46,7 @@ use gear_core::{
 use gear_core_errors::{MessageError, ReplyCode, SignalCode};
 use gear_sandbox::{default_executor::Caller, ReturnValue, Value};
 use gear_sandbox_env::{HostError, WasmReturnValue};
+use gear_wasm_instrument::SystemBreakCode;
 use gsys::{
     BlockNumberWithHash, ErrorBytes, ErrorWithBlockNumberAndValue, ErrorWithGas, ErrorWithHandle,
     ErrorWithHash, ErrorWithReplyCode, ErrorWithSignalCode, ErrorWithTwoHashes, Gas, Hash,
@@ -1317,21 +1318,35 @@ where
         })
     }
 
-    pub fn out_of_gas(_gas: Gas) -> impl Syscall<Ext> {
-        RawSyscall::new(|ctx: &mut CallerWrap<Ext>| {
-            let ext = ctx.ext_mut();
-            let current_counter = ext.current_counter_type();
-            log::trace!(target: "syscalls", "[out_of_gas] Current counter in global represents {current_counter:?}");
+    fn out_of_gas(ctx: &mut CallerWrap<Ext>) -> UndefinedTerminationReason {
+        let ext = ctx.ext_mut();
+        let current_counter = ext.current_counter_type();
+        log::trace!(target: "syscalls", "system_break(OutOfGas): Current counter in global represents {current_counter:?}");
 
-            if current_counter == CounterType::GasAllowance {
-                // We manually decrease it to 0 because global won't be affected
-                // since it didn't pass comparison to argument of `gas_charge()`
-                ext.decrease_current_counter_to(0);
-            }
+        if current_counter == CounterType::GasAllowance {
+            // We manually decrease it to 0 because global won't be affected
+            // since it didn't pass comparison to argument of `gas_charge()`
+            ext.decrease_current_counter_to(0);
+        }
 
-            let termination_reason: ActorTerminationReason = current_counter.into();
+        ActorTerminationReason::from(current_counter).into()
+    }
 
-            ctx.set_termination_reason(termination_reason.into());
+    fn stack_limit_exceeded() -> UndefinedTerminationReason {
+        TrapExplanation::StackLimitExceeded.into()
+    }
+
+    pub fn system_break(_gas: Gas, code: u32) -> impl Syscall<Ext> {
+        RawSyscall::new(move |ctx: &mut CallerWrap<Ext>| {
+            // At the instrumentation level, we can only use variants of the `SystemBreakCode`,
+            // so we should never reach `unreachable!("{e}")`.
+            let termination_reason = SystemBreakCode::try_from(code)
+                .map(|system_break_code| match system_break_code {
+                    SystemBreakCode::OutOfGas => Self::out_of_gas(ctx),
+                    SystemBreakCode::StackLimitExceeded => Self::stack_limit_exceeded(),
+                })
+                .unwrap_or_else(|e| unreachable!("{e}"));
+            ctx.set_termination_reason(termination_reason);
             Err(HostError)
         })
     }

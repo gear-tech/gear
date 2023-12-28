@@ -25,7 +25,7 @@ use crate::{
 use alloc::string::String;
 use gear_sandbox_env::GLOBAL_NAME_GAS;
 use sp_std::{collections::btree_map::BTreeMap, marker::PhantomData, prelude::*};
-use sp_wasm_interface::HostPointer;
+use sp_wasm_interface_common::HostPointer;
 use wasmi::{
     core::{Pages, Trap},
     Engine, ExternType, Linker, MemoryType, Module, StoreContext, StoreContextMut,

@@ -19,7 +19,7 @@
 //! Utilities used by all backends
 
 use crate::error::Result;
-use sp_wasm_interface::Pointer;
+use sp_wasm_interface_common::Pointer;
 
 /// Provides safe memory access interface using an external buffer
 pub trait MemoryTransfer {
