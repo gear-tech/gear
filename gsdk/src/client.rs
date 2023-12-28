@@ -45,7 +45,7 @@ use subxt::{
     error::RpcError,
 };
 
-const DEFAULT_GEAR_ENDPOINT: &str = "wss://rpc.vara-network.io:443";
+const DEFAULT_GEAR_ENDPOINT: &str = "wss://rpc.vara.network:443";
 const DEFAULT_TIMEOUT: u64 = 60_000;
 const ONE_HUNDRED_MEGA_BYTES: u32 = 100 * 1024 * 1024;
 

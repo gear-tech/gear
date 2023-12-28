@@ -42,12 +42,14 @@ impl WSAddress {
     // Local dev node.
     const LOCALHOST: &'static str = "ws://127.0.0.1";
 
-    // Gear testnet.
-    const GEAR: &'static str = "wss://rpc-node.gear-tech.io";
-    const GEAR_PORT: u16 = 443;
+    // Default secure WebSocket port.
+    const WSS_DEFAULT_PORT: u16 = 443;
+
+    // Vara testnet.
+    const VARA_TESTNET: &'static str = "wss://testnet.vara.network";
 
     // Vara network.
-    const VARA: &'static str = "wss://rpc.vara-network.io";
+    const VARA: &'static str = "wss://rpc.vara.network";
 
     /// Create a new `WSAddress` from a host `domain` and `port`.
     ///
@@ -114,18 +116,18 @@ impl WSAddress {
         Self::new(Self::LOCALHOST, port)
     }
 
-    /// Return the default address of the public Gear testnet node.
+    /// Return the default address of the public Vara testnet node.
     ///
     /// # Examples
     ///
     /// ```
     /// use gclient::WSAddress;
     ///
-    /// let address = WSAddress::gear();
-    /// assert_eq!(address, WSAddress::new("wss://rpc-node.gear-tech.io", 443));
+    /// let address = WSAddress::vara_testnet();
+    /// assert_eq!(address, WSAddress::new("wss://testnet.vara.network", 443));
     /// ```
-    pub fn gear() -> Self {
-        Self::new(Self::GEAR, Self::GEAR_PORT)
+    pub fn vara_testnet() -> Self {
+        Self::new(Self::VARA_TESTNET, Self::WSS_DEFAULT_PORT)
     }
 
     /// Return the default address of the public Vara node.
@@ -136,7 +138,7 @@ impl WSAddress {
     /// use gclient::WSAddress;
     ///
     /// let address = WSAddress::vara();
-    /// assert_eq!(address.url(), "wss://rpc.vara-network.io");
+    /// assert_eq!(address.url(), "wss://rpc.vara.network");
     /// ```
     pub fn vara() -> Self {
         Self::new(Self::VARA, None)

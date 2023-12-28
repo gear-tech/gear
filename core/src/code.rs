@@ -27,7 +27,9 @@ use alloc::{collections::BTreeSet, vec, vec::Vec};
 use gear_wasm_instrument::{
     parity_wasm::{
         self,
-        elements::{ExportEntry, GlobalEntry, GlobalType, InitExpr, Instruction, Internal, Module},
+        elements::{
+            ExportEntry, GlobalEntry, GlobalType, InitExpr, Instruction, Internal, Module, Type,
+        },
     },
     wasm_instrument::gas_metering::{ConstantCostRules, Rules},
     InstrumentationBuilder, STACK_END_EXPORT_NAME,
@@ -50,13 +52,36 @@ fn get_exports(
 ) -> Result<BTreeSet<DispatchKind>, CodeError> {
     let mut exports = BTreeSet::<DispatchKind>::new();
 
+    let funcs = module
+        .function_section()
+        .ok_or(CodeError::FunctionSectionNotFound)?
+        .entries();
+
+    let types = module
+        .type_section()
+        .ok_or(CodeError::TypeSectionNotFound)?
+        .types();
+
+    let import_count = module
+        .import_section()
+        .ok_or(CodeError::ImportSectionNotFound)?
+        .functions();
+
     for entry in module
         .export_section()
         .ok_or(CodeError::ExportSectionNotFound)?
         .entries()
         .iter()
     {
-        if let Internal::Function(_) = entry.internal() {
+        if let Internal::Function(i) = entry.internal() {
+            if reject_unnecessary {
+                // Index access into arrays cannot panic unless the Module structure is invalid
+                let type_id = funcs[*i as usize - import_count].type_ref();
+                let Type::Function(ref f) = types[type_id as usize];
+                if !f.params().is_empty() || !f.results().is_empty() {
+                    return Err(CodeError::InvalidExportFnSignature);
+                }
+            }
             if let Some(kind) = DispatchKind::try_from_entry(entry.field()) {
                 exports.insert(kind);
             } else if !STATE_EXPORTS.contains(&entry.field()) && reject_unnecessary {
@@ -227,6 +252,15 @@ pub enum CodeError {
     /// Gear protocol restriction for now.
     #[display(fmt = "Program cannot have mutable globals in export section")]
     MutGlobalExport,
+    /// The type section of the wasm module is not present.
+    #[display(fmt = "Type section not found")]
+    TypeSectionNotFound,
+    /// The function section of the wasm module is not present.
+    #[display(fmt = "Function section not found")]
+    FunctionSectionNotFound,
+    /// The signature of an exported function is invalid.
+    #[display(fmt = "Invalid function signature for exported function")]
+    InvalidExportFnSignature,
 }
 
 /// Contains instrumented binary code of a program and initial memory size from memory import.
