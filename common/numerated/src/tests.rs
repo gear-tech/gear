@@ -57,7 +57,7 @@ macro_rules! any_numerated {
                 let end: OptionBound<$t> = end.into();
                 match (start.unbound(), end.unbound()) {
                     (_, None) => IntervalAction::Correct(start, end),
-                    (Some(s), Some(e)) if s < e => IntervalAction::Correct(start, end),
+                    (Some(s), Some(e)) if s <= e => IntervalAction::Correct(start, end),
                     (Some(_), Some(_)) => IntervalAction::Incorrect(start, end),
                     (None, Some(_)) => IntervalAction::Incorrect(start, end),
                 }
