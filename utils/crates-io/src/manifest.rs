@@ -68,7 +68,7 @@ impl Workspace {
 
     /// complete the versions of the specified crates
     pub fn complete(&mut self, mut index: Vec<&str>) -> Result<()> {
-        index.push("core-processor");
+        handler::patch_alias(&mut index);
 
         let version = self.0.manifest["workspace"]["package"]["version"]
             .clone()

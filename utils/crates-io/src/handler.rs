@@ -23,8 +23,6 @@ use anyhow::Result;
 use cargo_metadata::Package;
 use toml_edit::Document;
 
-const SP_WASM_INTERFACE_VERSION: &str = "7.0.5";
-
 /// Patch specified manifest by provided name.
 pub fn patch(pkg: &Package) -> Result<Manifest> {
     let mut manifest = Manifest::new(pkg)?;
@@ -41,6 +39,15 @@ pub fn patch(pkg: &Package) -> Result<Manifest> {
     }
 
     Ok(manifest)
+}
+
+/// Patch package alias.
+pub fn patch_alias(index: &mut Vec<&str>) {
+    for (package, alias) in crate::PACKAGE_ALIAS {
+        if index.contains(&package) {
+            index.push(alias);
+        }
+    }
 }
 
 /// Patch the workspace manifest.
@@ -120,7 +127,7 @@ mod gmeta_codegen {
 
 /// runtime interface handler
 mod runtime_interface {
-    use super::SP_WASM_INTERFACE_VERSION;
+    use crate::SP_WASM_INTERFACE_VERSION;
     use toml_edit::Document;
 
     /// Convert the wasmi module to the crates-io version.
@@ -167,7 +174,7 @@ mod sandbox_host {
 
 /// substrate handler.
 mod substrate {
-    use super::SP_WASM_INTERFACE_VERSION;
+    use crate::SP_WASM_INTERFACE_VERSION;
     use toml_edit::InlineTable;
 
     /// Patch the substrate packages in the manifest of workspace.
