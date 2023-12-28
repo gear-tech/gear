@@ -227,6 +227,8 @@ pub enum TrapExplanation {
     UnrecoverableExt(UnrecoverableExtError),
     #[display(fmt = "{_0}")]
     Panic(LimitedStr<'static>),
+    #[display(fmt = "Stack limit exceeded")]
+    StackLimitExceeded,
     #[display(fmt = "Reason is unknown. Possibly `unreachable` instruction is occurred")]
     Unknown,
 }
