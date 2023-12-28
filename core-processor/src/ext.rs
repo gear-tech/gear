@@ -773,10 +773,7 @@ impl Ext {
         let amount = self.context.gas_counter.to_amount();
 
         func(self).map_err(|e| {
-            self.context.gas_counter = GasCounter::new(amount.burned() + amount.left());
-            let ChargeResult::Enough = self.context.gas_counter.charge(amount.burned()) else {
-                unreachable!()
-            };
+            self.context.gas_counter = amount.into();
             e
         })
     }

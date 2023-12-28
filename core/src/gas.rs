@@ -191,6 +191,12 @@ impl GasAmount {
     }
 }
 
+impl From<GasAmount> for GasCounter {
+    fn from(GasAmount { left, burned }: GasAmount) -> Self {
+        Self { left, burned }
+    }
+}
+
 /// Value counter with some predefined maximum value.
 #[derive(Debug)]
 pub struct ValueCounter(u128);
