@@ -42,7 +42,7 @@ use gsdk::{
 ///
 /// Emits the following events:
 /// - `DispatchMessageEnqueued(MessageInfo)` when dispatch message is placed in the queue.
-#[derive(Parser, Debug)]
+#[derive(Clone, Debug, Parser)]
 pub struct Send {
     /// Send to
     pub destination: String,

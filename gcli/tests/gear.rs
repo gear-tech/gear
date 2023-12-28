@@ -25,10 +25,14 @@ mod common;
 
 #[tokio::test]
 async fn api_timeout() {
-    assert!(matches!(
-        Api::new_with_timeout(None, Some(1)).await.err(),
-        Some(Error::SubxtRpc(jsonrpsee::core::Error::Transport(..)))
-    ));
+    let error = Api::new_with_timeout(None, Some(0)).await.err();
+    assert!(
+        matches!(
+            error,
+            Some(Error::SubxtRpc(jsonrpsee::core::Error::Transport(..)))
+        ),
+        "Unexpected error occurred: {error:?}"
+    );
 }
 
 #[test]
@@ -42,7 +46,7 @@ fn paths() {
     .into_iter()
     .for_each(|path| {
         if !PathBuf::from(&path).exists() {
-            panic!("{} not found.", path)
+            panic!("{path} not found.")
         }
     })
 }

@@ -31,7 +31,7 @@ use gsdk::{
 };
 use std::fmt;
 
-#[derive(Debug, Parser)]
+#[derive(Clone, Debug, Parser)]
 pub enum Action {
     /// Get balance info of the current account
     Balance,
@@ -44,7 +44,7 @@ pub enum Action {
 }
 
 /// Get account info from ss58address.
-#[derive(Debug, Parser)]
+#[derive(Clone, Debug, Parser)]
 pub struct Info {
     /// Info of this address, if none, will use the logged in account.
     pub address: Option<String>,

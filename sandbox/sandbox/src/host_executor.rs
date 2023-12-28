@@ -27,7 +27,7 @@ use alloc::string::String;
 use gear_runtime_interface::sandbox;
 use gear_sandbox_env::WasmReturnValue;
 use sp_std::{marker, mem, prelude::*, rc::Rc, slice, vec};
-use sp_wasm_interface::HostPointer;
+use sp_wasm_interface_common::HostPointer;
 
 mod ffi {
     use super::HostFuncType;
