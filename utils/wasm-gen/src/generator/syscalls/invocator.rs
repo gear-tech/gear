@@ -470,7 +470,8 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
             Instruction::I32Load(2, 0),
             Instruction::I32Const(wait_frequency as i32),
             Instruction::I32RemU,
-            Instruction::I32Eqz,
+            Instruction::I32Const(1),
+            Instruction::I32Eq,
             Instruction::If(BlockType::NoResult),
         ]);
         instructions.append(&mut original_instructions);
