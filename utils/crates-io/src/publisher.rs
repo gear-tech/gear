@@ -81,7 +81,7 @@ impl Publisher {
                 .insert(self.index.get(name).cloned(), handler::patch(pkg)?);
         }
 
-        workspace.complete(&index)?;
+        workspace.complete(index)?;
 
         // write manifests to disk.
         let manifest = workspace.into();

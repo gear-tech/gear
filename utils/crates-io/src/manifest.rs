@@ -67,7 +67,9 @@ impl Workspace {
     }
 
     /// complete the versions of the specified crates
-    pub fn complete(&mut self, index: &[&str]) -> Result<()> {
+    pub fn complete(&mut self, mut index: Vec<&str>) -> Result<()> {
+        index.push("core-processor");
+
         let version = self.0.manifest["workspace"]["package"]["version"]
             .clone()
             .as_str()
@@ -119,15 +121,7 @@ impl Workspace {
                 continue;
             };
 
-            match name {
-                "core-processor" | "gear-core-processor" => {
-                    handler::core_processor::patch_workspace(name, table);
-                }
-                sub if sub.starts_with("sp-") || sub.starts_with("frame-") => {
-                    handler::substrate::patch_workspace(sub, table);
-                }
-                _ => {}
-            }
+            handler::patch_workspace(name, table);
         }
 
         Ok(())

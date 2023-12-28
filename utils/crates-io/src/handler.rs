@@ -43,6 +43,17 @@ pub fn patch(pkg: &Package) -> Result<Manifest> {
     Ok(manifest)
 }
 
+/// Patch the workspace manifest.
+pub fn patch_workspace(name: &str, table: &mut toml_edit::InlineTable) {
+    match name {
+        "core-processor" | "gear-core-processor" => core_processor::patch_workspace(name, table),
+        sub if sub.starts_with("sp-") || sub.starts_with("frame-") => {
+            substrate::patch_workspace(name, table)
+        }
+        _ => {}
+    }
+}
+
 // Trim the version of dev dependency.
 //
 // issue: https://github.com/rust-lang/cargo/issues/4242
@@ -59,7 +70,7 @@ fn trim_dev_dep(name: &str, manifest: &mut Document) {
 }
 
 /// gear-core-processor handler.
-pub mod core_processor {
+mod core_processor {
     use toml_edit::{Document, InlineTable};
 
     /// Rename core processor related package in the
@@ -84,7 +95,7 @@ pub mod core_processor {
 }
 
 /// gmeta handler
-pub mod gmeta {
+mod gmeta {
     use super::trim_dev_dep;
     use toml_edit::Document;
 
@@ -96,7 +107,7 @@ pub mod gmeta {
 }
 
 /// gmeta handler
-pub mod gmeta_codegen {
+mod gmeta_codegen {
     use super::trim_dev_dep;
     use toml_edit::Document;
 
@@ -108,7 +119,7 @@ pub mod gmeta_codegen {
 }
 
 /// runtime interface handler
-pub mod runtime_interface {
+mod runtime_interface {
     use super::SP_WASM_INTERFACE_VERSION;
     use toml_edit::Document;
 
@@ -124,7 +135,7 @@ pub mod runtime_interface {
 }
 
 /// sandbox handler.
-pub mod sandbox {
+mod sandbox {
     use toml_edit::Document;
 
     /// Convert the wasmi module to the crates-io version.
@@ -140,7 +151,7 @@ pub mod sandbox {
 }
 
 /// sandbox_host handler.
-pub mod sandbox_host {
+mod sandbox_host {
     use toml_edit::Document;
 
     /// Convert the wasmi module to the crates-io version.
@@ -155,7 +166,7 @@ pub mod sandbox_host {
 }
 
 /// substrate handler.
-pub mod substrate {
+mod substrate {
     use super::SP_WASM_INTERFACE_VERSION;
     use toml_edit::InlineTable;
 
