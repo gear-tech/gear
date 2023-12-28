@@ -5,11 +5,9 @@ use gclient::{Event, GearApi, GearEvent, WSAddress};
 use gear_call_gen::Seed;
 use gear_core::ids::{MessageId, ProgramId};
 use gear_core_errors::ReplyCode;
-use gear_utils::NonEmpty;
 use gear_wasm_gen::{
-    EntryPointsSet, InvocableSyscall, PtrParamAllowedValues, RegularParamType,
-    StandardGearWasmConfigsBundle, SyscallDestination, SyscallName, SyscallsInjectionTypes,
-    SyscallsParamsConfig,
+    EntryPointsSet, InvocableSyscall, RegularParamType, StandardGearWasmConfigsBundle, SyscallName,
+    SyscallsInjectionTypes, SyscallsParamsConfig,
 };
 use gsdk::metadata::runtime_types::{
     gear_common::event::DispatchStatus as GenDispatchStatus,
@@ -211,7 +209,7 @@ pub fn err_waited_or_succeed_batch(
 /// Returns configs bundle with a gear wasm generator config, which logs `seed`.
 pub fn get_wasm_gen_config(
     seed: Seed,
-    existing_programs: impl Iterator<Item = ProgramId>,
+    _existing_programs: impl Iterator<Item = ProgramId>,
 ) -> StandardGearWasmConfigsBundle {
     let initial_pages = 2;
     let mut injection_types = SyscallsInjectionTypes::all_once();
@@ -236,21 +234,6 @@ pub fn get_wasm_gen_config(
         RegularParamType::Free,
         (initial_pages..=initial_pages + 50).into(),
     );
-    params_config.set_ptr_rule(PtrParamAllowedValues::Value(0..=0));
-
-    let syscall_destination = NonEmpty::collect(
-        existing_programs
-            .filter(|&pid| pid != ProgramId::default())
-            .map(|pid| pid.into()),
-    )
-    .map(SyscallDestination::ExistingAddresses)
-    .unwrap_or(SyscallDestination::Source);
-
-    params_config.set_ptr_rule(PtrParamAllowedValues::ActorId(syscall_destination.clone()));
-    params_config.set_ptr_rule(PtrParamAllowedValues::ActorIdWithValue {
-        actor: syscall_destination.clone(),
-        range: 0..=0,
-    });
 
     StandardGearWasmConfigsBundle {
         log_info: Some(format!("Gear program seed = '{seed}'")),

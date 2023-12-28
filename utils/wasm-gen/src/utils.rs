@@ -478,7 +478,7 @@ impl WasmWords {
         }
 
         let words = data
-            .chunks(wasm_ptr_size)
+            .chunks_exact(wasm_ptr_size)
             .map(|word_bytes| {
                 i32::from_le_bytes(
                     word_bytes
@@ -491,8 +491,7 @@ impl WasmWords {
         Self(words)
     }
 
-    pub(crate) fn merge(mut self, other: Self) -> Self {
-        let Self(mut other) = other;
+    pub(crate) fn merge(mut self, Self(mut other): Self) -> Self {
         self.0.append(&mut other);
 
         Self(self.0)
@@ -500,10 +499,9 @@ impl WasmWords {
 }
 
 pub(crate) fn translate_ptr_data(
-    words: WasmWords,
+    WasmWords(words): WasmWords,
     (start_offset, end_offset): (i32, i32),
 ) -> Vec<Instruction> {
-    let WasmWords(words) = words;
     words
         .into_iter()
         .enumerate()

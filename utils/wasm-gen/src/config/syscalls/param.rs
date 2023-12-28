@@ -20,8 +20,10 @@
 //!
 //! Types here are used to create [`crate::SyscallsConfig`].
 
-use crate::{SyscallDestination, DEFAULT_INITIAL_SIZE};
+use crate::DEFAULT_INITIAL_SIZE;
 use arbitrary::{Result, Unstructured};
+use gear_utils::NonEmpty;
+use gsys::Hash;
 use std::{collections::HashMap, ops::RangeInclusive};
 
 pub use gear_wasm_instrument::syscalls::{HashType, Ptr, RegularParamType};
@@ -83,10 +85,10 @@ impl SyscallsParamsConfig {
         // Setting ptr params rules.
         this.set_ptr_rule(PtrParamAllowedValues::Value(range.clone()));
         this.set_ptr_rule(PtrParamAllowedValues::ActorIdWithValue {
-            actor: SyscallDestination::default(),
+            actor_kind: ActorKind::default(),
             range,
         });
-        this.set_ptr_rule(PtrParamAllowedValues::ActorId(SyscallDestination::default()));
+        this.set_ptr_rule(PtrParamAllowedValues::ActorId(ActorKind::default()));
 
         this
     }
@@ -256,10 +258,10 @@ impl Default for RegularParamAllowedValues {
 pub enum PtrParamAllowedValues {
     Value(RangeInclusive<u128>),
     ActorIdWithValue {
-        actor: SyscallDestination,
+        actor_kind: ActorKind,
         range: RangeInclusive<u128>,
     },
-    ActorId(SyscallDestination),
+    ActorId(ActorKind),
 }
 
 impl From<PtrParamAllowedValues> for Ptr {
@@ -269,5 +271,36 @@ impl From<PtrParamAllowedValues> for Ptr {
             PtrParamAllowedValues::ActorIdWithValue { .. } => Ptr::HashWithValue(HashType::ActorId),
             PtrParamAllowedValues::ActorId(_) => Ptr::Hash(HashType::ActorId),
         }
+    }
+}
+
+/// Actor kind, which is actually a syscall destination choice.
+///
+/// `gr_send*` and `gr_exit` syscalls generated from this crate can be sent
+/// to different destination in accordance to the config.
+/// It's either to the message source, to some existing known address,
+/// or to some random, most probably non-existing, address.
+#[derive(Debug, Clone, Default)]
+pub enum ActorKind {
+    Source,
+    ExistingAddresses(NonEmpty<Hash>),
+    #[default]
+    Random,
+}
+
+impl ActorKind {
+    /// Check whether syscall destination is a result of `gr_source`.
+    pub fn is_source(&self) -> bool {
+        matches!(&self, ActorKind::Source)
+    }
+
+    /// Check whether syscall destination is defined randomly.
+    pub fn is_random(&self) -> bool {
+        matches!(&self, ActorKind::Random)
+    }
+
+    /// Check whether syscall destination is defined from a collection of existing addresses.
+    pub fn is_existing_addresses(&self) -> bool {
+        matches!(&self, ActorKind::ExistingAddresses(_))
     }
 }
