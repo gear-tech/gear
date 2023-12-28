@@ -14,7 +14,7 @@ repository.workspace = true
 document-features = { version = "0.2.7", optional = true }
 galloc.workspace = true
 gcore = { workspace = true, features = ["codec"] }
-gstd-codegen = { path = "codegen" }
+gstd-codegen.workspace = true
 gear-core-errors.workspace = true
 hashbrown.workspace = true
 bs58 = { workspace = true, features = ["alloc"] }

@@ -80,6 +80,7 @@ members = [
     "gsdk/codegen",
     "gsdk/api-gen",
     "gstd",
+    "gstd/codegen",
     "gsys",
     "gtest",
     "node/cli",
@@ -184,6 +185,7 @@ gcli = { path = "gcli" }
 gclient = { path = "gclient" }
 gsdk = { path = "gsdk" }
 gstd = { path = "gstd", features = [ "nightly" ] }
+gstd-codegen = { path = "gstd/codegen" }
 gsys = { path = "gsys" }
 gtest = { path = "gtest" }
 gmeta = { path = "gmeta" }

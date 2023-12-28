@@ -33,7 +33,11 @@ struct Version {
 }
 
 /// Verify if the package has already been published.
-pub fn verify(name: &str, version: &str) -> Result<bool> {
+pub fn verify(mut name: &str, version: &str) -> Result<bool> {
+    if name == "gear-core-processor" {
+        name = "core-processor";
+    }
+
     let client = reqwest::blocking::Client::builder()
         .user_agent("gear-crates-io-manager")
         .build()?;
