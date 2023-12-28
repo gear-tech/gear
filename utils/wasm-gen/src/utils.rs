@@ -467,18 +467,18 @@ pub fn inject_critical_gas_limit(module: Module, critical_gas_limit: u64) -> Mod
 pub(crate) struct WasmWords(Vec<i32>);
 
 impl WasmWords {
+    const WASM_WORD_SIZE: usize = mem::size_of::<i32>();
+
     pub(crate) fn new(data: impl AsRef<[u8]>) -> Self {
         let data = data.as_ref();
-
         let data_size = data.len();
-        let wasm_ptr_size = mem::size_of::<i32>();
 
-        if data_size % wasm_ptr_size != 0 {
+        if data_size % Self::WASM_WORD_SIZE != 0 {
             panic!("data size isn't multiply of wasm word size")
         }
 
         let words = data
-            .chunks_exact(wasm_ptr_size)
+            .chunks_exact(Self::WASM_WORD_SIZE)
             .map(|word_bytes| {
                 i32::from_le_bytes(
                     word_bytes

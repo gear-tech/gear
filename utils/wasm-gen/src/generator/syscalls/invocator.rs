@@ -94,7 +94,7 @@ pub(crate) fn process_syscall_params(
                 Length if length_param_indexes.contains(&param_idx) => {
                     // Due to match guard `RegularParamType::Length` can be processed in two ways:
                     // 1. The function will return `ProcessedSyscallParams::MemoryArraySize`
-                    //    if this parameter is associated with Ptr::BufferStart { .. }`.
+                    //    if this parameter is associated with Ptr::SizedBufferStart { .. }`.
                     // 2. Otherwise, `ProcessedSyscallParams::Value` will be returned from the function.
                     ProcessedSyscallParams::MemoryArrayLength
                 }

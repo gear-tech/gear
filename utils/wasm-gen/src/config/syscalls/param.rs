@@ -145,37 +145,10 @@ impl SyscallsParamsConfig {
 
     /// Set rules for memory pointer syscall param.
     pub fn set_ptr_rule(&mut self, allowed_values: PtrParamAllowedValues) {
-        use Ptr::*;
-
-        let ptr = allowed_values.clone().into();
-        let allowed_values = match ptr {
-            Hash(HashType::ActorId) | Value | HashWithValue(HashType::ActorId) => allowed_values,
-            ptr_ty @ (Hash(_) | HashWithValue(_) | TwoHashes(_, _) | TwoHashesWithValue(_, _)) => {
-                unimplemented!(
-                    "Currently unsupported defining ptr param filler config for {ptr_ty:?}."
-                )
-            }
-            BlockNumber
-            | BlockTimestamp
-            | SizedBufferStart { .. }
-            | BufferStart
-            | Gas
-            | Length
-            | BlockNumberWithHash(_) => panic!("Impossible to set rules for non ptr params."),
-            MutBlockNumber
-            | MutBlockTimestamp
-            | MutSizedBufferStart { .. }
-            | MutBufferStart
-            | MutHash(_)
-            | MutGas
-            | MutLength
-            | MutValue
-            | MutBlockNumberWithHash(_)
-            | MutHashWithValue(_)
-            | MutTwoHashes(_, _)
-            | MutTwoHashesWithValue(_, _) => {
-                panic!("Mutable pointers values are set by executor, not by wasm itself.")
-            }
+        let ptr = match allowed_values {
+            PtrParamAllowedValues::Value(_) => Ptr::Value,
+            PtrParamAllowedValues::ActorIdWithValue { .. } => Ptr::HashWithValue(HashType::ActorId),
+            PtrParamAllowedValues::ActorId(_) => Ptr::Hash(HashType::ActorId),
         };
 
         self.ptr.insert(ptr, allowed_values);
@@ -262,16 +235,6 @@ pub enum PtrParamAllowedValues {
         range: RangeInclusive<u128>,
     },
     ActorId(ActorKind),
-}
-
-impl From<PtrParamAllowedValues> for Ptr {
-    fn from(ptr_data: PtrParamAllowedValues) -> Self {
-        match ptr_data {
-            PtrParamAllowedValues::Value(_) => Ptr::Value,
-            PtrParamAllowedValues::ActorIdWithValue { .. } => Ptr::HashWithValue(HashType::ActorId),
-            PtrParamAllowedValues::ActorId(_) => Ptr::Hash(HashType::ActorId),
-        }
-    }
 }
 
 /// Actor kind, which is actually a syscall destination choice.
