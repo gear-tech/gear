@@ -46,9 +46,8 @@ pub const SAFE_DEPENDENCIES: [&str; 11] = [
 /// Required packages with local dependencies.
 ///
 /// NOTE: DO NOT change the order of this array.
-pub const STACKED_DEPENDENCIES: [&str; 13] = [
+pub const STACKED_DEPENDENCIES: [&str; 12] = [
     "gcore",
-    "gmeta",
     "gear-core",
     "gear-utils",
     "gear-common",
@@ -65,13 +64,14 @@ pub const STACKED_DEPENDENCIES: [&str; 13] = [
 /// Packages need to be published.
 ///
 /// NOTE: DO NOT change the order of this array.
-pub const PACKAGES: [&str; 6] = [
+pub const PACKAGES: [&str; 7] = [
+    "gear-wasm-builder",
     "gstd",
+    "gmeta",
     "gtest",
     "gsdk",
     "gclient",
     "gcli",
-    "gear-wasm-builder",
 ];
 
 /// Check the input package

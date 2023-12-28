@@ -21,6 +21,7 @@
 use crate::Manifest;
 use anyhow::Result;
 use cargo_metadata::Package;
+use toml_edit::Document;
 
 /// Patch specified manifest by provided name.
 pub fn patch(pkg: &Package) -> Result<Manifest> {
@@ -31,10 +32,27 @@ pub fn patch(pkg: &Package) -> Result<Manifest> {
         "gear-core-processor" => core_processor::patch(doc),
         "gear-sandbox" => sandbox::patch(doc),
         "gear-sandbox-host" => sandbox_host::patch(doc),
+        "gmeta" => gmeta::patch(doc),
+        "gmeta-codegen" => gmeta_codegen::patch(doc),
         _ => {}
     }
 
     Ok(manifest)
+}
+
+// Trim the version of dev dependency.
+//
+// issue: https://github.com/rust-lang/cargo/issues/4242
+fn trim_dev_dep(name: &str, manifest: &mut Document) {
+    if let Some(dep) = manifest["dev-dependencies"][name].as_inline_table_mut() {
+        dep.remove("workspace");
+        dep.insert("version", "~1".into());
+    }
+
+    if let Some(dep) = manifest["dev-dependencies"][name].as_table_like_mut() {
+        dep.remove("workspace");
+        dep.insert("version", toml_edit::value("~1"));
+    }
 }
 
 /// gear-core-processor handler.
@@ -59,6 +77,61 @@ pub mod core_processor {
     /// Patch the manifest of core-processor.
     pub fn patch(manifest: &mut Document) {
         manifest["package"]["name"] = toml_edit::value("core-processor");
+    }
+}
+
+/// gmeta handler
+pub mod gmeta {
+    use super::trim_dev_dep;
+    use toml_edit::Document;
+
+    /// Patch the manifest of gmetadata.
+    pub fn patch(manifest: &mut Document) {
+        trim_dev_dep("gstd", manifest);
+        trim_dev_dep("gear-wasm-builder", manifest);
+    }
+}
+
+/// gmeta handler
+pub mod gmeta_codegen {
+    use super::trim_dev_dep;
+    use toml_edit::Document;
+
+    /// Patch the manifest of gmetadata.
+    pub fn patch(manifest: &mut Document) {
+        trim_dev_dep("gstd", manifest);
+        trim_dev_dep("gmeta", manifest);
+    }
+}
+
+/// sandbox handler.
+pub mod sandbox {
+    use toml_edit::Document;
+
+    /// Convert the wasmi module to the crates-io version.
+    pub fn patch(manifest: &mut Document) {
+        let Some(wasmi) = manifest["dependencies"]["wasmi"].as_inline_table_mut() else {
+            return;
+        };
+        wasmi.insert("package", "gwasmi".into());
+        wasmi.insert("version", "0.30.0".into());
+        wasmi.remove("branch");
+        wasmi.remove("git");
+    }
+}
+
+/// sandbox_host handler.
+pub mod sandbox_host {
+    use toml_edit::Document;
+
+    /// Convert the wasmi module to the crates-io version.
+    pub fn patch(manifest: &mut Document) {
+        let Some(wasmi) = manifest["dependencies"]["wasmi"].as_inline_table_mut() else {
+            return;
+        };
+        wasmi.insert("version", "0.13.2".into());
+        wasmi.remove("branch");
+        wasmi.remove("git");
     }
 }
 
@@ -104,36 +177,5 @@ pub mod substrate {
 
         table.remove("branch");
         table.remove("git");
-    }
-}
-
-/// sandbox handler.
-pub mod sandbox {
-    use toml_edit::Document;
-
-    /// Convert the wasmi module to the crates-io version.
-    pub fn patch(manifest: &mut Document) {
-        let Some(wasmi) = manifest["dependencies"]["wasmi"].as_inline_table_mut() else {
-            return;
-        };
-        wasmi.insert("package", "gwasmi".into());
-        wasmi.insert("version", "0.30.0".into());
-        wasmi.remove("branch");
-        wasmi.remove("git");
-    }
-}
-
-/// sandbox_host handler.
-pub mod sandbox_host {
-    use toml_edit::Document;
-
-    /// Convert the wasmi module to the crates-io version.
-    pub fn patch(manifest: &mut Document) {
-        let Some(wasmi) = manifest["dependencies"]["wasmi"].as_inline_table_mut() else {
-            return;
-        };
-        wasmi.insert("version", "0.13.2".into());
-        wasmi.remove("branch");
-        wasmi.remove("git");
     }
 }
