@@ -29,12 +29,13 @@ use anyhow::Result;
 use std::process::{Command, ExitStatus};
 
 /// Required Packages without local dependencies.
-pub const SAFE_DEPENDENCIES: [&str; 11] = [
+pub const SAFE_DEPENDENCIES: [&str; 12] = [
     "actor-system-error",
     "galloc",
     "gear-stack-buffer",
     "gear-core-errors",
     "gear-common-codegen",
+    "gear-runtime-primitives",
     "gear-sandbox-env",
     "gear-wasm-instrument",
     "gmeta-codegen",
