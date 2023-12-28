@@ -26,7 +26,7 @@ use gear_core::{
         ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext,
         ReplyPacket,
     },
-    pages::WASM_PAGE_SIZE,
+    pages::WasmPage,
 };
 use gear_core_backend::{
     env::{BackendReport, Environment},
@@ -193,7 +193,7 @@ fn injecting_addresses_works() {
     };
     // No additional data, except for addresses.
     // First entry set to the 0 offset.
-    assert_eq!(*ptr, (stack_end_page * WASM_PAGE_SIZE as u32) as i32);
+    assert_eq!(*ptr, (stack_end_page * WasmPage::SIZE) as i32);
 
     let second_addr_offset = entries
         .get(1)
@@ -205,7 +205,7 @@ fn injecting_addresses_works() {
     };
     // No additional data, except for addresses.
     // First entry set to the 0 offset.
-    assert_eq!(*ptr, size + (stack_end_page * WASM_PAGE_SIZE as u32) as i32);
+    assert_eq!(*ptr, size + (stack_end_page * WasmPage::SIZE) as i32);
 }
 
 #[test]
@@ -343,7 +343,7 @@ fn get_params_for_syscall_to_fail(
     let memory_write = match syscall_name {
         SyscallName::PayProgramRent => Some(MemoryWrite {
             offset: 0,
-            content: vec![255; WASM_PAGE_SIZE],
+            content: vec![255; WasmPage::SIZE as usize],
         }),
         _ => None,
     };

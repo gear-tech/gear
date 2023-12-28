@@ -32,7 +32,7 @@ use core_processor::{
 use frame_support::codec::MaxEncodedLen;
 use gear_core::{
     memory::{MemoryInterval, PageBuf},
-    pages::{GearPage, GearPagesAmount, IntervalIterator, PageNumber, PageU32Size},
+    pages::{GearPage, GearPagesAmount, IntervalIterator, PageNumber},
 };
 use gear_lazy_pages_common::Status;
 use gear_wasm_instrument::{parity_wasm::elements::Instruction, syscalls::SyscallName};
@@ -363,7 +363,7 @@ where
     T: Config,
     T::AccountId: Origin,
 {
-    let size = GearPage::size() as i32;
+    let size = GearPage::SIZE as i32;
     let read_cost = 1u64;
     let write_cost = 10u64;
     let write_after_read_cost = 100u64;

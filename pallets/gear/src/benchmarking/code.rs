@@ -30,7 +30,7 @@ use common::Origin;
 use frame_support::traits::Get;
 use gear_core::{
     ids::CodeId,
-    pages::{PageNumber, PageU32Size, WasmPage, WasmPagesAmount},
+    pages::{PageNumber, WasmPage, WasmPagesAmount},
 };
 use gear_sandbox::{
     default_executor::{EnvironmentDefinitionBuilder, Memory, Store},
@@ -449,7 +449,7 @@ where
 
 /// Mechanisms to generate a function body that can be used inside a `ModuleDefinition`.
 pub mod body {
-    use gear_core::pages::{GearPage, IntervalIterator, PageU32Size, WasmPage};
+    use gear_core::pages::{GearPage, IntervalIterator, WasmPage};
 
     use super::*;
 
@@ -505,13 +505,13 @@ pub mod body {
         mem_size: WasmPagesAmount,
         mut head: Vec<Instruction>,
     ) -> Vec<Instruction> {
-        for page in
-            IntervalIterator::from(..mem_size).flat_map(|p: WasmPage| p.to_iter::<GearPage>())
-        {
-            head.push(Instruction::I32Const(page.offset() as i32));
-            head.push(Instruction::I32Const(42));
-            head.push(Instruction::I32Store(2, 0));
-        }
+        IntervalIterator::from(..mem_size)
+            .flat_map(|p: WasmPage| p.to_iter())
+            .for_each(|page: GearPage| {
+                head.push(Instruction::I32Const(page.offset() as i32));
+                head.push(Instruction::I32Const(42));
+                head.push(Instruction::I32Store(2, 0));
+            });
         head
     }
 
@@ -519,13 +519,13 @@ pub mod body {
         mem_size: WasmPagesAmount,
         mut head: Vec<Instruction>,
     ) -> Vec<Instruction> {
-        for page in
-            IntervalIterator::from(..mem_size).flat_map(|p: WasmPage| p.to_iter::<GearPage>())
-        {
-            head.push(Instruction::I32Const(page.offset() as i32));
-            head.push(Instruction::I32Load(2, 0));
-            head.push(Instruction::Drop);
-        }
+        IntervalIterator::from(..mem_size)
+            .flat_map(|p: WasmPage| p.to_iter())
+            .for_each(|page: GearPage| {
+                head.push(Instruction::I32Const(page.offset() as i32));
+                head.push(Instruction::I32Load(2, 0));
+                head.push(Instruction::Drop);
+            });
         head
     }
 

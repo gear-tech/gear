@@ -33,7 +33,7 @@ use gear_core::{
     ids::{MessageId, ProgramId, ReservationId},
     memory::{Memory, MemoryError, MemoryInterval},
     message::{HandlePacket, InitPacket, ReplyPacket},
-    pages::{PageNumber, WasmPage, WasmPagesAmount, WASM_PAGE_SIZE},
+    pages::{WasmPage, WasmPagesAmount},
 };
 use gear_core_errors::{ReplyCode, SignalCode};
 use gear_lazy_pages_common::ProcessAccessError;
@@ -315,11 +315,8 @@ pub struct MockMemory {
 
 impl MockMemory {
     pub fn new(initial_pages: u32) -> Self {
-        let size = initial_pages as usize * WASM_PAGE_SIZE;
-        let pages = vec![0; size];
-
         Self {
-            pages,
+            pages: vec![0; WasmPage::try_from(initial_pages).unwrap().offset() as usize],
             read_attempt_count: Cell::new(0),
             write_attempt_count: Cell::new(0),
         }
@@ -332,73 +329,48 @@ impl MockMemory {
     pub fn write_attempt_count(&self) -> u32 {
         self.write_attempt_count.get()
     }
-
-    fn page_index(&self, offset: u32) -> Option<usize> {
-        let offset = offset as usize;
-
-        (offset < self.pages.len()).then_some(offset / WASM_PAGE_SIZE)
-    }
 }
 
 impl Memory for MockMemory {
     type GrowError = ();
 
     fn grow(&mut self, pages: WasmPagesAmount) -> Result<(), Self::GrowError> {
-        let new_size = self.pages.len() + (pages.raw() as usize) * WASM_PAGE_SIZE;
+        let new_size = pages
+            .to_page_number()
+            .and_then(|p| p.offset().checked_add(self.pages.len() as u32))
+            .ok_or(())?;
 
-        self.pages.resize(new_size, 0);
+        self.pages.resize(new_size as usize, 0);
 
         Ok(())
     }
 
     fn size(&self) -> WasmPagesAmount {
-        WasmPagesAmount::try_from((self.pages.len() / WASM_PAGE_SIZE) as u32).unwrap_or_default()
+        WasmPage::from_offset(self.pages.len() as u32).into()
     }
 
     fn write(&mut self, offset: u32, buffer: &[u8]) -> Result<(), MemoryError> {
         self.write_attempt_count.set(self.write_attempt_count() + 1);
-        let page_index = self
-            .page_index(offset)
-            .ok_or(MemoryError::AccessOutOfBounds)?;
-        let page_offset = offset as usize % WASM_PAGE_SIZE;
 
-        if page_offset + buffer.len() > WASM_PAGE_SIZE {
+        let offset = offset as usize;
+        if offset + buffer.len() > self.pages.len() {
             return Err(MemoryError::AccessOutOfBounds);
         }
 
-        let page_start = page_index * WASM_PAGE_SIZE;
-        let start = page_start + page_offset;
-
-        if start + buffer.len() > self.pages.len() {
-            return Err(MemoryError::AccessOutOfBounds);
-        }
-
-        let dest = &mut self.pages[start..(start + buffer.len())];
-        dest.copy_from_slice(buffer);
+        self.pages[offset..offset + buffer.len()].copy_from_slice(buffer);
 
         Ok(())
     }
 
     fn read(&self, offset: u32, buffer: &mut [u8]) -> Result<(), MemoryError> {
         self.read_attempt_count.set(self.read_attempt_count() + 1);
-        let page_index = self
-            .page_index(offset)
-            .ok_or(MemoryError::AccessOutOfBounds)?;
-        let page_offset = offset as usize % WASM_PAGE_SIZE;
 
-        if page_offset + buffer.len() > WASM_PAGE_SIZE {
+        let offset = offset as usize;
+        if offset + buffer.len() > self.pages.len() {
             return Err(MemoryError::AccessOutOfBounds);
         }
 
-        let page_start = page_index * WASM_PAGE_SIZE;
-        let start = page_start + page_offset;
-
-        if start + buffer.len() > self.pages.len() {
-            return Err(MemoryError::AccessOutOfBounds);
-        }
-
-        let src = &self.pages[start..(start + buffer.len())];
-        buffer.copy_from_slice(src);
+        buffer.copy_from_slice(&self.pages[offset..(offset + buffer.len())]);
 
         Ok(())
     }

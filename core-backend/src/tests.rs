@@ -7,7 +7,7 @@ use crate::{
 };
 use codec::{self, Decode, Encode, MaxEncodedLen};
 use core::{fmt::Debug, marker::PhantomData};
-use gear_core::{memory::Memory, pages::WASM_PAGE_SIZE};
+use gear_core::{memory::Memory, pages::WasmPage};
 
 const GAS_COUNTER: u64 = u64::MAX;
 
@@ -204,7 +204,7 @@ fn test_read_decoded_with_invalid_encoded_data() {
     memory_access_manager.register_read_decoded::<InvalidDecode>(0);
 
     let memory = &mut MockMemory::new(1);
-    let encoded = alloc::vec![7u8; WASM_PAGE_SIZE];
+    let encoded = alloc::vec![7u8; WasmPage::SIZE as usize];
     memory.write(0, &encoded).unwrap();
 
     let result = memory_access_manager.read_decoded::<MockMemory, InvalidDecode>(
@@ -409,7 +409,7 @@ fn test_write_as_with_larger_object_size() {
     let result = memory_access_manager.write_as(
         &mut MockMemory::new(1),
         WasmMemoryWriteAs {
-            ptr: WASM_PAGE_SIZE as u32,
+            ptr: WasmPage::SIZE,
             _phantom: PhantomData,
         },
         7u8,

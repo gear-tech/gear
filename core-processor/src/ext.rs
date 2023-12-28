@@ -40,7 +40,7 @@ use gear_core::{
         ContextOutcomeDrain, ContextStore, Dispatch, GasLimit, HandlePacket, InitPacket,
         MessageContext, Packet, ReplyPacket,
     },
-    pages::{GearPage, IntervalsTree, PageNumber, PageU32Size, WasmPage, WasmPagesAmount},
+    pages::{GearPage, IntervalsTree, PageNumber, WasmPage, WasmPagesAmount},
     program::MemoryInfix,
     reservation::GasReserver,
 };

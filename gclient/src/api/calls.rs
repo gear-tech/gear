@@ -22,7 +22,7 @@ use gear_core::{
     gas::LockId,
     ids::*,
     memory::PageBuf,
-    pages::{GearPage, PageNumber, GEAR_PAGE_SIZE, WASM_PAGE_SIZE},
+    pages::{GearPage, PageNumber, WasmPage},
 };
 use gear_utils::{MemoryPageDump, ProgramMemoryDump};
 use gsdk::{
@@ -536,10 +536,8 @@ impl GearApi {
     ) -> Result {
         let program = self.0.api().gprog_at(program_id, block_hash).await?;
 
-        static_assertions::const_assert_eq!(WASM_PAGE_SIZE % GEAR_PAGE_SIZE, 0);
         assert!(program.static_pages.0 > 0);
-        let static_page_count =
-            (program.static_pages.0 as usize - 1) * WASM_PAGE_SIZE / GEAR_PAGE_SIZE;
+        let static_page_count = (program.static_pages.0 - 1) * WasmPage::SIZE / GearPage::SIZE;
 
         let program_pages = self
             .0
@@ -548,7 +546,7 @@ impl GearApi {
             .await?
             .into_iter()
             .filter_map(|(page_number, page_data)| {
-                if page_number < static_page_count as u32 {
+                if page_number < static_page_count {
                     None
                 } else {
                     Some(MemoryPageDump::new(

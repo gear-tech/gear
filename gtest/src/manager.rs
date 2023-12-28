@@ -37,7 +37,7 @@ use gear_core::{
         Dispatch, DispatchKind, Message, MessageWaitedType, ReplyMessage, ReplyPacket,
         StoredDispatch, StoredMessage,
     },
-    pages::{GearPage, IntervalIterator, IntervalsTree, PageU32Size, WasmPage},
+    pages::{GearPage, IntervalIterator, IntervalsTree, WasmPage},
     program::Program as CoreProgram,
     reservation::{GasReservationMap, GasReserver},
 };

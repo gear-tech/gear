@@ -279,7 +279,7 @@ impl<BlockNumber: Copy + Saturating> core::convert::TryFrom<Program<BlockNumber>
 #[codec(crate = codec)]
 #[scale_info(crate = scale_info)]
 pub struct ActiveProgram<BlockNumber: Copy + Saturating> {
-    /// Set of not-static wasm pages, that were allocated by the program.
+    /// Set of wasm pages, that were allocated by the program.
     pub allocations: IntervalsTree<WasmPage>,
     /// Set of gear pages, that have data in storage.
     pub pages_with_data: IntervalsTree<GearPage>,

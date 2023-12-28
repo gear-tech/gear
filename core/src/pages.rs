@@ -18,7 +18,7 @@
 
 //! Module for memory pages.
 
-use core::{cmp::Ordering, num::NonZeroU32};
+use core::cmp::Ordering;
 pub use numerated::{
     num_traits::bounds::{LowerBounded, UpperBounded},
     Bound, Interval, IntervalIterator, IntervalsTree, Numerated,
@@ -29,15 +29,13 @@ use scale_info::{
 };
 
 /// A WebAssembly page has a constant size of 64KiB.
-pub const WASM_PAGE_SIZE: usize = WASM_PAGE_SIZE32 as usize;
-const WASM_PAGE_SIZE32: u32 = 0x10000;
+const WASM_PAGE_SIZE: usize = 64 * 1024;
 
 /// A size of memory pages in program data storage.
 /// If program changes some memory page during execution, then page of this size will be uploaded to the storage.
 /// If during execution program accesses some data in memory, then data of this size will be downloaded from the storage.
 /// Currently equal to 16KiB to be bigger than most common host page sizes.
-pub const GEAR_PAGE_SIZE: usize = GEAR_PAGE_SIZE32 as usize;
-const GEAR_PAGE_SIZE32: u32 = 0x4000;
+const GEAR_PAGE_SIZE: usize = 16 * 1024;
 
 static_assertions::const_assert!(WASM_PAGE_SIZE < u32::MAX as usize);
 static_assertions::const_assert_eq!(WASM_PAGE_SIZE % GEAR_PAGE_SIZE, 0);
@@ -45,7 +43,6 @@ static_assertions::const_assert_eq!(WASM_PAGE_SIZE % GEAR_PAGE_SIZE, 0);
 /// Struct represents memory pages amount with some constant size `SIZE` in bytes.
 /// - `SIZE` type is u32, so page size < 4GiB (wasm32 memory size limit).
 /// - `SIZE` must be power of two and must not be equal to one or zero bytes.
-/// - This struct is suitable to be storage value.
 #[derive(
     Clone,
     Copy,
@@ -101,7 +98,7 @@ impl<const SIZE: u32> PagesAmount<SIZE> {
 
 impl<const SIZE: u32> PageNumber for PagesAmount<SIZE> {
     unsafe fn from_raw(raw: u32) -> Self {
-        PagesAmount(raw)
+        Self(raw)
     }
 }
 
@@ -124,7 +121,7 @@ impl<const SIZE: u32> Bound<Page<SIZE>> for PagesAmount<SIZE> {
                 // This panic is impossible because of `PagesAmount` constructors implementation.
                 unreachable!("PageBound must be always less or equal than UPPER")
             }
-            a if a == PagesAmount::<SIZE>::UPPER => None,
+            a if a == Self::UPPER => None,
             a => Some(Page(a.0)),
         }
     }
@@ -162,8 +159,7 @@ impl<const SIZE: u32> PartialOrd<Page<SIZE>> for PagesAmount<SIZE> {
 /// Struct represents memory page number with some constant size `SIZE` in bytes.
 /// - `SIZE` type is u32, so page size < 4GiB (wasm32 memory size limit).
 /// - `SIZE` must be power of two and must not be equal to zero bytes.
-/// - `SIZE == 1` is possible, but then you cannot use `PagesAmount` for these pages.
-/// - This struct is suitable to be storage value.
+/// - `SIZE == 1` is possible, but then you cannot use [PagesAmount] for these pages.
 #[derive(
     Clone,
     Copy,
@@ -193,6 +189,46 @@ impl<const SIZE: u32> Page<SIZE> {
     /// Increment page number. Returns `PagesAmount<SIZE>`, because this allows to avoid overflows.
     pub fn inc(&self) -> PagesAmount<SIZE> {
         PagesAmount(self.0 + 1)
+    }
+
+    /// Constructs new page from byte offset: returns page which contains this byte.
+    pub fn from_offset(offset: u32) -> Self {
+        // Safe, cause offset is always less or equal to u32::MAX.
+        unsafe { Self::from_raw(offset / Self::SIZE) }
+    }
+
+    /// Returns page zero byte offset.
+    pub fn offset(&self) -> u32 {
+        self.raw() * Self::SIZE
+    }
+
+    /// Returns page last byte offset.
+    pub fn end_offset(&self) -> u32 {
+        self.raw() * Self::SIZE + (Self::SIZE - 1)
+    }
+
+    /// Returns new page, which contains `self` zero byte.
+    pub fn to_page<const S1: u32>(self) -> Page<S1> {
+        Page::from_offset(self.offset())
+    }
+
+    /// Returns an iterator that iterates over the range of pages from `self` to the end page,
+    /// inclusive. Each iteration yields a page of type [`Page<S1>`].
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use gear_core::pages::{GearPage, WasmPage};
+    ///
+    /// let x: Vec<GearPage> = WasmPage::from(5).to_iter().collect();
+    /// println!("{x:?}");
+    /// ```
+    /// For this example must be printed: `[GearPage(20), GearPage(21), GearPage(22), GearPage(23)]`
+    pub fn to_iter<const S1: u32>(self) -> IntervalIterator<Page<S1>> {
+        let start = Page::<S1>::from_offset(self.offset());
+        let end = Page::<S1>::from_offset(self.end_offset());
+        // Safe, cause end byte offset is always greater or equal to offset, so `start <= end`.
+        unsafe { Interval::new_unchecked(start, end).iter() }
     }
 }
 
@@ -248,18 +284,26 @@ impl<const SIZE: u32> LowerBounded for Page<SIZE> {
 
 impl<const SIZE: u32> UpperBounded for Page<SIZE> {
     fn max_value() -> Self {
-        Self(<Self as Numerated>::Bound::UPPER.0 - 1)
+        Self::UPPER
     }
 }
 
 /// Page of wasm page size - 64 kiB.
-pub type WasmPage = Page<WASM_PAGE_SIZE32>;
+pub type WasmPage = Page<{ WASM_PAGE_SIZE as u32 }>;
 /// Page of gear page size - 16 kiB.
-pub type GearPage = Page<GEAR_PAGE_SIZE32>;
+pub type GearPage = Page<{ GEAR_PAGE_SIZE as u32 }>;
 /// Pages amount for wasm page size - 64 kiB.
-pub type WasmPagesAmount = PagesAmount<WASM_PAGE_SIZE32>;
+pub type WasmPagesAmount = PagesAmount<{ WASM_PAGE_SIZE as u32 }>;
 /// Pages amount for gear page size - 16 kiB.
-pub type GearPagesAmount = PagesAmount<GEAR_PAGE_SIZE32>;
+pub type GearPagesAmount = PagesAmount<{ GEAR_PAGE_SIZE as u32 }>;
+
+impl WasmPagesAmount {
+    /// Make wasm pages amount constant from u16.
+    pub const fn from_u16(raw: u16) -> Self {
+        static_assertions::const_assert!(WASM_PAGE_SIZE <= 0x10_000);
+        Self(raw as u32)
+    }
+}
 
 impl From<u16> for WasmPagesAmount {
     fn from(value: u16) -> Self {
@@ -268,10 +312,10 @@ impl From<u16> for WasmPagesAmount {
     }
 }
 
-impl WasmPagesAmount {
-    /// Make wasm pages amount constant from u16.
-    pub const fn from_u16(raw: u16) -> Self {
-        Self(raw as u32)
+impl From<u16> for WasmPage {
+    fn from(value: u16) -> Self {
+        static_assertions::const_assert!(WASM_PAGE_SIZE <= 0x10_000);
+        Page(value as u32)
     }
 }
 
@@ -289,27 +333,6 @@ impl From<u16> for GearPage {
     }
 }
 
-impl From<u16> for WasmPage {
-    fn from(value: u16) -> Self {
-        static_assertions::const_assert!(WASM_PAGE_SIZE <= 0x10_000);
-        Page(value as u32)
-    }
-}
-
-impl PageU32Size for GearPage {
-    fn size_non_zero() -> NonZeroU32 {
-        static_assertions::const_assert_ne!(GEAR_PAGE_SIZE, 0);
-        unsafe { NonZeroU32::new_unchecked(GEAR_PAGE_SIZE as u32) }
-    }
-}
-
-impl PageU32Size for WasmPage {
-    fn size_non_zero() -> NonZeroU32 {
-        static_assertions::const_assert_ne!(WASM_PAGE_SIZE, 0);
-        unsafe { NonZeroU32::new_unchecked(WASM_PAGE_SIZE as u32) }
-    }
-}
-
 /// Page number trait - page, which can return it number as u32.
 pub trait PageNumber: Copy + Into<u32> {
     /// Creates page from raw number.
@@ -324,86 +347,30 @@ pub trait PageNumber: Copy + Into<u32> {
     }
 }
 
-/// Trait represents page with u32 size for u32 memory: max memory size is 2^32 bytes.
-/// All operations with page guarantees, that no addr or page number can be overflowed.
-pub trait PageU32Size: Numerated + PageNumber {
-    /// Returns size of page.
-    fn size_non_zero() -> NonZeroU32;
-
-    /// Size as u32. Cannot be zero, because uses `Self::size_non_zero`.
-    fn size() -> u32 {
-        Self::size_non_zero().into()
-    }
-
-    /// Constructs new page from byte offset: returns page which contains this byte.
-    fn from_offset(offset: u32) -> Self {
-        // Safe, cause offset is always less or equal to u32::MAX.
-        unsafe { Self::from_raw(offset / Self::size()) }
-    }
-
-    /// Returns page zero byte offset.
-    fn offset(&self) -> u32 {
-        self.raw() * Self::size()
-    }
-
-    /// Returns page last byte offset.
-    fn end_offset(&self) -> u32 {
-        self.raw() * Self::size() + (Self::size() - 1)
-    }
-
-    /// Returns new page, which contains `self` zero byte.
-    fn to_page<P1: PageU32Size>(&self) -> P1 {
-        P1::from_offset(self.offset())
-    }
-
-    /// Returns an iterator that iterates over the range of pages from `self` to the end page,
-    /// inclusive. Each iteration yields a page of type `P`.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use gear_core::pages::{PageU32Size, GearPage, PageNumber};
-    ///
-    /// let new_page = GearPage::from(5);
-    ///
-    /// let pages_iter = new_page.to_iter::<GearPage>();
-    ///
-    /// for page in pages_iter {
-    ///     println!("Page number: {}", page.raw());
-    /// }
-    /// ```
-    ///
-    /// # Generic Parameters
-    ///
-    /// - `P`: The type of pages in the iterator, which must implement the `PageU32Size` trait.
-    fn to_iter<P: PageU32Size>(&self) -> IntervalIterator<P> {
-        let start: P = self.to_page();
-        let end: P = P::from_offset(self.end_offset());
-        // Safe, cause end_offset is always greater or equal to offset, so start <= end.
-        unsafe { Interval::new_unchecked(start, end).iter() }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use numerated::mock::test_numerated;
     use proptest::{proptest, strategy::Strategy, test_runner::Config as ProptestConfig};
 
-    fn rand_page<const S: u32>() -> impl Strategy<Value = Page<S>> {
-        (0..=Page::<S>::UPPER.raw()).prop_map(Page)
+    fn rand_gear_page() -> impl Strategy<Value = GearPage> {
+        (0..=GearPage::UPPER.raw()).prop_map(Page)
+    }
+
+    fn rand_wasm_page() -> impl Strategy<Value = WasmPage> {
+        (0..=WasmPage::UPPER.raw()).prop_map(Page)
     }
 
     proptest! {
         #![proptest_config(ProptestConfig::with_cases(1024))]
 
         #[test]
-        fn proptest_gear_page_numerated(p1 in rand_page::<GEAR_PAGE_SIZE32>(), p2 in rand_page::<GEAR_PAGE_SIZE32>()) {
+        fn proptest_gear_page_numerated(p1 in rand_gear_page(), p2 in rand_gear_page()) {
             test_numerated(p1, p2);
         }
 
         #[test]
-        fn proptest_wasm_page_numerated(p1 in rand_page::<WASM_PAGE_SIZE32>(), p2 in rand_page::<WASM_PAGE_SIZE32>()) {
+        fn proptest_wasm_page_numerated(p1 in rand_wasm_page(), p2 in rand_wasm_page()) {
             test_numerated(p1, p2);
         }
     }

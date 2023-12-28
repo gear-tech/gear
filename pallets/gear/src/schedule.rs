@@ -32,7 +32,7 @@ use gear_core::{
     code,
     costs::HostFnWeights as CoreHostFnWeights,
     message,
-    pages::{GearPage, PageNumber, PageU32Size, WasmPage, GEAR_PAGE_SIZE},
+    pages::{GearPage, PageNumber, WasmPage},
 };
 use gear_wasm_instrument::{parity_wasm::elements, wasm_instrument::gas_metering};
 use pallet_gear_proc_macro::{ScheduleDebug, WeightDebug};
@@ -1070,7 +1070,7 @@ impl<T: Config> Default for MemoryWeights<T> {
         // so here we must convert it to cost per gear page.
         macro_rules! to_cost_per_gear_page {
             ($name:ident) => {
-                cost!($name) / (WasmPage::size() / GearPage::size()) as u64
+                cost!($name) / (WasmPage::SIZE / GearPage::SIZE) as u64
             };
         }
 
@@ -1082,14 +1082,14 @@ impl<T: Config> Default for MemoryWeights<T> {
             ($name:ident, $syscall:ident) => {{
                 let syscall_per_kb_weight = cost_batched!($syscall);
                 let syscall_per_gear_page_weight =
-                    (syscall_per_kb_weight / KB_SIZE) * GearPage::size() as u64;
+                    (syscall_per_kb_weight / KB_SIZE) * GearPage::SIZE as u64;
                 to_cost_per_gear_page!($name).saturating_sub(syscall_per_gear_page_weight)
             }};
         }
 
-        const KB_AMOUNT_IN_ONE_GEAR_PAGE: u64 = GEAR_PAGE_SIZE as u64 / KB_SIZE;
+        const KB_AMOUNT_IN_ONE_GEAR_PAGE: u64 = GearPage::SIZE as u64 / KB_SIZE;
         static_assertions::const_assert!(KB_AMOUNT_IN_ONE_GEAR_PAGE > 0);
-        static_assertions::const_assert!(GEAR_PAGE_SIZE as u64 % KB_SIZE == 0);
+        static_assertions::const_assert!(GearPage::SIZE as u64 % KB_SIZE == 0);
 
         Self {
             lazy_pages_signal_read: to_weight!(to_cost_per_gear_page!(lazy_pages_signal_read)),

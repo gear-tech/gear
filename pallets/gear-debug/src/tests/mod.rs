@@ -24,7 +24,7 @@ use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
     memory::PageBuf,
     message::{DispatchKind, StoredDispatch, StoredMessage, UserMessage},
-    pages::{GearPage, PageNumber, PageU32Size, WasmPage},
+    pages::{GearPage, PageNumber, WasmPage},
 };
 use gear_wasm_instrument::STACK_END_EXPORT_NAME;
 use pallet_gear::{DebugInfo, Event, Pallet as PalletGear};
@@ -767,11 +767,11 @@ fn check_changed_pages_in_storage() {
 
         let gear_page8 = GearPage::from_offset(page8_accessed_addr);
         let mut page8_data = PageBuf::new_zeroed();
-        page8_data[(page8_accessed_addr % GearPage::size()) as usize] = 0x42;
+        page8_data[(page8_accessed_addr % GearPage::SIZE) as usize] = 0x42;
 
         let gear_page9 = GearPage::from_offset(page9_accessed_addr);
         let mut page9_data = PageBuf::new_zeroed();
-        page9_data[(page9_accessed_addr % GearPage::size()) as usize] = 0x42;
+        page9_data[(page9_accessed_addr % GearPage::SIZE) as usize] = 0x42;
 
         persistent_pages.insert(gear_page1, page1_data);
         persistent_pages.insert(gear_page8, page8_data);
@@ -807,7 +807,7 @@ fn check_changed_pages_in_storage() {
 
         let gear_page3 = GearPage::from_offset(page3_accessed_addr);
         let mut page3_data = PageBuf::new_zeroed();
-        page3_data[(page3_accessed_addr % GearPage::size()) as usize] = 0x42;
+        page3_data[(page3_accessed_addr % GearPage::SIZE) as usize] = 0x42;
 
         let gear_page4 = GearPage::from_offset(page4_accessed_addr);
 

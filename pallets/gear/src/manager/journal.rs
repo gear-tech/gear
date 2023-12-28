@@ -35,7 +35,7 @@ use gear_core::{
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::PageBuf,
     message::{Dispatch, MessageWaitedType, StoredDispatch},
-    pages::{GearPage, PageU32Size, WasmPage},
+    pages::{GearPage, WasmPage},
     reservation::GasReserver,
 };
 use gear_core_errors::SignalCode;

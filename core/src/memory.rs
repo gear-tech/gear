@@ -22,8 +22,8 @@ use crate::{
     buffer::LimitedVec,
     gas::ChargeError,
     pages::{
-        Interval, IntervalsTree, Numerated, PageNumber, UpperBounded, WasmPage, WasmPagesAmount,
-        GEAR_PAGE_SIZE,
+        GearPage, Interval, IntervalsTree, Numerated, PageNumber, UpperBounded, WasmPage,
+        WasmPagesAmount,
     },
 };
 use alloc::format;
@@ -98,7 +98,7 @@ impl Debug for MemoryInterval {
 }
 
 /// Alias for inner type of page buffer.
-pub type PageBufInner = LimitedVec<u8, (), GEAR_PAGE_SIZE>;
+pub type PageBufInner = LimitedVec<u8, (), { GearPage::SIZE as usize }>;
 
 /// Buffer for gear page data.
 #[derive(Clone, PartialEq, Eq, TypeInfo)]
@@ -112,7 +112,7 @@ pub struct PageBuf(PageBufInner);
 //      Grep 'Only support for [[]Type' to get more details on that.
 impl Encode for PageBuf {
     fn size_hint(&self) -> usize {
-        GEAR_PAGE_SIZE
+        GearPage::SIZE as usize
     }
 
     fn encode_to<W: Output + ?Sized>(&self, dest: &mut W) {
@@ -137,7 +137,7 @@ impl Debug for PageBuf {
             f,
             "PageBuf({:?}..{:?})",
             &self.0.inner()[0..10],
-            &self.0.inner()[GEAR_PAGE_SIZE - 10..GEAR_PAGE_SIZE]
+            &self.0.inner()[GearPage::SIZE as usize - 10..GearPage::SIZE as usize]
         )
     }
 }
@@ -162,7 +162,7 @@ impl PageBuf {
     }
 
     /// Creates PageBuf from inner buffer. If the buffer has
-    /// the size of GEAR_PAGE_SIZE then no reallocations occur. In other
+    /// the size of GearPage then no reallocations occur. In other
     /// case it will be extended with zeros.
     ///
     /// The method is implemented intentionally instead of trait From to
@@ -422,7 +422,7 @@ impl AllocationsContext {
 /// This module contains tests of GearPage struct
 mod tests {
     use super::*;
-    use crate::pages::{GearPage, PageU32Size};
+    use crate::pages::GearPage;
     use alloc::vec::Vec;
 
     #[test]
@@ -431,8 +431,8 @@ mod tests {
         let wasm_pages: Vec<WasmPage> = [0u16, 10].iter().copied().map(WasmPage::from).collect();
         let gear_pages: Vec<u32> = wasm_pages
             .iter()
-            .flat_map(|p| p.to_iter::<GearPage>())
-            .map(|p| p.raw())
+            .flat_map(|p| p.to_iter())
+            .map(|p: GearPage| p.raw())
             .collect();
 
         let expectation = [0, 1, 2, 3, 40, 41, 42, 43];

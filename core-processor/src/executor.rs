@@ -36,7 +36,7 @@ use gear_core::{
         ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext,
         WasmEntryPoint,
     },
-    pages::{IntervalsTree, PageU32Size, WasmPage, WasmPagesAmount},
+    pages::{IntervalsTree, WasmPage, WasmPagesAmount},
     program::{MemoryInfix, Program},
     reservation::GasReserver,
 };
@@ -108,7 +108,7 @@ fn prepare_memory<ProcessorExt: ProcessorExternalities, EnvMem: Memory>(
     lazy_pages_weights: LazyPagesWeights,
 ) -> Result<(), PrepareMemoryError> {
     let stack_end = if let Some(stack_end) = stack_end {
-        let stack_end = (stack_end % WasmPage::size() == 0)
+        let stack_end = (stack_end % WasmPage::SIZE == 0)
             .then_some(WasmPage::from_offset(stack_end))
             .ok_or(ActorPrepareMemoryError::StackIsNotAligned(stack_end))?;
 

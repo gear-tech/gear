@@ -19,7 +19,7 @@
 use crate::{config::WasmModuleConfig, EntryPointName};
 use arbitrary::{Arbitrary, Result, Unstructured};
 use core::mem;
-use gear_core::pages::WASM_PAGE_SIZE;
+use gear_core::pages::WasmPage;
 use gear_wasm_instrument::{
     parity_wasm::{
         self,
@@ -191,6 +191,6 @@ impl From<u32> for PageCount {
 impl PageCount {
     /// Calculate WASM memory size for this pages count.
     pub(crate) fn memory_size(&self) -> u32 {
-        self.0 * WASM_PAGE_SIZE as u32
+        self.0 * WasmPage::SIZE
     }
 }

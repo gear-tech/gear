@@ -85,7 +85,7 @@ use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
     memory::{AllocationsContext, Memory},
     message::{ContextSettings, DispatchKind, IncomingDispatch, MessageContext},
-    pages::{PageU32Size, WasmPage},
+    pages::WasmPage,
     reservation::GasReserver,
 };
 use gear_core_backend::{
@@ -1501,7 +1501,7 @@ benchmarks! {
     }
 
     lazy_pages_host_func_read {
-        let p in 0 .. MAX_PAYLOAD_LEN / WasmPage::size();
+        let p in 0 .. MAX_PAYLOAD_LEN / WasmPage::SIZE;
         let mut res = None;
         let exec = Benches::<T>::lazy_pages_host_func_read((p as u16).into())?;
     }: {
@@ -1512,7 +1512,7 @@ benchmarks! {
     }
 
     lazy_pages_host_func_write {
-        let p in 0 .. MAX_PAYLOAD_LEN / WasmPage::size();
+        let p in 0 .. MAX_PAYLOAD_LEN / WasmPage::SIZE;
         let mut res = None;
         let exec = Benches::<T>::lazy_pages_host_func_write((p as u16).into())?;
     }: {
@@ -1523,7 +1523,7 @@ benchmarks! {
     }
 
     lazy_pages_host_func_write_after_read {
-        let p in 0 .. MAX_PAYLOAD_LEN / WasmPage::size();
+        let p in 0 .. MAX_PAYLOAD_LEN / WasmPage::SIZE;
         let mut res = None;
         let exec = Benches::<T>::lazy_pages_host_func_write_after_read((p as u16).into())?;
     }: {
@@ -1540,7 +1540,7 @@ benchmarks! {
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(DEFAULT_PAGES as u16)),
             handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
-                        RandomUnaligned(0, DEFAULT_PAGES * WasmPage::size() - 8),
+                        RandomUnaligned(0, DEFAULT_PAGES * WasmPage::SIZE - 8),
                         Regular(Instruction::I64Load(3, 0)),
                         Regular(Instruction::Drop)])),
             .. Default::default()
@@ -1557,7 +1557,7 @@ benchmarks! {
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(DEFAULT_PAGES as u16)),
             handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
-                        RandomUnaligned(0, DEFAULT_PAGES * WasmPage::size() - 4),
+                        RandomUnaligned(0, DEFAULT_PAGES * WasmPage::SIZE - 4),
                         Regular(Instruction::I32Load(2, 0)),
                         Regular(Instruction::Drop)])),
             .. Default::default()
@@ -1574,7 +1574,7 @@ benchmarks! {
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(DEFAULT_PAGES as u16)),
             handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
-                        RandomUnaligned(0, DEFAULT_PAGES * WasmPage::size() - 8),
+                        RandomUnaligned(0, DEFAULT_PAGES * WasmPage::SIZE - 8),
                         RandomI64Repeated(1),
                         Regular(Instruction::I64Store(3, 0))])),
             .. Default::default()
@@ -1591,7 +1591,7 @@ benchmarks! {
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(DEFAULT_PAGES as u16)),
             handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
-                        RandomUnaligned(0, DEFAULT_PAGES * WasmPage::size() - 4),
+                        RandomUnaligned(0, DEFAULT_PAGES * WasmPage::SIZE - 4),
                         RandomI32Repeated(1),
                         Regular(Instruction::I32Store(2, 0))])),
             .. Default::default()

@@ -39,8 +39,7 @@ use gear_core::{
     memory::{PageBuf, PageBufInner},
     message::{Message, Value},
     pages::{
-        GearPage, Interval, IntervalIterator, IntervalsTree, PageNumber, PageU32Size, WasmPage,
-        WasmPagesAmount,
+        GearPage, Interval, IntervalIterator, IntervalsTree, PageNumber, WasmPage, WasmPagesAmount,
     },
     reservation::GasReservationSlot,
 };
@@ -1601,15 +1600,16 @@ where
     ) -> Result<Exec<T>, &'static str> {
         let exec = Self::lazy_pages_signal_read(pages)?;
         let program_id = exec.context.program().id();
-        for page in IntervalIterator::from(..pages).flat_map(|p: WasmPage| p.to_iter::<GearPage>())
-        {
-            ProgramStorageOf::<T>::set_program_page_data(
-                program_id,
-                exec.context.program().memory_infix(),
-                page,
-                PageBuf::from_inner(PageBufInner::filled_with(1)),
-            );
-        }
+        IntervalIterator::from(..pages)
+            .flat_map(|p: WasmPage| p.to_iter())
+            .for_each(|page: GearPage| {
+                ProgramStorageOf::<T>::set_program_page_data(
+                    program_id,
+                    exec.context.program().memory_infix(),
+                    page,
+                    PageBuf::from_inner(PageBufInner::filled_with(1)),
+                );
+            });
         Ok(exec)
     }
 
