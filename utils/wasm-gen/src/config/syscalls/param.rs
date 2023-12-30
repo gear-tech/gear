@@ -70,8 +70,7 @@ impl SyscallsParamsConfig {
         let free_end = free_start + 5;
 
         // Setting regular params rules.
-        self
-            .with_rule(Length, (0..=1600).into())
+        self.with_rule(Length, (0..=1600).into())
             .with_rule(Gas, (0..=250_000_000_000).into())
             .with_rule(Offset, (0..=10).into())
             .with_rule(DurationBlockNumber, (1..=8).into())
@@ -85,8 +84,7 @@ impl SyscallsParamsConfig {
     pub fn with_default_ptr_config(self) -> Self {
         let range = 0..=100_000_000_000;
         // Setting ptr params rules.
-        self
-            .with_ptr_rule(PtrParamAllowedValues::Value(range.clone()))
+        self.with_ptr_rule(PtrParamAllowedValues::Value(range.clone()))
             .with_ptr_rule(PtrParamAllowedValues::ActorIdWithValue {
                 actor_kind: ActorKind::default(),
                 range,
