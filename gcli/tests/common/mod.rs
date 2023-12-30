@@ -18,7 +18,6 @@
 
 //! Common utils for integration tests
 pub use self::{args::Args, node::NodeExec, result::Result};
-use anyhow::anyhow;
 use gear_core::ids::{CodeId, ProgramId};
 use gsdk::{
     ext::{sp_core::crypto::Ss58Codec, sp_runtime::AccountId32},
@@ -29,9 +28,9 @@ use std::{
     process::{Command, Output},
 };
 
+mod app;
 mod args;
 pub mod env;
-pub mod logs;
 pub mod node;
 mod result;
 
@@ -62,10 +61,16 @@ pub fn gcli<T: ToString>(args: impl IntoIterator<Item = T>) -> Result<Output> {
 
 /// Run the dev node
 pub fn dev() -> Result<Node> {
+    login_as_alice()?;
+
     let args = vec!["--tmp", "--dev"];
-    let node = env::bin("gear");
-    Node::try_from_path(&node, args)
-        .map_err(|e| anyhow!("gear-node {} not found, {e}", node).into())
+    let mut node = Node::try_from_path(env::bin("gear"), args)?;
+
+    // TODO: use [`Node::wait_while_initialized`] instead,
+    // it currently presents infinite loop even after capturing
+    // the specified log #3304.
+    node.wait_for_log_record("Imported #1")?;
+    Ok(node)
 }
 
 /// Init env logger
@@ -94,12 +99,10 @@ pub fn alice_account_id() -> AccountId32 {
 
 /// Create program messager
 pub async fn create_messager() -> Result<Node> {
-    login_as_alice()?;
-    let mut node = dev()?;
-    node.wait_for_log_record(logs::gear_node::IMPORTING_BLOCKS)?;
+    let node = dev()?;
 
     let args = Args::new("upload").program(env::wasm_bin("demo_messager.opt.wasm"));
-
     let _ = node.run(args)?;
+
     Ok(node)
 }

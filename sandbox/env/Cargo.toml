@@ -13,15 +13,15 @@ targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
 codec.workspace = true
-sp-core.workspace = true
+sp-debug-derive.workspace = true
 sp-std.workspace = true
-sp-wasm-interface = { workspace = true, default-features = false }
+sp-wasm-interface-common = { workspace = true, default-features = false }
 
 [features]
 default = ["std"]
 std = [
 	"codec/std",
-	"sp-core/std",
+	"sp-debug-derive/std",
 	"sp-std/std",
-	"sp-wasm-interface/std",
+	"sp-wasm-interface-common/std",
 ]

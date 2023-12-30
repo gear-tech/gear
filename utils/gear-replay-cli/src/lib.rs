@@ -59,7 +59,7 @@ pub struct SharedParams {
 		short,
 		long,
 		value_parser = parse::url,
-		default_value = "wss://archive-rpc.vara-network.io:443"
+		default_value = "wss://archive-rpc.vara.network:443"
 	)]
     uri: String,
 

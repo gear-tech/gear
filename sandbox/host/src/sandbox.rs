@@ -28,7 +28,7 @@ use std::{collections::HashMap, pin::Pin, rc::Rc};
 use codec::Decode;
 use env::Instantiate;
 use gear_sandbox_env as sandbox_env;
-use sp_wasm_interface::{Pointer, WordSize};
+use sp_wasm_interface_common::{Pointer, Value, WordSize};
 
 use crate::{
     error::{self, Result},
@@ -49,6 +49,8 @@ use self::{
 };
 
 pub use gear_sandbox_env as env;
+
+type SandboxResult<T> = core::result::Result<T, String>;
 
 /// Index of a function inside the supervisor.
 ///
@@ -143,11 +145,7 @@ pub trait SandboxContext {
     ) -> Result<i64>;
 
     /// Read memory from `address` into a vector.
-    fn read_memory_into(
-        &self,
-        address: Pointer<u8>,
-        dest: &mut [u8],
-    ) -> sp_wasm_interface::Result<()>;
+    fn read_memory_into(&self, address: Pointer<u8>, dest: &mut [u8]) -> SandboxResult<()>;
 
     /// Read memory into the given `dest` buffer from `address`.
     fn read_memory(&self, address: Pointer<u8>, size: WordSize) -> Result<Vec<u8>> {
@@ -157,13 +155,13 @@ pub trait SandboxContext {
     }
 
     /// Write the given data at `address` into the memory.
-    fn write_memory(&mut self, address: Pointer<u8>, data: &[u8]) -> sp_wasm_interface::Result<()>;
+    fn write_memory(&mut self, address: Pointer<u8>, data: &[u8]) -> SandboxResult<()>;
 
     /// Allocate a memory instance of `size` bytes.
-    fn allocate_memory(&mut self, size: WordSize) -> sp_wasm_interface::Result<Pointer<u8>>;
+    fn allocate_memory(&mut self, size: WordSize) -> SandboxResult<Pointer<u8>>;
 
     /// Deallocate a given memory instance.
-    fn deallocate_memory(&mut self, ptr: Pointer<u8>) -> sp_wasm_interface::Result<()>;
+    fn deallocate_memory(&mut self, ptr: Pointer<u8>) -> SandboxResult<()>;
 }
 
 /// Implementation of [`Externals`] that allows execution of guest module with
@@ -211,9 +209,9 @@ impl SandboxInstance {
     pub fn invoke(
         &self,
         export_name: &str,
-        args: &[sp_wasm_interface::Value],
+        args: &[Value],
         sandbox_context: &mut dyn SandboxContext,
-    ) -> std::result::Result<Option<sp_wasm_interface::Value>, error::Error> {
+    ) -> std::result::Result<Option<Value>, error::Error> {
         match &self.backend_instance {
             BackendInstance::Wasmi(wasmi_instance) => {
                 wasmi_invoke(self, wasmi_instance, export_name, args, sandbox_context)
@@ -228,7 +226,7 @@ impl SandboxInstance {
     /// Get the value from a global with the given `name`.
     ///
     /// Returns `Some(_)` if the global could be found.
-    pub fn get_global_val(&self, name: &str) -> Option<sp_wasm_interface::Value> {
+    pub fn get_global_val(&self, name: &str) -> Option<Value> {
         match &self.backend_instance {
             BackendInstance::Wasmi(wasmi_instance) => wasmi_get_global(wasmi_instance, name),
 
@@ -242,7 +240,7 @@ impl SandboxInstance {
     pub fn set_global_val(
         &self,
         name: &str,
-        value: sp_wasm_interface::Value,
+        value: Value,
     ) -> std::result::Result<Option<()>, error::Error> {
         match &self.backend_instance {
             BackendInstance::Wasmi(wasmi_instance) => wasmi_set_global(wasmi_instance, name, value),

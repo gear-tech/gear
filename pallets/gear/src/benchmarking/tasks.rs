@@ -109,7 +109,7 @@ where
     let caller = benchmarking::account("caller", 0, 0);
     let _ =
         CurrencyOf::<T>::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
-    let code = benchmarking::generate_wasm2(16.into()).unwrap();
+    let code = benchmarking::generate_wasm(16.into()).unwrap();
     let salt = vec![];
     let program_id = ProgramId::generate_from_user(CodeId::generate(&code), &salt);
     Gear::<T>::upload_program(

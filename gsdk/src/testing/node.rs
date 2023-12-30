@@ -66,15 +66,22 @@ impl Node {
         Ok(node)
     }
 
-    fn wait_while_initialized(&mut self) -> Result<String> {
+    /// Wait until node is initialized.
+    pub fn wait_while_initialized(&mut self) -> Result<String> {
         // `#1` here is enough to ensure that node is initialized.
         self.wait_for_log_record("Imported #1 ")
     }
 
+    /// Wait the provided log record is emitted.
     pub fn wait_for_log_record(&mut self, log: &str) -> Result<String> {
-        let stderr = self.process.stderr.as_mut();
-        let reader = BufReader::new(stderr.ok_or(Error::EmptyStderr)?);
-        for line in reader.lines().map_while(|result| result.ok()) {
+        let Some(stderr) = self.process.stderr.as_mut() else {
+            return Err(Error::EmptyStderr);
+        };
+
+        for line in BufReader::new(stderr)
+            .lines()
+            .map_while(|result| result.ok())
+        {
             if line.contains(log) {
                 return Ok(line);
             }

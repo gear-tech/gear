@@ -3,7 +3,7 @@
  */
 
 const [owner, repo] = ["gear-tech", "gear"];
-const { LABEL, REF, HEAD_SHA, TITLE, NUMBER } = process.env;
+const { LABEL, REF, HEAD_SHA, TITLE, NUMBER, REPO } = process.env;
 const linux =
   LABEL === "A0-pleasereview" ||
   LABEL === "A4-insubstantial" ||
@@ -21,7 +21,13 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 /**
  *  If skipping this action.
  **/
-const skip = async ({ core, github }) => {
+const checkSkip = async ({ github, core }) => {
+  core.info(`Checking if need to skip dispatch from ${REPO}:${REF}`);
+  if (REPO === "gear-tech/gear" && REF.startsWith("dependabot")) {
+    core.info("This pull request is from dependabot, skipping dispatching.");
+    process.exit(0);
+  }
+
   const {
     data: { check_runs },
   } = await github.rest.checks.listForRef({
@@ -30,24 +36,18 @@ const skip = async ({ core, github }) => {
     ref: REF,
   });
 
-  const runs = linux
-    ? check_runs.filter(
-      (run) => run.name === "build" || run.name === "build / linux"
-    )
-    : check_runs.filter((run) => run.name === "build / macos-x86");
+  if (check_runs.filter((run) => (
+    (run.name === "build" && run.conclusion !== "skipped")
+    || run.name === "build / linux"
+    || run.name === "build / macos-x86"
+  )).length > 0) {
+    core.info(
+      "Build has already been processed, check runs: ",
+      JSON.stringify(check_runs, null, 2)
+    );
 
-  let skipAction = false;
-  for (run of runs) {
-    // If there is already a build, skip this action.
-    if (
-      run.name === "build / linux"
-      || run.name === "build / macos-x86"
-      || (run.name === "build" && run.conclusion !== "skipped")) {
-      return [true];
-    }
+    process.exit(0)
   }
-
-  return [skipAction, JSON.stringify(check_runs, null, 2)];
 };
 
 /**
@@ -142,11 +142,7 @@ const listJobs = async ({ github, core, run_id }) => {
  *  The main function.
  **/
 module.exports = async ({ github, core }) => {
-  const [skipAction, check_runs] = await skip({ core, github });
-  if (skipAction) {
-    core.info("Build has already been processed, check runs: " + check_runs);
-    return;
-  }
+  await checkSkip({ github, core });
 
   const run = await dispatchWorkflow({ core, github });
   core.info(`Dispatched workflow ${run.html_url}`);

@@ -48,9 +48,9 @@ benchmarks! {
         let holder_lookup = T::Lookup::unlookup(holder.clone());
     }: _(RawOrigin::Signed(issuer), holder_lookup, program_id, 10_000_000_000_000_u128.unique_saturated_into())
     verify {
-        let voucher_account_id = GearVoucher::<T>::voucher_account_id(&holder, &program_id);
+        let voucher_id = GearVoucher::<T>::voucher_id(&holder, &program_id);
         assert_eq!(
-            CurrencyOf::<T>::free_balance(&voucher_account_id),
+            CurrencyOf::<T>::free_balance(&voucher_id),
             10_000_000_000_000_u128.unique_saturated_into(),
         );
     }
