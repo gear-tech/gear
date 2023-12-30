@@ -56,53 +56,87 @@ pub struct SyscallsParamsConfig {
 }
 
 impl SyscallsParamsConfig {
-    pub fn default_regular() -> Self {
-        use RegularParamType::*;
-
-        let free_start = DEFAULT_INITIAL_SIZE as i64;
-        let free_end = free_start + 5;
-
-        let mut this = Self::empty();
-
-        // Setting regular params rules.
-        this.set_rule(Length, (0..=1600).into());
-        this.set_rule(Gas, (0..=250_000_000_000).into());
-        this.set_rule(Offset, (0..=10).into());
-        this.set_rule(DurationBlockNumber, (1..=8).into());
-        this.set_rule(DelayBlockNumber, (0..=4).into());
-        this.set_rule(Handler, (0..=100).into());
-        this.set_rule(Free, (free_start..=free_end).into());
-        this.set_rule(FreeUpperBound, (0..=10).into());
-        this.set_rule(Version, (1..=1).into());
-
-        this
-    }
-
-    pub fn default_ptr() -> Self {
-        let mut this = Self::empty();
-
-        let range = 0..=100_000_000_000;
-        // Setting ptr params rules.
-        this.set_ptr_rule(PtrParamAllowedValues::Value(range.clone()));
-        this.set_ptr_rule(PtrParamAllowedValues::ActorIdWithValue {
-            actor_kind: ActorKind::default(),
-            range,
-        });
-        this.set_ptr_rule(PtrParamAllowedValues::ActorId(ActorKind::default()));
-
-        this
-    }
-
-    pub fn empty() -> Self {
+    pub fn new() -> Self {
         Self {
             regular: HashMap::new(),
             ptr: HashMap::new(),
         }
     }
 
+    pub fn with_default_regular_config(self) -> Self {
+        use RegularParamType::*;
+
+        let free_start = DEFAULT_INITIAL_SIZE as i64;
+        let free_end = free_start + 5;
+
+        // Setting regular params rules.
+        self
+            .with_rule(Length, (0..=1600).into())
+            .with_rule(Gas, (0..=250_000_000_000).into())
+            .with_rule(Offset, (0..=10).into())
+            .with_rule(DurationBlockNumber, (1..=8).into())
+            .with_rule(DelayBlockNumber, (0..=4).into())
+            .with_rule(Handler, (0..=100).into())
+            .with_rule(Free, (free_start..=free_end).into())
+            .with_rule(FreeUpperBound, (0..=10).into())
+            .with_rule(Version, (1..=1).into())
+    }
+
+    pub fn with_default_ptr_config(self) -> Self {
+        let range = 0..=100_000_000_000;
+        // Setting ptr params rules.
+        self
+            .with_ptr_rule(PtrParamAllowedValues::Value(range.clone()))
+            .with_ptr_rule(PtrParamAllowedValues::ActorIdWithValue {
+                actor_kind: ActorKind::default(),
+                range,
+            })
+            .with_ptr_rule(PtrParamAllowedValues::ActorId(ActorKind::default()))
+    }
+
+    /// Set rules for a regular syscall param.
+    pub fn with_rule(
+        mut self,
+        param: RegularParamType,
+        allowed_values: RegularParamAllowedValues,
+    ) -> Self {
+        matches!(param, RegularParamType::Pointer(_))
+            .then(|| panic!("Rules for pointers are defined in `set_ptr_rule` method."));
+
+        self.regular.insert(param, allowed_values);
+
+        self
+    }
+
+    /// Set rules for memory pointer syscall param.
+    pub fn with_ptr_rule(mut self, allowed_values: PtrParamAllowedValues) -> Self {
+        let ptr = match allowed_values {
+            PtrParamAllowedValues::Value(_) => Ptr::Value,
+            PtrParamAllowedValues::ActorIdWithValue { .. } => Ptr::HashWithValue(HashType::ActorId),
+            PtrParamAllowedValues::ActorId(_) => Ptr::Hash(HashType::ActorId),
+        };
+
+        self.ptr.insert(ptr, allowed_values);
+
+        self
+    }
+
+    /// Get allowed values for the regular syscall param.
+    pub fn get_rule(&self, param: RegularParamType) -> Option<RegularParamAllowedValues> {
+        self.regular.get(&param).cloned()
+    }
+
+    /// Get allowed values for the pointer syscall param.
+    pub fn get_ptr_rule(&self, ptr: Ptr) -> Option<PtrParamAllowedValues> {
+        self.ptr.get(&ptr).cloned()
+    }
+}
+
+impl SyscallsParamsConfig {
     /// New [`SyscallsParamsConfig`] with all rules set to produce one constant value
     /// for regular (non memory ptr value) params.
-    pub fn const_regular_params(value: i64) -> Self {
+    #[cfg(test)]
+    pub(crate) fn const_regular_params(value: i64) -> Self {
         use RegularParamType::*;
 
         let allowed_values: RegularParamAllowedValues = (value..=value).into();
@@ -124,43 +158,13 @@ impl SyscallsParamsConfig {
             ptr: HashMap::new(),
         }
     }
-
-    /// Get allowed values for the regular syscall param.
-    pub fn get_rule(&self, param: RegularParamType) -> Option<RegularParamAllowedValues> {
-        self.regular.get(&param).cloned()
-    }
-
-    /// Get allowed values for the pointer syscall param.
-    pub fn get_ptr_rule(&self, ptr: Ptr) -> Option<PtrParamAllowedValues> {
-        self.ptr.get(&ptr).cloned()
-    }
-
-    /// Set rules for a regular syscall param.
-    pub fn set_rule(&mut self, param: RegularParamType, allowed_values: RegularParamAllowedValues) {
-        matches!(param, RegularParamType::Pointer(_))
-            .then(|| panic!("Rules for pointers are defined in `set_ptr_rule` method."));
-
-        self.regular.insert(param, allowed_values);
-    }
-
-    /// Set rules for memory pointer syscall param.
-    pub fn set_ptr_rule(&mut self, allowed_values: PtrParamAllowedValues) {
-        let ptr = match allowed_values {
-            PtrParamAllowedValues::Value(_) => Ptr::Value,
-            PtrParamAllowedValues::ActorIdWithValue { .. } => Ptr::HashWithValue(HashType::ActorId),
-            PtrParamAllowedValues::ActorId(_) => Ptr::Hash(HashType::ActorId),
-        };
-
-        self.ptr.insert(ptr, allowed_values);
-    }
 }
 
 impl Default for SyscallsParamsConfig {
     fn default() -> Self {
-        let SyscallsParamsConfig { regular, .. } = Self::default_regular();
-        let SyscallsParamsConfig { ptr, .. } = Self::default_ptr();
-
-        Self { regular, ptr }
+        Self::new()
+            .with_default_regular_config()
+            .with_default_regular_config()
     }
 }
 

@@ -228,12 +228,13 @@ pub fn get_wasm_gen_config(
         .into_iter(),
     );
 
-    let mut params_config = SyscallsParamsConfig::default_regular();
-    params_config.set_rule(RegularParamType::Alloc, (1..=10).into());
-    params_config.set_rule(
-        RegularParamType::Free,
-        (initial_pages..=initial_pages + 50).into(),
-    );
+    let params_config = SyscallsParamsConfig::new()
+        .with_default_regular_config()
+        .with_rule(RegularParamType::Alloc, (1..=10).into())
+        .with_rule(
+            RegularParamType::Free,
+            (initial_pages..=initial_pages + 50).into(),
+        );
 
     StandardGearWasmConfigsBundle {
         log_info: Some(format!("Gear program seed = '{seed}'")),

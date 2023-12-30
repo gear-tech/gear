@@ -179,8 +179,9 @@ fn test_source_as_address_param() {
     rng.fill_bytes(&mut buf);
     let mut unstructured = Unstructured::new(&buf);
 
-    let mut params_config = SyscallsParamsConfig::default_regular();
-    params_config.set_ptr_rule(PtrParamAllowedValues::ActorId(ActorKind::Source));
+    let params_config = SyscallsParamsConfig::new()
+        .with_default_regular_config()
+        .with_ptr_rule(PtrParamAllowedValues::ActorId(ActorKind::Source));
 
     let mut injection_types = SyscallsInjectionTypes::all_never();
     injection_types.set(InvocableSyscall::Loose(SyscallName::Exit), 1, 1);
@@ -206,11 +207,12 @@ fn test_existing_address_as_address_param() {
     let mut unstructured = Unstructured::new(&buf);
 
     let some_address = [5; 32];
-    let mut params_config = SyscallsParamsConfig::default_regular();
-    params_config.set_ptr_rule(PtrParamAllowedValues::ActorIdWithValue {
-        actor_kind: ActorKind::ExistingAddresses(NonEmpty::new(some_address)),
-        range: 0..=0,
-    });
+    let params_config = SyscallsParamsConfig::new()
+        .with_default_regular_config()
+        .with_ptr_rule(PtrParamAllowedValues::ActorIdWithValue {
+            actor_kind: ActorKind::ExistingAddresses(NonEmpty::new(some_address)),
+            range: 0..=0,
+        });
 
     let mut injection_types = SyscallsInjectionTypes::all_never();
     injection_types.set(InvocableSyscall::Loose(SyscallName::Send), 1, 1);
@@ -255,8 +257,9 @@ fn test_msg_value_ptr() {
     rng.fill_bytes(&mut buf);
     let mut unstructured = Unstructured::new(&buf);
 
-    let mut params_config = SyscallsParamsConfig::default_regular();
-    params_config.set_ptr_rule(PtrParamAllowedValues::Value(REPLY_VALUE..=REPLY_VALUE));
+    let params_config = SyscallsParamsConfig::new()
+        .with_default_regular_config()
+        .with_ptr_rule(PtrParamAllowedValues::Value(REPLY_VALUE..=REPLY_VALUE));
 
     let mut injection_types = SyscallsInjectionTypes::all_never();
     injection_types.set(InvocableSyscall::Loose(SyscallName::Reply), 1, 1);
@@ -310,12 +313,13 @@ fn test_msg_value_ptr_dest() {
         ActorKind::ExistingAddresses(NonEmpty::new(some_address)),
     ];
     for dest_var in destination_variants {
-        let mut params_config = SyscallsParamsConfig::default_regular();
-        params_config.set_rule(RegularParamType::Gas, (0..=0).into());
-        params_config.set_ptr_rule(PtrParamAllowedValues::ActorIdWithValue {
-            actor_kind: dest_var.clone(),
-            range: REPLY_VALUE..=REPLY_VALUE,
-        });
+        let params_config = SyscallsParamsConfig::new()
+            .with_default_regular_config()
+            .with_rule(RegularParamType::Gas, (0..=0).into())
+            .with_ptr_rule(PtrParamAllowedValues::ActorIdWithValue {
+                actor_kind: dest_var.clone(),
+                range: REPLY_VALUE..=REPLY_VALUE,
+            });
 
         for syscall in tested_syscalls {
             let mut rng = SmallRng::seed_from_u64(123);
@@ -466,8 +470,9 @@ fn precise_syscalls_works() {
         let mut injection_types = SyscallsInjectionTypes::all_never();
         injection_types.set(syscall, INJECTED_SYSCALLS, INJECTED_SYSCALLS);
 
-        let mut param_config = SyscallsParamsConfig::default_regular();
-        param_config.set_rule(RegularParamType::Gas, (0..=0).into());
+        let param_config = SyscallsParamsConfig::new()
+            .with_default_regular_config()
+            .with_rule(RegularParamType::Gas, (0..=0).into());
 
         // Assert that syscalls results will be processed.
         let termination_reason = execute_wasm_with_custom_configs(

@@ -421,15 +421,16 @@ fn config(programs: &[ProgramId], log_info: Option<String>) -> StandardGearWasmC
         .into_iter(),
     );
 
-    let mut params_config = SyscallsParamsConfig::default_regular();
-    params_config.set_rule(RegularParamType::Alloc, (10..=20).into());
-    params_config.set_rule(
-        RegularParamType::Free,
-        (initial_pages..=initial_pages + 35).into(),
-    );
-    params_config.set_ptr_rule(PtrParamAllowedValues::Value(0..=0));
+    let mut params_config = SyscallsParamsConfig::new()
+        .with_default_regular_config()
+        .with_rule(RegularParamType::Alloc, (10..=20).into())
+        .with_rule(
+            RegularParamType::Free,
+            (initial_pages..=initial_pages + 35).into(),
+        )
+        .with_ptr_rule(PtrParamAllowedValues::Value(0..=0));
 
-    let syscall_destination = NonEmpty::collect(
+    let actor_kind = NonEmpty::collect(
         programs
             .iter()
             .copied()
@@ -439,13 +440,14 @@ fn config(programs: &[ProgramId], log_info: Option<String>) -> StandardGearWasmC
     .map(ActorKind::ExistingAddresses)
     .unwrap_or(ActorKind::Source);
 
-    log::trace!("Messages destination config: {:?}", syscall_destination);
+    log::trace!("Messages destination config: {:?}", actor_kind);
 
-    params_config.set_ptr_rule(PtrParamAllowedValues::ActorId(syscall_destination.clone()));
-    params_config.set_ptr_rule(PtrParamAllowedValues::ActorIdWithValue {
-        actor_kind: syscall_destination.clone(),
-        range: 0..=0,
-    });
+    params_config = params_config
+        .with_ptr_rule(PtrParamAllowedValues::ActorId(actor_kind.clone()))
+        .with_ptr_rule(PtrParamAllowedValues::ActorIdWithValue {
+            actor_kind: actor_kind.clone(),
+            range: 0..=0,
+        });
 
     StandardGearWasmConfigsBundle {
         entry_points_set: EntryPointsSet::InitHandleHandleReply,
