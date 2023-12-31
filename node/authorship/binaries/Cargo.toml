@@ -1,0 +1,14 @@
+[package]
+name = "gear-authorship-binaries"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+
+[dependencies]
+demo-mul-by-const = { workspace = true, features = ["debug"] }
+
+[build-dependencies]
+wasm-dep-builder.workspace = true

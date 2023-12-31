@@ -28,6 +28,7 @@ use common::Program;
 use core::convert::TryFrom;
 use frame_support::{storage::storage_prefix, traits::PalletInfoAccess};
 use futures::executor::block_on;
+use gear_authorship_binaries::*;
 use runtime_primitives::BlockNumber;
 use sc_client_api::Backend;
 use sc_transaction_pool::BasicPool;

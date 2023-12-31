@@ -41,6 +41,7 @@ sp-inherents = { workspace = true, features = ["std"] }
 prometheus-endpoint.workspace = true
 
 [dev-dependencies]
+gear-authorship-binaries = { path = "binaries" }
 common = { workspace = true, features = ["std"] }
 sc-transaction-pool.workspace = true
 frame-support = { workspace = true, features = ["std"] }
@@ -57,6 +58,5 @@ pallet-gear-messenger  = { workspace = true, features = ["std"] }
 pallet-gear-program = { workspace = true, features = ["std"] }
 testing.workspace = true
 vara-runtime  = { workspace = true, features = ["std", "dev"] }
-demo-mul-by-const = { workspace = true, features = ["debug"] }
 env_logger.workspace = true
 service = { workspace = true, features = ["vara-native"] }
