@@ -7826,6 +7826,7 @@ dependencies = [
  "pallet-balances",
  "pallet-gear",
  "pallet-gear-bank",
+ "pallet-gear-debug-binaries",
  "pallet-gear-gas",
  "pallet-gear-messenger",
  "pallet-gear-program",
@@ -7839,8 +7840,15 @@ dependencies = [
  "sp-io",
  "sp-runtime",
  "sp-std 5.0.0",
- "test-syscalls",
  "wabt",
+]
+
+[[package]]
+name = "pallet-gear-debug-binaries"
+version = "1.0.4"
+dependencies = [
+ "test-syscalls",
+ "wasm-dep-builder",
 ]
 
 [[package]]

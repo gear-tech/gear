@@ -34,6 +34,7 @@ pallet-balances.workspace = true
 pallet-authorship.workspace = true
 
 [dev-dependencies]
+pallet-gear-debug-binaries = { path = "binaries", features = ["std"] }
 serde.workspace = true
 env_logger.workspace = true
 common = { workspace = true, features = ["std"] }
@@ -48,7 +49,6 @@ pallet-gear-scheduler = { workspace = true, features = ["std"] }
 pallet-gear-program = { workspace = true, features = ["std"] }
 gear-wasm-instrument.workspace = true
 demo-vec.workspace = true
-test-syscalls.workspace = true
 
 [features]
 default = ['std']
@@ -68,7 +68,6 @@ std = [
 	"pallet-authorship/std",
 	"primitive-types/std",
 	"pallet-gear/std",
-	"test-syscalls/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",
