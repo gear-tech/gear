@@ -20,6 +20,7 @@
 
 use gear_core::ids::{CodeId, ProgramId};
 use gsdk::{Api, Error, Result};
+use gsdk_binaries::*;
 use jsonrpsee::types::error::{CallError, ErrorObject};
 use parity_scale_codec::Encode;
 use std::{borrow::Cow, process::Command, str::FromStr};

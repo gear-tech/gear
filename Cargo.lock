@@ -4816,6 +4816,7 @@ dependencies = [
  "gear-core",
  "gear-core-errors",
  "gsdk",
+ "gsdk-binaries",
  "gsdk-codegen",
  "hex",
  "indexmap 2.1.0",
@@ -4853,6 +4854,14 @@ dependencies = [
  "subxt-codegen",
  "subxt-metadata",
  "syn 2.0.41",
+]
+
+[[package]]
+name = "gsdk-binaries"
+version = "1.0.4"
+dependencies = [
+ "demo-waiter",
+ "wasm-dep-builder",
 ]
 
 [[package]]

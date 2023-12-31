@@ -42,6 +42,7 @@ rand = { workspace = true, optional = true }
 
 [dev-dependencies]
 gsdk = { path = ".", features = ["testing"] }
+gsdk-binaries = { path = "binaries" }
 tokio = { workspace = true, features = [ "full" ] }
 demo-messager.workspace = true
 demo-new-meta.workspace = true

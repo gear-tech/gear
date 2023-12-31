@@ -1,0 +1,17 @@
+[package]
+name = "gsdk-binaries"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+
+[lib]
+crate-type = ["lib", "cdylib"]
+
+[dependencies]
+demo-waiter.workspace = true
+
+[build-dependencies]
+wasm-dep-builder.workspace = true
