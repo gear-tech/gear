@@ -76,7 +76,7 @@ impl Eq for UnderscoreString {}
 
 impl PartialOrd for UnderscoreString {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        self.underscore().partial_cmp(&other.underscore())
+        Some(self.cmp(other))
     }
 }
 

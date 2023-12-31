@@ -23,7 +23,9 @@ use gear_wasm_builder::{
 };
 use std::{
     collections::{BTreeMap, BTreeSet},
-    env, fs,
+    env,
+    fmt::Write,
+    fs,
     path::PathBuf,
     process::Command,
 };
@@ -137,9 +139,10 @@ impl BuildPackages {
     pub fn wasm_binaries(&self) -> String {
         self.packages
             .iter()
-            .map(|(pkg_name, _pkg)| {
+            .fold(String::new(), |mut output, (pkg_name, _pkg)| {
                 let (wasm, wasm_opt) = Self::wasm_paths(pkg_name);
-                format!(
+                let _ = write!(
+                    &mut output,
                     r#"
 pub mod {pkg_name} {{
     pub use ::{pkg_name}::*;
@@ -150,8 +153,8 @@ pub mod {pkg_name} {{
                     "#,
                     wasm.display(),
                     wasm_opt.display()
-                )
+                );
+                output
             })
-            .collect()
     }
 }
