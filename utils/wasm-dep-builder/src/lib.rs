@@ -180,10 +180,13 @@ struct BuilderLockFileConfig {
     features: BTreeSet<String>,
 }
 
+#[derive(Debug)]
 struct DemoLockFile(());
 
+#[derive(Debug)]
 struct BuilderLockFile(());
 
+#[derive(Debug)]
 struct LockFile<T> {
     file: fs::File,
     _marker: PhantomData<T>,
@@ -201,7 +204,7 @@ impl LockFile<()> {
 impl LockFile<DemoLockFile> {
     fn open_for_demo(pkg_name: impl AsRef<str>) -> Self {
         let path = LockFile::path(pkg_name);
-        println!("cargo:warning=[DEMO] {}", path.display());
+        println!("cargo:warning=[DEMO] lock: {}", path.display());
         let file = fs::File::options()
             .create(true)
             .write(true)
@@ -368,10 +371,6 @@ pub fn builder() {
 
                 println!("cargo:warning=rebuilding...");
 
-                lock.write(BuilderLockFileConfig {
-                    features: features.clone(),
-                });
-
                 (RebuildKind::Changed, features)
             }
             Some(LockFileConfig::Builder(BuilderLockFileConfig { features })) => {
@@ -385,6 +384,7 @@ pub fn builder() {
             BuildPackage {
                 rebuild_kind,
                 features,
+                lock,
             },
         );
     }
@@ -397,8 +397,8 @@ pub fn builder() {
 }
 
 pub fn demo() {
-    if env::var("__GEAR_WASM_BUILDER_NO_BUILD").is_ok() {
-        // we entered `gear-wasm-builder`
+    if env::var("__WASM_DEP_BUILDER_NO_BUILD").is_ok() {
+        // we entered `wasm-dep-builder`
         return;
     }
 

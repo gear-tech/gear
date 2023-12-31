@@ -16,7 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{profile, wasm32_target_dir, wasm_projects_dir, UnderscoreString};
+use crate::{
+    profile, wasm32_target_dir, wasm_projects_dir, BuilderLockFile, BuilderLockFileConfig,
+    LockFile, UnderscoreString,
+};
 use gear_wasm_builder::{
     optimize,
     optimize::{OptType, Optimizer},
@@ -40,6 +43,7 @@ pub enum RebuildKind {
 pub struct BuildPackage {
     pub rebuild_kind: RebuildKind,
     pub features: BTreeSet<String>,
+    pub lock: LockFile<BuilderLockFile>,
 }
 
 #[derive(Debug, Default)]
@@ -110,7 +114,15 @@ impl BuildPackages {
         }
     }
 
-    pub fn build(&self) {
+    fn write_configs(&mut self) {
+        for (_, pkg) in self.packages.iter_mut() {
+            pkg.lock.write(BuilderLockFileConfig {
+                features: pkg.features.clone(),
+            })
+        }
+    }
+
+    pub fn build(&mut self) {
         if !self.rebuild_required() {
             return;
         }
@@ -124,7 +136,7 @@ impl BuildPackages {
             .arg("--profile")
             .arg(profile().replace("debug", "dev"))
             .arg("-v")
-            .env("__GEAR_WASM_BUILDER_NO_BUILD", "1")
+            .env("__WASM_DEP_BUILDER_NO_BUILD", "1")
             .env("CARGO_BUILD_TARGET", "wasm32-unknown-unknown")
             .env("CARGO_TARGET_DIR", wasm_projects_dir())
             // remove host flags
@@ -134,6 +146,7 @@ impl BuildPackages {
         assert!(output.status.success());
 
         self.optimize();
+        self.write_configs();
     }
 
     pub fn wasm_binaries(&self) -> String {

@@ -4870,7 +4870,7 @@ dependencies = [
 
 [[package]]
 name = "gsdk-binaries"
-version = "0.1.0"
+version = "1.0.4"
 dependencies = [
  "demo-waiter",
  "wasm-dep-builder",
@@ -7772,7 +7772,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-binaries"
-version = "0.1.0"
+version = "1.0.4"
 dependencies = [
  "demo-async",
  "demo-async-custom-entry",
