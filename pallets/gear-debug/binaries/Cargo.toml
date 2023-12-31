@@ -10,9 +10,6 @@ repository.workspace = true
 [package.metadata.wasm-dep-builder.builder]
 include = ["test-syscalls"]
 
-[lib]
-crate-type = ["lib", "cdylib"]
-
 [dependencies]
 test-syscalls.workspace = true
 

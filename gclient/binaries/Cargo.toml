@@ -7,9 +7,6 @@ license.workspace = true
 homepage.workspace = true
 repository.workspace = true
 
-[lib]
-crate-type = ["lib", "cdylib"]
-
 [dependencies]
 demo-async-tester.workspace = true
 demo-calc-hash-in-one-block.workspace = true

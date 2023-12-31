@@ -3972,11 +3972,11 @@ dependencies = [
 name = "gear-authorship"
 version = "1.0.4"
 dependencies = [
- "demo-mul-by-const",
  "env_logger",
  "frame-support",
  "futures",
  "futures-timer",
+ "gear-authorship-binaries",
  "gear-common",
  "gear-node-testing",
  "gear-runtime-primitives",
@@ -4009,6 +4009,14 @@ dependencies = [
  "sp-timestamp",
  "substrate-prometheus-endpoint",
  "vara-runtime",
+]
+
+[[package]]
+name = "gear-authorship-binaries"
+version = "1.0.4"
+dependencies = [
+ "demo-mul-by-const",
+ "wasm-dep-builder",
 ]
 
 [[package]]
@@ -4862,7 +4870,7 @@ dependencies = [
 
 [[package]]
 name = "gsdk-binaries"
-version = "1.0.4"
+version = "0.1.0"
 dependencies = [
  "demo-waiter",
  "wasm-dep-builder",
