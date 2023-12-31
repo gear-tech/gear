@@ -18,6 +18,7 @@
 
 use demo_meta_io::Wallet;
 use gclient::{EventProcessor, GearApi};
+use gclient_binaries::*;
 use gmeta::MetadataRepr;
 use parity_scale_codec::{Decode, Encode};
 

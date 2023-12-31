@@ -20,6 +20,7 @@
 
 use demo_constructor::{Calls, Scheme, WASM_BINARY};
 use gclient::{EventProcessor, GearApi};
+use gclient_binaries::*;
 use parity_scale_codec::Encode;
 
 #[tokio::test]

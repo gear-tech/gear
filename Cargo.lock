@@ -2270,10 +2270,10 @@ dependencies = [
 name = "demo-node"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder",
  "gstd",
  "gtest",
  "parity-scale-codec",
+ "wasm-dep-builder",
 ]
 
 [[package]]
@@ -3908,23 +3908,13 @@ version = "1.0.4"
 dependencies = [
  "anyhow",
  "async-trait",
- "demo-async-tester",
  "demo-calc-hash",
- "demo-calc-hash-in-one-block",
- "demo-constructor",
- "demo-custom",
- "demo-distributor",
  "demo-meta-io",
- "demo-mul-by-const",
  "demo-new-meta",
- "demo-node",
- "demo-program-factory",
- "demo-proxy",
- "demo-proxy-relay",
- "demo-reserve-gas",
  "demo-wat",
  "env_logger",
  "futures",
+ "gclient-binaries",
  "gear-core",
  "gear-core-errors",
  "gear-utils",
@@ -3942,6 +3932,24 @@ dependencies = [
  "url",
  "wabt",
  "wat",
+]
+
+[[package]]
+name = "gclient-binaries"
+version = "1.0.4"
+dependencies = [
+ "demo-async-tester",
+ "demo-calc-hash-in-one-block",
+ "demo-constructor",
+ "demo-custom",
+ "demo-distributor",
+ "demo-mul-by-const",
+ "demo-node",
+ "demo-program-factory",
+ "demo-proxy",
+ "demo-proxy-relay",
+ "demo-reserve-gas",
+ "wasm-dep-builder",
 ]
 
 [[package]]
