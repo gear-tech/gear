@@ -1,22 +1,17 @@
 [package]
-name = "demo-piggy-bank"
-version = "0.1.0"
+name = "gtest-binaries"
+version.workspace = true
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
 homepage.workspace = true
 repository.workspace = true
 
-[lib]
-crate-type = ["lib", "cdylib"]
-
 [dependencies]
-gstd.workspace = true
+demo-custom.workspace = true
+demo-piggy-bank.workspace = true
+demo-ping.workspace = true
+demo-futures-unordered.workspace = true
 
 [build-dependencies]
 wasm-dep-builder.workspace = true
-
-[features]
-debug = ["gstd/debug"]
-default = ["std"]
-std = []

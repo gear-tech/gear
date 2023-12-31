@@ -2288,8 +2288,8 @@ dependencies = [
 name = "demo-piggy-bank"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder",
  "gstd",
+ "wasm-dep-builder",
 ]
 
 [[package]]
@@ -4895,11 +4895,7 @@ name = "gtest"
 version = "0.1.0"
 dependencies = [
  "colored",
- "demo-custom",
- "demo-futures-unordered",
  "demo-meta-io",
- "demo-piggy-bank",
- "demo-ping",
  "derive_more",
  "env_logger",
  "gear-core",
@@ -4910,11 +4906,23 @@ dependencies = [
  "gear-utils",
  "gear-wasm-instrument",
  "gsys",
+ "gtest-binaries",
  "hex",
  "log",
  "parity-scale-codec",
  "path-clean",
  "rand 0.8.5",
+]
+
+[[package]]
+name = "gtest-binaries"
+version = "1.0.4"
+dependencies = [
+ "demo-custom",
+ "demo-futures-unordered",
+ "demo-piggy-bank",
+ "demo-ping",
+ "wasm-dep-builder",
 ]
 
 [[package]]

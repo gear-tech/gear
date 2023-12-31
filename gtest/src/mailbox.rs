@@ -132,7 +132,7 @@ impl<'a> MessageReplier<'a> {
 mod tests {
     use std::convert::TryInto;
 
-    use crate::{program::ProgramIdWrapper, Log, Program, System};
+    use crate::{binaries::*, program::ProgramIdWrapper, Log, Program, System};
     use codec::Encode;
     use gear_core::{
         ids::MessageId,

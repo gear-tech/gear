@@ -21,7 +21,7 @@ mod builder;
 use crate::builder::{BuildPackage, BuildPackages, RebuildKind};
 use cargo_metadata::MetadataCommand;
 use fs4::FileExt;
-use globset::GlobSet;
+use globset::{Glob, GlobSet};
 use serde::{Deserialize, Serialize};
 use std::{
     cmp::Ordering,
@@ -86,7 +86,7 @@ impl Ord for UnderscoreString {
     }
 }
 
-#[derive(Default, Deserialize)]
+#[derive(Deserialize)]
 #[serde(rename_all = "kebab-case")]
 struct PackageMetadata {
     wasm_dep_builder: Option<WasmDepBuilderMetadata>,
@@ -103,8 +103,7 @@ impl WasmDepBuilderMetadata {
     fn from_value(value: serde_json::Value) -> Option<Self> {
         serde_json::from_value::<Option<PackageMetadata>>(value)
             .unwrap()
-            .unwrap_or_default()
-            .wasm_dep_builder
+            .and_then(|metadata| metadata.wasm_dep_builder)
     }
 }
 
@@ -123,12 +122,22 @@ impl DemoMetadata {
     }
 }
 
-#[derive(Default, Deserialize)]
+#[derive(Deserialize)]
 #[serde(rename_all = "kebab-case")]
 struct BuilderMetadata {
-    include: Option<GlobSet>,
+    #[serde(default = "BuilderMetadata::default_include")]
+    include: GlobSet,
     #[serde(default)]
     exclude: BTreeSet<String>,
+}
+
+impl Default for BuilderMetadata {
+    fn default() -> Self {
+        Self {
+            include: Self::default_include(),
+            exclude: Default::default(),
+        }
+    }
 }
 
 impl BuilderMetadata {
@@ -138,15 +147,19 @@ impl BuilderMetadata {
             .unwrap_or_default()
     }
 
+    fn default_include() -> GlobSet {
+        GlobSet::builder()
+            .add(Glob::new("demo-*").unwrap())
+            .build()
+            .unwrap()
+    }
+
     fn excludes(&self, pkg_name: &str) -> bool {
         self.exclude.contains(pkg_name)
     }
 
     fn includes(&self, pkg_name: &str) -> bool {
-        self.include
-            .as_ref()
-            .map(|set| set.is_match(pkg_name))
-            .unwrap_or(false)
+        self.include.is_match(pkg_name)
     }
 }
 
