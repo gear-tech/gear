@@ -371,10 +371,10 @@ pub fn builder() {
 
                 println!("cargo:warning=rebuilding...");
 
-                (RebuildKind::Changed, features)
+                (RebuildKind::Dirty, features)
             }
             Some(LockFileConfig::Builder(BuilderLockFileConfig { features })) => {
-                (RebuildKind::Still, features.clone())
+                (RebuildKind::Fresh, features.clone())
             }
             None => unreachable!(),
         };

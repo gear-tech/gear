@@ -35,8 +35,8 @@ use std::{
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum RebuildKind {
-    Changed,
-    Still,
+    Fresh,
+    Dirty,
 }
 
 #[derive(Debug)]
@@ -126,7 +126,7 @@ impl BuildPackages {
     fn rebuild_required(&self) -> bool {
         self.packages
             .values()
-            .any(|pkg| pkg.rebuild_kind == RebuildKind::Changed)
+            .any(|pkg| pkg.rebuild_kind == RebuildKind::Dirty)
     }
 
     fn cargo_args(&self) -> impl Iterator<Item = String> + '_ {
@@ -138,7 +138,7 @@ impl BuildPackages {
     fn optimize(&self) {
         self.packages
             .iter()
-            .filter(|(_, pkg)| pkg.rebuild_kind == RebuildKind::Changed)
+            .filter(|(_, pkg)| pkg.rebuild_kind == RebuildKind::Dirty)
             .for_each(|(pkg_name, pkg)| pkg.optimize(pkg_name))
     }
 
