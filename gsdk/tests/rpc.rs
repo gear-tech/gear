@@ -234,7 +234,7 @@ async fn test_runtime_wasm_blob_version() -> Result<()> {
 
 #[tokio::test]
 async fn test_runtime_wasm_blob_version_history() -> Result<()> {
-    let api = Api::new(Some("wss://archive-rpc.vara-network.io:443")).await?;
+    let api = Api::new(Some("wss://archive-rpc.vara.network:443")).await?;
 
     {
         let no_method_block_hash = sp_core::H256::from_str(

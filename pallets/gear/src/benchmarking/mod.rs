@@ -384,6 +384,11 @@ benchmarks! {
     } : {}
 
     #[extra]
+    signal_stack_limit_exceeded_works {
+        syscalls_integrity::signal_stack_limit_exceeded_works::<T>();
+    } : {}
+
+    #[extra]
     check_all {
         syscalls_integrity::main_test::<T>();
         tests::check_stack_overflow::<T>();

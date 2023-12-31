@@ -73,6 +73,7 @@ wasm-wrapper = [
     "demo-constructor/wasm-wrapper",
     "demo-waiter/wasm-wrapper",
     "demo-init-wait/wasm-wrapper",
+    "demo-signal-entry/wasm-wrapper",
     "test-syscalls/wasm-wrapper",
 ]
 debug = [
@@ -80,5 +81,6 @@ debug = [
     "demo-constructor/debug",
     "demo-waiter/debug",
     "demo-delayed-reservation-sender/debug",
+    "demo-signal-entry/debug",
     "test-syscalls/debug",
 ]

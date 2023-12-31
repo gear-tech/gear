@@ -987,6 +987,7 @@ dependencies = [
  "anyhow",
  "env_logger",
  "gear-core",
+ "gear-wasm-instrument",
  "log",
  "vara-runtime",
  "wabt",
@@ -2190,6 +2191,7 @@ dependencies = [
 name = "demo-messager"
 version = "0.1.0"
 dependencies = [
+ "gcli",
  "gear-wasm-builder",
  "gstd",
 ]
@@ -2402,6 +2404,7 @@ dependencies = [
 name = "demo-signal-entry"
 version = "0.1.0"
 dependencies = [
+ "gcore",
  "gear-core",
  "gstd",
  "gtest",
@@ -4172,9 +4175,9 @@ dependencies = [
 
 [[package]]
 name = "gear-dlmalloc"
-version = "0.1.4"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d5c1d3d820d57acd0c4129b3551f5fe5b01e61c8cb2863bad2b183a4b32dc978"
+checksum = "6b88fcd5524e7ab9f156c17b14e754d6ba122ef9b00586d632d2ae3dbc7bfadb"
 dependencies = [
  "libc",
  "libc-print",
@@ -4207,7 +4210,7 @@ dependencies = [
  "mach",
  "nix 0.26.4",
  "region",
- "sp-wasm-interface",
+ "sp-wasm-interface-common",
  "winapi",
 ]
 
@@ -4393,7 +4396,7 @@ dependencies = [
 
 [[package]]
 name = "gear-sandbox"
-version = "0.1.0"
+version = "1.0.4"
 dependencies = [
  "assert_matches",
  "gear-runtime-interface",
@@ -4402,7 +4405,7 @@ dependencies = [
  "parity-scale-codec",
  "sp-core",
  "sp-std 5.0.0",
- "sp-wasm-interface",
+ "sp-wasm-interface-common",
  "wasmi 0.30.0 (git+https://github.com/gear-tech/wasmi?branch=gear-v0.30.0)",
  "wat",
 ]
@@ -4412,7 +4415,7 @@ name = "gear-sandbox-env"
 version = "1.0.4"
 dependencies = [
  "parity-scale-codec",
- "sp-core",
+ "sp-debug-derive",
  "sp-std 5.0.0",
  "sp-wasm-interface-common",
 ]
@@ -4601,6 +4604,7 @@ dependencies = [
 name = "gear-wasm-instrument"
 version = "1.0.4"
 dependencies = [
+ "derive_more",
  "enum-iterator 1.4.1",
  "gear-core",
  "gwasm-instrument",
@@ -4944,9 +4948,9 @@ dependencies = [
 
 [[package]]
 name = "gwasm-instrument"
-version = "0.2.3"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "69fe7c1db90c8183b2aecb6d3629b2e59b71dfb538d9138f9ae2fa76a2fc0c55"
+checksum = "09c5fda64a6f7f331a6425df8d678dfc542f3135b43e3cc229d431d391ff3c7d"
 dependencies = [
  "gear-wasm",
 ]
