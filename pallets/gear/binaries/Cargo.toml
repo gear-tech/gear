@@ -1,7 +1,11 @@
 [package]
 name = "pallet-gear-binaries"
-version = "0.1.0"
-edition = "2021"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
 
 [package.metadata.wasm-dep-builder.builder]
 include = ["demo-*", "test-syscalls"]
