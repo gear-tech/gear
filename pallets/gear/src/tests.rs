@@ -486,17 +486,13 @@ fn default_wait_lock_timeout() {
 
         run_to_block(expiration_block, None);
 
-        let error_text = if cfg!(any(feature = "debug", debug_assertions)) {
-            format!(
-                "ran into error-reply: {:?}",
-                GstdError::Timeout(
-                    expiration_block.unique_saturated_into(),
-                    expiration_block.unique_saturated_into()
-                )
+        let error_text = format!(
+            "ran into error-reply: {:?}",
+            GstdError::Timeout(
+                expiration_block.unique_saturated_into(),
+                expiration_block.unique_saturated_into()
             )
-        } else {
-            String::from("no info")
-        };
+        );
 
         assert_failed(
             mid,
