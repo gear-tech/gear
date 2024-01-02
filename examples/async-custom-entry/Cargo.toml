@@ -8,7 +8,7 @@ homepage.workspace = true
 repository.workspace = true
 
 [lib]
-crate-type = ["rlib", "cdylib"]
+crate-type = ["lib", "cdylib"]
 
 [dependencies]
 gstd.workspace = true
