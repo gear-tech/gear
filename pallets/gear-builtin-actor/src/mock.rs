@@ -17,8 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate as pallet_gear_builtin_actor;
+use crate::{BuiltinActor, BuiltinActorError, RegisteredBuiltinActor};
 use core::cell::RefCell;
-use core_processor::common::{DispatchOutcome, JournalNote};
 use frame_election_provider_support::{onchain, SequentialPhragmen, VoteWeight};
 use frame_support::{
     construct_runtime, parameter_types,
@@ -30,18 +30,14 @@ use frame_support::{
 };
 use frame_support_test::TestRandomness;
 use frame_system::{self as system, pallet_prelude::BlockNumberFor, EnsureRoot};
-use gear_core::{
-    ids::{BuiltinId, MessageId, ProgramId},
-    message::{ReplyMessage, ReplyPacket, StoredDispatch},
-};
-use pallet_gear::{BuiltinActor, RegisteredBuiltinActor};
+use gear_core::ids::BuiltinId;
 use pallet_session::historical::{self as pallet_session_historical};
 use sp_core::{crypto::key_types, H256};
 use sp_runtime::{
     generic,
     testing::UintAuthorityId,
     traits::{BlakeTwo256, IdentityLookup, OpaqueKeys},
-    DispatchError, KeyTypeId, Perbill, Percent,
+    KeyTypeId, Perbill, Percent,
 };
 use sp_std::convert::{TryFrom, TryInto};
 
@@ -74,9 +70,6 @@ pub(crate) const SESSION_DURATION: u64 = 250;
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub(crate) struct ExecutionTraceFrame {
-    pub message_id: MessageId,
-    pub source: ProgramId,
-    pub actor_id: ProgramId,
     pub builtin_id: BuiltinId,
     pub input: Vec<u8>,
     pub is_success: bool,
@@ -297,110 +290,69 @@ pallet_gear_gas::impl_config!(Test);
 pallet_gear_scheduler::impl_config!(Test);
 pallet_gear_program::impl_config!(Test);
 pallet_gear_messenger::impl_config!(Test, CurrentBlockNumber = Gear);
+pallet_gear::impl_config!(
+    Test,
+    Schedule = GearSchedule,
+    BuiltinRouter = GearBuiltinActor,
+);
 
 pub struct SuccessBuiltinActor {}
-impl BuiltinActor<StoredDispatch, JournalNote> for SuccessBuiltinActor {
-    fn handle(
-        _builtin_id: BuiltinId,
-        dispatch: StoredDispatch,
-        _gas_limit: u64,
-    ) -> Result<Vec<JournalNote>, DispatchError> {
-        let message_id = dispatch.id();
-        let origin = dispatch.source();
-        let actor_id = dispatch.destination();
-
+impl BuiltinActor<Vec<u8>, u64> for SuccessBuiltinActor {
+    fn handle(_builtin_id: BuiltinId, payload: Vec<u8>) -> Result<Vec<u8>, BuiltinActorError> {
         if !in_transaction() {
             DEBUG_EXECUTION_TRACE.with(|d| {
                 d.borrow_mut().push(ExecutionTraceFrame {
-                    message_id,
-                    source: origin,
-                    actor_id,
                     builtin_id: <Self as RegisteredBuiltinActor<_, _>>::ID,
-                    input: dispatch.message().payload_bytes().to_vec(),
+                    input: payload,
                     is_success: true,
                 })
             });
         }
 
-        let mut journal = vec![];
-
-        journal.push(JournalNote::GasBurned {
-            message_id,
-            amount: 1_000_000,
-        });
-
         // Build the reply message
-        let payload = b"Success".to_vec().try_into().expect("Should fit");
-        let reply_id = MessageId::generate_reply(message_id);
-        let packet = ReplyPacket::new(payload, 0);
-        let dispatch =
-            ReplyMessage::from_packet(reply_id, packet).into_dispatch(actor_id, origin, message_id);
+        let payload = b"Success".to_vec();
 
-        journal.push(JournalNote::SendDispatch {
-            message_id,
-            dispatch,
-            delay: 0,
-            reservation: None,
-        });
+        Ok(payload)
+    }
 
-        let outcome = DispatchOutcome::Success;
-        journal.push(JournalNote::MessageDispatched {
-            message_id,
-            source: origin,
-            outcome,
-        });
-
-        journal.push(JournalNote::MessageConsumed(message_id));
-
-        Ok(journal)
+    fn gas_cost(_builtin_id: BuiltinId) -> u64 {
+        100_u64
     }
 }
-impl RegisteredBuiltinActor<StoredDispatch, JournalNote> for SuccessBuiltinActor {
+impl RegisteredBuiltinActor<Vec<u8>, u64> for SuccessBuiltinActor {
     const ID: BuiltinId = BuiltinId(u64::from_le_bytes(*b"bltn/suc"));
 }
 
 pub struct ErrorBuiltinActor {}
-impl BuiltinActor<StoredDispatch, JournalNote> for ErrorBuiltinActor {
-    fn handle(
-        _builtin_id: BuiltinId,
-        dispatch: StoredDispatch,
-        _gas_limit: u64,
-    ) -> Result<Vec<JournalNote>, DispatchError> {
-        let message_id = dispatch.id();
-        let origin = dispatch.source();
-        let actor_id = dispatch.destination();
-
+impl BuiltinActor<Vec<u8>, u64> for ErrorBuiltinActor {
+    fn handle(_builtin_id: BuiltinId, payload: Vec<u8>) -> Result<Vec<u8>, BuiltinActorError> {
         if !in_transaction() {
             DEBUG_EXECUTION_TRACE.with(|d| {
                 d.borrow_mut().push(ExecutionTraceFrame {
-                    message_id,
-                    source: origin,
-                    actor_id,
                     builtin_id: <Self as RegisteredBuiltinActor<_, _>>::ID,
-                    input: dispatch.message().payload_bytes().to_vec(),
+                    input: payload,
                     is_success: false,
                 })
             });
         }
-        Err(DispatchError::Unavailable)
+        Err(BuiltinActorError::UnknownBuiltinId)
+    }
+
+    fn gas_cost(_builtin_id: BuiltinId) -> u64 {
+        1_000_000_u64
     }
 }
-impl RegisteredBuiltinActor<StoredDispatch, JournalNote> for ErrorBuiltinActor {
+impl RegisteredBuiltinActor<Vec<u8>, u64> for ErrorBuiltinActor {
     const ID: BuiltinId = BuiltinId(u64::from_le_bytes(*b"bltn/err"));
 }
-
-pallet_gear::impl_config!(
-    Test,
-    Schedule = GearSchedule,
-    BuiltinRegistry = GearBuiltinActor,
-    BuiltinActor = (SuccessBuiltinActor, ErrorBuiltinActor),
-);
 
 parameter_types! {
     pub const BuiltinActorPalletId: PalletId = PalletId(*b"py/biact");
 }
 
 impl pallet_gear_builtin_actor::Config for Test {
+    type BuiltinActor = (SuccessBuiltinActor, ErrorBuiltinActor);
+    type WeightInfo = ();
     type PalletId = BuiltinActorPalletId;
 }
 

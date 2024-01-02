@@ -59,12 +59,11 @@
 extern crate alloc;
 
 use alloc::vec::Vec;
-use gear_core_errors::SimpleExecutionError;
 use scale_info::scale::{self, Decode, Encode};
 
 pub type AccountId = [u8; 32];
 
-pub use error::{BuiltinActorError, DispatchErrorReason};
+pub use error::DispatchErrorReason;
 
 /// Message processing output
 #[derive(Encode, Decode, Clone, PartialEq, Eq, Debug)]
@@ -82,32 +81,6 @@ impl<T> From<Result<T, DispatchErrorReason>> for Response {
 
 pub mod error {
     use super::*;
-
-    // TODO: review this
-    /// Built-in actor "own" errors (errors in `handle` function itself, like
-    /// decoding errors, insufficient resources etc.)
-    #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq, derive_more::Display)]
-    #[codec(crate = scale)]
-    pub enum BuiltinActorError {
-        /// Occurs if the underlying call has the weight greater than the `gas_limit`.
-        #[display(fmt = "Not enough gas supplied")]
-        InsufficientGas,
-        /// Occurs if the dispatch's message can't be decoded into a known type.
-        #[display(fmt = "Failure to decode message")]
-        UnknownMessageType,
-    }
-
-    // TODO: adjust according the changes in `SimpleExecutionError` that are coming
-    impl From<BuiltinActorError> for SimpleExecutionError {
-        /// Convert [`BuiltinActorError`] into [`gear_core_errors::SimpleExecutionError`].
-        // TODO: should we think of a better mapping?
-        fn from(err: BuiltinActorError) -> Self {
-            match err {
-                BuiltinActorError::InsufficientGas => SimpleExecutionError::RanOutOfGas,
-                BuiltinActorError::UnknownMessageType => SimpleExecutionError::UserspacePanic,
-            }
-        }
-    }
 
     /// Type representing a dispatched Runtime call internal error.
     // TODO: see if we can add more granularity to the error type (e.g. describe the pallet etc.)

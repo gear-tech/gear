@@ -1,6 +1,6 @@
 [package]
 name = "pallet-gear-builtin-actor"
-description = "Built-in runtime actor providing runtime-related logic to program actors"
+description = "Builtin runtime actor providing runtime-related logic to program actors"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
@@ -18,9 +18,12 @@ scale-info = { workspace = true, features = ["derive"] }
 primitive-types = { workspace = true, features = ["scale-info"] }
 serde = { workspace = true, features = ["derive"], optional = true }
 log.workspace = true
+derive_more.workspace = true
+impl-trait-for-tuples.workspace = true
 
-common.workspace = true
+core-processor.workspace = true
 gear-core.workspace = true
+gear-core-errors.workspace = true
 frame-support.workspace = true
 frame-system.workspace = true
 frame-benchmarking = { workspace = true, optional = true }
@@ -32,6 +35,7 @@ pallet-staking.workspace = true
 pallet-gear.workspace = true
 
 [dev-dependencies]
+common = { workspace = true, features = ["std"] }
 demo-waiting-proxy.workspace = true
 sp-core = { workspace = true, features = ["std"] }
 sp-authority-discovery = { workspace = true, features = ["std"] }
@@ -49,14 +53,12 @@ pallet-gear-scheduler = { workspace = true, features = ["std"] }
 frame-executive = { workspace = true, features = ["std"] }
 frame-support-test = { workspace = true, features = ["std"] }
 env_logger.workspace = true
-core-processor = { workspace = true, features = ["std"] }
 hex.workspace = true
 hex-literal.workspace = true
 
 [features]
 default = ["std"]
 std = [
-	"common/std",
 	"frame-benchmarking?/std",
 	"frame-support/std",
 	"frame-system/std",
@@ -75,6 +77,5 @@ runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",
 	"frame-support/runtime-benchmarks",
 	"frame-system/runtime-benchmarks",
-	"common/runtime-benchmarks",
 ]
 try-runtime = ["frame-support/try-runtime"]

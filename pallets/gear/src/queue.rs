@@ -206,24 +206,18 @@ where
             let dispatch_reply = dispatch.reply_details().is_some();
 
             // In case the destination is a builtin actor, process the dispatch differently.
-            if let Some(builtin_id) = T::BuiltinRegistry::lookup(&program_id) {
-                let no_op_handler = |dispatch: StoredDispatch,
-                                     gas_limit: u64|
-                 -> Vec<JournalNote> {
-                    let dispatch = dispatch.into_incoming(gas_limit);
-                    let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
-                    process_non_executable(dispatch, program_id, system_reservation_ctx)
-                };
-
+            if let Some(builtin_id) = T::BuiltinRouter::lookup(&program_id) {
                 let journal = match dispatch.kind() {
                     DispatchKind::Handle => {
-                        T::BuiltinActor::handle(builtin_id, dispatch.clone(), gas_limit)
-                            .unwrap_or_else(|_e| no_op_handler(dispatch, gas_limit))
+                        T::BuiltinRouter::dispatch(builtin_id, dispatch.clone(), gas_limit)
                     }
                     _ => {
                         // Builtin actors can only execute `handle` messages.
                         // All other cases result in no-execution outcome.
-                        no_op_handler(dispatch, gas_limit)
+                        let dispatch = dispatch.into_incoming(gas_limit);
+                        let system_reservation_ctx =
+                            SystemReservationContext::from_dispatch(&dispatch);
+                        process_non_executable(dispatch, program_id, system_reservation_ctx)
                     }
                 };
                 core_processor::handle_journal(journal, &mut ext_manager);

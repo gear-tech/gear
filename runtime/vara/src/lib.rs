@@ -994,8 +994,7 @@ impl pallet_gear::Config for Runtime {
     type BlockLimiter = GearGas;
     type Scheduler = GearScheduler;
     type QueueRunner = Gear;
-    type BuiltinRegistry = GearBuiltinActor;
-    type BuiltinActor = ();
+    type BuiltinRouter = GearBuiltinActor;
     type ProgramRentFreePeriod = ConstU32<{ MONTHS * RENT_FREE_PERIOD_MONTH_FACTOR }>;
     type ProgramResumeMinimalRentPeriod = ConstU32<{ WEEKS * RENT_RESUME_WEEK_FACTOR }>;
     type ProgramRentCostPerBlock = ConstU128<RENT_COST_PER_BLOCK>;
@@ -1042,6 +1041,8 @@ parameter_types! {
 }
 
 impl pallet_gear_builtin_actor::Config for Runtime {
+    type BuiltinActor = ();
+    type WeightInfo = pallet_gear_builtin_actor::weights::SubstrateWeight<Runtime>;
     type PalletId = BuiltinActorPalletId;
 }
 
@@ -1303,6 +1304,7 @@ mod benches {
         // Gear pallets
         [pallet_gear, Gear]
         [pallet_gear_voucher, GearVoucher]
+        [pallet_gear_builtin_actor, GearBuiltinActor]
     );
 }
 

@@ -22,7 +22,6 @@ derive_more.workspace = true
 env_logger = { workspace = true, optional = true }
 scopeguard.workspace = true
 static_assertions.workspace = true
-impl-trait-for-tuples.workspace = true
 
 # Internal deps
 common.workspace = true

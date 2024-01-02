@@ -24,7 +24,7 @@
 //!
 //! ## Overview
 //!
-//! The pallet implements the `pallet_gear::BuiltinLookup` allowing to restore builtin actors
+//! The pallet implements the `pallet_gear::BuiltinRouter` allowing to restore builtin actors
 //! claimed `BuiltinId`'s based on their corresponding `ProgramId` address.
 
 #![cfg_attr(not(feature = "std"), no_std)]
@@ -32,23 +32,108 @@
 
 extern crate alloc;
 
+#[cfg(feature = "runtime-benchmarks")]
+mod benchmarking;
+
+mod migrations;
+
+pub mod weights;
+
 #[cfg(test)]
 mod mock;
 
 #[cfg(test)]
 mod tests;
 
-use common::Origin;
-use gear_core::ids::{BuiltinId, ProgramId};
-use pallet_gear::{BuiltinLookup, RegisteredBuiltinActor};
+use alloc::string::ToString;
+use core_processor::common::{DispatchOutcome, JournalNote};
+use gear_core::{
+    ids::{BuiltinId, MessageId, ProgramId},
+    message::{ReplyMessage, ReplyPacket, StoredDispatch},
+};
+use gear_core_errors::SimpleExecutionError;
+use impl_trait_for_tuples::impl_for_tuples;
+pub use pallet_gear::BuiltinRouter;
 use parity_scale_codec::{Decode, Encode};
 use sp_io::hashing::blake2_256;
-use sp_runtime::traits::TrailingZeroInput;
+use sp_runtime::traits::{TrailingZeroInput, Zero};
+use sp_std::prelude::*;
+pub use weights::WeightInfo;
 
 pub use pallet::*;
 
 #[allow(dead_code)]
 const LOG_TARGET: &str = "gear::builtin_actor";
+
+/// Built-in actor error type
+#[derive(Encode, Decode, Clone, Debug, PartialEq, Eq, derive_more::Display)]
+pub enum BuiltinActorError {
+    /// Occurs if the underlying call has the weight greater than the `gas_limit`.
+    #[display(fmt = "Not enough gas supplied")]
+    InsufficientGas,
+    /// Occurs if the dispatch's message can't be decoded into a known type.
+    #[display(fmt = "Failure to decode message")]
+    UnknownMessageType,
+    /// Occurs if a builtin id doesn't belong to any registered actor.
+    #[display(fmt = "Unknown builtin id")]
+    UnknownBuiltinId,
+}
+
+// TODO: adjust according to potential changes in `SimpleExecutionError` that might be coming
+impl From<BuiltinActorError> for SimpleExecutionError {
+    /// Convert [`BuiltinActorError`] into [`gear_core_errors::SimpleExecutionError`].
+    fn from(err: BuiltinActorError) -> Self {
+        match err {
+            BuiltinActorError::InsufficientGas => SimpleExecutionError::RanOutOfGas,
+            BuiltinActorError::UnknownMessageType => SimpleExecutionError::UserspacePanic,
+            BuiltinActorError::UnknownBuiltinId => SimpleExecutionError::BackendError,
+        }
+    }
+}
+
+pub type BuiltinResult<P> = Result<P, BuiltinActorError>;
+
+/// A trait representing an interface of a builtin actor that can receive a message
+/// and produce a set of outputs that can then be converted into a reply message.
+pub trait BuiltinActor<Payload, Gas: Zero> {
+    /// Handles a message and returns a result.
+    fn handle(builtin_id: BuiltinId, payload: Payload) -> BuiltinResult<Payload>;
+
+    /// Returns the cost incurred by message handling.
+    fn gas_cost(builtin_id: BuiltinId) -> Gas;
+}
+
+pub trait RegisteredBuiltinActor<P, G: Zero>: BuiltinActor<P, G> {
+    /// The global unique ID of the trait implementer type.
+    const ID: BuiltinId;
+}
+
+// Assuming as many as 16 builtin actors for the meantime
+#[impl_for_tuples(16)]
+#[tuple_types_custom_trait_bound(RegisteredBuiltinActor<P, G>)]
+impl<P, G: Zero> BuiltinActor<P, G> for Tuple {
+    fn handle(builtin_id: BuiltinId, payload: P) -> BuiltinResult<P> {
+        for_tuples!(
+            #(
+                if (Tuple::ID == builtin_id) {
+                    return Tuple::handle(builtin_id, payload);
+                }
+            )*
+        );
+        Err(BuiltinActorError::UnknownBuiltinId)
+    }
+
+    fn gas_cost(builtin_id: BuiltinId) -> G {
+        for_tuples!(
+            #(
+                if (Tuple::ID == builtin_id) {
+                    return Tuple::gas_cost(builtin_id);
+                }
+            )*
+        );
+        Zero::zero()
+    }
+}
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -66,17 +151,23 @@ pub mod pallet {
 
     #[pallet::config]
     pub trait Config: frame_system::Config {
-        /// The built-in actor pallet id, used for deriving its sovereign account ID.
+        /// The builtin actor type.
+        type BuiltinActor: BuiltinActor<Vec<u8>, u64>;
+
+        /// Weight cost incurred by builtin actors calls.
+        type WeightInfo: WeightInfo;
+
+        /// The builtin actor pallet id, used for deriving unique actors ids.
         #[pallet::constant]
         type PalletId: Get<PalletId>;
     }
 
-    /// Cached built-in actor program ids to spare redundant computation.
+    /// Builtin actors program ids to builtin ids mapping.
     #[pallet::storage]
     #[pallet::getter(fn actors)]
     pub type Actors<T> = StorageMap<_, Identity, ProgramId, BuiltinId>;
 
-    /// Error for the gear-builtin-actor pallet.
+    /// Errors for the gear-builtin-actor pallet.
     #[pallet::error]
     pub enum Error<T> {
         /// `BuiltinId` already existd.
@@ -140,11 +231,12 @@ pub mod pallet {
         /// This function is supposed to be called during the Runtime upgrade to update the
         /// builtin actors cache (if new actors are being added).
         #[allow(unused)]
-        pub(crate) fn register_actor<B, D, O>() -> DispatchResult
+        pub(crate) fn register_actor<B, P, G>() -> DispatchResult
         where
-            B: RegisteredBuiltinActor<D, O>,
+            B: RegisteredBuiltinActor<P, G>,
+            G: Zero,
         {
-            let builtin_id = <B as RegisteredBuiltinActor<D, O>>::ID;
+            let builtin_id = <B as RegisteredBuiltinActor<P, G>>::ID;
             let actor_id = Self::generate_actor_id(builtin_id);
             ensure!(
                 !Actors::<T>::contains_key(actor_id),
@@ -153,14 +245,129 @@ pub mod pallet {
             Actors::<T>::insert(actor_id, builtin_id);
             Ok(())
         }
+
+        pub fn process_success(
+            dispatch: &StoredDispatch,
+            gas_spent: u64,
+            response_bytes: Vec<u8>,
+        ) -> Vec<JournalNote> {
+            let message_id = dispatch.id();
+            let origin = dispatch.source();
+            let actor_id = dispatch.destination();
+
+            let mut journal = vec![];
+
+            journal.push(JournalNote::GasBurned {
+                message_id,
+                amount: <T as Config>::WeightInfo::base_handle_weight()
+                    .ref_time()
+                    .saturating_add(gas_spent),
+            });
+
+            // Build the reply message
+            let payload = response_bytes
+                .try_into()
+                .unwrap_or_else(|_| unreachable!("Response message is too large"));
+            let reply_id = MessageId::generate_reply(message_id);
+            let packet = ReplyPacket::new(payload, 0);
+            let dispatch = ReplyMessage::from_packet(reply_id, packet)
+                .into_dispatch(actor_id, origin, message_id);
+
+            journal.push(JournalNote::SendDispatch {
+                message_id,
+                dispatch,
+                delay: 0,
+                reservation: None,
+            });
+
+            let outcome = DispatchOutcome::Success;
+            journal.push(JournalNote::MessageDispatched {
+                message_id,
+                source: origin,
+                outcome,
+            });
+
+            journal.push(JournalNote::MessageConsumed(message_id));
+
+            journal
+        }
+
+        // Error in the actor, generates error reply
+        pub fn process_error(
+            dispatch: &StoredDispatch,
+            err: BuiltinActorError,
+        ) -> Vec<JournalNote> {
+            let message_id = dispatch.id();
+            let origin = dispatch.source();
+            let actor_id = dispatch.destination();
+
+            let mut journal = vec![];
+
+            // No call dispatced, so no gas burned except for the base
+            journal.push(JournalNote::GasBurned {
+                message_id,
+                amount: <T as Config>::WeightInfo::base_handle_weight().ref_time(),
+            });
+
+            let err_payload = err
+                .to_string()
+                .into_bytes()
+                .try_into()
+                .unwrap_or_else(|_| unreachable!("Error message is too large"));
+            let err: SimpleExecutionError = err.into();
+
+            let dispatch = ReplyMessage::system(message_id, err_payload, err)
+                .into_dispatch(actor_id, origin, message_id);
+
+            journal.push(JournalNote::SendDispatch {
+                message_id,
+                dispatch,
+                delay: 0,
+                reservation: None,
+            });
+
+            let outcome = DispatchOutcome::MessageTrap {
+                program_id: actor_id,
+                trap: err.to_string(),
+            };
+            journal.push(JournalNote::MessageDispatched {
+                message_id,
+                source: origin,
+                outcome,
+            });
+
+            journal.push(JournalNote::MessageConsumed(message_id));
+
+            journal
+        }
     }
 }
 
-impl<T: Config> BuiltinLookup<ProgramId> for Pallet<T>
-where
-    T::AccountId: Origin,
-{
+impl<T: Config> BuiltinRouter<ProgramId> for Pallet<T> {
+    type Dispatch = StoredDispatch;
+    type Output = JournalNote;
+
     fn lookup(id: &ProgramId) -> Option<BuiltinId> {
         Self::actors(id)
+    }
+
+    fn dispatch(
+        builtin_id: BuiltinId,
+        dispatch: StoredDispatch,
+        gas_limit: u64,
+    ) -> Vec<Self::Output> {
+        // Check gas_limit upfront
+        let gas_cost = <T as Config>::BuiltinActor::gas_cost(builtin_id);
+        if gas_cost > gas_limit {
+            return Self::process_error(&dispatch, BuiltinActorError::InsufficientGas);
+        }
+
+        let payload = dispatch.payload_bytes().to_vec();
+
+        // Do message processing
+        <T as Config>::BuiltinActor::handle(builtin_id, payload).map_or_else(
+            |err| Self::process_error(&dispatch, err),
+            |response_bytes| Self::process_success(&dispatch, gas_cost, response_bytes),
+        )
     }
 }

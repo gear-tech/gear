@@ -156,24 +156,18 @@ where
                 .map_err(|_| b"Internal error: unable to get gas limit".to_vec())?;
             let mut skip_if_allowed = false;
 
-            let journal = if let Some(builtin_id) = T::BuiltinRegistry::lookup(&actor_id) {
-                let no_op_handler = |dispatch: StoredDispatch,
-                                     gas_limit: u64|
-                 -> Vec<JournalNote> {
-                    let dispatch = dispatch.into_incoming(gas_limit);
-                    let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
-                    process_non_executable(dispatch, actor_id, system_reservation_ctx)
-                };
-
+            let journal = if let Some(builtin_id) = T::BuiltinRouter::lookup(&actor_id) {
                 match queued_dispatch.kind() {
                     DispatchKind::Handle => {
-                        T::BuiltinActor::handle(builtin_id, queued_dispatch.clone(), gas_limit)
-                            .unwrap_or_else(|_e| no_op_handler(queued_dispatch, gas_limit))
+                        T::BuiltinRouter::dispatch(builtin_id, queued_dispatch.clone(), gas_limit)
                     }
                     _ => {
                         // Builtin actors can only execute `handle` messages.
                         // All other cases result in no-execution outcome.
-                        no_op_handler(queued_dispatch, gas_limit)
+                        let dispatch = queued_dispatch.into_incoming(gas_limit);
+                        let system_reservation_ctx =
+                            SystemReservationContext::from_dispatch(&dispatch);
+                        process_non_executable(dispatch, actor_id, system_reservation_ctx)
                     }
                 }
             } else {

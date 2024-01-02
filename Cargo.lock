@@ -7731,7 +7731,6 @@ dependencies = [
  "gstd",
  "gsys",
  "hex",
- "impl-trait-for-tuples",
  "log",
  "page_size",
  "pallet-authorship",
@@ -7786,6 +7785,7 @@ name = "pallet-gear-builtin-actor"
 version = "1.0.4"
 dependencies = [
  "demo-waiting-proxy",
+ "derive_more",
  "env_logger",
  "frame-benchmarking",
  "frame-election-provider-support",
@@ -7795,9 +7795,11 @@ dependencies = [
  "frame-system",
  "gear-common",
  "gear-core",
+ "gear-core-errors",
  "gear-core-processor",
  "hex",
  "hex-literal",
+ "impl-trait-for-tuples",
  "log",
  "pallet-authorship",
  "pallet-bags-list",

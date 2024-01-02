@@ -18,49 +18,36 @@
 
 use super::*;
 use gear_core::ids::BuiltinId;
-use impl_trait_for_tuples::impl_for_tuples;
-use sp_runtime::DispatchError;
 
 /// A trait representing a registry that provides methods to lookup a builtin actor
-pub trait BuiltinLookup<ActorId> {
+pub trait BuiltinRouter<ActorId> {
+    type Dispatch;
+    type Output;
+
     /// Returns available actors identifiers.
     fn lookup(id: &ActorId) -> Option<BuiltinId>;
+
+    /// Handles a builtin actor dispatch and returns an order sequence of outputs.
+    fn dispatch(
+        builtin_id: BuiltinId,
+        dispatch: Self::Dispatch,
+        gas_limit: u64,
+    ) -> Vec<Self::Output>;
 }
 
-impl<ActorId> BuiltinLookup<ActorId> for () {
+impl<ActorId> BuiltinRouter<ActorId> for () {
+    type Dispatch = StoredDispatch;
+    type Output = JournalNote;
+
     fn lookup(_id: &ActorId) -> Option<BuiltinId> {
         None
     }
-}
 
-/// A trait representing an interface of a builtin actor that can receive a message
-/// and produce a set of outputs that can then be converted into a reply message.
-pub trait BuiltinActor<Dispatch, Output> {
-    /// Handles a message and returns an ordered sequence of outputs.
-    fn handle(
-        builtin_id: BuiltinId,
-        dispatch: Dispatch,
-        gas_limit: u64,
-    ) -> Result<Vec<Output>, DispatchError>;
-}
-
-pub trait RegisteredBuiltinActor<Dispatch, Output>: BuiltinActor<Dispatch, Output> {
-    /// The global unique ID of the trait implementer type
-    const ID: BuiltinId;
-}
-
-// Assuming as many as 16 builtin actors for the meantime
-#[impl_for_tuples(16)]
-#[tuple_types_custom_trait_bound(RegisteredBuiltinActor<D, O>)]
-impl<D, O> BuiltinActor<D, O> for Tuple {
-    fn handle(builtin_id: BuiltinId, dispatch: D, gas_limit: u64) -> Result<Vec<O>, DispatchError> {
-        for_tuples!(
-            #(
-                if (Tuple::ID == builtin_id) {
-                    return Tuple::handle(builtin_id, dispatch, gas_limit);
-                }
-            )*
-        );
-        Err(DispatchError::Unavailable)
+    fn dispatch(
+        _builtin_id: BuiltinId,
+        _dispatch: Self::Dispatch,
+        _gas_limit: u64,
+    ) -> Vec<Self::Output> {
+        Default::default()
     }
 }

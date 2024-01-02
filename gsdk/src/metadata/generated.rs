@@ -3033,7 +3033,7 @@ pub mod runtime_types {
             pub mod pallet {
                 use super::runtime_types;
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-                #[doc = "Error for the gear-builtin-actor pallet."]
+                #[doc = "Errors for the gear-builtin-actor pallet."]
                 pub enum Error {
                     #[codec(index = 0)]
                     #[doc = "`BuiltinId` already existd."]
