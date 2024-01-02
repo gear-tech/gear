@@ -17,8 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    profile, wasm32_target_dir, wasm_projects_dir, BuilderLockFile, BuilderLockFileConfig,
-    LockFile, UnderscoreString,
+    no_build, profile, wasm32_target_dir, wasm_projects_dir, BuilderLockFile,
+    BuilderLockFileConfig, LockFile, UnderscoreString,
 };
 use gear_wasm_builder::{
     optimize,
@@ -96,19 +96,26 @@ impl BuildPackage {
     }
 
     fn write_rust_mod(&self, pkg_name: &UnderscoreString, output: &mut String) {
-        let (wasm, wasm_opt) = Self::wasm_paths(pkg_name);
+        let (wasm_bloaty, wasm) = if no_build() {
+            ("&[]".to_string(), "&[]".to_string())
+        } else {
+            let (wasm_bloaty, wasm) = Self::wasm_paths(pkg_name);
+            (
+                format!(r#"include_bytes!("{}")"#, wasm_bloaty.display()),
+                format!(r#"include_bytes!("{}")"#, wasm.display()),
+            )
+        };
+
         let _ = write!(
             output,
             r#"
 pub mod {pkg_name} {{
     pub use ::{pkg_name}::*;
     
-    pub const WASM_BINARY_BLOATY: &[u8] = include_bytes!("{}");
-    pub const WASM_BINARY: &[u8] = include_bytes!("{}");
+    pub const WASM_BINARY_BLOATY: &[u8] = {wasm_bloaty};
+    pub const WASM_BINARY: &[u8] = {wasm};
 }}
                     "#,
-            wasm.display(),
-            wasm_opt.display()
         );
     }
 }
@@ -149,7 +156,8 @@ impl BuildPackages {
     }
 
     pub fn build(&mut self) {
-        if !self.rebuild_required() {
+        if no_build() || !self.rebuild_required() {
+            println!("cargo:warning=Build skipped");
             return;
         }
 
@@ -162,7 +170,7 @@ impl BuildPackages {
             .arg("--profile")
             .arg(profile().replace("debug", "dev"))
             .arg("-v")
-            .env("__WASM_DEP_BUILDER_NO_BUILD", "1")
+            .env("__GEAR_WASM_BUILDER_NO_BUILD=1", "1")
             .env("CARGO_BUILD_TARGET", "wasm32-unknown-unknown")
             .env("CARGO_TARGET_DIR", wasm_projects_dir())
             // remove host flags

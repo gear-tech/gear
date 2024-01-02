@@ -289,13 +289,19 @@ fn wasm32_target_dir() -> PathBuf {
     wasm_projects_dir().join("wasm32-unknown-unknown")
 }
 
+fn no_build() -> bool {
+    env::var("__GEAR_WASM_BUILDER_NO_BUILD").is_ok()
+}
+
 pub fn builder() {
+    println!("cargo:rerun-if-env-changed=__GEAR_WASM_BUILDER_NO_BUILD");
+
     let manifest_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
     let manifest_dir: PathBuf = manifest_dir.into();
     let pkg_name = env::var("CARGO_PKG_NAME").unwrap();
     let out_dir = out_dir();
-    let wasm32_target_dir = wasm32_target_dir().join(profile());
 
+    let wasm32_target_dir = wasm32_target_dir().join(profile());
     fs::create_dir_all(&wasm32_target_dir).unwrap();
 
     // track if demo is being added or removed
@@ -324,6 +330,8 @@ pub fn builder() {
             .iter()
             .find(|pkg| pkg.name == dep.name)
             .unwrap();
+
+        println!("cargo:rerun-if-changed={}", pkg.manifest_path);
 
         // check if demo has this crate as dependency
         let contains = pkg
@@ -369,8 +377,6 @@ pub fn builder() {
                     .map(|s| s.0)
                     .collect();
 
-                println!("cargo:warning=rebuilding...");
-
                 (RebuildKind::Dirty, features)
             }
             Some(LockFileConfig::Builder(BuilderLockFileConfig { features })) => {
@@ -397,7 +403,7 @@ pub fn builder() {
 }
 
 pub fn demo() {
-    if env::var("__WASM_DEP_BUILDER_NO_BUILD").is_ok() {
+    if no_build() {
         // we entered `wasm-dep-builder`
         return;
     }
