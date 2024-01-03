@@ -77,7 +77,7 @@ where
     assert_eq!(
         code,
         ReplyCode::Error(ErrorReplyReason::Execution(
-            SimpleExecutionError::UnreachableInstruction
+            SimpleExecutionError::StackLimitExceeded
         ))
     );
 }

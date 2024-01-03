@@ -96,7 +96,7 @@ pub enum SyscallName {
     Alloc,
     Free,
     FreeRange,
-    OutOfGas,
+    SystemBreak,
 
     // Miscellaneous
     ReplyDeposit,
@@ -127,7 +127,7 @@ impl SyscallName {
             SyscallName::GasAvailable => "gr_gas_available",
             SyscallName::Leave => "gr_leave",
             SyscallName::MessageId => "gr_message_id",
-            SyscallName::OutOfGas => "gr_out_of_gas",
+            SyscallName::SystemBreak => "gr_system_break",
             SyscallName::PayProgramRent => "gr_pay_program_rent",
             SyscallName::ProgramId => "gr_program_id",
             SyscallName::Random => "gr_random",
@@ -528,7 +528,7 @@ impl SyscallName {
                 Ptr::Hash(HashType::SubjectId).into(),
                 Ptr::MutBlockNumberWithHash(HashType::SubjectId).into(),
             ]),
-            Self::OutOfGas => unimplemented!("Unsupported syscall signature for out_of_gas"),
+            Self::SystemBreak => unimplemented!("Unsupported syscall signature for system_break"),
         }
     }
 
@@ -771,15 +771,9 @@ mod pointers {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
     pub enum Ptr {
         // Const ptrs.
-        BlockNumber,
-        BlockTimestamp,
         SizedBufferStart { length_param_idx: usize },
-        BufferStart,
         Hash(HashType),
-        Gas,
-        Length,
         Value,
-        BlockNumberWithHash(HashType),
         HashWithValue(HashType),
         TwoHashes(HashType, HashType),
         TwoHashesWithValue(HashType, HashType),
@@ -793,9 +787,6 @@ mod pointers {
         MutLength,
         MutValue,
         MutBlockNumberWithHash(HashType),
-        MutHashWithValue(HashType),
-        MutTwoHashes(HashType, HashType),
-        MutTwoHashesWithValue(HashType, HashType),
     }
 
     impl Ptr {
@@ -803,15 +794,9 @@ mod pointers {
             use Ptr::*;
 
             match self {
-                BlockNumber
-                | BlockTimestamp
-                | SizedBufferStart { .. }
-                | BufferStart
+                SizedBufferStart { .. }
                 | Hash(_)
-                | Gas
-                | Length
                 | Value
-                | BlockNumberWithHash(_)
                 | HashWithValue(_)
                 | TwoHashes(_, _)
                 | TwoHashesWithValue(_, _) => false,
@@ -823,10 +808,7 @@ mod pointers {
                 | MutGas
                 | MutLength
                 | MutValue
-                | MutBlockNumberWithHash(_)
-                | MutHashWithValue(_)
-                | MutTwoHashes(_, _)
-                | MutTwoHashesWithValue(_, _) => true,
+                | MutBlockNumberWithHash(_) => true,
             }
         }
     }

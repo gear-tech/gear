@@ -215,26 +215,6 @@ impl InvocableSyscall {
         })
     }
 
-    /// Returns the index of the destination param if a syscall has it.
-    fn destination_param_idx(&self) -> Option<usize> {
-        use InvocableSyscall::*;
-        use SyscallName::*;
-
-        match *self {
-            Loose(Send | SendWGas | SendInput | SendInputWGas | Exit)
-            | Precise(ReservationSend | SendCommit | SendCommitWGas | ReplyDeposit) => Some(0),
-            Loose(SendCommit | SendCommitWGas) => Some(1),
-            _ => None,
-        }
-    }
-
-    /// Returns `true` for every syscall which has a destination param idx and that is not `gr_exit` syscall,
-    /// as it only has destination param.
-    fn has_destination_param_with_value(&self) -> bool {
-        self.destination_param_idx().is_some()
-            && !matches!(self, InvocableSyscall::Loose(SyscallName::Exit))
-    }
-
     /// Checks whether syscall is error-prone either by returning error indicating value
     /// or by providing error pointer as a syscall param.
     ///

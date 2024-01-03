@@ -64,7 +64,7 @@ use frame_support::{
 };
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
-    code::{self, Code},
+    code::{self, Code, CodeError},
     ids::{CodeId, MessageId, ProgramId},
     message::UserStoredMessage,
     pages::{PageNumber, PageU32Size, WasmPage},
@@ -73,7 +73,7 @@ use gear_core_backend::error::{
     TrapExplanation, UnrecoverableExecutionError, UnrecoverableExtError, UnrecoverableWaitError,
 };
 use gear_core_errors::*;
-use gear_wasm_instrument::STACK_END_EXPORT_NAME;
+use gear_wasm_instrument::{gas_metering::ConstantCostRules, STACK_END_EXPORT_NAME};
 use gstd::{collections::BTreeMap, errors::Error as GstdError};
 use pallet_gear_voucher::PrepaidCall;
 use sp_runtime::{traits::UniqueSaturatedInto, SaturatedConversion};
@@ -8001,18 +8001,9 @@ fn locking_gas_for_waitlist() {
     use demo_constructor::{Calls, Scheme};
     use demo_gas_burned::WASM_BINARY as GAS_BURNED_BINARY;
 
-    let wat = r#"
-    (module
-        (import "env" "memory" (memory 1))
-        (import "env" "gr_wait" (func $gr_wait))
-        (export "handle" (func $handle))
-        (func $handle call $gr_wait)
-    )"#;
-
     init_logger();
     new_test_ext().execute_with(|| {
-        // This program just waits on each handle message.
-        let waiter = upload_program_default(USER_1, ProgramCodeKind::Custom(wat))
+        let waiter = upload_program_default(USER_1, ProgramCodeKind::Custom(utils::WAITER_WAT))
             .expect("submit result was asserted");
 
         // This program just does some calculations (burns gas) on each handle message.
@@ -13738,7 +13729,6 @@ fn module_instantiation_error() {
 }
 
 #[test]
-#[ignore = "issue #3100"]
 fn wrong_entry_type() {
     let wat = r#"
     (module
@@ -13750,24 +13740,15 @@ fn wrong_entry_type() {
 
     init_logger();
     new_test_ext().execute_with(|| {
-        let pid = Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            ProgramCodeKind::Custom(wat).to_bytes(),
-            DEFAULT_SALT.to_vec(),
-            EMPTY_PAYLOAD.to_vec(),
-            50_000_000_000,
-            0,
-            false,
-        )
-        .map(|_| get_last_program_id())
-        .unwrap();
-        let mid = get_last_message_id();
-
-        run_to_next_block(None);
-
-        assert!(Gear::is_terminated(pid));
-        let err = get_last_event_error(mid);
-        assert!(err.starts_with(&ActorExecutionErrorReplyReason::Environment.to_string()));
+        assert_err!(
+            Code::try_new(
+                ProgramCodeKind::Custom(wat).to_bytes(),
+                1,
+                |_| ConstantCostRules::default(),
+                None
+            ),
+            CodeError::InvalidExportFnSignature
+        );
     });
 }
 
@@ -15193,6 +15174,75 @@ fn test_constructor_if_else() {
     });
 }
 
+#[test]
+fn calculate_gas_wait() {
+    use demo_constructor::{Calls, Scheme};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let waiter = upload_program_default(USER_1, ProgramCodeKind::Custom(WAITER_WAT))
+            .expect("submit result was asserted");
+
+        let (_init_mid, sender) =
+            submit_constructor_with_args(USER_1, DEFAULT_SALT, Scheme::empty(), 0);
+
+        run_to_next_block(None);
+
+        assert!(Gear::is_initialized(waiter));
+        assert!(Gear::is_initialized(sender));
+
+        let calls = Calls::builder().send(waiter.into_bytes(), []);
+
+        let allow_other_panics = true;
+        let allow_skip_zero_replies = true;
+        let GasInfo { burned, .. } = Gear::calculate_gas_info(
+            USER_1.into_origin(),
+            HandleKind::Handle(sender),
+            calls.encode(),
+            0,
+            allow_other_panics,
+            allow_skip_zero_replies,
+        )
+        .expect("calculate_gas_info failed");
+
+        let cost = CostsPerBlockOf::<Test>::waitlist();
+        let GasInfo {
+            min_limit: limit_no_rent,
+            ..
+        } = Gear::run_with_ext_copy(|| {
+            Gear::calculate_gas_info_impl(
+                USER_1.into_origin(),
+                HandleKind::Handle(sender),
+                burned + cost - 1,
+                calls.encode(),
+                0,
+                allow_other_panics,
+                allow_skip_zero_replies,
+                None,
+            )
+        })
+        .expect("calculate_gas_info failed");
+
+        let GasInfo { min_limit, .. } = Gear::run_with_ext_copy(|| {
+            Gear::calculate_gas_info_impl(
+                USER_1.into_origin(),
+                HandleKind::Handle(sender),
+                burned + 1_000_000 * cost,
+                calls.encode(),
+                0,
+                allow_other_panics,
+                allow_skip_zero_replies,
+                None,
+            )
+        })
+        .expect("calculate_gas_info failed");
+
+        // 'wait' syscall greedely consumes all available gas so
+        // calculated limits should not be equal
+        assert!(min_limit > limit_no_rent);
+    });
+}
+
 mod utils {
     #![allow(unused)]
 
@@ -15234,6 +15284,14 @@ mod utils {
     pub(super) const DEFAULT_SALT: &[u8; 4] = b"salt";
     pub(super) const EMPTY_PAYLOAD: &[u8; 0] = b"";
     pub(super) const OUTGOING_WITH_VALUE_IN_HANDLE_VALUE_GAS: u64 = 10000000;
+    // This program just waits on each handle message.
+    pub(super) const WAITER_WAT: &str = r#"
+        (module
+            (import "env" "memory" (memory 1))
+            (import "env" "gr_wait" (func $gr_wait))
+            (export "handle" (func $handle))
+            (func $handle call $gr_wait)
+        )"#;
 
     pub(super) type DispatchCustomResult<T> = Result<T, DispatchErrorWithPostInfo>;
     pub(super) type AccountId = <Test as frame_system::Config>::AccountId;
