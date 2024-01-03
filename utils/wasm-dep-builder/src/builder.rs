@@ -18,8 +18,9 @@
 
 use crate::{
     no_build, profile, wasm32_target_dir, wasm_projects_dir, BuilderLockFile,
-    BuilderLockFileConfig, LockFile, UnderscoreString,
+    BuilderLockFileConfig, DemoLockFileConfig, LockFile, LockFileConfig, UnderscoreString,
 };
+use cargo_metadata::Package;
 use gear_wasm_builder::{
     optimize,
     optimize::{OptType, Optimizer},
@@ -33,20 +34,73 @@ use std::{
     process::Command,
 };
 
+const DEFAULT_EXCLUDED_FEATURES: [&str; 3] = ["default", "std", "wasm-wrapper"];
+
 #[derive(Debug, Eq, PartialEq)]
-pub enum RebuildKind {
+enum RebuildKind {
     Fresh,
     Dirty,
 }
 
 #[derive(Debug)]
-pub struct BuildPackage {
-    pub rebuild_kind: RebuildKind,
-    pub features: BTreeSet<String>,
-    pub lock: LockFile<BuilderLockFile>,
+struct BuildPackage {
+    rebuild_kind: RebuildKind,
+    features: BTreeSet<String>,
+    lock: LockFile<BuilderLockFile>,
 }
 
 impl BuildPackage {
+    fn new(
+        pkg: &Package,
+        mut lock: LockFile<BuilderLockFile>,
+        excluded_features: BTreeSet<String>,
+    ) -> Self {
+        let config = lock.read();
+        let (rebuild_kind, features) = Self::resolve_features(pkg, config, excluded_features);
+
+        Self {
+            rebuild_kind,
+            features,
+            lock,
+        }
+    }
+
+    fn resolve_features(
+        pkg: &Package,
+        config: LockFileConfig,
+        excluded_features: BTreeSet<String>,
+    ) -> (RebuildKind, BTreeSet<String>) {
+        match config {
+            LockFileConfig::Demo(DemoLockFileConfig { features }) => {
+                let excluded_features = excluded_features
+                    .into_iter()
+                    .map(UnderscoreString)
+                    .chain(
+                        DEFAULT_EXCLUDED_FEATURES
+                            .map(str::to_string)
+                            .map(UnderscoreString),
+                    )
+                    .collect();
+                let features: BTreeSet<UnderscoreString> =
+                    features.difference(&excluded_features).cloned().collect();
+
+                let orig_features: BTreeSet<UnderscoreString> =
+                    pkg.features.keys().cloned().map(UnderscoreString).collect();
+
+                let features: BTreeSet<String> = orig_features
+                    .intersection(&features)
+                    .cloned()
+                    .map(|s| s.0)
+                    .collect();
+
+                (RebuildKind::Dirty, features)
+            }
+            LockFileConfig::Builder(BuilderLockFileConfig { features }) => {
+                (RebuildKind::Fresh, features)
+            }
+        }
+    }
+
     fn wasm_paths(pkg_name: &UnderscoreString) -> (PathBuf, PathBuf) {
         let wasm32_target_dir = wasm32_target_dir().join(profile());
         let wasm = wasm32_target_dir.join(format!("{pkg_name}.wasm"));
@@ -126,8 +180,16 @@ pub struct BuildPackages {
 }
 
 impl BuildPackages {
-    pub fn insert(&mut self, pkg_name: String, pkg: BuildPackage) {
-        self.packages.insert(UnderscoreString(pkg_name), pkg);
+    pub fn insert(
+        &mut self,
+        pkg: &Package,
+        lock: LockFile<BuilderLockFile>,
+        excluded_features: BTreeSet<String>,
+    ) {
+        self.packages.insert(
+            UnderscoreString(pkg.name.clone()),
+            BuildPackage::new(pkg, lock, excluded_features),
+        );
     }
 
     fn rebuild_required(&self) -> bool {

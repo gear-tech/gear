@@ -18,7 +18,7 @@
 
 mod builder;
 
-use crate::builder::{BuildPackage, BuildPackages, RebuildKind};
+use crate::builder::BuildPackages;
 use cargo_metadata::MetadataCommand;
 use fs4::FileExt;
 use globset::{Glob, GlobSet};
@@ -27,12 +27,10 @@ use std::{
     cmp::Ordering,
     collections::BTreeSet,
     env, fmt, fs,
-    io::{Read, Seek, SeekFrom},
+    io::{Seek, SeekFrom},
     marker::PhantomData,
     path::PathBuf,
 };
-
-const DEFAULT_EXCLUDED_FEATURES: [&str; 3] = ["default", "std", "wasm-wrapper"];
 
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(transparent)]
@@ -240,10 +238,8 @@ impl LockFile<BuilderLockFile> {
         }
     }
 
-    fn read(&mut self) -> Option<LockFileConfig> {
-        let mut config = String::new();
-        self.file.read_to_string(&mut config).unwrap();
-        (!config.is_empty()).then(|| serde_json::from_str(&config).unwrap())
+    fn read(&mut self) -> LockFileConfig {
+        serde_json::from_reader(&mut self.file).unwrap()
     }
 
     fn write(&mut self, config: BuilderLockFileConfig) {
@@ -350,49 +346,8 @@ pub fn builder() {
 
         let lock = LockFile::path(&dep.name);
         println!("cargo:rerun-if-changed={}", lock.display());
-        let mut lock = LockFile::open_for_builder(lock);
-
-        let config = lock.read();
-        let (rebuild_kind, features) = match &config {
-            Some(LockFileConfig::Demo(DemoLockFileConfig { features })) => {
-                let excluded_features = demo_metadata
-                    .exclude_features
-                    .into_iter()
-                    .map(UnderscoreString)
-                    .chain(
-                        DEFAULT_EXCLUDED_FEATURES
-                            .map(str::to_string)
-                            .map(UnderscoreString),
-                    )
-                    .collect();
-                let features: BTreeSet<UnderscoreString> =
-                    features.difference(&excluded_features).cloned().collect();
-
-                let orig_features: BTreeSet<UnderscoreString> =
-                    pkg.features.keys().cloned().map(UnderscoreString).collect();
-
-                let features: BTreeSet<String> = orig_features
-                    .intersection(&features)
-                    .cloned()
-                    .map(|s| s.0)
-                    .collect();
-
-                (RebuildKind::Dirty, features)
-            }
-            Some(LockFileConfig::Builder(BuilderLockFileConfig { features })) => {
-                (RebuildKind::Fresh, features.clone())
-            }
-            None => unreachable!(),
-        };
-
-        packages.insert(
-            pkg.name.clone(),
-            BuildPackage {
-                rebuild_kind,
-                features,
-                lock,
-            },
-        );
+        let lock = LockFile::open_for_builder(lock);
+        packages.insert(pkg, lock, demo_metadata.exclude_features);
     }
 
     println!("cargo:warning={:?}", packages);
