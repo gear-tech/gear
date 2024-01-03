@@ -17,8 +17,9 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    no_build, profile, wasm32_target_dir, wasm_projects_dir, BuilderLockFile,
+    get_no_build_env, profile, wasm32_target_dir, wasm_projects_dir, BuilderLockFile,
     BuilderLockFileConfig, DemoLockFileConfig, LockFile, LockFileConfig, UnderscoreString,
+    NO_BUILD_INNER_ENV,
 };
 use cargo_metadata::Package;
 use gear_wasm_builder::{
@@ -150,7 +151,7 @@ impl BuildPackage {
     }
 
     fn write_rust_mod(&self, pkg_name: &UnderscoreString, output: &mut String) {
-        let (wasm_bloaty, wasm) = if no_build() {
+        let (wasm_bloaty, wasm) = if get_no_build_env() {
             ("&[]".to_string(), "&[]".to_string())
         } else {
             let (wasm_bloaty, wasm) = Self::wasm_paths(pkg_name);
@@ -218,7 +219,7 @@ impl BuildPackages {
     }
 
     pub fn build(&mut self) {
-        if no_build() || !self.rebuild_required() {
+        if get_no_build_env() || !self.rebuild_required() {
             println!("cargo:warning=Build skipped");
             return;
         }
@@ -232,7 +233,7 @@ impl BuildPackages {
             .arg("--profile")
             .arg(profile().replace("debug", "dev"))
             .arg("-v")
-            .env("__GEAR_WASM_BUILDER_NO_BUILD=1", "1")
+            .env(NO_BUILD_INNER_ENV, "1")
             .env("CARGO_BUILD_TARGET", "wasm32-unknown-unknown")
             .env("CARGO_TARGET_DIR", wasm_projects_dir())
             // remove host flags
@@ -244,7 +245,6 @@ impl BuildPackages {
         self.optimize();
         self.write_configs();
     }
-
     pub fn wasm_binaries(&self) -> String {
         self.packages
             .iter()

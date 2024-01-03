@@ -32,6 +32,9 @@ use std::{
     path::PathBuf,
 };
 
+const NO_BUILD_ENV: &str = "__GEAR_WASM_BUILDER_NO_BUILD";
+const NO_BUILD_INNER_ENV: &str = "__GEAR_WASM_BUILDER_NO_BUILD_INNER";
+
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(transparent)]
 struct UnderscoreString(String);
@@ -285,12 +288,16 @@ fn wasm32_target_dir() -> PathBuf {
     wasm_projects_dir().join("wasm32-unknown-unknown")
 }
 
-fn no_build() -> bool {
-    env::var("__GEAR_WASM_BUILDER_NO_BUILD").is_ok()
+fn get_no_build_env() -> bool {
+    env::var(NO_BUILD_ENV).is_ok()
+}
+
+fn get_no_build_inner_env() -> bool {
+    env::var(NO_BUILD_INNER_ENV).is_ok()
 }
 
 pub fn builder() {
-    println!("cargo:rerun-if-env-changed=__GEAR_WASM_BUILDER_NO_BUILD");
+    println!("cargo:rerun-if-env-changed={NO_BUILD_ENV}");
 
     let manifest_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
     let manifest_dir: PathBuf = manifest_dir.into();
@@ -358,7 +365,7 @@ pub fn builder() {
 }
 
 pub fn demo() {
-    if no_build() {
+    if get_no_build_inner_env() {
         // we entered `wasm-dep-builder`
         return;
     }
