@@ -33,7 +33,6 @@ gear-core.workspace = true
 gear-core-errors.workspace = true
 gear-core-backend.workspace = true
 pallet-gear-proc-macro = { path = "proc-macro" }
-pallet-gear-binaries = { path = "binaries", optional = true }
 gsys = { workspace = true, optional = true }
 pallet-gear-voucher.workspace = true
 pallet-gear-bank.workspace = true
@@ -58,6 +57,7 @@ serde = { workspace = true, optional = true, features = ["derive"] }
 rand = { workspace = true, optional = true }
 rand_pcg = { workspace = true, optional = true }
 sp-consensus-slots = { workspace = true, optional = true }
+pallet-gear-binaries = { path = "binaries", optional = true, features = ["wasm-wrapper"] }
 
 # Some of tests require `debug` feature enabled
 [dev-dependencies]
@@ -112,7 +112,7 @@ std = [
 	"primitive-types/std",
 	"serde/std",
 	"sp-consensus-babe/std",
-	"pallet-gear-binaries/std",
+	"pallet-gear-binaries?/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",
@@ -128,7 +128,6 @@ runtime-benchmarks = [
 	"rand_pcg",
 	"gsys",
 	"pallet-gear-binaries",
-	"pallet-gear-binaries/wasm-wrapper"
 ]
 runtime-benchmarks-checkers = []
 try-runtime = ["frame-support/try-runtime"]
