@@ -252,6 +252,10 @@ impl LockFile<BuilderLockFile> {
     }
 }
 
+fn manifest_dir() -> PathBuf {
+    env::var("CARGO_MANIFEST_DIR").unwrap().into()
+}
+
 fn out_dir() -> PathBuf {
     env::var("OUT_DIR").unwrap().into()
 }
@@ -299,14 +303,15 @@ fn get_no_build_inner_env() -> bool {
 pub fn builder() {
     println!("cargo:rerun-if-env-changed={NO_BUILD_ENV}");
 
-    let manifest_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
-    let manifest_dir: PathBuf = manifest_dir.into();
+    let manifest_dir = manifest_dir();
     let pkg_name = env::var("CARGO_PKG_NAME").unwrap();
     let out_dir = out_dir();
 
     let wasm32_target_dir = wasm32_target_dir().join(profile());
     fs::create_dir_all(&wasm32_target_dir).unwrap();
 
+    let build_rs = manifest_dir.join("build.rs");
+    println!("cargo:rerun-if-changed={}", build_rs.display());
     // track if demo is being added or removed
     let cargo_toml = manifest_dir.join("Cargo.toml");
     println!("cargo:rerun-if-changed={}", cargo_toml.display());
