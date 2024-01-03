@@ -50,9 +50,9 @@ pub mod host_executor;
 use alloc::string::String;
 use sp_core::RuntimeDebug;
 use sp_std::prelude::*;
-use sp_wasm_interface::HostPointer;
+use sp_wasm_interface_common::HostPointer;
 
-pub use sp_wasm_interface::{IntoValue, ReturnValue, Value};
+pub use sp_wasm_interface_common::{IntoValue, ReturnValue, Value};
 
 #[cfg(feature = "std")]
 pub use self::embedded_executor as default_executor;

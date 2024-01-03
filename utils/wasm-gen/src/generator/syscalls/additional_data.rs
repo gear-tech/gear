@@ -23,34 +23,14 @@ use crate::{
         CallIndexes, CallIndexesHandle, DisabledSyscallsImportsGenerator, ModuleWithCallIndexes,
         SyscallsImportsGenerationProof,
     },
-    utils, EntryPointName, InvocableSyscall, SyscallDestination, SyscallsConfig, WasmModule,
+    EntryPointName, InvocableSyscall, SyscallsConfig, WasmModule,
 };
 use arbitrary::Unstructured;
-use gear_core::ids::ProgramId;
 use gear_wasm_instrument::{
     parity_wasm::{builder, elements::Instruction},
     syscalls::SyscallName,
 };
-use std::{collections::BTreeMap, iter::Cycle, num::NonZeroU32, vec::IntoIter};
-
-/// Cycled iterator over wasm module data offsets.
-///
-/// By data offsets we mean pointers to the beginning of
-/// each data entry in wasm module's data section.
-///
-/// By implementation this type is not instantiated, when no
-/// data is set to the wasm module. More precisely, if no
-/// additional data was set to [`SyscallsConfig`].
-pub struct AddressesOffsets(Cycle<IntoIter<u32>>);
-
-impl AddressesOffsets {
-    /// Get the next offset.
-    pub fn next_offset(&mut self) -> u32 {
-        self.0
-            .next()
-            .expect("offsets is created only from non empty vec")
-    }
-}
+use std::{collections::BTreeMap, num::NonZeroU32};
 
 /// Additional data injector.
 ///
@@ -65,7 +45,6 @@ pub struct AdditionalDataInjector<'a, 'b> {
     config: SyscallsConfig,
     last_offset: u32,
     module: WasmModule,
-    addresses_offsets: Vec<u32>,
     syscalls_imports: BTreeMap<InvocableSyscall, (Option<NonZeroU32>, CallIndexesHandle)>,
 }
 
@@ -90,7 +69,6 @@ impl<'a, 'b>
             config: disabled_gen.config,
             last_offset: data_offset as u32,
             module: disabled_gen.module,
-            addresses_offsets: Vec::new(),
             syscalls_imports: disabled_gen.syscalls_imports,
             call_indexes: disabled_gen.call_indexes,
         }
@@ -101,20 +79,12 @@ impl<'a, 'b> AdditionalDataInjector<'a, 'b> {
     /// Injects additional data from config to the wasm module.
     ///
     /// Returns disabled additional data injector and injection outcome.
-    pub fn inject(
-        mut self,
-    ) -> (
-        DisabledAdditionalDataInjector<'a, 'b>,
-        AddressesInjectionOutcome,
-    ) {
+    pub fn inject(mut self) -> DisabledAdditionalDataInjector<'a, 'b> {
         log::trace!("Injecting additional data");
 
-        let offsets = self.inject_addresses();
         self.inject_log_info_printing();
 
-        let outcome = AddressesInjectionOutcome { offsets };
-
-        (self.disable(), outcome)
+        self.disable()
     }
 
     /// Disable current generator.
@@ -126,59 +96,6 @@ impl<'a, 'b> AdditionalDataInjector<'a, 'b> {
             config: self.config,
             unstructured: self.unstructured,
         }
-    }
-
-    /// Injects addresses from config, if they were defined, into the data section.
-    ///
-    /// Returns `Some` with pointers to each address entry in the data section.
-    /// If no addresses were defined in the config, then returns `None`.
-    pub fn inject_addresses(&mut self) -> Option<AddressesOffsets> {
-        if !self.addresses_offsets.is_empty() {
-            log::trace!("Called address injection again");
-            return Some(AddressesOffsets(
-                self.addresses_offsets.clone().into_iter().cycle(),
-            ));
-        }
-
-        let SyscallDestination::ExistingAddresses(existing_addresses) =
-            self.config.syscall_destination()
-        else {
-            return None;
-        };
-
-        log::trace!("Inserting {} addresses into wasm", existing_addresses.len());
-        for address in existing_addresses {
-            self.addresses_offsets.push(self.last_offset);
-
-            let address_data_bytes = utils::hash_with_value_to_vec(address);
-            let data_len = address_data_bytes.len();
-            self.module.with(|module| {
-                let module = builder::from_module(module)
-                    .data()
-                    .offset(Instruction::I32Const(self.last_offset as i32))
-                    .value(address_data_bytes)
-                    .build()
-                    .build();
-
-                (module, ())
-            });
-
-            log::trace!(
-                "Inserted {} program address into wasm",
-                ProgramId::from(address.hash.as_slice())
-            );
-
-            self.last_offset += data_len as u32;
-        }
-
-        log::trace!(
-            "Last offset after inserting addresses - {}",
-            self.last_offset
-        );
-
-        Some(AddressesOffsets(
-            self.addresses_offsets.clone().into_iter().cycle(),
-        ))
     }
 
     /// Injects logging calls for the log info defined by the config.
@@ -253,16 +170,6 @@ impl<'a, 'b> AdditionalDataInjector<'a, 'b> {
             (module, ())
         });
     }
-}
-
-/// Data injection outcome.
-///
-/// Basically this type just carries inserted into data section
-/// addresses offsets.
-///
-/// There's design point of having this type, which is described in [`super::SyscallsInvocator`] docs.
-pub struct AddressesInjectionOutcome {
-    pub(super) offsets: Option<AddressesOffsets>,
 }
 
 /// Disabled additional data injector.
