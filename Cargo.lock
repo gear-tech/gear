@@ -12583,10 +12583,16 @@ dependencies = [
 ]
 
 [[package]]
-name = "sub-keystore"
+name = "sub-keyring"
 version = "1.0.4"
 dependencies = [
+ "anyhow",
+ "base64 0.21.5",
+ "nacl",
+ "once_cell",
+ "schnorrkel 0.9.1",
  "serde",
+ "serde_json",
 ]
 
 [[package]]

@@ -15,12 +15,12 @@
 //
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
+use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
+use std::{fs, path::Path};
 
-/// JSON keystore for storing substrate key pair.
-///
-/// This json format is synced with the [polkadot-js implementation](https://github.com/polkadot-js/common/blob/6971012f4af62f453ba25d83d0ebbfd12eaf5709/packages/util-crypto/src/json/encryptFormat.ts#L9)
-#[derive(Clone, Debug, Serialize, Deserialize)]
+/// JSON keystore for storing sr25519 key pair.
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct Keystore {
     /// The encoded keypair in base58.
     pub encoded: String,
@@ -34,46 +34,61 @@ pub struct Keystore {
     pub meta: Meta,
 }
 
+impl Keystore {
+    /// Load keystore from json file.
+    pub fn load_json(path: &Path) -> Result<Self> {
+        serde_json::from_slice(&fs::read(path)?).map_err(|e| anyhow!("Failed to parse json: {}", e))
+    }
+}
+
 /// Encoding format for the keypair.
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Encoding {
     /// The content of the keystore.
     ///
     /// - The first element is the standard.
     /// - The second element is the key algorithm.
-    ///
-    /// The should be fixed with ["pkcs8", "sr25519"] for now.
-    pub content: [String; 2],
+    pub content: (String, String),
 
     /// The type of the keystore.
     ///
     /// - The first element is the key deriven function of the keystore.
     /// - The second element is the encryption cipher of the keystore.
     #[serde(rename = "type")]
-    pub ty: [String; 2],
+    pub ty: (String, String),
 
     /// The version of the keystore.
     pub version: u8,
 }
 
+impl Encoding {
+    /// Check if is encoding with scrypt.
+    pub fn is_scrypt(&self) -> bool {
+        self.ty.0.as_str() == "scrypt"
+    }
+
+    /// Check if the cipher is xsalsa20-poly1305.
+    pub fn is_xsalsa20_poly1305(&self) -> bool {
+        self.ty.1.as_str() == "xsalsa20-poly1305"
+    }
+}
+
 impl Default for Encoding {
     fn default() -> Self {
         Self {
-            content: ["pkcs8".into(), "sr25519".into()],
-            ty: ["scrypt".into(), "xsalsa20-poly1305".into()],
+            content: ("pkcs8".into(), "sr25519".into()),
+            ty: ("scrypt".into(), "xsalsa20-poly1305".into()),
             version: 3,
         }
     }
 }
 
 /// The metadata of the key pair.
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct Meta {
     /// The genesis hash of the chain in hex.
-    #[serde(default = "0x")]
     pub genesis_hash: String,
     /// The name of the key pair.
-    #[serde(default = "vara")]
     pub name: String,
     /// The timestamp when the key pair is created.
     pub when_created: u64,
