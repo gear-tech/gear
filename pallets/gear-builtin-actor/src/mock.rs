@@ -298,7 +298,10 @@ pallet_gear::impl_config!(
 
 pub struct SuccessBuiltinActor {}
 impl BuiltinActor<Vec<u8>, u64> for SuccessBuiltinActor {
-    fn handle(_builtin_id: BuiltinId, payload: Vec<u8>) -> Result<Vec<u8>, BuiltinActorError> {
+    fn handle(
+        _builtin_id: BuiltinId,
+        payload: Vec<u8>,
+    ) -> (Result<Vec<u8>, BuiltinActorError>, u64) {
         if !in_transaction() {
             DEBUG_EXECUTION_TRACE.with(|d| {
                 d.borrow_mut().push(ExecutionTraceFrame {
@@ -312,11 +315,11 @@ impl BuiltinActor<Vec<u8>, u64> for SuccessBuiltinActor {
         // Build the reply message
         let payload = b"Success".to_vec();
 
-        Ok(payload)
+        (Ok(payload), 500_000_u64)
     }
 
-    fn gas_cost(_builtin_id: BuiltinId) -> u64 {
-        100_u64
+    fn max_gas_cost(_builtin_id: BuiltinId) -> u64 {
+        1_000_000_u64
     }
 }
 impl RegisteredBuiltinActor<Vec<u8>, u64> for SuccessBuiltinActor {
@@ -325,7 +328,10 @@ impl RegisteredBuiltinActor<Vec<u8>, u64> for SuccessBuiltinActor {
 
 pub struct ErrorBuiltinActor {}
 impl BuiltinActor<Vec<u8>, u64> for ErrorBuiltinActor {
-    fn handle(_builtin_id: BuiltinId, payload: Vec<u8>) -> Result<Vec<u8>, BuiltinActorError> {
+    fn handle(
+        _builtin_id: BuiltinId,
+        payload: Vec<u8>,
+    ) -> (Result<Vec<u8>, BuiltinActorError>, u64) {
         if !in_transaction() {
             DEBUG_EXECUTION_TRACE.with(|d| {
                 d.borrow_mut().push(ExecutionTraceFrame {
@@ -335,10 +341,10 @@ impl BuiltinActor<Vec<u8>, u64> for ErrorBuiltinActor {
                 })
             });
         }
-        Err(BuiltinActorError::UnknownBuiltinId)
+        (Err(BuiltinActorError::UnknownBuiltinId), 500_000_u64)
     }
 
-    fn gas_cost(_builtin_id: BuiltinId) -> u64 {
+    fn max_gas_cost(_builtin_id: BuiltinId) -> u64 {
         1_000_000_u64
     }
 }

@@ -96,11 +96,11 @@ pub type BuiltinResult<P> = Result<P, BuiltinActorError>;
 /// A trait representing an interface of a builtin actor that can receive a message
 /// and produce a set of outputs that can then be converted into a reply message.
 pub trait BuiltinActor<Payload, Gas: Zero> {
-    /// Handles a message and returns a result.
-    fn handle(builtin_id: BuiltinId, payload: Payload) -> BuiltinResult<Payload>;
+    /// Handles a message and returns a result and the actual gas spent.
+    fn handle(builtin_id: BuiltinId, payload: Payload) -> (BuiltinResult<Payload>, Gas);
 
-    /// Returns the cost incurred by message handling.
-    fn gas_cost(builtin_id: BuiltinId) -> Gas;
+    /// Returns the maximum gas cost that can be incurred by handling a message.
+    fn max_gas_cost(builtin_id: BuiltinId) -> Gas;
 }
 
 pub trait RegisteredBuiltinActor<P, G: Zero>: BuiltinActor<P, G> {
@@ -112,7 +112,7 @@ pub trait RegisteredBuiltinActor<P, G: Zero>: BuiltinActor<P, G> {
 #[impl_for_tuples(16)]
 #[tuple_types_custom_trait_bound(RegisteredBuiltinActor<P, G>)]
 impl<P, G: Zero> BuiltinActor<P, G> for Tuple {
-    fn handle(builtin_id: BuiltinId, payload: P) -> BuiltinResult<P> {
+    fn handle(builtin_id: BuiltinId, payload: P) -> (BuiltinResult<P>, G) {
         for_tuples!(
             #(
                 if (Tuple::ID == builtin_id) {
@@ -120,14 +120,14 @@ impl<P, G: Zero> BuiltinActor<P, G> for Tuple {
                 }
             )*
         );
-        Err(BuiltinActorError::UnknownBuiltinId)
+        (Err(BuiltinActorError::UnknownBuiltinId), Zero::zero())
     }
 
-    fn gas_cost(builtin_id: BuiltinId) -> G {
+    fn max_gas_cost(builtin_id: BuiltinId) -> G {
         for_tuples!(
             #(
                 if (Tuple::ID == builtin_id) {
-                    return Tuple::gas_cost(builtin_id);
+                    return Tuple::max_gas_cost(builtin_id);
                 }
             )*
         );
@@ -356,18 +356,20 @@ impl<T: Config> BuiltinRouter<ProgramId> for Pallet<T> {
         dispatch: StoredDispatch,
         gas_limit: u64,
     ) -> Vec<Self::Output> {
-        // Check gas_limit upfront
-        let gas_cost = <T as Config>::BuiltinActor::gas_cost(builtin_id);
-        if gas_cost > gas_limit {
+        // Estimate maximum gas that can be spent during message processing.
+        // The exact gas cost may depend on the payload and be only available postfactum.
+        let max_gas = <T as Config>::BuiltinActor::max_gas_cost(builtin_id);
+        if max_gas > gas_limit {
             return Self::process_error(&dispatch, BuiltinActorError::InsufficientGas);
         }
 
         let payload = dispatch.payload_bytes().to_vec();
 
         // Do message processing
-        <T as Config>::BuiltinActor::handle(builtin_id, payload).map_or_else(
+        let (res, gas_spent) = <T as Config>::BuiltinActor::handle(builtin_id, payload);
+        res.map_or_else(
             |err| Self::process_error(&dispatch, err),
-            |response_bytes| Self::process_success(&dispatch, gas_cost, response_bytes),
+            |response_bytes| Self::process_success(&dispatch, gas_spent, response_bytes),
         )
     }
 }

@@ -119,6 +119,7 @@ futures-util = "0.3.29"
 hashbrown = "0.14.3"
 hex = { version = "0.4.3", default-features = false }
 hex-literal = "0.4.1"
+impl-trait-for-tuples = "0.2.2"
 jsonrpsee = { version = "^0.16" }
 lazy_static = "1.4.0"
 libc = { version = "0.2", default-features = false }
@@ -423,7 +424,6 @@ demo-wat = { path = "examples/wat" }
 cfg-if = "1.0.0"                                                          # gear-lazy-pages
 errno = "0.3"                                                             # gear-lazy-pages
 nix = "0.26.4"                                                            # gear-lazy-pages
-impl-trait-for-tuples = "0.2.2"                                           # pallets/gear
 indexmap = "2.1.0"                                                        # utils/weight-diff
 indicatif = "*"                                                           # utils/wasm-gen
 keyring = "1.2.1"                                                         # gcli

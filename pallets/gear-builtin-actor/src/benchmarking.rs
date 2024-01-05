@@ -35,11 +35,11 @@ macro_rules! impl_builtin_actor {
             fn handle(
                 _builtin_id: BuiltinId,
                 _payload: Vec<u8>,
-            ) -> Result<Vec<u8>, BuiltinActorError> {
-                Ok(Default::default())
+            ) -> (Result<Vec<u8>, BuiltinActorError>, u64) {
+                (Ok(Default::default()), Default::default())
             }
 
-            fn gas_cost(_builtin_id: BuiltinId) -> u64 {
+            fn max_gas_cost(_builtin_id: BuiltinId) -> u64 {
                 Default::default()
             }
         }
