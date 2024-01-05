@@ -330,7 +330,7 @@ fn dispatch_common(
         deallocate(
             sandbox_context,
             invoke_args_ptr,
-            "Failed dealloction after failed write of invoke arguments",
+            "Failed deallocation after failed write of invoke arguments",
         )?;
 
         return Err(RuntimeError::new("Can't write invoke args into memory"));
@@ -344,7 +344,7 @@ fn dispatch_common(
     deallocate(
         sandbox_context,
         invoke_args_ptr,
-        "Failed dealloction after invoke",
+        "Failed deallocation after invoke",
     )?;
 
     let serialized_result = serialized_result?;
