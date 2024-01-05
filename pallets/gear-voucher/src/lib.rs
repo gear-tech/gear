@@ -208,7 +208,8 @@ pub mod pallet {
         ///
         /// Arguments:
         /// * spender:  user id that is eligible to use the voucher;
-        /// * balance:  voucher balance could be used for tx fees and gas,
+        /// * balance:  voucher balance could be used for transactions
+        ///             fees and gas;
         /// * programs: pool of programs spender can interact with,
         ///             if None - means any program,
         ///             limited by Config param;
@@ -226,6 +227,9 @@ pub mod pallet {
         ) -> DispatchResultWithPostInfo {
             // Ensuring origin.
             let owner = ensure_signed(origin)?;
+
+            // Asserting non-zero validity.
+            ensure!(!validity.is_zero(), Error::<T>::ZeroValidity);
 
             // Asserting amount of programs.
             if let Some(ref programs) = programs {
@@ -246,9 +250,6 @@ pub mod pallet {
                 ExistenceRequirement::KeepAlive,
             )
             .map_err(|_| Error::<T>::BalanceTransfer)?;
-
-            // Asserting non-zero validity.
-            ensure!(!validity.is_zero(), Error::<T>::ZeroValidity);
 
             // Calculating expiration block.
             let validity = <frame_system::Pallet<T>>::block_number().saturating_add(validity);
@@ -307,7 +308,7 @@ pub mod pallet {
         /// Revoke existing voucher.
         ///
         /// This extrinsic revokes existing voucher, if current block is greater
-        /// than expiration block of the voucher (its no longer valid).
+        /// than expiration block of the voucher (it is no longer valid).
         ///
         /// Currently it means sending of all balance from voucher account to
         /// voucher owner without voucher removal from storage map, but this

@@ -32,7 +32,8 @@ impl VoucherId {
     pub fn generate<T: Config>() -> Self {
         const SALT: &[u8] = b"voucher";
 
-        let nonce = CounterImpl::<u64, IssuedWrap<T>>::inc_get();
+        CounterImpl::<u64, IssuedWrap<T>>::increase();
+        let nonce = CounterImpl::<u64, IssuedWrap<T>>::get();
 
         let argument = [SALT, &nonce.to_le_bytes()].concat();
         ids::hash(&argument).into()

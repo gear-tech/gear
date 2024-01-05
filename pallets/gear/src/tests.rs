@@ -3040,7 +3040,7 @@ fn mailbox_threshold_works() {
         ));
         check_result(false);
 
-        // // send message with enough gas_limit
+        // send message with enough gas_limit
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
             proxy,
@@ -13399,7 +13399,7 @@ fn check_random_works() {
                 );
             });
 
-        // // assert_last_dequeued(1);
+        // assert_last_dequeued(1);
         // println!("{:?}", res);
         // assert_eq!(blake2b(32, &[], &output.0.encode()).as_bytes(), res.payload());
     });

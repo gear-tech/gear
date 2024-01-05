@@ -44,14 +44,6 @@ pub trait Counter {
 
     /// Resets stored value by setting default/starting value.
     fn reset();
-
-    /// Increases and returns stored value.
-    ///
-    /// Should be safe from overflow.
-    fn inc_get() -> Self::Value {
-        Self::increase();
-        Self::get()
-    }
 }
 
 /// `Counter` implementation based on `ValueStorage`.
