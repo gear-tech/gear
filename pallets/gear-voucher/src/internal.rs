@@ -58,7 +58,7 @@ pub struct VoucherInfo<AccountId, BlockNumber> {
     /// Owner manages and claims back remaining balance of the voucher.
     pub owner: AccountId,
     /// Set of programs this voucher could be used to interact with.
-    /// In case of None means any gear program.
+    /// In case of [`None`] means any gear program.
     pub programs: Option<BTreeSet<ProgramId>>,
     /// Block number since voucher couldn't be used (able to be revoked by owner).
     pub validity: BlockNumber,
@@ -148,9 +148,13 @@ impl<T: Config> Pallet<T> {
         voucher_id: VoucherId,
         call: &PrepaidCall<BalanceOf<T>>,
     ) -> Result<(), Error<T>> {
-        let Some(voucher) = Vouchers::<T>::get(origin.clone(), voucher_id) else {
-            return Err(Error::<T>::InexistentVoucher);
-        };
+        let voucher =
+            Vouchers::<T>::get(origin.clone(), voucher_id).ok_or(Error::<T>::InexistentVoucher)?;
+
+        ensure!(
+            <frame_system::Pallet<T>>::block_number() <= voucher.validity,
+            Error::<T>::VoucherExpired
+        );
 
         if let Some(ref programs) = voucher.programs {
             let destination =
@@ -161,11 +165,6 @@ impl<T: Config> Pallet<T> {
                 Error::<T>::InappropriateDestination
             );
         }
-
-        ensure!(
-            <frame_system::Pallet<T>>::block_number() <= voucher.validity,
-            Error::<T>::VoucherExpired
-        );
 
         Ok(())
     }
@@ -184,7 +183,7 @@ where
         }
     }
 
-    // NOTE: delete None return once fn `GearVoucher::call_deprecated()` is removed.
+    // NOTE: delete [`None`] return once fn `GearVoucher::call_deprecated()` is removed.
     pub fn sponsored_by(&self, who: AccountIdOf<T>) -> Option<AccountIdOf<T>> {
         match self {
             crate::Call::call_deprecated { call } => Pallet::<T>::sponsor_of(&who, call),

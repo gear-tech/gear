@@ -30,9 +30,7 @@ fn voucher_issue_works() {
 
         let alice_balance = Balances::free_balance(ALICE);
 
-        let voucher_id = utils::issue(ALICE, BOB, program_id);
-        assert_ok!(voucher_id);
-        let voucher_id = voucher_id.unwrap();
+        let voucher_id = utils::issue(ALICE, BOB, program_id).expect("Failed to issue voucher");
 
         assert_eq!(
             alice_balance,
@@ -40,9 +38,7 @@ fn voucher_issue_works() {
                 + Balances::free_balance(ALICE)
         );
 
-        let voucher_id_2 = utils::issue(ALICE, BOB, program_id);
-        assert_ok!(voucher_id_2);
-        let voucher_id_2 = voucher_id_2.unwrap();
+        let voucher_id_2 = utils::issue(ALICE, BOB, program_id).expect("Failed to issue voucher");
 
         assert_ne!(voucher_id, voucher_id_2);
 
@@ -96,9 +92,7 @@ fn voucher_call_works() {
     new_test_ext().execute_with(|| {
         let program_id = MAILBOXED_PROGRAM;
 
-        let voucher_id = utils::issue(ALICE, BOB, program_id);
-        assert_ok!(voucher_id);
-        let voucher_id = voucher_id.unwrap();
+        let voucher_id = utils::issue(ALICE, BOB, program_id).expect("Failed to issue voucher");
 
         assert_ok!(Voucher::call(
             RuntimeOrigin::signed(BOB),
@@ -205,9 +199,7 @@ fn voucher_call_err_cases() {
             Error::<Test>::InexistentVoucher
         );
 
-        let voucher_id = utils::issue(ALICE, BOB, program_id);
-        assert_ok!(voucher_id);
-        let voucher_id = voucher_id.unwrap();
+        let voucher_id = utils::issue(ALICE, BOB, program_id).expect("Failed to issue voucher");
 
         // Voucher doesn't exist for the user.
         assert_noop!(
@@ -312,9 +304,7 @@ fn voucher_revoke_works() {
     new_test_ext().execute_with(|| {
         let program_id = H256::random().cast();
 
-        let voucher_id = utils::issue(ALICE, BOB, program_id);
-        assert_ok!(voucher_id);
-        let voucher_id = voucher_id.unwrap();
+        let voucher_id = utils::issue(ALICE, BOB, program_id).expect("Failed to issue voucher");
         let voucher_id_acc = voucher_id.cast::<AccountIdOf<Test>>();
 
         System::set_block_number(System::block_number() + utils::DEFAULT_VALIDITY + 1);
@@ -359,9 +349,7 @@ fn voucher_revoke_err_cases() {
     new_test_ext().execute_with(|| {
         let program_id = H256::random().cast();
 
-        let voucher_id = utils::issue(ALICE, BOB, program_id);
-        assert_ok!(voucher_id);
-        let voucher_id = voucher_id.unwrap();
+        let voucher_id = utils::issue(ALICE, BOB, program_id).expect("Failed to issue voucher");
 
         // Voucher doesn't exist
         assert_noop!(
@@ -394,9 +382,7 @@ fn voucher_update_works() {
     new_test_ext().execute_with(|| {
         let program_id = H256::random().cast();
 
-        let voucher_id = utils::issue(ALICE, BOB, program_id);
-        assert_ok!(voucher_id);
-        let voucher_id = voucher_id.unwrap();
+        let voucher_id = utils::issue(ALICE, BOB, program_id).expect("Failed to issue voucher");
         let voucher_id_acc = voucher_id.cast::<AccountIdOf<Test>>();
 
         let alice_balance = Balances::free_balance(ALICE);
@@ -443,7 +429,7 @@ fn voucher_update_works() {
             .into(),
         );
 
-        let voucher = Vouchers::<Test>::get(BOB, voucher_id).unwrap();
+        let voucher = Vouchers::<Test>::get(BOB, voucher_id).expect("Failed to get voucher");
 
         assert_eq!(
             Balances::free_balance(ALICE),
@@ -485,7 +471,7 @@ fn voucher_update_works() {
             .into(),
         );
 
-        let voucher = Vouchers::<Test>::get(BOB, voucher_id).unwrap();
+        let voucher = Vouchers::<Test>::get(BOB, voucher_id).expect("Failed to get voucher");
 
         assert_eq!(Balances::free_balance(voucher_id_acc), voucher_balance);
         assert_eq!(voucher.owner, BOB);
@@ -527,7 +513,7 @@ fn voucher_update_works() {
             Some(validity_prolong),
         ));
 
-        let voucher = Vouchers::<Test>::get(BOB, voucher_id).unwrap();
+        let voucher = Vouchers::<Test>::get(BOB, voucher_id).expect("Failed to get voucher");
         assert_eq!(voucher.validity, huge_block + validity_prolong);
     });
 }
@@ -537,9 +523,7 @@ fn voucher_update_err_cases() {
     new_test_ext().execute_with(|| {
         let program_id = H256::random().cast();
 
-        let voucher_id = utils::issue(ALICE, BOB, program_id);
-        assert_ok!(voucher_id);
-        let voucher_id = voucher_id.unwrap();
+        let voucher_id = utils::issue(ALICE, BOB, program_id).expect("Failed to issue voucher");
 
         // Inexistent voucher.
         assert_noop!(
