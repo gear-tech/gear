@@ -368,8 +368,14 @@ impl<T: Config> BuiltinRouter<ProgramId> for Pallet<T> {
         // Do message processing
         let (res, gas_spent) = <T as Config>::BuiltinActor::handle(builtin_id, payload);
         res.map_or_else(
-            |err| Self::process_error(&dispatch, err),
-            |response_bytes| Self::process_success(&dispatch, gas_spent, response_bytes),
+            |err| {
+                log::debug!(target: LOG_TARGET, "Builtin actor error: {:?}", err);
+                Self::process_error(&dispatch, err)
+            },
+            |response_bytes| {
+                log::debug!(target: LOG_TARGET, "Builtin call dispatched successfully");
+                Self::process_success(&dispatch, gas_spent, response_bytes)
+            },
         )
     }
 }

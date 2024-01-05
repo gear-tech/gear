@@ -25,6 +25,7 @@ use common::Origin;
 use demo_waiting_proxy::WASM_BINARY;
 use frame_support::assert_ok;
 use gear_core::ids::{CodeId, ProgramId};
+use gear_core_errors::{ErrorReplyReason, ReplyCode, SimpleExecutionError};
 use parity_scale_codec::Encode;
 use primitive_types::H256;
 
@@ -62,24 +63,6 @@ fn send_message(contract_id: ProgramId, payload: Vec<u8>) {
         false,
     ));
 }
-
-// fn assert_message_executed() {
-//     assert!(System::events().into_iter().any(|e| {
-//         match e.event {
-//             RuntimeEvent::GearBuiltinActor(Event::MessageExecuted { result }) => result.is_ok(),
-//             _ => false,
-//         }
-//     }))
-// }
-
-// fn assert_execution_with_error() {
-//     assert!(System::events().into_iter().any(|e| {
-//         match e.event {
-//             RuntimeEvent::GearBuiltinActor(Event::MessageExecuted { result }) => result.is_err(),
-//             _ => false,
-//         }
-//     }))
-// }
 
 #[test]
 fn user_message_to_builtin_actor_works() {
@@ -156,5 +139,63 @@ fn invoking_builtin_from_program_works() {
         // Assert builtin contract invocation
         assert_eq!(current_stack().len(), 1);
         assert!(current_stack()[0].is_success);
+    });
+}
+
+#[test]
+fn calculate_gas_info_may_not_work() {
+    init_logger();
+
+    new_test_ext().execute_with(|| {
+        let builtin_actor_id: ProgramId = H256::from(SUCCESS_ACTOR_ID).cast();
+
+        assert_eq!(current_stack(), vec![]);
+
+        // Estimate gas a call would take
+        let gas_info = |payload: Vec<u8>| {
+            start_transaction();
+            let res = Gear::calculate_gas_info(
+                SIGNER.into_origin(),
+                pallet_gear::manager::HandleKind::Handle(builtin_actor_id),
+                payload,
+                0,
+                true,
+                None,
+                None,
+            )
+            .expect("calculate_gas_info failed");
+            rollback_transaction();
+            res
+        };
+        let gas_burned = gas_info(Default::default()).burned;
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(SIGNER),
+            builtin_actor_id,
+            Default::default(),
+            gas_burned + 1000,
+            0,
+            false,
+        ));
+        run_to_next_block();
+
+        // We expect the builtin actor's `handle()` method not have been called due to
+        // insufficient gas, because for builtin actors we require the maximum possible
+        // gas a message handling can incur to be provided with a message.
+        assert_eq!(current_stack().len(), 0);
+
+        // Expecting an error reply to have been sent.
+        assert!(System::events().into_iter().any(|e| match e.event {
+            RuntimeEvent::Gear(pallet_gear::Event::<Test>::UserMessageSent { message, .. }) => {
+                message.destination() == ProgramId::from(SIGNER) && message.details().is_some() && {
+                    let details = message.details().expect("Value checked above");
+                    details.to_reply_code()
+                        == ReplyCode::Error(ErrorReplyReason::Execution(
+                            SimpleExecutionError::RanOutOfGas,
+                        ))
+                }
+            }
+            _ => false,
+        }));
     });
 }
