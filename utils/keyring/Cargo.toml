@@ -11,8 +11,9 @@ repository.workspace = true
 
 [dependencies]
 anyhow.workspace = true
+blake2.workspace = true
+bs58 = { workspace = true, features = ["alloc"] }
 base64.workspace = true
-der.workspace = true
 nacl.workspace = true
 once_cell.workspace = true
 rand = { workspace = true, features = ["std", "std_rng"] }

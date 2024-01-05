@@ -20,7 +20,10 @@ use base64::{engine::general_purpose::STANDARD, Engine as _};
 use schnorrkel::Keypair;
 use serde::{Deserialize, Serialize};
 
-use crate::{KeypairInfo, Scrypt};
+use crate::{
+    ss58::{self, VARA_SS58_PREFIX},
+    KeypairInfo, Scrypt,
+};
 
 /// JSON keystore for storing sr25519 key pair.
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
@@ -60,6 +63,7 @@ impl Keystore {
     pub fn encrypt_none(info: KeypairInfo) -> Result<Self> {
         Ok(Self {
             encoded: STANDARD.encode(info.encode()),
+            address: ss58::encode(&info.public, VARA_SS58_PREFIX),
             ..Default::default()
         })
     }
@@ -172,10 +176,9 @@ impl Default for Encoding {
 /// The metadata of the key pair.
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct Meta {
-    /// The genesis hash of the chain in hex.
-    pub genesis_hash: String,
     /// The name of the key pair.
     pub name: String,
+
     /// The timestamp when the key pair is created.
     pub when_created: u64,
 }
