@@ -27,7 +27,7 @@ use frame_support::{
     PalletId,
 };
 use frame_support_test::TestRandomness;
-use frame_system as system;
+use frame_system::{self as system, pallet_prelude::BlockNumberFor};
 use pallet_gear_voucher::VoucherId;
 use pallet_transaction_payment::CurrencyAdapter;
 use parity_scale_codec::{Decode, Encode};
@@ -38,21 +38,18 @@ use sp_runtime::{
     testing::TestXt,
     traits::{BlakeTwo256, ConstBool, ConstU64, DispatchInfoOf, IdentityLookup, SignedExtension},
     transaction_validity::{InvalidTransaction, TransactionValidity, TransactionValidityError},
+    BuildStorage,
 };
 use sp_std::{
     convert::{TryFrom, TryInto},
     prelude::*,
 };
-use system::pallet_prelude::BlockNumberFor;
 
 type UncheckedExtrinsic =
     frame_system::mocking::MockUncheckedExtrinsic<Test, (), VoucherLegitimate>;
-type Block = generic::Block<
-    generic::Header<BlockNumberFor<Test>, sp_runtime::traits::BlakeTwo256>,
-    UncheckedExtrinsic,
->;
+type Block = generic::Block<generic::Header<u64, BlakeTwo256>, UncheckedExtrinsic>;
 type AccountId = u64;
-type BlockNumber = u64;
+pub type BlockNumber = BlockNumberFor<Test>;
 type Balance = u128;
 
 pub const ALICE: AccountId = 1;
@@ -119,10 +116,7 @@ impl sp_std::fmt::Debug for VoucherLegitimate {
 
 // Configure a mock runtime to test the pallet.
 construct_runtime!(
-    pub enum Test where
-        Block = Block,
-        NodeBlock = Block,
-        UncheckedExtrinsic = UncheckedExtrinsic,
+    pub enum Test
     {
         System: system,
         Gear: pallet_gear,
@@ -254,8 +248,8 @@ impl pallet_gear_voucher::Config for Test {
 
 // Build genesis storage according to the mock runtime.
 pub fn new_test_ext() -> sp_io::TestExternalities {
-    let mut t = system::GenesisConfig::default()
-        .build_storage::<Test>()
+    let mut t = system::GenesisConfig::<Test>::default()
+        .build_storage()
         .unwrap();
 
     pallet_balances::GenesisConfig::<Test> {

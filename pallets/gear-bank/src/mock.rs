@@ -20,15 +20,15 @@ use crate as pallet_gear_bank;
 use frame_support::{
     construct_runtime, parameter_types, traits::FindAuthor, weights::constants::RocksDbWeight,
 };
-use frame_system::mocking::{MockBlock, MockUncheckedExtrinsic};
 use primitive_types::H256;
 use sp_io::TestExternalities;
 use sp_runtime::{
-    generic,
     traits::{BlakeTwo256, IdentityLookup},
+    BuildStorage,
 };
 
 pub type AccountId = u8;
+type Block = frame_system::mocking::MockBlock<Test>;
 pub type Balance = u128;
 type BlockNumber = u64;
 
@@ -65,10 +65,7 @@ parameter_types! {
 }
 
 construct_runtime!(
-    pub enum Test where
-        Block = MockBlock<Test>,
-        NodeBlock = MockBlock<Test>,
-        UncheckedExtrinsic = MockUncheckedExtrinsic<Test>,
+    pub enum Test
     {
         System: frame_system,
         Authorship: pallet_authorship,
@@ -83,8 +80,8 @@ common::impl_pallet_balances!(Test);
 pallet_gear_bank::impl_config!(Test);
 
 pub fn new_test_ext() -> TestExternalities {
-    let mut storage = frame_system::GenesisConfig::default()
-        .build_storage::<Test>()
+    let mut storage = frame_system::GenesisConfig::<Test>::default()
+        .build_storage()
         .unwrap();
 
     let balances = vec![

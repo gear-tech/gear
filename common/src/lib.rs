@@ -351,6 +351,17 @@ where
     }
 }
 
+/// Trait that the RuntimeApi should implement in order to allow deconstruction and reconstruction
+/// to and from its components.
+#[cfg(any(feature = "std", test))]
+pub trait Deconstructable<C> {
+    type Params: Send;
+
+    fn into_parts(self) -> (&'static C, Self::Params);
+
+    fn from_parts(call: &C, params: Self::Params) -> Self;
+}
+
 pub trait DelegateFee<C, A> {
     fn delegate_fee(call: &C, who: &A) -> Option<A>;
 }
