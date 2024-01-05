@@ -19,7 +19,7 @@
 mod keystore;
 mod pkcs8;
 mod scrypt;
-mod ss58;
+pub mod ss58;
 
 pub use self::{
     keystore::{Encoding, Keystore},

@@ -1,3 +1,5 @@
+use std::time::{SystemTime, UNIX_EPOCH};
+
 // This file is part of Gear.
 //
 // Copyright (C) 2021-2023 Gear Technologies Inc.
@@ -15,15 +17,12 @@
 //
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
+use crate::{ss58, KeypairInfo, Scrypt};
 use anyhow::{anyhow, Result};
 use base64::{engine::general_purpose::STANDARD, Engine as _};
+use rand::RngCore;
 use schnorrkel::Keypair;
 use serde::{Deserialize, Serialize};
-
-use crate::{
-    ss58::{self, VARA_SS58_PREFIX},
-    KeypairInfo, Scrypt,
-};
 
 /// JSON keystore for storing sr25519 key pair.
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
@@ -50,22 +49,44 @@ impl Keystore {
         if let Some(passphrase) = passphrase {
             Self::encrypt_scrypt(info, passphrase)
         } else {
-            Self::encrypt_none(info)
+            Ok(Self::encrypt_none(info))
         }
     }
 
     /// Encrypt keypair info with scrypt.
-    pub fn encrypt_scrypt(_info: KeypairInfo, _passphrase: &[u8]) -> Result<Self> {
-        todo!()
+    pub fn encrypt_scrypt(info: KeypairInfo, passphrase: &[u8]) -> Result<Self> {
+        let mut encoded = Vec::new();
+
+        // 1. Get passwd from scrypt
+        let scrypt = Scrypt::default();
+        let passwd = scrypt.passwd(passphrase)?;
+        encoded.extend_from_slice(&scrypt.encode());
+
+        // 2. Generate random nonce
+        let mut nonce = [0; Self::NONCE_LENGTH];
+        rand::thread_rng().fill_bytes(&mut nonce);
+        encoded.extend_from_slice(&nonce);
+
+        // 3. Pack secret box
+        let encrypted = nacl::secret_box::pack(&info.encode(), &nonce, &passwd[..32])
+            .map_err(|e| anyhow!("{e:?}"))?;
+        encoded.extend_from_slice(&encrypted);
+
+        Ok(Self {
+            encoded: STANDARD.encode(&encoded),
+            address: ss58::encode(&info.public),
+            encoding: Encoding::scrypt(),
+            ..Default::default()
+        })
     }
 
     /// Encrypt keypair without encryption.
-    pub fn encrypt_none(info: KeypairInfo) -> Result<Self> {
-        Ok(Self {
+    pub fn encrypt_none(info: KeypairInfo) -> Self {
+        Self {
             encoded: STANDARD.encode(info.encode()),
-            address: ss58::encode(&info.public, VARA_SS58_PREFIX),
+            address: ss58::encode(&info.public),
             ..Default::default()
-        })
+        }
     }
 
     /// Decrypt keypair from encrypted data.
@@ -115,6 +136,12 @@ impl Keystore {
         KeypairInfo::decode(&self.decoded()?)?.into_keypair()
     }
 
+    /// Returns self with the given name in meta.
+    pub fn with_name(mut self, name: &str) -> Self {
+        self.meta.name = name.to_owned();
+        self
+    }
+
     /// Decode the encoded keypair info with base64.
     fn decoded(&self) -> Result<Vec<u8>> {
         STANDARD.decode(&self.encoded).map_err(Into::into)
@@ -133,7 +160,7 @@ pub struct Encoding {
     /// The type of the keystore.
     ///
     /// - The first element is the key deriven function of the keystore.
-    ///   - if the first element is `none`, there will be no ciper following.
+    ///   - if the first element is `none`, there will be no cipher following.
     /// - The second element is the encryption cipher of the keystore.
     #[serde(rename = "type")]
     pub ty: Vec<String>,
@@ -143,6 +170,15 @@ pub struct Encoding {
 }
 
 impl Encoding {
+    /// None encoding format.
+    pub fn none() -> Self {
+        Self {
+            content: ("pkcs8".into(), "sr25519".into()),
+            ty: vec!["none".into()],
+            version: 3,
+        }
+    }
+
     /// Recommend encoding format.
     pub fn scrypt() -> Self {
         Self {
@@ -165,20 +201,28 @@ impl Encoding {
 
 impl Default for Encoding {
     fn default() -> Self {
-        Self {
-            content: ("pkcs8".into(), "sr25519".into()),
-            ty: vec!["none".into()],
-            version: 3,
-        }
+        Self::none()
     }
 }
 
 /// The metadata of the key pair.
-#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Meta {
     /// The name of the key pair.
     pub name: String,
 
     /// The timestamp when the key pair is created.
     pub when_created: u64,
+}
+
+impl Default for Meta {
+    fn default() -> Self {
+        Self {
+            name: "".into(),
+            when_created: SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("time went backwards")
+                .as_secs(),
+        }
+    }
 }

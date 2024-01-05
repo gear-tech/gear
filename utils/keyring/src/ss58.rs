@@ -6,9 +6,13 @@
 //! [ss58-codec]: https://paritytech.github.io/polkadot-sdk/master/sp_core/crypto/trait.Ss58Codec.html
 
 use blake2::{Blake2b512, Digest};
+use core::sync::atomic::{AtomicU16, Ordering};
 
 /// The SS58 prefix of vara network.
 pub const VARA_SS58_PREFIX: u16 = 137;
+
+/// The default ss58 version.
+pub static DEFAULT_SS58_VERSION: AtomicU16 = AtomicU16::new(VARA_SS58_PREFIX);
 
 /// SS58 prefix
 const SS58_PREFIX: &[u8] = b"SS58PRE";
@@ -17,8 +21,8 @@ const SS58_PREFIX: &[u8] = b"SS58PRE";
 const CHECKSUM_LENGTH: usize = 2;
 
 /// Encode data to SS58 format.
-pub fn encode(data: &[u8], version: u16) -> String {
-    let ident: u16 = version & 0b0011_1111_1111_1111;
+pub fn encode(data: &[u8]) -> String {
+    let ident: u16 = default_ss58_version() & 0b0011_1111_1111_1111;
     let mut v = match ident {
         0..=63 => vec![ident as u8],
         64..=16_383 => {
@@ -36,6 +40,16 @@ pub fn encode(data: &[u8], version: u16) -> String {
     let r = blake2b_512(&v);
     v.extend(&r[0..CHECKSUM_LENGTH]);
     bs58::encode(v).into_string()
+}
+
+/// Get the default ss58 version.
+pub fn default_ss58_version() -> u16 {
+    DEFAULT_SS58_VERSION.load(Ordering::Relaxed)
+}
+
+/// Set the default ss58 version.
+pub fn set_default_ss58_version(version: u16) {
+    DEFAULT_SS58_VERSION.store(version, Ordering::Relaxed);
 }
 
 /// blake2b_512 hash
