@@ -19,6 +19,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 // `construct_runtime!` does a lot of recursion and requires us to increase the limit to 256.
 #![recursion_limit = "256"]
+#![allow(clippy::items_after_test_module)]
 
 // Make the WASM binary available.
 #[cfg(all(feature = "std", not(feature = "fuzz")))]
@@ -37,8 +38,7 @@ pub use frame_support::{
     traits::{
         ConstU128, ConstU16, ConstU32, Contains, Currency, EitherOf, EitherOfDiverse,
         EqualPrivilegeOnly, Everything, FindAuthor, InstanceFilter, KeyOwnerProofSystem,
-        LockIdentifier, Nothing, OnUnbalanced, Randomness, StorageInfo, U128CurrencyToVote,
-        WithdrawReasons,
+        LockIdentifier, Nothing, OnUnbalanced, Randomness, StorageInfo, WithdrawReasons,
     },
     weights::{
         constants::{
@@ -76,9 +76,16 @@ pub use runtime_common::{
     GAS_LIMIT_MIN_PERCENTAGE_NUM, NORMAL_DISPATCH_RATIO, VALUE_PER_GAS,
 };
 pub use runtime_primitives::{AccountId, Signature, VARA_SS58_PREFIX};
-use runtime_primitives::{Balance, BlockNumber, Hash, Index, Moment};
+use runtime_primitives::{Balance, BlockNumber, Hash, Moment, Nonce};
 use sp_api::impl_runtime_apis;
+#[cfg(any(feature = "std", test))]
+use sp_api::{
+    CallApiAt, CallContext, Extensions, OverlayedChanges, ProofRecorder, StateBackend,
+    StorageTransactionCache,
+};
 use sp_core::{crypto::KeyTypeId, ConstBool, ConstU64, OpaqueMetadata, H256};
+#[cfg(any(feature = "std", test))]
+use sp_runtime::traits::HashFor;
 use sp_runtime::{
     create_runtime_str, generic, impl_opaque_keys,
     traits::{AccountIdLookup, BlakeTwo256, Block as BlockT, ConvertInto, NumberFor, OpaqueKeys},
@@ -151,7 +158,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     // The version of the runtime specification. A full node will not attempt to use its native
     //   runtime in substitute for the on-chain Wasm runtime unless all of `spec_name`,
     //   `spec_version`, and `authoring_version` are the same between Wasm and native.
-    spec_version: 1040,
+    spec_version: 1050,
     impl_version: 1,
     apis: RUNTIME_API_VERSIONS,
     transaction_version: 1,
@@ -210,16 +217,14 @@ impl frame_system::Config for Runtime {
     type RuntimeCall = RuntimeCall;
     /// The lookup mechanism to get account ID from whatever is passed in dispatchers.
     type Lookup = AccountIdLookup<AccountId, ()>;
-    /// The index type for storing how many extrinsics an account has signed.
-    type Index = Index;
-    /// The index type for blocks.
-    type BlockNumber = BlockNumber;
+    /// The nonce type for storing how many extrinsics an account has signed.
+    type Nonce = Nonce;
     /// The type for hashing blocks and tries.
     type Hash = Hash;
     /// The hashing algorithm used.
     type Hashing = BlakeTwo256;
-    /// The header type.
-    type Header = generic::Header<BlockNumber, BlakeTwo256>;
+    /// The block type.
+    type Block = Block;
     /// The ubiquitous event type.
     type RuntimeEvent = RuntimeEvent;
     /// The ubiquitous origin type.
@@ -335,16 +340,27 @@ impl pallet_preimage::Config for Runtime {
     type ByteDeposit = PreimageByteDeposit;
 }
 
+parameter_types! {
+    // For weight estimation, we assume that the most locks on an individual account will be 50.
+    // This number may need to be adjusted in the future if this assumption no longer holds true.
+    pub const MaxLocks: u32 = 50;
+    pub const MaxReserves: u32 = 50;
+}
+
 impl pallet_balances::Config for Runtime {
-    type MaxLocks = ConstU32<50>;
-    type MaxReserves = ();
+    type MaxLocks = MaxLocks;
+    type MaxReserves = MaxReserves;
     type ReserveIdentifier = [u8; 8];
     type Balance = Balance;
     type RuntimeEvent = RuntimeEvent;
-    type DustRemoval = pallet_gear_staking_rewards::OffsetPool<Self>;
+    type DustRemoval = pallet_gear_staking_rewards::OffsetPoolDust<Self>;
     type ExistentialDeposit = ConstU128<EXISTENTIAL_DEPOSIT>;
     type AccountStore = System;
-    type WeightInfo = weights::pallet_balances::SubstrateWeight<Runtime>;
+    type WeightInfo = ();
+    type FreezeIdentifier = ();
+    type MaxFreezes = ();
+    type RuntimeHoldReason = RuntimeHoldReason;
+    type MaxHolds = ConstU32<2>;
 }
 
 parameter_types! {
@@ -604,7 +620,7 @@ impl pallet_staking::Config for Runtime {
     type Currency = Balances;
     type CurrencyBalance = Balance;
     type UnixTime = Timestamp;
-    type CurrencyToVote = U128CurrencyToVote;
+    type CurrencyToVote = sp_staking::currency_to_vote::U128CurrencyToVote;
     type ElectionProvider = ElectionProviderMultiPhase;
     type GenesisElectionProvider = onchain::OnChainExecution<OnChainSeqPhragmen>;
     // Burning the reward remainder for now.
@@ -626,7 +642,7 @@ impl pallet_staking::Config for Runtime {
     type TargetList = pallet_staking::UseValidatorsMap<Self>;
     type MaxUnlockingChunks = ConstU32<32>;
     type HistoryDepth = HistoryDepth;
-    type OnStakerSlash = NominationPools;
+    type EventListeners = NominationPools;
     type WeightInfo = pallet_staking::weights::SubstrateWeight<Runtime>;
     type BenchmarkingConfig = StakingBenchmarkingConfig;
 }
@@ -761,7 +777,6 @@ parameter_types! {
     pub const MaxAuthorities: u32 = 100_000;
     pub const MaxKeys: u32 = 10_000;
     pub const MaxPeerInHeartbeats: u32 = 10_000;
-    pub const MaxPeerDataEncodingSize: u32 = 1_000;
 }
 
 impl pallet_im_online::Config for Runtime {
@@ -774,7 +789,6 @@ impl pallet_im_online::Config for Runtime {
     type WeightInfo = pallet_im_online::weights::SubstrateWeight<Runtime>;
     type MaxKeys = MaxKeys;
     type MaxPeerInHeartbeats = MaxPeerInHeartbeats;
-    type MaxPeerDataEncodingSize = MaxPeerDataEncodingSize;
 }
 
 impl pallet_authority_discovery::Config for Runtime {
@@ -809,6 +823,7 @@ impl pallet_identity::Config for Runtime {
 impl pallet_sudo::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type RuntimeCall = RuntimeCall;
+    type WeightInfo = ();
 }
 
 impl pallet_utility::Config for Runtime {
@@ -1111,10 +1126,7 @@ impl pallet_vesting::Config for Runtime {
 // Create the runtime by composing the FRAME pallets that were previously configured.
 #[cfg(feature = "dev")]
 construct_runtime!(
-    pub enum Runtime where
-        Block = Block,
-        NodeBlock = runtime_primitives::Block,
-        UncheckedExtrinsic = UncheckedExtrinsic
+    pub struct Runtime
     {
         System: frame_system = 0,
         Timestamp: pallet_timestamp = 1,
@@ -1174,10 +1186,7 @@ construct_runtime!(
 
 #[cfg(not(feature = "dev"))]
 construct_runtime!(
-    pub enum Runtime where
-        Block = Block,
-        NodeBlock = runtime_primitives::Block,
-        UncheckedExtrinsic = UncheckedExtrinsic
+    pub struct Runtime
     {
         System: frame_system = 0,
         Timestamp: pallet_timestamp = 1,
@@ -1421,6 +1430,79 @@ impl_runtime_apis_plus_common! {
             // NOTE: intentional unwrap: we don't want to propagate the error backwards, and want to
             // have a backtrace here.
             Executive::try_execute_block(block, state_root_check, signature_check, select).unwrap()
+        }
+    }
+}
+
+#[cfg(any(feature = "std", test))]
+impl<B, C> Clone for RuntimeApiImpl<B, C>
+where
+    B: BlockT,
+    C: CallApiAt<B>,
+    C::StateBackend: StateBackend<HashFor<B>>,
+    <C::StateBackend as StateBackend<HashFor<B>>>::Transaction: Clone,
+{
+    fn clone(&self) -> Self {
+        Self {
+            call: <&C>::clone(&self.call),
+            transaction_depth: self.transaction_depth.clone(),
+            changes: self.changes.clone(),
+            storage_transaction_cache: self.storage_transaction_cache.clone(),
+            recorder: self.recorder.clone(),
+            call_context: self.call_context,
+            extensions: Default::default(),
+            extensions_generated_for: self.extensions_generated_for.clone(),
+        }
+    }
+}
+
+/// Implementation of the `common::Deconstructable` trait to enable deconstruction into
+/// and restoration from components for the `RuntimeApiImpl` struct.
+///
+/// substrate/primitives/api/proc-macro/src/impl_runtime_apis.rs:219
+#[cfg(any(feature = "std", test))]
+impl<B, C> common::Deconstructable<C> for RuntimeApiImpl<B, C>
+where
+    B: BlockT,
+    C: CallApiAt<B>,
+    C::StateBackend: StateBackend<HashFor<B>>,
+    <C::StateBackend as StateBackend<HashFor<B>>>::Transaction: Clone,
+{
+    type Params = (
+        u16,
+        OverlayedChanges,
+        StorageTransactionCache<B, C::StateBackend>,
+        Option<ProofRecorder<B>>,
+        CallContext,
+        Extensions,
+        Option<B::Hash>,
+    );
+
+    fn into_parts(self) -> (&'static C, Self::Params) {
+        (
+            self.call,
+            (
+                *core::cell::RefCell::borrow(&self.transaction_depth),
+                self.changes.into_inner(),
+                self.storage_transaction_cache.into_inner(),
+                self.recorder,
+                self.call_context,
+                self.extensions.into_inner(),
+                self.extensions_generated_for.into_inner(),
+            ),
+        )
+    }
+
+    fn from_parts(call: &C, params: Self::Params) -> Self {
+        Self {
+            call: unsafe { std::mem::transmute(call) },
+            transaction_depth: params.0.into(),
+            changes: core::cell::RefCell::new(params.1),
+            storage_transaction_cache: core::cell::RefCell::new(params.2),
+            recorder: params.3,
+            call_context: params.4,
+            extensions: core::cell::RefCell::new(params.5),
+            extensions_generated_for: core::cell::RefCell::new(params.6),
         }
     }
 }
