@@ -37,6 +37,8 @@ pub enum Error {
     InvalidPassword,
     #[error("Invalid public key")]
     InvalidPublic,
+    #[error("Invalid signature")]
+    InvalidSignature,
     #[error("Invalid secret key")]
     InvalidSecret,
     #[error(transparent)]

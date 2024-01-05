@@ -49,9 +49,9 @@ fn supply_alignment_works() {
 
     ExtBuilder::default()
         .initial_authorities(vec![
-            (VAL_1_STASH, VAL_1_CONTROLLER, VAL_1_AUTH_ID),
-            (VAL_2_STASH, VAL_2_CONTROLLER, VAL_2_AUTH_ID),
-            (VAL_3_STASH, VAL_3_CONTROLLER, VAL_3_AUTH_ID),
+            (VAL_1_STASH, VAL_1_AUTH_ID),
+            (VAL_2_STASH, VAL_2_AUTH_ID),
+            (VAL_3_STASH, VAL_3_AUTH_ID),
         ])
         .stash(VALIDATOR_STAKE)
         .endowment(ENDOWMENT)
@@ -97,11 +97,10 @@ fn supply_alignment_works() {
             // Burning N tokens.
             let n = Balances::minimum_balance() * 5;
 
-            assert_ok!(Balances::set_balance(
+            assert_ok!(Balances::force_set_balance(
                 RuntimeOrigin::root(),
                 SIGNER,
                 Balances::free_balance(SIGNER) - n,
-                Balances::reserved_balance(SIGNER),
             ));
 
             assert_issuance(INITIAL_TOTAL_TOKEN_SUPPLY - n);
@@ -120,11 +119,10 @@ fn supply_alignment_works() {
             // Minting M tokens.
             let m = Balances::minimum_balance() * 12;
 
-            assert_ok!(Balances::set_balance(
+            assert_ok!(Balances::force_set_balance(
                 RuntimeOrigin::root(),
                 SIGNER,
                 Balances::free_balance(SIGNER) + m,
-                Balances::reserved_balance(SIGNER),
             ));
 
             assert_issuance(INITIAL_TOTAL_TOKEN_SUPPLY + m);
@@ -147,9 +145,9 @@ fn genesis_config_works() {
     init_logger();
     ExtBuilder::default()
         .initial_authorities(vec![
-            (VAL_1_STASH, VAL_1_CONTROLLER, VAL_1_AUTH_ID),
-            (VAL_2_STASH, VAL_2_CONTROLLER, VAL_2_AUTH_ID),
-            (VAL_3_STASH, VAL_3_CONTROLLER, VAL_3_AUTH_ID),
+            (VAL_1_STASH, VAL_1_AUTH_ID),
+            (VAL_2_STASH, VAL_2_AUTH_ID),
+            (VAL_3_STASH, VAL_3_AUTH_ID),
         ])
         .stash(VALIDATOR_STAKE)
         .endowment(ENDOWMENT)
@@ -179,9 +177,9 @@ fn pool_refill_works() {
 fn burning_works() {
     ExtBuilder::default()
         .initial_authorities(vec![
-            (VAL_1_STASH, VAL_1_CONTROLLER, VAL_1_AUTH_ID),
-            (VAL_2_STASH, VAL_2_CONTROLLER, VAL_2_AUTH_ID),
-            (VAL_3_STASH, VAL_3_CONTROLLER, VAL_3_AUTH_ID),
+            (VAL_1_STASH, VAL_1_AUTH_ID),
+            (VAL_2_STASH, VAL_2_AUTH_ID),
+            (VAL_3_STASH, VAL_3_AUTH_ID),
         ])
         .stash(VALIDATOR_STAKE)
         .endowment(ENDOWMENT)
@@ -204,9 +202,9 @@ fn burning_works() {
 fn rewards_account_doesnt_get_deleted() {
     ExtBuilder::default()
         .initial_authorities(vec![
-            (VAL_1_STASH, VAL_1_CONTROLLER, VAL_1_AUTH_ID),
-            (VAL_2_STASH, VAL_2_CONTROLLER, VAL_2_AUTH_ID),
-            (VAL_3_STASH, VAL_3_CONTROLLER, VAL_3_AUTH_ID),
+            (VAL_1_STASH, VAL_1_AUTH_ID),
+            (VAL_2_STASH, VAL_2_AUTH_ID),
+            (VAL_3_STASH, VAL_3_AUTH_ID),
         ])
         .stash(VALIDATOR_STAKE)
         .endowment(ENDOWMENT)
@@ -229,9 +227,9 @@ fn validators_rewards_disbursement_works() {
 
     let mut ext = ExtBuilder::default()
         .initial_authorities(vec![
-            (VAL_1_STASH, VAL_1_CONTROLLER, VAL_1_AUTH_ID),
-            (VAL_2_STASH, VAL_2_CONTROLLER, VAL_2_AUTH_ID),
-            (VAL_3_STASH, VAL_3_CONTROLLER, VAL_3_AUTH_ID),
+            (VAL_1_STASH, VAL_1_AUTH_ID),
+            (VAL_2_STASH, VAL_2_AUTH_ID),
+            (VAL_3_STASH, VAL_3_AUTH_ID),
         ])
         .stash(VALIDATOR_STAKE)
         .endowment(ENDOWMENT)
@@ -423,7 +421,7 @@ fn nominators_rewards_disbursement_works() {
                 + initial_treasury_balance
                 + signer_balance
                 + initial_rewards_pool_balance
-                + 2 * ENDOWMENT // NOM_1_STASH and NOM_1_CONTROLLER
+                + ENDOWMENT // NOM_1_STASH
                 + EXISTENTIAL_DEPOSIT // added to the rewards pool to ensure pool existence
         );
         assert_eq!(initial_rewards_pool_balance, pool_balance);
@@ -451,7 +449,6 @@ fn nominators_rewards_disbursement_works() {
         // Sending bonding transaction
         assert_ok!(Staking::bond(
             RuntimeOrigin::signed(NOM_1_STASH),
-            NOM_1_CONTROLLER,
             VALIDATOR_STAKE * 5,
             pallet_staking::RewardDestination::Stash
         ));
@@ -459,7 +456,7 @@ fn nominators_rewards_disbursement_works() {
         run_to_block(30);
 
         assert_ok!(Staking::nominate(
-            RuntimeOrigin::signed(NOM_1_CONTROLLER),
+            RuntimeOrigin::signed(NOM_1_STASH),
             vec![VAL_1_STASH], // nominating "the best" validator
         ));
         let initial_nominators_balance = nominators_total_balance();
@@ -616,7 +613,6 @@ fn staking_blacklist_works() {
 
     let invalid_call = TestXt::<RuntimeCall, SignedExtra>::new(
         RuntimeCall::Staking(pallet_staking::Call::bond {
-            controller: NOM_1_CONTROLLER,
             value: 10_000_u128,
             payee: pallet_staking::RewardDestination::Stash,
         }),
@@ -627,7 +623,6 @@ fn staking_blacklist_works() {
     let invalid_batch = TestXt::<RuntimeCall, SignedExtra>::new(
         RuntimeCall::Utility(pallet_utility::Call::batch {
             calls: vec![RuntimeCall::Staking(pallet_staking::Call::bond {
-                controller: NOM_1_CONTROLLER,
                 value: 10_000_u128,
                 payee: pallet_staking::RewardDestination::Stash,
             })],
@@ -638,7 +633,6 @@ fn staking_blacklist_works() {
     let invalid_batch_all = TestXt::<RuntimeCall, SignedExtra>::new(
         RuntimeCall::Utility(pallet_utility::Call::batch_all {
             calls: vec![RuntimeCall::Staking(pallet_staking::Call::bond {
-                controller: NOM_1_CONTROLLER,
                 value: 10_000_u128,
                 payee: pallet_staking::RewardDestination::Stash,
             })],
@@ -653,7 +647,6 @@ fn staking_blacklist_works() {
                 calls: vec![RuntimeCall::Utility(pallet_utility::Call::as_derivative {
                     index: 0,
                     call: Box::new(RuntimeCall::Staking(pallet_staking::Call::bond {
-                        controller: NOM_1_CONTROLLER,
                         value: 10_000_u128,
                         payee: pallet_staking::RewardDestination::Stash,
                     })),
@@ -665,7 +658,7 @@ fn staking_blacklist_works() {
 
     let valid_call = TestXt::<RuntimeCall, SignedExtra>::new(
         RuntimeCall::Balances(pallet_balances::Call::transfer {
-            dest: NOM_1_CONTROLLER,
+            dest: NOM_1_STASH,
             value: 10_000_u128,
         }),
         Some((NOM_1_STASH, extra.clone())),
@@ -673,7 +666,6 @@ fn staking_blacklist_works() {
 
     let valid_signer = TestXt::<RuntimeCall, SignedExtra>::new(
         RuntimeCall::Staking(pallet_staking::Call::bond {
-            controller: NOM_1_CONTROLLER,
             value: 10_000_u128,
             payee: pallet_staking::RewardDestination::Stash,
         }),
@@ -682,13 +674,13 @@ fn staking_blacklist_works() {
 
     ExtBuilder::default()
         .initial_authorities(vec![
-            (VAL_1_STASH, VAL_1_CONTROLLER, VAL_1_AUTH_ID),
-            (VAL_2_STASH, VAL_2_CONTROLLER, VAL_2_AUTH_ID),
-            (VAL_3_STASH, VAL_3_CONTROLLER, VAL_3_AUTH_ID),
+            (VAL_1_STASH, VAL_1_AUTH_ID),
+            (VAL_2_STASH, VAL_2_AUTH_ID),
+            (VAL_3_STASH, VAL_3_AUTH_ID),
         ])
         .stash(VALIDATOR_STAKE)
         .endowment(ENDOWMENT)
-        .endowed_accounts(vec![SIGNER, NOM_1_STASH, NOM_1_CONTROLLER])
+        .endowed_accounts(vec![SIGNER, NOM_1_STASH])
         .filtered_accounts(vec![NOM_1_STASH])
         .build()
         .execute_with(|| {
@@ -772,7 +764,7 @@ fn inflation_at_ideal_staked_adds_up() {
                 + initial_treasury_balance
                 + signer_balance
                 + initial_rewards_pool_balance
-                + 2 * ENDOWMENT // NOM_1_STASH and NOM_1_CONTROLLER
+                + ENDOWMENT // NOM_1_STASH
                 + EXISTENTIAL_DEPOSIT // added to the rewards pool to ensure pool existence
         );
         assert_eq!(initial_rewards_pool_balance, pool_balance);
@@ -801,7 +793,6 @@ fn inflation_at_ideal_staked_adds_up() {
         // Sending bonding transaction
         assert_ok!(Staking::bond(
             RuntimeOrigin::signed(NOM_1_STASH),
-            NOM_1_CONTROLLER,
             nominator_stake,
             pallet_staking::RewardDestination::Stash
         ));
@@ -809,7 +800,7 @@ fn inflation_at_ideal_staked_adds_up() {
         run_to_block(30);
 
         assert_ok!(Staking::nominate(
-            RuntimeOrigin::signed(NOM_1_CONTROLLER),
+            RuntimeOrigin::signed(NOM_1_STASH),
             vec![VAL_1_STASH], // nominating "the best" validator
         ));
         let initial_nominators_balance = nominators_total_balance();
@@ -909,7 +900,7 @@ fn inflation_when_nobody_stakes_adds_up() {
                 + initial_treasury_balance
                 + signer_balance
                 + initial_rewards_pool_balance
-                + 2 * ENDOWMENT // NOM_1_STASH and NOM_1_CONTROLLER
+                + ENDOWMENT // NOM_1_STASH
                 + EXISTENTIAL_DEPOSIT // added to the rewards pool to ensure pool existence
         );
         assert_eq!(initial_rewards_pool_balance, pool_balance);
@@ -941,7 +932,6 @@ fn inflation_when_nobody_stakes_adds_up() {
         // Sending bonding transaction
         assert_ok!(Staking::bond(
             RuntimeOrigin::signed(NOM_1_STASH),
-            NOM_1_CONTROLLER,
             nominator_stake,
             pallet_staking::RewardDestination::Stash
         ));
@@ -949,7 +939,7 @@ fn inflation_when_nobody_stakes_adds_up() {
         run_to_block(30);
 
         assert_ok!(Staking::nominate(
-            RuntimeOrigin::signed(NOM_1_CONTROLLER),
+            RuntimeOrigin::signed(NOM_1_STASH),
             vec![VAL_1_STASH], // nominating "the best" validator
         ));
         let initial_nominators_balance = nominators_total_balance();
@@ -1056,7 +1046,7 @@ fn inflation_with_too_many_stakers_adds_up() {
                 + initial_treasury_balance
                 + signer_balance
                 + initial_rewards_pool_balance
-                + 2 * ENDOWMENT // NOM_1_STASH and NOM_1_CONTROLLER
+                + ENDOWMENT // NOM_1_STASH
                 + EXISTENTIAL_DEPOSIT // added to the rewards pool to ensure pool existence
         );
         assert_eq!(initial_rewards_pool_balance, pool_balance);
@@ -1088,7 +1078,6 @@ fn inflation_with_too_many_stakers_adds_up() {
         // Sending bonding transaction
         assert_ok!(Staking::bond(
             RuntimeOrigin::signed(NOM_1_STASH),
-            NOM_1_CONTROLLER,
             nominator_stake,
             pallet_staking::RewardDestination::Stash
         ));
@@ -1096,7 +1085,7 @@ fn inflation_with_too_many_stakers_adds_up() {
         run_to_block(30);
 
         assert_ok!(Staking::nominate(
-            RuntimeOrigin::signed(NOM_1_CONTROLLER),
+            RuntimeOrigin::signed(NOM_1_STASH),
             vec![VAL_1_STASH], // nominating "the best" validator
         ));
         let initial_nominators_balance = nominators_total_balance();
@@ -1205,10 +1194,9 @@ fn unclaimed_rewards_burn() {
 
         run_to_block(20);
 
-        // Sending bonding transaction
+        // Sending bonding transaction from SIGNER to make 4 npos voters
         assert_ok!(Staking::bond(
-            RuntimeOrigin::signed(NOM_1_STASH),
-            NOM_1_CONTROLLER,
+            RuntimeOrigin::signed(SIGNER),
             nominator_stake,
             pallet_staking::RewardDestination::Stash
         ));
@@ -1216,7 +1204,7 @@ fn unclaimed_rewards_burn() {
         run_to_block(30);
 
         assert_ok!(Staking::nominate(
-            RuntimeOrigin::signed(NOM_1_CONTROLLER),
+            RuntimeOrigin::signed(SIGNER),
             vec![VAL_1_STASH], // nominating "the best" validator
         ));
 
@@ -1361,9 +1349,9 @@ fn election_solution_rewards_add_up() {
     let accounts = (0_u64..5).map(|i| 100 + i).collect::<Vec<_>>();
     let mut ext = ExtBuilder::default()
         .initial_authorities(vec![
-            (VAL_1_STASH, VAL_1_CONTROLLER, VAL_1_AUTH_ID),
-            (VAL_2_STASH, VAL_2_CONTROLLER, VAL_2_AUTH_ID),
-            (VAL_3_STASH, VAL_3_CONTROLLER, VAL_3_AUTH_ID),
+            (VAL_1_STASH, VAL_1_AUTH_ID),
+            (VAL_2_STASH, VAL_2_AUTH_ID),
+            (VAL_3_STASH, VAL_3_AUTH_ID),
         ])
         .stash(VALIDATOR_STAKE)
         .endowment(ENDOWMENT)
@@ -1483,13 +1471,13 @@ fn with_parameters(
 ) -> sp_io::TestExternalities {
     ExtBuilder::default()
         .initial_authorities(vec![
-            (VAL_1_STASH, VAL_1_CONTROLLER, VAL_1_AUTH_ID),
-            (VAL_2_STASH, VAL_2_CONTROLLER, VAL_2_AUTH_ID),
-            (VAL_3_STASH, VAL_3_CONTROLLER, VAL_3_AUTH_ID),
+            (VAL_1_STASH, VAL_1_AUTH_ID),
+            (VAL_2_STASH, VAL_2_AUTH_ID),
+            (VAL_3_STASH, VAL_3_AUTH_ID),
         ])
         .stash(VALIDATOR_STAKE)
         .endowment(ENDOWMENT)
-        .endowed_accounts(vec![SIGNER, NOM_1_STASH, NOM_1_CONTROLLER])
+        .endowed_accounts(vec![SIGNER, NOM_1_STASH])
         .total_supply(INITIAL_TOTAL_TOKEN_SUPPLY)
         .non_stakeable(non_stakeable)
         .pool_balance(pool_balance)

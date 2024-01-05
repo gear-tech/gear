@@ -22,9 +22,9 @@ use crate::keyring::*;
 use sp_keyring::{Ed25519Keyring, Sr25519Keyring};
 use sp_runtime::{Perbill, Perquintill};
 use vara_runtime::{
-    constants::currency::*, AccountId, BabeConfig, BalancesConfig, GenesisConfig, GrandpaConfig,
-    SessionConfig, StakerStatus, StakingConfig, StakingRewardsConfig, SudoConfig, SystemConfig,
-    BABE_GENESIS_EPOCH_CONFIG, WASM_BINARY,
+    constants::currency::*, AccountId, BabeConfig, BalancesConfig, GrandpaConfig,
+    RuntimeGenesisConfig, SessionConfig, StakerStatus, StakingConfig, StakingRewardsConfig,
+    SudoConfig, SystemConfig, BABE_GENESIS_EPOCH_CONFIG, WASM_BINARY,
 };
 
 fn wasm_binary() -> &'static [u8] {
@@ -34,13 +34,13 @@ fn wasm_binary() -> &'static [u8] {
 }
 
 /// Create genesis runtime configuration for tests.
-pub fn genesis_config(code: Option<&[u8]>) -> GenesisConfig {
+pub fn genesis_config(code: Option<&[u8]>) -> RuntimeGenesisConfig {
     config_endowed(code, Default::default())
 }
 
 /// Create genesis runtime configuration for tests adding some extra
 /// endowed accounts if needed.
-pub fn config_endowed(code: Option<&[u8]>, extra_endowed: Vec<AccountId>) -> GenesisConfig {
+pub fn config_endowed(code: Option<&[u8]>, extra_endowed: Vec<AccountId>) -> RuntimeGenesisConfig {
     let mut endowed = vec![
         (alice(), 111 * ECONOMIC_UNITS),
         (bob(), 100 * ECONOMIC_UNITS),
@@ -56,19 +56,22 @@ pub fn config_endowed(code: Option<&[u8]>, extra_endowed: Vec<AccountId>) -> Gen
             .map(|endowed| (endowed, 100 * ECONOMIC_UNITS)),
     );
 
-    GenesisConfig {
+    RuntimeGenesisConfig {
         system: SystemConfig {
             code: code
                 .map(|x| x.to_vec())
                 .unwrap_or_else(|| wasm_binary().to_vec()),
+            ..Default::default()
         },
         balances: BalancesConfig { balances: endowed },
         babe: BabeConfig {
             authorities: vec![],
             epoch_config: Some(BABE_GENESIS_EPOCH_CONFIG),
+            ..Default::default()
         },
         grandpa: GrandpaConfig {
             authorities: vec![],
+            _config: Default::default(),
         },
         session: SessionConfig {
             keys: vec![

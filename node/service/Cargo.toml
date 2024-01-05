@@ -11,12 +11,16 @@ repository.workspace = true
 targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
+codec = { workspace = true, features = ["derive"] }
+futures.workspace = true
+futures-timer.workspace = true
 hex-literal.workspace = true
-jsonrpsee = { workspace = true, features = ["server", "macros"] }
+jsonrpsee = { workspace = true, features = ["server"] }
 log.workspace = true
 serde = { workspace = true, features = ["derive"] }
 
 # Gear
+common = { workspace = true, features = ["std"] }
 pallet-gear-rpc.workspace = true
 pallet-gear-rpc-runtime-api = { workspace = true, features = ["std"] }
 pallet-gear-staking-rewards-rpc.workspace = true
@@ -40,6 +44,7 @@ sc-telemetry.workspace = true
 sc-network.workspace = true
 sc-network-common.workspace = true
 sc-network-sync.workspace = true
+sc-network-statement.workspace = true
 sc-consensus-slots.workspace = true
 sc-transaction-pool.workspace = true
 sc-transaction-pool-api.workspace = true
@@ -51,6 +56,7 @@ sc-consensus-babe-rpc.workspace = true
 sc-consensus-grandpa.workspace = true
 sc-consensus-grandpa-rpc.workspace = true
 sc-client-api.workspace = true
+sc-offchain.workspace = true
 sc-rpc.workspace = true
 sc-rpc-spec-v2.workspace = true
 sc-sync-state-rpc.workspace = true
