@@ -16,10 +16,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-mod codec;
 mod keystore;
+mod pkcs8;
+mod scrypt;
 
 pub use self::{
-    codec::{Codec, ScryptParams},
     keystore::{Encoding, Keystore},
+    pkcs8::KeyInfo,
+    scrypt::Scrypt,
 };

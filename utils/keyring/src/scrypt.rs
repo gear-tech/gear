@@ -58,9 +58,9 @@ impl Scrypt {
         let params = encoded[Self::SALT_LENGTH..]
             .windows(4)
             .map(|bytes| {
-                let mut buf = [0; 4];
+                let mut buf = [0; 8];
                 buf.copy_from_slice(bytes);
-                u32::from_le_bytes(buf) as usize
+                usize::from_le_bytes(buf)
             })
             .collect::<Vec<_>>();
 
