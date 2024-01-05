@@ -3666,7 +3666,7 @@ dependencies = [
 
 [[package]]
 name = "gbuiltin"
-version = "1.0.4"
+version = "1.0.5"
 dependencies = [
  "derive_more",
  "gear-core-errors",
@@ -7603,7 +7603,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-builtin-actor"
-version = "1.0.4"
+version = "1.0.5"
 dependencies = [
  "demo-waiting-proxy",
  "derive_more",
@@ -7643,7 +7643,7 @@ dependencies = [
  "sp-externalities",
  "sp-io",
  "sp-runtime",
- "sp-std 5.0.0",
+ "sp-std 8.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v1.0.0-canary)",
 ]
 
 [[package]]
