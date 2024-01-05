@@ -18,63 +18,57 @@
 
 //! codec for keys.
 
-use crate::Encoding;
 use anyhow::{anyhow, Result};
-use schnorrkel::SecretKey;
+use rand::RngCore;
+use schnorrkel::PUBLIC_KEY_LENGTH;
 
 /// Parameters of scrypt
 pub struct Scrypt {
     /// Salt used for scrypt.
     pub salt: [u8; Self::SALT_LENGTH],
     /// CPU/memory cost parameter, must be power of 2 (e.g. 1024).
-    pub n: usize,
+    pub n: u32,
     /// Block size parameter, which fine-tunes sequential memory
     /// read size and performance ( 8 is commonly used ).
-    pub r: usize,
+    pub r: u32,
     /// Parallelization parameter ( 1 .. 2^32 -1 * hLen/MFlen ).
-    pub p: usize,
+    pub p: u32,
 }
 
 impl Scrypt {
     /// The length of encoded scrypt params.
     ///
     /// NOTE: SALT(32) + N(4) + R(4) + P(4)
-    pub const LENGTH: usize = 44;
+    pub const ENCODED_LENGTH: usize = 44;
 
     /// The length of salt used for scrypt.
     const SALT_LENGTH: usize = 32;
 
     /// Read from encoded data.
-    pub fn decode(encoded: &[u8]) -> Result<Self> {
-        if encoded.len() < Self::LENGTH {
-            return Err(anyhow::anyhow!(
-                "invalid scrypt params, the length should be 44."
-            ));
-        }
-
+    pub fn decode(encoded: [u8; Self::ENCODED_LENGTH]) -> Self {
         let mut salt = [0; Self::SALT_LENGTH];
         salt.copy_from_slice(&encoded[..Self::SALT_LENGTH]);
 
         let params = encoded[Self::SALT_LENGTH..]
             .windows(4)
             .map(|bytes| {
-                let mut buf = [0; 8];
+                let mut buf = [0; 4];
                 buf.copy_from_slice(bytes);
-                usize::from_le_bytes(buf)
+                u32::from_le_bytes(buf)
             })
             .collect::<Vec<_>>();
 
-        Ok(Self {
+        Self {
             salt,
             n: params[0],
             r: params[1],
             p: params[2],
-        })
+        }
     }
 
     /// Encode self to bytes.
-    pub fn encode(&self) -> [u8; Self::LENGTH] {
-        let mut buf = [0; Self::LENGTH];
+    pub fn encode(&self) -> [u8; Self::ENCODED_LENGTH] {
+        let mut buf = [0; Self::ENCODED_LENGTH];
         buf[..Self::SALT_LENGTH].copy_from_slice(&self.salt);
         buf[Self::SALT_LENGTH..].copy_from_slice(
             [self.n, self.r, self.p]
@@ -86,37 +80,36 @@ impl Scrypt {
 
         buf
     }
+
+    /// Get passwd from passphrase.
+    pub fn passwd(&self, passphrase: &[u8]) -> Result<[u8; 32]> {
+        let mut passwd = [0; 32];
+        let output = nacl::scrypt(
+            passphrase,
+            &self.salt,
+            self.n as u8,
+            self.r as usize,
+            self.p as usize,
+            PUBLIC_KEY_LENGTH,
+            &|_: u32| {},
+        )
+        .map_err(|e| anyhow!("{e:?}"))?;
+        passwd.copy_from_slice(&output[..32]);
+
+        Ok(passwd)
+    }
 }
 
 impl Default for Scrypt {
     fn default() -> Self {
+        let mut salt = [0; Self::SALT_LENGTH];
+        rand::thread_rng().fill_bytes(&mut salt);
+
         Self {
-            salt: Default::default(),
+            salt,
             n: 15,
             r: 8,
             p: 1,
         }
     }
-}
-
-#[allow(unused)]
-/// decrypt an ed25519 key from encrypted data.
-pub fn decrypt(encrypted: &[u8], passphrase: &[u8], encoding: &Encoding) -> Result<SecretKey> {
-    if encoding.is_xsalsa20_poly1305() && passphrase.is_empty() {
-        return Err(anyhow::anyhow!(
-            "passphrase is required for xsalsa20_poly1305"
-        ));
-    }
-
-    if passphrase.is_empty() {
-        return SecretKey::from_ed25519_bytes(encrypted).map_err(|e| anyhow!(e));
-    }
-
-    let passwd = if encoding.is_scrypt() {
-        vec![]
-    } else {
-        passphrase.to_vec()
-    };
-
-    todo!()
 }

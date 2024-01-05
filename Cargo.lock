@@ -12591,6 +12591,7 @@ dependencies = [
  "der 0.7.8",
  "nacl",
  "once_cell",
+ "rand 0.8.5",
  "schnorrkel 0.9.1",
  "serde",
  "serde_json",

@@ -15,6 +15,7 @@ base64.workspace = true
 der.workspace = true
 nacl.workspace = true
 once_cell.workspace = true
+rand = { workspace = true, features = ["std", "std_rng"] }
 schnorrkel.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true

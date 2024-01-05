@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use anyhow::{anyhow, Result};
-use schnorrkel::{PUBLIC_KEY_LENGTH, SECRET_KEY_LENGTH};
+use schnorrkel::{Keypair, KEYPAIR_LENGTH, PUBLIC_KEY_LENGTH, SECRET_KEY_LENGTH};
 
 /// Key info wrapped in pkcs8 format.
 ///
@@ -27,18 +27,18 @@ use schnorrkel::{PUBLIC_KEY_LENGTH, SECRET_KEY_LENGTH};
 /// For the encoded data format of this implementation:
 ///
 /// ENCODED(117) = HEADER(16) + SECRET_KEY_LENGTH(64) + DIVIDER(5) + PUBLIC_KEY_LENGTH(32)
-pub struct KeyInfo {
+pub struct KeypairInfo {
     /// Schnorrkel secret key.
     pub secret: [u8; SECRET_KEY_LENGTH],
     /// Schnorrkel public key.
     pub public: [u8; PUBLIC_KEY_LENGTH],
 }
 
-impl KeyInfo {
+impl KeypairInfo {
     /// The length of the pkcs8 key info.
     ///
     /// NOTE: LENGTH(117) = HEADER(16) + SECRET_KEY_LENGTH + DIVIDER(5) + PUBLIC_KEY_LENGTH
-    const LENGTH: usize = 16 + 5 + SECRET_KEY_LENGTH + PUBLIC_KEY_LENGTH;
+    pub const ENCODED_LENGTH: usize = 117;
 
     /// The length of pkcs8 header in polkadot-js.
     const PKCS8_HEADER_LENGTH: usize = 16;
@@ -64,17 +64,19 @@ impl KeyInfo {
         Self::SECRET_KEY_OFFSET + SECRET_KEY_LENGTH + Self::PKCS8_DIVIDER_LENGTH;
 
     /// Decode key info from fixed bytes.
-    pub fn decode(encoded: [u8; Self::LENGTH]) -> Result<Self> {
-        if encoded[..Self::PKCS8_HEADER_LENGTH] != Self::PKCS8_HEADER {
+    pub fn decode(data: &[u8]) -> Result<Self> {
+        if data[..Self::PKCS8_HEADER_LENGTH] != Self::PKCS8_HEADER {
             return Err(anyhow!("invalid pkcs8 header"));
         }
 
-        if encoded
-            [Self::PKCS8_DIVIDER_OFFSET..Self::PKCS8_DIVIDER_OFFSET + Self::PKCS8_DIVIDER_LENGTH]
+        if data[Self::PKCS8_DIVIDER_OFFSET..Self::PKCS8_DIVIDER_OFFSET + Self::PKCS8_DIVIDER_LENGTH]
             != Self::PKCS8_DIVIDER
         {
             return Err(anyhow!("invalid pkcs8 divider"));
         }
+
+        let mut encoded = [0; Self::ENCODED_LENGTH];
+        encoded.copy_from_slice(data);
 
         let mut secret = [0u8; SECRET_KEY_LENGTH];
         let mut public = [0u8; PUBLIC_KEY_LENGTH];
@@ -90,8 +92,8 @@ impl KeyInfo {
     }
 
     /// Encode self to fixed bytes.
-    pub fn encode(&self) -> [u8; Self::LENGTH] {
-        let mut encoded = [0; Self::LENGTH];
+    pub fn encode(&self) -> [u8; Self::ENCODED_LENGTH] {
+        let mut encoded = [0; Self::ENCODED_LENGTH];
 
         encoded[..Self::PKCS8_HEADER_LENGTH].copy_from_slice(&Self::PKCS8_HEADER);
         encoded[Self::SECRET_KEY_OFFSET..Self::SECRET_KEY_OFFSET + SECRET_KEY_LENGTH]
@@ -103,5 +105,21 @@ impl KeyInfo {
             .copy_from_slice(&self.secret);
 
         encoded
+    }
+
+    /// Convert self to schnorrkel keypair.
+    pub fn into_keypair(self) -> Result<Keypair> {
+        let mut bytes = [0u8; KEYPAIR_LENGTH];
+        bytes[..SECRET_KEY_LENGTH].copy_from_slice(&self.secret);
+        bytes[SECRET_KEY_LENGTH..].copy_from_slice(&self.public);
+        Keypair::from_bytes(&bytes).map_err(|e| anyhow!("{e:?}"))
+    }
+}
+
+impl From<Keypair> for KeypairInfo {
+    fn from(keypair: Keypair) -> Self {
+        let secret = keypair.secret.to_bytes();
+        let public = keypair.public.to_bytes();
+        Self { secret, public }
     }
 }

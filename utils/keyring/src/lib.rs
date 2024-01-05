@@ -22,6 +22,6 @@ mod scrypt;
 
 pub use self::{
     keystore::{Encoding, Keystore},
-    pkcs8::KeyInfo,
+    pkcs8::KeypairInfo,
     scrypt::Scrypt,
 };
