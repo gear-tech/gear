@@ -68,8 +68,7 @@ impl<AccountId, BlockNumber> VoucherInfo<AccountId, BlockNumber> {
     pub fn contains(&self, program_id: ProgramId) -> bool {
         self.programs
             .as_ref()
-            .map(|v| v.contains(&program_id))
-            .unwrap_or(true)
+            .map_or(true, |v| v.contains(&program_id))
     }
 }
 
@@ -186,16 +185,12 @@ where
     // NOTE: delete [`None`] return once fn `GearVoucher::call_deprecated()` is removed.
     pub fn sponsored_by(&self, who: AccountIdOf<T>) -> Option<AccountIdOf<T>> {
         match self {
-            crate::Call::call_deprecated { call } => Pallet::<T>::sponsor_of(&who, call),
-            crate::Call::call { voucher_id, call } => {
-                if Pallet::<T>::validate_prepaid(who, *voucher_id, call).is_err() {
-                    log::error!("Signed extension of voucher validity passed invalid voucher for fee delegation");
+            Self::call_deprecated { call } => Pallet::<T>::sponsor_of(&who, call),
+            Self::call { voucher_id, call } => Pallet::<T>::validate_prepaid(who, *voucher_id, call)
+                .map(|_| (*voucher_id).cast()).map_err(|_| {
                     // This place may be considered as unreachable due to checks in `SignedExtension`.
-                    return None;
-                }
-
-                Some((*voucher_id).cast())
-            }
+                    log::error!("Signed extension of voucher validity passed invalid voucher for fee delegation");
+                }).ok(),
             _ => None,
         }
     }

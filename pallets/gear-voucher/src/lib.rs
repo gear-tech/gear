@@ -330,9 +330,8 @@ pub mod pallet {
 
             // Querying voucher data.
             // NOTE: currently getting instead of taking value.
-            let Some(voucher) = Vouchers::<T>::get(spender.clone(), voucher_id) else {
-                return Err(Error::<T>::InexistentVoucher.into());
-            };
+            let voucher = Vouchers::<T>::get(spender.clone(), voucher_id)
+                .ok_or(Error::<T>::InexistentVoucher)?;
 
             // NOTE: currently ensuring that owner revokes voucher.
             ensure!(voucher.owner == origin, Error::<T>::BadOrigin);
@@ -407,9 +406,8 @@ pub mod pallet {
             let origin = ensure_signed(origin)?;
 
             // Querying voucher.
-            let Some(mut voucher) = Vouchers::<T>::get(spender.clone(), voucher_id) else {
-                return Err(Error::<T>::InexistentVoucher.into());
-            };
+            let mut voucher = Vouchers::<T>::get(spender.clone(), voucher_id)
+                .ok_or(Error::<T>::InexistentVoucher)?;
 
             // Ensuring origin is owner of the voucher.
             ensure!(voucher.owner == origin, Error::<T>::BadOrigin);
@@ -418,7 +416,7 @@ pub mod pallet {
             let mut updated = false;
 
             // Flattening move ownership back to current owner.
-            let new_owner = move_ownership.and_then(|addr| addr.ne(&voucher.owner).then_some(addr));
+            let new_owner = move_ownership.filter(|addr| addr.ne(&voucher.owner));
 
             // Optionally updates voucher owner.
             if let Some(ref owner) = new_owner {
@@ -457,20 +455,17 @@ pub mod pallet {
                         updated |= programs.len() != prev_len;
                     }
                 } else {
-                    updated |= voucher.programs.is_some();
-                    voucher.programs = None;
+                    updated |= voucher.programs.take().is_some();
                 }
             }
 
             // Optionally prolongs validity of the voucher.
-            if let Some(duration) = prolong_validity {
-                if !duration.is_zero() {
-                    voucher.validity = voucher
-                        .validity
-                        .max(<frame_system::Pallet<T>>::block_number())
-                        .saturating_add(duration);
-                    updated = true;
-                }
+            if let Some(duration) = prolong_validity.filter(|v| !v.is_zero()) {
+                voucher.validity = voucher
+                    .validity
+                    .max(<frame_system::Pallet<T>>::block_number())
+                    .saturating_add(duration);
+                updated = true;
             }
 
             // Check for Noop.

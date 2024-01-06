@@ -110,17 +110,15 @@ impl Mailbox for MailboxMock {
         unimplemented!()
     }
     fn peek(key1: &Self::Key1, key2: &Self::Key2) -> Option<Self::Value> {
-        if *key2 == MAILBOXED_MESSAGE {
-            Some(UserStoredMessage::new(
+        (*key2 == MAILBOXED_MESSAGE).then(|| {
+            UserStoredMessage::new(
                 MAILBOXED_MESSAGE,
                 MAILBOXED_PROGRAM,
                 (*key1).cast(),
                 vec![].try_into().unwrap(),
                 0,
-            ))
-        } else {
-            None
-        }
+            )
+        })
     }
     fn remove(
         _key1: Self::Key1,
