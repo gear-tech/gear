@@ -16,15 +16,125 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-#![allow(unused)]
-
 use crate::*;
 use common::{
     storage::{Counter, CounterImpl, Mailbox},
-    DelegateFee, Origin,
+    Origin,
 };
 use gear_core::{declare_id, ids};
 use sp_std::collections::btree_set::BTreeSet;
+
+impl<T: Config> crate::Call<T>
+where
+    T::AccountId: Origin,
+{
+    pub fn is_legit(&self, who: AccountIdOf<T>) -> bool {
+        match self {
+            Self::call { voucher_id, call } => {
+                Pallet::<T>::validate_prepaid(who, *voucher_id, call).is_ok()
+            }
+            _ => true,
+        }
+    }
+
+    // NOTE: delete [`None`] return once fn `GearVoucher::call_deprecated()` is removed.
+    pub fn sponsored_by(&self, who: AccountIdOf<T>) -> Option<AccountIdOf<T>> {
+        match self {
+            #[allow(deprecated)]
+            Self::call_deprecated { call } => Pallet::<T>::sponsor_of(&who, call),
+            Self::call { voucher_id, call } => Pallet::<T>::validate_prepaid(who, *voucher_id, call)
+                .map(|_| (*voucher_id).cast()).map_err(|_| {
+                    // This place may be considered as unreachable due to checks in `SignedExtension`.
+                    log::error!("Signed extension of voucher validity passed invalid voucher for fee delegation");
+                }).ok(),
+            _ => None,
+        }
+    }
+}
+
+#[deprecated = "Relates to legacy voucher logic and `call_deprecated`"]
+impl<T: Config> Pallet<T> {
+    /// Return synthesized account ID based on call data.
+    pub fn sponsor_of(
+        who: &T::AccountId,
+        call: &PrepaidCall<BalanceOf<T>>,
+    ) -> Option<T::AccountId> {
+        #[allow(deprecated)]
+        match call {
+            PrepaidCall::SendMessage { destination, .. } => {
+                Some(Self::voucher_id(who, destination))
+            }
+            PrepaidCall::SendReply { reply_to_id, .. } => T::Mailbox::peek(who, reply_to_id)
+                .map(|stored_message| Self::voucher_id(who, &stored_message.source())),
+        }
+    }
+
+    /// Derive a synthesized account ID from an account ID and a program ID.
+    pub fn voucher_id(who: &T::AccountId, program_id: &ProgramId) -> T::AccountId {
+        let entropy = (b"modlpy/voucher__", who, program_id).using_encoded(blake2_256);
+        Decode::decode(&mut TrailingZeroInput::new(entropy.as_ref()))
+            .expect("infinite length input; no invalid inputs for type; qed")
+    }
+}
+
+impl<T: Config> Pallet<T> {
+    /// Validate prepaid call with params of voucher:
+    /// origin, expiration and call relation.
+    pub fn validate_prepaid(
+        origin: AccountIdOf<T>,
+        voucher_id: VoucherId,
+        call: &PrepaidCall<BalanceOf<T>>,
+    ) -> Result<(), Error<T>> {
+        let voucher =
+            Vouchers::<T>::get(origin.clone(), voucher_id).ok_or(Error::<T>::InexistentVoucher)?;
+
+        ensure!(
+            <frame_system::Pallet<T>>::block_number() <= voucher.validity,
+            Error::<T>::VoucherExpired
+        );
+
+        if let Some(ref programs) = voucher.programs {
+            let destination =
+                Self::destination_program(&origin, call).ok_or(Error::<T>::UnknownDestination)?;
+
+            ensure!(
+                programs.contains(&destination),
+                Error::<T>::InappropriateDestination
+            );
+        }
+
+        Ok(())
+    }
+
+    /// Return destination program of the [`PrepaidCall`].
+    pub fn destination_program(
+        who: &T::AccountId,
+        call: &PrepaidCall<BalanceOf<T>>,
+    ) -> Option<ProgramId> {
+        match call {
+            PrepaidCall::SendMessage { destination, .. } => Some(*destination),
+            PrepaidCall::SendReply { reply_to_id, .. } => {
+                T::Mailbox::peek(who, reply_to_id).map(|stored_message| stored_message.source())
+            }
+        }
+    }
+}
+
+/// Trait for processing prepaid calls by any implementor.
+pub trait PrepaidCallsDispatcher {
+    type AccountId;
+    type Balance;
+
+    /// Returns weight of processing for call.
+    fn weight(call: &PrepaidCall<Self::Balance>) -> Weight;
+
+    /// Processes prepaid call with specific sponsor from origins address.
+    fn dispatch(
+        account_id: Self::AccountId,
+        sponsor_id: Self::AccountId,
+        call: PrepaidCall<Self::Balance>,
+    ) -> DispatchResultWithPostInfo;
+}
 
 declare_id!(VoucherId: "Voucher identifier");
 
@@ -89,114 +199,4 @@ pub enum PrepaidCall<Balance> {
         value: Balance,
         keep_alive: bool,
     },
-}
-
-/// Trait for processing prepaid calls by any implementor.
-pub trait PrepaidCallsDispatcher {
-    type AccountId;
-    type Balance;
-
-    /// Returns weight of processing for call.
-    fn weight(call: &PrepaidCall<Self::Balance>) -> Weight;
-
-    /// Processes prepaid call with specific sponsor from origins address.
-    fn dispatch(
-        account_id: Self::AccountId,
-        sponsor_id: Self::AccountId,
-        call: PrepaidCall<Self::Balance>,
-    ) -> DispatchResultWithPostInfo;
-}
-
-#[deprecated = "Relates to legacy voucher logic and `call_deprecated`"]
-impl<T: Config> Pallet<T> {
-    /// Derive a synthesized account ID from an account ID and a program ID.
-    pub fn voucher_id(who: &T::AccountId, program_id: &ProgramId) -> T::AccountId {
-        let entropy = (b"modlpy/voucher__", who, program_id).using_encoded(blake2_256);
-        Decode::decode(&mut TrailingZeroInput::new(entropy.as_ref()))
-            .expect("infinite length input; no invalid inputs for type; qed")
-    }
-
-    /// Return synthesized account ID based on call data.
-    pub fn sponsor_of(
-        who: &T::AccountId,
-        call: &PrepaidCall<BalanceOf<T>>,
-    ) -> Option<T::AccountId> {
-        #[allow(deprecated)]
-        match call {
-            PrepaidCall::SendMessage { destination, .. } => {
-                Some(Self::voucher_id(who, destination))
-            }
-            PrepaidCall::SendReply { reply_to_id, .. } => T::Mailbox::peek(who, reply_to_id)
-                .map(|stored_message| Self::voucher_id(who, &stored_message.source())),
-        }
-    }
-}
-
-impl<T: Config> Pallet<T> {
-    /// Return destination program of the PrepaidCall.
-    pub fn destination_program(
-        who: &T::AccountId,
-        call: &PrepaidCall<BalanceOf<T>>,
-    ) -> Option<ProgramId> {
-        match call {
-            PrepaidCall::SendMessage { destination, .. } => Some(*destination),
-            PrepaidCall::SendReply { reply_to_id, .. } => {
-                T::Mailbox::peek(who, reply_to_id).map(|stored_message| stored_message.source())
-            }
-        }
-    }
-
-    pub fn validate_prepaid(
-        origin: AccountIdOf<T>,
-        voucher_id: VoucherId,
-        call: &PrepaidCall<BalanceOf<T>>,
-    ) -> Result<(), Error<T>> {
-        let voucher =
-            Vouchers::<T>::get(origin.clone(), voucher_id).ok_or(Error::<T>::InexistentVoucher)?;
-
-        ensure!(
-            <frame_system::Pallet<T>>::block_number() <= voucher.validity,
-            Error::<T>::VoucherExpired
-        );
-
-        if let Some(ref programs) = voucher.programs {
-            let destination =
-                Self::destination_program(&origin, call).ok_or(Error::<T>::UnknownDestination)?;
-
-            ensure!(
-                programs.contains(&destination),
-                Error::<T>::InappropriateDestination
-            );
-        }
-
-        Ok(())
-    }
-}
-
-impl<T: Config> crate::Call<T>
-where
-    T::AccountId: Origin,
-{
-    pub fn is_legit(&self, who: AccountIdOf<T>) -> bool {
-        match self {
-            Self::call { voucher_id, call } => {
-                Pallet::<T>::validate_prepaid(who, *voucher_id, call).is_ok()
-            }
-            _ => true,
-        }
-    }
-
-    // NOTE: delete [`None`] return once fn `GearVoucher::call_deprecated()` is removed.
-    pub fn sponsored_by(&self, who: AccountIdOf<T>) -> Option<AccountIdOf<T>> {
-        match self {
-            #[allow(deprecated)]
-            Self::call_deprecated { call } => Pallet::<T>::sponsor_of(&who, call),
-            Self::call { voucher_id, call } => Pallet::<T>::validate_prepaid(who, *voucher_id, call)
-                .map(|_| (*voucher_id).cast()).map_err(|_| {
-                    // This place may be considered as unreachable due to checks in `SignedExtension`.
-                    log::error!("Signed extension of voucher validity passed invalid voucher for fee delegation");
-                }).ok(),
-            _ => None,
-        }
-    }
 }

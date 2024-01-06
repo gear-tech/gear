@@ -613,22 +613,12 @@ mod utils {
     pub(crate) const DEFAULT_BALANCE: BalanceOf<Test> = ExistentialDeposit::get() * 1_000;
 
     #[track_caller]
-    pub(crate) fn get_last_voucher_id() -> VoucherId {
-        System::events()
-            .iter()
-            .rev()
-            .filter_map(|r| {
-                if let crate::mock::RuntimeEvent::Voucher(e) = r.event.clone() {
-                    Some(e)
-                } else {
-                    None
-                }
-            })
-            .find_map(|e| match e {
-                crate::Event::VoucherIssued { voucher_id, .. } => Some(voucher_id),
-                _ => None,
-            })
-            .expect("can't find voucher issued event")
+    pub(crate) fn issue(
+        from: AccountIdOf<Test>,
+        to: AccountIdOf<Test>,
+        program: ProgramId,
+    ) -> Result<VoucherId, DispatchErrorWithPostInfo> {
+        issue_w_balance(from, to, DEFAULT_BALANCE, program)
     }
 
     #[track_caller]
@@ -649,11 +639,21 @@ mod utils {
     }
 
     #[track_caller]
-    pub(crate) fn issue(
-        from: AccountIdOf<Test>,
-        to: AccountIdOf<Test>,
-        program: ProgramId,
-    ) -> Result<VoucherId, DispatchErrorWithPostInfo> {
-        issue_w_balance(from, to, DEFAULT_BALANCE, program)
+    pub(crate) fn get_last_voucher_id() -> VoucherId {
+        System::events()
+            .iter()
+            .rev()
+            .filter_map(|r| {
+                if let crate::mock::RuntimeEvent::Voucher(e) = r.event.clone() {
+                    Some(e)
+                } else {
+                    None
+                }
+            })
+            .find_map(|e| match e {
+                crate::Event::VoucherIssued { voucher_id, .. } => Some(voucher_id),
+                _ => None,
+            })
+            .expect("can't find voucher issued event")
     }
 }
