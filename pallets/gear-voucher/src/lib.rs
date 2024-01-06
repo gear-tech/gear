@@ -497,6 +497,7 @@ pub mod pallet {
             let origin = ensure_signed(origin)?;
 
             // Looking for sponsor synthetic account.
+            #[allow(deprecated)]
             let sponsor = Self::sponsor_of(&origin, &call).ok_or(Error::<T>::UnknownDestination)?;
 
             // Dispatching call.

@@ -28,12 +28,12 @@ fn voucher_issue_works() {
     new_test_ext().execute_with(|| {
         let program_id = H256::random().cast();
 
-        let alice_balance = Balances::free_balance(ALICE);
+        let initial_balance = Balances::free_balance(ALICE);
 
         let voucher_id = utils::issue(ALICE, BOB, program_id).expect("Failed to issue voucher");
 
         assert_eq!(
-            alice_balance,
+            initial_balance,
             Balances::free_balance(voucher_id.cast::<AccountIdOf<Test>>())
                 + Balances::free_balance(ALICE)
         );
@@ -118,7 +118,8 @@ fn voucher_call_works() {
             },
         ));
 
-        // Always ok.
+        // Always ok, because legacy call doesn't access vouchers storage
+        // and just proxies payment to specific synthetic account.
         assert_ok!(Voucher::call_deprecated(
             RuntimeOrigin::signed(ALICE),
             PrepaidCall::SendMessage {
@@ -309,7 +310,7 @@ fn voucher_revoke_works() {
 
         System::set_block_number(System::block_number() + utils::DEFAULT_VALIDITY + 1);
 
-        let alice_balance = Balances::free_balance(ALICE);
+        let balance_after_issue = Balances::free_balance(ALICE);
         let voucher_balance = Balances::free_balance(voucher_id_acc);
 
         assert!(!voucher_balance.is_zero());
@@ -333,7 +334,7 @@ fn voucher_revoke_works() {
         assert!(Balances::free_balance(voucher_id_acc).is_zero());
         assert_eq!(
             Balances::free_balance(ALICE),
-            alice_balance + voucher_balance
+            balance_after_issue + voucher_balance
         );
 
         assert_storage_noop!(assert_ok!(Voucher::revoke(

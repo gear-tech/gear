@@ -107,6 +107,7 @@ pub trait PrepaidCallsDispatcher {
     ) -> DispatchResultWithPostInfo;
 }
 
+#[deprecated = "Relates to legacy voucher logic and `call_deprecated`"]
 impl<T: Config> Pallet<T> {
     /// Derive a synthesized account ID from an account ID and a program ID.
     pub fn voucher_id(who: &T::AccountId, program_id: &ProgramId) -> T::AccountId {
@@ -120,6 +121,7 @@ impl<T: Config> Pallet<T> {
         who: &T::AccountId,
         call: &PrepaidCall<BalanceOf<T>>,
     ) -> Option<T::AccountId> {
+        #[allow(deprecated)]
         match call {
             PrepaidCall::SendMessage { destination, .. } => {
                 Some(Self::voucher_id(who, destination))
@@ -128,7 +130,9 @@ impl<T: Config> Pallet<T> {
                 .map(|stored_message| Self::voucher_id(who, &stored_message.source())),
         }
     }
+}
 
+impl<T: Config> Pallet<T> {
     /// Return destination program of the PrepaidCall.
     pub fn destination_program(
         who: &T::AccountId,
@@ -185,6 +189,7 @@ where
     // NOTE: delete [`None`] return once fn `GearVoucher::call_deprecated()` is removed.
     pub fn sponsored_by(&self, who: AccountIdOf<T>) -> Option<AccountIdOf<T>> {
         match self {
+            #[allow(deprecated)]
             Self::call_deprecated { call } => Pallet::<T>::sponsor_of(&who, call),
             Self::call { voucher_id, call } => Pallet::<T>::validate_prepaid(who, *voucher_id, call)
                 .map(|_| (*voucher_id).cast()).map_err(|_| {

@@ -604,7 +604,7 @@ fn fee_payer_replacement_works() {
 
         let fee_weight = WeightToFeeFor::<Test>::weight_to_fee(&weight);
 
-        // Alice hasn't paid fees
+        // Bob hasn't paid fees
         assert_eq!(Balances::free_balance(BOB), bob_initial_balance);
 
         // But the Synthesized account has
