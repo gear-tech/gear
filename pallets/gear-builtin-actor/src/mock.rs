@@ -22,10 +22,7 @@ use core::cell::RefCell;
 use frame_election_provider_support::{onchain, SequentialPhragmen, VoteWeight};
 use frame_support::{
     construct_runtime, parameter_types,
-    traits::{
-        ConstBool, ConstU32, ConstU64, Currency, FindAuthor, GenesisBuild, OnFinalize,
-        OnInitialize, U128CurrencyToVote,
-    },
+    traits::{ConstBool, ConstU32, ConstU64, Currency, FindAuthor, OnFinalize, OnInitialize},
     PalletId,
 };
 use frame_support_test::TestRandomness;
@@ -34,17 +31,15 @@ use gear_core::ids::BuiltinId;
 use pallet_session::historical::{self as pallet_session_historical};
 use sp_core::{crypto::key_types, H256};
 use sp_runtime::{
-    generic,
     testing::UintAuthorityId,
     traits::{BlakeTwo256, IdentityLookup, OpaqueKeys},
-    KeyTypeId, Perbill, Percent,
+    BuildStorage, KeyTypeId, Perbill, Percent,
 };
 use sp_std::convert::{TryFrom, TryInto};
 
 type AccountId = u64;
 type BlockNumber = u64;
 type Balance = u128;
-type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
 
 pub(crate) const SIGNER: AccountId = 1;
@@ -82,19 +77,16 @@ thread_local! {
 
 // Configure a mock runtime to test the pallet.
 construct_runtime!(
-    pub enum Test where
-        Block = Block,
-        NodeBlock = Block,
-        UncheckedExtrinsic = UncheckedExtrinsic,
+    pub enum Test
     {
-        System: system::{Pallet, Call, Config, Storage, Event<T>},
-        Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
-        Authorship: pallet_authorship::{Pallet, Storage},
-        Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
-        Staking: pallet_staking::{Pallet, Call, Storage, Config<T>, Event<T>},
-        Session: pallet_session::{Pallet, Call, Storage, Config<T>, Event},
-        Historical: pallet_session_historical::{Pallet, Storage},
-        BagsList: pallet_bags_list::<Instance1>::{Pallet, Event<T>},
+        System: system,
+        Balances: pallet_balances,
+        Authorship: pallet_authorship,
+        Timestamp: pallet_timestamp,
+        Staking: pallet_staking,
+        Session: pallet_session,
+        Historical: pallet_session_historical,
+        BagsList: pallet_bags_list::<Instance1>,
         GearProgram: pallet_gear_program,
         GearMessenger: pallet_gear_messenger,
         GearScheduler: pallet_gear_scheduler,
@@ -198,8 +190,8 @@ impl pallet_staking::Config for Test {
     type MaxNominations = MaxNominations;
     type Currency = Balances;
     type UnixTime = Timestamp;
-    type CurrencyBalance = u128;
-    type CurrencyToVote = U128CurrencyToVote;
+    type CurrencyBalance = <Self as pallet_balances::Config>::Balance;
+    type CurrencyToVote = ();
     type ElectionProvider = onchain::OnChainExecution<OnChainSeqPhragmen>;
     type GenesisElectionProvider = onchain::OnChainExecution<OnChainSeqPhragmen>;
     type RewardRemainder = ();
@@ -219,7 +211,7 @@ impl pallet_staking::Config for Test {
     type TargetList = pallet_staking::UseValidatorsMap<Self>;
     type MaxUnlockingChunks = ConstU32<32>;
     type HistoryDepth = HistoryDepth;
-    type OnStakerSlash = ();
+    type EventListeners = ();
     type WeightInfo = ();
     type BenchmarkingConfig = pallet_staking::TestBenchmarkingConfig;
 }
@@ -362,14 +354,6 @@ impl pallet_gear_builtin_actor::Config for Test {
     type PalletId = BuiltinActorPalletId;
 }
 
-impl<C> frame_system::offchain::SendTransactionTypes<C> for Test
-where
-    RuntimeCall: From<C>,
-{
-    type OverarchingCall = RuntimeCall;
-    type Extrinsic = UncheckedExtrinsic;
-}
-
 pub type ValidatorAccountId = (
     AccountId,       // stash
     AccountId,       // controller
@@ -408,8 +392,8 @@ impl ExtBuilder {
     }
 
     pub fn build(self) -> sp_io::TestExternalities {
-        let mut storage = system::GenesisConfig::default()
-            .build_storage::<Test>()
+        let mut storage = system::GenesisConfig::<Test>::default()
+            .build_storage()
             .unwrap();
 
         let balances: Vec<(AccountId, u128)> = self

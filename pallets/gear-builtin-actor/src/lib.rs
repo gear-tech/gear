@@ -175,33 +175,15 @@ pub mod pallet {
     }
 
     #[pallet::genesis_config]
+    #[derive(frame_support::DefaultNoBound)]
     pub struct GenesisConfig<T: Config> {
         pub builtin_ids: Vec<BuiltinId>,
+        #[serde(skip)]
         pub _phantom: sp_std::marker::PhantomData<T>,
     }
 
-    #[cfg(feature = "std")]
-    impl<T: Config> Default for GenesisConfig<T> {
-        fn default() -> Self {
-            Self {
-                builtin_ids: Default::default(),
-                _phantom: Default::default(),
-            }
-        }
-    }
-
-    // TODO: deprecated; remove in Substrate v1.0.0
-    #[cfg(feature = "std")]
-    impl<T: Config> GenesisConfig<T> {
-        /// Direct implementation of `GenesisBuild::assimilate_storage`.
-        pub fn assimilate_storage(&self, storage: &mut sp_runtime::Storage) -> Result<(), String> {
-            <Self as GenesisBuild<T>>::assimilate_storage(self, storage)
-        }
-    }
-
-    // TODO: replace with `BuildGenesisConfig` trait in Substrate v1.0.0
     #[pallet::genesis_build]
-    impl<T: Config> GenesisBuild<T> for GenesisConfig<T> {
+    impl<T: Config> BuildGenesisConfig for GenesisConfig<T> {
         fn build(&self) {
             self.builtin_ids.iter().cloned().for_each(|id| {
                 let actor_id = Pallet::<T>::generate_actor_id(id);

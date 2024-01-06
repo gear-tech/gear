@@ -23,7 +23,7 @@ indexmap.workspace = true
 jsonrpsee = { workspace = true, features = [ "http-client", "ws-client" ] }
 log.workspace = true
 scale-value.workspace = true
-serde.workspace = true
+serde = { workspace = true, features = ["std"] }
 serde_json.workspace = true
 subxt.workspace = true
 thiserror.workspace = true

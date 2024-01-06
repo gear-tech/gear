@@ -58,7 +58,7 @@ std = [
 	"pallet-staking-reward-fn/std",
     "parity-scale-codec/std",
 	"scale-info/std",
-	"serde",
+	"serde/std",
 	"sp-runtime/std",
 	"sp-std/std",
 ]

@@ -30,6 +30,7 @@ winapi = { workspace = true, features = ["memoryapi"] }
 default = ["std"]
 std = [
 	"sp-runtime-interface/std",
+	"sp-io/std",
 	"sp-std/std",
 	"sp-wasm-interface/std",
 	"byteorder/std",

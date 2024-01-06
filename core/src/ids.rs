@@ -238,7 +238,7 @@ impl ReservationId {
 
 /// A builtin actor type identifier. Serves as a seed for a builtin actor ID generation.
 #[derive(Clone, Copy, Debug, Decode, Encode, Eq, PartialEq, TypeInfo)]
-#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct BuiltinId(pub u64);
 
 impl From<u64> for BuiltinId {

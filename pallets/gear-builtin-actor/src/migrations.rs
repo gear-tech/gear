@@ -17,18 +17,25 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::*;
+use frame_support::{
+    pallet_prelude::*,
+    traits::{Get, GetStorageVersion, OnRuntimeUpgrade},
+};
+
+#[cfg(feature = "try-runtime")]
+use {
+    frame_support::codec::{Decode, Encode},
+    sp_runtime::TryRuntimeError,
+    sp_std::vec::Vec,
+};
 
 pub mod v1 {
     use super::*;
-    use frame_support::{
-        pallet_prelude::*,
-        traits::{Get, GetStorageVersion, OnRuntimeUpgrade},
-    };
 
     pub struct MigrateToV1<T>(sp_std::marker::PhantomData<T>);
     impl<T: Config> OnRuntimeUpgrade for MigrateToV1<T> {
         #[cfg(feature = "try-runtime")]
-        fn pre_upgrade() -> Result<Vec<u8>, &'static str> {
+        fn pre_upgrade() -> Result<Vec<u8>, TryRuntimeError> {
             let version = <Pallet<T>>::on_chain_storage_version();
 
             assert!(Actors::<T>::iter().next().is_none());
@@ -74,9 +81,9 @@ pub mod v1 {
         }
 
         #[cfg(feature = "try-runtime")]
-        fn post_upgrade(state: Vec<u8>) -> Result<(), &'static str> {
+        fn post_upgrade(state: Vec<u8>) -> Result<(), TryRuntimeError> {
             let old_version: StorageVersion =
-                Decode::decode(&mut state.as_ref()).map_err(|_| "Cannot decode version")?;
+                Decode::decode(&mut state.as_ref()).expect("Valid state from pre_upgrade; qed");
             let onchain_version = Pallet::<T>::on_chain_storage_version();
             assert_ne!(
                 onchain_version, old_version,
