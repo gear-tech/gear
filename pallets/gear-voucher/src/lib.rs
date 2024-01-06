@@ -446,24 +446,28 @@ pub mod pallet {
             }
 
             // Optionally extends whitelisted programs with amount validation.
-            if let Some(extra_programs) = append_programs {
-                if let Some(mut new_programs) = extra_programs {
-                    if let Some(ref mut programs) = voucher.programs {
-                        let prev_len = programs.len();
+            match append_programs {
+                // Adding given destination set to voucher,
+                // if it has destinations limit.
+                Some(Some(mut extra_programs)) if voucher.programs.is_some() => {
+                    let programs = voucher.programs.as_mut().expect("Infallible; qed");
+                    let initial_len = programs.len();
 
-                        ensure!(
-                            prev_len.saturating_add(new_programs.len())
-                                <= T::MaxProgramsAmount::get().into(),
-                            Error::<T>::MaxProgramsLimitExceeded
-                        );
+                    programs.append(&mut extra_programs);
 
-                        programs.append(&mut new_programs);
+                    ensure!(
+                        programs.len() <= T::MaxProgramsAmount::get().into(),
+                        Error::<T>::MaxProgramsLimitExceeded
+                    );
 
-                        updated |= programs.len() != prev_len;
-                    }
-                } else {
-                    updated |= voucher.programs.take().is_some();
+                    updated |= programs.len() != initial_len;
                 }
+
+                // Extending vouchers to unlimited destinations.
+                Some(None) => updated |= voucher.programs.take().is_some(),
+
+                // Noop.
+                _ => (),
             }
 
             // Optionally prolongs validity of the voucher.
