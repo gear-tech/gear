@@ -89,7 +89,7 @@ impl<T: Config> Pallet<T> {
             Vouchers::<T>::get(origin.clone(), voucher_id).ok_or(Error::<T>::InexistentVoucher)?;
 
         ensure!(
-            <frame_system::Pallet<T>>::block_number() <= voucher.validity,
+            <frame_system::Pallet<T>>::block_number() < voucher.expiry,
             Error::<T>::VoucherExpired
         );
 
@@ -170,8 +170,9 @@ pub struct VoucherInfo<AccountId, BlockNumber> {
     /// Set of programs this voucher could be used to interact with.
     /// In case of [`None`] means any gear program.
     pub programs: Option<BTreeSet<ProgramId>>,
-    /// Block number since voucher couldn't be used (able to be revoked by owner).
-    pub validity: BlockNumber,
+    /// The block number at and after which voucher couldn't be used and
+    /// can be revoked by owner.
+    pub expiry: BlockNumber,
 }
 
 impl<AccountId, BlockNumber> VoucherInfo<AccountId, BlockNumber> {

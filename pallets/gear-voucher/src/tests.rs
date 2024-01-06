@@ -46,8 +46,8 @@ fn voucher_issue_works() {
         assert_eq!(voucher_info.owner, ALICE);
         assert_eq!(voucher_info.programs, Some([program_id].into()));
         assert_eq!(
-            voucher_info.validity,
-            System::block_number().saturating_add(utils::DEFAULT_VALIDITY)
+            voucher_info.expiry,
+            System::block_number().saturating_add(utils::DEFAULT_VALIDITY + 1)
         );
     });
 }
@@ -82,7 +82,7 @@ fn voucher_issue_err_cases() {
                 Some([program_id].into()),
                 0,
             ),
-            Error::<Test>::ZeroValidity,
+            Error::<Test>::ZeroDuration,
         );
     });
 }
@@ -443,8 +443,8 @@ fn voucher_update_works() {
         assert_eq!(voucher.owner, BOB);
         assert_eq!(voucher.programs, Some([program_id, new_program_id].into()));
         assert_eq!(
-            voucher.validity,
-            System::block_number() + utils::DEFAULT_VALIDITY + validity_prolong
+            voucher.expiry,
+            System::block_number() + utils::DEFAULT_VALIDITY + 1 + validity_prolong
         );
 
         let voucher_balance = Balances::free_balance(voucher_id_acc);
@@ -478,8 +478,8 @@ fn voucher_update_works() {
         assert_eq!(voucher.owner, BOB);
         assert_eq!(voucher.programs, None);
         assert_eq!(
-            voucher.validity,
-            System::block_number() + utils::DEFAULT_VALIDITY + validity_prolong
+            voucher.expiry,
+            System::block_number() + utils::DEFAULT_VALIDITY + 1 + validity_prolong
         );
 
         assert_storage_noop!(assert_ok!(Voucher::update(
@@ -515,7 +515,7 @@ fn voucher_update_works() {
         ));
 
         let voucher = Vouchers::<Test>::get(BOB, voucher_id).expect("Failed to get voucher");
-        assert_eq!(voucher.validity, huge_block + validity_prolong);
+        assert_eq!(voucher.expiry, huge_block + 1 + validity_prolong);
     });
 }
 

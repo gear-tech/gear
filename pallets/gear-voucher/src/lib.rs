@@ -80,7 +80,10 @@ pub mod pallet {
     };
     use frame_system::pallet_prelude::*;
     use gear_core::message::UserStoredMessage;
-    use sp_runtime::{traits::Zero, SaturatedConversion, Saturating};
+    use sp_runtime::{
+        traits::{One, Zero},
+        SaturatedConversion, Saturating,
+    };
     use sp_std::collections::btree_set::BTreeSet;
 
     #[pallet::config]
@@ -171,8 +174,8 @@ pub mod pallet {
         UnknownDestination,
         /// Voucher has expired and couldn't be used.
         VoucherExpired,
-        /// Zero validity given while issuing voucher.
-        ZeroValidity,
+        /// Zero duration given while issuing voucher.
+        ZeroDuration,
     }
 
     /// Storage containing amount of the total vouchers issued.
@@ -213,9 +216,11 @@ pub mod pallet {
         /// * programs: pool of programs spender can interact with,
         ///             if None - means any program,
         ///             limited by Config param;
-        /// * validity: amount of blocks voucher could be used by spender
+        /// * duration: amount of blocks voucher could be used by spender
         ///             and couldn't be revoked by owner,
         ///             couldn't be zero.
+        ///             expiration block of the voucher calculates as:
+        ///             current bn (extrinsic exec bn) + duration + 1.
         #[pallet::call_index(0)]
         #[pallet::weight(T::WeightInfo::issue())]
         pub fn issue(
@@ -223,13 +228,13 @@ pub mod pallet {
             spender: AccountIdOf<T>,
             balance: BalanceOf<T>,
             programs: Option<BTreeSet<ProgramId>>,
-            validity: BlockNumberFor<T>,
+            duration: BlockNumberFor<T>,
         ) -> DispatchResultWithPostInfo {
             // Ensuring origin.
             let owner = ensure_signed(origin)?;
 
             // Asserting non-zero validity.
-            ensure!(!validity.is_zero(), Error::<T>::ZeroValidity);
+            ensure!(!duration.is_zero(), Error::<T>::ZeroDuration);
 
             // Asserting amount of programs.
             if let Some(ref programs) = programs {
@@ -252,13 +257,15 @@ pub mod pallet {
             .map_err(|_| Error::<T>::BalanceTransfer)?;
 
             // Calculating expiration block.
-            let validity = <frame_system::Pallet<T>>::block_number().saturating_add(validity);
+            let expiry = <frame_system::Pallet<T>>::block_number()
+                .saturating_add(duration)
+                .saturating_add(One::one());
 
             // Aggregating vouchers data.
             let voucher_info = VoucherInfo {
                 owner: owner.clone(),
                 programs,
-                validity,
+                expiry,
             };
 
             // Inserting voucher data into storage, associated with spender and voucher ids.
@@ -336,9 +343,9 @@ pub mod pallet {
             // NOTE: currently ensuring that owner revokes voucher.
             ensure!(voucher.owner == origin, Error::<T>::BadOrigin);
 
-            // Ensuring voucher is no longer valid.
+            // Ensuring voucher is expired.
             ensure!(
-                <frame_system::Pallet<T>>::block_number() > voucher.validity,
+                <frame_system::Pallet<T>>::block_number() >= voucher.expiry,
                 Error::<T>::IrrevocableYet
             );
 
@@ -461,9 +468,9 @@ pub mod pallet {
 
             // Optionally prolongs validity of the voucher.
             if let Some(duration) = prolong_validity.filter(|v| !v.is_zero()) {
-                voucher.validity = voucher
-                    .validity
-                    .max(<frame_system::Pallet<T>>::block_number())
+                voucher.expiry = voucher
+                    .expiry
+                    .max(<frame_system::Pallet<T>>::block_number().saturating_add(One::one()))
                     .saturating_add(duration);
                 updated = true;
             }
