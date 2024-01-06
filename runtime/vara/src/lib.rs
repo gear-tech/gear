@@ -129,7 +129,7 @@ mod weights;
 mod bag_thresholds;
 
 pub mod governance;
-use governance::{pallet_custom_origins, GeneralAdmin, Treasurer, TreasurySpender};
+use governance::{pallet_custom_origins, GeneralAdmin, StakingAdmin, Treasurer, TreasurySpender};
 
 mod migrations;
 
@@ -584,7 +584,7 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
     type Fallback = onchain::OnChainExecution<OnChainSeqPhragmen>;
     type GovernanceFallback = onchain::OnChainExecution<OnChainSeqPhragmen>;
     type Solver = SequentialPhragmen<AccountId, SolutionAccuracyOf<Self>, ()>;
-    type ForceOrigin = EnsureRoot<AccountId>;
+    type ForceOrigin = AdminOrigin;
     type MaxElectableTargets = MaxElectableTargets;
     type MaxWinners = MaxActiveValidators;
     type MaxElectingVoters = MaxElectingVoters;
@@ -606,8 +606,8 @@ parameter_types! {
     pub HistoryDepth: u32 = 84;
 }
 
-/// Only the root origin can cancel the slash
-type AdminOrigin = EnsureRoot<AccountId>;
+/// Only the root or staking admin origin can cancel the slash or manage election provider
+type AdminOrigin = EitherOfDiverse<EnsureRoot<AccountId>, StakingAdmin>;
 
 pub struct StakingBenchmarkingConfig;
 impl pallet_staking::BenchmarkingConfig for StakingBenchmarkingConfig {
