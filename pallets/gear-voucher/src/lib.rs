@@ -303,9 +303,7 @@ pub mod pallet {
             // Ensuring origin.
             let origin = ensure_signed(origin)?;
 
-            // Validating that origin (spender) can use voucher for given call.
-            //
-            // This validation must be in `SignedExtension`.
+            // Validating that origin (spender) can use given voucher for call.
             Self::validate_prepaid(origin.clone(), voucher_id, &call)?;
 
             // Dispatching of the call.
@@ -509,7 +507,8 @@ pub mod pallet {
 
             // Looking for sponsor synthetic account.
             #[allow(deprecated)]
-            let sponsor = Self::sponsor_of(&origin, &call).ok_or(Error::<T>::UnknownDestination)?;
+            let sponsor = Self::call_deprecated_sponsor(&origin, &call)
+                .ok_or(Error::<T>::UnknownDestination)?;
 
             // Dispatching call.
             T::CallsDispatcher::dispatch(origin, sponsor, call)

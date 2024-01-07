@@ -152,13 +152,12 @@ impl Contains<RuntimeCall> for ExtraFeeFilter {
 }
 
 pub struct DelegateFeeAccountBuilder;
-// We want to test the way the fee delegate is calculated in real runtime
-// for the gasless `send_reply` call. Hence, the actual trait implementation is used.
-// For the gasless `send_message` call, a mock implementation is used.
+
+// TODO: simplify it (#3640).
 impl DelegateFee<RuntimeCall, AccountId> for DelegateFeeAccountBuilder {
     fn delegate_fee(call: &RuntimeCall, who: &AccountId) -> Option<AccountId> {
         match call {
-            RuntimeCall::GearVoucher(voucher_call) => voucher_call.sponsored_by(*who),
+            RuntimeCall::GearVoucher(voucher_call) => voucher_call.get_sponsor(*who),
             _ => None,
         }
     }

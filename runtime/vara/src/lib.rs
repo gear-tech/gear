@@ -1070,7 +1070,7 @@ pub struct DelegateFeeAccountBuilder;
 impl DelegateFee<RuntimeCall, AccountId> for DelegateFeeAccountBuilder {
     fn delegate_fee(call: &RuntimeCall, who: &AccountId) -> Option<AccountId> {
         match call {
-            RuntimeCall::GearVoucher(voucher_call) => voucher_call.sponsored_by(who.clone()),
+            RuntimeCall::GearVoucher(voucher_call) => voucher_call.get_sponsor(who.clone()),
             _ => None,
         }
     }
