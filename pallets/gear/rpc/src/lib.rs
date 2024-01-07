@@ -250,7 +250,6 @@ fn into_call_err(error: impl ToString, desc: &'static str) -> CallError {
     CallError::Custom(ErrorObject::owned(8000, desc, Some(error.to_string())))
 }
 
-#[async_trait]
 impl<C, Block> GearApiServer<<Block as BlockT>::Hash, Result<u64, Vec<u8>>> for Gear<C, Block>
 where
     Block: BlockT,
