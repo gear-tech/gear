@@ -29,13 +29,13 @@ use sp_core::{crypto::UncheckedInto, sr25519};
 use sp_runtime::{Perbill, Perquintill};
 use vara_runtime::{
     constants::currency::{ECONOMIC_UNITS, EXISTENTIAL_DEPOSIT, UNITS as TOKEN},
-    AuthorityDiscoveryConfig, BabeConfig, BalancesConfig, GenesisConfig, GrandpaConfig,
-    ImOnlineConfig, NominationPoolsConfig, SessionConfig, SessionKeys, StakerStatus, StakingConfig,
-    StakingRewardsConfig, SudoConfig, SystemConfig, VestingConfig, WASM_BINARY,
+    AuthorityDiscoveryConfig, BabeConfig, BalancesConfig, GrandpaConfig, ImOnlineConfig,
+    NominationPoolsConfig, RuntimeGenesisConfig, SessionConfig, SessionKeys, StakerStatus,
+    StakingConfig, StakingRewardsConfig, SudoConfig, SystemConfig, VestingConfig, WASM_BINARY,
 };
 
 /// Specialized `ChainSpec`. This is a specialization of the general Substrate ChainSpec type.
-pub type ChainSpec = sc_service::GenericChainSpec<GenesisConfig, Extensions>;
+pub type ChainSpec = sc_service::GenericChainSpec<RuntimeGenesisConfig, Extensions>;
 
 /// Returns the [`Properties`] for the Vara network.
 pub fn vara_properties() -> Properties {
@@ -687,7 +687,7 @@ fn testnet_genesis(
     endowed_accounts: Vec<AccountId>,
     bank_account: AccountId,
     _enable_println: bool,
-) -> GenesisConfig {
+) -> RuntimeGenesisConfig {
     const ENDOWMENT: u128 = 1_000_000 * TOKEN;
     const STASH: u128 = 100 * TOKEN;
     const MIN_NOMINATOR_BOND: u128 = 50 * TOKEN;
@@ -702,18 +702,21 @@ fn testnet_genesis(
 
     balances.push((bank_account, EXISTENTIAL_DEPOSIT));
 
-    GenesisConfig {
+    RuntimeGenesisConfig {
         system: SystemConfig {
             // Add Wasm runtime to storage.
             code: wasm_binary.to_vec(),
+            _config: Default::default(),
         },
         balances: BalancesConfig { balances },
         babe: BabeConfig {
             authorities: Default::default(),
             epoch_config: Some(vara_runtime::BABE_GENESIS_EPOCH_CONFIG),
+            _config: Default::default(),
         },
         grandpa: GrandpaConfig {
             authorities: Default::default(),
+            _config: Default::default(),
         },
         session: SessionConfig {
             keys: initial_authorities
@@ -744,7 +747,10 @@ fn testnet_genesis(
             key: Some(root_key),
         },
         im_online: ImOnlineConfig { keys: vec![] },
-        authority_discovery: AuthorityDiscoveryConfig { keys: vec![] },
+        authority_discovery: AuthorityDiscoveryConfig {
+            keys: vec![],
+            _config: Default::default(),
+        },
         transaction_payment: Default::default(),
         treasury: Default::default(),
         nomination_pools: NominationPoolsConfig {
