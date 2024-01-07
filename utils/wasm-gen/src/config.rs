@@ -55,7 +55,6 @@
 //! };
 //! let entry_points_set = EntryPointsSet::InitHandle;
 //! let syscalls_config = SyscallsConfigBuilder::new(SyscallsInjectionTypes::all_once())
-//!     .with_source_msg_dest()
 //!     .with_log_info("I'm from wasm-gen".into())
 //!     .build();
 //!
@@ -102,9 +101,6 @@ pub use generator::*;
 pub use module::*;
 pub use syscalls::*;
 
-use gear_utils::NonEmpty;
-use gsys::Hash;
-
 /// Trait which describes a type that stores and manages data for generating
 /// [`GearWasmGeneratorConfig`] and [`SelectableParams`], which are both used
 /// by [`crate::generate_gear_program_code`] and [`crate::generate_gear_program_module`]
@@ -132,7 +128,7 @@ impl ConfigsBundle for (GearWasmGeneratorConfig, SelectableParams) {
 /// Standard set of configurational data which is used to generate always
 /// valid gear-wasm using generators of the current crate.
 #[derive(Debug, Clone)]
-pub struct StandardGearWasmConfigsBundle<T = [u8; 32]> {
+pub struct StandardGearWasmConfigsBundle {
     /// Externalities to be logged.
     pub log_info: Option<String>,
     /// Frequency of wait syscalls.
@@ -140,10 +136,6 @@ pub struct StandardGearWasmConfigsBundle<T = [u8; 32]> {
     /// For example, if this parameter is 4, wait syscalls will be invoked
     /// with probability 1/4.
     pub waiting_frequency: Option<u32>,
-    /// Set of existing addresses, which will be used as message destinations.
-    ///
-    /// If is `None`, then `gr_source` result will be used as a message destination.
-    pub existing_addresses: Option<NonEmpty<T>>,
     /// Flag which signals whether recursions must be removed.
     pub remove_recursion: bool,
     /// If the limit is set to `Some(_)`, programs will try to stop execution
@@ -165,12 +157,11 @@ pub struct StandardGearWasmConfigsBundle<T = [u8; 32]> {
     pub params_config: SyscallsParamsConfig,
 }
 
-impl<T> Default for StandardGearWasmConfigsBundle<T> {
+impl Default for StandardGearWasmConfigsBundle {
     fn default() -> Self {
         Self {
             log_info: Some("StandardGearWasmConfigsBundle".into()),
             waiting_frequency: Some(4),
-            existing_addresses: None,
             remove_recursion: false,
             critical_gas_limit: Some(1_000_000),
             injection_types: SyscallsInjectionTypes::all_once(),
@@ -182,12 +173,11 @@ impl<T> Default for StandardGearWasmConfigsBundle<T> {
     }
 }
 
-impl<T: Into<Hash>> ConfigsBundle for StandardGearWasmConfigsBundle<T> {
+impl ConfigsBundle for StandardGearWasmConfigsBundle {
     fn into_parts(self) -> (GearWasmGeneratorConfig, SelectableParams) {
         let StandardGearWasmConfigsBundle {
             log_info,
             waiting_frequency,
-            existing_addresses,
             remove_recursion,
             critical_gas_limit,
             injection_types,
@@ -206,11 +196,6 @@ impl<T: Into<Hash>> ConfigsBundle for StandardGearWasmConfigsBundle<T> {
         if let Some(waiting_frequency) = waiting_frequency {
             syscalls_config_builder =
                 syscalls_config_builder.with_waiting_frequency(waiting_frequency);
-        }
-        if let Some(addresses) = existing_addresses {
-            syscalls_config_builder = syscalls_config_builder.with_addresses_msg_dest(addresses);
-        } else {
-            syscalls_config_builder = syscalls_config_builder.with_source_msg_dest();
         }
         syscalls_config_builder = syscalls_config_builder.with_params_config(params_config);
 

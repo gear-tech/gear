@@ -27,14 +27,12 @@ use alloc::{collections::BTreeSet, vec, vec::Vec};
 use gear_wasm_instrument::{
     parity_wasm::{
         self,
-        builder::ModuleBuilder,
-        elements::{ExportEntry, GlobalEntry, GlobalType, InitExpr, Instruction, Internal, Module},
+        elements::{
+            ExportEntry, GlobalEntry, GlobalType, InitExpr, Instruction, Internal, Module, Type,
+        },
     },
-    wasm_instrument::{
-        self,
-        gas_metering::{ConstantCostRules, Rules},
-    },
-    STACK_END_EXPORT_NAME,
+    wasm_instrument::gas_metering::{ConstantCostRules, Rules},
+    InstrumentationBuilder, STACK_END_EXPORT_NAME,
 };
 use scale_info::{
     scale::{Decode, Encode},
@@ -54,13 +52,36 @@ fn get_exports(
 ) -> Result<BTreeSet<DispatchKind>, CodeError> {
     let mut exports = BTreeSet::<DispatchKind>::new();
 
+    let funcs = module
+        .function_section()
+        .ok_or(CodeError::FunctionSectionNotFound)?
+        .entries();
+
+    let types = module
+        .type_section()
+        .ok_or(CodeError::TypeSectionNotFound)?
+        .types();
+
+    let import_count = module
+        .import_section()
+        .ok_or(CodeError::ImportSectionNotFound)?
+        .functions();
+
     for entry in module
         .export_section()
         .ok_or(CodeError::ExportSectionNotFound)?
         .entries()
         .iter()
     {
-        if let Internal::Function(_) = entry.internal() {
+        if let Internal::Function(i) = entry.internal() {
+            if reject_unnecessary {
+                // Index access into arrays cannot panic unless the Module structure is invalid
+                let type_id = funcs[*i as usize - import_count].type_ref();
+                let Type::Function(ref f) = types[type_id as usize];
+                if !f.params().is_empty() || !f.results().is_empty() {
+                    return Err(CodeError::InvalidExportFnSignature);
+                }
+            }
             if let Some(kind) = DispatchKind::try_from_entry(entry.field()) {
                 exports.insert(kind);
             } else if !STATE_EXPORTS.contains(&entry.field()) && reject_unnecessary {
@@ -204,16 +225,9 @@ pub enum CodeError {
     /// Error occurred during decoding original program code.
     #[display(fmt = "The wasm bytecode is failed to be decoded")]
     Decode,
-    /// Error occurred during injecting gas metering instructions.
-    ///
-    /// This might be due to program contained unsupported/non-deterministic instructions
-    /// (floats, memory grow, etc.).
-    #[display(fmt = "Failed to inject instructions for gas metrics: may be in case \
-        program contains unsupported instructions (floats, memory grow, etc.)")]
-    GasInjection,
-    /// Error occurred during stack height instrumentation.
-    #[display(fmt = "Failed to set stack height limits")]
-    StackLimitInjection,
+    /// Error occurred during instrumentation WASM module.
+    #[display(fmt = "Failed to instrument WASM module")]
+    Instrumentation,
     /// Error occurred during encoding instrumented program.
     #[display(fmt = "Failed to encode instrumented program")]
     Encode,
@@ -238,6 +252,15 @@ pub enum CodeError {
     /// Gear protocol restriction for now.
     #[display(fmt = "Program cannot have mutable globals in export section")]
     MutGlobalExport,
+    /// The type section of the wasm module is not present.
+    #[display(fmt = "Type section not found")]
+    TypeSectionNotFound,
+    /// The function section of the wasm module is not present.
+    #[display(fmt = "Function section not found")]
+    FunctionSectionNotFound,
+    /// The signature of an exported function is invalid.
+    #[display(fmt = "Invalid function signature for exported function")]
+    InvalidExportFnSignature,
 }
 
 /// Contains instrumented binary code of a program and initial memory size from memory import.
@@ -296,22 +319,6 @@ fn check_start_section(module: &Module) -> Result<(), CodeError> {
     }
 }
 
-fn export_stack_height(module: Module) -> Module {
-    let globals = module
-        .global_section()
-        .expect("Global section must be create by `inject_stack_limiter` before")
-        .entries()
-        .len();
-    ModuleBuilder::new()
-        .with_module(module)
-        .export()
-        .field("__gear_stack_height")
-        .internal()
-        .global(globals as u32 - 1)
-        .build()
-        .build()
-}
-
 /// Configuration for `Code::try_new_mock_`.
 /// By default all checks enabled.
 pub struct TryNewCodeConfig {
@@ -319,7 +326,7 @@ pub struct TryNewCodeConfig {
     pub version: u32,
     /// Stack height limit
     pub stack_height: Option<u32>,
-    /// Export `__gear_stack_height` global
+    /// Export `STACK_HEIGHT_EXPORT_NAME` global
     pub export_stack_height: bool,
     /// Check exports (wasm contains init or handle exports)
     pub check_exports: bool,
@@ -417,28 +424,20 @@ impl Code {
             return Err(CodeError::RequiredExportFnNotFound);
         }
 
+        let mut instrumentation_builder = InstrumentationBuilder::new("env");
+
         if let Some(stack_limit) = config.stack_height {
-            let globals = config.export_stack_height.then(|| module.globals_space());
-
-            module = wasm_instrument::inject_stack_limiter(module, stack_limit).map_err(|err| {
-                log::trace!("Failed to inject stack height limits: {err}");
-                CodeError::StackLimitInjection
-            })?;
-
-            if let Some(globals_before) = globals {
-                // ensure stack limiter injector has created global
-                let globals_after = module.globals_space();
-                assert_eq!(globals_after, globals_before + 1);
-
-                module = export_stack_height(module);
-            }
+            instrumentation_builder.with_stack_limiter(stack_limit, config.export_stack_height);
         }
 
-        if let Some(mut get_gas_rules) = get_gas_rules {
-            let gas_rules = get_gas_rules(&module);
-            module = gear_wasm_instrument::inject(module, &gas_rules, "env")
-                .map_err(|_| CodeError::GasInjection)?;
+        if let Some(get_gas_rules) = get_gas_rules {
+            instrumentation_builder.with_gas_limiter(get_gas_rules);
         }
+
+        module = instrumentation_builder.instrument(module).map_err(|err| {
+            log::trace!("Failed to instrument program: {err}");
+            CodeError::Instrumentation
+        })?;
 
         let code = parity_wasm::elements::serialize(module).map_err(|err| {
             log::trace!("Failed to encode instrumented program: {err}");

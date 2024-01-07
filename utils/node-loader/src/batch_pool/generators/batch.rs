@@ -10,7 +10,6 @@ use gear_call_gen::{
     CallArgs, CallGenRng, CallGenRngCore, ClaimValueArgs, CreateProgramArgs, SendMessageArgs,
     SendReplyArgs, UploadCodeArgs, UploadProgramArgs,
 };
-use gear_core::ids::ProgramId;
 use gear_utils::NonEmpty;
 use gear_wasm_gen::StandardGearWasmConfigsBundle;
 use std::iter;
@@ -206,7 +205,7 @@ impl<Rng: CallGenRng> BatchGenerator<Rng> {
     fn gen_batch<
         T: CallArgs,
         FuzzerArgsFn: FnMut(&mut Rng) -> T::FuzzerArgs,
-        ConstArgsFn: Fn() -> T::ConstArgs<StandardGearWasmConfigsBundle<ProgramId>>,
+        ConstArgsFn: Fn() -> T::ConstArgs<StandardGearWasmConfigsBundle>,
     >(
         batch_size: usize,
         seed: Seed,

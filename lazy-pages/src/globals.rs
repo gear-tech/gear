@@ -23,7 +23,7 @@ use core::any::Any;
 use gear_core::{memory::HostPointer, str::LimitedStr};
 use gear_lazy_pages_common::{GlobalsAccessError, GlobalsAccessMod, GlobalsAccessor};
 use gear_sandbox_host::sandbox::SandboxInstance;
-use sp_wasm_interface::Value;
+use sp_wasm_interface_common::Value;
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum GlobalNo {
