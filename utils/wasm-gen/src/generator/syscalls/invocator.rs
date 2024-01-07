@@ -314,38 +314,7 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
             .flat_map(ParamInstructions::into_inner)
             .collect::<Vec<_>>();
 
-        let original_call = Instruction::Call(call_indexes_handle as u32);
-
-        if let Some(wait_frequency) = self
-            .config
-            .waiting_frequency()
-            .filter(|_| invocable.is_wait_syscall())
-        {
-            let mem_size = self.memory_size_in_bytes();
-
-            let upper_limit = mem_size.saturating_sub(1) as i32;
-            let wait_called_ptr = upper_limit.saturating_sub(50);
-
-            instructions.extend_from_slice(&[
-                Instruction::I32Const(wait_called_ptr),
-                Instruction::I32Load(2, 0),
-                Instruction::I32Const(wait_frequency as i32),
-                Instruction::I32RemU,
-                Instruction::I32Const(1),
-                Instruction::I32Eq,
-                Instruction::If(BlockType::NoResult),
-                original_call,
-                Instruction::End,
-                Instruction::I32Const(wait_called_ptr),
-                Instruction::I32Const(wait_called_ptr),
-                Instruction::I32Load(2, 0),
-                Instruction::I32Const(1),
-                Instruction::I32Add,
-                Instruction::I32Store(2, 0),
-            ]);
-        } else {
-            instructions.push(original_call);
-        }
+        instructions.push(Instruction::Call(call_indexes_handle as u32));
 
         let process_error = self
             .config
@@ -369,6 +338,41 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
             }
         };
         instructions.append(&mut result_processing);
+
+        if let Some(wait_frequency) = self
+            .config
+            .waiting_frequency()
+            .filter(|_| invocable.is_wait_syscall())
+        {
+            let mut new_instructions = Vec::with_capacity(instructions.len());
+
+            let mem_size = self.memory_size_in_bytes();
+
+            let upper_limit = mem_size.saturating_sub(1) as i32;
+            let wait_called_ptr = upper_limit.saturating_sub(50);
+
+            new_instructions.extend_from_slice(&[
+                Instruction::I32Const(wait_called_ptr),
+                Instruction::I32Load(2, 0),
+                Instruction::I32Const(wait_frequency as i32),
+                Instruction::I32RemU,
+                Instruction::I32Const(1),
+                Instruction::I32Eq,
+                Instruction::If(BlockType::NoResult),
+            ]);
+            new_instructions.append(&mut instructions);
+            new_instructions.extend_from_slice(&[
+                Instruction::End,
+                Instruction::I32Const(wait_called_ptr),
+                Instruction::I32Const(wait_called_ptr),
+                Instruction::I32Load(2, 0),
+                Instruction::I32Const(1),
+                Instruction::I32Add,
+                Instruction::I32Store(2, 0),
+            ]);
+
+            instructions = new_instructions;
+        }
 
         log::trace!(
             "Random data after building `{}` syscall invoke instructions - {}",
