@@ -143,7 +143,7 @@ fn invoking_builtin_from_program_works() {
 }
 
 #[test]
-fn calculate_gas_info_may_not_work() {
+fn calculate_gas_info_works() {
     init_logger();
 
     new_test_ext().execute_with(|| {
@@ -151,7 +151,7 @@ fn calculate_gas_info_may_not_work() {
 
         assert_eq!(current_stack(), vec![]);
 
-        // Estimate gas a call would take
+        // Estimate the amount of gas a call to builtin actor would take.
         let gas_info = |payload: Vec<u8>| {
             start_transaction();
             let res = Gear::calculate_gas_info(
@@ -167,24 +167,23 @@ fn calculate_gas_info_may_not_work() {
             rollback_transaction();
             res
         };
-        let gas_burned = gas_info(Default::default()).burned;
+        let gas_info = gas_info(Default::default());
 
+        // Providing only just above actually burned gas will not suffice to handle a message.
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(SIGNER),
             builtin_actor_id,
             Default::default(),
-            gas_burned + 1000,
+            gas_info.burned + 1000,
             0,
             false,
         ));
         run_to_next_block();
 
-        // We expect the builtin actor's `handle()` method not have been called due to
-        // insufficient gas, because for builtin actors we require the maximum possible
-        // gas a message handling can incur to be provided with a message.
+        // Expect the builtin actor's `handle()` to not have been called due to insufficient gas.
         assert_eq!(current_stack().len(), 0);
 
-        // Expecting an error reply to have been sent.
+        // An error reply should have been sent.
         assert!(System::events().into_iter().any(|e| match e.event {
             RuntimeEvent::Gear(pallet_gear::Event::<Test>::UserMessageSent { message, .. }) => {
                 message.destination() == ProgramId::from(SIGNER) && message.details().is_some() && {
@@ -197,5 +196,19 @@ fn calculate_gas_info_may_not_work() {
             }
             _ => false,
         }));
+
+        // The `gas_info.min_limit` value, on the other hand, gives more accurate estimation.
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(SIGNER),
+            builtin_actor_id,
+            Default::default(),
+            gas_info.min_limit + 1000,
+            0,
+            false,
+        ));
+        run_to_next_block();
+
+        assert_eq!(current_stack().len(), 1);
+        assert!(current_stack()[0].is_success);
     });
 }

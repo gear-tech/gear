@@ -33,6 +33,9 @@ pub trait BuiltinRouter<ActorId> {
         dispatch: Self::Dispatch,
         gas_limit: u64,
     ) -> Vec<Self::Output>;
+
+    /// Upper bound for gas required to handle a message by a builtin actor.
+    fn estimate_gas(builtin_id: BuiltinId) -> u64;
 }
 
 impl<ActorId> BuiltinRouter<ActorId> for () {
@@ -48,6 +51,10 @@ impl<ActorId> BuiltinRouter<ActorId> for () {
         _dispatch: Self::Dispatch,
         _gas_limit: u64,
     ) -> Vec<Self::Output> {
+        Default::default()
+    }
+
+    fn estimate_gas(_builtin_id: BuiltinId) -> u64 {
         Default::default()
     }
 }

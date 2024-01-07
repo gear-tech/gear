@@ -126,6 +126,7 @@ where
         let mut min_limit = 0;
         let mut reserved = 0;
         let mut burned = 0;
+        let mut maybe_builtin_limit: u64 = 0;
 
         let mut ext_manager = ExtManager::<T>::default();
 
@@ -159,6 +160,7 @@ where
             let journal = if let Some(builtin_id) = T::BuiltinRouter::lookup(&actor_id) {
                 match queued_dispatch.kind() {
                     DispatchKind::Handle => {
+                        maybe_builtin_limit = T::BuiltinRouter::estimate_gas(builtin_id);
                         T::BuiltinRouter::dispatch(builtin_id, queued_dispatch.clone(), gas_limit)
                     }
                     _ => {
@@ -269,6 +271,9 @@ where
 
                     JournalNote::GasBurned { amount, message_id } => {
                         if from_main_chain(message_id)? {
+                            if maybe_builtin_limit > amount {
+                                min_limit = min_limit.saturating_add(maybe_builtin_limit - amount);
+                            }
                             burned = burned.saturating_add(amount);
                         }
                     }

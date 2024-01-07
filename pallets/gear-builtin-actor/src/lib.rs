@@ -360,4 +360,8 @@ impl<T: Config> BuiltinRouter<ProgramId> for Pallet<T> {
             },
         )
     }
+
+    fn estimate_gas(builtin_id: BuiltinId) -> u64 {
+        <T as Config>::BuiltinActor::max_gas_cost(builtin_id)
+    }
 }
