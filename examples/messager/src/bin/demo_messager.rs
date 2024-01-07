@@ -18,7 +18,7 @@
 #![cfg(feature = "gcli")]
 
 use gcli::{
-    anyhow, async_trait,
+    anyhow,
     clap::{self, Parser},
     cmd::Upload,
     color_eyre, tokio, App,
@@ -35,7 +35,6 @@ pub struct Messager {
     command: Command,
 }
 
-#[async_trait]
 impl App for Messager {
     async fn exec(&self) -> anyhow::Result<()> {
         let lookup = gcli::lookup!();

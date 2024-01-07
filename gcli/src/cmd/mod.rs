@@ -119,7 +119,6 @@ pub struct Opt {
     pub passwd: Option<String>,
 }
 
-#[async_trait::async_trait]
 impl App for Opt {
     fn timeout(&self) -> u64 {
         self.timeout

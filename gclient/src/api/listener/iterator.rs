@@ -18,7 +18,6 @@
 
 use super::EventProcessor;
 use crate::{Error, Result};
-use async_trait::async_trait;
 use gsdk::{
     config::GearConfig,
     ext::sp_core::H256,
@@ -46,7 +45,6 @@ use subxt::events::Events;
 /// ```
 pub struct EventListener(pub(crate) Blocks);
 
-#[async_trait(?Send)]
 impl EventProcessor for EventListener {
     fn not_waited() -> Error {
         unreachable!()

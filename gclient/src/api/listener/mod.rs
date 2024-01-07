@@ -24,7 +24,6 @@ pub use iterator::*;
 pub use subscription::*;
 
 use crate::{Error, Result};
-use async_trait::async_trait;
 use gear_core::ids::MessageId;
 use gear_core_errors::ReplyCode;
 use gsdk::metadata::runtime_types::{
@@ -81,7 +80,7 @@ impl DispatchStatus {
 /// several default implementations.
 ///
 /// See implementation example in [`EventListener`].
-#[async_trait(?Send)]
+#[allow(async_fn_in_trait)] // doesn't need Send
 pub trait EventProcessor {
     /// This function is called if a received event has an unexpected type.
     ///

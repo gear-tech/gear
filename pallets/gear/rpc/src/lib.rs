@@ -26,7 +26,7 @@
 use gear_common::Origin;
 use gear_core_errors::*;
 use jsonrpsee::{
-    core::{async_trait, Error as JsonRpseeError, RpcResult},
+    core::{Error as JsonRpseeError, RpcResult},
     proc_macros::rpc,
     types::error::{CallError, ErrorObject},
 };
