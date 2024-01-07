@@ -7719,8 +7719,6 @@ pub mod runtime_types {
                 pub im_online: runtime_types::pallet_im_online::sr25519::app_sr25519::Public,
                 pub authority_discovery: runtime_types::sp_authority_discovery::app::Public,
             }
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-            pub struct VoucherLegitimate;
         }
     }
 }

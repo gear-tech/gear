@@ -27,11 +27,10 @@ use frame_support::{
     PalletId,
 };
 use frame_support_test::TestRandomness;
-use frame_system::{self as system, limits::BlockWeights, pallet_prelude::BlockNumberFor};
+use frame_system::{self as system, limits::BlockWeights, mocking, pallet_prelude::BlockNumberFor};
 use sp_core::{ConstU8, H256};
 use sp_runtime::{
-    generic,
-    traits::{BlakeTwo256, DispatchInfoOf, IdentityLookup, SignedExtension},
+    traits::{BlakeTwo256, IdentityLookup},
     BuildStorage,
 };
 use sp_std::{
@@ -39,9 +38,7 @@ use sp_std::{
     convert::{TryFrom, TryInto},
 };
 
-type UncheckedExtrinsic =
-    frame_system::mocking::MockUncheckedExtrinsic<Test, (), VoucherLegitimate>;
-type Block = generic::Block<generic::Header<u64, BlakeTwo256>, UncheckedExtrinsic>;
+type Block = mocking::MockBlock<Test>;
 type AccountId = u64;
 pub type BlockNumber = BlockNumberFor<Test>;
 type Balance = u128;
@@ -53,62 +50,6 @@ pub(crate) const USER_2: AccountId = 2;
 pub(crate) const USER_3: AccountId = 3;
 pub(crate) const LOW_BALANCE_USER: AccountId = 4;
 pub(crate) const BLOCK_AUTHOR: AccountId = 255;
-
-#[derive(Encode, Decode, Clone, Eq, PartialEq, Default, TypeInfo)]
-pub struct VoucherLegitimate;
-
-impl SignedExtension for VoucherLegitimate {
-    const IDENTIFIER: &'static str = "VoucherLegitimate";
-    type AccountId = AccountId;
-    type Call = RuntimeCall;
-    type AdditionalSigned = ();
-    type Pre = ();
-
-    fn additional_signed(&self) -> Result<Self::AdditionalSigned, TransactionValidityError> {
-        Ok(())
-    }
-
-    fn validate(
-        &self,
-        from: &Self::AccountId,
-        call: &Self::Call,
-        _: &DispatchInfoOf<Self::Call>,
-        _: usize,
-    ) -> TransactionValidity {
-        match call {
-            RuntimeCall::GearVoucher(voucher_call) => {
-                if voucher_call.is_legit(*from) {
-                    Ok(Default::default())
-                } else {
-                    Err(TransactionValidityError::Invalid(InvalidTransaction::Call))
-                }
-            }
-            _ => Ok(Default::default()),
-        }
-    }
-
-    fn pre_dispatch(
-        self,
-        _: &Self::AccountId,
-        _: &Self::Call,
-        _: &DispatchInfoOf<Self::Call>,
-        _: usize,
-    ) -> Result<Self::Pre, TransactionValidityError> {
-        Ok(())
-    }
-}
-
-impl sp_std::fmt::Debug for VoucherLegitimate {
-    #[cfg(feature = "std")]
-    fn fmt(&self, f: &mut sp_std::fmt::Formatter) -> sp_std::fmt::Result {
-        write!(f, "VoucherLegitimate")
-    }
-
-    #[cfg(not(feature = "std"))]
-    fn fmt(&self, _: &mut sp_std::fmt::Formatter) -> sp_std::fmt::Result {
-        Ok(())
-    }
-}
 
 macro_rules! dry_run {
     (
