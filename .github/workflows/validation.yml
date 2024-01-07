@@ -55,7 +55,7 @@ jobs:
           tags: ${{ needs.tag-image.outputs.image_tag }}
 
       - name: SSH into VM
-        uses: appleboy/ssh-action@v1.0.0
+        uses: appleboy/ssh-action@v1.0.3
         env: 
           NEW_IMAGE: ${{ needs.tag-image.outputs.image_tag }}
         with:
