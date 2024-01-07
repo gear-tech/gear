@@ -2894,7 +2894,7 @@ pub mod runtime_types {
                     pub programs: ::core::option::Option<
                         ::std::vec::Vec<runtime_types::gear_core::ids::ProgramId>,
                     >,
-                    pub validity: _1,
+                    pub expiry: _1,
                 }
             }
             pub mod pallet {
@@ -2903,41 +2903,17 @@ pub mod runtime_types {
                 #[doc = "Contains a variant per dispatchable extrinsic that this pallet has."]
                 pub enum Call {
                     #[codec(index = 0)]
-                    #[doc = "Issue a new voucher."]
-                    #[doc = ""]
-                    #[doc = "Deposits event `VoucherIssued`, that contains `VoucherId` to be"]
-                    #[doc = "used by spender for balance-less on-chain interactions."]
-                    #[doc = ""]
-                    #[doc = "Arguments:"]
-                    #[doc = "* spender:  user id that is eligible to use the voucher;"]
-                    #[doc = "* balance:  voucher balance could be used for tx fees and gas,"]
-                    #[doc = "* programs: pool of programs spender can interact with,"]
-                    #[doc = "            if None - means any program,"]
-                    #[doc = "            limited by Config param;"]
-                    #[doc = "* validity: amount of blocks voucher could be used by spender"]
-                    #[doc = "            and couldn't be revoked by owner,"]
-                    #[doc = "            couldn't be zero."]
+                    #[doc = "See [`Pallet::issue`]."]
                     issue {
                         spender: ::subxt::utils::AccountId32,
                         balance: ::core::primitive::u128,
                         programs: ::core::option::Option<
                             ::std::vec::Vec<runtime_types::gear_core::ids::ProgramId>,
                         >,
-                        validity: ::core::primitive::u32,
+                        duration: ::core::primitive::u32,
                     },
                     #[codec(index = 1)]
-                    #[doc = "Execute prepaid call with given voucher id."]
-                    #[doc = ""]
-                    #[doc = "This extrinsic is supposed to return errors only from dispatcher of"]
-                    #[doc = "the prepaid call, because all of the validations on eligibility are"]
-                    #[doc = "made using SignedExtension for being able to use the voucher by the"]
-                    #[doc = "origin spender."]
-                    #[doc = ""]
-                    #[doc = "Arguments:"]
-                    #[doc = "* voucher_id: associated with origin existing vouchers id,"]
-                    #[doc = "              that should be used to pay for fees and gas"]
-                    #[doc = "              within the call;"]
-                    #[doc = "* call:       prepaid call that is requested to execute."]
+                    #[doc = "See [`Pallet::call`]."]
                     call {
                         voucher_id: runtime_types::pallet_gear_voucher::internal::VoucherId,
                         call: runtime_types::pallet_gear_voucher::internal::PrepaidCall<
@@ -2945,42 +2921,13 @@ pub mod runtime_types {
                         >,
                     },
                     #[codec(index = 2)]
-                    #[doc = "Revoke existing voucher."]
-                    #[doc = ""]
-                    #[doc = "This extrinsic revokes existing voucher, if current block is greater"]
-                    #[doc = "than expiration block of the voucher (its no longer valid)."]
-                    #[doc = ""]
-                    #[doc = "Currently it means sending of all balance from voucher account to"]
-                    #[doc = "voucher owner without voucher removal from storage map, but this"]
-                    #[doc = "behavior may change in future, as well as the origin validation:"]
-                    #[doc = "only owner is able to revoke voucher now."]
-                    #[doc = ""]
-                    #[doc = "Arguments:"]
-                    #[doc = "* spender:    account id of the voucher spender;"]
-                    #[doc = "* voucher_id: voucher id to be revoked."]
+                    #[doc = "See [`Pallet::revoke`]."]
                     revoke {
                         spender: ::subxt::utils::AccountId32,
                         voucher_id: runtime_types::pallet_gear_voucher::internal::VoucherId,
                     },
                     #[codec(index = 3)]
-                    #[doc = "Update existing voucher."]
-                    #[doc = ""]
-                    #[doc = "This extrinsic updates existing voucher: it can only extend vouchers"]
-                    #[doc = "rights in terms of balance, validity or programs to interact pool."]
-                    #[doc = ""]
-                    #[doc = "Can only be called by the voucher owner."]
-                    #[doc = ""]
-                    #[doc = "Arguments:"]
-                    #[doc = "* spender:          account id of the voucher spender;"]
-                    #[doc = "* voucher_id:       voucher id to be updated;"]
-                    #[doc = "* move_ownership:   optionally moves ownership to another account;"]
-                    #[doc = "* balance_top_up:   optionally top ups balance of the voucher from"]
-                    #[doc = "                    origins balance;"]
-                    #[doc = "* append_programs:  optionally extends pool of programs by"]
-                    #[doc = "                    `Some(programs_set)` passed or allows"]
-                    #[doc = "                    it to interact with any program by"]
-                    #[doc = "                    `None` passed;"]
-                    #[doc = "* prolong validity: optionally increases validity block number."]
+                    #[doc = "See [`Pallet::update`]."]
                     update {
                         spender: ::subxt::utils::AccountId32,
                         voucher_id: runtime_types::pallet_gear_voucher::internal::VoucherId,
@@ -2994,9 +2941,7 @@ pub mod runtime_types {
                         prolong_validity: ::core::option::Option<::core::primitive::u32>,
                     },
                     #[codec(index = 4)]
-                    #[doc = "Legacy call for using irrevocable vouchers."]
-                    #[doc = ""]
-                    #[doc = "It has `SignedExtension` check similar to [`Self::call`]."]
+                    #[doc = "See [`Pallet::call_deprecated`]."]
                     call_deprecated {
                         call: runtime_types::pallet_gear_voucher::internal::PrepaidCall<
                             ::core::primitive::u128,
@@ -3031,8 +2976,8 @@ pub mod runtime_types {
                     #[doc = "Voucher has expired and couldn't be used."]
                     VoucherExpired,
                     #[codec(index = 8)]
-                    #[doc = "Zero validity given while issuing voucher."]
-                    ZeroValidity,
+                    #[doc = "Zero duration given while issuing voucher."]
+                    ZeroDuration,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 #[doc = "Pallet Gear Voucher event."]
