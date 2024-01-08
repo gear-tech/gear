@@ -80,6 +80,7 @@ members = [
     "gsdk/codegen",
     "gsdk/api-gen",
     "gstd",
+    "gstd/codegen",
     "gsys",
     "gtest",
     "node/cli",
@@ -183,7 +184,9 @@ gcore = { path = "gcore" }
 gcli = { path = "gcli" }
 gclient = { path = "gclient" }
 gsdk = { path = "gsdk" }
+gsdk-codegen = { path = "gsdk/codegen" }
 gstd = { path = "gstd", features = [ "nightly" ] }
+gstd-codegen = { path = "gstd/codegen" }
 gsys = { path = "gsys" }
 gtest = { path = "gtest" }
 gmeta = { path = "gmeta" }
@@ -202,6 +205,7 @@ gear-lazy-pages-interface = { path = "lazy-pages/interface", default-features = 
 gear-node-testing = { path = "node/testing" }
 gear-runtime-common = { path = "runtime/common", default-features = false }
 gear-runtime-interface = { path = "runtime-interface", default-features = false }
+gear-runtime-primitives = { path = "runtime/primitives", default-features = false }
 gear-sandbox = { path = "sandbox/sandbox", default-features = false }
 gear-sandbox-env = { path = "sandbox/env", default-features = false }
 gear-sandbox-host = { path = "sandbox/host" }
