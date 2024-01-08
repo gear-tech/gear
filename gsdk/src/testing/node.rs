@@ -44,7 +44,7 @@ impl Node {
         let port_string = port.to_string();
 
         let mut args = args;
-        args.extend_from_slice(&["--ws-port", &port_string]);
+        args.extend_from_slice(&["--rpc-port", &port_string, "--no-hardware-benchmarks"]);
 
         let process = Command::new(path)
             .env(
