@@ -21,7 +21,7 @@ use crate::{result::Result, template};
 use clap::Parser;
 
 /// Create a new gear program
-#[derive(Debug, Parser)]
+#[derive(Clone, Debug, Parser)]
 pub struct New {
     /// Create gear program from templates.
     #[arg(short, long, default_value = "dapp-template")]

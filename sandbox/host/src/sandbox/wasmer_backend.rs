@@ -25,7 +25,7 @@ use sandbox_wasmer_types::TrapCode;
 
 use codec::{Decode, Encode};
 use gear_sandbox_env::{HostError, Instantiate, WasmReturnValue, GLOBAL_NAME_GAS};
-use sp_wasm_interface::{util, Pointer, ReturnValue, Value, WordSize};
+use sp_wasm_interface_common::{util, Pointer, ReturnValue, Value, WordSize};
 
 use crate::{
     error::{Error, Result},
@@ -330,7 +330,7 @@ fn dispatch_common(
         deallocate(
             sandbox_context,
             invoke_args_ptr,
-            "Failed dealloction after failed write of invoke arguments",
+            "Failed deallocation after failed write of invoke arguments",
         )?;
 
         return Err(RuntimeError::new("Can't write invoke args into memory"));
@@ -344,7 +344,7 @@ fn dispatch_common(
     deallocate(
         sandbox_context,
         invoke_args_ptr,
-        "Failed dealloction after invoke",
+        "Failed deallocation after invoke",
     )?;
 
     let serialized_result = serialized_result?;

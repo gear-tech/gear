@@ -56,7 +56,6 @@ macro_rules! impl_config_inner {
             type BlockLimiter = GearGas;
             type Scheduler = GearScheduler;
             type QueueRunner = Gear;
-            type Voucher = GearConfigVoucher;
             type ProgramRentFreePeriod = RentFreePeriod;
             type ProgramResumeMinimalRentPeriod = ResumeMinimalPeriod;
             type ProgramRentCostPerBlock = RentCostPerBlock;
@@ -68,12 +67,6 @@ macro_rules! impl_config_inner {
 
     ($runtime:ty, Schedule = $schedule:ty $(, $( $rest:tt )*)?) => {
         type GearConfigSchedule = $schedule;
-
-        $crate::impl_config_inner!($runtime, $($( $rest )*)?);
-    };
-
-    ($runtime:ty, Voucher = $voucher:ty $(, $( $rest:tt )*)?) => {
-        type GearConfigVoucher = $voucher;
 
         $crate::impl_config_inner!($runtime, $($( $rest )*)?);
     };

@@ -22,7 +22,7 @@ use clap::Parser;
 use std::path::PathBuf;
 
 /// Log in to account
-#[derive(Debug, Parser)]
+#[derive(Clone, Debug, Parser)]
 pub struct Login {
     /// The default keystore path is ~/.gear/keystore and ~/.gear/keystore.json
     ///

@@ -22,8 +22,8 @@ pub mod currency {
 
     pub const UNITS: Balance = 1_000_000_000_000; // 10^(-12) precision
 
-    /// Base economic unit, 50 Vara.
-    pub const ECONOMIC_UNITS: Balance = UNITS * 50;
+    /// Base economic unit, 10 Vara.
+    pub const ECONOMIC_UNITS: Balance = UNITS * 10;
     pub const ECONOMIC_CENTIUNITS: Balance = ECONOMIC_UNITS / 100;
 
     /// The existential deposit.

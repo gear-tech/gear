@@ -127,6 +127,85 @@ where
     }
 }
 
+/// We can't use `test_signal_code_works` from pallet tests because
+/// this test runs on the wasmi executor and not the wasmer.
+///
+/// So we just copy the code from this test and put it into the pallet benchmarks.
+pub fn signal_stack_limit_exceeded_works<T>()
+where
+    T: Config,
+    T::AccountId: Origin,
+{
+    use demo_signal_entry::{HandleAction, WASM_BINARY};
+    use frame_support::assert_ok;
+    use gear_core_errors::*;
+
+    const GAS_LIMIT: u64 = 10_000_000_000;
+
+    #[cfg(feature = "std")]
+    utils::init_logger();
+
+    let origin = benchmarking::account::<T::AccountId>("origin", 0, 0);
+    CurrencyOf::<T>::deposit_creating(&origin, 5_000_000_000_000_000_u128.unique_saturated_into());
+
+    let salt = b"signal_stack_limit_exceeded_works salt";
+
+    // Upload program
+    assert_ok!(Gear::<T>::upload_program(
+        RawOrigin::Signed(origin.clone()).into(),
+        WASM_BINARY.to_vec(),
+        salt.to_vec(),
+        origin.encode(),
+        GAS_LIMIT,
+        Zero::zero(),
+        false,
+    ));
+
+    let pid = ProgramId::generate_from_user(CodeId::generate(WASM_BINARY), salt);
+    utils::run_to_next_block::<T>(None);
+
+    // Ensure that program is uploaded and initialized correctly
+    assert!(Gear::<T>::is_active(pid));
+    assert!(Gear::<T>::is_initialized(pid));
+
+    // Save signal code to be compared with
+    let signal_code = SimpleExecutionError::StackLimitExceeded.into();
+    assert_ok!(Gear::<T>::send_message(
+        RawOrigin::Signed(origin.clone()).into(),
+        pid,
+        HandleAction::SaveSignal(signal_code).encode(),
+        GAS_LIMIT,
+        Zero::zero(),
+        false,
+    ));
+
+    utils::run_to_next_block::<T>(None);
+
+    // Send the action to trigger signal sending
+    let next_user_mid = utils::get_next_message_id::<T>(origin.clone());
+    assert_ok!(Gear::<T>::send_message(
+        RawOrigin::Signed(origin.clone()).into(),
+        pid,
+        HandleAction::ExceedStackLimit.encode(),
+        GAS_LIMIT,
+        Zero::zero(),
+        false,
+    ));
+
+    // Assert that system reserve gas node is removed
+    assert_ok!(GasHandlerOf::<T>::get_system_reserve(next_user_mid));
+
+    utils::run_to_next_block::<T>(None);
+
+    assert!(GasHandlerOf::<T>::get_system_reserve(next_user_mid).is_err());
+
+    // Ensure that signal code sent is signal code we saved
+    let ok_mails = MailboxOf::<T>::iter_key(origin)
+        .filter(|(m, _)| m.payload_bytes() == true.encode())
+        .count();
+    assert_eq!(ok_mails, 1);
+}
+
 pub fn main_test<T>()
 where
     T: Config,
@@ -178,12 +257,10 @@ where
             | SyscallName::Debug
             | SyscallName::Panic
             | SyscallName::OomPanic => {/* tests here aren't required, read module docs for more info */},
-
             SyscallName::Alloc
             | SyscallName::Free
             | SyscallName::FreeRange => check_mem::<T>(),
-
-            SyscallName::OutOfGas => { /*no need for tests */}
+            SyscallName::SystemBreak => {/* no need for tests because tested in other bench test */}
             SyscallName::Random => check_gr_random::<T>(),
             SyscallName::ReserveGas => check_gr_reserve_gas::<T>(),
             SyscallName::UnreserveGas => check_gr_unreserve_gas::<T>(),

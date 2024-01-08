@@ -1012,7 +1012,7 @@ fn disabled_program_rent() {
         let expected_block = utils::get_active_program(pay_rent_id).expiration_block;
 
         System::set_block_number(expected_block - 1);
-        Gear::set_block_number(expected_block as u32 - 1);
+        Gear::set_block_number(expected_block - 1);
 
         run_to_next_block(None);
 

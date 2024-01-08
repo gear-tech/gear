@@ -26,7 +26,7 @@ use gsdk::ext::{
 use std::{fmt::Display, result::Result as StdResult, str::FromStr};
 
 /// Cryptography scheme
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug)]
 pub enum Scheme {
     Ecdsa,
     Ed25519,
@@ -45,7 +45,7 @@ impl FromStr for Scheme {
     }
 }
 
-#[derive(Debug, Parser)]
+#[derive(Clone, Debug, Parser)]
 pub enum Action {
     /// Generate a random account
     Generate,
@@ -88,7 +88,7 @@ pub enum Action {
 }
 
 /// Keypair utils
-#[derive(Debug, Parser)]
+#[derive(Clone, Debug, Parser)]
 pub struct Key {
     /// Cryptography scheme
     #[arg(short, long, default_value = "sr25519")]
