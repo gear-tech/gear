@@ -66,7 +66,7 @@ impl<T: Config> Pallet<T> {
     /// and transaction fee for legacy vouchers implementation.
     #[deprecated = "Legacy voucher issuing logic is deprecated, and this and \
     `call_deprecated` extrinsic exist only for backward support"]
-    pub(crate) fn call_deprecated_sponsor(
+    pub fn call_deprecated_sponsor(
         who: &T::AccountId,
         call: &PrepaidCall<BalanceOf<T>>,
     ) -> Option<T::AccountId> {

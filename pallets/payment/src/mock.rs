@@ -192,7 +192,7 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
     pallet_balances::GenesisConfig::<Test> {
         balances: vec![
             (ALICE, 100_000_000_000u128),
-            (BOB, 1_000u128),
+            (BOB, 10_000u128),
             (BLOCK_AUTHOR, 1_000u128),
             (FEE_PAYER, 10_000_000u128),
             (BankAddress::get(), ExistentialDeposit::get()),

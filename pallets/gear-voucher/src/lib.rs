@@ -283,11 +283,6 @@ pub mod pallet {
 
         /// Execute prepaid call with given voucher id.
         ///
-        /// This extrinsic is supposed to return errors only from dispatcher of
-        /// the prepaid call, because all of the validations on eligibility are
-        /// made using SignedExtension for being able to use the voucher by the
-        /// origin spender.
-        ///
         /// Arguments:
         /// * voucher_id: associated with origin existing vouchers id,
         ///               that should be used to pay for fees and gas
@@ -494,8 +489,6 @@ pub mod pallet {
         }
 
         /// Legacy call for using irrevocable vouchers.
-        ///
-        /// It has `SignedExtension` check similar to [`Self::call`].
         #[pallet::call_index(4)]
         #[pallet::weight(T::CallsDispatcher::weight(call).saturating_add(T::DbWeight::get().reads(1)))]
         pub fn call_deprecated(
