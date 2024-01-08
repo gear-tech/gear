@@ -88,7 +88,7 @@ use scale_info::{
 /// if implementation [Numerated], [Copy], [Ord], [Eq] are correct for `T`.
 /// In other cases `IntervalsTree` does not guarantees execution without panics.
 #[derive(Clone, PartialEq, Eq, TypeInfo, Encode, Decode)]
-pub struct IntervalsTree<T> {
+pub struct IntervalsTree<T> { // DONE breathx: bound for T
     inner: BTreeMap<T, T>,
 }
 
@@ -110,11 +110,11 @@ impl<T: Copy> IntervalsTree<T> {
 impl<T: Copy + Ord> IntervalsTree<T> {
     /// Returns the biggest point in tree.
     pub fn end(&self) -> Option<T> {
-        self.inner.last_key_value().map(|(_, &e)| e)
+        self.inner.last_key_value().map(|(_, &e)| e) // DONE breathx: compare to `last_entry().map(|v| v.value())` NEVERMIND
     }
     /// Returns the smallest point in tree.
     pub fn start(&self) -> Option<T> {
-        self.inner.first_key_value().map(|(&s, _)| s)
+        self.inner.first_key_value().map(|(&s, _)| s) // DONE: breathx: same as above NEVERMIND
     }
 }
 
@@ -132,7 +132,7 @@ impl<T: Debug + Numerated> Debug for IntervalsTree<T> {
 
 impl<T: Numerated> IntervalsTree<T> {
     fn into_start_end<I: Into<IntervalIterator<T>>>(interval: I) -> Option<(T, T)> {
-        Into::<IntervalIterator<T>>::into(interval)
+        Into::<IntervalIterator<T>>::into(interval) // DONE breathx: `From`
             .inner()
             .map(|i| i.into_parts())
     }
@@ -151,8 +151,8 @@ impl<T: Numerated> IntervalsTree<T> {
             // Empty interval is always contained.
             return true;
         };
-        if let Some((&s, &e)) = self.inner.range(..=end).next_back() {
-            if s <= start {
+        if let Some((&s, &e)) = self.inner.range(..=end).next_back() { // DONE breathx: .ok_or(false)?
+            if s <= start { // DONE breathx: return s <= start && e >= end
                 return e >= end;
             }
         }
@@ -198,7 +198,7 @@ impl<T: Numerated> IntervalsTree<T> {
             return;
         };
 
-        if let Some(right_end) = right_end.inc_if_lt(start) {
+        if let Some(right_end) = right_end.inc_if_lt(start) { // DONE breathx: comment all of the cases pls for whole algo with points alignment in docs like start < right_start <= right_end < end ;
             if right_end == start {
                 debug_assert!(right_start <= end, "Must be cause of method it was found");
                 self.inner.insert(right_start, end);
@@ -217,6 +217,7 @@ impl<T: Numerated> IntervalsTree<T> {
 
         let mut left_interval = None;
         let mut intervals_to_remove = Vec::new();
+        // DONE breathx: couldn't remove/insert fns be optimized with bin search mb ?
         while let Some((s, e)) = iter.next_back() {
             if s <= start {
                 left_interval = Some((s, e));
@@ -234,7 +235,7 @@ impl<T: Numerated> IntervalsTree<T> {
         let end = right_end.max(end);
 
         let Some((left_start, left_end)) = left_interval else {
-            debug_assert!(start <= end, "Must be cause of method it was found");
+            debug_assert!(start <= end, "Must be cause of method it was found"); // DONE breathx: excess check nevermind
             self.inner.insert(start, end);
             return;
         };
@@ -246,6 +247,9 @@ impl<T: Numerated> IntervalsTree<T> {
             return;
         };
 
+
+        // DONE breathx: self.inner.insert(left_start.max(start), end)
+        // maybe add specific private fn like self.insert(.., ..) with internal debug assert and track caller
         if left_end >= start {
             self.inner.insert(left_start, end);
         } else {
@@ -270,7 +274,7 @@ impl<T: Numerated> IntervalsTree<T> {
     /// Complexity: `O(log(n) + m)`, where
     /// - `n` is amount of intervals in `self`
     /// - `m` is amount of intervals in `self` ⋂ `interval`
-    pub fn remove<I: Into<IntervalIterator<T>>>(&mut self, interval: I) {
+    pub fn remove<I: Into<IntervalIterator<T>>>(&mut self, interval: I) { // DONE breathx: consider returning bool or `clear` naming with -> ()
         let Some((start, end)) = Self::into_start_end(interval) else {
             // Empty interval - nothing to remove.
             return;
@@ -278,23 +282,24 @@ impl<T: Numerated> IntervalsTree<T> {
 
         let mut iter = self.inner.range(..=end);
 
+        // DONE breathx: its some kind of shortcut/fast-check, consider adding the same from iter.start();
         let Some((&right_start, &right_end)) = iter.next_back() else {
             return;
         };
 
-        if right_end < start {
+        if right_end < start { // DONE breathx: comments as above.
             return;
         }
 
         let mut left_interval = None;
         let mut intervals_to_remove = Vec::new();
-        while let Some((&s, &e)) = iter.next_back() {
+        while let Some((&s, &e)) = iter.next_back() { // DONE breathx: maybe you could .fold() it and similar places?
             if s < start {
                 if e >= start {
                     left_interval = Some(s);
                 }
                 break;
-            }
+            } // DONE breathx: wouldn't it be much easier and better introducing Ord for interval and fn like interval1.contains(interval2)?
 
             intervals_to_remove.push(s)
         }
@@ -406,7 +411,7 @@ impl<T: Numerated> IntervalsTree<T> {
     /// Number of points in tree set.
     ///
     /// Complexity: `O(n)`, where `n` is amount of intervals in `self`.
-    pub fn points_amount(&self) -> Option<T::Distance> {
+    pub fn points_amount(&self) -> Option<T::Distance> { // DONE breathx: most likely Bound<Distance> ?
         let mut res = T::Distance::zero();
         for interval in self.iter() {
             res = res.checked_add(&interval.raw_len()?)?;
@@ -416,7 +421,7 @@ impl<T: Numerated> IntervalsTree<T> {
 
     /// Iterator over all points in tree set.
     pub fn points_iter(&self) -> impl Iterator<Item = T> + '_ {
-        self.inner.iter().flat_map(|(&s, &e)| unsafe {
+        self.inner.iter().flat_map(|(&s, &e)| unsafe { // DONE breathx: de-facto you copy everything, isn't it better to wrap map iterator and expand point lazy: on .next() called?
             // Safe, because `Self` guaranties, that it contains only `start` ≤ `end`
             Interval::new_unchecked(s, e).iter()
         })
@@ -445,7 +450,7 @@ mod tests {
     use alloc::vec;
 
     #[test]
-    fn insert() {
+    fn insert() { // DONE breathx: isn't it test for .insert() instead of .try_insert()?
         let mut tree = IntervalsTree::new();
         tree.try_insert(1..=2).unwrap();
         assert_eq!(tree.to_vec(), vec![1..=2]);
@@ -498,7 +503,7 @@ mod tests {
     }
 
     #[test]
-    fn remove() {
+    fn remove() { // DONE breathx: same as for insert().
         let mut tree = IntervalsTree::new();
         tree.insert(1);
         tree.remove(1);
@@ -622,7 +627,7 @@ mod tests {
             vec![0..=0]
         );
 
-        assert!(tree.try_voids(1..0).is_err());
+        assert!(tree.try_voids(1..0).is_err()); // DONE breathx: it would be good to have more err-cases tests with asserting errors.
     }
 
     #[test]

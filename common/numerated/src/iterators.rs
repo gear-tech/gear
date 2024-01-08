@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! [IntervalIterator], [VoidsIterator], [DifferenceIterator] implementations.
+//! [IntervalIterator], [VoidsIterator], [DifferenceIterator] implementations. // DONE breathx: docs statement of the types are [`TypeName`].
 
 use crate::{
     interval::{
@@ -102,7 +102,7 @@ where
     fn try_from(range: (S, E)) -> Result<Self, Self::Error> {
         match Interval::try_from(range) {
             Ok(interval) => Ok(interval.into()),
-            Err(IncorrectOrEmptyRangeError::EmptyRange(_)) => Ok(Self(None)),
+            Err(IncorrectOrEmptyRangeError::EmptyRange(_)) => Ok(Self(None)), // DONE breathx: cast of range errors to interval iterator for all of these constructors
             Err(IncorrectOrEmptyRangeError::IncorrectRange(err)) => Err(err),
         }
     }
@@ -130,7 +130,7 @@ impl<T: Numerated> Iterator for IntervalIterator<T> {
     fn next(&mut self) -> Option<Self::Item> {
         self.0.map(|interval| {
             let start = interval.start();
-            self.0 = interval.inc_start();
+            self.0 = interval.inc_start(); // DONE breathx: mut accesses?
             start
         })
     }
@@ -176,8 +176,11 @@ pub struct DifferenceIterator<T: Numerated, I: Iterator<Item = Interval<T>>> {
 impl<T: Numerated, I: Iterator<Item = Interval<T>>> Iterator for DifferenceIterator<T, I> {
     type Item = Interval<T>;
 
-    fn next(&mut self) -> Option<Self::Item> {
+    fn next(&mut self) -> Option<Self::Item> { // DONE breathx: add comments on algo.
         loop {
+            // DONE breathx: consider similar changes below.
+            // self.interval1 = self.interval1.or_else(|| self.iter1.next());
+            // let interval1 = self.interval1?;
             let interval1 = if let Some(interval1) = self.interval1 {
                 interval1
             } else {
@@ -186,11 +189,13 @@ impl<T: Numerated, I: Iterator<Item = Interval<T>>> Iterator for DifferenceItera
                 interval1
             };
 
+            // DONE breathx: btw, matches may be more readable.
             let interval2 = if let Some(interval2) = self.interval2 {
                 interval2
             } else if let Some(interval2) = self.iter2.next() {
                 interval2
             } else {
+                // DONE breathx: return self.interval1.take(); same below.
                 self.interval1 = None;
                 return Some(interval1);
             };
@@ -200,12 +205,16 @@ impl<T: Numerated, I: Iterator<Item = Interval<T>>> Iterator for DifferenceItera
                 continue;
             }
 
+
             self.interval2 = Some(interval2);
 
             if interval1.end() < interval2.start() {
                 self.interval1 = None;
                 return Some(interval1);
             } else {
+                // DONE breathx: for these algos you can also introduce intervals api like: interval1.difference(interval2);
+                // consider interval1.cross(interval2) -> bool or maybe meet()/touches().
+                // otherwise you have A LOT of repeated code that's not readable, while task is pretty obvious.
                 if let Some(new_start) = interval2.end().inc_if_lt(interval1.end()) {
                     self.interval1 = Interval::new(new_start, interval1.end());
                     debug_assert!(self.interval1.is_some(), "`T: Numerated` impl error");
@@ -232,13 +241,13 @@ impl<T: Numerated, I: Iterator<Item = Interval<T>>> Iterator for DifferenceItera
 ///
 /// See also [`IntervalsTree::voids`].
 pub struct VoidsIterator<T: Numerated, I: Iterator<Item = Interval<T>>> {
-    pub(crate) inner: Option<(I, Interval<T>)>,
+    pub(crate) inner: Option<(I, Interval<T>)>, // DONE breathx: should'nt it be different option over interval that is "current" and just iter
 }
 
 impl<T: Numerated, I: Iterator<Item = Interval<T>>> Iterator for VoidsIterator<T, I> {
     type Item = Interval<T>;
 
-    fn next(&mut self) -> Option<Self::Item> {
+    fn next(&mut self) -> Option<Self::Item> { // DONE breathx: add comments on algo.
         let (iter, interval) = self.inner.as_mut()?;
         if let Some(next) = iter.next() {
             let (start, end) = next.into_parts();
@@ -247,7 +256,7 @@ impl<T: Numerated, I: Iterator<Item = Interval<T>>> Iterator for VoidsIterator<T
             debug_assert!(interval.start() < start);
 
             let Some(void_end) = start.dec_if_gt(interval.start()) else {
-                debug_assert!(false, "`T: Numerated` impl error");
+                debug_assert!(false, "`T: Numerated` impl error"); // DONE breathx: shouldn't we panic in prod for such cases?
                 return None;
             };
 
@@ -299,7 +308,7 @@ mod tests {
             .into_iter()
             .map(|r| Interval::<u8>::try_from(r).unwrap());
         let mut iter = VoidsIterator {
-            inner: Some((intervals, Interval::<u8>::from(..=10))),
+            inner: Some((intervals, Interval::<u8>::from(..=10))), // DONE breathx: this task could be solved by difference iterator, isn't it?, so voids iterator is kinda useless.
         };
         assert_eq!(Some(0..=0), iter.next().map(Into::into));
         assert_eq!(Some(3..=4), iter.next().map(Into::into));

@@ -53,7 +53,7 @@ impl<T: Numerated> Interval<T> {
     }
 
     /// Creates new interval start..=end if start ≤ end, else returns None.
-    pub fn new(start: T, end: T) -> Option<Self> {
+    pub fn new(start: T, end: T) -> Option<Self> { // DONE breathx: MOST LIKELY try_new() -> Result<Self>
         (start <= end).then_some(Self { start, end })
     }
 
@@ -78,7 +78,8 @@ impl<T: Numerated> Interval<T> {
     }
 
     /// Returns new [Interval] with `start` = `start` + 1, if it's possible.
-    pub fn inc_start(&self) -> Option<Self> {
+    pub fn inc_start(&self) -> Option<Self> { // DONE breathx: Result as well
+        // DONE breathx: mutations by mut ref?
         let (start, end) = (self.start, self.end);
         debug_assert!(start <= end, "It's guaranteed by `Interval`");
         start.inc_if_lt(end).map(|start| {
@@ -90,7 +91,7 @@ impl<T: Numerated> Interval<T> {
     /// Trying to make [Interval] from `range`.
     /// - If `range.start > range.end`, then returns [IncorrectRangeError].
     /// - If `range.start == range.end`, then returns [EmptyRangeError].
-    pub fn try_from_range(range: Range<T>) -> Result<Self, IncorrectOrEmptyRangeError> {
+    pub fn try_from_range(range: Range<T>) -> Result<Self, IncorrectOrEmptyRangeError> { // DONE breathx: TryFromRangeError type
         let (start, end) = (range.start, range.end);
         end.dec_if_gt(start)
             .map(|end| {
@@ -107,6 +108,7 @@ impl<T: Numerated> Interval<T> {
 
 impl<T: Numerated> PartialEq<RangeInclusive<T>> for Interval<T> {
     fn eq(&self, other: &RangeInclusive<T>) -> bool {
+        // DONE breathx: compare refs
         let (start, end) = self.into_parts();
         (start, end) == (*other.start(), *other.end())
     }
@@ -160,7 +162,7 @@ pub struct IncorrectRangeError;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, derive_more::From)]
 pub enum IncorrectOrEmptyRangeError {
     /// Trying to make empty interval.
-    EmptyRange(EmptyRangeError),
+    EmptyRange(EmptyRangeError), // DONE breathx: Consider removal underlying structs in favor of just variants.
     /// Trying to make interval start > end.
     IncorrectRange(IncorrectRangeError),
 }
@@ -169,7 +171,8 @@ impl<T: Numerated + UpperBounded, I: Into<T::Bound>> TryFrom<RangeFrom<I>> for I
     type Error = EmptyRangeError;
 
     fn try_from(range: RangeFrom<I>) -> Result<Self, Self::Error> {
-        match Into::<T::Bound>::into(range.start).unbound() {
+        // DONE breathx: simplify check that its != max value
+        match Into::<T::Bound>::into(range.start).unbound() { // DONE breathx: turbo-fish
             Some(start) => {
                 let end = T::max_value();
                 debug_assert!(start <= end, "`T: UpperBounded` impl error");
@@ -188,7 +191,7 @@ impl<T: Numerated + LowerBounded + UpperBounded, I: Into<T::Bound>> TryFrom<Rang
     fn try_from(range: RangeTo<I>) -> Result<Self, Self::Error> {
         let end: T::Bound = range.end.into();
 
-        let Some(end) = end.unbound() else {
+        let Some(end) = end.unbound() else { // DONE breathx: turbo-fish and .ok_or()
             return Ok(Self::from(..));
         };
 
@@ -252,7 +255,7 @@ pub enum NewWithLenError {
     /// Trying to make zero len interval.
     ZeroLen,
     /// Trying to make out of bounds interval.
-    OutOfBounds(OutOfBoundsError),
+    OutOfBounds(OutOfBoundsError), // DONE breathx: same
 }
 
 impl<T: Numerated + UpperBounded> Interval<T> {

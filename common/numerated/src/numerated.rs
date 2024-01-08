@@ -22,9 +22,9 @@
 use core::cmp::Ordering;
 use num_traits::{One, PrimInt, Unsigned};
 
-/// For any type `T`, `Bound<T>` is a type, which has set of values bigger than `T` by one element.
+/// For any type `T`, `Bound<T>` is a type, which has set of values bigger than `T` by one element. DONE  BY ONE VAL
 /// - Each value from `T` has unambiguous mapping to `Bound<T>`.
-/// - Each value from `Bound<T>`, except one called __upper__, has unambiguous mapping to `T`.
+/// - Each value from `Bound<T>`, except one called __upper__, has unambiguous mapping to `T`. // DONE breathx: SHOULD WE CONSIDER SPECIFIC ENUM FOR THAT OR MAYBE `BOUND` SHOULD BE A TYPE, NOT A TRAIT?
 /// - __upper__ value has no mapping to `T`, but can be used to get `T` max value.
 ///
 /// # Examples

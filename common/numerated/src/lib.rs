@@ -25,6 +25,7 @@
 #![no_std]
 #![deny(missing_docs)]
 
+
 extern crate alloc;
 
 pub mod interval;
@@ -45,3 +46,5 @@ pub mod mock;
 
 #[cfg(test)]
 mod tests;
+
+// DONE breathx: try to work with refs almost everything in order to keep it optimized.
