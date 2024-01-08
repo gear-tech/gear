@@ -54,9 +54,7 @@ pub fn patch_alias(index: &mut Vec<&str>) {
 pub fn patch_workspace(name: &str, table: &mut toml_edit::InlineTable) {
     match name {
         "core-processor" | "gear-core-processor" => core_processor::patch_workspace(name, table),
-        sub if sub.starts_with("sp-") || sub.starts_with("frame-") => {
-            substrate::patch_workspace(name, table)
-        }
+        sub if sub.starts_with("sp-") => substrate::patch_workspace(name, table),
         _ => {}
     }
 }
@@ -206,10 +204,8 @@ mod substrate {
             }
             // The versions of these packages on crates.io are incorrect.
             "sp-arithmetic" | "sp-core" | "sp-rpc" | "sp-version" => {
-                table.insert("version", "7.0.0".into());
+                table.insert("version", "22.0.0".into());
             }
-            // Filter out this package for local testing.
-            "frame-support-test" => return,
             _ => {}
         }
 
