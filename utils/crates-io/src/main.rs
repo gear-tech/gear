@@ -43,14 +43,19 @@ enum Command {
 /// but run in CI.
 #[derive(Debug, Parser)]
 pub struct Opt {
+    #[clap(short, long, global)]
+    skip_verify: bool,
     #[clap(subcommand)]
     command: Command,
 }
 
 fn main() -> Result<()> {
-    let Opt { command } = Opt::parse();
+    let Opt {
+        command,
+        skip_verify,
+    } = Opt::parse();
 
-    let publisher = Publisher::new()?;
+    let publisher = Publisher::new(skip_verify)?;
     match command {
         Command::Check => publisher.build(None)?.check(),
         Command::Publish { version } => publisher.build(version)?.publish(),

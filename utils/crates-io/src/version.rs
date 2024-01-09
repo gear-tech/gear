@@ -34,6 +34,8 @@ struct Version {
 
 /// Verify if the package has already been published.
 pub fn verify(mut name: &str, version: &str) -> Result<bool> {
+    println!("Verifying {}@{} ...", &name, &version);
+
     if name == "gear-core-processor" {
         name = "core-processor";
     }

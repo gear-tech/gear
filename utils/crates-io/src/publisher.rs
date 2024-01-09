@@ -30,11 +30,12 @@ pub struct Publisher {
     metadata: Metadata,
     graph: BTreeMap<Option<usize>, Manifest>,
     index: HashMap<String, usize>,
+    verify: bool,
 }
 
 impl Publisher {
     /// Create a new publisher.
-    pub fn new() -> Result<Self> {
+    pub fn new(skip_verify: bool) -> Result<Self> {
         let metadata = MetadataCommand::new().no_deps().exec()?;
         let graph = BTreeMap::new();
         let index = HashMap::<String, usize>::from_iter(
@@ -53,6 +54,7 @@ impl Publisher {
             metadata,
             graph,
             index,
+            verify: !skip_verify,
         })
     }
 
@@ -71,8 +73,7 @@ impl Publisher {
                 continue;
             }
 
-            println!("Verifying {}@{} ...", &name, &version);
-            if crate::verify(name, &version)? {
+            if self.verify && crate::verify(name, &version)? {
                 println!("Package {}@{} already published .", &name, &version);
                 continue;
             }
