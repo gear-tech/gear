@@ -43,7 +43,7 @@ enum Command {
 /// but run in CI.
 #[derive(Debug, Parser)]
 pub struct Opt {
-    #[clap(short, long, global)]
+    #[clap(short, long, global = true)]
     skip_verify: bool,
     #[clap(subcommand)]
     command: Command,

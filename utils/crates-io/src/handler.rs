@@ -204,7 +204,7 @@ mod substrate {
             }
             // The versions of these packages on crates.io are incorrect.
             "sp-arithmetic" | "sp-core" | "sp-rpc" | "sp-version" => {
-                table.insert("version", "22.0.0".into());
+                table.insert("version", "21.0.0".into());
             }
             _ => {}
         }
