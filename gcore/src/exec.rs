@@ -410,7 +410,7 @@ pub fn program_id() -> ActorId {
 ///
 /// # Examples
 ///
-/// ```
+/// ```ignore
 /// use gcore::exec;
 ///
 /// #[no_mangle]

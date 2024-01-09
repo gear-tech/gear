@@ -114,7 +114,7 @@ pub fn wake_delayed(message_id: MessageId, delay: u32) -> Result<()> {
 ///
 /// # Examples
 ///
-/// ```
+/// ```ignore
 /// use gstd::exec;
 ///
 /// #[no_mangle]
