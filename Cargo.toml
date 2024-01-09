@@ -196,7 +196,7 @@ gear-core-backend = { path = "core-backend", default-features = false }
 gear-call-gen = { path = "utils/call-gen" }
 gear-common = { path = "common", default-features = false }
 gear-common-codegen = { path = "common/codegen" }
-gear-core = { path = "core" }
+gear-core = { path = "core", default-features = false }
 gear-core-errors = { path = "core-errors" }
 gear-core-processor = { path = "core-processor", default-features = false }
 gear-lazy-pages = { path = "lazy-pages" }
