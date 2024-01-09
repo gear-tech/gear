@@ -7,6 +7,6 @@ edition.workspace = true
 anyhow.workspace = true
 cargo_metadata.workspace = true
 clap = { workspace = true, features = ["derive"] }
-serde = { workspace = true, features = ["derive"] }
+serde = { workspace = true, features = ["std", "derive"] }
 reqwest = { workspace = true, features = ["blocking", "json", "default-tls"] }
 toml_edit.workspace = true

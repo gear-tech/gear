@@ -17,7 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::*;
-use core_processor::{common::PrechargedDispatch, ContextChargedForInstrumentation};
+use core_processor::{
+    common::PrechargedDispatch, process_non_executable, ContextChargedForInstrumentation,
+    SystemReservationContext,
+};
 
 pub(crate) struct QueueStep<'a, T: Config, F> {
     pub block_config: &'a BlockConfig,
@@ -201,6 +204,25 @@ where
             let program_id = dispatch.destination();
             let dispatch_id = dispatch.id();
             let dispatch_reply = dispatch.reply_details().is_some();
+
+            // In case the destination is a builtin actor, process the dispatch differently.
+            if let Some(builtin_id) = T::BuiltinRouter::lookup(&program_id) {
+                let journal = match dispatch.kind() {
+                    DispatchKind::Handle => {
+                        T::BuiltinRouter::dispatch(builtin_id, dispatch.clone(), gas_limit)
+                    }
+                    _ => {
+                        // Builtin actors can only execute `handle` messages.
+                        // All other cases result in no-execution outcome.
+                        let dispatch = dispatch.into_incoming(gas_limit);
+                        let system_reservation_ctx =
+                            SystemReservationContext::from_dispatch(&dispatch);
+                        process_non_executable(dispatch, program_id, system_reservation_ctx)
+                    }
+                };
+                core_processor::handle_journal(journal, &mut ext_manager);
+                continue;
+            }
 
             let balance = CurrencyOf::<T>::free_balance(&program_id.cast());
 

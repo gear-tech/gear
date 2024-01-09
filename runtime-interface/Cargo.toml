@@ -29,13 +29,9 @@ winapi = { workspace = true, features = ["memoryapi"] }
 [features]
 default = ["std"]
 std = [
-	"gear-core/std",
-	"gear-lazy-pages",
-	"gear-sandbox-host",
-
+	"sp-runtime-interface/std",
 	"sp-io/std",
 	"sp-std/std",
-	"sp-runtime-interface/std",
 	"sp-wasm-interface/std",
 
 	"byteorder/std",

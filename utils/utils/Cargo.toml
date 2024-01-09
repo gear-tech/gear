@@ -12,7 +12,7 @@ repository.workspace = true
 nonempty.workspace = true
 env_logger.workspace = true
 hex.workspace = true
-serde = { workspace = true, features = ["derive"] }
+serde = { workspace = true, features = ["std", "derive"] }
 serde_json.workspace = true
 path-clean.workspace = true
 gear-core.workspace = true

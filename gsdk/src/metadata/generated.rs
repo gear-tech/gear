@@ -717,6 +717,14 @@ pub mod runtime_types {
             pub mod ids {
                 use super::runtime_types;
                 #[derive(
+                    ::subxt::ext::codec::CompactAs,
+                    Debug,
+                    crate::gp::Decode,
+                    crate::gp::DecodeAsType,
+                    crate::gp::Encode,
+                )]
+                pub struct BuiltinId(pub ::core::primitive::u64);
+                #[derive(
                     Copy, Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                 )]
                 pub struct CodeId(pub [::core::primitive::u8; 32usize]);
@@ -2579,6 +2587,19 @@ pub mod runtime_types {
                     #[doc = "Deposit of funds that will not keep bank account alive."]
                     #[doc = "**Must be unreachable in Gear main protocol.**"]
                     InsufficientDeposit,
+                }
+            }
+        }
+        pub mod pallet_gear_builtin_actor {
+            use super::runtime_types;
+            pub mod pallet {
+                use super::runtime_types;
+                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                #[doc = "Errors for the gear-builtin-actor pallet."]
+                pub enum Error {
+                    #[codec(index = 0)]
+                    #[doc = "`BuiltinId` already existd."]
+                    BuiltinIdAlreadyExists,
                 }
             }
         }
@@ -7501,6 +7522,8 @@ pub mod runtime_types {
                 GearVoucher(runtime_types::pallet_gear_voucher::pallet::Error),
                 #[codec(index = 108)]
                 GearBank(runtime_types::pallet_gear_bank::pallet::Error),
+                #[codec(index = 109)]
+                GearBuiltinActor(runtime_types::pallet_gear_builtin_actor::pallet::Error),
                 #[codec(index = 99)]
                 Sudo(runtime_types::pallet_sudo::pallet::Error),
                 #[codec(index = 199)]
@@ -8593,6 +8616,18 @@ pub mod storage {
             match self {
                 Self::Bank => "Bank",
                 Self::UnusedValue => "UnusedValue",
+            }
+        }
+    }
+    #[doc = "Storage of pallet `GearBuiltinActor`."]
+    pub enum GearBuiltinActorStorage {
+        Actors,
+    }
+    impl StorageInfo for GearBuiltinActorStorage {
+        const PALLET: &'static str = "GearBuiltinActor";
+        fn storage_name(&self) -> &'static str {
+            match self {
+                Self::Actors => "Actors",
             }
         }
     }

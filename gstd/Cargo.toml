@@ -13,6 +13,7 @@ repository.workspace = true
 [dependencies]
 document-features = { version = "0.2.7", optional = true }
 galloc.workspace = true
+gbuiltin.workspace = true
 gcore = { workspace = true, features = ["codec"] }
 gstd-codegen.workspace = true
 gear-core-errors.workspace = true

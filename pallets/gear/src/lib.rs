@@ -26,6 +26,7 @@ extern crate alloc;
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
 
+mod builtin;
 mod internal;
 mod queue;
 mod runtime_api;
@@ -43,6 +44,7 @@ mod tests;
 pub mod pallet_tests;
 
 pub use crate::{
+    builtin::BuiltinRouter,
     manager::{ExtManager, HandleKind},
     pallet::*,
     schedule::{HostFnWeights, InstructionWeights, Limits, MemoryWeights, Schedule},
@@ -263,6 +265,13 @@ pub mod pallet {
         /// rent is disabled.
         #[pallet::constant]
         type ProgramRentDisabledDelta: Get<BlockNumberFor<Self>>;
+
+        /// The builtin actors registry.
+        type BuiltinRouter: BuiltinRouter<
+            ProgramId,
+            Dispatch = StoredDispatch,
+            Output = JournalNote,
+        >;
     }
 
     #[pallet::pallet]
@@ -817,11 +826,12 @@ pub mod pallet {
                 .unwrap_or(false)
         }
 
-        /// Returns true if id is a program and the program has active status.
+        /// Returns true if `program_id` is that of a in active status or the builtin actor.
         pub fn is_active(program_id: ProgramId) -> bool {
-            ProgramStorageOf::<T>::get_program(program_id)
-                .map(|program| program.is_active())
-                .unwrap_or_default()
+            T::BuiltinRouter::lookup(&program_id).is_some()
+                || ProgramStorageOf::<T>::get_program(program_id)
+                    .map(|program| program.is_active())
+                    .unwrap_or_default()
         }
 
         /// Returns true if id is a program and the program has terminated status.
@@ -838,10 +848,12 @@ pub mod pallet {
                 .unwrap_or_default()
         }
 
-        /// Returns true if there is a program with the specified id (it may be paused).
+        /// Returns true if there is a program with the specified `program_id`` (it may be paused)
+        /// or this `program_id` belongs to the built-in actor.
         pub fn program_exists(program_id: ProgramId) -> bool {
             ProgramStorageOf::<T>::program_exists(program_id)
                 || ProgramStorageOf::<T>::paused_program_exists(&program_id)
+                || T::BuiltinRouter::lookup(&program_id).is_some()
         }
 
         /// Returns exit argument of an exited program.

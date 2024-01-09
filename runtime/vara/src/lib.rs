@@ -1008,6 +1008,7 @@ impl pallet_gear::Config for Runtime {
     type BlockLimiter = GearGas;
     type Scheduler = GearScheduler;
     type QueueRunner = Gear;
+    type BuiltinRouter = GearBuiltinActor;
     type ProgramRentFreePeriod = ConstU32<{ MONTHS * RENT_FREE_PERIOD_MONTH_FACTOR }>;
     type ProgramResumeMinimalRentPeriod = ConstU32<{ WEEKS * RENT_RESUME_WEEK_FACTOR }>;
     type ProgramRentCostPerBlock = ConstU128<RENT_COST_PER_BLOCK>;
@@ -1047,6 +1048,16 @@ impl pallet_gear_gas::Config for Runtime {
 impl pallet_gear_messenger::Config for Runtime {
     type BlockLimiter = GearGas;
     type CurrentBlockNumber = Gear;
+}
+
+parameter_types! {
+    pub const BuiltinActorPalletId: PalletId = PalletId(*b"py/biact");
+}
+
+impl pallet_gear_builtin_actor::Config for Runtime {
+    type BuiltinActor = ();
+    type WeightInfo = pallet_gear_builtin_actor::weights::SubstrateWeight<Runtime>;
+    type PalletId = BuiltinActorPalletId;
 }
 
 pub struct ExtraFeeFilter;
@@ -1173,6 +1184,7 @@ construct_runtime!(
         StakingRewards: pallet_gear_staking_rewards = 106,
         GearVoucher: pallet_gear_voucher = 107,
         GearBank: pallet_gear_bank = 108,
+        GearBuiltinActor: pallet_gear_builtin_actor = 109,
 
         Sudo: pallet_sudo = 99,
 
@@ -1233,6 +1245,7 @@ construct_runtime!(
         StakingRewards: pallet_gear_staking_rewards = 106,
         GearVoucher: pallet_gear_voucher = 107,
         GearBank: pallet_gear_bank = 108,
+        GearBuiltinActor: pallet_gear_builtin_actor = 109,
 
         // NOTE (!): `pallet_sudo` used to be idx(99).
         // NOTE (!): `pallet_airdrop` used to be idx(198).
@@ -1299,6 +1312,7 @@ mod benches {
         // Gear pallets
         [pallet_gear, Gear]
         [pallet_gear_voucher, GearVoucher]
+        [pallet_gear_builtin_actor, GearBuiltinActor]
     );
 }
 
@@ -1399,6 +1413,12 @@ impl_runtime_apis_plus_common! {
     impl pallet_gear_staking_rewards_rpc_runtime_api::GearStakingRewardsApi<Block> for Runtime {
         fn inflation_info() -> pallet_gear_staking_rewards::InflationInfo {
             StakingRewards::inflation_info()
+        }
+    }
+
+    impl pallet_gear_builtin_actor_rpc_runtime_api::GearBuiltinActorApi<Block> for Runtime {
+        fn generate_actor_id(builtin_id: u64) -> H256 {
+            GearBuiltinActor::generate_actor_id(builtin_id.into()).into_bytes().into()
         }
     }
 

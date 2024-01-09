@@ -3664,6 +3664,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "gbuiltin"
+version = "1.0.5"
+dependencies = [
+ "derive_more",
+ "gear-core-errors",
+ "scale-info",
+]
+
+[[package]]
 name = "gcli"
 version = "1.0.5"
 dependencies = [
@@ -4247,6 +4256,8 @@ dependencies = [
  "hex-literal",
  "jsonrpsee 0.16.3",
  "log",
+ "pallet-gear-builtin-actor-rpc",
+ "pallet-gear-builtin-actor-rpc-runtime-api",
  "pallet-gear-rpc",
  "pallet-gear-rpc-runtime-api",
  "pallet-gear-staking-rewards-rpc",
@@ -4662,6 +4673,7 @@ dependencies = [
  "document-features",
  "futures",
  "galloc",
+ "gbuiltin",
  "gcore",
  "gear-core-errors",
  "gstd-codegen",
@@ -7582,19 +7594,67 @@ dependencies = [
 ]
 
 [[package]]
-name = "pallet-gear-bridges"
+name = "pallet-gear-builtin-actor"
 version = "1.0.5"
 dependencies = [
+ "demo-waiting-proxy",
+ "derive_more",
+ "env_logger",
+ "frame-benchmarking",
+ "frame-election-provider-support",
+ "frame-executive",
  "frame-support",
+ "frame-support-test",
  "frame-system",
  "gear-common",
+ "gear-core",
+ "gear-core-errors",
+ "gear-core-processor",
+ "hex",
+ "hex-literal",
+ "impl-trait-for-tuples",
+ "log",
+ "pallet-authorship",
+ "pallet-bags-list",
  "pallet-balances",
+ "pallet-gear",
+ "pallet-gear-bank",
+ "pallet-gear-gas",
+ "pallet-gear-messenger",
+ "pallet-gear-program",
+ "pallet-gear-scheduler",
+ "pallet-session",
+ "pallet-staking",
+ "pallet-timestamp",
  "parity-scale-codec",
  "primitive-types",
  "scale-info",
+ "sp-authority-discovery",
+ "sp-core",
+ "sp-externalities",
  "sp-io",
  "sp-runtime",
  "sp-std 8.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v1.0.0-canary)",
+]
+
+[[package]]
+name = "pallet-gear-builtin-actor-rpc"
+version = "1.0.0"
+dependencies = [
+ "jsonrpsee 0.16.3",
+ "pallet-gear-builtin-actor-rpc-runtime-api",
+ "sp-api",
+ "sp-blockchain",
+ "sp-core",
+ "sp-runtime",
+]
+
+[[package]]
+name = "pallet-gear-builtin-actor-rpc-runtime-api"
+version = "1.0.0"
+dependencies = [
+ "sp-api",
+ "sp-core",
 ]
 
 [[package]]
@@ -7624,7 +7684,6 @@ dependencies = [
  "parity-scale-codec",
  "primitive-types",
  "scale-info",
- "serde",
  "sp-core",
  "sp-io",
  "sp-runtime",
@@ -7655,7 +7714,6 @@ dependencies = [
  "parity-wasm",
  "primitive-types",
  "scale-info",
- "serde",
  "sp-core",
  "sp-io",
  "sp-runtime",
@@ -7713,7 +7771,6 @@ dependencies = [
  "parity-wasm",
  "primitive-types",
  "scale-info",
- "serde",
  "sp-io",
  "sp-runtime",
  "sp-std 8.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v1.0.0-canary)",
@@ -7822,7 +7879,6 @@ dependencies = [
  "frame-support",
  "frame-system",
  "gear-common",
- "impl-trait-for-tuples",
  "log",
  "pallet-authorship",
  "pallet-bags-list",
@@ -7882,7 +7938,6 @@ dependencies = [
  "parity-wasm",
  "primitive-types",
  "scale-info",
- "serde",
  "sp-core",
  "sp-io",
  "sp-runtime",
@@ -13479,6 +13534,8 @@ dependencies = [
  "pallet-election-provider-multi-phase",
  "pallet-gear",
  "pallet-gear-bank",
+ "pallet-gear-builtin-actor",
+ "pallet-gear-builtin-actor-rpc-runtime-api",
  "pallet-gear-debug",
  "pallet-gear-gas",
  "pallet-gear-messenger",
