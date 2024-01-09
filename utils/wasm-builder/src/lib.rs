@@ -36,6 +36,7 @@ pub mod optimize;
 mod smart_fs;
 mod stack_end;
 mod wasm_project;
+mod checks;
 
 pub const TARGET: &str = env!("TARGET");
 
