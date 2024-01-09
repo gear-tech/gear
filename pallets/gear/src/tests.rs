@@ -55,7 +55,7 @@ use common::{
 };
 use core_processor::{common::ActorExecutionErrorReplyReason, ActorPrepareMemoryError};
 use frame_support::{
-    assert_noop, assert_err, assert_ok,
+    assert_err, assert_noop, assert_ok,
     codec::{Decode, Encode},
     dispatch::Dispatchable,
     sp_runtime::traits::{TypedGet, Zero},

@@ -994,9 +994,9 @@ impl Externalities for Ext {
     fn pay_program_rent(
         &mut self,
         _program_id: ProgramId,
-        _rent: u128,
+        rent: u128,
     ) -> Result<(u128, u32), Self::FallibleError> {
-        Err(FallibleExtErrorCore::Unsupported.into())
+        Ok((rent, 0))
     }
 
     fn program_id(&self) -> Result<ProgramId, Self::UnrecoverableError> {

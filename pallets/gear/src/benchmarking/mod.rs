@@ -62,10 +62,7 @@ use crate::{
     Ext as Externalities, GasHandlerOf, GearBank, MailboxOf, Pallet as Gear, Pallet,
     ProgramStorageOf, QueueOf, Schedule, TaskPoolOf,
 };
-use ::alloc::{
-    collections::BTreeMap,
-    vec,
-};
+use ::alloc::{collections::BTreeMap, vec};
 use common::{
     self, benchmarking,
     scheduler::{ScheduledTask, TaskHandler},

@@ -419,6 +419,8 @@ pub fn program_id() -> ActorId {
 ///         exec::pay_program_rent(exec::program_id(), 1_000_000).expect("Unable to pay rent");
 /// }
 /// ```
+#[allow(warnings)]
+#[deprecated]
 pub fn pay_program_rent(program_id: ActorId, value: u128) -> Result<(u128, u32)> {
     let rent_pid = HashWithValue {
         hash: program_id.0,

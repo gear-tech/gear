@@ -1199,7 +1199,7 @@ pub mod pallet {
             let program_event = Event::ProgramChanged {
                 id: program_id,
                 change: ProgramChangeKind::ProgramSet {
-                    expiration: block_number,
+                    expiration: u64::MAX.unique_saturated_into(),
                 },
             };
 

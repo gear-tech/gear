@@ -123,6 +123,8 @@ pub fn wake_delayed(message_id: MessageId, delay: u32) -> Result<()> {
 ///         exec::pay_program_rent(exec::program_id(), 1_000_000).expect("Unable to pay rent");
 /// }
 /// ```
+#[allow(warnings)]
+#[deprecated]
 pub fn pay_program_rent(program_id: ActorId, value: u128) -> Result<(u128, u32)> {
     Ok(gcore::exec::pay_program_rent(program_id.into(), value)?)
 }
