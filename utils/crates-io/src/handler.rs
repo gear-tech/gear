@@ -116,7 +116,7 @@ mod gmeta_codegen {
     use super::trim_dev_dep;
     use toml_edit::Document;
 
-    /// Patch the manifest of gmetadata.
+    /// Patch the manifest of gmeta.
     pub fn patch(manifest: &mut Document) {
         trim_dev_dep("gstd", manifest);
         trim_dev_dep("gmeta", manifest);
@@ -128,7 +128,7 @@ mod runtime_interface {
     use crate::SP_WASM_INTERFACE_VERSION;
     use toml_edit::Document;
 
-    /// Convert the wasmi module to the crates-io version.
+    /// Patch sp-runtime-interface.
     pub fn patch(manifest: &mut Document) {
         let Some(wi) = manifest["dependencies"]["sp-runtime-interface"].as_table_mut() else {
             return;
@@ -143,7 +143,7 @@ mod runtime_interface {
 mod sandbox {
     use toml_edit::Document;
 
-    /// Convert the wasmi module to the crates-io version.
+    /// Replace the wasmi module to the crates-io version.
     pub fn patch(manifest: &mut Document) {
         let Some(wasmi) = manifest["dependencies"]["wasmi"].as_inline_table_mut() else {
             return;
@@ -159,7 +159,7 @@ mod sandbox {
 mod sandbox_host {
     use toml_edit::Document;
 
-    /// Convert the wasmi module to the crates-io version.
+    /// Replace the wasmi module to the crates-io version.
     pub fn patch(manifest: &mut Document) {
         let Some(wasmi) = manifest["dependencies"]["wasmi"].as_inline_table_mut() else {
             return;
@@ -178,7 +178,7 @@ mod substrate {
     /// Patch the substrate packages in the manifest of workspace.
     ///
     /// NOTE: The packages inside of this function are located at
-    /// <https://github.com/gear-tech/substrate/tree/cl/1.0.3-crates-io>.
+    /// <https://github.com/gear-tech/substrate/tree/cl/v1.0.x-crates-io>.
     pub fn patch_workspace(name: &str, table: &mut InlineTable) {
         match name {
             // sp-allocator is outdated on crates.io, last
