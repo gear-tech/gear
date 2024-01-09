@@ -48,14 +48,14 @@ pub use user::{UserMessage, UserStoredMessage};
 
 use super::buffer::LimitedVec;
 use core::fmt::Display;
-use gear_wasm_instrument::syscalls::SysCallName;
+use gear_wasm_instrument::syscalls::SyscallName;
 
 /// Max payload size which one message can have (8 MiB).
 pub const MAX_PAYLOAD_SIZE: usize = 8 * 1024 * 1024;
 
 // **WARNING**: do not remove this check until be sure that
 // all `MAX_PAYLOAD_SIZE` conversions are safe!
-static_assertions::const_assert!(MAX_PAYLOAD_SIZE <= u32::MAX as usize);
+const _: () = assert!(MAX_PAYLOAD_SIZE <= u32::MAX as usize);
 
 /// Payload size exceed error
 #[derive(
@@ -186,20 +186,20 @@ impl DispatchKind {
         matches!(self, Self::Signal)
     }
 
-    /// Sys-calls that are not allowed to be called for the dispatch kind.
-    pub fn forbidden_funcs(&self) -> BTreeSet<SysCallName> {
+    /// Syscalls that are not allowed to be called for the dispatch kind.
+    pub fn forbidden_funcs(&self) -> BTreeSet<SyscallName> {
         match self {
             DispatchKind::Signal => [
-                SysCallName::Source,
-                SysCallName::Reply,
-                SysCallName::ReplyPush,
-                SysCallName::ReplyCommit,
-                SysCallName::ReplyCommitWGas,
-                SysCallName::ReplyInput,
-                SysCallName::ReplyInputWGas,
-                SysCallName::ReservationReply,
-                SysCallName::ReservationReplyCommit,
-                SysCallName::SystemReserveGas,
+                SyscallName::Source,
+                SyscallName::Reply,
+                SyscallName::ReplyPush,
+                SyscallName::ReplyCommit,
+                SyscallName::ReplyCommitWGas,
+                SyscallName::ReplyInput,
+                SyscallName::ReplyInputWGas,
+                SyscallName::ReservationReply,
+                SyscallName::ReservationReplyCommit,
+                SyscallName::SystemReserveGas,
             ]
             .into(),
             _ => Default::default(),

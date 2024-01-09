@@ -43,7 +43,7 @@ use gear_wasm_instrument::{
             self, BlockType, CustomSection, FuncBody, Instruction, Instructions, Section, ValueType,
         },
     },
-    syscalls::SysCallName,
+    syscalls::SyscallName,
     STACK_END_EXPORT_NAME,
 };
 use sp_std::{borrow::ToOwned, convert::TryFrom, marker::PhantomData, prelude::*};
@@ -70,7 +70,7 @@ pub struct ModuleDefinition {
     /// Creates the supplied amount of i64 mutable globals initialized with random values.
     pub num_globals: u32,
     /// List of syscalls that the module should import. They start with index 0.
-    pub imported_functions: Vec<SysCallName>,
+    pub imported_functions: Vec<SyscallName>,
     /// Function body of the exported `init` function. Body is empty if `None`.
     /// Its index is `imported_functions.len()`.
     pub init_body: Option<FuncBody>,
@@ -236,10 +236,13 @@ where
         // Import supervisor functions. They start with idx 0.
         for name in def.imported_functions {
             let sign = name.signature();
-            let sig = builder::signature()
-                .with_params(sign.params.into_iter().map(Into::into))
-                .with_results(sign.results.into_iter())
-                .build_sig();
+            let sig_builder =
+                builder::signature().with_params(sign.params().iter().copied().map(Into::into));
+            let results = sign
+                .results()
+                .map(|results| results.to_vec())
+                .unwrap_or_default();
+            let sig = sig_builder.with_results(results.into_iter()).build_sig();
             let sig = program.push_signature(sig);
             program = program
                 .import()

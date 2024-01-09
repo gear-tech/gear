@@ -57,7 +57,6 @@ mod mock;
 #[cfg(test)]
 mod tests;
 
-use common::PaymentVoucher;
 use frame_support::{
     pallet_prelude::*,
     traits::{Currency, ExistenceRequirement, ReservableCurrency, StorageVersion},
@@ -82,7 +81,9 @@ const STORAGE_VERSION: StorageVersion = StorageVersion::new(0);
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
+    use common::storage::Mailbox;
     use frame_system::pallet_prelude::*;
+    use gear_core::message::UserStoredMessage;
 
     #[pallet::config]
     pub trait Config: frame_system::Config {
@@ -103,6 +104,8 @@ pub mod pallet {
             AccountId = Self::AccountId,
             Balance = BalanceOf<Self>,
         >;
+
+        type Mailbox: Mailbox<Key1 = Self::AccountId, Key2 = MessageId, Value = UserStoredMessage>;
     }
 
     #[pallet::pallet]
@@ -124,8 +127,8 @@ pub mod pallet {
     // Gas pallet error.
     #[pallet::error]
     pub enum Error<T> {
-        FailureToCreateVoucher,
-        FailureToRedeemVoucher,
+        InsufficientBalance,
+        InvalidVoucher,
     }
 
     #[pallet::hooks]
@@ -158,13 +161,13 @@ pub mod pallet {
             let to = T::Lookup::lookup(to)?;
 
             // Generate unique account id corresponding to the pair (user, program)
-            let voucher_id = Self::voucher_account_id(&to, &program);
+            let voucher_id = Self::voucher_id(&to, &program);
 
             // Transfer funds to the keyless account
             T::Currency::transfer(&who, &voucher_id, value, ExistenceRequirement::KeepAlive)
                 .map_err(|e| {
                     log::debug!("Failed to transfer funds to the voucher account: {:?}", e);
-                    Error::<T>::FailureToCreateVoucher
+                    Error::<T>::InsufficientBalance
                 })?;
 
             Self::deposit_event(Event::VoucherIssued {
@@ -185,27 +188,33 @@ pub mod pallet {
         ) -> DispatchResultWithPostInfo {
             let origin = ensure_signed(origin)?;
 
-            T::CallsDispatcher::dispatch(origin, call)
+            let sponsor = Self::sponsor_of(&origin, &call).ok_or(Error::<T>::InvalidVoucher)?;
+
+            T::CallsDispatcher::dispatch(origin, sponsor, call)
         }
     }
-}
 
-impl<T: Config> Pallet<T> {
-    /// Derive a synthesized account ID from an account ID and a program ID.
-    pub fn voucher_account_id(who: &T::AccountId, program_id: &ProgramId) -> T::AccountId {
-        let entropy = (b"modlpy/voucher__", who, program_id).using_encoded(blake2_256);
-        Decode::decode(&mut TrailingZeroInput::new(entropy.as_ref()))
-            .expect("infinite length input; no invalid inputs for type; qed")
-    }
-}
+    impl<T: Config> Pallet<T> {
+        /// Derive a synthesized account ID from an account ID and a program ID.
+        pub fn voucher_id(who: &T::AccountId, program_id: &ProgramId) -> T::AccountId {
+            let entropy = (b"modlpy/voucher__", who, program_id).using_encoded(blake2_256);
+            Decode::decode(&mut TrailingZeroInput::new(entropy.as_ref()))
+                .expect("infinite length input; no invalid inputs for type; qed")
+        }
 
-impl<T: Config> PaymentVoucher<T::AccountId, ProgramId, BalanceOf<T>> for Pallet<T> {
-    type VoucherId = T::AccountId;
-    type Error = DispatchError;
-
-    #[inline]
-    fn voucher_id(who: T::AccountId, program: ProgramId) -> Self::VoucherId {
-        Self::voucher_account_id(&who, &program)
+        /// Return synthesized account ID based on call data.
+        pub fn sponsor_of(
+            who: &T::AccountId,
+            call: &PrepaidCall<BalanceOf<T>>,
+        ) -> Option<T::AccountId> {
+            match call {
+                PrepaidCall::SendMessage { destination, .. } => {
+                    Some(Self::voucher_id(who, destination))
+                }
+                PrepaidCall::SendReply { reply_to_id, .. } => T::Mailbox::peek(who, reply_to_id)
+                    .map(|stored_message| Self::voucher_id(who, &stored_message.source())),
+            }
+        }
     }
 }
 
@@ -235,6 +244,7 @@ pub trait PrepaidCallsDispatcher {
 
     fn dispatch(
         account_id: Self::AccountId,
+        sponsor_id: Self::AccountId,
         call: PrepaidCall<Self::Balance>,
     ) -> DispatchResultWithPostInfo;
 }

@@ -19,25 +19,26 @@
 use crate as pallet_gear_debug;
 use common::storage::Limiter;
 use frame_support::{
-    construct_runtime, parameter_types,
+    construct_runtime,
+    dispatch::DispatchClass,
+    parameter_types,
     traits::{FindAuthor, Get, OnFinalize, OnInitialize},
     weights::Weight,
 };
 use frame_support_test::TestRandomness;
-use frame_system::{self as system, limits::BlockWeights};
+use frame_system::{self as system, limits::BlockWeights, pallet_prelude::BlockNumberFor};
 use pallet_gear::GasAllowanceOf;
 use primitive_types::H256;
 use sp_core::ConstBool;
 use sp_runtime::{
-    generic,
     traits::{BlakeTwo256, ConstU64, IdentityLookup},
+    BuildStorage,
 };
 use sp_std::convert::{TryFrom, TryInto};
 
-type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
 pub type AccountId = u64;
-pub type BlockNumber = u64;
+pub type BlockNumber = BlockNumberFor<Test>;
 type Balance = u128;
 
 pub const BLOCK_AUTHOR: AccountId = 255;
@@ -73,10 +74,7 @@ parameter_types! {
 
 // Configure a mock runtime to test the pallet.
 construct_runtime!(
-    pub enum Test where
-        Block = Block,
-        NodeBlock = Block,
-        UncheckedExtrinsic = UncheckedExtrinsic,
+    pub enum Test
     {
         System: system,
         GearDebug: pallet_gear_debug,
@@ -105,8 +103,8 @@ pallet_gear_gas::impl_config!(Test);
 
 // Build genesis storage according to the mock runtime.
 pub fn new_test_ext() -> sp_io::TestExternalities {
-    let mut t = system::GenesisConfig::default()
-        .build_storage::<Test>()
+    let mut t = system::GenesisConfig::<Test>::default()
+        .build_storage()
         .unwrap();
 
     pallet_balances::GenesisConfig::<Test> {
@@ -148,6 +146,10 @@ pub fn run_to_block(n: u64, remaining_weight: Option<u64>) {
             );
         }
 
+        // Spend the maximum weight of the block to account for the weight of Gear::run() in the current block.
+        let max_block_weight =
+            <<Test as frame_system::Config>::BlockWeights as Get<BlockWeights>>::get().max_block;
+        System::register_extra_weight_unchecked(max_block_weight, DispatchClass::Mandatory);
         Gear::run(frame_support::dispatch::RawOrigin::None.into(), None).unwrap();
         Gear::on_finalize(System::block_number());
 

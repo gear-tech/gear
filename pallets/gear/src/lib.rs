@@ -54,7 +54,7 @@ use alloc::{format, string::String};
 use common::{
     self, event::*, gas_provider::GasNodeId, paused_program_storage::SessionId, scheduler::*,
     storage::*, BlockLimiter, CodeMetadata, CodeStorage, GasProvider, GasTree, Origin,
-    PausedProgramStorage, PaymentVoucher, Program, ProgramState, ProgramStorage, QueueRunner,
+    PausedProgramStorage, Program, ProgramState, ProgramStorage, QueueRunner,
 };
 use core::marker::PhantomData;
 use core_processor::{
@@ -119,7 +119,6 @@ pub type RentFreePeriodOf<T> = <T as Config>::ProgramRentFreePeriod;
 pub type RentCostPerBlockOf<T> = <T as Config>::ProgramRentCostPerBlock;
 pub type ResumeMinimalPeriodOf<T> = <T as Config>::ProgramResumeMinimalRentPeriod;
 pub type ResumeSessionDurationOf<T> = <T as Config>::ProgramResumeSessionDuration;
-pub(crate) type VoucherOf<T> = <T as Config>::Voucher;
 pub(crate) type GearBank<T> = pallet_gear_bank::Pallet<T>;
 
 /// The current storage version.
@@ -160,7 +159,7 @@ pub mod pallet {
             + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 
         /// The generator used to supply randomness to contracts through `seal_random`
-        type Randomness: Randomness<Self::Hash, Self::BlockNumber>;
+        type Randomness: Randomness<Self::Hash, BlockNumberFor<Self>>;
 
         /// Weight information for extrinsics in this pallet.
         type WeightInfo: WeightInfo;
@@ -184,7 +183,7 @@ pub mod pallet {
 
         /// Implementation of a storage for programs.
         type ProgramStorage: PausedProgramStorage<
-            BlockNumber = Self::BlockNumber,
+            BlockNumber = BlockNumberFor<Self>,
             Error = DispatchError,
             AccountId = Self::AccountId,
         >;
@@ -205,7 +204,7 @@ pub mod pallet {
 
         /// Messenger.
         type Messenger: Messenger<
-            BlockNumber = Self::BlockNumber,
+            BlockNumber = BlockNumberFor<Self>,
             Capacity = u32,
             OutputError = DispatchError,
             MailboxFirstKey = Self::AccountId,
@@ -232,21 +231,13 @@ pub mod pallet {
 
         /// Scheduler.
         type Scheduler: Scheduler<
-            BlockNumber = Self::BlockNumber,
+            BlockNumber = BlockNumberFor<Self>,
             Cost = u64,
             Task = ScheduledTask<Self::AccountId>,
         >;
 
         /// Message Queue processing routing provider.
         type QueueRunner: QueueRunner<Gas = GasBalanceOf<Self>>;
-
-        /// Type that allows to check caller's eligibility for using voucher for payment.
-        type Voucher: PaymentVoucher<
-            Self::AccountId,
-            ProgramId,
-            BalanceOf<Self>,
-            VoucherId = Self::AccountId,
-        >;
 
         /// The free of charge period of rent.
         #[pallet::constant]
@@ -309,7 +300,7 @@ pub mod pallet {
             ///
             /// Equals `None` if message wasn't inserted to
             /// `Mailbox` and appears as only `Event`.
-            expiration: Option<T::BlockNumber>,
+            expiration: Option<BlockNumberFor<T>>,
         },
 
         /// Message marked as "read" and removes it from `Mailbox`.
@@ -354,7 +345,7 @@ pub mod pallet {
             ///
             /// Equals block number when message will be removed from `Waitlist`
             /// due to some reasons (see #642, #646 and #1010).
-            expiration: T::BlockNumber,
+            expiration: BlockNumberFor<T>,
         },
 
         /// Message is ready to continue its execution
@@ -375,7 +366,7 @@ pub mod pallet {
             /// Change applied on code with current id.
             ///
             /// NOTE: See more docs about change kinds at `gear_common::event`.
-            change: CodeChangeKind<T::BlockNumber>,
+            change: CodeChangeKind<BlockNumberFor<T>>,
         },
 
         /// Any data related to programs changed.
@@ -385,7 +376,7 @@ pub mod pallet {
             /// Change applied on program with current id.
             ///
             /// NOTE: See more docs about change kinds at `gear_common::event`.
-            change: ProgramChangeKind<T::BlockNumber>,
+            change: ProgramChangeKind<BlockNumberFor<T>>,
         },
 
         /// The pseudo-inherent extrinsic that runs queue processing rolled back or not executed.
@@ -400,7 +391,7 @@ pub mod pallet {
             /// Id of the program affected.
             program_id: ProgramId,
             /// Block number when the session will be removed if not finished.
-            session_end_block: T::BlockNumber,
+            session_end_block: BlockNumberFor<T>,
         },
     }
 
@@ -450,8 +441,6 @@ pub mod pallet {
         ResumePeriodLessThanMinimal,
         /// Program with the specified id is not found.
         ProgramNotFound,
-        /// Voucher can't be redeemed
-        FailureRedeemingVoucher,
         /// Gear::run() already included in current block.
         GearRunAlreadyInBlock,
         /// The program rent logic is disabled.
@@ -476,7 +465,7 @@ pub mod pallet {
     /// May be less than system pallet block number if panic occurred previously.
     #[pallet::storage]
     #[pallet::getter(fn block_number)]
-    pub(crate) type BlockNumber<T: Config> = StorageValue<_, T::BlockNumber, ValueQuery>;
+    pub(crate) type BlockNumber<T: Config> = StorageValue<_, BlockNumberFor<T>, ValueQuery>;
 
     impl<T: Config> Get<BlockNumberFor<T>> for Pallet<T> {
         fn get() -> BlockNumberFor<T> {
@@ -535,10 +524,8 @@ pub mod pallet {
         ///
         /// For tests only.
         #[cfg(any(feature = "std", feature = "runtime-benchmarks", test))]
-        pub fn set_block_number(bn: u32) {
-            use sp_runtime::SaturatedConversion;
-
-            <BlockNumber<T>>::put(bn.saturated_into::<T::BlockNumber>());
+        pub fn set_block_number(bn: BlockNumberFor<T>) {
+            <BlockNumber<T>>::put(bn);
         }
 
         /// Upload program to the chain without stack limit injection and
@@ -632,9 +619,7 @@ pub mod pallet {
             );
 
             let message = InitMessage::from_packet(message_id, packet);
-            let dispatch = message
-                .into_dispatch(ProgramId::from_origin(origin))
-                .into_stored();
+            let dispatch = message.into_dispatch(origin.cast()).into_stored();
 
             QueueOf::<T>::queue(dispatch)
                 .unwrap_or_else(|e| unreachable!("Messages storage corrupted: {e:?}"));
@@ -681,13 +666,11 @@ pub mod pallet {
             argument: Option<Vec<u8>>,
             gas_allowance: Option<u64>,
         ) -> Result<Vec<u8>, Vec<u8>> {
-            let program_id = ProgramId::from_origin(program_id.into_origin());
-
             let fn_name = String::from_utf8(fn_name)
                 .map_err(|_| "Non-utf8 function name".as_bytes().to_vec())?;
 
             Self::read_state_using_wasm_impl(
-                program_id,
+                program_id.cast(),
                 payload,
                 fn_name,
                 wasm,
@@ -702,18 +685,15 @@ pub mod pallet {
             payload: Vec<u8>,
             gas_allowance: Option<u64>,
         ) -> Result<Vec<u8>, Vec<u8>> {
-            let program_id = ProgramId::from_origin(program_id.into_origin());
-
-            Self::read_state_impl(program_id, payload, gas_allowance).map_err(String::into_bytes)
+            Self::read_state_impl(program_id.cast(), payload, gas_allowance)
+                .map_err(String::into_bytes)
         }
 
         pub fn read_metahash(
             program_id: H256,
             gas_allowance: Option<u64>,
         ) -> Result<H256, Vec<u8>> {
-            let program_id = ProgramId::from_origin(program_id.into_origin());
-
-            Self::read_metahash_impl(program_id, gas_allowance).map_err(String::into_bytes)
+            Self::read_metahash_impl(program_id.cast(), gas_allowance).map_err(String::into_bytes)
         }
 
         #[cfg(not(test))]
@@ -895,9 +875,8 @@ pub mod pallet {
             let nonce = SentOf::<T>::get();
             SentOf::<T>::increase();
             let block_number = <frame_system::Pallet<T>>::block_number().unique_saturated_into();
-            let user_id = ProgramId::from_origin(user_id);
 
-            MessageId::generate_from_user(block_number, user_id, nonce.into())
+            MessageId::generate_from_user(block_number, user_id.cast(), nonce.into())
         }
 
         /// Delayed tasks processing.
@@ -1240,9 +1219,7 @@ pub mod pallet {
             );
 
             let message = InitMessage::from_packet(message_id, packet);
-            let dispatch = message
-                .into_dispatch(ProgramId::from_origin(origin))
-                .into_stored();
+            let dispatch = message.into_dispatch(origin.cast()).into_stored();
 
             let event = Event::MessageQueued {
                 id: dispatch.id(),
@@ -1262,10 +1239,6 @@ pub mod pallet {
             Self::deposit_event(event);
 
             Ok(())
-        }
-
-        pub fn run_call(max_gas: Option<GasBalanceOf<T>>) -> Call<T> {
-            Call::run { max_gas }
         }
 
         pub fn rent_fee_for(block_count: BlockNumberFor<T>) -> BalanceOf<T> {
@@ -1490,8 +1463,8 @@ pub mod pallet {
                 payload,
                 gas_limit,
                 value,
-                false,
                 keep_alive,
+                None,
             )
         }
 
@@ -1527,8 +1500,8 @@ pub mod pallet {
                 payload,
                 gas_limit,
                 value,
-                false,
                 keep_alive,
+                None,
             )
         }
 
@@ -1563,11 +1536,8 @@ pub mod pallet {
                 Self::create(origin.clone(), message.id(), 0, true);
 
                 // Converting reply message into appropriate type for queueing.
-                let dispatch = message.into_stored_dispatch(
-                    ProgramId::from_origin(origin.into_origin()),
-                    mailboxed.source(),
-                    mailboxed.id(),
-                );
+                let dispatch =
+                    message.into_stored_dispatch(origin.cast(), mailboxed.source(), mailboxed.id());
 
                 // Queueing dispatch.
                 QueueOf::<T>::queue(dispatch)
@@ -1579,7 +1549,7 @@ pub mod pallet {
 
         /// Process message queue
         #[pallet::call_index(6)]
-        #[pallet::weight((Weight::zero(), DispatchClass::Mandatory))]
+        #[pallet::weight((<T as frame_system::Config>::BlockWeights::get().max_block, DispatchClass::Mandatory))]
         pub fn run(
             origin: OriginFor<T>,
             max_gas: Option<GasBalanceOf<T>>,
@@ -1600,9 +1570,13 @@ pub mod pallet {
             // overlay and never be committed to storage.
             GearRunInBlock::<T>::set(Some(()));
 
-            let weight_used = <frame_system::Pallet<T>>::block_weight();
             let max_weight = <T as frame_system::Config>::BlockWeights::get().max_block;
-            let remaining_weight = max_weight.saturating_sub(weight_used.total());
+
+            // Subtract extrinsic weight from the current block weight to get used weight in the current block.
+            let weight_used = <frame_system::Pallet<T>>::block_weight()
+                .total()
+                .saturating_sub(max_weight);
+            let remaining_weight = max_weight.saturating_sub(weight_used);
 
             // Remaining weight may exceed the minimum block gas limit set by the Limiter trait.
             let mut adjusted_gas = GasAllowanceOf::<T>::get().max(remaining_weight.ref_time());
@@ -1827,8 +1801,8 @@ pub mod pallet {
             payload: Vec<u8>,
             gas_limit: u64,
             value: BalanceOf<T>,
-            prepaid: bool,
             keep_alive: bool,
+            gas_sponsor: Option<AccountIdOf<T>>,
         ) -> DispatchResultWithPostInfo {
             let payload = payload
                 .try_into()
@@ -1859,29 +1833,13 @@ pub mod pallet {
                 // a voucher exists. The latter can only be used to pay for gas or transaction fee.
                 GearBank::<T>::deposit_value(&who, value, keep_alive)?;
 
-                let external_node = if prepaid {
-                    // If voucher is used, we attempt to reserve funds on the respective account.
-                    // If no such voucher exists, the call is invalidated.
-                    let voucher_id = VoucherOf::<T>::voucher_id(who.clone(), destination);
+                // If voucher or any other prepaid mechanism is not used,
+                // gas limit is taken from user's account.
+                let gas_sponsor = gas_sponsor.unwrap_or_else(|| who.clone());
+                GearBank::<T>::deposit_gas(&gas_sponsor, gas_limit, keep_alive)?;
+                Self::create(gas_sponsor, message.id(), gas_limit, false);
 
-                    GearBank::<T>::deposit_gas(&voucher_id, gas_limit, keep_alive).map_err(|e| {
-                        log::debug!(
-                            "Failed to redeem voucher for user {who:?} and program {destination:?}: {e:?}"
-                        );
-                        Error::<T>::FailureRedeemingVoucher
-                    })?;
-
-                    voucher_id
-                } else {
-                    // If voucher is not used, we reserve gas limit on the user's account.
-                    GearBank::<T>::deposit_gas(&who, gas_limit, keep_alive)?;
-
-                    who.clone()
-                };
-
-                Self::create(external_node, message.id(), gas_limit, false);
-
-                let message = message.into_stored_dispatch(ProgramId::from_origin(origin));
+                let message = message.into_stored_dispatch(origin.cast());
 
                 Self::deposit_event(Event::MessageQueued {
                     id: message.id(),
@@ -1893,7 +1851,7 @@ pub mod pallet {
                 QueueOf::<T>::queue(message)
                     .unwrap_or_else(|e| unreachable!("Messages storage corrupted: {e:?}"));
             } else {
-                let message = message.into_stored(ProgramId::from_origin(origin));
+                let message = message.into_stored(origin.cast());
                 let message: UserMessage = message
                     .try_into()
                     .unwrap_or_else(|_| unreachable!("Signal message sent to user"));
@@ -1906,9 +1864,7 @@ pub mod pallet {
 
                 CurrencyOf::<T>::transfer(
                     &who,
-                    &<T as frame_system::Config>::AccountId::from_origin(
-                        message.destination().into_origin(),
-                    ),
+                    &message.destination().cast(),
                     value.unique_saturated_into(),
                     existence_requirement,
                 )?;
@@ -1929,8 +1885,8 @@ pub mod pallet {
             payload: Vec<u8>,
             gas_limit: u64,
             value: BalanceOf<T>,
-            prepaid: bool,
             keep_alive: bool,
+            gas_sponsor: Option<AccountIdOf<T>>,
         ) -> DispatchResultWithPostInfo {
             let payload = payload
                 .try_into()
@@ -1961,28 +1917,11 @@ pub mod pallet {
 
             GearBank::<T>::deposit_value(&origin, value, keep_alive)?;
 
-            let external_node = if prepaid {
-                // If voucher is used, we attempt to reserve funds on the respective account.
-                // If no such voucher exists, the call is invalidated.
-                let voucher_id = VoucherOf::<T>::voucher_id(origin.clone(), destination);
-
-                GearBank::<T>::deposit_gas(&voucher_id, gas_limit, keep_alive).map_err(|e| {
-                    log::debug!(
-                        "Failed to redeem voucher for user {origin:?} and program {destination:?}: {e:?}"
-                    );
-                    Error::<T>::FailureRedeemingVoucher
-                })?;
-
-                voucher_id
-            } else {
-                // If voucher is not used, we reserve gas limit on the user's account.
-                GearBank::<T>::deposit_gas(&origin, gas_limit, keep_alive)?;
-
-                origin.clone()
-            };
-
-            // Following up with a gas node creation.
-            Self::create(external_node, reply_id, gas_limit, true);
+            // If voucher or any other prepaid mechanism is not used,
+            // gas limit is taken from user's account.
+            let gas_sponsor = gas_sponsor.unwrap_or_else(|| origin.clone());
+            GearBank::<T>::deposit_gas(&gas_sponsor, gas_limit, keep_alive)?;
+            Self::create(gas_sponsor, reply_id, gas_limit, true);
 
             // Creating reply message.
             let message = ReplyMessage::from_packet(
@@ -1991,11 +1930,8 @@ pub mod pallet {
             );
 
             // Converting reply message into appropriate type for queueing.
-            let dispatch = message.into_stored_dispatch(
-                ProgramId::from_origin(origin.clone().into_origin()),
-                destination,
-                mailboxed.id(),
-            );
+            let dispatch =
+                message.into_stored_dispatch(origin.clone().cast(), destination, mailboxed.id());
 
             // Pre-generating appropriate event to avoid dispatch cloning.
             let event = Event::MessageQueued {
@@ -2036,6 +1972,7 @@ pub mod pallet {
 
         fn dispatch(
             account_id: Self::AccountId,
+            sponsor_id: Self::AccountId,
             call: PrepaidCall<Self::Balance>,
         ) -> DispatchResultWithPostInfo {
             match call {
@@ -2051,8 +1988,8 @@ pub mod pallet {
                     payload,
                     gas_limit,
                     value,
-                    true,
                     keep_alive,
+                    Some(sponsor_id),
                 ),
                 PrepaidCall::SendReply {
                     reply_to_id,
@@ -2066,8 +2003,8 @@ pub mod pallet {
                     payload,
                     gas_limit,
                     value,
-                    true,
                     keep_alive,
+                    Some(sponsor_id),
                 ),
             }
         }

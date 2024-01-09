@@ -19,13 +19,20 @@
 use crate::*;
 use proptest::prelude::*;
 
-const MAX_GEAR_CALLS_BYTES: usize = 30_000_000;
-const MIN_GEAR_CALLS_BYTES: usize = 25_000_000;
+const MIN_GEAR_CALLS_BYTES: usize = 350_000;
+const MAX_GEAR_CALLS_BYTES: usize = 450_000;
 
 #[test]
 fn proptest_input_validity() {
     assert!(MIN_GEAR_CALLS_BYTES >= crate::utils::min_unstructured_input_size());
     assert!(MIN_GEAR_CALLS_BYTES <= MAX_GEAR_CALLS_BYTES);
+}
+
+// This is a crashing input before c85f4563ce35d822958a23a92d85f798252c8466 commit to master.
+#[test]
+fn test_corpus_c6e2a597aebabecc9bbb11eefdaa4dd8a6770188() {
+    let input = include_bytes!("../fuzz_corpus/c6e2a597aebabecc9bbb11eefdaa4dd8a6770188");
+    assert!(run_impl(input).is_ok());
 }
 
 proptest! {

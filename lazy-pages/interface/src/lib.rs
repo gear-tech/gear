@@ -24,7 +24,6 @@ extern crate alloc;
 
 use byteorder::{ByteOrder, LittleEndian};
 use core::fmt;
-use gear_common::Origin;
 use gear_core::{
     ids::ProgramId,
     memory::{HostPointer, Memory, MemoryInterval},
@@ -75,10 +74,9 @@ pub fn init_for_program(
         wasm_mem_size: mem.size().raw(),
         stack_end: stack_end.map(|p| p.raw()),
         program_key: {
-            let program_id = <[u8; 32]>::from(program_id.into_origin());
             let memory_infix = memory_infix.inner().to_le_bytes();
 
-            [&program_id[..], &memory_infix[..]].concat()
+            [program_id.as_ref(), memory_infix.as_ref()].concat()
         },
         globals_config,
         weights,

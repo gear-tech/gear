@@ -56,7 +56,7 @@ pub const INSTR_BENCHMARK_BATCH_SIZE: u32 = 500;
 // To avoid potential stack overflow problems we have a panic in sandbox in case,
 // execution is ended with stack overflow error. So, process queue execution will be
 // stopped and we will be able to investigate the problem and decrease this constant if needed.
-pub const STACK_HEIGHT_LIMIT: u32 = 18_369;
+pub const STACK_HEIGHT_LIMIT: u32 = 36_743;
 
 /// Definition of the cost schedule and other parameterization for the wasm vm.
 ///
@@ -343,6 +343,12 @@ pub struct HostFnWeights<T: Config> {
 
     /// Weight of calling `free`.
     pub free: Weight,
+
+    /// Weight of calling `free_range`.
+    pub free_range: Weight,
+
+    /// Weight of calling `free_range` per page.
+    pub free_range_per_page: Weight,
 
     /// Weight of calling `gr_reserve_gas`.
     pub gr_reserve_gas: Weight,
@@ -739,8 +745,7 @@ impl<T: Config> Default for Schedule<T> {
 impl Default for Limits {
     fn default() -> Self {
         Self {
-            // TODO #3435. Disabled stack height is a temp solution.
-            stack_height: cfg!(not(feature = "fuzz")).then_some(STACK_HEIGHT_LIMIT),
+            stack_height: Some(STACK_HEIGHT_LIMIT),
             globals: 256,
             locals: 1024,
             parameters: 128,
@@ -759,7 +764,7 @@ impl Default for Limits {
 impl<T: Config> Default for InstructionWeights<T> {
     fn default() -> Self {
         Self {
-            version: 10,
+            version: 11,
             i64const: cost_instr!(instr_i64const, 1),
             i64load: cost_instr!(instr_i64load, 0),
             i32load: cost_instr!(instr_i32load, 0),
@@ -858,6 +863,8 @@ impl<T: Config> HostFnWeights<T> {
             alloc: self.alloc.ref_time(),
             alloc_per_page: self.alloc_per_page.ref_time(),
             free: self.free.ref_time(),
+            free_range: self.free_range.ref_time(),
+            free_range_per_page: self.free_range_per_page.ref_time(),
             gr_reserve_gas: self.gr_reserve_gas.ref_time(),
             gr_unreserve_gas: self.gr_unreserve_gas.ref_time(),
             gr_system_reserve_gas: self.gr_system_reserve_gas.ref_time(),
@@ -980,6 +987,8 @@ impl<T: Config> Default for HostFnWeights<T> {
                 .saturating_sub(to_weight!(cost_batched!(mem_grow))),
             alloc_per_page: to_weight!(cost_batched!(alloc_per_page)),
             free: to_weight!(cost_batched!(free)),
+            free_range: to_weight!(cost_batched!(free_range)),
+            free_range_per_page: to_weight!(cost_batched!(free_range_per_page)),
             gr_reserve_gas: to_weight!(cost!(gr_reserve_gas)),
             gr_system_reserve_gas: to_weight!(cost_batched!(gr_system_reserve_gas)),
             gr_unreserve_gas: to_weight!(cost!(gr_unreserve_gas)),
@@ -1061,8 +1070,8 @@ impl<T: Config> Default for MemoryWeights<T> {
         }
 
         const KB_AMOUNT_IN_ONE_GEAR_PAGE: u64 = GEAR_PAGE_SIZE as u64 / KB_SIZE;
-        static_assertions::const_assert!(KB_AMOUNT_IN_ONE_GEAR_PAGE > 0);
-        static_assertions::const_assert!(GEAR_PAGE_SIZE as u64 % KB_SIZE == 0);
+        const _: () = assert!(KB_AMOUNT_IN_ONE_GEAR_PAGE > 0);
+        const _: () = assert!(GEAR_PAGE_SIZE as u64 % KB_SIZE == 0);
 
         Self {
             lazy_pages_signal_read: to_weight!(to_cost_per_gear_page!(lazy_pages_signal_read)),

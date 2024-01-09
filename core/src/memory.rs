@@ -29,7 +29,7 @@ use core::{
     fmt,
     fmt::Debug,
     iter,
-    ops::{Deref, DerefMut},
+    ops::{Deref, DerefMut, RangeInclusive},
 };
 use scale_info::{
     scale::{self, Decode, Encode, EncodeLike, Input, Output},
@@ -130,7 +130,7 @@ impl Decode for PageBuf {
 impl EncodeLike for PageBuf {}
 
 impl Debug for PageBuf {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
             "PageBuf({:?}..{:?})",
@@ -175,9 +175,7 @@ impl PageBuf {
 /// Host pointer can be 64bit or less, to support both we use u64.
 pub type HostPointer = u64;
 
-static_assertions::const_assert!(
-    core::mem::size_of::<HostPointer>() >= core::mem::size_of::<usize>()
-);
+const _: () = assert!(core::mem::size_of::<HostPointer>() >= core::mem::size_of::<usize>());
 
 /// Core memory error.
 #[derive(Debug, Clone, Eq, PartialEq, derive_more::Display)]
@@ -270,6 +268,9 @@ pub enum AllocError {
     /// outside additionally allocated for this program.
     #[display(fmt = "Page {_0} cannot be freed by the current program")]
     InvalidFree(u32),
+    /// Invalid range for free_range
+    #[display(fmt = "Invalid range {_0}:{_1} for free_range")]
+    InvalidFreeRange(u32, u32),
     /// Gas charge error
     #[from]
     #[display(fmt = "{_0}")]
@@ -376,15 +377,29 @@ impl AllocationsContext {
         Ok(start)
     }
 
-    /// Free specific page.
-    ///
-    /// Currently running program should own this page.
+    /// Free specific memory page.
     pub fn free(&mut self, page: WasmPage) -> Result<(), AllocError> {
-        if page < self.static_pages || page >= self.max_pages || !self.allocations.remove(&page) {
-            Err(AllocError::InvalidFree(page.0))
-        } else {
-            Ok(())
+        if page < self.static_pages || page >= self.max_pages {
+            return Err(AllocError::InvalidFree(page.0));
         }
+
+        if !self.allocations.remove(&page) {
+            return Err(AllocError::InvalidFree(page.0));
+        }
+
+        Ok(())
+    }
+
+    /// Try to free pages in range. Will only return error if range is invalid.
+    ///
+    /// Currently running program should own this pages.
+    pub fn free_range(&mut self, range: RangeInclusive<WasmPage>) -> Result<(), AllocError> {
+        if *range.start() < self.static_pages || *range.end() >= self.max_pages {
+            return Err(AllocError::InvalidFreeRange(range.start().0, range.end().0));
+        }
+
+        self.allocations.retain(|p| !range.contains(p));
+        Ok(())
     }
 
     /// Decomposes this instance and returns allocations.
@@ -458,6 +473,13 @@ mod tests {
         let mut ctx =
             AllocationsContext::new(BTreeSet::from([WasmPage(0)]), WasmPage(1), WasmPage(1));
         assert_eq!(ctx.free(WasmPage(1)), Err(AllocError::InvalidFree(1)));
+
+        let mut ctx = AllocationsContext::new(
+            BTreeSet::from([WasmPage(1), WasmPage(3)]),
+            WasmPage(1),
+            WasmPage(4),
+        );
+        assert_eq!(ctx.free_range(WasmPage(1)..=WasmPage(3)), Ok(()));
     }
 
     #[test]
@@ -540,13 +562,15 @@ mod tests {
         enum Action {
             Alloc { pages: WasmPage },
             Free { page: WasmPage },
+            FreeRange { page: WasmPage, size: u8 },
         }
 
         fn actions() -> impl Strategy<Value = Vec<Action>> {
             let action = wasm_page_number().prop_flat_map(|page| {
                 prop_oneof![
                     Just(Action::Alloc { pages: page }),
-                    Just(Action::Free { page })
+                    Just(Action::Free { page }),
+                    any::<u8>().prop_map(move |size| Action::FreeRange { page, size }),
                 ]
             });
             proptest::collection::vec(action, 0..1024)
@@ -579,6 +603,7 @@ mod tests {
         fn assert_free_error(err: AllocError) {
             match err {
                 AllocError::InvalidFree(_) => {}
+                AllocError::InvalidFreeRange(_, _) => {}
                 err => panic!("{err:?}"),
             }
         }
@@ -607,6 +632,12 @@ mod tests {
                         }
                         Action::Free { page } => {
                             if let Err(err) = ctx.free(page) {
+                                assert_free_error(err);
+                            }
+                        }
+                        Action::FreeRange { page, size } => {
+                            let end = WasmPage::from(page.0.saturating_add(size as u32) as u16);
+                            if let Err(err) = ctx.free_range(page..=end) {
                                 assert_free_error(err);
                             }
                         }

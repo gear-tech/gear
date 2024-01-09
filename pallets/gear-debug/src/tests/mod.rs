@@ -952,7 +952,7 @@ fn disabled_program_rent() {
 
         let block_count = 2_000u32;
         let rent = RentCostPerBlockOf::<Test>::get() * u128::from(block_count);
-        let pay_rent_account_id = AccountId::from_origin(pay_rent_id.into_origin());
+        let pay_rent_account_id = pay_rent_id.cast::<AccountId>();
         let balance_before = Balances::free_balance(pay_rent_account_id);
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(1),
@@ -1012,7 +1012,7 @@ fn disabled_program_rent() {
         let expected_block = utils::get_active_program(pay_rent_id).expiration_block;
 
         System::set_block_number(expected_block - 1);
-        Gear::set_block_number(expected_block as u32 - 1);
+        Gear::set_block_number(expected_block - 1);
 
         run_to_next_block(None);
 

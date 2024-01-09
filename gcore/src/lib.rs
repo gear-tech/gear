@@ -69,8 +69,6 @@
 #![doc(html_favicon_url = "https://gear-tech.io/favicons/favicon.ico")]
 #![doc(test(attr(deny(warnings), allow(unused_variables, unused_assignments))))]
 
-extern crate alloc;
-
 pub mod errors;
 pub mod exec;
 pub mod msg;
@@ -85,8 +83,5 @@ pub use utils::ext;
 
 pub use gsys::{BlockCount, BlockNumber, Gas, GasMultiplier, Percent, Value};
 
-use core::mem::size_of;
-use static_assertions::const_assert;
-
 // This allows all casts from u32 into usize be safe.
-const_assert!(size_of::<u32>() <= size_of::<usize>());
+const _: () = assert!(core::mem::size_of::<u32>() <= core::mem::size_of::<usize>());

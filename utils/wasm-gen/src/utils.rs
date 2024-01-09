@@ -16,14 +16,22 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use gear_wasm_instrument::parity_wasm::{
-    builder,
-    elements::{self, FuncBody, ImportCountType, Instruction, Module, Type, ValueType},
+use crate::wasm::PageCount as WasmPageCount;
+use gear_utils::NonEmpty;
+use gear_wasm_instrument::{
+    parity_wasm::{
+        builder,
+        elements::{
+            BlockType, External, FuncBody, ImportCountType, Instruction, Instructions, Internal,
+            Module, Section, Type, ValueType,
+        },
+    },
+    syscalls::SyscallName,
+    wasm_instrument::{self, InjectionConfig},
 };
-use gsys::HashWithValue;
 use std::{
     collections::{BTreeMap, BTreeSet},
-    mem, slice,
+    iter, mem,
 };
 
 const PREALLOCATE: usize = 1_000;
@@ -95,7 +103,7 @@ pub fn remove_recursion(module: Module) -> Module {
                     .with_results(signature.results().to_vec())
                     .build()
                     .body()
-                    .with_instructions(elements::Instructions::new(body))
+                    .with_instructions(Instructions::new(body))
                     .build()
                     .build(),
             )
@@ -215,17 +223,302 @@ fn find_recursion_impl<Callback>(
     path.pop();
 }
 
-pub(crate) fn hash_with_value_to_vec(hash_with_value: &HashWithValue) -> Vec<u8> {
-    let address_data_size = mem::size_of::<HashWithValue>();
-    let address_data_slice = unsafe {
-        // # Safety:
-        // The `unsafe` block constructs raw bytes vector of an existing rust struct
-        // received by reference.
-        slice::from_raw_parts(
-            hash_with_value as *const HashWithValue as *const u8,
-            address_data_size,
-        )
+pub fn inject_stack_limiter(module: Module) -> Module {
+    wasm_instrument::inject_stack_limiter_with_config(
+        module,
+        InjectionConfig {
+            stack_limit: 30_003,
+            injection_fn: |signature| {
+                let results = signature.results();
+                let mut body = Vec::with_capacity(results.len() + 1);
+
+                for result in results {
+                    let instruction = match result {
+                        ValueType::I32 => Instruction::I32Const(u32::MAX as i32),
+                        ValueType::I64 => Instruction::I64Const(u64::MAX as i64),
+                        ValueType::F32 | ValueType::F64 => {
+                            unreachable!("f32/64 types are not supported")
+                        }
+                    };
+
+                    body.push(instruction);
+                }
+
+                body.push(Instruction::Return);
+
+                body
+            },
+            stack_height_export_name: None,
+        },
+    )
+    .expect("Failed to inject stack height limits")
+}
+
+/// Injects a critical gas limit to a given wasm module.
+///
+/// Code before injection gas limiter:
+/// ```ignore
+/// fn func() {
+///     func();
+///     loop { }
+/// }
+/// ```
+///
+/// Code after injection gas limiter:
+/// ```ignore
+/// use gcore::exec;
+///
+/// const CRITICAL_GAS_LIMIT: u64 = 1_000_000;
+///
+/// fn func() {
+///     // exit from recursions
+///     if exec::gas_available() <= CRITICAL_GAS_LIMIT {
+///         return;
+///     }
+///     func();
+///     loop {
+///         // exit from heavy loops
+///         if exec::gas_available() <= CRITICAL_GAS_LIMIT {
+///             return;
+///         }
+///     }
+/// }
+/// ```
+pub fn inject_critical_gas_limit(module: Module, critical_gas_limit: u64) -> Module {
+    // get initial memory size of program
+    let Some(mem_size) = module
+        .import_section()
+        .and_then(|section| {
+            section
+                .entries()
+                .iter()
+                .find_map(|entry| match entry.external() {
+                    External::Memory(mem_ty) => Some(mem_ty.limits().initial()),
+                    _ => None,
+                })
+        })
+        .map(Into::<WasmPageCount>::into)
+        .map(|page_count| page_count.memory_size())
+    else {
+        return module;
     };
 
-    address_data_slice.to_vec()
+    // store available gas pointer on the last memory page
+    let gas_ptr = mem_size - mem::size_of::<u64>() as u32;
+
+    // add gr_gas_available import if needed
+    let maybe_gr_gas_available_index = module.import_section().and_then(|section| {
+        section
+            .entries()
+            .iter()
+            .filter(|entry| matches!(entry.external(), External::Function(_)))
+            .enumerate()
+            .find_map(|(i, entry)| {
+                (entry.module() == "env" && entry.field() == SyscallName::GasAvailable.to_str())
+                    .then_some(i as u32)
+            })
+    });
+    // sections should only be rewritten if the module did not previously have gr_gas_available import
+    let rewrite_sections = maybe_gr_gas_available_index.is_none();
+
+    let (gr_gas_available_index, mut module) = match maybe_gr_gas_available_index {
+        Some(gr_gas_available_index) => (gr_gas_available_index, module),
+        None => {
+            let mut mbuilder = builder::from_module(module);
+
+            // fn gr_gas_available(gas: *mut u64);
+            let import_sig = mbuilder
+                .push_signature(builder::signature().with_param(ValueType::I32).build_sig());
+
+            mbuilder.push_import(
+                builder::import()
+                    .module("env")
+                    .field(SyscallName::GasAvailable.to_str())
+                    .external()
+                    .func(import_sig)
+                    .build(),
+            );
+
+            // back to plain module
+            let module = mbuilder.build();
+
+            let import_count = module.import_count(ImportCountType::Function);
+            let gr_gas_available_index = import_count as u32 - 1;
+
+            (gr_gas_available_index, module)
+        }
+    };
+
+    let (Some(type_section), Some(function_section)) =
+        (module.type_section(), module.function_section())
+    else {
+        return module;
+    };
+
+    let types = type_section.types().to_vec();
+    let signature_entries = function_section.entries().to_vec();
+
+    let Some(code_section) = module.code_section_mut() else {
+        return module;
+    };
+
+    for (index, func_body) in code_section.bodies_mut().iter_mut().enumerate() {
+        let signature_index = &signature_entries[index];
+        let signature = &types[signature_index.type_ref() as usize];
+        let Type::Function(signature) = signature;
+        let results = signature.results();
+
+        // create the body of the gas limiter:
+        let mut body = Vec::with_capacity(results.len() + 9);
+        body.extend_from_slice(&[
+            // gr_gas_available(gas_ptr)
+            Instruction::I32Const(gas_ptr as i32),
+            Instruction::Call(gr_gas_available_index),
+            // gas_available = *gas_ptr
+            Instruction::I32Const(gas_ptr as i32),
+            Instruction::I64Load(3, 0),
+            Instruction::I64Const(critical_gas_limit as i64),
+            // if gas_available <= critical_gas_limit { return result; }
+            Instruction::I64LeU,
+            Instruction::If(BlockType::NoResult),
+        ]);
+
+        // exit the current function with dummy results
+        for result in results {
+            let instruction = match result {
+                ValueType::I32 => Instruction::I32Const(u32::MAX as i32),
+                ValueType::I64 => Instruction::I64Const(u64::MAX as i64),
+                ValueType::F32 | ValueType::F64 => unreachable!("f32/64 types are not supported"),
+            };
+
+            body.push(instruction);
+        }
+
+        body.extend_from_slice(&[Instruction::Return, Instruction::End]);
+
+        let instructions = func_body.code_mut().elements_mut();
+
+        let original_instructions =
+            mem::replace(instructions, Vec::with_capacity(instructions.len()));
+        let new_instructions = instructions;
+
+        // insert gas limiter at the beginning of each function to limit recursions
+        new_instructions.extend_from_slice(&body);
+
+        // also insert gas limiter at the beginning of each block, loop and condition
+        // to limit control instructions
+        for instruction in original_instructions {
+            match instruction {
+                Instruction::Block(_) | Instruction::Loop(_) | Instruction::If(_) => {
+                    new_instructions.push(instruction);
+                    new_instructions.extend_from_slice(&body);
+                }
+                Instruction::Call(call_index)
+                    if rewrite_sections && call_index >= gr_gas_available_index =>
+                {
+                    // fix function indexes if import gr_gas_available was inserted
+                    new_instructions.push(Instruction::Call(call_index + 1));
+                }
+                _ => {
+                    new_instructions.push(instruction);
+                }
+            }
+        }
+    }
+
+    // fix other sections if import gr_gas_available was inserted
+    if rewrite_sections {
+        let sections = module.sections_mut();
+        sections.retain(|section| !matches!(section, Section::Custom(_)));
+
+        for section in sections {
+            match section {
+                Section::Export(export_section) => {
+                    for export in export_section.entries_mut() {
+                        if let Internal::Function(func_index) = export.internal_mut() {
+                            if *func_index >= gr_gas_available_index {
+                                *func_index += 1
+                            }
+                        }
+                    }
+                }
+                Section::Element(elements_section) => {
+                    for segment in elements_section.entries_mut() {
+                        for func_index in segment.members_mut() {
+                            if *func_index >= gr_gas_available_index {
+                                *func_index += 1
+                            }
+                        }
+                    }
+                }
+                Section::Start(start_idx) => {
+                    if *start_idx >= gr_gas_available_index {
+                        *start_idx += 1;
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
+    module
+}
+
+pub(crate) struct WasmWords(Vec<i32>);
+
+impl WasmWords {
+    const WASM_WORD_SIZE: usize = mem::size_of::<i32>();
+
+    pub(crate) fn new(data: impl AsRef<[u8]>) -> Self {
+        let data = data.as_ref();
+        let data_size = data.len();
+
+        if data_size % Self::WASM_WORD_SIZE != 0 {
+            panic!("data size isn't multiply of wasm word size")
+        }
+
+        let words = data
+            .chunks_exact(Self::WASM_WORD_SIZE)
+            .map(|word_bytes| {
+                i32::from_le_bytes(
+                    word_bytes
+                        .try_into()
+                        .expect("Chunks are of the exact size."),
+                )
+            })
+            .collect();
+
+        Self(words)
+    }
+
+    pub(crate) fn merge(mut self, Self(mut other): Self) -> Self {
+        self.0.append(&mut other);
+
+        Self(self.0)
+    }
+}
+
+pub(crate) fn translate_ptr_data(
+    WasmWords(words): WasmWords,
+    (start_offset, end_offset): (i32, i32),
+) -> Vec<Instruction> {
+    words
+        .into_iter()
+        .enumerate()
+        .flat_map(|(word_idx, word)| {
+            vec![
+                Instruction::I32Const(start_offset),
+                Instruction::I32Const(word),
+                Instruction::I32Store(2, (word_idx * mem::size_of::<i32>()) as u32),
+            ]
+        })
+        .chain(iter::once(Instruction::I32Const(end_offset)))
+        .collect()
+}
+
+pub(crate) fn non_empty_to_vec<T>(non_empty: NonEmpty<T>) -> Vec<T> {
+    let (head, mut tail) = non_empty.into();
+    tail.push(head);
+
+    tail
 }

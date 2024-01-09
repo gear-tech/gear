@@ -596,9 +596,9 @@ fn test_register_write_as_with_zero_size() {
     );
 }
 
-/// Check that all sys calls are supported by backend.
+/// Check that all syscalls are supported by backend.
 #[test]
-fn test_sys_calls_table() {
+fn test_syscalls_table() {
     use crate::{
         env::{BackendReport, Environment},
         error::ActorTerminationReason,
@@ -607,9 +607,8 @@ fn test_sys_calls_table() {
     use gear_core::message::DispatchKind;
     use gear_wasm_instrument::{
         gas_metering::ConstantCostRules,
-        inject,
         parity_wasm::{self, builder},
-        SysCallName,
+        InstrumentationBuilder, SyscallName,
     };
 
     // Make module with one empty function.
@@ -621,7 +620,7 @@ fn test_sys_calls_table() {
         .build();
 
     // Insert syscalls imports.
-    for name in SysCallName::instrumentable() {
+    for name in SyscallName::instrumentable() {
         let sign = name.signature();
         let types = module.type_section_mut().unwrap().types_mut();
         let type_no = types.len() as u32;
@@ -637,7 +636,10 @@ fn test_sys_calls_table() {
             .build();
     }
 
-    let module = inject(module, &ConstantCostRules::default(), "env").unwrap();
+    let module = InstrumentationBuilder::new("env")
+        .with_gas_limiter(|_| ConstantCostRules::default())
+        .instrument(module)
+        .unwrap();
     let code = module.into_bytes().unwrap();
 
     // Execute wasm and check success.

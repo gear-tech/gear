@@ -99,6 +99,11 @@ pub trait MailboxError {
     fn element_not_found() -> Self;
 }
 
+impl MailboxError for () {
+    fn duplicate_key() -> Self {}
+    fn element_not_found() -> Self {}
+}
+
 /// `Mailbox` implementation based on `DoubleMapStorage`.
 ///
 /// Generic parameter `Error` requires `MailboxError` implementation.

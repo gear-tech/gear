@@ -1,5 +1,5 @@
 use crate::Arg;
-use alloc::{boxed::Box, string::String, vec::Vec};
+use alloc::{string::String, vec::Vec};
 use parity_scale_codec::{Decode, Encode};
 
 #[derive(Clone, Debug, Decode, Encode)]
@@ -34,7 +34,7 @@ pub enum Call {
     Exit(Arg<[u8; 32]>),
     BytesEq(Arg<Vec<u8>>, Arg<Vec<u8>>),
     Noop,
-    IfElse(Arg<bool>, Box<Self>, Box<Self>),
+    IfElse(Arg<bool>, Vec<Self>, Vec<Self>),
     Load,
     LoadBytes,
     Wait,
@@ -43,6 +43,7 @@ pub enum Call {
     MessageId,
     Loop,
     SystemReserveGas(Arg<u64>),
+    WriteN(Arg<u64>),
 }
 
 #[cfg(not(feature = "wasm-wrapper"))]
@@ -246,18 +247,20 @@ mod wasm {
             Some((left == right).encode())
         }
 
-        fn if_else(self, previous: Option<CallResult>) -> Option<Vec<u8>> {
-            let Self::IfElse(flag, true_call, false_call) = self else {
+        fn if_else(self, mut previous: Option<CallResult>) -> Option<Vec<u8>> {
+            let Self::IfElse(flag, true_calls, false_calls) = self else {
                 unreachable!()
             };
 
             let flag = flag.value();
 
-            let call = if flag { true_call } else { false_call };
+            let calls = if flag { true_calls } else { false_calls };
 
-            let (_call, value) = call.process(previous);
+            for call in calls {
+                previous = Some(call.process(previous));
+            }
 
-            value
+            previous.and_then(|res| res.1)
         }
 
         fn value(self) -> Option<Vec<u8>> {
@@ -329,6 +332,19 @@ mod wasm {
             None
         }
 
+        fn write_n(self) -> Option<Vec<u8>> {
+            let Self::WriteN(count) = self else {
+                unreachable!()
+            };
+
+            let end = count.value();
+            for i in 0_u64..end {
+                unsafe { DATA.insert("last_written_n".into(), i.encode()) };
+            }
+
+            None
+        }
+
         pub(crate) fn process(self, previous: Option<CallResult>) -> CallResult {
             debug!("\t[CONSTRUCTOR] >> Processing {self:?}");
             let call = self.clone();
@@ -360,6 +376,7 @@ mod wasm {
                 #[allow(clippy::empty_loop)]
                 Call::Loop => loop {},
                 Call::SystemReserveGas(..) => self.system_reserve_gas(),
+                Call::WriteN(..) => self.write_n(),
             };
 
             (call, value)

@@ -54,15 +54,15 @@
 //!     stack_end_page: Some(64),
 //! };
 //! let entry_points_set = EntryPointsSet::InitHandle;
-//! let syscalls_config = SysCallsConfigBuilder::new(SysCallsInjectionTypes::all_once())
-//!     .with_source_msg_dest()
+//! let syscalls_config = SyscallsConfigBuilder::new(SyscallsInjectionTypes::all_once())
 //!     .with_log_info("I'm from wasm-gen".into())
 //!     .build();
 //!
 //! let wasm_gen_config = GearWasmGeneratorConfig {
 //!     memory_config: memory_pages_config,
 //!     entry_points_config: entry_points_set,
-//!     remove_recursions: true,
+//!     remove_recursions: false,
+//!     critical_gas_limit: Some(1_000_000),
 //!     syscalls_config,
 //! };
 //! ```
@@ -101,9 +101,6 @@ pub use generator::*;
 pub use module::*;
 pub use syscalls::*;
 
-use gear_utils::NonEmpty;
-use gsys::Hash;
-
 /// Trait which describes a type that stores and manages data for generating
 /// [`GearWasmGeneratorConfig`] and [`SelectableParams`], which are both used
 /// by [`crate::generate_gear_program_code`] and [`crate::generate_gear_program_module`]
@@ -131,17 +128,20 @@ impl ConfigsBundle for (GearWasmGeneratorConfig, SelectableParams) {
 /// Standard set of configurational data which is used to generate always
 /// valid gear-wasm using generators of the current crate.
 #[derive(Debug, Clone)]
-pub struct StandardGearWasmConfigsBundle<T = [u8; 32]> {
+pub struct StandardGearWasmConfigsBundle {
     /// Externalities to be logged.
     pub log_info: Option<String>,
-    /// Set of existing addresses, which will be used as message destinations.
-    ///
-    /// If is `None`, then `gr_source` result will be used as a message destination.
-    pub existing_addresses: Option<NonEmpty<T>>,
     /// Flag which signals whether recursions must be removed.
     pub remove_recursion: bool,
+    /// If the limit is set to `Some(_)`, programs will try to stop execution
+    /// after reaching a critical gas limit, which can be useful to exit from
+    /// heavy loops and recursions that waste all gas.
+    ///
+    /// The `gr_gas_available` syscall is called at the beginning of each
+    /// function and for each control instruction (blocks, loops, conditions).
+    pub critical_gas_limit: Option<u64>,
     /// Injection type for each syscall.
-    pub injection_types: SysCallsInjectionTypes,
+    pub injection_types: SyscallsInjectionTypes,
     /// Config of gear wasm call entry-points (exports).
     pub entry_points_set: EntryPointsSet,
     /// Initial wasm memory pages.
@@ -149,30 +149,30 @@ pub struct StandardGearWasmConfigsBundle<T = [u8; 32]> {
     /// Optional stack end pages.
     pub stack_end_page: Option<u32>,
     /// Syscalls params config
-    pub params_config: SysCallsParamsConfig,
+    pub params_config: SyscallsParamsConfig,
 }
 
-impl<T> Default for StandardGearWasmConfigsBundle<T> {
+impl Default for StandardGearWasmConfigsBundle {
     fn default() -> Self {
         Self {
             log_info: Some("StandardGearWasmConfigsBundle".into()),
-            existing_addresses: None,
             remove_recursion: false,
-            injection_types: SysCallsInjectionTypes::all_once(),
+            critical_gas_limit: Some(1_000_000),
+            injection_types: SyscallsInjectionTypes::all_once(),
             entry_points_set: Default::default(),
             initial_pages: DEFAULT_INITIAL_SIZE,
             stack_end_page: None,
-            params_config: SysCallsParamsConfig::default(),
+            params_config: SyscallsParamsConfig::default(),
         }
     }
 }
 
-impl<T: Into<Hash>> ConfigsBundle for StandardGearWasmConfigsBundle<T> {
+impl ConfigsBundle for StandardGearWasmConfigsBundle {
     fn into_parts(self) -> (GearWasmGeneratorConfig, SelectableParams) {
         let StandardGearWasmConfigsBundle {
             log_info,
-            existing_addresses,
             remove_recursion,
+            critical_gas_limit,
             injection_types,
             entry_points_set,
             initial_pages,
@@ -182,14 +182,9 @@ impl<T: Into<Hash>> ConfigsBundle for StandardGearWasmConfigsBundle<T> {
 
         let selectable_params = SelectableParams::default();
 
-        let mut syscalls_config_builder = SysCallsConfigBuilder::new(injection_types);
+        let mut syscalls_config_builder = SyscallsConfigBuilder::new(injection_types);
         if let Some(log_info) = log_info {
             syscalls_config_builder = syscalls_config_builder.with_log_info(log_info);
-        }
-        if let Some(addresses) = existing_addresses {
-            syscalls_config_builder = syscalls_config_builder.with_data_offset_msg_dest(addresses);
-        } else {
-            syscalls_config_builder = syscalls_config_builder.with_source_msg_dest();
         }
         syscalls_config_builder = syscalls_config_builder.with_params_config(params_config);
 
@@ -199,6 +194,7 @@ impl<T: Into<Hash>> ConfigsBundle for StandardGearWasmConfigsBundle<T> {
             upper_limit: None,
         };
         let gear_wasm_generator_config = GearWasmGeneratorConfigBuilder::new()
+            .with_critical_gas_limit(critical_gas_limit)
             .with_recursions_removed(remove_recursion)
             .with_syscalls_config(syscalls_config_builder.build())
             .with_entry_points_config(entry_points_set)

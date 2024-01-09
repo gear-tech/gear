@@ -16,9 +16,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{client::Rpc, config::GearConfig, signer::Signer, Blocks, Events, Result};
+use crate::{
+    client::Rpc, config::GearConfig, metadata::Event, signer::Signer, Blocks, Events, Result,
+    TxInBlock,
+};
 use core::ops::{Deref, DerefMut};
-use subxt::OnlineClient;
+use std::result::Result as StdResult;
+use subxt::{Error, OnlineClient};
 
 /// Gear api wrapper.
 #[derive(Clone)]
@@ -94,6 +98,16 @@ impl Api {
     /// ```
     pub async fn events(&self) -> Result<Events> {
         Ok(self.client.blocks().subscribe_all().await?.into())
+    }
+
+    /// Parse events of an extrinsic
+    pub async fn events_of(&self, tx: &TxInBlock) -> Result<Vec<Event>> {
+        tx.fetch_events()
+            .await?
+            .iter()
+            .map(|e| -> StdResult<Event, Error> { e?.as_root_event::<Event>() })
+            .collect::<StdResult<Vec<Event>, Error>>()
+            .map_err(Into::into)
     }
 
     /// Subscribe finalized events

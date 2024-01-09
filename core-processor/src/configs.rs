@@ -24,7 +24,7 @@ use gear_core::{
     pages::{GearPage, WasmPage},
 };
 use gear_lazy_pages_common::LazyPagesWeights;
-use gear_wasm_instrument::syscalls::SysCallName;
+use gear_wasm_instrument::syscalls::SyscallName;
 use scale_info::scale::{self, Decode, Encode};
 
 /// Number of max pages number to use it in tests.
@@ -155,7 +155,7 @@ pub struct ExecutionSettings {
     /// Weights of host functions.
     pub host_fn_weights: HostFnWeights,
     /// Functions forbidden to be called.
-    pub forbidden_funcs: BTreeSet<SysCallName>,
+    pub forbidden_funcs: BTreeSet<SyscallName>,
     /// Threshold for inserting into mailbox
     pub mailbox_threshold: u64,
     /// Cost for single block waitlist holding.
@@ -193,7 +193,7 @@ pub struct BlockConfig {
     /// Host function weights.
     pub host_fn_weights: HostFnWeights,
     /// Forbidden functions.
-    pub forbidden_funcs: BTreeSet<SysCallName>,
+    pub forbidden_funcs: BTreeSet<SyscallName>,
     /// Mailbox threshold.
     pub mailbox_threshold: u64,
     /// Cost for single block waitlist holding.

@@ -25,7 +25,7 @@ use sandbox_wasmer_types::TrapCode;
 
 use codec::{Decode, Encode};
 use gear_sandbox_env::{HostError, Instantiate, WasmReturnValue, GLOBAL_NAME_GAS};
-use sp_wasm_interface::{util, Pointer, ReturnValue, Value, WordSize};
+use sp_wasm_interface_common::{util, Pointer, ReturnValue, Value, WordSize};
 
 use crate::{
     error::{Error, Result},
@@ -46,15 +46,15 @@ enum CachedModuleErr {
 
 #[cfg(feature = "wasmer-cache")]
 use {
-    once_cell::sync::OnceCell,
     sandbox_wasmer::Module,
+    std::sync::OnceLock,
     tempfile::TempDir,
     wasmer_cache::{Cache, FileSystemCache, Hash},
     CachedModuleErr::*,
 };
 
 #[cfg(feature = "wasmer-cache")]
-static CACHE_DIR: OnceCell<TempDir> = OnceCell::new();
+static CACHE_DIR: OnceLock<TempDir> = OnceLock::new();
 
 /// Wasmer specific context
 pub struct Backend {
@@ -330,7 +330,7 @@ fn dispatch_common(
         deallocate(
             sandbox_context,
             invoke_args_ptr,
-            "Failed dealloction after failed write of invoke arguments",
+            "Failed deallocation after failed write of invoke arguments",
         )?;
 
         return Err(RuntimeError::new("Can't write invoke args into memory"));
@@ -344,7 +344,7 @@ fn dispatch_common(
     deallocate(
         sandbox_context,
         invoke_args_ptr,
-        "Failed dealloction after invoke",
+        "Failed deallocation after invoke",
     )?;
 
     let serialized_result = serialized_result?;

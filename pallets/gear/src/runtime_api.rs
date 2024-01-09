@@ -22,7 +22,7 @@ use common::ActiveProgram;
 use core::convert::TryFrom;
 use core_processor::common::PrechargedDispatch;
 use gear_core::{code::TryNewCodeConfig, pages::WasmPage, program::MemoryInfix};
-use gear_wasm_instrument::syscalls::SysCallName;
+use gear_wasm_instrument::syscalls::SyscallName;
 
 // Multiplier 6 was experimentally found as median value for performance,
 // security and abilities for calculations on-chain.
@@ -56,7 +56,7 @@ where
     ) -> Result<GasInfo, Vec<u8>> {
         Self::enable_lazy_pages();
 
-        let account = <T::AccountId as Origin>::from_origin(source);
+        let account = source.cast();
 
         let balance = CurrencyOf::<T>::free_balance(&account);
         let max_balance: BalanceOf<T> = <T as pallet_gear_bank::Config>::GasMultiplier::get()
@@ -119,7 +119,7 @@ where
             })?;
 
         let mut block_config = Self::block_config();
-        block_config.forbidden_funcs = [SysCallName::GasAvailable].into();
+        block_config.forbidden_funcs = [SyscallName::GasAvailable].into();
 
         let mut min_limit = 0;
         let mut reserved = 0;
@@ -150,9 +150,7 @@ where
             let dispatch_id = queued_dispatch.id();
             let dispatch_reply = queued_dispatch.reply_details().is_some();
 
-            let balance = CurrencyOf::<T>::free_balance(&<T::AccountId as Origin>::from_origin(
-                actor_id.into_origin(),
-            ));
+            let balance = CurrencyOf::<T>::free_balance(&actor_id.cast());
 
             let get_actor_data = |precharged_dispatch: PrechargedDispatch| {
                 // At this point gas counters should be changed accordingly so fetch the program data.
@@ -162,7 +160,6 @@ where
                 }
             };
 
-            let dispatch_id = queued_dispatch.id();
             let success_reply = queued_dispatch
                 .reply_details()
                 .map(|rd| rd.to_reply_code().is_success())
@@ -213,14 +210,28 @@ where
             for note in journal {
                 core_processor::handle_journal(vec![note.clone()], &mut ext_manager);
 
-                if let Some(remaining_gas) = get_main_limit() {
-                    min_limit = min_limit.max(initial_gas.saturating_sub(remaining_gas));
+                match get_main_limit() {
+                    Some(remaining_gas) => {
+                        min_limit = min_limit.max(initial_gas.saturating_sub(remaining_gas))
+                    }
+                    None => match note {
+                        // take into account that 'wait' syscall greedily consumes all available gas.
+                        // 'wait_for' and 'wait_up_to' should not consume all available gas
+                        // because of the limited durations. If a duration is a big enough then it
+                        // won't matter how to calculate the limit: it will be the same.
+                        JournalNote::WaitDispatch { ref dispatch, .. }
+                            if from_main_chain(dispatch.id())? =>
+                        {
+                            min_limit = initial_gas
+                        }
+                        _ => (),
+                    },
                 }
 
                 match note {
                     JournalNote::SendDispatch { dispatch, .. } => {
-                        let destination =
-                            T::AccountId::from_origin(dispatch.destination().into_origin());
+                        let destination = dispatch.destination().cast();
+
                         if MailboxOf::<T>::contains(&destination, &dispatch.id())
                             && from_main_chain(dispatch.id())?
                         {
@@ -275,8 +286,7 @@ where
         let program = ActiveProgram::try_from(program)
             .map_err(|e| format!("Get active program error: {e:?}"))?;
 
-        let code_id = CodeId::from_origin(program.code_hash);
-        let instrumented_code = T::CodeStorage::get_code(code_id)
+        let instrumented_code = T::CodeStorage::get_code(program.code_hash.cast())
             .ok_or_else(|| String::from("Failed to get code for given program id"))?;
 
         Ok(CodeWithMemoryData {

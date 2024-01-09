@@ -13,6 +13,7 @@ repository.workspace = true
 [dependencies]
 anyhow.workspace = true
 base64.workspace = true
+colored.workspace = true
 futures-util.workspace = true
 futures.workspace = true
 gear-core = { workspace = true, features = [ "std" ] }
@@ -28,7 +29,7 @@ subxt.workspace = true
 thiserror.workspace = true
 sp-runtime = { workspace = true, features = [ "std" ] }
 sp-core.workspace = true
-gsdk-codegen = { path = "codegen" }
+gsdk-codegen.workspace = true
 parking_lot.workspace = true
 
 # Importing these two libraries for trimming

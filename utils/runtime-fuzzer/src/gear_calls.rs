@@ -35,8 +35,8 @@ use gear_call_gen::{ClaimValueArgs, SendReplyArgs};
 use gear_core::ids::{CodeId, MessageId, ProgramId};
 use gear_utils::NonEmpty;
 use gear_wasm_gen::{
-    EntryPointsSet, InvocableSysCall, ParamType, StandardGearWasmConfigsBundle, SysCallName,
-    SysCallsInjectionTypes, SysCallsParamsConfig,
+    ActorKind, EntryPointsSet, InvocableSyscall, PtrParamAllowedValues, RegularParamType,
+    StandardGearWasmConfigsBundle, SyscallName, SyscallsInjectionTypes, SyscallsParamsConfig,
 };
 use std::mem;
 
@@ -44,7 +44,7 @@ use std::mem;
 ///
 /// TODO: #3442
 const MAX_PAYLOAD_SIZE: usize = 1024;
-static_assertions::const_assert!(MAX_PAYLOAD_SIZE <= gear_core::message::MAX_PAYLOAD_SIZE);
+const _: () = assert!(MAX_PAYLOAD_SIZE <= gear_core::message::MAX_PAYLOAD_SIZE);
 
 /// Maximum salt size for the fuzzer - 512 bytes.
 ///
@@ -52,13 +52,14 @@ static_assertions::const_assert!(MAX_PAYLOAD_SIZE <= gear_core::message::MAX_PAY
 /// for one run. Also small salt will make overall size of the
 /// corpus smaller.
 const MAX_SALT_SIZE: usize = 512;
-static_assertions::const_assert!(MAX_SALT_SIZE <= gear_core::message::MAX_PAYLOAD_SIZE);
+const _: () = assert!(MAX_SALT_SIZE <= gear_core::message::MAX_PAYLOAD_SIZE);
 
 const ID_SIZE: usize = mem::size_of::<ProgramId>();
 const GAS_AND_VALUE_SIZE: usize = mem::size_of::<(u64, u128)>();
-// Used to make sure that generators will not exceed `Unstructured` size as it's used not only
-// to generate things like wasm code or message payload but also to generate some auxiliary
-// data, for example index in some vec.
+
+/// Used to make sure that generators will not exceed `Unstructured` size as it's used not only
+/// to generate things like wasm code or message payload but also to generate some auxiliary
+/// data, for example index in some vec.
 const AUXILIARY_SIZE: usize = 512;
 
 /// This trait provides ability for [`ExtrinsicGenerator`]s to fetch messages
@@ -278,7 +279,7 @@ pub(crate) struct SendMessageGenerator {
 impl SendMessageGenerator {
     fn generate(
         &self,
-        intermediate_data: &mut TempData,
+        intermediate_data: &TempData,
         unstructured: &mut Unstructured,
     ) -> Result<Option<GearCall>> {
         let program_id = unstructured
@@ -402,47 +403,55 @@ fn arbitrary_limited_bytes(u: &mut Unstructured, limit: usize) -> Result<Vec<u8>
     u.bytes(arb_size).map(|bytes| bytes.to_vec())
 }
 
-fn config(
-    programs: &[ProgramId],
-    log_info: Option<String>,
-) -> StandardGearWasmConfigsBundle<ProgramId> {
+fn config(programs: &[ProgramId], log_info: Option<String>) -> StandardGearWasmConfigsBundle {
     let initial_pages = 2;
-    let mut injection_types = SysCallsInjectionTypes::all_once();
+    let mut injection_types = SyscallsInjectionTypes::all_once();
     injection_types.set_multiple(
         [
-            (SysCallName::Leave, 0..=0),
-            (SysCallName::Panic, 0..=0),
-            (SysCallName::OomPanic, 0..=0),
-            (SysCallName::EnvVars, 0..=0),
-            (SysCallName::Send, 10..=15),
-            (SysCallName::Exit, 0..=1),
-            (SysCallName::Alloc, 3..=6),
-            (SysCallName::Free, 3..=6),
+            (SyscallName::Leave, 0..=0),
+            (SyscallName::Panic, 0..=0),
+            (SyscallName::OomPanic, 0..=0),
+            (SyscallName::EnvVars, 0..=0),
+            (SyscallName::Send, 10..=15),
+            (SyscallName::Exit, 0..=1),
+            (SyscallName::Alloc, 3..=6),
+            (SyscallName::Free, 3..=6),
         ]
-        .map(|(syscall, range)| (InvocableSysCall::Loose(syscall), range))
+        .map(|(syscall, range)| (InvocableSyscall::Loose(syscall), range))
         .into_iter(),
     );
 
-    let mut params_config = SysCallsParamsConfig::default();
-    params_config.add_rule(ParamType::Alloc, (10..=20).into());
-    params_config.add_rule(ParamType::Free, (initial_pages..=initial_pages + 35).into());
+    let mut params_config = SyscallsParamsConfig::new()
+        .with_default_regular_config()
+        .with_rule(RegularParamType::Alloc, (10..=20).into())
+        .with_rule(
+            RegularParamType::Free,
+            (initial_pages..=initial_pages + 35).into(),
+        )
+        .with_ptr_rule(PtrParamAllowedValues::Value(0..=0));
 
-    let existing_addresses = NonEmpty::collect(
+    let actor_kind = NonEmpty::collect(
         programs
             .iter()
             .copied()
-            .filter(|&pid| pid != ProgramId::default()),
-    );
+            .filter(|&pid| pid != ProgramId::default())
+            .map(|pid| pid.into()),
+    )
+    .map(ActorKind::ExistingAddresses)
+    .unwrap_or(ActorKind::Source);
 
-    log::trace!(
-        "Messages will be sent to existing addresses {:?}",
-        existing_addresses
-    );
+    log::trace!("Messages destination config: {:?}", actor_kind);
+
+    params_config = params_config
+        .with_ptr_rule(PtrParamAllowedValues::ActorId(actor_kind.clone()))
+        .with_ptr_rule(PtrParamAllowedValues::ActorIdWithValue {
+            actor_kind: actor_kind.clone(),
+            range: 0..=0,
+        });
 
     StandardGearWasmConfigsBundle {
         entry_points_set: EntryPointsSet::InitHandleHandleReply,
         injection_types,
-        existing_addresses,
         log_info,
         params_config,
         initial_pages: initial_pages as u32,

@@ -22,7 +22,7 @@ use std::fmt;
 
 use codec::{Decode, Encode};
 use gear_sandbox_env::HostError;
-use sp_wasm_interface::{util, Pointer, ReturnValue, Value, WordSize};
+use sp_wasm_interface_common::{util, Pointer, ReturnValue, Value, WordSize};
 use wasmi::{
     memory_units::Pages, ImportResolver, MemoryInstance, Module, ModuleInstance, RuntimeArgs,
     RuntimeValue, Trap, TrapCode,
@@ -246,7 +246,7 @@ impl<'a> wasmi::Externals for GuestExternals<'a> {
 				deallocate(
 					sandbox_context,
 					invoke_args_ptr,
-					"Failed dealloction after failed write of invoke arguments",
+					"Failed deallocation after failed write of invoke arguments",
 				)?;
 				return Err(trap("Can't write invoke args into memory"))
 			}

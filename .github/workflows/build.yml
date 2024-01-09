@@ -94,16 +94,16 @@ jobs:
       - name: "Test: Runtime benchmarks and benchmark tests work"
         run: |
           cargo build -p gear-cli --release --features=runtime-benchmarks,runtime-benchmarks-checkers
-          # check that perf benchmarks works. `--steps=20` need to test, that benchmarks works for different input number.
-          ./target/release/gear benchmark pallet --chain=dev --pallet=pallet_gear --steps=20 --extrinsic="*" --execution=wasm --wasm-execution=compiled --heap-pages=4096
+          # check that perf benchmarks works. `--steps=5` need to test, that benchmarks works for different input number.
+          ./target/release/gear benchmark pallet --chain=dev --pallet=pallet_gear --steps=5 --extrinsic="*" --heap-pages=4096
           # check that read_big_state benchmarks works
-          ./target/release/gear benchmark pallet --chain=dev --pallet=pallet_gear --extrinsic="read_big_state" --execution=wasm --wasm-execution=compiled --heap-pages=4096 --extra
+          ./target/release/gear benchmark pallet --chain=dev --pallet=pallet_gear --extrinsic="read_big_state" --heap-pages=4096 --extra
+          # check that signal_stack_limit_exceeded_works benchmarks works
+          ./target/release/gear benchmark pallet --chain=dev --pallet=pallet_gear --extrinsic="signal_stack_limit_exceeded_works" --heap-pages=4096 --extra
           # check that check/test benchmarks works
-          ./target/release/gear benchmark pallet --chain=dev --pallet=pallet_gear --extrinsic="check_all" --execution=wasm --wasm-execution=compiled --heap-pages=4096 --extra
-          # check also lazy-pages benchmarks tests for native runtime
-          ./target/release/gear benchmark pallet --chain=dev --pallet=pallet_gear --extrinsic="check_lazy_pages_all" --execution=native --heap-pages=4096 --extra
+          ./target/release/gear benchmark pallet --chain=dev --pallet=pallet_gear --extrinsic="check_all" --heap-pages=4096 --extra
 
-      - name: "Test: Sys-calls Wasmi integrity"
+      - name: "Test: Syscalls Wasmi integrity"
         run: ./scripts/gear.sh test syscalls --release
 
       - name: "Test: `try-runtime` feature tests"
@@ -174,11 +174,9 @@ jobs:
 
       - name: Upload artifacts
         if: github.event_name == 'push'
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           path: artifact
-
-      - run: sccache --show-stats
 
   win-cross:
     runs-on: [kuberunner, github-runner-03]

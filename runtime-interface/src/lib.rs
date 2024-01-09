@@ -45,9 +45,7 @@ mod gear_sandbox;
 pub use gear_sandbox::init as sandbox_init;
 pub use gear_sandbox::sandbox;
 
-static_assertions::const_assert!(
-    core::mem::size_of::<HostPointer>() >= core::mem::size_of::<usize>()
-);
+const _: () = assert!(core::mem::size_of::<HostPointer>() >= core::mem::size_of::<usize>());
 
 #[derive(Debug, Clone, Encode, Decode)]
 #[codec(crate = codec)]
