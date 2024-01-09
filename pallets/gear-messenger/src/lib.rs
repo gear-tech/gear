@@ -422,7 +422,7 @@ pub mod pallet {
         storage: DispatchStash,
         name: DispatchStashWrap,
         key: MessageId,
-        value: (StoredDelayedDispatch, Interval<T::BlockNumber>)
+        value: (StoredDelayedDispatch, Interval<BlockNumberFor<T>>)
     );
 
     // ----
