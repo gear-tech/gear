@@ -21,19 +21,18 @@ use common::storage::{Interval, Mailbox};
 use frame_support::{
     construct_runtime, parameter_types, weights::constants::RocksDbWeight, PalletId,
 };
-use frame_system as system;
+use frame_system::{self as system, pallet_prelude::BlockNumberFor};
 use gear_core::{ids::MessageId, message::UserStoredMessage};
 use primitive_types::H256;
 use sp_runtime::{
-    generic,
     traits::{BlakeTwo256, IdentityLookup},
+    BuildStorage,
 };
 use sp_std::convert::{TryFrom, TryInto};
 
-type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
 type AccountId = u64;
-type BlockNumber = u64;
+pub type BlockNumber = BlockNumberFor<Test>;
 type Balance = u128;
 
 pub const ALICE: AccountId = 1;
@@ -41,10 +40,7 @@ pub const BOB: AccountId = 2;
 
 // Configure a mock runtime to test the pallet.
 construct_runtime!(
-    pub enum Test where
-        Block = Block,
-        NodeBlock = Block,
-        UncheckedExtrinsic = UncheckedExtrinsic,
+    pub enum Test
     {
         System: system,
         Voucher: pallet_gear_voucher,
@@ -121,8 +117,8 @@ impl pallet_gear_voucher::Config for Test {
 
 // Build genesis storage according to the mock runtime.
 pub fn new_test_ext() -> sp_io::TestExternalities {
-    let mut t = system::GenesisConfig::default()
-        .build_storage::<Test>()
+    let mut t = system::GenesisConfig::<Test>::default()
+        .build_storage()
         .unwrap();
 
     pallet_balances::GenesisConfig::<Test> {

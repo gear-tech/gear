@@ -55,7 +55,7 @@ use common::{
 };
 use core_processor::{common::ActorExecutionErrorReplyReason, ActorPrepareMemoryError};
 use frame_support::{
-    assert_noop, assert_ok,
+    assert_noop, assert_err, assert_ok,
     codec::{Decode, Encode},
     dispatch::Dispatchable,
     sp_runtime::traits::{TypedGet, Zero},
@@ -63,7 +63,7 @@ use frame_support::{
 };
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
-    code::{self, Code},
+    code::{self, Code, CodeError},
     ids::{CodeId, MessageId, ProgramId},
     message::UserStoredMessage,
     pages::{PageNumber, PageU32Size, WasmPage},
@@ -72,7 +72,7 @@ use gear_core_backend::error::{
     TrapExplanation, UnrecoverableExecutionError, UnrecoverableExtError, UnrecoverableWaitError,
 };
 use gear_core_errors::*;
-use gear_wasm_instrument::STACK_END_EXPORT_NAME;
+use gear_wasm_instrument::{gas_metering::ConstantCostRules, STACK_END_EXPORT_NAME};
 use gstd::{collections::BTreeMap, errors::Error as GstdError};
 use pallet_gear_voucher::PrepaidCall;
 use sp_runtime::{traits::UniqueSaturatedInto, SaturatedConversion};
@@ -187,7 +187,7 @@ fn cascading_delayed_gasless_send_work() {
 
         assert_succeed(mid);
 
-        run_for_blocks(DELAY, None);
+        run_for_blocks(DELAY as u64, None);
         assert!(MailboxOf::<Test>::contains(&USER_1, &first_outgoing));
         assert!(!MailboxOf::<Test>::contains(&USER_1, &second_outgoing));
 
@@ -210,7 +210,7 @@ fn cascading_delayed_gasless_send_work() {
 
         assert_succeed(mid);
 
-        run_for_blocks(DELAY, None);
+        run_for_blocks(DELAY as u64, None);
         assert!(MailboxOf::<Test>::contains(&USER_1, &first_outgoing));
         assert!(MailboxOf::<Test>::contains(&USER_1, &second_outgoing));
 
@@ -322,9 +322,10 @@ fn delayed_reservations_sending_validation() {
             ReservationSendingShowcase::ToSourceInPlace {
                 reservation_amount: 10 * <Test as Config>::MailboxThreshold::get(),
                 reservation_delay: 1_000,
-                sending_delay: 1_000 * <Test as Config>::MailboxThreshold::get() as u32
+                sending_delay: (1_000 * <Test as Config>::MailboxThreshold::get()
                     + CostsPerBlockOf::<Test>::reserve_for()
-                        / CostsPerBlockOf::<Test>::dispatch_stash() as u32,
+                        / CostsPerBlockOf::<Test>::dispatch_stash())
+                    as u32,
             }
             .encode(),
             BlockGasLimitOf::<Test>::get(),
@@ -358,9 +359,10 @@ fn delayed_reservations_sending_validation() {
                 reservation_amount: 10 * <Test as Config>::MailboxThreshold::get(),
                 reservation_delay: 1_000,
                 wait_for,
-                sending_delay: 1_000 * <Test as Config>::MailboxThreshold::get() as u32
+                sending_delay: (1_000 * <Test as Config>::MailboxThreshold::get()
                     + CostsPerBlockOf::<Test>::reserve_for()
-                        / CostsPerBlockOf::<Test>::dispatch_stash() as u32,
+                        / CostsPerBlockOf::<Test>::dispatch_stash())
+                    as u32,
             }
             .encode(),
             BlockGasLimitOf::<Test>::get(),
@@ -370,7 +372,7 @@ fn delayed_reservations_sending_validation() {
 
         let mid = utils::get_last_message_id();
 
-        run_for_blocks(wait_for + 1, None);
+        run_for_blocks(wait_for as u64 + 1, None);
 
         let error_text = format!(
             "{SENDING_EXPECT}: {:?}",
@@ -431,7 +433,7 @@ fn delayed_reservations_to_mailbox() {
 
         assert!(MailboxOf::<Test>::is_empty(&USER_1));
 
-        run_for_blocks(sending_delay, None);
+        run_for_blocks(sending_delay as u64, None);
 
         assert!(!MailboxOf::<Test>::is_empty(&USER_1));
 
@@ -485,7 +487,10 @@ fn default_wait_lock_timeout() {
 
         let error_text = format!(
             "ran into error-reply: {:?}",
-            GstdError::Timeout(expiration_block, expiration_block)
+            GstdError::Timeout(
+                expiration_block.unique_saturated_into(),
+                expiration_block.unique_saturated_into()
+            )
         );
 
         assert_failed(
@@ -1846,7 +1851,7 @@ fn delayed_send_user_message_with_reservation() {
             DEFAULT_SALT.to_vec(),
             InputArgs {
                 destination: USER_2.into(),
-                delay,
+                delay: delay.saturated_into(),
                 reservation_amount,
             }
             .encode(),
@@ -1966,8 +1971,10 @@ fn delayed_send_program_message_payment() {
         let program_address = utils::get_last_program_id();
 
         // Upload program that sends message to another program.
-        let (_init_mid, proxy) =
-            init_constructor(demo_proxy_with_gas::scheme(program_address.into(), delay));
+        let (_init_mid, proxy) = init_constructor(demo_proxy_with_gas::scheme(
+            program_address.into(),
+            delay.saturated_into(),
+        ));
         assert!(Gear::is_initialized(program_address));
 
         assert_ok!(Gear::send_message(
@@ -4239,7 +4246,7 @@ fn events_logging_works() {
 
     init_logger();
     new_test_ext().execute_with(|| {
-        let mut next_block = 2u32;
+        let mut next_block = 2u64;
 
         let tests: [(_, _, Option<AssertFailedError>); 5] = [
             // Code, init failure reason, handle succeed flag
@@ -5548,8 +5555,8 @@ fn test_requeue_after_wait_for_timeout() {
         run_to_next_block(None);
         let now = System::block_number();
 
-        System::set_block_number(duration + now - 1);
-        Gear::set_block_number(duration + now - 1);
+        System::set_block_number(duration.saturated_into::<u64>() + now - 1);
+        Gear::set_block_number(duration.saturated_into::<u64>() + now - 1);
 
         // Clean previous events and mailbox.
         System::reset_events();
@@ -5705,8 +5712,8 @@ fn test_wait_timeout() {
         // `Command::SendTimeout`
         //
         // Emits error when locks are timeout
-        let duration = 10;
-        let payload = Command::SendTimeout(USER_1.into(), duration).encode();
+        let duration = 10u64;
+        let payload = Command::SendTimeout(USER_1.into(), duration.saturated_into()).encode();
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
             program_id,
@@ -5763,9 +5770,14 @@ fn test_join_wait_timeout() {
 
         // Join two waited messages, futures complete at
         // the same time when both of them are finished.
-        let duration_a = 5;
-        let duration_b = 10;
-        let payload = Command::JoinTimeout(USER_1.into(), duration_a, duration_b).encode();
+        let duration_a: BlockNumber = 5;
+        let duration_b: BlockNumber = 10;
+        let payload = Command::JoinTimeout(
+            USER_1.into(),
+            duration_a.saturated_into(),
+            duration_b.saturated_into(),
+        )
+        .encode();
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
             program_id,
@@ -5823,9 +5835,14 @@ fn test_select_wait_timeout() {
 
         // Select from two waited messages, futures complete at
         // the same time when one of them getting failed.
-        let duration_a = 5;
-        let duration_b = 10;
-        let payload = Command::SelectTimeout(USER_1.into(), duration_a, duration_b).encode();
+        let duration_a: BlockNumber = 5;
+        let duration_b: BlockNumber = 10;
+        let payload = Command::SelectTimeout(
+            USER_1.into(),
+            duration_a.saturated_into(),
+            duration_b.saturated_into(),
+        )
+        .encode();
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
             program_id,
@@ -5870,8 +5887,8 @@ fn test_wait_lost() {
         let program_id = get_last_program_id();
         run_to_next_block(None);
 
-        let duration_a = 5;
-        let duration_b = 10;
+        let duration_a: BlockNumber = 5;
+        let duration_b: BlockNumber = 10;
         let payload = Command::WaitLost(USER_1.into()).encode();
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
@@ -6061,7 +6078,7 @@ fn terminated_locking_funds() {
 
         let locked_gas_to_wl = CostsPerBlockOf::<Test>::waitlist()
             * GasBalanceOf::<Test>::saturated_from(
-                reply_duration + CostsPerBlockOf::<Test>::reserve_for(),
+                reply_duration.saturated_into::<u64>() + CostsPerBlockOf::<Test>::reserve_for(),
             );
         let gas_spent_in_wl = CostsPerBlockOf::<Test>::waitlist();
         // Value, which will be returned to init message after wake.
@@ -6960,18 +6977,9 @@ fn locking_gas_for_waitlist() {
     use demo_constructor::{Calls, Scheme};
     use demo_gas_burned::WASM_BINARY as GAS_BURNED_BINARY;
 
-    let wat = r#"
-    (module
-        (import "env" "memory" (memory 1))
-        (import "env" "gr_wait" (func $gr_wait))
-        (export "handle" (func $handle))
-        (func $handle call $gr_wait)
-    )"#;
-
     init_logger();
     new_test_ext().execute_with(|| {
-        // This program just waits on each handle message.
-        let waiter = upload_program_default(USER_1, ProgramCodeKind::Custom(wat))
+        let waiter = upload_program_default(USER_1, ProgramCodeKind::Custom(utils::WAITER_WAT))
             .expect("submit result was asserted");
 
         // This program just does some calculations (burns gas) on each handle message.
@@ -8618,7 +8626,10 @@ fn mx_lock_ownership_exceedance() {
                     let (command_msg_id, _) = send_command_to_waiter(command);
 
                     // Subtract 1 because sending command to waiter below adds 1 block
-                    run_for_blocks(run_for_blocks_before_lock_assert - 1, None);
+                    run_for_blocks(
+                        (run_for_blocks_before_lock_assert - 1).saturated_into(),
+                        None,
+                    );
 
                     assert_command_result(command_msg_id);
 
@@ -8878,8 +8889,8 @@ fn async_sleep_for() {
         Command as WaiterCommand, SleepForWaitType as WaitType, WASM_BINARY as WAITER_WASM,
     };
 
-    const SLEEP_FOR_BLOCKS: u32 = 2;
-    const LONGER_SLEEP_FOR_BLOCKS: u32 = 3;
+    const SLEEP_FOR_BLOCKS: BlockNumber = 2;
+    const LONGER_SLEEP_FOR_BLOCKS: BlockNumber = 3;
 
     init_logger();
 
@@ -8940,7 +8951,7 @@ fn async_sleep_for() {
 
         // Block 3
         let (sleep_for_msg_id, sleep_for_block_number) = send_command_to_waiter(
-            WaiterCommand::SleepFor(vec![SLEEP_FOR_BLOCKS], WaitType::All),
+            WaiterCommand::SleepFor(vec![SLEEP_FOR_BLOCKS.saturated_into()], WaitType::All),
         );
 
         // Assert the program replied with a message before the sleep.
@@ -8993,7 +9004,10 @@ fn async_sleep_for() {
             // Block 6
             let (sleep_for_msg_id, sleep_for_block_number) =
                 send_command_to_waiter(WaiterCommand::SleepFor(
-                    vec![LONGER_SLEEP_FOR_BLOCKS, SLEEP_FOR_BLOCKS],
+                    vec![
+                        LONGER_SLEEP_FOR_BLOCKS.saturated_into(),
+                        SLEEP_FOR_BLOCKS.saturated_into(),
+                    ],
                     WaitType::All,
                 ));
             // Clear the before sleep reply.
@@ -9037,7 +9051,10 @@ fn async_sleep_for() {
             // Block 10
             let (sleep_for_msg_id, sleep_for_block_number) =
                 send_command_to_waiter(WaiterCommand::SleepFor(
-                    vec![SLEEP_FOR_BLOCKS, LONGER_SLEEP_FOR_BLOCKS],
+                    vec![
+                        LONGER_SLEEP_FOR_BLOCKS.saturated_into(),
+                        SLEEP_FOR_BLOCKS.saturated_into(),
+                    ],
                     WaitType::All,
                 ));
             // Clear the before sleep reply.
@@ -9081,7 +9098,10 @@ fn async_sleep_for() {
             // Block 14
             let (sleep_for_msg_id, sleep_for_block_number) =
                 send_command_to_waiter(WaiterCommand::SleepFor(
-                    vec![LONGER_SLEEP_FOR_BLOCKS, SLEEP_FOR_BLOCKS],
+                    vec![
+                        LONGER_SLEEP_FOR_BLOCKS.saturated_into(),
+                        SLEEP_FOR_BLOCKS.saturated_into(),
+                    ],
                     WaitType::Any,
                 ));
             // Clear the before sleep reply.
@@ -9112,7 +9132,10 @@ fn async_sleep_for() {
             // Block 17
             let (sleep_for_msg_id, sleep_for_block_number) =
                 send_command_to_waiter(WaiterCommand::SleepFor(
-                    vec![SLEEP_FOR_BLOCKS, LONGER_SLEEP_FOR_BLOCKS],
+                    vec![
+                        LONGER_SLEEP_FOR_BLOCKS.saturated_into(),
+                        SLEEP_FOR_BLOCKS.saturated_into(),
+                    ],
                     WaitType::Any,
                 ));
             // Clear the before sleep reply.
@@ -10930,7 +10953,10 @@ fn gas_reservation_works() {
         // check task is exist yet
         let (reservation_id, slot) = map.iter().next().unwrap();
         let task = ScheduledTask::RemoveGasReservation(pid, *reservation_id);
-        assert!(TaskPoolOf::<Test>::contains(&slot.finish, &task));
+        assert!(TaskPoolOf::<Test>::contains(
+            &slot.finish.saturated_into(),
+            &task
+        ));
 
         // `gr_exit` occurs
         assert_ok!(Gear::send_message(
@@ -10947,7 +10973,10 @@ fn gas_reservation_works() {
         // check task was cleared after `gr_exit` happened
         let map = get_reservation_map(pid);
         assert_eq!(map, None);
-        assert!(!TaskPoolOf::<Test>::contains(&slot.finish, &task));
+        assert!(!TaskPoolOf::<Test>::contains(
+            &slot.finish.saturated_into(),
+            &task
+        ));
     });
 }
 
@@ -10981,7 +11010,10 @@ fn gas_reservations_cleaned_in_terminated_program() {
 
         let (reservation_id, slot) = map.iter().next().unwrap();
         let task = ScheduledTask::RemoveGasReservation(pid, *reservation_id);
-        assert!(TaskPoolOf::<Test>::contains(&slot.finish, &task));
+        assert!(TaskPoolOf::<Test>::contains(
+            &slot.finish.saturated_into(),
+            &task
+        ));
 
         assert_ok!(Gear::send_reply(
             RuntimeOrigin::signed(USER_1),
@@ -10996,7 +11028,10 @@ fn gas_reservations_cleaned_in_terminated_program() {
 
         let map = get_reservation_map(pid);
         assert_eq!(map, None);
-        assert!(!TaskPoolOf::<Test>::contains(&slot.finish, &task));
+        assert!(!TaskPoolOf::<Test>::contains(
+            &slot.finish.saturated_into(),
+            &task
+        ));
         assert!(!Gear::is_initialized(pid));
         assert!(!Gear::is_active(pid));
     });
@@ -11032,7 +11067,10 @@ fn gas_reservation_wait_wake_exit() {
 
         let (reservation_id, slot) = map.iter().next().unwrap();
         let task = ScheduledTask::RemoveGasReservation(pid, *reservation_id);
-        assert!(TaskPoolOf::<Test>::contains(&slot.finish, &task));
+        assert!(TaskPoolOf::<Test>::contains(
+            &slot.finish.saturated_into(),
+            &task
+        ));
 
         assert_ok!(Gear::send_reply(
             RuntimeOrigin::signed(USER_1),
@@ -11047,7 +11085,10 @@ fn gas_reservation_wait_wake_exit() {
 
         let map = get_reservation_map(pid);
         assert_eq!(map, None);
-        assert!(!TaskPoolOf::<Test>::contains(&slot.finish, &task));
+        assert!(!TaskPoolOf::<Test>::contains(
+            &slot.finish.saturated_into(),
+            &task
+        ));
         assert!(!Gear::is_initialized(pid));
         assert!(!Gear::is_active(pid));
     });
@@ -12697,7 +12738,6 @@ fn module_instantiation_error() {
 }
 
 #[test]
-#[ignore = "issue #3100"]
 fn wrong_entry_type() {
     let wat = r#"
     (module
@@ -12709,24 +12749,15 @@ fn wrong_entry_type() {
 
     init_logger();
     new_test_ext().execute_with(|| {
-        let pid = Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            ProgramCodeKind::Custom(wat).to_bytes(),
-            DEFAULT_SALT.to_vec(),
-            EMPTY_PAYLOAD.to_vec(),
-            50_000_000_000,
-            0,
-            false,
-        )
-        .map(|_| get_last_program_id())
-        .unwrap();
-        let mid = get_last_message_id();
-
-        run_to_next_block(None);
-
-        assert!(Gear::is_terminated(pid));
-        let err = get_last_event_error(mid);
-        assert!(err.starts_with(&ActorExecutionErrorReplyReason::Environment.to_string()));
+        assert_err!(
+            Code::try_new(
+                ProgramCodeKind::Custom(wat).to_bytes(),
+                1,
+                |_| ConstantCostRules::default(),
+                None
+            ),
+            CodeError::InvalidExportFnSignature
+        );
     });
 }
 
@@ -13804,7 +13835,7 @@ fn gear_run_only_runs_once_per_block() {
         traits::{OnFinalize, OnInitialize},
     };
 
-    fn init_block(bn: u32) {
+    fn init_block(bn: BlockNumberFor<Test>) {
         System::set_block_number(bn);
         GasAllowanceOf::<Test>::put(1_000_000_000);
         Gear::on_initialize(bn);
@@ -14027,11 +14058,81 @@ fn test_constructor_if_else() {
     });
 }
 
+#[test]
+fn calculate_gas_wait() {
+    use demo_constructor::{Calls, Scheme};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let waiter = upload_program_default(USER_1, ProgramCodeKind::Custom(WAITER_WAT))
+            .expect("submit result was asserted");
+
+        let (_init_mid, sender) =
+            submit_constructor_with_args(USER_1, DEFAULT_SALT, Scheme::empty(), 0);
+
+        run_to_next_block(None);
+
+        assert!(Gear::is_initialized(waiter));
+        assert!(Gear::is_initialized(sender));
+
+        let calls = Calls::builder().send(waiter.into_bytes(), []);
+
+        let allow_other_panics = true;
+        let allow_skip_zero_replies = true;
+        let GasInfo { burned, .. } = Gear::calculate_gas_info(
+            USER_1.into_origin(),
+            HandleKind::Handle(sender),
+            calls.encode(),
+            0,
+            allow_other_panics,
+            allow_skip_zero_replies,
+        )
+        .expect("calculate_gas_info failed");
+
+        let cost = CostsPerBlockOf::<Test>::waitlist();
+        let GasInfo {
+            min_limit: limit_no_rent,
+            ..
+        } = Gear::run_with_ext_copy(|| {
+            Gear::calculate_gas_info_impl(
+                USER_1.into_origin(),
+                HandleKind::Handle(sender),
+                burned + cost - 1,
+                calls.encode(),
+                0,
+                allow_other_panics,
+                allow_skip_zero_replies,
+                None,
+            )
+        })
+        .expect("calculate_gas_info failed");
+
+        let GasInfo { min_limit, .. } = Gear::run_with_ext_copy(|| {
+            Gear::calculate_gas_info_impl(
+                USER_1.into_origin(),
+                HandleKind::Handle(sender),
+                burned + 1_000_000 * cost,
+                calls.encode(),
+                0,
+                allow_other_panics,
+                allow_skip_zero_replies,
+                None,
+            )
+        })
+        .expect("calculate_gas_info failed");
+
+        // 'wait' syscall greedely consumes all available gas so
+        // calculated limits should not be equal
+        assert!(min_limit > limit_no_rent);
+    });
+}
+
 mod utils {
     #![allow(unused)]
 
     use super::{
-        assert_ok, pallet, run_to_block, Event, MailboxOf, MockRuntimeEvent, RuntimeOrigin, Test,
+        assert_ok, pallet, run_to_block, BlockNumber, Event, MailboxOf, MockRuntimeEvent,
+        RuntimeOrigin, Test,
     };
     use crate::{
         mock::{run_to_next_block, Balances, Gear, System, USER_1},
@@ -14068,11 +14169,17 @@ mod utils {
     pub(super) const DEFAULT_SALT: &[u8; 4] = b"salt";
     pub(super) const EMPTY_PAYLOAD: &[u8; 0] = b"";
     pub(super) const OUTGOING_WITH_VALUE_IN_HANDLE_VALUE_GAS: u64 = 10000000;
+    // This program just waits on each handle message.
+    pub(super) const WAITER_WAT: &str = r#"
+        (module
+            (import "env" "memory" (memory 1))
+            (import "env" "gr_wait" (func $gr_wait))
+            (export "handle" (func $handle))
+            (func $handle call $gr_wait)
+        )"#;
 
     pub(super) type DispatchCustomResult<T> = Result<T, DispatchErrorWithPostInfo>;
     pub(super) type AccountId = <Test as frame_system::Config>::AccountId;
-
-    type BlockNumber = <Test as frame_system::Config>::BlockNumber;
 
     pub(super) fn hash(data: impl AsRef<[u8]>) -> [u8; 32] {
         sp_core::blake2_256(data.as_ref())

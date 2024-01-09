@@ -27,7 +27,7 @@ use gsdk::{signer::Signer, Api};
 /// Command line gear program application abstraction.
 ///
 /// ```ignore
-/// use gcli::{async_trait, App, Command, Parser};
+/// use gcli::{async_trait, App, Command, clap::Parser, color_eyre, anyhow};
 ///
 /// /// My customized sub commands.
 /// #[derive(Debug, Parser)]

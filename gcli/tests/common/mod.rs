@@ -33,6 +33,7 @@ use std::{
     process::{Command, Output},
 };
 
+mod app;
 mod args;
 pub mod env;
 pub mod node;
