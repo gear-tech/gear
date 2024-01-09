@@ -37,6 +37,13 @@ use scale_info::{
 #[derive(Clone, Default, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
 pub struct LimitedVec<T, E, const N: usize>(Vec<T>, PhantomData<E>);
 
+impl<T, E, const M: usize, const N: usize> From<[T; M]> for LimitedVec<T, E, N> {
+    fn from(value: [T; M]) -> Self {
+        assert!(M <= N);
+        Self(value.into(), Default::default())
+    }
+}
+
 /// Formatter for [`LimitedVec`] will print to precision of 8 by default, to print the whole data, use `{:+}`.
 impl<T: Clone + Default, E: Default, const N: usize> Display for LimitedVec<T, E, N>
 where
