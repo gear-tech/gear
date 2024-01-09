@@ -23,11 +23,15 @@ use frame_support::{
     weights::Weight,
 };
 use frame_system::pallet_prelude::BlockNumberFor;
+use parity_scale_codec::Encode;
 use gear_core::{ids::MessageId, message::StoredDelayedDispatch};
 use sp_std::marker::PhantomData;
 #[cfg(feature = "try-runtime")]
 use {
-    frame_support::codec::{Decode, Encode},
+    frame_support::{
+        codec::Decode,
+        dispatch::DispatchError
+    },
     sp_std::vec::Vec,
 };
 
@@ -86,7 +90,7 @@ impl<T: Config> OnRuntimeUpgrade for MigrateToV3<T> {
     }
 
     #[cfg(feature = "try-runtime")]
-    fn pre_upgrade() -> Result<Vec<u8>, &'static str> {
+    fn pre_upgrade() -> Result<Vec<u8>, DispatchError> {
         let mut count = v2::Waitlist::<T>::iter().count();
         count += v2::Dispatches::<T>::iter().count();
         count += v2::DispatchStash::<T>::iter().count();
@@ -95,7 +99,7 @@ impl<T: Config> OnRuntimeUpgrade for MigrateToV3<T> {
     }
 
     #[cfg(feature = "try-runtime")]
-    fn post_upgrade(state: Vec<u8>) -> Result<(), &'static str> {
+    fn post_upgrade(state: Vec<u8>) -> Result<(), DispatchError> {
         let mut count = Waitlist::<T>::iter().count();
         count += Dispatches::<T>::iter().count();
         count += DispatchStash::<T>::iter().count();
@@ -123,6 +127,7 @@ mod v2 {
         pallet_prelude::{CountedStorageMap, StorageDoubleMap, StorageMap},
         Identity,
     };
+    use frame_system::pallet_prelude::BlockNumberFor;
     use gear_core::{
         ids::{MessageId, ProgramId},
         message::{DispatchKind, Payload, StoredMessage},
