@@ -46,7 +46,7 @@ impl<T: Config> OnRuntimeUpgrade for MigrateToV3<T> {
 
         if current == 3 && onchain == 2 {
             Waitlist::<T>::translate(
-                |_, _, store: (v2::StoredDispatch, Interval<T::BlockNumber>)| {
+                |_, _, store: (v2::StoredDispatch, Interval<BlockNumberFor<T>>)| {
                     weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
                     Some((store.0.into(), store.1))
                 },
@@ -61,7 +61,7 @@ impl<T: Config> OnRuntimeUpgrade for MigrateToV3<T> {
             });
 
             DispatchStash::<T>::translate(
-                |_, store: (v2::StoredDispatch, Interval<T::BlockNumber>)| {
+                |_, store: (v2::StoredDispatch, Interval<BlockNumberFor<T>>)| {
                     if store.0.context.is_some() {
                         log::error!("Previous context on StoredDispatch in DispatchStash should always be None, but was {:?}", store.0.context);
                     }
@@ -208,7 +208,7 @@ mod v2 {
         DispatchStashPrefix<T>,
         Identity,
         MessageId,
-        (StoredDispatch, Interval<T::BlockNumber>),
+        (StoredDispatch, Interval<BlockNumberFor<T>>),
     >;
 
     pub struct WaitlistPrefix<T: Config>(PhantomData<T>);
@@ -229,7 +229,7 @@ mod v2 {
         ProgramId,
         Identity,
         MessageId,
-        (StoredDispatch, Interval<T::BlockNumber>),
+        (StoredDispatch, Interval<BlockNumberFor<T>>),
     >;
 }
 
