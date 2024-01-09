@@ -30,12 +30,11 @@ pub struct Publisher {
     metadata: Metadata,
     graph: BTreeMap<Option<usize>, Manifest>,
     index: HashMap<String, usize>,
-    verify: bool,
 }
 
 impl Publisher {
     /// Create a new publisher.
-    pub fn new(skip_verify: bool) -> Result<Self> {
+    pub fn new() -> Result<Self> {
         let metadata = MetadataCommand::new().no_deps().exec()?;
         let graph = BTreeMap::new();
         let index = HashMap::<String, usize>::from_iter(
@@ -54,7 +53,6 @@ impl Publisher {
             metadata,
             graph,
             index,
-            verify: !skip_verify,
         })
     }
 
@@ -63,7 +61,7 @@ impl Publisher {
     /// 1. Replace git dependencies to crates-io dependencies.
     /// 2. Rename version of all local packages
     /// 3. Patch dependencies if needed
-    pub fn build(mut self, version: Option<String>) -> Result<Self> {
+    pub fn build(mut self, verify: bool, version: Option<String>) -> Result<Self> {
         let index = self.index.keys().map(|s| s.as_ref()).collect::<Vec<_>>();
         let mut workspace = Workspace::lookup(version)?;
         let version = workspace.version()?;
@@ -73,7 +71,7 @@ impl Publisher {
                 continue;
             }
 
-            if self.verify && crate::verify(name, &version)? {
+            if verify && crate::verify(name, &version)? {
                 println!("Package {}@{} already published .", &name, &version);
                 continue;
             }
