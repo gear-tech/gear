@@ -94,18 +94,29 @@ fn main() -> Result<()> {
 /// Get the metadata of vara runtime.
 fn metadata() -> Vec<u8> {
     use gear_runtime_interface as gear_ri;
-    use sc_executor::WasmExecutionMethod;
+    use sc_executor::{WasmExecutionMethod, WasmtimeInstantiationStrategy};
     use sc_executor_common::runtime_blob::RuntimeBlob;
 
     // 1. Get the wasm binary of `RUNTIME_WASM`.
     let path = env::var(RUNTIME_WASM).expect("Missing RUNTIME_WASM env var.");
     let code = fs::read(path).expect("Failed to read runtime wasm");
 
+    let heap_pages =
+        sc_executor_common::wasm_runtime::HeapAllocStrategy::Static { extra_pages: 1024 };
+
     // 2. Create wasm executor.
     let executor = sc_executor::WasmExecutor::<(
         gear_ri::gear_ri::HostFunctions,
         sp_io::SubstrateHostFunctions,
-    )>::new(WasmExecutionMethod::Interpreted, Some(1024), 8, None, 2);
+    )>::builder()
+    .with_execution_method(WasmExecutionMethod::Compiled {
+        instantiation_strategy: WasmtimeInstantiationStrategy::PoolingCopyOnWrite,
+    })
+    .with_onchain_heap_alloc_strategy(heap_pages)
+    .with_offchain_heap_alloc_strategy(heap_pages)
+    .with_max_runtime_instances(8)
+    .with_runtime_cache_size(2)
+    .build();
 
     // 3. Extract metadata.
     executor

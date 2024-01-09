@@ -343,7 +343,7 @@ pub mod pallet {
         T::AccountId,
         Identity,
         MessageId,
-        (UserStoredMessage, Interval<T::BlockNumber>),
+        (UserStoredMessage, Interval<BlockNumberFor<T>>),
     >;
 
     // Public wrap of the mailbox elements.
@@ -352,7 +352,7 @@ pub mod pallet {
         name: MailboxWrap,
         key1: T::AccountId,
         key2: MessageId,
-        value: (UserStoredMessage, Interval<T::BlockNumber>),
+        value: (UserStoredMessage, Interval<BlockNumberFor<T>>),
         length: usize
     );
 
@@ -397,7 +397,7 @@ pub mod pallet {
         ProgramId,
         Identity,
         MessageId,
-        (StoredDispatch, Interval<T::BlockNumber>),
+        (StoredDispatch, Interval<BlockNumberFor<T>>),
     >;
 
     // Public wrap of the waitlist elements.
@@ -406,7 +406,7 @@ pub mod pallet {
         name: WaitlistWrap,
         key1: ProgramId,
         key2: MessageId,
-        value: (StoredDispatch, Interval<T::BlockNumber>),
+        value: (StoredDispatch, Interval<BlockNumberFor<T>>),
         length: usize
     );
 
@@ -416,6 +416,7 @@ pub mod pallet {
     #[pallet::storage]
     pub type DispatchStash<T: Config> =
         StorageMap<_, Identity, MessageId, (StoredDelayedDispatch, Interval<T::BlockNumber>)>;
+
 
     // Public wrap of the dispatch stash elements.
     common::wrap_storage_map!(
@@ -517,7 +518,7 @@ pub mod pallet {
         T::AccountId: Origin,
     {
         type Value = <Pallet<T> as Messenger>::MailboxedMessage;
-        type BlockNumber = T::BlockNumber;
+        type BlockNumber = BlockNumberFor<T>;
 
         type GetBlockNumber = GetBlockNumber<T>;
         type OnInsert = ();
@@ -539,11 +540,11 @@ pub mod pallet {
         T::AccountId: Origin;
 
     // Callback trait implementation.
-    impl<T: crate::Config> GetCallback<T::BlockNumber> for GetBlockNumber<T>
+    impl<T: crate::Config> GetCallback<BlockNumberFor<T>> for GetBlockNumber<T>
     where
         T::AccountId: Origin,
     {
-        fn call() -> T::BlockNumber {
+        fn call() -> BlockNumberFor<T> {
             T::CurrentBlockNumber::get()
         }
     }
@@ -562,7 +563,7 @@ pub mod pallet {
         T::AccountId: Origin,
     {
         type Value = <Pallet<T> as Messenger>::WaitlistedMessage;
-        type BlockNumber = T::BlockNumber;
+        type BlockNumber = BlockNumberFor<T>;
 
         type GetBlockNumber = GetBlockNumber<T>;
         type OnInsert = ();
@@ -584,7 +585,7 @@ pub mod pallet {
     where
         T::AccountId: Origin,
     {
-        type BlockNumber = T::BlockNumber;
+        type BlockNumber = BlockNumberFor<T>;
         type Capacity = Capacity;
         type Error = Error<T>;
         type OutputError = DispatchError;

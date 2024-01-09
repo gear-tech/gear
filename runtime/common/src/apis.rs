@@ -40,6 +40,14 @@ macro_rules! impl_runtime_apis_plus_common {
 				fn metadata() -> OpaqueMetadata {
 					OpaqueMetadata::new(Runtime::metadata().into())
 				}
+
+				fn metadata_at_version(version: u32) -> Option<OpaqueMetadata> {
+					Runtime::metadata_at_version(version)
+				}
+
+				fn metadata_versions() -> sp_std::vec::Vec<u32> {
+					Runtime::metadata_versions()
+				}
 			}
 
 			impl sp_block_builder::BlockBuilder<Block> for Runtime {
@@ -121,8 +129,8 @@ macro_rules! impl_runtime_apis_plus_common {
 				}
 			}
 
-			impl frame_system_rpc_runtime_api::AccountNonceApi<Block, AccountId, Index> for Runtime {
-				fn account_nonce(account: AccountId) -> Index {
+			impl frame_system_rpc_runtime_api::AccountNonceApi<Block, AccountId, Nonce> for Runtime {
+				fn account_nonce(account: AccountId) -> Nonce {
 					System::account_nonce(account)
 				}
 			}
@@ -164,7 +172,7 @@ macro_rules! impl_runtime_apis_plus_common {
 
 				fn gear_run_extrinsic(max_gas: Option<u64>) -> <Block as BlockT>::Extrinsic {
 					UncheckedExtrinsic::new_unsigned(
-						Gear::run_call(max_gas).into()
+						pallet_gear::Call::run { max_gas }.into()
 					).into()
 				}
 

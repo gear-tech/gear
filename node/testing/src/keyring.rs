@@ -19,7 +19,7 @@
 //! Test accounts available in runtime for testing.
 
 use codec::Encode;
-use runtime_primitives::{AccountId, Index};
+use runtime_primitives::{AccountId, Nonce};
 use sp_keyring::{AccountKeyring, Ed25519Keyring, Sr25519Keyring};
 use sp_runtime::generic::Era;
 use vara_runtime::{
@@ -74,7 +74,7 @@ pub fn to_session_keys(
 }
 
 /// Creates transaction extra.
-pub fn signed_extra(nonce: Index) -> SignedExtra {
+pub fn signed_extra(nonce: Nonce) -> SignedExtra {
     (
         StakingBlackList::new(),
         frame_system::CheckNonZeroSender::new(),
