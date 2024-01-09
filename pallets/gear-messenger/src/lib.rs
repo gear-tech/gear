@@ -415,8 +415,7 @@ pub mod pallet {
     // Private storage for dispatch stash elements.
     #[pallet::storage]
     pub type DispatchStash<T: Config> =
-        StorageMap<_, Identity, MessageId, (StoredDelayedDispatch, Interval<T::BlockNumber>)>;
-
+        StorageMap<_, Identity, MessageId, (StoredDelayedDispatch, Interval<BlockNumberFor<T>>)>;
 
     // Public wrap of the dispatch stash elements.
     common::wrap_storage_map!(
