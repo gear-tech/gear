@@ -18,11 +18,11 @@
 
 use crate::{Config, DispatchStash, Dispatches, Pallet, Waitlist};
 use common::storage::{Interval, LinkedNode};
-use frame_system::pallet_prelude::BlockNumberFor;
 use frame_support::{
     traits::{Get, GetStorageVersion, OnRuntimeUpgrade},
     weights::Weight,
 };
+use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{ids::MessageId, message::StoredDelayedDispatch};
 use sp_std::marker::PhantomData;
 #[cfg(feature = "try-runtime")]

@@ -90,7 +90,6 @@ impl<
     }
 }
 
-
 /// All migrations that will run on the next runtime upgrade.
 pub type Migrations = (
     // v1030
