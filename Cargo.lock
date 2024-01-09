@@ -7583,7 +7583,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-bridges"
-version = "1.0.2"
+version = "1.0.5"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -7594,6 +7594,7 @@ dependencies = [
  "scale-info",
  "sp-io",
  "sp-runtime",
+ "sp-std 8.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v1.0.0-canary)",
 ]
 
 [[package]]

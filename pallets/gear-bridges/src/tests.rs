@@ -16,9 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{mock::*, Error, HasherOf};
+use crate::{mock::*, Error};
 use frame_support::{assert_noop, assert_ok, traits::Hooks, weights::Weight};
-use sp_runtime::traits::Zero;
 
 impl<T> PartialEq for Error<T> {
     fn eq(&self, other: &Self) -> bool {
@@ -45,7 +44,7 @@ fn can_submit_messages_up_to_max_queue_size() {
 
 #[test]
 fn correct_message_movement_order() {
-    let ext = new_test_ext().execute_with(|| {
+    let _ = new_test_ext().execute_with(|| {
         let messages = (0..MaxQueueLength::get())
             .into_iter()
             .map(|n| n.to_le_bytes())
@@ -60,7 +59,9 @@ fn correct_message_movement_order() {
         for i in 0..MaxQueueLength::get() {
             GearBridges::on_idle((i + 1).into(), Weight::from_parts(100_000, 100_000));
             let message_hash =
-                <HasherOf<Test> as sp_runtime::traits::Hash>::hash(&messages[i as usize]);
+                <<Test as crate::pallet::Config>::Hasher as sp_runtime::traits::Hash>::hash(
+                    &messages[i as usize],
+                );
             assert_eq!(Some(message_hash), GearBridges::pending_bridging());
         }
     });

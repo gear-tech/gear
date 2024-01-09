@@ -19,21 +19,14 @@
 //! Mock runtime for gear bridges pallet.
 
 use crate as pallet_gear_bridges;
-use frame_support::{
-    construct_runtime, parameter_types, traits::FindAuthor, weights::constants::RocksDbWeight,
-};
-use frame_system::{
-    self as system,
-    mocking::{MockBlock, MockUncheckedExtrinsic},
-};
+use frame_support::{construct_runtime, parameter_types};
+use frame_system::{self as system};
 use primitive_types::H256;
-use sp_io::TestExternalities;
 use sp_runtime::{
-    generic,
-    traits::{BlakeTwo256, IdentityLookup},
+    traits::{BlakeTwo256, IdentityLookup, Keccak256},
+    BuildStorage,
 };
 
-type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
 pub type AccountId = u64;
 pub type BlockNumber = u64;
@@ -47,13 +40,12 @@ parameter_types! {
 
 impl pallet_gear_bridges::Config for Test {
     type MaxQueueLength = MaxQueueLength;
+    type Hasher = Keccak256;
+    type HashOut = H256;
 }
 
 construct_runtime!(
-    pub enum Test where
-        Block = Block,
-        NodeBlock = Block,
-        UncheckedExtrinsic = UncheckedExtrinsic,
+    pub enum Test
     {
         System: system,
         Balances: pallet_balances,
@@ -65,9 +57,10 @@ common::impl_pallet_system!(Test, DbWeight = (), BlockWeights = ());
 common::impl_pallet_balances!(Test);
 
 pub fn new_test_ext() -> sp_io::TestExternalities {
-    let mut t = system::GenesisConfig::default()
-        .build_storage::<Test>()
-        .unwrap();
+    let t = <frame_system::GenesisConfig<Test> as BuildStorage>::build_storage(
+        &system::GenesisConfig::default(),
+    )
+    .unwrap();
 
     let mut ext = sp_io::TestExternalities::new(t);
     ext.execute_with(|| System::set_block_number(1));

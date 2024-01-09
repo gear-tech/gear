@@ -33,18 +33,17 @@ use frame_support::traits::StorageVersion;
 /// The current storage version.
 pub(crate) const STORAGE_VERSION: StorageVersion = StorageVersion::new(0);
 
-pub(crate) type HasherOf<T> = <T as frame_system::Config>::Hashing;
-pub(crate) type HashOf<T> = <HasherOf<T> as sp_runtime::traits::Hash>::Output;
-
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
     use frame_support::{
-        pallet_prelude::{BoundedVec, Hooks, OptionQuery, StorageValue, ValueQuery},
+        pallet_prelude::{BoundedVec, Hooks, MaxEncodedLen, OptionQuery, StorageValue, ValueQuery},
         traits::Get,
         weights::Weight,
+        Parameter,
     };
     use frame_system::pallet_prelude::BlockNumberFor;
+    use sp_runtime::traits::Hash;
 
     // Bridges pallet.
     #[pallet::pallet]
@@ -56,6 +55,10 @@ pub mod pallet {
     pub trait Config: frame_system::Config {
         // Limit of message queue length.
         type MaxQueueLength: Get<u32>;
+        // Hasher used to store messages in queue.
+        type Hasher: Hash<Output = Self::HashOut>;
+        // Hash type used in message queue.
+        type HashOut: Parameter + sp_std::hash::Hash + MaxEncodedLen;
     }
 
     // Bridges pallet errors.
@@ -67,11 +70,11 @@ pub mod pallet {
 
     #[pallet::storage]
     #[pallet::getter(fn queue)]
-    type Queue<T: Config> = StorageValue<_, BoundedVec<HashOf<T>, T::MaxQueueLength>, ValueQuery>;
+    type Queue<T: Config> = StorageValue<_, BoundedVec<T::HashOut, T::MaxQueueLength>, ValueQuery>;
 
     #[pallet::storage]
     #[pallet::getter(fn pending_bridging)]
-    type PendingBridging<T: Config> = StorageValue<_, HashOf<T>, OptionQuery>;
+    type PendingBridging<T: Config> = StorageValue<_, T::HashOut, OptionQuery>;
 
     #[pallet::hooks]
     impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
@@ -81,8 +84,9 @@ pub mod pallet {
     }
 
     impl<T: Config> Pallet<T> {
+        // TODO: To be called by built-in actor.
         pub fn submit_message(message: &[u8]) -> Result<(), Error<T>> {
-            let hash = <HasherOf<T> as sp_runtime::traits::Hash>::hash(message);
+            let hash = T::Hasher::hash(message);
             Queue::<T>::try_append(hash).map_err(|_| Error::QueueOverflow)
         }
 
