@@ -22,8 +22,6 @@ sp-wasm-interface.workspace = true
 byteorder.workspace = true
 codec = { workspace = true }
 log = { workspace = true, optional = true }
-static_assertions.workspace = true
-
 
 [target.'cfg(windows)'.dependencies]
 winapi = { workspace = true, features = ["memoryapi"] }
