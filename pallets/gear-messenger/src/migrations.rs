@@ -18,6 +18,7 @@
 
 use crate::{Config, DispatchStash, Dispatches, Pallet, Waitlist};
 use common::storage::{Interval, LinkedNode};
+use frame_system::pallet_prelude::BlockNumberFor;
 use frame_support::{
     traits::{Get, GetStorageVersion, OnRuntimeUpgrade},
     weights::Weight,
