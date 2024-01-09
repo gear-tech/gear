@@ -20,9 +20,8 @@
 //! for various pallets of Substrate.
 //! All used types should be in scope.
 
-use frame_support::{pallet_prelude::*, weights::RuntimeDbWeight};
+use frame_support::{pallet_prelude::*, sp_runtime::Perbill, weights::RuntimeDbWeight};
 use frame_system::limits::BlockWeights;
-use sp_arithmetic::Perbill;
 
 #[macro_export]
 macro_rules! impl_pallet_balances {
