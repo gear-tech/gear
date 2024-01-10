@@ -2141,34 +2141,6 @@ pub mod runtime_types {
                     #[codec(index = 7)]
                     #[doc = "See [`Pallet::set_execute_inherent`]."]
                     set_execute_inherent { value: ::core::primitive::bool },
-                    #[codec(index = 8)]
-                    #[doc = "See [`Pallet::pay_program_rent`]."]
-                    pay_program_rent {
-                        program_id: runtime_types::gear_core::ids::ProgramId,
-                        block_count: ::core::primitive::u32,
-                    },
-                    #[codec(index = 9)]
-                    #[doc = "See [`Pallet::resume_session_init`]."]
-                    resume_session_init {
-                        program_id: runtime_types::gear_core::ids::ProgramId,
-                        allocations: ::std::vec::Vec<runtime_types::gear_core::pages::WasmPage>,
-                        code_hash: runtime_types::gear_core::ids::CodeId,
-                    },
-                    #[codec(index = 10)]
-                    #[doc = "See [`Pallet::resume_session_push`]."]
-                    resume_session_push {
-                        session_id: ::core::primitive::u32,
-                        memory_pages: ::std::vec::Vec<(
-                            runtime_types::gear_core::pages::GearPage,
-                            runtime_types::gear_core::memory::PageBuf,
-                        )>,
-                    },
-                    #[codec(index = 11)]
-                    #[doc = "See [`Pallet::resume_session_commit`]."]
-                    resume_session_commit {
-                        session_id: ::core::primitive::u32,
-                        block_count: ::core::primitive::u32,
-                    },
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 #[doc = "The `Error` enum of this pallet."]
@@ -7886,10 +7858,6 @@ pub mod calls {
         ClaimValue,
         Run,
         SetExecuteInherent,
-        PayProgramRent,
-        ResumeSessionInit,
-        ResumeSessionPush,
-        ResumeSessionCommit,
     }
     impl CallInfo for GearCall {
         const PALLET: &'static str = "Gear";
@@ -7903,10 +7871,6 @@ pub mod calls {
                 Self::ClaimValue => "claim_value",
                 Self::Run => "run",
                 Self::SetExecuteInherent => "set_execute_inherent",
-                Self::PayProgramRent => "pay_program_rent",
-                Self::ResumeSessionInit => "resume_session_init",
-                Self::ResumeSessionPush => "resume_session_push",
-                Self::ResumeSessionCommit => "resume_session_commit",
             }
         }
     }
