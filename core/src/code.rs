@@ -38,20 +38,39 @@ use scale_info::{
     scale::{Decode, Encode},
     TypeInfo,
 };
+use gear_wasm_instrument::parity_wasm::elements::ImportCountType;
+use crate::costs::RuntimeCosts::PayProgramRent;
 
 /// Defines maximal permitted count of memory pages.
 pub const MAX_WASM_PAGE_COUNT: u16 = 512;
 
-/// Name of exports allowed on chain except execution kinds.
-pub const STATE_EXPORTS: [&str; 2] = ["state", "metahash"];
+/// Name of exports allowed on chain.
+pub const ALLOWED_EXPORTS: [&str; 6] = ["init", "handle", "handle_reply", "handle_signal", "state", "metahash"];
+
+/// Name of exports required on chain (only 1 of these is required).
+pub const REQUIRED_EXPORTS: [&str; 2] = ["init", "handle"];
+
+fn get_exports(
+    module: &Module
+) -> BTreeSet<DispatchKind> {
+    let mut entries = BTreeSet::new();
+
+    for entry in module.export_section().expect("Exports section has been checked for already").entries().iter() {
+        if let Internal::Function(_) = entry.internal() {
+            if let Some(entry) = DispatchKind::try_from_entry(entry.field()) {
+                entries.insert(entry);
+            }
+        }
+    }
+
+    entries
+}
 
 /// Parse function exports from wasm module into [`DispatchKind`].
-fn get_exports(
+fn check_code(
     module: &Module,
-    reject_unnecessary: bool,
-) -> Result<BTreeSet<DispatchKind>, CodeError> {
-    let mut exports = BTreeSet::<DispatchKind>::new();
-
+    config: &TryNewCodeConfig,
+) -> Result<(), CodeError> {
     let funcs = module
         .function_section()
         .ok_or(CodeError::FunctionSectionNotFound)?
@@ -62,19 +81,22 @@ fn get_exports(
         .ok_or(CodeError::TypeSectionNotFound)?
         .types();
 
-    let import_count = module
+    let import_count = module.import_count(ImportCountType::Function);
+
+    let imports = module
         .import_section()
         .ok_or(CodeError::ImportSectionNotFound)?
-        .functions();
+        .entries();
 
-    for entry in module
+    let exports = module
         .export_section()
         .ok_or(CodeError::ExportSectionNotFound)?
-        .entries()
-        .iter()
-    {
-        if let Internal::Function(i) = entry.internal() {
-            if reject_unnecessary {
+        .entries();
+
+    let mut entry = false;
+    for export in exports {
+        if let Internal::Function(i) = export.internal() {
+            if config.check_exports {
                 // Index access into arrays cannot panic unless the Module structure is invalid
                 let type_id = funcs[*i as usize - import_count].type_ref();
                 let Type::Function(ref f) = types[type_id as usize];
@@ -82,15 +104,20 @@ fn get_exports(
                     return Err(CodeError::InvalidExportFnSignature);
                 }
             }
-            if let Some(kind) = DispatchKind::try_from_entry(entry.field()) {
-                exports.insert(kind);
-            } else if !STATE_EXPORTS.contains(&entry.field()) && reject_unnecessary {
+            if !ALLOWED_EXPORTS.contains(&export.field()) && config.check_exports {
                 return Err(CodeError::NonGearExportFnFound);
+            }
+            if REQUIRED_EXPORTS.contains(&export.field()) {
+                entry = true;
             }
         }
     }
 
-    Ok(exports)
+    if !entry {
+        return Err(CodeError::RequiredExportFnNotFound);
+    }
+
+    Ok(())
 }
 
 fn get_export_entry<'a>(module: &'a Module, name: &str) -> Option<&'a ExportEntry> {
@@ -417,12 +444,9 @@ impl Code {
             return Err(CodeError::InvalidStaticPageCount);
         }
 
-        let exports = get_exports(&module, config.check_exports)?;
-        if config.check_exports
-            && !(exports.contains(&DispatchKind::Init) || exports.contains(&DispatchKind::Handle))
-        {
-            return Err(CodeError::RequiredExportFnNotFound);
-        }
+        check_code(&module, &config)?;
+
+        let exports = get_exports(&module);
 
         let mut instrumentation_builder = InstrumentationBuilder::new("env");
 
