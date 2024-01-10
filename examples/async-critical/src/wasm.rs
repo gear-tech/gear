@@ -109,4 +109,3 @@ fn my_handle_signal() {
         }
     }
 }
-t
