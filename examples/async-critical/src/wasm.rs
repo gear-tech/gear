@@ -17,13 +17,16 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::HandleAction;
-use gstd::{critical, exec, msg, prelude::*};
+use gstd::{critical, exec, msg, prelude::*, ActorId};
 
 static mut REPLY_SET_HOOK: bool = false;
 static mut SIGNAL_SET_HOOK: bool = false;
+static mut INITIATOR: ActorId = ActorId::zero();
 
 #[gstd::async_main(handle_reply = my_handle_reply, handle_signal = my_handle_signal)]
 async fn main() {
+    unsafe { INITIATOR = msg::source() };
+
     let action: HandleAction = msg::load().expect("Failed to read handle action");
 
     match action {
@@ -88,11 +91,9 @@ async fn main() {
 fn my_handle_reply() {
     unsafe {
         if REPLY_SET_HOOK {
-            let source = msg::source();
-
             // should panic in this entrypoint
             critical::set_hook(move || {
-                msg::send_bytes(source, b"from_handle_reply", 0).unwrap();
+                msg::send_bytes(INITIATOR, b"from_handle_reply", 0).unwrap();
             });
         }
     }
@@ -101,12 +102,11 @@ fn my_handle_reply() {
 fn my_handle_signal() {
     unsafe {
         if SIGNAL_SET_HOOK {
-            let source = msg::source();
-
             // should panic in this entrypoint
             critical::set_hook(move || {
-                msg::send_bytes(source, b"from_handle_signal", 0).unwrap();
+                msg::send_bytes(INITIATOR, b"from_handle_signal", 0).unwrap();
             });
         }
     }
 }
+t
