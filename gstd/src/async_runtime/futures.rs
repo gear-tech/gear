@@ -18,7 +18,7 @@
 
 //! Module for future-management.
 
-use crate::{prelude::Box, MessageId};
+use crate::{critical, prelude::Box, MessageId};
 use core::{
     future::Future,
     pin::Pin,
@@ -87,6 +87,7 @@ where
     if Pin::new(&mut task.future).poll(&mut cx).is_ready() {
         super::futures().remove(&msg_id);
         super::locks().remove_message_entry(msg_id);
+        let _ = critical::take_hook();
     } else {
         super::locks().wait(msg_id);
     }

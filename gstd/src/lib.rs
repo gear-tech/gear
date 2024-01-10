@@ -149,6 +149,7 @@ extern crate galloc;
 mod async_runtime;
 mod common;
 mod config;
+pub mod critical;
 pub mod exec;
 mod macros;
 pub mod msg;
