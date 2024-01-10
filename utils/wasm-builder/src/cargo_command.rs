@@ -86,7 +86,6 @@ impl CargoCommand {
     /// Execute the `cargo` command with invoking supplied arguments.
     pub fn run(&self) -> Result<()> {
         let mut cargo = Command::new(&self.path);
-
         cargo
             .arg("run")
             .arg(self.toolchain.raw_toolchain_str().as_ref())
