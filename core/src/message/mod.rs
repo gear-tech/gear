@@ -55,7 +55,7 @@ pub const MAX_PAYLOAD_SIZE: usize = 8 * 1024 * 1024;
 
 // **WARNING**: do not remove this check until be sure that
 // all `MAX_PAYLOAD_SIZE` conversions are safe!
-static_assertions::const_assert!(MAX_PAYLOAD_SIZE <= u32::MAX as usize);
+const _: () = assert!(MAX_PAYLOAD_SIZE <= u32::MAX as usize);
 
 /// Payload size exceed error
 #[derive(
