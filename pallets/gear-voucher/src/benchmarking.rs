@@ -22,7 +22,7 @@ use crate::*;
 use common::{benchmarking, Origin};
 use frame_benchmarking::{benchmarks, impl_benchmark_test_suite, Zero};
 use frame_support::traits::Currency;
-use frame_system::RawOrigin;
+use frame_system::{pallet_prelude::BlockNumberFor, RawOrigin};
 use sp_runtime::traits::{One, UniqueSaturatedInto};
 
 pub(crate) type CurrencyOf<T> = <T as Config>::Currency;
@@ -81,7 +81,7 @@ benchmarks! {
         let balance = 10_000_000_000_000_u128.unique_saturated_into();
 
         // Voucher validity.
-        let validity = 100u32.unique_saturated_into();
+        let validity = <<T as Config>::MinDuration as Get<BlockNumberFor<T>>>::get();
 
         // Issue voucher.
         assert!(Pallet::<T>::issue(RawOrigin::Signed(origin.clone()).into(), spender.clone(), balance, None, validity).is_ok());
@@ -114,7 +114,7 @@ benchmarks! {
             .collect();
 
         // Voucher validity.
-        let validity = 100u32.unique_saturated_into();
+        let validity = <<T as Config>::MinDuration as Get<BlockNumberFor<T>>>::get();
 
         // Issue voucher.
         assert!(Pallet::<T>::issue(RawOrigin::Signed(origin.clone()).into(), spender.clone(), balance, Some(set), validity).is_ok());
@@ -132,9 +132,9 @@ benchmarks! {
             .collect();
         let append_programs = Some(Some(append_programs_set));
 
-        // Prolong validity.
-        let prolong_validity = Some(validity);
-    }: _(RawOrigin::Signed(origin.clone()), spender.clone(), voucher_id, move_ownership, balance_top_up, append_programs, prolong_validity)
+        // prolong duration.
+        let prolong_duration = Some(validity);
+    }: _(RawOrigin::Signed(origin.clone()), spender.clone(), voucher_id, move_ownership, balance_top_up, append_programs, prolong_duration)
     verify {
         let voucher_info = Vouchers::<T>::get(spender, voucher_id).expect("Must be");
         assert_eq!(voucher_info.programs.map(|v| v.len()), Some(<<T as Config>::MaxProgramsAmount as Get<u8>>::get() as usize));

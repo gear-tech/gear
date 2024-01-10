@@ -1083,6 +1083,8 @@ impl pallet_gear_payment::Config for Runtime {
 
 parameter_types! {
     pub const VoucherPalletId: PalletId = PalletId(*b"py/vouch");
+    pub const MinVoucherDuration: BlockNumber = 30 * MINUTES;
+    pub const MaxVoucherDuration: BlockNumber = 3 * MONTHS;
 }
 
 impl pallet_gear_voucher::Config for Runtime {
@@ -1093,6 +1095,8 @@ impl pallet_gear_voucher::Config for Runtime {
     type CallsDispatcher = Gear;
     type Mailbox = <GearMessenger as Messenger>::Mailbox;
     type MaxProgramsAmount = ConstU8<32>;
+    type MaxDuration = MaxVoucherDuration;
+    type MinDuration = MinVoucherDuration;
 }
 
 impl<C> frame_system::offchain::SendTransactionTypes<C> for Runtime

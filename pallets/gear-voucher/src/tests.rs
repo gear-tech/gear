@@ -17,11 +17,11 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::*;
-use crate::mock::*;
+use crate::{mock::*, tests::utils::DEFAULT_VALIDITY};
 use common::Origin;
 use frame_support::{assert_noop, assert_ok, assert_storage_noop};
 use primitive_types::H256;
-use sp_runtime::traits::Zero;
+use sp_runtime::traits::{One, Zero};
 
 #[test]
 fn voucher_issue_works() {
@@ -73,17 +73,23 @@ fn voucher_issue_err_cases() {
             Error::<Test>::BalanceTransfer
         );
 
-        // Zero validity.
-        assert_noop!(
-            Voucher::issue(
-                RuntimeOrigin::signed(ALICE),
-                BOB,
-                1_000,
-                Some([program_id].into()),
-                0,
-            ),
-            Error::<Test>::ZeroDuration,
-        );
+        // Out of bounds validity.
+        let checker = |duration: BlockNumber| {
+            assert_noop!(
+                Voucher::issue(
+                    RuntimeOrigin::signed(ALICE),
+                    BOB,
+                    1_000,
+                    Some([program_id].into()),
+                    duration,
+                ),
+                Error::<Test>::DurationOutOfBounds,
+            );
+        };
+
+        checker(Zero::zero());
+        checker(MinVoucherDuration::get().saturating_sub(One::one()));
+        checker(MaxVoucherDuration::get().saturating_add(One::one()));
     });
 }
 
@@ -390,7 +396,7 @@ fn voucher_update_works() {
         let voucher_balance = Balances::free_balance(voucher_id_acc);
 
         let new_program_id = H256::random().cast();
-        let validity_prolong = 10;
+        let duration_prolong = 10;
         let balance_top_up = 1_000;
 
         assert_storage_noop!(assert_ok!(Voucher::update(
@@ -403,7 +409,7 @@ fn voucher_update_works() {
             Some(0),
             // extra programs
             Some(Some([program_id].into())),
-            // prolong validity
+            // prolong duration
             Some(0),
         )));
 
@@ -417,8 +423,8 @@ fn voucher_update_works() {
             Some(balance_top_up),
             // extra programs
             Some(Some([new_program_id].into())),
-            // prolong validity
-            Some(validity_prolong),
+            // prolong duration
+            Some(duration_prolong),
         ));
 
         System::assert_has_event(
@@ -444,7 +450,7 @@ fn voucher_update_works() {
         assert_eq!(voucher.programs, Some([program_id, new_program_id].into()));
         assert_eq!(
             voucher.expiry,
-            System::block_number() + utils::DEFAULT_VALIDITY + 1 + validity_prolong
+            System::block_number() + utils::DEFAULT_VALIDITY + 1 + duration_prolong
         );
 
         let voucher_balance = Balances::free_balance(voucher_id_acc);
@@ -459,7 +465,7 @@ fn voucher_update_works() {
             None,
             // extra programs
             Some(None),
-            // prolong validity
+            // prolong duration
             None,
         ));
 
@@ -479,7 +485,7 @@ fn voucher_update_works() {
         assert_eq!(voucher.programs, None);
         assert_eq!(
             voucher.expiry,
-            System::block_number() + utils::DEFAULT_VALIDITY + 1 + validity_prolong
+            System::block_number() + utils::DEFAULT_VALIDITY + 1 + duration_prolong
         );
 
         assert_storage_noop!(assert_ok!(Voucher::update(
@@ -492,12 +498,12 @@ fn voucher_update_works() {
             None,
             // extra programs
             Some(Some([program_id].into())),
-            // prolong validity
+            // prolong duration
             None,
         )));
 
         let huge_block = 10_000_000_000;
-        let validity_prolong = 10;
+        let duration_prolong = 10;
         System::set_block_number(huge_block);
 
         assert_ok!(Voucher::update(
@@ -510,12 +516,51 @@ fn voucher_update_works() {
             None,
             // extra programs
             None,
-            // prolong validity
-            Some(validity_prolong),
+            // prolong duration
+            Some(duration_prolong),
         ));
 
         let voucher = Vouchers::<Test>::get(BOB, voucher_id).expect("Failed to get voucher");
-        assert_eq!(voucher.expiry, huge_block + 1 + validity_prolong);
+        assert_eq!(voucher.expiry, huge_block + 1 + duration_prolong);
+
+        let valid_prolong = MaxVoucherDuration::get() - (voucher.expiry - huge_block);
+
+        // -1 due to voucher was prolonged as expired.
+        assert_eq!(
+            valid_prolong,
+            MaxVoucherDuration::get() - duration_prolong - 1
+        );
+
+        assert_noop!(
+            Voucher::update(
+                RuntimeOrigin::signed(BOB),
+                BOB,
+                voucher_id,
+                // move ownership
+                None,
+                // balance top up
+                None,
+                // extra programs
+                None,
+                // prolong duration
+                Some(valid_prolong + 1),
+            ),
+            Error::<Test>::DurationOutOfBounds
+        );
+
+        assert_ok!(Voucher::update(
+            RuntimeOrigin::signed(BOB),
+            BOB,
+            voucher_id,
+            // move ownership
+            None,
+            // balance top up
+            None,
+            // extra programs
+            None,
+            // prolong duration
+            Some(valid_prolong),
+        ),);
     });
 }
 
@@ -538,7 +583,7 @@ fn voucher_update_err_cases() {
                 None,
                 // extra programs
                 None,
-                // prolong validity
+                // prolong duration
                 None,
             ),
             Error::<Test>::InexistentVoucher
@@ -556,7 +601,7 @@ fn voucher_update_err_cases() {
                 None,
                 // extra programs
                 None,
-                // prolong validity
+                // prolong duration
                 None,
             ),
             Error::<Test>::BadOrigin
@@ -574,7 +619,7 @@ fn voucher_update_err_cases() {
                 Some(100_000_000_000_000),
                 // extra programs
                 None,
-                // prolong validity
+                // prolong duration
                 None,
             ),
             Error::<Test>::BalanceTransfer
@@ -596,10 +641,28 @@ fn voucher_update_err_cases() {
                 None,
                 // extra programs
                 Some(Some(set)),
-                // prolong validity
+                // prolong duration
                 None,
             ),
             Error::<Test>::MaxProgramsLimitExceeded
+        );
+
+        // Prolongation duration error.
+        assert_noop!(
+            Voucher::update(
+                RuntimeOrigin::signed(ALICE),
+                BOB,
+                voucher_id,
+                // move ownership
+                None,
+                // balance top up
+                None,
+                // extra programs
+                None,
+                // prolong duration
+                Some(MaxVoucherDuration::get().saturating_sub(DEFAULT_VALIDITY)),
+            ),
+            Error::<Test>::DurationOutOfBounds
         );
     });
 }

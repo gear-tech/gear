@@ -81,7 +81,7 @@ pub mod pallet {
     use frame_system::pallet_prelude::*;
     use gear_core::message::UserStoredMessage;
     use sp_runtime::{
-        traits::{One, Zero},
+        traits::{CheckedSub, One, Zero},
         SaturatedConversion, Saturating,
     };
     use sp_std::collections::btree_set::BTreeSet;
@@ -113,6 +113,14 @@ pub mod pallet {
         /// Maximal amount of programs to be specified to interact with.
         #[pallet::constant]
         type MaxProgramsAmount: Get<u8>;
+
+        /// Minimal duration in blocks voucher could be issued/prolonged for.
+        #[pallet::constant]
+        type MinDuration: Get<BlockNumberFor<Self>>;
+
+        /// Maximal duration in blocks voucher could be issued/prolonged for.
+        #[pallet::constant]
+        type MaxDuration: Get<BlockNumberFor<Self>>;
     }
 
     #[pallet::pallet]
@@ -174,8 +182,8 @@ pub mod pallet {
         UnknownDestination,
         /// Voucher has expired and couldn't be used.
         VoucherExpired,
-        /// Zero duration given while issuing voucher.
-        ZeroDuration,
+        /// Voucher issue/prolongation duration out of [min; max] constants.
+        DurationOutOfBounds,
     }
 
     /// Storage containing amount of the total vouchers issued.
@@ -217,9 +225,9 @@ pub mod pallet {
         ///             if None - means any program,
         ///             limited by Config param;
         /// * duration: amount of blocks voucher could be used by spender
-        ///             and couldn't be revoked by owner,
-        ///             couldn't be zero.
-        ///             expiration block of the voucher calculates as:
+        ///             and couldn't be revoked by owner.
+        ///             Must be out in [MinDuration; MaxDuration] constants.
+        ///             Expiration block of the voucher calculates as:
         ///             current bn (extrinsic exec bn) + duration + 1.
         #[pallet::call_index(0)]
         #[pallet::weight(T::WeightInfo::issue())]
@@ -233,8 +241,11 @@ pub mod pallet {
             // Ensuring origin.
             let owner = ensure_signed(origin)?;
 
-            // Asserting non-zero validity.
-            ensure!(!duration.is_zero(), Error::<T>::ZeroDuration);
+            // Asserting duration validity.
+            ensure!(
+                T::MinDuration::get() <= duration && duration <= T::MaxDuration::get(),
+                Error::<T>::DurationOutOfBounds
+            );
 
             // Asserting amount of programs.
             if let Some(ref programs) = programs {
@@ -390,7 +401,11 @@ pub mod pallet {
         ///                     `Some(programs_set)` passed or allows
         ///                     it to interact with any program by
         ///                     `None` passed;
-        /// * prolong validity: optionally increases validity block number.
+        /// * prolong_duration: optionally increases expiry block number.
+        ///                     If voucher is expired, prolongs since current bn.
+        ///                     Validity duration (since now for expired) or
+        ///                     since expiration should be inNew expiry must
+        ///                     be in [MinDuration; MaxDuration].
         #[pallet::call_index(3)]
         #[pallet::weight(T::WeightInfo::update())]
         pub fn update(
@@ -400,7 +415,7 @@ pub mod pallet {
             move_ownership: Option<AccountIdOf<T>>,
             balance_top_up: Option<BalanceOf<T>>,
             append_programs: Option<Option<BTreeSet<ProgramId>>>,
-            prolong_validity: Option<BlockNumberFor<T>>,
+            prolong_duration: Option<BlockNumberFor<T>>,
         ) -> DispatchResultWithPostInfo {
             // Ensuring origin.
             let origin = ensure_signed(origin)?;
@@ -418,6 +433,9 @@ pub mod pallet {
             // Flattening move ownership back to current owner.
             let new_owner = move_ownership.filter(|addr| addr.ne(&voucher.owner));
 
+            // Flattening duration prolongation.
+            let prolong_duration = prolong_duration.filter(|dur| !dur.is_zero());
+
             // Optionally updates voucher owner.
             if let Some(ref owner) = new_owner {
                 voucher.owner = owner.clone();
@@ -425,17 +443,16 @@ pub mod pallet {
             }
 
             // Optionally top ups voucher balance.
-            if let Some(amount) = balance_top_up {
-                if !amount.is_zero() {
-                    T::Currency::transfer(
-                        &origin,
-                        &voucher_id.cast(),
-                        amount,
-                        ExistenceRequirement::AllowDeath,
-                    )
-                    .map_err(|_| Error::<T>::BalanceTransfer)?;
-                    updated = true;
-                }
+            if let Some(amount) = balance_top_up.filter(|x| !x.is_zero()) {
+                T::Currency::transfer(
+                    &origin,
+                    &voucher_id.cast(),
+                    amount,
+                    ExistenceRequirement::AllowDeath,
+                )
+                .map_err(|_| Error::<T>::BalanceTransfer)?;
+
+                updated = true;
             }
 
             // Optionally extends whitelisted programs with amount validation.
@@ -464,11 +481,28 @@ pub mod pallet {
             }
 
             // Optionally prolongs validity of the voucher.
-            if let Some(duration) = prolong_validity.filter(|v| !v.is_zero()) {
-                voucher.expiry = voucher
-                    .expiry
-                    .max(<frame_system::Pallet<T>>::block_number().saturating_add(One::one()))
-                    .saturating_add(duration);
+            if let Some(duration) = prolong_duration {
+                let current_bn = <frame_system::Pallet<T>>::block_number();
+
+                let (expiry, duration) =
+                    if let Some(period) = voucher.expiry.checked_sub(&current_bn) {
+                        let expiry = voucher.expiry.saturating_add(duration);
+                        let new_duration = period.saturating_add(duration);
+                        (expiry, new_duration)
+                    } else {
+                        let expiry = current_bn
+                            .saturating_add(duration)
+                            .saturating_add(One::one());
+                        (expiry, duration)
+                    };
+
+                // Asserting duration validity.
+                ensure!(
+                    T::MinDuration::get() <= duration && duration <= T::MaxDuration::get(),
+                    Error::<T>::DurationOutOfBounds
+                );
+
+                voucher.expiry = expiry;
                 updated = true;
             }
 

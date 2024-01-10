@@ -69,6 +69,8 @@ common::impl_pallet_balances!(Test);
 
 parameter_types! {
     pub const VoucherPalletId: PalletId = PalletId(*b"py/vouch");
+    pub const MinVoucherDuration: BlockNumber = 5;
+    pub const MaxVoucherDuration: BlockNumber = 100_000_000;
 }
 
 impl crate::PrepaidCallsDispatcher for () {
@@ -136,6 +138,8 @@ impl pallet_gear_voucher::Config for Test {
     type CallsDispatcher = ();
     type Mailbox = MailboxMock;
     type MaxProgramsAmount = ConstU8<3>;
+    type MaxDuration = MaxVoucherDuration;
+    type MinDuration = MinVoucherDuration;
 }
 
 // Build genesis storage according to the mock runtime.

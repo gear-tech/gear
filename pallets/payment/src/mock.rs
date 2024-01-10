@@ -171,6 +171,8 @@ impl pallet_gear_payment::Config for Test {
 
 parameter_types! {
     pub const VoucherPalletId: PalletId = PalletId(*b"py/vouch");
+    pub const MinVoucherDuration: BlockNumber = 5;
+    pub const MaxVoucherDuration: BlockNumber = 100_000_000;
 }
 
 impl pallet_gear_voucher::Config for Test {
@@ -181,6 +183,8 @@ impl pallet_gear_voucher::Config for Test {
     type CallsDispatcher = Gear;
     type Mailbox = MailboxOf<Self>;
     type MaxProgramsAmount = ConstU8<32>;
+    type MaxDuration = MaxVoucherDuration;
+    type MinDuration = MinVoucherDuration;
 }
 
 // Build genesis storage according to the mock runtime.

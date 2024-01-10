@@ -2938,7 +2938,7 @@ pub mod runtime_types {
                                 ::std::vec::Vec<runtime_types::gear_core::ids::ProgramId>,
                             >,
                         >,
-                        prolong_validity: ::core::option::Option<::core::primitive::u32>,
+                        prolong_duration: ::core::option::Option<::core::primitive::u32>,
                     },
                     #[codec(index = 4)]
                     #[doc = "See [`Pallet::call_deprecated`]."]
@@ -2976,8 +2976,8 @@ pub mod runtime_types {
                     #[doc = "Voucher has expired and couldn't be used."]
                     VoucherExpired,
                     #[codec(index = 8)]
-                    #[doc = "Zero duration given while issuing voucher."]
-                    ZeroDuration,
+                    #[doc = "Voucher issue/prolongation duration out of [min; max] constants."]
+                    DurationOutOfBounds,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 #[doc = "Pallet Gear Voucher event."]
