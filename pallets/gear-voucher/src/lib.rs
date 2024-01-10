@@ -403,9 +403,11 @@ pub mod pallet {
         ///                     `None` passed;
         /// * prolong_duration: optionally increases expiry block number.
         ///                     If voucher is expired, prolongs since current bn.
-        ///                     Validity duration (since now for expired) or
-        ///                     since expiration should be inNew expiry must
-        ///                     be in [MinDuration; MaxDuration].
+        ///                     Validity prolongation (since current block number
+        ///                     for expired or since storage written expiry)
+        ///                     should be in [MinDuration; MaxDuration], in other
+        ///                     words voucher couldn't have expiry greater than
+        ///                     current block number + MaxDuration.
         #[pallet::call_index(3)]
         #[pallet::weight(T::WeightInfo::update())]
         pub fn update(
