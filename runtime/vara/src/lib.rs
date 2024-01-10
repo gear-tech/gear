@@ -25,7 +25,7 @@
 #[cfg(all(feature = "std", not(feature = "fuzz")))]
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
-use common::storage::Messenger;
+use common::{storage::Messenger, DelegateFee};
 use frame_election_provider_support::{
     onchain, ElectionDataProvider, NposSolution, SequentialPhragmen, VoteWeight,
 };
@@ -55,7 +55,7 @@ use frame_system::{
 };
 use pallet_election_provider_multi_phase::SolutionAccuracyOf;
 pub use pallet_gear::manager::{ExtManager, HandleKind};
-pub use pallet_gear_payment::{CustomChargeTransactionPayment, DelegateFee};
+pub use pallet_gear_payment::CustomChargeTransactionPayment;
 pub use pallet_gear_staking_rewards::StakingBlackList;
 use pallet_grandpa::{
     fg_primitives, AuthorityId as GrandpaId, AuthorityList as GrandpaAuthorityList,
@@ -83,7 +83,7 @@ use sp_api::{
     CallApiAt, CallContext, Extensions, OverlayedChanges, ProofRecorder, StateBackend,
     StorageTransactionCache,
 };
-use sp_core::{crypto::KeyTypeId, ConstBool, ConstU64, OpaqueMetadata, H256};
+use sp_core::{crypto::KeyTypeId, ConstBool, ConstU64, ConstU8, OpaqueMetadata, H256};
 #[cfg(any(feature = "std", test))]
 use sp_runtime::traits::HashFor;
 use sp_runtime::{
@@ -1064,16 +1064,12 @@ impl Contains<RuntimeCall> for ExtraFeeFilter {
 }
 
 pub struct DelegateFeeAccountBuilder;
-// TODO: in case of the `send_reply` prepaid call we have to iterate through the
-// user's mailbox to dig out the stored message source `program_id` to check if it has
-// issued a voucher to pay for the reply extrinsic transaction fee.
-// Isn't there a better way to do that?
+
+// TODO: simplify it (#3640).
 impl DelegateFee<RuntimeCall, AccountId> for DelegateFeeAccountBuilder {
     fn delegate_fee(call: &RuntimeCall, who: &AccountId) -> Option<AccountId> {
         match call {
-            RuntimeCall::GearVoucher(pallet_gear_voucher::Call::call { call }) => {
-                GearVoucher::sponsor_of(who, call)
-            }
+            RuntimeCall::GearVoucher(voucher_call) => voucher_call.get_sponsor(who.clone()),
             _ => None,
         }
     }
@@ -1087,6 +1083,8 @@ impl pallet_gear_payment::Config for Runtime {
 
 parameter_types! {
     pub const VoucherPalletId: PalletId = PalletId(*b"py/vouch");
+    pub const MinVoucherDuration: BlockNumber = 30 * MINUTES;
+    pub const MaxVoucherDuration: BlockNumber = 3 * MONTHS;
 }
 
 impl pallet_gear_voucher::Config for Runtime {
@@ -1096,6 +1094,9 @@ impl pallet_gear_voucher::Config for Runtime {
     type WeightInfo = weights::pallet_gear_voucher::SubstrateWeight<Runtime>;
     type CallsDispatcher = Gear;
     type Mailbox = <GearMessenger as Messenger>::Mailbox;
+    type MaxProgramsAmount = ConstU8<32>;
+    type MaxDuration = MaxVoucherDuration;
+    type MinDuration = MinVoucherDuration;
 }
 
 impl<C> frame_system::offchain::SendTransactionTypes<C> for Runtime

@@ -27,8 +27,8 @@ use frame_support::{
     PalletId,
 };
 use frame_support_test::TestRandomness;
-use frame_system::{self as system, limits::BlockWeights, pallet_prelude::BlockNumberFor};
-use sp_core::H256;
+use frame_system::{self as system, limits::BlockWeights, mocking, pallet_prelude::BlockNumberFor};
+use sp_core::{ConstU8, H256};
 use sp_runtime::{
     traits::{BlakeTwo256, IdentityLookup},
     BuildStorage,
@@ -38,7 +38,7 @@ use sp_std::{
     convert::{TryFrom, TryInto},
 };
 
-type Block = frame_system::mocking::MockBlock<Test>;
+type Block = mocking::MockBlock<Test>;
 type AccountId = u64;
 pub type BlockNumber = BlockNumberFor<Test>;
 type Balance = u128;
@@ -158,6 +158,8 @@ impl Drop for DynamicScheduleReset {
 parameter_types! {
     pub const BankAddress: AccountId = 15082001;
     pub const GasMultiplier: common::GasMultiplier<Balance, u64> = common::GasMultiplier::ValuePerGas(25);
+    pub const MinVoucherDuration: BlockNumber = 5;
+    pub const MaxVoucherDuration: BlockNumber = 100_000_000;
 }
 
 parameter_types! {
@@ -171,6 +173,9 @@ impl pallet_gear_voucher::Config for Test {
     type WeightInfo = ();
     type CallsDispatcher = Gear;
     type Mailbox = MailboxOf<Self>;
+    type MaxProgramsAmount = ConstU8<32>;
+    type MaxDuration = MaxVoucherDuration;
+    type MinDuration = MinVoucherDuration;
 }
 
 // Build genesis storage according to the mock runtime.

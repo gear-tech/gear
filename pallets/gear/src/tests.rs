@@ -45,8 +45,8 @@ use crate::{
     },
     pallet,
     runtime_api::RUNTIME_API_BLOCK_LIMITS_COUNT,
-    BlockGasLimitOf, Config, CostsPerBlockOf, CurrencyOf, DbWeightOf, DispatchStashOf, Error,
-    Event, GasAllowanceOf, GasBalanceOf, GasHandlerOf, GasInfo, GearBank, MailboxOf,
+    AccountIdOf, BlockGasLimitOf, Config, CostsPerBlockOf, CurrencyOf, DbWeightOf, DispatchStashOf,
+    Error, Event, GasAllowanceOf, GasBalanceOf, GasHandlerOf, GasInfo, GearBank, MailboxOf,
     ProgramStorageOf, QueueOf, Schedule, TaskPoolOf, WaitlistOf,
 };
 use common::{
@@ -3039,7 +3039,7 @@ fn mailbox_threshold_works() {
         ));
         check_result(false);
 
-        // // send message with enough gas_limit
+        // send message with enough gas_limit
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
             proxy,
@@ -12390,7 +12390,7 @@ fn check_random_works() {
                 );
             });
 
-        // // assert_last_dequeued(1);
+        // assert_last_dequeued(1);
         // println!("{:?}", res);
         // assert_eq!(blake2b(32, &[], &output.0.encode()).as_bytes(), res.payload());
     });
@@ -13277,6 +13277,7 @@ fn send_gasless_message_works() {
         assert_noop!(
             GearVoucher::call(
                 RuntimeOrigin::signed(USER_2),
+                12345.into_origin().cast(),
                 PrepaidCall::SendMessage {
                     destination: program_id,
                     payload: EMPTY_PAYLOAD.to_vec(),
@@ -13285,15 +13286,16 @@ fn send_gasless_message_works() {
                     keep_alive: false,
                 }
             ),
-            pallet_gear_bank::Error::<Test>::InsufficientBalance
+            pallet_gear_voucher::Error::<Test>::InexistentVoucher
         );
 
         // USER_1 as the program owner issues a voucher for USER_2 enough to send a message
         assert_ok!(GearVoucher::issue(
             RuntimeOrigin::signed(USER_1),
             USER_2,
-            program_id,
             gas_price(DEFAULT_GAS_LIMIT),
+            Some([program_id].into()),
+            100,
         ));
 
         // Balances check
@@ -13309,9 +13311,9 @@ fn send_gasless_message_works() {
 
         // Balance check
         // Voucher has been issued, but not used yet, so funds should be still in the respective account
-        let voucher_id = GearVoucher::voucher_id(&USER_2, &program_id);
+        let voucher_id = utils::get_last_voucher_id();
         assert_eq!(
-            Balances::free_balance(voucher_id),
+            Balances::free_balance(voucher_id.cast::<AccountIdOf<Test>>()),
             gas_price(DEFAULT_GAS_LIMIT)
         );
 
@@ -13319,6 +13321,7 @@ fn send_gasless_message_works() {
         // Now that voucher is issued, the message should be sent successfully.
         assert_ok!(GearVoucher::call(
             RuntimeOrigin::signed(USER_2),
+            voucher_id,
             PrepaidCall::SendMessage {
                 destination: program_id,
                 payload: EMPTY_PAYLOAD.to_vec(),
@@ -13337,7 +13340,10 @@ fn send_gasless_message_works() {
             user2_initial_balance - user2_potential_msgs_spends
         );
         // Instead, the gas has been paid from the voucher
-        assert_eq!(Balances::free_balance(voucher_id), 0_u128);
+        assert_eq!(
+            Balances::free_balance(voucher_id.cast::<AccountIdOf<Test>>()),
+            0_u128
+        );
 
         // Run the queue processing to figure out the actual gas burned
         let remaining_weight = 300_000_000;
@@ -13349,7 +13355,7 @@ fn send_gasless_message_works() {
 
         // Check that the gas leftover has been returned to the voucher
         assert_eq!(
-            Balances::free_balance(voucher_id),
+            Balances::free_balance(voucher_id.cast::<AccountIdOf<Test>>()),
             gas_price(DEFAULT_GAS_LIMIT) - gas_price(actual_gas_burned)
         );
 
@@ -13388,16 +13394,17 @@ fn send_gasless_reply_works() {
         assert_ok!(GearVoucher::issue(
             RuntimeOrigin::signed(USER_2),
             USER_1,
-            prog_id,
             gas_price(DEFAULT_GAS_LIMIT),
+            Some([prog_id].into()),
+            100,
         ));
-        let voucher_id = GearVoucher::voucher_id(&USER_1, &prog_id);
+        let voucher_id = utils::get_last_voucher_id();
 
         run_to_block(3, None);
 
         // Balance check
         assert_eq!(
-            Balances::free_balance(voucher_id),
+            Balances::free_balance(voucher_id.cast::<AccountIdOf<Test>>()),
             gas_price(DEFAULT_GAS_LIMIT)
         );
 
@@ -13405,6 +13412,7 @@ fn send_gasless_reply_works() {
         let gas_limit = 10_000_000_u64;
         assert_ok!(GearVoucher::call(
             RuntimeOrigin::signed(USER_1),
+            voucher_id,
             PrepaidCall::SendReply {
                 reply_to_id,
                 payload: EMPTY_PAYLOAD.to_vec(),
@@ -13435,14 +13443,14 @@ fn send_gasless_reply_works() {
 
         // Balances check before processing queue
         assert_eq!(
-            Balances::free_balance(voucher_id),
+            Balances::free_balance(voucher_id.cast::<AccountIdOf<Test>>()),
             gas_price(DEFAULT_GAS_LIMIT.saturating_sub(gas_limit))
         );
 
         run_to_block(4, None);
         // Ensure that some gas leftover has been returned to the voucher account
         assert!(
-            Balances::free_balance(voucher_id)
+            Balances::free_balance(voucher_id.cast::<AccountIdOf<Test>>())
                 > gas_price(DEFAULT_GAS_LIMIT.saturating_sub(gas_limit))
         );
     })
@@ -14160,6 +14168,7 @@ mod utils {
         reservation::GasReservationMap,
     };
     use gear_core_errors::*;
+    use pallet_gear_voucher::VoucherId;
     use parity_scale_codec::Encode;
     use sp_core::H256;
     use sp_runtime::traits::UniqueSaturatedInto;
@@ -14669,6 +14678,25 @@ mod utils {
             .find_map(|e| match e {
                 Event::MessageQueued { id, .. } => Some(id),
                 Event::UserMessageSent { message, .. } => Some(message.id()),
+                _ => None,
+            })
+            .expect("can't find message send event")
+    }
+
+    #[track_caller]
+    pub(super) fn get_last_voucher_id() -> VoucherId {
+        System::events()
+            .iter()
+            .rev()
+            .filter_map(|r| {
+                if let MockRuntimeEvent::GearVoucher(e) = r.event.clone() {
+                    Some(e)
+                } else {
+                    None
+                }
+            })
+            .find_map(|e| match e {
+                pallet_gear_voucher::Event::VoucherIssued { voucher_id, .. } => Some(voucher_id),
                 _ => None,
             })
             .expect("can't find message send event")

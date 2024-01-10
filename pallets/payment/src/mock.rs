@@ -27,7 +27,8 @@ use frame_support::{
     PalletId,
 };
 use frame_support_test::TestRandomness;
-use frame_system::{self as system, pallet_prelude::BlockNumberFor};
+use frame_system::{self as system, mocking, pallet_prelude::BlockNumberFor};
+use pallet_gear_voucher::VoucherId;
 use pallet_transaction_payment::CurrencyAdapter;
 use primitive_types::H256;
 use sp_runtime::{
@@ -40,7 +41,7 @@ use sp_std::{
     prelude::*,
 };
 
-type Block = frame_system::mocking::MockBlock<Test>;
+type Block = mocking::MockBlock<Test>;
 type AccountId = u64;
 pub type BlockNumber = BlockNumberFor<Test>;
 type Balance = u128;
@@ -151,18 +152,12 @@ impl Contains<RuntimeCall> for ExtraFeeFilter {
 }
 
 pub struct DelegateFeeAccountBuilder;
-// We want to test the way the fee delegate is calculated in real runtime
-// for the gasless `send_reply` call. Hence, the actual trait implementation is used.
-// For the gasless `send_message` call, a mock implementation is used.
+
+// TODO: simplify it (#3640).
 impl DelegateFee<RuntimeCall, AccountId> for DelegateFeeAccountBuilder {
     fn delegate_fee(call: &RuntimeCall, who: &AccountId) -> Option<AccountId> {
         match call {
-            RuntimeCall::GearVoucher(pallet_gear_voucher::Call::call {
-                call: pallet_gear_voucher::PrepaidCall::SendMessage { .. },
-            }) => Some(FEE_PAYER),
-            RuntimeCall::GearVoucher(pallet_gear_voucher::Call::call { call }) => {
-                GearVoucher::sponsor_of(who, call)
-            }
+            RuntimeCall::GearVoucher(voucher_call) => voucher_call.get_sponsor(*who),
             _ => None,
         }
     }
@@ -176,6 +171,8 @@ impl pallet_gear_payment::Config for Test {
 
 parameter_types! {
     pub const VoucherPalletId: PalletId = PalletId(*b"py/vouch");
+    pub const MinVoucherDuration: BlockNumber = 5;
+    pub const MaxVoucherDuration: BlockNumber = 100_000_000;
 }
 
 impl pallet_gear_voucher::Config for Test {
@@ -185,6 +182,9 @@ impl pallet_gear_voucher::Config for Test {
     type WeightInfo = ();
     type CallsDispatcher = Gear;
     type Mailbox = MailboxOf<Self>;
+    type MaxProgramsAmount = ConstU8<32>;
+    type MaxDuration = MaxVoucherDuration;
+    type MinDuration = MinVoucherDuration;
 }
 
 // Build genesis storage according to the mock runtime.
@@ -196,7 +196,7 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
     pallet_balances::GenesisConfig::<Test> {
         balances: vec![
             (ALICE, 100_000_000_000u128),
-            (BOB, 1_000u128),
+            (BOB, 10_000u128),
             (BLOCK_AUTHOR, 1_000u128),
             (FEE_PAYER, 10_000_000u128),
             (BankAddress::get(), ExistentialDeposit::get()),
@@ -227,4 +227,22 @@ impl common::ExtractCall<RuntimeCall> for TestXt<RuntimeCall, ()> {
     fn extract_call(&self) -> RuntimeCall {
         self.call.clone()
     }
+}
+
+pub fn get_last_voucher_id() -> VoucherId {
+    System::events()
+        .iter()
+        .rev()
+        .filter_map(|r| {
+            if let RuntimeEvent::GearVoucher(e) = r.event.clone() {
+                Some(e)
+            } else {
+                None
+            }
+        })
+        .find_map(|e| match e {
+            pallet_gear_voucher::Event::VoucherIssued { voucher_id, .. } => Some(voucher_id),
+            _ => None,
+        })
+        .expect("can't find message send event")
 }

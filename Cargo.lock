@@ -7854,12 +7854,14 @@ dependencies = [
 name = "pallet-gear-voucher"
 version = "1.0.5"
 dependencies = [
+ "derive_more",
  "env_logger",
  "frame-benchmarking",
  "frame-support",
  "frame-system",
  "gear-common",
  "gear-core",
+ "hex",
  "log",
  "pallet-balances",
  "parity-scale-codec",
