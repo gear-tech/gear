@@ -80,6 +80,7 @@ members = [
     "gsdk/codegen",
     "gsdk/api-gen",
     "gstd",
+    "gstd/codegen",
     "gsys",
     "gtest",
     "node/cli",
@@ -145,7 +146,6 @@ serde = { version = "^1", default-features = false }
 serde_json = "^1"
 serde_yaml = "0.8.26"
 sha-1 = "0.10.1"
-static_assertions = "1"
 subxt = "0.32.1"
 subxt-metadata = "0.32.1"
 subxt-codegen = "0.32.1"
@@ -185,7 +185,9 @@ gcore = { path = "gcore" }
 gcli = { path = "gcli" }
 gclient = { path = "gclient" }
 gsdk = { path = "gsdk" }
+gsdk-codegen = { path = "gsdk/codegen" }
 gstd = { path = "gstd", features = ["nightly"] }
+gstd-codegen = { path = "gstd/codegen" }
 gsys = { path = "gsys" }
 gtest = { path = "gtest" }
 gmeta = { path = "gmeta" }
@@ -195,7 +197,7 @@ gear-core-backend = { path = "core-backend", default-features = false }
 gear-call-gen = { path = "utils/call-gen" }
 gear-common = { path = "common", default-features = false }
 gear-common-codegen = { path = "common/codegen" }
-gear-core = { path = "core" }
+gear-core = { path = "core", default-features = false }
 gear-core-errors = { path = "core-errors" }
 gear-core-processor = { path = "core-processor", default-features = false }
 gear-lazy-pages = { path = "lazy-pages" }
@@ -204,6 +206,7 @@ gear-lazy-pages-interface = { path = "lazy-pages/interface", default-features = 
 gear-node-testing = { path = "node/testing" }
 gear-runtime-common = { path = "runtime/common", default-features = false }
 gear-runtime-interface = { path = "runtime-interface", default-features = false }
+gear-runtime-primitives = { path = "runtime/primitives", default-features = false }
 gear-sandbox = { path = "sandbox/sandbox", default-features = false }
 gear-sandbox-env = { path = "sandbox/env", default-features = false }
 gear-sandbox-host = { path = "sandbox/host" }

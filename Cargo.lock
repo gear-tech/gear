@@ -2274,7 +2274,6 @@ dependencies = [
  "parity-scale-codec",
  "rand 0.8.5",
  "rand_pcg",
- "static_assertions",
 ]
 
 [[package]]
@@ -3749,7 +3748,6 @@ dependencies = [
  "hex-literal",
  "log",
  "parity-scale-codec",
- "static_assertions",
  "subxt",
  "thiserror",
  "tokio",
@@ -3768,7 +3766,6 @@ dependencies = [
  "gsys",
  "hex-literal",
  "parity-scale-codec",
- "static_assertions",
 ]
 
 [[package]]
@@ -3928,7 +3925,6 @@ dependencies = [
  "rand 0.8.5",
  "scale-info",
  "serde",
- "static_assertions",
  "wabt",
  "wasmparser-nostd 0.100.1",
 ]
@@ -4189,7 +4185,6 @@ dependencies = [
  "sp-runtime-interface",
  "sp-std 8.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v1.0.0-canary)",
  "sp-wasm-interface",
- "static_assertions",
  "winapi",
 ]
 
@@ -4407,7 +4402,6 @@ dependencies = [
  "log",
  "proptest",
  "rand 0.8.5",
- "static_assertions",
  "thiserror",
  "wasm-smith",
  "wasmparser-nostd 0.100.1",
@@ -4688,7 +4682,6 @@ dependencies = [
  "parity-scale-codec",
  "primitive-types",
  "scale-info",
- "static_assertions",
 ]
 
 [[package]]
@@ -7578,7 +7571,6 @@ dependencies = [
  "sp-io",
  "sp-runtime",
  "sp-std 8.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v1.0.0-canary)",
- "static_assertions",
  "test-syscalls",
  "wabt",
 ]
@@ -7835,7 +7827,6 @@ dependencies = [
  "sp-io",
  "sp-runtime",
  "sp-std 8.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v1.0.0-canary)",
- "static_assertions",
 ]
 
 [[package]]
@@ -9646,7 +9637,6 @@ dependencies = [
  "sp-io",
  "sp-keyring",
  "sp-runtime",
- "static_assertions",
  "vara-runtime",
 ]
 
@@ -13618,7 +13608,6 @@ dependencies = [
  "sp-std 8.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v1.0.0-canary)",
  "sp-transaction-pool",
  "sp-version",
- "static_assertions",
  "substrate-build-script-utils",
  "substrate-wasm-builder",
  "wat",

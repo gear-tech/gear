@@ -16,8 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate as pallet_gear_builtin_actor;
-use crate::{BuiltinActor, BuiltinActorError, RegisteredBuiltinActor};
+use crate::{
+    self as pallet_gear_builtin_actor, BuiltinActor, BuiltinActorError, Dispatchable,
+    RegisteredBuiltinActor, SimpleBuiltinMessage,
+};
 use core::cell::RefCell;
 use frame_election_provider_support::{onchain, SequentialPhragmen, VoteWeight};
 use frame_support::{
@@ -27,7 +29,7 @@ use frame_support::{
 };
 use frame_support_test::TestRandomness;
 use frame_system::{self as system, pallet_prelude::BlockNumberFor, EnsureRoot};
-use gear_core::ids::BuiltinId;
+use gear_core::ids::{BuiltinId, ProgramId};
 use pallet_session::historical::{self as pallet_session_historical};
 use sp_core::{crypto::key_types, H256};
 use sp_runtime::{
@@ -65,7 +67,8 @@ pub(crate) const SESSION_DURATION: u64 = 250;
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub(crate) struct ExecutionTraceFrame {
-    pub builtin_id: BuiltinId,
+    pub destination: BuiltinId,
+    pub source: ProgramId,
     pub input: Vec<u8>,
     pub is_success: bool,
 }
@@ -289,16 +292,14 @@ pallet_gear::impl_config!(
 );
 
 pub struct SuccessBuiltinActor {}
-impl BuiltinActor<Vec<u8>, u64> for SuccessBuiltinActor {
-    fn handle(
-        _builtin_id: BuiltinId,
-        payload: Vec<u8>,
-    ) -> (Result<Vec<u8>, BuiltinActorError>, u64) {
+impl BuiltinActor<SimpleBuiltinMessage, u64> for SuccessBuiltinActor {
+    fn handle(message: &SimpleBuiltinMessage) -> (Result<Vec<u8>, BuiltinActorError>, u64) {
         if !in_transaction() {
             DEBUG_EXECUTION_TRACE.with(|d| {
                 d.borrow_mut().push(ExecutionTraceFrame {
-                    builtin_id: <Self as RegisteredBuiltinActor<_, _>>::ID,
-                    input: payload,
+                    destination: <Self as RegisteredBuiltinActor<_, _>>::ID,
+                    source: message.source(),
+                    input: message.payload_bytes().to_vec(),
                     is_success: true,
                 })
             });
@@ -314,21 +315,19 @@ impl BuiltinActor<Vec<u8>, u64> for SuccessBuiltinActor {
         1_000_000_u64
     }
 }
-impl RegisteredBuiltinActor<Vec<u8>, u64> for SuccessBuiltinActor {
+impl RegisteredBuiltinActor<SimpleBuiltinMessage, u64> for SuccessBuiltinActor {
     const ID: BuiltinId = BuiltinId(u64::from_le_bytes(*b"bltn/suc"));
 }
 
 pub struct ErrorBuiltinActor {}
-impl BuiltinActor<Vec<u8>, u64> for ErrorBuiltinActor {
-    fn handle(
-        _builtin_id: BuiltinId,
-        payload: Vec<u8>,
-    ) -> (Result<Vec<u8>, BuiltinActorError>, u64) {
+impl BuiltinActor<SimpleBuiltinMessage, u64> for ErrorBuiltinActor {
+    fn handle(message: &SimpleBuiltinMessage) -> (Result<Vec<u8>, BuiltinActorError>, u64) {
         if !in_transaction() {
             DEBUG_EXECUTION_TRACE.with(|d| {
                 d.borrow_mut().push(ExecutionTraceFrame {
-                    builtin_id: <Self as RegisteredBuiltinActor<_, _>>::ID,
-                    input: payload,
+                    destination: <Self as RegisteredBuiltinActor<_, _>>::ID,
+                    source: message.source(),
+                    input: message.payload_bytes().to_vec(),
                     is_success: false,
                 })
             });
@@ -340,7 +339,7 @@ impl BuiltinActor<Vec<u8>, u64> for ErrorBuiltinActor {
         1_000_000_u64
     }
 }
-impl RegisteredBuiltinActor<Vec<u8>, u64> for ErrorBuiltinActor {
+impl RegisteredBuiltinActor<SimpleBuiltinMessage, u64> for ErrorBuiltinActor {
     const ID: BuiltinId = BuiltinId(u64::from_le_bytes(*b"bltn/err"));
 }
 

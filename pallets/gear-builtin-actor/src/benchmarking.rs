@@ -31,10 +31,9 @@ macro_rules! impl_builtin_actor {
     ($name: ident, $id: literal) => {
         pub struct $name {}
 
-        impl BuiltinActor<Vec<u8>, u64> for $name {
+        impl BuiltinActor<SimpleBuiltinMessage, u64> for $name {
             fn handle(
-                _builtin_id: BuiltinId,
-                _payload: Vec<u8>,
+                _message: &SimpleBuiltinMessage,
             ) -> (Result<Vec<u8>, BuiltinActorError>, u64) {
                 (Ok(Default::default()), Default::default())
             }
@@ -43,7 +42,7 @@ macro_rules! impl_builtin_actor {
                 Default::default()
             }
         }
-        impl RegisteredBuiltinActor<Vec<u8>, u64> for $name {
+        impl RegisteredBuiltinActor<SimpleBuiltinMessage, u64> for $name {
             const ID: BuiltinId = BuiltinId($id as u64);
         }
     };
@@ -115,8 +114,13 @@ benchmarks! {
             None,
         );
         let gas_limit = 10_000_000_000_u64;
+        let builtin_message = SimpleBuiltinMessage {
+            source,
+            destination: builtin_id,
+            payload,
+        };
     }: {
-        let _ = <T as Config>::BuiltinActor::handle(builtin_id, payload);
+        let _ = <T as Config>::BuiltinActor::handle(&builtin_message);
     } verify {
         // No changes in runtime are expected since the actual dispatch doesn't take place.
     }
