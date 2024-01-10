@@ -616,3 +616,48 @@ fn slashed_proposals_back_to_treasury() {
             assert_eq!(Balances::total_issuance(), initial_total_issuance);
         });
 }
+
+#[test]
+fn test_fees_and_tip_split() {
+    init_logger();
+
+    let alice = AccountKeyring::Alice;
+    let charlie = AccountKeyring::Charlie;
+
+    ExtBuilder::default()
+        .initial_authorities(vec![(
+            alice.into(),
+            charlie.into(),
+            alice.public(),
+            ed25519::Pair::from_string("//Alice", None)
+                .unwrap()
+                .public(),
+            alice.public(),
+            alice.public(),
+        )])
+        .stash(STASH)
+        .endowment(ENDOWMENT)
+        .endowed_accounts(vec![])
+        .root(alice.into())
+        .build()
+        .execute_with(|| {
+            let fee = Balances::issue(10);
+            let tip = Balances::issue(20);
+
+            assert_eq!(
+                Balances::free_balance(Treasury::account_id()),
+                EXISTENTIAL_DEPOSIT
+            );
+            assert_eq!(Balances::free_balance(alice.to_account_id()), STASH);
+
+            DealWithFees::on_unbalanceds(vec![fee, tip].into_iter());
+
+            // Author gets 100% of tip and 50% of fee = 25
+            assert_eq!(Balances::free_balance(alice.to_account_id()), STASH + 25);
+            // Treasury gets 50% of fee
+            assert_eq!(
+                Balances::free_balance(Treasury::account_id()),
+                EXISTENTIAL_DEPOSIT + 5
+            );
+        });
+}
