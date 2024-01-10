@@ -124,7 +124,7 @@ pub fn wake_delayed(message_id: MessageId, delay: u32) -> Result<()> {
 /// }
 /// ```
 #[allow(warnings)]
-#[deprecated]
+#[deprecated = "Rent program logic is deprecated. The function is now a no-op and will be removed soon."]
 pub fn pay_program_rent(program_id: ActorId, value: u128) -> Result<(u128, u32)> {
     Ok(gcore::exec::pay_program_rent(program_id.into(), value)?)
 }

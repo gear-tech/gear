@@ -160,7 +160,7 @@ fn process(syscall_kind: Kind) {
             let actual_mid: [u8; 32] = msg::id().into();
             assert_eq!(expected_mid, actual_mid, "Kind::MessageId: mid test failed");
         }
-        #[allow(warnings)]
+        #[allow(deprecated)]
         Kind::PayProgramRent(program_id, rent, expected) => {
             let (unused_value, paid_block_count) = exec::pay_program_rent(program_id.into(), rent)
                 .expect(super::PAY_PROGRAM_RENT_EXPECT);

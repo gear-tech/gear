@@ -420,7 +420,7 @@ pub fn program_id() -> ActorId {
 /// }
 /// ```
 #[allow(warnings)]
-#[deprecated]
+#[deprecated = "Rent program logic is deprecated. The function is now a no-op and will be removed soon."]
 pub fn pay_program_rent(program_id: ActorId, value: u128) -> Result<(u128, u32)> {
     let rent_pid = HashWithValue {
         hash: program_id.0,

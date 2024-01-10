@@ -80,7 +80,7 @@ use manager::{CodeInfo, QueuePostProcessingData};
 use pallet_gear_voucher::{PrepaidCall, PrepaidCallsDispatcher};
 use primitive_types::H256;
 use sp_runtime::{
-    traits::{One, Saturating, UniqueSaturatedInto, Zero},
+    traits::{Bounded, One, Saturating, UniqueSaturatedInto, Zero},
     SaturatedConversion,
 };
 use sp_std::{
@@ -1199,7 +1199,7 @@ pub mod pallet {
             let program_event = Event::ProgramChanged {
                 id: program_id,
                 change: ProgramChangeKind::ProgramSet {
-                    expiration: u64::MAX.unique_saturated_into(),
+                    expiration: BlockNumberFor::<T>::max_value(),
                 },
             };
 
