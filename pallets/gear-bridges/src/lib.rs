@@ -29,6 +29,9 @@ mod tests;
 pub use pallet::*;
 
 use frame_support::traits::StorageVersion;
+use gear_core::ids::BuiltinId;
+use pallet_gear_builtin_actor::BuiltinActor;
+use sp_runtime::traits::Zero;
 
 /// The current storage version.
 pub(crate) const STORAGE_VERSION: StorageVersion = StorageVersion::new(0);

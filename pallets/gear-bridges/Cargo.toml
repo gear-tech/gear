@@ -10,11 +10,14 @@ repository.workspace = true
 [dependencies]
 parity-scale-codec = { workspace = true, features = ["derive"] }
 scale-info = { workspace = true, features = ["derive"] }
+gear-core.workspace = true
 
 frame-support.workspace = true
 frame-system.workspace = true
 sp-runtime.workspace = true
 sp-std.workspace = true
+
+pallet-gear-builtin-actor.workspace = true
 
 [dev-dependencies]
 sp-io.workspace = true

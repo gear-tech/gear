@@ -7602,6 +7602,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "pallet-gear-bridges"
+version = "1.0.5"
+dependencies = [
+ "frame-support",
+ "frame-system",
+ "gear-common",
+ "gear-core",
+ "pallet-balances",
+ "pallet-gear-builtin-actor",
+ "parity-scale-codec",
+ "primitive-types",
+ "scale-info",
+ "sp-io",
+ "sp-runtime",
+ "sp-std 8.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v1.0.0-canary)",
+]
+
+[[package]]
 name = "pallet-gear-builtin-actor"
 version = "1.0.5"
 dependencies = [
@@ -13544,6 +13562,7 @@ dependencies = [
  "pallet-election-provider-multi-phase",
  "pallet-gear",
  "pallet-gear-bank",
+ "pallet-gear-bridges",
  "pallet-gear-builtin-actor",
  "pallet-gear-builtin-actor-rpc-runtime-api",
  "pallet-gear-debug",

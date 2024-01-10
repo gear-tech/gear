@@ -89,7 +89,7 @@ members = [
     "pallets/*",
     "runtime/*",
     "utils/*",
-    "utils/runtime-fuzzer/fuzz"
+    "utils/runtime-fuzzer/fuzz",
 ]
 
 [workspace.dependencies]
@@ -185,7 +185,7 @@ gcore = { path = "gcore" }
 gcli = { path = "gcli" }
 gclient = { path = "gclient" }
 gsdk = { path = "gsdk" }
-gstd = { path = "gstd", features = [ "nightly" ] }
+gstd = { path = "gstd", features = ["nightly"] }
 gsys = { path = "gsys" }
 gtest = { path = "gtest" }
 gmeta = { path = "gmeta" }
@@ -233,6 +233,7 @@ pallet-gear-bank = { path = "pallets/gear-bank", default-features = false }
 pallet-gear-builtin-actor = { path = "pallets/gear-builtin-actor", default-features = false }
 pallet-gear-builtin-actor-rpc = { path = "pallets/gear-builtin-actor/rpc" }
 pallet-gear-builtin-actor-rpc-runtime-api = { path = "pallets/gear-builtin-actor/rpc/runtime-api", default-features = false }
+pallet-gear-bridges = { path = "pallets/gear-bridges", default-features = false }
 runtime-common = { package = "gear-runtime-common", path = "runtime/common", default-features = false }
 runtime-primitives = { package = "gear-runtime-primitives", path = "runtime/primitives", default-features = false }
 service = { package = "gear-service", path = "node/service", default-features = false }
@@ -241,7 +242,9 @@ vara-runtime = { path = "runtime/vara", default-features = false }
 wasm-smith = { version = "0.12.21", git = "https://github.com/gear-tech/wasm-tools.git", branch = "gear-stable" }
 
 # Common executors between `sandbox-host` and `calc-stack-height`
-sandbox-wasmer = { package = "wasmer", version = "2.2", features = ["singlepass"] }
+sandbox-wasmer = { package = "wasmer", version = "2.2", features = [
+    "singlepass",
+] }
 sandbox-wasmer-types = { package = "wasmer-types", version = "2.2" }
 
 # Substrate deps
@@ -303,7 +306,9 @@ sp-debug-derive = { version = "8.0.0", git = "https://github.com/gear-tech/subst
 sc-chain-spec = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v1.0.0-canary" }
 sc-cli = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v1.0.0-canary" }
 sc-client-api = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v1.0.0-canary" }
-sc-client-db = { version = "0.10.0-dev", features = ["rocksdb"], git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v1.0.0-canary" }
+sc-client-db = { version = "0.10.0-dev", features = [
+    "rocksdb",
+], git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v1.0.0-canary" }
 sc-executor = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v1.0.0-canary" }
 sc-executor-common = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v1.0.0-canary" }
 sc-consensus-grandpa = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v1.0.0-canary" }
@@ -383,7 +388,9 @@ demo-compose = { path = "examples/compose" }
 demo-constructor = { path = "examples/constructor", default-features = false }
 demo-delayed-sender = { path = "examples/delayed-sender" }
 demo-distributor = { path = "examples/distributor" }
-demo-futures-unordered = { path = "examples/futures-unordered", features = ["debug"] }
+demo-futures-unordered = { path = "examples/futures-unordered", features = [
+    "debug",
+] }
 demo-gas-burned = { path = "examples/gas-burned" }
 demo-fungible-token = { path = "examples/fungible-token" }
 demo-incomplete-async-payloads = { path = "examples/incomplete-async-payloads" }
@@ -423,40 +430,40 @@ demo-wat = { path = "examples/wat" }
 # Dependencies that only used in one package
 #
 # TODO: remove these dependencies (from this file?) or add more docs.
-cfg-if = "1.0.0"                                                          # gear-lazy-pages
-errno = "0.3"                                                             # gear-lazy-pages
-nix = "0.26.4"                                                            # gear-lazy-pages
-indexmap = "2.1.0"                                                        # utils/weight-diff
-indicatif = "*"                                                           # utils/wasm-gen
-keyring = "1.2.1"                                                         # gcli
-libp2p = "=0.50.1"                                                        # gcli (same version as sc-consensus)
-mimalloc = { version = "0.1.39", default-features = false }               # node/cli
-nacl = "0.5.3"                                                            # gcli
-nonempty = "0.8.1"                                                        # utils/utils
-libfuzzer-sys = "0.4"                                                     # utils/runtime-fuzzer/fuzz
-page_size = { version = "0.6", default-features = false }                 # pallets/gear
-pathdiff = { version = "0.2.1", default-features = false }                # utils/wasm-builder
-rand_pcg = "0.3.1"                                                        # pallets/gear
-schnorrkel = "0.9.1"                                                      # gcli
-scopeguard = { version = "1.2.0", default-features = false }              # pallets/gear
-tabled = "0.10.0"                                                         # utils/regression-analysis
-thousands = "0.2.0"                                                       # utils/regression-analysis
-toml = "0.7.8"                                                            # utils/wasm-builder
-tracing = "0.1.40"                                                        # utils/node-loder
-tracing-appender = "0.2"                                                  # utils/node-loder
-tracing-subscriber = "0.3.18"                                             # utils/node-loder
-trybuild = "1"                                                            # gstd/codegen
-wasm-opt = "0.112.0"                                                      # utils/wasm-builder
-wasmprinter = "0.2"                                                       # utils/wasm-gen
-whoami = "1.4.0"                                                          # gcli
-fail = "0.5"                                                              # gear-common
-scale-value = "^0.12"                                                     # gsdk
-heck = "0.4.1"                                                            # gsdk-api-gen
-etc = "0.1.16"                                                            # gcli
-toml_edit = "0.21.0"                                                      # crates-io
-scale-decode = "0.9.0"                                                    # gsdk
-directories = "5.0.1"                                                     # utils/key-finder
-num-traits = { version = "0.2", default-features = false }                # gear-core
+cfg-if = "1.0.0"                                             # gear-lazy-pages
+errno = "0.3"                                                # gear-lazy-pages
+nix = "0.26.4"                                               # gear-lazy-pages
+indexmap = "2.1.0"                                           # utils/weight-diff
+indicatif = "*"                                              # utils/wasm-gen
+keyring = "1.2.1"                                            # gcli
+libp2p = "=0.50.1"                                           # gcli (same version as sc-consensus)
+mimalloc = { version = "0.1.39", default-features = false }  # node/cli
+nacl = "0.5.3"                                               # gcli
+nonempty = "0.8.1"                                           # utils/utils
+libfuzzer-sys = "0.4"                                        # utils/runtime-fuzzer/fuzz
+page_size = { version = "0.6", default-features = false }    # pallets/gear
+pathdiff = { version = "0.2.1", default-features = false }   # utils/wasm-builder
+rand_pcg = "0.3.1"                                           # pallets/gear
+schnorrkel = "0.9.1"                                         # gcli
+scopeguard = { version = "1.2.0", default-features = false } # pallets/gear
+tabled = "0.10.0"                                            # utils/regression-analysis
+thousands = "0.2.0"                                          # utils/regression-analysis
+toml = "0.7.8"                                               # utils/wasm-builder
+tracing = "0.1.40"                                           # utils/node-loder
+tracing-appender = "0.2"                                     # utils/node-loder
+tracing-subscriber = "0.3.18"                                # utils/node-loder
+trybuild = "1"                                               # gstd/codegen
+wasm-opt = "0.112.0"                                         # utils/wasm-builder
+wasmprinter = "0.2"                                          # utils/wasm-gen
+whoami = "1.4.0"                                             # gcli
+fail = "0.5"                                                 # gear-common
+scale-value = "^0.12"                                        # gsdk
+heck = "0.4.1"                                               # gsdk-api-gen
+etc = "0.1.16"                                               # gcli
+toml_edit = "0.21.0"                                         # crates-io
+scale-decode = "0.9.0"                                       # gsdk
+directories = "5.0.1"                                        # utils/key-finder
+num-traits = { version = "0.2", default-features = false }   # gear-core
 
 # TODO: remove after wasmer bug is fixed:
 # `misaligned pointer dereference: address must be a multiple of 0x8 but is...`
