@@ -7605,6 +7605,7 @@ dependencies = [
 name = "pallet-gear-bridges"
 version = "1.0.5"
 dependencies = [
+ "frame-benchmarking",
  "frame-support",
  "frame-system",
  "gear-common",

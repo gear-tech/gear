@@ -14,6 +14,7 @@ gear-core.workspace = true
 
 frame-support.workspace = true
 frame-system.workspace = true
+frame-benchmarking = { workspace = true, optional = true }
 sp-runtime.workspace = true
 sp-std.workspace = true
 
@@ -26,10 +27,19 @@ primitive-types.workspace = true
 pallet-balances.workspace = true
 
 [features]
+std = [
+    "frame-support/std",
+    "frame-system/std",
+    "frame-benchmarking?/std",
+    "pallet-balances/std",
+    "sp-runtime/std",
+    "sp-std/std",
+    "pallet-gear-builtin-actor/std",
+]
 default = ['std']
-std = ["frame-support/std", "frame-system/std", "pallet-balances/std"]
 runtime-benchmarks = [
     "frame-support/runtime-benchmarks",
     "frame-system/runtime-benchmarks",
+    "frame-benchmarking/runtime-benchmarks",
 ]
 try-runtime = ["frame-support/try-runtime", "frame-system/try-runtime"]

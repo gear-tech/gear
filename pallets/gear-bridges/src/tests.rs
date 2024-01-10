@@ -18,11 +18,17 @@
 
 use crate::{mock::*, Error};
 use frame_support::{assert_noop, assert_ok, traits::Hooks, weights::Weight};
+use pallet_gear_builtin_actor::{
+    BuiltinActor, BuiltinRouter, Pallet as BuiltinActorPallet, RegisteredBuiltinActor,
+};
 
 impl<T> PartialEq for Error<T> {
     fn eq(&self, other: &Self) -> bool {
         match self {
             Self::QueueOverflow => matches!(other, Error::<T>::QueueOverflow),
+            Self::MessagePayloadLengthExceeded => {
+                matches!(other, Error::<T>::MessagePayloadLengthExceeded)
+            }
             Self::__Ignore(_, _) => unimplemented!(),
         }
     }
@@ -64,5 +70,21 @@ fn correct_message_movement_order() {
                 );
             assert_eq!(Some(message_hash), GearBridges::pending_bridging());
         }
+    });
+}
+
+#[test]
+fn message_sent_over_builtin_actor_works() {
+    let _ = new_test_ext().execute_with(|| {
+        type BuiltinActorTest = BuiltinActorPallet<Test>;
+
+        let program_id = BuiltinActorTest::generate_actor_id(
+            <crate::Pallet<Test> as RegisteredBuiltinActor<Vec<u8>, u64>>::ID,
+        );
+        let builtin_id = BuiltinActorTest::lookup(&program_id).unwrap();
+        let result =
+            <Test as pallet_gear_builtin_actor::Config>::BuiltinActor::handle(builtin_id, vec![]);
+
+        assert_ok!(result.0);
     });
 }

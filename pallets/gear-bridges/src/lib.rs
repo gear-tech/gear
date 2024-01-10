@@ -26,12 +26,16 @@ mod mock;
 #[cfg(test)]
 mod tests;
 
+#[cfg(feature = "runtime-benchmarks")]
+mod benchmarking;
+
 pub use pallet::*;
 
-use frame_support::traits::StorageVersion;
+use frame_support::traits::{Get, StorageVersion};
 use gear_core::ids::BuiltinId;
 use pallet_gear_builtin_actor::BuiltinActor;
-use sp_runtime::traits::Zero;
+use parity_scale_codec::Encode;
+use sp_std::prelude::*;
 
 /// The current storage version.
 pub(crate) const STORAGE_VERSION: StorageVersion = StorageVersion::new(0);
@@ -41,13 +45,11 @@ pub mod pallet {
     use super::*;
     use frame_support::{
         pallet_prelude::{BoundedVec, Hooks, MaxEncodedLen, OptionQuery, StorageValue, ValueQuery},
-        traits::Get,
         weights::Weight,
         Parameter,
     };
     use frame_system::pallet_prelude::BlockNumberFor;
     use sp_runtime::traits::Hash;
-
     // Bridges pallet.
     #[pallet::pallet]
     #[pallet::storage_version(STORAGE_VERSION)]
@@ -58,6 +60,8 @@ pub mod pallet {
     pub trait Config: frame_system::Config {
         // Limit of message queue length.
         type MaxQueueLength: Get<u32>;
+        // Limit of message payload length.
+        type MaxPayloadLength: Get<u32>;
         // Hasher used to store messages in queue.
         type Hasher: Hash<Output = Self::HashOut>;
         // Hash type used in message queue.
@@ -69,6 +73,8 @@ pub mod pallet {
     pub enum Error<T> {
         /// Too much messages in queue.
         QueueOverflow,
+        /// Too big message payload.
+        MessagePayloadLengthExceeded,
     }
 
     #[pallet::storage]
@@ -87,8 +93,11 @@ pub mod pallet {
     }
 
     impl<T: Config> Pallet<T> {
-        // TODO: To be called by built-in actor.
         pub fn submit_message(message: &[u8]) -> Result<(), Error<T>> {
+            if message.len() > (T::MaxPayloadLength::get() as usize) {
+                return Err(Error::MessagePayloadLengthExceeded);
+            }
+
             let hash = T::Hasher::hash(message);
             Queue::<T>::try_append(hash).map_err(|_| Error::QueueOverflow)
         }
@@ -108,5 +117,19 @@ pub mod pallet {
 
             remaining_weight
         }
+    }
+}
+
+impl<T: Config> BuiltinActor<Vec<u8>, u64> for Pallet<T> {
+    fn handle(
+        builtin_id: BuiltinId,
+        payload: Vec<u8>,
+    ) -> (pallet_gear_builtin_actor::BuiltinResult<Vec<u8>>, u64) {
+        let result = Self::submit_message(&payload);
+        (Ok(result.encode()), 0)
+    }
+
+    fn max_gas_cost(builtin_id: BuiltinId) -> u64 {
+        panic!()
     }
 }
