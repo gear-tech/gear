@@ -15,7 +15,6 @@ parity-scale-codec.workspace = true
 gtest.workspace = true
 rand_pcg.workspace = true
 rand.workspace = true
-static_assertions.workspace = true
 
 [build-dependencies]
 gear-wasm-builder.workspace = true

@@ -166,8 +166,5 @@ pub use gstd_codegen::{async_init, async_main};
 pub use prelude::*;
 pub use reservations::*;
 
-use core::mem::size_of;
-use static_assertions::const_assert;
-
 // This allows all casts from u32 into usize be safe.
-const_assert!(size_of::<u32>() <= size_of::<usize>());
+const _: () = assert!(core::mem::size_of::<u32>() <= core::mem::size_of::<usize>());

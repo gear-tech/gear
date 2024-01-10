@@ -15,7 +15,7 @@ arrayvec = { version = "0.7.4", default-features = false, optional = true }
 document-features = { version = "0.2.7", optional = true }
 galloc.workspace = true
 gcore = { workspace = true, features = ["codec"] }
-gstd-codegen = { path = "codegen" }
+gstd-codegen.workspace = true
 gear-core-errors.workspace = true
 hashbrown.workspace = true
 bs58 = { workspace = true, features = ["alloc"] }
@@ -25,8 +25,6 @@ primitive-types = { workspace = true, features = ["scale-info"] }
 rustversion = { version = "1.0", optional = true }
 scale-info = { workspace = true, features = ["derive"] }
 futures = { workspace = true, features = ["alloc"] }
-
-static_assertions.workspace = true
 
 [dev-dependencies]
 rustversion = "1.0"

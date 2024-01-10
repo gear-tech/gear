@@ -28,19 +28,17 @@ use frame_support::{
     traits::{ConstU64, FindAuthor},
     weights::RuntimeDbWeight,
 };
-use frame_system::{self as system, limits::BlockWeights};
+use frame_system::{self as system, pallet_prelude::BlockNumberFor};
 use sp_core::H256;
 use sp_runtime::{
-    generic,
     traits::{BlakeTwo256, IdentityLookup},
-    Perbill,
+    BuildStorage, Perbill,
 };
 use sp_std::convert::{TryFrom, TryInto};
 
-type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
 type AccountId = u64;
-type BlockNumber = u64;
+pub type BlockNumber = BlockNumberFor<Test>;
 type Balance = u128;
 
 pub(crate) const USER_1: AccountId = 1;
@@ -51,10 +49,7 @@ pub(crate) const BLOCK_AUTHOR: AccountId = 255;
 
 // Configure a mock runtime to test the pallet.
 construct_runtime!(
-    pub enum Test where
-        Block = Block,
-        NodeBlock = Block,
-        UncheckedExtrinsic = UncheckedExtrinsic,
+    pub enum Test
     {
         System: system,
         GearProgram: pallet_gear_program,
@@ -83,8 +78,8 @@ parameter_types! {
 
 // Build genesis storage according to the mock runtime.
 pub fn new_test_ext() -> sp_io::TestExternalities {
-    let mut t = system::GenesisConfig::default()
-        .build_storage::<Test>()
+    let mut t = system::GenesisConfig::<Test>::default()
+        .build_storage()
         .unwrap();
 
     pallet_balances::GenesisConfig::<Test> {
