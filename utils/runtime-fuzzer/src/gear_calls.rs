@@ -44,7 +44,7 @@ use std::mem;
 ///
 /// TODO: #3442
 const MAX_PAYLOAD_SIZE: usize = 1024;
-static_assertions::const_assert!(MAX_PAYLOAD_SIZE <= gear_core::message::MAX_PAYLOAD_SIZE);
+const _: () = assert!(MAX_PAYLOAD_SIZE <= gear_core::message::MAX_PAYLOAD_SIZE);
 
 /// Maximum salt size for the fuzzer - 512 bytes.
 ///
@@ -52,7 +52,7 @@ static_assertions::const_assert!(MAX_PAYLOAD_SIZE <= gear_core::message::MAX_PAY
 /// for one run. Also small salt will make overall size of the
 /// corpus smaller.
 const MAX_SALT_SIZE: usize = 512;
-static_assertions::const_assert!(MAX_SALT_SIZE <= gear_core::message::MAX_PAYLOAD_SIZE);
+const _: () = assert!(MAX_SALT_SIZE <= gear_core::message::MAX_PAYLOAD_SIZE);
 
 const ID_SIZE: usize = mem::size_of::<ProgramId>();
 const GAS_AND_VALUE_SIZE: usize = mem::size_of::<(u64, u128)>();

@@ -23,7 +23,7 @@ use anyhow::Result;
 use cargo_metadata::Package;
 use toml_edit::Document;
 
-/// Get the crates-io name of package.
+/// Get the crates-io name of the provided package.
 pub fn crates_io_name(pkg: &str) -> &str {
     // `gear-core-processor` is taken by others, see the docs
     // of [`core-processor::patch_workspace`] for more details.

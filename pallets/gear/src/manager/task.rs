@@ -17,48 +17,31 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    manager::ExtManager, weights::WeightInfo, Config, DbWeightOf, DispatchStashOf, Event, Pallet,
-    ProgramStorageOf, QueueOf, TaskPoolOf, WaitlistOf,
+    manager::ExtManager, weights::WeightInfo, Config, DispatchStashOf, Event, Pallet, QueueOf,
 };
 use alloc::string::ToString;
 use common::{
     event::{
-        MessageWokenRuntimeReason, MessageWokenSystemReason, ProgramChangeKind, RuntimeReason,
-        SystemReason, UserMessageReadSystemReason,
+        MessageWokenRuntimeReason, MessageWokenSystemReason, RuntimeReason, SystemReason,
+        UserMessageReadSystemReason,
     },
     paused_program_storage::SessionId,
     scheduler::*,
     storage::*,
-    ActiveProgram, Gas, Origin, PausedProgramStorage, Program, ProgramState, ProgramStorage,
+    Gas, Origin,
 };
 use core::cmp;
 use gear_core::{
-    code::MAX_WASM_PAGE_COUNT,
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     message::{DispatchKind, ReplyMessage},
-    pages::{GEAR_PAGE_SIZE, WASM_PAGE_SIZE},
 };
 use gear_core_errors::{ErrorReplyReason, SignalCode};
-use sp_core::Get;
-use sp_runtime::Saturating;
 
 pub fn get_maximum_task_gas<T: Config>(task: &ScheduledTask<T::AccountId>) -> Gas {
     use ScheduledTask::*;
 
     match task {
-        PauseProgram(_) => {
-            // TODO: #3079
-            if <T as Config>::ProgramRentEnabled::get() {
-                let count =
-                    u32::from(MAX_WASM_PAGE_COUNT * (WASM_PAGE_SIZE / GEAR_PAGE_SIZE) as u16 / 2);
-                cmp::max(
-                    <T as Config>::WeightInfo::tasks_pause_program(count).ref_time(),
-                    <T as Config>::WeightInfo::tasks_pause_program_uninited(count).ref_time(),
-                )
-            } else {
-                DbWeightOf::<T>::get().writes(2).ref_time()
-            }
-        }
+        PauseProgram(_) => 0,
         RemoveCode(_) => todo!("#646"),
         RemoveFromMailbox(_, _) => {
             <T as Config>::WeightInfo::tasks_remove_from_mailbox().ref_time()
@@ -79,9 +62,7 @@ pub fn get_maximum_task_gas<T: Config>(task: &ScheduledTask<T::AccountId>) -> Ga
         RemoveGasReservation(_, _) => {
             <T as Config>::WeightInfo::tasks_remove_gas_reservation().ref_time()
         }
-        RemoveResumeSession(_) => {
-            <T as Config>::WeightInfo::tasks_remove_resume_session().ref_time()
-        }
+        RemoveResumeSession(_) => 0,
     }
 }
 
@@ -89,126 +70,10 @@ impl<T: Config> TaskHandler<T::AccountId> for ExtManager<T>
 where
     T::AccountId: Origin,
 {
-    fn pause_program(&mut self, program_id: ProgramId) -> Gas {
-        //
-        // TODO: #3079
-        //
+    fn pause_program(&mut self, _program_id: ProgramId) -> Gas {
+        log::debug!("Program rent logic is disabled.");
 
-        if !<T as Config>::ProgramRentEnabled::get() {
-            log::debug!("Program rent logic is disabled.");
-
-            let expiration_block =
-                ProgramStorageOf::<T>::update_active_program(program_id, |program| {
-                    program.expiration_block = program
-                        .expiration_block
-                        .saturating_add(<T as Config>::ProgramRentDisabledDelta::get());
-
-                    program.expiration_block
-                })
-                .unwrap_or_else(|e| {
-                    unreachable!("PauseProgram task executes only for an active program: {e:?}.")
-                });
-
-            let task = ScheduledTask::PauseProgram(program_id);
-            TaskPoolOf::<T>::add(expiration_block, task)
-                .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
-
-            return DbWeightOf::<T>::get().writes(1).ref_time();
-        }
-
-        let program: ActiveProgram<_> = ProgramStorageOf::<T>::get_program(program_id)
-            .unwrap_or_else(|| unreachable!("Program to pause not found."))
-            .try_into()
-            .unwrap_or_else(|e| unreachable!("Pause program task logic corrupted: {e:?}"));
-
-        let pages_with_data = program.pages_with_data.len() as u32;
-
-        let ProgramState::Uninitialized {
-            message_id: init_message_id,
-        } = program.state
-        else {
-            // pause initialized program
-            let gas_reservation_map =
-                ProgramStorageOf::<T>::pause_program(program_id, Pallet::<T>::block_number())
-                    .unwrap_or_else(|e| unreachable!("Failed to pause program: {:?}", e));
-
-            // clean wait list from the messages
-            let reason = MessageWokenSystemReason::ProgramGotInitialized.into_reason();
-            WaitlistOf::<T>::drain_key(program_id).for_each(|entry| {
-                let message = Pallet::<T>::wake_dispatch_requirements(entry, reason.clone());
-
-                QueueOf::<T>::queue(message)
-                    .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
-            });
-
-            Self::remove_gas_reservation_map(program_id, gas_reservation_map);
-            Pallet::<T>::deposit_event(Event::ProgramChanged {
-                id: program_id,
-                change: ProgramChangeKind::Paused,
-            });
-
-            let gas = <T as Config>::WeightInfo::tasks_pause_program(pages_with_data).ref_time();
-            log::trace!("Task gas: tasks_pause_program = {gas}");
-
-            return gas;
-        };
-
-        // terminate uninitialized program
-
-        // clean wait list from the messages
-        let reason = MessageWokenSystemReason::ProgramGotInitialized.into_reason();
-        let origin = WaitlistOf::<T>::drain_key(program_id)
-            .fold(None, |maybe_origin, entry| {
-                let message = Pallet::<T>::wake_dispatch_requirements(entry, reason.clone());
-                let result = match maybe_origin {
-                    Some(_) => maybe_origin,
-                    None if init_message_id == message.message().id() => {
-                        Some(message.message().source())
-                    }
-                    _ => None,
-                };
-
-                QueueOf::<T>::queue(message)
-                    .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
-
-                result
-            })
-            .unwrap_or_else(|| unreachable!("Failed to find init-message."));
-
-        ProgramStorageOf::<T>::waiting_init_remove(program_id);
-
-        // set program status to Terminated
-        ProgramStorageOf::<T>::update_program_if_active(program_id, |p, _bn| {
-            match p {
-                Program::Active(program) => {
-                    Self::remove_gas_reservation_map(
-                        program_id,
-                        core::mem::take(&mut program.gas_reservation_map),
-                    );
-
-                    Self::clean_inactive_program(program_id, program.memory_infix, origin);
-                }
-                _ => unreachable!("Action executed only for active program"),
-            }
-
-            *p = Program::Terminated(origin);
-        })
-        .unwrap_or_else(|e| {
-            unreachable!(
-                "Program terminated status may only be set to an existing active program: {e:?}"
-            );
-        });
-
-        Pallet::<T>::deposit_event(Event::ProgramChanged {
-            id: program_id,
-            change: ProgramChangeKind::Terminated,
-        });
-
-        let gas =
-            <T as Config>::WeightInfo::tasks_pause_program_uninited(pages_with_data).ref_time();
-        log::trace!("Task gas: tasks_pause_program_uninited = {gas}");
-
-        gas
+        0
     }
 
     fn remove_code(&mut self, _code_id: CodeId) -> Gas {
@@ -408,13 +273,7 @@ where
         gas
     }
 
-    fn remove_resume_session(&mut self, session_id: SessionId) -> Gas {
-        ProgramStorageOf::<T>::remove_resume_session(session_id)
-            .unwrap_or_else(|e| unreachable!("ProgramStorage corrupted! {:?}", e));
-
-        let gas = <T as Config>::WeightInfo::tasks_remove_resume_session().ref_time();
-        log::trace!("Task gas: tasks_remove_resume_session = {gas}");
-
-        gas
+    fn remove_resume_session(&mut self, _session_id: SessionId) -> Gas {
+        0
     }
 }
