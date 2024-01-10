@@ -474,7 +474,7 @@ extern "C" {
         err_mid_pid: *mut ErrorWithTwoHashes,
     );
 
-    /// Fallible `gr_reply_deposit` syscall.
+    /// Fallible `gr_reply_deposit` control syscall.
     ///
     /// Arguments type:
     /// - `message_id`: `const ptr` for message id.
@@ -539,6 +539,7 @@ extern "C" {
     /// Arguments type:
     /// - `rent_pid`: `const ptr` for program id and rent value.
     /// - `err_bn_value`: `mut ptr` for concatenated error code, paid block count and unused rent value.
+    #[deprecated]
     pub fn gr_pay_program_rent(
         rent_pid: *const HashWithValue,
         err_bn_value: *mut ErrorWithBlockNumberAndValue,

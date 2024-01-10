@@ -37,13 +37,14 @@ pub mod pallet {
     use frame_support::{dispatch::DispatchResultWithPostInfo, pallet_prelude::*};
     use frame_system::pallet_prelude::*;
     use gear_core::{
-        ids::{CodeId, ProgramId},
+        ids::ProgramId,
         memory::PageBuf,
         message::{StoredDispatch, StoredMessage},
         pages::{GearPage, PageU32Size, WasmPage},
     };
     use primitive_types::H256;
     use scale_info::TypeInfo;
+    use sp_runtime::Percent;
     use sp_std::{collections::btree_map::BTreeMap, convert::TryInto, prelude::*};
 
     pub(crate) type QueueOf<T> = <<T as Config>::Messenger as Messenger>::Queue;
@@ -64,7 +65,7 @@ pub mod pallet {
         type Messenger: Messenger<QueuedDispatch = StoredDispatch>;
 
         type ProgramStorage: ProgramStorage
-            + IterableMap<(ProgramId, common::Program<Self::BlockNumber>)>;
+            + IterableMap<(ProgramId, common::Program<BlockNumberFor<Self>>)>;
     }
 
     #[pallet::pallet]
@@ -184,8 +185,8 @@ pub mod pallet {
 
         let message = StoredMessage::new(
             msg.id(),
-            ProgramId::from_origin(source),
-            ProgramId::from_origin(destination),
+            source.cast(),
+            destination.cast(),
             (*msg.payload_bytes()).to_vec().try_into().unwrap(),
             msg.value(),
             msg.details(),
@@ -211,8 +212,7 @@ pub mod pallet {
                             }
                         }
                     };
-                    let code_id = CodeId::from_origin(active.code_hash);
-                    let static_pages = match T::CodeStorage::get_code(code_id) {
+                    let static_pages = match T::CodeStorage::get_code(active.code_hash.cast()) {
                         Some(code) => code.static_pages(),
                         None => WasmPage::zero(),
                     };
@@ -280,6 +280,28 @@ pub mod pallet {
             Self::deposit_event(Event::DebugMode(debug_mode_on));
 
             // This extrinsic is not chargeable
+            Ok(Pays::No.into())
+        }
+
+        /// A dummy extrinsic with programmatically set weight.
+        ///
+        /// Used in tests to exhaust block resources.
+        ///
+        /// Parameters:
+        /// - `_fraction`: the fraction of the `max_extrinsic` the extrinsic will use.
+        #[pallet::call_index(1)]
+        #[pallet::weight({
+            if let Some(max) = T::BlockWeights::get().get(DispatchClass::Normal).max_extrinsic {
+                *_fraction * max
+            } else {
+                Weight::zero()
+            }
+        })]
+        pub fn exhaust_block_resources(
+            origin: OriginFor<T>,
+            _fraction: Percent,
+        ) -> DispatchResultWithPostInfo {
+            ensure_root(origin)?;
             Ok(Pays::No.into())
         }
     }

@@ -16,15 +16,17 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Entities describing syscall param, more precisely, it's allowed values.
+//! Entities configuring syscalls params allowed values.
 //!
 //! Types here are used to create [`crate::SyscallsConfig`].
 
 use crate::DEFAULT_INITIAL_SIZE;
 use arbitrary::{Result, Unstructured};
+use gear_utils::NonEmpty;
+use gsys::Hash;
 use std::{collections::HashMap, ops::RangeInclusive};
 
-pub use gear_wasm_instrument::syscalls::ParamType;
+pub use gear_wasm_instrument::syscalls::{HashType, Ptr, RegularParamType};
 
 /// Syscalls params config.
 ///
@@ -32,91 +34,143 @@ pub use gear_wasm_instrument::syscalls::ParamType;
 /// param, that a syscall can have, and allowed values ("rules") for each of
 /// the params.
 ///
+/// The config manages differently memory pointer value params and other kinds
+/// of params, like gas, length, offset and etc.
+///
 /// # Note:
 ///
-/// Configs with some [`ParamType`] variants will not be applied, as we select
-/// values for all memory-related operations in accordance to generated WASM
-/// module parameters:
-///  - [`ParamType::Alloc`] and [`ParamType::Ptr`] will always be ignored.
-///  - [`ParamType::Size`] will be ignored when it means length of some in-memory
-/// array.
+/// By default rules for `Alloc` param *can be, but are not* defined in current
+/// module. That's because this is a param of the memory-related syscall, params
+/// to which must be defined based on the memory configuration of the wasm module.
+/// The client knows more about the memory configuration and possibly allowed values
+/// for the param.
+///
+/// Should be also stated that `Length` param is processed differently, if it's a length
+/// of the memory array read by backend from wasm. In this case, this param value is computed
+/// based on memory size of the wasm module during syscall params processing. For other cases,
+/// the values for the param will regulated by rules, if they are set.
 #[derive(Debug, Clone)]
-pub struct SyscallsParamsConfig(HashMap<ParamType, SyscallParamAllowedValues>);
+pub struct SyscallsParamsConfig {
+    regular: HashMap<RegularParamType, RegularParamAllowedValues>,
+    pub(super) ptr: HashMap<Ptr, PtrParamAllowedValues>,
+}
 
 impl SyscallsParamsConfig {
-    pub fn empty() -> Self {
-        Self(HashMap::new())
+    pub fn new() -> Self {
+        Self {
+            regular: HashMap::new(),
+            ptr: HashMap::new(),
+        }
     }
 
-    /// New [`SyscallsParamsConfig`] with all rules set to produce one constant value.
-    pub fn all_constant_value(value: i64) -> Self {
-        let allowed_values: SyscallParamAllowedValues = (value..=value).into();
-        Self(
-            [
-                ParamType::Length,
-                ParamType::Gas,
-                ParamType::Offset,
-                ParamType::DurationBlockNumber,
-                ParamType::DelayBlockNumber,
-                ParamType::Handler,
-                ParamType::Free,
-                ParamType::Version,
+    pub fn with_default_regular_config(self) -> Self {
+        use RegularParamType::*;
+
+        let free_start = DEFAULT_INITIAL_SIZE as i64;
+        let free_end = free_start + 5;
+
+        // Setting regular params rules.
+        self.with_rule(Length, (0..=1600).into())
+            .with_rule(Gas, (0..=250_000_000_000).into())
+            .with_rule(Offset, (0..=10).into())
+            .with_rule(DurationBlockNumber, (1..=8).into())
+            .with_rule(DelayBlockNumber, (0..=4).into())
+            .with_rule(Handler, (0..=100).into())
+            .with_rule(Free, (free_start..=free_end).into())
+            .with_rule(FreeUpperBound, (0..=10).into())
+            .with_rule(Version, (1..=1).into())
+    }
+
+    pub fn with_default_ptr_config(self) -> Self {
+        let range = 0..=100_000_000_000;
+        // Setting ptr params rules.
+        self.with_ptr_rule(PtrParamAllowedValues::Value(range.clone()))
+            .with_ptr_rule(PtrParamAllowedValues::ActorIdWithValue {
+                actor_kind: ActorKind::default(),
+                range,
+            })
+            .with_ptr_rule(PtrParamAllowedValues::ActorId(ActorKind::default()))
+    }
+
+    /// Set rules for a regular syscall param.
+    pub fn with_rule(
+        mut self,
+        param: RegularParamType,
+        allowed_values: RegularParamAllowedValues,
+    ) -> Self {
+        matches!(param, RegularParamType::Pointer(_))
+            .then(|| panic!("Rules for pointers are defined in `set_ptr_rule` method."));
+
+        self.regular.insert(param, allowed_values);
+
+        self
+    }
+
+    /// Set rules for memory pointer syscall param.
+    pub fn with_ptr_rule(mut self, allowed_values: PtrParamAllowedValues) -> Self {
+        let ptr = match allowed_values {
+            PtrParamAllowedValues::Value(_) => Ptr::Value,
+            PtrParamAllowedValues::ActorIdWithValue { .. } => Ptr::HashWithValue(HashType::ActorId),
+            PtrParamAllowedValues::ActorId(_) => Ptr::Hash(HashType::ActorId),
+        };
+
+        self.ptr.insert(ptr, allowed_values);
+
+        self
+    }
+
+    /// Get allowed values for the regular syscall param.
+    pub fn get_rule(&self, param: RegularParamType) -> Option<RegularParamAllowedValues> {
+        self.regular.get(&param).cloned()
+    }
+
+    /// Get allowed values for the pointer syscall param.
+    pub fn get_ptr_rule(&self, ptr: Ptr) -> Option<PtrParamAllowedValues> {
+        self.ptr.get(&ptr).cloned()
+    }
+}
+
+impl SyscallsParamsConfig {
+    /// New [`SyscallsParamsConfig`] with all rules set to produce one constant value
+    /// for regular (non memory ptr value) params.
+    #[cfg(test)]
+    pub(crate) fn const_regular_params(value: i64) -> Self {
+        use RegularParamType::*;
+
+        let allowed_values: RegularParamAllowedValues = (value..=value).into();
+        Self {
+            regular: [
+                Length,
+                Gas,
+                Offset,
+                DurationBlockNumber,
+                DelayBlockNumber,
+                Handler,
+                Free,
+                FreeUpperBound,
+                Version,
             ]
             .into_iter()
             .map(|param_type| (param_type, allowed_values.clone()))
             .collect(),
-        )
-    }
-
-    /// Get allowed values for the `param`.
-    pub fn get_rule(&self, param: &ParamType) -> Option<SyscallParamAllowedValues> {
-        self.0.get(param).cloned()
-    }
-
-    /// Set allowed values for the `param`.
-    pub fn add_rule(&mut self, param: ParamType, allowed_values: SyscallParamAllowedValues) {
-        matches!(param, ParamType::Ptr(..))
-            .then(|| panic!("ParamType::Ptr(..) isn't supported in SyscallsParamsConfig"));
-
-        self.0.insert(param, allowed_values);
+            ptr: HashMap::new(),
+        }
     }
 }
 
 impl Default for SyscallsParamsConfig {
     fn default() -> Self {
-        let free_start = DEFAULT_INITIAL_SIZE as i64;
-        let free_end = free_start + 5;
-        Self(
-            [
-                (ParamType::Length, (0..=0x10000).into()),
-                // There are no rules for memory arrays and pointers as they are chosen
-                // in accordance to memory pages config.
-                (ParamType::Gas, (0..=250_000_000_000).into()),
-                (ParamType::Offset, (0..=10).into()),
-                (ParamType::DurationBlockNumber, (1..=8).into()),
-                (ParamType::DelayBlockNumber, (0..=4).into()),
-                (ParamType::Handler, (0..=100).into()),
-                (ParamType::Free, (free_start..=free_end).into()),
-                (ParamType::FreeUpperBound, (0..=10).into()),
-                (ParamType::Version, (1..=1).into()),
-            ]
-            .into_iter()
-            .collect(),
-        )
+        Self::new()
+            .with_default_regular_config()
+            .with_default_regular_config()
     }
 }
 
 /// Range of allowed values for the syscall param.
 #[derive(Debug, Clone)]
-pub struct SyscallParamAllowedValues(RangeInclusive<i64>);
+pub struct RegularParamAllowedValues(RangeInclusive<i64>);
 
-impl From<RangeInclusive<i64>> for SyscallParamAllowedValues {
-    fn from(range: RangeInclusive<i64>) -> Self {
-        Self(range)
-    }
-}
-
-impl SyscallParamAllowedValues {
+impl RegularParamAllowedValues {
     /// Zero param value.
     ///
     /// That means that for particular param `0` will be always
@@ -132,15 +186,7 @@ impl SyscallParamAllowedValues {
     pub fn constant(value: i64) -> Self {
         Self(value..=value)
     }
-}
 
-impl Default for SyscallParamAllowedValues {
-    fn default() -> Self {
-        Self::zero()
-    }
-}
-
-impl SyscallParamAllowedValues {
     /// Get i32 value for the param from it's allowed range.
     pub fn get_i32(&self, unstructured: &mut Unstructured) -> Result<i32> {
         let current_range_start = *self.0.start();
@@ -163,5 +209,63 @@ impl SyscallParamAllowedValues {
     /// Get i64 value for the param from it's allowed range.
     pub fn get_i64(&self, unstructured: &mut Unstructured) -> Result<i64> {
         unstructured.int_in_range(self.0.clone())
+    }
+}
+
+impl From<RangeInclusive<i64>> for RegularParamAllowedValues {
+    fn from(range: RangeInclusive<i64>) -> Self {
+        Self(range)
+    }
+}
+
+impl Default for RegularParamAllowedValues {
+    fn default() -> Self {
+        Self::zero()
+    }
+}
+
+/// Allowed values for syscalls pointer params.
+///
+/// Currently it allows defining only actor kinds (`SyscallDestination`)
+/// and message values for syscalls that send messages to actors.
+// TODO #3591 Support other hash types.
+#[derive(Debug, Clone)]
+pub enum PtrParamAllowedValues {
+    Value(RangeInclusive<u128>),
+    ActorIdWithValue {
+        actor_kind: ActorKind,
+        range: RangeInclusive<u128>,
+    },
+    ActorId(ActorKind),
+}
+
+/// Actor kind, which is actually a syscall destination choice.
+///
+/// `gr_send*` and `gr_exit` syscalls generated from this crate can be sent
+/// to different destination in accordance to the config.
+/// It's either to the message source, to some existing known address,
+/// or to some random, most probably non-existing, address.
+#[derive(Debug, Clone, Default)]
+pub enum ActorKind {
+    Source,
+    ExistingAddresses(NonEmpty<Hash>),
+    #[default]
+    Random,
+}
+
+impl ActorKind {
+    /// Check whether syscall destination is a result of `gr_source`.
+    pub fn is_source(&self) -> bool {
+        matches!(&self, ActorKind::Source)
+    }
+
+    /// Check whether syscall destination is defined randomly.
+    pub fn is_random(&self) -> bool {
+        matches!(&self, ActorKind::Random)
+    }
+
+    /// Check whether syscall destination is defined from a collection of existing addresses.
+    pub fn is_existing_addresses(&self) -> bool {
+        matches!(&self, ActorKind::ExistingAddresses(_))
     }
 }

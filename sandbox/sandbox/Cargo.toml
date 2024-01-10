@@ -1,13 +1,13 @@
 [package]
 name = "gear-sandbox"
-version = "0.1.0"
-authors = ["Gear Technologies"]
-edition = "2021"
-license = "GPL-3.0"
-homepage = "https://gear-tech.io"
-repository = "https://github.com/gear-tech/gear"
 description = "This crate provides means to instantiate and execute wasm modules."
 readme = "README.md"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+version.workspace = true
 
 [package.metadata.docs.rs]
 targets = ["x86_64-unknown-linux-gnu"]
@@ -18,7 +18,7 @@ log.workspace = true
 wasmi = { git = "https://github.com/gear-tech/wasmi", branch = "gear-v0.30.0", default-features = false }
 sp-core.workspace = true
 sp-std.workspace = true
-sp-wasm-interface.workspace = true
+sp-wasm-interface-common.workspace = true
 gear-runtime-interface.workspace = true
 gear-sandbox-env.workspace = true
 
@@ -33,7 +33,7 @@ std = [
 	"log/std",
 	"sp-core/std",
 	"sp-std/std",
-	"sp-wasm-interface/std",
+	"sp-wasm-interface-common/std",
 	"gear-runtime-interface/std",
 	"gear-sandbox-env/std",
 	"wasmi/std",

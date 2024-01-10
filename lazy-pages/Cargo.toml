@@ -10,7 +10,7 @@ repository.workspace = true
 
 [dependencies]
 log = { workspace = true, features = ["std"] }
-sp-wasm-interface = { workspace = true, features = ["std"] }
+sp-wasm-interface-common = { workspace = true, features = ["std"] }
 cfg-if.workspace = true
 region.workspace = true
 derive_more.workspace = true

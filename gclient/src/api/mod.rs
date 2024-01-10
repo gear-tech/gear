@@ -106,9 +106,9 @@ impl GearApi {
     }
 
     /// Create and init a new `GearApi` instance that will be used with the
-    /// public Gear testnet.
-    pub async fn gear() -> Result<Self> {
-        Self::init(WSAddress::gear()).await
+    /// public Vara testnet node.
+    pub async fn vara_testnet() -> Result<Self> {
+        Self::init(WSAddress::vara_testnet()).await
     }
 
     /// Create and init a new `GearApi` instance that will be used with the

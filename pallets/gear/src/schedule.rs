@@ -764,7 +764,7 @@ impl Default for Limits {
 impl<T: Config> Default for InstructionWeights<T> {
     fn default() -> Self {
         Self {
-            version: 10,
+            version: 11,
             i64const: cost_instr!(instr_i64const, 1),
             i64load: cost_instr!(instr_i64load, 0),
             i32load: cost_instr!(instr_i32load, 0),
@@ -1070,8 +1070,8 @@ impl<T: Config> Default for MemoryWeights<T> {
         }
 
         const KB_AMOUNT_IN_ONE_GEAR_PAGE: u64 = GEAR_PAGE_SIZE as u64 / KB_SIZE;
-        static_assertions::const_assert!(KB_AMOUNT_IN_ONE_GEAR_PAGE > 0);
-        static_assertions::const_assert!(GEAR_PAGE_SIZE as u64 % KB_SIZE == 0);
+        const _: () = assert!(KB_AMOUNT_IN_ONE_GEAR_PAGE > 0);
+        const _: () = assert!(GEAR_PAGE_SIZE as u64 % KB_SIZE == 0);
 
         Self {
             lazy_pages_signal_read: to_weight!(to_cost_per_gear_page!(lazy_pages_signal_read)),

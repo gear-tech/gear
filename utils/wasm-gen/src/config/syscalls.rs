@@ -22,15 +22,14 @@
 mod injection;
 mod param;
 mod precise;
+mod process_errors;
 
-use gear_utils::NonEmpty;
 use gear_wasm_instrument::syscalls::SyscallName;
-use gsys::{Hash, HashWithValue};
-use std::collections::HashSet;
 
 pub use injection::*;
 pub use param::*;
 pub use precise::*;
+pub use process_errors::*;
 
 use crate::InvocableSyscall;
 
@@ -45,7 +44,6 @@ impl SyscallsConfigBuilder {
             injection_types,
             params_config: SyscallsParamsConfig::default(),
             precise_syscalls_config: PreciseSyscallsConfig::default(),
-            syscall_destination: SyscallDestination::default(),
             error_processing_config: ErrorProcessingConfig::None,
             log_info: None,
         })
@@ -53,6 +51,20 @@ impl SyscallsConfigBuilder {
 
     /// Set config for syscalls params.
     pub fn with_params_config(mut self, params_config: SyscallsParamsConfig) -> Self {
+        use PtrParamAllowedValues::*;
+        for v in params_config.ptr.values() {
+            if let ActorId(actor)
+            | ActorIdWithValue {
+                actor_kind: actor, ..
+            } = v
+            {
+                if actor.is_source() {
+                    self.0
+                        .injection_types
+                        .enable_syscall_import(InvocableSyscall::Loose(SyscallName::Source));
+                }
+            }
+        }
         self.0.params_config = params_config;
 
         self
@@ -64,29 +76,6 @@ impl SyscallsConfigBuilder {
         precise_syscalls_config: PreciseSyscallsConfig,
     ) -> Self {
         self.0.precise_syscalls_config = precise_syscalls_config;
-
-        self
-    }
-
-    /// Set whether syscalls with destination param (like `gr_*send*` or `gr_exit`) must use `gr_source` syscall result for a destination param.
-    pub fn with_source_msg_dest(mut self) -> Self {
-        self.0.syscall_destination = SyscallDestination::Source;
-        self.0
-            .injection_types
-            .enable_syscall_import(InvocableSyscall::Loose(SyscallName::Source));
-
-        self
-    }
-
-    /// Set whether syscalls with destination param (like `gr_*send*` or `gr_exit`) must use addresses from `addresses` collection
-    /// for a destination param.
-    pub fn with_addresses_msg_dest<T: Into<Hash>>(mut self, addresses: NonEmpty<T>) -> Self {
-        let addresses = NonEmpty::collect(addresses.into_iter().map(|pid| HashWithValue {
-            hash: pid.into(),
-            value: 0,
-        }))
-        .expect("collected from non empty");
-        self.0.syscall_destination = SyscallDestination::ExistingAddresses(addresses);
 
         self
     }
@@ -105,7 +94,7 @@ impl SyscallsConfigBuilder {
     }
 
     /// Setup fallible syscalls error processing options.
-    pub fn set_error_processing_config(mut self, config: ErrorProcessingConfig) -> Self {
+    pub fn with_error_processing_config(mut self, config: ErrorProcessingConfig) -> Self {
         self.0.error_processing_config = config;
 
         self
@@ -117,37 +106,12 @@ impl SyscallsConfigBuilder {
     }
 }
 
-#[derive(Debug, Clone, Default)]
-pub enum ErrorProcessingConfig {
-    /// Process errors on all the fallible syscalls.
-    All,
-    /// Process only errors on provided syscalls.
-    Whitelist(HashSet<InvocableSyscall>),
-    /// Process errors on all the syscalls excluding provided.
-    Blacklist(HashSet<InvocableSyscall>),
-    /// Don't process syscall errors at all.
-    #[default]
-    None,
-}
-
-impl ErrorProcessingConfig {
-    pub fn error_should_be_processed(&self, syscall: &InvocableSyscall) -> bool {
-        match self {
-            Self::All => true,
-            Self::Whitelist(wl) => wl.contains(syscall),
-            Self::Blacklist(bl) => !bl.contains(syscall),
-            Self::None => false,
-        }
-    }
-}
-
 /// United config for all entities in syscalls generator module.
 #[derive(Debug, Clone, Default)]
 pub struct SyscallsConfig {
     injection_types: SyscallsInjectionTypes,
     params_config: SyscallsParamsConfig,
     precise_syscalls_config: PreciseSyscallsConfig,
-    syscall_destination: SyscallDestination,
     error_processing_config: ErrorProcessingConfig,
     log_info: Option<String>,
 }
@@ -156,13 +120,6 @@ impl SyscallsConfig {
     /// Get possible number of times (range) the syscall can be injected in the wasm.
     pub fn injection_types(&self, name: InvocableSyscall) -> SyscallInjectionType {
         self.injection_types.get(name)
-    }
-
-    /// Get defined syscall destination for `gr_send*` and `gr_exit` syscalls.
-    ///
-    /// For more info, read [`SyscallDestination`].
-    pub fn syscall_destination(&self) -> &SyscallDestination {
-        &self.syscall_destination
     }
 
     /// Get defined log info.
@@ -185,36 +142,5 @@ impl SyscallsConfig {
     /// Error processing config for fallible syscalls.
     pub fn error_processing_config(&self) -> &ErrorProcessingConfig {
         &self.error_processing_config
-    }
-}
-
-/// Syscall destination choice.
-///
-/// `gr_send*` and `gr_exit` syscalls generated from this crate can be sent
-/// to different destination in accordance to the config.
-/// It's either to the message source, to some existing known address,
-/// or to some random, most probably non-existing, address.
-#[derive(Debug, Clone, Default)]
-pub enum SyscallDestination {
-    Source,
-    ExistingAddresses(NonEmpty<HashWithValue>),
-    #[default]
-    Random,
-}
-
-impl SyscallDestination {
-    /// Check whether syscall destination is a result of `gr_source`.
-    pub fn is_source(&self) -> bool {
-        matches!(&self, SyscallDestination::Source)
-    }
-
-    /// Check whether syscall destination is defined randomly.
-    pub fn is_random(&self) -> bool {
-        matches!(&self, SyscallDestination::Random)
-    }
-
-    /// Check whether syscall destination is defined from a collection of existing addresses.
-    pub fn is_existing_addresses(&self) -> bool {
-        matches!(&self, SyscallDestination::ExistingAddresses(_))
     }
 }

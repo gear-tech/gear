@@ -8,9 +8,8 @@ homepage.workspace = true
 repository.workspace = true
 
 [dependencies]
-gstd = { workspace = true, features = [
-    "debug",
-] } # debug is used here, because `signal_backend_error_invalid_debug_works` test in `pallet-gear` requires it to be working correctly in release mode
+gcore.workspace = true
+gstd.workspace = true
 parity-scale-codec.workspace = true
 gear-core.workspace = true
 
@@ -22,5 +21,6 @@ gtest.workspace = true
 
 [features]
 debug = ["gstd/debug"]
-std = []
+wasm-wrapper = []
+std = ["wasm-wrapper", "parity-scale-codec/std"]
 default = ["std"]

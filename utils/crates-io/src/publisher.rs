@@ -18,18 +18,15 @@
 
 //! Packages publisher
 
-use crate::{rename, ManifestWithPath, PACKAGES, SAFE_DEPENDENCIES, STACKED_DEPENDENCIES};
+use crate::{Manifest, PACKAGES, SAFE_DEPENDENCIES, STACKED_DEPENDENCIES};
 use anyhow::Result;
-use cargo_metadata::{Metadata, MetadataCommand};
-use std::{
-    collections::{BTreeMap, HashMap},
-    fs,
-};
+use cargo_metadata::{Metadata, MetadataCommand, Package};
+use std::collections::{BTreeMap, HashMap};
 
 /// crates-io packages publisher.
 pub struct Publisher {
     metadata: Metadata,
-    graph: BTreeMap<Option<usize>, ManifestWithPath>,
+    graph: BTreeMap<Option<usize>, Manifest>,
     index: HashMap<String, usize>,
 }
 
@@ -62,27 +59,34 @@ impl Publisher {
     /// 1. Replace git dependencies to crates-io dependencies.
     /// 2. Rename version of all local packages
     /// 3. Patch dependencies if needed
-    pub fn build(mut self) -> Result<Self> {
-        let workspace = ManifestWithPath::workspace()?;
-        for p in &self.metadata.packages {
-            if !self.index.contains_key(&p.name) {
+    pub fn build(mut self, version: Option<String>) -> Result<Self> {
+        let index = self.index.keys().map(|s| s.as_ref()).collect::<Vec<_>>();
+        let mut workspace = Manifest::workspace()?.with_version(version)?;
+        let version = workspace.version()?;
+
+        for pkg @ Package { name, .. } in &self.metadata.packages {
+            if !index.contains(&name.as_ref()) {
                 continue;
             }
 
-            let version = p.version.to_string();
-            println!("Verifying {}@{} ...", &p.name, &version);
-            if crate::verify(&p.name, &version)? {
-                println!("Package {}@{} already published .", &p.name, &version);
+            println!("Verifying {}@{} ...", &name, &version);
+            if crate::verify(name, &version)? {
+                println!("Package {}@{} already published .", &name, &version);
                 continue;
             }
-
-            let mut manifest = workspace.manifest(&p.manifest_path)?;
-            rename::package(p, &mut manifest.manifest)?;
-            rename::deps(&mut manifest.manifest, self.index.keys().collect(), version)?;
 
             self.graph
-                .insert(self.index.get(&p.name).cloned(), manifest);
+                .insert(self.index.get(name).cloned(), workspace.manifest(pkg)?);
         }
+
+        // Flush new manifests to disk
+        workspace.complete_versions(&index)?;
+        let mut manifests = self.graph.values().collect::<Vec<_>>();
+        manifests.push(&workspace);
+        manifests
+            .iter()
+            .map(|m| m.write())
+            .collect::<Result<Vec<_>>>()?;
 
         Ok(self)
     }
@@ -91,10 +95,8 @@ impl Publisher {
     ///
     /// TODO: Complete the check process (#3565)
     pub fn check(&self) -> Result<()> {
-        self.flush()?;
-
         let mut failed = Vec::new();
-        for ManifestWithPath { path, name, .. } in self.graph.values() {
+        for Manifest { path, name, .. } in self.graph.values() {
             if !PACKAGES.contains(&name.as_str()) {
                 continue;
             }
@@ -115,23 +117,12 @@ impl Publisher {
 
     /// Publish packages
     pub fn publish(&self) -> Result<()> {
-        self.flush()?;
-
-        for ManifestWithPath { path, .. } in self.graph.values() {
+        for Manifest { path, .. } in self.graph.values() {
             println!("Publishing {path:?}");
             let status = crate::publish(&path.to_string_lossy())?;
             if !status.success() {
                 panic!("Failed to publish package {path:?} ...");
             }
-        }
-
-        Ok(())
-    }
-
-    /// Flush new manifests to disk
-    fn flush(&self) -> Result<()> {
-        for ManifestWithPath { path, manifest, .. } in self.graph.values() {
-            fs::write(path, toml::to_string_pretty(&manifest)?)?;
         }
 
         Ok(())

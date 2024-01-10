@@ -58,21 +58,16 @@ use crate::{
     manager::ExtManager,
     pallet,
     schedule::{API_BENCHMARK_BATCH_SIZE, INSTR_BENCHMARK_BATCH_SIZE},
-    BalanceOf, BenchmarkStorage, Call, Config, CurrencyOf, Event, Ext as Externalities,
-    GasHandlerOf, GearBank, MailboxOf, Pallet as Gear, Pallet, ProgramStorageOf, QueueOf,
-    RentFreePeriodOf, ResumeMinimalPeriodOf, Schedule, TaskPoolOf,
+    BalanceOf, BenchmarkStorage, BlockNumberFor, Call, Config, CurrencyOf, Event,
+    Ext as Externalities, GasHandlerOf, GearBank, MailboxOf, Pallet as Gear, Pallet,
+    ProgramStorageOf, QueueOf, Schedule, TaskPoolOf,
 };
-use ::alloc::{
-    collections::{BTreeMap, BTreeSet},
-    vec,
-};
+use ::alloc::{collections::BTreeMap, vec};
 use common::{
     self, benchmarking,
-    paused_program_storage::SessionId,
     scheduler::{ScheduledTask, TaskHandler},
     storage::{Counter, *},
-    ActiveProgram, CodeMetadata, CodeStorage, GasTree, Origin, PausedProgramStorage,
-    ProgramStorage, ReservableTree,
+    ActiveProgram, CodeMetadata, CodeStorage, GasTree, Origin, ProgramStorage, ReservableTree,
 };
 use core_processor::{
     common::{DispatchOutcome, JournalNote},
@@ -91,7 +86,7 @@ use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
     memory::{AllocationsContext, Memory, PageBuf},
     message::{ContextSettings, DispatchKind, IncomingDispatch, MessageContext},
-    pages::{GearPage, PageU32Size, WasmPage, GEAR_PAGE_SIZE, WASM_PAGE_SIZE},
+    pages::{GearPage, PageU32Size, WasmPage},
     reservation::GasReserver,
 };
 use gear_core_backend::{
@@ -127,7 +122,7 @@ const API_BENCHMARK_BATCHES: u32 = 20;
 const INSTR_BENCHMARK_BATCHES: u32 = 50;
 
 // Initializes new block.
-fn init_block<T: Config>(previous: Option<T::BlockNumber>)
+fn init_block<T: Config>(previous: Option<BlockNumberFor<T>>)
 where
     T::AccountId: Origin,
 {
@@ -193,7 +188,6 @@ fn default_processor_context<T: Config>() -> ProcessorContext {
         existential_deposit: 42,
         program_id: Default::default(),
         program_candidates_data: Default::default(),
-        program_rents: Default::default(),
         host_fn_weights: Default::default(),
         forbidden_funcs: Default::default(),
         mailbox_threshold: 500,
@@ -202,7 +196,6 @@ fn default_processor_context<T: Config>() -> ProcessorContext {
         reserve_for: 0,
         reservation: 0,
         random_data: ([0u8; 32].to_vec(), 0),
-        rent_cost: 0,
         gas_multiplier: gsys::GasMultiplier::from_value_per_gas(30),
     }
 }
@@ -242,13 +235,6 @@ where
         .unwrap_or_else(|e| unreachable!("core-processor logic invalidated: {}", e))
 }
 
-fn get_last_session_id<T: Config>() -> Option<SessionId> {
-    find_latest_event::<T, _, _>(|event| match event {
-        Event::ProgramResumeSessionStarted { session_id, .. } => Some(session_id),
-        _ => None,
-    })
-}
-
 pub fn find_latest_event<T, F, R>(mapping_filter: F) -> Option<R>
 where
     T: Config,
@@ -264,39 +250,6 @@ where
             event.ok()
         })
         .find_map(mapping_filter)
-}
-
-#[track_caller]
-fn resume_session_prepare<T: Config>(
-    c: u32,
-    program_id: ProgramId,
-    program: ActiveProgram<T::BlockNumber>,
-    caller: T::AccountId,
-    memory_page: &PageBuf,
-) -> (SessionId, Vec<(GearPage, PageBuf)>)
-where
-    T::AccountId: Origin,
-{
-    ProgramStorageOf::<T>::pause_program(program_id, 100u32.into()).unwrap();
-
-    Gear::<T>::resume_session_init(
-        RawOrigin::Signed(caller).into(),
-        program_id,
-        program.allocations,
-        CodeId::from_origin(program.code_hash),
-    )
-    .expect("failed to start resume session");
-
-    let memory_pages = {
-        let mut pages = Vec::with_capacity(c as usize);
-        for i in 0..c {
-            pages.push((GearPage::from(i as u16), memory_page.clone()));
-        }
-
-        pages
-    };
-
-    (get_last_session_id::<T>().unwrap(), memory_pages)
 }
 
 /// An instantiated and deployed program.
@@ -380,6 +333,11 @@ benchmarks! {
     #[extra]
     read_big_state {
         syscalls_integrity::read_big_state::<T>();
+    } : {}
+
+    #[extra]
+    signal_stack_limit_exceeded_works {
+        syscalls_integrity::signal_stack_limit_exceeded_works::<T>();
     } : {}
 
     #[extra]
@@ -468,9 +426,9 @@ benchmarks! {
         CurrencyOf::<T>::deposit_creating(&caller, 100_000_000_000_000_u128.unique_saturated_into());
         let program_id = benchmarking::account::<T::AccountId>("program", 0, 100);
         CurrencyOf::<T>::deposit_creating(&program_id, 100_000_000_000_000_u128.unique_saturated_into());
-        let code = benchmarking::generate_wasm2(16.into()).unwrap();
-        benchmarking::set_program::<ProgramStorageOf::<T>, _>(ProgramId::from_origin(program_id.clone().into_origin()), code, 1.into());
-        let original_message_id = MessageId::from_origin(benchmarking::account::<T::AccountId>("message", 0, 100).into_origin());
+        let code = benchmarking::generate_wasm(16.into()).unwrap();
+        benchmarking::set_program::<ProgramStorageOf::<T>, _>(program_id.clone().cast(), code, 1.into());
+        let original_message_id = benchmarking::account::<T::AccountId>("message", 0, 100).cast();
         let gas_limit = 50000;
         let value = 10000u32.into();
         let multiplier = <T as pallet_gear_bank::Config>::GasMultiplier::get();
@@ -479,8 +437,8 @@ benchmarks! {
         GearBank::<T>::deposit_value(&program_id, value, true).unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
         MailboxOf::<T>::insert(gear_core::message::StoredMessage::new(
             original_message_id,
-            ProgramId::from_origin(program_id.into_origin()),
-            ProgramId::from_origin(caller.clone().into_origin()),
+            program_id.cast(),
+            caller.clone().cast(),
             Default::default(),
             value.unique_saturated_into(),
             None,
@@ -493,130 +451,6 @@ benchmarks! {
         assert!(auto_reply.payload_bytes().is_empty());
         assert_eq!(auto_reply.reply_details().expect("Should be").to_reply_code(), ReplyCode::Success(SuccessReplyReason::Auto));
         assert!(MailboxOf::<T>::is_empty(&caller));
-    }
-
-    pay_program_rent {
-        let caller = benchmarking::account("caller", 0, 0);
-        CurrencyOf::<T>::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
-        let minimum_balance = CurrencyOf::<T>::minimum_balance();
-        let code = benchmarking::generate_wasm2(16.into()).unwrap();
-        let salt = vec![];
-        let program_id = ProgramId::generate_from_user(CodeId::generate(&code), &salt);
-        Gear::<T>::upload_program(RawOrigin::Signed(caller.clone()).into(), code, salt, b"init_payload".to_vec(), 10_000_000_000, 0u32.into(), false).expect("submit program failed");
-
-        let block_count = 1_000u32.into();
-
-        init_block::<T>(None);
-    }: _(RawOrigin::Signed(caller.clone()), program_id, block_count)
-    verify {
-        let program: ActiveProgram<_> = ProgramStorageOf::<T>::get_program(program_id)
-            .expect("program should exist")
-            .try_into()
-            .expect("program should be active");
-        assert_eq!(program.expiration_block, RentFreePeriodOf::<T>::get() + block_count);
-    }
-
-    resume_session_init {
-        let caller = benchmarking::account("caller", 0, 0);
-        CurrencyOf::<T>::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
-        let code = benchmarking::generate_wasm2(16.into()).unwrap();
-        let salt = vec![];
-        let program_id = ProgramId::generate_from_user(CodeId::generate(&code), &salt);
-        Gear::<T>::upload_program(RawOrigin::Signed(caller.clone()).into(), code, salt, b"init_payload".to_vec(), 10_000_000_000, 0u32.into(), false).expect("submit program failed");
-
-        init_block::<T>(None);
-
-        let program: ActiveProgram<_> = ProgramStorageOf::<T>::get_program(program_id)
-            .expect("program should exist")
-            .try_into()
-            .expect("program should be active");
-        ProgramStorageOf::<T>::pause_program(program_id, 100u32.into()).unwrap();
-    }: _(RawOrigin::Signed(caller.clone()), program_id, program.allocations, CodeId::from_origin(program.code_hash))
-    verify {
-        assert!(ProgramStorageOf::<T>::paused_program_exists(&program_id));
-        assert!(
-            !Gear::<T>::is_active(program_id)
-        );
-        assert!(!ProgramStorageOf::<T>::program_exists(program_id));
-    }
-
-    resume_session_push {
-        let c in 0 .. 16 * (WASM_PAGE_SIZE / GEAR_PAGE_SIZE) as u32;
-        let caller = benchmarking::account("caller", 0, 0);
-        CurrencyOf::<T>::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
-        let code = benchmarking::generate_wasm2(16.into()).unwrap();
-        let salt = vec![];
-        let program_id = ProgramId::generate_from_user(CodeId::generate(&code), &salt);
-        Gear::<T>::upload_program(RawOrigin::Signed(caller.clone()).into(), code, salt, b"init_payload".to_vec(), 10_000_000_000, 0u32.into(), false,).expect("submit program failed");
-
-        init_block::<T>(None);
-
-        let program: ActiveProgram<_> = ProgramStorageOf::<T>::get_program(program_id)
-            .expect("program should exist")
-            .try_into()
-            .expect("program should be active");
-
-        let memory_page = {
-            let mut page = PageBuf::new_zeroed();
-            page[0] = 1;
-
-            page
-        };
-
-        let (session_id, memory_pages) = resume_session_prepare::<T>(c, program_id, program, caller.clone(), &memory_page);
-    }: _(RawOrigin::Signed(caller.clone()), session_id, memory_pages)
-    verify {
-        assert!(
-            matches!(ProgramStorageOf::<T>::resume_session_page_count(&session_id), Some(count) if count == c)
-        );
-        assert!(ProgramStorageOf::<T>::paused_program_exists(&program_id));
-        assert!(
-            !Gear::<T>::is_active(program_id)
-        );
-        assert!(!ProgramStorageOf::<T>::program_exists(program_id));
-    }
-
-    resume_session_commit {
-        let c in 0 .. (MAX_PAGES - 1) * (WASM_PAGE_SIZE / GEAR_PAGE_SIZE) as u32;
-        let caller = benchmarking::account("caller", 0, 0);
-        CurrencyOf::<T>::deposit_creating(&caller, 400_000_000_000_000u128.unique_saturated_into());
-        let code = benchmarking::generate_wasm2(0.into()).unwrap();
-        let salt = vec![];
-        let program_id = ProgramId::generate_from_user(CodeId::generate(&code), &salt);
-        Gear::<T>::upload_program(RawOrigin::Signed(caller.clone()).into(), code, salt, b"init_payload".to_vec(), 10_000_000_000, 0u32.into(), false,).expect("submit program failed");
-
-        init_block::<T>(None);
-
-        let memory_page = {
-            let mut page = PageBuf::new_zeroed();
-            page[0] = 1;
-
-            page
-        };
-
-        let program: ActiveProgram<_> = ProgramStorageOf::<T>::update_active_program(program_id, |program| {
-            for i in 0 .. c {
-                let page = GearPage::from(i as u16);
-                ProgramStorageOf::<T>::set_program_page_data(program_id, program.memory_infix, page, memory_page.clone());
-                program.pages_with_data.insert(page);
-            }
-
-            let wasm_pages = (c as usize * GEAR_PAGE_SIZE) / WASM_PAGE_SIZE;
-            program.allocations = BTreeSet::from_iter((0..wasm_pages).map(|i| WasmPage::from(i as u16)));
-
-            program.clone()
-        }).expect("program should exist");
-
-        let (session_id, memory_pages) = resume_session_prepare::<T>(c, program_id, program, caller.clone(), &memory_page);
-
-        Gear::<T>::resume_session_push(RawOrigin::Signed(caller.clone()).into(), session_id, memory_pages).expect("failed to append memory pages");
-    }: _(RawOrigin::Signed(caller.clone()), session_id, ResumeMinimalPeriodOf::<T>::get())
-    verify {
-        assert!(ProgramStorageOf::<T>::program_exists(program_id));
-        assert!(
-            Gear::<T>::is_active(program_id)
-        );
-        assert!(!ProgramStorageOf::<T>::paused_program_exists(&program_id));
     }
 
     // This constructs a program that is maximal expensive to instrument.
@@ -695,8 +529,8 @@ benchmarks! {
         let caller = benchmarking::account("caller", 0, 0);
         CurrencyOf::<T>::deposit_creating(&caller, 100_000_000_000_000_u128.unique_saturated_into());
         let minimum_balance = CurrencyOf::<T>::minimum_balance();
-        let program_id = ProgramId::from_origin(benchmarking::account::<T::AccountId>("program", 0, 100).into_origin());
-        let code = benchmarking::generate_wasm2(16.into()).unwrap();
+        let program_id = benchmarking::account::<T::AccountId>("program", 0, 100).cast();
+        let code = benchmarking::generate_wasm(16.into()).unwrap();
         benchmarking::set_program::<ProgramStorageOf::<T>, _>(program_id, code, 1.into());
         let payload = vec![0_u8; p as usize];
 
@@ -713,9 +547,9 @@ benchmarks! {
         let minimum_balance = CurrencyOf::<T>::minimum_balance();
         let program_id = benchmarking::account::<T::AccountId>("program", 0, 100);
         CurrencyOf::<T>::deposit_creating(&program_id, 100_000_000_000_000_u128.unique_saturated_into());
-        let code = benchmarking::generate_wasm2(16.into()).unwrap();
-        benchmarking::set_program::<ProgramStorageOf::<T>, _>(ProgramId::from_origin(program_id.clone().into_origin()), code, 1.into());
-        let original_message_id = MessageId::from_origin(benchmarking::account::<T::AccountId>("message", 0, 100).into_origin());
+        let code = benchmarking::generate_wasm(16.into()).unwrap();
+        benchmarking::set_program::<ProgramStorageOf::<T>, _>(program_id.clone().cast(), code, 1.into());
+        let original_message_id = benchmarking::account::<T::AccountId>("message", 0, 100).cast();
         let gas_limit = 50000;
         let value = (p % 2).into();
         let multiplier = <T as pallet_gear_bank::Config>::GasMultiplier::get();
@@ -724,8 +558,8 @@ benchmarks! {
         GearBank::<T>::deposit_value(&program_id, value, true).unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
         MailboxOf::<T>::insert(gear_core::message::StoredMessage::new(
             original_message_id,
-            ProgramId::from_origin(program_id.into_origin()),
-            ProgramId::from_origin(caller.clone().into_origin()),
+            program_id.cast(),
+            caller.clone().cast(),
             Default::default(),
             value.unique_saturated_into(),
             None,
@@ -737,36 +571,6 @@ benchmarks! {
     verify {
         assert!(matches!(QueueOf::<T>::dequeue(), Ok(Some(_))));
         assert!(MailboxOf::<T>::is_empty(&caller))
-    }
-
-    initial_allocation {
-        let q in 1 .. MAX_PAGES;
-        let q = q as u16;
-        let caller: T::AccountId = benchmarking::account("caller", 0, 0);
-        CurrencyOf::<T>::deposit_creating(&caller, (1u128 << 60).unique_saturated_into());
-        let code = benchmarking::generate_wasm(q.into()).unwrap();
-        let salt = vec![255u8; 32];
-    }: {
-        let _ = Gear::<T>::upload_program(RawOrigin::Signed(caller).into(), code, salt, vec![], 100_000_000u64, 0u32.into(), false,);
-        process_queue::<T>();
-    }
-    verify {
-        assert!(matches!(QueueOf::<T>::dequeue(), Ok(None)));
-    }
-
-    alloc_in_handle {
-        let q in 0 .. MAX_PAGES;
-        let q = q as u16;
-        let caller: T::AccountId = benchmarking::account("caller", 0, 0);
-        CurrencyOf::<T>::deposit_creating(&caller, (1_u128 << 60).unique_saturated_into());
-        let code = benchmarking::generate_wasm2(q.into()).unwrap();
-        let salt = vec![255u8; 32];
-    }: {
-        let _ = Gear::<T>::upload_program(RawOrigin::Signed(caller).into(), code, salt, vec![], 100_000_000u64, 0u32.into(), false,);
-        process_queue::<T>();
-    }
-    verify {
-        assert!(matches!(QueueOf::<T>::dequeue(), Ok(None)));
     }
 
     // This benchmarks the additional weight that is charged when a program is executed the
@@ -1601,9 +1405,6 @@ benchmarks! {
         let exec = Benches::<T>::gr_pay_program_rent(r)?;
     }: {
         res.replace(run_process(exec));
-    }
-    verify {
-        verify_process(res.unwrap());
     }
 
     lazy_pages_signal_read {
@@ -2792,13 +2593,6 @@ benchmarks! {
         sbox.invoke();
     }
 
-    tasks_remove_resume_session {
-        let session_id = tasks::remove_resume_session::<T>();
-        let mut ext_manager = ExtManager::<T>::default();
-    }: {
-        ext_manager.remove_resume_session(session_id);
-    }
-
     tasks_remove_gas_reservation {
         let (program_id, reservation_id) = tasks::remove_gas_reservation::<T>();
         let mut ext_manager = ExtManager::<T>::default();
@@ -2851,28 +2645,7 @@ benchmarks! {
         let (user, message_id) = tasks::remove_from_mailbox::<T>();
         let mut ext_manager = ExtManager::<T>::default();
     }: {
-        ext_manager.remove_from_mailbox(T::AccountId::from_origin(user.into_origin()), message_id);
-    }
-
-    tasks_pause_program {
-        let c in 0 .. (MAX_PAGES - 1) * (WASM_PAGE_SIZE / GEAR_PAGE_SIZE) as u32;
-
-        let code = benchmarking::generate_wasm2(0.into()).unwrap();
-        let program_id = tasks::pause_program_prepare::<T>(c, code);
-
-        let mut ext_manager = ExtManager::<T>::default();
-    }: {
-        ext_manager.pause_program(program_id);
-    }
-
-    tasks_pause_program_uninited {
-        let c in 0 .. (MAX_PAGES - 1) * (WASM_PAGE_SIZE / GEAR_PAGE_SIZE) as u32;
-
-        let program_id = tasks::pause_program_prepare::<T>(c, demo_init_wait::WASM_BINARY.to_vec());
-
-        let mut ext_manager = ExtManager::<T>::default();
-    }: {
-        ext_manager.pause_program(program_id);
+        ext_manager.remove_from_mailbox(user.cast(), message_id);
     }
 
     // This is no benchmark. It merely exist to have an easy way to pretty print the currently

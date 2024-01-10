@@ -30,6 +30,7 @@ use crate::{
     Error, TxInBlock, TxStatus,
 };
 use anyhow::anyhow;
+use colored::Colorize;
 use scale_value::Composite;
 use sp_core::H256;
 use std::sync::Arc;
@@ -48,7 +49,7 @@ impl Inner {
     pub async fn log_balance_spent(&self, before: u128) -> Result<()> {
         let signer_rpc = SignerRpc(Arc::new(self.clone()));
         let after = before.saturating_sub(signer_rpc.get_balance().await?);
-        log::info!("	Balance spent: {after}");
+        log::info!("\tBalance spent: {after}");
 
         Ok(())
     }
@@ -56,22 +57,22 @@ impl Inner {
     /// Propagates log::info for given status.
     pub(crate) fn log_status(status: &TxStatus) {
         match status {
-            TxStatus::Validated => log::info!("	Status: Validated"),
-            TxStatus::Broadcasted { num_peers } => log::info!("	Status: Broadcast( {num_peers} )"),
-            TxStatus::NoLongerInBestBlock => log::info!("	Status: NoLongerInBestBlock"),
+            TxStatus::Validated => log::info!("\tStatus: Validated"),
+            TxStatus::Broadcasted { num_peers } => log::info!("\tStatus: Broadcast( {num_peers} )"),
+            TxStatus::NoLongerInBestBlock => log::info!("\tStatus: NoLongerInBestBlock"),
             TxStatus::InBestBlock(b) => log::info!(
-                "	Status: InBestBlock( block hash: {}, extrinsic hash: {} )",
+                "\tStatus: InBestBlock( block hash: {}, extrinsic hash: {} )",
                 b.block_hash(),
                 b.extrinsic_hash()
             ),
             TxStatus::InFinalizedBlock(b) => log::info!(
-                "	Status: Finalized( block hash: {}, extrinsic hash: {} )",
+                "\tStatus: Finalized( block hash: {}, extrinsic hash: {} )",
                 b.block_hash(),
                 b.extrinsic_hash()
             ),
-            TxStatus::Error { message: e } => log::error!("	Status: Error( {e} )"),
-            TxStatus::Dropped { message: e } => log::error!("	Status: Dropped( {e} )"),
-            TxStatus::Invalid { message: e } => log::error!("	Status: Invalid( {e} )"),
+            TxStatus::Error { message: e } => log::error!("\tStatus: Error( {e:?} )"),
+            TxStatus::Dropped { message: e } => log::error!("\tStatus: Dropped( {e:?} )"),
+            TxStatus::Invalid { message: e } => log::error!("\tStatus: Invalid( {e:?} )"),
         }
     }
 
@@ -84,9 +85,9 @@ impl Inner {
 
         let mut process = self.sign_and_submit_then_watch(&tx).await?;
         let (pallet, name) = (tx.pallet_name(), tx.call_name());
+        let extrinsic = format!("{pallet}::{name}").magenta().bold();
 
-        log::info!("Submitted extrinsic {}::{}", pallet, name);
-
+        log::info!("Pending {extrinsic} ...");
         let mut queue: Vec<BacktraceStatus> = Default::default();
         let mut hash: Option<H256> = None;
 
@@ -115,13 +116,9 @@ impl Inner {
                     );
                 }
                 InFinalizedBlock(b) => {
-                    log::info!(
-                        "Successfully submitted call {}::{} {} at {}!",
-                        pallet,
-                        name,
-                        b.extrinsic_hash(),
-                        b.block_hash()
-                    );
+                    log::info!("Submitted {extrinsic} !");
+                    log::info!("\tBlock Hash: {:?}", b.block_hash());
+                    log::info!("\tTransaction Hash: {:?}", b.extrinsic_hash());
                     self.log_balance_spent(before).await?;
                     return Ok(b);
                 }
@@ -196,7 +193,6 @@ impl Inner {
         call: Call,
         fields: impl Into<Composite<()>>,
     ) -> Result<TxInBlock> {
-        log::info!("Run tx: {}::{}", Call::PALLET, call.call_name());
         let tx = subxt::dynamic::tx(Call::PALLET, call.call_name(), fields.into());
 
         self.process(tx).await

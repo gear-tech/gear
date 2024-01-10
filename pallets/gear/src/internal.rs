@@ -19,21 +19,21 @@
 //! Internal details of Gear Pallet implementation.
 
 use crate::{
-    Authorship, Config, CostsPerBlockOf, CurrencyOf, DispatchStashOf, Event, ExtManager,
-    GasBalanceOf, GasHandlerOf, GasNodeIdOf, GearBank, MailboxOf, Pallet, QueueOf,
-    SchedulingCostOf, TaskPoolOf, WaitlistOf,
+    Config, CostsPerBlockOf, CurrencyOf, DispatchStashOf, Event, ExtManager, GasBalanceOf,
+    GasHandlerOf, GasNodeIdOf, GearBank, MailboxOf, Pallet, QueueOf, SchedulingCostOf, TaskPoolOf,
+    WaitlistOf,
 };
 use alloc::collections::BTreeSet;
 use common::{
     event::{
         MessageWaitedReason, MessageWaitedRuntimeReason::*,
-        MessageWaitedSystemReason::ProgramIsNotInitialized, MessageWokenReason, ProgramChangeKind,
-        Reason::*, UserMessageReadReason,
+        MessageWaitedSystemReason::ProgramIsNotInitialized, MessageWokenReason, Reason::*,
+        UserMessageReadReason,
     },
     gas_provider::{GasNodeId, Imbalance},
     scheduler::*,
     storage::*,
-    ActiveProgram, GasTree, LockId, LockableTree, Origin,
+    GasTree, LockId, LockableTree, Origin,
 };
 use core::cmp::{Ord, Ordering};
 use core_processor::common::ActorExecutionErrorReplyReason;
@@ -46,12 +46,7 @@ use gear_core::{
         UserStoredMessage,
     },
 };
-use sp_runtime::{
-    traits::{
-        Bounded, CheckedAdd, Get, One, SaturatedConversion, Saturating, UniqueSaturatedInto, Zero,
-    },
-    DispatchError,
-};
+use sp_runtime::traits::{Get, One, SaturatedConversion, Saturating, UniqueSaturatedInto, Zero};
 
 /// [`HoldBound`] builder
 #[derive(Clone, Debug)]
@@ -466,8 +461,8 @@ where
         Self::consume_and_retrieve(mailboxed.id());
 
         // Taking data for funds transfer.
-        let user_id = <T::AccountId as Origin>::from_origin(mailboxed.destination().into_origin());
-        let from = <T::AccountId as Origin>::from_origin(mailboxed.source().into_origin());
+        let user_id = mailboxed.destination().cast();
+        let from = mailboxed.source().cast();
 
         // Transferring reserved funds, associated with the message.
         GearBank::<T>::transfer_value(&from, &user_id, mailboxed.value().unique_saturated_into())
@@ -528,7 +523,7 @@ where
             .unwrap_or_else(|| origin_msg.into());
 
         // Taking data for funds manipulations.
-        let from = <T::AccountId as Origin>::from_origin(dispatch.source().into_origin());
+        let from = dispatch.source().cast();
         let value = dispatch.value().unique_saturated_into();
 
         // `HoldBound` builder.
@@ -731,8 +726,8 @@ where
             .unwrap_or_else(|_| unreachable!("Signal message sent to user"));
 
         // Taking data for funds manipulations.
-        let from = <T::AccountId as Origin>::from_origin(message.source().into_origin());
-        let to = <T::AccountId as Origin>::from_origin(message.destination().into_origin());
+        let from = message.source().cast();
+        let to = message.destination().cast();
         let value = message.value().unique_saturated_into();
 
         // If gas limit can cover threshold, message will be added to mailbox,
@@ -842,8 +837,8 @@ where
         };
 
         // Taking data for funds manipulations.
-        let from = <T::AccountId as Origin>::from_origin(message.source().into_origin());
-        let to = <T::AccountId as Origin>::from_origin(message.destination().into_origin());
+        let from = message.source().cast();
+        let to = message.destination().cast();
         let value = message.value().unique_saturated_into();
 
         // If gas limit can cover threshold, message will be added to mailbox,
@@ -948,58 +943,6 @@ where
         }
 
         inheritor
-    }
-
-    pub(crate) fn pay_program_rent_impl(
-        program_id: ProgramId,
-        program: &mut ActiveProgram<BlockNumberFor<T>>,
-        from: &T::AccountId,
-        block_count: BlockNumberFor<T>,
-    ) -> Result<(), DispatchError> {
-        if !<T as Config>::ProgramRentEnabled::get() {
-            return Ok(());
-        }
-
-        let old_expiration_block = program.expiration_block;
-        let (new_expiration_block, blocks_to_pay) = old_expiration_block
-            .checked_add(&block_count)
-            .map(|count| (count, block_count))
-            .unwrap_or_else(|| {
-                let max = BlockNumberFor::<T>::max_value();
-
-                (max, max - old_expiration_block)
-            });
-
-        if blocks_to_pay.is_zero() {
-            return Ok(());
-        }
-
-        let block_author = Authorship::<T>::author()
-            .unwrap_or_else(|| unreachable!("Failed to find block author!"));
-        CurrencyOf::<T>::transfer(
-            from,
-            &block_author,
-            Self::rent_fee_for(blocks_to_pay),
-            ExistenceRequirement::AllowDeath,
-        )?;
-
-        let task = ScheduledTask::PauseProgram(program_id);
-        TaskPoolOf::<T>::delete(old_expiration_block, task.clone())
-            .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
-
-        program.expiration_block = new_expiration_block;
-
-        TaskPoolOf::<T>::add(new_expiration_block, task)
-            .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
-
-        Self::deposit_event(Event::ProgramChanged {
-            id: program_id,
-            change: ProgramChangeKind::ExpirationChanged {
-                expiration: new_expiration_block,
-            },
-        });
-
-        Ok(())
     }
 
     /// This fn and [`split_with_value`] works the same: they call api of gas

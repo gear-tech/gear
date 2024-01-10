@@ -27,21 +27,20 @@ use frame_support::{
     PalletId,
 };
 use frame_support_test::TestRandomness;
-use frame_system::{self as system, limits::BlockWeights};
+use frame_system::{self as system, limits::BlockWeights, pallet_prelude::BlockNumberFor};
 use sp_core::H256;
 use sp_runtime::{
-    generic,
     traits::{BlakeTwo256, IdentityLookup},
+    BuildStorage,
 };
 use sp_std::{
     cell::RefCell,
     convert::{TryFrom, TryInto},
 };
 
-type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
 type AccountId = u64;
-pub type BlockNumber = u32;
+pub type BlockNumber = BlockNumberFor<Test>;
 type Balance = u128;
 
 type BlockWeightsOf<T> = <T as frame_system::Config>::BlockWeights;
@@ -69,10 +68,7 @@ macro_rules! dry_run {
 
 // Configure a mock runtime to test the pallet.
 construct_runtime!(
-    pub enum Test where
-        Block = Block,
-        NodeBlock = Block,
-        UncheckedExtrinsic = UncheckedExtrinsic,
+    pub enum Test
     {
         System: system,
         GearProgram: pallet_gear_program,
@@ -93,7 +89,7 @@ pallet_gear_program::impl_config!(Test);
 pallet_gear_messenger::impl_config!(Test, CurrentBlockNumber = Gear);
 pallet_gear_scheduler::impl_config!(Test);
 pallet_gear_bank::impl_config!(Test);
-pallet_gear::impl_config!(Test, Schedule = DynamicSchedule, Voucher = GearVoucher);
+pallet_gear::impl_config!(Test, Schedule = DynamicSchedule);
 pallet_gear_gas::impl_config!(Test);
 common::impl_pallet_balances!(Test);
 common::impl_pallet_authorship!(Test);
@@ -174,12 +170,13 @@ impl pallet_gear_voucher::Config for Test {
     type PalletId = VoucherPalletId;
     type WeightInfo = ();
     type CallsDispatcher = Gear;
+    type Mailbox = MailboxOf<Self>;
 }
 
 // Build genesis storage according to the mock runtime.
 pub fn new_test_ext() -> sp_io::TestExternalities {
-    let mut t = system::GenesisConfig::default()
-        .build_storage::<Test>()
+    let mut t = system::GenesisConfig::<Test>::default()
+        .build_storage()
         .unwrap();
 
     pallet_balances::GenesisConfig::<Test> {
@@ -258,6 +255,10 @@ pub fn run_to_block_maybe_with_queue(
             if !process_messages {
                 QueueProcessingOf::<Test>::deny();
             }
+
+            // Spend the maximum weight of the block to account for the weight of Gear::run() in the current block.
+            let max_block_weight = <BlockWeightsOf<Test> as Get<BlockWeights>>::get().max_block;
+            System::register_extra_weight_unchecked(max_block_weight, DispatchClass::Mandatory);
 
             Gear::run(frame_support::dispatch::RawOrigin::None.into(), None).unwrap();
         }

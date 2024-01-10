@@ -18,6 +18,7 @@
 
 use crate::testing::{port, Error, Result};
 use std::{
+    env,
     ffi::OsStr,
     io::{BufRead, BufReader},
     net::{Ipv4Addr, SocketAddrV4},
@@ -43,10 +44,13 @@ impl Node {
         let port_string = port.to_string();
 
         let mut args = args;
-        args.push("--ws-port");
-        args.push(&port_string);
+        args.extend_from_slice(&["--rpc-port", &port_string, "--no-hardware-benchmarks"]);
 
         let process = Command::new(path)
+            .env(
+                "RUST_LOG",
+                env::var("RUST_LOG").unwrap_or_else(|_| "".into()),
+            )
             .args(args)
             .stderr(Stdio::piped())
             .stdout(Stdio::piped())
@@ -62,15 +66,19 @@ impl Node {
         Ok(node)
     }
 
-    fn wait_while_initialized(&mut self) -> Result<String> {
+    /// Wait until node is initialized.
+    pub fn wait_while_initialized(&mut self) -> Result<String> {
         // `#1` here is enough to ensure that node is initialized.
         self.wait_for_log_record("Imported #1 ")
     }
 
+    /// Wait the provided log record is emitted.
     pub fn wait_for_log_record(&mut self, log: &str) -> Result<String> {
-        let stderr = self.process.stderr.as_mut();
-        let reader = BufReader::new(stderr.ok_or(Error::EmptyStderr)?);
-        for line in reader.lines().flatten() {
+        let Some(stderr) = self.process.stderr.as_mut() else {
+            return Err(Error::EmptyStderr);
+        };
+
+        for line in BufReader::new(stderr).lines().flatten() {
             if line.contains(log) {
                 return Ok(line);
             }

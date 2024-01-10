@@ -25,11 +25,10 @@ use gear_core::{
 use gear_wasm_instrument::parity_wasm::{self, elements::*};
 use sp_io::hashing::blake2_256;
 use sp_runtime::traits::Zero;
-use sp_std::borrow::ToOwned;
 
 pub fn account<AccountId: Origin>(name: &'static str, index: u32, seed: u32) -> AccountId {
     let entropy = (name, index, seed).using_encoded(blake2_256);
-    AccountId::from_origin(H256::from_slice(&entropy[..]))
+    H256::from_slice(&entropy[..]).cast()
 }
 
 // A wasm module that allocates `$num_pages` of memory in `init` function.
@@ -61,13 +60,6 @@ pub fn create_module(num_pages: WasmPage) -> parity_wasm::elements::Module {
     ])
 }
 
-pub fn generate_wasm(num_pages: WasmPage) -> Result<Vec<u8>, &'static str> {
-    let module = create_module(num_pages);
-    let code = parity_wasm::serialize(module).map_err(|_| "Failed to serialize module")?;
-
-    Ok(code)
-}
-
 // A wasm module that allocates `$num_pages` in `handle` function:
 // (module
 //     (import "env" "memory" (memory 1))
@@ -80,7 +72,7 @@ pub fn generate_wasm(num_pages: WasmPage) -> Result<Vec<u8>, &'static str> {
 //         (local.set $result (call $alloc (i32.const $num_pages)))
 //     )
 // )
-pub fn generate_wasm2(num_pages: WasmPage) -> Result<Vec<u8>, &'static str> {
+pub fn generate_wasm(num_pages: WasmPage) -> Result<Vec<u8>, &'static str> {
     let module = parity_wasm::elements::Module::new(vec![
         Section::Type(TypeSection::with_types(vec![
             Type::Function(FunctionType::new(
@@ -118,19 +110,6 @@ pub fn generate_wasm2(num_pages: WasmPage) -> Result<Vec<u8>, &'static str> {
             ),
         ])),
     ]);
-    let code = parity_wasm::serialize(module).map_err(|_| "Failed to serialize module")?;
-
-    Ok(code)
-}
-
-pub fn generate_wasm3(payload: Vec<u8>) -> Result<Vec<u8>, &'static str> {
-    let mut module = create_module(1.into());
-    module
-        .insert_section(Section::Custom(CustomSection::new(
-            "zeroed_section".to_owned(),
-            payload,
-        )))
-        .unwrap();
     let code = parity_wasm::serialize(module).map_err(|_| "Failed to serialize module")?;
 
     Ok(code)

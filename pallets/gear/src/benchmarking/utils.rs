@@ -22,7 +22,7 @@ use super::Exec;
 use crate::{
     manager::{CodeInfo, ExtManager, HandleKind},
     Config, CostsPerBlockOf, CurrencyOf, DbWeightOf, MailboxOf, Pallet as Gear, ProgramStorageOf,
-    QueueOf, RentCostPerBlockOf,
+    QueueOf,
 };
 use common::{scheduler::SchedulingCostsPerBlock, storage::*, CodeStorage, Origin, ProgramStorage};
 use core_processor::{
@@ -83,7 +83,6 @@ where
         max_reservations: T::ReservationsLimit::get(),
         code_instrumentation_cost: schedule.code_instrumentation_cost.ref_time(),
         code_instrumentation_byte_cost: schedule.code_instrumentation_byte_cost.ref_time(),
-        rent_cost: RentCostPerBlockOf::<T>::get().unique_saturated_into(),
         gas_multiplier: <T as pallet_gear_bank::Config>::GasMultiplier::get().into(),
     }
 }
@@ -157,7 +156,7 @@ where
                 DispatchKind::Init,
                 Message::new(
                     root_message_id,
-                    ProgramId::from_origin(source),
+                    source.cast(),
                     program_id,
                     payload.try_into()?,
                     Some(u64::MAX),
@@ -183,7 +182,7 @@ where
                 DispatchKind::Init,
                 Message::new(
                     root_message_id,
-                    ProgramId::from_origin(source),
+                    source.cast(),
                     program_id,
                     payload.try_into()?,
                     Some(u64::MAX),
@@ -196,7 +195,7 @@ where
             DispatchKind::Handle,
             Message::new(
                 root_message_id,
-                ProgramId::from_origin(source),
+                source.cast(),
                 dest,
                 payload.try_into()?,
                 Some(u64::MAX),
@@ -205,14 +204,13 @@ where
             ),
         ),
         HandleKind::Reply(msg_id, exit_code) => {
-            let (msg, _bn) =
-                MailboxOf::<T>::remove(<T::AccountId as Origin>::from_origin(source), msg_id)
-                    .map_err(|_| "Internal error: unable to find message in mailbox")?;
+            let (msg, _bn) = MailboxOf::<T>::remove(source.cast(), msg_id)
+                .map_err(|_| "Internal error: unable to find message in mailbox")?;
             Dispatch::new(
                 DispatchKind::Reply,
                 Message::new(
                     root_message_id,
-                    ProgramId::from_origin(source),
+                    source.cast(),
                     msg.source(),
                     payload.try_into()?,
                     Some(u64::MAX),
@@ -222,14 +220,13 @@ where
             )
         }
         HandleKind::Signal(msg_id, status_code) => {
-            let (msg, _bn) =
-                MailboxOf::<T>::remove(<T::AccountId as Origin>::from_origin(source), msg_id)
-                    .map_err(|_| "Internal error: unable to find message in mailbox")?;
+            let (msg, _bn) = MailboxOf::<T>::remove(source.cast(), msg_id)
+                .map_err(|_| "Internal error: unable to find message in mailbox")?;
             Dispatch::new(
                 DispatchKind::Signal,
                 Message::new(
                     root_message_id,
-                    ProgramId::from_origin(source),
+                    source.cast(),
                     msg.source(),
                     payload.try_into()?,
                     Some(u64::MAX),
