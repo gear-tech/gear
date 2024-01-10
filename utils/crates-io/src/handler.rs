@@ -23,6 +23,17 @@ use anyhow::Result;
 use cargo_metadata::Package;
 use toml_edit::Document;
 
+/// Get the crates-io name of package.
+pub fn crates_io_name(pkg: &str) -> &str {
+    // `gear-core-processor` is taken by others, see the docs
+    // of [`core-processor::patch_workspace`] for more details.
+    if pkg == "gear-core-processor" {
+        "core-processor"
+    } else {
+        pkg
+    }
+}
+
 /// Patch specified manifest by provided name.
 pub fn patch(pkg: &Package) -> Result<Manifest> {
     let mut manifest = Manifest::new(pkg)?;
@@ -78,14 +89,17 @@ fn trim_dev_dep(name: &str, manifest: &mut Document) {
 mod core_processor {
     use toml_edit::{Document, InlineTable};
 
-    /// Rename core processor related package in the
-    /// manifest of workspace since `gear-core-processor`
-    /// has been published by others.
+    /// Pointing the package name of core-processor to
+    /// `core-processor` on `crates-io` since this is
+    /// the one we own.
     pub fn patch_workspace(name: &str, table: &mut InlineTable) {
         match name {
+            // Remove the path definition to point core-processor to
+            // crates-io.
             "core-processor" => {
                 table.remove("package");
             }
+            // Points to `core-processor` for the one on crates-io.
             "gear-core-processor" => {
                 table.insert("package", "core-processor".into());
             }
@@ -123,17 +137,20 @@ mod gmeta_codegen {
     }
 }
 
-/// runtime interface handler
 mod runtime_interface {
-    use crate::SP_WASM_INTERFACE_VERSION;
+    use crate::GP_RUNTIME_INTERFACE_VERSION;
     use toml_edit::Document;
 
-    /// Patch sp-runtime-interface.
+    /// Patch the manifest of runtime-interface.
+    ///
+    /// We need to patch the manifest of package again because
+    /// `sp_runtime_interface_proc_macro` includes some hardcode
+    /// that could not locate alias packages.
     pub fn patch(manifest: &mut Document) {
         let Some(wi) = manifest["dependencies"]["sp-runtime-interface"].as_table_mut() else {
             return;
         };
-        wi.insert("version", toml_edit::value(SP_WASM_INTERFACE_VERSION));
+        wi.insert("version", toml_edit::value(GP_RUNTIME_INTERFACE_VERSION));
         wi.insert("package", toml_edit::value("gp-runtime-interface"));
         wi.remove("workspace");
     }
@@ -172,7 +189,7 @@ mod sandbox_host {
 
 /// substrate handler.
 mod substrate {
-    use crate::SP_WASM_INTERFACE_VERSION;
+    use crate::GP_RUNTIME_INTERFACE_VERSION;
     use toml_edit::InlineTable;
 
     /// Patch the substrate packages in the manifest of workspace.
@@ -199,7 +216,7 @@ mod substrate {
             }
             // Related to sp-wasm-interface.
             "sp-runtime-interface" => {
-                table.insert("version", SP_WASM_INTERFACE_VERSION.into());
+                table.insert("version", GP_RUNTIME_INTERFACE_VERSION.into());
                 table.insert("package", "gp-runtime-interface".into());
             }
             // The versions of these packages on crates.io are incorrect.

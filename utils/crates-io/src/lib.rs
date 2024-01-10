@@ -82,7 +82,7 @@ pub const PACKAGE_ALIAS: [(&str, &str); 2] = [
 ];
 
 /// The working version of sp-wasm-interface.
-pub const SP_WASM_INTERFACE_VERSION: &str = "7.0.5";
+pub const GP_RUNTIME_INTERFACE_VERSION: &str = "7.0.5";
 
 /// Check the input package
 pub fn check(manifest: &str) -> Result<ExitStatus> {

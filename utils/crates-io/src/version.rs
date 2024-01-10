@@ -22,6 +22,8 @@ use anyhow::{anyhow, Result};
 use serde::Deserialize;
 use std::process::Command;
 
+use crate::handler;
+
 #[derive(Debug, Deserialize)]
 struct Resp {
     pub versions: Vec<Version>,
@@ -33,19 +35,18 @@ struct Version {
 }
 
 /// Verify if the package has already been published.
-pub fn verify(mut name: &str, version: &str) -> Result<bool> {
+pub fn verify(name: &str, version: &str) -> Result<bool> {
     println!("Verifying {}@{} ...", &name, &version);
-
-    if name == "gear-core-processor" {
-        name = "core-processor";
-    }
 
     let client = reqwest::blocking::Client::builder()
         .user_agent("gear-crates-io-manager")
         .build()?;
 
     if let Ok(resp) = client
-        .get(format!("https://crates.io/api/v1/crates/{name}/versions"))
+        .get(format!(
+            "https://crates.io/api/v1/crates/{}/versions",
+            handler::crates_io_name(name)
+        ))
         .send()?
         .json::<Resp>()
     {
