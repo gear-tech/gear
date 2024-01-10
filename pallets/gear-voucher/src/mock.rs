@@ -16,24 +16,34 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+#![allow(unused)]
+
 use crate as pallet_gear_voucher;
-use common::storage::{Interval, Mailbox};
-use frame_support::{
-    construct_runtime, parameter_types, weights::constants::RocksDbWeight, PalletId,
+use common::{
+    storage::{Interval, Mailbox},
+    Origin,
 };
-use frame_system as system;
-use gear_core::{ids::MessageId, message::UserStoredMessage};
+use frame_support::{
+    construct_runtime, parameter_types,
+    weights::{constants::RocksDbWeight, Weight},
+    PalletId,
+};
+use frame_system::{self as system, pallet_prelude::BlockNumberFor};
+use gear_core::{
+    ids::{MessageId, ProgramId},
+    message::UserStoredMessage,
+};
 use primitive_types::H256;
+use sp_core::ConstU8;
 use sp_runtime::{
-    generic,
-    traits::{BlakeTwo256, IdentityLookup},
+    traits::{BlakeTwo256, IdentityLookup, Zero},
+    BuildStorage,
 };
 use sp_std::convert::{TryFrom, TryInto};
 
-type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
 type AccountId = u64;
-type BlockNumber = u64;
+pub type BlockNumber = BlockNumberFor<Test>;
 type Balance = u128;
 
 pub const ALICE: AccountId = 1;
@@ -41,10 +51,7 @@ pub const BOB: AccountId = 2;
 
 // Configure a mock runtime to test the pallet.
 construct_runtime!(
-    pub enum Test where
-        Block = Block,
-        NodeBlock = Block,
-        UncheckedExtrinsic = UncheckedExtrinsic,
+    pub enum Test
     {
         System: system,
         Voucher: pallet_gear_voucher,
@@ -62,23 +69,28 @@ common::impl_pallet_balances!(Test);
 
 parameter_types! {
     pub const VoucherPalletId: PalletId = PalletId(*b"py/vouch");
+    pub const MinVoucherDuration: BlockNumber = 5;
+    pub const MaxVoucherDuration: BlockNumber = 100_000_000;
 }
 
 impl crate::PrepaidCallsDispatcher for () {
     type AccountId = AccountId;
     type Balance = Balance;
 
-    fn weight(_call: &pallet_gear_voucher::PrepaidCall<Balance>) -> frame_support::weights::Weight {
-        unimplemented!();
+    fn weight(_call: &pallet_gear_voucher::PrepaidCall<Balance>) -> Weight {
+        Zero::zero()
     }
     fn dispatch(
         _account_id: Self::AccountId,
         _sponsor_id: Self::AccountId,
         _call: pallet_gear_voucher::PrepaidCall<Balance>,
     ) -> frame_support::pallet_prelude::DispatchResultWithPostInfo {
-        unimplemented!()
+        Ok(().into())
     }
 }
+
+pub const MAILBOXED_PROGRAM: ProgramId = ProgramId::test_new([0; 32]);
+pub const MAILBOXED_MESSAGE: MessageId = MessageId::test_new([0; 32]);
 
 pub struct MailboxMock;
 
@@ -99,8 +111,16 @@ impl Mailbox for MailboxMock {
     fn insert(_value: Self::Value, _bn: Self::BlockNumber) -> Result<(), Self::OutputError> {
         unimplemented!()
     }
-    fn peek(_key1: &Self::Key1, _key2: &Self::Key2) -> Option<Self::Value> {
-        unimplemented!()
+    fn peek(key1: &Self::Key1, key2: &Self::Key2) -> Option<Self::Value> {
+        (*key2 == MAILBOXED_MESSAGE).then(|| {
+            UserStoredMessage::new(
+                MAILBOXED_MESSAGE,
+                MAILBOXED_PROGRAM,
+                (*key1).cast(),
+                vec![].try_into().unwrap(),
+                0,
+            )
+        })
     }
     fn remove(
         _key1: Self::Key1,
@@ -117,12 +137,15 @@ impl pallet_gear_voucher::Config for Test {
     type WeightInfo = ();
     type CallsDispatcher = ();
     type Mailbox = MailboxMock;
+    type MaxProgramsAmount = ConstU8<3>;
+    type MaxDuration = MaxVoucherDuration;
+    type MinDuration = MinVoucherDuration;
 }
 
 // Build genesis storage according to the mock runtime.
 pub fn new_test_ext() -> sp_io::TestExternalities {
-    let mut t = system::GenesisConfig::default()
-        .build_storage::<Test>()
+    let mut t = system::GenesisConfig::<Test>::default()
+        .build_storage()
         .unwrap();
 
     pallet_balances::GenesisConfig::<Test> {

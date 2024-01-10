@@ -105,10 +105,14 @@ impl Key {
     }
 
     /// Verify messages
-    pub fn verify<P>(sig: &[u8], message: &[u8], pubkey: &[u8]) -> Result<bool>
+    pub fn verify<'a, P>(sig: &'a [u8], message: &[u8], pubkey: &'a [u8]) -> Result<bool>
     where
         P: Pair,
+        <P as gsdk::ext::sp_core::Pair>::Signature: TryFrom<&'a [u8]>,
+        <P as gsdk::ext::sp_core::Pair>::Public: TryFrom<&'a [u8]>,
     {
-        Ok(P::verify_weak(sig, message, pubkey))
+        let pubkey = P::Public::try_from(pubkey).map_err(|_| Error::InvalidPublic)?;
+        let sig = P::Signature::try_from(sig).map_err(|_| Error::InvalidSignature)?;
+        Ok(P::verify(&sig, message, &pubkey))
     }
 }

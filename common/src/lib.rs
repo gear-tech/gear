@@ -350,3 +350,26 @@ where
         self.function.clone()
     }
 }
+
+/// Trait that the RuntimeApi should implement in order to allow deconstruction and reconstruction
+/// to and from its components.
+#[cfg(any(feature = "std", test))]
+pub trait Deconstructable<Call> {
+    type Params: Send;
+
+    fn into_parts(self) -> (&'static Call, Self::Params);
+
+    fn from_parts(call: &Call, params: Self::Params) -> Self;
+}
+
+/// Trait that is used to "delegate fee" by optionally changing
+/// the payer target (account id) for the applied call.
+pub trait DelegateFee<Call, Acc> {
+    fn delegate_fee(call: &Call, who: &Acc) -> Option<Acc>;
+}
+
+impl<Call, Acc> DelegateFee<Call, Acc> for () {
+    fn delegate_fee(_call: &Call, _who: &Acc) -> Option<Acc> {
+        None
+    }
+}
