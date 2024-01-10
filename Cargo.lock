@@ -1825,6 +1825,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-async-critical"
+version = "0.1.0"
+dependencies = [
+ "futures",
+ "gear-wasm-builder",
+ "gstd",
+ "parity-scale-codec",
+]
+
+[[package]]
 name = "demo-async-custom-entry"
 version = "0.1.0"
 dependencies = [
@@ -7471,6 +7481,7 @@ version = "1.0.5"
 dependencies = [
  "blake2-rfc",
  "demo-async",
+ "demo-async-critical",
  "demo-async-custom-entry",
  "demo-async-init",
  "demo-async-recursion",
@@ -7854,12 +7865,14 @@ dependencies = [
 name = "pallet-gear-voucher"
 version = "1.0.5"
 dependencies = [
+ "derive_more",
  "env_logger",
  "frame-benchmarking",
  "frame-support",
  "frame-system",
  "gear-common",
  "gear-core",
+ "hex",
  "log",
  "pallet-balances",
  "parity-scale-codec",

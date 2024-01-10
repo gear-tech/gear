@@ -16,24 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use super::*;
-
-pub fn init_logger() {
-    let _ = env_logger::Builder::from_default_env()
-        .format_module_path(false)
-        .format_level(true)
-        .try_init();
-}
-
-pub fn parse_wat(source: &str) -> Vec<u8> {
-    wabt::Wat2Wasm::new()
-        .validate(true)
-        .convert(source)
-        .expect("failed to parse module")
-        .as_ref()
-        .to_vec()
-}
-
-pub fn h256_code_hash(code: &[u8]) -> H256 {
-    CodeId::generate(code).into_origin()
+fn main() {
+    gear_wasm_builder::build();
 }
