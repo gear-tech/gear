@@ -387,6 +387,10 @@ fn error_processing_works_for_fallible_syscalls() {
     let fallible_syscalls = SyscallName::instrumentable()
         .into_iter()
         .filter_map(|syscall| {
+            if matches!(syscall, SyscallName::PayProgramRent) {
+                return None;
+            }
+
             let invocable_syscall = InvocableSyscall::Loose(syscall);
             invocable_syscall.is_fallible().then_some(invocable_syscall)
         });
@@ -586,7 +590,6 @@ fn execute_wasm_with_custom_configs(
     let processor_context = ProcessorContext {
         message_context,
         max_pages: INITIAL_PAGES.into(),
-        rent_cost: 10,
         program_id,
         value_counter: ValueCounter::new(value),
         ..ProcessorContext::new_mock()

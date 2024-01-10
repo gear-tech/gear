@@ -37,23 +37,3 @@ pub fn parse_wat(source: &str) -> Vec<u8> {
 pub fn h256_code_hash(code: &[u8]) -> H256 {
     CodeId::generate(code).into_origin()
 }
-
-#[track_caller]
-pub fn get_active_program(program_id: ProgramId) -> ActiveProgram<BlockNumber> {
-    ProgramStorageOf::<Test>::get_program(program_id)
-        .and_then(|p| ActiveProgram::try_from(p).ok())
-        .expect("program should exist")
-}
-
-#[track_caller]
-pub(super) fn maybe_last_message(account: AccountId) -> Option<UserMessage> {
-    System::events()
-        .into_iter()
-        .rev()
-        .find_map(|e| match e.event {
-            RuntimeEvent::Gear(Event::UserMessageSent { message, .. }) => {
-                (message.destination() == account.into()).then_some(message)
-            }
-            _ => None,
-        })
-}

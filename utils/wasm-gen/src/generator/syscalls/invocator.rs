@@ -604,7 +604,7 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
         fallible_signature: FallibleSyscallSignature,
         param_instructions: Vec<ParamInstructions>,
     ) -> Vec<Instruction> {
-        static_assertions::assert_eq_size!(gsys::ErrorCode, u32);
+        const _: () = assert!(mem::size_of::<gsys::ErrorCode>() == mem::size_of::<u32>());
         let no_error_val = gsys::ErrorCode::default() as i32;
 
         assert_eq!(

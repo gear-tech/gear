@@ -489,10 +489,6 @@ pub mod constants {
     pub const RESERVATION_COST: Gas = 100;
     /// Cost of storing delayed message per block.
     pub const DISPATCH_HOLD_COST: Gas = 100;
-    /// Cost of storing program per block.
-    ///
-    /// (!) Currently disabled: storing programs are free.
-    pub const RENT_COST: Value = 330;
 
     /* Execution-related constants */
     // TODO: use proper weights of instantiation and instrumentation (#3509).
