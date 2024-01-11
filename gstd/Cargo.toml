@@ -22,29 +22,32 @@ bs58 = { workspace = true, features = ["alloc"] }
 hex = { workspace = true, features = ["alloc"] }
 parity-scale-codec = { workspace = true, features = ["derive"] }
 primitive-types = { workspace = true, features = ["scale-info"] }
-rustversion = { version = "1.0", optional = true }
 scale-info = { workspace = true, features = ["derive"] }
 futures = { workspace = true, features = ["alloc"] }
-
-[dev-dependencies]
-rustversion = "1.0"
 
 [features]
 #! ## Default features
 
-default = ["common-handlers"]
-## When enabled, a panic handler and an OOM error handler are provided by this crate.
-## Note that the OOM error handler is provided when "nightly" feature is enabled.
-common-handlers = []
+default = ["panic-message"]
+
+#! ## Panic handler profiles
+
+## When enabled, a minimal panic handler is provided by this crate.
+## Instead of a panic message, "no info" is displayed.
+panic-handler = []
+## When enabled, a panic handler will also display a panic message.
+panic-message = ["panic-handler", "arrayvec"]
+## When enabled, a panic handler will also display a panic message and location.
+panic-location = ["panic-message"]
 
 #! ## Nightly features
 
 ## Enables all features below.
 ## These features depend on unstable Rust API and require nightly toolchain.
-nightly = ["panic-messages", "oom-handler"]
-## When enabled, additional context information is available from
-## panic messages in debug mode. Relies on [`panic_info_message`][rust-66745].
-panic-messages = []
+nightly = ["panic-info-message", "oom-handler"]
+## When enabled, a panic handler will use a more efficient implementation
+## Relies on [`panic_info_message`][rust-66745].
+panic-info-message = []
 ## When enabled, an OOM error handler is provided.
 ## Relies on [`alloc_error_handler`][rust-51540],
 oom-handler = []
@@ -53,7 +56,7 @@ oom-handler = []
 
 ## Enables debug logging; this heavily impacts gas cost 
 ## and is therefore disabled by default.
-debug = ["galloc/debug", "gcore/debug", "arrayvec", "rustversion"]
+debug = ["galloc/debug", "gcore/debug"]
 
 #! [rust-66745]: https://github.com/rust-lang/rust/issues/66745
 #! [rust-51540]: https://github.com/rust-lang/rust/issues/51540

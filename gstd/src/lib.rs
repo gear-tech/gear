@@ -129,7 +129,11 @@
 #![no_std]
 #![warn(missing_docs)]
 #![cfg_attr(
-    all(target_arch = "wasm32", feature = "panic-messages"),
+    all(
+        target_arch = "wasm32",
+        feature = "panic-info-message",
+        feature = "panic-message"
+    ),
     feature(panic_info_message)
 )]
 #![cfg_attr(

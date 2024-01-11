@@ -4670,7 +4670,6 @@ dependencies = [
  "hex",
  "parity-scale-codec",
  "primitive-types",
- "rustversion",
  "scale-info",
 ]
 
