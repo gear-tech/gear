@@ -1883,6 +1883,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-bridge-messaging"
+version = "0.1.0"
+dependencies = [
+ "gbuiltin",
+ "gear-wasm-builder",
+ "gstd",
+ "hex-literal",
+]
+
+[[package]]
 name = "demo-calc-hash"
 version = "0.1.0"
 dependencies = [

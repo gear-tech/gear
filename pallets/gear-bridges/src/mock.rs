@@ -18,10 +18,10 @@
 
 //! Mock runtime for gear bridges pallet.
 
-use crate as pallet_gear_bridges;
+use crate::{self as pallet_gear_bridges, IncomingMessage};
 use frame_support::{construct_runtime, parameter_types, PalletId};
 use gear_core::ids::BuiltinId;
-use pallet_gear_builtin_actor::RegisteredBuiltinActor;
+use pallet_gear_builtin_actor::{RegisteredBuiltinActor, SimpleBuiltinMessage};
 use primitive_types::H256;
 use sp_runtime::{
     traits::{BlakeTwo256, IdentityLookup, Keccak256},
@@ -46,13 +46,14 @@ impl pallet_gear_bridges::Config for Test {
     type MaxPayloadLength = MaxPayloadLength;
     type Hasher = Keccak256;
     type HashOut = H256;
+    type WeightInfo = ();
 }
 
 parameter_types! {
     pub const BuiltinActorPalletId: PalletId = PalletId(*b"py/biact");
 }
 
-impl RegisteredBuiltinActor<Vec<u8>, u64> for crate::Pallet<Test> {
+impl RegisteredBuiltinActor<IncomingMessage, u64> for crate::Pallet<Test> {
     const ID: gear_core::ids::BuiltinId = BuiltinId(u64::from_le_bytes(*b"bltn/bri"));
 }
 

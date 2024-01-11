@@ -29,13 +29,16 @@ mod tests;
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
 
+mod weights;
+
 pub use pallet::*;
 
 use frame_support::traits::{Get, StorageVersion};
-use gear_core::ids::BuiltinId;
-use pallet_gear_builtin_actor::BuiltinActor;
+use gear_core::ids::{BuiltinId, ProgramId};
+use pallet_gear_builtin_actor::{BuiltinActor, BuiltinResult, Dispatchable, SimpleBuiltinMessage};
 use parity_scale_codec::Encode;
 use sp_std::prelude::*;
+use weights::WeightInfo;
 
 /// The current storage version.
 pub(crate) const STORAGE_VERSION: StorageVersion = StorageVersion::new(0);
@@ -59,13 +62,17 @@ pub mod pallet {
     #[pallet::config]
     pub trait Config: frame_system::Config {
         // Limit of message queue length.
+        #[pallet::constant]
         type MaxQueueLength: Get<u32>;
         // Limit of message payload length.
+        #[pallet::constant]
         type MaxPayloadLength: Get<u32>;
         // Hasher used to store messages in queue.
         type Hasher: Hash<Output = Self::HashOut>;
         // Hash type used in message queue.
         type HashOut: Parameter + sp_std::hash::Hash + MaxEncodedLen;
+        // Weights of calling pallet methods.
+        type WeightInfo: WeightInfo;
     }
 
     // Bridges pallet errors.
@@ -93,12 +100,18 @@ pub mod pallet {
     }
 
     impl<T: Config> Pallet<T> {
-        pub fn submit_message(message: &[u8]) -> Result<(), Error<T>> {
+        pub fn submit_message(sender: ProgramId, message: &[u8]) -> Result<(), Error<T>> {
             if message.len() > (T::MaxPayloadLength::get() as usize) {
                 return Err(Error::MessagePayloadLengthExceeded);
             }
 
-            let hash = T::Hasher::hash(message);
+            let hash = T::Hasher::hash(
+                &vec![&sender.as_ref(), message]
+                    .into_iter()
+                    .flatten()
+                    .copied()
+                    .collect::<Vec<_>>(),
+            );
             Queue::<T>::try_append(hash).map_err(|_| Error::QueueOverflow)
         }
 
@@ -120,16 +133,17 @@ pub mod pallet {
     }
 }
 
-impl<T: Config> BuiltinActor<Vec<u8>, u64> for Pallet<T> {
-    fn handle(
-        builtin_id: BuiltinId,
-        payload: Vec<u8>,
-    ) -> (pallet_gear_builtin_actor::BuiltinResult<Vec<u8>>, u64) {
-        let result = Self::submit_message(&payload);
-        (Ok(result.encode()), 0)
+pub type IncomingMessage = SimpleBuiltinMessage;
+
+impl<T: Config> BuiltinActor<IncomingMessage, u64> for Pallet<T> {
+    fn handle(message: &IncomingMessage) -> (BuiltinResult<Vec<u8>>, u64) {
+        let result = Self::submit_message(message.source(), &message.payload_bytes());
+        let weight = <T as Config>::WeightInfo::handle(T::MaxPayloadLength::get()).ref_time();
+
+        (Ok(result.encode()), weight)
     }
 
     fn max_gas_cost(builtin_id: BuiltinId) -> u64 {
-        panic!()
+        <T as Config>::WeightInfo::handle(T::MaxPayloadLength::get()).ref_time()
     }
 }

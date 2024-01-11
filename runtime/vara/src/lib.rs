@@ -88,7 +88,10 @@ use sp_core::{crypto::KeyTypeId, ConstBool, ConstU64, OpaqueMetadata, H256};
 use sp_runtime::traits::HashFor;
 use sp_runtime::{
     create_runtime_str, generic, impl_opaque_keys,
-    traits::{AccountIdLookup, BlakeTwo256, Block as BlockT, ConvertInto, NumberFor, OpaqueKeys},
+    traits::{
+        AccountIdLookup, BlakeTwo256, Block as BlockT, ConvertInto, Keccak256, NumberFor,
+        OpaqueKeys,
+    },
     transaction_validity::{TransactionPriority, TransactionSource, TransactionValidity},
     ApplyExtrinsicResult, FixedU128, Perbill, Percent, Permill, Perquintill,
 };
@@ -1133,6 +1136,18 @@ impl pallet_vesting::Config for Runtime {
     const MAX_VESTING_SCHEDULES: u32 = 28;
 }
 
+parameter_types! {
+    pub const MaxBridgeQueueLength: u32 = 16;
+    pub const MaxBridgeMessagePayloadLength: u32 = 1024;
+}
+
+impl pallet_gear_bridges::Config for Runtime {
+    type MaxQueueLength = MaxBridgeQueueLength;
+    type MaxPayloadLength = MaxBridgeMessagePayloadLength;
+    type Hasher = Keccak256;
+    type HashOut = H256;
+}
+
 // Create the runtime by composing the FRAME pallets that were previously configured.
 #[cfg(feature = "dev")]
 construct_runtime!(
@@ -1185,6 +1200,7 @@ construct_runtime!(
         GearVoucher: pallet_gear_voucher = 107,
         GearBank: pallet_gear_bank = 108,
         GearBuiltinActor: pallet_gear_builtin_actor = 109,
+        GearBridges: pallet_gear_bridges = 110,
 
         Sudo: pallet_sudo = 99,
 
@@ -1246,6 +1262,7 @@ construct_runtime!(
         GearVoucher: pallet_gear_voucher = 107,
         GearBank: pallet_gear_bank = 108,
         GearBuiltinActor: pallet_gear_builtin_actor = 109,
+        GearBridges: pallet_gear_bridges = 110,
 
         // NOTE (!): `pallet_sudo` used to be idx(99).
         // NOTE (!): `pallet_airdrop` used to be idx(198).
@@ -1313,6 +1330,7 @@ mod benches {
         [pallet_gear, Gear]
         [pallet_gear_voucher, GearVoucher]
         [pallet_gear_builtin_actor, GearBuiltinActor]
+        [pallet_gear_bridges, GearBridges]
     );
 }
 

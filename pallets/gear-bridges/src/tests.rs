@@ -16,10 +16,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{mock::*, Error};
+use crate::{mock::*, Error, IncomingMessage};
 use frame_support::{assert_noop, assert_ok, traits::Hooks, weights::Weight};
+use gear_core::ids::ProgramId;
 use pallet_gear_builtin_actor::{
     BuiltinActor, BuiltinRouter, Pallet as BuiltinActorPallet, RegisteredBuiltinActor,
+    SimpleBuiltinMessage,
 };
 
 impl<T> PartialEq for Error<T> {
@@ -38,11 +40,11 @@ impl<T> PartialEq for Error<T> {
 fn can_submit_messages_up_to_max_queue_size() {
     new_test_ext().execute_with(|| {
         for _ in 0..MaxQueueLength::get() {
-            assert_ok!(GearBridges::submit_message(&[0; 1]));
+            assert_ok!(GearBridges::submit_message(ProgramId::default(), &[0; 1]));
         }
 
         assert_noop!(
-            GearBridges::submit_message(&[0; 1]),
+            GearBridges::submit_message(ProgramId::default(), &[0; 1]),
             Error::<Test>::QueueOverflow
         );
     })
@@ -57,7 +59,7 @@ fn correct_message_movement_order() {
             .collect::<Vec<_>>();
 
         for message in &messages {
-            assert_ok!(GearBridges::submit_message(message));
+            assert_ok!(GearBridges::submit_message(ProgramId::default(), message));
         }
 
         assert_eq!(GearBridges::pending_bridging(), None);
@@ -66,7 +68,12 @@ fn correct_message_movement_order() {
             GearBridges::on_idle((i + 1).into(), Weight::from_parts(100_000, 100_000));
             let message_hash =
                 <<Test as crate::pallet::Config>::Hasher as sp_runtime::traits::Hash>::hash(
-                    &messages[i as usize],
+                    &ProgramId::default()
+                        .as_ref()
+                        .iter()
+                        .chain(messages[i as usize].iter())
+                        .copied()
+                        .collect::<Vec<_>>(),
                 );
             assert_eq!(Some(message_hash), GearBridges::pending_bridging());
         }
@@ -79,11 +86,12 @@ fn message_sent_over_builtin_actor_works() {
         type BuiltinActorTest = BuiltinActorPallet<Test>;
 
         let program_id = BuiltinActorTest::generate_actor_id(
-            <crate::Pallet<Test> as RegisteredBuiltinActor<Vec<u8>, u64>>::ID,
+            <crate::Pallet<Test> as RegisteredBuiltinActor<IncomingMessage, u64>>::ID,
         );
         let builtin_id = BuiltinActorTest::lookup(&program_id).unwrap();
-        let result =
-            <Test as pallet_gear_builtin_actor::Config>::BuiltinActor::handle(builtin_id, vec![]);
+        let message = SimpleBuiltinMessage::new(ProgramId::default(), builtin_id, vec![]);
+
+        let result = <Test as pallet_gear_builtin_actor::Config>::BuiltinActor::handle(&message);
 
         assert_ok!(result.0);
     });

@@ -80,6 +80,20 @@ pub struct SimpleBuiltinMessage {
     payload: Vec<u8>,
 }
 
+impl SimpleBuiltinMessage {
+    pub fn new(
+        source: ProgramId,
+        destination: BuiltinId,
+        payload: Vec<u8>,
+    ) -> SimpleBuiltinMessage {
+        SimpleBuiltinMessage {
+            source,
+            destination,
+            payload,
+        }
+    }
+}
+
 impl Dispatchable for SimpleBuiltinMessage {
     type Payload = Vec<u8>;
 
