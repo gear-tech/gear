@@ -34,12 +34,12 @@ pub fn oom(_: core::alloc::Layout) -> ! {
 
 /// We currently support 3 panic handler profiles:
 /// - `panic-handler`: it displays `no info`
-/// - `panic-message`: it displays `panic: '{message}'`
+/// - `panic-message`: it displays `'{message}'`
 ///   - In nightly Rust, we use `#![feature(panic_info_message)]` and the
 ///     [`write!`] macro.
 ///   - In stable Rust, we need to modify the default panic handler message
 ///     format.
-/// - `panic-location`: it displays `panic: '{message}' at {location}`
+/// - `panic-location`: it displays `'{message}', {location}`
 ///
 /// Default panic handler message format (according to <https://github.com/rust-lang/rust/pull/112849>):
 /// - Rust  <1.73: `panicked at '{message}', {location}`
@@ -87,9 +87,8 @@ pub mod panic_handler {
             /// Max amount of bytes allowed to be thrown as string explanation
             /// of the error.
             pub const TRIMMED_MAX_LEN: usize = 1024; //TODO: do not duplicate `gear_core::str::TRIMMED_MAX_LEN`
-            /// This prefix is used to display panic message.
-            pub const PANIC_PREFIX: &str = "panic: ";
             /// This prefix is used by `impl Display for PanicInfo<'_>`.
+            #[cfg(not(feature = "nightly"))]
             pub const PANICKED_AT: &str = "panicked at ";
         }
 
@@ -104,12 +103,11 @@ pub mod panic_handler {
             use crate::prelude::fmt::Write;
             use arrayvec::ArrayString;
 
-            let mut debug_msg = ArrayString::<{ PANIC_PREFIX.len() + TRIMMED_MAX_LEN }>::new();
+            let mut debug_msg = ArrayString::<TRIMMED_MAX_LEN>::new();
 
-            let _ = debug_msg.try_push_str(PANIC_PREFIX);
             let _ = match (panic_info.message(), panic_info.location()) {
                 #[cfg(all(feature = "panic-message", feature = "panic-location"))]
-                (Some(msg), Some(loc)) => write!(&mut debug_msg, "'{msg}' at {loc}"),
+                (Some(msg), Some(loc)) => write!(&mut debug_msg, "'{msg}', {loc}"),
                 #[cfg(all(feature = "panic-message", not(feature = "panic-location")))]
                 (Some(msg), _) => write!(&mut debug_msg, "'{msg}'"),
                 _ => ext::panic("no info"),
@@ -177,12 +175,10 @@ pub mod panic_handler {
             let location = &*output.location.buffer;
             let message = &*output.message.buffer;
 
-            let mut debug_msg = ArrayString::<{ PANIC_PREFIX.len() + TRIMMED_MAX_LEN }>::new();
-
-            let _ = debug_msg.try_push_str(PANIC_PREFIX);
+            let mut debug_msg = ArrayString::<TRIMMED_MAX_LEN>::new();
 
             #[cfg(all(feature = "panic-message", feature = "panic-location"))]
-            for s in ["'", message, "' at ", location] {
+            for s in ["'", message, "', ", location] {
                 if debug_msg.try_push_str(s).is_err() {
                     break;
                 }
