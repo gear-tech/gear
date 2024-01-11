@@ -103,16 +103,17 @@ where
     <R as frame_system::Config>::AccountId: Into<AccountId>,
 {
     fn on_unbalanceds<B>(mut fees_then_tips: impl Iterator<Item = NegativeImbalance<R>>) {
+        use pallet_treasury::Pallet as Treasury;
+
         if let Some(fees) = fees_then_tips.next() {
             // for fees, 50% to treasury, 50% to author
-            let mut split = fees.ration(50, 50);
+            let (mut to_author, to_treasury) = fees.ration(50, 50);
             if let Some(tips) = fees_then_tips.next() {
                 // for tips, if any, 100% to author
-                tips.merge_into(&mut split.1);
+                tips.merge_into(&mut to_author);
             }
-            use pallet_treasury::Pallet as Treasury;
-            <Treasury<R> as OnUnbalanced<_>>::on_unbalanced(split.0);
-            <ToAuthor<R> as OnUnbalanced<_>>::on_unbalanced(split.1);
+            <Treasury<R> as OnUnbalanced<_>>::on_unbalanced(to_treasury);
+            <ToAuthor<R> as OnUnbalanced<_>>::on_unbalanced(to_author);
         }
     }
 }
