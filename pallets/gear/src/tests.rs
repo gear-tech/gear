@@ -86,7 +86,6 @@ use utils::*;
 type Gas = <<Test as Config>::GasProvider as common::GasProvider>::GasTree;
 
 #[test]
-#[should_panic]
 fn calculate_gas_zero_balance() {
     init_logger();
     new_test_ext().execute_with(|| {
