@@ -38,10 +38,7 @@ runs:
         echo "cache=${CACHE}" >> $GITHUB_OUTPUT
 
     - name: Mock Required Checks
-      uses: actions/github-script@7
-      if: ${{ inputs.mock == 'true' }}
+      if: ${{ inputs.mock == 'true' && steps.check-commit-message.skip-ci }}
       env:
         HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        SKIP_CI: ${{ steps.check-commit-message.outputs.skip-ci }}
-      with:
-        script: await require('./mock.js')({ github, core })
+      uses: ./.github/actions/mock

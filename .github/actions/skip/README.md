@@ -1,15 +1,11 @@
-# Skip CI Action
+# Message Checker Action
 
-There is a bad behavior in github that once we set the required actions
-( `build / linux`, `check / linux` in [gear-tech/gear][gear] ), we can
-not skip them on insubstantial pull requests as well, besides, it will
-leave the ugly yellow dot on the CI status.
+This action is for resolve labels `[skip-ci]` and `[skip-cache]` from
+the current commit message, it will [mock the required checks][mock]
+if `[skip-ci]` is found in the commit message.
 
-In case of solving this problem, we implemented an action script to mock
-the required actions in case we do want to skip them.
-
-This skipping action is triggered by label `[skip-ci]` in commit message,
-different from the [`[skip ci]` from github][github].
+The label `[skip-ci]` is different from the github labels, see
+[skipping-workflow-runs][github] for more details.
 
 ## Usage
 
@@ -40,15 +36,10 @@ steps:
     run: echo "label [skip-cache] found in the commit message!""
 ```
 
-In the meanwhile, once this skip-check is triggered, it will create two
-checks in the present pull request:
-
-- `build / linux`
-- `check / linux`
-
 ## LICENSE
 
 GPL-3.0-only
 
 [gear]: https://github.com/gear-tech/gear
 [github]: https://docs.github.com/en/actions/managing-workflow-runs/skipping-workflow-runs
+[mock]: ../mock/README.md

@@ -1,0 +1,11 @@
+name: "Skipping Check"
+description: "Mock required checks in github pull requests."
+
+inputs:
+  head-sha:
+    description: "The head sha of the current commit."
+    required: true
+
+runs:
+  using: "node20"
+  main: "mock.js"

@@ -2,15 +2,14 @@
  * Javascript module for skipping CI
  */
 
-const { HEAD_SHA, SKIP_CI } = process.env;
+const core = require('@actions/core');
+const github = require('@actions/github');
+
 const CHECKS = ["check", "build"]
 const [owner, repo] = ["gear-tech", "gear"];
 
-module.exports = async ({ github, core }) => {
-  if (SKIP_CI != 1) return;
-
-  core.info(`Skipping CI for ${TITLE}`);
-
+async function mock() {
+  const head_sha = core.getInput("head-sha")
   for (check of CHECKS) {
     const { data: res } = await github.rest.checks.create({
       owner,
@@ -25,3 +24,14 @@ module.exports = async ({ github, core }) => {
     core.info(JSON.stringify(res, null, 2));
   }
 }
+
+mock().catch(err => {
+  core.error("ERROR: ", err.message);
+  try {
+    console.log(JSON.stringify(err, null, 2))
+  } catch (e) {
+    // Ignore JSON errors for now.
+  }
+
+  console.log(e.stack)
+})
