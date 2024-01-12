@@ -87,6 +87,15 @@ pub mod panic_handler {
             /// Max amount of bytes allowed to be thrown as string explanation
             /// of the error.
             pub const TRIMMED_MAX_LEN: usize = 1024; //TODO: do not duplicate `gear_core::str::TRIMMED_MAX_LEN`
+            /// This prefix is used to print debug message:
+            /// `debug!("panic occurred: {msg}")`.
+            pub const PANIC_OCCURRED: &str = "panic occurred: ";
+            /// TODO.
+            pub const ARRAY_STRING_MAX_LEN: usize = if cfg!(feature = "debug") {
+                PANIC_OCCURRED.len()
+            } else {
+                0
+            } + TRIMMED_MAX_LEN;
             /// This prefix is used by `impl Display for PanicInfo<'_>`.
             #[cfg(not(feature = "nightly"))]
             pub const PANICKED_AT: &str = "panicked at ";
@@ -103,7 +112,10 @@ pub mod panic_handler {
             use crate::prelude::fmt::Write;
             use arrayvec::ArrayString;
 
-            let mut debug_msg = ArrayString::<TRIMMED_MAX_LEN>::new();
+            let mut debug_msg = ArrayString::<ARRAY_STRING_MAX_LEN>::new();
+
+            #[cfg(feature = "debug")]
+            let _ = debug_msg.try_push_str(PANIC_OCCURRED);
 
             let _ = match (panic_info.message(), panic_info.location()) {
                 #[cfg(all(feature = "panic-message", feature = "panic-location"))]
@@ -113,6 +125,16 @@ pub mod panic_handler {
                 _ => ext::panic("no info"),
             };
 
+            #[cfg(feature = "debug")]
+            let _ = ext::debug(&debug_msg);
+
+            #[cfg(feature = "debug")]
+            match debug_msg.get(PANIC_OCCURRED.len()..) {
+                Some(msg) => ext::panic(msg),
+                _ => ext::panic("no info"),
+            }
+
+            #[cfg(not(feature = "debug"))]
             ext::panic(&debug_msg)
         }
 
@@ -175,7 +197,10 @@ pub mod panic_handler {
             let location = &*output.location.buffer;
             let message = &*output.message.buffer;
 
-            let mut debug_msg = ArrayString::<TRIMMED_MAX_LEN>::new();
+            let mut debug_msg = ArrayString::<ARRAY_STRING_MAX_LEN>::new();
+
+            #[cfg(feature = "debug")]
+            let _ = debug_msg.try_push_str(PANIC_OCCURRED);
 
             #[cfg(all(feature = "panic-message", feature = "panic-location"))]
             for s in ["'", message, "', ", location] {
@@ -191,6 +216,16 @@ pub mod panic_handler {
                 }
             }
 
+            #[cfg(feature = "debug")]
+            let _ = ext::debug(&debug_msg);
+
+            #[cfg(feature = "debug")]
+            match debug_msg.get(PANIC_OCCURRED.len()..) {
+                Some(msg) => ext::panic(msg),
+                _ => ext::panic("no info"),
+            }
+
+            #[cfg(not(feature = "debug"))]
             ext::panic(&debug_msg)
         }
     }
