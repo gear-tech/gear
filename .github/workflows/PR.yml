@@ -28,7 +28,7 @@ jobs:
 
       - name: Check Skip
         id: check-skip
-        uses: ./.github/actions/skip/action.yml
+        uses: ./.github/actions/skip
 
       - name: Set sccache path
         if: ${{ steps.check-skip.outputs.cache }}
