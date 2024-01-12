@@ -90,7 +90,7 @@ pub mod panic_handler {
             /// This prefix is used to print debug message:
             /// `debug!("panic occurred: {msg}")`.
             pub const PANIC_OCCURRED: &str = "panic occurred: ";
-            /// TODO.
+            /// Size of array string that will be allocated on the stack.
             pub const ARRAY_STRING_MAX_LEN: usize = if cfg!(feature = "debug") {
                 PANIC_OCCURRED.len()
             } else {
