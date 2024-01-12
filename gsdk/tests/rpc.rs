@@ -29,6 +29,36 @@ use utils::{alice_account_id, dev_node, node_uri};
 mod utils;
 
 #[tokio::test]
+async fn pallet_errors_formatting() -> Result<()> {
+    let node = dev_node();
+    let api = Api::new(Some(&node_uri(&node))).await?;
+
+    let err = api
+        .calculate_upload_gas(
+            [0u8; 32].into(),
+            /* invalid code */ vec![],
+            vec![],
+            0,
+            true,
+            None,
+        )
+        .await
+        .expect_err("Must return error");
+
+    let expected_err = Error::Subxt(SubxtError::Rpc(RpcError::ClientError(Box::new(
+        CallError::Custom(ErrorObject::owned(
+            8000,
+            "Runtime error",
+            Some("\"Extrinsic `gear.upload_program` failed: 'ProgramConstructionFailed'\""),
+        )),
+    ))));
+
+    assert_eq!(format!("{err}"), format!("{expected_err}"));
+
+    Ok(())
+}
+
+#[tokio::test]
 async fn test_calculate_upload_gas() -> Result<()> {
     let node = dev_node();
     let api = Api::new(Some(&node_uri(&node))).await?;
