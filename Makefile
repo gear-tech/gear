@@ -3,7 +3,7 @@
 show:
 	@ ./scripts/gear.sh show
 
-.PHONY: pre-commit
+.PHONY: pre-commit # Here should be no release builds to keep checks fast.
 pre-commit: fmt clippy test check-runtime-imports
 
 .PHONY: check-spec
@@ -178,8 +178,7 @@ purge-dev-chain-release:
 	@ ./scripts/gear.sh run purge-dev-chain --release
 
 # Test section
-.PHONY: test # \
-	There should be no release builds to keep checks fast.
+.PHONY: test # Here should be no release builds to keep checks fast.
 test: test-gear
 
 .PHONY: test-release
@@ -190,15 +189,18 @@ test-doc:
 	@ ./scripts/gear.sh test docs
 
 .PHONY: test-gear
-test-gear: #\
-	We use lazy-pages feature for pallet-gear-debug due to cargo building issue \
-	and fact that pallet-gear default is lazy-pages.
-	@ ./scripts/gear.sh test gear --exclude gclient --exclude gcli --exclude gsdk
+test-gear: # Crates except gclient, gcli, gsdk are excluded to significantly decrease time.
+	@ ./scripts/gear.sh test gear \
+		--exclude gclient \
+		--exclude gcli \
+		--exclude gsdk \
+		--exclude gear-authorship \
+		--exclude pallet-gear-staking-rewards \
+		--exclude gear-wasm-gen \
+		--exclude demo-stack-allocations
 
 .PHONY: test-gear-release
-test-gear-release: # \
-	We use lazy-pages feature for pallet-gear-debug due to cargo building issue \
-	and fact that pallet-gear default is lazy-pages.
+test-gear-release:
 	@ ./scripts/gear.sh test gear --release --exclude gclient --exclude gcli --exclude gsdk
 
 .PHONY: test-gsdk
