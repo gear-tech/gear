@@ -26,32 +26,9 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha }}
 
-      - name: Check Commit Message
+      - name: Check Skip
         id: check-commit-message
-        run: |
-          MESSAGE=$(git show -s --format=%s)
-          CACHE=true
-          if [[ $MESSAGE == *"[skip-cache]"* ]]; then
-            CACHE=""
-          fi
-
-          if [[ $MESSAGE == *"[skip-ci]"* ]]; then
-            echo "skip-ci: 1"
-            echo "skip-ci=1" >> $GITHUB_OUTPUT
-          fi
-
-          echo "cache: ${CACHE}"
-          echo "cache=${CACHE}" >> $GITHUB_OUTPUT
-
-      - uses: actions/github-script@v7
-        env:
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          TITLE: ${{ github.event.pull_request.title }}
-          SKIP_CI: ${{ steps.check-commit-message.outputs.skip-ci }}
-        with:
-          script: |
-            const script = require('./.github/actions/label/skip.js');
-            await script({ github, core });
+        uses: .github/actions/skip/action.yml
 
       - name: Set sccache path
         if: ${{ steps.check-commit-message.outputs.cache }}

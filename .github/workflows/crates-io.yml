@@ -1,6 +1,7 @@
 name: Crates IO
 
 on:
+  workflow_call:
   workflow_dispatch:
     inputs:
       publish:
@@ -11,8 +12,6 @@ on:
         description: "Workspace version to publish"
         required: true
         type: string
-  pull_request:
-    branches: [master]
 
 env:
   CARGO_INCREMENTAL: 0
@@ -23,7 +22,6 @@ env:
 jobs:
   check:
     runs-on: ubuntu-latest
-    if: ${{ !contains(github.event.pull_request.title, '[skip-ci]') }}
     env:
       CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
     steps:

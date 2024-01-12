@@ -2,13 +2,12 @@
  * Javascript module for skipping CI
  */
 
-const SKIP_CI_LABEL = "[skip-ci]";
-const { TITLE, HEAD_SHA, SKIP_CI } = process.env;
+const { HEAD_SHA, SKIP_CI } = process.env;
 const CHECKS = ["check", "build"]
 const [owner, repo] = ["gear-tech", "gear"];
 
 module.exports = async ({ github, core }) => {
-  if (!TITLE.includes(SKIP_CI_LABEL) && SKIP_CI != 1) return;
+  if (SKIP_CI != 1) return;
 
   core.info(`Skipping CI for ${TITLE}`);
 

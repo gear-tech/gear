@@ -1,0 +1,47 @@
+name: "Skipping Check"
+description: "Find [skip-*] in commit messages and mock required checks."
+
+inputs:
+  mock:
+    description: "If mock required checks."
+    required: true
+    default: true
+outputs:
+  cache:
+    description: "If [skip-cache] is not found in the commit message."
+    value: ${{ steps.check-commit-message.outputs.cache }}
+  skip-ci:
+    description: "If [skip-ci] is found in the commit message."
+    value: ${{ steps.check-commit-message.outputs.skip-ci }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Check Commit Message
+      id: check-commit-message
+      shell: bash
+      run: |
+        MESSAGE=$(git show -s --format=%s)
+        CACHE=true
+
+        if [[ $MESSAGE == *"[skip-cache]"* ]]; then
+          echo "cache: false"
+          CACHE=""
+        fi
+
+        if [[ $MESSAGE == *"[skip-ci]"* ]]; then
+          echo "skip-ci: 1"
+          echo "skip-ci=1" >> $GITHUB_OUTPUT
+        fi
+
+        echo "cache: ${CACHE}"
+        echo "cache=${CACHE}" >> $GITHUB_OUTPUT
+
+    - name: Mock Required Checks
+      uses: actions/github-script@7
+      if: ${{ inputs.mock == 'true' }}
+      env:
+        HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        SKIP_CI: ${{ steps.check-commit-message.outputs.skip-ci }}
+      with:
+        script: await require('./mock.js')({ github, core })
