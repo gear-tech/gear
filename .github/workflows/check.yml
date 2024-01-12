@@ -62,7 +62,7 @@ jobs:
         run: cargo +stable check -p gstd
 
       - name: "Check: crates-io packages"
-        uses: ./.github/workflows/crates-io.yml
+        run: cargo run --release -p crates-io check
 
   fuzzer:
     runs-on: [kuberunner, github-runner-01]
