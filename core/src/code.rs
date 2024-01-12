@@ -24,21 +24,17 @@ use crate::{
     pages::{PageNumber, PageU32Size, WasmPage},
 };
 use alloc::{collections::BTreeSet, vec, vec::Vec};
-use gear_wasm_instrument::{
-    parity_wasm::{
-        self,
-        elements::{
-            ExportEntry, GlobalEntry, GlobalType, InitExpr, Instruction, Internal, Module, Type,
-        },
+use gear_wasm_instrument::{parity_wasm::{
+    self,
+    elements::{
+        ExportEntry, GlobalEntry, GlobalType, InitExpr, Instruction, Internal, Module, Type,
     },
-    wasm_instrument::gas_metering::{ConstantCostRules, Rules},
-    InstrumentationBuilder, STACK_END_EXPORT_NAME,
-};
+}, wasm_instrument::gas_metering::{ConstantCostRules, Rules}, InstrumentationBuilder, STACK_END_EXPORT_NAME, SyscallName};
 use scale_info::{
     scale::{Decode, Encode},
     TypeInfo,
 };
-use gear_wasm_instrument::parity_wasm::elements::ImportCountType;
+use gear_wasm_instrument::parity_wasm::elements::{External, ImportCountType, ValueType};
 use crate::costs::RuntimeCosts::PayProgramRent;
 
 /// Defines maximal permitted count of memory pages.
@@ -71,6 +67,8 @@ fn check_code(
     module: &Module,
     config: &TryNewCodeConfig,
 ) -> Result<(), CodeError> {
+    //return Ok(());
+
     let funcs = module
         .function_section()
         .ok_or(CodeError::FunctionSectionNotFound)?
@@ -93,28 +91,50 @@ fn check_code(
         .ok_or(CodeError::ExportSectionNotFound)?
         .entries();
 
-    let mut entry = false;
-    for export in exports {
-        if let Internal::Function(i) = export.internal() {
-            if config.check_exports {
+    if config.check_exports {
+        let mut entry = false;
+        for export in exports {
+            if let Internal::Function(i) = export.internal() {
                 // Index access into arrays cannot panic unless the Module structure is invalid
                 let type_id = funcs[*i as usize - import_count].type_ref();
                 let Type::Function(ref f) = types[type_id as usize];
                 if !f.params().is_empty() || !f.results().is_empty() {
                     return Err(CodeError::InvalidExportFnSignature);
                 }
+                if !ALLOWED_EXPORTS.contains(&export.field()) && config.check_exports {
+                    return Err(CodeError::NonGearExportFnFound);
+                }
+                if REQUIRED_EXPORTS.contains(&export.field()) {
+                    entry = true;
+                }
             }
-            if !ALLOWED_EXPORTS.contains(&export.field()) && config.check_exports {
-                return Err(CodeError::NonGearExportFnFound);
-            }
-            if REQUIRED_EXPORTS.contains(&export.field()) {
-                entry = true;
-            }
+        }
+
+        if !entry {
+            return Err(CodeError::RequiredExportFnNotFound);
         }
     }
 
-    if !entry {
-        return Err(CodeError::RequiredExportFnNotFound);
+    if config.check_imports {
+        let syscalls = SyscallName::all().collect::<Vec<_>>();
+        for import in imports {
+            if let External::Function(i) = import.external() {
+                let Type::Function(types) = &types[*i as usize];
+                // We can likely improve this by adding some helper function in SyscallName
+                let syscall = syscalls.iter().find(|s| s.to_str() == import.field()).ok_or(CodeError::UnknownImport)?;
+                let signature = syscall.signature();
+
+                let params = signature.params().iter().copied().map(Into::<ValueType>::into).collect::<Vec<_>>();
+                if &params != types.params() {
+                    return Err(CodeError::InvalidImportFnSignature);
+                }
+
+                let results = signature.results().unwrap_or(&[]);
+                if results != types.results() {
+                    return Err(CodeError::InvalidImportFnSignature);
+                }
+            }
+        }
     }
 
     Ok(())
@@ -288,6 +308,12 @@ pub enum CodeError {
     /// The signature of an exported function is invalid.
     #[display(fmt = "Invalid function signature for exported function")]
     InvalidExportFnSignature,
+    /// An imported function was not recognized.
+    #[display(fmt = "Unknown function name in import section")]
+    UnknownImport,
+    /// The signature of an imported function is invalid.
+    #[display(fmt = "Invalid function signature for imported function")]
+    InvalidImportFnSignature,
 }
 
 /// Contains instrumented binary code of a program and initial memory size from memory import.
@@ -357,6 +383,8 @@ pub struct TryNewCodeConfig {
     pub export_stack_height: bool,
     /// Check exports (wasm contains init or handle exports)
     pub check_exports: bool,
+    /// Check imports (check that all imports are valid syscalls with correct signature)
+    pub check_imports: bool,
     /// Check and canonize stack end
     pub check_and_canonize_stack_end: bool,
     /// Check mutable global exports
@@ -374,6 +402,7 @@ impl Default for TryNewCodeConfig {
             stack_height: None,
             export_stack_height: false,
             check_exports: true,
+            check_imports: true,
             check_and_canonize_stack_end: true,
             check_mut_global_exports: true,
             check_start_section: true,
