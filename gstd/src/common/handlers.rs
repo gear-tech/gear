@@ -97,7 +97,7 @@ pub mod panic_handler {
                 0
             } + TRIMMED_MAX_LEN;
             /// This prefix is used by `impl Display for PanicInfo<'_>`.
-            #[cfg(not(feature = "nightly"))]
+            #[cfg(not(feature = "panic-info-message"))]
             pub const PANICKED_AT: &str = "panicked at ";
         }
 
@@ -105,7 +105,7 @@ pub mod panic_handler {
         use constants::*;
 
         /// Panic handler for nightly Rust.
-        #[cfg(feature = "nightly")]
+        #[cfg(feature = "panic-info-message")]
         #[cfg(any(feature = "panic-message", feature = "panic-location"))]
         #[panic_handler]
         pub fn panic(panic_info: &PanicInfo) -> ! {
@@ -139,7 +139,7 @@ pub mod panic_handler {
         }
 
         /// Panic handler for stable Rust >=1.73.
-        #[cfg(not(feature = "nightly"))]
+        #[cfg(not(feature = "panic-info-message"))]
         #[cfg(any(feature = "panic-message", feature = "panic-location"))]
         #[panic_handler]
         pub fn panic(panic_info: &PanicInfo) -> ! {
