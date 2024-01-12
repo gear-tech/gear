@@ -118,9 +118,9 @@ pub mod panic_handler {
             let _ = debug_msg.try_push_str(PANIC_OCCURRED);
 
             let _ = match (panic_info.message(), panic_info.location()) {
-                #[cfg(all(feature = "panic-message", feature = "panic-location"))]
+                #[cfg(feature = "panic-location")]
                 (Some(msg), Some(loc)) => write!(&mut debug_msg, "'{msg}', {loc}"),
-                #[cfg(all(feature = "panic-message", not(feature = "panic-location")))]
+                #[cfg(not(feature = "panic-location"))]
                 (Some(msg), _) => write!(&mut debug_msg, "'{msg}'"),
                 _ => ext::panic("no info"),
             };
@@ -193,7 +193,7 @@ pub mod panic_handler {
             let mut output = TempOutput::default();
             let _ = write!(&mut output, "{panic_info}");
 
-            #[cfg(all(feature = "panic-message", feature = "panic-location"))]
+            #[cfg(feature = "panic-location")]
             let location = &*output.location.buffer;
             let message = &*output.message.buffer;
 
@@ -202,14 +202,14 @@ pub mod panic_handler {
             #[cfg(feature = "debug")]
             let _ = debug_msg.try_push_str(PANIC_OCCURRED);
 
-            #[cfg(all(feature = "panic-message", feature = "panic-location"))]
+            #[cfg(feature = "panic-location")]
             for s in ["'", message, "', ", location] {
                 if debug_msg.try_push_str(s).is_err() {
                     break;
                 }
             }
 
-            #[cfg(all(feature = "panic-message", not(feature = "panic-location")))]
+            #[cfg(not(feature = "panic-location"))]
             for s in ["'", message, "'"] {
                 if debug_msg.try_push_str(s).is_err() {
                     break;
