@@ -39,6 +39,6 @@ runs:
 
     - name: Mock Required Checks
       if: ${{ inputs.mock == 'true' && steps.check-commit-message.skip-ci }}
-      env:
-        HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      with:
+        head-sha: ${{ github.event.pull_request.head.sha }}
       uses: ./.github/actions/mock
