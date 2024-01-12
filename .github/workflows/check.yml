@@ -61,6 +61,9 @@ jobs:
       - name: "Check: Compiling gstd on stable"
         run: cargo +stable check -p gstd
 
+      - name: "Check: crates-io packages"
+        uses: ./.github/workflows/crates-io.yml
+
   fuzzer:
     runs-on: [kuberunner, github-runner-01]
     env:
