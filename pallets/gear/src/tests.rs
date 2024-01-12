@@ -8341,22 +8341,19 @@ fn call_forbidden_function() {
 
         run_to_block(2, None);
 
-        let res = Gear::calculate_gas_info(
+        let err = Gear::calculate_gas_info(
             USER_1.into_origin(),
             HandleKind::Handle(prog_id),
             EMPTY_PAYLOAD.to_vec(),
             0,
             true,
             true,
-        );
+        )
+        .expect_err("Must return error");
 
-        assert_eq!(
-            res,
-            Err(format!(
-                "Program terminated with a trap: {}",
-                TrapExplanation::ForbiddenFunction,
-            ))
-        );
+        let trap = TrapExplanation::ForbiddenFunction;
+
+        assert_eq!(err, format!("Program terminated with a trap: '{trap}'"));
     });
 }
 
