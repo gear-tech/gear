@@ -1,6 +1,6 @@
 [package]
 name = "gtest"
-description = "Testing utils for developing gear programs."
+description = "Testing utils for developing Gear programs."
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
