@@ -60,6 +60,12 @@ jobs:
 
       - name: "Check: Compiling gstd on stable"
         run: |
+          TOOLCHAIN=$(grep 'channel' rust-toolchain.toml | cut -d '"' -f 2)
+          CARGO_TOOLCHAIN="utils/wasm-builder/src/cargo_toolchain.rs"
+          if ! grep -q "$TOOLCHAIN" $CARGO_TOOLCHAIN; then
+            echo "Please update PINNED_NIGHTLY_TOOLCHAIN constant in $CARGO_TOOLCHAIN to match rust-toolchain.toml."
+            exit 1
+          fi
           cargo +stable check -p gstd -F debug --target wasm32-unknown-unknown
           cargo +stable check --manifest-path utils/wasm-builder/test-program/Cargo.toml
 
