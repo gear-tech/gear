@@ -19,19 +19,19 @@ jobs:
   status:
     runs-on: ubuntu-latest
     outputs:
-      skip-ci: ${{ steps.check-commit-message.outputs.skip-ci }}
-      cache: ${{ steps.check-commit-message.outputs.cache }}
+      skip-ci: ${{ steps.check-skip.outputs.skip-ci }}
+      cache: ${{ steps.check-skip.outputs.cache }}
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Check Skip
-        id: check-commit-message
-        uses: .github/actions/skip/action.yml
+        id: check-skip
+        uses: ./.github/actions/skip/action.yml
 
       - name: Set sccache path
-        if: ${{ steps.check-commit-message.outputs.cache }}
+        if: ${{ steps.check-skip.outputs.cache }}
         run: |
           sccache_path="/mnt/sccache/$(echo ${GITHUB_REF#refs/heads/} | tr / _)"
           echo "cache=$sccache_path" >> $GITHUB_OUTPUT
