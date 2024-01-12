@@ -69,6 +69,7 @@ pub fn oom(_: core::alloc::Layout) -> ! {
 /// });
 /// assert!(result.is_err());
 /// ```
+#[cfg(feature = "panic-handler")]
 pub mod panic_handler {
     #[cfg(target_arch = "wasm32")]
     mod internal {
