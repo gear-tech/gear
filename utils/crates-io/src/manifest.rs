@@ -18,28 +18,24 @@
 
 //! Manifest utils for crates-io-manager
 
+use crate::{handler, version};
 use anyhow::{anyhow, Result};
 use cargo_metadata::Package;
-use std::{fs, path::PathBuf};
+use std::{
+    fs,
+    ops::{Deref, DerefMut},
+    path::PathBuf,
+};
 use toml_edit::Document;
-
-use crate::version;
 
 const WORKSPACE_NAME: &str = "__gear_workspace";
 
-/// Cargo manifest with path
-pub struct Manifest {
-    /// Crate name
-    pub name: String,
-    /// Cargo manifest
-    pub manifest: Document,
-    /// Path of the manifest
-    pub path: PathBuf,
-}
+/// Workspace instance, which is a wrapper of [`Manifest`].
+pub struct Workspace(Manifest);
 
-impl Manifest {
-    /// Get the workspace manifest
-    pub fn workspace() -> Result<Self> {
+impl Workspace {
+    /// Get the workspace manifest with version overridden.
+    pub fn lookup(version: Option<String>) -> Result<Self> {
         let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .ancestors()
             .nth(2)
@@ -47,35 +43,34 @@ impl Manifest {
             .ok_or_else(|| anyhow::anyhow!("Could not find workspace manifest"))?
             .canonicalize()?;
 
-        Ok(Self {
+        let mut workspace: Self = Manifest {
             name: WORKSPACE_NAME.to_string(),
             manifest: fs::read_to_string(&path)?.parse()?,
             path,
-        })
-    }
+        }
+        .into();
 
-    /// Complete the manifest of the specified crate from
-    /// the workspace manifest
-    pub fn manifest(&self, pkg: &Package) -> Result<Self> {
-        self.ensure_workspace()?;
+        // NOTE: renaming version here is required because it could
+        // be easy to publish incorrect version to crates.io by mistake
+        // in testing.
+        {
+            let version = if let Some(version) = version {
+                version
+            } else {
+                workspace.version()? + "-" + &version::hash()?
+            };
 
-        // Complete documentation as from <https://docs.rs>
-        let mut manifest: Document = fs::read_to_string(&pkg.manifest_path)?.parse()?;
-        let name = pkg.name.clone();
-        manifest["package"]["documentation"] = toml_edit::value(format!("https://docs.rs/{name}"));
+            workspace.manifest["workspace"]["package"]["version"] = toml_edit::value(version);
+        }
 
-        Ok(Self {
-            name,
-            manifest,
-            path: pkg.manifest_path.clone().into(),
-        })
+        Ok(workspace)
     }
 
     /// complete the versions of the specified crates
-    pub fn complete_versions(&mut self, index: &[&str]) -> Result<()> {
-        self.ensure_workspace()?;
+    pub fn complete(&mut self, mut index: Vec<&str>) -> Result<()> {
+        handler::patch_alias(&mut index);
 
-        let version = self.manifest["workspace"]["package"]["version"]
+        let version = self.0.manifest["workspace"]["package"]["version"]
             .clone()
             .as_str()
             .ok_or_else(|| anyhow!("Could not find version in workspace manifest"))?
@@ -97,29 +92,12 @@ impl Manifest {
             dep["version"] = toml_edit::value(version.clone());
         }
 
-        self.rename_deps()?;
+        self.rename()?;
         Ok(())
-    }
-
-    /// Set version for the workspace.
-    pub fn with_version(mut self, version: Option<String>) -> Result<Self> {
-        self.ensure_workspace()?;
-
-        let version = if let Some(version) = version {
-            version
-        } else {
-            self.version()? + "-" + &version::hash()?
-        };
-
-        self.manifest["workspace"]["package"]["version"] = toml_edit::value(version);
-
-        Ok(self)
     }
 
     /// Get version from the current manifest.
     pub fn version(&self) -> Result<String> {
-        self.ensure_workspace()?;
-
         Ok(self.manifest["workspace"]["package"]["version"]
             .as_str()
             .ok_or_else(|| {
@@ -131,58 +109,79 @@ impl Manifest {
             .to_string())
     }
 
-    /// Write manifest to disk.
-    pub fn write(&self) -> Result<()> {
-        fs::write(&self.path, self.manifest.to_string()).map_err(Into::into)
-    }
-
-    /// Rename dependencies
-    fn rename_deps(&mut self) -> Result<()> {
-        self.ensure_workspace()?;
-
+    /// Rename worskapce manifest.
+    fn rename(&mut self) -> Result<()> {
         let Some(deps) = self.manifest["workspace"]["dependencies"].as_table_like_mut() else {
             return Ok(());
         };
 
         for (name, dep) in deps.iter_mut() {
             let name = name.get();
-            if !name.starts_with("sp-") {
+            let Some(table) = dep.as_inline_table_mut() else {
                 continue;
-            }
-
-            // Format dotted values into inline table.
-            if let Some(table) = dep.as_table_mut() {
-                table.remove("branch");
-                table.remove("git");
-                table.remove("workspace");
-
-                if name == "sp-arithmetic" {
-                    // NOTE: the required version of sp-arithmetic is 6.0.0 in
-                    // git repo, but 7.0.0 in crates.io, so we need to fix it.
-                    table.insert("version", toml_edit::value("7.0.0"));
-                }
-
-                // Force the dep to be inline table in case of losing
-                // documentation.
-                let mut inline = table.clone().into_inline_table();
-                inline.fmt();
-                *dep = toml_edit::value(inline);
             };
+
+            handler::patch_workspace(name, table);
         }
 
         Ok(())
     }
+}
 
-    /// Ensure the current function is called on the workspace manifest
-    ///
-    /// TODO: remove this interface after #3565
-    fn ensure_workspace(&self) -> Result<()> {
-        if self.name != WORKSPACE_NAME {
-            return Err(anyhow!(
-                "This method can only be called on the workspace manifest"
-            ));
-        }
+impl From<Manifest> for Workspace {
+    fn from(manifest: Manifest) -> Self {
+        Self(manifest)
+    }
+}
 
-        Ok(())
+impl Deref for Workspace {
+    type Target = Manifest;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for Workspace {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+/// Cargo manifest with path
+pub struct Manifest {
+    /// Crate name
+    pub name: String,
+    /// Cargo manifest
+    pub manifest: Document,
+    /// Path of the manifest
+    pub path: PathBuf,
+}
+
+impl Manifest {
+    /// Complete the manifest of the specified crate from
+    /// the workspace manifest
+    pub fn new(pkg: &Package) -> Result<Self> {
+        // Complete documentation as from <https://docs.rs>
+        let mut manifest: Document = fs::read_to_string(&pkg.manifest_path)?.parse()?;
+        let name = pkg.name.clone();
+        manifest["package"]["documentation"] = toml_edit::value(format!("https://docs.rs/{name}"));
+
+        Ok(Self {
+            name,
+            manifest,
+            path: pkg.manifest_path.clone().into(),
+        })
+    }
+
+    /// Write manifest to disk.
+    pub fn write(&self) -> Result<()> {
+        fs::write(&self.path, self.manifest.to_string()).map_err(Into::into)
+    }
+}
+
+impl From<Workspace> for Manifest {
+    fn from(workspace: Workspace) -> Self {
+        workspace.0
     }
 }

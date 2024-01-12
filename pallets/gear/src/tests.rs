@@ -44,7 +44,7 @@ use crate::{
         USER_3,
     },
     pallet,
-    runtime_api::RUNTIME_API_BLOCK_LIMITS_COUNT,
+    runtime_api::{ALLOWANCE_LIMIT_ERR, RUNTIME_API_BLOCK_LIMITS_COUNT},
     AccountIdOf, BlockGasLimitOf, Config, CostsPerBlockOf, CurrencyOf, DbWeightOf, DispatchStashOf,
     Error, Event, GasAllowanceOf, GasBalanceOf, GasHandlerOf, GasInfo, GearBank, MailboxOf,
     ProgramStorageOf, QueueOf, Schedule, TaskPoolOf, WaitlistOf,
@@ -8341,22 +8341,19 @@ fn call_forbidden_function() {
 
         run_to_block(2, None);
 
-        let res = Gear::calculate_gas_info(
+        let err = Gear::calculate_gas_info(
             USER_1.into_origin(),
             HandleKind::Handle(prog_id),
             EMPTY_PAYLOAD.to_vec(),
             0,
             true,
             true,
-        );
+        )
+        .expect_err("Must return error");
 
-        assert_eq!(
-            res,
-            Err(format!(
-                "Program terminated with a trap: {}",
-                TrapExplanation::ForbiddenFunction,
-            ))
-        );
+        let trap = TrapExplanation::ForbiddenFunction;
+
+        assert_eq!(err, format!("Program terminated with a trap: '{trap}'"));
     });
 }
 
@@ -13111,10 +13108,7 @@ fn calculate_gas_fails_when_calculation_limit_exceeded() {
         );
 
         assert!(gas_info_result.is_err());
-        assert_eq!(
-            gas_info_result.unwrap_err(),
-            "Calculation gas limit exceeded. Consider using custom built node."
-        );
+        assert_eq!(gas_info_result.unwrap_err(), ALLOWANCE_LIMIT_ERR);
 
         // ok result when we use custom multiplier
         let gas_info_result = Gear::calculate_gas_info_impl(
@@ -14135,6 +14129,234 @@ fn calculate_gas_wait() {
     });
 }
 
+#[test]
+fn critical_hook_works() {
+    use demo_async_critical::{HandleAction, WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            vec![],
+            10_000_000_000,
+            0,
+            false,
+        ));
+        let pid = get_last_program_id();
+
+        run_to_block(2, None);
+
+        assert!(Gear::is_initialized(pid));
+        assert!(Gear::is_active(pid));
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            HandleAction::Simple.encode(),
+            10_000_000_000,
+            0,
+            false,
+        ));
+
+        let mid = get_last_message_id();
+
+        run_to_block(3, None);
+
+        let (waited, _) = get_last_message_waited();
+        assert_eq!(mid, waited);
+        assert_eq!(dispatch_status(mid), None);
+
+        let msg = get_last_mail(USER_1);
+        assert_eq!(msg.payload_bytes(), b"for_reply");
+
+        assert_ok!(Gear::send_reply(
+            RuntimeOrigin::signed(USER_1),
+            msg.id(),
+            EMPTY_PAYLOAD.to_vec(),
+            10_000_000_000,
+            0,
+            false,
+        ));
+
+        run_to_block(4, None);
+
+        assert_succeed(mid);
+        assert_eq!(MailboxOf::<Test>::iter_key(USER_1).count(), 0);
+    });
+}
+
+#[test]
+fn critical_hook_with_panic() {
+    use demo_async_critical::{HandleAction, WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            vec![],
+            10_000_000_000,
+            0,
+            false,
+        ));
+        let pid = get_last_program_id();
+
+        run_to_block(2, None);
+
+        assert!(Gear::is_initialized(pid));
+        assert!(Gear::is_active(pid));
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            HandleAction::Panic.encode(),
+            10_000_000_000,
+            0,
+            false,
+        ));
+
+        let mid = get_last_message_id();
+
+        run_to_block(3, None);
+
+        let msg = get_last_mail(USER_1);
+        assert_eq!(msg.payload_bytes(), b"for_reply");
+
+        assert_ok!(Gear::send_reply(
+            RuntimeOrigin::signed(USER_1),
+            msg.id(),
+            EMPTY_PAYLOAD.to_vec(),
+            10_000_000_000,
+            0,
+            false,
+        ));
+
+        run_to_block(4, None);
+
+        assert_failed(
+            mid,
+            ErrorReplyReason::Execution(SimpleExecutionError::UserspacePanic),
+        );
+
+        let msg = get_last_mail(USER_1);
+        assert_eq!(msg.payload_bytes(), b"critical");
+    });
+}
+
+#[test]
+fn critical_hook_in_handle_reply() {
+    use demo_async_critical::{HandleAction, WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            vec![],
+            10_000_000_000,
+            0,
+            false,
+        ));
+        let pid = get_last_program_id();
+
+        run_to_block(2, None);
+
+        assert!(Gear::is_initialized(pid));
+        assert!(Gear::is_active(pid));
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            HandleAction::InHandleReply.encode(),
+            10_000_000_000,
+            0,
+            false,
+        ));
+
+        run_to_block(3, None);
+
+        let msg = get_last_mail(USER_1);
+        assert_eq!(msg.payload_bytes(), b"for_reply");
+
+        assert_ok!(Gear::send_reply(
+            RuntimeOrigin::signed(USER_1),
+            msg.id(),
+            EMPTY_PAYLOAD.to_vec(),
+            10_000_000_000,
+            0,
+            false,
+        ));
+
+        let mid = get_last_message_id();
+
+        run_to_block(4, None);
+
+        assert_eq!(MailboxOf::<Test>::iter_key(USER_1).last(), None);
+        let status = dispatch_status(mid);
+        assert_eq!(status, Some(DispatchStatus::Failed));
+    });
+}
+
+#[test]
+fn critical_hook_in_handle_signal() {
+    use demo_async_critical::{HandleAction, WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            vec![],
+            10_000_000_000,
+            0,
+            false,
+        ));
+        let pid = get_last_program_id();
+
+        run_to_block(2, None);
+
+        assert!(Gear::is_initialized(pid));
+        assert!(Gear::is_active(pid));
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            HandleAction::InHandleSignal.encode(),
+            10_000_000_000,
+            0,
+            false,
+        ));
+
+        let mid = get_last_message_id();
+
+        run_to_block(3, None);
+
+        let msg = get_last_mail(USER_1);
+        assert_eq!(msg.payload_bytes(), b"for_reply");
+
+        assert_ok!(Gear::send_reply(
+            RuntimeOrigin::signed(USER_1),
+            msg.id(),
+            EMPTY_PAYLOAD.to_vec(),
+            10_000_000_000,
+            0,
+            false,
+        ));
+
+        run_to_block(4, None);
+
+        assert_eq!(MailboxOf::<Test>::iter_key(USER_1).last(), None);
+        let signal_msg_id = MessageId::generate_signal(mid);
+        let status = dispatch_status(signal_msg_id);
+        assert_eq!(status, Some(DispatchStatus::Failed));
+    });
+}
+
 mod utils {
     #![allow(unused)]
 
@@ -14498,6 +14720,7 @@ mod utils {
         })
     }
 
+    #[track_caller]
     pub(super) fn dispatch_status(message_id: MessageId) -> Option<DispatchStatus> {
         let mut found_status: Option<DispatchStatus> = None;
         System::events().iter().for_each(|e| {
@@ -14522,6 +14745,7 @@ mod utils {
         assert_eq!(status, DispatchStatus::Success)
     }
 
+    #[track_caller]
     fn get_last_event_error_and_reply_code(message_id: MessageId) -> (String, ReplyCode) {
         let mut actual_error = None;
 

@@ -20,6 +20,7 @@ members = [
     "core-processor",
     "core-errors",
     "examples/async",
+    "examples/async-critical",
     "examples/async-custom-entry",
     "examples/async-init",
     "examples/async-signal-entry",
@@ -367,6 +368,7 @@ try-runtime-cli = { version = "0.10.0-dev", git = "https://github.com/gear-tech/
 # Examples
 test-syscalls = { path = "examples/syscalls", default-features = false }
 demo-async = { path = "examples/async" }
+demo-async-critical = { path = "examples/async-critical" }
 demo-async-custom-entry = { path = "examples/async-custom-entry" }
 demo-async-init = { path = "examples/async-init" }
 demo-async-recursion = { path = "examples/async-recursion" }
@@ -428,7 +430,7 @@ impl-trait-for-tuples = "0.2.2"                                           # pall
 indexmap = "2.1.0"                                                        # utils/weight-diff
 indicatif = "*"                                                           # utils/wasm-gen
 keyring = "1.2.1"                                                         # gcli
-libp2p = "=0.50.1"                                                        # gcli (same version as sc-consensus)
+libp2p = "=0.51.4"                                                        # gcli (same version as sc-consensus)
 mimalloc = { version = "0.1.39", default-features = false }               # node/cli
 nacl = "0.5.3"                                                            # gcli
 nonempty = "0.8.1"                                                        # utils/utils

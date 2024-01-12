@@ -22,6 +22,8 @@ use anyhow::{anyhow, Result};
 use serde::Deserialize;
 use std::process::Command;
 
+use crate::handler;
+
 #[derive(Debug, Deserialize)]
 struct Resp {
     pub versions: Vec<Version>,
@@ -34,16 +36,24 @@ struct Version {
 
 /// Verify if the package has already been published.
 pub fn verify(name: &str, version: &str) -> Result<bool> {
+    println!("Verifying {}@{} ...", &name, &version);
+
     let client = reqwest::blocking::Client::builder()
         .user_agent("gear-crates-io-manager")
         .build()?;
 
-    let resp = client
-        .get(format!("https://crates.io/api/v1/crates/{name}/versions"))
+    if let Ok(resp) = client
+        .get(format!(
+            "https://crates.io/api/v1/crates/{}/versions",
+            handler::crates_io_name(name)
+        ))
         .send()?
-        .json::<Resp>()?;
+        .json::<Resp>()
+    {
+        return Ok(resp.versions.into_iter().any(|v| v.num == version));
+    }
 
-    Ok(resp.versions.into_iter().any(|v| v.num == version))
+    Ok(false)
 }
 
 /// Get the short hash of the current commit.

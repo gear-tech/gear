@@ -52,10 +52,10 @@ fn main() -> Result<()> {
 
     let publisher = Publisher::new()?;
     match command {
-        Command::Check => publisher.build(None)?.check(),
-        Command::Publish { version } => publisher.build(version)?.publish(),
+        Command::Check => publisher.build(false, None)?.check(),
+        Command::Publish { version } => publisher.build(true, version)?.publish(),
         Command::Build => {
-            publisher.build(None)?;
+            publisher.build(false, None)?;
             Ok(())
         }
     }
