@@ -44,7 +44,7 @@ use crate::{
         USER_3,
     },
     pallet,
-    runtime_api::RUNTIME_API_BLOCK_LIMITS_COUNT,
+    runtime_api::{ALLOWANCE_LIMIT_ERR, RUNTIME_API_BLOCK_LIMITS_COUNT},
     AccountIdOf, BlockGasLimitOf, Config, CostsPerBlockOf, CurrencyOf, DbWeightOf, DispatchStashOf,
     Error, Event, GasAllowanceOf, GasBalanceOf, GasHandlerOf, GasInfo, GearBank, MailboxOf,
     ProgramStorageOf, QueueOf, Schedule, TaskPoolOf, WaitlistOf,
@@ -13111,10 +13111,7 @@ fn calculate_gas_fails_when_calculation_limit_exceeded() {
         );
 
         assert!(gas_info_result.is_err());
-        assert_eq!(
-            gas_info_result.unwrap_err(),
-            "Calculation gas limit exceeded. Consider using custom built node."
-        );
+        assert_eq!(gas_info_result.unwrap_err(), ALLOWANCE_LIMIT_ERR);
 
         // ok result when we use custom multiplier
         let gas_info_result = Gear::calculate_gas_info_impl(
