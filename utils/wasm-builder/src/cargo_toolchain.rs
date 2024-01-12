@@ -35,6 +35,9 @@ static TOOLCHAIN_CHANNELS: &[&str] = &[
 pub(crate) struct Toolchain(String);
 
 impl Toolchain {
+    /// This is a version of nightly toolchain, tested on our CI.
+    const PINNED_NIGHTLY_TOOLCHAIN: &'static str = "nightly-2023-09-05";
+
     /// Returns `Toolchain` representing the most recent nightly version.
     pub fn nightly() -> Self {
         Self("nightly".into())
@@ -91,5 +94,15 @@ impl Toolchain {
     /// `<date>    = YYYY-MM-DD`
     pub fn raw_toolchain_str(&'_ self) -> Cow<'_, str> {
         self.0.as_str().into()
+    }
+
+    /// Checks whether the toolchain is recommended.
+    pub fn check_recommended_toolchain(&self) -> Result<()> {
+        let toolchain = Self::PINNED_NIGHTLY_TOOLCHAIN;
+        anyhow::ensure!(
+            self.raw_toolchain_str() == toolchain,
+            BuilderError::RecommendedToolchainNotFound(toolchain.into()),
+        );
+        Ok(())
     }
 }

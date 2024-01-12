@@ -58,7 +58,7 @@ fn install_stable_toolchain() {
             .arg("install")
             .arg("stable")
             .arg("--component")
-            .arg("llvm-tools-preview")
+            .arg("llvm-tools")
             .arg("--target")
             .arg("wasm32-unknown-unknown")
             .status()

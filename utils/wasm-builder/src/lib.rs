@@ -82,6 +82,12 @@ impl WasmBuilder {
         self
     }
 
+    /// Add check of recommended toolchain.
+    pub fn with_recommended_toolchain(mut self) -> Self {
+        self.cargo.set_check_recommended_toolchain(true);
+        self
+    }
+
     /// Build the program and produce an output WASM binary.
     pub fn build(self) {
         if env::var("__GEAR_WASM_BUILDER_NO_BUILD").is_ok() {
@@ -227,5 +233,29 @@ pub fn build_with_metadata<T: Metadata>() {
 pub fn build_metawasm() {
     WasmBuilder::new_metawasm()
         .exclude_features(FEATURES_TO_EXCLUDE_BY_DEFAULT.to_vec())
+        .build();
+}
+
+/// Shorthand function to be used in `build.rs`.
+pub fn recommended_nightly() {
+    WasmBuilder::new()
+        .exclude_features(FEATURES_TO_EXCLUDE_BY_DEFAULT.to_vec())
+        .with_recommended_toolchain()
+        .build();
+}
+
+/// Shorthand function to be used in `build.rs`.
+pub fn recommended_nightly_with_metadata<T: Metadata>() {
+    WasmBuilder::with_meta(T::repr())
+        .exclude_features(FEATURES_TO_EXCLUDE_BY_DEFAULT.to_vec())
+        .with_recommended_toolchain()
+        .build();
+}
+
+/// Shorthand function to be used in `build.rs`.
+pub fn recommended_nightly_metawasm() {
+    WasmBuilder::new_metawasm()
+        .exclude_features(FEATURES_TO_EXCLUDE_BY_DEFAULT.to_vec())
+        .with_recommended_toolchain()
         .build();
 }

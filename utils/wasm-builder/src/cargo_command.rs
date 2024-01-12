@@ -31,6 +31,7 @@ pub struct CargoCommand {
     target_dir: PathBuf,
     features: Vec<String>,
     toolchain: Toolchain,
+    check_recommended_toolchain: bool,
     paths_to_remap: Vec<(PathBuf, &'static str)>,
 }
 
@@ -45,6 +46,7 @@ impl CargoCommand {
             target_dir: "target".into(),
             features: vec![],
             toolchain: Toolchain::nightly(),
+            check_recommended_toolchain: false,
             paths_to_remap: vec![],
         }
     }
@@ -76,6 +78,11 @@ impl CargoCommand {
         self.toolchain = toolchain;
     }
 
+    /// Sets whether to check the version of the recommended toolchain.
+    pub(crate) fn set_check_recommended_toolchain(&mut self, check_recommended_toolchain: bool) {
+        self.check_recommended_toolchain = check_recommended_toolchain;
+    }
+
     /// Set paths to remap.
     ///
     /// Used to hide the username from the panic message.
@@ -85,6 +92,10 @@ impl CargoCommand {
 
     /// Execute the `cargo` command with invoking supplied arguments.
     pub fn run(&self) -> Result<()> {
+        if self.check_recommended_toolchain {
+            self.toolchain.check_recommended_toolchain()?;
+        }
+
         let mut cargo = Command::new(&self.path);
         cargo
             .arg("run")
