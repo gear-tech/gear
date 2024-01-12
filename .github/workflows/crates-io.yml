@@ -23,6 +23,7 @@ env:
 jobs:
   check:
     runs-on: ubuntu-latest
+    if: ${{ !contains(github.event.pull_request.title, '[skip-ci]') }}
     env:
       CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
     steps:
