@@ -25,7 +25,6 @@ runs:
         CACHE=true
 
         if [[ $MESSAGE == *"[skip-cache]"* ]]; then
-          echo "cache: false"
           CACHE=""
         fi
 
@@ -38,7 +37,7 @@ runs:
         echo "cache=${CACHE}" >> $GITHUB_OUTPUT
 
     - name: Mock Required Checks
-      if: ${{ inputs.mock == 'true' && steps.check-commit-message.skip-ci }}
+      if: ${{ inputs.mock && steps.check-commit-message.skip-ci }}
       with:
         head-sha: ${{ github.event.pull_request.head.sha }}
       uses: ./.github/actions/mock
