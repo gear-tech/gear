@@ -39,11 +39,11 @@ use sp_runtime::traits::Block as BlockT;
 use std::sync::Arc;
 
 /// Converts a runtime trap into a [`CallError`].
-fn runtime_error_into_rpc_error(err: impl std::fmt::Debug) -> JsonRpseeError {
+fn runtime_error_into_rpc_error(err: impl std::fmt::Display) -> JsonRpseeError {
     CallError::Custom(ErrorObject::owned(
         8000,
         "Runtime error",
-        Some(format!("{err:?}")),
+        Some(format!("{err}")),
     ))
     .into()
 }
