@@ -497,7 +497,7 @@ impl SyscallName {
                 Ptr::Hash(HashType::SubjectId).into(),
                 Ptr::MutBlockNumberWithHash(HashType::SubjectId).into(),
             ]),
-            Self::UserBreak => SyscallSignature::gr_infallible([ValueType::I64.into()]),
+            Self::UserBreak => SyscallSignature::gr_infallible([Data]),
             Self::SystemBreak => unimplemented!("Unsupported syscall signature for system_break"),
         }
     }
@@ -564,7 +564,7 @@ impl TryFrom<u8> for UserBreakKind {
             4 => Ok(UserBreakKind::WaitUpTo),
             5 => Ok(UserBreakKind::Panic),
             6 => Ok(UserBreakKind::OomPanic),
-            _ => Err(())
+            _ => Err(()),
         }
     }
 }
@@ -578,7 +578,7 @@ impl From<UserBreakKind> for u8 {
             UserBreakKind::WaitFor => 3,
             UserBreakKind::WaitUpTo => 4,
             UserBreakKind::Panic => 5,
-            UserBreakKind::OomPanic => 6
+            UserBreakKind::OomPanic => 6,
         }
     }
 }
@@ -606,6 +606,7 @@ pub enum RegularParamType {
     Free,                // i32 page number to free
     FreeUpperBound,      // i32 free upper bound for use with free_range
     Version,             // i32 version number of exec settings
+    Data,                // i64 data for user_break
 }
 
 /// Hash type.
@@ -629,7 +630,7 @@ impl From<ParamType> for ValueType {
             ParamType::Regular(regular_ptr) => match regular_ptr {
                 Length | Pointer(_) | Offset | DurationBlockNumber | DelayBlockNumber | Handler
                 | Alloc | Free | FreeUpperBound | Version => ValueType::I32,
-                Gas => ValueType::I64,
+                Gas | Data => ValueType::I64,
             },
             ParamType::Error(_) => ValueType::I32,
         }

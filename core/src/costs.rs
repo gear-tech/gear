@@ -20,6 +20,7 @@
 
 use crate::{gas::Token, pages::PageU32Size};
 use core::{fmt::Debug, marker::PhantomData};
+use gear_wasm_instrument::syscalls::UserBreakKind;
 use paste::paste;
 use scale_info::scale::{Decode, Encode};
 
@@ -547,5 +548,18 @@ impl RuntimeCosts {
             ),
         };
         RuntimeToken { weight }
+    }
+}
+
+impl From<UserBreakKind> for RuntimeCosts {
+    fn from(value: UserBreakKind) -> Self {
+        match value {
+            UserBreakKind::Exit => RuntimeCosts::Exit,
+            UserBreakKind::Leave => RuntimeCosts::Leave,
+            UserBreakKind::Wait => RuntimeCosts::Wait,
+            UserBreakKind::WaitFor => RuntimeCosts::WaitFor,
+            UserBreakKind::WaitUpTo => RuntimeCosts::WaitUpTo,
+            _ => RuntimeCosts::Null,
+        }
     }
 }

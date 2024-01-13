@@ -57,7 +57,17 @@ pub mod ext {
     /// }
     /// ```
     pub fn panic(data: &str) -> ! {
-        unsafe { gsys::gr_panic(data.as_ptr(), data.len() as u32) }
+        let mut data = [0u8; 8];
+        data[0] = 5;
+        let ptr = (data.as_ptr() as u32).to_le_bytes();
+        data[2] = ptr[0];
+        data[3] = ptr[1];
+        data[4] = ptr[2];
+        data[5] = ptr[3];
+        let len = (data.len() as u16).to_le_bytes();
+        data[6] = len[0];
+        data[7] = len[1];
+        unsafe { gsys::gr_user_break(u64::from_le_bytes(data)) }
     }
 
     /// Out of memory panic
@@ -90,6 +100,8 @@ pub mod ext {
     /// }
     /// ```
     pub fn oom_panic() -> ! {
-        unsafe { gsys::gr_oom_panic() }
+        let mut data = [0u8; 8];
+        data[0] = 6;
+        unsafe { gsys::gr_user_break(u64::from_le_bytes(data)) }
     }
 }

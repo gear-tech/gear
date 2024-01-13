@@ -46,8 +46,7 @@ use gear_core::{
 use gear_core_errors::{MessageError, ReplyCode, SignalCode};
 use gear_sandbox::{default_executor::Caller, ReturnValue, Value};
 use gear_sandbox_env::{HostError, WasmReturnValue};
-use gear_wasm_instrument::syscalls::UserBreakKind;
-use gear_wasm_instrument::SystemBreakCode;
+use gear_wasm_instrument::{syscalls::UserBreakKind, SystemBreakCode};
 use gsys::{
     BlockNumberWithHash, ErrorBytes, ErrorWithBlockNumberAndValue, ErrorWithGas, ErrorWithHandle,
     ErrorWithHash, ErrorWithReplyCode, ErrorWithSignalCode, ErrorWithTwoHashes, Gas, Hash,
@@ -593,12 +592,13 @@ where
         })
     }
 
-    pub fn exit(inheritor_id_ptr: u32) -> impl Syscall<Ext> {
-        InfallibleSyscall::new(RuntimeCosts::Exit, move |ctx: &mut CallerWrap<Ext>| {
-            let read_inheritor_id = ctx.manager.register_read_decoded(inheritor_id_ptr);
-            let inheritor_id = ctx.read_decoded(read_inheritor_id)?;
-            Err(ActorTerminationReason::Exit(inheritor_id).into())
-        })
+    pub fn exit(
+        ctx: &mut CallerWrap<Ext>,
+        inheritor_id_ptr: u32,
+    ) -> Result<(), UndefinedTerminationReason> {
+        let read_inheritor_id = ctx.manager.register_read_decoded(inheritor_id_ptr);
+        let inheritor_id = ctx.read_decoded(read_inheritor_id)?;
+        Err(ActorTerminationReason::Exit(inheritor_id).into())
     }
 
     pub fn reply_code() -> impl Syscall<Ext> {
@@ -1033,21 +1033,21 @@ where
         )
     }
 
-    pub fn panic(data_ptr: u32, data_len: u16) -> impl Syscall<Ext> {
-        InfallibleSyscall::new(RuntimeCosts::Null, move |ctx: &mut CallerWrap<Ext>| {
-            let read_data = ctx.manager.register_read(data_ptr, data_len as u32);
-            let data = ctx.read(read_data).unwrap_or_default();
+    pub fn panic(
+        ctx: &mut CallerWrap<Ext>,
+        data_ptr: u32,
+        data_len: u16,
+    ) -> Result<(), UndefinedTerminationReason> {
+        let read_data = ctx.manager.register_read(data_ptr, data_len as u32);
+        let data = ctx.read(read_data).unwrap_or_default();
 
-            let s = String::from_utf8_lossy(&data).to_string();
+        let s = String::from_utf8_lossy(&data).to_string();
 
-            Err(ActorTerminationReason::Trap(TrapExplanation::Panic(s.into())).into())
-        })
+        Err(ActorTerminationReason::Trap(TrapExplanation::Panic(s.into())).into())
     }
 
-    pub fn oom_panic() -> impl Syscall<Ext> {
-        InfallibleSyscall::new(RuntimeCosts::Null, |_ctx: &mut CallerWrap<Ext>| {
-            Err(ActorTerminationReason::Trap(TrapExplanation::ProgramAllocOutOfBounds).into())
-        })
+    pub fn oom_panic() -> Result<(), UndefinedTerminationReason> {
+        Err(ActorTerminationReason::Trap(TrapExplanation::ProgramAllocOutOfBounds).into())
     }
 
     pub fn reserve_gas(gas_value: u64, duration: u32) -> impl Syscall<Ext> {
@@ -1184,35 +1184,33 @@ where
         )
     }
 
-    pub fn leave() -> impl Syscall<Ext> {
-        InfallibleSyscall::new(RuntimeCosts::Leave, move |_ctx: &mut CallerWrap<Ext>| {
-            Err(ActorTerminationReason::Leave.into())
-        })
+    pub fn leave() -> Result<(), UndefinedTerminationReason> {
+        Err(ActorTerminationReason::Leave.into())
     }
 
-    pub fn wait() -> impl Syscall<Ext> {
-        InfallibleSyscall::new(RuntimeCosts::Wait, move |ctx: &mut CallerWrap<Ext>| {
-            ctx.ext_mut().wait()?;
-            Err(ActorTerminationReason::Wait(None, MessageWaitedType::Wait).into())
-        })
+    pub fn wait(ctx: &mut CallerWrap<Ext>) -> Result<(), UndefinedTerminationReason> {
+        ctx.ext_mut().wait()?;
+        Err(ActorTerminationReason::Wait(None, MessageWaitedType::Wait).into())
     }
 
-    pub fn wait_for(duration: u32) -> impl Syscall<Ext> {
-        InfallibleSyscall::new(RuntimeCosts::WaitFor, move |ctx: &mut CallerWrap<Ext>| {
-            ctx.ext_mut().wait_for(duration)?;
-            Err(ActorTerminationReason::Wait(Some(duration), MessageWaitedType::WaitFor).into())
-        })
+    pub fn wait_for(
+        ctx: &mut CallerWrap<Ext>,
+        duration: u32,
+    ) -> Result<(), UndefinedTerminationReason> {
+        ctx.ext_mut().wait_for(duration)?;
+        Err(ActorTerminationReason::Wait(Some(duration), MessageWaitedType::WaitFor).into())
     }
 
-    pub fn wait_up_to(duration: u32) -> impl Syscall<Ext> {
-        InfallibleSyscall::new(RuntimeCosts::WaitUpTo, move |ctx: &mut CallerWrap<Ext>| {
-            let waited_type = if ctx.ext_mut().wait_up_to(duration)? {
-                MessageWaitedType::WaitUpToFull
-            } else {
-                MessageWaitedType::WaitUpTo
-            };
-            Err(ActorTerminationReason::Wait(Some(duration), waited_type).into())
-        })
+    pub fn wait_up_to(
+        ctx: &mut CallerWrap<Ext>,
+        duration: u32,
+    ) -> Result<(), UndefinedTerminationReason> {
+        let waited_type = if ctx.ext_mut().wait_up_to(duration)? {
+            MessageWaitedType::WaitUpToFull
+        } else {
+            MessageWaitedType::WaitUpTo
+        };
+        Err(ActorTerminationReason::Wait(Some(duration), waited_type).into())
     }
 
     pub fn wake(message_id_ptr: u32, delay: u32) -> impl Syscall<Ext> {
@@ -1357,32 +1355,22 @@ where
         let break_kind = raw_data[0].try_into();
         // We do this instead of 2..6 since this gives a fixed length array
         let data32 = u32::from_le_bytes([raw_data[2], raw_data[3], raw_data[4], raw_data[5]]);
-        match break_kind {
-            Ok(UserBreakKind::Exit) => {
-                FuncsHandler::exit(data32)
-            }
-            Ok(UserBreakKind::Leave) => {
-                FuncsHandler::leave()
-            }
-            Ok(UserBreakKind::Wait) => {
-                FuncsHandler::wait()
-            }
-            Ok(UserBreakKind::WaitFor) => {
-                FuncsHandler::wait_for(data32)
-            }
-            Ok(UserBreakKind::WaitUpTo) => {
-                FuncsHandler::wait_up_to(data32)
-            }
+        let cost = break_kind.map(Into::into).unwrap_or(RuntimeCosts::Null);
+        InfallibleSyscall::new(cost, move |ctx: &mut CallerWrap<Ext>| match break_kind {
+            Ok(UserBreakKind::Exit) => FuncsHandler::exit(ctx, data32),
+            Ok(UserBreakKind::Leave) => FuncsHandler::<Ext>::leave(),
+            Ok(UserBreakKind::Wait) => FuncsHandler::wait(ctx),
+            Ok(UserBreakKind::WaitFor) => FuncsHandler::wait_for(ctx, data32),
+            Ok(UserBreakKind::WaitUpTo) => FuncsHandler::wait_up_to(ctx, data32),
             Ok(UserBreakKind::Panic) => {
                 let data16 = u16::from_le_bytes([raw_data[6], raw_data[7]]);
-                FuncsHandler::panic(data32, data16)
+                FuncsHandler::panic(ctx, data32, data16)
             }
-            Ok(UserBreakKind::OomPanic) => {
-                FuncsHandler::oom_panic()
-            }
-            _ => {
-                Err(ActorTerminationReason::Trap(TrapExplanation::Panic("Unknown user_break syscall codec".to_string().into())).into())
-            }
-        }
+            Ok(UserBreakKind::OomPanic) => FuncsHandler::<Ext>::oom_panic(),
+            _ => Err(ActorTerminationReason::Trap(TrapExplanation::Panic(
+                "Unknown user_break syscall codec".to_string().into(),
+            ))
+            .into()),
+        })
     }
 }

@@ -146,7 +146,13 @@ pub fn reply_deposit(message_id: MessageId, amount: u64) -> Result<()> {
 /// }
 /// ```
 pub fn exit(inheritor_id: ActorId) -> ! {
-    unsafe { gsys::gr_exit(inheritor_id.as_ptr()) }
+    let mut data = [0u8; 8];
+    let ptr = (inheritor_id.as_ptr() as u32).to_le_bytes();
+    data[2] = ptr[0];
+    data[3] = ptr[1];
+    data[4] = ptr[2];
+    data[5] = ptr[3];
+    unsafe { gsys::gr_user_break(u64::from_le_bytes(data)) }
 }
 
 /// Reserve the `amount` of gas for further usage.
@@ -282,7 +288,9 @@ pub fn gas_available() -> u64 {
 /// }
 /// ```
 pub fn leave() -> ! {
-    unsafe { gsys::gr_leave() }
+    let mut data = [0u8; 8];
+    data[0] = 1;
+    unsafe { gsys::gr_user_break(u64::from_le_bytes(data)) }
 }
 
 /// Get the total available value amount.
@@ -332,7 +340,9 @@ pub fn value_available() -> u128 {
 /// }
 /// ```
 pub fn wait() -> ! {
-    unsafe { gsys::gr_wait() }
+    let mut data = [0u8; 8];
+    data[0] = 2;
+    unsafe { gsys::gr_user_break(u64::from_le_bytes(data)) }
 }
 
 /// Same as [`wait`], but delays handling for a specific number of blocks.
@@ -341,13 +351,27 @@ pub fn wait() -> ! {
 ///
 /// Panics if it is impossible to pay the given `duration`.
 pub fn wait_for(duration: u32) -> ! {
-    unsafe { gsys::gr_wait_for(duration) }
+    let mut data = [0u8; 8];
+    data[0] = 3;
+    let raw_duration = duration.to_le_bytes();
+    data[2] = raw_duration[0];
+    data[3] = raw_duration[1];
+    data[4] = raw_duration[2];
+    data[5] = raw_duration[3];
+    unsafe { gsys::gr_user_break(u64::from_le_bytes(data)) }
 }
 
 /// Same as [`wait`], but delays handling for the maximum number of blocks that
 /// can be paid for and doesn't exceed the given `duration`.
 pub fn wait_up_to(duration: u32) -> ! {
-    unsafe { gsys::gr_wait_up_to(duration) }
+    let mut data = [0u8; 8];
+    data[0] = 4;
+    let raw_duration = duration.to_le_bytes();
+    data[2] = raw_duration[0];
+    data[3] = raw_duration[1];
+    data[4] = raw_duration[2];
+    data[5] = raw_duration[3];
+    unsafe { gsys::gr_user_break(u64::from_le_bytes(data)) }
 }
 
 /// Resume previously paused message handling.

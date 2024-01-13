@@ -247,15 +247,9 @@ where
             SyscallName::BlockTimestamp => check_gr_block_timestamp::<T>(),
             SyscallName::GasAvailable => check_gr_gas_available::<T>(),
             SyscallName::ValueAvailable => check_gr_value_available::<T>(),
-            SyscallName::Exit
-            | SyscallName::Leave
-            | SyscallName::Wait
-            | SyscallName::WaitFor
-            | SyscallName::WaitUpTo
+            SyscallName::UserBreak
             | SyscallName::Wake
-            | SyscallName::Debug
-            | SyscallName::Panic
-            | SyscallName::OomPanic => {/* tests here aren't required, read module docs for more info */},
+            | SyscallName::Debug => {/* tests here aren't required, read module docs for more info */},
             SyscallName::Alloc
             | SyscallName::Free
             | SyscallName::FreeRange => check_mem::<T>(),
