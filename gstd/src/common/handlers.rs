@@ -35,11 +35,13 @@ pub fn oom(_: core::alloc::Layout) -> ! {
 /// We currently support 3 panic handler profiles:
 /// - `panic-handler`: it displays `<unknown>`
 /// - `panic-message`: it displays `'{message}'`
-///   - In nightly Rust, we use `#![feature(panic_info_message)]` and the
-///     [`write!`] macro.
-///   - In stable Rust, we need to modify the default panic handler message
-///     format.
 /// - `panic-location`: it displays `'{message}', {location}`
+///
+/// How we get the panic message in different versions of Rust:
+/// - In nightly Rust, we use `#![feature(panic_info_message)]` and the
+///   [`write!`] macro.
+/// - In stable Rust, we need to modify the default panic handler message
+///   format.
 ///
 /// Default panic handler message format (according to <https://github.com/rust-lang/rust/pull/112849>):
 /// - Rust  <1.73: `panicked at '{message}', {location}`
