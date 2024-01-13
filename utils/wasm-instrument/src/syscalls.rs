@@ -83,14 +83,8 @@ pub enum SyscallName {
     ValueAvailable,
 
     // Changing execution path calls
-    Exit,
-    Leave,
-    Wait,
-    WaitFor,
-    WaitUpTo,
+    UserBreak,
     Wake,
-    Panic,
-    OomPanic,
 
     // Hard under the hood calls, serving proper program execution
     Alloc,
@@ -119,15 +113,12 @@ impl SyscallName {
             SyscallName::CreateProgramWGas => "gr_create_program_wgas",
             SyscallName::ReplyDeposit => "gr_reply_deposit",
             SyscallName::Debug => "gr_debug",
-            SyscallName::Panic => "gr_panic",
-            SyscallName::OomPanic => "gr_oom_panic",
-            SyscallName::Exit => "gr_exit",
             SyscallName::Free => "free",
             SyscallName::FreeRange => "free_range",
             SyscallName::GasAvailable => "gr_gas_available",
-            SyscallName::Leave => "gr_leave",
             SyscallName::MessageId => "gr_message_id",
             SyscallName::SystemBreak => "gr_system_break",
+            SyscallName::UserBreak => "gr_user_break",
             SyscallName::PayProgramRent => "gr_pay_program_rent",
             SyscallName::ProgramId => "gr_program_id",
             SyscallName::Random => "gr_random",
@@ -164,9 +155,6 @@ impl SyscallName {
             SyscallName::UnreserveGas => "gr_unreserve_gas",
             SyscallName::Value => "gr_value",
             SyscallName::ValueAvailable => "gr_value_available",
-            SyscallName::Wait => "gr_wait",
-            SyscallName::WaitFor => "gr_wait_for",
-            SyscallName::WaitUpTo => "gr_wait_up_to",
             SyscallName::Wake => "gr_wake",
         }
     }
@@ -186,19 +174,13 @@ impl SyscallName {
             Self::Free,
             Self::FreeRange,
             Self::Debug,
-            Self::Panic,
-            Self::OomPanic,
             Self::BlockHeight,
             Self::BlockTimestamp,
-            Self::Exit,
             Self::GasAvailable,
             Self::PayProgramRent,
             Self::ProgramId,
-            Self::Leave,
             Self::ValueAvailable,
-            Self::Wait,
-            Self::WaitUpTo,
-            Self::WaitFor,
+            Self::UserBreak,
             Self::Wake,
             Self::ReplyCode,
             Self::SignalCode,
@@ -255,19 +237,10 @@ impl SyscallName {
                 .into(),
                 Length,
             ]),
-            Self::Panic => SyscallSignature::gr_infallible([
-                Ptr::SizedBufferStart {
-                    length_param_idx: 1,
-                }
-                .into(),
-                Length,
-            ]),
-            Self::OomPanic => SyscallSignature::gr_infallible([]),
             Self::BlockHeight => SyscallSignature::gr_infallible([Ptr::MutBlockNumber.into()]),
             Self::BlockTimestamp => {
                 SyscallSignature::gr_infallible([Ptr::MutBlockTimestamp.into()])
             }
-            Self::Exit => SyscallSignature::gr_infallible([Ptr::Hash(HashType::ActorId).into()]),
             Self::GasAvailable => SyscallSignature::gr_infallible([Ptr::MutGas.into()]),
             Self::PayProgramRent => SyscallSignature::gr_fallible((
                 [Ptr::HashWithValue(HashType::ActorId).into()],
@@ -276,11 +249,7 @@ impl SyscallName {
             Self::ProgramId => {
                 SyscallSignature::gr_infallible([Ptr::MutHash(HashType::ActorId).into()])
             }
-            Self::Leave => SyscallSignature::gr_infallible([]),
             Self::ValueAvailable => SyscallSignature::gr_infallible([Ptr::MutValue.into()]),
-            Self::Wait => SyscallSignature::gr_infallible([]),
-            Self::WaitUpTo => SyscallSignature::gr_infallible([DurationBlockNumber]),
-            Self::WaitFor => SyscallSignature::gr_infallible([DurationBlockNumber]),
             Self::Wake => SyscallSignature::gr_fallible((
                 [Ptr::Hash(HashType::MessageId).into(), DelayBlockNumber],
                 ErrPtr::ErrorCode,
@@ -528,6 +497,7 @@ impl SyscallName {
                 Ptr::Hash(HashType::SubjectId).into(),
                 Ptr::MutBlockNumberWithHash(HashType::SubjectId).into(),
             ]),
+            Self::UserBreak => SyscallSignature::gr_infallible([ValueType::I64.into()]),
             Self::SystemBreak => unimplemented!("Unsupported syscall signature for system_break"),
         }
     }
@@ -565,6 +535,51 @@ impl SyscallName {
     /// are those last param of which is a mutable error pointer.
     pub fn is_fallible(self) -> bool {
         self.signature().is_fallible()
+    }
+}
+
+/// First byte of `gr_user_break` syscall parameter
+///
+/// Used to encode the kind of breaking syscall to execute
+#[derive(Debug, Clone, Copy, Ord, PartialOrd, Eq, PartialEq)]
+pub enum UserBreakKind {
+    Exit,
+    Leave,
+    Wait,
+    WaitFor,
+    WaitUpTo,
+    Panic,
+    OomPanic,
+}
+
+impl TryFrom<u8> for UserBreakKind {
+    type Error = ();
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        match value {
+            0 => Ok(UserBreakKind::Exit),
+            1 => Ok(UserBreakKind::Leave),
+            2 => Ok(UserBreakKind::Wait),
+            3 => Ok(UserBreakKind::WaitFor),
+            4 => Ok(UserBreakKind::WaitUpTo),
+            5 => Ok(UserBreakKind::Panic),
+            6 => Ok(UserBreakKind::OomPanic),
+            _ => Err(())
+        }
+    }
+}
+
+impl From<UserBreakKind> for u8 {
+    fn from(value: UserBreakKind) -> Self {
+        match value {
+            UserBreakKind::Exit => 0,
+            UserBreakKind::Leave => 1,
+            UserBreakKind::Wait => 2,
+            UserBreakKind::WaitFor => 3,
+            UserBreakKind::WaitUpTo => 4,
+            UserBreakKind::Panic => 5,
+            UserBreakKind::OomPanic => 6
+        }
     }
 }
 

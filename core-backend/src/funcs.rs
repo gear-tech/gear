@@ -46,6 +46,7 @@ use gear_core::{
 use gear_core_errors::{MessageError, ReplyCode, SignalCode};
 use gear_sandbox::{default_executor::Caller, ReturnValue, Value};
 use gear_sandbox_env::{HostError, WasmReturnValue};
+use gear_wasm_instrument::syscalls::UserBreakKind;
 use gear_wasm_instrument::SystemBreakCode;
 use gsys::{
     BlockNumberWithHash, ErrorBytes, ErrorWithBlockNumberAndValue, ErrorWithGas, ErrorWithHandle,
@@ -1032,9 +1033,9 @@ where
         )
     }
 
-    pub fn panic(data_ptr: u32, data_len: u32) -> impl Syscall<Ext> {
+    pub fn panic(data_ptr: u32, data_len: u16) -> impl Syscall<Ext> {
         InfallibleSyscall::new(RuntimeCosts::Null, move |ctx: &mut CallerWrap<Ext>| {
-            let read_data = ctx.manager.register_read(data_ptr, data_len);
+            let read_data = ctx.manager.register_read(data_ptr, data_len as u32);
             let data = ctx.read(read_data).unwrap_or_default();
 
             let s = String::from_utf8_lossy(&data).to_string();
@@ -1349,5 +1350,39 @@ where
             ctx.set_termination_reason(termination_reason);
             Err(HostError)
         })
+    }
+
+    pub fn user_break(data: u64) -> impl Syscall<Ext> {
+        let raw_data = data.to_le_bytes();
+        let break_kind = raw_data[0].try_into();
+        // We do this instead of 2..6 since this gives a fixed length array
+        let data32 = u32::from_le_bytes([raw_data[2], raw_data[3], raw_data[4], raw_data[5]]);
+        match break_kind {
+            Ok(UserBreakKind::Exit) => {
+                FuncsHandler::exit(data32)
+            }
+            Ok(UserBreakKind::Leave) => {
+                FuncsHandler::leave()
+            }
+            Ok(UserBreakKind::Wait) => {
+                FuncsHandler::wait()
+            }
+            Ok(UserBreakKind::WaitFor) => {
+                FuncsHandler::wait_for(data32)
+            }
+            Ok(UserBreakKind::WaitUpTo) => {
+                FuncsHandler::wait_up_to(data32)
+            }
+            Ok(UserBreakKind::Panic) => {
+                let data16 = u16::from_le_bytes([raw_data[6], raw_data[7]]);
+                FuncsHandler::panic(data32, data16)
+            }
+            Ok(UserBreakKind::OomPanic) => {
+                FuncsHandler::oom_panic()
+            }
+            _ => {
+                Err(ActorTerminationReason::Trap(TrapExplanation::Panic("Unknown user_break syscall codec".to_string().into())).into())
+            }
+        }
     }
 }

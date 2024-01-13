@@ -66,6 +66,9 @@ pub type SignalCode = u32;
 /// Represents value type.
 pub type Value = u128;
 
+/// Represents data for `gr_user_break`
+pub type Data = u64;
+
 /// Represents type defining concatenated block number with hash. 36 bytes.
 #[repr(C, packed)]
 #[derive(Default, Debug)]
@@ -489,18 +492,6 @@ extern "C" {
     /// - `len`: `u32` length of the payload buffer.
     pub fn gr_debug(payload: *const SizedBufferStart, len: Length);
 
-    /// Infallible `gr_panic` control syscall.
-    ///
-    /// Stops the execution.
-    ///
-    /// Arguments type:
-    /// - `payload`: `const ptr` for the begging of the payload buffer.
-    /// - `len`: `u32` length of the payload buffer.
-    pub fn gr_panic(payload: *const SizedBufferStart, len: Length) -> !;
-
-    /// Infallible `gr_oom_panic` control syscall.
-    pub fn gr_oom_panic() -> !;
-
     /// Fallible `gr_reply_code` get syscall.
     ///
     /// Arguments type:
@@ -513,20 +504,11 @@ extern "C" {
     /// - `err_code`: `mut ptr` for concatenated error code and signal code.
     pub fn gr_signal_code(err_code: *mut ErrorWithSignalCode);
 
-    /// Infallible `gr_exit` control syscall.
-    ///
-    /// Arguments type:
-    /// - `inheritor_id`: `const ptr` for program id.
-    pub fn gr_exit(inheritor_id: *const Hash) -> !;
-
     /// Infallible `gr_gas_available` get syscall.
     ///
     /// Arguments type:
     /// - `gas`: `mut ptr` for `u64`.
     pub fn gr_gas_available(gas: *mut Gas);
-
-    /// Infallible `gr_leave` control syscall.
-    pub fn gr_leave() -> !;
 
     /// Infallible `gr_message_id` get syscall.
     ///
@@ -907,21 +889,6 @@ extern "C" {
     /// - `value`: `mut ptr` for incoming value of the message.
     pub fn gr_value(value: *mut Value);
 
-    /// Infallible `gr_wait_for` control syscall.
-    ///
-    /// Arguments type:
-    /// - `duration`: `u32` defining amount of blocks to wait.
-    pub fn gr_wait_for(duration: BlockNumber) -> !;
-
-    /// Infallible `gr_wait_up_to` control syscall.
-    ///
-    /// Arguments type:
-    /// - `duration`: `u32` defining amount of blocks to wait.
-    pub fn gr_wait_up_to(duration: BlockNumber) -> !;
-
-    /// Infallible `gr_wait` control syscall.
-    pub fn gr_wait() -> !;
-
     /// Fallible `gr_wake` control syscall.
     ///
     /// Arguments type:
@@ -929,4 +896,10 @@ extern "C" {
     /// - `delay`: `u32` amount of blocks to delay.
     /// - `err_mid`: `mut ptr` for error code.
     pub fn gr_wake(message_id: *const Hash, delay: BlockNumber, err: *mut ErrorCode);
+
+    /// Infallible `gr_user_break` control syscall.
+    ///
+    /// Arguments type:
+    /// - `data`: `u64` which contains syscall data as le bytes.
+    pub fn gr_user_break(data: Data) -> !;
 }

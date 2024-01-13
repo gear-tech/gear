@@ -190,16 +190,12 @@ where
         builder.add_func(CreateProgram, wrap_syscall!(create_program));
         builder.add_func(CreateProgramWGas, wrap_syscall!(create_program_wgas));
         builder.add_func(Debug, wrap_syscall!(debug));
-        builder.add_func(Panic, wrap_syscall!(panic));
-        builder.add_func(OomPanic, wrap_syscall!(oom_panic));
-        builder.add_func(Exit, wrap_syscall!(exit));
         builder.add_func(ReplyCode, wrap_syscall!(reply_code));
         builder.add_func(SignalCode, wrap_syscall!(signal_code));
         builder.add_func(ReserveGas, wrap_syscall!(reserve_gas));
         builder.add_func(ReplyDeposit, wrap_syscall!(reply_deposit));
         builder.add_func(UnreserveGas, wrap_syscall!(unreserve_gas));
         builder.add_func(GasAvailable, wrap_syscall!(gas_available));
-        builder.add_func(Leave, wrap_syscall!(leave));
         builder.add_func(MessageId, wrap_syscall!(message_id));
         builder.add_func(PayProgramRent, wrap_syscall!(pay_program_rent));
         builder.add_func(ProgramId, wrap_syscall!(program_id));
@@ -228,9 +224,6 @@ where
         builder.add_func(Source, wrap_syscall!(source));
         builder.add_func(Value, wrap_syscall!(value));
         builder.add_func(ValueAvailable, wrap_syscall!(value_available));
-        builder.add_func(Wait, wrap_syscall!(wait));
-        builder.add_func(WaitFor, wrap_syscall!(wait_for));
-        builder.add_func(WaitUpTo, wrap_syscall!(wait_up_to));
         builder.add_func(Wake, wrap_syscall!(wake));
         builder.add_func(SystemReserveGas, wrap_syscall!(system_reserve_gas));
         builder.add_func(ReservationReply, wrap_syscall!(reservation_reply));
@@ -238,6 +231,7 @@ where
         builder.add_func(ReservationSend, wrap_syscall!(reservation_send));
         builder.add_func(ReservationSendCommit, wrap_syscall!(reservation_send_commit));
         builder.add_func(SystemBreak, wrap_syscall!(system_break));
+        builder.add_func(UserBreak, wrap_syscall!(user_break));
 
         builder.add_func(Alloc, wrap_syscall!(alloc));
         builder.add_func(Free, wrap_syscall!(free));
