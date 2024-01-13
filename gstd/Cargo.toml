@@ -45,7 +45,7 @@ panic-location = ["panic-message"]
 ## Enables all features below.
 ## These features depend on unstable Rust API and require nightly toolchain.
 nightly = ["panic-info-message", "oom-handler"]
-## When enabled, a panic handler will use a more efficient implementation
+## When enabled, a panic handler will use a more efficient implementation.
 ## Relies on [`panic_info_message`][rust-66745].
 panic-info-message = []
 ## When enabled, an OOM error handler is provided.
