@@ -33,7 +33,7 @@ pub fn oom(_: core::alloc::Layout) -> ! {
 }
 
 /// We currently support 3 panic handler profiles:
-/// - `panic-handler`: it displays `no info`
+/// - `panic-handler`: it displays `<unknown>`
 /// - `panic-message`: it displays `'{message}'`
 ///   - In nightly Rust, we use `#![feature(panic_info_message)]` and the
 ///     [`write!`] macro.
@@ -80,7 +80,7 @@ pub mod panic_handler {
         #[cfg(not(any(feature = "panic-message", feature = "panic-location")))]
         #[panic_handler]
         pub fn panic(_: &PanicInfo) -> ! {
-            ext::panic("no info")
+            ext::panic("<unknown>")
         }
 
         #[cfg(any(feature = "panic-message", feature = "panic-location"))]
@@ -123,7 +123,7 @@ pub mod panic_handler {
                 (Some(msg), Some(loc)) => write!(&mut debug_msg, "'{msg}', {loc}"),
                 #[cfg(not(feature = "panic-location"))]
                 (Some(msg), _) => write!(&mut debug_msg, "'{msg}'"),
-                _ => ext::panic("no info"),
+                _ => ext::panic("<unknown>"),
             };
 
             #[cfg(feature = "debug")]
@@ -132,7 +132,7 @@ pub mod panic_handler {
             #[cfg(feature = "debug")]
             match debug_msg.get(PANIC_OCCURRED.len()..) {
                 Some(msg) => ext::panic(msg),
-                _ => ext::panic("no info"),
+                _ => ext::panic("<unknown>"),
             }
 
             #[cfg(not(feature = "debug"))]
@@ -223,7 +223,7 @@ pub mod panic_handler {
             #[cfg(feature = "debug")]
             match debug_msg.get(PANIC_OCCURRED.len()..) {
                 Some(msg) => ext::panic(msg),
-                _ => ext::panic("no info"),
+                _ => ext::panic("<unknown>"),
             }
 
             #[cfg(not(feature = "debug"))]

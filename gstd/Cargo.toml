@@ -33,7 +33,7 @@ default = ["panic-message"]
 #! ## Panic handler profiles
 
 ## When enabled, a minimal panic handler is provided by this crate.
-## Instead of a panic message, "no info" is displayed.
+## Instead of a panic message, "<unknown>" is displayed.
 panic-handler = []
 ## When enabled, a panic handler will also display a panic message.
 panic-message = ["panic-handler", "arrayvec"]
