@@ -304,13 +304,6 @@ pub trait Externalities {
     /// Get the id of the message currently being handled.
     fn message_id(&self) -> Result<MessageId, Self::UnrecoverableError>;
 
-    /// Pay rent for the specified program.
-    fn pay_program_rent(
-        &mut self,
-        program_id: ProgramId,
-        rent: u128,
-    ) -> Result<(u128, u32), Self::FallibleError>;
-
     /// Get the id of program itself
     fn program_id(&self) -> Result<ProgramId, Self::UnrecoverableError>;
 

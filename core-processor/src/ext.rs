@@ -54,7 +54,7 @@ use gear_core_backend::{
 };
 use gear_core_errors::{
     ExecutionError as FallibleExecutionError, ExtError as FallibleExtErrorCore, MessageError,
-    ProgramRentError, ReplyCode, ReservationError, SignalCode,
+    ReplyCode, ReservationError, SignalCode,
 };
 use gear_lazy_pages_common::{GlobalsAccessConfig, LazyPagesWeights, ProcessAccessError, Status};
 use gear_wasm_instrument::syscalls::SyscallName;
@@ -252,12 +252,6 @@ impl From<MessageError> for FallibleExtError {
 impl From<FallibleExecutionError> for FallibleExtError {
     fn from(err: FallibleExecutionError) -> Self {
         Self::Core(FallibleExtErrorCore::Execution(err))
-    }
-}
-
-impl From<ProgramRentError> for FallibleExtError {
-    fn from(err: ProgramRentError) -> Self {
-        Self::Core(FallibleExtErrorCore::ProgramRent(err))
     }
 }
 
@@ -989,14 +983,6 @@ impl Externalities for Ext {
 
     fn message_id(&self) -> Result<MessageId, Self::UnrecoverableError> {
         Ok(self.context.message_context.current().id())
-    }
-
-    fn pay_program_rent(
-        &mut self,
-        _program_id: ProgramId,
-        rent: u128,
-    ) -> Result<(u128, u32), Self::FallibleError> {
-        Ok((rent, 0))
     }
 
     fn program_id(&self) -> Result<ProgramId, Self::UnrecoverableError> {

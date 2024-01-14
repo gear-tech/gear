@@ -160,15 +160,6 @@ fn process(syscall_kind: Kind) {
             let actual_mid: [u8; 32] = msg::id().into();
             assert_eq!(expected_mid, actual_mid, "Kind::MessageId: mid test failed");
         }
-        #[allow(deprecated)]
-        Kind::PayProgramRent(program_id, rent, expected) => {
-            let (unused_value, paid_block_count) = exec::pay_program_rent(program_id.into(), rent)
-                .expect(super::PAY_PROGRAM_RENT_EXPECT);
-            if let Some((expected_unused_value, expected_paid_block_count)) = expected {
-                assert_eq!(unused_value, expected_unused_value);
-                assert_eq!(paid_block_count, expected_paid_block_count);
-            }
-        }
         Kind::ProgramId(expected_pid) => {
             let actual_pid: [u8; 32] = exec::program_id().into();
             assert_eq!(expected_pid, actual_pid, "Kind::ProgramId: pid test failed");

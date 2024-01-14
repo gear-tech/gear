@@ -1399,14 +1399,6 @@ benchmarks! {
         verify_process(res.unwrap());
     }
 
-    gr_pay_program_rent {
-        let r in 0 .. API_BENCHMARK_BATCHES;
-        let mut res = None;
-        let exec = Benches::<T>::gr_pay_program_rent(r)?;
-    }: {
-        res.replace(run_process(exec));
-    }
-
     lazy_pages_signal_read {
         let p in 0 .. code::max_pages::<T>() as u32;
         let mut res = None;
