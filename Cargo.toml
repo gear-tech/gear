@@ -88,6 +88,7 @@ members = [
     "node/service",
     "node/authorship",
     "node/testing",
+    "node/testing/runtime",
     "pallets/*",
     "runtime/*",
     "utils/*",
@@ -203,6 +204,7 @@ gear-lazy-pages = { path = "lazy-pages" }
 gear-lazy-pages-common = { path = "lazy-pages/common", default-features = false }
 gear-lazy-pages-interface = { path = "lazy-pages/interface", default-features = false }
 gear-node-testing = { path = "node/testing" }
+gear-minimal-test-runtime = { path = "node/testing/runtime", default-features = false }
 gear-runtime-common = { path = "runtime/common", default-features = false }
 gear-runtime-interface = { path = "runtime-interface", default-features = false }
 gear-runtime-primitives = { path = "runtime/primitives", default-features = false }
@@ -235,7 +237,6 @@ pallet-gear-bank = { path = "pallets/gear-bank", default-features = false }
 runtime-common = { package = "gear-runtime-common", path = "runtime/common", default-features = false }
 runtime-primitives = { package = "gear-runtime-primitives", path = "runtime/primitives", default-features = false }
 service = { package = "gear-service", path = "node/service", default-features = false }
-testing = { package = "gear-node-testing", path = "node/testing" }
 vara-runtime = { path = "runtime/vara", default-features = false }
 wasm-smith = { version = "0.12.21", git = "https://github.com/gear-tech/wasm-tools.git", branch = "gear-stable" }
 

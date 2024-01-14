@@ -19,8 +19,16 @@
 //! Genesis Configuration.
 
 use crate::keyring::*;
+#[cfg(feature = "tiny")]
+use gear_minimal_test_runtime::{
+    currency::*, AccountId, BalancesConfig, RuntimeGenesisConfig, SudoConfig, SystemConfig,
+    WASM_BINARY,
+};
+#[cfg(all(feature = "full", not(feature = "tiny")))]
 use sp_keyring::{Ed25519Keyring, Sr25519Keyring};
+#[cfg(all(feature = "full", not(feature = "tiny")))]
 use sp_runtime::{Perbill, Perquintill};
+#[cfg(all(feature = "full", not(feature = "tiny")))]
 use vara_runtime::{
     constants::currency::*, AccountId, BabeConfig, BalancesConfig, GrandpaConfig,
     RuntimeGenesisConfig, SessionConfig, StakerStatus, StakingConfig, StakingRewardsConfig,
@@ -40,6 +48,7 @@ pub fn genesis_config(code: Option<&[u8]>) -> RuntimeGenesisConfig {
 
 /// Create genesis runtime configuration for tests adding some extra
 /// endowed accounts if needed.
+#[cfg(all(feature = "full", not(feature = "tiny")))]
 pub fn config_endowed(code: Option<&[u8]>, extra_endowed: Vec<AccountId>) -> RuntimeGenesisConfig {
     let mut endowed = vec![
         (alice(), 111 * ECONOMIC_UNITS),
@@ -128,5 +137,34 @@ pub fn config_endowed(code: Option<&[u8]>, extra_endowed: Vec<AccountId>) -> Run
             target_inflation: Perquintill::from_rational(578_u64, 10_000_u64), // 5.78%
             filtered_accounts: Default::default(),
         },
+    }
+}
+
+#[cfg(feature = "tiny")]
+pub fn config_endowed(code: Option<&[u8]>, extra_endowed: Vec<AccountId>) -> RuntimeGenesisConfig {
+    let mut endowed = vec![
+        (alice(), 111 * ECONOMIC_UNITS),
+        (bob(), 100 * ECONOMIC_UNITS),
+        (charlie(), 100_000_000 * ECONOMIC_UNITS),
+        (dave(), 111 * ECONOMIC_UNITS),
+        (eve(), 101 * ECONOMIC_UNITS),
+        (ferdie(), 100 * ECONOMIC_UNITS),
+    ];
+
+    endowed.extend(
+        extra_endowed
+            .into_iter()
+            .map(|endowed| (endowed, 100 * ECONOMIC_UNITS)),
+    );
+
+    RuntimeGenesisConfig {
+        system: SystemConfig {
+            code: code
+                .map(|x| x.to_vec())
+                .unwrap_or_else(|| wasm_binary().to_vec()),
+            ..Default::default()
+        },
+        balances: BalancesConfig { balances: endowed },
+        sudo: SudoConfig { key: Some(alice()) },
     }
 }

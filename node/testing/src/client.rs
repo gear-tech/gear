@@ -18,9 +18,13 @@
 
 //! Utilities to build a `TestClient` for gear- or vara-runtime.
 
+#[cfg(feature = "tiny")]
+use gear_minimal_test_runtime as runtime;
+use sc_executor::{HeapAllocStrategy, WasmtimeInstantiationStrategy};
 use sp_runtime::BuildStorage;
 /// Re-export test-client utilities.
 pub use substrate_test_client::*;
+#[cfg(all(feature = "full", not(feature = "tiny")))]
 use vara_runtime as runtime;
 
 // A unit struct which implements `NativeExecutionDispatch` feeding in the hard-coded runtime
@@ -77,6 +81,9 @@ pub trait TestClientBuilderExt: Sized {
 
     /// Build the test client.
     fn build(self) -> Client;
+
+    /// Build the test client with customized executor.
+    fn customize_and_build(self) -> Client;
 }
 
 impl TestClientBuilderExt
@@ -93,5 +100,29 @@ impl TestClientBuilderExt
 
     fn build(self) -> Client {
         self.build_with_native_executor(None).0
+    }
+
+    fn customize_and_build(self) -> Client {
+        let method = sc_executor::WasmExecutionMethod::Compiled {
+            instantiation_strategy: WasmtimeInstantiationStrategy::PoolingCopyOnWrite,
+        };
+        let heap_pages = HeapAllocStrategy::Dynamic {
+            maximum_pages: Some(2048),
+        };
+        let max_runtime_instances = 2;
+        let runtime_cache_size = 2;
+
+        let wasm = WasmExecutor::builder()
+            .with_execution_method(method)
+            .with_onchain_heap_alloc_strategy(heap_pages)
+            .with_offchain_heap_alloc_strategy(heap_pages)
+            .with_max_runtime_instances(max_runtime_instances)
+            .with_runtime_cache_size(runtime_cache_size)
+            .build();
+
+        let executor =
+            NativeElseWasmExecutor::<LocalExecutorDispatch>::new_with_wasm_executor(wasm);
+
+        self.build_with_native_executor(Some(executor)).0
     }
 }

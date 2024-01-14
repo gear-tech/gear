@@ -55,6 +55,7 @@ default = ['std']
 std = [
 	"parity-scale-codec/std",
 	"common/std",
+	"gear-core/std",
 	"frame-benchmarking?/std",
 	"frame-support/std",
 	"frame-support-test/std",

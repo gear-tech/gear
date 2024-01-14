@@ -26,14 +26,21 @@
 
 use crate::{authorship::MAX_SKIPPED_TRANSACTIONS, block_builder::BlockBuilder, ProposerFactory};
 
-use codec::{Decode, Encode};
 use common::Program;
 use core::convert::TryFrom;
 use demo_constructor::{Calls, Scheme, WASM_BINARY};
 use frame_support::{assert_ok, storage::storage_prefix, traits::PalletInfoAccess};
 use futures::executor::block_on;
+use gear_minimal_test_runtime::{
+    AccountId, Runtime, RuntimeApi as RA, RuntimeCall, UncheckedExtrinsic, SLOT_DURATION, VERSION,
+};
+use gear_node_testing::{
+    client::{ClientBlockImportExt, TestClientBuilder, TestClientBuilderExt},
+    keyring::{alice, bob, sign, signed_extra, CheckedExtrinsic},
+};
 use gear_runtime_common::constants::BANK_ADDRESS;
 use pallet_gear_rpc_runtime_api::GearApi;
+use parity_scale_codec::{Decode, Encode};
 use parking_lot::Mutex;
 use runtime_primitives::BlockNumber;
 use sc_client_api::Backend as _;
@@ -60,13 +67,6 @@ use std::{
     ops::Deref,
     sync::Arc,
     time::{self, SystemTime, UNIX_EPOCH},
-};
-use testing::{
-    client::{ClientBlockImportExt, TestClientBuilder, TestClientBuilderExt},
-    keyring::{alice, bob, sign, signed_extra, CheckedExtrinsic},
-};
-use vara_runtime::{
-    AccountId, Runtime, RuntimeApi as RA, RuntimeCall, UncheckedExtrinsic, SLOT_DURATION, VERSION,
 };
 
 const SOURCE: TransactionSource = TransactionSource::External;
@@ -232,6 +232,7 @@ macro_rules! init {
     } => {
         let client_builder = TestClientBuilder::new();
         let $backend = client_builder.backend();
+
         let mut $client = Arc::new(client_builder.build());
         let $spawner = sp_core::testing::TaskExecutor::new();
         let $txpool = BasicPool::new_full(
@@ -714,7 +715,6 @@ fn block_builder_cloned_ok() {
     let client_builder = TestClientBuilder::new();
     let backend = client_builder.backend();
     let client = Arc::new(client_builder.build());
-
     let genesis_hash =
         <[u8; 32]>::try_from(&client.info().best_hash[..]).expect("H256 is a 32 byte type");
 

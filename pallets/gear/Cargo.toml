@@ -160,7 +160,7 @@ std = [
 	"pallet-gear-proc-macro/full",
 	"primitive-types/std",
 	"serde/std",
-	"sp-consensus-babe/std",
+	"sp-consensus-babe?/std",
 	"test-syscalls?/std",
 	"demo-read-big-state?/std",
 	"demo-proxy?/std",

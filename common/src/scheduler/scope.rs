@@ -63,6 +63,12 @@ pub trait TaskPoolError {
     fn task_not_found() -> Self;
 }
 
+impl TaskPoolError for () {
+    fn duplicate_task() -> Self {}
+
+    fn task_not_found() -> Self {}
+}
+
 /// `TaskPool` implementation based on `DoubleMapStorage`.
 ///
 /// Generic parameter `Error` requires `TaskPoolError` implementation.

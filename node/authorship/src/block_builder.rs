@@ -16,8 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use codec::Encode;
 use pallet_gear_rpc_runtime_api::GearApi as GearRuntimeApi;
+use parity_scale_codec::Encode;
 use sc_block_builder::{BlockBuilderApi, BuiltBlock, RecordProof};
 use sc_client_api::backend;
 use sp_api::{ApiExt, ApiRef, Core, ProvideRuntimeApi, TransactionOutcome};

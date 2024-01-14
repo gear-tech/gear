@@ -23,6 +23,7 @@ sp-std.workspace = true
 default = ["std"]
 std = [
     "gear-common/std",
+    "gear-core/std",
     "gear-runtime-interface/std",
     "sp-std/std",
     "log/std",

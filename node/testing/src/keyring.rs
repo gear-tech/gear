@@ -18,10 +18,15 @@
 
 //! Test accounts available in runtime for testing.
 
-use codec::Encode;
+#[cfg(feature = "tiny")]
+use gear_minimal_test_runtime::{RuntimeCall, SignedExtra, UncheckedExtrinsic};
+use parity_scale_codec::Encode;
 use runtime_primitives::{AccountId, Nonce};
-use sp_keyring::{AccountKeyring, Ed25519Keyring, Sr25519Keyring};
+use sp_keyring::AccountKeyring;
+#[cfg(all(feature = "full", not(feature = "tiny")))]
+use sp_keyring::{Ed25519Keyring, Sr25519Keyring};
 use sp_runtime::generic::Era;
+#[cfg(all(feature = "full", not(feature = "tiny")))]
 use vara_runtime::{
     CustomChargeTransactionPayment, RuntimeCall, SessionKeys, SignedExtra, StakingBlackList,
     UncheckedExtrinsic,
@@ -61,6 +66,7 @@ pub fn ferdie() -> AccountId {
 }
 
 /// Convert keyrings into `SessionKeys`.
+#[cfg(all(feature = "full", not(feature = "tiny")))]
 pub fn to_session_keys(
     ed25519_keyring: &Ed25519Keyring,
     sr25519_keyring: &Sr25519Keyring,
@@ -74,6 +80,19 @@ pub fn to_session_keys(
 }
 
 /// Creates transaction extra.
+#[cfg(feature = "tiny")]
+pub fn signed_extra(nonce: Nonce) -> SignedExtra {
+    (
+        frame_system::CheckNonZeroSender::new(),
+        frame_system::CheckSpecVersion::new(),
+        frame_system::CheckTxVersion::new(),
+        frame_system::CheckGenesis::new(),
+        frame_system::CheckEra::from(Era::mortal(256, 0)),
+        frame_system::CheckNonce::from(nonce),
+        frame_system::CheckWeight::new(),
+    )
+}
+#[cfg(all(feature = "full", not(feature = "tiny")))]
 pub fn signed_extra(nonce: Nonce) -> SignedExtra {
     (
         StakingBlackList::new(),

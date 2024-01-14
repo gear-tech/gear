@@ -3777,6 +3777,7 @@ dependencies = [
  "futures-timer",
  "gear-common",
  "gear-core",
+ "gear-minimal-test-runtime",
  "gear-node-testing",
  "gear-runtime-common",
  "gear-runtime-interface",
@@ -3808,7 +3809,6 @@ dependencies = [
  "sp-state-machine",
  "sp-timestamp",
  "substrate-prometheus-endpoint",
- "vara-runtime",
 ]
 
 [[package]]
@@ -4036,6 +4036,47 @@ dependencies = [
 ]
 
 [[package]]
+name = "gear-minimal-test-runtime"
+version = "1.1.0"
+dependencies = [
+ "const-str",
+ "frame-executive",
+ "frame-support",
+ "frame-system",
+ "frame-system-rpc-runtime-api",
+ "gear-common",
+ "gear-core",
+ "gear-runtime-primitives",
+ "log",
+ "pallet-authorship",
+ "pallet-balances",
+ "pallet-gear",
+ "pallet-gear-bank",
+ "pallet-gear-debug",
+ "pallet-gear-gas",
+ "pallet-gear-messenger",
+ "pallet-gear-program",
+ "pallet-gear-rpc-runtime-api",
+ "pallet-gear-scheduler",
+ "pallet-sudo",
+ "pallet-timestamp",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-api",
+ "sp-arithmetic",
+ "sp-authority-discovery",
+ "sp-block-builder",
+ "sp-core",
+ "sp-inherents",
+ "sp-runtime",
+ "sp-std 8.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v1.0.0-canary)",
+ "sp-transaction-pool",
+ "sp-version",
+ "substrate-build-script-utils",
+ "substrate-wasm-builder",
+]
+
+[[package]]
 name = "gear-node-loader"
 version = "1.1.0"
 dependencies = [
@@ -4073,6 +4114,7 @@ dependencies = [
  "futures",
  "futures-timer",
  "gear-common",
+ "gear-minimal-test-runtime",
  "gear-runtime-interface",
  "gear-runtime-primitives",
  "gear-service",
@@ -4090,10 +4132,8 @@ dependencies = [
  "sc-transaction-pool-api",
  "scale-info",
  "sp-api",
- "sp-blockchain",
  "sp-consensus",
  "sp-core",
- "sp-inherents",
  "sp-io",
  "sp-keyring",
  "sp-runtime",
