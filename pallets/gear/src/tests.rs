@@ -75,12 +75,39 @@ use gear_core_errors::*;
 use gear_wasm_instrument::{gas_metering::ConstantCostRules, STACK_END_EXPORT_NAME};
 use gstd::{collections::BTreeMap, errors::Error as GstdError};
 use pallet_gear_voucher::PrepaidCall;
-use sp_runtime::{traits::UniqueSaturatedInto, SaturatedConversion};
+use sp_runtime::{
+    traits::{One, UniqueSaturatedInto},
+    SaturatedConversion,
+};
 use sp_std::convert::TryFrom;
 pub use utils::init_logger;
 use utils::*;
 
 type Gas = <<Test as Config>::GasProvider as common::GasProvider>::GasTree;
+
+#[test]
+fn calculate_gas_zero_balance() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        const ZERO_BALANCE_USER: AccountId = 12122023;
+        assert!(Balances::free_balance(ZERO_BALANCE_USER).is_zero());
+
+        let gas_below_ed = get_ed()
+            .saturating_div(gas_price(1))
+            .saturating_sub(One::one());
+
+        assert_ok!(Gear::calculate_gas_info_impl(
+            ZERO_BALANCE_USER.into_origin(),
+            HandleKind::Init(ProgramCodeKind::Default.to_bytes()),
+            gas_below_ed as u64,
+            vec![],
+            0,
+            false,
+            false,
+            None,
+        ));
+    });
+}
 
 #[test]
 fn delayed_send_from_reservation_not_for_mailbox() {
