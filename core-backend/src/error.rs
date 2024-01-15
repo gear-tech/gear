@@ -225,7 +225,7 @@ pub enum TrapExplanation {
     ProgramAllocOutOfBounds,
     #[display(fmt = "Syscall unrecoverable error: {_0}")]
     UnrecoverableExt(UnrecoverableExtError),
-    #[display(fmt = "{_0}")]
+    #[display(fmt = "Panic occurred: {_0}")]
     Panic(LimitedStr<'static>),
     #[display(fmt = "Stack limit exceeded")]
     StackLimitExceeded,

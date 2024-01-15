@@ -3,6 +3,7 @@ name = "gstd"
 description = "Gear programs standard library"
 keywords = ["gear", "std", "no-std", "wasm", "smart-contracts"]
 categories = ["api-bindings"]
+rust-version = "1.73"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
@@ -12,6 +13,7 @@ repository.workspace = true
 
 [dependencies]
 arrayvec = { version = "0.7.4", default-features = false, optional = true }
+const_format = { version = "0.2.32", optional = true }
 document-features = { version = "0.2.7", optional = true }
 galloc.workspace = true
 gcore = { workspace = true, features = ["codec"] }
@@ -34,7 +36,7 @@ default = ["panic-message"]
 
 ## When enabled, a minimal panic handler is provided by this crate.
 ## Instead of a panic message, "<unknown>" is displayed.
-panic-handler = []
+panic-handler = ["const_format"]
 ## When enabled, a panic handler will also display a panic message.
 panic-message = ["panic-handler", "arrayvec"]
 ## When enabled, a panic handler will also display a panic message and location.

@@ -31,7 +31,6 @@
 pub fn oom(_: core::alloc::Layout) -> ! {
     crate::ext::oom_panic()
 }
-
 /// We currently support 3 panic handler profiles:
 /// - `panic-handler`: it displays `<unknown>`
 /// - `panic-message`: it displays `'{message}'`
@@ -55,72 +54,73 @@ pub mod panic_handler {
     use crate::ext;
     use core::panic::PanicInfo;
 
-    /// Minimal panic handler.
-    #[cfg(not(any(feature = "panic-message", feature = "panic-location")))]
-    #[panic_handler]
-    pub fn panic(_: &PanicInfo) -> ! {
-        ext::panic("<unknown>")
-    }
-
-    #[cfg(any(feature = "panic-message", feature = "panic-location"))]
     mod constants {
+        /// This prefix is used before the panic message.
+        pub const PANIC_PREFIX: &str = "panicked with ";
+        /// This panic message is used in the minimal panic handler and when
+        /// internal errors occur.
+        #[cfg(any(feature = "panic-info-message", not(feature = "panic-message")))]
+        pub const UNKNOWN_REASON: &str = "<unknown>";
+
+        /// This prefix is used by `impl Display for PanicInfo<'_>`.
+        #[cfg(all(not(feature = "panic-info-message"), feature = "panic-message"))]
+        pub const PANICKED_AT: &str = "panicked at ";
+
         /// Max amount of bytes allowed to be thrown as string explanation
         /// of the error.
+        #[cfg(feature = "panic-message")]
         pub const TRIMMED_MAX_LEN: usize = 1024; //TODO: do not duplicate `gear_core::str::TRIMMED_MAX_LEN`
-        /// This prefix is used to print debug message:
-        /// `debug!("panic occurred: {msg}")`.
-        pub const PANIC_OCCURRED: &str = "panic occurred: ";
         /// Size of array string that will be allocated on the stack.
-        pub const ARRAY_STRING_MAX_LEN: usize = if cfg!(feature = "debug") {
-            PANIC_OCCURRED.len()
-        } else {
-            0
-        } + TRIMMED_MAX_LEN;
-        /// This prefix is used by `impl Display for PanicInfo<'_>`.
-        #[cfg(not(feature = "panic-info-message"))]
-        pub const PANICKED_AT: &str = "panicked at ";
+        #[cfg(feature = "panic-message")]
+        pub const ARRAY_STRING_MAX_LEN: usize = PANIC_PREFIX.len() + TRIMMED_MAX_LEN;
     }
 
-    #[cfg(any(feature = "panic-message", feature = "panic-location"))]
     use constants::*;
 
+    /// Minimal panic handler.
+    #[cfg(not(feature = "panic-message"))]
+    #[panic_handler]
+    pub fn panic(_: &PanicInfo) -> ! {
+        const MESSAGE: &str = const_format::formatcp!("{PANIC_PREFIX}'{UNKNOWN_REASON}'");
+
+        #[cfg(feature = "debug")]
+        let _ = ext::debug(MESSAGE);
+
+        ext::panic(MESSAGE)
+    }
+
     /// Panic handler for nightly Rust.
-    #[cfg(feature = "panic-info-message")]
-    #[cfg(any(feature = "panic-message", feature = "panic-location"))]
+    #[cfg(all(feature = "panic-info-message", feature = "panic-message"))]
     #[panic_handler]
     pub fn panic(panic_info: &PanicInfo) -> ! {
         use crate::prelude::fmt::Write;
         use arrayvec::ArrayString;
 
         let mut debug_msg = ArrayString::<ARRAY_STRING_MAX_LEN>::new();
+        let _ = debug_msg.try_push_str(PANIC_PREFIX);
 
-        #[cfg(feature = "debug")]
-        let _ = debug_msg.try_push_str(PANIC_OCCURRED);
-
-        let _ = match (panic_info.message(), panic_info.location()) {
+        match (panic_info.message(), panic_info.location()) {
             #[cfg(feature = "panic-location")]
-            (Some(msg), Some(loc)) => write!(&mut debug_msg, "'{msg}', {loc}"),
+            (Some(msg), Some(loc)) => {
+                let _ = write!(&mut debug_msg, "'{msg}' at '{loc}'");
+            }
             #[cfg(not(feature = "panic-location"))]
-            (Some(msg), _) => write!(&mut debug_msg, "'{msg}'"),
-            _ => ext::panic("<unknown>"),
+            (Some(msg), _) => {
+                let _ = write!(&mut debug_msg, "'{msg}'");
+            }
+            _ => {
+                let _ = debug_msg.try_push_str(const_format::formatcp!("'{UNKNOWN_REASON}'"));
+            }
         };
 
         #[cfg(feature = "debug")]
         let _ = ext::debug(&debug_msg);
 
-        #[cfg(feature = "debug")]
-        match debug_msg.get(PANIC_OCCURRED.len()..) {
-            Some(msg) => ext::panic(msg),
-            _ => ext::panic("<unknown>"),
-        }
-
-        #[cfg(not(feature = "debug"))]
         ext::panic(&debug_msg)
     }
 
     /// Panic handler for stable Rust >=1.73.
-    #[cfg(not(feature = "panic-info-message"))]
-    #[cfg(any(feature = "panic-message", feature = "panic-location"))]
+    #[cfg(all(not(feature = "panic-info-message"), feature = "panic-message"))]
     #[panic_handler]
     pub fn panic(panic_info: &PanicInfo) -> ! {
         use crate::prelude::fmt::{self, Write};
@@ -145,6 +145,7 @@ pub mod panic_handler {
         struct TempOutput {
             found_prefix: bool,
             found_delimiter: bool,
+            #[cfg(feature = "panic-location")]
             location: TempBuffer<TRIMMED_MAX_LEN>,
             message: TempBuffer<TRIMMED_MAX_LEN>,
         }
@@ -161,6 +162,7 @@ pub mod panic_handler {
                         self.found_delimiter = true;
                         return Ok(());
                     }
+                    #[cfg(feature = "panic-location")]
                     self.location.write_str(s);
                 } else {
                     self.message.write_str(s);
@@ -178,12 +180,10 @@ pub mod panic_handler {
         let message = &*output.message.buffer;
 
         let mut debug_msg = ArrayString::<ARRAY_STRING_MAX_LEN>::new();
-
-        #[cfg(feature = "debug")]
-        let _ = debug_msg.try_push_str(PANIC_OCCURRED);
+        let _ = debug_msg.try_push_str(PANIC_PREFIX);
 
         #[cfg(feature = "panic-location")]
-        for s in ["'", message, "', ", location] {
+        for s in ["'", message, "' at '", location, "'"] {
             if debug_msg.try_push_str(s).is_err() {
                 break;
             }
@@ -199,13 +199,6 @@ pub mod panic_handler {
         #[cfg(feature = "debug")]
         let _ = ext::debug(&debug_msg);
 
-        #[cfg(feature = "debug")]
-        match debug_msg.get(PANIC_OCCURRED.len()..) {
-            Some(msg) => ext::panic(msg),
-            _ => ext::panic("<unknown>"),
-        }
-
-        #[cfg(not(feature = "debug"))]
         ext::panic(&debug_msg)
     }
 }
