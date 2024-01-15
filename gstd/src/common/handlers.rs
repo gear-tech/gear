@@ -70,7 +70,8 @@ mod panic_handler {
         /// Max amount of bytes allowed to be thrown as string explanation
         /// of the error.
         #[cfg(feature = "panic-message")]
-        pub const TRIMMED_MAX_LEN: usize = 1024; //TODO: do not duplicate `gear_core::str::TRIMMED_MAX_LEN`
+        pub const TRIMMED_MAX_LEN: usize = 1024; //TODO: do not duplicate
+                                                 // `gear_core::str::TRIMMED_MAX_LEN`
     }
 
     use constants::*;
