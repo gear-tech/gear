@@ -3812,7 +3812,7 @@ dependencies = [
 name = "gear-authorship-binaries"
 version = "1.0.5"
 dependencies = [
- "demo-mul-by-const",
+ "demo-constructor",
  "wasm-dep-builder",
 ]
 
