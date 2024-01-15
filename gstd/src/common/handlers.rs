@@ -32,9 +32,9 @@ pub fn oom(_: core::alloc::Layout) -> ! {
     crate::ext::oom_panic()
 }
 /// We currently support 3 panic handler profiles:
-/// - `panic-handler`: it displays `<unknown>`
-/// - `panic-message`: it displays `'{message}'`
-/// - `panic-location`: it displays `'{message}', {location}`
+/// - `panic-handler`: it displays `panicked with '<unknown>'`
+/// - `panic-message`: it displays `panicked with '{message}'`
+/// - `panic-location`: it displays `panicked with '{message}' at '{location}'`
 ///
 /// How we get the panic message in different versions of Rust:
 /// - In nightly Rust, we use `#![feature(panic_info_message)]` and the
@@ -47,10 +47,11 @@ pub fn oom(_: core::alloc::Layout) -> ! {
 /// - Rust >=1.73: `panicked at {location}:\n{message}`
 ///
 /// We parse the output of `impl Display for PanicInfo<'_>` and
-/// then convert it to custom format: `'{message}', {location}`.
+/// then convert it to custom format:
+/// `panicked with '{message}'[ at '{location}']`.
 #[cfg(target_arch = "wasm32")]
 #[cfg(feature = "panic-handler")]
-pub mod panic_handler {
+mod panic_handler {
     use crate::ext;
     use core::panic::PanicInfo;
 

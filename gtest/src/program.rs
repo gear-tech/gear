@@ -856,7 +856,9 @@ mod tests {
         assert!(run_result.main_failed());
 
         let log = run_result.log();
-        assert!(log[0].payload().starts_with(b"'Failed to load destination"));
+        assert!(log[0]
+            .payload()
+            .starts_with(b"Panic occurred: panicked with 'Failed to load destination"));
 
         let run_result = prog.send(user_id, String::from("should_be_skipped"));
 

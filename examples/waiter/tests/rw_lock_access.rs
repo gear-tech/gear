@@ -86,7 +86,7 @@ fn access_rw_lock_guard_from_different_msg_fails(
     assert_panicked(
         &lock_access_result,
         &format!(
-            "{:?} lock guard held by message {} is being accessed by message {}",
+            "Panic occurred: panicked with '{:?} lock guard held by message {} is being accessed by message {}'",
             lock_type,
             lock_msg_id,
             lock_access_result.sent_message_id()
