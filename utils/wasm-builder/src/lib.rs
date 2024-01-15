@@ -20,7 +20,7 @@
 #![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
 #![doc(html_favicon_url = "https://gear-tech.io/favicons/favicon.ico")]
 
-use crate::{cargo_command::CargoCommand, cargo_toolchain::Toolchain, wasm_project::WasmProject};
+use crate::{cargo_command::CargoCommand, wasm_project::WasmProject};
 use anyhow::{Context, Result};
 use gmeta::{Metadata, MetadataRepr};
 use regex::Regex;
@@ -88,6 +88,14 @@ impl WasmBuilder {
         self
     }
 
+    /// Force the recommended toolchain to be used, but do not check whether the
+    /// current toolchain is recommended.
+    #[doc(hidden)]
+    pub unsafe fn with_forced_recommended_toolchain(mut self) -> Self {
+        self.cargo.set_force_recommended_toolchain(true);
+        self
+    }
+
     /// Build the program and produce an output WASM binary.
     pub fn build(self) {
         if env::var("__GEAR_WASM_BUILDER_NO_BUILD").is_ok() {
@@ -107,7 +115,6 @@ impl WasmBuilder {
     fn build_project(mut self) -> Result<()> {
         self.wasm_project.generate()?;
 
-        self.cargo.set_toolchain(Toolchain::try_from_rustup()?);
         self.cargo
             .set_manifest_path(self.wasm_project.manifest_path());
         self.cargo.set_target_dir(self.wasm_project.target_dir());

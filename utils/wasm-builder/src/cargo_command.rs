@@ -32,6 +32,7 @@ pub struct CargoCommand {
     features: Vec<String>,
     toolchain: Toolchain,
     check_recommended_toolchain: bool,
+    force_recommended_toolchain: bool,
     paths_to_remap: Vec<(PathBuf, &'static str)>,
 }
 
@@ -45,8 +46,9 @@ impl CargoCommand {
             rustc_flags: vec!["-C", "link-arg=--import-memory", "-C", "linker-plugin-lto"],
             target_dir: "target".into(),
             features: vec![],
-            toolchain: Toolchain::nightly(),
+            toolchain: Toolchain::try_from_rustup().expect("Failed to get toolchain from rustup"),
             check_recommended_toolchain: false,
+            force_recommended_toolchain: false,
             paths_to_remap: vec![],
         }
     }
@@ -73,14 +75,14 @@ impl CargoCommand {
         self.features = features.into();
     }
 
-    /// Set toolchain.
-    pub(crate) fn set_toolchain(&mut self, toolchain: Toolchain) {
-        self.toolchain = toolchain;
-    }
-
     /// Sets whether to check the version of the recommended toolchain.
     pub(crate) fn set_check_recommended_toolchain(&mut self, check_recommended_toolchain: bool) {
         self.check_recommended_toolchain = check_recommended_toolchain;
+    }
+
+    /// Sets whether to force the version of the recommended toolchain.
+    pub(crate) fn set_force_recommended_toolchain(&mut self, force_recommended_toolchain: bool) {
+        self.force_recommended_toolchain = force_recommended_toolchain;
     }
 
     /// Set paths to remap.
@@ -96,10 +98,16 @@ impl CargoCommand {
             self.toolchain.check_recommended_toolchain()?;
         }
 
+        let toolchain = if self.force_recommended_toolchain {
+            Toolchain::recommended_nightly()
+        } else {
+            self.toolchain.clone()
+        };
+
         let mut cargo = Command::new(&self.path);
         cargo
             .arg("run")
-            .arg(self.toolchain.raw_toolchain_str().as_ref())
+            .arg(toolchain.raw_toolchain_str().as_ref())
             .arg("cargo")
             .arg("rustc")
             .arg("--target=wasm32-unknown-unknown")

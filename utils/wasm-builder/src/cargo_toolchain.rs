@@ -38,9 +38,9 @@ impl Toolchain {
     /// This is a version of nightly toolchain, tested on our CI.
     const PINNED_NIGHTLY_TOOLCHAIN: &'static str = "nightly-2023-09-05";
 
-    /// Returns `Toolchain` representing the most recent nightly version.
-    pub fn nightly() -> Self {
-        Self("nightly".into())
+    /// Returns `Toolchain` representing the recommended nightly version.
+    pub fn recommended_nightly() -> Self {
+        Self(Self::PINNED_NIGHTLY_TOOLCHAIN.into())
     }
 
     /// Fetches `Toolchain` via rustup.

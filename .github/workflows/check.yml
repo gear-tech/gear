@@ -55,10 +55,7 @@ jobs:
             exit 1
           fi
 
-      - name: "Install: Rust stable toolchain"
-        run: rustup toolchain install stable --component llvm-tools-preview --target wasm32-unknown-unknown
-
-      - name: "Check: Compiling gstd on stable"
+      - name: "Test: Wasm-builder recommended toolchain matches rust-toolchain.toml"
         run: |
           TOOLCHAIN=$(grep 'channel' rust-toolchain.toml | cut -d '"' -f 2)
           CARGO_TOOLCHAIN="utils/wasm-builder/src/cargo_toolchain.rs"
@@ -66,7 +63,16 @@ jobs:
             echo "Please update PINNED_NIGHTLY_TOOLCHAIN constant in $CARGO_TOOLCHAIN to match rust-toolchain.toml."
             exit 1
           fi
-          cargo +stable check -p gstd -F debug --target wasm32-unknown-unknown
+
+      - name: "Install: Rust stable toolchain"
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+          components: llvm-tools
+
+      - name: "Check: Compiling gstd on stable"
+        run: |
+          cargo +stable check -p gstd --target wasm32-unknown-unknown
           cargo +stable check --manifest-path utils/wasm-builder/test-program/Cargo.toml
 
   fuzzer:
