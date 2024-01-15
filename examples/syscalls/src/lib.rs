@@ -56,8 +56,6 @@ pub enum Kind {
     Size(u32),
     // Expected(message id)
     MessageId(MessageId),
-    // Params(program id, rent)
-    PayProgramRent(ActorId, u128, Option<(u128, u32)>),
     // Expected(program id)
     ProgramId(ActorId),
     // Expected(message sender)
@@ -110,8 +108,6 @@ pub enum Kind {
     // Param(deposit amount)
     ReplyDeposit(u64),
 }
-
-pub const PAY_PROGRAM_RENT_EXPECT: &str = "Unable to pay rent";
 
 #[cfg(not(feature = "wasm-wrapper"))]
 mod wasm;
