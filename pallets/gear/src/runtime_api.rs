@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -48,7 +48,7 @@ where
 
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn calculate_gas_info_impl(
-        source: H256,
+        origin: H256,
         kind: HandleKind,
         initial_gas: u64,
         payload: Vec<u8>,
@@ -59,16 +59,21 @@ where
     ) -> Result<GasInfo, Vec<u8>> {
         Self::enable_lazy_pages();
 
-        let account = source.cast();
+        let origin = origin.cast();
+        let value = value.unique_saturated_into();
 
-        let balance = CurrencyOf::<T>::free_balance(&account);
-        let max_balance: BalanceOf<T> = <T as pallet_gear_bank::Config>::GasMultiplier::get()
-            .gas_to_value(initial_gas)
-            + value.unique_saturated_into();
-        CurrencyOf::<T>::deposit_creating(&account, max_balance.saturating_sub(balance));
+        let origin_balance = CurrencyOf::<T>::free_balance(&origin);
 
-        let who = frame_support::dispatch::RawOrigin::Signed(account);
-        let value: BalanceOf<T> = value.unique_saturated_into();
+        let value_for_gas =
+            <T as pallet_gear_bank::Config>::GasMultiplier::get().gas_to_value(initial_gas);
+
+        let required_balance = CurrencyOf::<T>::minimum_balance()
+            .saturating_add(value_for_gas)
+            .saturating_add(value);
+
+        CurrencyOf::<T>::deposit_creating(&origin, required_balance.saturating_sub(origin_balance));
+
+        let who = frame_support::dispatch::RawOrigin::Signed(origin);
 
         QueueOf::<T>::clear();
 

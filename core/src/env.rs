@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -303,13 +303,6 @@ pub trait Externalities {
 
     /// Get the id of the message currently being handled.
     fn message_id(&self) -> Result<MessageId, Self::UnrecoverableError>;
-
-    /// Pay rent for the specified program.
-    fn pay_program_rent(
-        &mut self,
-        program_id: ProgramId,
-        rent: u128,
-    ) -> Result<(u128, u32), Self::FallibleError>;
 
     /// Get the id of program itself
     fn program_id(&self) -> Result<ProgramId, Self::UnrecoverableError>;

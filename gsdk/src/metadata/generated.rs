@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -2318,7 +2318,6 @@ pub mod runtime_types {
                     pub gr_system_reserve_gas: runtime_types::sp_weights::weight_v2::Weight,
                     pub gr_gas_available: runtime_types::sp_weights::weight_v2::Weight,
                     pub gr_message_id: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_pay_program_rent: runtime_types::sp_weights::weight_v2::Weight,
                     pub gr_program_id: runtime_types::sp_weights::weight_v2::Weight,
                     pub gr_source: runtime_types::sp_weights::weight_v2::Weight,
                     pub gr_value: runtime_types::sp_weights::weight_v2::Weight,
