@@ -43,8 +43,7 @@ pub fn oom(_: core::alloc::Layout) -> ! {
 ///   format.
 ///
 /// Default panic handler message format (according to <https://github.com/rust-lang/rust/pull/112849>):
-/// - Rust  <1.73: `panicked at '{message}', {location}`
-/// - Rust >=1.73: `panicked at {location}:\n{message}`
+/// `panicked at {location}:\n{message}`
 ///
 /// We parse the output of `impl Display for PanicInfo<'_>` and
 /// then convert it to custom format:
@@ -118,7 +117,7 @@ mod panic_handler {
         ext::panic(&debug_msg)
     }
 
-    /// Panic handler for stable Rust >=1.73.
+    /// Panic handler for stable Rust.
     #[cfg(all(not(feature = "panic-info-message"), feature = "panic-message"))]
     #[panic_handler]
     pub fn panic(panic_info: &PanicInfo) -> ! {
