@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -79,8 +79,6 @@ pub struct DispatchResult {
     pub reply_deposits: Vec<(MessageId, u64)>,
     /// New programs to be created with additional data (corresponding code hash and init message id).
     pub program_candidates: BTreeMap<CodeId, Vec<(MessageId, ProgramId)>>,
-    /// Map of program ids to paid blocks.
-    pub program_rents: BTreeMap<ProgramId, u32>,
     /// Gas amount after execution.
     pub gas_amount: GasAmount,
     /// Gas amount programs reserved.
@@ -132,7 +130,6 @@ impl DispatchResult {
             awakening: Default::default(),
             reply_deposits: Default::default(),
             program_candidates: Default::default(),
-            program_rents: Default::default(),
             gas_amount,
             gas_reserver: None,
             system_reservation_context,
@@ -331,15 +328,6 @@ pub enum JournalNote {
         /// Simple signal error.
         code: SignalCode,
     },
-    /// Pay rent for the program.
-    PayProgramRent {
-        /// Rent payer.
-        payer: ProgramId,
-        /// Program whose rent will be paid.
-        program_id: ProgramId,
-        /// Amount of blocks to pay for.
-        block_count: u32,
-    },
     /// Create deposit for future reply.
     ReplyDeposit {
         /// Message id of the message that generated this message.
@@ -429,8 +417,6 @@ pub trait JournalHandler {
     fn system_unreserve_gas(&mut self, message_id: MessageId);
     /// Send system signal.
     fn send_signal(&mut self, message_id: MessageId, destination: ProgramId, code: SignalCode);
-    /// Pay rent for the program.
-    fn pay_program_rent(&mut self, payer: ProgramId, program_id: ProgramId, block_count: u32);
     /// Create deposit for future reply.
     fn reply_deposit(&mut self, message_id: MessageId, future_reply_id: MessageId, amount: u64);
 }

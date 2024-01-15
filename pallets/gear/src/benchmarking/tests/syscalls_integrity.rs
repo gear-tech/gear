@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -29,7 +29,7 @@
 
 use super::*;
 
-use crate::{BlockGasLimitOf, CurrencyOf, Event, RentCostPerBlockOf, String, WaitlistOf};
+use crate::{BlockGasLimitOf, CurrencyOf, Event, String, WaitlistOf};
 use common::event::DispatchStatus;
 use frame_support::traits::Randomness;
 use gear_core::ids::{CodeId, ReservationId};
@@ -37,7 +37,6 @@ use gear_core_errors::{ReplyCode, SuccessReplyReason};
 use gear_wasm_instrument::syscalls::SyscallName;
 use pallet_timestamp::Pallet as TimestampPallet;
 use parity_scale_codec::Decode;
-use sp_runtime::SaturatedConversion;
 use test_syscalls::{Kind, WASM_BINARY as SYSCALLS_TEST_WASM_BINARY};
 
 pub fn read_big_state<T>()
@@ -269,37 +268,8 @@ where
             SyscallName::ReservationReply => check_gr_reservation_reply::<T>(),
             SyscallName::ReservationReplyCommit => check_gr_reservation_reply_commit::<T>(),
             SyscallName::SystemReserveGas => check_gr_system_reserve_gas::<T>(),
-            SyscallName::PayProgramRent => check_gr_pay_program_rent::<T>(),
+            SyscallName::PayProgramRent => { /*no need for tests */ }
         }
-    });
-}
-
-fn check_gr_pay_program_rent<T>()
-where
-    T: Config,
-    T::AccountId: Origin,
-{
-    run_tester::<T, _, _, T::AccountId>(|tester_pid, _| {
-        let default_account = utils::default_account();
-        CurrencyOf::<T>::deposit_creating(
-            &default_account,
-            100_000_000_000_000_u128.unique_saturated_into(),
-        );
-
-        let block_count = 10;
-        let unused_rent: BalanceOf<T> = 1u32.into();
-        let rent = RentCostPerBlockOf::<T>::get() * block_count.into() + unused_rent;
-        let mp = MessageParamsBuilder::new(
-            vec![Kind::PayProgramRent(
-                tester_pid.into_origin().into(),
-                rent.saturated_into(),
-                Some((unused_rent.saturated_into(), block_count)),
-            )]
-            .encode(),
-        )
-        .with_value(50_000_000_000_000);
-
-        (TestCall::send_message(mp), None::<DefaultPostCheck>)
     });
 }
 
