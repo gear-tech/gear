@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2023 Gear Technologies Inc.
+// Copyright (C) 2023-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -37,8 +37,8 @@ const WASM_PAGE_SIZE: usize = 64 * 1024;
 /// Currently equal to 16KiB to be bigger than most common host page sizes.
 const GEAR_PAGE_SIZE: usize = 16 * 1024;
 
-static_assertions::const_assert!(WASM_PAGE_SIZE < u32::MAX as usize);
-static_assertions::const_assert_eq!(WASM_PAGE_SIZE % GEAR_PAGE_SIZE, 0);
+const _: () = assert!(WASM_PAGE_SIZE < u32::MAX as usize);
+const _: () = assert!(WASM_PAGE_SIZE % GEAR_PAGE_SIZE == 0);
 
 /// Struct represents memory pages amount with some constant size `SIZE` in bytes.
 /// - `SIZE` type is u32, so page size < 4GiB (wasm32 memory size limit).
@@ -307,28 +307,28 @@ impl WasmPagesAmount {
 
 impl From<u16> for WasmPagesAmount {
     fn from(value: u16) -> Self {
-        static_assertions::const_assert!(WASM_PAGE_SIZE <= 0x10_000);
+        const _: () = assert!(WASM_PAGE_SIZE <= 0x10_000);
         Self(value as u32)
     }
 }
 
 impl From<u16> for WasmPage {
     fn from(value: u16) -> Self {
-        static_assertions::const_assert!(WASM_PAGE_SIZE <= 0x10_000);
-        Page(value as u32)
+        const _: () = assert!(WASM_PAGE_SIZE <= 0x10_000);
+        WasmPage(value as u32)
     }
 }
 
 impl From<u16> for GearPagesAmount {
     fn from(value: u16) -> Self {
-        static_assertions::const_assert!(GEAR_PAGE_SIZE <= 0x10_000);
+        const _: () = assert!(GEAR_PAGE_SIZE <= 0x10_000);
         Self(value as u32)
     }
 }
 
 impl From<u16> for GearPage {
     fn from(value: u16) -> Self {
-        static_assertions::const_assert!(GEAR_PAGE_SIZE <= 0x10_000);
+        const _: () = assert!(GEAR_PAGE_SIZE <= 0x10_000);
         Page(value as u32)
     }
 }

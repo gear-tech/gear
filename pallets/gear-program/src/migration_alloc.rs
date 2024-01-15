@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2023 Gear Technologies Inc.
+// Copyright (C) 2023-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -28,12 +28,14 @@ use sp_std::marker::PhantomData;
 #[cfg(feature = "try-runtime")]
 use {
     frame_support::codec::{Decode, Encode},
+    sp_runtime::TryRuntimeError,
     sp_std::vec::Vec,
 };
 
 pub struct MigrateToV3<T: Config>(PhantomData<T>);
 
 impl<T: Config> OnRuntimeUpgrade for MigrateToV3<T> {
+    // +_+_+ change to count
     #[cfg(feature = "try-runtime")]
     fn pre_upgrade() -> Result<Vec<u8>, &'static str> {
         let count = v2::ProgramStorage::<T>::iter().fold(0u64, |i, _| i + 1);
@@ -83,7 +85,7 @@ impl<T: Config> OnRuntimeUpgrade for MigrateToV3<T> {
     }
 
     #[cfg(feature = "try-runtime")]
-    fn post_upgrade(state: Vec<u8>) -> Result<(), &'static str> {
+    fn post_upgrade(state: Vec<u8>) -> Result<(), TryRuntimeError> {
         // Check that everything decoded fine.
         let count = ProgramStorage::<T>::iter_keys().fold(0u64, |i, _| i + 1);
         let old_count: u64 =

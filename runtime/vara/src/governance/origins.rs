@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -35,7 +35,7 @@ pub mod pallet_custom_origins {
     #[derive(PartialEq, Eq, Clone, MaxEncodedLen, Encode, Decode, TypeInfo, RuntimeDebug)]
     #[pallet::origin]
     pub enum Origin {
-        /// Origin for cancelling slashes.
+        /// Origin for cancelling slashes and managing election provider.
         StakingAdmin,
         /// Origin for spending (any amount of) funds.
         Treasurer,

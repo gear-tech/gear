@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -177,9 +177,7 @@ impl PageBuf {
 /// Host pointer can be 64bit or less, to support both we use u64.
 pub type HostPointer = u64;
 
-static_assertions::const_assert!(
-    core::mem::size_of::<HostPointer>() >= core::mem::size_of::<usize>()
-);
+const _: () = assert!(core::mem::size_of::<HostPointer>() >= core::mem::size_of::<usize>());
 
 /// Core memory error.
 #[derive(Debug, Clone, Eq, PartialEq, derive_more::Display)]

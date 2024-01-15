@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022-2023 Gear Technologies Inc.
+// Copyright (C) 2022-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -57,9 +57,9 @@ use crate::{
     manager::ExtManager,
     pallet,
     schedule::{API_BENCHMARK_BATCH_SIZE, INSTR_BENCHMARK_BATCH_SIZE},
-    BalanceOf, BenchmarkStorage, Call, Config, CurrencyOf, Event, Ext as Externalities,
-    GasHandlerOf, GearBank, MailboxOf, Pallet as Gear, Pallet, ProgramStorageOf, QueueOf, Schedule,
-    TaskPoolOf,
+    BalanceOf, BenchmarkStorage, BlockNumberFor, Call, Config, CurrencyOf, Event,
+    Ext as Externalities, GasHandlerOf, GearBank, MailboxOf, Pallet as Gear, Pallet,
+    ProgramStorageOf, QueueOf, Schedule, TaskPoolOf,
 };
 use ::alloc::{collections::BTreeMap, vec};
 use common::{
@@ -122,7 +122,7 @@ const API_BENCHMARK_BATCHES: u32 = 20;
 const INSTR_BENCHMARK_BATCHES: u32 = 50;
 
 // Initializes new block.
-fn init_block<T: Config>(previous: Option<T::BlockNumber>)
+fn init_block<T: Config>(previous: Option<BlockNumberFor<T>>)
 where
     T::AccountId: Origin,
 {

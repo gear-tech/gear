@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022-2023 Gear Technologies Inc.
+// Copyright (C) 2022-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -55,7 +55,7 @@ pub const MAX_PAYLOAD_SIZE: usize = 8 * 1024 * 1024;
 
 // **WARNING**: do not remove this check until be sure that
 // all `MAX_PAYLOAD_SIZE` conversions are safe!
-static_assertions::const_assert!(MAX_PAYLOAD_SIZE <= u32::MAX as usize);
+const _: () = assert!(MAX_PAYLOAD_SIZE <= u32::MAX as usize);
 
 /// Payload size exceed error
 #[derive(

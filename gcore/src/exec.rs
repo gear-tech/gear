@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -410,7 +410,7 @@ pub fn program_id() -> ActorId {
 ///
 /// # Examples
 ///
-/// ```
+/// ```ignore
 /// use gcore::exec;
 ///
 /// #[no_mangle]
@@ -419,6 +419,8 @@ pub fn program_id() -> ActorId {
 ///         exec::pay_program_rent(exec::program_id(), 1_000_000).expect("Unable to pay rent");
 /// }
 /// ```
+#[allow(warnings)]
+#[deprecated = "Rent program logic is deprecated. The function is now a no-op and will be removed soon."]
 pub fn pay_program_rent(program_id: ActorId, value: u128) -> Result<(u128, u32)> {
     let rent_pid = HashWithValue {
         hash: program_id.0,

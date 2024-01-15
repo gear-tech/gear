@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2023 Gear Technologies Inc.
+// Copyright (C) 2023-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -20,16 +20,19 @@
 //! for various pallets of Substrate.
 //! All used types should be in scope.
 
-use frame_support::{pallet_prelude::*, weights::RuntimeDbWeight};
+use frame_support::{pallet_prelude::*, sp_runtime::Perbill, weights::RuntimeDbWeight};
 use frame_system::limits::BlockWeights;
-use sp_arithmetic::Perbill;
 
 #[macro_export]
 macro_rules! impl_pallet_balances {
     ($runtime:ty) => {
         impl pallet_balances::Config for $runtime {
             type MaxLocks = ();
+            type MaxHolds = ();
+            type MaxFreezes = ();
             type MaxReserves = ();
+            type FreezeIdentifier = ();
+            type RuntimeHoldReason = RuntimeHoldReason;
             type ReserveIdentifier = [u8; 8];
             type Balance = Balance;
             type DustRemoval = ();
@@ -80,13 +83,12 @@ macro_rules! impl_pallet_system_inner {
             type DbWeight = SystemConfigDbWeight;
             type RuntimeOrigin = RuntimeOrigin;
             type RuntimeCall = RuntimeCall;
-            type Index = u64;
-            type BlockNumber = BlockNumber;
+            type Nonce = u64;
             type Hash = H256;
             type Hashing = BlakeTwo256;
             type AccountId = AccountId;
             type Lookup = IdentityLookup<Self::AccountId>;
-            type Header = generic::Header<BlockNumber, BlakeTwo256>;
+            type Block = Block;
             type RuntimeEvent = RuntimeEvent;
             type BlockHashCount = BlockHashCount;
             type Version = ();
