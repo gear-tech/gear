@@ -17,9 +17,9 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    get_no_build_env, profile, wasm32_target_dir, wasm_projects_dir, BuilderLockFile,
-    BuilderLockFileConfig, DemoLockFileConfig, LockFile, LockFileConfig, UnderscoreString,
-    NO_BUILD_INNER_ENV,
+    get_no_build_env,
+    lock::{BuilderLockFile, BuilderLockFileConfig, DemoLockFileConfig, LockFileConfig},
+    profile, wasm32_target_dir, wasm_projects_dir, UnderscoreString, NO_BUILD_INNER_ENV,
 };
 use cargo_metadata::Package;
 use gear_wasm_builder::{
@@ -47,15 +47,11 @@ enum RebuildKind {
 struct BuildPackage {
     rebuild_kind: RebuildKind,
     features: BTreeSet<String>,
-    lock: LockFile<BuilderLockFile>,
+    lock: BuilderLockFile,
 }
 
 impl BuildPackage {
-    fn new(
-        pkg: &Package,
-        mut lock: LockFile<BuilderLockFile>,
-        excluded_features: BTreeSet<String>,
-    ) -> Self {
+    fn new(pkg: &Package, mut lock: BuilderLockFile, excluded_features: BTreeSet<String>) -> Self {
         let config = lock.read();
         let (rebuild_kind, features) = Self::resolve_features(pkg, config, excluded_features);
 
@@ -184,7 +180,7 @@ impl BuildPackages {
     pub fn insert(
         &mut self,
         pkg: &Package,
-        lock: LockFile<BuilderLockFile>,
+        lock: BuilderLockFile,
         excluded_features: BTreeSet<String>,
     ) {
         self.packages.insert(
