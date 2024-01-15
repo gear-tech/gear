@@ -35,11 +35,9 @@ use {
 pub struct MigrateToV3<T: Config>(PhantomData<T>);
 
 impl<T: Config> OnRuntimeUpgrade for MigrateToV3<T> {
-    // +_+_+ change to count
     #[cfg(feature = "try-runtime")]
-    fn pre_upgrade() -> Result<Vec<u8>, &'static str> {
-        let count = v2::ProgramStorage::<T>::iter().fold(0u64, |i, _| i + 1);
-        Ok(count.encode())
+    fn pre_upgrade() -> Result<Vec<u8>, TryRuntimeError> {
+        Ok((v2::ProgramStorage::<T>::iter().count() as u64).encode())
     }
 
     fn on_runtime_upgrade() -> Weight {

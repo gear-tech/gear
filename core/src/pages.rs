@@ -300,7 +300,7 @@ pub type GearPagesAmount = PagesAmount<{ GEAR_PAGE_SIZE as u32 }>;
 impl WasmPagesAmount {
     /// Make wasm pages amount constant from u16.
     pub const fn from_u16(raw: u16) -> Self {
-        static_assertions::const_assert!(WASM_PAGE_SIZE <= 0x10_000);
+        const _: () = assert!(WASM_PAGE_SIZE <= 0x10_000);
         Self(raw as u32)
     }
 }
@@ -315,7 +315,7 @@ impl From<u16> for WasmPagesAmount {
 impl From<u16> for WasmPage {
     fn from(value: u16) -> Self {
         const _: () = assert!(WASM_PAGE_SIZE <= 0x10_000);
-        WasmPage(value as u32)
+        Self(value as u32)
     }
 }
 
@@ -329,7 +329,7 @@ impl From<u16> for GearPagesAmount {
 impl From<u16> for GearPage {
     fn from(value: u16) -> Self {
         const _: () = assert!(GEAR_PAGE_SIZE <= 0x10_000);
-        Page(value as u32)
+        Self(value as u32)
     }
 }
 

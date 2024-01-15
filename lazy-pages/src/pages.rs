@@ -77,7 +77,7 @@ pub trait PagesAmountTrait<S: SizeNumber>: Bound<Page<S>> {
         Some(page.into())
     }
     fn offset<M: SizeManager>(&self, ctx: &M) -> usize {
-        static_assertions::const_assert!(mem::size_of::<usize>() > mem::size_of::<u32>());
+        const _: () = assert!(mem::size_of::<usize>() > mem::size_of::<u32>());
         let raw = self.unbound().map(|p| p.raw).unwrap_or(Self::upper(ctx));
         (raw as usize)
             .checked_mul(Page::<S>::size(ctx) as usize)

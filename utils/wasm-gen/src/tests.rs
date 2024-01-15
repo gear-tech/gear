@@ -610,10 +610,11 @@ fn execute_wasm_with_custom_configs(
             mem,
             program_id,
             Default::default(),
-                Some(
-                    mem.size()
-                        .to_page_number()
-                        .expect("Memory size is 4GB, so cannot be stack end")),
+            Some(
+                mem.size()
+                    .to_page_number()
+                    .expect("Memory size is 4GB, so cannot be stack end"),
+            ),
             globals_config,
             Default::default(),
         );

@@ -3994,7 +3994,6 @@ dependencies = [
  "proptest",
  "region",
  "sp-wasm-interface-common",
- "static_assertions",
  "winapi",
 ]
 
