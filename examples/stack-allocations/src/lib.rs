@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -67,8 +67,8 @@ mod tests {
     use gtest::{Program, System};
     use parity_scale_codec::Decode;
     use rand::{Rng, SeedableRng};
-    use static_assertions::const_assert;
 
+    #[allow(clippy::assertions_on_constants)]
     #[test]
     fn stress() {
         use Action::*;
@@ -77,11 +77,11 @@ mod tests {
         const MAX_NUMBER: u8 = 255;
 
         // Check that check sum is less than u32::MAX
-        const_assert!(
+        const _: () = assert!(
             MAX_ACTIONS_AMOUNT * MAX_NUMBER as usize * HANDLE_DATA_SIZE <= u32::MAX as usize
         );
         // Check that we can fit all the data in the stack (heuristic no more than 10 wasm pages)
-        const_assert!(MAX_ACTIONS_AMOUNT * HANDLE_DATA_SIZE <= 64 * 1024 * 10);
+        const _: () = assert!(MAX_ACTIONS_AMOUNT * HANDLE_DATA_SIZE <= 64 * 1024 * 10);
 
         let from = 42;
         let system = System::new();

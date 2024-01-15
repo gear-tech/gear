@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2023 Gear Technologies Inc.
+// Copyright (C) 2023-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -17,6 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Module for memory pages.
+
+#![allow(clippy::assertions_on_constants)]
 
 use core::num::NonZeroU32;
 use scale_info::{
@@ -35,8 +37,8 @@ pub const WASM_PAGE_SIZE: usize = 0x10000;
 /// native page size, so can vary.
 pub const GEAR_PAGE_SIZE: usize = 0x4000;
 
-static_assertions::const_assert!(WASM_PAGE_SIZE < u32::MAX as usize);
-static_assertions::const_assert_eq!(WASM_PAGE_SIZE % GEAR_PAGE_SIZE, 0);
+const _: () = assert!(WASM_PAGE_SIZE < u32::MAX as usize);
+const _: () = assert!(WASM_PAGE_SIZE % GEAR_PAGE_SIZE == 0);
 
 /// Errors when act with PageU32Size.
 #[derive(Debug, Clone, derive_more::Display)]
@@ -64,7 +66,7 @@ pub struct GearPage(pub(crate) u32);
 impl From<u16> for GearPage {
     fn from(value: u16) -> Self {
         // u16::MAX * GearPage::size() - 1 <= u32::MAX
-        static_assertions::const_assert!(GEAR_PAGE_SIZE <= 0x10000);
+        const _: () = assert!(GEAR_PAGE_SIZE <= 0x10000);
         GearPage(value as u32)
     }
 }
@@ -77,7 +79,7 @@ impl From<GearPage> for u32 {
 
 impl PageU32Size for GearPage {
     fn size_non_zero() -> NonZeroU32 {
-        static_assertions::const_assert_ne!(GEAR_PAGE_SIZE, 0);
+        const _: () = assert!(GEAR_PAGE_SIZE != 0);
         unsafe { NonZeroU32::new_unchecked(GEAR_PAGE_SIZE as u32) }
     }
 
@@ -102,7 +104,7 @@ pub struct WasmPage(pub(crate) u32);
 impl From<u16> for WasmPage {
     fn from(value: u16) -> Self {
         // u16::MAX * WasmPage::size() - 1 == u32::MAX
-        static_assertions::const_assert!(WASM_PAGE_SIZE == 0x10000);
+        const _: () = assert!(WASM_PAGE_SIZE == 0x10000);
         WasmPage(value as u32)
     }
 }
@@ -121,7 +123,7 @@ impl PageNumber for WasmPage {
 
 impl PageU32Size for WasmPage {
     fn size_non_zero() -> NonZeroU32 {
-        static_assertions::const_assert_ne!(WASM_PAGE_SIZE, 0);
+        const _: () = assert!(WASM_PAGE_SIZE != 0);
         unsafe { NonZeroU32::new_unchecked(WASM_PAGE_SIZE as u32) }
     }
 

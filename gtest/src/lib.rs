@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -492,10 +492,6 @@ pub mod constants {
     pub const RESERVATION_COST: Gas = 100;
     /// Cost of storing delayed message per block.
     pub const DISPATCH_HOLD_COST: Gas = 100;
-    /// Cost of storing program per block.
-    ///
-    /// (!) Currently disabled: storing programs are free.
-    pub const RENT_COST: Value = 330;
 
     /* Execution-related constants */
     // TODO: use proper weights of instantiation and instrumentation (#3509).

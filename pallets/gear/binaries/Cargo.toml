@@ -15,6 +15,7 @@ demo-async.workspace = true
 demo-async-init.workspace = true
 demo-async-recursion.workspace = true
 demo-async-tester.workspace = true
+demo-async-critical.workspace = true
 demo-delayed-sender.workspace = true
 demo-distributor.workspace = true
 demo-init-fail-sender.workspace = true

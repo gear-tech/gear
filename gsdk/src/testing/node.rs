@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2022-2023 Gear Technologies Inc.
+// Copyright (C) 2022-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -44,7 +44,7 @@ impl Node {
         let port_string = port.to_string();
 
         let mut args = args;
-        args.extend_from_slice(&["--ws-port", &port_string]);
+        args.extend_from_slice(&["--rpc-port", &port_string, "--no-hardware-benchmarks"]);
 
         let process = Command::new(path)
             .env(

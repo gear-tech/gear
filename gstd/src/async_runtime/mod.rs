@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -22,12 +22,13 @@ mod signals;
 mod waker;
 
 pub use self::futures::message_loop;
+pub(crate) use locks::Lock;
+pub(crate) use signals::ReplyPoll;
 
 use self::futures::FuturesMap;
+use crate::critical;
 use hashbrown::HashMap;
-pub(crate) use locks::Lock;
 use locks::LocksMap;
-pub(crate) use signals::ReplyPoll;
 use signals::WakeSignals;
 
 static mut FUTURES: Option<FuturesMap> = None;
@@ -58,6 +59,9 @@ pub fn handle_signal() {
     let msg_id = crate::msg::signal_from().expect(
         "`gstd::async_runtime::handle_signal()` must be called only in `handle_signal` entrypoint",
     );
+
+    critical::take_and_execute();
+
     futures().remove(&msg_id);
     locks().remove_message_entry(msg_id);
 }

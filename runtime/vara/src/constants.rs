@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -22,8 +22,8 @@ pub mod currency {
 
     pub const UNITS: Balance = 1_000_000_000_000; // 10^(-12) precision
 
-    /// Base economic unit, 50 Vara.
-    pub const ECONOMIC_UNITS: Balance = UNITS * 50;
+    /// Base economic unit, 10 Vara.
+    pub const ECONOMIC_UNITS: Balance = UNITS * 10;
     pub const ECONOMIC_CENTIUNITS: Balance = ECONOMIC_UNITS / 100;
 
     /// The existential deposit.

@@ -17,7 +17,6 @@ futures-timer.workspace = true
 log.workspace = true
 
 # Gear
-runtime-primitives = { workspace = true, features = ["std"] }
 common = { workspace = true, features = ["std"] }
 pallet-gear-rpc-runtime-api = { workspace = true, features = ["std"] }
 
@@ -28,6 +27,7 @@ sc-transaction-pool.workspace = true
 sc-transaction-pool-api.workspace = true
 sc-client-api.workspace = true
 sc-proposer-metrics.workspace = true
+sc-service.workspace = true
 
 # Substrate Primitives
 sp-core = { workspace = true, features = ["std"] }
@@ -42,21 +42,24 @@ prometheus-endpoint.workspace = true
 
 [dev-dependencies]
 gear-authorship-binaries = { path = "binaries" }
+gear-runtime-interface = { workspace = true, features = ["std"] }
 common = { workspace = true, features = ["std"] }
 sc-transaction-pool.workspace = true
 frame-support = { workspace = true, features = ["std"] }
-sp-io = { workspace = true, features = ["std"] }
-sp-std = { workspace = true, features = ["std"] }
+frame-system = { workspace = true, features = ["std"] }
 sp-timestamp = { workspace = true, features = ["std"] }
 sp-consensus-babe = { workspace = true, features = ["std"] }
 sp-state-machine = { workspace = true, features = ["std"] }
 pallet-sudo  = { workspace = true, features = ["std"] }
-pallet-timestamp = { workspace = true, features = ["std"] }
 pallet-balances  = { workspace = true, features = ["std"] }
 pallet-gear = { workspace = true, features = ["std"] }
+pallet-gear-debug = { workspace = true, features = ["std"] }
 pallet-gear-messenger  = { workspace = true, features = ["std"] }
 pallet-gear-program = { workspace = true, features = ["std"] }
 testing.workspace = true
+runtime-primitives = { workspace = true, features = ["std"] }
+gear-runtime-common = { workspace = true, features = ["std"] }
+gear-core = { workspace = true, features = ["std"] }
 vara-runtime  = { workspace = true, features = ["std", "dev"] }
 env_logger.workspace = true
-service = { workspace = true, features = ["vara-native"] }
+parking_lot.workspace = true

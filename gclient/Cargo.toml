@@ -23,7 +23,6 @@ thiserror.workspace = true
 async-trait.workspace = true
 url.workspace = true
 wabt.workspace = true
-static_assertions.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["full"] }

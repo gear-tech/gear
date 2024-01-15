@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022-2023 Gear Technologies Inc.
+// Copyright (C) 2022-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -20,6 +20,7 @@
 //! sane default schedule from a `WeightInfo` implementation.
 
 #![allow(unused_parens)]
+#![allow(clippy::assertions_on_constants)]
 
 use crate::{weights::WeightInfo, Config};
 use core_processor::configs::PageCosts;
@@ -1070,8 +1071,8 @@ impl<T: Config> Default for MemoryWeights<T> {
         }
 
         const KB_AMOUNT_IN_ONE_GEAR_PAGE: u64 = GEAR_PAGE_SIZE as u64 / KB_SIZE;
-        static_assertions::const_assert!(KB_AMOUNT_IN_ONE_GEAR_PAGE > 0);
-        static_assertions::const_assert!(GEAR_PAGE_SIZE as u64 % KB_SIZE == 0);
+        const _: () = assert!(KB_AMOUNT_IN_ONE_GEAR_PAGE > 0);
+        const _: () = assert!(GEAR_PAGE_SIZE as u64 % KB_SIZE == 0);
 
         Self {
             lazy_pages_signal_read: to_weight!(to_cost_per_gear_page!(lazy_pages_signal_read)),
