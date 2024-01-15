@@ -201,19 +201,6 @@ impl BuildPackages {
             .flat_map(|(pkg_name, pkg)| pkg.cargo_args(pkg_name))
     }
 
-    fn optimize(&self) {
-        self.packages
-            .iter()
-            .filter(|(_, pkg)| pkg.rebuild_kind == RebuildKind::Dirty)
-            .for_each(|(pkg_name, pkg)| pkg.optimize(pkg_name))
-    }
-
-    fn write_configs(&mut self) {
-        self.packages
-            .iter_mut()
-            .for_each(|(_, pkg)| pkg.write_config())
-    }
-
     pub fn build(&mut self) {
         if get_no_build_env() || !self.rebuild_required() {
             println!("cargo:warning=Build skipped");
@@ -238,9 +225,15 @@ impl BuildPackages {
         let output = cargo.output().expect("Failed to execute cargo command");
         assert!(output.status.success());
 
-        self.optimize();
-        self.write_configs();
+        for (name, pkg) in &mut self.packages {
+            if pkg.rebuild_kind == RebuildKind::Dirty {
+                pkg.optimize(name);
+            }
+
+            pkg.write_config();
+        }
     }
+
     pub fn wasm_binaries(&self) -> String {
         self.packages
             .iter()
