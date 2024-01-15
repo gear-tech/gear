@@ -215,7 +215,6 @@ impl BuildPackages {
             .args(self.cargo_args())
             .arg("--profile")
             .arg(profile().replace("debug", "dev"))
-            .arg("-v")
             .env(NO_BUILD_INNER_ENV, "1")
             .env("CARGO_BUILD_TARGET", "wasm32-unknown-unknown")
             .env("CARGO_TARGET_DIR", wasm_projects_dir())
