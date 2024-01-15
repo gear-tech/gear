@@ -71,9 +71,6 @@ mod panic_handler {
         /// of the error.
         #[cfg(feature = "panic-message")]
         pub const TRIMMED_MAX_LEN: usize = 1024; //TODO: do not duplicate `gear_core::str::TRIMMED_MAX_LEN`
-        /// Size of array string that will be allocated on the stack.
-        #[cfg(feature = "panic-message")]
-        pub const ARRAY_STRING_MAX_LEN: usize = PANIC_PREFIX.len() + TRIMMED_MAX_LEN;
     }
 
     use constants::*;
@@ -97,7 +94,7 @@ mod panic_handler {
         use crate::prelude::fmt::Write;
         use arrayvec::ArrayString;
 
-        let mut debug_msg = ArrayString::<ARRAY_STRING_MAX_LEN>::new();
+        let mut debug_msg = ArrayString::<TRIMMED_MAX_LEN>::new();
         let _ = debug_msg.try_push_str(PANIC_PREFIX);
 
         match (panic_info.message(), panic_info.location()) {
@@ -180,7 +177,7 @@ mod panic_handler {
         let location = &*output.location.buffer;
         let message = &*output.message.buffer;
 
-        let mut debug_msg = ArrayString::<ARRAY_STRING_MAX_LEN>::new();
+        let mut debug_msg = ArrayString::<TRIMMED_MAX_LEN>::new();
         let _ = debug_msg.try_push_str(PANIC_PREFIX);
 
         #[cfg(feature = "panic-location")]
