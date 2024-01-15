@@ -7489,7 +7489,6 @@ dependencies = [
  "pallet-balances",
  "pallet-gear",
  "pallet-gear-bank",
- "pallet-gear-debug-binaries",
  "pallet-gear-gas",
  "pallet-gear-messenger",
  "pallet-gear-program",
@@ -7504,14 +7503,6 @@ dependencies = [
  "sp-runtime",
  "sp-std 8.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v1.0.0-canary)",
  "wabt",
-]
-
-[[package]]
-name = "pallet-gear-debug-binaries"
-version = "1.0.5"
-dependencies = [
- "test-syscalls",
- "wasm-dep-builder",
 ]
 
 [[package]]

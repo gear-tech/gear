@@ -34,7 +34,6 @@ pallet-balances.workspace = true
 pallet-authorship.workspace = true
 
 [dev-dependencies]
-pallet-gear-debug-binaries = { path = "binaries", features = ["std"] }
 serde.workspace = true
 env_logger.workspace = true
 common = { workspace = true, features = ["std"] }

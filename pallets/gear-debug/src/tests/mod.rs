@@ -28,7 +28,6 @@ use gear_core::{
 };
 use gear_wasm_instrument::STACK_END_EXPORT_NAME;
 use pallet_gear::{DebugInfo, Event, Pallet as PalletGear};
-use pallet_gear_debug_binaries::*;
 use parity_scale_codec::Encode;
 use sp_core::H256;
 use sp_std::collections::{btree_map::BTreeMap, btree_set::BTreeSet};
