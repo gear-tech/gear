@@ -95,16 +95,16 @@ members = [
 ]
 
 [workspace.dependencies]
-anyhow = "1.0.75"
+anyhow = "1.0.79"
 arbitrary = "1.3.2"
 async-recursion = "1.0.5"
 async-trait = "0.1.74"
-base64 = "0.21.5"
+base64 = "0.21.7"
 byteorder = { version = "1.5.0", default-features = false }
 blake2-rfc = { version = "0.2.18", default-features = false }
 bs58 = { version = "0.5.0", default-features = false }
 cargo_metadata = "0.18.1"
-clap = "4.4.11"
+clap = "4.4.16"
 codec = { package = "parity-scale-codec", version = "3.6.4", default-features = false }
 color-eyre = "0.6.2"
 colored = "2.1.0"
@@ -117,7 +117,7 @@ env_logger = "0.10"
 environmental = "1.1.3"
 futures = { version = "0.3", default-features = false }
 futures-timer = "3.0.2"
-futures-util = "0.3.29"
+futures-util = "0.3.30"
 hashbrown = "0.14.3"
 hex = { version = "0.4.3", default-features = false }
 hex-literal = "0.4.1"
@@ -135,12 +135,12 @@ primitive-types = { version = "0.12.2", default-features = false }
 proc-macro2 = { version = "1", default-features = false }
 proptest = "1.4.0"
 quick-xml = "0.28"
-quote = { version = "1.0.33", default-features = false }
+quote = { version = "1.0.35", default-features = false }
 rand = { version = "0.8", default-features = false }
 rayon = "1.8"
 regex = "^1.9"
 region = "3.0.0"
-reqwest = { version = "0.11.22", default-features = false }
+reqwest = { version = "0.11.23", default-features = false }
 scale-info = { version = "2.5.0", default-features = false }
 serde = "^1"
 serde_json = "^1"
@@ -150,10 +150,10 @@ subxt = "0.32.1"
 subxt-metadata = "0.32.1"
 subxt-codegen = "0.32.1"
 syn = "2.0.41"
-thiserror = "1.0.51"
-tokio = { version = "1.35.0" }
+thiserror = "1.0.56"
+tokio = { version = "1.35.1" }
 url = "2.5.0"
-wat = "1.0.82"
+wat = "1.0.83"
 wabt = "0.10.0"
 wasmer = "2.2"
 wasmer-cache = "2.2.1"
@@ -163,7 +163,7 @@ wasmparser = { package = "wasmparser-nostd", version = "0.100.1", default-featur
 which = "4.4.2"
 winapi = "0.3.9"
 paste = "1.0"
-tempfile = "3.8.1"
+tempfile = "3.9.0"
 
 # Published deps
 #
@@ -430,7 +430,7 @@ impl-trait-for-tuples = "0.2.2"                                           # pall
 indexmap = "2.1.0"                                                        # utils/weight-diff
 indicatif = "*"                                                           # utils/wasm-gen
 keyring = "1.2.1"                                                         # gcli
-libp2p = "=0.50.1"                                                        # gcli (same version as sc-consensus)
+libp2p = "=0.51.4"                                                        # gcli (same version as sc-consensus)
 mimalloc = { version = "0.1.39", default-features = false }               # node/cli
 nacl = "0.5.3"                                                            # gcli
 nonempty = "0.8.1"                                                        # utils/utils
@@ -453,7 +453,7 @@ whoami = "1.4.0"                                                          # gcli
 fail = "0.5"                                                              # gear-common
 scale-value = "^0.12"                                                     # gsdk
 heck = "0.4.1"                                                            # gsdk-api-gen
-etc = "0.1.16"                                                            # gcli
+etc = "0.1.18"                                                            # gcli
 toml_edit = "0.21.0"                                                      # crates-io
 scale-decode = "0.9.0"                                                    # gsdk
 directories = "5.0.1"                                                     # utils/key-finder

@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022-2023 Gear Technologies Inc.
+// Copyright (C) 2022-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -1397,14 +1397,6 @@ benchmarks! {
     }
     verify {
         verify_process(res.unwrap());
-    }
-
-    gr_pay_program_rent {
-        let r in 0 .. API_BENCHMARK_BATCHES;
-        let mut res = None;
-        let exec = Benches::<T>::gr_pay_program_rent(r)?;
-    }: {
-        res.replace(run_process(exec));
     }
 
     lazy_pages_signal_read {

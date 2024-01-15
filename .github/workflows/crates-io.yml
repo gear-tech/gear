@@ -9,6 +9,7 @@ on:
         default: false
       version:
         description: "Workspace version to publish"
+        required: true
         type: string
   pull_request:
     branches: [master]
