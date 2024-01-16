@@ -37,8 +37,8 @@ async function mock(head_sha) {
       conclusion: "success",
     });
 
-    core.info(`Created check ${check}`);
-    core.info(JSON.stringify(res, null, 2));
+    core.info(`Created check "${check} / linux"`);
+    core.info(res.html_url);
   }
 }
 
