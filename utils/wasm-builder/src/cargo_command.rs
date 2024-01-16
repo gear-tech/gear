@@ -18,7 +18,7 @@
 
 use crate::cargo_toolchain::Toolchain;
 use anyhow::{ensure, Context, Result};
-use std::{path::PathBuf, process::Command};
+use std::{env, path::PathBuf, process::Command};
 
 use crate::builder_error::BuilderError;
 
@@ -105,6 +105,9 @@ impl CargoCommand {
         };
 
         let mut cargo = Command::new(&self.path);
+        if self.force_recommended_toolchain {
+            self.clean_up_environment(&mut cargo);
+        }
         cargo
             .arg("run")
             .arg(toolchain.raw_toolchain_str().as_ref())
@@ -152,6 +155,45 @@ impl CargoCommand {
         );
 
         Ok(())
+    }
+
+    fn clean_up_environment(&self, command: &mut Command) {
+        // Inherited build script environment variables must be removed
+        // so that they cannot change the behavior of the cargo package manager.
+
+        // https://doc.rust-lang.org/cargo/reference/environment-variables.html
+        // `RUSTC_WRAPPER` and `RUSTC_WORKSPACE_WRAPPER` are not removed due to tools like sccache.
+        const INHERITED_ENV_VARS: &[&str] = &[
+            "CARGO",
+            "CARGO_MANIFEST_DIR",
+            "CARGO_MANIFEST_LINKS",
+            "CARGO_MAKEFLAGS",
+            "OUT_DIR",
+            "TARGET",
+            "HOST",
+            "NUM_JOBS",
+            "OPT_LEVEL",
+            "PROFILE",
+            "RUSTC",
+            "RUSTDOC",
+            "RUSTC_LINKER",
+            "CARGO_ENCODED_RUSTFLAGS",
+        ];
+
+        for env_var in INHERITED_ENV_VARS {
+            command.env_remove(env_var);
+        }
+
+        const INHERITED_ENV_VARS_WITH_PREFIX: &[&str] =
+            &["CARGO_FEATURE_", "CARGO_CFG_", "DEP_", "CARGO_PKG_"];
+
+        for (env_var, _) in env::vars() {
+            for prefix in INHERITED_ENV_VARS_WITH_PREFIX {
+                if env_var.starts_with(prefix) {
+                    command.env_remove(&env_var);
+                }
+            }
+        }
     }
 
     fn remove_cargo_encoded_rustflags(&self, command: &mut Command) {

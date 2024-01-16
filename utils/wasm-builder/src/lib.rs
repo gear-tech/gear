@@ -91,7 +91,7 @@ impl WasmBuilder {
     /// Force the recommended toolchain to be used, but do not check whether the
     /// current toolchain is recommended.
     #[doc(hidden)]
-    pub unsafe fn with_forced_recommended_toolchain(mut self) -> Self {
+    pub fn with_forced_recommended_toolchain(mut self) -> Self {
         self.cargo.set_force_recommended_toolchain(true);
         self
     }
