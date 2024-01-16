@@ -34,14 +34,14 @@ jobs:
 
   check:
     needs: status
-    if: ${{ needs.status.outputs.check }}
+    if: ${{ needs.status.steps.config.outputs.check }}
     uses: ./.github/workflows/check.yml
     with:
       cache: ${{ needs.status.steps.config.outputs.cache }}
 
   build:
     needs: status
-    if: ${{ needs.status.outputs.build }}
+    if: ${{ needs.status.steps.config.outputs.build }}
     uses: ./.github/workflows/build.yml
     with:
       cache: ${{ needs.status.steps.config.outputs.cache }}
