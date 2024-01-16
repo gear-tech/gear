@@ -151,12 +151,8 @@ impl BuilderMetadata {
             .unwrap()
     }
 
-    fn excludes(&self, pkg_name: &str) -> bool {
-        self.exclude.contains(pkg_name)
-    }
-
-    fn includes(&self, pkg_name: &str) -> bool {
-        self.include.is_match(pkg_name)
+    fn filter_dep(&self, pkg_name: &str) -> bool {
+        !self.exclude.contains(pkg_name) && self.include.is_match(pkg_name)
     }
 }
 
@@ -238,8 +234,7 @@ pub fn builder() {
     for dep in package
         .dependencies
         .iter()
-        .filter(|dep| !builder_metadata.excludes(&dep.name))
-        .filter(|dep| builder_metadata.includes(&dep.name))
+        .filter(|dep| builder_metadata.filter_dep(&dep.name))
     {
         let pkg = metadata
             .packages
