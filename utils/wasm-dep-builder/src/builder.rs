@@ -17,10 +17,11 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    get_no_build_env,
+    cargo_home_dir, get_no_build_env, get_no_map_remap_env,
     lock::{BuilderLockFileConfig, DemoLockFileConfig, LockFileConfig},
     profile, wasm32_target_dir, wasm_projects_dir, UnderscoreString, NO_BUILD_INNER_ENV,
 };
+use anyhow::Context;
 use cargo_metadata::Package;
 use gear_wasm_builder::{
     optimize,
@@ -134,8 +135,8 @@ impl BuildPackage {
         let mut optimizer = Optimizer::new(wasm_opt.clone()).unwrap();
         optimizer.insert_stack_end_export().unwrap_or_else(|err| {
             println!(
-                "cargo:warning=Cannot insert stack end export into `{}`: {err}",
-                self.name.original()
+                "cargo:warning=Cannot insert stack end export into `{name}`: {err}",
+                name = self.name.original()
             )
         });
         optimizer.strip_custom_sections();
@@ -170,12 +171,20 @@ pub mod {pkg_name} {{
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct BuildPackages {
     packages: Vec<BuildPackage>,
+    workspace_root: PathBuf,
 }
 
 impl BuildPackages {
+    pub fn new(workspace_root: PathBuf) -> Self {
+        Self {
+            packages: Default::default(),
+            workspace_root,
+        }
+    }
+
     pub fn insert(&mut self, build_pkg: BuildPackage) {
         self.packages.push(build_pkg);
     }
@@ -199,6 +208,30 @@ impl BuildPackages {
         }
     }
 
+    fn cargo_config(&self) -> String {
+        let home_dir = dirs::home_dir()
+            .context("unable to get home directory")
+            .unwrap();
+
+        let cargo_dir = cargo_home_dir();
+        let cargo_checkouts_dir = cargo_dir.join("git").join("checkouts");
+
+        let config = [
+            (&home_dir, "/home"),
+            (&self.workspace_root, "/code"),
+            (&cargo_dir, "/cargo"),
+            (&cargo_checkouts_dir, "/deps"),
+        ]
+        .into_iter()
+        .map(|(from, to)| format!("--remap-path-prefix={from}={to}", from = from.display()))
+        .map(|flag| format!("\"{flag}\""))
+        .collect::<Vec<String>>()
+        .join(", ");
+
+        // we set RUSTFLAGS via config because env vars reset flags we have in any `.cargo/config.toml`
+        format!("target.wasm32-unknown-unknown.rustflags=[{config}]")
+    }
+
     pub fn build(&mut self) {
         if get_no_build_env() || !self.rebuild_required() {
             println!("cargo:warning=Build skipped");
@@ -207,6 +240,11 @@ impl BuildPackages {
 
         let cargo = env::var("CARGO").unwrap_or_else(|_| "cargo".into());
         let mut cargo = Command::new(cargo);
+
+        if !get_no_map_remap_env() {
+            cargo.arg("--config").arg(self.cargo_config());
+        }
+
         cargo
             .arg("build")
             .arg("--no-default-features")

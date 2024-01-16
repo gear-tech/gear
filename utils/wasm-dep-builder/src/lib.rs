@@ -30,6 +30,7 @@ use std::{cmp::Ordering, collections::BTreeSet, env, fmt, fs, path::PathBuf};
 
 const NO_BUILD_ENV: &str = "__GEAR_WASM_BUILDER_NO_BUILD";
 const NO_BUILD_INNER_ENV: &str = "__GEAR_WASM_BUILDER_NO_BUILD_INNER";
+const NO_PATH_REMAP_ENV: &str = "__GEAR_WASM_BUILDER_NO_PATH_REMAP";
 
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(transparent)]
@@ -196,6 +197,10 @@ fn wasm32_target_dir() -> PathBuf {
     wasm_projects_dir().join("wasm32-unknown-unknown")
 }
 
+fn cargo_home_dir() -> PathBuf {
+    env::var("CARGO_HOME").unwrap().into()
+}
+
 fn get_no_build_env() -> bool {
     env::var(NO_BUILD_ENV).is_ok()
 }
@@ -204,8 +209,13 @@ fn get_no_build_inner_env() -> bool {
     env::var(NO_BUILD_INNER_ENV).is_ok()
 }
 
+fn get_no_map_remap_env() -> bool {
+    env::var(NO_PATH_REMAP_ENV).is_ok()
+}
+
 pub fn builder() {
     println!("cargo:rerun-if-env-changed={NO_BUILD_ENV}");
+    println!("cargo:rerun-if-env-changed={NO_PATH_REMAP_ENV}");
 
     let manifest_dir = manifest_dir();
     let pkg_name = env::var("CARGO_PKG_NAME").unwrap();
@@ -229,7 +239,7 @@ pub fn builder() {
 
     let builder_metadata = BuilderMetadata::from_value(pkg.metadata.clone());
 
-    let mut packages = BuildPackages::default();
+    let mut packages = BuildPackages::new(metadata.workspace_root.into_std_path_buf());
     let mut locks = Vec::new();
 
     for dep in pkg

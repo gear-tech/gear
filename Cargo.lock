@@ -13507,8 +13507,10 @@ checksum = "ca6ad05a4870b2bf5fe995117d3728437bd27d7cd5f06f13c17443ef369775a1"
 name = "wasm-dep-builder"
 version = "1.0.5"
 dependencies = [
+ "anyhow",
  "cargo_metadata 0.18.1",
  "derive_more",
+ "dirs",
  "fs4",
  "gear-wasm-builder",
  "globset",

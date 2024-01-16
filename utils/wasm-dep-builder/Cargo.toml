@@ -15,3 +15,5 @@ serde = { workspace = true, features = ["derive"] }
 derive_more.workspace = true
 fs4 = "0.7"
 globset = { version = "0.4.14", features = ["serde1"] }
+dirs.workspace = true
+anyhow.workspace = true
