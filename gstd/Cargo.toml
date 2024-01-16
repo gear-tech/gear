@@ -50,9 +50,19 @@ panic-handler = ["const_format"]
 ## When enabled, a panic handler will also display a panic message.
 panic-message = ["panic-handler", "arrayvec"]
 ## When enabled, a panic handler will also display a panic message and location.
+## This function is not recommended for use in production environment
+## because it displays the code path.
 panic-location = ["panic-message"]
 
 #! ## Nightly features
+#!
+#! The `panic-message` and `panic-location` features gets additional
+#! optimizations when using the nightly compiler.
+#!
+#! For example, if you don't use the `panic-location` feature, the compiler
+#! will remove all locations such as `/home/username/dapp/src/lib.rs:1:2`
+#! from the binary. The size of smart contract will be reduced and
+#! `/home/username/...` information will not be included in the binary.
 
 ## Enables all features below.
 ## These features depend on unstable Rust API and require nightly toolchain.
