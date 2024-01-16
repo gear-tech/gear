@@ -17,9 +17,17 @@ env:
 
 jobs:
   status:
-    uses: ./.github/workflows/status.yml
-    with:
-      sha: ${{ github.pull_request.head.sha }}
+    steps:
+      - name: Install deps for the message action.
+        run: npm install
+        working-directory: .github/actions/message
+
+      - name: Configure
+        id: config
+        with:
+          head-sha: ${{ inputs.sha }}
+          message: ${{ steps.commit-message.outputs.message }}
+        uses: ./.github/actions/message
 
   check:
     needs: status
