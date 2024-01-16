@@ -90,6 +90,8 @@ impl WasmBuilder {
 
     /// Force the recommended toolchain to be used, but do not check whether the
     /// current toolchain is recommended.
+    ///
+    /// NOTE: For internal use only, not recommended for smart contracts.
     #[doc(hidden)]
     pub fn with_forced_recommended_toolchain(mut self) -> Self {
         self.cargo.set_force_recommended_toolchain(true);
