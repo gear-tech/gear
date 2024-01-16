@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -75,12 +75,39 @@ use gear_core_errors::*;
 use gear_wasm_instrument::{gas_metering::ConstantCostRules, STACK_END_EXPORT_NAME};
 use gstd::{collections::BTreeMap, errors::Error as GstdError};
 use pallet_gear_voucher::PrepaidCall;
-use sp_runtime::{traits::UniqueSaturatedInto, SaturatedConversion};
+use sp_runtime::{
+    traits::{One, UniqueSaturatedInto},
+    SaturatedConversion,
+};
 use sp_std::convert::TryFrom;
 pub use utils::init_logger;
 use utils::*;
 
 type Gas = <<Test as Config>::GasProvider as common::GasProvider>::GasTree;
+
+#[test]
+fn calculate_gas_zero_balance() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        const ZERO_BALANCE_USER: AccountId = 12122023;
+        assert!(Balances::free_balance(ZERO_BALANCE_USER).is_zero());
+
+        let gas_below_ed = get_ed()
+            .saturating_div(gas_price(1))
+            .saturating_sub(One::one());
+
+        assert_ok!(Gear::calculate_gas_info_impl(
+            ZERO_BALANCE_USER.into_origin(),
+            HandleKind::Init(ProgramCodeKind::Default.to_bytes()),
+            gas_below_ed as u64,
+            vec![],
+            0,
+            false,
+            false,
+            None,
+        ));
+    });
+}
 
 #[test]
 fn delayed_send_from_reservation_not_for_mailbox() {
@@ -338,7 +365,7 @@ fn delayed_reservations_sending_validation() {
         run_to_next_block(None);
 
         let error_text = format!(
-            "{SENDING_EXPECT}: {:?}",
+            "panicked with '{SENDING_EXPECT}: {:?}'",
             GstdError::Core(
                 ExtError::Message(MessageError::InsufficientGasForDelayedSending).into()
             )
@@ -375,7 +402,7 @@ fn delayed_reservations_sending_validation() {
         run_for_blocks(wait_for as u64 + 1, None);
 
         let error_text = format!(
-            "{SENDING_EXPECT}: {:?}",
+            "panicked with '{SENDING_EXPECT}: {:?}'",
             GstdError::Core(
                 ExtError::Message(MessageError::InsufficientGasForDelayedSending).into()
             )
@@ -486,7 +513,7 @@ fn default_wait_lock_timeout() {
         run_to_block(expiration_block, None);
 
         let error_text = format!(
-            "ran into error-reply: {:?}",
+            "panicked with 'ran into error-reply: {:?}'",
             GstdError::Timeout(
                 expiration_block.unique_saturated_into(),
                 expiration_block.unique_saturated_into()
@@ -7518,7 +7545,7 @@ fn test_create_program_with_value_lt_ed() {
         assert_total_dequeued(1);
 
         let error_text = format!(
-            "Failed to create program: {:?}",
+            "panicked with 'Failed to create program: {:?}'",
             GstdError::Core(ExtError::Message(MessageError::InsufficientValue).into())
         );
 
@@ -7568,7 +7595,7 @@ fn test_create_program_with_exceeding_value() {
         assert_total_dequeued(1);
 
         let error_text = format!(
-            "Failed to create program: {:?}",
+            "panicked with 'Failed to create program: {:?}'",
             GstdError::Core(ExtError::Execution(ExecutionError::NotEnoughValue).into())
         );
         assert_failed(
@@ -7654,7 +7681,7 @@ fn demo_constructor_works() {
 
         run_to_next_block(None);
 
-        let error_text = "I just panic every time".to_owned();
+        let error_text = "panicked with 'I just panic every time'".to_owned();
 
         assert_failed(
             message_id,
@@ -8641,7 +8668,7 @@ fn mx_lock_ownership_exceedance() {
             let get_lock_ownership_exceeded_trap = |command_msg_id| {
                 ActorExecutionErrorReplyReason::Trap(TrapExplanation::Panic(
                     format!(
-                        "Message 0x{} has exceeded lock ownership time",
+                        "panicked with 'Message 0x{} has exceeded lock ownership time'",
                         hex::encode(command_msg_id)
                     )
                     .into(),

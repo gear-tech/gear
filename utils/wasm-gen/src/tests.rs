@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -27,7 +27,6 @@ use gear_core::{
         ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext,
         ReplyPacket,
     },
-    pages::WASM_PAGE_SIZE,
 };
 use gear_core_backend::{
     env::{BackendReport, Environment},
@@ -387,10 +386,6 @@ fn error_processing_works_for_fallible_syscalls() {
     let fallible_syscalls = SyscallName::instrumentable()
         .into_iter()
         .filter_map(|syscall| {
-            if matches!(syscall, SyscallName::PayProgramRent) {
-                return None;
-            }
-
             let invocable_syscall = InvocableSyscall::Loose(syscall);
             invocable_syscall.is_fallible().then_some(invocable_syscall)
         });
@@ -509,23 +504,11 @@ struct MemoryWrite {
 }
 
 fn get_params_for_syscall_to_fail(
-    syscall: InvocableSyscall,
+    _syscall: InvocableSyscall,
 ) -> (SyscallsParamsConfig, Option<MemoryWrite>) {
-    let syscall_name = match syscall {
-        InvocableSyscall::Loose(name) => name,
-        InvocableSyscall::Precise(name) => name,
-    };
-    let memory_write = match syscall_name {
-        SyscallName::PayProgramRent => Some(MemoryWrite {
-            offset: 0,
-            content: vec![255; WASM_PAGE_SIZE],
-        }),
-        _ => None,
-    };
-
     (
         SyscallsParamsConfig::const_regular_params(i32::MAX as i64),
-        memory_write,
+        None,
     )
 }
 
