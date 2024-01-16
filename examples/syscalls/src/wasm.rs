@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2023 Gear Technologies Inc.
+// Copyright (C) 2023-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -159,15 +159,6 @@ fn process(syscall_kind: Kind) {
         Kind::MessageId(expected_mid) => {
             let actual_mid: [u8; 32] = msg::id().into();
             assert_eq!(expected_mid, actual_mid, "Kind::MessageId: mid test failed");
-        }
-        #[allow(deprecated)]
-        Kind::PayProgramRent(program_id, rent, expected) => {
-            let (unused_value, paid_block_count) = exec::pay_program_rent(program_id.into(), rent)
-                .expect(super::PAY_PROGRAM_RENT_EXPECT);
-            if let Some((expected_unused_value, expected_paid_block_count)) = expected {
-                assert_eq!(unused_value, expected_unused_value);
-                assert_eq!(paid_block_count, expected_paid_block_count);
-            }
         }
         Kind::ProgramId(expected_pid) => {
             let actual_pid: [u8; 32] = exec::program_id().into();
