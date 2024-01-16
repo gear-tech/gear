@@ -17,7 +17,7 @@ on:
         value: ${{ jobs.status.outputs.macos }}
 
 jobs:
-  status:
+  check:
     runs-on: ubuntu-latest
     outputs:
       build: ${{ steps.config.outputs.build }}
