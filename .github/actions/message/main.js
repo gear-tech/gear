@@ -56,17 +56,8 @@ async function main() {
   console.log("message: ", message);
   console.log("head-sha: ", sha);
   console.log("title: ", title);
-  console.log("derive-title: ", github.context.payload.pull_request.title);
-  console.log("json-title: ", JSON.stringify(github.context.payload.pull_request.title));
   console.log("full name: ", fullName);
-  console.log("api-full-name: ", github.context.payload.repository.full_name);
-  console.log("json-full-name: ", JSON.stringify(github.context.payload.repository.full_name));
   console.log("labels: ", labels);
-  console.log("payload: ", github.context.payload);
-  console.log("pull_request: ", github.context.payload.pull_request);
-  console.log("json_pull_request: ", JSON.stringify(github.context.payload.pull_request));
-  console.log("repo: ", github.context.payload.repository);
-  console.log("json_repo: ", JSON.stringify(github.context.payload.repository));
 
   // Calculate configurations.
   const isDepbot = fullName === `${owner}/${repo}` && title.includes(DEPBOT);
