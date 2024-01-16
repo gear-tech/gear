@@ -46,7 +46,7 @@ async function mock(head_sha) {
 async function main() {
   const {
     title,
-    pull_request: { head: sha, labels: _labels },
+    pull_request: { head: { sha }, labels: _labels },
     repository: { full_name: fullName }
   } = github.context.payload;
   const labels = _labels.map(l => l.name);
