@@ -192,10 +192,13 @@ impl BuildPackages {
         self.packages.push(build_pkg);
     }
 
-    fn rebuild_required(&self) -> bool {
-        self.packages
+    pub fn skip_build(&self) -> bool {
+        let any_dirty = self
+            .packages
             .iter()
-            .any(|pkg| pkg.rebuild_kind == RebuildKind::Dirty)
+            .any(|pkg| pkg.rebuild_kind == RebuildKind::Dirty);
+
+        get_no_build_env() || !any_dirty
     }
 
     fn cargo_args(&self) -> impl Iterator<Item = String> + '_ {
@@ -236,7 +239,7 @@ impl BuildPackages {
     }
 
     pub fn build(&mut self) {
-        if get_no_build_env() || !self.rebuild_required() {
+        if self.skip_build() {
             println!("cargo:warning=Build skipped");
             return;
         }

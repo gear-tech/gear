@@ -114,8 +114,10 @@ pub fn builder() {
     println!("cargo:warning={:?}", packages);
     packages.build();
 
-    for (mut lock, config) in locks {
-        lock.write(config);
+    if packages.skip_build() {
+        for (mut lock, config) in locks {
+            lock.write(config);
+        }
     }
 
     let wasm_binaries = packages.wasm_binaries();
