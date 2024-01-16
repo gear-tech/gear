@@ -1,0 +1,46 @@
+name: "Status Check"
+description: "Status check for pull requests."
+
+on:
+  workflow_call:
+    outputs:
+      build:
+        description: "If trigger build."
+        value: ${{ steps.config.outputs.build }}
+      cache:
+        description: "The path of sccache cache."
+        value: ${{ steps.sccache.outputs.cache }}
+      check:
+        description: "If trigger check"
+        value: ${{ steps.config.outputs.check }}
+
+jobs:
+  status:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Commit Message
+        id: commit-message
+        shell: bash
+        run: echo "message=$(git show -s --format=%s)"
+
+      - name: Configure
+        if: ${{ inputs.mock && steps.check-commit-message.skip-ci }}
+        id: config
+        with:
+          full-name: ${{ github.event.pull_request.head.repo.full_name }}
+          head-sha: ${{ github.event.pull_request.head.sha }}
+          issue: ${{ github.event.number }}
+          message: ${{ steps.commit-message.message }}
+          title: ${{ github.event.pull_request.title }}
+        uses: ./.github/actions/message
+
+      - name: Set sccache path
+        if: ${{ steps.config.outputs.cache }}
+        id: sccache
+        run: |
+          sccache_path="/mnt/sccache/$(echo ${GITHUB_REF#refs/heads/} | tr / _)"
+          echo "cache=$sccache_path" >> $GITHUB_OUTPUT

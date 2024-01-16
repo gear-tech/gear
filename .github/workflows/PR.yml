@@ -17,48 +17,18 @@ env:
 
 jobs:
   status:
-    runs-on: ubuntu-latest
-    outputs:
-      skip-ci: ${{ steps.check-skip.outputs.skip-ci }}
-      cache: ${{ steps.check-skip.outputs.cache }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha }}
-
-      - name: Check Skip
-        id: check-skip
-        uses: ./.github/actions/skip
-
-      - name: Set sccache path
-        if: ${{ steps.check-skip.outputs.cache }}
-        run: |
-          sccache_path="/mnt/sccache/$(echo ${GITHUB_REF#refs/heads/} | tr / _)"
-          echo "cache=$sccache_path" >> $GITHUB_OUTPUT
+    uses: ./.github/workflows/status.yml
 
   check:
     needs: status
-    if: >-
-      !contains(github.event.pull_request.title, '[skip-ci]')
-      && needs.status.outputs.skip-ci != '1'
-
+    if: ${{ needs.status.outputs.check }}
     uses: ./.github/workflows/check.yml
     with:
       cache: ${{ needs.status.outputs.cache }}
 
   build:
     needs: status
-    if: >-
-      needs.status.outputs.skip-ci != '1'
-      && (
-        (
-          github.event.pull_request.head.repo.full_name == 'gear-tech/gear'
-          && contains(github.event.pull_request.title, '[depbot]')
-        ) || (
-          contains(github.event.pull_request.labels.*.name, 'A0-pleasereview')
-          || contains(github.event.pull_request.labels.*.name, 'A4-insubstantial')
-          || contains(github.event.pull_request.labels.*.name, 'A2-mergeoncegreen')
-        ))
+    if: ${{ needs.status.outputs.build }}
     uses: ./.github/workflows/build.yml
     with:
       cache: ${{ needs.status.outputs.cache }}

@@ -1,7 +1,6 @@
 name: Crates IO
 
 on:
-  workflow_call:
   workflow_dispatch:
     inputs:
       publish:
@@ -12,6 +11,8 @@ on:
         description: "Workspace version to publish"
         required: true
         type: string
+  pull_request:
+    branches: [master]
 
 env:
   CARGO_INCREMENTAL: 0

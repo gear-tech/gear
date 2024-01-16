@@ -1,5 +1,5 @@
 {
-  "name": "gear-github-mock",
+  "name": "gear-github-status",
   "version": "0.0.0",
   "main": "mock.js",
   "dependencies": {
