@@ -63,7 +63,14 @@ fn voucher_issue_err_cases() {
             .collect();
 
         assert_noop!(
-            Voucher::issue(RuntimeOrigin::signed(ALICE), BOB, 1_000, Some(set), 100),
+            Voucher::issue(
+                RuntimeOrigin::signed(ALICE),
+                BOB,
+                1_000,
+                Some(set),
+                false,
+                100
+            ),
             Error::<Test>::MaxProgramsLimitExceeded,
         );
 
@@ -81,6 +88,7 @@ fn voucher_issue_err_cases() {
                     BOB,
                     1_000,
                     Some([program_id].into()),
+                    false,
                     duration,
                 ),
                 Error::<Test>::DurationOutOfBounds,
@@ -155,6 +163,7 @@ fn voucher_call_works() {
             BOB,
             1_000,
             None,
+            false,
             utils::DEFAULT_VALIDITY,
         ));
         let voucher_id_any = utils::get_last_voucher_id();
@@ -409,6 +418,8 @@ fn voucher_update_works() {
             Some(0),
             // extra programs
             Some(Some([program_id].into())),
+            // forbid code uploading (already forbidden)
+            Some(false),
             // prolong duration
             Some(0),
         )));
@@ -423,6 +434,8 @@ fn voucher_update_works() {
             Some(balance_top_up),
             // extra programs
             Some(Some([new_program_id].into())),
+            // allow code uploading
+            Some(true),
             // prolong duration
             Some(duration_prolong),
         ));
@@ -465,6 +478,8 @@ fn voucher_update_works() {
             None,
             // extra programs
             Some(None),
+            // code uploading
+            None,
             // prolong duration
             None,
         ));
@@ -498,6 +513,8 @@ fn voucher_update_works() {
             None,
             // extra programs
             Some(Some([program_id].into())),
+            // code uploading
+            None,
             // prolong duration
             None,
         )));
@@ -515,6 +532,8 @@ fn voucher_update_works() {
             // balance top up
             None,
             // extra programs
+            None,
+            // code uploading
             None,
             // prolong duration
             Some(duration_prolong),
@@ -542,6 +561,8 @@ fn voucher_update_works() {
                 None,
                 // extra programs
                 None,
+                // code uploading
+                None,
                 // prolong duration
                 Some(valid_prolong + 1),
             ),
@@ -557,6 +578,8 @@ fn voucher_update_works() {
             // balance top up
             None,
             // extra programs
+            None,
+            // code uploading
             None,
             // prolong duration
             Some(valid_prolong),
@@ -583,6 +606,8 @@ fn voucher_update_err_cases() {
                 None,
                 // extra programs
                 None,
+                // code uploading
+                None,
                 // prolong duration
                 None,
             ),
@@ -601,6 +626,8 @@ fn voucher_update_err_cases() {
                 None,
                 // extra programs
                 None,
+                // code uploading
+                None,
                 // prolong duration
                 None,
             ),
@@ -618,6 +645,8 @@ fn voucher_update_err_cases() {
                 // balance top up
                 Some(100_000_000_000_000),
                 // extra programs
+                None,
+                // code uploading
                 None,
                 // prolong duration
                 None,
@@ -641,6 +670,8 @@ fn voucher_update_err_cases() {
                 None,
                 // extra programs
                 Some(Some(set)),
+                // code uploading
+                None,
                 // prolong duration
                 None,
             ),
@@ -658,6 +689,8 @@ fn voucher_update_err_cases() {
                 // balance top up
                 None,
                 // extra programs
+                None,
+                // code uploading
                 None,
                 // prolong duration
                 Some(MaxVoucherDuration::get().saturating_sub(DEFAULT_VALIDITY)),
@@ -696,6 +729,7 @@ mod utils {
             to,
             balance,
             Some([program].into()),
+            false,
             DEFAULT_VALIDITY,
         )
         .map(|_| get_last_voucher_id())

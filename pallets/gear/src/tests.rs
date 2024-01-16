@@ -13316,6 +13316,7 @@ fn send_gasless_message_works() {
             USER_2,
             gas_price(DEFAULT_GAS_LIMIT),
             Some([program_id].into()),
+            false,
             100,
         ));
 
@@ -13417,6 +13418,7 @@ fn send_gasless_reply_works() {
             USER_1,
             gas_price(DEFAULT_GAS_LIMIT),
             Some([prog_id].into()),
+            false,
             100,
         ));
         let voucher_id = utils::get_last_voucher_id();

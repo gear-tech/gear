@@ -528,6 +528,7 @@ fn fee_payer_replacement_works() {
             BOB,
             synthesized_initial_balance,
             Some([program_id].into()),
+            false,
             100,
         ));
         let voucher_id = get_last_voucher_id();
@@ -615,6 +616,7 @@ fn reply_with_voucher_pays_fee_from_voucher_ok() {
             BOB,
             200_000_000,
             Some([program_id].into()),
+            false,
             100,
         ));
         let voucher_id = get_last_voucher_id();
@@ -699,6 +701,7 @@ fn voucher_call_send_payer_ok() {
             BOB,
             voucher_initial_balance,
             Some([program_id].into()),
+            false,
             100,
         ));
         let voucher_id = get_last_voucher_id();
@@ -812,6 +815,7 @@ fn voucher_call_send_payer_wrong_program_err() {
             BOB,
             voucher_initial_balance,
             Some([voucher_program_id].into()),
+            false,
             100,
         ));
         let voucher_id = get_last_voucher_id();
@@ -869,6 +873,7 @@ fn voucher_call_send_payer_expiry_err() {
             BOB,
             voucher_initial_balance,
             Some([program_id].into()),
+            false,
             100,
         ));
         let voucher_id = get_last_voucher_id();
@@ -1023,6 +1028,7 @@ fn voucher_call_reply_payer_ok() {
             BOB,
             voucher_initial_balance,
             Some([program_id].into()),
+            false,
             100,
         ));
         let voucher_id = get_last_voucher_id();

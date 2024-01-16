@@ -184,6 +184,8 @@ pub mod pallet {
         VoucherExpired,
         /// Voucher issue/prolongation duration out of [min; max] constants.
         DurationOutOfBounds,
+        /// Voucher update function tries to cut voucher ability of code upload.
+        CodeUploadingEnabled,
     }
 
     /// Storage containing amount of the total vouchers issued.
@@ -236,6 +238,7 @@ pub mod pallet {
             spender: AccountIdOf<T>,
             balance: BalanceOf<T>,
             programs: Option<BTreeSet<ProgramId>>,
+            code_uploading: bool,
             duration: BlockNumberFor<T>,
         ) -> DispatchResultWithPostInfo {
             // Ensuring origin.
@@ -276,7 +279,7 @@ pub mod pallet {
             let voucher_info = VoucherInfo {
                 owner: owner.clone(),
                 programs,
-                code_uploading: false,
+                code_uploading,
                 expiry,
             };
 
@@ -409,6 +412,7 @@ pub mod pallet {
         ///                     should be in [MinDuration; MaxDuration], in other
         ///                     words voucher couldn't have expiry greater than
         ///                     current block number + MaxDuration.
+        #[allow(clippy::too_many_arguments)]
         #[pallet::call_index(3)]
         #[pallet::weight(T::WeightInfo::update())]
         pub fn update(
@@ -418,6 +422,7 @@ pub mod pallet {
             move_ownership: Option<AccountIdOf<T>>,
             balance_top_up: Option<BalanceOf<T>>,
             append_programs: Option<Option<BTreeSet<ProgramId>>>,
+            code_uploading: Option<bool>,
             prolong_duration: Option<BlockNumberFor<T>>,
         ) -> DispatchResultWithPostInfo {
             // Ensuring origin.
@@ -435,6 +440,9 @@ pub mod pallet {
 
             // Flattening move ownership back to current owner.
             let new_owner = move_ownership.filter(|addr| addr.ne(&voucher.owner));
+
+            // Flattening code uploading.
+            let code_uploading = code_uploading.filter(|v| v.ne(&voucher.code_uploading));
 
             // Flattening duration prolongation.
             let prolong_duration = prolong_duration.filter(|dur| !dur.is_zero());
@@ -481,6 +489,14 @@ pub mod pallet {
 
                 // Noop.
                 _ => (),
+            }
+
+            // Optionally enabling code uploading.
+            if let Some(code_uploading) = code_uploading {
+                ensure!(code_uploading, Error::<T>::CodeUploadingEnabled);
+
+                voucher.code_uploading = true;
+                updated = true;
             }
 
             // Optionally prolongs validity of the voucher.

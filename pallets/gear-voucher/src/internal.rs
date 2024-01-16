@@ -204,9 +204,13 @@ pub enum PrepaidCall<Balance> {
     },
     // TODO (breathx): add processing for it [DONE]
     // TODO (breathx): add bool flag for voucher [DONE]
-    // TODO (breathx): add bool to `Pallet::issue` and `Pallet::update`
+    // TODO (breathx): add bool to `Pallet::issue` and `Pallet::update` [DONE]
     // TODO (breathx): add validation for call from voucher: `voucher.whitelists(&prepaid_call)`
     // TODO (breathx): forbid for `Pallet::call_deprecated`
+    // TODO (breathx): tests for:
+    //                  * `Pallet::update()`: ok, err, noop;
+    //                  * `Pallet::call_deprecated`: forbidden (result + fees);
+    //                  * `Pallet::call`: eligible (result + fees), non-eligible (result + fees).
     UploadCode {
         code: Vec<u8>,
     },
