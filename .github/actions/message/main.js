@@ -44,7 +44,7 @@ async function mock(head_sha) {
  * Main function.
  */
 async function main() {
-  console.log(github.context.payload);
+
   const {
     pull_request: { title, head: { sha, ref: branch }, labels: _labels },
     repository: { full_name: fullName }
@@ -61,6 +61,11 @@ async function main() {
   core.info("api-full-name: ", github.context.payload.repository.full_name);
   core.info("json-full-name: ", JSON.stringify(github.context.payload.repository.full_name));
   core.info("labels: ", labels);
+  core.info("payload: ", github.context.payload);
+  core.info("pull_request: ", github.context.payload.pull_request);
+  core.info("json_pull_request: ", JSON.stringify(github.context.payload.pull_request));
+  core.info("repo: ", github.context.payload.repository);
+  core.info("json_repo: ", JSON.stringify(github.context.payload.repository));
 
   // Calculate configurations.
   const isDepbot = fullName === `${owner}/${repo}` && title.includes(DEPBOT);
