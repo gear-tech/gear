@@ -8,15 +8,6 @@ inputs:
   head-sha:
     description: "The head sha of the current commit."
     required: true
-  title:
-    description: "The title of the current issue."
-    required: true
-  issue:
-    description: "The issue number to run this action."
-    required: true
-  full-name:
-    description: "The full name of the target repo."
-    required: true
 
 runs:
   using: "node20"

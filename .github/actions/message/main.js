@@ -61,21 +61,19 @@ async function mock(head_sha) {
  * Main function.
  */
 async function main() {
-  console.log("payload: ", JSON.stringify(github.context.payload, null, 2));
   const message = core.getInput("message");
-  core.info("message: ", message);
-  const issue = core.getInput("issue");
-  core.info("issue: ", issue);
-  core.info("api-issue: ", github.context.payload.pull_request.number);
-  const title = core.getInput("title");
-  core.info("title: ", title);
-  core.info("api-title: ", github.context.payload.pull_request.title);
-  const fullName = core.getInput("full-name");
-  core.info("full-name: ", fullName);
-  core.info("api-full-name: ", github.context.payload.repository.full_name);
   const sha = core.getInput("head-sha");
+  const issue = github.context.payload.number;
+  const title = github.context.payload.title;
+  const fullName = github.context.payload.repository.full_name;
+
+  core.info("message: ", message);
   core.info("head-sha: ", sha);
-  core.info("api-head-sha: ", github.context.sha);
+  core.info("title: ", title);
+  core.info("issue: ", number);
+  core.info("full name: ", fullName);
+
+  console.log("payload: ", JSON.stringify(github.context.payload, null, 2));
 
   // Calculate configurations.
   const labels = getLabels(issue);

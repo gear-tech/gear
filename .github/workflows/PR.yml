@@ -18,6 +18,8 @@ env:
 jobs:
   status:
     uses: ./.github/workflows/status.yml
+    with:
+      sha: ${{ github.pull_request.head.sha }}
 
   check:
     needs: status

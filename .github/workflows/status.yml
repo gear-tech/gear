@@ -2,6 +2,9 @@ name: "Status Check"
 
 on:
   workflow_call:
+    inputs:
+      sha:
+        description: "The head sha."
     outputs:
       build:
         description: "If trigger build."
@@ -27,7 +30,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ inputs.sha }}
 
       - name: Commit Message
         id: commit-message
@@ -41,11 +44,8 @@ jobs:
       - name: Configure
         id: config
         with:
-          full-name: ${{ github.event.pull_request.head.repo.full_name }}
-          head-sha: ${{ github.event.pull_request.head.sha }}
-          issue: ${{ github.event.number }}
+          head-sha: ${{ inputs.sha }}
           message: ${{ steps.commit-message.outputs.message }}
-          title: ${{ github.event.pull_request.title }}
         uses: ./.github/actions/message
 
       - name: Set sccache path
