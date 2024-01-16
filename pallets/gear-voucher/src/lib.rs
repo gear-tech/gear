@@ -276,6 +276,7 @@ pub mod pallet {
             let voucher_info = VoucherInfo {
                 owner: owner.clone(),
                 programs,
+                code_uploading: false,
                 expiry,
             };
 

@@ -170,6 +170,8 @@ pub struct VoucherInfo<AccountId, BlockNumber> {
     /// Set of programs this voucher could be used to interact with.
     /// In case of [`None`] means any gear program.
     pub programs: Option<BTreeSet<ProgramId>>,
+    /// Flag if this voucher's covers uploading codes as prepaid call.
+    pub code_uploading: bool,
     /// The block number at and after which voucher couldn't be used and
     /// can be revoked by owner.
     pub expiry: BlockNumber,
@@ -201,7 +203,7 @@ pub enum PrepaidCall<Balance> {
         keep_alive: bool,
     },
     // TODO (breathx): add processing for it [DONE]
-    // TODO (breathx): add bool flag for voucher
+    // TODO (breathx): add bool flag for voucher [DONE]
     // TODO (breathx): add bool to `Pallet::issue` and `Pallet::update`
     // TODO (breathx): add validation for call from voucher: `voucher.whitelists(&prepaid_call)`
     // TODO (breathx): forbid for `Pallet::call_deprecated`
