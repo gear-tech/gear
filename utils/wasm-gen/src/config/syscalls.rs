@@ -139,7 +139,7 @@ impl SyscallsConfig {
         &self.precise_syscalls_config
     }
 
-    /// Error processing config for fallible syscalls.
+    /// Get error processing config for fallible syscalls.
     pub fn error_processing_config(&self) -> &ErrorProcessingConfig {
         &self.error_processing_config
     }
