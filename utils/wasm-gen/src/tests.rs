@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -27,7 +27,6 @@ use gear_core::{
         ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext,
         ReplyPacket,
     },
-    pages::WASM_PAGE_SIZE,
 };
 use gear_core_backend::{
     env::{BackendReport, Environment},
@@ -179,8 +178,9 @@ fn test_source_as_address_param() {
     rng.fill_bytes(&mut buf);
     let mut unstructured = Unstructured::new(&buf);
 
-    let mut params_config = SyscallsParamsConfig::default_regular();
-    params_config.set_ptr_rule(PtrParamAllowedValues::ActorId(ActorKind::Source));
+    let params_config = SyscallsParamsConfig::new()
+        .with_default_regular_config()
+        .with_ptr_rule(PtrParamAllowedValues::ActorId(ActorKind::Source));
 
     let mut injection_types = SyscallsInjectionTypes::all_never();
     injection_types.set(InvocableSyscall::Loose(SyscallName::Exit), 1, 1);
@@ -206,11 +206,12 @@ fn test_existing_address_as_address_param() {
     let mut unstructured = Unstructured::new(&buf);
 
     let some_address = [5; 32];
-    let mut params_config = SyscallsParamsConfig::default_regular();
-    params_config.set_ptr_rule(PtrParamAllowedValues::ActorIdWithValue {
-        actor_kind: ActorKind::ExistingAddresses(NonEmpty::new(some_address)),
-        range: 0..=0,
-    });
+    let params_config = SyscallsParamsConfig::new()
+        .with_default_regular_config()
+        .with_ptr_rule(PtrParamAllowedValues::ActorIdWithValue {
+            actor_kind: ActorKind::ExistingAddresses(NonEmpty::new(some_address)),
+            range: 0..=0,
+        });
 
     let mut injection_types = SyscallsInjectionTypes::all_never();
     injection_types.set(InvocableSyscall::Loose(SyscallName::Send), 1, 1);
@@ -255,8 +256,9 @@ fn test_msg_value_ptr() {
     rng.fill_bytes(&mut buf);
     let mut unstructured = Unstructured::new(&buf);
 
-    let mut params_config = SyscallsParamsConfig::default_regular();
-    params_config.set_ptr_rule(PtrParamAllowedValues::Value(REPLY_VALUE..=REPLY_VALUE));
+    let params_config = SyscallsParamsConfig::new()
+        .with_default_regular_config()
+        .with_ptr_rule(PtrParamAllowedValues::Value(REPLY_VALUE..=REPLY_VALUE));
 
     let mut injection_types = SyscallsInjectionTypes::all_never();
     injection_types.set(InvocableSyscall::Loose(SyscallName::Reply), 1, 1);
@@ -310,12 +312,13 @@ fn test_msg_value_ptr_dest() {
         ActorKind::ExistingAddresses(NonEmpty::new(some_address)),
     ];
     for dest_var in destination_variants {
-        let mut params_config = SyscallsParamsConfig::default_regular();
-        params_config.set_rule(RegularParamType::Gas, (0..=0).into());
-        params_config.set_ptr_rule(PtrParamAllowedValues::ActorIdWithValue {
-            actor_kind: dest_var.clone(),
-            range: REPLY_VALUE..=REPLY_VALUE,
-        });
+        let params_config = SyscallsParamsConfig::new()
+            .with_default_regular_config()
+            .with_rule(RegularParamType::Gas, (0..=0).into())
+            .with_ptr_rule(PtrParamAllowedValues::ActorIdWithValue {
+                actor_kind: dest_var.clone(),
+                range: REPLY_VALUE..=REPLY_VALUE,
+            });
 
         for syscall in tested_syscalls {
             let mut rng = SmallRng::seed_from_u64(123);
@@ -466,8 +469,9 @@ fn precise_syscalls_works() {
         let mut injection_types = SyscallsInjectionTypes::all_never();
         injection_types.set(syscall, INJECTED_SYSCALLS, INJECTED_SYSCALLS);
 
-        let mut param_config = SyscallsParamsConfig::default_regular();
-        param_config.set_rule(RegularParamType::Gas, (0..=0).into());
+        let param_config = SyscallsParamsConfig::new()
+            .with_default_regular_config()
+            .with_rule(RegularParamType::Gas, (0..=0).into());
 
         // Assert that syscalls results will be processed.
         let termination_reason = execute_wasm_with_custom_configs(
@@ -500,23 +504,11 @@ struct MemoryWrite {
 }
 
 fn get_params_for_syscall_to_fail(
-    syscall: InvocableSyscall,
+    _syscall: InvocableSyscall,
 ) -> (SyscallsParamsConfig, Option<MemoryWrite>) {
-    let syscall_name = match syscall {
-        InvocableSyscall::Loose(name) => name,
-        InvocableSyscall::Precise(name) => name,
-    };
-    let memory_write = match syscall_name {
-        SyscallName::PayProgramRent => Some(MemoryWrite {
-            offset: 0,
-            content: vec![255; WASM_PAGE_SIZE],
-        }),
-        _ => None,
-    };
-
     (
         SyscallsParamsConfig::const_regular_params(i32::MAX as i64),
-        memory_write,
+        None,
     )
 }
 
@@ -581,7 +573,6 @@ fn execute_wasm_with_custom_configs(
     let processor_context = ProcessorContext {
         message_context,
         max_pages: INITIAL_PAGES.into(),
-        rent_cost: 10,
         program_id,
         value_counter: ValueCounter::new(value),
         ..ProcessorContext::new_mock()

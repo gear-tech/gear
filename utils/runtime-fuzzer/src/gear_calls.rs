@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -44,7 +44,7 @@ use std::mem;
 ///
 /// TODO: #3442
 const MAX_PAYLOAD_SIZE: usize = 1024;
-static_assertions::const_assert!(MAX_PAYLOAD_SIZE <= gear_core::message::MAX_PAYLOAD_SIZE);
+const _: () = assert!(MAX_PAYLOAD_SIZE <= gear_core::message::MAX_PAYLOAD_SIZE);
 
 /// Maximum salt size for the fuzzer - 512 bytes.
 ///
@@ -52,7 +52,7 @@ static_assertions::const_assert!(MAX_PAYLOAD_SIZE <= gear_core::message::MAX_PAY
 /// for one run. Also small salt will make overall size of the
 /// corpus smaller.
 const MAX_SALT_SIZE: usize = 512;
-static_assertions::const_assert!(MAX_SALT_SIZE <= gear_core::message::MAX_PAYLOAD_SIZE);
+const _: () = assert!(MAX_SALT_SIZE <= gear_core::message::MAX_PAYLOAD_SIZE);
 
 const ID_SIZE: usize = mem::size_of::<ProgramId>();
 const GAS_AND_VALUE_SIZE: usize = mem::size_of::<(u64, u128)>();
@@ -421,15 +421,16 @@ fn config(programs: &[ProgramId], log_info: Option<String>) -> StandardGearWasmC
         .into_iter(),
     );
 
-    let mut params_config = SyscallsParamsConfig::default_regular();
-    params_config.set_rule(RegularParamType::Alloc, (10..=20).into());
-    params_config.set_rule(
-        RegularParamType::Free,
-        (initial_pages..=initial_pages + 35).into(),
-    );
-    params_config.set_ptr_rule(PtrParamAllowedValues::Value(0..=0));
+    let mut params_config = SyscallsParamsConfig::new()
+        .with_default_regular_config()
+        .with_rule(RegularParamType::Alloc, (10..=20).into())
+        .with_rule(
+            RegularParamType::Free,
+            (initial_pages..=initial_pages + 35).into(),
+        )
+        .with_ptr_rule(PtrParamAllowedValues::Value(0..=0));
 
-    let syscall_destination = NonEmpty::collect(
+    let actor_kind = NonEmpty::collect(
         programs
             .iter()
             .copied()
@@ -439,13 +440,14 @@ fn config(programs: &[ProgramId], log_info: Option<String>) -> StandardGearWasmC
     .map(ActorKind::ExistingAddresses)
     .unwrap_or(ActorKind::Source);
 
-    log::trace!("Messages destination config: {:?}", syscall_destination);
+    log::trace!("Messages destination config: {:?}", actor_kind);
 
-    params_config.set_ptr_rule(PtrParamAllowedValues::ActorId(syscall_destination.clone()));
-    params_config.set_ptr_rule(PtrParamAllowedValues::ActorIdWithValue {
-        actor_kind: syscall_destination.clone(),
-        range: 0..=0,
-    });
+    params_config = params_config
+        .with_ptr_rule(PtrParamAllowedValues::ActorId(actor_kind.clone()))
+        .with_ptr_rule(PtrParamAllowedValues::ActorIdWithValue {
+            actor_kind: actor_kind.clone(),
+            range: 0..=0,
+        });
 
     StandardGearWasmConfigsBundle {
         entry_points_set: EntryPointsSet::InitHandleHandleReply,

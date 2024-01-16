@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -30,7 +30,6 @@ use sp_runtime::{
     traits::{Block as BlockT, Header as HeaderT, One},
     ApplyExtrinsicResult, DeserializeOwned, Saturating,
 };
-use sp_state_machine::ExecutionStrategy;
 use std::{fmt::Debug, str::FromStr};
 use substrate_rpc_client::{ws_client, ChainApi};
 
@@ -122,18 +121,12 @@ where
         >,
     >();
 
-    #[cfg(not(feature = "always-wasm"))]
-    let strategy = ExecutionStrategy::NativeElseWasm;
-    #[cfg(feature = "always-wasm")]
-    let strategy = ExecutionStrategy::AlwaysWasm;
-
     let (_changes, _enc_res) = state_machine_call(
         &ext,
         &executor,
         "Core_initialize_block",
         &vec![].and(&header),
         full_extensions(),
-        strategy,
     )?;
     log::info!(
         target: LOG_TARGET,
@@ -157,7 +150,6 @@ where
                 "BlockBuilder_apply_extrinsic",
                 &tx_encoded,
                 full_extensions(),
-                strategy,
             )?;
         }
     }
@@ -169,7 +161,6 @@ where
         "BlockBuilder_apply_extrinsic",
         &gear_run_tx,
         full_extensions(),
-        strategy,
     )?;
     let r = ApplyExtrinsicResult::decode(&mut &enc_res[..]).unwrap();
     log::info!(

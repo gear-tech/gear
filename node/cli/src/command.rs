@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -18,7 +18,7 @@
 
 use crate::cli::{Cli, Subcommand};
 use runtime_primitives::Block;
-use sc_cli::{ChainSpec, ExecutionStrategy, RuntimeVersion, SubstrateCli};
+use sc_cli::{ChainSpec, SubstrateCli};
 use sc_service::config::BasePath;
 use service::{chain_spec, IdentifyVariant};
 
@@ -111,14 +111,6 @@ impl SubstrateCli for Cli {
             }
         })
     }
-
-    fn native_runtime_version(spec: &Box<dyn ChainSpec>) -> &'static RuntimeVersion {
-        match spec {
-            #[cfg(feature = "vara-native")]
-            spec if spec.is_vara() => &service::vara_runtime::VERSION,
-            _ => panic!("Invalid chain spec"),
-        }
-    }
 }
 
 /// Unwraps a [`service::Client`] into the concrete runtime client.
@@ -139,42 +131,12 @@ macro_rules! unwrap_client {
 
 /// Parse and run command line arguments
 pub fn run() -> sc_cli::Result<()> {
-    let mut cli = Cli::from_args();
+    let cli = Cli::from_args();
 
     let old_base = BasePath::from_project("", "", "gear-node");
     let new_base = BasePath::from_project("", "", &Cli::executable_name());
     if old_base.path().exists() && !new_base.path().exists() {
         _ = std::fs::rename(old_base.path(), new_base.path());
-    }
-
-    let base = &mut cli.run.base;
-
-    // Force setting `Wasm` as default execution strategy.
-    let execution_strategy = base
-        .import_params
-        .execution_strategies
-        .execution
-        .get_or_insert(ExecutionStrategy::Wasm);
-
-    let is_dev = base.shared_params.dev;
-
-    // Checking if node supposed to be validator (explicitly or by shortcuts).
-    let is_validator = base.validator
-        || base.alice
-        || base.bob
-        || base.charlie
-        || base.dave
-        || base.eve
-        || base.ferdie
-        || base.one
-        || base.two;
-
-    // Denying ability to validate blocks with non-wasm execution.
-    if !is_dev && is_validator && *execution_strategy != ExecutionStrategy::Wasm {
-        return Err(
-            "Node can be --validator only with wasm execution strategy. To enable it run the node with `--execution wasm` or without the flag for default value."
-                .into(),
-        );
     }
 
     match &cli.subcommand {
@@ -252,6 +214,7 @@ pub fn run() -> sc_cli::Result<()> {
             use frame_benchmarking_cli::{
                 BenchmarkCmd, ExtrinsicFactory, SUBSTRATE_REFERENCE_HARDWARE,
             };
+            use sc_executor::{sp_wasm_interface::ExtendedHostFunctions, NativeExecutionDispatch};
             use sp_keyring::Sr25519Keyring;
 
             let runner = cli.create_runner(cmd)?;
@@ -271,7 +234,10 @@ pub fn run() -> sc_cli::Result<()> {
                         match &config.chain_spec {
                             #[cfg(feature = "vara-native")]
                             spec if spec.is_vara() => cmd
-                                .run::<service::vara_runtime::Block, service::VaraExecutorDispatch>(
+                                .run::<service::vara_runtime::Block, ExtendedHostFunctions<
+                                sp_io::SubstrateHostFunctions,
+                                <service::VaraExecutorDispatch as NativeExecutionDispatch>::ExtendHostFunctions,
+                            >>(
                                     config,
                                 ),
                             _ => Err("invalid chain spec".into()),

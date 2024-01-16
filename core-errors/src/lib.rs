@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2022-2023 Gear Technologies Inc.
+// Copyright (C) 2022-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -188,18 +188,6 @@ pub enum ReservationError {
     ReservationBelowMailboxThreshold = 504,
 }
 
-/// Program rent error.
-#[derive(
-    Debug, Clone, Copy, Eq, PartialEq, PartialOrd, Ord, Hash, Sequence, derive_more::Display,
-)]
-#[non_exhaustive]
-#[repr(u32)]
-pub enum ProgramRentError {
-    /// The error occurs when program's paid block count is maximum.
-    #[display(fmt = "Rent block count limit has been reached")]
-    MaximumBlockCountPaid = 600,
-}
-
 /// An error occurred in API.
 #[derive(
     Debug,
@@ -232,10 +220,6 @@ pub enum ExtError {
     #[display(fmt = "Reservation error: {_0}")]
     Reservation(ReservationError),
 
-    /// Program rent error.
-    #[display(fmt = "Program rent error: {_0}")]
-    ProgramRent(ProgramRentError),
-
     /// There is a new error variant old program don't support.
     Unsupported,
 }
@@ -248,7 +232,6 @@ impl ExtError {
             ExtError::Memory(err) => err as u32,
             ExtError::Message(err) => err as u32,
             ExtError::Reservation(err) => err as u32,
-            ExtError::ProgramRent(err) => err as u32,
             ExtError::Unsupported => u32::MAX,
         }
     }
@@ -287,9 +270,8 @@ impl ExtError {
             503 => Some(ReservationError::ZeroReservationAmount.into()),
             504 => Some(ReservationError::ReservationBelowMailboxThreshold.into()),
             //
-            600 => Some(ProgramRentError::MaximumBlockCountPaid.into()),
-            //
             0xffff /* SyscallUsage */ |
+            600 /* ProgramRent(ProgramRentError::MaximumBlockCountPaid) */ |
             u32::MAX => Some(ExtError::Unsupported),
             _ => None,
         }
@@ -360,7 +342,10 @@ mod tests {
     /// if we accidentally re-use such codes
     #[test]
     fn error_codes_forbidden() {
-        let codes = [0xffff /* SyscallUsage */];
+        let codes = [
+            0xffff, /* SyscallUsage */
+            600,    /* ProgramRent(ProgramRentError::MaximumBlockCountPaid) */
+        ];
 
         // check forbidden code is `Unsupported` variant now
         for code in codes {

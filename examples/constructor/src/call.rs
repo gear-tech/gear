@@ -43,6 +43,7 @@ pub enum Call {
     MessageId,
     Loop,
     SystemReserveGas(Arg<u64>),
+    WriteN(Arg<u64>),
 }
 
 #[cfg(not(feature = "wasm-wrapper"))]
@@ -331,6 +332,19 @@ mod wasm {
             None
         }
 
+        fn write_n(self) -> Option<Vec<u8>> {
+            let Self::WriteN(count) = self else {
+                unreachable!()
+            };
+
+            let end = count.value();
+            for i in 0_u64..end {
+                unsafe { DATA.insert("last_written_n".into(), i.encode()) };
+            }
+
+            None
+        }
+
         pub(crate) fn process(self, previous: Option<CallResult>) -> CallResult {
             debug!("\t[CONSTRUCTOR] >> Processing {self:?}");
             let call = self.clone();
@@ -362,6 +376,7 @@ mod wasm {
                 #[allow(clippy::empty_loop)]
                 Call::Loop => loop {},
                 Call::SystemReserveGas(..) => self.system_reserve_gas(),
+                Call::WriteN(..) => self.write_n(),
             };
 
             (call, value)

@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -285,21 +285,16 @@ fn sudo_call_to_scale_value(call: SudoCall) -> Value {
 
 fn balances_call_to_scale_value(call: BalancesCall) -> Value {
     let variant = match call {
-        BalancesCall::set_balance {
-            who,
-            new_free,
-            new_reserved,
-        } => {
+        BalancesCall::force_set_balance { who, new_free } => {
             let id = match who {
                 MultiAddress::Id(id) => id,
                 _ => unreachable!("internal error: unused multi-address variant occurred"),
             };
             Value::named_variant(
-                "set_balance",
+                "force_set_balance",
                 [
                     ("who", Value::unnamed_variant("Id", [Value::from_bytes(id)])),
                     ("new_free", Value::u128(new_free)),
-                    ("new_reserved", Value::u128(new_reserved)),
                 ],
             )
         }

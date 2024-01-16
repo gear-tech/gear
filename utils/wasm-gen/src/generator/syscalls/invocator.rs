@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -20,9 +20,8 @@
 
 use crate::{
     generator::{
-        CallIndexes, CallIndexesHandle, DisabledAdditionalDataInjector,
-        DisabledSyscallsImportsGenerator, FunctionIndex, ModuleWithCallIndexes,
-        SyscallsImportsGenerationProof,
+        CallIndexes, CallIndexesHandle, DisabledAdditionalDataInjector, FunctionIndex,
+        ModuleWithCallIndexes,
     },
     utils::{self, WasmWords},
     wasm::{PageCount as WasmPageCount, WasmModule},
@@ -133,32 +132,6 @@ pub struct SyscallsInvocator<'a, 'b> {
 
 impl<'a, 'b> From<DisabledAdditionalDataInjector<'a, 'b>> for SyscallsInvocator<'a, 'b> {
     fn from(disabled_gen: DisabledAdditionalDataInjector<'a, 'b>) -> Self {
-        Self {
-            unstructured: disabled_gen.unstructured,
-            call_indexes: disabled_gen.call_indexes,
-            module: disabled_gen.module,
-            config: disabled_gen.config,
-            syscalls_imports: disabled_gen.syscalls_imports,
-        }
-    }
-}
-
-impl<'a, 'b>
-    From<(
-        DisabledSyscallsImportsGenerator<'a, 'b>,
-        SyscallsImportsGenerationProof,
-    )> for SyscallsInvocator<'a, 'b>
-{
-    fn from(
-        (disabled_gen, _syscalls_gen_proof): (
-            DisabledSyscallsImportsGenerator<'a, 'b>,
-            SyscallsImportsGenerationProof,
-        ),
-    ) -> Self {
-        let data_offset = disabled_gen
-            .module
-            .get_stack_end_offset()
-            .unwrap_or_default();
         Self {
             unstructured: disabled_gen.unstructured,
             call_indexes: disabled_gen.call_indexes,
@@ -621,7 +594,7 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
         fallible_signature: FallibleSyscallSignature,
         param_instructions: Vec<ParamInstructions>,
     ) -> Vec<Instruction> {
-        static_assertions::assert_eq_size!(gsys::ErrorCode, u32);
+        const _: () = assert!(mem::size_of::<gsys::ErrorCode>() == mem::size_of::<u32>());
         let no_error_val = gsys::ErrorCode::default() as i32;
 
         assert_eq!(

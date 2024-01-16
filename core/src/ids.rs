@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022-2023 Gear Technologies Inc.
+// Copyright (C) 2022-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -21,13 +21,16 @@
 use blake2_rfc::blake2b;
 use core::convert::TryInto;
 
-const HASH_LENGTH: usize = 32;
-type Hash = [u8; HASH_LENGTH];
+/// Hash length used in gear protocol.
+pub const HASH_LENGTH: usize = 32;
+
+/// Hash type used in gear protocol.
+pub type Hash = [u8; HASH_LENGTH];
 
 /// Creates a unique identifier by passing given argument to blake2b hash-function.
 ///
 /// # SAFETY: DO NOT ADJUST HASH FUNCTION, BECAUSE MESSAGE ID IS SENSITIVE FOR IT.
-fn hash(argument: &[u8]) -> Hash {
+pub fn hash(argument: &[u8]) -> Hash {
     let blake2b_hash = blake2b::blake2b(HASH_LENGTH, &[], argument);
 
     blake2b_hash
@@ -38,6 +41,7 @@ fn hash(argument: &[u8]) -> Hash {
 
 /// Declares data type for storing any kind of id for gear-core,
 /// which stores 32 bytes under the hood.
+#[macro_export]
 macro_rules! declare_id {
     ($name:ident: $doc: literal) => {
         #[doc=$doc]
@@ -56,17 +60,24 @@ macro_rules! declare_id {
             derive_more::From,
             scale_info::TypeInfo,
         )]
-        pub struct $name(Hash);
+        pub struct $name($crate::ids::Hash);
 
         impl $name {
+            /// Creates new id.
+            ///
+            /// Never use it in production!
+            pub const fn test_new(hash: $crate::ids::Hash) -> Self {
+                Self(hash)
+            }
+
             /// Returns id as bytes array.
-            pub fn into_bytes(self) -> Hash {
+            pub fn into_bytes(self) -> $crate::ids::Hash {
                 self.0
             }
         }
 
-        impl From<$name> for Hash {
-            fn from(val: $name) -> Hash {
+        impl From<$name> for $crate::ids::Hash {
+            fn from(val: $name) -> $crate::ids::Hash {
                 val.0
             }
         }
@@ -93,11 +104,11 @@ macro_rules! declare_id {
 
         impl From<&[u8]> for $name {
             fn from(slice: &[u8]) -> Self {
-                if slice.len() != HASH_LENGTH {
+                if slice.len() != $crate::ids::HASH_LENGTH {
                     panic!("Identifier must be 32 length");
                 }
 
-                let mut arr: Hash = Default::default();
+                let mut arr: $crate::ids::Hash = Default::default();
                 arr[..].copy_from_slice(slice);
 
                 Self(arr)
