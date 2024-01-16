@@ -17,16 +17,13 @@ env:
 
 jobs:
   status:
+    runs-on: ubuntu-latest
     steps:
-      - name: Install deps for the message action.
-        run: npm install
+      - run: npm install
         working-directory: .github/actions/message
 
       - name: Configure
         id: config
-        with:
-          head-sha: ${{ inputs.sha }}
-          message: ${{ steps.commit-message.outputs.message }}
         uses: ./.github/actions/message
 
   check:
@@ -34,12 +31,12 @@ jobs:
     if: ${{ needs.status.outputs.check }}
     uses: ./.github/workflows/check.yml
     with:
-      cache: ${{ needs.status.outputs.cache }}
+      cache: ${{ needs.status.steps.config.outputs.cache }}
 
   build:
     needs: status
     if: ${{ needs.status.outputs.build }}
     uses: ./.github/workflows/build.yml
     with:
-      cache: ${{ needs.status.outputs.cache }}
-      macos: ${{ needs.status.outputs.macos }}
+      cache: ${{ needs.status.steps.config.outputs.cache }}
+      macos: ${{ needs.status.steps.config.outputs.macos }}
