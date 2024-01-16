@@ -20,8 +20,8 @@ mod builder;
 mod lock;
 
 use crate::{
-    builder::BuildPackages,
-    lock::{BuilderLockFile, DemoLockFile, DemoLockFileConfig},
+    builder::{BuildPackage, BuildPackages},
+    lock::{BuilderLockFile, BuilderLockFileConfig, DemoLockFile, DemoLockFileConfig},
 };
 use cargo_metadata::MetadataCommand;
 use globset::{Glob, GlobSet};
@@ -221,17 +221,18 @@ pub fn builder() {
     println!("cargo:rerun-if-changed={}", cargo_toml.display());
 
     let metadata = MetadataCommand::new().no_deps().exec().unwrap();
-    let package = metadata
+    let pkg = metadata
         .packages
         .iter()
         .find(|package| package.name == pkg_name)
         .unwrap();
 
-    let builder_metadata = BuilderMetadata::from_value(package.metadata.clone());
+    let builder_metadata = BuilderMetadata::from_value(pkg.metadata.clone());
 
     let mut packages = BuildPackages::default();
+    let mut locks = Vec::new();
 
-    for dep in package
+    for dep in pkg
         .dependencies
         .iter()
         .filter(|dep| builder_metadata.filter_dep(&dep.name))
@@ -261,12 +262,28 @@ pub fn builder() {
 
         let lock = lock::file_path(&dep.name);
         println!("cargo:rerun-if-changed={}", lock.display());
-        let lock = BuilderLockFile::open(&dep.name);
-        packages.insert(pkg, lock, demo_metadata.exclude_features);
+        let mut lock = BuilderLockFile::open(&dep.name);
+
+        let lock_config = lock.read();
+        let build_pkg = BuildPackage::new(pkg, lock_config, demo_metadata.exclude_features);
+
+        let features = build_pkg.features();
+        locks.push((
+            lock,
+            BuilderLockFileConfig {
+                features: features.clone(),
+            },
+        ));
+
+        packages.insert(build_pkg);
     }
 
     println!("cargo:warning={:?}", packages);
     packages.build();
+
+    for (mut lock, config) in locks {
+        lock.write(config);
+    }
 
     let wasm_binaries = packages.wasm_binaries();
     fs::write(out_dir.join("wasm_binaries.rs"), wasm_binaries).unwrap();

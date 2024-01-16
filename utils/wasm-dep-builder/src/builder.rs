@@ -18,7 +18,7 @@
 
 use crate::{
     get_no_build_env,
-    lock::{BuilderLockFile, BuilderLockFileConfig, DemoLockFileConfig, LockFileConfig},
+    lock::{BuilderLockFileConfig, DemoLockFileConfig, LockFileConfig},
     profile, wasm32_target_dir, wasm_projects_dir, UnderscoreString, NO_BUILD_INNER_ENV,
 };
 use cargo_metadata::Package;
@@ -26,14 +26,7 @@ use gear_wasm_builder::{
     optimize,
     optimize::{OptType, Optimizer},
 };
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    env,
-    fmt::Write,
-    fs,
-    path::PathBuf,
-    process::Command,
-};
+use std::{collections::BTreeSet, env, fmt::Write, fs, path::PathBuf, process::Command};
 
 const DEFAULT_EXCLUDED_FEATURES: [&str; 3] = ["default", "std", "wasm-wrapper"];
 
@@ -44,21 +37,21 @@ enum RebuildKind {
 }
 
 #[derive(Debug)]
-struct BuildPackage {
+pub struct BuildPackage {
+    name: UnderscoreString,
     rebuild_kind: RebuildKind,
     features: BTreeSet<String>,
-    lock: BuilderLockFile,
 }
 
 impl BuildPackage {
-    fn new(pkg: &Package, mut lock: BuilderLockFile, excluded_features: BTreeSet<String>) -> Self {
-        let config = lock.read();
+    pub fn new(pkg: &Package, config: LockFileConfig, excluded_features: BTreeSet<String>) -> Self {
+        let name = UnderscoreString(pkg.name.clone());
         let (rebuild_kind, features) = Self::resolve_features(pkg, config, excluded_features);
 
         Self {
+            name,
             rebuild_kind,
             features,
-            lock,
         }
     }
 
@@ -98,9 +91,13 @@ impl BuildPackage {
         }
     }
 
-    fn wasm_paths(pkg_name: &UnderscoreString) -> (PathBuf, PathBuf) {
+    pub fn features(&self) -> &BTreeSet<String> {
+        &self.features
+    }
+
+    fn wasm_paths(&self) -> (PathBuf, PathBuf) {
         let wasm32_target_dir = wasm32_target_dir().join(profile());
-        let wasm = wasm32_target_dir.join(format!("{pkg_name}.wasm"));
+        let wasm = wasm32_target_dir.join(format!("{}.wasm", self.name));
         let mut wasm_opt = wasm.clone();
         wasm_opt.set_extension("opt.wasm");
         (wasm, wasm_opt)
@@ -111,8 +108,8 @@ impl BuildPackage {
         path.display().to_string().replace('\\', "/")
     }
 
-    fn cargo_args(&self, pkg_name: &UnderscoreString) -> impl Iterator<Item = String> {
-        let pkg_name = pkg_name.original().clone();
+    fn cargo_args(&self) -> impl Iterator<Item = String> {
+        let pkg_name = self.name.original().clone();
         let features = self
             .features
             .iter()
@@ -129,14 +126,17 @@ impl BuildPackage {
         .into_iter()
     }
 
-    fn optimize(&self, pkg_name: &UnderscoreString) {
-        let (wasm, wasm_opt) = Self::wasm_paths(pkg_name);
+    fn optimize(&self) {
+        let (wasm, wasm_opt) = self.wasm_paths();
 
         optimize::optimize_wasm(wasm.clone(), wasm_opt.clone(), "4", true).unwrap();
 
         let mut optimizer = Optimizer::new(wasm_opt.clone()).unwrap();
         optimizer.insert_stack_end_export().unwrap_or_else(|err| {
-            println!("cargo:warning=Cannot insert stack end export into `{pkg_name}`: {err}")
+            println!(
+                "cargo:warning=Cannot insert stack end export into `{}`: {err}",
+                self.name.original()
+            )
         });
         optimizer.strip_custom_sections();
 
@@ -144,18 +144,12 @@ impl BuildPackage {
         fs::write(&wasm_opt, binary_opt).unwrap();
     }
 
-    fn write_config(&mut self) {
-        let config = BuilderLockFileConfig {
-            features: self.features.clone(),
-        };
-        self.lock.write(config);
-    }
-
-    fn write_rust_mod(&self, pkg_name: &UnderscoreString, output: &mut String) {
+    fn write_rust_mod(&self, output: &mut String) {
+        let pkg_name = &self.name;
         let (wasm_bloaty, wasm) = if get_no_build_env() {
             ("&[]".to_string(), "&[]".to_string())
         } else {
-            let (wasm_bloaty, wasm) = Self::wasm_paths(pkg_name);
+            let (wasm_bloaty, wasm) = self.wasm_paths();
             (
                 format!(r#"include_bytes!("{}")"#, Self::to_unix_path(wasm_bloaty)),
                 format!(r#"include_bytes!("{}")"#, Self::to_unix_path(wasm)),
@@ -178,32 +172,22 @@ pub mod {pkg_name} {{
 
 #[derive(Debug, Default)]
 pub struct BuildPackages {
-    packages: BTreeMap<UnderscoreString, BuildPackage>,
+    packages: Vec<BuildPackage>,
 }
 
 impl BuildPackages {
-    pub fn insert(
-        &mut self,
-        pkg: &Package,
-        lock: BuilderLockFile,
-        excluded_features: BTreeSet<String>,
-    ) {
-        self.packages.insert(
-            UnderscoreString(pkg.name.clone()),
-            BuildPackage::new(pkg, lock, excluded_features),
-        );
+    pub fn insert(&mut self, build_pkg: BuildPackage) {
+        self.packages.push(build_pkg);
     }
 
     fn rebuild_required(&self) -> bool {
         self.packages
-            .values()
+            .iter()
             .any(|pkg| pkg.rebuild_kind == RebuildKind::Dirty)
     }
 
     fn cargo_args(&self) -> impl Iterator<Item = String> + '_ {
-        self.packages
-            .iter()
-            .flat_map(|(pkg_name, pkg)| pkg.cargo_args(pkg_name))
+        self.packages.iter().flat_map(BuildPackage::cargo_args)
     }
 
     fn cargo_profile(&self) -> String {
@@ -238,21 +222,17 @@ impl BuildPackages {
         let output = cargo.output().expect("Failed to execute cargo command");
         assert!(output.status.success());
 
-        for (name, pkg) in &mut self.packages {
+        for pkg in &mut self.packages {
             if pkg.rebuild_kind == RebuildKind::Dirty {
-                pkg.optimize(name);
+                pkg.optimize();
             }
-
-            pkg.write_config();
         }
     }
 
     pub fn wasm_binaries(&self) -> String {
-        self.packages
-            .iter()
-            .fold(String::new(), |mut output, (pkg_name, pkg)| {
-                pkg.write_rust_mod(pkg_name, &mut output);
-                output
-            })
+        self.packages.iter().fold(String::new(), |mut output, pkg| {
+            pkg.write_rust_mod(&mut output);
+            output
+        })
     }
 }
