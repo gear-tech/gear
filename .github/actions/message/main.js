@@ -44,11 +44,12 @@ async function mock(head_sha) {
  * Main function.
  */
 async function main() {
+  console.log(github.context.payload);
+  console.log(JSON.stringify(github.context.payload, null, 2));
   const {
-    title,
-    pull_request: { head: { sha }, labels: _labels },
+    pull_request: { head: { sha }, labels: _labels, title },
     repository: { full_name: fullName }
-  } = JSON.parse(JSON.stringify(github.context.payload));
+  } = github.context.payload;
   const labels = _labels.map(l => l.name);
   const message = ps.execSync(`git log --format=%B -n 1 ${sha}`, { encoding: "utf-8" }).trim();
 
