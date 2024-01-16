@@ -35,7 +35,7 @@ jobs:
         run: echo "message=$(git show -s --format=%s)"
 
       - name: Install deps for the message action.
-        run: npm install --production
+        run: npm install
         working-directory: .github/actions/message
 
       - name: Configure

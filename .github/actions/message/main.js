@@ -61,6 +61,7 @@ async function mock(head_sha) {
  * Main function.
  */
 async function main() {
+  console.log("payload: ", JSON.stringify(github.context.payload, null, 2));
   const message = core.getInput("message");
   core.info("message: ", message);
   const issue = core.getInput("issue");
