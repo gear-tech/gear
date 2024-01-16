@@ -11,6 +11,8 @@ outputs:
     description: "If enable cache."
   check:
     description: "If trigger step check."
+  macos:
+    description: "If enable macos."
 ```
 
 ### Skip CI
@@ -41,16 +43,9 @@ pull request:
 
 ```yaml
 steps:
-  - name: Get Commit Message
-    id: commit-message
-    run: echo "message=$(git show -s --format=%s)"
   - uses: ./.github/actions/message
     with:
-      full-name: ${{ github.event.pull_request.head.repo.full_name }}
-      head-sha: ${{ github.event.pull_request.head.sha }}
-      issue: ${{ github.event.number }}
-      message: ${{ steps.commit-message.message }}
-      title: ${{ github.event.pull_request.title }}
+      token: ${{ secrets.GITHUB_TOKEN }}
 ```
 
 ## LICENSE

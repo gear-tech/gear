@@ -5,6 +5,15 @@ inputs:
   token:
     description: "The github token."
     required: true
+outputs:
+  build:
+    description: "If trigger step build."
+  cache:
+    description: "If enable cache."
+  check:
+    description: "If trigger step check."
+  macos:
+    description: "If enable macos."
 
 runs:
   using: "node20"
