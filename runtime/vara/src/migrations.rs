@@ -97,6 +97,6 @@ pub type Migrations = (
     pallet_offences::migration::v1::MigrateToV1<Runtime>,
     // v1040
     pallet_im_online::migration::v1::Migration<Runtime>,
-    // unreleased
+    // v1050
     pallet_gear_program::migrations::MigrateToV3<Runtime>,
 );
