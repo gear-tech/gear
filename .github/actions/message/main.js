@@ -48,7 +48,7 @@ async function main() {
     title,
     pull_request: { head: { sha }, labels: _labels },
     repository: { full_name: fullName }
-  } = github.context.payload;
+  } = JSON.parse(JSON.stringify(github.context.payload));
   const labels = _labels.map(l => l.name);
   const message = ps.execSync(`git log --format=%B -n 1 ${sha}`, { encoding: "utf-8" }).trim();
 
@@ -56,9 +56,9 @@ async function main() {
   core.info("head-sha: ", sha);
   core.info("title: ", title);
   core.info("full name: ", fullName);
+  core.info("labels: ", labels);
 
   // Calculate configurations.
-
   const isDepbot = fullName === `${owner}/${repo}` && title.includes(DEPBOT);
   const skipCache = [title, message].some(s => s.includes(SKIP_CACHE));
   const skipCI = [title, message].some(s => s.includes(SKIP_CI));
