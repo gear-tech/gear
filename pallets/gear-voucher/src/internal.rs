@@ -105,7 +105,7 @@ impl<T: Config> Pallet<T> {
         Ok(())
     }
 
-    /// Return destination program of the [`PrepaidCall`].
+    /// Return destination program of the [`PrepaidCall`], if exists.
     pub fn prepaid_call_destination(
         who: &T::AccountId,
         call: &PrepaidCall<BalanceOf<T>>,
@@ -115,6 +115,7 @@ impl<T: Config> Pallet<T> {
             PrepaidCall::SendReply { reply_to_id, .. } => {
                 T::Mailbox::peek(who, reply_to_id).map(|stored_message| stored_message.source())
             }
+            PrepaidCall::UploadCode { .. } => None,
         }
     }
 }
@@ -198,5 +199,13 @@ pub enum PrepaidCall<Balance> {
         gas_limit: u64,
         value: Balance,
         keep_alive: bool,
+    },
+    // TODO (breathx): add processing for it [DONE]
+    // TODO (breathx): add bool flag for voucher
+    // TODO (breathx): add bool to `Pallet::issue` and `Pallet::update`
+    // TODO (breathx): add validation for call from voucher: `voucher.whitelists(&prepaid_call)`
+    // TODO (breathx): forbid for `Pallet::call_deprecated`
+    UploadCode {
+        code: Vec<u8>,
     },
 }
