@@ -338,17 +338,22 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
 
             let upper_limit = mem_size.saturating_sub(1) as i32;
             let wait_called_ptr = upper_limit.saturating_sub(50);
+            let init_called_ptr = wait_called_ptr + mem::size_of::<bool>() as i32;
 
             // add instructions before calling wait syscall
             instructions.splice(
                 0..0,
                 [
+                    Instruction::I32Const(init_called_ptr),
+                    Instruction::I32Load8U(0, 0),
+                    // if *init_called_ptr { .. }
+                    Instruction::If(BlockType::NoResult),
                     Instruction::I32Const(wait_called_ptr),
                     Instruction::I32Load(2, 0),
                     Instruction::I32Const(wait_frequency as i32),
                     Instruction::I32RemU,
-                    Instruction::I32Const(1),
-                    Instruction::I32Eq,
+                    Instruction::I32Eqz,
+                    // if *wait_called_ptr % wait_frequency == 0 { orig_wait_syscall(); }
                     Instruction::If(BlockType::NoResult),
                 ],
             );
@@ -356,12 +361,14 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
             // add instructions after calling wait syscall
             instructions.extend_from_slice(&[
                 Instruction::End,
+                // *wait_called_ptr += 1
                 Instruction::I32Const(wait_called_ptr),
                 Instruction::I32Const(wait_called_ptr),
                 Instruction::I32Load(2, 0),
                 Instruction::I32Const(1),
                 Instruction::I32Add,
                 Instruction::I32Store(2, 0),
+                Instruction::End,
             ]);
         }
 

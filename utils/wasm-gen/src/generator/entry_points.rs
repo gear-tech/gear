@@ -20,13 +20,15 @@
 
 use crate::{
     generator::{CallIndexes, FrozenGearWasmGenerator, GearWasmGenerator, ModuleWithCallIndexes},
-    EntryPointsSet, WasmModule,
+    wasm::{PageCount as WasmPageCount, WasmModule},
+    EntryPointsSet,
 };
 use arbitrary::{Result, Unstructured};
 use gear_wasm_instrument::parity_wasm::{
     builder,
     elements::{FunctionType, Instruction, Instructions, Type, ValueType},
 };
+use std::mem;
 
 /// Gear wasm entry points generator.
 ///
@@ -164,8 +166,31 @@ impl<'a, 'b> EntryPointsGenerator<'a, 'b> {
             (module, func_type)
         });
 
-        let export_body_instructions =
+        let mut export_body_instructions =
             self.generate_export_body(export_body_call_idx, export_body_call_func_type)?;
+
+        // after initializing the program, we will write about this in a special pointer
+        if name == "init" {
+            if let Some(memory_size_pages) = self.module.initial_mem_size() {
+                let mem_size = Into::<WasmPageCount>::into(memory_size_pages).memory_size();
+
+                let upper_limit = mem_size.saturating_sub(1) as i32;
+                let wait_called_ptr = upper_limit.saturating_sub(50);
+                let init_called_ptr = wait_called_ptr + mem::size_of::<bool>() as i32;
+
+                let end_instruction = export_body_instructions.pop();
+                export_body_instructions.extend_from_slice(&[
+                    // *init_called_ptr = true
+                    Instruction::I32Const(init_called_ptr),
+                    Instruction::I32Const(1),
+                    Instruction::I32Store8(0, 0),
+                ]);
+                if let Some(end_instruction) = end_instruction {
+                    export_body_instructions.push(end_instruction);
+                }
+            }
+        }
+
         self.module.with(|module| {
             let module = builder::from_module(module)
                 .function()
