@@ -48,7 +48,7 @@ async function main() {
     title,
     pull_request: { head: sha, labels: _labels },
     repository: { full_name: fullName }
-  } = JSON.parse(github.context.payload);
+  } = github.context.payload;
   const labels = _labels.map(l => l.name);
   const message = ps.execSync(`git log --format=%B -n 1 ${sha}`, { encoding: "utf-8" }).trim();
 
