@@ -45,9 +45,8 @@ async function mock(head_sha) {
  */
 async function main() {
   console.log(github.context.payload);
-  console.log(JSON.stringify(github.context.payload, null, 2));
   const {
-    pull_request: { head: { sha }, labels: _labels, title },
+    pull_request: { title, head: { sha, ref: branch }, labels: _labels },
     repository: { full_name: fullName }
   } = github.context.payload;
   const labels = _labels.map(l => l.name);
@@ -56,7 +55,11 @@ async function main() {
   core.info("message: ", message);
   core.info("head-sha: ", sha);
   core.info("title: ", title);
+  core.info("derive-title: ", github.context.payload.pull_request.title);
+  core.info("json-title: ", JSON.stringify(github.context.payload.pull_request.title));
   core.info("full name: ", fullName);
+  core.info("api-full-name: ", github.context.payload.repository.full_name);
+  core.info("json-full-name: ", JSON.stringify(github.context.payload.repository.full_name));
   core.info("labels: ", labels);
 
   // Calculate configurations.
@@ -64,7 +67,6 @@ async function main() {
   const skipCache = [title, message].some(s => s.includes(SKIP_CACHE));
   const skipCI = [title, message].some(s => s.includes(SKIP_CI));
   const build = !skipCI && (isDepbot || BUILD_LABELS.some(label => labels.includes(label)));
-  const branch = github.context.payload.repository.ref;
 
   // Set outputs
   core.setOutput("build", build);
