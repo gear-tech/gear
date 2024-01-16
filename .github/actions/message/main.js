@@ -25,8 +25,10 @@ const [owner, repo] = ["gear-tech", "gear"];
  * @returns {Promise<void>}
  */
 async function mock(head_sha) {
+  const token = core.getInput("token");
+  const octokit = github.getOctokit(token);
   for (check of CHECKS) {
-    const { data: res } = await github.rest.checks.create({
+    const { data: res } = await octokit.rest.checks.create({
       owner,
       repo,
       name: `${check} / linux`,
@@ -44,7 +46,6 @@ async function mock(head_sha) {
  * Main function.
  */
 async function main() {
-
   const {
     pull_request: { title, head: { sha, ref: branch }, labels: _labels },
     repository: { full_name: fullName }
@@ -52,20 +53,20 @@ async function main() {
   const labels = _labels.map(l => l.name);
   const message = ps.execSync(`git log --format=%B -n 1 ${sha}`, { encoding: "utf-8" }).trim();
 
-  core.info("message: ", message);
-  core.info("head-sha: ", sha);
-  core.info("title: ", title);
-  core.info("derive-title: ", github.context.payload.pull_request.title);
-  core.info("json-title: ", JSON.stringify(github.context.payload.pull_request.title));
-  core.info("full name: ", fullName);
-  core.info("api-full-name: ", github.context.payload.repository.full_name);
-  core.info("json-full-name: ", JSON.stringify(github.context.payload.repository.full_name));
-  core.info("labels: ", labels);
-  core.info("payload: ", github.context.payload);
-  core.info("pull_request: ", github.context.payload.pull_request);
-  core.info("json_pull_request: ", JSON.stringify(github.context.payload.pull_request));
-  core.info("repo: ", github.context.payload.repository);
-  core.info("json_repo: ", JSON.stringify(github.context.payload.repository));
+  console.log("message: ", message);
+  console.log("head-sha: ", sha);
+  console.log("title: ", title);
+  console.log("derive-title: ", github.context.payload.pull_request.title);
+  console.log("json-title: ", JSON.stringify(github.context.payload.pull_request.title));
+  console.log("full name: ", fullName);
+  console.log("api-full-name: ", github.context.payload.repository.full_name);
+  console.log("json-full-name: ", JSON.stringify(github.context.payload.repository.full_name));
+  console.log("labels: ", labels);
+  console.log("payload: ", github.context.payload);
+  console.log("pull_request: ", github.context.payload.pull_request);
+  console.log("json_pull_request: ", JSON.stringify(github.context.payload.pull_request));
+  console.log("repo: ", github.context.payload.repository);
+  console.log("json_repo: ", JSON.stringify(github.context.payload.repository));
 
   // Calculate configurations.
   const isDepbot = fullName === `${owner}/${repo}` && title.includes(DEPBOT);

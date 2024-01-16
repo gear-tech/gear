@@ -29,6 +29,8 @@ jobs:
       - name: Configure
         id: config
         uses: ./.github/actions/message
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
   check:
     needs: status

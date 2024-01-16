@@ -2,11 +2,8 @@ name: "Status Check"
 description: "Produce configuration from commit message."
 
 inputs:
-  message:
-    description: "The latest commit message."
-    required: true
-  head-sha:
-    description: "The head sha of the current commit."
+  token:
+    description: "The github token."
     required: true
 
 runs:
