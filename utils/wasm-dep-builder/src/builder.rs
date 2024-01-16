@@ -106,6 +106,11 @@ impl BuildPackage {
         (wasm, wasm_opt)
     }
 
+    fn to_unix_path(path: PathBuf) -> String {
+        // Windows uses `\\` path delimiter which cannot be used in `include_*` Rust macros
+        path.display().to_string().replace('\\', "/")
+    }
+
     fn cargo_args(&self, pkg_name: &UnderscoreString) -> impl Iterator<Item = String> {
         let pkg_name = pkg_name.original().clone();
         let features = self
@@ -152,8 +157,8 @@ impl BuildPackage {
         } else {
             let (wasm_bloaty, wasm) = Self::wasm_paths(pkg_name);
             (
-                format!(r#"include_bytes!("{}")"#, wasm_bloaty.display()),
-                format!(r#"include_bytes!("{}")"#, wasm.display()),
+                format!(r#"include_bytes!("{}")"#, Self::to_unix_path(wasm_bloaty)),
+                format!(r#"include_bytes!("{}")"#, Self::to_unix_path(wasm)),
             )
         };
 
@@ -201,6 +206,15 @@ impl BuildPackages {
             .flat_map(|(pkg_name, pkg)| pkg.cargo_args(pkg_name))
     }
 
+    fn cargo_profile(&self) -> String {
+        let profile = profile();
+        if profile == "debug" {
+            "dev".to_string()
+        } else {
+            profile
+        }
+    }
+
     pub fn build(&mut self) {
         if get_no_build_env() || !self.rebuild_required() {
             println!("cargo:warning=Build skipped");
@@ -214,7 +228,7 @@ impl BuildPackages {
             .arg("--no-default-features")
             .args(self.cargo_args())
             .arg("--profile")
-            .arg(profile().replace("debug", "dev"))
+            .arg(self.cargo_profile())
             .env(NO_BUILD_INNER_ENV, "1")
             .env("CARGO_BUILD_TARGET", "wasm32-unknown-unknown")
             .env("CARGO_TARGET_DIR", wasm_projects_dir())
