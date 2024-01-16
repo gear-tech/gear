@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -354,10 +354,22 @@ where
 /// Trait that the RuntimeApi should implement in order to allow deconstruction and reconstruction
 /// to and from its components.
 #[cfg(any(feature = "std", test))]
-pub trait Deconstructable<C> {
+pub trait Deconstructable<Call> {
     type Params: Send;
 
-    fn into_parts(self) -> (&'static C, Self::Params);
+    fn into_parts(self) -> (&'static Call, Self::Params);
 
-    fn from_parts(call: &C, params: Self::Params) -> Self;
+    fn from_parts(call: &Call, params: Self::Params) -> Self;
+}
+
+/// Trait that is used to "delegate fee" by optionally changing
+/// the payer target (account id) for the applied call.
+pub trait DelegateFee<Call, Acc> {
+    fn delegate_fee(call: &Call, who: &Acc) -> Option<Acc>;
+}
+
+impl<Call, Acc> DelegateFee<Call, Acc> for () {
+    fn delegate_fee(_call: &Call, _who: &Acc) -> Option<Acc> {
+        None
+    }
 }

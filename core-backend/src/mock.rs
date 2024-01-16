@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022-2023 Gear Technologies Inc.
+// Copyright (C) 2022-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -184,13 +184,6 @@ impl Externalities for MockExt {
     }
     fn message_id(&self) -> Result<MessageId, Self::UnrecoverableError> {
         Ok(0.into())
-    }
-    fn pay_program_rent(
-        &mut self,
-        _program_id: ProgramId,
-        _rent: u128,
-    ) -> Result<(u128, u32), Self::UnrecoverableError> {
-        Ok((0, 0))
     }
     fn program_id(&self) -> Result<ProgramId, Self::UnrecoverableError> {
         Ok(0.into())

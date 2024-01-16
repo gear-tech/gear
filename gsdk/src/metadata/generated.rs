@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -2141,34 +2141,6 @@ pub mod runtime_types {
                     #[codec(index = 7)]
                     #[doc = "See [`Pallet::set_execute_inherent`]."]
                     set_execute_inherent { value: ::core::primitive::bool },
-                    #[codec(index = 8)]
-                    #[doc = "See [`Pallet::pay_program_rent`]."]
-                    pay_program_rent {
-                        program_id: runtime_types::gear_core::ids::ProgramId,
-                        block_count: ::core::primitive::u32,
-                    },
-                    #[codec(index = 9)]
-                    #[doc = "See [`Pallet::resume_session_init`]."]
-                    resume_session_init {
-                        program_id: runtime_types::gear_core::ids::ProgramId,
-                        allocations: ::std::vec::Vec<runtime_types::gear_core::pages::WasmPage>,
-                        code_hash: runtime_types::gear_core::ids::CodeId,
-                    },
-                    #[codec(index = 10)]
-                    #[doc = "See [`Pallet::resume_session_push`]."]
-                    resume_session_push {
-                        session_id: ::core::primitive::u32,
-                        memory_pages: ::std::vec::Vec<(
-                            runtime_types::gear_core::pages::GearPage,
-                            runtime_types::gear_core::memory::PageBuf,
-                        )>,
-                    },
-                    #[codec(index = 11)]
-                    #[doc = "See [`Pallet::resume_session_commit`]."]
-                    resume_session_commit {
-                        session_id: ::core::primitive::u32,
-                        block_count: ::core::primitive::u32,
-                    },
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 #[doc = "The `Error` enum of this pallet."]
@@ -2346,7 +2318,6 @@ pub mod runtime_types {
                     pub gr_system_reserve_gas: runtime_types::sp_weights::weight_v2::Weight,
                     pub gr_gas_available: runtime_types::sp_weights::weight_v2::Weight,
                     pub gr_message_id: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_pay_program_rent: runtime_types::sp_weights::weight_v2::Weight,
                     pub gr_program_id: runtime_types::sp_weights::weight_v2::Weight,
                     pub gr_source: runtime_types::sp_weights::weight_v2::Weight,
                     pub gr_value: runtime_types::sp_weights::weight_v2::Weight,
@@ -2865,6 +2836,38 @@ pub mod runtime_types {
         }
         pub mod pallet_gear_voucher {
             use super::runtime_types;
+            pub mod internal {
+                use super::runtime_types;
+                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                pub enum PrepaidCall<_0> {
+                    #[codec(index = 0)]
+                    SendMessage {
+                        destination: runtime_types::gear_core::ids::ProgramId,
+                        payload: ::std::vec::Vec<::core::primitive::u8>,
+                        gas_limit: ::core::primitive::u64,
+                        value: _0,
+                        keep_alive: ::core::primitive::bool,
+                    },
+                    #[codec(index = 1)]
+                    SendReply {
+                        reply_to_id: runtime_types::gear_core::ids::MessageId,
+                        payload: ::std::vec::Vec<::core::primitive::u8>,
+                        gas_limit: ::core::primitive::u64,
+                        value: _0,
+                        keep_alive: ::core::primitive::bool,
+                    },
+                }
+                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                pub struct VoucherId(pub [::core::primitive::u8; 32usize]);
+                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                pub struct VoucherInfo<_0, _1> {
+                    pub owner: _0,
+                    pub programs: ::core::option::Option<
+                        ::std::vec::Vec<runtime_types::gear_core::ids::ProgramId>,
+                    >,
+                    pub expiry: _1,
+                }
+            }
             pub mod pallet {
                 use super::runtime_types;
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
@@ -2873,14 +2876,45 @@ pub mod runtime_types {
                     #[codec(index = 0)]
                     #[doc = "See [`Pallet::issue`]."]
                     issue {
-                        to: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
-                        program: runtime_types::gear_core::ids::ProgramId,
-                        value: ::core::primitive::u128,
+                        spender: ::subxt::utils::AccountId32,
+                        balance: ::core::primitive::u128,
+                        programs: ::core::option::Option<
+                            ::std::vec::Vec<runtime_types::gear_core::ids::ProgramId>,
+                        >,
+                        duration: ::core::primitive::u32,
                     },
                     #[codec(index = 1)]
                     #[doc = "See [`Pallet::call`]."]
                     call {
-                        call: runtime_types::pallet_gear_voucher::PrepaidCall<
+                        voucher_id: runtime_types::pallet_gear_voucher::internal::VoucherId,
+                        call: runtime_types::pallet_gear_voucher::internal::PrepaidCall<
+                            ::core::primitive::u128,
+                        >,
+                    },
+                    #[codec(index = 2)]
+                    #[doc = "See [`Pallet::revoke`]."]
+                    revoke {
+                        spender: ::subxt::utils::AccountId32,
+                        voucher_id: runtime_types::pallet_gear_voucher::internal::VoucherId,
+                    },
+                    #[codec(index = 3)]
+                    #[doc = "See [`Pallet::update`]."]
+                    update {
+                        spender: ::subxt::utils::AccountId32,
+                        voucher_id: runtime_types::pallet_gear_voucher::internal::VoucherId,
+                        move_ownership: ::core::option::Option<::subxt::utils::AccountId32>,
+                        balance_top_up: ::core::option::Option<::core::primitive::u128>,
+                        append_programs: ::core::option::Option<
+                            ::core::option::Option<
+                                ::std::vec::Vec<runtime_types::gear_core::ids::ProgramId>,
+                            >,
+                        >,
+                        prolong_duration: ::core::option::Option<::core::primitive::u32>,
+                    },
+                    #[codec(index = 4)]
+                    #[doc = "See [`Pallet::call_deprecated`]."]
+                    call_deprecated {
+                        call: runtime_types::pallet_gear_voucher::internal::PrepaidCall<
                             ::core::primitive::u128,
                         >,
                     },
@@ -2889,40 +2923,59 @@ pub mod runtime_types {
                 #[doc = "The `Error` enum of this pallet."]
                 pub enum Error {
                     #[codec(index = 0)]
-                    InsufficientBalance,
+                    #[doc = "The origin is not eligible to execute call."]
+                    BadOrigin,
                     #[codec(index = 1)]
-                    InvalidVoucher,
+                    #[doc = "Error trying transfer balance to/from voucher account."]
+                    BalanceTransfer,
+                    #[codec(index = 2)]
+                    #[doc = "Destination program is not in whitelisted set for voucher."]
+                    InappropriateDestination,
+                    #[codec(index = 3)]
+                    #[doc = "Voucher with given identifier doesn't exist for given spender id."]
+                    InexistentVoucher,
+                    #[codec(index = 4)]
+                    #[doc = "Voucher still valid and couldn't be revoked."]
+                    IrrevocableYet,
+                    #[codec(index = 5)]
+                    #[doc = "Try to whitelist more programs than allowed."]
+                    MaxProgramsLimitExceeded,
+                    #[codec(index = 6)]
+                    #[doc = "Failed to query destination of the prepaid call."]
+                    UnknownDestination,
+                    #[codec(index = 7)]
+                    #[doc = "Voucher has expired and couldn't be used."]
+                    VoucherExpired,
+                    #[codec(index = 8)]
+                    #[doc = "Voucher issue/prolongation duration out of [min; max] constants."]
+                    DurationOutOfBounds,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-                #[doc = "The `Event` enum of this pallet"]
+                #[doc = "Pallet Gear Voucher event."]
                 pub enum Event {
                     #[codec(index = 0)]
-                    #[doc = "A new voucher issued."]
+                    #[doc = "Voucher has been issued."]
                     VoucherIssued {
-                        holder: ::subxt::utils::AccountId32,
-                        program: runtime_types::gear_core::ids::ProgramId,
-                        value: ::core::primitive::u128,
+                        owner: ::subxt::utils::AccountId32,
+                        spender: ::subxt::utils::AccountId32,
+                        voucher_id: runtime_types::pallet_gear_voucher::internal::VoucherId,
+                    },
+                    #[codec(index = 1)]
+                    #[doc = "Voucher has been revoked by owner."]
+                    #[doc = ""]
+                    #[doc = "NOTE: currently means only \"refunded\"."]
+                    VoucherRevoked {
+                        spender: ::subxt::utils::AccountId32,
+                        voucher_id: runtime_types::pallet_gear_voucher::internal::VoucherId,
+                    },
+                    #[codec(index = 2)]
+                    #[doc = "Voucher has been updated."]
+                    VoucherUpdated {
+                        spender: ::subxt::utils::AccountId32,
+                        voucher_id: runtime_types::pallet_gear_voucher::internal::VoucherId,
+                        new_owner: ::core::option::Option<::subxt::utils::AccountId32>,
                     },
                 }
-            }
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-            pub enum PrepaidCall<_0> {
-                #[codec(index = 0)]
-                SendMessage {
-                    destination: runtime_types::gear_core::ids::ProgramId,
-                    payload: ::std::vec::Vec<::core::primitive::u8>,
-                    gas_limit: ::core::primitive::u64,
-                    value: _0,
-                    keep_alive: ::core::primitive::bool,
-                },
-                #[codec(index = 1)]
-                SendReply {
-                    reply_to_id: runtime_types::gear_core::ids::MessageId,
-                    payload: ::std::vec::Vec<::core::primitive::u8>,
-                    gas_limit: ::core::primitive::u64,
-                    value: _0,
-                    keep_alive: ::core::primitive::bool,
-                },
             }
         }
         pub mod pallet_grandpa {
@@ -7804,10 +7857,6 @@ pub mod calls {
         ClaimValue,
         Run,
         SetExecuteInherent,
-        PayProgramRent,
-        ResumeSessionInit,
-        ResumeSessionPush,
-        ResumeSessionCommit,
     }
     impl CallInfo for GearCall {
         const PALLET: &'static str = "Gear";
@@ -7821,10 +7870,6 @@ pub mod calls {
                 Self::ClaimValue => "claim_value",
                 Self::Run => "run",
                 Self::SetExecuteInherent => "set_execute_inherent",
-                Self::PayProgramRent => "pay_program_rent",
-                Self::ResumeSessionInit => "resume_session_init",
-                Self::ResumeSessionPush => "resume_session_push",
-                Self::ResumeSessionCommit => "resume_session_commit",
             }
         }
     }
@@ -7846,6 +7891,9 @@ pub mod calls {
     pub enum GearVoucherCall {
         Issue,
         Call,
+        Revoke,
+        Update,
+        CallDeprecated,
     }
     impl CallInfo for GearVoucherCall {
         const PALLET: &'static str = "GearVoucher";
@@ -7853,6 +7901,9 @@ pub mod calls {
             match self {
                 Self::Issue => "issue",
                 Self::Call => "call",
+                Self::Revoke => "revoke",
+                Self::Update => "update",
+                Self::CallDeprecated => "call_deprecated",
             }
         }
     }
@@ -8699,6 +8750,20 @@ pub mod storage {
             match self {
                 Self::FirstIncompleteTasksBlock => "FirstIncompleteTasksBlock",
                 Self::TaskPool => "TaskPool",
+            }
+        }
+    }
+    #[doc = "Storage of pallet `GearVoucher`."]
+    pub enum GearVoucherStorage {
+        Issued,
+        Vouchers,
+    }
+    impl StorageInfo for GearVoucherStorage {
+        const PALLET: &'static str = "GearVoucher";
+        fn storage_name(&self) -> &'static str {
+            match self {
+                Self::Issued => "Issued",
+                Self::Vouchers => "Vouchers",
             }
         }
     }

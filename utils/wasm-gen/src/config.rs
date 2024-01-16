@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -90,7 +90,7 @@
 //! [`crate::generate_gear_program_code`] or [`crate::generate_gear_program_module`])
 //! you'd need a configs bundle - type which implements [`ConfigsBundle`].
 //!
-//! There's a pre-defined one - [`ValidGearWasmConfigsBundle`], usage of which will result
+//! There's a pre-defined one - [`StandardGearWasmConfigsBundle`], usage of which will result
 //! in generation of valid (always) gear-wasm module.
 
 mod generator;

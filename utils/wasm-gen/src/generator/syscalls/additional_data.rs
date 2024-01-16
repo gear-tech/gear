@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -17,6 +17,17 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Additional data injector module.
+//!
+//! Currently it only injects data to be logged in some available
+//! gear entry point (either `init`, `handle` or `handle_reply`).
+//! The data is set in the data section, offset for this data is
+//! chosen to be after stack end offset. Storing data after stack
+//! end is a right thing, as stack end is kind of virtual stack,
+//! data of which is stored on wasm pages, but not saved after
+//! program execution. However, this data can be re-written by
+//! other instructions of the wasm module, so one should not
+//! rely on consistency of data from data section for all the wasm
+//! executions.
 
 use crate::{
     generator::{

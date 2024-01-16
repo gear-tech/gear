@@ -9,9 +9,8 @@ on:
         default: false
       version:
         description: "Workspace version to publish"
+        required: true
         type: string
-  pull_request:
-    branches: [master]
 
 env:
   CARGO_INCREMENTAL: 0
@@ -32,8 +31,9 @@ jobs:
         uses: dsherret/rust-toolchain-file@v1
 
       - name: "Check packages"
+        if: ${{ !inputs.publish }}
         run: cargo run --release -p crates-io check
 
       - name: "Publish packages"
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish }}
+        if: ${{ inputs.publish }}
         run: cargo run --release -p crates-io publish -v ${{ inputs.version }}

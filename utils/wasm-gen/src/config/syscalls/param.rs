@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -231,24 +231,37 @@ impl Default for RegularParamAllowedValues {
 // TODO #3591 Support other hash types.
 #[derive(Debug, Clone)]
 pub enum PtrParamAllowedValues {
+    /// Possible range of values for `Ptr::Value` pointer type. This pointer
+    /// type is usually define as a message value param type for "reply" syscalls
+    /// kind.
     Value(RangeInclusive<u128>),
+    /// Variant of `Ptr::HashWithValue` pointer type, where hash is actor id.
     ActorIdWithValue {
         actor_kind: ActorKind,
         range: RangeInclusive<u128>,
     },
+    /// Variant of `Ptr::Hash` pointer type, where hash is actor id.
     ActorId(ActorKind),
 }
 
 /// Actor kind, which is actually a syscall destination choice.
 ///
-/// `gr_send*` and `gr_exit` syscalls generated from this crate can be sent
-/// to different destination in accordance to the config.
-/// It's either to the message source, to some existing known address,
-/// or to some random, most probably non-existing, address.
+/// `gr_send*`, `gr_exit` and other message sending syscalls generated
+/// from this crate can send messages to different destination
+/// in accordance to the config. It's either to the message source,
+/// to some existing known address, or to some random, most probably
+/// non-existing, address.
 #[derive(Debug, Clone, Default)]
 pub enum ActorKind {
+    /// The source of the incoming message will be used as
+    /// a destination for an outgoing message.
     Source,
+    /// Some random address from the collection of existing
+    /// addresses will be used as a destination for an outgoing
+    /// message.
     ExistingAddresses(NonEmpty<Hash>),
+    /// Absolutely random address will be generated for
+    /// an outgoing message destination.
     #[default]
     Random,
 }
