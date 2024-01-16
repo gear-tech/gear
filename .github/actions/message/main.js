@@ -77,11 +77,5 @@ async function main() {
 
 main().catch(err => {
   core.error("ERROR: ", err.message);
-  try {
-    console.log(JSON.stringify(err, null, 2))
-  } catch (e) {
-    // Ignore JSON errors for now.
-  }
-
-  console.log(e.stack)
+  core.error(err.stack)
 })

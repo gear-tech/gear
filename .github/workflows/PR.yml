@@ -20,6 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        ref: ${{ github.event.pull_request.head.ref }}
 
       - run: npm install
         working-directory: .github/actions/message
