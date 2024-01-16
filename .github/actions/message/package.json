@@ -1,7 +1,7 @@
 {
   "name": "gear-github-status",
   "version": "0.0.0",
-  "main": "mock.js",
+  "main": "main.js",
   "dependencies": {
     "@actions/core": "^1.10.1",
     "@actions/github": "^6.0.0"
