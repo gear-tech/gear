@@ -23,7 +23,7 @@ use crate::{
     builder::{BuildPackage, BuildPackages},
     lock::{BuilderLockFile, BuilderLockFileConfig, DemoLockFile, DemoLockFileConfig},
 };
-use cargo_metadata::MetadataCommand;
+use cargo_metadata::{Metadata, MetadataCommand, Package};
 use globset::{Glob, GlobSet};
 use serde::{Deserialize, Serialize};
 use std::{cmp::Ordering, collections::BTreeSet, env, fmt, fs, path::PathBuf};
@@ -213,6 +213,14 @@ fn get_no_map_remap_env() -> bool {
     env::var(NO_PATH_REMAP_ENV).is_ok()
 }
 
+fn find_pkg<'a>(metadata: &'a Metadata, pkg_name: &str) -> &'a Package {
+    metadata
+        .packages
+        .iter()
+        .find(|package| package.name == pkg_name)
+        .unwrap()
+}
+
 pub fn builder() {
     println!("cargo:rerun-if-env-changed={NO_BUILD_ENV}");
     println!("cargo:rerun-if-env-changed={NO_PATH_REMAP_ENV}");
@@ -231,15 +239,11 @@ pub fn builder() {
     println!("cargo:rerun-if-changed={}", cargo_toml.display());
 
     let metadata = MetadataCommand::new().no_deps().exec().unwrap();
-    let pkg = metadata
-        .packages
-        .iter()
-        .find(|package| package.name == pkg_name)
-        .unwrap();
+    let pkg = find_pkg(&metadata, &pkg_name);
 
     let builder_metadata = BuilderMetadata::from_value(pkg.metadata.clone());
 
-    let mut packages = BuildPackages::new(metadata.workspace_root.into_std_path_buf());
+    let mut packages = BuildPackages::new(metadata.workspace_root.clone().into_std_path_buf());
     let mut locks = Vec::new();
 
     for dep in pkg
@@ -247,11 +251,7 @@ pub fn builder() {
         .iter()
         .filter(|dep| builder_metadata.filter_dep(&dep.name))
     {
-        let pkg = metadata
-            .packages
-            .iter()
-            .find(|pkg| pkg.name == dep.name)
-            .unwrap();
+        let pkg = find_pkg(&metadata, &dep.name);
 
         println!("cargo:rerun-if-changed={}", pkg.manifest_path);
 
