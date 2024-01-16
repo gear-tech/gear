@@ -1,22 +1,29 @@
 name: "Status Check"
-description: "Status check for pull requests."
 
 on:
   workflow_call:
     outputs:
       build:
         description: "If trigger build."
-        value: ${{ steps.config.outputs.build }}
+        value: ${{ jobs.status.outputs.build }}
       cache:
         description: "The path of sccache cache."
-        value: ${{ steps.sccache.outputs.cache }}
+        value: ${{ jobs.status.outputs.cache }}
       check:
-        description: "If trigger check"
-        value: ${{ steps.config.outputs.check }}
+        description: "If trigger check."
+        value: ${{ jobs.status.outputs.check }}
+      macos:
+        description: "If force macos."
+        value: ${{ jobs.status.outputs.macos }}
 
 jobs:
   status:
     runs-on: ubuntu-latest
+    outputs:
+      build: ${{ steps.config.outputs.build }}
+      cache: ${{ steps.sccache.outputs.cache }}
+      check: ${{ steps.config.outputs.check }}
+      macos: ${{ steps.config.outputs.macos }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -28,13 +35,12 @@ jobs:
         run: echo "message=$(git show -s --format=%s)"
 
       - name: Configure
-        if: ${{ inputs.mock && steps.check-commit-message.skip-ci }}
         id: config
         with:
           full-name: ${{ github.event.pull_request.head.repo.full_name }}
           head-sha: ${{ github.event.pull_request.head.sha }}
           issue: ${{ github.event.number }}
-          message: ${{ steps.commit-message.message }}
+          message: ${{ steps.commit-message.outputs.message }}
           title: ${{ github.event.pull_request.title }}
         uses: ./.github/actions/message
 

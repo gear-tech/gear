@@ -32,4 +32,4 @@ jobs:
     uses: ./.github/workflows/build.yml
     with:
       cache: ${{ needs.status.outputs.cache }}
-      macos: ${{ contains(github.event.pull_request.labels.*.name, 'E2-forcemacos') }}
+      macos: ${{ needs.status.outputs.macos }}
