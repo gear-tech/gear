@@ -18,200 +18,23 @@
 
 mod builder;
 mod lock;
+mod metadata;
+mod utils;
 
 use crate::{
     builder::{BuildPackage, BuildPackages},
     lock::{BuilderLockFile, BuilderLockFileConfig, DemoLockFile, DemoLockFileConfig},
+    metadata::{BuilderMetadata, DemoMetadata},
+    utils::{
+        get_no_build_inner_env, manifest_dir, out_dir, profile, wasm32_target_dir, UnderscoreString,
+    },
 };
 use cargo_metadata::{Metadata, MetadataCommand, Package};
-use globset::{Glob, GlobSet};
-use serde::{Deserialize, Serialize};
-use std::{cmp::Ordering, collections::BTreeSet, env, fmt, fs, path::PathBuf};
+use std::{env, fs};
 
 const NO_BUILD_ENV: &str = "__GEAR_WASM_BUILDER_NO_BUILD";
 const NO_BUILD_INNER_ENV: &str = "__GEAR_WASM_BUILDER_NO_BUILD_INNER";
 const NO_PATH_REMAP_ENV: &str = "__GEAR_WASM_BUILDER_NO_PATH_REMAP";
-
-#[derive(Clone, Serialize, Deserialize)]
-#[serde(transparent)]
-struct UnderscoreString(String);
-
-impl UnderscoreString {
-    pub fn original(&self) -> &String {
-        &self.0
-    }
-
-    fn underscore(&self) -> String {
-        self.0.replace('-', "_")
-    }
-}
-
-impl<T: Into<String>> From<T> for UnderscoreString {
-    fn from(s: T) -> Self {
-        Self(s.into())
-    }
-}
-
-impl fmt::Display for UnderscoreString {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        fmt::Display::fmt(&self.underscore(), f)
-    }
-}
-
-impl fmt::Debug for UnderscoreString {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        fmt::Debug::fmt(&self.0, f)
-    }
-}
-
-impl PartialEq for UnderscoreString {
-    fn eq(&self, other: &Self) -> bool {
-        self.underscore() == other.underscore()
-    }
-}
-
-impl Eq for UnderscoreString {}
-
-impl PartialOrd for UnderscoreString {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Ord for UnderscoreString {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.underscore().cmp(&other.underscore())
-    }
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "kebab-case")]
-struct PackageMetadata {
-    wasm_dep_builder: Option<WasmDepBuilderMetadata>,
-}
-
-#[derive(Deserialize, derive_more::Unwrap)]
-#[serde(rename_all = "kebab-case")]
-enum WasmDepBuilderMetadata {
-    Demo(DemoMetadata),
-    Builder(BuilderMetadata),
-}
-
-impl WasmDepBuilderMetadata {
-    fn from_value(value: serde_json::Value) -> Option<Self> {
-        serde_json::from_value::<Option<PackageMetadata>>(value)
-            .unwrap()
-            .and_then(|metadata| metadata.wasm_dep_builder)
-    }
-}
-
-#[derive(Default, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-struct DemoMetadata {
-    #[serde(default)]
-    exclude_features: BTreeSet<String>,
-}
-
-impl DemoMetadata {
-    fn from_value(value: serde_json::Value) -> Self {
-        WasmDepBuilderMetadata::from_value(value)
-            .map(|metadata| metadata.unwrap_demo())
-            .unwrap_or_default()
-    }
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "kebab-case")]
-struct BuilderMetadata {
-    #[serde(default = "BuilderMetadata::default_include")]
-    include: GlobSet,
-    #[serde(default)]
-    exclude: BTreeSet<String>,
-}
-
-impl Default for BuilderMetadata {
-    fn default() -> Self {
-        Self {
-            include: Self::default_include(),
-            exclude: Default::default(),
-        }
-    }
-}
-
-impl BuilderMetadata {
-    fn from_value(value: serde_json::Value) -> Self {
-        WasmDepBuilderMetadata::from_value(value)
-            .map(|metadata| metadata.unwrap_builder())
-            .unwrap_or_default()
-    }
-
-    fn default_include() -> GlobSet {
-        GlobSet::builder()
-            .add(Glob::new("demo-*").unwrap())
-            .build()
-            .unwrap()
-    }
-
-    fn filter_dep(&self, pkg_name: &str) -> bool {
-        !self.exclude.contains(pkg_name) && self.include.is_match(pkg_name)
-    }
-}
-
-fn manifest_dir() -> PathBuf {
-    env::var("CARGO_MANIFEST_DIR").unwrap().into()
-}
-
-fn out_dir() -> PathBuf {
-    env::var("OUT_DIR").unwrap().into()
-}
-
-fn profile() -> String {
-    out_dir()
-        .components()
-        .rev()
-        .take_while(|c| c.as_os_str() != "target")
-        .collect::<Vec<_>>()
-        .into_iter()
-        .rev()
-        .take_while(|c| c.as_os_str() != "build")
-        .last()
-        .expect("Path should have subdirs in the `target` dir")
-        .as_os_str()
-        .to_string_lossy()
-        .into()
-}
-
-fn wasm_projects_dir() -> PathBuf {
-    let profile = profile();
-
-    out_dir()
-        .ancestors()
-        .find(|path| path.ends_with(&profile))
-        .and_then(|path| path.parent())
-        .map(|p| p.to_owned())
-        .expect("Could not find target directory")
-        .join("wasm-projects")
-}
-
-fn wasm32_target_dir() -> PathBuf {
-    wasm_projects_dir().join("wasm32-unknown-unknown")
-}
-
-fn cargo_home_dir() -> PathBuf {
-    env::var("CARGO_HOME").unwrap().into()
-}
-
-fn get_no_build_env() -> bool {
-    env::var(NO_BUILD_ENV).is_ok()
-}
-
-fn get_no_build_inner_env() -> bool {
-    env::var(NO_BUILD_INNER_ENV).is_ok()
-}
-
-fn get_no_map_remap_env() -> bool {
-    env::var(NO_PATH_REMAP_ENV).is_ok()
-}
 
 fn find_pkg<'a>(metadata: &'a Metadata, pkg_name: &str) -> &'a Package {
     metadata

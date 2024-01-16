@@ -17,9 +17,12 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    cargo_home_dir, get_no_build_env, get_no_map_remap_env,
     lock::{BuilderLockFileConfig, DemoLockFileConfig, LockFileConfig},
-    profile, wasm32_target_dir, wasm_projects_dir, UnderscoreString, NO_BUILD_INNER_ENV,
+    utils::{
+        cargo_home_dir, get_no_build_env, get_no_map_remap_env, profile, wasm32_target_dir,
+        wasm_projects_dir,
+    },
+    UnderscoreString, NO_BUILD_INNER_ENV,
 };
 use anyhow::Context;
 use cargo_metadata::Package;
