@@ -66,6 +66,7 @@ impl BuildPackage {
     ) -> (RebuildKind, BTreeSet<String>) {
         match config {
             LockFileConfig::Program(ProgramLockFileConfig { features }) => {
+                // make full list of excluded features
                 let excluded_features = excluded_features
                     .into_iter()
                     .map(UnderscoreString)
@@ -75,21 +76,31 @@ impl BuildPackage {
                             .map(UnderscoreString),
                     )
                     .collect();
+
+                // actually exclude features from list of enabled features
                 let features: BTreeSet<UnderscoreString> =
                     features.difference(&excluded_features).cloned().collect();
 
+                // collect all of the features with their original names
                 let orig_features: BTreeSet<UnderscoreString> =
                     pkg.features.keys().cloned().map(UnderscoreString).collect();
 
+                // get original names of enabled features
+                // because list is built from `CARGO_FEATURE_*` env vars (underscored names)
+                // in given config
                 let features: BTreeSet<String> = orig_features
                     .intersection(&features)
                     .cloned()
                     .map(|s| s.0)
                     .collect();
 
+                // if config type is `Program` it's anyway has to be built
+                // because such config is written in case of any changes occurred
                 (RebuildKind::Dirty, features)
             }
             LockFileConfig::Binaries(BinariesLockFileConfig { features }) => {
+                // if config type is `Binaries` then no changes were made in program
+                // and builder have already done its job
                 (RebuildKind::Fresh, features)
             }
         }
@@ -234,7 +245,7 @@ impl BuildPackages {
         .collect::<Vec<String>>()
         .join(", ");
 
-        // we set RUSTFLAGS via config because env vars reset flags we have in any `.cargo/config.toml`
+        // we set additional RUSTFLAGS via config because env vars reset flags we have in any `.cargo/config.toml`
         format!("target.wasm32-unknown-unknown.rustflags=[{config}]")
     }
 

@@ -63,6 +63,8 @@ impl ProgramLockFile {
         let file = fs::File::options()
             .create(true)
             .write(true)
+            // we don't care what is in file because point of `crate::track_program()`
+            // is just to write config to lock file on regular build script invocation
             .truncate(true)
             .open(path)
             .unwrap();
@@ -85,12 +87,14 @@ impl BinariesLockFile {
     pub fn open(pkg_name: impl AsRef<str>) -> Self {
         let path = file_path(pkg_name);
         let file = fs::File::options()
+            // we never create file because it means `crate::track_program()` was never called
+            // so project structure is corrupted
             .write(true)
             .read(true)
             .open(&path)
             .with_context(|| {
                 format!(
-                    "Failed to open lock file in binaries builder, path: {}",
+                    "failed to open lock file in binaries builder, path: {}",
                     path.display()
                 )
             })

@@ -33,7 +33,13 @@ use cargo_metadata::{Metadata, MetadataCommand, Package};
 use std::{env, fs};
 
 const NO_BUILD_ENV: &str = "__GEAR_WASM_BUILDER_NO_BUILD";
+
+/// [`track_program()`] must write config file anyway
+/// except case where builder compiles program to WASM so
+/// we don't want creation of garbage config files
+/// because [`track_program()`] will be called again but in another environment
 const NO_BUILD_INNER_ENV: &str = "__GEAR_WASM_BUILDER_NO_BUILD_INNER";
+
 const NO_PATH_REMAP_ENV: &str = "__GEAR_WASM_BUILDER_NO_PATH_REMAP";
 
 fn find_pkg<'a>(metadata: &'a Metadata, pkg_name: &str) -> &'a Package {
@@ -44,6 +50,10 @@ fn find_pkg<'a>(metadata: &'a Metadata, pkg_name: &str) -> &'a Package {
         .unwrap()
 }
 
+/// Build Gear programs to WASM binaries.
+///
+/// Collects every program by listing crate dependencies and
+/// tracks changes via program lock file.
 pub fn build_binaries() {
     println!("cargo:rerun-if-env-changed={NO_BUILD_ENV}");
     println!("cargo:rerun-if-env-changed={NO_PATH_REMAP_ENV}");
@@ -114,6 +124,10 @@ pub fn build_binaries() {
     println!("cargo:warning={:?}", packages);
     let packages_built = packages.build();
 
+    // we don't need to write config in lock file
+    // because we didn't build anything so next time when
+    // `__GEAR_WASM_BUILDER_NO_BUILD` is changed builder will mark
+    // crate as dirty and do an actual build
     if packages_built {
         for (mut lock, config) in locks {
             lock.write(config);
@@ -124,6 +138,13 @@ pub fn build_binaries() {
     fs::write(out_dir.join("wasm_binaries.rs"), wasm_binaries).unwrap();
 }
 
+/// Track Gear program to build.
+///
+/// Never calls any `cargo:rerun-if` instructions to
+/// keep default cargo build script invocation heuristics such as
+/// tracking of every project file, its dependencies and features.
+///
+/// On every build script invocation just writes config to lock file.
 pub fn track_program() {
     if get_no_build_inner_env() {
         // we entered `wasm-dep-builder`
