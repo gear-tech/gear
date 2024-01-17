@@ -421,7 +421,6 @@ impl ProcessorExternalities for Ext {
             reply_deposits,
             context_store,
             program_candidates_data,
-            program_rents,
             reply_sent,
         };
         Ok(info)
