@@ -17,5 +17,5 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 fn main() {
-    wasm_dep_builder::demo()
+    wasm_dep_builder::track_program()
 }

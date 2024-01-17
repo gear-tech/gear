@@ -7,7 +7,7 @@ license.workspace = true
 homepage.workspace = true
 repository.workspace = true
 
-[package.metadata.wasm-dep-builder.builder]
+[package.metadata.wasm-dep-builder.binaries]
 include = ["demo-*", "test-syscalls"]
 
 [dependencies]

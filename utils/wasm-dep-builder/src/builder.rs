@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    lock::{BuilderLockFileConfig, DemoLockFileConfig, LockFileConfig},
+    lock::{BinariesLockFileConfig, LockFileConfig, ProgramLockFileConfig},
     utils::{
         cargo_home_dir, get_no_build_env, get_no_map_remap_env, profile, wasm32_target_dir,
         wasm_projects_dir,
@@ -65,7 +65,7 @@ impl BuildPackage {
         excluded_features: BTreeSet<String>,
     ) -> (RebuildKind, BTreeSet<String>) {
         match config {
-            LockFileConfig::Demo(DemoLockFileConfig { features }) => {
+            LockFileConfig::Program(ProgramLockFileConfig { features }) => {
                 let excluded_features = excluded_features
                     .into_iter()
                     .map(UnderscoreString)
@@ -89,7 +89,7 @@ impl BuildPackage {
 
                 (RebuildKind::Dirty, features)
             }
-            LockFileConfig::Builder(BuilderLockFileConfig { features }) => {
+            LockFileConfig::Binaries(BinariesLockFileConfig { features }) => {
                 (RebuildKind::Fresh, features)
             }
         }

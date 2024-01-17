@@ -36,26 +36,26 @@ pub fn file_path(pkg_name: impl AsRef<str>) -> PathBuf {
 #[derive(Debug, Serialize, Deserialize, derive_more::Unwrap)]
 #[serde(rename_all = "kebab-case")]
 pub enum LockFileConfig {
-    Demo(DemoLockFileConfig),
-    Builder(BuilderLockFileConfig),
+    Program(ProgramLockFileConfig),
+    Binaries(BinariesLockFileConfig),
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct DemoLockFileConfig {
+pub struct ProgramLockFileConfig {
     pub features: BTreeSet<UnderscoreString>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct BuilderLockFileConfig {
+pub struct BinariesLockFileConfig {
     pub features: BTreeSet<String>,
 }
 
 #[derive(Debug)]
-pub struct DemoLockFile {
+pub struct ProgramLockFile {
     file: fs::File,
 }
 
-impl DemoLockFile {
+impl ProgramLockFile {
     pub fn open(pkg_name: impl AsRef<str>) -> Self {
         let path = file_path(pkg_name);
         println!("cargo:warning=[DEMO] lock: {}", path.display());
@@ -70,17 +70,17 @@ impl DemoLockFile {
         Self { file }
     }
 
-    pub fn write(&mut self, config: DemoLockFileConfig) {
-        serde_json::to_writer(&mut self.file, &LockFileConfig::Demo(config)).unwrap();
+    pub fn write(&mut self, config: ProgramLockFileConfig) {
+        serde_json::to_writer(&mut self.file, &LockFileConfig::Program(config)).unwrap();
     }
 }
 
 #[derive(Debug)]
-pub struct BuilderLockFile {
+pub struct BinariesLockFile {
     file: fs::File,
 }
 
-impl BuilderLockFile {
+impl BinariesLockFile {
     pub fn open(pkg_name: impl AsRef<str>) -> Self {
         let path = file_path(pkg_name);
         let file = fs::File::options()
@@ -98,9 +98,9 @@ impl BuilderLockFile {
         serde_json::from_reader(&mut self.file).unwrap()
     }
 
-    pub fn write(&mut self, config: BuilderLockFileConfig) {
+    pub fn write(&mut self, config: BinariesLockFileConfig) {
         self.file.set_len(0).unwrap();
         self.file.seek(SeekFrom::Start(0)).unwrap();
-        serde_json::to_writer(&mut self.file, &LockFileConfig::Builder(config)).unwrap();
+        serde_json::to_writer(&mut self.file, &LockFileConfig::Binaries(config)).unwrap();
     }
 }

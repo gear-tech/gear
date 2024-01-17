@@ -29,8 +29,8 @@ struct PackageMetadata {
 #[derive(Deserialize, derive_more::Unwrap)]
 #[serde(rename_all = "kebab-case")]
 enum WasmDepBuilderMetadata {
-    Demo(DemoMetadata),
-    Builder(BuilderMetadata),
+    Program(ProgramMetadata),
+    Binaries(BinariesMetadata),
 }
 
 impl WasmDepBuilderMetadata {
@@ -43,29 +43,29 @@ impl WasmDepBuilderMetadata {
 
 #[derive(Default, Deserialize)]
 #[serde(rename_all = "kebab-case")]
-pub struct DemoMetadata {
+pub struct ProgramMetadata {
     #[serde(default)]
     pub exclude_features: BTreeSet<String>,
 }
 
-impl DemoMetadata {
+impl ProgramMetadata {
     pub fn from_value(value: serde_json::Value) -> Self {
         WasmDepBuilderMetadata::from_value(value)
-            .map(|metadata| metadata.unwrap_demo())
+            .map(|metadata| metadata.unwrap_program())
             .unwrap_or_default()
     }
 }
 
 #[derive(Deserialize)]
 #[serde(rename_all = "kebab-case")]
-pub struct BuilderMetadata {
-    #[serde(default = "BuilderMetadata::default_include")]
+pub struct BinariesMetadata {
+    #[serde(default = "BinariesMetadata::default_include")]
     include: GlobSet,
     #[serde(default)]
     exclude: BTreeSet<String>,
 }
 
-impl Default for BuilderMetadata {
+impl Default for BinariesMetadata {
     fn default() -> Self {
         Self {
             include: Self::default_include(),
@@ -74,10 +74,10 @@ impl Default for BuilderMetadata {
     }
 }
 
-impl BuilderMetadata {
+impl BinariesMetadata {
     pub fn from_value(value: serde_json::Value) -> Self {
         WasmDepBuilderMetadata::from_value(value)
-            .map(|metadata| metadata.unwrap_builder())
+            .map(|metadata| metadata.unwrap_binaries())
             .unwrap_or_default()
     }
 

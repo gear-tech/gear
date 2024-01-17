@@ -23,8 +23,8 @@ mod utils;
 
 use crate::{
     builder::{BuildPackage, BuildPackages},
-    lock::{BuilderLockFile, BuilderLockFileConfig, DemoLockFile, DemoLockFileConfig},
-    metadata::{BuilderMetadata, DemoMetadata},
+    lock::{BinariesLockFile, BinariesLockFileConfig, ProgramLockFile, ProgramLockFileConfig},
+    metadata::{BinariesMetadata, ProgramMetadata},
     utils::{
         get_no_build_inner_env, manifest_dir, out_dir, profile, wasm32_target_dir, UnderscoreString,
     },
@@ -44,7 +44,7 @@ fn find_pkg<'a>(metadata: &'a Metadata, pkg_name: &str) -> &'a Package {
         .unwrap()
 }
 
-pub fn builder() {
+pub fn build_binaries() {
     println!("cargo:rerun-if-env-changed={NO_BUILD_ENV}");
     println!("cargo:rerun-if-env-changed={NO_PATH_REMAP_ENV}");
 
@@ -64,7 +64,7 @@ pub fn builder() {
     let metadata = MetadataCommand::new().no_deps().exec().unwrap();
     let pkg = find_pkg(&metadata, &pkg_name);
 
-    let builder_metadata = BuilderMetadata::from_value(pkg.metadata.clone());
+    let binaries_metadata = BinariesMetadata::from_value(pkg.metadata.clone());
 
     let mut packages = BuildPackages::new(metadata.workspace_root.clone().into_std_path_buf());
     let mut locks = Vec::new();
@@ -72,7 +72,7 @@ pub fn builder() {
     for dep in pkg
         .dependencies
         .iter()
-        .filter(|dep| builder_metadata.filter_dep(&dep.name))
+        .filter(|dep| binaries_metadata.filter_dep(&dep.name))
     {
         let pkg = find_pkg(&metadata, &dep.name);
 
@@ -91,19 +91,19 @@ pub fn builder() {
             continue;
         }
 
-        let demo_metadata = DemoMetadata::from_value(pkg.metadata.clone());
+        let program_metadata = ProgramMetadata::from_value(pkg.metadata.clone());
 
         let lock = lock::file_path(&dep.name);
         println!("cargo:rerun-if-changed={}", lock.display());
-        let mut lock = BuilderLockFile::open(&dep.name);
+        let mut lock = BinariesLockFile::open(&dep.name);
 
         let lock_config = lock.read();
-        let build_pkg = BuildPackage::new(pkg, lock_config, demo_metadata.exclude_features);
+        let build_pkg = BuildPackage::new(pkg, lock_config, program_metadata.exclude_features);
 
         let features = build_pkg.features();
         locks.push((
             lock,
-            BuilderLockFileConfig {
+            BinariesLockFileConfig {
                 features: features.clone(),
             },
         ));
@@ -124,7 +124,7 @@ pub fn builder() {
     fs::write(out_dir.join("wasm_binaries.rs"), wasm_binaries).unwrap();
 }
 
-pub fn demo() {
+pub fn track_program() {
     if get_no_build_inner_env() {
         // we entered `wasm-dep-builder`
         return;
@@ -139,8 +139,8 @@ pub fn demo() {
         .filter_map(|(key, _val)| key.strip_prefix("CARGO_FEATURE_").map(str::to_lowercase))
         .map(UnderscoreString)
         .collect();
-    let config = DemoLockFileConfig { features };
+    let config = ProgramLockFileConfig { features };
 
-    let mut lock = DemoLockFile::open(pkg_name);
+    let mut lock = ProgramLockFile::open(pkg_name);
     lock.write(config);
 }

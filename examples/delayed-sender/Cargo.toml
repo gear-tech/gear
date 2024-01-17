@@ -7,7 +7,7 @@ license.workspace = true
 homepage.workspace = true
 repository.workspace = true
 
-[package.metadata.wasm-dep-builder.demo]
+[package.metadata.wasm-dep-builder.program]
 exclude-features = ["std", "wasm-wrapper"]
 
 [lib]
