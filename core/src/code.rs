@@ -141,7 +141,7 @@ fn check_code(module: &Module, config: &TryNewCodeConfig) -> Result<(), CodeErro
                     .copied()
                     .map(Into::<ValueType>::into)
                     .collect::<Vec<_>>();
-                if &params != types.params() {
+                if params != types.params() {
                     return Err(CodeError::InvalidImportFnSignature);
                 }
 
