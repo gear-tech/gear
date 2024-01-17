@@ -58,7 +58,6 @@ async function main() {
   console.log("title: ", title);
   console.log("full name: ", fullName);
   console.log("labels: ", labels);
-  console.log("---")
 
   // Calculate configurations.
   const isDepbot = fullName === `${owner}/${repo}` && title.includes(DEPBOT);
@@ -71,14 +70,13 @@ async function main() {
   // Set outputs
   core.setOutput("build", build);
   core.setOutput("check", !skipCI);
-  core.setOutput("macos", macos)
-  if (!skipCache) {
-    core.setOutput("cache", cache);
-    console.log("cache: ", cache);
-  }
+  core.setOutput("macos", macos);
+  !skipCache && core.setOutput("cache", cache)
 
-  console.log("check: ", !skipCI);
+  console.log("---");
   console.log("build: ", build);
+  console.log("cache: ", skipCache ? "false" : cache);
+  console.log("check: ", !skipCI);
   console.log("macos: ", macos);
 
   // Mock checks if skipping CI.

@@ -7,8 +7,8 @@ on:
         type: string
         required: true
       macos:
-        type: boolean
-        default: false
+        type: string
+        default: "false"
   workflow_dispatch:
     inputs:
       title:
