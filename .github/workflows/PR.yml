@@ -18,6 +18,11 @@ env:
 jobs:
   status:
     runs-on: ubuntu-latest
+    outputs:
+      build: ${{ steps.config.outputs.build }}
+      cache: ${{ steps.config.outputs.cache }}
+      check: ${{ steps.config.outputs.check }}
+      macos: ${{ steps.config.outputs.macos }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -32,27 +37,17 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
-  post:
-    needs: status
-    runs-on: ubuntu-latest
-    steps:
-      - run: |
-          echo ${{ needs.status.steps.config.outputs.check }}
-          echo ${{ needs.status.steps.config.outputs.build }}
-          echo ${{ needs.status.steps.config.outputs.macos }}
-          echo ${{ needs.status.steps.config.outputs.cache }}
-
   check:
     needs: status
-    if: ${{ needs.status.steps.config.outputs.check }}
+    if: ${{ needs.status.outputs.check }}
     uses: ./.github/workflows/check.yml
     with:
-      cache: ${{ needs.status.steps.config.outputs.cache }}
+      cache: ${{ needs.status.outputs.cache }}
 
   build:
     needs: status
-    if: ${{ needs.status.steps.config.outputs.build }}
+    if: ${{ needs.status.outputs.build }}
     uses: ./.github/workflows/build.yml
     with:
-      cache: ${{ needs.status.steps.config.outputs.cache }}
-      macos: ${{ needs.status.steps.config.outputs.macos }}
+      cache: ${{ needs.status.outputs.cache }}
+      macos: ${{ needs.status.outputs.macos }}
