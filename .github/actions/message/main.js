@@ -58,7 +58,7 @@ async function main() {
   console.log("title: ", title);
   console.log("full name: ", fullName);
   console.log("labels: ", labels);
-  console.log("<--->")
+  console.log("---")
 
   // Calculate configurations.
   const isDepbot = fullName === `${owner}/${repo}` && title.includes(DEPBOT);
