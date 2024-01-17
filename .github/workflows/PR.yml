@@ -32,6 +32,16 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
+  post:
+    needs: status
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          echo ${{ needs.status.steps.config.outputs.check }}
+          echo ${{ needs.status.steps.config.outputs.build }}
+          echo ${{ needs.status.steps.config.outputs.macos }}
+          echo ${{ needs.status.steps.config.outputs.cache }}
+
   check:
     needs: status
     if: ${{ needs.status.steps.config.outputs.check }}
