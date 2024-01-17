@@ -17,6 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{profile, wasm32_target_dir, UnderscoreString};
+use anyhow::Context;
 use fs4::FileExt;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -84,10 +85,15 @@ impl BinariesLockFile {
     pub fn open(pkg_name: impl AsRef<str>) -> Self {
         let path = file_path(pkg_name);
         let file = fs::File::options()
-            .create(true)
             .write(true)
             .read(true)
-            .open(path)
+            .open(&path)
+            .with_context(|| {
+                format!(
+                    "Failed to open lock file in binaries builder, path: {}",
+                    path.display()
+                )
+            })
             .unwrap();
         file.lock_exclusive().unwrap();
 
