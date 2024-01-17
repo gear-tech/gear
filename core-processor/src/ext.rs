@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -54,7 +54,7 @@ use gear_core_backend::{
 };
 use gear_core_errors::{
     ExecutionError as FallibleExecutionError, ExtError as FallibleExtErrorCore, MessageError,
-    ProgramRentError, ReplyCode, ReservationError, SignalCode,
+    ReplyCode, ReservationError, SignalCode,
 };
 use gear_lazy_pages_common::{GlobalsAccessConfig, LazyPagesWeights, ProcessAccessError, Status};
 use gear_wasm_instrument::syscalls::SyscallName;
@@ -90,8 +90,6 @@ pub struct ProcessorContext {
     /// Map of code hashes to program ids of future programs, which are planned to be
     /// initialized with the corresponding code (with the same code hash).
     pub program_candidates_data: BTreeMap<CodeId, Vec<(MessageId, ProgramId)>>,
-    /// Map of program ids to paid blocks.
-    pub program_rents: BTreeMap<ProgramId, u32>,
     /// Weights of host functions.
     pub host_fn_weights: HostFnWeights,
     /// Functions forbidden to be called.
@@ -108,8 +106,6 @@ pub struct ProcessorContext {
     pub reservation: u64,
     /// Output from Randomness.
     pub random_data: (Vec<u8>, u32),
-    /// Rent cost per block.
-    pub rent_cost: u128,
     /// Gas multiplier.
     pub gas_multiplier: gsys::GasMultiplier,
 }
@@ -147,7 +143,6 @@ impl ProcessorContext {
             existential_deposit: 0,
             program_id: Default::default(),
             program_candidates_data: Default::default(),
-            program_rents: Default::default(),
             host_fn_weights: Default::default(),
             forbidden_funcs: Default::default(),
             mailbox_threshold: 0,
@@ -156,7 +151,6 @@ impl ProcessorContext {
             reserve_for: 0,
             reservation: 0,
             random_data: ([0u8; 32].to_vec(), 0),
-            rent_cost: 0,
             gas_multiplier: gsys::GasMultiplier::from_value_per_gas(1),
         }
     }
@@ -173,7 +167,6 @@ pub struct ExtInfo {
     pub awakening: Vec<(MessageId, u32)>,
     pub reply_deposits: Vec<(MessageId, u64)>,
     pub program_candidates_data: BTreeMap<CodeId, Vec<(MessageId, ProgramId)>>,
-    pub program_rents: BTreeMap<ProgramId, u32>,
     pub context_store: ContextStore,
     pub reply_sent: bool,
 }
@@ -260,12 +253,6 @@ impl From<MessageError> for FallibleExtError {
 impl From<FallibleExecutionError> for FallibleExtError {
     fn from(err: FallibleExecutionError) -> Self {
         Self::Core(FallibleExtErrorCore::Execution(err))
-    }
-}
-
-impl From<ProgramRentError> for FallibleExtError {
-    fn from(err: ProgramRentError) -> Self {
-        Self::Core(FallibleExtErrorCore::ProgramRent(err))
     }
 }
 
@@ -383,7 +370,6 @@ impl ProcessorExternalities for Ext {
             gas_reserver,
             system_reservation,
             program_candidates_data,
-            program_rents,
             ..
         } = self.context;
 
@@ -1001,43 +987,6 @@ impl Externalities for Ext {
 
     fn message_id(&self) -> Result<MessageId, Self::UnrecoverableError> {
         Ok(self.context.message_context.current().id())
-    }
-
-    fn pay_program_rent(
-        &mut self,
-        program_id: ProgramId,
-        rent: u128,
-    ) -> Result<(u128, u32), Self::FallibleError> {
-        if self.context.rent_cost == 0 {
-            return Ok((rent, 0));
-        }
-
-        let block_count = u32::try_from(rent / self.context.rent_cost).unwrap_or(u32::MAX);
-        let old_paid_blocks = self
-            .context
-            .program_rents
-            .get(&program_id)
-            .copied()
-            .unwrap_or(0);
-
-        let (paid_blocks, blocks_to_pay) = match old_paid_blocks.overflowing_add(block_count) {
-            (count, false) => (count, block_count),
-            (_, true) => return Err(ProgramRentError::MaximumBlockCountPaid.into()),
-        };
-
-        if blocks_to_pay == 0 {
-            return Ok((rent, 0));
-        }
-
-        let cost = self.context.rent_cost.saturating_mul(blocks_to_pay.into());
-        match self.context.value_counter.reduce(cost) {
-            ChargeResult::Enough => {
-                self.context.program_rents.insert(program_id, paid_blocks);
-            }
-            ChargeResult::NotEnough => return Err(FallibleExecutionError::NotEnoughValue.into()),
-        }
-
-        Ok((rent.saturating_sub(cost), blocks_to_pay))
     }
 
     fn program_id(&self) -> Result<ProgramId, Self::UnrecoverableError> {

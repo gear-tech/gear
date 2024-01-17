@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022-2023 Gear Technologies Inc.
+// Copyright (C) 2022-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -532,7 +532,7 @@ impl GearApi {
     ) -> Result {
         let program = self.0.api().gprog_at(program_id, block_hash).await?;
 
-        static_assertions::const_assert_eq!(WASM_PAGE_SIZE % GEAR_PAGE_SIZE, 0);
+        const _: () = assert!(WASM_PAGE_SIZE % GEAR_PAGE_SIZE == 0);
         assert!(program.static_pages.0 > 0);
         let static_page_count =
             (program.static_pages.0 as usize - 1) * WASM_PAGE_SIZE / GEAR_PAGE_SIZE;

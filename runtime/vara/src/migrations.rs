@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -97,7 +97,7 @@ pub type Migrations = (
     pallet_offences::migration::v1::MigrateToV1<Runtime>,
     // v1040
     pallet_im_online::migration::v1::Migration<Runtime>,
-    // unreleased
+    // v1050
     pallet_gear_program::migrations::MigrateToV3<Runtime>,
     pallet_gear_messenger::migrations::MigrateToV3<Runtime>,
 );

@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022-2023 Gear Technologies Inc.
+// Copyright (C) 2022-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -1498,27 +1498,6 @@ where
         };
 
         Self::prepare_handle(module, 0)
-    }
-
-    pub fn gr_pay_program_rent(r: u32) -> Result<Exec<T>, &'static str> {
-        let pid_value_offset = COMMON_OFFSET;
-        let res_offset = pid_value_offset + PID_SIZE + VALUE_SIZE;
-
-        let module = ModuleDefinition {
-            memory: Some(ImportedMemory::new(SMALL_MEM_SIZE)),
-            imported_functions: vec![SyscallName::PayProgramRent],
-            handle_body: Some(body::fallible_syscall(
-                r,
-                res_offset,
-                &[
-                    // block_number & program_id offset
-                    InstrI32Const(pid_value_offset),
-                ],
-            )),
-            ..Default::default()
-        };
-
-        Self::prepare_handle(module, 10_000_000)
     }
 
     pub fn lazy_pages_signal_read(wasm_pages: WasmPage) -> Result<Exec<T>, &'static str> {
