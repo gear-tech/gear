@@ -112,9 +112,9 @@ pub fn build_binaries() {
     }
 
     println!("cargo:warning={:?}", packages);
-    packages.build();
+    let packages_built = packages.build();
 
-    if packages.skip_build() {
+    if packages_built {
         for (mut lock, config) in locks {
             lock.write(config);
         }

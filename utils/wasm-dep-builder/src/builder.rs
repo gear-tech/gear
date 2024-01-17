@@ -192,7 +192,7 @@ impl BuildPackages {
         self.packages.push(build_pkg);
     }
 
-    pub fn skip_build(&self) -> bool {
+    fn skip_build(&self) -> bool {
         let any_dirty = self
             .packages
             .iter()
@@ -238,10 +238,10 @@ impl BuildPackages {
         format!("target.wasm32-unknown-unknown.rustflags=[{config}]")
     }
 
-    pub fn build(&mut self) {
+    pub fn build(&mut self) -> bool {
         if self.skip_build() {
             println!("cargo:warning=Build skipped");
-            return;
+            return false;
         }
 
         let cargo = env::var("CARGO").unwrap_or_else(|_| "cargo".into());
@@ -271,6 +271,8 @@ impl BuildPackages {
                 pkg.optimize();
             }
         }
+
+        true
     }
 
     pub fn wasm_binaries(&self) -> String {
