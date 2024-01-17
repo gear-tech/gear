@@ -75,6 +75,9 @@ jobs:
           cargo +stable check -p gstd --target wasm32-unknown-unknown
           cargo +stable check --manifest-path utils/wasm-builder/test-program/Cargo.toml
 
+      - name: "Check: crates-io packages"
+        run: cargo run --release -p crates-io check
+
   fuzzer:
     runs-on: [kuberunner, github-runner-01]
     env:
