@@ -72,7 +72,7 @@ pub fn get_no_build_inner_env() -> bool {
     env::var(NO_BUILD_INNER_ENV).is_ok()
 }
 
-pub fn get_no_map_remap_env() -> bool {
+pub fn get_no_path_remap_env() -> bool {
     env::var(NO_PATH_REMAP_ENV).is_ok()
 }
 

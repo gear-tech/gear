@@ -19,7 +19,7 @@
 use crate::{
     lock::{BinariesLockFileConfig, LockFileConfig, ProgramLockFileConfig},
     utils::{
-        cargo_home_dir, get_no_build_env, get_no_map_remap_env, profile, wasm32_target_dir,
+        cargo_home_dir, get_no_build_env, get_no_path_remap_env, profile, wasm32_target_dir,
         wasm_projects_dir,
     },
     UnderscoreString, NO_BUILD_INNER_ENV,
@@ -247,7 +247,7 @@ impl BuildPackages {
         let cargo = env::var("CARGO").unwrap_or_else(|_| "cargo".into());
         let mut cargo = Command::new(cargo);
 
-        if !get_no_map_remap_env() {
+        if !get_no_path_remap_env() {
             cargo.arg("--config").arg(self.cargo_config());
         }
 
