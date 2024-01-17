@@ -20,24 +20,17 @@ use globset::{Glob, GlobSet};
 use serde::Deserialize;
 use std::collections::BTreeSet;
 
-#[derive(Deserialize)]
-#[serde(rename_all = "kebab-case")]
-struct PackageMetadata {
-    wasm_dep_builder: Option<WasmDepBuilderMetadata>,
-}
-
 #[derive(Deserialize, derive_more::Unwrap)]
 #[serde(rename_all = "kebab-case")]
-enum WasmDepBuilderMetadata {
+enum CrateMetadata {
     Program(ProgramMetadata),
     Binaries(BinariesMetadata),
 }
 
-impl WasmDepBuilderMetadata {
-    fn from_value(value: serde_json::Value) -> Option<Self> {
-        serde_json::from_value::<Option<PackageMetadata>>(value)
-            .unwrap()
-            .and_then(|metadata| metadata.wasm_dep_builder)
+impl CrateMetadata {
+    fn from_value(mut value: serde_json::Value) -> Option<Self> {
+        let value = value.get_mut(env!("CARGO_PKG_NAME"))?.take();
+        Some(serde_json::from_value::<Self>(value).unwrap())
     }
 }
 
@@ -50,7 +43,7 @@ pub struct ProgramMetadata {
 
 impl ProgramMetadata {
     pub fn from_value(value: serde_json::Value) -> Self {
-        WasmDepBuilderMetadata::from_value(value)
+        CrateMetadata::from_value(value)
             .map(|metadata| metadata.unwrap_program())
             .unwrap_or_default()
     }
@@ -76,7 +69,7 @@ impl Default for BinariesMetadata {
 
 impl BinariesMetadata {
     pub fn from_value(value: serde_json::Value) -> Self {
-        WasmDepBuilderMetadata::from_value(value)
+        CrateMetadata::from_value(value)
             .map(|metadata| metadata.unwrap_binaries())
             .unwrap_or_default()
     }
