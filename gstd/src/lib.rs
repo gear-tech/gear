@@ -28,6 +28,10 @@
 //! asynchronous programming primitives, arbitrary types encoding/decoding,
 //! providing convenient instruments for creating programs from programs, etc.
 //!
+//! # Minimum supported Rust version
+//! This crate requires **Rust >= 1.73** due to the implementation of the panic
+//! handler in the stable version.
+//!
 //! # Crate features
 #![cfg_attr(
     feature = "document-features",
@@ -129,7 +133,11 @@
 #![no_std]
 #![warn(missing_docs)]
 #![cfg_attr(
-    all(target_arch = "wasm32", feature = "panic-messages",),
+    all(
+        target_arch = "wasm32",
+        feature = "panic-info-message",
+        feature = "panic-message"
+    ),
     feature(panic_info_message)
 )]
 #![cfg_attr(
