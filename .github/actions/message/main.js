@@ -58,18 +58,28 @@ async function main() {
   console.log("title: ", title);
   console.log("full name: ", fullName);
   console.log("labels: ", labels);
+  console.log("-----")
 
   // Calculate configurations.
   const isDepbot = fullName === `${owner}/${repo}` && title.includes(DEPBOT);
   const skipCache = [title, message].some(s => s.includes(SKIP_CACHE));
   const skipCI = [title, message].some(s => s.includes(SKIP_CI));
   const build = !skipCI && (isDepbot || BUILD_LABELS.some(label => labels.includes(label)));
+  const macos = !skipCI && labels.includes(MACOS);
+  const cache = `${SCCACHE_PREFIX}/${branch.replace("/", "_")}`;
+
+  console.log("check: ", !skipCI);
+  console.log("build: ", build);
+  console.log("macos: ", macos);
 
   // Set outputs
   core.setOutput("build", build);
   core.setOutput("check", !skipCI);
-  core.setOutput("macos", labels.includes(MACOS))
-  if (!skipCache) core.setOutput("cache", `${SCCACHE_PREFIX}/${branch.replace("/", "_")}`);
+  core.setOutput("macos", macos)
+  if (!skipCache) {
+    core.setOutput("cache", cache);
+    console.log("cache: ", cache);
+  }
 
   // Mock checks if skipping CI.
   if (skipCI) await mock(sha);
