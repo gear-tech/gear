@@ -24,34 +24,47 @@ use crate::{
     pages::{PageNumber, PageU32Size, WasmPage},
 };
 use alloc::{collections::BTreeSet, vec, vec::Vec};
-use gear_wasm_instrument::{parity_wasm::{
-    self,
-    elements::{
-        ExportEntry, GlobalEntry, GlobalType, InitExpr, Instruction, Internal, Module, Type,
+use gear_wasm_instrument::{
+    parity_wasm::{
+        self,
+        elements::{
+            ExportEntry, External, GlobalEntry, GlobalType, ImportCountType, InitExpr, Instruction,
+            Internal, Module, Type, ValueType,
+        },
     },
-}, wasm_instrument::gas_metering::{ConstantCostRules, Rules}, InstrumentationBuilder, STACK_END_EXPORT_NAME, SyscallName};
+    wasm_instrument::gas_metering::{ConstantCostRules, Rules},
+    InstrumentationBuilder, SyscallName, STACK_END_EXPORT_NAME,
+};
 use scale_info::{
     scale::{Decode, Encode},
     TypeInfo,
 };
-use gear_wasm_instrument::parity_wasm::elements::{External, ImportCountType, ValueType};
-use crate::costs::RuntimeCosts::PayProgramRent;
 
 /// Defines maximal permitted count of memory pages.
 pub const MAX_WASM_PAGE_COUNT: u16 = 512;
 
 /// Name of exports allowed on chain.
-pub const ALLOWED_EXPORTS: [&str; 6] = ["init", "handle", "handle_reply", "handle_signal", "state", "metahash"];
+pub const ALLOWED_EXPORTS: [&str; 6] = [
+    "init",
+    "handle",
+    "handle_reply",
+    "handle_signal",
+    "state",
+    "metahash",
+];
 
 /// Name of exports required on chain (only 1 of these is required).
 pub const REQUIRED_EXPORTS: [&str; 2] = ["init", "handle"];
 
-fn get_exports(
-    module: &Module
-) -> BTreeSet<DispatchKind> {
+fn get_exports(module: &Module) -> BTreeSet<DispatchKind> {
     let mut entries = BTreeSet::new();
 
-    for entry in module.export_section().expect("Exports section has been checked for already").entries().iter() {
+    for entry in module
+        .export_section()
+        .expect("Exports section has been checked for already")
+        .entries()
+        .iter()
+    {
         if let Internal::Function(_) = entry.internal() {
             if let Some(entry) = DispatchKind::try_from_entry(entry.field()) {
                 entries.insert(entry);
@@ -63,10 +76,7 @@ fn get_exports(
 }
 
 /// Parse function exports from wasm module into [`DispatchKind`].
-fn check_code(
-    module: &Module,
-    config: &TryNewCodeConfig,
-) -> Result<(), CodeError> {
+fn check_code(module: &Module, config: &TryNewCodeConfig) -> Result<(), CodeError> {
     //return Ok(());
 
     let funcs = module
@@ -116,15 +126,21 @@ fn check_code(
     }
 
     if config.check_imports {
-        let syscalls = SyscallName::all().collect::<Vec<_>>();
         for import in imports {
             if let External::Function(i) = import.external() {
                 let Type::Function(types) = &types[*i as usize];
                 // We can likely improve this by adding some helper function in SyscallName
-                let syscall = syscalls.iter().find(|s| s.to_str() == import.field()).ok_or(CodeError::UnknownImport)?;
+                let syscall = SyscallName::all()
+                    .find(|s| s.to_str() == import.field())
+                    .ok_or(CodeError::UnknownImport)?;
                 let signature = syscall.signature();
 
-                let params = signature.params().iter().copied().map(Into::<ValueType>::into).collect::<Vec<_>>();
+                let params = signature
+                    .params()
+                    .iter()
+                    .copied()
+                    .map(Into::<ValueType>::into)
+                    .collect::<Vec<_>>();
                 if &params != types.params() {
                     return Err(CodeError::InvalidImportFnSignature);
                 }
