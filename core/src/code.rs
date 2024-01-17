@@ -77,8 +77,6 @@ fn get_exports(module: &Module) -> BTreeSet<DispatchKind> {
 
 /// Parse function exports from wasm module into [`DispatchKind`].
 fn check_code(module: &Module, config: &TryNewCodeConfig) -> Result<(), CodeError> {
-    //return Ok(());
-
     let funcs = module
         .function_section()
         .ok_or(CodeError::FunctionSectionNotFound)?
