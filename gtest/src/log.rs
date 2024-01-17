@@ -22,7 +22,7 @@ use gear_core::{
     ids::{MessageId, ProgramId},
     message::{Payload, StoredMessage},
 };
-use gear_core_errors::{ErrorReplyReason, ReplyCode, SuccessReplyReason};
+use gear_core_errors::{ErrorReplyReason, ReplyCode, SimpleExecutionError, SuccessReplyReason};
 use std::{convert::TryInto, fmt::Debug};
 
 /// A log that emitted by a program, for user defined logs,
@@ -395,6 +395,25 @@ impl RunResult {
             .into_iter()
             .flat_map(DecodedCoreLog::try_from_log)
             .collect()
+    }
+
+    /// If the main message panicked.
+    pub fn panicked(&self) -> bool {
+        self.log.len() == 1 && matches!(
+            self.log[0].reply_code(),
+            Some(ReplyCode::Error(ErrorReplyReason::Execution(
+                SimpleExecutionError::UserspacePanic
+            )))
+        )
+    }
+
+    /// If the main message panicked with a given message.
+    pub fn panicked_with(&self, msg: &str) -> bool {
+        if self.panicked() {
+            let payload = String::from_utf8(self.log[0].payload().into())
+                .expect("Unable to decode panic message");
+            payload.contains(&format!("panicked with '{msg}'"))
+        } else { false }
     }
 }
 
