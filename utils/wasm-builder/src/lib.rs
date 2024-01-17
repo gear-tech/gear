@@ -92,6 +92,8 @@ impl WasmBuilder {
     /// current toolchain is recommended.
     ///
     /// NOTE: For internal use only, not recommended for production programs.
+    ///
+    /// An example usage can be found in `examples/out-of-memory/build.rs`.
     #[doc(hidden)]
     pub fn with_forced_recommended_toolchain(mut self) -> Self {
         self.cargo.set_force_recommended_toolchain(true);
