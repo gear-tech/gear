@@ -399,12 +399,13 @@ impl RunResult {
 
     /// If the main message panicked.
     pub fn panicked(&self) -> bool {
-        self.log.len() == 1 && matches!(
-            self.log[0].reply_code(),
-            Some(ReplyCode::Error(ErrorReplyReason::Execution(
-                SimpleExecutionError::UserspacePanic
-            )))
-        )
+        self.log.len() == 1
+            && matches!(
+                self.log[0].reply_code(),
+                Some(ReplyCode::Error(ErrorReplyReason::Execution(
+                    SimpleExecutionError::UserspacePanic
+                )))
+            )
     }
 
     /// If the main message panicked with a given message.
@@ -413,7 +414,9 @@ impl RunResult {
             let payload = String::from_utf8(self.log[0].payload().into())
                 .expect("Unable to decode panic message");
             payload.contains(&format!("panicked with '{msg}'"))
-        } else { false }
+        } else {
+            false
+        }
     }
 }
 
