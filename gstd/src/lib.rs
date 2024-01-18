@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -27,6 +27,10 @@
 //! `gstd` crate provides many advanced tools for a developer, such as
 //! asynchronous programming primitives, arbitrary types encoding/decoding,
 //! providing convenient instruments for creating programs from programs, etc.
+//!
+//! # Minimum supported Rust version
+//! This crate requires **Rust >= 1.73** due to the implementation of the panic
+//! handler in the stable version.
 //!
 //! # Crate features
 #![cfg_attr(
@@ -129,7 +133,11 @@
 #![no_std]
 #![warn(missing_docs)]
 #![cfg_attr(
-    all(target_arch = "wasm32", feature = "panic-messages",),
+    all(
+        target_arch = "wasm32",
+        feature = "panic-info-message",
+        feature = "panic-message"
+    ),
     feature(panic_info_message)
 )]
 #![cfg_attr(
@@ -149,6 +157,7 @@ extern crate galloc;
 mod async_runtime;
 mod common;
 mod config;
+pub mod critical;
 pub mod exec;
 mod macros;
 pub mod msg;

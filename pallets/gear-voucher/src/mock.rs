@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -16,16 +16,27 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+#![allow(unused)]
+
 use crate as pallet_gear_voucher;
-use common::storage::{Interval, Mailbox};
+use common::{
+    storage::{Interval, Mailbox},
+    Origin,
+};
 use frame_support::{
-    construct_runtime, parameter_types, weights::constants::RocksDbWeight, PalletId,
+    construct_runtime, parameter_types,
+    weights::{constants::RocksDbWeight, Weight},
+    PalletId,
 };
 use frame_system::{self as system, pallet_prelude::BlockNumberFor};
-use gear_core::{ids::MessageId, message::UserStoredMessage};
+use gear_core::{
+    ids::{MessageId, ProgramId},
+    message::UserStoredMessage,
+};
 use primitive_types::H256;
+use sp_core::ConstU8;
 use sp_runtime::{
-    traits::{BlakeTwo256, IdentityLookup},
+    traits::{BlakeTwo256, IdentityLookup, Zero},
     BuildStorage,
 };
 use sp_std::convert::{TryFrom, TryInto};
@@ -58,23 +69,28 @@ common::impl_pallet_balances!(Test);
 
 parameter_types! {
     pub const VoucherPalletId: PalletId = PalletId(*b"py/vouch");
+    pub const MinVoucherDuration: BlockNumber = 5;
+    pub const MaxVoucherDuration: BlockNumber = 100_000_000;
 }
 
 impl crate::PrepaidCallsDispatcher for () {
     type AccountId = AccountId;
     type Balance = Balance;
 
-    fn weight(_call: &pallet_gear_voucher::PrepaidCall<Balance>) -> frame_support::weights::Weight {
-        unimplemented!();
+    fn weight(_call: &pallet_gear_voucher::PrepaidCall<Balance>) -> Weight {
+        Zero::zero()
     }
     fn dispatch(
         _account_id: Self::AccountId,
         _sponsor_id: Self::AccountId,
         _call: pallet_gear_voucher::PrepaidCall<Balance>,
     ) -> frame_support::pallet_prelude::DispatchResultWithPostInfo {
-        unimplemented!()
+        Ok(().into())
     }
 }
+
+pub const MAILBOXED_PROGRAM: ProgramId = ProgramId::test_new([0; 32]);
+pub const MAILBOXED_MESSAGE: MessageId = MessageId::test_new([0; 32]);
 
 pub struct MailboxMock;
 
@@ -95,8 +111,16 @@ impl Mailbox for MailboxMock {
     fn insert(_value: Self::Value, _bn: Self::BlockNumber) -> Result<(), Self::OutputError> {
         unimplemented!()
     }
-    fn peek(_key1: &Self::Key1, _key2: &Self::Key2) -> Option<Self::Value> {
-        unimplemented!()
+    fn peek(key1: &Self::Key1, key2: &Self::Key2) -> Option<Self::Value> {
+        (*key2 == MAILBOXED_MESSAGE).then(|| {
+            UserStoredMessage::new(
+                MAILBOXED_MESSAGE,
+                MAILBOXED_PROGRAM,
+                (*key1).cast(),
+                vec![].try_into().unwrap(),
+                0,
+            )
+        })
     }
     fn remove(
         _key1: Self::Key1,
@@ -113,6 +137,9 @@ impl pallet_gear_voucher::Config for Test {
     type WeightInfo = ();
     type CallsDispatcher = ();
     type Mailbox = MailboxMock;
+    type MaxProgramsAmount = ConstU8<3>;
+    type MaxDuration = MaxVoucherDuration;
+    type MinDuration = MinVoucherDuration;
 }
 
 // Build genesis storage according to the mock runtime.

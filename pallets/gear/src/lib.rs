@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -489,12 +489,6 @@ pub mod pallet {
     where
         T::AccountId: Origin,
     {
-        fn on_runtime_upgrade() -> Weight {
-            log::debug!(target: "gear::runtime", "⚙️ Runtime upgrade");
-
-            Zero::zero()
-        }
-
         /// Initialization
         fn on_initialize(bn: BlockNumberFor<T>) -> Weight {
             // Incrementing Gear block number

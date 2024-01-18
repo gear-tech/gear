@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -44,9 +44,9 @@ use crate::{
         USER_3,
     },
     pallet,
-    runtime_api::RUNTIME_API_BLOCK_LIMITS_COUNT,
-    BlockGasLimitOf, Config, CostsPerBlockOf, CurrencyOf, DbWeightOf, DispatchStashOf, Error,
-    Event, GasAllowanceOf, GasBalanceOf, GasHandlerOf, GasInfo, GearBank, MailboxOf,
+    runtime_api::{ALLOWANCE_LIMIT_ERR, RUNTIME_API_BLOCK_LIMITS_COUNT},
+    AccountIdOf, BlockGasLimitOf, Config, CostsPerBlockOf, CurrencyOf, DbWeightOf, DispatchStashOf,
+    Error, Event, GasAllowanceOf, GasBalanceOf, GasHandlerOf, GasInfo, GearBank, MailboxOf,
     ProgramStorageOf, QueueOf, Schedule, TaskPoolOf, WaitlistOf,
 };
 use common::{
@@ -75,12 +75,39 @@ use gear_core_errors::*;
 use gear_wasm_instrument::{gas_metering::ConstantCostRules, STACK_END_EXPORT_NAME};
 use gstd::{collections::BTreeMap, errors::Error as GstdError};
 use pallet_gear_voucher::PrepaidCall;
-use sp_runtime::{traits::UniqueSaturatedInto, SaturatedConversion};
+use sp_runtime::{
+    traits::{One, UniqueSaturatedInto},
+    SaturatedConversion,
+};
 use sp_std::convert::TryFrom;
 pub use utils::init_logger;
 use utils::*;
 
 type Gas = <<Test as Config>::GasProvider as common::GasProvider>::GasTree;
+
+#[test]
+fn calculate_gas_zero_balance() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        const ZERO_BALANCE_USER: AccountId = 12122023;
+        assert!(Balances::free_balance(ZERO_BALANCE_USER).is_zero());
+
+        let gas_below_ed = get_ed()
+            .saturating_div(gas_price(1))
+            .saturating_sub(One::one());
+
+        assert_ok!(Gear::calculate_gas_info_impl(
+            ZERO_BALANCE_USER.into_origin(),
+            HandleKind::Init(ProgramCodeKind::Default.to_bytes()),
+            gas_below_ed as u64,
+            vec![],
+            0,
+            false,
+            false,
+            None,
+        ));
+    });
+}
 
 #[test]
 fn delayed_send_from_reservation_not_for_mailbox() {
@@ -338,7 +365,7 @@ fn delayed_reservations_sending_validation() {
         run_to_next_block(None);
 
         let error_text = format!(
-            "{SENDING_EXPECT}: {:?}",
+            "panicked with '{SENDING_EXPECT}: {:?}'",
             GstdError::Core(
                 ExtError::Message(MessageError::InsufficientGasForDelayedSending).into()
             )
@@ -375,7 +402,7 @@ fn delayed_reservations_sending_validation() {
         run_for_blocks(wait_for as u64 + 1, None);
 
         let error_text = format!(
-            "{SENDING_EXPECT}: {:?}",
+            "panicked with '{SENDING_EXPECT}: {:?}'",
             GstdError::Core(
                 ExtError::Message(MessageError::InsufficientGasForDelayedSending).into()
             )
@@ -486,7 +513,7 @@ fn default_wait_lock_timeout() {
         run_to_block(expiration_block, None);
 
         let error_text = format!(
-            "ran into error-reply: {:?}",
+            "panicked with 'ran into error-reply: {:?}'",
             GstdError::Timeout(
                 expiration_block.unique_saturated_into(),
                 expiration_block.unique_saturated_into()
@@ -3039,7 +3066,7 @@ fn mailbox_threshold_works() {
         ));
         check_result(false);
 
-        // // send message with enough gas_limit
+        // send message with enough gas_limit
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
             proxy,
@@ -7518,7 +7545,7 @@ fn test_create_program_with_value_lt_ed() {
         assert_total_dequeued(1);
 
         let error_text = format!(
-            "Failed to create program: {:?}",
+            "panicked with 'Failed to create program: {:?}'",
             GstdError::Core(ExtError::Message(MessageError::InsufficientValue).into())
         );
 
@@ -7568,7 +7595,7 @@ fn test_create_program_with_exceeding_value() {
         assert_total_dequeued(1);
 
         let error_text = format!(
-            "Failed to create program: {:?}",
+            "panicked with 'Failed to create program: {:?}'",
             GstdError::Core(ExtError::Execution(ExecutionError::NotEnoughValue).into())
         );
         assert_failed(
@@ -7654,7 +7681,7 @@ fn demo_constructor_works() {
 
         run_to_next_block(None);
 
-        let error_text = "I just panic every time".to_owned();
+        let error_text = "panicked with 'I just panic every time'".to_owned();
 
         assert_failed(
             message_id,
@@ -8341,22 +8368,19 @@ fn call_forbidden_function() {
 
         run_to_block(2, None);
 
-        let res = Gear::calculate_gas_info(
+        let err = Gear::calculate_gas_info(
             USER_1.into_origin(),
             HandleKind::Handle(prog_id),
             EMPTY_PAYLOAD.to_vec(),
             0,
             true,
             true,
-        );
+        )
+        .expect_err("Must return error");
 
-        assert_eq!(
-            res,
-            Err(format!(
-                "Program terminated with a trap: {}",
-                TrapExplanation::ForbiddenFunction,
-            ))
-        );
+        let trap = TrapExplanation::ForbiddenFunction;
+
+        assert_eq!(err, format!("Program terminated with a trap: '{trap}'"));
     });
 }
 
@@ -8644,7 +8668,7 @@ fn mx_lock_ownership_exceedance() {
             let get_lock_ownership_exceeded_trap = |command_msg_id| {
                 ActorExecutionErrorReplyReason::Trap(TrapExplanation::Panic(
                     format!(
-                        "Message 0x{} has exceeded lock ownership time",
+                        "panicked with 'Message 0x{} has exceeded lock ownership time'",
                         hex::encode(command_msg_id)
                     )
                     .into(),
@@ -12390,7 +12414,7 @@ fn check_random_works() {
                 );
             });
 
-        // // assert_last_dequeued(1);
+        // assert_last_dequeued(1);
         // println!("{:?}", res);
         // assert_eq!(blake2b(32, &[], &output.0.encode()).as_bytes(), res.payload());
     });
@@ -13111,10 +13135,7 @@ fn calculate_gas_fails_when_calculation_limit_exceeded() {
         );
 
         assert!(gas_info_result.is_err());
-        assert_eq!(
-            gas_info_result.unwrap_err(),
-            "Calculation gas limit exceeded. Consider using custom built node."
-        );
+        assert_eq!(gas_info_result.unwrap_err(), ALLOWANCE_LIMIT_ERR);
 
         // ok result when we use custom multiplier
         let gas_info_result = Gear::calculate_gas_info_impl(
@@ -13277,6 +13298,7 @@ fn send_gasless_message_works() {
         assert_noop!(
             GearVoucher::call(
                 RuntimeOrigin::signed(USER_2),
+                12345.into_origin().cast(),
                 PrepaidCall::SendMessage {
                     destination: program_id,
                     payload: EMPTY_PAYLOAD.to_vec(),
@@ -13285,15 +13307,16 @@ fn send_gasless_message_works() {
                     keep_alive: false,
                 }
             ),
-            pallet_gear_bank::Error::<Test>::InsufficientBalance
+            pallet_gear_voucher::Error::<Test>::InexistentVoucher
         );
 
         // USER_1 as the program owner issues a voucher for USER_2 enough to send a message
         assert_ok!(GearVoucher::issue(
             RuntimeOrigin::signed(USER_1),
             USER_2,
-            program_id,
             gas_price(DEFAULT_GAS_LIMIT),
+            Some([program_id].into()),
+            100,
         ));
 
         // Balances check
@@ -13309,9 +13332,9 @@ fn send_gasless_message_works() {
 
         // Balance check
         // Voucher has been issued, but not used yet, so funds should be still in the respective account
-        let voucher_id = GearVoucher::voucher_id(&USER_2, &program_id);
+        let voucher_id = utils::get_last_voucher_id();
         assert_eq!(
-            Balances::free_balance(voucher_id),
+            Balances::free_balance(voucher_id.cast::<AccountIdOf<Test>>()),
             gas_price(DEFAULT_GAS_LIMIT)
         );
 
@@ -13319,6 +13342,7 @@ fn send_gasless_message_works() {
         // Now that voucher is issued, the message should be sent successfully.
         assert_ok!(GearVoucher::call(
             RuntimeOrigin::signed(USER_2),
+            voucher_id,
             PrepaidCall::SendMessage {
                 destination: program_id,
                 payload: EMPTY_PAYLOAD.to_vec(),
@@ -13337,7 +13361,10 @@ fn send_gasless_message_works() {
             user2_initial_balance - user2_potential_msgs_spends
         );
         // Instead, the gas has been paid from the voucher
-        assert_eq!(Balances::free_balance(voucher_id), 0_u128);
+        assert_eq!(
+            Balances::free_balance(voucher_id.cast::<AccountIdOf<Test>>()),
+            0_u128
+        );
 
         // Run the queue processing to figure out the actual gas burned
         let remaining_weight = 300_000_000;
@@ -13349,7 +13376,7 @@ fn send_gasless_message_works() {
 
         // Check that the gas leftover has been returned to the voucher
         assert_eq!(
-            Balances::free_balance(voucher_id),
+            Balances::free_balance(voucher_id.cast::<AccountIdOf<Test>>()),
             gas_price(DEFAULT_GAS_LIMIT) - gas_price(actual_gas_burned)
         );
 
@@ -13388,16 +13415,17 @@ fn send_gasless_reply_works() {
         assert_ok!(GearVoucher::issue(
             RuntimeOrigin::signed(USER_2),
             USER_1,
-            prog_id,
             gas_price(DEFAULT_GAS_LIMIT),
+            Some([prog_id].into()),
+            100,
         ));
-        let voucher_id = GearVoucher::voucher_id(&USER_1, &prog_id);
+        let voucher_id = utils::get_last_voucher_id();
 
         run_to_block(3, None);
 
         // Balance check
         assert_eq!(
-            Balances::free_balance(voucher_id),
+            Balances::free_balance(voucher_id.cast::<AccountIdOf<Test>>()),
             gas_price(DEFAULT_GAS_LIMIT)
         );
 
@@ -13405,6 +13433,7 @@ fn send_gasless_reply_works() {
         let gas_limit = 10_000_000_u64;
         assert_ok!(GearVoucher::call(
             RuntimeOrigin::signed(USER_1),
+            voucher_id,
             PrepaidCall::SendReply {
                 reply_to_id,
                 payload: EMPTY_PAYLOAD.to_vec(),
@@ -13435,14 +13464,14 @@ fn send_gasless_reply_works() {
 
         // Balances check before processing queue
         assert_eq!(
-            Balances::free_balance(voucher_id),
+            Balances::free_balance(voucher_id.cast::<AccountIdOf<Test>>()),
             gas_price(DEFAULT_GAS_LIMIT.saturating_sub(gas_limit))
         );
 
         run_to_block(4, None);
         // Ensure that some gas leftover has been returned to the voucher account
         assert!(
-            Balances::free_balance(voucher_id)
+            Balances::free_balance(voucher_id.cast::<AccountIdOf<Test>>())
                 > gas_price(DEFAULT_GAS_LIMIT.saturating_sub(gas_limit))
         );
     })
@@ -14127,6 +14156,234 @@ fn calculate_gas_wait() {
     });
 }
 
+#[test]
+fn critical_hook_works() {
+    use demo_async_critical::{HandleAction, WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            vec![],
+            10_000_000_000,
+            0,
+            false,
+        ));
+        let pid = get_last_program_id();
+
+        run_to_block(2, None);
+
+        assert!(Gear::is_initialized(pid));
+        assert!(Gear::is_active(pid));
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            HandleAction::Simple.encode(),
+            10_000_000_000,
+            0,
+            false,
+        ));
+
+        let mid = get_last_message_id();
+
+        run_to_block(3, None);
+
+        let (waited, _) = get_last_message_waited();
+        assert_eq!(mid, waited);
+        assert_eq!(dispatch_status(mid), None);
+
+        let msg = get_last_mail(USER_1);
+        assert_eq!(msg.payload_bytes(), b"for_reply");
+
+        assert_ok!(Gear::send_reply(
+            RuntimeOrigin::signed(USER_1),
+            msg.id(),
+            EMPTY_PAYLOAD.to_vec(),
+            10_000_000_000,
+            0,
+            false,
+        ));
+
+        run_to_block(4, None);
+
+        assert_succeed(mid);
+        assert_eq!(MailboxOf::<Test>::iter_key(USER_1).count(), 0);
+    });
+}
+
+#[test]
+fn critical_hook_with_panic() {
+    use demo_async_critical::{HandleAction, WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            vec![],
+            10_000_000_000,
+            0,
+            false,
+        ));
+        let pid = get_last_program_id();
+
+        run_to_block(2, None);
+
+        assert!(Gear::is_initialized(pid));
+        assert!(Gear::is_active(pid));
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            HandleAction::Panic.encode(),
+            10_000_000_000,
+            0,
+            false,
+        ));
+
+        let mid = get_last_message_id();
+
+        run_to_block(3, None);
+
+        let msg = get_last_mail(USER_1);
+        assert_eq!(msg.payload_bytes(), b"for_reply");
+
+        assert_ok!(Gear::send_reply(
+            RuntimeOrigin::signed(USER_1),
+            msg.id(),
+            EMPTY_PAYLOAD.to_vec(),
+            10_000_000_000,
+            0,
+            false,
+        ));
+
+        run_to_block(4, None);
+
+        assert_failed(
+            mid,
+            ErrorReplyReason::Execution(SimpleExecutionError::UserspacePanic),
+        );
+
+        let msg = get_last_mail(USER_1);
+        assert_eq!(msg.payload_bytes(), b"critical");
+    });
+}
+
+#[test]
+fn critical_hook_in_handle_reply() {
+    use demo_async_critical::{HandleAction, WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            vec![],
+            10_000_000_000,
+            0,
+            false,
+        ));
+        let pid = get_last_program_id();
+
+        run_to_block(2, None);
+
+        assert!(Gear::is_initialized(pid));
+        assert!(Gear::is_active(pid));
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            HandleAction::InHandleReply.encode(),
+            10_000_000_000,
+            0,
+            false,
+        ));
+
+        run_to_block(3, None);
+
+        let msg = get_last_mail(USER_1);
+        assert_eq!(msg.payload_bytes(), b"for_reply");
+
+        assert_ok!(Gear::send_reply(
+            RuntimeOrigin::signed(USER_1),
+            msg.id(),
+            EMPTY_PAYLOAD.to_vec(),
+            10_000_000_000,
+            0,
+            false,
+        ));
+
+        let mid = get_last_message_id();
+
+        run_to_block(4, None);
+
+        assert_eq!(MailboxOf::<Test>::iter_key(USER_1).last(), None);
+        let status = dispatch_status(mid);
+        assert_eq!(status, Some(DispatchStatus::Failed));
+    });
+}
+
+#[test]
+fn critical_hook_in_handle_signal() {
+    use demo_async_critical::{HandleAction, WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            vec![],
+            10_000_000_000,
+            0,
+            false,
+        ));
+        let pid = get_last_program_id();
+
+        run_to_block(2, None);
+
+        assert!(Gear::is_initialized(pid));
+        assert!(Gear::is_active(pid));
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            HandleAction::InHandleSignal.encode(),
+            10_000_000_000,
+            0,
+            false,
+        ));
+
+        let mid = get_last_message_id();
+
+        run_to_block(3, None);
+
+        let msg = get_last_mail(USER_1);
+        assert_eq!(msg.payload_bytes(), b"for_reply");
+
+        assert_ok!(Gear::send_reply(
+            RuntimeOrigin::signed(USER_1),
+            msg.id(),
+            EMPTY_PAYLOAD.to_vec(),
+            10_000_000_000,
+            0,
+            false,
+        ));
+
+        run_to_block(4, None);
+
+        assert_eq!(MailboxOf::<Test>::iter_key(USER_1).last(), None);
+        let signal_msg_id = MessageId::generate_signal(mid);
+        let status = dispatch_status(signal_msg_id);
+        assert_eq!(status, Some(DispatchStatus::Failed));
+    });
+}
+
 mod utils {
     #![allow(unused)]
 
@@ -14160,6 +14417,7 @@ mod utils {
         reservation::GasReservationMap,
     };
     use gear_core_errors::*;
+    use pallet_gear_voucher::VoucherId;
     use parity_scale_codec::Encode;
     use sp_core::H256;
     use sp_runtime::traits::UniqueSaturatedInto;
@@ -14489,6 +14747,7 @@ mod utils {
         })
     }
 
+    #[track_caller]
     pub(super) fn dispatch_status(message_id: MessageId) -> Option<DispatchStatus> {
         let mut found_status: Option<DispatchStatus> = None;
         System::events().iter().for_each(|e| {
@@ -14513,6 +14772,7 @@ mod utils {
         assert_eq!(status, DispatchStatus::Success)
     }
 
+    #[track_caller]
     fn get_last_event_error_and_reply_code(message_id: MessageId) -> (String, ReplyCode) {
         let mut actual_error = None;
 
@@ -14669,6 +14929,25 @@ mod utils {
             .find_map(|e| match e {
                 Event::MessageQueued { id, .. } => Some(id),
                 Event::UserMessageSent { message, .. } => Some(message.id()),
+                _ => None,
+            })
+            .expect("can't find message send event")
+    }
+
+    #[track_caller]
+    pub(super) fn get_last_voucher_id() -> VoucherId {
+        System::events()
+            .iter()
+            .rev()
+            .filter_map(|r| {
+                if let MockRuntimeEvent::GearVoucher(e) = r.event.clone() {
+                    Some(e)
+                } else {
+                    None
+                }
+            })
+            .find_map(|e| match e {
+                pallet_gear_voucher::Event::VoucherIssued { voucher_id, .. } => Some(voucher_id),
                 _ => None,
             })
             .expect("can't find message send event")

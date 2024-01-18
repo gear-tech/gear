@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -18,7 +18,7 @@
 
 //! Module for future-management.
 
-use crate::{prelude::Box, MessageId};
+use crate::{critical, prelude::Box, MessageId};
 use core::{
     future::Future,
     pin::Pin,
@@ -87,6 +87,7 @@ where
     if Pin::new(&mut task.future).poll(&mut cx).is_ready() {
         super::futures().remove(&msg_id);
         super::locks().remove_message_entry(msg_id);
+        let _ = critical::take_hook();
     } else {
         super::locks().wait(msg_id);
     }
