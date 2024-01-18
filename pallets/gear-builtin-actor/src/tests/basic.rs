@@ -187,7 +187,7 @@ fn calculate_gas_info_works() {
         // than the user paid for by providing less gas.
         assert!(current_stack()[0].is_success);
 
-        // Honest actor runs gas limit check and repsects its outcome.
+        // Honest actor runs gas limit check and respects its outcome.
         let builtin_actor_id: ProgramId = H256::from(HONEST_ACTOR_ID).cast();
         let gas_info = get_gas_info(builtin_actor_id, Default::default());
         assert_ok!(Gear::send_message(
