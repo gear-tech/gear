@@ -397,25 +397,37 @@ impl RunResult {
             .collect()
     }
 
-    /// If the main message panicked.
-    pub fn panicked(&self) -> bool {
-        self.log.len() == 1
-            && matches!(
-                self.log[0].reply_code(),
-                Some(ReplyCode::Error(ErrorReplyReason::Execution(
-                    SimpleExecutionError::UserspacePanic
-                )))
-            )
+    /// Trying to get the panic log.
+    fn panic_log(&self) -> Option<&CoreLog> {
+        let [core_log] = &self.log[..] else {
+            return None;
+        };
+        let is_panic = matches!(
+            core_log.reply_code(),
+            Some(ReplyCode::Error(ErrorReplyReason::Execution(
+                SimpleExecutionError::UserspacePanic
+            )))
+        );
+        is_panic.then_some(core_log)
     }
 
-    /// If the main message panicked with a given message.
-    pub fn panicked_with(&self, msg: &str) -> bool {
-        if self.panicked() {
-            let payload = String::from_utf8(self.log[0].payload().into())
-                .expect("Unable to decode panic message");
-            payload.contains(&format!("panicked with '{msg}'"))
-        } else {
-            false
+    /// If the main message panicked.
+    pub fn panicked(&self) -> bool {
+        self.panic_log().is_some()
+    }
+
+    /// Asserts that the main message panicked with a given message.
+    #[track_caller]
+    pub fn assert_panicked_with(&self, msg: impl Into<String>) {
+        if let Some(log) = self.panic_log() {
+            let msg = msg.into();
+            let payload =
+                String::from_utf8(log.payload().into()).expect("Unable to decode panic message");
+
+            assert!(
+                payload.contains(&format!("panicked with '{msg}'")),
+                "expected panic message that contains `{msg}`, but the actual panic message is `{payload}`"
+            );
         }
     }
 }
