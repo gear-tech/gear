@@ -397,6 +397,31 @@ impl RunResult {
             .collect()
     }
 
+    /// If the main message panicked.
+    pub fn panicked(&self) -> bool {
+        self.panic_log().is_some()
+    }
+
+    /// Asserts that the main message panicked and that the panic contained a given message.
+    #[track_caller]
+    pub fn assert_panicked_with(&self, msg: impl Into<String>) {
+        let panic_log = self.panic_log();
+        assert!(panic_log.is_some(), "Program did not panic");
+        let msg = msg.into();
+        let payload = String::from_utf8(
+            panic_log
+                .expect("Asserted using `Option::is_some()`")
+                .payload()
+                .into(),
+        )
+        .expect("Unable to decode panic message");
+
+        assert!(
+            payload.contains(&format!("panicked with '{msg}'")),
+            "expected panic message that contains `{msg}`, but the actual panic message is `{payload}`"
+        );
+    }
+
     /// Trying to get the panic log.
     fn panic_log(&self) -> Option<&CoreLog> {
         let [core_log] = &self.log[..] else {
@@ -409,26 +434,6 @@ impl RunResult {
             )))
         );
         is_panic.then_some(core_log)
-    }
-
-    /// If the main message panicked.
-    pub fn panicked(&self) -> bool {
-        self.panic_log().is_some()
-    }
-
-    /// Asserts that the main message panicked with a given message.
-    #[track_caller]
-    pub fn assert_panicked_with(&self, msg: impl Into<String>) {
-        if let Some(log) = self.panic_log() {
-            let msg = msg.into();
-            let payload =
-                String::from_utf8(log.payload().into()).expect("Unable to decode panic message");
-
-            assert!(
-                payload.contains(&format!("panicked with '{msg}'")),
-                "expected panic message that contains `{msg}`, but the actual panic message is `{payload}`"
-            );
-        }
     }
 }
 
