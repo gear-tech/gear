@@ -185,7 +185,6 @@ impl SyscallName {
     /// Returns map of all syscall string values to syscall names.
     pub fn all_map() -> BTreeMap<String, SyscallName> {
         Self::all()
-            .into_iter()
             .map(|n| (n.to_str().to_string(), n))
             .collect()
     }
