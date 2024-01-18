@@ -399,7 +399,7 @@ impl RunResult {
 
     /// If the main message panicked.
     pub fn panicked(&self) -> bool {
-        if self.log.len() == 0 {
+        if self.log.len() != 1 {
             return false;
         }
         matches!(
