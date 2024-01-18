@@ -553,6 +553,12 @@ pub mod pallet {
             // Ensuring origin.
             let origin = ensure_signed(origin)?;
 
+            // Validating the call for legacy implementation.
+            ensure!(
+                !matches!(call, PrepaidCall::UploadCode { .. }),
+                Error::<T>::CodeUploadingDisabled
+            );
+
             // Looking for sponsor synthetic account.
             #[allow(deprecated)]
             let sponsor = Self::call_deprecated_sponsor(&origin, &call)

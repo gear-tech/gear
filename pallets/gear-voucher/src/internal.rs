@@ -29,17 +29,22 @@ where
     T::AccountId: Origin,
 {
     /// Returns account id that pays for gas purchase and transaction fee
-    /// for processing this ['pallet_gear_voucher::Call']s processing if:
+    /// for processing this ['pallet_gear_voucher::Call'], if:
     ///
     /// * Call is [`Self::call`]:
     ///     * Voucher with the given voucher id exists;
     ///     * Caller is eligible to use the voucher;
     ///     * The voucher is not expired;
-    ///     * Destination program of the given prepaid call can be determined;
-    ///     * The voucher destinations limitations accept determined destination.
+    ///     * For messaging calls: The destination program of the given prepaid
+    ///                            call can be determined;
+    ///     * For messaging calls: The voucher destinations limitations accept
+    ///                            determined destination;
+    ///     * For codes uploading: The voucher allows code uploading.
     ///
     /// * Call is [`Self::call_deprecated`]:
-    ///     * Destination program of the given prepaid call can be determined.
+    ///     * For messaging calls: The destination program of the given prepaid
+    ///                            call can be determined.
+    ///     * For codes uploading: NEVER.
     ///
     /// Returns [`None`] for other cases.
     pub fn get_sponsor(&self, caller: AccountIdOf<T>) -> Option<AccountIdOf<T>> {
@@ -52,7 +57,9 @@ where
                 .ok(),
 
             #[allow(deprecated)]
-            Self::call_deprecated { call: prepaid_call } => {
+            Self::call_deprecated { call: prepaid_call }
+                if !matches!(prepaid_call, PrepaidCall::UploadCode { .. }) =>
+            {
                 Pallet::<T>::call_deprecated_sponsor(&caller, prepaid_call)
             }
 
@@ -70,6 +77,10 @@ impl<T: Config> Pallet<T> {
         who: &T::AccountId,
         call: &PrepaidCall<BalanceOf<T>>,
     ) -> Option<T::AccountId> {
+        if matches!(call, PrepaidCall::UploadCode { .. }) {
+            return None;
+        };
+
         #[allow(deprecated)]
         Self::prepaid_call_destination(who, call).map(|program_id| {
             let entropy = (b"modlpy/voucher__", who, program_id).using_encoded(blake2_256);
@@ -213,7 +224,7 @@ pub enum PrepaidCall<Balance> {
     // TODO (breathx): add bool flag for voucher [DONE]
     // TODO (breathx): add bool to `Pallet::issue` and `Pallet::update` [DONE]
     // TODO (breathx): add validation for call from voucher: `voucher.whitelists(&prepaid_call)` [DONE]
-    // TODO (breathx): forbid for `Pallet::call_deprecated`
+    // TODO (breathx): forbid for `Pallet::call_deprecated` [DONE]
     // TODO (breathx): tests for:
     //                  * `Pallet::update()`: ok, err, noop;
     //                  * `Pallet::call_deprecated`: forbidden (result + fees);
