@@ -799,12 +799,12 @@ impl<'a, 'b> SyscallsImportsGenerator<'a, 'b> {
 
     /// Reserves enough memory build precise syscall.
     fn reserve_memory(&self) -> i32 {
-        self.memory_size_in_bytes()
+        self.memory_size_bytes()
             .saturating_sub(Self::PRECISE_SYSCALL_MEMORY_SIZE) as i32
     }
 
     /// Returns the size of the memory in bytes that can be used to build precise syscall.
-    fn memory_size_in_bytes(&self) -> u32 {
+    fn memory_size_bytes(&self) -> u32 {
         let initial_mem_size: WasmPageCount = self
             .module
             .initial_mem_size()

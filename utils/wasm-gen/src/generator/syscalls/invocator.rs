@@ -143,6 +143,11 @@ impl<'a, 'b> From<DisabledAdditionalDataInjector<'a, 'b>> for SyscallsInvocator<
 }
 
 impl<'a, 'b> SyscallsInvocator<'a, 'b> {
+    /// Returns the size of the memory in bytes.
+    fn memory_size_bytes(&self) -> u32 {
+        Into::<WasmPageCount>::into(self.memory_size_pages()).memory_size()
+    }
+
     /// Returns the size of the memory in pages.
     fn memory_size_pages(&self) -> u32 {
         self.module
@@ -150,11 +155,6 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
             // To instantiate this generator, we must instantiate SyscallImportsGenerator, which can be
             // instantiated only with memory import generation proof.
             .expect("generator is instantiated with a memory import generation proof")
-    }
-
-    /// Returns the size of the memory in bytes.
-    fn memory_size_in_bytes(&self) -> u32 {
-        Into::<WasmPageCount>::into(self.memory_size_pages()).memory_size()
     }
 
     /// Insert syscalls invokes.
@@ -334,7 +334,7 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
             .waiting_frequency()
             .filter(|_| invocable.is_wait_syscall())
         {
-            let mem_size = self.memory_size_in_bytes();
+            let mem_size = self.memory_size_bytes();
 
             let upper_limit = mem_size.saturating_sub(1) as i32;
             let wait_called_ptr = upper_limit.saturating_sub(50);
@@ -391,7 +391,7 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
         );
 
         let mem_size_pages = self.memory_size_pages();
-        let mem_size = self.memory_size_in_bytes();
+        let mem_size = self.memory_size_bytes();
 
         let mut ret = Vec::with_capacity(params.len());
         let mut memory_array_definition: Option<(i32, Option<i32>)> = None;

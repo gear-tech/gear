@@ -166,30 +166,8 @@ impl<'a, 'b> EntryPointsGenerator<'a, 'b> {
             (module, func_type)
         });
 
-        let mut export_body_instructions =
-            self.generate_export_body(export_body_call_idx, export_body_call_func_type)?;
-
-        // after initializing the program, we will write about this in a special pointer
-        if name == "init" {
-            if let Some(memory_size_pages) = self.module.initial_mem_size() {
-                let mem_size = Into::<WasmPageCount>::into(memory_size_pages).memory_size();
-
-                let upper_limit = mem_size.saturating_sub(1) as i32;
-                let wait_called_ptr = upper_limit.saturating_sub(50);
-                let init_called_ptr = wait_called_ptr + mem::size_of::<bool>() as i32;
-
-                let end_instruction = export_body_instructions.pop();
-                export_body_instructions.extend_from_slice(&[
-                    // *init_called_ptr = true
-                    Instruction::I32Const(init_called_ptr),
-                    Instruction::I32Const(1),
-                    Instruction::I32Store8(0, 0),
-                ]);
-                if let Some(end_instruction) = end_instruction {
-                    export_body_instructions.push(end_instruction);
-                }
-            }
-        }
+        let export_body_instructions =
+            self.generate_export_body(name, export_body_call_idx, export_body_call_func_type)?;
 
         self.module.with(|module| {
             let module = builder::from_module(module)
@@ -219,6 +197,7 @@ impl<'a, 'b> EntryPointsGenerator<'a, 'b> {
     /// Generates body of the export function.
     fn generate_export_body(
         &mut self,
+        name: &str,
         export_body_call_idx: usize,
         export_body_call_func_type: FunctionType,
     ) -> Result<Vec<Instruction>> {
@@ -236,6 +215,25 @@ impl<'a, 'b> EntryPointsGenerator<'a, 'b> {
         }
         res.push(Instruction::Call(export_body_call_idx as u32));
         res.extend(results.iter().map(|_| Instruction::Drop));
+
+        // after initializing the program, we will write about this in a special pointer
+        if name == "init" {
+            if let Some(memory_size_pages) = self.module.initial_mem_size() {
+                let mem_size = Into::<WasmPageCount>::into(memory_size_pages).memory_size();
+
+                let upper_limit = mem_size.saturating_sub(1) as i32;
+                let wait_called_ptr = upper_limit.saturating_sub(50);
+                let init_called_ptr = wait_called_ptr + mem::size_of::<bool>() as i32;
+
+                res.extend_from_slice(&[
+                    // *init_called_ptr = true
+                    Instruction::I32Const(init_called_ptr),
+                    Instruction::I32Const(1),
+                    Instruction::I32Store8(0, 0),
+                ]);
+            }
+        }
+
         res.push(Instruction::End);
 
         Ok(res)
