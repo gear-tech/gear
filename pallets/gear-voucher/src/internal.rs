@@ -92,14 +92,21 @@ impl<T: Config> Pallet<T> {
             Error::<T>::VoucherExpired
         );
 
-        if let Some(ref programs) = voucher.programs {
-            let destination = Self::prepaid_call_destination(&origin, call)
-                .ok_or(Error::<T>::UnknownDestination)?;
+        match call {
+            PrepaidCall::UploadCode { .. } => {
+                ensure!(voucher.code_uploading, Error::<T>::CodeUploadingDisabled)
+            }
+            PrepaidCall::SendMessage { .. } | PrepaidCall::SendReply { .. } => {
+                if let Some(ref programs) = voucher.programs {
+                    let destination = Self::prepaid_call_destination(&origin, call)
+                        .ok_or(Error::<T>::UnknownDestination)?;
 
-            ensure!(
-                programs.contains(&destination),
-                Error::<T>::InappropriateDestination
-            );
+                    ensure!(
+                        programs.contains(&destination),
+                        Error::<T>::InappropriateDestination
+                    );
+                }
+            }
         }
 
         Ok(())
@@ -205,7 +212,7 @@ pub enum PrepaidCall<Balance> {
     // TODO (breathx): add processing for it [DONE]
     // TODO (breathx): add bool flag for voucher [DONE]
     // TODO (breathx): add bool to `Pallet::issue` and `Pallet::update` [DONE]
-    // TODO (breathx): add validation for call from voucher: `voucher.whitelists(&prepaid_call)`
+    // TODO (breathx): add validation for call from voucher: `voucher.whitelists(&prepaid_call)` [DONE]
     // TODO (breathx): forbid for `Pallet::call_deprecated`
     // TODO (breathx): tests for:
     //                  * `Pallet::update()`: ok, err, noop;

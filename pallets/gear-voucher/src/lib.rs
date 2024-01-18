@@ -186,6 +186,8 @@ pub mod pallet {
         DurationOutOfBounds,
         /// Voucher update function tries to cut voucher ability of code upload.
         CodeUploadingEnabled,
+        /// Voucher is disabled for code uploading, but requested.
+        CodeUploadingDisabled,
     }
 
     /// Storage containing amount of the total vouchers issued.
