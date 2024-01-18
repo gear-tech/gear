@@ -154,7 +154,7 @@ fn voucher_call_works() {
             }
         ));
 
-        // Ok if message exists in mailbox.
+        // Ok, if message exists in mailbox.
         assert_ok!(Voucher::call_deprecated(
             RuntimeOrigin::signed(ALICE),
             PrepaidCall::SendReply {
@@ -199,6 +199,26 @@ fn voucher_call_works() {
                 value: 0,
                 keep_alive: false
             },
+        ));
+
+        // Checking case of code uploading.
+        assert_ok!(Voucher::issue(
+            RuntimeOrigin::signed(ALICE),
+            BOB,
+            1_000,
+            Some(Default::default()),
+            true,
+            DEFAULT_VALIDITY,
+        ));
+        let voucher_id_code = utils::get_last_voucher_id();
+
+        // For current mock PrepaidCallDispatcher set as (), so this call passes
+        // successfully, but in real runtime the result will be
+        // `Err(pallet_gear::Error::CodeConstructionFailed)`.
+        assert_ok!(Voucher::call(
+            RuntimeOrigin::signed(BOB),
+            voucher_id_code,
+            PrepaidCall::UploadCode { code: vec![] },
         ));
     })
 }
@@ -289,6 +309,16 @@ fn voucher_call_err_cases() {
             Error::<Test>::InappropriateDestination
         );
 
+        // Voucher doesn't allow code uploading.
+        assert_noop!(
+            Voucher::call(
+                RuntimeOrigin::signed(BOB),
+                voucher_id,
+                PrepaidCall::UploadCode { code: vec![] },
+            ),
+            Error::<Test>::CodeUploadingDisabled
+        );
+
         // Voucher is out of date.
         System::set_block_number(System::block_number() + DEFAULT_VALIDITY + 1);
 
@@ -320,6 +350,15 @@ fn voucher_call_err_cases() {
                 },
             ),
             Error::<Test>::UnknownDestination
+        );
+
+        // Code uploading is always forbidden for `call_deprecated`.
+        assert_noop!(
+            Voucher::call_deprecated(
+                RuntimeOrigin::signed(BOB),
+                PrepaidCall::UploadCode { code: vec![] },
+            ),
+            Error::<Test>::CodeUploadingDisabled
         );
     })
 }

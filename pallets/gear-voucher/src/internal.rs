@@ -228,8 +228,8 @@ pub enum PrepaidCall<Balance> {
     // TODO (breathx): tests for:
     //                  * `Pallet::issue()` [DONE];
     //                  * `Pallet::update()`: ok [DONE], err [DONE], noop [DONE];
-    //                  * `Pallet::call_deprecated`: forbidden (result + fees);
-    //                  * `Pallet::call`: eligible (result + fees), non-eligible (result + fees).
+    //                  * `Pallet::call_deprecated`: forbidden (result [DONE] + fees);
+    //                  * `Pallet::call`: eligible (result [DONE] + fees), non-eligible (result [DONE] + fees).
     UploadCode {
         code: Vec<u8>,
     },
