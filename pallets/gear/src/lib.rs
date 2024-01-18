@@ -1790,7 +1790,7 @@ pub mod pallet {
                     <T as Config>::WeightInfo::send_reply(payload.len() as u32)
                 }
                 PrepaidCall::UploadCode { code } => {
-                    <T as Config>::WeightInfo::upload_code(code.len() as u32)
+                    <T as Config>::WeightInfo::upload_code(code.len() as u32 / 1024)
                 }
             }
         }
