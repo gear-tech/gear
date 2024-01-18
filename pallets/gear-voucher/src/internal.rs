@@ -226,6 +226,7 @@ pub enum PrepaidCall<Balance> {
     // TODO (breathx): add validation for call from voucher: `voucher.whitelists(&prepaid_call)` [DONE]
     // TODO (breathx): forbid for `Pallet::call_deprecated` [DONE]
     // TODO (breathx): tests for:
+    //                  * `Pallet::issue()` [DONE];
     //                  * `Pallet::update()`: ok, err, noop;
     //                  * `Pallet::call_deprecated`: forbidden (result + fees);
     //                  * `Pallet::call`: eligible (result + fees), non-eligible (result + fees).

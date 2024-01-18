@@ -17,11 +17,12 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::*;
-use crate::{mock::*, tests::utils::DEFAULT_VALIDITY};
+use crate::mock::*;
 use common::Origin;
 use frame_support::{assert_noop, assert_ok, assert_storage_noop};
 use primitive_types::H256;
 use sp_runtime::traits::{One, Zero};
+use utils::{DEFAULT_BALANCE, DEFAULT_VALIDITY};
 
 #[test]
 fn voucher_issue_works() {
@@ -30,7 +31,9 @@ fn voucher_issue_works() {
 
         let initial_balance = Balances::free_balance(ALICE);
 
-        let voucher_id = utils::issue(ALICE, BOB, program_id).expect("Failed to issue voucher");
+        let voucher_id =
+            utils::issue_w_balance_and_uploading(ALICE, BOB, DEFAULT_BALANCE, program_id, false)
+                .expect("Failed to issue voucher");
 
         assert_eq!(
             initial_balance,
@@ -38,7 +41,9 @@ fn voucher_issue_works() {
                 + Balances::free_balance(ALICE)
         );
 
-        let voucher_id_2 = utils::issue(ALICE, BOB, program_id).expect("Failed to issue voucher");
+        let voucher_id_2 =
+            utils::issue_w_balance_and_uploading(ALICE, BOB, DEFAULT_BALANCE, program_id, true)
+                .expect("Failed to issue voucher");
 
         assert_ne!(voucher_id, voucher_id_2);
 
@@ -47,8 +52,12 @@ fn voucher_issue_works() {
         assert_eq!(voucher_info.programs, Some([program_id].into()));
         assert_eq!(
             voucher_info.expiry,
-            System::block_number().saturating_add(utils::DEFAULT_VALIDITY + 1)
+            System::block_number().saturating_add(DEFAULT_VALIDITY + 1)
         );
+        assert!(!voucher_info.code_uploading);
+
+        let voucher_info = Vouchers::<Test>::get(BOB, voucher_id_2).expect("Voucher isn't found");
+        assert!(voucher_info.code_uploading);
     });
 }
 
@@ -76,7 +85,7 @@ fn voucher_issue_err_cases() {
 
         // Not enough balance.
         assert_noop!(
-            utils::issue_w_balance(ALICE, BOB, 1_000_000_000_000, program_id),
+            utils::issue_w_balance_and_uploading(ALICE, BOB, 1_000_000_000_000, program_id, false),
             Error::<Test>::BalanceTransfer
         );
 
@@ -164,7 +173,7 @@ fn voucher_call_works() {
             1_000,
             None,
             false,
-            utils::DEFAULT_VALIDITY,
+            DEFAULT_VALIDITY,
         ));
         let voucher_id_any = utils::get_last_voucher_id();
 
@@ -281,7 +290,7 @@ fn voucher_call_err_cases() {
         );
 
         // Voucher is out of date.
-        System::set_block_number(System::block_number() + utils::DEFAULT_VALIDITY + 1);
+        System::set_block_number(System::block_number() + DEFAULT_VALIDITY + 1);
 
         assert_noop!(
             Voucher::call(
@@ -323,7 +332,7 @@ fn voucher_revoke_works() {
         let voucher_id = utils::issue(ALICE, BOB, program_id).expect("Failed to issue voucher");
         let voucher_id_acc = voucher_id.cast::<AccountIdOf<Test>>();
 
-        System::set_block_number(System::block_number() + utils::DEFAULT_VALIDITY + 1);
+        System::set_block_number(System::block_number() + DEFAULT_VALIDITY + 1);
 
         let balance_after_issue = Balances::free_balance(ALICE);
         let voucher_balance = Balances::free_balance(voucher_id_acc);
@@ -463,7 +472,7 @@ fn voucher_update_works() {
         assert_eq!(voucher.programs, Some([program_id, new_program_id].into()));
         assert_eq!(
             voucher.expiry,
-            System::block_number() + utils::DEFAULT_VALIDITY + 1 + duration_prolong
+            System::block_number() + DEFAULT_VALIDITY + 1 + duration_prolong
         );
 
         let voucher_balance = Balances::free_balance(voucher_id_acc);
@@ -500,7 +509,7 @@ fn voucher_update_works() {
         assert_eq!(voucher.programs, None);
         assert_eq!(
             voucher.expiry,
-            System::block_number() + utils::DEFAULT_VALIDITY + 1 + duration_prolong
+            System::block_number() + DEFAULT_VALIDITY + 1 + duration_prolong
         );
 
         assert_storage_noop!(assert_ok!(Voucher::update(
@@ -714,22 +723,23 @@ mod utils {
         to: AccountIdOf<Test>,
         program: ProgramId,
     ) -> Result<VoucherId, DispatchErrorWithPostInfo> {
-        issue_w_balance(from, to, DEFAULT_BALANCE, program)
+        issue_w_balance_and_uploading(from, to, DEFAULT_BALANCE, program, false)
     }
 
     #[track_caller]
-    pub(crate) fn issue_w_balance(
+    pub(crate) fn issue_w_balance_and_uploading(
         from: AccountIdOf<Test>,
         to: AccountIdOf<Test>,
         balance: BalanceOf<Test>,
         program: ProgramId,
+        code_uploading: bool,
     ) -> Result<VoucherId, DispatchErrorWithPostInfo> {
         Voucher::issue(
             RuntimeOrigin::signed(from),
             to,
             balance,
             Some([program].into()),
-            false,
+            code_uploading,
             DEFAULT_VALIDITY,
         )
         .map(|_| get_last_voucher_id())
