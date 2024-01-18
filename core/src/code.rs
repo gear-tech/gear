@@ -124,12 +124,13 @@ fn check_code(module: &Module, config: &TryNewCodeConfig) -> Result<(), CodeErro
     }
 
     if config.check_imports {
+        let syscalls = SyscallName::instrumentable_map();
         for import in imports {
             if let External::Function(i) = import.external() {
                 let Type::Function(types) = &types[*i as usize];
                 // We can likely improve this by adding some helper function in SyscallName
-                let syscall = SyscallName::all()
-                    .find(|s| s.to_str() == import.field())
+                let syscall = syscalls
+                    .get(import.field())
                     .ok_or(CodeError::UnknownImport)?;
                 let signature = syscall.signature();
 
@@ -137,9 +138,8 @@ fn check_code(module: &Module, config: &TryNewCodeConfig) -> Result<(), CodeErro
                     .params()
                     .iter()
                     .copied()
-                    .map(Into::<ValueType>::into)
-                    .collect::<Vec<_>>();
-                if params != types.params() {
+                    .map(Into::<ValueType>::into);
+                if !params.eq(types.params().iter().copied()) {
                     return Err(CodeError::InvalidImportFnSignature);
                 }
 
