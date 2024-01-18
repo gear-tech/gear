@@ -109,7 +109,7 @@ fn check_code(module: &Module, config: &TryNewCodeConfig) -> Result<(), CodeErro
                 if !f.params().is_empty() || !f.results().is_empty() {
                     return Err(CodeError::InvalidExportFnSignature);
                 }
-                if !ALLOWED_EXPORTS.contains(&export.field()) && config.check_exports {
+                if !ALLOWED_EXPORTS.contains(&export.field()) {
                     return Err(CodeError::NonGearExportFnFound);
                 }
                 if REQUIRED_EXPORTS.contains(&export.field()) {
