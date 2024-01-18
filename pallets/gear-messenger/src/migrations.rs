@@ -259,7 +259,7 @@ mod test {
     use rand::random;
 
     fn random_payload() -> Payload {
-        Payload::try_from(up_to(8 * 1024, || random::<u8>()).collect::<Vec<_>>())
+        Payload::try_from(up_to(8 * 1024, random::<u8>).collect::<Vec<_>>())
             .expect("Len is always smaller than max capacity")
     }
 
