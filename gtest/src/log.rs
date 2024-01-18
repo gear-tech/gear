@@ -403,7 +403,7 @@ impl RunResult {
             return false;
         }
         matches!(
-            self.log.last().reply_code(),
+            self.log.last().expect("Checked for empty log previously").reply_code(),
             Some(ReplyCode::Error(ErrorReplyReason::Execution(
                 SimpleExecutionError::UserspacePanic
             )))
