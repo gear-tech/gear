@@ -23,7 +23,7 @@ use frame_support::{
     weights::Weight,
 };
 use frame_system::pallet_prelude::BlockNumberFor;
-use gear_core::{ids::MessageId, message::StoredDelayedDispatch};
+use gear_core::ids::MessageId;
 use parity_scale_codec::Encode;
 use sp_std::marker::PhantomData;
 #[cfg(feature = "try-runtime")]
@@ -68,10 +68,7 @@ impl<T: Config> OnRuntimeUpgrade for MigrateToV3<T> {
                         log::error!("Previous context on StoredDispatch in DispatchStash should always be None, but was {:?}", store.0.context);
                     }
                     weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
-                    Some((
-                        StoredDelayedDispatch::new(store.0.kind, store.0.message),
-                        store.1,
-                    ))
+                    Some((store.0.into(), store.1))
                 },
             );
 
@@ -127,7 +124,7 @@ mod v2 {
     use frame_system::pallet_prelude::BlockNumberFor;
     use gear_core::{
         ids::{MessageId, ProgramId},
-        message::{DispatchKind, Payload, StoredMessage},
+        message::{DispatchKind, Payload, StoredDelayedDispatch, StoredMessage},
         reservation::ReservationNonce,
     };
     use sp_std::{
@@ -145,6 +142,12 @@ mod v2 {
     impl From<StoredDispatch> for gear_core::message::StoredDispatch {
         fn from(value: StoredDispatch) -> Self {
             Self::new(value.kind, value.message, value.context.map(Into::into))
+        }
+    }
+
+    impl From<StoredDispatch> for StoredDelayedDispatch {
+        fn from(value: StoredDispatch) -> Self {
+            StoredDelayedDispatch::new(value.kind, value.message)
         }
     }
 
@@ -248,89 +251,156 @@ mod test {
     use frame_support::{pallet_prelude::StorageVersion, traits::OnRuntimeUpgrade};
     use gear_core::{
         ids::{MessageId, ProgramId},
-        message::{StoredDelayedDispatch, StoredMessage},
+        message::{
+            DispatchKind, MessageDetails, Payload, ReplyDetails, SignalDetails, StoredMessage,
+        },
     };
+    use gear_core_errors::{ReplyCode, SignalCode, SuccessReplyReason};
+    use rand::random;
+
+    fn random_payload() -> Payload {
+        Payload::try_from(up_to(8 * 1024, || random::<u8>()).collect::<Vec<_>>())
+            .expect("Len is always smaller than max capacity")
+    }
+
+    fn up_to<T>(limit: usize, f: fn() -> T) -> impl Iterator<Item = T> {
+        std::iter::from_fn(move || Some(f())).take(random::<usize>() % limit)
+    }
+
+    fn random_dispatch(no_context: bool) -> v2::StoredDispatch {
+        let kind = match random::<u8>() % 4 {
+            0 => DispatchKind::Init,
+            1 => DispatchKind::Handle,
+            2 => DispatchKind::Reply,
+            3 => DispatchKind::Signal,
+            _ => unreachable!(),
+        };
+        let details = if random() {
+            if random() {
+                Some(MessageDetails::Reply(ReplyDetails::new(
+                    MessageId::from(random::<u64>()),
+                    ReplyCode::Success(SuccessReplyReason::Auto),
+                )))
+            } else {
+                Some(MessageDetails::Signal(SignalDetails::new(
+                    MessageId::from(random::<u64>()),
+                    SignalCode::RemovedFromWaitlist,
+                )))
+            }
+        } else {
+            None
+        };
+        let context = if no_context || random() {
+            None
+        } else {
+            let outgoing = up_to(32, || {
+                (
+                    random(),
+                    if random() {
+                        Some(random_payload())
+                    } else {
+                        None
+                    },
+                )
+            })
+            .collect();
+            let initialized = up_to(32, || ProgramId::from(random::<u64>())).collect();
+            let awaken = up_to(32, || MessageId::from(random::<u64>())).collect();
+            Some(v2::ContextStore {
+                outgoing,
+                reply: if random() {
+                    Some(random_payload())
+                } else {
+                    None
+                },
+                initialized,
+                awaken,
+                reply_sent: random(),
+                reservation_nonce: Default::default(),
+                system_reservation: if random() { Some(random()) } else { None },
+            })
+        };
+        v2::StoredDispatch {
+            kind,
+            message: StoredMessage::new(
+                MessageId::from(random::<u64>()),
+                ProgramId::from(random::<u64>()),
+                ProgramId::from(random::<u64>()),
+                random_payload(),
+                random(),
+                details,
+            ),
+            context,
+        }
+    }
 
     #[test]
     fn migration_to_v3_works() {
         new_test_ext().execute_with(|| {
             StorageVersion::new(2).put::<GearMessenger>();
 
-            let pid = ProgramId::from(1u64);
-            let mid = MessageId::from(2u64);
-            let pid2 = ProgramId::from(3u64);
-
-            let dispatch = v2::StoredDispatch {
-                kind: Default::default(),
-                message: StoredMessage::new(
-                    mid,
-                    pid,
-                    pid2,
-                    Default::default(),
-                    Default::default(),
-                    None,
-                ),
-                context: Some(v2::ContextStore {
-                    outgoing: Default::default(),
-                    reply: None,
-                    initialized: Default::default(),
-                    awaken: Default::default(),
-                    reply_sent: false,
-                    reservation_nonce: Default::default(),
-                    system_reservation: None,
-                }),
-            };
-
-            let dispatch2 = v2::StoredDispatch {
-                kind: Default::default(),
-                message: StoredMessage::new(mid, pid2, pid, Default::default(), 100, None),
-                context: Some(v2::ContextStore {
-                    outgoing: Default::default(),
-                    reply: None,
-                    initialized: Default::default(),
-                    awaken: Default::default(),
-                    reply_sent: true,
-                    reservation_nonce: Default::default(),
-                    system_reservation: Some(1_000_000_000),
-                }),
-            };
-
-            let dispatch3 = v2::StoredDispatch {
-                kind: Default::default(),
-                message: StoredMessage::new(mid, pid, pid2, Default::default(), 1_000_000, None),
-                context: None,
-            };
-
-            v2::Waitlist::<Test>::insert(
-                pid,
-                mid,
+            let waitlist = up_to(32, || {
                 (
-                    dispatch.clone(),
+                    ProgramId::from(random::<u64>()),
+                    MessageId::from(random::<u64>()),
+                    random_dispatch(false),
                     Interval {
-                        start: 0,
-                        finish: 1,
+                        start: random(),
+                        finish: random(),
                     },
-                ),
-            );
+                )
+            })
+            .collect::<Vec<_>>();
 
-            v2::Dispatches::<Test>::insert(
-                mid,
-                LinkedNode {
-                    next: None,
-                    value: dispatch2.clone(),
-                },
-            );
+            for dispatch in waitlist.iter() {
+                v2::Waitlist::<Test>::insert(
+                    dispatch.0,
+                    dispatch.1,
+                    (dispatch.2.clone(), dispatch.3.clone()),
+                );
+            }
 
-            v2::DispatchStash::<Test>::insert(
-                mid,
+            let dispatches = up_to(32, || {
                 (
-                    dispatch3.clone(),
-                    Interval {
-                        start: 0,
-                        finish: 1,
+                    MessageId::from(random::<u64>()),
+                    random_dispatch(false),
+                    if random() {
+                        Some(MessageId::from(random::<u64>()))
+                    } else {
+                        None
                     },
-                ),
-            );
+                )
+            })
+            .collect::<Vec<_>>();
+
+            for dispatch in dispatches.iter() {
+                v2::Dispatches::<Test>::insert(
+                    dispatch.0,
+                    LinkedNode {
+                        next: dispatch.2,
+                        value: dispatch.1.clone(),
+                    },
+                );
+            }
+
+            let dispatch_stash = up_to(32, || {
+                (
+                    MessageId::from(random::<u64>()),
+                    random_dispatch(true),
+                    Interval {
+                        start: random(),
+                        finish: random(),
+                    },
+                )
+            })
+            .collect::<Vec<_>>();
+
+            for dispatch in dispatch_stash.iter() {
+                v2::DispatchStash::<Test>::insert(
+                    dispatch.0,
+                    (dispatch.1.clone(), dispatch.2.clone()),
+                );
+            }
 
             let state = MigrateToV3::<Test>::pre_upgrade().unwrap();
             let _ = MigrateToV3::<Test>::on_runtime_upgrade();
@@ -338,26 +408,28 @@ mod test {
 
             assert_eq!(StorageVersion::get::<GearMessenger>(), 3);
 
-            assert_eq!(
-                Waitlist::<Test>::get(pid, mid)
-                    .expect("Waitlist failed to migrate.")
-                    .0,
-                dispatch.into()
-            );
+            for dispatch in waitlist {
+                assert_eq!(
+                    Waitlist::<Test>::get(dispatch.0, dispatch.1)
+                        .expect("Waitlist failed to migrate"),
+                    (dispatch.2.into(), dispatch.3)
+                );
+            }
 
-            assert_eq!(
-                Dispatches::<Test>::get(mid)
-                    .expect("Waitlist failed to migrate.")
-                    .value,
-                dispatch2.into()
-            );
+            for dispatch in dispatches {
+                let node =
+                    Dispatches::<Test>::get(dispatch.0).expect("Dispatches failed to migrate");
+                assert_eq!(node.value, dispatch.1.into());
+                assert_eq!(node.next, dispatch.2);
+            }
 
-            assert_eq!(
-                DispatchStash::<Test>::get(mid)
-                    .expect("Waitlist failed to migrate.")
-                    .0,
-                StoredDelayedDispatch::new(dispatch3.kind, dispatch3.message)
-            );
+            for dispatch in dispatch_stash {
+                assert_eq!(
+                    DispatchStash::<Test>::get(dispatch.0)
+                        .expect("DispatchStash failed to migrate"),
+                    (dispatch.1.into(), dispatch.2)
+                );
+            }
         });
     }
 }

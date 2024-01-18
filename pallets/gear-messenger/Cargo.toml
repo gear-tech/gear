@@ -38,6 +38,7 @@ pallet-authorship = { workspace = true, features = ["std"] }
 pallet-timestamp = { workspace = true, features = ["std"] }
 env_logger.workspace = true
 common = { workspace = true, features = ["std"] }
+rand.workspace = true
 
 [features]
 default = ['std']

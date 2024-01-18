@@ -7524,6 +7524,7 @@ dependencies = [
  "pallet-timestamp",
  "parity-scale-codec",
  "primitive-types",
+ "rand 0.8.5",
  "scale-info",
  "sp-io",
  "sp-runtime",
