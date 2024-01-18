@@ -433,7 +433,7 @@ impl RunResult {
 
     /// Trying to get the panic log.
     fn panic_log(&self) -> Option<&CoreLog> {
-        let [.. ,core_log] = &self.log[..] else {
+        let [core_log] = &self.log[..] else {
             return None;
         };
         let is_panic = matches!(
