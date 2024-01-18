@@ -35,30 +35,28 @@ extern crate alloc;
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
 
-mod migrations;
-
-pub mod weights;
-
 #[cfg(test)]
 mod mock;
 
 #[cfg(test)]
 mod tests;
 
-use alloc::string::ToString;
-use core_processor::common::{DispatchOutcome, JournalNote};
+use alloc::{collections::BTreeMap, string::ToString};
+use core_processor::{
+    common::{DispatchOutcome, JournalNote},
+    process_non_executable, SystemReservationContext,
+};
 use gear_core::{
     ids::{BuiltinId, MessageId, ProgramId},
-    message::{ReplyMessage, ReplyPacket, StoredDispatch},
+    message::{DispatchKind, ReplyMessage, ReplyPacket, StoredDispatch},
 };
 use gear_core_errors::SimpleExecutionError;
 use impl_trait_for_tuples::impl_for_tuples;
-pub use pallet_gear::BuiltinRouter;
+pub use pallet_gear::{BuiltinRouter, BuiltinRouterProvider};
 use parity_scale_codec::{Decode, Encode};
 use sp_io::hashing::blake2_256;
 use sp_runtime::traits::{TrailingZeroInput, Zero};
 use sp_std::prelude::*;
-pub use weights::WeightInfo;
 
 pub use pallet::*;
 
@@ -128,10 +126,9 @@ pub type BuiltinResult<P> = Result<P, BuiltinActorError>;
 /// and produce a set of outputs that can then be converted into a reply message.
 pub trait BuiltinActor<Message: Dispatchable, Gas: Zero> {
     /// Handles a message and returns a result and the actual gas spent.
-    fn handle(message: &Message) -> (BuiltinResult<Message::Payload>, Gas);
+    fn handle(message: &Message, gas_limit: Gas) -> (BuiltinResult<Message::Payload>, Gas);
 
-    /// Returns the maximum gas cost that can be incurred by a builtin actor.
-    fn max_gas_cost(actor_id: BuiltinId) -> Gas;
+    fn get_ids(buffer: &mut Vec<BuiltinId>);
 }
 
 pub trait RegisteredBuiltinActor<M: Dispatchable, G: Zero>: BuiltinActor<M, G> {
@@ -143,26 +140,23 @@ pub trait RegisteredBuiltinActor<M: Dispatchable, G: Zero>: BuiltinActor<M, G> {
 #[impl_for_tuples(16)]
 #[tuple_types_custom_trait_bound(RegisteredBuiltinActor<M, G>)]
 impl<M: Dispatchable, G: Zero> BuiltinActor<M, G> for Tuple {
-    fn handle(message: &M) -> (BuiltinResult<M::Payload>, G) {
+    fn handle(message: &M, gas_limit: G) -> (BuiltinResult<M::Payload>, G) {
         for_tuples!(
             #(
                 if (Tuple::ID == message.destination()) {
-                    return Tuple::handle(message);
+                    return Tuple::handle(message, gas_limit);
                 }
             )*
         );
         (Err(BuiltinActorError::UnknownBuiltinId), Zero::zero())
     }
 
-    fn max_gas_cost(actor_id: BuiltinId) -> G {
+    fn get_ids(buffer: &mut Vec<BuiltinId>) {
         for_tuples!(
             #(
-                if (Tuple::ID == actor_id) {
-                    return Tuple::max_gas_cost(actor_id);
-                }
+                buffer.push(Tuple::ID);
             )*
         );
-        Zero::zero()
     }
 }
 
@@ -172,11 +166,8 @@ pub mod pallet {
     use frame_support::{pallet_prelude::*, traits::Get, PalletId};
     use frame_system::pallet_prelude::*;
 
-    /// The current storage version.
-    const STORAGE_VERSION: StorageVersion = StorageVersion::new(0);
-
+    // This pallet doesn't define a storage version because it doesn't use any storage
     #[pallet::pallet]
-    #[pallet::storage_version(STORAGE_VERSION)]
     #[pallet::without_storage_info]
     pub struct Pallet<T>(PhantomData<T>);
 
@@ -185,42 +176,9 @@ pub mod pallet {
         /// The builtin actor type.
         type BuiltinActor: BuiltinActor<SimpleBuiltinMessage, u64>;
 
-        /// Weight cost incurred by builtin actors calls.
-        type WeightInfo: WeightInfo;
-
         /// The builtin actor pallet id, used for deriving unique actors ids.
         #[pallet::constant]
         type PalletId: Get<PalletId>;
-    }
-
-    /// Builtin actors program ids to builtin ids mapping.
-    #[pallet::storage]
-    #[pallet::getter(fn actors)]
-    pub type Actors<T> = StorageMap<_, Identity, ProgramId, BuiltinId>;
-
-    /// Errors for the gear-builtin-actor pallet.
-    #[pallet::error]
-    pub enum Error<T> {
-        /// `BuiltinId` already existd.
-        BuiltinIdAlreadyExists,
-    }
-
-    #[pallet::genesis_config]
-    #[derive(frame_support::DefaultNoBound)]
-    pub struct GenesisConfig<T: Config> {
-        pub builtin_ids: Vec<BuiltinId>,
-        #[serde(skip)]
-        pub _phantom: sp_std::marker::PhantomData<T>,
-    }
-
-    #[pallet::genesis_build]
-    impl<T: Config> BuildGenesisConfig for GenesisConfig<T> {
-        fn build(&self) {
-            self.builtin_ids.iter().cloned().for_each(|id| {
-                let actor_id = Pallet::<T>::generate_actor_id(id);
-                Actors::<T>::insert(actor_id, id);
-            });
-        }
     }
 
     #[pallet::hooks]
@@ -239,27 +197,6 @@ pub mod pallet {
             actor_id
         }
 
-        /// Register a builtin actor.
-        ///
-        /// This function is supposed to be called during the Runtime upgrade to update the
-        /// builtin actors cache (if new actors are being added).
-        #[allow(unused)]
-        pub(crate) fn register_actor<B, M, G>() -> DispatchResult
-        where
-            B: RegisteredBuiltinActor<M, G>,
-            M: Dispatchable,
-            G: Zero,
-        {
-            let builtin_id = <B as RegisteredBuiltinActor<M, G>>::ID;
-            let actor_id = Self::generate_actor_id(builtin_id);
-            ensure!(
-                !Actors::<T>::contains_key(actor_id),
-                Error::<T>::BuiltinIdAlreadyExists
-            );
-            Actors::<T>::insert(actor_id, builtin_id);
-            Ok(())
-        }
-
         pub fn process_success(
             dispatch: &StoredDispatch,
             gas_spent: u64,
@@ -273,9 +210,7 @@ pub mod pallet {
 
             journal.push(JournalNote::GasBurned {
                 message_id,
-                amount: <T as Config>::WeightInfo::base_handle_weight()
-                    .ref_time()
-                    .saturating_add(gas_spent),
+                amount: gas_spent,
             });
 
             // Build the reply message
@@ -309,6 +244,7 @@ pub mod pallet {
         // Error in the actor, generates error reply
         pub fn process_error(
             dispatch: &StoredDispatch,
+            gas_spent: u64,
             err: BuiltinActorError,
         ) -> Vec<JournalNote> {
             let message_id = dispatch.id();
@@ -317,10 +253,9 @@ pub mod pallet {
 
             let mut journal = vec![];
 
-            // No call dispatced, so no gas burned except for the base
             journal.push(JournalNote::GasBurned {
                 message_id,
-                amount: <T as Config>::WeightInfo::base_handle_weight().ref_time(),
+                amount: gas_spent,
             });
 
             let err_payload = err
@@ -357,47 +292,92 @@ pub mod pallet {
     }
 }
 
-impl<T: Config> BuiltinRouter<ProgramId> for Pallet<T> {
-    type Dispatch = StoredDispatch;
+impl<T: Config> BuiltinRouterProvider<StoredDispatch, JournalNote> for Pallet<T> {
+    type Router = BuiltinRegistry<T>;
+
+    fn provide() -> BuiltinRegistry<T> {
+        BuiltinRegistry::<T>::new()
+    }
+}
+
+pub struct BuiltinRegistry<T: Config> {
+    pub registry: BTreeMap<ProgramId, BuiltinId>,
+    pub _phantom: sp_std::marker::PhantomData<T>,
+}
+impl<T: Config> BuiltinRegistry<T> {
+    fn new() -> Self {
+        let mut registry = BTreeMap::new();
+        let mut builtin_ids = Vec::new();
+        <T as Config>::BuiltinActor::get_ids(&mut builtin_ids);
+        let builtin_ids_len = builtin_ids.len();
+        for builtin_id in builtin_ids {
+            let actor_id = Pallet::<T>::generate_actor_id(builtin_id);
+            registry.entry(actor_id).or_insert(builtin_id);
+        }
+        assert!(
+            registry.len() == builtin_ids_len,
+            "Duplicate builtin ids detected!"
+        );
+
+        Self {
+            registry,
+            _phantom: Default::default(),
+        }
+    }
+}
+
+impl<T: Config> BuiltinRouter for BuiltinRegistry<T> {
+    type QueuedDispatch = StoredDispatch;
     type Output = JournalNote;
 
-    fn lookup(id: &ProgramId) -> Option<BuiltinId> {
-        Self::actors(id)
+    fn lookup(&self, id: &ProgramId) -> Option<BuiltinId> {
+        self.registry.get(id).copied()
     }
 
-    fn dispatch(
-        builtin_id: BuiltinId,
-        dispatch: StoredDispatch,
-        gas_limit: u64,
-    ) -> Vec<Self::Output> {
-        // Re-package the dispatch into a `SimpleBuiltinMessage` for the builtin actor
-        let builtin_message = SimpleBuiltinMessage {
-            source: dispatch.source(),
-            destination: builtin_id,
-            payload: dispatch.payload_bytes().to_vec(),
-        };
-        // Estimate maximum gas that can be spent during message processing.
-        // The exact gas cost may depend on the payload and be only available postfactum.
-        let max_gas = <T as Config>::BuiltinActor::max_gas_cost(builtin_id);
-        if max_gas > gas_limit {
-            return Self::process_error(&dispatch, BuiltinActorError::InsufficientGas);
+    fn dispatch(&self, dispatch: StoredDispatch, gas_limit: u64) -> Option<Vec<JournalNote>> {
+        let actor_id = dispatch.destination();
+        if let Some(builtin_id) = self.registry.get(&actor_id) {
+            // Builtin actors can only execute `handle` dispatches; all other cases yield
+            // `no-execution` outcome.
+            if dispatch.kind() != DispatchKind::Handle {
+                let dispatch = dispatch.into_incoming(gas_limit);
+                let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
+                return Some(process_non_executable(
+                    dispatch,
+                    actor_id,
+                    system_reservation_ctx,
+                ));
+            }
+            // Re-package the dispatch into a `SimpleBuiltinMessage` for the builtin actor
+            let builtin_message = SimpleBuiltinMessage {
+                source: dispatch.source(),
+                destination: *builtin_id,
+                payload: dispatch.payload_bytes().to_vec(),
+            };
+
+            // Do message processing
+            let (res, gas_spent) = <T as Config>::BuiltinActor::handle(&builtin_message, gas_limit);
+            // We rely on a builtin actor having performed the check for gas limit consistency
+            // and having reported an error if the `gas_limit` was to have been exceeded.
+            // However, to avoid gas tree corruption error, we must not report as spent more gas than
+            // the amount reserved in gas tree (that is, `gas_limit`). Hence (just in case):
+            let gas_spent = gas_spent.min(gas_limit);
+            Some(
+                res.map_or_else(
+                    |err| {
+                        log::debug!(target: LOG_TARGET, "Builtin actor error: {:?}", err);
+                        Pallet::<T>::process_error(&dispatch, gas_spent, err)
+                    },
+                    |response_bytes| {
+                        log::debug!(target: LOG_TARGET, "Builtin call dispatched successfully");
+                        Pallet::<T>::process_success(&dispatch, gas_spent, response_bytes)
+                    },
+                )
+                .into_iter()
+                .collect(),
+            )
+        } else {
+            None
         }
-
-        // Do message processing
-        let (res, gas_spent) = <T as Config>::BuiltinActor::handle(&builtin_message);
-        res.map_or_else(
-            |err| {
-                log::debug!(target: LOG_TARGET, "Builtin actor error: {:?}", err);
-                Self::process_error(&dispatch, err)
-            },
-            |response_bytes| {
-                log::debug!(target: LOG_TARGET, "Builtin call dispatched successfully");
-                Self::process_success(&dispatch, gas_spent, response_bytes)
-            },
-        )
-    }
-
-    fn estimate_gas(builtin_id: BuiltinId) -> u64 {
-        <T as Config>::BuiltinActor::max_gas_cost(builtin_id)
     }
 }

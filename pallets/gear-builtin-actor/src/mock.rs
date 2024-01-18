@@ -21,21 +21,18 @@ use crate::{
     RegisteredBuiltinActor, SimpleBuiltinMessage,
 };
 use core::cell::RefCell;
-use frame_election_provider_support::{onchain, SequentialPhragmen, VoteWeight};
 use frame_support::{
     construct_runtime, parameter_types,
-    traits::{ConstBool, ConstU32, ConstU64, Currency, FindAuthor, OnFinalize, OnInitialize},
+    traits::{ConstBool, ConstU64, FindAuthor, OnFinalize, OnInitialize},
     PalletId,
 };
 use frame_support_test::TestRandomness;
-use frame_system::{self as system, pallet_prelude::BlockNumberFor, EnsureRoot};
+use frame_system::{self as system, pallet_prelude::BlockNumberFor};
 use gear_core::ids::{BuiltinId, ProgramId};
-use pallet_session::historical::{self as pallet_session_historical};
-use sp_core::{crypto::key_types, H256};
+use sp_core::H256;
 use sp_runtime::{
-    testing::UintAuthorityId,
-    traits::{BlakeTwo256, IdentityLookup, OpaqueKeys},
-    BuildStorage, KeyTypeId, Perbill, Percent,
+    traits::{BlakeTwo256, IdentityLookup},
+    BuildStorage,
 };
 use sp_std::convert::{TryFrom, TryInto};
 
@@ -45,25 +42,13 @@ type Balance = u128;
 type Block = frame_system::mocking::MockBlock<Test>;
 
 pub(crate) const SIGNER: AccountId = 1;
-pub(crate) const REWARD_PAYEE: AccountId = 2;
-pub(crate) const VAL_1_STASH: AccountId = 10;
-pub(crate) const VAL_1_CONTROLLER: AccountId = 11;
-pub(crate) const VAL_1_AUTH_ID: UintAuthorityId = UintAuthorityId(12);
-pub(crate) const VAL_2_STASH: AccountId = 20;
-pub(crate) const VAL_2_CONTROLLER: AccountId = 21;
-pub(crate) const VAL_2_AUTH_ID: UintAuthorityId = UintAuthorityId(22);
-pub(crate) const VAL_3_STASH: AccountId = 30;
-pub(crate) const VAL_3_CONTROLLER: AccountId = 31;
-pub(crate) const VAL_3_AUTH_ID: UintAuthorityId = UintAuthorityId(32);
-pub(crate) const BLOCK_AUTHOR: AccountId = VAL_1_STASH;
+pub(crate) const BLOCK_AUTHOR: AccountId = 10;
 
 pub(crate) const EXISTENTIAL_DEPOSIT: u128 = 10 * UNITS;
-pub(crate) const VALIDATOR_STAKE: u128 = 100 * UNITS;
 pub(crate) const ENDOWMENT: u128 = 1_000 * UNITS;
 
 pub(crate) const UNITS: u128 = 1_000_000_000_000; // 10^(-12) precision
-const MILLISECS_PER_BLOCK: u64 = 2_400;
-pub(crate) const SESSION_DURATION: u64 = 250;
+pub(crate) const MILLISECS_PER_BLOCK: u64 = 2_400;
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub(crate) struct ExecutionTraceFrame {
@@ -86,10 +71,6 @@ construct_runtime!(
         Balances: pallet_balances,
         Authorship: pallet_authorship,
         Timestamp: pallet_timestamp,
-        Staking: pallet_staking,
-        Session: pallet_session,
-        Historical: pallet_session_historical,
-        BagsList: pallet_bags_list::<Instance1>,
         GearProgram: pallet_gear_program,
         GearMessenger: pallet_gear_messenger,
         GearScheduler: pallet_gear_scheduler,
@@ -109,162 +90,6 @@ common::impl_pallet_system!(Test);
 common::impl_pallet_balances!(Test);
 common::impl_pallet_authorship!(Test);
 common::impl_pallet_timestamp!(Test);
-
-parameter_types! {
-    pub const Period: u64 = SESSION_DURATION;
-    pub const Offset: u64 = SESSION_DURATION + 1;
-}
-
-impl pallet_session::Config for Test {
-    type RuntimeEvent = RuntimeEvent;
-    type ValidatorId = AccountId;
-    type ValidatorIdOf = pallet_staking::StashOf<Self>;
-    type ShouldEndSession = pallet_session::PeriodicSessions<Period, Offset>;
-    type NextSessionRotation = pallet_session::PeriodicSessions<Period, Offset>;
-    type SessionManager = pallet_session_historical::NoteHistoricalRoot<Self, Staking>;
-    type SessionHandler = TestSessionHandler;
-    type Keys = UintAuthorityId;
-    type WeightInfo = ();
-}
-
-impl pallet_session_historical::Config for Test {
-    type FullIdentification = pallet_staking::Exposure<AccountId, u128>;
-    type FullIdentificationOf = pallet_staking::ExposureOf<Test>;
-}
-
-type AuthorityId = AccountId;
-pub struct TestSessionHandler;
-impl pallet_session::SessionHandler<AuthorityId> for TestSessionHandler {
-    const KEY_TYPE_IDS: &'static [KeyTypeId] = &[key_types::DUMMY];
-
-    fn on_new_session<Ks: OpaqueKeys>(
-        _changed: bool,
-        _validators: &[(AuthorityId, Ks)],
-        _queued_validators: &[(AuthorityId, Ks)],
-    ) {
-    }
-
-    fn on_disabled(_validator_index: u32) {}
-
-    fn on_genesis_session<Ks: OpaqueKeys>(_validators: &[(AuthorityId, Ks)]) {}
-}
-
-pub struct DummyEraPayout;
-impl pallet_staking::EraPayout<u128> for DummyEraPayout {
-    fn era_payout(
-        _total_staked: u128,
-        total_issuance: u128,
-        _era_duration_millis: u64,
-    ) -> (u128, u128) {
-        // At each era have 1% `total_issuance` increase
-        (Percent::from_percent(1) * total_issuance, 0)
-    }
-}
-parameter_types! {
-    // 2 sessions in an era
-    pub const SessionsPerEra: u32 = 2;
-    // 4 eras for unbonding
-    pub const BondingDuration: u32 = 4;
-    pub const SlashDeferDuration: u32 = 3;
-    pub const MaxNominatorRewardedPerValidator: u32 = 256;
-    pub const OffendingValidatorsThreshold: Perbill = Perbill::from_percent(17);
-    pub const MaxActiveValidators: u32 = 100;
-    pub const OffchainRepeat: u64 = 5;
-    pub const HistoryDepth: u32 = 84;
-    pub const MaxNominations: u32 = 16;
-    pub const MaxElectingVoters: u32 = 40_000;
-    pub const MaxElectableTargets: u16 = 10_000;
-    pub const MaxOnChainElectingVoters: u32 = 500;
-    pub const MaxOnChainElectableTargets: u16 = 100;
-}
-
-pub struct OnChainSeqPhragmen;
-impl onchain::Config for OnChainSeqPhragmen {
-    type System = Test;
-    type Solver = SequentialPhragmen<AccountId, Perbill>;
-    type DataProvider = Staking;
-    type WeightInfo = ();
-    type MaxWinners = MaxActiveValidators;
-    type VotersBound = MaxOnChainElectingVoters;
-    type TargetsBound = MaxOnChainElectableTargets;
-}
-
-impl pallet_staking::Config for Test {
-    type MaxNominations = MaxNominations;
-    type Currency = Balances;
-    type UnixTime = Timestamp;
-    type CurrencyBalance = <Self as pallet_balances::Config>::Balance;
-    type CurrencyToVote = ();
-    type ElectionProvider = onchain::OnChainExecution<OnChainSeqPhragmen>;
-    type GenesisElectionProvider = onchain::OnChainExecution<OnChainSeqPhragmen>;
-    type RewardRemainder = ();
-    type RuntimeEvent = RuntimeEvent;
-    type Slash = ();
-    type Reward = ();
-    type SessionsPerEra = SessionsPerEra;
-    type BondingDuration = BondingDuration;
-    type SlashDeferDuration = SlashDeferDuration;
-    type AdminOrigin = EnsureRoot<AccountId>;
-    type SessionInterface = Self;
-    type EraPayout = DummyEraPayout;
-    type NextNewSession = Session;
-    type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
-    type OffendingValidatorsThreshold = OffendingValidatorsThreshold;
-    type VoterList = BagsList;
-    type TargetList = pallet_staking::UseValidatorsMap<Self>;
-    type MaxUnlockingChunks = ConstU32<32>;
-    type HistoryDepth = HistoryDepth;
-    type EventListeners = ();
-    type WeightInfo = ();
-    type BenchmarkingConfig = pallet_staking::TestBenchmarkingConfig;
-}
-
-pub const THRESHOLDS: [u64; 32] = [
-    10,
-    20,
-    40,
-    80,
-    160,
-    320,
-    640,
-    1_280,
-    2_560,
-    5_120,
-    10_240,
-    20_480,
-    40_960,
-    81_920,
-    163_840,
-    327_680,
-    1_310_720,
-    2_621_440,
-    5_242_880,
-    10_485_760,
-    20_971_520,
-    41_943_040,
-    83_886_080,
-    167_772_160,
-    335_544_320,
-    671_088_640,
-    1_342_177_280,
-    2_684_354_560,
-    5_368_709_120,
-    10_737_418_240,
-    21_474_836_480,
-    42_949_672_960,
-];
-
-parameter_types! {
-    pub const BagThresholds: &'static [u64] = &THRESHOLDS;
-}
-
-impl pallet_bags_list::Config<pallet_bags_list::Instance1> for Test {
-    type RuntimeEvent = RuntimeEvent;
-    type ScoreProvider = Staking;
-    type BagThresholds = BagThresholds;
-    type Score = VoteWeight;
-    type WeightInfo = ();
-}
 
 parameter_types! {
     pub const BlockGasLimit: u64 = 100_000_000_000;
@@ -291,9 +116,13 @@ pallet_gear::impl_config!(
     BuiltinRouter = GearBuiltinActor,
 );
 
+// A builtin actor who always returns success (even if not enough gas is provided).
 pub struct SuccessBuiltinActor {}
 impl BuiltinActor<SimpleBuiltinMessage, u64> for SuccessBuiltinActor {
-    fn handle(message: &SimpleBuiltinMessage) -> (Result<Vec<u8>, BuiltinActorError>, u64) {
+    fn handle(
+        message: &SimpleBuiltinMessage,
+        _gas_limit: u64,
+    ) -> (Result<Vec<u8>, BuiltinActorError>, u64) {
         if !in_transaction() {
             DEBUG_EXECUTION_TRACE.with(|d| {
                 d.borrow_mut().push(ExecutionTraceFrame {
@@ -308,20 +137,24 @@ impl BuiltinActor<SimpleBuiltinMessage, u64> for SuccessBuiltinActor {
         // Build the reply message
         let payload = b"Success".to_vec();
 
-        (Ok(payload), 500_000_u64)
+        (Ok(payload), 1_000_000_u64)
     }
 
-    fn max_gas_cost(_builtin_id: BuiltinId) -> u64 {
-        1_000_000_u64
+    fn get_ids(buffer: &mut Vec<BuiltinId>) {
+        buffer.push(Self::ID);
     }
 }
 impl RegisteredBuiltinActor<SimpleBuiltinMessage, u64> for SuccessBuiltinActor {
     const ID: BuiltinId = BuiltinId(u64::from_le_bytes(*b"bltn/suc"));
 }
 
+// A builtin actor that always returns an error.
 pub struct ErrorBuiltinActor {}
 impl BuiltinActor<SimpleBuiltinMessage, u64> for ErrorBuiltinActor {
-    fn handle(message: &SimpleBuiltinMessage) -> (Result<Vec<u8>, BuiltinActorError>, u64) {
+    fn handle(
+        message: &SimpleBuiltinMessage,
+        _gas_limit: u64,
+    ) -> (Result<Vec<u8>, BuiltinActorError>, u64) {
         if !in_transaction() {
             DEBUG_EXECUTION_TRACE.with(|d| {
                 d.borrow_mut().push(ExecutionTraceFrame {
@@ -332,15 +165,53 @@ impl BuiltinActor<SimpleBuiltinMessage, u64> for ErrorBuiltinActor {
                 })
             });
         }
-        (Err(BuiltinActorError::UnknownBuiltinId), 500_000_u64)
+        (Err(BuiltinActorError::InsufficientGas), 100_000_u64)
     }
 
-    fn max_gas_cost(_builtin_id: BuiltinId) -> u64 {
-        1_000_000_u64
+    fn get_ids(buffer: &mut Vec<BuiltinId>) {
+        buffer.push(Self::ID);
     }
 }
 impl RegisteredBuiltinActor<SimpleBuiltinMessage, u64> for ErrorBuiltinActor {
     const ID: BuiltinId = BuiltinId(u64::from_le_bytes(*b"bltn/err"));
+}
+
+// An honest bulitin actor that actually checks whether the gas is sufficient.
+pub struct HonestBuiltinActor {}
+impl BuiltinActor<SimpleBuiltinMessage, u64> for HonestBuiltinActor {
+    fn handle(
+        message: &SimpleBuiltinMessage,
+        gas_limit: u64,
+    ) -> (Result<Vec<u8>, BuiltinActorError>, u64) {
+        let is_error = gas_limit < 500_000_u64;
+
+        if !in_transaction() {
+            DEBUG_EXECUTION_TRACE.with(|d| {
+                d.borrow_mut().push(ExecutionTraceFrame {
+                    destination: <Self as RegisteredBuiltinActor<_, _>>::ID,
+                    source: message.source(),
+                    input: message.payload_bytes().to_vec(),
+                    is_success: !is_error,
+                })
+            });
+        }
+
+        if is_error {
+            return (Err(BuiltinActorError::InsufficientGas), 100_000_u64);
+        }
+
+        // Build the reply message
+        let payload = b"Success".to_vec();
+
+        (Ok(payload), 500_000_u64)
+    }
+
+    fn get_ids(buffer: &mut Vec<BuiltinId>) {
+        buffer.push(Self::ID);
+    }
+}
+impl RegisteredBuiltinActor<SimpleBuiltinMessage, u64> for HonestBuiltinActor {
+    const ID: BuiltinId = BuiltinId(u64::from_le_bytes(*b"bltn/hon"));
 }
 
 parameter_types! {
@@ -348,40 +219,20 @@ parameter_types! {
 }
 
 impl pallet_gear_builtin_actor::Config for Test {
-    type BuiltinActor = (SuccessBuiltinActor, ErrorBuiltinActor);
-    type WeightInfo = ();
+    type BuiltinActor = (SuccessBuiltinActor, ErrorBuiltinActor, HonestBuiltinActor);
     type PalletId = BuiltinActorPalletId;
 }
-
-pub type ValidatorAccountId = (
-    AccountId,       // stash
-    AccountId,       // controller
-    UintAuthorityId, // authority discovery ID
-);
 
 // Build genesis storage according to the mock runtime.
 #[derive(Default)]
 pub struct ExtBuilder {
-    initial_authorities: Vec<ValidatorAccountId>,
-    stash: Balance,
     endowed_accounts: Vec<AccountId>,
     endowment: Balance,
-    total_supply: Balance,
 }
 
 impl ExtBuilder {
-    pub fn stash(mut self, s: Balance) -> Self {
-        self.stash = s;
-        self
-    }
-
     pub fn endowment(mut self, e: Balance) -> Self {
         self.endowment = e;
-        self
-    }
-
-    pub fn initial_authorities(mut self, authorities: Vec<ValidatorAccountId>) -> Self {
-        self.initial_authorities = authorities;
         self
     }
 
@@ -395,55 +246,12 @@ impl ExtBuilder {
             .build_storage()
             .unwrap();
 
-        let balances: Vec<(AccountId, u128)> = self
-            .initial_authorities
-            .iter()
-            .map(|x| (x.0, self.stash))
-            .chain(self.endowed_accounts.iter().map(|k| (*k, self.endowment)))
-            .collect();
-
-        pallet_balances::GenesisConfig::<Test> { balances }
-            .assimilate_storage(&mut storage)
-            .unwrap();
-
-        SessionConfig {
-            keys: self
-                .initial_authorities
+        pallet_balances::GenesisConfig::<Test> {
+            balances: self
+                .endowed_accounts
                 .iter()
-                .map(|x| (x.0, x.0, x.2.clone()))
+                .map(|k| (*k, self.endowment))
                 .collect(),
-        }
-        .assimilate_storage(&mut storage)
-        .unwrap();
-
-        StakingConfig {
-            validator_count: self.initial_authorities.len() as u32,
-            minimum_validator_count: self.initial_authorities.len() as u32,
-            stakers: self
-                .initial_authorities
-                .iter()
-                .map(|x| {
-                    (
-                        x.0,
-                        x.1,
-                        self.stash,
-                        pallet_staking::StakerStatus::<AccountId>::Validator,
-                    )
-                })
-                .collect::<Vec<_>>(),
-            invulnerables: self.initial_authorities.iter().map(|x| x.0).collect(),
-            slash_reward_fraction: Perbill::from_percent(10),
-            ..Default::default()
-        }
-        .assimilate_storage(&mut storage)
-        .unwrap();
-
-        GearBuiltinActorConfig {
-            builtin_ids: vec![
-                <SuccessBuiltinActor as RegisteredBuiltinActor<_, _>>::ID,
-                <ErrorBuiltinActor as RegisteredBuiltinActor<_, _>>::ID,
-            ],
-            ..Default::default()
         }
         .assimilate_storage(&mut storage)
         .unwrap();
@@ -454,14 +262,6 @@ impl ExtBuilder {
             let new_blk = 1;
             System::set_block_number(new_blk);
             on_initialize(new_blk);
-
-            // ensure total supply is as expected
-            let total_supply = Balances::total_issuance();
-            if total_supply < self.total_supply {
-                // Mint the difference to SIGNER user
-                let diff = self.total_supply.saturating_sub(total_supply);
-                let _ = <Balances as Currency<_>>::deposit_creating(&SIGNER, diff);
-            }
         });
         ext
     }
@@ -502,7 +302,6 @@ pub(crate) fn run_for_n_blocks(n: u64) {
 pub(crate) fn on_initialize(new_block_number: BlockNumberFor<Test>) {
     Timestamp::set_timestamp(new_block_number.saturating_mul(MILLISECS_PER_BLOCK));
     Authorship::on_initialize(new_block_number);
-    Session::on_initialize(new_block_number);
     GearGas::on_initialize(new_block_number);
     GearMessenger::on_initialize(new_block_number);
     Gear::on_initialize(new_block_number);
@@ -510,7 +309,6 @@ pub(crate) fn on_initialize(new_block_number: BlockNumberFor<Test>) {
 
 // Run on_finalize hooks (in pallets reverse order, as they appear in AllPalletsWithSystem)
 pub(crate) fn on_finalize(current_blk: BlockNumberFor<Test>) {
-    Staking::on_finalize(current_blk);
     Authorship::on_finalize(current_blk);
     Gear::on_finalize(current_blk);
     assert!(!System::events().iter().any(|e| {
@@ -558,13 +356,7 @@ pub(crate) fn new_test_ext() -> sp_io::TestExternalities {
     let bank_address = <Test as pallet_gear_bank::Config>::BankAddress::get();
 
     ExtBuilder::default()
-        .initial_authorities(vec![
-            (VAL_1_STASH, VAL_1_CONTROLLER, VAL_1_AUTH_ID),
-            (VAL_2_STASH, VAL_2_CONTROLLER, VAL_2_AUTH_ID),
-            (VAL_3_STASH, VAL_3_CONTROLLER, VAL_3_AUTH_ID),
-        ])
-        .stash(VALIDATOR_STAKE)
         .endowment(ENDOWMENT)
-        .endowed_accounts(vec![bank_address, SIGNER, REWARD_PAYEE])
+        .endowed_accounts(vec![bank_address, SIGNER, BLOCK_AUTHOR])
         .build()
 }

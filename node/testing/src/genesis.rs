@@ -128,6 +128,5 @@ pub fn config_endowed(code: Option<&[u8]>, extra_endowed: Vec<AccountId>) -> Run
             target_inflation: Perquintill::from_rational(578_u64, 10_000_u64), // 5.78%
             filtered_accounts: Default::default(),
         },
-        gear_builtin_actor: Default::default(),
     }
 }

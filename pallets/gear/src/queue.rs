@@ -17,10 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::*;
-use core_processor::{
-    common::PrechargedDispatch, process_non_executable, ContextChargedForInstrumentation,
-    SystemReservationContext,
-};
+use core_processor::{common::PrechargedDispatch, ContextChargedForInstrumentation};
 
 pub(crate) struct QueueStep<'a, T: Config, F> {
     pub block_config: &'a BlockConfig,
@@ -170,6 +167,9 @@ where
             T::DebugInfo::remap_id();
         }
 
+        // Create an instance of a builtin router
+        let builtin_router = T::BuiltinRouter::provide();
+
         while QueueProcessingOf::<T>::allowed() {
             let dispatch = match QueueOf::<T>::dequeue()
                 .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e))
@@ -205,21 +205,12 @@ where
             let dispatch_id = dispatch.id();
             let dispatch_reply = dispatch.reply_details().is_some();
 
-            // In case the destination is a builtin actor, process the dispatch differently.
-            if let Some(builtin_id) = T::BuiltinRouter::lookup(&program_id) {
-                let journal = match dispatch.kind() {
-                    DispatchKind::Handle => {
-                        T::BuiltinRouter::dispatch(builtin_id, dispatch.clone(), gas_limit)
-                    }
-                    _ => {
-                        // Builtin actors can only execute `handle` messages.
-                        // All other cases result in no-execution outcome.
-                        let dispatch = dispatch.into_incoming(gas_limit);
-                        let system_reservation_ctx =
-                            SystemReservationContext::from_dispatch(&dispatch);
-                        process_non_executable(dispatch, program_id, system_reservation_ctx)
-                    }
-                };
+            // What if the address provided as the dispatch destination (a.k.a. `program_id`)
+            // resolves to some `BuiltinId` belonging to one of the known builtin actors?
+            // In this case, we try to handle the dispatch as a builtin actor dispatch, and
+            // if in reality the destination is a regular program, we receive `None` as the output
+            // and proceed with the regular flow. If it is not `None` then we are done with this dispatch.
+            if let Some(journal) = builtin_router.dispatch(dispatch.clone(), gas_limit) {
                 core_processor::handle_journal(journal, &mut ext_manager);
                 continue;
             }

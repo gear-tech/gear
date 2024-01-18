@@ -1056,7 +1056,6 @@ parameter_types! {
 
 impl pallet_gear_builtin_actor::Config for Runtime {
     type BuiltinActor = ();
-    type WeightInfo = pallet_gear_builtin_actor::weights::SubstrateWeight<Runtime>;
     type PalletId = BuiltinActorPalletId;
 }
 

@@ -17,44 +17,48 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::*;
-use gear_core::ids::BuiltinId;
+use gear_core::ids::{BuiltinId, ProgramId};
 
 /// A trait representing a registry that provides methods to lookup a builtin actor
-pub trait BuiltinRouter<ActorId> {
-    type Dispatch;
+pub trait BuiltinRouter {
+    type QueuedDispatch;
     type Output;
 
-    /// Returns available actors identifiers.
-    fn lookup(id: &ActorId) -> Option<BuiltinId>;
+    /// Looks up a builtin actor by its actor id.
+    fn lookup(&self, id: &ProgramId) -> Option<BuiltinId>;
 
-    /// Handles a builtin actor dispatch and returns an order sequence of outputs.
-    fn dispatch(
-        builtin_id: BuiltinId,
-        dispatch: Self::Dispatch,
-        gas_limit: u64,
-    ) -> Vec<Self::Output>;
-
-    /// Upper bound for gas required to handle a message by a builtin actor.
-    fn estimate_gas(builtin_id: BuiltinId) -> u64;
+    /// Handles a dispatch and returns an ordered sequence of outputs if the
+    /// destination actor is a builtin actor, and `None` otherwise.
+    fn dispatch(&self, dispatch: Self::QueuedDispatch, gas_limit: u64)
+        -> Option<Vec<Self::Output>>;
 }
 
-impl<ActorId> BuiltinRouter<ActorId> for () {
-    type Dispatch = StoredDispatch;
+impl BuiltinRouter for () {
+    type QueuedDispatch = StoredDispatch;
     type Output = JournalNote;
 
-    fn lookup(_id: &ActorId) -> Option<BuiltinId> {
+    fn lookup(&self, _id: &ProgramId) -> Option<BuiltinId> {
         None
     }
 
     fn dispatch(
-        _builtin_id: BuiltinId,
-        _dispatch: Self::Dispatch,
+        &self,
+        // _builtin_id: BuiltinId,
+        _dispatch: Self::QueuedDispatch,
         _gas_limit: u64,
-    ) -> Vec<Self::Output> {
-        Default::default()
+    ) -> Option<Vec<Self::Output>> {
+        None
     }
+}
 
-    fn estimate_gas(_builtin_id: BuiltinId) -> u64 {
-        Default::default()
-    }
+pub trait BuiltinRouterProvider<Dispatch, Output> {
+    type Router: BuiltinRouter<QueuedDispatch = Dispatch, Output = Output>;
+
+    fn provide() -> Self::Router;
+}
+
+impl BuiltinRouterProvider<StoredDispatch, JournalNote> for () {
+    type Router = ();
+
+    fn provide() -> Self::Router {}
 }

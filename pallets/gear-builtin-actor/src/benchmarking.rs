@@ -27,54 +27,7 @@ use gear_core::{
     message::{DispatchKind, StoredDispatch, StoredMessage},
 };
 
-macro_rules! impl_builtin_actor {
-    ($name: ident, $id: literal) => {
-        pub struct $name {}
-
-        impl BuiltinActor<SimpleBuiltinMessage, u64> for $name {
-            fn handle(
-                _message: &SimpleBuiltinMessage,
-            ) -> (Result<Vec<u8>, BuiltinActorError>, u64) {
-                (Ok(Default::default()), Default::default())
-            }
-
-            fn max_gas_cost(_builtin_id: BuiltinId) -> u64 {
-                Default::default()
-            }
-        }
-        impl RegisteredBuiltinActor<SimpleBuiltinMessage, u64> for $name {
-            const ID: BuiltinId = BuiltinId($id as u64);
-        }
-    };
-}
-
-impl_builtin_actor!(DummyActor0, 0);
-impl_builtin_actor!(DummyActor1, 1);
-impl_builtin_actor!(DummyActor2, 2);
-impl_builtin_actor!(DummyActor3, 3);
-impl_builtin_actor!(DummyActor4, 4);
-impl_builtin_actor!(DummyActor5, 5);
-impl_builtin_actor!(DummyActor6, 6);
-impl_builtin_actor!(DummyActor7, 7);
-impl_builtin_actor!(DummyActor8, 8);
-impl_builtin_actor!(DummyActor9, 9);
-impl_builtin_actor!(DummyActor10, 10);
-
 benchmarks! {
-    lookup {
-        // Populate the storage with maximum (16, as of today) builtin actors ids
-        for i in 0_u64..16 {
-            let builtin_id = BuiltinId(i);
-            let actor_id = Pallet::<T>::generate_actor_id(builtin_id);
-            Actors::<T>::insert(actor_id, builtin_id);
-        }
-        let actor_id = ProgramId::from(100_u64);
-    }: {
-        BuiltinActorPallet::<T>::lookup(&actor_id)
-    } verify {
-        // No changes in runtime are expected since the actual dispatch doesn't take place.
-    }
-
     calculate_id {
         let builtin_id = BuiltinId(100_u64);
     }: {
@@ -84,18 +37,6 @@ benchmarks! {
     }
 
     base_handle_weight {
-        let _ = BuiltinActorPallet::<T>::register_actor::<DummyActor0, _, _>();
-        let _ = BuiltinActorPallet::<T>::register_actor::<DummyActor1, _, _>();
-        let _ = BuiltinActorPallet::<T>::register_actor::<DummyActor2, _, _>();
-        let _ = BuiltinActorPallet::<T>::register_actor::<DummyActor3, _, _>();
-        let _ = BuiltinActorPallet::<T>::register_actor::<DummyActor4, _, _>();
-        let _ = BuiltinActorPallet::<T>::register_actor::<DummyActor5, _, _>();
-        let _ = BuiltinActorPallet::<T>::register_actor::<DummyActor6, _, _>();
-        let _ = BuiltinActorPallet::<T>::register_actor::<DummyActor7, _, _>();
-        let _ = BuiltinActorPallet::<T>::register_actor::<DummyActor8, _, _>();
-        let _ = BuiltinActorPallet::<T>::register_actor::<DummyActor9, _, _>();
-        let _ = BuiltinActorPallet::<T>::register_actor::<DummyActor10, _, _>();
-
         let builtin_id = BuiltinId(10_u64);
         let actor_id = BuiltinActorPallet::<T>::generate_actor_id(builtin_id);
         let payload = b"Payload".to_vec();
@@ -120,7 +61,7 @@ benchmarks! {
             payload,
         };
     }: {
-        let _ = <T as Config>::BuiltinActor::handle(&builtin_message);
+        let _ = <T as Config>::BuiltinActor::handle(&builtin_message, 1_000_000);
     } verify {
         // No changes in runtime are expected since the actual dispatch doesn't take place.
     }

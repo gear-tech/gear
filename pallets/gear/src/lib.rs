@@ -44,7 +44,7 @@ mod tests;
 pub mod pallet_tests;
 
 pub use crate::{
-    builtin::BuiltinRouter,
+    builtin::{BuiltinRouter, BuiltinRouterProvider},
     manager::{ExtManager, HandleKind},
     pallet::*,
     schedule::{HostFnWeights, InstructionWeights, Limits, MemoryWeights, Schedule},
@@ -261,11 +261,7 @@ pub mod pallet {
         type ProgramRentDisabledDelta: Get<BlockNumberFor<Self>>;
 
         /// The builtin actors registry.
-        type BuiltinRouter: BuiltinRouter<
-            ProgramId,
-            Dispatch = StoredDispatch,
-            Output = JournalNote,
-        >;
+        type BuiltinRouter: BuiltinRouterProvider<StoredDispatch, JournalNote>;
     }
 
     #[pallet::pallet]
@@ -816,7 +812,7 @@ pub mod pallet {
 
         /// Returns true if `program_id` is that of a in active status or the builtin actor.
         pub fn is_active(program_id: ProgramId) -> bool {
-            T::BuiltinRouter::lookup(&program_id).is_some()
+            T::BuiltinRouter::provide().lookup(&program_id).is_some()
                 || ProgramStorageOf::<T>::get_program(program_id)
                     .map(|program| program.is_active())
                     .unwrap_or_default()
@@ -841,7 +837,7 @@ pub mod pallet {
         pub fn program_exists(program_id: ProgramId) -> bool {
             ProgramStorageOf::<T>::program_exists(program_id)
                 || ProgramStorageOf::<T>::paused_program_exists(&program_id)
-                || T::BuiltinRouter::lookup(&program_id).is_some()
+                || T::BuiltinRouter::provide().lookup(&program_id).is_some()
         }
 
         /// Returns exit argument of an exited program.
