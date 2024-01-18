@@ -124,17 +124,17 @@ fn check_code(module: &Module, config: &TryNewCodeConfig) -> Result<(), CodeErro
     }
 
     if config.check_imports {
-        let syscalls = SyscallName::all_map();
+        let syscalls = SyscallName::instrumentable_map();
+        let mut seen = BTreeSet::new();
         for import in imports {
             if let External::Function(i) = import.external() {
                 let Type::Function(types) = &types[*i as usize];
-                // We can likely improve this by adding some helper function in SyscallName
                 let syscall = syscalls
                     .get(import.field())
                     .ok_or(CodeError::UnknownImport)?;
 
-                if syscall == SyscallName::SystemBreak {
-                    continue;
+                if !seen.insert(syscall.clone()) {
+                    return Err(CodeError::DuplicateImport);
                 }
 
                 let signature = syscall.signature();
@@ -333,6 +333,9 @@ pub enum CodeError {
     /// The signature of an imported function is invalid.
     #[display(fmt = "Invalid function signature for imported function")]
     InvalidImportFnSignature,
+    /// An imported was declared multiple times.
+    #[display(fmt = "An import was declared multiple times")]
+    DuplicateImport,
 }
 
 /// Contains instrumented binary code of a program and initial memory size from memory import.
