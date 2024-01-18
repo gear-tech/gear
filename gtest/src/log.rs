@@ -399,11 +399,11 @@ impl RunResult {
 
     /// If the main message panicked.
     pub fn panicked(&self) -> bool {
-        if self.log.len() != 1 {
+        if self.log.is_empty() {
             return false;
         }
         matches!(
-            self.log[0].reply_code(),
+            self.log.last().reply_code(),
             Some(ReplyCode::Error(ErrorReplyReason::Execution(
                 SimpleExecutionError::UserspacePanic
             )))
@@ -433,7 +433,7 @@ impl RunResult {
 
     /// Trying to get the panic log.
     fn panic_log(&self) -> Option<&CoreLog> {
-        let [core_log] = &self.log[..] else {
+        let [.. ,core_log] = &self.log[..] else {
             return None;
         };
         let is_panic = matches!(
