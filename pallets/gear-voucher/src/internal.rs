@@ -227,7 +227,7 @@ pub enum PrepaidCall<Balance> {
     // TODO (breathx): forbid for `Pallet::call_deprecated` [DONE]
     // TODO (breathx): tests for:
     //                  * `Pallet::issue()` [DONE];
-    //                  * `Pallet::update()`: ok, err, noop;
+    //                  * `Pallet::update()`: ok [DONE], err [DONE], noop [DONE];
     //                  * `Pallet::call_deprecated`: forbidden (result + fees);
     //                  * `Pallet::call`: eligible (result + fees), non-eligible (result + fees).
     UploadCode {

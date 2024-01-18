@@ -470,6 +470,7 @@ fn voucher_update_works() {
         );
         assert_eq!(voucher.owner, BOB);
         assert_eq!(voucher.programs, Some([program_id, new_program_id].into()));
+        assert!(voucher.code_uploading);
         assert_eq!(
             voucher.expiry,
             System::block_number() + DEFAULT_VALIDITY + 1 + duration_prolong
@@ -523,7 +524,7 @@ fn voucher_update_works() {
             // extra programs
             Some(Some([program_id].into())),
             // code uploading
-            None,
+            Some(true),
             // prolong duration
             None,
         )));
@@ -601,7 +602,9 @@ fn voucher_update_err_cases() {
     new_test_ext().execute_with(|| {
         let program_id = H256::random().cast();
 
-        let voucher_id = utils::issue(ALICE, BOB, program_id).expect("Failed to issue voucher");
+        let voucher_id =
+            utils::issue_w_balance_and_uploading(ALICE, BOB, DEFAULT_BALANCE, program_id, true)
+                .expect("Failed to issue voucher");
 
         // Inexistent voucher.
         assert_noop!(
@@ -685,6 +688,26 @@ fn voucher_update_err_cases() {
                 None,
             ),
             Error::<Test>::MaxProgramsLimitExceeded
+        );
+
+        // Try to restrict code uploading.
+        assert_noop!(
+            Voucher::update(
+                RuntimeOrigin::signed(ALICE),
+                BOB,
+                voucher_id,
+                // move ownership
+                None,
+                // balance top up
+                None,
+                // extra programs
+                None,
+                // code uploading
+                Some(false),
+                // prolong duration
+                None,
+            ),
+            Error::<Test>::CodeUploadingEnabled
         );
 
         // Prolongation duration error.
