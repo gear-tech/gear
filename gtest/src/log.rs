@@ -399,7 +399,15 @@ impl RunResult {
 
     /// If the main message panicked.
     pub fn panicked(&self) -> bool {
-        self.panic_log().is_some()
+        if self.log.len() == 0 {
+            return false;
+        }
+        matches!(
+            self.log[0].reply_code(),
+            Some(ReplyCode::Error(ErrorReplyReason::Execution(
+                SimpleExecutionError::UserspacePanic
+            )))
+        )
     }
 
     /// Asserts that the main message panicked and that the panic contained a given message.
