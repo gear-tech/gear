@@ -410,7 +410,8 @@ impl RunResult {
         )
     }
 
-    /// Asserts that the main message panicked and that the panic contained a given message.
+    /// Asserts that the main message panicked and that the panic contained a
+    /// given message.
     #[track_caller]
     pub fn assert_panicked_with(&self, msg: impl Into<String>) {
         let panic_log = self.panic_log();
