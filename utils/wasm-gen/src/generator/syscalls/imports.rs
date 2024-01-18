@@ -21,7 +21,7 @@
 use crate::{
     generator::{
         CallIndexes, CallIndexesHandle, FrozenGearWasmGenerator, GearEntryPointGenerationProof,
-        GearWasmGenerator, MemoryImportGenerationProof, ModuleWithCallIndexes,
+        GearWasmGenerator, MemoryImportGenerationProof, ModuleWithCallIndexes, SyscallsInvocator,
     },
     wasm::{PageCount as WasmPageCount, WasmModule},
     InvocableSyscall, SyscallInjectionType, SyscallsConfig,
@@ -325,8 +325,8 @@ impl<'a, 'b> SyscallsImportsGenerator<'a, 'b> {
 }
 
 impl<'a, 'b> SyscallsImportsGenerator<'a, 'b> {
-    /// The amount of memory used to create a precise syscall.
-    const PRECISE_SYSCALL_MEMORY_SIZE: u32 = 100;
+    /// The amount of reserved memory used to create a precise syscall.
+    const PRECISE_SYSCALL_RESERVED_MEMORY_SIZE: u32 = 128;
 
     /// Generates a function which calls "properly" the `gr_reservation_send`.
     fn generate_send_from_reservation(
@@ -800,7 +800,8 @@ impl<'a, 'b> SyscallsImportsGenerator<'a, 'b> {
     /// Reserves enough memory build precise syscall.
     fn reserve_memory(&self) -> i32 {
         self.memory_size_bytes()
-            .saturating_sub(Self::PRECISE_SYSCALL_MEMORY_SIZE) as i32
+            .saturating_sub(SyscallsInvocator::RESERVED_MEMORY_SIZE)
+            .saturating_sub(Self::PRECISE_SYSCALL_RESERVED_MEMORY_SIZE) as i32
     }
 
     /// Returns the size of the memory in bytes that can be used to build precise syscall.

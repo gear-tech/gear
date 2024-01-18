@@ -221,8 +221,7 @@ impl<'a, 'b> EntryPointsGenerator<'a, 'b> {
             if let Some(memory_size_pages) = self.module.initial_mem_size() {
                 let mem_size = Into::<WasmPageCount>::into(memory_size_pages).memory_size();
 
-                let upper_limit = mem_size.saturating_sub(1) as i32;
-                let wait_called_ptr = upper_limit.saturating_sub(50);
+                let wait_called_ptr = mem_size.saturating_sub(50) as i32;
                 let init_called_ptr = wait_called_ptr + mem::size_of::<bool>() as i32;
 
                 res.extend_from_slice(&[

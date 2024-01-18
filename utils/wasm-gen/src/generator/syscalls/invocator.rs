@@ -146,6 +146,9 @@ impl<'a, 'b> From<DisabledAdditionalDataInjector<'a, 'b>> for SyscallsInvocator<
 }
 
 impl<'a, 'b> SyscallsInvocator<'a, 'b> {
+    /// The amount of reserved memory.
+    pub const RESERVED_MEMORY_SIZE: u32 = 256;
+
     /// Returns the size of the memory in bytes.
     fn memory_size_bytes(&self) -> u32 {
         Into::<WasmPageCount>::into(self.memory_size_pages()).memory_size()
@@ -339,8 +342,7 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
         {
             let mem_size = self.memory_size_bytes();
 
-            let upper_limit = mem_size.saturating_sub(1) as i32;
-            let wait_called_ptr = upper_limit.saturating_sub(50);
+            let wait_called_ptr = mem_size.saturating_sub(50) as i32;
             let init_called_ptr = wait_called_ptr + mem::size_of::<bool>() as i32;
 
             // add instructions before calling wait syscall
@@ -441,7 +443,7 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                 }
                 ProcessedSyscallParams::MemoryArrayLength => {
                     let length;
-                    let upper_limit = mem_size.saturating_sub(1) as i32;
+                    let upper_limit = mem_size.saturating_sub(Self::RESERVED_MEMORY_SIZE) as i32;
 
                     (memory_array_definition, length) = if let Some((offset, _)) =
                         memory_array_definition
@@ -460,7 +462,7 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                 }
                 ProcessedSyscallParams::MemoryArrayPtr => {
                     let offset;
-                    let upper_limit = mem_size.saturating_sub(1) as i32;
+                    let upper_limit = mem_size.saturating_sub(Self::RESERVED_MEMORY_SIZE) as i32;
 
                     (memory_array_definition, offset) =
                         if let Some((offset, _)) = memory_array_definition {
@@ -476,7 +478,9 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                 }
                 ProcessedSyscallParams::MemoryPtrValue { allowed_values } => {
                     // Subtract a bit more so entities from `gsys` fit.
-                    let upper_limit = mem_size.saturating_sub(100);
+                    let upper_limit = mem_size
+                        .saturating_sub(Self::RESERVED_MEMORY_SIZE)
+                        .saturating_sub(128);
                     let offset = self.unstructured.int_in_range(0..=upper_limit)? as i32;
 
                     let param_instructions = if let Some(allowed_values) = allowed_values {
