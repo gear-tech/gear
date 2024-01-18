@@ -398,7 +398,7 @@ impl RunResult {
     }
 
     /// If the main message panicked.
-    pub fn panicked(&self) -> bool {
+    pub fn main_panicked(&self) -> bool {
         if self.log.is_empty() {
             return false;
         }
@@ -429,7 +429,7 @@ impl RunResult {
         .expect("Unable to decode panic message");
 
         assert!(
-            payload.contains(&format!("panicked with '{msg}'")),
+            payload.starts_with(&format!("Panic occurred: panicked with '{msg}'")),
             "expected panic message that contains `{msg}`, but the actual panic message is `{payload}`"
         );
     }

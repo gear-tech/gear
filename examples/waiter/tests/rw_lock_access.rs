@@ -3,9 +3,8 @@ use demo_waiter::{
 };
 use gear_core::ids::MessageId;
 use gtest::{Program, System};
-use utils::USER_ID;
 
-mod utils;
+pub const USER_ID: u64 = 10;
 
 #[test]
 fn drop_r_lock_guard_from_different_msg_fails() {
