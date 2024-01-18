@@ -124,7 +124,7 @@ fn check_code(module: &Module, config: &TryNewCodeConfig) -> Result<(), CodeErro
     }
 
     if config.check_imports {
-        let syscalls = SyscallName::instrumentable_map();
+        let syscalls = SyscallName::all_map();
         for import in imports {
             if let External::Function(i) = import.external() {
                 let Type::Function(types) = &types[*i as usize];
@@ -132,6 +132,11 @@ fn check_code(module: &Module, config: &TryNewCodeConfig) -> Result<(), CodeErro
                 let syscall = syscalls
                     .get(import.field())
                     .ok_or(CodeError::UnknownImport)?;
+
+                if syscall == SyscallName::SystemBreak {
+                    continue;
+                }
+
                 let signature = syscall.signature();
 
                 let params = signature
@@ -416,7 +421,7 @@ impl Default for TryNewCodeConfig {
             stack_height: None,
             export_stack_height: false,
             check_exports: true,
-            check_imports: true,
+            check_imports: false,
             check_and_canonize_stack_end: true,
             check_mut_global_exports: true,
             check_start_section: true,

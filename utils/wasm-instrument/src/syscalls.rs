@@ -182,6 +182,14 @@ impl SyscallName {
         Self::all().count()
     }
 
+    /// Returns map of all syscall string values to syscall names.
+    pub fn all_map() -> BTreeMap<String, SyscallName> {
+        Self::all()
+            .into_iter()
+            .map(|n| (n.to_str().to_string(), n))
+            .collect()
+    }
+
     /// Returns list of all syscall names (actually supported by this module syscalls).
     pub fn instrumentable() -> BTreeSet<Self> {
         [
@@ -240,14 +248,6 @@ impl SyscallName {
             Self::Random,
         ]
         .into()
-    }
-
-    /// Returns map of all syscall string values to syscall names (actually supported by this module syscalls).
-    pub fn instrumentable_map() -> BTreeMap<String, SyscallName> {
-        Self::instrumentable()
-            .into_iter()
-            .map(|n| (n.to_str().to_string(), n))
-            .collect()
     }
 
     /// Returns signature for syscall by name.
