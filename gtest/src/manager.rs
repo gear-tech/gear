@@ -239,6 +239,7 @@ pub(crate) struct ExtManager {
     pub(crate) wait_init_list: BTreeMap<ProgramId, Vec<MessageId>>,
     pub(crate) gas_limits: BTreeMap<MessageId, u64>,
     pub(crate) delayed_dispatches: HashMap<u32, Vec<Dispatch>>,
+    pub(crate) used_reservations: HashMap<ReservationId, bool>,
 
     // Last run info
     pub(crate) origin: ProgramId,
@@ -974,7 +975,7 @@ impl JournalHandler for ExtManager {
         message_id: MessageId,
         dispatch: Dispatch,
         bn: u32,
-        _reservation: Option<ReservationId>,
+        reservation: Option<ReservationId>,
     ) {
         if bn > 0 {
             log::debug!("[{message_id}] new delayed dispatch#{}", dispatch.id());
@@ -992,6 +993,11 @@ impl JournalHandler for ExtManager {
         if !self.is_user(&dispatch.destination()) {
             self.dispatches.push_back(dispatch.into_stored());
         } else {
+            if let Some(reservation_id) = reservation {
+                self.used_reservations
+                    .entry(reservation_id)
+                    .and_modify(|used| *used = true);
+            }
             let message = dispatch.into_stored().into_parts().1;
 
             let message = match message
@@ -1160,14 +1166,20 @@ impl JournalHandler for ExtManager {
         panic!("Processing stopped. Used for on-chain logic only.")
     }
 
+    #[track_caller]
     fn reserve_gas(
         &mut self,
         _message_id: MessageId,
-        _reservation_id: ReservationId,
+        reservation_id: ReservationId,
         _program_id: ProgramId,
         _amount: u64,
         _bn: u32,
     ) {
+        assert!(
+            !self.used_reservations.contains_key(&reservation_id),
+            "Reservation ID should be unique"
+        );
+        self.used_reservations.insert(reservation_id, false);
     }
 
     fn unreserve_gas(
@@ -1180,6 +1192,13 @@ impl JournalHandler for ExtManager {
 
     #[track_caller]
     fn update_gas_reservation(&mut self, program_id: ProgramId, reserver: GasReserver) {
+        println!("update_gas_reservation, len = {}", reserver.states().len());
+        // for (id, _) in self.used_reservations.drain().filter(|(_, used)| *used) {
+        //     reserver.mark_used(id).expect("Should be ok");
+        // }
+
+        dbg!(reserver.states().values().last());
+
         let block_height = self.block_info.height;
         let mut actors = self.actors.borrow_mut();
         let (actor, _) = actors
