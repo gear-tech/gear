@@ -1097,4 +1097,28 @@ mod tests {
 
         assert!(results.iter().any(|result| result.contains(&log)));
     }
+
+    #[test]
+    fn reservations_limit() {
+        use demo_custom::{InitMessage, WASM_BINARY};
+        let sys = System::new();
+        sys.init_logger();
+
+        let prog = Program::from_opt_and_meta_code_with_id(&sys, 420, WASM_BINARY.to_vec(), None);
+
+        let signer = 42;
+
+        // Init reserver
+        prog.send(signer, InitMessage::Reserver);
+
+        for _ in 0..258 {
+            // Reserve
+            let result = prog.send_bytes(signer, b"reserve");
+            assert!(!result.main_failed());
+
+            // Spend
+            let result = prog.send_bytes(signer, b"send from reservation");
+            assert!(!result.main_failed());
+        }
+    }
 }

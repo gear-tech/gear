@@ -26,6 +26,7 @@ extern crate alloc;
 pub mod backend_error;
 pub mod btree;
 pub mod capacitor;
+pub mod reserver;
 pub mod simple_waiter;
 
 use alloc::string::String;
@@ -45,13 +46,14 @@ pub enum InitMessage {
     BTree,
     BackendError,
     SimpleWaiter,
+    Reserver,
 }
 
 #[cfg(not(feature = "std"))]
 mod wasm {
     use super::{
         backend_error::wasm as backend_error, btree::wasm as btree, capacitor::wasm as capacitor,
-        simple_waiter::wasm as simple_waiter, InitMessage,
+        reserver::wasm as reserver, simple_waiter::wasm as simple_waiter, InitMessage,
     };
     use gstd::msg;
 
@@ -60,6 +62,7 @@ mod wasm {
         BTree(btree::State),
         BackendError(backend_error::State),
         SimpleWaiter(simple_waiter::State),
+        Reserver(reserver::State),
     }
 
     static mut STATE: Option<State> = None;
@@ -72,6 +75,7 @@ mod wasm {
             InitMessage::BTree => State::BTree(btree::init()),
             InitMessage::BackendError => State::BackendError(backend_error::init()),
             InitMessage::SimpleWaiter => State::SimpleWaiter(simple_waiter::init()),
+            InitMessage::Reserver => State::Reserver(reserver::init()),
         };
         unsafe { STATE = Some(state) };
     }
@@ -83,6 +87,7 @@ mod wasm {
             State::Capacitor(state) => capacitor::handle(state),
             State::BTree(state) => btree::handle(state),
             State::SimpleWaiter(state) => simple_waiter::handle(state),
+            State::Reserver(state) => reserver::handle(state),
             _ => {}
         }
     }
