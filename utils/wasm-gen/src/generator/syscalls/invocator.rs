@@ -94,11 +94,14 @@ pub(crate) fn process_syscall_params(
                 Length if length_param_indexes.contains(&param_idx) => {
                     // Due to match guard `RegularParamType::Length` can be processed in two ways:
                     // 1. The function will return `ProcessedSyscallParams::MemoryArraySize`
-                    //    if this parameter is associated with Ptr::SizedBufferStart { .. }`.
+                    //    if this parameter is associated with Ptr::SizedBufferStart { .. }`
+                    //    or `Ptr::MutSizedBufferStart`.
                     // 2. Otherwise, `ProcessedSyscallParams::Value` will be returned from the function.
                     ProcessedSyscallParams::MemoryArrayLength
                 }
-                Pointer(Ptr::SizedBufferStart { .. }) => ProcessedSyscallParams::MemoryArrayPtr,
+                Pointer(Ptr::SizedBufferStart { .. } | Ptr::MutSizedBufferStart { .. }) => {
+                    ProcessedSyscallParams::MemoryArrayPtr
+                }
                 // It's guaranteed that fallible syscall has error pointer as a last param.
                 Pointer(ptr) => ProcessedSyscallParams::MemoryPtrValue {
                     allowed_values: params_config.get_ptr_rule(ptr),
