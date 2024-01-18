@@ -133,7 +133,7 @@ fn check_code(module: &Module, config: &TryNewCodeConfig) -> Result<(), CodeErro
                     .get(import.field())
                     .ok_or(CodeError::UnknownImport)?;
 
-                if !seen.insert(syscall.clone()) {
+                if !seen.insert(*syscall) {
                     return Err(CodeError::DuplicateImport);
                 }
 
