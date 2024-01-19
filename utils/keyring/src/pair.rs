@@ -22,7 +22,7 @@ use schnorrkel::{Keypair, KEYPAIR_LENGTH, PUBLIC_KEY_LENGTH, SECRET_KEY_LENGTH};
 /// Key info wrapped in pkcs8 format.
 ///
 /// NOTE: the meaning of these bytes is ambiguous for now, see
-/// https://github.com/polkadot-js/common/issues/1908
+/// <https://github.com/polkadot-js/common/issues/1908>
 ///
 /// For the encoded data format of this implementation:
 ///
@@ -102,7 +102,7 @@ impl KeypairInfo {
             [Self::PKCS8_DIVIDER_OFFSET..Self::PKCS8_DIVIDER_OFFSET + Self::PKCS8_DIVIDER_LENGTH]
             .copy_from_slice(&Self::PKCS8_DIVIDER);
         encoded[Self::PUBLIC_KEY_OFFSET..Self::PUBLIC_KEY_OFFSET + PUBLIC_KEY_LENGTH]
-            .copy_from_slice(&self.secret);
+            .copy_from_slice(&self.public);
 
         encoded
     }
@@ -112,13 +112,14 @@ impl KeypairInfo {
         let mut bytes = [0u8; KEYPAIR_LENGTH];
         bytes[..SECRET_KEY_LENGTH].copy_from_slice(&self.secret);
         bytes[SECRET_KEY_LENGTH..].copy_from_slice(&self.public);
-        Keypair::from_bytes(&bytes).map_err(|e| anyhow!("{e:?}"))
+        Keypair::from_half_ed25519_bytes(&bytes)
+            .map_err(|e| anyhow!("Failed to create pair: {e:?}"))
     }
 }
 
 impl From<Keypair> for KeypairInfo {
     fn from(keypair: Keypair) -> Self {
-        let secret = keypair.secret.to_bytes();
+        let secret = keypair.secret.to_ed25519_bytes();
         let public = keypair.public.to_bytes();
         Self { secret, public }
     }

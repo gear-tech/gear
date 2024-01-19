@@ -92,7 +92,7 @@ impl Keystore {
     /// Decrypt keypair from encrypted data.
     pub fn decrypt(&self, passphrase: Option<&[u8]>) -> Result<Keypair> {
         if let Some(passphrase) = passphrase {
-            if self.encoding.is_scrypt() {
+            if !self.encoding.is_scrypt() {
                 return Err(anyhow!(
                     "unsupported key deriven function {}.",
                     self.encoding.ty[0]
@@ -166,7 +166,7 @@ pub struct Encoding {
     pub ty: Vec<String>,
 
     /// The version of the keystore.
-    pub version: u8,
+    pub version: String,
 }
 
 impl Encoding {
@@ -175,7 +175,7 @@ impl Encoding {
         Self {
             content: ("pkcs8".into(), "sr25519".into()),
             ty: vec!["none".into()],
-            version: 3,
+            version: format!("3"),
         }
     }
 
@@ -184,7 +184,7 @@ impl Encoding {
         Self {
             content: ("pkcs8".into(), "sr25519".into()),
             ty: vec!["scrypt".into(), "xsalsa20-poly1305".into()],
-            version: 3,
+            ..Default::default()
         }
     }
 
@@ -212,7 +212,8 @@ pub struct Meta {
     pub name: String,
 
     /// The timestamp when the key pair is created.
-    pub when_created: u64,
+    #[serde(rename = "whenCreated")]
+    pub when_created: u128,
 }
 
 impl Default for Meta {
@@ -222,7 +223,7 @@ impl Default for Meta {
             when_created: SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .expect("time went backwards")
-                .as_secs(),
+                .as_millis(),
         }
     }
 }

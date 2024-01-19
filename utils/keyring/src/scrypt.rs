@@ -50,7 +50,7 @@ impl Scrypt {
         salt.copy_from_slice(&encoded[..Self::SALT_LENGTH]);
 
         let params = encoded[Self::SALT_LENGTH..]
-            .windows(4)
+            .chunks(4)
             .map(|bytes| {
                 let mut buf = [0; 4];
                 buf.copy_from_slice(bytes);
@@ -60,18 +60,19 @@ impl Scrypt {
 
         Self {
             salt,
-            n: params[0],
-            r: params[1],
-            p: params[2],
+            n: params[0].ilog2(),
+            r: params[2],
+            p: params[1],
         }
     }
 
     /// Encode self to bytes.
     pub fn encode(&self) -> [u8; Self::ENCODED_LENGTH] {
         let mut buf = [0; Self::ENCODED_LENGTH];
+        let n = 1 << self.n;
         buf[..Self::SALT_LENGTH].copy_from_slice(&self.salt);
         buf[Self::SALT_LENGTH..].copy_from_slice(
-            [self.n, self.r, self.p]
+            [n, self.p, self.r]
                 .iter()
                 .flat_map(|n| n.to_le_bytes())
                 .collect::<Vec<_>>()

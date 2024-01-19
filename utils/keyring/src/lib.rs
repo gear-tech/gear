@@ -17,12 +17,12 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 mod keystore;
-mod pkcs8;
+mod pair;
 mod scrypt;
 pub mod ss58;
 
 pub use self::{
     keystore::{Encoding, Keystore},
-    pkcs8::KeypairInfo,
+    pair::KeypairInfo,
     scrypt::Scrypt,
 };
