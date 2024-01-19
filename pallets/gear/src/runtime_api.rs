@@ -286,7 +286,9 @@ where
                     }
 
                     JournalNote::MessageDispatched {
-                        outcome: CoreDispatchOutcome::MessageTrap { trap, .. },
+                        outcome:
+                            CoreDispatchOutcome::MessageTrap { trap, .. }
+                            | CoreDispatchOutcome::InitFailure { reason: trap, .. },
                         message_id,
                         ..
                     } if (message_id == main_message_id || !allow_other_panics)
