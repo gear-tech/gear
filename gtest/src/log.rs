@@ -34,6 +34,7 @@ pub struct CoreLog {
     destination: ProgramId,
     payload: Payload,
     reply_code: Option<ReplyCode>,
+    reply_to: Option<MessageId>,
 }
 
 impl CoreLog {
@@ -61,6 +62,11 @@ impl CoreLog {
     pub fn reply_code(&self) -> Option<ReplyCode> {
         self.reply_code
     }
+
+    /// Get the reply destination that the reply code was sent to.
+    pub fn reply_to(&self) -> Option<MessageId> {
+        self.reply_to
+    }
 }
 
 impl From<StoredMessage> for CoreLog {
@@ -73,6 +79,9 @@ impl From<StoredMessage> for CoreLog {
             reply_code: other
                 .details()
                 .and_then(|d| d.to_reply_details().map(|d| d.to_reply_code())),
+            reply_to: other
+                .details()
+                .and_then(|d| d.to_reply_details().map(|d| d.to_message_id())),
         }
     }
 }
@@ -88,6 +97,7 @@ pub struct DecodedCoreLog<T: Codec + Debug> {
     destination: ProgramId,
     payload: T,
     reply_code: Option<ReplyCode>,
+    reply_to: Option<MessageId>,
 }
 
 impl<T: Codec + Debug> DecodedCoreLog<T> {
@@ -100,6 +110,7 @@ impl<T: Codec + Debug> DecodedCoreLog<T> {
             destination: log.destination,
             payload,
             reply_code: log.reply_code,
+            reply_to: log.reply_to,
         })
     }
 }
@@ -144,6 +155,7 @@ pub struct Log {
     destination: Option<ProgramId>,
     payload: Option<Payload>,
     reply_code: Option<ReplyCode>,
+    reply_to: Option<MessageId>,
 }
 
 impl<ID, T> From<(ID, T)> for Log
@@ -257,6 +269,18 @@ impl Log {
 
         self
     }
+
+    /// Set the reply destination for this log.
+    #[track_caller]
+    pub fn reply_to(mut self, reply_to: MessageId) -> Self {
+        if self.reply_to.is_some() {
+            panic!("Reply destination was already set for this log");
+        }
+
+        self.reply_to = Some(reply_to);
+
+        self
+    }
 }
 
 impl PartialEq<StoredMessage> for Log {
@@ -286,6 +310,7 @@ impl<T: Codec + Debug> PartialEq<DecodedCoreLog<T>> for Log {
             destination: other.destination,
             payload: other.payload.encode().try_into().unwrap(),
             reply_code: other.reply_code,
+            reply_to: other.reply_to,
         };
 
         core_log.eq(self)
@@ -302,6 +327,10 @@ impl PartialEq<CoreLog> for Log {
     fn eq(&self, other: &CoreLog) -> bool {
         // Asserting the field if only reply code specified for `Log`.
         if self.reply_code.is_some() && self.reply_code != other.reply_code {
+            return false;
+        }
+
+        if self.reply_to.is_some() && self.reply_to != other.reply_to {
             return false;
         }
 
@@ -399,18 +428,7 @@ impl RunResult {
 
     /// If the main message panicked.
     pub fn main_panicked(&self) -> bool {
-        if self.log.is_empty() {
-            return false;
-        }
-        matches!(
-            self.log
-                .last()
-                .expect("Checked for empty log previously")
-                .reply_code(),
-            Some(ReplyCode::Error(ErrorReplyReason::Execution(
-                SimpleExecutionError::UserspacePanic
-            )))
-        )
+        self.panic_log().is_some()
     }
 
     /// Asserts that the main message panicked and that the panic contained a
@@ -436,16 +454,17 @@ impl RunResult {
 
     /// Trying to get the panic log.
     fn panic_log(&self) -> Option<&CoreLog> {
-        let [.., core_log] = &self.log[..] else {
-            return None;
-        };
+        let main_log = self
+            .log
+            .iter()
+            .find(|log| log.reply_to == Some(self.message_id))?;
         let is_panic = matches!(
-            core_log.reply_code(),
+            main_log.reply_code(),
             Some(ReplyCode::Error(ErrorReplyReason::Execution(
                 SimpleExecutionError::UserspacePanic
             )))
         );
-        is_panic.then_some(core_log)
+        is_panic.then_some(main_log)
     }
 }
 
