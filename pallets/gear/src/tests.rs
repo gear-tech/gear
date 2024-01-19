@@ -86,6 +86,25 @@ use utils::*;
 type Gas = <<Test as Config>::GasProvider as common::GasProvider>::GasTree;
 
 #[test]
+#[should_panic]
+fn calculate_gas_init_failure() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let err = Gear::calculate_gas_info(
+            USER_1.into_origin(),
+            HandleKind::Init(ProgramCodeKind::GreedyInit.to_bytes()),
+            EMPTY_PAYLOAD.to_vec(),
+            0,
+            true,
+            true,
+        )
+        .expect_err("Expected program to fail due to lack of gas");
+
+        assert!(err.starts_with("Program terminated with a trap"));
+    });
+}
+
+#[test]
 fn calculate_gas_zero_balance() {
     init_logger();
     new_test_ext().execute_with(|| {
