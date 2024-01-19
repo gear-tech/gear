@@ -441,10 +441,10 @@ pub mod pallet {
             let mut updated = false;
 
             // Flattening move ownership back to current owner.
-            let new_owner = move_ownership.filter(|addr| addr.ne(&voucher.owner));
+            let new_owner = move_ownership.filter(|addr| addr != voucher.owner);
 
             // Flattening code uploading.
-            let code_uploading = code_uploading.filter(|v| v.ne(&voucher.code_uploading));
+            let code_uploading = code_uploading.filter(|v| v != voucher.code_uploading);
 
             // Flattening duration prolongation.
             let prolong_duration = prolong_duration.filter(|dur| !dur.is_zero());
