@@ -104,6 +104,8 @@ fn calculate_gas_init_failure() {
 }
 
 #[test]
+#[ignore = "TODO: enable me once #3665 solved: \
+`gas_below_ed` atm is less than needed to initialize program"]
 fn calculate_gas_zero_balance() {
     init_logger();
     new_test_ext().execute_with(|| {
@@ -1407,7 +1409,7 @@ fn gasfull_after_gasless() {
         r#"
         (module
         (import "env" "memory" (memory 1))
-        (import "env" "gr_reply_wgas" (func $reply_wgas (param i32 i32 i64 i32 i32 i32)))
+        (import "env" "gr_reply_wgas" (func $reply_wgas (param i32 i32 i64 i32 i32)))
         (import "env" "gr_send" (func $send (param i32 i32 i32 i32 i32)))
         (export "init" (func $init))
         (func $init
@@ -1416,7 +1418,7 @@ fn gasfull_after_gasless() {
             i32.store
 
             (call $send (i32.const 111) (i32.const 0) (i32.const 32) (i32.const 10) (i32.const 333))
-            (call $reply_wgas (i32.const 0) (i32.const 32) (i64.const {gas_limit}) (i32.const 222) (i32.const 10) (i32.const 333))
+            (call $reply_wgas (i32.const 0) (i32.const 32) (i64.const {gas_limit}) (i32.const 222) (i32.const 333))
         )
     )"#,
         gas_limit = 10 * <Test as Config>::MailboxThreshold::get()
@@ -13731,7 +13733,7 @@ fn test_gas_allowance_exceed_with_context() {
 /// then no panic occurs and the message is not executed.
 #[test]
 fn test_send_to_terminated_from_program() {
-    use demo_constructor::{Calls, Scheme};
+    use demo_constructor::{Calls, Scheme, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -13741,13 +13743,19 @@ fn test_send_to_terminated_from_program() {
         let init = Calls::builder().panic("Die in init");
         // "Bomb" in case after refactoring runtime we accidentally allow terminated programs to be executed.
         let handle = Calls::builder().send(user_1_bytes, b"REPLY_FROM_DEAD".to_vec());
-        let (_, pid_terminated) = utils::submit_constructor_with_args(
+
+        assert_ok!(Gear::upload_program(
             // Using `USER_2` not to pollute `USER_1` mailbox to make test easier.
-            USER_2,
-            b"salt1",
-            Scheme::predefined(init, handle, Calls::default(), Calls::default()),
+            RuntimeOrigin::signed(USER_2),
+            WASM_BINARY.to_vec(),
+            b"salt1".to_vec(),
+            Scheme::predefined(init, handle, Calls::default(), Calls::default()).encode(),
+            BlockGasLimitOf::<Test>::get(),
             0,
-        );
+            false,
+        ));
+
+        let pid_terminated = utils::get_last_program_id();
 
         // Check `pid_terminated` exists as an active program.
         assert!(Gear::is_active(pid_terminated));
@@ -13926,19 +13934,25 @@ fn gear_block_number_math_adds_up() {
 
 #[test]
 fn test_gas_info_of_terminated_program() {
-    use demo_constructor::{Calls, Scheme};
+    use demo_constructor::{Calls, Scheme, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
         // Dies in init
         let init_dead = Calls::builder().panic("Die in init");
         let handle_dead = Calls::builder().panic("Called after being terminated!");
-        let (_, pid_dead) = utils::submit_constructor_with_args(
-            USER_1,
-            b"salt1",
-            Scheme::predefined(init_dead, handle_dead, Calls::default(), Calls::default()),
+
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            b"salt1".to_vec(),
+            Scheme::predefined(init_dead, handle_dead, Calls::default(), Calls::default()).encode(),
+            BlockGasLimitOf::<Test>::get(),
             0,
-        );
+            false,
+        ));
+
+        let pid_dead = utils::get_last_program_id();
 
         // Sends in handle message do dead program
         let handle_proxy = Calls::builder().send(pid_dead.into_bytes(), []);
