@@ -57,9 +57,7 @@ where
                 .ok(),
 
             #[allow(deprecated)]
-            Self::call_deprecated { call: prepaid_call }
-                if !matches!(prepaid_call, PrepaidCall::UploadCode { .. }) =>
-            {
+            Self::call_deprecated { call: prepaid_call } => {
                 Pallet::<T>::call_deprecated_sponsor(&caller, prepaid_call)
             }
 
@@ -77,10 +75,6 @@ impl<T: Config> Pallet<T> {
         who: &T::AccountId,
         call: &PrepaidCall<BalanceOf<T>>,
     ) -> Option<T::AccountId> {
-        if matches!(call, PrepaidCall::UploadCode { .. }) {
-            return None;
-        };
-
         #[allow(deprecated)]
         Self::prepaid_call_destination(who, call).map(|program_id| {
             let entropy = (b"modlpy/voucher__", who, program_id).using_encoded(blake2_256);

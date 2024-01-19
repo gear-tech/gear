@@ -228,6 +228,9 @@ pub mod pallet {
         /// * programs: pool of programs spender can interact with,
         ///             if None - means any program,
         ///             limited by Config param;
+        /// * code_uploading:
+        ///             allow voucher to be used as payer for `upload_code`
+        ///             transactions fee;
         /// * duration: amount of blocks voucher could be used by spender
         ///             and couldn't be revoked by owner.
         ///             Must be out in [MinDuration; MaxDuration] constants.
@@ -407,6 +410,8 @@ pub mod pallet {
         ///                     `Some(programs_set)` passed or allows
         ///                     it to interact with any program by
         ///                     `None` passed;
+        /// * code_uploading:   optionally allows voucher to be used to pay
+        ///                     fees for `upload_code` extrinsics;
         /// * prolong_duration: optionally increases expiry block number.
         ///                     If voucher is expired, prolongs since current bn.
         ///                     Validity prolongation (since current block number
@@ -441,10 +446,10 @@ pub mod pallet {
             let mut updated = false;
 
             // Flattening move ownership back to current owner.
-            let new_owner = move_ownership.filter(|addr| addr != voucher.owner);
+            let new_owner = move_ownership.filter(|addr| *addr != voucher.owner);
 
             // Flattening code uploading.
-            let code_uploading = code_uploading.filter(|v| v != voucher.code_uploading);
+            let code_uploading = code_uploading.filter(|v| *v != voucher.code_uploading);
 
             // Flattening duration prolongation.
             let prolong_duration = prolong_duration.filter(|dur| !dur.is_zero());
