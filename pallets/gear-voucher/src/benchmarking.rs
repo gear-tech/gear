@@ -55,7 +55,7 @@ benchmarks! {
         let code_uploading = true;
 
         // Voucher validity.
-        let validity = 100u32.unique_saturated_into();
+        let validity = <<T as Config>::MinDuration as Get<BlockNumberFor<T>>>::get();
 
     }: _(RawOrigin::Signed(origin.clone()), spender.clone(), balance, Some(set), code_uploading, validity)
     verify {
