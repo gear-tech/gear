@@ -34,8 +34,8 @@ use gear_core::{
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::PageBuf,
     message::{
-        Dispatch, DispatchKind, Message, MessageWaitedType, ReplyMessage, ReplyPacket,
-        StoredDispatch, StoredMessage,
+        Dispatch, DispatchKind, IncomingDispatch, Message, MessageWaitedType, ReplyMessage,
+        ReplyPacket, StoredDispatch, StoredMessage,
     },
     pages::{GearPage, PageU32Size, WasmPage},
     program::Program as CoreProgram,
@@ -778,7 +778,6 @@ impl ExtManager {
                             program_id,
                             origin: source,
                             reason: expl.to_string(),
-                            executed: true,
                         },
                     );
                 } else {
@@ -875,11 +874,6 @@ impl ExtManager {
             gas_multiplier: gsys::GasMultiplier::from_value_per_gas(VALUE_PER_GAS),
         };
 
-        let (actor_data, code) = match data {
-            Some((a, c)) => (Some(a), Some(c)),
-            None => (None, None),
-        };
-
         let precharged_dispatch = match core_processor::precharge_for_program(
             &block_config,
             u64::MAX,
@@ -891,6 +885,16 @@ impl ExtManager {
                 core_processor::handle_journal(journal, self);
                 return;
             }
+        };
+
+        let Some((actor_data, code)) = data else {
+            let journal = core_processor::process_non_executable(
+                precharged_dispatch,
+                dest,
+                ErrorReplyReason::InactiveProgram,
+            );
+            core_processor::handle_journal(journal, self);
+            return;
         };
 
         let context = match core_processor::precharge_for_code_length(
@@ -906,7 +910,6 @@ impl ExtManager {
             }
         };
 
-        let code = code.expect("Program exists so do code");
         let context = ContextChargedForCode::from((context, code.code().len() as u32));
         let context = ContextChargedForInstrumentation::from(context);
         let context = match core_processor::precharge_for_memory(&block_config, context) {
@@ -1213,5 +1216,9 @@ impl JournalHandler for ExtManager {
 
     fn reply_deposit(&mut self, _message_id: MessageId, future_reply_id: MessageId, amount: u64) {
         self.gas_limits.insert(future_reply_id, amount);
+    }
+
+    fn waiting_init_message(&mut self, _dispatch: IncomingDispatch, _destination: ProgramId) {
+        panic!("Waiting init message is used for on-chain logic only");
     }
 }

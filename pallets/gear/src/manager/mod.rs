@@ -231,7 +231,7 @@ where
         Some(Actor {
             balance,
             destination_program: id,
-            executable_data: Some(ExecutableActorData {
+            executable_data: ExecutableActorData {
                 allocations: active.allocations.clone(),
                 code_id,
                 code_exports: active.code_exports,
@@ -240,7 +240,7 @@ where
                 pages_with_data: active.pages_with_data,
                 gas_reservation_map: active.gas_reservation_map,
                 memory_infix: active.memory_infix,
-            }),
+            },
         })
     }
 
@@ -351,8 +351,7 @@ where
                 .into_dispatch(message_id, destination)
                 .into_stored();
 
-            // Splitting gas for newly created reply message.
-            // TODO: don't split (#1743)
+            // Splitting gas for newly created signal message.
             Pallet::<T>::split_with_value(
                 message_id,
                 trap_signal.id(),
@@ -405,7 +404,7 @@ where
         ProgramStorageOf::<T>::waiting_init_remove(program_id);
     }
 
-    fn process_failed_init(program_id: ProgramId, origin: ProgramId, executed: bool) {
+    fn process_failed_init(program_id: ProgramId, origin: ProgramId) {
         // Some messages addressed to the program could be processed
         // in the queue before init message. For example, that could
         // happen when init message had more gas limit then rest block
@@ -413,34 +412,19 @@ where
         // dequeued. The other case is async init.
         Self::clean_waitlist(program_id);
 
-        ProgramStorageOf::<T>::update_program_if_active(program_id, |p, bn| {
+        let _ = ProgramStorageOf::<T>::update_program_if_active(program_id, |p, bn| {
             let _ = TaskPoolOf::<T>::delete(bn, ScheduledTask::PauseProgram(program_id));
 
-            match p {
-                Program::Active(program) => {
-                    Self::remove_gas_reservation_map(
-                        program_id,
-                        core::mem::take(&mut program.gas_reservation_map),
-                    );
+            if let Program::Active(program) = p {
+                Self::remove_gas_reservation_map(
+                    program_id,
+                    core::mem::take(&mut program.gas_reservation_map),
+                );
 
-                    Self::clean_inactive_program(program_id, program.memory_infix, origin);
-                }
-                _ if executed => unreachable!("Action executed only for active program"),
-                _ => (),
+                Self::clean_inactive_program(program_id, program.memory_infix, origin);
             }
 
             *p = Program::Terminated(origin);
-        })
-        .unwrap_or_else(|e| {
-            // If we run into `InitFailure` after real execution (not
-            // prepare or precharge) processor methods, then we are
-            // sure that it was active program.
-            if executed {
-                unreachable!(
-                    "Program terminated status may only be set to an existing active program: {:?}",
-                    e,
-                );
-            }
         });
 
         Pallet::<T>::deposit_event(Event::ProgramChanged {

@@ -34,7 +34,7 @@ use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::PageBuf,
-    message::{Dispatch, MessageWaitedType, StoredDispatch},
+    message::{Dispatch, IncomingDispatch, MessageWaitedType, StoredDispatch},
     pages::{GearPage, PageU32Size, WasmPage},
     reservation::GasReserver,
 };
@@ -135,12 +135,13 @@ where
             InitFailure {
                 program_id,
                 origin,
-                executed,
-                ..
+                reason,
             } => {
-                log::trace!("Dispatch ({message_id:?}) init failure for program {program_id:?}");
+                log::trace!(
+                    "Dispatch ({message_id:?}) init failure for program {program_id:?}: {reason}"
+                );
 
-                Self::process_failed_init(program_id, origin, executed);
+                Self::process_failed_init(program_id, origin);
 
                 DispatchStatus::Failed
             }
@@ -535,5 +536,28 @@ where
 
         GasHandlerOf::<T>::create_deposit(message_id, future_reply_id, amount)
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+    }
+
+    fn waiting_init_message(&mut self, dispatch: IncomingDispatch, destination: ProgramId) {
+        let (kind, message, context) = dispatch.into();
+
+        log::trace!(
+            "Append message {:?} to the waiting init messages list",
+            message.id()
+        );
+
+        let dispatch = StoredDispatch::new(kind, message.into_stored(destination), context);
+
+        // Adding id in on-init wake list.
+        ProgramStorageOf::<T>::waiting_init_append_message_id(
+            dispatch.destination(),
+            dispatch.id(),
+        );
+
+        Pallet::<T>::wait_dispatch(
+            dispatch,
+            None,
+            MessageWaitedSystemReason::ProgramIsNotInitialized.into_reason(),
+        );
     }
 }

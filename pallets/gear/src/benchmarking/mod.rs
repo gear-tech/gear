@@ -593,7 +593,7 @@ benchmarks! {
 
         let schedule = T::Schedule::get();
     }: {
-        Gear::<T>::reinstrument_code(code_id, &schedule);
+        let _ = Gear::<T>::reinstrument_code(code_id, &schedule);
     }
 
     // Alloc there 1 page because `alloc` execution time is non-linear along with other amounts of pages.
