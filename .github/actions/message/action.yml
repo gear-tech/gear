@@ -1,20 +1,20 @@
-name: "Status Check"
-description: "Produce configuration from commit message."
+name: Status Check
+description: Produce configuration from commit message.
 
 inputs:
   token:
-    description: "The github token."
+    description: The github token.
     required: true
 outputs:
   build:
-    description: "If trigger build."
+    description: If trigger build.
   cache:
-    description: "If enable cache."
+    description: If enable cache.
   check:
-    description: "If trigger check."
+    description: If trigger check.
   macos:
-    description: "If enable macos."
+    description: If enable macos.
 
 runs:
-  using: "node20"
-  main: "main.js"
+  using: node20
+  main: main.js
