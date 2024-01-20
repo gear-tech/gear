@@ -30,11 +30,11 @@ pub use data::FuzzerInput;
 
 use arbitrary::{Arbitrary, Error, Result, Unstructured};
 use data::*;
-use generator::*;
 use frame_support::pallet_prelude::DispatchResultWithPostInfo;
 use gear_call_gen::{ClaimValueArgs, GearCall, SendMessageArgs, SendReplyArgs, UploadProgramArgs};
 use gear_calls::GearCalls;
 use gear_core::ids::ProgramId;
+use generator::*;
 use pallet_balances::Pallet as BalancesPallet;
 use runtime::*;
 use sha1::*;
@@ -44,7 +44,8 @@ use vara_runtime::{AccountId, Gear, Runtime, RuntimeOrigin};
 /// Runs all the fuzz testing internal machinery.
 pub fn run(fuzzer_input: FuzzerInput<'_>) -> Result<()> {
     let raw_data = fuzzer_input.inner();
-    let (exec_env_data_requirement , gear_calls_data_requirement) = fuzzer_input.into_data_requirements()?;
+    let (env_data_requirement, gear_calls_data_requirement) =
+        fuzzer_input.into_data_requirements()?;
 
     log::trace!(
         "New GearCalls generation: random data received {}",
@@ -53,50 +54,51 @@ pub fn run(fuzzer_input: FuzzerInput<'_>) -> Result<()> {
     let test_input_id = utils::get_sha1_string(raw_data);
     log::trace!("Generating GearCalls from corpus - {}", test_input_id);
 
-    let gen_env = GenerationEnvironment::new(exec_env_data_requirement);
+    let gen_env = GenerationEnvironmentProducer::new(env_data_requirement);
     let generator = GearCallsGenerator::new(gear_calls_data_requirement);
 
-    todo!()
+    let previous_exec_res = Option::<RuntimeInterimState>::None;
+    loop {}
 }
 
 // fn run_impl(data: &[u8]) -> Result<sp_io::TestExternalities> {
-    // log::trace!(
-    //     "New GearCalls generation: random data received {}",
-    //     data.len()
-    // );
-    // let test_input_id = get_sha1_string(data);
-    // log::trace!("Generating GearCalls from corpus - {}", test_input_id);
+// log::trace!(
+//     "New GearCalls generation: random data received {}",
+//     data.len()
+// );
+// let test_input_id = get_sha1_string(data);
+// log::trace!("Generating GearCalls from corpus - {}", test_input_id);
 
-    // let sender = runtime::account(runtime::alice());
-    // let sender_prog_id = ProgramId::from(*<AccountId as AsRef<[u8; 32]>>::as_ref(&sender));
+// let sender = runtime::account(runtime::alice());
+// let sender_prog_id = ProgramId::from(*<AccountId as AsRef<[u8; 32]>>::as_ref(&sender));
 
-    // let generators = default_generator_set(test_input_id);
-    // let gear_calls = GearCalls::new(data, generators, vec![sender_prog_id])?;
+// let generators = default_generator_set(test_input_id);
+// let gear_calls = GearCalls::new(data, generators, vec![sender_prog_id])?;
 
-    // let mut test_ext = new_test_ext();
-    // test_ext.execute_with(|| -> Result<()> {
-    //     // Increase maximum balance of the `sender`.
-    //     {
-    //         increase_to_max_balance(sender.clone())
-    //             .unwrap_or_else(|e| unreachable!("Balance update failed: {e:?}"));
-    //         log::info!(
-    //             "Current balance of the sender - {}",
-    //             BalancesPallet::<Runtime>::free_balance(&sender)
-    //         );
-    //     }
+// let mut test_ext = new_test_ext();
+// test_ext.execute_with(|| -> Result<()> {
+//     // Increase maximum balance of the `sender`.
+// {
+// increase_to_max_balance(sender.clone())
+//     .unwrap_or_else(|e| unreachable!("Balance update failed: {e:?}"));
+// log::info!(
+//     "Current balance of the sender - {}",
+//     BalancesPallet::<Runtime>::free_balance(&sender)
+// );
+// }
 
-    //     for gear_call in gear_calls {
-    //         let gear_call = gear_call?;
-    //         let call_res = execute_gear_call(sender.clone(), gear_call);
-    //         log::info!("Extrinsic result: {call_res:?}");
-    //         // Run task and message queues with max possible gas limit.
-    //         run_to_next_block();
-    //     }
+//     for gear_call in gear_calls {
+//         let gear_call = gear_call?;
+//         let call_res = execute_gear_call(sender.clone(), gear_call);
+//         log::info!("Extrinsic result: {call_res:?}");
+//         // Run task and message queues with max possible gas limit.
+//         run_to_next_block();
+//     }
 
-    //     Ok(())
-    // })?;
+//     Ok(())
+// })?;
 
-    // Ok(test_ext)
+// Ok(test_ext)
 // }
 
 fn execute_gear_call(sender: AccountId, call: GearCall) -> DispatchResultWithPostInfo {

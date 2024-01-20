@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::generator::{GearCallsGenerator, GenerationEnvironment};
+use crate::generator::{GearCallsGenerator, GenerationEnvironmentProducer};
 use arbitrary::{Arbitrary, Error, Result, Unstructured};
 use std::{any, fmt::Debug, marker::PhantomData};
 
@@ -50,27 +50,28 @@ impl<'a> FuzzerInput<'a> {
         self.0
     }
 
-    pub(crate) fn into_data_requirements(self) -> Result<(
-        FulfilledDataRequirement<'a, GenerationEnvironment<'a>>,
+    pub(crate) fn into_data_requirements(
+        self,
+    ) -> Result<(
+        FulfilledDataRequirement<'a, GenerationEnvironmentProducer<'a>>,
         FulfilledDataRequirement<'a, GearCallsGenerator<'a>>,
     )> {
         let FuzzerInput(data) = self;
-        let exec_env_data_requirement = DataRequirement::<GenerationEnvironment>::new();
+        let exec_env_data_requirement = DataRequirement::<GenerationEnvironmentProducer>::new();
         let gear_calls_data_requirement = DataRequirement::<GearCallsGenerator>::new();
 
-        let total_required_size =
-            exec_env_data_requirement.min_size + gear_calls_data_requirement.min_size;
-        if data.len() < total_required_size {
+        let total_data_required = exec_env_data_requirement.size + gear_calls_data_requirement.size;
+        if data.len() < total_data_required {
             log::trace!(
                 "Not enough data for fuzzing, expected - {}, got - {}",
-                total_required_size,
+                total_data_required,
                 data.len(),
             );
 
             return Err(Error::NotEnoughData);
         }
 
-        let (exec_env_data, gear_calls_data) = data.split_at(exec_env_data_requirement.min_size);
+        let (exec_env_data, gear_calls_data) = data.split_at(exec_env_data_requirement.size);
         exec_env_data_requirement
             .try_fulfill(exec_env_data)
             .and_then(|eef| {
@@ -82,15 +83,14 @@ impl<'a> FuzzerInput<'a> {
 }
 
 pub(crate) struct DataRequirement<T> {
-    pub(crate) min_size: usize,
+    pub(crate) size: usize,
     _phantom: PhantomData<T>,
 }
 
-// todo use macro_rules!
-impl DataRequirement<GenerationEnvironment<'_>> {
+impl DataRequirement<GenerationEnvironmentProducer<'_>> {
     fn new() -> Self {
         Self {
-            min_size: GenerationEnvironment::random_data_requirement(),
+            size: GenerationEnvironmentProducer::random_data_requirement(),
             _phantom: PhantomData,
         }
     }
@@ -99,7 +99,7 @@ impl DataRequirement<GenerationEnvironment<'_>> {
 impl DataRequirement<GearCallsGenerator<'_>> {
     fn new() -> Self {
         Self {
-            min_size: GearCallsGenerator::random_data_requirement(),
+            size: GearCallsGenerator::random_data_requirement(),
             _phantom: PhantomData,
         }
     }
@@ -110,11 +110,11 @@ impl<T> DataRequirement<T> {
         &self,
         data: &'a [u8],
     ) -> Result<FulfilledDataRequirement<'a, T>> {
-        if data.len() < self.min_size {
+        if data.len() < self.size {
             log::trace!(
                 "Insufficient data for {:?}: expected - {}, got - {}.",
                 any::type_name::<T>(),
-                self.min_size,
+                self.size,
                 data.len()
             );
 
@@ -122,7 +122,7 @@ impl<T> DataRequirement<T> {
         }
 
         Ok(FulfilledDataRequirement {
-            data: &data[..self.min_size],
+            data: &data[..self.size],
             _phantom: PhantomData,
         })
     }
