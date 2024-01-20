@@ -13467,7 +13467,7 @@ checksum = "ca6ad05a4870b2bf5fe995117d3728437bd27d7cd5f06f13c17443ef369775a1"
 [[package]]
 name = "wasm-encoder"
 version = "0.35.0"
-source = "git+https://github.com/gear-tech/wasm-tools.git?branch=gear-stable#b5ee21ec07edc43b7e03edc3b9138bf78b3fd332"
+source = "git+https://github.com/gear-tech/wasm-tools.git?branch=av/reserved_memory#265ee58d0129e4151a7da5c3ef3ed432e8562f09"
 dependencies = [
  "leb128",
 ]
@@ -13552,7 +13552,7 @@ dependencies = [
 [[package]]
 name = "wasm-smith"
 version = "0.12.21"
-source = "git+https://github.com/gear-tech/wasm-tools.git?branch=gear-stable#b5ee21ec07edc43b7e03edc3b9138bf78b3fd332"
+source = "git+https://github.com/gear-tech/wasm-tools.git?branch=av/reserved_memory#265ee58d0129e4151a7da5c3ef3ed432e8562f09"
 dependencies = [
  "arbitrary",
  "flagset",
@@ -13976,7 +13976,7 @@ dependencies = [
 [[package]]
 name = "wasmparser"
 version = "0.115.0"
-source = "git+https://github.com/gear-tech/wasm-tools.git?branch=gear-stable#b5ee21ec07edc43b7e03edc3b9138bf78b3fd332"
+source = "git+https://github.com/gear-tech/wasm-tools.git?branch=av/reserved_memory#265ee58d0129e4151a7da5c3ef3ed432e8562f09"
 dependencies = [
  "indexmap 2.1.0",
  "semver 1.0.18",

@@ -237,7 +237,7 @@ runtime-primitives = { package = "gear-runtime-primitives", path = "runtime/prim
 service = { package = "gear-service", path = "node/service", default-features = false }
 testing = { package = "gear-node-testing", path = "node/testing" }
 vara-runtime = { path = "runtime/vara", default-features = false }
-wasm-smith = { version = "0.12.21", git = "https://github.com/gear-tech/wasm-tools.git", branch = "gear-stable" }
+wasm-smith = { version = "0.12.21", git = "https://github.com/gear-tech/wasm-tools.git", branch = "av/reserved_memory" }
 
 # Common executors between `sandbox-host` and `calc-stack-height`
 sandbox-wasmer = { package = "wasmer", version = "2.2", features = ["singlepass"] }
