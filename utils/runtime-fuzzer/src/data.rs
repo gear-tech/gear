@@ -46,12 +46,15 @@ impl Debug for FuzzerInput<'_> {
 }
 
 impl<'a> FuzzerInput<'a> {
-    fn try_into_parts(
-        FuzzerInput(data): Self,
-    ) -> Result<(
+    pub(crate) fn inner(&self) -> &'a [u8] {
+        self.0
+    }
+
+    pub(crate) fn into_data_requirements(self) -> Result<(
         FulfilledDataRequirement<'a, GenerationEnvironment<'a>>,
         FulfilledDataRequirement<'a, GearCallsGenerator<'a>>,
     )> {
+        let FuzzerInput(data) = self;
         let exec_env_data_requirement = DataRequirement::<GenerationEnvironment>::new();
         let gear_calls_data_requirement = DataRequirement::<GearCallsGenerator>::new();
 
