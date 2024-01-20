@@ -70,6 +70,9 @@ pub(crate) struct GearCallsGenerator<'a> {
 }
 
 impl<'a> GearCallsGenerator<'a> {
+    const UPLOAD_PROGRAM_CALL_ID: usize = 0;
+    const SEND_MESSAGE_CALL_ID: usize = 1;
+
     pub(crate) fn new(data_requirement: FulfilledDataRequirement<'a, Self>) -> Self {
         Self {
             unstructured: Unstructured::new(data_requirement.data),
