@@ -535,13 +535,11 @@ impl Ext {
     }
 
     fn reduce_gas(&mut self, gas_limit: GasLimit) -> Result<(), FallibleExtError> {
-        self.atomic_gas(|ext| {
-            if ext.context.gas_counter.reduce(gas_limit) != ChargeResult::Enough {
-                Err(FallibleExecutionError::NotEnoughGas.into())
-            } else {
-                Ok(())
-            }
-        })
+        if self.context.gas_counter.reduce(gas_limit) != ChargeResult::Enough {
+            Err(FallibleExecutionError::NotEnoughGas.into())
+        } else {
+            Ok(())
+        }
     }
 
     fn charge_message_value(&mut self, message_value: u128) -> Result<(), FallibleExtError> {
@@ -558,61 +556,59 @@ impl Ext {
         packet: &T,
         delay: u32,
     ) -> Result<(), FallibleExtError> {
-        self.atomic_gas(|ext| {
-            // In case of delayed sending from origin message we keep some gas
-            // for it while processing outgoing sending notes so gas for
-            // previously gasless sends should appear to prevent their
-            // invasion for gas for storing delayed message.
-            match (packet.gas_limit(), delay != 0) {
-                // Zero gasfull instant.
-                //
-                // In this case there is nothing to do.
-                (Some(0), false) => {}
+        // In case of delayed sending from origin message we keep some gas
+        // for it while processing outgoing sending notes so gas for
+        // previously gasless sends should appear to prevent their
+        // invasion for gas for storing delayed message.
+        match (packet.gas_limit(), delay != 0) {
+            // Zero gasfull instant.
+            //
+            // In this case there is nothing to do.
+            (Some(0), false) => {}
 
-                // Any non-zero gasfull or zero gasfull with delay.
-                //
-                // In case of zero gasfull with delay it's pretty similar to
-                // gasless with delay case.
-                //
-                // In case of any non-zero gasfull we prevent stealing for any
-                // previous gasless-es's thresholds from gas supposed to be
-                // sent with this `packet`.
-                (Some(_), _) => {
-                    let prev_gasless_fee = ext
-                        .outgoing_gasless
-                        .saturating_mul(ext.context.mailbox_threshold);
+            // Any non-zero gasfull or zero gasfull with delay.
+            //
+            // In case of zero gasfull with delay it's pretty similar to
+            // gasless with delay case.
+            //
+            // In case of any non-zero gasfull we prevent stealing for any
+            // previous gasless-es's thresholds from gas supposed to be
+            // sent with this `packet`.
+            (Some(_), _) => {
+                let prev_gasless_fee = self
+                    .outgoing_gasless
+                    .saturating_mul(self.context.mailbox_threshold);
 
-                    ext.reduce_gas(prev_gasless_fee)?;
+                self.reduce_gas(prev_gasless_fee)?;
 
-                    ext.outgoing_gasless = 0;
-                }
+                self.outgoing_gasless = 0;
+            }
 
-                // Gasless with delay.
-                //
-                // In this case we must give threshold for each uncovered gasless-es
-                // sent, otherwise they will steal gas from this `packet` that was
-                // supposed to pay for delay.
-                //
-                // It doesn't guarantee threshold for itself.
-                (None, true) => {
-                    let prev_gasless_fee = ext
-                        .outgoing_gasless
-                        .saturating_mul(ext.context.mailbox_threshold);
+            // Gasless with delay.
+            //
+            // In this case we must give threshold for each uncovered gasless-es
+            // sent, otherwise they will steal gas from this `packet` that was
+            // supposed to pay for delay.
+            //
+            // It doesn't guarantee threshold for itself.
+            (None, true) => {
+                let prev_gasless_fee = self
+                    .outgoing_gasless
+                    .saturating_mul(self.context.mailbox_threshold);
 
-                    ext.reduce_gas(prev_gasless_fee)?;
+                self.reduce_gas(prev_gasless_fee)?;
 
-                    ext.outgoing_gasless = 1;
-                }
+                self.outgoing_gasless = 1;
+            }
 
-                // Gasless instant.
-                //
-                // In this case there is no need to give any thresholds for previous
-                // gasless-es: only counter should be increased.
-                (None, false) => ext.outgoing_gasless = ext.outgoing_gasless.saturating_add(1),
-            };
+            // Gasless instant.
+            //
+            // In this case there is no need to give any thresholds for previous
+            // gasless-es: only counter should be increased.
+            (None, false) => self.outgoing_gasless = self.outgoing_gasless.saturating_add(1),
+        };
 
-            Ok(())
-        })
+        Ok(())
     }
 
     fn charge_expiring_resources<T: Packet>(
@@ -620,18 +616,16 @@ impl Ext {
         packet: &T,
         check_gas_limit: bool,
     ) -> Result<(), FallibleExtError> {
-        self.atomic_gas(|ext| {
-            ext.check_message_value(packet.value())?;
-            // Charge for using expiring resources. Charge for calling syscall was done earlier.
-            let gas_limit = if check_gas_limit {
-                ext.check_gas_limit(packet.gas_limit())?
-            } else {
-                packet.gas_limit().unwrap_or(0)
-            };
-            ext.reduce_gas(gas_limit)?;
-            ext.charge_message_value(packet.value())?;
-            Ok(())
-        })
+        self.check_message_value(packet.value())?;
+        // Charge for using expiring resources. Charge for calling syscall was done earlier.
+        let gas_limit = if check_gas_limit {
+            self.check_gas_limit(packet.gas_limit())?
+        } else {
+            packet.gas_limit().unwrap_or(0)
+        };
+        self.reduce_gas(gas_limit)?;
+        self.charge_message_value(packet.value())?;
+        Ok(())
     }
 
     fn check_forbidden_destination(&mut self, id: ProgramId) -> Result<(), FallibleExtError> {
@@ -656,23 +650,21 @@ impl Ext {
     }
 
     fn charge_for_dispatch_stash_hold(&mut self, delay: u32) -> Result<(), FallibleExtError> {
-        self.atomic_gas(|ext| {
-            if delay != 0 {
-                // Take delay and get cost of block.
-                // reserve = wait_cost * (delay + reserve_for).
-                let cost_per_block = ext.context.dispatch_hold_cost;
-                let waiting_reserve = (ext.context.reserve_for as u64)
-                    .saturating_add(delay as u64)
-                    .saturating_mul(cost_per_block);
+        if delay != 0 {
+            // Take delay and get cost of block.
+            // reserve = wait_cost * (delay + reserve_for).
+            let cost_per_block = self.context.dispatch_hold_cost;
+            let waiting_reserve = (self.context.reserve_for as u64)
+                .saturating_add(delay as u64)
+                .saturating_mul(cost_per_block);
 
-                // Reduce gas for block waiting in dispatch stash.
-                if ext.context.gas_counter.reduce(waiting_reserve) != ChargeResult::Enough {
-                    return Err(MessageError::InsufficientGasForDelayedSending.into());
-                }
+            // Reduce gas for block waiting in dispatch stash.
+            if self.context.gas_counter.reduce(waiting_reserve) != ChargeResult::Enough {
+                return Err(MessageError::InsufficientGasForDelayedSending.into());
             }
+        }
 
-            Ok(())
-        })
+        Ok(())
     }
 
     fn charge_gas_if_enough(
