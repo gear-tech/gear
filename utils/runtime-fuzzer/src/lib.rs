@@ -120,10 +120,3 @@ fn execute_gear_call(sender: AccountId, call: GearCall) -> DispatchResultWithPos
         _ => unimplemented!("Unsupported currently."),
     }
 }
-
-fn get_sha1_string(input: &[u8]) -> String {
-    let mut hasher = sha1::Sha1::new();
-    hasher.update(input);
-
-    hex::encode(hasher.finalize())
-}
