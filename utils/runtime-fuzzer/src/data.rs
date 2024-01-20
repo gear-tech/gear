@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{ExecutionEnvironment, GearCallsGenerator};
+use crate::generator::{GearCallsGenerator, GenerationEnvironment};
 use arbitrary::{Arbitrary, Error, Result, Unstructured};
 use std::{any, fmt::Debug, marker::PhantomData};
 
@@ -49,10 +49,10 @@ impl<'a> FuzzerInput<'a> {
     fn try_into_parts(
         FuzzerInput(data): Self,
     ) -> Result<(
-        FulfilledDataRequirement<'a, ExecutionEnvironment<'a>>,
+        FulfilledDataRequirement<'a, GenerationEnvironment<'a>>,
         FulfilledDataRequirement<'a, GearCallsGenerator<'a>>,
     )> {
-        let exec_env_data_requirement = DataRequirement::<ExecutionEnvironment>::new();
+        let exec_env_data_requirement = DataRequirement::<GenerationEnvironment>::new();
         let gear_calls_data_requirement = DataRequirement::<GearCallsGenerator>::new();
 
         let total_required_size =
@@ -84,10 +84,10 @@ pub(crate) struct DataRequirement<T> {
 }
 
 // todo use macro_rules!
-impl DataRequirement<ExecutionEnvironment<'_>> {
+impl DataRequirement<GenerationEnvironment<'_>> {
     fn new() -> Self {
         Self {
-            min_size: ExecutionEnvironment::random_data_requirement(),
+            min_size: GenerationEnvironment::random_data_requirement(),
             _phantom: PhantomData,
         }
     }
