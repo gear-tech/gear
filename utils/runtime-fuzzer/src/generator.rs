@@ -18,7 +18,7 @@
 
 use arbitrary::{Result, Unstructured};
 use gear_call_gen::{GearCall, SendMessageArgs, UploadProgramArgs};
-use gear_core::ids::{CodeId, ProgramId};
+use gear_core::{ids::{CodeId, ProgramId}, program::Program};
 use gear_utils::NonEmpty;
 use gear_wasm_gen::{
     ActorKind, EntryPointsSet, InvocableSyscall, PtrParamAllowedValues, RegularParamType,
@@ -26,8 +26,10 @@ use gear_wasm_gen::{
 };
 use pallet_balances::Pallet as BalancesPallet;
 use runtime_primitives::AccountId;
-use std::mem;
-use vara_runtime::Runtime;
+use std::{mem, collections::{BTreeSet, HashSet}};
+use vara_runtime::{Runtime, System, RuntimeEvent};
+use pallet_gear::Event as GearEvent;
+use gear_common::event::ProgramChangeKind;
 
 use crate::{data::*, runtime};
 
@@ -56,35 +58,66 @@ const GAS_AND_VALUE_SIZE: usize = mem::size_of::<(u64, u128)>();
 /// data, for example index in some vec.
 const AUXILIARY_SIZE: usize = 512;
 
-pub(crate) struct RuntimeInterimState;
-pub(crate) struct GenerationEnvironment {
-    corpus_id: String,
-    existing_programs: Vec<ProgramId>,
+pub(crate) struct RuntimeInterimState {
+    programs: HashSet<ProgramId>
+}
+
+impl RuntimeInterimState {
+    pub(crate) fn build() -> Self {
+        let mut programs = HashSet::new();
+        System::events().iter().for_each(|e| {
+            if let RuntimeEvent::Gear(GearEvent::ProgramChanged {
+                change: ProgramChangeKind::Active { .. },
+                id,
+                ..
+            }) = e.event {
+                programs.insert(id);
+            }
+        });
+
+        Self {
+            programs
+        }
+    }
+
+    fn merge(&mut self, Self { programs }: Self) {
+        self.programs.extend(programs);
+    }
+}
+
+pub(crate) struct GenerationEnvironment<'a> {
+    corpus_id: &'a str,
+    existing_programs: HashSet<ProgramId>,
     max_gas: u64,
 }
 
 pub(crate) struct GenerationEnvironmentProducer<'a> {
+    corpus_id: String,
     unstructured: Unstructured<'a>,
     sender: AccountId,
     interim_state: Option<RuntimeInterimState>,
 }
 
 impl<'a> GenerationEnvironmentProducer<'a> {
-    pub(crate) fn new(data_requirement: FulfilledDataRequirement<'a, Self>) -> Self {
+    pub(crate) fn new(corpus_id: String, data_requirement: FulfilledDataRequirement<'a, Self>) -> Self {
         Self {
+            corpus_id,
             unstructured: Unstructured::new(data_requirement.data),
             sender: runtime::alice(),
             interim_state: None,
         }
     }
 
-    fn produce_generation_env(
+    pub(crate) fn produce_generation_env(
         &mut self,
-        prev_exec_interim_state: Option<RuntimeInterimState>,
+        new_interim_state: RuntimeInterimState,
     ) -> GenerationEnvironment {
-        {
-            todo!("merge prev_exec_interim_state and interim_state")
+        if let Some(current_interim_state) = self.interim_state.as_mut() {
+            current_interim_state.merge(new_interim_state);
+        } else {
+            self.interim_state = Some(new_interim_state);
         }
+
         runtime::increase_to_max_balance(self.sender.clone())
             .unwrap_or_else(|e| unreachable!("Balance update failed: {e:?}"));
         log::info!(
@@ -92,10 +125,15 @@ impl<'a> GenerationEnvironmentProducer<'a> {
             BalancesPallet::<Runtime>::free_balance(&self.sender)
         );
 
+        let existing_programs = self.interim_state
+            .as_ref()
+            .map(|state| state.programs.clone())
+            .expect("interim state is always `Some`; qed");
+
         GenerationEnvironment {
-            corpus_id: todo!(),
-            existing_programs: todo!(),
-            max_gas: todo!(),
+            corpus_id: &self.corpus_id,
+            existing_programs,
+            max_gas: runtime::default_gas_limit(),
         }
     }
 }
@@ -163,7 +201,7 @@ fn generate_upload_program(
     let code = gear_wasm_gen::generate_gear_program_code(
         unstructured,
         config(
-            &existing_programs,
+            existing_programs.into_iter(),
             Some(format!("Generated program from corpus - {corpus_id}")),
         ),
     )?;
@@ -201,7 +239,7 @@ fn arbitrary_limited_bytes(u: &mut Unstructured, limit: usize) -> Result<Vec<u8>
     u.bytes(arb_size).map(|bytes| bytes.to_vec())
 }
 
-fn config(programs: &[ProgramId], log_info: Option<String>) -> StandardGearWasmConfigsBundle {
+fn config(programs: impl Iterator<Item = ProgramId>, log_info: Option<String>) -> StandardGearWasmConfigsBundle {
     let initial_pages = 2;
     let mut injection_types = SyscallsInjectionTypes::all_once();
     injection_types.set_multiple(
@@ -228,14 +266,10 @@ fn config(programs: &[ProgramId], log_info: Option<String>) -> StandardGearWasmC
         )
         .with_ptr_rule(PtrParamAllowedValues::Value(0..=0));
 
-    let actor_kind = NonEmpty::collect(
-        programs
-            .iter()
-            .copied()
-            .filter_map(|pid| (pid != ProgramId::default()).then_some(pid.into())),
-    )
-    .map(ActorKind::ExistingAddresses)
-    .unwrap_or(ActorKind::Source);
+    let programs = programs.map(|pid| pid.into()).collect::<Vec<_>>();
+    let actor_kind = NonEmpty::from_vec(programs)
+        .map(ActorKind::ExistingAddresses)
+        .unwrap_or(ActorKind::Source);
 
     log::trace!("Messages destination config: {:?}", actor_kind);
 
