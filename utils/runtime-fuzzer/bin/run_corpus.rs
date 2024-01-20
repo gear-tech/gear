@@ -30,7 +30,7 @@
 use anyhow::Result;
 use arbitrary::{Arbitrary, Unstructured};
 use clap::Parser;
-use runtime_fuzzer::{self, RuntimeFuzzerInput};
+use runtime_fuzzer::{self, FuzzerInput};
 use std::{fs, path::PathBuf};
 
 /// A simple tool to run corpus.
@@ -48,7 +48,7 @@ fn main() -> Result<()> {
     let corpus_bytes = fs::read(params.path)?;
     let fuzzer_input = {
         let mut u = Unstructured::new(&corpus_bytes);
-        RuntimeFuzzerInput::arbitrary(&mut u)?
+        FuzzerInput::arbitrary(&mut u)?
     };
 
     gear_utils::init_default_logger();

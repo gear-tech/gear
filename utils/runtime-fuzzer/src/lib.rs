@@ -40,9 +40,9 @@ use vara_runtime::{AccountId, Gear, Runtime, RuntimeOrigin};
 ///
 /// It's main purpose is to be a mock implementor of `Debug`.
 /// For more info see `Debug` impl.
-pub struct RuntimeFuzzerInput<'a>(&'a [u8]);
+pub struct FuzzerInput<'a>(&'a [u8]);
 
-impl<'a> Arbitrary<'a> for RuntimeFuzzerInput<'a> {
+impl<'a> Arbitrary<'a> for FuzzerInput<'a> {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         let data = u.peek_bytes(u.len()).ok_or(Error::NotEnoughData)?;
 
@@ -53,7 +53,7 @@ impl<'a> Arbitrary<'a> for RuntimeFuzzerInput<'a> {
 /// That's done because when fuzzer finds a crash it prints a [`Debug`] string of the crashing input.
 /// Fuzzer constructs from the input an array of [`GearCall`] with pretty large codes and payloads,
 /// therefore to avoid printing huge amount of data we do a mock implementation of [`Debug`].
-impl Debug for RuntimeFuzzerInput<'_> {
+impl Debug for FuzzerInput<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_tuple("RuntimeFuzzerInput")
             .field(&"Mock `Debug` impl")
@@ -62,7 +62,7 @@ impl Debug for RuntimeFuzzerInput<'_> {
 }
 
 /// Runs all the fuzz testing internal machinery.
-pub fn run(RuntimeFuzzerInput(data): RuntimeFuzzerInput<'_>) -> Result<()> {
+pub fn run(FuzzerInput(data): FuzzerInput<'_>) -> Result<()> {
     run_impl(data).map(|_| ())
 }
 
