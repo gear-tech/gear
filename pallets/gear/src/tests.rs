@@ -13171,6 +13171,45 @@ fn async_init() {
 }
 
 #[test]
+fn wake_after_exit() {
+    use demo_custom::{InitMessage, WASM_BINARY};
+    use demo_ping::WASM_BINARY as PING_BINARY;
+
+    init_logger();
+
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_3),
+            PING_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            Default::default(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+            false,
+        ));
+
+        let ping: [u8; 32] = get_last_program_id().into();
+
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            InitMessage::WakeAfterExit(ping.into()).encode(),
+            BlockGasLimitOf::<Test>::get(),
+            1000,
+            false,
+        ));
+
+        let mid = get_last_message_id();
+
+        run_to_next_block(None);
+
+        // Execution after wake must be skipped, so status must be NotExecuted.
+        assert_not_executed(mid);
+    });
+}
+
+#[test]
 fn check_gear_stack_end_fail() {
     // This test checks, that in case user makes WASM file with incorrect
     // gear stack end export, then execution will end with an error.

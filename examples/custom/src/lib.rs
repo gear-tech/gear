@@ -26,8 +26,10 @@ extern crate alloc;
 pub mod backend_error;
 pub mod btree;
 pub mod capacitor;
+pub mod wake_after_exit;
 
 use alloc::string::String;
+use gstd::ActorId;
 use parity_scale_codec::{Decode, Encode};
 
 #[cfg(feature = "std")]
@@ -43,13 +45,14 @@ pub enum InitMessage {
     Capacitor(String),
     BTree,
     BackendError,
+    WakeAfterExit(ActorId),
 }
 
 #[cfg(not(feature = "std"))]
 mod wasm {
     use super::{
         backend_error::wasm as backend_error, btree::wasm as btree, capacitor::wasm as capacitor,
-        InitMessage,
+        wake_after_exit::wasm as wake_after_exit, InitMessage,
     };
     use gstd::msg;
 
@@ -57,6 +60,7 @@ mod wasm {
         Capacitor(capacitor::State),
         BTree(btree::State),
         BackendError(backend_error::State),
+        WakeAfterExit,
     }
 
     static mut STATE: Option<State> = None;
@@ -68,13 +72,17 @@ mod wasm {
             InitMessage::Capacitor(payload) => State::Capacitor(capacitor::init(payload)),
             InitMessage::BTree => State::BTree(btree::init()),
             InitMessage::BackendError => State::BackendError(backend_error::init()),
+            InitMessage::WakeAfterExit(addr) => {
+                unsafe { STATE = Some(State::WakeAfterExit) };
+                wake_after_exit::init(addr)
+            }
         };
         unsafe { STATE = Some(state) };
     }
 
     #[no_mangle]
     extern "C" fn handle() {
-        let state = unsafe { STATE.as_mut().expect("State must be set in handle") };
+        let state = unsafe { STATE.as_mut().expect("State must be set") };
         match state {
             State::Capacitor(state) => capacitor::handle(state),
             State::BTree(state) => btree::handle(state),
@@ -83,8 +91,16 @@ mod wasm {
     }
 
     #[no_mangle]
+    extern "C" fn handle_reply() {
+        let state = unsafe { STATE.as_mut().expect("State must be set") };
+        if let State::WakeAfterExit = state {
+            wake_after_exit::handle_reply();
+        }
+    }
+
+    #[no_mangle]
     extern "C" fn state() {
-        let state = unsafe { STATE.take().expect("State must be set in handle") };
+        let state = unsafe { STATE.take().expect("State must be set") };
         if let State::BTree(state) = state {
             btree::state(state);
         }
