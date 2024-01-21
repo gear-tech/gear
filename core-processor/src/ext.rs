@@ -771,6 +771,9 @@ impl CountersOwner for Ext {
 }
 
 impl Ext {
+    /// Executes `func` with gas atomicity, i.e. disallows partial gas chargine:
+    /// either `func` returns [`Ok`] and gas is reduced or it returns [`Err`] and
+    /// gas counter does not change
     fn atomic_gas<T, E>(&mut self, func: impl FnOnce(&mut Self) -> Result<T, E>) -> Result<T, E> {
         let amount = self.context.gas_counter.to_amount();
 
@@ -1841,5 +1844,22 @@ mod tests {
             .expect("Send commit was ok");
 
         assert_eq!(dispatch.message().payload_bytes(), &[3, 4, 5]);
+    }
+
+    #[test]
+    fn test_atomic_gas() {
+        let mut ext = Ext::new(
+            ProcessorContextBuilder::new()
+                .with_gas(GasCounter::new(0x100))
+                .build(),
+        );
+        ext.atomic_gas(|x| x.reduce_gas(0x80)).unwrap();
+        assert_eq!(ext.gas_left().gas, 0x80);
+        ext.atomic_gas(|x| {
+            x.reduce_gas(0x40)?;
+            x.reduce_gas(0x80)
+        })
+        .unwrap_err();
+        assert_eq!(ext.gas_left().gas, 0x80);
     }
 }
