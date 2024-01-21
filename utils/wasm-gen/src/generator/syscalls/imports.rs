@@ -21,10 +21,10 @@
 use crate::{
     generator::{
         CallIndexes, CallIndexesHandle, FrozenGearWasmGenerator, GearEntryPointGenerationProof,
-        GearWasmGenerator, MemoryImportGenerationProof, ModuleWithCallIndexes, SyscallsInvocator,
+        GearWasmGenerator, MemoryImportGenerationProof, ModuleWithCallIndexes,
     },
     wasm::{PageCount as WasmPageCount, WasmModule},
-    InvocableSyscall, SyscallInjectionType, SyscallsConfig,
+    InvocableSyscall, MemoryLayout, SyscallInjectionType, SyscallsConfig,
 };
 use arbitrary::{Error as ArbitraryError, Result, Unstructured};
 use gear_wasm_instrument::{
@@ -800,7 +800,7 @@ impl<'a, 'b> SyscallsImportsGenerator<'a, 'b> {
     /// Reserves enough memory build precise syscall.
     fn reserve_memory(&self) -> i32 {
         self.memory_size_bytes()
-            .saturating_sub(SyscallsInvocator::RESERVED_MEMORY_SIZE)
+            .saturating_sub(MemoryLayout::RESERVED_MEMORY_SIZE)
             .saturating_sub(Self::PRECISE_SYSCALL_RESERVED_MEMORY_SIZE) as i32
     }
 

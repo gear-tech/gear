@@ -146,9 +146,6 @@ impl<'a, 'b> From<DisabledAdditionalDataInjector<'a, 'b>> for SyscallsInvocator<
 }
 
 impl<'a, 'b> SyscallsInvocator<'a, 'b> {
-    /// The amount of reserved memory.
-    pub const RESERVED_MEMORY_SIZE: u32 = 256;
-
     /// Returns the size of the memory in bytes.
     fn memory_size_bytes(&self) -> u32 {
         Into::<WasmPageCount>::into(self.memory_size_pages()).memory_size()
@@ -444,7 +441,8 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                 }
                 ProcessedSyscallParams::MemoryArrayLength => {
                     let length;
-                    let upper_limit = mem_size.saturating_sub(Self::RESERVED_MEMORY_SIZE) as i32;
+                    let upper_limit =
+                        mem_size.saturating_sub(MemoryLayout::RESERVED_MEMORY_SIZE) as i32;
 
                     (memory_array_definition, length) = if let Some((offset, _)) =
                         memory_array_definition
@@ -463,7 +461,8 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                 }
                 ProcessedSyscallParams::MemoryArrayPtr => {
                     let offset;
-                    let upper_limit = mem_size.saturating_sub(Self::RESERVED_MEMORY_SIZE) as i32;
+                    let upper_limit =
+                        mem_size.saturating_sub(MemoryLayout::RESERVED_MEMORY_SIZE) as i32;
 
                     (memory_array_definition, offset) =
                         if let Some((offset, _)) = memory_array_definition {
@@ -480,7 +479,7 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                 ProcessedSyscallParams::MemoryPtrValue { allowed_values } => {
                     // Subtract a bit more so entities from `gsys` fit.
                     let upper_limit = mem_size
-                        .saturating_sub(Self::RESERVED_MEMORY_SIZE)
+                        .saturating_sub(MemoryLayout::RESERVED_MEMORY_SIZE)
                         .saturating_sub(128);
                     let offset = self.unstructured.int_in_range(0..=upper_limit)? as i32;
 
@@ -802,19 +801,32 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
 pub struct MemoryLayout {
     pub init_called_ptr: i32,
     pub wait_called_ptr: i32,
+    pub remaining_memory_len: u32,
     pub remaining_memory_ptr: i32,
+}
+
+impl MemoryLayout {
+    /// The amount of reserved memory.
+    pub const RESERVED_MEMORY_SIZE: u32 = 256;
 }
 
 impl From<u32> for MemoryLayout {
     fn from(mem_size: u32) -> Self {
-        let init_called_ptr =
-            mem_size.saturating_sub(SyscallsInvocator::RESERVED_MEMORY_SIZE) as i32;
+        let start_memory_ptr = mem_size.saturating_sub(Self::RESERVED_MEMORY_SIZE) as i32;
+        let init_called_ptr = start_memory_ptr;
         let wait_called_ptr = init_called_ptr + mem::size_of::<bool>() as i32;
         let remaining_memory_ptr = wait_called_ptr + mem::size_of::<u32>() as i32;
+        let remaining_memory_len = (remaining_memory_ptr - start_memory_ptr) as u32;
+
+        assert!(
+            remaining_memory_len <= Self::RESERVED_MEMORY_SIZE,
+            "reserved memory exceeded"
+        );
 
         Self {
             init_called_ptr,
             wait_called_ptr,
+            remaining_memory_len,
             remaining_memory_ptr,
         }
     }

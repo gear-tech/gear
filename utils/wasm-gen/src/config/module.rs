@@ -25,7 +25,7 @@
 
 use std::num::NonZeroUsize;
 
-use crate::generator::SyscallsInvocator;
+use crate::MemoryLayout;
 use arbitrary::{Arbitrary, Result, Unstructured};
 pub use wasm_smith::InstructionKind;
 use wasm_smith::{InstructionKind::*, InstructionKinds, SwarmConfig};
@@ -170,7 +170,7 @@ impl From<(SelectableParams, ArbitraryParams)> for WasmModuleConfig {
             min_uleb_size,
             multi_value_enabled,
             reference_types_enabled,
-            reserved_memory_size: Some(SyscallsInvocator::RESERVED_MEMORY_SIZE as u64),
+            reserved_memory_size: Some(MemoryLayout::RESERVED_MEMORY_SIZE as u64),
             tail_call_enabled,
             relaxed_simd_enabled,
             saturating_float_to_int_enabled,
