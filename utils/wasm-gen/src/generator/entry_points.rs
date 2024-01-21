@@ -28,7 +28,6 @@ use gear_wasm_instrument::parity_wasm::{
     builder,
     elements::{FunctionType, Instruction, Instructions, Type, ValueType},
 };
-use std::mem;
 
 /// Gear wasm entry points generator.
 ///
