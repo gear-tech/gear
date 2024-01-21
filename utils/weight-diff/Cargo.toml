@@ -8,7 +8,7 @@ license.workspace = true
 [dependencies]
 clap = { workspace = true, features = ["derive"] }
 indexmap = { workspace = true, features = ["serde"] }
-serde = { workspace = true, features = ["std", "derive"] }
+serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
 tabled.workspace = true
 

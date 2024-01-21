@@ -17,7 +17,7 @@ futures-timer.workspace = true
 hex-literal.workspace = true
 jsonrpsee = { workspace = true, features = ["server"] }
 log.workspace = true
-serde = { workspace = true, features = ["std", "derive"] }
+serde = { workspace = true, features = ["derive"] }
 
 # Gear
 common = { workspace = true, features = ["std"] }

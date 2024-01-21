@@ -34,7 +34,6 @@ pallet-balances.workspace = true
 pallet-authorship.workspace = true
 
 [dev-dependencies]
-# serde = { workspace = true, features = ["std"] }
 env_logger.workspace = true
 common = { workspace = true, features = ["std"] }
 wabt.workspace = true

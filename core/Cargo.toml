@@ -28,7 +28,7 @@ byteorder.workspace = true
 num-traits.workspace = true
 
 # Optional dependencies
-serde = { workspace = true, features = ["derive", "alloc"], optional = true }
+serde = { workspace = true, features = ["derive"], optional = true }
 
 [dev-dependencies]
 wabt.workspace = true
@@ -39,6 +39,4 @@ rand = { workspace = true, features = ["std", "std_rng"] }
 [features]
 default = []
 strict = []
-std = [
-    "serde/std"
-]
+std = ["serde/std"]
