@@ -16,15 +16,26 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-mod keyring;
-mod keystore;
-mod pair;
-mod scrypt;
-pub mod ss58;
+//! Keyring implementation based on the polkadot-js keystore.
 
-pub use self::{
-    keyring::STORE,
-    keystore::{Encoding, Keystore},
-    pair::KeypairInfo,
-    scrypt::Scrypt,
-};
+use once_cell::sync::Lazy;
+use std::{fs, path::PathBuf};
+
+/// The path of the keyring store.
+///
+/// NOTE: This is currently not configurable.
+pub static STORE: Lazy<PathBuf> = Lazy::new(|| {
+    let app = env!("CARGO_PKG_NAME");
+    let store = dirs::data_dir()
+        .unwrap_or_else(|| {
+            tracing::warn!("data dir not found, using ./{app} as keyring store.");
+            ".".into()
+        })
+        .join(app);
+
+    fs::create_dir_all(&store).unwrap_or_else(|_| {
+        tracing::error!("failed to create keyring store at {store:?}");
+    });
+
+    store
+});
