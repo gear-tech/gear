@@ -33,13 +33,17 @@
 extern crate alloc;
 
 #[cfg(feature = "runtime-benchmarks")]
-mod benchmarking;
+pub mod benchmarking;
+
+pub mod weights;
 
 #[cfg(test)]
 mod mock;
 
 #[cfg(test)]
 mod tests;
+
+pub use weights::WeightInfo;
 
 use alloc::{collections::BTreeMap, string::ToString};
 use core_processor::{
@@ -52,7 +56,7 @@ use gear_core::{
 };
 use gear_core_errors::SimpleExecutionError;
 use impl_trait_for_tuples::impl_for_tuples;
-pub use pallet_gear::{BuiltinRouter, BuiltinRouterProvider};
+use pallet_gear::{BuiltinRouter, BuiltinRouterProvider};
 use parity_scale_codec::{Decode, Encode};
 use sp_io::hashing::blake2_256;
 use sp_runtime::traits::{TrailingZeroInput, Zero};
@@ -176,6 +180,9 @@ pub mod pallet {
         /// The builtin actor type.
         type BuiltinActor: BuiltinActor<SimpleBuiltinMessage, u64>;
 
+        /// Weight cost incurred by builtin actors calls.
+        type WeightInfo: WeightInfo;
+
         /// The builtin actor pallet id, used for deriving unique actors ids.
         #[pallet::constant]
         type PalletId: Get<PalletId>;
@@ -292,11 +299,15 @@ pub mod pallet {
     }
 }
 
-impl<T: Config> BuiltinRouterProvider<StoredDispatch, JournalNote> for Pallet<T> {
+impl<T: Config> BuiltinRouterProvider<StoredDispatch, JournalNote, u64> for Pallet<T> {
     type Router = BuiltinRegistry<T>;
 
     fn provide() -> BuiltinRegistry<T> {
         BuiltinRegistry::<T>::new()
+    }
+
+    fn provision_cost() -> u64 {
+        <T as Config>::WeightInfo::provide().ref_time()
     }
 }
 
@@ -307,7 +318,7 @@ pub struct BuiltinRegistry<T: Config> {
 impl<T: Config> BuiltinRegistry<T> {
     fn new() -> Self {
         let mut registry = BTreeMap::new();
-        let mut builtin_ids = Vec::new();
+        let mut builtin_ids = Vec::with_capacity(16);
         <T as Config>::BuiltinActor::get_ids(&mut builtin_ids);
         let builtin_ids_len = builtin_ids.len();
         for builtin_id in builtin_ids {
@@ -336,48 +347,48 @@ impl<T: Config> BuiltinRouter for BuiltinRegistry<T> {
 
     fn dispatch(&self, dispatch: StoredDispatch, gas_limit: u64) -> Option<Vec<JournalNote>> {
         let actor_id = dispatch.destination();
-        if let Some(builtin_id) = self.registry.get(&actor_id) {
-            // Builtin actors can only execute `handle` dispatches; all other cases yield
-            // `no-execution` outcome.
-            if dispatch.kind() != DispatchKind::Handle {
-                let dispatch = dispatch.into_incoming(gas_limit);
-                let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
-                return Some(process_non_executable(
-                    dispatch,
-                    actor_id,
-                    system_reservation_ctx,
-                ));
-            }
-            // Re-package the dispatch into a `SimpleBuiltinMessage` for the builtin actor
-            let builtin_message = SimpleBuiltinMessage {
-                source: dispatch.source(),
-                destination: *builtin_id,
-                payload: dispatch.payload_bytes().to_vec(),
-            };
+        let Some(builtin_id) = self.registry.get(&actor_id) else {
+            return None;
+        };
 
-            // Do message processing
-            let (res, gas_spent) = <T as Config>::BuiltinActor::handle(&builtin_message, gas_limit);
-            // We rely on a builtin actor having performed the check for gas limit consistency
-            // and having reported an error if the `gas_limit` was to have been exceeded.
-            // However, to avoid gas tree corruption error, we must not report as spent more gas than
-            // the amount reserved in gas tree (that is, `gas_limit`). Hence (just in case):
-            let gas_spent = gas_spent.min(gas_limit);
-            Some(
-                res.map_or_else(
-                    |err| {
-                        log::debug!(target: LOG_TARGET, "Builtin actor error: {:?}", err);
-                        Pallet::<T>::process_error(&dispatch, gas_spent, err)
-                    },
-                    |response_bytes| {
-                        log::debug!(target: LOG_TARGET, "Builtin call dispatched successfully");
-                        Pallet::<T>::process_success(&dispatch, gas_spent, response_bytes)
-                    },
-                )
-                .into_iter()
-                .collect(),
-            )
-        } else {
-            None
+        // Builtin actors can only execute `handle` dispatches; all other cases yield
+        // `no-execution` outcome.
+        if dispatch.kind() != DispatchKind::Handle {
+            let dispatch = dispatch.into_incoming(gas_limit);
+            let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
+            return Some(process_non_executable(
+                dispatch,
+                actor_id,
+                system_reservation_ctx,
+            ));
         }
+        // Re-package the dispatch into a `SimpleBuiltinMessage` for the builtin actor
+        let builtin_message = SimpleBuiltinMessage {
+            source: dispatch.source(),
+            destination: *builtin_id,
+            payload: dispatch.payload_bytes().to_vec(),
+        };
+
+        // Do message processing
+        let (res, gas_spent) = <T as Config>::BuiltinActor::handle(&builtin_message, gas_limit);
+        // We rely on a builtin actor having performed the check for gas limit consistency
+        // and having reported an error if the `gas_limit` was to have been exceeded.
+        // However, to avoid gas tree corruption error, we must not report as spent more gas than
+        // the amount reserved in gas tree (that is, `gas_limit`). Hence (just in case):
+        let gas_spent = gas_spent.min(gas_limit);
+        Some(
+            res.map_or_else(
+                |err| {
+                    log::debug!(target: LOG_TARGET, "Builtin actor error: {:?}", err);
+                    Pallet::<T>::process_error(&dispatch, gas_spent, err)
+                },
+                |response_bytes| {
+                    log::debug!(target: LOG_TARGET, "Builtin call dispatched successfully");
+                    Pallet::<T>::process_success(&dispatch, gas_spent, response_bytes)
+                },
+            )
+            .into_iter()
+            .collect(),
+        )
     }
 }

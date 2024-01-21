@@ -261,7 +261,7 @@ pub mod pallet {
         type ProgramRentDisabledDelta: Get<BlockNumberFor<Self>>;
 
         /// The builtin actors registry.
-        type BuiltinRouter: BuiltinRouterProvider<StoredDispatch, JournalNote>;
+        type BuiltinRouter: BuiltinRouterProvider<StoredDispatch, JournalNote, u64>;
     }
 
     #[pallet::pallet]
@@ -1839,8 +1839,12 @@ pub mod pallet {
         type Gas = GasBalanceOf<T>;
 
         fn run_queue(initial_gas: Self::Gas) -> Self::Gas {
-            // Setting adjusted initial gas allowance
-            GasAllowanceOf::<T>::put(initial_gas);
+            // Take note of how much gas we will need for builtin router creation.
+            let gas_for_builtin_router = T::BuiltinRouter::provision_cost();
+
+            // Setting adjusted initial gas allowance taking into account builtin router creation
+            // cost that will be incurred inside the `process_queue()` function.
+            GasAllowanceOf::<T>::put(initial_gas.saturating_sub(gas_for_builtin_router));
 
             // Ext manager creation.
             // It will be processing messages execution results following its `JournalHandler` trait implementation.

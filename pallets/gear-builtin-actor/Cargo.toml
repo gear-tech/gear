@@ -21,7 +21,7 @@ derive_more.workspace = true
 impl-trait-for-tuples.workspace = true
 
 core-processor.workspace = true
-gear-core = {workspace = true, features = ["serde"] }
+gear-core.workspace = true
 gear-core-errors.workspace = true
 frame-support.workspace = true
 frame-system.workspace = true

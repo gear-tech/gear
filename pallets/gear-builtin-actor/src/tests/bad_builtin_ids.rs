@@ -181,6 +181,7 @@ impl pallet_gear_builtin_actor::Config for Test {
         ThirdBuiltinActor,
         DuplicateBuiltinActor,
     );
+    type WeightInfo = ();
     type PalletId = BuiltinActorPalletId;
 }
 

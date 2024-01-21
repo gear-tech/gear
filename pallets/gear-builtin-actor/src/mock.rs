@@ -220,6 +220,7 @@ parameter_types! {
 
 impl pallet_gear_builtin_actor::Config for Test {
     type BuiltinActor = (SuccessBuiltinActor, ErrorBuiltinActor, HonestBuiltinActor);
+    type WeightInfo = ();
     type PalletId = BuiltinActorPalletId;
 }
 

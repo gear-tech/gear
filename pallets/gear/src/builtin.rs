@@ -51,14 +51,20 @@ impl BuiltinRouter for () {
     }
 }
 
-pub trait BuiltinRouterProvider<Dispatch, Output> {
+pub trait BuiltinRouterProvider<Dispatch, Output, Gas> {
     type Router: BuiltinRouter<QueuedDispatch = Dispatch, Output = Output>;
 
     fn provide() -> Self::Router;
+
+    fn provision_cost() -> Gas;
 }
 
-impl BuiltinRouterProvider<StoredDispatch, JournalNote> for () {
+impl BuiltinRouterProvider<StoredDispatch, JournalNote, u64> for () {
     type Router = ();
 
     fn provide() -> Self::Router {}
+
+    fn provision_cost() -> u64 {
+        0_u64
+    }
 }

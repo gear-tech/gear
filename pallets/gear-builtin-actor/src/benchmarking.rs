@@ -27,7 +27,71 @@ use gear_core::{
     message::{DispatchKind, StoredDispatch, StoredMessage},
 };
 
+macro_rules! impl_builtin_actor {
+    ($name: ident, $id: literal) => {
+        pub struct $name {}
+
+        impl BuiltinActor<SimpleBuiltinMessage, u64> for $name {
+            fn handle(
+                _message: &SimpleBuiltinMessage,
+                _gas_limit: u64,
+            ) -> (Result<Vec<u8>, BuiltinActorError>, u64) {
+                (Ok(Default::default()), Default::default())
+            }
+
+            fn get_ids(buffer: &mut Vec<BuiltinId>) {
+                buffer.push(Self::ID);
+            }
+        }
+        impl RegisteredBuiltinActor<SimpleBuiltinMessage, u64> for $name {
+            const ID: BuiltinId = BuiltinId($id as u64);
+        }
+    };
+}
+
+impl_builtin_actor!(DummyActor0, 0);
+impl_builtin_actor!(DummyActor1, 1);
+impl_builtin_actor!(DummyActor2, 2);
+impl_builtin_actor!(DummyActor3, 3);
+impl_builtin_actor!(DummyActor4, 4);
+impl_builtin_actor!(DummyActor5, 5);
+impl_builtin_actor!(DummyActor6, 6);
+impl_builtin_actor!(DummyActor7, 7);
+impl_builtin_actor!(DummyActor8, 8);
+impl_builtin_actor!(DummyActor9, 9);
+impl_builtin_actor!(DummyActor10, 10);
+impl_builtin_actor!(DummyActor11, 11);
+impl_builtin_actor!(DummyActor12, 12);
+impl_builtin_actor!(DummyActor13, 13);
+impl_builtin_actor!(DummyActor14, 14);
+impl_builtin_actor!(DummyActor15, 15);
+
+#[allow(unused)]
+pub type BenchmarkingBuiltinActor = (
+    DummyActor0,
+    DummyActor1,
+    DummyActor2,
+    DummyActor3,
+    DummyActor4,
+    DummyActor5,
+    DummyActor6,
+    DummyActor7,
+    DummyActor8,
+    DummyActor9,
+    DummyActor10,
+    DummyActor11,
+    DummyActor12,
+    DummyActor13,
+    DummyActor14,
+    DummyActor15,
+);
+
 benchmarks! {
+    where_clause {
+        where
+            T: pallet_gear::Config,
+    }
+
     calculate_id {
         let builtin_id = BuiltinId(100_u64);
     }: {
@@ -36,7 +100,7 @@ benchmarks! {
         // No changes in runtime are expected since the actual dispatch doesn't take place.
     }
 
-    base_handle_weight {
+    provide {
         let builtin_id = BuiltinId(10_u64);
         let actor_id = BuiltinActorPallet::<T>::generate_actor_id(builtin_id);
         let payload = b"Payload".to_vec();
@@ -61,7 +125,7 @@ benchmarks! {
             payload,
         };
     }: {
-        let _ = <T as Config>::BuiltinActor::handle(&builtin_message, 1_000_000);
+        let _ = <T as pallet_gear::Config>::BuiltinRouter::provide();
     } verify {
         // No changes in runtime are expected since the actual dispatch doesn't take place.
     }

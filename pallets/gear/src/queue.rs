@@ -205,11 +205,9 @@ where
             let dispatch_id = dispatch.id();
             let dispatch_reply = dispatch.reply_details().is_some();
 
-            // What if the address provided as the dispatch destination (a.k.a. `program_id`)
-            // resolves to some `BuiltinId` belonging to one of the known builtin actors?
-            // In this case, we try to handle the dispatch as a builtin actor dispatch, and
-            // if in reality the destination is a regular program, we receive `None` as the output
-            // and proceed with the regular flow. If it is not `None` then we are done with this dispatch.
+            // If the dispatch destination (a.k.a. `program_id`) resolves to some `BuiltinId`
+            // belonging to a builtin actor, we handle the dispatch as a builtin actor dispatch.
+            // If it doesn't we will get `None` as the output and proceed with the regular flow.
             if let Some(journal) = builtin_router.dispatch(dispatch.clone(), gas_limit) {
                 core_processor::handle_journal(journal, &mut ext_manager);
                 continue;

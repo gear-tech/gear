@@ -1055,7 +1055,11 @@ parameter_types! {
 }
 
 impl pallet_gear_builtin_actor::Config for Runtime {
+    #[cfg(feature = "runtime-benchmarks")]
+    type BuiltinActor = pallet_gear_builtin_actor::benchmarking::BenchmarkingBuiltinActor;
+    #[cfg(not(feature = "runtime-benchmarks"))]
     type BuiltinActor = ();
+    type WeightInfo = pallet_gear_builtin_actor::weights::SubstrateWeight<Runtime>;
     type PalletId = BuiltinActorPalletId;
 }
 
