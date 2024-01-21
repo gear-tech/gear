@@ -8,6 +8,7 @@ homepage = "https://gear-tech.io"
 repository = "https://github.com/gear-tech/gear"
 description = "This crate provides means to instantiate and execute wasm modules."
 readme = "README.md"
+documentation = "https://docs.rs/gear-sandbox"
 
 [package.metadata.docs.rs]
 targets = ["x86_64-unknown-linux-gnu"]
@@ -15,7 +16,7 @@ targets = ["x86_64-unknown-linux-gnu"]
 [dependencies]
 codec.workspace = true
 log.workspace = true
-wasmi = { git = "https://github.com/gear-tech/wasmi", branch = "gear-v0.30.0", default-features = false }
+wasmi = { default-features = false , package = "gwasmi", version = "0.30.0" }
 sp-core.workspace = true
 sp-std.workspace = true
 sp-wasm-interface.workspace = true

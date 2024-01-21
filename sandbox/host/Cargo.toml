@@ -8,6 +8,7 @@ homepage = "https://gear-tech.io"
 repository = "https://github.com/gear-tech/gear"
 description = "A set of common definitions that are needed for defining execution engines."
 readme = "README.md"
+documentation = "https://docs.rs/gear-sandbox-host"
 
 [package.metadata.docs.rs]
 targets = ["x86_64-unknown-linux-gnu"]
@@ -19,7 +20,7 @@ thiserror.workspace = true
 log = { workspace = true, features = ["std"] }
 wasmer = { version = "2.2", features = ["singlepass"] }
 wasmer-types = "2.2"
-wasmi = { git = "https://github.com/gear-tech/wasmi", branch = "v0.13.2-sign-ext", features = ["virtual_memory"] }
+wasmi = { features = ["virtual_memory"] , version = "0.13.2" }
 sp-allocator = { workspace = true, features = ["std"] }
 sp-wasm-interface = { workspace = true, features = ["std"] }
 gear-sandbox-env = { workspace = true, features = ["std"] }

@@ -1,9 +1,11 @@
 [package]
 name = "gtest"
-version = "0.1.0"
+description = "Testing utils for developing Gear programs."
+version.workspace = true
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
+documentation = "https://docs.rs/gtest"
 
 [dependencies]
 gear-core.workspace = true

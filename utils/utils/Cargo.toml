@@ -1,7 +1,13 @@
 [package]
 name = "gear-utils"
-version = "0.1.0"
+description = "Utils of gear network"
+version.workspace = true
+authors.workspace = true
 edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+documentation = "https://docs.rs/gear-utils"
 
 [dependencies]
 nonempty.workspace = true

@@ -1,9 +1,12 @@
 [package]
 name = "galloc"
+description = "Gear Wasm allocator"
+keywords = ["gear", "allocator", "wasm"]
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
+documentation = "https://docs.rs/galloc"
 
 [dependencies]
 # add "checks" feature to enable hard checks in allocator

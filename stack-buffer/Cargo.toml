@@ -1,9 +1,11 @@
 [package]
 name = "gear-stack-buffer"
+description = "Gear stack buffer implementation"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
+documentation = "https://docs.rs/gear-stack-buffer"
 
 [build-dependencies]
 cc = { version = "1.0", optional = true }

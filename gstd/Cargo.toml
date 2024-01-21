@@ -1,9 +1,15 @@
 [package]
 name = "gstd"
+description = "Gear programs standard library"
+keywords = ["gear", "std", "no-std", "wasm", "smart-contracts"]
+categories = ["api-bindings"]
 version.workspace = true
-authors.workspace = true
 edition.workspace = true
+authors.workspace = true
 license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+documentation = "https://docs.rs/gstd"
 
 [dependencies]
 galloc.workspace = true
