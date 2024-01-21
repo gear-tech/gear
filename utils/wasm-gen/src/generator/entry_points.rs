@@ -21,7 +21,7 @@
 use crate::{
     generator::{CallIndexes, FrozenGearWasmGenerator, GearWasmGenerator, ModuleWithCallIndexes},
     wasm::{PageCount as WasmPageCount, WasmModule},
-    EntryPointsSet,
+    EntryPointsSet, MemoryLayout,
 };
 use arbitrary::{Result, Unstructured};
 use gear_wasm_instrument::parity_wasm::{
@@ -220,9 +220,9 @@ impl<'a, 'b> EntryPointsGenerator<'a, 'b> {
         if name == "init" {
             if let Some(memory_size_pages) = self.module.initial_mem_size() {
                 let mem_size = Into::<WasmPageCount>::into(memory_size_pages).memory_size();
-
-                let wait_called_ptr = mem_size.saturating_sub(50) as i32;
-                let init_called_ptr = wait_called_ptr + mem::size_of::<bool>() as i32;
+                let MemoryLayout {
+                    init_called_ptr, ..
+                } = MemoryLayout::from(mem_size);
 
                 res.extend_from_slice(&[
                     // *init_called_ptr = true

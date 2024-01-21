@@ -340,10 +340,11 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
             .waiting_frequency()
             .filter(|_| invocable.is_wait_syscall())
         {
-            let mem_size = self.memory_size_bytes();
-
-            let wait_called_ptr = mem_size.saturating_sub(50) as i32;
-            let init_called_ptr = wait_called_ptr + mem::size_of::<bool>() as i32;
+            let MemoryLayout {
+                init_called_ptr,
+                wait_called_ptr,
+                ..
+            } = MemoryLayout::from(self.memory_size_bytes());
 
             // add instructions before calling wait syscall
             instructions.splice(
@@ -794,6 +795,28 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
 
             (module, ())
         })
+    }
+}
+
+/// Represents memory layout that can be safely used between syscalls and instructions.
+pub struct MemoryLayout {
+    pub init_called_ptr: i32,
+    pub wait_called_ptr: i32,
+    pub remaining_memory_ptr: i32,
+}
+
+impl From<u32> for MemoryLayout {
+    fn from(mem_size: u32) -> Self {
+        let init_called_ptr =
+            mem_size.saturating_sub(SyscallsInvocator::RESERVED_MEMORY_SIZE) as i32;
+        let wait_called_ptr = init_called_ptr + mem::size_of::<bool>() as i32;
+        let remaining_memory_ptr = wait_called_ptr + mem::size_of::<u32>() as i32;
+
+        Self {
+            init_called_ptr,
+            wait_called_ptr,
+            remaining_memory_ptr,
+        }
     }
 }
 
