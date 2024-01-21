@@ -3671,7 +3671,7 @@ dependencies = [
 
 [[package]]
 name = "gbuiltin"
-version = "1.0.5"
+version = "1.1.0"
 dependencies = [
  "derive_more",
  "gear-core-errors",
@@ -7455,7 +7455,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-builtin-actor"
-version = "1.0.5"
+version = "1.1.0"
 dependencies = [
  "demo-waiting-proxy",
  "derive_more",
