@@ -687,18 +687,16 @@ impl Ext {
 
 impl CountersOwner for Ext {
     fn charge_gas_runtime(&mut self, cost: RuntimeCosts) -> Result<(), ChargeError> {
-        self.atomic_gas(|ext| {
-            let token = cost.token(&ext.context.host_fn_weights);
-            let common_charge = ext.context.gas_counter.charge(token);
-            let allowance_charge = ext.context.gas_allowance_counter.charge(token);
-            match (common_charge, allowance_charge) {
-                (ChargeResult::NotEnough, _) => Err(ChargeError::GasLimitExceeded),
-                (ChargeResult::Enough, ChargeResult::NotEnough) => {
-                    Err(ChargeError::GasAllowanceExceeded)
-                }
-                (ChargeResult::Enough, ChargeResult::Enough) => Ok(()),
+        let token = cost.token(&self.context.host_fn_weights);
+        let common_charge = self.context.gas_counter.charge(token);
+        let allowance_charge = self.context.gas_allowance_counter.charge(token);
+        match (common_charge, allowance_charge) {
+            (ChargeResult::NotEnough, _) => Err(ChargeError::GasLimitExceeded),
+            (ChargeResult::Enough, ChargeResult::NotEnough) => {
+                Err(ChargeError::GasAllowanceExceeded)
             }
-        })
+            (ChargeResult::Enough, ChargeResult::Enough) => Ok(()),
+        }
     }
 
     fn charge_gas_runtime_if_enough(&mut self, cost: RuntimeCosts) -> Result<(), ChargeError> {
