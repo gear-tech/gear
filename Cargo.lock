@@ -4273,7 +4273,7 @@ dependencies = [
 
 [[package]]
 name = "gear-sandbox"
-version = "0.1.0"
+version = "1.0.5"
 dependencies = [
  "assert_matches",
  "gear-runtime-interface",
@@ -4299,7 +4299,7 @@ dependencies = [
 
 [[package]]
 name = "gear-sandbox-host"
-version = "0.1.0"
+version = "1.0.5"
 dependencies = [
  "environmental",
  "gear-sandbox-env",
@@ -4407,7 +4407,7 @@ dependencies = [
 
 [[package]]
 name = "gear-utils"
-version = "0.1.0"
+version = "1.0.5"
 dependencies = [
  "env_logger",
  "gear-core",

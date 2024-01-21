@@ -192,6 +192,7 @@ gcore = { path = "gcore" }
 gcli = { path = "gcli" }
 gclient = { path = "gclient" }
 gsdk = { path = "gsdk" }
+gsdk-codegen = { path = "gsdk/codegen" }
 gstd = { path = "gstd" }
 gsys = { path = "gsys" }
 gtest = { path = "gtest" }
