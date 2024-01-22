@@ -47,7 +47,7 @@ pub(crate) fn init_logger() {
 fn supply_alignment_works() {
     init_logger();
 
-    ExtBuilder::default()
+    ExtBuilder::<Test>::default()
         .initial_authorities(vec![
             (VAL_1_STASH, VAL_1_AUTH_ID),
             (VAL_2_STASH, VAL_2_AUTH_ID),
@@ -143,7 +143,7 @@ fn supply_alignment_works() {
 #[test]
 fn genesis_config_works() {
     init_logger();
-    ExtBuilder::default()
+    ExtBuilder::<Test>::default()
         .initial_authorities(vec![
             (VAL_1_STASH, VAL_1_AUTH_ID),
             (VAL_2_STASH, VAL_2_AUTH_ID),
@@ -175,7 +175,7 @@ fn pool_refill_works() {
 
 #[test]
 fn burning_works() {
-    ExtBuilder::default()
+    ExtBuilder::<Test>::default()
         .initial_authorities(vec![
             (VAL_1_STASH, VAL_1_AUTH_ID),
             (VAL_2_STASH, VAL_2_AUTH_ID),
@@ -200,7 +200,7 @@ fn burning_works() {
 
 #[test]
 fn rewards_account_doesnt_get_deleted() {
-    ExtBuilder::default()
+    ExtBuilder::<Test>::default()
         .initial_authorities(vec![
             (VAL_1_STASH, VAL_1_AUTH_ID),
             (VAL_2_STASH, VAL_2_AUTH_ID),
@@ -223,7 +223,7 @@ fn rewards_account_doesnt_get_deleted() {
 fn validators_rewards_disbursement_works() {
     let (target_inflation, ideal_stake, pool_balance, non_stakeable) = sensible_defaults();
 
-    let mut ext = ExtBuilder::default()
+    let mut ext = ExtBuilder::<Test>::default()
         .initial_authorities(vec![
             (VAL_1_STASH, VAL_1_AUTH_ID),
             (VAL_2_STASH, VAL_2_AUTH_ID),
@@ -262,7 +262,7 @@ fn validators_rewards_disbursement_works() {
                 .saturating_sub(pool_balance)
         );
 
-        let era_duration_in_millis = era_duration * MILLISECS_PER_BLOCK;
+        let era_duration_in_millis = era_duration * u64::from(MILLISECS_PER_BLOCK);
         let era_time_fraction =
             Perquintill::from_rational(era_duration_in_millis, MILLISECONDS_PER_YEAR);
 
@@ -426,7 +426,7 @@ fn nominators_rewards_disbursement_works() {
             (non_stakeable.left_from_one() * initial_total_issuance).saturating_sub(pool_balance)
         );
 
-        let era_duration_in_millis = era_duration * MILLISECS_PER_BLOCK;
+        let era_duration_in_millis = era_duration * u64::from(MILLISECS_PER_BLOCK);
         let era_time_fraction =
             Perquintill::from_rational(era_duration_in_millis, MILLISECONDS_PER_YEAR);
 
@@ -666,7 +666,7 @@ fn staking_blacklist_works() {
         Some((SIGNER, extra)),
     );
 
-    ExtBuilder::default()
+    ExtBuilder::<Test>::default()
         .initial_authorities(vec![
             (VAL_1_STASH, VAL_1_AUTH_ID),
             (VAL_2_STASH, VAL_2_AUTH_ID),
@@ -765,7 +765,7 @@ fn inflation_at_ideal_staked_adds_up() {
             (non_stakeable.left_from_one() * initial_total_issuance).saturating_sub(pool_balance)
         );
 
-        let era_duration_in_millis = era_duration * MILLISECS_PER_BLOCK;
+        let era_duration_in_millis = era_duration * u64::from(MILLISECS_PER_BLOCK);
 
         // Bond and nominate
         run_to_block(10);
@@ -899,7 +899,7 @@ fn inflation_when_nobody_stakes_adds_up() {
             (non_stakeable.left_from_one() * initial_total_issuance).saturating_sub(pool_balance)
         );
 
-        let era_duration_in_millis = era_duration * MILLISECS_PER_BLOCK;
+        let era_duration_in_millis = era_duration * u64::from(MILLISECS_PER_BLOCK);
 
         // Bond and nominate
         run_to_block(10);
@@ -1043,7 +1043,7 @@ fn inflation_with_too_many_stakers_adds_up() {
             (non_stakeable.left_from_one() * initial_total_issuance).saturating_sub(pool_balance)
         );
 
-        let era_duration_in_millis = era_duration * MILLISECS_PER_BLOCK;
+        let era_duration_in_millis = era_duration * u64::from(MILLISECS_PER_BLOCK);
 
         // Bond and nominate
         run_to_block(10);
@@ -1163,7 +1163,7 @@ fn unclaimed_rewards_burn() {
             chain_state();
         let initial_validators_balance = validators_total_balance();
 
-        let era_duration_in_millis = era_duration * MILLISECS_PER_BLOCK;
+        let era_duration_in_millis = era_duration * u64::from(MILLISECS_PER_BLOCK);
 
         // Bond and nominate
         run_to_block(10);
@@ -1329,7 +1329,7 @@ fn election_solution_rewards_add_up() {
     let (target_inflation, ideal_stake, pool_balance, non_stakeable) = sensible_defaults();
     // Solutions submitters
     let accounts = (0_u64..5).map(|i| 100 + i).collect::<Vec<_>>();
-    let mut ext = ExtBuilder::default()
+    let mut ext = ExtBuilder::<Test>::default()
         .initial_authorities(vec![
             (VAL_1_STASH, VAL_1_AUTH_ID),
             (VAL_2_STASH, VAL_2_AUTH_ID),
@@ -1451,7 +1451,7 @@ fn with_parameters(
     pool_balance: u128,
     non_stakeable: Perquintill,
 ) -> sp_io::TestExternalities {
-    ExtBuilder::default()
+    ExtBuilder::<Test>::default()
         .initial_authorities(vec![
             (VAL_1_STASH, VAL_1_AUTH_ID),
             (VAL_2_STASH, VAL_2_AUTH_ID),

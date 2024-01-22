@@ -16,7 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate as pallet_gear_staking_rewards;
+use core::marker::PhantomData;
+use crate::{self as pallet_gear_staking_rewards, CurrencyOf};
 use frame_election_provider_support::{
     onchain, ElectionDataProvider, SequentialPhragmen, VoteWeight,
 };
@@ -32,7 +33,7 @@ use pallet_session::historical::{self as pallet_session_historical};
 use sp_core::{crypto::key_types, H256};
 use sp_runtime::{
     testing::{Block as TestBlock, UintAuthorityId},
-    traits::{BlakeTwo256, IdentityLookup, OpaqueKeys},
+    traits::{BlakeTwo256, IdentityLookup, One, OpaqueKeys, Scale},
     BuildStorage, KeyTypeId, Perbill, Permill, Perquintill,
 };
 use sp_std::convert::{TryFrom, TryInto};
@@ -70,7 +71,7 @@ pub(crate) const ENDOWMENT: u128 = 100 * UNITS;
 
 pub(crate) const UNITS: u128 = 100_000; // 10^(-5) precision
 pub(crate) const MILLISECONDS_PER_YEAR: u64 = 1_000 * 3_600 * 24 * 36_525 / 100;
-pub(crate) const MILLISECS_PER_BLOCK: u64 = 2_400;
+pub(crate) const MILLISECS_PER_BLOCK: u32 = 2_400;
 pub(crate) const SESSION_DURATION: u64 = 1000;
 
 // Configure a mock runtime to test the pallet.
@@ -452,8 +453,8 @@ pub type ValidatorAccountId = (
 );
 
 // Build genesis storage according to the mock runtime.
-#[derive(Default)]
-pub struct ExtBuilder {
+pub struct ExtBuilder<T>
+{
     initial_authorities: Vec<ValidatorAccountId>,
     stash: Balance,
     endowed_accounts: Vec<AccountId>,
@@ -465,9 +466,41 @@ pub struct ExtBuilder {
     ideal_stake: Perquintill,
     target_inflation: Perquintill,
     filtered_accounts: Vec<AccountId>,
+    _phantom: PhantomData<T>,
 }
 
-impl ExtBuilder {
+impl<T> Default for ExtBuilder<T> {
+    fn default() -> Self {
+        Self {
+            initial_authorities: vec![],
+            stash: 0,
+            endowed_accounts: vec![],
+            endowment: 0,
+            root: None,
+            total_supply: 0,
+            non_stakeable: Default::default(),
+            pool_balance: 0,
+            ideal_stake: Default::default(),
+            target_inflation: Default::default(),
+            filtered_accounts: vec![],
+            _phantom: Default::default(),
+        }
+    }
+}
+
+impl<T> ExtBuilder<T>
+where
+    T: frame_system::Config<AccountId = AccountId>,
+    T: pallet_balances::Config<Balance = Balance>,
+    T: pallet_treasury::Config,
+    T: pallet_session::Config<Keys = UintAuthorityId, ValidatorId = AccountId>,
+    T: pallet_sudo::Config,
+    T: pallet_staking::Config<CurrencyBalance = Balance>,
+    T: pallet_gear_staking_rewards::Config,
+    T: pallet_timestamp::Config,
+    T: pallet_authorship::Config,
+    T: pallet_election_provider_multi_phase::Config,
+{
     pub fn stash(mut self, s: Balance) -> Self {
         self.stash = s;
         self
@@ -524,7 +557,7 @@ impl ExtBuilder {
     }
 
     pub fn build(self) -> sp_io::TestExternalities {
-        let mut storage = system::GenesisConfig::<Test>::default()
+        let mut storage = system::GenesisConfig::<T>::default()
             .build_storage()
             .unwrap();
 
@@ -535,15 +568,15 @@ impl ExtBuilder {
             .chain(self.endowed_accounts.iter().map(|k| (*k, self.endowment)))
             .collect();
 
-        pallet_balances::GenesisConfig::<Test> { balances }
+        pallet_balances::GenesisConfig::<T> { balances }
             .assimilate_storage(&mut storage)
             .unwrap();
 
-        TreasuryConfig::default()
+        pallet_treasury::GenesisConfig::<T>::default()
             .assimilate_storage(&mut storage)
             .unwrap();
 
-        SessionConfig {
+        pallet_session::GenesisConfig::<T> {
             keys: self
                 .initial_authorities
                 .iter()
@@ -553,11 +586,11 @@ impl ExtBuilder {
         .assimilate_storage(&mut storage)
         .unwrap();
 
-        SudoConfig { key: self.root }
+        pallet_sudo::GenesisConfig::<T> { key: self.root }
             .assimilate_storage(&mut storage)
             .unwrap();
 
-        StakingConfig {
+        pallet_staking::GenesisConfig::<T> {
             validator_count: self.initial_authorities.len() as u32,
             minimum_validator_count: self.initial_authorities.len() as u32,
             stakers: self
@@ -579,7 +612,7 @@ impl ExtBuilder {
         .assimilate_storage(&mut storage)
         .unwrap();
 
-        StakingRewardsConfig {
+        pallet_gear_staking_rewards::GenesisConfig::<T> {
             pool_balance: self.pool_balance,
             non_stakeable: self.non_stakeable,
             ideal_stake: self.ideal_stake,
@@ -590,34 +623,47 @@ impl ExtBuilder {
         .unwrap();
 
         let mut ext: sp_io::TestExternalities = storage.into();
-
         ext.execute_with(|| {
-            let new_blk = 1;
-            System::set_block_number(new_blk);
-            on_initialize(new_blk);
+            let new_blk = BlockNumberFor::<T>::one();
+            frame_system::Pallet::<T>::set_block_number(new_blk);
+            on_initialize::<T>(new_blk);
 
             // ensure total supply is as expected
-            let total_supply = Balances::total_issuance();
+            let total_supply = pallet_balances::Pallet::<T>::total_issuance();
             if total_supply < self.total_supply {
                 // Mint the difference to SIGNER user
                 let diff = self.total_supply.saturating_sub(total_supply);
-                let _ = <Balances as Currency<_>>::deposit_creating(&SIGNER, diff);
+                let _ = CurrencyOf::<T>::deposit_creating(&SIGNER, diff);
             }
         });
+
         ext
     }
 }
 
 #[allow(unused)]
-pub(crate) fn run_to_block(n: u64) {
-    while System::block_number() < n {
-        let current_blk = System::block_number();
-        on_finalize(current_blk);
+pub(crate) fn run_to_block_impl<T>(n: BlockNumberFor<T>)
+where
+    T: frame_system::Config,
+    T: pallet_timestamp::Config,
+    T: pallet_authorship::Config,
+    T: pallet_staking::Config,
+    T: pallet_session::Config,
+    T: pallet_election_provider_multi_phase::Config,
+{
+    while frame_system::Pallet::<T>::block_number() < n {
+        let current_blk = frame_system::Pallet::<T>::block_number();
+        on_finalize::<T>(current_blk);
 
-        let new_block_number = current_blk + 1;
-        System::set_block_number(new_block_number);
-        on_initialize(new_block_number);
+        let new_block_number = current_blk + One::one();
+        frame_system::Pallet::<T>::set_block_number(new_block_number);
+        on_initialize::<T>(new_block_number);
     }
+}
+
+#[allow(unused)]
+pub(crate) fn run_to_block(n: BlockNumberFor<Test>) {
+    run_to_block_impl::<Test>(n)
 }
 
 #[allow(unused)]
@@ -625,11 +671,11 @@ pub(crate) fn run_for_n_blocks(n: u64) {
     let now = System::block_number();
     let until = now + n;
     for current_blk in now..until {
-        on_finalize(current_blk);
+        on_finalize::<Test>(current_blk);
 
         let new_block_number = current_blk + 1;
         System::set_block_number(new_block_number);
-        on_initialize(new_block_number);
+        on_initialize::<Test>(new_block_number);
     }
 }
 
@@ -652,22 +698,36 @@ pub fn run_to_signed() {
 }
 
 // Run on_initialize hooks in order as they appear in AllPalletsWithSystem.
-pub(crate) fn on_initialize(new_block_number: BlockNumberFor<Test>) {
-    Timestamp::set_timestamp(new_block_number.saturating_mul(MILLISECS_PER_BLOCK));
-    Authorship::on_initialize(new_block_number);
-    Staking::on_initialize(new_block_number);
-    Session::on_initialize(new_block_number);
-    ElectionProviderMultiPhase::on_initialize(new_block_number);
+pub(crate) fn on_initialize<T>(new_block_number: BlockNumberFor<T>)
+where
+    T: frame_system::Config,
+    T: pallet_timestamp::Config,
+    T: pallet_authorship::Config,
+    T: pallet_staking::Config,
+    T: pallet_session::Config,
+    T: pallet_election_provider_multi_phase::Config,
+{
+    let moment: <T as pallet_timestamp::Config>::Moment = MILLISECS_PER_BLOCK.into();
+    pallet_timestamp::Pallet::<T>::set_timestamp(moment.mul(new_block_number));
+    pallet_authorship::Pallet::<T>::on_initialize(new_block_number);
+    pallet_staking::Pallet::<T>::on_initialize(new_block_number);
+    pallet_session::Pallet::<T>::on_initialize(new_block_number);
+    pallet_election_provider_multi_phase::Pallet::<T>::on_initialize(new_block_number);
 }
 
 // Run on_finalize hooks (in pallets reverse order, as they appear in AllPalletsWithSystem)
-pub(crate) fn on_finalize(current_blk: BlockNumberFor<Test>) {
-    Staking::on_finalize(current_blk);
-    Authorship::on_finalize(current_blk);
+pub(crate) fn on_finalize<T>(current_blk: BlockNumberFor<T>)
+where
+    T: frame_system::Config,
+    T: pallet_staking::Config,
+    T: pallet_authorship::Config,
+{
+    pallet_staking::Pallet::<T>::on_finalize(current_blk);
+    pallet_authorship::Pallet::<T>::on_finalize(current_blk);
 }
 
 pub fn default_test_ext() -> sp_io::TestExternalities {
-    ExtBuilder::default()
+    ExtBuilder::<Test>::default()
         .initial_authorities(vec![
             (VAL_1_STASH, VAL_1_AUTH_ID),
             (VAL_2_STASH, VAL_2_AUTH_ID),
