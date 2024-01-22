@@ -5,6 +5,7 @@
 //!
 //! [ss58-codec]: https://paritytech.github.io/polkadot-sdk/master/sp_core/crypto/trait.Ss58Codec.html
 
+use anyhow::{anyhow, Result};
 use blake2::{Blake2b512, Digest};
 use core::sync::atomic::{AtomicU16, Ordering};
 
@@ -40,6 +41,43 @@ pub fn encode(data: &[u8]) -> String {
     let r = blake2b_512(&v);
     v.extend(&r[0..CHECKSUM_LENGTH]);
     bs58::encode(v).into_string()
+}
+
+/// Decode data from SS58 format.
+pub fn decode(encoded: &[u8], body_len: usize) -> Result<Vec<u8>> {
+    let data = bs58::decode(encoded)
+        .into_vec()
+        .map_err(|e| anyhow!("Invalid ss58 data: {}", e))?;
+    if data.len() < CHECKSUM_LENGTH {
+        return Err(anyhow!("Invalid length of encoded ss58 data."));
+    }
+
+    let (prefix_len, _) = match data[0] {
+        0..=63 => (1, data[0] as u16),
+        64..=127 => {
+            // weird bit manipulation owing to the combination of LE encoding and missing two
+            // bits from the left.
+            // d[0] d[1] are: 01aaaaaa bbcccccc
+            // they make the LE-encoded 16-bit value: aaaaaabb 00cccccc
+            // so the lower byte is formed of aaaaaabb and the higher byte is 00cccccc
+            let lower = (data[0] << 2) | (data[1] >> 6);
+            let upper = data[1] & 0b00111111;
+            (2, (lower as u16) | ((upper as u16) << 8))
+        }
+        _ => return Err(anyhow!("Invalid prefix of encoded ss58 data.")),
+    };
+
+    if data.len() != prefix_len + body_len + CHECKSUM_LENGTH {
+        return Err(anyhow!("Invalid length of encoded ss58 data."));
+    }
+
+    let hash = blake2b_512(&data[..prefix_len + body_len]);
+    let checksum = &hash[0..CHECKSUM_LENGTH];
+    if data[body_len + prefix_len..body_len + prefix_len + CHECKSUM_LENGTH] != *checksum {
+        return Err(anyhow!("Invalid checksum of encoded ss58 data."));
+    }
+
+    Ok(data[prefix_len..body_len + prefix_len].to_vec())
 }
 
 /// Get the default ss58 version.

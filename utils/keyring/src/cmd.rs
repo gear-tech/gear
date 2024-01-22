@@ -19,10 +19,11 @@
 //! CLI implementation for gring.
 #![cfg(feature = "cli")]
 
-use crate::{Keyring, Keystore};
+use crate::{ss58, Keyring, Keystore};
 use anyhow::{anyhow, Result};
 use clap::Parser;
 use colored::{ColoredString, Colorize};
+use schnorrkel::{PublicKey, Signature};
 use std::{fs, path::PathBuf};
 
 /// gring sub commands.
@@ -50,6 +51,34 @@ pub enum Command {
     Use {
         /// The name of the key.
         name: String,
+    },
+    /// Sign a message.
+    Sign {
+        /// The singning context.
+        #[clap(short, long, default_value = "gring.vara")]
+        ctx: String,
+        /// The message to sign.
+        message: String,
+        /// the passphrase of the primary key.
+        #[clap(short, long)]
+        passphrase: String,
+    },
+    /// Verify a message.
+    Verify {
+        /// The singning context.
+        #[clap(short, long, default_value = "gring.vara")]
+        ctx: String,
+        /// The signed to message.
+        message: String,
+        /// The signature to verify.
+        signature: String,
+        /// The address used in the verification, supports hex
+        /// public key bytes and VARA ss58 address.
+        ///
+        /// NOTE: if not provided, the address of the primary
+        /// key will be used.
+        #[arg(short, long)]
+        address: Option<String>,
     },
 }
 
@@ -123,6 +152,67 @@ impl Command {
                 let key = keyring.set_primary(name)?;
                 println!("The primary key has been updated to:");
                 Self::print_key(&key);
+            }
+            Command::Sign {
+                ctx,
+                message,
+                passphrase,
+            } => {
+                let key = keyring.primary()?;
+                let pair = key.decrypt_scrypt(passphrase.as_ref()).map_err(|e| {
+                    anyhow!("Incorrect passphrase, failed to decrypt keystore, {e}")
+                })?;
+                let sig = pair
+                    .sign(schnorrkel::signing_context(ctx.as_bytes()).bytes(&message.as_bytes()));
+                println!("{:<16}{}", "Key:", key.meta.name.green().bold());
+                println!("{:<16}{}", "SS58 Address:", key.address);
+                println!("{:<16}{ctx}", "Context:");
+                println!("{:<16}{message}", "Message:");
+                println!("{:<16}0x{}", "Signature:", hex::encode(sig.to_bytes()));
+            }
+            Command::Verify {
+                ctx,
+                message,
+                signature,
+                address,
+            } => {
+                let pk_bytes = if let Some(address) = address {
+                    if address.starts_with("0x") {
+                        hex::decode(&address[2..]).map_err(Into::into)
+                    } else {
+                        ss58::decode(address.as_bytes(), 32)
+                    }
+                } else {
+                    let key = keyring.primary()?;
+                    ss58::decode(key.address.as_bytes(), 32)
+                }?;
+
+                let pk = PublicKey::from_bytes(&pk_bytes)
+                    .map_err(|e| anyhow!("Failed to decode public key, {e}"))?;
+
+                println!(
+                    "{:<16}{}",
+                    "Result",
+                    if pk
+                        .verify(
+                            schnorrkel::signing_context(ctx.as_bytes()).bytes(&message.as_bytes()),
+                            &Signature::from_bytes(&hex::decode(
+                                signature.trim_start_matches("0x")
+                            )?)
+                            .map_err(|e| anyhow!("Failed to decode signature, {e}"))?,
+                        )
+                        .is_ok()
+                    {
+                        "Verified".green().bold()
+                    } else {
+                        "Not Verified".red().bold()
+                    }
+                );
+                println!("{:<16}{ctx}", "Context:");
+                println!("{:<16}{message}", "Message:");
+                println!("{:<16}0x{signature}", "Signature:");
+                println!("{:<16}0x{}", "Public Key:", hex::encode(&pk_bytes));
+                println!("{:<16}0x{}", "SS58 Address:", ss58::encode(&pk_bytes));
             }
         }
         Ok(())
