@@ -32,7 +32,6 @@ use arbitrary::{Arbitrary, Error, Result, Unstructured};
 use data::*;
 use frame_support::pallet_prelude::DispatchResultWithPostInfo;
 use gear_call_gen::{ClaimValueArgs, GearCall, SendMessageArgs, SendReplyArgs, UploadProgramArgs};
-use gear_calls::GearCalls;
 use gear_core::ids::ProgramId;
 use generator::*;
 use pallet_balances::Pallet as BalancesPallet;
@@ -77,7 +76,7 @@ fn run_impl(fuzzer_input: FuzzerInput<'_>) -> Result<sp_io::TestExternalities> {
         })?;
 
         if stop {
-            break Ok(test_ext)
+            break Ok(test_ext);
         }
     }
 }

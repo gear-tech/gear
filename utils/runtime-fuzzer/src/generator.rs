@@ -18,18 +18,24 @@
 
 use arbitrary::{Result, Unstructured};
 use gear_call_gen::{GearCall, SendMessageArgs, UploadProgramArgs};
-use gear_core::{ids::{CodeId, ProgramId}, program::Program};
+use gear_common::{event::ProgramChangeKind, Origin};
+use gear_core::{
+    ids::{CodeId, ProgramId},
+    program::Program,
+};
 use gear_utils::NonEmpty;
 use gear_wasm_gen::{
     ActorKind, EntryPointsSet, InvocableSyscall, PtrParamAllowedValues, RegularParamType,
     StandardGearWasmConfigsBundle, SyscallName, SyscallsInjectionTypes, SyscallsParamsConfig,
 };
 use pallet_balances::Pallet as BalancesPallet;
-use runtime_primitives::AccountId;
-use std::{mem, collections::{BTreeSet, HashSet}};
-use vara_runtime::{Runtime, System, RuntimeEvent};
 use pallet_gear::Event as GearEvent;
-use gear_common::event::ProgramChangeKind;
+use runtime_primitives::AccountId;
+use std::{
+    collections::{BTreeSet, HashSet},
+    mem,
+};
+use vara_runtime::{Runtime, RuntimeEvent, System};
 
 use crate::{data::*, runtime};
 
@@ -59,7 +65,7 @@ const GAS_AND_VALUE_SIZE: usize = mem::size_of::<(u64, u128)>();
 const AUXILIARY_SIZE: usize = 512;
 
 pub(crate) struct RuntimeInterimState {
-    programs: HashSet<ProgramId>
+    programs: HashSet<ProgramId>,
 }
 
 impl RuntimeInterimState {
@@ -70,14 +76,13 @@ impl RuntimeInterimState {
                 change: ProgramChangeKind::Active { .. },
                 id,
                 ..
-            }) = e.event {
+            }) = e.event
+            {
                 programs.insert(id);
             }
         });
 
-        Self {
-            programs
-        }
+        Self { programs }
     }
 
     fn merge(&mut self, Self { programs }: Self) {
@@ -99,7 +104,10 @@ pub(crate) struct GenerationEnvironmentProducer<'a> {
 }
 
 impl<'a> GenerationEnvironmentProducer<'a> {
-    pub(crate) fn new(corpus_id: String, data_requirement: FulfilledDataRequirement<'a, Self>) -> Self {
+    pub(crate) fn new(
+        corpus_id: String,
+        data_requirement: FulfilledDataRequirement<'a, Self>,
+    ) -> Self {
         Self {
             corpus_id,
             unstructured: Unstructured::new(data_requirement.data),
@@ -125,7 +133,8 @@ impl<'a> GenerationEnvironmentProducer<'a> {
             BalancesPallet::<Runtime>::free_balance(&self.sender)
         );
 
-        let existing_programs = self.interim_state
+        let existing_programs = self
+            .interim_state
             .as_ref()
             .map(|state| state.programs.clone())
             .expect("interim state is always `Some`; qed");
@@ -171,18 +180,71 @@ impl<'a> GearCallsGenerator<'a> {
     pub(crate) fn generate(&mut self, env: GenerationEnvironment) -> Result<Option<GearCall>> {
         let Some(call_id) = (self.generated_upload_program < Self::MAX_UPLOAD_PROGRAM_CALLS)
             .then_some(Self::UPLOAD_PROGRAM_CALL_ID)
-            .or_else(|| (self.generated_upload_program < Self::MAX_SEND_MESSAGE_CALLS).then_some(Self::SEND_MESSAGE_CALL_ID)) else {
-                return Ok(None)
-            };
+            .or(
+                (self.generated_upload_program < Self::MAX_SEND_MESSAGE_CALLS)
+                    .then_some(Self::SEND_MESSAGE_CALL_ID),
+            )
+        else {
+            return Ok(None);
+        };
 
-        match call_id {
-            Self::UPLOAD_PROGRAM_CALL_ID => {
-                generate_upload_program(&mut self.unstructured, env).map(Some)
-            }
-            Self::SEND_MESSAGE_CALL_ID => todo!(),
+        let call = match call_id {
+            Self::UPLOAD_PROGRAM_CALL_ID => generate_upload_program(&mut self.unstructured, env),
+            Self::SEND_MESSAGE_CALL_ID => generate_send_message(&mut self.unstructured, env),
             _ => unimplemented!("Unknown call id"),
-        }
+        };
+
+        call.map(Some)
     }
+}
+
+impl GearCallsGenerator<'_> {
+    // *WARNING*:
+    //
+    // Increasing these constants requires resetting minimal
+    // size of fuzzer input buffer in corresponding scripts.
+    const MAX_UPLOAD_PROGRAM_CALLS: usize = 10;
+    const MAX_SEND_MESSAGE_CALLS: usize = 15;
+
+    pub(crate) const fn random_data_requirement() -> usize {
+        Self::upload_program_data_requirement() * Self::MAX_UPLOAD_PROGRAM_CALLS
+            + Self::send_message_data_requirement() * Self::MAX_SEND_MESSAGE_CALLS
+    }
+
+    const fn upload_program_data_requirement() -> usize {
+        MAX_CODE_SIZE + MAX_SALT_SIZE + MAX_PAYLOAD_SIZE + GAS_AND_VALUE_SIZE + AUXILIARY_SIZE
+    }
+
+    const fn send_message_data_requirement() -> usize {
+        ID_SIZE + MAX_PAYLOAD_SIZE + GAS_AND_VALUE_SIZE + AUXILIARY_SIZE
+    }
+}
+
+fn generate_send_message(
+    unstructured: &mut Unstructured,
+    env: GenerationEnvironment,
+) -> Result<GearCall> {
+    let GenerationEnvironment {
+        mut existing_programs,
+        max_gas,
+        ..
+    } = env;
+    let existing_programs = {
+        if existing_programs.is_empty() {
+            // If no existing programs, then send message from program to Alice.
+            existing_programs.insert(ProgramId::from_origin(runtime::alice().into_origin()));
+        }
+        existing_programs.into_iter().collect::<Vec<_>>()
+    };
+    let program_id = unstructured.choose(&existing_programs).copied()?;
+    let payload = arbitrary_payload(unstructured)?;
+    log::trace!(
+        "Random data after payload (send_message) gen {}",
+        unstructured.len()
+    );
+    log::trace!("Payload (send_message) length {:?}", payload.len());
+
+    Ok(SendMessageArgs((program_id, payload, max_gas, 0)).into())
 }
 
 fn generate_upload_program(
@@ -239,7 +301,10 @@ fn arbitrary_limited_bytes(u: &mut Unstructured, limit: usize) -> Result<Vec<u8>
     u.bytes(arb_size).map(|bytes| bytes.to_vec())
 }
 
-fn config(programs: impl Iterator<Item = ProgramId>, log_info: Option<String>) -> StandardGearWasmConfigsBundle {
+fn config(
+    programs: impl Iterator<Item = ProgramId>,
+    log_info: Option<String>,
+) -> StandardGearWasmConfigsBundle {
     let initial_pages = 2;
     let mut injection_types = SyscallsInjectionTypes::all_once();
     injection_types.set_multiple(
@@ -287,27 +352,5 @@ fn config(programs: impl Iterator<Item = ProgramId>, log_info: Option<String>) -
         params_config,
         initial_pages: initial_pages as u32,
         ..Default::default()
-    }
-}
-
-impl GearCallsGenerator<'_> {
-    // *WARNING*:
-    //
-    // Increasing these constants requires resetting minimal
-    // size of fuzzer input buffer in corresponding scripts.
-    const MAX_UPLOAD_PROGRAM_CALLS: usize = 10;
-    const MAX_SEND_MESSAGE_CALLS: usize = 15;
-
-    pub(crate) const fn random_data_requirement() -> usize {
-        Self::upload_program_data_requirement() * Self::MAX_UPLOAD_PROGRAM_CALLS
-            + Self::send_message_data_requirement() * Self::MAX_SEND_MESSAGE_CALLS
-    }
-
-    const fn upload_program_data_requirement() -> usize {
-        MAX_CODE_SIZE + MAX_SALT_SIZE + MAX_PAYLOAD_SIZE + GAS_AND_VALUE_SIZE + AUXILIARY_SIZE
-    }
-
-    const fn send_message_data_requirement() -> usize {
-        ID_SIZE + MAX_PAYLOAD_SIZE + GAS_AND_VALUE_SIZE + AUXILIARY_SIZE
     }
 }
