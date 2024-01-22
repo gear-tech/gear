@@ -9,12 +9,16 @@ license.workspace = true
 homepage.workspace = true
 repository.workspace = true
 
+[[bin]]
+name = "gring"
+path = "src/bin/gring.rs"
+required-features = ["cli"]
+
 [dependencies]
 anyhow.workspace = true
 blake2.workspace = true
 bs58 = { workspace = true, features = ["alloc"] }
 base64.workspace = true
-dirs.workspace = true
 nacl.workspace = true
 once_cell.workspace = true
 rand = { workspace = true, features = ["std", "std_rng"] }
@@ -22,3 +26,14 @@ schnorrkel.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
 tracing.workspace = true
+
+# Feature CLI
+clap = { workspace = true, features = ["derive"], optional = true }
+colored = { workspace = true, optional = true }
+dirs = { workspace = true, optional = true }
+hex = { workspace = true, features = ["std"], optional = true }
+tracing-subscriber = { workspace = true, features = ["env-filter"], optional = true }
+
+[features]
+default = ["cli"]
+cli = ["clap", "colored", "dirs", "hex", "tracing-subscriber"]

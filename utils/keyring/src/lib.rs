@@ -16,6 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+pub mod cmd;
 mod keyring;
 mod keystore;
 mod pair;
@@ -23,7 +24,7 @@ mod scrypt;
 pub mod ss58;
 
 pub use self::{
-    keyring::{Keyring, STORE},
+    keyring::Keyring,
     keystore::{Encoding, Keystore},
     pair::KeypairInfo,
     scrypt::Scrypt,

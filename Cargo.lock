@@ -4784,7 +4784,10 @@ dependencies = [
  "base64 0.21.5",
  "blake2",
  "bs58 0.5.0",
+ "clap 4.4.11",
+ "colored",
  "dirs",
+ "hex",
  "nacl",
  "once_cell",
  "rand 0.8.5",
@@ -4792,6 +4795,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tracing",
+ "tracing-subscriber 0.3.18",
 ]
 
 [[package]]

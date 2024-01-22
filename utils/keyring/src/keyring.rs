@@ -20,31 +20,13 @@
 
 use crate::{ss58, Keystore};
 use anyhow::Result;
-use once_cell::sync::Lazy;
 use schnorrkel::Keypair;
 use std::{fs, path::PathBuf};
 
-/// The path of the keyring store.
-///
-/// NOTE: This is currently not configurable.
-pub static STORE: Lazy<PathBuf> = Lazy::new(|| {
-    let app = env!("CARGO_PKG_NAME");
-    let store = dirs::data_dir()
-        .unwrap_or_else(|| {
-            tracing::warn!("data dir not found, using ./{app} as keyring store.");
-            ".".into()
-        })
-        .join(app);
-
-    fs::create_dir_all(&store).unwrap_or_else(|_| {
-        tracing::error!("failed to create keyring store at {store:?}");
-    });
-
-    store
-});
-
 /// Gear keyring.
 pub struct Keyring {
+    /// Path to the store.
+    pub store: PathBuf,
     /// A set of keystore instances.
     ring: Vec<Keystore>,
 }
@@ -53,8 +35,8 @@ impl Keyring {
     /// Loads the keyring from the store.
     ///
     /// NOTE: For the store path, see [`STORE`].
-    pub fn load() -> Result<Self> {
-        let ring = fs::read_dir(&*STORE)?
+    pub fn load(store: PathBuf) -> Result<Self> {
+        let ring = fs::read_dir(&store)?
             .filter_map(|entry| {
                 let path = entry.ok()?.path();
                 let content = fs::read(&path).ok()?;
@@ -68,11 +50,16 @@ impl Keyring {
             })
             .collect::<Vec<_>>();
 
-        Ok(Self { ring })
+        Ok(Self { ring, store })
     }
 
     /// create a new key in keyring.
-    pub fn create(name: &str, vanity: Option<&str>, passphrase: Option<&[u8]>) -> Result<()> {
+    pub fn create(
+        &mut self,
+        name: &str,
+        vanity: Option<&str>,
+        passphrase: Option<&str>,
+    ) -> Result<(Keystore, Keypair)> {
         let keypair = if let Some(vanity) = vanity {
             tracing::info!("Generating vanity key with prefix {vanity}...");
             let mut keypair = Keypair::generate();
@@ -86,12 +73,16 @@ impl Keyring {
             Keypair::generate()
         };
 
-        let mut keystore = Keystore::encrypt(keypair, passphrase)?;
+        let mut keystore = Keystore::encrypt(keypair.clone(), passphrase.map(|p| p.as_bytes()))?;
         keystore.meta.name = name.into();
 
-        let path = STORE.join(&keystore.meta.name);
-        fs::write(&path, serde_json::to_vec(&keystore)?)?;
-        Ok(())
+        fs::write(
+            self.store.join(&keystore.meta.name).with_extension("json"),
+            serde_json::to_vec_pretty(&keystore)?,
+        )?;
+
+        self.ring.push(keystore.clone());
+        Ok((keystore, keypair))
     }
 
     /// List all keystores.
