@@ -16,6 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+mod claim_value;
 mod send_message;
 mod send_reply;
 mod upload_program;
@@ -164,12 +165,14 @@ pub(crate) struct GearCallsGenerator<'a> {
     generated_upload_program: usize,
     generated_send_message: usize,
     generated_send_reply: usize,
+    generated_claim_value: usize,
 }
 
 impl<'a> GearCallsGenerator<'a> {
     const UPLOAD_PROGRAM_CALL_ID: usize = 0;
     const SEND_MESSAGE_CALL_ID: usize = 1;
     const SEND_REPLY_CALL_ID: usize = 2;
+    const CLAIM_VALUE_CALL_ID: usize = 3;
 
     pub(crate) fn new(data_requirement: FulfilledDataRequirement<'a, Self>) -> Self {
         Self {
@@ -177,6 +180,7 @@ impl<'a> GearCallsGenerator<'a> {
             generated_upload_program: 0,
             generated_send_message: 0,
             generated_send_reply: 0,
+            generated_claim_value: 0,
         }
     }
 
@@ -200,6 +204,13 @@ impl<'a> GearCallsGenerator<'a> {
                         Self::SEND_REPLY_CALL_ID
                     })
             )
+            .or(
+                (self.generated_claim_value < Self::MAX_CLAIM_VALUE_CALLS)
+                    .then(|| {
+                        self.generated_claim_value += 1;
+                        Self::CLAIM_VALUE_CALL_ID
+                    })
+            )
         else {
             return Ok(None);
         };
@@ -212,6 +223,7 @@ impl<'a> GearCallsGenerator<'a> {
                 send_message::generate(&mut self.unstructured, env).map(Some)
             }
             Self::SEND_REPLY_CALL_ID => send_reply::generate(&mut self.unstructured, env),
+            Self::CLAIM_VALUE_CALL_ID => claim_value::generate(&mut self.unstructured, env),
             _ => unimplemented!("Unknown call id"),
         }
     }
@@ -225,11 +237,13 @@ impl GearCallsGenerator<'_> {
     const MAX_UPLOAD_PROGRAM_CALLS: usize = 10;
     const MAX_SEND_MESSAGE_CALLS: usize = 15;
     const MAX_SEND_REPLY_CALLS: usize = 1;
+    const MAX_CLAIM_VALUE_CALLS: usize = 1;
 
     pub(crate) const fn random_data_requirement() -> usize {
         Self::upload_program_data_requirement() * Self::MAX_UPLOAD_PROGRAM_CALLS
             + Self::send_message_data_requirement() * Self::MAX_SEND_MESSAGE_CALLS
             + Self::send_reply_data_requirement() * Self::MAX_SEND_REPLY_CALLS
+            + Self::claim_value_data_requirement() * Self::MAX_CLAIM_VALUE_CALLS
     }
 
     const fn upload_program_data_requirement() -> usize {
@@ -243,6 +257,10 @@ impl GearCallsGenerator<'_> {
     const fn send_reply_data_requirement() -> usize {
         ID_SIZE + MAX_PAYLOAD_SIZE + GAS_AND_VALUE_SIZE + AUXILIARY_SIZE
     }
+
+    const fn claim_value_data_requirement() -> usize {
+        ID_SIZE + AUXILIARY_SIZE
+    }
 }
 
 impl GenerationEnvironmentProducer<'_> {
@@ -251,7 +269,8 @@ impl GenerationEnvironmentProducer<'_> {
 
         VALUE_SIZE
             * (GearCallsGenerator::MAX_UPLOAD_PROGRAM_CALLS
-                + GearCallsGenerator::MAX_SEND_MESSAGE_CALLS)
+                + GearCallsGenerator::MAX_SEND_MESSAGE_CALLS
+                + GearCallsGenerator::MAX_SEND_REPLY_CALLS)
             + AUXILIARY_SIZE
     }
 }

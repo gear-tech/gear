@@ -16,35 +16,21 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use super::GenerationEnvironment;
-use gear_call_gen::{GearCall, SendReplyArgs};
+use crate::GenerationEnvironment;
+use gear_call_gen::{ClaimValueArgs, GearCall};
 use gear_wasm_gen::wasm_gen_arbitrary::{Error, Result, Unstructured};
 
 pub(crate) fn generate(
     unstructured: &mut Unstructured,
     env: GenerationEnvironment,
 ) -> Result<Option<GearCall>> {
-    log::trace!(
-        "Random data before payload (send_reply) gen {}",
-        unstructured.len()
-    );
+    log::trace!("Generating claim_value call");
 
-    let GenerationEnvironment {
-        max_gas, mailbox, ..
-    } = env;
+    let GenerationEnvironment { mailbox, .. } = env;
     let mailbox = mailbox.into_iter().collect::<Vec<_>>();
-    let mid_res = unstructured.choose(&mailbox).copied();
 
-    if let Err(Error::EmptyChoose) = mid_res {
-        return Ok(None);
-    }
-
-    let payload = super::arbitrary_payload(unstructured)?;
-    log::trace!(
-        "Random data after payload (send_reply) gen {}",
-        unstructured.len()
-    );
-    log::trace!("Payload (send_reply) length {:?}", payload.len());
-
-    Ok(Some(SendReplyArgs((mid_res?, payload, max_gas, 0)).into()))
+    unstructured
+        .choose(&mailbox)
+        .map(|mid| Some(ClaimValueArgs(*mid).into()))
+        .or_else(|err| matches!(err, Error::EmptyChoose).then(|| None).ok_or(err))
 }
