@@ -109,7 +109,7 @@ impl Command {
         let mut keyring = Keyring::load(Command::store()?)?;
         match self {
             Command::New {
-                name,
+                mut name,
                 vanity,
                 passphrase,
             } => {
@@ -117,11 +117,33 @@ impl Command {
                     return Err(anyhow!("Name must be less than 16 characters."));
                 }
 
+                let raw_name = name.clone();
+                let path = {
+                    let mut path = keyring.store.join(&name).with_extension("json");
+                    let mut count = 0;
+                    while path.exists() {
+                        name = format!("{}-{}", &raw_name, count);
+                        path = keyring.store.join(&name).with_extension("json");
+                        count += 1;
+                    }
+
+                    path
+                };
+
+                if name != raw_name {
+                    tracing::info!(
+                        "Key {} exists, auto switching to {}",
+                        raw_name.underline(),
+                        name.underline().cyan()
+                    );
+                }
+
                 let (keystore, keypair) =
                     keyring.create(&name, vanity.as_deref(), Some(passphrase.as_ref()))?;
-                let path = keyring.store.join(name).with_extension("json");
-                println!("VARA Address: {}", keystore.address.to_string());
-                println!("Public Key:   0x{}", hex::encode(keypair.public));
+
+                println!("{:<16}{}", "Name:", name);
+                println!("{:<16}{}", "VARA Address: ", keystore.address.to_string());
+                println!("{:<16}0x{}", "Public Key:", hex::encode(keypair.public));
                 println!(
                     "Drag {} to the polkadot.js extension to import it.",
                     path.display().to_string().underline()
