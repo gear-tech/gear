@@ -29,8 +29,9 @@ use crate::{
         get_no_build_inner_env, manifest_dir, out_dir, profile, wasm32_target_dir, UnderscoreString,
     },
 };
-use cargo_metadata::{Metadata, MetadataCommand, Package};
-use std::{env, fs};
+use anyhow::Context;
+use cargo_metadata::{camino::Utf8PathBuf, Metadata, MetadataCommand, Package};
+use std::{env, fs, path::PathBuf};
 
 const NO_BUILD_ENV: &str = "__GEAR_WASM_BUILDER_NO_BUILD";
 
@@ -41,6 +42,13 @@ const NO_BUILD_ENV: &str = "__GEAR_WASM_BUILDER_NO_BUILD";
 const NO_BUILD_INNER_ENV: &str = "__GEAR_WASM_BUILDER_NO_BUILD_INNER";
 
 const NO_PATH_REMAP_ENV: &str = "__GEAR_WASM_BUILDER_NO_PATH_REMAP";
+
+struct PostPackage {
+    lock: BinariesLockFile,
+    config: BinariesLockFileConfig,
+    manifest_path: Utf8PathBuf,
+    wasm_path: PathBuf,
+}
 
 fn find_pkg<'a>(metadata: &'a Metadata, pkg_name: &str) -> &'a Package {
     metadata
@@ -76,8 +84,9 @@ pub fn build_binaries() {
 
     let binaries_metadata = BinariesMetadata::from_value(pkg.metadata.clone());
 
-    let mut packages = BuildPackages::new(metadata.workspace_root.clone().into_std_path_buf());
-    let mut locks = Vec::new();
+    let mut build_packages =
+        BuildPackages::new(metadata.workspace_root.clone().into_std_path_buf());
+    let mut post_packages = Vec::new();
 
     for dep in pkg
         .dependencies
@@ -85,7 +94,6 @@ pub fn build_binaries() {
         .filter(|dep| binaries_metadata.filter_dep(&dep.name))
     {
         let pkg = find_pkg(&metadata, &dep.name);
-
         println!("cargo:rerun-if-changed={}", pkg.manifest_path);
 
         // check if demo has this crate as dependency
@@ -111,30 +119,48 @@ pub fn build_binaries() {
         let build_pkg = BuildPackage::new(pkg, lock_config, program_metadata.exclude_features);
 
         let features = build_pkg.features();
-        locks.push((
+        let wasm_path = build_pkg.wasm_path();
+        post_packages.push(PostPackage {
             lock,
-            BinariesLockFileConfig {
+            config: BinariesLockFileConfig {
                 features: features.clone(),
             },
-        ));
+            manifest_path: pkg.manifest_path.clone(),
+            wasm_path: wasm_path.clone(),
+        });
 
-        packages.insert(build_pkg);
+        build_packages.insert(build_pkg);
     }
 
-    println!("cargo:warning={:?}", packages);
-    let packages_built = packages.build();
+    println!("cargo:warning={:?}", build_packages);
+    let packages_built = build_packages.build();
 
     // we don't need to write config in lock file
     // because we didn't build anything so next time when
     // `__GEAR_WASM_BUILDER_NO_BUILD` is changed builder will mark
     // crate as dirty and do an actual build
     if packages_built {
-        for (mut lock, config) in locks {
+        for PostPackage {
+            mut lock,
+            config,
+            manifest_path,
+            wasm_path,
+        } in post_packages
+        {
             lock.write(config);
+
+            let path = manifest_path
+                .parent()
+                .expect("file path must have parent")
+                .join(".binpath");
+            let contents = wasm_path.with_extension("").display().to_string();
+            fs::write(&path, contents)
+                .with_context(|| format!("failed to write `.binpath` at {path}"))
+                .unwrap();
         }
     }
 
-    let wasm_binaries = packages.wasm_binaries();
+    let wasm_binaries = build_packages.wasm_binaries();
     fs::write(out_dir.join("wasm_binaries.rs"), wasm_binaries).unwrap();
 }
 
