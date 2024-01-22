@@ -37,6 +37,16 @@ impl<'a> TryFrom<RuntimeStateView<'a>> for ClaimValueRuntimeData<'a> {
     }
 }
 
+impl<'a> TryFrom<GenerationEnvironment<'a>> for ClaimValueRuntimeData<'a> {
+    type Error = ();
+
+    fn try_from(env: GenerationEnvironment<'a>) -> StdResult<Self, Self::Error> {
+        NonEmpty::from_slice(&env.mailbox)
+            .map(|mailbox| (mailbox,))
+            .ok_or(())
+    }
+}
+
 pub(crate) fn generate(
     unstructured: &mut Unstructured,
     (mailbox,): ClaimValueRuntimeData,

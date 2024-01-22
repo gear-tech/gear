@@ -37,6 +37,16 @@ impl<'a> TryFrom<RuntimeStateView<'a>> for SendReplyRuntimeData<'a> {
     }
 }
 
+impl<'a> TryFrom<GenerationEnvironment<'a>> for SendReplyRuntimeData<'a> {
+    type Error = ();
+
+    fn try_from(env: GenerationEnvironment<'a>) -> StdResult<Self, Self::Error> {
+        let mailbox = NonEmpty::from_slice(&env.mailbox).ok_or(())?;
+
+        Ok((mailbox, env.max_gas))
+    }
+}
+
 pub(crate) fn generate(
     unstructured: &mut Unstructured,
     (mailbox, gas): SendReplyRuntimeData,

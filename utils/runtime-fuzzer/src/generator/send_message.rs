@@ -39,6 +39,16 @@ impl<'a> TryFrom<RuntimeStateView<'a>> for SendMessageRuntimeData<'a> {
 
 pub(crate) type SendMessageRuntimeData<'a> = (NonEmpty<&'a ProgramId>, u64);
 
+impl<'a> TryFrom<GenerationEnvironment<'a>> for SendMessageRuntimeData<'a> {
+    type Error = ();
+
+    fn try_from(env: GenerationEnvironment<'a>) -> StdResult<Self, Self::Error> {
+        let programs = NonEmpty::from_slice(&env.programs).ok_or(())?;
+
+        Ok((programs, env.max_gas))
+    }
+}
+
 pub(crate) fn generate(
     unstructured: &mut Unstructured,
     (programs, gas): SendMessageRuntimeData,

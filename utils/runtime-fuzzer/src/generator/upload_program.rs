@@ -41,6 +41,12 @@ impl<'a> From<RuntimeStateView<'a>> for UploadProgramRuntimeData<'a> {
     }
 }
 
+impl<'a> From<GenerationEnvironment<'a>> for UploadProgramRuntimeData<'a> {
+    fn from(env: GenerationEnvironment<'a>) -> Self {
+        (env.corpus_id, env.programs, env.max_gas)
+    }
+}
+
 pub(crate) fn generate(
     unstructured: &mut Unstructured,
     (corpus_id, programs, gas): UploadProgramRuntimeData,
