@@ -32,7 +32,12 @@ use crate::{
 };
 use anyhow::Context;
 use cargo_metadata::{camino::Utf8PathBuf, Metadata, MetadataCommand, Package};
-use std::{env, fmt::Write, fs, path::PathBuf};
+use std::{
+    env,
+    fmt::Write,
+    fs,
+    path::{Path, PathBuf},
+};
 
 const NO_BUILD_ENV: &str = "__GEAR_WASM_BUILDER_NO_BUILD";
 
@@ -56,8 +61,8 @@ impl PostPackage {
         Self {
             name: build_pkg.name().clone(),
             manifest_path: pkg.manifest_path.clone(),
-            wasm_bloaty: build_pkg.wasm_bloaty_path().clone(),
-            wasm: build_pkg.wasm_path().clone(),
+            wasm_bloaty: build_pkg.wasm_bloaty_path().to_path_buf(),
+            wasm: build_pkg.wasm_path().to_path_buf(),
         }
     }
 
@@ -98,7 +103,7 @@ pub mod {pkg_name} {{
     }
 }
 
-fn to_unix_path(path: &PathBuf) -> String {
+fn to_unix_path(path: &Path) -> String {
     // Windows uses `\\` path delimiter which cannot be used in `include_*` Rust macros
     path.display().to_string().replace('\\', "/")
 }

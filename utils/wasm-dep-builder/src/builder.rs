@@ -30,7 +30,12 @@ use gear_wasm_builder::{
     optimize,
     optimize::{OptType, Optimizer},
 };
-use std::{collections::BTreeSet, env, fs, path::PathBuf, process::Command};
+use std::{
+    collections::BTreeSet,
+    env, fs,
+    path::{Path, PathBuf},
+    process::Command,
+};
 
 const DEFAULT_EXCLUDED_FEATURES: [&str; 3] = ["default", "std", "wasm-wrapper"];
 
@@ -127,12 +132,12 @@ impl BuildPackage {
         &self.features
     }
 
-    pub fn wasm_bloaty_path(&self) -> &PathBuf {
-        &self.wasm_bloaty
+    pub fn wasm_bloaty_path(&self) -> &Path {
+        self.wasm_bloaty.as_path()
     }
 
-    pub fn wasm_path(&self) -> &PathBuf {
-        &self.wasm
+    pub fn wasm_path(&self) -> &Path {
+        self.wasm.as_path()
     }
 
     fn cargo_args(&self) -> impl Iterator<Item = String> {
@@ -168,7 +173,7 @@ impl BuildPackage {
         optimizer.strip_custom_sections();
 
         let binary_opt = optimizer.optimize(OptType::Opt).unwrap();
-        fs::write(&wasm, binary_opt).unwrap();
+        fs::write(wasm, binary_opt).unwrap();
     }
 }
 
