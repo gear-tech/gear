@@ -1,4 +1,3 @@
-
 // /// Extrinsic generator that's capable of generating `SendReply` calls.
 // pub(crate) struct SendReplyGenerator {
 //     pub mailbox_provider: Box<dyn MailboxProvider>,
