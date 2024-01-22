@@ -26,6 +26,13 @@ use std::{any, fmt::Debug, marker::PhantomData};
 /// For more info see `Debug` impl.
 pub struct FuzzerInput<'a>(&'a [u8]);
 
+impl<'a> FuzzerInput<'a> {
+    #[cfg(test)]
+    pub(crate) fn new(data: &'a [u8]) -> Self {
+        Self(data)
+    }
+}
+
 impl<'a> Arbitrary<'a> for FuzzerInput<'a> {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         let data = u.peek_bytes(u.len()).ok_or(Error::NotEnoughData)?;
@@ -99,7 +106,9 @@ impl DataRequirement<GenerationEnvironmentProducer<'_>> {
 impl DataRequirement<GearCallsGenerator<'_>> {
     fn new() -> Self {
         Self {
-            size: GearCallsGenerator::random_data_requirement(),
+            // Take 90% from required, because required is counted with max
+            // possible payload and salt sizes.
+            size: GearCallsGenerator::random_data_requirement() * 90 / 100,
             _phantom: PhantomData,
         }
     }

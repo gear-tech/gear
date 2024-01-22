@@ -70,7 +70,9 @@ impl RuntimeInterimState {
         let mut programs = HashSet::new();
         let mut mailbox = HashSet::new();
         System::events().iter().for_each(|e| {
-            let RuntimeEvent::Gear(ref gear_event) = e.event else { return; };
+            let RuntimeEvent::Gear(ref gear_event) = e.event else {
+                return;
+            };
             match gear_event {
                 GearEvent::ProgramChanged {
                     id,
@@ -191,25 +193,22 @@ impl<'a> GearCallsGenerator<'a> {
                 Self::UPLOAD_PROGRAM_CALL_ID
             })
             .or(
-                (self.generated_send_message < Self::MAX_SEND_MESSAGE_CALLS)
-                    .then(|| {
-                        self.generated_send_message += 1;
-                        Self::SEND_MESSAGE_CALL_ID
-                    }),
+                (self.generated_send_message < Self::MAX_SEND_MESSAGE_CALLS).then(|| {
+                    self.generated_send_message += 1;
+                    Self::SEND_MESSAGE_CALL_ID
+                }),
             )
             .or(
-                (self.generated_send_reply < Self::MAX_SEND_REPLY_CALLS)
-                    .then(|| {
-                        self.generated_send_reply += 1;
-                        Self::SEND_REPLY_CALL_ID
-                    })
+                (self.generated_send_reply < Self::MAX_SEND_REPLY_CALLS).then(|| {
+                    self.generated_send_reply += 1;
+                    Self::SEND_REPLY_CALL_ID
+                }),
             )
             .or(
-                (self.generated_claim_value < Self::MAX_CLAIM_VALUE_CALLS)
-                    .then(|| {
-                        self.generated_claim_value += 1;
-                        Self::CLAIM_VALUE_CALL_ID
-                    })
+                (self.generated_claim_value < Self::MAX_CLAIM_VALUE_CALLS).then(|| {
+                    self.generated_claim_value += 1;
+                    Self::CLAIM_VALUE_CALL_ID
+                }),
             )
         else {
             return Ok(None);

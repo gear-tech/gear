@@ -23,7 +23,6 @@ mod generator;
 mod runtime;
 #[cfg(test)]
 mod tests;
-mod utils;
 
 pub use data::FuzzerInput;
 
@@ -31,6 +30,7 @@ use frame_support::pallet_prelude::DispatchResultWithPostInfo;
 use gear_call_gen::{ClaimValueArgs, GearCall, SendMessageArgs, SendReplyArgs, UploadProgramArgs};
 use gear_wasm_gen::wasm_gen_arbitrary::Result;
 use generator::*;
+use sha1::Digest;
 use vara_runtime::{AccountId, Gear, RuntimeOrigin};
 
 pub fn run(fuzzer_input: FuzzerInput<'_>) -> Result<()> {
@@ -47,7 +47,7 @@ fn run_impl(fuzzer_input: FuzzerInput<'_>) -> Result<sp_io::TestExternalities> {
         "New gear calls generation: random data received {}",
         raw_data.len()
     );
-    let corpus_id = utils::get_sha1_string(raw_data);
+    let corpus_id = get_sha1_string(raw_data);
     log::trace!("Generating gear calls from corpus - {}", corpus_id);
 
     let mut test_ext = runtime::new_test_ext();
@@ -116,4 +116,11 @@ fn execute_gear_call(sender: AccountId, call: GearCall) -> DispatchResultWithPos
         }
         _ => unimplemented!("Unsupported currently."),
     }
+}
+
+fn get_sha1_string(input: &[u8]) -> String {
+    let mut hasher = sha1::Sha1::new();
+    hasher.update(input);
+
+    hex::encode(hasher.finalize())
 }
