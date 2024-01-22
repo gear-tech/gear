@@ -11,7 +11,7 @@ repository.workspace = true
 crate-type = ["lib", "cdylib"]
 
 [dependencies]
-gstd.workspace = true
+gstd = { workspace = true, features = ["oom-handler"] }
 
 [build-dependencies]
 wasm-dep-builder.workspace = true
