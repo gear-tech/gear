@@ -21,14 +21,22 @@
 use crate::{ss58, Keystore};
 use anyhow::Result;
 use schnorrkel::Keypair;
+use serde::{Deserialize, Serialize};
 use std::{fs, path::PathBuf};
 
+const CONFIG: &str = "keyring.json";
+
 /// Gear keyring.
+#[derive(Default, Serialize, Deserialize)]
 pub struct Keyring {
     /// Path to the store.
+    #[serde(skip)]
     pub store: PathBuf,
     /// A set of keystore instances.
+    #[serde(skip)]
     ring: Vec<Keystore>,
+    /// The primary key.
+    pub primary: String,
 }
 
 impl Keyring {
@@ -40,6 +48,9 @@ impl Keyring {
             .filter_map(|entry| {
                 let path = entry.ok()?.path();
                 let content = fs::read(&path).ok()?;
+                if path.ends_with(CONFIG) {
+                    return None;
+                }
 
                 serde_json::from_slice(&content)
                     .map_err(|err| {
@@ -50,7 +61,56 @@ impl Keyring {
             })
             .collect::<Vec<_>>();
 
-        Ok(Self { ring, store })
+        let config = store.join(CONFIG);
+        let mut this = if config.exists() {
+            serde_json::from_slice(&fs::read(&config)?)?
+        } else {
+            Self::default()
+        };
+        this.ring = ring;
+        this.store = store;
+
+        Ok(this)
+    }
+
+    /// Update and get the primary key.
+    pub fn primary(&mut self) -> Result<Keystore> {
+        if self.ring.len() == 0 {
+            return Err(anyhow::anyhow!(
+                "No keys in keyring, run `gring generate <NAME> -p <PASSPHRASE>` to create a new one."
+            ));
+        }
+
+        if let Some(key) = self
+            .ring
+            .iter()
+            .find(|k| k.meta.name == self.primary)
+            .cloned()
+        {
+            Ok(key)
+        } else {
+            self.primary = self.ring[0].meta.name.clone();
+            fs::write(self.store.join(CONFIG), serde_json::to_vec_pretty(&self)?)?;
+            Ok(self.ring[0].clone())
+        }
+    }
+
+    /// Set the primary key.
+    pub fn set_primary(&mut self, name: String) -> Result<Keystore> {
+        let key = self
+            .ring
+            .iter()
+            .find(|k| k.meta.name == name)
+            .cloned()
+            .ok_or_else(|| {
+                anyhow::anyhow!(
+                    "Key with name {name} not found, run `gring list` to see all keys in keyring."
+                )
+            })?;
+
+        self.primary = name;
+        fs::write(self.store.join(CONFIG), serde_json::to_vec_pretty(&self)?)?;
+        Ok(key)
     }
 
     /// create a new key in keyring.

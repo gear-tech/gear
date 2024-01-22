@@ -19,17 +19,17 @@
 //! CLI implementation for gring.
 #![cfg(feature = "cli")]
 
-use crate::Keyring;
+use crate::{Keyring, Keystore};
 use anyhow::{anyhow, Result};
 use clap::Parser;
-use colored::Colorize;
+use colored::{ColoredString, Colorize};
 use std::{fs, path::PathBuf};
 
 /// gring sub commands.
 #[derive(Parser)]
 pub enum Command {
     /// Generate a new key.
-    Generate {
+    New {
         /// The name of the key.
         name: String,
         /// The passphrase of the key.
@@ -40,7 +40,17 @@ pub enum Command {
         vanity: Option<String>,
     },
     /// List all keys in keystore.
-    List,
+    #[clap(visible_alias = "l")]
+    List {
+        /// If only list the primary key.
+        #[arg(short, long)]
+        primary: bool,
+    },
+    /// Use a key as primary key.
+    Use {
+        /// The name of the key.
+        name: String,
+    },
 }
 
 impl Command {
@@ -69,7 +79,7 @@ impl Command {
     pub fn run(self) -> Result<()> {
         let mut keyring = Keyring::load(Command::store()?)?;
         match self {
-            Command::Generate {
+            Command::New {
                 name,
                 vanity,
                 passphrase,
@@ -88,18 +98,39 @@ impl Command {
                     path.display().to_string().underline()
                 );
             }
-            Command::List => {
+            Command::List { primary } => {
+                let key = keyring.primary()?;
+                if primary {
+                    Self::print_key(&key);
+                    return Ok(());
+                }
+
                 println!("| {:<16} | {:<49} |", "Name".bold(), "Address".bold());
                 println!("| {} | {} |", "-".repeat(16), "-".repeat(49));
+
                 for key in keyring.list() {
-                    println!(
-                        "| {:<16} | {} |",
-                        key.meta.name,
-                        key.address.to_string().cyan()
-                    );
+                    let mut name: ColoredString = key.meta.name.clone().into();
+                    let mut address: ColoredString = key.address.clone().into();
+                    if key.meta.name == keyring.primary {
+                        name = name.cyan();
+                        address = address.cyan();
+                    };
+
+                    println!("| {name:<16} | {address} |");
                 }
+            }
+            Command::Use { name } => {
+                let key = keyring.set_primary(name)?;
+                println!("The primary key has been updated to:");
+                Self::print_key(&key);
             }
         }
         Ok(())
+    }
+
+    /// Print a single key.
+    fn print_key(key: &Keystore) {
+        println!("Name:         {}", key.meta.name.to_string().bold());
+        println!("VARA Address: {}", key.address.to_string().underline());
     }
 }
