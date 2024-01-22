@@ -769,9 +769,9 @@ impl CountersOwner for Ext {
 }
 
 impl Ext {
-    /// Executes `func` with gas atomicity, i.e. disallows partial gas chargine:
+    /// Executes `func` with gas atomicity, i.e. disallows partial gas charging:
     /// either `func` returns [`Ok`] and gas is reduced or it returns [`Err`] and
-    /// gas counter does not change
+    /// gas counter does not change.
     fn atomic_gas<T, E>(&mut self, func: impl FnOnce(&mut Self) -> Result<T, E>) -> Result<T, E> {
         let amount = self.context.gas_counter.to_amount();
 
