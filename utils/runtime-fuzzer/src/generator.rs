@@ -16,7 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use arbitrary::{Result, Unstructured};
+mod send_message;
+mod upload_program;
+
 use gear_call_gen::{GearCall, SendMessageArgs, UploadProgramArgs};
 use gear_common::{event::ProgramChangeKind, Origin};
 use gear_core::{
@@ -25,6 +27,7 @@ use gear_core::{
 };
 use gear_utils::NonEmpty;
 use gear_wasm_gen::{
+    wasm_gen_arbitrary::{Result, Unstructured},
     ActorKind, EntryPointsSet, InvocableSyscall, PtrParamAllowedValues, RegularParamType,
     StandardGearWasmConfigsBundle, SyscallName, SyscallsInjectionTypes, SyscallsParamsConfig,
 };
@@ -188,13 +191,12 @@ impl<'a> GearCallsGenerator<'a> {
             return Ok(None);
         };
 
-        let call = match call_id {
-            Self::UPLOAD_PROGRAM_CALL_ID => generate_upload_program(&mut self.unstructured, env),
-            Self::SEND_MESSAGE_CALL_ID => generate_send_message(&mut self.unstructured, env),
+        match call_id {
+            Self::UPLOAD_PROGRAM_CALL_ID => upload_program::generate(&mut self.unstructured, env),
+            Self::SEND_MESSAGE_CALL_ID => send_message::generate(&mut self.unstructured, env),
             _ => unimplemented!("Unknown call id"),
-        };
-
-        call.map(Some)
+        }
+        .map(Some)
     }
 }
 
@@ -220,78 +222,6 @@ impl GearCallsGenerator<'_> {
     }
 }
 
-fn generate_send_message(
-    unstructured: &mut Unstructured,
-    env: GenerationEnvironment,
-) -> Result<GearCall> {
-    let GenerationEnvironment {
-        mut existing_programs,
-        max_gas,
-        ..
-    } = env;
-    let existing_programs = {
-        if existing_programs.is_empty() {
-            // If no existing programs, then send message from program to Alice.
-            existing_programs.insert(ProgramId::from_origin(runtime::alice().into_origin()));
-        }
-        existing_programs.into_iter().collect::<Vec<_>>()
-    };
-    let program_id = unstructured.choose(&existing_programs).copied()?;
-    let payload = arbitrary_payload(unstructured)?;
-    log::trace!(
-        "Random data after payload (send_message) gen {}",
-        unstructured.len()
-    );
-    log::trace!("Payload (send_message) length {:?}", payload.len());
-
-    Ok(SendMessageArgs((program_id, payload, max_gas, 0)).into())
-}
-
-fn generate_upload_program(
-    unstructured: &mut Unstructured,
-    env: GenerationEnvironment,
-) -> Result<GearCall> {
-    log::trace!("New gear-wasm generation");
-    log::trace!("Random data before wasm gen {}", unstructured.len());
-
-    let GenerationEnvironment {
-        corpus_id,
-        existing_programs,
-        max_gas,
-    } = env;
-
-    let code = gear_wasm_gen::generate_gear_program_code(
-        unstructured,
-        config(
-            existing_programs.into_iter(),
-            Some(format!("Generated program from corpus - {corpus_id}")),
-        ),
-    )?;
-    log::trace!("Random data after wasm gen {}", unstructured.len());
-    log::trace!("Code length {:?}", code.len());
-
-    let salt = arbitrary_salt(unstructured)?;
-    log::trace!("Random data after salt gen {}", unstructured.len());
-    log::trace!("Salt length {:?}", salt.len());
-
-    let payload = arbitrary_payload(unstructured)?;
-    log::trace!(
-        "Random data after payload (upload_program) gen {}",
-        unstructured.len()
-    );
-    log::trace!("Payload (upload_program) length {:?}", payload.len());
-
-    let program_id = ProgramId::generate_from_user(CodeId::generate(&code), &salt);
-
-    log::trace!("Generated code for program id - {program_id}");
-
-    Ok(UploadProgramArgs((code, salt, payload, max_gas, 0)).into())
-}
-
-fn arbitrary_salt(u: &mut Unstructured) -> Result<Vec<u8>> {
-    arbitrary_limited_bytes(u, MAX_SALT_SIZE)
-}
-
 fn arbitrary_payload(u: &mut Unstructured) -> Result<Vec<u8>> {
     arbitrary_limited_bytes(u, MAX_PAYLOAD_SIZE)
 }
@@ -299,58 +229,4 @@ fn arbitrary_payload(u: &mut Unstructured) -> Result<Vec<u8>> {
 fn arbitrary_limited_bytes(u: &mut Unstructured, limit: usize) -> Result<Vec<u8>> {
     let arb_size = u.int_in_range(0..=limit)?;
     u.bytes(arb_size).map(|bytes| bytes.to_vec())
-}
-
-fn config(
-    programs: impl Iterator<Item = ProgramId>,
-    log_info: Option<String>,
-) -> StandardGearWasmConfigsBundle {
-    let initial_pages = 2;
-    let mut injection_types = SyscallsInjectionTypes::all_once();
-    injection_types.set_multiple(
-        [
-            (SyscallName::Leave, 0..=0),
-            (SyscallName::Panic, 0..=0),
-            (SyscallName::OomPanic, 0..=0),
-            (SyscallName::EnvVars, 0..=0),
-            (SyscallName::Send, 10..=15),
-            (SyscallName::Exit, 0..=1),
-            (SyscallName::Alloc, 3..=6),
-            (SyscallName::Free, 3..=6),
-        ]
-        .map(|(syscall, range)| (InvocableSyscall::Loose(syscall), range))
-        .into_iter(),
-    );
-
-    let mut params_config = SyscallsParamsConfig::new()
-        .with_default_regular_config()
-        .with_rule(RegularParamType::Alloc, (10..=20).into())
-        .with_rule(
-            RegularParamType::Free,
-            (initial_pages..=initial_pages + 35).into(),
-        )
-        .with_ptr_rule(PtrParamAllowedValues::Value(0..=0));
-
-    let programs = programs.map(|pid| pid.into()).collect::<Vec<_>>();
-    let actor_kind = NonEmpty::from_vec(programs)
-        .map(ActorKind::ExistingAddresses)
-        .unwrap_or(ActorKind::Source);
-
-    log::trace!("Messages destination config: {:?}", actor_kind);
-
-    params_config = params_config
-        .with_ptr_rule(PtrParamAllowedValues::ActorId(actor_kind.clone()))
-        .with_ptr_rule(PtrParamAllowedValues::ActorIdWithValue {
-            actor_kind: actor_kind.clone(),
-            range: 0..=0,
-        });
-
-    StandardGearWasmConfigsBundle {
-        entry_points_set: EntryPointsSet::InitHandleHandleReply,
-        injection_types,
-        log_info,
-        params_config,
-        initial_pages: initial_pages as u32,
-        ..Default::default()
-    }
 }

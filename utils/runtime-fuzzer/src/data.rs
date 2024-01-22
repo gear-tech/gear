@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::generator::{GearCallsGenerator, GenerationEnvironmentProducer};
-use arbitrary::{Arbitrary, Error, Result, Unstructured};
+use gear_wasm_gen::wasm_gen_arbitrary::{Arbitrary, Error, Result, Unstructured};
 use std::{any, fmt::Debug, marker::PhantomData};
 
 /// This is a wrapper over random bytes provided from fuzzer.

@@ -28,15 +28,13 @@ mod utils;
 
 pub use data::FuzzerInput;
 
-use arbitrary::{Arbitrary, Error, Result, Unstructured};
 use data::*;
 use frame_support::pallet_prelude::DispatchResultWithPostInfo;
 use gear_call_gen::{ClaimValueArgs, GearCall, SendMessageArgs, SendReplyArgs, UploadProgramArgs};
 use gear_core::ids::ProgramId;
+use gear_wasm_gen::wasm_gen_arbitrary::{Arbitrary, Error, Result, Unstructured};
 use generator::*;
 use pallet_balances::Pallet as BalancesPallet;
-use runtime::*;
-use sha1::*;
 use std::{any, fmt::Debug, marker::PhantomData, mem};
 use vara_runtime::{AccountId, Gear, Runtime, RuntimeOrigin};
 
@@ -57,7 +55,7 @@ fn run_impl(fuzzer_input: FuzzerInput<'_>) -> Result<sp_io::TestExternalities> {
     let corpus_id = utils::get_sha1_string(raw_data);
     log::trace!("Generating gear calls from corpus - {}", corpus_id);
 
-    let mut test_ext = new_test_ext();
+    let mut test_ext = runtime::new_test_ext();
     let mut env_producer = GenerationEnvironmentProducer::new(corpus_id, env_data_requirement);
     let mut generator = GearCallsGenerator::new(gear_calls_data_requirement);
     loop {
@@ -70,7 +68,7 @@ fn run_impl(fuzzer_input: FuzzerInput<'_>) -> Result<sp_io::TestExternalities> {
             let call_res = execute_gear_call(runtime::alice(), gear_call);
             log::info!("Extrinsic result: {call_res:?}");
             // Run task and message queues with max possible gas limit.
-            run_to_next_block();
+            runtime::run_to_next_block();
 
             Ok(true)
         })?;

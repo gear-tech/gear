@@ -28,8 +28,8 @@
 //! Just simply run `cargo run --release -- -p <path_to_corpus>`.
 
 use anyhow::Result;
-use arbitrary::{Arbitrary, Unstructured};
 use clap::Parser;
+use gear_wasm_gen::wasm_gen_arbitrary::{Arbitrary, Unstructured};
 use runtime_fuzzer::{self, FuzzerInput};
 use std::{fs, path::PathBuf};
 

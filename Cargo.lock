@@ -9334,7 +9334,6 @@ name = "runtime-fuzzer"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "arbitrary",
  "clap 4.4.16",
  "frame-support",
  "frame-system",
