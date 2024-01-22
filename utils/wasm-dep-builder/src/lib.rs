@@ -72,7 +72,7 @@ impl PostPackage {
             .parent()
             .expect("file path must have parent")
             .join(".binpath");
-        let contents = self.wasm.with_extension("").display().to_string();
+        let contents = self.wasm_bloaty.with_extension("").display().to_string();
         fs::write(&path, contents)
             .with_context(|| format!("failed to write `.binpath` at {path}"))
             .unwrap();
