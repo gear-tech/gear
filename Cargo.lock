@@ -3754,7 +3754,7 @@ dependencies = [
 
 [[package]]
 name = "gclient-binaries"
-version = "1.0.5"
+version = "1.1.0"
 dependencies = [
  "demo-async-tester",
  "demo-calc-hash-in-one-block",
@@ -3830,7 +3830,7 @@ dependencies = [
 
 [[package]]
 name = "gear-authorship-binaries"
-version = "1.0.5"
+version = "1.1.0"
 dependencies = [
  "demo-constructor",
  "wasm-dep-builder",
@@ -4679,7 +4679,7 @@ dependencies = [
 
 [[package]]
 name = "gsdk-binaries"
-version = "1.0.5"
+version = "1.1.0"
 dependencies = [
  "demo-waiter",
  "wasm-dep-builder",
@@ -4755,7 +4755,7 @@ dependencies = [
 
 [[package]]
 name = "gtest-binaries"
-version = "1.0.5"
+version = "1.1.0"
 dependencies = [
  "demo-custom",
  "demo-futures-unordered",
@@ -7444,7 +7444,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-binaries"
-version = "1.0.5"
+version = "1.1.0"
 dependencies = [
  "demo-async",
  "demo-async-critical",
@@ -13527,7 +13527,7 @@ checksum = "ca6ad05a4870b2bf5fe995117d3728437bd27d7cd5f06f13c17443ef369775a1"
 
 [[package]]
 name = "wasm-dep-builder"
-version = "1.0.5"
+version = "1.1.0"
 dependencies = [
  "anyhow",
  "cargo_metadata 0.18.1",
