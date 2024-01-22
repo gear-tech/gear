@@ -4587,13 +4587,13 @@ dependencies = [
 
 [[package]]
 name = "gring"
-version = "1.0.4"
+version = "1.1.0"
 dependencies = [
  "anyhow",
- "base64 0.21.5",
+ "base64 0.21.7",
  "blake2",
  "bs58 0.5.0",
- "clap 4.4.11",
+ "clap 4.4.16",
  "colored",
  "dirs",
  "hex",
