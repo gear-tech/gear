@@ -45,17 +45,22 @@ pub struct BuildPackage {
     name: UnderscoreString,
     rebuild_kind: RebuildKind,
     features: BTreeSet<String>,
+    wasm_bloaty: PathBuf,
+    wasm: PathBuf,
 }
 
 impl BuildPackage {
     pub fn new(pkg: &Package, config: LockFileConfig, excluded_features: BTreeSet<String>) -> Self {
         let name = UnderscoreString(pkg.name.clone());
         let (rebuild_kind, features) = Self::resolve_features(pkg, config, excluded_features);
+        let (wasm_bloaty, wasm) = Self::wasm_paths(&name);
 
         Self {
             name,
             rebuild_kind,
             features,
+            wasm_bloaty,
+            wasm,
         }
     }
 
@@ -106,19 +111,23 @@ impl BuildPackage {
         }
     }
 
+    fn wasm_paths(name: &UnderscoreString) -> (PathBuf, PathBuf) {
+        let wasm32_target_dir = wasm32_target_dir().join(profile());
+        let wasm_bloaty = wasm32_target_dir.join(format!("{name}.wasm"));
+        let mut wasm = wasm_bloaty.clone();
+        wasm.set_extension("opt.wasm");
+        (wasm_bloaty, wasm)
+    }
+
     pub fn features(&self) -> &BTreeSet<String> {
         &self.features
     }
 
-    fn wasm_paths(&self) -> (PathBuf, PathBuf) {
-        let wasm32_target_dir = wasm32_target_dir().join(profile());
-        let wasm = wasm32_target_dir.join(format!("{}.wasm", self.name));
-        let mut wasm_opt = wasm.clone();
-        wasm_opt.set_extension("opt.wasm");
-        (wasm, wasm_opt)
+    pub fn wasm_path(&self) -> &PathBuf {
+        &self.wasm
     }
 
-    fn to_unix_path(path: PathBuf) -> String {
+    fn to_unix_path(path: &PathBuf) -> String {
         // Windows uses `\\` path delimiter which cannot be used in `include_*` Rust macros
         path.display().to_string().replace('\\', "/")
     }
@@ -142,11 +151,11 @@ impl BuildPackage {
     }
 
     fn optimize(&self) {
-        let (wasm, wasm_opt) = self.wasm_paths();
+        let (wasm_bloaty, wasm) = (&self.wasm_bloaty, &self.wasm);
 
-        optimize::optimize_wasm(wasm.clone(), wasm_opt.clone(), "4", true).unwrap();
+        optimize::optimize_wasm(wasm_bloaty.clone(), wasm.clone(), "4", true).unwrap();
 
-        let mut optimizer = Optimizer::new(wasm_opt.clone()).unwrap();
+        let mut optimizer = Optimizer::new(wasm.clone()).unwrap();
         optimizer.insert_stack_end_export().unwrap_or_else(|err| {
             println!(
                 "cargo:warning=Cannot insert stack end export into `{name}`: {err}",
@@ -156,7 +165,7 @@ impl BuildPackage {
         optimizer.strip_custom_sections();
 
         let binary_opt = optimizer.optimize(OptType::Opt).unwrap();
-        fs::write(&wasm_opt, binary_opt).unwrap();
+        fs::write(&wasm, binary_opt).unwrap();
     }
 
     fn write_rust_mod(&self, output: &mut String) {
@@ -164,7 +173,7 @@ impl BuildPackage {
         let (wasm_bloaty, wasm) = if get_no_build_env() {
             ("&[]".to_string(), "&[]".to_string())
         } else {
-            let (wasm_bloaty, wasm) = self.wasm_paths();
+            let (wasm_bloaty, wasm) = (&self.wasm_bloaty, &self.wasm);
             (
                 format!(r#"include_bytes!("{}")"#, Self::to_unix_path(wasm_bloaty)),
                 format!(r#"include_bytes!("{}")"#, Self::to_unix_path(wasm)),
