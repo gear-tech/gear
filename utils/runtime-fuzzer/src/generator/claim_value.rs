@@ -16,21 +16,22 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::GenerationEnvironment;
 use gear_call_gen::{ClaimValueArgs, GearCall};
-use gear_wasm_gen::wasm_gen_arbitrary::{Error, Result, Unstructured};
+use gear_core::ids::MessageId;
+use gear_utils::NonEmpty;
+use gear_wasm_gen::wasm_gen_arbitrary::{Result, Unstructured};
+
+pub(crate) type ClaimValueRuntimeData<'a> = (NonEmpty<&'a MessageId>,);
 
 pub(crate) fn generate(
     unstructured: &mut Unstructured,
-    env: GenerationEnvironment,
-) -> Result<Option<GearCall>> {
+    (mailbox,): ClaimValueRuntimeData,
+) -> Result<GearCall> {
     log::trace!("Generating claim_value call");
 
-    let GenerationEnvironment { mailbox, .. } = env;
-    let mailbox = mailbox.into_iter().collect::<Vec<_>>();
-
-    unstructured
-        .choose(&mailbox)
-        .map(|mid| Some(ClaimValueArgs(*mid).into()))
-        .or_else(|err| matches!(err, Error::EmptyChoose).then(|| None).ok_or(err))
+    let random_idx = unstructured.int_in_range(0..=mailbox.len())?;
+    mailbox
+        .get(random_idx)
+        .map(|mid| ClaimValueArgs(**mid).into())
+        .ok_or_else(|| unreachable!("idx is checked, qed."))
 }

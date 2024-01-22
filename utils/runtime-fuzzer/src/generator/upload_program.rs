@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use super::{GenerationEnvironment, MAX_SALT_SIZE};
+use super::MAX_SALT_SIZE;
 use gear_call_gen::{GearCall, UploadProgramArgs};
 use gear_core::ids::{CodeId, ProgramId};
 use gear_utils::NonEmpty;
@@ -26,24 +26,19 @@ use gear_wasm_gen::{
     StandardGearWasmConfigsBundle, SyscallName, SyscallsInjectionTypes, SyscallsParamsConfig,
 };
 
+pub(crate) type UploadProgramRuntimeData<'a> = (&'a str, Vec<&'a ProgramId>, u64);
+
 pub(crate) fn generate(
     unstructured: &mut Unstructured,
-    env: GenerationEnvironment,
+    (corpus_id, programs, gas): UploadProgramRuntimeData,
 ) -> Result<GearCall> {
     log::trace!("New gear-wasm generation");
     log::trace!("Random data before wasm gen {}", unstructured.len());
 
-    let GenerationEnvironment {
-        corpus_id,
-        existing_programs,
-        max_gas,
-        ..
-    } = env;
-
     let code = gear_wasm_gen::generate_gear_program_code(
         unstructured,
         config(
-            existing_programs.into_iter(),
+            programs.into_iter().copied(),
             Some(format!("Generated program from corpus - {corpus_id}")),
         ),
     )?;
@@ -65,7 +60,7 @@ pub(crate) fn generate(
 
     log::trace!("Generated code for program id - {program_id}");
 
-    Ok(UploadProgramArgs((code, salt, payload, max_gas, 0)).into())
+    Ok(UploadProgramArgs((code, salt, payload, gas, 0)).into())
 }
 
 fn arbitrary_salt(u: &mut Unstructured) -> Result<Vec<u8>> {
@@ -102,8 +97,7 @@ fn config(
         )
         .with_ptr_rule(PtrParamAllowedValues::Value(0..=0));
 
-    let programs = programs.map(|pid| pid.into()).collect::<Vec<_>>();
-    let actor_kind = NonEmpty::from_vec(programs)
+    let actor_kind = NonEmpty::collect(programs.map(|pid| pid.into()))
         .map(ActorKind::ExistingAddresses)
         .unwrap_or(ActorKind::Source);
 

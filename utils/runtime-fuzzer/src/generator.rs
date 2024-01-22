@@ -21,14 +21,19 @@ mod send_message;
 mod send_reply;
 mod upload_program;
 
+use claim_value::ClaimValueRuntimeData;
 use gear_call_gen::GearCall;
 use gear_common::event::ProgramChangeKind;
 use gear_core::ids::{MessageId, ProgramId};
+use gear_utils::NonEmpty;
 use gear_wasm_gen::wasm_gen_arbitrary::{Result, Unstructured};
 use pallet_balances::Pallet as BalancesPallet;
 use pallet_gear::Event as GearEvent;
 use runtime_primitives::AccountId;
-use std::{collections::HashSet, mem};
+use send_message::SendMessageRuntimeData;
+use send_reply::SendReplyRuntimeData;
+use std::{collections::HashSet, mem, result::Result as StdResult};
+use upload_program::UploadProgramRuntimeData;
 use vara_runtime::{Runtime, RuntimeEvent, System};
 
 use crate::{data::*, runtime};
@@ -58,55 +63,103 @@ const GAS_AND_VALUE_SIZE: usize = mem::size_of::<(u64, u128)>();
 /// data, for example index in some vec.
 const AUXILIARY_SIZE: usize = 512;
 
-// todo - is it a good design?
-pub(crate) struct RuntimeInterimState {
-    programs: HashSet<ProgramId>,
-    // todo include time limits, so no outdated mailbox messages will be stored.
-    mailbox: HashSet<MessageId>,
+pub(crate) struct GearCallsGenerator<'a> {
+    unstructured: Unstructured<'a>,
+    generated_upload_program: usize,
+    generated_send_message: usize,
+    generated_send_reply: usize,
+    generated_claim_value: usize,
 }
 
-impl RuntimeInterimState {
-    pub(crate) fn build() -> Self {
-        let mut programs = HashSet::new();
-        let mut mailbox = HashSet::new();
-        System::events().iter().for_each(|e| {
-            let RuntimeEvent::Gear(ref gear_event) = e.event else {
-                return;
-            };
-            match gear_event {
-                GearEvent::ProgramChanged {
-                    id,
-                    change: ProgramChangeKind::Active { .. },
-                } => {
-                    programs.insert(*id);
-                }
-                GearEvent::UserMessageSent {
-                    message,
-                    expiration: Some(_),
-                } => {
-                    if message.destination() == runtime::alice_program_id() {
-                        mailbox.insert(message.id());
-                    }
-                }
-                _ => {}
+impl<'a> GearCallsGenerator<'a> {
+    pub(crate) fn new(data_requirement: FulfilledDataRequirement<'a, Self>) -> Self {
+        Self {
+            unstructured: Unstructured::new(data_requirement.data),
+            generated_upload_program: 0,
+            generated_send_message: 0,
+            generated_send_reply: 0,
+            generated_claim_value: 0,
+        }
+    }
+
+    pub(crate) fn generate(&mut self, env: GenerationEnvironment) -> Result<Option<GearCall>> {
+        let call = if self.generated_upload_program < Self::MAX_UPLOAD_PROGRAM_CALLS {
+            self.generated_upload_program += 1;
+
+            upload_program::generate(&mut self.unstructured, env.into())
+        } else if self.generated_send_message < Self::MAX_SEND_MESSAGE_CALLS {
+            self.generated_send_message += 1;
+
+            if env.programs.is_empty() {
+                upload_program::generate(&mut self.unstructured, env.into())
+            } else {
+                send_message::generate(
+                    &mut self.unstructured,
+                    env.try_into().expect("programs collection isn't empty"),
+                )
             }
-        });
-        System::reset_events();
+        } else if self.generated_send_reply < Self::MAX_SEND_REPLY_CALLS {
+            self.generated_send_reply += 1;
 
-        Self { programs, mailbox }
-    }
+            if env.mailbox.is_empty() {
+                upload_program::generate(&mut self.unstructured, env.into())
+            } else {
+                send_reply::generate(
+                    &mut self.unstructured,
+                    env.try_into().expect("mailbox isn't empty"),
+                )
+            }
+        } else if self.generated_claim_value < Self::MAX_CLAIM_VALUE_CALLS {
+            self.generated_claim_value += 1;
 
-    fn merge(&mut self, Self { programs, mailbox }: Self) {
-        self.programs.extend(programs);
-        self.mailbox.extend(mailbox);
+            if env.mailbox.is_empty() {
+                upload_program::generate(&mut self.unstructured, env.into())
+            } else {
+                claim_value::generate(
+                    &mut self.unstructured,
+                    env.try_into().expect("mailbox isn't empty"),
+                )
+            }
+        } else {
+            return Ok(None);
+        };
+
+        call.map(Some)
     }
 }
 
-pub(crate) struct GenerationEnvironment<'a> {
-    corpus_id: &'a str,
-    existing_programs: HashSet<ProgramId>,
-    max_gas: u64,
-    mailbox: HashSet<MessageId>,
+impl GearCallsGenerator<'_> {
+    // *WARNING*:
+    //
+    // Increasing these constants requires resetting minimal
+    // size of fuzzer input buffer in corresponding scripts.
+    const MAX_UPLOAD_PROGRAM_CALLS: usize = 10;
+    const MAX_SEND_MESSAGE_CALLS: usize = 15;
+    const MAX_SEND_REPLY_CALLS: usize = 1;
+    const MAX_CLAIM_VALUE_CALLS: usize = 1;
+
+    pub(crate) const fn random_data_requirement() -> usize {
+        Self::upload_program_data_requirement() * Self::MAX_UPLOAD_PROGRAM_CALLS
+            + Self::send_message_data_requirement() * Self::MAX_SEND_MESSAGE_CALLS
+            + Self::send_reply_data_requirement() * Self::MAX_SEND_REPLY_CALLS
+            + Self::claim_value_data_requirement() * Self::MAX_CLAIM_VALUE_CALLS
+    }
+
+    const fn upload_program_data_requirement() -> usize {
+        MAX_CODE_SIZE + MAX_SALT_SIZE + MAX_PAYLOAD_SIZE + GAS_AND_VALUE_SIZE + AUXILIARY_SIZE
+    }
+
+    const fn send_message_data_requirement() -> usize {
+        ID_SIZE + MAX_PAYLOAD_SIZE + GAS_AND_VALUE_SIZE + AUXILIARY_SIZE
+    }
+
+    const fn send_reply_data_requirement() -> usize {
+        ID_SIZE + MAX_PAYLOAD_SIZE + GAS_AND_VALUE_SIZE + AUXILIARY_SIZE
+    }
+
+    const fn claim_value_data_requirement() -> usize {
+        ID_SIZE + AUXILIARY_SIZE
+    }
 }
 
 pub(crate) struct GenerationEnvironmentProducer<'a> {
@@ -149,116 +202,20 @@ impl<'a> GenerationEnvironmentProducer<'a> {
         let (existing_programs, mailbox) = self
             .interim_state
             .as_ref()
-            // todo remove clone
-            .map(|state| (state.programs.clone(), state.mailbox.clone()))
+            .map(|state| {
+                (
+                    Vec::from_iter(state.programs.iter()),
+                    Vec::from_iter(state.mailbox.iter()),
+                )
+            })
             .expect("interim state is always `Some`; qed");
 
         GenerationEnvironment {
             corpus_id: &self.corpus_id,
-            existing_programs,
+            programs: existing_programs,
             mailbox,
             max_gas: runtime::default_gas_limit(),
         }
-    }
-}
-
-pub(crate) struct GearCallsGenerator<'a> {
-    unstructured: Unstructured<'a>,
-    generated_upload_program: usize,
-    generated_send_message: usize,
-    generated_send_reply: usize,
-    generated_claim_value: usize,
-}
-
-impl<'a> GearCallsGenerator<'a> {
-    const UPLOAD_PROGRAM_CALL_ID: usize = 0;
-    const SEND_MESSAGE_CALL_ID: usize = 1;
-    const SEND_REPLY_CALL_ID: usize = 2;
-    const CLAIM_VALUE_CALL_ID: usize = 3;
-
-    pub(crate) fn new(data_requirement: FulfilledDataRequirement<'a, Self>) -> Self {
-        Self {
-            unstructured: Unstructured::new(data_requirement.data),
-            generated_upload_program: 0,
-            generated_send_message: 0,
-            generated_send_reply: 0,
-            generated_claim_value: 0,
-        }
-    }
-
-    pub(crate) fn generate(&mut self, env: GenerationEnvironment) -> Result<Option<GearCall>> {
-        let Some(call_id) = (self.generated_upload_program < Self::MAX_UPLOAD_PROGRAM_CALLS)
-            .then(|| {
-                self.generated_upload_program += 1;
-                Self::UPLOAD_PROGRAM_CALL_ID
-            })
-            .or(
-                (self.generated_send_message < Self::MAX_SEND_MESSAGE_CALLS).then(|| {
-                    self.generated_send_message += 1;
-                    Self::SEND_MESSAGE_CALL_ID
-                }),
-            )
-            .or(
-                (self.generated_send_reply < Self::MAX_SEND_REPLY_CALLS).then(|| {
-                    self.generated_send_reply += 1;
-                    Self::SEND_REPLY_CALL_ID
-                }),
-            )
-            .or(
-                (self.generated_claim_value < Self::MAX_CLAIM_VALUE_CALLS).then(|| {
-                    self.generated_claim_value += 1;
-                    Self::CLAIM_VALUE_CALL_ID
-                }),
-            )
-        else {
-            return Ok(None);
-        };
-
-        match call_id {
-            Self::UPLOAD_PROGRAM_CALL_ID => {
-                upload_program::generate(&mut self.unstructured, env).map(Some)
-            }
-            Self::SEND_MESSAGE_CALL_ID => {
-                send_message::generate(&mut self.unstructured, env).map(Some)
-            }
-            Self::SEND_REPLY_CALL_ID => send_reply::generate(&mut self.unstructured, env),
-            Self::CLAIM_VALUE_CALL_ID => claim_value::generate(&mut self.unstructured, env),
-            _ => unimplemented!("Unknown call id"),
-        }
-    }
-}
-
-impl GearCallsGenerator<'_> {
-    // *WARNING*:
-    //
-    // Increasing these constants requires resetting minimal
-    // size of fuzzer input buffer in corresponding scripts.
-    const MAX_UPLOAD_PROGRAM_CALLS: usize = 10;
-    const MAX_SEND_MESSAGE_CALLS: usize = 15;
-    const MAX_SEND_REPLY_CALLS: usize = 1;
-    const MAX_CLAIM_VALUE_CALLS: usize = 1;
-
-    pub(crate) const fn random_data_requirement() -> usize {
-        Self::upload_program_data_requirement() * Self::MAX_UPLOAD_PROGRAM_CALLS
-            + Self::send_message_data_requirement() * Self::MAX_SEND_MESSAGE_CALLS
-            + Self::send_reply_data_requirement() * Self::MAX_SEND_REPLY_CALLS
-            + Self::claim_value_data_requirement() * Self::MAX_CLAIM_VALUE_CALLS
-    }
-
-    const fn upload_program_data_requirement() -> usize {
-        MAX_CODE_SIZE + MAX_SALT_SIZE + MAX_PAYLOAD_SIZE + GAS_AND_VALUE_SIZE + AUXILIARY_SIZE
-    }
-
-    const fn send_message_data_requirement() -> usize {
-        ID_SIZE + MAX_PAYLOAD_SIZE + GAS_AND_VALUE_SIZE + AUXILIARY_SIZE
-    }
-
-    const fn send_reply_data_requirement() -> usize {
-        ID_SIZE + MAX_PAYLOAD_SIZE + GAS_AND_VALUE_SIZE + AUXILIARY_SIZE
-    }
-
-    const fn claim_value_data_requirement() -> usize {
-        ID_SIZE + AUXILIARY_SIZE
     }
 }
 
@@ -271,6 +228,93 @@ impl GenerationEnvironmentProducer<'_> {
                 + GearCallsGenerator::MAX_SEND_MESSAGE_CALLS
                 + GearCallsGenerator::MAX_SEND_REPLY_CALLS)
             + AUXILIARY_SIZE
+    }
+}
+
+// todo - is it a good design?
+pub(crate) struct RuntimeInterimState {
+    programs: HashSet<ProgramId>,
+    // todo issue - include time limits, so no outdated mailbox messages will be stored.
+    mailbox: HashSet<MessageId>,
+}
+
+impl RuntimeInterimState {
+    pub(crate) fn build() -> Self {
+        let mut programs = HashSet::new();
+        let mut mailbox = HashSet::new();
+        System::events().iter().for_each(|e| {
+            let RuntimeEvent::Gear(ref gear_event) = e.event else {
+                return;
+            };
+            match gear_event {
+                GearEvent::ProgramChanged {
+                    id,
+                    change: ProgramChangeKind::Active { .. },
+                } => {
+                    programs.insert(*id);
+                }
+                GearEvent::UserMessageSent {
+                    message,
+                    expiration: Some(_),
+                } => {
+                    if message.destination() == runtime::alice_program_id() {
+                        mailbox.insert(message.id());
+                    }
+                }
+                _ => {}
+            }
+        });
+        System::reset_events();
+
+        Self { programs, mailbox }
+    }
+
+    fn merge(&mut self, Self { programs, mailbox }: Self) {
+        self.programs.extend(programs);
+        self.mailbox.extend(mailbox);
+    }
+}
+
+pub(crate) struct GenerationEnvironment<'a> {
+    corpus_id: &'a str,
+    programs: Vec<&'a ProgramId>,
+    max_gas: u64,
+    mailbox: Vec<&'a MessageId>,
+}
+
+impl<'a> From<GenerationEnvironment<'a>> for UploadProgramRuntimeData<'a> {
+    fn from(env: GenerationEnvironment<'a>) -> Self {
+        (env.corpus_id, env.programs, env.max_gas)
+    }
+}
+
+impl<'a> TryFrom<GenerationEnvironment<'a>> for SendMessageRuntimeData<'a> {
+    type Error = ();
+
+    fn try_from(env: GenerationEnvironment<'a>) -> StdResult<Self, Self::Error> {
+        let programs = NonEmpty::from_slice(&env.programs).ok_or(())?;
+
+        Ok((programs, env.max_gas))
+    }
+}
+
+impl<'a> TryFrom<GenerationEnvironment<'a>> for SendReplyRuntimeData<'a> {
+    type Error = ();
+
+    fn try_from(env: GenerationEnvironment<'a>) -> StdResult<Self, Self::Error> {
+        let mailbox = NonEmpty::from_slice(&env.mailbox).ok_or(())?;
+
+        Ok((mailbox, env.max_gas))
+    }
+}
+
+impl<'a> TryFrom<GenerationEnvironment<'a>> for ClaimValueRuntimeData<'a> {
+    type Error = ();
+
+    fn try_from(env: GenerationEnvironment<'a>) -> StdResult<Self, Self::Error> {
+        NonEmpty::from_slice(&env.mailbox)
+            .map(|mailbox| (mailbox,))
+            .ok_or(())
     }
 }
 

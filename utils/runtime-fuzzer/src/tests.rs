@@ -22,14 +22,12 @@ use proptest::prelude::*;
 const MIN_GEAR_CALLS_BYTES: usize = 350_000;
 const MAX_GEAR_CALLS_BYTES: usize = 450_000;
 
-fn min_unstructured_input_size() -> usize {
-    GearCallsGenerator::random_data_requirement()
-        + GenerationEnvironmentProducer::random_data_requirement()
-}
-
 #[test]
 fn proptest_input_validity() {
-    assert!(MIN_GEAR_CALLS_BYTES >= crate::utils::min_unstructured_input_size());
+    let min_unstructured_input_size = GearCallsGenerator::random_data_requirement()
+        + GenerationEnvironmentProducer::random_data_requirement();
+
+    assert!(MIN_GEAR_CALLS_BYTES >= min_unstructured_input_size);
     assert!(MIN_GEAR_CALLS_BYTES <= MAX_GEAR_CALLS_BYTES);
 }
 

@@ -16,28 +16,29 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use super::GenerationEnvironment;
 use gear_call_gen::{GearCall, SendReplyArgs};
-use gear_wasm_gen::wasm_gen_arbitrary::{Error, Result, Unstructured};
+use gear_core::ids::MessageId;
+use gear_utils::NonEmpty;
+use gear_wasm_gen::wasm_gen_arbitrary::{Result, Unstructured};
+
+pub(crate) type SendReplyRuntimeData<'a> = (NonEmpty<&'a MessageId>, u64);
 
 pub(crate) fn generate(
     unstructured: &mut Unstructured,
-    env: GenerationEnvironment,
-) -> Result<Option<GearCall>> {
+    (mailbox, gas): SendReplyRuntimeData,
+) -> Result<GearCall> {
     log::trace!(
         "Random data before payload (send_reply) gen {}",
         unstructured.len()
     );
 
-    let GenerationEnvironment {
-        max_gas, mailbox, ..
-    } = env;
-    let mailbox = mailbox.into_iter().collect::<Vec<_>>();
-    let mid_res = unstructured.choose(&mailbox).copied();
-
-    if let Err(Error::EmptyChoose) = mid_res {
-        return Ok(None);
-    }
+    let mid = {
+        let random_idx = unstructured.int_in_range(0..=mailbox.len())?;
+        mailbox
+            .get(random_idx)
+            .copied()
+            .expect("idx is checked; qed.")
+    };
 
     let payload = super::arbitrary_payload(unstructured)?;
     log::trace!(
@@ -46,5 +47,5 @@ pub(crate) fn generate(
     );
     log::trace!("Payload (send_reply) length {:?}", payload.len());
 
-    Ok(Some(SendReplyArgs((mid_res?, payload, max_gas, 0)).into()))
+    Ok(SendReplyArgs((*mid, payload, gas, 0)).into())
 }
