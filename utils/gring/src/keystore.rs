@@ -175,7 +175,7 @@ impl Encoding {
         Self {
             content: ("pkcs8".into(), "sr25519".into()),
             ty: vec!["none".into()],
-            version: format!("3"),
+            version: "3".to_string(),
         }
     }
 

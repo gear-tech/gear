@@ -21,7 +21,7 @@ use clap::{CommandFactory, Parser};
 use gring::cmd::Command;
 use tracing_subscriber::filter::EnvFilter;
 
-/// CLI options.
+/// Gear keyring.
 #[derive(Parser)]
 pub struct Opt {
     /// The verbosity level.

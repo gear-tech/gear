@@ -141,8 +141,8 @@ impl Command {
                 let (keystore, keypair) =
                     keyring.create(&name, vanity.as_deref(), Some(passphrase.as_ref()))?;
 
-                println!("{:<16}{}", "Name:", name);
-                println!("{:<16}{}", "VARA Address: ", keystore.address.to_string());
+                println!("{:<16}{}", "Name:", name.bold());
+                println!("{:<16}{}", "VARA Address: ", keystore.address);
                 println!("{:<16}0x{}", "Public Key:", hex::encode(keypair.public));
                 println!(
                     "Drag {} to the polkadot.js extension to import it.",
@@ -185,7 +185,7 @@ impl Command {
                     anyhow!("Incorrect passphrase, failed to decrypt keystore, {e}")
                 })?;
                 let sig = pair
-                    .sign(schnorrkel::signing_context(ctx.as_bytes()).bytes(&message.as_bytes()));
+                    .sign(schnorrkel::signing_context(ctx.as_bytes()).bytes(message.as_bytes()));
                 println!("{:<16}{}", "Key:", key.meta.name.green().bold());
                 println!("{:<16}{}", "SS58 Address:", key.address);
                 println!("{:<16}{ctx}", "Context:");
@@ -199,8 +199,8 @@ impl Command {
                 address,
             } => {
                 let pk_bytes = if let Some(address) = address {
-                    if address.starts_with("0x") {
-                        hex::decode(&address[2..]).map_err(Into::into)
+                    if let Some(encoded) = address.strip_prefix("0x") {
+                        hex::decode(encoded).map_err(Into::into)
                     } else {
                         ss58::decode(address.as_bytes(), 32)
                     }
@@ -217,7 +217,7 @@ impl Command {
                     "Result",
                     if pk
                         .verify(
-                            schnorrkel::signing_context(ctx.as_bytes()).bytes(&message.as_bytes()),
+                            schnorrkel::signing_context(ctx.as_bytes()).bytes(message.as_bytes()),
                             &Signature::from_bytes(&hex::decode(
                                 signature.trim_start_matches("0x")
                             )?)

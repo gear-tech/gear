@@ -87,7 +87,7 @@ impl Keyring {
 
     /// Update and get the primary key.
     pub fn primary(&mut self) -> Result<Keystore> {
-        if self.ring.len() == 0 {
+        if self.ring.is_empty() {
             return Err(anyhow::anyhow!(
                 "No keys in keyring, run {} to create a new one.",
                 "`gring generate <NAME> -p <PASSPHRASE>`"
