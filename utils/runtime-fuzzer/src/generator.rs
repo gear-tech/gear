@@ -73,6 +73,7 @@ impl<'a> GearCallsGenerator<'a> {
     const UPLOAD_PROGRAM_CALL_ID: usize = 0;
     const SEND_MESSAGE_CALL_ID: usize = 1;
     const SEND_REPLY_CALL_ID: usize = 2;
+    const CLAIM_VALUE_CALL_ID: usize = 3;
 
     pub(crate) fn new(data_requirement: FulfilledDataRequirement<'a, Self>) -> Self {
         Self {
@@ -149,6 +150,10 @@ impl GearCallsGenerator<'_> {
 
     const fn send_reply_data_requirement() -> usize {
         ID_SIZE + MAX_PAYLOAD_SIZE + GAS_AND_VALUE_SIZE + AUXILIARY_SIZE
+    }
+
+    const fn claim_value_data_requirement() -> usize {
+        ID_SIZE + AUXILIARY_SIZE
     }
 }
 
