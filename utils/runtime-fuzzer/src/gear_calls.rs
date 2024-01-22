@@ -1,29 +1,3 @@
-// impl Iterator for GearCalls<'_> {
-//     type Item = Result<GearCall>;
-
-//     fn next(&mut self) -> Option<Result<GearCall>> {
-//         loop {
-//             if self.current_generator == self.generators.len() {
-//                 return None;
-//             }
-
-//             let generator = &self.generators[self.current_generator].generator;
-//             let call = generator.generate(&mut self.intermediate_data, &mut self.unstructured);
-
-//             self.current_extrinsic += 1;
-//             if self.current_extrinsic == self.generators[self.current_generator].amount {
-//                 self.current_extrinsic = 0;
-//                 self.current_generator += 1;
-//             }
-
-//             return match call {
-//                 Ok(Some(call)) => Some(Ok(call)),
-//                 Ok(None) => continue,
-//                 Err(err) => Some(Err(err)),
-//             };
-//         }
-//     }
-// }
 
 // /// Extrinsic generator that's capable of generating `SendReply` calls.
 // pub(crate) struct SendReplyGenerator {

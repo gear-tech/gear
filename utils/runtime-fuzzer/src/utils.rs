@@ -16,11 +16,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::generator::{GearCallsGenerator, GenerationEnvironmentProducer};
 use sha1::*;
 
 #[cfg(test)]
 pub fn min_unstructured_input_size() -> usize {
+    use crate::generator::{GearCallsGenerator, GenerationEnvironmentProducer};
+
     GearCallsGenerator::random_data_requirement()
         + GenerationEnvironmentProducer::random_data_requirement()
 }

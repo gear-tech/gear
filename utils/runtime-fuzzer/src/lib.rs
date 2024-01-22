@@ -28,15 +28,11 @@ mod utils;
 
 pub use data::FuzzerInput;
 
-use data::*;
 use frame_support::pallet_prelude::DispatchResultWithPostInfo;
 use gear_call_gen::{ClaimValueArgs, GearCall, SendMessageArgs, SendReplyArgs, UploadProgramArgs};
-use gear_core::ids::ProgramId;
-use gear_wasm_gen::wasm_gen_arbitrary::{Arbitrary, Error, Result, Unstructured};
+use gear_wasm_gen::wasm_gen_arbitrary::Result;
 use generator::*;
-use pallet_balances::Pallet as BalancesPallet;
-use std::{any, fmt::Debug, marker::PhantomData, mem};
-use vara_runtime::{AccountId, Gear, Runtime, RuntimeOrigin};
+use vara_runtime::{AccountId, Gear, RuntimeOrigin};
 
 pub fn run(fuzzer_input: FuzzerInput<'_>) -> Result<()> {
     run_impl(fuzzer_input).map(|_| ())

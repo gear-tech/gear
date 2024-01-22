@@ -19,23 +19,15 @@
 mod send_message;
 mod upload_program;
 
-use gear_call_gen::{GearCall, SendMessageArgs, UploadProgramArgs};
-use gear_common::{event::ProgramChangeKind, Origin};
-use gear_core::{
-    ids::{CodeId, ProgramId},
-    program::Program,
-};
-use gear_utils::NonEmpty;
-use gear_wasm_gen::{
-    wasm_gen_arbitrary::{Result, Unstructured},
-    ActorKind, EntryPointsSet, InvocableSyscall, PtrParamAllowedValues, RegularParamType,
-    StandardGearWasmConfigsBundle, SyscallName, SyscallsInjectionTypes, SyscallsParamsConfig,
-};
+use gear_call_gen::GearCall;
+use gear_common::event::ProgramChangeKind;
+use gear_core::ids::ProgramId;
+use gear_wasm_gen::wasm_gen_arbitrary::{Result, Unstructured};
 use pallet_balances::Pallet as BalancesPallet;
 use pallet_gear::Event as GearEvent;
 use runtime_primitives::AccountId;
 use std::{
-    collections::{BTreeSet, HashSet},
+    collections::HashSet,
     mem,
 };
 use vara_runtime::{Runtime, RuntimeEvent, System};
@@ -101,7 +93,7 @@ pub(crate) struct GenerationEnvironment<'a> {
 
 pub(crate) struct GenerationEnvironmentProducer<'a> {
     corpus_id: String,
-    unstructured: Unstructured<'a>,
+    _unstructured: Unstructured<'a>,
     sender: AccountId,
     interim_state: Option<RuntimeInterimState>,
 }
@@ -113,7 +105,7 @@ impl<'a> GenerationEnvironmentProducer<'a> {
     ) -> Self {
         Self {
             corpus_id,
-            unstructured: Unstructured::new(data_requirement.data),
+            _unstructured: Unstructured::new(data_requirement.data),
             sender: runtime::alice(),
             interim_state: None,
         }
@@ -150,17 +142,6 @@ impl<'a> GenerationEnvironmentProducer<'a> {
     }
 }
 
-impl GenerationEnvironmentProducer<'_> {
-    pub(crate) const fn random_data_requirement() -> usize {
-        const VALUE_SIZE: usize = mem::size_of::<u128>();
-
-        VALUE_SIZE
-            * (GearCallsGenerator::MAX_UPLOAD_PROGRAM_CALLS
-                + GearCallsGenerator::MAX_SEND_MESSAGE_CALLS)
-            + AUXILIARY_SIZE
-    }
-}
-
 pub(crate) struct GearCallsGenerator<'a> {
     unstructured: Unstructured<'a>,
     generated_upload_program: usize,
@@ -182,10 +163,16 @@ impl<'a> GearCallsGenerator<'a> {
 
     pub(crate) fn generate(&mut self, env: GenerationEnvironment) -> Result<Option<GearCall>> {
         let Some(call_id) = (self.generated_upload_program < Self::MAX_UPLOAD_PROGRAM_CALLS)
-            .then_some(Self::UPLOAD_PROGRAM_CALL_ID)
+            .then(|| {
+                self.generated_upload_program += 1;
+                Self::UPLOAD_PROGRAM_CALL_ID
+            })
             .or(
-                (self.generated_upload_program < Self::MAX_SEND_MESSAGE_CALLS)
-                    .then_some(Self::SEND_MESSAGE_CALL_ID),
+                (self.generated_send_message < Self::MAX_SEND_MESSAGE_CALLS)
+                    .then(|| {
+                        self.generated_send_message += 1;
+                        Self::SEND_MESSAGE_CALL_ID
+                    }),
             )
         else {
             return Ok(None);
@@ -219,6 +206,17 @@ impl GearCallsGenerator<'_> {
 
     const fn send_message_data_requirement() -> usize {
         ID_SIZE + MAX_PAYLOAD_SIZE + GAS_AND_VALUE_SIZE + AUXILIARY_SIZE
+    }
+}
+
+impl GenerationEnvironmentProducer<'_> {
+    pub(crate) const fn random_data_requirement() -> usize {
+        const VALUE_SIZE: usize = mem::size_of::<u128>();
+
+        VALUE_SIZE
+            * (GearCallsGenerator::MAX_UPLOAD_PROGRAM_CALLS
+                + GearCallsGenerator::MAX_SEND_MESSAGE_CALLS)
+            + AUXILIARY_SIZE
     }
 }
 
