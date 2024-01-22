@@ -530,6 +530,8 @@ fn block_max_gas_works() {
 
     // Amount of gas burned in each block (even empty) by default
     const FIXED_BLOCK_GAS: u64 = 25_000_000;
+    // Gas cost of a built router instance creation
+    const BUILTIN_ROUTER_COST: u64 = 8_000_000;
 
     init_logger();
     gear_runtime_interface::sandbox_init();
@@ -580,7 +582,7 @@ fn block_max_gas_works() {
         .unwrap();
 
     // Just enough to fit 2 messages
-    let max_gas = Some(2 * min_limit + FIXED_BLOCK_GAS + 100);
+    let max_gas = Some(2 * min_limit + FIXED_BLOCK_GAS + BUILTIN_ROUTER_COST + 100);
 
     // Preparing block #2
     // Creating 5 extrinsics
