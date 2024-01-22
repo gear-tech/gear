@@ -26,10 +26,7 @@ use gear_wasm_gen::wasm_gen_arbitrary::{Result, Unstructured};
 use pallet_balances::Pallet as BalancesPallet;
 use pallet_gear::Event as GearEvent;
 use runtime_primitives::AccountId;
-use std::{
-    collections::HashSet,
-    mem,
-};
+use std::{collections::HashSet, mem};
 use vara_runtime::{Runtime, RuntimeEvent, System};
 
 use crate::{data::*, runtime};
