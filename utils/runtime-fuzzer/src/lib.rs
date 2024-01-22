@@ -40,7 +40,7 @@ pub fn run(fuzzer_input: FuzzerInput<'_>) -> Result<()> {
 /// Runs all the fuzz testing internal machinery.
 fn run_impl(fuzzer_input: FuzzerInput<'_>) -> Result<sp_io::TestExternalities> {
     let raw_data = fuzzer_input.inner();
-    let (env_data_requirement, gear_calls_data_requirement) =
+    let (gen_env_data_requirement, generator_data_requirement) =
         fuzzer_input.into_data_requirements()?;
 
     log::trace!(
@@ -51,8 +51,8 @@ fn run_impl(fuzzer_input: FuzzerInput<'_>) -> Result<sp_io::TestExternalities> {
     log::trace!("Generating gear calls from corpus - {}", corpus_id);
 
     let mut test_ext = runtime::new_test_ext();
-    let mut env_producer = GenerationEnvironmentProducer::new(corpus_id, env_data_requirement);
-    let mut generator = GearCallsGenerator::new(gear_calls_data_requirement);
+    let mut env_producer = GenerationEnvironmentProducer::new(corpus_id, gen_env_data_requirement);
+    let mut generator = GearCallsGenerator::new(generator_data_requirement);
     loop {
         let stop = test_ext.execute_with(|| -> Result<bool> {
             let env = env_producer.produce_generation_env(RuntimeInterimState::build());
@@ -62,6 +62,7 @@ fn run_impl(fuzzer_input: FuzzerInput<'_>) -> Result<sp_io::TestExternalities> {
 
             let call_res = execute_gear_call(runtime::alice(), gear_call);
             log::info!("Extrinsic result: {call_res:?}");
+
             // Run task and message queues with max possible gas limit.
             runtime::run_to_next_block();
 
