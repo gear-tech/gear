@@ -245,11 +245,11 @@ frame_election_provider_support::generate_solution_type!(
     >(16)
 );
 
-pub struct OnChainSeqPhragmen;
-impl onchain::Config for OnChainSeqPhragmen {
-    type System = Test;
-    type Solver = SequentialPhragmen<AccountId, Perbill>;
-    type DataProvider = Staking;
+pub struct OnChainSeqPhragmen<T: frame_system::Config + pallet_staking::Config>(PhantomData<T>);
+impl<T: frame_system::Config + pallet_staking::Config> onchain::Config for OnChainSeqPhragmen<T> {
+    type System = T;
+    type Solver = SequentialPhragmen<<T as frame_system::Config>::AccountId, Perbill>;
+    type DataProvider = pallet_staking::Pallet<T>;
     type WeightInfo = ();
     type MaxWinners = MaxActiveValidators;
     type VotersBound = MaxOnChainElectingVoters;
@@ -262,8 +262,8 @@ impl pallet_staking::Config for Test {
     type UnixTime = Timestamp;
     type CurrencyBalance = <Self as pallet_balances::Config>::Balance;
     type CurrencyToVote = ();
-    type ElectionProvider = onchain::OnChainExecution<OnChainSeqPhragmen>;
-    type GenesisElectionProvider = onchain::OnChainExecution<OnChainSeqPhragmen>;
+    type ElectionProvider = onchain::OnChainExecution<OnChainSeqPhragmen<Self>>;
+    type GenesisElectionProvider = onchain::OnChainExecution<OnChainSeqPhragmen<Self>>;
     type RewardRemainder = ();
     type RuntimeEvent = RuntimeEvent;
     type Slash = Treasury;
@@ -427,8 +427,8 @@ impl multi_phase::Config for Test {
     type SlashHandler = Treasury;
     type RewardHandler = StakingRewards;
     type DataProvider = Staking;
-    type Fallback = onchain::OnChainExecution<OnChainSeqPhragmen>;
-    type GovernanceFallback = onchain::OnChainExecution<OnChainSeqPhragmen>;
+    type Fallback = onchain::OnChainExecution<OnChainSeqPhragmen<Self>>;
+    type GovernanceFallback = onchain::OnChainExecution<OnChainSeqPhragmen<Self>>;
     type ForceOrigin = frame_system::EnsureRoot<AccountId>;
     type MaxElectableTargets = MaxElectableTargets;
     type MaxWinners = MaxActiveValidators;
@@ -760,4 +760,210 @@ pub(crate) fn chain_state() -> (u128, u128, u128, u128) {
         Balances::free_balance(Treasury::account_id()),
         StakingRewards::pool(),
     )
+}
+
+pub(crate) mod two_block_producers {
+    use super::*;
+
+    pub(crate) type SignedExtra = pallet_gear_staking_rewards::StakingBlackList<Test>;
+    type TestXt = sp_runtime::testing::TestXt<RuntimeCall, SignedExtra>;
+    type Block = TestBlock<TestXt>;
+
+    construct_runtime!(
+        pub enum Test
+        {
+            System: system,
+            Timestamp: pallet_timestamp,
+            Authorship: pallet_authorship,
+            Balances: pallet_balances,
+            Staking: pallet_staking,
+            Session: pallet_session,
+            Historical: pallet_session_historical,
+            Treasury: pallet_treasury,
+            BagsList: pallet_bags_list::<Instance1>,
+            Sudo: pallet_sudo,
+            Utility: pallet_utility,
+            ElectionProviderMultiPhase: multi_phase,
+            StakingRewards: pallet_gear_staking_rewards,
+        }
+    );
+
+    impl<C> frame_system::offchain::SendTransactionTypes<C> for Test
+    where
+        RuntimeCall: From<C>,
+    {
+        type OverarchingCall = RuntimeCall;
+        type Extrinsic = TestXt;
+    }
+
+    common::impl_pallet_system!(Test, DbWeight = RocksDbWeight, BlockWeights = ());
+    common::impl_pallet_timestamp!(Test);
+
+    pub struct BlockAuthor;
+
+    impl FindAuthor<AccountId> for BlockAuthor {
+        fn find_author<'a, I: 'a>(_: I) -> Option<AccountId> {
+            let block_number = System::block_number() as usize;
+            let validators = [VAL_1_STASH, VAL_2_STASH];
+            let index = block_number % validators.len();
+
+            Some(validators[index])
+        }
+    }
+
+    common::impl_pallet_authorship!(Test, EventHandler = Staking, FindAuthor = BlockAuthor);
+    common::impl_pallet_balances!(Test);
+
+    impl pallet_staking::Config for Test {
+        type MaxNominations = MaxNominations;
+        type Currency = Balances;
+        type UnixTime = Timestamp;
+        type CurrencyBalance = <Self as pallet_balances::Config>::Balance;
+        type CurrencyToVote = ();
+        type ElectionProvider = onchain::OnChainExecution<OnChainSeqPhragmen<Self>>;
+        type GenesisElectionProvider = onchain::OnChainExecution<OnChainSeqPhragmen<Self>>;
+        type RewardRemainder = ();
+        type RuntimeEvent = RuntimeEvent;
+        type Slash = Treasury;
+        type Reward = StakingRewards;
+        type SessionsPerEra = SessionsPerEra;
+        type BondingDuration = BondingDuration;
+        type SlashDeferDuration = SlashDeferDuration;
+        type AdminOrigin = EnsureRoot<AccountId>;
+        type SessionInterface = Self;
+        type EraPayout = StakingRewards;
+        type NextNewSession = Session;
+        type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
+        type OffendingValidatorsThreshold = OffendingValidatorsThreshold;
+        type VoterList = BagsList;
+        type TargetList = pallet_staking::UseValidatorsMap<Self>;
+        type MaxUnlockingChunks = ConstU32<32>;
+        type HistoryDepth = HistoryDepth;
+        type EventListeners = ();
+        type WeightInfo = ();
+        type BenchmarkingConfig = pallet_staking::TestBenchmarkingConfig;
+    }
+
+    impl pallet_session::Config for Test {
+        type RuntimeEvent = RuntimeEvent;
+        type ValidatorId = AccountId;
+        type ValidatorIdOf = pallet_staking::StashOf<Self>;
+        type ShouldEndSession = pallet_session::PeriodicSessions<Period, Offset>;
+        type NextSessionRotation = pallet_session::PeriodicSessions<Period, Offset>;
+        type SessionManager = pallet_session_historical::NoteHistoricalRoot<Self, Staking>;
+        type SessionHandler = TestSessionHandler;
+        type Keys = UintAuthorityId;
+        type WeightInfo = ();
+    }
+    
+    impl pallet_session_historical::Config for Test {
+        type FullIdentification = pallet_staking::Exposure<AccountId, u128>;
+        type FullIdentificationOf = pallet_staking::ExposureOf<Test>;
+    }
+
+    impl pallet_treasury::Config for Test {
+        type PalletId = TreasuryPalletId;
+        type Currency = Balances;
+        type ApproveOrigin = EnsureRoot<AccountId>;
+        type RejectOrigin = EnsureRoot<AccountId>;
+        type RuntimeEvent = RuntimeEvent;
+        type OnSlash = ();
+        type ProposalBond = ProposalBond;
+        type ProposalBondMinimum = ProposalBondMinimum;
+        type ProposalBondMaximum = ();
+        type SpendPeriod = SpendPeriod;
+        type Burn = Burn;
+        type BurnDestination = ();
+        type SpendFunds = ();
+        type WeightInfo = ();
+        type MaxApprovals = MaxApprovals;
+        type SpendOrigin = NeverEnsureOrigin<u128>;
+    }
+
+    impl pallet_bags_list::Config<pallet_bags_list::Instance1> for Test {
+        type RuntimeEvent = RuntimeEvent;
+        type ScoreProvider = Staking;
+        type BagThresholds = BagThresholds;
+        type Score = VoteWeight;
+        type WeightInfo = ();
+    }
+
+    impl pallet_sudo::Config for Test {
+        type RuntimeEvent = RuntimeEvent;
+        type RuntimeCall = RuntimeCall;
+        type WeightInfo = ();
+    }
+    
+    impl pallet_utility::Config for Test {
+        type RuntimeEvent = RuntimeEvent;
+        type RuntimeCall = RuntimeCall;
+        type WeightInfo = ();
+        type PalletsOrigin = OriginCaller;
+    }
+
+    impl multi_phase::MinerConfig for Test {
+        type AccountId = AccountId;
+        type MaxLength = MinerMaxLength;
+        type MaxWeight = MinerMaxWeight;
+        type MaxVotesPerVoter = <Staking as ElectionDataProvider>::MaxVotesPerVoter;
+        type MaxWinners = MaxActiveValidators;
+        type Solution = TestNposSolution;
+    
+        fn solution_weight(v: u32, t: u32, a: u32, d: u32) -> Weight {
+            <<Self as multi_phase::Config>::WeightInfo as multi_phase::WeightInfo>::submit_unsigned(
+                v, t, a, d,
+            )
+        }
+    }
+
+    impl multi_phase::Config for Test {
+        type RuntimeEvent = RuntimeEvent;
+        type Currency = Balances;
+        type EstimateCallFee = ConstU32<1_000>;
+        type SignedPhase = SignedPhase;
+        type UnsignedPhase = UnsignedPhase;
+        type BetterUnsignedThreshold = BetterUnsignedThreshold;
+        type BetterSignedThreshold = ();
+        type OffchainRepeat = OffchainRepeat;
+        type MinerTxPriority = MinerTxPriority;
+        type SignedRewardBase = SignedRewardBase;
+        type SignedDepositBase = SignedDepositBase;
+        type SignedDepositByte = ();
+        type SignedDepositWeight = ();
+        type SignedMaxWeight = SignedMaxWeight;
+        type SignedMaxSubmissions = SignedMaxSubmissions;
+        type SignedMaxRefunds = SignedMaxRefunds;
+        type SlashHandler = Treasury;
+        type RewardHandler = StakingRewards;
+        type DataProvider = Staking;
+        type Fallback = onchain::OnChainExecution<OnChainSeqPhragmen<Self>>;
+        type GovernanceFallback = onchain::OnChainExecution<OnChainSeqPhragmen<Self>>;
+        type ForceOrigin = frame_system::EnsureRoot<AccountId>;
+        type MaxElectableTargets = MaxElectableTargets;
+        type MaxWinners = MaxActiveValidators;
+        type MaxElectingVoters = MaxElectingVoters;
+        type WeightInfo = ();
+        type BenchmarkingConfig = TestBenchmarkingConfig;
+        type MinerConfig = Self;
+        type Solver = SequentialPhragmen<AccountId, multi_phase::SolutionAccuracyOf<Self>, ()>;
+    }
+
+    impl pallet_gear_staking_rewards::Config for Test {
+        type RuntimeEvent = RuntimeEvent;
+        type BondCallFilter = ();
+        type AccountFilter = NonStakingAccountsFilter;
+        type PalletId = StakingRewardsPalletId;
+        type RefillOrigin = EnsureRoot<AccountId>;
+        type WithdrawOrigin = EnsureRoot<AccountId>;
+        type MillisecondsPerYear = MillisecondsPerYear;
+        type MinInflation = MinInflation;
+        type MaxROI = MaxROI;
+        type Falloff = Falloff;
+        type WeightInfo = ();
+    }
+
+    #[allow(unused)]
+    pub(crate) fn run_to_block(n: BlockNumberFor<Test>) {
+        run_to_block_impl::<Test>(n)
+    }
 }
