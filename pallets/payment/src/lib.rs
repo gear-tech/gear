@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -20,7 +20,7 @@
 #![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
 #![doc(html_favicon_url = "https://gear-tech.io/favicons/favicon.ico")]
 
-use common::{storage::*, ExtractCall};
+use common::{storage::*, DelegateFee, ExtractCall};
 use frame_support::{
     dispatch::{DispatchInfo, GetDispatchInfo, PostDispatchInfo},
     pallet_prelude::*,
@@ -75,16 +75,6 @@ impl<T: Config> sp_std::fmt::Debug for CustomChargeTransactionPayment<T> {
     #[cfg(not(feature = "std"))]
     fn fmt(&self, _: &mut sp_std::fmt::Formatter) -> sp_std::fmt::Result {
         Ok(())
-    }
-}
-
-pub trait DelegateFee<C, A> {
-    fn delegate_fee(call: &C, who: &A) -> Option<A>;
-}
-
-impl<C, A> DelegateFee<C, A> for () {
-    fn delegate_fee(_call: &C, _who: &A) -> Option<A> {
-        None
     }
 }
 

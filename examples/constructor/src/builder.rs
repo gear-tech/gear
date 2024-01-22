@@ -322,4 +322,8 @@ impl Calls {
     pub fn system_reserve_gas(self, gas: impl Into<Arg<u64>>) -> Self {
         self.add_call(Call::SystemReserveGas(gas.into()))
     }
+
+    pub fn write_in_loop(self, count: impl Into<Arg<u64>>) -> Self {
+        self.add_call(Call::WriteN(count.into()))
+    }
 }

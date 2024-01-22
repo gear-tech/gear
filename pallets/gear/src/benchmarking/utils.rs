@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022-2023 Gear Technologies Inc.
+// Copyright (C) 2022-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -22,7 +22,7 @@ use super::Exec;
 use crate::{
     manager::{CodeInfo, ExtManager, HandleKind},
     Config, CostsPerBlockOf, CurrencyOf, DbWeightOf, MailboxOf, Pallet as Gear, ProgramStorageOf,
-    QueueOf, RentCostPerBlockOf,
+    QueueOf,
 };
 use common::{scheduler::SchedulingCostsPerBlock, storage::*, CodeStorage, Origin, ProgramStorage};
 use core_processor::{
@@ -83,7 +83,6 @@ where
         max_reservations: T::ReservationsLimit::get(),
         code_instrumentation_cost: schedule.code_instrumentation_cost.ref_time(),
         code_instrumentation_byte_cost: schedule.code_instrumentation_byte_cost.ref_time(),
-        rent_cost: RentCostPerBlockOf::<T>::get().unique_saturated_into(),
         gas_multiplier: <T as pallet_gear_bank::Config>::GasMultiplier::get().into(),
     }
 }

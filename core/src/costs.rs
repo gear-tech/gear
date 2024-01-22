@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022-2023 Gear Technologies Inc.
+// Copyright (C) 2022-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -117,9 +117,6 @@ pub struct HostFnWeights {
 
     /// Weight of calling `gr_message_id`.
     pub gr_message_id: u64,
-
-    /// Weight of calling `gr_pay_program_rent`.
-    pub gr_pay_program_rent: u64,
 
     /// Weight of calling `gr_program_id`.
     pub gr_program_id: u64,
@@ -346,8 +343,6 @@ pub enum RuntimeCosts {
     GasAvailable,
     /// Weight of calling `gr_message_id`.
     MsgId,
-    /// Weight of calling `gr_pay_program_rent`.
-    PayProgramRent,
     /// Weight of calling `gr_program_id`.
     ProgramId,
     /// Weight of calling `gr_source`.
@@ -484,7 +479,6 @@ impl RuntimeCosts {
             SystemReserveGas => s.gr_system_reserve_gas,
             GasAvailable => s.gr_gas_available,
             MsgId => s.gr_message_id,
-            PayProgramRent => s.gr_pay_program_rent,
             ProgramId => s.gr_program_id,
             Source => s.gr_source,
             Value => s.gr_value,

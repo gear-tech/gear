@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -23,10 +23,9 @@
 use std::sync::Arc;
 
 use jsonrpsee::RpcModule;
-use runtime_primitives::{AccountId, Balance, Block, BlockNumber, Hash, Index};
-use sc_client_api::{AuxStore, BlockBackend, StorageProvider};
-use sc_consensus_babe::{BabeConfiguration, Epoch};
-use sc_consensus_epochs::SharedEpochChanges;
+use runtime_primitives::{AccountId, Balance, Block, BlockNumber, Hash, Nonce};
+use sc_client_api::{backend::StateBackend, AuxStore, Backend, BlockBackend, StorageProvider};
+use sc_consensus_babe::BabeWorkerHandle;
 use sc_consensus_grandpa::{
     FinalityProofProvider, GrandpaJustificationStream, SharedAuthoritySet, SharedVoterState,
 };
@@ -38,18 +37,16 @@ use sp_block_builder::BlockBuilder;
 use sp_blockchain::{Error as BlockChainError, HeaderBackend, HeaderMetadata};
 use sp_consensus::SelectChain;
 use sp_consensus_babe::BabeApi;
-use sp_keystore::SyncCryptoStorePtr;
+use sp_keystore::KeystorePtr;
 
 mod runtime_info;
 
 /// Extra dependencies for BABE.
 pub struct BabeDeps {
-    /// BABE protocol config.
-    pub babe_config: BabeConfiguration,
-    /// BABE pending epoch changes.
-    pub shared_epoch_changes: SharedEpochChanges<Block, Epoch>,
+    /// A handle to the BABE worker for issuing requests.
+    pub babe_worker_handle: BabeWorkerHandle<Block>,
     /// The keystore that manages the keys of the node.
-    pub keystore: SyncCryptoStorePtr,
+    pub keystore: KeystorePtr,
 }
 
 /// Extra dependencies for GRANDPA
@@ -109,7 +106,7 @@ where
         + Sync
         + Send
         + 'static,
-    C::Api: substrate_frame_rpc_system::AccountNonceApi<Block, AccountId, Index>,
+    C::Api: substrate_frame_rpc_system::AccountNonceApi<Block, AccountId, Nonce>,
     C::Api: pallet_gear_rpc::GearRuntimeApi<Block>,
     C::Api: pallet_gear_staking_rewards_rpc::GearStakingRewardsRuntimeApi<Block>,
     C::Api: pallet_transaction_payment_rpc::TransactionPaymentRuntimeApi<Block, Balance>,
@@ -117,8 +114,8 @@ where
     C::Api: BlockBuilder<Block>,
     P: TransactionPool + 'static,
     SC: SelectChain<Block> + 'static,
-    B: sc_client_api::Backend<Block> + Send + Sync + 'static,
-    B::State: sc_client_api::backend::StateBackend<sp_runtime::traits::HashFor<Block>>,
+    B: Backend<Block> + Send + Sync + 'static,
+    B::State: StateBackend<sp_runtime::traits::HashFor<Block>>,
 {
     use pallet_gear_rpc::{Gear, GearApiServer};
     use pallet_gear_staking_rewards_rpc::{GearStakingRewards, GearStakingRewardsApiServer};
@@ -146,8 +143,7 @@ where
 
     let BabeDeps {
         keystore,
-        babe_config,
-        shared_epoch_changes,
+        babe_worker_handle,
     } = babe;
     let GrandpaDeps {
         shared_voter_state,
@@ -176,9 +172,8 @@ where
     io.merge(
         Babe::new(
             client.clone(),
-            shared_epoch_changes.clone(),
+            babe_worker_handle.clone(),
             keystore,
-            babe_config,
             select_chain,
             deny_unsafe,
         )
@@ -200,7 +195,7 @@ where
             chain_spec,
             client.clone(),
             shared_authority_set,
-            shared_epoch_changes,
+            babe_worker_handle,
         )?
         .into_rpc(),
     )?;

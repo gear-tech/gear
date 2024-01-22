@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -70,7 +70,6 @@ where
         reserve_for,
         reservation,
         write_cost,
-        rent_cost,
         gas_multiplier,
         ..
     } = block_config.clone();
@@ -89,7 +88,6 @@ where
         reserve_for,
         reservation,
         random_data,
-        rent_cost,
         gas_multiplier,
     };
 
@@ -287,7 +285,6 @@ pub fn process_success(
         generated_dispatches,
         awakening,
         program_candidates,
-        program_rents,
         gas_amount,
         gas_reserver,
         system_reservation_context,
@@ -382,16 +379,6 @@ pub fn process_success(
             dispatch: auto_reply,
             delay: 0,
             reservation: None,
-        });
-    }
-
-    // Must be handled after processing programs creation.
-    let payer = program_id;
-    for (program_id, block_count) in program_rents {
-        journal.push(JournalNote::PayProgramRent {
-            payer,
-            program_id,
-            block_count,
         });
     }
 
@@ -505,7 +492,7 @@ pub fn process_non_executable(
     let source = dispatch.source();
     let value = dispatch.value();
 
-    if value != 0 {
+    if dispatch.context().is_none() && value != 0 {
         // Send value back
         journal.push(JournalNote::SendValue {
             from: dispatch.source(),

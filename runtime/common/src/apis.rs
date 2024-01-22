@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -39,6 +39,14 @@ macro_rules! impl_runtime_apis_plus_common {
 			impl sp_api::Metadata<Block> for Runtime {
 				fn metadata() -> OpaqueMetadata {
 					OpaqueMetadata::new(Runtime::metadata().into())
+				}
+
+				fn metadata_at_version(version: u32) -> Option<OpaqueMetadata> {
+					Runtime::metadata_at_version(version)
+				}
+
+				fn metadata_versions() -> sp_std::vec::Vec<u32> {
+					Runtime::metadata_versions()
 				}
 			}
 
@@ -121,8 +129,8 @@ macro_rules! impl_runtime_apis_plus_common {
 				}
 			}
 
-			impl frame_system_rpc_runtime_api::AccountNonceApi<Block, AccountId, Index> for Runtime {
-				fn account_nonce(account: AccountId) -> Index {
+			impl frame_system_rpc_runtime_api::AccountNonceApi<Block, AccountId, Nonce> for Runtime {
+				fn account_nonce(account: AccountId) -> Nonce {
 					System::account_nonce(account)
 				}
 			}
@@ -164,7 +172,7 @@ macro_rules! impl_runtime_apis_plus_common {
 
 				fn gear_run_extrinsic(max_gas: Option<u64>) -> <Block as BlockT>::Extrinsic {
 					UncheckedExtrinsic::new_unsigned(
-						Gear::run_call(max_gas).into()
+						pallet_gear::Call::run { max_gas }.into()
 					).into()
 				}
 
