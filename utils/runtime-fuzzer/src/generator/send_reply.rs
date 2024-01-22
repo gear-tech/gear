@@ -16,34 +16,37 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use super::GenerationEnvironment;
-use crate::runtime;
-use gear_call_gen::{GearCall, SendMessageArgs};
+use gear_call_gen::{GearCall, SendReplyArgs};
 use gear_wasm_gen::wasm_gen_arbitrary::{Result, Unstructured};
+
+use crate::GenerationEnvironment;
 
 pub(crate) fn generate(
     unstructured: &mut Unstructured,
     env: GenerationEnvironment,
-) -> Result<GearCall> {
-    let GenerationEnvironment {
-        mut existing_programs,
-        max_gas,
-        ..
-    } = env;
-    let existing_programs = {
-        if existing_programs.is_empty() {
-            // If no existing programs, then send message from program to Alice.
-            existing_programs.insert(runtime::alice_program_id());
-        }
-        existing_programs.into_iter().collect::<Vec<_>>()
-    };
-    let program_id = unstructured.choose(&existing_programs).copied()?;
-    let payload = super::arbitrary_payload(unstructured)?;
+) -> Result<Option<GearCall>> {
     log::trace!(
-        "Random data after payload (send_message) gen {}",
+        "Random data before payload (send_reply) gen {}",
         unstructured.len()
     );
-    log::trace!("Payload (send_message) length {:?}", payload.len());
 
-    Ok(SendMessageArgs((program_id, payload, max_gas, 0)).into())
+    let GenerationEnvironment {
+        max_gas, mailbox, ..
+    } = env;
+    let mailbox = mailbox.into_iter().collect::<Vec<_>>();
+    if mailbox.is_empty() {
+        return Ok(None);
+    }
+
+    let mailbox_mid = unstructured.choose(&mailbox).copied()?;
+    let payload = super::arbitrary_payload(unstructured)?;
+    log::trace!(
+        "Random data after payload (send_reply) gen {}",
+        unstructured.len()
+    );
+    log::trace!("Payload (send_reply) length {:?}", payload.len());
+
+    Ok(Some(
+        SendReplyArgs((mailbox_mid, payload, max_gas, 0)).into(),
+    ))
 }

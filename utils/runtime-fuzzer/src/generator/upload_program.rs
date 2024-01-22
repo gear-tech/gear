@@ -37,6 +37,7 @@ pub(crate) fn generate(
         corpus_id,
         existing_programs,
         max_gas,
+        ..
     } = env;
 
     let code = gear_wasm_gen::generate_gear_program_code(

@@ -19,7 +19,6 @@
 #![allow(clippy::items_after_test_module)]
 
 mod data;
-mod gear_calls;
 mod generator;
 mod runtime;
 #[cfg(test)]

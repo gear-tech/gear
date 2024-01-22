@@ -17,6 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use gear_common::Origin;
+use gear_core::ids::ProgramId;
 use pallet_gear::BlockGasLimitOf;
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use runtime_primitives::{AccountId, AccountPublic, Balance};
@@ -26,6 +27,10 @@ use sp_consensus_grandpa::AuthorityId as GrandpaId;
 use sp_core::{sr25519::Public, Pair, Public as TPublic};
 use sp_runtime::{app_crypto::UncheckedFrom, traits::IdentifyAccount};
 use vara_runtime::Runtime;
+
+pub fn alice_program_id() -> ProgramId {
+    ProgramId::from_origin(alice().into_origin())
+}
 
 pub fn alice() -> AccountId {
     sp_keyring::Sr25519Keyring::Alice.to_account_id()
