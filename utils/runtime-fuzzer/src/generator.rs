@@ -236,6 +236,93 @@ pub(crate) struct RuntimeStateView<'a> {
     mailbox: Option<&'a NonEmpty<MessageId>>,
 }
 
+// todo - is it a good design?
+pub(crate) struct RuntimeInterimState {
+    programs: HashSet<ProgramId>,
+    // todo issue - include time limits, so no outdated mailbox messages will be stored.
+    mailbox: HashSet<MessageId>,
+}
+
+impl RuntimeInterimState {
+    pub(crate) fn build() -> Self {
+        let mut programs = HashSet::new();
+        let mut mailbox = HashSet::new();
+        System::events().iter().for_each(|e| {
+            let RuntimeEvent::Gear(ref gear_event) = e.event else {
+                return;
+            };
+            match gear_event {
+                GearEvent::ProgramChanged {
+                    id,
+                    change: ProgramChangeKind::Active { .. },
+                } => {
+                    programs.insert(*id);
+                }
+                GearEvent::UserMessageSent {
+                    message,
+                    expiration: Some(_),
+                } => {
+                    if message.destination() == runtime::alice_program_id() {
+                        mailbox.insert(message.id());
+                    }
+                }
+                _ => {}
+            }
+        });
+        System::reset_events();
+
+        Self { programs, mailbox }
+    }
+
+    fn merge(&mut self, Self { programs, mailbox }: Self) {
+        self.programs.extend(programs);
+        self.mailbox.extend(mailbox);
+    }
+}
+
+pub(crate) struct GenerationEnvironment<'a> {
+    corpus_id: &'a str,
+    programs: Vec<&'a ProgramId>,
+    max_gas: u64,
+    mailbox: Vec<&'a MessageId>,
+}
+
+impl<'a> From<GenerationEnvironment<'a>> for UploadProgramRuntimeData<'a> {
+    fn from(env: GenerationEnvironment<'a>) -> Self {
+        (env.corpus_id, env.programs, env.max_gas)
+    }
+}
+
+impl<'a> TryFrom<GenerationEnvironment<'a>> for SendMessageRuntimeData<'a> {
+    type Error = ();
+
+    fn try_from(env: GenerationEnvironment<'a>) -> StdResult<Self, Self::Error> {
+        let programs = NonEmpty::from_slice(&env.programs).ok_or(())?;
+
+        Ok((programs, env.max_gas))
+    }
+}
+
+impl<'a> TryFrom<GenerationEnvironment<'a>> for SendReplyRuntimeData<'a> {
+    type Error = ();
+
+    fn try_from(env: GenerationEnvironment<'a>) -> StdResult<Self, Self::Error> {
+        let mailbox = NonEmpty::from_slice(&env.mailbox).ok_or(())?;
+
+        Ok((mailbox, env.max_gas))
+    }
+}
+
+impl<'a> TryFrom<GenerationEnvironment<'a>> for ClaimValueRuntimeData<'a> {
+    type Error = ();
+
+    fn try_from(env: GenerationEnvironment<'a>) -> StdResult<Self, Self::Error> {
+        NonEmpty::from_slice(&env.mailbox)
+            .map(|mailbox| (mailbox,))
+            .ok_or(())
+    }
+}
+
 fn arbitrary_payload(u: &mut Unstructured) -> Result<Vec<u8>> {
     arbitrary_limited_bytes(u, MAX_PAYLOAD_SIZE)
 }

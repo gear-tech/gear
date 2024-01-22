@@ -37,6 +37,8 @@ impl<'a> TryFrom<RuntimeStateView<'a>> for SendMessageRuntimeData<'a> {
     }
 }
 
+pub(crate) type SendMessageRuntimeData<'a> = (NonEmpty<&'a ProgramId>, u64);
+
 pub(crate) fn generate(
     unstructured: &mut Unstructured,
     (programs, gas): SendMessageRuntimeData,
