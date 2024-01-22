@@ -30,7 +30,7 @@ use gear_wasm_builder::{
     optimize,
     optimize::{OptType, Optimizer},
 };
-use std::{collections::BTreeSet, env, fmt::Write, fs, path::PathBuf, process::Command};
+use std::{collections::BTreeSet, env, fs, path::PathBuf, process::Command};
 
 const DEFAULT_EXCLUDED_FEATURES: [&str; 3] = ["default", "std", "wasm-wrapper"];
 
@@ -119,17 +119,20 @@ impl BuildPackage {
         (wasm_bloaty, wasm)
     }
 
+    pub fn name(&self) -> &UnderscoreString {
+        &self.name
+    }
+
     pub fn features(&self) -> &BTreeSet<String> {
         &self.features
     }
 
-    pub fn wasm_path(&self) -> &PathBuf {
-        &self.wasm
+    pub fn wasm_bloaty_path(&self) -> &PathBuf {
+        &self.wasm_bloaty
     }
 
-    fn to_unix_path(path: &PathBuf) -> String {
-        // Windows uses `\\` path delimiter which cannot be used in `include_*` Rust macros
-        path.display().to_string().replace('\\', "/")
+    pub fn wasm_path(&self) -> &PathBuf {
+        &self.wasm
     }
 
     fn cargo_args(&self) -> impl Iterator<Item = String> {
@@ -166,31 +169,6 @@ impl BuildPackage {
 
         let binary_opt = optimizer.optimize(OptType::Opt).unwrap();
         fs::write(&wasm, binary_opt).unwrap();
-    }
-
-    fn write_rust_mod(&self, output: &mut String) {
-        let pkg_name = &self.name;
-        let (wasm_bloaty, wasm) = if get_no_build_env() {
-            ("&[]".to_string(), "&[]".to_string())
-        } else {
-            let (wasm_bloaty, wasm) = (&self.wasm_bloaty, &self.wasm);
-            (
-                format!(r#"include_bytes!("{}")"#, Self::to_unix_path(wasm_bloaty)),
-                format!(r#"include_bytes!("{}")"#, Self::to_unix_path(wasm)),
-            )
-        };
-
-        let _ = write!(
-            output,
-            r#"
-pub mod {pkg_name} {{
-    pub use ::{pkg_name}::*;
-    
-    pub const WASM_BINARY_BLOATY: &[u8] = {wasm_bloaty};
-    pub const WASM_BINARY: &[u8] = {wasm};
-}}
-                    "#,
-        );
     }
 }
 
@@ -293,12 +271,5 @@ impl BuildPackages {
         }
 
         true
-    }
-
-    pub fn wasm_binaries(&self) -> String {
-        self.packages.iter().fold(String::new(), |mut output, pkg| {
-            pkg.write_rust_mod(&mut output);
-            output
-        })
     }
 }

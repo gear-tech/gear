@@ -26,12 +26,13 @@ use crate::{
     lock::{BinariesLockFile, BinariesLockFileConfig, ProgramLockFile, ProgramLockFileConfig},
     metadata::{BinariesMetadata, ProgramMetadata},
     utils::{
-        get_no_build_inner_env, manifest_dir, out_dir, profile, wasm32_target_dir, UnderscoreString,
+        get_no_build_env, get_no_build_inner_env, manifest_dir, out_dir, profile,
+        wasm32_target_dir, UnderscoreString,
     },
 };
 use anyhow::Context;
 use cargo_metadata::{camino::Utf8PathBuf, Metadata, MetadataCommand, Package};
-use std::{env, fs, path::PathBuf};
+use std::{env, fmt::Write, fs, path::PathBuf};
 
 const NO_BUILD_ENV: &str = "__GEAR_WASM_BUILDER_NO_BUILD";
 
@@ -44,10 +45,62 @@ const NO_BUILD_INNER_ENV: &str = "__GEAR_WASM_BUILDER_NO_BUILD_INNER";
 const NO_PATH_REMAP_ENV: &str = "__GEAR_WASM_BUILDER_NO_PATH_REMAP";
 
 struct PostPackage {
-    lock: BinariesLockFile,
-    config: BinariesLockFileConfig,
+    name: UnderscoreString,
     manifest_path: Utf8PathBuf,
-    wasm_path: PathBuf,
+    wasm_bloaty: PathBuf,
+    wasm: PathBuf,
+}
+
+impl PostPackage {
+    fn new(pkg: &Package, build_pkg: &BuildPackage) -> Self {
+        Self {
+            name: build_pkg.name().clone(),
+            manifest_path: pkg.manifest_path.clone(),
+            wasm_bloaty: build_pkg.wasm_bloaty_path().clone(),
+            wasm: build_pkg.wasm_path().clone(),
+        }
+    }
+
+    fn write_binpath(&self) {
+        let path = self
+            .manifest_path
+            .parent()
+            .expect("file path must have parent")
+            .join(".binpath");
+        let contents = self.wasm.with_extension("").display().to_string();
+        fs::write(&path, contents)
+            .with_context(|| format!("failed to write `.binpath` at {path}"))
+            .unwrap();
+    }
+
+    fn write_wasm_binary(&self, wasm_binaries: &mut String) {
+        let pkg_name = &self.name;
+        let (wasm_bloaty, wasm) = if get_no_build_env() {
+            ("&[]".to_string(), "&[]".to_string())
+        } else {
+            (
+                format!(r#"include_bytes!("{}")"#, to_unix_path(&self.wasm_bloaty)),
+                format!(r#"include_bytes!("{}")"#, to_unix_path(&self.wasm)),
+            )
+        };
+
+        let _ = write!(
+            wasm_binaries,
+            r#"
+pub mod {pkg_name} {{
+    pub use ::{pkg_name}::*;
+    
+    pub const WASM_BINARY_BLOATY: &[u8] = {wasm_bloaty};
+    pub const WASM_BINARY: &[u8] = {wasm};
+}}
+                    "#,
+        );
+    }
+}
+
+fn to_unix_path(path: &PathBuf) -> String {
+    // Windows uses `\\` path delimiter which cannot be used in `include_*` Rust macros
+    path.display().to_string().replace('\\', "/")
 }
 
 fn find_pkg<'a>(metadata: &'a Metadata, pkg_name: &str) -> &'a Package {
@@ -86,7 +139,7 @@ pub fn build_binaries() {
 
     let mut build_packages =
         BuildPackages::new(metadata.workspace_root.clone().into_std_path_buf());
-    let mut post_packages = Vec::new();
+    let mut post_actions = Vec::new();
 
     for dep in pkg
         .dependencies
@@ -118,16 +171,12 @@ pub fn build_binaries() {
         let lock_config = lock.read();
         let build_pkg = BuildPackage::new(pkg, lock_config, program_metadata.exclude_features);
 
-        let features = build_pkg.features();
-        let wasm_path = build_pkg.wasm_path();
-        post_packages.push(PostPackage {
+        let features = build_pkg.features().clone();
+        post_actions.push((
             lock,
-            config: BinariesLockFileConfig {
-                features: features.clone(),
-            },
-            manifest_path: pkg.manifest_path.clone(),
-            wasm_path: wasm_path.clone(),
-        });
+            BinariesLockFileConfig { features },
+            PostPackage::new(pkg, &build_pkg),
+        ));
 
         build_packages.insert(build_pkg);
     }
@@ -135,32 +184,20 @@ pub fn build_binaries() {
     println!("cargo:warning={:?}", build_packages);
     let packages_built = build_packages.build();
 
-    // we don't need to write config in lock file
-    // because we didn't build anything so next time when
-    // `__GEAR_WASM_BUILDER_NO_BUILD` is changed builder will mark
-    // crate as dirty and do an actual build
-    if packages_built {
-        for PostPackage {
-            mut lock,
-            config,
-            manifest_path,
-            wasm_path,
-        } in post_packages
-        {
+    let mut wasm_binaries = String::new();
+    for (mut lock, config, package) in post_actions {
+        // we don't need to write config in lock file
+        // because we didn't build anything so next time when
+        // `__GEAR_WASM_BUILDER_NO_BUILD` is changed builder will mark
+        // crate as dirty and do an actual build
+        if packages_built {
             lock.write(config);
-
-            let path = manifest_path
-                .parent()
-                .expect("file path must have parent")
-                .join(".binpath");
-            let contents = wasm_path.with_extension("").display().to_string();
-            fs::write(&path, contents)
-                .with_context(|| format!("failed to write `.binpath` at {path}"))
-                .unwrap();
         }
+
+        package.write_binpath();
+        package.write_wasm_binary(&mut wasm_binaries);
     }
 
-    let wasm_binaries = build_packages.wasm_binaries();
     fs::write(out_dir.join("wasm_binaries.rs"), wasm_binaries).unwrap();
 }
 
