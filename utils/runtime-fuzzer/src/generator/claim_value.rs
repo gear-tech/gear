@@ -16,12 +16,24 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use super::GenerationEnvironment;
 use gear_call_gen::{ClaimValueArgs, GearCall};
 use gear_core::ids::MessageId;
 use gear_utils::NonEmpty;
 use gear_wasm_gen::wasm_gen_arbitrary::{Result, Unstructured};
+use std::result::Result as StdResult;
 
 pub(crate) type ClaimValueRuntimeData<'a> = (NonEmpty<&'a MessageId>,);
+
+impl<'a> TryFrom<GenerationEnvironment<'a>> for ClaimValueRuntimeData<'a> {
+    type Error = ();
+
+    fn try_from(env: GenerationEnvironment<'a>) -> StdResult<Self, Self::Error> {
+        NonEmpty::from_slice(&env.mailbox)
+            .map(|mailbox| (mailbox,))
+            .ok_or(())
+    }
+}
 
 pub(crate) fn generate(
     unstructured: &mut Unstructured,

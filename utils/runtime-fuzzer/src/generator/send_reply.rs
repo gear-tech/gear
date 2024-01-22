@@ -16,12 +16,24 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use super::GenerationEnvironment;
 use gear_call_gen::{GearCall, SendReplyArgs};
 use gear_core::ids::MessageId;
 use gear_utils::NonEmpty;
 use gear_wasm_gen::wasm_gen_arbitrary::{Result, Unstructured};
+use std::result::Result as StdResult;
 
 pub(crate) type SendReplyRuntimeData<'a> = (NonEmpty<&'a MessageId>, u64);
+
+impl<'a> TryFrom<GenerationEnvironment<'a>> for SendReplyRuntimeData<'a> {
+    type Error = ();
+
+    fn try_from(env: GenerationEnvironment<'a>) -> StdResult<Self, Self::Error> {
+        let mailbox = NonEmpty::from_slice(&env.mailbox).ok_or(())?;
+
+        Ok((mailbox, env.max_gas))
+    }
+}
 
 pub(crate) fn generate(
     unstructured: &mut Unstructured,

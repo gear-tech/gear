@@ -21,19 +21,14 @@ mod send_message;
 mod send_reply;
 mod upload_program;
 
-use claim_value::ClaimValueRuntimeData;
 use gear_call_gen::GearCall;
 use gear_common::event::ProgramChangeKind;
 use gear_core::ids::{MessageId, ProgramId};
-use gear_utils::NonEmpty;
 use gear_wasm_gen::wasm_gen_arbitrary::{Result, Unstructured};
 use pallet_balances::Pallet as BalancesPallet;
 use pallet_gear::Event as GearEvent;
 use runtime_primitives::AccountId;
-use send_message::SendMessageRuntimeData;
-use send_reply::SendReplyRuntimeData;
-use std::{collections::HashSet, mem, result::Result as StdResult};
-use upload_program::UploadProgramRuntimeData;
+use std::{collections::HashSet, mem};
 use vara_runtime::{Runtime, RuntimeEvent, System};
 
 use crate::{data::*, runtime};
@@ -280,42 +275,6 @@ pub(crate) struct GenerationEnvironment<'a> {
     programs: Vec<&'a ProgramId>,
     max_gas: u64,
     mailbox: Vec<&'a MessageId>,
-}
-
-impl<'a> From<GenerationEnvironment<'a>> for UploadProgramRuntimeData<'a> {
-    fn from(env: GenerationEnvironment<'a>) -> Self {
-        (env.corpus_id, env.programs, env.max_gas)
-    }
-}
-
-impl<'a> TryFrom<GenerationEnvironment<'a>> for SendMessageRuntimeData<'a> {
-    type Error = ();
-
-    fn try_from(env: GenerationEnvironment<'a>) -> StdResult<Self, Self::Error> {
-        let programs = NonEmpty::from_slice(&env.programs).ok_or(())?;
-
-        Ok((programs, env.max_gas))
-    }
-}
-
-impl<'a> TryFrom<GenerationEnvironment<'a>> for SendReplyRuntimeData<'a> {
-    type Error = ();
-
-    fn try_from(env: GenerationEnvironment<'a>) -> StdResult<Self, Self::Error> {
-        let mailbox = NonEmpty::from_slice(&env.mailbox).ok_or(())?;
-
-        Ok((mailbox, env.max_gas))
-    }
-}
-
-impl<'a> TryFrom<GenerationEnvironment<'a>> for ClaimValueRuntimeData<'a> {
-    type Error = ();
-
-    fn try_from(env: GenerationEnvironment<'a>) -> StdResult<Self, Self::Error> {
-        NonEmpty::from_slice(&env.mailbox)
-            .map(|mailbox| (mailbox,))
-            .ok_or(())
-    }
 }
 
 fn arbitrary_payload(u: &mut Unstructured) -> Result<Vec<u8>> {
