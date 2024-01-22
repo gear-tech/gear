@@ -1,6 +1,6 @@
 use anyhow::Result;
+use gring::Keystore;
 use schnorrkel::Keypair;
-use sub_keyring::Keystore;
 
 const POLKADOT_JS_PAIR: &[u8] = include_bytes!("../res/pair.json");
 

@@ -18,7 +18,10 @@
 
 //! Keyring implementation based on the polkadot-js keystore.
 
+use crate::{ss58, Keystore};
+use anyhow::Result;
 use once_cell::sync::Lazy;
+use schnorrkel::Keypair;
 use std::{fs, path::PathBuf};
 
 /// The path of the keyring store.
@@ -39,3 +42,60 @@ pub static STORE: Lazy<PathBuf> = Lazy::new(|| {
 
     store
 });
+
+/// Gear keyring.
+pub struct Keyring {
+    /// A set of keystore instances.
+    ring: Vec<Keystore>,
+}
+
+impl Keyring {
+    /// Loads the keyring from the store.
+    ///
+    /// NOTE: For the store path, see [`STORE`].
+    pub fn load() -> Result<Self> {
+        let ring = fs::read_dir(&*STORE)?
+            .filter_map(|entry| {
+                let path = entry.ok()?.path();
+                let content = fs::read(&path).ok()?;
+
+                serde_json::from_slice(&content)
+                    .map_err(|err| {
+                        tracing::warn!("Failed to load keystore at {path:?}: {err}");
+                        err
+                    })
+                    .ok()
+            })
+            .collect::<Vec<_>>();
+
+        Ok(Self { ring })
+    }
+
+    /// create a new key in keyring.
+    pub fn create(name: &str, vanity: Option<&str>, passphrase: Option<&[u8]>) -> Result<()> {
+        let keypair = if let Some(vanity) = vanity {
+            tracing::info!("Generating vanity key with prefix {vanity}...");
+            let mut keypair = Keypair::generate();
+
+            while !ss58::encode(&keypair.public.to_bytes()).starts_with(vanity) {
+                keypair = Keypair::generate();
+            }
+
+            keypair
+        } else {
+            Keypair::generate()
+        };
+
+        let mut keystore = Keystore::encrypt(keypair, passphrase)?;
+        keystore.meta.name = name.into();
+
+        let path = STORE.join(&keystore.meta.name);
+        fs::write(&path, serde_json::to_vec(&keystore)?)?;
+        Ok(())
+    }
+
+    /// List all keystores.
+    pub fn list(&self) -> &[Keystore] {
+        self.ring.as_ref()
+    }
+}

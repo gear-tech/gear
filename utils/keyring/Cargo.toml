@@ -1,5 +1,5 @@
 [package]
-name = "sub-keyring"
+name = "gring"
 description = "Substrate keystore implementation"
 keywords = [ "substrate", "gear", "keystore" ]
 version.workspace = true

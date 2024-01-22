@@ -23,7 +23,7 @@ mod scrypt;
 pub mod ss58;
 
 pub use self::{
-    keyring::STORE,
+    keyring::{Keyring, STORE},
     keystore::{Encoding, Keystore},
     pair::KeypairInfo,
     scrypt::Scrypt,
