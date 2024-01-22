@@ -34,6 +34,10 @@ use sp_runtime::{app_crypto::UncheckedFrom, traits::IdentifyAccount};
 use std::mem;
 use vara_runtime::Runtime;
 
+pub fn alice_program_id() -> ProgramId {
+    ProgramId::from_origin(alice().into_origin())
+}
+
 pub fn alice() -> AccountId {
     sp_keyring::Sr25519Keyring::Alice.to_account_id()
 }
