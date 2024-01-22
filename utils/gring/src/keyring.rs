@@ -18,8 +18,12 @@
 
 //! Keyring implementation based on the polkadot-js keystore.
 
-use crate::{ss58, Keystore};
+use crate::{
+    ss58::{self, VARA_SS58_PREFIX},
+    Keystore,
+};
 use anyhow::Result;
+use colored::Colorize;
 use schnorrkel::Keypair;
 use serde::{Deserialize, Serialize};
 use std::{fs, path::PathBuf};
@@ -37,6 +41,9 @@ pub struct Keyring {
     ring: Vec<Keystore>,
     /// The primary key.
     pub primary: String,
+    /// The SS58 prefix.
+    #[serde(default = "ss58::default_ss58_version")]
+    pub ss58_version: u16,
 }
 
 impl Keyring {
@@ -67,6 +74,11 @@ impl Keyring {
         } else {
             Self::default()
         };
+
+        if this.ss58_version != VARA_SS58_PREFIX {
+            ss58::set_default_ss58_version(this.ss58_version);
+        }
+
         this.ring = ring;
         this.store = store;
 
@@ -77,7 +89,11 @@ impl Keyring {
     pub fn primary(&mut self) -> Result<Keystore> {
         if self.ring.len() == 0 {
             return Err(anyhow::anyhow!(
-                "No keys in keyring, run `gring generate <NAME> -p <PASSPHRASE>` to create a new one."
+                "No keys in keyring, run {} to create a new one.",
+                "`gring generate <NAME> -p <PASSPHRASE>`"
+                    .underline()
+                    .cyan()
+                    .bold()
             ));
         }
 
@@ -104,13 +120,22 @@ impl Keyring {
             .cloned()
             .ok_or_else(|| {
                 anyhow::anyhow!(
-                    "Key with name {name} not found, run `gring list` to see all keys in keyring."
+                    "Key with name {} not found, run {} to see all keys in keyring.",
+                    name.underline().bold(),
+                    "`gring list`".underline().cyan().bold()
                 )
             })?;
 
         self.primary = name;
         fs::write(self.store.join(CONFIG), serde_json::to_vec_pretty(&self)?)?;
         Ok(key)
+    }
+
+    /// Set the SS58 version.
+    pub fn set_ss58_version(&mut self, version: u16) -> Result<()> {
+        self.ss58_version = version;
+        fs::write(self.store.join(CONFIG), serde_json::to_vec_pretty(&self)?)?;
+        Ok(())
     }
 
     /// create a new key in keyring.

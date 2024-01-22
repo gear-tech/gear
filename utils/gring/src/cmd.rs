@@ -47,10 +47,10 @@ pub enum Command {
         #[arg(short, long)]
         primary: bool,
     },
-    /// Use a key as primary key.
+    /// Use the provided key as primary key.
     Use {
-        /// The name of the key.
-        name: String,
+        /// Set the key as the primary key.
+        key: String,
     },
     /// Sign a message.
     Sign {
@@ -93,7 +93,7 @@ impl Command {
             .join(app);
 
         fs::create_dir_all(&store).map_err(|e| {
-            tracing::error!("Failed to create keyring store at {store:?}, {e}");
+            tracing::error!("Failed to create keyring store at {store:?}");
             e
         })?;
 
@@ -170,8 +170,8 @@ impl Command {
                     println!("| {name:<16} | {address} |");
                 }
             }
-            Command::Use { name } => {
-                let key = keyring.set_primary(name)?;
+            Command::Use { key } => {
+                let key = keyring.set_primary(key)?;
                 println!("The primary key has been updated to:");
                 Self::print_key(&key);
             }
