@@ -17,13 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Command `send`
-use crate::{result::Result, utils::Hex};
+use crate::{result::Result, utils::Hex, App};
 use clap::Parser;
-use gsdk::{
-    metadata::{gear, runtime_types::gear_common::event::MessageEntry},
-    signer::Signer,
-    Event,
-};
 
 /// Sends a message to a program or to another account.
 ///
@@ -58,30 +53,33 @@ pub struct Send {
 }
 
 impl Send {
-    pub async fn exec(&self, signer: Signer) -> Result<()> {
-        let tx = signer
-            .calls
-            .send_message(
+    pub async fn exec(&self, app: &impl App) -> Result<()> {
+        let signer = app.signer().await?;
+        let gas_limit = if self.gas_limit == 0 {
+            signer
+                .calculate_handle_gas(
+                    None,
+                    self.destination.to_hash()?.into(),
+                    self.payload.to_vec()?,
+                    self.value,
+                    false,
+                )
+                .await?
+                .min_limit
+        } else {
+            self.gas_limit
+        };
+
+        let (message_id, _) = signer
+            .send_message_bytes(
                 self.destination.to_hash()?.into(),
-                self.payload.to_vec()?,
-                self.gas_limit,
+                self.payload.clone(),
+                gas_limit,
                 self.value,
             )
             .await?;
 
-        let api = signer.api();
-        for event in api.events_of(&tx).await? {
-            if let Event::Gear(gear::Event::MessageQueued {
-                id,
-                entry: MessageEntry::Handle,
-                ..
-            }) = event
-            {
-                log::info!("Message ID: 0x{}", hex::encode(id.0));
-                break;
-            }
-        }
-
+        log::info!("Message ID: 0x{}", hex::encode(message_id.into_bytes()));
         Ok(())
     }
 }

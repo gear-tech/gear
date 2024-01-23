@@ -22,6 +22,7 @@ use crate::keystore;
 use clap::Parser;
 use color_eyre::{eyre::eyre, Result};
 use env_logger::{Builder, Env};
+use gclient::GearApi;
 use gsdk::{signer::Signer, Api};
 
 /// Command line gear program application abstraction.
@@ -90,7 +91,7 @@ pub trait App: Parser + Sync {
     async fn exec(&self) -> anyhow::Result<()>;
 
     /// Get signer.
-    async fn signer(&self) -> anyhow::Result<Signer> {
+    async fn signer(&self) -> anyhow::Result<GearApi> {
         let endpoint = self.endpoint().clone();
         let timeout = self.timeout();
         let passwd = self.passwd();
@@ -102,7 +103,8 @@ pub trait App: Parser + Sync {
             keystore::keyring(passwd.as_deref())?
         };
 
-        Ok((api, pair).into())
+        let signer: Signer = (api, pair).into();
+        Ok(signer.into())
     }
 
     /// Run application.

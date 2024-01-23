@@ -19,7 +19,7 @@
 //! Command `program`.
 use crate::{meta::Meta, result::Result, App};
 use clap::Parser;
-use gsdk::{ext::sp_core::H256, Api};
+use gsdk::{ext::sp_core::H256, signer::Signer, Api};
 use std::{fs, path::PathBuf};
 
 /// Read program state, etc.
@@ -83,7 +83,8 @@ impl Program {
                 args,
                 at,
             } => {
-                let api = app.signer().await?.api().clone();
+                let signer: Signer = app.signer().await?.into();
+                let api = signer.api().clone();
                 if let (Some(wasm), Some(method)) = (wasm, method) {
                     // read state from wasm.
                     Self::wasm_state(api, *pid, wasm.to_vec(), method, args.clone(), *at).await?;

@@ -17,17 +17,16 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! command `info`
-use crate::result::{Error, Result};
+use crate::{result::Result, App};
 use clap::Parser;
+use gclient::GearApi;
+use gear_core::message::UserStoredMessage;
 use gsdk::{
     ext::{
         sp_core::{crypto::Ss58Codec, sr25519::Pair, Pair as PairT},
         sp_runtime::AccountId32,
     },
-    metadata::runtime_types::{
-        gear_common::storage::primitives::Interval, gear_core::message::user::UserStoredMessage,
-    },
-    signer::Signer,
+    metadata::runtime_types::gear_common::storage::primitives::Interval,
 };
 use std::fmt;
 
@@ -56,8 +55,12 @@ pub struct Info {
 
 impl Info {
     /// execute command transfer
-    pub async fn exec(&self, signer: Signer) -> Result<()> {
-        let mut address = self.address.clone().unwrap_or_else(|| signer.address());
+    pub async fn exec(&self, app: &impl App) -> Result<()> {
+        let signer = app.signer().await?;
+        let mut address = self
+            .address
+            .clone()
+            .unwrap_or_else(|| signer.account_id().to_ss58check());
         if address.starts_with("//") {
             address = Pair::from_string(&address, None)
                 .expect("Parse development address failed")
@@ -65,31 +68,23 @@ impl Info {
                 .to_ss58check()
         }
 
+        let acc = AccountId32::from_ss58check(&address)?;
         match self.action {
-            Action::Balance => Self::balance(signer, &address).await,
-            Action::Mailbox { count } => Self::mailbox(signer, &address, count).await,
+            Action::Balance => Self::balance(signer, acc).await,
+            Action::Mailbox { count } => Self::mailbox(signer, acc, count).await,
         }
     }
 
     /// Get balance of address
-    pub async fn balance(signer: Signer, address: &str) -> Result<()> {
-        let info = signer.api().info(address).await?;
-
-        println!("{info:#?}");
-
+    pub async fn balance(signer: GearApi, acc: AccountId32) -> Result<()> {
+        let info = signer.free_balance(acc).await?;
+        println!("Free balance: {info:#?}");
         Ok(())
     }
 
     /// Get mailbox of address
-    pub async fn mailbox(signer: Signer, address: &str, count: u32) -> Result<()> {
-        let mails = signer
-            .api()
-            .mailbox(
-                Some(AccountId32::from_ss58check(address).map_err(|_| Error::InvalidPublic)?),
-                count,
-            )
-            .await?;
-
+    pub async fn mailbox(signer: GearApi, acc: AccountId32, count: u32) -> Result<()> {
+        let mails = signer.get_mailbox_account_messages(acc, count).await?;
         for t in mails.into_iter() {
             println!("{:#?}", Mail::from(t));
         }
@@ -115,20 +110,23 @@ impl From<(UserStoredMessage, Interval<u32>)> for Mail {
 impl fmt::Debug for Mail {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("Mail")
-            .field("id", &["0x", &hex::encode(self.message.id.0)].concat())
+            .field(
+                "id",
+                &["0x", &hex::encode(self.message.id().into_bytes())].concat(),
+            )
             .field(
                 "source",
-                &["0x", &hex::encode(self.message.source.0)].concat(),
+                &["0x", &hex::encode(self.message.source().into_bytes())].concat(),
             )
             .field(
                 "destination",
-                &["0x", &hex::encode(self.message.destination.0)].concat(),
+                &["0x", &hex::encode(self.message.destination().into_bytes())].concat(),
             )
             .field(
                 "payload",
-                &["0x", &hex::encode(&self.message.payload.0)].concat(),
+                &["0x", &hex::encode(&self.message.payload_bytes())].concat(),
             )
-            .field("value", &self.message.value)
+            .field("value", &self.message.value())
             .field("interval", &self.interval)
             .finish()
     }

@@ -3685,6 +3685,7 @@ dependencies = [
  "env_logger",
  "etc",
  "futures",
+ "gclient",
  "gear-core",
  "gear-core-errors",
  "gear-runtime-primitives",
