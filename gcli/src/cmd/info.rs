@@ -124,7 +124,7 @@ impl fmt::Debug for Mail {
             )
             .field(
                 "payload",
-                &["0x", &hex::encode(&self.message.payload_bytes())].concat(),
+                &["0x", &hex::encode(self.message.payload_bytes())].concat(),
             )
             .field("value", &self.message.value())
             .field("interval", &self.interval)
