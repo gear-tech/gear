@@ -59,11 +59,11 @@ use frame_support::{
     weights::Weight,
     PalletId,
 };
-use pallet_staking::EraPayout;
+use pallet_staking::{ActiveEraInfo, EraPayout};
 use parity_scale_codec::{Decode, Encode};
 pub use scale_info::TypeInfo;
 use sp_runtime::{
-    traits::{AccountIdConversion, Saturating, StaticLookup},
+    traits::{AccountIdConversion, Saturating, StaticLookup, UniqueSaturatedInto},
     PerThing, Perquintill,
 };
 use sp_std::{collections::btree_set::BTreeSet, vec::Vec};
@@ -410,12 +410,43 @@ pub mod pallet {
     }
 }
 
+fn pay_rent_rewards_out<T: Config>(maybe_active_era_info: Option<ActiveEraInfo>) {
+    let Some(active_era_info) = maybe_active_era_info else {
+        return;
+    };
+
+    let reward_points = pallet_staking::Pallet::<T>::eras_reward_points(active_era_info.index);
+    let total = u128::from(reward_points.total);
+    if total == 0 {
+        return;
+    }
+
+    let funds: u128 = pallet::Pallet::<T>::rent_pool_free_balance().unique_saturated_into();
+    for (account_id, points) in reward_points.individual {
+        let payout = funds * u128::from(points) / total;
+        if payout > 0 {
+            let result = CurrencyOf::<T>::transfer(
+                &pallet::Pallet::<T>::rent_pool_account_id(),
+                &account_id,
+                payout.unique_saturated_into(),
+                ExistenceRequirement::KeepAlive
+            );
+
+            if result.is_err() {
+                log::debug!("Failed to transfer rent reward, account_id = {account_id:#?}, points = {points}, payout = {payout}");
+            }
+        }
+    }
+}
+
 impl<T: Config> EraPayout<BalanceOf<T>> for Pallet<T> {
     fn era_payout(
         total_staked: BalanceOf<T>,
         total_issuance: BalanceOf<T>,
         era_duration_millis: u64,
     ) -> (BalanceOf<T>, BalanceOf<T>) {
+        pay_rent_rewards_out::<T>(pallet_staking::Pallet::<T>::active_era());
+
         let period_fraction =
             Perquintill::from_rational(era_duration_millis, T::MillisecondsPerYear::get());
         inflation::compute_total_payout(
