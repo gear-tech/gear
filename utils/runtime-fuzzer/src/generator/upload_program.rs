@@ -41,8 +41,8 @@ impl<'a> From<RuntimeStateView<'a>> for UploadProgramRuntimeData<'a> {
     }
 }
 
-impl<'a> From<GenerationEnvironment<'a>> for UploadProgramRuntimeData<'a> {
-    fn from(env: GenerationEnvironment<'a>) -> Self {
+impl<'a> From<RuntimeStateView<'a>> for UploadProgramRuntimeData<'a> {
+    fn from(env: RuntimeStateView<'a>) -> Self {
         (env.corpus_id, env.programs, env.max_gas)
     }
 }
