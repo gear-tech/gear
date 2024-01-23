@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -480,12 +480,6 @@ pub mod pallet {
     where
         T::AccountId: Origin,
     {
-        fn on_runtime_upgrade() -> Weight {
-            log::debug!(target: "gear::runtime", "⚙️ Runtime upgrade");
-
-            Zero::zero()
-        }
-
         /// Initialization
         fn on_initialize(bn: BlockNumberFor<T>) -> Weight {
             // Incrementing Gear block number
@@ -1262,18 +1256,7 @@ pub mod pallet {
         pub fn upload_code(origin: OriginFor<T>, code: Vec<u8>) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
 
-            let code_id =
-                Self::set_code_with_metadata(Self::try_new_code(code)?, who.into_origin())?;
-
-            // TODO: replace this temporary (`None`) value
-            // for expiration block number with properly
-            // calculated one (issues #646 and #969).
-            Self::deposit_event(Event::CodeChanged {
-                id: code_id,
-                change: CodeChangeKind::Active { expiration: None },
-            });
-
-            Ok(().into())
+            Self::upload_code_impl(who, code)
         }
 
         /// Creates program initialization request (message), that is scheduled to be run in the same block.
@@ -1770,6 +1753,25 @@ pub mod pallet {
 
             Ok(().into())
         }
+
+        /// Underlying implementation of `GearPallet::upload_code`.
+        pub fn upload_code_impl(
+            origin: AccountIdOf<T>,
+            code: Vec<u8>,
+        ) -> DispatchResultWithPostInfo {
+            let code_id =
+                Self::set_code_with_metadata(Self::try_new_code(code)?, origin.into_origin())?;
+
+            // TODO: replace this temporary (`None`) value
+            // for expiration block number with properly
+            // calculated one (issues #646 and #969).
+            Self::deposit_event(Event::CodeChanged {
+                id: code_id,
+                change: CodeChangeKind::Active { expiration: None },
+            });
+
+            Ok(().into())
+        }
     }
 
     impl<T: Config> PrepaidCallsDispatcher for Pallet<T>
@@ -1786,6 +1788,9 @@ pub mod pallet {
                 }
                 PrepaidCall::SendReply { payload, .. } => {
                     <T as Config>::WeightInfo::send_reply(payload.len() as u32)
+                }
+                PrepaidCall::UploadCode { code } => {
+                    <T as Config>::WeightInfo::upload_code(code.len() as u32 / 1024)
                 }
             }
         }
@@ -1826,6 +1831,7 @@ pub mod pallet {
                     keep_alive,
                     Some(sponsor_id),
                 ),
+                PrepaidCall::UploadCode { code } => Self::upload_code_impl(account_id, code),
             }
         }
     }

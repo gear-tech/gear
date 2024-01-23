@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022-2023 Gear Technologies Inc.
+// Copyright (C) 2022-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -274,37 +274,6 @@ where
     }
 }
 
-/// Represents type defining concatenated block number and value with error code. 24 bytes.
-#[repr(C, packed)]
-#[derive(Default, Debug)]
-pub struct ErrorWithBlockNumberAndValue {
-    pub error_code: ErrorCode,
-    pub bn: BlockNumber,
-    pub value: Value,
-}
-
-impl ErrorWithBlockNumberAndValue {
-    pub fn as_mut_ptr(&mut self) -> *mut Self {
-        self as _
-    }
-}
-
-impl From<Result<(Value, BlockNumber), ErrorCode>> for ErrorWithBlockNumberAndValue {
-    fn from(result: Result<(Value, BlockNumber), ErrorCode>) -> Self {
-        let mut res: Self = Default::default();
-
-        match result {
-            Ok((v, bn)) => {
-                res.value = v;
-                res.bn = bn;
-            }
-            Err(code) => res.error_code = code,
-        }
-
-        res
-    }
-}
-
 /// Represents type defining concatenated two hashes. 64 bytes.
 #[repr(C, packed)]
 #[derive(Default, Debug)]
@@ -533,17 +502,6 @@ extern "C" {
     /// Arguments type:
     /// - `message_id`: `const ptr` for message id.
     pub fn gr_message_id(message_id: *mut Hash);
-
-    /// Fallible `gr_pay_program_rent` control syscall.
-    ///
-    /// Arguments type:
-    /// - `rent_pid`: `const ptr` for program id and rent value.
-    /// - `err_bn_value`: `mut ptr` for concatenated error code, paid block count and unused rent value.
-    #[deprecated]
-    pub fn gr_pay_program_rent(
-        rent_pid: *const HashWithValue,
-        err_bn_value: *mut ErrorWithBlockNumberAndValue,
-    );
 
     /// Infallible `gr_program_id` get syscall.
     ///

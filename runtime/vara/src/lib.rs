@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -157,7 +157,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     // The version of the runtime specification. A full node will not attempt to use its native
     //   runtime in substitute for the on-chain Wasm runtime unless all of `spec_name`,
     //   `spec_version`, and `authoring_version` are the same between Wasm and native.
-    spec_version: 1050,
+    spec_version: 1100,
     impl_version: 1,
     apis: RUNTIME_API_VERSIONS,
     transaction_version: 1,

@@ -3,6 +3,8 @@ name = "gstd"
 description = "Gear programs standard library"
 keywords = ["gear", "std", "no-std", "wasm", "smart-contracts"]
 categories = ["api-bindings"]
+# Stable version of Rust >=1.73 is required due to new format of panic message.
+rust-version = "1.73"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
@@ -11,7 +13,9 @@ homepage.workspace = true
 repository.workspace = true
 
 [dependencies]
-document-features = { version = "0.2.7", optional = true }
+arrayvec = { version = "0.7.4", default-features = false, optional = true }
+const_format = { version = "0.2.32", optional = true }
+document-features = { version = "0.2.8", optional = true }
 galloc.workspace = true
 gcore = { workspace = true, features = ["codec"] }
 gstd-codegen.workspace = true
@@ -27,18 +31,45 @@ futures = { workspace = true, features = ["alloc"] }
 [features]
 #! ## Default features
 
-default = ["panic-handler"]
-## When enabled, a panic handler is provided by this crate.
-panic-handler = []
+default = ["panic-message"]
+
+#! ## Panic handler profiles
+#! We currently use the following format for panic messages from Rust code:
+#! `panicked with '{message}'[ at '{location}']`. Also `Panic occurred: `
+#! will be added to the beginning of the panic message by our core-backend.
+#!
+#! So the final panic message looks like this:
+#! `Panic occurred: panicked with '{message}'[ at '{location}']`.
+#!
+#! You can configure which panic handler profile you need
+#! by specifying one of the following functions:
+
+## When enabled, a minimal panic handler is provided by this crate.
+## Instead of a panic message, `<unknown>` is displayed.
+panic-handler = ["const_format"]
+## When enabled, a panic handler will also display a panic message.
+panic-message = ["panic-handler", "arrayvec"]
+## When enabled, a panic handler will also display a panic message and location.
+## This function is not recommended for use in production environment
+## because it displays the code path.
+panic-location = ["panic-message"]
 
 #! ## Nightly features
+#!
+#! The `panic-message` and `panic-location` features gets additional
+#! optimizations when using the nightly compiler.
+#!
+#! For example, if you don't use the `panic-location` feature, the compiler
+#! will remove all locations such as `/home/username/dapp/src/lib.rs:1:2`
+#! from the binary. The size of smart contract will be reduced and
+#! `/home/username/...` information will not be included in the binary.
 
 ## Enables all features below.
 ## These features depend on unstable Rust API and require nightly toolchain.
-nightly = ["panic-messages", "oom-handler"]
-## When enabled, additional context information is available from
-## panic messages in debug mode. Relies on [`panic_info_message`][rust-66745].
-panic-messages = []
+nightly = ["panic-info-message", "oom-handler"]
+## When enabled, a panic handler will use a more efficient implementation.
+## Relies on [`panic_info_message`][rust-66745].
+panic-info-message = []
 ## When enabled, an OOM error handler is provided.
 ## Relies on [`alloc_error_handler`][rust-51540],
 oom-handler = []

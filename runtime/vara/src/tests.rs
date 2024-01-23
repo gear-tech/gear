@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -70,7 +70,7 @@ fn instruction_weights_heuristics_test() {
         i64extend32s: 800,
         i64extendsi32: 800,
         i64extendui32: 400,
-        i32wrapi64: 200,
+        i32wrapi64: 300,
         i64eq: 4_200,
         i32eq: 2_200,
         i64ne: 4_200,
@@ -140,12 +140,12 @@ fn page_costs_heuristic_test() {
         lazy_pages_signal_write: 33_000_000.into(),
         lazy_pages_signal_write_after_read: 10_000_000.into(),
         lazy_pages_host_func_read: 29_000_000.into(),
-        lazy_pages_host_func_write: 33_000_000.into(),
+        lazy_pages_host_func_write: 37_500_000.into(),
         lazy_pages_host_func_write_after_read: 9_000_000.into(),
         load_page_data: 10_800_000.into(),
         upload_page_data: 104_000_000.into(),
         static_page: 100.into(),
-        mem_grow: 906_170.into(),
+        mem_grow: 1_300_000.into(),
         parachain_load_heuristic: 0.into(),
     };
 

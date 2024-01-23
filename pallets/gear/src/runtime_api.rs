@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -21,12 +21,15 @@ use crate::queue::{ActorResult, QueueStep};
 use common::ActiveProgram;
 use core::convert::TryFrom;
 use core_processor::common::PrechargedDispatch;
+use frame_support::traits::PalletInfo;
 use gear_core::{code::TryNewCodeConfig, pages::WasmPage, program::MemoryInfix};
 use gear_wasm_instrument::syscalls::SyscallName;
+use sp_runtime::{DispatchErrorWithPostInfo, ModuleError};
 
 // Multiplier 6 was experimentally found as median value for performance,
 // security and abilities for calculations on-chain.
 pub(crate) const RUNTIME_API_BLOCK_LIMITS_COUNT: u64 = 6;
+pub(crate) const ALLOWANCE_LIMIT_ERR: &str = "Calculation gas limit exceeded. Use your own RPC node with `--rpc-calculations-multiplier` parameter raised";
 
 pub(crate) struct CodeWithMemoryData {
     pub instrumented_code: InstrumentedCode,
@@ -45,7 +48,7 @@ where
 
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn calculate_gas_info_impl(
-        source: H256,
+        origin: H256,
         kind: HandleKind,
         initial_gas: u64,
         payload: Vec<u8>,
@@ -56,29 +59,63 @@ where
     ) -> Result<GasInfo, Vec<u8>> {
         Self::enable_lazy_pages();
 
-        let account = source.cast();
+        let origin = origin.cast();
+        let value = value.unique_saturated_into();
 
-        let balance = CurrencyOf::<T>::free_balance(&account);
-        let max_balance: BalanceOf<T> = <T as pallet_gear_bank::Config>::GasMultiplier::get()
-            .gas_to_value(initial_gas)
-            + value.unique_saturated_into();
-        CurrencyOf::<T>::deposit_creating(&account, max_balance.saturating_sub(balance));
+        let origin_balance = CurrencyOf::<T>::free_balance(&origin);
 
-        let who = frame_support::dispatch::RawOrigin::Signed(account);
-        let value: BalanceOf<T> = value.unique_saturated_into();
+        let value_for_gas =
+            <T as pallet_gear_bank::Config>::GasMultiplier::get().gas_to_value(initial_gas);
+
+        let required_balance = CurrencyOf::<T>::minimum_balance()
+            .saturating_add(value_for_gas)
+            .saturating_add(value);
+
+        CurrencyOf::<T>::deposit_creating(&origin, required_balance.saturating_sub(origin_balance));
+
+        let who = frame_support::dispatch::RawOrigin::Signed(origin);
 
         QueueOf::<T>::clear();
+
+        let map_extrinsic_err = |extrinsic_name: &'static str,
+                                 e: DispatchErrorWithPostInfo<PostDispatchInfo>|
+         -> Vec<u8> {
+            let error_module_idx = if let DispatchError::Module(ModuleError { index, .. }) = e.error
+            {
+                Some(index as usize)
+            } else {
+                None
+            };
+
+            let error_message: &'static str = e.into();
+
+            let gear_module_idx =
+                <<T as frame_system::Config>::PalletInfo as PalletInfo>::index::<Pallet<T>>()
+                    .expect("No index found for the gear pallet in the runtime!");
+
+            let mut res = format!("Extrinsic `gear.{extrinsic_name}` failed: '{error_message}'");
+
+            if let Some(module_idx) = error_module_idx.filter(|i| *i != gear_module_idx) {
+                res = format!("{res} (pallet index of the error: {module_idx}");
+            }
+
+            res.into_bytes()
+        };
+
+        let internal_err = |message: &'static str| -> Vec<u8> {
+            format!("Internal error: entered unreachable code '{message}'").into_bytes()
+        };
 
         match kind {
             HandleKind::Init(code) => {
                 let salt = b"calculate_gas_salt".to_vec();
+
                 Self::upload_program(who.into(), code, salt, payload, initial_gas, value, false)
-                    .map_err(|e| {
-                        format!("Internal error: upload_program failed with '{e:?}'").into_bytes()
-                    })?;
+                    .map_err(|e| map_extrinsic_err("upload_program", e))?;
             }
             HandleKind::InitByHash(code_id) => {
                 let salt = b"calculate_gas_salt".to_vec();
+
                 Self::create_program(
                     who.into(),
                     code_id,
@@ -88,21 +125,15 @@ where
                     value,
                     false,
                 )
-                .map_err(|e| {
-                    format!("Internal error: create_program failed with '{e:?}'").into_bytes()
-                })?;
+                .map_err(|e| map_extrinsic_err("create_program", e))?;
             }
             HandleKind::Handle(destination) => {
                 Self::send_message(who.into(), destination, payload, initial_gas, value, false)
-                    .map_err(|e| {
-                        format!("Internal error: send_message failed with '{e:?}'").into_bytes()
-                    })?;
+                    .map_err(|e| map_extrinsic_err("send_message", e))?;
             }
             HandleKind::Reply(reply_to_id, _status_code) => {
                 Self::send_reply(who.into(), reply_to_id, payload, initial_gas, value, false)
-                    .map_err(|e| {
-                        format!("Internal error: send_reply failed with '{e:?}'").into_bytes()
-                    })?;
+                    .map_err(|e| map_extrinsic_err("send_reply", e))?;
             }
             HandleKind::Signal(_signal_from, _status_code) => {
                 return Err(b"Gas calculation for `handle_signal` is not supported".to_vec());
@@ -111,10 +142,10 @@ where
 
         let (main_message_id, main_program_id) = QueueOf::<T>::iter()
             .next()
-            .ok_or_else(|| b"Internal error: failed to get last message".to_vec())
+            .ok_or_else(|| internal_err("Failed to get last message from the queue"))
             .and_then(|queued| {
                 queued
-                    .map_err(|_| b"Internal error: failed to retrieve queued dispatch".to_vec())
+                    .map_err(|_| internal_err("Failed to extract queued dispatch"))
                     .map(|dispatch| (dispatch.id(), dispatch.destination()))
             })?;
 
@@ -135,13 +166,11 @@ where
 
         loop {
             if QueueProcessingOf::<T>::denied() {
-                return Err(
-                    b"Calculation gas limit exceeded. Consider using custom built node.".to_vec(),
-                );
+                return Err(ALLOWANCE_LIMIT_ERR.as_bytes().to_vec());
             }
 
             let Some(queued_dispatch) =
-                QueueOf::<T>::dequeue().map_err(|_| b"MQ storage corrupted".to_vec())?
+                QueueOf::<T>::dequeue().map_err(|_| internal_err("Message queue corrupted"))?
             else {
                 break;
             };
@@ -164,8 +193,9 @@ where
                 .reply_details()
                 .map(|rd| rd.to_reply_code().is_success())
                 .unwrap_or(false);
+
             let gas_limit = GasHandlerOf::<T>::get_limit(dispatch_id)
-                .map_err(|_| b"Internal error: unable to get gas limit".to_vec())?;
+                .map_err(|_| internal_err("Failed to get gas limit"))?;
 
             let skip_if_allowed = success_reply && gas_limit == 0;
 
@@ -177,7 +207,10 @@ where
                 balance: balance.unique_saturated_into(),
                 get_actor_data,
             };
-            let journal = step.execute().unwrap_or_else(|e| unreachable!("{e:?}"));
+
+            let journal = step
+                .execute()
+                .map_err(|_| internal_err("Queue execution error"))?;
 
             let get_main_limit = || {
                 // For case when node is not consumed and has any (even zero) balance
@@ -201,7 +234,7 @@ where
 
             let get_origin_msg_of = |msg_id| {
                 GasHandlerOf::<T>::get_origin_key(msg_id)
-                    .map_err(|_| b"Internal error: unable to get origin key".to_vec())
+                    .map_err(|_| internal_err("Failed to get origin key"))
             };
             let from_main_chain =
                 |msg_id| get_origin_msg_of(msg_id).map(|v| v == main_message_id.into());
@@ -239,8 +272,7 @@ where
                                 .gas_limit()
                                 .or_else(|| GasHandlerOf::<T>::get_limit(dispatch.id()).ok())
                                 .ok_or_else(|| {
-                                    b"Internal error: unable to get gas limit after execution"
-                                        .to_vec()
+                                    internal_err("Failed to get gas limit after execution")
                                 })?;
 
                             reserved = reserved.saturating_add(gas_limit);
@@ -254,13 +286,17 @@ where
                     }
 
                     JournalNote::MessageDispatched {
-                        outcome: CoreDispatchOutcome::MessageTrap { trap, .. },
+                        outcome:
+                            CoreDispatchOutcome::MessageTrap { trap, .. }
+                            | CoreDispatchOutcome::InitFailure { reason: trap, .. },
                         message_id,
                         ..
                     } if (message_id == main_message_id || !allow_other_panics)
                         && !(skip_if_allowed && allow_skip_zero_replies) =>
                     {
-                        return Err(format!("Program terminated with a trap: {trap}").into_bytes());
+                        return Err(
+                            format!("Program terminated with a trap: '{trap}'").into_bytes()
+                        );
                     }
 
                     _ => (),

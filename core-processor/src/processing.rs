@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -492,7 +492,7 @@ pub fn process_non_executable(
     let source = dispatch.source();
     let value = dispatch.value();
 
-    if value != 0 {
+    if dispatch.context().is_none() && value != 0 {
         // Send value back
         journal.push(JournalNote::SendValue {
             from: dispatch.source(),

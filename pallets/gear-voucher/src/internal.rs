@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -29,17 +29,22 @@ where
     T::AccountId: Origin,
 {
     /// Returns account id that pays for gas purchase and transaction fee
-    /// for processing this ['pallet_gear_voucher::Call']s processing if:
+    /// for processing this ['pallet_gear_voucher::Call'], if:
     ///
     /// * Call is [`Self::call`]:
     ///     * Voucher with the given voucher id exists;
     ///     * Caller is eligible to use the voucher;
     ///     * The voucher is not expired;
-    ///     * Destination program of the given prepaid call can be determined;
-    ///     * The voucher destinations limitations accept determined destination.
+    ///     * For messaging calls: The destination program of the given prepaid
+    ///                            call can be determined;
+    ///     * For messaging calls: The voucher destinations limitations accept
+    ///                            determined destination;
+    ///     * For codes uploading: The voucher allows code uploading.
     ///
     /// * Call is [`Self::call_deprecated`]:
-    ///     * Destination program of the given prepaid call can be determined.
+    ///     * For messaging calls: The destination program of the given prepaid
+    ///                            call can be determined.
+    ///     * For codes uploading: NEVER.
     ///
     /// Returns [`None`] for other cases.
     pub fn get_sponsor(&self, caller: AccountIdOf<T>) -> Option<AccountIdOf<T>> {
@@ -92,20 +97,27 @@ impl<T: Config> Pallet<T> {
             Error::<T>::VoucherExpired
         );
 
-        if let Some(ref programs) = voucher.programs {
-            let destination = Self::prepaid_call_destination(&origin, call)
-                .ok_or(Error::<T>::UnknownDestination)?;
+        match call {
+            PrepaidCall::UploadCode { .. } => {
+                ensure!(voucher.code_uploading, Error::<T>::CodeUploadingDisabled)
+            }
+            PrepaidCall::SendMessage { .. } | PrepaidCall::SendReply { .. } => {
+                if let Some(ref programs) = voucher.programs {
+                    let destination = Self::prepaid_call_destination(&origin, call)
+                        .ok_or(Error::<T>::UnknownDestination)?;
 
-            ensure!(
-                programs.contains(&destination),
-                Error::<T>::InappropriateDestination
-            );
+                    ensure!(
+                        programs.contains(&destination),
+                        Error::<T>::InappropriateDestination
+                    );
+                }
+            }
         }
 
         Ok(())
     }
 
-    /// Return destination program of the [`PrepaidCall`].
+    /// Return destination program of the [`PrepaidCall`], if exists.
     pub fn prepaid_call_destination(
         who: &T::AccountId,
         call: &PrepaidCall<BalanceOf<T>>,
@@ -115,6 +127,7 @@ impl<T: Config> Pallet<T> {
             PrepaidCall::SendReply { reply_to_id, .. } => {
                 T::Mailbox::peek(who, reply_to_id).map(|stored_message| stored_message.source())
             }
+            PrepaidCall::UploadCode { .. } => None,
         }
     }
 }
@@ -169,6 +182,8 @@ pub struct VoucherInfo<AccountId, BlockNumber> {
     /// Set of programs this voucher could be used to interact with.
     /// In case of [`None`] means any gear program.
     pub programs: Option<BTreeSet<ProgramId>>,
+    /// Flag if this voucher's covers uploading codes as prepaid call.
+    pub code_uploading: bool,
     /// The block number at and after which voucher couldn't be used and
     /// can be revoked by owner.
     pub expiry: BlockNumber,
@@ -198,5 +213,8 @@ pub enum PrepaidCall<Balance> {
         gas_limit: u64,
         value: Balance,
         keep_alive: bool,
+    },
+    UploadCode {
+        code: Vec<u8>,
     },
 }

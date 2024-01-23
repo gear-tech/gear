@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -201,7 +201,6 @@ where
         builder.add_func(GasAvailable, wrap_syscall!(gas_available));
         builder.add_func(Leave, wrap_syscall!(leave));
         builder.add_func(MessageId, wrap_syscall!(message_id));
-        builder.add_func(PayProgramRent, wrap_syscall!(pay_program_rent));
         builder.add_func(ProgramId, wrap_syscall!(program_id));
         builder.add_func(Random, wrap_syscall!(random));
         builder.add_func(Read, wrap_syscall!(read));

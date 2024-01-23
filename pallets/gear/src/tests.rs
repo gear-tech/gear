@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -44,7 +44,7 @@ use crate::{
         USER_3,
     },
     pallet,
-    runtime_api::RUNTIME_API_BLOCK_LIMITS_COUNT,
+    runtime_api::{ALLOWANCE_LIMIT_ERR, RUNTIME_API_BLOCK_LIMITS_COUNT},
     AccountIdOf, BlockGasLimitOf, Config, CostsPerBlockOf, CurrencyOf, DbWeightOf, DispatchStashOf,
     Error, Event, GasAllowanceOf, GasBalanceOf, GasHandlerOf, GasInfo, GearBank, MailboxOf,
     ProgramStorageOf, QueueOf, Schedule, TaskPoolOf, WaitlistOf,
@@ -75,12 +75,59 @@ use gear_core_errors::*;
 use gear_wasm_instrument::{gas_metering::ConstantCostRules, STACK_END_EXPORT_NAME};
 use gstd::{collections::BTreeMap, errors::Error as GstdError};
 use pallet_gear_voucher::PrepaidCall;
-use sp_runtime::{traits::UniqueSaturatedInto, SaturatedConversion};
+use sp_runtime::{
+    traits::{One, UniqueSaturatedInto},
+    SaturatedConversion,
+};
 use sp_std::convert::TryFrom;
 pub use utils::init_logger;
 use utils::*;
 
 type Gas = <<Test as Config>::GasProvider as common::GasProvider>::GasTree;
+
+#[test]
+fn calculate_gas_init_failure() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let err = Gear::calculate_gas_info(
+            USER_1.into_origin(),
+            HandleKind::Init(ProgramCodeKind::GreedyInit.to_bytes()),
+            EMPTY_PAYLOAD.to_vec(),
+            0,
+            true,
+            true,
+        )
+        .expect_err("Expected program to fail due to lack of gas");
+
+        assert!(err.starts_with("Program terminated with a trap"));
+    });
+}
+
+#[test]
+#[ignore = "TODO: enable me once #3665 solved: \
+`gas_below_ed` atm is less than needed to initialize program"]
+fn calculate_gas_zero_balance() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        const ZERO_BALANCE_USER: AccountId = 12122023;
+        assert!(Balances::free_balance(ZERO_BALANCE_USER).is_zero());
+
+        let gas_below_ed = get_ed()
+            .saturating_div(gas_price(1))
+            .saturating_sub(One::one());
+
+        assert_ok!(Gear::calculate_gas_info_impl(
+            ZERO_BALANCE_USER.into_origin(),
+            HandleKind::Init(ProgramCodeKind::Default.to_bytes()),
+            gas_below_ed as u64,
+            vec![],
+            0,
+            false,
+            false,
+            None,
+        ));
+    });
+}
 
 #[test]
 fn delayed_send_from_reservation_not_for_mailbox() {
@@ -338,7 +385,7 @@ fn delayed_reservations_sending_validation() {
         run_to_next_block(None);
 
         let error_text = format!(
-            "{SENDING_EXPECT}: {:?}",
+            "panicked with '{SENDING_EXPECT}: {:?}'",
             GstdError::Core(
                 ExtError::Message(MessageError::InsufficientGasForDelayedSending).into()
             )
@@ -375,7 +422,7 @@ fn delayed_reservations_sending_validation() {
         run_for_blocks(wait_for as u64 + 1, None);
 
         let error_text = format!(
-            "{SENDING_EXPECT}: {:?}",
+            "panicked with '{SENDING_EXPECT}: {:?}'",
             GstdError::Core(
                 ExtError::Message(MessageError::InsufficientGasForDelayedSending).into()
             )
@@ -486,7 +533,7 @@ fn default_wait_lock_timeout() {
         run_to_block(expiration_block, None);
 
         let error_text = format!(
-            "ran into error-reply: {:?}",
+            "panicked with 'ran into error-reply: {:?}'",
             GstdError::Timeout(
                 expiration_block.unique_saturated_into(),
                 expiration_block.unique_saturated_into()
@@ -1362,7 +1409,7 @@ fn gasfull_after_gasless() {
         r#"
         (module
         (import "env" "memory" (memory 1))
-        (import "env" "gr_reply_wgas" (func $reply_wgas (param i32 i32 i64 i32 i32 i32)))
+        (import "env" "gr_reply_wgas" (func $reply_wgas (param i32 i32 i64 i32 i32)))
         (import "env" "gr_send" (func $send (param i32 i32 i32 i32 i32)))
         (export "init" (func $init))
         (func $init
@@ -1371,7 +1418,7 @@ fn gasfull_after_gasless() {
             i32.store
 
             (call $send (i32.const 111) (i32.const 0) (i32.const 32) (i32.const 10) (i32.const 333))
-            (call $reply_wgas (i32.const 0) (i32.const 32) (i64.const {gas_limit}) (i32.const 222) (i32.const 10) (i32.const 333))
+            (call $reply_wgas (i32.const 0) (i32.const 32) (i64.const {gas_limit}) (i32.const 222) (i32.const 333))
         )
     )"#,
         gas_limit = 10 * <Test as Config>::MailboxThreshold::get()
@@ -7518,7 +7565,7 @@ fn test_create_program_with_value_lt_ed() {
         assert_total_dequeued(1);
 
         let error_text = format!(
-            "Failed to create program: {:?}",
+            "panicked with 'Failed to create program: {:?}'",
             GstdError::Core(ExtError::Message(MessageError::InsufficientValue).into())
         );
 
@@ -7568,7 +7615,7 @@ fn test_create_program_with_exceeding_value() {
         assert_total_dequeued(1);
 
         let error_text = format!(
-            "Failed to create program: {:?}",
+            "panicked with 'Failed to create program: {:?}'",
             GstdError::Core(ExtError::Execution(ExecutionError::NotEnoughValue).into())
         );
         assert_failed(
@@ -7654,7 +7701,7 @@ fn demo_constructor_works() {
 
         run_to_next_block(None);
 
-        let error_text = "I just panic every time".to_owned();
+        let error_text = "panicked with 'I just panic every time'".to_owned();
 
         assert_failed(
             message_id,
@@ -8341,22 +8388,19 @@ fn call_forbidden_function() {
 
         run_to_block(2, None);
 
-        let res = Gear::calculate_gas_info(
+        let err = Gear::calculate_gas_info(
             USER_1.into_origin(),
             HandleKind::Handle(prog_id),
             EMPTY_PAYLOAD.to_vec(),
             0,
             true,
             true,
-        );
+        )
+        .expect_err("Must return error");
 
-        assert_eq!(
-            res,
-            Err(format!(
-                "Program terminated with a trap: {}",
-                TrapExplanation::ForbiddenFunction,
-            ))
-        );
+        let trap = TrapExplanation::ForbiddenFunction;
+
+        assert_eq!(err, format!("Program terminated with a trap: '{trap}'"));
     });
 }
 
@@ -8644,7 +8688,7 @@ fn mx_lock_ownership_exceedance() {
             let get_lock_ownership_exceeded_trap = |command_msg_id| {
                 ActorExecutionErrorReplyReason::Trap(TrapExplanation::Panic(
                     format!(
-                        "Message 0x{} has exceeded lock ownership time",
+                        "panicked with 'Message 0x{} has exceeded lock ownership time'",
                         hex::encode(command_msg_id)
                     )
                     .into(),
@@ -12127,6 +12171,45 @@ fn async_init() {
 }
 
 #[test]
+fn wake_after_exit() {
+    use demo_custom::{InitMessage, WASM_BINARY};
+    use demo_ping::WASM_BINARY as PING_BINARY;
+
+    init_logger();
+
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_3),
+            PING_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            Default::default(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+            false,
+        ));
+
+        let ping: [u8; 32] = get_last_program_id().into();
+
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            InitMessage::WakeAfterExit(ping.into()).encode(),
+            BlockGasLimitOf::<Test>::get(),
+            1000,
+            false,
+        ));
+
+        let mid = get_last_message_id();
+
+        run_to_next_block(None);
+
+        // Execution after wake must be skipped, so status must be NotExecuted.
+        assert_not_executed(mid);
+    });
+}
+
+#[test]
 fn check_gear_stack_end_fail() {
     // This test checks, that in case user makes WASM file with incorrect
     // gear stack end export, then execution will end with an error.
@@ -13111,10 +13194,7 @@ fn calculate_gas_fails_when_calculation_limit_exceeded() {
         );
 
         assert!(gas_info_result.is_err());
-        assert_eq!(
-            gas_info_result.unwrap_err(),
-            "Calculation gas limit exceeded. Consider using custom built node."
-        );
+        assert_eq!(gas_info_result.unwrap_err(), ALLOWANCE_LIMIT_ERR);
 
         // ok result when we use custom multiplier
         let gas_info_result = Gear::calculate_gas_info_impl(
@@ -13295,6 +13375,7 @@ fn send_gasless_message_works() {
             USER_2,
             gas_price(DEFAULT_GAS_LIMIT),
             Some([program_id].into()),
+            false,
             100,
         ));
 
@@ -13396,6 +13477,7 @@ fn send_gasless_reply_works() {
             USER_1,
             gas_price(DEFAULT_GAS_LIMIT),
             Some([prog_id].into()),
+            false,
             100,
         ));
         let voucher_id = utils::get_last_voucher_id();
@@ -13692,7 +13774,7 @@ fn test_gas_allowance_exceed_with_context() {
 /// then no panic occurs and the message is not executed.
 #[test]
 fn test_send_to_terminated_from_program() {
-    use demo_constructor::{Calls, Scheme};
+    use demo_constructor::{Calls, Scheme, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -13702,13 +13784,19 @@ fn test_send_to_terminated_from_program() {
         let init = Calls::builder().panic("Die in init");
         // "Bomb" in case after refactoring runtime we accidentally allow terminated programs to be executed.
         let handle = Calls::builder().send(user_1_bytes, b"REPLY_FROM_DEAD".to_vec());
-        let (_, pid_terminated) = utils::submit_constructor_with_args(
+
+        assert_ok!(Gear::upload_program(
             // Using `USER_2` not to pollute `USER_1` mailbox to make test easier.
-            USER_2,
-            b"salt1",
-            Scheme::predefined(init, handle, Calls::default(), Calls::default()),
+            RuntimeOrigin::signed(USER_2),
+            WASM_BINARY.to_vec(),
+            b"salt1".to_vec(),
+            Scheme::predefined(init, handle, Calls::default(), Calls::default()).encode(),
+            BlockGasLimitOf::<Test>::get(),
             0,
-        );
+            false,
+        ));
+
+        let pid_terminated = utils::get_last_program_id();
 
         // Check `pid_terminated` exists as an active program.
         assert!(Gear::is_active(pid_terminated));
@@ -13887,19 +13975,25 @@ fn gear_block_number_math_adds_up() {
 
 #[test]
 fn test_gas_info_of_terminated_program() {
-    use demo_constructor::{Calls, Scheme};
+    use demo_constructor::{Calls, Scheme, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
         // Dies in init
         let init_dead = Calls::builder().panic("Die in init");
         let handle_dead = Calls::builder().panic("Called after being terminated!");
-        let (_, pid_dead) = utils::submit_constructor_with_args(
-            USER_1,
-            b"salt1",
-            Scheme::predefined(init_dead, handle_dead, Calls::default(), Calls::default()),
+
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            b"salt1".to_vec(),
+            Scheme::predefined(init_dead, handle_dead, Calls::default(), Calls::default()).encode(),
+            BlockGasLimitOf::<Test>::get(),
             0,
-        );
+            false,
+        ));
+
+        let pid_dead = utils::get_last_program_id();
 
         // Sends in handle message do dead program
         let handle_proxy = Calls::builder().send(pid_dead.into_bytes(), []);

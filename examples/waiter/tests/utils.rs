@@ -13,10 +13,6 @@ pub fn assert_panicked(result: &RunResult, panic_msg: &str) {
         )))
     ));
     let payload = String::from_utf8(result.log()[0].payload().into())
-        .expect("Unable to decode panic message")
-        .split(',')
-        .map(String::from)
-        .next()
-        .expect("Unable to split panic message");
-    assert_eq!(payload, format!("'{}'", panic_msg));
+        .expect("Unable to decode panic message");
+    assert!(payload.contains(&format!("panicked with '{panic_msg}'")));
 }

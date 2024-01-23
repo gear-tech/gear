@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022-2023 Gear Technologies Inc.
+// Copyright (C) 2022-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -364,9 +364,6 @@ pub struct HostFnWeights<T: Config> {
 
     /// Weight of calling `gr_message_id`.
     pub gr_message_id: Weight,
-
-    /// Weight of calling `gr_pay_program_rent`.
-    pub gr_pay_program_rent: Weight,
 
     /// Weight of calling `gr_program_id`.
     pub gr_program_id: Weight,
@@ -764,7 +761,7 @@ impl Default for Limits {
 impl<T: Config> Default for InstructionWeights<T> {
     fn default() -> Self {
         Self {
-            version: 11,
+            version: 1100,
             i64const: cost_instr!(instr_i64const, 1),
             i64load: cost_instr!(instr_i64load, 0),
             i32load: cost_instr!(instr_i32load, 0),
@@ -870,7 +867,6 @@ impl<T: Config> HostFnWeights<T> {
             gr_system_reserve_gas: self.gr_system_reserve_gas.ref_time(),
             gr_gas_available: self.gr_gas_available.ref_time(),
             gr_message_id: self.gr_message_id.ref_time(),
-            gr_pay_program_rent: self.gr_pay_program_rent.ref_time(),
             gr_program_id: self.gr_program_id.ref_time(),
             gr_source: self.gr_source.ref_time(),
             gr_value: self.gr_value.ref_time(),
@@ -994,7 +990,6 @@ impl<T: Config> Default for HostFnWeights<T> {
             gr_unreserve_gas: to_weight!(cost!(gr_unreserve_gas)),
             gr_gas_available: to_weight!(cost_batched!(gr_gas_available)),
             gr_message_id: to_weight!(cost_batched!(gr_message_id)),
-            gr_pay_program_rent: to_weight!(cost_batched!(gr_pay_program_rent)),
             gr_program_id: to_weight!(cost_batched!(gr_program_id)),
             gr_source: to_weight!(cost_batched!(gr_source)),
             gr_value: to_weight!(cost_batched!(gr_value)),
