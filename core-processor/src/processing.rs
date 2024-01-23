@@ -493,7 +493,7 @@ pub fn process_non_executable(
     let source = dispatch.source();
     let value = dispatch.value();
 
-    if value != 0 {
+    if dispatch.context().is_none() && value != 0 {
         // Send value back
         journal.push(JournalNote::SendValue {
             from: dispatch.source(),
