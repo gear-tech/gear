@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2024 Gear Technologies Inc.
+// Copyright (C) 2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -16,14 +16,14 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use gear_wasm_builder::WasmBuilder;
+#[cfg(not(feature = "std"))]
+pub(crate) mod wasm {
+    pub fn init(addr: gstd::ActorId) -> ! {
+        let _ = gstd::msg::send_bytes(addr, b"PING", 0).unwrap();
+        gstd::exec::wait_up_to(100)
+    }
 
-fn main() {
-    // We are forcing recommended nightly toolchain due to the need to compile this
-    // program with `oom-handler` feature. The WASM binary of this program is then
-    // used by the `oom_handler_works` pallet test.
-    WasmBuilder::new()
-        .exclude_features(vec!["std"])
-        .with_forced_recommended_toolchain() // NOTE: Don't use this in production programs!
-        .build();
+    pub fn handle_reply() -> ! {
+        gstd::exec::exit(gstd::msg::source())
+    }
 }
