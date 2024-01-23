@@ -417,8 +417,10 @@ fn nominators_rewards_disbursement_works() {
                 + initial_treasury_balance
                 + signer_balance
                 + initial_rewards_pool_balance
-                + ENDOWMENT // NOM_1_STASH
-                + EXISTENTIAL_DEPOSIT // added to the rewards pool to ensure pool existence
+                // NOM_1_STASH
+                + ENDOWMENT
+                // added to the rewards and the rent pools to ensure pool existence
+                + 2 * EXISTENTIAL_DEPOSIT
         );
         assert_eq!(initial_rewards_pool_balance, pool_balance);
         assert_eq!(
@@ -756,8 +758,10 @@ fn inflation_at_ideal_staked_adds_up() {
                 + initial_treasury_balance
                 + signer_balance
                 + initial_rewards_pool_balance
-                + ENDOWMENT // NOM_1_STASH
-                + EXISTENTIAL_DEPOSIT // added to the rewards pool to ensure pool existence
+                // NOM_1_STASH
+                + ENDOWMENT
+                // added to the rewards and the rent pools to ensure pool existence
+                + 2 * EXISTENTIAL_DEPOSIT
         );
         assert_eq!(initial_rewards_pool_balance, pool_balance);
         assert_eq!(
@@ -890,8 +894,10 @@ fn inflation_when_nobody_stakes_adds_up() {
                 + initial_treasury_balance
                 + signer_balance
                 + initial_rewards_pool_balance
-                + ENDOWMENT // NOM_1_STASH
-                + EXISTENTIAL_DEPOSIT // added to the rewards pool to ensure pool existence
+                // NOM_1_STASH
+                + ENDOWMENT
+                // added to the rewards and the rent pools to ensure pool existence
+                + 2 * EXISTENTIAL_DEPOSIT
         );
         assert_eq!(initial_rewards_pool_balance, pool_balance);
         assert_eq!(
@@ -1034,8 +1040,10 @@ fn inflation_with_too_many_stakers_adds_up() {
                 + initial_treasury_balance
                 + signer_balance
                 + initial_rewards_pool_balance
-                + ENDOWMENT // NOM_1_STASH
-                + EXISTENTIAL_DEPOSIT // added to the rewards pool to ensure pool existence
+                // NOM_1_STASH
+                + ENDOWMENT
+                // added to the rewards and the rent pools to ensure pool existence
+                + 2 * EXISTENTIAL_DEPOSIT
         );
         assert_eq!(initial_rewards_pool_balance, pool_balance);
         assert_eq!(
