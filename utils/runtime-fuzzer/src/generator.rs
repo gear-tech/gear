@@ -28,7 +28,7 @@ use gear_wasm_gen::wasm_gen_arbitrary::{Result, Unstructured};
 use pallet_balances::Pallet as BalancesPallet;
 use pallet_gear::Event as GearEvent;
 use runtime_primitives::AccountId;
-use std::{collections::HashSet, mem};
+use std::{collections::BTreeSet, mem};
 use vara_runtime::{Runtime, RuntimeEvent, System};
 
 use crate::{data::*, runtime};
@@ -161,9 +161,9 @@ pub(crate) struct RuntimeStateViewProducer<'a> {
     corpus_id: String,
     _unstructured: Unstructured<'a>,
     sender: AccountId,
-    programs: HashSet<ProgramId>,
+    programs: BTreeSet<ProgramId>,
     // todo issue - include time limits, so no outdated mailbox messages will be stored.
-    mailbox: HashSet<MessageId>,
+    mailbox: BTreeSet<MessageId>,
 }
 
 impl<'a> RuntimeStateViewProducer<'a> {
@@ -175,8 +175,8 @@ impl<'a> RuntimeStateViewProducer<'a> {
             corpus_id,
             _unstructured: Unstructured::new(data_requirement.data),
             sender: runtime::alice(),
-            programs: HashSet::new(),
-            mailbox: HashSet::new(),
+            programs: BTreeSet::new(),
+            mailbox: BTreeSet::new(),
         }
     }
 
