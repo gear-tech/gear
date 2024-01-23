@@ -50,7 +50,7 @@ pub(crate) struct ExceptionInfo {
     pub is_write: Option<bool>,
 }
 
-/// Before contract execution some pages from wasm memory buffer have been protected.
+/// Before program execution some pages from wasm memory buffer have been protected.
 /// When wasm executer tries to access one of these pages,
 /// OS emits sigsegv or sigbus or EXCEPTION_ACCESS_VIOLATION.
 /// Using OS signal info, this function identifies memory page, which is accessed,

@@ -231,8 +231,8 @@ pub enum CodeError {
     /// Error occurred during encoding instrumented program.
     #[display(fmt = "Failed to encode instrumented program")]
     Encode,
-    /// We restrict start sections in smart contracts.
-    #[display(fmt = "Start section is not allowed for smart contracts")]
+    /// We restrict start sections in programs.
+    #[display(fmt = "Start section is not allowed for programs")]
     StartSectionExists,
     /// The provided code has invalid count of static pages.
     #[display(fmt = "The wasm bytecode has invalid count of static pages")]
@@ -312,7 +312,7 @@ fn check_mut_global_exports(module: &Module) -> Result<(), CodeError> {
 
 fn check_start_section(module: &Module) -> Result<(), CodeError> {
     if module.start_section().is_some() {
-        log::debug!("Found start section in contract code, which is not allowed");
+        log::debug!("Found start section in program code, which is not allowed");
         Err(CodeError::StartSectionExists)
     } else {
         Ok(())
@@ -334,7 +334,7 @@ pub struct TryNewCodeConfig {
     pub check_and_canonize_stack_end: bool,
     /// Check mutable global exports
     pub check_mut_global_exports: bool,
-    /// Check start section (not allowed for smart contracts)
+    /// Check start section (not allowed for programs)
     pub check_start_section: bool,
     /// Make wasmparser validation
     pub make_validation: bool,
