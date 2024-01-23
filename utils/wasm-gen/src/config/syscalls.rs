@@ -46,7 +46,7 @@ impl SyscallsConfigBuilder {
             precise_syscalls_config: PreciseSyscallsConfig::default(),
             error_processing_config: ErrorProcessingConfig::None,
             log_info: None,
-            waiting_frequency: None,
+            waiting_probability: None,
         })
     }
 
@@ -94,9 +94,9 @@ impl SyscallsConfigBuilder {
         self
     }
 
-    /// Set frequency of wait syscalls.
-    pub fn with_waiting_frequency(mut self, waiting_frequency: u32) -> Self {
-        self.0.waiting_frequency = Some(waiting_frequency);
+    /// Set probability of wait syscalls.
+    pub fn with_waiting_probability(mut self, waiting_probability: u32) -> Self {
+        self.0.waiting_probability = Some(waiting_probability);
 
         self
     }
@@ -122,7 +122,7 @@ pub struct SyscallsConfig {
     precise_syscalls_config: PreciseSyscallsConfig,
     error_processing_config: ErrorProcessingConfig,
     log_info: Option<String>,
-    waiting_frequency: Option<u32>,
+    waiting_probability: Option<u32>,
 }
 
 impl SyscallsConfig {
@@ -153,8 +153,8 @@ impl SyscallsConfig {
         &self.error_processing_config
     }
 
-    /// Get frequency of wait syscalls.
-    pub fn waiting_frequency(&self) -> Option<u32> {
-        self.waiting_frequency
+    /// Get probability of wait syscalls.
+    pub fn waiting_probability(&self) -> Option<u32> {
+        self.waiting_probability
     }
 }

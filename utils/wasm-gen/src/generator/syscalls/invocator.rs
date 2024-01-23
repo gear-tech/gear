@@ -332,9 +332,9 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
         };
         instructions.append(&mut result_processing);
 
-        if let Some(wait_frequency) = self
+        if let Some(waiting_probability) = self
             .config
-            .waiting_frequency()
+            .waiting_probability()
             .filter(|_| invocable.is_wait_syscall())
         {
             let MemoryLayout {
@@ -353,10 +353,10 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                     Instruction::If(BlockType::NoResult),
                     Instruction::I32Const(wait_called_ptr),
                     Instruction::I32Load(2, 0),
-                    Instruction::I32Const(wait_frequency as i32),
+                    Instruction::I32Const(waiting_probability as i32),
                     Instruction::I32RemU,
                     Instruction::I32Eqz,
-                    // if *wait_called_ptr % wait_frequency == 0 { orig_wait_syscall(); }
+                    // if *wait_called_ptr % waiting_probability == 0 { orig_wait_syscall(); }
                     Instruction::If(BlockType::NoResult),
                 ],
             );

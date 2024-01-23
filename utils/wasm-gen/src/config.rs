@@ -131,11 +131,11 @@ impl ConfigsBundle for (GearWasmGeneratorConfig, SelectableParams) {
 pub struct StandardGearWasmConfigsBundle {
     /// Externalities to be logged.
     pub log_info: Option<String>,
-    /// Frequency of wait syscalls.
+    /// Probability of wait syscalls.
     ///
     /// For example, if this parameter is 4, wait syscalls will be invoked
     /// with probability 1/4.
-    pub waiting_frequency: Option<u32>,
+    pub waiting_probability: Option<u32>,
     /// Flag which signals whether recursions must be removed.
     pub remove_recursion: bool,
     /// If the limit is set to `Some(_)`, programs will try to stop execution
@@ -161,7 +161,7 @@ impl Default for StandardGearWasmConfigsBundle {
     fn default() -> Self {
         Self {
             log_info: Some("StandardGearWasmConfigsBundle".into()),
-            waiting_frequency: Some(4),
+            waiting_probability: Some(4),
             remove_recursion: false,
             critical_gas_limit: Some(1_000_000),
             injection_types: SyscallsInjectionTypes::all_once(),
@@ -177,7 +177,7 @@ impl ConfigsBundle for StandardGearWasmConfigsBundle {
     fn into_parts(self) -> (GearWasmGeneratorConfig, SelectableParams) {
         let StandardGearWasmConfigsBundle {
             log_info,
-            waiting_frequency,
+            waiting_probability,
             remove_recursion,
             critical_gas_limit,
             injection_types,
@@ -193,9 +193,9 @@ impl ConfigsBundle for StandardGearWasmConfigsBundle {
         if let Some(log_info) = log_info {
             syscalls_config_builder = syscalls_config_builder.with_log_info(log_info);
         }
-        if let Some(waiting_frequency) = waiting_frequency {
+        if let Some(waiting_probability) = waiting_probability {
             syscalls_config_builder =
-                syscalls_config_builder.with_waiting_frequency(waiting_frequency);
+                syscalls_config_builder.with_waiting_probability(waiting_probability);
         }
         syscalls_config_builder = syscalls_config_builder.with_params_config(params_config);
 
