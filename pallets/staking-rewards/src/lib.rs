@@ -429,7 +429,7 @@ fn pay_rent_rewards_out<T: Config>(maybe_active_era_info: Option<ActiveEraInfo>)
                 &pallet::Pallet::<T>::rent_pool_account_id(),
                 &account_id,
                 payout.unique_saturated_into(),
-                ExistenceRequirement::KeepAlive
+                ExistenceRequirement::KeepAlive,
             );
 
             if result.is_err() {

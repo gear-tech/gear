@@ -16,8 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use core::marker::PhantomData;
 use crate::{self as pallet_gear_staking_rewards, CurrencyOf};
+use core::marker::PhantomData;
 use frame_election_provider_support::{
     onchain, ElectionDataProvider, SequentialPhragmen, VoteWeight,
 };
@@ -453,8 +453,7 @@ pub type ValidatorAccountId = (
 );
 
 // Build genesis storage according to the mock runtime.
-pub struct ExtBuilder<T>
-{
+pub struct ExtBuilder<T> {
     initial_authorities: Vec<ValidatorAccountId>,
     stash: Balance,
     endowed_accounts: Vec<AccountId>,
@@ -855,7 +854,7 @@ pub(crate) mod two_block_producers {
         type Keys = UintAuthorityId;
         type WeightInfo = ();
     }
-    
+
     impl pallet_session_historical::Config for Test {
         type FullIdentification = pallet_staking::Exposure<AccountId, u128>;
         type FullIdentificationOf = pallet_staking::ExposureOf<Test>;
@@ -893,7 +892,7 @@ pub(crate) mod two_block_producers {
         type RuntimeCall = RuntimeCall;
         type WeightInfo = ();
     }
-    
+
     impl pallet_utility::Config for Test {
         type RuntimeEvent = RuntimeEvent;
         type RuntimeCall = RuntimeCall;
@@ -908,7 +907,7 @@ pub(crate) mod two_block_producers {
         type MaxVotesPerVoter = <Staking as ElectionDataProvider>::MaxVotesPerVoter;
         type MaxWinners = MaxActiveValidators;
         type Solution = TestNposSolution;
-    
+
         fn solution_weight(v: u32, t: u32, a: u32, d: u32) -> Weight {
             <<Self as multi_phase::Config>::WeightInfo as multi_phase::WeightInfo>::submit_unsigned(
                 v, t, a, d,

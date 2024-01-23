@@ -1475,9 +1475,9 @@ fn rent_pool_disbursments_work() {
         );
         assert_ok!(result);
 
-        let free_balance_validator_1 = CurrencyOf::<Test>::free_balance(&VAL_1_STASH);
-        let free_balance_validator_2 = CurrencyOf::<Test>::free_balance(&VAL_2_STASH);
-        let free_balance_validator_3 = CurrencyOf::<Test>::free_balance(&VAL_3_STASH);
+        let free_balance_validator_1 = CurrencyOf::<Test>::free_balance(VAL_1_STASH);
+        let free_balance_validator_2 = CurrencyOf::<Test>::free_balance(VAL_2_STASH);
+        let free_balance_validator_3 = CurrencyOf::<Test>::free_balance(VAL_3_STASH);
 
         // go to the next era to trigger payouts
         run_to_block(era_duration + 1);
@@ -1487,17 +1487,17 @@ fn rent_pool_disbursments_work() {
         // the third validator doesn't produce any blocks
         assert_eq!(
             free_balance_validator_3,
-            CurrencyOf::<Test>::free_balance(&VAL_3_STASH)
+            CurrencyOf::<Test>::free_balance(VAL_3_STASH)
         );
         // the first and the second validators should be rewarded for block producing
         // accordingly to their points
         assert_eq!(
             free_balance_validator_1 + u128::from(blocks_1 * reward_points),
-            CurrencyOf::<Test>::free_balance(&VAL_1_STASH)
+            CurrencyOf::<Test>::free_balance(VAL_1_STASH)
         );
         assert_eq!(
             free_balance_validator_2 + u128::from(blocks_2 * reward_points),
-            CurrencyOf::<Test>::free_balance(&VAL_2_STASH)
+            CurrencyOf::<Test>::free_balance(VAL_2_STASH)
         );
     })
 }
