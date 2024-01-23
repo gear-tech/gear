@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::generator::{GearCallsGenerator, GenerationEnvironmentProducer};
+use crate::generator::{GearCallsGenerator, RuntimeStateViewProducer};
 use gear_wasm_gen::wasm_gen_arbitrary::{Arbitrary, Error, Result, Unstructured};
 use std::{any, fmt::Debug, marker::PhantomData};
 
@@ -60,11 +60,11 @@ impl<'a> FuzzerInput<'a> {
     pub(crate) fn into_data_requirements(
         self,
     ) -> Result<(
-        FulfilledDataRequirement<'a, GenerationEnvironmentProducer<'a>>,
+        FulfilledDataRequirement<'a, RuntimeStateViewProducer<'a>>,
         FulfilledDataRequirement<'a, GearCallsGenerator<'a>>,
     )> {
         let FuzzerInput(data) = self;
-        let exec_env_data_requirement = DataRequirement::<GenerationEnvironmentProducer>::new();
+        let exec_env_data_requirement = DataRequirement::<RuntimeStateViewProducer>::new();
         let gear_calls_data_requirement = DataRequirement::<GearCallsGenerator>::new();
 
         let total_data_required = exec_env_data_requirement.size + gear_calls_data_requirement.size;
@@ -94,10 +94,10 @@ pub(crate) struct DataRequirement<T> {
     _phantom: PhantomData<T>,
 }
 
-impl DataRequirement<GenerationEnvironmentProducer<'_>> {
+impl DataRequirement<RuntimeStateViewProducer<'_>> {
     fn new() -> Self {
         Self {
-            size: GenerationEnvironmentProducer::random_data_requirement(),
+            size: RuntimeStateViewProducer::random_data_requirement(),
             _phantom: PhantomData,
         }
     }

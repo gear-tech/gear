@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use super::{GenerationEnvironment, MAX_SALT_SIZE};
+use super::{RuntimeStateView, MAX_SALT_SIZE};
 use gear_call_gen::{GearCall, UploadProgramArgs};
 use gear_core::ids::{CodeId, ProgramId};
 use gear_utils::NonEmpty;
@@ -28,8 +28,8 @@ use gear_wasm_gen::{
 
 pub(crate) type UploadProgramRuntimeData<'a> = (&'a str, Vec<&'a ProgramId>, u64);
 
-impl<'a> From<GenerationEnvironment<'a>> for UploadProgramRuntimeData<'a> {
-    fn from(env: GenerationEnvironment<'a>) -> Self {
+impl<'a> From<RuntimeStateView<'a>> for UploadProgramRuntimeData<'a> {
+    fn from(env: RuntimeStateView<'a>) -> Self {
         (env.corpus_id, env.programs, env.max_gas)
     }
 }

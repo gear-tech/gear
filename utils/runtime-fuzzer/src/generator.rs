@@ -77,7 +77,7 @@ impl<'a> GearCallsGenerator<'a> {
         }
     }
 
-    pub(crate) fn generate(&mut self, env: GenerationEnvironment) -> Result<Option<GearCall>> {
+    pub(crate) fn generate(&mut self, env: RuntimeStateView) -> Result<Option<GearCall>> {
         let call = if self.generated_upload_program < Self::MAX_UPLOAD_PROGRAM_CALLS {
             self.generated_upload_program += 1;
 
@@ -157,14 +157,16 @@ impl GearCallsGenerator<'_> {
     }
 }
 
-pub(crate) struct GenerationEnvironmentProducer<'a> {
+pub(crate) struct RuntimeStateViewProducer<'a> {
     corpus_id: String,
     _unstructured: Unstructured<'a>,
     sender: AccountId,
-    interim_state: Option<RuntimeInterimState>,
+    programs: HashSet<ProgramId>,
+    // todo issue - include time limits, so no outdated mailbox messages will be stored.
+    mailbox: HashSet<MessageId>,
 }
 
-impl<'a> GenerationEnvironmentProducer<'a> {
+impl<'a> RuntimeStateViewProducer<'a> {
     pub(crate) fn new(
         corpus_id: String,
         data_requirement: FulfilledDataRequirement<'a, Self>,
@@ -173,19 +175,13 @@ impl<'a> GenerationEnvironmentProducer<'a> {
             corpus_id,
             _unstructured: Unstructured::new(data_requirement.data),
             sender: runtime::alice(),
-            interim_state: None,
+            programs: HashSet::new(),
+            mailbox: HashSet::new(),
         }
     }
 
-    pub(crate) fn produce_generation_env(
-        &mut self,
-        new_interim_state: RuntimeInterimState,
-    ) -> GenerationEnvironment {
-        if let Some(current_interim_state) = self.interim_state.as_mut() {
-            current_interim_state.merge(new_interim_state);
-        } else {
-            self.interim_state = Some(new_interim_state);
-        }
+    pub(crate) fn produce_state_view(&mut self) -> RuntimeStateView {
+        self.update_state_view();
 
         runtime::increase_to_max_balance(self.sender.clone())
             .unwrap_or_else(|e| unreachable!("Balance update failed: {e:?}"));
@@ -194,27 +190,47 @@ impl<'a> GenerationEnvironmentProducer<'a> {
             BalancesPallet::<Runtime>::free_balance(&self.sender)
         );
 
-        let (existing_programs, mailbox) = self
-            .interim_state
-            .as_ref()
-            .map(|state| {
-                (
-                    Vec::from_iter(state.programs.iter()),
-                    Vec::from_iter(state.mailbox.iter()),
-                )
-            })
-            .expect("interim state is always `Some`; qed");
+        let programs = Vec::from_iter(self.programs.iter());
+        let mailbox = Vec::from_iter(self.mailbox.iter());
 
-        GenerationEnvironment {
+        RuntimeStateView {
             corpus_id: &self.corpus_id,
-            programs: existing_programs,
+            programs,
             mailbox,
             max_gas: runtime::default_gas_limit(),
         }
     }
+
+    /// Updates mailbox and existing programs view and resets events.
+    fn update_state_view(&mut self) {
+        System::events().iter().for_each(|e| {
+            let RuntimeEvent::Gear(ref gear_event) = e.event else {
+                return;
+            };
+            match gear_event {
+                GearEvent::ProgramChanged {
+                    id,
+                    change: ProgramChangeKind::Active { .. },
+                } => {
+                    self.programs.insert(*id);
+                }
+                GearEvent::UserMessageSent {
+                    message,
+                    expiration: Some(_),
+                } => {
+                    if message.destination() == runtime::alice_program_id() {
+                        self.mailbox.insert(message.id());
+                    }
+                }
+                _ => {}
+            }
+        });
+
+        System::reset_events();
+    }
 }
 
-impl GenerationEnvironmentProducer<'_> {
+impl RuntimeStateViewProducer<'_> {
     pub(crate) const fn random_data_requirement() -> usize {
         const VALUE_SIZE: usize = mem::size_of::<u128>();
 
@@ -226,51 +242,7 @@ impl GenerationEnvironmentProducer<'_> {
     }
 }
 
-// todo - is it a good design?
-pub(crate) struct RuntimeInterimState {
-    programs: HashSet<ProgramId>,
-    // todo issue - include time limits, so no outdated mailbox messages will be stored.
-    mailbox: HashSet<MessageId>,
-}
-
-impl RuntimeInterimState {
-    pub(crate) fn build() -> Self {
-        let mut programs = HashSet::new();
-        let mut mailbox = HashSet::new();
-        System::events().iter().for_each(|e| {
-            let RuntimeEvent::Gear(ref gear_event) = e.event else {
-                return;
-            };
-            match gear_event {
-                GearEvent::ProgramChanged {
-                    id,
-                    change: ProgramChangeKind::Active { .. },
-                } => {
-                    programs.insert(*id);
-                }
-                GearEvent::UserMessageSent {
-                    message,
-                    expiration: Some(_),
-                } => {
-                    if message.destination() == runtime::alice_program_id() {
-                        mailbox.insert(message.id());
-                    }
-                }
-                _ => {}
-            }
-        });
-        System::reset_events();
-
-        Self { programs, mailbox }
-    }
-
-    fn merge(&mut self, Self { programs, mailbox }: Self) {
-        self.programs.extend(programs);
-        self.mailbox.extend(mailbox);
-    }
-}
-
-pub(crate) struct GenerationEnvironment<'a> {
+pub(crate) struct RuntimeStateView<'a> {
     corpus_id: &'a str,
     programs: Vec<&'a ProgramId>,
     max_gas: u64,

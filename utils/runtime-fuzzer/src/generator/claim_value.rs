@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use super::GenerationEnvironment;
+use super::RuntimeStateView;
 use gear_call_gen::{ClaimValueArgs, GearCall};
 use gear_core::ids::MessageId;
 use gear_utils::NonEmpty;
@@ -25,10 +25,10 @@ use std::result::Result as StdResult;
 
 pub(crate) type ClaimValueRuntimeData<'a> = (NonEmpty<&'a MessageId>,);
 
-impl<'a> TryFrom<GenerationEnvironment<'a>> for ClaimValueRuntimeData<'a> {
+impl<'a> TryFrom<RuntimeStateView<'a>> for ClaimValueRuntimeData<'a> {
     type Error = ();
 
-    fn try_from(env: GenerationEnvironment<'a>) -> StdResult<Self, Self::Error> {
+    fn try_from(env: RuntimeStateView<'a>) -> StdResult<Self, Self::Error> {
         NonEmpty::from_slice(&env.mailbox)
             .map(|mailbox| (mailbox,))
             .ok_or(())

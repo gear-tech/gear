@@ -51,11 +51,11 @@ fn run_impl(fuzzer_input: FuzzerInput<'_>) -> Result<sp_io::TestExternalities> {
     log::trace!("Generating gear calls from corpus - {}", corpus_id);
 
     let mut test_ext = runtime::new_test_ext();
-    let mut env_producer = GenerationEnvironmentProducer::new(corpus_id, gen_env_data_requirement);
+    let mut env_producer = RuntimeStateViewProducer::new(corpus_id, gen_env_data_requirement);
     let mut generator = GearCallsGenerator::new(generator_data_requirement);
     loop {
-        let stop = test_ext.execute_with(|| -> Result<bool> {
-            let env = env_producer.produce_generation_env(RuntimeInterimState::build());
+        let must_stop = test_ext.execute_with(|| -> Result<bool> {
+            let env = env_producer.produce_state_view();
             let Some(gear_call) = generator.generate(env)? else {
                 return Ok(true);
             };
@@ -69,7 +69,7 @@ fn run_impl(fuzzer_input: FuzzerInput<'_>) -> Result<sp_io::TestExternalities> {
             Ok(true)
         })?;
 
-        if stop {
+        if must_stop {
             break Ok(test_ext);
         }
     }
