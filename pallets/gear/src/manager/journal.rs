@@ -161,7 +161,7 @@ where
 
         GasAllowanceOf::<T>::decrease(amount);
 
-        Pallet::<T>::spend_gas(message_id, amount)
+        Pallet::<T>::spend_gas(None, message_id, amount)
     }
 
     fn exit_dispatch(&mut self, id_exited: ProgramId, value_destination: ProgramId) {

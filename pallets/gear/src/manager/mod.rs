@@ -286,7 +286,7 @@ where
             finish: BlockNumberFor::<T>::from(slot.finish),
         };
 
-        Pallet::<T>::charge_for_hold(reservation_id, interval, StorageType::Reservation);
+        Pallet::<T>::charge_for_hold(None, reservation_id, interval, StorageType::Reservation);
 
         Pallet::<T>::consume_and_retrieve(reservation_id);
 

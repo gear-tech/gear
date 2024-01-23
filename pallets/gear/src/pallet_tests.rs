@@ -62,6 +62,7 @@ macro_rules! impl_config_inner {
             type ProgramResumeSessionDuration = ResumeSessionDuration;
             type ProgramRentEnabled = GearConfigProgramRentEnabled;
             type ProgramRentDisabledDelta = RentFreePeriod;
+            type RentPoolId = sp_runtime::traits::GetDefault;
         }
     };
 

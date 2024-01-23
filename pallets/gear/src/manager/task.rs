@@ -220,7 +220,12 @@ where
             .unwrap_or_else(|| unreachable!("Scheduler & Stash logic invalidated!"));
 
         // Charging locked gas for holding in dispatch stash.
-        Pallet::<T>::charge_for_hold(dispatch.id(), hold_interval, StorageType::DispatchStash);
+        Pallet::<T>::charge_for_hold(
+            None,
+            dispatch.id(),
+            hold_interval,
+            StorageType::DispatchStash,
+        );
 
         QueueOf::<T>::queue(dispatch)
             .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
@@ -239,7 +244,12 @@ where
             .unwrap_or_else(|| unreachable!("Scheduler & Stash logic invalidated!"));
 
         // Charge gas for message save.
-        Pallet::<T>::charge_for_hold(message.id(), hold_interval, StorageType::DispatchStash);
+        Pallet::<T>::charge_for_hold(
+            None,
+            message.id(),
+            hold_interval,
+            StorageType::DispatchStash,
+        );
 
         // Cast message type.
         let message = message

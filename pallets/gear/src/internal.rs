@@ -19,9 +19,9 @@
 //! Internal details of Gear Pallet implementation.
 
 use crate::{
-    Config, CostsPerBlockOf, CurrencyOf, DispatchStashOf, Event, ExtManager, GasBalanceOf,
-    GasHandlerOf, GasNodeIdOf, GearBank, MailboxOf, Pallet, QueueOf, SchedulingCostOf, TaskPoolOf,
-    WaitlistOf,
+    AccountIdOf, Config, CostsPerBlockOf, CurrencyOf, DispatchStashOf, Event, ExtManager,
+    GasBalanceOf, GasHandlerOf, GasNodeIdOf, GearBank, MailboxOf, Pallet, QueueOf,
+    SchedulingCostOf, TaskPoolOf, WaitlistOf,
 };
 use alloc::collections::BTreeSet;
 use common::{
@@ -210,7 +210,11 @@ where
     ///
     /// Represents logic of burning gas by transferring gas from
     /// current `GasTree` owner to actual block producer.
-    pub(crate) fn spend_gas(id: impl Into<GasNodeIdOf<T>>, amount: GasBalanceOf<T>) {
+    pub(crate) fn spend_gas(
+        to: Option<AccountIdOf<T>>,
+        id: impl Into<GasNodeIdOf<T>>,
+        amount: GasBalanceOf<T>,
+    ) {
         let id = id.into();
 
         // If amount is zero, nothing to do.
@@ -226,9 +230,15 @@ where
         let (external, multiplier, _) = GasHandlerOf::<T>::get_origin_node(id)
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
-        // Transferring reserved funds from external user to block author.
-        GearBank::<T>::spend_gas(&external, amount, multiplier)
-            .unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
+        // Transferring reserved funds from external user to destination.
+        let result = match to {
+            Some(account_id) => {
+                GearBank::<T>::spend_gas_to(&account_id, &external, amount, multiplier)
+            }
+            None => GearBank::<T>::spend_gas(&external, amount, multiplier),
+        };
+
+        result.unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
     }
 
     /// Consumes message by given `MessageId` or gas reservation by `ReservationId`.
@@ -270,6 +280,7 @@ where
     /// `hold_interval` - determines the time interval to charge rent for;
     /// `storage_type` - storage type that determines the lock and the cost for holding a message.
     pub(crate) fn charge_for_hold(
+        to: Option<AccountIdOf<T>>,
         id: impl Into<GasNodeIdOf<T>>,
         hold_interval: Interval<BlockNumberFor<T>>,
         storage_type: StorageType,
@@ -316,7 +327,7 @@ where
         // Spending gas, if need.
         if !amount.is_zero() {
             // Spending gas.
-            Self::spend_gas(id, amount)
+            Self::spend_gas(to, id, amount)
         }
     }
 
@@ -412,7 +423,12 @@ where
         let expected = hold_interval.finish;
 
         // Charging for holding.
-        Self::charge_for_hold(waitlisted.id(), hold_interval, StorageType::Waitlist);
+        Self::charge_for_hold(
+            <T as Config>::RentPoolId::get(),
+            waitlisted.id(),
+            hold_interval,
+            StorageType::Waitlist,
+        );
 
         // Depositing appropriate event.
         Pallet::<T>::deposit_event(Event::MessageWoken {
@@ -455,7 +471,7 @@ where
         let expected = hold_interval.finish;
 
         // Charging for holding.
-        Self::charge_for_hold(mailboxed.id(), hold_interval, StorageType::Mailbox);
+        Self::charge_for_hold(None, mailboxed.id(), hold_interval, StorageType::Mailbox);
 
         // Consuming message.
         Self::consume_and_retrieve(mailboxed.id());

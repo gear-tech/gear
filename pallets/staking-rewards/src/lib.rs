@@ -408,6 +408,12 @@ pub mod pallet {
                 .saturating_sub(T::Currency::minimum_balance())
         }
     }
+
+    impl<T: Config> Get<Option<<T as frame_system::Config>::AccountId>> for Pallet<T> {
+        fn get() -> Option<<T as frame_system::Config>::AccountId> {
+            Some(Self::rent_pool_account_id())
+        }
+    }
 }
 
 fn pay_rent_rewards_out<T: Config>(maybe_active_era_info: Option<ActiveEraInfo>) {
