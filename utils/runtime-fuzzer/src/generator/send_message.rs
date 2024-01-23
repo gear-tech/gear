@@ -40,7 +40,7 @@ pub(crate) fn generate(
     (programs, gas): SendMessageRuntimeData,
 ) -> Result<GearCall> {
     let program_id = {
-        let random_idx = unstructured.int_in_range(0..=programs.len())?;
+        let random_idx = unstructured.int_in_range(0..=programs.len() - 1)?;
         programs
             .get(random_idx)
             .copied()

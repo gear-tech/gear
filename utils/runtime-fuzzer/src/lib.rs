@@ -66,7 +66,7 @@ fn run_impl(fuzzer_input: FuzzerInput<'_>) -> Result<sp_io::TestExternalities> {
             // Run task and message queues with max possible gas limit.
             runtime::run_to_next_block();
 
-            Ok(true)
+            Ok(false)
         })?;
 
         if must_stop {

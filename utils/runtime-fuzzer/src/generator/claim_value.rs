@@ -41,7 +41,7 @@ pub(crate) fn generate(
 ) -> Result<GearCall> {
     log::trace!("Generating claim_value call");
 
-    let random_idx = unstructured.int_in_range(0..=mailbox.len())?;
+    let random_idx = unstructured.int_in_range(0..=mailbox.len() - 1)?;
     mailbox
         .get(random_idx)
         .map(|mid| ClaimValueArgs(**mid).into())
