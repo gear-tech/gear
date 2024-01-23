@@ -21,7 +21,7 @@
 #![cfg(test)]
 
 use crate::{mock::*, *};
-use frame_support::{assert_noop, assert_ok, assert_storage_noop};
+use frame_support::{assert_noop, assert_ok, assert_storage_noop, traits::EstimateNextNewSession};
 use sp_runtime::{DispatchError, PerThing, Perbill};
 
 macro_rules! assert_approx_eq {
@@ -1434,6 +1434,72 @@ fn election_solution_rewards_add_up() {
                 - <<Test as MPConfig>::EstimateCallFee as Get<u32>>::get() as u128 * 2
         );
     });
+}
+
+#[test]
+fn rent_pool_disbursments_work() {
+    use two_block_producers::*;
+
+    init_logger();
+
+    default_test_ext().execute_with(|| {
+        let sessions_per_era = <Test as pallet_staking::Config>::SessionsPerEra::get() as u64;
+        let epoch_duration = Session::average_session_length();
+        let era_duration = sessions_per_era * epoch_duration;
+
+        // the base reward points value is hardcoded in Substrate but we don't copy it here.
+        // A validator has just produced the first block so it has one set of reward points
+        // which we can determine.
+        let active_era_info = Staking::active_era().unwrap();
+        let reward_points = Staking::eras_reward_points(active_era_info.index);
+        let (validator, &reward_points) = reward_points.individual.first_key_value().unwrap();
+        let reward_points = u64::from(reward_points);
+
+        assert_eq!(era_duration % 2, 0);
+        // determine blocks which will be produced by two validators
+        // (take into account who has produced the first block)
+        let (blocks_1, blocks_2) = {
+            let block_count = era_duration / 2;
+            match validator {
+                &VAL_1_STASH => (block_count + 1, block_count),
+                _ => (block_count, block_count + 1),
+            }
+        };
+
+        // imitate rent charging
+        let rent = u128::from(1 + (blocks_1 + blocks_2) * reward_points);
+        let imbalance = CurrencyOf::<Test>::issue(rent);
+        let result = CurrencyOf::<Test>::resolve_into_existing(
+            &StakingRewards::rent_pool_account_id(),
+            imbalance,
+        );
+        assert_ok!(result);
+
+        let free_balance_validator_1 = CurrencyOf::<Test>::free_balance(&VAL_1_STASH);
+        let free_balance_validator_2 = CurrencyOf::<Test>::free_balance(&VAL_2_STASH);
+        let free_balance_validator_3 = CurrencyOf::<Test>::free_balance(&VAL_3_STASH);
+
+        // go to the next era to trigger payouts
+        run_to_block(era_duration + 1);
+
+        // some remaining value cannot be distributed between validators so goes to the next era
+        assert_eq!(StakingRewards::rent_pool_free_balance(), 1);
+        // the third validator doesn't produce any blocks
+        assert_eq!(
+            free_balance_validator_3,
+            CurrencyOf::<Test>::free_balance(&VAL_3_STASH)
+        );
+        // the first and the second validators should be rewarded for block producing
+        // accordingly to their points
+        assert_eq!(
+            free_balance_validator_1 + u128::from(blocks_1 * reward_points),
+            CurrencyOf::<Test>::free_balance(&VAL_1_STASH)
+        );
+        assert_eq!(
+            free_balance_validator_2 + u128::from(blocks_2 * reward_points),
+            CurrencyOf::<Test>::free_balance(&VAL_2_STASH)
+        );
+    })
 }
 
 fn sensible_defaults() -> (Perquintill, Perquintill, u128, Perquintill) {

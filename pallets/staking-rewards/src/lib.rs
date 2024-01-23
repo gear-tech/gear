@@ -196,6 +196,13 @@ pub mod pallet {
                 // Dropping the resulting imbalance as the funds are minted out of thin air.
                 let _ = T::Currency::make_free_balance_be(&account_id, amount);
             }
+
+            // create account for the rent pool
+            let _ = T::Currency::make_free_balance_be(
+                &Pallet::<T>::rent_pool_account_id(),
+                T::Currency::minimum_balance(),
+            );
+
             TargetInflation::<T>::put(self.target_inflation);
             IdealStakingRatio::<T>::put(self.ideal_stake);
             NonStakeableShare::<T>::put(self.non_stakeable);
@@ -379,6 +386,26 @@ pub mod pallet {
             let roi = Perquintill::from_rational(payout, total_staked);
 
             InflationInfo { inflation, roi }
+        }
+
+        /// The account ID of the rent rewards pool.
+        pub fn rent_pool_account_id() -> T::AccountId {
+            use sp_runtime::traits::TrailingZeroInput;
+
+            let entropy =
+                (T::PalletId::get(), b"gear rent pool").using_encoded(sp_io::hashing::blake2_256);
+            let actor_id = Decode::decode(&mut TrailingZeroInput::new(entropy.as_ref()))
+                .expect("infinite length input; no invalid inputs for type; qed");
+
+            actor_id
+        }
+
+        /// Return the amount in the rent pool.
+        // The existential deposit is not a part of the pool so the account never gets deleted.
+        pub fn rent_pool_free_balance() -> BalanceOf<T> {
+            T::Currency::free_balance(&Self::rent_pool_account_id())
+                // Must never be less than 0 but better be safe.
+                .saturating_sub(T::Currency::minimum_balance())
         }
     }
 }
