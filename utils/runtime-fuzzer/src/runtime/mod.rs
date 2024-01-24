@@ -21,7 +21,7 @@ use block::*;
 use frame_support::{dispatch::DispatchResultWithPostInfo, traits::Currency};
 use frame_system::GenesisConfig as SystemConfig;
 use pallet_balances::{GenesisConfig as BalancesConfig, Pallet as BalancesPallet};
-use pallet_gear_bank::Config as GearBankConfig;
+use runtime_primitives::Balance;
 use sp_io::TestExternalities;
 use sp_runtime::BuildStorage;
 use vara_runtime::{
@@ -41,7 +41,10 @@ pub fn new_test_ext() -> TestExternalities {
     let authorities = vec![authority_keys_from_seed("Authority")];
     // Vector of tuples of accounts and their balances
     let balances = vec![
-        (account(account::alice()), account::acc_max_balance()),
+        (
+            account(account::alice()),
+            account::gas_to_value(account::acc_max_balance_gas()),
+        ),
         (BankAddress::get(), Balances::minimum_balance()),
     ];
 
@@ -89,11 +92,6 @@ pub fn new_test_ext() -> TestExternalities {
     ext
 }
 
-pub fn increase_to_max_balance(who: AccountId) -> DispatchResultWithPostInfo {
-    BalancesPallet::<Runtime>::force_set_balance(
-        RuntimeOrigin::root(),
-        who.into(),
-        <Runtime as GearBankConfig>::GasMultiplier::get()
-            .gas_to_value(account::acc_max_balance() as u64),
-    )
+pub fn set_balance(who: AccountId, free: Balance) -> DispatchResultWithPostInfo {
+    BalancesPallet::<Runtime>::force_set_balance(RuntimeOrigin::root(), who.into(), free)
 }

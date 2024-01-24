@@ -28,6 +28,7 @@ use gear_wasm_gen::{
     ActorKind, EntryPointsSet, InvocableSyscall, PtrParamAllowedValues, RegularParamType,
     StandardGearWasmConfigsBundle, SyscallName, SyscallsInjectionTypes, SyscallsParamsConfig,
 };
+use runtime_primitives::Balance;
 
 pub(crate) type UploadProgramRuntimeData<'a> = (&'a str, Option<&'a NonEmpty<ProgramId>>, u64);
 
@@ -43,13 +44,18 @@ impl<'a> From<RuntimeStateView<'a>> for UploadProgramRuntimeData<'a> {
 
 impl<'a> From<RuntimeStateView<'a>> for UploadProgramRuntimeData<'a> {
     fn from(env: RuntimeStateView<'a>) -> Self {
-        (env.corpus_id, env.programs, env.max_gas)
+        (
+            env.corpus_id,
+            env.programs,
+            env.max_gas,
+            env.current_balance,
+        )
     }
 }
 
 pub(crate) fn generate(
     unstructured: &mut Unstructured,
-    (corpus_id, programs, gas): UploadProgramRuntimeData,
+    (corpus_id, programs, gas, current_balance): UploadProgramRuntimeData,
 ) -> Result<GearCall> {
     log::trace!("New gear-wasm generation");
     log::trace!("Random data before wasm gen {}", unstructured.len());
@@ -75,11 +81,14 @@ pub(crate) fn generate(
     );
     log::trace!("Payload (upload_program) length {:?}", payload.len());
 
-    let program_id = ProgramId::generate_from_user(CodeId::generate(&code), &salt);
+    let value = unstructured.int_in_range(0..=current_balance.saturating_div(7))?;
+    log::trace!("Random data after value generation {}", unstructured.len());
+    log::trace!("Sending value (upload_program) - {value}");
 
+    let program_id = ProgramId::generate_from_user(CodeId::generate(&code), &salt);
     log::trace!("Generated code for program id - {program_id}");
 
-    Ok(UploadProgramArgs((code, salt, payload, gas, 0)).into())
+    Ok(UploadProgramArgs((code, salt, payload, gas, value)).into())
 }
 
 fn arbitrary_salt(u: &mut Unstructured) -> Result<Vec<u8>> {
@@ -128,6 +137,7 @@ fn config(
         .with_ptr_rule(PtrParamAllowedValues::ActorId(actor_kind.clone()))
         .with_ptr_rule(PtrParamAllowedValues::ActorIdWithValue {
             actor_kind: actor_kind.clone(),
+            // TODO: reconsider that !!!
             range: 0..=0,
         });
 

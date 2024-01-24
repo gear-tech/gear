@@ -21,6 +21,7 @@ use gear_call_gen::{GearCall, SendMessageArgs};
 use gear_core::ids::ProgramId;
 use gear_utils::NonEmpty;
 use gear_wasm_gen::wasm_gen_arbitrary::{Result, Unstructured};
+use runtime_primitives::Balance;
 use std::result::Result as StdResult;
 
 pub(crate) type SendMessageRuntimeData<'a> = (&'a NonEmpty<ProgramId>, u64);
@@ -45,13 +46,13 @@ impl<'a> TryFrom<RuntimeStateView<'a>> for SendMessageRuntimeData<'a> {
     fn try_from(env: RuntimeStateView<'a>) -> StdResult<Self, Self::Error> {
         let programs = NonEmpty::from_slice(&env.programs).ok_or(())?;
 
-        Ok((programs, env.max_gas))
+        Ok((programs, env.max_gas, env.current_balance))
     }
 }
 
 pub(crate) fn generate(
     unstructured: &mut Unstructured,
-    (programs, gas): SendMessageRuntimeData,
+    (programs, gas, current_balance): SendMessageRuntimeData,
 ) -> Result<GearCall> {
     let program_id = {
         let random_idx = unstructured.int_in_range(0..=programs.len() - 1)?;

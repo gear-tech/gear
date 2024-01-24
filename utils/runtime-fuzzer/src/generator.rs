@@ -183,7 +183,7 @@ impl RuntimeStateViewProducer {
             programs: self.programs.as_ref(),
             mailbox: self.mailbox.as_ref(),
             max_gas: runtime::default_gas_limit(),
-        }
+        })
     }
 
     /// Updates mailbox and existing programs view and resets events.
@@ -225,6 +225,25 @@ impl RuntimeStateViewProducer {
         // 2. Obtained mailbox message ids and initialized programs ids are unique.
         System::reset_events();
     }
+
+    fn update_balance(&mut self) -> Result<Balance> {
+        let new_balance_in_gas = self
+            .unstructured
+            .int_in_range(runtime::acc_min_balance_gas()..=runtime::acc_max_balance_gas())?;
+        let new_balance_in_value = runtime::gas_to_value(new_balance_in_gas);
+
+        runtime::set_balance(self.sender.clone(), new_balance_in_value)
+            .unwrap_or_else(|e| unreachable!("Balance update failed: {e:?}"));
+
+        assert_eq!(
+            new_balance_in_value,
+            BalancesPallet::<Runtime>::free_balance(&self.sender),
+            "internal error: new balance set logic is corrupted."
+        );
+        log::info!("Current balance of the sender - {new_balance_in_value}");
+
+        Ok(new_balance_in_value)
+    }
 }
 
 pub(crate) struct RuntimeStateView<'a> {
@@ -236,6 +255,7 @@ pub(crate) struct RuntimeStateView<'a> {
 }
 
 pub(crate) struct RuntimeStateView<'a> {
+    current_balance: Balance,
     corpus_id: &'a str,
     programs: Vec<&'a ProgramId>,
     max_gas: u64,

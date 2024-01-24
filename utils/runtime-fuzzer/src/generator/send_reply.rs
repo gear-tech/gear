@@ -21,6 +21,7 @@ use gear_call_gen::{GearCall, SendReplyArgs};
 use gear_core::ids::MessageId;
 use gear_utils::NonEmpty;
 use gear_wasm_gen::wasm_gen_arbitrary::{Result, Unstructured};
+use runtime_primitives::Balance;
 use std::result::Result as StdResult;
 
 pub(crate) type SendReplyRuntimeData<'a> = (&'a NonEmpty<MessageId>, u64);
@@ -43,13 +44,13 @@ impl<'a> TryFrom<RuntimeStateView<'a>> for SendReplyRuntimeData<'a> {
     fn try_from(env: RuntimeStateView<'a>) -> StdResult<Self, Self::Error> {
         let mailbox = NonEmpty::from_slice(&env.mailbox).ok_or(())?;
 
-        Ok((mailbox, env.max_gas))
+        Ok((mailbox, env.max_gas, env.current_balance))
     }
 }
 
 pub(crate) fn generate(
     unstructured: &mut Unstructured,
-    (mailbox, gas): SendReplyRuntimeData,
+    (mailbox, gas, current_balance): SendReplyRuntimeData,
 ) -> Result<GearCall> {
     log::trace!(
         "Random data before payload (send_reply) gen {}",

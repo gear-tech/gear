@@ -24,6 +24,7 @@ use gear_common::Origin;
 use gear_wasm_gen::Unstructured;
 use pallet_balances::Pallet as BalancesPallet;
 use pallet_gear::BlockGasLimitOf;
+use pallet_gear_bank::Config as GearBankConfig;
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use runtime_primitives::{AccountId, AccountPublic, Balance};
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
@@ -34,8 +35,8 @@ use sp_runtime::{app_crypto::UncheckedFrom, traits::IdentifyAccount};
 use std::mem;
 use vara_runtime::Runtime;
 
-pub fn alice_program_id() -> ProgramId {
-    ProgramId::from_origin(alice().into_origin())
+pub fn account_to_program_id(acc: AccountId) -> ProgramId {
+    ProgramId::from_origin(acc.into_origin())
 }
 
 pub fn alice() -> AccountId {
@@ -82,8 +83,18 @@ pub fn get_pub_key_from_seed<T: TPublic>(seed: &str) -> <T::Pair as Pair>::Publi
         .public()
 }
 
-pub fn acc_max_balance() -> Balance {
-    BlockGasLimitOf::<Runtime>::get().saturating_mul(20) as u128
+pub fn acc_max_balance_gas() -> Gas {
+    BlockGasLimitOf::<Runtime>::get().saturating_mul(20)
+}
+
+pub fn acc_min_balance_gas() -> Gas {
+    BlockGasLimitOf::<Runtime>::get()
+        .saturating_mul(3)
+        .saturating_div(2)
+}
+
+pub fn gas_to_value(gas: Gas) -> Balance {
+    <Runtime as GearBankConfig>::GasMultiplier::get().gas_to_value(gas)
 }
 
 pub struct BalanceManager<'a> {
