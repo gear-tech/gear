@@ -65,6 +65,7 @@ pub(crate) fn generate(
         config(
             programs,
             Some(format!("Generated program from corpus - {corpus_id}")),
+            current_balance,
         ),
     )?;
     log::trace!("Random data after wasm gen {}", unstructured.len());
@@ -98,6 +99,7 @@ fn arbitrary_salt(u: &mut Unstructured) -> Result<Vec<u8>> {
 fn config(
     programs: Option<&NonEmpty<ProgramId>>,
     log_info: Option<String>,
+    current_balance: Balance,
 ) -> StandardGearWasmConfigsBundle {
     let initial_pages = 2;
     let mut injection_types = SyscallsInjectionTypes::all_once();
@@ -123,7 +125,9 @@ fn config(
             RegularParamType::Free,
             (initial_pages..=initial_pages + 35).into(),
         )
-        .with_ptr_rule(PtrParamAllowedValues::Value(0..=0));
+        .with_ptr_rule(PtrParamAllowedValues::Value(
+            0..=current_balance.saturating_div(1000),
+        ));
 
     let actor_kind = programs
         .cloned()
@@ -138,7 +142,7 @@ fn config(
         .with_ptr_rule(PtrParamAllowedValues::ActorIdWithValue {
             actor_kind: actor_kind.clone(),
             // TODO: reconsider that !!!
-            range: 0..=0,
+            range: 0..=current_balance.saturating_div(1000),
         });
 
     StandardGearWasmConfigsBundle {
