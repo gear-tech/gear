@@ -891,7 +891,7 @@ fn auto_reply_out_of_rent_waitlist() {
 
         run_to_next_block(None);
         // Signal for waiter program since it has system reservation
-        // + auto error reply to proxy contract.
+        // + auto error reply to proxy program.
         assert_last_dequeued(2);
     });
 }
@@ -3760,7 +3760,7 @@ fn lazy_pages() {
         run_to_block(3, None);
 
         // Dirty hack: lazy pages info is stored in thread local static variables,
-        // so after contract execution lazy-pages information
+        // so after program execution lazy-pages information
         // remains correct and we can use it here.
         let write_accessed_pages: BTreeSet<_> = gear_ri::gear_ri::write_accessed_pages()
             .into_iter()
@@ -3788,8 +3788,8 @@ fn lazy_pages() {
 
 #[test]
 fn initial_pages_cheaper_than_allocated_pages() {
-    // When contract has some amount of the initial pages, then it is simpler
-    // for core processor and executor than process the same contract
+    // When program has some amount of the initial pages, then it is simpler
+    // for core processor and executor than process the same program
     // but with allocated pages.
 
     let wat_initial = r#"
@@ -6147,7 +6147,7 @@ fn terminated_locking_funds() {
 
         // Because we set gas for init message second execution only for resources loading, then
         // after execution system reserved gas and sended value and price for wait list must be returned
-        // to user. This is because contract will stop his execution on first wasm block, because of gas
+        // to user. This is because program will stop his execution on first wasm block, because of gas
         // limit exceeded. So, gas counter will be equal to amount of returned from wait list gas in handle reply.
         let expected_balance_difference =
             prog_free + returned_from_wait_list + returned_from_system_reservation;
@@ -6361,7 +6361,7 @@ fn test_create_program_no_code_hash() {
         ));
         run_to_block(2, None);
 
-        // Init and dispatch messages from the contract are dequeued, but not executed
+        // Init and dispatch messages from the program are dequeued, but not executed
         // 2 error replies are generated, and executed (forwarded to USER_2 mailbox).
         assert_eq!(MailboxOf::<Test>::len(&USER_2), 2);
         assert_total_dequeued(4 + 2); // +2 for upload_program/send_messages
@@ -7391,7 +7391,7 @@ fn gas_spent_precalculated() {
 }
 
 #[test]
-fn test_two_contracts_composition_works() {
+fn test_two_programs_composition_works() {
     use demo_compose::WASM_BINARY as COMPOSE_WASM_BINARY;
     use demo_mul_by_const::WASM_BINARY as MUL_CONST_WASM_BINARY;
 
@@ -7400,15 +7400,15 @@ fn test_two_contracts_composition_works() {
         // Initial value in all gas trees is 0
         assert_eq!(GasHandlerOf::<Test>::total_supply(), 0);
 
-        let contract_a_id = generate_program_id(MUL_CONST_WASM_BINARY, b"contract_a");
-        let contract_b_id = generate_program_id(MUL_CONST_WASM_BINARY, b"contract_b");
-        let contract_code_id = CodeId::generate(MUL_CONST_WASM_BINARY);
+        let program_a_id = generate_program_id(MUL_CONST_WASM_BINARY, b"program_a");
+        let program_b_id = generate_program_id(MUL_CONST_WASM_BINARY, b"program_b");
+        let program_code_id = CodeId::generate(MUL_CONST_WASM_BINARY);
         let compose_id = generate_program_id(COMPOSE_WASM_BINARY, b"salt");
 
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
             MUL_CONST_WASM_BINARY.to_vec(),
-            b"contract_a".to_vec(),
+            b"program_a".to_vec(),
             50_u64.encode(),
             10_000_000_000,
             0,
@@ -7417,8 +7417,8 @@ fn test_two_contracts_composition_works() {
 
         assert_ok!(Gear::create_program(
             RuntimeOrigin::signed(USER_1),
-            contract_code_id,
-            b"contract_b".to_vec(),
+            program_code_id,
+            b"program_b".to_vec(),
             75_u64.encode(),
             10_000_000_000,
             0,
@@ -7430,8 +7430,8 @@ fn test_two_contracts_composition_works() {
             COMPOSE_WASM_BINARY.to_vec(),
             b"salt".to_vec(),
             (
-                <[u8; 32]>::from(contract_a_id),
-                <[u8; 32]>::from(contract_b_id)
+                <[u8; 32]>::from(program_a_id),
+                <[u8; 32]>::from(program_b_id)
             )
                 .encode(),
             10_000_000_000,
@@ -8013,13 +8013,13 @@ fn cascading_messages_with_value_do_not_overcharge() {
 
     init_logger();
     new_test_ext().execute_with(|| {
-        let contract_id = generate_program_id(MUL_CONST_WASM_BINARY, b"contract");
+        let program_id = generate_program_id(MUL_CONST_WASM_BINARY, b"program");
         let wrapper_id = generate_program_id(WAITING_PROXY_WASM_BINARY, b"salt");
 
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
             MUL_CONST_WASM_BINARY.to_vec(),
-            b"contract".to_vec(),
+            b"program".to_vec(),
             50_u64.encode(),
             10_000_000_000,
             0,
@@ -8030,7 +8030,7 @@ fn cascading_messages_with_value_do_not_overcharge() {
             RuntimeOrigin::signed(USER_1),
             WAITING_PROXY_WASM_BINARY.to_vec(),
             b"salt".to_vec(),
-            (<[u8; 32]>::from(contract_id), 0u64).encode(),
+            (<[u8; 32]>::from(program_id), 0u64).encode(),
             10_000_000_000,
             0,
             false,
@@ -8065,8 +8065,8 @@ fn cascading_messages_with_value_do_not_overcharge() {
 
         run_to_block(4, None);
 
-        // A message is sent to a waiting proxy contract that passes execution
-        // on to another contract while keeping the `value`.
+        // A message is sent to a waiting proxy program that passes execution
+        // on to another program while keeping the `value`.
         // The overall gas expenditure is `gas_to_spend`. The message gas limit
         // is set to be just enough to cover this amount.
         // The sender's account has enough funds for both gas and `value`,
