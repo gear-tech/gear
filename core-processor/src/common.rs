@@ -501,8 +501,7 @@ pub enum SystemExecutionError {
 }
 
 /// Actor.
-#[derive(Clone, Debug, Decode, Encode)]
-#[codec(crate = scale)]
+#[derive(Clone, Debug)]
 pub struct Actor {
     /// Program value balance.
     pub balance: u128,
@@ -513,8 +512,7 @@ pub struct Actor {
 }
 
 /// Executable actor data.
-#[derive(Clone, Debug, Decode, Encode)]
-#[codec(crate = scale)]
+#[derive(Clone, Debug)]
 pub struct ExecutableActorData {
     /// Set of dynamic wasm page numbers, which are allocated by the program.
     pub allocations: BTreeSet<WasmPage>,
@@ -528,8 +526,6 @@ pub struct ExecutableActorData {
     pub code_exports: BTreeSet<DispatchKind>,
     /// Count of static memory pages.
     pub static_pages: WasmPage,
-    /// Flag indicates if the program is initialized.
-    pub initialized: bool,
     /// Gas reservation map.
     pub gas_reservation_map: GasReservationMap,
 }
