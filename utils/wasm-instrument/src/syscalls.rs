@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022-2023 Gear Technologies Inc.
+// Copyright (C) 2022-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -105,7 +105,6 @@ pub enum SyscallName {
     ReserveGas,
     UnreserveGas,
     SystemReserveGas,
-    PayProgramRent,
 }
 
 impl SyscallName {
@@ -128,7 +127,6 @@ impl SyscallName {
             SyscallName::Leave => "gr_leave",
             SyscallName::MessageId => "gr_message_id",
             SyscallName::SystemBreak => "gr_system_break",
-            SyscallName::PayProgramRent => "gr_pay_program_rent",
             SyscallName::ProgramId => "gr_program_id",
             SyscallName::Random => "gr_random",
             SyscallName::Read => "gr_read",
@@ -192,7 +190,6 @@ impl SyscallName {
             Self::BlockTimestamp,
             Self::Exit,
             Self::GasAvailable,
-            Self::PayProgramRent,
             Self::ProgramId,
             Self::Leave,
             Self::ValueAvailable,
@@ -269,10 +266,6 @@ impl SyscallName {
             }
             Self::Exit => SyscallSignature::gr_infallible([Ptr::Hash(HashType::ActorId).into()]),
             Self::GasAvailable => SyscallSignature::gr_infallible([Ptr::MutGas.into()]),
-            Self::PayProgramRent => SyscallSignature::gr_fallible((
-                [Ptr::HashWithValue(HashType::ActorId).into()],
-                ErrPtr::ErrorWithBlockNumberAndValue,
-            )),
             Self::ProgramId => {
                 SyscallSignature::gr_infallible([Ptr::MutHash(HashType::ActorId).into()])
             }
@@ -771,15 +764,9 @@ mod pointers {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
     pub enum Ptr {
         // Const ptrs.
-        BlockNumber,
-        BlockTimestamp,
         SizedBufferStart { length_param_idx: usize },
-        BufferStart,
         Hash(HashType),
-        Gas,
-        Length,
         Value,
-        BlockNumberWithHash(HashType),
         HashWithValue(HashType),
         TwoHashes(HashType, HashType),
         TwoHashesWithValue(HashType, HashType),
@@ -793,9 +780,6 @@ mod pointers {
         MutLength,
         MutValue,
         MutBlockNumberWithHash(HashType),
-        MutHashWithValue(HashType),
-        MutTwoHashes(HashType, HashType),
-        MutTwoHashesWithValue(HashType, HashType),
     }
 
     impl Ptr {
@@ -803,15 +787,9 @@ mod pointers {
             use Ptr::*;
 
             match self {
-                BlockNumber
-                | BlockTimestamp
-                | SizedBufferStart { .. }
-                | BufferStart
+                SizedBufferStart { .. }
                 | Hash(_)
-                | Gas
-                | Length
                 | Value
-                | BlockNumberWithHash(_)
                 | HashWithValue(_)
                 | TwoHashes(_, _)
                 | TwoHashesWithValue(_, _) => false,
@@ -823,10 +801,7 @@ mod pointers {
                 | MutGas
                 | MutLength
                 | MutValue
-                | MutBlockNumberWithHash(_)
-                | MutHashWithValue(_)
-                | MutTwoHashes(_, _)
-                | MutTwoHashesWithValue(_, _) => true,
+                | MutBlockNumberWithHash(_) => true,
             }
         }
     }
@@ -846,7 +821,6 @@ mod pointers {
         ErrorWithHandle,
         ErrorWithHash(HashType),
         ErrorWithTwoHashes(HashType, HashType),
-        ErrorWithBlockNumberAndValue,
     }
 
     impl From<ErrPtr> for ParamType {

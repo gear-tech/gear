@@ -16,7 +16,6 @@ const-str.workspace = true
 log.workspace = true
 parity-scale-codec.workspace = true
 scale-info = { workspace = true, features = ["derive"] }
-static_assertions.workspace = true
 
 # Frame deps
 frame-support.workspace = true

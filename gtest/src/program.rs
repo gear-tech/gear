@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -856,7 +856,9 @@ mod tests {
         assert!(run_result.main_failed());
 
         let log = run_result.log();
-        assert!(log[0].payload().starts_with(b"'Failed to load destination"));
+        let panic_msg_payload =
+            String::from_utf8(log[0].payload().into()).expect("Unable to decode panic message");
+        assert!(panic_msg_payload.contains("panicked with 'Failed to load destination"));
 
         let run_result = prog.send(user_id, String::from("should_be_skipped"));
 

@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -55,7 +55,6 @@
 //! };
 //! let entry_points_set = EntryPointsSet::InitHandle;
 //! let syscalls_config = SyscallsConfigBuilder::new(SyscallsInjectionTypes::all_once())
-//!     .with_source_msg_dest()
 //!     .with_log_info("I'm from wasm-gen".into())
 //!     .build();
 //!
@@ -91,7 +90,7 @@
 //! [`crate::generate_gear_program_code`] or [`crate::generate_gear_program_module`])
 //! you'd need a configs bundle - type which implements [`ConfigsBundle`].
 //!
-//! There's a pre-defined one - [`ValidGearWasmConfigsBundle`], usage of which will result
+//! There's a pre-defined one - [`StandardGearWasmConfigsBundle`], usage of which will result
 //! in generation of valid (always) gear-wasm module.
 
 mod generator;
@@ -101,9 +100,6 @@ mod syscalls;
 pub use generator::*;
 pub use module::*;
 pub use syscalls::*;
-
-use gear_utils::NonEmpty;
-use gsys::Hash;
 
 /// Trait which describes a type that stores and manages data for generating
 /// [`GearWasmGeneratorConfig`] and [`SelectableParams`], which are both used
@@ -132,13 +128,9 @@ impl ConfigsBundle for (GearWasmGeneratorConfig, SelectableParams) {
 /// Standard set of configurational data which is used to generate always
 /// valid gear-wasm using generators of the current crate.
 #[derive(Debug, Clone)]
-pub struct StandardGearWasmConfigsBundle<T = [u8; 32]> {
+pub struct StandardGearWasmConfigsBundle {
     /// Externalities to be logged.
     pub log_info: Option<String>,
-    /// Set of existing addresses, which will be used as message destinations.
-    ///
-    /// If is `None`, then `gr_source` result will be used as a message destination.
-    pub existing_addresses: Option<NonEmpty<T>>,
     /// Flag which signals whether recursions must be removed.
     pub remove_recursion: bool,
     /// If the limit is set to `Some(_)`, programs will try to stop execution
@@ -160,11 +152,10 @@ pub struct StandardGearWasmConfigsBundle<T = [u8; 32]> {
     pub params_config: SyscallsParamsConfig,
 }
 
-impl<T> Default for StandardGearWasmConfigsBundle<T> {
+impl Default for StandardGearWasmConfigsBundle {
     fn default() -> Self {
         Self {
             log_info: Some("StandardGearWasmConfigsBundle".into()),
-            existing_addresses: None,
             remove_recursion: false,
             critical_gas_limit: Some(1_000_000),
             injection_types: SyscallsInjectionTypes::all_once(),
@@ -176,11 +167,10 @@ impl<T> Default for StandardGearWasmConfigsBundle<T> {
     }
 }
 
-impl<T: Into<Hash>> ConfigsBundle for StandardGearWasmConfigsBundle<T> {
+impl ConfigsBundle for StandardGearWasmConfigsBundle {
     fn into_parts(self) -> (GearWasmGeneratorConfig, SelectableParams) {
         let StandardGearWasmConfigsBundle {
             log_info,
-            existing_addresses,
             remove_recursion,
             critical_gas_limit,
             injection_types,
@@ -195,11 +185,6 @@ impl<T: Into<Hash>> ConfigsBundle for StandardGearWasmConfigsBundle<T> {
         let mut syscalls_config_builder = SyscallsConfigBuilder::new(injection_types);
         if let Some(log_info) = log_info {
             syscalls_config_builder = syscalls_config_builder.with_log_info(log_info);
-        }
-        if let Some(addresses) = existing_addresses {
-            syscalls_config_builder = syscalls_config_builder.with_addresses_msg_dest(addresses);
-        } else {
-            syscalls_config_builder = syscalls_config_builder.with_source_msg_dest();
         }
         syscalls_config_builder = syscalls_config_builder.with_params_config(params_config);
 

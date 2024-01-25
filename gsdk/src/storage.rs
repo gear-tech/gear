@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -23,7 +23,7 @@ use crate::{
             frame_system::{AccountInfo, EventRecord},
             gear_common::{storage::primitives::Interval, ActiveProgram, Program},
             gear_core::{code::InstrumentedCode, message::user::UserStoredMessage},
-            pallet_balances::AccountData,
+            pallet_balances::types::AccountData,
             pallet_gear_bank::pallet::BankAccount,
         },
         storage::{

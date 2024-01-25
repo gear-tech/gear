@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use gear_runtime_interface as gear_ri;
-pub use runtime_primitives::{AccountId, Balance, Block, BlockNumber, Hash, Header, Index};
+pub use runtime_primitives::{AccountId, Balance, Block, BlockNumber, Hash, Header, Nonce};
 use sc_client_api::{
     AuxStore, Backend as BackendT, BlockBackend, BlockchainEvents, KeysIter, PairsIter,
     UsageProvider,
@@ -82,7 +82,7 @@ pub trait RuntimeApiCollection:
     + sp_consensus_babe::BabeApi<Block>
     + sp_consensus_grandpa::GrandpaApi<Block>
     + sp_block_builder::BlockBuilder<Block>
-    + substrate_frame_rpc_system::AccountNonceApi<Block, AccountId, Index>
+    + substrate_frame_rpc_system::AccountNonceApi<Block, AccountId, Nonce>
     + pallet_transaction_payment_rpc_runtime_api::TransactionPaymentApi<Block, Balance>
     + sp_api::Metadata<Block>
     + sp_offchain::OffchainWorkerApi<Block>
@@ -101,7 +101,7 @@ where
         + sp_consensus_babe::BabeApi<Block>
         + sp_consensus_grandpa::GrandpaApi<Block>
         + sp_block_builder::BlockBuilder<Block>
-        + substrate_frame_rpc_system::AccountNonceApi<Block, AccountId, Index>
+        + substrate_frame_rpc_system::AccountNonceApi<Block, AccountId, Nonce>
         + pallet_transaction_payment_rpc_runtime_api::TransactionPaymentApi<Block, Balance>
         + sp_api::Metadata<Block>
         + sp_offchain::OffchainWorkerApi<Block>

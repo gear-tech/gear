@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -44,6 +44,7 @@ pub mod pallet {
     };
     use primitive_types::H256;
     use scale_info::TypeInfo;
+    use sp_runtime::Percent;
     use sp_std::{collections::btree_map::BTreeMap, convert::TryInto, prelude::*};
 
     pub(crate) type QueueOf<T> = <<T as Config>::Messenger as Messenger>::Queue;
@@ -64,7 +65,7 @@ pub mod pallet {
         type Messenger: Messenger<QueuedDispatch = StoredDispatch>;
 
         type ProgramStorage: ProgramStorage
-            + IterableMap<(ProgramId, common::Program<Self::BlockNumber>)>;
+            + IterableMap<(ProgramId, common::Program<BlockNumberFor<Self>>)>;
     }
 
     #[pallet::pallet]
@@ -279,6 +280,28 @@ pub mod pallet {
             Self::deposit_event(Event::DebugMode(debug_mode_on));
 
             // This extrinsic is not chargeable
+            Ok(Pays::No.into())
+        }
+
+        /// A dummy extrinsic with programmatically set weight.
+        ///
+        /// Used in tests to exhaust block resources.
+        ///
+        /// Parameters:
+        /// - `_fraction`: the fraction of the `max_extrinsic` the extrinsic will use.
+        #[pallet::call_index(1)]
+        #[pallet::weight({
+            if let Some(max) = T::BlockWeights::get().get(DispatchClass::Normal).max_extrinsic {
+                *_fraction * max
+            } else {
+                Weight::zero()
+            }
+        })]
+        pub fn exhaust_block_resources(
+            origin: OriginFor<T>,
+            _fraction: Percent,
+        ) -> DispatchResultWithPostInfo {
+            ensure_root(origin)?;
             Ok(Pays::No.into())
         }
     }

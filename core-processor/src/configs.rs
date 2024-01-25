@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -169,8 +169,6 @@ pub struct ExecutionSettings {
     /// Most recently determined random seed, along with the time in the past since when it was determinable by chain observers.
     // TODO: find a way to put a random seed inside block config.
     pub random_data: (Vec<u8>, u32),
-    /// Rent cost per block.
-    pub rent_cost: u128,
     /// Gas multiplier.
     pub gas_multiplier: gsys::GasMultiplier,
 }
@@ -220,8 +218,6 @@ pub struct BlockConfig {
     pub code_instrumentation_cost: u64,
     /// WASM code instrumentation per-byte cost.
     pub code_instrumentation_byte_cost: u64,
-    /// Rent cost per block.
-    pub rent_cost: u128,
     /// Gas multiplier.
     pub gas_multiplier: gsys::GasMultiplier,
 }

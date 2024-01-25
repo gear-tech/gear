@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -17,6 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::wasm::PageCount as WasmPageCount;
+use gear_utils::NonEmpty;
 use gear_wasm_instrument::{
     parity_wasm::{
         builder,
@@ -28,10 +29,9 @@ use gear_wasm_instrument::{
     syscalls::SyscallName,
     wasm_instrument::{self, InjectionConfig},
 };
-use gsys::HashWithValue;
 use std::{
     collections::{BTreeMap, BTreeSet},
-    mem, slice,
+    iter, mem,
 };
 
 const PREALLOCATE: usize = 1_000;
@@ -464,17 +464,76 @@ pub fn inject_critical_gas_limit(module: Module, critical_gas_limit: u64) -> Mod
     module
 }
 
-pub(crate) fn hash_with_value_to_vec(hash_with_value: &HashWithValue) -> Vec<u8> {
-    let address_data_size = mem::size_of::<HashWithValue>();
-    let address_data_slice = unsafe {
-        // # Safety:
-        // The `unsafe` block constructs raw bytes vector of an existing rust struct
-        // received by reference.
-        slice::from_raw_parts(
-            hash_with_value as *const HashWithValue as *const u8,
-            address_data_size,
-        )
-    };
+/// Bytes data converted into wasm words, i.e. i32 words.
+///
+/// This type is mainly used to define values for syscalls
+/// params of a pointer type. The value is converted first
+/// to bytes and then to wasm words, which are later translated
+/// to wasm instructions (see [`translate_ptr_data`]).
+pub(crate) struct WasmWords(Vec<i32>);
 
-    address_data_slice.to_vec()
+impl WasmWords {
+    const WASM_WORD_SIZE: usize = mem::size_of::<i32>();
+
+    pub(crate) fn new(data: impl AsRef<[u8]>) -> Self {
+        let data = data.as_ref();
+        let data_size = data.len();
+
+        if data_size % Self::WASM_WORD_SIZE != 0 {
+            panic!("data size isn't multiply of wasm word size")
+        }
+
+        let words = data
+            .chunks_exact(Self::WASM_WORD_SIZE)
+            .map(|word_bytes| {
+                i32::from_le_bytes(
+                    word_bytes
+                        .try_into()
+                        .expect("Chunks are of the exact size."),
+                )
+            })
+            .collect();
+
+        Self(words)
+    }
+
+    pub(crate) fn merge(mut self, Self(mut other): Self) -> Self {
+        self.0.append(&mut other);
+
+        Self(self.0)
+    }
+}
+
+/// Translates ptr data wasm words to instructions that set this data
+/// to wasm memory.
+///
+/// The `start_offset` is the index in memory where data should start.
+///
+/// The `end_offset` is usually the same as `start_offset` when the translated
+/// data (words) is desired to be used as a param for the syscall. In this case
+/// end offset just points to the start of the param value.
+pub(crate) fn translate_ptr_data(
+    WasmWords(words): WasmWords,
+    (start_offset, end_offset): (i32, i32),
+) -> Vec<Instruction> {
+    words
+        .into_iter()
+        .enumerate()
+        .flat_map(|(word_idx, word)| {
+            vec![
+                Instruction::I32Const(start_offset),
+                Instruction::I32Const(word),
+                Instruction::I32Store(2, (word_idx * mem::size_of::<i32>()) as u32),
+            ]
+        })
+        .chain(iter::once(Instruction::I32Const(end_offset)))
+        .collect()
+}
+
+/// Convert `NonEmpty` vector to `Vec`.
+pub(crate) fn non_empty_to_vec<T>(non_empty: NonEmpty<T>) -> Vec<T> {
+    let (head, mut tail) = non_empty.into();
+    tail.push(head);
+
+    tail
 }

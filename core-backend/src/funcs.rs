@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2023 Gear Technologies Inc.
+// Copyright (C) 2023-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -48,9 +48,9 @@ use gear_sandbox::{default_executor::Caller, ReturnValue, Value};
 use gear_sandbox_env::{HostError, WasmReturnValue};
 use gear_wasm_instrument::SystemBreakCode;
 use gsys::{
-    BlockNumberWithHash, ErrorBytes, ErrorWithBlockNumberAndValue, ErrorWithGas, ErrorWithHandle,
-    ErrorWithHash, ErrorWithReplyCode, ErrorWithSignalCode, ErrorWithTwoHashes, Gas, Hash,
-    HashWithValue, TwoHashesWithValue,
+    BlockNumberWithHash, ErrorBytes, ErrorWithGas, ErrorWithHandle, ErrorWithHash,
+    ErrorWithReplyCode, ErrorWithSignalCode, ErrorWithTwoHashes, Gas, Hash, HashWithValue,
+    TwoHashesWithValue,
 };
 
 const PTR_SPECIAL: u32 = u32::MAX;
@@ -1130,24 +1130,6 @@ where
             ctx.write_as(write_program_id, program_id.into_bytes())
                 .map_err(Into::into)
         })
-    }
-
-    pub fn pay_program_rent(rent_pid_ptr: u32) -> impl Syscall<Ext> {
-        FallibleSyscall::new::<ErrorWithBlockNumberAndValue>(
-            RuntimeCosts::PayProgramRent,
-            move |ctx: &mut CallerWrap<Ext>| {
-                let read_rent_pid = ctx.manager.register_read_as(rent_pid_ptr);
-
-                let HashWithValue {
-                    hash: program_id,
-                    value: rent,
-                } = ctx.read_as(read_rent_pid)?;
-
-                ctx.ext_mut()
-                    .pay_program_rent(program_id.into(), rent)
-                    .map_err(Into::into)
-            },
-        )
     }
 
     pub fn source(source_ptr: u32) -> impl Syscall<Ext> {

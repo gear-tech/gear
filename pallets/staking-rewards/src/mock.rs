@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -22,10 +22,7 @@ use frame_election_provider_support::{
 };
 use frame_support::{
     construct_runtime, parameter_types,
-    traits::{
-        ConstU32, Contains, Currency, FindAuthor, GenesisBuild, NeverEnsureOrigin, OnFinalize,
-        OnInitialize, U128CurrencyToVote,
-    },
+    traits::{ConstU32, Contains, Currency, FindAuthor, Hooks, NeverEnsureOrigin},
     weights::{constants::RocksDbWeight, Weight},
     PalletId,
 };
@@ -34,19 +31,17 @@ use pallet_election_provider_multi_phase::{self as multi_phase};
 use pallet_session::historical::{self as pallet_session_historical};
 use sp_core::{crypto::key_types, H256};
 use sp_runtime::{
-    generic,
     testing::{Block as TestBlock, UintAuthorityId},
     traits::{BlakeTwo256, IdentityLookup, OpaqueKeys},
-    KeyTypeId, Perbill, Permill, Perquintill,
+    BuildStorage, KeyTypeId, Perbill, Permill, Perquintill,
 };
 use sp_std::convert::{TryFrom, TryInto};
 
 pub(crate) type SignedExtra = pallet_gear_staking_rewards::StakingBlackList<Test>;
 type TestXt = sp_runtime::testing::TestXt<RuntimeCall, SignedExtra>;
 type Block = TestBlock<TestXt>;
-type UncheckedExtrinsic = TestXt;
 type AccountId = u64;
-type BlockNumber = u64;
+pub type BlockNumber = BlockNumberFor<Test>;
 type Balance = u128;
 
 pub(crate) type Executive = frame_executive::Executive<
@@ -60,16 +55,12 @@ pub(crate) type Executive = frame_executive::Executive<
 pub(crate) const SIGNER: AccountId = 1;
 pub(crate) const VAL_1_STASH: AccountId = 10;
 pub(crate) const BLOCK_AUTHOR: AccountId = VAL_1_STASH;
-pub(crate) const VAL_1_CONTROLLER: AccountId = 11;
 pub(crate) const VAL_1_AUTH_ID: UintAuthorityId = UintAuthorityId(12);
 pub(crate) const VAL_2_STASH: AccountId = 20;
-pub(crate) const VAL_2_CONTROLLER: AccountId = 21;
 pub(crate) const VAL_2_AUTH_ID: UintAuthorityId = UintAuthorityId(22);
 pub(crate) const VAL_3_STASH: AccountId = 30;
-pub(crate) const VAL_3_CONTROLLER: AccountId = 31;
 pub(crate) const VAL_3_AUTH_ID: UintAuthorityId = UintAuthorityId(32);
 pub(crate) const NOM_1_STASH: AccountId = 40;
-pub(crate) const NOM_1_CONTROLLER: AccountId = 41;
 pub(crate) const ROOT: AccountId = 101;
 
 pub(crate) const INITIAL_TOTAL_TOKEN_SUPPLY: u128 = 1_000_000 * UNITS;
@@ -84,24 +75,21 @@ pub(crate) const SESSION_DURATION: u64 = 1000;
 
 // Configure a mock runtime to test the pallet.
 construct_runtime!(
-    pub enum Test where
-        Block = Block,
-        NodeBlock = Block,
-        UncheckedExtrinsic = UncheckedExtrinsic,
+    pub enum Test
     {
-        System: system::{Pallet, Call, Config, Storage, Event<T>},
-        Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
-        Authorship: pallet_authorship::{Pallet, Storage},
-        Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
-        StakingRewards: pallet_gear_staking_rewards::{Pallet, Call, Storage, Config<T>, Event<T>},
-        Staking: pallet_staking::{Pallet, Call, Storage, Config<T>, Event<T>},
-        Session: pallet_session::{Pallet, Call, Storage, Config<T>, Event},
-        Historical: pallet_session_historical::{Pallet, Storage},
-        Treasury: pallet_treasury::{Pallet, Call, Storage, Config, Event<T>},
-        BagsList: pallet_bags_list::<Instance1>::{Pallet, Event<T>},
-        Sudo: pallet_sudo::{Pallet, Call, Storage, Config<T>, Event<T>},
-        Utility: pallet_utility::{Pallet, Call, Event},
-        ElectionProviderMultiPhase: multi_phase::{Pallet, Call, Event<T>},
+        System: system,
+        Timestamp: pallet_timestamp,
+        Authorship: pallet_authorship,
+        Balances: pallet_balances,
+        Staking: pallet_staking,
+        Session: pallet_session,
+        Historical: pallet_session_historical,
+        Treasury: pallet_treasury,
+        BagsList: pallet_bags_list::<Instance1>,
+        Sudo: pallet_sudo,
+        Utility: pallet_utility,
+        ElectionProviderMultiPhase: multi_phase,
+        StakingRewards: pallet_gear_staking_rewards,
     }
 );
 
@@ -118,6 +106,7 @@ parameter_types! {
 impl pallet_sudo::Config for Test {
     type RuntimeEvent = RuntimeEvent;
     type RuntimeCall = RuntimeCall;
+    type WeightInfo = ();
 }
 
 impl pallet_utility::Config for Test {
@@ -270,8 +259,8 @@ impl pallet_staking::Config for Test {
     type MaxNominations = MaxNominations;
     type Currency = Balances;
     type UnixTime = Timestamp;
-    type CurrencyBalance = u128;
-    type CurrencyToVote = U128CurrencyToVote;
+    type CurrencyBalance = <Self as pallet_balances::Config>::Balance;
+    type CurrencyToVote = ();
     type ElectionProvider = onchain::OnChainExecution<OnChainSeqPhragmen>;
     type GenesisElectionProvider = onchain::OnChainExecution<OnChainSeqPhragmen>;
     type RewardRemainder = ();
@@ -291,7 +280,7 @@ impl pallet_staking::Config for Test {
     type TargetList = pallet_staking::UseValidatorsMap<Self>;
     type MaxUnlockingChunks = ConstU32<32>;
     type HistoryDepth = HistoryDepth;
-    type OnStakerSlash = ();
+    type EventListeners = ();
     type WeightInfo = ();
     type BenchmarkingConfig = pallet_staking::TestBenchmarkingConfig;
 }
@@ -459,7 +448,6 @@ where
 
 pub type ValidatorAccountId = (
     AccountId,       // stash
-    AccountId,       // controller
     UintAuthorityId, // authority discovery ID
 );
 
@@ -536,8 +524,8 @@ impl ExtBuilder {
     }
 
     pub fn build(self) -> sp_io::TestExternalities {
-        let mut storage = system::GenesisConfig::default()
-            .build_storage::<Test>()
+        let mut storage = system::GenesisConfig::<Test>::default()
+            .build_storage()
             .unwrap();
 
         let balances: Vec<(AccountId, u128)> = self
@@ -551,13 +539,15 @@ impl ExtBuilder {
             .assimilate_storage(&mut storage)
             .unwrap();
 
-        GenesisBuild::<Test>::assimilate_storage(&TreasuryConfig {}, &mut storage).unwrap();
+        TreasuryConfig::default()
+            .assimilate_storage(&mut storage)
+            .unwrap();
 
         SessionConfig {
             keys: self
                 .initial_authorities
                 .iter()
-                .map(|x| (x.0, x.0, x.2.clone()))
+                .map(|x| (x.0, x.0, x.1.clone()))
                 .collect(),
         }
         .assimilate_storage(&mut storage)
@@ -576,7 +566,7 @@ impl ExtBuilder {
                 .map(|x| {
                     (
                         x.0,
-                        x.1,
+                        x.0,
                         self.stash,
                         pallet_staking::StakerStatus::<AccountId>::Validator,
                     )
@@ -589,16 +579,14 @@ impl ExtBuilder {
         .assimilate_storage(&mut storage)
         .unwrap();
 
-        GenesisBuild::<Test>::assimilate_storage(
-            &StakingRewardsConfig {
-                pool_balance: self.pool_balance,
-                non_stakeable: self.non_stakeable,
-                ideal_stake: self.ideal_stake,
-                target_inflation: self.target_inflation,
-                filtered_accounts: self.filtered_accounts,
-            },
-            &mut storage,
-        )
+        StakingRewardsConfig {
+            pool_balance: self.pool_balance,
+            non_stakeable: self.non_stakeable,
+            ideal_stake: self.ideal_stake,
+            target_inflation: self.target_inflation,
+            filtered_accounts: self.filtered_accounts,
+        }
+        .assimilate_storage(&mut storage)
         .unwrap();
 
         let mut ext: sp_io::TestExternalities = storage.into();
@@ -667,6 +655,7 @@ pub fn run_to_signed() {
 pub(crate) fn on_initialize(new_block_number: BlockNumberFor<Test>) {
     Timestamp::set_timestamp(new_block_number.saturating_mul(MILLISECS_PER_BLOCK));
     Authorship::on_initialize(new_block_number);
+    Staking::on_initialize(new_block_number);
     Session::on_initialize(new_block_number);
     ElectionProviderMultiPhase::on_initialize(new_block_number);
 }
@@ -680,9 +669,9 @@ pub(crate) fn on_finalize(current_blk: BlockNumberFor<Test>) {
 pub fn default_test_ext() -> sp_io::TestExternalities {
     ExtBuilder::default()
         .initial_authorities(vec![
-            (VAL_1_STASH, VAL_1_CONTROLLER, VAL_1_AUTH_ID),
-            (VAL_2_STASH, VAL_2_CONTROLLER, VAL_2_AUTH_ID),
-            (VAL_3_STASH, VAL_3_CONTROLLER, VAL_3_AUTH_ID),
+            (VAL_1_STASH, VAL_1_AUTH_ID),
+            (VAL_2_STASH, VAL_2_AUTH_ID),
+            (VAL_3_STASH, VAL_3_AUTH_ID),
         ])
         .stash(VALIDATOR_STAKE)
         .endowment(ENDOWMENT)

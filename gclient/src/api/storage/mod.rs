@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022-2023 Gear Technologies Inc.
+// Copyright (C) 2022-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -27,7 +27,7 @@ use gsdk::{
     ext::sp_core::{crypto::Ss58Codec, H256},
     metadata::runtime_types::{
         gear_common::storage::primitives::Interval, gear_core::message::user,
-        pallet_balances::AccountData, pallet_gear_bank::pallet::BankAccount,
+        pallet_balances::types::AccountData, pallet_gear_bank::pallet::BankAccount,
     },
 };
 

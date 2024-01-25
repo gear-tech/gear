@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -20,7 +20,7 @@ use crate::{
     internal::HoldBoundBuilder,
     manager::{CodeInfo, ExtManager},
     Config, Event, GasAllowanceOf, GasHandlerOf, GasTree, GearBank, Pallet, ProgramStorageOf,
-    QueueOf, RentFreePeriodOf, TaskPoolOf, WaitlistOf,
+    QueueOf, TaskPoolOf, WaitlistOf,
 };
 use common::{
     event::*,
@@ -39,7 +39,6 @@ use gear_core::{
     reservation::GasReserver,
 };
 use gear_core_errors::SignalCode;
-use sp_core::Get as _;
 use sp_runtime::traits::{UniqueSaturatedInto, Zero};
 use sp_std::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
@@ -389,18 +388,12 @@ where
             for (init_message, candidate_id) in candidates {
                 if !Pallet::<T>::program_exists(candidate_id) {
                     let block_number = Pallet::<T>::block_number();
-                    let expiration_block =
-                        block_number.saturating_add(RentFreePeriodOf::<T>::get());
-                    self.set_program(candidate_id, &code_info, init_message, expiration_block);
-
-                    let task = ScheduledTask::PauseProgram(candidate_id);
-                    TaskPoolOf::<T>::add(expiration_block, task)
-                        .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
+                    self.set_program(candidate_id, &code_info, init_message, block_number);
 
                     Pallet::<T>::deposit_event(Event::ProgramChanged {
                         id: candidate_id,
                         change: ProgramChangeKind::ProgramSet {
-                            expiration: expiration_block,
+                            expiration: block_number,
                         },
                     });
                 } else {
@@ -535,21 +528,6 @@ where
 
     fn send_signal(&mut self, message_id: MessageId, destination: ProgramId, code: SignalCode) {
         Self::send_signal(self, message_id, destination, code)
-    }
-
-    fn pay_program_rent(&mut self, payer: ProgramId, program_id: ProgramId, block_count: u32) {
-        let from = payer.cast();
-        let block_count = block_count.unique_saturated_into();
-
-        ProgramStorageOf::<T>::update_active_program(program_id, |program| {
-            Pallet::<T>::pay_program_rent_impl(program_id, program, &from, block_count)
-                .unwrap_or_else(|e| unreachable!("Failed to transfer value: {:?}", e));
-        })
-        .unwrap_or_else(|e| {
-            log::debug!(
-                "Could not update active program {program_id}: {e:?}. Program is not active?"
-            );
-        });
     }
 
     fn reply_deposit(&mut self, message_id: MessageId, future_reply_id: MessageId, amount: u64) {
