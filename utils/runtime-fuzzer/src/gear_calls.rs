@@ -55,7 +55,7 @@ const MAX_SALT_SIZE: usize = 512;
 const _: () = assert!(MAX_SALT_SIZE <= gear_core::message::MAX_PAYLOAD_SIZE);
 
 const ID_SIZE: usize = mem::size_of::<ProgramId>();
-const GAS_AND_VALUE_SIZE: usize = mem::size_of::<(u64, u128)>();
+const GAS_AND_VALUE_SIZE: usize = mem::size_of::<u64>() + mem::size_of::<u128>();
 
 /// Used to make sure that generators will not exceed `Unstructured` size as it's used not only
 /// to generate things like wasm code or message payload but also to generate some auxiliary
