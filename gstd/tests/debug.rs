@@ -31,6 +31,6 @@ fn test_debug() {
     crate::dbg!(value);
     assert_eq!(
         unsafe { &*ptr::addr_of!(DEBUG_MSG) },
-        b"[gstd/tests/debug.rs:28:5] value = 42"
+        b"[gstd/tests/debug.rs:31:5] value = 42"
     );
 }
