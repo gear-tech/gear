@@ -14825,7 +14825,7 @@ mod utils {
         let mut found_status: Option<DispatchStatus> = None;
         System::events().iter().for_each(|e| {
             if let MockRuntimeEvent::Gear(Event::MessagesDispatched { statuses, .. }) = &e.event {
-                found_status = statuses.get(&message_id).map(Clone::clone);
+                found_status = statuses.get(&message_id).cloned();
             }
         });
 

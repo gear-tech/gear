@@ -23,7 +23,7 @@ use crate::{
 use core::ops::{Deref, DerefMut};
 use futures::future;
 use gstd::{
-    exec, format, msg,
+    exec, format, msg, ptr,
     sync::{Mutex, MutexGuard, RwLock, RwLockReadGuard, RwLockWriteGuard},
 };
 
@@ -117,21 +117,24 @@ async fn main() {
             };
             let lock_guard = lock.await;
             process_mx_lock_continuation(
-                unsafe { &mut MUTEX_LOCK_GUARD },
+                unsafe { &mut *ptr::addr_of_mut!(MUTEX_LOCK_GUARD) },
                 lock_guard,
                 continuation,
             )
             .await;
         }
         Command::MxLockStaticAccess(subcommand) => {
-            process_lock_static_access_subcommand_mut(unsafe { &mut MUTEX_LOCK_GUARD }, subcommand);
+            process_lock_static_access_subcommand_mut(
+                unsafe { &mut *ptr::addr_of_mut!(MUTEX_LOCK_GUARD) },
+                subcommand,
+            );
         }
         Command::RwLock(lock_type, continuation) => {
             match lock_type {
                 RwLockType::Read => {
                     let lock_guard = unsafe { RW_LOCK.read().await };
                     process_rw_lock_continuation(
-                        unsafe { &mut R_LOCK_GUARD },
+                        unsafe { &mut *ptr::addr_of_mut!(R_LOCK_GUARD) },
                         lock_guard,
                         continuation,
                     )
@@ -140,7 +143,7 @@ async fn main() {
                 RwLockType::Write => {
                     let lock_guard = unsafe { RW_LOCK.write().await };
                     process_rw_lock_continuation(
-                        unsafe { &mut W_LOCK_GUARD },
+                        unsafe { &mut *ptr::addr_of_mut!(W_LOCK_GUARD) },
                         lock_guard,
                         continuation,
                     )
@@ -150,10 +153,16 @@ async fn main() {
         }
         Command::RwLockStaticAccess(lock_type, subcommand) => match lock_type {
             RwLockType::Read => {
-                process_lock_static_access_subcommand(unsafe { &mut R_LOCK_GUARD }, subcommand);
+                process_lock_static_access_subcommand(
+                    unsafe { &mut *ptr::addr_of_mut!(R_LOCK_GUARD) },
+                    subcommand,
+                );
             }
             RwLockType::Write => {
-                process_lock_static_access_subcommand_mut(unsafe { &mut W_LOCK_GUARD }, subcommand);
+                process_lock_static_access_subcommand_mut(
+                    unsafe { &mut *ptr::addr_of_mut!(W_LOCK_GUARD) },
+                    subcommand,
+                );
             }
         },
     }

@@ -24,10 +24,10 @@ extern "C" fn init() {
 extern "C" fn handle() {
     let message_in: MessageIn = msg::load().unwrap();
 
-    let res = unsafe { &WALLETS }
+    let res = unsafe { &*ptr::addr_of!(WALLETS) }
         .iter()
         .find(|w| w.id.decimal == message_in.id.decimal)
-        .map(Clone::clone);
+        .cloned();
 
     let message_out = MessageOut { res };
 

@@ -62,7 +62,7 @@ extern "C" fn init() {
                 )
             };
         }
-        InitAction::Wait => match unsafe { &WAKE_STATE } {
+        InitAction::Wait => match unsafe { &*ptr::addr_of!(WAKE_STATE) } {
             WakeState::Initial => {
                 let _reservation = ReservationId::reserve(50_000, 10);
                 // to find message to reply to in test
@@ -152,7 +152,7 @@ extern "C" fn handle() {
             }
         }
         HandleAction::ConsumeReservationsFromList => {
-            let reservations = unsafe { mem::take(&mut RESERVATIONS) };
+            let reservations = unsafe { mem::take(&mut *ptr::addr_of_mut!(RESERVATIONS)) };
             for reservation_id in reservations {
                 msg::send_from_reservation(
                     reservation_id,

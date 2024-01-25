@@ -19,6 +19,7 @@
 // for panic/oom handlers
 extern crate gstd;
 
+use core::ptr;
 use gcore::{exec, msg, MessageId};
 
 static mut STATE: u32 = 0;
@@ -27,7 +28,7 @@ static mut MSG_ID_2: MessageId = MessageId::zero();
 
 #[no_mangle]
 extern "C" fn handle() {
-    let state = unsafe { &mut STATE };
+    let state = unsafe { &mut *ptr::addr_of_mut!(STATE) };
     gstd::debug!("{state}");
 
     match *state {
