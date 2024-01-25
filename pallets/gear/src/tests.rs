@@ -1799,6 +1799,7 @@ fn delayed_send_user_message_payment() {
         ));
 
         let proxy_msg_id = get_last_message_id();
+        let balance_rent_pool = Balances::free_balance(RENT_POOL);
 
         // Run blocks to make message get into dispatch stash.
         run_to_block(3, None);
@@ -1852,6 +1853,10 @@ fn delayed_send_user_message_payment() {
         assert_eq!(
             total_balance - delay_holding_fee + reserve_for_fee,
             Balances::free_balance(USER_1)
+        );
+        assert_eq!(
+            Balances::free_balance(RENT_POOL),
+            balance_rent_pool + delay_holding_fee - reserve_for_fee
         );
     }
 
