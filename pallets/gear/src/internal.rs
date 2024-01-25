@@ -280,7 +280,6 @@ where
     /// `hold_interval` - determines the time interval to charge rent for;
     /// `storage_type` - storage type that determines the lock and the cost for holding a message.
     pub(crate) fn charge_for_hold(
-        to: Option<AccountIdOf<T>>,
         id: impl Into<GasNodeIdOf<T>>,
         hold_interval: Interval<BlockNumberFor<T>>,
         storage_type: StorageType,
@@ -327,7 +326,7 @@ where
         // Spending gas, if need.
         if !amount.is_zero() {
             // Spending gas.
-            Self::spend_gas(to, id, amount)
+            Self::spend_gas(<T as Config>::RentPoolId::get(), id, amount)
         }
     }
 
@@ -424,7 +423,6 @@ where
 
         // Charging for holding.
         Self::charge_for_hold(
-            <T as Config>::RentPoolId::get(),
             waitlisted.id(),
             hold_interval,
             StorageType::Waitlist,
@@ -471,7 +469,7 @@ where
         let expected = hold_interval.finish;
 
         // Charging for holding.
-        Self::charge_for_hold(None, mailboxed.id(), hold_interval, StorageType::Mailbox);
+        Self::charge_for_hold(mailboxed.id(), hold_interval, StorageType::Mailbox);
 
         // Consuming message.
         Self::consume_and_retrieve(mailboxed.id());

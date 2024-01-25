@@ -50,6 +50,7 @@ pub(crate) const USER_2: AccountId = 2;
 pub(crate) const USER_3: AccountId = 3;
 pub(crate) const LOW_BALANCE_USER: AccountId = 4;
 pub(crate) const BLOCK_AUTHOR: AccountId = 255;
+pub(crate) const RENT_POOL: AccountId = 256;
 
 macro_rules! dry_run {
     (
@@ -89,7 +90,7 @@ pallet_gear_program::impl_config!(Test);
 pallet_gear_messenger::impl_config!(Test, CurrentBlockNumber = Gear);
 pallet_gear_scheduler::impl_config!(Test);
 pallet_gear_bank::impl_config!(Test);
-pallet_gear::impl_config!(Test, Schedule = DynamicSchedule);
+pallet_gear::impl_config!(Test, Schedule = DynamicSchedule, RentPoolId = ConstU64<RENT_POOL>);
 pallet_gear_gas::impl_config!(Test);
 common::impl_pallet_balances!(Test);
 common::impl_pallet_authorship!(Test);
@@ -191,6 +192,7 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
             (USER_3, 500_000_000_000_000_u128),
             (LOW_BALANCE_USER, 1_000_000_u128),
             (BLOCK_AUTHOR, 500_000_u128),
+            (RENT_POOL, ExistentialDeposit::get()),
             (BankAddress::get(), ExistentialDeposit::get()),
         ],
     }

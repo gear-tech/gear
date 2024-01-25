@@ -221,7 +221,6 @@ where
 
         // Charging locked gas for holding in dispatch stash.
         Pallet::<T>::charge_for_hold(
-            None,
             dispatch.id(),
             hold_interval,
             StorageType::DispatchStash,
@@ -245,7 +244,6 @@ where
 
         // Charge gas for message save.
         Pallet::<T>::charge_for_hold(
-            None,
             message.id(),
             hold_interval,
             StorageType::DispatchStash,
