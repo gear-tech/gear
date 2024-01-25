@@ -10924,6 +10924,7 @@ fn gas_reservation_works() {
         ));
 
         let pid = get_last_program_id();
+        let balance_rent_pool = Balances::free_balance(RENT_POOL);
 
         run_to_block(2, None);
 
@@ -10968,6 +10969,11 @@ fn gas_reservation_works() {
         assert_eq!(
             Balances::free_balance(USER_1),
             user_initial_balance - gas_reserved + reservation_amount + reservation_holding
+        );
+        // reservation was held for one block so the rent pool should be increased accordingly
+        assert_eq!(
+            Balances::free_balance(RENT_POOL),
+            balance_rent_pool + gas_price(CostsPerBlockOf::<Test>::reservation())
         );
 
         run_to_block(2 + 2, None);
