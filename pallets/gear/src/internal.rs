@@ -422,11 +422,7 @@ where
         let expected = hold_interval.finish;
 
         // Charging for holding.
-        Self::charge_for_hold(
-            waitlisted.id(),
-            hold_interval,
-            StorageType::Waitlist,
-        );
+        Self::charge_for_hold(waitlisted.id(), hold_interval, StorageType::Waitlist);
 
         // Depositing appropriate event.
         Pallet::<T>::deposit_event(Event::MessageWoken {
