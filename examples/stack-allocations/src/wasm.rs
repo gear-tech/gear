@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! This contract recursively calls payload stack allocated read or load,
+//! This program recursively calls payload stack allocated read or load,
 //! depends on actions vector, which is set in init.
 //! For each recursion step we call check_sum, which is sum of all payload bytes.
 //! Then reply summary check_sum back to source account.

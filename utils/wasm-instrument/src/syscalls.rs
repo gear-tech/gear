@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Gear syscalls for smart contracts execution signatures.
+//! Gear syscalls for programs execution signatures.
 
 use crate::parity_wasm::elements::{FunctionType, ValueType};
 use alloc::{

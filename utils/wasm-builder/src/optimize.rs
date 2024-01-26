@@ -206,7 +206,7 @@ pub fn do_optimization(
     if which.is_err() {
         return Err(anyhow::anyhow!(
             "wasm-opt not found! Make sure the binary is in your PATH environment.\n\n\
-            We use this tool to optimize the size of your contract's Wasm binary.\n\n\
+            We use this tool to optimize the size of your program's Wasm binary.\n\n\
             wasm-opt is part of the binaryen package. You can find detailed\n\
             installation instructions on https://github.com/WebAssembly/binaryen#tools.\n\n\
             There are ready-to-install packages for many platforms:\n\

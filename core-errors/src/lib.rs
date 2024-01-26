@@ -338,7 +338,7 @@ mod tests {
     /// 2. deprecated
     ///
     /// codes are forbidden to avoid collision in
-    /// old smart-contracts that built their logic on these error codes
+    /// old programs that built their logic on these error codes
     /// if we accidentally re-use such codes
     #[test]
     fn error_codes_forbidden() {
