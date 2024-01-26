@@ -37,7 +37,7 @@ The gas consumption was then calculated as a percentage of the total gas spent o
 We intentionally did not provide any information about the testing machine since we only measure gas consumption, which remains the same across machines due to fixed weights assigned to each instruction and syscall.
 
 The test cases were:
-- `NFT init -> mint -> burn`: This test case is for measuring the performance of the NFT contract, which is one of the common cases of smart contracts. The test case consists of the following steps:
+- `NFT init -> mint -> burn`: This test case is for measuring the performance of the NFT contract, which is one of the common cases of programs. The test case consists of the following steps:
   - `init`: Initialise the NFT contract.
   - `mint`: Mint 1 NFT.
   - `burn`: Burn 1 NFT.
@@ -45,7 +45,7 @@ The test cases were:
   This is quite a simple case, and it's not the most common case, but it's the simplest case we can think of.
 
   You can see the code of the test case [here](https://github.com/gear-dapps/non-fungible-token/blob/0.2.10/tests/node_tests.rs) (`burn-test`).
-- `FT stress-test` with <kbd>gtest</kbd>: This test case is for measuring the performance of the FT contract, which is also one of the common cases of smart contracts. The test case consists of the following steps:
+- `FT stress-test` with <kbd>gtest</kbd>: This test case is for measuring the performance of the FT contract, which is also one of the common cases of programs. The test case consists of the following steps:
   - `init`: Initialise the FT contract.
   - `mint`: Mint 1 000 000 FT to the first user.
   - `transfer`: Transfer 6 000 FT to the first 20 accounts from the first user.
@@ -54,7 +54,7 @@ The test cases were:
   - `transfer`: Transfer 1 000 FT from the first 20 accounts to users 21-100.
   - `balance`: Check the balance of the first 20 accounts to prove it sent 1 000 FT to users 21-100.
   - `balance`: Check the balance of users 21-100 to prove they've received 1 000 FT from the first 20 accounts.
-  - `mint`: Mint 1 000 000 FT to the second user. 
+  - `mint`: Mint 1 000 000 FT to the second user.
   - `mint`: Mint 5 000 FT to users 87..120.
   - `balance`: Check the balance of users 87..120 to prove they've received 5 000 FT after mint.
   - `transfer`: Transfer 1 000 FT from users 87..120 to the first user.
@@ -69,7 +69,7 @@ The test cases were:
 
   This test tries to imitate what happens when the FT contract is used in the real world, with many clients and memory allocations therefore.
 
-- `FT stress-test` with <kbd>gclient</kbd>: This test case has the same steps as the previous one, but it's executed with <kbd>gclient</kbd> instead of <kbd>gtest</kbd>. This test is most similar to the real world case because it's executed with the real node and will give the most realistic gas usage. 
+- `FT stress-test` with <kbd>gclient</kbd>: This test case has the same steps as the previous one, but it's executed with <kbd>gclient</kbd> instead of <kbd>gtest</kbd>. This test is most similar to the real world case because it's executed with the real node and will give the most realistic gas usage.
 
   You can see the code of the test case [here](../../gstd/src/benchmarks/mod.rs).
 
