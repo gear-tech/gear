@@ -131,11 +131,14 @@ impl Optimizer {
             .map_err(BuilderError::CodeCheckFailed)?,
             // validate wasm code
             // see `pallet_gear::pallet::Pallet::upload_program(...)`
-            OptType::Opt => Code::try_new(
+            OptType::Opt => Code::try_new_mock_with_rules(
                 original_code,
-                1,
                 |_| CustomConstantCostRules::default(),
-                None,
+                TryNewCodeConfig {
+                    version: 1,
+                    check_imports: true,
+                    ..Default::default()
+                },
             )
             .map(|_| ())
             .map_err(BuilderError::CodeCheckFailed)?,
