@@ -149,7 +149,11 @@ fn check_imports(module: &Module) -> Result<(), CodeError> {
             continue;
         };
 
-        let Type::Function(types) = &types[*i as usize];
+        // Panic is impossible, unless the Module structure is invalid.
+        let Type::Function(func_type) = &types
+            .get(*i as usize)
+            .unwrap_or_else(|| unreachable!("Module structure is invalid"));
+
         let syscall = syscalls
             .get(import.field())
             .ok_or(CodeError::UnknownImport)?;
@@ -165,12 +169,12 @@ fn check_imports(module: &Module) -> Result<(), CodeError> {
             .iter()
             .copied()
             .map(Into::<ValueType>::into);
-        if !params.eq(types.params().iter().copied()) {
+        if !params.eq(func_type.params().iter().copied()) {
             return Err(CodeError::InvalidImportFnSignature);
         }
 
         let results = signature.results().unwrap_or(&[]);
-        if results != types.results() {
+        if results != func_type.results() {
             return Err(CodeError::InvalidImportFnSignature);
         }
     }
