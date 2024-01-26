@@ -136,15 +136,15 @@ fn check_imports(module: &Module) -> Result<(), CodeError> {
         .ok_or(CodeError::TypeSectionNotFound)?
         .types();
 
+    let imports = module
+        .import_section()
+        .ok_or(CodeError::ImportSectionNotFound)?
+        .entries();
+
     let syscalls = SyscallName::instrumentable_map();
 
     let mut seen = BTreeSet::new();
-    for import in module
-        .import_section()
-        .ok_or(CodeError::ImportSectionNotFound)?
-        .entries()
-        .iter()
-    {
+    for import in imports {
         let External::Function(i) = import.external() else {
             continue;
         };
