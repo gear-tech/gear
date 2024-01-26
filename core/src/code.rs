@@ -75,9 +75,21 @@ fn get_exports(
     {
         if let Internal::Function(i) = entry.internal() {
             if reject_unnecessary {
-                // Index access into arrays cannot panic unless the Module structure is invalid
-                let type_id = funcs[*i as usize - import_count].type_ref();
-                let Type::Function(ref f) = types[type_id as usize];
+                let index = (*i as usize)
+                    .checked_sub(import_count)
+                    .ok_or(CodeError::ExportIsImport)?;
+
+                // Panic is impossible, unless the Module structure is invalid.
+                let type_id = funcs
+                    .get(index)
+                    .unwrap_or_else(|| unreachable!("Module structure is invalid"))
+                    .type_ref() as usize;
+
+                // Panic is impossible, unless the Module structure is invalid.
+                let Type::Function(ref f) = types
+                    .get(type_id)
+                    .unwrap_or_else(|| unreachable!("Module structure is invalid"));
+
                 if !f.params().is_empty() || !f.results().is_empty() {
                     return Err(CodeError::InvalidExportFnSignature);
                 }
@@ -261,6 +273,9 @@ pub enum CodeError {
     /// The signature of an exported function is invalid.
     #[display(fmt = "Invalid function signature for exported function")]
     InvalidExportFnSignature,
+    /// Export references to an import function, which is not allowed.
+    #[display(fmt = "Export references to an import function")]
+    ExportIsImport,
 }
 
 /// Contains instrumented binary code of a program and initial memory size from memory import.
