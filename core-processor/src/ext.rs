@@ -190,7 +190,7 @@ pub trait ProcessorExternalities {
         lazy_pages_weights: LazyPagesWeights,
     );
 
-    /// Lazy pages contract post execution actions
+    /// Lazy pages program post execution actions
     fn lazy_pages_post_execution_actions(mem: &mut impl Memory);
 
     /// Returns lazy pages status

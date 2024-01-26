@@ -18,7 +18,7 @@ pub mod metafns {
 
     /// Returns the first & last wallets.
     ///
-    /// They'll equal if the contract has only one wallet.
+    /// They'll equal if the program has only one wallet.
     pub fn first_and_last_wallets(state: State) -> (Option<Wallet>, Option<Wallet>) {
         (first_wallet(state.clone()), last_wallet(state))
     }
