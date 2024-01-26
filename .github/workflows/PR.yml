@@ -19,70 +19,35 @@ jobs:
   status:
     runs-on: ubuntu-latest
     outputs:
-      skip-ci: ${{ steps.check-commit-message.outputs.skip-ci }}
-      cache: ${{ steps.check-commit-message.outputs.cache }}
+      build: ${{ steps.config.outputs.build }}
+      cache: ${{ steps.config.outputs.cache }}
+      check: ${{ steps.config.outputs.check }}
+      macos: ${{ steps.config.outputs.macos }}
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha }}
 
-      - name: Check Commit Message
-        id: check-commit-message
-        run: |
-          MESSAGE=$(git show -s --format=%s)
-          CACHE=true
-          if [[ $MESSAGE == *"[skip-cache]"* ]]; then
-            CACHE=""
-          fi
+      - run: npm install
+        working-directory: .github/actions/message
 
-          if [[ $MESSAGE == *"[skip-ci]"* ]]; then
-            echo "skip-ci: 1"
-            echo "skip-ci=1" >> $GITHUB_OUTPUT
-          fi
-
-          echo "cache: ${CACHE}"
-          echo "cache=${CACHE}" >> $GITHUB_OUTPUT
-
-      - uses: actions/github-script@v7
-        env:
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          TITLE: ${{ github.event.pull_request.title }}
-          SKIP_CI: ${{ steps.check-commit-message.outputs.skip-ci }}
+      - name: Configure
+        id: config
+        uses: ./.github/actions/message
         with:
-          script: |
-            const script = require('./.github/actions/label/skip.js');
-            await script({ github, core });
-
-      - name: Set sccache path
-        if: ${{ steps.check-commit-message.outputs.cache }}
-        run: |
-          sccache_path="/mnt/sccache/$(echo ${GITHUB_REF#refs/heads/} | tr / _)"
-          echo "cache=$sccache_path" >> $GITHUB_OUTPUT
+          token: ${{ secrets.GITHUB_TOKEN }}
 
   check:
     needs: status
-    if: >-
-      !contains(github.event.pull_request.title, '[skip-ci]')
-      && needs.status.outputs.skip-ci != '1'
-
+    if: ${{ needs.status.outputs.check == 'true' }}
     uses: ./.github/workflows/check.yml
     with:
       cache: ${{ needs.status.outputs.cache }}
 
   build:
     needs: status
-    if: >-
-      needs.status.outputs.skip-ci != '1'
-      && (
-        (
-          github.event.pull_request.head.repo.full_name == 'gear-tech/gear'
-          && contains(github.event.pull_request.title, '[depbot]')
-        ) || (
-          contains(github.event.pull_request.labels.*.name, 'A0-pleasereview')
-          || contains(github.event.pull_request.labels.*.name, 'A4-insubstantial')
-          || contains(github.event.pull_request.labels.*.name, 'A2-mergeoncegreen')
-        ))
+    if: ${{ needs.status.outputs.build == 'true' }}
     uses: ./.github/workflows/build.yml
     with:
       cache: ${{ needs.status.outputs.cache }}
-      macos: ${{ contains(github.event.pull_request.labels.*.name, 'E2-forcemacos') }}
+      macos: ${{ needs.status.outputs.macos == 'true' }}

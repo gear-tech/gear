@@ -28,11 +28,12 @@ use gear_wasm_instrument::{
     parity_wasm::{
         self,
         elements::{
-            ExportEntry, GlobalEntry, GlobalType, InitExpr, Instruction, Internal, Module, Type,
+            ExportEntry, External, GlobalEntry, GlobalType, ImportCountType, InitExpr, Instruction,
+            Internal, Module, Type, ValueType,
         },
     },
     wasm_instrument::gas_metering::{ConstantCostRules, Rules},
-    InstrumentationBuilder, STACK_END_EXPORT_NAME,
+    InstrumentationBuilder, SyscallName, STACK_END_EXPORT_NAME,
 };
 use scale_info::{
     scale::{Decode, Encode},
@@ -42,67 +43,139 @@ use scale_info::{
 /// Defines maximal permitted count of memory pages.
 pub const MAX_WASM_PAGE_COUNT: u16 = 512;
 
-/// Name of exports allowed on chain except execution kinds.
-pub const STATE_EXPORTS: [&str; 2] = ["state", "metahash"];
+/// Name of exports allowed on chain.
+pub const ALLOWED_EXPORTS: [&str; 6] = [
+    "init",
+    "handle",
+    "handle_reply",
+    "handle_signal",
+    "state",
+    "metahash",
+];
 
-/// Parse function exports from wasm module into [`DispatchKind`].
-fn get_exports(
-    module: &Module,
-    reject_unnecessary: bool,
-) -> Result<BTreeSet<DispatchKind>, CodeError> {
-    let mut exports = BTreeSet::<DispatchKind>::new();
+/// Name of exports required on chain (only 1 of these is required).
+pub const REQUIRED_EXPORTS: [&str; 2] = ["init", "handle"];
+
+fn get_exports(module: &Module) -> BTreeSet<DispatchKind> {
+    let mut entries = BTreeSet::new();
+
+    for entry in module
+        .export_section()
+        .expect("Exports section has been checked for already")
+        .entries()
+        .iter()
+    {
+        if let Internal::Function(_) = entry.internal() {
+            if let Some(entry) = DispatchKind::try_from_entry(entry.field()) {
+                entries.insert(entry);
+            }
+        }
+    }
+
+    entries
+}
+
+fn check_exports(module: &Module) -> Result<(), CodeError> {
+    let types = module
+        .type_section()
+        .ok_or(CodeError::TypeSectionNotFound)?
+        .types();
 
     let funcs = module
         .function_section()
         .ok_or(CodeError::FunctionSectionNotFound)?
         .entries();
 
+    let import_count = module.import_count(ImportCountType::Function);
+
+    let exports = module
+        .export_section()
+        .ok_or(CodeError::ExportSectionNotFound)?
+        .entries();
+
+    let mut entry = false;
+    for export in exports {
+        let Internal::Function(i) = export.internal() else {
+            continue;
+        };
+
+        let index = (*i as usize)
+            .checked_sub(import_count)
+            .ok_or(CodeError::ExportIsImport)?;
+
+        // Panic is impossible, unless the Module structure is invalid.
+        let type_id = funcs
+            .get(index)
+            .unwrap_or_else(|| unreachable!("Module structure is invalid"))
+            .type_ref() as usize;
+
+        // Panic is impossible, unless the Module structure is invalid.
+        let Type::Function(ref f) = types
+            .get(type_id)
+            .unwrap_or_else(|| unreachable!("Module structure is invalid"));
+
+        if !f.params().is_empty() || !f.results().is_empty() {
+            return Err(CodeError::InvalidExportFnSignature);
+        }
+        if !ALLOWED_EXPORTS.contains(&export.field()) {
+            return Err(CodeError::NonGearExportFnFound);
+        }
+        if REQUIRED_EXPORTS.contains(&export.field()) {
+            entry = true;
+        }
+    }
+
+    entry
+        .then_some(())
+        .ok_or(CodeError::RequiredExportFnNotFound)
+}
+
+fn check_imports(module: &Module) -> Result<(), CodeError> {
     let types = module
         .type_section()
         .ok_or(CodeError::TypeSectionNotFound)?
         .types();
 
-    let import_count = module
+    let syscalls = SyscallName::instrumentable_map();
+
+    let mut seen = BTreeSet::new();
+    for import in module
         .import_section()
         .ok_or(CodeError::ImportSectionNotFound)?
-        .functions();
-
-    for entry in module
-        .export_section()
-        .ok_or(CodeError::ExportSectionNotFound)?
         .entries()
         .iter()
     {
-        if let Internal::Function(i) = entry.internal() {
-            if reject_unnecessary {
-                let index = (*i as usize)
-                    .checked_sub(import_count)
-                    .ok_or(CodeError::ExportIsImport)?;
+        let External::Function(i) = import.external() else {
+            continue;
+        };
 
-                // Panic is impossible, unless the Module structure is invalid.
-                let type_id = funcs
-                    .get(index)
-                    .unwrap_or_else(|| unreachable!("Module structure is invalid"))
-                    .type_ref() as usize;
+        let Type::Function(types) = &types[*i as usize];
+        let syscall = syscalls
+            .get(import.field())
+            .ok_or(CodeError::UnknownImport)?;
 
-                // Panic is impossible, unless the Module structure is invalid.
-                let Type::Function(ref f) = types
-                    .get(type_id)
-                    .unwrap_or_else(|| unreachable!("Module structure is invalid"));
+        if !seen.insert(*syscall) {
+            return Err(CodeError::DuplicateImport);
+        }
 
-                if !f.params().is_empty() || !f.results().is_empty() {
-                    return Err(CodeError::InvalidExportFnSignature);
-                }
-            }
-            if let Some(kind) = DispatchKind::try_from_entry(entry.field()) {
-                exports.insert(kind);
-            } else if !STATE_EXPORTS.contains(&entry.field()) && reject_unnecessary {
-                return Err(CodeError::NonGearExportFnFound);
-            }
+        let signature = syscall.signature();
+
+        let params = signature
+            .params()
+            .iter()
+            .copied()
+            .map(Into::<ValueType>::into);
+        if !params.eq(types.params().iter().copied()) {
+            return Err(CodeError::InvalidImportFnSignature);
+        }
+
+        let results = signature.results().unwrap_or(&[]);
+        if results != types.results() {
+            return Err(CodeError::InvalidImportFnSignature);
         }
     }
 
-    Ok(exports)
+    Ok(())
 }
 
 fn get_export_entry<'a>(module: &'a Module, name: &str) -> Option<&'a ExportEntry> {
@@ -273,6 +346,15 @@ pub enum CodeError {
     /// The signature of an exported function is invalid.
     #[display(fmt = "Invalid function signature for exported function")]
     InvalidExportFnSignature,
+    /// An imported function was not recognized.
+    #[display(fmt = "Unknown function name in import section")]
+    UnknownImport,
+    /// The signature of an imported function is invalid.
+    #[display(fmt = "Invalid function signature for imported function")]
+    InvalidImportFnSignature,
+    /// An imported was declared multiple times.
+    #[display(fmt = "An import was declared multiple times")]
+    DuplicateImport,
     /// Export references to an import function, which is not allowed.
     #[display(fmt = "Export references to an import function")]
     ExportIsImport,
@@ -345,6 +427,8 @@ pub struct TryNewCodeConfig {
     pub export_stack_height: bool,
     /// Check exports (wasm contains init or handle exports)
     pub check_exports: bool,
+    /// Check imports (check that all imports are valid syscalls with correct signature)
+    pub check_imports: bool,
     /// Check and canonize stack end
     pub check_and_canonize_stack_end: bool,
     /// Check mutable global exports
@@ -362,6 +446,7 @@ impl Default for TryNewCodeConfig {
             stack_height: None,
             export_stack_height: false,
             check_exports: true,
+            check_imports: false,
             check_and_canonize_stack_end: true,
             check_mut_global_exports: true,
             check_start_section: true,
@@ -432,12 +517,15 @@ impl Code {
             return Err(CodeError::InvalidStaticPageCount);
         }
 
-        let exports = get_exports(&module, config.check_exports)?;
-        if config.check_exports
-            && !(exports.contains(&DispatchKind::Init) || exports.contains(&DispatchKind::Handle))
-        {
-            return Err(CodeError::RequiredExportFnNotFound);
+        if config.check_exports {
+            check_exports(&module)?;
         }
+
+        if config.check_imports {
+            check_imports(&module)?;
+        }
+
+        let exports = get_exports(&module);
 
         let mut instrumentation_builder = InstrumentationBuilder::new("env");
 
