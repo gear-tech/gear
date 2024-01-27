@@ -23,7 +23,7 @@ use crate::{
     message::{DispatchKind, WasmEntryPoint},
     pages::{PageNumber, PageU32Size, WasmPage},
 };
-use alloc::{collections::BTreeSet, vec, vec::Vec};
+use alloc::{collections::BTreeSet, string::String, vec, vec::Vec};
 use gear_wasm_instrument::{
     parity_wasm::{
         self,
@@ -33,7 +33,7 @@ use gear_wasm_instrument::{
         },
     },
     wasm_instrument::gas_metering::{ConstantCostRules, Rules},
-    InstrumentationBuilder, SyscallName, STACK_END_EXPORT_NAME,
+    InstrumentationBuilder, InstrumentationError, SyscallName, STACK_END_EXPORT_NAME,
 };
 use scale_info::{
     scale::{Decode, Encode},
@@ -78,22 +78,22 @@ fn get_exports(module: &Module) -> BTreeSet<DispatchKind> {
 fn check_exports(module: &Module) -> Result<(), CodeError> {
     let types = module
         .type_section()
-        .ok_or(CodeError::TypeSectionNotFound)?
+        .ok_or(SectionError::NotFound(SectionName::Type))?
         .types();
 
     let funcs = module
         .function_section()
-        .ok_or(CodeError::FunctionSectionNotFound)?
+        .ok_or(SectionError::NotFound(SectionName::Function))?
         .entries();
 
     let import_count = module.import_count(ImportCountType::Function);
 
     let exports = module
         .export_section()
-        .ok_or(CodeError::ExportSectionNotFound)?
+        .ok_or(SectionError::NotFound(SectionName::Export))?
         .entries();
 
-    let mut entry = false;
+    let mut entry_point_found = false;
     for export in exports {
         let Internal::Function(i) = export.internal() else {
             continue;
@@ -101,7 +101,7 @@ fn check_exports(module: &Module) -> Result<(), CodeError> {
 
         let index = (*i as usize)
             .checked_sub(import_count)
-            .ok_or(CodeError::ExportIsImport)?;
+            .ok_or(ExportError::ExportReferencesToImport)?;
 
         // Panic is impossible, unless the Module structure is invalid.
         let type_id = funcs
@@ -114,36 +114,39 @@ fn check_exports(module: &Module) -> Result<(), CodeError> {
             .get(type_id)
             .unwrap_or_else(|| unreachable!("Module structure is invalid"));
 
-        if !f.params().is_empty() || !f.results().is_empty() {
-            return Err(CodeError::InvalidExportFnSignature);
+        if !(f.params().is_empty() && f.results().is_empty()) {
+            Err(ExportError::InvalidExportFnSignature(export.field().into()))?;
         }
+
         if !ALLOWED_EXPORTS.contains(&export.field()) {
-            return Err(CodeError::NonGearExportFnFound);
+            Err(ExportError::UnnecessaryExport(export.field().into()))?;
         }
+
         if REQUIRED_EXPORTS.contains(&export.field()) {
-            entry = true;
+            entry_point_found = true;
         }
     }
 
-    entry
+    entry_point_found
         .then_some(())
-        .ok_or(CodeError::RequiredExportFnNotFound)
+        .ok_or(ExportError::RequiredExportFnNotFound)
+        .map_err(CodeError::Export)
 }
 
 fn check_imports(module: &Module) -> Result<(), CodeError> {
     let types = module
         .type_section()
-        .ok_or(CodeError::TypeSectionNotFound)?
+        .ok_or(SectionError::NotFound(SectionName::Type))?
         .types();
 
     let imports = module
         .import_section()
-        .ok_or(CodeError::ImportSectionNotFound)?
+        .ok_or(SectionError::NotFound(SectionName::Import))?
         .entries();
 
     let syscalls = SyscallName::instrumentable_map();
 
-    let mut seen = BTreeSet::new();
+    let mut visited_imports = BTreeSet::new();
     for import in imports {
         let External::Function(i) = import.external() else {
             continue;
@@ -156,10 +159,10 @@ fn check_imports(module: &Module) -> Result<(), CodeError> {
 
         let syscall = syscalls
             .get(import.field())
-            .ok_or(CodeError::UnknownImport)?;
+            .ok_or(ImportError::UnknownImport(import.field().into()))?;
 
-        if !seen.insert(*syscall) {
-            return Err(CodeError::DuplicateImport);
+        if !visited_imports.insert(*syscall) {
+            Err(ImportError::DuplicateImport(import.field().into()))?;
         }
 
         let signature = syscall.signature();
@@ -169,13 +172,10 @@ fn check_imports(module: &Module) -> Result<(), CodeError> {
             .iter()
             .copied()
             .map(Into::<ValueType>::into);
-        if !params.eq(func_type.params().iter().copied()) {
-            return Err(CodeError::InvalidImportFnSignature);
-        }
-
         let results = signature.results().unwrap_or(&[]);
-        if results != func_type.results() {
-            return Err(CodeError::InvalidImportFnSignature);
+
+        if !(params.eq(func_type.params().iter().copied()) && results == func_type.results()) {
+            Err(ImportError::InvalidImportFnSignature(import.field().into()))?;
         }
     }
 
@@ -213,12 +213,8 @@ fn get_export_global_index_mut<'a>(module: &'a mut Module, name: &str) -> Option
 }
 
 fn get_init_expr_const_i32(init_expr: &InitExpr) -> Option<i32> {
-    let init_code = init_expr.code();
-    if init_code.len() != 2 {
-        return None;
-    }
-    match (&init_code[0], &init_code[1]) {
-        (Instruction::I32Const(const_i32), Instruction::End) => Some(*const_i32),
+    match init_expr.code() {
+        [Instruction::I32Const(const_i32), Instruction::End] => Some(*const_i32),
         _ => None,
     }
 }
@@ -232,9 +228,11 @@ fn get_global_entry(module: &Module, global_index: u32) -> Option<&GlobalEntry> 
 
 fn get_global_init_const_i32(module: &Module, global_index: u32) -> Result<i32, CodeError> {
     let init_expr = get_global_entry(module, global_index)
-        .ok_or(CodeError::IncorrectGlobalIndex)?
+        .ok_or(ExportError::IncorrectGlobalIndex)?
         .init_expr();
-    get_init_expr_const_i32(init_expr).ok_or(CodeError::StackEndInitialization)
+    get_init_expr_const_i32(init_expr)
+        .ok_or(InitializationError::StackEnd)
+        .map_err(CodeError::Initialization)
 }
 
 fn check_and_canonize_gear_stack_end(module: &mut Module) -> Result<(), CodeError> {
@@ -251,7 +249,7 @@ fn check_and_canonize_gear_stack_end(module: &mut Module) -> Result<(), CodeErro
                 .offset()
                 .as_ref()
                 .and_then(get_init_expr_const_i32)
-                .ok_or(CodeError::DataSegmentInitialization)?;
+                .ok_or(InitializationError::DataSegment)?;
 
             if offset < stack_end_offset {
                 return Err(CodeError::StackEndOverlaps);
@@ -262,7 +260,7 @@ fn check_and_canonize_gear_stack_end(module: &mut Module) -> Result<(), CodeErro
     // If [STACK_END_EXPORT_NAME] points to mutable global, then make new const global
     // with the same init expr and change the export internal to point to the new global.
     if get_global_entry(module, stack_end_global_index)
-        .ok_or(CodeError::IncorrectGlobalIndex)?
+        .ok_or(ExportError::IncorrectGlobalIndex)?
         .global_type()
         .is_mutable()
     {
@@ -271,7 +269,7 @@ fn check_and_canonize_gear_stack_end(module: &mut Module) -> Result<(), CodeErro
             .global_section_mut()
             .unwrap_or_else(|| unreachable!("Cannot find global section"));
         let new_global_index = u32::try_from(global_section.entries().len())
-            .map_err(|_| CodeError::IncorrectGlobalIndex)?;
+            .map_err(|_| ExportError::IncorrectGlobalIndex)?;
         global_section.entries_mut().push(GlobalEntry::new(
             GlobalType::new(parity_wasm::elements::ValueType::I32, false),
             InitExpr::new(vec![
@@ -290,78 +288,129 @@ fn check_and_canonize_gear_stack_end(module: &mut Module) -> Result<(), CodeErro
     Ok(())
 }
 
-/// Instrumentation error.
+/// Section name in WASM module.
 #[derive(Debug, PartialEq, Eq, derive_more::Display)]
-pub enum CodeError {
-    /// The provided code doesn't contain required import section.
-    #[display(fmt = "Import section not found")]
-    ImportSectionNotFound,
-    /// The provided code doesn't contain memory entry section.
+pub enum SectionName {
+    /// Type section.
+    #[display(fmt = "Type section")]
+    Type,
+    /// Import section.
+    #[display(fmt = "Import section")]
+    Import,
+    /// Function section.
+    #[display(fmt = "Function section")]
+    Function,
+    /// Export section.
+    #[display(fmt = "Export section")]
+    Export,
+    /// Start section.
+    #[display(fmt = "Start section")]
+    Start,
+}
+
+/// Section error in WASM module.
+#[derive(Debug, PartialEq, Eq, derive_more::Display)]
+pub enum SectionError {
+    /// Section not found.
+    #[display(fmt = "{_0} not found")]
+    NotFound(SectionName),
+    /// Section not supported.
+    #[display(fmt = "{_0} not supported")]
+    NotSupported(SectionName),
+}
+
+/// Memory error in WASM module.
+#[derive(Debug, PartialEq, Eq, derive_more::Display)]
+pub enum MemoryError {
+    /// Memory entry not found in import section.
     #[display(fmt = "Memory entry not found")]
-    MemoryEntryNotFound,
-    /// The provided code doesn't contain export section.
-    #[display(fmt = "Export section not found")]
-    ExportSectionNotFound,
+    EntryNotFound,
+    /// The WASM module has invalid count of static memory pages.
+    #[display(fmt = "The WASM module has invalid count of static memory pages")]
+    InvalidStaticPageCount,
+}
+
+/// Initialization error in WASM module.
+#[derive(Debug, PartialEq, Eq, derive_more::Display)]
+pub enum InitializationError {
+    /// Unsupported initialization of gear stack end global variable.
+    #[display(fmt = "Unsupported initialization of gear stack end global variable")]
+    StackEnd,
+    /// Unsupported initialization of data segment.
+    #[display(fmt = "Unsupported initialization of data segment")]
+    DataSegment,
+}
+
+/// Export error in WASM module.
+#[derive(Debug, PartialEq, Eq, derive_more::Display)]
+pub enum ExportError {
+    /// Incorrect global export index. Can occur when export refers to not existing global index.
+    #[display(fmt = "Global index in export is incorrect")]
+    IncorrectGlobalIndex,
+    /// Exporting mutable globals is restricted by the Gear protocol.
+    #[display(fmt = "Program cannot have mutable globals in export section")]
+    MutableGlobalExport,
+    /// Export references to an import function, which is not allowed.
+    #[display(fmt = "Export references to an import function")]
+    ExportReferencesToImport,
+    /// The signature of an exported function is invalid.
+    #[display(fmt = "Invalid function signature for exported function `{_0}`")]
+    InvalidExportFnSignature(String),
+    /// The provided code contains unnecessary function export.
+    #[display(fmt = "Unnecessary export of function `{_0}` found")]
+    UnnecessaryExport(String),
     /// The provided code doesn't contain the required `init` or `handle` export function.
     #[display(fmt = "Required export function `init` or `handle` not found")]
     RequiredExportFnNotFound,
-    /// The provided code contains unnecessary function exports.
-    #[display(fmt = "Unnecessary function exports found")]
-    NonGearExportFnFound,
+}
+
+/// Import error in WASM module.
+#[derive(Debug, PartialEq, Eq, derive_more::Display)]
+pub enum ImportError {
+    /// The imported function is not supported by the Gear protocol.
+    #[display(fmt = "Unknown function `{_0}` in import section")]
+    UnknownImport(String),
+    /// The imported function is declared multiple times.
+    #[display(fmt = "Imported function `{_0}` is declared multiple times")]
+    DuplicateImport(String),
+    /// The signature of an imported function is invalid.
+    #[display(fmt = "Invalid function signature for imported function `{_0}`")]
+    InvalidImportFnSignature(String),
+}
+
+/// Describes why the code is not valid Gear program.
+#[derive(Debug, PartialEq, Eq, derive_more::Display, derive_more::From)]
+pub enum CodeError {
     /// Validation by wasmparser failed.
     #[display(fmt = "Wasm validation failed")]
     Validation,
     /// Error occurred during decoding original program code.
     #[display(fmt = "The wasm bytecode is failed to be decoded")]
     Decode,
-    /// Error occurred during instrumentation WASM module.
-    #[display(fmt = "Failed to instrument WASM module")]
-    Instrumentation,
     /// Error occurred during encoding instrumented program.
     #[display(fmt = "Failed to encode instrumented program")]
     Encode,
-    /// We restrict start sections in programs.
-    #[display(fmt = "Start section is not allowed for programs")]
-    StartSectionExists,
-    /// The provided code has invalid count of static pages.
-    #[display(fmt = "The wasm bytecode has invalid count of static pages")]
-    InvalidStaticPageCount,
-    /// Unsupported initialization of gear stack end global variable.
-    #[display(fmt = "Unsupported initialization of gear stack end global variable")]
-    StackEndInitialization,
-    /// Unsupported initialization of data segment.
-    #[display(fmt = "Unsupported initialization of data segment")]
-    DataSegmentInitialization,
     /// Pointer to the stack end overlaps data segment.
     #[display(fmt = "Pointer to the stack end overlaps data segment")]
     StackEndOverlaps,
-    /// Incorrect global export index. Can occur when export refers to not existing global index.
-    #[display(fmt = "Global index in export is incorrect")]
-    IncorrectGlobalIndex,
-    /// Gear protocol restriction for now.
-    #[display(fmt = "Program cannot have mutable globals in export section")]
-    MutGlobalExport,
-    /// The type section of the wasm module is not present.
-    #[display(fmt = "Type section not found")]
-    TypeSectionNotFound,
-    /// The function section of the wasm module is not present.
-    #[display(fmt = "Function section not found")]
-    FunctionSectionNotFound,
-    /// The signature of an exported function is invalid.
-    #[display(fmt = "Invalid function signature for exported function")]
-    InvalidExportFnSignature,
-    /// An imported function was not recognized.
-    #[display(fmt = "Unknown function name in import section")]
-    UnknownImport,
-    /// The signature of an imported function is invalid.
-    #[display(fmt = "Invalid function signature for imported function")]
-    InvalidImportFnSignature,
-    /// An imported was declared multiple times.
-    #[display(fmt = "An import was declared multiple times")]
-    DuplicateImport,
-    /// Export references to an import function, which is not allowed.
-    #[display(fmt = "Export references to an import function")]
-    ExportIsImport,
+    /// The provided code contains section error.
+    #[display(fmt = "Section error: {_0}")]
+    Section(SectionError),
+    /// The provided code contains memory error.
+    #[display(fmt = "Memory error: {_0}")]
+    Memory(MemoryError),
+    /// The provided code contains initialization error.
+    #[display(fmt = "Initialization error: {_0}")]
+    Initialization(InitializationError),
+    /// The provided code contains export error.
+    #[display(fmt = "Export error: {_0}")]
+    Export(ExportError),
+    /// The provided code contains import error.
+    #[display(fmt = "Import error: {_0}")]
+    Import(ImportError),
+    /// Error occurred during instrumentation WASM module.
+    #[display(fmt = "Instrumentation error: {_0}")]
+    Instrumentation(InstrumentationError),
 }
 
 /// Contains instrumented binary code of a program and initial memory size from memory import.
@@ -380,30 +429,27 @@ pub struct Code {
 }
 
 fn check_mut_global_exports(module: &Module) -> Result<(), CodeError> {
-    let global_exports_indexes = module
-        .export_section()
-        .iter()
-        .flat_map(|export_section| export_section.entries().iter())
-        .filter_map(|export| match export.internal() {
-            Internal::Global(index) => Some(*index as usize),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
+    if let (Some(export_section), Some(global_section)) =
+        (module.export_section(), module.global_section())
+    {
+        let global_exports_indexes =
+            export_section
+                .entries()
+                .iter()
+                .filter_map(|export| match export.internal() {
+                    Internal::Global(index) => Some(*index as usize),
+                    _ => None,
+                });
 
-    if global_exports_indexes.is_empty() {
-        return Ok(());
-    }
-
-    if let Some(globals_section) = module.global_section() {
         for index in global_exports_indexes {
-            if globals_section
+            if global_section
                 .entries()
                 .get(index)
-                .ok_or(CodeError::IncorrectGlobalIndex)?
+                .ok_or(ExportError::IncorrectGlobalIndex)?
                 .global_type()
                 .is_mutable()
             {
-                return Err(CodeError::MutGlobalExport);
+                Err(ExportError::MutableGlobalExport)?;
             }
         }
     }
@@ -414,7 +460,7 @@ fn check_mut_global_exports(module: &Module) -> Result<(), CodeError> {
 fn check_start_section(module: &Module) -> Result<(), CodeError> {
     if module.start_section().is_some() {
         log::debug!("Found start section in program code, which is not allowed");
-        Err(CodeError::StartSectionExists)
+        Err(SectionError::NotSupported(SectionName::Start))?
     } else {
         Ok(())
     }
@@ -450,7 +496,7 @@ impl Default for TryNewCodeConfig {
             stack_height: None,
             export_stack_height: false,
             check_exports: true,
-            check_imports: false,
+            check_imports: true,
             check_and_canonize_stack_end: true,
             check_mut_global_exports: true,
             check_start_section: true,
@@ -506,7 +552,7 @@ impl Code {
         // get initial memory size from memory import
         let static_pages = module
             .import_section()
-            .ok_or(CodeError::ImportSectionNotFound)?
+            .ok_or(SectionError::NotFound(SectionName::Import))?
             .entries()
             .iter()
             .find_map(|entry| match entry.external() {
@@ -514,11 +560,11 @@ impl Code {
                 _ => None,
             })
             .map(WasmPage::new)
-            .ok_or(CodeError::MemoryEntryNotFound)?
-            .map_err(|_| CodeError::InvalidStaticPageCount)?;
+            .ok_or(MemoryError::EntryNotFound)?
+            .map_err(|_| MemoryError::InvalidStaticPageCount)?;
 
         if static_pages.raw() > MAX_WASM_PAGE_COUNT as u32 {
-            return Err(CodeError::InvalidStaticPageCount);
+            Err(MemoryError::InvalidStaticPageCount)?;
         }
 
         if config.check_exports {
@@ -543,7 +589,7 @@ impl Code {
 
         module = instrumentation_builder.instrument(module).map_err(|err| {
             log::trace!("Failed to instrument program: {err}");
-            CodeError::Instrumentation
+            CodeError::Instrumentation(err)
         })?;
 
         let code = parity_wasm::elements::serialize(module).map_err(|err| {
@@ -832,7 +878,7 @@ impl From<CodeAndId> for InstrumentedCodeAndId {
 
 #[cfg(test)]
 mod tests {
-    use crate::code::{Code, CodeError};
+    use crate::code::{Code, CodeError, ExportError};
     use alloc::vec::Vec;
     use gear_wasm_instrument::wasm_instrument::gas_metering::ConstantCostRules;
 
@@ -859,7 +905,9 @@ mod tests {
 
         assert_eq!(
             Code::try_new(original_code, 1, |_| ConstantCostRules::default(), None),
-            Err(CodeError::NonGearExportFnFound)
+            Err(CodeError::Export(ExportError::UnnecessaryExport(
+                "this_import_is_unknown".into()
+            )))
         );
     }
 
@@ -877,7 +925,7 @@ mod tests {
 
         assert_eq!(
             Code::try_new(original_code, 1, |_| ConstantCostRules::default(), None),
-            Err(CodeError::RequiredExportFnNotFound)
+            Err(CodeError::Export(ExportError::RequiredExportFnNotFound))
         );
     }
 

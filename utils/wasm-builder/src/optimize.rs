@@ -122,23 +122,20 @@ impl Optimizer {
         match ty {
             // validate metawasm code
             // see `pallet_gear::pallet::Pallet::read_state_using_wasm(...)`
-            OptType::Meta => Code::try_new_mock_const_or_no_rules(
+            OptType::Meta => Code::try_new_mock_with_rules(
                 original_code,
-                false,
+                |_| CustomConstantCostRules::default(),
                 TryNewCodeConfig::new_no_exports_check(),
             )
             .map(|_| ())
             .map_err(BuilderError::CodeCheckFailed)?,
             // validate wasm code
             // see `pallet_gear::pallet::Pallet::upload_program(...)`
-            OptType::Opt => Code::try_new_mock_with_rules(
+            OptType::Opt => Code::try_new(
                 original_code,
+                1,
                 |_| CustomConstantCostRules::default(),
-                TryNewCodeConfig {
-                    version: 1,
-                    check_imports: true,
-                    ..Default::default()
-                },
+                None,
             )
             .map(|_| ())
             .map_err(BuilderError::CodeCheckFailed)?,
