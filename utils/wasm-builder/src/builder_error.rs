@@ -35,7 +35,7 @@ pub enum BuilderError {
     #[error("unable to find the root package in cargo metadata")]
     RootPackageNotFound,
 
-    #[error("code check failed: `{0}`")]
+    #[error("code check failed: {0}")]
     CodeCheckFailed(CodeError),
 
     #[error("cargo toolchain is invalid `{0}`")]
