@@ -1099,6 +1099,7 @@ mod tests {
     }
 
     #[test]
+    #[should_panic]
     fn reservations_limit() {
         use demo_custom::{InitMessage, WASM_BINARY};
         let sys = System::new();

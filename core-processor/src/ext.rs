@@ -891,10 +891,6 @@ impl Externalities for Ext {
         self.charge_sending_fee(delay)?;
 
         self.context.gas_reserver.mark_used(id)?;
-        log::debug!(target: "gwasm", "DEBUG: reservation_send_commit ({}) {:?}",
-            self.context.gas_reserver.states().len(),
-            self.context.gas_reserver.states()[&id],
-        );
 
         let msg_id = self
             .context
