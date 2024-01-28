@@ -146,20 +146,6 @@ impl<'a, 'b> From<DisabledAdditionalDataInjector<'a, 'b>> for SyscallsInvocator<
 }
 
 impl<'a, 'b> SyscallsInvocator<'a, 'b> {
-    /// Returns the size of the memory in bytes.
-    fn memory_size_bytes(&self) -> u32 {
-        Into::<WasmPageCount>::into(self.memory_size_pages()).memory_size()
-    }
-
-    /// Returns the size of the memory in pages.
-    fn memory_size_pages(&self) -> u32 {
-        self.module
-            .initial_mem_size()
-            // To instantiate this generator, we must instantiate SyscallImportsGenerator, which can be
-            // instantiated only with memory import generation proof.
-            .expect("generator is instantiated with a memory import generation proof")
-    }
-
     /// Insert syscalls invokes.
     ///
     /// The method builds instructions, which describe how each syscall is called, and then
@@ -794,6 +780,20 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
 
             (module, ())
         })
+    }
+
+    /// Returns the size of the memory in bytes.
+    fn memory_size_bytes(&self) -> u32 {
+        Into::<WasmPageCount>::into(self.memory_size_pages()).memory_size()
+    }
+
+    /// Returns the size of the memory in pages.
+    fn memory_size_pages(&self) -> u32 {
+        self.module
+            .initial_mem_size()
+            // To instantiate this generator, we must instantiate SyscallImportsGenerator, which can be
+            // instantiated only with memory import generation proof.
+            .expect("generator is instantiated with a memory import generation proof")
     }
 }
 
