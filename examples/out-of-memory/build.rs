@@ -16,6 +16,14 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use gear_wasm_builder::WasmBuilder;
+
 fn main() {
-    gear_wasm_builder::build();
+    // We are forcing recommended nightly toolchain due to the need to compile this
+    // program with `oom-handler` feature. The WASM binary of this program is then
+    // used by the `oom_handler_works` pallet test.
+    WasmBuilder::new()
+        .exclude_features(vec!["std"])
+        .with_forced_recommended_toolchain() // NOTE: Don't use this in production programs!
+        .build();
 }

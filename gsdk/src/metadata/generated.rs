@@ -2856,6 +2856,10 @@ pub mod runtime_types {
                         value: _0,
                         keep_alive: ::core::primitive::bool,
                     },
+                    #[codec(index = 2)]
+                    UploadCode {
+                        code: ::std::vec::Vec<::core::primitive::u8>,
+                    },
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub struct VoucherId(pub [::core::primitive::u8; 32usize]);
@@ -2865,6 +2869,7 @@ pub mod runtime_types {
                     pub programs: ::core::option::Option<
                         ::std::vec::Vec<runtime_types::gear_core::ids::ProgramId>,
                     >,
+                    pub code_uploading: ::core::primitive::bool,
                     pub expiry: _1,
                 }
             }
@@ -2881,6 +2886,7 @@ pub mod runtime_types {
                         programs: ::core::option::Option<
                             ::std::vec::Vec<runtime_types::gear_core::ids::ProgramId>,
                         >,
+                        code_uploading: ::core::primitive::bool,
                         duration: ::core::primitive::u32,
                     },
                     #[codec(index = 1)]
@@ -2909,6 +2915,7 @@ pub mod runtime_types {
                                 ::std::vec::Vec<runtime_types::gear_core::ids::ProgramId>,
                             >,
                         >,
+                        code_uploading: ::core::option::Option<::core::primitive::bool>,
                         prolong_duration: ::core::option::Option<::core::primitive::u32>,
                     },
                     #[codec(index = 4)]
@@ -2949,6 +2956,12 @@ pub mod runtime_types {
                     #[codec(index = 8)]
                     #[doc = "Voucher issue/prolongation duration out of [min; max] constants."]
                     DurationOutOfBounds,
+                    #[codec(index = 9)]
+                    #[doc = "Voucher update function tries to cut voucher ability of code upload."]
+                    CodeUploadingEnabled,
+                    #[codec(index = 10)]
+                    #[doc = "Voucher is disabled for code uploading, but requested."]
+                    CodeUploadingDisabled,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 #[doc = "Pallet Gear Voucher event."]

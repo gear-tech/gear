@@ -28,8 +28,10 @@ pub mod btree;
 pub mod capacitor;
 pub mod reserver;
 pub mod simple_waiter;
+pub mod wake_after_exit;
 
 use alloc::string::String;
+use gstd::ActorId;
 use parity_scale_codec::{Decode, Encode};
 
 #[cfg(feature = "std")]
@@ -46,6 +48,7 @@ pub enum InitMessage {
     BTree,
     BackendError,
     SimpleWaiter,
+    WakeAfterExit(ActorId),
     Reserver,
 }
 
@@ -53,7 +56,8 @@ pub enum InitMessage {
 mod wasm {
     use super::{
         backend_error::wasm as backend_error, btree::wasm as btree, capacitor::wasm as capacitor,
-        reserver::wasm as reserver, simple_waiter::wasm as simple_waiter, InitMessage,
+        reserver::wasm as reserver, simple_waiter::wasm as simple_waiter,
+        wake_after_exit::wasm as wake_after_exit, InitMessage,
     };
     use gstd::msg;
 
@@ -62,6 +66,7 @@ mod wasm {
         BTree(btree::State),
         BackendError(backend_error::State),
         SimpleWaiter(simple_waiter::State),
+        WakeAfterExit,
         Reserver(reserver::State),
     }
 
@@ -75,6 +80,10 @@ mod wasm {
             InitMessage::BTree => State::BTree(btree::init()),
             InitMessage::BackendError => State::BackendError(backend_error::init()),
             InitMessage::SimpleWaiter => State::SimpleWaiter(simple_waiter::init()),
+            InitMessage::WakeAfterExit(addr) => {
+                unsafe { STATE = Some(State::WakeAfterExit) };
+                wake_after_exit::init(addr)
+            }
             InitMessage::Reserver => State::Reserver(reserver::init()),
         };
         unsafe { STATE = Some(state) };
@@ -82,7 +91,7 @@ mod wasm {
 
     #[no_mangle]
     extern "C" fn handle() {
-        let state = unsafe { STATE.as_mut().expect("State must be set in handle") };
+        let state = unsafe { STATE.as_mut().expect("State must be set") };
         match state {
             State::Capacitor(state) => capacitor::handle(state),
             State::BTree(state) => btree::handle(state),
@@ -93,8 +102,16 @@ mod wasm {
     }
 
     #[no_mangle]
+    extern "C" fn handle_reply() {
+        let state = unsafe { STATE.as_mut().expect("State must be set") };
+        if let State::WakeAfterExit = state {
+            wake_after_exit::handle_reply();
+        }
+    }
+
+    #[no_mangle]
     extern "C" fn state() {
-        let state = unsafe { STATE.take().expect("State must be set in handle") };
+        let state = unsafe { STATE.take().expect("State must be set") };
         if let State::BTree(state) = state {
             btree::state(state);
         }

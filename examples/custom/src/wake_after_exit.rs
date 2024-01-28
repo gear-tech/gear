@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2024 Gear Technologies Inc.
+// Copyright (C) 2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -16,22 +16,14 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-// This program recursively composes itself with another program (the other program
-// being applied to the input data first): `c(f) = (c(f) . f) x`.
-// Every call to the auto_composer program increments the internal `ITER` counter.
-// As soon as the counter reaches the `MAX_ITER`, the recursion stops.
-// Effectively, this procedure executes a composition of `MAX_ITER` programs `f`
-// where the output of the previous call is fed to the input of the next call.
-
-#![cfg_attr(not(feature = "std"), no_std)]
-
-#[cfg(feature = "std")]
-mod code {
-    include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
-}
-
-#[cfg(feature = "std")]
-pub use code::WASM_BINARY_OPT as WASM_BINARY;
-
 #[cfg(not(feature = "std"))]
-mod wasm;
+pub(crate) mod wasm {
+    pub fn init(addr: gstd::ActorId) -> ! {
+        let _ = gstd::msg::send_bytes(addr, b"PING", 0).unwrap();
+        gstd::exec::wait_up_to(100)
+    }
+
+    pub fn handle_reply() -> ! {
+        gstd::exec::exit(gstd::msg::source())
+    }
+}
