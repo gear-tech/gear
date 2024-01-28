@@ -323,42 +323,7 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
             .waiting_probability()
             .filter(|_| invocable.is_wait_syscall())
         {
-            let MemoryLayout {
-                init_called_ptr,
-                wait_called_ptr,
-                ..
-            } = MemoryLayout::from(self.memory_size_bytes());
-
-            // add instructions before calling wait syscall
-            instructions.splice(
-                0..0,
-                [
-                    Instruction::I32Const(init_called_ptr),
-                    Instruction::I32Load8U(0, 0),
-                    // if *init_called_ptr { .. }
-                    Instruction::If(BlockType::NoResult),
-                    Instruction::I32Const(wait_called_ptr),
-                    Instruction::I32Load(2, 0),
-                    Instruction::I32Const(waiting_probability as i32),
-                    Instruction::I32RemU,
-                    Instruction::I32Eqz,
-                    // if *wait_called_ptr % waiting_probability == 0 { orig_wait_syscall(); }
-                    Instruction::If(BlockType::NoResult),
-                ],
-            );
-
-            // add instructions after calling wait syscall
-            instructions.extend_from_slice(&[
-                Instruction::End,
-                // *wait_called_ptr += 1
-                Instruction::I32Const(wait_called_ptr),
-                Instruction::I32Const(wait_called_ptr),
-                Instruction::I32Load(2, 0),
-                Instruction::I32Const(1),
-                Instruction::I32Add,
-                Instruction::I32Store(2, 0),
-                Instruction::End,
-            ]);
+            self.limit_infinite_waits(&mut instructions, waiting_probability);
         }
 
         log::trace!(
@@ -704,6 +669,46 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                 "Invalid implementation. This function is called only for returning errors syscall"
             ),
         }
+    }
+
+    /// Patches instructions of wait-syscalls to prevent deadlocks.
+    fn limit_infinite_waits(&self, instructions: &mut Vec<Instruction>, waiting_probability: u32) {
+        let MemoryLayout {
+            init_called_ptr,
+            wait_called_ptr,
+            ..
+        } = MemoryLayout::from(self.memory_size_bytes());
+
+        // add instructions before calling wait syscall
+        instructions.splice(
+            0..0,
+            [
+                Instruction::I32Const(init_called_ptr),
+                Instruction::I32Load8U(0, 0),
+                // if *init_called_ptr { .. }
+                Instruction::If(BlockType::NoResult),
+                Instruction::I32Const(wait_called_ptr),
+                Instruction::I32Load(2, 0),
+                Instruction::I32Const(waiting_probability as i32),
+                Instruction::I32RemU,
+                Instruction::I32Eqz,
+                // if *wait_called_ptr % waiting_probability == 0 { orig_wait_syscall(); }
+                Instruction::If(BlockType::NoResult),
+            ],
+        );
+
+        // add instructions after calling wait syscall
+        instructions.extend_from_slice(&[
+            Instruction::End,
+            // *wait_called_ptr += 1
+            Instruction::I32Const(wait_called_ptr),
+            Instruction::I32Const(wait_called_ptr),
+            Instruction::I32Load(2, 0),
+            Instruction::I32Const(1),
+            Instruction::I32Add,
+            Instruction::I32Store(2, 0),
+            Instruction::End,
+        ]);
     }
 
     fn resolves_calls_indexes(&mut self) {
