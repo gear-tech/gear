@@ -19,7 +19,10 @@
 //! Gear wasm entry points generator module.
 
 use crate::{
-    generator::{CallIndexes, FrozenGearWasmGenerator, GearWasmGenerator, ModuleWithCallIndexes},
+    generator::{
+        CallIndexes, FrozenGearWasmGenerator, GearWasmGenerator, MemoryImportGenerationProof,
+        ModuleWithCallIndexes,
+    },
     wasm::{PageCount as WasmPageCount, WasmModule},
     EntryPointsSet, MemoryLayout,
 };
@@ -100,9 +103,11 @@ impl<'a, 'b> EntryPointsGenerator<'a, 'b> {
     /// Returns disabled entry points generator and a proof that all entry points from config were generated.
     pub fn generate_entry_points(
         mut self,
+        mem_import_gen_proof: MemoryImportGenerationProof,
     ) -> Result<(
         DisabledEntryPointsGenerator<'a, 'b>,
         GearEntryPointGenerationProof,
+        MemoryImportGenerationProof,
     )> {
         log::trace!("Generating gear entry points");
 
@@ -118,7 +123,11 @@ impl<'a, 'b> EntryPointsGenerator<'a, 'b> {
             self.generate_export("handle_reply")?;
         }
 
-        Ok((self.disable(), GearEntryPointGenerationProof(())))
+        Ok((
+            self.disable(),
+            GearEntryPointGenerationProof(()),
+            mem_import_gen_proof,
+        ))
     }
 
     /// Generates an export function with a `name`.
@@ -221,7 +230,6 @@ impl<'a, 'b> EntryPointsGenerator<'a, 'b> {
                 .module
                 .initial_mem_size()
                 .expect("generator is instantiated with a mem import generation proof");
-
             let mem_size = Into::<WasmPageCount>::into(memory_size_pages).memory_size();
 
             let MemoryLayout {
