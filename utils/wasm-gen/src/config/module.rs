@@ -82,6 +82,8 @@ impl From<(SelectableParams, ArbitraryParams)> for WasmModuleConfig {
             min_data_segments,
             max_types,
             min_types,
+            memory_offset_choices,
+            reserved_memory_size,
         } = ConstantParams::default();
 
         let SelectableParams {
@@ -110,7 +112,6 @@ impl From<(SelectableParams, ArbitraryParams)> for WasmModuleConfig {
             max_type_size,
             max_values,
             memory_max_size_required,
-            memory_offset_choices,
             min_element_segments,
             min_elements,
             min_globals,
@@ -170,7 +171,7 @@ impl From<(SelectableParams, ArbitraryParams)> for WasmModuleConfig {
             min_uleb_size,
             multi_value_enabled,
             reference_types_enabled,
-            reserved_memory_size: Some(MemoryLayout::RESERVED_MEMORY_SIZE as u64),
+            reserved_memory_size,
             tail_call_enabled,
             relaxed_simd_enabled,
             saturating_float_to_int_enabled,
@@ -207,7 +208,6 @@ pub struct ArbitraryParams {
     max_type_size: u32,
     max_values: usize,
     memory_max_size_required: bool,
-    memory_offset_choices: (u32, u32, u32),
     min_element_segments: usize,
     min_elements: usize,
     min_globals: usize,
@@ -268,7 +268,6 @@ impl Arbitrary<'_> for ArbitraryParams {
             max_type_size,
             max_values,
             memory_max_size_required,
-            memory_offset_choices: (75, 25, 0),
             min_element_segments,
             min_elements,
             min_globals,
@@ -313,6 +312,8 @@ pub struct ConstantParams {
     float_enabled: bool,
     memory_grow_enabled: bool,
     min_types: usize,
+    memory_offset_choices: (u32, u32, u32),
+    reserved_memory_size: Option<u64>,
 }
 
 impl Default for ConstantParams {
@@ -344,6 +345,8 @@ impl Default for ConstantParams {
             min_data_segments: 0,
             max_types: 100,
             min_types: 5,
+            memory_offset_choices: (75, 25, 0),
+            reserved_memory_size: Some(MemoryLayout::RESERVED_MEMORY_SIZE as u64),
         }
     }
 }
