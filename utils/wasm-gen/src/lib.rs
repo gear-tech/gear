@@ -30,6 +30,8 @@ pub mod wasm_gen_arbitrary {
 }
 pub mod config;
 pub mod generator;
+pub mod memory_layout;
+
 #[cfg(test)]
 mod tests;
 mod utils;
@@ -38,6 +40,7 @@ mod wasm;
 pub use config::*;
 pub use gear_wasm_instrument::syscalls::SyscallName;
 pub use generator::*;
+pub use memory_layout::*;
 pub use wasm::WasmModule;
 pub use wasm_gen_arbitrary::*;
 

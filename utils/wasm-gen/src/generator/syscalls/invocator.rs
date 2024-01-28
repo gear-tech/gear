@@ -25,8 +25,8 @@ use crate::{
     },
     utils::{self, WasmWords},
     wasm::{PageCount as WasmPageCount, WasmModule},
-    ActorKind, InvocableSyscall, PtrParamAllowedValues, RegularParamAllowedValues, SyscallsConfig,
-    SyscallsParamsConfig,
+    ActorKind, InvocableSyscall, MemoryLayout, PtrParamAllowedValues, RegularParamAllowedValues,
+    SyscallsConfig, SyscallsParamsConfig,
 };
 use arbitrary::{Result, Unstructured};
 use gear_wasm_instrument::{
@@ -799,41 +799,6 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
             // To instantiate this generator, we must instantiate SyscallImportsGenerator, which can be
             // instantiated only with memory import generation proof.
             .expect("generator is instantiated with a memory import generation proof")
-    }
-}
-
-/// Represents memory layout that can be safely used between syscalls and instructions.
-pub struct MemoryLayout {
-    pub init_called_ptr: i32,
-    pub wait_called_ptr: i32,
-    pub remaining_memory_len: u32,
-    pub remaining_memory_ptr: i32,
-}
-
-impl MemoryLayout {
-    /// The amount of reserved memory.
-    pub const RESERVED_MEMORY_SIZE: u32 = 256;
-}
-
-impl From<u32> for MemoryLayout {
-    fn from(mem_size: u32) -> Self {
-        let start_memory_ptr = mem_size.saturating_sub(Self::RESERVED_MEMORY_SIZE) as i32;
-        let init_called_ptr = start_memory_ptr;
-        let wait_called_ptr = init_called_ptr + mem::size_of::<bool>() as i32;
-        let remaining_memory_ptr = wait_called_ptr + mem::size_of::<u32>() as i32;
-        let remaining_memory_len = (remaining_memory_ptr - start_memory_ptr) as u32;
-
-        assert!(
-            remaining_memory_len <= Self::RESERVED_MEMORY_SIZE,
-            "reserved memory exceeded"
-        );
-
-        Self {
-            init_called_ptr,
-            wait_called_ptr,
-            remaining_memory_len,
-            remaining_memory_ptr,
-        }
     }
 }
 
