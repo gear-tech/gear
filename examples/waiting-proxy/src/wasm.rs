@@ -35,7 +35,7 @@ async fn main() {
 
 #[no_mangle]
 extern "C" fn init() {
-    let (destination, reply_deposit) = msg::load().expect("Expecting a contract address");
+    let (destination, reply_deposit) = msg::load().expect("Expecting a program address");
     unsafe {
         DESTINATION = destination;
         REPLY_DEPOSIT = reply_deposit;

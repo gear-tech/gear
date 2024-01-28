@@ -186,11 +186,11 @@ pub fn instantiate(
     #[cfg(feature = "wasmer-cache")]
     let module = match get_cached_module(wasm, &context.store) {
         Ok(module) => {
-            log::trace!("Found cached module for current contract");
+            log::trace!("Found cached module for current program");
             module
         }
         Err(err) => {
-            log::trace!("Cache for contract has not been found, so compile it now");
+            log::trace!("Cache for program has not been found, so compile it now");
             let module = sandbox_wasmer::Module::new(&context.store, wasm)
                 .map_err(|_| InstantiationError::ModuleDecoding)?;
             match err {

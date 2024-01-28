@@ -25,7 +25,7 @@ You can find signal codes list in the `SignalCode` enum, located in [core-errors
 ## Testing technique
 <a name="testing-technique"></a>
 
-In the following section you can find all cases of signal codes. Each case is accompanied by a reference smart contract code and a corresponding reference test. This reference test will demonstrate the specific case, trigger the sending of signal code, and verify that the smart contract receives the appropriate signal code.
+In the following section you can find all cases of signal codes. Each case is accompanied by a reference program code and a corresponding reference test. This reference test will demonstrate the specific case, trigger the sending of signal code, and verify that the program receives the appropriate signal code.
 
 Each test will reserve gas before action. This step ensures that the program doesn't run out of gas during the `handle_signal` execution.
 
@@ -258,7 +258,7 @@ This signal is sent when the trap `TrapExplanation::GasLimitExceeded` occurs. Th
 - Gas runs out during plain or lazy pages memory access.
 
     This case can be tested by creating a program, that _only_ accesses memory, calculating gas for this program, and then running it with gass limit that is less than the calculated gas amount by a small margin. This will ensure that the program will run out of gas during memory access.
-   
+
     <details>
     <summary>Program to be uploaded</summary>
 
@@ -385,7 +385,7 @@ There are two cases of fails when this signal code is sent:
     - One of forbidden syscalls are called.
 
         In this case the syscall `gr_forbidden` will be called, resulting in execution stop. As of now, the only forbidden syscall are `gas_available` while calculating gas amount, so there is no way to test this case, because the message sent from the program won't be sent while calculating gas amount.
-        
+
 
     - Some interactions with system actor are made:
         - Sending message
@@ -496,13 +496,13 @@ There are two cases of fails when this signal code is sent:
         }
         ```
         </details>
-        
+
 - `TrapExplanation::UnrecoverableExt`
 
     This case is sent when:
     - A syscall `debug` gets called with invalid string.
 
-        This test will not work in the `release` mode until the `gstd` crate is imported into the contract code using the `debug` feature. Otherwise, the `gr_debug` syscall will be optimized out.
+        This test will not work in the `release` mode until the `gstd` crate is imported into the program code using the `debug` feature. Otherwise, the `gr_debug` syscall will be optimized out.
 
         <details>
         <summary>Program to be uploaded</summary>
@@ -513,7 +513,7 @@ There are two cases of fails when this signal code is sent:
         use gstd::{
             ActorId,
             debug,
-            errors::{SignalCode, SimpleExecutionError}, 
+            errors::{SignalCode, SimpleExecutionError},
             exec,
             prelude::*,
             msg,
@@ -707,7 +707,7 @@ There are two cases of fails when this signal code is sent:
         }
         ```
         </details>
-        
+
     - When memory accessed out of bounds during lazy pages access.
 
         This case will be hard to test as there is no way to intentionally trigger lazy pages reading inside the program, so the test is not provided here.
@@ -725,7 +725,7 @@ This signal is sent when the `oom_panic` syscall gets called. This occurs when t
 
 use gstd::{
     ActorId,
-    errors::{SignalCode, SimpleExecutionError}, 
+    errors::{SignalCode, SimpleExecutionError},
     exec,
     ext::oom_panic,
     prelude::*,
