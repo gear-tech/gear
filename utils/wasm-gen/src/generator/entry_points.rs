@@ -217,19 +217,23 @@ impl<'a, 'b> EntryPointsGenerator<'a, 'b> {
 
         // after initializing the program, we will write about this in a special pointer
         if name == "init" {
-            if let Some(memory_size_pages) = self.module.initial_mem_size() {
-                let mem_size = Into::<WasmPageCount>::into(memory_size_pages).memory_size();
-                let MemoryLayout {
-                    init_called_ptr, ..
-                } = MemoryLayout::from(mem_size);
+            let memory_size_pages = self
+                .module
+                .initial_mem_size()
+                .expect("generator is instantiated with a mem import generation proof");
 
-                res.extend_from_slice(&[
-                    // *init_called_ptr = true
-                    Instruction::I32Const(init_called_ptr),
-                    Instruction::I32Const(1),
-                    Instruction::I32Store8(0, 0),
-                ]);
-            }
+            let mem_size = Into::<WasmPageCount>::into(memory_size_pages).memory_size();
+
+            let MemoryLayout {
+                init_called_ptr, ..
+            } = MemoryLayout::from(mem_size);
+
+            res.extend_from_slice(&[
+                // *init_called_ptr = true
+                Instruction::I32Const(init_called_ptr),
+                Instruction::I32Const(1),
+                Instruction::I32Store8(0, 0),
+            ]);
         }
 
         res.push(Instruction::End);
