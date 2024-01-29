@@ -19,7 +19,12 @@
 //! Gear syscalls for programs execution signatures.
 
 use crate::parity_wasm::elements::{FunctionType, ValueType};
-use alloc::{borrow::ToOwned, collections::BTreeSet, vec::Vec};
+use alloc::{
+    borrow::ToOwned,
+    collections::{BTreeMap, BTreeSet},
+    string::{String, ToString},
+    vec::Vec,
+};
 use core::iter;
 use enum_iterator::{self, Sequence};
 pub use pointers::*;
@@ -233,8 +238,18 @@ impl SyscallName {
             Self::ReserveGas,
             Self::UnreserveGas,
             Self::Random,
+            Self::SystemReserveGas,
+            Self::EnvVars,
         ]
         .into()
+    }
+
+    /// Returns map of all syscall string values to syscall names.
+    pub fn instrumentable_map() -> BTreeMap<String, SyscallName> {
+        Self::instrumentable()
+            .into_iter()
+            .map(|n| (n.to_str().to_string(), n))
+            .collect()
     }
 
     /// Returns signature for syscall by name.

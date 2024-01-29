@@ -14541,6 +14541,26 @@ fn critical_hook_in_handle_signal() {
     });
 }
 
+#[test]
+fn export_is_import() {
+    let wat = r#"
+        (module
+            (import "env" "memory" (memory 1))
+            (import "env" "gr_leave" (func $gr_leave))
+            (export "init" (func $gr_leave))
+            (func)
+        )"#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let code = ProgramCodeKind::Custom(wat).to_bytes();
+        assert_noop!(
+            Gear::upload_code(RuntimeOrigin::signed(USER_1), code),
+            Error::<Test>::ProgramConstructionFailed
+        );
+    });
+}
+
 mod utils {
     #![allow(unused)]
 
