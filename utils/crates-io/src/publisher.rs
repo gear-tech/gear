@@ -114,6 +114,11 @@ impl Publisher {
             panic!("Packages {failed:?} failed to pass the check ...");
         }
 
+        // Test if gtest works
+        if !crate::test("demo-syscall-error")?.success() {
+            panic!("Package demo-syscall-error failed to pass the test ...");
+        }
+
         Ok(())
     }
 

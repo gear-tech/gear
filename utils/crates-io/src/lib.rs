@@ -92,6 +92,16 @@ pub fn check(manifest: &str) -> Result<ExitStatus> {
         .map_err(Into::into)
 }
 
+/// Test the input package
+pub fn test(package: &str) -> Result<ExitStatus> {
+    Command::new("cargo")
+        .arg("test")
+        .arg("-p")
+        .arg(package)
+        .status()
+        .map_err(Into::into)
+}
+
 /// Publish the input package
 pub fn publish(manifest: &str) -> Result<ExitStatus> {
     Command::new("cargo")
