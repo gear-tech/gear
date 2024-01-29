@@ -65,7 +65,10 @@ pub fn patch_alias(index: &mut Vec<&str>) {
 pub fn patch_workspace(name: &str, table: &mut toml_edit::InlineTable) {
     match name {
         "core-processor" | "gear-core-processor" => core_processor::patch_workspace(name, table),
-        sub if sub.starts_with("sp-") | sub.starts_with("frame-") => {
+        sub if ["sc-", "sp-", "frame-", "try-runtime-cli"]
+            .iter()
+            .any(|p| sub.starts_with(p)) =>
+        {
             substrate::patch_workspace(name, table)
         }
         _ => {}
@@ -196,10 +199,10 @@ mod substrate {
 
     /// Patch the substrate packages in the manifest of workspace.
     ///
-    /// The versions of substrate packages on crates-io have no version
-    /// mangement (<https://github.com/paritytech/polkadot-sdk/issues/2809>),
-    /// the following version are pinned to frame-support-v24.0.0 on crates-io
-    /// now, <https://crates.io/crates/frame-system/24.0.0/dependencies> for
+    /// Substrate packages on crates-io currently have no version management
+    /// (<https://github.com/paritytech/polkadot-sdk/issues/2809>),
+    /// the following versions are pinned to frame-support-v22.0.0 on crates-io
+    /// now, <https://crates.io/crates/frame-system/22.0.0/dependencies> for
     /// the details.
     ///
     /// NOTE: The packages inside of this function are located at
@@ -207,7 +210,41 @@ mod substrate {
     pub fn patch_workspace(name: &str, table: &mut InlineTable) {
         match name {
             "frame-support" | "frame-system" | "sp-core" => {
+                table.insert("version", "22.0.0".into());
+            }
+            "frame-support-test" => return,
+            "frame-benchmarking-cli" => {
+                table.insert("version", "26.0.0".into());
+            }
+            "sc-cli" => {
+                table.insert("version", "0.30.0".into());
+            }
+            "sc-client-db" | "sc-service" => {
+                table.insert("version", "0.29.0".into());
+            }
+            "sp-api" | "sp-rpc" => {
+                table.insert("version", "20.0.0".into());
+            }
+            "sp-arithmetic" => {
+                table.insert("version", "17.0.0".into());
+            }
+            "sp-debug-derive" | "sp-std" => {
+                table.insert("version", "9.0.0".into());
+            }
+            "sp-io" => {
                 table.insert("version", "24.0.0".into());
+            }
+            "sp-runtime" => {
+                table.insert("version", "25.0.0".into());
+            }
+            "sp-version" => {
+                table.insert("version", "23.0.0".into());
+            }
+            "sp-weights" => {
+                table.insert("version", "21.0.0".into());
+            }
+            "try-runtime-cli" => {
+                table.insert("version", "0.34.0".into());
             }
             // sp-allocator is outdated on crates.io, last
             // 3.0.0 forever, here we use gp-allocator instead.
@@ -224,7 +261,7 @@ mod substrate {
             }
             // Related to sp-wasm-interface.
             //
-            // ref: -
+            // no ref bcz we own this package.
             "sp-wasm-interface-common" => {
                 table.insert("version", "7.0.1".into());
             }
@@ -234,29 +271,6 @@ mod substrate {
             "sp-runtime-interface" => {
                 table.insert("version", GP_RUNTIME_INTERFACE_VERSION.into());
                 table.insert("package", "gp-runtime-interface".into());
-            }
-            "sp-api" => table.insert("version", "22.0.0".into()),
-            "sp-arithmetic" => {
-                table.insert("version", "19.0.0".into());
-            }
-            "sp-debug-derive" => {
-                table.insert("version", "11.0.0".into());
-            }
-            "sp-io" => table.insert("version", "26.0.0"),
-            "sp-runtime" => {
-                table.insert("version", "27.0.0".into());
-            }
-            "sp-rpc" => {
-                table.insert("version", "22.0.0".into());
-            }
-            "sp-std" => {
-                table.insert("version", "11.0.0".into());
-            }
-            "sp-version" => {
-                table.insert("version", "25.0.0".into());
-            }
-            "sp-weights" => {
-                table.insert("version", "23.0.0".into());
             }
             _ => {}
         }
