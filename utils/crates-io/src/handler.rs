@@ -23,6 +23,9 @@ use anyhow::Result;
 use cargo_metadata::Package;
 use toml_edit::Document;
 
+/// The working version of sp-wasm-interface.
+pub const GP_RUNTIME_INTERFACE_VERSION: &str = "18.0.0";
+
 /// Get the crates-io name of the provided package.
 pub fn crates_io_name(pkg: &str) -> &str {
     // `gear-core-processor` is taken by others, see the docs
@@ -143,7 +146,7 @@ mod gmeta_codegen {
 }
 
 mod runtime_interface {
-    use crate::GP_RUNTIME_INTERFACE_VERSION;
+    use super::GP_RUNTIME_INTERFACE_VERSION;
     use toml_edit::Document;
 
     /// Patch the manifest of runtime-interface.
@@ -194,7 +197,7 @@ mod sandbox_host {
 
 /// substrate handler.
 mod substrate {
-    use crate::GP_RUNTIME_INTERFACE_VERSION;
+    use super::GP_RUNTIME_INTERFACE_VERSION;
     use toml_edit::InlineTable;
 
     /// Patch the substrate packages in the manifest of workspace.
@@ -244,30 +247,32 @@ mod substrate {
                 table.insert("version", "21.0.0".into());
             }
             "try-runtime-cli" => {
-                table.insert("version", "0.34.0".into());
+                table.insert("version", "0.32.0".into());
             }
             // sp-allocator is outdated on crates.io, last
             // 3.0.0 forever, here we use gp-allocator instead.
             "sp-allocator" => {
-                table.insert("version", "4.1.1".into());
+                table.insert("version", "4.1.2".into());
                 table.insert("package", "gp-allocator".into());
             }
             // Our sp-wasm-interface is different from the substrate one.
             //
-            // ref: sp-wasm-interface-17.0.0
+            // ref: sp-wasm-interface-15.0.0
             "sp-wasm-interface" => {
                 table.insert("package", "gp-wasm-interface".into());
-                table.insert("version", "7.0.1".into());
+                table.insert("version", "15.0.0".into());
             }
             // Related to sp-wasm-interface.
             //
             // no ref bcz we own this package.
             "sp-wasm-interface-common" => {
-                table.insert("version", "7.0.1".into());
+                table.insert("version", "15.0.0".into());
             }
             // Related to sp-wasm-interface.
             //
-            // ref: sp-runtime-interface-20.0.0
+            // ref:
+            // - sp-runtime-interface-18.0.0
+            // - sp-runtime-interface-proc-macro-12.0.0
             "sp-runtime-interface" => {
                 table.insert("version", GP_RUNTIME_INTERFACE_VERSION.into());
                 table.insert("package", "gp-runtime-interface".into());

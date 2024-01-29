@@ -81,9 +81,6 @@ pub const PACKAGE_ALIAS: [(&str, &str); 2] = [
     ("gear-runtime-primitives", "runtime-primitives"),
 ];
 
-/// The working version of sp-wasm-interface.
-pub const GP_RUNTIME_INTERFACE_VERSION: &str = "7.0.5";
-
 /// Check the input package
 pub fn check(manifest: &str) -> Result<ExitStatus> {
     Command::new("cargo")
