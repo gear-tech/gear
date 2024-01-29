@@ -61,7 +61,7 @@ where
 
         // Can't process messages for non-active program.
         let Some(program) = Self::get_active_program(destination_id) else {
-            log::trace!("Message is sent to non-active program");
+            log::trace!("Message is sent to non-active program {:?}", destination_id);
             return core_processor::process_non_executable(
                 precharged_dispatch,
                 destination_id,
@@ -71,7 +71,10 @@ where
 
         // Can't process init messages for already initialized program.
         if program.state == ProgramState::Initialized && dispatch_kind == DispatchKind::Init {
-            log::trace!("Init message is sent to already initialized program");
+            log::trace!(
+                "Init message is sent to already initialized program {:?}",
+                destination_id
+            );
             return core_processor::process_non_executable(
                 precharged_dispatch,
                 destination_id,
@@ -165,7 +168,7 @@ where
                 let code = match Pallet::<T>::reinstrument_code(code_id, &schedule) {
                     Ok(code) => code,
                     Err(e) => {
-                        log::debug!("Re-instrumentation error: {:?}", e);
+                        log::debug!("Re-instrumentation error for code {:?}: {e:?}", code_id);
                         return core_processor::process_reinstrumentation_error(context);
                     }
                 };

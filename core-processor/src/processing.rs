@@ -231,20 +231,22 @@ fn process_error(
         journal.push(JournalNote::SystemReserveGas { message_id, amount });
     }
 
-    if system_reservation_ctx.has_any() {
-        if let ProcessErrorCase::ExecutionFailed(err, allow_signal) = &case {
-            if *allow_signal
-                && !dispatch.is_error_reply()
-                && !matches!(dispatch.kind(), DispatchKind::Signal | DispatchKind::Init)
-            {
-                journal.push(JournalNote::SendSignal {
-                    message_id,
-                    destination: program_id,
-                    code: SignalCode::Execution(err.as_simple()),
-                });
-            }
+    if let ProcessErrorCase::ExecutionFailed(err, allow_signal) = &case {
+        // TODO: consider to handle error reply and init #3701
+        if *allow_signal
+            && system_reservation_ctx.has_any()
+            && !dispatch.is_error_reply()
+            && !matches!(dispatch.kind(), DispatchKind::Signal | DispatchKind::Init)
+        {
+            journal.push(JournalNote::SendSignal {
+                message_id,
+                destination: program_id,
+                code: SignalCode::Execution(err.as_simple()),
+            });
         }
+    }
 
+    if system_reservation_ctx.has_any() {
         journal.push(JournalNote::SystemUnreserveGas { message_id });
     }
 
