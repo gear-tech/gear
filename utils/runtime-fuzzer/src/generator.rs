@@ -21,17 +21,18 @@ mod send_message;
 mod send_reply;
 mod upload_program;
 
+use crate::{
+    data::*,
+    runtime::{self, BalanceState},
+};
 use gear_call_gen::GearCall;
-use gear_common::event::ProgramChangeKind;
+use gear_common::{event::ProgramChangeKind, Origin};
 use gear_core::ids::{MessageId, ProgramId};
 use gear_wasm_gen::wasm_gen_arbitrary::{Result, Unstructured};
-use pallet_balances::Pallet as BalancesPallet;
 use pallet_gear::Event as GearEvent;
-use runtime_primitives::AccountId;
+use runtime_primitives::{AccountId, Balance};
 use std::{collections::BTreeSet, mem};
-use vara_runtime::{Runtime, RuntimeEvent, System};
-
-use crate::{data::*, runtime};
+use vara_runtime::{RuntimeEvent, System};
 
 // Max code size - 25 KiB.
 const MAX_CODE_SIZE: usize = 25 * 1024;
@@ -56,7 +57,7 @@ const GAS_AND_VALUE_SIZE: usize = mem::size_of::<(u64, u128)>();
 /// Used to make sure that generators will not exceed `Unstructured` size as it's used not only
 /// to generate things like wasm code or message payload but also to generate some auxiliary
 /// data, for example index in some vec.
-const AUXILIARY_SIZE: usize = 512;
+pub(crate) const AUXILIARY_SIZE: usize = 512;
 
 pub(crate) struct GearCallsGenerator<'a> {
     unstructured: Unstructured<'a>,
@@ -128,73 +129,46 @@ impl GearCallsGenerator<'_> {
     //
     // Increasing these constants requires resetting minimal
     // size of fuzzer input buffer in corresponding scripts.
-    const MAX_UPLOAD_PROGRAM_CALLS: usize = 10;
-    const MAX_SEND_MESSAGE_CALLS: usize = 15;
-    const MAX_SEND_REPLY_CALLS: usize = 1;
-    const MAX_CLAIM_VALUE_CALLS: usize = 1;
+    pub(crate) const MAX_UPLOAD_PROGRAM_CALLS: usize = 10;
+    pub(crate) const MAX_SEND_MESSAGE_CALLS: usize = 15;
+    pub(crate) const MAX_SEND_REPLY_CALLS: usize = 1;
+    pub(crate) const MAX_CLAIM_VALUE_CALLS: usize = 1;
 
     pub(crate) const fn random_data_requirement() -> usize {
-        Self::upload_program_data_requirement() * Self::MAX_UPLOAD_PROGRAM_CALLS
-            + Self::send_message_data_requirement() * Self::MAX_SEND_MESSAGE_CALLS
-            + Self::send_reply_data_requirement() * Self::MAX_SEND_REPLY_CALLS
-            + Self::claim_value_data_requirement() * Self::MAX_CLAIM_VALUE_CALLS
-    }
-
-    const fn upload_program_data_requirement() -> usize {
-        MAX_CODE_SIZE + MAX_SALT_SIZE + MAX_PAYLOAD_SIZE + GAS_AND_VALUE_SIZE + AUXILIARY_SIZE
-    }
-
-    const fn send_message_data_requirement() -> usize {
-        ID_SIZE + MAX_PAYLOAD_SIZE + GAS_AND_VALUE_SIZE + AUXILIARY_SIZE
-    }
-
-    const fn send_reply_data_requirement() -> usize {
-        ID_SIZE + MAX_PAYLOAD_SIZE + GAS_AND_VALUE_SIZE + AUXILIARY_SIZE
-    }
-
-    const fn claim_value_data_requirement() -> usize {
-        ID_SIZE + AUXILIARY_SIZE
+        upload_program::data_requirement() * Self::MAX_UPLOAD_PROGRAM_CALLS
+            + send_message::data_requirement() * Self::MAX_SEND_MESSAGE_CALLS
+            + send_reply::data_requirement() * Self::MAX_SEND_REPLY_CALLS
+            + claim_value::data_requirement() * Self::MAX_CLAIM_VALUE_CALLS
     }
 }
 
-pub(crate) struct RuntimeStateViewProducer<'a> {
+pub(crate) struct RuntimeStateViewProducer {
     corpus_id: String,
-    _unstructured: Unstructured<'a>,
     sender: AccountId,
     programs: BTreeSet<ProgramId>,
-    // todo issue - include time limits, so no outdated mailbox messages will be stored.
+    // TODO #3703. Remove outdated message ids.
     mailbox: BTreeSet<MessageId>,
 }
 
-impl<'a> RuntimeStateViewProducer<'a> {
-    pub(crate) fn new(
-        corpus_id: String,
-        data_requirement: FulfilledDataRequirement<'a, Self>,
-    ) -> Self {
+impl RuntimeStateViewProducer {
+    pub(crate) fn new(corpus_id: String, sender: AccountId) -> Self {
         Self {
             corpus_id,
-            _unstructured: Unstructured::new(data_requirement.data),
-            sender: runtime::alice(),
+            sender,
             programs: BTreeSet::new(),
             mailbox: BTreeSet::new(),
         }
     }
 
-    pub(crate) fn produce_state_view(&mut self) -> RuntimeStateView {
+    pub(crate) fn produce_state_view(&mut self, balance_state: BalanceState) -> RuntimeStateView {
         self.update_state_view();
-
-        runtime::increase_to_max_balance(self.sender.clone())
-            .unwrap_or_else(|e| unreachable!("Balance update failed: {e:?}"));
-        log::info!(
-            "Current balance of the sender - {}",
-            BalancesPallet::<Runtime>::free_balance(&self.sender)
-        );
 
         let programs = Vec::from_iter(self.programs.iter());
         let mailbox = Vec::from_iter(self.mailbox.iter());
 
         RuntimeStateView {
             corpus_id: &self.corpus_id,
+            _current_balance: balance_state.into_inner(),
             programs,
             mailbox,
             max_gas: runtime::default_gas_limit(),
@@ -203,6 +177,7 @@ impl<'a> RuntimeStateViewProducer<'a> {
 
     /// Updates mailbox and existing programs view and resets events.
     fn update_state_view(&mut self) {
+        let sender_program_id = ProgramId::from_origin(self.sender.clone().into_origin());
         System::events().iter().for_each(|e| {
             let RuntimeEvent::Gear(ref gear_event) = e.event else {
                 return;
@@ -218,7 +193,7 @@ impl<'a> RuntimeStateViewProducer<'a> {
                     message,
                     expiration: Some(_),
                 } => {
-                    if message.destination() == runtime::alice_program_id() {
+                    if message.destination() == sender_program_id {
                         self.mailbox.insert(message.id());
                     }
                 }
@@ -230,20 +205,9 @@ impl<'a> RuntimeStateViewProducer<'a> {
     }
 }
 
-impl RuntimeStateViewProducer<'_> {
-    pub(crate) const fn random_data_requirement() -> usize {
-        const VALUE_SIZE: usize = mem::size_of::<u128>();
-
-        VALUE_SIZE
-            * (GearCallsGenerator::MAX_UPLOAD_PROGRAM_CALLS
-                + GearCallsGenerator::MAX_SEND_MESSAGE_CALLS
-                + GearCallsGenerator::MAX_SEND_REPLY_CALLS)
-            + AUXILIARY_SIZE
-    }
-}
-
 pub(crate) struct RuntimeStateView<'a> {
     corpus_id: &'a str,
+    _current_balance: Balance,
     programs: Vec<&'a ProgramId>,
     max_gas: u64,
     mailbox: Vec<&'a MessageId>,

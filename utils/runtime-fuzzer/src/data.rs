@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::generator::{GearCallsGenerator, RuntimeStateViewProducer};
+use crate::{generator::GearCallsGenerator, runtime::BalanceManager};
 use gear_wasm_gen::wasm_gen_arbitrary::{Arbitrary, Error, Result, Unstructured};
 use std::{any, fmt::Debug, marker::PhantomData};
 
@@ -60,14 +60,15 @@ impl<'a> FuzzerInput<'a> {
     pub(crate) fn into_data_requirements(
         self,
     ) -> Result<(
-        FulfilledDataRequirement<'a, RuntimeStateViewProducer<'a>>,
+        FulfilledDataRequirement<'a, BalanceManager<'a>>,
         FulfilledDataRequirement<'a, GearCallsGenerator<'a>>,
     )> {
         let FuzzerInput(data) = self;
-        let exec_env_data_requirement = DataRequirement::<RuntimeStateViewProducer>::new();
+        let balance_manager_data_requirement = DataRequirement::<BalanceManager>::new();
         let gear_calls_data_requirement = DataRequirement::<GearCallsGenerator>::new();
 
-        let total_data_required = exec_env_data_requirement.size + gear_calls_data_requirement.size;
+        let total_data_required =
+            balance_manager_data_requirement.size + gear_calls_data_requirement.size;
         if data.len() < total_data_required {
             log::trace!(
                 "Not enough data for fuzzing, expected - {}, got - {}",
@@ -78,9 +79,10 @@ impl<'a> FuzzerInput<'a> {
             return Err(Error::NotEnoughData);
         }
 
-        let (exec_env_data, gear_calls_data) = data.split_at(exec_env_data_requirement.size);
-        exec_env_data_requirement
-            .try_fulfill(exec_env_data)
+        let (balance_manager_data, gear_calls_data) =
+            data.split_at(balance_manager_data_requirement.size);
+        balance_manager_data_requirement
+            .try_fulfill(balance_manager_data)
             .and_then(|eef| {
                 gear_calls_data_requirement
                     .try_fulfill(gear_calls_data)
@@ -94,10 +96,10 @@ pub(crate) struct DataRequirement<T> {
     _phantom: PhantomData<T>,
 }
 
-impl DataRequirement<RuntimeStateViewProducer<'_>> {
+impl DataRequirement<BalanceManager<'_>> {
     fn new() -> Self {
         Self {
-            size: RuntimeStateViewProducer::random_data_requirement(),
+            size: BalanceManager::random_data_requirement(),
             _phantom: PhantomData,
         }
     }

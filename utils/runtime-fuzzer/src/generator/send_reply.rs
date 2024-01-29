@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use super::RuntimeStateView;
+use super::{RuntimeStateView, AUXILIARY_SIZE, GAS_AND_VALUE_SIZE, ID_SIZE, MAX_PAYLOAD_SIZE};
 use gear_call_gen::{GearCall, SendReplyArgs};
 use gear_core::ids::MessageId;
 use gear_utils::NonEmpty;
@@ -24,6 +24,10 @@ use gear_wasm_gen::wasm_gen_arbitrary::{Result, Unstructured};
 use std::result::Result as StdResult;
 
 pub(crate) type SendReplyRuntimeData<'a> = (NonEmpty<&'a MessageId>, u64);
+
+pub(super) const fn data_requirement() -> usize {
+    ID_SIZE + MAX_PAYLOAD_SIZE + GAS_AND_VALUE_SIZE + AUXILIARY_SIZE
+}
 
 impl<'a> TryFrom<RuntimeStateView<'a>> for SendReplyRuntimeData<'a> {
     type Error = ();

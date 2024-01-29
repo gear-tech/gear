@@ -16,7 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use super::{RuntimeStateView, MAX_SALT_SIZE};
+use super::{
+    RuntimeStateView, AUXILIARY_SIZE, GAS_AND_VALUE_SIZE, MAX_CODE_SIZE, MAX_PAYLOAD_SIZE,
+    MAX_SALT_SIZE,
+};
 use gear_call_gen::{GearCall, UploadProgramArgs};
 use gear_core::ids::{CodeId, ProgramId};
 use gear_utils::NonEmpty;
@@ -27,6 +30,10 @@ use gear_wasm_gen::{
 };
 
 pub(crate) type UploadProgramRuntimeData<'a> = (&'a str, Vec<&'a ProgramId>, u64);
+
+pub(super) const fn data_requirement() -> usize {
+    MAX_CODE_SIZE + MAX_SALT_SIZE + MAX_PAYLOAD_SIZE + GAS_AND_VALUE_SIZE + AUXILIARY_SIZE
+}
 
 impl<'a> From<RuntimeStateView<'a>> for UploadProgramRuntimeData<'a> {
     fn from(env: RuntimeStateView<'a>) -> Self {

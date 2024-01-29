@@ -16,8 +16,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use crate::{
+    data::FulfilledDataRequirement,
+    generator::{GearCallsGenerator, AUXILIARY_SIZE},
+};
 use gear_common::Origin;
-use gear_core::ids::ProgramId;
+use gear_wasm_gen::Unstructured;
+use pallet_balances::Pallet as BalancesPallet;
 use pallet_gear::BlockGasLimitOf;
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use runtime_primitives::{AccountId, AccountPublic, Balance};
@@ -26,11 +31,8 @@ use sp_consensus_babe::AuthorityId as BabeId;
 use sp_consensus_grandpa::AuthorityId as GrandpaId;
 use sp_core::{sr25519::Public, Pair, Public as TPublic};
 use sp_runtime::{app_crypto::UncheckedFrom, traits::IdentifyAccount};
+use std::mem;
 use vara_runtime::Runtime;
-
-pub fn alice_program_id() -> ProgramId {
-    ProgramId::from_origin(alice().into_origin())
-}
 
 pub fn alice() -> AccountId {
     sp_keyring::Sr25519Keyring::Alice.to_account_id()
@@ -78,4 +80,51 @@ pub fn get_pub_key_from_seed<T: TPublic>(seed: &str) -> <T::Pair as Pair>::Publi
 
 pub fn acc_max_balance() -> Balance {
     BlockGasLimitOf::<Runtime>::get().saturating_mul(20) as u128
+}
+
+pub struct BalanceManager<'a> {
+    _unstructured: Unstructured<'a>,
+    pub sender: AccountId,
+}
+
+impl<'a> BalanceManager<'a> {
+    pub(crate) fn new(
+        account: AccountId,
+        data_requirement: FulfilledDataRequirement<'a, Self>,
+    ) -> Self {
+        Self {
+            sender: account,
+            _unstructured: Unstructured::new(data_requirement.data),
+        }
+    }
+
+    pub(crate) fn update_balance(&self) -> BalanceState {
+        super::increase_to_max_balance(self.sender.clone())
+            .unwrap_or_else(|e| unreachable!("Balance update failed: {e:?}"));
+
+        let current_balance = BalancesPallet::<Runtime>::free_balance(&self.sender);
+        log::info!("Current balance of the sender - {current_balance}");
+
+        BalanceState(current_balance)
+    }
+}
+
+impl BalanceManager<'_> {
+    pub(crate) const fn random_data_requirement() -> usize {
+        const VALUE_SIZE: usize = mem::size_of::<u128>();
+
+        VALUE_SIZE
+            * (GearCallsGenerator::MAX_UPLOAD_PROGRAM_CALLS
+                + GearCallsGenerator::MAX_SEND_MESSAGE_CALLS
+                + GearCallsGenerator::MAX_SEND_REPLY_CALLS)
+            + AUXILIARY_SIZE
+    }
+}
+
+pub struct BalanceState(Balance);
+
+impl BalanceState {
+    pub(crate) fn into_inner(self) -> Balance {
+        self.0
+    }
 }
