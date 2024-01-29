@@ -40,6 +40,10 @@ impl<'a> TryFrom<RuntimeStateView<'a>> for SendMessageRuntimeData<'a> {
 
 pub(crate) type SendMessageRuntimeData<'a> = (NonEmpty<&'a ProgramId>, u64);
 
+pub(super) const fn data_requirement() -> usize {
+    ID_SIZE + MAX_PAYLOAD_SIZE + GAS_AND_VALUE_SIZE + AUXILIARY_SIZE
+}
+
 impl<'a> TryFrom<RuntimeStateView<'a>> for SendMessageRuntimeData<'a> {
     type Error = ();
 

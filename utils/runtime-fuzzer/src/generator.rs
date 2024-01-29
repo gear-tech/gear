@@ -146,14 +146,6 @@ impl GearCallsGenerator<'_> {
             + send_reply::data_requirement() * Self::MAX_SEND_REPLY_CALLS
             + claim_value::data_requirement() * Self::MAX_CLAIM_VALUE_CALLS
     }
-
-    const fn send_reply_data_requirement() -> usize {
-        ID_SIZE + MAX_PAYLOAD_SIZE + GAS_AND_VALUE_SIZE + AUXILIARY_SIZE
-    }
-
-    const fn claim_value_data_requirement() -> usize {
-        ID_SIZE + AUXILIARY_SIZE
-    }
 }
 
 pub(crate) struct RuntimeStateViewProducer {

@@ -37,6 +37,10 @@ impl<'a> TryFrom<RuntimeStateView<'a>> for ClaimValueRuntimeData<'a> {
     }
 }
 
+pub(super) const fn data_requirement() -> usize {
+    ID_SIZE + AUXILIARY_SIZE
+}
+
 impl<'a> TryFrom<RuntimeStateView<'a>> for ClaimValueRuntimeData<'a> {
     type Error = ();
 

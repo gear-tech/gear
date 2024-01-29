@@ -38,6 +38,10 @@ impl<'a> TryFrom<RuntimeStateView<'a>> for SendReplyRuntimeData<'a> {
     }
 }
 
+pub(super) const fn data_requirement() -> usize {
+    ID_SIZE + MAX_PAYLOAD_SIZE + GAS_AND_VALUE_SIZE + AUXILIARY_SIZE
+}
+
 impl<'a> TryFrom<RuntimeStateView<'a>> for SendReplyRuntimeData<'a> {
     type Error = ();
 

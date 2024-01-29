@@ -36,6 +36,10 @@ pub(super) const fn data_requirement() -> usize {
     MAX_CODE_SIZE + MAX_SALT_SIZE + MAX_PAYLOAD_SIZE + GAS_SIZE + VALUE_SIZE + AUXILIARY_SIZE
 }
 
+pub(super) const fn data_requirement() -> usize {
+    MAX_CODE_SIZE + MAX_SALT_SIZE + MAX_PAYLOAD_SIZE + GAS_AND_VALUE_SIZE + AUXILIARY_SIZE
+}
+
 impl<'a> From<RuntimeStateView<'a>> for UploadProgramRuntimeData<'a> {
     fn from(env: RuntimeStateView<'a>) -> Self {
         (env.corpus_id, env.programs, env.max_gas)
