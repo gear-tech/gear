@@ -65,7 +65,9 @@ pub fn patch_alias(index: &mut Vec<&str>) {
 pub fn patch_workspace(name: &str, table: &mut toml_edit::InlineTable) {
     match name {
         "core-processor" | "gear-core-processor" => core_processor::patch_workspace(name, table),
-        sub if sub.starts_with("sp-") => substrate::patch_workspace(name, table),
+        sub if sub.starts_with("sp-") | sub.starts_with("frame-") => {
+            substrate::patch_workspace(name, table)
+        }
         _ => {}
     }
 }
@@ -194,34 +196,67 @@ mod substrate {
 
     /// Patch the substrate packages in the manifest of workspace.
     ///
+    /// The versions of substrate packages on crates-io have no version
+    /// mangement (<https://github.com/paritytech/polkadot-sdk/issues/2809>),
+    /// the following version are pinned to frame-support-v24.0.0 on crates-io
+    /// now, <https://crates.io/crates/frame-system/24.0.0/dependencies> for
+    /// the details.
+    ///
     /// NOTE: The packages inside of this function are located at
-    /// <https://github.com/gear-tech/substrate/tree/cl/v1.0.x-crates-io>.
+    /// <https://github.com/gear-tech/substrate/tree/cl/v1.1.x-crates-io>.
     pub fn patch_workspace(name: &str, table: &mut InlineTable) {
         match name {
+            "frame-support" | "frame-system" | "sp-core" => {
+                table.insert("version", "24.0.0".into());
+            }
             // sp-allocator is outdated on crates.io, last
             // 3.0.0 forever, here we use gp-allocator instead.
             "sp-allocator" => {
                 table.insert("version", "4.1.1".into());
                 table.insert("package", "gp-allocator".into());
             }
-            // Our sp-wasm-interface is different from the
-            // original one.
+            // Our sp-wasm-interface is different from the substrate one.
+            //
+            // ref: sp-wasm-interface-17.0.0
             "sp-wasm-interface" => {
                 table.insert("package", "gp-wasm-interface".into());
                 table.insert("version", "7.0.1".into());
             }
             // Related to sp-wasm-interface.
+            //
+            // ref: -
             "sp-wasm-interface-common" => {
                 table.insert("version", "7.0.1".into());
             }
             // Related to sp-wasm-interface.
+            //
+            // ref: sp-runtime-interface-20.0.0
             "sp-runtime-interface" => {
                 table.insert("version", GP_RUNTIME_INTERFACE_VERSION.into());
                 table.insert("package", "gp-runtime-interface".into());
             }
-            // The versions of these packages on crates.io are incorrect.
-            "sp-arithmetic" | "sp-core" | "sp-rpc" | "sp-version" => {
-                table.insert("version", "21.0.0".into());
+            "sp-api" => table.insert("version", "22.0.0".into()),
+            "sp-arithmetic" => {
+                table.insert("version", "19.0.0".into());
+            }
+            "sp-debug-derive" => {
+                table.insert("version", "11.0.0".into());
+            }
+            "sp-io" => table.insert("version", "26.0.0"),
+            "sp-runtime" => {
+                table.insert("version", "27.0.0".into());
+            }
+            "sp-rpc" => {
+                table.insert("version", "22.0.0".into());
+            }
+            "sp-std" => {
+                table.insert("version", "11.0.0".into());
+            }
+            "sp-version" => {
+                table.insert("version", "25.0.0".into());
+            }
+            "sp-weights" => {
+                table.insert("version", "23.0.0".into());
             }
             _ => {}
         }
