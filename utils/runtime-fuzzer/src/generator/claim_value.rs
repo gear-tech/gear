@@ -45,9 +45,7 @@ impl<'a> TryFrom<RuntimeStateView<'a>> for ClaimValueRuntimeData<'a> {
     type Error = ();
 
     fn try_from(env: RuntimeStateView<'a>) -> StdResult<Self, Self::Error> {
-        NonEmpty::from_slice(&env.mailbox)
-            .map(|mailbox| (mailbox,))
-            .ok_or(())
+        env.mailbox.map(|mailbox| (mailbox,)).ok_or(())
     }
 }
 

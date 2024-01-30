@@ -37,7 +37,7 @@ pub(super) const fn data_requirement() -> usize {
 }
 
 pub(super) const fn data_requirement() -> usize {
-    MAX_CODE_SIZE + MAX_SALT_SIZE + MAX_PAYLOAD_SIZE + GAS_AND_VALUE_SIZE + AUXILIARY_SIZE
+    MAX_CODE_SIZE + MAX_SALT_SIZE + MAX_PAYLOAD_SIZE + GAS_SIZE + VALUE_SIZE + AUXILIARY_SIZE
 }
 
 impl<'a> From<RuntimeStateView<'a>> for UploadProgramRuntimeData<'a> {

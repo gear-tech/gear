@@ -28,6 +28,7 @@ use crate::{
 use gear_call_gen::GearCall;
 use gear_common::{event::ProgramChangeKind, Origin};
 use gear_core::ids::{MessageId, ProgramId};
+use gear_utils::NonEmpty;
 use gear_wasm_gen::wasm_gen_arbitrary::{Result, Unstructured};
 use pallet_gear::Event as GearEvent;
 use runtime_primitives::{AccountId, Balance};
@@ -251,7 +252,7 @@ pub(crate) struct RuntimeStateView<'a> {
     corpus_id: &'a str,
     programs: Vec<&'a ProgramId>,
     max_gas: u64,
-    mailbox: Vec<&'a MessageId>,
+    mailbox: Option<&'a NonEmpty<MessageId>>,
 }
 
 fn arbitrary_payload(u: &mut Unstructured) -> Result<Vec<u8>> {
