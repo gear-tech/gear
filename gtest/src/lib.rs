@@ -117,7 +117,7 @@
 //!
 //!     #[test]
 //!     fn test_ping_pong() {
-//!         // Initialization of the common environment for running smart contracts.
+//!         // Initialization of the common environment for running programs.
 //!         let sys = System::new();
 //!
 //!         // Initialization of the current program structure.
@@ -158,7 +158,7 @@
 //!
 //! Let's take a closer look at the `gtest` capabilities.
 //!
-//! ## Initialization of the network environment for running smart contracts
+//! ## Initialization of the network environment for running programs
 //!
 //! ```no_run
 //! # use gtest::System;
@@ -381,9 +381,9 @@
 //! // The first one requires payload to be CODEC Encodable, while the second requires payload
 //! // implement `AsRef<[u8]>`, that means to be able to represent as bytes.
 //! //
-//! // Let we have the following contract state and `meta_state` function:
+//! // Let we have the following program state and `meta_state` function:
 //! #[derive(Encode, Decode, TypeInfo)]
-//! pub struct ContractState {
+//! pub struct ProgramState {
 //!     a: u128,
 //!     b: u128,
 //! }

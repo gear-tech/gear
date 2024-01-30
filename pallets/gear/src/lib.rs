@@ -155,7 +155,7 @@ pub mod pallet {
             + TryInto<Event<Self>>
             + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 
-        /// The generator used to supply randomness to contracts through `seal_random`
+        /// The generator used to supply randomness to programs through `seal_random`
         type Randomness: Randomness<Self::Hash, BlockNumberFor<Self>>;
 
         /// Weight information for extrinsics in this pallet.

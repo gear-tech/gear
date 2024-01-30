@@ -113,7 +113,7 @@ pub(crate) fn process_lazy_pages<H: AccessHandler>(
 
             // If new status is not [Status::Normal], then unprotect lazy-pages
             // and continue work until the end of current wasm block. We don't care
-            // about future contract execution correctness, because gas limit or allowance exceed.
+            // about future program execution correctness, because gas limit or allowance exceed.
             match status {
                 Status::Normal => Ok(false),
                 Status::GasLimitExceeded => {
