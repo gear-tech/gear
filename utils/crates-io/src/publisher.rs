@@ -116,8 +116,8 @@ impl Publisher {
 
         // Post tests for gtest and gclient
         for (pkg, test) in [
-            ("gtest", "demo-syscall-error"),
-            ("gclient", "harmless_upload"),
+            ("demo-syscall-error", "program_can_be_initialized"),
+            ("gsdk", "timeout"),
         ] {
             if !crate::test(test)?.success() {
                 panic!("{pkg}:{test} failed to pass the test ...");
