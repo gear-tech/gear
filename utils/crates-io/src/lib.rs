@@ -84,7 +84,7 @@ pub const PACKAGE_ALIAS: [(&str, &str); 2] = [
 /// Check the input package
 pub fn check(manifest: &str) -> Result<ExitStatus> {
     Command::new("cargo")
-        .args(&["check", "--lib", "--manifest-path", manifest])
+        .args(["check", "--lib", "--manifest-path", manifest])
         .status()
         .map_err(Into::into)
 }
@@ -92,7 +92,7 @@ pub fn check(manifest: &str) -> Result<ExitStatus> {
 /// Test the input package
 pub fn test(package: &str, test: &str) -> Result<ExitStatus> {
     Command::new("cargo")
-        .args(&["test", "-p", package, "--", test])
+        .args(["test", "-p", package, "--", test])
         .status()
         .map_err(Into::into)
 }
@@ -100,7 +100,7 @@ pub fn test(package: &str, test: &str) -> Result<ExitStatus> {
 /// Publish the input package
 pub fn publish(manifest: &str) -> Result<ExitStatus> {
     Command::new("cargo")
-        .args(&["publish", "--manifest-path", manifest, "--allow-dirty"])
+        .args(["publish", "--manifest-path", manifest, "--allow-dirty"])
         .status()
         .map_err(Into::into)
 }
