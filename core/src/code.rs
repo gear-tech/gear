@@ -101,7 +101,22 @@ fn check_exports(module: &Module) -> Result<(), CodeError> {
 
         let index = (*i as usize)
             .checked_sub(import_count)
-            .ok_or(ExportError::ExportReferencesToImport)?;
+            .ok_or_else(|| -> CodeError {
+                let Some(imports) = module.import_section() else {
+                    return SectionError::NotFound(SectionName::Import).into();
+                };
+
+                ExportError::ExportReferencesToImport(
+                    export.field().into(),
+                    imports
+                        .entries()
+                        .get(*i as usize)
+                        .unwrap_or_else(|| unreachable!("Module structure is invalid"))
+                        .field()
+                        .into(),
+                )
+                .into()
+            })?;
 
         // Panic is impossible, unless the Module structure is invalid.
         let type_id = funcs
@@ -110,11 +125,11 @@ fn check_exports(module: &Module) -> Result<(), CodeError> {
             .type_ref() as usize;
 
         // Panic is impossible, unless the Module structure is invalid.
-        let Type::Function(ref f) = types
+        let Type::Function(func_type) = types
             .get(type_id)
             .unwrap_or_else(|| unreachable!("Module structure is invalid"));
 
-        if !(f.params().is_empty() && f.results().is_empty()) {
+        if !(func_type.params().is_empty() && func_type.results().is_empty()) {
             Err(ExportError::InvalidExportFnSignature(export.field().into()))?;
         }
 
@@ -226,9 +241,13 @@ fn get_global_entry(module: &Module, global_index: u32) -> Option<&GlobalEntry> 
         .get(global_index as usize)
 }
 
-fn get_global_init_const_i32(module: &Module, global_index: u32) -> Result<i32, CodeError> {
+fn get_global_init_const_i32(
+    module: &Module,
+    global_index: u32,
+    export_name: &str,
+) -> Result<i32, CodeError> {
     let init_expr = get_global_entry(module, global_index)
-        .ok_or(ExportError::IncorrectGlobalIndex)?
+        .ok_or_else(|| ExportError::IncorrectGlobalIndex(global_index, export_name.into()))?
         .init_expr();
     get_init_expr_const_i32(init_expr)
         .ok_or(InitializationError::StackEnd)
@@ -240,7 +259,8 @@ fn check_and_canonize_gear_stack_end(module: &mut Module) -> Result<(), CodeErro
     else {
         return Ok(());
     };
-    let stack_end_offset = get_global_init_const_i32(module, stack_end_global_index)?;
+    let stack_end_offset =
+        get_global_init_const_i32(module, stack_end_global_index, STACK_END_EXPORT_NAME)?;
 
     // Checks, that each data segment does not overlap with stack.
     if let Some(data_section) = module.data_section() {
@@ -260,7 +280,9 @@ fn check_and_canonize_gear_stack_end(module: &mut Module) -> Result<(), CodeErro
     // If [STACK_END_EXPORT_NAME] points to mutable global, then make new const global
     // with the same init expr and change the export internal to point to the new global.
     if get_global_entry(module, stack_end_global_index)
-        .ok_or(ExportError::IncorrectGlobalIndex)?
+        .ok_or_else(|| {
+            ExportError::IncorrectGlobalIndex(stack_end_global_index, STACK_END_EXPORT_NAME.into())
+        })?
         .global_type()
         .is_mutable()
     {
@@ -269,7 +291,7 @@ fn check_and_canonize_gear_stack_end(module: &mut Module) -> Result<(), CodeErro
             .global_section_mut()
             .unwrap_or_else(|| unreachable!("Cannot find global section"));
         let new_global_index = u32::try_from(global_section.entries().len())
-            .map_err(|_| ExportError::IncorrectGlobalIndex)?;
+            .map_err(|_| CodeError::GlobalIndexOverflow)?;
         global_section.entries_mut().push(GlobalEntry::new(
             GlobalType::new(parity_wasm::elements::ValueType::I32, false),
             InitExpr::new(vec![
@@ -345,16 +367,16 @@ pub enum InitializationError {
 #[derive(Debug, PartialEq, Eq, derive_more::Display)]
 pub enum ExportError {
     /// Incorrect global export index. Can occur when export refers to not existing global index.
-    #[display(fmt = "Global index in export is incorrect")]
-    IncorrectGlobalIndex,
+    #[display(fmt = "Global index `{_0}` in export `{_1}` is incorrect")]
+    IncorrectGlobalIndex(u32, String),
     /// Exporting mutable globals is restricted by the Gear protocol.
-    #[display(fmt = "Program cannot have mutable globals in export section")]
-    MutableGlobalExport,
+    #[display(fmt = "Global index `{_0}` in export `{_1}` cannot be mutable")]
+    MutableGlobalExport(u32, String),
     /// Export references to an import function, which is not allowed.
-    #[display(fmt = "Export references to an import function")]
-    ExportReferencesToImport,
+    #[display(fmt = "Export `{_0}` references to imported function `{_1}`")]
+    ExportReferencesToImport(String, String),
     /// The signature of an exported function is invalid.
-    #[display(fmt = "Invalid function signature for exported function `{_0}`")]
+    #[display(fmt = "Exported function `{_0}` must have signature `fn {_0}() {{ ... }}`")]
     InvalidExportFnSignature(String),
     /// The provided code contains unnecessary function export.
     #[display(fmt = "Unnecessary export of function `{_0}` found")]
@@ -390,6 +412,9 @@ pub enum CodeError {
     /// Error occurred during encoding instrumented program.
     #[display(fmt = "Failed to encode instrumented program")]
     Encode,
+    /// Can't insert new global due to index overflow in global section.
+    #[display(fmt = "Can't insert new global due to index overflow")]
+    GlobalIndexOverflow,
     /// Pointer to the stack end overlaps data segment.
     #[display(fmt = "Pointer to the stack end overlaps data segment")]
     StackEndOverlaps,
@@ -432,24 +457,27 @@ fn check_mut_global_exports(module: &Module) -> Result<(), CodeError> {
     if let (Some(export_section), Some(global_section)) =
         (module.export_section(), module.global_section())
     {
-        let global_exports_indexes =
+        let global_exports =
             export_section
                 .entries()
                 .iter()
                 .filter_map(|export| match export.internal() {
-                    Internal::Global(index) => Some(*index as usize),
+                    Internal::Global(index) => Some((*index, export.field())),
                     _ => None,
                 });
 
-        for index in global_exports_indexes {
+        for (export_index, export_name) in global_exports {
             if global_section
                 .entries()
-                .get(index)
-                .ok_or(ExportError::IncorrectGlobalIndex)?
+                .get(export_index as usize)
+                .ok_or_else(|| ExportError::IncorrectGlobalIndex(export_index, export_name.into()))?
                 .global_type()
                 .is_mutable()
             {
-                Err(ExportError::MutableGlobalExport)?;
+                Err(ExportError::MutableGlobalExport(
+                    export_index,
+                    export_name.into(),
+                ))?;
             }
         }
     }
