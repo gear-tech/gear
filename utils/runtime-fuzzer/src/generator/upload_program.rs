@@ -17,8 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::{
-    RuntimeStateView, AUXILIARY_SIZE, GAS_AND_VALUE_SIZE, MAX_CODE_SIZE, MAX_PAYLOAD_SIZE,
-    MAX_SALT_SIZE,
+    RuntimeStateView, AUXILIARY_SIZE, GAS_SIZE, MAX_CODE_SIZE, MAX_PAYLOAD_SIZE, MAX_SALT_SIZE,
+    VALUE_SIZE,
 };
 use gear_call_gen::{GearCall, UploadProgramArgs};
 use gear_core::ids::{CodeId, ProgramId};
@@ -29,10 +29,10 @@ use gear_wasm_gen::{
     StandardGearWasmConfigsBundle, SyscallName, SyscallsInjectionTypes, SyscallsParamsConfig,
 };
 
-pub(crate) type UploadProgramRuntimeData<'a> = (&'a str, Vec<&'a ProgramId>, u64);
+pub(crate) type UploadProgramRuntimeData<'a> = (&'a str, Option<&'a NonEmpty<ProgramId>>, u64);
 
 pub(super) const fn data_requirement() -> usize {
-    MAX_CODE_SIZE + MAX_SALT_SIZE + MAX_PAYLOAD_SIZE + GAS_AND_VALUE_SIZE + AUXILIARY_SIZE
+    MAX_CODE_SIZE + MAX_SALT_SIZE + MAX_PAYLOAD_SIZE + GAS_SIZE + VALUE_SIZE + AUXILIARY_SIZE
 }
 
 impl<'a> From<RuntimeStateView<'a>> for UploadProgramRuntimeData<'a> {
@@ -51,7 +51,7 @@ pub(crate) fn generate(
     let code = gear_wasm_gen::generate_gear_program_code(
         unstructured,
         config(
-            programs.into_iter().copied(),
+            programs,
             Some(format!("Generated program from corpus - {corpus_id}")),
         ),
     )?;
@@ -81,7 +81,7 @@ fn arbitrary_salt(u: &mut Unstructured) -> Result<Vec<u8>> {
 }
 
 fn config(
-    programs: impl Iterator<Item = ProgramId>,
+    programs: Option<&NonEmpty<ProgramId>>,
     log_info: Option<String>,
 ) -> StandardGearWasmConfigsBundle {
     let initial_pages = 2;
@@ -110,7 +110,9 @@ fn config(
         )
         .with_ptr_rule(PtrParamAllowedValues::Value(0..=0));
 
-    let actor_kind = NonEmpty::collect(programs.map(|pid| pid.into()))
+    let actor_kind = programs
+        .cloned()
+        .and_then(|non_empty| NonEmpty::collect(non_empty.into_iter().map(|pid| pid.into())))
         .map(ActorKind::ExistingAddresses)
         .unwrap_or(ActorKind::Source);
 

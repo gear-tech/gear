@@ -16,26 +16,24 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use super::{RuntimeStateView, AUXILIARY_SIZE, GAS_AND_VALUE_SIZE, ID_SIZE, MAX_PAYLOAD_SIZE};
+use super::{RuntimeStateView, AUXILIARY_SIZE, GAS_SIZE, ID_SIZE, MAX_PAYLOAD_SIZE, VALUE_SIZE};
 use gear_call_gen::{GearCall, SendReplyArgs};
 use gear_core::ids::MessageId;
 use gear_utils::NonEmpty;
 use gear_wasm_gen::wasm_gen_arbitrary::{Result, Unstructured};
 use std::result::Result as StdResult;
 
-pub(crate) type SendReplyRuntimeData<'a> = (NonEmpty<&'a MessageId>, u64);
+pub(crate) type SendReplyRuntimeData<'a> = (&'a NonEmpty<MessageId>, u64);
 
 pub(super) const fn data_requirement() -> usize {
-    ID_SIZE + MAX_PAYLOAD_SIZE + GAS_AND_VALUE_SIZE + AUXILIARY_SIZE
+    ID_SIZE + MAX_PAYLOAD_SIZE + GAS_SIZE + VALUE_SIZE + AUXILIARY_SIZE
 }
 
 impl<'a> TryFrom<RuntimeStateView<'a>> for SendReplyRuntimeData<'a> {
     type Error = ();
 
     fn try_from(env: RuntimeStateView<'a>) -> StdResult<Self, Self::Error> {
-        let mailbox = NonEmpty::from_slice(&env.mailbox).ok_or(())?;
-
-        Ok((mailbox, env.max_gas))
+        Ok((env.mailbox.ok_or(())?, env.max_gas))
     }
 }
 
@@ -63,5 +61,5 @@ pub(crate) fn generate(
     );
     log::trace!("Payload (send_reply) length {:?}", payload.len());
 
-    Ok(SendReplyArgs((*mid, payload, gas, 0)).into())
+    Ok(SendReplyArgs((mid, payload, gas, 0)).into())
 }

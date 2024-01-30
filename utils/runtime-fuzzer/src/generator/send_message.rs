@@ -16,26 +16,24 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use super::{RuntimeStateView, AUXILIARY_SIZE, GAS_AND_VALUE_SIZE, ID_SIZE, MAX_PAYLOAD_SIZE};
+use super::{RuntimeStateView, AUXILIARY_SIZE, GAS_SIZE, ID_SIZE, MAX_PAYLOAD_SIZE, VALUE_SIZE};
 use gear_call_gen::{GearCall, SendMessageArgs};
 use gear_core::ids::ProgramId;
 use gear_utils::NonEmpty;
 use gear_wasm_gen::wasm_gen_arbitrary::{Result, Unstructured};
 use std::result::Result as StdResult;
 
-pub(crate) type SendMessageRuntimeData<'a> = (NonEmpty<&'a ProgramId>, u64);
+pub(crate) type SendMessageRuntimeData<'a> = (&'a NonEmpty<ProgramId>, u64);
 
 pub(super) const fn data_requirement() -> usize {
-    ID_SIZE + MAX_PAYLOAD_SIZE + GAS_AND_VALUE_SIZE + AUXILIARY_SIZE
+    ID_SIZE + MAX_PAYLOAD_SIZE + GAS_SIZE + VALUE_SIZE + AUXILIARY_SIZE
 }
 
 impl<'a> TryFrom<RuntimeStateView<'a>> for SendMessageRuntimeData<'a> {
     type Error = ();
 
     fn try_from(env: RuntimeStateView<'a>) -> StdResult<Self, Self::Error> {
-        let programs = NonEmpty::from_slice(&env.programs).ok_or(())?;
-
-        Ok((programs, env.max_gas))
+        Ok((env.programs.ok_or(())?, env.max_gas))
     }
 }
 
@@ -57,5 +55,5 @@ pub(crate) fn generate(
     );
     log::trace!("Payload (send_message) length {:?}", payload.len());
 
-    Ok(SendMessageArgs((*program_id, payload, gas, 0)).into())
+    Ok(SendMessageArgs((program_id, payload, gas, 0)).into())
 }

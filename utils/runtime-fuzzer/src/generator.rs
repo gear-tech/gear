@@ -28,10 +28,11 @@ use crate::{
 use gear_call_gen::GearCall;
 use gear_common::{event::ProgramChangeKind, Origin};
 use gear_core::ids::{MessageId, ProgramId};
+use gear_utils::NonEmpty;
 use gear_wasm_gen::wasm_gen_arbitrary::{Result, Unstructured};
 use pallet_gear::Event as GearEvent;
 use runtime_primitives::{AccountId, Balance};
-use std::{collections::BTreeSet, mem};
+use std::mem;
 use vara_runtime::{RuntimeEvent, System};
 
 // Max code size - 25 KiB.
@@ -52,7 +53,8 @@ const MAX_SALT_SIZE: usize = 512;
 const _: () = assert!(MAX_SALT_SIZE <= gear_core::message::MAX_PAYLOAD_SIZE);
 
 const ID_SIZE: usize = mem::size_of::<ProgramId>();
-const GAS_AND_VALUE_SIZE: usize = mem::size_of::<(u64, u128)>();
+const GAS_SIZE: usize = mem::size_of::<u64>();
+const VALUE_SIZE: usize = mem::size_of::<u128>();
 
 /// Used to make sure that generators will not exceed `Unstructured` size as it's used not only
 /// to generate things like wasm code or message payload but also to generate some auxiliary
@@ -86,7 +88,7 @@ impl<'a> GearCallsGenerator<'a> {
         } else if self.generated_send_message < Self::MAX_SEND_MESSAGE_CALLS {
             self.generated_send_message += 1;
 
-            if env.programs.is_empty() {
+            if env.programs.is_some() {
                 upload_program::generate(&mut self.unstructured, env.into())
             } else {
                 send_message::generate(
@@ -97,7 +99,7 @@ impl<'a> GearCallsGenerator<'a> {
         } else if self.generated_send_reply < Self::MAX_SEND_REPLY_CALLS {
             self.generated_send_reply += 1;
 
-            if env.mailbox.is_empty() {
+            if env.mailbox.is_some() {
                 upload_program::generate(&mut self.unstructured, env.into())
             } else {
                 send_reply::generate(
@@ -108,7 +110,7 @@ impl<'a> GearCallsGenerator<'a> {
         } else if self.generated_claim_value < Self::MAX_CLAIM_VALUE_CALLS {
             self.generated_claim_value += 1;
 
-            if env.mailbox.is_empty() {
+            if env.mailbox.is_some() {
                 upload_program::generate(&mut self.unstructured, env.into())
             } else {
                 claim_value::generate(
@@ -145,9 +147,9 @@ impl GearCallsGenerator<'_> {
 pub(crate) struct RuntimeStateViewProducer {
     corpus_id: String,
     sender: AccountId,
-    programs: BTreeSet<ProgramId>,
+    programs: Option<NonEmpty<ProgramId>>,
     // TODO #3703. Remove outdated message ids.
-    mailbox: BTreeSet<MessageId>,
+    mailbox: Option<NonEmpty<MessageId>>,
 }
 
 impl RuntimeStateViewProducer {
@@ -155,22 +157,19 @@ impl RuntimeStateViewProducer {
         Self {
             corpus_id,
             sender,
-            programs: BTreeSet::new(),
-            mailbox: BTreeSet::new(),
+            programs: None,
+            mailbox: None,
         }
     }
 
     pub(crate) fn produce_state_view(&mut self, balance_state: BalanceState) -> RuntimeStateView {
         self.update_state_view();
 
-        let programs = Vec::from_iter(self.programs.iter());
-        let mailbox = Vec::from_iter(self.mailbox.iter());
-
         RuntimeStateView {
             corpus_id: &self.corpus_id,
             _current_balance: balance_state.into_inner(),
-            programs,
-            mailbox,
+            programs: self.programs.as_ref(),
+            mailbox: self.mailbox.as_ref(),
             max_gas: runtime::default_gas_limit(),
         }
     }
@@ -187,20 +186,25 @@ impl RuntimeStateViewProducer {
                     id,
                     change: ProgramChangeKind::Active { .. },
                 } => {
-                    self.programs.insert(*id);
+                    self.programs.as_mut().map(|programs| programs.push(*id));
                 }
                 GearEvent::UserMessageSent {
                     message,
                     expiration: Some(_),
                 } => {
                     if message.destination() == sender_program_id {
-                        self.mailbox.insert(message.id());
+                        self.mailbox
+                            .as_mut()
+                            .map(|mailbox| mailbox.push(message.id()));
                     }
                 }
                 _ => {}
             }
         });
 
+        // Resetting events brings 2 benefits:
+        // 1. We do not iterate over same events from block to block.
+        // 2. Obtained mailbox message ids and initialized programs ids are unique.
         System::reset_events();
     }
 }
@@ -208,9 +212,9 @@ impl RuntimeStateViewProducer {
 pub(crate) struct RuntimeStateView<'a> {
     corpus_id: &'a str,
     _current_balance: Balance,
-    programs: Vec<&'a ProgramId>,
+    programs: Option<&'a NonEmpty<ProgramId>>,
     max_gas: u64,
-    mailbox: Vec<&'a MessageId>,
+    mailbox: Option<&'a NonEmpty<MessageId>>,
 }
 
 fn arbitrary_payload(u: &mut Unstructured) -> Result<Vec<u8>> {
