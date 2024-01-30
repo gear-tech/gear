@@ -88,7 +88,7 @@ impl<'a> GearCallsGenerator<'a> {
         } else if self.generated_send_message < Self::MAX_SEND_MESSAGE_CALLS {
             self.generated_send_message += 1;
 
-            if env.programs.is_some() {
+            if env.programs.is_none() {
                 upload_program::generate(&mut self.unstructured, env.into())
             } else {
                 send_message::generate(
@@ -99,7 +99,7 @@ impl<'a> GearCallsGenerator<'a> {
         } else if self.generated_send_reply < Self::MAX_SEND_REPLY_CALLS {
             self.generated_send_reply += 1;
 
-            if env.mailbox.is_some() {
+            if env.mailbox.is_none() {
                 upload_program::generate(&mut self.unstructured, env.into())
             } else {
                 send_reply::generate(
@@ -110,7 +110,7 @@ impl<'a> GearCallsGenerator<'a> {
         } else if self.generated_claim_value < Self::MAX_CLAIM_VALUE_CALLS {
             self.generated_claim_value += 1;
 
-            if env.mailbox.is_some() {
+            if env.mailbox.is_none() {
                 upload_program::generate(&mut self.unstructured, env.into())
             } else {
                 claim_value::generate(
