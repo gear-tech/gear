@@ -274,7 +274,7 @@ fn check_and_canonize_gear_stack_end(module: &mut Module) -> Result<(), CodeErro
                 .ok_or(InitializationError::DataSegment)?;
 
             if offset < stack_end_offset {
-                return Err(CodeError::StackEndOverlaps);
+                Err(StackEndError::StackEndOverlaps)?;
             }
         }
     };
@@ -293,7 +293,7 @@ fn check_and_canonize_gear_stack_end(module: &mut Module) -> Result<(), CodeErro
             .global_section_mut()
             .unwrap_or_else(|| unreachable!("Cannot find global section"));
         let new_global_index = u32::try_from(global_section.entries().len())
-            .map_err(|_| CodeError::GlobalIndexOverflow)?;
+            .map_err(|_| StackEndError::GlobalIndexOverflow)?;
         global_section.entries_mut().push(GlobalEntry::new(
             GlobalType::new(parity_wasm::elements::ValueType::I32, false),
             InitExpr::new(vec![
@@ -352,6 +352,17 @@ pub enum MemoryError {
     /// The WASM module has invalid count of static memory pages.
     #[display(fmt = "The WASM module has invalid count of static memory pages")]
     InvalidStaticPageCount,
+}
+
+/// Stack end error in WASM module.
+#[derive(Debug, PartialEq, Eq, derive_more::Display)]
+pub enum StackEndError {
+    /// Can't insert new global due to index overflow in global section.
+    #[display(fmt = "Can't insert new global due to index overflow")]
+    GlobalIndexOverflow,
+    /// Pointer to the stack end overlaps data segment.
+    #[display(fmt = "Pointer to the stack end overlaps data segment")]
+    StackEndOverlaps,
 }
 
 /// Initialization error in WASM module.
@@ -414,18 +425,15 @@ pub enum CodeError {
     /// Error occurred during encoding instrumented program.
     #[display(fmt = "Failed to encode instrumented program")]
     Encode,
-    /// Can't insert new global due to index overflow in global section.
-    #[display(fmt = "Can't insert new global due to index overflow")]
-    GlobalIndexOverflow,
-    /// Pointer to the stack end overlaps data segment.
-    #[display(fmt = "Pointer to the stack end overlaps data segment")]
-    StackEndOverlaps,
     /// The provided code contains section error.
     #[display(fmt = "Section error: {_0}")]
     Section(SectionError),
     /// The provided code contains memory error.
     #[display(fmt = "Memory error: {_0}")]
     Memory(MemoryError),
+    /// The provided code contains stack end error.
+    #[display(fmt = "Stack end error: {_0}")]
+    StackEnd(StackEndError),
     /// The provided code contains initialization error.
     #[display(fmt = "Initialization error: {_0}")]
     Initialization(InitializationError),
