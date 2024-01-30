@@ -183,13 +183,9 @@ pub enum ErrorReplyReason {
     #[display(fmt = "removal from waitlist")]
     RemovedFromWaitlist = 3,
 
-    /// Init message is sent, but destination actor is already initialized.
-    #[display(fmt = "init message sent to already initialized actor")]
-    AlreadyInitialized = 4,
-
     /// Program re-instrumentation failed.
     #[display(fmt = "program re-instrumentation failed")]
-    Reinstrumentation = 5,
+    Reinstrumentation = 4,
 
     /// Unsupported reason of error reply.
     /// Variant exists for backward compatibility.
@@ -214,7 +210,6 @@ impl ErrorReplyReason {
             Self::FailedToCreateProgram(error) => bytes[1..].copy_from_slice(&error.to_bytes()),
             Self::InactiveProgram
             | Self::RemovedFromWaitlist
-            | Self::AlreadyInitialized
             | Self::Reinstrumentation
             | Self::Unsupported => {}
         }

@@ -951,8 +951,6 @@ pub mod runtime_types {
                     #[codec(index = 3)]
                     RemovedFromWaitlist,
                     #[codec(index = 4)]
-                    AlreadyInitialized,
-                    #[codec(index = 5)]
                     Reinstrumentation,
                     #[codec(index = 255)]
                     Unsupported,

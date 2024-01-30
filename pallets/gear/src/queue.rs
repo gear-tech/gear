@@ -69,21 +69,14 @@ where
             );
         };
 
-        // Can't process init messages for already initialized program.
         if program.state == ProgramState::Initialized && dispatch_kind == DispatchKind::Init {
-            log::trace!(
-                "Init message is sent to already initialized program {:?}",
-                destination_id
-            );
-            return core_processor::process_non_executable(
-                precharged_dispatch,
-                destination_id,
-                ErrorReplyReason::AlreadyInitialized,
-            );
+            // Panic is impossible, because gear protocol does not provide functionality
+            // to send second init message to any already existing program.
+            panic!("Init message is sent to already initialized program");
         }
 
         // If the destination program is uninitialized, then we allow
-        // to process message, if it's a reply or the creating init message.
+        // to process message, if it's a reply or the init message.
         // Otherwise, we appends message to the waiting init message list.
         if matches!(program.state, ProgramState::Uninitialized { message_id }
             if message_id != dispatch_id && dispatch_kind != DispatchKind::Reply)
