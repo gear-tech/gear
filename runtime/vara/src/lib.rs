@@ -88,7 +88,10 @@ use sp_core::{crypto::KeyTypeId, ConstBool, ConstU64, ConstU8, OpaqueMetadata, H
 use sp_runtime::traits::HashFor;
 use sp_runtime::{
     create_runtime_str, generic, impl_opaque_keys,
-    traits::{AccountIdLookup, BlakeTwo256, Block as BlockT, ConvertInto, NumberFor, OpaqueKeys},
+    traits::{
+        AccountIdConversion, AccountIdLookup, BlakeTwo256, Block as BlockT, ConvertInto, NumberFor,
+        OpaqueKeys,
+    },
     transaction_validity::{TransactionPriority, TransactionSource, TransactionValidity},
     ApplyExtrinsicResult, FixedU128, Perbill, Percent, Permill, Perquintill,
 };
@@ -983,12 +986,16 @@ parameter_types! {
     pub Schedule: pallet_gear::Schedule<Runtime> = Default::default();
     pub BankAddress: AccountId = BANK_ADDRESS.into();
     pub const GasMultiplier: common::GasMultiplier<Balance, u64> = common::GasMultiplier::ValuePerGas(VALUE_PER_GAS);
+    pub SplitFee : Perbill = Perbill::from_percent(50);
+    pub FeeDest: AccountId = PalletId(*b"py/trsry").into_account_truncating();
 }
 
 impl pallet_gear_bank::Config for Runtime {
     type Currency = Balances;
     type BankAddress = BankAddress;
     type GasMultiplier = GasMultiplier;
+    type SplitFee = SplitFee;
+    type FeeDest = FeeDest;
 }
 
 impl pallet_gear::Config for Runtime {

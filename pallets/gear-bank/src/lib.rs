@@ -37,6 +37,8 @@ macro_rules! impl_config {
             type Currency = Balances;
             type BankAddress = BankAddress;
             type GasMultiplier = GasMultiplier;
+            type SplitFee = SplitFee;
+            type FeeDest = FeeDest;
         }
     };
 }
@@ -64,7 +66,7 @@ pub mod pallet {
     use pallet_authorship::Pallet as Authorship;
     use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
     use scale_info::TypeInfo;
-    use sp_runtime::traits::Zero;
+    use sp_runtime::{traits::Zero, PerThing, Perbill};
 
     // Funds pallet struct itself.
     #[pallet::pallet]
@@ -84,6 +86,13 @@ pub mod pallet {
         #[pallet::constant]
         /// Gas price converter.
         type GasMultiplier: Get<GasMultiplier<Self>>;
+
+        /// How much gas fees will go to the `FeeDest`.
+        type SplitFee: Get<Perbill>;
+
+        #[pallet::constant]
+        /// Destination for gas fee split.
+        type FeeDest: Get<AccountIdOf<Self>>;
     }
 
     // Funds pallets error.
@@ -243,10 +252,17 @@ pub mod pallet {
 
         /// Transfers value from bank address to current block author.
         fn reward_block_author(value: BalanceOf<T>) -> Result<(), Error<T>> {
+            // for gas, 50% to treasury, 50% to author
+            let split = T::SplitFee::get();
+            let to_author = split * value;
+            let to_treasury = split.left_from_one() * value;
             let block_author = Authorship::<T>::author()
                 .unwrap_or_else(|| unreachable!("Failed to find block author!"));
 
-            Self::withdraw(&block_author, value)
+            let fee_destination = T::FeeDest::get();
+
+            Self::withdraw(&block_author, to_author)?;
+            Self::withdraw(&fee_destination, to_treasury)
         }
 
         pub fn deposit_gas(
