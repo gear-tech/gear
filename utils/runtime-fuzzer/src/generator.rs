@@ -186,16 +186,22 @@ impl RuntimeStateViewProducer {
                     id,
                     change: ProgramChangeKind::Active { .. },
                 } => {
-                    self.programs.as_mut().map(|programs| programs.push(*id));
+                    if let Some(programs) = self.programs.as_mut() {
+                        programs.push(*id)
+                    } else {
+                        self.programs = Some(NonEmpty::new(*id));
+                    }
                 }
                 GearEvent::UserMessageSent {
                     message,
                     expiration: Some(_),
                 } => {
                     if message.destination() == sender_program_id {
-                        self.mailbox
-                            .as_mut()
-                            .map(|mailbox| mailbox.push(message.id()));
+                        if let Some(mailbox) = self.mailbox.as_mut() {
+                            mailbox.push(message.id())
+                        } else {
+                            self.mailbox = Some(NonEmpty::new(message.id()));
+                        }
                     }
                 }
                 _ => {}
