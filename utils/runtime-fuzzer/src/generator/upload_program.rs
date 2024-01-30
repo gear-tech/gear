@@ -29,6 +29,7 @@ use gear_wasm_gen::{
     StandardGearWasmConfigsBundle, SyscallName, SyscallsInjectionTypes, SyscallsParamsConfig,
 };
 use runtime_primitives::Balance;
+use vara_runtime::EXISTENTIAL_DEPOSIT;
 
 pub(crate) type UploadProgramRuntimeData<'a> = (&'a str, Option<&'a NonEmpty<ProgramId>>, u64);
 
@@ -122,6 +123,14 @@ fn config(
         .into_iter(),
     );
 
+    let max_value = {
+        let d = current_balance
+            .saturating_div(EXISTENTIAL_DEPOSIT)
+            .saturating_sub(1)
+            .max(1);
+
+        current_balance.saturating_div(d)
+    };
     let mut params_config = SyscallsParamsConfig::new()
         .with_default_regular_config()
         .with_rule(RegularParamType::Alloc, (10..=20).into())
@@ -130,7 +139,7 @@ fn config(
             (initial_pages..=initial_pages + 35).into(),
         )
         .with_ptr_rule(PtrParamAllowedValues::Value(
-            0..=current_balance.saturating_div(1000),
+            EXISTENTIAL_DEPOSIT..=max_value,
         ));
 
     let actor_kind = programs
@@ -146,7 +155,7 @@ fn config(
         .with_ptr_rule(PtrParamAllowedValues::ActorIdWithValue {
             actor_kind: actor_kind.clone(),
             // TODO: reconsider that !!!
-            range: 0..=current_balance.saturating_div(1000),
+            range: EXISTENTIAL_DEPOSIT..=max_value,
         });
 
     StandardGearWasmConfigsBundle {
