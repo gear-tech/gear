@@ -24,8 +24,8 @@ const MAX_GEAR_CALLS_BYTES: usize = 450_000;
 
 #[test]
 fn proptest_input_validity() {
-    let min_unstructured_input_size = GearCallsGenerator::random_data_requirement()
-        + BalanceManager::random_data_requirement();
+    let min_unstructured_input_size =
+        GearCallsGenerator::random_data_requirement() + BalanceManager::random_data_requirement();
 
     assert!(MIN_GEAR_CALLS_BYTES >= min_unstructured_input_size);
     assert!(MIN_GEAR_CALLS_BYTES <= MAX_GEAR_CALLS_BYTES);
