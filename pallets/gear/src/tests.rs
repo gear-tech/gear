@@ -12839,7 +12839,7 @@ fn wrong_entry_type() {
                 |_| ConstantCostRules::default(),
                 None
             ),
-            CodeError::Export(ExportError::InvalidExportFnSignature("init".into()))
+            CodeError::Export(ExportError::InvalidExportFnSignature(0))
         );
     });
 }

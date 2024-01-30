@@ -23,7 +23,7 @@ use crate::{
     message::{DispatchKind, WasmEntryPoint},
     pages::{PageNumber, PageU32Size, WasmPage},
 };
-use alloc::{collections::BTreeSet, string::String, vec, vec::Vec};
+use alloc::{collections::BTreeSet, vec, vec::Vec};
 use gear_wasm_instrument::{
     parity_wasm::{
         self,
@@ -86,7 +86,7 @@ fn check_exports(module: &Module) -> Result<(), CodeError> {
         .ok_or(SectionError::NotFound(SectionName::Function))?
         .entries();
 
-    let import_count = module.import_count(ImportCountType::Function);
+    let import_count = module.import_count(ImportCountType::Function) as u32;
 
     let exports = module
         .export_section()
@@ -94,35 +94,22 @@ fn check_exports(module: &Module) -> Result<(), CodeError> {
         .entries();
 
     let mut entry_point_found = false;
-    for export in exports {
-        let Internal::Function(i) = export.internal() else {
+    for (export_index, export) in exports.iter().enumerate() {
+        let &Internal::Function(func_index) = export.internal() else {
             continue;
         };
 
-        let index = (*i as usize)
-            .checked_sub(import_count)
-            .ok_or_else(|| -> CodeError {
-                let Some(imports) = module.import_section() else {
-                    return SectionError::NotFound(SectionName::Import).into();
-                };
-
-                ExportError::ExportReferencesToImport(
-                    export.field().into(),
-                    imports
-                        .entries()
-                        .iter()
-                        .filter(|import| matches!(import.external(), External::Function(_)))
-                        .nth(*i as usize)
-                        .unwrap_or_else(|| unreachable!("Module structure is invalid"))
-                        .field()
-                        .into(),
-                )
-                .into()
-            })?;
+        let index =
+            func_index
+                .checked_sub(import_count)
+                .ok_or(ExportError::ExportReferencesToImport(
+                    export_index as u32,
+                    func_index,
+                ))?;
 
         // Panic is impossible, unless the Module structure is invalid.
         let type_id = funcs
-            .get(index)
+            .get(index as usize)
             .unwrap_or_else(|| unreachable!("Module structure is invalid"))
             .type_ref() as usize;
 
@@ -132,11 +119,11 @@ fn check_exports(module: &Module) -> Result<(), CodeError> {
             .unwrap_or_else(|| unreachable!("Module structure is invalid"));
 
         if !(func_type.params().is_empty() && func_type.results().is_empty()) {
-            Err(ExportError::InvalidExportFnSignature(export.field().into()))?;
+            Err(ExportError::InvalidExportFnSignature(export_index as u32))?;
         }
 
         if !ALLOWED_EXPORTS.contains(&export.field()) {
-            Err(ExportError::UnnecessaryExport(export.field().into()))?;
+            Err(ExportError::UnnecessaryExport(export_index as u32))?;
         }
 
         if REQUIRED_EXPORTS.contains(&export.field()) {
@@ -164,7 +151,7 @@ fn check_imports(module: &Module) -> Result<(), CodeError> {
     let syscalls = SyscallName::instrumentable_map();
 
     let mut visited_imports = BTreeSet::new();
-    for import in imports {
+    for (import_index, import) in imports.iter().enumerate() {
         let External::Function(i) = import.external() else {
             continue;
         };
@@ -176,10 +163,10 @@ fn check_imports(module: &Module) -> Result<(), CodeError> {
 
         let syscall = syscalls
             .get(import.field())
-            .ok_or(ImportError::UnknownImport(import.field().into()))?;
+            .ok_or(ImportError::UnknownImport(import_index as u32))?;
 
         if !visited_imports.insert(*syscall) {
-            Err(ImportError::DuplicateImport(import.field().into()))?;
+            Err(ImportError::DuplicateImport(import_index as u32))?;
         }
 
         let signature = syscall.signature();
@@ -192,19 +179,25 @@ fn check_imports(module: &Module) -> Result<(), CodeError> {
         let results = signature.results().unwrap_or(&[]);
 
         if !(params.eq(func_type.params().iter().copied()) && results == func_type.results()) {
-            Err(ImportError::InvalidImportFnSignature(import.field().into()))?;
+            Err(ImportError::InvalidImportFnSignature(import_index as u32))?;
         }
     }
 
     Ok(())
 }
 
-fn get_export_entry<'a>(module: &'a Module, name: &str) -> Option<&'a ExportEntry> {
+fn get_export_entry_with_index<'a>(
+    module: &'a Module,
+    name: &str,
+) -> Option<(u32, &'a ExportEntry)> {
     module
         .export_section()?
         .entries()
         .iter()
-        .find(|export| export.field() == name)
+        .enumerate()
+        .find_map(|(export_index, export)| {
+            (export.field() == name).then_some((export_index as u32, export))
+        })
 }
 
 fn get_export_entry_mut<'a>(module: &'a mut Module, name: &str) -> Option<&'a mut ExportEntry> {
@@ -215,9 +208,10 @@ fn get_export_entry_mut<'a>(module: &'a mut Module, name: &str) -> Option<&'a mu
         .find(|export| export.field() == name)
 }
 
-fn get_export_global_index<'a>(module: &'a Module, name: &str) -> Option<&'a u32> {
-    match get_export_entry(module, name)?.internal() {
-        Internal::Global(index) => Some(index),
+fn get_export_global_with_index(module: &Module, name: &str) -> Option<(u32, u32)> {
+    let (export_index, export) = get_export_entry_with_index(module, name)?;
+    match export.internal() {
+        Internal::Global(index) => Some((export_index, *index)),
         _ => None,
     }
 }
@@ -246,10 +240,13 @@ fn get_global_entry(module: &Module, global_index: u32) -> Option<&GlobalEntry> 
 fn get_global_init_const_i32(
     module: &Module,
     global_index: u32,
-    export_name: &str,
+    export_inedx: u32,
 ) -> Result<i32, CodeError> {
     let init_expr = get_global_entry(module, global_index)
-        .ok_or_else(|| ExportError::IncorrectGlobalIndex(global_index, export_name.into()))?
+        .ok_or(ExportError::IncorrectGlobalIndex(
+            global_index,
+            export_inedx,
+        ))?
         .init_expr();
     get_init_expr_const_i32(init_expr)
         .ok_or(InitializationError::StackEnd)
@@ -257,12 +254,13 @@ fn get_global_init_const_i32(
 }
 
 fn check_and_canonize_gear_stack_end(module: &mut Module) -> Result<(), CodeError> {
-    let Some(&stack_end_global_index) = get_export_global_index(module, STACK_END_EXPORT_NAME)
+    let Some((stack_end_export_index, stack_end_global_index)) =
+        get_export_global_with_index(module, STACK_END_EXPORT_NAME)
     else {
         return Ok(());
     };
     let stack_end_offset =
-        get_global_init_const_i32(module, stack_end_global_index, STACK_END_EXPORT_NAME)?;
+        get_global_init_const_i32(module, stack_end_global_index, stack_end_export_index)?;
 
     // Checks, that each data segment does not overlap with stack.
     if let Some(data_section) = module.data_section() {
@@ -282,9 +280,10 @@ fn check_and_canonize_gear_stack_end(module: &mut Module) -> Result<(), CodeErro
     // If [STACK_END_EXPORT_NAME] points to mutable global, then make new const global
     // with the same init expr and change the export internal to point to the new global.
     if get_global_entry(module, stack_end_global_index)
-        .ok_or_else(|| {
-            ExportError::IncorrectGlobalIndex(stack_end_global_index, STACK_END_EXPORT_NAME.into())
-        })?
+        .ok_or(ExportError::IncorrectGlobalIndex(
+            stack_end_global_index,
+            stack_end_export_index,
+        ))?
         .global_type()
         .is_mutable()
     {
@@ -380,20 +379,20 @@ pub enum InitializationError {
 #[derive(Debug, PartialEq, Eq, derive_more::Display)]
 pub enum ExportError {
     /// Incorrect global export index. Can occur when export refers to not existing global index.
-    #[display(fmt = "Global index `{_0}` in export `{_1}` is incorrect")]
-    IncorrectGlobalIndex(u32, String),
+    #[display(fmt = "Global index `{_0}` in export index `{_1}` is incorrect")]
+    IncorrectGlobalIndex(u32, u32),
     /// Exporting mutable globals is restricted by the Gear protocol.
-    #[display(fmt = "Global index `{_0}` in export `{_1}` cannot be mutable")]
-    MutableGlobalExport(u32, String),
+    #[display(fmt = "Global index `{_0}` in export index `{_1}` cannot be mutable")]
+    MutableGlobalExport(u32, u32),
     /// Export references to an import function, which is not allowed.
-    #[display(fmt = "Export `{_0}` references to imported function `{_1}`")]
-    ExportReferencesToImport(String, String),
+    #[display(fmt = "Export index `{_0}` references to imported function with index `{_1}`")]
+    ExportReferencesToImport(u32, u32),
     /// The signature of an exported function is invalid.
-    #[display(fmt = "Exported function `{_0}` must have signature `fn {_0}() {{ ... }}`")]
-    InvalidExportFnSignature(String),
+    #[display(fmt = "Exported function with index `{_0}` must have signature `fn f() {{ ... }}`")]
+    InvalidExportFnSignature(u32),
     /// The provided code contains unnecessary function export.
-    #[display(fmt = "Unnecessary export of function `{_0}` found")]
-    UnnecessaryExport(String),
+    #[display(fmt = "Unnecessary export with index `{_0}` found")]
+    UnnecessaryExport(u32),
     /// The provided code doesn't contain the required `init` or `handle` export function.
     #[display(fmt = "Required export function `init` or `handle` not found")]
     RequiredExportFnNotFound,
@@ -403,14 +402,14 @@ pub enum ExportError {
 #[derive(Debug, PartialEq, Eq, derive_more::Display)]
 pub enum ImportError {
     /// The imported function is not supported by the Gear protocol.
-    #[display(fmt = "Unknown function `{_0}` in import section")]
-    UnknownImport(String),
+    #[display(fmt = "Unknown imported function with index `{_0}`")]
+    UnknownImport(u32),
     /// The imported function is declared multiple times.
-    #[display(fmt = "Imported function `{_0}` is declared multiple times")]
-    DuplicateImport(String),
+    #[display(fmt = "Imported function with index `{_0}` is declared multiple times")]
+    DuplicateImport(u32),
     /// The signature of an imported function is invalid.
-    #[display(fmt = "Invalid function signature for imported function `{_0}`")]
-    InvalidImportFnSignature(String),
+    #[display(fmt = "Invalid function signature for imported function with index `{_0}`")]
+    InvalidImportFnSignature(u32),
 }
 
 /// Describes why the code is not valid Gear program.
@@ -471,23 +470,24 @@ fn check_mut_global_exports(module: &Module) -> Result<(), CodeError> {
             export_section
                 .entries()
                 .iter()
-                .filter_map(|export| match export.internal() {
-                    Internal::Global(index) => Some((*index, export.field())),
+                .enumerate()
+                .filter_map(|(export_index, export)| match export.internal() {
+                    Internal::Global(index) => Some((export_index as u32, *index)),
                     _ => None,
                 });
 
-        for (export_index, export_name) in global_exports {
+        for (export_index, global_index) in global_exports {
             if global_section
                 .entries()
-                .get(export_index as usize)
-                .ok_or_else(|| ExportError::IncorrectGlobalIndex(export_index, export_name.into()))?
+                .get(global_index as usize)
+                .ok_or(ExportError::IncorrectGlobalIndex(
+                    global_index,
+                    export_index,
+                ))?
                 .global_type()
                 .is_mutable()
             {
-                Err(ExportError::MutableGlobalExport(
-                    export_index,
-                    export_name.into(),
-                ))?;
+                Err(ExportError::MutableGlobalExport(global_index, export_index))?;
             }
         }
     }
@@ -943,9 +943,7 @@ mod tests {
 
         assert_eq!(
             Code::try_new(original_code, 1, |_| ConstantCostRules::default(), None),
-            Err(CodeError::Export(ExportError::UnnecessaryExport(
-                "this_import_is_unknown".into()
-            )))
+            Err(CodeError::Export(ExportError::UnnecessaryExport(0)))
         );
     }
 
