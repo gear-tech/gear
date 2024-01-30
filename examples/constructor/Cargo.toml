@@ -14,16 +14,15 @@ exclude-features = ["std", "wasm-wrapper"]
 crate-type = ["lib", "cdylib"]
 
 [dependencies]
-gcore.workspace = true
 gstd.workspace = true
 hex.workspace = true
-parity-scale-codec.workspace = true
+io = { package = "demo-constructor-io", path = "io" }
 
 [build-dependencies]
 wasm-dep-builder.workspace = true
 
 [features]
-debug = ["gstd/debug"]
-wasm-wrapper = []
+debug = ["gstd/debug", "io/debug"]
+wasm-wrapper = ["io/wasm-wrapper"]
 std = ["wasm-wrapper"]
 default = ["std"]

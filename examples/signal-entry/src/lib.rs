@@ -18,42 +18,10 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-// We can't depend on gstd because it declares panic handler, so we just use gcore.
-use gcore::errors::SignalCode;
-use parity_scale_codec::{Decode, Encode};
-
-#[derive(Debug, Encode, Decode)]
-pub enum HandleAction {
-    Simple,
-    Wait,
-    WaitAndPanic,
-    WaitAndReserveWithPanic,
-    WaitAndExit,
-    WaitWithReserveAmountAndPanic(u64),
-    Panic,
-    Exit,
-    Accumulate,
-    OutOfGas,
-    PanicInSignal,
-    AcrossWaits,
-    ZeroReserve,
-    ForbiddenCallInSignal([u8; 32]),
-    ForbiddenAction,
-    SaveSignal(SignalCode),
-    ExceedMemory,
-    ExceedStackLimit,
-    UnreachableInstruction,
-    InvalidDebugCall,
-    UnrecoverableExt,
-    IncorrectFree,
-    WaitWithoutSendingMessage,
-    MemoryAccess,
-}
-
-pub const WAIT_AND_RESERVE_WITH_PANIC_GAS: u64 = 10_000_000_000;
-
 #[cfg(not(feature = "wasm-wrapper"))]
 mod wasm;
+
+pub use io::*;
 
 #[cfg(test)]
 mod tests {

@@ -23,7 +23,7 @@
 
 extern crate alloc;
 
-#[cfg(any(feature = "runtime-benchmarks", test))]
+#[cfg(test)]
 use pallet_gear_binaries as binaries;
 
 #[cfg(feature = "runtime-benchmarks")]

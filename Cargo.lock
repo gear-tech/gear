@@ -1942,11 +1942,19 @@ dependencies = [
 name = "demo-constructor"
 version = "0.1.0"
 dependencies = [
- "gcore",
+ "demo-constructor-io",
  "gstd",
  "hex",
- "parity-scale-codec",
  "wasm-dep-builder",
+]
+
+[[package]]
+name = "demo-constructor-io"
+version = "0.1.0"
+dependencies = [
+ "gcore",
+ "gstd",
+ "parity-scale-codec",
 ]
 
 [[package]]
@@ -1972,9 +1980,14 @@ dependencies = [
 name = "demo-delayed-sender"
 version = "0.1.0"
 dependencies = [
+ "demo-delayed-sender-io",
  "gstd",
  "wasm-dep-builder",
 ]
+
+[[package]]
+name = "demo-delayed-sender-io"
+version = "0.1.0"
 
 [[package]]
 name = "demo-distributor"
@@ -2225,9 +2238,16 @@ dependencies = [
 name = "demo-read-big-state"
 version = "0.1.0"
 dependencies = [
+ "demo-read-big-state-io",
  "gstd",
- "parity-scale-codec",
  "wasm-dep-builder",
+]
+
+[[package]]
+name = "demo-read-big-state-io"
+version = "0.1.0"
+dependencies = [
+ "parity-scale-codec",
 ]
 
 [[package]]
@@ -2244,10 +2264,17 @@ dependencies = [
 name = "demo-reserve-gas"
 version = "0.1.0"
 dependencies = [
+ "demo-reserve-gas-io",
  "gstd",
  "gtest",
- "parity-scale-codec",
  "wasm-dep-builder",
+]
+
+[[package]]
+name = "demo-reserve-gas-io"
+version = "0.1.0"
+dependencies = [
+ "parity-scale-codec",
 ]
 
 [[package]]
@@ -2273,12 +2300,19 @@ dependencies = [
 name = "demo-signal-entry"
 version = "0.1.0"
 dependencies = [
- "gcore",
+ "demo-signal-entry-io",
  "gear-core",
  "gstd",
  "gtest",
- "parity-scale-codec",
  "wasm-dep-builder",
+]
+
+[[package]]
+name = "demo-signal-entry-io"
+version = "0.1.0"
+dependencies = [
+ "gcore",
+ "parity-scale-codec",
 ]
 
 [[package]]
@@ -2362,13 +2396,20 @@ name = "demo-waiter"
 version = "0.1.0"
 dependencies = [
  "demo-waiter",
+ "demo-waiter-io",
  "futures",
- "gcore",
  "gear-core",
  "gstd",
  "gtest",
- "parity-scale-codec",
  "wasm-dep-builder",
+]
+
+[[package]]
+name = "demo-waiter-io"
+version = "0.1.0"
+dependencies = [
+ "gcore",
+ "parity-scale-codec",
 ]
 
 [[package]]
@@ -4200,6 +4241,7 @@ dependencies = [
  "gear-core",
  "gear-lazy-pages",
  "gear-lazy-pages-common",
+ "gear-runtime-interface-binaries",
  "gear-sandbox-host",
  "log",
  "parity-scale-codec",
@@ -4208,6 +4250,20 @@ dependencies = [
  "sp-std 8.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v1.0.0-canary)",
  "sp-wasm-interface",
  "winapi",
+]
+
+[[package]]
+name = "gear-runtime-interface-binaries"
+version = "1.1.0"
+dependencies = [
+ "demo-constructor",
+ "demo-delayed-sender",
+ "demo-read-big-state",
+ "demo-reserve-gas",
+ "demo-signal-entry",
+ "demo-waiter",
+ "test-syscalls",
+ "wasm-dep-builder",
 ]
 
 [[package]]
@@ -7373,7 +7429,12 @@ version = "1.1.0"
 dependencies = [
  "blake2-rfc",
  "demo-calc-hash",
+ "demo-constructor-io",
  "demo-new-meta",
+ "demo-read-big-state-io",
+ "demo-reserve-gas-io",
+ "demo-signal-entry-io",
+ "demo-waiter-io",
  "derive_more",
  "env_logger",
  "frame-benchmarking",
@@ -7421,6 +7482,7 @@ dependencies = [
  "sp-io",
  "sp-runtime",
  "sp-std 8.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v1.0.0-canary)",
+ "test-syscalls-io",
  "wabt",
 ]
 
@@ -12538,7 +12600,15 @@ version = "0.1.0"
 dependencies = [
  "gstd",
  "parity-scale-codec",
+ "test-syscalls-io",
  "wasm-dep-builder",
+]
+
+[[package]]
+name = "test-syscalls-io"
+version = "0.1.0"
+dependencies = [
+ "parity-scale-codec",
 ]
 
 [[package]]

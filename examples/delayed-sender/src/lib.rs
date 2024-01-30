@@ -18,7 +18,7 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-pub const DELAY: u32 = 100;
-
 #[cfg(not(feature = "wasm-wrapper"))]
 mod wasm;
+
+pub use io::*;

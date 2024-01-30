@@ -29,25 +29,28 @@
 
 use super::*;
 
-use crate::{binaries::*, BlockGasLimitOf, CurrencyOf, Event, String, WaitlistOf};
+use crate::{BlockGasLimitOf, CurrencyOf, Event, String, WaitlistOf};
 use common::event::DispatchStatus;
 use frame_support::traits::Randomness;
 use gear_core::ids::{CodeId, ReservationId};
 use gear_core_errors::{ReplyCode, SuccessReplyReason};
+use gear_runtime_interface::{gear_benchmarks, WasmBinary};
 use gear_wasm_instrument::syscalls::SyscallName;
 use pallet_timestamp::Pallet as TimestampPallet;
 use parity_scale_codec::Decode;
-use test_syscalls::{Kind, WASM_BINARY as SYSCALLS_TEST_WASM_BINARY};
+use test_syscalls_io::Kind;
 
 pub fn read_big_state<T>()
 where
     T: Config,
     T::AccountId: Origin,
 {
-    use demo_read_big_state::{State, Strings, WASM_BINARY};
+    use demo_read_big_state_io::{State, Strings};
 
     #[cfg(feature = "std")]
     utils::init_logger();
+
+    let wasm_binary = gear_benchmarks::wasm_binary(WasmBinary::DemoReadBigState);
 
     let origin = benchmarking::account::<T::AccountId>("origin", 0, 0);
     CurrencyOf::<T>::deposit_creating(
@@ -59,7 +62,7 @@ where
 
     Gear::<T>::upload_program(
         RawOrigin::Signed(origin.clone()).into(),
-        WASM_BINARY.to_vec(),
+        wasm_binary.clone(),
         salt.to_vec(),
         Default::default(),
         BlockGasLimitOf::<T>::get(),
@@ -68,7 +71,7 @@ where
     )
     .expect("Failed to upload read_big_state binary");
 
-    let pid = ProgramId::generate_from_user(CodeId::generate(WASM_BINARY), salt);
+    let pid = ProgramId::generate_from_user(CodeId::generate(&wasm_binary), salt);
     utils::run_to_next_block::<T>(None);
 
     let string = String::from("hi").repeat(4095);
@@ -135,7 +138,7 @@ where
     T: Config,
     T::AccountId: Origin,
 {
-    use demo_signal_entry::{HandleAction, WASM_BINARY};
+    use demo_signal_entry_io::HandleAction;
     use frame_support::assert_ok;
     use gear_core_errors::*;
 
@@ -143,6 +146,8 @@ where
 
     #[cfg(feature = "std")]
     utils::init_logger();
+
+    let wasm_binary = gear_benchmarks::wasm_binary(WasmBinary::DemoSignalEntry);
 
     let origin = benchmarking::account::<T::AccountId>("origin", 0, 0);
     CurrencyOf::<T>::deposit_creating(&origin, 5_000_000_000_000_000_u128.unique_saturated_into());
@@ -152,7 +157,7 @@ where
     // Upload program
     assert_ok!(Gear::<T>::upload_program(
         RawOrigin::Signed(origin.clone()).into(),
-        WASM_BINARY.to_vec(),
+        wasm_binary.clone(),
         salt.to_vec(),
         origin.encode(),
         GAS_LIMIT,
@@ -160,7 +165,7 @@ where
         false,
     ));
 
-    let pid = ProgramId::generate_from_user(CodeId::generate(WASM_BINARY), salt);
+    let pid = ProgramId::generate_from_user(CodeId::generate(&wasm_binary), salt);
     utils::run_to_next_block::<T>(None);
 
     // Ensure that program is uploaded and initialized correctly
@@ -1052,8 +1057,9 @@ where
     let child_code = child_wasm.code;
     let child_code_hash = child_wasm.hash;
 
-    let tester_pid =
-        ProgramId::generate_from_user(CodeId::generate(SYSCALLS_TEST_WASM_BINARY), b"");
+    let wasm_binary = gear_benchmarks::wasm_binary(WasmBinary::TestSyscalls);
+
+    let tester_pid = ProgramId::generate_from_user(CodeId::generate(&wasm_binary), b"");
 
     // Deploy program with valid code hash
     let child_deployer = benchmarking::account::<T::AccountId>("child_deployer", 0, 0);
@@ -1080,7 +1086,7 @@ where
     );
     Gear::<T>::upload_program(
         RawOrigin::Signed(default_account).into(),
-        SYSCALLS_TEST_WASM_BINARY.to_vec(),
+        wasm_binary,
         b"".to_vec(),
         child_code_hash.encode(),
         50_000_000_000,

@@ -16,15 +16,15 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{
-    Command, LockContinuation, LockStaticAccessSubcommand, MxLockContinuation, RwLockContinuation,
-    RwLockType, SleepForWaitType, WaitSubcommand,
-};
 use core::ops::{Deref, DerefMut};
 use futures::future;
 use gstd::{
     exec, format, msg,
     sync::{Mutex, MutexGuard, RwLock, RwLockReadGuard, RwLockWriteGuard},
+};
+use io::{
+    Command, LockContinuation, LockStaticAccessSubcommand, MxLockContinuation, RwLockContinuation,
+    RwLockType, SleepForWaitType, WaitSubcommand,
 };
 
 static mut MUTEX: Mutex<()> = Mutex::new(());

@@ -20,18 +20,7 @@
 
 extern crate alloc;
 
+pub use io::*;
+
 #[cfg(not(feature = "wasm-wrapper"))]
 mod wasm;
-
-#[cfg(not(feature = "wasm-wrapper"))]
-pub(crate) use wasm::DATA;
-
-mod arg;
-mod builder;
-mod call;
-mod scheme;
-
-pub use arg::Arg;
-pub use builder::Calls;
-pub use call::Call;
-pub use scheme::*;

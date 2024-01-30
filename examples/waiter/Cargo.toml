@@ -16,8 +16,7 @@ crate-type = ["lib", "cdylib"]
 [dependencies]
 futures.workspace = true
 gstd.workspace = true
-gcore.workspace = true
-parity-scale-codec.workspace = true
+io = { package = "demo-waiter-io", path = "io", default-features = false }
 
 [build-dependencies]
 wasm-dep-builder.workspace = true
@@ -30,5 +29,5 @@ demo-waiter = { workspace = true, features = ["debug"] }
 [features]
 debug = ["gstd/debug"]
 wasm-wrapper = []
-std = ["parity-scale-codec/std", "wasm-wrapper"]
+std = ["io/std", "wasm-wrapper"]
 default = ["std"]

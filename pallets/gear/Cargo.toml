@@ -56,7 +56,12 @@ serde = { workspace = true, optional = true, features = ["derive"] }
 rand = { workspace = true, optional = true }
 rand_pcg = { workspace = true, optional = true }
 sp-consensus-slots = { workspace = true, optional = true }
-pallet-gear-binaries = { path = "binaries", optional = true, features = ["wasm-wrapper"] }
+demo-reserve-gas-io = { workspace = true, optional = true }
+demo-constructor-io = { workspace = true, optional = true }
+demo-waiter-io = { workspace = true, optional = true }
+demo-read-big-state-io = { workspace = true, optional = true }
+demo-signal-entry-io = { workspace = true, optional = true }
+test-syscalls-io = { workspace = true, optional = true }
 
 # Some of tests require `debug` feature enabled
 [dev-dependencies]
@@ -75,7 +80,7 @@ pallet-gear-scheduler = { workspace = true, features = ["std"] }
 pallet-gear-program = { workspace = true, features = ["std"] }
 pallet-gear-voucher = { workspace = true, features = ["std"] }
 gmeta.workspace = true
-pallet-gear-binaries = { path = "binaries", features = ["debug"] }
+pallet-gear-binaries = { path = "binaries", features = ["std", "debug"] }
 
 [features]
 default = ['std']
@@ -111,13 +116,13 @@ std = [
 	"primitive-types/std",
 	"serde/std",
 	"sp-consensus-babe/std",
-	"pallet-gear-binaries?/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",
 	"frame-system/runtime-benchmarks",
 	"frame-support/runtime-benchmarks",
 	"common/runtime-benchmarks",
+	"gear-runtime-interface/runtime-benchmarks",
 	"gear-core-backend/mock",
 	"gear-core-errors/codec",
 	"gear-sandbox",
@@ -126,7 +131,12 @@ runtime-benchmarks = [
 	"rand",
 	"rand_pcg",
 	"gsys",
-	"pallet-gear-binaries",
+	"demo-reserve-gas-io",
+	"demo-constructor-io/wasm-wrapper",
+	"demo-waiter-io",
+	"demo-read-big-state-io",
+	"demo-signal-entry-io",
+	"test-syscalls-io",
 ]
 runtime-benchmarks-checkers = []
 try-runtime = ["frame-support/try-runtime"]

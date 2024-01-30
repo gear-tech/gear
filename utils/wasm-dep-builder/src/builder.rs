@@ -32,7 +32,8 @@ use gear_wasm_builder::{
 };
 use std::{
     collections::BTreeSet,
-    env, fs,
+    env, fs, io,
+    io::Write,
     path::{Path, PathBuf},
     process::Command,
 };
@@ -161,7 +162,14 @@ impl BuildPackage {
     fn optimize(&self) {
         let (wasm_bloaty, wasm) = (&self.wasm_bloaty, &self.wasm);
 
-        optimize::optimize_wasm(wasm_bloaty.clone(), wasm.clone(), "4", true).unwrap();
+        optimize::optimize_wasm(wasm_bloaty.clone(), wasm.clone(), "4", true)
+            .with_context(|| {
+                format!(
+                    "failed to optimize {wasm_bloaty}",
+                    wasm_bloaty = wasm_bloaty.display()
+                )
+            })
+            .unwrap();
 
         let mut optimizer = Optimizer::new(wasm.clone()).unwrap();
         optimizer.insert_stack_end_export().unwrap_or_else(|err| {
@@ -267,7 +275,10 @@ impl BuildPackages {
             .env_remove("CARGO_ENCODED_RUSTFLAGS");
         println!("cargo:warning={:?}", cargo);
         let output = cargo.output().expect("Failed to execute cargo command");
-        assert!(output.status.success());
+        if !output.status.success() {
+            let _ = io::stderr().write_all(&output.stderr);
+            panic!("{}", output.status);
+        }
 
         for pkg in &mut self.packages {
             if pkg.rebuild_kind == RebuildKind::Dirty {

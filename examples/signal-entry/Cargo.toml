@@ -11,10 +11,9 @@ repository.workspace = true
 crate-type = ["lib", "cdylib"]
 
 [dependencies]
-gcore.workspace = true
 gstd.workspace = true
-parity-scale-codec.workspace = true
 gear-core.workspace = true
+io = { package = "demo-signal-entry-io", path = "io", default-features = false }
 
 [build-dependencies]
 wasm-dep-builder.workspace = true
@@ -25,5 +24,5 @@ gtest.workspace = true
 [features]
 debug = ["gstd/debug"]
 wasm-wrapper = []
-std = ["wasm-wrapper", "parity-scale-codec/std"]
+std = ["wasm-wrapper", "io/std"]
 default = ["std"]

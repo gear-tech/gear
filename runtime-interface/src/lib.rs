@@ -301,3 +301,40 @@ pub trait GearDebug {
             .as_nanos()
     }
 }
+
+#[cfg(feature = "runtime-benchmarks")]
+#[derive(Debug, Clone, Copy, Encode, Decode, PartialEq, Eq)]
+#[codec(crate = codec)]
+#[repr(i64)]
+pub enum WasmBinary {
+    DemoDelayedSender,
+    DemoReserveGas,
+    DemoReadBigState,
+    DemoConstructor,
+    DemoWaiter,
+    DemoSignalEntry,
+    TestSyscalls,
+}
+
+impl PassBy for WasmBinary {
+    type PassBy = Codec<Self>;
+}
+
+#[cfg(feature = "runtime-benchmarks")]
+#[runtime_interface]
+pub trait GearBenchmarks {
+    fn wasm_binary(binary: WasmBinary) -> Vec<u8> {
+        use gear_runtime_interface_binaries::*;
+
+        match binary {
+            WasmBinary::DemoDelayedSender => demo_delayed_sender::WASM_BINARY,
+            WasmBinary::DemoReserveGas => demo_reserve_gas::WASM_BINARY,
+            WasmBinary::DemoReadBigState => demo_read_big_state::WASM_BINARY,
+            WasmBinary::DemoConstructor => demo_constructor::WASM_BINARY,
+            WasmBinary::DemoWaiter => demo_waiter::WASM_BINARY,
+            WasmBinary::DemoSignalEntry => demo_signal_entry::WASM_BINARY,
+            WasmBinary::TestSyscalls => test_syscalls::WASM_BINARY,
+        }
+        .to_vec()
+    }
+}

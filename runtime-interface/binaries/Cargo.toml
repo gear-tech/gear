@@ -1,0 +1,44 @@
+[package]
+name = "gear-runtime-interface-binaries"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+
+[package.metadata.wasm-dep-builder.binaries]
+include = ["demo-*", "test-syscalls"]
+
+[dependencies]
+demo-delayed-sender.workspace = true
+demo-reserve-gas.workspace = true
+demo-read-big-state.workspace = true
+demo-constructor.workspace = true
+demo-waiter.workspace = true
+demo-signal-entry.workspace = true
+test-syscalls.workspace = true
+
+[build-dependencies]
+wasm-dep-builder.workspace = true
+
+[features]
+default = ["std"]
+std = [
+    "demo-delayed-sender/std",
+    "demo-reserve-gas/std",
+    "demo-read-big-state/std",
+    "demo-constructor/std",
+    "demo-waiter/std",
+    "demo-signal-entry/std",
+    "test-syscalls/std",
+]
+wasm-wrapper = [
+    "demo-delayed-sender/wasm-wrapper",
+    "demo-reserve-gas/wasm-wrapper",
+    "demo-read-big-state/wasm-wrapper",
+    "demo-constructor/wasm-wrapper",
+    "demo-waiter/wasm-wrapper",
+    "demo-signal-entry/wasm-wrapper",
+    "test-syscalls/wasm-wrapper",
+]

@@ -368,6 +368,7 @@ try-runtime-cli = { version = "0.10.0-dev", git = "https://github.com/gear-tech/
 
 # Examples
 test-syscalls = { path = "examples/syscalls", default-features = false }
+test-syscalls-io = { path = "examples/syscalls/io", default-features = false }
 demo-async = { path = "examples/async" }
 demo-async-critical = { path = "examples/async-critical" }
 demo-async-custom-entry = { path = "examples/async-custom-entry" }
@@ -382,6 +383,7 @@ demo-custom = { path = "examples/custom" }
 demo-delayed-reservation-sender = { path = "examples/delayed-reservation-sender" }
 demo-compose = { path = "examples/compose" }
 demo-constructor = { path = "examples/constructor", default-features = false }
+demo-constructor-io = { path = "examples/constructor/io", default-features = false }
 demo-delayed-sender = { path = "examples/delayed-sender" }
 demo-distributor = { path = "examples/distributor" }
 demo-futures-unordered = { path = "examples/futures-unordered", features = ["debug"] }
@@ -405,16 +407,20 @@ demo-proxy = { path = "examples/proxy", default-features = false }
 demo-proxy-relay = { path = "examples/proxy-relay" }
 demo-proxy-reservation-with-gas = { path = "examples/proxy-reservation-with-gas" }
 demo-read-big-state = { path = "examples/read-big-state", default-features = false }
+demo-read-big-state-io = { path = "examples/read-big-state/io", default-features = false }
 demo-reservation-manager = { path = "examples/reservation-manager" }
 demo-reserve-gas = { path = "examples/reserve-gas", default-features = false }
+demo-reserve-gas-io = { path = "examples/reserve-gas/io", default-features = false }
 demo-rwlock = { path = "examples/rwlock" }
 demo-send-from-reservation = { path = "examples/send-from-reservation" }
 demo-signal-entry = { path = "examples/signal-entry", default-features = false }
+demo-signal-entry-io = { path = "examples/signal-entry/io", default-features = false }
 demo-state-rollback = { path = "examples/state-rollback" }
 demo-sync-duplicate = { path = "examples/sync-duplicate" }
 demo-vec = { path = "examples/vec" }
 demo-wait = { path = "examples/wait" }
 demo-waiter = { path = "examples/waiter", default-features = false }
+demo-waiter-io = { path = "examples/waiter/io", default-features = false }
 demo-wait-timeout = { path = "examples/wait-timeout" }
 demo-wait-wake = { path = "examples/wait_wake" }
 demo-waiting-proxy = { path = "examples/waiting-proxy" }

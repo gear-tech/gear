@@ -14,8 +14,8 @@
 // GNU General Public License for more details.
 
 use super::*;
-use crate::binaries::*;
 use gear_core::ids::ReservationId;
+use gear_runtime_interface::{gear_benchmarks, WasmBinary};
 
 #[track_caller]
 fn send_user_message_prepare<T>(delay: u32)
@@ -23,8 +23,6 @@ where
     T: Config,
     T::AccountId: Origin,
 {
-    use demo_delayed_sender::WASM_BINARY;
-
     let caller = benchmarking::account("caller", 0, 0);
     CurrencyOf::<T>::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
 
@@ -33,7 +31,7 @@ where
     let salt = vec![];
     Gear::<T>::upload_program(
         RawOrigin::Signed(caller).into(),
-        WASM_BINARY.to_vec(),
+        gear_benchmarks::wasm_binary(WasmBinary::DemoDelayedSender),
         salt,
         delay.encode(),
         100_000_000_000,
@@ -51,7 +49,9 @@ where
     T: Config,
     T::AccountId: Origin,
 {
-    use demo_reserve_gas::{InitAction, WASM_BINARY};
+    use demo_reserve_gas_io::InitAction;
+
+    let wasm_binary = gear_benchmarks::wasm_binary(WasmBinary::DemoReserveGas);
 
     let caller = benchmarking::account("caller", 0, 0);
     CurrencyOf::<T>::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
@@ -59,10 +59,10 @@ where
     init_block::<T>(None);
 
     let salt = vec![];
-    let program_id = ProgramId::generate_from_user(CodeId::generate(WASM_BINARY), &salt);
+    let program_id = ProgramId::generate_from_user(CodeId::generate(&wasm_binary), &salt);
     Gear::<T>::upload_program(
         RawOrigin::Signed(caller).into(),
-        WASM_BINARY.to_vec(),
+        wasm_binary,
         salt,
         InitAction::Normal(vec![(50_000, 100)]).encode(),
         10_000_000_000,
@@ -118,7 +118,9 @@ where
     T: Config,
     T::AccountId: Origin,
 {
-    use demo_constructor::{Call, Calls, Scheme, WASM_BINARY};
+    use demo_constructor_io::{Call, Calls, Scheme};
+
+    let wasm_binary = gear_benchmarks::wasm_binary(WasmBinary::DemoConstructor);
 
     let caller = benchmarking::account("caller", 0, 0);
     CurrencyOf::<T>::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
@@ -126,10 +128,10 @@ where
     init_block::<T>(None);
 
     let salt = vec![];
-    let program_id = ProgramId::generate_from_user(CodeId::generate(WASM_BINARY), &salt);
+    let program_id = ProgramId::generate_from_user(CodeId::generate(&wasm_binary), &salt);
     Gear::<T>::upload_program(
         RawOrigin::Signed(caller.clone()).into(),
-        WASM_BINARY.to_vec(),
+        wasm_binary,
         salt,
         Scheme::empty().encode(),
         10_000_000_000,
@@ -174,7 +176,9 @@ where
     T: Config,
     T::AccountId: Origin,
 {
-    use demo_waiter::{Command, WaitSubcommand, WASM_BINARY};
+    use demo_waiter_io::{Command, WaitSubcommand};
+
+    let wasm_binary = gear_benchmarks::wasm_binary(WasmBinary::DemoWaiter);
 
     let caller = benchmarking::account("caller", 0, 0);
     CurrencyOf::<T>::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
@@ -182,10 +186,10 @@ where
     init_block::<T>(None);
 
     let salt = vec![];
-    let program_id = ProgramId::generate_from_user(CodeId::generate(WASM_BINARY), &salt);
+    let program_id = ProgramId::generate_from_user(CodeId::generate(&wasm_binary), &salt);
     Gear::<T>::upload_program(
         RawOrigin::Signed(caller.clone()).into(),
-        WASM_BINARY.to_vec(),
+        wasm_binary,
         salt,
         vec![],
         10_000_000_000,
@@ -224,7 +228,9 @@ where
     T: Config,
     T::AccountId: Origin,
 {
-    use demo_waiter::{Command, WaitSubcommand, WASM_BINARY};
+    use demo_waiter_io::{Command, WaitSubcommand};
+
+    let wasm_binary = gear_benchmarks::wasm_binary(WasmBinary::DemoWaiter);
 
     let caller = benchmarking::account("caller", 0, 0);
     CurrencyOf::<T>::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
@@ -232,10 +238,10 @@ where
     init_block::<T>(None);
 
     let salt = vec![];
-    let program_id = ProgramId::generate_from_user(CodeId::generate(WASM_BINARY), &salt);
+    let program_id = ProgramId::generate_from_user(CodeId::generate(&wasm_binary), &salt);
     Gear::<T>::upload_program(
         RawOrigin::Signed(caller.clone()).into(),
-        WASM_BINARY.to_vec(),
+        wasm_binary,
         salt,
         vec![],
         10_000_000_000,

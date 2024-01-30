@@ -15,6 +15,7 @@ crate-type = ["lib", "cdylib"]
 
 [dependencies]
 gstd.workspace = true
+io = { package = "demo-delayed-sender-io", path = "io", default-features = false }
 
 [build-dependencies]
 wasm-dep-builder.workspace = true

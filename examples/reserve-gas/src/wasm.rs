@@ -16,14 +16,14 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{
-    HandleAction, InitAction, ReplyAction, REPLY_FROM_RESERVATION_PAYLOAD, RESERVATION_AMOUNT,
-};
 use gstd::{
     errors::{Error, ExecutionError, ExtError, ReservationError},
     exec, msg,
     prelude::*,
     MessageId, ReservationId,
+};
+use io::{
+    HandleAction, InitAction, ReplyAction, REPLY_FROM_RESERVATION_PAYLOAD, RESERVATION_AMOUNT,
 };
 
 static mut RESERVATION_ID: Option<ReservationId> = None;
