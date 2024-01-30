@@ -119,7 +119,7 @@ impl Publisher {
             ("demo-syscall-error", "program_can_be_initialized"),
             ("gsdk", "timeout"),
         ] {
-            if !crate::test(test)?.success() {
+            if !crate::test(pkg, test)?.success() {
                 panic!("{pkg}:{test} failed to pass the test ...");
             }
         }
