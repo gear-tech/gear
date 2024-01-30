@@ -110,7 +110,9 @@ fn check_exports(module: &Module) -> Result<(), CodeError> {
                     export.field().into(),
                     imports
                         .entries()
-                        .get(*i as usize)
+                        .iter()
+                        .filter(|import| matches!(import.external(), External::Function(_)))
+                        .nth(*i as usize)
                         .unwrap_or_else(|| unreachable!("Module structure is invalid"))
                         .field()
                         .into(),
