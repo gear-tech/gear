@@ -30,8 +30,8 @@ use frame_support_test::TestRandomness;
 use frame_system::{self as system, limits::BlockWeights, mocking, pallet_prelude::BlockNumberFor};
 use sp_core::{ConstU8, H256};
 use sp_runtime::{
-    traits::{BlakeTwo256, IdentityLookup},
-    BuildStorage,
+    traits::{AccountIdConversion, BlakeTwo256, IdentityLookup},
+    BuildStorage, Perbill,
 };
 use sp_std::{
     cell::RefCell,
@@ -158,6 +158,8 @@ impl Drop for DynamicScheduleReset {
 parameter_types! {
     pub const BankAddress: AccountId = 15082001;
     pub const GasMultiplier: common::GasMultiplier<Balance, u64> = common::GasMultiplier::ValuePerGas(25);
+    pub const SplitFee: Perbill = Perbill::from_percent(50);
+    pub FeeDest: AccountId = PalletId(*b"py/trsry").into_account_truncating();
     pub const MinVoucherDuration: BlockNumber = 5;
     pub const MaxVoucherDuration: BlockNumber = 100_000_000;
 }

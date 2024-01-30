@@ -25,14 +25,15 @@ use frame_support::{
     parameter_types,
     traits::{ConstU64, FindAuthor},
     weights::constants::RocksDbWeight,
+    PalletId,
 };
 use frame_support_test::TestRandomness;
 use frame_system::{self as system, limits::BlockWeights, pallet_prelude::BlockNumberFor};
 use pallet_gear::GasAllowanceOf;
 use sp_core::{ConstBool, H256};
 use sp_runtime::{
-    traits::{BlakeTwo256, IdentityLookup},
-    BuildStorage,
+    traits::{AccountIdConversion, BlakeTwo256, IdentityLookup},
+    BuildStorage, Perbill,
 };
 
 use sp_std::convert::{TryFrom, TryInto};
@@ -93,6 +94,8 @@ parameter_types! {
     pub ResumeSessionDuration: BlockNumber = 1_000;
     pub const BankAddress: AccountId = 15082001;
     pub const GasMultiplier: common::GasMultiplier<Balance, u64> = common::GasMultiplier::ValuePerGas(25);
+    pub const SplitFee: Perbill = Perbill::from_percent(50);
+    pub FeeDest: AccountId = PalletId(*b"py/trsry").into_account_truncating();
 }
 
 // Build genesis storage according to the mock runtime.
