@@ -316,6 +316,7 @@ pub enum WasmBinary {
     TestSyscalls,
 }
 
+#[cfg(feature = "runtime-benchmarks")]
 impl PassBy for WasmBinary {
     type PassBy = Codec<Self>;
 }
