@@ -114,9 +114,14 @@ impl Publisher {
             panic!("Packages {failed:?} failed to pass the check ...");
         }
 
-        // Test if gtest works
-        if !crate::test("demo-syscall-error")?.success() {
-            panic!("Package demo-syscall-error failed to pass the test ...");
+        // Post tests for gtest and gclient
+        for (pkg, test) in [
+            ("gtest", "demo-syscall-error"),
+            ("gclient", "harmless_upload"),
+        ] {
+            if !crate::test(test)?.success() {
+                panic!("{pkg}:{test} failed to pass the test ...");
+            }
         }
 
         Ok(())
