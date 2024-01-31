@@ -72,7 +72,7 @@ where
         if program.state == ProgramState::Initialized && dispatch_kind == DispatchKind::Init {
             // Panic is impossible, because gear protocol does not provide functionality
             // to send second init message to any already existing program.
-            panic!("Init message is sent to already initialized program");
+            unreachable!("Init message is sent to already initialized program");
         }
 
         // If the destination program is uninitialized, then we allow
