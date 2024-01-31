@@ -19,7 +19,9 @@
 use anyhow::{anyhow, bail};
 use gear_core::code::{CodeError, ExportError, ImportError};
 use gear_wasm_instrument::SyscallName;
-use pwasm_utils::parity_wasm::elements::{External, FunctionType, Module, Type, ValueType};
+use pwasm_utils::parity_wasm::elements::{
+    ExportEntry, External, FunctionType, ImportCountType, Internal, Module, Type, ValueType,
+};
 use std::{fmt, path::PathBuf};
 use thiserror::Error;
 
@@ -109,8 +111,12 @@ pub enum ExportErrorWithContext {
     MutableGlobalExport(u32, String),
     #[error("Export `{_0}` references to imported function `{_1}`")]
     ExportReferencesToImport(String, String),
-    #[error("Exported function `{_0}` must have signature `fn {_0}() {{ ... }}`")]
-    InvalidExportFnSignature(String),
+    #[error(
+        "Exported function `{_0}` must have signature `fn {_0}() {{ ... }}:\n\
+        Expected signature: `{1}`\n\
+        Actual signature: `{2}`"
+    )]
+    InvalidExportFnSignature(String, PrintableFunctionType, PrintableFunctionType),
     #[error("Unnecessary export of function `{_0}` found")]
     UnnecessaryExport(String),
     #[error("Required export function `init` or `handle` not found")]
@@ -147,7 +153,32 @@ impl TryFrom<(&Module, &ExportError)> for ExportErrorWithContext {
                 Self::ExportReferencesToImport(get_export_name(module, *export_index)?, import_name)
             }
             InvalidExportFnSignature(export_index) => {
-                Self::InvalidExportFnSignature(get_export_name(module, *export_index)?)
+                let export_entry = get_export(module, *export_index)?;
+
+                let &Internal::Function(export_func_index) = export_entry.internal() else {
+                    bail!("failed to get export function index");
+                };
+                let export_name = export_entry.field().to_owned();
+
+                let import_count = module.import_count(ImportCountType::Function) as u32;
+                let real_func_index = export_func_index - import_count;
+
+                let type_id = module
+                    .function_section()
+                    .and_then(|section| section.entries().get(real_func_index as usize))
+                    .ok_or_else(|| anyhow!("failed to get function type"))?
+                    .type_ref();
+                let Type::Function(func_type) = module
+                    .type_section()
+                    .and_then(|section| section.types().get(type_id as usize))
+                    .ok_or_else(|| anyhow!("failed to get function signature"))?
+                    .clone();
+
+                let expected_signature =
+                    PrintableFunctionType(export_name.clone(), FunctionType::default());
+                let actual_signature = PrintableFunctionType(export_name.clone(), func_type);
+
+                Self::InvalidExportFnSignature(export_name, expected_signature, actual_signature)
             }
             UnnecessaryExport(export_index) => {
                 Self::UnnecessaryExport(get_export_name(module, *export_index)?)
@@ -158,11 +189,14 @@ impl TryFrom<(&Module, &ExportError)> for ExportErrorWithContext {
 }
 
 fn get_export_name(module: &Module, export_index: u32) -> anyhow::Result<String> {
+    get_export(module, export_index).map(|enrty| enrty.field().into())
+}
+
+fn get_export(module: &Module, export_index: u32) -> anyhow::Result<&ExportEntry> {
     module
         .export_section()
         .and_then(|section| section.entries().get(export_index as usize))
-        .map(|entry| entry.field().into())
-        .ok_or(anyhow!("failed to get export name by index"))
+        .ok_or_else(|| anyhow!("failed to get export by index"))
 }
 
 #[derive(Error, Debug)]
