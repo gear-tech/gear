@@ -189,7 +189,7 @@ impl TryFrom<(&Module, &ExportError)> for ExportErrorWithContext {
 }
 
 fn get_export_name(module: &Module, export_index: u32) -> anyhow::Result<String> {
-    get_export(module, export_index).map(|enrty| enrty.field().into())
+    get_export(module, export_index).map(|entry| entry.field().into())
 }
 
 fn get_export(module: &Module, export_index: u32) -> anyhow::Result<&ExportEntry> {
