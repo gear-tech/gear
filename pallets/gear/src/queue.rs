@@ -59,7 +59,6 @@ where
             Err(journal) => return journal,
         };
 
-        // Can't process messages for non-active program.
         let Some(program) = Self::get_active_program(destination_id) else {
             log::trace!("Message is sent to non-active program {:?}", destination_id);
             return core_processor::process_non_executable(
@@ -72,15 +71,25 @@ where
         if program.state == ProgramState::Initialized && dispatch_kind == DispatchKind::Init {
             // Panic is impossible, because gear protocol does not provide functionality
             // to send second init message to any already existing program.
-            unreachable!("Init message is sent to already initialized program");
+            unreachable!(
+                "Init message {dispatch_id:?} is sent to already initialized program {destination_id:?}"
+            );
         }
 
         // If the destination program is uninitialized, then we allow
-        // to process message, if it's a reply or the init message.
+        // to process message, if it's a reply or init message.
         // Otherwise, we appends message to the waiting init message list.
         if matches!(program.state, ProgramState::Uninitialized { message_id }
             if message_id != dispatch_id && dispatch_kind != DispatchKind::Reply)
         {
+            if dispatch_kind == DispatchKind::Init {
+                // Panic is impossible, because gear protocol does not provide functionality
+                // to send second init message to any already existing program.
+                unreachable!(
+                    "Init message {dispatch_id:?} is not the first init message to the program {destination_id:?}"
+                );
+            }
+
             let (dispatch, gas, _) = precharged_dispatch.into_parts();
             return vec![
                 JournalNote::GasBurned {
