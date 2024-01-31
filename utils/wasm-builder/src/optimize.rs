@@ -32,7 +32,7 @@ const OPTIMIZED_EXPORTS: [&str; 7] = [
 ];
 
 /// Type of the output wasm.
-#[derive(PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub enum OptType {
     Meta,
     Opt,
@@ -85,6 +85,11 @@ impl Optimizer {
     pub fn optimize(&self, ty: OptType) -> Result<Vec<u8>> {
         let mut module = self.module.clone();
 
+        let mut code = vec![];
+        module.clone().serialize(&mut code)?;
+
+        self.post_check(code.clone(), ty)?;
+
         let exports = if ty == OptType::Opt {
             OPTIMIZED_EXPORTS.to_vec()
         } else {
@@ -116,39 +121,30 @@ impl Optimizer {
         let mut code = vec![];
         module.serialize(&mut code)?;
 
-        self.post_check(code.clone(), ty)?;
-
         Ok(code)
     }
 
     /// Performs post-checking the program code for possible errors.
     /// `pallet-gear` crate performs the same check at the node level
     /// when the user tries to upload program code.
-    fn post_check(&self, optimized_code: Vec<u8>, ty: OptType) -> Result<()> {
-        let optimized_module: Module = parity_wasm::deserialize_buffer(&optimized_code)?;
+    fn post_check(&self, code: Vec<u8>, ty: OptType) -> Result<()> {
+        let module: Module = parity_wasm::deserialize_buffer(&code)?;
         let result = match ty {
             // validate metawasm code
             // see `pallet_gear::pallet::Pallet::read_state_using_wasm(...)`
             OptType::Meta => Code::try_new_mock_with_rules(
-                optimized_code,
+                code,
                 |_| CustomConstantCostRules::default(),
                 TryNewCodeConfig::new_no_exports_check(),
             ),
             // validate wasm code
             // see `pallet_gear::pallet::Pallet::upload_program(...)`
-            OptType::Opt => Code::try_new(
-                optimized_code,
-                1,
-                |_| CustomConstantCostRules::default(),
-                None,
-            ),
+            OptType::Opt => Code::try_new(code, 1, |_| CustomConstantCostRules::default(), None),
         };
 
         // here we add more details to the original code error
         match result {
-            Err(code_error) => Err(BuilderError::CodeCheckFailed(
-                (optimized_module, code_error).into(),
-            ))?,
+            Err(code_error) => Err(BuilderError::CodeCheckFailed((module, code_error).into()))?,
             _ => Ok(()),
         }
     }
