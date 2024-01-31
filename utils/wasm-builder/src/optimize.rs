@@ -116,32 +116,41 @@ impl Optimizer {
         let mut code = vec![];
         module.serialize(&mut code)?;
 
-        // Post-checking the program code for possible errors
-        // `pallet-gear` crate performs the same check at the node level when the user tries to upload program code
-        let original_code = code.clone();
-        match ty {
+        self.post_check(code.clone(), ty)?;
+
+        Ok(code)
+    }
+
+    /// Performs post-checking the program code for possible errors.
+    /// `pallet-gear` crate performs the same check at the node level
+    /// when the user tries to upload program code.
+    fn post_check(&self, optimized_code: Vec<u8>, ty: OptType) -> Result<()> {
+        let optimized_module: Module = parity_wasm::deserialize_buffer(&optimized_code)?;
+        let result = match ty {
             // validate metawasm code
             // see `pallet_gear::pallet::Pallet::read_state_using_wasm(...)`
             OptType::Meta => Code::try_new_mock_with_rules(
-                original_code,
+                optimized_code,
                 |_| CustomConstantCostRules::default(),
                 TryNewCodeConfig::new_no_exports_check(),
-            )
-            .map(|_| ())
-            .map_err(BuilderError::CodeCheckFailed)?,
+            ),
             // validate wasm code
             // see `pallet_gear::pallet::Pallet::upload_program(...)`
             OptType::Opt => Code::try_new(
-                original_code,
+                optimized_code,
                 1,
                 |_| CustomConstantCostRules::default(),
                 None,
-            )
-            .map(|_| ())
-            .map_err(BuilderError::CodeCheckFailed)?,
-        }
+            ),
+        };
 
-        Ok(code)
+        // here we add more details to the original code error
+        match result {
+            Err(code_error) => Err(BuilderError::CodeCheckFailed(
+                (optimized_module, code_error).into(),
+            ))?,
+            _ => Ok(()),
+        }
     }
 }
 
