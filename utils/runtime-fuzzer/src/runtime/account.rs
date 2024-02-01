@@ -87,12 +87,6 @@ pub fn acc_max_balance_gas() -> Gas {
     BlockGasLimitOf::<Runtime>::get().saturating_mul(20)
 }
 
-pub fn acc_min_balance_gas() -> Gas {
-    BlockGasLimitOf::<Runtime>::get()
-        .saturating_mul(3)
-        .saturating_div(2)
-}
-
 pub fn gas_to_value(gas: Gas) -> Balance {
     <Runtime as GearBankConfig>::GasMultiplier::get().gas_to_value(gas)
 }
