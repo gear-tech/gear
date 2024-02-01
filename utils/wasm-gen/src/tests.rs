@@ -40,7 +40,7 @@ use gear_wasm_instrument::{
 };
 use proptest::prelude::*;
 use rand::{rngs::SmallRng, RngCore, SeedableRng};
-use std::num::NonZeroUsize;
+use std::num::{NonZeroU32, NonZeroUsize};
 
 const UNSTRUCTURED_SIZE: usize = 1_000_000;
 
@@ -181,7 +181,7 @@ fn test_avoid_waits_works() {
     let mut injection_types = SyscallsInjectionTypes::all_never();
     injection_types.set(InvocableSyscall::Loose(SyscallName::Wait), 1, 1);
     let syscalls_config = SyscallsConfigBuilder::new(injection_types)
-        .with_waiting_probability(4)
+        .with_waiting_probability(NonZeroU32::new(4).unwrap())
         .build();
 
     let backend_report =
