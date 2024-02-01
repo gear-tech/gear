@@ -27,13 +27,15 @@ use gear_core::{
     message::{DispatchKind, StoredDispatch, StoredMessage},
 };
 
+type BuiltinMessageFor<T> = WithBytesPayload<T>;
+
 macro_rules! impl_builtin_actor {
     ($name: ident, $id: literal) => {
-        pub struct $name {}
+        pub struct $name<T: Config>(core::marker::PhantomData<T>);
 
-        impl BuiltinActor<SimpleBuiltinMessage, u64> for $name {
+        impl<T: Config> BuiltinActor<BuiltinMessageFor<T>, u64> for $name<T> {
             fn handle(
-                _message: &SimpleBuiltinMessage,
+                _message: &BuiltinMessageFor<T>,
                 _gas_limit: u64,
             ) -> (Result<Vec<u8>, BuiltinActorError>, u64) {
                 (Ok(Default::default()), Default::default())
@@ -43,7 +45,7 @@ macro_rules! impl_builtin_actor {
                 buffer.push(Self::ID);
             }
         }
-        impl RegisteredBuiltinActor<SimpleBuiltinMessage, u64> for $name {
+        impl<T: Config> RegisteredBuiltinActor<BuiltinMessageFor<T>, u64> for $name<T> {
             const ID: BuiltinId = BuiltinId($id as u64);
         }
     };
@@ -67,23 +69,23 @@ impl_builtin_actor!(DummyActor14, 14);
 impl_builtin_actor!(DummyActor15, 15);
 
 #[allow(unused)]
-pub type BenchmarkingBuiltinActor = (
-    DummyActor0,
-    DummyActor1,
-    DummyActor2,
-    DummyActor3,
-    DummyActor4,
-    DummyActor5,
-    DummyActor6,
-    DummyActor7,
-    DummyActor8,
-    DummyActor9,
-    DummyActor10,
-    DummyActor11,
-    DummyActor12,
-    DummyActor13,
-    DummyActor14,
-    DummyActor15,
+pub type BenchmarkingBuiltinActor<T> = (
+    DummyActor0<T>,
+    DummyActor1<T>,
+    DummyActor2<T>,
+    DummyActor3<T>,
+    DummyActor4<T>,
+    DummyActor5<T>,
+    DummyActor6<T>,
+    DummyActor7<T>,
+    DummyActor8<T>,
+    DummyActor9<T>,
+    DummyActor10<T>,
+    DummyActor11<T>,
+    DummyActor12<T>,
+    DummyActor13<T>,
+    DummyActor14<T>,
+    DummyActor15<T>,
 );
 
 benchmarks! {
@@ -119,10 +121,11 @@ benchmarks! {
             None,
         );
         let gas_limit = 10_000_000_000_u64;
-        let builtin_message = SimpleBuiltinMessage {
+        let builtin_message = BuiltinMessageFor::<T> {
             source,
             destination: builtin_id,
             payload,
+            _phantom: Default::default(),
         };
     }: {
         let _ = <T as pallet_gear::Config>::BuiltinRouter::provide();

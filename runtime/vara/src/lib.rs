@@ -1050,16 +1050,20 @@ impl pallet_gear_messenger::Config for Runtime {
     type CurrentBlockNumber = Gear;
 }
 
+/// Builtin actors arranged in a tuple.
+#[cfg(not(feature = "runtime-benchmarks"))]
+pub type BuiltinActors = ();
+#[cfg(feature = "runtime-benchmarks")]
+pub type BuiltinActors = pallet_gear_builtin::benchmarking::BenchmarkingBuiltinActor<Runtime>;
+
 parameter_types! {
     pub const BuiltinActorPalletId: PalletId = PalletId(*b"py/biact");
 }
 
-impl pallet_gear_builtin_actor::Config for Runtime {
-    #[cfg(feature = "runtime-benchmarks")]
-    type BuiltinActor = pallet_gear_builtin_actor::benchmarking::BenchmarkingBuiltinActor;
-    #[cfg(not(feature = "runtime-benchmarks"))]
-    type BuiltinActor = ();
-    type WeightInfo = pallet_gear_builtin_actor::weights::SubstrateWeight<Runtime>;
+impl pallet_gear_builtin::Config for Runtime {
+    type Message = pallet_gear_builtin::WithBytesPayload<Self>;
+    type BuiltinActor = BuiltinActors;
+    type WeightInfo = pallet_gear_builtin::weights::SubstrateWeight<Runtime>;
     type PalletId = BuiltinActorPalletId;
 }
 
@@ -1188,7 +1192,7 @@ construct_runtime!(
         StakingRewards: pallet_gear_staking_rewards = 106,
         GearVoucher: pallet_gear_voucher = 107,
         GearBank: pallet_gear_bank = 108,
-        GearBuiltinActor: pallet_gear_builtin_actor = 109,
+        GearBuiltinActor: pallet_gear_builtin = 109,
 
         Sudo: pallet_sudo = 99,
 
@@ -1249,7 +1253,7 @@ construct_runtime!(
         StakingRewards: pallet_gear_staking_rewards = 106,
         GearVoucher: pallet_gear_voucher = 107,
         GearBank: pallet_gear_bank = 108,
-        GearBuiltinActor: pallet_gear_builtin_actor = 109,
+        GearBuiltinActor: pallet_gear_builtin = 109,
 
         // NOTE (!): `pallet_sudo` used to be idx(99).
         // NOTE (!): `pallet_airdrop` used to be idx(198).
@@ -1316,7 +1320,7 @@ mod benches {
         // Gear pallets
         [pallet_gear, Gear]
         [pallet_gear_voucher, GearVoucher]
-        [pallet_gear_builtin_actor, GearBuiltinActor]
+        [pallet_gear_builtin, GearBuiltinActor]
     );
 }
 
@@ -1420,7 +1424,7 @@ impl_runtime_apis_plus_common! {
         }
     }
 
-    impl pallet_gear_builtin_actor_rpc_runtime_api::GearBuiltinActorApi<Block> for Runtime {
+    impl pallet_gear_builtin_rpc_runtime_api::GearBuiltinActorApi<Block> for Runtime {
         fn generate_actor_id(builtin_id: u64) -> H256 {
             GearBuiltinActor::generate_actor_id(builtin_id.into()).into_bytes().into()
         }

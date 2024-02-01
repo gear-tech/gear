@@ -94,12 +94,12 @@ pallet-gear-bank.workspace = true
 pallet-gear-debug = { workspace = true, optional = true }
 pallet-gear-gas.workspace = true
 pallet-gear-payment.workspace = true
-pallet-gear-builtin-actor.workspace = true
+pallet-gear-builtin.workspace = true
 pallet-gear-staking-rewards.workspace = true
 pallet-gear-voucher.workspace = true
 pallet-gear-rpc-runtime-api.workspace = true
 pallet-gear-staking-rewards-rpc-runtime-api.workspace = true
-pallet-gear-builtin-actor-rpc-runtime-api.workspace = true
+pallet-gear-builtin-rpc-runtime-api.workspace = true
 runtime-primitives.workspace = true
 
 [dev-dependencies]
@@ -144,11 +144,11 @@ std = [
 	"pallet-gear-messenger/std",
 	"pallet-gear-payment/std",
 	"pallet-gear-program/std",
-	"pallet-gear-builtin-actor/std",
+	"pallet-gear-builtin/std",
 	"pallet-gear-staking-rewards/std",
 	"pallet-gear-rpc-runtime-api/std",
 	"pallet-gear-staking-rewards-rpc-runtime-api/std",
-	"pallet-gear-builtin-actor-rpc-runtime-api/std",
+	"pallet-gear-builtin-rpc-runtime-api/std",
 	"pallet-grandpa/std",
 	"pallet-identity/std",
 	"pallet-im-online/std",
@@ -204,7 +204,7 @@ runtime-benchmarks = [
   	"pallet-utility/runtime-benchmarks",
 	"pallet-gear/runtime-benchmarks",
 	"pallet-gear-voucher/runtime-benchmarks",
-	"pallet-gear-builtin-actor/runtime-benchmarks",
+	"pallet-gear-builtin/runtime-benchmarks",
 	"sp-runtime/runtime-benchmarks",
 	"pallet-bags-list/runtime-benchmarks",
 	"pallet-staking/runtime-benchmarks",
@@ -228,7 +228,7 @@ try-runtime = [
 	"pallet-gear-gas/try-runtime",
 	"pallet-gear-bank/try-runtime",
 	"pallet-gear-scheduler/try-runtime",
-	"pallet-gear-builtin-actor/try-runtime",
+	"pallet-gear-builtin/try-runtime",
 	"pallet-gear-voucher/try-runtime",
 	"pallet-gear-debug?/try-runtime",
 	"pallet-authority-discovery/try-runtime",

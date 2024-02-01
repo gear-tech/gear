@@ -23,7 +23,7 @@ use jsonrpsee::{
     proc_macros::rpc,
     types::error::{CallError, ErrorObject},
 };
-pub use pallet_gear_builtin_actor_rpc_runtime_api::GearBuiltinActorApi as GearBuiltinActorRuntimeApi;
+pub use pallet_gear_builtin_rpc_runtime_api::GearBuiltinActorApi as GearBuiltinActorRuntimeApi;
 use sp_api::ProvideRuntimeApi;
 use sp_blockchain::HeaderBackend;
 use sp_core::H256;
@@ -32,7 +32,7 @@ use std::sync::Arc;
 
 #[rpc(server)]
 pub trait GearBuiltinActorApi<BlockHash, ResponseType> {
-    #[method(name = "builtinActor_generateActorId")]
+    #[method(name = "gearBuiltin_generateId")]
     fn generate_actor_id(&self, builtin_id: u64) -> RpcResult<ResponseType>;
 }
 
@@ -91,6 +91,6 @@ where
         }
 
         api.generate_actor_id(best_hash, builtin_id)
-            .map_err(|e| map_err(e, "Unable to query inflation info"))
+            .map_err(|e| map_err(e, "Unable to generate actor id"))
     }
 }

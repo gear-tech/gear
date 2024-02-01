@@ -17,10 +17,9 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    self as pallet_gear_builtin_actor, BuiltinActor, BuiltinActorError, Dispatchable,
-    RegisteredBuiltinActor, SimpleBuiltinMessage,
+    self as pallet_gear_builtin, BuiltinActor, BuiltinActorError, RegisteredBuiltinActor,
+    WithBytesPayload,
 };
-use core::cell::RefCell;
 use frame_support::{
     construct_runtime, parameter_types,
     traits::{ConstBool, ConstU64, FindAuthor, OnFinalize, OnInitialize},
@@ -40,28 +39,7 @@ type AccountId = u64;
 type BlockNumber = u64;
 type Balance = u128;
 type Block = frame_system::mocking::MockBlock<Test>;
-
-pub(crate) const SIGNER: AccountId = 1;
-pub(crate) const BLOCK_AUTHOR: AccountId = 10;
-
-pub(crate) const EXISTENTIAL_DEPOSIT: u128 = 10 * UNITS;
-pub(crate) const ENDOWMENT: u128 = 1_000 * UNITS;
-
-pub(crate) const UNITS: u128 = 1_000_000_000_000; // 10^(-12) precision
-pub(crate) const MILLISECS_PER_BLOCK: u64 = 2_400;
-
-#[derive(Clone, PartialEq, Eq, Debug)]
-pub(crate) struct ExecutionTraceFrame {
-    pub destination: BuiltinId,
-    pub source: ProgramId,
-    pub input: Vec<u8>,
-    pub is_success: bool,
-}
-
-thread_local! {
-    static DEBUG_EXECUTION_TRACE: RefCell<Vec<ExecutionTraceFrame>> = RefCell::new(Vec::new());
-    static IN_TRANSACTION: RefCell<bool> = RefCell::new(false);
-}
+type BuiltinMessage = WithBytesPayload<Test>;
 
 // Configure a mock runtime to test the pallet.
 construct_runtime!(
@@ -77,7 +55,7 @@ construct_runtime!(
         GearBank: pallet_gear_bank,
         Gear: pallet_gear,
         GearGas: pallet_gear_gas,
-        GearBuiltinActor: pallet_gear_builtin_actor,
+        GearBuiltinActor: pallet_gear_builtin,
     }
 );
 
@@ -116,110 +94,95 @@ pallet_gear::impl_config!(
     BuiltinRouter = GearBuiltinActor,
 );
 
-// A builtin actor who always returns success (even if not enough gas is provided).
-pub struct SuccessBuiltinActor {}
-impl BuiltinActor<SimpleBuiltinMessage, u64> for SuccessBuiltinActor {
+pub struct FirstBuiltinActor {}
+impl BuiltinActor<BuiltinMessage, u64> for FirstBuiltinActor {
     fn handle(
-        message: &SimpleBuiltinMessage,
+        _message: &BuiltinMessage,
         _gas_limit: u64,
     ) -> (Result<Vec<u8>, BuiltinActorError>, u64) {
-        if !in_transaction() {
-            DEBUG_EXECUTION_TRACE.with(|d| {
-                d.borrow_mut().push(ExecutionTraceFrame {
-                    destination: <Self as RegisteredBuiltinActor<_, _>>::ID,
-                    source: message.source(),
-                    input: message.payload_bytes().to_vec(),
-                    is_success: true,
-                })
-            });
-        }
-
-        // Build the reply message
         let payload = b"Success".to_vec();
 
-        (Ok(payload), 1_000_000_u64)
+        (Ok(payload), 1_000_u64)
     }
 
     fn get_ids(buffer: &mut Vec<BuiltinId>) {
         buffer.push(Self::ID);
     }
 }
-impl RegisteredBuiltinActor<SimpleBuiltinMessage, u64> for SuccessBuiltinActor {
-    const ID: BuiltinId = BuiltinId(u64::from_le_bytes(*b"bltn/suc"));
+impl RegisteredBuiltinActor<BuiltinMessage, u64> for FirstBuiltinActor {
+    const ID: BuiltinId = BuiltinId(1_u64);
 }
 
-// A builtin actor that always returns an error.
-pub struct ErrorBuiltinActor {}
-impl BuiltinActor<SimpleBuiltinMessage, u64> for ErrorBuiltinActor {
+pub struct SecondBuiltinActor {}
+impl BuiltinActor<BuiltinMessage, u64> for SecondBuiltinActor {
     fn handle(
-        message: &SimpleBuiltinMessage,
+        _message: &BuiltinMessage,
         _gas_limit: u64,
     ) -> (Result<Vec<u8>, BuiltinActorError>, u64) {
-        if !in_transaction() {
-            DEBUG_EXECUTION_TRACE.with(|d| {
-                d.borrow_mut().push(ExecutionTraceFrame {
-                    destination: <Self as RegisteredBuiltinActor<_, _>>::ID,
-                    source: message.source(),
-                    input: message.payload_bytes().to_vec(),
-                    is_success: false,
-                })
-            });
-        }
-        (Err(BuiltinActorError::InsufficientGas), 100_000_u64)
-    }
-
-    fn get_ids(buffer: &mut Vec<BuiltinId>) {
-        buffer.push(Self::ID);
-    }
-}
-impl RegisteredBuiltinActor<SimpleBuiltinMessage, u64> for ErrorBuiltinActor {
-    const ID: BuiltinId = BuiltinId(u64::from_le_bytes(*b"bltn/err"));
-}
-
-// An honest bulitin actor that actually checks whether the gas is sufficient.
-pub struct HonestBuiltinActor {}
-impl BuiltinActor<SimpleBuiltinMessage, u64> for HonestBuiltinActor {
-    fn handle(
-        message: &SimpleBuiltinMessage,
-        gas_limit: u64,
-    ) -> (Result<Vec<u8>, BuiltinActorError>, u64) {
-        let is_error = gas_limit < 500_000_u64;
-
-        if !in_transaction() {
-            DEBUG_EXECUTION_TRACE.with(|d| {
-                d.borrow_mut().push(ExecutionTraceFrame {
-                    destination: <Self as RegisteredBuiltinActor<_, _>>::ID,
-                    source: message.source(),
-                    input: message.payload_bytes().to_vec(),
-                    is_success: !is_error,
-                })
-            });
-        }
-
-        if is_error {
-            return (Err(BuiltinActorError::InsufficientGas), 100_000_u64);
-        }
-
-        // Build the reply message
         let payload = b"Success".to_vec();
 
-        (Ok(payload), 500_000_u64)
+        (Ok(payload), 1_000_u64)
     }
 
     fn get_ids(buffer: &mut Vec<BuiltinId>) {
         buffer.push(Self::ID);
     }
 }
-impl RegisteredBuiltinActor<SimpleBuiltinMessage, u64> for HonestBuiltinActor {
-    const ID: BuiltinId = BuiltinId(u64::from_le_bytes(*b"bltn/hon"));
+impl RegisteredBuiltinActor<BuiltinMessage, u64> for SecondBuiltinActor {
+    const ID: BuiltinId = BuiltinId(2_u64);
+}
+
+pub struct ThirdBuiltinActor {}
+impl BuiltinActor<BuiltinMessage, u64> for ThirdBuiltinActor {
+    fn handle(
+        _message: &BuiltinMessage,
+        _gas_limit: u64,
+    ) -> (Result<Vec<u8>, BuiltinActorError>, u64) {
+        let payload = b"Success".to_vec();
+
+        (Ok(payload), 1_000_u64)
+    }
+
+    fn get_ids(buffer: &mut Vec<BuiltinId>) {
+        buffer.push(Self::ID);
+    }
+}
+impl RegisteredBuiltinActor<BuiltinMessage, u64> for ThirdBuiltinActor {
+    const ID: BuiltinId = BuiltinId(3_u64);
+}
+
+// Duplicate builtin id: `BuiltinId(2)` already exists.
+pub struct DuplicateBuiltinActor {}
+impl BuiltinActor<BuiltinMessage, u64> for DuplicateBuiltinActor {
+    fn handle(
+        _message: &BuiltinMessage,
+        _gas_limit: u64,
+    ) -> (Result<Vec<u8>, BuiltinActorError>, u64) {
+        let payload = b"Success".to_vec();
+
+        (Ok(payload), 1_000_u64)
+    }
+
+    fn get_ids(buffer: &mut Vec<BuiltinId>) {
+        buffer.push(Self::ID);
+    }
+}
+impl RegisteredBuiltinActor<BuiltinMessage, u64> for DuplicateBuiltinActor {
+    const ID: BuiltinId = BuiltinId(2_u64);
 }
 
 parameter_types! {
     pub const BuiltinActorPalletId: PalletId = PalletId(*b"py/biact");
 }
 
-impl pallet_gear_builtin_actor::Config for Test {
-    type BuiltinActor = (SuccessBuiltinActor, ErrorBuiltinActor, HonestBuiltinActor);
+impl pallet_gear_builtin::Config for Test {
+    type Message = BuiltinMessage;
+    type BuiltinActor = (
+        FirstBuiltinActor,
+        SecondBuiltinActor,
+        ThirdBuiltinActor,
+        DuplicateBuiltinActor,
+    );
     type WeightInfo = ();
     type PalletId = BuiltinActorPalletId;
 }
@@ -282,23 +245,6 @@ pub(crate) fn run_to_block(n: u64) {
     }
 }
 
-pub(crate) fn run_to_next_block() {
-    run_for_n_blocks(1)
-}
-
-pub(crate) fn run_for_n_blocks(n: u64) {
-    let now = System::block_number();
-    let until = now + n;
-    for current_blk in now..until {
-        Gear::run(frame_support::dispatch::RawOrigin::None.into(), None).unwrap();
-        on_finalize(current_blk);
-
-        let new_block_number = current_blk + 1;
-        System::set_block_number(new_block_number);
-        on_initialize(new_block_number);
-    }
-}
-
 // Run on_initialize hooks in order as they appear in AllPalletsWithSystem.
 pub(crate) fn on_initialize(new_block_number: BlockNumberFor<Test>) {
     Timestamp::set_timestamp(new_block_number.saturating_mul(MILLISECS_PER_BLOCK));
@@ -320,39 +266,6 @@ pub(crate) fn on_finalize(current_blk: BlockNumberFor<Test>) {
     }))
 }
 
-pub(crate) fn gas_price(gas: u64) -> u128 {
-    <Test as pallet_gear_bank::Config>::GasMultiplier::get().gas_to_value(gas)
-}
-
-pub(crate) fn start_transaction() {
-    sp_externalities::with_externalities(|ext| ext.storage_start_transaction())
-        .expect("externalities should exists");
-
-    set_transaction_flag(true);
-}
-
-pub(crate) fn rollback_transaction() {
-    sp_externalities::with_externalities(|ext| {
-        ext.storage_rollback_transaction()
-            .expect("ongoing transaction must be there");
-    })
-    .expect("externalities should be set");
-
-    set_transaction_flag(false);
-}
-
-pub(crate) fn current_stack() -> Vec<ExecutionTraceFrame> {
-    DEBUG_EXECUTION_TRACE.with(|stack| stack.borrow().clone())
-}
-
-pub(crate) fn in_transaction() -> bool {
-    IN_TRANSACTION.with(|value| *value.borrow())
-}
-
-pub(crate) fn set_transaction_flag(new_val: bool) {
-    IN_TRANSACTION.with(|value| *value.borrow_mut() = new_val)
-}
-
 pub(crate) fn new_test_ext() -> sp_io::TestExternalities {
     let bank_address = <Test as pallet_gear_bank::Config>::BankAddress::get();
 
@@ -360,4 +273,39 @@ pub(crate) fn new_test_ext() -> sp_io::TestExternalities {
         .endowment(ENDOWMENT)
         .endowed_accounts(vec![bank_address, SIGNER, BLOCK_AUTHOR])
         .build()
+}
+
+pub(crate) fn init_logger() {
+    let _ = env_logger::Builder::from_default_env()
+        .format_module_path(false)
+        .format_level(true)
+        .try_init();
+}
+
+use crate::mock::{BLOCK_AUTHOR, ENDOWMENT, EXISTENTIAL_DEPOSIT, MILLISECS_PER_BLOCK, SIGNER};
+use common::Origin;
+use frame_support::assert_ok;
+
+const ARBITRARY_ADDRESS: [u8; 32] =
+    hex_literal::hex!("1f81dd2c95c0006c335530c3f1b32d8b1314e08bc940ea26afdbe2af88b0400d");
+
+#[test]
+#[should_panic(expected = "Duplicate builtin ids")]
+fn queue_processing_panics_on_any_message() {
+    init_logger();
+
+    new_test_ext().execute_with(|| {
+        let destination: ProgramId = H256::from(ARBITRARY_ADDRESS).cast();
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(SIGNER),
+            destination,
+            Default::default(),
+            10_000_000_000,
+            0,
+            false,
+        ));
+        // Expecting panic
+        run_to_block(2);
+    });
 }

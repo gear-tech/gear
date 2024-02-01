@@ -37,11 +37,11 @@ pub(crate) fn init_logger() {
 }
 
 const SUCCESS_ACTOR_ID: [u8; 32] =
-    hex_literal::hex!("1f81dd2c95c0006c335530c3f1b32d8b1314e08bc940ea26afdbe2af88b0400d");
+    hex_literal::hex!("e9391bc9ccbc52c944f5e8c957d36393b7b96abc144e436731198eb650c5b874");
 const ERROR_ACTOR_ID: [u8; 32] =
-    hex_literal::hex!("983ebefef8810a41a6a8d9dafa6d8d1016841d04e57f4a3ff87a9053a8616cf8");
+    hex_literal::hex!("eff0acac338350c3ca8adcbbd7be7552f980c28670ab03ff7224d5d5b012e4f9");
 const HONEST_ACTOR_ID: [u8; 32] =
-    hex_literal::hex!("eb269f3093445b3737e847c54e295b8b921f3b8301f63c96e211dd804db73815");
+    hex_literal::hex!("7eb026f54b3ee698d933fbbbb0b22665acd4b435a7272ead5dc9152c97cbf032");
 
 fn deploy_contract(init_payload: Vec<u8>) {
     assert_ok!(Gear::upload_program(
@@ -103,7 +103,7 @@ fn invoking_builtin_from_program_works() {
 
         assert_eq!(current_stack(), vec![]);
 
-        deploy_contract((SUCCESS_ACTOR_ID, 0u64).encode());
+        deploy_contract((HONEST_ACTOR_ID, 0u64).encode());
         run_to_next_block();
 
         let signer_current_balance_at_blk_1 = Balances::free_balance(SIGNER);

@@ -39,10 +39,8 @@ use gear_core::{
     program::{MemoryInfix, Program},
     reservation::{GasReservationMap, GasReserver},
 };
-use gear_core_backend::{
-    env::SystemEnvironmentError,
-    error::{SystemTerminationReason, TrapExplanation},
-};
+pub use gear_core_backend::error::TrapExplanation;
+use gear_core_backend::{env::SystemEnvironmentError, error::SystemTerminationReason};
 use gear_core_errors::{SignalCode, SimpleExecutionError};
 use scale_info::scale::{self, Decode, Encode};
 
