@@ -49,7 +49,7 @@ fn gring(bin: &PathBuf, args: &[&str]) -> Result<String> {
 fn new() -> Result<()> {
     let passphrase = "test";
     Command::New {
-        name: "test".to_string(),
+        name: "_gring_test_new".to_string(),
         passphrase: passphrase.to_string(),
         vanity: None,
     }
@@ -65,12 +65,13 @@ fn new() -> Result<()> {
 
 #[test]
 fn sign_and_verify() -> Result<()> {
-    let key = "test";
+    let key = "_gring_test_sig";
+    let key2 = "_gring_test_sig_2";
     let message = "vara";
     let bin = bin();
 
     gring(&bin, &["new", key, "-p", "test"])?;
-    gring(&bin, &["use", key])?;
+    gring(&bin, &["new", key2, "-p", "test"])?;
     let sign = gring(&bin, &["sign", message, "-p", "test"])?;
     let signature = sign
         .lines()
@@ -79,7 +80,12 @@ fn sign_and_verify() -> Result<()> {
         .split("Signature:")
         .collect::<Vec<&str>>()[1]
         .trim();
-
     assert!(gring(&bin, &["verify", message, signature])?.contains("Verified"));
+
+    // The primary key has been switched to `key2` on creating
+    // it, `key` can not verify this signature bcz it is signed
+    // by `key2`.
+    gring(&bin, &["use", key])?;
+    assert!(gring(&bin, &["verify", message, signature])?.contains("Not Verified"));
     Ok(())
 }

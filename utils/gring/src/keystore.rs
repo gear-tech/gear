@@ -1,8 +1,6 @@
-use std::time::{SystemTime, UNIX_EPOCH};
-
 // This file is part of Gear.
 //
-// Copyright (C) 2021-2024 Gear Technologies Inc.
+// Copyright (C) 2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -17,12 +15,14 @@ use std::time::{SystemTime, UNIX_EPOCH};
 //
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
+
 use crate::{ss58, KeypairInfo, Scrypt};
 use anyhow::{anyhow, Result};
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use rand::RngCore;
 use schnorrkel::Keypair;
 use serde::{Deserialize, Serialize};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 /// JSON keystore for storing sr25519 key pair.
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
@@ -190,7 +190,7 @@ impl Encoding {
 
     /// Check if is encoding with scrypt.
     pub fn is_scrypt(&self) -> bool {
-        self.ty[0] == "scrypt"
+        self.ty.get(0) == Some(&"scrypt".into())
     }
 
     /// Check if the cipher is xsalsa20-poly1305.
@@ -211,7 +211,7 @@ pub struct Meta {
     /// The name of the key pair.
     pub name: String,
 
-    /// The timestamp when the key pair is created.
+    /// The timestamp when the key pair is created in milliseconds.
     #[serde(rename = "whenCreated")]
     pub when_created: u128,
 }
