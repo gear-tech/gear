@@ -81,16 +81,18 @@ pub const PACKAGE_ALIAS: [(&str, &str); 2] = [
     ("gear-runtime-primitives", "runtime-primitives"),
 ];
 
-/// The working version of sp-wasm-interface.
-pub const GP_RUNTIME_INTERFACE_VERSION: &str = "7.0.5";
-
 /// Check the input package
 pub fn check(manifest: &str) -> Result<ExitStatus> {
     Command::new("cargo")
-        .arg("check")
-        .arg("--lib")
-        .arg("--manifest-path")
-        .arg(manifest)
+        .args(["check", "--lib", "--manifest-path", manifest])
+        .status()
+        .map_err(Into::into)
+}
+
+/// Test the input package
+pub fn test(package: &str, test: &str) -> Result<ExitStatus> {
+    Command::new("cargo")
+        .args(["test", "-p", package, "--", test])
         .status()
         .map_err(Into::into)
 }
@@ -98,10 +100,7 @@ pub fn check(manifest: &str) -> Result<ExitStatus> {
 /// Publish the input package
 pub fn publish(manifest: &str) -> Result<ExitStatus> {
     Command::new("cargo")
-        .arg("publish")
-        .arg("--manifest-path")
-        .arg(manifest)
-        .arg("--allow-dirty")
+        .args(["publish", "--manifest-path", manifest, "--allow-dirty"])
         .status()
         .map_err(Into::into)
 }

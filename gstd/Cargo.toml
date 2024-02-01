@@ -62,7 +62,7 @@ panic-location = ["panic-message"]
 #!
 #! For example, if you don't use the `panic-location` feature, the compiler
 #! will remove all locations such as `/home/username/dapp/src/lib.rs:1:2`
-#! from the binary. The size of smart contract will be reduced and
+#! from the binary. The size of program will be reduced and
 #! `/home/username/...` information will not be included in the binary.
 
 ## Enables all features below.
@@ -77,7 +77,7 @@ oom-handler = []
 
 #! ## Additional features
 
-## Enables debug logging; this heavily impacts gas cost 
+## Enables debug logging; this heavily impacts gas cost
 ## and is therefore disabled by default.
 debug = ["galloc/debug", "gcore/debug"]
 

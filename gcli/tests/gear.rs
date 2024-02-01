@@ -17,23 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use common::env;
-use gsdk::{result::Error, Api};
 use std::path::PathBuf;
 
 mod cmd;
 mod common;
-
-#[tokio::test]
-async fn api_timeout() {
-    let error = Api::new_with_timeout(None, Some(0)).await.err();
-    assert!(
-        matches!(
-            error,
-            Some(Error::SubxtRpc(jsonrpsee::core::Error::Transport(..)))
-        ),
-        "Unexpected error occurred: {error:?}"
-    );
-}
 
 #[test]
 fn paths() {
