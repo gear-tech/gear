@@ -48,10 +48,18 @@ impl<T> SandboxStore<T> for Store<T> {
     fn new(state: T) -> Self {
         let register_len = mem::size_of::<UntypedValue>();
 
+        const DEFAULT_MIN_VALUE_STACK_HEIGHT: usize = 1024;
+        const DEFAULT_MAX_VALUE_STACK_HEIGHT: usize = 1024 * DEFAULT_MIN_VALUE_STACK_HEIGHT;
+        const DEFAULT_MAX_RECURSION_DEPTH: usize = 16384;
+
         let mut config = Config::default();
         config.set_stack_limits(
-            StackLimits::new(1024 / register_len, (1024 * 1024) / register_len, 16384)
-                .expect("infallible"),
+            StackLimits::new(
+                DEFAULT_MIN_VALUE_STACK_HEIGHT / register_len,
+                DEFAULT_MAX_VALUE_STACK_HEIGHT / register_len,
+                DEFAULT_MAX_RECURSION_DEPTH,
+            )
+            .expect("infallible"),
         );
 
         let engine = Engine::new(&config);
