@@ -86,6 +86,26 @@ use utils::*;
 type Gas = <<Test as Config>::GasProvider as common::GasProvider>::GasTree;
 
 #[test]
+fn calculate_gas_init_failure() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let err = Gear::calculate_gas_info(
+            USER_1.into_origin(),
+            HandleKind::Init(ProgramCodeKind::GreedyInit.to_bytes()),
+            EMPTY_PAYLOAD.to_vec(),
+            0,
+            true,
+            true,
+        )
+        .expect_err("Expected program to fail due to lack of gas");
+
+        assert!(err.starts_with("Program terminated with a trap"));
+    });
+}
+
+#[test]
+#[ignore = "TODO: enable me once #3665 solved: \
+`gas_below_ed` atm is less than needed to initialize program"]
 fn calculate_gas_zero_balance() {
     init_logger();
     new_test_ext().execute_with(|| {
@@ -365,7 +385,7 @@ fn delayed_reservations_sending_validation() {
         run_to_next_block(None);
 
         let error_text = format!(
-            "{SENDING_EXPECT}: {:?}",
+            "panicked with '{SENDING_EXPECT}: {:?}'",
             GstdError::Core(
                 ExtError::Message(MessageError::InsufficientGasForDelayedSending).into()
             )
@@ -402,7 +422,7 @@ fn delayed_reservations_sending_validation() {
         run_for_blocks(wait_for as u64 + 1, None);
 
         let error_text = format!(
-            "{SENDING_EXPECT}: {:?}",
+            "panicked with '{SENDING_EXPECT}: {:?}'",
             GstdError::Core(
                 ExtError::Message(MessageError::InsufficientGasForDelayedSending).into()
             )
@@ -513,7 +533,7 @@ fn default_wait_lock_timeout() {
         run_to_block(expiration_block, None);
 
         let error_text = format!(
-            "ran into error-reply: {:?}",
+            "panicked with 'ran into error-reply: {:?}'",
             GstdError::Timeout(
                 expiration_block.unique_saturated_into(),
                 expiration_block.unique_saturated_into()
@@ -892,7 +912,7 @@ fn auto_reply_out_of_rent_waitlist() {
 
         run_to_next_block(None);
         // Signal for waiter program since it has system reservation
-        // + auto error reply to proxy contract.
+        // + auto error reply to proxy program.
         assert_last_dequeued(2);
     });
 }
@@ -1389,7 +1409,7 @@ fn gasfull_after_gasless() {
         r#"
         (module
         (import "env" "memory" (memory 1))
-        (import "env" "gr_reply_wgas" (func $reply_wgas (param i32 i32 i64 i32 i32 i32)))
+        (import "env" "gr_reply_wgas" (func $reply_wgas (param i32 i32 i64 i32 i32)))
         (import "env" "gr_send" (func $send (param i32 i32 i32 i32 i32)))
         (export "init" (func $init))
         (func $init
@@ -1398,7 +1418,7 @@ fn gasfull_after_gasless() {
             i32.store
 
             (call $send (i32.const 111) (i32.const 0) (i32.const 32) (i32.const 10) (i32.const 333))
-            (call $reply_wgas (i32.const 0) (i32.const 32) (i64.const {gas_limit}) (i32.const 222) (i32.const 10) (i32.const 333))
+            (call $reply_wgas (i32.const 0) (i32.const 32) (i64.const {gas_limit}) (i32.const 222) (i32.const 333))
         )
     )"#,
         gas_limit = 10 * <Test as Config>::MailboxThreshold::get()
@@ -3756,7 +3776,7 @@ fn lazy_pages() {
         run_to_block(3, None);
 
         // Dirty hack: lazy pages info is stored in thread local static variables,
-        // so after contract execution lazy-pages information
+        // so after program execution lazy-pages information
         // remains correct and we can use it here.
         let write_accessed_pages: BTreeSet<_> = gear_ri::gear_ri::write_accessed_pages()
             .into_iter()
@@ -3784,8 +3804,8 @@ fn lazy_pages() {
 
 #[test]
 fn initial_pages_cheaper_than_allocated_pages() {
-    // When contract has some amount of the initial pages, then it is simpler
-    // for core processor and executor than process the same contract
+    // When program has some amount of the initial pages, then it is simpler
+    // for core processor and executor than process the same program
     // but with allocated pages.
 
     let wat_initial = r#"
@@ -6134,7 +6154,7 @@ fn terminated_locking_funds() {
 
         // Because we set gas for init message second execution only for resources loading, then
         // after execution system reserved gas and sended value and price for wait list must be returned
-        // to user. This is because contract will stop his execution on first wasm block, because of gas
+        // to user. This is because program will stop his execution on first wasm block, because of gas
         // limit exceeded. So, gas counter will be equal to amount of returned from wait list gas in handle reply.
         let expected_balance_difference =
             prog_free + returned_from_wait_list + returned_from_system_reservation;
@@ -6348,7 +6368,7 @@ fn test_create_program_no_code_hash() {
         ));
         run_to_block(2, None);
 
-        // Init and dispatch messages from the contract are dequeued, but not executed
+        // Init and dispatch messages from the program are dequeued, but not executed
         // 2 error replies are generated, and executed (forwarded to USER_2 mailbox).
         assert_eq!(MailboxOf::<Test>::len(&USER_2), 2);
         assert_total_dequeued(4 + 2); // +2 for upload_program/send_messages
@@ -7378,7 +7398,7 @@ fn gas_spent_precalculated() {
 }
 
 #[test]
-fn test_two_contracts_composition_works() {
+fn test_two_programs_composition_works() {
     use demo_compose::WASM_BINARY as COMPOSE_WASM_BINARY;
     use demo_mul_by_const::WASM_BINARY as MUL_CONST_WASM_BINARY;
 
@@ -7387,15 +7407,15 @@ fn test_two_contracts_composition_works() {
         // Initial value in all gas trees is 0
         assert_eq!(GasHandlerOf::<Test>::total_supply(), 0);
 
-        let contract_a_id = generate_program_id(MUL_CONST_WASM_BINARY, b"contract_a");
-        let contract_b_id = generate_program_id(MUL_CONST_WASM_BINARY, b"contract_b");
-        let contract_code_id = CodeId::generate(MUL_CONST_WASM_BINARY);
+        let program_a_id = generate_program_id(MUL_CONST_WASM_BINARY, b"program_a");
+        let program_b_id = generate_program_id(MUL_CONST_WASM_BINARY, b"program_b");
+        let program_code_id = CodeId::generate(MUL_CONST_WASM_BINARY);
         let compose_id = generate_program_id(COMPOSE_WASM_BINARY, b"salt");
 
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
             MUL_CONST_WASM_BINARY.to_vec(),
-            b"contract_a".to_vec(),
+            b"program_a".to_vec(),
             50_u64.encode(),
             10_000_000_000,
             0,
@@ -7404,8 +7424,8 @@ fn test_two_contracts_composition_works() {
 
         assert_ok!(Gear::create_program(
             RuntimeOrigin::signed(USER_1),
-            contract_code_id,
-            b"contract_b".to_vec(),
+            program_code_id,
+            b"program_b".to_vec(),
             75_u64.encode(),
             10_000_000_000,
             0,
@@ -7417,8 +7437,8 @@ fn test_two_contracts_composition_works() {
             COMPOSE_WASM_BINARY.to_vec(),
             b"salt".to_vec(),
             (
-                <[u8; 32]>::from(contract_a_id),
-                <[u8; 32]>::from(contract_b_id)
+                <[u8; 32]>::from(program_a_id),
+                <[u8; 32]>::from(program_b_id)
             )
                 .encode(),
             10_000_000_000,
@@ -7545,7 +7565,7 @@ fn test_create_program_with_value_lt_ed() {
         assert_total_dequeued(1);
 
         let error_text = format!(
-            "Failed to create program: {:?}",
+            "panicked with 'Failed to create program: {:?}'",
             GstdError::Core(ExtError::Message(MessageError::InsufficientValue).into())
         );
 
@@ -7595,7 +7615,7 @@ fn test_create_program_with_exceeding_value() {
         assert_total_dequeued(1);
 
         let error_text = format!(
-            "Failed to create program: {:?}",
+            "panicked with 'Failed to create program: {:?}'",
             GstdError::Core(ExtError::Execution(ExecutionError::NotEnoughValue).into())
         );
         assert_failed(
@@ -7681,7 +7701,7 @@ fn demo_constructor_works() {
 
         run_to_next_block(None);
 
-        let error_text = "I just panic every time".to_owned();
+        let error_text = "panicked with 'I just panic every time'".to_owned();
 
         assert_failed(
             message_id,
@@ -8000,13 +8020,13 @@ fn cascading_messages_with_value_do_not_overcharge() {
 
     init_logger();
     new_test_ext().execute_with(|| {
-        let contract_id = generate_program_id(MUL_CONST_WASM_BINARY, b"contract");
+        let program_id = generate_program_id(MUL_CONST_WASM_BINARY, b"program");
         let wrapper_id = generate_program_id(WAITING_PROXY_WASM_BINARY, b"salt");
 
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
             MUL_CONST_WASM_BINARY.to_vec(),
-            b"contract".to_vec(),
+            b"program".to_vec(),
             50_u64.encode(),
             10_000_000_000,
             0,
@@ -8017,7 +8037,7 @@ fn cascading_messages_with_value_do_not_overcharge() {
             RuntimeOrigin::signed(USER_1),
             WAITING_PROXY_WASM_BINARY.to_vec(),
             b"salt".to_vec(),
-            (<[u8; 32]>::from(contract_id), 0u64).encode(),
+            (<[u8; 32]>::from(program_id), 0u64).encode(),
             10_000_000_000,
             0,
             false,
@@ -8052,8 +8072,8 @@ fn cascading_messages_with_value_do_not_overcharge() {
 
         run_to_block(4, None);
 
-        // A message is sent to a waiting proxy contract that passes execution
-        // on to another contract while keeping the `value`.
+        // A message is sent to a waiting proxy program that passes execution
+        // on to another program while keeping the `value`.
         // The overall gas expenditure is `gas_to_spend`. The message gas limit
         // is set to be just enough to cover this amount.
         // The sender's account has enough funds for both gas and `value`,
@@ -8668,7 +8688,7 @@ fn mx_lock_ownership_exceedance() {
             let get_lock_ownership_exceeded_trap = |command_msg_id| {
                 ActorExecutionErrorReplyReason::Trap(TrapExplanation::Panic(
                     format!(
-                        "Message 0x{} has exceeded lock ownership time",
+                        "panicked with 'Message 0x{} has exceeded lock ownership time'",
                         hex::encode(command_msg_id)
                     )
                     .into(),
@@ -12151,6 +12171,45 @@ fn async_init() {
 }
 
 #[test]
+fn wake_after_exit() {
+    use demo_custom::{InitMessage, WASM_BINARY};
+    use demo_ping::WASM_BINARY as PING_BINARY;
+
+    init_logger();
+
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_3),
+            PING_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            Default::default(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+            false,
+        ));
+
+        let ping: [u8; 32] = get_last_program_id().into();
+
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            InitMessage::WakeAfterExit(ping.into()).encode(),
+            BlockGasLimitOf::<Test>::get(),
+            1000,
+            false,
+        ));
+
+        let mid = get_last_message_id();
+
+        run_to_next_block(None);
+
+        // Execution after wake must be skipped, so status must be NotExecuted.
+        assert_not_executed(mid);
+    });
+}
+
+#[test]
 fn check_gear_stack_end_fail() {
     // This test checks, that in case user makes WASM file with incorrect
     // gear stack end export, then execution will end with an error.
@@ -13316,6 +13375,7 @@ fn send_gasless_message_works() {
             USER_2,
             gas_price(DEFAULT_GAS_LIMIT),
             Some([program_id].into()),
+            false,
             100,
         ));
 
@@ -13417,6 +13477,7 @@ fn send_gasless_reply_works() {
             USER_1,
             gas_price(DEFAULT_GAS_LIMIT),
             Some([prog_id].into()),
+            false,
             100,
         ));
         let voucher_id = utils::get_last_voucher_id();
@@ -13713,7 +13774,7 @@ fn test_gas_allowance_exceed_with_context() {
 /// then no panic occurs and the message is not executed.
 #[test]
 fn test_send_to_terminated_from_program() {
-    use demo_constructor::{Calls, Scheme};
+    use demo_constructor::{Calls, Scheme, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -13723,13 +13784,19 @@ fn test_send_to_terminated_from_program() {
         let init = Calls::builder().panic("Die in init");
         // "Bomb" in case after refactoring runtime we accidentally allow terminated programs to be executed.
         let handle = Calls::builder().send(user_1_bytes, b"REPLY_FROM_DEAD".to_vec());
-        let (_, pid_terminated) = utils::submit_constructor_with_args(
+
+        assert_ok!(Gear::upload_program(
             // Using `USER_2` not to pollute `USER_1` mailbox to make test easier.
-            USER_2,
-            b"salt1",
-            Scheme::predefined(init, handle, Calls::default(), Calls::default()),
+            RuntimeOrigin::signed(USER_2),
+            WASM_BINARY.to_vec(),
+            b"salt1".to_vec(),
+            Scheme::predefined(init, handle, Calls::default(), Calls::default()).encode(),
+            BlockGasLimitOf::<Test>::get(),
             0,
-        );
+            false,
+        ));
+
+        let pid_terminated = utils::get_last_program_id();
 
         // Check `pid_terminated` exists as an active program.
         assert!(Gear::is_active(pid_terminated));
@@ -13908,19 +13975,25 @@ fn gear_block_number_math_adds_up() {
 
 #[test]
 fn test_gas_info_of_terminated_program() {
-    use demo_constructor::{Calls, Scheme};
+    use demo_constructor::{Calls, Scheme, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
         // Dies in init
         let init_dead = Calls::builder().panic("Die in init");
         let handle_dead = Calls::builder().panic("Called after being terminated!");
-        let (_, pid_dead) = utils::submit_constructor_with_args(
-            USER_1,
-            b"salt1",
-            Scheme::predefined(init_dead, handle_dead, Calls::default(), Calls::default()),
+
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            b"salt1".to_vec(),
+            Scheme::predefined(init_dead, handle_dead, Calls::default(), Calls::default()).encode(),
+            BlockGasLimitOf::<Test>::get(),
             0,
-        );
+            false,
+        ));
+
+        let pid_dead = utils::get_last_program_id();
 
         // Sends in handle message do dead program
         let handle_proxy = Calls::builder().send(pid_dead.into_bytes(), []);
@@ -14381,6 +14454,26 @@ fn critical_hook_in_handle_signal() {
         let signal_msg_id = MessageId::generate_signal(mid);
         let status = dispatch_status(signal_msg_id);
         assert_eq!(status, Some(DispatchStatus::Failed));
+    });
+}
+
+#[test]
+fn export_is_import() {
+    let wat = r#"
+        (module
+            (import "env" "memory" (memory 1))
+            (import "env" "gr_leave" (func $gr_leave))
+            (export "init" (func $gr_leave))
+            (func)
+        )"#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let code = ProgramCodeKind::Custom(wat).to_bytes();
+        assert_noop!(
+            Gear::upload_code(RuntimeOrigin::signed(USER_1), code),
+            Error::<Test>::ProgramConstructionFailed
+        );
     });
 }
 

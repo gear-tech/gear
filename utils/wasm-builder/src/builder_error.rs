@@ -40,4 +40,11 @@ pub enum BuilderError {
 
     #[error("cargo toolchain is invalid `{0}`")]
     CargoToolchainInvalid(String),
+
+    #[error(
+        "recommended toolchain `{0}` not found, install it using the command:\n\
+        rustup toolchain install {0} --component llvm-tools --target wasm32-unknown-unknown\n\n\
+        after installation, do not forget to set `channel = \"{0}\"` in `rust-toolchain.toml` file"
+    )]
+    RecommendedToolchainNotFound(String),
 }

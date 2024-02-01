@@ -90,7 +90,7 @@
 //! [`crate::generate_gear_program_code`] or [`crate::generate_gear_program_module`])
 //! you'd need a configs bundle - type which implements [`ConfigsBundle`].
 //!
-//! There's a pre-defined one - [`ValidGearWasmConfigsBundle`], usage of which will result
+//! There's a pre-defined one - [`StandardGearWasmConfigsBundle`], usage of which will result
 //! in generation of valid (always) gear-wasm module.
 
 mod generator;
