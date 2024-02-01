@@ -174,7 +174,7 @@ where
 enum ProcessErrorCase {
     /// Message is not executable error.
     NonExecutable(ErrorReplyReason),
-    /// Error is considered as execution failed.
+    /// Error is considered as an execution failure.
     ExecutionFailed {
         reason: ActorExecutionErrorReplyReason,
         allow_send_signal: bool,
