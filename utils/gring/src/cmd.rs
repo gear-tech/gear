@@ -231,7 +231,7 @@ impl Command {
                 println!("{:<16}{message}", "Message:");
                 println!("{:<16}0x{signature}", "Signature:");
                 println!("{:<16}0x{}", "Public Key:", hex::encode(&pk_bytes));
-                println!("{:<16}0x{}", "SS58 Address:", ss58::encode(&pk_bytes));
+                println!("{:<16}{}", "SS58 Address:", ss58::encode(&pk_bytes));
             }
         }
         Ok(())

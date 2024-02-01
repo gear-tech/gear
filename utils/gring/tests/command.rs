@@ -15,7 +15,6 @@
 //
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
-
 #![cfg(feature = "cli")]
 
 use anyhow::{anyhow, Result};
@@ -73,7 +72,7 @@ fn sign_and_verify() -> Result<()> {
     let bin = bin();
 
     gring(&bin, &["new", key, "-p", "test"])?;
-    gring(&bin, &["new", key2, "-p", "test"])?;
+    gring(&bin, &["use", key])?;
     let sign = gring(&bin, &["sign", message, "-p", "test"])?;
     let signature = sign
         .lines()
@@ -84,10 +83,9 @@ fn sign_and_verify() -> Result<()> {
         .trim();
     assert!(gring(&bin, &["verify", message, signature])?.contains("Verified"));
 
-    // The primary key has been switched to `key2` on creating
-    // it, `key` can not verify this signature bcz it is signed
-    // by `key2`.
-    gring(&bin, &["use", key])?;
+    // `key2` can not verify this signature bcz it is signed by `key`.
+    gring(&bin, &["new", key2, "-p", "test"])?;
+    gring(&bin, &["use", key2])?;
     assert!(gring(&bin, &["verify", message, signature])?.contains("Not Verified"));
     Ok(())
 }
