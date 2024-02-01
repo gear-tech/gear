@@ -24,7 +24,7 @@ extern "C" fn init() {
 extern "C" fn handle() {
     let message_in: MessageIn = msg::load().unwrap();
 
-    let res = unsafe { &*ptr::addr_of!(WALLETS) }
+    let res = unsafe { &WALLETS }
         .iter()
         .find(|w| w.id.decimal == message_in.id.decimal)
         .cloned();

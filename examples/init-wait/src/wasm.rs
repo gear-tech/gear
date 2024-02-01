@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use gstd::{collections::BTreeMap, exec, msg, prelude::*, MessageId};
+use gstd::{collections::BTreeMap, exec, msg, MessageId};
 
 #[derive(PartialEq, Debug)]
 enum State {
@@ -40,7 +40,7 @@ extern "C" fn handle() {
 
 #[no_mangle]
 extern "C" fn init() {
-    let state = unsafe { &mut *ptr::addr_of_mut!(STATE) };
+    let state = unsafe { &mut STATE };
     match state {
         State::NotInited => {
             for k in 0..20 {
