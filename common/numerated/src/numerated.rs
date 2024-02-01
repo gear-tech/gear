@@ -16,16 +16,16 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! [Numerated], [Bound] traits definition and implementations for integer types.
-//! Also [OptionBound] type is defined, which can be used as [Bound] for any type `T: Numerated`.
+//! [`Numerated`], [`Bound`] traits definition and implementations for integer types.
+//! Also [`OptionBound`] type is defined, which can be used as [`Bound`] for any type `T: Numerated`.
 
 use core::cmp::Ordering;
 use num_traits::{One, PrimInt, Unsigned};
 
-/// For any type `T`, `Bound<T>` is a type, which has set of values bigger than `T` by one element.
+/// For any type `T`, `Bound<T>` is a type, which has set of values bigger than `T` by one.
 /// - Each value from `T` has unambiguous mapping to `Bound<T>`.
 /// - Each value from `Bound<T>`, except one called __upper__, has unambiguous mapping to `T`.
-/// - __upper__ value has no mapping to `T`, but can be used to get `T` max value.
+/// - __upper__ value has no mapping to `T`, but can be considered as value equal to `T::max_value + 1`.
 ///
 /// # Examples
 /// 1) For any `T`, which max value can be get by calling some static live time function,
@@ -56,7 +56,7 @@ use num_traits::{One, PrimInt, Unsigned};
 /// ```
 pub trait Bound<T: Sized>: From<Option<T>> + Copy {
     /// Unbound means mapping bound back to value if possible.
-    /// - In case bound is __upper__, then returns [None].
+    /// - In case bound is __upper__, then returns [`None`].
     /// - Otherwise returns `Some(p)`, `p: T`.
     fn unbound(self) -> Option<T>;
 }

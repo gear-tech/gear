@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! [IntervalsTree] implementation.
+//! [`IntervalsTree`] implementation.
 
 use crate::{DifferenceIterator, Interval, IntervalIterator, Numerated, VoidsIterator};
 use alloc::{collections::BTreeMap, fmt, fmt::Debug, vec::Vec};
@@ -85,7 +85,7 @@ use scale_info::{
 ///
 /// # Possible panic cases
 /// Using `IntervalsTree` for type `T: Numerated` cannot cause panics,
-/// if implementation [Numerated], [Copy], [Ord], [Eq] are correct for `T`.
+/// if implementation [`Numerated`], [`Copy`], [`Ord`], [`Eq`] are correct for `T`.
 /// In other cases `IntervalsTree` does not guarantees execution without panics.
 #[derive(Clone, PartialEq, Eq, TypeInfo, Encode, Decode)]
 pub struct IntervalsTree<T> {
@@ -159,7 +159,7 @@ impl<T: Numerated> IntervalsTree<T> {
         false
     }
 
-    /// The same as [`Self::contains`], but returns [`I::Error`] if `try_into` [IntervalIterator] fails.
+    /// The same as [`Self::contains`], but returns `I::Error` if `I::try_into` [`IntervalIterator`] fails.
     pub fn try_contains<I: TryInto<IntervalIterator<T>>>(
         &self,
         interval: I,
@@ -253,7 +253,7 @@ impl<T: Numerated> IntervalsTree<T> {
         }
     }
 
-    /// The same as [`Self::insert`], but returns [`I::Error`] if `try_into` [IntervalIterator] fails.
+    /// The same as [`Self::insert`], but returns `I::Error` if `I::try_into` [`IntervalIterator`] fails.
     pub fn try_insert<I: TryInto<IntervalIterator<T>>>(
         &mut self,
         interval: I,
@@ -329,7 +329,7 @@ impl<T: Numerated> IntervalsTree<T> {
         }
     }
 
-    /// The same as [`Self::remove`], but returns [`I::Error`] if `try_into` [IntervalIterator] fails.
+    /// The same as [`Self::remove`], but returns `I::Error` if `I::try_into` [`IntervalIterator`] fails.
     pub fn try_remove<I: TryInto<IntervalIterator<T>>>(
         &mut self,
         interval: I,
@@ -379,7 +379,7 @@ impl<T: Numerated> IntervalsTree<T> {
         }
     }
 
-    /// The same as [`Self::voids`], but returns [`I::Error`] if `try_into` [IntervalIterator] fails.
+    /// The same as [`Self::voids`], but returns `I::Error` if `I::try_into` [`IntervalIterator`] fails.
     pub fn try_voids<I: TryInto<IntervalIterator<T>>>(
         &self,
         interval: I,

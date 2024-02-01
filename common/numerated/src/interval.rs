@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! [Interval] implementations.
+//! [`Interval`] implementations.
 
 use crate::{numerated::Numerated, Bound, IntervalIterator};
 use core::{
@@ -67,7 +67,7 @@ impl<T: Numerated> Interval<T> {
         self.end
     }
 
-    /// Converts to [IntervalIterator].
+    /// Converts to [`IntervalIterator`].
     pub fn iter(&self) -> IntervalIterator<T> {
         (*self).into()
     }
@@ -77,7 +77,7 @@ impl<T: Numerated> Interval<T> {
         self.into()
     }
 
-    /// Returns new [Interval] with `start` = `start` + 1, if it's possible.
+    /// Returns new [`Interval`] with `start` = `start` + 1, if it's possible.
     pub fn inc_start(&self) -> Option<Self> {
         let (start, end) = (self.start, self.end);
         debug_assert!(start <= end, "It's guaranteed by `Interval`");
@@ -87,10 +87,10 @@ impl<T: Numerated> Interval<T> {
         })
     }
 
-    /// Trying to make [Interval] from `range`.
-    /// - If `range.start > range.end`, then returns [IncorrectRangeError].
-    /// - If `range.start == range.end`, then returns [EmptyRangeError].
-    pub fn try_from_range(range: Range<T>) -> Result<Self, IncorrectOrEmptyRangeError> {
+    /// Trying to make [`Interval`] from `range`.
+    /// - If `range.start > range.end`, then returns [`IncorrectRangeError`].
+    /// - If `range.start == range.end`, then returns [`EmptyRangeError`].
+    pub fn try_from_range(range: Range<T>) -> Result<Self, TryFromRangeError> {
         let (start, end) = (range.start, range.end);
         end.dec_if_gt(start)
             .map(|end| {
@@ -158,7 +158,7 @@ pub struct IncorrectRangeError;
 
 /// Trying to make interval from range where start > end or empty range.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, derive_more::From)]
-pub enum IncorrectOrEmptyRangeError {
+pub enum TryFromRangeError {
     /// Trying to make empty interval.
     EmptyRange(EmptyRangeError),
     /// Trying to make interval start > end.
@@ -219,7 +219,7 @@ where
     S: Into<T::Bound>,
     E: Into<T::Bound>,
 {
-    type Error = IncorrectOrEmptyRangeError;
+    type Error = TryFromRangeError;
 
     fn try_from((start, end): (S, E)) -> Result<Self, Self::Error> {
         let start: T::Bound = start.into();
@@ -235,14 +235,14 @@ where
 }
 
 impl<T: Numerated + UpperBounded, I: Into<T::Bound>> TryFrom<Range<I>> for Interval<T> {
-    type Error = IncorrectOrEmptyRangeError;
+    type Error = TryFromRangeError;
 
     fn try_from(range: Range<I>) -> Result<Self, Self::Error> {
         Self::try_from((range.start, range.end))
     }
 }
 
-/// Trying to make interval with end bigger than [Numerated] type max value.
+/// Trying to make interval with end bigger than [`Numerated`] type max value.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct OutOfBoundsError;
 
@@ -287,7 +287,7 @@ impl<T: Numerated + UpperBounded> Interval<T> {
 }
 
 impl<T: Numerated> Interval<T> {
-    /// - If `self` contains `T::Distance::max_value() + 1` points, then returns [None].
+    /// - If `self` contains `T::Distance::max_value() + 1` points, then returns [`None`].
     /// - Else returns `Some(a)`, where `a` is amount of elements in `self`.
     pub fn raw_len(&self) -> Option<T::Distance> {
         let (start, end) = self.into_parts();

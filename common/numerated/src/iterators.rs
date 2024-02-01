@@ -16,12 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! [IntervalIterator], [VoidsIterator], [DifferenceIterator] implementations.
+//! [`IntervalIterator`], [`VoidsIterator`], [`DifferenceIterator`] implementations.
 
 use crate::{
-    interval::{
-        IncorrectOrEmptyRangeError, IncorrectRangeError, NewWithLenError, OutOfBoundsError,
-    },
+    interval::{IncorrectRangeError, NewWithLenError, OutOfBoundsError, TryFromRangeError},
     Interval, Numerated,
 };
 use core::{
@@ -102,8 +100,8 @@ where
     fn try_from(range: (S, E)) -> Result<Self, Self::Error> {
         match Interval::try_from(range) {
             Ok(interval) => Ok(interval.into()),
-            Err(IncorrectOrEmptyRangeError::EmptyRange(_)) => Ok(Self(None)),
-            Err(IncorrectOrEmptyRangeError::IncorrectRange(err)) => Err(err),
+            Err(TryFromRangeError::EmptyRange(_)) => Ok(Self(None)),
+            Err(TryFromRangeError::IncorrectRange(err)) => Err(err),
         }
     }
 }
@@ -139,7 +137,7 @@ impl<T: Numerated> Iterator for IntervalIterator<T> {
 impl<T: Numerated + UpperBounded> IntervalIterator<T> {
     /// Returns interval `start..start + len` if it's possible.
     /// - if `len == None`, then it is supposed, that `len == T::Distance::max_value() + 1`.
-    /// - if `start + len - 1` is out of `T`, then returns [OutOfBoundsError].
+    /// - if `start + len - 1` is out of `T`, then returns [`OutOfBoundsError`].
     /// - if `len` is zero, then returns empty interval.
     pub fn new_with_len<S: Into<T::Bound>, L: Into<Option<T::Distance>>>(
         start: S,
