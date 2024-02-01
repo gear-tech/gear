@@ -997,17 +997,6 @@ impl JournalHandler for ExtManager {
         } else {
             let message = dispatch.into_stored().into_parts().1;
 
-            let message = match message
-                .details()
-                .and_then(|d| d.to_reply_details().map(|d| d.to_reply_code()))
-            {
-                None => message,
-                Some(code) if code.is_success() => message,
-                _ => message
-                    .with_string_payload::<ActorExecutionErrorReplyReason>()
-                    .unwrap_or_else(|e| e),
-            };
-
             self.mailbox
                 .entry(message.destination())
                 .or_default()
