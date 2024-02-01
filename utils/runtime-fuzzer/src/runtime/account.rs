@@ -33,7 +33,7 @@ use sp_consensus_grandpa::AuthorityId as GrandpaId;
 use sp_core::{sr25519::Public, Pair, Public as TPublic};
 use sp_runtime::{app_crypto::UncheckedFrom, traits::IdentifyAccount};
 use std::mem;
-use vara_runtime::Runtime;
+use vara_runtime::{Runtime, EXISTENTIAL_DEPOSIT};
 
 pub fn account_to_program_id(acc: AccountId) -> ProgramId {
     ProgramId::from_origin(acc.into_origin())

@@ -154,7 +154,6 @@ fn config(
         .with_ptr_rule(PtrParamAllowedValues::ActorId(actor_kind.clone()))
         .with_ptr_rule(PtrParamAllowedValues::ActorIdWithValue {
             actor_kind: actor_kind.clone(),
-            // TODO: reconsider that !!!
             range: EXISTENTIAL_DEPOSIT..=max_value,
         });
 
