@@ -84,7 +84,7 @@ mod wasm {
                 unsafe { STATE = Some(State::WakeAfterExit) };
                 wake_after_exit::init(addr)
             }
-            InitMessage::Reserver => State::Reserver(reserver::init()),
+            InitMessage::Reserver => State::Reserver(Default::default()),
         };
         unsafe { STATE = Some(state) };
     }

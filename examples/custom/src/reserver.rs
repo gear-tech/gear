@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2023-2024 Gear Technologies Inc.
+// Copyright (C) 2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -23,10 +23,6 @@ pub(crate) mod wasm {
     #[derive(Default)]
     pub(crate) struct State {
         reservation_id: Option<ReservationId>,
-    }
-
-    pub(crate) fn init() -> State {
-        Default::default()
     }
 
     pub(crate) fn handle(state: &mut State) {
