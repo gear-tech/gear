@@ -17,3 +17,4 @@ fs4 = "0.7"
 globset = { version = "0.4.14", features = ["serde1"] }
 dirs.workspace = true
 anyhow.workspace = true
+filetime = "0.2.23"

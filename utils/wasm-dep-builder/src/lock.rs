@@ -18,6 +18,7 @@
 
 use crate::{profile, wasm32_target_dir, UnderscoreString};
 use anyhow::Context;
+use filetime::FileTime;
 use fs4::FileExt;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -34,19 +35,24 @@ pub fn file_path(pkg_name: impl AsRef<str>) -> PathBuf {
         .join(format!("{}.lock", pkg_name))
 }
 
-#[derive(Debug, Serialize, Deserialize, derive_more::Unwrap)]
+fn truncate_file(file: &mut fs::File) {
+    file.set_len(0).unwrap();
+    file.seek(SeekFrom::Start(0)).unwrap();
+}
+
+#[derive(Debug, Eq, PartialEq, Serialize, Deserialize, derive_more::Unwrap)]
 #[serde(rename_all = "kebab-case")]
 pub enum LockFileConfig {
     Program(ProgramLockFileConfig),
     Binaries(BinariesLockFileConfig),
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct ProgramLockFileConfig {
     pub features: BTreeSet<UnderscoreString>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct BinariesLockFileConfig {
     pub features: BTreeSet<String>,
 }
@@ -109,8 +115,14 @@ impl BinariesLockFile {
     }
 
     pub fn write(&mut self, config: BinariesLockFileConfig) {
-        self.file.set_len(0).unwrap();
-        self.file.seek(SeekFrom::Start(0)).unwrap();
+        truncate_file(&mut self.file);
         serde_json::to_writer(&mut self.file, &LockFileConfig::Binaries(config)).unwrap();
+    }
+}
+
+impl Drop for BinariesLockFile {
+    fn drop(&mut self) {
+        // set mtime to zero so cargo won't rerun `crate::build_binaries()` yet again
+        filetime::set_file_handle_times(&self.file, None, Some(FileTime::zero())).unwrap();
     }
 }
