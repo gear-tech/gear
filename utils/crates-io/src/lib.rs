@@ -66,7 +66,8 @@ pub const STACKED_DEPENDENCIES: [&str; 13] = [
 /// Packages need to be published.
 ///
 /// NOTE: DO NOT change the order of this array.
-pub const PACKAGES: [&str; 6] = [
+pub const PACKAGES: [&str; 7] = [
+    "gring",
     "gear-wasm-builder",
     "gstd",
     "gtest",
