@@ -175,7 +175,10 @@ enum ProcessErrorCase {
     /// Message is not executable error.
     NonExecutable(ErrorReplyReason),
     /// Error is considered as execution failed.
-    ExecutionFailed(ActorExecutionErrorReplyReason, bool),
+    ExecutionFailed {
+        reason: ActorExecutionErrorReplyReason,
+        allow_send_signal: bool,
+    },
     /// Message is executable, but it's execution failed due to re-instrumentation.
     ReinstrumentationFailed,
 }
@@ -184,7 +187,9 @@ impl ProcessErrorCase {
     pub fn to_reason_and_payload(&self) -> (ErrorReplyReason, String) {
         match self {
             ProcessErrorCase::NonExecutable(err) => (*err, err.to_string()),
-            ProcessErrorCase::ExecutionFailed(err, _) => (err.as_simple().into(), err.to_string()),
+            ProcessErrorCase::ExecutionFailed { reason, .. } => {
+                (reason.as_simple().into(), reason.to_string())
+            }
             ProcessErrorCase::ReinstrumentationFailed => {
                 let err = ErrorReplyReason::Reinstrumentation;
                 (err, err.to_string())
@@ -231,9 +236,13 @@ fn process_error(
         journal.push(JournalNote::SystemReserveGas { message_id, amount });
     }
 
-    if let ProcessErrorCase::ExecutionFailed(err, allow_signal) = &case {
+    if let ProcessErrorCase::ExecutionFailed {
+        reason,
+        allow_send_signal,
+    } = &case
+    {
         // TODO: consider to handle error reply and init #3701
-        if *allow_signal
+        if *allow_send_signal
             && system_reservation_ctx.has_any()
             && !dispatch.is_error_reply()
             && !matches!(dispatch.kind(), DispatchKind::Signal | DispatchKind::Init)
@@ -241,7 +250,7 @@ fn process_error(
             journal.push(JournalNote::SendSignal {
                 message_id,
                 destination: program_id,
-                code: SignalCode::Execution(err.as_simple()),
+                code: SignalCode::Execution(reason.as_simple()),
             });
         }
     }
@@ -314,14 +323,17 @@ pub fn process_execution_error(
     gas_burned: u64,
     system_reservation_ctx: SystemReservationContext,
     err: impl Into<ActorExecutionErrorReplyReason>,
-    allow_signal: bool,
+    allow_send_signal: bool,
 ) -> Vec<JournalNote> {
     process_error(
         dispatch,
         program_id,
         gas_burned,
         system_reservation_ctx,
-        ProcessErrorCase::ExecutionFailed(err.into(), allow_signal),
+        ProcessErrorCase::ExecutionFailed {
+            reason: err.into(),
+            allow_send_signal,
+        },
     )
 }
 
