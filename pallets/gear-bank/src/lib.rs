@@ -254,8 +254,8 @@ pub mod pallet {
         fn reward_block_author(value: BalanceOf<T>) -> Result<(), Error<T>> {
             // for gas, 50% to treasury, 50% to author
             let split = T::SplitFee::get();
-            let to_author = split * value;
-            let to_treasury = split.left_from_one() * value;
+            let to_treasury = split * value;
+            let to_author = split.left_from_one() * value;
             let block_author = Authorship::<T>::author()
                 .unwrap_or_else(|| unreachable!("Failed to find block author!"));
 
