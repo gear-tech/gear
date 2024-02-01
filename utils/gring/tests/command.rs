@@ -15,6 +15,7 @@
 //
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
+
 #![cfg(feature = "cli")]
 
 use anyhow::{anyhow, Result};
@@ -47,15 +48,16 @@ fn gring(bin: &PathBuf, args: &[&str]) -> Result<String> {
 
 #[test]
 fn new() -> Result<()> {
+    let key = "_gring_test_new";
     let passphrase = "test";
     Command::New {
-        name: "_gring_test_new".to_string(),
+        name: key.to_string(),
         passphrase: passphrase.to_string(),
         vanity: None,
     }
     .run()?;
 
-    let json = Command::store()?.join("test.json");
+    let json = Command::store()?.join(format!("{key}.json"));
     assert!(json.exists());
 
     let keystore = serde_json::from_slice::<Keystore>(&std::fs::read(json)?)?;
@@ -65,8 +67,8 @@ fn new() -> Result<()> {
 
 #[test]
 fn sign_and_verify() -> Result<()> {
-    let key = "_gring_test_sig";
-    let key2 = "_gring_test_sig_2";
+    let key = "_gring_sig";
+    let key2 = "_gring_sig_2";
     let message = "vara";
     let bin = bin();
 

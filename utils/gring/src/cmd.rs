@@ -213,24 +213,20 @@ impl Command {
                 let pk = PublicKey::from_bytes(&pk_bytes)
                     .map_err(|e| anyhow!("Failed to decode public key, {e}"))?;
 
-                println!(
-                    "{:<16}{}",
-                    "Result",
-                    if pk
-                        .verify(
-                            schnorrkel::signing_context(ctx.as_bytes()).bytes(message.as_bytes()),
-                            &Signature::from_bytes(&hex::decode(
-                                signature.trim_start_matches("0x")
-                            )?)
+                let result = if pk
+                    .verify(
+                        schnorrkel::signing_context(ctx.as_bytes()).bytes(message.as_bytes()),
+                        &Signature::from_bytes(&hex::decode(signature.trim_start_matches("0x"))?)
                             .map_err(|e| anyhow!("Failed to decode signature, {e}"))?,
-                        )
-                        .is_ok()
-                    {
-                        "Verified".green().bold()
-                    } else {
-                        "Not Verified".red().bold()
-                    }
-                );
+                    )
+                    .is_ok()
+                {
+                    "Verified".green().bold()
+                } else {
+                    "Not Verified".red().bold()
+                };
+
+                println!("{:<16}{result}", "Result:");
                 println!("{:<16}{ctx}", "Context:");
                 println!("{:<16}{message}", "Message:");
                 println!("{:<16}0x{signature}", "Signature:");
