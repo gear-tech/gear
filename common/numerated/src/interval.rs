@@ -98,9 +98,9 @@ impl<T: Numerated> Interval<T> {
                 Self { start, end }
             })
             .ok_or(if start == end {
-                EmptyRangeError.into()
+                TryFromRangeError::EmptyRange
             } else {
-                IncorrectRangeError.into()
+                TryFromRangeError::IncorrectRange
             })
     }
 }
@@ -157,12 +157,12 @@ pub struct EmptyRangeError;
 pub struct IncorrectRangeError;
 
 /// Trying to make interval from range where start > end or empty range.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, derive_more::From)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TryFromRangeError {
     /// Trying to make empty interval.
-    EmptyRange(EmptyRangeError),
+    EmptyRange,
     /// Trying to make interval start > end.
-    IncorrectRange(IncorrectRangeError),
+    IncorrectRange,
 }
 
 impl<T: Numerated + UpperBounded, I: Into<T::Bound>> TryFrom<RangeFrom<I>> for Interval<T> {
@@ -226,9 +226,9 @@ where
         let end: T::Bound = end.into();
 
         match (start.unbound(), end.unbound()) {
-            (None, None) => Err(EmptyRangeError.into()),
-            (None, Some(_)) => Err(IncorrectRangeError.into()),
-            (start, None) => Self::try_from(start..).map_err(Into::into),
+            (None, None) => Err(TryFromRangeError::EmptyRange),
+            (None, Some(_)) => Err(TryFromRangeError::IncorrectRange),
+            (start, None) => Self::try_from(start..).map_err(|_| TryFromRangeError::EmptyRange),
             (Some(start), Some(end)) => Self::try_from_range(start..end),
         }
     }
@@ -242,24 +242,20 @@ impl<T: Numerated + UpperBounded, I: Into<T::Bound>> TryFrom<Range<I>> for Inter
     }
 }
 
-/// Trying to make interval with end bigger than [`Numerated`] type max value.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct OutOfBoundsError;
-
 /// Trying to make zero len or out of bounds interval.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, derive_more::From)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NewWithLenError {
     /// Trying to make zero len interval.
     ZeroLen,
     /// Trying to make out of bounds interval.
-    OutOfBounds(OutOfBoundsError),
+    OutOfBounds,
 }
 
 impl<T: Numerated + UpperBounded> Interval<T> {
     /// Returns interval `start..=start + len - 1` if it's possible.
     /// - if `len == None`, then it is supposed, that `len == T::Distance::max_value() + 1`.
-    /// - if `start + len - 1` is out of `T`, then returns [NewWithLenError::OutOfBounds].
-    /// - if `len == 0`, then returns [NewWithLenError::ZeroLen].
+    /// - if `start + len - 1` is out of `T`, then returns [`NewWithLenError::OutOfBounds`].
+    /// - if `len == 0`, then returns [`NewWithLenError::ZeroLen`].
     pub fn new_with_len<S: Into<T::Bound>, L: Into<Option<T::Distance>>>(
         start: S,
         len: L,
@@ -268,7 +264,7 @@ impl<T: Numerated + UpperBounded> Interval<T> {
         let len: Option<T::Distance> = len.into();
         match (start.unbound(), len) {
             (_, Some(len)) if len.is_zero() => Err(NewWithLenError::ZeroLen),
-            (None, _) => Err(OutOfBoundsError.into()),
+            (None, _) => Err(NewWithLenError::OutOfBounds),
             (Some(start), len) => {
                 // subtraction `len - 1` is safe, because `len != 0`
                 let distance = len
@@ -280,7 +276,7 @@ impl<T: Numerated + UpperBounded> Interval<T> {
                         debug_assert!(start <= end, "`T: Numerated` impl error");
                         Self { start, end }
                     })
-                    .ok_or(OutOfBoundsError.into())
+                    .ok_or(NewWithLenError::OutOfBounds)
             }
         }
     }

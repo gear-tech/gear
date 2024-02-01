@@ -19,7 +19,7 @@
 //! [`IntervalIterator`], [`VoidsIterator`], [`DifferenceIterator`] implementations.
 
 use crate::{
-    interval::{IncorrectRangeError, NewWithLenError, OutOfBoundsError, TryFromRangeError},
+    interval::{IncorrectRangeError, NewWithLenError, TryFromRangeError},
     Interval, Numerated,
 };
 use core::{
@@ -100,8 +100,8 @@ where
     fn try_from(range: (S, E)) -> Result<Self, Self::Error> {
         match Interval::try_from(range) {
             Ok(interval) => Ok(interval.into()),
-            Err(TryFromRangeError::EmptyRange(_)) => Ok(Self(None)),
-            Err(TryFromRangeError::IncorrectRange(err)) => Err(err),
+            Err(TryFromRangeError::EmptyRange) => Ok(Self(None)),
+            Err(TryFromRangeError::IncorrectRange) => Err(IncorrectRangeError),
         }
     }
 }
@@ -134,6 +134,10 @@ impl<T: Numerated> Iterator for IntervalIterator<T> {
     }
 }
 
+/// Trying to make interval with end bigger than [`Numerated`] type max value.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct OutOfBoundsError;
+
 impl<T: Numerated + UpperBounded> IntervalIterator<T> {
     /// Returns interval `start..start + len` if it's possible.
     /// - if `len == None`, then it is supposed, that `len == T::Distance::max_value() + 1`.
@@ -146,7 +150,7 @@ impl<T: Numerated + UpperBounded> IntervalIterator<T> {
         match Interval::new_with_len(start, len) {
             Ok(interval) => Ok(interval.into()),
             Err(NewWithLenError::ZeroLen) => Ok(Self(None)),
-            Err(NewWithLenError::OutOfBounds(err)) => Err(err),
+            Err(NewWithLenError::OutOfBounds) => Err(OutOfBoundsError),
         }
     }
 }
