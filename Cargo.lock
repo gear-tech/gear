@@ -3703,8 +3703,6 @@ dependencies = [
  "schnorrkel 0.9.1",
  "serde",
  "serde_json",
- "sp-core",
- "sp-io",
  "thiserror",
  "tokio",
  "wasmi 0.30.0 (registry+https://github.com/rust-lang/crates.io-index)",
