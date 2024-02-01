@@ -93,6 +93,8 @@
 //! There's a pre-defined one - [`StandardGearWasmConfigsBundle`], usage of which will result
 //! in generation of valid (always) gear-wasm module.
 
+use std::num::NonZeroU32;
+
 mod generator;
 mod module;
 mod syscalls;
@@ -135,7 +137,7 @@ pub struct StandardGearWasmConfigsBundle {
     ///
     /// For example, if this parameter is 4, wait syscalls will be invoked
     /// with probability 1/4.
-    pub waiting_probability: Option<u32>,
+    pub waiting_probability: Option<NonZeroU32>,
     /// Flag which signals whether recursions must be removed.
     pub remove_recursion: bool,
     /// If the limit is set to `Some(_)`, programs will try to stop execution
@@ -161,7 +163,7 @@ impl Default for StandardGearWasmConfigsBundle {
     fn default() -> Self {
         Self {
             log_info: Some("StandardGearWasmConfigsBundle".into()),
-            waiting_probability: Some(4),
+            waiting_probability: NonZeroU32::new(4),
             remove_recursion: false,
             critical_gas_limit: Some(1_000_000),
             injection_types: SyscallsInjectionTypes::all_once(),

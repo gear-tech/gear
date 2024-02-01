@@ -323,7 +323,7 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
             .waiting_probability()
             .filter(|_| invocable.is_wait_syscall())
         {
-            self.limit_infinite_waits(&mut instructions, waiting_probability);
+            self.limit_infinite_waits(&mut instructions, waiting_probability.get());
         }
 
         log::trace!(
