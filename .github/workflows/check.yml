@@ -55,11 +55,25 @@ jobs:
             exit 1
           fi
 
+      - name: "Test: Wasm-builder recommended toolchain matches rust-toolchain.toml"
+        run: |
+          TOOLCHAIN=$(grep 'channel' rust-toolchain.toml | cut -d '"' -f 2)
+          CARGO_TOOLCHAIN="utils/wasm-builder/src/cargo_toolchain.rs"
+          if ! grep -q "$TOOLCHAIN" $CARGO_TOOLCHAIN; then
+            echo "Please update PINNED_NIGHTLY_TOOLCHAIN constant in $CARGO_TOOLCHAIN to match rust-toolchain.toml."
+            exit 1
+          fi
+
       - name: "Install: Rust stable toolchain"
         uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+          components: llvm-tools
 
       - name: "Check: Compiling gstd on stable"
-        run: cargo +stable check -p gstd
+        run: |
+          cargo +stable check -p gstd --target wasm32-unknown-unknown
+          cargo +stable check --manifest-path utils/wasm-builder/test-program/Cargo.toml
 
       - name: "Check: crates-io packages"
         run: cargo run --release -p crates-io check
@@ -72,7 +86,7 @@ jobs:
     steps:
       - name: Cancel Previous Runs
         if: ${{ github.event_name == 'pull_request' }}
-        uses: styfle/cancel-workflow-action@0.12.0
+        uses: styfle/cancel-workflow-action@0.12.1
         with:
           access_token: ${{ github.token }}
 

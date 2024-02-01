@@ -10,7 +10,7 @@ extern "C" fn init() {
 #[no_mangle]
 extern "C" fn handle() {
     let threshold = unsafe { state::THRESHOLD.expect("Threshold has not been set.") };
-    let method = msg::load::<Method>().expect("Invalid contract method.");
+    let method = msg::load::<Method>().expect("Invalid program method.");
     let registry = unsafe { &mut state::REGISTRY };
 
     match method {
