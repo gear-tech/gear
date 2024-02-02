@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2021-2024 Gear Technologies Inc.
+// Copyright (C) 2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -16,24 +16,17 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use common::env;
-use std::path::PathBuf;
+mod keyring;
+mod keystore;
+mod pair;
+mod scrypt;
 
-mod cmd;
-mod common;
+pub mod cmd;
+pub mod ss58;
 
-#[test]
-fn paths() {
-    [
-        env::bin("gear"),
-        env::bin("gcli"),
-        env::wasm_bin("demo_new_meta.opt.wasm"),
-        env::wasm_bin("demo_new_meta.meta.txt"),
-    ]
-    .into_iter()
-    .for_each(|path| {
-        if !PathBuf::from(&path).exists() {
-            panic!("{path} not found.")
-        }
-    })
-}
+pub use self::{
+    keyring::Keyring,
+    keystore::{Encoding, Keystore},
+    pair::KeypairInfo,
+    scrypt::Scrypt,
+};
