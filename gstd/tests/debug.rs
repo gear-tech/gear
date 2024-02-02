@@ -13,24 +13,22 @@ mod sys {
 }
 
 #[test]
+#[allow(static_mut_ref)]
 fn test_debug() {
     let value = 42;
 
     debug!("{value}");
-    assert_eq!(unsafe { &*ptr::addr_of!(DEBUG_MSG) }, b"42");
+    assert_eq!(unsafe { &DEBUG_MSG }, b"42");
 
     debug!("Formatted: value = {value}");
-    assert_eq!(
-        unsafe { &*ptr::addr_of!(DEBUG_MSG) },
-        b"Formatted: value = 42"
-    );
+    assert_eq!(unsafe { &DEBUG_MSG }, b"Formatted: value = 42");
 
     debug!("String literal");
-    assert_eq!(unsafe { &*ptr::addr_of!(DEBUG_MSG) }, b"String literal");
+    assert_eq!(unsafe { &DEBUG_MSG }, b"String literal");
 
     crate::dbg!(value);
     assert_eq!(
-        unsafe { &*ptr::addr_of!(DEBUG_MSG) },
-        b"[gstd/tests/debug.rs:31:5] value = 42"
+        unsafe { &DEBUG_MSG },
+        b"[gstd/tests/debug.rs:29:5] value = 42"
     );
 }
