@@ -26,6 +26,7 @@ extern crate alloc;
 pub mod backend_error;
 pub mod btree;
 pub mod capacitor;
+pub mod reserver;
 pub mod simple_waiter;
 pub mod wake_after_exit;
 
@@ -40,14 +41,15 @@ pub enum InitMessage {
     BackendError,
     SimpleWaiter,
     WakeAfterExit(ActorId),
+    Reserver,
 }
 
 #[cfg(not(feature = "std"))]
 mod wasm {
     use super::{
         backend_error::wasm as backend_error, btree::wasm as btree, capacitor::wasm as capacitor,
-        simple_waiter::wasm as simple_waiter, wake_after_exit::wasm as wake_after_exit,
-        InitMessage,
+        reserver::wasm as reserver, simple_waiter::wasm as simple_waiter,
+        wake_after_exit::wasm as wake_after_exit, InitMessage,
     };
     use gstd::msg;
 
@@ -57,6 +59,7 @@ mod wasm {
         BackendError(backend_error::State),
         SimpleWaiter(simple_waiter::State),
         WakeAfterExit,
+        Reserver(reserver::State),
     }
 
     static mut STATE: Option<State> = None;
@@ -73,6 +76,7 @@ mod wasm {
                 unsafe { STATE = Some(State::WakeAfterExit) };
                 wake_after_exit::init(addr)
             }
+            InitMessage::Reserver => State::Reserver(Default::default()),
         };
         unsafe { STATE = Some(state) };
     }
@@ -84,6 +88,7 @@ mod wasm {
             State::Capacitor(state) => capacitor::handle(state),
             State::BTree(state) => btree::handle(state),
             State::SimpleWaiter(state) => simple_waiter::handle(state),
+            State::Reserver(state) => reserver::handle(state),
             _ => {}
         }
     }
