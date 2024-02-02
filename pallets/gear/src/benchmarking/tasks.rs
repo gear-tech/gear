@@ -25,7 +25,8 @@ where
     use demo_delayed_sender::WASM_BINARY;
 
     let caller = benchmarking::account("caller", 0, 0);
-    CurrencyOf::<T>::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
+    let _ =
+        CurrencyOf::<T>::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
 
     init_block::<T>(None);
 
@@ -53,7 +54,8 @@ where
     use demo_reserve_gas::{InitAction, WASM_BINARY};
 
     let caller = benchmarking::account("caller", 0, 0);
-    CurrencyOf::<T>::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
+    let _ =
+        CurrencyOf::<T>::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
 
     init_block::<T>(None);
 
@@ -120,7 +122,8 @@ where
     use demo_constructor::{Call, Calls, Scheme, WASM_BINARY};
 
     let caller = benchmarking::account("caller", 0, 0);
-    CurrencyOf::<T>::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
+    let _ =
+        CurrencyOf::<T>::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
 
     init_block::<T>(None);
 
@@ -176,7 +179,8 @@ where
     use demo_waiter::{Command, WaitSubcommand, WASM_BINARY};
 
     let caller = benchmarking::account("caller", 0, 0);
-    CurrencyOf::<T>::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
+    let _ =
+        CurrencyOf::<T>::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
 
     init_block::<T>(None);
 
@@ -226,7 +230,8 @@ where
     use demo_waiter::{Command, WaitSubcommand, WASM_BINARY};
 
     let caller = benchmarking::account("caller", 0, 0);
-    CurrencyOf::<T>::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
+    let _ =
+        CurrencyOf::<T>::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
 
     init_block::<T>(None);
 

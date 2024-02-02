@@ -69,14 +69,15 @@ macro_rules! debug {
 #[macro_export]
 macro_rules! dbg {
     () => {
-        $crate::debug!("[{}:{}]", $crate::prelude::file!(), $crate::prelude::line!())
+        $crate::debug!("[{}:{}:{}]", $crate::prelude::file!(), $crate::prelude::line!(), $crate::prelude::column!())
     };
     ($val:expr $(,)?) => {
         match $val {
             tmp => {
-                $crate::debug!("[{}:{}] {} = {:#?}",
+                $crate::debug!("[{}:{}:{}] {} = {:#?}",
                     $crate::prelude::file!(),
                     $crate::prelude::line!(),
+                    $crate::prelude::column!(),
                     $crate::prelude::stringify!($val),
                     &tmp,
                 );
