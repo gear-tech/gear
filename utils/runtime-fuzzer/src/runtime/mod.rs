@@ -28,13 +28,11 @@ use vara_runtime::{
     AccountId, Balances, BankAddress, Runtime, RuntimeOrigin, SessionConfig, SessionKeys,
 };
 
-pub use account::{account, alice};
+pub use account::{account, alice, BalanceManager, BalanceState};
 pub use block::{default_gas_limit, run_to_next_block};
-pub use mailbox::get_mailbox_messages;
 
 mod account;
 mod block;
-mod mailbox;
 
 /// Build genesis storage according to the mock runtime.
 pub fn new_test_ext() -> TestExternalities {
