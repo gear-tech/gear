@@ -19,7 +19,7 @@
 //! command `transfer`
 use crate::{result::Result, App};
 use clap::Parser;
-use gsdk::ext::{sp_core::crypto::Ss58Codec, sp_runtime::AccountId32};
+use gclient::ext::{sp_core::crypto::Ss58Codec, sp_runtime::AccountId32};
 
 /// Transfer value.
 ///

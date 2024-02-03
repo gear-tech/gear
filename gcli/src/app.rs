@@ -22,7 +22,7 @@ use crate::keystore;
 use clap::Parser;
 use color_eyre::{eyre::eyre, Result};
 use env_logger::{Builder, Env};
-use gclient::GearApi;
+use gclient::{ext::sp_core, GearApi};
 use gsdk::{signer::Signer, Api};
 
 /// Command line gear program application abstraction.
