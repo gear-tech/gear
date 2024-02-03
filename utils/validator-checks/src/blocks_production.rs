@@ -35,7 +35,7 @@ impl BlocksProduction {
         }
 
         let logs = &block.header().digest.logs;
-        if let Some(DigestItem::PreRuntime(engine, bytes)) = logs.get(0) {
+        if let Some(DigestItem::PreRuntime(engine, bytes)) = logs.first() {
             if *engine == BABE_ENGINE_ID {
                 if let Some(author) = BabePreDigest::decode(&mut bytes.as_ref())
                     .ok()

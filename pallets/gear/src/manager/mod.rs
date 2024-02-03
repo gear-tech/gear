@@ -49,7 +49,6 @@ mod journal;
 mod task;
 
 use gear_core_errors::{ReplyCode, SignalCode};
-pub use journal::*;
 pub use task::*;
 
 use crate::{

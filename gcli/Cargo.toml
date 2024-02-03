@@ -41,8 +41,6 @@ tokio = { workspace = true, features = [ "full" ] }
 whoami.workspace = true
 reqwest = { workspace = true, default-features = false, features = [ "json", "rustls-tls" ] }
 etc.workspace = true
-sp-io = { workspace = true, features = [ "std" ] }
-sp-core = { workspace = true, features = [ "std" ] }
 runtime-primitives.workspace = true
 # TODO: use wasmi from workspace (#3214)
 wasmi = { version = "0.30.0", features = ["std"] }

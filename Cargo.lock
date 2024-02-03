@@ -3704,8 +3704,6 @@ dependencies = [
  "schnorrkel 0.9.1",
  "serde",
  "serde_json",
- "sp-core",
- "sp-io",
  "thiserror",
  "tokio",
  "wasmi 0.30.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -4584,6 +4582,28 @@ dependencies = [
  "quote",
  "scale-info",
  "syn 2.0.48",
+]
+
+[[package]]
+name = "gring"
+version = "1.1.0"
+dependencies = [
+ "anyhow",
+ "base64 0.21.7",
+ "blake2",
+ "bs58 0.5.0",
+ "clap 4.4.18",
+ "colored",
+ "dirs",
+ "hex",
+ "nacl",
+ "once_cell",
+ "rand 0.8.5",
+ "schnorrkel 0.9.1",
+ "serde",
+ "serde_json",
+ "tracing",
+ "tracing-subscriber 0.3.18",
 ]
 
 [[package]]
@@ -9335,7 +9355,6 @@ name = "runtime-fuzzer"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "arbitrary",
  "clap 4.4.18",
  "frame-support",
  "frame-system",
