@@ -48,9 +48,9 @@ impl<T: Config> OnRuntimeUpgrade for MigrateToV3<T> {
 
         if current == 3 && onchain == 2 {
             Waitlist::<T>::translate(
-                |_, _, store: (v2::StoredDispatch, Interval<BlockNumberFor<T>>)| {
+                |_, _, (dispatch, interval): (v2::StoredDispatch, Interval<BlockNumberFor<T>>)| {
                     weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
-                    Some((store.0.into(), store.1))
+                    Some((dispatch.into(), interval))
                 },
             );
 
