@@ -395,7 +395,7 @@ mod test {
             })
             .collect::<Vec<_>>();
 
-            for dispatch in dispatch_stash.iter() {
+            for (msg_id, dispatch, interval) in dispatch_stash.clone() {
                 v2::DispatchStash::<Test>::insert(
                     dispatch.0,
                     (dispatch.1.clone(), dispatch.2.clone()),
