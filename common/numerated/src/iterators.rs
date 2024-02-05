@@ -186,13 +186,8 @@ impl<T: Numerated, I: Iterator<Item = Interval<T>>> Iterator for DifferenceItera
         loop {
             // If `self.interval1` is `None`, then takes next interval from `tree1`.
             // If there isn't any left intervals in `tree1`, then returns `None` - end of iteration.
-            let interval1 = if let Some(interval1) = self.interval1 {
-                interval1
-            } else {
-                let interval1 = self.iter1.next()?;
-                self.interval1 = Some(interval1);
-                interval1
-            };
+            self.interval1 = self.interval1.or_else(|| self.iter1.next());
+            let interval1 = self.interval1?;
 
             // If `self.interval2` is `None`, then takes next interval from `tree2`.
             // If there isn't any left intervals in `tree2`, then there is no more intersections
@@ -203,8 +198,7 @@ impl<T: Numerated, I: Iterator<Item = Interval<T>>> Iterator for DifferenceItera
             } else if let Some(interval2) = self.iter2.next() {
                 interval2
             } else {
-                self.interval1 = None;
-                return Some(interval1);
+                return self.interval1.take();
             };
 
             // If `interval2` ends before `interval1` starts, then there is no intersection between
