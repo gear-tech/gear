@@ -49,7 +49,7 @@ pub use precharge::{
     precharge_for_code_length, precharge_for_instrumentation, precharge_for_memory,
     precharge_for_program,
 };
-pub use processing::process;
+pub use processing::{process, process_non_executable};
 
 /// Informational functions for core-processor and executor.
 pub mod informational {

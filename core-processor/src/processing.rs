@@ -19,7 +19,8 @@
 use crate::{
     common::{
         ActorExecutionErrorReplyReason, DispatchOutcome, DispatchResult, DispatchResultKind,
-        ExecutionError, JournalNote, SystemExecutionError, WasmExecutionContext,
+        ExecutionError, JournalNote, PrechargedDispatch, SystemExecutionError,
+        WasmExecutionContext,
     },
     configs::{BlockConfig, ExecutionSettings},
     context::*,
@@ -27,7 +28,10 @@ use crate::{
     ext::ProcessorExternalities,
     precharge::SuccessfulDispatchResultKind,
 };
-use alloc::{string::ToString, vec::Vec};
+use alloc::{
+    string::{String, ToString},
+    vec::Vec,
+};
 use gear_core::{
     env::Externalities,
     ids::{MessageId, ProgramId},
@@ -136,7 +140,7 @@ where
 
     match exec_result {
         Ok(res) => Ok(match res.kind {
-            DispatchResultKind::Trap(reason) => process_error(
+            DispatchResultKind::Trap(reason) => process_execution_error(
                 res.dispatch,
                 program_id,
                 res.gas_amount.burned(),
@@ -155,26 +159,45 @@ where
                 process_allowance_exceed(dispatch, program_id, res.gas_amount.burned())
             }
         }),
-        Err(ExecutionError::Actor(e)) => Ok(process_error(
+        Err(ExecutionError::Actor(e)) => Ok(process_execution_error(
             dispatch,
             program_id,
             e.gas_amount.burned(),
             SystemReservationContext::default(),
             e.reason,
-            true,
+            false,
         )),
         Err(ExecutionError::System(e)) => Err(e),
     }
 }
 
-/// Helper function for journal creation in trap/error case
-pub fn process_error(
+enum ProcessErrorCase {
+    /// Message is not executable error.
+    NonExecutable(ErrorReplyReason),
+    /// Error is considered as an execution failure.
+    ExecutionFailed {
+        reason: ActorExecutionErrorReplyReason,
+        allow_send_signal: bool,
+    },
+}
+
+impl ProcessErrorCase {
+    pub fn to_reason_and_payload(&self) -> (ErrorReplyReason, String) {
+        match self {
+            ProcessErrorCase::NonExecutable(err) => (*err, err.to_string()),
+            ProcessErrorCase::ExecutionFailed { reason, .. } => {
+                (reason.as_simple().into(), reason.to_string())
+            }
+        }
+    }
+}
+
+fn process_error(
     dispatch: IncomingDispatch,
     program_id: ProgramId,
     gas_burned: u64,
     system_reservation_ctx: SystemReservationContext,
-    err: ActorExecutionErrorReplyReason,
-    executed: bool,
+    case: ProcessErrorCase,
 ) -> Vec<JournalNote> {
     let mut journal = Vec::new();
 
@@ -207,28 +230,37 @@ pub fn process_error(
         journal.push(JournalNote::SystemReserveGas { message_id, amount });
     }
 
-    if system_reservation_ctx.has_any() {
-        if !dispatch.is_error_reply()
+    if let ProcessErrorCase::ExecutionFailed {
+        reason,
+        allow_send_signal,
+    } = &case
+    {
+        // TODO: consider to handle error reply and init #3701
+        if *allow_send_signal
+            && system_reservation_ctx.has_any()
+            && !dispatch.is_error_reply()
             && !matches!(dispatch.kind(), DispatchKind::Signal | DispatchKind::Init)
         {
             journal.push(JournalNote::SendSignal {
                 message_id,
                 destination: program_id,
-                code: SignalCode::Execution(err.as_simple()),
+                code: SignalCode::Execution(reason.as_simple()),
             });
         }
+    }
 
+    if system_reservation_ctx.has_any() {
         journal.push(JournalNote::SystemUnreserveGas { message_id });
     }
 
     if !dispatch.is_reply() && dispatch.kind() != DispatchKind::Signal {
-        // This expect panic is unreachable, unless error message is too large or max payload size is too small.
-        let err_payload = err
-            .to_string()
+        let (err, err_payload) = case.to_reason_and_payload();
+
+        // Panic is impossible, unless error message is too large or [Payload] max size is too small.
+        let err_payload = err_payload
             .into_bytes()
             .try_into()
             .unwrap_or_else(|_| unreachable!("Error message is too large"));
-        let err = err.as_simple();
 
         // # Safety
         //
@@ -250,17 +282,22 @@ pub fn process_error(
         });
     }
 
-    let outcome = match dispatch.kind() {
-        DispatchKind::Init => DispatchOutcome::InitFailure {
-            program_id,
-            origin,
-            reason: err.to_string(),
-            executed,
-        },
-        _ => DispatchOutcome::MessageTrap {
-            program_id,
-            trap: err.to_string(),
-        },
+    let outcome = match case {
+        ProcessErrorCase::ExecutionFailed { .. } => {
+            let (_, err_payload) = case.to_reason_and_payload();
+            match dispatch.kind() {
+                DispatchKind::Init => DispatchOutcome::InitFailure {
+                    program_id,
+                    origin,
+                    reason: err_payload,
+                },
+                _ => DispatchOutcome::MessageTrap {
+                    program_id,
+                    trap: err_payload,
+                },
+            }
+        }
+        ProcessErrorCase::NonExecutable(_) => DispatchOutcome::NoExecution,
     };
 
     journal.push(JournalNote::MessageDispatched {
@@ -271,6 +308,45 @@ pub fn process_error(
     journal.push(JournalNote::MessageConsumed(message_id));
 
     journal
+}
+
+/// Helper function for journal creation in trap/error case.
+pub fn process_execution_error(
+    dispatch: IncomingDispatch,
+    program_id: ProgramId,
+    gas_burned: u64,
+    system_reservation_ctx: SystemReservationContext,
+    err: impl Into<ActorExecutionErrorReplyReason>,
+    allow_send_signal: bool,
+) -> Vec<JournalNote> {
+    process_error(
+        dispatch,
+        program_id,
+        gas_burned,
+        system_reservation_ctx,
+        ProcessErrorCase::ExecutionFailed {
+            reason: err.into(),
+            allow_send_signal,
+        },
+    )
+}
+
+/// Helper function for journal creation in message no execution case.
+pub fn process_non_executable(
+    context: PrechargedDispatch,
+    destination_id: ProgramId,
+    reason: impl Into<ErrorReplyReason>,
+) -> Vec<JournalNote> {
+    let (dispatch, gas_counter, _) = context.into_parts();
+    let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
+
+    process_error(
+        dispatch,
+        destination_id,
+        gas_counter.burned(),
+        system_reservation_ctx,
+        ProcessErrorCase::NonExecutable(reason.into()),
+    )
 }
 
 /// Helper function for journal creation in success case
@@ -475,66 +551,6 @@ pub fn process_allowance_exceed(
         dispatch,
         gas_burned,
     });
-
-    journal
-}
-
-/// Helper function for journal creation in message no execution case
-pub fn process_non_executable(
-    dispatch: IncomingDispatch,
-    program_id: ProgramId,
-    system_reservation_ctx: SystemReservationContext,
-) -> Vec<JournalNote> {
-    // Number of notes is predetermined
-    let mut journal = Vec::with_capacity(4);
-
-    let message_id = dispatch.id();
-    let source = dispatch.source();
-    let value = dispatch.value();
-
-    if dispatch.context().is_none() && value != 0 {
-        // Send value back
-        journal.push(JournalNote::SendValue {
-            from: dispatch.source(),
-            to: None,
-            value,
-        });
-    }
-
-    // Reply back to the message `source`
-    if !dispatch.is_reply() && dispatch.kind() != DispatchKind::Signal {
-        let err = ErrorReplyReason::InactiveProgram;
-        let err_payload = err
-            .to_string()
-            .into_bytes()
-            .try_into()
-            .unwrap_or_else(|_| unreachable!("Error message is too large"));
-
-        let dispatch = ReplyMessage::system(dispatch.id(), err_payload, err).into_dispatch(
-            program_id,
-            dispatch.source(),
-            dispatch.id(),
-        );
-
-        journal.push(JournalNote::SendDispatch {
-            message_id,
-            dispatch,
-            delay: 0,
-            reservation: None,
-        });
-    }
-
-    if system_reservation_ctx.has_any() {
-        journal.push(JournalNote::SystemUnreserveGas { message_id });
-    }
-
-    journal.push(JournalNote::MessageDispatched {
-        message_id,
-        source,
-        outcome: DispatchOutcome::NoExecution,
-    });
-
-    journal.push(JournalNote::MessageConsumed(message_id));
 
     journal
 }

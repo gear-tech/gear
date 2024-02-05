@@ -2270,20 +2270,20 @@ fn delayed_program_creation_no_code() {
         //
         // Total dequeued: message to skip execution + error reply on it.
         //
-        // Single db read burned for querying program data from storage.
+        // One db read burned for querying program data from storage when creating program,
+        // and one more to process error reply.
         assert_last_dequeued(2);
 
         let delayed_block_amount: u64 = 1;
-
         let delay_holding_fee = gas_price(
             delayed_block_amount.saturating_mul(CostsPerBlockOf::<Test>::dispatch_stash()),
         );
+        let read_program_from_storage_fee =
+            gas_price(DbWeightOf::<Test>::get().reads(1).ref_time());
 
         assert_eq!(
             Balances::free_balance(USER_1),
-            free_balance + reserved_balance
-                - delay_holding_fee
-                - gas_price(DbWeightOf::<Test>::get().reads(1).ref_time())
+            free_balance + reserved_balance - delay_holding_fee - 2 * read_program_from_storage_fee
         );
         assert!(GearBank::<Test>::account_total(&USER_1).is_zero());
     })

@@ -23,16 +23,14 @@ use crate::{
     context::{
         ContextChargedForCodeLength, ContextChargedForMemory, ContextData, SystemReservationContext,
     },
-    processing::{
-        process_allowance_exceed, process_error, process_non_executable, process_success,
-    },
+    processing::{process_allowance_exceed, process_execution_error, process_success},
     ContextChargedForCode, ContextChargedForInstrumentation,
 };
 use alloc::{collections::BTreeSet, vec::Vec};
 use gear_core::{
     gas::{ChargeResult, GasAllowanceCounter, GasCounter},
     ids::ProgramId,
-    message::{DispatchKind, IncomingDispatch, MessageWaitedType},
+    message::{IncomingDispatch, MessageWaitedType},
     pages::{PageU32Size, WasmPage},
 };
 use scale_info::{
@@ -212,7 +210,11 @@ pub fn precharge_for_program(
     let mut charger = GasPrecharger::new(&mut gas_counter, &mut gas_allowance_counter);
 
     match charger.charge_gas_for_program_data(read_cost, read_per_byte_cost) {
-        Ok(()) => Ok((dispatch, gas_counter, gas_allowance_counter).into()),
+        Ok(()) => Ok(PrechargedDispatch::from_parts(
+            dispatch,
+            gas_counter,
+            gas_allowance_counter,
+        )),
         Err(PrechargeError::BlockGasExceeded) => {
             let gas_burned = gas_counter.burned();
             Err(process_allowance_exceed(
@@ -224,24 +226,16 @@ pub fn precharge_for_program(
         Err(PrechargeError::GasExceeded(op)) => {
             let gas_burned = gas_counter.burned();
             let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
-            Err(process_error(
+            Err(process_execution_error(
                 dispatch,
                 destination_id,
                 gas_burned,
                 system_reservation_ctx,
                 ActorExecutionErrorReplyReason::PreChargeGasLimitExceeded(op),
-                false,
+                true,
             ))
         }
     }
-}
-
-fn check_is_executable(
-    executable_data: Option<ExecutableActorData>,
-    dispatch: &IncomingDispatch,
-) -> Option<ExecutableActorData> {
-    executable_data
-        .filter(|data| !(data.initialized && matches!(dispatch.kind(), DispatchKind::Init)))
 }
 
 /// Charge a message for fetching the actual length of the binary code
@@ -256,20 +250,11 @@ pub fn precharge_for_code_length(
     block_config: &BlockConfig,
     dispatch: PrechargedDispatch,
     destination_id: ProgramId,
-    executable_data: Option<ExecutableActorData>,
+    actor_data: ExecutableActorData,
 ) -> PrechargeResult<ContextChargedForCodeLength> {
     let read_cost = block_config.read_cost;
 
     let (dispatch, mut gas_counter, mut gas_allowance_counter) = dispatch.into_parts();
-
-    let Some(actor_data) = check_is_executable(executable_data, &dispatch) else {
-        let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
-        return Err(process_non_executable(
-            dispatch,
-            destination_id,
-            system_reservation_ctx,
-        ));
-    };
 
     if !actor_data.code_exports.contains(&dispatch.kind()) {
         return Err(process_success(
@@ -296,13 +281,13 @@ pub fn precharge_for_code_length(
         )),
         Err(PrechargeError::GasExceeded(op)) => {
             let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
-            Err(process_error(
+            Err(process_execution_error(
                 dispatch,
                 destination_id,
                 gas_counter.burned(),
                 system_reservation_ctx,
                 ActorExecutionErrorReplyReason::PreChargeGasLimitExceeded(op),
-                false,
+                true,
             ))
         }
     }
@@ -332,13 +317,13 @@ pub fn precharge_for_code(
         Err(PrechargeError::GasExceeded(op)) => {
             let system_reservation_ctx =
                 SystemReservationContext::from_dispatch(&context.data.dispatch);
-            Err(process_error(
+            Err(process_execution_error(
                 context.data.dispatch,
                 context.data.destination_id,
                 context.data.gas_counter.burned(),
                 system_reservation_ctx,
                 ActorExecutionErrorReplyReason::PreChargeGasLimitExceeded(op),
-                false,
+                true,
             ))
         }
     }
@@ -369,13 +354,13 @@ pub fn precharge_for_instrumentation(
         Err(PrechargeError::GasExceeded(op)) => {
             let system_reservation_ctx =
                 SystemReservationContext::from_dispatch(&context.data.dispatch);
-            Err(process_error(
+            Err(process_execution_error(
                 context.data.dispatch,
                 context.data.destination_id,
                 context.data.gas_counter.burned(),
                 system_reservation_ctx,
                 ActorExecutionErrorReplyReason::PreChargeGasLimitExceeded(op),
-                false,
+                true,
             ))
         }
     }
@@ -421,27 +406,22 @@ pub fn precharge_for_memory(
         }
         Err(err) => {
             log::debug!("Failed to charge for module instantiation or memory pages: {err:?}");
-            let reason = match err {
-                PrechargeError::BlockGasExceeded => {
-                    return Err(process_allowance_exceed(
-                        context.data.dispatch,
-                        context.data.destination_id,
-                        context.data.gas_counter.burned(),
-                    ));
-                }
-                PrechargeError::GasExceeded(op) => {
-                    ActorExecutionErrorReplyReason::PreChargeGasLimitExceeded(op)
-                }
+            let PrechargeError::GasExceeded(op) = err else {
+                return Err(process_allowance_exceed(
+                    context.data.dispatch,
+                    context.data.destination_id,
+                    context.data.gas_counter.burned(),
+                ));
             };
 
             let system_reservation_ctx =
                 SystemReservationContext::from_dispatch(&context.data.dispatch);
-            return Err(process_error(
+            return Err(process_execution_error(
                 context.data.dispatch,
                 context.data.destination_id,
                 context.data.gas_counter.burned(),
                 system_reservation_ctx,
-                reason,
+                ActorExecutionErrorReplyReason::PreChargeGasLimitExceeded(op),
                 false,
             ));
         }

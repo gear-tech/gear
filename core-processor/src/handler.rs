@@ -113,6 +113,10 @@ pub fn handle_journal(
                 future_reply_id,
                 amount,
             } => handler.reply_deposit(message_id, future_reply_id, amount),
+            JournalNote::WaitingInitMessage {
+                dispatch,
+                destination,
+            } => handler.waiting_init_message(dispatch, destination),
         }
     }
 
