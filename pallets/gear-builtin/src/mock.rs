@@ -60,8 +60,8 @@ pub(crate) struct ExecutionTraceFrame {
 }
 
 thread_local! {
-    static DEBUG_EXECUTION_TRACE: RefCell<Vec<ExecutionTraceFrame>> = RefCell::new(Vec::new());
-    static IN_TRANSACTION: RefCell<bool> = RefCell::new(false);
+    static DEBUG_EXECUTION_TRACE: RefCell<Vec<ExecutionTraceFrame>> = const { RefCell::new(Vec::new()) };
+    static IN_TRANSACTION: RefCell<bool> = const { RefCell::new(false) };
 }
 
 // Configure a mock runtime to test the pallet.
