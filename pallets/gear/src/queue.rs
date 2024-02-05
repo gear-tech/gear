@@ -78,7 +78,7 @@ where
 
         // If the destination program is uninitialized, then we allow
         // to process message, if it's a reply or init message.
-        // Otherwise, we appends message to the waiting init message list.
+        // Otherwise, we append the message to the waiting init message list.
         if matches!(program.state, ProgramState::Uninitialized { message_id }
             if message_id != dispatch_id && dispatch_kind != DispatchKind::Reply)
         {
