@@ -13,6 +13,7 @@ mod sys {
 }
 
 #[test]
+#[allow(static_mut_ref)]
 fn test_debug() {
     let value = 42;
 
@@ -28,6 +29,6 @@ fn test_debug() {
     crate::dbg!(value);
     assert_eq!(
         unsafe { &DEBUG_MSG },
-        b"[gstd/tests/debug.rs:28] value = 42"
+        b"[gstd/tests/debug.rs:29:5] value = 42"
     );
 }

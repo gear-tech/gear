@@ -46,8 +46,6 @@ impl Calls {
         self
     }
 
-    // TODO #3452: remove this on next rust update
-    #[allow(clippy::useless_conversion)]
     pub fn add_from_iter(mut self, calls: impl Iterator<Item = Call>) -> Self {
         self.0.extend(calls.into_iter());
         self
