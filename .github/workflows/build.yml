@@ -65,6 +65,9 @@ jobs:
       - name: "Buid: Init"
         run: ./scripts/gear.sh init cargo
 
+      - name: "Build: Node"
+        run: ./scripts/gear.sh build node --release --locked
+
       - name: "Build: Gear"
         run: ./scripts/gear.sh build gear --locked
 
