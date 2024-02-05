@@ -125,7 +125,7 @@ jobs:
         shell: powershell
 
       - name: "Build: Node"
-        run: ./scripts/gear.sh build node --locked
+        run: ./scripts/gear.sh build node --release --locked
 
       - name: "Check: Stack height limit"
         run: cargo run -p calc-stack-height --release --locked
