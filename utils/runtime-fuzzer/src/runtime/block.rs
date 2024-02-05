@@ -95,3 +95,10 @@ pub fn on_finalize_without_system() {
     GearGas::on_finalize(bn);
     Authorship::on_finalize(bn);
 }
+
+/**
+ * issue 3291
+ * 1. Check delayed logic on pallet gear
+ * 2. insert logs wherever it's needed
+ * 3. run fuzz/corpus/main/c1ca47c340a4a155833acdea80984142d5e57d77 corpus
+ */
