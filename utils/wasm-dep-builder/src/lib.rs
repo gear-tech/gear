@@ -104,6 +104,7 @@ impl PostPackage {
             wasm_binaries,
             r#"
 pub mod {pkg_name} {{
+    #[allow(unused_imports)]
     pub use ::{pkg_name}::*;
     
     pub const WASM_BINARY_BLOATY: &[u8] = {wasm_bloaty};
