@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -94,7 +94,7 @@ type Balance = u64;
 type Funds = u128;
 
 std::thread_local! {
-    static TOTAL_ISSUANCE: RefCell<Option<Balance>> = RefCell::new(None);
+    static TOTAL_ISSUANCE: RefCell<Option<Balance>> = const { RefCell::new(None) };
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -177,7 +177,7 @@ impl<T> From<ReservationKey> for GasNodeId<T, ReservationKey> {
 }
 
 std::thread_local! {
-    static GAS_TREE_NODES: RefCell<BTreeMap<Key, GasNode>> = RefCell::new(BTreeMap::new());
+    static GAS_TREE_NODES: RefCell<BTreeMap<Key, GasNode>> = const { RefCell::new(BTreeMap::new()) };
 }
 
 struct GasTreeNodesWrap;

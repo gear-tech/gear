@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2023 Gear Technologies Inc.
+// Copyright (C) 2023-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -225,8 +225,10 @@ pub enum TrapExplanation {
     ProgramAllocOutOfBounds,
     #[display(fmt = "Syscall unrecoverable error: {_0}")]
     UnrecoverableExt(UnrecoverableExtError),
-    #[display(fmt = "{_0}")]
+    #[display(fmt = "Panic occurred: {_0}")]
     Panic(LimitedStr<'static>),
+    #[display(fmt = "Stack limit exceeded")]
+    StackLimitExceeded,
     #[display(fmt = "Reason is unknown. Possibly `unreachable` instruction is occurred")]
     Unknown,
 }

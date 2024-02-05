@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -24,23 +24,28 @@ const MAX_GEAR_CALLS_BYTES: usize = 450_000;
 
 #[test]
 fn proptest_input_validity() {
-    assert!(MIN_GEAR_CALLS_BYTES >= crate::utils::min_unstructured_input_size());
+    let min_unstructured_input_size =
+        GearCallsGenerator::random_data_requirement() + BalanceManager::random_data_requirement();
+
+    assert!(MIN_GEAR_CALLS_BYTES >= min_unstructured_input_size);
     assert!(MIN_GEAR_CALLS_BYTES <= MAX_GEAR_CALLS_BYTES);
 }
 
 // This is a crashing input before c85f4563ce35d822958a23a92d85f798252c8466 commit to master.
 #[test]
 fn test_corpus_c6e2a597aebabecc9bbb11eefdaa4dd8a6770188() {
+    gear_utils::init_default_logger();
+
     let input = include_bytes!("../fuzz_corpus/c6e2a597aebabecc9bbb11eefdaa4dd8a6770188");
-    assert!(run_impl(input).is_ok());
+    assert!(run_impl(FuzzerInput::new(input)).is_ok());
 }
 
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(10))]
     #[test]
     fn test_fuzzer_reproduction(buf in prop::collection::vec(any::<u8>(), MIN_GEAR_CALLS_BYTES..MAX_GEAR_CALLS_BYTES)) {
-        let ext1 = run_impl(&buf);
-        let ext2 = run_impl(&buf);
+        let ext1 = run_impl(FuzzerInput::new(&buf));
+        let ext2 = run_impl(FuzzerInput::new(&buf));
 
         match (ext1, ext2) {
             (Ok(ext1), Ok(ext2)) => {

@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -69,14 +69,15 @@ macro_rules! debug {
 #[macro_export]
 macro_rules! dbg {
     () => {
-        $crate::debug!("[{}:{}]", $crate::prelude::file!(), $crate::prelude::line!())
+        $crate::debug!("[{}:{}:{}]", $crate::prelude::file!(), $crate::prelude::line!(), $crate::prelude::column!())
     };
     ($val:expr $(,)?) => {
         match $val {
             tmp => {
-                $crate::debug!("[{}:{}] {} = {:#?}",
+                $crate::debug!("[{}:{}:{}] {} = {:#?}",
                     $crate::prelude::file!(),
                     $crate::prelude::line!(),
+                    $crate::prelude::column!(),
                     $crate::prelude::stringify!($val),
                     &tmp,
                 );

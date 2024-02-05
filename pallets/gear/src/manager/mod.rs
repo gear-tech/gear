@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -49,7 +49,6 @@ mod journal;
 mod task;
 
 use gear_core_errors::{ReplyCode, SignalCode};
-pub use journal::*;
 pub use task::*;
 
 use crate::{
@@ -78,6 +77,7 @@ use gear_core::{
     reservation::GasReservationSlot,
 };
 use primitive_types::H256;
+use scale_info::TypeInfo;
 use sp_runtime::traits::{UniqueSaturatedInto, Zero};
 use sp_std::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
@@ -86,7 +86,7 @@ use sp_std::{
     prelude::*,
 };
 
-#[derive(Clone, Decode, Encode)]
+#[derive(Clone, Decode, Encode, TypeInfo)]
 pub enum HandleKind {
     Init(Vec<u8>),
     InitByHash(CodeId),

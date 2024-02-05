@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -33,22 +33,27 @@ pub mod transfer;
 pub mod update;
 pub mod upload;
 
+pub use self::{
+    claim::Claim, create::Create, info::Info, key::Key, login::Login, new::New, program::Program,
+    reply::Reply, send::Send, transfer::Transfer, update::Update, upload::Upload,
+};
+
 /// All SubCommands of gear command line interface.
-#[derive(Debug, Parser)]
+#[derive(Clone, Debug, Parser)]
 pub enum Command {
-    Claim(claim::Claim),
-    Create(create::Create),
-    Info(info::Info),
-    Key(key::Key),
-    Login(login::Login),
-    New(new::New),
+    Claim(Claim),
+    Create(Create),
+    Info(Info),
+    Key(Key),
+    Login(Login),
+    New(New),
     #[clap(subcommand)]
-    Program(program::Program),
-    Reply(reply::Reply),
-    Send(send::Send),
-    Upload(upload::Upload),
-    Transfer(transfer::Transfer),
-    Update(update::Update),
+    Program(Program),
+    Reply(Reply),
+    Send(Send),
+    Upload(Upload),
+    Transfer(Transfer),
+    Update(Update),
 }
 
 impl Command {
@@ -70,6 +75,25 @@ impl Command {
         }
 
         Ok(())
+    }
+
+    #[cfg(feature = "embed")]
+    pub async fn exec_embedded(
+        &self,
+        app: &impl App,
+        artifact: crate::embed::Artifact,
+    ) -> anyhow::Result<()> {
+        let this = match self {
+            Command::Upload(upload) => {
+                Command::Upload(upload.clone_with_code_overridden(artifact.opt))
+            }
+            Command::Program(program) => {
+                Command::Program(program.clone_with_meta_overridden(artifact.meta))
+            }
+            _ => self.clone(),
+        };
+
+        Self::exec(&this, app).await
     }
 }
 

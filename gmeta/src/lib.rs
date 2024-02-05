@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022-2023 Gear Technologies Inc.
+// Copyright (C) 2022-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -19,22 +19,22 @@
 //! Crate for providing metadata for Gear programs.
 //!
 //! Metadata is used to describe the interface of a Gear program. For example,
-//! it can be used when uploading a contract using <https://idea.gear-tech.io>.
-//! The metadata informs the user about the contract's interface and allows them
+//! it can be used when uploading a program using <https://idea.gear-tech.io>.
+//! The metadata informs the user about the program's interface and allows them
 //! to interact with it using custom types on web applications UI.
 //!
 //! Another use case is to parse metadata in JavaScript using the `gear-js`
 //! library and get the metadata details for some custom UI.
 //!
 //! Note that metadata is not required for a Gear program to work. It is only
-//! used to provide additional information about the contract. Also, metadata
+//! used to provide additional information about the program. Also, metadata
 //! can be used for various purposes but we will focus on the use cases related
 //! to the <https://idea.gear-tech.io>.
 //!
-//! To generate a metadata output file for a contract, you need:
+//! To generate a metadata output file for a program, you need:
 //!
 //! - Add `gmeta` crate to your `Cargo.toml` file.
-//! - Define an empty struct that will identify the contract metadata.
+//! - Define an empty struct that will identify the program metadata.
 //! - Implement the [`Metadata`] trait for this struct by defining the
 //!   associated types of the trait.
 //! - **Option 1**: Call [`gear_wasm_builder::build_with_metadata`](https://docs.gear.rs/gear_wasm_builder/fn.build_with_metadata.html)
@@ -44,7 +44,7 @@
 //!
 //! # Examples
 //!
-//! In this example we will create a simple ping-pong contract. Let's define
+//! In this example we will create a simple ping-pong program. Let's define
 //! message types and metadata in a separate `ping-io` crate to be able to use
 //! it in both program and `build.rs` files.
 //!
@@ -65,9 +65,9 @@
 //! }
 //!
 //! // Metadata struct.
-//! pub struct ContractMetadata;
+//! pub struct ProgramMetadata;
 //!
-//! impl Metadata for ContractMetadata {
+//! impl Metadata for ProgramMetadata {
 //!     // The unit tuple is used as neither incoming nor outgoing messages are
 //!     // expected in the `init()` function.
 //!     type Init = ();
@@ -75,13 +75,13 @@
 //!     // messages.
 //!     type Handle = InOut<PingPong, PingPong>;
 //!     // The unit tuple is used as we don't use asynchronous interaction in this
-//!     // contract.
+//!     // program.
 //!     type Others = ();
-//!     // The unit tuple is used as we don't process any replies in this contract.
+//!     // The unit tuple is used as we don't process any replies in this program.
 //!     type Reply = ();
-//!     // The unit tuple is used as we don't process any signals in this contract.
+//!     // The unit tuple is used as we don't process any signals in this program.
 //!     type Signal = ();
-//!     // We return a counter value (`i32`) in the `state()` function in this contract.
+//!     // We return a counter value (`i32`) in the `state()` function in this program.
 //!     type State = Out<i32>;
 //! }
 //! ```
@@ -127,11 +127,11 @@
 //!
 //! ```no_run
 //! # const IGNORE: &'static str = stringify! {
-//! use ping_io::ContractMetadata;
+//! use ping_io::ProgramMetadata;
 //! # };
 //! #
-//! # pub struct ContractMetadata;
-//! # impl gmeta::Metadata for ContractMetadata {
+//! # pub struct ProgramMetadata;
+//! # impl gmeta::Metadata for ProgramMetadata {
 //! #     type Init = ();
 //! #     type Handle = ();
 //! #     type Others = ();
@@ -141,7 +141,7 @@
 //! # }
 //!
 //! fn main() {
-//!     gear_wasm_builder::build_with_metadata::<ContractMetadata>();
+//!     gear_wasm_builder::build_with_metadata::<ProgramMetadata>();
 //! }
 //! ```
 //!
@@ -151,7 +151,7 @@
 //! ```
 //! use gmeta::{Metadata, Out};
 //! # const IGNORE: &'static str = stringify! {
-//! use ping_io::ContractMetadata;
+//! use ping_io::ProgramMetadata;
 //! # };
 //! use std::fs;
 //!
@@ -161,8 +161,8 @@
 //! #     Pong,
 //! # }
 //! #
-//! # pub struct ContractMetadata;
-//! # impl gmeta::Metadata for ContractMetadata {
+//! # pub struct ProgramMetadata;
+//! # impl gmeta::Metadata for ProgramMetadata {
 //! #     type Init = ();
 //! #     type Handle = (PingPong, PingPong);
 //! #     type Others = ();
@@ -171,7 +171,7 @@
 //! #     type State = Out<i32>;
 //! # }
 //! #
-//! let metadata_hex = ContractMetadata::repr().hex();
+//! let metadata_hex = ProgramMetadata::repr().hex();
 //! assert_eq!(metadata_hex.len(), 146);
 //! fs::write("ping.meta.txt", metadata_hex).expect("Unable to write");
 //! ```

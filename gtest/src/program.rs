@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -856,7 +856,9 @@ mod tests {
         assert!(run_result.main_failed());
 
         let log = run_result.log();
-        assert!(log[0].payload().starts_with(b"'Failed to load destination"));
+        let panic_msg_payload =
+            String::from_utf8(log[0].payload().into()).expect("Unable to decode panic message");
+        assert!(panic_msg_payload.contains("panicked with 'Failed to load destination"));
 
         let run_result = prog.send(user_id, String::from("should_be_skipped"));
 
@@ -1064,5 +1066,60 @@ mod tests {
             .payload_bytes("Discharged: 20");
         assert!(response.contains(&log));
         sys.claim_value_from_mailbox(signer);
+    }
+
+    #[test]
+    fn process_wait_for() {
+        use demo_custom::{InitMessage, WASM_BINARY};
+        let sys = System::new();
+        sys.init_logger();
+
+        let prog = Program::from_opt_and_meta_code_with_id(&sys, 420, WASM_BINARY.to_vec(), None);
+
+        let signer = 42;
+
+        // Init simple waiter
+        prog.send(signer, InitMessage::SimpleWaiter);
+
+        // Invoke `exec::wait_for` when running for the first time
+        let result = prog.send_bytes(signer, b"doesn't matter");
+
+        // No log entries as the program is waiting
+        assert!(result.log().is_empty());
+
+        // Spend 20 blocks and make the waiter to wake up
+        let results = sys.spend_blocks(20);
+
+        let log = Log::builder()
+            .source(prog.id())
+            .dest(signer)
+            .payload_bytes("hello");
+
+        assert!(results.iter().any(|result| result.contains(&log)));
+    }
+
+    #[test]
+    #[should_panic]
+    fn reservations_limit() {
+        use demo_custom::{InitMessage, WASM_BINARY};
+        let sys = System::new();
+        sys.init_logger();
+
+        let prog = Program::from_opt_and_meta_code_with_id(&sys, 420, WASM_BINARY.to_vec(), None);
+
+        let signer = 42;
+
+        // Init reserver
+        prog.send(signer, InitMessage::Reserver);
+
+        for _ in 0..258 {
+            // Reserve
+            let result = prog.send_bytes(signer, b"reserve");
+            assert!(!result.main_failed());
+
+            // Spend
+            let result = prog.send_bytes(signer, b"send from reservation");
+            assert!(!result.main_failed());
+        }
     }
 }

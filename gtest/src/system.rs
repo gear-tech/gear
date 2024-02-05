@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -179,7 +179,9 @@ impl System {
                     .block_info
                     .timestamp
                     .saturating_add(BLOCK_DURATION_IN_MSECS);
-                manager.process_delayed_dispatches(next_block_number)
+                let mut results = manager.process_delayed_dispatches(next_block_number);
+                results.extend(manager.process_scheduled_wait_list(next_block_number));
+                results
             })
             .collect::<Vec<Vec<_>>>()
             .concat()

@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -17,19 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use common::env;
-use gsdk::{result::Error, Api};
 use std::path::PathBuf;
 
 mod cmd;
 mod common;
-
-#[tokio::test]
-async fn api_timeout() {
-    assert!(matches!(
-        Api::new_with_timeout(None, Some(1)).await.err(),
-        Some(Error::SubxtRpc(jsonrpsee::core::Error::Transport(..)))
-    ));
-}
 
 #[test]
 fn paths() {
@@ -42,7 +33,7 @@ fn paths() {
     .into_iter()
     .for_each(|path| {
         if !PathBuf::from(&path).exists() {
-            panic!("{} not found.", path)
+            panic!("{path} not found.")
         }
     })
 }

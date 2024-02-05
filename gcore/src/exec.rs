@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -26,10 +26,7 @@ use crate::{
     ActorId, MessageId, ReservationId,
 };
 use core::mem::MaybeUninit;
-use gsys::{
-    BlockNumberWithHash, EnvVars, ErrorWithBlockNumberAndValue, ErrorWithGas, ErrorWithHash,
-    HashWithValue,
-};
+use gsys::{BlockNumberWithHash, EnvVars, ErrorWithGas, ErrorWithHash};
 
 /// Get current version of environment variables.
 pub fn env_vars() -> EnvVars {
@@ -242,7 +239,7 @@ pub fn unreserve_gas(id: ReservationId) -> Result<u64> {
 /// Each message processing consumes gas on instructions execution and memory
 /// allocations. This function returns a value of the gas available for spending
 /// during the current execution. Its use may help avoid unexpected behaviors
-/// during the smart-contract execution in case insufficient gas is available.
+/// during the program execution in case insufficient gas is available.
 ///
 /// # Examples
 ///
@@ -403,34 +400,6 @@ pub fn program_id() -> ActorId {
     let mut program_id = ActorId::default();
     unsafe { gsys::gr_program_id(program_id.as_mut_ptr()) }
     program_id
-}
-
-/// Pay specified rent for the program. The result contains the remainder of
-/// rent value and the count of paid blocks.
-///
-/// # Examples
-///
-/// ```
-/// use gcore::exec;
-///
-/// #[no_mangle]
-/// extern "C" fn handle() {
-///     let (unused_value, paid_block_count) =
-///         exec::pay_program_rent(exec::program_id(), 1_000_000).expect("Unable to pay rent");
-/// }
-/// ```
-pub fn pay_program_rent(program_id: ActorId, value: u128) -> Result<(u128, u32)> {
-    let rent_pid = HashWithValue {
-        hash: program_id.0,
-        value,
-    };
-
-    let mut res: ErrorWithBlockNumberAndValue = Default::default();
-
-    unsafe { gsys::gr_pay_program_rent(&rent_pid, res.as_mut_ptr()) }
-
-    SyscallError(res.error_code).into_result()?;
-    Ok((res.value, res.bn))
 }
 
 /// Get the random seed, along with the block number from which it is

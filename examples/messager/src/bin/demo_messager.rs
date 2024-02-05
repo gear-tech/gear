@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -15,38 +15,42 @@
 //
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
+#![cfg(feature = "gcli")]
 
-//! command `meta`
-use crate::{metadata::Metadata, result::Result};
-use clap::Parser;
-use std::{fs, path::PathBuf};
+use gcli::{
+    anyhow, async_trait,
+    clap::{self, Parser},
+    cmd::Upload,
+    color_eyre, tokio, App,
+};
 
-/// Show metadata structure, read types from registry, etc.
 #[derive(Debug, Parser)]
-pub enum Action {
-    /// Display the structure of the metadata.
-    Display,
+pub enum Command {
+    Upload(Upload),
 }
 
-/// Show metadata structure, read types from registry, etc.
 #[derive(Debug, Parser)]
-pub struct Meta {
-    /// Path of "*.meta.wasm".
-    pub metadata: PathBuf,
-    #[command(subcommand)]
-    pub action: Action,
+pub struct Messager {
+    #[clap(subcommand)]
+    command: Command,
 }
 
-impl Meta {
-    /// Run command meta.
-    pub fn exec(&self) -> Result<()> {
-        let wasm = fs::read(&self.metadata)?;
-        let meta = Metadata::of(&wasm)?;
+#[async_trait]
+impl App for Messager {
+    async fn exec(&self) -> anyhow::Result<()> {
+        let lookup = gcli::lookup!();
+        let signer = self.signer().await?;
 
-        match self.action {
-            Action::Display => println!("{}", format!("{meta:#}").replace('"', "")),
-        }
-
-        Ok(())
+        let Command::Upload(upload) = &self.command;
+        upload
+            .clone_with_code_overridden(lookup.opt)
+            .exec(signer)
+            .await
+            .map_err(Into::into)
     }
+}
+
+#[tokio::main]
+async fn main() -> color_eyre::Result<()> {
+    Messager::parse().run().await
 }

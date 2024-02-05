@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -23,7 +23,7 @@ use gsdk::{ext::sp_core::H256, Api};
 use std::{fs, path::PathBuf};
 
 /// Read program state, etc.
-#[derive(Debug, Parser)]
+#[derive(Clone, Debug, Parser)]
 pub enum Program {
     /// Display metadata of the program.
     ///
@@ -33,7 +33,11 @@ pub enum Program {
         ///
         /// - "*.meta.txt" describes the metadata of the program
         /// - "*.meta.wasm" describes the wasm exports of the program
+        #[cfg_attr(feature = "embed", clap(skip))]
         meta: PathBuf,
+        /// Overridden metadata binary if feature embed is enabled.
+        #[clap(skip)]
+        meta_override: Vec<u8>,
         /// Derive the description of the specified type from registry.
         #[arg(short, long)]
         derive: Option<String>,
@@ -60,6 +64,15 @@ pub enum Program {
 }
 
 impl Program {
+    /// Clone self with metadata overridden.
+    pub fn clone_with_meta_overridden(&self, meta: Vec<u8>) -> Self {
+        let mut overridden = self.clone();
+        if let Program::Meta { meta_override, .. } = &mut overridden {
+            *meta_override = meta;
+        };
+        overridden
+    }
+
     /// Run command program.
     pub async fn exec(&self, app: &impl App) -> Result<()> {
         match self {
@@ -79,7 +92,19 @@ impl Program {
                     Self::full_state(api, *pid, *at).await?;
                 }
             }
-            Program::Meta { meta, derive } => Self::meta(meta, derive)?,
+            Program::Meta {
+                meta,
+                derive,
+                meta_override,
+            } => {
+                let meta = if meta_override.is_empty() {
+                    Self::resolve_meta(meta)
+                } else {
+                    Meta::decode_wasm(meta_override)
+                }?;
+
+                Self::meta(meta, derive)?
+            }
         }
 
         Ok(())
@@ -96,17 +121,17 @@ impl Program {
         let state = api
             .read_state_using_wasm(pid, Default::default(), method, wasm, args, at)
             .await?;
-        println!("{}", state);
+        println!("{state}");
         Ok(())
     }
 
     async fn full_state(api: Api, pid: H256, at: Option<H256>) -> Result<()> {
         let state = api.read_state(pid, Default::default(), at).await?;
-        println!("{}", state);
+        println!("{state}");
         Ok(())
     }
 
-    fn meta(path: &PathBuf, name: &Option<String>) -> Result<()> {
+    fn resolve_meta(path: &PathBuf) -> Result<Meta> {
         let ext = path
             .extension()
             .ok_or_else(|| anyhow::anyhow!("Invalid file extension"))?;
@@ -122,11 +147,14 @@ impl Program {
             return Err(anyhow::anyhow!(format!("Unsupported file extension {:?}", ext)).into());
         };
 
-        // Format types.
+        Ok(meta)
+    }
+
+    fn meta(meta: Meta, name: &Option<String>) -> Result<()> {
         let fmt = if let Some(name) = name {
             format!("{:#}", meta.derive(name)?)
         } else {
-            format!("{:#}", meta)
+            format!("{meta:#}")
         };
 
         // println result.

@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -24,7 +24,7 @@ use std::process::{self, Command};
 const REPO: &str = "https://github.com/gear-tech/gear-program";
 
 /// Update self from crates.io or github
-#[derive(Debug, Parser)]
+#[derive(Clone, Debug, Parser)]
 pub struct Update {
     /// Force update self from <https://github.com/gear-tech/gear-program>
     #[arg(short, long)]

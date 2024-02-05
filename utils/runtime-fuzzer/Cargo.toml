@@ -10,12 +10,10 @@ path = "bin/run_corpus.rs"
 
 [dependencies]
 anyhow.workspace = true
-arbitrary.workspace = true
 codec = { workspace = true, features = ["derive"] }
 hex.workspace = true
 log.workspace = true
 sha-1.workspace = true
-static_assertions.workspace = true
 
 # Temporary deps for the reproducing crash script until #2313 is implemented
 clap = { workspace = true, features = ["derive"] }

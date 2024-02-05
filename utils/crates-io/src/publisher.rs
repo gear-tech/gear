@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -18,7 +18,9 @@
 
 //! Packages publisher
 
-use crate::{Manifest, PACKAGES, SAFE_DEPENDENCIES, STACKED_DEPENDENCIES};
+use crate::{
+    handler, manifest::Workspace, Manifest, PACKAGES, SAFE_DEPENDENCIES, STACKED_DEPENDENCIES,
+};
 use anyhow::Result;
 use cargo_metadata::{Metadata, MetadataCommand, Package};
 use std::collections::{BTreeMap, HashMap};
@@ -59,9 +61,9 @@ impl Publisher {
     /// 1. Replace git dependencies to crates-io dependencies.
     /// 2. Rename version of all local packages
     /// 3. Patch dependencies if needed
-    pub fn build(mut self, version: Option<String>) -> Result<Self> {
+    pub fn build(mut self, verify: bool, version: Option<String>) -> Result<Self> {
         let index = self.index.keys().map(|s| s.as_ref()).collect::<Vec<_>>();
-        let mut workspace = Manifest::workspace()?.with_version(version)?;
+        let mut workspace = Workspace::lookup(version)?;
         let version = workspace.version()?;
 
         for pkg @ Package { name, .. } in &self.metadata.packages {
@@ -69,20 +71,20 @@ impl Publisher {
                 continue;
             }
 
-            println!("Verifying {}@{} ...", &name, &version);
-            if crate::verify(name, &version)? {
+            if verify && crate::verify(name, &version)? {
                 println!("Package {}@{} already published .", &name, &version);
                 continue;
             }
 
             self.graph
-                .insert(self.index.get(name).cloned(), workspace.manifest(pkg)?);
+                .insert(self.index.get(name).cloned(), handler::patch(pkg)?);
         }
 
-        // Flush new manifests to disk
-        workspace.complete_versions(&index)?;
-        let mut manifests = self.graph.values().collect::<Vec<_>>();
-        manifests.push(&workspace);
+        workspace.complete(index)?;
+
+        // write manifests to disk.
+        let manifest = workspace.into();
+        let manifests = [self.graph.values().collect::<Vec<_>>(), vec![&manifest]].concat();
         manifests
             .iter()
             .map(|m| m.write())
@@ -110,6 +112,16 @@ impl Publisher {
 
         if !failed.is_empty() {
             panic!("Packages {failed:?} failed to pass the check ...");
+        }
+
+        // Post tests for gtest and gclient
+        for (pkg, test) in [
+            ("demo-syscall-error", "program_can_be_initialized"),
+            ("gsdk", "timeout"),
+        ] {
+            if !crate::test(pkg, test)?.success() {
+                panic!("{pkg}:{test} failed to pass the test ...");
+            }
         }
 
         Ok(())

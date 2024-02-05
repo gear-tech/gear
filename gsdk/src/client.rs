@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -45,7 +45,7 @@ use subxt::{
     error::RpcError,
 };
 
-const DEFAULT_GEAR_ENDPOINT: &str = "wss://rpc.vara-network.io:443";
+const DEFAULT_GEAR_ENDPOINT: &str = "wss://rpc.vara.network:443";
 const DEFAULT_TIMEOUT: u64 = 60_000;
 const ONE_HUNDRED_MEGA_BYTES: u32 = 100 * 1024 * 1024;
 

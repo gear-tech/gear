@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022-2023 Gear Technologies Inc.
+// Copyright (C) 2022-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -40,4 +40,11 @@ pub enum BuilderError {
 
     #[error("cargo toolchain is invalid `{0}`")]
     CargoToolchainInvalid(String),
+
+    #[error(
+        "recommended toolchain `{0}` not found, install it using the command:\n\
+        rustup toolchain install {0} --component llvm-tools --target wasm32-unknown-unknown\n\n\
+        after installation, do not forget to set `channel = \"{0}\"` in `rust-toolchain.toml` file"
+    )]
+    RecommendedToolchainNotFound(String),
 }

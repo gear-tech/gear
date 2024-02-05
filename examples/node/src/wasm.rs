@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2023 Gear Technologies Inc.
+// Copyright (C) 2023-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -143,7 +143,7 @@ fn process(request: Request) -> Reply {
                     transition.query_list = state().sub_nodes.iter().cloned().collect();
                     let first_sub_node = *transition
                         .query_list
-                        .get(0)
+                        .first()
                         .expect("Checked above that sub_nodes is not empty; qed");
                     transition.last_sent_message_id =
                         msg::send(first_sub_node, request, 0).unwrap();
@@ -176,7 +176,7 @@ fn process(request: Request) -> Reply {
                 if let TransitionState::Ready = transition.state {
                     let first_sub_node = *transition
                         .query_list
-                        .get(0)
+                        .first()
                         .expect("Checked above that sub_nodes is not empty; qed");
 
                     transition.query_index = 0;

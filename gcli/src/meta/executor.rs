@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -141,8 +141,7 @@ mod env {
                 "gr_gas_available" => func!(store, i32),
                 "gr_leave" => func!(store),
                 "gr_message_id" => func!(store, i32),
-                "gr_out_of_gas" => func!(store),
-                "gr_pay_program_rent" => func!(store, i32, i32),
+                "gr_system_break" => func!(store, u32),
                 "gr_program_id" => func!(store, i32),
                 "gr_random" => func!(store, i32, i32),
                 "gr_reply_code" => func!(store, i32),

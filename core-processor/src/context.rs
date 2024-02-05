@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -136,7 +136,7 @@ impl From<(ContextChargedForMemory, InstrumentedCode, u128)> for ProcessExecutio
             actor_data.initialized,
         );
 
-        // Must be created once per taken from the queue dispatch by contract.
+        // Must be created once per taken from the queue dispatch by program.
         let gas_reserver =
             GasReserver::new(&dispatch, actor_data.gas_reservation_map, max_reservations);
 

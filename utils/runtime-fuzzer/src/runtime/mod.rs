@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -18,29 +18,25 @@
 
 use account::*;
 use block::*;
-use frame_support::{
-    dispatch::DispatchResultWithPostInfo,
-    traits::{Currency, GenesisBuild},
-};
+use frame_support::{dispatch::DispatchResultWithPostInfo, traits::Currency};
 use frame_system::GenesisConfig as SystemConfig;
 use pallet_balances::{GenesisConfig as BalancesConfig, Pallet as BalancesPallet};
 use pallet_gear_bank::Config as GearBankConfig;
 use sp_io::TestExternalities;
+use sp_runtime::BuildStorage;
 use vara_runtime::{
     AccountId, Balances, BankAddress, Runtime, RuntimeOrigin, SessionConfig, SessionKeys,
 };
 
-pub use account::{account, alice};
-pub use block::{default_gas_limit, run_to_block, run_to_next_block};
-pub use mailbox::get_mailbox_messages;
+pub use account::{account, alice, BalanceManager, BalanceState};
+pub use block::{default_gas_limit, run_to_next_block};
 
 mod account;
 mod block;
-mod mailbox;
 
 /// Build genesis storage according to the mock runtime.
 pub fn new_test_ext() -> TestExternalities {
-    let mut t = SystemConfig::default().build_storage::<Runtime>().unwrap();
+    let mut t = SystemConfig::<Runtime>::default().build_storage().unwrap();
 
     let authorities = vec![authority_keys_from_seed("Authority")];
     // Vector of tuples of accounts and their balances
@@ -94,12 +90,10 @@ pub fn new_test_ext() -> TestExternalities {
 }
 
 pub fn increase_to_max_balance(who: AccountId) -> DispatchResultWithPostInfo {
-    let new_reserved = BalancesPallet::<Runtime>::reserved_balance(&who);
-    BalancesPallet::<Runtime>::set_balance(
+    BalancesPallet::<Runtime>::force_set_balance(
         RuntimeOrigin::root(),
         who.into(),
         <Runtime as GearBankConfig>::GasMultiplier::get()
             .gas_to_value(account::acc_max_balance() as u64),
-        new_reserved,
     )
 }

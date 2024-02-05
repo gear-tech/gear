@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022-2023 Gear Technologies Inc.
+// Copyright (C) 2022-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -20,7 +20,7 @@
 #![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
 #![doc(html_favicon_url = "https://gear-tech.io/favicons/favicon.ico")]
 
-use crate::{cargo_command::CargoCommand, cargo_toolchain::Toolchain, wasm_project::WasmProject};
+use crate::{cargo_command::CargoCommand, wasm_project::WasmProject};
 use anyhow::{Context, Result};
 use gmeta::{Metadata, MetadataRepr};
 use regex::Regex;
@@ -82,6 +82,24 @@ impl WasmBuilder {
         self
     }
 
+    /// Add check of recommended toolchain.
+    pub fn with_recommended_toolchain(mut self) -> Self {
+        self.cargo.set_check_recommended_toolchain(true);
+        self
+    }
+
+    /// Force the recommended toolchain to be used, but do not check whether the
+    /// current toolchain is recommended.
+    ///
+    /// NOTE: For internal use only, not recommended for production programs.
+    ///
+    /// An example usage can be found in `examples/out-of-memory/build.rs`.
+    #[doc(hidden)]
+    pub fn with_forced_recommended_toolchain(mut self) -> Self {
+        self.cargo.set_force_recommended_toolchain(true);
+        self
+    }
+
     /// Build the program and produce an output WASM binary.
     pub fn build(self) {
         if env::var("__GEAR_WASM_BUILDER_NO_BUILD").is_ok() {
@@ -101,7 +119,6 @@ impl WasmBuilder {
     fn build_project(mut self) -> Result<()> {
         self.wasm_project.generate()?;
 
-        self.cargo.set_toolchain(Toolchain::try_from_rustup()?);
         self.cargo
             .set_manifest_path(self.wasm_project.manifest_path());
         self.cargo.set_target_dir(self.wasm_project.target_dir());
@@ -166,7 +183,17 @@ impl WasmBuilder {
                 unmatched_features.join(", ")
             );
         }
-        Ok(matched_features)
+
+        // NOTE: Filter out feature `gcli`.
+        //
+        // dependency feature `gcli` could be captured here
+        // but it is not needed for the build.
+        //
+        // TODO: Filter dep features in this function (#3588)
+        Ok(matched_features
+            .into_iter()
+            .filter(|feature| feature != "gcli")
+            .collect())
     }
 
     fn paths_to_remap(&self) -> Result<Vec<(PathBuf, &'static str)>> {
@@ -217,5 +244,29 @@ pub fn build_with_metadata<T: Metadata>() {
 pub fn build_metawasm() {
     WasmBuilder::new_metawasm()
         .exclude_features(FEATURES_TO_EXCLUDE_BY_DEFAULT.to_vec())
+        .build();
+}
+
+/// Shorthand function to be used in `build.rs`.
+pub fn recommended_nightly() {
+    WasmBuilder::new()
+        .exclude_features(FEATURES_TO_EXCLUDE_BY_DEFAULT.to_vec())
+        .with_recommended_toolchain()
+        .build();
+}
+
+/// Shorthand function to be used in `build.rs`.
+pub fn recommended_nightly_with_metadata<T: Metadata>() {
+    WasmBuilder::with_meta(T::repr())
+        .exclude_features(FEATURES_TO_EXCLUDE_BY_DEFAULT.to_vec())
+        .with_recommended_toolchain()
+        .build();
+}
+
+/// Shorthand function to be used in `build.rs`.
+pub fn recommended_nightly_metawasm() {
+    WasmBuilder::new_metawasm()
+        .exclude_features(FEATURES_TO_EXCLUDE_BY_DEFAULT.to_vec())
+        .with_recommended_toolchain()
         .build();
 }

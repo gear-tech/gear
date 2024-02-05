@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -30,7 +30,6 @@ use sp_runtime::{
     traits::{Block as BlockT, Header as HeaderT, One},
     DeserializeOwned, Saturating,
 };
-use sp_state_machine::ExecutionStrategy;
 use std::{fmt::Debug, str::FromStr};
 use substrate_rpc_client::{ws_client, ChainApi};
 
@@ -178,19 +177,8 @@ where
     #[cfg(feature = "try-runtime")]
     let method = "TryRuntime_execute_block";
 
-    #[cfg(not(feature = "always-wasm"))]
-    let strategy = ExecutionStrategy::NativeElseWasm;
-    #[cfg(feature = "always-wasm")]
-    let strategy = ExecutionStrategy::AlwaysWasm;
-
-    let (_changes, _enc_res) = state_machine_call(
-        &ext,
-        &executor,
-        method,
-        &payload,
-        full_extensions(),
-        strategy,
-    )?;
+    let (_changes, _enc_res) =
+        state_machine_call(&ext, &executor, method, &payload, full_extensions())?;
     log::info!(
         target: LOG_TARGET,
         "Core_execute_block for block {} completed",

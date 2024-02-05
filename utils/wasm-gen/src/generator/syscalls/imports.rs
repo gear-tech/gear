@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -159,8 +159,8 @@ impl<'a, 'b> SyscallsImportsGenerator<'a, 'b> {
         }
     }
 
-    /// Generates syscalls imports and a function, that calls `gr_reservation_send` from config,
-    /// used to instantiate the generator.
+    /// Generates syscalls imports and precise syscalls, which are functions that call syscalls which have
+    /// a precise version of them. For more info on precise syscalls see [`InvocableSyscall`].
     ///
     /// Returns disabled syscalls imports generator and a proof that imports from config were generated.
     pub fn generate(
@@ -341,6 +341,32 @@ impl<'a, 'b> SyscallsImportsGenerator<'a, 'b> {
         let pid_value_ptr = rid_pid_value_ptr + mem::size_of::<Hash>() as i32;
 
         let func_instructions = Instructions::new(vec![
+            // Copy the HashWithValue struct (48 bytes) containing
+            // the recipient and value
+            Instruction::I32Const(pid_value_ptr),
+            Instruction::GetLocal(0),
+            Instruction::I64Load(3, 0),
+            Instruction::I64Store(3, 0),
+            Instruction::I32Const(pid_value_ptr),
+            Instruction::GetLocal(0),
+            Instruction::I64Load(3, 8),
+            Instruction::I64Store(3, 8),
+            Instruction::I32Const(pid_value_ptr),
+            Instruction::GetLocal(0),
+            Instruction::I64Load(3, 16),
+            Instruction::I64Store(3, 16),
+            Instruction::I32Const(pid_value_ptr),
+            Instruction::GetLocal(0),
+            Instruction::I64Load(3, 24),
+            Instruction::I64Store(3, 24),
+            Instruction::I32Const(pid_value_ptr),
+            Instruction::GetLocal(0),
+            Instruction::I64Load(3, 32),
+            Instruction::I64Store(3, 32),
+            Instruction::I32Const(pid_value_ptr),
+            Instruction::GetLocal(0),
+            Instruction::I64Load(3, 40),
+            Instruction::I64Store(3, 40),
             // Amount of gas to reserve
             Instruction::GetLocal(4),
             // Duration of the reservation
@@ -373,32 +399,6 @@ impl<'a, 'b> SyscallsImportsGenerator<'a, 'b> {
             Instruction::GetLocal(6),
             Instruction::I64Load(3, 28),
             Instruction::I64Store(3, 24),
-            // Copy the HashWithValue struct (48 bytes) containing
-            // the recipient and value after the obtained reservation ID
-            Instruction::I32Const(pid_value_ptr),
-            Instruction::GetLocal(0),
-            Instruction::I64Load(3, 0),
-            Instruction::I64Store(3, 0),
-            Instruction::I32Const(pid_value_ptr),
-            Instruction::GetLocal(0),
-            Instruction::I64Load(3, 8),
-            Instruction::I64Store(3, 8),
-            Instruction::I32Const(pid_value_ptr),
-            Instruction::GetLocal(0),
-            Instruction::I64Load(3, 16),
-            Instruction::I64Store(3, 16),
-            Instruction::I32Const(pid_value_ptr),
-            Instruction::GetLocal(0),
-            Instruction::I64Load(3, 24),
-            Instruction::I64Store(3, 24),
-            Instruction::I32Const(pid_value_ptr),
-            Instruction::GetLocal(0),
-            Instruction::I64Load(3, 32),
-            Instruction::I64Store(3, 32),
-            Instruction::I32Const(pid_value_ptr),
-            Instruction::GetLocal(0),
-            Instruction::I64Load(3, 40),
-            Instruction::I64Store(3, 40),
             // Pointer to reservation ID, recipient ID and value
             Instruction::I32Const(rid_pid_value_ptr),
             // Pointer to payload
@@ -413,8 +413,7 @@ impl<'a, 'b> SyscallsImportsGenerator<'a, 'b> {
             Instruction::End,
             Instruction::End,
         ]);
-        let call_indexes_handle =
-            self.generate_proper_syscall_invocation(syscall, func_instructions);
+        let call_indexes_handle = self.generate_proper_syscall_function(syscall, func_instructions);
 
         Ok(call_indexes_handle)
     }
@@ -485,8 +484,7 @@ impl<'a, 'b> SyscallsImportsGenerator<'a, 'b> {
             Instruction::End,
             Instruction::End,
         ]);
-        let call_indexes_handle =
-            self.generate_proper_syscall_invocation(syscall, func_instructions);
+        let call_indexes_handle = self.generate_proper_syscall_function(syscall, func_instructions);
 
         Ok(call_indexes_handle)
     }
@@ -584,8 +582,7 @@ impl<'a, 'b> SyscallsImportsGenerator<'a, 'b> {
             Instruction::End,
         ]);
         let func_instructions = Instructions::new(elements);
-        let call_indexes_handle =
-            self.generate_proper_syscall_invocation(syscall, func_instructions);
+        let call_indexes_handle = self.generate_proper_syscall_function(syscall, func_instructions);
 
         Ok(call_indexes_handle)
     }
@@ -690,12 +687,12 @@ impl<'a, 'b> SyscallsImportsGenerator<'a, 'b> {
             Instruction::End,
         ]);
         let func_instructions = Instructions::new(elements);
-        let call_indexes_handle =
-            self.generate_proper_syscall_invocation(syscall, func_instructions);
+        let call_indexes_handle = self.generate_proper_syscall_function(syscall, func_instructions);
 
         Ok(call_indexes_handle)
     }
 
+    /// Generates a function which calls "properly" the `gr_reply_deposit`.
     fn generate_reply_deposit(
         &mut self,
         syscall: SyscallName,
@@ -777,8 +774,7 @@ impl<'a, 'b> SyscallsImportsGenerator<'a, 'b> {
         func_instructions.push(Instruction::End);
 
         let func_instructions = Instructions::new(func_instructions);
-        let call_indexes_handle =
-            self.generate_proper_syscall_invocation(syscall, func_instructions);
+        let call_indexes_handle = self.generate_proper_syscall_function(syscall, func_instructions);
 
         Ok(call_indexes_handle)
     }
@@ -818,7 +814,7 @@ impl<'a, 'b> SyscallsImportsGenerator<'a, 'b> {
     }
 
     /// Generates a function which calls "properly" the given syscall.
-    fn generate_proper_syscall_invocation(
+    fn generate_proper_syscall_function(
         &mut self,
         syscall: SyscallName,
         func_instructions: Instructions,

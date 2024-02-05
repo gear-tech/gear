@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -26,7 +26,7 @@ use gsdk::ext::{
 use std::{fmt::Display, result::Result as StdResult, str::FromStr};
 
 /// Cryptography scheme
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug)]
 pub enum Scheme {
     Ecdsa,
     Ed25519,
@@ -45,7 +45,7 @@ impl FromStr for Scheme {
     }
 }
 
-#[derive(Debug, Parser)]
+#[derive(Clone, Debug, Parser)]
 pub enum Action {
     /// Generate a random account
     Generate,
@@ -88,7 +88,7 @@ pub enum Action {
 }
 
 /// Keypair utils
-#[derive(Debug, Parser)]
+#[derive(Clone, Debug, Parser)]
 pub struct Key {
     /// Cryptography scheme
     #[arg(short, long, default_value = "sr25519")]
@@ -161,10 +161,7 @@ impl Key {
         let pair = Keypair::generate();
 
         println!("Secret:  0x{}", hex::encode(pair.secret().as_ref()));
-        println!(
-            "Peer ID: {}",
-            PublicKey::Ed25519(pair.public()).to_peer_id()
-        );
+        println!("Peer ID: {}", PublicKey::from(pair.public()).to_peer_id());
     }
 
     fn info<P>(title: &str, signer: &P, seed: Option<Vec<u8>>)
@@ -203,14 +200,11 @@ impl Key {
             PublicKey,
         };
         let pair = Keypair::from(
-            SecretKey::from_bytes(&mut hex::decode(secret)?)
+            SecretKey::try_from_bytes(&mut hex::decode(secret)?)
                 .map_err(|_| crate::result::Error::BadNodeKey)?,
         );
 
-        println!(
-            "Peer ID: {}",
-            PublicKey::Ed25519(pair.public()).to_peer_id()
-        );
+        println!("Peer ID: {}", PublicKey::from(pair.public()).to_peer_id());
         Ok(())
     }
 

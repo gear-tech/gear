@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2023 Gear Technologies Inc.
+// Copyright (C) 2023-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -46,10 +46,11 @@ use gear_core::{
 use gear_core_errors::{MessageError, ReplyCode, SignalCode};
 use gear_sandbox::{default_executor::Caller, ReturnValue, Value};
 use gear_sandbox_env::{HostError, WasmReturnValue};
+use gear_wasm_instrument::SystemBreakCode;
 use gsys::{
-    BlockNumberWithHash, ErrorBytes, ErrorWithBlockNumberAndValue, ErrorWithGas, ErrorWithHandle,
-    ErrorWithHash, ErrorWithReplyCode, ErrorWithSignalCode, ErrorWithTwoHashes, Gas, Hash,
-    HashWithValue, TwoHashesWithValue,
+    BlockNumberWithHash, ErrorBytes, ErrorWithGas, ErrorWithHandle, ErrorWithHash,
+    ErrorWithReplyCode, ErrorWithSignalCode, ErrorWithTwoHashes, Gas, Hash, HashWithValue,
+    TwoHashesWithValue,
 };
 
 const PTR_SPECIAL: u32 = u32::MAX;
@@ -1131,24 +1132,6 @@ where
         })
     }
 
-    pub fn pay_program_rent(rent_pid_ptr: u32) -> impl Syscall<Ext> {
-        FallibleSyscall::new::<ErrorWithBlockNumberAndValue>(
-            RuntimeCosts::PayProgramRent,
-            move |ctx: &mut CallerWrap<Ext>| {
-                let read_rent_pid = ctx.manager.register_read_as(rent_pid_ptr);
-
-                let HashWithValue {
-                    hash: program_id,
-                    value: rent,
-                } = ctx.read_as(read_rent_pid)?;
-
-                ctx.ext_mut()
-                    .pay_program_rent(program_id.into(), rent)
-                    .map_err(Into::into)
-            },
-        )
-    }
-
     pub fn source(source_ptr: u32) -> impl Syscall<Ext> {
         InfallibleSyscall::new(RuntimeCosts::Source, move |ctx: &mut CallerWrap<Ext>| {
             let source = ctx.ext_mut().source()?;
@@ -1317,21 +1300,35 @@ where
         })
     }
 
-    pub fn out_of_gas(_gas: Gas) -> impl Syscall<Ext> {
-        RawSyscall::new(|ctx: &mut CallerWrap<Ext>| {
-            let ext = ctx.ext_mut();
-            let current_counter = ext.current_counter_type();
-            log::trace!(target: "syscalls", "[out_of_gas] Current counter in global represents {current_counter:?}");
+    fn out_of_gas(ctx: &mut CallerWrap<Ext>) -> UndefinedTerminationReason {
+        let ext = ctx.ext_mut();
+        let current_counter = ext.current_counter_type();
+        log::trace!(target: "syscalls", "system_break(OutOfGas): Current counter in global represents {current_counter:?}");
 
-            if current_counter == CounterType::GasAllowance {
-                // We manually decrease it to 0 because global won't be affected
-                // since it didn't pass comparison to argument of `gas_charge()`
-                ext.decrease_current_counter_to(0);
-            }
+        if current_counter == CounterType::GasAllowance {
+            // We manually decrease it to 0 because global won't be affected
+            // since it didn't pass comparison to argument of `gas_charge()`
+            ext.decrease_current_counter_to(0);
+        }
 
-            let termination_reason: ActorTerminationReason = current_counter.into();
+        ActorTerminationReason::from(current_counter).into()
+    }
 
-            ctx.set_termination_reason(termination_reason.into());
+    fn stack_limit_exceeded() -> UndefinedTerminationReason {
+        TrapExplanation::StackLimitExceeded.into()
+    }
+
+    pub fn system_break(_gas: Gas, code: u32) -> impl Syscall<Ext> {
+        RawSyscall::new(move |ctx: &mut CallerWrap<Ext>| {
+            // At the instrumentation level, we can only use variants of the `SystemBreakCode`,
+            // so we should never reach `unreachable!("{e}")`.
+            let termination_reason = SystemBreakCode::try_from(code)
+                .map(|system_break_code| match system_break_code {
+                    SystemBreakCode::OutOfGas => Self::out_of_gas(ctx),
+                    SystemBreakCode::StackLimitExceeded => Self::stack_limit_exceeded(),
+                })
+                .unwrap_or_else(|e| unreachable!("{e}"));
+            ctx.set_termination_reason(termination_reason);
             Err(HostError)
         })
     }

@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -45,9 +45,7 @@ mod gear_sandbox;
 pub use gear_sandbox::init as sandbox_init;
 pub use gear_sandbox::sandbox;
 
-static_assertions::const_assert!(
-    core::mem::size_of::<HostPointer>() >= core::mem::size_of::<usize>()
-);
+const _: () = assert!(core::mem::size_of::<HostPointer>() >= core::mem::size_of::<usize>());
 
 #[derive(Debug, Clone, Encode, Decode)]
 #[codec(crate = codec)]

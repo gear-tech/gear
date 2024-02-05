@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022-2023 Gear Technologies Inc.
+// Copyright (C) 2022-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -106,9 +106,9 @@ impl GearApi {
     }
 
     /// Create and init a new `GearApi` instance that will be used with the
-    /// public Gear testnet.
-    pub async fn gear() -> Result<Self> {
-        Self::init(WSAddress::gear()).await
+    /// public Vara testnet node.
+    pub async fn vara_testnet() -> Result<Self> {
+        Self::init(WSAddress::vara_testnet()).await
     }
 
     /// Create and init a new `GearApi` instance that will be used with the

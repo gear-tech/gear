@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -19,6 +19,7 @@
 //! crates-io-manager library
 #![deny(missing_docs)]
 
+mod handler;
 mod manifest;
 mod publisher;
 mod version;
@@ -28,12 +29,14 @@ use anyhow::Result;
 use std::process::{Command, ExitStatus};
 
 /// Required Packages without local dependencies.
-pub const SAFE_DEPENDENCIES: [&str; 10] = [
+pub const SAFE_DEPENDENCIES: [&str; 12] = [
     "actor-system-error",
     "galloc",
     "gear-stack-buffer",
     "gear-core-errors",
     "gear-common-codegen",
+    "gear-runtime-primitives",
+    "gear-sandbox-env",
     "gear-wasm-instrument",
     "gmeta-codegen",
     "gsdk-codegen",
@@ -42,18 +45,55 @@ pub const SAFE_DEPENDENCIES: [&str; 10] = [
 ];
 
 /// Required packages with local dependencies.
-pub const STACKED_DEPENDENCIES: [&str; 5] =
-    ["gcore", "gmeta", "gear-core", "gear-utils", "gear-common"];
+///
+/// NOTE: DO NOT change the order of this array.
+pub const STACKED_DEPENDENCIES: [&str; 13] = [
+    "gcore",
+    "gmeta",
+    "gear-core",
+    "gear-utils",
+    "gear-common",
+    "gear-sandbox-host",
+    "gear-lazy-pages-common",
+    "gear-lazy-pages",
+    "gear-runtime-interface",
+    "gear-lazy-pages-interface",
+    "gear-sandbox",
+    "gear-core-backend",
+    "gear-core-processor",
+];
 
 /// Packages need to be published.
-pub const PACKAGES: [&str; 5] = ["gear-wasm-builder", "gstd", "gsdk", "gclient", "gcli"];
+///
+/// NOTE: DO NOT change the order of this array.
+pub const PACKAGES: [&str; 7] = [
+    "gring",
+    "gear-wasm-builder",
+    "gstd",
+    "gtest",
+    "gsdk",
+    "gclient",
+    "gcli",
+];
+
+/// Alias for packages.
+pub const PACKAGE_ALIAS: [(&str, &str); 2] = [
+    ("gear-core-processor", "core-processor"),
+    ("gear-runtime-primitives", "runtime-primitives"),
+];
 
 /// Check the input package
 pub fn check(manifest: &str) -> Result<ExitStatus> {
     Command::new("cargo")
-        .arg("check")
-        .arg("--manifest-path")
-        .arg(manifest)
+        .args(["check", "--lib", "--manifest-path", manifest])
+        .status()
+        .map_err(Into::into)
+}
+
+/// Test the input package
+pub fn test(package: &str, test: &str) -> Result<ExitStatus> {
+    Command::new("cargo")
+        .args(["test", "-p", package, "--", test])
         .status()
         .map_err(Into::into)
 }
@@ -61,10 +101,7 @@ pub fn check(manifest: &str) -> Result<ExitStatus> {
 /// Publish the input package
 pub fn publish(manifest: &str) -> Result<ExitStatus> {
     Command::new("cargo")
-        .arg("publish")
-        .arg("--manifest-path")
-        .arg(manifest)
-        .arg("--allow-dirty")
+        .args(["publish", "--manifest-path", manifest, "--allow-dirty"])
         .status()
         .map_err(Into::into)
 }

@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -31,7 +31,7 @@ use gsdk::{
 };
 use std::fmt;
 
-#[derive(Debug, Parser)]
+#[derive(Clone, Debug, Parser)]
 pub enum Action {
     /// Get balance info of the current account
     Balance,
@@ -44,7 +44,7 @@ pub enum Action {
 }
 
 /// Get account info from ss58address.
-#[derive(Debug, Parser)]
+#[derive(Clone, Debug, Parser)]
 pub struct Info {
     /// Info of this address, if none, will use the logged in account.
     pub address: Option<String>,

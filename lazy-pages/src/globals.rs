@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2023 Gear Technologies Inc.
+// Copyright (C) 2023-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -23,7 +23,7 @@ use core::any::Any;
 use gear_core::{memory::HostPointer, str::LimitedStr};
 use gear_lazy_pages_common::{GlobalsAccessError, GlobalsAccessMod, GlobalsAccessor};
 use gear_sandbox_host::sandbox::SandboxInstance;
-use sp_wasm_interface::Value;
+use sp_wasm_interface_common::Value;
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum GlobalNo {

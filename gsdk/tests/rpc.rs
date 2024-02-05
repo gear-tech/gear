@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2023 Gear Technologies Inc.
+// Copyright (C) 2023-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -27,6 +27,36 @@ use subxt::{error::RpcError, Error as SubxtError};
 use utils::{alice_account_id, dev_node, node_uri};
 
 mod utils;
+
+#[tokio::test]
+async fn pallet_errors_formatting() -> Result<()> {
+    let node = dev_node();
+    let api = Api::new(Some(&node_uri(&node))).await?;
+
+    let err = api
+        .calculate_upload_gas(
+            [0u8; 32].into(),
+            /* invalid code */ vec![],
+            vec![],
+            0,
+            true,
+            None,
+        )
+        .await
+        .expect_err("Must return error");
+
+    let expected_err = Error::Subxt(SubxtError::Rpc(RpcError::ClientError(Box::new(
+        CallError::Custom(ErrorObject::owned(
+            8000,
+            "Runtime error",
+            Some("Extrinsic `gear.upload_program` failed: 'ProgramConstructionFailed'"),
+        )),
+    ))));
+
+    assert_eq!(format!("{err}"), format!("{expected_err}"));
+
+    Ok(())
+}
 
 #[tokio::test]
 async fn test_calculate_upload_gas() -> Result<()> {
@@ -233,7 +263,7 @@ async fn test_runtime_wasm_blob_version() -> Result<()> {
 
 #[tokio::test]
 async fn test_runtime_wasm_blob_version_history() -> Result<()> {
-    let api = Api::new(Some("wss://archive-rpc.vara-network.io:443")).await?;
+    let api = Api::new(Some("wss://archive-rpc.vara.network:443")).await?;
 
     {
         let no_method_block_hash = sp_core::H256::from_str(

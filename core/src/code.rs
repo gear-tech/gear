@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -27,14 +27,13 @@ use alloc::{collections::BTreeSet, vec, vec::Vec};
 use gear_wasm_instrument::{
     parity_wasm::{
         self,
-        builder::ModuleBuilder,
-        elements::{ExportEntry, GlobalEntry, GlobalType, InitExpr, Instruction, Internal, Module},
+        elements::{
+            ExportEntry, External, GlobalEntry, GlobalType, ImportCountType, InitExpr, Instruction,
+            Internal, Module, Type, ValueType,
+        },
     },
-    wasm_instrument::{
-        self,
-        gas_metering::{ConstantCostRules, Rules},
-    },
-    STACK_END_EXPORT_NAME,
+    wasm_instrument::gas_metering::{ConstantCostRules, Rules},
+    InstrumentationBuilder, SyscallName, STACK_END_EXPORT_NAME,
 };
 use scale_info::{
     scale::{Decode, Encode},
@@ -44,32 +43,143 @@ use scale_info::{
 /// Defines maximal permitted count of memory pages.
 pub const MAX_WASM_PAGE_COUNT: u16 = 512;
 
-/// Name of exports allowed on chain except execution kinds.
-pub const STATE_EXPORTS: [&str; 2] = ["state", "metahash"];
+/// Name of exports allowed on chain.
+pub const ALLOWED_EXPORTS: [&str; 6] = [
+    "init",
+    "handle",
+    "handle_reply",
+    "handle_signal",
+    "state",
+    "metahash",
+];
 
-/// Parse function exports from wasm module into [`DispatchKind`].
-fn get_exports(
-    module: &Module,
-    reject_unnecessary: bool,
-) -> Result<BTreeSet<DispatchKind>, CodeError> {
-    let mut exports = BTreeSet::<DispatchKind>::new();
+/// Name of exports required on chain (only 1 of these is required).
+pub const REQUIRED_EXPORTS: [&str; 2] = ["init", "handle"];
+
+fn get_exports(module: &Module) -> BTreeSet<DispatchKind> {
+    let mut entries = BTreeSet::new();
 
     for entry in module
         .export_section()
-        .ok_or(CodeError::ExportSectionNotFound)?
+        .expect("Exports section has been checked for already")
         .entries()
         .iter()
     {
         if let Internal::Function(_) = entry.internal() {
-            if let Some(kind) = DispatchKind::try_from_entry(entry.field()) {
-                exports.insert(kind);
-            } else if !STATE_EXPORTS.contains(&entry.field()) && reject_unnecessary {
-                return Err(CodeError::NonGearExportFnFound);
+            if let Some(entry) = DispatchKind::try_from_entry(entry.field()) {
+                entries.insert(entry);
             }
         }
     }
 
-    Ok(exports)
+    entries
+}
+
+fn check_exports(module: &Module) -> Result<(), CodeError> {
+    let types = module
+        .type_section()
+        .ok_or(CodeError::TypeSectionNotFound)?
+        .types();
+
+    let funcs = module
+        .function_section()
+        .ok_or(CodeError::FunctionSectionNotFound)?
+        .entries();
+
+    let import_count = module.import_count(ImportCountType::Function);
+
+    let exports = module
+        .export_section()
+        .ok_or(CodeError::ExportSectionNotFound)?
+        .entries();
+
+    let mut entry = false;
+    for export in exports {
+        let Internal::Function(i) = export.internal() else {
+            continue;
+        };
+
+        let index = (*i as usize)
+            .checked_sub(import_count)
+            .ok_or(CodeError::ExportIsImport)?;
+
+        // Panic is impossible, unless the Module structure is invalid.
+        let type_id = funcs
+            .get(index)
+            .unwrap_or_else(|| unreachable!("Module structure is invalid"))
+            .type_ref() as usize;
+
+        // Panic is impossible, unless the Module structure is invalid.
+        let Type::Function(ref f) = types
+            .get(type_id)
+            .unwrap_or_else(|| unreachable!("Module structure is invalid"));
+
+        if !f.params().is_empty() || !f.results().is_empty() {
+            return Err(CodeError::InvalidExportFnSignature);
+        }
+        if !ALLOWED_EXPORTS.contains(&export.field()) {
+            return Err(CodeError::NonGearExportFnFound);
+        }
+        if REQUIRED_EXPORTS.contains(&export.field()) {
+            entry = true;
+        }
+    }
+
+    entry
+        .then_some(())
+        .ok_or(CodeError::RequiredExportFnNotFound)
+}
+
+fn check_imports(module: &Module) -> Result<(), CodeError> {
+    let types = module
+        .type_section()
+        .ok_or(CodeError::TypeSectionNotFound)?
+        .types();
+
+    let imports = module
+        .import_section()
+        .ok_or(CodeError::ImportSectionNotFound)?
+        .entries();
+
+    let syscalls = SyscallName::instrumentable_map();
+
+    let mut seen = BTreeSet::new();
+    for import in imports {
+        let External::Function(i) = import.external() else {
+            continue;
+        };
+
+        // Panic is impossible, unless the Module structure is invalid.
+        let Type::Function(func_type) = &types
+            .get(*i as usize)
+            .unwrap_or_else(|| unreachable!("Module structure is invalid"));
+
+        let syscall = syscalls
+            .get(import.field())
+            .ok_or(CodeError::UnknownImport)?;
+
+        if !seen.insert(*syscall) {
+            return Err(CodeError::DuplicateImport);
+        }
+
+        let signature = syscall.signature();
+
+        let params = signature
+            .params()
+            .iter()
+            .copied()
+            .map(Into::<ValueType>::into);
+        if !params.eq(func_type.params().iter().copied()) {
+            return Err(CodeError::InvalidImportFnSignature);
+        }
+
+        let results = signature.results().unwrap_or(&[]);
+        if results != func_type.results() {
+            return Err(CodeError::InvalidImportFnSignature);
+        }
+    }
+
+    Ok(())
 }
 
 fn get_export_entry<'a>(module: &'a Module, name: &str) -> Option<&'a ExportEntry> {
@@ -204,21 +314,14 @@ pub enum CodeError {
     /// Error occurred during decoding original program code.
     #[display(fmt = "The wasm bytecode is failed to be decoded")]
     Decode,
-    /// Error occurred during injecting gas metering instructions.
-    ///
-    /// This might be due to program contained unsupported/non-deterministic instructions
-    /// (floats, memory grow, etc.).
-    #[display(fmt = "Failed to inject instructions for gas metrics: may be in case \
-        program contains unsupported instructions (floats, memory grow, etc.)")]
-    GasInjection,
-    /// Error occurred during stack height instrumentation.
-    #[display(fmt = "Failed to set stack height limits")]
-    StackLimitInjection,
+    /// Error occurred during instrumentation WASM module.
+    #[display(fmt = "Failed to instrument WASM module")]
+    Instrumentation,
     /// Error occurred during encoding instrumented program.
     #[display(fmt = "Failed to encode instrumented program")]
     Encode,
-    /// We restrict start sections in smart contracts.
-    #[display(fmt = "Start section is not allowed for smart contracts")]
+    /// We restrict start sections in programs.
+    #[display(fmt = "Start section is not allowed for programs")]
     StartSectionExists,
     /// The provided code has invalid count of static pages.
     #[display(fmt = "The wasm bytecode has invalid count of static pages")]
@@ -238,6 +341,27 @@ pub enum CodeError {
     /// Gear protocol restriction for now.
     #[display(fmt = "Program cannot have mutable globals in export section")]
     MutGlobalExport,
+    /// The type section of the wasm module is not present.
+    #[display(fmt = "Type section not found")]
+    TypeSectionNotFound,
+    /// The function section of the wasm module is not present.
+    #[display(fmt = "Function section not found")]
+    FunctionSectionNotFound,
+    /// The signature of an exported function is invalid.
+    #[display(fmt = "Invalid function signature for exported function")]
+    InvalidExportFnSignature,
+    /// An imported function was not recognized.
+    #[display(fmt = "Unknown function name in import section")]
+    UnknownImport,
+    /// The signature of an imported function is invalid.
+    #[display(fmt = "Invalid function signature for imported function")]
+    InvalidImportFnSignature,
+    /// An imported was declared multiple times.
+    #[display(fmt = "An import was declared multiple times")]
+    DuplicateImport,
+    /// Export references to an import function, which is not allowed.
+    #[display(fmt = "Export references to an import function")]
+    ExportIsImport,
 }
 
 /// Contains instrumented binary code of a program and initial memory size from memory import.
@@ -289,27 +413,11 @@ fn check_mut_global_exports(module: &Module) -> Result<(), CodeError> {
 
 fn check_start_section(module: &Module) -> Result<(), CodeError> {
     if module.start_section().is_some() {
-        log::debug!("Found start section in contract code, which is not allowed");
+        log::debug!("Found start section in program code, which is not allowed");
         Err(CodeError::StartSectionExists)
     } else {
         Ok(())
     }
-}
-
-fn export_stack_height(module: Module) -> Module {
-    let globals = module
-        .global_section()
-        .expect("Global section must be create by `inject_stack_limiter` before")
-        .entries()
-        .len();
-    ModuleBuilder::new()
-        .with_module(module)
-        .export()
-        .field("__gear_stack_height")
-        .internal()
-        .global(globals as u32 - 1)
-        .build()
-        .build()
 }
 
 /// Configuration for `Code::try_new_mock_`.
@@ -319,15 +427,17 @@ pub struct TryNewCodeConfig {
     pub version: u32,
     /// Stack height limit
     pub stack_height: Option<u32>,
-    /// Export `__gear_stack_height` global
+    /// Export `STACK_HEIGHT_EXPORT_NAME` global
     pub export_stack_height: bool,
     /// Check exports (wasm contains init or handle exports)
     pub check_exports: bool,
+    /// Check imports (check that all imports are valid syscalls with correct signature)
+    pub check_imports: bool,
     /// Check and canonize stack end
     pub check_and_canonize_stack_end: bool,
     /// Check mutable global exports
     pub check_mut_global_exports: bool,
-    /// Check start section (not allowed for smart contracts)
+    /// Check start section (not allowed for programs)
     pub check_start_section: bool,
     /// Make wasmparser validation
     pub make_validation: bool,
@@ -340,6 +450,7 @@ impl Default for TryNewCodeConfig {
             stack_height: None,
             export_stack_height: false,
             check_exports: true,
+            check_imports: false,
             check_and_canonize_stack_end: true,
             check_mut_global_exports: true,
             check_start_section: true,
@@ -410,35 +521,30 @@ impl Code {
             return Err(CodeError::InvalidStaticPageCount);
         }
 
-        let exports = get_exports(&module, config.check_exports)?;
-        if config.check_exports
-            && !(exports.contains(&DispatchKind::Init) || exports.contains(&DispatchKind::Handle))
-        {
-            return Err(CodeError::RequiredExportFnNotFound);
+        if config.check_exports {
+            check_exports(&module)?;
         }
+
+        if config.check_imports {
+            check_imports(&module)?;
+        }
+
+        let exports = get_exports(&module);
+
+        let mut instrumentation_builder = InstrumentationBuilder::new("env");
 
         if let Some(stack_limit) = config.stack_height {
-            let globals = config.export_stack_height.then(|| module.globals_space());
-
-            module = wasm_instrument::inject_stack_limiter(module, stack_limit).map_err(|err| {
-                log::trace!("Failed to inject stack height limits: {err}");
-                CodeError::StackLimitInjection
-            })?;
-
-            if let Some(globals_before) = globals {
-                // ensure stack limiter injector has created global
-                let globals_after = module.globals_space();
-                assert_eq!(globals_after, globals_before + 1);
-
-                module = export_stack_height(module);
-            }
+            instrumentation_builder.with_stack_limiter(stack_limit, config.export_stack_height);
         }
 
-        if let Some(mut get_gas_rules) = get_gas_rules {
-            let gas_rules = get_gas_rules(&module);
-            module = gear_wasm_instrument::inject(module, &gas_rules, "env")
-                .map_err(|_| CodeError::GasInjection)?;
+        if let Some(get_gas_rules) = get_gas_rules {
+            instrumentation_builder.with_gas_limiter(get_gas_rules);
         }
+
+        module = instrumentation_builder.instrument(module).map_err(|err| {
+            log::trace!("Failed to instrument program: {err}");
+            CodeError::Instrumentation
+        })?;
 
         let code = parity_wasm::elements::serialize(module).map_err(|err| {
             log::trace!("Failed to encode instrumented program: {err}");

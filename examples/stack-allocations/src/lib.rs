@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! This contract recursively calls payload stack allocated read or load,
+//! This program recursively calls payload stack allocated read or load,
 //! depends on actions vector, which is set in init.
 //! For each recursion step we call check_sum, which is sum of all payload bytes.
 //! Then reply summary check_sum back to source account.
@@ -67,7 +67,6 @@ mod tests {
     use gtest::{Program, System};
     use parity_scale_codec::Decode;
     use rand::{Rng, SeedableRng};
-    use static_assertions::const_assert;
 
     #[test]
     fn stress() {
@@ -77,11 +76,11 @@ mod tests {
         const MAX_NUMBER: u8 = 255;
 
         // Check that check sum is less than u32::MAX
-        const_assert!(
+        const _: () = assert!(
             MAX_ACTIONS_AMOUNT * MAX_NUMBER as usize * HANDLE_DATA_SIZE <= u32::MAX as usize
         );
         // Check that we can fit all the data in the stack (heuristic no more than 10 wasm pages)
-        const_assert!(MAX_ACTIONS_AMOUNT * HANDLE_DATA_SIZE <= 64 * 1024 * 10);
+        const _: () = assert!(MAX_ACTIONS_AMOUNT * HANDLE_DATA_SIZE <= 64 * 1024 * 10);
 
         let from = 42;
         let system = System::new();

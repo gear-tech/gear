@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022-2023 Gear Technologies Inc.
+// Copyright (C) 2022-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -347,7 +347,7 @@ where
         // Base size of a program is 63 bytes and each expansion adds 20 bytes.
         // We do one expansion less to account for the code section and function body
         // size fields inside the binary wasm module representation which are leb128 encoded
-        // and therefore grow in size when the contract grows. We are not allowed to overshoot
+        // and therefore grow in size when the program grows. We are not allowed to overshoot
         // because of the maximum code size that is enforced by `instantiate_with_code`.
         let expansions = (target_bytes.saturating_sub(63) / 20).saturating_sub(1);
         const EXPANSION: &[Instruction] = &[
@@ -449,7 +449,7 @@ pub mod body {
 
     use super::*;
 
-    /// When generating contract code by repeating a wasm sequence, it's sometimes necessary
+    /// When generating program code by repeating a wasm sequence, it's sometimes necessary
     /// to change those instructions on each repetition. The variants of this enum describe
     /// various ways in which this can happen.
     #[derive(Debug, Clone)]

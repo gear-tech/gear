@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2023 Gear Technologies Inc.
+// Copyright (C) 2023-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -35,9 +35,12 @@ static TOOLCHAIN_CHANNELS: &[&str] = &[
 pub(crate) struct Toolchain(String);
 
 impl Toolchain {
-    /// Returns `Toolchain` representing the most recent nightly version.
-    pub fn nightly() -> Self {
-        Self("nightly".into())
+    /// This is a version of nightly toolchain, tested on our CI.
+    const PINNED_NIGHTLY_TOOLCHAIN: &'static str = "nightly-2024-01-25";
+
+    /// Returns `Toolchain` representing the recommended nightly version.
+    pub fn recommended_nightly() -> Self {
+        Self(Self::PINNED_NIGHTLY_TOOLCHAIN.into())
     }
 
     /// Fetches `Toolchain` via rustup.
@@ -93,28 +96,13 @@ impl Toolchain {
         self.0.as_str().into()
     }
 
-    /// Returns toolchain string specification without target triple
-    /// and with raw `<channel>` substituted by `nightly`.
-    ///
-    /// `nightly[-<date>]`
-    ///
-    /// `<date>    = YYYY-MM-DD`
-    pub fn nightly_toolchain_str(&'_ self) -> Cow<'_, str> {
-        if !self.is_nightly() {
-            let date_start_idx = self
-                .0
-                .find('-')
-                .unwrap_or_else(|| self.raw_toolchain_str().len());
-            let mut toolchain_str = self.0.clone();
-            toolchain_str.replace_range(..date_start_idx, "nightly");
-            toolchain_str.into()
-        } else {
-            self.raw_toolchain_str()
-        }
-    }
-
-    // Returns bool representing nightly toolchain.
-    fn is_nightly(&self) -> bool {
-        self.0.starts_with("nightly")
+    /// Checks whether the toolchain is recommended.
+    pub fn check_recommended_toolchain(&self) -> Result<()> {
+        let toolchain = Self::PINNED_NIGHTLY_TOOLCHAIN;
+        anyhow::ensure!(
+            self.raw_toolchain_str() == toolchain,
+            BuilderError::RecommendedToolchainNotFound(toolchain.into()),
+        );
+        Ok(())
     }
 }

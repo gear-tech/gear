@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2023 Gear Technologies Inc.
+// Copyright (C) 2023-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -50,7 +50,7 @@ pub(crate) struct ExceptionInfo {
     pub is_write: Option<bool>,
 }
 
-/// Before contract execution some pages from wasm memory buffer have been protected.
+/// Before program execution some pages from wasm memory buffer have been protected.
 /// When wasm executer tries to access one of these pages,
 /// OS emits sigsegv or sigbus or EXCEPTION_ACCESS_VIOLATION.
 /// Using OS signal info, this function identifies memory page, which is accessed,

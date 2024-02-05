@@ -24,12 +24,12 @@ use crate::{
 };
 use alloc::string::String;
 use gear_sandbox_env::GLOBAL_NAME_GAS;
-use sp_std::{collections::btree_map::BTreeMap, marker::PhantomData, prelude::*};
-use sp_wasm_interface::HostPointer;
+use sp_std::{collections::btree_map::BTreeMap, marker::PhantomData, mem, prelude::*};
+use sp_wasm_interface_common::HostPointer;
 use wasmi::{
-    core::{Pages, Trap},
-    Engine, ExternType, Linker, MemoryType, Module, StoreContext, StoreContextMut,
-    Value as RuntimeValue,
+    core::{Pages, Trap, UntypedValue},
+    Config, Engine, ExternType, Linker, MemoryType, Module, StackLimits, StoreContext,
+    StoreContextMut, Value as RuntimeValue,
 };
 
 /// [`AsContextExt`] extension.
@@ -46,7 +46,23 @@ impl<T> Store<T> {
 
 impl<T> SandboxStore<T> for Store<T> {
     fn new(state: T) -> Self {
-        let engine = Engine::default();
+        let register_len = mem::size_of::<UntypedValue>();
+
+        const DEFAULT_MIN_VALUE_STACK_HEIGHT: usize = 1024;
+        const DEFAULT_MAX_VALUE_STACK_HEIGHT: usize = 1024 * DEFAULT_MIN_VALUE_STACK_HEIGHT;
+        const DEFAULT_MAX_RECURSION_DEPTH: usize = 16384;
+
+        let mut config = Config::default();
+        config.set_stack_limits(
+            StackLimits::new(
+                DEFAULT_MIN_VALUE_STACK_HEIGHT / register_len,
+                DEFAULT_MAX_VALUE_STACK_HEIGHT / register_len,
+                DEFAULT_MAX_RECURSION_DEPTH,
+            )
+            .expect("infallible"),
+        );
+
+        let engine = Engine::new(&config);
         let store = wasmi::Store::new(&engine, state);
         Self(store)
     }

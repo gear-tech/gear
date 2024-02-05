@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -32,7 +32,7 @@ use gsdk::{
 /// [the staging testnet][0], and the decimals of 1 UNIT is 12 by default.
 ///
 /// [0]: https://github.com/gear-tech/gear/blob/c01d0390cdf1031cb4eba940d0199d787ea480e0/node/src/chain_spec.rs#L218
-#[derive(Debug, Parser)]
+#[derive(Clone, Debug, Parser)]
 pub struct Transfer {
     /// Transfer to (ss58address).
     destination: String,

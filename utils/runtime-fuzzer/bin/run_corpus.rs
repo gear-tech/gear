@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -28,9 +28,9 @@
 //! Just simply run `cargo run --release -- -p <path_to_corpus>`.
 
 use anyhow::Result;
-use arbitrary::{Arbitrary, Unstructured};
 use clap::Parser;
-use runtime_fuzzer::{self, RuntimeFuzzerInput};
+use gear_wasm_gen::wasm_gen_arbitrary::{Arbitrary, Unstructured};
+use runtime_fuzzer::{self, FuzzerInput};
 use std::{fs, path::PathBuf};
 
 /// A simple tool to run corpus.
@@ -48,7 +48,7 @@ fn main() -> Result<()> {
     let corpus_bytes = fs::read(params.path)?;
     let fuzzer_input = {
         let mut u = Unstructured::new(&corpus_bytes);
-        RuntimeFuzzerInput::arbitrary(&mut u)?
+        FuzzerInput::arbitrary(&mut u)?
     };
 
     gear_utils::init_default_logger();

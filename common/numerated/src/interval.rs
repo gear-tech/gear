@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2023 Gear Technologies Inc.
+// Copyright (C) 2023-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -441,7 +441,7 @@ mod tests {
     #[test]
     fn size() {
         assert_eq!(Interval::<u8>::try_from(11..111).unwrap().size(), Some(100),);
-        assert_eq!(Interval::<u8>::try_from(..1).unwrap().size(), Some(1),);
+        assert_eq!(Interval::<u8>::from(..1).size(), Some(1),);
         assert_eq!(Interval::<u8>::from(..=1).size(), Some(2));
         assert_eq!(Interval::<u8>::from(1..).size(), Some(255));
         assert_eq!(Interval::<u8>::from(0..).size(), None);
@@ -452,7 +452,7 @@ mod tests {
             Interval::<u8>::try_from(11..111).unwrap().raw_size(),
             Some(100),
         );
-        assert_eq!(Interval::<u8>::try_from(..1).unwrap().raw_size(), Some(1),);
+        assert_eq!(Interval::<u8>::from(..1).raw_size(), Some(1),);
         assert_eq!(Interval::<u8>::from(..=1).raw_size(), Some(2));
         assert_eq!(Interval::<u8>::from(1..).raw_size(), Some(255));
         assert_eq!(Interval::<u8>::from(0..).raw_size(), None);
@@ -460,7 +460,7 @@ mod tests {
         assert_eq!(Interval::<u8>::try_from(1..1).unwrap().raw_size(), Some(0));
 
         assert_eq!(Interval::<i8>::try_from(-1..99).unwrap().size(), Some(-28)); // corresponds to 100 numeration
-        assert_eq!(Interval::<i8>::try_from(..1).unwrap().size(), Some(1)); // corresponds to 129 numeration
+        assert_eq!(Interval::<i8>::from(..1).size(), Some(1)); // corresponds to 129 numeration
         assert_eq!(Interval::<i8>::from(..=1).size(), Some(2)); // corresponds to 130 numeration
         assert_eq!(Interval::<i8>::from(1..).size(), Some(-1)); // corresponds to 127 numeration
         assert_eq!(Interval::<i8>::from(0..).size(), Some(0)); // corresponds to 128 numeration
@@ -471,7 +471,7 @@ mod tests {
             Interval::<i8>::try_from(-1..99).unwrap().raw_size(),
             Some(100)
         );
-        assert_eq!(Interval::<i8>::try_from(..1).unwrap().raw_size(), Some(129));
+        assert_eq!(Interval::<i8>::from(..1).raw_size(), Some(129));
         assert_eq!(Interval::<i8>::from(..=1).raw_size(), Some(130));
         assert_eq!(Interval::<i8>::from(1..).raw_size(), Some(127));
         assert_eq!(Interval::<i8>::from(0..).raw_size(), Some(128));

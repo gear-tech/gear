@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -117,7 +117,7 @@
 //!
 //!     #[test]
 //!     fn test_ping_pong() {
-//!         // Initialization of the common environment for running smart contracts.
+//!         // Initialization of the common environment for running programs.
 //!         let sys = System::new();
 //!
 //!         // Initialization of the current program structure.
@@ -158,7 +158,7 @@
 //!
 //! Let's take a closer look at the `gtest` capabilities.
 //!
-//! ## Initialization of the network environment for running smart contracts
+//! ## Initialization of the network environment for running programs
 //!
 //! ```no_run
 //! # use gtest::System;
@@ -381,9 +381,9 @@
 //! // The first one requires payload to be CODEC Encodable, while the second requires payload
 //! // implement `AsRef<[u8]>`, that means to be able to represent as bytes.
 //! //
-//! // Let we have the following contract state and `meta_state` function:
+//! // Let we have the following program state and `meta_state` function:
 //! #[derive(Encode, Decode, TypeInfo)]
-//! pub struct ContractState {
+//! pub struct ProgramState {
 //!     a: u128,
 //!     b: u128,
 //! }
@@ -489,10 +489,6 @@ pub mod constants {
     pub const RESERVATION_COST: Gas = 100;
     /// Cost of storing delayed message per block.
     pub const DISPATCH_HOLD_COST: Gas = 100;
-    /// Cost of storing program per block.
-    ///
-    /// (!) Currently disabled: storing programs are free.
-    pub const RENT_COST: Value = 330;
 
     /* Execution-related constants */
     // TODO: use proper weights of instantiation and instrumentation (#3509).

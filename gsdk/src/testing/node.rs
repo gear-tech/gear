@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2022-2023 Gear Technologies Inc.
+// Copyright (C) 2022-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -44,7 +44,7 @@ impl Node {
         let port_string = port.to_string();
 
         let mut args = args;
-        args.extend_from_slice(&["--ws-port", &port_string]);
+        args.extend_from_slice(&["--rpc-port", &port_string, "--no-hardware-benchmarks"]);
 
         let process = Command::new(path)
             .env(
@@ -78,7 +78,10 @@ impl Node {
             return Err(Error::EmptyStderr);
         };
 
-        for line in BufReader::new(stderr).lines().flatten() {
+        for line in BufReader::new(stderr)
+            .lines()
+            .map_while(|result| result.ok())
+        {
             if line.contains(log) {
                 return Ok(line);
             }
@@ -91,7 +94,7 @@ impl Node {
     pub fn print_logs(&mut self) {
         let stderr = self.process.stderr.as_mut();
         let reader = BufReader::new(stderr.expect("Unable to get stderr"));
-        for line in reader.lines().flatten() {
+        for line in reader.lines().map_while(|result| result.ok()) {
             println!("{line}");
         }
     }

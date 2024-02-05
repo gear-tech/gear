@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -17,8 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Lazy-pages support.
-//! In runtime data for contract wasm memory pages can be loaded in lazy manner.
-//! All pages, which is supposed to be lazy, must be mprotected before contract execution.
+//! In runtime data for program Wasm memory pages can be loaded in lazy manner.
+//! All pages, which is supposed to be lazy, must be mprotected before program execution.
 //! During execution data from storage is loaded for all pages, which has been accessed
 //! and which has data in storage.
 //! See also `process::process_lazy_pages`, `signal`, `host_func` for more information.
@@ -63,7 +63,7 @@ use std::{cell::RefCell, convert::TryInto, num::NonZeroU32};
 static LAZY_PAGES_INITIALIZED: InitializationFlag = InitializationFlag::new();
 
 thread_local! {
-    // NOTE: here we suppose, that each contract is executed in separate thread.
+    // NOTE: here we suppose, that each program is executed in separate thread.
     // Or may be in one thread but consequentially.
 
     static LAZY_PAGES_CONTEXT: RefCell<LazyPagesContext> = RefCell::new(Default::default());

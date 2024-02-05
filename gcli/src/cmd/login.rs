@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -22,7 +22,7 @@ use clap::Parser;
 use std::path::PathBuf;
 
 /// Log in to account
-#[derive(Debug, Parser)]
+#[derive(Clone, Debug, Parser)]
 pub struct Login {
     /// The default keystore path is ~/.gear/keystore and ~/.gear/keystore.json
     ///

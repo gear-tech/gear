@@ -10,7 +10,7 @@ Gear Protocol is a Substrate-based solution for developers, enabling anyone to r
 </h3>
 
 #
-  
+
 <div align="center">
 
 [![CI][c1]][c2]
@@ -41,7 +41,7 @@ Gear Protocol is a Substrate-based solution for developers, enabling anyone to r
 
 1. :open_hands: The easiest way to get started with Gear Protocol is by using the demo environment at [https://idea.gear-tech.io](https://idea.gear-tech.io).
 
-2. :wrench: Follow the instructions from ["Getting started in 5 minutes"](https://wiki.gear-tech.io/docs/getting-started-in-5-minutes/) to compile the Rust test program to Wasm. :running: Upload and run the program on the Vara Network Testnet via [Gear Idea](https://idea.gear-tech.io/programs?node=wss%3A%2F%2Ftestnet.vara-network.io), send a message to a program, check how it is going.
+2. :wrench: Follow the instructions from ["Getting started in 5 minutes"](https://wiki.gear-tech.io/docs/getting-started-in-5-minutes/) to compile the Rust test program to Wasm. :running: Upload and run the program on the Vara Network Testnet via [Gear Idea](https://idea.gear-tech.io/programs?node=wss%3A%2F%2Ftestnet.vara.network), send a message to a program, check how it is going.
 
 3. :scroll: Write your own program or use one from the comprehensive [examples library](https://github.com/gear-foundation/dapps) as a basis for a convenient and swift onboarding process.
 
@@ -140,8 +140,8 @@ Go to https://docs.gear.rs to dive into the documentation on Gear Protocol crate
 
 ### Main capabilities
 
-  - Gear Protocol enables anyone to create and run a custom-logic **decentralized programs**. 
-  - Programs can support business logic of any other projects running in the **Gear-powered network** (such as the [Vara Network](https://vara-network.io/)) and interact with them.
+  - Gear Protocol enables anyone to create and run a custom-logic **decentralized programs**.
+  - Programs can support business logic of any other projects running in the **Gear-powered network** (such as the [Vara Network](https://vara.network/)) and interact with them.
   - Establish cross-chain communications between other Substrate-supported blockchains, allowing anyone to run a dApp in the Dotsama ecosystem in a very **cost-less** manner.
   - A Gear node can run as a standalone instance running microservices, middleware, open API and more.
 
@@ -216,7 +216,7 @@ Gear Protocol is licensed under [GPL v3.0 with a classpath linking exception](LI
       <a href="https://gear.foundation/events">
       Events
     </a> •
-    <a href="https://vara-network.io/">
+    <a href="https://vara.network/">
       Vara Network
     </a> •
 </p>

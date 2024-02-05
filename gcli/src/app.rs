@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -22,12 +22,12 @@ use crate::keystore;
 use clap::Parser;
 use color_eyre::{eyre::eyre, Result};
 use env_logger::{Builder, Env};
-use gsdk::{signer::Signer, Api};
+use gsdk::{ext::sp_core, signer::Signer, Api};
 
 /// Command line gear program application abstraction.
 ///
 /// ```ignore
-/// use gcli::{async_trait, App, Command, Parser};
+/// use gcli::{async_trait, App, Command, clap::Parser, color_eyre, anyhow};
 ///
 /// /// My customized sub commands.
 /// #[derive(Debug, Parser)]

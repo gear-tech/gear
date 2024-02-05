@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -25,23 +25,23 @@ const WASM_TARGET: &str = "target/wasm32-unknown-unknown";
 
 lazy_static! {
     static ref ROOT: String = env!("CARGO_MANIFEST_DIR").to_owned() + "/../";
+    pub static ref PROFILE: &'static str = if cfg!(debug_assertions) {
+        "debug"
+    } else {
+        "release"
+    };
 }
 
 fn bin_path(name: &str, wasm: bool) -> String {
     ROOT.clone()
-        + [
+        + &[
             if wasm { WASM_TARGET } else { TARGET },
             "/",
-            if cfg!(debug_assertions) {
-                "debug"
-            } else {
-                "release"
-            },
+            *PROFILE,
             "/",
             name,
         ]
         .concat()
-        .as_str()
 }
 
 /// path of binaries

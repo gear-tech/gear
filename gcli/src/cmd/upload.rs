@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -28,10 +28,14 @@ use gsdk::{
 use std::{fs, path::PathBuf};
 
 /// Deploy program to gear node or save program `code` in storage.
-#[derive(Parser, Debug)]
+#[derive(Clone, Debug, Parser)]
 pub struct Upload {
-    /// gear program code <*.wasm>
+    /// Gear program code <*.wasm>.
+    #[cfg_attr(feature = "embed", clap(skip))]
     code: PathBuf,
+    /// Overridden code if feature embed is enabled.
+    #[clap(skip)]
+    code_override: Vec<u8>,
     /// Save program `code` in storage only.
     #[arg(short, long)]
     code_only: bool,
@@ -50,10 +54,21 @@ pub struct Upload {
 }
 
 impl Upload {
+    /// Clone self with code overridden.
+    pub fn clone_with_code_overridden(&self, code: Vec<u8>) -> Self {
+        let mut overridden = self.clone();
+        overridden.code_override = code;
+        overridden
+    }
+
     /// Exec command submit
     pub async fn exec(&self, signer: Signer) -> Result<()> {
-        let code =
-            fs::read(&self.code).map_err(|e| anyhow!("program {:?} not found, {e}", &self.code))?;
+        let code = if self.code_override.is_empty() {
+            fs::read(&self.code).map_err(|e| anyhow!("program {:?} not found, {e}", &self.code))?
+        } else {
+            self.code_override.clone()
+        };
+
         if self.code_only {
             signer.calls.upload_code(code).await?;
             return Ok(());

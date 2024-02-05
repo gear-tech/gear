@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -32,7 +32,7 @@ use core::{
 use futures::future::FusedFuture;
 use scale_info::scale::Decode;
 
-fn poll<F, R>(waiting_reply_to: MessageId, cx: &Context<'_>, f: F) -> Poll<Result<R>>
+fn poll<F, R>(waiting_reply_to: MessageId, cx: &mut Context<'_>, f: F) -> Poll<Result<R>>
 where
     F: Fn(Vec<u8>) -> Result<R>,
 {
