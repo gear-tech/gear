@@ -17,7 +17,6 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::*;
-use common::ActiveProgram;
 use core_processor::ContextChargedForInstrumentation;
 use gear_core_errors::ErrorReplyReason;
 
@@ -59,7 +58,12 @@ where
             Err(journal) => return journal,
         };
 
-        let Some(program) = Self::get_active_program(destination_id) else {
+        let Some(program) =
+            ProgramStorageOf::<T>::get_program(destination_id).and_then(|p| match p {
+                Program::Active(p) => Some(p),
+                _ => None,
+            })
+        else {
             log::trace!("Message is sent to non-active program {:?}", destination_id);
             return core_processor::process_non_executable(
                 precharged_dispatch,
@@ -254,30 +258,6 @@ where
                 statuses: post_data.dispatch_statuses,
                 state_changes: post_data.state_changes,
             });
-        }
-    }
-
-    fn get_active_program(program_id: ProgramId) -> Option<ActiveProgram<BlockNumberFor<T>>> {
-        let Some(maybe_active_program) = ProgramStorageOf::<T>::get_program(program_id) else {
-            // When an actor sends messages, which is intended to be added to the queue
-            // it's destination existence is always checked. There are two cases this
-            // doesn't happen:
-            // 1. program tries to submit another program with non-existing code hash;
-            // 2. program was being paused after message enqueued.
-            return None;
-        };
-
-        match maybe_active_program {
-            Program::Active(p) => Some(p),
-            _ => {
-                // Reaching this branch is possible when init message was processed with failure,
-                // while other kind of messages were already in the queue/were added to the queue
-                // (for example. moved from wait list in case of async init).
-                // Also this branch is reachable when program sends a message to a terminated
-                // program.
-                log::trace!("Program '{program_id:?}' exists, but it isn't active");
-                None
-            }
         }
     }
 }
