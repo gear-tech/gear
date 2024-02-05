@@ -3670,15 +3670,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "gbuiltin"
-version = "1.1.0"
-dependencies = [
- "derive_more",
- "gear-core-errors",
- "scale-info",
-]
-
-[[package]]
 name = "gcli"
 version = "1.1.0"
 dependencies = [
@@ -4700,7 +4691,6 @@ dependencies = [
  "document-features",
  "futures",
  "galloc",
- "gbuiltin",
  "gcore",
  "gear-core-errors",
  "gstd-codegen",

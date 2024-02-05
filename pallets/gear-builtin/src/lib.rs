@@ -76,14 +76,14 @@ pub trait Dispatchable {
 }
 
 #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq)]
-pub struct WithBytesPayload<T: Config> {
+pub struct FromStoredDispatch<T: Config> {
     source: ProgramId,
     destination: BuiltinId,
     payload: Vec<u8>,
     _phantom: sp_std::marker::PhantomData<T>,
 }
 
-impl<T: Config> Dispatchable for WithBytesPayload<T> {
+impl<T: Config> Dispatchable for FromStoredDispatch<T> {
     type Payload = Vec<u8>;
 
     fn new(source: ProgramId, destination: BuiltinId, payload: Vec<u8>) -> Self {
@@ -108,7 +108,7 @@ impl<T: Config> Dispatchable for WithBytesPayload<T> {
     }
 }
 
-impl<T: Config> TryFrom<StoredDispatch> for WithBytesPayload<T> {
+impl<T: Config> TryFrom<StoredDispatch> for FromStoredDispatch<T> {
     type Error = BuiltinActorError;
 
     fn try_from(dispatch: StoredDispatch) -> Result<Self, Self::Error> {

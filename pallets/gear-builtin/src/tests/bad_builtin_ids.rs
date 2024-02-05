@@ -17,8 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    self as pallet_gear_builtin, BuiltinActor, BuiltinActorError, RegisteredBuiltinActor,
-    WithBytesPayload,
+    self as pallet_gear_builtin, BuiltinActor, BuiltinActorError, FromStoredDispatch,
+    RegisteredBuiltinActor,
 };
 use frame_support::{
     construct_runtime, parameter_types,
@@ -39,7 +39,7 @@ type AccountId = u64;
 type BlockNumber = u64;
 type Balance = u128;
 type Block = frame_system::mocking::MockBlock<Test>;
-type BuiltinMessage = WithBytesPayload<Test>;
+type BuiltinMessage = FromStoredDispatch<Test>;
 
 // Configure a mock runtime to test the pallet.
 construct_runtime!(

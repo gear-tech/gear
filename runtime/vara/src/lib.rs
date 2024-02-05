@@ -1061,7 +1061,7 @@ parameter_types! {
 }
 
 impl pallet_gear_builtin::Config for Runtime {
-    type Message = pallet_gear_builtin::WithBytesPayload<Self>;
+    type Message = pallet_gear_builtin::FromStoredDispatch<Self>;
     type BuiltinActor = BuiltinActors;
     type WeightInfo = pallet_gear_builtin::weights::SubstrateWeight<Runtime>;
     type PalletId = BuiltinActorPalletId;

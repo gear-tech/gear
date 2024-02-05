@@ -17,8 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    self as pallet_gear_builtin, BuiltinActor, BuiltinActorError, Dispatchable,
-    RegisteredBuiltinActor, WithBytesPayload,
+    self as pallet_gear_builtin, BuiltinActor, BuiltinActorError, Dispatchable, FromStoredDispatch,
+    RegisteredBuiltinActor,
 };
 use core::cell::RefCell;
 use frame_support::{
@@ -40,7 +40,7 @@ type AccountId = u64;
 type BlockNumber = u64;
 type Balance = u128;
 type Block = frame_system::mocking::MockBlock<Test>;
-type BuiltinMessage = WithBytesPayload<Test>;
+type BuiltinMessage = FromStoredDispatch<Test>;
 
 pub(crate) const SIGNER: AccountId = 1;
 pub(crate) const BLOCK_AUTHOR: AccountId = 10;

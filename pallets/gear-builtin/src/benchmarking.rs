@@ -27,7 +27,7 @@ use gear_core::{
     message::{DispatchKind, StoredDispatch, StoredMessage},
 };
 
-type BuiltinMessageFor<T> = WithBytesPayload<T>;
+type BuiltinMessageFor<T> = FromStoredDispatch<T>;
 
 macro_rules! impl_builtin_actor {
     ($name: ident, $id: literal) => {
