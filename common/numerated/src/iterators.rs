@@ -213,9 +213,9 @@ impl<T: Numerated, I: Iterator<Item = Interval<T>>> Iterator for DifferenceItera
             self.interval2 = Some(interval2);
 
             if interval1.end() < interval2.start() {
-            // If `interval1` ends before `interval2` starts, then there is no intersection between
-            // current `interval1` and `interval2`, so we can return `interval1`.
-            // Set `self.interval1` to None, to take next interval from `tree1` on next iteration.
+                // If `interval1` ends before `interval2` starts, then there is no intersection between
+                // current `interval1` and `interval2`, so we can return `interval1`.
+                // Set `self.interval1` to None, to take next interval from `tree1` on next iteration.
                 self.interval1 = None;
                 return Some(interval1);
             } else {
@@ -265,10 +265,24 @@ impl<T: Numerated, I: Iterator<Item = Interval<T>>> Iterator for VoidsIterator<T
 
     fn next(&mut self) -> Option<Self::Item> {
         let (iter, interval) = self.inner.as_mut()?;
+
+        // `iter` is an iterator over all intervals in tree.
+        // `interval` is an interval where we are searching for voids.
+        // It must be guarantied by `Self` creator, that in the beginning
+        // `interval.start()` is less than `iter.first().start()`.
+        // On each iteration `Self` maintains this invariant.
+
+        // On each iteration we takes next interval from `iter`, let's name it `next`.
+        // The resulting void is `[interval.start(), next.start())`.
+        // Then we chop `next` from `interval` and continue to search for next voids:
+        // `interval = (next.end(), interval.end()]`.
+        // If next.end() is bigger or equal to interval.end(), then we set `self.inner` to None,
+        // because no other voids can be found.
+
         if let Some(next) = iter.next() {
             let (start, end) = next.into_parts();
 
-            // Guaranties by tree: between two intervals always exists void.
+            // Guarantied by [`IntervalsTree`]: between two intervals always exists void.
             debug_assert!(interval.start() < start);
 
             let Some(void_end) = start.dec_if_gt(interval.start()) else {
