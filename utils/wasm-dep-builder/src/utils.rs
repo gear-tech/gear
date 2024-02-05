@@ -44,7 +44,7 @@ pub fn profile() -> String {
         .into()
 }
 
-pub fn wasm_projects_dir() -> PathBuf {
+pub fn crate_target_dir() -> PathBuf {
     let profile = profile();
 
     out_dir()
@@ -53,11 +53,11 @@ pub fn wasm_projects_dir() -> PathBuf {
         .and_then(|path| path.parent())
         .map(|p| p.to_owned())
         .expect("Could not find target directory")
-        .join("wasm-projects")
+        .join(env!("CARGO_PKG_NAME"))
 }
 
 pub fn wasm32_target_dir() -> PathBuf {
-    wasm_projects_dir().join("wasm32-unknown-unknown")
+    crate_target_dir().join("wasm32-unknown-unknown")
 }
 
 pub fn cargo_home_dir() -> PathBuf {
