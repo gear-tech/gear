@@ -173,7 +173,7 @@ pub fn build_binaries() {
         println!("cargo:rerun-if-changed={}", lock.display());
         let mut lock = BinariesLockFile::open(&dep.name);
 
-        let lock_config = lock.read();
+        let lock_config = lock.read_any();
         let build_pkg = BuildPackage::new(pkg, lock_config, program_metadata.exclude_features);
 
         let features = build_pkg.features().clone();

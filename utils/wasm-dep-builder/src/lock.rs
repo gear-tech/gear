@@ -110,7 +110,7 @@ impl BinariesLockFile {
         Self { file }
     }
 
-    pub fn read(&mut self) -> LockFileConfig {
+    pub fn read_any(&mut self) -> LockFileConfig {
         serde_json::from_reader(&mut self.file).unwrap()
     }
 
