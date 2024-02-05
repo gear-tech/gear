@@ -18,11 +18,8 @@
 
 //! Test for infinity loop, that it can't exceed block production time.
 
-mod utils;
-
-use crate::utils::gear_api;
 use demo_constructor::{Calls, Scheme, WASM_BINARY};
-use gclient::EventProcessor;
+use gclient::{EventProcessor, GearApi};
 use parity_scale_codec::Encode;
 
 #[tokio::test]
@@ -30,7 +27,7 @@ async fn inf_loop() -> anyhow::Result<()> {
     // Creating gear api.
     //
     // By default, login as Alice.
-    let api = gear_api().await?;
+    let api = GearApi::dev_from_path("../target/release/gear").await?;
 
     // Taking block gas limit constant.
     let gas_limit = api.block_gas_limit()?;

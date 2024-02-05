@@ -16,17 +16,19 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-mod utils;
-
-use crate::utils::{gear_api, target_dir};
-use gclient::errors::{self, ModuleError};
+use gclient::{
+    errors::{self, ModuleError},
+    GearApi,
+};
 
 #[tokio::test]
 async fn set_code_succeed() {
-    let api = gear_api().await.unwrap();
+    let api = GearApi::dev_from_path("../target/release/gear")
+        .await
+        .unwrap();
     let _block_hash = api
         .set_code_without_checks_by_path(
-            target_dir().join("wbuild/vara-runtime/vara_runtime.compact.compressed.wasm"),
+            "../target/release/wbuild/vara-runtime/vara_runtime.compact.compressed.wasm",
         )
         .await
         .unwrap();
@@ -34,10 +36,12 @@ async fn set_code_succeed() {
 
 #[tokio::test]
 async fn set_code_failed() {
-    let api = gear_api().await.unwrap();
+    let api = GearApi::dev_from_path("../target/release/gear")
+        .await
+        .unwrap();
     let err = api
         .set_code_by_path(
-            target_dir().join("wbuild/vara-runtime/vara_runtime.compact.compressed.wasm"),
+            "../target/release/wbuild/vara-runtime/vara_runtime.compact.compressed.wasm",
         )
         .await
         .unwrap_err();

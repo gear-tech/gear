@@ -465,16 +465,6 @@ blake2 = "0.10.6"                                                         # grin
 [profile.dev.package."wasmer-vm"]
 debug-assertions = false
 
-# compile non-workspace dependencies in release
-# to reach fast block production in node binary
-[profile.dev.package."*"]
-opt-level = 3
-
-# TODO: remove after wasmer bug is fixed:
-# `misaligned pointer dereference: address must be a multiple of 0x8 but is...`
-[profile.dev.package."wasmer-vm"]
-debug-assertions = false
-
 [profile.release]
 panic = "unwind"
 

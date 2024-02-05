@@ -18,18 +18,15 @@
 
 //! Test for infinity loop, that it can't exceed block production time.
 
-mod utils;
-
-use crate::utils::gear_api;
 use demo_wat::WatExample;
-use gclient::EventProcessor;
+use gclient::{EventProcessor, GearApi};
 
 #[tokio::test]
 async fn keyhasher_size_exceed() -> anyhow::Result<()> {
     // Creating gear api.
     //
     // By default, login as Alice.
-    let api = gear_api().await?;
+    let api = GearApi::dev_from_path("../target/release/gear").await?;
 
     // Taking block gas limit constant.
     let gas_limit = api.block_gas_limit()?;

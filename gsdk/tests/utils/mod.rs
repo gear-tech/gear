@@ -22,17 +22,13 @@ use gsdk::{
 };
 
 pub fn dev_node() -> Node {
-    let profile = if cfg!(debug_assertions) {
-        "debug"
-    } else {
-        "release"
-    };
-    let bin_path = format!("{}/../target/{profile}/gear", env!("CARGO_MANIFEST_DIR"));
+    // Use release build because of performance reasons.
+    let bin_path = env!("CARGO_MANIFEST_DIR").to_owned() + "/../target/release/gear";
 
     let args = vec!["--tmp", "--dev"];
 
     Node::try_from_path(bin_path, args)
-        .expect("Failed to start node: Maybe it isn't built with optimizations?")
+        .expect("Failed to start node: Maybe it isn't built with --release flag?")
 }
 
 pub fn node_uri(node: &Node) -> String {

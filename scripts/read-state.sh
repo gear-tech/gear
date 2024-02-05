@@ -2,7 +2,7 @@
 #
 # Prerequisites:
 #
-#     RUST_LOG=gwasm=debug,pallet_gear=debug cargo run -p gear-cli -- --dev --tmp -l0
+#     RUST_LOG=gwasm=debug,pallet_gear=debug cargo run -p gear-cli --release -- --dev --tmp -l0
 #
 # Usage:
 #
