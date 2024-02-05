@@ -24,7 +24,8 @@ where
     T::AccountId: Origin,
 {
     let caller = benchmarking::account("caller", 0, 0);
-    CurrencyOf::<T>::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
+    let _ =
+        CurrencyOf::<T>::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
 
     init_block::<T>(None);
 
@@ -54,7 +55,8 @@ where
     let wasm_binary = gear_benchmarks::wasm_binary(WasmBinary::DemoReserveGas);
 
     let caller = benchmarking::account("caller", 0, 0);
-    CurrencyOf::<T>::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
+    let _ =
+        CurrencyOf::<T>::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
 
     init_block::<T>(None);
 
@@ -123,7 +125,8 @@ where
     let wasm_binary = gear_benchmarks::wasm_binary(WasmBinary::DemoConstructor);
 
     let caller = benchmarking::account("caller", 0, 0);
-    CurrencyOf::<T>::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
+    let _ =
+        CurrencyOf::<T>::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
 
     init_block::<T>(None);
 
@@ -181,7 +184,8 @@ where
     let wasm_binary = gear_benchmarks::wasm_binary(WasmBinary::DemoWaiter);
 
     let caller = benchmarking::account("caller", 0, 0);
-    CurrencyOf::<T>::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
+    let _ =
+        CurrencyOf::<T>::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
 
     init_block::<T>(None);
 
@@ -233,7 +237,8 @@ where
     let wasm_binary = gear_benchmarks::wasm_binary(WasmBinary::DemoWaiter);
 
     let caller = benchmarking::account("caller", 0, 0);
-    CurrencyOf::<T>::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
+    let _ =
+        CurrencyOf::<T>::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
 
     init_block::<T>(None);
 

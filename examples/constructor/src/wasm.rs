@@ -6,7 +6,7 @@ static mut SCHEME: Option<Scheme> = None;
 fn process_fn<'a>(f: impl Fn(&'a Scheme) -> Option<&'a Vec<Call>>) {
     let scheme = unsafe { SCHEME.as_ref() }.expect("Should be set before access");
     let calls = f(scheme)
-        .map(Clone::clone)
+        .cloned()
         .unwrap_or_else(|| msg::load().expect("Failed to load payload"));
 
     let mut res = None;

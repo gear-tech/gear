@@ -360,8 +360,7 @@ impl Api {
             ],
         );
 
-        let data: Option<(UserStoredMessage, Interval<u32>)> = self.fetch_storage(&addr).await.ok();
-        Ok(data.map(|(m, i)| (m, i)))
+        Ok(self.fetch_storage(&addr).await.ok())
     }
 
     /// Get all mailbox messages or for the provided `address`.

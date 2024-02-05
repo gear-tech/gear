@@ -15,7 +15,7 @@ pub enum Error {
     EnvLogger(#[from] log::SetLoggerError),
     /// Decoding ss58 address failed.
     #[error(transparent)]
-    PublicError(#[from] gsdk::ext::sp_core::crypto::PublicError),
+    PublicKey(#[from] gsdk::ext::sp_core::crypto::PublicError),
     /// Blocks production validation failed.
     #[error("Some validators didn't produce blocks.")]
     BlocksProduction,

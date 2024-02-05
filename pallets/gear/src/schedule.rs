@@ -52,12 +52,18 @@ pub const API_BENCHMARK_BATCH_SIZE: u32 = 80;
 /// as for `API_BENCHMARK_BATCH_SIZE`.
 pub const INSTR_BENCHMARK_BATCH_SIZE: u32 = 500;
 
-// Constant for `stack_height` is calculated via `calc-stack-height` utility to be small enough
-// to avoid stack overflow in wasmer and wasmi executors.
-// To avoid potential stack overflow problems we have a panic in sandbox in case,
-// execution is ended with stack overflow error. So, process queue execution will be
-// stopped and we will be able to investigate the problem and decrease this constant if needed.
+/// Constant for `stack_height` is calculated via `calc-stack-height` utility to be small enough
+/// to avoid stack overflow in wasmer and wasmi executors.
+/// To avoid potential stack overflow problems we have a panic in sandbox in case,
+/// execution is ended with stack overflow error. So, process queue execution will be
+/// stopped and we will be able to investigate the problem and decrease this constant if needed.
+#[cfg(not(feature = "fuzz"))]
 pub const STACK_HEIGHT_LIMIT: u32 = 36_743;
+
+/// For the fuzzer, we take the maximum possible stack limit calculated by the `calc-stack-height`
+/// utility, which would be suitable for Linux machines. This has a positive effect on code coverage.
+#[cfg(feature = "fuzz")]
+pub const FUZZER_STACK_HEIGHT_LIMIT: u32 = 65_000;
 
 /// Definition of the cost schedule and other parameterization for the wasm vm.
 ///
@@ -743,7 +749,10 @@ impl<T: Config> Default for Schedule<T> {
 impl Default for Limits {
     fn default() -> Self {
         Self {
+            #[cfg(not(feature = "fuzz"))]
             stack_height: Some(STACK_HEIGHT_LIMIT),
+            #[cfg(feature = "fuzz")]
+            stack_height: Some(FUZZER_STACK_HEIGHT_LIMIT),
             globals: 256,
             locals: 1024,
             parameters: 128,
