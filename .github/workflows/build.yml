@@ -28,8 +28,20 @@ env:
   BINARYEN_VERSION: version_111
 
 jobs:
+  matrix:
+    runs-on: [kuberunner, github-runner-02]
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - id: set-matrix
+        run: |
+          echo '::set-output name=matrix::{"include": [{"cargo_profile": "dev"}, {"cargo_profile": "debug"}]}'
+
   linux:
     runs-on: [kuberunner, github-runner-02]
+    needs: matrix
+    strategy:
+      matrix: ${{fromJson(needs.matrix.outputs.matrix)}}
     env:
       LLVM_PROFILE_FILE: "gear-%p-%m.profraw"
       RUSTUP_HOME: /tmp/rustup_home
