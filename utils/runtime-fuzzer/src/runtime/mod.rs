@@ -29,7 +29,7 @@ use vara_runtime::{
 };
 
 pub use account::{account, alice, BalanceManager, BalanceState};
-pub use block::{default_gas_limit, run_to_block, run_to_next_block};
+pub use block::{default_gas_limit, run_to_next_block};
 
 mod account;
 mod block;
