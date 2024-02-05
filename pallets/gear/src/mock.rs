@@ -114,7 +114,7 @@ parameter_types! {
 }
 
 thread_local! {
-    static SCHEDULE: RefCell<Option<Schedule<Test>>> = RefCell::new(None);
+    static SCHEDULE: RefCell<Option<Schedule<Test>>> = const { RefCell::new(None) };
 }
 
 #[derive(Debug)]

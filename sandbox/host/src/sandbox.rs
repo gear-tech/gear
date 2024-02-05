@@ -538,6 +538,7 @@ impl<DT: Clone> Store<DT> {
     ///
     /// Returns `Err` If `instance_idx` isn't a valid index of an instance or
     /// instance is already torndown.
+    #[allow(clippy::useless_asref)]
     pub fn instance(&self, instance_idx: u32) -> Result<Pin<Rc<SandboxInstance>>> {
         self.instances
             .get(instance_idx as usize)
@@ -553,6 +554,7 @@ impl<DT: Clone> Store<DT> {
     ///
     /// Returns `Err` If `instance_idx` isn't a valid index of an instance or
     /// instance is already torndown.
+    #[allow(clippy::useless_asref)]
     pub fn dispatch_thunk(&self, instance_idx: u32) -> Result<DT> {
         self.instances
             .get(instance_idx as usize)

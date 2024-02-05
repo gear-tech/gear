@@ -190,7 +190,7 @@ impl Encoding {
 
     /// Check if is encoding with scrypt.
     pub fn is_scrypt(&self) -> bool {
-        self.ty.get(0) == Some(&"scrypt".into())
+        self.ty.first() == Some(&"scrypt".into())
     }
 
     /// Check if the cipher is xsalsa20-poly1305.
