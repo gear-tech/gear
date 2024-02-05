@@ -156,7 +156,15 @@ where
                     Err(journal) => return journal,
                 };
 
-                (Pallet::<T>::reinstrument_code(code_id, &schedule), context)
+                let code = match Pallet::<T>::reinstrument_code(code_id, &schedule) {
+                    Ok(code) => code,
+                    Err(e) => {
+                        log::debug!("Re-instrumentation error for code {:?}: {e:?}", code_id);
+                        return core_processor::process_reinstrumentation_error(context);
+                    }
+                };
+
+                (code, context)
             };
 
         // The last one thing is to load program memory. Adjust gas counters for memory pages.

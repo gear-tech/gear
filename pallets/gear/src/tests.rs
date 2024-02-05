@@ -9653,6 +9653,90 @@ fn test_reinstrumentation_works() {
 }
 
 #[test]
+fn test_reinstrumentation_failure() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let code_id = CodeId::generate(&ProgramCodeKind::Default.to_bytes());
+        let pid = upload_program_default(USER_1, ProgramCodeKind::Default).unwrap();
+
+        run_to_block(2, None);
+
+        let mut old_version = 0;
+        let _reset_guard = DynamicSchedule::mutate(|schedule| {
+            // Insert new original code to cause re-instrumentation failure.
+            let wasm = ProgramCodeKind::Custom("(module)").to_bytes();
+            <<Test as Config>::CodeStorage as CodeStorage>::OriginalCodeStorage::insert(
+                code_id, wasm,
+            );
+
+            old_version = schedule.instruction_weights.version;
+            schedule.instruction_weights.version = 0xdeadbeef;
+        });
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            vec![],
+            10_000_000_000,
+            0,
+            false,
+        ));
+
+        let mid = get_last_message_id();
+
+        run_to_block(3, None);
+
+        // Must be active even after re-instrumentation failure.
+        let program = ProgramStorageOf::<Test>::get_program(pid).unwrap();
+        assert!(program.is_active());
+
+        // After message processing the code must have the old instrumentation version.
+        let code = <Test as Config>::CodeStorage::get_code(code_id).unwrap();
+        assert_eq!(code.instruction_weights_version(), old_version);
+
+        // Error reply must be returned with the reason of re-instrumentation failure.
+        assert_failed(mid, ErrorReplyReason::Reinstrumentation);
+    })
+}
+
+#[test]
+fn test_init_reinstrumentation_failure() {
+    init_logger();
+
+    new_test_ext().execute_with(|| {
+        let code_id = CodeId::generate(&ProgramCodeKind::Default.to_bytes());
+        let pid = upload_program_default(USER_1, ProgramCodeKind::Default).unwrap();
+
+        let mut old_version = 0;
+        let _reset_guard = DynamicSchedule::mutate(|schedule| {
+            // Insert new original code to cause init re-instrumentation failure.
+            let wasm = ProgramCodeKind::Custom("(module)").to_bytes();
+            <<Test as Config>::CodeStorage as CodeStorage>::OriginalCodeStorage::insert(
+                code_id, wasm,
+            );
+
+            old_version = schedule.instruction_weights.version;
+            schedule.instruction_weights.version = 0xdeadbeef;
+        });
+
+        let mid = get_last_message_id();
+
+        run_to_block(2, None);
+
+        // Must be terminated after re-instrumentation failure, because it failed on init.
+        let program = ProgramStorageOf::<Test>::get_program(pid).unwrap();
+        assert!(program.is_terminated());
+
+        // After message processing the code must have the old instrumentation version.
+        let code = <Test as Config>::CodeStorage::get_code(code_id).unwrap();
+        assert_eq!(code.instruction_weights_version(), old_version);
+
+        // Error reply must be returned with the reason of re-instrumentation failure.
+        assert_failed(mid, ErrorReplyReason::Reinstrumentation);
+    })
+}
+
+#[test]
 fn test_mad_big_prog_instrumentation() {
     init_logger();
     new_test_ext().execute_with(|| {

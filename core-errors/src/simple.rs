@@ -183,6 +183,10 @@ pub enum ErrorReplyReason {
     #[display(fmt = "removal from waitlist")]
     RemovedFromWaitlist = 3,
 
+    /// Program re-instrumentation failed.
+    #[display(fmt = "program re-instrumentation failed")]
+    Reinstrumentation = 4,
+
     /// Unsupported reason of error reply.
     /// Variant exists for backward compatibility.
     #[default]
@@ -204,7 +208,10 @@ impl ErrorReplyReason {
         match self {
             Self::Execution(error) => bytes[1..].copy_from_slice(&error.to_bytes()),
             Self::FailedToCreateProgram(error) => bytes[1..].copy_from_slice(&error.to_bytes()),
-            Self::InactiveProgram | Self::RemovedFromWaitlist | Self::Unsupported => {}
+            Self::InactiveProgram
+            | Self::RemovedFromWaitlist
+            | Self::Reinstrumentation
+            | Self::Unsupported => {}
         }
 
         bytes

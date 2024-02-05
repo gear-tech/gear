@@ -175,6 +175,8 @@ enum ProcessErrorCase {
     NonExecutable,
     /// Error is considered as an execution failure.
     ExecutionFailed(ActorExecutionErrorReplyReason),
+    /// Message is executable, but it's execution failed due to re-instrumentation.
+    ReinstrumentationFailed,
 }
 
 impl ProcessErrorCase {
@@ -186,6 +188,10 @@ impl ProcessErrorCase {
             }
             ProcessErrorCase::ExecutionFailed(reason) => {
                 (reason.as_simple().into(), reason.to_string())
+            }
+            ProcessErrorCase::ReinstrumentationFailed => {
+                let err = ErrorReplyReason::Reinstrumentation;
+                (err, err.to_string())
             }
         }
     }
@@ -277,7 +283,7 @@ fn process_error(
     }
 
     let outcome = match case {
-        ProcessErrorCase::ExecutionFailed { .. } => {
+        ProcessErrorCase::ExecutionFailed { .. } | ProcessErrorCase::ReinstrumentationFailed => {
             let (_, err_payload) = case.to_reason_and_payload();
             match dispatch.kind() {
                 DispatchKind::Init => DispatchOutcome::InitFailure {
@@ -318,6 +324,24 @@ pub fn process_execution_error(
         gas_burned,
         system_reservation_ctx,
         ProcessErrorCase::ExecutionFailed(err.into()),
+    )
+}
+
+/// Helper function for journal creation in case of re-instrumentation error.
+pub fn process_reinstrumentation_error(
+    context: ContextChargedForInstrumentation,
+) -> Vec<JournalNote> {
+    let dispatch = context.data.dispatch;
+    let program_id = context.data.destination_id;
+    let gas_burned = context.data.gas_counter.burned();
+    let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
+
+    process_error(
+        dispatch,
+        program_id,
+        gas_burned,
+        system_reservation_ctx,
+        ProcessErrorCase::ReinstrumentationFailed,
     )
 }
 
