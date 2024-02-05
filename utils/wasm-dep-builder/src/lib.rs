@@ -26,8 +26,8 @@ use crate::{
     lock::{BinariesLockFile, BinariesLockFileConfig, ProgramLockFile, ProgramLockFileConfig},
     metadata::{BinariesMetadata, ProgramMetadata},
     utils::{
-        get_no_build_env, get_no_build_inner_env, manifest_dir, out_dir, profile,
-        wasm32_target_dir, UnderscoreString,
+        default_wasm32_target_dir, get_no_build_env, get_no_build_inner_env, manifest_dir, out_dir,
+        profile, wasm32_target_dir, UnderscoreString,
     },
 };
 use anyhow::Context;
@@ -64,6 +64,17 @@ impl PostPackage {
             wasm_bloaty: build_pkg.wasm_bloaty_path().to_path_buf(),
             wasm: build_pkg.wasm_path().to_path_buf(),
         }
+    }
+
+    fn copy_binaries(&self) {
+        let destination_dir = default_wasm32_target_dir().join(profile());
+        let copy_binary = |binary: &PathBuf| {
+            let file_name = binary.file_name().unwrap();
+            fs::copy(binary, destination_dir.join(file_name)).unwrap()
+        };
+
+        copy_binary(&self.wasm_bloaty);
+        copy_binary(&self.wasm);
     }
 
     fn write_binpath(&self) {
@@ -129,7 +140,7 @@ pub fn build_binaries() {
     let out_dir = out_dir();
 
     let wasm32_target_dir = wasm32_target_dir().join(profile());
-    fs::create_dir_all(&wasm32_target_dir).unwrap();
+    fs::create_dir_all(wasm32_target_dir).unwrap();
 
     let build_rs = manifest_dir.join("build.rs");
     println!("cargo:rerun-if-changed={}", build_rs.display());
@@ -190,12 +201,15 @@ pub fn build_binaries() {
 
     let mut wasm_binaries = String::new();
     for (mut lock, config, package) in post_actions {
-        // we don't need to write config in lock file
-        // because we didn't build anything so next time when
-        // `__GEAR_WASM_BUILDER_NO_BUILD` is changed builder will mark
-        // crate as dirty and do an actual build
         if packages_built {
+            // we don't need to write config in lock file
+            // because we didn't build anything so next time when
+            // `__GEAR_WASM_BUILDER_NO_BUILD` is changed builder will mark
+            // crate as dirty and do an actual build
             lock.write(config);
+
+            // don't copy WASM binaries because we may not build them yet
+            package.copy_binaries();
         }
 
         package.write_binpath();

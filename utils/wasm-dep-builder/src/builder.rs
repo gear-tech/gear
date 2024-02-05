@@ -20,7 +20,7 @@ use crate::{
     lock::{BinariesLockFileConfig, LockFileConfig, ProgramLockFileConfig},
     utils::{
         cargo_home_dir, crate_target_dir, get_no_build_env, get_no_path_remap_env, profile,
-        wasm32_target_dir,
+        wasm32_target_dir, WASM32_TARGET,
     },
     UnderscoreString, NO_BUILD_INNER_ENV,
 };
@@ -268,7 +268,7 @@ impl BuildPackages {
             .arg("--profile")
             .arg(self.cargo_profile())
             .env(NO_BUILD_INNER_ENV, "1")
-            .env("CARGO_BUILD_TARGET", "wasm32-unknown-unknown")
+            .env("CARGO_BUILD_TARGET", WASM32_TARGET)
             .env("CARGO_TARGET_DIR", crate_target_dir())
             // remove host flags
             .env_remove("CARGO_ENCODED_RUSTFLAGS");

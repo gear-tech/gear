@@ -20,6 +20,8 @@ use crate::{NO_BUILD_ENV, NO_BUILD_INNER_ENV, NO_PATH_REMAP_ENV};
 use serde::{Deserialize, Serialize};
 use std::{cmp::Ordering, env, fmt, path::PathBuf};
 
+pub const WASM32_TARGET: &str = "wasm32-unknown-unknown";
+
 pub fn manifest_dir() -> PathBuf {
     env::var("CARGO_MANIFEST_DIR").unwrap().into()
 }
@@ -44,7 +46,7 @@ pub fn profile() -> String {
         .into()
 }
 
-pub fn crate_target_dir() -> PathBuf {
+fn target_dir() -> PathBuf {
     let profile = profile();
 
     out_dir()
@@ -53,11 +55,21 @@ pub fn crate_target_dir() -> PathBuf {
         .and_then(|path| path.parent())
         .map(|p| p.to_owned())
         .expect("Could not find target directory")
-        .join(env!("CARGO_PKG_NAME"))
 }
 
+/// `target/wasm32-unknown-unknown`
+pub fn default_wasm32_target_dir() -> PathBuf {
+    target_dir().join(WASM32_TARGET)
+}
+
+/// `target/wasm-dep-builder`
+pub fn crate_target_dir() -> PathBuf {
+    target_dir().join(env!("CARGO_PKG_NAME"))
+}
+
+/// `target/wasm-dep-builder/wasm32-unknown-unknown`
 pub fn wasm32_target_dir() -> PathBuf {
-    crate_target_dir().join("wasm32-unknown-unknown")
+    crate_target_dir().join(WASM32_TARGET)
 }
 
 pub fn cargo_home_dir() -> PathBuf {
