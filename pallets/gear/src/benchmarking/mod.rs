@@ -593,7 +593,7 @@ benchmarks! {
 
         let schedule = T::Schedule::get();
     }: {
-        let _ = Gear::<T>::reinstrument_code(code_id, &schedule);
+        Gear::<T>::reinstrument_code(code_id, &schedule).expect("Re-instrumentation  failed");
     }
 
     // Alloc there 1 page because `alloc` execution time is non-linear along with other amounts of pages.
