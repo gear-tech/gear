@@ -42,13 +42,30 @@ pub struct EntryPointsGenerator<'a, 'b> {
     call_indexes: CallIndexes,
 }
 
-impl<'a, 'b> From<GearWasmGenerator<'a, 'b>>
+pub struct GearWasmGeneratorWithMemory<'a, 'b>(
+    GearWasmGenerator<'a, 'b>,
+    MemoryImportGenerationProof,
+);
+
+impl<'a, 'b> From<(GearWasmGenerator<'a, 'b>, MemoryImportGenerationProof)>
+    for GearWasmGeneratorWithMemory<'a, 'b>
+{
+    fn from(
+        (generator, mem_import_gen_proof): (GearWasmGenerator<'a, 'b>, MemoryImportGenerationProof),
+    ) -> Self {
+        Self(generator, mem_import_gen_proof)
+    }
+}
+
+impl<'a, 'b> From<GearWasmGeneratorWithMemory<'a, 'b>>
     for (
         EntryPointsGenerator<'a, 'b>,
         FrozenGearWasmGenerator<'a, 'b>,
+        MemoryImportGenerationProof,
     )
 {
-    fn from(generator: GearWasmGenerator<'a, 'b>) -> Self {
+    fn from(generator_with_memory: GearWasmGeneratorWithMemory<'a, 'b>) -> Self {
+        let GearWasmGeneratorWithMemory(generator, mem_import_gen_proof) = generator_with_memory;
         let ep_generator = EntryPointsGenerator {
             unstructured: generator.unstructured,
             module: generator.module,
@@ -61,7 +78,7 @@ impl<'a, 'b> From<GearWasmGenerator<'a, 'b>>
             unstructured: None,
         };
 
-        (ep_generator, frozen)
+        (ep_generator, frozen, mem_import_gen_proof)
     }
 }
 

@@ -181,8 +181,11 @@ impl<'a, 'b> GearWasmGenerator<'a, 'b> {
         GearEntryPointGenerationProof,
         MemoryImportGenerationProof,
     )> {
-        let (ep_gen, frozen_gear_wasm_gen): (EntryPointsGenerator, FrozenGearWasmGenerator) =
-            self.into();
+        let (ep_gen, frozen_gear_wasm_gen, mem_import_gen_proof): (
+            EntryPointsGenerator,
+            FrozenGearWasmGenerator,
+            MemoryImportGenerationProof,
+        ) = GearWasmGeneratorWithMemory::from((self, mem_import_gen_proof)).into();
         let (disabled_ep_gen, ep_gen_proof, mem_import_gen_proof) =
             ep_gen.generate_entry_points(mem_import_gen_proof)?;
 
