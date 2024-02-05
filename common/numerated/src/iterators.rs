@@ -73,7 +73,7 @@ impl<T: Numerated + UpperBounded, I: Into<T::Bound>> From<RangeFrom<I>> for Inte
     }
 }
 
-impl<T: Numerated + UpperBounded + LowerBounded> From<RangeFull> for IntervalIterator<T> {
+impl<T: Numerated + LowerBounded + UpperBounded> From<RangeFull> for IntervalIterator<T> {
     fn from(range: RangeFull) -> Self {
         Interval::from(range).into()
     }
@@ -169,9 +169,13 @@ impl<T: Display> Display for IntervalIterator<T> {
 ///
 /// See also [`IntervalsTree::difference`].
 pub struct DifferenceIterator<T: Numerated, I: Iterator<Item = Interval<T>>> {
+    /// Iterator over intervals in `tree1`.
     pub(crate) iter1: I,
+    /// Iterator over intervals in `tree2`.
     pub(crate) iter2: I,
+    /// Current interval from `tree1`. Starts from `None`.
     pub(crate) interval1: Option<Interval<T>>,
+    /// Current interval from `tree2`. Starts from `None`.
     pub(crate) interval2: Option<Interval<T>>,
 }
 
@@ -180,6 +184,8 @@ impl<T: Numerated, I: Iterator<Item = Interval<T>>> Iterator for DifferenceItera
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
+            // If `self.interval1` is `None`, then takes next interval from `tree1`.
+            // If there isn't any left intervals in `tree1`, then returns `None` - end of iteration.
             let interval1 = if let Some(interval1) = self.interval1 {
                 interval1
             } else {
@@ -188,6 +194,10 @@ impl<T: Numerated, I: Iterator<Item = Interval<T>>> Iterator for DifferenceItera
                 interval1
             };
 
+            // If `self.interval2` is `None`, then takes next interval from `tree2`.
+            // If there isn't any left intervals in `tree2`, then there is no more intersections
+            // and it can return next intervals from `tree1` until the end.
+            // Set `self.interval1` to None, to take next interval from `tree1` on next iteration.
             let interval2 = if let Some(interval2) = self.interval2 {
                 interval2
             } else if let Some(interval2) = self.iter2.next() {
@@ -197,6 +207,10 @@ impl<T: Numerated, I: Iterator<Item = Interval<T>>> Iterator for DifferenceItera
                 return Some(interval1);
             };
 
+            // If `interval2` ends before `interval1` starts, then there is no intersection between
+            // current `interval2` and `interval1`, so we continue iterate over `tree2`, until
+            // the end of `tree2` or until `interval2` starts after `interval1`.
+            // Set `self.interval2` to None, to take next interval from `tree2` on next iteration.
             if interval2.end() < interval1.start() {
                 self.interval2 = None;
                 continue;
@@ -205,19 +219,34 @@ impl<T: Numerated, I: Iterator<Item = Interval<T>>> Iterator for DifferenceItera
             self.interval2 = Some(interval2);
 
             if interval1.end() < interval2.start() {
+            // If `interval1` ends before `interval2` starts, then there is no intersection between
+            // current `interval1` and `interval2`, so we can return `interval1`.
+            // Set `self.interval1` to None, to take next interval from `tree1` on next iteration.
                 self.interval1 = None;
                 return Some(interval1);
             } else {
+                // In that case `interval1` and `interval2` intersects.
                 if let Some(new_start) = interval2.end().inc_if_lt(interval1.end()) {
+                    // If `interval2` ends before `interval1`, then we set `self.interval1` to
+                    // (interval2.end, interval1.end], so it will be returned on next loop iteration.
                     self.interval1 = Interval::new(new_start, interval1.end());
                     debug_assert!(self.interval1.is_some(), "`T: Numerated` impl error");
                 } else if interval1.end() == interval2.end() {
+                    // If `interval1` and `interval2` ends at the same point, then
+                    // we set both as `None` to take next intervals for both trees
+                    // on next loop iteration.
                     self.interval1 = None;
                     self.interval2 = None;
                 } else {
+                    // If `interval1` ends before `interval2` end,
+                    // then set interval1 as `None` to take next interval for `tree1`
+                    // on next loop iteration.
                     self.interval1 = None;
                 }
 
+                // If `interval1` starts before `interval2`, then we can return
+                // [interval1.start, interval2.start) as a result for this iteration.
+                // In other case we continue to search for next interval.
                 if let Some(new_end) = interval2.start().dec_if_gt(interval1.start()) {
                     let res = Interval::new(interval1.start(), new_end);
                     debug_assert!(res.is_some(), "`T: Numerated` impl error");
