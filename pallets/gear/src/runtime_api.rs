@@ -70,7 +70,10 @@ where
             .saturating_add(value_for_gas)
             .saturating_add(value);
 
-        CurrencyOf::<T>::deposit_creating(&origin, required_balance.saturating_sub(origin_balance));
+        let _ = CurrencyOf::<T>::deposit_creating(
+            &origin,
+            required_balance.saturating_sub(origin_balance),
+        );
 
         let who = frame_support::dispatch::RawOrigin::Signed(origin);
 

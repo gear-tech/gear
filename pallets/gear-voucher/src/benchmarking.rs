@@ -35,7 +35,7 @@ benchmarks! {
     issue {
         // Origin account.
         let origin = benchmarking::account::<T::AccountId>("origin", 0, 0);
-        CurrencyOf::<T>::deposit_creating(
+        let _ = CurrencyOf::<T>::deposit_creating(
             &origin,
             100_000_000_000_000_u128.unique_saturated_into()
         );
@@ -72,7 +72,7 @@ benchmarks! {
     revoke {
         // Origin account.
         let origin = benchmarking::account::<T::AccountId>("origin", 0, 0);
-        CurrencyOf::<T>::deposit_creating(
+        let _ = CurrencyOf::<T>::deposit_creating(
             &origin,
             100_000_000_000_000_u128.unique_saturated_into()
         );
@@ -102,7 +102,7 @@ benchmarks! {
     update {
         // Origin account.
         let origin = benchmarking::account::<T::AccountId>("origin", 0, 0);
-        CurrencyOf::<T>::deposit_creating(
+        let _ = CurrencyOf::<T>::deposit_creating(
             &origin,
             100_000_000_000_000_u128.unique_saturated_into()
         );
