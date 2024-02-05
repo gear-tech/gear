@@ -42,30 +42,30 @@ pub struct EntryPointsGenerator<'a, 'b> {
     call_indexes: CallIndexes,
 }
 
-pub struct GearWasmGeneratorWithMemory<'a, 'b>(
-    GearWasmGenerator<'a, 'b>,
-    MemoryImportGenerationProof,
+/// Entry points generator instantiator.
+///
+/// Serves as a new type in order to create the generator from gear wasm generator and memory import proof.
+pub struct EntryPointsGeneratorInstantiator<'a, 'b>(
+    (GearWasmGenerator<'a, 'b>, MemoryImportGenerationProof),
 );
 
 impl<'a, 'b> From<(GearWasmGenerator<'a, 'b>, MemoryImportGenerationProof)>
-    for GearWasmGeneratorWithMemory<'a, 'b>
+    for EntryPointsGeneratorInstantiator<'a, 'b>
 {
-    fn from(
-        (generator, mem_import_gen_proof): (GearWasmGenerator<'a, 'b>, MemoryImportGenerationProof),
-    ) -> Self {
-        Self(generator, mem_import_gen_proof)
+    fn from(inner: (GearWasmGenerator<'a, 'b>, MemoryImportGenerationProof)) -> Self {
+        Self(inner)
     }
 }
 
-impl<'a, 'b> From<GearWasmGeneratorWithMemory<'a, 'b>>
+impl<'a, 'b> From<EntryPointsGeneratorInstantiator<'a, 'b>>
     for (
         EntryPointsGenerator<'a, 'b>,
         FrozenGearWasmGenerator<'a, 'b>,
         MemoryImportGenerationProof,
     )
 {
-    fn from(generator_with_memory: GearWasmGeneratorWithMemory<'a, 'b>) -> Self {
-        let GearWasmGeneratorWithMemory(generator, mem_import_gen_proof) = generator_with_memory;
+    fn from(instantiator: EntryPointsGeneratorInstantiator<'a, 'b>) -> Self {
+        let EntryPointsGeneratorInstantiator((generator, mem_import_gen_proof)) = instantiator;
         let ep_generator = EntryPointsGenerator {
             unstructured: generator.unstructured,
             module: generator.module,
