@@ -84,7 +84,7 @@ where
         {
             if dispatch_kind == DispatchKind::Init {
                 // Panic is impossible, because gear protocol does not provide functionality
-                // to send second init message to any already existing program.
+                // to send second init message to any existing program.
                 unreachable!(
                     "Init message {dispatch_id:?} is not the first init message to the program {destination_id:?}"
                 );
