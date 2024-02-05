@@ -186,7 +186,6 @@ pub fn build_binaries() {
         build_packages.insert(build_pkg);
     }
 
-    println!("cargo:warning={:?}", build_packages);
     let packages_built = build_packages.build();
 
     let mut wasm_binaries = String::new();

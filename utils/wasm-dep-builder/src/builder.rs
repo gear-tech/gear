@@ -251,7 +251,6 @@ impl BuildPackages {
 
     pub fn build(&mut self) -> bool {
         if self.skip_build() {
-            println!("cargo:warning=Build skipped");
             return false;
         }
 
@@ -273,7 +272,6 @@ impl BuildPackages {
             .env("CARGO_TARGET_DIR", crate_target_dir())
             // remove host flags
             .env_remove("CARGO_ENCODED_RUSTFLAGS");
-        println!("cargo:warning={:?}", cargo);
         let output = cargo.output().expect("Failed to execute cargo command");
         if !output.status.success() {
             let _ = io::stderr().write_all(&output.stderr);

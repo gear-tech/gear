@@ -65,7 +65,6 @@ pub struct ProgramLockFile {
 impl ProgramLockFile {
     pub fn open(pkg_name: impl AsRef<str>) -> Self {
         let path = file_path(pkg_name);
-        println!("cargo:warning=[DEMO] lock: {}", path.display());
         let file = fs::File::options()
             .create(true)
             .write(true)
