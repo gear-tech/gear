@@ -166,6 +166,8 @@ impl SuccessReplyReason {
 )]
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo, Sequence), codec(crate = scale), allow(clippy::unnecessary_cast))]
 /// Reason of error reply creation.
+/// NOTE: Adding new variants to this enum you must also update `ErrorReplyReason::to_bytes` and
+/// `ErrorReplyReason::from_bytes` methods.
 pub enum ErrorReplyReason {
     /// Error reply was created due to underlying execution error.
     #[display(fmt = "execution error ({_0})")]
@@ -185,7 +187,7 @@ pub enum ErrorReplyReason {
 
     /// Program re-instrumentation failed.
     #[display(fmt = "program re-instrumentation failed")]
-    Reinstrumentation = 4,
+    ReinstrumentationFailure = 4,
 
     /// Unsupported reason of error reply.
     /// Variant exists for backward compatibility.
@@ -210,13 +212,14 @@ impl ErrorReplyReason {
             Self::FailedToCreateProgram(error) => bytes[1..].copy_from_slice(&error.to_bytes()),
             Self::InactiveProgram
             | Self::RemovedFromWaitlist
-            | Self::Reinstrumentation
+            | Self::ReinstrumentationFailure
             | Self::Unsupported => {}
         }
 
         bytes
     }
 
+    // TODO: add test this method works correctly for all possible variants #3715
     fn from_bytes(bytes: [u8; 3]) -> Self {
         match bytes[0] {
             b if Self::Execution(Default::default()).discriminant() == b => {
@@ -229,6 +232,9 @@ impl ErrorReplyReason {
             }
             b if Self::InactiveProgram.discriminant() == b => Self::InactiveProgram,
             b if Self::RemovedFromWaitlist.discriminant() == b => Self::RemovedFromWaitlist,
+            b if Self::ReinstrumentationFailure.discriminant() == b => {
+                Self::ReinstrumentationFailure
+            }
             _ => Self::Unsupported,
         }
     }

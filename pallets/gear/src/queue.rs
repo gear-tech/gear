@@ -149,7 +149,7 @@ where
             if code.instruction_weights_version() == schedule.instruction_weights.version {
                 (code, ContextChargedForInstrumentation::from(context))
             } else {
-                log::debug!("Re-instrumenting code for program '{:?}'", destination_id);
+                log::debug!("Re-instrumenting code for program '{destination_id:?}'");
 
                 let context = match core_processor::precharge_for_instrumentation(
                     block_config,
@@ -163,7 +163,7 @@ where
                 let code = match Pallet::<T>::reinstrument_code(code_id, &schedule) {
                     Ok(code) => code,
                     Err(e) => {
-                        log::debug!("Re-instrumentation error for code {:?}: {e:?}", code_id);
+                        log::debug!("Re-instrumentation error for code {code_id:?}: {e:?}");
                         return core_processor::process_reinstrumentation_error(context);
                     }
                 };

@@ -190,7 +190,7 @@ impl ProcessErrorCase {
                 (reason.as_simple().into(), reason.to_string())
             }
             ProcessErrorCase::ReinstrumentationFailed => {
-                let err = ErrorReplyReason::Reinstrumentation;
+                let err = ErrorReplyReason::ReinstrumentationFailure;
                 (err, err.to_string())
             }
         }
