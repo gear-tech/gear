@@ -175,8 +175,6 @@ enum ProcessErrorCase {
     NonExecutable,
     /// Error is considered as an execution failure.
     ExecutionFailed(ActorExecutionErrorReplyReason),
-    /// Message is executable, but it's execution failed due to re-instrumentation.
-    ReinstrumentationFailed,
 }
 
 impl ProcessErrorCase {
