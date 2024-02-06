@@ -200,7 +200,7 @@ where
                 balance: balance.unique_saturated_into(),
             };
 
-            let journal = Self::queue_step(step);
+            let journal = Self::run_queue_step(step);
 
             let get_main_limit = || {
                 // For case when node is not consumed and has any (even zero) balance
