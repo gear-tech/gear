@@ -120,7 +120,7 @@ pub enum ExportErrorWithContext {
     #[error("Unnecessary export of function `{_0}` found")]
     UnnecessaryExport(String),
     #[error("Required export function `init` or `handle` not found")]
-    RequiredExportFnNotFound,
+    RequiredExportNotFound,
 }
 
 impl TryFrom<(&Module, &ExportError)> for ExportErrorWithContext {
@@ -183,7 +183,7 @@ impl TryFrom<(&Module, &ExportError)> for ExportErrorWithContext {
             UnnecessaryExport(export_index) => {
                 Self::UnnecessaryExport(get_export_name(module, *export_index)?)
             }
-            RequiredExportFnNotFound => Self::RequiredExportFnNotFound,
+            RequiredExportNotFound => Self::RequiredExportNotFound,
         })
     }
 }

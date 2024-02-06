@@ -133,7 +133,7 @@ fn check_exports(module: &Module) -> Result<(), CodeError> {
 
     entry_point_found
         .then_some(())
-        .ok_or(ExportError::RequiredExportFnNotFound)
+        .ok_or(ExportError::RequiredExportNotFound)
         .map_err(CodeError::Export)
 }
 
@@ -395,7 +395,7 @@ pub enum ExportError {
     UnnecessaryExport(u32),
     /// The provided code doesn't contain the required `init` or `handle` export function.
     #[display(fmt = "Required export function `init` or `handle` not found")]
-    RequiredExportFnNotFound,
+    RequiredExportNotFound,
 }
 
 /// Import error in WASM module.
@@ -961,7 +961,7 @@ mod tests {
 
         assert_eq!(
             Code::try_new(original_code, 1, |_| ConstantCostRules::default(), None),
-            Err(CodeError::Export(ExportError::RequiredExportFnNotFound))
+            Err(CodeError::Export(ExportError::RequiredExportNotFound))
         );
     }
 
