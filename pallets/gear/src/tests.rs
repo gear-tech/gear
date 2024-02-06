@@ -9695,7 +9695,7 @@ fn test_reinstrumentation_failure() {
         assert_eq!(code.instruction_weights_version(), old_version);
 
         // Error reply must be returned with the reason of re-instrumentation failure.
-        assert_failed(mid, ErrorReplyReason::Reinstrumentation);
+        assert_failed(mid, ErrorReplyReason::ReinstrumentationFailure);
     })
 }
 
@@ -9732,7 +9732,7 @@ fn test_init_reinstrumentation_failure() {
         assert_eq!(code.instruction_weights_version(), old_version);
 
         // Error reply must be returned with the reason of re-instrumentation failure.
-        assert_failed(mid, ErrorReplyReason::Reinstrumentation);
+        assert_failed(mid, ErrorReplyReason::ReinstrumentationFailure);
     })
 }
 
