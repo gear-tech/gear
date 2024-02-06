@@ -146,7 +146,6 @@ where
                 res.gas_amount.burned(),
                 res.system_reservation_context,
                 ActorExecutionErrorReplyReason::Trap(reason),
-                true,
             ),
             DispatchResultKind::Success => process_success(Success, res),
             DispatchResultKind::Wait(duration, ref waited_type) => {
@@ -159,13 +158,13 @@ where
                 process_allowance_exceed(dispatch, program_id, res.gas_amount.burned())
             }
         }),
+        // TODO: we must use message reservation context here instead of default #3718
         Err(ExecutionError::Actor(e)) => Ok(process_execution_error(
             dispatch,
             program_id,
             e.gas_amount.burned(),
             SystemReservationContext::default(),
             e.reason,
-            false,
         )),
         Err(ExecutionError::System(e)) => Err(e),
     }
@@ -173,19 +172,21 @@ where
 
 enum ProcessErrorCase {
     /// Message is not executable error.
-    NonExecutable(ErrorReplyReason),
+    NonExecutable,
     /// Error is considered as an execution failure.
-    ExecutionFailed {
-        reason: ActorExecutionErrorReplyReason,
-        allow_send_signal: bool,
-    },
+    ExecutionFailed(ActorExecutionErrorReplyReason),
+    /// Message is executable, but it's execution failed due to re-instrumentation.
+    ReinstrumentationFailed,
 }
 
 impl ProcessErrorCase {
     pub fn to_reason_and_payload(&self) -> (ErrorReplyReason, String) {
         match self {
-            ProcessErrorCase::NonExecutable(err) => (*err, err.to_string()),
-            ProcessErrorCase::ExecutionFailed { reason, .. } => {
+            ProcessErrorCase::NonExecutable => {
+                let reason = ErrorReplyReason::InactiveProgram;
+                (reason, reason.to_string())
+            }
+            ProcessErrorCase::ExecutionFailed(reason) => {
                 (reason.as_simple().into(), reason.to_string())
             }
         }
@@ -230,14 +231,9 @@ fn process_error(
         journal.push(JournalNote::SystemReserveGas { message_id, amount });
     }
 
-    if let ProcessErrorCase::ExecutionFailed {
-        reason,
-        allow_send_signal,
-    } = &case
-    {
+    if let ProcessErrorCase::ExecutionFailed(reason) = &case {
         // TODO: consider to handle error reply and init #3701
-        if *allow_send_signal
-            && system_reservation_ctx.has_any()
+        if system_reservation_ctx.has_any()
             && !dispatch.is_error_reply()
             && !matches!(dispatch.kind(), DispatchKind::Signal | DispatchKind::Init)
         {
@@ -297,7 +293,7 @@ fn process_error(
                 },
             }
         }
-        ProcessErrorCase::NonExecutable(_) => DispatchOutcome::NoExecution,
+        ProcessErrorCase::NonExecutable => DispatchOutcome::NoExecution,
     };
 
     journal.push(JournalNote::MessageDispatched {
@@ -317,17 +313,13 @@ pub fn process_execution_error(
     gas_burned: u64,
     system_reservation_ctx: SystemReservationContext,
     err: impl Into<ActorExecutionErrorReplyReason>,
-    allow_send_signal: bool,
 ) -> Vec<JournalNote> {
     process_error(
         dispatch,
         program_id,
         gas_burned,
         system_reservation_ctx,
-        ProcessErrorCase::ExecutionFailed {
-            reason: err.into(),
-            allow_send_signal,
-        },
+        ProcessErrorCase::ExecutionFailed(err.into()),
     )
 }
 
@@ -335,7 +327,6 @@ pub fn process_execution_error(
 pub fn process_non_executable(
     context: PrechargedDispatch,
     destination_id: ProgramId,
-    reason: impl Into<ErrorReplyReason>,
 ) -> Vec<JournalNote> {
     let (dispatch, gas_counter, _) = context.into_parts();
     let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
@@ -345,7 +336,7 @@ pub fn process_non_executable(
         destination_id,
         gas_counter.burned(),
         system_reservation_ctx,
-        ProcessErrorCase::NonExecutable(reason.into()),
+        ProcessErrorCase::NonExecutable,
     )
 }
 

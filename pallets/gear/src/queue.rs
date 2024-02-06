@@ -18,7 +18,6 @@
 
 use super::*;
 use core_processor::ContextChargedForInstrumentation;
-use gear_core_errors::ErrorReplyReason;
 
 pub(crate) struct QueueStep<'a, T: Config> {
     pub block_config: &'a BlockConfig,
@@ -32,7 +31,7 @@ impl<T: Config> pallet::Pallet<T>
 where
     T::AccountId: Origin,
 {
-    pub(crate) fn queue_step(queue_step: QueueStep<'_, T>) -> Vec<JournalNote> {
+    pub(crate) fn run_queue_step(queue_step: QueueStep<'_, T>) -> Vec<JournalNote> {
         let QueueStep {
             block_config,
             ext_manager,
@@ -64,12 +63,8 @@ where
                 _ => None,
             })
         else {
-            log::trace!("Message is sent to non-active program {:?}", destination_id);
-            return core_processor::process_non_executable(
-                precharged_dispatch,
-                destination_id,
-                ErrorReplyReason::InactiveProgram,
-            );
+            log::trace!("Message is sent to non-active program {destination_id:?}");
+            return core_processor::process_non_executable(precharged_dispatch, destination_id);
         };
 
         if program.state == ProgramState::Initialized && dispatch_kind == DispatchKind::Init {
@@ -133,10 +128,7 @@ where
         // Load correct code length value.
         let code_id = context.actor_data().code_id;
         let code_len_bytes = T::CodeStorage::get_code_len(code_id).unwrap_or_else(|| {
-            unreachable!(
-                "Program '{:?}' exists so do code len '{:?}'",
-                destination_id, code_id
-            )
+            unreachable!("Program '{destination_id:?}' exists so do code len '{code_id:?}'")
         });
 
         // Adjust gas counters for fetching instrumented binary code.
@@ -148,10 +140,7 @@ where
 
         // Load instrumented binary code from storage.
         let code = T::CodeStorage::get_code(code_id).unwrap_or_else(|| {
-            unreachable!(
-                "Program '{:?}' exists so do code '{:?}'",
-                destination_id, code_id
-            )
+            unreachable!("Program '{destination_id:?}' exists so do code '{code_id:?}'")
         });
 
         // Reinstrument the code if necessary.
@@ -190,7 +179,7 @@ where
             (context, code, balance).into(),
             (random.encode(), bn.unique_saturated_into()),
         )
-        .unwrap_or_else(|e| unreachable!("core-processor logic invalidated: {}", e))
+        .unwrap_or_else(|e| unreachable!("core-processor logic invalidated: {e}"))
     }
 
     /// Message Queue processing.
@@ -205,7 +194,7 @@ where
 
         while QueueProcessingOf::<T>::allowed() {
             let dispatch = match QueueOf::<T>::dequeue()
-                .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e))
+                .unwrap_or_else(|e| unreachable!("Message queue corrupted! {e:?}"))
             {
                 Some(d) => d,
                 None => break,
@@ -213,7 +202,7 @@ where
 
             // Querying gas limit. Fails in cases of `GasTree` invalidations.
             let gas_limit = GasHandlerOf::<T>::get_limit(dispatch.id())
-                .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+                .unwrap_or_else(|e| unreachable!("GasTree corrupted! {e:?}"));
 
             log::debug!(
                 "QueueProcessing message ({:?}): {:?} to {:?} / gas_limit: {}, gas_allowance: {}",
@@ -238,7 +227,7 @@ where
 
             let balance = CurrencyOf::<T>::free_balance(&program_id.cast());
 
-            let journal = Self::queue_step(QueueStep {
+            let journal = Self::run_queue_step(QueueStep {
                 block_config: &block_config,
                 ext_manager: &mut ext_manager,
                 gas_limit,

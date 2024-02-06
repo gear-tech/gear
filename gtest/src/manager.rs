@@ -888,11 +888,7 @@ impl ExtManager {
         };
 
         let Some((actor_data, code)) = data else {
-            let journal = core_processor::process_non_executable(
-                precharged_dispatch,
-                dest,
-                ErrorReplyReason::InactiveProgram,
-            );
+            let journal = core_processor::process_non_executable(precharged_dispatch, dest);
             core_processor::handle_journal(journal, self);
             return;
         };
@@ -1149,7 +1145,7 @@ impl JournalHandler for ExtManager {
 
     #[track_caller]
     fn stop_processing(&mut self, _dispatch: StoredDispatch, _gas_burned: u64) {
-        panic!("Processing stopped. Used for on-chain logic only.")
+        unimplemented!("Processing stopped. Used for on-chain logic only.")
     }
 
     fn reserve_gas(
@@ -1208,6 +1204,6 @@ impl JournalHandler for ExtManager {
     }
 
     fn waiting_init_message(&mut self, _dispatch: IncomingDispatch, _destination: ProgramId) {
-        panic!("Waiting init message is used for on-chain logic only");
+        unimplemented!("Waiting init message is used for on-chain logic only");
     }
 }

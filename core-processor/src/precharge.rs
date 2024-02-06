@@ -232,7 +232,6 @@ pub fn precharge_for_program(
                 gas_burned,
                 system_reservation_ctx,
                 ActorExecutionErrorReplyReason::PreChargeGasLimitExceeded(op),
-                true,
             ))
         }
     }
@@ -287,7 +286,6 @@ pub fn precharge_for_code_length(
                 gas_counter.burned(),
                 system_reservation_ctx,
                 ActorExecutionErrorReplyReason::PreChargeGasLimitExceeded(op),
-                true,
             ))
         }
     }
@@ -323,7 +321,6 @@ pub fn precharge_for_code(
                 context.data.gas_counter.burned(),
                 system_reservation_ctx,
                 ActorExecutionErrorReplyReason::PreChargeGasLimitExceeded(op),
-                true,
             ))
         }
     }
@@ -360,7 +357,6 @@ pub fn precharge_for_instrumentation(
                 context.data.gas_counter.burned(),
                 system_reservation_ctx,
                 ActorExecutionErrorReplyReason::PreChargeGasLimitExceeded(op),
-                true,
             ))
         }
     }
@@ -422,7 +418,6 @@ pub fn precharge_for_memory(
                 context.data.gas_counter.burned(),
                 system_reservation_ctx,
                 ActorExecutionErrorReplyReason::PreChargeGasLimitExceeded(op),
-                false,
             ));
         }
     };
