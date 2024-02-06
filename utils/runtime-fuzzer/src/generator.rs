@@ -33,7 +33,7 @@ use gear_wasm_gen::wasm_gen_arbitrary::{Result, Unstructured};
 use pallet_gear::Event as GearEvent;
 use runtime_primitives::{AccountId, Balance};
 use std::mem;
-use vara_runtime::{RuntimeEvent, System};
+use vara_runtime::{RuntimeEvent, System, EXISTENTIAL_DEPOSIT};
 
 // Max code size - 25 KiB.
 const MAX_CODE_SIZE: usize = 25 * 1024;
@@ -262,4 +262,14 @@ fn arbitrary_payload(u: &mut Unstructured) -> Result<Vec<u8>> {
 fn arbitrary_limited_bytes(u: &mut Unstructured, limit: usize) -> Result<Vec<u8>> {
     let arb_size = u.int_in_range(0..=limit)?;
     u.bytes(arb_size).map(|bytes| bytes.to_vec())
+}
+
+fn arbitrary_value(u: &mut Unstructured, current_balance: u128) -> Result<u128> {
+    let (lower, upper) = match u.int_in_range(0..=99)? {
+        0..=4 => (0, EXISTENTIAL_DEPOSIT),
+        5..=19 => (0, 0),
+        _ => (EXISTENTIAL_DEPOSIT, current_balance),
+    };
+
+    u.int_in_range(lower..=upper)
 }

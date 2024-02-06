@@ -87,7 +87,7 @@ pub(crate) fn generate(
     );
     log::trace!("Payload (upload_program) length {:?}", payload.len());
 
-    let value = unstructured.int_in_range(0..=current_balance.saturating_div(7))?;
+    let value = super::arbitrary_value(unstructured, current_balance)?;
     log::trace!("Random data after value generation {}", unstructured.len());
     log::trace!("Sending value (upload_program) - {value}");
 

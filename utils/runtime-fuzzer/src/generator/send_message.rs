@@ -72,5 +72,9 @@ pub(crate) fn generate(
     );
     log::trace!("Payload (send_message) length {:?}", payload.len());
 
-    Ok(SendMessageArgs((program_id, payload, gas, 0)).into())
+    let value = super::arbitrary_value(unstructured, current_balance)?;
+    log::trace!("Random data after value generation {}", unstructured.len());
+    log::trace!("Sending value (send_message) - {value}");
+
+    Ok(SendMessageArgs((program_id, payload, gas, value)).into())
 }
