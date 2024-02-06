@@ -37,18 +37,6 @@ impl<'a> TryFrom<RuntimeStateView<'a>> for ClaimValueRuntimeData<'a> {
     }
 }
 
-pub(super) const fn data_requirement() -> usize {
-    ID_SIZE + AUXILIARY_SIZE
-}
-
-impl<'a> TryFrom<RuntimeStateView<'a>> for ClaimValueRuntimeData<'a> {
-    type Error = ();
-
-    fn try_from(env: RuntimeStateView<'a>) -> StdResult<Self, Self::Error> {
-        env.mailbox.map(|mailbox| (mailbox,)).ok_or(())
-    }
-}
-
 pub(crate) fn generate(
     unstructured: &mut Unstructured,
     (mailbox,): ClaimValueRuntimeData,

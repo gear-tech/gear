@@ -28,7 +28,9 @@ use vara_runtime::{
     AccountId, Balances, BankAddress, Runtime, RuntimeOrigin, SessionConfig, SessionKeys,
 };
 
-pub use account::{account, alice, BalanceManager, BalanceState};
+pub use account::{
+    acc_max_balance_gas, account, account_to_program_id, alice, BalanceManager, BalanceState,
+};
 pub use block::{default_gas_limit, run_to_next_block};
 
 mod account;

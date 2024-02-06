@@ -26,7 +26,7 @@ use crate::{
     runtime::{self, BalanceState},
 };
 use gear_call_gen::GearCall;
-use gear_common::{event::ProgramChangeKind, Origin};
+use gear_common::event::ProgramChangeKind;
 use gear_core::ids::{MessageId, ProgramId};
 use gear_utils::NonEmpty;
 use gear_wasm_gen::wasm_gen_arbitrary::{Result, Unstructured};
@@ -70,11 +70,6 @@ pub(crate) struct GearCallsGenerator<'a> {
 }
 
 impl<'a> GearCallsGenerator<'a> {
-    const UPLOAD_PROGRAM_CALL_ID: usize = 0;
-    const SEND_MESSAGE_CALL_ID: usize = 1;
-    const SEND_REPLY_CALL_ID: usize = 2;
-    const CLAIM_VALUE_CALL_ID: usize = 3;
-
     pub(crate) fn new(data_requirement: FulfilledDataRequirement<'a, Self>) -> Self {
         Self {
             unstructured: Unstructured::new(data_requirement.data),
@@ -172,16 +167,16 @@ impl RuntimeStateViewProducer {
 
         RuntimeStateView {
             corpus_id: &self.corpus_id,
-            _current_balance: balance_state.into_inner(),
+            current_balance: balance_state.into_inner(),
             programs: self.programs.as_ref(),
             mailbox: self.mailbox.as_ref(),
             max_gas: runtime::default_gas_limit(),
-        })
+        }
     }
 
     /// Updates mailbox and existing programs view and resets events.
     fn update_state_view(&mut self) {
-        let sender_program_id = ProgramId::from_origin(self.sender.clone().into_origin());
+        let sender_program_id = runtime::account_to_program_id(self.sender.clone());
         System::events().iter().for_each(|e| {
             let RuntimeEvent::Gear(ref gear_event) = e.event else {
                 return;
@@ -218,39 +213,12 @@ impl RuntimeStateViewProducer {
         // 2. Obtained mailbox message ids and initialized programs ids are unique.
         System::reset_events();
     }
-
-    fn update_balance(&mut self) -> Result<Balance> {
-        let new_balance_in_gas = self
-            .unstructured
-            .int_in_range(runtime::acc_min_balance_gas()..=runtime::acc_max_balance_gas())?;
-        let new_balance_in_value = runtime::gas_to_value(new_balance_in_gas);
-
-        runtime::set_balance(self.sender.clone(), new_balance_in_value)
-            .unwrap_or_else(|e| unreachable!("Balance update failed: {e:?}"));
-
-        assert_eq!(
-            new_balance_in_value,
-            BalancesPallet::<Runtime>::free_balance(&self.sender),
-            "internal error: new balance set logic is corrupted."
-        );
-        log::info!("Current balance of the sender - {new_balance_in_value}");
-
-        Ok(new_balance_in_value)
-    }
-}
-
-pub(crate) struct RuntimeStateView<'a> {
-    corpus_id: &'a str,
-    _current_balance: Balance,
-    programs: Option<&'a NonEmpty<ProgramId>>,
-    max_gas: u64,
-    mailbox: Option<&'a NonEmpty<MessageId>>,
 }
 
 pub(crate) struct RuntimeStateView<'a> {
     current_balance: Balance,
     corpus_id: &'a str,
-    programs: Vec<&'a ProgramId>,
+    programs: Option<&'a NonEmpty<ProgramId>>,
     max_gas: u64,
     mailbox: Option<&'a NonEmpty<MessageId>>,
 }

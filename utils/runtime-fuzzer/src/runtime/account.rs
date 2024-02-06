@@ -19,9 +19,11 @@
 use crate::{
     data::FulfilledDataRequirement,
     generator::{GearCallsGenerator, AUXILIARY_SIZE},
+    runtime,
 };
-use gear_common::Origin;
-use gear_wasm_gen::Unstructured;
+use gear_common::{Gas, Origin};
+use gear_core::ids::ProgramId;
+use gear_wasm_gen::{Result, Unstructured};
 use pallet_balances::Pallet as BalancesPallet;
 use pallet_gear::BlockGasLimitOf;
 use pallet_gear_bank::Config as GearBankConfig;
@@ -92,7 +94,7 @@ pub fn gas_to_value(gas: Gas) -> Balance {
 }
 
 pub struct BalanceManager<'a> {
-    _unstructured: Unstructured<'a>,
+    unstructured: Unstructured<'a>,
     pub sender: AccountId,
 }
 
@@ -103,18 +105,26 @@ impl<'a> BalanceManager<'a> {
     ) -> Self {
         Self {
             sender: account,
-            _unstructured: Unstructured::new(data_requirement.data),
+            unstructured: Unstructured::new(data_requirement.data),
         }
     }
 
-    pub(crate) fn update_balance(&self) -> BalanceState {
-        super::increase_to_max_balance(self.sender.clone())
+    pub(crate) fn update_balance(&mut self) -> Result<BalanceState> {
+        let max_balance = runtime::gas_to_value(runtime::acc_max_balance_gas());
+        let new_balance = self
+            .unstructured
+            .int_in_range(EXISTENTIAL_DEPOSIT..=max_balance)?;
+
+        runtime::set_balance(self.sender.clone(), new_balance)
             .unwrap_or_else(|e| unreachable!("Balance update failed: {e:?}"));
+        assert_eq!(
+            new_balance,
+            BalancesPallet::<Runtime>::free_balance(&self.sender),
+            "internal error: new balance set logic is corrupted."
+        );
+        log::info!("Current balance of the sender - {new_balance}.");
 
-        let current_balance = BalancesPallet::<Runtime>::free_balance(&self.sender);
-        log::info!("Current balance of the sender - {current_balance}");
-
-        BalanceState(current_balance)
+        Ok(BalanceState(new_balance))
     }
 }
 

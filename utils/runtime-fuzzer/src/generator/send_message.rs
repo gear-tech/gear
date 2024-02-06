@@ -24,7 +24,7 @@ use gear_wasm_gen::wasm_gen_arbitrary::{Result, Unstructured};
 use runtime_primitives::Balance;
 use std::result::Result as StdResult;
 
-pub(crate) type SendMessageRuntimeData<'a> = (&'a NonEmpty<ProgramId>, u64);
+pub(crate) type SendMessageRuntimeData<'a> = (&'a NonEmpty<ProgramId>, u64, Balance);
 
 pub(super) const fn data_requirement() -> usize {
     ID_SIZE + MAX_PAYLOAD_SIZE + GAS_SIZE + VALUE_SIZE + AUXILIARY_SIZE
@@ -34,23 +34,7 @@ impl<'a> TryFrom<RuntimeStateView<'a>> for SendMessageRuntimeData<'a> {
     type Error = ();
 
     fn try_from(env: RuntimeStateView<'a>) -> StdResult<Self, Self::Error> {
-        Ok((env.programs.ok_or(())?, env.max_gas))
-    }
-}
-
-pub(crate) type SendMessageRuntimeData<'a> = (NonEmpty<&'a ProgramId>, u64);
-
-pub(super) const fn data_requirement() -> usize {
-    ID_SIZE + MAX_PAYLOAD_SIZE + GAS_SIZE + VALUE_SIZE + AUXILIARY_SIZE
-}
-
-impl<'a> TryFrom<RuntimeStateView<'a>> for SendMessageRuntimeData<'a> {
-    type Error = ();
-
-    fn try_from(env: RuntimeStateView<'a>) -> StdResult<Self, Self::Error> {
-        let programs = NonEmpty::from_slice(&env.programs).ok_or(())?;
-
-        Ok((programs, env.max_gas, env.current_balance))
+        Ok((env.programs.ok_or(())?, env.max_gas, env.current_balance))
     }
 }
 

@@ -24,7 +24,7 @@ use gear_wasm_gen::wasm_gen_arbitrary::{Result, Unstructured};
 use runtime_primitives::Balance;
 use std::result::Result as StdResult;
 
-pub(crate) type SendReplyRuntimeData<'a> = (&'a NonEmpty<MessageId>, u64);
+pub(crate) type SendReplyRuntimeData<'a> = (&'a NonEmpty<MessageId>, u64, Balance);
 
 pub(super) const fn data_requirement() -> usize {
     ID_SIZE + MAX_PAYLOAD_SIZE + GAS_SIZE + VALUE_SIZE + AUXILIARY_SIZE
@@ -34,21 +34,7 @@ impl<'a> TryFrom<RuntimeStateView<'a>> for SendReplyRuntimeData<'a> {
     type Error = ();
 
     fn try_from(env: RuntimeStateView<'a>) -> StdResult<Self, Self::Error> {
-        Ok((env.mailbox.ok_or(())?, env.max_gas))
-    }
-}
-
-pub(super) const fn data_requirement() -> usize {
-    ID_SIZE + MAX_PAYLOAD_SIZE + GAS_SIZE + VALUE_SIZE + AUXILIARY_SIZE
-}
-
-impl<'a> TryFrom<RuntimeStateView<'a>> for SendReplyRuntimeData<'a> {
-    type Error = ();
-
-    fn try_from(env: RuntimeStateView<'a>) -> StdResult<Self, Self::Error> {
-        let mailbox = NonEmpty::from_slice(&env.mailbox).ok_or(())?;
-
-        Ok((mailbox, env.max_gas, env.current_balance))
+        Ok((env.mailbox.ok_or(())?, env.max_gas, env.current_balance))
     }
 }
 
@@ -78,7 +64,7 @@ pub(crate) fn generate(
 
     let value = super::arbitrary_value(unstructured, current_balance)?;
     log::trace!("Random data after value generation {}", unstructured.len());
-    log::trace!("Sending value (upload_program) - {value}");
+    log::trace!("Sending value (send_reply) - {value}");
 
     Ok(SendReplyArgs((mid, payload, gas, value)).into())
 }
