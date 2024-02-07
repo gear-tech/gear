@@ -2,6 +2,10 @@ name: Build MacOS
 
 on:
   workflow_call:
+    inputs:
+      matrix:
+        type: string
+        required: true
   workflow_dispatch:
 
 env:
@@ -14,6 +18,9 @@ env:
 jobs:
   x86:
     runs-on: macos-latest
+    strategy:
+      matrix: ${{ fromJson(inputs.matrix) }}
+      fail-fast: false
     env:
       RUSTUP_HOME: /tmp/rustup_home
     steps:
@@ -54,3 +61,4 @@ jobs:
           -p "pallet-*"
           -p gear-lazy-pages
           -p gear-runtime-interface
+          ${{ matrix.cargo_profile }}
