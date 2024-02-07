@@ -17,7 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use codec::Encode;
-use frame_support::{dispatch::{RawOrigin, DispatchClass}, traits::{OnFinalize, OnInitialize}};
+use frame_support::{
+    dispatch::{DispatchClass, RawOrigin},
+    traits::{OnFinalize, OnInitialize},
+};
 use frame_system::pallet_prelude::BlockNumberFor;
 use pallet_gear::Event as GearEvent;
 use sp_consensus_babe::{
@@ -26,7 +29,10 @@ use sp_consensus_babe::{
 };
 use sp_consensus_slots::Slot;
 use sp_runtime::{Digest, DigestItem, Perbill};
-use vara_runtime::{Authorship, BlockGasLimit, Gear, GearGas, GearMessenger, Runtime, RuntimeEvent, System, RuntimeBlockWeights};
+use vara_runtime::{
+    Authorship, BlockGasLimit, Gear, GearGas, GearMessenger, Runtime, RuntimeBlockWeights,
+    RuntimeEvent, System,
+};
 
 /// This is not set to `BlockGasLimitOf::<Runtime>::get`, because of the
 /// known possible dead-lock for the message in the queue, when it's valid gas
@@ -55,12 +61,9 @@ fn run_to_block(n: u32) {
         Gear::run(RawOrigin::None.into(), None).unwrap();
         on_finalize_without_system();
 
-        assert!(!System::events().iter().any(|e| {
-            matches!(
-                e.event,
-                RuntimeEvent::Gear(GearEvent::QueueNotProcessed)
-            )
-        }))
+        assert!(!System::events()
+            .iter()
+            .any(|e| { matches!(e.event, RuntimeEvent::Gear(GearEvent::QueueNotProcessed)) }))
     }
 }
 
