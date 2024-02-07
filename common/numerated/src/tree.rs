@@ -137,6 +137,11 @@ impl<T: Numerated> IntervalsTree<T> {
             .map(|i| i.into_parts())
     }
 
+    // fn put(&mut self, start: T, end: T) {
+    //     debug_assert!(start <= end, "Must be guarantied");
+    //     self.inner.insert(start, end);
+    // }
+
     /// Returns iterator over all intervals in tree.
     pub fn iter(&self) -> impl Iterator<Item = Interval<T>> + '_ {
         self.inner.iter().map(|(&start, &end)| unsafe {
@@ -171,7 +176,7 @@ impl<T: Numerated> IntervalsTree<T> {
     /// - if `interval` is empty, then nothing will be inserted.
     /// - if `interval` is not empty, then after insertion: for each `p` ∈ `interval` ⇒ `p` ∈ `self`.
     ///
-    /// Complexity: `O(log(n) + m)`, where
+    /// Complexity: `O(m * log(n))`, where
     /// - `n` is amount of intervals in `self`
     /// - `m` is amount of intervals in `self` ⋂ `interval`
     pub fn insert<I: Into<IntervalIterator<T>>>(&mut self, interval: I) {
@@ -191,6 +196,8 @@ impl<T: Numerated> IntervalsTree<T> {
         let iter_end = end.inc_if_lt(last).unwrap_or(end);
         let mut iter = self.inner.range(..=iter_end).map(|(&s, &e)| (s, e));
 
+        // "right interval" is an interval in `self`, which has biggest start,
+        // but start must lies before or strict after `interval` end point.
         let Some((right_start, right_end)) = iter.next_back() else {
             // No neighbor or intersected intervals, so can just insert as is.
             self.inner.insert(start, end);
@@ -198,15 +205,22 @@ impl<T: Numerated> IntervalsTree<T> {
         };
 
         if let Some(right_end) = right_end.inc_if_lt(start) {
+            // `right_end` <= `start`, so "right interval" lies before `interval`
             if right_end == start {
-                debug_assert!(right_start <= end, "Must be cause of method it was found");
+                // "right interval" intersects with `interval` in one point: `start`, so join intervals
+                debug_assert!(
+                    right_start <= end,
+                    "Must be, because of method it was found"
+                );
                 self.inner.insert(right_start, end);
             } else {
+                // no intersections, so insert as is
                 self.inner.insert(start, end);
             }
             return;
         } else if right_start <= start {
             if right_end < end {
+                // "right interval" starts outside and ends inside `inside`, so can just expand it
                 self.inner.insert(right_start, end);
             } else {
                 // nothing to do: our interval is completely inside "right interval".
@@ -214,6 +228,8 @@ impl<T: Numerated> IntervalsTree<T> {
             return;
         }
 
+        // `left_interval` is an interval in `self`, which has biggest start,
+        // but start must lies before or equal to `interval` start point.
         let mut left_interval = None;
         let mut intervals_to_remove = Vec::new();
         while let Some((s, e)) = iter.next_back() {
@@ -223,6 +239,9 @@ impl<T: Numerated> IntervalsTree<T> {
             }
             intervals_to_remove.push(s);
         }
+
+        // All intervals between `left_interval` and "right interval" will be
+        // removed, because they lies completely inside `interval`.
         for start in intervals_to_remove {
             self.inner.remove(&start);
         }
@@ -231,23 +250,26 @@ impl<T: Numerated> IntervalsTree<T> {
         self.inner.remove(&right_start);
 
         let end = right_end.max(end);
+        debug_assert!(start <= end, "T: `Ord` implementation error");
 
         let Some((left_start, left_end)) = left_interval else {
-            debug_assert!(start <= end, "Must be cause of method it was found");
+            // no `left_interval` => `interval` has no more intersections and can be inserted now
             self.inner.insert(start, end);
             return;
         };
 
-        debug_assert!(left_end < right_start);
-        debug_assert!(left_start <= start);
+        debug_assert!(left_end < right_start && left_start <= start);
         let Some(left_end) = left_end.inc_if_lt(right_start) else {
+            // Must be `left_end` < `right_start`
             debug_assert!(false, "`T: Numerated` impl error");
             return;
         };
 
         if left_end >= start {
+            // `left_end` is inside `interval`, so expand `left_interval`
             self.inner.insert(left_start, end);
         } else {
+            // `left_interval` is outside, so just insert `interval`
             self.inner.insert(start, end);
         }
     }
@@ -266,7 +288,7 @@ impl<T: Numerated> IntervalsTree<T> {
     /// - if `interval` is empty, then nothing will be removed.
     /// - if `interval` is not empty, then after removing: for each `p` ∈ `interval` ⇒ `p` ∉ `self`.
     ///
-    /// Complexity: `O(log(n) + m)`, where
+    /// Complexity: `O(m * log(n))`, where
     /// - `n` is amount of intervals in `self`
     /// - `m` is amount of intervals in `self` ⋂ `interval`
     pub fn remove<I: Into<IntervalIterator<T>>>(&mut self, interval: I) {
