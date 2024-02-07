@@ -45,8 +45,8 @@ jobs:
       cache: ${{ needs.status.outputs.cache }}
 
   build:
-    #needs: status
-    #if: ${{ needs.status.outputs.build == 'true' }}
+    needs: status
+    if: ${{ needs.status.outputs.build == 'true' }}
     uses: ./.github/workflows/build.yml
     with:
       cache: ${{ needs.status.outputs.cache }}
