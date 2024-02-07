@@ -23,6 +23,7 @@ jobs:
       cache: ${{ steps.config.outputs.cache }}
       check: ${{ steps.config.outputs.check }}
       macos: ${{ steps.config.outputs.macos }}
+      win-native: ${{ steps.config.outputs.win-native }}
     steps:
       - uses: actions/checkout@v4
         with:
