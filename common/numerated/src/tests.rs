@@ -20,106 +20,92 @@
 
 use crate::{
     mock::{self, IntervalAction, TreeAction},
-    Bound, IntervalIterator, OptionBound,
+    Bound, IntervalIterator, Numerated, OptionBound,
 };
-use alloc::{collections::BTreeSet, vec::Vec};
+use alloc::{collections::BTreeSet, fmt::Debug, vec::Vec};
+use num_traits::bounds::{LowerBounded, UpperBounded};
 use proptest::{
-    arbitrary::any, prop_oneof, proptest, strategy::Strategy, test_runner::Config as ProptestConfig,
+    arbitrary::{any, Arbitrary},
+    prop_oneof, proptest,
+    strategy::Strategy,
+    test_runner::Config as ProptestConfig,
 };
 
-macro_rules! any_numerated {
-    ($t:ty) => {
-        fn rand_interval() -> impl Strategy<Value = IntervalIterator<$t>> {
-            any::<$t>().prop_flat_map(|start| {
-                (start..).prop_map(move |end| (start..=end).try_into().unwrap())
-            })
-        }
+struct Generator<T>(T);
 
-        fn rand_set() -> impl Strategy<Value = BTreeSet<$t>> {
-            proptest::collection::btree_set(any::<$t>(), 0..1000)
-        }
-
-        fn tree_actions() -> impl Strategy<Value = Vec<TreeAction<$t>>> {
-            let action = prop_oneof![
-                rand_interval().prop_map(TreeAction::Insert),
-                rand_interval().prop_map(TreeAction::Remove),
-                rand_interval().prop_map(TreeAction::Voids),
-                rand_set().prop_map(TreeAction::Difference),
-            ];
-            proptest::collection::vec(action, 10..20)
-        }
-
-        fn interval_action() -> impl Strategy<Value = IntervalAction<$t>> {
-            let start = any::<Option<$t>>();
-            let end = any::<Option<$t>>();
-            (start, end).prop_map(|(start, end)| {
-                let start: OptionBound<$t> = start.into();
-                let end: OptionBound<$t> = end.into();
-                match (start.unbound(), end.unbound()) {
-                    (_, None) => IntervalAction::Correct(start, end),
-                    (Some(s), Some(e)) if s <= e => IntervalAction::Correct(start, end),
-                    (Some(_), Some(_)) => IntervalAction::Incorrect(start, end),
-                    (None, Some(_)) => IntervalAction::Incorrect(start, end),
-                }
-            })
-        }
-    };
-}
-
-mod test_i16 {
-    use super::*;
-
-    any_numerated!(i16);
-
-    proptest! {
-        #![proptest_config(ProptestConfig::with_cases(10_000))]
-
-        #[test]
-        fn proptest_numerated(x in any::<i16>(), y in any::<i16>()) {
-            mock::test_numerated(x, y);
-        }
-
-        #[test]
-        fn proptest_interval(action in interval_action()) {
-            mock::test_interval(action);
-        }
+impl<T> Generator<T>
+where
+    T: Numerated + Arbitrary + Debug + LowerBounded + UpperBounded,
+    T::Bound: Debug,
+{
+    fn rand_interval() -> impl Strategy<Value = IntervalIterator<T>> {
+        any::<(T, T)>().prop_map(|(p1, p2)| (p1.min(p2)..=p1.max(p2)).try_into().unwrap())
     }
 
-    proptest! {
-        #![proptest_config(ProptestConfig::with_cases(128))]
+    fn interval_action() -> impl Strategy<Value = IntervalAction<T>> {
+        let start = any::<Option<T>>();
+        let end = any::<Option<T>>();
+        (start, end).prop_map(|(start, end)| {
+            let start: T::Bound = start.into();
+            let end: T::Bound = end.into();
+            match (start.unbound(), end.unbound()) {
+                (_, None) => IntervalAction::Correct(start, end),
+                (Some(s), Some(e)) if s <= e => IntervalAction::Correct(start, end),
+                (Some(_), Some(_)) => IntervalAction::Incorrect(start, end),
+                (None, Some(_)) => IntervalAction::Incorrect(start, end),
+            }
+        })
+    }
 
-        #[test]
-        fn proptest_tree(actions in tree_actions(), initial in rand_set()) {
-            mock::test_tree(initial, actions);
-        }
+    fn rand_set() -> impl Strategy<Value = BTreeSet<T>> {
+        proptest::collection::btree_set(any::<T>(), 0..1000)
+    }
+
+    fn tree_actions() -> impl Strategy<Value = Vec<TreeAction<T>>> {
+        let action = prop_oneof![
+            Self::rand_interval().prop_map(TreeAction::Insert),
+            Self::rand_interval().prop_map(TreeAction::Remove),
+            Self::rand_interval().prop_map(TreeAction::Voids),
+            Self::rand_set().prop_map(TreeAction::Difference),
+        ];
+        proptest::collection::vec(action, 10..20)
     }
 }
 
-mod test_u16 {
-    use super::*;
+proptest! {
+    #![proptest_config(ProptestConfig::with_cases(10_000))]
 
-    any_numerated!(u16);
-
-    proptest! {
-        #![proptest_config(ProptestConfig::with_cases(10_000))]
-
-        #[test]
-        fn proptest_numerated(x in any::<u16>(), y in any::<u16>()) {
-            mock::test_numerated(x, y);
-        }
-
-        #[test]
-        fn proptest_interval(action in interval_action()) {
-            mock::test_interval(action);
-        }
+    #[test]
+    fn proptest_numerated_i16(x in any::<i16>(), y in any::<i16>()) {
+        mock::test_numerated(x, y);
     }
 
-    proptest! {
-        #![proptest_config(ProptestConfig::with_cases(128))]
+    #[test]
+    fn proptest_interval_i16(action in Generator::<i16>::interval_action()) {
+        mock::test_interval(action);
+    }
 
-        #[test]
-        fn proptest_tree(actions in tree_actions(), initial in rand_set()) {
-            mock::test_tree(initial, actions);
-        }
+    #[test]
+    fn proptest_numerated_u16(x in any::<u16>(), y in any::<u16>()) {
+        mock::test_numerated(x, y);
+    }
+
+    #[test]
+    fn proptest_interval_u16(action in Generator::<u16>::interval_action()) {
+        mock::test_interval(action);
+    }
+}
+
+proptest! {
+    #![proptest_config(ProptestConfig::with_cases(128))]
+
+    #[test]
+    fn proptest_tree_i16(actions in Generator::<i16>::tree_actions(), initial in Generator::<i16>::rand_set()) {
+        mock::test_tree(initial, actions);
+    }
+
+    #[test]
+    fn proptest_tree_u16(actions in Generator::<u16>::tree_actions(), initial in Generator::<u16>::rand_set()) {
+        mock::test_tree(initial, actions);
     }
 }
