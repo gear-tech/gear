@@ -21,9 +21,10 @@ use gear_call_gen::{GearCall, SendReplyArgs};
 use gear_core::ids::MessageId;
 use gear_utils::NonEmpty;
 use gear_wasm_gen::wasm_gen_arbitrary::{Result, Unstructured};
+use runtime_primitives::Balance;
 use std::result::Result as StdResult;
 
-pub(crate) type SendReplyRuntimeData<'a> = (&'a NonEmpty<MessageId>, u64);
+pub(crate) type SendReplyRuntimeData<'a> = (&'a NonEmpty<MessageId>, u64, Balance);
 
 pub(super) const fn data_requirement() -> usize {
     ID_SIZE + MAX_PAYLOAD_SIZE + GAS_SIZE + VALUE_SIZE + AUXILIARY_SIZE
@@ -33,13 +34,13 @@ impl<'a> TryFrom<RuntimeStateView<'a>> for SendReplyRuntimeData<'a> {
     type Error = ();
 
     fn try_from(env: RuntimeStateView<'a>) -> StdResult<Self, Self::Error> {
-        Ok((env.mailbox.ok_or(())?, env.max_gas))
+        Ok((env.mailbox.ok_or(())?, env.max_gas, env.current_balance))
     }
 }
 
 pub(crate) fn generate(
     unstructured: &mut Unstructured,
-    (mailbox, gas): SendReplyRuntimeData,
+    (mailbox, gas, current_balance): SendReplyRuntimeData,
 ) -> Result<GearCall> {
     log::trace!(
         "Random data before payload (send_reply) gen {}",
@@ -61,5 +62,9 @@ pub(crate) fn generate(
     );
     log::trace!("Payload (send_reply) length {:?}", payload.len());
 
-    Ok(SendReplyArgs((mid, payload, gas, 0)).into())
+    let value = super::arbitrary_value(unstructured, current_balance)?;
+    log::trace!("Random data after value generation {}", unstructured.len());
+    log::trace!("Sending value (send_reply) - {value}");
+
+    Ok(SendReplyArgs((mid, payload, gas, value)).into())
 }
