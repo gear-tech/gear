@@ -24,7 +24,7 @@ use crate::{
         GearWasmGenerator, MemoryImportGenerationProof, ModuleWithCallIndexes,
     },
     wasm::{PageCount as WasmPageCount, WasmModule},
-    InvocableSyscall, SyscallInjectionType, SyscallsConfig,
+    InvocableSyscall, MemoryLayout, SyscallInjectionType, SyscallsConfig,
 };
 use arbitrary::{Error as ArbitraryError, Result, Unstructured};
 use gear_wasm_instrument::{
@@ -50,11 +50,7 @@ pub struct SyscallsImportsGenerator<'a, 'b> {
 ///
 /// Serves as a new type in order to create the generator from gear wasm generator and proofs.
 pub struct SyscallsImportsGeneratorInstantiator<'a, 'b>(
-    (
-        GearWasmGenerator<'a, 'b>,
-        MemoryImportGenerationProof,
-        GearEntryPointGenerationProof,
-    ),
+    (GearWasmGenerator<'a, 'b>, GearEntryPointGenerationProof),
 );
 
 /// The set of syscalls that need to be imported to create precise syscall.
@@ -71,20 +67,10 @@ pub enum PreciseSyscallError {
     Arbitrary(#[from] ArbitraryError),
 }
 
-impl<'a, 'b>
-    From<(
-        GearWasmGenerator<'a, 'b>,
-        MemoryImportGenerationProof,
-        GearEntryPointGenerationProof,
-    )> for SyscallsImportsGeneratorInstantiator<'a, 'b>
+impl<'a, 'b> From<(GearWasmGenerator<'a, 'b>, GearEntryPointGenerationProof)>
+    for SyscallsImportsGeneratorInstantiator<'a, 'b>
 {
-    fn from(
-        inner: (
-            GearWasmGenerator<'a, 'b>,
-            MemoryImportGenerationProof,
-            GearEntryPointGenerationProof,
-        ),
-    ) -> Self {
+    fn from(inner: (GearWasmGenerator<'a, 'b>, GearEntryPointGenerationProof)) -> Self {
         Self(inner)
     }
 }
@@ -96,11 +82,7 @@ impl<'a, 'b> From<SyscallsImportsGeneratorInstantiator<'a, 'b>>
     )
 {
     fn from(instantiator: SyscallsImportsGeneratorInstantiator<'a, 'b>) -> Self {
-        let SyscallsImportsGeneratorInstantiator((
-            generator,
-            _mem_import_gen_proof,
-            _gen_ep_gen_proof,
-        )) = instantiator;
+        let SyscallsImportsGeneratorInstantiator((generator, _gen_ep_gen_proof)) = instantiator;
         let syscall_gen = SyscallsImportsGenerator {
             unstructured: generator.unstructured,
             call_indexes: generator.call_indexes,
@@ -325,8 +307,8 @@ impl<'a, 'b> SyscallsImportsGenerator<'a, 'b> {
 }
 
 impl<'a, 'b> SyscallsImportsGenerator<'a, 'b> {
-    /// The amount of memory used to create a precise syscall.
-    const PRECISE_SYSCALL_MEMORY_SIZE: u32 = 100;
+    /// The amount of reserved memory used to create a precise syscall.
+    const PRECISE_SYSCALL_RESERVED_MEMORY_SIZE: u32 = 128;
 
     /// Generates a function which calls "properly" the `gr_reservation_send`.
     fn generate_send_from_reservation(
@@ -799,12 +781,13 @@ impl<'a, 'b> SyscallsImportsGenerator<'a, 'b> {
 
     /// Reserves enough memory build precise syscall.
     fn reserve_memory(&self) -> i32 {
-        self.memory_size_in_bytes()
-            .saturating_sub(Self::PRECISE_SYSCALL_MEMORY_SIZE) as i32
+        self.memory_size_bytes()
+            .saturating_sub(MemoryLayout::RESERVED_MEMORY_SIZE)
+            .saturating_sub(Self::PRECISE_SYSCALL_RESERVED_MEMORY_SIZE) as i32
     }
 
     /// Returns the size of the memory in bytes that can be used to build precise syscall.
-    fn memory_size_in_bytes(&self) -> u32 {
+    fn memory_size_bytes(&self) -> u32 {
         let initial_mem_size: WasmPageCount = self
             .module
             .initial_mem_size()
