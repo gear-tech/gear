@@ -853,12 +853,8 @@ mod tests {
 
         let init_msg_payload = String::from("InvalidInput");
         let run_result = prog.send(user_id, init_msg_payload);
-        assert!(run_result.main_failed());
 
-        let log = run_result.log();
-        let panic_msg_payload =
-            String::from_utf8(log[0].payload().into()).expect("Unable to decode panic message");
-        assert!(panic_msg_payload.contains("panicked with 'Failed to load destination"));
+        run_result.assert_panicked_with("Failed to load destination: Decode(Error)");
 
         let run_result = prog.send(user_id, String::from("should_be_skipped"));
 
