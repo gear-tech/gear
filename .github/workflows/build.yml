@@ -199,6 +199,10 @@ jobs:
 
   win-cross:
     runs-on: [kuberunner, github-runner-03]
+    needs: matrix
+    strategy:
+      matrix: ${{ fromJson(needs.matrix.outputs.matrix) }}
+      fail-fast: false
     env:
       XWIN_ARCH: x86_64
       RUSTUP_HOME: /tmp/rustup_home
@@ -268,6 +272,7 @@ jobs:
           -p "pallet-*"
           -p gear-lazy-pages
           -p gear-runtime-interface
+          ${{ matrix.cargo_profile }}
         env:
           CARGO_BUILD_TARGET: x86_64-pc-windows-msvc
 
