@@ -33,21 +33,14 @@
 //!
 //! # First generators nesting level
 //! GearWasmGenerator--->MemoryGenerator--->DisabledMemoryGenerator--->ModuleWithCallIndexes--->WasmModule
-//! GearWasmGenerator--->EntryPointsGenerator--->DisabledEntryPointsGenerator--->ModuleWithCallIndexes--->WasmModule
 //!
 //! # Second generators nesting level
 //! GearWasmGenerator--->MemoryGenerator--(DisabledMemoryGenerator, FrozenGearWasmGenerator)---\
 //! |--->GearWasmGenerator--->EntryPointsGenerator--->DisabledEntryPointsGenerator--->ModuleWithCallIndexes--->
 //!
-//! GearWasmGenerator--->EntryPointsGenerator--(DisabledEntryPointsGenerator, FrozenGearWasmGenerator)---\
-//! |--->GearWasmGenerator--->MemoryGenerator--->DisabledMemoryGenerator--->ModuleWithCallIndexes--->WasmModule
-//!
 //! # Third generators nesting level
 //! GearWasmGenerator--->MemoryGenerator--(DisabledMemoryGenerator, FrozenGearWasmGenerator)---\
 //! |--->GearWasmGenerator--->EntryPointsGenerator--->DisabledEntryPointsGenerator--(MemoryImportGenerationProof, GearEntryPointGenerationProof)-->(syscalls-module-state-machine)
-//!
-//! GearWasmGenerator--->EntryPointsGenerator--(DisabledEntryPointsGenerator, FrozenGearWasmGenerator)---\
-//! |--->GearWasmGenerator--->MemoryGenerator--->DisabledMemoryGenerator--(MemoryImportGenerationProof, GearEntryPointGenerationProof)-->(syscalls-module-state-machine)
 //! ```
 //!
 //! State machine named `(syscalls-module-state-machine)` can be started only with having proof of work from `MemoryGenerator` and `EntryPointsGenerator`.
