@@ -20,7 +20,7 @@
 
 use crate::{
     mock::{self, IntervalAction, TreeAction},
-    Bound, IntervalIterator, Numerated, OptionBound,
+    Bound, IntervalIterator, Numerated,
 };
 use alloc::{collections::BTreeSet, fmt::Debug, vec::Vec};
 use num_traits::bounds::{LowerBounded, UpperBounded};
