@@ -124,13 +124,12 @@ impl<'a, 'b> GearWasmGenerator<'a, 'b> {
         let (disabled_mem_gen, frozen_gear_wasm_gen, mem_imports_gen_proof) =
             self.generate_memory_export();
 
-        let (disabled_ep_gen, frozen_gear_wasm_gen, ep_gen_proof, mem_imports_gen_proof) =
+        let (disabled_ep_gen, frozen_gear_wasm_gen, ep_gen_proof) =
             Self::from((disabled_mem_gen, frozen_gear_wasm_gen))
                 .generate_entry_points(mem_imports_gen_proof)?;
 
         let (disabled_syscalls_invocator, frozen_gear_wasm_gen) =
-            Self::from((disabled_ep_gen, frozen_gear_wasm_gen))
-                .generate_syscalls(mem_imports_gen_proof, ep_gen_proof)?;
+            Self::from((disabled_ep_gen, frozen_gear_wasm_gen)).generate_syscalls(ep_gen_proof)?;
 
         let config = frozen_gear_wasm_gen.melt();
         let module = ModuleWithCallIndexes::from(disabled_syscalls_invocator)
@@ -177,7 +176,6 @@ impl<'a, 'b> GearWasmGenerator<'a, 'b> {
         DisabledEntryPointsGenerator<'a, 'b>,
         FrozenGearWasmGenerator<'a, 'b>,
         GearEntryPointGenerationProof,
-        MemoryImportGenerationProof,
     )> {
         let entry_points_gen_instantiator =
             EntryPointsGeneratorInstantiator::from((self, mem_import_gen_proof));
@@ -189,18 +187,12 @@ impl<'a, 'b> GearWasmGenerator<'a, 'b> {
         let (disabled_ep_gen, ep_gen_proof, mem_import_gen_proof) =
             ep_gen.generate_entry_points(mem_import_gen_proof)?;
 
-        Ok((
-            disabled_ep_gen,
-            frozen_gear_wasm_gen,
-            ep_gen_proof,
-            mem_import_gen_proof,
-        ))
+        Ok((disabled_ep_gen, frozen_gear_wasm_gen, ep_gen_proof))
     }
 
     /// Generate syscalls using syscalls module generators.
     pub fn generate_syscalls(
         self,
-        mem_import_gen_proof: MemoryImportGenerationProof,
         ep_gen_proof: GearEntryPointGenerationProof,
     ) -> Result<(DisabledSyscallsInvocator, FrozenGearWasmGenerator<'a, 'b>)> {
         let syscalls_imports_gen_instantiator =

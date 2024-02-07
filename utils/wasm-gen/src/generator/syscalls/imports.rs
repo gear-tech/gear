@@ -71,20 +71,10 @@ pub enum PreciseSyscallError {
     Arbitrary(#[from] ArbitraryError),
 }
 
-impl<'a, 'b>
-    From<(
-        GearWasmGenerator<'a, 'b>,
-        MemoryImportGenerationProof,
-        GearEntryPointGenerationProof,
-    )> for SyscallsImportsGeneratorInstantiator<'a, 'b>
+impl<'a, 'b> From<(GearWasmGenerator<'a, 'b>, GearEntryPointGenerationProof)>
+    for SyscallsImportsGeneratorInstantiator<'a, 'b>
 {
-    fn from(
-        inner: (
-            GearWasmGenerator<'a, 'b>,
-            MemoryImportGenerationProof,
-            GearEntryPointGenerationProof,
-        ),
-    ) -> Self {
+    fn from(inner: (GearWasmGenerator<'a, 'b>, GearEntryPointGenerationProof)) -> Self {
         Self(inner)
     }
 }
@@ -96,11 +86,7 @@ impl<'a, 'b> From<SyscallsImportsGeneratorInstantiator<'a, 'b>>
     )
 {
     fn from(instantiator: SyscallsImportsGeneratorInstantiator<'a, 'b>) -> Self {
-        let SyscallsImportsGeneratorInstantiator((
-            generator,
-            _mem_import_gen_proof,
-            _gen_ep_gen_proof,
-        )) = instantiator;
+        let SyscallsImportsGeneratorInstantiator((generator, _gen_ep_gen_proof)) = instantiator;
         let syscall_gen = SyscallsImportsGenerator {
             unstructured: generator.unstructured,
             call_indexes: generator.call_indexes,
