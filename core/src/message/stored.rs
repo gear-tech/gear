@@ -226,7 +226,6 @@ impl StoredDelayedDispatch {
         Self { kind, message }
     }
 
-
     /// Decompose StoredDelayedDispatch for it's components: DispatchKind, StoredMessage.
     pub fn into_parts(self) -> (DispatchKind, StoredMessage) {
         self.into()

@@ -65,7 +65,7 @@ impl<T: Config> OnRuntimeUpgrade for MigrateToV3<T> {
             DispatchStash::<T>::translate(
                 |_, store: (v2::StoredDispatch, Interval<BlockNumberFor<T>>)| {
                     if store.0.context.is_some() {
-                        log::error!("Previous context on StoredDispatch in DispatchStash should always be None, but was {:?}", store.0.context);
+                        log::error!("Previous context on StoredDispatch in DispatchStash should always be None, but was Some for message id {:?}", store.0.message.id());
                     }
                     weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
                     Some((store.0.into(), store.1))
@@ -87,7 +87,13 @@ impl<T: Config> OnRuntimeUpgrade for MigrateToV3<T> {
     fn pre_upgrade() -> Result<Vec<u8>, DispatchError> {
         let mut count = v2::Waitlist::<T>::iter().count();
         count += v2::Dispatches::<T>::iter().count();
-        count += v2::DispatchStash::<T>::iter().count();
+        count += v2::DispatchStash::<T>::iter().inspect(
+            |store| {
+                if store.1.0.context.is_some() {
+                    log::error!("Previous context on StoredDispatch in DispatchStash should always be None, but was Some for message id {:?}", store.1.0.message.id());
+                }
+            },
+        ).count();
 
         Ok((count as u64).encode())
     }
@@ -257,6 +263,7 @@ mod tests {
     };
     use gear_core_errors::{ReplyCode, SignalCode, SuccessReplyReason};
     use rand::random;
+    use sp_runtime::traits::Zero;
 
     fn random_payload() -> Payload {
         Payload::try_from(up_to(8 * 1024, random::<u8>).collect::<Vec<_>>())
@@ -396,10 +403,7 @@ mod tests {
             .collect::<Vec<_>>();
 
             for (msg_id, dispatch, interval) in dispatch_stash.clone() {
-                v2::DispatchStash::<Test>::insert(
-                    dispatch.0,
-                    (dispatch.1.clone(), dispatch.2.clone()),
-                );
+                v2::DispatchStash::<Test>::insert(msg_id, (dispatch.clone(), interval.clone()));
             }
 
             let state = MigrateToV3::<Test>::pre_upgrade().unwrap();
