@@ -59,11 +59,7 @@ jobs:
     with:
       cache: ${{ needs.cache.outputs.sccache_path }}
       macos: true
-
-  build-win-native:
-    if: ${{ github.ref == 'refs/heads/master' }}
-    needs: build
-    uses: ./.github/workflows/build-win-native.yml
+      win-native: true
 
   upload:
     if: github.event_name == 'push' && github.ref_name == 'master'

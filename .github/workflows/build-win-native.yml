@@ -2,6 +2,10 @@ name: Build MacOS
 
 on:
   workflow_call:
+    inputs:
+      matrix:
+        type: string
+        required: true
   workflow_dispatch:
 
 env:
@@ -14,6 +18,9 @@ env:
 jobs:
   native:
     runs-on: ci-win
+    strategy:
+      matrix: ${{ fromJson(inputs.matrix) }}
+      fail-fast: false
     defaults:
       run:
         shell: msys2 {0}

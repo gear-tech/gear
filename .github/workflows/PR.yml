@@ -51,3 +51,4 @@ jobs:
     with:
       cache: ${{ needs.status.outputs.cache }}
       macos: ${{ needs.status.outputs.macos == 'true' }}
+      win-native: ${{ needs.status.outputs.win-native == 'true' }}

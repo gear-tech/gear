@@ -273,8 +273,10 @@ jobs:
 
   win-native:
     needs: [matrix, linux]
-    if: ${{ always() && inputs.win-native }}
+    if: ${{ always() && (github.ref == 'refs/heads/master' || inputs.win-native) }}
     uses: ./.github/workflows/build-win-native.yml
+    with:
+      matrix: ${{ needs.matrix.outputs.matrix }}
 
   macos:
     needs: [matrix, linux]
