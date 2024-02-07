@@ -12,6 +12,9 @@ on:
       win-native:
         type: boolean
         default: false
+      release:
+        type: boolean
+        default: false
   workflow_dispatch:
     inputs:
       title:
@@ -38,7 +41,11 @@ jobs:
     steps:
       - id: set-matrix
         run: |
-          echo '::set-output name=matrix::{"include": [{"cargo_profile": "", "cargo_target_dir": "debug"}, {"cargo_profile": "--release", "cargo_target_dir": "release"}]}'
+          variants='{"cargo_profile": "", "cargo_target_dir": "debug"}'
+          if [ "${{ inputs.release }}" = "true" ]; then
+            variants+=', {"cargo_profile": "--release", "cargo_target_dir": "release"}'
+          fi
+          echo 'matrix={"include": [${variants}]}' >> $GITHUB_OUTPUT
 
   linux:
     runs-on: [kuberunner, github-runner-02]

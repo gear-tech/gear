@@ -11,6 +11,7 @@ const CHECKS = ["check", "build"]
 const DEPBOT = "[depbot]";
 const WINDOWS_NATIVE = "E1-forcenatwin";
 const MACOS = "E2-forcemacos";
+const RELEASE = "E3-forcerelease"
 const SCCACHE_PREFIX = '/mnt/sccache/';
 const SKIP_CI = "[skip-ci]";
 const SKIP_CACHE = "[skip-cache]";
@@ -67,6 +68,7 @@ async function main() {
   const build = !skipCI && (isDepbot || BUILD_LABELS.some(label => labels.includes(label)));
   const win_native = !skipCI && labels.includes(WINDOWS_NATIVE);
   const macos = !skipCI && labels.includes(MACOS);
+  const release = !skipCI && labels.includes(RELEASE);
   const cache = SCCACHE_PREFIX + branch.replace("/", "_");
 
   // Set outputs
@@ -74,6 +76,7 @@ async function main() {
   core.setOutput("check", !skipCI);
   core.setOutput("win-native", win_native);
   core.setOutput("macos", macos);
+  core.setOutput("release", release);
   !skipCache && core.setOutput("cache", cache)
 
   console.log("---");
@@ -82,6 +85,7 @@ async function main() {
   console.log("check: ", !skipCI);
   console.log("native windows: ", win_native);
   console.log("macos: ", macos);
+  console.log("release: ", release);
 
   // Mock checks if skipping CI.
   if (skipCI) await mock(sha);

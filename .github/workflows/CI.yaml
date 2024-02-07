@@ -60,6 +60,7 @@ jobs:
       cache: ${{ needs.cache.outputs.sccache_path }}
       macos: true
       win-native: true
+      release: true
 
   upload:
     if: github.event_name == 'push' && github.ref_name == 'master'

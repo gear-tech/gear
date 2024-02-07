@@ -22,8 +22,9 @@ jobs:
       build: ${{ steps.config.outputs.build }}
       cache: ${{ steps.config.outputs.cache }}
       check: ${{ steps.config.outputs.check }}
-      macos: ${{ steps.config.outputs.macos }}
       win-native: ${{ steps.config.outputs.win-native }}
+      macos: ${{ steps.config.outputs.macos }}
+      release: ${{ steps.config.outputs.release }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -53,3 +54,4 @@ jobs:
       cache: ${{ needs.status.outputs.cache }}
       macos: ${{ needs.status.outputs.macos == 'true' }}
       win-native: ${{ needs.status.outputs.win-native == 'true' }}
+      release: ${{ needs.status.outputs.release == 'true' }}
