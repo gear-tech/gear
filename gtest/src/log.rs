@@ -453,7 +453,7 @@ impl RunResult {
     }
 
     /// Trying to get the panic log.
-    fn panic_log(&self) -> Option<&CoreLog> {
+    fn main_panic_log(&self) -> Option<&CoreLog> {
         let main_log = self
             .log
             .iter()
