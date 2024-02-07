@@ -32,7 +32,7 @@ env:
 
 jobs:
   matrix:
-    runs-on: [kuberunner, github-runner-02]
+    runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
