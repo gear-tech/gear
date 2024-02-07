@@ -170,10 +170,10 @@ extern "C" fn state() {
         decimals,
     } = state;
 
-    let balances = balances.into_iter().map(|(k, v)| (k, v)).collect();
+    let balances = balances.into_iter().collect();
     let allowances = allowances
         .into_iter()
-        .map(|(id, allowance)| (id, allowance.into_iter().map(|(k, v)| (k, v)).collect()))
+        .map(|(id, allowance)| (id, allowance.into_iter().collect()))
         .collect();
     let payload = IoFungibleToken {
         name,

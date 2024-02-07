@@ -14455,6 +14455,26 @@ fn critical_hook_in_handle_signal() {
     });
 }
 
+#[test]
+fn export_is_import() {
+    let wat = r#"
+        (module
+            (import "env" "memory" (memory 1))
+            (import "env" "gr_leave" (func $gr_leave))
+            (export "init" (func $gr_leave))
+            (func)
+        )"#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let code = ProgramCodeKind::Custom(wat).to_bytes();
+        assert_noop!(
+            Gear::upload_code(RuntimeOrigin::signed(USER_1), code),
+            Error::<Test>::ProgramConstructionFailed
+        );
+    });
+}
+
 mod utils {
     #![allow(unused)]
 
@@ -14823,7 +14843,7 @@ mod utils {
         let mut found_status: Option<DispatchStatus> = None;
         System::events().iter().for_each(|e| {
             if let MockRuntimeEvent::Gear(Event::MessagesDispatched { statuses, .. }) = &e.event {
-                found_status = statuses.get(&message_id).map(Clone::clone);
+                found_status = statuses.get(&message_id).cloned();
             }
         });
 

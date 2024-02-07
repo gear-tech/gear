@@ -19,9 +19,9 @@
 #![no_main]
 
 use libfuzzer_sys::{fuzz_target, Corpus};
-use runtime_fuzzer::{self, RuntimeFuzzerInput};
+use runtime_fuzzer::{self, FuzzerInput};
 
-fuzz_target!(|data: RuntimeFuzzerInput<'_>| -> Corpus {
+fuzz_target!(|data: FuzzerInput<'_>| -> Corpus {
     gear_utils::init_default_logger();
 
     log::info!("Executing generated gear calls");

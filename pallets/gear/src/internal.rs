@@ -36,7 +36,6 @@ use common::{
     GasTree, LockId, LockableTree, Origin,
 };
 use core::cmp::{Ord, Ordering};
-use core_processor::common::ActorExecutionErrorReplyReason;
 use frame_support::traits::{Currency, ExistenceRequirement};
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
@@ -704,21 +703,6 @@ where
             })
             .unwrap_or_default();
 
-        // Converting payload into string.
-        //
-        // Note: for users, trap replies always contain
-        // string explanation of the error.
-        let message = if message.is_error_reply() {
-            message
-                .with_string_payload::<ActorExecutionErrorReplyReason>()
-                .unwrap_or_else(|e| {
-                    log::debug!("Failed to decode error to string");
-                    e
-                })
-        } else {
-            message
-        };
-
         // Converting message into stored one and user one.
         let message = message.into_stored();
         let message: UserMessage = message
@@ -814,28 +798,6 @@ where
 
     /// Sends user message, once delay reached.
     pub(crate) fn send_user_message_after_delay(message: UserMessage, to_mailbox: bool) {
-        // Converting payload into string.
-        //
-        // Note: for users, trap replies always contain
-        // string explanation of the error.
-        //
-        // We don't plan to send delayed error replies yet,
-        // but this logic appears here for future purposes.
-        let message = if message
-            .details()
-            .map(|r_d| r_d.to_reply_code().is_error())
-            .unwrap_or(false)
-        {
-            message
-        } else {
-            message
-                .with_string_payload::<ActorExecutionErrorReplyReason>()
-                .unwrap_or_else(|e| {
-                    log::debug!("Failed to decode error to string");
-                    e
-                })
-        };
-
         // Taking data for funds manipulations.
         let from = message.source().cast();
         let to = message.destination().cast();
