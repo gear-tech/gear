@@ -149,7 +149,7 @@ fn execute_gear_call(sender: AccountId, call: GearCall) -> DispatchResultWithPos
     }
 }
 
-fn exhaust_messages(
+fn exhaust_messages_stores(
     test_ext: &mut TestExternalities,
     mut balance_manager: BalanceManager,
 ) -> Result<()> {
