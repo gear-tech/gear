@@ -40,7 +40,7 @@ use gear_wasm_instrument::{
 };
 use proptest::prelude::*;
 use rand::{rngs::SmallRng, RngCore, SeedableRng};
-use std::num::NonZeroUsize;
+use std::num::{NonZeroU32, NonZeroUsize};
 
 const UNSTRUCTURED_SIZE: usize = 1_000_000;
 
@@ -169,6 +169,28 @@ fn remove_multiple_recursions() {
 
     let wat = wasmprinter::print_bytes(&wasm_bytes).expect("failed printing bytes");
     println!("wat = {wat}");
+}
+
+#[test]
+fn test_avoid_waits_works() {
+    let mut rng = SmallRng::seed_from_u64(123);
+    let mut buf = vec![0; UNSTRUCTURED_SIZE];
+    rng.fill_bytes(&mut buf);
+    let mut unstructured = Unstructured::new(&buf);
+
+    let mut injection_types = SyscallsInjectionTypes::all_never();
+    injection_types.set(InvocableSyscall::Loose(SyscallName::Wait), 1, 1);
+    let syscalls_config = SyscallsConfigBuilder::new(injection_types)
+        .with_waiting_probability(NonZeroU32::new(4).unwrap())
+        .build();
+
+    let backend_report =
+        execute_wasm_with_custom_configs(&mut unstructured, syscalls_config, None, 1024, false, 0);
+
+    assert_eq!(
+        backend_report.termination_reason,
+        TerminationReason::Actor(ActorTerminationReason::Success)
+    );
 }
 
 #[test]
