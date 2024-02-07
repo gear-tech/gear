@@ -395,38 +395,37 @@ pub fn precharge_for_memory(
         Ok(memory_size)
     };
 
-    let memory_size = match f() {
-        Ok(size) => {
-            log::debug!("Charged for module instantiation and memory pages. Size: {size:?}");
-            size
+    match f() {
+        Ok(memory_size) => {
+            log::trace!("Charged for module instantiation and memory pages. Size: {memory_size:?}");
+            Ok(ContextChargedForMemory {
+                data: context.data,
+                max_reservations: block_config.max_reservations,
+                memory_size,
+            })
         }
         Err(err) => {
-            log::debug!("Failed to charge for module instantiation or memory pages: {err:?}");
-            let PrechargeError::GasExceeded(op) = err else {
-                return Err(process_allowance_exceed(
+            log::trace!("Failed to charge for module instantiation or memory pages: {err:?}");
+            match err {
+                PrechargeError::BlockGasExceeded => Err(process_allowance_exceed(
                     context.data.dispatch,
                     context.data.destination_id,
                     context.data.gas_counter.burned(),
-                ));
-            };
-
-            let system_reservation_ctx =
-                SystemReservationContext::from_dispatch(&context.data.dispatch);
-            return Err(process_execution_error(
-                context.data.dispatch,
-                context.data.destination_id,
-                context.data.gas_counter.burned(),
-                system_reservation_ctx,
-                ActorExecutionErrorReplyReason::PreChargeGasLimitExceeded(op),
-            ));
+                )),
+                PrechargeError::GasExceeded(op) => {
+                    let system_reservation_ctx =
+                        SystemReservationContext::from_dispatch(&context.data.dispatch);
+                    Err(process_execution_error(
+                        context.data.dispatch,
+                        context.data.destination_id,
+                        context.data.gas_counter.burned(),
+                        system_reservation_ctx,
+                        ActorExecutionErrorReplyReason::PreChargeGasLimitExceeded(op),
+                    ))
+                }
+            }
         }
-    };
-
-    Ok(ContextChargedForMemory {
-        data: context.data,
-        max_reservations: block_config.max_reservations,
-        memory_size,
-    })
+    }
 }
 
 #[cfg(test)]
