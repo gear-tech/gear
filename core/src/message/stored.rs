@@ -23,8 +23,7 @@ use crate::{
         IncomingMessage, Payload, ReplyDetails, Value,
     },
 };
-use alloc::string::ToString;
-use core::{convert::TryInto, ops::Deref};
+use core::ops::Deref;
 use gear_core_errors::ReplyCode;
 use scale_info::{
     scale::{Decode, Encode},
@@ -116,23 +115,6 @@ impl StoredMessage {
     /// Message reply.
     pub fn reply_details(&self) -> Option<ReplyDetails> {
         self.details.and_then(|d| d.to_reply_details())
-    }
-
-    #[allow(clippy::result_large_err)]
-    /// Consumes self in order to create new `StoredMessage`, which payload
-    /// contains string representation of initial bytes,
-    /// decoded into given type.
-    // TODO: issue #2849.
-    pub fn with_string_payload<D: Decode + ToString>(self) -> Result<Self, Self> {
-        if let Ok(decoded) = D::decode(&mut self.payload.inner()) {
-            if let Ok(payload) = decoded.to_string().into_bytes().try_into() {
-                Ok(Self { payload, ..self })
-            } else {
-                Err(self)
-            }
-        } else {
-            Err(self)
-        }
     }
 
     /// Returns bool defining if message is error reply.

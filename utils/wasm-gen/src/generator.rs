@@ -144,8 +144,6 @@ impl<'a, 'b> GearWasmGenerator<'a, 'b> {
             module
         };
 
-        let module = utils::inject_stack_limiter(module);
-
         Ok(if config.remove_recursions {
             log::trace!("Removing recursions");
             utils::remove_recursion(module)

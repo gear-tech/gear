@@ -270,8 +270,7 @@ impl pallet_babe::Config for Runtime {
     type WeightInfo = ();
     type MaxAuthorities = MaxAuthorities;
 
-    type KeyOwnerProof =
-        <Historical as KeyOwnerProofSystem<(KeyTypeId, pallet_babe::AuthorityId)>>::Proof;
+    type KeyOwnerProof = sp_session::MembershipProof;
     type EquivocationReportSystem =
         pallet_babe::EquivocationReportSystem<Self, Offences, Historical, ReportLongevity>;
 }
@@ -282,7 +281,7 @@ impl pallet_grandpa::Config for Runtime {
     type WeightInfo = ();
     type MaxAuthorities = MaxAuthorities;
     type MaxSetIdSessionEntries = MaxSetIdSessionEntries;
-    type KeyOwnerProof = <Historical as KeyOwnerProofSystem<(KeyTypeId, GrandpaId)>>::Proof;
+    type KeyOwnerProof = sp_session::MembershipProof;
     type EquivocationReportSystem =
         pallet_grandpa::EquivocationReportSystem<Self, Offences, Historical, ReportLongevity>;
 }
