@@ -226,10 +226,6 @@ impl StoredDelayedDispatch {
         Self { kind, message }
     }
 
-    /// Convert StoredDispatch into IncomingDispatch for program processing.
-    pub fn into_incoming(self, gas_limit: GasLimit) -> IncomingDispatch {
-        IncomingDispatch::new(self.kind, self.message.into_incoming(gas_limit), None)
-    }
 
     /// Decompose StoredDelayedDispatch for it's components: DispatchKind, StoredMessage.
     pub fn into_parts(self) -> (DispatchKind, StoredMessage) {
