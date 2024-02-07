@@ -151,12 +151,11 @@ impl<T: Numerated> IntervalsTree<T> {
             // Empty interval is always contained.
             return true;
         };
-        if let Some((&s, &e)) = self.inner.range(..=end).next_back() {
-            if s <= start {
-                return e >= end;
-            }
-        }
-        false
+        self.inner
+            .range(..=end)
+            .next_back()
+            .map(|(&s, &e)| s <= start && end <= e)
+            .unwrap_or(false)
     }
 
     /// The same as [`Self::contains`], but returns `I::Error` if `I::try_into` [`IntervalIterator`] fails.

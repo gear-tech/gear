@@ -328,7 +328,7 @@ mod tests {
         assert_eq!(Interval::<u8>::try_from(..1).unwrap().raw_len(), Some(1));
         assert_eq!(Interval::<u8>::from(..=1).raw_len(), Some(2));
         assert_eq!(Interval::<u8>::try_from(1..).unwrap().raw_len(), Some(255));
-        assert_eq!(Interval::<u8>::from(0..).raw_len(), None);
+        assert_eq!(Interval::<u8>::try_from(0..).unwrap().raw_len(), None);
         assert_eq!(Interval::<u8>::from(..).raw_len(), None);
 
         assert_eq!(Interval::<i8>::try_from(-1..1).unwrap().len(), -126); // corresponds to 2 numeration

@@ -328,7 +328,7 @@ mod tests {
             .unwrap()
             .is_empty());
         assert!(IntervalIterator::<u8>::try_from(1..1).unwrap().is_empty());
-        assert!(IntervalIterator::<u8>::try_from(..0).unwrap().is_empty());
+        assert!(IntervalIterator::<u8>::from(..0).is_empty());
         assert!(IntervalIterator::<u8>::from(None..).is_empty());
     }
 
