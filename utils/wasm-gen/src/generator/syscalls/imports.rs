@@ -50,11 +50,7 @@ pub struct SyscallsImportsGenerator<'a, 'b> {
 ///
 /// Serves as a new type in order to create the generator from gear wasm generator and proofs.
 pub struct SyscallsImportsGeneratorInstantiator<'a, 'b>(
-    (
-        GearWasmGenerator<'a, 'b>,
-        MemoryImportGenerationProof,
-        GearEntryPointGenerationProof,
-    ),
+    (GearWasmGenerator<'a, 'b>, GearEntryPointGenerationProof),
 );
 
 /// The set of syscalls that need to be imported to create precise syscall.

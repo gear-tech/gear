@@ -179,13 +179,9 @@ impl<'a, 'b> GearWasmGenerator<'a, 'b> {
     )> {
         let entry_points_gen_instantiator =
             EntryPointsGeneratorInstantiator::from((self, mem_import_gen_proof));
-        let (ep_gen, frozen_gear_wasm_gen, mem_import_gen_proof): (
-            EntryPointsGenerator,
-            FrozenGearWasmGenerator,
-            MemoryImportGenerationProof,
-        ) = entry_points_gen_instantiator.into();
-        let (disabled_ep_gen, ep_gen_proof, mem_import_gen_proof) =
-            ep_gen.generate_entry_points(mem_import_gen_proof)?;
+        let (ep_gen, frozen_gear_wasm_gen): (EntryPointsGenerator, FrozenGearWasmGenerator) =
+            entry_points_gen_instantiator.into();
+        let (disabled_ep_gen, ep_gen_proof) = ep_gen.generate_entry_points()?;
 
         Ok((disabled_ep_gen, frozen_gear_wasm_gen, ep_gen_proof))
     }
@@ -196,7 +192,7 @@ impl<'a, 'b> GearWasmGenerator<'a, 'b> {
         ep_gen_proof: GearEntryPointGenerationProof,
     ) -> Result<(DisabledSyscallsInvocator, FrozenGearWasmGenerator<'a, 'b>)> {
         let syscalls_imports_gen_instantiator =
-            SyscallsImportsGeneratorInstantiator::from((self, mem_import_gen_proof, ep_gen_proof));
+            SyscallsImportsGeneratorInstantiator::from((self, ep_gen_proof));
         let (syscalls_imports_gen, frozen_gear_wasm_gen) = syscalls_imports_gen_instantiator.into();
         let syscalls_imports_gen_res = syscalls_imports_gen.generate()?;
 

@@ -61,11 +61,10 @@ impl<'a, 'b> From<EntryPointsGeneratorInstantiator<'a, 'b>>
     for (
         EntryPointsGenerator<'a, 'b>,
         FrozenGearWasmGenerator<'a, 'b>,
-        MemoryImportGenerationProof,
     )
 {
     fn from(instantiator: EntryPointsGeneratorInstantiator<'a, 'b>) -> Self {
-        let EntryPointsGeneratorInstantiator((generator, mem_import_gen_proof)) = instantiator;
+        let EntryPointsGeneratorInstantiator((generator, _mem_import_gen_proof)) = instantiator;
         let ep_generator = EntryPointsGenerator {
             unstructured: generator.unstructured,
             module: generator.module,
@@ -78,7 +77,7 @@ impl<'a, 'b> From<EntryPointsGeneratorInstantiator<'a, 'b>>
             unstructured: None,
         };
 
-        (ep_generator, frozen, mem_import_gen_proof)
+        (ep_generator, frozen)
     }
 }
 
@@ -120,11 +119,9 @@ impl<'a, 'b> EntryPointsGenerator<'a, 'b> {
     /// Returns disabled entry points generator and a proof that all entry points from config were generated.
     pub fn generate_entry_points(
         mut self,
-        mem_import_gen_proof: MemoryImportGenerationProof,
     ) -> Result<(
         DisabledEntryPointsGenerator<'a, 'b>,
         GearEntryPointGenerationProof,
-        MemoryImportGenerationProof,
     )> {
         log::trace!("Generating gear entry points");
 
@@ -140,11 +137,7 @@ impl<'a, 'b> EntryPointsGenerator<'a, 'b> {
             self.generate_export("handle_reply")?;
         }
 
-        Ok((
-            self.disable(),
-            GearEntryPointGenerationProof(()),
-            mem_import_gen_proof,
-        ))
+        Ok((self.disable(), GearEntryPointGenerationProof(())))
     }
 
     /// Generates an export function with a `name`.
