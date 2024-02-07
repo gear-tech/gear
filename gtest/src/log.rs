@@ -428,14 +428,14 @@ impl RunResult {
 
     /// If the main message panicked.
     pub fn main_panicked(&self) -> bool {
-        self.panic_log().is_some()
+        self.main_panic_log().is_some()
     }
 
     /// Asserts that the main message panicked and that the panic contained a
     /// given message.
     #[track_caller]
     pub fn assert_panicked_with(&self, msg: impl Into<String>) {
-        let panic_log = self.panic_log();
+        let panic_log = self.main_panic_log();
         assert!(panic_log.is_some(), "Program did not panic");
         let msg = msg.into();
         let payload = String::from_utf8(
