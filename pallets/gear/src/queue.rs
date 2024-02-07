@@ -57,11 +57,7 @@ where
             Err(journal) => return journal,
         };
 
-        let Some(program) =
-            ProgramStorageOf::<T>::get_program(destination_id).and_then(|p| match p {
-                Program::Active(p) => Some(p),
-                _ => None,
-            })
+        let Some(Program::Active(program)) = ProgramStorageOf::<T>::get_program(destination_id)
         else {
             log::trace!("Message is sent to non-active program {destination_id:?}");
             return core_processor::process_non_executable(precharged_dispatch, destination_id);
