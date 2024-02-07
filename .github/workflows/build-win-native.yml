@@ -16,11 +16,12 @@ env:
   BINARYEN_VERSION: version_111
 
 jobs:
-  native:
+  win-native:
     runs-on: ci-win
     strategy:
       matrix: ${{ fromJson(inputs.matrix) }}
       fail-fast: false
+    name: win-native (${{ matrix.cargo_target_dir }})
     defaults:
       run:
         shell: msys2 {0}

@@ -16,11 +16,12 @@ env:
   BINARYEN_VERSION: version_111
 
 jobs:
-  x86:
+  macos-x86:
     runs-on: macos-latest
     strategy:
       matrix: ${{ fromJson(inputs.matrix) }}
       fail-fast: false
+    name: macos-x86 (${{ matrix.cargo_target_dir }})
     env:
       RUSTUP_HOME: /tmp/rustup_home
     steps:

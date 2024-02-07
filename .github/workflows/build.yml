@@ -46,6 +46,7 @@ jobs:
     strategy:
       matrix: ${{ fromJson(needs.matrix.outputs.matrix) }}
       fail-fast: false
+    name: linux (${{ matrix.cargo_target_dir }})
     env:
       LLVM_PROFILE_FILE: "gear-%p-%m.profraw"
       RUSTUP_HOME: /tmp/rustup_home
@@ -203,6 +204,7 @@ jobs:
     strategy:
       matrix: ${{ fromJson(needs.matrix.outputs.matrix) }}
       fail-fast: false
+    name: win-cross (${{ matrix.cargo_target_dir }})
     env:
       XWIN_ARCH: x86_64
       RUSTUP_HOME: /tmp/rustup_home
