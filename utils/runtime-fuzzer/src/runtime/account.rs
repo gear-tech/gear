@@ -22,7 +22,6 @@ use crate::{
     runtime,
 };
 use gear_common::{Gas, Origin};
-use gear_core::ids::ProgramId;
 use gear_wasm_gen::{Result, Unstructured};
 use pallet_balances::Pallet as BalancesPallet;
 use pallet_gear::BlockGasLimitOf;
@@ -36,10 +35,6 @@ use sp_core::{sr25519::Public, Pair, Public as TPublic};
 use sp_runtime::{app_crypto::UncheckedFrom, traits::IdentifyAccount};
 use std::mem;
 use vara_runtime::{Runtime, EXISTENTIAL_DEPOSIT};
-
-pub fn account_to_program_id(acc: AccountId) -> ProgramId {
-    ProgramId::from_origin(acc.into_origin())
-}
 
 pub fn alice() -> AccountId {
     sp_keyring::Sr25519Keyring::Alice.to_account_id()
