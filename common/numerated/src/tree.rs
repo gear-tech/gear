@@ -137,10 +137,11 @@ impl<T: Numerated> IntervalsTree<T> {
             .map(|i| i.into_parts())
     }
 
-    // fn put(&mut self, start: T, end: T) {
-    //     debug_assert!(start <= end, "Must be guarantied");
-    //     self.inner.insert(start, end);
-    // }
+    #[track_caller]
+    fn put(&mut self, start: T, end: T) {
+        debug_assert!(start <= end, "Must be guarantied");
+        self.inner.insert(start, end);
+    }
 
     /// Returns iterator over all intervals in tree.
     pub fn iter(&self) -> impl Iterator<Item = Interval<T>> + '_ {
@@ -187,7 +188,7 @@ impl<T: Numerated> IntervalsTree<T> {
 
         let Some(last) = self.end() else {
             // No other intervals, so can just insert as is.
-            self.inner.insert(start, end);
+            self.put(start, end);
             return;
         };
 
@@ -200,7 +201,7 @@ impl<T: Numerated> IntervalsTree<T> {
         // but start must lies before or strict after `interval` end point.
         let Some((right_start, right_end)) = iter.next_back() else {
             // No neighbor or intersected intervals, so can just insert as is.
-            self.inner.insert(start, end);
+            self.put(start, end);
             return;
         };
 
@@ -208,20 +209,16 @@ impl<T: Numerated> IntervalsTree<T> {
             // `right_end` <= `start`, so "right interval" lies before `interval`
             if right_end == start {
                 // "right interval" intersects with `interval` in one point: `start`, so join intervals
-                debug_assert!(
-                    right_start <= end,
-                    "Must be, because of method it was found"
-                );
-                self.inner.insert(right_start, end);
+                self.put(right_start, end);
             } else {
                 // no intersections, so insert as is
-                self.inner.insert(start, end);
+                self.put(start, end);
             }
             return;
         } else if right_start <= start {
             if right_end < end {
                 // "right interval" starts outside and ends inside `inside`, so can just expand it
-                self.inner.insert(right_start, end);
+                self.put(right_start, end);
             } else {
                 // nothing to do: our interval is completely inside "right interval".
             }
@@ -250,11 +247,10 @@ impl<T: Numerated> IntervalsTree<T> {
         self.inner.remove(&right_start);
 
         let end = right_end.max(end);
-        debug_assert!(start <= end, "T: `Ord` implementation error");
 
         let Some((left_start, left_end)) = left_interval else {
             // no `left_interval` => `interval` has no more intersections and can be inserted now
-            self.inner.insert(start, end);
+            self.put(start, end);
             return;
         };
 
@@ -267,10 +263,10 @@ impl<T: Numerated> IntervalsTree<T> {
 
         if left_end >= start {
             // `left_end` is inside `interval`, so expand `left_interval`
-            self.inner.insert(left_start, end);
+            self.put(left_start, end);
         } else {
             // `left_interval` is outside, so just insert `interval`
-            self.inner.insert(start, end);
+            self.put(start, end);
         }
     }
 
@@ -325,16 +321,14 @@ impl<T: Numerated> IntervalsTree<T> {
         }
 
         if let Some(start) = start.dec_if_gt(right_start) {
-            debug_assert!(right_start <= start, "`T: Numerated` impl error");
-            self.inner.insert(right_start, start);
+            self.put(right_start, start);
         } else {
             debug_assert!(right_start <= end, "Must be cause of method it was found");
             self.inner.remove(&right_start);
         }
 
         if let Some(end) = end.inc_if_lt(right_end) {
-            debug_assert!(end <= right_end, "`T: Numerated` impl error");
-            self.inner.insert(end, right_end);
+            self.put(end, right_end);
         } else {
             debug_assert!(start <= right_end);
         }
@@ -342,8 +336,7 @@ impl<T: Numerated> IntervalsTree<T> {
         if let Some(left_start) = left_interval {
             debug_assert!(left_start < start, "Must be cause of method it was found");
             if let Some(start) = start.dec_if_gt(left_start) {
-                debug_assert!(left_start <= start, "`T: Numerated` impl error");
-                self.inner.insert(left_start, start);
+                self.put(left_start, start);
             } else {
                 debug_assert!(false, "`T: Numerated` impl error");
             }
