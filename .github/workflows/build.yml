@@ -9,6 +9,9 @@ on:
       macos:
         type: boolean
         default: false
+      win-native:
+        type: boolean
+        default: false
   workflow_dispatch:
     inputs:
       title:
@@ -267,6 +270,11 @@ jobs:
           -p gear-runtime-interface
         env:
           CARGO_BUILD_TARGET: x86_64-pc-windows-msvc
+
+  win-native:
+    needs: [matrix, linux]
+    if: ${{ always() && inputs.win-native }}
+    uses: ./.github/workflows/build-win-native.yml
 
   macos:
     needs: [matrix, linux]

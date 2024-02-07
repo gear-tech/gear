@@ -9,6 +9,7 @@ const github = require('@actions/github');
 const BUILD_LABELS = ["A0-pleasereview", 'A4-insubstantial', 'A2-mergeoncegreen'];
 const CHECKS = ["check", "build"]
 const DEPBOT = "[depbot]";
+const WINDOWS_NATIVE = "E1-forcenatwin";
 const MACOS = "E2-forcemacos";
 const SCCACHE_PREFIX = '/mnt/sccache/';
 const SKIP_CI = "[skip-ci]";
@@ -64,12 +65,14 @@ async function main() {
   const skipCache = [title, message].some(s => s.includes(SKIP_CACHE));
   const skipCI = [title, message].some(s => s.includes(SKIP_CI));
   const build = !skipCI && (isDepbot || BUILD_LABELS.some(label => labels.includes(label)));
+  const win_native = !skipCI && labels.includes(WINDOWS_NATIVE);
   const macos = !skipCI && labels.includes(MACOS);
   const cache = SCCACHE_PREFIX + branch.replace("/", "_");
 
   // Set outputs
   core.setOutput("build", build);
   core.setOutput("check", !skipCI);
+  core.setOutput("win-native", win_native);
   core.setOutput("macos", macos);
   !skipCache && core.setOutput("cache", cache)
 
@@ -77,6 +80,7 @@ async function main() {
   console.log("build: ", build);
   console.log("cache: ", skipCache ? "false" : cache);
   console.log("check: ", !skipCI);
+  console.log("native windows: ", win_native);
   console.log("macos: ", macos);
 
   // Mock checks if skipping CI.
