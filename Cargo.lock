@@ -3703,8 +3703,6 @@ dependencies = [
  "schnorrkel 0.9.1",
  "serde",
  "serde_json",
- "sp-core",
- "sp-io",
  "thiserror",
  "tokio",
  "wasmi 0.30.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -4583,6 +4581,28 @@ dependencies = [
  "quote",
  "scale-info",
  "syn 2.0.48",
+]
+
+[[package]]
+name = "gring"
+version = "1.1.0"
+dependencies = [
+ "anyhow",
+ "base64 0.21.7",
+ "blake2",
+ "bs58 0.5.0",
+ "clap 4.4.18",
+ "colored",
+ "dirs",
+ "hex",
+ "nacl",
+ "once_cell",
+ "rand 0.8.5",
+ "schnorrkel 0.9.1",
+ "serde",
+ "serde_json",
+ "tracing",
+ "tracing-subscriber 0.3.18",
 ]
 
 [[package]]
@@ -9334,7 +9354,6 @@ name = "runtime-fuzzer"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "arbitrary",
  "clap 4.4.18",
  "frame-support",
  "frame-system",
@@ -13467,7 +13486,7 @@ checksum = "ca6ad05a4870b2bf5fe995117d3728437bd27d7cd5f06f13c17443ef369775a1"
 [[package]]
 name = "wasm-encoder"
 version = "0.35.0"
-source = "git+https://github.com/gear-tech/wasm-tools.git?branch=gear-stable#b5ee21ec07edc43b7e03edc3b9138bf78b3fd332"
+source = "git+https://github.com/gear-tech/wasm-tools.git?branch=gear-stable#ffe9abee63ad640c051d50515cedee7f67f31884"
 dependencies = [
  "leb128",
 ]
@@ -13552,7 +13571,7 @@ dependencies = [
 [[package]]
 name = "wasm-smith"
 version = "0.12.21"
-source = "git+https://github.com/gear-tech/wasm-tools.git?branch=gear-stable#b5ee21ec07edc43b7e03edc3b9138bf78b3fd332"
+source = "git+https://github.com/gear-tech/wasm-tools.git?branch=gear-stable#ffe9abee63ad640c051d50515cedee7f67f31884"
 dependencies = [
  "arbitrary",
  "flagset",
@@ -13976,7 +13995,7 @@ dependencies = [
 [[package]]
 name = "wasmparser"
 version = "0.115.0"
-source = "git+https://github.com/gear-tech/wasm-tools.git?branch=gear-stable#b5ee21ec07edc43b7e03edc3b9138bf78b3fd332"
+source = "git+https://github.com/gear-tech/wasm-tools.git?branch=gear-stable#ffe9abee63ad640c051d50515cedee7f67f31884"
 dependencies = [
  "indexmap 2.1.0",
  "semver 1.0.18",

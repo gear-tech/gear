@@ -21,7 +21,6 @@ mod subscription;
 
 pub use gsdk::metadata::{gear::Event as GearEvent, Event};
 pub use iterator::*;
-pub use subscription::*;
 
 use crate::{Error, Result};
 use async_trait::async_trait;

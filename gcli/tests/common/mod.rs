@@ -17,17 +17,12 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Common utils for integration tests
-pub use self::{
-    args::Args,
-    node::{Convert, NodeExec},
-    result::{Error, Result},
-};
+pub use self::{args::Args, node::NodeExec, result::Result};
 use gear_core::ids::{CodeId, ProgramId};
 use gsdk::{
     ext::{sp_core::crypto::Ss58Codec, sp_runtime::AccountId32},
     testing::Node,
 };
-pub use scale_info::scale::Encode;
 use std::{
     iter::IntoIterator,
     process::{Command, Output},
