@@ -51,13 +51,14 @@ fn run_impl(fuzzer_input: FuzzerInput<'_>) -> Result<sp_io::TestExternalities> {
     let corpus_id = get_sha1_string(raw_data);
     log::trace!("Generating gear calls from corpus - {}", corpus_id);
 
-    let balance_manager = BalanceManager::new(runtime::alice(), balance_manager_data_requirement);
+    let mut balance_manager =
+        BalanceManager::new(runtime::alice(), balance_manager_data_requirement);
     let mut test_ext = runtime::new_test_ext();
     let mut env_producer = RuntimeStateViewProducer::new(corpus_id, balance_manager.sender.clone());
     let mut generator = GearCallsGenerator::new(generator_data_requirement);
     loop {
         let must_stop = test_ext.execute_with(|| -> Result<bool> {
-            let env = env_producer.produce_state_view(balance_manager.update_balance());
+            let env = env_producer.produce_state_view(balance_manager.update_balance()?);
             let Some(gear_call) = generator.generate(env)? else {
                 return Ok(true);
             };
