@@ -296,14 +296,14 @@ jobs:
 
   win-native:
     needs: [matrix, linux]
-    if: ${{ always() && (github.ref == 'refs/heads/master' || inputs.win-native) }}
+    if: ${{ !cancelled() && (github.ref == 'refs/heads/master' || inputs.win-native) }}
     uses: ./.github/workflows/build-win-native.yml
     with:
       matrix: ${{ needs.matrix.outputs.matrix }}
 
   macos:
     needs: [matrix, linux]
-    if: ${{ always() && inputs.macos }}
+    if: ${{ !cancelled() && inputs.macos }}
     uses: ./.github/workflows/build-macos.yml
     with:
       matrix: ${{ needs.matrix.outputs.matrix }}
