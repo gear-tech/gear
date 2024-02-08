@@ -161,6 +161,14 @@ pub mod pallet {
             /// Optional field defining was the owner changed during update.
             new_owner: Option<AccountIdOf<T>>,
         },
+
+        /// Voucher has been denied (set to expired state).
+        VoucherDenied {
+            /// Account id of user who denied its own voucher.
+            spender: AccountIdOf<T>,
+            /// Voucher identifier.
+            voucher_id: VoucherId,
+        },
     }
 
     // Pallet Gear Voucher error.
@@ -544,6 +552,44 @@ pub mod pallet {
                     new_owner,
                 });
             }
+
+            Ok(().into())
+        }
+
+        /// Deny existing and not expired voucher.
+        ///
+        /// This extrinsic expires voucher of the caller, if it's still active,
+        /// allowing it to be revoked.
+        ///
+        /// Arguments:
+        /// * voucher_id:   voucher id to be denied.
+        #[pallet::call_index(4)]
+        #[pallet::weight(T::DbWeight::get().reads_writes(2, 4))]
+        pub fn deny(origin: OriginFor<T>, voucher_id: VoucherId) -> DispatchResultWithPostInfo {
+            // Ensuring origin.
+            let origin = ensure_signed(origin)?;
+
+            // Querying voucher.
+            let mut voucher = Vouchers::<T>::get(origin.clone(), voucher_id)
+                .ok_or(Error::<T>::InexistentVoucher)?;
+
+            // Querying current block number.
+            let current_bn = <frame_system::Pallet<T>>::block_number();
+
+            // Validating that voucher is not expired.
+            ensure!(current_bn < voucher.expiry, Error::<T>::VoucherExpired);
+
+            // Set voucher into expired state.
+            voucher.expiry = current_bn;
+
+            // Updating voucher in storage.
+            Vouchers::<T>::insert(origin.clone(), voucher_id, voucher);
+
+            // Depositing event.
+            Self::deposit_event(Event::VoucherDenied {
+                spender: origin,
+                voucher_id,
+            });
 
             Ok(().into())
         }
