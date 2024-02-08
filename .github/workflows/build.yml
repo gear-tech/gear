@@ -183,11 +183,11 @@ jobs:
           file: ./lcov.info
 
       - name: "Build: Production binaries"
-        if: github.event_name == 'push'
+        if: github.event_name == 'push' && inputs.release == 'true'
         run: cargo build -p gear-cli -F cli --profile production
 
       - name: Prepare artifacts
-        if: github.event_name == 'push'
+        if: github.event_name == 'push' && inputs.release == 'true'
         run: |
           mkdir -p artifact
           cd target/wasm32-unknown-unknown/release
@@ -197,12 +197,12 @@ jobs:
           cp target/production/wbuild/vara-runtime/vara_runtime.compact.wasm artifact/
           cp target/production/wbuild/vara-runtime/vara_runtime.wasm artifact/
           cp target/production/gear artifact/
-          cp target/debug/wasm-proc artifact/
+          cp target/release/wasm-proc artifact/
           strip artifact/gear || true
           strip artifact/wasm-proc || true
 
       - name: Upload artifacts
-        if: github.event_name == 'push'
+        if: github.event_name == 'push' && inputs.release == 'true'
         uses: actions/upload-artifact@v4
         with:
           path: artifact
