@@ -407,7 +407,8 @@ mod tests {
             }
 
             let state = MigrateToV3::<Test>::pre_upgrade().unwrap();
-            let _ = MigrateToV3::<Test>::on_runtime_upgrade();
+            let weight = MigrateToV3::<Test>::on_runtime_upgrade();
+            assert!(!weight.is_zero());
             MigrateToV3::<Test>::post_upgrade(state).unwrap();
 
             assert_eq!(StorageVersion::get::<GearMessenger>(), 3);
