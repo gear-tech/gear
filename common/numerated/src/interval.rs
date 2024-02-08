@@ -256,7 +256,7 @@ impl<T: Numerated + UpperBounded> Interval<T> {
     /// - if `len == None`, then it is supposed, that `len == T::Distance::max_value() + 1`.
     /// - if `start + len - 1` is out of `T`, then returns [`NewWithLenError::OutOfBounds`].
     /// - if `len == 0`, then returns [`NewWithLenError::ZeroLen`].
-    pub fn new_with_len<S: Into<T::Bound>, L: Into<Option<T::Distance>>>(
+    pub fn with_len<S: Into<T::Bound>, L: Into<Option<T::Distance>>>(
         start: S,
         len: L,
     ) -> Result<Interval<T>, NewWithLenError> {
@@ -293,8 +293,8 @@ impl<T: Numerated> Interval<T> {
 
 impl<T: Numerated + LowerBounded + UpperBounded> Interval<T> {
     /// Returns `len: T::Distance` (amount of points in `self`) converting it to `T` point:
-    /// - If `len` is bigger than `T` possible elements amount, then returns `T::Bound` __upper__ value.
-    /// - Else returns for `len` corresponding by numeration `p: T::Bound`:
+    /// - If length is bigger than `T` possible elements amount, then returns `T::Bound` __upper__ value.
+    /// - Else returns as length corresponding `p: T::Bound`:
     /// ```text
     ///   { 1 -> T::Bound::from(T::min_value() + 1), 2 -> T::Bound::from(T::min_value() + 2), ... }
     /// ```
@@ -346,10 +346,10 @@ mod tests {
 
     #[test]
     fn count_from() {
-        assert_eq!(Interval::<u8>::new_with_len(0, 100).unwrap(), 0..=99);
-        assert_eq!(Interval::<u8>::new_with_len(0, 255).unwrap(), 0..=254);
-        assert_eq!(Interval::<u8>::new_with_len(0, None).unwrap(), 0..=255);
-        assert_eq!(Interval::<u8>::new_with_len(1, 255).unwrap(), 1..=255);
-        assert_eq!(Interval::<u8>::new_with_len(0, 1).unwrap(), 0..=0);
+        assert_eq!(Interval::<u8>::with_len(0, 100).unwrap(), 0..=99);
+        assert_eq!(Interval::<u8>::with_len(0, 255).unwrap(), 0..=254);
+        assert_eq!(Interval::<u8>::with_len(0, None).unwrap(), 0..=255);
+        assert_eq!(Interval::<u8>::with_len(1, 255).unwrap(), 1..=255);
+        assert_eq!(Interval::<u8>::with_len(0, 1).unwrap(), 0..=0);
     }
 }

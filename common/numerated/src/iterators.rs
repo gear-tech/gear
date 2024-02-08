@@ -34,7 +34,7 @@ pub struct IntervalIterator<T>(Option<Interval<T>>);
 
 impl<T: Numerated> IntervalIterator<T> {
     /// New empty interval.
-    pub fn new_empty() -> Self {
+    pub fn empty() -> Self {
         Self(None)
     }
     /// Returns whether interval is empty.
@@ -69,7 +69,7 @@ impl<T: Numerated + UpperBounded, I: Into<T::Bound>> From<RangeFrom<I>> for Inte
     fn from(range: RangeFrom<I>) -> Self {
         Interval::try_from(range)
             .map(Into::into)
-            .unwrap_or(Self(None))
+            .unwrap_or(Self::empty())
     }
 }
 
@@ -85,7 +85,7 @@ impl<T: Numerated + LowerBounded + UpperBounded, I: Into<T::Bound>> From<RangeTo
     fn from(range: RangeTo<I>) -> Self {
         Interval::try_from(range)
             .map(Into::into)
-            .unwrap_or(Self(None))
+            .unwrap_or(Self::empty())
     }
 }
 
@@ -100,7 +100,7 @@ where
     fn try_from(range: (S, E)) -> Result<Self, Self::Error> {
         match Interval::try_from(range) {
             Ok(interval) => Ok(interval.into()),
-            Err(TryFromRangeError::EmptyRange) => Ok(Self(None)),
+            Err(TryFromRangeError::EmptyRange) => Ok(Self::empty()),
             Err(TryFromRangeError::IncorrectRange) => Err(IncorrectRangeError),
         }
     }
@@ -143,13 +143,13 @@ impl<T: Numerated + UpperBounded> IntervalIterator<T> {
     /// - if `len == None`, then it is supposed, that `len == T::Distance::max_value() + 1`.
     /// - if `start + len - 1` is out of `T`, then returns [`OutOfBoundsError`].
     /// - if `len` is zero, then returns empty interval.
-    pub fn new_with_len<S: Into<T::Bound>, L: Into<Option<T::Distance>>>(
+    pub fn with_len<S: Into<T::Bound>, L: Into<Option<T::Distance>>>(
         start: S,
         len: L,
     ) -> Result<Self, OutOfBoundsError> {
-        match Interval::new_with_len(start, len) {
+        match Interval::with_len(start, len) {
             Ok(interval) => Ok(interval.into()),
-            Err(NewWithLenError::ZeroLen) => Ok(Self(None)),
+            Err(NewWithLenError::ZeroLen) => Ok(Self::empty()),
             Err(NewWithLenError::OutOfBounds) => Err(OutOfBoundsError),
         }
     }
@@ -193,11 +193,8 @@ impl<T: Numerated, I: Iterator<Item = Interval<T>>> Iterator for DifferenceItera
             // If there isn't any left intervals in `tree2`, then there is no more intersections
             // and it can return next intervals from `tree1` until the end.
             // Set `self.interval1` to None, to take next interval from `tree1` on next iteration.
-            let interval2 = if let Some(interval2) = self.interval2 {
-                interval2
-            } else if let Some(interval2) = self.iter2.next() {
-                interval2
-            } else {
+            let interval2 = self.interval2.or_else(|| self.iter2.next());
+            let Some(interval2) = interval2 else {
                 return self.interval1.take();
             };
 
@@ -320,11 +317,9 @@ mod tests {
 
     #[test]
     fn empty_interval() {
-        assert!(IntervalIterator::<u8>::new_empty().is_empty());
-        assert!(IntervalIterator::<u8>::new_with_len(1, 0)
-            .unwrap()
-            .is_empty());
-        assert!(IntervalIterator::<u8>::new_with_len(None, 0)
+        assert!(IntervalIterator::<u8>::empty().is_empty());
+        assert!(IntervalIterator::<u8>::with_len(1, 0).unwrap().is_empty());
+        assert!(IntervalIterator::<u8>::with_len(None, 0)
             .unwrap()
             .is_empty());
         assert!(IntervalIterator::<u8>::try_from(1..1).unwrap().is_empty());

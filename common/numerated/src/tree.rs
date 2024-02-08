@@ -293,16 +293,21 @@ impl<T: Numerated> IntervalsTree<T> {
             return;
         };
 
+        // `iter` iterates over all intervals, which starts before or inside `interval`.
         let mut iter = self.inner.range(..=end);
 
+        // "right interval" - interval from `iter` with the biggest start.
         let Some((&right_start, &right_end)) = iter.next_back() else {
             return;
         };
 
         if right_end < start {
+            // No intersections with `interval`.
             return;
         }
 
+        // `left_interval` - interval from `iter` which lies before `interval`
+        // and has intersection with `interval`.
         let mut left_interval = None;
         let mut intervals_to_remove = Vec::new();
         while let Some((&s, &e)) = iter.next_back() {
@@ -316,25 +321,37 @@ impl<T: Numerated> IntervalsTree<T> {
             intervals_to_remove.push(s)
         }
 
+        // `intervals_to_remove` contains all intervals,
+        // which lies completely inside `interval`, so must be removed.
         for start in intervals_to_remove {
             self.inner.remove(&start);
         }
 
         if let Some(start) = start.dec_if_gt(right_start) {
+            // "right interval" starts before `interval` and has intersection,
+            // so "right interval" must be chopped.
             self.put(right_start, start);
         } else {
-            debug_assert!(right_start <= end, "Must be cause of method it was found");
+            // "right interval" is partially/completely inside `interval`,
+            // so we remove it here and then put it back with new start if needed.
+            debug_assert!(
+                right_start <= end,
+                "Must be, because of method it was found"
+            );
             self.inner.remove(&right_start);
         }
 
         if let Some(end) = end.inc_if_lt(right_end) {
+            // "right interval" ends after `interval`,
+            // so after chopping or removing we put the remainder here.
             self.put(end, right_end);
         } else {
             debug_assert!(start <= right_end);
         }
 
         if let Some(left_start) = left_interval {
-            debug_assert!(left_start < start, "Must be cause of method it was found");
+            // `left_interval` lies before `interval` and has intersection with `interval`,
+            // so it must be chopped.
             if let Some(start) = start.dec_if_gt(left_start) {
                 self.put(left_start, start);
             } else {
