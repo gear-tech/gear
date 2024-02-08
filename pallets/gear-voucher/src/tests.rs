@@ -771,6 +771,68 @@ fn voucher_update_err_cases() {
     });
 }
 
+#[test]
+fn voucher_deny_works() {
+    new_test_ext().execute_with(|| {
+        assert_ok!(Voucher::issue(
+            RuntimeOrigin::signed(ALICE),
+            BOB,
+            DEFAULT_BALANCE,
+            None,
+            false,
+            DEFAULT_VALIDITY,
+        ));
+
+        let voucher_id = utils::get_last_voucher_id();
+
+        assert_ok!(Voucher::deny(RuntimeOrigin::signed(BOB), voucher_id));
+
+        System::assert_last_event(
+            Event::VoucherDenied {
+                spender: BOB,
+                voucher_id,
+            }
+            .into(),
+        );
+
+        let new_expiry = Vouchers::<Test>::get(BOB, voucher_id)
+            .expect("Couldn't find voucher")
+            .expiry;
+
+        assert_eq!(new_expiry, System::block_number());
+    });
+}
+
+#[test]
+fn voucher_deny_err_cases() {
+    new_test_ext().execute_with(|| {
+        // Voucher doesn't exist.
+        assert_noop!(
+            Voucher::deny(RuntimeOrigin::signed(BOB), H256::random().cast()),
+            Error::<Test>::InexistentVoucher
+        );
+
+        // Voucher has already expired.
+        assert_ok!(Voucher::issue(
+            RuntimeOrigin::signed(ALICE),
+            BOB,
+            DEFAULT_BALANCE,
+            None,
+            false,
+            DEFAULT_VALIDITY,
+        ));
+
+        let voucher_id = utils::get_last_voucher_id();
+
+        System::set_block_number(System::block_number() + 10 * DEFAULT_VALIDITY);
+
+        assert_noop!(
+            Voucher::deny(RuntimeOrigin::signed(BOB), voucher_id),
+            Error::<Test>::VoucherExpired
+        );
+    });
+}
+
 mod utils {
     use super::*;
     use frame_support::dispatch::DispatchErrorWithPostInfo;
