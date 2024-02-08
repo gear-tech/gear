@@ -120,7 +120,14 @@ jobs:
       - name: "Test: Client tests"
         run: ./scripts/gear.sh test client ${{ matrix.cargo_profile }}
 
+      - name: "Test: Runtime benchmarks in native"
+        run: |
+          # fast benchmark tests before long run
+          cargo test -p "pallet-*" --features runtime-benchmarks,runtime-benchmarks-checkers --locked ${{ matrix.cargo_profile }}
+
       - name: "Test: Runtime benchmarks and benchmark tests work"
+        # unoptimized benchmarks take a few hours to run
+        if: inputs.release == 'true'
         run: |
           cargo build -p gear-cli --features=runtime-benchmarks,runtime-benchmarks-checkers ${{ matrix.cargo_profile }}
           # check that perf benchmarks works. `--steps=5` need to test, that benchmarks works for different input number.
