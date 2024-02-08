@@ -19,8 +19,12 @@
 //! Gear wasm entry points generator module.
 
 use crate::{
-    generator::{CallIndexes, FrozenGearWasmGenerator, GearWasmGenerator, ModuleWithCallIndexes},
-    EntryPointsSet, WasmModule,
+    generator::{
+        CallIndexes, FrozenGearWasmGenerator, GearWasmGenerator, MemoryImportGenerationProof,
+        ModuleWithCallIndexes,
+    },
+    wasm::{PageCount as WasmPageCount, WasmModule},
+    EntryPointsSet, MemoryLayout,
 };
 use arbitrary::{Result, Unstructured};
 use gear_wasm_instrument::parity_wasm::{
@@ -38,13 +42,29 @@ pub struct EntryPointsGenerator<'a, 'b> {
     call_indexes: CallIndexes,
 }
 
-impl<'a, 'b> From<GearWasmGenerator<'a, 'b>>
+/// Entry points generator instantiator.
+///
+/// Serves as a new type in order to create the generator from gear wasm generator and memory import proof.
+pub struct EntryPointsGeneratorInstantiator<'a, 'b>(
+    (GearWasmGenerator<'a, 'b>, MemoryImportGenerationProof),
+);
+
+impl<'a, 'b> From<(GearWasmGenerator<'a, 'b>, MemoryImportGenerationProof)>
+    for EntryPointsGeneratorInstantiator<'a, 'b>
+{
+    fn from(inner: (GearWasmGenerator<'a, 'b>, MemoryImportGenerationProof)) -> Self {
+        Self(inner)
+    }
+}
+
+impl<'a, 'b> From<EntryPointsGeneratorInstantiator<'a, 'b>>
     for (
         EntryPointsGenerator<'a, 'b>,
         FrozenGearWasmGenerator<'a, 'b>,
     )
 {
-    fn from(generator: GearWasmGenerator<'a, 'b>) -> Self {
+    fn from(instantiator: EntryPointsGeneratorInstantiator<'a, 'b>) -> Self {
+        let EntryPointsGeneratorInstantiator((generator, _mem_import_gen_proof)) = instantiator;
         let ep_generator = EntryPointsGenerator {
             unstructured: generator.unstructured,
             module: generator.module,
@@ -165,7 +185,8 @@ impl<'a, 'b> EntryPointsGenerator<'a, 'b> {
         });
 
         let export_body_instructions =
-            self.generate_export_body(export_body_call_idx, export_body_call_func_type)?;
+            self.generate_export_body(name, export_body_call_idx, export_body_call_func_type)?;
+
         self.module.with(|module| {
             let module = builder::from_module(module)
                 .function()
@@ -194,6 +215,7 @@ impl<'a, 'b> EntryPointsGenerator<'a, 'b> {
     /// Generates body of the export function.
     fn generate_export_body(
         &mut self,
+        name: &str,
         export_body_call_idx: usize,
         export_body_call_func_type: FunctionType,
     ) -> Result<Vec<Instruction>> {
@@ -211,6 +233,27 @@ impl<'a, 'b> EntryPointsGenerator<'a, 'b> {
         }
         res.push(Instruction::Call(export_body_call_idx as u32));
         res.extend(results.iter().map(|_| Instruction::Drop));
+
+        // after initializing the program, we will write about this in a special pointer
+        if name == "init" {
+            let memory_size_pages = self
+                .module
+                .initial_mem_size()
+                .expect("generator is instantiated with a mem import generation proof");
+            let mem_size = Into::<WasmPageCount>::into(memory_size_pages).memory_size();
+
+            let MemoryLayout {
+                init_called_ptr, ..
+            } = MemoryLayout::from(mem_size);
+
+            res.extend_from_slice(&[
+                // *init_called_ptr = true
+                Instruction::I32Const(init_called_ptr),
+                Instruction::I32Const(1),
+                Instruction::I32Store8(0, 0),
+            ]);
+        }
+
         res.push(Instruction::End);
 
         Ok(res)
