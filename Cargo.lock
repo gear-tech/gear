@@ -3689,6 +3689,7 @@ dependencies = [
  "gear-core-errors",
  "gear-runtime-primitives",
  "gmeta",
+ "gring",
  "gsdk",
  "hex",
  "jsonrpsee 0.16.3",
