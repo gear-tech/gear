@@ -117,8 +117,8 @@ pub enum ExportErrorWithContext {
         Actual signature: `{2}`"
     )]
     InvalidExportFnSignature(String, PrintableFunctionType, PrintableFunctionType),
-    #[error("Unnecessary export of function `{_0}` found")]
-    UnnecessaryExport(String),
+    #[error("Excess export of function `{_0}` found")]
+    ExcessExport(String),
     #[error("Required export function `init` or `handle` not found")]
     RequiredExportNotFound,
 }
@@ -180,8 +180,8 @@ impl TryFrom<(&Module, &ExportError)> for ExportErrorWithContext {
 
                 Self::InvalidExportFnSignature(export_name, expected_signature, actual_signature)
             }
-            UnnecessaryExport(export_index) => {
-                Self::UnnecessaryExport(get_export_name(module, *export_index)?)
+            ExcessExport(export_index) => {
+                Self::ExcessExport(get_export_name(module, *export_index)?)
             }
             RequiredExportNotFound => Self::RequiredExportNotFound,
         })

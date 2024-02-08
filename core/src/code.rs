@@ -123,7 +123,7 @@ fn check_exports(module: &Module) -> Result<(), CodeError> {
         }
 
         if !ALLOWED_EXPORTS.contains(&export.field()) {
-            Err(ExportError::UnnecessaryExport(export_index as u32))?;
+            Err(ExportError::ExcessExport(export_index as u32))?;
         }
 
         if REQUIRED_EXPORTS.contains(&export.field()) {
@@ -390,9 +390,9 @@ pub enum ExportError {
     /// The signature of an exported function is invalid.
     #[display(fmt = "Exported function with index `{_0}` must have signature `fn f() {{ ... }}`")]
     InvalidExportFnSignature(u32),
-    /// The provided code contains unnecessary function export.
-    #[display(fmt = "Unnecessary export with index `{_0}` found")]
-    UnnecessaryExport(u32),
+    /// The provided code contains excess function export.
+    #[display(fmt = "Excess export with index `{_0}` found")]
+    ExcessExport(u32),
     /// The provided code doesn't contain the required `init` or `handle` export function.
     #[display(fmt = "Required export function `init` or `handle` not found")]
     RequiredExportNotFound,
@@ -943,7 +943,7 @@ mod tests {
 
         assert_eq!(
             Code::try_new(original_code, 1, |_| ConstantCostRules::default(), None),
-            Err(CodeError::Export(ExportError::UnnecessaryExport(0)))
+            Err(CodeError::Export(ExportError::ExcessExport(0)))
         );
     }
 
