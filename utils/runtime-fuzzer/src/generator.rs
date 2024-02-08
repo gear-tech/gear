@@ -33,7 +33,7 @@ use gear_wasm_gen::wasm_gen_arbitrary::{Result, Unstructured};
 use pallet_gear::Event as GearEvent;
 use runtime_primitives::{AccountId, Balance};
 use std::mem;
-use vara_runtime::{RuntimeEvent, System};
+use vara_runtime::{RuntimeEvent, System, EXISTENTIAL_DEPOSIT};
 
 // Max code size - 25 KiB.
 const MAX_CODE_SIZE: usize = 25 * 1024;
@@ -167,7 +167,7 @@ impl RuntimeStateViewProducer {
 
         RuntimeStateView {
             corpus_id: &self.corpus_id,
-            _current_balance: balance_state.into_inner(),
+            current_balance: balance_state.into_inner(),
             programs: self.programs.as_ref(),
             mailbox: self.mailbox.as_ref(),
             max_gas: runtime::default_gas_limit(),
@@ -176,7 +176,7 @@ impl RuntimeStateViewProducer {
 
     /// Updates mailbox and existing programs view and resets events.
     fn update_state_view(&mut self) {
-        let sender_program_id = ProgramId::from_origin(self.sender.clone().into_origin());
+        let sender_program_id = self.sender.clone().cast();
         System::events().iter().for_each(|e| {
             let RuntimeEvent::Gear(ref gear_event) = e.event else {
                 return;
@@ -216,8 +216,8 @@ impl RuntimeStateViewProducer {
 }
 
 pub(crate) struct RuntimeStateView<'a> {
+    current_balance: Balance,
     corpus_id: &'a str,
-    _current_balance: Balance,
     programs: Option<&'a NonEmpty<ProgramId>>,
     max_gas: u64,
     mailbox: Option<&'a NonEmpty<MessageId>>,
@@ -230,4 +230,14 @@ fn arbitrary_payload(u: &mut Unstructured) -> Result<Vec<u8>> {
 fn arbitrary_limited_bytes(u: &mut Unstructured, limit: usize) -> Result<Vec<u8>> {
     let arb_size = u.int_in_range(0..=limit)?;
     u.bytes(arb_size).map(|bytes| bytes.to_vec())
+}
+
+fn arbitrary_value(u: &mut Unstructured, current_balance: u128) -> Result<u128> {
+    let (lower, upper) = match u.int_in_range(0..=99)? {
+        5..=19 => (0, 0),
+        0..=2 => (0, EXISTENTIAL_DEPOSIT),
+        _ => (EXISTENTIAL_DEPOSIT, current_balance),
+    };
+
+    u.int_in_range(lower..=upper)
 }
