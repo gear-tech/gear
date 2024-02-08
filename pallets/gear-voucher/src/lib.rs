@@ -549,7 +549,7 @@ pub mod pallet {
         }
 
         /// Legacy call for using irrevocable vouchers.
-        #[pallet::call_index(4)]
+        #[pallet::call_index(5)]
         #[pallet::weight(T::CallsDispatcher::weight(call).saturating_add(T::DbWeight::get().reads(1)))]
         pub fn call_deprecated(
             origin: OriginFor<T>,
