@@ -148,7 +148,7 @@ fn execute_gear_call(sender: AccountId, call: GearCall) -> DispatchResultWithPos
     }
 }
 
-/// This is post-main blocks execution function.
+/// This is a post-main blocks execution function.
 ///
 /// It's called to exhaust task pool and message queue,
 /// so all the rest messages will be executed.
