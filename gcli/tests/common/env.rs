@@ -32,24 +32,29 @@ lazy_static! {
     };
 }
 
-fn bin_path(name: &str, wasm: bool) -> String {
+fn bin_path(name: &str, profile: &str, wasm: bool) -> String {
     ROOT.clone()
         + &[
             if wasm { WASM_TARGET } else { TARGET },
             "/",
-            *PROFILE,
+            profile,
             "/",
             name,
         ]
         .concat()
 }
 
+/// path of gear node binary
+pub fn node_bin() -> String {
+    bin_path("gear", "release", false)
+}
+
 /// path of binaries
 pub fn bin(name: &str) -> String {
-    bin_path(name, false)
+    bin_path(name, &*PROFILE, false)
 }
 
 /// path of wasm binaries
 pub fn wasm_bin(name: &str) -> String {
-    bin_path(name, true)
+    bin_path(name, &*PROFILE, true)
 }

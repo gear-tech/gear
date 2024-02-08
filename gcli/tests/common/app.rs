@@ -21,7 +21,7 @@ use crate::common::{
     node::{Convert, NodeExec},
     Args,
 };
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use std::{
     path::PathBuf,
     process::{Command, Stdio},
@@ -29,6 +29,9 @@ use std::{
 
 fn demo_messager() -> Result<PathBuf> {
     let path = PathBuf::from(env::bin("demo_messager"));
+    let profile = (*env::PROFILE == "debug")
+        .then_some("dev")
+        .unwrap_or(*env::PROFILE);
 
     if !path.exists()
         && !Command::new("cargo")
@@ -36,7 +39,7 @@ fn demo_messager() -> Result<PathBuf> {
                 "build",
                 "-p",
                 "demo-messager",
-                &format!("--{}", *env::PROFILE),
+                &format!("--profile={profile}"),
                 "--features",
                 "gcli",
             ])
@@ -51,7 +54,7 @@ fn demo_messager() -> Result<PathBuf> {
 
 #[test]
 fn embedded_gcli() -> Result<()> {
-    let node = common::dev()?;
+    let node = common::dev().context("failed to run dev node")?;
     let demo = Command::new(demo_messager()?)
         .args(Vec::<String>::from(Args::new("upload").endpoint(node.ws())))
         .stderr(Stdio::piped())
