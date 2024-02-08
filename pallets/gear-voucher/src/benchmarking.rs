@@ -20,7 +20,7 @@
 
 use crate::*;
 use common::{benchmarking, Origin};
-use frame_benchmarking::{benchmarks, impl_benchmark_test_suite, Zero};
+use frame_benchmarking::{benchmarks, Zero};
 use frame_support::traits::Currency;
 use frame_system::{pallet_prelude::BlockNumberFor, RawOrigin};
 use sp_runtime::traits::{One, UniqueSaturatedInto};
@@ -152,6 +152,6 @@ benchmarks! {
         assert_eq!(voucher_info.programs.map(|v| v.len()), Some(<<T as Config>::MaxProgramsAmount as Get<u8>>::get() as usize));
         assert_eq!(CurrencyOf::<T>::free_balance(&voucher_id.cast::<T::AccountId>()), balance * 2u128.unique_saturated_into());
     }
-}
 
-impl_benchmark_test_suite!(Pallet, crate::mock::new_test_ext(), crate::mock::Test);
+    impl_benchmark_test_suite!(Pallet, crate::mock::new_test_ext(), crate::mock::Test);
+}
