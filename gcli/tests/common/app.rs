@@ -29,9 +29,11 @@ use std::{
 
 fn demo_messager() -> Result<PathBuf> {
     let path = PathBuf::from(env::bin("demo_messager"));
-    let profile = (*env::PROFILE == "debug")
-        .then_some("dev")
-        .unwrap_or(*env::PROFILE);
+    let profile = if *env::PROFILE == "debug" {
+        "dev"
+    } else {
+        *env::PROFILE
+    };
 
     if !path.exists()
         && !Command::new("cargo")

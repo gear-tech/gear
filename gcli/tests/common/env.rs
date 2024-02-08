@@ -51,10 +51,10 @@ pub fn node_bin() -> String {
 
 /// path of binaries
 pub fn bin(name: &str) -> String {
-    bin_path(name, &*PROFILE, false)
+    bin_path(name, *PROFILE, false)
 }
 
 /// path of wasm binaries
 pub fn wasm_bin(name: &str) -> String {
-    bin_path(name, &*PROFILE, true)
+    bin_path(name, *PROFILE, true)
 }
