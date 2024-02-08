@@ -59,7 +59,7 @@ use common::{
     event::*,
     scheduler::{ScheduledTask, StorageType, TaskPool},
     storage::{Interval, IterableByKeyMap, Queue},
-    ActiveProgram, CodeStorage, Origin, Program, ProgramState, ProgramStorage, ReservableTree,
+    ActiveProgram, CodeStorage, Origin, Program, ProgramStorage, ReservableTree,
 };
 use core::fmt;
 use core_processor::common::{Actor, ExecutableActorData};
@@ -235,7 +235,6 @@ where
                 code_id,
                 code_exports: active.code_exports,
                 static_pages: active.static_pages,
-                initialized: matches!(active.state, ProgramState::Initialized),
                 pages_with_data: active.pages_with_data,
                 gas_reservation_map: active.gas_reservation_map,
                 memory_infix: active.memory_infix,

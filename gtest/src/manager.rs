@@ -80,13 +80,11 @@ impl TestActor {
         );
 
         if let TestActor::Uninitialized(_, maybe_prog) = self {
-            let mut prog = maybe_prog
-                .take()
-                .expect("actor storage contains only `Some` values by contract");
-            if let Program::Genuine { program, .. } = &mut prog {
-                program.set_initialized();
-            }
-            *self = TestActor::Initialized(prog);
+            *self = TestActor::Initialized(
+                maybe_prog
+                    .take()
+                    .expect("actor storage contains only `Some` values by contract"),
+            );
         }
     }
 
@@ -161,7 +159,6 @@ impl TestActor {
                 code_id: *code_id,
                 code_exports: program.code().exports().clone(),
                 static_pages: program.code().static_pages(),
-                initialized: program.is_initialized(),
                 pages_with_data: pages_data.keys().cloned().collect(),
                 gas_reservation_map,
                 memory_infix: program.memory_infix(),
