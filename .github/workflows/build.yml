@@ -45,7 +45,9 @@ jobs:
           if [ "${{ inputs.release }}" = "true" ]; then
             variants+=', {"cargo_profile": "--release", "cargo_target_dir": "release"}'
           fi
-          echo 'matrix={"include": [${variants}]}' >> $GITHUB_OUTPUT
+          matrix="{\"include\": [${variants}]}"
+          echo "Matrix: ${matrix}"
+          echo "matrix=${matrix}" >> $GITHUB_OUTPUT
 
   linux:
     runs-on: [kuberunner, github-runner-02]
