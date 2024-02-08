@@ -33,7 +33,6 @@ use generator::*;
 use runtime::BalanceManager;
 use sha1::Digest;
 use sp_io::TestExternalities;
-use std::iter;
 use vara_runtime::{AccountId, Gear, RuntimeOrigin};
 
 const EXHAUST_MESSAGES_RUNS: usize = 20;
@@ -64,7 +63,7 @@ fn run_impl(fuzzer_input: FuzzerInput<'_>) -> Result<TestExternalities> {
         &mut test_ext,
         &mut balance_manager,
     )?;
-    exhaust_messages(&mut test_ext, balance_manager)?;
+    exhaust_messages_stores(&mut test_ext, balance_manager)?;
 
     Ok(test_ext)
 }
@@ -149,20 +148,23 @@ fn execute_gear_call(sender: AccountId, call: GearCall) -> DispatchResultWithPos
     }
 }
 
+/// This is post-main blocks execution function.
+///
+/// It's called to exhaust task pool and message queue,
+/// so all the rest messages will be executed.
 fn exhaust_messages_stores(
     test_ext: &mut TestExternalities,
     mut balance_manager: BalanceManager,
 ) -> Result<()> {
-    let mut exhaust_task = || -> Result<()> {
+    log::trace!("Exhausting messages stores");
+
+    for _ in 0..EXHAUST_MESSAGES_RUNS {
         test_ext.execute_with(|| {
             balance_manager.update_balance()?;
             runtime::run_to_next_block();
 
             Ok(())
-        })
-    };
-    for task_res in iter::repeat(exhaust_task()).take(EXHAUST_MESSAGES_RUNS) {
-        task_res?;
+        })?;
     }
 
     Ok(())
