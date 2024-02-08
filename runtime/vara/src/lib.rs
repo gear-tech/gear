@@ -1091,7 +1091,8 @@ impl pallet_gear_voucher::Config for Runtime {
     type Currency = Balances;
     type PalletId = VoucherPalletId;
     type WeightInfo = weights::pallet_gear_voucher::SubstrateWeight<Runtime>;
-    type CallsDispatcher = Gear;
+    // TODO (breathx): change me.
+    type CallsDispatcher = pallet_gear::ExclusiveGearCallsDispatcher<Runtime>;
     type Mailbox = <GearMessenger as Messenger>::Mailbox;
     type MaxProgramsAmount = ConstU8<32>;
     type MaxDuration = MaxVoucherDuration;

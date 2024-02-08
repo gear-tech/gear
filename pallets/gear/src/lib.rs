@@ -1774,7 +1774,10 @@ pub mod pallet {
         }
     }
 
-    impl<T: Config> PrepaidCallsDispatcher for Pallet<T>
+    /// WARN: Only implements gear calls for dispatches.
+    pub struct ExclusiveGearCallsDispatcher<T: Config>(PhantomData<T>);
+
+    impl<T: Config> PrepaidCallsDispatcher for ExclusiveGearCallsDispatcher<T>
     where
         T::AccountId: Origin,
     {
@@ -1807,7 +1810,7 @@ pub mod pallet {
                     gas_limit,
                     value,
                     keep_alive,
-                } => Self::send_message_impl(
+                } => Pallet::<T>::send_message_impl(
                     account_id,
                     destination,
                     payload,
@@ -1822,7 +1825,7 @@ pub mod pallet {
                     gas_limit,
                     value,
                     keep_alive,
-                } => Self::send_reply_impl(
+                } => Pallet::<T>::send_reply_impl(
                     account_id,
                     reply_to_id,
                     payload,
@@ -1831,7 +1834,7 @@ pub mod pallet {
                     keep_alive,
                     Some(sponsor_id),
                 ),
-                PrepaidCall::UploadCode { code } => Self::upload_code_impl(account_id, code),
+                PrepaidCall::UploadCode { code } => Pallet::<T>::upload_code_impl(account_id, code),
             }
         }
     }
