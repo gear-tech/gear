@@ -27,8 +27,8 @@ use std::{
     process::{Command, Stdio},
 };
 
-fn demo_messager() -> Result<PathBuf> {
-    let path = PathBuf::from(env::bin("demo_messager"));
+fn demo_messenger() -> Result<PathBuf> {
+    let path = PathBuf::from(env::bin("demo_messenger"));
     let profile = if *env::PROFILE == "debug" {
         "dev"
     } else {
@@ -40,7 +40,7 @@ fn demo_messager() -> Result<PathBuf> {
             .args([
                 "build",
                 "-p",
-                "demo-messager",
+                "demo-messenger",
                 &format!("--profile={profile}"),
                 "--features",
                 "gcli",
@@ -48,7 +48,7 @@ fn demo_messager() -> Result<PathBuf> {
             .status()?
             .success()
     {
-        return Err(anyhow!("Failed to build demo-messager with feature gcli"));
+        return Err(anyhow!("Failed to build demo-messenger with feature gcli"));
     }
 
     Ok(path)
@@ -57,7 +57,7 @@ fn demo_messager() -> Result<PathBuf> {
 #[test]
 fn embedded_gcli() -> Result<()> {
     let node = common::dev().context("failed to run dev node")?;
-    let demo = Command::new(demo_messager()?)
+    let demo = Command::new(demo_messenger()?)
         .args(Vec::<String>::from(Args::new("upload").endpoint(node.ws())))
         .stderr(Stdio::piped())
         .output()?;

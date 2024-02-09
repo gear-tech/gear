@@ -1,13 +1,13 @@
 [package]
-name = "demo-messager"
+name = "demo-messenger"
 version = "0.1.0"
 authors.workspace = true
 license.workspace = true
 edition.workspace = true
 
 [[bin]]
-name = "demo_messager"
-path = "src/bin/demo_messager.rs"
+name = "demo_messenger"
+path = "src/bin/demo_messenger.rs"
 required-features = ["gcli"]
 
 [dependencies]

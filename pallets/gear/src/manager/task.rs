@@ -176,7 +176,7 @@ where
 
         if waitlisted.kind() == DispatchKind::Init {
             let origin = waitlisted.source();
-            Self::process_failed_init(program_id, origin, true);
+            Self::process_failed_init(program_id, origin);
         }
 
         let gas = <T as Config>::WeightInfo::tasks_remove_from_waitlist().ref_time();
