@@ -85,7 +85,7 @@ jobs:
           ./rust-covfix --version
 
       - name: "ACTIONS: Setup environment variable"
-        if: github.ref == 'refs/heads/master' || contains(github.event.pull_request.labels.*.name, 'E0-forcecoverage')
+        if: ${{ github.ref == 'refs/heads/master' || contains(github.event.pull_request.labels.*.name, 'E0-forcecoverage') }}
         run: echo "RUSTFLAGS=-Cinstrument-coverage" >> $GITHUB_ENV
 
       - name: "Buid: Init"
@@ -127,7 +127,7 @@ jobs:
 
       - name: "Test: Runtime benchmarks and benchmark tests work"
         # unoptimized benchmarks take a few hours to run
-        if: inputs.release == 'true'
+        if: ${{ inputs.release == 'true' }}
         run: |
           cargo build -p gear-cli --features=runtime-benchmarks,runtime-benchmarks-checkers ${{ matrix.cargo_profile }}
           # check that perf benchmarks works. `--steps=5` need to test, that benchmarks works for different input number.
@@ -154,7 +154,7 @@ jobs:
           RUST_LOG: info
 
       - name: "Coverage: Aggregate"
-        if: github.ref == 'refs/heads/master' || contains(github.event.pull_request.labels.*.name, 'E0-forcecoverage')
+        if: ${{ github.ref == 'refs/heads/master' || contains(github.event.pull_request.labels.*.name, 'E0-forcecoverage') }}
         run: >-
           ./grcov . --binary-path ./target/${{ matrix.cargo_target_dir }}/ -s . -t lcov --branch --ignore-not-existing
           --ignore "/*"
@@ -180,21 +180,21 @@ jobs:
           -o ./lcov.info
 
       - name: "Coverage: Fix report"
-        if: github.ref == 'refs/heads/master' || contains(github.event.pull_request.labels.*.name, 'E0-forcecoverage')
+        if: ${{ github.ref == 'refs/heads/master' || contains(github.event.pull_request.labels.*.name, 'E0-forcecoverage') }}
         run: ./rust-covfix -o lcov.info lcov.info
 
       - name: "Coverage: Publish"
-        if: github.ref == 'refs/heads/master' || contains(github.event.pull_request.labels.*.name, 'E0-forcecoverage')
+        if: ${{ github.ref == 'refs/heads/master' || contains(github.event.pull_request.labels.*.name, 'E0-forcecoverage') }}
         uses: codecov/codecov-action@v4
         with:
           file: ./lcov.info
 
       - name: "Build: Production binaries"
-        if: github.event_name == 'push' && inputs.release == 'true'
+        if: ${{ github.event_name == 'push' && inputs.release == 'true' }}
         run: cargo build -p gear-cli -F cli --profile production
 
       - name: Prepare artifacts
-        if: github.event_name == 'push' && inputs.release == 'true'
+        if: ${{ github.event_name == 'push' && inputs.release == 'true' }}
         run: |
           mkdir -p artifact
           cd target/wasm32-unknown-unknown/release
@@ -209,7 +209,7 @@ jobs:
           strip artifact/wasm-proc || true
 
       - name: Upload artifacts
-        if: github.event_name == 'push' && inputs.release == 'true'
+        if: ${{ github.event_name == 'push' && inputs.release == 'true' }}
         uses: actions/upload-artifact@v4
         with:
           path: artifact
