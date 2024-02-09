@@ -25,6 +25,7 @@ mod precise;
 mod process_errors;
 
 use gear_wasm_instrument::syscalls::SyscallName;
+use std::num::NonZeroU32;
 
 pub use injection::*;
 pub use param::*;
@@ -46,6 +47,7 @@ impl SyscallsConfigBuilder {
             precise_syscalls_config: PreciseSyscallsConfig::default(),
             error_processing_config: ErrorProcessingConfig::None,
             log_info: None,
+            waiting_probability: None,
         })
     }
 
@@ -93,6 +95,13 @@ impl SyscallsConfigBuilder {
         self
     }
 
+    /// Set probability of wait syscalls.
+    pub fn with_waiting_probability(mut self, waiting_probability: NonZeroU32) -> Self {
+        self.0.waiting_probability = Some(waiting_probability);
+
+        self
+    }
+
     /// Setup fallible syscalls error processing options.
     pub fn with_error_processing_config(mut self, config: ErrorProcessingConfig) -> Self {
         self.0.error_processing_config = config;
@@ -114,6 +123,7 @@ pub struct SyscallsConfig {
     precise_syscalls_config: PreciseSyscallsConfig,
     error_processing_config: ErrorProcessingConfig,
     log_info: Option<String>,
+    waiting_probability: Option<NonZeroU32>,
 }
 
 impl SyscallsConfig {
@@ -142,5 +152,10 @@ impl SyscallsConfig {
     /// Get error processing config for fallible syscalls.
     pub fn error_processing_config(&self) -> &ErrorProcessingConfig {
         &self.error_processing_config
+    }
+
+    /// Get probability of wait syscalls.
+    pub fn waiting_probability(&self) -> Option<NonZeroU32> {
+        self.waiting_probability
     }
 }

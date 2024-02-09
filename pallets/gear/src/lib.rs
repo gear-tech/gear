@@ -73,7 +73,7 @@ use frame_support::{
 };
 use frame_system::pallet_prelude::{BlockNumberFor, *};
 use gear_core::{
-    code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId},
+    code::{Code, CodeAndId, CodeError, InstrumentedCode, InstrumentedCodeAndId},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     message::*,
     percent::Percent,
@@ -1072,7 +1072,7 @@ pub mod pallet {
         pub(crate) fn reinstrument_code(
             code_id: CodeId,
             schedule: &Schedule<T>,
-        ) -> InstrumentedCode {
+        ) -> Result<InstrumentedCode, CodeError> {
             debug_assert!(T::CodeStorage::get_code(code_id).is_some());
 
             // By the invariant set in CodeStorage trait, original code can't exist in storage
@@ -1087,15 +1087,14 @@ pub mod pallet {
                 schedule.instruction_weights.version,
                 |module| schedule.rules(module),
                 schedule.limits.stack_height,
-            )
-            .unwrap_or_else(|e| unreachable!("Unexpected re-instrumentation failure: {:?}", e));
+            )?;
 
             let code_and_id = CodeAndId::from_parts_unchecked(code, code_id);
             let code_and_id = InstrumentedCodeAndId::from(code_and_id);
             T::CodeStorage::update_code(code_and_id.clone());
             let (code, _) = code_and_id.into_parts();
 
-            code
+            Ok(code)
         }
 
         pub(crate) fn try_new_code(code: Vec<u8>) -> Result<CodeAndId, DispatchError> {

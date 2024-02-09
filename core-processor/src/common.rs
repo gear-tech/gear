@@ -158,8 +158,6 @@ pub enum DispatchOutcome {
         origin: ProgramId,
         /// Reason of the fail.
         reason: String,
-        /// Flag defining was the program executed to fail its initialization.
-        executed: bool,
     },
     /// Message was a trap.
     MessageTrap {
@@ -335,6 +333,13 @@ pub enum JournalNote {
         /// Amount of gas for reply.
         amount: u64,
     },
+    /// Append message to waiting init list and wait list for future wake.
+    WaitingInitMessage {
+        /// Incoming dispatch of the message.
+        dispatch: IncomingDispatch,
+        /// Destination of the message.
+        destination: ProgramId,
+    },
 }
 
 /// Journal handler.
@@ -417,6 +422,8 @@ pub trait JournalHandler {
     fn send_signal(&mut self, message_id: MessageId, destination: ProgramId, code: SignalCode);
     /// Create deposit for future reply.
     fn reply_deposit(&mut self, message_id: MessageId, future_reply_id: MessageId, amount: u64);
+    /// Append message to waiting init list and wait list for future wake.
+    fn waiting_init_message(&mut self, dispatch: IncomingDispatch, destination: ProgramId);
 }
 
 actor_system_error! {
@@ -492,20 +499,18 @@ pub enum SystemExecutionError {
 }
 
 /// Actor.
-#[derive(Clone, Debug, Decode, Encode)]
-#[codec(crate = scale)]
+#[derive(Clone, Debug)]
 pub struct Actor {
     /// Program value balance.
     pub balance: u128,
     /// Destination program.
     pub destination_program: ProgramId,
     /// Executable actor data
-    pub executable_data: Option<ExecutableActorData>,
+    pub executable_data: ExecutableActorData,
 }
 
 /// Executable actor data.
-#[derive(Clone, Debug, Decode, Encode)]
-#[codec(crate = scale)]
+#[derive(Clone, Debug)]
 pub struct ExecutableActorData {
     /// Set of dynamic wasm page numbers, which are allocated by the program.
     pub allocations: BTreeSet<WasmPage>,
@@ -519,8 +524,6 @@ pub struct ExecutableActorData {
     pub code_exports: BTreeSet<DispatchKind>,
     /// Count of static memory pages.
     pub static_pages: WasmPage,
-    /// Flag indicates if the program is initialized.
-    pub initialized: bool,
     /// Gas reservation map.
     pub gas_reservation_map: GasReservationMap,
 }
@@ -543,36 +546,27 @@ pub struct WasmExecutionContext {
 /// Struct with dispatch and counters charged for program data.
 #[derive(Debug)]
 pub struct PrechargedDispatch {
+    dispatch: IncomingDispatch,
     gas: GasCounter,
     allowance: GasAllowanceCounter,
-    dispatch: IncomingDispatch,
 }
 
 impl PrechargedDispatch {
-    /// Decompose this instance into dispatch and journal.
-    pub fn into_dispatch_and_note(self) -> (IncomingDispatch, Vec<JournalNote>) {
-        let journal = alloc::vec![JournalNote::GasBurned {
-            message_id: self.dispatch.id(),
-            amount: self.gas.burned(),
-        }];
-
-        (self.dispatch, journal)
+    /// Create new instance from parts.
+    pub(crate) fn from_parts(
+        dispatch: IncomingDispatch,
+        gas: GasCounter,
+        allowance: GasAllowanceCounter,
+    ) -> Self {
+        Self {
+            dispatch,
+            gas,
+            allowance,
+        }
     }
 
     /// Decompose the instance into parts.
     pub fn into_parts(self) -> (IncomingDispatch, GasCounter, GasAllowanceCounter) {
         (self.dispatch, self.gas, self.allowance)
-    }
-}
-
-impl From<(IncomingDispatch, GasCounter, GasAllowanceCounter)> for PrechargedDispatch {
-    fn from(
-        (dispatch, gas, allowance): (IncomingDispatch, GasCounter, GasAllowanceCounter),
-    ) -> Self {
-        Self {
-            gas,
-            allowance,
-            dispatch,
-        }
     }
 }

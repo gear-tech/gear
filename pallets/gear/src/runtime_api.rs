@@ -17,10 +17,9 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::*;
-use crate::queue::{ActorResult, QueueStep};
+use crate::queue::QueueStep;
 use common::ActiveProgram;
 use core::convert::TryFrom;
-use core_processor::common::PrechargedDispatch;
 use frame_support::traits::PalletInfo;
 use gear_core::{code::TryNewCodeConfig, pages::WasmPage, program::MemoryInfix};
 use gear_wasm_instrument::syscalls::SyscallName;
@@ -183,7 +182,6 @@ where
 
             let actor_id = queued_dispatch.destination();
             let dispatch_id = queued_dispatch.id();
-            let dispatch_reply = queued_dispatch.reply_details().is_some();
 
             let gas_limit = GasHandlerOf::<T>::get_limit(dispatch_id)
                 .map_err(|_| b"Internal error: unable to get gas limit".to_vec())?;
@@ -194,20 +192,10 @@ where
                 } else {
                     let balance = CurrencyOf::<T>::free_balance(&actor_id.cast());
 
-                    let get_actor_data = |precharged_dispatch: PrechargedDispatch| {
-                        // At this point gas counters should be changed accordingly so fetch the program data.
-                        match Self::get_active_actor_data(actor_id, dispatch_id, dispatch_reply) {
-                            ActorResult::Data(data) => Ok((precharged_dispatch, data)),
-                            ActorResult::Continue => Err(precharged_dispatch),
-                        }
-                    };
-
                     let success_reply = queued_dispatch
                         .reply_details()
                         .map(|rd| rd.to_reply_code().is_success())
                         .unwrap_or(false);
-
-                    let skip_if_allowed = success_reply && gas_limit == 0;
 
                     let step = QueueStep {
                         block_config: &block_config,
@@ -215,13 +203,9 @@ where
                         gas_limit,
                         dispatch: queued_dispatch,
                         balance: balance.unique_saturated_into(),
-                        get_actor_data,
                     };
-                    let output = step
-                        .execute()
-                        .map_err(|_| internal_err("Queue execution error"))?;
 
-                    (output, skip_if_allowed)
+                    (Self::run_queue_step(step), success_reply && gas_limit == 0)
                 };
 
             let get_main_limit = || {

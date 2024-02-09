@@ -50,7 +50,10 @@ pub use precharge::{
     precharge_for_code_length, precharge_for_instrumentation, precharge_for_memory,
     precharge_for_program, SuccessfulDispatchResultKind,
 };
-pub use processing::{process, process_error, process_non_executable, process_success};
+pub use processing::{
+    process, process_execution_error, process_non_executable, process_reinstrumentation_error,
+    process_success,
+};
 
 /// Informational functions for core-processor and executor.
 pub mod informational {

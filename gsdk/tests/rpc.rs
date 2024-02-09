@@ -67,7 +67,7 @@ async fn test_calculate_upload_gas() -> Result<()> {
 
     api.calculate_upload_gas(
         alice.into(),
-        demo_messager::WASM_BINARY.to_vec(),
+        demo_messenger::WASM_BINARY.to_vec(),
         vec![],
         0,
         true,
@@ -88,11 +88,11 @@ async fn test_calculate_create_gas() -> Result<()> {
         .signer("//Alice", None)?;
     signer
         .calls
-        .upload_code(demo_messager::WASM_BINARY.to_vec())
+        .upload_code(demo_messenger::WASM_BINARY.to_vec())
         .await?;
 
     // 2. calculate create gas and create program.
-    let code_id = CodeId::generate(demo_messager::WASM_BINARY);
+    let code_id = CodeId::generate(demo_messenger::WASM_BINARY);
     let gas_info = signer
         .rpc
         .calculate_create_gas(None, code_id, vec![], 0, true, None)
@@ -111,7 +111,7 @@ async fn test_calculate_handle_gas() -> Result<()> {
     let node = dev_node();
 
     let salt = vec![];
-    let pid = ProgramId::generate_from_user(CodeId::generate(demo_messager::WASM_BINARY), &salt);
+    let pid = ProgramId::generate_from_user(CodeId::generate(demo_messenger::WASM_BINARY), &salt);
 
     // 1. upload program.
     let signer = Api::new(Some(&node_uri(&node)))
@@ -121,7 +121,7 @@ async fn test_calculate_handle_gas() -> Result<()> {
     signer
         .calls
         .upload_program(
-            demo_messager::WASM_BINARY.to_vec(),
+            demo_messenger::WASM_BINARY.to_vec(),
             salt,
             vec![],
             100_000_000_000,
@@ -297,7 +297,7 @@ async fn test_original_code_storage() -> Result<()> {
     let node = dev_node();
 
     let salt = vec![];
-    let pid = ProgramId::generate_from_user(CodeId::generate(demo_messager::WASM_BINARY), &salt);
+    let pid = ProgramId::generate_from_user(CodeId::generate(demo_messenger::WASM_BINARY), &salt);
 
     let signer = Api::new(Some(&node_uri(&node)))
         .await?
@@ -306,7 +306,7 @@ async fn test_original_code_storage() -> Result<()> {
     signer
         .calls
         .upload_program(
-            demo_messager::WASM_BINARY.to_vec(),
+            demo_messenger::WASM_BINARY.to_vec(),
             salt,
             vec![],
             100_000_000_000,
@@ -322,7 +322,7 @@ async fn test_original_code_storage() -> Result<()> {
         .original_code_storage_at(program.code_hash.0.into(), Some(block_hash))
         .await?;
 
-    assert_eq!(code, demo_messager::WASM_BINARY.to_vec());
+    assert_eq!(code, demo_messenger::WASM_BINARY.to_vec());
 
     Ok(())
 }

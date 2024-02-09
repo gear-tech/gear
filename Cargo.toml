@@ -41,7 +41,7 @@ members = [
     "examples/init-fail-sender",
     "examples/init-wait",
     "examples/init-wait-reply-exit",
-    "examples/messager",
+    "examples/messenger",
     "examples/mul-by-const",
     "examples/ncompose",
     "examples/new-meta",
@@ -394,7 +394,7 @@ demo-incomplete-async-payloads = { path = "examples/incomplete-async-payloads" }
 demo-init-fail-sender = { path = "examples/init-fail-sender" }
 demo-init-wait = { path = "examples/init-wait", default-features = false }
 demo-init-wait-reply-exit = { path = "examples/init-wait-reply-exit" }
-demo-messager = { path = "examples/messager" }
+demo-messenger = { path = "examples/messenger" }
 demo-meta-io = { path = "examples/new-meta/io" }
 demo-mul-by-const = { path = "examples/mul-by-const" }
 demo-new-meta = { path = "examples/new-meta" }
