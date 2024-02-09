@@ -612,7 +612,7 @@ pub mod pallet {
             voucher.expiry = current_bn;
 
             // Updating voucher in storage.
-            // TODO: consider revoke here once gas counting implemented.
+            // TODO: consider revoke here once gas counting implemented (#3726).
             Vouchers::<T>::insert(origin.clone(), voucher_id, voucher);
 
             // Depositing event.
