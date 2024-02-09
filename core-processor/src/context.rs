@@ -133,7 +133,6 @@ impl From<(ContextChargedForMemory, InstrumentedCode, u128)> for ProcessExecutio
             actor_data.memory_infix,
             code,
             actor_data.allocations,
-            actor_data.initialized,
         );
 
         // Must be created once per taken from the queue dispatch by contract.
