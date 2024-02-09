@@ -127,7 +127,8 @@ jobs:
 
       - name: "Test: Runtime benchmarks and benchmark tests work"
         # unoptimized benchmarks take a few hours to run
-        if: ${{ inputs.release == 'true' }}
+        # `contains` is workaround for https://github.com/actions/runner/issues/2005
+        if: ${{ contains(inputs.release, 'true') }}
         run: |
           cargo build -p gear-cli --features=runtime-benchmarks,runtime-benchmarks-checkers ${{ matrix.cargo_profile }}
           # check that perf benchmarks works. `--steps=5` need to test, that benchmarks works for different input number.
