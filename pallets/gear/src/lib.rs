@@ -1777,8 +1777,7 @@ pub mod pallet {
         }
     }
 
-    /// Dispatcher for all types of prepaid calls.
-    /// For test purposes consider using [`ExclusiveGearCallsDispatcher`]
+    /// Dispatcher for all types of prepaid calls: gear or gear-voucher pallets.
     pub struct DefaultDispatcher<T: Config + pallet_gear_voucher::Config>(PhantomData<T>);
 
     impl<T: Config + pallet_gear_voucher::Config> PrepaidCallsDispatcher for DefaultDispatcher<T>
