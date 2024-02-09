@@ -98,6 +98,7 @@ impl<T: Config> Pallet<T> {
         );
 
         match call {
+            PrepaidCall::DenyVoucher => (),
             PrepaidCall::UploadCode { .. } => {
                 ensure!(voucher.code_uploading, Error::<T>::CodeUploadingDisabled)
             }
@@ -127,7 +128,7 @@ impl<T: Config> Pallet<T> {
             PrepaidCall::SendReply { reply_to_id, .. } => {
                 T::Mailbox::peek(who, reply_to_id).map(|stored_message| stored_message.source())
             }
-            PrepaidCall::UploadCode { .. } => None,
+            PrepaidCall::UploadCode { .. } | PrepaidCall::DenyVoucher => None,
         }
     }
 }
@@ -144,6 +145,7 @@ pub trait PrepaidCallsDispatcher {
     fn dispatch(
         account_id: Self::AccountId,
         sponsor_id: Self::AccountId,
+        voucher_id: VoucherId,
         call: PrepaidCall<Self::Balance>,
     ) -> DispatchResultWithPostInfo;
 }
@@ -217,4 +219,5 @@ pub enum PrepaidCall<Balance> {
     UploadCode {
         code: Vec<u8>,
     },
+    DenyVoucher,
 }

@@ -69,7 +69,10 @@ use frame_support::{
     traits::{ConstBool, Currency, ExistenceRequirement, Get, Randomness, StorageVersion},
     weights::Weight,
 };
-use frame_system::pallet_prelude::{BlockNumberFor, *};
+use frame_system::{
+    pallet_prelude::{BlockNumberFor, *},
+    RawOrigin,
+};
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
@@ -77,7 +80,7 @@ use gear_core::{
     percent::Percent,
 };
 use manager::{CodeInfo, QueuePostProcessingData};
-use pallet_gear_voucher::{PrepaidCall, PrepaidCallsDispatcher};
+use pallet_gear_voucher::{PrepaidCall, PrepaidCallsDispatcher, VoucherId};
 use primitive_types::H256;
 use sp_runtime::{
     traits::{Bounded, One, Saturating, UniqueSaturatedInto, Zero},
@@ -1774,10 +1777,11 @@ pub mod pallet {
         }
     }
 
-    /// WARN: Only implements gear calls for dispatches.
-    pub struct ExclusiveGearCallsDispatcher<T: Config>(PhantomData<T>);
+    /// Dispatcher for all types of prepaid calls.
+    /// For test purposes consider using [`ExclusiveGearCallsDispatcher`]
+    pub struct DefaultDispatcher<T: Config + pallet_gear_voucher::Config>(PhantomData<T>);
 
-    impl<T: Config> PrepaidCallsDispatcher for ExclusiveGearCallsDispatcher<T>
+    impl<T: Config + pallet_gear_voucher::Config> PrepaidCallsDispatcher for DefaultDispatcher<T>
     where
         T::AccountId: Origin,
     {
@@ -1795,12 +1799,14 @@ pub mod pallet {
                 PrepaidCall::UploadCode { code } => {
                     <T as Config>::WeightInfo::upload_code(code.len() as u32 / 1024)
                 }
+                PrepaidCall::DenyVoucher => T::DbWeight::get().reads_writes(2, 4),
             }
         }
 
         fn dispatch(
             account_id: Self::AccountId,
             sponsor_id: Self::AccountId,
+            voucher_id: VoucherId,
             call: PrepaidCall<Self::Balance>,
         ) -> DispatchResultWithPostInfo {
             match call {
@@ -1835,6 +1841,10 @@ pub mod pallet {
                     Some(sponsor_id),
                 ),
                 PrepaidCall::UploadCode { code } => Pallet::<T>::upload_code_impl(account_id, code),
+                PrepaidCall::DenyVoucher => pallet_gear_voucher::Pallet::<T>::deny(
+                    RawOrigin::Signed(account_id).into(),
+                    voucher_id,
+                ),
             }
         }
     }

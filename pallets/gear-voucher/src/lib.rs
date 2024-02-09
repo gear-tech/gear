@@ -330,7 +330,7 @@ pub mod pallet {
             Self::validate_prepaid(origin.clone(), voucher_id, &call)?;
 
             // Dispatching of the call.
-            T::CallsDispatcher::dispatch(origin, voucher_id.cast(), call)
+            T::CallsDispatcher::dispatch(origin, voucher_id.cast(), voucher_id, call)
         }
 
         /// Revoke existing voucher.
@@ -609,6 +609,10 @@ pub mod pallet {
                 !matches!(call, PrepaidCall::UploadCode { .. }),
                 Error::<T>::CodeUploadingDisabled
             );
+            ensure!(
+                !matches!(call, PrepaidCall::DenyVoucher),
+                Error::<T>::InexistentVoucher
+            );
 
             // Looking for sponsor synthetic account.
             #[allow(deprecated)]
@@ -616,7 +620,7 @@ pub mod pallet {
                 .ok_or(Error::<T>::UnknownDestination)?;
 
             // Dispatching call.
-            T::CallsDispatcher::dispatch(origin, sponsor, call)
+            T::CallsDispatcher::dispatch(origin, sponsor.clone(), sponsor.cast(), call)
         }
     }
 }
