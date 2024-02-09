@@ -98,7 +98,7 @@ impl<T: Config> Pallet<T> {
         );
 
         match call {
-            PrepaidCall::DenyVoucher => (),
+            PrepaidCall::DeclineVoucher => (),
             PrepaidCall::UploadCode { .. } => {
                 ensure!(voucher.code_uploading, Error::<T>::CodeUploadingDisabled)
             }
@@ -128,7 +128,7 @@ impl<T: Config> Pallet<T> {
             PrepaidCall::SendReply { reply_to_id, .. } => {
                 T::Mailbox::peek(who, reply_to_id).map(|stored_message| stored_message.source())
             }
-            PrepaidCall::UploadCode { .. } | PrepaidCall::DenyVoucher => None,
+            PrepaidCall::UploadCode { .. } | PrepaidCall::DeclineVoucher => None,
         }
     }
 }
@@ -219,5 +219,5 @@ pub enum PrepaidCall<Balance> {
     UploadCode {
         code: Vec<u8>,
     },
-    DenyVoucher,
+    DeclineVoucher,
 }

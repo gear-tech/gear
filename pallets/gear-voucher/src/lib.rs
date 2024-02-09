@@ -162,9 +162,9 @@ pub mod pallet {
             new_owner: Option<AccountIdOf<T>>,
         },
 
-        /// Voucher has been denied (set to expired state).
-        VoucherDenied {
-            /// Account id of user who denied its own voucher.
+        /// Voucher has been declined (set to expired state).
+        VoucherDeclined {
+            /// Account id of user who declined its own voucher.
             spender: AccountIdOf<T>,
             /// Voucher identifier.
             voucher_id: VoucherId,
@@ -556,16 +556,45 @@ pub mod pallet {
             Ok(().into())
         }
 
-        /// Deny existing and not expired voucher.
+        /// Legacy call for using irrevocable vouchers.
+        #[pallet::call_index(4)]
+        #[pallet::weight(T::CallsDispatcher::weight(call).saturating_add(T::DbWeight::get().reads(1)))]
+        pub fn call_deprecated(
+            origin: OriginFor<T>,
+            call: PrepaidCall<BalanceOf<T>>,
+        ) -> DispatchResultWithPostInfo {
+            // Ensuring origin.
+            let origin = ensure_signed(origin)?;
+
+            // Validating the call for legacy implementation.
+            ensure!(
+                !matches!(call, PrepaidCall::UploadCode { .. }),
+                Error::<T>::CodeUploadingDisabled
+            );
+            ensure!(
+                !matches!(call, PrepaidCall::DeclineVoucher),
+                Error::<T>::InexistentVoucher
+            );
+
+            // Looking for sponsor synthetic account.
+            #[allow(deprecated)]
+            let sponsor = Self::call_deprecated_sponsor(&origin, &call)
+                .ok_or(Error::<T>::UnknownDestination)?;
+
+            // Dispatching call.
+            T::CallsDispatcher::dispatch(origin, sponsor.clone(), sponsor.cast(), call)
+        }
+
+        /// Decline existing and not expired voucher.
         ///
         /// This extrinsic expires voucher of the caller, if it's still active,
         /// allowing it to be revoked.
         ///
         /// Arguments:
-        /// * voucher_id:   voucher id to be denied.
-        #[pallet::call_index(4)]
+        /// * voucher_id:   voucher id to be declined.
+        #[pallet::call_index(5)]
         #[pallet::weight(T::DbWeight::get().reads_writes(2, 4))]
-        pub fn deny(origin: OriginFor<T>, voucher_id: VoucherId) -> DispatchResultWithPostInfo {
+        pub fn decline(origin: OriginFor<T>, voucher_id: VoucherId) -> DispatchResultWithPostInfo {
             // Ensuring origin.
             let origin = ensure_signed(origin)?;
 
@@ -586,41 +615,12 @@ pub mod pallet {
             Vouchers::<T>::insert(origin.clone(), voucher_id, voucher);
 
             // Depositing event.
-            Self::deposit_event(Event::VoucherDenied {
+            Self::deposit_event(Event::VoucherDeclined {
                 spender: origin,
                 voucher_id,
             });
 
             Ok(().into())
-        }
-
-        /// Legacy call for using irrevocable vouchers.
-        #[pallet::call_index(5)]
-        #[pallet::weight(T::CallsDispatcher::weight(call).saturating_add(T::DbWeight::get().reads(1)))]
-        pub fn call_deprecated(
-            origin: OriginFor<T>,
-            call: PrepaidCall<BalanceOf<T>>,
-        ) -> DispatchResultWithPostInfo {
-            // Ensuring origin.
-            let origin = ensure_signed(origin)?;
-
-            // Validating the call for legacy implementation.
-            ensure!(
-                !matches!(call, PrepaidCall::UploadCode { .. }),
-                Error::<T>::CodeUploadingDisabled
-            );
-            ensure!(
-                !matches!(call, PrepaidCall::DenyVoucher),
-                Error::<T>::InexistentVoucher
-            );
-
-            // Looking for sponsor synthetic account.
-            #[allow(deprecated)]
-            let sponsor = Self::call_deprecated_sponsor(&origin, &call)
-                .ok_or(Error::<T>::UnknownDestination)?;
-
-            // Dispatching call.
-            T::CallsDispatcher::dispatch(origin, sponsor.clone(), sponsor.cast(), call)
         }
     }
 }

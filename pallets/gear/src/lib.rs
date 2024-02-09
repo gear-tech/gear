@@ -1799,7 +1799,7 @@ pub mod pallet {
                 PrepaidCall::UploadCode { code } => {
                     <T as Config>::WeightInfo::upload_code(code.len() as u32 / 1024)
                 }
-                PrepaidCall::DenyVoucher => T::DbWeight::get().reads_writes(2, 4),
+                PrepaidCall::DeclineVoucher => T::DbWeight::get().reads_writes(2, 4),
             }
         }
 
@@ -1841,7 +1841,7 @@ pub mod pallet {
                     Some(sponsor_id),
                 ),
                 PrepaidCall::UploadCode { code } => Pallet::<T>::upload_code_impl(account_id, code),
-                PrepaidCall::DenyVoucher => pallet_gear_voucher::Pallet::<T>::deny(
+                PrepaidCall::DeclineVoucher => pallet_gear_voucher::Pallet::<T>::decline(
                     RawOrigin::Signed(account_id).into(),
                     voucher_id,
                 ),

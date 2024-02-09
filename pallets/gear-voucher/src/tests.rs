@@ -772,7 +772,7 @@ fn voucher_update_err_cases() {
 }
 
 #[test]
-fn voucher_deny_works() {
+fn voucher_decline_works() {
     new_test_ext().execute_with(|| {
         assert_ok!(Voucher::issue(
             RuntimeOrigin::signed(ALICE),
@@ -785,10 +785,10 @@ fn voucher_deny_works() {
 
         let voucher_id = utils::get_last_voucher_id();
 
-        assert_ok!(Voucher::deny(RuntimeOrigin::signed(BOB), voucher_id));
+        assert_ok!(Voucher::decline(RuntimeOrigin::signed(BOB), voucher_id));
 
         System::assert_last_event(
-            Event::VoucherDenied {
+            Event::VoucherDeclined {
                 spender: BOB,
                 voucher_id,
             }
@@ -804,11 +804,11 @@ fn voucher_deny_works() {
 }
 
 #[test]
-fn voucher_deny_err_cases() {
+fn voucher_decline_err_cases() {
     new_test_ext().execute_with(|| {
         // Voucher doesn't exist.
         assert_noop!(
-            Voucher::deny(RuntimeOrigin::signed(BOB), H256::random().cast()),
+            Voucher::decline(RuntimeOrigin::signed(BOB), H256::random().cast()),
             Error::<Test>::InexistentVoucher
         );
 
@@ -827,7 +827,7 @@ fn voucher_deny_err_cases() {
         System::set_block_number(System::block_number() + 10 * DEFAULT_VALIDITY);
 
         assert_noop!(
-            Voucher::deny(RuntimeOrigin::signed(BOB), voucher_id),
+            Voucher::decline(RuntimeOrigin::signed(BOB), voucher_id),
             Error::<Test>::VoucherExpired
         );
     });
