@@ -47,7 +47,7 @@ pub use weights::WeightInfo;
 use alloc::{collections::BTreeMap, string::ToString};
 use core_processor::{
     common::{ActorExecutionErrorReplyReason, DispatchResult, JournalNote, TrapExplanation},
-    process_error, process_non_executable, process_success, SuccessfulDispatchResultKind,
+    process_execution_error, process_success, SuccessfulDispatchResultKind,
     SystemReservationContext,
 };
 use gear_core::{
@@ -239,99 +239,6 @@ pub mod pallet {
         pub fn generate_actor_id(builtin_id: BuiltinId) -> ProgramId {
             hash((SEED, builtin_id).encode().as_slice()).into()
         }
-
-        // pub fn process_success(
-        //     dispatch: &StoredDispatch,
-        //     gas_spent: u64,
-        //     response_bytes: Vec<u8>,
-        // ) -> Vec<JournalNote> {
-        //     let message_id = dispatch.id();
-        //     let origin = dispatch.source();
-        //     let actor_id = dispatch.destination();
-
-        //     let mut journal = vec![];
-
-        //     journal.push(JournalNote::GasBurned {
-        //         message_id,
-        //         amount: gas_spent,
-        //     });
-
-        //     // Build the reply message
-        //     let payload = response_bytes
-        //         .try_into()
-        //         .unwrap_or_else(|_| unreachable!("Response message is too large"));
-        //     let reply_id = MessageId::generate_reply(message_id);
-        //     let packet = ReplyPacket::new(payload, 0);
-        //     let dispatch = ReplyMessage::from_packet(reply_id, packet)
-        //         .into_dispatch(actor_id, origin, message_id);
-
-        //     journal.push(JournalNote::SendDispatch {
-        //         message_id,
-        //         dispatch,
-        //         delay: 0,
-        //         reservation: None,
-        //     });
-
-        //     let outcome = DispatchOutcome::Success;
-        //     journal.push(JournalNote::MessageDispatched {
-        //         message_id,
-        //         source: origin,
-        //         outcome,
-        //     });
-
-        //     journal.push(JournalNote::MessageConsumed(message_id));
-
-        //     journal
-        // }
-
-        // // Error in the actor, generates error reply
-        // pub fn process_error_1(
-        //     dispatch: &StoredDispatch,
-        //     gas_spent: u64,
-        //     err: BuiltinActorError,
-        // ) -> Vec<JournalNote> {
-        //     let message_id = dispatch.id();
-        //     let origin = dispatch.source();
-        //     let actor_id = dispatch.destination();
-
-        //     let mut journal = vec![];
-
-        //     journal.push(JournalNote::GasBurned {
-        //         message_id,
-        //         amount: gas_spent,
-        //     });
-
-        //     let err_payload = err
-        //         .to_string()
-        //         .into_bytes()
-        //         .try_into()
-        //         .unwrap_or_else(|_| unreachable!("Error message is too large"));
-        //     let err: ActorExecutionErrorReplyReason = err.into();
-
-        //     let dispatch = ReplyMessage::system(message_id, err_payload, err)
-        //         .into_dispatch(actor_id, origin, message_id);
-
-        //     journal.push(JournalNote::SendDispatch {
-        //         message_id,
-        //         dispatch,
-        //         delay: 0,
-        //         reservation: None,
-        //     });
-
-        //     let outcome = DispatchOutcome::MessageTrap {
-        //         program_id: actor_id,
-        //         trap: err.to_string(),
-        //     };
-        //     journal.push(JournalNote::MessageDispatched {
-        //         message_id,
-        //         source: origin,
-        //         outcome,
-        //     });
-
-        //     journal.push(JournalNote::MessageConsumed(message_id));
-
-        //     journal
-        // }
     }
 }
 
@@ -388,16 +295,10 @@ impl<T: Config> BuiltinRouter for BuiltinRegistry<T> {
         let builtin_message =
             <T::Message as TryFrom<StoredDispatch>>::try_from(dispatch.clone()).ok()?;
 
-        // Builtin actors can only execute `handle` dispatches; all other cases yield
-        // `no-execution` outcome.
+        // Builtin actors can only execute dispatches of `Handle` kind and only `Handle`
+        // dispatches can end up here (TODO: elaborate).
         if dispatch.kind() != DispatchKind::Handle {
-            let dispatch = dispatch.into_incoming(gas_limit);
-            let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
-            return Some(process_non_executable(
-                dispatch,
-                actor_id,
-                system_reservation_ctx,
-            ));
+            unreachable!("Only handle dispatches can end up here");
         }
 
         let mut gas_counter = GasCounter::new(gas_limit);
@@ -454,13 +355,12 @@ impl<T: Config> BuiltinRouter for BuiltinRegistry<T> {
             Err(err) => {
                 log::debug!(target: LOG_TARGET, "Builtin actor error: {:?}", err);
                 let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
-                Some(process_error(
+                Some(process_execution_error(
                     dispatch,
                     actor_id,
                     gas_spent,
                     system_reservation_ctx,
-                    err.into(),
-                    true,
+                    err,
                 ))
             }
         }
