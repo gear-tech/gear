@@ -463,6 +463,7 @@ impl pallet_gear_staking_rewards::Config for Runtime {
     type MinInflation = MinInflation;
     type MaxROI = MaxROI;
     type Falloff = Falloff;
+    type MaxFilteredAccounts = ConstU32<500>;
     type WeightInfo = pallet_gear_staking_rewards::weights::SubstrateWeight<Runtime>;
 }
 

@@ -64,7 +64,7 @@ use parity_scale_codec::{Decode, Encode};
 pub use scale_info::TypeInfo;
 use sp_runtime::{
     traits::{AccountIdConversion, Saturating, StaticLookup},
-    PerThing, Perquintill,
+    BoundedBTreeSet, PerThing, Perquintill,
 };
 use sp_std::{collections::btree_set::BTreeSet, vec::Vec};
 
@@ -105,7 +105,6 @@ pub mod pallet {
 
     #[pallet::pallet]
     #[pallet::storage_version(STORAGE_VERSION)]
-    #[pallet::without_storage_info]
     pub struct Pallet<T>(PhantomData<T>);
 
     #[pallet::config]
@@ -145,6 +144,9 @@ pub mod pallet {
         #[pallet::constant]
         type Falloff: Get<Perquintill>;
 
+        /// This is enforced in the code; the filtered accounts size can not exceed this limit.
+        type MaxFilteredAccounts: Get<u32>;
+
         /// Weight information for extrinsics in this pallet.
         type WeightInfo: WeightInfo;
     }
@@ -171,7 +173,8 @@ pub mod pallet {
     /// During the 1st year the non-stakeable amount is accounted for as a fixed fraction of TTS.
     #[pallet::storage]
     #[pallet::getter(fn filtered_accounts)]
-    pub type FilteredAccounts<T: Config> = StorageValue<_, BTreeSet<T::AccountId>, ValueQuery>;
+    pub type FilteredAccounts<T: Config> =
+        StorageValue<_, BoundedBTreeSet<T::AccountId, T::MaxFilteredAccounts>, ValueQuery>;
 
     #[pallet::genesis_config]
     #[derive(frame_support::DefaultNoBound)]
@@ -199,12 +202,9 @@ pub mod pallet {
             TargetInflation::<T>::put(self.target_inflation);
             IdealStakingRatio::<T>::put(self.ideal_stake);
             NonStakeableShare::<T>::put(self.non_stakeable);
-            FilteredAccounts::<T>::put(
-                self.filtered_accounts
-                    .iter()
-                    .cloned()
-                    .collect::<BTreeSet<_>>(),
-            );
+            let bounded_accounts =
+			BoundedBTreeSet::<T::AccountId, T::MaxFilteredAccounts>::try_from(self.filtered_accounts.iter().cloned().collect::<BTreeSet<_>>()).expect("Filtered accounts vec too big");
+            FilteredAccounts::<T>::put(bounded_accounts);
         }
     }
 
