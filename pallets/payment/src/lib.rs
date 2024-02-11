@@ -357,6 +357,5 @@ pub mod pallet {
     }
 
     #[pallet::pallet]
-    #[pallet::without_storage_info]
     pub struct Pallet<T>(_);
 }
