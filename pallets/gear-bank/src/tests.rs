@@ -419,7 +419,10 @@ fn spend_gas_different_users() {
 
         assert_bank_balance(ALICE_GAS - ALICE_BURN + BOB_GAS - BOB_BURN, 0);
 
-        assert_block_author_inc(gas_price(ALICE_BURN + BOB_BURN));
+        // We add +1 because of `BOB_BURN` (1388875) * 50% with mul_ceil will give 694438.
+        // But if we sum gas_price(ALICE_BURN + BOB_BURN) = 29166650 * 50% = 14583325 instead of 14583326.
+        // In fact, the block author's balance increases at the BOB_BURN step cuz of mul_ceil.
+        assert_block_author_inc(gas_price(ALICE_BURN + BOB_BURN) + 1);
 
         assert_alice_dec(gas_price(ALICE_GAS));
         assert_gas_value(&ALICE, ALICE_GAS - ALICE_BURN, 0);
@@ -494,7 +497,10 @@ fn spend_gas_all_balance_validator_account_deleted() {
         assert_bank_balance(0, 0);
 
         // mul ceil GAS_AMOUNT because of gas fee split 50%
-        assert_balance(&BLOCK_AUTHOR, Perbill::from_percent(50).mul_ceil(gas_price(GAS_AMOUNT)));
+        assert_balance(
+            &BLOCK_AUTHOR,
+            Perbill::from_percent(50).mul_ceil(gas_price(GAS_AMOUNT)),
+        );
 
         assert_alice_dec(gas_price(GAS_AMOUNT));
         assert_gas_value(&ALICE, 0, 0);
@@ -1514,7 +1520,10 @@ mod utils {
     #[track_caller]
     pub fn assert_block_author_inc(diff: Balance) {
         // mul ceil diff because of gas fee split 50%
-        assert_balance(&BLOCK_AUTHOR, EXISTENTIAL_DEPOSIT + Perbill::from_percent(50).mul_ceil(diff))
+        assert_balance(
+            &BLOCK_AUTHOR,
+            EXISTENTIAL_DEPOSIT + Perbill::from_percent(50).mul_ceil(diff),
+        )
     }
 
     // Asserts Charlie balance inc.

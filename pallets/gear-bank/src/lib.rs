@@ -66,7 +66,7 @@ pub mod pallet {
     use pallet_authorship::Pallet as Authorship;
     use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
     use scale_info::TypeInfo;
-    use sp_runtime::{traits::Zero, PerThing, Perbill};
+    use sp_runtime::{traits::Zero, Perbill};
 
     // Funds pallet struct itself.
     #[pallet::pallet]
@@ -252,10 +252,10 @@ pub mod pallet {
 
         /// Transfers value from bank address to current block author.
         fn reward_block_author(value: BalanceOf<T>) -> Result<(), Error<T>> {
-            // for gas, 50% to treasury, 50% to author
+            // for gas, `SplitFee` goes to treasury else to author
             let split = T::SplitFee::get();
-            let to_author = split.mul_ceil(value);
-            let to_treasury = value - to_author;
+            let to_treasury = split.mul_floor(value);
+            let to_author = value - to_treasury;
             let block_author = Authorship::<T>::author()
                 .unwrap_or_else(|| unreachable!("Failed to find block author!"));
 
