@@ -950,6 +950,8 @@ pub mod runtime_types {
                     InactiveProgram,
                     #[codec(index = 3)]
                     RemovedFromWaitlist,
+                    #[codec(index = 4)]
+                    ReinstrumentationFailure,
                     #[codec(index = 255)]
                     Unsupported,
                 }

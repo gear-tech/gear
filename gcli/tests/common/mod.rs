@@ -101,7 +101,7 @@ pub fn alice_account_id() -> AccountId32 {
 pub async fn create_messager() -> Result<Node> {
     let node = dev()?;
 
-    let args = Args::new("upload").program(env::wasm_bin("demo_messager.opt.wasm"));
+    let args = Args::new("upload").program(env::wasm_bin("demo_messenger.opt.wasm"));
     let _ = node.run(args)?;
 
     Ok(node)
