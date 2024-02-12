@@ -262,7 +262,7 @@ fn validators_rewards_disbursement_works() {
                 .saturating_sub(pool_balance)
         );
 
-        let era_duration_in_millis = era_duration * u64::from(MILLISECS_PER_BLOCK);
+        let era_duration_in_millis = era_duration * MILLISECS_PER_BLOCK;
         let era_time_fraction =
             Perquintill::from_rational(era_duration_in_millis, MILLISECONDS_PER_YEAR);
 
@@ -428,7 +428,7 @@ fn nominators_rewards_disbursement_works() {
             (non_stakeable.left_from_one() * initial_total_issuance).saturating_sub(pool_balance)
         );
 
-        let era_duration_in_millis = era_duration * u64::from(MILLISECS_PER_BLOCK);
+        let era_duration_in_millis = era_duration * MILLISECS_PER_BLOCK;
         let era_time_fraction =
             Perquintill::from_rational(era_duration_in_millis, MILLISECONDS_PER_YEAR);
 
@@ -769,7 +769,7 @@ fn inflation_at_ideal_staked_adds_up() {
             (non_stakeable.left_from_one() * initial_total_issuance).saturating_sub(pool_balance)
         );
 
-        let era_duration_in_millis = era_duration * u64::from(MILLISECS_PER_BLOCK);
+        let era_duration_in_millis = era_duration * MILLISECS_PER_BLOCK;
 
         // Bond and nominate
         run_to_block(10);
@@ -905,7 +905,7 @@ fn inflation_when_nobody_stakes_adds_up() {
             (non_stakeable.left_from_one() * initial_total_issuance).saturating_sub(pool_balance)
         );
 
-        let era_duration_in_millis = era_duration * u64::from(MILLISECS_PER_BLOCK);
+        let era_duration_in_millis = era_duration * MILLISECS_PER_BLOCK;
 
         // Bond and nominate
         run_to_block(10);
@@ -1051,7 +1051,7 @@ fn inflation_with_too_many_stakers_adds_up() {
             (non_stakeable.left_from_one() * initial_total_issuance).saturating_sub(pool_balance)
         );
 
-        let era_duration_in_millis = era_duration * u64::from(MILLISECS_PER_BLOCK);
+        let era_duration_in_millis = era_duration * MILLISECS_PER_BLOCK;
 
         // Bond and nominate
         run_to_block(10);
@@ -1171,7 +1171,7 @@ fn unclaimed_rewards_burn() {
             chain_state();
         let initial_validators_balance = validators_total_balance();
 
-        let era_duration_in_millis = era_duration * u64::from(MILLISECS_PER_BLOCK);
+        let era_duration_in_millis = era_duration * MILLISECS_PER_BLOCK;
 
         // Bond and nominate
         run_to_block(10);

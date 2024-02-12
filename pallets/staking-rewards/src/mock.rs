@@ -71,7 +71,7 @@ pub(crate) const ENDOWMENT: u128 = 100 * UNITS;
 
 pub(crate) const UNITS: u128 = 100_000; // 10^(-5) precision
 pub(crate) const MILLISECONDS_PER_YEAR: u64 = 1_000 * 3_600 * 24 * 36_525 / 100;
-pub(crate) const MILLISECS_PER_BLOCK: u32 = 2_400;
+pub(crate) const MILLISECS_PER_BLOCK: u64 = 2_400;
 pub(crate) const SESSION_DURATION: u64 = 1000;
 
 // Configure a mock runtime to test the pallet.
@@ -706,7 +706,7 @@ where
     T: pallet_session::Config,
     T: pallet_election_provider_multi_phase::Config,
 {
-    let moment: <T as pallet_timestamp::Config>::Moment = MILLISECS_PER_BLOCK.into();
+    let moment = <T as pallet_timestamp::Config>::Moment::from(MILLISECS_PER_BLOCK as u32);
     pallet_timestamp::Pallet::<T>::set_timestamp(moment.mul(new_block_number));
     pallet_authorship::Pallet::<T>::on_initialize(new_block_number);
     pallet_staking::Pallet::<T>::on_initialize(new_block_number);
