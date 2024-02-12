@@ -1491,7 +1491,7 @@ fn rent_pool_disbursments_work() {
         run_to_block(era_duration + 1);
 
         // some remaining value cannot be distributed between validators so goes to the next era
-        assert_eq!(StakingRewards::rent_pool_free_balance(), 1);
+        assert_eq!(StakingRewards::rent_pool_balance(), 1);
         // the third validator doesn't produce any blocks
         assert_eq!(
             free_balance_validator_3,

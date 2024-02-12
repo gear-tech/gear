@@ -192,7 +192,7 @@ pub mod pallet {
                 .pool_balance
                 .saturating_add(T::Currency::minimum_balance());
             if T::Currency::free_balance(&account_id) < amount {
-                // Set the stakinig rewards pool account balance to the initial value.
+                // Set the staking rewards pool account balance to the initial value.
                 // Dropping the resulting imbalance as the funds are minted out of thin air.
                 let _ = T::Currency::make_free_balance_be(&account_id, amount);
             }
@@ -402,7 +402,7 @@ pub mod pallet {
 
         /// Return the amount in the rent pool.
         // The existential deposit is not a part of the pool so the account never gets deleted.
-        pub fn rent_pool_free_balance() -> BalanceOf<T> {
+        pub fn rent_pool_balance() -> BalanceOf<T> {
             T::Currency::free_balance(&Self::rent_pool_account_id())
                 // Must never be less than 0 but better be safe.
                 .saturating_sub(T::Currency::minimum_balance())
@@ -416,6 +416,7 @@ pub mod pallet {
     }
 }
 
+// TODO: consider to optimize the process #3729
 fn pay_rent_rewards_out<T: Config>(maybe_active_era_info: Option<ActiveEraInfo>) {
     let Some(active_era_info) = maybe_active_era_info else {
         return;
@@ -427,20 +428,17 @@ fn pay_rent_rewards_out<T: Config>(maybe_active_era_info: Option<ActiveEraInfo>)
         return;
     }
 
-    let funds: u128 = pallet::Pallet::<T>::rent_pool_free_balance().unique_saturated_into();
+    let funds: u128 = pallet::Pallet::<T>::rent_pool_balance().unique_saturated_into();
     for (account_id, points) in reward_points.individual {
         let payout = funds.saturating_mul(u128::from(points)) / total;
         if payout > 0 {
-            let result = CurrencyOf::<T>::transfer(
+            CurrencyOf::<T>::transfer(
                 &pallet::Pallet::<T>::rent_pool_account_id(),
                 &account_id,
                 payout.unique_saturated_into(),
                 ExistenceRequirement::KeepAlive,
-            );
-
-            if result.is_err() {
-                log::debug!("Failed to transfer rent reward, account_id = {account_id:#?}, points = {points}, payout = {payout}");
-            }
+            )
+            .unwrap_or_else(|e| unreachable!("Failed to transfer rent reward: {e:?}; account_id = {account_id:#?}, points = {points}, payout = {payout}"));
         }
     }
 }
