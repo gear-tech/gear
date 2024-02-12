@@ -259,6 +259,7 @@ pub mod pallet {
         type ProgramRentDisabledDelta: Get<BlockNumberFor<Self>>;
 
         /// The account id of the rent pool if any.
+        #[pallet::constant]
         type RentPoolId: Get<Option<AccountIdOf<Self>>>;
     }
 

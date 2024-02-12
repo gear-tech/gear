@@ -28,7 +28,7 @@ macro_rules! impl_config {
         #[allow(dead_code)]
         type GearConfigSchedule = ();
         #[allow(dead_code)]
-        type GearRentPoolId = sp_runtime::traits::GetDefault;
+        type GearRentPoolId = ();
 
         mod pallet_tests_gear_config_impl {
             use super::*;

@@ -103,6 +103,14 @@ pub mod pallet {
     /// The current storage version.
     const STORAGE_VERSION: StorageVersion = StorageVersion::new(2);
 
+    pub struct RentPoolId<T: Config>(PhantomData<T>);
+
+    impl<T: Config> Get<Option<<T as frame_system::Config>::AccountId>> for RentPoolId<T> {
+        fn get() -> Option<<T as frame_system::Config>::AccountId> {
+            Some(Pallet::<T>::rent_pool_account_id())
+        }
+    }
+
     #[pallet::pallet]
     #[pallet::storage_version(STORAGE_VERSION)]
     #[pallet::without_storage_info]
@@ -406,12 +414,6 @@ pub mod pallet {
             T::Currency::free_balance(&Self::rent_pool_account_id())
                 // Must never be less than 0 but better be safe.
                 .saturating_sub(T::Currency::minimum_balance())
-        }
-    }
-
-    impl<T: Config> Get<Option<<T as frame_system::Config>::AccountId>> for Pallet<T> {
-        fn get() -> Option<<T as frame_system::Config>::AccountId> {
-            Some(Self::rent_pool_account_id())
         }
     }
 }
