@@ -21,6 +21,7 @@ use common::{
     storage::{Counter, CounterImpl, Mailbox},
     Origin,
 };
+use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{declare_id, ids};
 use sp_std::collections::btree_set::BTreeSet;
 
@@ -67,6 +68,22 @@ where
 }
 
 impl<T: Config> Pallet<T> {
+    /// Queries a voucher and asserts its validity.
+    pub fn get_active_voucher(
+        origin: AccountIdOf<T>,
+        voucher_id: VoucherId,
+    ) -> Result<VoucherInfo<AccountIdOf<T>, BlockNumberFor<T>>, Error<T>> {
+        let voucher =
+            Vouchers::<T>::get(origin.clone(), voucher_id).ok_or(Error::<T>::InexistentVoucher)?;
+
+        ensure!(
+            <frame_system::Pallet<T>>::block_number() < voucher.expiry,
+            Error::<T>::VoucherExpired
+        );
+
+        Ok(voucher)
+    }
+
     /// Return the account id of a synthetical account used to sponsor gas
     /// and transaction fee for legacy vouchers implementation.
     #[deprecated = "Legacy voucher issuing logic is deprecated, and this and \
@@ -89,13 +106,7 @@ impl<T: Config> Pallet<T> {
         voucher_id: VoucherId,
         call: &PrepaidCall<BalanceOf<T>>,
     ) -> Result<(), Error<T>> {
-        let voucher =
-            Vouchers::<T>::get(origin.clone(), voucher_id).ok_or(Error::<T>::InexistentVoucher)?;
-
-        ensure!(
-            <frame_system::Pallet<T>>::block_number() < voucher.expiry,
-            Error::<T>::VoucherExpired
-        );
+        let voucher = Self::get_active_voucher(origin.clone(), voucher_id)?;
 
         match call {
             PrepaidCall::DeclineVoucher => (),

@@ -597,18 +597,11 @@ pub mod pallet {
             // Ensuring origin.
             let origin = ensure_signed(origin)?;
 
-            // Querying voucher.
-            let mut voucher = Vouchers::<T>::get(origin.clone(), voucher_id)
-                .ok_or(Error::<T>::InexistentVoucher)?;
-
-            // Querying current block number.
-            let current_bn = <frame_system::Pallet<T>>::block_number();
-
-            // Validating that voucher is not expired.
-            ensure!(current_bn < voucher.expiry, Error::<T>::VoucherExpired);
+            // Querying voucher if its not expired.
+            let mut voucher = Self::get_active_voucher(origin.clone(), voucher_id)?;
 
             // Set voucher into expired state.
-            voucher.expiry = current_bn;
+            voucher.expiry = <frame_system::Pallet<T>>::block_number();
 
             // Updating voucher in storage.
             // TODO: consider revoke here once gas counting implemented (#3726).
