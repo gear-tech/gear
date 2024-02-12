@@ -45,7 +45,7 @@ use frame_support::{
 };
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
-    code::{self, Code, CodeError},
+    code::{self, Code, CodeError, ExportError},
     ids::{CodeId, MessageId, ProgramId},
     message::UserStoredMessage,
     pages::{PageNumber, PageU32Size, WasmPage},
@@ -12925,7 +12925,7 @@ fn wrong_entry_type() {
                 |_| ConstantCostRules::default(),
                 None
             ),
-            CodeError::InvalidExportFnSignature
+            CodeError::Export(ExportError::InvalidExportFnSignature(0))
         );
     });
 }

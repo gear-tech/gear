@@ -22,7 +22,7 @@ use crate::parity_wasm::elements::{FunctionType, ValueType};
 use alloc::{
     borrow::ToOwned,
     collections::{BTreeMap, BTreeSet},
-    string::{String, ToString},
+    string::String,
     vec::Vec,
 };
 use core::iter;
@@ -248,7 +248,7 @@ impl SyscallName {
     pub fn instrumentable_map() -> BTreeMap<String, SyscallName> {
         Self::instrumentable()
             .into_iter()
-            .map(|n| (n.to_str().to_string(), n))
+            .map(|syscall| (syscall.to_str().into(), syscall))
             .collect()
     }
 
