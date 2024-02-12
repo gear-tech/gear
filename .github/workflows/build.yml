@@ -123,7 +123,7 @@ jobs:
       - name: "Test: Benchmarks in native"
         run: |
           # fast benchmark tests before long run
-          cargo test -p "pallet-*" --features runtime-benchmarks,runtime-benchmarks-checkers --locked ${{ matrix.profile_flags }}
+          cargo test -p "pallet-*" --features runtime-benchmarks,runtime-benchmarks-checkers --locked ${{ matrix.profile_flags }} bench
 
       - name: "Test: Benchmarks in WASM"
         # unoptimized benchmarks take a few hours to run
