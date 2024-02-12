@@ -705,13 +705,19 @@ pub mod runtime_types {
             }
             pub mod code {
                 use super::runtime_types;
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-                pub struct InstrumentedCode {
-                    pub code: ::std::vec::Vec<::core::primitive::u8>,
-                    pub original_code_len: ::core::primitive::u32,
-                    pub exports: ::std::vec::Vec<runtime_types::gear_core::message::DispatchKind>,
-                    pub static_pages: runtime_types::gear_core::pages::WasmPage,
-                    pub version: ::core::primitive::u32,
+                pub mod instrumented {
+                    use super::runtime_types;
+                    #[derive(
+                        Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
+                    )]
+                    pub struct InstrumentedCode {
+                        pub code: ::std::vec::Vec<::core::primitive::u8>,
+                        pub original_code_len: ::core::primitive::u32,
+                        pub exports:
+                            ::std::vec::Vec<runtime_types::gear_core::message::DispatchKind>,
+                        pub static_pages: runtime_types::gear_core::pages::WasmPage,
+                        pub version: ::core::primitive::u32,
+                    }
                 }
             }
             pub mod ids {
