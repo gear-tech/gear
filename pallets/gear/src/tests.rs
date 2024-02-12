@@ -55,7 +55,7 @@ use common::{
 };
 use core_processor::{common::ActorExecutionErrorReplyReason, ActorPrepareMemoryError};
 use frame_support::{
-    assert_err, assert_noop, assert_ok,
+    assert_noop, assert_ok,
     codec::{Decode, Encode},
     dispatch::Dispatchable,
     sp_runtime::traits::{TypedGet, Zero},
@@ -9564,7 +9564,7 @@ fn missing_handle_is_not_executed() {
 }
 
 #[test]
-fn invalid_memory_page_count_rejected() {
+fn invalid_memory_page_amount_rejected() {
     let wat = format!(
         r#"
     (module
@@ -9572,7 +9572,7 @@ fn invalid_memory_page_count_rejected() {
         (export "init" (func $init))
         (func $init)
     )"#,
-        code::MAX_WASM_PAGE_COUNT + 1
+        code::MAX_WASM_PAGE_AMOUNT + 1
     );
 
     init_logger();
@@ -12867,14 +12867,85 @@ fn relay_messages() {
 }
 
 #[test]
+fn wasm_data_section_out_of_static_memory() {
+    let wat1 = r#"
+        (module
+            (import "env" "memory" (memory 1))
+            (export "init" (func $init))
+            (func $init)
+            (data (;0;) (i32.const 0x10000) "gear")
+        )
+    "#;
+
+    let wat2 = r#"
+        (module
+            (import "env" "memory" (memory 1))
+            (export "init" (func $init))
+            (func $init)
+            (data (;0;) (i32.const 0xfffd) "gear")
+        )
+    "#;
+
+    let wat3 = r#"
+        (module
+            (import "env" "memory" (memory 0x10000)) ;; 4GB static memory
+            (export "init" (func $init))
+            (func $init)
+            (data (;0;) (i32.const 0xffffffff) "gear")
+        )
+    "#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            ProgramCodeKind::Custom(wat1).to_bytes(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            50_000_000_000,
+            0,
+            false,
+        )
+        .expect_err("Must be error, because data segment offset is out of static memory bounds");
+
+        Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            ProgramCodeKind::Custom(wat2).to_bytes(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            50_000_000_000,
+            0,
+            false,
+        )
+        .expect_err(
+            "Must be error, because data segment last byte offset is out of static memory bounds",
+        );
+
+        Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            ProgramCodeKind::Custom(wat3).to_bytes(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            50_000_000_000,
+            0,
+            false,
+        )
+        .expect_err(
+            "Must be error, because data segment last byte offset is out of 32 bit address space",
+        );
+    });
+}
+
+#[test]
 fn module_instantiation_error() {
+    // Unknown global import leads to instantiation error.
     let wat = r#"
-    (module
-        (import "env" "memory" (memory 1))
-        (export "init" (func $init))
-        (func $init)
-        (data (;0;) (i32.const -15186172) "\b9w\92")
-    )
+        (module
+            (import "env" "memory" (memory 1))
+            (import "env" "unknown" (global $unknown i32))
+            (export "init" (func $init))
+            (func $init)
+        )
     "#;
 
     init_logger();
@@ -12882,7 +12953,7 @@ fn module_instantiation_error() {
         let code = ProgramCodeKind::Custom(wat).to_bytes();
         let salt = DEFAULT_SALT.to_vec();
         let prog_id = generate_program_id(&code, &salt);
-        let res = Gear::upload_program(
+        Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
             code,
             salt,
@@ -12891,10 +12962,9 @@ fn module_instantiation_error() {
             0,
             false,
         )
-        .map(|_| prog_id);
-        let mid = get_last_message_id();
+        .unwrap();
 
-        assert_ok!(res);
+        let mid = get_last_message_id();
 
         run_to_next_block(None);
 
@@ -12916,15 +12986,15 @@ fn wrong_entry_type() {
 
     init_logger();
     new_test_ext().execute_with(|| {
-        assert_err!(
+        assert!(matches!(
             Code::try_new(
                 ProgramCodeKind::Custom(wat).to_bytes(),
                 1,
                 |_| ConstantCostRules::default(),
                 None
             ),
-            CodeError::Export(ExportError::InvalidExportFnSignature(0))
-        );
+            Err(CodeError::Export(ExportError::InvalidExportFnSignature(0)))
+        ));
     });
 }
 

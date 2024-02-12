@@ -32,7 +32,7 @@ mod utils;
 
 pub use errors::*;
 pub use instrumented::*;
-pub use utils::{ALLOWED_EXPORTS, MAX_WASM_PAGE_COUNT, REQUIRED_EXPORTS};
+pub use utils::{ALLOWED_EXPORTS, MAX_WASM_PAGE_AMOUNT, REQUIRED_EXPORTS};
 
 /// Contains instrumented binary code of a program and initial memory size from memory import.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -68,6 +68,8 @@ pub struct TryNewCodeConfig {
     pub check_mut_global_exports: bool,
     /// Check start section (not allowed for programs)
     pub check_start_section: bool,
+    /// Check data section
+    pub check_data_section: bool,
     /// Make wasmparser validation
     pub make_validation: bool,
 }
@@ -83,6 +85,7 @@ impl Default for TryNewCodeConfig {
             check_and_canonize_stack_end: true,
             check_mut_global_exports: true,
             check_start_section: true,
+            check_data_section: true,
             make_validation: true,
         }
     }
@@ -110,20 +113,20 @@ impl Code {
         GetRulesFn: FnMut(&Module) -> R,
     {
         if config.make_validation {
-            wasmparser::validate(&original_code).map_err(|err| {
-                log::trace!("Wasm validation failed: {err}");
-                CodeError::Validation
-            })?;
+            wasmparser::validate(&original_code).map_err(CodeError::Validation)?;
         }
 
-        let mut module: Module =
-            parity_wasm::deserialize_buffer(&original_code).map_err(|err| {
-                log::trace!("The wasm bytecode is failed to be decoded: {err}");
-                CodeError::Decode
-            })?;
+        let mut module =
+            parity_wasm::deserialize_buffer(&original_code).map_err(CodecError::Decode)?;
 
+        // Canonize stack end before any changes in module
         if config.check_and_canonize_stack_end {
             utils::check_and_canonize_gear_stack_end(&mut module)?;
+        }
+
+        // Not changing steps
+        if config.check_data_section {
+            utils::check_data_section(&module, config.check_and_canonize_stack_end)?;
         }
         if config.check_mut_global_exports {
             utils::check_mut_global_exports(&module)?;
@@ -131,38 +134,28 @@ impl Code {
         if config.check_start_section {
             utils::check_start_section(&module)?;
         }
-
-        let static_pages = utils::get_static_pages(&module)?;
-
         if config.check_exports {
             utils::check_exports(&module)?;
         }
-
         if config.check_imports {
             utils::check_imports(&module)?;
         }
 
+        // Get exports set before instrumentations.
         let exports = utils::get_exports(&module);
 
         let mut instrumentation_builder = InstrumentationBuilder::new("env");
-
         if let Some(stack_limit) = config.stack_height {
             instrumentation_builder.with_stack_limiter(stack_limit, config.export_stack_height);
         }
-
         if let Some(get_gas_rules) = get_gas_rules {
             instrumentation_builder.with_gas_limiter(get_gas_rules);
         }
+        module = instrumentation_builder.instrument(module)?;
 
-        module = instrumentation_builder.instrument(module).map_err(|err| {
-            log::trace!("Failed to instrument program: {err}");
-            CodeError::Instrumentation(err)
-        })?;
+        let static_pages = utils::get_static_pages(&module)?;
 
-        let code = parity_wasm::elements::serialize(module).map_err(|err| {
-            log::trace!("Failed to encode instrumented program: {err}");
-            CodeError::Encode
-        })?;
+        let code = parity_wasm::elements::serialize(module).map_err(CodecError::Encode)?;
 
         Ok(Self {
             code,
@@ -396,10 +389,10 @@ mod tests {
 
         let original_code = wat2wasm(WAT);
 
-        assert_eq!(
+        assert!(matches!(
             Code::try_new(original_code, 1, |_| ConstantCostRules::default(), None),
             Err(CodeError::Export(ExportError::ExcessExport(0)))
-        );
+        ));
     }
 
     #[test]
@@ -414,10 +407,10 @@ mod tests {
 
         let original_code = wat2wasm(WAT);
 
-        assert_eq!(
+        assert!(matches!(
             Code::try_new(original_code, 1, |_| ConstantCostRules::default(), None),
             Err(CodeError::Export(ExportError::RequiredExportNotFound))
-        );
+        ));
     }
 
     #[test]

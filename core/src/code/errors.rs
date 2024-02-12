@@ -18,7 +18,8 @@
 
 //! Module that describes various code errors.
 
-use gear_wasm_instrument::InstrumentationError;
+use gear_wasm_instrument::{parity_wasm::SerializationError, InstrumentationError};
+use wasmparser::BinaryReaderError;
 
 /// Section name in WASM module.
 #[derive(Debug, PartialEq, Eq, derive_more::Display)]
@@ -65,23 +66,29 @@ pub enum MemoryError {
 /// Stack end error in WASM module.
 #[derive(Debug, PartialEq, Eq, derive_more::Display)]
 pub enum StackEndError {
-    /// Can't insert new global due to index overflow in global section.
-    #[display(fmt = "Can't insert new global due to index overflow")]
-    GlobalIndexOverflow,
-    /// Pointer to the stack end overlaps data segment.
-    #[display(fmt = "Pointer to the stack end overlaps data segment")]
-    StackEndOverlaps,
-}
-
-/// Initialization error in WASM module.
-#[derive(Debug, PartialEq, Eq, derive_more::Display)]
-pub enum InitializationError {
     /// Unsupported initialization of gear stack end global variable.
     #[display(fmt = "Unsupported initialization of gear stack end global variable")]
-    StackEnd,
+    Initialization,
+    /// Too many globals to create new global for stack end.
+    #[display(fmt = "Too many globals to create new global for stack end")]
+    GlobalIndexOverflow,
+}
+
+/// Stack end error in WASM module.
+#[derive(Debug, PartialEq, Eq, derive_more::Display)]
+pub enum DataSectionError {
     /// Unsupported initialization of data segment.
     #[display(fmt = "Unsupported initialization of data segment")]
-    DataSegment,
+    Initialization,
+    /// Data section overlaps user stack.
+    #[display(fmt = "Data segment {_0:#x} overlaps user stack: {_1:#x}")]
+    UserStackOverlaps(u32, u32),
+    /// Data segment end address is out of possible 32 bits address space.
+    #[display(fmt = "Data segment {_0:#x} ends out of possible 32 bits address space")]
+    EndAddressOverflow(u32),
+    /// Data segment end address is out of static memory.
+    #[display(fmt = "Data segment {_0:#x} end address {_1:#x} is out of static memory {_2:?}")]
+    EndAddressOutOfStaticMemory(u32, u32, u32),
 }
 
 /// Export error in WASM module.
@@ -121,18 +128,25 @@ pub enum ImportError {
     InvalidImportFnSignature(u32),
 }
 
+/// Module encode/decode error.
+#[derive(Debug, derive_more::Display)]
+pub enum CodecError {
+    /// The wasm bytecode is failed to be decoded
+    #[display(fmt = "The wasm bytecode is failed to be decoded: {_0}")]
+    Decode(SerializationError),
+    /// Failed to encode instrumented program: {_0}
+    #[display(fmt = "Failed to encode instrumented program: {_0}")]
+    Encode(SerializationError),
+}
+
 /// Describes why the code is not valid Gear program.
-#[derive(Debug, PartialEq, Eq, derive_more::Display, derive_more::From)]
+#[derive(Debug, derive_more::Display, derive_more::From)]
 pub enum CodeError {
     /// Validation by wasmparser failed.
     #[display(fmt = "Wasm validation failed")]
-    Validation,
-    /// Error occurred during decoding original program code.
-    #[display(fmt = "The wasm bytecode is failed to be decoded")]
-    Decode,
-    /// Error occurred during encoding instrumented program.
-    #[display(fmt = "Failed to encode instrumented program")]
-    Encode,
+    Validation(BinaryReaderError),
+    /// Module encode/decode error.
+    Codec(CodecError),
     /// The provided code contains section error.
     #[display(fmt = "Section error: {_0}")]
     Section(SectionError),
@@ -142,9 +156,9 @@ pub enum CodeError {
     /// The provided code contains stack end error.
     #[display(fmt = "Stack end error: {_0}")]
     StackEnd(StackEndError),
-    /// The provided code contains initialization error.
-    #[display(fmt = "Initialization error: {_0}")]
-    Initialization(InitializationError),
+    /// The provided code contains data section error.
+    #[display(fmt = "Data section error: {_0}")]
+    DataSection(DataSectionError),
     /// The provided code contains export error.
     #[display(fmt = "Export error: {_0}")]
     Export(ExportError),

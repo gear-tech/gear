@@ -1107,7 +1107,7 @@ pub mod pallet {
                 schedule.limits.stack_height,
             )
             .map_err(|e| {
-                log::debug!("Code failed to load: {:?}", e);
+                log::debug!("Code checking or instrumentation failed: {e:?}");
                 Error::<T>::ProgramConstructionFailed
             })?;
 
