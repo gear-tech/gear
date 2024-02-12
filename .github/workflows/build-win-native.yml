@@ -21,7 +21,7 @@ jobs:
     strategy:
       matrix: ${{ fromJson(inputs.matrix) }}
       fail-fast: false
-    name: win-native (${{ matrix.cargo_target_dir }})
+    name: win-native (${{ matrix.profile }})
     defaults:
       run:
         shell: msys2 {0}

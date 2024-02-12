@@ -41,9 +41,9 @@ jobs:
     steps:
       - id: set-matrix
         run: |
-          variants='{"cargo_profile": "", "cargo_target_dir": "debug"}'
+          variants='{"profile": "debug", "profile_flags": ""}'
           if [ "${{ inputs.release }}" = "true" ]; then
-            variants+=', {"cargo_profile": "--release", "cargo_target_dir": "release"}'
+            variants+=', {"profile": "release", "profile_flags": "--release"}'
           fi
           matrix="{\"include\": [${variants}]}"
           echo "Matrix: ${matrix}"
@@ -55,7 +55,7 @@ jobs:
     strategy:
       matrix: ${{ fromJson(needs.matrix.outputs.matrix) }}
       fail-fast: false
-    name: linux (${{ matrix.cargo_target_dir }})
+    name: linux (${{ matrix.profile }})
     env:
       LLVM_PROFILE_FILE: "gear-%p-%m.profraw"
       RUSTUP_HOME: /tmp/rustup_home
@@ -95,68 +95,68 @@ jobs:
         run: ./scripts/gear.sh build node --release --locked
 
       - name: "Build: Gear"
-        run: ./scripts/gear.sh build gear --locked ${{ matrix.cargo_profile }}
+        run: ./scripts/gear.sh build gear --locked ${{ matrix.profile_flags }}
 
       - name: "Build fuzzer"
-        run: ./scripts/gear.sh build fuzz --locked ${{ matrix.cargo_profile }}
+        run: ./scripts/gear.sh build fuzz --locked ${{ matrix.profile_flags }}
 
       - name: "Check: Vara runtime imports"
-        run: ./target/${{ matrix.cargo_target_dir }}/wasm-proc --check-runtime-imports target/release/wbuild/vara-runtime/vara_runtime.compact.wasm
+        run: ./target/${{ matrix.profile }}/wasm-proc --check-runtime-imports target/release/wbuild/vara-runtime/vara_runtime.compact.wasm
 
       - name: "Check: Stack height limit"
         run: cargo run -p calc-stack-height --release --locked
 
       - name: "Test: Gear workspace"
-        run: ./scripts/gear.sh test gear --exclude gclient --exclude gcli --exclude gsdk --locked ${{ matrix.cargo_profile }}
+        run: ./scripts/gear.sh test gear --exclude gclient --exclude gcli --exclude gsdk --locked ${{ matrix.profile_flags }}
 
       - name: "Test: gsdk tests"
-        run: ./scripts/gear.sh test gsdk ${{ matrix.cargo_profile }}
+        run: ./scripts/gear.sh test gsdk ${{ matrix.profile_flags }}
 
       - name: "Test: `gcli`"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: ./scripts/gear.sh test gcli --locked --retries 3 ${{ matrix.cargo_profile }}
+        run: ./scripts/gear.sh test gcli --locked --retries 3 ${{ matrix.profile_flags }}
 
       - name: "Test: Client tests"
-        run: ./scripts/gear.sh test client ${{ matrix.cargo_profile }}
+        run: ./scripts/gear.sh test client ${{ matrix.profile_flags }}
 
       - name: "Test: Benchmarks in native"
         run: |
           # fast benchmark tests before long run
-          cargo test -p "pallet-*" --features runtime-benchmarks,runtime-benchmarks-checkers --locked ${{ matrix.cargo_profile }}
+          cargo test -p "pallet-*" --features runtime-benchmarks,runtime-benchmarks-checkers --locked ${{ matrix.profile_flags }}
 
       - name: "Test: Benchmarks in WASM"
         # unoptimized benchmarks take a few hours to run
         if: ${{ matrix.cargo_profile == "--release" }}
         run: |
-          cargo build -p gear-cli --features=runtime-benchmarks,runtime-benchmarks-checkers ${{ matrix.cargo_profile }}
+          cargo build -p gear-cli --features=runtime-benchmarks,runtime-benchmarks-checkers ${{ matrix.profile_flags }}
           # check that perf benchmarks works. `--steps=5` need to test, that benchmarks works for different input number.
-          ./target/${{ matrix.cargo_target_dir }}/gear benchmark pallet --chain=dev --pallet="*" --steps=5 --extrinsic="*" --heap-pages=4096
+          ./target/${{ matrix.profile }}/gear benchmark pallet --chain=dev --pallet="*" --steps=5 --extrinsic="*" --heap-pages=4096
           # check that read_big_state benchmarks works
-          ./target/${{ matrix.cargo_target_dir }}/gear benchmark pallet --chain=dev --pallet=pallet_gear --extrinsic="read_big_state" --heap-pages=4096 --extra
+          ./target/${{ matrix.profile }}/gear benchmark pallet --chain=dev --pallet=pallet_gear --extrinsic="read_big_state" --heap-pages=4096 --extra
           # check that signal_stack_limit_exceeded_works benchmarks works
-          ./target/${{ matrix.cargo_target_dir }}/gear benchmark pallet --chain=dev --pallet=pallet_gear --extrinsic="signal_stack_limit_exceeded_works" --heap-pages=4096 --extra
+          ./target/${{ matrix.profile }}/gear benchmark pallet --chain=dev --pallet=pallet_gear --extrinsic="signal_stack_limit_exceeded_works" --heap-pages=4096 --extra
           # check that check/test benchmarks works
-          ./target/${{ matrix.cargo_target_dir }}/gear benchmark pallet --chain=dev --pallet=pallet_gear --extrinsic="check_all" --heap-pages=4096 --extra
+          ./target/${{ matrix.profile }}/gear benchmark pallet --chain=dev --pallet=pallet_gear --extrinsic="check_all" --heap-pages=4096 --extra
 
       - name: "Test: Syscalls Wasmi integrity"
-        run: ./scripts/gear.sh test syscalls ${{ matrix.cargo_profile }}
+        run: ./scripts/gear.sh test syscalls ${{ matrix.profile_flags }}
 
       - name: "Test: `try-runtime` feature tests"
         run: |
-          cargo test -p "pallet-*" --features try-runtime --locked ${{ matrix.cargo_profile }}
+          cargo test -p "pallet-*" --features try-runtime --locked ${{ matrix.profile_flags }}
 
       - name: "Test: Try runtime migrations"
         run: |
-          cargo build -p gear-cli --features try-runtime --locked ${{ matrix.cargo_profile }}
-          ./target/${{ matrix.cargo_target_dir }}/gear try-runtime --runtime ./target/${{ matrix.cargo_target_dir }}/wbuild/vara-runtime/vara_runtime.wasm on-runtime-upgrade --checks live --uri ws://rpc-private.vara-network.io:9944
+          cargo build -p gear-cli --features try-runtime --locked ${{ matrix.profile_flags }}
+          ./target/${{ matrix.profile }}/gear try-runtime --runtime ./target/${{ matrix.profile }}/wbuild/vara-runtime/vara_runtime.wasm on-runtime-upgrade --checks live --uri ws://rpc-private.vara-network.io:9944
         env:
           RUST_LOG: info
 
       - name: "Coverage: Aggregate"
         if: ${{ github.ref == 'refs/heads/master' || contains(github.event.pull_request.labels.*.name, 'E0-forcecoverage') }}
         run: >-
-          ./grcov . --binary-path ./target/${{ matrix.cargo_target_dir }}/ -s . -t lcov --branch --ignore-not-existing
+          ./grcov . --binary-path ./target/${{ matrix.profile }}/ -s . -t lcov --branch --ignore-not-existing
           --ignore "/*"
           --ignore "examples/*"
           --ignore "utils/*"
@@ -220,7 +220,7 @@ jobs:
     strategy:
       matrix: ${{ fromJson(needs.matrix.outputs.matrix) }}
       fail-fast: false
-    name: win-cross (${{ matrix.cargo_target_dir }})
+    name: win-cross (${{ matrix.profile }})
     env:
       XWIN_ARCH: x86_64
       RUSTUP_HOME: /tmp/rustup_home
@@ -290,7 +290,7 @@ jobs:
           -p "pallet-*"
           -p gear-lazy-pages
           -p gear-runtime-interface
-          ${{ matrix.cargo_profile }}
+          ${{ matrix.profile_flags }}
         env:
           CARGO_BUILD_TARGET: x86_64-pc-windows-msvc
 

@@ -21,7 +21,7 @@ jobs:
     strategy:
       matrix: ${{ fromJson(inputs.matrix) }}
       fail-fast: false
-    name: macos-x86 (${{ matrix.cargo_target_dir }})
+    name: macos-x86 (${{ matrix.profile }})
     env:
       RUSTUP_HOME: /tmp/rustup_home
     steps:
@@ -62,4 +62,4 @@ jobs:
           -p "pallet-*"
           -p gear-lazy-pages
           -p gear-runtime-interface
-          ${{ matrix.cargo_profile }}
+          ${{ matrix.profile_flags }}
