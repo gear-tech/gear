@@ -23,7 +23,7 @@ use crate::{
         runtime_types::{
             frame_system::pallet::Call,
             gear_common::{ActiveProgram, Program},
-            gear_core::code::InstrumentedCode,
+            gear_core::code::instrumented::InstrumentedCode,
             pallet_gear_bank::pallet::BankAccount,
         },
         storage::{GearBankStorage, GearGasStorage, GearProgramStorage},
