@@ -205,15 +205,11 @@ where
         <T as Config>::Messenger::reset();
     }
 
-
     /// Spends given amount of gas from given `MessageId` in `GasTree`.
     ///
     /// Represents logic of burning gas by transferring gas from
     /// current `GasTree` owner to actual block producer.
-    pub(crate) fn spend_burned(
-        id: impl Into<GasNodeIdOf<T>>,
-        amount: GasBalanceOf<T>,
-    ) {
+    pub(crate) fn spend_burned(id: impl Into<GasNodeIdOf<T>>, amount: GasBalanceOf<T>) {
         Self::spend_gas(None, id, amount)
     }
 
