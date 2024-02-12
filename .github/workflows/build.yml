@@ -127,8 +127,7 @@ jobs:
 
       - name: "Test: Runtime benchmarks and benchmark tests work"
         # unoptimized benchmarks take a few hours to run
-        # `contains` is workaround for https://github.com/actions/runner/issues/2005
-        if: ${{ contains(inputs.release, 'true') }}
+        if: ${{ inputs.release }}
         run: |
           cargo build -p gear-cli --features=runtime-benchmarks,runtime-benchmarks-checkers ${{ matrix.cargo_profile }}
           # check that perf benchmarks works. `--steps=5` need to test, that benchmarks works for different input number.
@@ -191,11 +190,11 @@ jobs:
           file: ./lcov.info
 
       - name: "Build: Production binaries"
-        if: ${{ github.event_name == 'push' && inputs.release == 'true' }}
+        if: ${{ github.event_name == 'push' && inputs.release }}
         run: cargo build -p gear-cli -F cli --profile production
 
       - name: Prepare artifacts
-        if: ${{ github.event_name == 'push' && inputs.release == 'true' }}
+        if: ${{ github.event_name == 'push' && inputs.release }}
         run: |
           mkdir -p artifact
           cd target/wasm32-unknown-unknown/release
@@ -210,7 +209,7 @@ jobs:
           strip artifact/wasm-proc || true
 
       - name: Upload artifacts
-        if: ${{ github.event_name == 'push' && inputs.release == 'true' }}
+        if: ${{ github.event_name == 'push' && inputs.release }}
         uses: actions/upload-artifact@v4
         with:
           path: artifact
