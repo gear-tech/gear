@@ -89,10 +89,10 @@ jobs:
         run: cargo run -p calc-stack-height --release --locked
 
       - name: "Test: gsdk tests"
-        run: ./scripts/gear.sh test gsdk
+        run: ./scripts/gear.sh test gsdk ${{ matrix.profile_flags }}
 
       - name: "Test: Client tests"
-        run: ./scripts/gear.sh test client
+        run: ./scripts/gear.sh test client ${{ matrix.profile_flags }}
 
       - name: "Test: Lazy pages"
         run: >-
@@ -100,3 +100,4 @@ jobs:
           -p "pallet-*"
           -p gear-lazy-pages
           -p gear-runtime-interface
+          ${{ matrix.profile_flags }}
