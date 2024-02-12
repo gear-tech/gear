@@ -462,7 +462,7 @@ fn queue_remains_intact_if_processing_fails() {
         BlockId::number(0),
         Box::new(time::Instant::now),
         timestamp,
-        1500_u64,
+        2000_u64,
         None,
         proposal
     );
