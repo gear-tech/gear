@@ -604,7 +604,7 @@ fn block_max_gas_works() {
         BlockId::Hash(best_hash),
         Box::new(time::Instant::now),
         Timestamp::new(timestamp.as_millis() + SLOT_DURATION),
-        1500_u64,
+        2000_u64,
         max_gas,
         proposal
     );
