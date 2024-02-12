@@ -171,7 +171,7 @@ impl pallet_gear_voucher::Config for Test {
     type Currency = Balances;
     type PalletId = VoucherPalletId;
     type WeightInfo = ();
-    type CallsDispatcher = Gear;
+    type CallsDispatcher = pallet_gear::PrepaidCallDispatcher<Test>;
     type Mailbox = MailboxOf<Self>;
     type MaxProgramsAmount = ConstU8<32>;
     type MaxDuration = MaxVoucherDuration;
