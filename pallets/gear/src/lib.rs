@@ -80,7 +80,7 @@ use gear_core::{
     percent::Percent,
 };
 use manager::{CodeInfo, QueuePostProcessingData};
-use pallet_gear_voucher::{PrepaidCall, PrepaidCallsDispatcher, VoucherId};
+use pallet_gear_voucher::{PrepaidCall, PrepaidCallsDispatcher, VoucherId, WeightInfo as _};
 use primitive_types::H256;
 use sp_runtime::{
     traits::{Bounded, One, Saturating, UniqueSaturatedInto, Zero},
@@ -1798,7 +1798,9 @@ pub mod pallet {
                 PrepaidCall::UploadCode { code } => {
                     <T as Config>::WeightInfo::upload_code(code.len() as u32 / 1024)
                 }
-                PrepaidCall::DeclineVoucher => T::DbWeight::get().reads_writes(2, 4),
+                PrepaidCall::DeclineVoucher => {
+                    <T as pallet_gear_voucher::Config>::WeightInfo::decline()
+                }
             }
         }
 

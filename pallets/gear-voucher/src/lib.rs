@@ -592,7 +592,7 @@ pub mod pallet {
         /// Arguments:
         /// * voucher_id:   voucher id to be declined.
         #[pallet::call_index(5)]
-        #[pallet::weight(T::DbWeight::get().reads_writes(2, 4))]
+        #[pallet::weight(T::WeightInfo::decline())]
         pub fn decline(origin: OriginFor<T>, voucher_id: VoucherId) -> DispatchResultWithPostInfo {
             // Ensuring origin.
             let origin = ensure_signed(origin)?;
