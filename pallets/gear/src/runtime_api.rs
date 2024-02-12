@@ -17,10 +17,9 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::*;
-use crate::queue::{ActorResult, QueueStep};
+use crate::queue::QueueStep;
 use common::ActiveProgram;
 use core::convert::TryFrom;
-use core_processor::common::PrechargedDispatch;
 use frame_support::traits::PalletInfo;
 use gear_core::{code::TryNewCodeConfig, pages::WasmPage, program::MemoryInfix};
 use gear_wasm_instrument::syscalls::SyscallName;
@@ -180,17 +179,8 @@ where
 
             let actor_id = queued_dispatch.destination();
             let dispatch_id = queued_dispatch.id();
-            let dispatch_reply = queued_dispatch.reply_details().is_some();
 
             let balance = CurrencyOf::<T>::free_balance(&actor_id.cast());
-
-            let get_actor_data = |precharged_dispatch: PrechargedDispatch| {
-                // At this point gas counters should be changed accordingly so fetch the program data.
-                match Self::get_active_actor_data(actor_id, dispatch_id, dispatch_reply) {
-                    ActorResult::Data(data) => Ok((precharged_dispatch, data)),
-                    ActorResult::Continue => Err(precharged_dispatch),
-                }
-            };
 
             let success_reply = queued_dispatch
                 .reply_details()
@@ -208,12 +198,9 @@ where
                 gas_limit,
                 dispatch: queued_dispatch,
                 balance: balance.unique_saturated_into(),
-                get_actor_data,
             };
 
-            let journal = step
-                .execute()
-                .map_err(|_| internal_err("Queue execution error"))?;
+            let journal = Self::run_queue_step(step);
 
             let get_main_limit = || {
                 // For case when node is not consumed and has any (even zero) balance
