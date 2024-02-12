@@ -429,7 +429,7 @@ fn pay_rent_rewards_out<T: Config>(maybe_active_era_info: Option<ActiveEraInfo>)
 
     let funds: u128 = pallet::Pallet::<T>::rent_pool_free_balance().unique_saturated_into();
     for (account_id, points) in reward_points.individual {
-        let payout = funds * u128::from(points) / total;
+        let payout = funds.saturating_mul(u128::from(points)) / total;
         if payout > 0 {
             let result = CurrencyOf::<T>::transfer(
                 &pallet::Pallet::<T>::rent_pool_account_id(),
