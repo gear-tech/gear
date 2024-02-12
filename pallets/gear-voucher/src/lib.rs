@@ -567,14 +567,13 @@ pub mod pallet {
             let origin = ensure_signed(origin)?;
 
             // Validating the call for legacy implementation.
-            ensure!(
-                !matches!(call, PrepaidCall::UploadCode { .. }),
-                Error::<T>::CodeUploadingDisabled
-            );
-            ensure!(
-                !matches!(call, PrepaidCall::DeclineVoucher),
-                Error::<T>::InexistentVoucher
-            );
+            match call {
+                PrepaidCall::UploadCode { .. } => {
+                    return Err(Error::<T>::CodeUploadingDisabled.into())
+                }
+                PrepaidCall::DeclineVoucher => return Err(Error::<T>::InexistentVoucher.into()),
+                PrepaidCall::SendMessage { .. } | PrepaidCall::SendReply { .. } => (),
+            };
 
             // Looking for sponsor synthetic account.
             #[allow(deprecated)]
