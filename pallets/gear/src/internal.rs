@@ -205,11 +205,19 @@ where
         <T as Config>::Messenger::reset();
     }
 
+
     /// Spends given amount of gas from given `MessageId` in `GasTree`.
     ///
     /// Represents logic of burning gas by transferring gas from
     /// current `GasTree` owner to actual block producer.
-    pub(crate) fn spend_gas(
+    pub(crate) fn spend_burned(
+        id: impl Into<GasNodeIdOf<T>>,
+        amount: GasBalanceOf<T>,
+    ) {
+        Self::spend_gas(None, id, amount)
+    }
+
+    pub fn spend_gas(
         to: Option<AccountIdOf<T>>,
         id: impl Into<GasNodeIdOf<T>>,
         amount: GasBalanceOf<T>,
@@ -324,7 +332,8 @@ where
 
         // Spending gas, if need.
         if !amount.is_zero() {
-            // Spending gas.
+            // Spending gas for rent to the rent pool if any.
+            // If there is no rent pool id then funds will be spent to the block author.
             Self::spend_gas(<T as Config>::RentPoolId::get(), id, amount)
         }
     }
