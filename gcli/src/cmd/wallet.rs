@@ -15,7 +15,20 @@
 //
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
-use gring;
+
+use clap::Parser;
+use gring::cmd::Command;
 
 /// Wallet command
-pub struct Wallet;
+#[derive(Clone, Debug, Parser)]
+pub struct Wallet {
+    /// Flatted gring command
+    #[clap(subcommand)]
+    pub gring: Command,
+}
+
+impl Wallet {
+    pub fn run(&self) -> anyhow::Result<()> {
+        self.gring.clone().run()
+    }
+}

@@ -32,10 +32,11 @@ pub mod send;
 pub mod transfer;
 pub mod update;
 pub mod upload;
+pub mod wallet;
 
 pub use self::{
     claim::Claim, create::Create, info::Info, key::Key, login::Login, new::New, program::Program,
-    reply::Reply, send::Send, transfer::Transfer, update::Update, upload::Upload,
+    reply::Reply, send::Send, transfer::Transfer, update::Update, upload::Upload, wallet::Wallet,
 };
 
 /// All SubCommands of gear command line interface.
@@ -54,6 +55,7 @@ pub enum Command {
     Upload(Upload),
     Transfer(Transfer),
     Update(Update),
+    Wallet(Wallet),
 }
 
 impl Command {
@@ -72,6 +74,7 @@ impl Command {
             Command::Upload(upload) => upload.exec(app.signer().await?).await?,
             Command::Transfer(transfer) => transfer.exec(app.signer().await?).await?,
             Command::Reply(reply) => reply.exec(app.signer().await?).await?,
+            Command::Wallet(wallet) => wallet.run()?,
         }
 
         Ok(())

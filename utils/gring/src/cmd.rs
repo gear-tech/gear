@@ -28,7 +28,7 @@ use schnorrkel::{PublicKey, Signature};
 use std::{fs, path::PathBuf};
 
 /// gring sub commands.
-#[derive(Parser)]
+#[derive(Clone, Debug, Parser)]
 pub enum Command {
     /// Generate a new key.
     New {
