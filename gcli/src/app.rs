@@ -102,13 +102,7 @@ pub trait App: Parser + Sync {
         let api = Api::new_with_timeout(endpoint.as_deref(), Some(timeout)).await?;
         let mut keyring = Keyring::load(gring::cmd::Command::store()?)?;
         let keystore = keyring.primary()?;
-        let pair = keystore.decrypt(
-            passwd
-                .clone()
-                .map(|p| hex::decode(p).ok())
-                .flatten()
-                .as_deref(),
-        )?;
+        let pair = keystore.decrypt(passwd.clone().and_then(|p| hex::decode(p).ok()).as_deref())?;
 
         Ok((api, sr25519::Pair::from(pair).into()).into())
     }
