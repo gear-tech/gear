@@ -12888,7 +12888,7 @@ fn wasm_data_section_out_of_static_memory() {
 
     let wat3 = r#"
         (module
-            (import "env" "memory" (memory 0x10000)) ;; 4GB static memory
+            (import "env" "memory" (memory 1))
             (export "init" (func $init))
             (func $init)
             (data (;0;) (i32.const 0xffffffff) "gear")

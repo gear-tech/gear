@@ -255,8 +255,8 @@ fn get_global_entry(module: &Module, global_index: u32) -> Option<&GlobalEntry> 
 }
 
 struct StackEndInfo {
-    pub offset: i32,
-    pub is_mutable: bool,
+    offset: i32,
+    is_mutable: bool,
 }
 
 fn get_stack_end_info(module: &Module) -> Result<Option<StackEndInfo>, CodeError> {

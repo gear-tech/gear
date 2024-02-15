@@ -22,7 +22,7 @@ use gear_wasm_instrument::{parity_wasm::SerializationError, InstrumentationError
 use wasmparser::BinaryReaderError;
 
 /// Section name in WASM module.
-#[derive(Debug, PartialEq, Eq, derive_more::Display)]
+#[derive(Debug, derive_more::Display)]
 pub enum SectionName {
     /// Type section.
     #[display(fmt = "Type section")]
@@ -42,7 +42,7 @@ pub enum SectionName {
 }
 
 /// Section error in WASM module.
-#[derive(Debug, PartialEq, Eq, derive_more::Display)]
+#[derive(Debug, derive_more::Display)]
 pub enum SectionError {
     /// Section not found.
     #[display(fmt = "{_0} not found")]
@@ -53,7 +53,7 @@ pub enum SectionError {
 }
 
 /// Memory error in WASM module.
-#[derive(Debug, PartialEq, Eq, derive_more::Display)]
+#[derive(Debug, derive_more::Display)]
 pub enum MemoryError {
     /// Memory entry not found in import section.
     #[display(fmt = "Memory entry not found")]
@@ -64,10 +64,10 @@ pub enum MemoryError {
 }
 
 /// Stack end error in WASM module.
-#[derive(Debug, PartialEq, Eq, derive_more::Display)]
+#[derive(Debug, derive_more::Display)]
 pub enum StackEndError {
     /// Unsupported initialization of gear stack end global variable.
-    #[display(fmt = "Unsupported initialization of gear stack end global variable")]
+    #[display(fmt = "Unsupported initialization of gear stack end global")]
     Initialization,
     /// Too many globals to create new global for stack end.
     #[display(fmt = "Too many globals to create new global for stack end")]
@@ -75,7 +75,7 @@ pub enum StackEndError {
 }
 
 /// Stack end error in WASM module.
-#[derive(Debug, PartialEq, Eq, derive_more::Display)]
+#[derive(Debug, derive_more::Display)]
 pub enum DataSectionError {
     /// Unsupported initialization of data segment.
     #[display(fmt = "Unsupported initialization of data segment")]
@@ -87,12 +87,12 @@ pub enum DataSectionError {
     #[display(fmt = "Data segment {_0:#x} ends out of possible 32 bits address space")]
     EndAddressOverflow(u32),
     /// Data segment end address is out of static memory.
-    #[display(fmt = "Data segment {_0:#x} end address {_1:#x} is out of static memory {_2:?}")]
+    #[display(fmt = "Data segment {_0:#x} last byte offset {_1:#x} is out of static memory {_2:#x}")]
     EndAddressOutOfStaticMemory(u32, u32, u32),
 }
 
 /// Export error in WASM module.
-#[derive(Debug, PartialEq, Eq, derive_more::Display)]
+#[derive(Debug, derive_more::Display)]
 pub enum ExportError {
     /// Incorrect global export index. Can occur when export refers to not existing global index.
     #[display(fmt = "Global index `{_0}` in export index `{_1}` is incorrect")]
@@ -115,7 +115,7 @@ pub enum ExportError {
 }
 
 /// Import error in WASM module.
-#[derive(Debug, PartialEq, Eq, derive_more::Display)]
+#[derive(Debug, derive_more::Display)]
 pub enum ImportError {
     /// The imported function is not supported by the Gear protocol.
     #[display(fmt = "Unknown imported function with index `{_0}`")]
