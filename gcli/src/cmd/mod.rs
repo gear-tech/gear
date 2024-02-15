@@ -55,7 +55,7 @@ pub enum Command {
     Upload(Upload),
     Transfer(Transfer),
     Update(Update),
-    #[clap(flatten)]
+    #[clap(subcommand)]
     Wallet(Wallet),
 }
 

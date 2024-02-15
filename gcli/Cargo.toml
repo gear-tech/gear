@@ -16,6 +16,7 @@ gsdk.workspace = true
 anyhow.workspace = true
 async-trait.workspace = true
 base64.workspace = true
+colored.workspace = true
 color-eyre.workspace = true
 dirs.workspace = true
 env_logger.workspace = true

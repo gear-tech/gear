@@ -18,19 +18,22 @@
 
 use anyhow::{anyhow, Result};
 use clap::Parser;
+use colored::Colorize;
 use gring::{cmd::Command, Keyring, SecretKey};
 use gsdk::ext::sp_core::{sr25519, Pair};
 
 const DEFAULT_DEV: &str = "//Alice";
 
-/// Wallet command
+/// Gear wallet manager.
 #[derive(Clone, Debug, Parser)]
 pub enum Wallet {
     /// Switch to development account
     Dev {
         /// The name of the dev account.
+        #[clap(short, long, default_value = "_dev_alice")]
         name: String,
         /// The URI of the dev account.
+        #[clap(short, long)]
         uri: Option<String>,
     },
     /// Flatted gring command
@@ -39,14 +42,19 @@ pub enum Wallet {
 }
 
 impl Wallet {
+    /// Run the wallet command.
     pub fn run(&self) -> anyhow::Result<()> {
-        Ok(())
+        match self {
+            Wallet::Dev { name, uri } => Self::dev(name, uri.clone()),
+            Wallet::Gring(command) => command.clone().run(),
+        }
     }
 
     /// Switch to development account.
     pub fn dev(name: &str, uri: Option<String>) -> Result<()> {
         let mut keyring = Keyring::load(Command::store()?)?;
         if keyring.set_primary(name.into()).is_ok() {
+            println!("Successfully switched to dev account {} !", name.cyan());
             return Ok(());
         }
 
@@ -57,6 +65,7 @@ impl Wallet {
 
         keyring.add(name, sk.into(), None)?;
         keyring.set_primary(name.into())?;
+        println!("Successfully switched to dev account {} !", name.cyan());
         Ok(())
     }
 }

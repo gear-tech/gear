@@ -3678,6 +3678,7 @@ dependencies = [
  "base64 0.21.7",
  "clap 4.4.18",
  "color-eyre",
+ "colored",
  "demo-messager",
  "demo-new-meta",
  "demo-waiter",
