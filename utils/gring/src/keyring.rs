@@ -138,6 +138,25 @@ impl Keyring {
         Ok(())
     }
 
+    /// Add keypair to the keyring
+    pub fn add(
+        &mut self,
+        name: &str,
+        keypair: Keypair,
+        passphrase: Option<&str>,
+    ) -> Result<(Keystore, Keypair)> {
+        let mut keystore = Keystore::encrypt(keypair.clone(), passphrase.map(|p| p.as_bytes()))?;
+        keystore.meta.name = name.into();
+
+        fs::write(
+            self.store.join(&keystore.meta.name).with_extension("json"),
+            serde_json::to_vec_pretty(&keystore)?,
+        )?;
+
+        self.ring.push(keystore.clone());
+        Ok((keystore, keypair))
+    }
+
     /// create a new key in keyring.
     pub fn create(
         &mut self,
@@ -158,16 +177,7 @@ impl Keyring {
             Keypair::generate()
         };
 
-        let mut keystore = Keystore::encrypt(keypair.clone(), passphrase.map(|p| p.as_bytes()))?;
-        keystore.meta.name = name.into();
-
-        fs::write(
-            self.store.join(&keystore.meta.name).with_extension("json"),
-            serde_json::to_vec_pretty(&keystore)?,
-        )?;
-
-        self.ring.push(keystore.clone());
-        Ok((keystore, keypair))
+        self.add(name, keypair, passphrase)
     }
 
     /// List all keystores.
