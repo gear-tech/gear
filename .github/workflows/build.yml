@@ -47,22 +47,7 @@ jobs:
       - name: "Show: Versioning"
         run: ./scripts/gear.sh show
 
-      - name: "Install: grcov"
-        run: |
-          curl -L https://github.com/mozilla/grcov/releases/latest/download/grcov-x86_64-unknown-linux-musl.tar.bz2 | tar jxf -
-          ./grcov --version
-
-      - name: "Install: rust-covfix"
-        run: |
-          curl -L https://github.com/gear-tech/rust-covfix/releases/download/deploy/rust-covfix-linux-x86_64.tar.xz | tar Jxf -
-          mv rust-covfix-linux-x86_64/rust-covfix ./
-          ./rust-covfix --version
-
-      - name: "ACTIONS: Setup environment variable"
-        if: github.ref == 'refs/heads/master' || contains(github.event.pull_request.labels.*.name, 'E0-forcecoverage')
-        run: echo "RUSTFLAGS=-Cinstrument-coverage" >> $GITHUB_ENV
-
-      - name: "Buid: Init"
+      - name: "Build: Init"
         run: ./scripts/gear.sh init cargo
 
       - name: "Build: Gear"
@@ -116,42 +101,6 @@ jobs:
           ./target/release/gear try-runtime --runtime ./target/release/wbuild/vara-runtime/vara_runtime.wasm on-runtime-upgrade --checks live --uri ws://rpc-private.vara-network.io:9944
         env:
           RUST_LOG: info
-
-      - name: "Coverage: Aggregate"
-        if: github.ref == 'refs/heads/master' || contains(github.event.pull_request.labels.*.name, 'E0-forcecoverage')
-        run: >-
-          ./grcov . --binary-path ./target/release/ -s . -t lcov --branch --ignore-not-existing
-          --ignore "/*"
-          --ignore "examples/*"
-          --ignore "utils/*"
-          --ignore "target/*"
-          --ignore "node/*"
-          --ignore "program/*"
-          --ignore "pallets/gear/src/migration.rs"
-          --ignore "pallets/gear/src/weights.rs"
-          --ignore "pallets/gear-debug/src/weights.rs"
-          --ignore "pallets/gear-messenger/src/migration.rs"
-          --ignore "pallets/gear-program/src/migration.rs"
-          --ignore "pallets/gear-program/src/weights/*"
-          --ignore "pallets/usage/src/weights.rs"
-          --ignore "pallets/usage/src/migration.rs"
-          --ignore "runtime/*"
-          --ignore "gcore/*"
-          --ignore "gstd/*"
-          --ignore "galloc/*"
-          --ignore "gtest/*"
-          --ignore "gclient/*"
-          -o ./lcov.info
-
-      - name: "Coverage: Fix report"
-        if: github.ref == 'refs/heads/master' || contains(github.event.pull_request.labels.*.name, 'E0-forcecoverage')
-        run: ./rust-covfix -o lcov.info lcov.info
-
-      - name: "Coverage: Publish"
-        if: github.ref == 'refs/heads/master' || contains(github.event.pull_request.labels.*.name, 'E0-forcecoverage')
-        uses: codecov/codecov-action@v4
-        with:
-          file: ./lcov.info
 
       - name: "Build: Production binaries"
         if: github.event_name == 'push'
