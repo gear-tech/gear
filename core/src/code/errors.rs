@@ -69,8 +69,8 @@ pub enum StackEndError {
     /// Unsupported initialization of gear stack end global variable.
     #[display(fmt = "Unsupported initialization of gear stack end global")]
     Initialization,
-    /// Too many globals to create new global for stack end.
-    #[display(fmt = "Too many globals to create new global for stack end")]
+    /// Too many globals to create new const global for stack end.
+    #[display(fmt = "Too many globals, so cannot create new global for stack end")]
     GlobalIndexOverflow,
 }
 
@@ -81,13 +81,13 @@ pub enum DataSectionError {
     #[display(fmt = "Unsupported initialization of data segment")]
     Initialization,
     /// Data section overlaps user stack.
-    #[display(fmt = "Data segment {_0:#x} overlaps user stack: {_1:#x}")]
+    #[display(fmt = "Data segment {_0:#x} overlaps user stack [0x0, {_1:#x})")]
     UserStackOverlaps(u32, u32),
     /// Data segment end address is out of possible 32 bits address space.
     #[display(fmt = "Data segment {_0:#x} ends out of possible 32 bits address space")]
     EndAddressOverflow(u32),
     /// Data segment end address is out of static memory.
-    #[display(fmt = "Data segment {_0:#x} last byte offset {_1:#x} is out of static memory {_2:#x}")]
+    #[display(fmt = "Data segment [{_0:#x}, {_1:#x}] is out of static memory [0x0, {_2:#x})")]
     EndAddressOutOfStaticMemory(u32, u32, u32),
 }
 
