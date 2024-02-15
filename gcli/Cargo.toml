@@ -29,7 +29,6 @@ hex.workspace = true
 jsonrpsee = { workspace = true, features = [ "http-client", "ws-client" ] }
 keyring.workspace = true
 lazy_static.workspace = true
-libp2p = { workspace = true, features = [ "identify" ], optional = true }
 log.workspace = true
 nacl.workspace = true
 scale-info.workspace = true
@@ -58,7 +57,6 @@ which.workspace = true
 
 [features]
 embed = []
-node-key = [ "libp2p" ]
 
 [package.metadata.docs.rs]
 all-features = true

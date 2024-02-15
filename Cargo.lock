@@ -3696,7 +3696,6 @@ dependencies = [
  "jsonrpsee 0.16.3",
  "keyring",
  "lazy_static",
- "libp2p",
  "log",
  "nacl",
  "rand 0.8.5",

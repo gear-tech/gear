@@ -23,8 +23,6 @@ use clap::Parser;
 pub mod claim;
 pub mod create;
 pub mod info;
-pub mod key;
-pub mod login;
 pub mod new;
 pub mod program;
 pub mod reply;
@@ -35,8 +33,8 @@ pub mod upload;
 pub mod wallet;
 
 pub use self::{
-    claim::Claim, create::Create, info::Info, key::Key, login::Login, new::New, program::Program,
-    reply::Reply, send::Send, transfer::Transfer, update::Update, upload::Upload, wallet::Wallet,
+    claim::Claim, create::Create, info::Info, new::New, program::Program, reply::Reply, send::Send,
+    transfer::Transfer, update::Update, upload::Upload, wallet::Wallet,
 };
 
 /// All SubCommands of gear command line interface.
@@ -45,8 +43,6 @@ pub enum Command {
     Claim(Claim),
     Create(Create),
     Info(Info),
-    Key(Key),
-    Login(Login),
     New(New),
     #[clap(subcommand)]
     Program(Program),
@@ -63,8 +59,6 @@ impl Command {
     /// Execute the command.
     pub async fn exec(&self, app: &impl App) -> anyhow::Result<()> {
         match self {
-            Command::Key(key) => key.exec()?,
-            Command::Login(login) => login.exec()?,
             Command::New(new) => new.exec().await?,
             Command::Program(program) => program.exec(app).await?,
             Command::Update(update) => update.exec().await?,
