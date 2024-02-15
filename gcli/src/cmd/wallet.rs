@@ -61,7 +61,7 @@ impl Wallet {
         let sk = SecretKey::from_bytes(
             &sr25519::Pair::from_string(&uri.unwrap_or(DEFAULT_DEV.into()), None)?.to_raw_vec(),
         )
-        .map_err(|_| anyhow!("Faild to create keypair from the input uri."))?;
+        .map_err(|_| anyhow!("Failed to create keypair from the input uri."))?;
 
         keyring.add(name, sk.into(), None)?;
         keyring.set_primary(name.into())?;
