@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2022-2023 Gear Technologies Inc.
+// Copyright (C) 2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Benchmarks for the gear-built-in-actor pallet
+//! Benchmarks for the `pallet-gear-builtin`
 
 #[allow(unused)]
 use crate::Pallet as BuiltinActorPallet;
@@ -24,20 +24,19 @@ use crate::*;
 use frame_benchmarking::{benchmarks, impl_benchmark_test_suite};
 use gear_core::{
     ids::{BuiltinId, ProgramId},
-    message::{DispatchKind, StoredDispatch, StoredMessage},
+    message::{DispatchKind, Payload, StoredDispatch, StoredMessage},
 };
-
-type BuiltinMessageFor<T> = FromStoredDispatch<T>;
 
 macro_rules! impl_builtin_actor {
     ($name: ident, $id: literal) => {
         pub struct $name<T: Config>(core::marker::PhantomData<T>);
 
-        impl<T: Config> BuiltinActor<BuiltinMessageFor<T>, u64> for $name<T> {
+        impl<T: Config> BuiltinActor<u64> for $name<T> {
             fn handle(
-                _message: &BuiltinMessageFor<T>,
+                _builtin_id: BuiltinId,
+                _message: &StoredDispatch,
                 _gas_limit: u64,
-            ) -> (Result<Vec<u8>, BuiltinActorError>, u64) {
+            ) -> (Result<Payload, BuiltinActorError>, u64) {
                 (Ok(Default::default()), Default::default())
             }
 
@@ -45,7 +44,7 @@ macro_rules! impl_builtin_actor {
                 buffer.push(Self::ID);
             }
         }
-        impl<T: Config> RegisteredBuiltinActor<BuiltinMessageFor<T>, u64> for $name<T> {
+        impl<T: Config> RegisteredBuiltinActor<u64> for $name<T> {
             const ID: BuiltinId = BuiltinId($id as u64);
         }
     };
@@ -121,14 +120,8 @@ benchmarks! {
             None,
         );
         let gas_limit = 10_000_000_000_u64;
-        let builtin_message = BuiltinMessageFor::<T> {
-            source,
-            destination: builtin_id,
-            payload,
-            _phantom: Default::default(),
-        };
     }: {
-        let _ = <T as pallet_gear::Config>::BuiltinRouter::provide();
+        let _ = <T as pallet_gear::Config>::BuiltinProvider::provide();
     } verify {
         // No changes in runtime are expected since the actual dispatch doesn't take place.
     }

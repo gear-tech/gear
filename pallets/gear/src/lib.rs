@@ -44,7 +44,7 @@ mod tests;
 pub mod pallet_tests;
 
 pub use crate::{
-    builtin::{BuiltinRouter, BuiltinRouterProvider},
+    builtin::{BuiltinDispatcher, BuiltinDispatcherProvider},
     manager::{ExtManager, HandleKind},
     pallet::*,
     schedule::{HostFnWeights, InstructionWeights, Limits, MemoryWeights, Schedule},
@@ -264,7 +264,7 @@ pub mod pallet {
         type ProgramRentDisabledDelta: Get<BlockNumberFor<Self>>;
 
         /// The builtin actors registry.
-        type BuiltinRouter: BuiltinRouterProvider<StoredDispatch, JournalNote, u64>;
+        type BuiltinProvider: BuiltinDispatcherProvider<StoredDispatch, u64>;
     }
 
     #[pallet::pallet]
@@ -815,7 +815,7 @@ pub mod pallet {
 
         /// Returns true if `program_id` is that of a in active status or the builtin actor.
         pub fn is_active(program_id: ProgramId) -> bool {
-            T::BuiltinRouter::provide().lookup(&program_id).is_some()
+            T::BuiltinProvider::provide().lookup(&program_id).is_some()
                 || ProgramStorageOf::<T>::get_program(program_id)
                     .map(|program| program.is_active())
                     .unwrap_or_default()
@@ -840,7 +840,7 @@ pub mod pallet {
         pub fn program_exists(program_id: ProgramId) -> bool {
             ProgramStorageOf::<T>::program_exists(program_id)
                 || ProgramStorageOf::<T>::paused_program_exists(&program_id)
-                || T::BuiltinRouter::provide().lookup(&program_id).is_some()
+                || T::BuiltinProvider::provide().lookup(&program_id).is_some()
         }
 
         /// Returns exit argument of an exited program.
@@ -1864,15 +1864,16 @@ pub mod pallet {
         type Gas = GasBalanceOf<T>;
 
         fn run_queue(initial_gas: Self::Gas) -> Self::Gas {
-            // Take note of how much gas we will need for builtin router creation.
-            let gas_for_builtin_router = T::BuiltinRouter::provision_cost();
+            // Take note of how much gas we will need for builtin dispatcher provision.
+            let gas_for_builtin_dispatcher = T::BuiltinProvider::provision_cost();
 
-            // Setting adjusted initial gas allowance taking into account builtin router creation
-            // cost that will be incurred inside the `process_queue()` function.
-            GasAllowanceOf::<T>::put(initial_gas.saturating_sub(gas_for_builtin_router));
+            // Setting initial gas allowance adjusted for builtin dispatcher creation cost
+            // that will be incurred inside the `process_queue()` function.
+            GasAllowanceOf::<T>::put(initial_gas.saturating_sub(gas_for_builtin_dispatcher));
 
             // Ext manager creation.
-            // It will be processing messages execution results following its `JournalHandler` trait implementation.
+            // It will be processing messages execution results following its `JournalHandler`
+            // trait implementation.
             // It also will handle delayed tasks following `TasksHandler`.
             let mut ext_manager = Default::default();
 

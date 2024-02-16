@@ -23,7 +23,7 @@ use jsonrpsee::{
     proc_macros::rpc,
     types::error::{CallError, ErrorObject},
 };
-pub use pallet_gear_builtin_rpc_runtime_api::GearBuiltinActorApi as GearBuiltinActorRuntimeApi;
+pub use pallet_gear_builtin_rpc_runtime_api::GearBuiltinApi as GearBuiltinRuntimeApi;
 use sp_api::ProvideRuntimeApi;
 use sp_blockchain::HeaderBackend;
 use sp_core::H256;
@@ -31,20 +31,20 @@ use sp_runtime::traits::Block as BlockT;
 use std::sync::Arc;
 
 #[rpc(server)]
-pub trait GearBuiltinActorApi<BlockHash, ResponseType> {
-    #[method(name = "gearBuiltin_generateId")]
-    fn generate_actor_id(&self, builtin_id: u64) -> RpcResult<ResponseType>;
+pub trait GearBuiltinApi<BlockHash, ResponseType> {
+    #[method(name = "gearBuiltin_queryId")]
+    fn query_actor_id(&self, builtin_id: u64) -> RpcResult<ResponseType>;
 }
 
 /// Provides RPC methods to query token economics related data.
-pub struct GearBuiltinActor<C, P> {
+pub struct GearBuiltin<C, P> {
     /// Shared reference to the client.
     client: Arc<C>,
     _marker: std::marker::PhantomData<P>,
 }
 
-impl<C, P> GearBuiltinActor<C, P> {
-    /// Creates a new instance of the GearBuiltinActor Rpc helper.
+impl<C, P> GearBuiltin<C, P> {
+    /// Creates a new instance of the GearBuiltin Rpc helper.
     pub fn new(client: Arc<C>) -> Self {
         Self {
             client,
@@ -55,7 +55,7 @@ impl<C, P> GearBuiltinActor<C, P> {
 
 /// Error type of this RPC api.
 pub enum Error {
-    /// The transaction was not decodable.
+    /// The query was not decodable.
     DecodeError,
     /// The call to runtime failed.
     RuntimeError,
@@ -70,27 +70,21 @@ impl From<Error> for i32 {
     }
 }
 
-impl<C, Block> GearBuiltinActorApiServer<<Block as BlockT>::Hash, H256>
-    for GearBuiltinActor<C, Block>
+impl<C, Block> GearBuiltinApiServer<<Block as BlockT>::Hash, H256> for GearBuiltin<C, Block>
 where
     Block: BlockT,
     C: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block>,
-    C::Api: GearBuiltinActorRuntimeApi<Block>,
+    C::Api: GearBuiltinRuntimeApi<Block>,
 {
-    fn generate_actor_id(&self, builtin_id: u64) -> RpcResult<H256> {
+    fn query_actor_id(&self, builtin_id: u64) -> RpcResult<H256> {
         let api = self.client.runtime_api();
         let best_hash = self.client.info().best_hash;
 
         fn map_err(err: impl std::fmt::Debug, desc: &'static str) -> JsonRpseeError {
-            CallError::Custom(ErrorObject::owned(
-                Error::RuntimeError.into(),
-                desc,
-                Some(format!("{err:?}")),
-            ))
-            .into()
+            CallError::Custom(ErrorObject::owned(8000, desc, Some(format!("{err:?}")))).into()
         }
 
-        api.generate_actor_id(best_hash, builtin_id)
+        api.query_actor_id(best_hash, builtin_id)
             .map_err(|e| map_err(e, "Unable to generate actor id"))
     }
 }

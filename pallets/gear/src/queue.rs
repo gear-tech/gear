@@ -195,8 +195,8 @@ where
             T::DebugInfo::remap_id();
         }
 
-        // Create an instance of a builtin router
-        let builtin_router = T::BuiltinRouter::provide();
+        // Create an instance of a builtin dispatcher.
+        let builtin_dispatcher = T::BuiltinProvider::provide();
 
         while QueueProcessingOf::<T>::allowed() {
             let dispatch = match QueueOf::<T>::dequeue()
@@ -233,9 +233,12 @@ where
 
             // If the dispatch destination (a.k.a. `program_id`) resolves to some `BuiltinId`
             // belonging to a builtin actor, we handle the dispatch as a builtin actor dispatch.
-            // If it doesn't we will get `None` as the output and proceed with the regular flow.
-            if let Some(journal) = builtin_router.dispatch(dispatch.clone(), gas_limit) {
-                core_processor::handle_journal(journal, &mut ext_manager);
+            // Otherwise we proceed with the regular flow.
+            if let Some(builtin_id) = builtin_dispatcher.lookup(&program_id) {
+                core_processor::handle_journal(
+                    builtin_dispatcher.dispatch(builtin_id, dispatch, gas_limit),
+                    &mut ext_manager,
+                );
                 continue;
             }
 

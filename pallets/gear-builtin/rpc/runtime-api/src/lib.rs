@@ -21,8 +21,8 @@
 use sp_core::H256;
 
 sp_api::decl_runtime_apis! {
-    pub trait GearBuiltinActorApi {
-        /// Calculate `ProgramId` (a.k.a. actor id) given a `BuiltinId`.
-        fn generate_actor_id(builtin_id: u64) -> H256;
+    pub trait GearBuiltinApi {
+        /// Calculate `ProgramId` (a.k.a. actor id) for a given `BuiltinId`.
+        fn query_actor_id(builtin_id: u64) -> H256;
     }
 }

@@ -17,25 +17,28 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::*;
+use core_processor::common::JournalNote;
 use gear_core::ids::{BuiltinId, ProgramId};
 
-/// A trait representing a registry that provides methods to lookup a builtin actor
-pub trait BuiltinRouter {
+/// A trait representing a registry that provides methods to lookup a builtin actor.
+pub trait BuiltinDispatcher {
     type QueuedDispatch;
-    type Output;
 
     /// Looks up a builtin actor by its actor id.
     fn lookup(&self, id: &ProgramId) -> Option<BuiltinId>;
 
     /// Handles a dispatch and returns an ordered sequence of outputs if the
     /// destination actor is a builtin actor, and `None` otherwise.
-    fn dispatch(&self, dispatch: Self::QueuedDispatch, gas_limit: u64)
-        -> Option<Vec<Self::Output>>;
+    fn dispatch(
+        &self,
+        builtin_id: BuiltinId,
+        dispatch: Self::QueuedDispatch,
+        gas_limit: u64,
+    ) -> Vec<JournalNote>;
 }
 
-impl BuiltinRouter for () {
+impl BuiltinDispatcher for () {
     type QueuedDispatch = StoredDispatch;
-    type Output = JournalNote;
 
     fn lookup(&self, _id: &ProgramId) -> Option<BuiltinId> {
         None
@@ -43,26 +46,27 @@ impl BuiltinRouter for () {
 
     fn dispatch(
         &self,
-        // _builtin_id: BuiltinId,
+        _bulitin_id: BuiltinId,
         _dispatch: Self::QueuedDispatch,
         _gas_limit: u64,
-    ) -> Option<Vec<Self::Output>> {
-        None
+    ) -> Vec<JournalNote> {
+        Default::default()
     }
 }
 
-pub trait BuiltinRouterProvider<Dispatch, Output, Gas> {
-    type Router: BuiltinRouter<QueuedDispatch = Dispatch, Output = Output>;
+/// A trait that defines the interface of a builtin dispatcher provider.
+pub trait BuiltinDispatcherProvider<Dispatch, Gas> {
+    type Dispatcher: BuiltinDispatcher<QueuedDispatch = Dispatch>;
 
-    fn provide() -> Self::Router;
+    fn provide() -> Self::Dispatcher;
 
     fn provision_cost() -> Gas;
 }
 
-impl BuiltinRouterProvider<StoredDispatch, JournalNote, u64> for () {
-    type Router = ();
+impl BuiltinDispatcherProvider<StoredDispatch, u64> for () {
+    type Dispatcher = ();
 
-    fn provide() -> Self::Router {}
+    fn provide() -> Self::Dispatcher {}
 
     fn provision_cost() -> u64 {
         0_u64

@@ -24,7 +24,7 @@
 //!
 //! ## Overview
 //!
-//! The pallet implements the `pallet_gear::BuiltinRouter` allowing to restore builtin actors
+//! The pallet implements the `pallet_gear::BuiltinDispatcher` allowing to restore builtin actors
 //! claimed `BuiltinId`'s based on their corresponding `ProgramId` address.
 
 #![cfg_attr(not(feature = "std"), no_std)]
@@ -53,10 +53,12 @@ use core_processor::{
 use gear_core::{
     gas::GasCounter,
     ids::{hash, BuiltinId, ProgramId},
-    message::{ContextOutcomeDrain, DispatchKind, MessageContext, ReplyPacket, StoredDispatch},
+    message::{
+        ContextOutcomeDrain, DispatchKind, MessageContext, Payload, ReplyPacket, StoredDispatch,
+    },
 };
 use impl_trait_for_tuples::impl_for_tuples;
-use pallet_gear::{BuiltinRouter, BuiltinRouterProvider};
+use pallet_gear::{BuiltinDispatcher, BuiltinDispatcherProvider};
 use parity_scale_codec::{Decode, Encode};
 use sp_runtime::traits::Zero;
 use sp_std::prelude::*;
@@ -64,66 +66,6 @@ use sp_std::prelude::*;
 pub use pallet::*;
 
 const LOG_TARGET: &str = "gear::builtin";
-
-pub trait Dispatchable {
-    type Payload: AsRef<[u8]>;
-
-    fn new(source: ProgramId, destination: BuiltinId, payload: Self::Payload) -> Self;
-
-    fn source(&self) -> ProgramId;
-    fn destination(&self) -> BuiltinId;
-    fn payload_bytes(&self) -> &[u8];
-}
-
-#[derive(Encode, Decode, Clone, Debug, PartialEq, Eq)]
-pub struct FromStoredDispatch<T: Config> {
-    source: ProgramId,
-    destination: BuiltinId,
-    payload: Vec<u8>,
-    _phantom: sp_std::marker::PhantomData<T>,
-}
-
-impl<T: Config> Dispatchable for FromStoredDispatch<T> {
-    type Payload = Vec<u8>;
-
-    fn new(source: ProgramId, destination: BuiltinId, payload: Vec<u8>) -> Self {
-        Self {
-            source,
-            destination,
-            payload,
-            _phantom: Default::default(),
-        }
-    }
-
-    fn source(&self) -> ProgramId {
-        self.source
-    }
-
-    fn destination(&self) -> BuiltinId {
-        self.destination
-    }
-
-    fn payload_bytes(&self) -> &[u8] {
-        self.payload.as_ref()
-    }
-}
-
-impl<T: Config> TryFrom<StoredDispatch> for FromStoredDispatch<T> {
-    type Error = BuiltinActorError;
-
-    fn try_from(dispatch: StoredDispatch) -> Result<Self, Self::Error> {
-        let builtin_id =
-            <Pallet<T> as BuiltinRouterProvider<StoredDispatch, JournalNote, u64>>::provide()
-                .lookup(&dispatch.destination())
-                .ok_or(BuiltinActorError::UnknownActor)?;
-        Ok(Self {
-            source: dispatch.source(),
-            destination: builtin_id,
-            payload: dispatch.payload_bytes().to_vec(),
-            _phantom: Default::default(),
-        })
-    }
-}
 
 /// Built-in actor error type
 #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq, derive_more::Display)]
@@ -162,27 +104,35 @@ pub type BuiltinResult<P> = Result<P, BuiltinActorError>;
 
 /// A trait representing an interface of a builtin actor that can receive a message
 /// and produce a set of outputs that can then be converted into a reply message.
-pub trait BuiltinActor<Message: Dispatchable, Gas: Zero> {
+pub trait BuiltinActor<Gas: Zero> {
     /// Handles a message and returns a result and the actual gas spent.
-    fn handle(message: &Message, gas_limit: Gas) -> (BuiltinResult<Message::Payload>, Gas);
+    fn handle(
+        builtin_id: BuiltinId,
+        message: &StoredDispatch,
+        gas_limit: Gas,
+    ) -> (BuiltinResult<Payload>, Gas);
 
     fn get_ids(buffer: &mut Vec<BuiltinId>);
 }
 
-pub trait RegisteredBuiltinActor<M: Dispatchable, G: Zero>: BuiltinActor<M, G> {
+pub trait RegisteredBuiltinActor<G: Zero>: BuiltinActor<G> {
     /// The global unique ID of the trait implementer type.
     const ID: BuiltinId;
 }
 
 // Assuming as many as 16 builtin actors for the meantime
 #[impl_for_tuples(16)]
-#[tuple_types_custom_trait_bound(RegisteredBuiltinActor<M, G>)]
-impl<M: Dispatchable, G: Zero> BuiltinActor<M, G> for Tuple {
-    fn handle(message: &M, gas_limit: G) -> (BuiltinResult<M::Payload>, G) {
+#[tuple_types_custom_trait_bound(RegisteredBuiltinActor<G>)]
+impl<G: Zero> BuiltinActor<G> for Tuple {
+    fn handle(
+        builtin_id: BuiltinId,
+        message: &StoredDispatch,
+        gas_limit: G,
+    ) -> (BuiltinResult<Payload>, G) {
         for_tuples!(
             #(
-                if (Tuple::ID == message.destination()) {
-                    return Tuple::handle(message, gas_limit);
+                if (Tuple::ID == builtin_id) {
+                    return Tuple::handle(builtin_id, message, gas_limit);
                 }
             )*
         );
@@ -201,7 +151,7 @@ impl<M: Dispatchable, G: Zero> BuiltinActor<M, G> for Tuple {
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
-    use frame_support::{pallet_prelude::*, traits::Get, PalletId};
+    use frame_support::pallet_prelude::*;
     use frame_system::pallet_prelude::*;
 
     pub(crate) const SEED: [u8; 8] = *b"built/in";
@@ -213,18 +163,11 @@ pub mod pallet {
 
     #[pallet::config]
     pub trait Config: frame_system::Config {
-        /// Message type that a builtin actor can handle.
-        type Message: Dispatchable + TryFrom<StoredDispatch>;
-
         /// The builtin actor type.
-        type BuiltinActor: BuiltinActor<Self::Message, u64>;
+        type BuiltinActor: BuiltinActor<u64>;
 
         /// Weight cost incurred by builtin actors calls.
         type WeightInfo: WeightInfo;
-
-        /// The builtin actor pallet id, used for deriving unique actors ids.
-        #[pallet::constant]
-        type PalletId: Get<PalletId>;
     }
 
     #[pallet::hooks]
@@ -242,8 +185,8 @@ pub mod pallet {
     }
 }
 
-impl<T: Config> BuiltinRouterProvider<StoredDispatch, JournalNote, u64> for Pallet<T> {
-    type Router = BuiltinRegistry<T>;
+impl<T: Config> BuiltinDispatcherProvider<StoredDispatch, u64> for Pallet<T> {
+    type Dispatcher = BuiltinRegistry<T>;
 
     fn provide() -> BuiltinRegistry<T> {
         BuiltinRegistry::<T>::new()
@@ -280,20 +223,20 @@ impl<T: Config> BuiltinRegistry<T> {
     }
 }
 
-impl<T: Config> BuiltinRouter for BuiltinRegistry<T> {
+impl<T: Config> BuiltinDispatcher for BuiltinRegistry<T> {
     type QueuedDispatch = StoredDispatch;
-    type Output = JournalNote;
 
     fn lookup(&self, id: &ProgramId) -> Option<BuiltinId> {
         self.registry.get(id).copied()
     }
 
-    fn dispatch(&self, dispatch: StoredDispatch, gas_limit: u64) -> Option<Vec<JournalNote>> {
+    fn dispatch(
+        &self,
+        builtin_id: BuiltinId,
+        dispatch: StoredDispatch,
+        gas_limit: u64,
+    ) -> Vec<JournalNote> {
         let actor_id = dispatch.destination();
-
-        // Try to convert the incoming dispatch into a format that the builtin actor can handle.
-        let builtin_message =
-            <T::Message as TryFrom<StoredDispatch>>::try_from(dispatch.clone()).ok()?;
 
         // Builtin actors can only execute dispatches of `Handle` kind and only `Handle`
         // dispatches can end up here (TODO: elaborate).
@@ -303,7 +246,8 @@ impl<T: Config> BuiltinRouter for BuiltinRegistry<T> {
 
         let mut gas_counter = GasCounter::new(gas_limit);
 
-        let (res, gas_spent) = <T as Config>::BuiltinActor::handle(&builtin_message, gas_limit);
+        let (res, gas_spent) =
+            <T as Config>::BuiltinActor::handle(builtin_id, &dispatch, gas_limit);
 
         // We rely on a builtin actor having performed the check for gas limit consistency
         // and having reported an error if the `gas_limit` was to have been exceeded.
@@ -317,7 +261,7 @@ impl<T: Config> BuiltinRouter for BuiltinRegistry<T> {
         let dispatch = dispatch.into_incoming(gas_limit);
 
         match res {
-            Ok(response_bytes) => {
+            Ok(response_payload) => {
                 log::debug!(target: LOG_TARGET, "Builtin call dispatched successfully");
 
                 let mut dispatch_result =
@@ -327,13 +271,7 @@ impl<T: Config> BuiltinRouter for BuiltinRegistry<T> {
                 // a reply from the builtin actor.
                 let mut message_context =
                     MessageContext::new(dispatch, actor_id, Default::default());
-
-                let payload = response_bytes
-                    .as_ref()
-                    .to_vec()
-                    .try_into()
-                    .unwrap_or_else(|_| unreachable!("Response message is too large"));
-                let packet = ReplyPacket::new(payload, 0);
+                let packet = ReplyPacket::new(response_payload, 0);
 
                 // Mark reply as sent
                 if let Ok(_reply_id) = message_context.reply_commit(packet.clone(), None) {
@@ -347,21 +285,12 @@ impl<T: Config> BuiltinRouter for BuiltinRegistry<T> {
                     dispatch_result.generated_dispatches = generated_dispatches;
                 };
 
-                Some(process_success(
-                    SuccessfulDispatchResultKind::Success,
-                    dispatch_result,
-                ))
+                process_success(SuccessfulDispatchResultKind::Success, dispatch_result)
             }
             Err(err) => {
                 log::debug!(target: LOG_TARGET, "Builtin actor error: {:?}", err);
                 let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
-                Some(process_execution_error(
-                    dispatch,
-                    actor_id,
-                    gas_spent,
-                    system_reservation_ctx,
-                    err,
-                ))
+                process_execution_error(dispatch, actor_id, gas_spent, system_reservation_ctx, err)
             }
         }
     }

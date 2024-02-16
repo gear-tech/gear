@@ -143,6 +143,7 @@ fn supply_alignment_works() {
 #[test]
 fn genesis_config_works() {
     init_logger();
+
     ExtBuilder::default()
         .initial_authorities(vec![
             (VAL_1_STASH, VAL_1_AUTH_ID),
@@ -605,9 +606,9 @@ fn nominators_rewards_disbursement_works() {
 
 #[test]
 fn staking_blacklist_works() {
-    init_logger();
-
     use sp_runtime::{testing::TestXt, transaction_validity::InvalidTransaction};
+
+    init_logger();
 
     let extra: SignedExtra = StakingBlackList::<Test>::new();
 
@@ -1339,10 +1340,10 @@ fn empty_rewards_pool_causes_inflation() {
 
 #[test]
 fn election_solution_rewards_add_up() {
-    init_logger();
-
     use pallet_election_provider_multi_phase::{Config as MPConfig, RawSolution};
     use sp_npos_elections::ElectionScore;
+
+    init_logger();
 
     let (target_inflation, ideal_stake, pool_balance, non_stakeable) = sensible_defaults();
     // Solutions submitters

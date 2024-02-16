@@ -3782,6 +3782,7 @@ dependencies = [
  "log",
  "pallet-balances",
  "pallet-gear",
+ "pallet-gear-builtin",
  "pallet-gear-debug",
  "pallet-gear-messenger",
  "pallet-gear-program",
@@ -7503,7 +7504,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-builtin-rpc"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "jsonrpsee 0.16.3",
  "pallet-gear-builtin-rpc-runtime-api",
@@ -7515,7 +7516,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-builtin-rpc-runtime-api"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "sp-api",
  "sp-core",
@@ -7769,7 +7770,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-staking-rewards-rpc"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "jsonrpsee 0.16.3",
  "pallet-gear-staking-rewards-rpc-runtime-api",
@@ -7780,7 +7781,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-staking-rewards-rpc-runtime-api"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "pallet-gear-staking-rewards",
  "sp-api",

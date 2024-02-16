@@ -16,19 +16,18 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{
-    self as pallet_gear_builtin, BuiltinActor, BuiltinActorError, Dispatchable, FromStoredDispatch,
-    RegisteredBuiltinActor,
-};
+use crate::{self as pallet_gear_builtin, BuiltinActor, BuiltinActorError, RegisteredBuiltinActor};
 use core::cell::RefCell;
 use frame_support::{
     construct_runtime, parameter_types,
     traits::{ConstBool, ConstU64, FindAuthor, OnFinalize, OnInitialize},
-    PalletId,
 };
 use frame_support_test::TestRandomness;
 use frame_system::{self as system, pallet_prelude::BlockNumberFor};
-use gear_core::ids::{BuiltinId, ProgramId};
+use gear_core::{
+    ids::{BuiltinId, ProgramId},
+    message::{Payload, StoredDispatch},
+};
 use sp_core::H256;
 use sp_runtime::{
     traits::{BlakeTwo256, IdentityLookup},
@@ -40,7 +39,6 @@ type AccountId = u64;
 type BlockNumber = u64;
 type Balance = u128;
 type Block = frame_system::mocking::MockBlock<Test>;
-type BuiltinMessage = FromStoredDispatch<Test>;
 
 pub(crate) const SIGNER: AccountId = 1;
 pub(crate) const BLOCK_AUTHOR: AccountId = 10;
@@ -78,7 +76,7 @@ construct_runtime!(
         GearBank: pallet_gear_bank,
         Gear: pallet_gear,
         GearGas: pallet_gear_gas,
-        GearBuiltinActor: pallet_gear_builtin,
+        GearBuiltin: pallet_gear_builtin,
     }
 );
 
@@ -111,32 +109,29 @@ pallet_gear_gas::impl_config!(Test);
 pallet_gear_scheduler::impl_config!(Test);
 pallet_gear_program::impl_config!(Test);
 pallet_gear_messenger::impl_config!(Test, CurrentBlockNumber = Gear);
-pallet_gear::impl_config!(
-    Test,
-    Schedule = GearSchedule,
-    BuiltinRouter = GearBuiltinActor,
-);
+pallet_gear::impl_config!(Test, Schedule = GearSchedule, BuiltinProvider = GearBuiltin,);
 
 // A builtin actor who always returns success (even if not enough gas is provided).
 pub struct SuccessBuiltinActor {}
-impl BuiltinActor<BuiltinMessage, u64> for SuccessBuiltinActor {
+impl BuiltinActor<u64> for SuccessBuiltinActor {
     fn handle(
-        message: &BuiltinMessage,
+        _builtin_id: BuiltinId,
+        dispatch: &StoredDispatch,
         _gas_limit: u64,
-    ) -> (Result<Vec<u8>, BuiltinActorError>, u64) {
+    ) -> (Result<Payload, BuiltinActorError>, u64) {
         if !in_transaction() {
             DEBUG_EXECUTION_TRACE.with(|d| {
                 d.borrow_mut().push(ExecutionTraceFrame {
-                    destination: <Self as RegisteredBuiltinActor<_, _>>::ID,
-                    source: message.source(),
-                    input: message.payload_bytes().to_vec(),
+                    destination: <Self as RegisteredBuiltinActor<_>>::ID,
+                    source: dispatch.source(),
+                    input: dispatch.payload_bytes().to_vec(),
                     is_success: true,
                 })
             });
         }
 
         // Build the reply message
-        let payload = b"Success".to_vec();
+        let payload = b"Success".to_vec().try_into().expect("Small vector");
 
         (Ok(payload), 1_000_000_u64)
     }
@@ -145,23 +140,24 @@ impl BuiltinActor<BuiltinMessage, u64> for SuccessBuiltinActor {
         buffer.push(Self::ID);
     }
 }
-impl RegisteredBuiltinActor<BuiltinMessage, u64> for SuccessBuiltinActor {
+impl RegisteredBuiltinActor<u64> for SuccessBuiltinActor {
     const ID: BuiltinId = BuiltinId(u64::from_le_bytes(*b"bltn/suc"));
 }
 
 // A builtin actor that always returns an error.
 pub struct ErrorBuiltinActor {}
-impl BuiltinActor<BuiltinMessage, u64> for ErrorBuiltinActor {
+impl BuiltinActor<u64> for ErrorBuiltinActor {
     fn handle(
-        message: &BuiltinMessage,
+        _builtin_id: BuiltinId,
+        dispatch: &StoredDispatch,
         _gas_limit: u64,
-    ) -> (Result<Vec<u8>, BuiltinActorError>, u64) {
+    ) -> (Result<Payload, BuiltinActorError>, u64) {
         if !in_transaction() {
             DEBUG_EXECUTION_TRACE.with(|d| {
                 d.borrow_mut().push(ExecutionTraceFrame {
-                    destination: <Self as RegisteredBuiltinActor<_, _>>::ID,
-                    source: message.source(),
-                    input: message.payload_bytes().to_vec(),
+                    destination: <Self as RegisteredBuiltinActor<_>>::ID,
+                    source: dispatch.source(),
+                    input: dispatch.payload_bytes().to_vec(),
                     is_success: false,
                 })
             });
@@ -173,25 +169,26 @@ impl BuiltinActor<BuiltinMessage, u64> for ErrorBuiltinActor {
         buffer.push(Self::ID);
     }
 }
-impl RegisteredBuiltinActor<BuiltinMessage, u64> for ErrorBuiltinActor {
+impl RegisteredBuiltinActor<u64> for ErrorBuiltinActor {
     const ID: BuiltinId = BuiltinId(u64::from_le_bytes(*b"bltn/err"));
 }
 
 // An honest bulitin actor that actually checks whether the gas is sufficient.
 pub struct HonestBuiltinActor {}
-impl BuiltinActor<BuiltinMessage, u64> for HonestBuiltinActor {
+impl BuiltinActor<u64> for HonestBuiltinActor {
     fn handle(
-        message: &BuiltinMessage,
+        _builtin_id: BuiltinId,
+        dispatch: &StoredDispatch,
         gas_limit: u64,
-    ) -> (Result<Vec<u8>, BuiltinActorError>, u64) {
+    ) -> (Result<Payload, BuiltinActorError>, u64) {
         let is_error = gas_limit < 500_000_u64;
 
         if !in_transaction() {
             DEBUG_EXECUTION_TRACE.with(|d| {
                 d.borrow_mut().push(ExecutionTraceFrame {
-                    destination: <Self as RegisteredBuiltinActor<_, _>>::ID,
-                    source: message.source(),
-                    input: message.payload_bytes().to_vec(),
+                    destination: <Self as RegisteredBuiltinActor<_>>::ID,
+                    source: dispatch.source(),
+                    input: dispatch.payload_bytes().to_vec(),
                     is_success: !is_error,
                 })
             });
@@ -202,7 +199,7 @@ impl BuiltinActor<BuiltinMessage, u64> for HonestBuiltinActor {
         }
 
         // Build the reply message
-        let payload = b"Success".to_vec();
+        let payload = b"Success".to_vec().try_into().expect("Small vector");
 
         (Ok(payload), 500_000_u64)
     }
@@ -211,19 +208,13 @@ impl BuiltinActor<BuiltinMessage, u64> for HonestBuiltinActor {
         buffer.push(Self::ID);
     }
 }
-impl RegisteredBuiltinActor<BuiltinMessage, u64> for HonestBuiltinActor {
+impl RegisteredBuiltinActor<u64> for HonestBuiltinActor {
     const ID: BuiltinId = BuiltinId(u64::from_le_bytes(*b"bltn/hon"));
 }
 
-parameter_types! {
-    pub const BuiltinActorPalletId: PalletId = PalletId(*b"py/biact");
-}
-
 impl pallet_gear_builtin::Config for Test {
-    type Message = BuiltinMessage;
     type BuiltinActor = (SuccessBuiltinActor, ErrorBuiltinActor, HonestBuiltinActor);
     type WeightInfo = ();
-    type PalletId = BuiltinActorPalletId;
 }
 
 // Build genesis storage according to the mock runtime.

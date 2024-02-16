@@ -108,7 +108,7 @@ where
         + 'static,
     C::Api: substrate_frame_rpc_system::AccountNonceApi<Block, AccountId, Nonce>,
     C::Api: pallet_gear_rpc::GearRuntimeApi<Block>,
-    C::Api: pallet_gear_builtin_rpc::GearBuiltinActorRuntimeApi<Block>,
+    C::Api: pallet_gear_builtin_rpc::GearBuiltinRuntimeApi<Block>,
     C::Api: pallet_gear_staking_rewards_rpc::GearStakingRewardsRuntimeApi<Block>,
     C::Api: pallet_transaction_payment_rpc::TransactionPaymentRuntimeApi<Block, Balance>,
     C::Api: BabeApi<Block>,
@@ -118,7 +118,7 @@ where
     B: Backend<Block> + Send + Sync + 'static,
     B::State: StateBackend<sp_runtime::traits::HashFor<Block>>,
 {
-    use pallet_gear_builtin_rpc::{GearBuiltinActor, GearBuiltinActorApiServer};
+    use pallet_gear_builtin_rpc::{GearBuiltin, GearBuiltinApiServer};
     use pallet_gear_rpc::{Gear, GearApiServer};
     use pallet_gear_staking_rewards_rpc::{GearStakingRewards, GearStakingRewardsApiServer};
     use pallet_transaction_payment_rpc::{TransactionPayment, TransactionPaymentApiServer};
@@ -211,7 +211,7 @@ where
 
     io.merge(GearStakingRewards::new(client.clone()).into_rpc())?;
 
-    io.merge(GearBuiltinActor::new(client).into_rpc())?;
+    io.merge(GearBuiltin::new(client).into_rpc())?;
 
     Ok(io)
 }
