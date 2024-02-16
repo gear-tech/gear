@@ -574,20 +574,32 @@ impl ExtManager {
     }
 
     pub(crate) fn is_user(&self, id: &ProgramId) -> bool {
-        matches!(self.actors.borrow().get(id), Some((TestActor::User, _)))
+        matches!(
+            self.actors.borrow().get(id),
+            Some((TestActor::User, _)) | None
+        )
+    }
+
+    pub(crate) fn is_initialized_program(&self, id: &ProgramId) -> bool {
+        matches!(
+            self.actors.borrow().get(id),
+            Some((TestActor::Initialized(_), _)) | Some((TestActor::Uninitialized(_, _), _))
+        )
     }
 
     pub(crate) fn is_active_program(&self, id: &ProgramId) -> bool {
         matches!(
             self.actors.borrow().get(id),
-            Some((TestActor::Initialized(_), _))
+            Some((TestActor::Initialized(_), _)) | Some((TestActor::Uninitialized(_, _), _))
         )
     }
 
     pub(crate) fn is_program(&self, id: &ProgramId) -> bool {
         matches!(
             self.actors.borrow().get(id),
-            Some((TestActor::Initialized(_), _)) | Some((TestActor::Uninitialized(_, _), _))
+            Some((TestActor::Initialized(_), _))
+                | Some((TestActor::Uninitialized(_, _), _))
+                | Some((TestActor::Dormant))
         )
     }
 
