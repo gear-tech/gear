@@ -63,7 +63,7 @@ use frame_support::{
 };
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
-    code::{self, Code, CodeError},
+    code::{self, Code, CodeError, ExportError},
     ids::{CodeId, MessageId, ProgramId},
     message::UserStoredMessage,
     pages::{PageNumber, PageU32Size, WasmPage},
@@ -2270,20 +2270,20 @@ fn delayed_program_creation_no_code() {
         //
         // Total dequeued: message to skip execution + error reply on it.
         //
-        // Single db read burned for querying program data from storage.
+        // One db read burned for querying program data from storage when creating program,
+        // and one more to process error reply.
         assert_last_dequeued(2);
 
         let delayed_block_amount: u64 = 1;
-
         let delay_holding_fee = gas_price(
             delayed_block_amount.saturating_mul(CostsPerBlockOf::<Test>::dispatch_stash()),
         );
+        let read_program_from_storage_fee =
+            gas_price(DbWeightOf::<Test>::get().reads(1).ref_time());
 
         assert_eq!(
             Balances::free_balance(USER_1),
-            free_balance + reserved_balance
-                - delay_holding_fee
-                - gas_price(DbWeightOf::<Test>::get().reads(1).ref_time())
+            free_balance + reserved_balance - delay_holding_fee - 2 * read_program_from_storage_fee
         );
         assert!(GearBank::<Test>::account_total(&USER_1).is_zero());
     })
@@ -9653,6 +9653,90 @@ fn test_reinstrumentation_works() {
 }
 
 #[test]
+fn test_reinstrumentation_failure() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let code_id = CodeId::generate(&ProgramCodeKind::Default.to_bytes());
+        let pid = upload_program_default(USER_1, ProgramCodeKind::Default).unwrap();
+
+        run_to_block(2, None);
+
+        let mut old_version = 0;
+        let _reset_guard = DynamicSchedule::mutate(|schedule| {
+            // Insert new original code to cause re-instrumentation failure.
+            let wasm = ProgramCodeKind::Custom("(module)").to_bytes();
+            <<Test as Config>::CodeStorage as CodeStorage>::OriginalCodeStorage::insert(
+                code_id, wasm,
+            );
+
+            old_version = schedule.instruction_weights.version;
+            schedule.instruction_weights.version = 0xdeadbeef;
+        });
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            vec![],
+            10_000_000_000,
+            0,
+            false,
+        ));
+
+        let mid = get_last_message_id();
+
+        run_to_block(3, None);
+
+        // Must be active even after re-instrumentation failure.
+        let program = ProgramStorageOf::<Test>::get_program(pid).unwrap();
+        assert!(program.is_active());
+
+        // After message processing the code must have the old instrumentation version.
+        let code = <Test as Config>::CodeStorage::get_code(code_id).unwrap();
+        assert_eq!(code.instruction_weights_version(), old_version);
+
+        // Error reply must be returned with the reason of re-instrumentation failure.
+        assert_failed(mid, ErrorReplyReason::ReinstrumentationFailure);
+    })
+}
+
+#[test]
+fn test_init_reinstrumentation_failure() {
+    init_logger();
+
+    new_test_ext().execute_with(|| {
+        let code_id = CodeId::generate(&ProgramCodeKind::Default.to_bytes());
+        let pid = upload_program_default(USER_1, ProgramCodeKind::Default).unwrap();
+
+        let mut old_version = 0;
+        let _reset_guard = DynamicSchedule::mutate(|schedule| {
+            // Insert new original code to cause init re-instrumentation failure.
+            let wasm = ProgramCodeKind::Custom("(module)").to_bytes();
+            <<Test as Config>::CodeStorage as CodeStorage>::OriginalCodeStorage::insert(
+                code_id, wasm,
+            );
+
+            old_version = schedule.instruction_weights.version;
+            schedule.instruction_weights.version = 0xdeadbeef;
+        });
+
+        let mid = get_last_message_id();
+
+        run_to_block(2, None);
+
+        // Must be terminated after re-instrumentation failure, because it failed on init.
+        let program = ProgramStorageOf::<Test>::get_program(pid).unwrap();
+        assert!(program.is_terminated());
+
+        // After message processing the code must have the old instrumentation version.
+        let code = <Test as Config>::CodeStorage::get_code(code_id).unwrap();
+        assert_eq!(code.instruction_weights_version(), old_version);
+
+        // Error reply must be returned with the reason of re-instrumentation failure.
+        assert_failed(mid, ErrorReplyReason::ReinstrumentationFailure);
+    })
+}
+
+#[test]
 fn test_mad_big_prog_instrumentation() {
     init_logger();
     new_test_ext().execute_with(|| {
@@ -12839,7 +12923,7 @@ fn wrong_entry_type() {
                 |_| ConstantCostRules::default(),
                 None
             ),
-            CodeError::InvalidExportFnSignature
+            CodeError::Export(ExportError::InvalidExportFnSignature(0))
         );
     });
 }

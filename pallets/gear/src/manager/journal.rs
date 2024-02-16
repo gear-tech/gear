@@ -34,7 +34,7 @@ use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::PageBuf,
-    message::{Dispatch, MessageWaitedType, StoredDispatch},
+    message::{Dispatch, IncomingDispatch, MessageWaitedType, StoredDispatch},
     pages::{GearPage, PageU32Size, WasmPage},
     reservation::GasReserver,
 };
@@ -58,19 +58,17 @@ where
     ) {
         use CoreDispatchOutcome::*;
 
-        let wake_waiting_init_msgs = |p_id: ProgramId| {
-            ProgramStorageOf::<T>::waiting_init_take_messages(p_id)
+        let wake_waiting_init_msgs = |program_id: ProgramId| {
+            ProgramStorageOf::<T>::waiting_init_take_messages(program_id)
                 .into_iter()
-                .for_each(|m_id| {
-                    if let Some(m) = Pallet::<T>::wake_dispatch(
-                        p_id,
-                        m_id,
+                .for_each(|message_id| {
+                    if let Some(dispatch) = Pallet::<T>::wake_dispatch(
+                        program_id,
+                        message_id,
                         MessageWokenSystemReason::ProgramGotInitialized.into_reason(),
                     ) {
-                        QueueOf::<T>::queue(m)
+                        QueueOf::<T>::queue(dispatch)
                             .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
-                    } else {
-                        log::error!("Cannot find message in wl")
                     }
                 })
         };
@@ -135,12 +133,13 @@ where
             InitFailure {
                 program_id,
                 origin,
-                executed,
-                ..
+                reason,
             } => {
-                log::trace!("Dispatch ({message_id:?}) init failure for program {program_id:?}");
+                log::trace!(
+                    "Dispatch ({message_id:?}) init failure for program {program_id:?}: {reason}"
+                );
 
-                Self::process_failed_init(program_id, origin, executed);
+                Self::process_failed_init(program_id, origin);
 
                 DispatchStatus::Failed
             }
@@ -535,5 +534,28 @@ where
 
         GasHandlerOf::<T>::create_deposit(message_id, future_reply_id, amount)
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+    }
+
+    fn waiting_init_message(&mut self, dispatch: IncomingDispatch, destination: ProgramId) {
+        let (kind, message, context) = dispatch.into();
+
+        log::trace!(
+            "Append message {:?} to the waiting init messages list",
+            message.id()
+        );
+
+        let dispatch = StoredDispatch::new(kind, message.into_stored(destination), context);
+
+        // Adding id in on-init wake list.
+        ProgramStorageOf::<T>::waiting_init_append_message_id(
+            dispatch.destination(),
+            dispatch.id(),
+        );
+
+        Pallet::<T>::wait_dispatch(
+            dispatch,
+            None,
+            MessageWaitedSystemReason::ProgramIsNotInitialized.into_reason(),
+        );
     }
 }
