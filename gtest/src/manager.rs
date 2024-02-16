@@ -599,7 +599,7 @@ impl ExtManager {
             self.actors.borrow().get(id),
             Some((TestActor::Initialized(_), _))
                 | Some((TestActor::Uninitialized(_, _), _))
-                | Some((TestActor::Dormant))
+                | Some((TestActor::Dormant, _))
         )
     }
 
