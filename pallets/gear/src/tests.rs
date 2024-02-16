@@ -12866,76 +12866,8 @@ fn relay_messages() {
     );
 }
 
-#[test]
-fn wasm_data_section_out_of_static_memory() {
-    let wat1 = r#"
-        (module
-            (import "env" "memory" (memory 1))
-            (export "init" (func $init))
-            (func $init)
-            (data (;0;) (i32.const 0x10000) "gear")
-        )
-    "#;
 
-    let wat2 = r#"
-        (module
-            (import "env" "memory" (memory 1))
-            (export "init" (func $init))
-            (func $init)
-            (data (;0;) (i32.const 0xfffd) "gear")
-        )
-    "#;
-
-    let wat3 = r#"
-        (module
-            (import "env" "memory" (memory 1))
-            (export "init" (func $init))
-            (func $init)
-            (data (;0;) (i32.const 0xffffffff) "gear")
-        )
-    "#;
-
-    init_logger();
-    new_test_ext().execute_with(|| {
-        Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            ProgramCodeKind::Custom(wat1).to_bytes(),
-            DEFAULT_SALT.to_vec(),
-            EMPTY_PAYLOAD.to_vec(),
-            50_000_000_000,
-            0,
-            false,
-        )
-        .expect_err("Must be error, because data segment offset is out of static memory bounds");
-
-        Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            ProgramCodeKind::Custom(wat2).to_bytes(),
-            DEFAULT_SALT.to_vec(),
-            EMPTY_PAYLOAD.to_vec(),
-            50_000_000_000,
-            0,
-            false,
-        )
-        .expect_err(
-            "Must be error, because data segment last byte offset is out of static memory bounds",
-        );
-
-        Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            ProgramCodeKind::Custom(wat3).to_bytes(),
-            DEFAULT_SALT.to_vec(),
-            EMPTY_PAYLOAD.to_vec(),
-            50_000_000_000,
-            0,
-            false,
-        )
-        .expect_err(
-            "Must be error, because data segment last byte offset is out of 32 bit address space",
-        );
-    });
-}
-
+// TODO: move to gear-core after #3736
 #[test]
 fn module_instantiation_error() {
     // Unknown global import leads to instantiation error.

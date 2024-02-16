@@ -301,7 +301,7 @@ pub fn check_data_section(module: &Module, check_stack_end: bool) -> Result<(), 
             // Checks, that each data segment does not overlap the user stack.
             (data_segment_offset >= stack_end_offset as u32)
                 .then_some(())
-                .ok_or(DataSectionError::UserStackOverlaps(
+                .ok_or(DataSectionError::GearStackOverlaps(
                     data_segment_offset,
                     stack_end_offset as u32,
                 ))?;

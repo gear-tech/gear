@@ -80,9 +80,9 @@ pub enum DataSectionError {
     /// Unsupported initialization of data segment.
     #[display(fmt = "Unsupported initialization of data segment")]
     Initialization,
-    /// Data section overlaps user stack.
-    #[display(fmt = "Data segment {_0:#x} overlaps user stack [0x0, {_1:#x})")]
-    UserStackOverlaps(u32, u32),
+    /// Data section overlaps gear stack.
+    #[display(fmt = "Data segment {_0:#x} overlaps gear stack [0x0, {_1:#x})")]
+    GearStackOverlaps(u32, u32),
     /// Data segment end address is out of possible 32 bits address space.
     #[display(fmt = "Data segment {_0:#x} ends out of possible 32 bits address space")]
     EndAddressOverflow(u32),

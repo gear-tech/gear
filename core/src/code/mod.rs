@@ -364,7 +364,7 @@ impl CodeAndId {
 
 #[cfg(test)]
 mod tests {
-    use crate::code::{Code, CodeError, ExportError};
+    use crate::code::{Code, CodeError, DataSectionError, ExportError};
     use alloc::vec::Vec;
     use gear_wasm_instrument::wasm_instrument::gas_metering::ConstantCostRules;
 
@@ -375,6 +375,19 @@ mod tests {
             .unwrap()
             .as_ref()
             .to_vec()
+    }
+
+    macro_rules! assert_code_err {
+        ($res:expr, $expected:pat) => {
+            let err = $res.expect_err("Code::try_new must return an error");
+            let expected_err = stringify!($expected);
+            assert!(
+                matches!(err, $expected),
+                "Must receive {:?}, got {:?}",
+                expected_err,
+                err
+            );
+        };
     }
 
     #[test]
@@ -389,10 +402,10 @@ mod tests {
 
         let original_code = wat2wasm(WAT);
 
-        assert!(matches!(
+        assert_code_err!(
             Code::try_new(original_code, 1, |_| ConstantCostRules::default(), None),
-            Err(CodeError::Export(ExportError::ExcessExport(0)))
-        ));
+            CodeError::Export(ExportError::ExcessExport(0))
+        );
     }
 
     #[test]
@@ -407,10 +420,10 @@ mod tests {
 
         let original_code = wat2wasm(WAT);
 
-        assert!(matches!(
+        assert_code_err!(
             Code::try_new(original_code, 1, |_| ConstantCostRules::default(), None),
-            Err(CodeError::Export(ExportError::RequiredExportNotFound))
-        ));
+            CodeError::Export(ExportError::RequiredExportNotFound)
+        );
     }
 
     #[test]
@@ -432,5 +445,95 @@ mod tests {
             Some(16 * 1024),
         )
         .unwrap();
+    }
+
+    #[test]
+    fn data_segment_out_of_static_memory() {
+        // Data segment end address is out of static memory.
+        let wat = r#"
+            (module
+                (import "env" "memory" (memory 1))
+                (export "init" (func $init))
+                (func $init)
+                (data (;0;) (i32.const 0x10000) "gear")
+            )
+        "#;
+        assert_code_err!(
+            Code::try_new(wat2wasm(wat), 1, |_| ConstantCostRules::default(), None),
+            CodeError::DataSection(DataSectionError::EndAddressOutOfStaticMemory(
+                0x10000, 0x10003, 0x10000
+            ))
+        );
+
+        // Data segment last byte is next byte after static memory
+        let wat = r#"
+            (module
+                (import "env" "memory" (memory 1))
+                (export "init" (func $init))
+                (func $init)
+                (data (;0;) (i32.const 0xfffd) "gear")
+            )
+        "#;
+        assert_code_err!(
+            Code::try_new(wat2wasm(wat), 1, |_| ConstantCostRules::default(), None),
+            CodeError::DataSection(DataSectionError::EndAddressOutOfStaticMemory(
+                0xfffd, 0x10000, 0x10000
+            ))
+        );
+    }
+
+    #[test]
+    fn data_segment_out_of_u32() {
+        // Data segment end address is out of possible 32 bits address space.
+        let wat = r#"
+            (module
+                (import "env" "memory" (memory 1))
+                (export "init" (func $init))
+                (func $init)
+                (data (;0;) (i32.const 0xffffffff) "gear")
+            )
+        "#;
+        assert_code_err!(
+            Code::try_new(wat2wasm(wat), 1, |_| ConstantCostRules::default(), None),
+            CodeError::DataSection(DataSectionError::EndAddressOverflow(0xffffffff))
+        );
+    }
+
+    #[test]
+    fn data_segment_stack_overlaps() {
+        // Data segment overlaps gear stack.
+        let wat = r#"
+            (module
+                (import "env" "memory" (memory 1))
+                (export "init" (func $init))
+                (func $init)
+                (data (;0;) (i32.const 0x100) "gear")
+                (export "__gear_stack_end" (global 0))
+                (global (mut i32) (i32.const 0x200))
+            )
+        "#;
+        assert_code_err!(
+            Code::try_new(wat2wasm(wat), 1, |_| ConstantCostRules::default(), None),
+            CodeError::DataSection(DataSectionError::GearStackOverlaps(0x100, 0x200))
+        );
+    }
+
+    #[test]
+    fn data_section() {
+        let wat = r#"
+            (module
+                (import "env" "memory" (memory 3))
+                (export "init" (func $init))
+                (func $init)
+                (data (i32.const 0x20000) "gear")
+                (data (i32.const 0x10000) "")     ;; empty data segment
+                (data (i32.const 0x1ffff) "gear") ;; overlapping other segments, also ok
+                (data (i32.const 0x2ffff) "g")    ;; one byte before the end of memory
+                (export "__gear_stack_end" (global 0))
+                (global (mut i32) (i32.const 0x10000))
+            )
+        "#;
+        Code::try_new(wat2wasm(wat), 1, |_| ConstantCostRules::default(), None)
+            .expect("Must be ok");
     }
 }
