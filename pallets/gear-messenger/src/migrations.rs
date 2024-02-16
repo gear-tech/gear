@@ -90,7 +90,7 @@ impl<T: Config> OnRuntimeUpgrade for MigrateToV3<T> {
         count += v2::DispatchStash::<T>::iter().inspect(
             |store| {
                 if store.1.0.context.is_some() {
-                    log::error!("Previous context on StoredDispatch in DispatchStash should always be None, but was Some for message id {:?}", store.1.0.message.id());
+                    panic!("Previous context on StoredDispatch in DispatchStash should always be None, but was Some for message id {:?}", store.1.0.message.id());
                 }
             },
         ).count();
