@@ -246,7 +246,7 @@ impl System {
     #[track_caller]
     pub fn get_mailbox<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> Mailbox {
         let program_id = id.into().0;
-        if self.0.borrow().is_program(&program_id) {
+        if !self.0.borrow().is_user(&program_id) {
             panic!("Mailbox available only for users");
         }
         self.0.borrow_mut().mailbox.entry(program_id).or_default();

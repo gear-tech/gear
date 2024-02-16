@@ -580,13 +580,6 @@ impl ExtManager {
         )
     }
 
-    pub(crate) fn is_initialized_program(&self, id: &ProgramId) -> bool {
-        matches!(
-            self.actors.borrow().get(id),
-            Some((TestActor::Initialized(_), _)) | Some((TestActor::Uninitialized(_, _), _))
-        )
-    }
-
     pub(crate) fn is_active_program(&self, id: &ProgramId) -> bool {
         matches!(
             self.actors.borrow().get(id),
