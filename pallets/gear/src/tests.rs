@@ -12866,7 +12866,6 @@ fn relay_messages() {
     );
 }
 
-
 // TODO: move to gear-core after #3736
 #[test]
 fn module_instantiation_error() {

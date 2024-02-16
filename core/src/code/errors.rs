@@ -18,8 +18,8 @@
 
 //! Module that describes various code errors.
 
-use gear_wasm_instrument::{parity_wasm::SerializationError, InstrumentationError};
-use wasmparser::BinaryReaderError;
+pub use gear_wasm_instrument::{parity_wasm::SerializationError, InstrumentationError};
+pub use wasmparser::BinaryReaderError;
 
 /// Section name in WASM module.
 #[derive(Debug, derive_more::Display)]
@@ -143,9 +143,10 @@ pub enum CodecError {
 #[derive(Debug, derive_more::Display, derive_more::From)]
 pub enum CodeError {
     /// Validation by wasmparser failed.
-    #[display(fmt = "Wasm validation failed")]
+    #[display(fmt = "Wasmer validation error: {_0}")]
     Validation(BinaryReaderError),
     /// Module encode/decode error.
+    #[display(fmt = "Codec error: {_0}")]
     Codec(CodecError),
     /// The provided code contains section error.
     #[display(fmt = "Section error: {_0}")]
