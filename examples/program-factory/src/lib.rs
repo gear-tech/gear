@@ -152,7 +152,7 @@ mod tests {
         );
         assert!(!res.main_failed());
         // No new program with fictional id
-        assert!(!sys.is_program(fictional_program_id));
+        assert!(!sys.is_active_program(fictional_program_id));
     }
 
     #[test]
