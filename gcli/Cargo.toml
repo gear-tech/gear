@@ -47,7 +47,7 @@ wasmi = { version = "0.30.0", features = ["std"] }
 
 [dev-dependencies]
 rand.workspace = true
-demo-messager.workspace = true
+demo-messenger.workspace = true
 demo-new-meta.workspace = true
 demo-waiter.workspace = true
 gsdk = { workspace = true, features = ["testing"] }

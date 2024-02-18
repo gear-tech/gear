@@ -28,8 +28,11 @@ use gear_wasm_gen::{
     ActorKind, EntryPointsSet, InvocableSyscall, PtrParamAllowedValues, RegularParamType,
     StandardGearWasmConfigsBundle, SyscallName, SyscallsInjectionTypes, SyscallsParamsConfig,
 };
+use runtime_primitives::Balance;
+use vara_runtime::EXISTENTIAL_DEPOSIT;
 
-pub(crate) type UploadProgramRuntimeData<'a> = (&'a str, Option<&'a NonEmpty<ProgramId>>, u64);
+pub(crate) type UploadProgramRuntimeData<'a> =
+    (&'a str, Option<&'a NonEmpty<ProgramId>>, u64, Balance);
 
 pub(super) const fn data_requirement() -> usize {
     MAX_CODE_SIZE + MAX_SALT_SIZE + MAX_PAYLOAD_SIZE + GAS_SIZE + VALUE_SIZE + AUXILIARY_SIZE
@@ -37,13 +40,18 @@ pub(super) const fn data_requirement() -> usize {
 
 impl<'a> From<RuntimeStateView<'a>> for UploadProgramRuntimeData<'a> {
     fn from(env: RuntimeStateView<'a>) -> Self {
-        (env.corpus_id, env.programs, env.max_gas)
+        (
+            env.corpus_id,
+            env.programs,
+            env.max_gas,
+            env.current_balance,
+        )
     }
 }
 
 pub(crate) fn generate(
     unstructured: &mut Unstructured,
-    (corpus_id, programs, gas): UploadProgramRuntimeData,
+    (corpus_id, programs, gas, current_balance): UploadProgramRuntimeData,
 ) -> Result<GearCall> {
     log::trace!("New gear-wasm generation");
     log::trace!("Random data before wasm gen {}", unstructured.len());
@@ -53,6 +61,7 @@ pub(crate) fn generate(
         config(
             programs,
             Some(format!("Generated program from corpus - {corpus_id}")),
+            current_balance,
         ),
     )?;
     log::trace!("Random data after wasm gen {}", unstructured.len());
@@ -69,11 +78,14 @@ pub(crate) fn generate(
     );
     log::trace!("Payload (upload_program) length {:?}", payload.len());
 
-    let program_id = ProgramId::generate_from_user(CodeId::generate(&code), &salt);
+    let value = super::arbitrary_value(unstructured, current_balance)?;
+    log::trace!("Random data after value generation {}", unstructured.len());
+    log::trace!("Sending value (upload_program) - {value}");
 
+    let program_id = ProgramId::generate_from_user(CodeId::generate(&code), &salt);
     log::trace!("Generated code for program id - {program_id}");
 
-    Ok(UploadProgramArgs((code, salt, payload, gas, 0)).into())
+    Ok(UploadProgramArgs((code, salt, payload, gas, value)).into())
 }
 
 fn arbitrary_salt(u: &mut Unstructured) -> Result<Vec<u8>> {
@@ -83,6 +95,7 @@ fn arbitrary_salt(u: &mut Unstructured) -> Result<Vec<u8>> {
 fn config(
     programs: Option<&NonEmpty<ProgramId>>,
     log_info: Option<String>,
+    current_balance: Balance,
 ) -> StandardGearWasmConfigsBundle {
     let initial_pages = 2;
     let mut injection_types = SyscallsInjectionTypes::all_once();
@@ -101,6 +114,14 @@ fn config(
         .into_iter(),
     );
 
+    let max_value = {
+        let d = current_balance
+            .saturating_div(EXISTENTIAL_DEPOSIT)
+            .saturating_sub(1)
+            .max(1);
+
+        current_balance.saturating_div(d)
+    };
     let mut params_config = SyscallsParamsConfig::new()
         .with_default_regular_config()
         .with_rule(RegularParamType::Alloc, (10..=20).into())
@@ -108,7 +129,9 @@ fn config(
             RegularParamType::Free,
             (initial_pages..=initial_pages + 35).into(),
         )
-        .with_ptr_rule(PtrParamAllowedValues::Value(0..=0));
+        .with_ptr_rule(PtrParamAllowedValues::Value(
+            EXISTENTIAL_DEPOSIT..=max_value,
+        ));
 
     let actor_kind = programs
         .cloned()
@@ -122,7 +145,7 @@ fn config(
         .with_ptr_rule(PtrParamAllowedValues::ActorId(actor_kind.clone()))
         .with_ptr_rule(PtrParamAllowedValues::ActorIdWithValue {
             actor_kind: actor_kind.clone(),
-            range: 0..=0,
+            range: EXISTENTIAL_DEPOSIT..=max_value,
         });
 
     StandardGearWasmConfigsBundle {

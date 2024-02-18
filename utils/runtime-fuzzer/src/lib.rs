@@ -32,14 +32,17 @@ use gear_wasm_gen::wasm_gen_arbitrary::Result;
 use generator::*;
 use runtime::BalanceManager;
 use sha1::Digest;
+use sp_io::TestExternalities;
 use vara_runtime::{AccountId, Gear, RuntimeOrigin};
+
+const EXHAUST_MESSAGES_RUNS: usize = 20;
 
 pub fn run(fuzzer_input: FuzzerInput<'_>) -> Result<()> {
     run_impl(fuzzer_input).map(|_| ())
 }
 
 /// Runs all the fuzz testing internal machinery.
-fn run_impl(fuzzer_input: FuzzerInput<'_>) -> Result<sp_io::TestExternalities> {
+fn run_impl(fuzzer_input: FuzzerInput<'_>) -> Result<TestExternalities> {
     let raw_data = fuzzer_input.inner();
     let (balance_manager_data_requirement, generator_data_requirement) =
         fuzzer_input.into_data_requirements()?;
@@ -51,14 +54,38 @@ fn run_impl(fuzzer_input: FuzzerInput<'_>) -> Result<sp_io::TestExternalities> {
     let corpus_id = get_sha1_string(raw_data);
     log::trace!("Generating gear calls from corpus - {}", corpus_id);
 
-    let balance_manager = BalanceManager::new(runtime::alice(), balance_manager_data_requirement);
+    let mut balance_manager =
+        BalanceManager::new(runtime::alice(), balance_manager_data_requirement);
     let mut test_ext = runtime::new_test_ext();
-    let mut env_producer = RuntimeStateViewProducer::new(corpus_id, balance_manager.sender.clone());
-    let mut generator = GearCallsGenerator::new(generator_data_requirement);
+    run_calls_loop(
+        RuntimeStateViewProducer::new(corpus_id, balance_manager.sender.clone()),
+        GearCallsGenerator::new(generator_data_requirement),
+        &mut test_ext,
+        &mut balance_manager,
+    )?;
+    exhaust_messages_stores(&mut test_ext, balance_manager)?;
+
+    Ok(test_ext)
+}
+
+fn get_sha1_string(input: &[u8]) -> String {
+    let mut hasher = sha1::Sha1::new();
+    hasher.update(input);
+
+    hex::encode(hasher.finalize())
+}
+
+fn run_calls_loop(
+    mut state_view_producer: RuntimeStateViewProducer,
+    mut calls_generator: GearCallsGenerator,
+    test_ext: &mut TestExternalities,
+    balance_manager: &mut BalanceManager,
+) -> Result<()> {
     loop {
         let must_stop = test_ext.execute_with(|| -> Result<bool> {
-            let env = env_producer.produce_state_view(balance_manager.update_balance());
-            let Some(gear_call) = generator.generate(env)? else {
+            let state_view =
+                state_view_producer.produce_state_view(balance_manager.update_balance()?);
+            let Some(gear_call) = calls_generator.generate(state_view)? else {
                 return Ok(true);
             };
 
@@ -72,7 +99,7 @@ fn run_impl(fuzzer_input: FuzzerInput<'_>) -> Result<sp_io::TestExternalities> {
         })?;
 
         if must_stop {
-            break Ok(test_ext);
+            break Ok(());
         }
     }
 }
@@ -121,9 +148,24 @@ fn execute_gear_call(sender: AccountId, call: GearCall) -> DispatchResultWithPos
     }
 }
 
-fn get_sha1_string(input: &[u8]) -> String {
-    let mut hasher = sha1::Sha1::new();
-    hasher.update(input);
+/// This is a post-main blocks execution function.
+///
+/// It's called to exhaust task pool and message queue,
+/// so all the rest messages will be executed.
+fn exhaust_messages_stores(
+    test_ext: &mut TestExternalities,
+    mut balance_manager: BalanceManager,
+) -> Result<()> {
+    log::trace!("Exhausting messages stores");
 
-    hex::encode(hasher.finalize())
+    for _ in 0..EXHAUST_MESSAGES_RUNS {
+        test_ext.execute_with(|| {
+            balance_manager.update_balance()?;
+            runtime::run_to_next_block();
+
+            Ok(())
+        })?;
+    }
+
+    Ok(())
 }
