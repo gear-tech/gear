@@ -167,7 +167,7 @@ where
         Self::update_gas_allowance(gas_allowance);
 
         // Create an instance of a builtin dispatcher.
-        let builtin_dispatcher = T::BuiltinProvider::provide();
+        let (builtin_dispatcher, _) = T::BuiltinDispatcherFactory::create();
 
         loop {
             if QueueProcessingOf::<T>::denied() {
@@ -186,30 +186,26 @@ where
             let gas_limit = GasHandlerOf::<T>::get_limit(dispatch_id)
                 .map_err(|_| internal_err("Failed to get gas limit"))?;
 
-            let (journal, skip_if_allowed) =
-                if let Some(builtin_id) = builtin_dispatcher.lookup(&actor_id) {
-                    (
-                        builtin_dispatcher.dispatch(builtin_id, queued_dispatch, gas_limit),
-                        false,
-                    )
-                } else {
-                    let balance = CurrencyOf::<T>::free_balance(&actor_id.cast());
+            let (journal, skip_if_allowed) = if let Some(f) = builtin_dispatcher.lookup(&actor_id) {
+                (builtin_dispatcher.run(f, queued_dispatch, gas_limit), false)
+            } else {
+                let balance = CurrencyOf::<T>::free_balance(&actor_id.cast());
 
-                    let success_reply = queued_dispatch
-                        .reply_details()
-                        .map(|rd| rd.to_reply_code().is_success())
-                        .unwrap_or(false);
+                let success_reply = queued_dispatch
+                    .reply_details()
+                    .map(|rd| rd.to_reply_code().is_success())
+                    .unwrap_or(false);
 
-                    let step = QueueStep {
-                        block_config: &block_config,
-                        ext_manager: &mut ext_manager,
-                        gas_limit,
-                        dispatch: queued_dispatch,
-                        balance: balance.unique_saturated_into(),
-                    };
-
-                    (Self::run_queue_step(step), success_reply && gas_limit == 0)
+                let step = QueueStep {
+                    block_config: &block_config,
+                    ext_manager: &mut ext_manager,
+                    gas_limit,
+                    dispatch: queued_dispatch,
+                    balance: balance.unique_saturated_into(),
                 };
+
+                (Self::run_queue_step(step), success_reply && gas_limit == 0)
+            };
 
             let get_main_limit = || {
                 // For case when node is not consumed and has any (even zero) balance

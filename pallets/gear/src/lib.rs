@@ -44,7 +44,7 @@ mod tests;
 pub mod pallet_tests;
 
 pub use crate::{
-    builtin::{BuiltinDispatcher, BuiltinDispatcherProvider},
+    builtin::{BuiltinCache, BuiltinDispatcher, BuiltinDispatcherFactory, HandleFn},
     manager::{ExtManager, HandleKind},
     pallet::*,
     schedule::{HostFnWeights, InstructionWeights, Limits, MemoryWeights, Schedule},
@@ -263,8 +263,11 @@ pub mod pallet {
         #[pallet::constant]
         type ProgramRentDisabledDelta: Get<BlockNumberFor<Self>>;
 
-        /// The builtin actors registry.
-        type BuiltinProvider: BuiltinDispatcherProvider<StoredDispatch, u64>;
+        /// The builtin dispatcher factory.
+        type BuiltinDispatcherFactory: BuiltinDispatcherFactory;
+
+        /// The builtin cache for quick actor ids lookup.
+        type BuiltinCache: BuiltinCache;
     }
 
     #[pallet::pallet]
@@ -815,7 +818,7 @@ pub mod pallet {
 
         /// Returns true if `program_id` is that of a in active status or the builtin actor.
         pub fn is_active(program_id: ProgramId) -> bool {
-            T::BuiltinProvider::provide().lookup(&program_id).is_some()
+            T::BuiltinCache::exists(&program_id)
                 || ProgramStorageOf::<T>::get_program(program_id)
                     .map(|program| program.is_active())
                     .unwrap_or_default()
@@ -840,7 +843,7 @@ pub mod pallet {
         pub fn program_exists(program_id: ProgramId) -> bool {
             ProgramStorageOf::<T>::program_exists(program_id)
                 || ProgramStorageOf::<T>::paused_program_exists(&program_id)
-                || T::BuiltinProvider::provide().lookup(&program_id).is_some()
+                || T::BuiltinCache::exists(&program_id)
         }
 
         /// Returns exit argument of an exited program.
@@ -1864,12 +1867,11 @@ pub mod pallet {
         type Gas = GasBalanceOf<T>;
 
         fn run_queue(initial_gas: Self::Gas) -> Self::Gas {
-            // Take note of how much gas we will need for builtin dispatcher provision.
-            let gas_for_builtin_dispatcher = T::BuiltinProvider::provision_cost();
+            // Create an instance of a builtin dispatcher.
+            let (builtin_dispatcher, gas_cost) = T::BuiltinDispatcherFactory::create();
 
-            // Setting initial gas allowance adjusted for builtin dispatcher creation cost
-            // that will be incurred inside the `process_queue()` function.
-            GasAllowanceOf::<T>::put(initial_gas.saturating_sub(gas_for_builtin_dispatcher));
+            // Setting initial gas allowance adjusted for builtin dispatcher creation cost.
+            GasAllowanceOf::<T>::put(initial_gas.saturating_sub(gas_cost));
 
             // Ext manager creation.
             // It will be processing messages execution results following its `JournalHandler`
@@ -1881,7 +1883,7 @@ pub mod pallet {
             Self::process_tasks(&mut ext_manager);
 
             // Processing message queue.
-            Self::process_queue(ext_manager);
+            Self::process_queue(ext_manager, builtin_dispatcher);
 
             // Calculating weight burned within the block.
             initial_gas.saturating_sub(GasAllowanceOf::<T>::get())

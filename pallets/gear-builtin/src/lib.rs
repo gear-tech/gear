@@ -44,7 +44,10 @@ mod tests;
 
 pub use weights::WeightInfo;
 
-use alloc::{collections::BTreeMap, string::ToString};
+use alloc::{
+    collections::{BTreeMap, BTreeSet},
+    string::ToString,
+};
 use core_processor::{
     common::{ActorExecutionErrorReplyReason, DispatchResult, JournalNote, TrapExplanation},
     process_execution_error, process_success, SuccessfulDispatchResultKind,
@@ -52,15 +55,14 @@ use core_processor::{
 };
 use gear_core::{
     gas::GasCounter,
-    ids::{hash, BuiltinId, ProgramId},
+    ids::{hash, ProgramId},
     message::{
         ContextOutcomeDrain, DispatchKind, MessageContext, Payload, ReplyPacket, StoredDispatch,
     },
 };
 use impl_trait_for_tuples::impl_for_tuples;
-use pallet_gear::{BuiltinDispatcher, BuiltinDispatcherProvider};
+use pallet_gear::{BuiltinCache, BuiltinDispatcher, BuiltinDispatcherFactory, HandleFn};
 use parity_scale_codec::{Decode, Encode};
-use sp_runtime::traits::Zero;
 use sp_std::prelude::*;
 
 pub use pallet::*;
@@ -75,11 +77,7 @@ pub enum BuiltinActorError {
     InsufficientGas,
     /// Occurs if the dispatch's message can't be decoded into a known type.
     #[display(fmt = "Failure to decode message")]
-    UnknownMessageType,
-    /// Indicates an unreachable (under normal conditions) state:
-    /// - the `BuiltinId` passed to the `handle()` function does not match any known actors.
-    #[display(fmt = "Unknown builtin id passed to the `handle()` method")]
-    UnknownActor,
+    DecodingError,
 }
 
 impl From<BuiltinActorError> for ActorExecutionErrorReplyReason {
@@ -89,60 +87,50 @@ impl From<BuiltinActorError> for ActorExecutionErrorReplyReason {
             BuiltinActorError::InsufficientGas => {
                 ActorExecutionErrorReplyReason::Trap(TrapExplanation::GasLimitExceeded)
             }
-            BuiltinActorError::UnknownMessageType => ActorExecutionErrorReplyReason::Trap(
+            BuiltinActorError::DecodingError => ActorExecutionErrorReplyReason::Trap(
                 TrapExplanation::Panic("Message decoding error".to_string().into()),
             ),
-            // This should convey a message of hitting an unreachable state
-            BuiltinActorError::UnknownActor => {
-                ActorExecutionErrorReplyReason::Trap(TrapExplanation::Unknown)
-            }
         }
     }
 }
 
-pub type BuiltinResult<P> = Result<P, BuiltinActorError>;
+/// A trait representing an interface of a builtin actor that can handle a message
+/// from message queue (a `StoredDispatch`) to produce an outcome and gas spent.
+pub trait BuiltinActor {
+    type Error;
 
-/// A trait representing an interface of a builtin actor that can receive a message
-/// and produce a set of outputs that can then be converted into a reply message.
-pub trait BuiltinActor<Gas: Zero> {
+    /// The global unique ID of the trait implementer type.
+    const ID: u64;
+
     /// Handles a message and returns a result and the actual gas spent.
-    fn handle(
-        builtin_id: BuiltinId,
-        message: &StoredDispatch,
-        gas_limit: Gas,
-    ) -> (BuiltinResult<Payload>, Gas);
-
-    fn get_ids(buffer: &mut Vec<BuiltinId>);
+    fn handle(dispatch: &StoredDispatch, gas_limit: u64) -> (Result<Payload, Self::Error>, u64);
 }
 
-pub trait RegisteredBuiltinActor<G: Zero>: BuiltinActor<G> {
-    /// The global unique ID of the trait implementer type.
-    const ID: BuiltinId;
+/// A trait defining a method to convert a tuple of `BuiltinActor` types into
+/// a in-memory collection of builtin actors.
+pub trait BuiltinCollection<E> {
+    fn collect(
+        registry: &mut BTreeMap<ProgramId, Box<HandleFn<E>>>,
+        id_converter: &dyn Fn(u64) -> ProgramId,
+    );
 }
 
 // Assuming as many as 16 builtin actors for the meantime
 #[impl_for_tuples(16)]
-#[tuple_types_custom_trait_bound(RegisteredBuiltinActor<G>)]
-impl<G: Zero> BuiltinActor<G> for Tuple {
-    fn handle(
-        builtin_id: BuiltinId,
-        message: &StoredDispatch,
-        gas_limit: G,
-    ) -> (BuiltinResult<Payload>, G) {
+#[tuple_types_custom_trait_bound(BuiltinActor<Error = E> + 'static)]
+impl<E> BuiltinCollection<E> for Tuple {
+    fn collect(
+        registry: &mut BTreeMap<ProgramId, Box<HandleFn<E>>>,
+        id_converter: &dyn Fn(u64) -> ProgramId,
+    ) {
         for_tuples!(
             #(
-                if (Tuple::ID == builtin_id) {
-                    return Tuple::handle(builtin_id, message, gas_limit);
+                let actor_id = id_converter(Tuple::ID);
+                if registry.contains_key(&actor_id) {
+                    unreachable!("Duplicate builtin ids");
+                } else {
+                    registry.insert(actor_id, Box::new(Tuple::handle));
                 }
-            )*
-        );
-        (Err(BuiltinActorError::UnknownActor), Zero::zero())
-    }
-
-    fn get_ids(buffer: &mut Vec<BuiltinId>) {
-        for_tuples!(
-            #(
-                buffer.push(Tuple::ID);
             )*
         );
     }
@@ -164,11 +152,15 @@ pub mod pallet {
     #[pallet::config]
     pub trait Config: frame_system::Config {
         /// The builtin actor type.
-        type BuiltinActor: BuiltinActor<u64>;
+        type Builtins: BuiltinCollection<BuiltinActorError>;
 
         /// Weight cost incurred by builtin actors calls.
         type WeightInfo: WeightInfo;
     }
+
+    #[pallet::storage]
+    #[pallet::getter(fn quick_cache)]
+    pub type QuickCache<T: Config> = StorageValue<_, BTreeSet<ProgramId>>;
 
     #[pallet::hooks]
     impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {}
@@ -179,42 +171,47 @@ pub mod pallet {
         ///
         /// This does computations, therefore we should seek to cache the value at the time of
         /// a builtin actor registration.
-        pub fn generate_actor_id(builtin_id: BuiltinId) -> ProgramId {
+        pub fn generate_actor_id(builtin_id: u64) -> ProgramId {
             hash((SEED, builtin_id).encode().as_slice()).into()
         }
     }
 }
 
-impl<T: Config> BuiltinDispatcherProvider<StoredDispatch, u64> for Pallet<T> {
-    type Dispatcher = BuiltinRegistry<T>;
+impl<T: Config> BuiltinDispatcherFactory for Pallet<T> {
+    type Error = BuiltinActorError;
+    type Output = BuiltinRegistry<T>;
 
-    fn provide() -> BuiltinRegistry<T> {
-        BuiltinRegistry::<T>::new()
+    fn create() -> (BuiltinRegistry<T>, u64) {
+        (
+            BuiltinRegistry::<T>::new(),
+            <T as Config>::WeightInfo::create_dispatcher().ref_time(),
+        )
     }
+}
 
-    fn provision_cost() -> u64 {
-        <T as Config>::WeightInfo::provide().ref_time()
+impl<T: Config> BuiltinCache for Pallet<T> {
+    fn exists(id: &ProgramId) -> bool {
+        if QuickCache::<T>::get().is_none() {
+            // Populate the cache at the first call
+            let registry = BuiltinRegistry::<T>::new();
+            QuickCache::<T>::mutate(|keys| {
+                *keys = Some(registry.registry.keys().cloned().collect())
+            });
+        }
+        Self::quick_cache()
+            .expect("Guaranteed to have value; qed")
+            .contains(id)
     }
 }
 
 pub struct BuiltinRegistry<T: Config> {
-    pub registry: BTreeMap<ProgramId, BuiltinId>,
+    pub registry: BTreeMap<ProgramId, Box<HandleFn<BuiltinActorError>>>,
     pub _phantom: sp_std::marker::PhantomData<T>,
 }
 impl<T: Config> BuiltinRegistry<T> {
     fn new() -> Self {
         let mut registry = BTreeMap::new();
-        let mut builtin_ids = Vec::with_capacity(16);
-        <T as Config>::BuiltinActor::get_ids(&mut builtin_ids);
-        let builtin_ids_len = builtin_ids.len();
-        for builtin_id in builtin_ids {
-            let actor_id = Pallet::<T>::generate_actor_id(builtin_id);
-            registry.entry(actor_id).or_insert(builtin_id);
-        }
-        assert!(
-            registry.len() == builtin_ids_len,
-            "Duplicate builtin ids detected!"
-        );
+        <T as Config>::Builtins::collect(&mut registry, &Pallet::<T>::generate_actor_id);
 
         Self {
             registry,
@@ -224,15 +221,15 @@ impl<T: Config> BuiltinRegistry<T> {
 }
 
 impl<T: Config> BuiltinDispatcher for BuiltinRegistry<T> {
-    type QueuedDispatch = StoredDispatch;
+    type Error = BuiltinActorError;
 
-    fn lookup(&self, id: &ProgramId) -> Option<BuiltinId> {
-        self.registry.get(id).copied()
+    fn lookup<'a>(&'a self, id: &ProgramId) -> Option<&'a HandleFn<Self::Error>> {
+        self.registry.get(id).map(|f| &**f)
     }
 
-    fn dispatch(
+    fn run(
         &self,
-        builtin_id: BuiltinId,
+        f: &HandleFn<Self::Error>,
         dispatch: StoredDispatch,
         gas_limit: u64,
     ) -> Vec<JournalNote> {
@@ -246,8 +243,7 @@ impl<T: Config> BuiltinDispatcher for BuiltinRegistry<T> {
 
         let mut gas_counter = GasCounter::new(gas_limit);
 
-        let (res, gas_spent) =
-            <T as Config>::BuiltinActor::handle(builtin_id, &dispatch, gas_limit);
+        let (res, gas_spent) = f(&dispatch, gas_limit);
 
         // We rely on a builtin actor having performed the check for gas limit consistency
         // and having reported an error if the `gas_limit` was to have been exceeded.

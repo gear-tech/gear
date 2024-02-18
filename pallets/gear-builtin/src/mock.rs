@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{self as pallet_gear_builtin, BuiltinActor, BuiltinActorError, RegisteredBuiltinActor};
+use crate::{self as pallet_gear_builtin, BuiltinActor, BuiltinActorError};
 use core::cell::RefCell;
 use frame_support::{
     construct_runtime, parameter_types,
@@ -25,7 +25,7 @@ use frame_support::{
 use frame_support_test::TestRandomness;
 use frame_system::{self as system, pallet_prelude::BlockNumberFor};
 use gear_core::{
-    ids::{BuiltinId, ProgramId},
+    ids::ProgramId,
     message::{Payload, StoredDispatch},
 };
 use sp_core::H256;
@@ -51,7 +51,7 @@ pub(crate) const MILLISECS_PER_BLOCK: u64 = 2_400;
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub(crate) struct ExecutionTraceFrame {
-    pub destination: BuiltinId,
+    pub destination: u64,
     pub source: ProgramId,
     pub input: Vec<u8>,
     pub is_success: bool,
@@ -109,20 +109,28 @@ pallet_gear_gas::impl_config!(Test);
 pallet_gear_scheduler::impl_config!(Test);
 pallet_gear_program::impl_config!(Test);
 pallet_gear_messenger::impl_config!(Test, CurrentBlockNumber = Gear);
-pallet_gear::impl_config!(Test, Schedule = GearSchedule, BuiltinProvider = GearBuiltin,);
+pallet_gear::impl_config!(
+    Test,
+    Schedule = GearSchedule,
+    BuiltinDispatcherFactory = GearBuiltin,
+    BuiltinCache = GearBuiltin,
+);
 
 // A builtin actor who always returns success (even if not enough gas is provided).
 pub struct SuccessBuiltinActor {}
-impl BuiltinActor<u64> for SuccessBuiltinActor {
+impl BuiltinActor for SuccessBuiltinActor {
+    type Error = BuiltinActorError;
+
+    const ID: u64 = u64::from_le_bytes(*b"bltn/suc");
+
     fn handle(
-        _builtin_id: BuiltinId,
         dispatch: &StoredDispatch,
         _gas_limit: u64,
     ) -> (Result<Payload, BuiltinActorError>, u64) {
         if !in_transaction() {
             DEBUG_EXECUTION_TRACE.with(|d| {
                 d.borrow_mut().push(ExecutionTraceFrame {
-                    destination: <Self as RegisteredBuiltinActor<_>>::ID,
+                    destination: <Self as BuiltinActor>::ID,
                     source: dispatch.source(),
                     input: dispatch.payload_bytes().to_vec(),
                     is_success: true,
@@ -135,27 +143,23 @@ impl BuiltinActor<u64> for SuccessBuiltinActor {
 
         (Ok(payload), 1_000_000_u64)
     }
-
-    fn get_ids(buffer: &mut Vec<BuiltinId>) {
-        buffer.push(Self::ID);
-    }
-}
-impl RegisteredBuiltinActor<u64> for SuccessBuiltinActor {
-    const ID: BuiltinId = BuiltinId(u64::from_le_bytes(*b"bltn/suc"));
 }
 
 // A builtin actor that always returns an error.
 pub struct ErrorBuiltinActor {}
-impl BuiltinActor<u64> for ErrorBuiltinActor {
+impl BuiltinActor for ErrorBuiltinActor {
+    type Error = BuiltinActorError;
+
+    const ID: u64 = u64::from_le_bytes(*b"bltn/err");
+
     fn handle(
-        _builtin_id: BuiltinId,
         dispatch: &StoredDispatch,
         _gas_limit: u64,
     ) -> (Result<Payload, BuiltinActorError>, u64) {
         if !in_transaction() {
             DEBUG_EXECUTION_TRACE.with(|d| {
                 d.borrow_mut().push(ExecutionTraceFrame {
-                    destination: <Self as RegisteredBuiltinActor<_>>::ID,
+                    destination: <Self as BuiltinActor>::ID,
                     source: dispatch.source(),
                     input: dispatch.payload_bytes().to_vec(),
                     is_success: false,
@@ -164,20 +168,16 @@ impl BuiltinActor<u64> for ErrorBuiltinActor {
         }
         (Err(BuiltinActorError::InsufficientGas), 100_000_u64)
     }
-
-    fn get_ids(buffer: &mut Vec<BuiltinId>) {
-        buffer.push(Self::ID);
-    }
-}
-impl RegisteredBuiltinActor<u64> for ErrorBuiltinActor {
-    const ID: BuiltinId = BuiltinId(u64::from_le_bytes(*b"bltn/err"));
 }
 
 // An honest bulitin actor that actually checks whether the gas is sufficient.
 pub struct HonestBuiltinActor {}
-impl BuiltinActor<u64> for HonestBuiltinActor {
+impl BuiltinActor for HonestBuiltinActor {
+    type Error = BuiltinActorError;
+
+    const ID: u64 = u64::from_le_bytes(*b"bltn/hon");
+
     fn handle(
-        _builtin_id: BuiltinId,
         dispatch: &StoredDispatch,
         gas_limit: u64,
     ) -> (Result<Payload, BuiltinActorError>, u64) {
@@ -186,7 +186,7 @@ impl BuiltinActor<u64> for HonestBuiltinActor {
         if !in_transaction() {
             DEBUG_EXECUTION_TRACE.with(|d| {
                 d.borrow_mut().push(ExecutionTraceFrame {
-                    destination: <Self as RegisteredBuiltinActor<_>>::ID,
+                    destination: <Self as BuiltinActor>::ID,
                     source: dispatch.source(),
                     input: dispatch.payload_bytes().to_vec(),
                     is_success: !is_error,
@@ -203,17 +203,10 @@ impl BuiltinActor<u64> for HonestBuiltinActor {
 
         (Ok(payload), 500_000_u64)
     }
-
-    fn get_ids(buffer: &mut Vec<BuiltinId>) {
-        buffer.push(Self::ID);
-    }
-}
-impl RegisteredBuiltinActor<u64> for HonestBuiltinActor {
-    const ID: BuiltinId = BuiltinId(u64::from_le_bytes(*b"bltn/hon"));
 }
 
 impl pallet_gear_builtin::Config for Test {
-    type BuiltinActor = (SuccessBuiltinActor, ErrorBuiltinActor, HonestBuiltinActor);
+    type Builtins = (SuccessBuiltinActor, ErrorBuiltinActor, HonestBuiltinActor);
     type WeightInfo = ();
 }
 

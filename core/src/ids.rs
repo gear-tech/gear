@@ -247,22 +247,6 @@ impl ReservationId {
     }
 }
 
-/// A builtin actor type identifier. Serves as a seed for a builtin actor ID generation.
-#[derive(Clone, Copy, Debug, Decode, Encode, Eq, PartialEq, TypeInfo)]
-pub struct BuiltinId(pub u64);
-
-impl From<u64> for BuiltinId {
-    fn from(v: u64) -> Self {
-        Self(v)
-    }
-}
-
-impl From<[u8; 8]> for BuiltinId {
-    fn from(v: [u8; 8]) -> Self {
-        Self(u64::from_le_bytes(v))
-    }
-}
-
 #[test]
 fn formatting_test() {
     use alloc::format;

@@ -20,7 +20,6 @@
 //! sane default schedule from a `WeightInfo` implementation.
 
 #![allow(unused_parens)]
-#![allow(clippy::assertions_on_constants)]
 
 use crate::{weights::WeightInfo, Config};
 use core_processor::configs::PageCosts;

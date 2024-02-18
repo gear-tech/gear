@@ -18,57 +18,68 @@
 
 use super::*;
 use core_processor::common::JournalNote;
-use gear_core::ids::{BuiltinId, ProgramId};
+use gear_core::{
+    ids::ProgramId,
+    message::{Payload, StoredDispatch},
+};
 
-/// A trait representing a registry that provides methods to lookup a builtin actor.
+pub type HandleFn<E> = dyn Fn(&StoredDispatch, u64) -> (Result<Payload, E>, u64);
+
+/// A trait representing a registry that provides methods to lookup and run a builtin actor.
 pub trait BuiltinDispatcher {
-    type QueuedDispatch;
+    type Error;
 
     /// Looks up a builtin actor by its actor id.
-    fn lookup(&self, id: &ProgramId) -> Option<BuiltinId>;
+    fn lookup<'a>(&'a self, id: &ProgramId) -> Option<&'a HandleFn<Self::Error>>;
 
-    /// Handles a dispatch and returns an ordered sequence of outputs if the
-    /// destination actor is a builtin actor, and `None` otherwise.
-    fn dispatch(
+    fn run(
         &self,
-        builtin_id: BuiltinId,
-        dispatch: Self::QueuedDispatch,
+        f: &HandleFn<Self::Error>,
+        dispatch: StoredDispatch,
         gas_limit: u64,
     ) -> Vec<JournalNote>;
 }
 
 impl BuiltinDispatcher for () {
-    type QueuedDispatch = StoredDispatch;
+    type Error = ();
 
-    fn lookup(&self, _id: &ProgramId) -> Option<BuiltinId> {
+    fn lookup<'a>(&'a self, _id: &ProgramId) -> Option<&'a HandleFn<Self::Error>> {
         None
     }
 
-    fn dispatch(
+    fn run(
         &self,
-        _bulitin_id: BuiltinId,
-        _dispatch: Self::QueuedDispatch,
+        _f: &HandleFn<Self::Error>,
+        _dispatch: StoredDispatch,
         _gas_limit: u64,
     ) -> Vec<JournalNote> {
         Default::default()
     }
 }
 
-/// A trait that defines the interface of a builtin dispatcher provider.
-pub trait BuiltinDispatcherProvider<Dispatch, Gas> {
-    type Dispatcher: BuiltinDispatcher<QueuedDispatch = Dispatch>;
+/// A trait that defines the interface of a builtin dispatcher factory.
+pub trait BuiltinDispatcherFactory {
+    type Error;
+    type Output: BuiltinDispatcher<Error = Self::Error>;
 
-    fn provide() -> Self::Dispatcher;
-
-    fn provision_cost() -> Gas;
+    fn create() -> (Self::Output, u64);
 }
 
-impl BuiltinDispatcherProvider<StoredDispatch, u64> for () {
-    type Dispatcher = ();
+impl BuiltinDispatcherFactory for () {
+    type Error = ();
+    type Output = ();
 
-    fn provide() -> Self::Dispatcher {}
+    fn create() -> (Self::Output, u64) {
+        ((), 0)
+    }
+}
 
-    fn provision_cost() -> u64 {
-        0_u64
+pub trait BuiltinCache {
+    fn exists(id: &ProgramId) -> bool;
+}
+
+impl BuiltinCache for () {
+    fn exists(_id: &ProgramId) -> bool {
+        false
     }
 }

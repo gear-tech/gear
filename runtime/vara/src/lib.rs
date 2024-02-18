@@ -1007,7 +1007,8 @@ impl pallet_gear::Config for Runtime {
     type BlockLimiter = GearGas;
     type Scheduler = GearScheduler;
     type QueueRunner = Gear;
-    type BuiltinProvider = GearBuiltin;
+    type BuiltinDispatcherFactory = GearBuiltin;
+    type BuiltinCache = GearBuiltin;
     type ProgramRentFreePeriod = ConstU32<{ MONTHS * RENT_FREE_PERIOD_MONTH_FACTOR }>;
     type ProgramResumeMinimalRentPeriod = ConstU32<{ WEEKS * RENT_RESUME_WEEK_FACTOR }>;
     type ProgramRentCostPerBlock = ConstU128<RENT_COST_PER_BLOCK>;
@@ -1060,7 +1061,7 @@ parameter_types! {
 }
 
 impl pallet_gear_builtin::Config for Runtime {
-    type BuiltinActor = BuiltinActors;
+    type Builtins = BuiltinActors;
     type WeightInfo = pallet_gear_builtin::weights::SubstrateWeight<Runtime>;
 }
 
@@ -1423,7 +1424,7 @@ impl_runtime_apis_plus_common! {
 
     impl pallet_gear_builtin_rpc_runtime_api::GearBuiltinApi<Block> for Runtime {
         fn query_actor_id(builtin_id: u64) -> H256 {
-            GearBuiltin::generate_actor_id(builtin_id.into()).into_bytes().into()
+            GearBuiltin::generate_actor_id(builtin_id).into_bytes().into()
         }
     }
 

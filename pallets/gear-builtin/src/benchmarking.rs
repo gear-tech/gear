@@ -22,30 +22,23 @@
 use crate::Pallet as BuiltinActorPallet;
 use crate::*;
 use frame_benchmarking::{benchmarks, impl_benchmark_test_suite};
-use gear_core::{
-    ids::{BuiltinId, ProgramId},
-    message::{DispatchKind, Payload, StoredDispatch, StoredMessage},
-};
+use gear_core::message::{Payload, StoredDispatch};
 
 macro_rules! impl_builtin_actor {
     ($name: ident, $id: literal) => {
         pub struct $name<T: Config>(core::marker::PhantomData<T>);
 
-        impl<T: Config> BuiltinActor<u64> for $name<T> {
+        impl<T: Config> BuiltinActor for $name<T> {
+            type Error = BuiltinActorError;
+
+            const ID: u64 = $id;
+
             fn handle(
-                _builtin_id: BuiltinId,
                 _message: &StoredDispatch,
                 _gas_limit: u64,
             ) -> (Result<Payload, BuiltinActorError>, u64) {
                 (Ok(Default::default()), Default::default())
             }
-
-            fn get_ids(buffer: &mut Vec<BuiltinId>) {
-                buffer.push(Self::ID);
-            }
-        }
-        impl<T: Config> RegisteredBuiltinActor<u64> for $name<T> {
-            const ID: BuiltinId = BuiltinId($id as u64);
         }
     };
 }
@@ -67,6 +60,7 @@ impl_builtin_actor!(DummyActor13, 13);
 impl_builtin_actor!(DummyActor14, 14);
 impl_builtin_actor!(DummyActor15, 15);
 
+// This type is plugged into the Runtime when the `runtime-benchmarks` feature is enabled.
 #[allow(unused)]
 pub type BenchmarkingBuiltinActor<T> = (
     DummyActor0<T>,
@@ -94,34 +88,27 @@ benchmarks! {
     }
 
     calculate_id {
-        let builtin_id = BuiltinId(100_u64);
+        let builtin_id = 100_u64;
     }: {
         Pallet::<T>::generate_actor_id(builtin_id)
     } verify {
         // No changes in runtime are expected since the actual dispatch doesn't take place.
     }
 
-    provide {
-        let builtin_id = BuiltinId(10_u64);
-        let actor_id = BuiltinActorPallet::<T>::generate_actor_id(builtin_id);
-        let payload = b"Payload".to_vec();
-        let source = ProgramId::from(255_u64);
-
-        let dispatch = StoredDispatch::new(
-            DispatchKind::Handle,
-            StoredMessage::new(
-                Default::default(),
-                source,
-                actor_id,
-                payload.clone().try_into().unwrap(),
-                0_u128,
-                None,
-            ),
-            None,
-        );
-        let gas_limit = 10_000_000_000_u64;
+    create_dispatcher {
     }: {
-        let _ = <T as pallet_gear::Config>::BuiltinProvider::provide();
+        let _ = <T as pallet_gear::Config>::BuiltinDispatcherFactory::create();
+    } verify {
+        // No changes in runtime are expected since the actual dispatch doesn't take place.
+    }
+
+    quick_lookup {
+        // Populate quick cache by calling quick_lookup on empty cache.
+        <T as pallet_gear::Config>::BuiltinCache::exists(&Pallet::<T>::generate_actor_id(1_u64));
+        let looked_up_id = Pallet::<T>::generate_actor_id(100_u64);
+    }: {
+        // Lookup the actor in the quick cache.
+        let _ = <T as pallet_gear::Config>::BuiltinCache::exists(&looked_up_id);
     } verify {
         // No changes in runtime are expected since the actual dispatch doesn't take place.
     }

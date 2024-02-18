@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{self as pallet_gear_builtin, BuiltinActor, BuiltinActorError, RegisteredBuiltinActor};
+use crate::{self as pallet_gear_builtin, BuiltinActor, BuiltinActorError};
 use frame_support::{
     construct_runtime, parameter_types,
     traits::{ConstBool, ConstU64, FindAuthor, OnFinalize, OnInitialize},
@@ -24,7 +24,7 @@ use frame_support::{
 use frame_support_test::TestRandomness;
 use frame_system::{self as system, pallet_prelude::BlockNumberFor};
 use gear_core::{
-    ids::{BuiltinId, ProgramId},
+    ids::ProgramId,
     message::{Payload, StoredDispatch},
 };
 use sp_core::H256;
@@ -86,12 +86,20 @@ pallet_gear_gas::impl_config!(Test);
 pallet_gear_scheduler::impl_config!(Test);
 pallet_gear_program::impl_config!(Test);
 pallet_gear_messenger::impl_config!(Test, CurrentBlockNumber = Gear);
-pallet_gear::impl_config!(Test, Schedule = GearSchedule, BuiltinProvider = GearBuiltin,);
+pallet_gear::impl_config!(
+    Test,
+    Schedule = GearSchedule,
+    BuiltinDispatcherFactory = GearBuiltin,
+    BuiltinCache = GearBuiltin,
+);
 
 pub struct FirstBuiltinActor {}
-impl BuiltinActor<u64> for FirstBuiltinActor {
+impl BuiltinActor for FirstBuiltinActor {
+    type Error = BuiltinActorError;
+
+    const ID: u64 = 1_u64;
+
     fn handle(
-        _builtin_id: BuiltinId,
         _dispatch: &StoredDispatch,
         _gas_limit: u64,
     ) -> (Result<Payload, BuiltinActorError>, u64) {
@@ -99,19 +107,15 @@ impl BuiltinActor<u64> for FirstBuiltinActor {
 
         (Ok(payload), 1_000_u64)
     }
-
-    fn get_ids(buffer: &mut Vec<BuiltinId>) {
-        buffer.push(Self::ID);
-    }
-}
-impl RegisteredBuiltinActor<u64> for FirstBuiltinActor {
-    const ID: BuiltinId = BuiltinId(1_u64);
 }
 
 pub struct SecondBuiltinActor {}
-impl BuiltinActor<u64> for SecondBuiltinActor {
+impl BuiltinActor for SecondBuiltinActor {
+    type Error = BuiltinActorError;
+
+    const ID: u64 = 2_u64;
+
     fn handle(
-        _builtin_id: BuiltinId,
         _dispatch: &StoredDispatch,
         _gas_limit: u64,
     ) -> (Result<Payload, BuiltinActorError>, u64) {
@@ -119,19 +123,15 @@ impl BuiltinActor<u64> for SecondBuiltinActor {
 
         (Ok(payload), 1_000_u64)
     }
-
-    fn get_ids(buffer: &mut Vec<BuiltinId>) {
-        buffer.push(Self::ID);
-    }
-}
-impl RegisteredBuiltinActor<u64> for SecondBuiltinActor {
-    const ID: BuiltinId = BuiltinId(2_u64);
 }
 
 pub struct ThirdBuiltinActor {}
-impl BuiltinActor<u64> for ThirdBuiltinActor {
+impl BuiltinActor for ThirdBuiltinActor {
+    type Error = BuiltinActorError;
+
+    const ID: u64 = 3_u64;
+
     fn handle(
-        _builtin_id: BuiltinId,
         _dispatch: &StoredDispatch,
         _gas_limit: u64,
     ) -> (Result<Payload, BuiltinActorError>, u64) {
@@ -139,20 +139,16 @@ impl BuiltinActor<u64> for ThirdBuiltinActor {
 
         (Ok(payload), 1_000_u64)
     }
-
-    fn get_ids(buffer: &mut Vec<BuiltinId>) {
-        buffer.push(Self::ID);
-    }
-}
-impl RegisteredBuiltinActor<u64> for ThirdBuiltinActor {
-    const ID: BuiltinId = BuiltinId(3_u64);
 }
 
 // Duplicate builtin id: `BuiltinId(2)` already exists.
 pub struct DuplicateBuiltinActor {}
-impl BuiltinActor<u64> for DuplicateBuiltinActor {
+impl BuiltinActor for DuplicateBuiltinActor {
+    type Error = BuiltinActorError;
+
+    const ID: u64 = 2_u64;
+
     fn handle(
-        _builtin_id: BuiltinId,
         _dispatch: &StoredDispatch,
         _gas_limit: u64,
     ) -> (Result<Payload, BuiltinActorError>, u64) {
@@ -160,17 +156,10 @@ impl BuiltinActor<u64> for DuplicateBuiltinActor {
 
         (Ok(payload), 1_000_u64)
     }
-
-    fn get_ids(buffer: &mut Vec<BuiltinId>) {
-        buffer.push(Self::ID);
-    }
-}
-impl RegisteredBuiltinActor<u64> for DuplicateBuiltinActor {
-    const ID: BuiltinId = BuiltinId(2_u64);
 }
 
 impl pallet_gear_builtin::Config for Test {
-    type BuiltinActor = (
+    type Builtins = (
         FirstBuiltinActor,
         SecondBuiltinActor,
         ThirdBuiltinActor,

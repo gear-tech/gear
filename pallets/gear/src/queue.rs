@@ -186,7 +186,10 @@ where
     }
 
     /// Message Queue processing.
-    pub(crate) fn process_queue(mut ext_manager: ExtManager<T>) {
+    pub(crate) fn process_queue(
+        mut ext_manager: ExtManager<T>,
+        builtin_dispatcher: impl BuiltinDispatcher,
+    ) {
         Self::enable_lazy_pages();
 
         let block_config = Self::block_config();
@@ -194,9 +197,6 @@ where
         if T::DebugInfo::is_remap_id_enabled() {
             T::DebugInfo::remap_id();
         }
-
-        // Create an instance of a builtin dispatcher.
-        let builtin_dispatcher = T::BuiltinProvider::provide();
 
         while QueueProcessingOf::<T>::allowed() {
             let dispatch = match QueueOf::<T>::dequeue()
@@ -231,12 +231,12 @@ where
 
             let program_id = dispatch.destination();
 
-            // If the dispatch destination (a.k.a. `program_id`) resolves to some `BuiltinId`
-            // belonging to a builtin actor, we handle the dispatch as a builtin actor dispatch.
+            // If the dispatch destination (a.k.a. `program_id`) resolves to some `handle` function
+            // of a builtin actor, we handle the dispatch as a builtin actor dispatch.
             // Otherwise we proceed with the regular flow.
-            if let Some(builtin_id) = builtin_dispatcher.lookup(&program_id) {
+            if let Some(f) = builtin_dispatcher.lookup(&program_id) {
                 core_processor::handle_journal(
-                    builtin_dispatcher.dispatch(builtin_id, dispatch, gas_limit),
+                    builtin_dispatcher.run(f, dispatch, gas_limit),
                     &mut ext_manager,
                 );
                 continue;

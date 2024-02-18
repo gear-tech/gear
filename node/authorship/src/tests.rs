@@ -582,7 +582,7 @@ fn block_max_gas_works() {
 
     // Gas cost of a built router instance creation
     let builtin_dispatcher_cost =
-        <Runtime as pallet_gear_builtin::Config>::WeightInfo::provide().ref_time();
+        <Runtime as pallet_gear_builtin::Config>::WeightInfo::create_dispatcher().ref_time();
     // Just enough to fit 2 messages
     let max_gas = Some(2 * min_limit + FIXED_BLOCK_GAS + builtin_dispatcher_cost + 100);
 
