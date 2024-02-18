@@ -24,6 +24,8 @@ pub enum Error {
     #[error(transparent)]
     GSdk(#[from] gsdk::result::Error),
     #[error(transparent)]
+    Gclient(#[from] gclient::Error),
+    #[error(transparent)]
     Anyhow(#[from] anyhow::Error),
     #[error("Invalid node key")]
     BadNodeKey,
