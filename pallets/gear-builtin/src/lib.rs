@@ -45,7 +45,7 @@ mod tests;
 pub use weights::WeightInfo;
 
 use alloc::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{btree_map::Entry, BTreeMap, BTreeSet},
     string::ToString,
 };
 use core_processor::{
@@ -126,10 +126,10 @@ impl<E> BuiltinCollection<E> for Tuple {
         for_tuples!(
             #(
                 let actor_id = id_converter(Tuple::ID);
-                if registry.contains_key(&actor_id) {
-                    unreachable!("Duplicate builtin ids");
+                if let Entry::Vacant(e) = registry.entry(actor_id) {
+                    e.insert(Box::new(Tuple::handle));
                 } else {
-                    registry.insert(actor_id, Box::new(Tuple::handle));
+                    unreachable!("Duplicate builtin ids");
                 }
             )*
         );
