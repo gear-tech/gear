@@ -498,6 +498,9 @@ pub enum SystemExecutionError {
     /// Error during `into_ext_info()` call
     #[display(fmt = "`into_ext_info()` error: {_0}")]
     IntoExtInfo(MemoryError),
+    /// Incoming dispatch store has too many outgoing messages total bytes.
+    #[display(fmt = "Incoming dispatch store has too many outgoing messages total bytes")]
+    MessageStoreOutgoingBytesOverflow,
 }
 
 /// Actor.

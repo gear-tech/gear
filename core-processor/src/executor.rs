@@ -182,7 +182,8 @@ where
         AllocationsContext::new(allocations.clone(), static_pages, settings.max_pages);
 
     // Creating message context.
-    let message_context = MessageContext::new(dispatch.clone(), program_id, msg_ctx_settings);
+    let message_context = MessageContext::try_new(dispatch.clone(), program_id, msg_ctx_settings)
+        .ok_or(SystemExecutionError::MessageStoreOutgoingBytesOverflow)?;
 
     // Creating value counter.
     //

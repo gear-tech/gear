@@ -157,6 +157,11 @@ pub enum MessageError {
     )]
     IncorrectMessageForReplyDeposit = 310,
 
+    /// The error occurs when program tries to send messages
+    /// with total size bigger than allowed.
+    #[display(fmt = "Outgoing messages bytes limit exceeded")]
+    OutgoingMessagesBytesLimitExceeded = 311,
+
     // TODO: remove after delay refactoring is done
     /// An error occurs in attempt to charge gas for dispatch stash hold.
     #[display(fmt = "Not enough gas to hold dispatch message")]

@@ -34,10 +34,10 @@ use scale_info::{
     TypeInfo,
 };
 
-use super::{DispatchKind, IncomingDispatch};
+use super::{DispatchKind, IncomingDispatch, Packet};
 
 /// Context settings.
-#[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
+#[derive(Copy, Clone, Debug, Default)]
 pub struct ContextSettings {
     /// Fee for sending message.
     sending_fee: u64,
@@ -121,7 +121,7 @@ pub struct ContextOutcomeDrain {
 /// Context outcome.
 ///
 /// Contains all outgoing messages and wakes that should be done after execution.
-#[derive(Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
+#[derive(Default, Debug)]
 pub struct ContextOutcome {
     init: Vec<OutgoingMessageInfo<InitMessage>>,
     handle: Vec<OutgoingMessageInfo<HandleMessage>>,
@@ -224,13 +224,14 @@ impl ContextStore {
 }
 
 /// Context of currently processing incoming message.
-#[derive(Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
+#[derive(Debug)]
 pub struct MessageContext {
     kind: DispatchKind,
     current: IncomingMessage,
     outcome: ContextOutcome,
     store: ContextStore,
     settings: ContextSettings,
+    outgoing_bytes_counter: u32,
 }
 
 impl MessageContext {
@@ -248,7 +249,37 @@ impl MessageContext {
             current: message,
             store: store.unwrap_or_default(),
             settings,
+            outgoing_bytes_counter: 0,
         }
+    }
+
+    /// +_+_+
+    pub fn try_new(
+        dispatch: IncomingDispatch,
+        program_id: ProgramId,
+        settings: ContextSettings,
+    ) -> Option<Self> {
+        let (kind, message, store) = dispatch.into_parts();
+
+        let outgoing_bytes_counter = match &store {
+            Some(store) => {
+                let mut counter = 0u32;
+                for payload in store.outgoing.values().filter_map(|x| x.as_ref()) {
+                    counter = counter.checked_add(payload.len_u32())?;
+                }
+                counter
+            }
+            None => 0,
+        };
+
+        Some(Self {
+            kind,
+            outcome: ContextOutcome::new(program_id, message.source(), message.id()),
+            current: message,
+            store: store.unwrap_or_default(),
+            settings,
+            outgoing_bytes_counter,
+        })
     }
 
     /// Getter for inner settings.
@@ -311,6 +342,12 @@ impl MessageContext {
         delay: u32,
         reservation: Option<ReservationId>,
     ) -> Result<MessageId, Error> {
+        let new_outgoing_bytes = self
+            .outgoing_bytes_counter
+            .checked_add(packet.payload_len())
+            .and_then(|counter| (counter < 100_000).then_some(counter))
+            .ok_or(Error::OutgoingMessagesBytesLimitExceeded)?;
+
         if let Some(payload) = self.store.outgoing.get_mut(&handle) {
             if let Some(data) = payload.take() {
                 let packet = {
@@ -325,6 +362,15 @@ impl MessageContext {
                 let message = HandleMessage::from_packet(message_id, packet);
 
                 self.outcome.handle.push((message, delay, reservation));
+
+                // Increasing `outgoing_bytes_counter`, instead of decreasing it, because
+                // this counter takes into account also messages, that are already committed
+                // during this execution.
+                // The message subsequent executions will recalculate this counter from
+                // store outgoing messages (see `Self::new`),
+                // so committed during this execution messages won't be taken into account
+                // during next executions.
+                self.outgoing_bytes_counter = new_outgoing_bytes;
 
                 Ok(message_id)
             } else {
@@ -352,10 +398,18 @@ impl MessageContext {
 
     /// Pushes payload into stored payload by handle.
     pub fn send_push(&mut self, handle: u32, buffer: &[u8]) -> Result<(), Error> {
+        let bytes_amount = u32::try_from(buffer.len()).map_err(|_| Error::MaxMessageSizeExceed)?;
+        let new_outgoing_bytes = self
+            .outgoing_bytes_counter
+            .checked_add(bytes_amount)
+            .and_then(|counter| (counter < 100_000).then_some(counter))
+            .ok_or(Error::OutgoingMessagesBytesLimitExceeded)?;
+
         match self.store.outgoing.get_mut(&handle) {
             Some(Some(data)) => {
                 data.try_extend_from_slice(buffer)
                     .map_err(|_| Error::MaxMessageSizeExceed)?;
+                self.outgoing_bytes_counter = new_outgoing_bytes;
                 Ok(())
             }
             Some(None) => Err(Error::LateAccess),
@@ -378,8 +432,20 @@ impl MessageContext {
             excluded_end,
         } = range;
 
+        let bytes_amount = u32::try_from(excluded_end.checked_sub(offset).unwrap_or_else(|| {
+            unreachable!("`CheckedRange` must guarantee that `excluded_end` >= `offset`")
+        }))
+        .map_err(|_| Error::MaxMessageSizeExceed)?;
+
+        let new_outgoing_bytes = self
+            .outgoing_bytes_counter
+            .checked_add(bytes_amount)
+            .and_then(|counter| (counter < 100_000).then_some(counter))
+            .ok_or(Error::OutgoingMessagesBytesLimitExceeded)?;
+
         data.try_extend_from_slice(&self.current.payload_bytes()[offset..excluded_end])
             .map_err(|_| Error::MaxMessageSizeExceed)?;
+        self.outgoing_bytes_counter = new_outgoing_bytes;
 
         Ok(())
     }
