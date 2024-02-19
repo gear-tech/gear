@@ -359,12 +359,8 @@ mod tests {
             })
             .collect::<Vec<_>>();
 
-            for dispatch in waitlist.iter() {
-                v2::Waitlist::<Test>::insert(
-                    dispatch.0,
-                    dispatch.1,
-                    (dispatch.2.clone(), dispatch.3.clone()),
-                );
+            for (pid, mid, dispatch, interval) in waitlist.iter() {
+                v2::Waitlist::<Test>::insert(pid, mid, (dispatch, interval));
             }
 
             let dispatches = up_to(32, || {
@@ -380,12 +376,12 @@ mod tests {
             })
             .collect::<Vec<_>>();
 
-            for dispatch in dispatches.iter() {
+            for (mid, dispatch, next_mid) in dispatches.clone() {
                 v2::Dispatches::<Test>::insert(
-                    dispatch.0,
+                    mid,
                     LinkedNode {
-                        next: dispatch.2,
-                        value: dispatch.1.clone(),
+                        next: next_mid,
+                        value: dispatch,
                     },
                 );
             }
