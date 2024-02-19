@@ -1219,7 +1219,7 @@ fn unclaimed_rewards_burn() {
         // - at the end of the period claim all rewards and sum up the validators' and the
         //   nominator's balances-in-excess;
         // - since we have outdated rewards that account for some percentage of what was due, the
-        //   actual rewards reseived by stakers will add up to only 84% of projected rewards.
+        //   actual rewards received by stakers will add up to only 84% of projected rewards.
 
         let history_depth = <Test as pallet_staking::Config>::HistoryDepth::get();
 

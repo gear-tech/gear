@@ -29,7 +29,7 @@ use frame_support::{
     weights::Weight,
 };
 use gear_core::{
-    code,
+    code::MAX_WASM_PAGE_AMOUNT,
     costs::HostFnWeights as CoreHostFnWeights,
     message,
     pages::{GearPage, PageU32Size, WasmPage, GEAR_PAGE_SIZE},
@@ -755,7 +755,7 @@ impl Default for Limits {
             globals: 256,
             locals: 1024,
             parameters: 128,
-            memory_pages: code::MAX_WASM_PAGE_COUNT,
+            memory_pages: MAX_WASM_PAGE_AMOUNT,
             // 4k function pointers (This is in count not bytes).
             table_size: 4096,
             br_table_size: 256,

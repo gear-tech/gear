@@ -26,7 +26,7 @@
 //!
 //! ## Overview
 //!
-//! The Staking Rewards pallet provides a pool that allowas to postpone the inflationary impact
+//! The Staking Rewards pallet provides a pool that allows to postpone the inflationary impact
 //! of the validators rewards minted out of thin air at the end of every era until the pool is
 //! completely depleted after a certain period of time (approx. 2 years).
 //! Thereby the nominal base token inflation stays around zero. Instead, the so-called
@@ -371,7 +371,7 @@ pub mod pallet {
                 .saturating_sub(Self::pool())
         }
 
-        /// Calculate actual infaltion and ROI parameters.
+        /// Calculate actual inflation and ROI parameters.
         pub fn inflation_info() -> InflationInfo {
             let total_staked = pallet_staking::Pallet::<T>::eras_total_stake(
                 pallet_staking::Pallet::<T>::current_era().unwrap_or(0),

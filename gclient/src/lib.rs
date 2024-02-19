@@ -136,6 +136,9 @@ mod utils;
 mod ws;
 
 pub use api::{error::*, listener::*, GearApi};
-pub use gsdk::metadata::errors;
+pub use gsdk::{
+    ext,
+    metadata::{self, errors},
+};
 pub use utils::*;
 pub use ws::WSAddress;
