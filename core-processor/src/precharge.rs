@@ -164,8 +164,8 @@ impl<'a> GasPrecharger<'a> {
 
         if let Some(page) = allocations.iter().next_back() {
             // It means we somehow violated some constraints:
-            // 1. one of allocated pages > MAX_WASM_PAGE_COUNT
-            // 2. static pages > MAX_WASM_PAGE_COUNT
+            // 1. one of allocated pages > MAX_WASM_PAGE_AMOUNT
+            // 2. static pages > MAX_WASM_PAGE_AMOUNT
             Ok(page
                 .inc()
                 .unwrap_or_else(|_| unreachable!("WASM memory size is too big")))

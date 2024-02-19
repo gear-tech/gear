@@ -616,7 +616,7 @@ fn block_max_gas_works() {
     assert_eq!(proposal.block.extrinsics().len(), 7);
 
     let state = backend.state_at(best_hash).unwrap();
-    // Ensure message queue still has 5 messages as none of the messages fit into the gas allownce
+    // Ensure message queue still has 5 messages as none of the messages fit into the gas allowance
     let queue_entry_prefix = storage_prefix(
         pallet_gear_messenger::Pallet::<Runtime>::name().as_bytes(),
         "Dispatches".as_bytes(),
@@ -673,7 +673,7 @@ fn terminal_extrinsic_discarded_from_txpool() {
         VERSION.transaction_version,
         genesis_hash,
     );
-    // A `DispatchClass::Normal` exrinsic - supposed to end up in the txpool
+    // A `DispatchClass::Normal` extrinsic - supposed to end up in the txpool
     let legit_xt = sign(
         CheckedExtrinsic {
             signed: Some((alice(), signed_extra(0))),

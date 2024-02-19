@@ -168,3 +168,15 @@ impl GearApi {
         self.0.account_id()
     }
 }
+
+impl From<Signer> for GearApi {
+    fn from(signer: Signer) -> Self {
+        Self(signer, None)
+    }
+}
+
+impl From<GearApi> for Signer {
+    fn from(api: GearApi) -> Self {
+        api.0
+    }
+}
