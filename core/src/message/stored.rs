@@ -206,6 +206,10 @@ impl From<StoredDelayedDispatch> for StoredDispatch {
 }
 
 /// Stored message with entry point.
+///
+/// We could use just [`StoredDispatch`]
+/// but delayed messages always don't have [`ContextStore`]
+/// so we designate this fact via new type.
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
 pub struct StoredDelayedDispatch {
     /// Entry point.
