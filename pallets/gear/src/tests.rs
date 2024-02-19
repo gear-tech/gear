@@ -9029,7 +9029,7 @@ fn async_sleep_for() {
 
         // Assert the program replied with a message after the sleep.
         // The message payload is a number of the block the program
-        // exited the dealy, i.e. sleep_for_block_number + SLEEP_FOR_BLOCKS.
+        // exited the delay, i.e. sleep_for_block_number + SLEEP_FOR_BLOCKS.
         assert_waiter_single_reply(format!(
             "After the sleep at block: {}",
             sleep_for_block_number + SLEEP_FOR_BLOCKS
@@ -9075,7 +9075,7 @@ fn async_sleep_for() {
 
             // Assert the program replied with a message after the sleep.
             // The message payload is a number of the block the program
-            // exited the dealy, i.e. sleep_for_block_number + LONGER_SLEEP_FOR_BLOCKS.
+            // exited the delay, i.e. sleep_for_block_number + LONGER_SLEEP_FOR_BLOCKS.
             assert_waiter_single_reply(format!(
                 "After the sleep at block: {}",
                 sleep_for_block_number + LONGER_SLEEP_FOR_BLOCKS
@@ -9122,7 +9122,7 @@ fn async_sleep_for() {
 
             // Assert the program replied with a message after the sleep.
             // The message payload is a number of the block the program
-            // exited the dealy, i.e. sleep_for_block_number + LONGER_SLEEP_FOR_BLOCKS.
+            // exited the delay, i.e. sleep_for_block_number + LONGER_SLEEP_FOR_BLOCKS.
             assert_waiter_single_reply(format!(
                 "After the sleep at block: {}",
                 sleep_for_block_number + LONGER_SLEEP_FOR_BLOCKS
@@ -9156,7 +9156,7 @@ fn async_sleep_for() {
 
             // Assert the program replied with a message after the sleep.
             // The message payload is a number of the block the program
-            // exited the dealy, i.e. sleep_for_block_number + SLEEP_FOR_BLOCKS.
+            // exited the delay, i.e. sleep_for_block_number + SLEEP_FOR_BLOCKS.
             assert_waiter_single_reply(format!(
                 "After the sleep at block: {}",
                 sleep_for_block_number + SLEEP_FOR_BLOCKS
@@ -9190,7 +9190,7 @@ fn async_sleep_for() {
 
             // Assert the program replied with a message after the sleep.
             // The message payload is a number of the block the program
-            // exited the dealy, i.e. sleep_for_block_number + SLEEP_FOR_BLOCKS.
+            // exited the delay, i.e. sleep_for_block_number + SLEEP_FOR_BLOCKS.
             assert_waiter_single_reply(format!(
                 "After the sleep at block: {}",
                 sleep_for_block_number + SLEEP_FOR_BLOCKS
@@ -13701,7 +13701,7 @@ fn test_gas_allowance_exceed_no_context() {
         // Setting to 100 million the gas allowance ends faster than gas limit
         run_to_next_block(Some(100_000_000));
 
-        // Execution is denied after reque
+        // Execution is denied after requeue
         assert!(QueueProcessingOf::<Test>::denied());
 
         // Low level check, that no execution context is saved after gas allowance exceeded error
@@ -13836,7 +13836,7 @@ fn test_gas_allowance_exceed_with_context() {
         // execution of the message.
         run_to_next_block(Some(gas_info.min_limit - 100_000));
 
-        // Execution is denied after reque.
+        // Execution is denied after requeue.
         assert!(QueueProcessingOf::<Test>::denied());
 
         // Low level check, that no information on reply sent is saved in the execution
@@ -14308,7 +14308,7 @@ fn calculate_gas_wait() {
         })
         .expect("calculate_gas_info failed");
 
-        // 'wait' syscall greedely consumes all available gas so
+        // 'wait' syscall greedily consumes all available gas so
         // calculated limits should not be equal
         assert!(min_limit > limit_no_rent);
     });
