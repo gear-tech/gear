@@ -70,6 +70,7 @@ use sp_std::{collections::btree_set::BTreeSet, vec::Vec};
 
 pub use extension::StakingBlackList;
 pub use inflation::compute_total_payout;
+pub mod migrations;
 pub use pallet::*;
 pub use weights::WeightInfo;
 
