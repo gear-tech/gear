@@ -82,6 +82,7 @@ pub type NegativeImbalanceOf<T> = <<T as pallet_staking::Config>::Currency as Cu
     <T as frame_system::Config>::AccountId,
 >>::NegativeImbalance;
 type AccountIdLookupOf<T> = <<T as frame_system::Config>::Lookup as StaticLookup>::Source;
+pub(crate) type AccountIdOf<T> = <T as frame_system::Config>::AccountId;
 
 /// Token economics related details.
 #[derive(Clone, Decode, Encode, Eq, PartialEq, TypeInfo)]
@@ -105,8 +106,8 @@ pub mod pallet {
 
     pub struct RentPoolId<T: Config>(PhantomData<T>);
 
-    impl<T: Config> Get<Option<<T as frame_system::Config>::AccountId>> for RentPoolId<T> {
-        fn get() -> Option<<T as frame_system::Config>::AccountId> {
+    impl<T: Config> Get<Option<AccountIdOf<T>>> for RentPoolId<T> {
+        fn get() -> Option<AccountIdOf<T>> {
             Some(Pallet::<T>::rent_pool_account_id())
         }
     }
@@ -440,7 +441,7 @@ fn pay_rent_rewards_out<T: Config>(maybe_active_era_info: Option<ActiveEraInfo>)
                 payout.unique_saturated_into(),
                 ExistenceRequirement::KeepAlive,
             )
-            .unwrap_or_else(|e| unreachable!("Failed to transfer rent reward: {e:?}; account_id = {account_id:#?}, points = {points}, payout = {payout}"));
+            .unwrap_or_else(|e| log::error!("Failed to transfer rent reward: {e:?}; account_id = {account_id:#?}, points = {points}, payout = {payout}"));
         }
     }
 }

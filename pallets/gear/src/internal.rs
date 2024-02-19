@@ -234,11 +234,10 @@ where
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
         // Transferring reserved funds from external user to destination.
-        let result = match to {
-            Some(account_id) => {
-                GearBank::<T>::spend_gas_to(&account_id, &external, amount, multiplier)
-            }
-            None => GearBank::<T>::spend_gas(&external, amount, multiplier),
+        let result = if let Some(account_id) = to {
+            GearBank::<T>::spend_gas_to(&account_id, &external, amount, multiplier)
+        } else {
+            GearBank::<T>::spend_gas(&external, amount, multiplier)
         };
 
         result.unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
