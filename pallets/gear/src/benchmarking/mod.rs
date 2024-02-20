@@ -85,7 +85,7 @@ use gear_core::{
     gas::{GasAllowanceCounter, GasCounter, ValueCounter},
     ids::{CodeId, MessageId, ProgramId},
     memory::{AllocationsContext, Memory, PageBuf},
-    message::{ContextSettings, DispatchKind, IncomingDispatch, MessageContext},
+    message::{DispatchKind, IncomingDispatch, MessageContext},
     pages::{GearPage, PageU32Size, WasmPage},
     reservation::GasReserver,
 };
@@ -180,7 +180,8 @@ fn default_processor_context<T: Config>() -> ProcessorContext {
             Default::default(),
             Default::default(),
             Default::default(),
-        ),
+        )
+        .unwrap(),
         block_info: Default::default(),
         performance_multiplier: gsys::Percent::new(100),
         max_pages: TESTS_MAX_PAGES_NUMBER.into(),

@@ -197,26 +197,8 @@ pub struct MessageContext {
 }
 
 impl MessageContext {
-    /// Create new MessageContext with given ContextSettings.
-    pub fn new(
-        dispatch: IncomingDispatch,
-        program_id: ProgramId,
-        settings: ContextSettings,
-    ) -> Self {
-        let (kind, message, store) = dispatch.into_parts();
-
-        Self {
-            kind,
-            outcome: ContextOutcome::new(program_id, message.source(), message.id()),
-            current: message,
-            store: store.unwrap_or_default(),
-            settings,
-            outgoing_bytes_counter: 0,
-        }
-    }
-
     /// +_+_+
-    pub fn try_new(
+    pub fn new(
         dispatch: IncomingDispatch,
         program_id: ProgramId,
         settings: ContextSettings,
@@ -620,7 +602,8 @@ mod tests {
             Default::default(),
             Default::default(),
             ContextSettings::with_outgoing_limits(1024, u32::MAX),
-        );
+        )
+        .unwrap();
 
         // first init to default ProgramId.
         assert_ok!(message_context.init_program(Default::default(), 0));
@@ -643,7 +626,7 @@ mod tests {
             let settings = ContextSettings::with_outgoing_limits(n, u32::MAX);
 
             let mut message_context =
-                MessageContext::new(Default::default(), Default::default(), settings);
+                MessageContext::new(Default::default(), Default::default(), settings).unwrap();
             // send n messages
             for _ in 0..n {
                 let handle = message_context.send_init().expect("unreachable");
@@ -676,7 +659,8 @@ mod tests {
             Default::default(),
             Default::default(),
             ContextSettings::with_outgoing_limits(1024, u32::MAX),
-        );
+        )
+        .unwrap();
 
         // Use invalid handle 0.
         let out_of_bounds = message_context.send_commit(0, Default::default(), 0, None);
@@ -702,7 +686,8 @@ mod tests {
             Default::default(),
             Default::default(),
             ContextSettings::with_outgoing_limits(1024, u32::MAX),
-        );
+        )
+        .unwrap();
 
         // First reply.
         assert_ok!(message_context.reply_commit(Default::default(), None));
@@ -738,7 +723,8 @@ mod tests {
             incoming_dispatch,
             Default::default(),
             ContextSettings::with_outgoing_limits(1024, u32::MAX),
-        );
+        )
+        .unwrap();
 
         // Checking that the initial parameters of the context match the passed constants
         assert_eq!(context.current().id(), MessageId::from(INCOMING_MESSAGE_ID));
@@ -880,7 +866,8 @@ mod tests {
             incoming_dispatch,
             Default::default(),
             ContextSettings::with_outgoing_limits(1024, u32::MAX),
-        );
+        )
+        .unwrap();
 
         context.wake(MessageId::default(), 10).unwrap();
 
@@ -907,7 +894,8 @@ mod tests {
             incoming_dispatch,
             Default::default(),
             ContextSettings::with_outgoing_limits(1024, u32::MAX),
-        );
+        )
+        .unwrap();
 
         let handle = message_context.send_init().expect("unreachable");
         message_context
@@ -941,7 +929,8 @@ mod tests {
             incoming_dispatch,
             Default::default(),
             ContextSettings::with_outgoing_limits(1024, u32::MAX),
-        );
+        )
+        .unwrap();
 
         let message_id = message_context
             .reply_commit(ReplyPacket::default(), None)

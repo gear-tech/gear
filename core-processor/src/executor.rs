@@ -182,7 +182,7 @@ where
         AllocationsContext::new(allocations.clone(), static_pages, settings.max_pages);
 
     // Creating message context.
-    let message_context = MessageContext::try_new(dispatch.clone(), program_id, msg_ctx_settings)
+    let message_context = MessageContext::new(dispatch.clone(), program_id, msg_ctx_settings)
         .ok_or(SystemExecutionError::MessageStoreOutgoingBytesOverflow)?;
 
     // Creating value counter.
@@ -380,30 +380,33 @@ where
         0.into()
     };
 
+    let message_context = MessageContext::new(
+        IncomingDispatch::new(
+            DispatchKind::Handle,
+            IncomingMessage::new(
+                Default::default(),
+                Default::default(),
+                payload
+                    .try_into()
+                    .map_err(|e| format!("Failed to create payload: {e:?}"))?,
+                gas_limit,
+                Default::default(),
+                Default::default(),
+            ),
+            None,
+        ),
+        program.id(),
+        Default::default(),
+    )
+    .ok_or("Incorrect message store context: out of outgoing bytes limit")?;
+
     let context = ProcessorContext {
         gas_counter: GasCounter::new(gas_limit),
         gas_allowance_counter: GasAllowanceCounter::new(gas_limit),
         gas_reserver: GasReserver::new(&Default::default(), Default::default(), Default::default()),
         value_counter: ValueCounter::new(Default::default()),
         allocations_context: AllocationsContext::new(allocations, static_pages, 512.into()),
-        message_context: MessageContext::new(
-            IncomingDispatch::new(
-                DispatchKind::Handle,
-                IncomingMessage::new(
-                    Default::default(),
-                    Default::default(),
-                    payload
-                        .try_into()
-                        .map_err(|e| format!("Failed to create payload: {e:?}"))?,
-                    gas_limit,
-                    Default::default(),
-                    Default::default(),
-                ),
-                None,
-            ),
-            program.id(),
-            Default::default(),
-        ),
+        message_context,
         block_info,
         performance_multiplier: gsys::Percent::new(100),
         max_pages: 512.into(),

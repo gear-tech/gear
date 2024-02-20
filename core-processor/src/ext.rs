@@ -114,7 +114,7 @@ pub struct ProcessorContext {
 impl ProcessorContext {
     /// Create new mock [`ProcessorContext`] for usage in tests.
     pub fn new_mock() -> ProcessorContext {
-        use gear_core::message::{ContextSettings, IncomingDispatch};
+        use gear_core::message::IncomingDispatch;
 
         ProcessorContext {
             gas_counter: GasCounter::new(0),
@@ -135,7 +135,8 @@ impl ProcessorContext {
                 Default::default(),
                 Default::default(),
                 Default::default(),
-            ),
+            )
+            .unwrap(),
             block_info: Default::default(),
             performance_multiplier: gsys::Percent::new(100),
             max_pages: 512.into(),
@@ -1238,6 +1239,7 @@ mod tests {
                 self.program_id,
                 self.context_settings,
             )
+            .unwrap()
         }
 
         fn with_outgoing_limit(mut self, outgoing_limit: u32) -> Self {
