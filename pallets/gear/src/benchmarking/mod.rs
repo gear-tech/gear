@@ -179,7 +179,7 @@ fn default_processor_context<T: Config>() -> ProcessorContext {
         message_context: MessageContext::new(
             Default::default(),
             Default::default(),
-            ContextSettings::new(0, 0, 0, 0, 0, 0),
+            Default::default(),
         ),
         block_info: Default::default(),
         performance_multiplier: gsys::Percent::new(100),

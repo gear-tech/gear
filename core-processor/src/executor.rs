@@ -402,7 +402,7 @@ where
                 None,
             ),
             program.id(),
-            ContextSettings::new(0, 0, 0, 0, 0, 0),
+            Default::default(),
         ),
         block_info,
         performance_multiplier: gsys::Percent::new(100),

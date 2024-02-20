@@ -585,7 +585,7 @@ fn execute_wasm_with_custom_configs(
     let mut message_context = MessageContext::new(
         IncomingDispatch::new(DispatchKind::Init, incoming_message, None),
         program_id,
-        ContextSettings::new(0, 0, 0, 0, 0, outgoing_limit),
+        ContextSettings::with_outgoing_limits(outgoing_limit, u32::MAX),
     );
 
     if imitate_reply {

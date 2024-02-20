@@ -40,67 +40,29 @@ use super::{DispatchKind, IncomingDispatch, Packet};
 #[derive(Copy, Clone, Debug, Default)]
 pub struct ContextSettings {
     /// Fee for sending message.
-    sending_fee: u64,
+    pub sending_fee: u64,
     /// Fee for sending scheduled message.
-    scheduled_sending_fee: u64,
+    pub scheduled_sending_fee: u64,
     /// Fee for calling wait.
-    waiting_fee: u64,
+    pub waiting_fee: u64,
     /// Fee for waking messages.
-    waking_fee: u64,
+    pub waking_fee: u64,
     /// Fee for creating reservation.
-    reservation_fee: u64,
-    /// Limit of outgoing messages that program can send during execution of current message.
-    outgoing_limit: u32,
+    pub reservation_fee: u64,
+    /// Limit of outgoing messages, that program can send in current message processing.
+    pub outgoing_limit: u32,
+    /// +_+_+
+    pub outgoing_bytes_limit: u32,
 }
 
 impl ContextSettings {
-    /// Create new ContextSettings.
-    pub fn new(
-        sending_fee: u64,
-        scheduled_sending_fee: u64,
-        waiting_fee: u64,
-        waking_fee: u64,
-        reservation_fee: u64,
-        outgoing_limit: u32,
-    ) -> Self {
+    /// +_+_+
+    pub fn with_outgoing_limits(outgoing_limit: u32, outgoing_bytes_limit: u32) -> Self {
         Self {
-            sending_fee,
-            scheduled_sending_fee,
-            waiting_fee,
-            waking_fee,
-            reservation_fee,
             outgoing_limit,
+            outgoing_bytes_limit,
+            ..Default::default()
         }
-    }
-
-    /// Getter for inner sending fee field.
-    pub fn sending_fee(&self) -> u64 {
-        self.sending_fee
-    }
-
-    /// Getter for inner scheduled sending fee field.
-    pub fn scheduled_sending_fee(&self) -> u64 {
-        self.scheduled_sending_fee
-    }
-
-    /// Getter for inner waiting fee field.
-    pub fn waiting_fee(&self) -> u64 {
-        self.waiting_fee
-    }
-
-    /// Getter for inner waking fee field.
-    pub fn waking_fee(&self) -> u64 {
-        self.waking_fee
-    }
-
-    /// Getter for inner reservation fee field.
-    pub fn reservation_fee(&self) -> u64 {
-        self.reservation_fee
-    }
-
-    /// Getter for inner outgoing limit field.
-    pub fn outgoing_limit(&self) -> u32 {
-        self.outgoing_limit
     }
 }
 
@@ -345,7 +307,7 @@ impl MessageContext {
         let new_outgoing_bytes = self
             .outgoing_bytes_counter
             .checked_add(packet.payload_len())
-            .and_then(|counter| (counter < 100_000_000).then_some(counter))
+            .and_then(|counter| (counter < self.settings.outgoing_bytes_limit).then_some(counter))
             .ok_or(Error::OutgoingMessagesBytesLimitExceeded)?;
 
         if let Some(payload) = self.store.outgoing.get_mut(&handle) {
@@ -402,7 +364,7 @@ impl MessageContext {
         let new_outgoing_bytes = self
             .outgoing_bytes_counter
             .checked_add(bytes_amount)
-            .and_then(|counter| (counter < 100_000_000).then_some(counter))
+            .and_then(|counter| (counter < self.settings.outgoing_bytes_limit).then_some(counter))
             .ok_or(Error::OutgoingMessagesBytesLimitExceeded)?;
 
         match self.store.outgoing.get_mut(&handle) {
@@ -440,7 +402,7 @@ impl MessageContext {
         let new_outgoing_bytes = self
             .outgoing_bytes_counter
             .checked_add(bytes_amount)
-            .and_then(|counter| (counter < 100_000_000).then_some(counter))
+            .and_then(|counter| (counter < self.settings.outgoing_bytes_limit).then_some(counter))
             .ok_or(Error::OutgoingMessagesBytesLimitExceeded)?;
 
         data.try_extend_from_slice(&self.current.payload_bytes()[offset..excluded_end])
@@ -657,7 +619,7 @@ mod tests {
         let mut message_context = MessageContext::new(
             Default::default(),
             Default::default(),
-            ContextSettings::new(0, 0, 0, 0, 0, 1024),
+            ContextSettings::with_outgoing_limits(1024, u32::MAX),
         );
 
         // first init to default ProgramId.
@@ -670,6 +632,7 @@ mod tests {
         );
     }
 
+    // +_+_+ make test for bytes
     #[test]
     fn outgoing_limit_exceeded() {
         // Check that we can always send exactly outgoing_limit messages.
@@ -677,7 +640,7 @@ mod tests {
 
         for n in 0..=max_n {
             // for outgoing_limit n checking that LimitExceeded will be after n's message.
-            let settings = ContextSettings::new(0, 0, 0, 0, 0, n);
+            let settings = ContextSettings::with_outgoing_limits(n, u32::MAX);
 
             let mut message_context =
                 MessageContext::new(Default::default(), Default::default(), settings);
@@ -712,7 +675,7 @@ mod tests {
         let mut message_context = MessageContext::new(
             Default::default(),
             Default::default(),
-            ContextSettings::new(0, 0, 0, 0, 0, 1024),
+            ContextSettings::with_outgoing_limits(1024, u32::MAX),
         );
 
         // Use invalid handle 0.
@@ -738,7 +701,7 @@ mod tests {
         let mut message_context = MessageContext::new(
             Default::default(),
             Default::default(),
-            ContextSettings::new(0, 0, 0, 0, 0, 1024),
+            ContextSettings::with_outgoing_limits(1024, u32::MAX),
         );
 
         // First reply.
@@ -774,7 +737,7 @@ mod tests {
         let mut context = MessageContext::new(
             incoming_dispatch,
             Default::default(),
-            ContextSettings::new(0, 0, 0, 0, 0, 1024),
+            ContextSettings::with_outgoing_limits(1024, u32::MAX),
         );
 
         // Checking that the initial parameters of the context match the passed constants
@@ -916,7 +879,7 @@ mod tests {
         let mut context = MessageContext::new(
             incoming_dispatch,
             Default::default(),
-            ContextSettings::new(0, 0, 0, 0, 0, 1024),
+            ContextSettings::with_outgoing_limits(1024, u32::MAX),
         );
 
         context.wake(MessageId::default(), 10).unwrap();
@@ -943,7 +906,7 @@ mod tests {
         let mut message_context = MessageContext::new(
             incoming_dispatch,
             Default::default(),
-            ContextSettings::new(0, 0, 0, 0, 0, 1024),
+            ContextSettings::with_outgoing_limits(1024, u32::MAX),
         );
 
         let handle = message_context.send_init().expect("unreachable");
@@ -977,7 +940,7 @@ mod tests {
         let mut message_context = MessageContext::new(
             incoming_dispatch,
             Default::default(),
-            ContextSettings::new(0, 0, 0, 0, 0, 1024),
+            ContextSettings::with_outgoing_limits(1024, u32::MAX),
         );
 
         let message_id = message_context

@@ -117,14 +117,16 @@ where
     //
     // Waking fee: double write cost for removal from waitlist
     // and further enqueueing.
-    let msg_ctx_settings = ContextSettings::new(
-        write_cost.saturating_mul(2),
-        write_cost.saturating_mul(4),
-        write_cost.saturating_mul(3),
-        write_cost.saturating_mul(2),
-        write_cost.saturating_mul(2),
+    let msg_ctx_settings = ContextSettings {
+        sending_fee: write_cost.saturating_mul(2),
+        scheduled_sending_fee: write_cost.saturating_mul(4),
+        waiting_fee: write_cost.saturating_mul(3),
+        waking_fee: write_cost.saturating_mul(2),
+        reservation_fee: write_cost.saturating_mul(2),
         outgoing_limit,
-    );
+        // +_+_+
+        outgoing_bytes_limit: 100_000_000,
+    };
 
     let exec_result = executor::execute_wasm::<Ext>(
         balance,
