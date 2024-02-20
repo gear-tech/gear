@@ -51,12 +51,12 @@ pub struct ContextSettings {
     pub reservation_fee: u64,
     /// Limit of outgoing messages, that program can send in current message processing.
     pub outgoing_limit: u32,
-    /// +_+_+
+    /// Limit of bytes in outgoing messages during current execution.
     pub outgoing_bytes_limit: u32,
 }
 
 impl ContextSettings {
-    /// +_+_+
+    /// Returns default settings with specified outgoing messages limits.
     pub fn with_outgoing_limits(outgoing_limit: u32, outgoing_bytes_limit: u32) -> Self {
         Self {
             outgoing_limit,
@@ -197,7 +197,8 @@ pub struct MessageContext {
 }
 
 impl MessageContext {
-    /// +_+_+
+    /// Create new message context.
+    /// Returns `None` if outgoing messages bytes limit exceeded.
     pub fn new(
         dispatch: IncomingDispatch,
         program_id: ProgramId,
@@ -615,7 +616,62 @@ mod tests {
         );
     }
 
-    // +_+_+ make test for bytes
+    #[test]
+    fn send_push_bytes_exceeded() {
+        let mut message_context = MessageContext::new(
+            Default::default(),
+            Default::default(),
+            ContextSettings::with_outgoing_limits(1024, 11),
+        )
+        .unwrap();
+
+        // first init to default ProgramId.
+        let handle = message_context.send_init().unwrap();
+
+        // push 5 bytes
+        assert_ok!(message_context.send_push(handle, &[1, 2, 3, 4, 5]));
+
+        // push 5 bytes
+        assert_ok!(message_context.send_push(handle, &[1, 2, 3, 4, 5]));
+
+        // push 1 byte should get error.
+        assert_err!(
+            message_context.send_push(handle, &[1]),
+            Error::OutgoingMessagesBytesLimitExceeded,
+        );
+    }
+
+    #[test]
+    fn send_commit_bytes_exceeded() {
+        let mut message_context = MessageContext::new(
+            Default::default(),
+            Default::default(),
+            ContextSettings::with_outgoing_limits(1024, 11),
+        )
+        .unwrap();
+
+        // first init to default ProgramId.
+        let handle = message_context.send_init().unwrap();
+
+        // push 5 bytes
+        assert_ok!(message_context.send_push(handle, &[1, 2, 3, 4, 5]));
+
+        // commit 6 byte should get error.
+        assert_err!(
+            message_context.send_commit(
+                handle,
+                HandlePacket::new(
+                    Default::default(),
+                    Payload::try_from([1, 2, 3, 4, 5, 6].to_vec()).unwrap(),
+                    0
+                ),
+                0,
+                None
+            ),
+            Error::OutgoingMessagesBytesLimitExceeded,
+        );
+    }
+
     #[test]
     fn outgoing_limit_exceeded() {
         // Check that we can always send exactly outgoing_limit messages.
