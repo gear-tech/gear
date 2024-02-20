@@ -267,6 +267,7 @@ impl ExtError {
             308 => Some(MessageError::InsufficientGasLimit.into()),
             309 => Some(MessageError::DuplicateReplyDeposit.into()),
             310 => Some(MessageError::IncorrectMessageForReplyDeposit.into()),
+            311 => Some(MessageError::OutgoingMessagesBytesLimitExceeded.into()),
             399 => Some(MessageError::InsufficientGasForDelayedSending.into()),
             //
             500 => Some(ReservationError::InvalidReservationId.into()),

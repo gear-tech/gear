@@ -345,7 +345,7 @@ impl MessageContext {
         let new_outgoing_bytes = self
             .outgoing_bytes_counter
             .checked_add(packet.payload_len())
-            .and_then(|counter| (counter < 100_000).then_some(counter))
+            .and_then(|counter| (counter < 100_000_000).then_some(counter))
             .ok_or(Error::OutgoingMessagesBytesLimitExceeded)?;
 
         if let Some(payload) = self.store.outgoing.get_mut(&handle) {
@@ -402,7 +402,7 @@ impl MessageContext {
         let new_outgoing_bytes = self
             .outgoing_bytes_counter
             .checked_add(bytes_amount)
-            .and_then(|counter| (counter < 100_000).then_some(counter))
+            .and_then(|counter| (counter < 100_000_000).then_some(counter))
             .ok_or(Error::OutgoingMessagesBytesLimitExceeded)?;
 
         match self.store.outgoing.get_mut(&handle) {
@@ -440,7 +440,7 @@ impl MessageContext {
         let new_outgoing_bytes = self
             .outgoing_bytes_counter
             .checked_add(bytes_amount)
-            .and_then(|counter| (counter < 100_000).then_some(counter))
+            .and_then(|counter| (counter < 100_000_000).then_some(counter))
             .ok_or(Error::OutgoingMessagesBytesLimitExceeded)?;
 
         data.try_extend_from_slice(&self.current.payload_bytes()[offset..excluded_end])

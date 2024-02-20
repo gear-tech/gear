@@ -14562,6 +14562,64 @@ fn export_is_import() {
     });
 }
 
+#[test]
+fn outgoing_messages_bytes_limit_exceeded() {
+    let error_code = MessageError::OutgoingMessagesBytesLimitExceeded as u32;
+
+    let wat = format!(
+        r#"
+        (module
+            (import "env" "memory" (memory 0x100))
+            (import "env" "gr_send" (func $gr_send (param i32 i32 i32 i32 i32)))
+            (export "init" (func $init))
+            (func $init
+                (loop $loop
+                    i32.const 0        ;; destination and value ptr
+                    i32.const 0        ;; payload ptr
+                    i32.const 0x4c0000 ;; payload length
+                    i32.const 0        ;; delay
+                    i32.const 0x4d0000 ;; result ptr
+                    call $gr_send
+
+                    ;; if it's not an error, then continue the loop
+                    (if (i32.eqz (i32.load (i32.const 0x4d0000))) (then (br $loop)))
+
+                    ;; if it's sought-for error, then finish successfully
+                    ;; if it's unknown error, then panic
+                    (if (i32.eq (i32.const {error_code}) (i32.load (i32.const 0x4d0000)))
+                        (then)
+                        (else unreachable)
+                    )
+                )
+            )
+            (export "__gear_stack_end" (global 0))
+            (global i32 (i32.const 0x1000000))     ;; all memory
+        )"#
+    );
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let code = ProgramCodeKind::Custom(wat.as_str()).to_bytes();
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            code,
+            DEFAULT_SALT.to_vec(),
+            vec![],
+            100_000_000_000,
+            0,
+            false,
+        ));
+        // Gear::upload_program(origin, code, salt, init_payload, gas_limit, value, keep_alive)
+        // Gear::upload_prog(RuntimeOrigin::signed(USER_1), code).unwrap();
+
+        let mid = get_last_message_id();
+
+        run_to_next_block(None);
+
+        assert_succeed(mid);
+    });
+}
+
 mod utils {
     #![allow(unused)]
 
