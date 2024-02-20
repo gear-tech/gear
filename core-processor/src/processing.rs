@@ -66,6 +66,7 @@ where
         page_costs,
         existential_deposit,
         outgoing_limit,
+        outgoing_bytes_limit,
         host_fn_weights,
         forbidden_funcs,
         mailbox_threshold,
@@ -124,8 +125,7 @@ where
         waking_fee: write_cost.saturating_mul(2),
         reservation_fee: write_cost.saturating_mul(2),
         outgoing_limit,
-        // +_+_+
-        outgoing_bytes_limit: 100_000_000,
+        outgoing_bytes_limit,
     };
 
     let exec_result = executor::execute_wasm::<Ext>(
