@@ -16,23 +16,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use gstd::{msg, vec};
-
-use core::slice;
-
-const SIZE: usize = 5_000_000;
+use gstd::{msg, prelude::*};
 
 #[no_mangle]
 extern "C" fn handle() {
-    let to = msg::source();
-    let data = unsafe { slice::from_raw_parts(0x10usize as *mut u8, SIZE) };
-    for _ in 0..150 {
-        msg::send_bytes_delayed(to, data, 0, 1).unwrap();
-    }
-}
+    let payload = msg::load_bytes().expect("Failed to load payload");
 
-#[no_mangle]
-extern "C" fn init() {
-    let v = vec![1u8; SIZE];
-    core::mem::forget(v);
+    if payload == b"PING" {
+        msg::reply_bytes("PONG", 0).expect("Failed to send reply");
+    }
 }
