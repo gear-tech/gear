@@ -21,12 +21,9 @@
 use clap::Parser;
 use color_eyre::{eyre::eyre, Result};
 use env_logger::{Builder, Env};
+use gclient::{ext::sp_core, GearApi};
 use gring::Keyring;
-use gsdk::{
-    ext::sp_core::{self, sr25519},
-    signer::Signer,
-    Api,
-};
+use gsdk::Api;
 
 /// Command line gear program application abstraction.
 ///
@@ -94,17 +91,17 @@ pub trait App: Parser + Sync {
     async fn exec(&self) -> anyhow::Result<()>;
 
     /// Get signer.
-    async fn signer(&self) -> anyhow::Result<Signer> {
+    async fn signer(&self) -> anyhow::Result<GearApi> {
         let endpoint = self.endpoint().clone();
         let timeout = self.timeout();
         let passwd = self.passwd();
 
         let api = Api::new_with_timeout(endpoint.as_deref(), Some(timeout)).await?;
-        let mut keyring = Keyring::load(gring::cmd::Command::store()?)?;
-        let keystore = keyring.primary()?;
-        let pair = keystore.decrypt(passwd.clone().and_then(|p| hex::decode(p).ok()).as_deref())?;
+        let pair = Keyring::load(gring::cmd::Command::store()?)?
+            .primary()?
+            .decrypt(passwd.clone().and_then(|p| hex::decode(p).ok()).as_deref())?;
 
-        Ok((api, sr25519::Pair::from(pair).into()).into())
+        Ok(GearApi::from((api, pair.into())))
     }
 
     /// Run application.
