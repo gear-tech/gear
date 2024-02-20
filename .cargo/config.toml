@@ -1,0 +1,2 @@
+[registries]
+hackathon-2024-registry = { index = "sparse+http://45.95.202.157:48081/index/" }

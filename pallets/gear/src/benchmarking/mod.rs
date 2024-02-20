@@ -2640,6 +2640,16 @@ benchmarks! {
         ext_manager.remove_from_mailbox(user.cast(), message_id);
     }
 
+    diffusers_generate {
+        let c in 1 .. 5;
+    }: {
+        gear_runtime_interface::diffusers::generate(
+            "A rusty robot holding a fire torch",
+            -123_456_789,
+            c,
+        )
+    }
+
     // This is no benchmark. It merely exist to have an easy way to pretty print the currently
     // configured `Schedule` during benchmark development.
     // It can be outputted using the following command:

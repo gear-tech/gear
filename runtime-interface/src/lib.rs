@@ -301,3 +301,143 @@ pub trait GearDebug {
             .as_nanos()
     }
 }
+
+#[runtime_interface]
+pub trait Diffusers {
+    fn generate(prompt: &str, seed: i64, n_steps: u32) -> Option<Vec<u8>> {
+        use ::diffusers::pipelines::stable_diffusion;
+        use ::diffusers::transformers::clip;
+        use tch::{nn::Module, Device, Kind, Tensor};
+
+        const GUIDANCE_SCALE: f64 = 7.5;
+
+        if n_steps > 15 {
+            log::debug!("n_steps = {n_steps}");
+
+            return None;
+        }
+
+fn output_filename(
+    basename: &str,
+    sample_idx: i64,
+    num_samples: i64,
+    timestep_idx: Option<usize>,
+) -> String {
+    let filename = if num_samples > 1 {
+        match basename.rsplit_once('.') {
+            None => format!("{basename}.{sample_idx}.png"),
+            Some((filename_no_extension, extension)) => {
+                format!("{filename_no_extension}.{sample_idx}.{extension}")
+            }
+        }
+    } else {
+        basename.to_string()
+    };
+    match timestep_idx {
+        None => filename,
+        Some(timestep_idx) => match filename.rsplit_once('.') {
+            None => format!("{filename}-{timestep_idx}.png"),
+            Some((filename_no_extension, extension)) => {
+                format!("{filename_no_extension}-{timestep_idx}.{extension}")
+            }
+        },
+    }
+}
+
+        let n_steps = n_steps as usize;
+        let clip_weights = data::path_clip();
+        let vae_weights = data::path_vae();
+        let unet_weights = data::path_unet();
+        let vocab_file = data::path_bpe_simple();
+        let cpu = vec!["all".to_string()];
+        let height = Some(256);
+        let width = Some(256);
+        let sliced_attention_size = None;
+        let sd_config = stable_diffusion::StableDiffusionConfig::v2_1(sliced_attention_size, height, width);
+
+        tch::maybe_init_cuda();
+
+        let device_setup = ::diffusers::utils::DeviceSetup::new(cpu);
+        let clip_device = device_setup.get("clip");
+        let vae_device = device_setup.get("vae");
+        let unet_device = device_setup.get("unet");
+        let scheduler = sd_config.build_scheduler(n_steps);
+
+        let tokenizer = clip::Tokenizer::create(vocab_file, &sd_config.clip)
+            .map_err(|e| log::debug!("tokenizer: {e:?}"))
+            .ok()?;
+
+        let tokens = tokenizer.encode(&prompt)
+            .map_err(|e| log::debug!("tokens: {e:?}"))
+            .ok()?;
+        let tokens: Vec<i64> = tokens.into_iter().map(|x| x as i64).collect();
+        let tokens = Tensor::from_slice(&tokens).view((1, -1)).to(clip_device);
+        let uncond_tokens = tokenizer.encode("")
+            .map_err(|e| log::debug!("uncond_tokens: {e:?}"))
+            .ok()?;
+        let uncond_tokens: Vec<i64> = uncond_tokens.into_iter().map(|x| x as i64).collect();
+        let uncond_tokens = Tensor::from_slice(&uncond_tokens).view((1, -1)).to(clip_device);
+
+        let no_grad_guard = tch::no_grad_guard();
+
+
+        let text_model = sd_config.build_clip_transformer(&clip_weights, clip_device)
+            .map_err(|e| log::debug!("text_model: {e:?}"))
+            .ok()?;
+        let text_embeddings = text_model.forward(&tokens);
+        let uncond_embeddings = text_model.forward(&uncond_tokens);
+        let text_embeddings = Tensor::cat(&[uncond_embeddings, text_embeddings], 0).to(unet_device);
+
+
+        let vae = sd_config.build_vae(&vae_weights, vae_device)
+            .map_err(|e| log::debug!("vae: {e:?}"))
+            .ok()?;
+
+        let unet = sd_config.build_unet(&unet_weights, unet_device, 4)
+            .map_err(|e| log::debug!("unet: {e:?}"))
+            .ok()?;
+
+        let bsize = 1;
+        // for idx in 0..num_samples {
+            tch::manual_seed(seed);
+            let mut latents = Tensor::randn(
+                [bsize, 4, sd_config.height / 8, sd_config.width / 8],
+                (Kind::Float, unet_device),
+            );
+
+            // scale the initial noise by the standard deviation required by the scheduler
+            latents *= scheduler.init_noise_sigma();
+
+            for (_timestep_index, &timestep) in scheduler.timesteps().iter().enumerate() {
+                // println!("Timestep {timestep_index}/{n_steps}");
+                let latent_model_input = Tensor::cat(&[&latents, &latents], 0);
+
+                let latent_model_input = scheduler.scale_model_input(latent_model_input, timestep);
+                let noise_pred = unet.forward(&latent_model_input, timestep as f64, &text_embeddings);
+                let noise_pred = noise_pred.chunk(2, 0);
+                let (noise_pred_uncond, noise_pred_text) = (&noise_pred[0], &noise_pred[1]);
+                let noise_pred =
+                    noise_pred_uncond + (noise_pred_text - noise_pred_uncond) * GUIDANCE_SCALE;
+                latents = scheduler.step(&noise_pred, timestep, &latents);
+            }
+
+
+            let latents = latents.to(vae_device);
+            let image = vae.decode(&(&latents / 0.18215));
+            let image = (image / 2 + 0.5).clamp(0., 1.).to_device(Device::Cpu);
+            let image = (image * 255.).to_kind(Kind::Uint8);
+            let final_image = output_filename("sd_final.png", 1, 1, None);
+            tch::vision::image::save(&image, final_image.clone())
+                .map_err(|e| log::debug!("tch::vision::image::save: {e:?}"))
+                .ok()?;
+        // }
+
+        let result = std::fs::read(final_image)
+            .map_err(|e| log::debug!("std::fs::read: {e:?}"))
+            .ok()?;
+
+        drop(no_grad_guard);
+
+        Some(result)
+    }
+}

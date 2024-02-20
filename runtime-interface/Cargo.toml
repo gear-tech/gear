@@ -22,6 +22,9 @@ sp-wasm-interface.workspace = true
 byteorder.workspace = true
 codec = { workspace = true }
 log = { workspace = true, optional = true }
+diffusers = { version = "0.3.1", optional = true }
+data = { version = "0.1.0", optional = true, registry = "hackathon-2024-registry" }
+tch = { version = "0.13", optional = true }
 
 [target.'cfg(windows)'.dependencies]
 winapi = { workspace = true, features = ["memoryapi"] }
@@ -41,4 +44,7 @@ std = [
 	"byteorder/std",
 	"codec/std",
 	"log",
+	"diffusers",
+	"data",
+	"tch",
 ]

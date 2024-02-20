@@ -31,6 +31,7 @@ impl sc_executor::NativeExecutionDispatch for LocalExecutorDispatch {
         frame_benchmarking::benchmarking::HostFunctions,
         gear_runtime_interface::gear_ri::HostFunctions,
         gear_runtime_interface::sandbox::HostFunctions,
+        gear_runtime_interface::diffusers::HostFunctions,
     );
 
     fn dispatch(method: &str, data: &[u8]) -> Option<Vec<u8>> {
