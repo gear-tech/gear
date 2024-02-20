@@ -75,6 +75,13 @@ then
   cargo build --profile=production --locked --features=runtime-benchmarks
 fi
 
+LIBTORCH_CPU_PATH=`find ./target/ -name libtorch_cpu\.so`
+LIBS_PATH=`dirname $LIBTORCH_CPU_PATH`
+PWD=`pwd`
+
+export LD_LIBRARY_PATH="$PWD/$LIBS_PATH/":$LD_LIBRARY_PATH
+echo 'LD_LIBRARY_PATH = '$LD_LIBRARY_PATH
+
 # The executable to use.
 GEAR=./target/production/gear
 
