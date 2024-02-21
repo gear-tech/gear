@@ -217,6 +217,8 @@ impl MessageContext {
             None => 0,
         };
 
+        (outgoing_bytes_counter < settings.outgoing_bytes_limit).then_some(())?;
+
         Some(Self {
             kind,
             outcome: ContextOutcome::new(program_id, message.source(), message.id()),
@@ -597,6 +599,10 @@ mod tests {
         };
     }
 
+    // Set of constants for clarity of a part of the test
+    const INCOMING_MESSAGE_ID: u64 = 3;
+    const INCOMING_MESSAGE_SOURCE: u64 = 4;
+
     #[test]
     fn duplicated_init() {
         let mut message_context = MessageContext::new(
@@ -625,7 +631,6 @@ mod tests {
         )
         .unwrap();
 
-        // first init to default ProgramId.
         let handle = message_context.send_init().unwrap();
 
         // push 5 bytes
@@ -650,13 +655,12 @@ mod tests {
         )
         .unwrap();
 
-        // first init to default ProgramId.
         let handle = message_context.send_init().unwrap();
 
         // push 5 bytes
         assert_ok!(message_context.send_push(handle, &[1, 2, 3, 4, 5]));
 
-        // commit 6 byte should get error.
+        // commit 6 bytes should get error.
         assert_err!(
             message_context.send_commit(
                 handle,
@@ -670,6 +674,92 @@ mod tests {
             ),
             Error::OutgoingMessagesBytesLimitExceeded,
         );
+    }
+
+    #[test]
+    fn send_push_input_bytes_exceeded() {
+        let incoming_message = IncomingMessage::new(
+            MessageId::from(INCOMING_MESSAGE_ID),
+            ProgramId::from(INCOMING_MESSAGE_SOURCE),
+            vec![1, 2, 3, 4, 5].try_into().unwrap(),
+            0,
+            0,
+            None,
+        );
+
+        let incoming_dispatch = IncomingDispatch::new(DispatchKind::Handle, incoming_message, None);
+
+        // Creating a message context
+        let mut message_context = MessageContext::new(
+            incoming_dispatch,
+            Default::default(),
+            ContextSettings::with_outgoing_limits(1024, 11),
+        )
+        .unwrap();
+
+        let handle = message_context.send_init().unwrap();
+
+        // push 5 bytes
+        assert_ok!(message_context.send_push_input(
+            handle,
+            CheckedRange {
+                offset: 0,
+                excluded_end: 5,
+            }
+        ));
+
+        // push 5 bytes
+        assert_ok!(message_context.send_push_input(
+            handle,
+            CheckedRange {
+                offset: 0,
+                excluded_end: 5,
+            }
+        ));
+
+        // push 1 byte should get error.
+        assert_err!(
+            message_context.send_push_input(
+                handle,
+                CheckedRange {
+                    offset: 0,
+                    excluded_end: 1,
+                }
+            ),
+            Error::OutgoingMessagesBytesLimitExceeded,
+        );
+    }
+
+    #[test]
+    fn create_wrong_context() {
+        let context_store = ContextStore {
+            outgoing: [(1, Some(vec![1, 2].try_into().unwrap()))]
+                .iter()
+                .cloned()
+                .collect(),
+            reply: None,
+            initialized: BTreeSet::new(),
+            awaken: BTreeSet::new(),
+            reply_sent: false,
+            reservation_nonce: ReservationNonce::default(),
+            system_reservation: None,
+        };
+
+        let incoming_dispatch = IncomingDispatch::new(
+            DispatchKind::Handle,
+            Default::default(),
+            Some(context_store),
+        );
+
+        let ctx = MessageContext::new(
+            incoming_dispatch,
+            Default::default(),
+            ContextSettings::with_outgoing_limits(1024, 1),
+        );
+
+        // Creating a message context must return None,
+        // because of the outgoing messages bytes limit exceeded.
+        assert!(ctx.is_none(), "Expect None, got {:?}", ctx);
     }
 
     #[test]
@@ -754,10 +844,6 @@ mod tests {
             Error::DuplicateReply,
         );
     }
-
-    // Set of constants for clarity of a part of the test
-    const INCOMING_MESSAGE_ID: u64 = 3;
-    const INCOMING_MESSAGE_SOURCE: u64 = 4;
 
     #[test]
     /// Test that covers full api of `MessageContext`

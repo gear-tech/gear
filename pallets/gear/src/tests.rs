@@ -65,7 +65,10 @@ use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
     code::{self, Code, CodeError, ExportError},
     ids::{CodeId, MessageId, ProgramId},
-    message::UserStoredMessage,
+    message::{
+        ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext, Payload,
+        StoredDispatch, UserStoredMessage,
+    },
     pages::{PageNumber, PageU32Size, WasmPage},
 };
 use gear_core_backend::error::{
@@ -14609,14 +14612,74 @@ fn outgoing_messages_bytes_limit_exceeded() {
             0,
             false,
         ));
-        // Gear::upload_program(origin, code, salt, init_payload, gas_limit, value, keep_alive)
-        // Gear::upload_prog(RuntimeOrigin::signed(USER_1), code).unwrap();
 
         let mid = get_last_message_id();
 
         run_to_next_block(None);
 
         assert_succeed(mid);
+    });
+}
+
+// TODO: this test must be moved to `core-processor` crate,
+// but it's not possible currently, because mock for `core-processor` does not exist #3742
+#[test]
+#[should_panic(
+    expected = "internal error: entered unreachable code: Incoming dispatch store has too many outgoing messages total bytes"
+)]
+fn incorrect_store_context() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            ProgramCodeKind::Default.to_bytes(),
+            DEFAULT_SALT.to_vec(),
+            vec![],
+            100_000_000_000,
+            0,
+            false,
+        ));
+
+        let pid = get_last_program_id();
+        let mid = get_last_message_id();
+
+        run_to_next_block(None);
+
+        assert_succeed(mid);
+
+        // Create mock dispatch with outgoing messages total bytes limit exceeded
+        let gas_limit = 10_000_000_000;
+        let mid = Default::default();
+        let payload = b"gear".to_vec().try_into().unwrap();
+        let message = IncomingMessage::new(mid, USER_1.cast(), payload, gas_limit, 0, None);
+
+        // Get overloaded `StoreContext` using `MessageContext`
+        let limit = <Test as Config>::OutgoingBytesLimit::get();
+        let dispatch = IncomingDispatch::new(DispatchKind::Handle, message.clone(), None);
+        let settings = ContextSettings::with_outgoing_limits(1024, limit + 1);
+        let mut message_context = MessageContext::new(dispatch, pid, settings).unwrap();
+        let mut counter = 0;
+        // Fill until the limit is reached
+        while counter < limit {
+            let handle = message_context.send_init().unwrap();
+            let len = (Payload::max_len() as u32).min(limit - counter);
+            message_context
+                .send_push(handle, &vec![1; len as usize])
+                .unwrap();
+            counter += len;
+        }
+        let (_, context_store) = message_context.drain();
+
+        // Create gas node to skip gas tree corrupted panic
+        GasHandlerOf::<Test>::create(USER_1, Default::default(), mid, gas_limit).unwrap();
+
+        // Enqueue message with corrupted context
+        let message = message.into_stored(pid);
+        let dispatch = StoredDispatch::new(DispatchKind::Handle, message, Some(context_store));
+        QueueOf::<Test>::queue(dispatch).unwrap();
+
+        // Panic must appear here
+        run_to_next_block(None);
     });
 }
 

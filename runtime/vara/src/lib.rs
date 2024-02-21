@@ -973,6 +973,8 @@ parameter_types! {
     pub const DispatchHoldCost: u64 = 100;
 
     pub const OutgoingLimit: u32 = 1024;
+    // 64 MB, must be less than max runtime heap memory.
+    // NOTE: currently runtime heap memory is 1 GB (see https://shorturl.at/DET45)
     pub const OutgoingBytesLimit: u32 = 64 * 1024 * 1024;
     pub const MailboxThreshold: u64 = 3000;
 

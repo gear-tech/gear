@@ -182,7 +182,7 @@ where
             (context, code, balance).into(),
             (random.encode(), bn.unique_saturated_into()),
         )
-        .unwrap_or_else(|e| unreachable!("core-processor logic invalidated: {e}"))
+        .unwrap_or_else(|e| unreachable!("{e}"))
     }
 
     /// Message Queue processing.
