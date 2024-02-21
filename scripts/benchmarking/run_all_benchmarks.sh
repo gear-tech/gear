@@ -11,8 +11,8 @@
 # Should be run from the root of the repo.
 
 # Steps and repeats for main benchmark.
-BENCHMARK_STEPS=50
-BENCHMARK_REPEAT=20
+BENCHMARK_STEPS=10
+BENCHMARK_REPEAT=4
 
 # Steps and repeats for benchmarking so called "one-time extrinsics",
 # which may be called only once and require a different benchmarking approach with more repeats.
@@ -166,8 +166,8 @@ for PALLET in "${PALLETS[@]}"; do
     --chain="$chain_spec" \
     --steps=$BENCHMARK_STEPS \
     --repeat=$BENCHMARK_REPEAT \
-    --pallet="$PALLET" \
-    --extrinsic="$(IFS=, ; echo "${EXTRINSICS[*]}")" \
+    --pallet="pallet_gear" \
+    --extrinsic="diffusers_generate" \
     --heap-pages=4096 \
     --output="$WEIGHT_FILE" \
     --template=.maintain/frame-weight-template.hbs 2>&1

@@ -2641,11 +2641,12 @@ benchmarks! {
     }
 
     diffusers_generate {
+        let c in 1 .. 5;
     }: {
         gear_runtime_interface::diffusers::generate(
             "A rusty robot holding a fire torch",
             -123_456_789,
-            1,
+            c,
         )
     }
 
