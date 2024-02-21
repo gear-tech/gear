@@ -217,7 +217,7 @@ impl MessageContext {
             None => 0,
         };
 
-        (outgoing_bytes_counter < settings.outgoing_bytes_limit).then_some(())?;
+        (outgoing_bytes_counter <= settings.outgoing_bytes_limit).then_some(())?;
 
         Some(Self {
             kind,
@@ -292,7 +292,7 @@ impl MessageContext {
         let new_outgoing_bytes = self
             .outgoing_bytes_counter
             .checked_add(packet.payload_len())
-            .and_then(|counter| (counter < self.settings.outgoing_bytes_limit).then_some(counter))
+            .and_then(|counter| (counter <= self.settings.outgoing_bytes_limit).then_some(counter))
             .ok_or(Error::OutgoingMessagesBytesLimitExceeded)?;
 
         if let Some(payload) = self.store.outgoing.get_mut(&handle) {
@@ -349,7 +349,7 @@ impl MessageContext {
         let new_outgoing_bytes = self
             .outgoing_bytes_counter
             .checked_add(bytes_amount)
-            .and_then(|counter| (counter < self.settings.outgoing_bytes_limit).then_some(counter))
+            .and_then(|counter| (counter <= self.settings.outgoing_bytes_limit).then_some(counter))
             .ok_or(Error::OutgoingMessagesBytesLimitExceeded)?;
 
         match self.store.outgoing.get_mut(&handle) {
@@ -387,7 +387,7 @@ impl MessageContext {
         let new_outgoing_bytes = self
             .outgoing_bytes_counter
             .checked_add(bytes_amount)
-            .and_then(|counter| (counter < self.settings.outgoing_bytes_limit).then_some(counter))
+            .and_then(|counter| (counter <= self.settings.outgoing_bytes_limit).then_some(counter))
             .ok_or(Error::OutgoingMessagesBytesLimitExceeded)?;
 
         data.try_extend_from_slice(&self.current.payload_bytes()[offset..excluded_end])
@@ -627,7 +627,7 @@ mod tests {
         let mut message_context = MessageContext::new(
             Default::default(),
             Default::default(),
-            ContextSettings::with_outgoing_limits(1024, 11),
+            ContextSettings::with_outgoing_limits(1024, 10),
         )
         .unwrap();
 
@@ -651,7 +651,7 @@ mod tests {
         let mut message_context = MessageContext::new(
             Default::default(),
             Default::default(),
-            ContextSettings::with_outgoing_limits(1024, 11),
+            ContextSettings::with_outgoing_limits(1024, 10),
         )
         .unwrap();
 
@@ -693,7 +693,7 @@ mod tests {
         let mut message_context = MessageContext::new(
             incoming_dispatch,
             Default::default(),
-            ContextSettings::with_outgoing_limits(1024, 11),
+            ContextSettings::with_outgoing_limits(1024, 10),
         )
         .unwrap();
 
