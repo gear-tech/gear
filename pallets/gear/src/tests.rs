@@ -14660,7 +14660,7 @@ fn incorrect_store_context() {
         let mut message_context = MessageContext::new(dispatch, pid, settings).unwrap();
         let mut counter = 0;
         // Fill until the limit is reached
-        while counter <= limit + 1 {
+        while counter < limit + 1 {
             let handle = message_context.send_init().unwrap();
             let len = (Payload::max_len() as u32).min(limit + 1 - counter);
             message_context
