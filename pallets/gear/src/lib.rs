@@ -165,7 +165,7 @@ pub mod pallet {
         #[pallet::constant]
         type Schedule: Get<Schedule<Self>>;
 
-        /// The maximum amount of messages that can be produced in one message processing.
+        /// The maximum amount of messages that can be produced in during all message executions.
         #[pallet::constant]
         type OutgoingLimit: Get<u32>;
 
