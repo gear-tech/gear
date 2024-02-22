@@ -41,7 +41,7 @@ members = [
     "examples/init-fail-sender",
     "examples/init-wait",
     "examples/init-wait-reply-exit",
-    "examples/messager",
+    "examples/messenger",
     "examples/mul-by-const",
     "examples/ncompose",
     "examples/new-meta",
@@ -390,7 +390,7 @@ demo-incomplete-async-payloads = { path = "examples/incomplete-async-payloads" }
 demo-init-fail-sender = { path = "examples/init-fail-sender" }
 demo-init-wait = { path = "examples/init-wait", default-features = false }
 demo-init-wait-reply-exit = { path = "examples/init-wait-reply-exit" }
-demo-messager = { path = "examples/messager" }
+demo-messenger = { path = "examples/messenger" }
 demo-meta-io = { path = "examples/new-meta/io" }
 demo-mul-by-const = { path = "examples/mul-by-const" }
 demo-new-meta = { path = "examples/new-meta" }
@@ -443,9 +443,9 @@ scopeguard = { version = "1.2.0", default-features = false }              # pall
 tabled = "0.10.0"                                                         # utils/regression-analysis
 thousands = "0.2.0"                                                       # utils/regression-analysis
 toml = "0.7.8"                                                            # utils/wasm-builder
-tracing = "0.1.40"                                                        # utils/node-loder
-tracing-appender = "0.2"                                                  # utils/node-loder
-tracing-subscriber = "0.3.18"                                             # utils/node-loder
+tracing = "0.1.40"                                                        # utils/node-loader
+tracing-appender = "0.2"                                                  # utils/node-loader
+tracing-subscriber = "0.3.18"                                             # utils/node-loader
 trybuild = "1"                                                            # gstd/codegen
 wasm-opt = "0.112.0"                                                      # utils/wasm-builder
 wasmprinter = "0.2"                                                       # utils/wasm-gen

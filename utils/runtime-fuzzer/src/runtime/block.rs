@@ -31,7 +31,7 @@ use sp_consensus_slots::Slot;
 use sp_runtime::{Digest, DigestItem, Perbill};
 use vara_runtime::{
     Authorship, BlockGasLimit, Gear, GearGas, GearMessenger, Runtime, RuntimeBlockWeights,
-    RuntimeEvent, System,
+    RuntimeEvent, System, TransactionPayment,
 };
 
 /// This is not set to `BlockGasLimitOf::<Runtime>::get`, because of the
@@ -88,7 +88,7 @@ pub fn initialize(new_bn: BlockNumberFor<Runtime>) {
     System::set_block_number(new_bn);
 }
 
-/// Run `on_initialize hooks` in order as they appear in `AllPalletsWithSystem`.
+/// Run `on_initialize hooks` in order as they appear in `vara_runtime`.
 pub(super) fn on_initialize() {
     System::on_initialize(System::block_number());
     Authorship::on_initialize(System::block_number());
@@ -97,13 +97,12 @@ pub(super) fn on_initialize() {
     Gear::on_initialize(System::block_number());
 }
 
-/// Run on_finalize hooks in pallets reversed order, as they appear in
-/// `AllPalletsWithSystem`.
-// TODO #2307
+/// Run on_finalize hooks in pallets reversed order, as they appear in `vara_runtime`.
 fn on_finalize_without_system() {
     let bn = System::block_number();
     Gear::on_finalize(bn);
     GearMessenger::on_finalize(bn);
     GearGas::on_finalize(bn);
+    TransactionPayment::on_finalize(bn);
     Authorship::on_finalize(bn);
 }

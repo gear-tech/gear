@@ -19,7 +19,7 @@
 use crate::{
     data::FulfilledDataRequirement,
     generator::{GearCallsGenerator, AUXILIARY_SIZE},
-    runtime,
+    runtime, EXHAUST_MESSAGES_RUNS,
 };
 use gear_common::{Gas, Origin};
 use gear_wasm_gen::{Result, Unstructured};
@@ -130,7 +130,8 @@ impl BalanceManager<'_> {
         VALUE_SIZE
             * (GearCallsGenerator::MAX_UPLOAD_PROGRAM_CALLS
                 + GearCallsGenerator::MAX_SEND_MESSAGE_CALLS
-                + GearCallsGenerator::MAX_SEND_REPLY_CALLS)
+                + GearCallsGenerator::MAX_SEND_REPLY_CALLS
+                + EXHAUST_MESSAGES_RUNS)
             + AUXILIARY_SIZE
     }
 }

@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! command `upload_program`
-use crate::{result::Result, utils::Hex};
+use crate::{result::Result, utils::Hex, App};
 use anyhow::anyhow;
 use clap::Parser;
 use gsdk::{
@@ -62,7 +62,9 @@ impl Upload {
     }
 
     /// Exec command submit
-    pub async fn exec(&self, signer: Signer) -> Result<()> {
+    pub async fn exec(&self, app: &impl App) -> Result<()> {
+        let signer: Signer = app.signer().await?.into();
+
         let code = if self.code_override.is_empty() {
             fs::read(&self.code).map_err(|e| anyhow!("program {:?} not found, {e}", &self.code))?
         } else {
@@ -75,7 +77,7 @@ impl Upload {
         }
 
         let payload = self.payload.to_vec()?;
-        let gas = if self.gas_limit == 0 {
+        let gas_limit = if self.gas_limit == 0 {
             signer
                 .rpc
                 .calculate_upload_gas(None, code.clone(), payload.clone(), self.value, false, None)
@@ -85,8 +87,6 @@ impl Upload {
             self.gas_limit
         };
 
-        // Estimate gas and upload program.
-        let gas_limit = signer.api().cmp_gas_limit(gas)?;
         let tx = signer
             .calls
             .upload_program(code, self.salt.to_vec()?, payload, gas_limit, self.value)

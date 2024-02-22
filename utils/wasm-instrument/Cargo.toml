@@ -23,4 +23,5 @@ wat.workspace = true
 default = ["std"]
 std = [
     "gwasm-instrument/std",
+    "wasmparser/std",
 ]

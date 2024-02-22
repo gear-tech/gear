@@ -2058,7 +2058,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "demo-messager"
+name = "demo-messenger"
 version = "0.1.0"
 dependencies = [
  "gcli",
@@ -3678,13 +3678,14 @@ dependencies = [
  "base64 0.21.7",
  "clap 4.4.18",
  "color-eyre",
- "demo-messager",
+ "demo-messenger",
  "demo-new-meta",
  "demo-waiter",
  "dirs",
  "env_logger",
  "etc",
  "futures",
+ "gclient",
  "gear-core",
  "gear-core-errors",
  "gear-runtime-primitives",
@@ -4623,7 +4624,7 @@ dependencies = [
  "anyhow",
  "base64 0.21.7",
  "colored",
- "demo-messager",
+ "demo-messenger",
  "demo-new-meta",
  "demo-waiter",
  "futures",
