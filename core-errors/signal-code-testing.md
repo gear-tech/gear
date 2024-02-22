@@ -257,7 +257,7 @@ This signal is sent when the trap `TrapExplanation::GasLimitExceeded` occurs. Th
     </details>
 - Gas runs out during plain or lazy pages memory access.
 
-    This case can be tested by creating a program, that _only_ accesses memory, calculating gas for this program, and then running it with gass limit that is less than the calculated gas amount by a small margin. This will ensure that the program will run out of gas during memory access.
+    This case can be tested by creating a program, that _only_ accesses memory, calculating gas for this program, and then running it with gas limit that is less than the calculated gas amount by a small margin. This will ensure that the program will run out of gas during memory access.
 
     <details>
     <summary>Program to be uploaded</summary>
