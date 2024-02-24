@@ -235,29 +235,33 @@ impl<T: Config> BuiltinDispatcher for BuiltinRegistry<T> {
     ) -> Vec<JournalNote> {
         let actor_id = dispatch.destination();
 
-        // Builtin actors can only execute dispatches of `Handle` kind and only `Handle`
-        // dispatches can end up here (TODO: elaborate).
         if dispatch.kind() != DispatchKind::Handle {
             unreachable!("Only handle dispatches can end up here");
         }
+        if dispatch.context().is_some() {
+            unreachable!("Builtin actors can't have context from earlier executions");
+        }
 
+        // Creating a gas counter to track gas usage (because core processor needs it).
         let mut gas_counter = GasCounter::new(gas_limit);
 
+        // Actual call to the builtin actor
         let (res, gas_spent) = f(&dispatch, gas_limit);
 
-        // We rely on a builtin actor having performed the check for gas limit consistency
-        // and having reported an error if the `gas_limit` was to have been exceeded.
+        // We rely on a builtin actor to perform the check for gas limit consistency before
+        // executing a message and report an error if the `gas_limit` was to have been exceeded.
         // However, to avoid gas tree corruption error, we must not report as spent more gas than
         // the amount reserved in gas tree (that is, `gas_limit`). Hence (just in case):
         let gas_spent = gas_spent.min(gas_limit);
 
-        // This should always return `ChargeResult::Enough` now thanks to the above check.
+        // Let the `gas_counter` know how much gas was spent.
         let _ = gas_counter.charge(gas_spent);
 
         let dispatch = dispatch.into_incoming(gas_limit);
 
         match res {
             Ok(response_payload) => {
+                // Builtin actor call was successful and returned some payload.
                 log::debug!(target: LOG_TARGET, "Builtin call dispatched successfully");
 
                 let mut dispatch_result =
@@ -281,11 +285,14 @@ impl<T: Config> BuiltinDispatcher for BuiltinRegistry<T> {
                     dispatch_result.generated_dispatches = generated_dispatches;
                 };
 
+                // Using the core processor logic create necessary `JournalNote`'s for us.
                 process_success(SuccessfulDispatchResultKind::Success, dispatch_result)
             }
             Err(err) => {
+                // Builtin actor call failed.
                 log::debug!(target: LOG_TARGET, "Builtin actor error: {:?}", err);
                 let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
+                // The core prcessor will take care of creating necessary `JournalNote`'s.
                 process_execution_error(dispatch, actor_id, gas_spent, system_reservation_ctx, err)
             }
         }
