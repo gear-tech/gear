@@ -17,9 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! command `create`
-use crate::{result::Result, utils::Hex};
+use crate::{result::Result, utils::Hex, App};
 use clap::Parser;
-use gsdk::signer::Signer;
 
 /// Deploy program to gear node
 #[derive(Clone, Debug, Parser)]
@@ -44,26 +43,23 @@ pub struct Create {
 
 impl Create {
     /// Exec command submit
-    pub async fn exec(&self, signer: Signer) -> Result<()> {
+    pub async fn exec(&self, app: &impl App) -> Result<()> {
         let code_id = self.code_id.to_hash()?.into();
         let payload = self.init_payload.to_vec()?;
+        let signer = app.signer().await?;
 
-        let gas = if self.gas_limit == 0 {
+        // estimate gas
+        let gas_limit = if self.gas_limit == 0 {
             signer
-                .rpc
-                .calculate_create_gas(None, code_id, payload.clone(), self.value, false, None)
+                .calculate_create_gas(None, code_id, payload.clone(), self.value, false)
                 .await?
                 .min_limit
         } else {
             self.gas_limit
         };
 
-        // estimate gas
-        let gas_limit = signer.api().cmp_gas_limit(gas)?;
-
         // create program
         signer
-            .calls
             .create_program(code_id, self.salt.to_vec()?, payload, gas_limit, self.value)
             .await?;
 

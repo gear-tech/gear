@@ -278,8 +278,8 @@ impl fmt::Display for CodeErrorWithContext {
         let Self(module, error) = self;
 
         match error {
-            Validation | Decode | Encode | Section(_) | Memory(_) | StackEnd(_)
-            | Initialization(_) | Instrumentation(_) => write!(f, "{error}"),
+            Validation(_) | Codec(_) | Section(_) | Memory(_) | StackEnd(_) | DataSection(_)
+            | Instrumentation(_) => write!(f, "{error}"),
             Export(error) => {
                 let error_with_context: ExportErrorWithContext =
                     (module, error).try_into().map_err(|_| fmt::Error)?;

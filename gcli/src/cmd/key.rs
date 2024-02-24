@@ -19,7 +19,7 @@
 //! command `key`
 use crate::{keystore::key::Key as KeyT, result::Result};
 use clap::Parser;
-use gsdk::ext::{
+use gclient::ext::{
     sp_core::{ecdsa, ed25519, sr25519, Pair},
     sp_runtime::traits::IdentifyAccount,
 };

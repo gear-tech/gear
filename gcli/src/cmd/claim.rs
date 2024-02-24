@@ -17,9 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Command `claim`
-use crate::{result::Result, utils::Hex};
+use crate::{result::Result, utils::Hex, App};
 use clap::Parser;
-use gsdk::signer::Signer;
 
 /// Claim value from mailbox.
 #[derive(Clone, Debug, Parser)]
@@ -29,11 +28,9 @@ pub struct Claim {
 }
 
 impl Claim {
-    pub async fn exec(&self, signer: Signer) -> Result<()> {
+    pub async fn exec(&self, app: &impl App) -> Result<()> {
         let message_id = self.message_id.to_hash()?.into();
-
-        signer.calls.claim_value(message_id).await?;
-
+        app.signer().await?.claim_value(message_id).await?;
         Ok(())
     }
 }
