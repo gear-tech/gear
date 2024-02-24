@@ -55,7 +55,7 @@ use common::{
 };
 use core_processor::{common::ActorExecutionErrorReplyReason, ActorPrepareMemoryError};
 use frame_support::{
-    assert_err, assert_noop, assert_ok,
+    assert_noop, assert_ok,
     codec::{Decode, Encode},
     dispatch::Dispatchable,
     sp_runtime::traits::{TypedGet, Zero},
@@ -9027,7 +9027,7 @@ fn async_sleep_for() {
 
         // Assert the program replied with a message after the sleep.
         // The message payload is a number of the block the program
-        // exited the dealy, i.e. sleep_for_block_number + SLEEP_FOR_BLOCKS.
+        // exited the delay, i.e. sleep_for_block_number + SLEEP_FOR_BLOCKS.
         assert_waiter_single_reply(format!(
             "After the sleep at block: {}",
             sleep_for_block_number + SLEEP_FOR_BLOCKS
@@ -9073,7 +9073,7 @@ fn async_sleep_for() {
 
             // Assert the program replied with a message after the sleep.
             // The message payload is a number of the block the program
-            // exited the dealy, i.e. sleep_for_block_number + LONGER_SLEEP_FOR_BLOCKS.
+            // exited the delay, i.e. sleep_for_block_number + LONGER_SLEEP_FOR_BLOCKS.
             assert_waiter_single_reply(format!(
                 "After the sleep at block: {}",
                 sleep_for_block_number + LONGER_SLEEP_FOR_BLOCKS
@@ -9120,7 +9120,7 @@ fn async_sleep_for() {
 
             // Assert the program replied with a message after the sleep.
             // The message payload is a number of the block the program
-            // exited the dealy, i.e. sleep_for_block_number + LONGER_SLEEP_FOR_BLOCKS.
+            // exited the delay, i.e. sleep_for_block_number + LONGER_SLEEP_FOR_BLOCKS.
             assert_waiter_single_reply(format!(
                 "After the sleep at block: {}",
                 sleep_for_block_number + LONGER_SLEEP_FOR_BLOCKS
@@ -9154,7 +9154,7 @@ fn async_sleep_for() {
 
             // Assert the program replied with a message after the sleep.
             // The message payload is a number of the block the program
-            // exited the dealy, i.e. sleep_for_block_number + SLEEP_FOR_BLOCKS.
+            // exited the delay, i.e. sleep_for_block_number + SLEEP_FOR_BLOCKS.
             assert_waiter_single_reply(format!(
                 "After the sleep at block: {}",
                 sleep_for_block_number + SLEEP_FOR_BLOCKS
@@ -9188,7 +9188,7 @@ fn async_sleep_for() {
 
             // Assert the program replied with a message after the sleep.
             // The message payload is a number of the block the program
-            // exited the dealy, i.e. sleep_for_block_number + SLEEP_FOR_BLOCKS.
+            // exited the delay, i.e. sleep_for_block_number + SLEEP_FOR_BLOCKS.
             assert_waiter_single_reply(format!(
                 "After the sleep at block: {}",
                 sleep_for_block_number + SLEEP_FOR_BLOCKS
@@ -9562,7 +9562,7 @@ fn missing_handle_is_not_executed() {
 }
 
 #[test]
-fn invalid_memory_page_count_rejected() {
+fn invalid_memory_page_amount_rejected() {
     let wat = format!(
         r#"
     (module
@@ -9570,7 +9570,7 @@ fn invalid_memory_page_count_rejected() {
         (export "init" (func $init))
         (func $init)
     )"#,
-        code::MAX_WASM_PAGE_COUNT + 1
+        code::MAX_WASM_PAGE_AMOUNT + 1
     );
 
     init_logger();
@@ -12864,15 +12864,17 @@ fn relay_messages() {
     );
 }
 
+// TODO: move to gear-core after #3736
 #[test]
 fn module_instantiation_error() {
+    // Unknown global import leads to instantiation error.
     let wat = r#"
-    (module
-        (import "env" "memory" (memory 1))
-        (export "init" (func $init))
-        (func $init)
-        (data (;0;) (i32.const -15186172) "\b9w\92")
-    )
+        (module
+            (import "env" "memory" (memory 1))
+            (import "env" "unknown" (global $unknown i32))
+            (export "init" (func $init))
+            (func $init)
+        )
     "#;
 
     init_logger();
@@ -12880,7 +12882,7 @@ fn module_instantiation_error() {
         let code = ProgramCodeKind::Custom(wat).to_bytes();
         let salt = DEFAULT_SALT.to_vec();
         let prog_id = generate_program_id(&code, &salt);
-        let res = Gear::upload_program(
+        Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
             code,
             salt,
@@ -12889,10 +12891,9 @@ fn module_instantiation_error() {
             0,
             false,
         )
-        .map(|_| prog_id);
-        let mid = get_last_message_id();
+        .unwrap();
 
-        assert_ok!(res);
+        let mid = get_last_message_id();
 
         run_to_next_block(None);
 
@@ -12914,15 +12915,15 @@ fn wrong_entry_type() {
 
     init_logger();
     new_test_ext().execute_with(|| {
-        assert_err!(
+        assert!(matches!(
             Code::try_new(
                 ProgramCodeKind::Custom(wat).to_bytes(),
                 1,
                 |_| ConstantCostRules::default(),
                 None
             ),
-            CodeError::Export(ExportError::InvalidExportFnSignature(0))
-        );
+            Err(CodeError::Export(ExportError::InvalidExportFnSignature(0)))
+        ));
     });
 }
 
@@ -13698,7 +13699,7 @@ fn test_gas_allowance_exceed_no_context() {
         // Setting to 100 million the gas allowance ends faster than gas limit
         run_to_next_block(Some(100_000_000));
 
-        // Execution is denied after reque
+        // Execution is denied after requeue
         assert!(QueueProcessingOf::<Test>::denied());
 
         // Low level check, that no execution context is saved after gas allowance exceeded error
@@ -13833,7 +13834,7 @@ fn test_gas_allowance_exceed_with_context() {
         // execution of the message.
         run_to_next_block(Some(gas_info.min_limit - 100_000));
 
-        // Execution is denied after reque.
+        // Execution is denied after requeue.
         assert!(QueueProcessingOf::<Test>::denied());
 
         // Low level check, that no information on reply sent is saved in the execution
@@ -14305,7 +14306,7 @@ fn calculate_gas_wait() {
         })
         .expect("calculate_gas_info failed");
 
-        // 'wait' syscall greedely consumes all available gas so
+        // 'wait' syscall greedily consumes all available gas so
         // calculated limits should not be equal
         assert!(min_limit > limit_no_rent);
     });

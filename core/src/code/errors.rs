@@ -18,10 +18,11 @@
 
 //! Module that describes various code errors.
 
-use gear_wasm_instrument::InstrumentationError;
+pub use gear_wasm_instrument::{parity_wasm::SerializationError, InstrumentationError};
+pub use wasmparser::BinaryReaderError;
 
 /// Section name in WASM module.
-#[derive(Debug, PartialEq, Eq, derive_more::Display)]
+#[derive(Debug, derive_more::Display)]
 pub enum SectionName {
     /// Type section.
     #[display(fmt = "Type section")]
@@ -41,7 +42,7 @@ pub enum SectionName {
 }
 
 /// Section error in WASM module.
-#[derive(Debug, PartialEq, Eq, derive_more::Display)]
+#[derive(Debug, derive_more::Display)]
 pub enum SectionError {
     /// Section not found.
     #[display(fmt = "{_0} not found")]
@@ -52,7 +53,7 @@ pub enum SectionError {
 }
 
 /// Memory error in WASM module.
-#[derive(Debug, PartialEq, Eq, derive_more::Display)]
+#[derive(Debug, derive_more::Display)]
 pub enum MemoryError {
     /// Memory entry not found in import section.
     #[display(fmt = "Memory entry not found")]
@@ -63,29 +64,35 @@ pub enum MemoryError {
 }
 
 /// Stack end error in WASM module.
-#[derive(Debug, PartialEq, Eq, derive_more::Display)]
+#[derive(Debug, derive_more::Display)]
 pub enum StackEndError {
-    /// Can't insert new global due to index overflow in global section.
-    #[display(fmt = "Can't insert new global due to index overflow")]
+    /// Unsupported initialization of gear stack end global variable.
+    #[display(fmt = "Unsupported initialization of gear stack end global")]
+    Initialization,
+    /// Too many globals to create new const global for stack end.
+    #[display(fmt = "Too many globals, so cannot create new global for stack end")]
     GlobalIndexOverflow,
-    /// Pointer to the stack end overlaps data segment.
-    #[display(fmt = "Pointer to the stack end overlaps data segment")]
-    StackEndOverlaps,
 }
 
-/// Initialization error in WASM module.
-#[derive(Debug, PartialEq, Eq, derive_more::Display)]
-pub enum InitializationError {
-    /// Unsupported initialization of gear stack end global variable.
-    #[display(fmt = "Unsupported initialization of gear stack end global variable")]
-    StackEnd,
+/// Stack end error in WASM module.
+#[derive(Debug, derive_more::Display)]
+pub enum DataSectionError {
     /// Unsupported initialization of data segment.
     #[display(fmt = "Unsupported initialization of data segment")]
-    DataSegment,
+    Initialization,
+    /// Data section overlaps gear stack.
+    #[display(fmt = "Data segment {_0:#x} overlaps gear stack [0x0, {_1:#x})")]
+    GearStackOverlaps(u32, u32),
+    /// Data segment end address is out of possible 32 bits address space.
+    #[display(fmt = "Data segment {_0:#x} ends out of possible 32 bits address space")]
+    EndAddressOverflow(u32),
+    /// Data segment end address is out of static memory.
+    #[display(fmt = "Data segment [{_0:#x}, {_1:#x}] is out of static memory [0x0, {_2:#x})")]
+    EndAddressOutOfStaticMemory(u32, u32, u32),
 }
 
 /// Export error in WASM module.
-#[derive(Debug, PartialEq, Eq, derive_more::Display)]
+#[derive(Debug, derive_more::Display)]
 pub enum ExportError {
     /// Incorrect global export index. Can occur when export refers to not existing global index.
     #[display(fmt = "Global index `{_0}` in export index `{_1}` is incorrect")]
@@ -108,7 +115,7 @@ pub enum ExportError {
 }
 
 /// Import error in WASM module.
-#[derive(Debug, PartialEq, Eq, derive_more::Display)]
+#[derive(Debug, derive_more::Display)]
 pub enum ImportError {
     /// The imported function is not supported by the Gear protocol.
     #[display(fmt = "Unknown imported function with index `{_0}`")]
@@ -121,18 +128,26 @@ pub enum ImportError {
     InvalidImportFnSignature(u32),
 }
 
+/// Module encode/decode error.
+#[derive(Debug, derive_more::Display)]
+pub enum CodecError {
+    /// The wasm bytecode is failed to be decoded
+    #[display(fmt = "The wasm bytecode is failed to be decoded: {_0}")]
+    Decode(SerializationError),
+    /// Failed to encode instrumented program: {_0}
+    #[display(fmt = "Failed to encode instrumented program: {_0}")]
+    Encode(SerializationError),
+}
+
 /// Describes why the code is not valid Gear program.
-#[derive(Debug, PartialEq, Eq, derive_more::Display, derive_more::From)]
+#[derive(Debug, derive_more::Display, derive_more::From)]
 pub enum CodeError {
     /// Validation by wasmparser failed.
-    #[display(fmt = "Wasm validation failed")]
-    Validation,
-    /// Error occurred during decoding original program code.
-    #[display(fmt = "The wasm bytecode is failed to be decoded")]
-    Decode,
-    /// Error occurred during encoding instrumented program.
-    #[display(fmt = "Failed to encode instrumented program")]
-    Encode,
+    #[display(fmt = "Wasmer validation error: {_0}")]
+    Validation(BinaryReaderError),
+    /// Module encode/decode error.
+    #[display(fmt = "Codec error: {_0}")]
+    Codec(CodecError),
     /// The provided code contains section error.
     #[display(fmt = "Section error: {_0}")]
     Section(SectionError),
@@ -142,9 +157,9 @@ pub enum CodeError {
     /// The provided code contains stack end error.
     #[display(fmt = "Stack end error: {_0}")]
     StackEnd(StackEndError),
-    /// The provided code contains initialization error.
-    #[display(fmt = "Initialization error: {_0}")]
-    Initialization(InitializationError),
+    /// The provided code contains data section error.
+    #[display(fmt = "Data section error: {_0}")]
+    DataSection(DataSectionError),
     /// The provided code contains export error.
     #[display(fmt = "Export error: {_0}")]
     Export(ExportError),

@@ -19,7 +19,7 @@
 //! Command `program`.
 use crate::{meta::Meta, result::Result, App};
 use clap::Parser;
-use gsdk::{ext::sp_core::H256, Api};
+use gclient::{ext::sp_core::H256, GearApi};
 use std::{fs, path::PathBuf};
 
 /// Read program state, etc.
@@ -83,13 +83,13 @@ impl Program {
                 args,
                 at,
             } => {
-                let api = app.signer().await?.api().clone();
+                let api = app.signer().await?;
                 if let (Some(wasm), Some(method)) = (wasm, method) {
                     // read state from wasm.
-                    Self::wasm_state(api, *pid, wasm.to_vec(), method, args.clone(), *at).await?;
+                    Self::wasm_state(&api, *pid, wasm.to_vec(), method, args.clone(), *at).await?;
                 } else {
                     // read full state
-                    Self::full_state(api, *pid, *at).await?;
+                    Self::full_state(&api, *pid, *at).await?;
                 }
             }
             Program::Meta {
@@ -111,7 +111,7 @@ impl Program {
     }
 
     async fn wasm_state(
-        api: Api,
+        api: &GearApi,
         pid: H256,
         wasm: Vec<u8>,
         method: &str,
@@ -119,15 +119,24 @@ impl Program {
         at: Option<H256>,
     ) -> Result<()> {
         let state = api
-            .read_state_using_wasm(pid, Default::default(), method, wasm, args, at)
+            .read_state_bytes_using_wasm_at(
+                pid.0.into(),
+                Default::default(),
+                method,
+                wasm,
+                args,
+                at,
+            )
             .await?;
-        println!("{state}");
+        println!("0x{}", hex::encode(state));
         Ok(())
     }
 
-    async fn full_state(api: Api, pid: H256, at: Option<H256>) -> Result<()> {
-        let state = api.read_state(pid, Default::default(), at).await?;
-        println!("{state}");
+    async fn full_state(api: &GearApi, pid: H256, at: Option<H256>) -> Result<()> {
+        let state = api
+            .read_state_bytes_at(pid.0.into(), Default::default(), at)
+            .await?;
+        println!("0x{}", hex::encode(state));
         Ok(())
     }
 

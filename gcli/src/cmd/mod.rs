@@ -65,13 +65,13 @@ impl Command {
             Command::New(new) => new.exec().await?,
             Command::Program(program) => program.exec(app).await?,
             Command::Update(update) => update.exec().await?,
-            Command::Claim(claim) => claim.exec(app.signer().await?).await?,
-            Command::Create(create) => create.exec(app.signer().await?).await?,
-            Command::Info(info) => info.exec(app.signer().await?).await?,
-            Command::Send(send) => send.exec(app.signer().await?).await?,
-            Command::Upload(upload) => upload.exec(app.signer().await?).await?,
-            Command::Transfer(transfer) => transfer.exec(app.signer().await?).await?,
-            Command::Reply(reply) => reply.exec(app.signer().await?).await?,
+            Command::Claim(claim) => claim.exec(app).await?,
+            Command::Create(create) => create.exec(app).await?,
+            Command::Info(info) => info.exec(app).await?,
+            Command::Send(send) => send.exec(app).await?,
+            Command::Upload(upload) => upload.exec(app).await?,
+            Command::Transfer(transfer) => transfer.exec(app).await?,
+            Command::Reply(reply) => reply.exec(app).await?,
         }
 
         Ok(())
