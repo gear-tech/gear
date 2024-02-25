@@ -30,3 +30,4 @@ pub use self::{
     pair::KeypairInfo,
     scrypt::Scrypt,
 };
+pub use schnorrkel::{Keypair, SecretKey};
