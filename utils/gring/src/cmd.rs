@@ -28,7 +28,7 @@ use schnorrkel::{PublicKey, Signature};
 use std::{fs, path::PathBuf};
 
 /// gring sub commands.
-#[derive(Parser)]
+#[derive(Clone, Debug, Parser)]
 pub enum Command {
     /// Generate a new key.
     New {
@@ -157,8 +157,8 @@ impl Command {
                     return Ok(());
                 }
 
-                println!("| {:<16} | {:<49} |", "Name".bold(), "Address".bold());
-                println!("| {} | {} |", "-".repeat(16), "-".repeat(49));
+                println!("| {:<18} | {:<49} |", "Name".bold(), "Address".bold());
+                println!("| {} | {} |", "-".repeat(18), "-".repeat(49));
 
                 for key in keyring.list() {
                     let mut name: ColoredString = key.meta.name.clone().into();
@@ -168,7 +168,7 @@ impl Command {
                         address = address.cyan();
                     };
 
-                    println!("| {name:<16} | {address} |");
+                    println!("| {name:<18} | {address} |");
                 }
             }
             Command::Use { key } => {
