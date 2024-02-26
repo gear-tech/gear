@@ -125,7 +125,6 @@
 mod app;
 pub mod cmd;
 pub mod embed;
-pub mod keystore;
 pub mod meta;
 pub mod result;
 pub mod template;

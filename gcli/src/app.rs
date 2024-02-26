@@ -18,12 +18,12 @@
 //
 //! Command line application abstraction
 
-use crate::keystore;
 use clap::Parser;
 use color_eyre::{eyre::eyre, Result};
 use env_logger::{Builder, Env};
 use gclient::{ext::sp_core, GearApi};
-use gsdk::{signer::Signer, Api};
+use gring::Keyring;
+use gsdk::Api;
 
 /// Command line gear program application abstraction.
 ///
@@ -97,14 +97,11 @@ pub trait App: Parser + Sync {
         let passwd = self.passwd();
 
         let api = Api::new_with_timeout(endpoint.as_deref(), Some(timeout)).await?;
-        let pair = if let Ok(s) = keystore::cache(passwd.as_deref()) {
-            s
-        } else {
-            keystore::keyring(passwd.as_deref())?
-        };
+        let pair = Keyring::load(gring::cmd::Command::store()?)?
+            .primary()?
+            .decrypt(passwd.clone().and_then(|p| hex::decode(p).ok()).as_deref())?;
 
-        let signer: Signer = (api, pair).into();
-        Ok(signer.into())
+        Ok(GearApi::from((api, pair.into())))
     }
 
     /// Run application.

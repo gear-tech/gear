@@ -23,8 +23,6 @@ use clap::Parser;
 pub mod claim;
 pub mod create;
 pub mod info;
-pub mod key;
-pub mod login;
 pub mod new;
 pub mod program;
 pub mod reply;
@@ -32,10 +30,11 @@ pub mod send;
 pub mod transfer;
 pub mod update;
 pub mod upload;
+pub mod wallet;
 
 pub use self::{
-    claim::Claim, create::Create, info::Info, key::Key, login::Login, new::New, program::Program,
-    reply::Reply, send::Send, transfer::Transfer, update::Update, upload::Upload,
+    claim::Claim, create::Create, info::Info, new::New, program::Program, reply::Reply, send::Send,
+    transfer::Transfer, update::Update, upload::Upload, wallet::Wallet,
 };
 
 /// All SubCommands of gear command line interface.
@@ -44,8 +43,6 @@ pub enum Command {
     Claim(Claim),
     Create(Create),
     Info(Info),
-    Key(Key),
-    Login(Login),
     New(New),
     #[clap(subcommand)]
     Program(Program),
@@ -54,14 +51,14 @@ pub enum Command {
     Upload(Upload),
     Transfer(Transfer),
     Update(Update),
+    #[clap(subcommand)]
+    Wallet(Wallet),
 }
 
 impl Command {
     /// Execute the command.
     pub async fn exec(&self, app: &impl App) -> anyhow::Result<()> {
         match self {
-            Command::Key(key) => key.exec()?,
-            Command::Login(login) => login.exec()?,
             Command::New(new) => new.exec().await?,
             Command::Program(program) => program.exec(app).await?,
             Command::Update(update) => update.exec().await?,
@@ -72,6 +69,7 @@ impl Command {
             Command::Upload(upload) => upload.exec(app).await?,
             Command::Transfer(transfer) => transfer.exec(app).await?,
             Command::Reply(reply) => reply.exec(app).await?,
+            Command::Wallet(wallet) => wallet.run()?,
         }
 
         Ok(())
