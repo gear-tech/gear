@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -77,11 +77,20 @@ fn user_message_to_builtin_actor_works() {
 
         // Asserting success
         send_message(builtin_actor_id, Default::default());
+
+        // Message is in the queue and a gas node has been created.
+        assert!(!message_queue_empty());
+        assert!(!gas_tree_empty());
+
         run_to_next_block();
 
         // A builtin contract has been called
         assert_eq!(current_stack().len(), 1);
         assert!(current_stack()[0].is_success);
+        // No more messages in the queue
+        assert!(message_queue_empty());
+        // No more nodes in gas tree
+        assert!(gas_tree_empty());
 
         // Asserting error
         let builtin_actor_id: ProgramId = H256::from(ERROR_ACTOR_ID).cast();
@@ -91,6 +100,10 @@ fn user_message_to_builtin_actor_works() {
         // A builtin contract has been called
         assert_eq!(current_stack().len(), 2);
         assert!(!current_stack()[1].is_success);
+        // No more messages in the queue
+        assert!(message_queue_empty());
+        // No more nodes in gas tree
+        assert!(gas_tree_empty());
     });
 }
 
@@ -127,6 +140,10 @@ fn invoking_builtin_from_program_works() {
         let gas_burned = gas_info(Default::default()).burned;
 
         send_message(contract_id, Default::default());
+        // Message is in the queue and a gas node has been created.
+        assert!(!message_queue_empty());
+        assert!(!gas_tree_empty());
+
         run_to_next_block();
 
         let signer_current_balance_at_blk_2 = Balances::free_balance(SIGNER);
@@ -141,6 +158,10 @@ fn invoking_builtin_from_program_works() {
         // Assert builtin contract invocation
         assert_eq!(current_stack().len(), 1);
         assert!(current_stack()[0].is_success);
+        // No more messages in the queue
+        assert!(message_queue_empty());
+        // No more nodes in gas tree
+        assert!(gas_tree_empty());
     });
 }
 
@@ -180,12 +201,21 @@ fn calculate_gas_info_works() {
             0,
             false,
         ));
+
+        // Message is in the queue and a gas node has been created.
+        assert!(!message_queue_empty());
+        assert!(!gas_tree_empty());
+
         run_to_next_block();
 
         assert_eq!(current_stack().len(), 1);
         // Importantly, the gas tree is consistent, even though the validator has done more work
         // than the user paid for by providing less gas.
         assert!(current_stack()[0].is_success);
+
+        // No more messages in the queue and all gas nodes have been consumed.
+        assert!(message_queue_empty());
+        assert!(gas_tree_empty());
 
         // Honest actor runs gas limit check and respects its outcome.
         let builtin_actor_id: ProgramId = H256::from(HONEST_ACTOR_ID).cast();
@@ -217,5 +247,10 @@ fn calculate_gas_info_works() {
             }
             _ => false,
         }));
+
+        // No more messages in the queue
+        assert!(message_queue_empty());
+        // No more nodes in gas tree
+        assert!(gas_tree_empty());
     });
 }

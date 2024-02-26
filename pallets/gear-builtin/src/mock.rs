@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -17,6 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{self as pallet_gear_builtin, BuiltinActor, BuiltinActorError};
+use common::{GasProvider, GasTree};
 use core::cell::RefCell;
 use frame_support::{
     construct_runtime, parameter_types,
@@ -39,6 +40,10 @@ type AccountId = u64;
 type BlockNumber = u64;
 type Balance = u128;
 type Block = frame_system::mocking::MockBlock<Test>;
+
+pub(crate) type QueueOf<T> = pallet_gear_messenger::Dispatches<T>;
+pub(crate) type GasHandlerOf<T> = <<T as pallet_gear::Config>::GasProvider as GasProvider>::GasTree;
+pub(crate) type GasTreeOf<T> = pallet_gear_gas::GasNodes<T>;
 
 pub(crate) const SIGNER: AccountId = 1;
 pub(crate) const BLOCK_AUTHOR: AccountId = 10;
@@ -337,6 +342,15 @@ pub(crate) fn in_transaction() -> bool {
 
 pub(crate) fn set_transaction_flag(new_val: bool) {
     IN_TRANSACTION.with(|value| *value.borrow_mut() = new_val)
+}
+
+pub(crate) fn message_queue_empty() -> bool {
+    QueueOf::<Test>::iter_keys().next().is_none()
+}
+
+pub(crate) fn gas_tree_empty() -> bool {
+    GasTreeOf::<Test>::iter_keys().next().is_none()
+        && <GasHandlerOf<Test> as GasTree>::total_supply() == 0
 }
 
 pub(crate) fn new_test_ext() -> sp_io::TestExternalities {

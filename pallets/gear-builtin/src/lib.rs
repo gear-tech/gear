@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -59,6 +59,7 @@ use gear_core::{
     message::{
         ContextOutcomeDrain, DispatchKind, MessageContext, Payload, ReplyPacket, StoredDispatch,
     },
+    str::LimitedStr,
 };
 use impl_trait_for_tuples::impl_for_tuples;
 use pallet_gear::{BuiltinCache, BuiltinDispatcher, BuiltinDispatcherFactory, HandleFn};
@@ -78,6 +79,9 @@ pub enum BuiltinActorError {
     /// Occurs if the dispatch's message can't be decoded into a known type.
     #[display(fmt = "Failure to decode message")]
     DecodingError,
+    /// Actor's inner error encoded as a String.
+    #[display(fmt = "Builtin execution resulted in error: {_0}")]
+    Custom(LimitedStr<'static>),
 }
 
 impl From<BuiltinActorError> for ActorExecutionErrorReplyReason {
@@ -90,6 +94,9 @@ impl From<BuiltinActorError> for ActorExecutionErrorReplyReason {
             BuiltinActorError::DecodingError => ActorExecutionErrorReplyReason::Trap(
                 TrapExplanation::Panic("Message decoding error".to_string().into()),
             ),
+            BuiltinActorError::Custom(e) => {
+                ActorExecutionErrorReplyReason::Trap(TrapExplanation::Panic(e))
+            }
         }
     }
 }
@@ -244,6 +251,8 @@ impl<T: Config> BuiltinDispatcher for BuiltinRegistry<T> {
 
         // Creating a gas counter to track gas usage (because core processor needs it).
         let mut gas_counter = GasCounter::new(gas_limit);
+
+        // TODO: #3752. Need to run gas limit check before calling `f(&dispatch)`.
 
         // Actual call to the builtin actor
         let (res, gas_spent) = f(&dispatch, gas_limit);
