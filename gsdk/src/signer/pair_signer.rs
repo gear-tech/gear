@@ -16,12 +16,14 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use sp_core::Pair as PairT;
+use sp_core::{sr25519, Pair as PairT};
 use sp_runtime::{
     traits::{IdentifyAccount, Verify},
     AccountId32 as SpAccountId32, MultiSignature as SpMultiSignature,
 };
 use subxt::{tx::Signer, Config};
+
+use crate::GearConfig;
 
 /// A [`Signer`] implementation that can be constructed from an [`sp_core::Pair`].
 #[derive(Clone, Debug)]
@@ -76,5 +78,11 @@ where
 
     fn sign(&self, signer_payload: &[u8]) -> T::Signature {
         self.signer.sign(signer_payload).into()
+    }
+}
+
+impl From<sr25519::Pair> for PairSigner<GearConfig, sr25519::Pair> {
+    fn from(pair: sr25519::Pair) -> Self {
+        Self::new(pair)
     }
 }
