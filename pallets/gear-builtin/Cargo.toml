@@ -1,5 +1,6 @@
 [package]
-name = "pallet-gear-debug"
+name = "pallet-gear-builtin"
+description = "Builtin runtime actor providing runtime-related logic to program actors"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
@@ -13,65 +14,57 @@ targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
 parity-scale-codec = { workspace = true, features = ["derive"] }
-scale-info = { workspace = true, features = ["derive"] }
+scale-info = { workspace = true, features = ["derive", "serde"] }
 primitive-types = { workspace = true, features = ["scale-info"] }
 log.workspace = true
+derive_more.workspace = true
+impl-trait-for-tuples.workspace = true
 
-# Internal deps
-common.workspace = true
+core-processor.workspace = true
 gear-core.workspace = true
-pallet-gear.workspace = true
-
-# Substrate deps
+gear-core-errors.workspace = true
 frame-support.workspace = true
 frame-system.workspace = true
 frame-benchmarking = { workspace = true, optional = true }
-sp-core.workspace = true
 sp-std.workspace = true
-sp-io.workspace = true
-sp-runtime.workspace = true
-pallet-balances.workspace = true
-pallet-authorship.workspace = true
+sp-runtime = { workspace = true, features = ["serde"] }
+pallet-gear.workspace = true
 
 [dev-dependencies]
-env_logger.workspace = true
 common = { workspace = true, features = ["std"] }
-wabt.workspace = true
-hex-literal.workspace = true
-frame-support-test = { workspace = true, features = ["std"] }
+demo-waiting-proxy.workspace = true
+sp-core = { workspace = true, features = ["std"] }
+sp-externalities = { workspace = true, features = ["std"] }
+sp-io = { workspace = true, features = ["std"] }
+pallet-authorship = { workspace = true, features = ["std"] }
+pallet-balances = { workspace = true, features = ["std"] }
 pallet-timestamp = { workspace = true, features = ["std"] }
 pallet-gear-bank = { workspace = true, features = ["std"] }
 pallet-gear-gas = { workspace = true, features = ["std"] }
 pallet-gear-messenger = { workspace = true, features = ["std"] }
-pallet-gear-scheduler = { workspace = true, features = ["std"] }
 pallet-gear-program = { workspace = true, features = ["std"] }
-gear-wasm-instrument.workspace = true
-demo-vec.workspace = true
-test-syscalls.workspace = true
+pallet-gear-scheduler = { workspace = true, features = ["std"] }
+frame-executive = { workspace = true, features = ["std"] }
+frame-support-test = { workspace = true, features = ["std"] }
+env_logger.workspace = true
+hex-literal.workspace = true
 
 [features]
-default = ['std']
+default = ["std"]
 std = [
-	"parity-scale-codec/std",
-	"common/std",
 	"frame-benchmarking?/std",
 	"frame-support/std",
-	"frame-support-test/std",
 	"frame-system/std",
-	"scale-info/std",
-	"sp-io/std",
-	"sp-std/std",
-	"sp-core/std",
-	"sp-runtime/std",
-	"pallet-balances/std",
-	"pallet-authorship/std",
-	"primitive-types/std",
+	"gear-core/std",
 	"pallet-gear/std",
-	"test-syscalls/std",
+    "parity-scale-codec/std",
+	"scale-info/std",
+	"sp-runtime/std",
+	"sp-std/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",
-	"frame-system/runtime-benchmarks",
 	"frame-support/runtime-benchmarks",
+	"frame-system/runtime-benchmarks",
 ]
 try-runtime = ["frame-support/try-runtime"]

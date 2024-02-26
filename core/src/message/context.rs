@@ -37,7 +37,9 @@ use scale_info::{
 use super::{DispatchKind, IncomingDispatch};
 
 /// Context settings.
-#[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
+#[derive(
+    Copy, Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo,
+)]
 pub struct ContextSettings {
     /// Fee for sending message.
     sending_fee: u64,

@@ -23,28 +23,28 @@ use jsonrpsee::{
     proc_macros::rpc,
     types::error::{CallError, ErrorObject},
 };
-pub use pallet_gear_staking_rewards_rpc_runtime_api::GearStakingRewardsApi as GearStakingRewardsRuntimeApi;
-use pallet_gear_staking_rewards_rpc_runtime_api::InflationInfo;
+pub use pallet_gear_builtin_rpc_runtime_api::GearBuiltinApi as GearBuiltinRuntimeApi;
 use sp_api::ProvideRuntimeApi;
 use sp_blockchain::HeaderBackend;
+use sp_core::H256;
 use sp_runtime::traits::Block as BlockT;
 use std::sync::Arc;
 
 #[rpc(server)]
-pub trait GearStakingRewardsApi<BlockHash, ResponseType> {
-    #[method(name = "stakingRewards_inflationInfo")]
-    fn query_inflation_info(&self, at: Option<BlockHash>) -> RpcResult<ResponseType>;
+pub trait GearBuiltinApi<BlockHash, ResponseType> {
+    #[method(name = "gearBuiltin_queryId")]
+    fn query_actor_id(&self, builtin_id: u64) -> RpcResult<ResponseType>;
 }
 
 /// Provides RPC methods to query token economics related data.
-pub struct GearStakingRewards<C, P> {
+pub struct GearBuiltin<C, P> {
     /// Shared reference to the client.
     client: Arc<C>,
     _marker: std::marker::PhantomData<P>,
 }
 
-impl<C, P> GearStakingRewards<C, P> {
-    /// Creates a new instance of the GearStakingRewards Rpc helper.
+impl<C, P> GearBuiltin<C, P> {
+    /// Creates a new instance of the GearBuiltin Rpc helper.
     pub fn new(client: Arc<C>) -> Self {
         Self {
             client,
@@ -55,7 +55,7 @@ impl<C, P> GearStakingRewards<C, P> {
 
 /// Error type of this RPC api.
 pub enum Error {
-    /// The transaction was not decodable.
+    /// The query was not decodable.
     DecodeError,
     /// The call to runtime failed.
     RuntimeError,
@@ -70,22 +70,21 @@ impl From<Error> for i32 {
     }
 }
 
-impl<C, Block> GearStakingRewardsApiServer<<Block as BlockT>::Hash, InflationInfo>
-    for GearStakingRewards<C, Block>
+impl<C, Block> GearBuiltinApiServer<<Block as BlockT>::Hash, H256> for GearBuiltin<C, Block>
 where
     Block: BlockT,
     C: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block>,
-    C::Api: GearStakingRewardsRuntimeApi<Block>,
+    C::Api: GearBuiltinRuntimeApi<Block>,
 {
-    fn query_inflation_info(&self, at: Option<Block::Hash>) -> RpcResult<InflationInfo> {
+    fn query_actor_id(&self, builtin_id: u64) -> RpcResult<H256> {
         let api = self.client.runtime_api();
-        let at_hash = at.unwrap_or_else(|| self.client.info().best_hash);
+        let best_hash = self.client.info().best_hash;
 
         fn map_err(err: impl std::fmt::Debug, desc: &'static str) -> JsonRpseeError {
             CallError::Custom(ErrorObject::owned(8000, desc, Some(format!("{err:?}")))).into()
         }
 
-        api.inflation_info(at_hash)
-            .map_err(|e| map_err(e, "Unable to query inflation info"))
+        api.query_actor_id(best_hash, builtin_id)
+            .map_err(|e| map_err(e, "Unable to generate actor id"))
     }
 }

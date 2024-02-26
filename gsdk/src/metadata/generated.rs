@@ -8683,6 +8683,18 @@ pub mod storage {
             }
         }
     }
+    #[doc = "Storage of pallet `GearBuiltin`."]
+    pub enum GearBuiltinStorage {
+        QuickCache,
+    }
+    impl StorageInfo for GearBuiltinStorage {
+        const PALLET: &'static str = "GearBuiltin";
+        fn storage_name(&self) -> &'static str {
+            match self {
+                Self::QuickCache => "QuickCache",
+            }
+        }
+    }
     #[doc = "Storage of pallet `GearDebug`."]
     pub enum GearDebugStorage {
         DebugMode,
