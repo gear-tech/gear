@@ -128,6 +128,9 @@ where
         outgoing_bytes_limit,
     };
 
+    // Get system reservation context in order to use it if actor execution error occurs.
+    let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
+
     let exec_result = executor::execute_wasm::<Ext>(
         balance,
         dispatch.clone(),
@@ -160,12 +163,11 @@ where
                 process_allowance_exceed(dispatch, program_id, res.gas_amount.burned())
             }
         }),
-        // TODO: we must use message reservation context here instead of default #3718
         Err(ExecutionError::Actor(e)) => Ok(process_execution_error(
             dispatch,
             program_id,
             e.gas_amount.burned(),
-            SystemReservationContext::default(),
+            system_reservation_ctx,
             e.reason,
         )),
         Err(ExecutionError::System(e)) => Err(e),

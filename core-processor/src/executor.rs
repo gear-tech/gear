@@ -182,8 +182,14 @@ where
         AllocationsContext::new(allocations.clone(), static_pages, settings.max_pages);
 
     // Creating message context.
-    let message_context = MessageContext::new(dispatch.clone(), program_id, msg_ctx_settings)
-        .ok_or(SystemExecutionError::MessageStoreOutgoingBytesOverflow)?;
+    let Some(message_context) = MessageContext::new(dispatch.clone(), program_id, msg_ctx_settings)
+    else {
+        return Err(ActorExecutionError {
+            gas_amount: gas_counter.to_amount(),
+            reason: ActorExecutionErrorReplyReason::UnsupportedMessage,
+        }
+        .into());
+    };
 
     // Creating value counter.
     //

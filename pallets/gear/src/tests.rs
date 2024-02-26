@@ -14624,9 +14624,6 @@ fn outgoing_messages_bytes_limit_exceeded() {
 // TODO: this test must be moved to `core-processor` crate,
 // but it's not possible currently, because mock for `core-processor` does not exist #3742
 #[test]
-#[should_panic(
-    expected = "internal error: entered unreachable code: Incoming dispatch store has too many outgoing messages total bytes"
-)]
 fn incorrect_store_context() {
     init_logger();
     new_test_ext().execute_with(|| {
@@ -14647,10 +14644,23 @@ fn incorrect_store_context() {
 
         assert_succeed(mid);
 
-        // Create mock dispatch with outgoing messages total bytes limit exceeded
         let gas_limit = 10_000_000_000;
-        let mid = Default::default();
-        let payload = b"gear".to_vec().try_into().unwrap();
+        Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            vec![],
+            gas_limit,
+            0,
+            true,
+        )
+        .unwrap();
+        let mid = get_last_message_id();
+
+        // Dequeue dispatch in order to queue corrupted dispatch with same id later
+        QueueOf::<Test>::dequeue().unwrap().unwrap();
+
+        // Start creating dispatch with outgoing messages total bytes limit exceeded
+        let payload = Vec::new().try_into().unwrap();
         let message = IncomingMessage::new(mid, USER_1.cast(), payload, gas_limit, 0, None);
 
         // Get overloaded `StoreContext` using `MessageContext`
@@ -14670,16 +14680,14 @@ fn incorrect_store_context() {
         }
         let (_, context_store) = message_context.drain();
 
-        // Create gas node to skip gas tree corrupted panic
-        GasHandlerOf::<Test>::create(USER_1, Default::default(), mid, gas_limit).unwrap();
-
-        // Enqueue message with corrupted context
+        // Enqueue dispatch with corrupted context
         let message = message.into_stored(pid);
         let dispatch = StoredDispatch::new(DispatchKind::Handle, message, Some(context_store));
         QueueOf::<Test>::queue(dispatch).unwrap();
 
-        // Panic must appear here
         run_to_next_block(None);
+
+        assert_failed(mid, ActorExecutionErrorReplyReason::UnsupportedMessage);
     });
 }
 

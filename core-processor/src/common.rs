@@ -459,6 +459,13 @@ pub enum ActorExecutionErrorReplyReason {
     /// Trap explanation
     #[display(fmt = "{_0}")]
     Trap(TrapExplanation),
+    // TODO: move this to SystemExecutionError after runtime upgrade,
+    // if wait-list does not contain messages with total outgoing bytes more than `OutgoingBytesLimit`.
+    /// Message is not supported now
+    #[display(
+        fmt = "Message is not supported: outgoing bytes limit is exceeded after runtime-upgrade"
+    )]
+    UnsupportedMessage,
 }
 
 impl ActorExecutionErrorReplyReason {
@@ -477,6 +484,7 @@ impl ActorExecutionErrorReplyReason {
                 TrapExplanation::StackLimitExceeded => SimpleExecutionError::StackLimitExceeded,
                 TrapExplanation::Unknown => SimpleExecutionError::UnreachableInstruction,
             },
+            Self::UnsupportedMessage => SimpleExecutionError::Unsupported,
         }
     }
 }
