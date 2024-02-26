@@ -18,10 +18,7 @@
 
 //! Keyring implementation based on the polkadot-js keystore.
 
-use crate::{
-    ss58::{self, VARA_SS58_PREFIX},
-    Keystore,
-};
+use crate::{ss58, Keystore};
 use anyhow::Result;
 use colored::Colorize;
 use schnorrkel::Keypair;
@@ -41,9 +38,6 @@ pub struct Keyring {
     ring: Vec<Keystore>,
     /// The primary key.
     pub primary: String,
-    /// The SS58 prefix.
-    #[serde(default = "ss58::default_ss58_version")]
-    pub ss58_version: u16,
 }
 
 impl Keyring {
@@ -74,10 +68,6 @@ impl Keyring {
         } else {
             Self::default()
         };
-
-        if this.ss58_version != VARA_SS58_PREFIX {
-            ss58::set_default_ss58_version(this.ss58_version);
-        }
 
         this.ring = ring;
         this.store = store;
@@ -129,13 +119,6 @@ impl Keyring {
         self.primary = name;
         fs::write(self.store.join(CONFIG), serde_json::to_vec_pretty(&self)?)?;
         Ok(key)
-    }
-
-    /// Set the SS58 version.
-    pub fn set_ss58_version(&mut self, version: u16) -> Result<()> {
-        self.ss58_version = version;
-        fs::write(self.store.join(CONFIG), serde_json::to_vec_pretty(&self)?)?;
-        Ok(())
     }
 
     /// Add keypair to the keyring
