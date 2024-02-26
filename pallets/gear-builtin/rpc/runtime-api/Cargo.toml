@@ -1,5 +1,5 @@
 [package]
-name = "pallet-gear-staking-rewards-rpc-runtime-api"
+name = "pallet-gear-builtin-rpc-runtime-api"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
@@ -9,11 +9,11 @@ repository = "https://github.com/gear-tech/gear"
 
 [dependencies]
 sp-api.workspace = true
-pallet-gear-staking-rewards.workspace = true
+sp-core.workspace = true
 
 [features]
 default = ["std"]
 std = [
     "sp-api/std",
-    "pallet-gear-staking-rewards/std",
+    "sp-core/std",
 ]

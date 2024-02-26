@@ -121,6 +121,7 @@ futures-util = "0.3.30"
 hashbrown = "0.14.3"
 hex = { version = "0.4.3", default-features = false }
 hex-literal = "0.4.1"
+impl-trait-for-tuples = "0.2.2"
 jsonrpsee = { version = "^0.16" }
 lazy_static = "1.4.0"
 libc = { version = "0.2", default-features = false }
@@ -233,6 +234,9 @@ pallet-gear-staking-rewards-rpc = { path = "pallets/staking-rewards/rpc" }
 pallet-gear-staking-rewards-rpc-runtime-api = { path = "pallets/staking-rewards/rpc/runtime-api", default-features = false }
 pallet-gear-voucher = { path = "pallets/gear-voucher", default-features = false }
 pallet-gear-bank = { path = "pallets/gear-bank", default-features = false }
+pallet-gear-builtin = { path = "pallets/gear-builtin", default-features = false }
+pallet-gear-builtin-rpc = { path = "pallets/gear-builtin/rpc" }
+pallet-gear-builtin-rpc-runtime-api = { path = "pallets/gear-builtin/rpc/runtime-api", default-features = false }
 runtime-common = { package = "gear-runtime-common", path = "runtime/common", default-features = false }
 runtime-primitives = { package = "gear-runtime-primitives", path = "runtime/primitives", default-features = false }
 service = { package = "gear-service", path = "node/service", default-features = false }
@@ -427,7 +431,6 @@ demo-wat = { path = "examples/wat" }
 cfg-if = "1.0.0"                                                          # gear-lazy-pages
 errno = "0.3"                                                             # gear-lazy-pages
 nix = "0.26.4"                                                            # gear-lazy-pages
-impl-trait-for-tuples = "0.2.2"                                           # pallets/staking-rewards
 indexmap = "2.2.3"                                                        # utils/weight-diff
 indicatif = "*"                                                           # utils/wasm-gen
 keyring = "1.2.1"                                                         # gcli

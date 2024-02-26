@@ -1,5 +1,5 @@
 [package]
-name = "pallet-gear-staking-rewards-rpc"
+name = "pallet-gear-builtin-rpc"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
@@ -13,7 +13,8 @@ jsonrpsee = { workspace = true, features = ["server", "macros"] }
 # Substrate packages
 sp-api.workspace = true
 sp-blockchain.workspace = true
+sp-core.workspace = true
 sp-runtime.workspace = true
 
 # Local packages
-pallet-gear-staking-rewards-rpc-runtime-api.workspace = true
+pallet-gear-builtin-rpc-runtime-api.workspace = true

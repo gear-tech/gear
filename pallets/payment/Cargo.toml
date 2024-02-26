@@ -32,7 +32,6 @@ pallet-balances.workspace = true
 pallet-transaction-payment.workspace = true
 
 [dev-dependencies]
-serde.workspace = true
 env_logger.workspace = true
 common = { workspace = true, features = ["std"] }
 wabt.workspace = true
