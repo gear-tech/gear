@@ -18,6 +18,8 @@
 
 //! Module for memory pages.
 
+#![allow(clippy::assertions_on_constants)]
+
 use core::num::NonZeroU32;
 use scale_info::{
     scale::{Decode, Encode},

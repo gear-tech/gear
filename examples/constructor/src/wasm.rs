@@ -1,7 +1,6 @@
-use crate::{Call, Scheme};
-use gstd::{collections::BTreeMap, msg, String, Vec};
+use gstd::{msg, Vec};
+use io::{Call, Scheme};
 
-pub(crate) static mut DATA: BTreeMap<String, Vec<u8>> = BTreeMap::new();
 static mut SCHEME: Option<Scheme> = None;
 
 fn process_fn<'a>(f: impl Fn(&'a Scheme) -> Option<&'a Vec<Call>>) {

@@ -104,9 +104,9 @@ dependencies = [
 
 [[package]]
 name = "aho-corasick"
-version = "1.0.4"
+version = "1.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6748e8def348ed4d14996fa801f4122cd763fff530258cdc03f64b25f89d3a5a"
+checksum = "b2969dcb958b36655471fc61f7e416fa76033bdd4bfed0678d8fee1e2d07a1f0"
 dependencies = [
  "memchr",
 ]
@@ -763,9 +763,9 @@ dependencies = [
 
 [[package]]
 name = "bstr"
-version = "1.6.0"
+version = "1.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6798148dccfbff0fae41c7574d2fa8f1ef3492fba0face179de5d8d447d67b05"
+checksum = "c48f0051a4b4c5e0b6d365cd04af53aeaa209e3cc15ec2cdb69e73cc87fbd0dc"
 dependencies = [
  "memchr",
  "serde",
@@ -1827,9 +1827,9 @@ dependencies = [
 name = "demo-async"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder",
  "gstd",
  "parity-scale-codec",
+ "wasm-dep-builder",
 ]
 
 [[package]]
@@ -1837,19 +1837,19 @@ name = "demo-async-critical"
 version = "0.1.0"
 dependencies = [
  "futures",
- "gear-wasm-builder",
  "gstd",
  "parity-scale-codec",
+ "wasm-dep-builder",
 ]
 
 [[package]]
 name = "demo-async-custom-entry"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder",
  "gstd",
  "gtest",
  "parity-scale-codec",
+ "wasm-dep-builder",
 ]
 
 [[package]]
@@ -1857,9 +1857,9 @@ name = "demo-async-init"
 version = "0.1.0"
 dependencies = [
  "futures",
- "gear-wasm-builder",
  "gstd",
  "parity-scale-codec",
+ "wasm-dep-builder",
 ]
 
 [[package]]
@@ -1867,27 +1867,27 @@ name = "demo-async-recursion"
 version = "0.1.0"
 dependencies = [
  "async-recursion",
- "gear-wasm-builder",
  "gstd",
+ "wasm-dep-builder",
 ]
 
 [[package]]
 name = "demo-async-signal-entry"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder",
  "gstd",
  "gtest",
  "parity-scale-codec",
+ "wasm-dep-builder",
 ]
 
 [[package]]
 name = "demo-async-tester"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder",
  "gstd",
  "parity-scale-codec",
+ "wasm-dep-builder",
 ]
 
 [[package]]
@@ -1904,7 +1904,6 @@ dependencies = [
 name = "demo-calc-hash"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder",
  "gstd",
  "parity-scale-codec",
  "sha2 0.10.8",
@@ -1915,9 +1914,9 @@ name = "demo-calc-hash-in-one-block"
 version = "0.1.0"
 dependencies = [
  "demo-calc-hash",
- "gear-wasm-builder",
  "gstd",
  "parity-scale-codec",
+ "wasm-dep-builder",
 ]
 
 [[package]]
@@ -1925,28 +1924,36 @@ name = "demo-calc-hash-over-blocks"
 version = "0.1.0"
 dependencies = [
  "demo-calc-hash",
- "gear-wasm-builder",
  "gstd",
  "parity-scale-codec",
+ "wasm-dep-builder",
 ]
 
 [[package]]
 name = "demo-compose"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder",
  "gstd",
  "hex",
+ "wasm-dep-builder",
 ]
 
 [[package]]
 name = "demo-constructor"
 version = "0.1.0"
 dependencies = [
- "gcore",
- "gear-wasm-builder",
+ "demo-constructor-io",
  "gstd",
  "hex",
+ "wasm-dep-builder",
+]
+
+[[package]]
+name = "demo-constructor-io"
+version = "0.1.0"
+dependencies = [
+ "gcore",
+ "gstd",
  "parity-scale-codec",
 ]
 
@@ -1954,37 +1961,42 @@ dependencies = [
 name = "demo-custom"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder",
  "gstd",
  "gsys",
  "gtest",
  "parity-scale-codec",
+ "wasm-dep-builder",
 ]
 
 [[package]]
 name = "demo-delayed-reservation-sender"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder",
  "gstd",
+ "wasm-dep-builder",
 ]
 
 [[package]]
 name = "demo-delayed-sender"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder",
+ "demo-delayed-sender-io",
  "gstd",
+ "wasm-dep-builder",
 ]
+
+[[package]]
+name = "demo-delayed-sender-io"
+version = "0.1.0"
 
 [[package]]
 name = "demo-distributor"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder",
  "gstd",
  "gtest",
  "parity-scale-codec",
+ "wasm-dep-builder",
 ]
 
 [[package]]
@@ -2009,52 +2021,52 @@ name = "demo-futures-unordered"
 version = "0.1.0"
 dependencies = [
  "futures",
- "gear-wasm-builder",
  "gstd",
  "parity-scale-codec",
+ "wasm-dep-builder",
 ]
 
 [[package]]
 name = "demo-gas-burned"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder",
  "gstd",
  "gtest",
  "log",
+ "wasm-dep-builder",
 ]
 
 [[package]]
 name = "demo-incomplete-async-payloads"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder",
  "gstd",
  "parity-scale-codec",
+ "wasm-dep-builder",
 ]
 
 [[package]]
 name = "demo-init-fail-sender"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder",
  "gstd",
+ "wasm-dep-builder",
 ]
 
 [[package]]
 name = "demo-init-wait"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder",
  "gstd",
+ "wasm-dep-builder",
 ]
 
 [[package]]
 name = "demo-init-wait-reply-exit"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder",
  "gstd",
+ "wasm-dep-builder",
 ]
 
 [[package]]
@@ -2110,9 +2122,9 @@ dependencies = [
 name = "demo-mul-by-const"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder",
  "gstd",
  "hex",
+ "wasm-dep-builder",
 ]
 
 [[package]]
@@ -2142,92 +2154,99 @@ dependencies = [
 name = "demo-node"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder",
  "gstd",
  "gtest",
  "parity-scale-codec",
+ "wasm-dep-builder",
 ]
 
 [[package]]
 name = "demo-out-of-memory"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder",
  "gstd",
+ "wasm-dep-builder",
 ]
 
 [[package]]
 name = "demo-piggy-bank"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder",
  "gstd",
+ "wasm-dep-builder",
 ]
 
 [[package]]
 name = "demo-ping"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder",
  "gstd",
+ "wasm-dep-builder",
 ]
 
 [[package]]
 name = "demo-program-factory"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder",
  "gstd",
  "gtest",
  "hex-literal",
  "parity-scale-codec",
+ "wasm-dep-builder",
 ]
 
 [[package]]
 name = "demo-program-generator"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder",
  "gstd",
  "hex-literal",
+ "wasm-dep-builder",
 ]
 
 [[package]]
 name = "demo-proxy"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder",
  "gstd",
  "parity-scale-codec",
  "scale-info",
+ "wasm-dep-builder",
 ]
 
 [[package]]
 name = "demo-proxy-relay"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder",
  "gstd",
  "parity-scale-codec",
  "scale-info",
+ "wasm-dep-builder",
 ]
 
 [[package]]
 name = "demo-proxy-reservation-with-gas"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder",
  "gstd",
  "parity-scale-codec",
  "scale-info",
+ "wasm-dep-builder",
 ]
 
 [[package]]
 name = "demo-read-big-state"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder",
+ "demo-read-big-state-io",
  "gstd",
+ "wasm-dep-builder",
+]
+
+[[package]]
+name = "demo-read-big-state-io"
+version = "0.1.0"
+dependencies = [
  "parity-scale-codec",
 ]
 
@@ -2235,19 +2254,26 @@ dependencies = [
 name = "demo-reservation-manager"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder",
  "gstd",
  "gtest",
  "parity-scale-codec",
+ "wasm-dep-builder",
 ]
 
 [[package]]
 name = "demo-reserve-gas"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder",
+ "demo-reserve-gas-io",
  "gstd",
  "gtest",
+ "wasm-dep-builder",
+]
+
+[[package]]
+name = "demo-reserve-gas-io"
+version = "0.1.0"
+dependencies = [
  "parity-scale-codec",
 ]
 
@@ -2255,30 +2281,37 @@ dependencies = [
 name = "demo-rwlock"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder",
  "gstd",
  "parity-scale-codec",
+ "wasm-dep-builder",
 ]
 
 [[package]]
 name = "demo-send-from-reservation"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder",
  "gstd",
  "gtest",
  "parity-scale-codec",
+ "wasm-dep-builder",
 ]
 
 [[package]]
 name = "demo-signal-entry"
 version = "0.1.0"
 dependencies = [
- "gcore",
+ "demo-signal-entry-io",
  "gear-core",
- "gear-wasm-builder",
  "gstd",
  "gtest",
+ "wasm-dep-builder",
+]
+
+[[package]]
+name = "demo-signal-entry-io"
+version = "0.1.0"
+dependencies = [
+ "gcore",
  "parity-scale-codec",
 ]
 
@@ -2298,16 +2331,16 @@ dependencies = [
 name = "demo-state-rollback"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder",
  "gstd",
+ "wasm-dep-builder",
 ]
 
 [[package]]
 name = "demo-sync-duplicate"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder",
  "gstd",
+ "wasm-dep-builder",
 ]
 
 [[package]]
@@ -2334,8 +2367,8 @@ name = "demo-wait"
 version = "0.1.0"
 dependencies = [
  "gcore",
- "gear-wasm-builder",
  "gstd",
+ "wasm-dep-builder",
 ]
 
 [[package]]
@@ -2343,19 +2376,19 @@ name = "demo-wait-timeout"
 version = "0.1.0"
 dependencies = [
  "futures",
- "gear-wasm-builder",
  "gstd",
  "parity-scale-codec",
+ "wasm-dep-builder",
 ]
 
 [[package]]
 name = "demo-wait-wake"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder",
  "gstd",
  "gtest",
  "parity-scale-codec",
+ "wasm-dep-builder",
 ]
 
 [[package]]
@@ -2363,12 +2396,19 @@ name = "demo-waiter"
 version = "0.1.0"
 dependencies = [
  "demo-waiter",
+ "demo-waiter-io",
  "futures",
- "gcore",
  "gear-core",
- "gear-wasm-builder",
  "gstd",
  "gtest",
+ "wasm-dep-builder",
+]
+
+[[package]]
+name = "demo-waiter-io"
+version = "0.1.0"
+dependencies = [
+ "gcore",
  "parity-scale-codec",
 ]
 
@@ -2376,8 +2416,8 @@ dependencies = [
 name = "demo-waiting-proxy"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder",
  "gstd",
+ "wasm-dep-builder",
 ]
 
 [[package]]
@@ -3055,14 +3095,14 @@ dependencies = [
 
 [[package]]
 name = "filetime"
-version = "0.2.22"
+version = "0.2.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d4029edd3e734da6fe05b6cd7bd2960760a616bd2ddd0d59a0124746d6272af0"
+checksum = "1ee447700ac8aa0b2f2bd7bc4462ad686ba06baa6727ac149a2d6277f0d240fd"
 dependencies = [
  "cfg-if",
  "libc",
- "redox_syscall 0.3.5",
- "windows-sys 0.48.0",
+ "redox_syscall 0.4.1",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -3518,6 +3558,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "fs4"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "29f9df8a11882c4e3335eb2d18a0137c505d9ca927470b0cac9c6f0ae07d28f7"
+dependencies = [
+ "rustix 0.38.28",
+ "windows-sys 0.48.0",
+]
+
+[[package]]
 name = "ft-io"
 version = "0.1.4"
 dependencies = [
@@ -3718,23 +3768,13 @@ version = "1.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "demo-async-tester",
  "demo-calc-hash",
- "demo-calc-hash-in-one-block",
- "demo-constructor",
- "demo-custom",
- "demo-distributor",
  "demo-meta-io",
- "demo-mul-by-const",
  "demo-new-meta",
- "demo-node",
- "demo-program-factory",
- "demo-proxy",
- "demo-proxy-relay",
- "demo-reserve-gas",
  "demo-wat",
  "env_logger",
  "futures",
+ "gclient-binaries",
  "gear-core",
  "gear-core-errors",
  "gear-utils",
@@ -3754,6 +3794,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "gclient-binaries"
+version = "1.1.0"
+dependencies = [
+ "demo-async-tester",
+ "demo-calc-hash-in-one-block",
+ "demo-constructor",
+ "demo-custom",
+ "demo-distributor",
+ "demo-mul-by-const",
+ "demo-node",
+ "demo-program-factory",
+ "demo-proxy",
+ "demo-proxy-relay",
+ "demo-reserve-gas",
+ "wasm-dep-builder",
+]
+
+[[package]]
 name = "gcore"
 version = "1.1.0"
 dependencies = [
@@ -3769,12 +3827,12 @@ dependencies = [
 name = "gear-authorship"
 version = "1.1.0"
 dependencies = [
- "demo-constructor",
  "env_logger",
  "frame-support",
  "frame-system",
  "futures",
  "futures-timer",
+ "gear-authorship-binaries",
  "gear-common",
  "gear-core",
  "gear-node-testing",
@@ -3809,6 +3867,14 @@ dependencies = [
  "sp-timestamp",
  "substrate-prometheus-endpoint",
  "vara-runtime",
+]
+
+[[package]]
+name = "gear-authorship-binaries"
+version = "1.1.0"
+dependencies = [
+ "demo-constructor",
+ "wasm-dep-builder",
 ]
 
 [[package]]
@@ -4175,6 +4241,7 @@ dependencies = [
  "gear-core",
  "gear-lazy-pages",
  "gear-lazy-pages-common",
+ "gear-runtime-interface-binaries",
  "gear-sandbox-host",
  "log",
  "parity-scale-codec",
@@ -4183,6 +4250,20 @@ dependencies = [
  "sp-std 8.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v1.0.0-canary)",
  "sp-wasm-interface",
  "winapi",
+]
+
+[[package]]
+name = "gear-runtime-interface-binaries"
+version = "1.1.0"
+dependencies = [
+ "demo-constructor",
+ "demo-delayed-sender",
+ "demo-read-big-state",
+ "demo-reserve-gas",
+ "demo-signal-entry",
+ "demo-waiter",
+ "test-syscalls",
+ "wasm-dep-builder",
 ]
 
 [[package]]
@@ -4547,15 +4628,16 @@ checksum = "d2fabcfbdc87f4758337ca535fb41a6d701b65693ce38287d856d1674551ec9b"
 
 [[package]]
 name = "globset"
-version = "0.4.13"
+version = "0.4.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "759c97c1e17c55525b57192c06a267cda0ac5210b222d6b82189a2338fa1c13d"
+checksum = "57da3b9b5b85bd66f31093f8c408b90a74431672542466497dcbdfdc02034be1"
 dependencies = [
  "aho-corasick",
  "bstr",
- "fnv",
  "log",
- "regex",
+ "regex-automata 0.4.3",
+ "regex-syntax 0.8.2",
+ "serde",
 ]
 
 [[package]]
@@ -4633,6 +4715,7 @@ dependencies = [
  "gear-core",
  "gear-core-errors",
  "gsdk",
+ "gsdk-binaries",
  "gsdk-codegen",
  "hex",
  "indexmap 2.2.3",
@@ -4670,6 +4753,14 @@ dependencies = [
  "subxt-codegen",
  "subxt-metadata",
  "syn 2.0.49",
+]
+
+[[package]]
+name = "gsdk-binaries"
+version = "1.1.0"
+dependencies = [
+ "demo-waiter",
+ "wasm-dep-builder",
 ]
 
 [[package]]
@@ -4721,11 +4812,7 @@ name = "gtest"
 version = "1.1.0"
 dependencies = [
  "colored",
- "demo-custom",
- "demo-futures-unordered",
  "demo-meta-io",
- "demo-piggy-bank",
- "demo-ping",
  "derive_more",
  "env_logger",
  "gear-core",
@@ -4736,11 +4823,23 @@ dependencies = [
  "gear-utils",
  "gear-wasm-instrument",
  "gsys",
+ "gtest-binaries",
  "hex",
  "log",
  "parity-scale-codec",
  "path-clean",
  "rand 0.8.5",
+]
+
+[[package]]
+name = "gtest-binaries"
+version = "1.1.0"
+dependencies = [
+ "demo-custom",
+ "demo-futures-unordered",
+ "demo-piggy-bank",
+ "demo-ping",
+ "wasm-dep-builder",
 ]
 
 [[package]]
@@ -6379,9 +6478,9 @@ dependencies = [
 
 [[package]]
 name = "memchr"
-version = "2.5.0"
+version = "2.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2dffe52ecf27772e601905b7522cb4ef790d2cc203488bbd0e2fe85fcb74566d"
+checksum = "523dc4f511e55ab87b694dc30d0f820d60906ef06413f93d4d7a1385599cc149"
 
 [[package]]
 name = "memfd"
@@ -7351,50 +7450,13 @@ name = "pallet-gear"
 version = "1.1.0"
 dependencies = [
  "blake2-rfc",
- "demo-async",
- "demo-async-critical",
- "demo-async-custom-entry",
- "demo-async-init",
- "demo-async-recursion",
- "demo-async-signal-entry",
- "demo-async-tester",
  "demo-calc-hash",
- "demo-calc-hash-in-one-block",
- "demo-calc-hash-over-blocks",
- "demo-compose",
- "demo-constructor",
- "demo-custom",
- "demo-delayed-reservation-sender",
- "demo-delayed-sender",
- "demo-distributor",
- "demo-futures-unordered",
- "demo-gas-burned",
- "demo-incomplete-async-payloads",
- "demo-init-fail-sender",
- "demo-init-wait",
- "demo-init-wait-reply-exit",
- "demo-mul-by-const",
+ "demo-constructor-io",
  "demo-new-meta",
- "demo-out-of-memory",
- "demo-ping",
- "demo-program-factory",
- "demo-program-generator",
- "demo-proxy",
- "demo-proxy-relay",
- "demo-proxy-reservation-with-gas",
- "demo-read-big-state",
- "demo-reservation-manager",
- "demo-reserve-gas",
- "demo-rwlock",
- "demo-send-from-reservation",
- "demo-signal-entry",
- "demo-state-rollback",
- "demo-sync-duplicate",
- "demo-wait",
- "demo-wait-timeout",
- "demo-wait-wake",
- "demo-waiter",
- "demo-waiting-proxy",
+ "demo-read-big-state-io",
+ "demo-reserve-gas-io",
+ "demo-signal-entry-io",
+ "demo-waiter-io",
  "derive_more",
  "env_logger",
  "frame-benchmarking",
@@ -7420,6 +7482,7 @@ dependencies = [
  "pallet-authorship",
  "pallet-balances",
  "pallet-gear-bank",
+ "pallet-gear-binaries",
  "pallet-gear-gas",
  "pallet-gear-messenger",
  "pallet-gear-proc-macro",
@@ -7441,7 +7504,7 @@ dependencies = [
  "sp-io",
  "sp-runtime",
  "sp-std 8.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v1.0.0-canary)",
- "test-syscalls",
+ "test-syscalls-io",
  "wabt",
 ]
 
@@ -7461,6 +7524,56 @@ dependencies = [
  "scale-info",
  "sp-io",
  "sp-runtime",
+]
+
+[[package]]
+name = "pallet-gear-binaries"
+version = "1.1.0"
+dependencies = [
+ "demo-async",
+ "demo-async-critical",
+ "demo-async-custom-entry",
+ "demo-async-init",
+ "demo-async-recursion",
+ "demo-async-signal-entry",
+ "demo-async-tester",
+ "demo-calc-hash-in-one-block",
+ "demo-calc-hash-over-blocks",
+ "demo-compose",
+ "demo-constructor",
+ "demo-custom",
+ "demo-delayed-reservation-sender",
+ "demo-delayed-sender",
+ "demo-distributor",
+ "demo-futures-unordered",
+ "demo-gas-burned",
+ "demo-incomplete-async-payloads",
+ "demo-init-fail-sender",
+ "demo-init-wait",
+ "demo-init-wait-reply-exit",
+ "demo-mul-by-const",
+ "demo-out-of-memory",
+ "demo-ping",
+ "demo-program-factory",
+ "demo-program-generator",
+ "demo-proxy",
+ "demo-proxy-relay",
+ "demo-proxy-reservation-with-gas",
+ "demo-read-big-state",
+ "demo-reservation-manager",
+ "demo-reserve-gas",
+ "demo-rwlock",
+ "demo-send-from-reservation",
+ "demo-signal-entry",
+ "demo-state-rollback",
+ "demo-sync-duplicate",
+ "demo-wait",
+ "demo-wait-timeout",
+ "demo-wait-wake",
+ "demo-waiter",
+ "demo-waiting-proxy",
+ "test-syscalls",
+ "wasm-dep-builder",
 ]
 
 [[package]]
@@ -7495,7 +7608,6 @@ dependencies = [
  "sp-io",
  "sp-runtime",
  "sp-std 8.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v1.0.0-canary)",
- "test-syscalls",
  "wabt",
 ]
 
@@ -9133,6 +9245,17 @@ dependencies = [
  "aho-corasick",
  "memchr",
  "regex-syntax 0.7.5",
+]
+
+[[package]]
+name = "regex-automata"
+version = "0.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5f804c7828047e88b2d32e2d7fe5a105da8ee3264f01902f796c8e067dc2483f"
+dependencies = [
+ "aho-corasick",
+ "memchr",
+ "regex-syntax 0.8.2",
 ]
 
 [[package]]
@@ -12499,8 +12622,16 @@ checksum = "3369f5ac52d5eb6ab48c6b4ffdc8efbcad6b89c765749064ba298f2c68a16a76"
 name = "test-syscalls"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder",
  "gstd",
+ "parity-scale-codec",
+ "test-syscalls-io",
+ "wasm-dep-builder",
+]
+
+[[package]]
+name = "test-syscalls-io"
+version = "0.1.0"
+dependencies = [
  "parity-scale-codec",
 ]
 
@@ -13487,6 +13618,22 @@ name = "wasm-bindgen-shared"
 version = "0.2.87"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ca6ad05a4870b2bf5fe995117d3728437bd27d7cd5f06f13c17443ef369775a1"
+
+[[package]]
+name = "wasm-dep-builder"
+version = "1.1.0"
+dependencies = [
+ "anyhow",
+ "cargo_metadata 0.18.1",
+ "derive_more",
+ "dirs",
+ "filetime",
+ "fs4",
+ "gear-wasm-builder",
+ "globset",
+ "serde",
+ "serde_json",
+]
 
 [[package]]
 name = "wasm-encoder"

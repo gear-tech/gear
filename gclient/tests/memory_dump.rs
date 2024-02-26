@@ -18,6 +18,7 @@
 
 use demo_custom::{InitMessage, WASM_BINARY};
 use gclient::{EventListener, EventProcessor, GearApi, Result};
+use gclient_binaries::*;
 use gear_core::ids::ProgramId;
 use parity_scale_codec::Encode;
 

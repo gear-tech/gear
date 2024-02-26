@@ -23,14 +23,6 @@ extern crate alloc;
 use gstd::{prelude::*, ActorId};
 use parity_scale_codec::{Decode, Encode};
 
-#[cfg(feature = "std")]
-mod code {
-    include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
-}
-
-#[cfg(feature = "std")]
-pub use code::WASM_BINARY_OPT as WASM_BINARY;
-
 #[derive(Encode, Debug, Decode, PartialEq, Eq)]
 pub enum Request {
     Receive(u64),

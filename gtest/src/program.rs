@@ -834,7 +834,7 @@ pub fn calculate_program_id(code_id: CodeId, salt: &[u8], id: Option<MessageId>)
 #[cfg(test)]
 mod tests {
     use super::Program;
-    use crate::{Log, System};
+    use crate::{binaries::*, Log, System};
     use gear_core_errors::ErrorReplyReason;
 
     #[test]

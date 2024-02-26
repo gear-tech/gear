@@ -1,0 +1,12 @@
+[package]
+name = "demo-waiter-io"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+parity-scale-codec.workspace = true
+gcore.workspace = true
+
+[features]
+default = ["std"]
+std = ["parity-scale-codec/std"]

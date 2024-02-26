@@ -23,6 +23,9 @@ byteorder.workspace = true
 codec = { workspace = true }
 log = { workspace = true, optional = true }
 
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+gear-runtime-interface-binaries = { path = "binaries", optional = true }
+
 [target.'cfg(windows)'.dependencies]
 winapi = { workspace = true, features = ["memoryapi"] }
 
@@ -42,3 +45,4 @@ std = [
 	"codec/std",
 	"log",
 ]
+runtime-benchmarks = ["gear-runtime-interface-binaries"]

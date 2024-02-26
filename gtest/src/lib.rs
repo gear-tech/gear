@@ -430,6 +430,9 @@ mod manager;
 mod program;
 mod system;
 
+#[cfg(test)]
+use gtest_binaries as binaries;
+
 pub use crate::log::{CoreLog, Log, RunResult};
 pub use codec;
 pub use error::{Result, TestError};

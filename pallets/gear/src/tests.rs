@@ -16,6 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use crate::binaries::*;
 use crate::{
     internal::HoldBoundBuilder,
     manager::HandleKind,
@@ -14570,6 +14571,7 @@ mod utils {
         RuntimeOrigin, Test,
     };
     use crate::{
+        binaries::*,
         mock::{run_to_next_block, Balances, Gear, System, USER_1},
         BalanceOf, BlockGasLimitOf, CurrencyOf, GasHandlerOf, GasInfo, GearBank, HandleKind,
         ProgramStorageOf, SentOf,

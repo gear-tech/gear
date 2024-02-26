@@ -16,7 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{HandleAction, WAIT_AND_RESERVE_WITH_PANIC_GAS};
 use gear_core::ids::ProgramId;
 use gstd::{
     debug,
@@ -27,6 +26,7 @@ use gstd::{
     prelude::*,
     ActorId, MessageId,
 };
+use io::{HandleAction, WAIT_AND_RESERVE_WITH_PANIC_GAS};
 
 static mut INITIATOR: ActorId = ActorId::zero();
 static mut HANDLE_MSG: Option<MessageId> = None;

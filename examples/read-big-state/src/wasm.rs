@@ -16,8 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::State;
 use gstd::{msg, prelude::*};
+use io::State;
 
 static mut STATE: Option<State> = None;
 

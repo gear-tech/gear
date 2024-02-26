@@ -7,11 +7,18 @@ license.workspace = true
 homepage.workspace = true
 repository.workspace = true
 
+[package.metadata.wasm-dep-builder.program]
+exclude-features = ["std", "wasm-wrapper"]
+
+[lib]
+crate-type = ["lib", "cdylib"]
+
 [dependencies]
 gstd.workspace = true
+io = { package = "demo-delayed-sender-io", path = "io", default-features = false }
 
 [build-dependencies]
-gear-wasm-builder.workspace = true
+wasm-dep-builder.workspace = true
 
 [features]
 debug = ["gstd/debug"]

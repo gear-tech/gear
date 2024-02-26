@@ -1,0 +1,17 @@
+[package]
+name = "gtest-binaries"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+
+[dependencies]
+demo-custom.workspace = true
+demo-piggy-bank.workspace = true
+demo-ping.workspace = true
+demo-futures-unordered.workspace = true
+
+[build-dependencies]
+wasm-dep-builder.workspace = true

@@ -33,6 +33,7 @@
 //! So, we suppose this instruction have weight 0.
 
 #![cfg(feature = "runtime-benchmarks")]
+#![allow(clippy::assertions_on_constants)]
 
 #[allow(dead_code)]
 mod code;

@@ -7,7 +7,9 @@ const LONG: usize = 10000;
 extern "C" fn init() {
     let mut v = vec![0; SHORT];
     for (i, item) in v.iter_mut().enumerate() {
-        *item = i * i;
+        unsafe {
+            ptr::write_volatile(item, i * i);
+        }
     }
     msg::reply_bytes(format!("init: {}", v.into_iter().sum::<usize>()), 0).unwrap();
 }
@@ -16,6 +18,8 @@ extern "C" fn init() {
 extern "C" fn handle() {
     let mut v = vec![0; LONG];
     for (i, item) in v.iter_mut().enumerate() {
-        *item = i * i;
+        unsafe {
+            ptr::write_volatile(item, i * i);
+        }
     }
 }

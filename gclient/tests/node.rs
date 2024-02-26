@@ -1,4 +1,5 @@
 use gclient::{Error, EventProcessor, GearApi};
+use gclient_binaries::*;
 use gear_core::ids::ProgramId;
 use hex::ToHex;
 use parity_scale_codec::{Decode, Encode};

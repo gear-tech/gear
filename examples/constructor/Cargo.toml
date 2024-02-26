@@ -7,17 +7,22 @@ license.workspace = true
 homepage.workspace = true
 repository.workspace = true
 
+[package.metadata.wasm-dep-builder.program]
+exclude-features = ["std", "wasm-wrapper"]
+
+[lib]
+crate-type = ["lib", "cdylib"]
+
 [dependencies]
-gcore.workspace = true
 gstd.workspace = true
 hex.workspace = true
-parity-scale-codec.workspace = true
+io = { package = "demo-constructor-io", path = "io" }
 
 [build-dependencies]
-gear-wasm-builder.workspace = true
+wasm-dep-builder.workspace = true
 
 [features]
-debug = ["gstd/debug"]
-wasm-wrapper = []
+debug = ["gstd/debug", "io/debug"]
+wasm-wrapper = ["io/wasm-wrapper"]
 std = ["wasm-wrapper"]
 default = ["std"]

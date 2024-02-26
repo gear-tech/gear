@@ -7,12 +7,15 @@ license.workspace = true
 homepage.workspace = true
 repository.workspace = true
 
+[lib]
+crate-type = ["lib", "cdylib"]
+
 [dependencies]
 gstd.workspace = true
-parity-scale-codec.workspace = true
+io = { package = "demo-reserve-gas-io", path = "io", default-features = false }
 
 [build-dependencies]
-gear-wasm-builder.workspace = true
+wasm-dep-builder.workspace = true
 
 [dev-dependencies]
 gtest.workspace = true
@@ -20,5 +23,5 @@ gtest.workspace = true
 [features]
 debug = ["gstd/debug"]
 wasm-wrapper = []
-std = ["wasm-wrapper", "parity-scale-codec/std"]
+std = ["wasm-wrapper", "io/std"]
 default = ["std"]

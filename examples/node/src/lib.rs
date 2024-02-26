@@ -23,11 +23,6 @@ extern crate alloc;
 use gstd::ActorId;
 use parity_scale_codec::{Decode, Encode};
 
-#[cfg(feature = "std")]
-mod code {
-    include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
-}
-
 #[derive(Encode, Debug, Decode, PartialEq, Eq)]
 pub struct Operation {
     to_status: u32,

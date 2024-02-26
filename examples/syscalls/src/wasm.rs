@@ -16,13 +16,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::Kind;
 use gstd::{
     errors::{ReplyCode, SignalCode, SimpleExecutionError},
     exec, format,
     msg::{self, MessageHandle},
     prog, ActorId, CodeId, MessageId, ReservationId, Vec,
 };
+use io::Kind;
 use parity_scale_codec::Encode;
 
 static mut CODE_ID: CodeId = CodeId::new([0u8; 32]);

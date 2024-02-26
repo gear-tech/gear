@@ -1,0 +1,12 @@
+[package]
+name = "demo-signal-entry-io"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+gcore.workspace = true
+parity-scale-codec.workspace = true
+
+[features]
+default = ["std"]
+std = ["parity-scale-codec/std"]

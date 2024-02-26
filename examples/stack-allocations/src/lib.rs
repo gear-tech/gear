@@ -68,6 +68,7 @@ mod tests {
     use parity_scale_codec::Decode;
     use rand::{Rng, SeedableRng};
 
+    #[allow(clippy::assertions_on_constants)]
     #[test]
     fn stress() {
         use Action::*;

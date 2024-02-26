@@ -20,50 +20,10 @@
 
 extern crate alloc;
 
-use alloc::vec::Vec;
-use parity_scale_codec::{Decode, Encode};
-
-#[cfg(feature = "wasm-wrapper")]
-mod code {
-    include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
-}
-
-#[cfg(feature = "wasm-wrapper")]
-pub use code::WASM_BINARY_OPT as WASM_BINARY;
-
-pub const RESERVATION_AMOUNT: u64 = 50_000_000;
-pub const REPLY_FROM_RESERVATION_PAYLOAD: &[u8; 5] = b"Hello";
-
-#[derive(Debug, Encode, Decode)]
-pub enum InitAction {
-    Normal(Vec<(u64, u32)>),
-    Wait,
-    CheckArgs { mailbox_threshold: u64 },
-    FreshReserveUnreserve,
-}
-
-#[derive(Debug, Encode, Decode)]
-pub enum HandleAction {
-    Unreserve,
-    Exit,
-    ReplyFromReservation,
-    AddReservationToList(GasAmount, BlockCount),
-    ConsumeReservationsFromList,
-    RunInifitely,
-    SendFromReservationAndUnreserve,
-}
-
-#[derive(Debug, Encode, Decode)]
-pub enum ReplyAction {
-    Panic,
-    Exit,
-}
-
-pub type GasAmount = u64;
-pub type BlockCount = u32;
-
 #[cfg(not(feature = "wasm-wrapper"))]
 mod wasm;
+
+pub use io::*;
 
 #[cfg(test)]
 mod tests {
