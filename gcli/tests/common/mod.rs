@@ -82,7 +82,7 @@ pub fn init_logger() {
 
 /// Login as //Alice
 pub fn login_as_alice() -> Result<()> {
-    let _ = gcli(["login", "//Alice"])?;
+    let _ = gcli(["wallet", "dev"])?;
 
     Ok(())
 }
