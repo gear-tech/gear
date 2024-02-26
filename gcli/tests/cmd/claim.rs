@@ -66,7 +66,8 @@ async fn test_command_claim_works() -> Result<()> {
     let burned_after = signer.api().get_balance(&signer.address()).await? - initial_stash;
     let after = signer.api().get_balance(ADDRESS).await?;
 
-    assert_eq!(initial_balance - before - burned_before, REWARD_PER_BLOCK);
-    assert_eq!(initial_balance - burned_after, after);
+    // burned * 2 because we have 50% fee split to treasury
+    assert_eq!(initial_balance - before - (burned_before * 2), REWARD_PER_BLOCK);
+    assert_eq!(initial_balance - (burned_after * 2), after);
     Ok(())
 }
