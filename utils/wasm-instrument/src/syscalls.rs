@@ -16,10 +16,15 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Gear syscalls for smart contracts execution signatures.
+//! Gear syscalls for programs execution signatures.
 
 use crate::parity_wasm::elements::{FunctionType, ValueType};
-use alloc::{borrow::ToOwned, collections::BTreeSet, vec::Vec};
+use alloc::{
+    borrow::ToOwned,
+    collections::{BTreeMap, BTreeSet},
+    string::String,
+    vec::Vec,
+};
 use core::iter;
 use enum_iterator::{self, Sequence};
 pub use pointers::*;
@@ -233,8 +238,18 @@ impl SyscallName {
             Self::ReserveGas,
             Self::UnreserveGas,
             Self::Random,
+            Self::SystemReserveGas,
+            Self::EnvVars,
         ]
         .into()
+    }
+
+    /// Returns map of all syscall string values to syscall names.
+    pub fn instrumentable_map() -> BTreeMap<String, SyscallName> {
+        Self::instrumentable()
+            .into_iter()
+            .map(|syscall| (syscall.to_str().into(), syscall))
+            .collect()
     }
 
     /// Returns signature for syscall by name.

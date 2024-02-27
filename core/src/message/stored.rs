@@ -23,8 +23,7 @@ use crate::{
         IncomingMessage, Payload, ReplyDetails, Value,
     },
 };
-use alloc::string::ToString;
-use core::{convert::TryInto, ops::Deref};
+use core::ops::Deref;
 use gear_core_errors::ReplyCode;
 use scale_info::{
     scale::{Decode, Encode},
@@ -118,23 +117,6 @@ impl StoredMessage {
         self.details.and_then(|d| d.to_reply_details())
     }
 
-    #[allow(clippy::result_large_err)]
-    /// Consumes self in order to create new `StoredMessage`, which payload
-    /// contains string representation of initial bytes,
-    /// decoded into given type.
-    // TODO: issue #2849.
-    pub fn with_string_payload<D: Decode + ToString>(self) -> Result<Self, Self> {
-        if let Ok(decoded) = D::decode(&mut self.payload.inner()) {
-            if let Ok(payload) = decoded.to_string().into_bytes().try_into() {
-                Ok(Self { payload, ..self })
-            } else {
-                Err(self)
-            }
-        } else {
-            Err(self)
-        }
-    }
-
     /// Returns bool defining if message is error reply.
     pub fn is_error_reply(&self) -> bool {
         self.details.map(|d| d.is_error_reply()).unwrap_or(false)
@@ -210,6 +192,61 @@ impl StoredDispatch {
 }
 
 impl Deref for StoredDispatch {
+    type Target = StoredMessage;
+
+    fn deref(&self) -> &Self::Target {
+        self.message()
+    }
+}
+
+impl From<StoredDelayedDispatch> for StoredDispatch {
+    fn from(dispatch: StoredDelayedDispatch) -> Self {
+        StoredDispatch::new(dispatch.kind, dispatch.message, None)
+    }
+}
+
+/// Stored message with entry point.
+///
+/// We could use just [`StoredDispatch`]
+/// but delayed messages always don't have [`ContextStore`]
+/// so we designate this fact via new type.
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
+pub struct StoredDelayedDispatch {
+    /// Entry point.
+    kind: DispatchKind,
+    /// Stored message.
+    message: StoredMessage,
+}
+
+impl From<StoredDelayedDispatch> for (DispatchKind, StoredMessage) {
+    fn from(dispatch: StoredDelayedDispatch) -> (DispatchKind, StoredMessage) {
+        (dispatch.kind, dispatch.message)
+    }
+}
+
+impl StoredDelayedDispatch {
+    /// Create new StoredDelayedDispatch.
+    pub fn new(kind: DispatchKind, message: StoredMessage) -> Self {
+        Self { kind, message }
+    }
+
+    /// Decompose StoredDelayedDispatch for it's components: DispatchKind, StoredMessage.
+    pub fn into_parts(self) -> (DispatchKind, StoredMessage) {
+        self.into()
+    }
+
+    /// Entry point for the message.
+    pub fn kind(&self) -> DispatchKind {
+        self.kind
+    }
+
+    /// Dispatch message reference.
+    pub fn message(&self) -> &StoredMessage {
+        &self.message
+    }
+}
+
+impl Deref for StoredDelayedDispatch {
     type Target = StoredMessage;
 
     fn deref(&self) -> &Self::Target {

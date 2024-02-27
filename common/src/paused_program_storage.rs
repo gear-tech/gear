@@ -19,13 +19,13 @@
 use super::{program_storage::MemoryMap, *};
 use crate::storage::{MapStorage, ValueStorage};
 use gear_core::{
-    code::MAX_WASM_PAGE_COUNT,
+    code::MAX_WASM_PAGE_AMOUNT,
     pages::{GEAR_PAGE_SIZE, WASM_PAGE_SIZE},
 };
 use sp_core::MAX_POSSIBLE_ALLOCATION;
 use sp_io::hashing;
 
-const SPLIT_COUNT: u16 = (WASM_PAGE_SIZE / GEAR_PAGE_SIZE) as u16 * MAX_WASM_PAGE_COUNT / 2;
+const SPLIT_COUNT: u16 = (WASM_PAGE_SIZE / GEAR_PAGE_SIZE) as u16 * MAX_WASM_PAGE_AMOUNT / 2;
 
 pub type SessionId = u32;
 

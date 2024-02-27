@@ -186,11 +186,11 @@ pub fn instantiate(
     #[cfg(feature = "wasmer-cache")]
     let module = match get_cached_module(wasm, &context.store) {
         Ok(module) => {
-            log::trace!("Found cached module for current contract");
+            log::trace!("Found cached module for current program");
             module
         }
         Err(err) => {
-            log::trace!("Cache for contract has not been found, so compile it now");
+            log::trace!("Cache for program has not been found, so compile it now");
             let module = sandbox_wasmer::Module::new(&context.store, wasm)
                 .map_err(|_| InstantiationError::ModuleDecoding)?;
             match err {
@@ -533,7 +533,6 @@ impl MemoryWrapper {
     /// See `[memory_as_slice]`. In addition to those requirements, since a mutable reference is
     /// returned it must be ensured that only one mutable and no shared references to memory
     /// exists at the same time.
-    #[allow(clippy::needless_pass_by_ref_mut)]
     unsafe fn memory_as_slice_mut(memory: &mut sandbox_wasmer::Memory) -> &mut [u8] {
         let ptr = memory.data_ptr();
 

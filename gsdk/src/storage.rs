@@ -22,7 +22,7 @@ use crate::{
         runtime_types::{
             frame_system::{AccountInfo, EventRecord},
             gear_common::{storage::primitives::Interval, ActiveProgram, Program},
-            gear_core::{code::InstrumentedCode, message::user::UserStoredMessage},
+            gear_core::{code::instrumented::InstrumentedCode, message::user::UserStoredMessage},
             pallet_balances::types::AccountData,
             pallet_gear_bank::pallet::BankAccount,
         },
@@ -360,8 +360,7 @@ impl Api {
             ],
         );
 
-        let data: Option<(UserStoredMessage, Interval<u32>)> = self.fetch_storage(&addr).await.ok();
-        Ok(data.map(|(m, i)| (m, i)))
+        Ok(self.fetch_storage(&addr).await.ok())
     }
 
     /// Get all mailbox messages or for the provided `address`.

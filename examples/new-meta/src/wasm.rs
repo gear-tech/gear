@@ -27,7 +27,7 @@ extern "C" fn handle() {
     let res = unsafe { &WALLETS }
         .iter()
         .find(|w| w.id.decimal == message_in.id.decimal)
-        .map(Clone::clone);
+        .cloned();
 
     let message_out = MessageOut { res };
 

@@ -25,7 +25,8 @@ where
     use demo_delayed_sender::WASM_BINARY;
 
     let caller = benchmarking::account("caller", 0, 0);
-    CurrencyOf::<T>::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
+    let _ =
+        CurrencyOf::<T>::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
 
     init_block::<T>(None);
 
@@ -41,7 +42,7 @@ where
     )
     .expect("submit program failed");
 
-    Gear::<T>::process_queue(Default::default());
+    Gear::<T>::process_queue(Default::default(), ());
 }
 
 #[track_caller]
@@ -53,7 +54,8 @@ where
     use demo_reserve_gas::{InitAction, WASM_BINARY};
 
     let caller = benchmarking::account("caller", 0, 0);
-    CurrencyOf::<T>::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
+    let _ =
+        CurrencyOf::<T>::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
 
     init_block::<T>(None);
 
@@ -70,7 +72,7 @@ where
     )
     .expect("submit program failed");
 
-    Gear::<T>::process_queue(Default::default());
+    Gear::<T>::process_queue(Default::default(), ());
 
     let program: ActiveProgram<_> = ProgramStorageOf::<T>::get_program(program_id)
         .expect("program should exist")
@@ -120,7 +122,8 @@ where
     use demo_constructor::{Call, Calls, Scheme, WASM_BINARY};
 
     let caller = benchmarking::account("caller", 0, 0);
-    CurrencyOf::<T>::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
+    let _ =
+        CurrencyOf::<T>::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
 
     init_block::<T>(None);
 
@@ -155,7 +158,7 @@ where
     )
     .expect("failed to send message");
 
-    Gear::<T>::process_queue(Default::default());
+    Gear::<T>::process_queue(Default::default(), ());
 
     let task = TaskPoolOf::<T>::iter_prefix_keys(Gear::<T>::block_number() + delay.into())
         .next()
@@ -176,7 +179,8 @@ where
     use demo_waiter::{Command, WaitSubcommand, WASM_BINARY};
 
     let caller = benchmarking::account("caller", 0, 0);
-    CurrencyOf::<T>::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
+    let _ =
+        CurrencyOf::<T>::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
 
     init_block::<T>(None);
 
@@ -204,7 +208,7 @@ where
     )
     .expect("failed to send message");
 
-    Gear::<T>::process_queue(Default::default());
+    Gear::<T>::process_queue(Default::default(), ());
 
     let task = TaskPoolOf::<T>::iter_prefix_keys(Gear::<T>::block_number() + delay.into())
         .next()
@@ -226,7 +230,8 @@ where
     use demo_waiter::{Command, WaitSubcommand, WASM_BINARY};
 
     let caller = benchmarking::account("caller", 0, 0);
-    CurrencyOf::<T>::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
+    let _ =
+        CurrencyOf::<T>::deposit_creating(&caller, 200_000_000_000_000u128.unique_saturated_into());
 
     init_block::<T>(None);
 
@@ -253,7 +258,7 @@ where
     )
     .expect("failed to send message");
 
-    Gear::<T>::process_queue(Default::default());
+    Gear::<T>::process_queue(Default::default(), ());
 
     let expiration = find_latest_event::<T, _, _>(|event| match event {
         Event::MessageWaited { expiration, .. } => Some(expiration),

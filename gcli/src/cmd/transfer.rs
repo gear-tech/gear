@@ -17,12 +17,9 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! command `transfer`
-use crate::result::Result;
+use crate::{result::Result, App};
 use clap::Parser;
-use gsdk::{
-    ext::{sp_core::crypto::Ss58Codec, sp_runtime::AccountId32},
-    signer::Signer,
-};
+use gclient::ext::{sp_core::crypto::Ss58Codec, sp_runtime::AccountId32};
 
 /// Transfer value.
 ///
@@ -42,17 +39,16 @@ pub struct Transfer {
 
 impl Transfer {
     /// Execute command transfer.
-    pub async fn exec(&self, signer: Signer) -> Result<()> {
+    pub async fn exec(&self, app: &impl App) -> Result<()> {
+        let signer = app.signer().await?;
         let address = signer.account_id();
 
         println!("From: {}", address.to_ss58check());
         println!("To: {}", self.destination);
         println!("Value: {}", self.value);
 
-        signer
-            .calls
-            .transfer(AccountId32::from_ss58check(&self.destination)?, self.value)
-            .await?;
+        let addr: [u8; 32] = AccountId32::from_ss58check(&self.destination)?.into();
+        signer.transfer(addr.into(), self.value).await?;
 
         Ok(())
     }

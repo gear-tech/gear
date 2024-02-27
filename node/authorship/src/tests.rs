@@ -526,6 +526,7 @@ fn queue_remains_intact_if_processing_fails() {
 
 #[test]
 fn block_max_gas_works() {
+    use pallet_gear_builtin::WeightInfo;
     use sp_state_machine::IterArgs;
 
     // Amount of gas burned in each block (even empty) by default
@@ -579,8 +580,11 @@ fn block_max_gas_works() {
         .unwrap()
         .unwrap();
 
+    // Gas cost of a built router instance creation
+    let builtin_dispatcher_cost =
+        <Runtime as pallet_gear_builtin::Config>::WeightInfo::create_dispatcher().ref_time();
     // Just enough to fit 2 messages
-    let max_gas = Some(2 * min_limit + FIXED_BLOCK_GAS + 100);
+    let max_gas = Some(2 * min_limit + FIXED_BLOCK_GAS + builtin_dispatcher_cost + 100);
 
     // Preparing block #2
     // Creating 5 extrinsics
@@ -612,7 +616,7 @@ fn block_max_gas_works() {
     assert_eq!(proposal.block.extrinsics().len(), 7);
 
     let state = backend.state_at(best_hash).unwrap();
-    // Ensure message queue still has 5 messages as none of the messages fit into the gas allownce
+    // Ensure message queue still has 5 messages as none of the messages fit into the gas allowance
     let queue_entry_prefix = storage_prefix(
         pallet_gear_messenger::Pallet::<Runtime>::name().as_bytes(),
         "Dispatches".as_bytes(),
@@ -669,7 +673,7 @@ fn terminal_extrinsic_discarded_from_txpool() {
         VERSION.transaction_version,
         genesis_hash,
     );
-    // A `DispatchClass::Normal` exrinsic - supposed to end up in the txpool
+    // A `DispatchClass::Normal` extrinsic - supposed to end up in the txpool
     let legit_xt = sign(
         CheckedExtrinsic {
             signed: Some((alice(), signed_extra(0))),

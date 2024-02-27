@@ -16,7 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::wasm::PageCount as WasmPageCount;
 use gear_utils::NonEmpty;
 use gear_wasm_instrument::{
     parity_wasm::{
@@ -27,7 +26,6 @@ use gear_wasm_instrument::{
         },
     },
     syscalls::SyscallName,
-    wasm_instrument::{self, InjectionConfig},
 };
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -223,37 +221,6 @@ fn find_recursion_impl<Callback>(
     path.pop();
 }
 
-pub fn inject_stack_limiter(module: Module) -> Module {
-    wasm_instrument::inject_stack_limiter_with_config(
-        module,
-        InjectionConfig {
-            stack_limit: 30_003,
-            injection_fn: |signature| {
-                let results = signature.results();
-                let mut body = Vec::with_capacity(results.len() + 1);
-
-                for result in results {
-                    let instruction = match result {
-                        ValueType::I32 => Instruction::I32Const(u32::MAX as i32),
-                        ValueType::I64 => Instruction::I64Const(u64::MAX as i64),
-                        ValueType::F32 | ValueType::F64 => {
-                            unreachable!("f32/64 types are not supported")
-                        }
-                    };
-
-                    body.push(instruction);
-                }
-
-                body.push(Instruction::Return);
-
-                body
-            },
-            stack_height_export_name: None,
-        },
-    )
-    .expect("Failed to inject stack height limits")
-}
-
 /// Injects a critical gas limit to a given wasm module.
 ///
 /// Code before injection gas limiter:
@@ -285,27 +252,6 @@ pub fn inject_stack_limiter(module: Module) -> Module {
 /// }
 /// ```
 pub fn inject_critical_gas_limit(module: Module, critical_gas_limit: u64) -> Module {
-    // get initial memory size of program
-    let Some(mem_size) = module
-        .import_section()
-        .and_then(|section| {
-            section
-                .entries()
-                .iter()
-                .find_map(|entry| match entry.external() {
-                    External::Memory(mem_ty) => Some(mem_ty.limits().initial()),
-                    _ => None,
-                })
-        })
-        .map(Into::<WasmPageCount>::into)
-        .map(|page_count| page_count.memory_size())
-    else {
-        return module;
-    };
-
-    // store available gas pointer on the last memory page
-    let gas_ptr = mem_size - mem::size_of::<u64>() as u32;
-
     // add gr_gas_available import if needed
     let maybe_gr_gas_available_index = module.import_section().and_then(|section| {
         section
@@ -368,14 +314,17 @@ pub fn inject_critical_gas_limit(module: Module, critical_gas_limit: u64) -> Mod
         let Type::Function(signature) = signature;
         let results = signature.results();
 
+        // store available gas pointer on the first memory page
+        const GAS_PTR: i32 = 1024;
+
         // create the body of the gas limiter:
         let mut body = Vec::with_capacity(results.len() + 9);
         body.extend_from_slice(&[
-            // gr_gas_available(gas_ptr)
-            Instruction::I32Const(gas_ptr as i32),
+            // gr_gas_available(GAS_PTR)
+            Instruction::I32Const(GAS_PTR),
             Instruction::Call(gr_gas_available_index),
-            // gas_available = *gas_ptr
-            Instruction::I32Const(gas_ptr as i32),
+            // gas_available = *GAS_PTR
+            Instruction::I32Const(GAS_PTR),
             Instruction::I64Load(3, 0),
             Instruction::I64Const(critical_gas_limit as i64),
             // if gas_available <= critical_gas_limit { return result; }

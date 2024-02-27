@@ -33,7 +33,7 @@
 //!
 //! Examples of possible use-cases for this library are not limited to the following:
 //!
-//! - implementing smart-contract runtimes that use wasm for contract code
+//! - implementing program runtimes that use Wasm for contract code
 //! - executing a wasm substrate runtime inside of a wasm parachain
 
 #![warn(missing_docs)]

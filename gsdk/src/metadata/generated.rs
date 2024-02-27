@@ -705,13 +705,19 @@ pub mod runtime_types {
             }
             pub mod code {
                 use super::runtime_types;
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-                pub struct InstrumentedCode {
-                    pub code: ::std::vec::Vec<::core::primitive::u8>,
-                    pub original_code_len: ::core::primitive::u32,
-                    pub exports: ::std::vec::Vec<runtime_types::gear_core::message::DispatchKind>,
-                    pub static_pages: runtime_types::gear_core::pages::WasmPage,
-                    pub version: ::core::primitive::u32,
+                pub mod instrumented {
+                    use super::runtime_types;
+                    #[derive(
+                        Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
+                    )]
+                    pub struct InstrumentedCode {
+                        pub code: ::std::vec::Vec<::core::primitive::u8>,
+                        pub original_code_len: ::core::primitive::u32,
+                        pub exports:
+                            ::std::vec::Vec<runtime_types::gear_core::message::DispatchKind>,
+                        pub static_pages: runtime_types::gear_core::pages::WasmPage,
+                        pub version: ::core::primitive::u32,
+                    }
                 }
             }
             pub mod ids {
@@ -790,8 +796,6 @@ pub mod runtime_types {
                             >,
                         >,
                         pub initialized: ::std::vec::Vec<runtime_types::gear_core::ids::ProgramId>,
-                        pub awaken: ::std::vec::Vec<runtime_types::gear_core::ids::MessageId>,
-                        pub reply_sent: ::core::primitive::bool,
                         pub reservation_nonce:
                             runtime_types::gear_core::reservation::ReservationNonce,
                         pub system_reservation: ::core::option::Option<::core::primitive::u64>,
@@ -799,6 +803,13 @@ pub mod runtime_types {
                 }
                 pub mod stored {
                     use super::runtime_types;
+                    #[derive(
+                        Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
+                    )]
+                    pub struct StoredDelayedDispatch {
+                        pub kind: runtime_types::gear_core::message::DispatchKind,
+                        pub message: runtime_types::gear_core::message::stored::StoredMessage,
+                    }
                     #[derive(
                         Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                     )]
@@ -8674,6 +8685,18 @@ pub mod storage {
             match self {
                 Self::Bank => "Bank",
                 Self::UnusedValue => "UnusedValue",
+            }
+        }
+    }
+    #[doc = "Storage of pallet `GearBuiltin`."]
+    pub enum GearBuiltinStorage {
+        QuickCache,
+    }
+    impl StorageInfo for GearBuiltinStorage {
+        const PALLET: &'static str = "GearBuiltin";
+        fn storage_name(&self) -> &'static str {
+            match self {
+                Self::QuickCache => "QuickCache",
             }
         }
     }

@@ -22,6 +22,7 @@ use crate as pallet_gear_messenger;
 use frame_support::{
     construct_runtime, parameter_types,
     traits::{OnFinalize, OnInitialize},
+    weights::constants::RocksDbWeight,
 };
 use frame_system::{self as system, pallet_prelude::BlockNumberFor};
 use primitive_types::H256;
@@ -47,7 +48,7 @@ construct_runtime!(
     }
 );
 
-common::impl_pallet_system!(Test, DbWeight = (), BlockWeights = ());
+common::impl_pallet_system!(Test, DbWeight = RocksDbWeight, BlockWeights = ());
 common::impl_pallet_balances!(Test);
 pallet_gear_gas::impl_config!(Test);
 pallet_gear_messenger::impl_config!(Test);

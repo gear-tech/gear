@@ -239,7 +239,7 @@ pub fn unreserve_gas(id: ReservationId) -> Result<u64> {
 /// Each message processing consumes gas on instructions execution and memory
 /// allocations. This function returns a value of the gas available for spending
 /// during the current execution. Its use may help avoid unexpected behaviors
-/// during the smart-contract execution in case insufficient gas is available.
+/// during the program execution in case insufficient gas is available.
 ///
 /// # Examples
 ///

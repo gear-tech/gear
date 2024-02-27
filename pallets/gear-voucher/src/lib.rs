@@ -19,7 +19,7 @@
 //! # Gear Voucher Pallet
 //!
 //! The Gear Voucher Pallet provides functionality for alternative source of funds for
-//! gas and transaction fees payment when sending messages to Contracts in Gear engine.
+//! gas and transaction fees payment when sending messages to programs in Gear engine.
 //! These funds can only be used for a specific purpose - much like a payment voucher.
 //! Hence the pallet name.
 //!
@@ -28,10 +28,10 @@
 //!
 //! ## Overview
 //!
-//! This pallet provides API for contract owners (or any other party for that matter)
-//! to sponsor contract users by allocating some funds in such a way that these funds
+//! This pallet provides API for program owners (or any other party for that matter)
+//! to sponsor program users by allocating some funds in such a way that these funds
 //! can only be spent to pay for gas and transaction fees if a user sends a message
-//! to the contract.
+//! to the program.
 
 #![cfg_attr(not(feature = "std"), no_std)]
 #![allow(clippy::items_after_test_module)]
