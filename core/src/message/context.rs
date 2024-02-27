@@ -345,7 +345,10 @@ impl MessageContext {
 
     /// Pushes payload into stored payload by handle.
     pub fn send_push(&mut self, handle: u32, buffer: &[u8]) -> Result<(), Error> {
+        // Both `MaxMessageSizeExceed` and `OutgoingMessagesBytesLimitExceeded` are suitable to be returned here.
+        // Use `MaxMessageSizeExceed` for legacy compatibility: it was the only error returned before.
         let bytes_amount = u32::try_from(buffer.len()).map_err(|_| Error::MaxMessageSizeExceed)?;
+
         let new_outgoing_bytes = self
             .outgoing_bytes_counter
             .checked_add(bytes_amount)
@@ -379,6 +382,8 @@ impl MessageContext {
             excluded_end,
         } = range;
 
+        // Both `MaxMessageSizeExceed` and `OutgoingMessagesBytesLimitExceeded` are suitable to be returned here.
+        // Use `MaxMessageSizeExceed` for legacy compatibility: it was the only error returned before.
         let bytes_amount = u32::try_from(excluded_end.checked_sub(offset).unwrap_or_else(|| {
             unreachable!("`CheckedRange` must guarantee that `excluded_end` >= `offset`")
         }))
