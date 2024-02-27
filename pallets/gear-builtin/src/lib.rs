@@ -292,6 +292,9 @@ impl<T: Config> BuiltinDispatcher for BuiltinRegistry<T> {
                         ..
                     } = outcome.drain();
                     dispatch_result.generated_dispatches = generated_dispatches;
+                    dispatch_result.reply_sent = true;
+                } else {
+                    unreachable!("Failed to send reply from builtin actor");
                 };
 
                 // Using the core processor logic create necessary `JournalNote`'s for us.
