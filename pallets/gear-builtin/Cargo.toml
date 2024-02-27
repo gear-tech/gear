@@ -26,6 +26,7 @@ gear-core-errors.workspace = true
 frame-support.workspace = true
 frame-system.workspace = true
 frame-benchmarking = { workspace = true, optional = true }
+sp-core = { workspace = true, optional = true }
 sp-std.workspace = true
 sp-runtime = { workspace = true, features = ["serde"] }
 pallet-gear.workspace = true
@@ -59,6 +60,7 @@ std = [
 	"pallet-gear/std",
     "parity-scale-codec/std",
 	"scale-info/std",
+	"sp-core?/std",
 	"sp-runtime/std",
 	"sp-std/std",
 ]
@@ -66,5 +68,6 @@ runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",
 	"frame-support/runtime-benchmarks",
 	"frame-system/runtime-benchmarks",
+	"sp-core",
 ]
 try-runtime = ["frame-support/try-runtime"]

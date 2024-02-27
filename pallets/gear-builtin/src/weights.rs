@@ -51,6 +51,7 @@ use sp_std::marker::PhantomData;
 pub trait WeightInfo {
 	fn calculate_id() -> Weight;
 	fn create_dispatcher() -> Weight;
+	fn decode_bytes(a: u32, ) -> Weight;
 }
 
 /// Weights for `pallet_gear_builtin` using a Gear node and recommended hardware.
@@ -72,6 +73,16 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 		Weight::from_parts(7_000_000, 0)
 			.saturating_add(Weight::from_parts(0, 0))
 	}
+	/// The range of component `a` is `[0, 33554332]`.
+	fn decode_bytes(a: u32, ) -> Weight {
+		// Proof Size summary in bytes:
+		//  Measured:  `0`
+		//  Estimated: `0`
+		// Minimum execution time: 0_000 picoseconds.
+		Weight::from_parts(0, 0)
+			// Standard Error: 0
+			.saturating_add(Weight::from_parts(160, 0).saturating_mul(a.into()))
+	}	
 }
 
 impl WeightInfo for () {
@@ -90,5 +101,15 @@ impl WeightInfo for () {
 		// Minimum execution time: 7_000_000 picoseconds.
 		Weight::from_parts(8_000_000, 0)
 			.saturating_add(Weight::from_parts(0, 0))
+	}
+	/// The range of component `a` is `[0, 33554332]`.
+	fn decode_bytes(a: u32, ) -> Weight {
+		// Proof Size summary in bytes:
+		//  Measured:  `0`
+		//  Estimated: `0`
+		// Minimum execution time: 0_000 picoseconds.
+		Weight::from_parts(0, 0)
+			// Standard Error: 0
+			.saturating_add(Weight::from_parts(160, 0).saturating_mul(a.into()))
 	}
 }
