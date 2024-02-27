@@ -21,10 +21,16 @@
 #[allow(unused)]
 use crate::Pallet as BuiltinActorPallet;
 use crate::*;
+use ark_bls12_381::{Bls12_381, G1Affine, G1Projective as G1, G2Affine, G2Projective as G2};
+use ark_ec::{pairing::Pairing, Group};
+use ark_std::{ops::Mul, UniformRand};
 use frame_benchmarking::{benchmarks, impl_benchmark_test_suite};
 use gear_core::message::{Payload, StoredDispatch};
 use parity_scale_codec::{Compact, Encode, Input};
 use sp_core::MAX_POSSIBLE_ALLOCATION;
+
+type ArkScale<T> = ark_scale::ArkScale<T, { ark_scale::HOST_CALL }>;
+type ScalarField = <G2 as Group>::ScalarField;
 
 macro_rules! impl_builtin_actor {
     ($name: ident, $id: literal) => {
@@ -121,6 +127,50 @@ benchmarks! {
         _decoded = items;
     } verify {
         assert_eq!(bytes, _decoded);
+    }
+
+    bls12_381_multi_miller_loop {
+        let c in 0 .. 100;
+
+        let count = c as usize;
+
+        let mut rng = ark_std::test_rng();
+
+        let messages = {
+            let mut messages = Vec::with_capacity(count);
+            for _ in 0..count {
+                let message: G1Affine = G1::rand(&mut rng).into();
+                messages.push(message);
+            }
+
+            messages
+        };
+
+        let message: ArkScale<Vec<<Bls12_381 as Pairing>::G1Affine>> = messages.into();
+        let encoded_message = message.encode();
+
+        let pub_keys = {
+            let mut pub_keys = Vec::with_capacity(count);
+            let generator: G2 = G2::generator();
+            for _ in 0..count {
+                let priv_key: ScalarField = UniformRand::rand(&mut rng);
+                let pub_key: G2Affine = generator.mul(priv_key).into();
+                pub_keys.push(pub_key);
+            }
+
+            pub_keys
+        };
+        let pub_key: ArkScale<Vec<<Bls12_381 as Pairing>::G2Affine>> = pub_keys.into();
+        let encoded_pub_key = pub_key.encode();
+
+        let mut _result: Result<Vec<u8>, ()> = Err(());
+    }: {
+        _result = sp_crypto_ec_utils::bls12_381::host_calls::bls12_381_multi_miller_loop(
+            encoded_message,
+            encoded_pub_key,
+        );
+    } verify {
+        assert!(_result.is_ok());
     }
 }
 
