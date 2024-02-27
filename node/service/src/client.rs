@@ -89,6 +89,7 @@ pub trait RuntimeApiCollection:
     + sp_session::SessionKeys<Block>
     + pallet_gear_rpc_runtime_api::GearApi<Block>
     + pallet_gear_staking_rewards_rpc_runtime_api::GearStakingRewardsApi<Block>
+    + pallet_gear_builtin_rpc_runtime_api::GearBuiltinApi<Block>
 where
     <Self as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
 {
@@ -107,7 +108,8 @@ where
         + sp_offchain::OffchainWorkerApi<Block>
         + sp_session::SessionKeys<Block>
         + pallet_gear_rpc_runtime_api::GearApi<Block>
-        + pallet_gear_staking_rewards_rpc_runtime_api::GearStakingRewardsApi<Block>,
+        + pallet_gear_staking_rewards_rpc_runtime_api::GearStakingRewardsApi<Block>
+        + pallet_gear_builtin_rpc_runtime_api::GearBuiltinApi<Block>,
     <Self as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
 {
 }

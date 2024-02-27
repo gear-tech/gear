@@ -17,7 +17,6 @@ parity-scale-codec = { workspace = true, features = ["derive"] }
 scale-info = { workspace = true, features = ["derive"] }
 primitive-types = { workspace = true, features = ["scale-info"] }
 log.workspace = true
-impl-trait-for-tuples.workspace = true
 serde = { workspace = true, features = ["derive"], optional = true }
 
 frame-support = { workspace = true }
@@ -59,7 +58,7 @@ std = [
 	"pallet-staking-reward-fn/std",
     "parity-scale-codec/std",
 	"scale-info/std",
-	"serde",
+	"serde/std",
 	"sp-runtime/std",
 	"sp-std/std",
 ]

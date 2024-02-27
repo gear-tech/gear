@@ -99,4 +99,6 @@ pub type Migrations = (
     pallet_im_online::migration::v1::Migration<Runtime>,
     // v1050
     pallet_gear_program::migrations::MigrateToV3<Runtime>,
+    // not yet executed
+    pallet_gear_messenger::migrations::MigrateToV3<Runtime>,
 );

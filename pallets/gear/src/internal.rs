@@ -653,7 +653,7 @@ where
         };
 
         // Adding message into the stash.
-        DispatchStashOf::<T>::insert(message_id, (dispatch.into_stored(), delay_interval));
+        DispatchStashOf::<T>::insert(message_id, (dispatch.into_stored_delayed(), delay_interval));
 
         let task = if to_user {
             ScheduledTask::SendUserMessage {
