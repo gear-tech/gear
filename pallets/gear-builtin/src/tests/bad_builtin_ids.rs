@@ -20,6 +20,7 @@ use crate::{self as pallet_gear_builtin, BuiltinActor, BuiltinActorError};
 use frame_support::{
     construct_runtime, parameter_types,
     traits::{ConstBool, ConstU64, FindAuthor, OnFinalize, OnInitialize},
+    PalletId,
 };
 use frame_support_test::TestRandomness;
 use frame_system::{self as system, pallet_prelude::BlockNumberFor};
@@ -29,8 +30,8 @@ use gear_core::{
 };
 use sp_core::H256;
 use sp_runtime::{
-    traits::{BlakeTwo256, IdentityLookup},
-    BuildStorage,
+    traits::{AccountIdConversion, BlakeTwo256, IdentityLookup},
+    BuildStorage, Perbill,
 };
 use sp_std::convert::{TryFrom, TryInto};
 
@@ -79,6 +80,8 @@ parameter_types! {
     pub const PerformanceMultiplier: u32 = 100;
     pub const BankAddress: AccountId = 15082001;
     pub const GasMultiplier: common::GasMultiplier<Balance, u64> = common::GasMultiplier::ValuePerGas(25);
+    pub const SplitFee: Perbill = Perbill::from_percent(50);
+    pub FeeDest: AccountId = PalletId(*b"py/trsry").into_account_truncating();
 }
 
 pallet_gear_bank::impl_config!(Test);
