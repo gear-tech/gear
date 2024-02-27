@@ -33,7 +33,7 @@ pub struct Create {
     init_payload: String,
     /// gear program gas limit
     ///
-    /// Estimate gas limit automatically if not set
+    /// Use estimated gas limit automatically if not set.
     #[arg(short, long)]
     gas_limit: Option<u64>,
     /// gear program balance

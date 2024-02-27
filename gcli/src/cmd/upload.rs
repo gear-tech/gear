@@ -46,6 +46,8 @@ pub struct Upload {
     #[arg(short, long, default_value = "0x")]
     payload: String,
     /// Maximum amount of gas the program can spend before it is halted.
+    ///
+    /// Use estimated gas limit automatically if not set.
     #[arg(short, long)]
     gas_limit: Option<u64>,
     /// Balance to be transferred to the program once it's been created.

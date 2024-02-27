@@ -40,6 +40,8 @@ pub struct Reply {
     #[arg(short, long, default_value = "0x")]
     payload: String,
     /// Reply gas limit
+    ///
+    /// Use estimated gas limit automatically if not set.
     #[arg(short, long)]
     gas_limit: Option<u64>,
     /// Reply value

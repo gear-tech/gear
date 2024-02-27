@@ -45,6 +45,8 @@ pub struct Send {
     #[arg(short, long, default_value = "0x")]
     pub payload: String,
     /// Send gas limit
+    ///
+    /// Use estimated gas limit automatically if not set.
     #[arg(short, long)]
     pub gas_limit: Option<u64>,
     /// Send value
