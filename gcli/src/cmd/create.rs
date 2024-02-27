@@ -33,9 +33,9 @@ pub struct Create {
     init_payload: String,
     /// gear program gas limit
     ///
-    /// if zero, gear will estimate this automatically
-    #[arg(short, long, default_value = "0")]
-    gas_limit: u64,
+    /// Estimate gas limit automatically if not set
+    #[arg(short, long)]
+    gas_limit: Option<u64>,
     /// gear program balance
     #[arg(short, long, default_value = "0")]
     value: u128,
@@ -49,13 +49,13 @@ impl Create {
         let signer = app.signer().await?;
 
         // estimate gas
-        let gas_limit = if self.gas_limit == 0 {
+        let gas_limit = if let Some(gas_limit) = self.gas_limit {
+            gas_limit
+        } else {
             signer
                 .calculate_create_gas(None, code_id, payload.clone(), self.value, false)
                 .await?
                 .min_limit
-        } else {
-            self.gas_limit
         };
 
         // create program

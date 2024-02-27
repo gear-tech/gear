@@ -46,8 +46,8 @@ pub struct Upload {
     #[arg(short, long, default_value = "0x")]
     payload: String,
     /// Maximum amount of gas the program can spend before it is halted.
-    #[arg(short, long, default_value = "0")]
-    gas_limit: u64,
+    #[arg(short, long)]
+    gas_limit: Option<u64>,
     /// Balance to be transferred to the program once it's been created.
     #[arg(short, long, default_value = "0")]
     value: u128,
@@ -77,14 +77,14 @@ impl Upload {
         }
 
         let payload = self.payload.to_vec()?;
-        let gas_limit = if self.gas_limit == 0 {
+        let gas_limit = if let Some(gas_limit) = self.gas_limit {
+            gas_limit
+        } else {
             signer
                 .rpc
                 .calculate_upload_gas(None, code.clone(), payload.clone(), self.value, false, None)
                 .await?
                 .min_limit
-        } else {
-            self.gas_limit
         };
 
         let tx = signer

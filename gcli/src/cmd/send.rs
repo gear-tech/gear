@@ -45,8 +45,8 @@ pub struct Send {
     #[arg(short, long, default_value = "0x")]
     pub payload: String,
     /// Send gas limit
-    #[arg(short, long, default_value = "0")]
-    pub gas_limit: u64,
+    #[arg(short, long)]
+    pub gas_limit: Option<u64>,
     /// Send value
     #[arg(short, long, default_value = "0")]
     pub value: u128,
@@ -55,7 +55,9 @@ pub struct Send {
 impl Send {
     pub async fn exec(&self, app: &impl App) -> Result<()> {
         let signer = app.signer().await?;
-        let gas_limit = if self.gas_limit == 0 {
+        let gas_limit = if let Some(gas_limit) = self.gas_limit {
+            gas_limit
+        } else {
             signer
                 .calculate_handle_gas(
                     None,
@@ -66,8 +68,6 @@ impl Send {
                 )
                 .await?
                 .min_limit
-        } else {
-            self.gas_limit
         };
 
         let (message_id, _) = signer

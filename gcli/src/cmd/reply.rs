@@ -40,8 +40,8 @@ pub struct Reply {
     #[arg(short, long, default_value = "0x")]
     payload: String,
     /// Reply gas limit
-    #[arg(short, long, default_value = "0")]
-    gas_limit: u64,
+    #[arg(short, long)]
+    gas_limit: Option<u64>,
     /// Reply value
     #[arg(short, long, default_value = "0")]
     value: u128,
@@ -52,7 +52,9 @@ impl Reply {
         let signer = app.signer().await?;
         let reply_to_id = self.reply_to_id.to_hash()?;
 
-        let gas_limit = if self.gas_limit == 0 {
+        let gas_limit = if let Some(gas_limit) = self.gas_limit {
+            gas_limit
+        } else {
             signer
                 .calculate_reply_gas(
                     None,
@@ -63,8 +65,6 @@ impl Reply {
                 )
                 .await?
                 .min_limit
-        } else {
-            self.gas_limit
         };
 
         signer
