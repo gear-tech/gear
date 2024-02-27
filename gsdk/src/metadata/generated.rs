@@ -796,8 +796,6 @@ pub mod runtime_types {
                             >,
                         >,
                         pub initialized: ::std::vec::Vec<runtime_types::gear_core::ids::ProgramId>,
-                        pub awaken: ::std::vec::Vec<runtime_types::gear_core::ids::MessageId>,
-                        pub reply_sent: ::core::primitive::bool,
                         pub reservation_nonce:
                             runtime_types::gear_core::reservation::ReservationNonce,
                         pub system_reservation: ::core::option::Option<::core::primitive::u64>,
@@ -805,6 +803,13 @@ pub mod runtime_types {
                 }
                 pub mod stored {
                     use super::runtime_types;
+                    #[derive(
+                        Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
+                    )]
+                    pub struct StoredDelayedDispatch {
+                        pub kind: runtime_types::gear_core::message::DispatchKind,
+                        pub message: runtime_types::gear_core::message::stored::StoredMessage,
+                    }
                     #[derive(
                         Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                     )]

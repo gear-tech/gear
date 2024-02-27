@@ -43,7 +43,7 @@ pub use incoming::{IncomingDispatch, IncomingMessage};
 pub use init::{InitMessage, InitPacket};
 pub use reply::{ReplyMessage, ReplyPacket};
 pub use signal::SignalMessage;
-pub use stored::{StoredDispatch, StoredMessage};
+pub use stored::{StoredDelayedDispatch, StoredDispatch, StoredMessage};
 pub use user::{UserMessage, UserStoredMessage};
 
 use super::buffer::LimitedVec;

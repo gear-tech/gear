@@ -217,7 +217,7 @@ impl System {
     /// exited or terminated that it can't be called anymore.
     pub fn is_active_program<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> bool {
         let program_id = id.into().0;
-        !self.0.borrow().is_user(&program_id)
+        self.0.borrow().is_active_program(&program_id)
     }
 
     /// Saves code to the storage and returns it's code hash

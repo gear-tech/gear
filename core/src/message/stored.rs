@@ -198,3 +198,58 @@ impl Deref for StoredDispatch {
         self.message()
     }
 }
+
+impl From<StoredDelayedDispatch> for StoredDispatch {
+    fn from(dispatch: StoredDelayedDispatch) -> Self {
+        StoredDispatch::new(dispatch.kind, dispatch.message, None)
+    }
+}
+
+/// Stored message with entry point.
+///
+/// We could use just [`StoredDispatch`]
+/// but delayed messages always don't have [`ContextStore`]
+/// so we designate this fact via new type.
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
+pub struct StoredDelayedDispatch {
+    /// Entry point.
+    kind: DispatchKind,
+    /// Stored message.
+    message: StoredMessage,
+}
+
+impl From<StoredDelayedDispatch> for (DispatchKind, StoredMessage) {
+    fn from(dispatch: StoredDelayedDispatch) -> (DispatchKind, StoredMessage) {
+        (dispatch.kind, dispatch.message)
+    }
+}
+
+impl StoredDelayedDispatch {
+    /// Create new StoredDelayedDispatch.
+    pub fn new(kind: DispatchKind, message: StoredMessage) -> Self {
+        Self { kind, message }
+    }
+
+    /// Decompose StoredDelayedDispatch for it's components: DispatchKind, StoredMessage.
+    pub fn into_parts(self) -> (DispatchKind, StoredMessage) {
+        self.into()
+    }
+
+    /// Entry point for the message.
+    pub fn kind(&self) -> DispatchKind {
+        self.kind
+    }
+
+    /// Dispatch message reference.
+    pub fn message(&self) -> &StoredMessage {
+        &self.message
+    }
+}
+
+impl Deref for StoredDelayedDispatch {
+    type Target = StoredMessage;
+
+    fn deref(&self) -> &Self::Target {
+        self.message()
+    }
+}

@@ -1364,9 +1364,7 @@ fn reply_deposit_gstd_async() {
     });
 }
 
-// TODO (#2763): resolve panic caused by "duplicate" wake in message A
 #[test]
-#[should_panic]
 fn pseudo_duplicate_wake() {
     use demo_constructor::{Calls, Scheme};
 

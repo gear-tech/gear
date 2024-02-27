@@ -386,6 +386,7 @@ pub fn process_success(
         context_store,
         allocations,
         reply_deposits,
+        reply_sent,
         ..
     } = dispatch_result;
 
@@ -457,7 +458,7 @@ pub fn process_success(
 
     // Sending auto-generated reply about success execution.
     if matches!(kind, SuccessfulDispatchResultKind::Success)
-        && !context_store.reply_sent()
+        && !reply_sent
         && !dispatch.is_reply()
         && dispatch.kind() != DispatchKind::Signal
     {
