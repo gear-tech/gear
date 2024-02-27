@@ -342,6 +342,7 @@ where
         system_reservation_context: info.system_reservation_context,
         page_update,
         allocations: info.allocations,
+        reply_sent: info.reply_sent,
     })
 }
 

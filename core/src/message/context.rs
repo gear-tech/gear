@@ -118,6 +118,8 @@ pub struct ContextOutcomeDrain {
     pub awakening: Vec<(MessageId, u32)>,
     /// Reply deposits to be provided.
     pub reply_deposits: Vec<(MessageId, u64)>,
+    /// Whether this execution sent out a reply.
+    pub reply_sent: bool,
 }
 
 /// Context outcome.
@@ -153,6 +155,7 @@ impl ContextOutcome {
     /// Destructs outcome after execution and returns provided dispatches and awaken message ids.
     pub fn drain(self) -> ContextOutcomeDrain {
         let mut dispatches = Vec::new();
+        let reply_sent = self.reply.is_some();
 
         for (msg, delay, reservation) in self.init.into_iter() {
             dispatches.push((msg.into_dispatch(self.program_id), delay, reservation));
@@ -174,6 +177,7 @@ impl ContextOutcome {
             outgoing_dispatches: dispatches,
             awakening: self.awakening,
             reply_deposits: self.reply_deposits,
+            reply_sent,
         }
     }
 }
@@ -184,13 +188,29 @@ pub struct ContextStore {
     outgoing: BTreeMap<u32, Option<Payload>>,
     reply: Option<Payload>,
     initialized: BTreeSet<ProgramId>,
-    awaken: BTreeSet<MessageId>,
-    reply_sent: bool,
     reservation_nonce: ReservationNonce,
     system_reservation: Option<u64>,
 }
 
 impl ContextStore {
+    // TODO: Remove, only used in migrations (#issue 3721)
+    /// Create a new context store with the provided parameters.
+    pub fn new(
+        outgoing: BTreeMap<u32, Option<Payload>>,
+        reply: Option<Payload>,
+        initialized: BTreeSet<ProgramId>,
+        reservation_nonce: ReservationNonce,
+        system_reservation: Option<u64>,
+    ) -> Self {
+        Self {
+            outgoing,
+            reply,
+            initialized,
+            reservation_nonce,
+            system_reservation,
+        }
+    }
+
     /// Returns stored within message context reservation nonce.
     ///
     /// Will be non zero, if any reservations were created during
@@ -217,11 +237,6 @@ impl ContextStore {
     /// Get system reservation.
     pub fn system_reservation(&self) -> Option<u64> {
         self.system_reservation
-    }
-
-    /// Get info about was reply sent.
-    pub fn reply_sent(&self) -> bool {
-        self.reply_sent
     }
 }
 
@@ -268,7 +283,7 @@ impl MessageContext {
 
     /// Return bool defining was reply sent within the execution.
     pub fn reply_sent(&self) -> bool {
-        self.store.reply_sent
+        self.outcome.reply.is_some()
     }
 
     /// Send a new program initialization message.
@@ -436,7 +451,6 @@ impl MessageContext {
             let message = ReplyMessage::from_packet(message_id, packet);
 
             self.outcome.reply = Some((message, reservation));
-            self.store.reply_sent = true;
 
             Ok(message_id)
         } else {
@@ -486,9 +500,8 @@ impl MessageContext {
 
     /// Wake message by it's message id.
     pub fn wake(&mut self, waker_id: MessageId, delay: u32) -> Result<(), Error> {
-        if self.store.awaken.insert(waker_id) {
+        if !self.outcome.awakening.iter().any(|v| v.0 == waker_id) {
             self.outcome.awakening.push((waker_id, delay));
-
             Ok(())
         } else {
             Err(Error::DuplicateWaking)

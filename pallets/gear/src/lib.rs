@@ -210,6 +210,7 @@ pub mod pallet {
             MailboxSecondKey = MessageId,
             MailboxedMessage = UserStoredMessage,
             QueuedDispatch = StoredDispatch,
+            DelayedDispatch = StoredDelayedDispatch,
             WaitlistFirstKey = ProgramId,
             WaitlistSecondKey = MessageId,
             WaitlistedMessage = StoredDispatch,
