@@ -14589,7 +14589,7 @@ fn program_with_large_indices() {
 
     new_test_ext().execute_with(|| {
         let code = ProgramCodeKind::Custom(&wat).to_bytes();
-        assert_ok!(Gear::upload_code(RuntimeOrigin::signed(USER_1), code))
+        assert_ok!(Gear::upload_code(RuntimeOrigin::signed(USER_1), code));
     });
 }
 
