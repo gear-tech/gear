@@ -61,7 +61,7 @@ macro_rules! dry_run {
 
         let mut ext_manager = Default::default();
         pallet_gear::Pallet::<Test>::process_tasks(&mut ext_manager);
-        pallet_gear::Pallet::<Test>::process_queue(ext_manager);
+        pallet_gear::Pallet::<Test>::process_queue(ext_manager, ());
 
         let $weight = $initial_weight.saturating_sub(GasAllowanceOf::<Test>::get());
     };

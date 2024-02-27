@@ -39,7 +39,7 @@ pub mod pallet {
     use gear_core::{
         ids::ProgramId,
         memory::PageBuf,
-        message::{StoredDispatch, StoredMessage},
+        message::{StoredDelayedDispatch, StoredDispatch, StoredMessage},
         pages::{GearPage, PageU32Size, WasmPage},
     };
     use primitive_types::H256;
@@ -62,7 +62,10 @@ pub mod pallet {
         /// Storage with codes for programs.
         type CodeStorage: CodeStorage;
 
-        type Messenger: Messenger<QueuedDispatch = StoredDispatch>;
+        type Messenger: Messenger<
+            QueuedDispatch = StoredDispatch,
+            DelayedDispatch = StoredDelayedDispatch,
+        >;
 
         type ProgramStorage: ProgramStorage
             + IterableMap<(ProgramId, common::Program<BlockNumberFor<Self>>)>;

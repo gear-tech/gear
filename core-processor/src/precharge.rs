@@ -185,6 +185,8 @@ pub fn calculate_gas_for_code(read_cost: u64, per_byte_cost: u64, code_len_bytes
     read_cost.saturating_add(code_len_bytes.saturating_mul(per_byte_cost))
 }
 
+/// Possible variants of the `DispatchResult` if the latter contains value.
+#[allow(missing_docs)]
 #[derive(Debug)]
 pub enum SuccessfulDispatchResultKind {
     Exit(ProgramId),

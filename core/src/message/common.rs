@@ -18,7 +18,10 @@
 
 use crate::{
     ids::{MessageId, ProgramId},
-    message::{DispatchKind, GasLimit, Payload, StoredDispatch, StoredMessage, Value},
+    message::{
+        DispatchKind, GasLimit, Payload, StoredDelayedDispatch, StoredDispatch, StoredMessage,
+        Value,
+    },
 };
 use core::ops::Deref;
 use gear_core_errors::{ReplyCode, SignalCode};
@@ -279,6 +282,12 @@ impl From<Dispatch> for StoredDispatch {
     }
 }
 
+impl From<Dispatch> for StoredDelayedDispatch {
+    fn from(dispatch: Dispatch) -> StoredDelayedDispatch {
+        StoredDelayedDispatch::new(dispatch.kind, dispatch.message.into())
+    }
+}
+
 impl From<Dispatch> for (DispatchKind, Message) {
     fn from(dispatch: Dispatch) -> (DispatchKind, Message) {
         (dispatch.kind, dispatch.message)
@@ -293,6 +302,11 @@ impl Dispatch {
 
     /// Convert Dispatch into gasless StoredDispatch with empty previous context.
     pub fn into_stored(self) -> StoredDispatch {
+        self.into()
+    }
+
+    /// Convert Dispatch into gasless StoredDelayedDispatch.
+    pub fn into_stored_delayed(self) -> StoredDelayedDispatch {
         self.into()
     }
 

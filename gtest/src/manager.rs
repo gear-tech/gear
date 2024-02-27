@@ -404,7 +404,7 @@ impl ExtManager {
             );
         }
 
-        if !self.is_user(&dispatch.source()) {
+        if self.is_program(&dispatch.source()) {
             panic!("Sending messages allowed only from users id");
         }
 
@@ -442,7 +442,7 @@ impl ExtManager {
             .entry(dispatch.id())
             .or_insert_with(|| dispatch.gas_limit().unwrap_or(u64::MAX));
 
-        if !self.is_user(&dispatch.destination()) {
+        if self.is_program(&dispatch.destination()) {
             self.dispatches.push_back(dispatch.into_stored());
         } else {
             let message = dispatch.into_parts().1.into_stored();
@@ -574,8 +574,26 @@ impl ExtManager {
     }
 
     pub(crate) fn is_user(&self, id: &ProgramId) -> bool {
-        !self.actors.contains_key(id)
-            || matches!(self.actors.borrow().get(id), Some((TestActor::User, _)))
+        matches!(
+            self.actors.borrow().get(id),
+            Some((TestActor::User, _)) | None
+        )
+    }
+
+    pub(crate) fn is_active_program(&self, id: &ProgramId) -> bool {
+        matches!(
+            self.actors.borrow().get(id),
+            Some((TestActor::Initialized(_), _)) | Some((TestActor::Uninitialized(_, _), _))
+        )
+    }
+
+    pub(crate) fn is_program(&self, id: &ProgramId) -> bool {
+        matches!(
+            self.actors.borrow().get(id),
+            Some((TestActor::Initialized(_), _))
+                | Some((TestActor::Uninitialized(_, _), _))
+                | Some((TestActor::Dormant, _))
+        )
     }
 
     pub(crate) fn mint_to(&mut self, id: &ProgramId, value: Balance) {
@@ -985,7 +1003,7 @@ impl JournalHandler for ExtManager {
             .entry(dispatch.id())
             .or_insert_with(|| dispatch.gas_limit().unwrap_or(u64::MAX));
 
-        if !self.is_user(&dispatch.destination()) {
+        if self.is_program(&dispatch.destination()) {
             self.dispatches.push_back(dispatch.into_stored());
         } else {
             let message = dispatch.into_stored().into_parts().1;
@@ -1083,7 +1101,7 @@ impl JournalHandler for ExtManager {
             return;
         }
         if let Some(ref to) = to {
-            if !self.is_user(&from) {
+            if self.is_program(&from) {
                 let mut actors = self.actors.borrow_mut();
                 let (_, balance) = actors.get_mut(&from).expect("Can't fail");
 
