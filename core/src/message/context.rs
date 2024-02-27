@@ -757,8 +757,6 @@ mod tests {
                 .collect(),
             reply: None,
             initialized: BTreeSet::new(),
-            awaken: BTreeSet::new(),
-            reply_sent: false,
             reservation_nonce: ReservationNonce::default(),
             system_reservation: None,
         };
