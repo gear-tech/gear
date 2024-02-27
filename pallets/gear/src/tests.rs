@@ -14560,6 +14560,39 @@ fn export_is_import() {
     });
 }
 
+#[test]
+fn program_with_large_indices() {
+    let funcs = (0..u32::MAX - 1)
+        .map(|i| {
+            format!(
+                r#"(func \"add_{i}\" (param i32) (result i32)
+                     (local.get 0)
+                     (i32.const {i})
+                     (i32.add)
+                   )"#
+            )
+        })
+        .collect::<Vec<String>>()
+        .concat();
+
+    let wat = format!(
+        r#"
+        (module
+          (import "env" "memory" (memory 1))
+          {funcs}
+          (export "init" (func $init))
+          (export "handle" (func 4294967295))
+          (func $init)
+        )
+    "#
+    );
+
+    new_test_ext().execute_with(|| {
+        let code = ProgramCodeKind::Custom(&wat).to_bytes();
+        assert_ok!(Gear::upload_code(RuntimeOrigin::signed(USER_1), code))
+    });
+}
+
 mod utils {
     #![allow(unused)]
 
