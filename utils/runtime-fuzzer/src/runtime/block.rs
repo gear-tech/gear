@@ -17,17 +17,22 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use codec::Encode;
-use frame_support::traits::{OnFinalize, OnInitialize};
+use frame_support::{
+    dispatch::{DispatchClass, RawOrigin},
+    traits::{OnFinalize, OnInitialize},
+};
 use frame_system::pallet_prelude::BlockNumberFor;
-use gear_common::QueueRunner;
-use pallet_gear::BlockGasLimitOf;
+use pallet_gear::Event as GearEvent;
 use sp_consensus_babe::{
     digests::{PreDigest, SecondaryPlainPreDigest},
     BABE_ENGINE_ID,
 };
 use sp_consensus_slots::Slot;
 use sp_runtime::{Digest, DigestItem, Perbill};
-use vara_runtime::{Authorship, BlockGasLimit, Gear, GearGas, GearMessenger, Runtime, System};
+use vara_runtime::{
+    Authorship, BlockGasLimit, Gear, GearGas, GearMessenger, Runtime, RuntimeBlockWeights,
+    RuntimeEvent, System, TransactionPayment,
+};
 
 /// This is not set to `BlockGasLimitOf::<Runtime>::get`, because of the
 /// known possible dead-lock for the message in the queue, when it's valid gas
@@ -39,19 +44,26 @@ pub fn default_gas_limit() -> u64 {
 
 /// Run gear-protocol to the next block with max gas given for the execution.
 pub fn run_to_next_block() {
-    run_to_block(System::block_number() + 1, None);
+    run_to_block(System::block_number() + 1);
 }
 
-/// Run gear-protocol until the block `n` giving `remaining_weight` for each
-/// block.
-pub fn run_to_block(n: u32, remaining_weight: Option<u64>) {
+/// Run gear-protocol until the block `n`.
+fn run_to_block(n: u32) {
     while System::block_number() < n {
         System::on_finalize(System::block_number());
         initialize(System::block_number() + 1);
         on_initialize();
-        let remaining_weight = remaining_weight.unwrap_or_else(BlockGasLimitOf::<Runtime>::get);
-        Gear::run_queue(remaining_weight);
+
+        // Spend the maximum weight of the block to account for the weight of Gear::run() in the current block.
+        let max_block_weight = RuntimeBlockWeights::get().max_block;
+        System::register_extra_weight_unchecked(max_block_weight, DispatchClass::Mandatory);
+
+        Gear::run(RawOrigin::None.into(), None).unwrap();
         on_finalize_without_system();
+
+        assert!(!System::events()
+            .iter()
+            .any(|e| { matches!(e.event, RuntimeEvent::Gear(GearEvent::QueueNotProcessed)) }))
     }
 }
 
@@ -76,8 +88,8 @@ pub fn initialize(new_bn: BlockNumberFor<Runtime>) {
     System::set_block_number(new_bn);
 }
 
-/// Run `on_initialize hooks` in order as they appear in `AllPalletsWithSystem`.
-pub fn on_initialize() {
+/// Run `on_initialize hooks` in order as they appear in `vara_runtime`.
+pub(super) fn on_initialize() {
     System::on_initialize(System::block_number());
     Authorship::on_initialize(System::block_number());
     GearGas::on_initialize(System::block_number());
@@ -85,13 +97,12 @@ pub fn on_initialize() {
     Gear::on_initialize(System::block_number());
 }
 
-/// Run on_finalize hooks in pallets reversed order, as they appear in
-/// `AllPalletsWithSystem`.
-// TODO #2307
-pub fn on_finalize_without_system() {
+/// Run on_finalize hooks in pallets reversed order, as they appear in `vara_runtime`.
+fn on_finalize_without_system() {
     let bn = System::block_number();
     Gear::on_finalize(bn);
     GearMessenger::on_finalize(bn);
     GearGas::on_finalize(bn);
+    TransactionPayment::on_finalize(bn);
     Authorship::on_finalize(bn);
 }

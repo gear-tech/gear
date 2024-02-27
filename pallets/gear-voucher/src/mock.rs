@@ -18,7 +18,7 @@
 
 #![allow(unused)]
 
-use crate as pallet_gear_voucher;
+use crate::{self as pallet_gear_voucher, VoucherId};
 use common::{
     storage::{Interval, Mailbox},
     Origin,
@@ -83,6 +83,7 @@ impl crate::PrepaidCallsDispatcher for () {
     fn dispatch(
         _account_id: Self::AccountId,
         _sponsor_id: Self::AccountId,
+        _voucher_id: VoucherId,
         _call: pallet_gear_voucher::PrepaidCall<Balance>,
     ) -> frame_support::pallet_prelude::DispatchResultWithPostInfo {
         Ok(().into())

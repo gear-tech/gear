@@ -20,6 +20,10 @@
 
 use blake2_rfc::blake2b;
 use core::convert::TryInto;
+use scale_info::{
+    scale::{Decode, Encode},
+    TypeInfo,
+};
 
 /// Hash length used in gear protocol.
 pub const HASH_LENGTH: usize = 32;
@@ -54,11 +58,11 @@ macro_rules! declare_id {
             Ord,
             PartialEq,
             PartialOrd,
-            scale_info::scale::Decode,
-            scale_info::scale::Encode,
+            Decode,
+            Encode,
             parity_scale_codec::MaxEncodedLen,
             derive_more::From,
-            scale_info::TypeInfo,
+            TypeInfo,
         )]
         pub struct $name($crate::ids::Hash);
 

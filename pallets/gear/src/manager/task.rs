@@ -176,7 +176,7 @@ where
 
         if waitlisted.kind() == DispatchKind::Init {
             let origin = waitlisted.source();
-            Self::process_failed_init(program_id, origin, true);
+            Self::process_failed_init(program_id, origin);
         }
 
         let gas = <T as Config>::WeightInfo::tasks_remove_from_waitlist().ref_time();
@@ -222,7 +222,7 @@ where
         // Charging locked gas for holding in dispatch stash.
         Pallet::<T>::charge_for_hold(dispatch.id(), hold_interval, StorageType::DispatchStash);
 
-        QueueOf::<T>::queue(dispatch)
+        QueueOf::<T>::queue(dispatch.into())
             .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
 
         let gas = <T as Config>::WeightInfo::tasks_send_dispatch().ref_time();

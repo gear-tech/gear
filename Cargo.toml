@@ -41,7 +41,7 @@ members = [
     "examples/init-fail-sender",
     "examples/init-wait",
     "examples/init-wait-reply-exit",
-    "examples/messager",
+    "examples/messenger",
     "examples/mul-by-const",
     "examples/ncompose",
     "examples/new-meta",
@@ -95,7 +95,7 @@ members = [
 ]
 
 [workspace.dependencies]
-anyhow = "1.0.79"
+anyhow = "1.0.80"
 arbitrary = "1.3.2"
 async-recursion = "1.0.5"
 async-trait = "0.1.77"
@@ -104,7 +104,7 @@ byteorder = { version = "1.5.0", default-features = false }
 blake2-rfc = { version = "0.2.18", default-features = false }
 bs58 = { version = "0.5.0", default-features = false }
 cargo_metadata = "0.18.1"
-clap = "4.4.18"
+clap = "4.5.1"
 codec = { package = "parity-scale-codec", version = "3.6.4", default-features = false }
 color-eyre = "0.6.2"
 colored = "2.1.0"
@@ -121,6 +121,7 @@ futures-util = "0.3.30"
 hashbrown = "0.14.3"
 hex = { version = "0.4.3", default-features = false }
 hex-literal = "0.4.1"
+impl-trait-for-tuples = "0.2.2"
 jsonrpsee = { version = "^0.16" }
 lazy_static = "1.4.0"
 libc = { version = "0.2", default-features = false }
@@ -140,7 +141,7 @@ rand = { version = "0.8", default-features = false }
 rayon = "1.8"
 regex = "^1.9"
 region = "3.0.0"
-reqwest = { version = "0.11.23", default-features = false }
+reqwest = { version = "0.11.24", default-features = false }
 scale-info = { version = "2.5.0", default-features = false }
 serde = "^1"
 serde_json = "^1"
@@ -149,9 +150,9 @@ sha-1 = "0.10.1"
 subxt = "0.32.1"
 subxt-metadata = "0.32.1"
 subxt-codegen = "0.32.1"
-syn = "2.0.41"
-thiserror = "1.0.56"
-tokio = { version = "1.35.1" }
+syn = "2.0.49"
+thiserror = "1.0.57"
+tokio = { version = "1.36.0" }
 url = "2.5.0"
 wat = "1.0.83"
 wabt = "0.10.0"
@@ -163,7 +164,7 @@ wasmparser = { package = "wasmparser-nostd", version = "0.100.1", default-featur
 which = "4.4.2"
 winapi = "0.3.9"
 paste = "1.0"
-tempfile = "3.9.0"
+tempfile = "3.10.0"
 
 # Published deps
 #
@@ -187,6 +188,7 @@ gsdk = { path = "gsdk" }
 gsdk-codegen = { path = "gsdk/codegen" }
 gstd = { path = "gstd", features = ["nightly"] }
 gstd-codegen = { path = "gstd/codegen" }
+gring = { workspace = true, path = "utils/gring" }
 gsys = { path = "gsys" }
 gtest = { path = "gtest" }
 gmeta = { path = "gmeta" }
@@ -232,6 +234,9 @@ pallet-gear-staking-rewards-rpc = { path = "pallets/staking-rewards/rpc" }
 pallet-gear-staking-rewards-rpc-runtime-api = { path = "pallets/staking-rewards/rpc/runtime-api", default-features = false }
 pallet-gear-voucher = { path = "pallets/gear-voucher", default-features = false }
 pallet-gear-bank = { path = "pallets/gear-bank", default-features = false }
+pallet-gear-builtin = { path = "pallets/gear-builtin", default-features = false }
+pallet-gear-builtin-rpc = { path = "pallets/gear-builtin/rpc" }
+pallet-gear-builtin-rpc-runtime-api = { path = "pallets/gear-builtin/rpc/runtime-api", default-features = false }
 runtime-common = { package = "gear-runtime-common", path = "runtime/common", default-features = false }
 runtime-primitives = { package = "gear-runtime-primitives", path = "runtime/primitives", default-features = false }
 service = { package = "gear-service", path = "node/service", default-features = false }
@@ -390,7 +395,7 @@ demo-incomplete-async-payloads = { path = "examples/incomplete-async-payloads" }
 demo-init-fail-sender = { path = "examples/init-fail-sender" }
 demo-init-wait = { path = "examples/init-wait", default-features = false }
 demo-init-wait-reply-exit = { path = "examples/init-wait-reply-exit" }
-demo-messager = { path = "examples/messager" }
+demo-messenger = { path = "examples/messenger" }
 demo-meta-io = { path = "examples/new-meta/io" }
 demo-mul-by-const = { path = "examples/mul-by-const" }
 demo-new-meta = { path = "examples/new-meta" }
@@ -426,8 +431,7 @@ demo-wat = { path = "examples/wat" }
 cfg-if = "1.0.0"                                                          # gear-lazy-pages
 errno = "0.3"                                                             # gear-lazy-pages
 nix = "0.26.4"                                                            # gear-lazy-pages
-impl-trait-for-tuples = "0.2.2"                                           # pallets/staking-rewards
-indexmap = "2.1.0"                                                        # utils/weight-diff
+indexmap = "2.2.3"                                                        # utils/weight-diff
 indicatif = "*"                                                           # utils/wasm-gen
 keyring = "1.2.1"                                                         # gcli
 libp2p = "=0.51.4"                                                        # gcli (same version as sc-consensus)
@@ -443,9 +447,9 @@ scopeguard = { version = "1.2.0", default-features = false }              # pall
 tabled = "0.10.0"                                                         # utils/regression-analysis
 thousands = "0.2.0"                                                       # utils/regression-analysis
 toml = "0.7.8"                                                            # utils/wasm-builder
-tracing = "0.1.40"                                                        # utils/node-loder
-tracing-appender = "0.2"                                                  # utils/node-loder
-tracing-subscriber = "0.3.18"                                             # utils/node-loder
+tracing = "0.1.40"                                                        # utils/node-loader
+tracing-appender = "0.2"                                                  # utils/node-loader
+tracing-subscriber = "0.3.18"                                             # utils/node-loader
 trybuild = "1"                                                            # gstd/codegen
 wasm-opt = "0.112.0"                                                      # utils/wasm-builder
 wasmprinter = "0.2"                                                       # utils/wasm-gen
@@ -453,11 +457,12 @@ whoami = "1.4.0"                                                          # gcli
 fail = "0.5"                                                              # gear-common
 scale-value = "^0.12"                                                     # gsdk
 heck = "0.4.1"                                                            # gsdk-api-gen
-etc = "0.1.18"                                                            # gcli
-toml_edit = "0.21.0"                                                      # crates-io
+etc = "0.1.19"                                                            # gcli
+toml_edit = "0.21.1"                                                      # crates-io
 scale-decode = "0.9.0"                                                    # gsdk
 directories = "5.0.1"                                                     # utils/key-finder
 num-traits = { version = "0.2", default-features = false }                # gear-core
+blake2 = "0.10.6"                                                         # gring
 
 # TODO: remove after wasmer bug is fixed:
 # `misaligned pointer dereference: address must be a multiple of 0x8 but is...`

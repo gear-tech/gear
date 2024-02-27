@@ -17,10 +17,9 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::*;
-use crate::queue::{ActorResult, QueueStep};
+use crate::queue::QueueStep;
 use common::ActiveProgram;
 use core::convert::TryFrom;
-use core_processor::common::PrechargedDispatch;
 use frame_support::traits::PalletInfo;
 use gear_core::{code::TryNewCodeConfig, pages::WasmPage, program::MemoryInfix};
 use gear_wasm_instrument::syscalls::SyscallName;
@@ -71,7 +70,10 @@ where
             .saturating_add(value_for_gas)
             .saturating_add(value);
 
-        CurrencyOf::<T>::deposit_creating(&origin, required_balance.saturating_sub(origin_balance));
+        let _ = CurrencyOf::<T>::deposit_creating(
+            &origin,
+            required_balance.saturating_sub(origin_balance),
+        );
 
         let who = frame_support::dispatch::RawOrigin::Signed(origin);
 
@@ -164,6 +166,9 @@ where
 
         Self::update_gas_allowance(gas_allowance);
 
+        // Create an instance of a builtin dispatcher.
+        let (builtin_dispatcher, _) = T::BuiltinDispatcherFactory::create();
+
         loop {
             if QueueProcessingOf::<T>::denied() {
                 return Err(ALLOWANCE_LIMIT_ERR.as_bytes().to_vec());
@@ -177,40 +182,30 @@ where
 
             let actor_id = queued_dispatch.destination();
             let dispatch_id = queued_dispatch.id();
-            let dispatch_reply = queued_dispatch.reply_details().is_some();
-
-            let balance = CurrencyOf::<T>::free_balance(&actor_id.cast());
-
-            let get_actor_data = |precharged_dispatch: PrechargedDispatch| {
-                // At this point gas counters should be changed accordingly so fetch the program data.
-                match Self::get_active_actor_data(actor_id, dispatch_id, dispatch_reply) {
-                    ActorResult::Data(data) => Ok((precharged_dispatch, data)),
-                    ActorResult::Continue => Err(precharged_dispatch),
-                }
-            };
-
-            let success_reply = queued_dispatch
-                .reply_details()
-                .map(|rd| rd.to_reply_code().is_success())
-                .unwrap_or(false);
 
             let gas_limit = GasHandlerOf::<T>::get_limit(dispatch_id)
                 .map_err(|_| internal_err("Failed to get gas limit"))?;
 
-            let skip_if_allowed = success_reply && gas_limit == 0;
+            let (journal, skip_if_allowed) = if let Some(f) = builtin_dispatcher.lookup(&actor_id) {
+                (builtin_dispatcher.run(f, queued_dispatch, gas_limit), false)
+            } else {
+                let balance = CurrencyOf::<T>::free_balance(&actor_id.cast());
 
-            let step = QueueStep {
-                block_config: &block_config,
-                ext_manager: &mut ext_manager,
-                gas_limit,
-                dispatch: queued_dispatch,
-                balance: balance.unique_saturated_into(),
-                get_actor_data,
+                let success_reply = queued_dispatch
+                    .reply_details()
+                    .map(|rd| rd.to_reply_code().is_success())
+                    .unwrap_or(false);
+
+                let step = QueueStep {
+                    block_config: &block_config,
+                    ext_manager: &mut ext_manager,
+                    gas_limit,
+                    dispatch: queued_dispatch,
+                    balance: balance.unique_saturated_into(),
+                };
+
+                (Self::run_queue_step(step), success_reply && gas_limit == 0)
             };
-
-            let journal = step
-                .execute()
-                .map_err(|_| internal_err("Queue execution error"))?;
 
             let get_main_limit = || {
                 // For case when node is not consumed and has any (even zero) balance

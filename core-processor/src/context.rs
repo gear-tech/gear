@@ -133,7 +133,6 @@ impl From<(ContextChargedForMemory, InstrumentedCode, u128)> for ProcessExecutio
             actor_data.memory_infix,
             code,
             actor_data.allocations,
-            actor_data.initialized,
         );
 
         // Must be created once per taken from the queue dispatch by program.
@@ -159,6 +158,7 @@ impl ProcessExecutionContext {
     }
 }
 
+/// System reservation context.
 #[derive(Debug, Default)]
 pub struct SystemReservationContext {
     /// Reservation created in current execution.
@@ -168,6 +168,7 @@ pub struct SystemReservationContext {
 }
 
 impl SystemReservationContext {
+    /// Extracts reservation context from dispatch.
     pub fn from_dispatch(dispatch: &IncomingDispatch) -> Self {
         Self {
             current_reservation: None,
@@ -178,6 +179,7 @@ impl SystemReservationContext {
         }
     }
 
+    /// Checks if there are any reservations.
     pub fn has_any(&self) -> bool {
         self.current_reservation.is_some() || self.previous_reservation.is_some()
     }

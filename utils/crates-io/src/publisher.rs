@@ -114,6 +114,16 @@ impl Publisher {
             panic!("Packages {failed:?} failed to pass the check ...");
         }
 
+        // Post tests for gtest and gclient
+        for (pkg, test) in [
+            ("demo-syscall-error", "program_can_be_initialized"),
+            ("gsdk", "timeout"),
+        ] {
+            if !crate::test(pkg, test)?.success() {
+                panic!("{pkg}:{test} failed to pass the test ...");
+            }
+        }
+
         Ok(())
     }
 

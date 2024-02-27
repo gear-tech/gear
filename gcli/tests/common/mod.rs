@@ -17,17 +17,12 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Common utils for integration tests
-pub use self::{
-    args::Args,
-    node::{Convert, NodeExec},
-    result::{Error, Result},
-};
+pub use self::{args::Args, node::NodeExec, result::Result};
 use gear_core::ids::{CodeId, ProgramId};
 use gsdk::{
     ext::{sp_core::crypto::Ss58Codec, sp_runtime::AccountId32},
     testing::Node,
 };
-pub use scale_info::scale::Encode;
 use std::{
     iter::IntoIterator,
     process::{Command, Output},
@@ -86,7 +81,7 @@ pub fn init_logger() {
 
 /// Login as //Alice
 pub fn login_as_alice() -> Result<()> {
-    let _ = gcli(["login", "//Alice"])?;
+    let _ = gcli(["wallet", "dev"])?;
 
     Ok(())
 }
@@ -106,7 +101,7 @@ pub fn alice_account_id() -> AccountId32 {
 pub async fn create_messager() -> Result<Node> {
     let node = dev()?;
 
-    let args = Args::new("upload").program(env::wasm_bin("demo_messager.opt.wasm"));
+    let args = Args::new("upload").program(env::wasm_bin("demo_messenger.opt.wasm"));
     let _ = node.run(args)?;
 
     Ok(node)

@@ -26,6 +26,7 @@ extern crate alloc;
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
 
+mod builtin;
 mod internal;
 mod queue;
 mod runtime_api;
@@ -43,6 +44,7 @@ mod tests;
 pub mod pallet_tests;
 
 pub use crate::{
+    builtin::{BuiltinCache, BuiltinDispatcher, BuiltinDispatcherFactory, HandleFn},
     manager::{ExtManager, HandleKind},
     pallet::*,
     schedule::{HostFnWeights, InstructionWeights, Limits, MemoryWeights, Schedule},
@@ -69,15 +71,18 @@ use frame_support::{
     traits::{ConstBool, Currency, ExistenceRequirement, Get, Randomness, StorageVersion},
     weights::Weight,
 };
-use frame_system::pallet_prelude::{BlockNumberFor, *};
+use frame_system::{
+    pallet_prelude::{BlockNumberFor, *},
+    RawOrigin,
+};
 use gear_core::{
-    code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId},
+    code::{Code, CodeAndId, CodeError, InstrumentedCode, InstrumentedCodeAndId},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     message::*,
     percent::Percent,
 };
 use manager::{CodeInfo, QueuePostProcessingData};
-use pallet_gear_voucher::{PrepaidCall, PrepaidCallsDispatcher};
+use pallet_gear_voucher::{PrepaidCall, PrepaidCallsDispatcher, VoucherId, WeightInfo as _};
 use primitive_types::H256;
 use sp_runtime::{
     traits::{Bounded, One, Saturating, UniqueSaturatedInto, Zero},
@@ -205,6 +210,7 @@ pub mod pallet {
             MailboxSecondKey = MessageId,
             MailboxedMessage = UserStoredMessage,
             QueuedDispatch = StoredDispatch,
+            DelayedDispatch = StoredDelayedDispatch,
             WaitlistFirstKey = ProgramId,
             WaitlistSecondKey = MessageId,
             WaitlistedMessage = StoredDispatch,
@@ -257,6 +263,12 @@ pub mod pallet {
         /// rent is disabled.
         #[pallet::constant]
         type ProgramRentDisabledDelta: Get<BlockNumberFor<Self>>;
+
+        /// The builtin dispatcher factory.
+        type BuiltinDispatcherFactory: BuiltinDispatcherFactory;
+
+        /// The builtin cache for quick actor ids lookup.
+        type BuiltinCache: BuiltinCache;
     }
 
     #[pallet::pallet]
@@ -805,11 +817,12 @@ pub mod pallet {
                 .unwrap_or(false)
         }
 
-        /// Returns true if id is a program and the program has active status.
+        /// Returns true if `program_id` is that of a in active status or the builtin actor.
         pub fn is_active(program_id: ProgramId) -> bool {
-            ProgramStorageOf::<T>::get_program(program_id)
-                .map(|program| program.is_active())
-                .unwrap_or_default()
+            T::BuiltinCache::exists(&program_id)
+                || ProgramStorageOf::<T>::get_program(program_id)
+                    .map(|program| program.is_active())
+                    .unwrap_or_default()
         }
 
         /// Returns true if id is a program and the program has terminated status.
@@ -826,10 +839,12 @@ pub mod pallet {
                 .unwrap_or_default()
         }
 
-        /// Returns true if there is a program with the specified id (it may be paused).
+        /// Returns true if there is a program with the specified `program_id`` (it may be paused)
+        /// or this `program_id` belongs to the built-in actor.
         pub fn program_exists(program_id: ProgramId) -> bool {
             ProgramStorageOf::<T>::program_exists(program_id)
                 || ProgramStorageOf::<T>::paused_program_exists(&program_id)
+                || T::BuiltinCache::exists(&program_id)
         }
 
         /// Returns exit argument of an exited program.
@@ -1064,7 +1079,7 @@ pub mod pallet {
         pub(crate) fn reinstrument_code(
             code_id: CodeId,
             schedule: &Schedule<T>,
-        ) -> InstrumentedCode {
+        ) -> Result<InstrumentedCode, CodeError> {
             debug_assert!(T::CodeStorage::get_code(code_id).is_some());
 
             // By the invariant set in CodeStorage trait, original code can't exist in storage
@@ -1079,15 +1094,14 @@ pub mod pallet {
                 schedule.instruction_weights.version,
                 |module| schedule.rules(module),
                 schedule.limits.stack_height,
-            )
-            .unwrap_or_else(|e| unreachable!("Unexpected re-instrumentation failure: {:?}", e));
+            )?;
 
             let code_and_id = CodeAndId::from_parts_unchecked(code, code_id);
             let code_and_id = InstrumentedCodeAndId::from(code_and_id);
             T::CodeStorage::update_code(code_and_id.clone());
             let (code, _) = code_and_id.into_parts();
 
-            code
+            Ok(code)
         }
 
         pub(crate) fn try_new_code(code: Vec<u8>) -> Result<CodeAndId, DispatchError> {
@@ -1105,7 +1119,7 @@ pub mod pallet {
                 schedule.limits.stack_height,
             )
             .map_err(|e| {
-                log::debug!("Code failed to load: {:?}", e);
+                log::debug!("Code checking or instrumentation failed: {e}");
                 Error::<T>::ProgramConstructionFailed
             })?;
 
@@ -1774,7 +1788,10 @@ pub mod pallet {
         }
     }
 
-    impl<T: Config> PrepaidCallsDispatcher for Pallet<T>
+    /// Dispatcher for all types of prepaid calls: gear or gear-voucher pallets.
+    pub struct PrepaidCallDispatcher<T: Config + pallet_gear_voucher::Config>(PhantomData<T>);
+
+    impl<T: Config + pallet_gear_voucher::Config> PrepaidCallsDispatcher for PrepaidCallDispatcher<T>
     where
         T::AccountId: Origin,
     {
@@ -1792,12 +1809,16 @@ pub mod pallet {
                 PrepaidCall::UploadCode { code } => {
                     <T as Config>::WeightInfo::upload_code(code.len() as u32 / 1024)
                 }
+                PrepaidCall::DeclineVoucher => {
+                    <T as pallet_gear_voucher::Config>::WeightInfo::decline()
+                }
             }
         }
 
         fn dispatch(
             account_id: Self::AccountId,
             sponsor_id: Self::AccountId,
+            voucher_id: VoucherId,
             call: PrepaidCall<Self::Balance>,
         ) -> DispatchResultWithPostInfo {
             match call {
@@ -1807,7 +1828,7 @@ pub mod pallet {
                     gas_limit,
                     value,
                     keep_alive,
-                } => Self::send_message_impl(
+                } => Pallet::<T>::send_message_impl(
                     account_id,
                     destination,
                     payload,
@@ -1822,7 +1843,7 @@ pub mod pallet {
                     gas_limit,
                     value,
                     keep_alive,
-                } => Self::send_reply_impl(
+                } => Pallet::<T>::send_reply_impl(
                     account_id,
                     reply_to_id,
                     payload,
@@ -1831,7 +1852,11 @@ pub mod pallet {
                     keep_alive,
                     Some(sponsor_id),
                 ),
-                PrepaidCall::UploadCode { code } => Self::upload_code_impl(account_id, code),
+                PrepaidCall::UploadCode { code } => Pallet::<T>::upload_code_impl(account_id, code),
+                PrepaidCall::DeclineVoucher => pallet_gear_voucher::Pallet::<T>::decline(
+                    RawOrigin::Signed(account_id).into(),
+                    voucher_id,
+                ),
             }
         }
     }
@@ -1843,11 +1868,15 @@ pub mod pallet {
         type Gas = GasBalanceOf<T>;
 
         fn run_queue(initial_gas: Self::Gas) -> Self::Gas {
-            // Setting adjusted initial gas allowance
-            GasAllowanceOf::<T>::put(initial_gas);
+            // Create an instance of a builtin dispatcher.
+            let (builtin_dispatcher, gas_cost) = T::BuiltinDispatcherFactory::create();
+
+            // Setting initial gas allowance adjusted for builtin dispatcher creation cost.
+            GasAllowanceOf::<T>::put(initial_gas.saturating_sub(gas_cost));
 
             // Ext manager creation.
-            // It will be processing messages execution results following its `JournalHandler` trait implementation.
+            // It will be processing messages execution results following its `JournalHandler`
+            // trait implementation.
             // It also will handle delayed tasks following `TasksHandler`.
             let mut ext_manager = Default::default();
 
@@ -1855,7 +1884,7 @@ pub mod pallet {
             Self::process_tasks(&mut ext_manager);
 
             // Processing message queue.
-            Self::process_queue(ext_manager);
+            Self::process_queue(ext_manager, builtin_dispatcher);
 
             // Calculating weight burned within the block.
             initial_gas.saturating_sub(GasAllowanceOf::<T>::get())

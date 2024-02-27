@@ -273,8 +273,7 @@ impl pallet_babe::Config for Runtime {
     type WeightInfo = ();
     type MaxAuthorities = MaxAuthorities;
 
-    type KeyOwnerProof =
-        <Historical as KeyOwnerProofSystem<(KeyTypeId, pallet_babe::AuthorityId)>>::Proof;
+    type KeyOwnerProof = sp_session::MembershipProof;
     type EquivocationReportSystem =
         pallet_babe::EquivocationReportSystem<Self, Offences, Historical, ReportLongevity>;
 }
@@ -285,7 +284,7 @@ impl pallet_grandpa::Config for Runtime {
     type WeightInfo = ();
     type MaxAuthorities = MaxAuthorities;
     type MaxSetIdSessionEntries = MaxSetIdSessionEntries;
-    type KeyOwnerProof = <Historical as KeyOwnerProofSystem<(KeyTypeId, GrandpaId)>>::Proof;
+    type KeyOwnerProof = sp_session::MembershipProof;
     type EquivocationReportSystem =
         pallet_grandpa::EquivocationReportSystem<Self, Offences, Historical, ReportLongevity>;
 }
@@ -1015,6 +1014,8 @@ impl pallet_gear::Config for Runtime {
     type BlockLimiter = GearGas;
     type Scheduler = GearScheduler;
     type QueueRunner = Gear;
+    type BuiltinDispatcherFactory = GearBuiltin;
+    type BuiltinCache = GearBuiltin;
     type ProgramRentFreePeriod = ConstU32<{ MONTHS * RENT_FREE_PERIOD_MONTH_FACTOR }>;
     type ProgramResumeMinimalRentPeriod = ConstU32<{ WEEKS * RENT_RESUME_WEEK_FACTOR }>;
     type ProgramRentCostPerBlock = ConstU128<RENT_COST_PER_BLOCK>;
@@ -1054,6 +1055,21 @@ impl pallet_gear_gas::Config for Runtime {
 impl pallet_gear_messenger::Config for Runtime {
     type BlockLimiter = GearGas;
     type CurrentBlockNumber = Gear;
+}
+
+/// Builtin actors arranged in a tuple.
+#[cfg(not(feature = "runtime-benchmarks"))]
+pub type BuiltinActors = ();
+#[cfg(feature = "runtime-benchmarks")]
+pub type BuiltinActors = pallet_gear_builtin::benchmarking::BenchmarkingBuiltinActor<Runtime>;
+
+parameter_types! {
+    pub const BuiltinActorPalletId: PalletId = PalletId(*b"py/biact");
+}
+
+impl pallet_gear_builtin::Config for Runtime {
+    type Builtins = BuiltinActors;
+    type WeightInfo = pallet_gear_builtin::weights::SubstrateWeight<Runtime>;
 }
 
 pub struct ExtraFeeFilter;
@@ -1099,7 +1115,7 @@ impl pallet_gear_voucher::Config for Runtime {
     type Currency = Balances;
     type PalletId = VoucherPalletId;
     type WeightInfo = weights::pallet_gear_voucher::SubstrateWeight<Runtime>;
-    type CallsDispatcher = Gear;
+    type CallsDispatcher = pallet_gear::PrepaidCallDispatcher<Runtime>;
     type Mailbox = <GearMessenger as Messenger>::Mailbox;
     type MaxProgramsAmount = ConstU8<32>;
     type MaxDuration = MaxVoucherDuration;
@@ -1181,6 +1197,7 @@ construct_runtime!(
         StakingRewards: pallet_gear_staking_rewards = 106,
         GearVoucher: pallet_gear_voucher = 107,
         GearBank: pallet_gear_bank = 108,
+        GearBuiltin: pallet_gear_builtin = 109,
 
         Sudo: pallet_sudo = 99,
 
@@ -1241,6 +1258,7 @@ construct_runtime!(
         StakingRewards: pallet_gear_staking_rewards = 106,
         GearVoucher: pallet_gear_voucher = 107,
         GearBank: pallet_gear_bank = 108,
+        GearBuiltin: pallet_gear_builtin = 109,
 
         // NOTE (!): `pallet_sudo` used to be idx(99).
         // NOTE (!): `pallet_airdrop` used to be idx(198).
@@ -1307,6 +1325,7 @@ mod benches {
         // Gear pallets
         [pallet_gear, Gear]
         [pallet_gear_voucher, GearVoucher]
+        [pallet_gear_builtin, GearBuiltin]
     );
 }
 
@@ -1407,6 +1426,12 @@ impl_runtime_apis_plus_common! {
     impl pallet_gear_staking_rewards_rpc_runtime_api::GearStakingRewardsApi<Block> for Runtime {
         fn inflation_info() -> pallet_gear_staking_rewards::InflationInfo {
             StakingRewards::inflation_info()
+        }
+    }
+
+    impl pallet_gear_builtin_rpc_runtime_api::GearBuiltinApi<Block> for Runtime {
+        fn query_actor_id(builtin_id: u64) -> H256 {
+            GearBuiltin::generate_actor_id(builtin_id).into_bytes().into()
         }
     }
 

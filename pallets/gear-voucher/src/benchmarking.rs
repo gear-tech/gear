@@ -35,7 +35,7 @@ benchmarks! {
     issue {
         // Origin account.
         let origin = benchmarking::account::<T::AccountId>("origin", 0, 0);
-        CurrencyOf::<T>::deposit_creating(
+        let _ = CurrencyOf::<T>::deposit_creating(
             &origin,
             100_000_000_000_000_u128.unique_saturated_into()
         );
@@ -72,7 +72,7 @@ benchmarks! {
     revoke {
         // Origin account.
         let origin = benchmarking::account::<T::AccountId>("origin", 0, 0);
-        CurrencyOf::<T>::deposit_creating(
+        let _ = CurrencyOf::<T>::deposit_creating(
             &origin,
             100_000_000_000_000_u128.unique_saturated_into()
         );
@@ -102,7 +102,7 @@ benchmarks! {
     update {
         // Origin account.
         let origin = benchmarking::account::<T::AccountId>("origin", 0, 0);
-        CurrencyOf::<T>::deposit_creating(
+        let _ = CurrencyOf::<T>::deposit_creating(
             &origin,
             100_000_000_000_000_u128.unique_saturated_into()
         );
@@ -151,6 +151,35 @@ benchmarks! {
         let voucher_info = Vouchers::<T>::get(spender, voucher_id).expect("Must be");
         assert_eq!(voucher_info.programs.map(|v| v.len()), Some(<<T as Config>::MaxProgramsAmount as Get<u8>>::get() as usize));
         assert_eq!(CurrencyOf::<T>::free_balance(&voucher_id.cast::<T::AccountId>()), balance * 2u128.unique_saturated_into());
+    }
+
+    decline {
+        // Origin account.
+        let origin = benchmarking::account::<T::AccountId>("origin", 0, 0);
+        let _ = CurrencyOf::<T>::deposit_creating(
+            &origin,
+            100_000_000_000_000_u128.unique_saturated_into()
+        );
+
+        // Spender account.
+        let spender = benchmarking::account::<T::AccountId>("spender", 0, 1);
+
+        // Voucher balance.
+        let balance = 10_000_000_000_000_u128.unique_saturated_into();
+
+        // Forbid uploading codes.
+        let code_uploading = false;
+
+        // Voucher validity.
+        let validity = <<T as Config>::MinDuration as Get<BlockNumberFor<T>>>::get();
+
+        // Issue voucher.
+        assert!(Pallet::<T>::issue(RawOrigin::Signed(origin.clone()).into(), spender.clone(), balance, None, code_uploading, validity).is_ok());
+        let (_, voucher_id, _) = Vouchers::<T>::iter().next().expect("Couldn't find voucher");
+    }: _(RawOrigin::Signed(spender.clone()), voucher_id)
+    verify {
+        let voucher_info = Vouchers::<T>::get(spender, voucher_id).expect("Must be");
+        assert_eq!(voucher_info.expiry, frame_system::Pallet::<T>::block_number());
     }
 }
 

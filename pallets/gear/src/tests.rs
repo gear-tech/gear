@@ -55,7 +55,7 @@ use common::{
 };
 use core_processor::{common::ActorExecutionErrorReplyReason, ActorPrepareMemoryError};
 use frame_support::{
-    assert_err, assert_noop, assert_ok,
+    assert_noop, assert_ok,
     codec::{Decode, Encode},
     dispatch::Dispatchable,
     sp_runtime::traits::{TypedGet, Zero},
@@ -63,7 +63,7 @@ use frame_support::{
 };
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
-    code::{self, Code, CodeError},
+    code::{self, Code, CodeError, ExportError},
     ids::{CodeId, MessageId, ProgramId},
     message::UserStoredMessage,
     pages::{PageNumber, PageU32Size, WasmPage},
@@ -1361,9 +1361,7 @@ fn reply_deposit_gstd_async() {
     });
 }
 
-// TODO (#2763): resolve panic caused by "duplicate" wake in message A
 #[test]
-#[should_panic]
 fn pseudo_duplicate_wake() {
     use demo_constructor::{Calls, Scheme};
 
@@ -2270,20 +2268,20 @@ fn delayed_program_creation_no_code() {
         //
         // Total dequeued: message to skip execution + error reply on it.
         //
-        // Single db read burned for querying program data from storage.
+        // One db read burned for querying program data from storage when creating program,
+        // and one more to process error reply.
         assert_last_dequeued(2);
 
         let delayed_block_amount: u64 = 1;
-
         let delay_holding_fee = gas_price(
             delayed_block_amount.saturating_mul(CostsPerBlockOf::<Test>::dispatch_stash()),
         );
+        let read_program_from_storage_fee =
+            gas_price(DbWeightOf::<Test>::get().reads(1).ref_time());
 
         assert_eq!(
             Balances::free_balance(USER_1),
-            free_balance + reserved_balance
-                - delay_holding_fee
-                - gas_price(DbWeightOf::<Test>::get().reads(1).ref_time())
+            free_balance + reserved_balance - delay_holding_fee - 2 * read_program_from_storage_fee
         );
         assert!(GearBank::<Test>::account_total(&USER_1).is_zero());
     })
@@ -9029,7 +9027,7 @@ fn async_sleep_for() {
 
         // Assert the program replied with a message after the sleep.
         // The message payload is a number of the block the program
-        // exited the dealy, i.e. sleep_for_block_number + SLEEP_FOR_BLOCKS.
+        // exited the delay, i.e. sleep_for_block_number + SLEEP_FOR_BLOCKS.
         assert_waiter_single_reply(format!(
             "After the sleep at block: {}",
             sleep_for_block_number + SLEEP_FOR_BLOCKS
@@ -9075,7 +9073,7 @@ fn async_sleep_for() {
 
             // Assert the program replied with a message after the sleep.
             // The message payload is a number of the block the program
-            // exited the dealy, i.e. sleep_for_block_number + LONGER_SLEEP_FOR_BLOCKS.
+            // exited the delay, i.e. sleep_for_block_number + LONGER_SLEEP_FOR_BLOCKS.
             assert_waiter_single_reply(format!(
                 "After the sleep at block: {}",
                 sleep_for_block_number + LONGER_SLEEP_FOR_BLOCKS
@@ -9122,7 +9120,7 @@ fn async_sleep_for() {
 
             // Assert the program replied with a message after the sleep.
             // The message payload is a number of the block the program
-            // exited the dealy, i.e. sleep_for_block_number + LONGER_SLEEP_FOR_BLOCKS.
+            // exited the delay, i.e. sleep_for_block_number + LONGER_SLEEP_FOR_BLOCKS.
             assert_waiter_single_reply(format!(
                 "After the sleep at block: {}",
                 sleep_for_block_number + LONGER_SLEEP_FOR_BLOCKS
@@ -9156,7 +9154,7 @@ fn async_sleep_for() {
 
             // Assert the program replied with a message after the sleep.
             // The message payload is a number of the block the program
-            // exited the dealy, i.e. sleep_for_block_number + SLEEP_FOR_BLOCKS.
+            // exited the delay, i.e. sleep_for_block_number + SLEEP_FOR_BLOCKS.
             assert_waiter_single_reply(format!(
                 "After the sleep at block: {}",
                 sleep_for_block_number + SLEEP_FOR_BLOCKS
@@ -9190,7 +9188,7 @@ fn async_sleep_for() {
 
             // Assert the program replied with a message after the sleep.
             // The message payload is a number of the block the program
-            // exited the dealy, i.e. sleep_for_block_number + SLEEP_FOR_BLOCKS.
+            // exited the delay, i.e. sleep_for_block_number + SLEEP_FOR_BLOCKS.
             assert_waiter_single_reply(format!(
                 "After the sleep at block: {}",
                 sleep_for_block_number + SLEEP_FOR_BLOCKS
@@ -9564,7 +9562,7 @@ fn missing_handle_is_not_executed() {
 }
 
 #[test]
-fn invalid_memory_page_count_rejected() {
+fn invalid_memory_page_amount_rejected() {
     let wat = format!(
         r#"
     (module
@@ -9572,7 +9570,7 @@ fn invalid_memory_page_count_rejected() {
         (export "init" (func $init))
         (func $init)
     )"#,
-        code::MAX_WASM_PAGE_COUNT + 1
+        code::MAX_WASM_PAGE_AMOUNT + 1
     );
 
     init_logger();
@@ -9649,6 +9647,90 @@ fn test_reinstrumentation_works() {
         // check new version stands still
         let code = <Test as Config>::CodeStorage::get_code(code_id).unwrap();
         assert_eq!(code.instruction_weights_version(), 0xdeadbeef);
+    })
+}
+
+#[test]
+fn test_reinstrumentation_failure() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let code_id = CodeId::generate(&ProgramCodeKind::Default.to_bytes());
+        let pid = upload_program_default(USER_1, ProgramCodeKind::Default).unwrap();
+
+        run_to_block(2, None);
+
+        let mut old_version = 0;
+        let _reset_guard = DynamicSchedule::mutate(|schedule| {
+            // Insert new original code to cause re-instrumentation failure.
+            let wasm = ProgramCodeKind::Custom("(module)").to_bytes();
+            <<Test as Config>::CodeStorage as CodeStorage>::OriginalCodeStorage::insert(
+                code_id, wasm,
+            );
+
+            old_version = schedule.instruction_weights.version;
+            schedule.instruction_weights.version = 0xdeadbeef;
+        });
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            vec![],
+            10_000_000_000,
+            0,
+            false,
+        ));
+
+        let mid = get_last_message_id();
+
+        run_to_block(3, None);
+
+        // Must be active even after re-instrumentation failure.
+        let program = ProgramStorageOf::<Test>::get_program(pid).unwrap();
+        assert!(program.is_active());
+
+        // After message processing the code must have the old instrumentation version.
+        let code = <Test as Config>::CodeStorage::get_code(code_id).unwrap();
+        assert_eq!(code.instruction_weights_version(), old_version);
+
+        // Error reply must be returned with the reason of re-instrumentation failure.
+        assert_failed(mid, ErrorReplyReason::ReinstrumentationFailure);
+    })
+}
+
+#[test]
+fn test_init_reinstrumentation_failure() {
+    init_logger();
+
+    new_test_ext().execute_with(|| {
+        let code_id = CodeId::generate(&ProgramCodeKind::Default.to_bytes());
+        let pid = upload_program_default(USER_1, ProgramCodeKind::Default).unwrap();
+
+        let mut old_version = 0;
+        let _reset_guard = DynamicSchedule::mutate(|schedule| {
+            // Insert new original code to cause init re-instrumentation failure.
+            let wasm = ProgramCodeKind::Custom("(module)").to_bytes();
+            <<Test as Config>::CodeStorage as CodeStorage>::OriginalCodeStorage::insert(
+                code_id, wasm,
+            );
+
+            old_version = schedule.instruction_weights.version;
+            schedule.instruction_weights.version = 0xdeadbeef;
+        });
+
+        let mid = get_last_message_id();
+
+        run_to_block(2, None);
+
+        // Must be terminated after re-instrumentation failure, because it failed on init.
+        let program = ProgramStorageOf::<Test>::get_program(pid).unwrap();
+        assert!(program.is_terminated());
+
+        // After message processing the code must have the old instrumentation version.
+        let code = <Test as Config>::CodeStorage::get_code(code_id).unwrap();
+        assert_eq!(code.instruction_weights_version(), old_version);
+
+        // Error reply must be returned with the reason of re-instrumentation failure.
+        assert_failed(mid, ErrorReplyReason::ReinstrumentationFailure);
     })
 }
 
@@ -12782,15 +12864,17 @@ fn relay_messages() {
     );
 }
 
+// TODO: move to gear-core after #3736
 #[test]
 fn module_instantiation_error() {
+    // Unknown global import leads to instantiation error.
     let wat = r#"
-    (module
-        (import "env" "memory" (memory 1))
-        (export "init" (func $init))
-        (func $init)
-        (data (;0;) (i32.const -15186172) "\b9w\92")
-    )
+        (module
+            (import "env" "memory" (memory 1))
+            (import "env" "unknown" (global $unknown i32))
+            (export "init" (func $init))
+            (func $init)
+        )
     "#;
 
     init_logger();
@@ -12798,7 +12882,7 @@ fn module_instantiation_error() {
         let code = ProgramCodeKind::Custom(wat).to_bytes();
         let salt = DEFAULT_SALT.to_vec();
         let prog_id = generate_program_id(&code, &salt);
-        let res = Gear::upload_program(
+        Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
             code,
             salt,
@@ -12807,10 +12891,9 @@ fn module_instantiation_error() {
             0,
             false,
         )
-        .map(|_| prog_id);
-        let mid = get_last_message_id();
+        .unwrap();
 
-        assert_ok!(res);
+        let mid = get_last_message_id();
 
         run_to_next_block(None);
 
@@ -12832,15 +12915,15 @@ fn wrong_entry_type() {
 
     init_logger();
     new_test_ext().execute_with(|| {
-        assert_err!(
+        assert!(matches!(
             Code::try_new(
                 ProgramCodeKind::Custom(wat).to_bytes(),
                 1,
                 |_| ConstantCostRules::default(),
                 None
             ),
-            CodeError::InvalidExportFnSignature
-        );
+            Err(CodeError::Export(ExportError::InvalidExportFnSignature(0)))
+        ));
     });
 }
 
@@ -13616,7 +13699,7 @@ fn test_gas_allowance_exceed_no_context() {
         // Setting to 100 million the gas allowance ends faster than gas limit
         run_to_next_block(Some(100_000_000));
 
-        // Execution is denied after reque
+        // Execution is denied after requeue
         assert!(QueueProcessingOf::<Test>::denied());
 
         // Low level check, that no execution context is saved after gas allowance exceeded error
@@ -13751,7 +13834,7 @@ fn test_gas_allowance_exceed_with_context() {
         // execution of the message.
         run_to_next_block(Some(gas_info.min_limit - 100_000));
 
-        // Execution is denied after reque.
+        // Execution is denied after requeue.
         assert!(QueueProcessingOf::<Test>::denied());
 
         // Low level check, that no information on reply sent is saved in the execution
@@ -14223,7 +14306,7 @@ fn calculate_gas_wait() {
         })
         .expect("calculate_gas_info failed");
 
-        // 'wait' syscall greedely consumes all available gas so
+        // 'wait' syscall greedily consumes all available gas so
         // calculated limits should not be equal
         assert!(min_limit > limit_no_rent);
     });
@@ -14845,7 +14928,7 @@ mod utils {
         let mut found_status: Option<DispatchStatus> = None;
         System::events().iter().for_each(|e| {
             if let MockRuntimeEvent::Gear(Event::MessagesDispatched { statuses, .. }) = &e.event {
-                found_status = statuses.get(&message_id).map(Clone::clone);
+                found_status = statuses.get(&message_id).cloned();
             }
         });
 

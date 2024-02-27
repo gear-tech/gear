@@ -60,7 +60,7 @@ macro_rules! dry_run {
 
         let mut ext_manager = Default::default();
         pallet_gear::Pallet::<Test>::process_tasks(&mut ext_manager);
-        pallet_gear::Pallet::<Test>::process_queue(ext_manager);
+        pallet_gear::Pallet::<Test>::process_queue(ext_manager, ());
 
         let $weight = $initial_weight.saturating_sub(GasAllowanceOf::<Test>::get());
     };
@@ -113,7 +113,7 @@ parameter_types! {
 }
 
 thread_local! {
-    static SCHEDULE: RefCell<Option<Schedule<Test>>> = RefCell::new(None);
+    static SCHEDULE: RefCell<Option<Schedule<Test>>> = const { RefCell::new(None) };
 }
 
 #[derive(Debug)]
@@ -173,7 +173,7 @@ impl pallet_gear_voucher::Config for Test {
     type Currency = Balances;
     type PalletId = VoucherPalletId;
     type WeightInfo = ();
-    type CallsDispatcher = Gear;
+    type CallsDispatcher = pallet_gear::PrepaidCallDispatcher<Test>;
     type Mailbox = MailboxOf<Self>;
     type MaxProgramsAmount = ConstU8<32>;
     type MaxDuration = MaxVoucherDuration;

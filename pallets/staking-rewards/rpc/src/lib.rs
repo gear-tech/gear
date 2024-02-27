@@ -82,12 +82,7 @@ where
         let at_hash = at.unwrap_or_else(|| self.client.info().best_hash);
 
         fn map_err(err: impl std::fmt::Debug, desc: &'static str) -> JsonRpseeError {
-            CallError::Custom(ErrorObject::owned(
-                Error::RuntimeError.into(),
-                desc,
-                Some(format!("{err:?}")),
-            ))
-            .into()
+            CallError::Custom(ErrorObject::owned(8000, desc, Some(format!("{err:?}")))).into()
         }
 
         api.inflation_info(at_hash)

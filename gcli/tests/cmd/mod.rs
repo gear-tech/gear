@@ -18,7 +18,6 @@
 
 mod claim;
 mod info;
-mod key;
 mod program;
 mod reply;
 mod send;

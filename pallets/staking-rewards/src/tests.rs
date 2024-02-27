@@ -143,6 +143,7 @@ fn supply_alignment_works() {
 #[test]
 fn genesis_config_works() {
     init_logger();
+
     ExtBuilder::default()
         .initial_authorities(vec![
             (VAL_1_STASH, VAL_1_AUTH_ID),
@@ -221,6 +222,8 @@ fn rewards_account_doesnt_get_deleted() {
 
 #[test]
 fn validators_rewards_disbursement_works() {
+    init_logger();
+
     let (target_inflation, ideal_stake, pool_balance, non_stakeable) = sensible_defaults();
 
     let mut ext = ExtBuilder::default()
@@ -392,6 +395,8 @@ fn validators_rewards_disbursement_works() {
 
 #[test]
 fn nominators_rewards_disbursement_works() {
+    init_logger();
+
     let (target_inflation, ideal_stake, pool_balance, non_stakeable) = sensible_defaults();
     let mut ext = with_parameters(target_inflation, ideal_stake, pool_balance, non_stakeable);
     ext.execute_with(|| {
@@ -603,6 +608,8 @@ fn nominators_rewards_disbursement_works() {
 fn staking_blacklist_works() {
     use sp_runtime::{testing::TestXt, transaction_validity::InvalidTransaction};
 
+    init_logger();
+
     let extra: SignedExtra = StakingBlackList::<Test>::new();
 
     let invalid_call = TestXt::<RuntimeCall, SignedExtra>::new(
@@ -734,6 +741,8 @@ fn staking_blacklist_works() {
 
 #[test]
 fn inflation_at_ideal_staked_adds_up() {
+    init_logger();
+
     let (target_inflation, ideal_stake, pool_balance, non_stakeable) = sensible_defaults();
     let mut ext = with_parameters(target_inflation, ideal_stake, pool_balance, non_stakeable);
     ext.execute_with(|| {
@@ -868,6 +877,8 @@ fn inflation_at_ideal_staked_adds_up() {
 
 #[test]
 fn inflation_when_nobody_stakes_adds_up() {
+    init_logger();
+
     let (target_inflation, ideal_stake, pool_balance, non_stakeable) = sensible_defaults();
     let mut ext = with_parameters(target_inflation, ideal_stake, pool_balance, non_stakeable);
     ext.execute_with(|| {
@@ -1012,6 +1023,8 @@ fn inflation_when_nobody_stakes_adds_up() {
 
 #[test]
 fn inflation_with_too_many_stakers_adds_up() {
+    init_logger();
+
     let (target_inflation, ideal_stake, pool_balance, non_stakeable) = sensible_defaults();
     let mut ext = with_parameters(target_inflation, ideal_stake, pool_balance, non_stakeable);
     ext.execute_with(|| {
@@ -1151,6 +1164,8 @@ fn inflation_with_too_many_stakers_adds_up() {
 
 #[test]
 fn unclaimed_rewards_burn() {
+    init_logger();
+
     let (target_inflation, ideal_stake, pool_balance, non_stakeable) = sensible_defaults();
     let mut ext = with_parameters(target_inflation, ideal_stake, pool_balance, non_stakeable);
     ext.execute_with(|| {
@@ -1211,7 +1226,7 @@ fn unclaimed_rewards_burn() {
         // - at the end of the period claim all rewards and sum up the validators' and the
         //   nominator's balances-in-excess;
         // - since we have outdated rewards that account for some percentage of what was due, the
-        //   actual rewards reseived by stakers will add up to only 84% of projected rewards.
+        //   actual rewards received by stakers will add up to only 84% of projected rewards.
 
         let history_depth = <Test as pallet_staking::Config>::HistoryDepth::get();
 
@@ -1272,6 +1287,8 @@ fn unclaimed_rewards_burn() {
 
 #[test]
 fn empty_rewards_pool_causes_inflation() {
+    init_logger();
+
     let (target_inflation, ideal_stake, _, non_stakeable) = sensible_defaults();
     let pool_balance = 0; // empty rewards pool
     let mut ext = with_parameters(target_inflation, ideal_stake, pool_balance, non_stakeable);
@@ -1325,6 +1342,8 @@ fn empty_rewards_pool_causes_inflation() {
 fn election_solution_rewards_add_up() {
     use pallet_election_provider_multi_phase::{Config as MPConfig, RawSolution};
     use sp_npos_elections::ElectionScore;
+
+    init_logger();
 
     let (target_inflation, ideal_stake, pool_balance, non_stakeable) = sensible_defaults();
     // Solutions submitters
