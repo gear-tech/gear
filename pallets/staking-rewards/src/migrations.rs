@@ -17,24 +17,24 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{Config, Pallet};
-use frame_support::{
-    traits::{Currency, Get, OnRuntimeUpgrade},
-    weights::Weight,
-};
+use frame_support::traits::{Currency, OnRuntimeUpgrade};
 use sp_std::marker::PhantomData;
+#[cfg(feature = "try-runtime")]
+use {sp_runtime::TryRuntimeError, sp_std::vec::Vec};
 
 pub struct CheckRentPoolId<T: Config>(PhantomData<T>);
 
 impl<T: Config> OnRuntimeUpgrade for CheckRentPoolId<T> {
-    fn on_runtime_upgrade() -> Weight {
+    #[cfg(feature = "try-runtime")]
+    fn pre_upgrade() -> Result<Vec<u8>, TryRuntimeError> {
         log::info!("🚚 Running migration check");
 
         if T::Currency::total_balance(&Pallet::<T>::rent_pool_account_id())
             < T::Currency::minimum_balance()
         {
-            log::error!("Rent pool account does not exist!");
+            return Err(TryRuntimeError::Other("Rent pool account does not exist!"));
         }
 
-        T::DbWeight::get().reads(1)
+        Ok(Default::default())
     }
 }
