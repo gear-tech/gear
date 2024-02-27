@@ -221,6 +221,7 @@ where
 {
     type Error = TryFromRangeError;
 
+    // NOTE: trying to make upper not inclusive interval `start..=end - 1`
     fn try_from((start, end): (S, E)) -> Result<Self, Self::Error> {
         let start: T::Bound = start.into();
         let end: T::Bound = end.into();
