@@ -311,17 +311,29 @@ where
     }
 
     fn code_with_memory(program_id: ProgramId) -> Result<CodeWithMemoryData, String> {
-        let program = ProgramStorageOf::<T>::get_program(program_id)
-            .ok_or(String::from("Program not found"))?;
-
-        let program = ActiveProgram::try_from(program)
+        // Load active program from storage.
+        let program: ActiveProgram<_> = ProgramStorageOf::<T>::get_program(program_id)
+            .ok_or(String::from("Program not found"))?
+            .try_into()
             .map_err(|e| format!("Get active program error: {e:?}"))?;
 
-        let instrumented_code = T::CodeStorage::get_code(program.code_hash.cast())
-            .ok_or_else(|| String::from("Failed to get code for given program id"))?;
+        let code_id = program.code_hash.cast();
+
+        // Load instrumented binary code from storage.
+        let mut code = T::CodeStorage::get_code(code_id).ok_or_else(|| {
+            format!("Program '{program_id:?}' exists so must do code '{code_id:?}'")
+        })?;
+
+        // Reinstrument the code if necessary.
+        let schedule = T::Schedule::get();
+
+        if code.instruction_weights_version() != schedule.instruction_weights.version {
+            code = Pallet::<T>::reinstrument_code(code_id, &schedule)
+                .map_err(|e| format!("Code {code_id:?} failed reinstrumentation: {e:?}"))?;
+        }
 
         Ok(CodeWithMemoryData {
-            instrumented_code,
+            instrumented_code: code,
             allocations: program.allocations,
             memory_infix: program.memory_infix,
         })
