@@ -14588,7 +14588,7 @@ fn program_with_large_indexes() {
     // check `CodeTooLarge`.
     let indexes_limit = (code_len_limit - 61) / 5 - 28;
     let funcs = (0..indexes_limit)
-        .map(|_| format!(r#"(func (type 0) nop)"#))
+        .map(|_| "(func (type 0) nop)".to_string())
         .collect::<Vec<String>>()
         .concat();
     let wat = format!(
