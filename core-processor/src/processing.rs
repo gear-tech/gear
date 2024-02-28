@@ -128,6 +128,9 @@ where
         outgoing_bytes_limit,
     };
 
+    // TODO: add tests that system reservation is successfully unreserved after
+    // actor execution error #3756.
+
     // Get system reservation context in order to use it if actor execution error occurs.
     let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
 
