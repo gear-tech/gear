@@ -16,10 +16,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! [NonEmptyInterval], [Interval] implementations.
+//! [`Interval`] implementations.
 
+use crate::{numerated::Numerated, Bound, IntervalIterator};
 use core::{
-    fmt::{self, Debug, Display, Formatter},
+    fmt::{self, Debug, Formatter},
     ops::{Range, RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive},
 };
 use num_traits::{
@@ -27,46 +28,27 @@ use num_traits::{
     CheckedAdd, One, Zero,
 };
 
-use crate::{
-    numerated::{BoundValue, Numerated},
-    Bound,
-};
-
 /// Describes not empty interval start..=end.
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub struct NonEmptyInterval<T> {
+#[derive(Clone, Copy, PartialEq, Eq, derive_more::Display)]
+#[display(fmt = "{}..={}", start, end)]
+pub struct Interval<T> {
     start: T,
     end: T,
 }
 
-/// Describes interval start..=end, where end can be None,
-/// which means that interval is empty.
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub struct Interval<T> {
-    start: T,
-    end: Option<T>,
-}
-
-impl<T: Numerated> From<NonEmptyInterval<T>> for (T, T) {
-    fn from(interval: NonEmptyInterval<T>) -> (T, T) {
-        (interval.start, interval.end)
-    }
-}
-
-impl<T: Numerated> From<NonEmptyInterval<T>> for RangeInclusive<T> {
-    fn from(interval: NonEmptyInterval<T>) -> Self {
-        interval.start..=interval.end
-    }
-}
-
-impl<T: Numerated> NonEmptyInterval<T> {
-    /// Creates new interval start..=end with checks only in debug mode.
+impl<T: Numerated> Interval<T> {
+    /// Creates new interval `start..=end` with checks only in debug mode.
+    ///
     /// # Safety
+    ///
     /// Unsafe, because allows to create invalid interval.
-    /// Safe, when start ≤ end.
+    /// Safe, if `start ≤ end`.
     #[track_caller]
     pub unsafe fn new_unchecked(start: T, end: T) -> Self {
-        debug_assert!(start <= end);
+        debug_assert!(
+            start <= end,
+            "Calling this method you must guarantee that `start ≤ end`"
+        );
         Self { start, end }
     }
 
@@ -85,352 +67,248 @@ impl<T: Numerated> NonEmptyInterval<T> {
         self.end
     }
 
-    /// Converts to [Interval], which implements iterator.
-    pub fn iter(&self) -> Interval<T> {
+    /// Converts to [`IntervalIterator`].
+    pub fn iter(&self) -> IntervalIterator<T> {
         (*self).into()
     }
 
     /// Into (start, end)
-    pub fn into_inner(self) -> (T, T) {
+    pub fn into_parts(self) -> (T, T) {
         self.into()
     }
-}
 
-/// Error which occurs when trying to convert empty [Interval] into [NonEmptyInterval].
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct IntoNonEmptyIntervalError;
+    /// Returns new [`Interval`] with `start` = `start` + 1, if it's possible.
+    pub fn inc_start(&self) -> Option<Self> {
+        let (start, end) = (self.start, self.end);
+        debug_assert!(start <= end, "It's guaranteed by `Interval`");
+        start.inc_if_lt(end).map(|start| {
+            debug_assert!(start <= end, "`T: Numerated` impl error");
+            Interval { start, end }
+        })
+    }
 
-impl<T: Numerated> TryFrom<&Interval<T>> for NonEmptyInterval<T> {
-    type Error = IntoNonEmptyIntervalError;
-
-    fn try_from(interval: &Interval<T>) -> Result<Self, Self::Error> {
-        interval
-            .end
-            .map(|end| unsafe {
-                // Guaranteed by `Self` that start ≤ end
-                NonEmptyInterval::new_unchecked(interval.start, end)
+    /// Trying to make [`Interval`] from `range`.
+    /// - If `range.start > range.end`, then returns [`IncorrectRangeError`].
+    /// - If `range.start == range.end`, then returns [`EmptyRangeError`].
+    pub fn try_from_range(range: Range<T>) -> Result<Self, TryFromRangeError> {
+        let (start, end) = (range.start, range.end);
+        end.dec_if_gt(start)
+            .map(|end| {
+                debug_assert!(start <= end, "`T: Numerated` impl error");
+                Self { start, end }
             })
-            .ok_or(IntoNonEmptyIntervalError)
-    }
-}
-
-impl<T: Numerated> TryFrom<Interval<T>> for NonEmptyInterval<T> {
-    type Error = IntoNonEmptyIntervalError;
-
-    fn try_from(interval: Interval<T>) -> Result<Self, Self::Error> {
-        TryFrom::try_from(&interval)
-    }
-}
-
-impl<T: Numerated> TryFrom<Interval<T>> for RangeInclusive<T> {
-    type Error = IntoNonEmptyIntervalError;
-
-    fn try_from(interval: Interval<T>) -> Result<Self, Self::Error> {
-        NonEmptyInterval::try_from(interval).map(Into::into)
-    }
-}
-
-impl<T: Numerated> Interval<T> {
-    /// Creates new interval start..end if start ≤ end, else returns None.
-    /// If start == end, then returns empty interval.
-    pub fn new<S: Into<T::B>, E: Into<T::B>>(start: S, end: E) -> Option<Self> {
-        Self::try_from((start, end)).ok()
-    }
-    /// Returns interval start.
-    /// - if interval is empty, then returns any existed `T` point,
-    /// which user set when creates this interval.
-    /// - if interval is not empty, then returns the smallest point inside interval.
-    pub fn start(&self) -> T {
-        self.start
-    }
-    /// Returns whether interval is empty.
-    pub fn is_empty(&self) -> bool {
-        self.end.is_none()
-    }
-    /// Tries to convert into (start, end).
-    pub fn into_inner(self) -> Option<(T, T)> {
-        NonEmptyInterval::try_from(self).ok().map(Into::into)
-    }
-    /// Tries to convert into range inclusive.
-    pub fn into_range_inclusive(self) -> Option<RangeInclusive<T>> {
-        RangeInclusive::try_from(self).ok()
-    }
-}
-
-impl<T: Numerated> From<NonEmptyInterval<T>> for Interval<T> {
-    fn from(interval: NonEmptyInterval<T>) -> Self {
-        Self {
-            start: interval.start,
-            end: Some(interval.end),
-        }
-    }
-}
-
-impl<T: Numerated> Iterator for Interval<T> {
-    type Item = T;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if let Some((start, end)) = self.into_inner() {
-            if start == end {
-                self.end = None;
-                Some(start)
+            .ok_or(if start == end {
+                TryFromRangeError::EmptyRange
             } else {
-                // Guaranteed by `Self`
-                debug_assert!(start < end);
+                TryFromRangeError::IncorrectRange
+            })
+    }
+}
 
-                let result = start;
-                let start = start.inc_if_lt(end).unwrap_or_else(|| {
-                    unreachable!("`T: Numerated` impl error: for each s: T, e: T, e > s ⇔ s.inc_if_lt(e) == Some(_)")
-                });
-                self.start = start;
-                Some(result)
-            }
-        } else {
-            None
-        }
+impl<T: Numerated> PartialEq<RangeInclusive<T>> for Interval<T> {
+    fn eq(&self, other: &RangeInclusive<T>) -> bool {
+        let (start, end) = self.into_parts();
+        (start, end) == (*other.start(), *other.end())
+    }
+}
+
+impl<T: Numerated> From<Interval<T>> for (T, T) {
+    fn from(interval: Interval<T>) -> (T, T) {
+        (interval.start, interval.end)
+    }
+}
+
+impl<T: Numerated> From<Interval<T>> for RangeInclusive<T> {
+    fn from(interval: Interval<T>) -> Self {
+        interval.start..=interval.end
     }
 }
 
 impl<T: Numerated> From<T> for Interval<T> {
     fn from(point: T) -> Self {
-        unsafe {
-            // Safe cause `point` == `point`
-            NonEmptyInterval::new_unchecked(point, point).into()
-        }
-    }
-}
-
-impl<T: Numerated> From<&T> for Interval<T> {
-    fn from(point: &T) -> Self {
-        Self::from(*point)
+        let (start, end) = (point, point);
+        debug_assert!(start <= end, "`T: Ord` impl error");
+        Self { start, end }
     }
 }
 
 impl<T: Numerated + LowerBounded> From<RangeToInclusive<T>> for Interval<T> {
     fn from(range: RangeToInclusive<T>) -> Self {
-        NonEmptyInterval::new(T::min_value(), range.end)
-            .unwrap_or_else(|| {
-                unreachable!(
-                    "`T: LowerBounded` impl error: for any x: T must be T::min_value() ≤ x"
-                )
-            })
-            .into()
-    }
-}
-
-impl<T: Numerated + UpperBounded, I: Into<T::B>> From<RangeFrom<I>> for Interval<T> {
-    fn from(range: RangeFrom<I>) -> Self {
-        let start: T::B = range.start.into();
-        match start.unbound() {
-            BoundValue::Value(start) => NonEmptyInterval::new(start, T::max_value())
-                .unwrap_or_else(|| {
-                    unreachable!(
-                        "`T: UpperBounded` impl error: for any x: T must be x ≤ T::max_value()"
-                    )
-                })
-                .into(),
-            BoundValue::Upper(start) => Self { start, end: None },
-        }
+        let (start, end) = (T::min_value(), range.end);
+        debug_assert!(start <= end, "`T: LowerBounded` impl error");
+        Self { start, end }
     }
 }
 
 impl<T: Numerated + UpperBounded + LowerBounded> From<RangeFull> for Interval<T> {
     fn from(_: RangeFull) -> Self {
-        NonEmptyInterval::new(T::min_value(), T::max_value()).unwrap_or_else(|| {
-            unreachable!("`T: UpperBounded + LowerBounded` impl error: must be T::min_value() ≤ T::max_value()")
-        }).into()
+        let (start, end) = (T::min_value(), T::max_value());
+        debug_assert!(start <= end, "`T: UpperBounded + LowerBounded` impl error");
+        Self { start, end }
     }
 }
 
-impl<T: Numerated + LowerBounded + UpperBounded, I: Into<T::B>> From<RangeTo<I>> for Interval<T> {
-    fn from(range: RangeTo<I>) -> Self {
-        let end: T::B = range.end.into();
-        let start = T::min_value();
-        match end.unbound() {
-            BoundValue::Value(end) => {
-                debug_assert!(end >= T::min_value());
-                let end = end.dec_if_gt(T::min_value());
-                Self { start, end }
+/// Trying to make empty interval.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct EmptyRangeError;
+
+/// Trying to make interval from range where start > end.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct IncorrectRangeError;
+
+/// Trying to make interval from range where start > end or empty range.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TryFromRangeError {
+    /// Trying to make empty interval.
+    EmptyRange,
+    /// Trying to make interval start > end.
+    IncorrectRange,
+}
+
+impl<T: Numerated + UpperBounded, I: Into<T::Bound>> TryFrom<RangeFrom<I>> for Interval<T> {
+    type Error = EmptyRangeError;
+
+    fn try_from(range: RangeFrom<I>) -> Result<Self, Self::Error> {
+        match Into::<T::Bound>::into(range.start).unbound() {
+            Some(start) => {
+                let end = T::max_value();
+                debug_assert!(start <= end, "`T: UpperBounded` impl error");
+                Ok(Self { start, end })
             }
-            BoundValue::Upper(end) => Self {
-                start,
-                end: Some(end),
-            },
+            None => Err(EmptyRangeError),
         }
     }
 }
 
-/// Error, which occurs, when trying to convert `start` > `end` into `Interval`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct IntoIntervalError;
+impl<T: Numerated + LowerBounded + UpperBounded, I: Into<T::Bound>> TryFrom<RangeTo<I>>
+    for Interval<T>
+{
+    type Error = EmptyRangeError;
 
-impl<T: Numerated, S: Into<T::B>, E: Into<T::B>> TryFrom<(S, E)> for Interval<T> {
-    type Error = IntoIntervalError;
+    fn try_from(range: RangeTo<I>) -> Result<Self, Self::Error> {
+        let end: T::Bound = range.end.into();
 
+        let Some(end) = end.unbound() else {
+            return Ok(Self::from(..));
+        };
+
+        let start = T::min_value();
+        end.dec_if_gt(start)
+            .map(|end| {
+                debug_assert!(start <= end, "`T: LowerBounded` impl error");
+                Self { start, end }
+            })
+            .ok_or(EmptyRangeError)
+    }
+}
+
+impl<T: Numerated> TryFrom<RangeInclusive<T>> for Interval<T> {
+    type Error = IncorrectRangeError;
+
+    fn try_from(range: RangeInclusive<T>) -> Result<Self, Self::Error> {
+        let (start, end) = range.into_inner();
+        (start <= end)
+            .then_some(Self { start, end })
+            .ok_or(IncorrectRangeError)
+    }
+}
+
+impl<T, S, E> TryFrom<(S, E)> for Interval<T>
+where
+    T: Numerated + UpperBounded,
+    S: Into<T::Bound>,
+    E: Into<T::Bound>,
+{
+    type Error = TryFromRangeError;
+
+    // NOTE: trying to make upper not inclusive interval `start..=end - 1`
     fn try_from((start, end): (S, E)) -> Result<Self, Self::Error> {
-        use BoundValue::*;
-
-        let start: T::B = start.into();
-        let end: T::B = end.into();
+        let start: T::Bound = start.into();
+        let end: T::Bound = end.into();
 
         match (start.unbound(), end.unbound()) {
-            (Upper(start), Upper(_)) => Ok(Self { start, end: None }),
-            (Upper(_), Value(_)) => Err(IntoIntervalError),
-            (Value(start), Upper(end)) => Ok(Self {
-                start,
-                end: Some(end),
-            }),
-            (Value(start), Value(end)) => {
-                if let Some(end) = end.dec_if_gt(start) {
-                    debug_assert!(start <= end);
-                    Ok(Self {
-                        start,
-                        end: Some(end),
-                    })
-                } else if start == end {
-                    Ok(Self { start, end: None })
-                } else {
-                    Err(IntoIntervalError)
-                }
-            }
+            (None, None) => Err(TryFromRangeError::EmptyRange),
+            (None, Some(_)) => Err(TryFromRangeError::IncorrectRange),
+            (start, None) => Self::try_from(start..).map_err(|_| TryFromRangeError::EmptyRange),
+            (Some(start), Some(end)) => Self::try_from_range(start..end),
         }
     }
 }
 
-impl<T: Numerated, I: Into<T::B>> TryFrom<Range<I>> for Interval<T> {
-    type Error = IntoIntervalError;
+impl<T: Numerated + UpperBounded, I: Into<T::Bound>> TryFrom<Range<I>> for Interval<T> {
+    type Error = TryFromRangeError;
 
     fn try_from(range: Range<I>) -> Result<Self, Self::Error> {
         Self::try_from((range.start, range.end))
     }
 }
 
-impl<T: Numerated> TryFrom<RangeInclusive<T>> for Interval<T> {
-    type Error = IntoIntervalError;
-
-    fn try_from(range: RangeInclusive<T>) -> Result<Self, Self::Error> {
-        let (start, end) = range.into_inner();
-        NonEmptyInterval::new(start, end)
-            .ok_or(IntoIntervalError)
-            .map(Into::into)
-    }
-}
-
-impl<T: Numerated> NonEmptyInterval<T> {
-    /// Returns amount of elements in interval in `T::N` if it's possible.
-    /// None means that interval size is bigger, than `T::N::max_value()`.
-    pub fn raw_size(&self) -> Option<T::N> {
-        let (start, end) = self.into_inner();
-
-        // guarantied by `Self`
-        debug_assert!(start <= end);
-
-        let distance = end.distance(start).unwrap_or_else(|| {
-            unreachable!(
-                "`T: Numerated` impl error: for any s: T, e: T, e ≥ s ⇔ e.distance(s) == Some(_)"
-            )
-        });
-
-        distance.checked_add(&T::N::one())
-    }
-}
-
-impl<T: Numerated + LowerBounded + UpperBounded> NonEmptyInterval<T> {
-    /// Returns size of interval in `T` if it's possible.
-    /// - If interval size is bigger than `T` possible elements amount, then returns `None`.
-    /// - If interval size is equal to some `T::N`, then returns `T` of corresponding numeration:
-    /// ````ignore
-    ///   { T::N::zero() -> T::min_value(), T::N::one() -> T::min_value() + 1, ... }
-    /// ````
-    pub fn size(&self) -> Option<T> {
-        let raw_size = self.raw_size()?;
-        // It's ok if `add_if_enclosed_by` returns `None`,
-        // because `raw_size` can be bigger than `T` possible elements amount,
-        // in that case `size` must return `None`.
-        T::min_value().add_if_enclosed_by(raw_size, T::max_value())
-    }
-}
-
-impl<T: Numerated> Interval<T> {
-    /// Returns amount of elements in interval in `T::N` if it's possible.
-    /// None means that interval size is bigger, than `T::N::max_value()`.
-    /// If interval is empty, then returns `Some(T::min_value())`,
-    /// which is actually equal to `Some(T::zero())`.
-    pub fn raw_size(&self) -> Option<T::N> {
-        let Ok(interval) = NonEmptyInterval::try_from(self) else {
-            return Some(T::N::min_value());
-        };
-
-        interval.raw_size()
-    }
-}
-
-impl<T: Numerated + LowerBounded + UpperBounded> Interval<T> {
-    /// Returns size of interval in `T` if it's possible.
-    /// - if interval is empty, then returns `Some(T::min_value())`.
-    /// - if interval size is bigger than `T` possible elements amount, then returns `None`.
-    /// - if interval size is equal to some `T::N`, then returns `T` of corresponding numeration.
-    pub fn size(&self) -> Option<T> {
-        let Ok(interval) = NonEmptyInterval::try_from(self) else {
-            return Some(T::min_value());
-        };
-
-        interval.size()
-    }
+/// Trying to make zero len or out of bounds interval.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NewWithLenError {
+    /// Trying to make zero len interval.
+    ZeroLen,
+    /// Trying to make out of bounds interval.
+    OutOfBounds,
 }
 
 impl<T: Numerated + UpperBounded> Interval<T> {
-    /// Returns interval [`start`..`start` + `count`) if it's possible.
-    /// Size of result interval is equal to `count`.
-    /// - if `count` is None, then it is supposed, that interval size must be `T::N::max_value()`.
-    /// - if `start` + `count` - 1 is out of `T`, then returns `None`.
-    /// - if `count` is zero, then returns empty interval.
-    pub fn count_from<S: Into<T::B>, C: Into<Option<T::N>>>(start: S, count: C) -> Option<Self> {
-        use BoundValue::*;
-        let start: T::B = start.into();
-        let count: Option<T::N> = count.into();
-        match (start.unbound(), count) {
-            (Value(start), Some(c)) | (Upper(start), Some(c)) if c == T::N::zero() => {
-                Some(Self { start, end: None })
-            }
-            (Upper(_), _) => None,
-            (Value(s), c) => {
-                // subtraction is safe, because c != 0
-                let c = c.map(|c| c - T::N::one()).unwrap_or(T::N::max_value());
-                s.add_if_enclosed_by(c, T::max_value())
-                    .map(|e| NonEmptyInterval::new(s, e).unwrap_or_else(|| {
-                        unreachable!("`T: Numerated` impl error: for each s: T, c: T::N ⇔ s.add_if_between(c, _) ≥ s")
-                    }).into())
+    /// Returns interval `start..=start + len - 1` if it's possible.
+    /// - if `len == None`, then it is supposed, that `len == T::Distance::max_value() + 1`.
+    /// - if `start + len - 1` is out of `T`, then returns [`NewWithLenError::OutOfBounds`].
+    /// - if `len == 0`, then returns [`NewWithLenError::ZeroLen`].
+    pub fn with_len<S: Into<T::Bound>, L: Into<Option<T::Distance>>>(
+        start: S,
+        len: L,
+    ) -> Result<Interval<T>, NewWithLenError> {
+        let start: T::Bound = start.into();
+        let len: Option<T::Distance> = len.into();
+        match (start.unbound(), len) {
+            (_, Some(len)) if len.is_zero() => Err(NewWithLenError::ZeroLen),
+            (None, _) => Err(NewWithLenError::OutOfBounds),
+            (Some(start), len) => {
+                // subtraction `len - 1` is safe, because `len != 0`
+                let distance = len
+                    .map(|len| len - T::Distance::one())
+                    .unwrap_or(T::Distance::max_value());
+                start
+                    .add_if_enclosed_by(distance, T::max_value())
+                    .map(|end| {
+                        debug_assert!(start <= end, "`T: Numerated` impl error");
+                        Self { start, end }
+                    })
+                    .ok_or(NewWithLenError::OutOfBounds)
             }
         }
     }
 }
 
-impl<T: Debug> Debug for NonEmptyInterval<T> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "({:?}..={:?})", self.start, self.end)
+impl<T: Numerated> Interval<T> {
+    /// - If `self` contains `T::Distance::max_value() + 1` points, then returns [`None`].
+    /// - Else returns `Some(a)`, where `a` is amount of elements in `self`.
+    pub fn raw_len(&self) -> Option<T::Distance> {
+        let (start, end) = self.into_parts();
+        end.distance(start).checked_add(&T::Distance::one())
     }
 }
 
-impl<T: Display> Display for NonEmptyInterval<T> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "({}..={})", self.start, self.end)
+impl<T: Numerated + LowerBounded + UpperBounded> Interval<T> {
+    /// Returns `len: T::Distance` (amount of points in `self`) converting it to `T` point:
+    /// - If length is bigger than `T` possible elements amount, then returns `T::Bound` __upper__ value.
+    /// - Else returns as length corresponding `p: T::Bound`:
+    /// ```text
+    ///   { 1 -> T::Bound::from(T::min_value() + 1), 2 -> T::Bound::from(T::min_value() + 2), ... }
+    /// ```
+    pub fn len(&self) -> T::Bound {
+        self.raw_len()
+            .and_then(|raw_len| T::min_value().add_if_enclosed_by(raw_len, T::max_value()))
+            .into()
     }
 }
 
 impl<T: Debug> Debug for Interval<T> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "({:?}..={:?})", self.start, self.end)
-    }
-}
-
-impl<T: Display> Display for Interval<T> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        if let Some(end) = self.end.as_ref() {
-            write!(f, "({}..={})", self.start, end)
-        } else {
-            write!(f, "∅({})", self.start)
-        }
+        write!(f, "{:?}..={:?}", self.start, self.end)
     }
 }
 
@@ -439,67 +317,40 @@ mod tests {
     use super::*;
 
     #[test]
-    fn size() {
-        assert_eq!(Interval::<u8>::try_from(11..111).unwrap().size(), Some(100),);
-        assert_eq!(Interval::<u8>::from(..1).size(), Some(1),);
-        assert_eq!(Interval::<u8>::from(..=1).size(), Some(2));
-        assert_eq!(Interval::<u8>::from(1..).size(), Some(255));
-        assert_eq!(Interval::<u8>::from(0..).size(), None);
-        assert_eq!(Interval::<u8>::from(..).size(), None);
-        assert_eq!(Interval::<u8>::try_from(1..1).unwrap().size(), Some(0));
+    fn len() {
+        assert_eq!(Interval::<u8>::try_from(1..7).unwrap().len(), 6);
+        assert_eq!(Interval::<u8>::try_from(..1).unwrap().len(), 1);
+        assert_eq!(Interval::<u8>::from(..=1).len(), 2);
+        assert_eq!(Interval::<u8>::try_from(1..).unwrap().len(), 255);
+        assert_eq!(Interval::<u8>::try_from(0..).unwrap().len(), None);
+        assert_eq!(Interval::<u8>::from(..).len(), None);
 
-        assert_eq!(
-            Interval::<u8>::try_from(11..111).unwrap().raw_size(),
-            Some(100),
-        );
-        assert_eq!(Interval::<u8>::from(..1).raw_size(), Some(1),);
-        assert_eq!(Interval::<u8>::from(..=1).raw_size(), Some(2));
-        assert_eq!(Interval::<u8>::from(1..).raw_size(), Some(255));
-        assert_eq!(Interval::<u8>::from(0..).raw_size(), None);
-        assert_eq!(Interval::<u8>::from(..).raw_size(), None);
-        assert_eq!(Interval::<u8>::try_from(1..1).unwrap().raw_size(), Some(0));
+        assert_eq!(Interval::<u8>::try_from(1..7).unwrap().raw_len(), Some(6));
+        assert_eq!(Interval::<u8>::try_from(..1).unwrap().raw_len(), Some(1));
+        assert_eq!(Interval::<u8>::from(..=1).raw_len(), Some(2));
+        assert_eq!(Interval::<u8>::try_from(1..).unwrap().raw_len(), Some(255));
+        assert_eq!(Interval::<u8>::try_from(0..).unwrap().raw_len(), None);
+        assert_eq!(Interval::<u8>::from(..).raw_len(), None);
 
-        assert_eq!(Interval::<i8>::try_from(-1..99).unwrap().size(), Some(-28)); // corresponds to 100 numeration
-        assert_eq!(Interval::<i8>::from(..1).size(), Some(1)); // corresponds to 129 numeration
-        assert_eq!(Interval::<i8>::from(..=1).size(), Some(2)); // corresponds to 130 numeration
-        assert_eq!(Interval::<i8>::from(1..).size(), Some(-1)); // corresponds to 127 numeration
-        assert_eq!(Interval::<i8>::from(0..).size(), Some(0)); // corresponds to 128 numeration
-        assert_eq!(Interval::<i8>::from(..).size(), None); // corresponds to 256 numeration
-        assert_eq!(Interval::<i8>::try_from(1..1).unwrap().size(), Some(-128)); // corresponds to 0 numeration
+        assert_eq!(Interval::<i8>::try_from(-1..1).unwrap().len(), -126); // corresponds to 2 numeration
+        assert_eq!(Interval::<i8>::from(..=1).len(), 2); // corresponds to 130 numeration
+        assert_eq!(Interval::<i8>::try_from(..1).unwrap().len(), 1); // corresponds to 129 numeration
+        assert_eq!(Interval::<i8>::try_from(1..).unwrap().len(), -1); // corresponds to 127 numeration
+        assert_eq!(Interval::<i8>::from(..).len(), None); // corresponds to 256 numeration
 
-        assert_eq!(
-            Interval::<i8>::try_from(-1..99).unwrap().raw_size(),
-            Some(100)
-        );
-        assert_eq!(Interval::<i8>::from(..1).raw_size(), Some(129));
-        assert_eq!(Interval::<i8>::from(..=1).raw_size(), Some(130));
-        assert_eq!(Interval::<i8>::from(1..).raw_size(), Some(127));
-        assert_eq!(Interval::<i8>::from(0..).raw_size(), Some(128));
-        assert_eq!(Interval::<i8>::from(..).raw_size(), None);
-        assert_eq!(Interval::<i8>::try_from(1..1).unwrap().raw_size(), Some(0));
+        assert_eq!(Interval::<i8>::try_from(-1..1).unwrap().raw_len(), Some(2));
+        assert_eq!(Interval::<i8>::try_from(..1).unwrap().raw_len(), Some(129));
+        assert_eq!(Interval::<i8>::from(..=1).raw_len(), Some(130));
+        assert_eq!(Interval::<i8>::try_from(1..).unwrap().raw_len(), Some(127));
+        assert_eq!(Interval::<i8>::from(..).raw_len(), None);
     }
 
     #[test]
     fn count_from() {
-        assert_eq!(
-            Interval::<u8>::count_from(0, 100).and_then(Interval::into_range_inclusive),
-            Some(0..=99)
-        );
-        assert_eq!(
-            Interval::<u8>::count_from(0, 255).and_then(Interval::into_range_inclusive),
-            Some(0..=254)
-        );
-        assert_eq!(
-            Interval::<u8>::count_from(0, None).and_then(Interval::into_range_inclusive),
-            Some(0..=255)
-        );
-        assert_eq!(
-            Interval::<u8>::count_from(1, 255).and_then(Interval::into_range_inclusive),
-            Some(1..=255)
-        );
-
-        assert!(Interval::<u8>::count_from(1, 0).unwrap().is_empty());
-        assert_eq!(Interval::<u8>::count_from(1, None), None);
-        assert_eq!(Interval::<u8>::count_from(2, 255), None);
+        assert_eq!(Interval::<u8>::with_len(0, 100).unwrap(), 0..=99);
+        assert_eq!(Interval::<u8>::with_len(0, 255).unwrap(), 0..=254);
+        assert_eq!(Interval::<u8>::with_len(0, None).unwrap(), 0..=255);
+        assert_eq!(Interval::<u8>::with_len(1, 255).unwrap(), 1..=255);
+        assert_eq!(Interval::<u8>::with_len(0, 1).unwrap(), 0..=0);
     }
 }
