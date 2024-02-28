@@ -135,12 +135,12 @@ pub fn check_exports(module: &Module) -> Result<(), CodeError> {
             .get(type_id)
             .unwrap_or_else(|| unreachable!("Module structure is invalid"));
 
-        if !(func_type.params().is_empty() && func_type.results().is_empty()) {
-            Err(ExportError::InvalidExportFnSignature(export_index as u32))?;
-        }
-
         if !ALLOWED_EXPORTS.contains(&export.field()) {
             Err(ExportError::ExcessExport(export_index as u32))?;
+        }
+
+        if !(func_type.params().is_empty() && func_type.results().is_empty()) {
+            Err(ExportError::InvalidExportFnSignature(export_index as u32))?;
         }
 
         if REQUIRED_EXPORTS.contains(&export.field()) {
