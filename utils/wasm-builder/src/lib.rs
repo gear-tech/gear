@@ -26,7 +26,7 @@ use gmeta::{Metadata, MetadataRepr};
 use regex::Regex;
 use std::{env, path::PathBuf, process};
 use wasm_project::ProjectType;
-pub use wasm_project::{PreProcessOutput, PreProcessor};
+pub use wasm_project::{PreProcessor, PreProcessorResult};
 
 mod builder_error;
 mod cargo_command;
@@ -76,7 +76,7 @@ impl WasmBuilder {
         self
     }
 
-    /// Add pre-processor for wasm file
+    /// Add pre-processor for wasm file.
     pub fn with_pre_processor(mut self, pre_processor: Box<dyn PreProcessor>) -> Self {
         self.wasm_project.add_preprocessor(pre_processor);
         self
