@@ -1422,19 +1422,8 @@ mod test {
     /// This function creates a program with full of empty
     /// functions, and returns the size of the wasm code.
     fn module_with_full_idx(count: usize) -> usize {
-        let funcs = (0..count)
-            .map(|_| "(func (type 0) nop)".to_string())
-            .collect::<Vec<String>>()
-            .concat();
-
-        let wat = format!(
-            r#"
-              (module
-               (type (func))
-               {funcs}
-              )
-            "#
-        );
+        let funcs = "(func)".repeat(count);
+        let wat = format!("(module {funcs})");
         wabt::wat2wasm(wat).expect("Failed to serialize wasm").len()
     }
 

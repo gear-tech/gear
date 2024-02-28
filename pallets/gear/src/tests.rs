@@ -14577,16 +14577,16 @@ fn program_with_large_indexes() {
     // Here we generate a valid program full with empty functions to reach the limit
     // of both the function indexes and the code length in our node.
     //
-    // The testing program has length `61` with only 1 mocked function, each mocked
-    // function takes byte code size `5`
+    // The testing program has length `60` with only 1 mocked function, each mocked
+    // function takes byte code size `4`
     //
-    // NOTE: Failed to upload wasm closed to the limit, leaving 28 indexes ( 140 bytes )
-    // for passing the check `CodeTooLarge`.
-    let indexes_limit = (code_len_limit - 61) / 5 - 28;
-    let funcs = (0..indexes_limit)
-        .map(|_| "(func (type 0) nop)".to_string())
-        .collect::<Vec<String>>()
-        .concat();
+    // FIXME: Failed to upload wasm right matched with the limit, leaving 35 indexes
+    // ( 140 bytes ) for passing the check `CodeTooLarge`.
+    let empty_prog_len = 60;
+    let empty_fn_len = 4;
+    let indexes_in_bytes_140 = 35;
+    let indexes_limit = (code_len_limit - empty_prog_len) / empty_fn_len - indexes_in_bytes_140;
+    let funcs = "(func)".repeat(indexes_limit);
     let wat = format!(
         r#"
           (module
