@@ -14564,9 +14564,6 @@ fn export_is_import() {
 
 #[test]
 fn program_with_large_indexes() {
-    // The purpose of this test is to check parity-wasm
-    // can parse a module with large indices successfully.
-    //
     // There is a security problem in module deserialization
     // found by casper-wasm https://github.com/casper-network/casper-wasm/pull/1,
     // parity-wasm results OOM on deserializing a module with large indices.
@@ -14577,18 +14574,15 @@ fn program_with_large_indexes() {
     // This test is to make sure that we are not affected by the same problem.
     let code_len_limit = Limits::default().code_len;
 
-    // The testing program has length `25` with only
-    // 1 mocked function, each mocked function takes
-    // byte code size `5`
+    // Here we generate a valid program full with empty functions to reach the limit
+    // of both the function indexes and the code length in our node.
     //
-    // Here we generate a program full with empty
-    // functions to reach the limit of both the function
-    // indexes and the code length in our network.
+    // The testing program has length `61` with only 1 mocked function, each mocked
+    // function takes byte code size `5`
     //
-    // NOTE: Failed to upload wasm closed to the limit,
-    // leaving 21 indexes ( 110 bytes ) for passing the
-    // check `CodeTooLarge`.
-    let indexes_limit = (code_len_limit - 25) / 5 - 21;
+    // NOTE: Failed to upload wasm closed to the limit, leaving 28 indexes ( 140 bytes )
+    // for passing the check `CodeTooLarge`.
+    let indexes_limit = (code_len_limit - 61) / 5 - 28;
     let funcs = (0..indexes_limit)
         .map(|_| "(func (type 0) nop)".to_string())
         .collect::<Vec<String>>()
@@ -14597,14 +14591,17 @@ fn program_with_large_indexes() {
         r#"
           (module
            (type (func))
+           (import "env" "memory" (memory (;0;) 17))
            {funcs}
+           (export "handle" (func 0))
+           (export "init" (func 0))
           )
     "#
     );
 
     let wasm = wabt::wat2wasm(&wat).expect("failed to compile wat to wasm");
     assert!(
-        code_len_limit as usize - wasm.len() < 110,
+        code_len_limit as usize - wasm.len() < 140,
         "Failed to reach the max limit of code size."
     );
 

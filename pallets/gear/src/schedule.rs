@@ -1423,7 +1423,7 @@ mod test {
     /// functions, and returns the size of the wasm code.
     fn module_with_full_idx(count: usize) -> usize {
         let funcs = (0..count)
-            .map(|_| format!(r#"(func (type 0) nop)"#))
+            .map(|_| "(func (type 0) nop)".to_string())
             .collect::<Vec<String>>()
             .concat();
 
