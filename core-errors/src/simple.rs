@@ -166,6 +166,7 @@ impl SuccessReplyReason {
 )]
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo, Sequence), codec(crate = scale), allow(clippy::unnecessary_cast))]
 /// Reason of error reply creation.
+///
 /// NOTE: Adding new variants to this enum you must also update `ErrorReplyReason::to_bytes` and
 /// `ErrorReplyReason::from_bytes` methods.
 pub enum ErrorReplyReason {

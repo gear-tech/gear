@@ -23,10 +23,10 @@
 
 use crate::{
     errors::{Result, SyscallError},
-    ActorId, MessageId, ReservationId,
+    ActorId, EnvVars, MessageId, ReservationId,
 };
 use core::mem::MaybeUninit;
-use gsys::{BlockNumberWithHash, EnvVars, ErrorWithGas, ErrorWithHash};
+use gsys::{BlockNumberWithHash, ErrorWithGas, ErrorWithHash};
 
 /// Get current version of environment variables.
 pub fn env_vars() -> EnvVars {
