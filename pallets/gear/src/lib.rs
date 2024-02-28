@@ -273,6 +273,10 @@ pub mod pallet {
 
         /// The builtin cache for quick actor ids lookup.
         type BuiltinCache: BuiltinCache;
+
+        /// The account id of the rent pool if any.
+        #[pallet::constant]
+        type RentPoolId: Get<Option<AccountIdOf<Self>>>;
     }
 
     #[pallet::pallet]

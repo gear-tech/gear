@@ -19,9 +19,9 @@
 //! Internal details of Gear Pallet implementation.
 
 use crate::{
-    Config, CostsPerBlockOf, CurrencyOf, DispatchStashOf, Event, ExtManager, GasBalanceOf,
-    GasHandlerOf, GasNodeIdOf, GearBank, MailboxOf, Pallet, QueueOf, SchedulingCostOf, TaskPoolOf,
-    WaitlistOf,
+    AccountIdOf, Config, CostsPerBlockOf, CurrencyOf, DispatchStashOf, Event, ExtManager,
+    GasBalanceOf, GasHandlerOf, GasNodeIdOf, GearBank, MailboxOf, Pallet, QueueOf,
+    SchedulingCostOf, TaskPoolOf, WaitlistOf,
 };
 use alloc::collections::BTreeSet;
 use common::{
@@ -209,7 +209,15 @@ where
     ///
     /// Represents logic of burning gas by transferring gas from
     /// current `GasTree` owner to actual block producer.
-    pub(crate) fn spend_gas(id: impl Into<GasNodeIdOf<T>>, amount: GasBalanceOf<T>) {
+    pub(crate) fn spend_burned(id: impl Into<GasNodeIdOf<T>>, amount: GasBalanceOf<T>) {
+        Self::spend_gas(None, id, amount)
+    }
+
+    pub fn spend_gas(
+        to: Option<AccountIdOf<T>>,
+        id: impl Into<GasNodeIdOf<T>>,
+        amount: GasBalanceOf<T>,
+    ) {
         let id = id.into();
 
         // If amount is zero, nothing to do.
@@ -225,9 +233,14 @@ where
         let (external, multiplier, _) = GasHandlerOf::<T>::get_origin_node(id)
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
-        // Transferring reserved funds from external user to block author.
-        GearBank::<T>::spend_gas(&external, amount, multiplier)
-            .unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
+        // Transferring reserved funds from external user to destination.
+        let result = if let Some(account_id) = to {
+            GearBank::<T>::spend_gas_to(&account_id, &external, amount, multiplier)
+        } else {
+            GearBank::<T>::spend_gas(&external, amount, multiplier)
+        };
+
+        result.unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
     }
 
     /// Consumes message by given `MessageId` or gas reservation by `ReservationId`.
@@ -314,8 +327,9 @@ where
 
         // Spending gas, if need.
         if !amount.is_zero() {
-            // Spending gas.
-            Self::spend_gas(id, amount)
+            // Spending gas for rent to the rent pool if any.
+            // If there is no rent pool id then funds will be spent to the block author.
+            Self::spend_gas(<T as Config>::RentPoolId::get(), id, amount)
         }
     }
 

@@ -28,10 +28,10 @@ use core::{
 use gcore::exec;
 
 /// Delays message execution in asynchronous way for the specified number of
-/// blocks. It works pretty much like the `exec::wait_for` function, but allows
-/// to continue execution after the delay in the same handler. It is worth
-/// mentioning that the program state gets persisted inside the call, and the
-/// execution resumes with potentially different state.
+/// blocks. It works pretty much like the [`exec::wait_for`] function, but
+/// allows to continue execution after the delay in the same handler. It is
+/// worth mentioning that the program state gets persisted inside the call, and
+/// the execution resumes with potentially different state.
 pub fn sleep_for(block_count: u32) -> impl Future<Output = ()> {
     MessageSleepFuture::new(msg::id(), exec::block_height().saturating_add(block_count))
 }

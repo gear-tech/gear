@@ -20,28 +20,10 @@ use crate::{
     internal::HoldBoundBuilder,
     manager::HandleKind,
     mock::{
-        self,
-        new_test_ext,
-        run_for_blocks,
-        run_to_block,
-        run_to_block_maybe_with_queue,
-        run_to_next_block,
-        Balances,
-        BlockNumber,
-        DynamicSchedule,
-        Gear,
-        GearVoucher,
-        // Randomness,
-        RuntimeEvent as MockRuntimeEvent,
-        RuntimeOrigin,
-        System,
-        Test,
-        Timestamp,
-        BLOCK_AUTHOR,
-        LOW_BALANCE_USER,
-        USER_1,
-        USER_2,
-        USER_3,
+        self, new_test_ext, run_for_blocks, run_to_block, run_to_block_maybe_with_queue,
+        run_to_next_block, Balances, BlockNumber, DynamicSchedule, Gear, GearVoucher,
+        RuntimeEvent as MockRuntimeEvent, RuntimeOrigin, System, Test, Timestamp, BLOCK_AUTHOR,
+        LOW_BALANCE_USER, RENT_POOL, USER_1, USER_2, USER_3,
     },
     pallet,
     runtime_api::{ALLOWANCE_LIMIT_ERR, RUNTIME_API_BLOCK_LIMITS_COUNT},
@@ -1821,6 +1803,7 @@ fn delayed_send_user_message_payment() {
         ));
 
         let proxy_msg_id = get_last_message_id();
+        let balance_rent_pool = Balances::free_balance(RENT_POOL);
 
         // Run blocks to make message get into dispatch stash.
         run_to_block(3, None);
@@ -1874,6 +1857,10 @@ fn delayed_send_user_message_payment() {
         assert_eq!(
             total_balance - delay_holding_fee + reserve_for_fee,
             Balances::free_balance(USER_1)
+        );
+        assert_eq!(
+            Balances::free_balance(RENT_POOL),
+            balance_rent_pool + delay_holding_fee - reserve_for_fee
         );
     }
 
@@ -4613,7 +4600,7 @@ fn claim_value_works() {
 
         run_to_block(bn_of_insertion + holding_duration, None);
 
-        let block_producer_balance = Balances::free_balance(BLOCK_AUTHOR);
+        let balance_rent_pool = Balances::free_balance(RENT_POOL);
 
         assert_ok!(Gear::claim_value(
             RuntimeOrigin::signed(USER_1),
@@ -4645,8 +4632,8 @@ fn claim_value_works() {
             sender_balance + charged_for_page_load - value_sent - gas_burned - burned_for_hold;
         assert_eq!(Balances::free_balance(USER_2), expected_sender_balance);
         assert_eq!(
-            Balances::free_balance(BLOCK_AUTHOR),
-            block_producer_balance + burned_for_hold
+            Balances::free_balance(RENT_POOL),
+            balance_rent_pool + burned_for_hold
         );
 
         System::assert_last_event(
@@ -5199,6 +5186,7 @@ fn test_different_waits_success() {
         let duration = 5;
         let wl_gas = duration_gas(duration) + reserve_gas;
         let value = 0;
+        let balance_rent_pool = Balances::free_balance(RENT_POOL);
 
         let gas_info = Gear::calculate_gas_info(
             USER_1.into_origin(),
@@ -5226,6 +5214,14 @@ fn test_different_waits_success() {
         run_to_next_block(None);
 
         assert_eq!(get_waitlist_expiration(wait_success), expiration(duration));
+
+        run_for_blocks(duration.into(), None);
+
+        // rent for keeping the message in the wait list should go to the pool
+        assert_eq!(
+            Balances::free_balance(RENT_POOL),
+            balance_rent_pool + gas_price(duration_gas(duration)),
+        );
 
         // Command::WaitFor case.
         let duration = 5;
@@ -11021,6 +11017,7 @@ fn gas_reservation_works() {
         ));
 
         let pid = get_last_program_id();
+        let balance_rent_pool = Balances::free_balance(RENT_POOL);
 
         run_to_block(2, None);
 
@@ -11065,6 +11062,11 @@ fn gas_reservation_works() {
         assert_eq!(
             Balances::free_balance(USER_1),
             user_initial_balance - gas_reserved + reservation_amount + reservation_holding
+        );
+        // reservation was held for one block so the rent pool should be increased accordingly
+        assert_eq!(
+            Balances::free_balance(RENT_POOL),
+            balance_rent_pool + gas_price(CostsPerBlockOf::<Test>::reservation())
         );
 
         run_to_block(2 + 2, None);
