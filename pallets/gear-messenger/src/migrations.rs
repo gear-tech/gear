@@ -24,11 +24,11 @@ use frame_support::{
 };
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::ids::MessageId;
-use parity_scale_codec::Encode;
 use sp_std::marker::PhantomData;
 #[cfg(feature = "try-runtime")]
 use {
     frame_support::{codec::Decode, dispatch::DispatchError},
+    parity_scale_codec::Encode,
     sp_std::vec::Vec,
 };
 
@@ -122,12 +122,6 @@ mod v2 {
         storage::types::CountedStorageMapInstance,
         traits::{PalletInfo, StorageInstance},
     };
-    #[cfg(feature = "try-runtime")]
-    use frame_support::{
-        pallet_prelude::{CountedStorageMap, StorageDoubleMap, StorageMap},
-        Identity,
-    };
-    use frame_system::pallet_prelude::BlockNumberFor;
     use gear_core::{
         ids::{MessageId, ProgramId},
         message::{DispatchKind, Payload, StoredDelayedDispatch, StoredMessage},
@@ -136,6 +130,14 @@ mod v2 {
     use sp_std::{
         collections::{btree_map::BTreeMap, btree_set::BTreeSet},
         marker::PhantomData,
+    };
+    #[cfg(feature = "try-runtime")]
+    use {
+        frame_support::{
+            pallet_prelude::{CountedStorageMap, StorageDoubleMap, StorageMap},
+            Identity,
+        },
+        frame_system::pallet_prelude::BlockNumberFor,
     };
 
     #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
