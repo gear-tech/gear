@@ -1440,16 +1440,16 @@ mod test {
 
         // NOTE:
         //
-        // For triggering the bug, assigning `max_idx` to `u32::MAX`.
+        // For triggering the bug, assigning `u32::MAX` to `max_idx`.
         let max_idx = ((code_limit - empty_program_len) / empty_fn_len + 1) as u32;
 
         // NOTE:
         //
-        // We are not generating the wasm module in memory
-        // because it takes too much.
+        // We are not generating the wasm module in memory because it
+        // takes too much.
         //
         // Mock the max idx in the index map of parity-wasm, cherry-pick
-        // https://github.com/casper-network/casper-wasm/pull/1 not our
+        // https://github.com/casper-network/casper-wasm/pull/1 to our
         // parity-wasm fork when this test getting failed which could be
         // happened on **raising the code len limit of our programs**.
         //

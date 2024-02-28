@@ -14564,9 +14564,9 @@ fn export_is_import() {
 
 #[test]
 fn program_with_large_indexes() {
-    // There is a security problem in module deserialization
-    // found by casper-wasm https://github.com/casper-network/casper-wasm/pull/1,
-    // parity-wasm results OOM on deserializing a module with large indices.
+    // There is a security problem in module deserialization found by
+    // casper-wasm https://github.com/casper-network/casper-wasm/pull/1,
+    // parity-wasm results OOM on deserializing a module with large indexes.
     //
     // bytecodealliance/wasm-tools has similar tests:
     // https://github.com/bytecodealliance/wasm-tools/blob/main/crates/wasmparser/tests/big-module.rs
@@ -14577,16 +14577,16 @@ fn program_with_large_indexes() {
     // Here we generate a valid program full with empty functions to reach the limit
     // of both the function indexes and the code length in our node.
     //
-    // The testing program has length `60` with only 1 mocked function, each mocked
-    // function takes byte code size `4`
+    // The testing program has length `60` with only 1 mocked function, each empty
+    // function takes byte code size `4`.
     //
-    // FIXME: Failed to upload wasm right matched with the limit, leaving 35 indexes
-    // ( 140 bytes ) for passing the check `CodeTooLarge`.
+    // NOTE: Leaving 35 indexes (140 bytes) for injecting the stack limiter
+    // [`wasm_instrument::InstrumentationBuilder::instrument`].
     let empty_prog_len = 60;
     let empty_fn_len = 4;
-    let indexes_in_bytes_140 = 35;
-    let indexes_limit = (code_len_limit - empty_prog_len) / empty_fn_len - indexes_in_bytes_140;
-    let funcs = "(func)".repeat(indexes_limit);
+    let indexes_in_stack_limiter = 35;
+    let indexes_limit = (code_len_limit - empty_prog_len) / empty_fn_len - indexes_in_stack_limiter;
+    let funcs = "(func)".repeat(indexes_limit as usize);
     let wat = format!(
         r#"
           (module
