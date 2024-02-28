@@ -16,28 +16,29 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Crate for working with [Numerated] types and their sets: [Interval], [NonEmptyInterval] and [IntervalsTree].
+//! Crate for working with [`Numerated`] types and their sets: [`Interval`] and [`IntervalsTree`].
+//!
+//! ### Note
+//! In case [`Numerated`] is implemented incorrectly for some type `T`,
+//! then this can cause incorrect behavior of [`IntervalsTree`] and [`Interval`] for `T`.
 
 #![no_std]
 #![deny(missing_docs)]
 
 extern crate alloc;
 
-mod interval;
+pub mod interval;
+mod iterators;
 mod numerated;
 mod tree;
 
 pub use crate::{
-    interval::{Interval, IntoIntervalError, NonEmptyInterval},
-    numerated::{Bound, BoundValue, Numerated},
-    tree::{IntervalsTree, VoidsIterator},
+    interval::Interval,
+    iterators::{DifferenceIterator, IntervalIterator, VoidsIterator},
+    numerated::{Bound, Numerated, OptionBound},
+    tree::IntervalsTree,
 };
-
-pub use num_traits::{
-    self,
-    bounds::{LowerBounded, UpperBounded},
-    CheckedAdd, One, Zero,
-};
+pub use num_traits;
 
 #[cfg(any(feature = "mock", test))]
 pub mod mock;
