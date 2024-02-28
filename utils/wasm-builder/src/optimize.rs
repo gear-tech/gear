@@ -32,7 +32,7 @@ const OPTIMIZED_EXPORTS: [&str; 7] = [
 ];
 
 /// Type of the output wasm.
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum OptType {
     Meta,
     Opt,
@@ -88,8 +88,6 @@ impl Optimizer {
         let mut code = vec![];
         module.clone().serialize(&mut code)?;
 
-        self.post_check(code.clone(), ty)?;
-
         let exports = if ty == OptType::Opt {
             OPTIMIZED_EXPORTS.to_vec()
         } else {
@@ -120,6 +118,8 @@ impl Optimizer {
 
         let mut code = vec![];
         module.serialize(&mut code)?;
+
+        self.post_check(code.clone(), ty)?;
 
         Ok(code)
     }
