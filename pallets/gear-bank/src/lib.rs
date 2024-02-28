@@ -241,14 +241,6 @@ pub mod pallet {
             .map_err(|_| Error::<T>::InsufficientBankBalance)
         }
 
-        /// Transfers value from bank address to current block author.
-        fn reward_block_author(value: BalanceOf<T>) -> Result<(), Error<T>> {
-            let block_author = Authorship::<T>::author()
-                .unwrap_or_else(|| unreachable!("Failed to find block author!"));
-
-            Self::withdraw(&block_author, value)
-        }
-
         pub fn deposit_gas(
             account_id: &AccountIdOf<T>,
             amount: u64,
@@ -329,6 +321,18 @@ pub mod pallet {
             amount: u64,
             multiplier: GasMultiplier<T>,
         ) -> Result<(), Error<T>> {
+            let block_author = Authorship::<T>::author()
+                .unwrap_or_else(|| unreachable!("Failed to find block author!"));
+
+            Self::spend_gas_to(&block_author, account_id, amount, multiplier)
+        }
+
+        pub fn spend_gas_to(
+            to: &AccountIdOf<T>,
+            account_id: &AccountIdOf<T>,
+            amount: u64,
+            multiplier: GasMultiplier<T>,
+        ) -> Result<(), Error<T>> {
             if amount.is_zero() {
                 return Ok(());
             }
@@ -339,7 +343,7 @@ pub mod pallet {
             // `*_no_transfer` function above.
             //
             // This call does only currency trait final transfer.
-            Self::reward_block_author(value).unwrap_or_else(|e| unreachable!("qed above: {e:?}"));
+            Self::withdraw(to, value).unwrap_or_else(|e| unreachable!("qed above: {e:?}"));
 
             Ok(())
         }

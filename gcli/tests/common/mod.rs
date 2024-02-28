@@ -35,6 +35,7 @@ pub mod node;
 mod result;
 
 pub const ALICE_SS58_ADDRESS: &str = "kGkLEU3e3XXkJp2WK4eNpVmSab5xUNL9QtmLPh8QfCL2EgotW";
+pub const RENT_POOL_SS58_ADDRESS: &str = "kGkkENXuYL4Xw6H1ymWm6VwHLi66s56Ywt45pf9hEx1hmx5MV";
 
 impl NodeExec for Node {
     fn ws(&self) -> String {
@@ -93,8 +94,7 @@ pub fn program_id(bin: &[u8], salt: &[u8]) -> ProgramId {
 
 /// AccountId32 of `addr`
 pub fn alice_account_id() -> AccountId32 {
-    AccountId32::from_ss58check("kGkLEU3e3XXkJp2WK4eNpVmSab5xUNL9QtmLPh8QfCL2EgotW")
-        .expect("Invalid address")
+    AccountId32::from_ss58check(ALICE_SS58_ADDRESS).expect("Invalid address")
 }
 
 /// Create program messager

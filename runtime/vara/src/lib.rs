@@ -1021,6 +1021,7 @@ impl pallet_gear::Config for Runtime {
     type ProgramRentEnabled = ConstBool<false>;
 
     type ProgramRentDisabledDelta = ConstU32<{ WEEKS * RENT_DISABLED_DELTA_WEEK_FACTOR }>;
+    type RentPoolId = pallet_gear_staking_rewards::RentPoolId<Self>;
 }
 
 #[cfg(feature = "dev")]
