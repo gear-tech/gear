@@ -1460,11 +1460,11 @@ mod test {
         // because it takes too much.
         //
         // Mock the max idx in the index map of parity-wasm, cherry-pick
-        // https://github.com/casper-network/casper-wasm/pull/1 nto our
+        // https://github.com/casper-network/casper-wasm/pull/1 not our
         // parity-wasm fork when this test getting failed which could be
         // happened on **raising the code len limit of our programs**.
         //
-        // For the curent testing machine, Apple M1 chip, 16GB memory,
+        // For the current testing machine, Apple M1 chip, 16GB memory,
         // deserializing a program with full of indexes in code size 4GB
         // will lead to the problem.
         let mut buffer = vec![];
