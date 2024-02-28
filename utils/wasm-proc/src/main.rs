@@ -17,7 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use clap::Parser;
-use gear_wasm_builder::optimize::{self, OptType, Optimizer};
+use gear_wasm_builder::{
+    code_validator::CodeValidator,
+    optimize::{self, OptType, Optimizer},
+};
 use parity_wasm::elements::External;
 use std::{collections::HashSet, fs, path::PathBuf};
 
@@ -262,7 +265,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let code = optimizer.optimize(OptType::Opt)?;
         log::info!("Optimized wasm: {}", optimized_wasm_path.to_string_lossy());
 
-        fs::write(optimized_wasm_path, code)?;
+        fs::write(&optimized_wasm_path, &code)?;
+
+        log::debug!(
+            "*** Validating wasm code: {}",
+            optimized_wasm_path.display()
+        );
+
+        let validator = CodeValidator::try_from(code)?;
+        validator.validate_program()?;
     }
 
     Ok(())

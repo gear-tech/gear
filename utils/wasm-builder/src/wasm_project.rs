@@ -17,20 +17,15 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    builder_error::BuilderError,
+    code_validator::CodeValidator,
     crate_info::CrateInfo,
     optimize::{self, OptType, Optimizer},
     smart_fs,
 };
 use anyhow::{Context, Result};
 use chrono::offset::Local as ChronoLocal;
-use gear_core::code::{Code, TryNewCodeConfig};
-use gear_wasm_instrument::rules::CustomConstantCostRules;
 use gmeta::MetadataRepr;
-use pwasm_utils::parity_wasm::{
-    self,
-    elements::{Internal, Module},
-};
+use pwasm_utils::parity_wasm::{self, elements::Internal};
 use std::{
     env,
     ffi::OsStr,
@@ -169,7 +164,8 @@ impl WasmProject {
             .expect("Run `WasmProject::generate()` first")
     }
 
-    /// Generate a temporary cargo project that includes the original package as a dependency.
+    /// Generate a temporary cargo project that includes the original package as
+    /// a dependency.
     pub fn generate(&mut self) -> Result<()> {
         let original_manifest = self.original_dir.join("Cargo.toml");
         let crate_info = CrateInfo::from_manifest(&original_manifest)?;
@@ -333,8 +329,8 @@ extern "C" fn metahash() {{
         .map_err(Into::into)
     }
 
-    /// Generates output optimized wasm file, `.binpath` file for our tests system
-    /// and wasm binaries informational file.
+    /// Generates output optimized wasm file, `.binpath` file for our tests
+    /// system and wasm binaries informational file.
     /// Makes a copy of original wasm file in `self.wasm_target_dir`.
     pub fn postprocess_opt(
         &self,
@@ -422,36 +418,10 @@ extern "C" fn metahash() {{
         .context("unable to write `wasm_binary.rs`")
     }
 
-    /// Performs post-checking the program code for possible errors.
-    /// `pallet-gear` crate performs the same check at the node level
-    /// when the user tries to upload program code.
-    fn post_check(&self, code: Vec<u8>) -> Result<()> {
-        let module: Module = parity_wasm::deserialize_buffer(&code)?;
-        let result = match self.project_type {
-            // validate wasm code
-            // see `pallet_gear::pallet::Pallet::upload_program(...)`
-            ProjectType::Program(_) => {
-                Code::try_new(code, 1, |_| CustomConstantCostRules::default(), None)
-            }
-            // validate metawasm code
-            // see `pallet_gear::pallet::Pallet::read_state_using_wasm(...)`
-            ProjectType::Metawasm => Code::try_new_mock_with_rules(
-                code,
-                |_| CustomConstantCostRules::default(),
-                TryNewCodeConfig::new_no_exports_check(),
-            ),
-        };
-
-        // here we add more details to the original code error
-        match result {
-            Err(code_error) => Err(BuilderError::CodeCheckFailed((module, code_error).into()))?,
-            _ => Ok(()),
-        }
-    }
-
     /// Post-processing after the WASM binary has been built.
     ///
-    /// - Copy WASM binary from `OUT_DIR` to `target/wasm32-unknown-unknown/<profile>`
+    /// - Copy WASM binary from `OUT_DIR` to
+    ///   `target/wasm32-unknown-unknown/<profile>`
     /// - Generate optimized and metadata WASM binaries from the built program
     /// - Generate `wasm_binary.rs` source file in `OUT_DIR`
     pub fn postprocess(&self) -> Result<()> {
@@ -497,8 +467,14 @@ extern "C" fn metahash() {{
         }
 
         for (wasm_path, _) in wasm_files {
-            let content = fs::read(wasm_path)?;
-            self.post_check(content)?;
+            let code = fs::read(wasm_path)?;
+            let validator = CodeValidator::try_from(code)?;
+
+            if self.project_type.is_metawasm() {
+                validator.validate_metawasm()?;
+            } else {
+                validator.validate_program()?;
+            }
         }
 
         if env::var("__GEAR_WASM_BUILDER_NO_FEATURES_TRACKING").is_err() {
@@ -569,7 +545,8 @@ extern "C" fn metahash() {{
     }
 }
 
-// Windows has path like `path\to\somewhere` which is incorrect for `include_*` Rust's macros
+// Windows has path like `path\to\somewhere` which is incorrect for `include_*`
+// Rust's macros
 fn display_path(path: PathBuf) -> String {
     path.display().to_string().replace('\\', "/")
 }
