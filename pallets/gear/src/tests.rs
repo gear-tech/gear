@@ -46,7 +46,7 @@ use crate::{
     pallet,
     runtime_api::{ALLOWANCE_LIMIT_ERR, RUNTIME_API_BLOCK_LIMITS_COUNT},
     AccountIdOf, BlockGasLimitOf, Config, CostsPerBlockOf, CurrencyOf, DbWeightOf, DispatchStashOf,
-    Error, Event, GasAllowanceOf, GasBalanceOf, GasHandlerOf, GasInfo, GearBank, MailboxOf,
+    Error, Event, GasAllowanceOf, GasBalanceOf, GasHandlerOf, GasInfo, GearBank, Limits, MailboxOf,
     ProgramStorageOf, QueueOf, Schedule, TaskPoolOf, WaitlistOf,
 };
 use common::{
@@ -14561,30 +14561,52 @@ fn export_is_import() {
 }
 
 #[test]
-fn program_with_large_indices() {
-    let funcs = (0..u32::MAX - 1)
-        .map(|i| {
-            format!(
-                r#"(func \"add_{i}\" (param i32) (result i32)
-                     (local.get 0)
-                     (i32.const {i})
-                     (i32.add)
-                   )"#
-            )
-        })
+fn program_with_large_indexes() {
+    // The purpose of this test is to check parity-wasm
+    // can parse a module with large indices successfully.
+    //
+    // There is a security problem in module deserialization
+    // found by casper-wasm https://github.com/casper-network/casper-wasm/pull/1,
+    // parity-wasm results OOM on deserializing a module with large indices.
+    //
+    // bytecodealliance/wasm-tools has similar tests:
+    // https://github.com/bytecodealliance/wasm-tools/blob/main/crates/wasmparser/tests/big-module.rs
+    //
+    // This test is to make sure that we are not affected by the same problem.
+    let code_len_limit = Limits::default().code_len;
+
+    // The testing program has length `61` with only
+    // 1 mocked function, each mocked function takes
+    // byte code size `5`
+    //
+    // Here we generate a program full with empty
+    // functions to reach the limit of both the function
+    // indexes and the code length in our network.
+    //
+    // NOTE: Failed to upload wasm closed to the limit
+    // leaving 28 indexes ( 140 bytes ) for passing the
+    // check `CodeTooLarge`.
+    let indexes_limit = (code_len_limit - 61) / 5 - 28;
+    let funcs = (0..indexes_limit)
+        .map(|_| format!(r#"(func (type 0) nop)"#))
         .collect::<Vec<String>>()
         .concat();
-
     let wat = format!(
         r#"
-        (module
-          (import "env" "memory" (memory 1))
-          {funcs}
-          (export "init" (func $init))
-          (export "handle" (func 4294967295))
-          (func $init)
-        )
+          (module
+           (type (func))
+           (import "env" "memory" (memory (;0;) 17))
+           {funcs}
+           (export "handle" (func 0))
+           (export "init" (func 0))
+          )
     "#
+    );
+
+    let wasm = wabt::wat2wasm(&wat).expect("failed to compile wat to wasm");
+    assert!(
+        code_len_limit as usize - wasm.len() < 140,
+        "Failed to reach the max limit of code size."
     );
 
     new_test_ext().execute_with(|| {
