@@ -172,6 +172,32 @@ benchmarks! {
     } verify {
         assert!(_result.is_ok());
     }
+
+    bls12_381_final_exponentiation {
+        let mut rng = ark_std::test_rng();
+
+        // message
+        let message: G1Affine = G1::rand(&mut rng).into();
+        let message: ArkScale<Vec<<Bls12_381 as Pairing>::G1Affine>> = vec![message].into();
+        let encoded_message = message.encode();
+
+        let priv_key: ScalarField = UniformRand::rand(&mut rng);
+        let generator: G2 = G2::generator();
+        let pub_key: G2Affine = generator.mul(priv_key).into();
+        let pub_key: ArkScale<Vec<<Bls12_381 as Pairing>::G2Affine>> = vec![pub_key].into();
+        let encoded_pub_key = pub_key.encode();
+
+        let miller_loop = sp_crypto_ec_utils::bls12_381::host_calls::bls12_381_multi_miller_loop(
+            encoded_message,
+            encoded_pub_key,
+        ).unwrap();
+
+        let mut _result: Result<Vec<u8>, ()> = Err(());
+    }: {
+        _result = sp_crypto_ec_utils::bls12_381::host_calls::bls12_381_final_exponentiation(miller_loop);
+    } verify {
+        assert!(_result.is_ok());
+    }
 }
 
 impl_benchmark_test_suite!(
