@@ -44,8 +44,12 @@ impl<T: Config> BuiltinActor for Actor<T> {
             }
             Some(REQUEST_MULTI_SCALAR_MULTIPLICATION_G1) => msm_g1::<T>(&payload[1..], gas_limit),
             Some(REQUEST_MULTI_SCALAR_MULTIPLICATION_G2) => msm_g2::<T>(&payload[1..], gas_limit),
-            Some(REQUEST_PROJECTIVE_MULTIPLICATION_G1) => projective_multiplication_g1::<T>(&payload[1..], gas_limit),
-            Some(REQUEST_PROJECTIVE_MULTIPLICATION_G2) => projective_multiplication_g2::<T>(&payload[1..], gas_limit),
+            Some(REQUEST_PROJECTIVE_MULTIPLICATION_G1) => {
+                projective_multiplication_g1::<T>(&payload[1..], gas_limit)
+            }
+            Some(REQUEST_PROJECTIVE_MULTIPLICATION_G2) => {
+                projective_multiplication_g2::<T>(&payload[1..], gas_limit)
+            }
             _ => (Err(BuiltinActorError::DecodingError), 0),
         };
 
@@ -181,8 +185,7 @@ fn msm<T: Config>(
     gas_limit: u64,
     gas_to_spend: impl FnOnce(u32) -> u64,
     call: impl FnOnce(Vec<u8>, Vec<u8>) -> Result<Vec<u8>, ()>,
-) -> (Result<Response, BuiltinActorError>, u64)
-{
+) -> (Result<Response, BuiltinActorError>, u64) {
     let (gas_spent, result) = decode_vec::<T, _>(gas_limit, 0, &mut payload);
     let bases = match result {
         Some(Ok(array)) => array,
@@ -201,7 +204,7 @@ fn msm<T: Config>(
 
     let mut slice = bases.as_slice();
     let mut reader = ark_scale::rw::InputAsRead(&mut slice);
-    let Ok(count) = u64::deserialize_with_mode(&mut reader, IS_COMPRESSED, IS_VALIDATED,) else {
+    let Ok(count) = u64::deserialize_with_mode(&mut reader, IS_COMPRESSED, IS_VALIDATED) else {
         log::debug!(
             target: LOG_TARGET,
             "Failed to decode item count in bases",
@@ -212,8 +215,13 @@ fn msm<T: Config>(
 
     let mut slice = scalars.as_slice();
     let mut reader = ark_scale::rw::InputAsRead(&mut slice);
-    match u64::deserialize_with_mode(&mut reader, IS_COMPRESSED, IS_VALIDATED,) {
-        Ok(count_b) if count_b != count => return (Ok(MultiScalarMultiplicationResult::NonEqualItemCount.into()), gas_spent),
+    match u64::deserialize_with_mode(&mut reader, IS_COMPRESSED, IS_VALIDATED) {
+        Ok(count_b) if count_b != count => {
+            return (
+                Ok(MultiScalarMultiplicationResult::NonEqualItemCount.into()),
+                gas_spent,
+            )
+        }
         Err(_) => {
             log::debug!(
                 target: LOG_TARGET,
@@ -236,29 +244,21 @@ fn msm<T: Config>(
     (Ok(result.into()), gas_spent)
 }
 
-fn msm_g1<T: Config>(
-    payload: &[u8],
-    gas_limit: u64,
-) -> (Result<Response, BuiltinActorError>, u64)
-{
+fn msm_g1<T: Config>(payload: &[u8], gas_limit: u64) -> (Result<Response, BuiltinActorError>, u64) {
     msm::<T>(
         payload,
         gas_limit,
         |count| <T as Config>::WeightInfo::bls12_381_msm_g1(count).ref_time(),
-        |bases, scalars| bls12_381::host_calls::bls12_381_msm_g1(bases, scalars),
+        bls12_381::host_calls::bls12_381_msm_g1,
     )
 }
 
-fn msm_g2<T: Config>(
-    payload: &[u8],
-    gas_limit: u64,
-) -> (Result<Response, BuiltinActorError>, u64)
-{
+fn msm_g2<T: Config>(payload: &[u8], gas_limit: u64) -> (Result<Response, BuiltinActorError>, u64) {
     msm::<T>(
         payload,
         gas_limit,
         |count| <T as Config>::WeightInfo::bls12_381_msm_g2(count).ref_time(),
-        |bases, scalars| bls12_381::host_calls::bls12_381_msm_g2(bases, scalars),
+        bls12_381::host_calls::bls12_381_msm_g2,
     )
 }
 
@@ -267,8 +267,7 @@ fn projective_multiplication<T: Config>(
     gas_limit: u64,
     gas_to_spend: impl FnOnce(u32) -> u64,
     call: impl FnOnce(Vec<u8>, Vec<u8>) -> Result<Vec<u8>, ()>,
-) -> (Result<Response, BuiltinActorError>, u64)
-{
+) -> (Result<Response, BuiltinActorError>, u64) {
     let (gas_spent, result) = decode_vec::<T, _>(gas_limit, 0, &mut payload);
     let base = match result {
         Some(Ok(array)) => array,
@@ -287,7 +286,7 @@ fn projective_multiplication<T: Config>(
 
     let mut slice = scalar.as_slice();
     let mut reader = ark_scale::rw::InputAsRead(&mut slice);
-    let Ok(count) = u64::deserialize_with_mode(&mut reader, IS_COMPRESSED, IS_VALIDATED,) else {
+    let Ok(count) = u64::deserialize_with_mode(&mut reader, IS_COMPRESSED, IS_VALIDATED) else {
         log::debug!(
             target: LOG_TARGET,
             "Failed to decode item count in scalar",
@@ -303,31 +302,32 @@ fn projective_multiplication<T: Config>(
 
     gas_spent += to_spend;
 
-    (Ok(Response::ProjectiveMultiplication(call(base, scalar))), gas_spent)
+    (
+        Ok(Response::ProjectiveMultiplication(call(base, scalar))),
+        gas_spent,
+    )
 }
 
 fn projective_multiplication_g1<T: Config>(
     payload: &[u8],
     gas_limit: u64,
-) -> (Result<Response, BuiltinActorError>, u64)
-{
+) -> (Result<Response, BuiltinActorError>, u64) {
     projective_multiplication::<T>(
         payload,
         gas_limit,
         |count| <T as Config>::WeightInfo::bls12_381_mul_projective_g1(count).ref_time(),
-        |base, scalar| bls12_381::host_calls::bls12_381_mul_projective_g1(base, scalar),
+        bls12_381::host_calls::bls12_381_mul_projective_g1,
     )
 }
 
 fn projective_multiplication_g2<T: Config>(
     payload: &[u8],
     gas_limit: u64,
-) -> (Result<Response, BuiltinActorError>, u64)
-{
+) -> (Result<Response, BuiltinActorError>, u64) {
     projective_multiplication::<T>(
         payload,
         gas_limit,
         |count| <T as Config>::WeightInfo::bls12_381_mul_projective_g2(count).ref_time(),
-        |base, scalar| bls12_381::host_calls::bls12_381_mul_projective_g2(base, scalar),
+        bls12_381::host_calls::bls12_381_mul_projective_g2,
     )
 }
