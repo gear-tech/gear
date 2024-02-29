@@ -29,6 +29,7 @@ jobs:
       build: ${{ steps.config.outputs.build }}
       cache: ${{ steps.config.outputs.cache }}
       check: ${{ steps.config.outputs.check }}
+      docs: ${{ steps.config.outputs.docs }}
       macos: ${{ steps.config.outputs.macos }}
     steps:
       - uses: actions/checkout@v4
@@ -43,6 +44,14 @@ jobs:
         uses: ./.github/actions/message
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+
+  docs:
+    needs: status
+    if: ${{ needs.status.outputs.docs == 'true' }}
+    runs-on: ubuntu-lastet
+    env:
+      RUSTUP_HOME: /tmp/rustup_home
+    uses: ./.github/actions/docs
 
   check:
     needs: status

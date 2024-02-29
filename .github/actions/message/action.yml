@@ -12,6 +12,8 @@ outputs:
     description: If enable cache.
   check:
     description: If trigger check.
+  docs:
+    description: If trigger docs.
   macos:
     description: If enable macos.
 
