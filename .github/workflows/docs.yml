@@ -13,4 +13,5 @@ jobs:
     runs-on: ubuntu-latest
     env:
       RUSTUP_HOME: /tmp/rustup_home
-    uses: ./.github/actions/docs
+    steps:
+      - uses: ./.github/actions/docs

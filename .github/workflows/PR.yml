@@ -51,7 +51,8 @@ jobs:
     runs-on: ubuntu-lastet
     env:
       RUSTUP_HOME: /tmp/rustup_home
-    uses: ./.github/actions/docs
+    steps:
+      - uses: ./.github/actions/docs
 
   check:
     needs: status
