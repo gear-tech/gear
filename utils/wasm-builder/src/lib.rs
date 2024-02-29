@@ -26,7 +26,7 @@ use gmeta::{Metadata, MetadataRepr};
 use regex::Regex;
 use std::{env, path::PathBuf, process};
 use wasm_project::ProjectType;
-pub use wasm_project::{PreProcessor, PreProcessorResult};
+pub use wasm_project::{PreProcessor, PreProcessorResult, PreProcessorTarget};
 
 mod builder_error;
 mod cargo_command;

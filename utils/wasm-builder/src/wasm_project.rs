@@ -27,9 +27,7 @@ use chrono::offset::Local as ChronoLocal;
 use gmeta::MetadataRepr;
 use pwasm_utils::parity_wasm::{self, elements::Internal};
 use std::{
-    env,
-    ffi::OsStr,
-    fs,
+    env, fs,
     path::{Path, PathBuf},
 };
 use toml::value::Table;
@@ -73,11 +71,31 @@ pub struct WasmProject {
 /// Pre-processor result.
 pub type PreProcessorResult<T> = Result<T>;
 
+/// Preprocessor target specifying the output file name.
+#[derive(Debug, Default, PartialEq, Eq)]
+pub enum PreProcessorTarget {
+    /// Use the default file name (i.e. overwrite the .wasm file).
+    #[default]
+    Default,
+    /// Use the given file name with pre-processor name at end.
+    ///
+    /// `Named("foo.wasm".into())` will be converted to
+    /// `"foo_{pre_processor_name}.wasm"`.
+    Named(String),
+}
+
 /// Pre-processor hook for wasm generation.
 pub trait PreProcessor {
-    fn name(&self) -> &'static str;
+    /// Returns the name of the pre-processor. It must be some unique string.
+    fn name(&self) -> &'static str {
+        env!("CARGO_PKG_NAME")
+    }
 
-    fn pre_process(&self, original: PathBuf) -> PreProcessorResult<Vec<(String, Vec<u8>)>>;
+    /// Returns the result of the pre-processor.
+    fn pre_process(
+        &self,
+        original: PathBuf,
+    ) -> PreProcessorResult<Vec<(PreProcessorTarget, Vec<u8>)>>;
 }
 
 impl WasmProject {
@@ -437,25 +455,55 @@ extern "C" fn metahash() {{
 
         fs::create_dir_all(&self.target_dir).context("Failed to create target directory")?;
 
-        let mut wasm_files = vec![];
+        let mut wasm_files = vec![(original_wasm_path.clone(), file_base_name.clone())];
 
         for pre_processor in &self.pre_processors {
-            for (path, content) in pre_processor.pre_process(original_wasm_path.clone())? {
-                let pre_processed_path = self.wasm_target_dir.join(path);
+            let pre_processor_name = pre_processor.name().to_lowercase().replace('-', "_");
+            let pre_processor_output = pre_processor.pre_process(original_wasm_path.clone())?;
+
+            let default_targets = pre_processor_output
+                .iter()
+                .filter(|(target, _)| *target == PreProcessorTarget::Default)
+                .count();
+            if default_targets > 1 {
+                return Err(anyhow::anyhow!("Pre-processor \"{pre_processor_name}\" cannot have more than one default target."));
+            }
+
+            for (pre_processor_target, content) in pre_processor_output {
+                let (pre_processed_path, new_wasm_file) = match pre_processor_target {
+                    PreProcessorTarget::Default => (original_wasm_path.clone(), false),
+                    PreProcessorTarget::Named(filename) => {
+                        let path = Path::new(&filename);
+
+                        let file_stem = path
+                            .file_stem()
+                            .and_then(|s| s.to_str())
+                            .expect("Failed to get file stem");
+                        let extension = path.extension().and_then(|s| s.to_str());
+
+                        let filename = match extension {
+                            Some(extension) => {
+                                format!("{file_stem}_{pre_processor_name}.{extension}")
+                            }
+                            None => format!("{file_stem}_{pre_processor_name}"),
+                        };
+
+                        (
+                            self.wasm_target_dir.join(filename),
+                            extension == Some("wasm"),
+                        )
+                    }
+                };
                 fs::write(&pre_processed_path, content)?;
 
-                if pre_processed_path.extension() == Some(OsStr::new("wasm")) {
-                    let pre_processor_name = pre_processor.name().to_lowercase();
-                    wasm_files.push((
-                        pre_processed_path,
-                        format!("{file_base_name}_{pre_processor_name}"),
-                    ));
+                if new_wasm_file {
+                    let file_stem = pre_processed_path
+                        .file_stem()
+                        .and_then(|s| s.to_str().map(|s| s.to_string()))
+                        .expect("Failed to get file stem");
+                    wasm_files.push((pre_processed_path, file_stem));
                 }
             }
-        }
-
-        if wasm_files.is_empty() {
-            wasm_files.push((original_wasm_path.clone(), file_base_name.clone()));
         }
 
         for (wasm_path, file_base_name) in &wasm_files {

@@ -272,8 +272,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             optimized_wasm_path.display()
         );
 
-        let validator = CodeValidator::try_from(code)?;
-        validator.validate_program()?;
+        CodeValidator::try_from(code)?.validate_program()?;
     }
 
     Ok(())
