@@ -22,7 +22,8 @@
 use crate::Pallet as BuiltinActorPallet;
 use crate::*;
 use ark_bls12_381::{Bls12_381, G1Affine, G1Projective as G1, G2Affine, G2Projective as G2};
-use ark_ec::{pairing::Pairing, Group};
+use ark_ec::{pairing::Pairing, Group, ScalarMul};
+use ark_scale::hazmat::ArkScaleProjective;
 use ark_std::{ops::Mul, UniformRand};
 use frame_benchmarking::{benchmarks, impl_benchmark_test_suite};
 use gear_core::message::{Payload, StoredDispatch};
@@ -88,6 +89,16 @@ pub type BenchmarkingBuiltinActor<T> = (
     DummyActor14<T>,
     DummyActor15<T>,
 );
+
+fn naive_var_base_msm<G: ScalarMul>(bases: &[G::MulBase], scalars: &[G::ScalarField]) -> G {
+    let mut acc = G::zero();
+
+    for (base, scalar) in bases.iter().zip(scalars.iter()) {
+        acc += *base * scalar;
+    }
+
+    acc
+}
 
 benchmarks! {
     where_clause {
@@ -197,6 +208,34 @@ benchmarks! {
         _result = sp_crypto_ec_utils::bls12_381::host_calls::bls12_381_final_exponentiation(miller_loop);
     } verify {
         assert!(_result.is_ok());
+    }
+
+    bls12_381_msm_g1 {
+        let c in 0 .. 1_000;
+
+        let count = c as usize;
+
+        let mut rng = ark_std::test_rng();
+
+        let scalars = (0..count)
+            .map(|_| <G1 as Group>::ScalarField::rand(&mut rng))
+            .collect::<Vec<_>>();
+        let ark_scalars: ArkScale<Vec<<G1 as Group>::ScalarField>> = scalars.clone().into();
+        let encoded_scalars = ark_scalars.encode();
+
+        let bases = (0..count).map(|_| G1::rand(&mut rng)).collect::<Vec<_>>();
+        let bases = G1::batch_convert_to_mul_base(&bases);
+        let ark_bases: ArkScale<Vec<G1Affine>> = bases.clone().into();
+        let encoded_bases = ark_bases.encode();
+
+        let mut _result: Result<Vec<u8>, ()> = Err(());
+    }: {
+        _result = sp_crypto_ec_utils::bls12_381::host_calls::bls12_381_msm_g1(encoded_bases, encoded_scalars);
+    } verify {
+        let naive = naive_var_base_msm::<G1>(bases.as_slice(), scalars.as_slice());
+        let encoded = _result.unwrap();
+        let fast = ArkScaleProjective::<G1>::decode(&mut &encoded[..]).unwrap();
+        assert_eq!(naive, fast.0);
     }
 }
 
