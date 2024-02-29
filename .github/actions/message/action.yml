@@ -14,6 +14,8 @@ outputs:
     description: If trigger check.
   macos:
     description: If enable macos.
+  validator:
+    description: If enable validator checks.
 
 runs:
   using: node20
