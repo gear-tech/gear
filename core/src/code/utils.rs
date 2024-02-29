@@ -36,7 +36,7 @@ use gear_wasm_instrument::{
 };
 
 /// Defines maximal permitted count of memory pages.
-pub const MAX_WASM_PAGE_AMOUNT: u16 = 512;
+pub const MAX_WASM_PAGE_AMOUNT: WasmPagesAmount = WasmPagesAmount::from_u16(512);
 
 /// Name of exports allowed on chain.
 pub const ALLOWED_EXPORTS: [&str; 6] = [
@@ -62,11 +62,11 @@ pub fn get_static_pages(module: &Module) -> Result<WasmPage, CodeError> {
             External::Memory(mem_ty) => Some(mem_ty.limits().initial()),
             _ => None,
         })
-        .map(WasmPage::new)
+        .map(WasmPagesAmount::try_from)
         .ok_or(MemoryError::EntryNotFound)?
         .map_err(|_| MemoryError::InvalidStaticPageCount)?;
 
-    if static_pages.raw() > MAX_WASM_PAGE_AMOUNT as u32 {
+    if static_pages > MAX_WASM_PAGE_AMOUNT {
         Err(MemoryError::InvalidStaticPageCount)?;
     }
 

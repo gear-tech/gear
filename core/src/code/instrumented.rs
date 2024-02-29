@@ -18,7 +18,7 @@
 
 //! Module for instrumented code.
 
-use crate::{code::CodeAndId, ids::CodeId, message::DispatchKind, pages::WasmPage};
+use crate::{code::CodeAndId, ids::CodeId, message::DispatchKind, pages::WasmPagesAmount};
 use alloc::{collections::BTreeSet, vec::Vec};
 use scale_info::{
     scale::{Decode, Encode},
@@ -57,7 +57,7 @@ impl InstrumentedCode {
     }
 
     /// Returns initial memory size from memory import.
-    pub fn static_pages(&self) -> WasmPage {
+    pub fn static_pages(&self) -> WasmPagesAmount {
         self.static_pages
     }
 

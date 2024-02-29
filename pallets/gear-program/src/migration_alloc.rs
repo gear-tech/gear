@@ -32,9 +32,9 @@ use {
     sp_std::vec::Vec,
 };
 
-pub struct MigrateToV3<T: Config>(PhantomData<T>);
+pub struct MigrateToV4<T: Config>(PhantomData<T>);
 
-impl<T: Config> OnRuntimeUpgrade for MigrateToV3<T> {
+impl<T: Config> OnRuntimeUpgrade for MigrateToV4<T> {
     #[cfg(feature = "try-runtime")]
     fn pre_upgrade() -> Result<Vec<u8>, TryRuntimeError> {
         Ok((v2::ProgramStorage::<T>::iter().count() as u64).encode())
@@ -51,7 +51,7 @@ impl<T: Config> OnRuntimeUpgrade for MigrateToV3<T> {
         // 1 read for on chain storage version
         let mut weight = T::DbWeight::get().reads(1);
 
-        if current == 3 && onchain == 2 {
+        if current == 4 && onchain == 3 {
             ProgramStorage::<T>::translate(|_, program: v2::Program<BlockNumberFor<T>>| {
                 weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
 
@@ -220,10 +220,10 @@ mod test {
             let program_id = ProgramId::from(3u64);
             v2::ProgramStorage::<Test>::insert(program_id, program);
 
-            let state = MigrateToV3::<Test>::pre_upgrade().unwrap();
-            let w = MigrateToV3::<Test>::on_runtime_upgrade();
+            let state = MigrateToV4::<Test>::pre_upgrade().unwrap();
+            let w = MigrateToV4::<Test>::on_runtime_upgrade();
             assert!(!w.is_zero());
-            MigrateToV3::<Test>::post_upgrade(state).unwrap();
+            MigrateToV4::<Test>::post_upgrade(state).unwrap();
 
             if let Program::Active(p) = ProgramStorage::<Test>::get(active_program_id).unwrap() {
                 assert_eq!(
@@ -253,7 +253,7 @@ mod test {
                 Program::Terminated(ProgramId::from(2u64))
             );
 
-            assert_eq!(StorageVersion::get::<GearProgram>(), 3);
+            assert_eq!(StorageVersion::get::<GearProgram>(), 4);
         })
     }
 }
