@@ -23,6 +23,7 @@ jobs:
       cache: ${{ steps.config.outputs.cache }}
       check: ${{ steps.config.outputs.check }}
       macos: ${{ steps.config.outputs.macos }}
+      validator: ${{ steps.config.outputs.validator }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -51,3 +52,7 @@ jobs:
     with:
       cache: ${{ needs.status.outputs.cache }}
       macos: ${{ needs.status.outputs.macos == 'true' }}
+
+  validator:
+    if: ${{ needs.status.outputs.validator = 'true' }}
+    uses: ./.github/workflows/.yml
