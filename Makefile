@@ -197,7 +197,8 @@ test-gear: # Crates except gclient, gcli, gsdk are excluded to significantly dec
 		--exclude gear-authorship \
 		--exclude pallet-gear-staking-rewards \
 		--exclude gear-wasm-gen \
-		--exclude demo-stack-allocations
+		--exclude demo-stack-allocations \
+		--exclude gring
 
 .PHONY: test-gear-release
 test-gear-release:

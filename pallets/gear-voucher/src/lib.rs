@@ -19,7 +19,7 @@
 //! # Gear Voucher Pallet
 //!
 //! The Gear Voucher Pallet provides functionality for alternative source of funds for
-//! gas and transaction fees payment when sending messages to Contracts in Gear engine.
+//! gas and transaction fees payment when sending messages to programs in Gear engine.
 //! These funds can only be used for a specific purpose - much like a payment voucher.
 //! Hence the pallet name.
 //!
@@ -28,10 +28,10 @@
 //!
 //! ## Overview
 //!
-//! This pallet provides API for contract owners (or any other party for that matter)
-//! to sponsor contract users by allocating some funds in such a way that these funds
+//! This pallet provides API for program owners (or any other party for that matter)
+//! to sponsor program users by allocating some funds in such a way that these funds
 //! can only be spent to pay for gas and transaction fees if a user sends a message
-//! to the contract.
+//! to the program.
 
 #![cfg_attr(not(feature = "std"), no_std)]
 #![allow(clippy::items_after_test_module)]
@@ -161,6 +161,14 @@ pub mod pallet {
             /// Optional field defining was the owner changed during update.
             new_owner: Option<AccountIdOf<T>>,
         },
+
+        /// Voucher has been declined (set to expired state).
+        VoucherDeclined {
+            /// Account id of user who declined its own voucher.
+            spender: AccountIdOf<T>,
+            /// Voucher identifier.
+            voucher_id: VoucherId,
+        },
     }
 
     // Pallet Gear Voucher error.
@@ -184,6 +192,10 @@ pub mod pallet {
         VoucherExpired,
         /// Voucher issue/prolongation duration out of [min; max] constants.
         DurationOutOfBounds,
+        /// Voucher update function tries to cut voucher ability of code upload.
+        CodeUploadingEnabled,
+        /// Voucher is disabled for code uploading, but requested.
+        CodeUploadingDisabled,
     }
 
     /// Storage containing amount of the total vouchers issued.
@@ -224,6 +236,9 @@ pub mod pallet {
         /// * programs: pool of programs spender can interact with,
         ///             if None - means any program,
         ///             limited by Config param;
+        /// * code_uploading:
+        ///             allow voucher to be used as payer for `upload_code`
+        ///             transactions fee;
         /// * duration: amount of blocks voucher could be used by spender
         ///             and couldn't be revoked by owner.
         ///             Must be out in [MinDuration; MaxDuration] constants.
@@ -236,6 +251,7 @@ pub mod pallet {
             spender: AccountIdOf<T>,
             balance: BalanceOf<T>,
             programs: Option<BTreeSet<ProgramId>>,
+            code_uploading: bool,
             duration: BlockNumberFor<T>,
         ) -> DispatchResultWithPostInfo {
             // Ensuring origin.
@@ -276,6 +292,7 @@ pub mod pallet {
             let voucher_info = VoucherInfo {
                 owner: owner.clone(),
                 programs,
+                code_uploading,
                 expiry,
             };
 
@@ -313,7 +330,7 @@ pub mod pallet {
             Self::validate_prepaid(origin.clone(), voucher_id, &call)?;
 
             // Dispatching of the call.
-            T::CallsDispatcher::dispatch(origin, voucher_id.cast(), call)
+            T::CallsDispatcher::dispatch(origin, voucher_id.cast(), voucher_id, call)
         }
 
         /// Revoke existing voucher.
@@ -401,6 +418,8 @@ pub mod pallet {
         ///                     `Some(programs_set)` passed or allows
         ///                     it to interact with any program by
         ///                     `None` passed;
+        /// * code_uploading:   optionally allows voucher to be used to pay
+        ///                     fees for `upload_code` extrinsics;
         /// * prolong_duration: optionally increases expiry block number.
         ///                     If voucher is expired, prolongs since current bn.
         ///                     Validity prolongation (since current block number
@@ -408,6 +427,7 @@ pub mod pallet {
         ///                     should be in [MinDuration; MaxDuration], in other
         ///                     words voucher couldn't have expiry greater than
         ///                     current block number + MaxDuration.
+        #[allow(clippy::too_many_arguments)]
         #[pallet::call_index(3)]
         #[pallet::weight(T::WeightInfo::update())]
         pub fn update(
@@ -417,6 +437,7 @@ pub mod pallet {
             move_ownership: Option<AccountIdOf<T>>,
             balance_top_up: Option<BalanceOf<T>>,
             append_programs: Option<Option<BTreeSet<ProgramId>>>,
+            code_uploading: Option<bool>,
             prolong_duration: Option<BlockNumberFor<T>>,
         ) -> DispatchResultWithPostInfo {
             // Ensuring origin.
@@ -433,7 +454,10 @@ pub mod pallet {
             let mut updated = false;
 
             // Flattening move ownership back to current owner.
-            let new_owner = move_ownership.filter(|addr| addr.ne(&voucher.owner));
+            let new_owner = move_ownership.filter(|addr| *addr != voucher.owner);
+
+            // Flattening code uploading.
+            let code_uploading = code_uploading.filter(|v| *v != voucher.code_uploading);
 
             // Flattening duration prolongation.
             let prolong_duration = prolong_duration.filter(|dur| !dur.is_zero());
@@ -480,6 +504,14 @@ pub mod pallet {
 
                 // Noop.
                 _ => (),
+            }
+
+            // Optionally enabling code uploading.
+            if let Some(code_uploading) = code_uploading {
+                ensure!(code_uploading, Error::<T>::CodeUploadingEnabled);
+
+                voucher.code_uploading = true;
+                updated = true;
             }
 
             // Optionally prolongs validity of the voucher.
@@ -534,13 +566,54 @@ pub mod pallet {
             // Ensuring origin.
             let origin = ensure_signed(origin)?;
 
+            // Validating the call for legacy implementation.
+            match call {
+                PrepaidCall::UploadCode { .. } => {
+                    return Err(Error::<T>::CodeUploadingDisabled.into())
+                }
+                PrepaidCall::DeclineVoucher => return Err(Error::<T>::InexistentVoucher.into()),
+                PrepaidCall::SendMessage { .. } | PrepaidCall::SendReply { .. } => (),
+            };
+
             // Looking for sponsor synthetic account.
             #[allow(deprecated)]
             let sponsor = Self::call_deprecated_sponsor(&origin, &call)
                 .ok_or(Error::<T>::UnknownDestination)?;
 
             // Dispatching call.
-            T::CallsDispatcher::dispatch(origin, sponsor, call)
+            T::CallsDispatcher::dispatch(origin, sponsor.clone(), sponsor.cast(), call)
+        }
+
+        /// Decline existing and not expired voucher.
+        ///
+        /// This extrinsic expires voucher of the caller, if it's still active,
+        /// allowing it to be revoked.
+        ///
+        /// Arguments:
+        /// * voucher_id:   voucher id to be declined.
+        #[pallet::call_index(5)]
+        #[pallet::weight(T::WeightInfo::decline())]
+        pub fn decline(origin: OriginFor<T>, voucher_id: VoucherId) -> DispatchResultWithPostInfo {
+            // Ensuring origin.
+            let origin = ensure_signed(origin)?;
+
+            // Querying voucher if its not expired.
+            let mut voucher = Self::get_active_voucher(origin.clone(), voucher_id)?;
+
+            // Set voucher into expired state.
+            voucher.expiry = <frame_system::Pallet<T>>::block_number();
+
+            // Updating voucher in storage.
+            // TODO: consider revoke here once gas counting implemented (#3726).
+            Vouchers::<T>::insert(origin.clone(), voucher_id, voucher);
+
+            // Depositing event.
+            Self::deposit_event(Event::VoucherDeclined {
+                spender: origin,
+                voucher_id,
+            });
+
+            Ok(().into())
         }
     }
 }

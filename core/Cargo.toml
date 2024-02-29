@@ -41,4 +41,4 @@ numerated = { workspace = true, features = ["mock"] }
 [features]
 default = []
 strict = []
-std = ["serde/std"]
+std = ["serde/std", "wasmparser/std"]

@@ -130,7 +130,8 @@ macro_rules! impl_pallet_timestamp {
 
 #[macro_export]
 macro_rules! impl_pallet_authorship {
-    ($runtime:ty, EventHandler = $event_handler:ty) => {
+    ($( $tokens:tt )*) => {
+        #[allow(dead_code)]
         pub struct FixedBlockAuthor;
 
         impl FindAuthor<AccountId> for FixedBlockAuthor {
@@ -139,13 +140,37 @@ macro_rules! impl_pallet_authorship {
             }
         }
 
+        #[allow(dead_code)]
+        type AuthorshipFindAuthor = FixedBlockAuthor;
+        #[allow(dead_code)]
+        type AuthorshipEventHandler = ();
+
+        mod pallet_tests_authorship_config_impl {
+            use super::*;
+
+            $crate::impl_pallet_authorship_inner!($( $tokens )*);
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! impl_pallet_authorship_inner {
+    ($runtime:ty$(,)?) => {
         impl pallet_authorship::Config for $runtime {
-            type FindAuthor = FixedBlockAuthor;
-            type EventHandler = $event_handler;
+            type FindAuthor = AuthorshipFindAuthor;
+            type EventHandler = AuthorshipEventHandler;
         }
     };
 
-    ($runtime:ty) => {
-        $crate::impl_pallet_authorship!($runtime, EventHandler = ());
+    ($runtime:ty, FindAuthor = $find_author:ty $(, $( $rest:tt )*)?) => {
+        type AuthorshipFindAuthor = $find_author;
+
+        $crate::impl_pallet_authorship_inner!($runtime, $($( $rest )*)?);
+    };
+
+    ($runtime:ty, EventHandler = $event_handler:ty $(, $( $rest:tt )*)?) => {
+        type AuthorshipEventHandler = $event_handler;
+
+        $crate::impl_pallet_authorship_inner!($runtime, $($( $rest )*)?);
     };
 }

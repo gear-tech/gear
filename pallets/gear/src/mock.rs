@@ -50,6 +50,7 @@ pub(crate) const USER_2: AccountId = 2;
 pub(crate) const USER_3: AccountId = 3;
 pub(crate) const LOW_BALANCE_USER: AccountId = 4;
 pub(crate) const BLOCK_AUTHOR: AccountId = 255;
+pub(crate) const RENT_POOL: AccountId = 256;
 
 macro_rules! dry_run {
     (
@@ -60,7 +61,7 @@ macro_rules! dry_run {
 
         let mut ext_manager = Default::default();
         pallet_gear::Pallet::<Test>::process_tasks(&mut ext_manager);
-        pallet_gear::Pallet::<Test>::process_queue(ext_manager);
+        pallet_gear::Pallet::<Test>::process_queue(ext_manager, ());
 
         let $weight = $initial_weight.saturating_sub(GasAllowanceOf::<Test>::get());
     };
@@ -89,7 +90,7 @@ pallet_gear_program::impl_config!(Test);
 pallet_gear_messenger::impl_config!(Test, CurrentBlockNumber = Gear);
 pallet_gear_scheduler::impl_config!(Test);
 pallet_gear_bank::impl_config!(Test);
-pallet_gear::impl_config!(Test, Schedule = DynamicSchedule);
+pallet_gear::impl_config!(Test, Schedule = DynamicSchedule, RentPoolId = ConstU64<RENT_POOL>);
 pallet_gear_gas::impl_config!(Test);
 common::impl_pallet_balances!(Test);
 common::impl_pallet_authorship!(Test);
@@ -113,7 +114,7 @@ parameter_types! {
 }
 
 thread_local! {
-    static SCHEDULE: RefCell<Option<Schedule<Test>>> = RefCell::new(None);
+    static SCHEDULE: RefCell<Option<Schedule<Test>>> = const { RefCell::new(None) };
 }
 
 #[derive(Debug)]
@@ -171,7 +172,7 @@ impl pallet_gear_voucher::Config for Test {
     type Currency = Balances;
     type PalletId = VoucherPalletId;
     type WeightInfo = ();
-    type CallsDispatcher = Gear;
+    type CallsDispatcher = pallet_gear::PrepaidCallDispatcher<Test>;
     type Mailbox = MailboxOf<Self>;
     type MaxProgramsAmount = ConstU8<32>;
     type MaxDuration = MaxVoucherDuration;
@@ -191,6 +192,7 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
             (USER_3, 500_000_000_000_000_u128),
             (LOW_BALANCE_USER, 1_000_000_u128),
             (BLOCK_AUTHOR, 500_000_u128),
+            (RENT_POOL, ExistentialDeposit::get()),
             (BankAddress::get(), ExistentialDeposit::get()),
         ],
     }

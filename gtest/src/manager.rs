@@ -34,8 +34,8 @@ use gear_core::{
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::PageBuf,
     message::{
-        Dispatch, DispatchKind, Message, MessageWaitedType, ReplyMessage, ReplyPacket,
-        StoredDispatch, StoredMessage,
+        Dispatch, DispatchKind, IncomingDispatch, Message, MessageWaitedType, ReplyMessage,
+        ReplyPacket, StoredDispatch, StoredMessage,
     },
     pages::{GearPage, IntervalIterator, IntervalsTree, WasmPage},
     program::Program as CoreProgram,
@@ -80,13 +80,11 @@ impl TestActor {
         );
 
         if let TestActor::Uninitialized(_, maybe_prog) = self {
-            let mut prog = maybe_prog
-                .take()
-                .expect("actor storage contains only `Some` values by contract");
-            if let Program::Genuine { program, .. } = &mut prog {
-                program.set_initialized();
-            }
-            *self = TestActor::Initialized(prog);
+            *self = TestActor::Initialized(
+                maybe_prog
+                    .take()
+                    .expect("actor storage contains only `Some` values by contract"),
+            );
         }
     }
 
@@ -161,7 +159,6 @@ impl TestActor {
                 code_id: *code_id,
                 code_exports: program.code().exports().clone(),
                 static_pages: program.code().static_pages(),
-                initialized: program.is_initialized(),
                 pages_with_data: pages_data.keys().cloned().collect(),
                 gas_reservation_map,
                 memory_infix: program.memory_infix(),
@@ -407,7 +404,7 @@ impl ExtManager {
             );
         }
 
-        if !self.is_user(&dispatch.source()) {
+        if self.is_program(&dispatch.source()) {
             panic!("Sending messages allowed only from users id");
         }
 
@@ -445,7 +442,7 @@ impl ExtManager {
             .entry(dispatch.id())
             .or_insert_with(|| dispatch.gas_limit().unwrap_or(u64::MAX));
 
-        if !self.is_user(&dispatch.destination()) {
+        if self.is_program(&dispatch.destination()) {
             self.dispatches.push_back(dispatch.into_stored());
         } else {
             let message = dispatch.into_parts().1.into_stored();
@@ -577,8 +574,26 @@ impl ExtManager {
     }
 
     pub(crate) fn is_user(&self, id: &ProgramId) -> bool {
-        !self.actors.contains_key(id)
-            || matches!(self.actors.borrow().get(id), Some((TestActor::User, _)))
+        matches!(
+            self.actors.borrow().get(id),
+            Some((TestActor::User, _)) | None
+        )
+    }
+
+    pub(crate) fn is_active_program(&self, id: &ProgramId) -> bool {
+        matches!(
+            self.actors.borrow().get(id),
+            Some((TestActor::Initialized(_), _)) | Some((TestActor::Uninitialized(_, _), _))
+        )
+    }
+
+    pub(crate) fn is_program(&self, id: &ProgramId) -> bool {
+        matches!(
+            self.actors.borrow().get(id),
+            Some((TestActor::Initialized(_), _))
+                | Some((TestActor::Uninitialized(_, _), _))
+                | Some((TestActor::Dormant, _))
+        )
     }
 
     pub(crate) fn mint_to(&mut self, id: &ProgramId, value: Balance) {
@@ -778,7 +793,6 @@ impl ExtManager {
                             program_id,
                             origin: source,
                             reason: expl.to_string(),
-                            executed: true,
                         },
                     );
                 } else {
@@ -875,11 +889,6 @@ impl ExtManager {
             gas_multiplier: gsys::GasMultiplier::from_value_per_gas(VALUE_PER_GAS),
         };
 
-        let (actor_data, code) = match data {
-            Some((a, c)) => (Some(a), Some(c)),
-            None => (None, None),
-        };
-
         let precharged_dispatch = match core_processor::precharge_for_program(
             &block_config,
             u64::MAX,
@@ -891,6 +900,12 @@ impl ExtManager {
                 core_processor::handle_journal(journal, self);
                 return;
             }
+        };
+
+        let Some((actor_data, code)) = data else {
+            let journal = core_processor::process_non_executable(precharged_dispatch, dest);
+            core_processor::handle_journal(journal, self);
+            return;
         };
 
         let context = match core_processor::precharge_for_code_length(
@@ -906,7 +921,6 @@ impl ExtManager {
             }
         };
 
-        let code = code.expect("Program exists so do code");
         let context = ContextChargedForCode::from((context, code.code().len() as u32));
         let context = ContextChargedForInstrumentation::from(context);
         let context = match core_processor::precharge_for_memory(&block_config, context) {
@@ -989,21 +1003,10 @@ impl JournalHandler for ExtManager {
             .entry(dispatch.id())
             .or_insert_with(|| dispatch.gas_limit().unwrap_or(u64::MAX));
 
-        if !self.is_user(&dispatch.destination()) {
+        if self.is_program(&dispatch.destination()) {
             self.dispatches.push_back(dispatch.into_stored());
         } else {
             let message = dispatch.into_stored().into_parts().1;
-
-            let message = match message
-                .details()
-                .and_then(|d| d.to_reply_details().map(|d| d.to_reply_code()))
-            {
-                None => message,
-                Some(code) if code.is_success() => message,
-                _ => message
-                    .with_string_payload::<ActorExecutionErrorReplyReason>()
-                    .unwrap_or_else(|e| e),
-            };
 
             self.mailbox
                 .entry(message.destination())
@@ -1099,7 +1102,7 @@ impl JournalHandler for ExtManager {
             return;
         }
         if let Some(ref to) = to {
-            if !self.is_user(&from) {
+            if self.is_program(&from) {
                 let mut actors = self.actors.borrow_mut();
                 let (_, balance) = actors.get_mut(&from).expect("Can't fail");
 
@@ -1158,7 +1161,7 @@ impl JournalHandler for ExtManager {
 
     #[track_caller]
     fn stop_processing(&mut self, _dispatch: StoredDispatch, _gas_burned: u64) {
-        panic!("Processing stopped. Used for on-chain logic only.")
+        unimplemented!("Processing stopped. Used for on-chain logic only.")
     }
 
     fn reserve_gas(
@@ -1214,5 +1217,9 @@ impl JournalHandler for ExtManager {
 
     fn reply_deposit(&mut self, _message_id: MessageId, future_reply_id: MessageId, amount: u64) {
         self.gas_limits.insert(future_reply_id, amount);
+    }
+
+    fn waiting_init_message(&mut self, _dispatch: IncomingDispatch, _destination: ProgramId) {
+        unimplemented!("Waiting init message is used for on-chain logic only");
     }
 }

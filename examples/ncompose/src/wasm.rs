@@ -16,11 +16,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-// This contract recursively composes itself with another contract (the other contract
+// This program recursively composes itself with another program (the other program
 // being applied to the input data first): `c(f) = (c(f) . f) x`.
-// Every call to the auto_composer contract increments the internal `ITER` counter.
+// Every call to the auto_composer program increments the internal `ITER` counter.
 // As soon as the counter reaches the `MAX_ITER`, the recursion stops.
-// Effectively, this procedure executes a composition of `MAX_ITER` contracts `f`
+// Effectively, this procedure executes a composition of `MAX_ITER` programs `f`
 // where the output of the previous call is fed to the input of the next call.
 
 extern crate alloc;
@@ -76,9 +76,9 @@ impl State {
             self.iter, self.max_iter
         );
 
-        // Pass the input to the `other` contract first
+        // Pass the input to the `other` program first
         debug!(
-            "[0x{} ncompose::compose_with_self] Calling contract 0x{}",
+            "[0x{} ncompose::compose_with_self] Calling program 0x{}",
             hex::encode(self.me.handle),
             hex::encode(self.other.handle)
         );
@@ -115,7 +115,7 @@ impl Program {
             .await
             .map_err(|_| "Error in async message processing")?;
         debug!(
-            "[0x{} ncompose::Program::call] Received reply from remote contract: {:?}",
+            "[0x{} ncompose::Program::call] Received reply from remote program: {:?}",
             hex::encode(exec::program_id()),
             hex::encode(&reply_bytes)
         );

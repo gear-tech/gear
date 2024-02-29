@@ -22,7 +22,7 @@ use crate::{Bound, IntervalIterator, IntervalsTree, Numerated};
 use alloc::{collections::BTreeSet, fmt::Debug, vec::Vec};
 use num_traits::{bounds::UpperBounded, One, Zero};
 
-/// Mock function for any [Numerated] implementation testing.
+/// Mock function for any [`Numerated`] implementation testing.
 pub fn test_numerated<T>(x: T, y: T)
 where
     T: Numerated + Debug,
@@ -60,7 +60,7 @@ where
     }
 }
 
-/// [IntervalIterator] testing action.
+/// [`IntervalIterator`] testing action.
 #[derive(Debug)]
 pub enum IntervalAction<T: Numerated> {
     /// Try to create interval from correct start..end.
@@ -69,7 +69,7 @@ pub enum IntervalAction<T: Numerated> {
     Incorrect(T::Bound, T::Bound),
 }
 
-/// Mock function for [IntervalIterator] testing for any [Numerated] implementation.
+/// Mock function for [`IntervalIterator`] testing for any [`Numerated`] implementation.
 pub fn test_interval<T>(action: IntervalAction<T>)
 where
     T: Numerated + UpperBounded + Debug,
@@ -100,7 +100,7 @@ where
     }
 }
 
-/// [IntervalsTree] testing action.
+/// [`IntervalsTree`] testing action.
 #[derive(Debug)]
 pub enum TreeAction<T> {
     /// Inserts interval into tree action.
@@ -117,7 +117,7 @@ fn btree_set_voids<T: Numerated>(set: &BTreeSet<T>, interval: IntervalIterator<T
     interval.filter(|p| !set.contains(p)).collect()
 }
 
-/// Mock function for [IntervalsTree] testing for any [Numerated] implementation.
+/// Mock function for [`IntervalsTree`] testing for any [`Numerated`] implementation.
 pub fn test_tree<T: Numerated + UpperBounded + Debug>(
     initial: BTreeSet<T>,
     actions: Vec<TreeAction<T>>,

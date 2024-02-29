@@ -27,7 +27,6 @@ fn check_pages_weight(weight: u64, expected: u64) {
 }
 
 /// Check that the weights of instructions are within the expected range
-#[track_caller]
 pub fn check_instructions_weights<T: pallet_gear::Config>(
     weights: InstructionWeights<T>,
     expected: InstructionWeights<T>,
@@ -126,7 +125,6 @@ pub fn check_instructions_weights<T: pallet_gear::Config>(
 }
 
 /// Check that the weights of page operations are within the expected range
-#[track_caller]
 pub fn check_pages_weights(
     weights: PageCosts,
     expected_page_costs: PageCosts,

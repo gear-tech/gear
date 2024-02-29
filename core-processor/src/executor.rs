@@ -60,6 +60,7 @@ actor_system_error! {
     pub type PrepareMemoryError = ActorSystemError<ActorPrepareMemoryError, SystemPrepareMemoryError>;
 }
 
+// TODO: add this cases checks to Code::try_new in gear-core #3735
 /// Prepare memory error
 #[derive(Encode, Decode, TypeInfo, Debug, PartialEq, Eq, PartialOrd, Ord, derive_more::Display)]
 #[codec(crate = scale)]
@@ -74,8 +75,8 @@ pub enum ActorPrepareMemoryError {
 
 #[derive(Debug, Eq, PartialEq, derive_more::Display)]
 pub enum SystemPrepareMemoryError {
-    /// Mem size less then static pages num
-    #[display(fmt = "Mem size less then static pages num")]
+    /// Mem size less than static pages num
+    #[display(fmt = "Mem size less than static pages num")]
     InsufficientMemorySize,
 }
 
@@ -328,6 +329,7 @@ where
         system_reservation_context: info.system_reservation_context,
         page_update,
         allocations: info.allocations,
+        reply_sent: info.reply_sent,
     })
 }
 

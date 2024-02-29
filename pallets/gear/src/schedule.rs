@@ -29,7 +29,7 @@ use frame_support::{
     weights::Weight,
 };
 use gear_core::{
-    code,
+    code::MAX_WASM_PAGE_AMOUNT,
     costs::HostFnWeights as CoreHostFnWeights,
     message,
     pages::{GearPage, PageNumber, WasmPage},
@@ -51,12 +51,18 @@ pub const API_BENCHMARK_BATCH_SIZE: u32 = 80;
 /// as for `API_BENCHMARK_BATCH_SIZE`.
 pub const INSTR_BENCHMARK_BATCH_SIZE: u32 = 500;
 
-// Constant for `stack_height` is calculated via `calc-stack-height` utility to be small enough
-// to avoid stack overflow in wasmer and wasmi executors.
-// To avoid potential stack overflow problems we have a panic in sandbox in case,
-// execution is ended with stack overflow error. So, process queue execution will be
-// stopped and we will be able to investigate the problem and decrease this constant if needed.
+/// Constant for `stack_height` is calculated via `calc-stack-height` utility to be small enough
+/// to avoid stack overflow in wasmer and wasmi executors.
+/// To avoid potential stack overflow problems we have a panic in sandbox in case,
+/// execution is ended with stack overflow error. So, process queue execution will be
+/// stopped and we will be able to investigate the problem and decrease this constant if needed.
+#[cfg(not(feature = "fuzz"))]
 pub const STACK_HEIGHT_LIMIT: u32 = 36_743;
+
+/// For the fuzzer, we take the maximum possible stack limit calculated by the `calc-stack-height`
+/// utility, which would be suitable for Linux machines. This has a positive effect on code coverage.
+#[cfg(feature = "fuzz")]
+pub const FUZZER_STACK_HEIGHT_LIMIT: u32 = 65_000;
 
 /// Definition of the cost schedule and other parameterization for the wasm vm.
 ///
@@ -373,9 +379,6 @@ pub struct HostFnWeights<T: Config> {
 
     /// Weight of calling `gr_message_id`.
     pub gr_message_id: Weight,
-
-    /// Weight of calling `gr_pay_program_rent`.
-    pub gr_pay_program_rent: Weight,
 
     /// Weight of calling `gr_program_id`.
     pub gr_program_id: Weight,
@@ -758,11 +761,14 @@ impl<T: Config> Default for Schedule<T> {
 impl Default for Limits {
     fn default() -> Self {
         Self {
+            #[cfg(not(feature = "fuzz"))]
             stack_height: Some(STACK_HEIGHT_LIMIT),
+            #[cfg(feature = "fuzz")]
+            stack_height: Some(FUZZER_STACK_HEIGHT_LIMIT),
             globals: 256,
             locals: 1024,
             parameters: 128,
-            memory_pages: code::MAX_WASM_PAGES_AMOUNT.raw(),
+            memory_pages: code::MAX_WASM_PAGE_AMOUNT,
             // 4k function pointers (This is in count not bytes).
             table_size: 4096,
             br_table_size: 256,
@@ -777,7 +783,7 @@ impl Default for Limits {
 impl<T: Config> Default for InstructionWeights<T> {
     fn default() -> Self {
         Self {
-            version: 11,
+            version: 1110,
             i64const: cost_instr!(instr_i64const, 1),
             i64load: cost_instr!(instr_i64load, 0),
             i32load: cost_instr!(instr_i32load, 0),
@@ -886,7 +892,6 @@ impl<T: Config> HostFnWeights<T> {
             gr_system_reserve_gas: self.gr_system_reserve_gas.ref_time(),
             gr_gas_available: self.gr_gas_available.ref_time(),
             gr_message_id: self.gr_message_id.ref_time(),
-            gr_pay_program_rent: self.gr_pay_program_rent.ref_time(),
             gr_program_id: self.gr_program_id.ref_time(),
             gr_source: self.gr_source.ref_time(),
             gr_value: self.gr_value.ref_time(),
@@ -1012,7 +1017,6 @@ impl<T: Config> Default for HostFnWeights<T> {
             gr_unreserve_gas: to_weight!(cost!(gr_unreserve_gas)),
             gr_gas_available: to_weight!(cost_batched!(gr_gas_available)),
             gr_message_id: to_weight!(cost_batched!(gr_message_id)),
-            gr_pay_program_rent: to_weight!(cost_batched!(gr_pay_program_rent)),
             gr_program_id: to_weight!(cost_batched!(gr_program_id)),
             gr_source: to_weight!(cost_batched!(gr_source)),
             gr_value: to_weight!(cost_batched!(gr_value)),

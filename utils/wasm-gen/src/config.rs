@@ -90,8 +90,10 @@
 //! [`crate::generate_gear_program_code`] or [`crate::generate_gear_program_module`])
 //! you'd need a configs bundle - type which implements [`ConfigsBundle`].
 //!
-//! There's a pre-defined one - [`ValidGearWasmConfigsBundle`], usage of which will result
+//! There's a pre-defined one - [`StandardGearWasmConfigsBundle`], usage of which will result
 //! in generation of valid (always) gear-wasm module.
+
+use std::num::NonZeroU32;
 
 mod generator;
 mod module;
@@ -131,6 +133,11 @@ impl ConfigsBundle for (GearWasmGeneratorConfig, SelectableParams) {
 pub struct StandardGearWasmConfigsBundle {
     /// Externalities to be logged.
     pub log_info: Option<String>,
+    /// Probability of wait syscalls.
+    ///
+    /// For example, if this parameter is 4, wait syscalls will be invoked
+    /// with probability 1/4.
+    pub waiting_probability: Option<NonZeroU32>,
     /// Flag which signals whether recursions must be removed.
     pub remove_recursion: bool,
     /// If the limit is set to `Some(_)`, programs will try to stop execution
@@ -156,6 +163,7 @@ impl Default for StandardGearWasmConfigsBundle {
     fn default() -> Self {
         Self {
             log_info: Some("StandardGearWasmConfigsBundle".into()),
+            waiting_probability: NonZeroU32::new(4),
             remove_recursion: false,
             critical_gas_limit: Some(1_000_000),
             injection_types: SyscallsInjectionTypes::all_once(),
@@ -171,6 +179,7 @@ impl ConfigsBundle for StandardGearWasmConfigsBundle {
     fn into_parts(self) -> (GearWasmGeneratorConfig, SelectableParams) {
         let StandardGearWasmConfigsBundle {
             log_info,
+            waiting_probability,
             remove_recursion,
             critical_gas_limit,
             injection_types,
@@ -185,6 +194,10 @@ impl ConfigsBundle for StandardGearWasmConfigsBundle {
         let mut syscalls_config_builder = SyscallsConfigBuilder::new(injection_types);
         if let Some(log_info) = log_info {
             syscalls_config_builder = syscalls_config_builder.with_log_info(log_info);
+        }
+        if let Some(waiting_probability) = waiting_probability {
+            syscalls_config_builder =
+                syscalls_config_builder.with_waiting_probability(waiting_probability);
         }
         syscalls_config_builder = syscalls_config_builder.with_params_config(params_config);
 

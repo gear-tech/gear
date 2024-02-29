@@ -21,7 +21,7 @@
 #![cfg(test)]
 
 use crate::{mock::*, *};
-use frame_support::{assert_noop, assert_ok, assert_storage_noop};
+use frame_support::{assert_noop, assert_ok, assert_storage_noop, traits::EstimateNextNewSession};
 use sp_runtime::{DispatchError, PerThing, Perbill};
 
 macro_rules! assert_approx_eq {
@@ -47,7 +47,7 @@ pub(crate) fn init_logger() {
 fn supply_alignment_works() {
     init_logger();
 
-    ExtBuilder::default()
+    ExtBuilder::<Test>::default()
         .initial_authorities(vec![
             (VAL_1_STASH, VAL_1_AUTH_ID),
             (VAL_2_STASH, VAL_2_AUTH_ID),
@@ -143,7 +143,7 @@ fn supply_alignment_works() {
 #[test]
 fn genesis_config_works() {
     init_logger();
-    ExtBuilder::default()
+    ExtBuilder::<Test>::default()
         .initial_authorities(vec![
             (VAL_1_STASH, VAL_1_AUTH_ID),
             (VAL_2_STASH, VAL_2_AUTH_ID),
@@ -175,7 +175,7 @@ fn pool_refill_works() {
 
 #[test]
 fn burning_works() {
-    ExtBuilder::default()
+    ExtBuilder::<Test>::default()
         .initial_authorities(vec![
             (VAL_1_STASH, VAL_1_AUTH_ID),
             (VAL_2_STASH, VAL_2_AUTH_ID),
@@ -200,7 +200,7 @@ fn burning_works() {
 
 #[test]
 fn rewards_account_doesnt_get_deleted() {
-    ExtBuilder::default()
+    ExtBuilder::<Test>::default()
         .initial_authorities(vec![
             (VAL_1_STASH, VAL_1_AUTH_ID),
             (VAL_2_STASH, VAL_2_AUTH_ID),
@@ -221,9 +221,11 @@ fn rewards_account_doesnt_get_deleted() {
 
 #[test]
 fn validators_rewards_disbursement_works() {
+    init_logger();
+
     let (target_inflation, ideal_stake, pool_balance, non_stakeable) = sensible_defaults();
 
-    let mut ext = ExtBuilder::default()
+    let mut ext = ExtBuilder::<Test>::default()
         .initial_authorities(vec![
             (VAL_1_STASH, VAL_1_AUTH_ID),
             (VAL_2_STASH, VAL_2_AUTH_ID),
@@ -392,6 +394,8 @@ fn validators_rewards_disbursement_works() {
 
 #[test]
 fn nominators_rewards_disbursement_works() {
+    init_logger();
+
     let (target_inflation, ideal_stake, pool_balance, non_stakeable) = sensible_defaults();
     let mut ext = with_parameters(target_inflation, ideal_stake, pool_balance, non_stakeable);
     ext.execute_with(|| {
@@ -417,8 +421,10 @@ fn nominators_rewards_disbursement_works() {
                 + initial_treasury_balance
                 + signer_balance
                 + initial_rewards_pool_balance
-                + ENDOWMENT // NOM_1_STASH
-                + EXISTENTIAL_DEPOSIT // added to the rewards pool to ensure pool existence
+                // NOM_1_STASH
+                + ENDOWMENT
+                // added to the rewards and the rent pools to ensure pool existence
+                + 2 * EXISTENTIAL_DEPOSIT
         );
         assert_eq!(initial_rewards_pool_balance, pool_balance);
         assert_eq!(
@@ -603,6 +609,8 @@ fn nominators_rewards_disbursement_works() {
 fn staking_blacklist_works() {
     use sp_runtime::{testing::TestXt, transaction_validity::InvalidTransaction};
 
+    init_logger();
+
     let extra: SignedExtra = StakingBlackList::<Test>::new();
 
     let invalid_call = TestXt::<RuntimeCall, SignedExtra>::new(
@@ -666,7 +674,7 @@ fn staking_blacklist_works() {
         Some((SIGNER, extra)),
     );
 
-    ExtBuilder::default()
+    ExtBuilder::<Test>::default()
         .initial_authorities(vec![
             (VAL_1_STASH, VAL_1_AUTH_ID),
             (VAL_2_STASH, VAL_2_AUTH_ID),
@@ -734,6 +742,8 @@ fn staking_blacklist_works() {
 
 #[test]
 fn inflation_at_ideal_staked_adds_up() {
+    init_logger();
+
     let (target_inflation, ideal_stake, pool_balance, non_stakeable) = sensible_defaults();
     let mut ext = with_parameters(target_inflation, ideal_stake, pool_balance, non_stakeable);
     ext.execute_with(|| {
@@ -756,8 +766,10 @@ fn inflation_at_ideal_staked_adds_up() {
                 + initial_treasury_balance
                 + signer_balance
                 + initial_rewards_pool_balance
-                + ENDOWMENT // NOM_1_STASH
-                + EXISTENTIAL_DEPOSIT // added to the rewards pool to ensure pool existence
+                // NOM_1_STASH
+                + ENDOWMENT
+                // added to the rewards and the rent pools to ensure pool existence
+                + 2 * EXISTENTIAL_DEPOSIT
         );
         assert_eq!(initial_rewards_pool_balance, pool_balance);
         assert_eq!(
@@ -868,6 +880,8 @@ fn inflation_at_ideal_staked_adds_up() {
 
 #[test]
 fn inflation_when_nobody_stakes_adds_up() {
+    init_logger();
+
     let (target_inflation, ideal_stake, pool_balance, non_stakeable) = sensible_defaults();
     let mut ext = with_parameters(target_inflation, ideal_stake, pool_balance, non_stakeable);
     ext.execute_with(|| {
@@ -890,8 +904,10 @@ fn inflation_when_nobody_stakes_adds_up() {
                 + initial_treasury_balance
                 + signer_balance
                 + initial_rewards_pool_balance
-                + ENDOWMENT // NOM_1_STASH
-                + EXISTENTIAL_DEPOSIT // added to the rewards pool to ensure pool existence
+                // NOM_1_STASH
+                + ENDOWMENT
+                // added to the rewards and the rent pools to ensure pool existence
+                + 2 * EXISTENTIAL_DEPOSIT
         );
         assert_eq!(initial_rewards_pool_balance, pool_balance);
         assert_eq!(
@@ -1012,6 +1028,8 @@ fn inflation_when_nobody_stakes_adds_up() {
 
 #[test]
 fn inflation_with_too_many_stakers_adds_up() {
+    init_logger();
+
     let (target_inflation, ideal_stake, pool_balance, non_stakeable) = sensible_defaults();
     let mut ext = with_parameters(target_inflation, ideal_stake, pool_balance, non_stakeable);
     ext.execute_with(|| {
@@ -1034,8 +1052,10 @@ fn inflation_with_too_many_stakers_adds_up() {
                 + initial_treasury_balance
                 + signer_balance
                 + initial_rewards_pool_balance
-                + ENDOWMENT // NOM_1_STASH
-                + EXISTENTIAL_DEPOSIT // added to the rewards pool to ensure pool existence
+                // NOM_1_STASH
+                + ENDOWMENT
+                // added to the rewards and the rent pools to ensure pool existence
+                + 2 * EXISTENTIAL_DEPOSIT
         );
         assert_eq!(initial_rewards_pool_balance, pool_balance);
         assert_eq!(
@@ -1151,6 +1171,8 @@ fn inflation_with_too_many_stakers_adds_up() {
 
 #[test]
 fn unclaimed_rewards_burn() {
+    init_logger();
+
     let (target_inflation, ideal_stake, pool_balance, non_stakeable) = sensible_defaults();
     let mut ext = with_parameters(target_inflation, ideal_stake, pool_balance, non_stakeable);
     ext.execute_with(|| {
@@ -1211,7 +1233,7 @@ fn unclaimed_rewards_burn() {
         // - at the end of the period claim all rewards and sum up the validators' and the
         //   nominator's balances-in-excess;
         // - since we have outdated rewards that account for some percentage of what was due, the
-        //   actual rewards reseived by stakers will add up to only 84% of projected rewards.
+        //   actual rewards received by stakers will add up to only 84% of projected rewards.
 
         let history_depth = <Test as pallet_staking::Config>::HistoryDepth::get();
 
@@ -1272,6 +1294,8 @@ fn unclaimed_rewards_burn() {
 
 #[test]
 fn empty_rewards_pool_causes_inflation() {
+    init_logger();
+
     let (target_inflation, ideal_stake, _, non_stakeable) = sensible_defaults();
     let pool_balance = 0; // empty rewards pool
     let mut ext = with_parameters(target_inflation, ideal_stake, pool_balance, non_stakeable);
@@ -1326,10 +1350,12 @@ fn election_solution_rewards_add_up() {
     use pallet_election_provider_multi_phase::{Config as MPConfig, RawSolution};
     use sp_npos_elections::ElectionScore;
 
+    init_logger();
+
     let (target_inflation, ideal_stake, pool_balance, non_stakeable) = sensible_defaults();
     // Solutions submitters
     let accounts = (0_u64..5).map(|i| 100 + i).collect::<Vec<_>>();
-    let mut ext = ExtBuilder::default()
+    let mut ext = ExtBuilder::<Test>::default()
         .initial_authorities(vec![
             (VAL_1_STASH, VAL_1_AUTH_ID),
             (VAL_2_STASH, VAL_2_AUTH_ID),
@@ -1436,6 +1462,72 @@ fn election_solution_rewards_add_up() {
     });
 }
 
+#[test]
+fn rent_pool_disbursments_work() {
+    use two_block_producers::*;
+
+    init_logger();
+
+    default_test_ext().execute_with(|| {
+        let sessions_per_era = <Test as pallet_staking::Config>::SessionsPerEra::get() as u64;
+        let epoch_duration = Session::average_session_length();
+        let era_duration = sessions_per_era * epoch_duration;
+
+        // the base reward points value is hardcoded in Substrate but we don't copy it here.
+        // A validator has just produced the first block so it has one set of reward points
+        // which we can determine.
+        let active_era_info = Staking::active_era().unwrap();
+        let reward_points = Staking::eras_reward_points(active_era_info.index);
+        let (validator, &reward_points) = reward_points.individual.first_key_value().unwrap();
+        let reward_points = u64::from(reward_points);
+
+        assert_eq!(era_duration % 2, 0);
+        // determine blocks which will be produced by two validators
+        // (take into account who has produced the first block)
+        let (blocks_1, blocks_2) = {
+            let block_count = era_duration / 2;
+            match validator {
+                &VAL_1_STASH => (block_count + 1, block_count),
+                _ => (block_count, block_count + 1),
+            }
+        };
+
+        // imitate rent charging
+        let rent = u128::from(1 + (blocks_1 + blocks_2) * reward_points);
+        let imbalance = CurrencyOf::<Test>::issue(rent);
+        let result = CurrencyOf::<Test>::resolve_into_existing(
+            &StakingRewards::rent_pool_account_id(),
+            imbalance,
+        );
+        assert_ok!(result);
+
+        let free_balance_validator_1 = CurrencyOf::<Test>::free_balance(VAL_1_STASH);
+        let free_balance_validator_2 = CurrencyOf::<Test>::free_balance(VAL_2_STASH);
+        let free_balance_validator_3 = CurrencyOf::<Test>::free_balance(VAL_3_STASH);
+
+        // go to the next era to trigger payouts
+        run_to_block(era_duration + 1);
+
+        // some remaining value cannot be distributed between validators so goes to the next era
+        assert_eq!(StakingRewards::rent_pool_balance(), 1);
+        // the third validator doesn't produce any blocks
+        assert_eq!(
+            free_balance_validator_3,
+            CurrencyOf::<Test>::free_balance(VAL_3_STASH)
+        );
+        // the first and the second validators should be rewarded for block producing
+        // accordingly to their points
+        assert_eq!(
+            free_balance_validator_1 + u128::from(blocks_1 * reward_points),
+            CurrencyOf::<Test>::free_balance(VAL_1_STASH)
+        );
+        assert_eq!(
+            free_balance_validator_2 + u128::from(blocks_2 * reward_points),
+            CurrencyOf::<Test>::free_balance(VAL_2_STASH)
+        );
+    })
+}
+
 fn sensible_defaults() -> (Perquintill, Perquintill, u128, Perquintill) {
     (
         Perquintill::from_rational(578_u64, 10_000_u64),
@@ -1451,7 +1543,7 @@ fn with_parameters(
     pool_balance: u128,
     non_stakeable: Perquintill,
 ) -> sp_io::TestExternalities {
-    ExtBuilder::default()
+    ExtBuilder::<Test>::default()
         .initial_authorities(vec![
             (VAL_1_STASH, VAL_1_AUTH_ID),
             (VAL_2_STASH, VAL_2_AUTH_ID),

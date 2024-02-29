@@ -39,12 +39,11 @@ pub struct Messager {
 impl App for Messager {
     async fn exec(&self) -> anyhow::Result<()> {
         let lookup = gcli::lookup!();
-        let signer = self.signer().await?;
 
         let Command::Upload(upload) = &self.command;
         upload
             .clone_with_code_overridden(lookup.opt)
-            .exec(signer)
+            .exec(self)
             .await
             .map_err(Into::into)
     }

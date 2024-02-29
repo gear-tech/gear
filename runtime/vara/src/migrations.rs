@@ -97,6 +97,10 @@ pub type Migrations = (
     pallet_offences::migration::v1::MigrateToV1<Runtime>,
     // v1040
     pallet_im_online::migration::v1::Migration<Runtime>,
+    // not yet executed
+    pallet_gear_messenger::migrations::MigrateToV3<Runtime>,
+    // check for existence of the rent pool account
+    pallet_gear_staking_rewards::migrations::CheckRentPoolId<Runtime>,
     // unreleased
     pallet_gear_program::migration_alloc::MigrateToV3<Runtime>,
 );

@@ -157,7 +157,7 @@ where
 {
     init_block::<T>(None);
 
-    Gear::<T>::process_queue(Default::default());
+    Gear::<T>::process_queue(Default::default(), ());
 }
 
 fn default_processor_context<T: Config>() -> ProcessorContext {
@@ -423,9 +423,9 @@ benchmarks! {
 
     claim_value {
         let caller = benchmarking::account("caller", 0, 0);
-        CurrencyOf::<T>::deposit_creating(&caller, 100_000_000_000_000_u128.unique_saturated_into());
+        let _ = CurrencyOf::<T>::deposit_creating(&caller, 100_000_000_000_000_u128.unique_saturated_into());
         let program_id = benchmarking::account::<T::AccountId>("program", 0, 100);
-        CurrencyOf::<T>::deposit_creating(&program_id, 100_000_000_000_000_u128.unique_saturated_into());
+        let _ = CurrencyOf::<T>::deposit_creating(&program_id, 100_000_000_000_000_u128.unique_saturated_into());
         let code = benchmarking::generate_wasm(16.into()).unwrap();
         benchmarking::set_program::<ProgramStorageOf::<T>, _>(program_id.clone().cast(), code, 1.into());
         let original_message_id = benchmarking::account::<T::AccountId>("message", 0, 100).cast();
@@ -527,7 +527,7 @@ benchmarks! {
     send_message {
         let p in 0 .. MAX_PAYLOAD_LEN;
         let caller = benchmarking::account("caller", 0, 0);
-        CurrencyOf::<T>::deposit_creating(&caller, 100_000_000_000_000_u128.unique_saturated_into());
+        let _ = CurrencyOf::<T>::deposit_creating(&caller, 100_000_000_000_000_u128.unique_saturated_into());
         let minimum_balance = CurrencyOf::<T>::minimum_balance();
         let program_id = benchmarking::account::<T::AccountId>("program", 0, 100).cast();
         let code = benchmarking::generate_wasm(16.into()).unwrap();
@@ -543,10 +543,10 @@ benchmarks! {
     send_reply {
         let p in 0 .. MAX_PAYLOAD_LEN;
         let caller = benchmarking::account("caller", 0, 0);
-        CurrencyOf::<T>::deposit_creating(&caller, 100_000_000_000_000_u128.unique_saturated_into());
+        let _ = CurrencyOf::<T>::deposit_creating(&caller, 100_000_000_000_000_u128.unique_saturated_into());
         let minimum_balance = CurrencyOf::<T>::minimum_balance();
         let program_id = benchmarking::account::<T::AccountId>("program", 0, 100);
-        CurrencyOf::<T>::deposit_creating(&program_id, 100_000_000_000_000_u128.unique_saturated_into());
+        let _ = CurrencyOf::<T>::deposit_creating(&program_id, 100_000_000_000_000_u128.unique_saturated_into());
         let code = benchmarking::generate_wasm(16.into()).unwrap();
         benchmarking::set_program::<ProgramStorageOf::<T>, _>(program_id.clone().cast(), code, 1.into());
         let original_message_id = benchmarking::account::<T::AccountId>("message", 0, 100).cast();
@@ -593,7 +593,7 @@ benchmarks! {
 
         let schedule = T::Schedule::get();
     }: {
-        Gear::<T>::reinstrument_code(code_id, &schedule);
+        Gear::<T>::reinstrument_code(code_id, &schedule).expect("Re-instrumentation  failed");
     }
 
     alloc {
@@ -1451,14 +1451,6 @@ benchmarks! {
     }
     verify {
         verify_process(res.unwrap());
-    }
-
-    gr_pay_program_rent {
-        let r in 0 .. API_BENCHMARK_BATCHES;
-        let mut res = None;
-        let exec = Benches::<T>::gr_pay_program_rent(r)?;
-    }: {
-        res.replace(run_process(exec));
     }
 
     lazy_pages_signal_read {

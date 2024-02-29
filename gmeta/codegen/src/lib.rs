@@ -122,7 +122,7 @@ fn validate_if_has_no_attributes(
 ///
 /// Usually the state type should be imported from the implemented associated
 /// [`Metadata::State`](../gmeta/trait.Metadata.html#associatedtype.State) type
-/// from the contract's `io` crate.
+/// from the program's `io` crate.
 ///
 /// - The rest of items **must** be `pub`lic functions.
 /// - The first argument's type of metafunctions **must** be `State`.

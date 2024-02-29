@@ -232,7 +232,8 @@ impl WasmProject {
         let to_lock = self.out_dir.join("Cargo.lock");
         drop(fs::copy(from_lock, to_lock));
 
-        let mut source_code = "#![no_std] pub use orig_project::*;\n".to_owned();
+        let mut source_code =
+            "#![no_std]\n#[allow(unused_imports)]\npub use orig_project::*;\n".to_owned();
 
         fs::create_dir_all(&self.wasm_target_dir).with_context(|| {
             format!(

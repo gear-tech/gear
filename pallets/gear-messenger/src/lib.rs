@@ -136,6 +136,8 @@
 #![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
 #![doc(html_favicon_url = "https://gear-tech.io/favicons/favicon.ico")]
 
+pub mod migrations;
+
 // Runtime mock for running tests.
 #[cfg(test)]
 mod mock;
@@ -161,12 +163,12 @@ pub mod pallet {
     use frame_system::pallet_prelude::BlockNumberFor;
     use gear_core::{
         ids::{MessageId, ProgramId},
-        message::{StoredDispatch, UserStoredMessage},
+        message::{StoredDelayedDispatch, StoredDispatch, UserStoredMessage},
     };
     use sp_std::{convert::TryInto, marker::PhantomData};
 
     /// The current storage version.
-    pub(crate) const MESSENGER_STORAGE_VERSION: StorageVersion = StorageVersion::new(2);
+    pub(crate) const MESSENGER_STORAGE_VERSION: StorageVersion = StorageVersion::new(3);
 
     // Gear Messenger Pallet's `Config`.
     #[pallet::config]
@@ -413,14 +415,14 @@ pub mod pallet {
     // Private storage for dispatch stash elements.
     #[pallet::storage]
     pub type DispatchStash<T: Config> =
-        StorageMap<_, Identity, MessageId, (StoredDispatch, Interval<BlockNumberFor<T>>)>;
+        StorageMap<_, Identity, MessageId, (StoredDelayedDispatch, Interval<BlockNumberFor<T>>)>;
 
     // Public wrap of the dispatch stash elements.
     common::wrap_storage_map!(
         storage: DispatchStash,
         name: DispatchStashWrap,
         key: MessageId,
-        value: (StoredDispatch, Interval<BlockNumberFor<T>>)
+        value: (StoredDelayedDispatch, Interval<BlockNumberFor<T>>)
     );
 
     // ----
@@ -591,6 +593,7 @@ pub mod pallet {
         type MailboxSecondKey = MessageId;
         type MailboxedMessage = UserStoredMessage;
         type QueuedDispatch = StoredDispatch;
+        type DelayedDispatch = StoredDelayedDispatch;
         type WaitlistFirstKey = ProgramId;
         type WaitlistSecondKey = MessageId;
         type WaitlistedMessage = StoredDispatch;

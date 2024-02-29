@@ -16,16 +16,16 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! [Numerated], [Bound] traits definition and implementations for integer types.
-//! Also [OptionBound] type is defined, which can be used as [Bound] for any type `T: Numerated`.
+//! [`Numerated`], [`Bound`] traits definition and implementations for integer types.
+//! Also [`OptionBound`] type is defined, which can be used as [`Bound`] for any type `T: Numerated`.
 
 use core::cmp::Ordering;
 use num_traits::{One, PrimInt, Unsigned};
 
-/// For any type `T`, `Bound<T>` is a type, which has set of values bigger than `T` by one element.
+/// For any type `T`, `Bound<T>` is a type, which has set of values bigger than `T` by one.
 /// - Each value from `T` has unambiguous mapping to `Bound<T>`.
 /// - Each value from `Bound<T>`, except one called __upper__, has unambiguous mapping to `T`.
-/// - __upper__ value has no mapping to `T`, but can be used to get `T` max value.
+/// - __upper__ value has no mapping to `T`, but can be considered as value equal to `T::max_value + 1`.
 ///
 /// # Examples
 /// 1) For any `T`, which max value can be get by calling some static live time function,
@@ -56,7 +56,7 @@ use num_traits::{One, PrimInt, Unsigned};
 /// ```
 pub trait Bound<T: Sized>: From<Option<T>> + Copy {
     /// Unbound means mapping bound back to value if possible.
-    /// - In case bound is __upper__, then returns [None].
+    /// - In case bound is __upper__, then returns [`None`].
     /// - Otherwise returns `Some(p)`, `p: T`.
     fn unbound(self) -> Option<T>;
 }
@@ -132,8 +132,8 @@ where
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         match (self.0.as_ref(), other.0.as_ref()) {
             (None, None) => Some(Ordering::Equal),
-            (None, Some(_)) => Some(Ordering::Less),
-            (Some(_), None) => Some(Ordering::Greater),
+            (None, Some(_)) => Some(Ordering::Greater),
+            (Some(_), None) => Some(Ordering::Less),
             (Some(a), Some(b)) => a.partial_cmp(b),
         }
     }
@@ -146,8 +146,8 @@ where
     fn cmp(&self, other: &Self) -> Ordering {
         match (self.0.as_ref(), other.0.as_ref()) {
             (None, None) => Ordering::Equal,
-            (None, Some(_)) => Ordering::Less,
-            (Some(_), None) => Ordering::Greater,
+            (None, Some(_)) => Ordering::Greater,
+            (Some(_), None) => Ordering::Less,
             (Some(a), Some(b)) => a.cmp(b),
         }
     }
@@ -179,7 +179,7 @@ where
         self.0
             .as_ref()
             .map(|a| a.partial_cmp(other))
-            .unwrap_or(Some(Ordering::Less))
+            .unwrap_or(Some(Ordering::Greater))
     }
 }
 
@@ -226,3 +226,53 @@ macro_rules! impl_for_signed {
 }
 
 impl_for_signed!(i8 => u8, i16 => u16, i32 => u32, i64 => u64, i128 => u128, isize => usize);
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_option_bound() {
+        let a = OptionBound::from(1);
+        let b = OptionBound::from(2);
+        let c = OptionBound::from(None);
+        assert_eq!(a.unbound(), Some(1));
+        assert_eq!(b.unbound(), Some(2));
+        assert_eq!(c.unbound(), None);
+        assert_eq!(a.partial_cmp(&b), Some(Ordering::Less));
+        assert_eq!(b.partial_cmp(&a), Some(Ordering::Greater));
+        assert_eq!(a.partial_cmp(&c), Some(Ordering::Less));
+        assert_eq!(c.partial_cmp(&a), Some(Ordering::Greater));
+        assert_eq!(c.partial_cmp(&c), Some(Ordering::Equal));
+        assert_eq!(a.partial_cmp(&2), Some(Ordering::Less));
+        assert_eq!(b.partial_cmp(&2), Some(Ordering::Equal));
+        assert_eq!(c.partial_cmp(&2), Some(Ordering::Greater));
+        assert_eq!(a, 1);
+        assert_eq!(b, 2);
+        assert_eq!(c, None);
+        assert_eq!(a, Some(1));
+        assert_eq!(b, Some(2));
+    }
+
+    #[test]
+    fn test_u8() {
+        let a = 1u8;
+        let b = 2u8;
+        assert_eq!(a.add_if_enclosed_by(1, b), Some(2));
+        assert_eq!(a.sub_if_enclosed_by(1, b), None);
+        assert_eq!(a.distance(b), 1);
+        assert_eq!(a.inc_if_lt(b), Some(2));
+        assert_eq!(a.dec_if_gt(b), None);
+    }
+
+    #[test]
+    fn test_i8() {
+        let a = -1i8;
+        let b = 1i8;
+        assert_eq!(a.add_if_enclosed_by(2, b), Some(1));
+        assert_eq!(a.sub_if_enclosed_by(1, b), None);
+        assert_eq!(a.distance(b), 2);
+        assert_eq!(a.inc_if_lt(b), Some(0));
+        assert_eq!(a.dec_if_gt(b), None);
+    }
+}

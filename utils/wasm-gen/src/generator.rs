@@ -23,7 +23,7 @@
 //! 2. Almost all disabled generators can be converted to [`ModuleWithCallIndexes`], from which the wasm module can be retrieved.
 //! 3. Every generator has a "main" function, after finishing which a transition to another generator is available (either directly or through disabled
 //! version of the generator).
-//! 4. Almost all are instantiated from the disabled generator worked on the previous generation step (see [`GearWasmGenerator::generate`]). This is how
+//! 4. Almost all generators are instantiated from the disabled generator worked on the previous generation step (see [`GearWasmGenerator::generate`]). This is how
 //! generator form a state-machine.
 //!
 //! Transitions paths:
@@ -33,21 +33,14 @@
 //!
 //! # First generators nesting level
 //! GearWasmGenerator--->MemoryGenerator--->DisabledMemoryGenerator--->ModuleWithCallIndexes--->WasmModule
-//! GearWasmGenerator--->EntryPointsGenerator--->DisabledEntryPointsGenerator--->ModuleWithCallIndexes--->WasmModule
 //!
 //! # Second generators nesting level
 //! GearWasmGenerator--->MemoryGenerator--(DisabledMemoryGenerator, FrozenGearWasmGenerator)---\
 //! |--->GearWasmGenerator--->EntryPointsGenerator--->DisabledEntryPointsGenerator--->ModuleWithCallIndexes--->
 //!
-//! GearWasmGenerator--->EntryPointsGenerator--(DisabledEntryPointsGenerator, FrozenGearWasmGenerator)---\
-//! |--->GearWasmGenerator--->MemoryGenerator--->DisabledMemoryGenerator--->ModuleWithCallIndexes--->WasmModule
-//!
 //! # Third generators nesting level
 //! GearWasmGenerator--->MemoryGenerator--(DisabledMemoryGenerator, FrozenGearWasmGenerator)---\
 //! |--->GearWasmGenerator--->EntryPointsGenerator--->DisabledEntryPointsGenerator--(MemoryImportGenerationProof, GearEntryPointGenerationProof)-->(syscalls-module-state-machine)
-//!
-//! GearWasmGenerator--->EntryPointsGenerator--(DisabledEntryPointsGenerator, FrozenGearWasmGenerator)---\
-//! |--->GearWasmGenerator--->MemoryGenerator--->DisabledMemoryGenerator--(MemoryImportGenerationProof, GearEntryPointGenerationProof)-->(syscalls-module-state-machine)
 //! ```
 //!
 //! State machine named `(syscalls-module-state-machine)` can be started only with having proof of work from `MemoryGenerator` and `EntryPointsGenerator`.
@@ -69,15 +62,12 @@ pub use syscalls::*;
 /// Module and it's call indexes carrier.
 ///
 /// # Rationale:
-/// Some of generators can be instantiated from "scratch", by just calling
-/// "new" (or other instantiator function), which accepts params, that are
-/// essential for the generator. `WasmModule` and `CallIndexes` have an implicit
-/// relationship: newly added imports and functions can be included to the wasm,
-/// but not in the call indexes (if we forgot to do that). Although, adding call indexes
-/// is controlled in the generator, some other generator can be instantiated with wasm
-/// module and call indexes being unrelated to each other. So this carrier is used to
-/// control wasm module and call indexes value flow, so related values will always
-/// be delivered together.
+/// `WasmModule` and `CallIndexes` have an implicit relationship: newly added imports
+/// and functions can be included to the wasm, but not in the call indexes (if we forgot to do that).
+/// Although, adding call indexes is controlled in the generator, some other generators
+/// can be instantiated with wasm  module and call indexes being unrelated to each other.
+/// So this carrier is used to control wasm module and call indexes value flow, so related
+/// values will always be delivered together.
 pub struct ModuleWithCallIndexes {
     module: WasmModule,
     call_indexes: CallIndexes,
@@ -128,11 +118,11 @@ impl<'a, 'b> GearWasmGenerator<'a, 'b> {
             self.generate_memory_export();
 
         let (disabled_ep_gen, frozen_gear_wasm_gen, ep_gen_proof) =
-            Self::from((disabled_mem_gen, frozen_gear_wasm_gen)).generate_entry_points()?;
+            Self::from((disabled_mem_gen, frozen_gear_wasm_gen))
+                .generate_entry_points(mem_imports_gen_proof)?;
 
         let (disabled_syscalls_invocator, frozen_gear_wasm_gen) =
-            Self::from((disabled_ep_gen, frozen_gear_wasm_gen))
-                .generate_syscalls(mem_imports_gen_proof, ep_gen_proof)?;
+            Self::from((disabled_ep_gen, frozen_gear_wasm_gen)).generate_syscalls(ep_gen_proof)?;
 
         let config = frozen_gear_wasm_gen.melt();
         let module = ModuleWithCallIndexes::from(disabled_syscalls_invocator)
@@ -146,8 +136,6 @@ impl<'a, 'b> GearWasmGenerator<'a, 'b> {
             log::trace!("Critical gas limit is not set");
             module
         };
-
-        let module = utils::inject_stack_limiter(module);
 
         Ok(if config.remove_recursions {
             log::trace!("Removing recursions");
@@ -176,13 +164,16 @@ impl<'a, 'b> GearWasmGenerator<'a, 'b> {
     /// Generate gear wasm gentry points using entry points generator.
     pub fn generate_entry_points(
         self,
+        mem_import_gen_proof: MemoryImportGenerationProof,
     ) -> Result<(
         DisabledEntryPointsGenerator<'a, 'b>,
         FrozenGearWasmGenerator<'a, 'b>,
         GearEntryPointGenerationProof,
     )> {
+        let entry_points_gen_instantiator =
+            EntryPointsGeneratorInstantiator::from((self, mem_import_gen_proof));
         let (ep_gen, frozen_gear_wasm_gen): (EntryPointsGenerator, FrozenGearWasmGenerator) =
-            self.into();
+            entry_points_gen_instantiator.into();
         let (disabled_ep_gen, ep_gen_proof) = ep_gen.generate_entry_points()?;
 
         Ok((disabled_ep_gen, frozen_gear_wasm_gen, ep_gen_proof))
@@ -191,11 +182,10 @@ impl<'a, 'b> GearWasmGenerator<'a, 'b> {
     /// Generate syscalls using syscalls module generators.
     pub fn generate_syscalls(
         self,
-        mem_import_gen_proof: MemoryImportGenerationProof,
         ep_gen_proof: GearEntryPointGenerationProof,
     ) -> Result<(DisabledSyscallsInvocator, FrozenGearWasmGenerator<'a, 'b>)> {
         let syscalls_imports_gen_instantiator =
-            SyscallsImportsGeneratorInstantiator::from((self, mem_import_gen_proof, ep_gen_proof));
+            SyscallsImportsGeneratorInstantiator::from((self, ep_gen_proof));
         let (syscalls_imports_gen, frozen_gear_wasm_gen) = syscalls_imports_gen_instantiator.into();
         let syscalls_imports_gen_res = syscalls_imports_gen.generate()?;
 
@@ -232,9 +222,10 @@ struct CallIndexes {
     ///
     /// Separating "pre-defined" functions from newly generated ones is important
     /// when syscalls invocator inserts calls of generated syscalls. For example,
-    /// calls must not be inserted in the custom function, which perofrms `gr_reservation_send`,
-    /// not to pollute it's internal instructions structure which is defined such that
-    /// semantically correct `gr_reservation_send` call is performed.
+    /// calls must not be inserted in the custom function which serves as a precise
+    /// call to `gr_reservation_send` not to pollute it's internal instructions structure
+    /// which is defined such that semantically correct `gr_reservation_send` call
+    /// is executed.
     ///
     /// Same immutability is actual for gear exports to keep them as simple as possible.
     custom_funcs: HashSet<usize>,
@@ -276,6 +267,7 @@ impl CallIndexes {
                 .iter()
                 .filter_map(FunctionIndex::internal_func_idx)
                 .max()
+                // Config min/max function params are `NonZeroUsize`.
                 .expect("at least 1 func is generated by config definition") as usize
         };
 
@@ -321,7 +313,7 @@ impl FunctionIndex {
 
 /// Frozen gear wasm generator.
 ///
-/// Instantce of this generator signals, that some gear wasm generator
+/// Instance of this generator signals, that some gear wasm generator
 /// instance was converted to some other generator available in this crate.
 /// This type serves as an access/ticket for converting some generator back
 /// to the gear wasm generator. So it mainly controls state machine flow.

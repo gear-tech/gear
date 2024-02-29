@@ -185,13 +185,6 @@ impl Externalities for MockExt {
     fn message_id(&self) -> Result<MessageId, Self::UnrecoverableError> {
         Ok(0.into())
     }
-    fn pay_program_rent(
-        &mut self,
-        _program_id: ProgramId,
-        _rent: u128,
-    ) -> Result<(u128, u32), Self::UnrecoverableError> {
-        Ok((0, 0))
-    }
     fn program_id(&self) -> Result<ProgramId, Self::UnrecoverableError> {
         Ok(0.into())
     }

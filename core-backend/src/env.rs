@@ -201,7 +201,6 @@ where
         builder.add_func(GasAvailable, wrap_syscall!(gas_available));
         builder.add_func(Leave, wrap_syscall!(leave));
         builder.add_func(MessageId, wrap_syscall!(message_id));
-        builder.add_func(PayProgramRent, wrap_syscall!(pay_program_rent));
         builder.add_func(ProgramId, wrap_syscall!(program_id));
         builder.add_func(Random, wrap_syscall!(random));
         builder.add_func(Read, wrap_syscall!(read));

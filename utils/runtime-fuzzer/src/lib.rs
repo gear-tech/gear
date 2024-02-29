@@ -18,92 +18,90 @@
 
 #![allow(clippy::items_after_test_module)]
 
-mod gear_calls;
+mod data;
+mod generator;
 mod runtime;
 #[cfg(test)]
 mod tests;
-mod utils;
 
-use arbitrary::{Arbitrary, Error, Result, Unstructured};
+pub use data::FuzzerInput;
+
 use frame_support::pallet_prelude::DispatchResultWithPostInfo;
 use gear_call_gen::{ClaimValueArgs, GearCall, SendMessageArgs, SendReplyArgs, UploadProgramArgs};
-use gear_calls::GearCalls;
-use gear_core::ids::ProgramId;
-use pallet_balances::Pallet as BalancesPallet;
-use runtime::*;
-use sha1::*;
-use std::fmt::Debug;
-use utils::default_generator_set;
-use vara_runtime::{AccountId, Gear, Runtime, RuntimeOrigin};
+use gear_wasm_gen::wasm_gen_arbitrary::Result;
+use generator::*;
+use runtime::BalanceManager;
+use sha1::Digest;
+use sp_io::TestExternalities;
+use vara_runtime::{AccountId, Gear, RuntimeOrigin};
 
-/// This is a wrapper over random bytes provided from fuzzer.
-///
-/// It's main purpose is to be a mock implementor of `Debug`.
-/// For more info see `Debug` impl.
-pub struct RuntimeFuzzerInput<'a>(&'a [u8]);
+const EXHAUST_MESSAGES_RUNS: usize = 20;
 
-impl<'a> Arbitrary<'a> for RuntimeFuzzerInput<'a> {
-    fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
-        let data = u.peek_bytes(u.len()).ok_or(Error::NotEnoughData)?;
-
-        Ok(Self(data))
-    }
-}
-
-/// That's done because when fuzzer finds a crash it prints a [`Debug`] string of the crashing input.
-/// Fuzzer constructs from the input an array of [`GearCall`] with pretty large codes and payloads,
-/// therefore to avoid printing huge amount of data we do a mock implementation of [`Debug`].
-impl Debug for RuntimeFuzzerInput<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("RuntimeFuzzerInput")
-            .field(&"Mock `Debug` impl")
-            .finish()
-    }
+pub fn run(fuzzer_input: FuzzerInput<'_>) -> Result<()> {
+    run_impl(fuzzer_input).map(|_| ())
 }
 
 /// Runs all the fuzz testing internal machinery.
-pub fn run(RuntimeFuzzerInput(data): RuntimeFuzzerInput<'_>) -> Result<()> {
-    run_impl(data).map(|_| ())
-}
+fn run_impl(fuzzer_input: FuzzerInput<'_>) -> Result<TestExternalities> {
+    let raw_data = fuzzer_input.inner();
+    let (balance_manager_data_requirement, generator_data_requirement) =
+        fuzzer_input.into_data_requirements()?;
 
-fn run_impl(data: &[u8]) -> Result<sp_io::TestExternalities> {
     log::trace!(
-        "New GearCalls generation: random data received {}",
-        data.len()
+        "New gear calls generation: random data received {}",
+        raw_data.len()
     );
-    let test_input_id = get_sha1_string(data);
-    log::trace!("Generating GearCalls from corpus - {}", test_input_id);
+    let corpus_id = get_sha1_string(raw_data);
+    log::trace!("Generating gear calls from corpus - {}", corpus_id);
 
-    let sender = runtime::account(runtime::alice());
-    let sender_prog_id = ProgramId::from(*<AccountId as AsRef<[u8; 32]>>::as_ref(&sender));
-
-    let generators = default_generator_set(test_input_id);
-    let gear_calls = GearCalls::new(data, generators, vec![sender_prog_id])?;
-
-    let mut test_ext = new_test_ext();
-    test_ext.execute_with(|| -> Result<()> {
-        // Increase maximum balance of the `sender`.
-        {
-            increase_to_max_balance(sender.clone())
-                .unwrap_or_else(|e| unreachable!("Balance update failed: {e:?}"));
-            log::info!(
-                "Current balance of the sender - {}",
-                BalancesPallet::<Runtime>::free_balance(&sender)
-            );
-        }
-
-        for gear_call in gear_calls {
-            let gear_call = gear_call?;
-            let call_res = execute_gear_call(sender.clone(), gear_call);
-            log::info!("Extrinsic result: {call_res:?}");
-            // Run task and message queues with max possible gas limit.
-            run_to_next_block();
-        }
-
-        Ok(())
-    })?;
+    let mut balance_manager =
+        BalanceManager::new(runtime::alice(), balance_manager_data_requirement);
+    let mut test_ext = runtime::new_test_ext();
+    run_calls_loop(
+        RuntimeStateViewProducer::new(corpus_id, balance_manager.sender.clone()),
+        GearCallsGenerator::new(generator_data_requirement),
+        &mut test_ext,
+        &mut balance_manager,
+    )?;
+    exhaust_messages_stores(&mut test_ext, balance_manager)?;
 
     Ok(test_ext)
+}
+
+fn get_sha1_string(input: &[u8]) -> String {
+    let mut hasher = sha1::Sha1::new();
+    hasher.update(input);
+
+    hex::encode(hasher.finalize())
+}
+
+fn run_calls_loop(
+    mut state_view_producer: RuntimeStateViewProducer,
+    mut calls_generator: GearCallsGenerator,
+    test_ext: &mut TestExternalities,
+    balance_manager: &mut BalanceManager,
+) -> Result<()> {
+    loop {
+        let must_stop = test_ext.execute_with(|| -> Result<bool> {
+            let state_view =
+                state_view_producer.produce_state_view(balance_manager.update_balance()?);
+            let Some(gear_call) = calls_generator.generate(state_view)? else {
+                return Ok(true);
+            };
+
+            let call_res = execute_gear_call(balance_manager.sender.clone(), gear_call);
+            log::info!("Extrinsic result: {call_res:?}");
+
+            // Run task and message queues with max possible gas limit.
+            runtime::run_to_next_block();
+
+            Ok(false)
+        })?;
+
+        if must_stop {
+            break Ok(());
+        }
+    }
 }
 
 fn execute_gear_call(sender: AccountId, call: GearCall) -> DispatchResultWithPostInfo {
@@ -150,9 +148,24 @@ fn execute_gear_call(sender: AccountId, call: GearCall) -> DispatchResultWithPos
     }
 }
 
-fn get_sha1_string(input: &[u8]) -> String {
-    let mut hasher = sha1::Sha1::new();
-    hasher.update(input);
+/// This is a post-main blocks execution function.
+///
+/// It's called to exhaust task pool and message queue,
+/// so all the rest messages will be executed.
+fn exhaust_messages_stores(
+    test_ext: &mut TestExternalities,
+    mut balance_manager: BalanceManager,
+) -> Result<()> {
+    log::trace!("Exhausting messages stores");
 
-    hex::encode(hasher.finalize())
+    for _ in 0..EXHAUST_MESSAGES_RUNS {
+        test_ext.execute_with(|| {
+            balance_manager.update_balance()?;
+            runtime::run_to_next_block();
+
+            Ok(())
+        })?;
+    }
+
+    Ok(())
 }

@@ -128,9 +128,6 @@ pub struct HostFnWeights {
     /// Weight of calling `gr_message_id`.
     pub gr_message_id: u64,
 
-    /// Weight of calling `gr_pay_program_rent`.
-    pub gr_pay_program_rent: u64,
-
     /// Weight of calling `gr_program_id`.
     pub gr_program_id: u64,
 
@@ -354,8 +351,6 @@ pub enum RuntimeCosts {
     GasAvailable,
     /// Weight of calling `gr_message_id`.
     MsgId,
-    /// Weight of calling `gr_pay_program_rent`.
-    PayProgramRent,
     /// Weight of calling `gr_program_id`.
     ProgramId,
     /// Weight of calling `gr_source`.
@@ -491,7 +486,6 @@ impl RuntimeCosts {
             SystemReserveGas => s.gr_system_reserve_gas,
             GasAvailable => s.gr_gas_available,
             MsgId => s.gr_message_id,
-            PayProgramRent => s.gr_pay_program_rent,
             ProgramId => s.gr_program_id,
             Source => s.gr_source,
             Value => s.gr_value,

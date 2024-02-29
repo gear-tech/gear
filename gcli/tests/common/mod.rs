@@ -17,17 +17,12 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Common utils for integration tests
-pub use self::{
-    args::Args,
-    node::{Convert, NodeExec},
-    result::{Error, Result},
-};
+pub use self::{args::Args, node::NodeExec, result::Result};
 use gear_core::ids::{CodeId, ProgramId};
 use gsdk::{
     ext::{sp_core::crypto::Ss58Codec, sp_runtime::AccountId32},
     testing::Node,
 };
-pub use scale_info::scale::Encode;
 use std::{
     iter::IntoIterator,
     process::{Command, Output},
@@ -40,6 +35,7 @@ pub mod node;
 mod result;
 
 pub const ALICE_SS58_ADDRESS: &str = "kGkLEU3e3XXkJp2WK4eNpVmSab5xUNL9QtmLPh8QfCL2EgotW";
+pub const RENT_POOL_SS58_ADDRESS: &str = "kGkkENXuYL4Xw6H1ymWm6VwHLi66s56Ywt45pf9hEx1hmx5MV";
 
 impl NodeExec for Node {
     fn ws(&self) -> String {
@@ -86,7 +82,7 @@ pub fn init_logger() {
 
 /// Login as //Alice
 pub fn login_as_alice() -> Result<()> {
-    let _ = gcli(["login", "//Alice"])?;
+    let _ = gcli(["wallet", "dev"])?;
 
     Ok(())
 }
@@ -98,15 +94,14 @@ pub fn program_id(bin: &[u8], salt: &[u8]) -> ProgramId {
 
 /// AccountId32 of `addr`
 pub fn alice_account_id() -> AccountId32 {
-    AccountId32::from_ss58check("kGkLEU3e3XXkJp2WK4eNpVmSab5xUNL9QtmLPh8QfCL2EgotW")
-        .expect("Invalid address")
+    AccountId32::from_ss58check(ALICE_SS58_ADDRESS).expect("Invalid address")
 }
 
 /// Create program messager
 pub async fn create_messager() -> Result<Node> {
     let node = dev()?;
 
-    let args = Args::new("upload").program(env::wasm_bin("demo_messager.opt.wasm"));
+    let args = Args::new("upload").program(env::wasm_bin("demo_messenger.opt.wasm"));
     let _ = node.run(args)?;
 
     Ok(node)

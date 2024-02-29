@@ -853,10 +853,8 @@ mod tests {
 
         let init_msg_payload = String::from("InvalidInput");
         let run_result = prog.send(user_id, init_msg_payload);
-        assert!(run_result.main_failed());
 
-        let log = run_result.log();
-        assert!(log[0].payload().starts_with(b"'Failed to load destination"));
+        run_result.assert_panicked_with("Failed to load destination: Decode(Error)");
 
         let run_result = prog.send(user_id, String::from("should_be_skipped"));
 
@@ -1094,5 +1092,30 @@ mod tests {
             .payload_bytes("hello");
 
         assert!(results.iter().any(|result| result.contains(&log)));
+    }
+
+    #[test]
+    #[should_panic]
+    fn reservations_limit() {
+        use demo_custom::{InitMessage, WASM_BINARY};
+        let sys = System::new();
+        sys.init_logger();
+
+        let prog = Program::from_opt_and_meta_code_with_id(&sys, 420, WASM_BINARY.to_vec(), None);
+
+        let signer = 42;
+
+        // Init reserver
+        prog.send(signer, InitMessage::Reserver);
+
+        for _ in 0..258 {
+            // Reserve
+            let result = prog.send_bytes(signer, b"reserve");
+            assert!(!result.main_failed());
+
+            // Spend
+            let result = prog.send_bytes(signer, b"send from reservation");
+            assert!(!result.main_failed());
+        }
     }
 }

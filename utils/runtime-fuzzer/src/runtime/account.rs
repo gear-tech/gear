@@ -16,8 +16,16 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use gear_common::Origin;
+use crate::{
+    data::FulfilledDataRequirement,
+    generator::{GearCallsGenerator, AUXILIARY_SIZE},
+    runtime, EXHAUST_MESSAGES_RUNS,
+};
+use gear_common::{Gas, Origin};
+use gear_wasm_gen::{Result, Unstructured};
+use pallet_balances::Pallet as BalancesPallet;
 use pallet_gear::BlockGasLimitOf;
+use pallet_gear_bank::Config as GearBankConfig;
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use runtime_primitives::{AccountId, AccountPublic, Balance};
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
@@ -25,7 +33,8 @@ use sp_consensus_babe::AuthorityId as BabeId;
 use sp_consensus_grandpa::AuthorityId as GrandpaId;
 use sp_core::{sr25519::Public, Pair, Public as TPublic};
 use sp_runtime::{app_crypto::UncheckedFrom, traits::IdentifyAccount};
-use vara_runtime::Runtime;
+use std::mem;
+use vara_runtime::{Runtime, EXISTENTIAL_DEPOSIT};
 
 pub fn alice() -> AccountId {
     sp_keyring::Sr25519Keyring::Alice.to_account_id()
@@ -71,6 +80,66 @@ pub fn get_pub_key_from_seed<T: TPublic>(seed: &str) -> <T::Pair as Pair>::Publi
         .public()
 }
 
-pub fn acc_max_balance() -> Balance {
-    BlockGasLimitOf::<Runtime>::get().saturating_mul(20) as u128
+pub fn acc_max_balance_gas() -> Gas {
+    BlockGasLimitOf::<Runtime>::get().saturating_mul(20)
+}
+
+pub fn gas_to_value(gas: Gas) -> Balance {
+    <Runtime as GearBankConfig>::GasMultiplier::get().gas_to_value(gas)
+}
+
+pub struct BalanceManager<'a> {
+    unstructured: Unstructured<'a>,
+    pub sender: AccountId,
+}
+
+impl<'a> BalanceManager<'a> {
+    pub(crate) fn new(
+        account: AccountId,
+        data_requirement: FulfilledDataRequirement<'a, Self>,
+    ) -> Self {
+        Self {
+            sender: account,
+            unstructured: Unstructured::new(data_requirement.data),
+        }
+    }
+
+    pub(crate) fn update_balance(&mut self) -> Result<BalanceState> {
+        let max_balance = runtime::gas_to_value(runtime::acc_max_balance_gas());
+        let new_balance = self
+            .unstructured
+            .int_in_range(EXISTENTIAL_DEPOSIT..=max_balance)?;
+
+        runtime::set_balance(self.sender.clone(), new_balance)
+            .unwrap_or_else(|e| unreachable!("Balance update failed: {e:?}"));
+        assert_eq!(
+            new_balance,
+            BalancesPallet::<Runtime>::free_balance(&self.sender),
+            "internal error: new balance set logic is corrupted."
+        );
+        log::info!("Current balance of the sender - {new_balance}.");
+
+        Ok(BalanceState(new_balance))
+    }
+}
+
+impl BalanceManager<'_> {
+    pub(crate) const fn random_data_requirement() -> usize {
+        const VALUE_SIZE: usize = mem::size_of::<u128>();
+
+        VALUE_SIZE
+            * (GearCallsGenerator::MAX_UPLOAD_PROGRAM_CALLS
+                + GearCallsGenerator::MAX_SEND_MESSAGE_CALLS
+                + GearCallsGenerator::MAX_SEND_REPLY_CALLS
+                + EXHAUST_MESSAGES_RUNS)
+            + AUXILIARY_SIZE
+    }
+}
+
+pub struct BalanceState(Balance);
+
+impl BalanceState {
+    pub(crate) fn into_inner(self) -> Balance {
+        self.0
+    }
 }

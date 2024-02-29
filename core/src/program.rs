@@ -50,8 +50,6 @@ pub struct Program {
     code: InstrumentedCode,
     /// Wasm pages allocated by program.
     allocations: IntervalsTree<WasmPage>,
-    /// Program is initialized.
-    is_initialized: bool,
 }
 
 impl Program {
@@ -62,7 +60,6 @@ impl Program {
             memory_infix,
             code,
             allocations: Default::default(),
-            is_initialized: false,
         }
     }
 
@@ -72,14 +69,12 @@ impl Program {
         memory_infix: MemoryInfix,
         code: InstrumentedCode,
         allocations: IntervalsTree<WasmPage>,
-        is_initialized: bool,
     ) -> Self {
         Self {
             id,
             memory_infix,
             code,
             allocations,
-            is_initialized,
         }
     }
 
@@ -126,19 +121,6 @@ impl Program {
     /// Get initial memory size for this program.
     pub fn static_pages(&self) -> WasmPagesAmount {
         self.code.static_pages()
-    }
-
-    /// Get whether program is initialized
-    ///
-    /// By default the [`Program`] is not initialized. The initialized status
-    /// is set from the node.
-    pub fn is_initialized(&self) -> bool {
-        self.is_initialized
-    }
-
-    /// Set program initialized
-    pub fn set_initialized(&mut self) {
-        self.is_initialized = true;
     }
 
     /// Get allocations as a set of page numbers.

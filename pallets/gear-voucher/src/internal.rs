@@ -21,6 +21,7 @@ use common::{
     storage::{Counter, CounterImpl, Mailbox},
     Origin,
 };
+use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{declare_id, ids};
 use sp_std::collections::btree_set::BTreeSet;
 
@@ -29,17 +30,22 @@ where
     T::AccountId: Origin,
 {
     /// Returns account id that pays for gas purchase and transaction fee
-    /// for processing this ['pallet_gear_voucher::Call']s processing if:
+    /// for processing this ['pallet_gear_voucher::Call'], if:
     ///
     /// * Call is [`Self::call`]:
     ///     * Voucher with the given voucher id exists;
     ///     * Caller is eligible to use the voucher;
     ///     * The voucher is not expired;
-    ///     * Destination program of the given prepaid call can be determined;
-    ///     * The voucher destinations limitations accept determined destination.
+    ///     * For messaging calls: The destination program of the given prepaid
+    ///                            call can be determined;
+    ///     * For messaging calls: The voucher destinations limitations accept
+    ///                            determined destination;
+    ///     * For codes uploading: The voucher allows code uploading.
     ///
     /// * Call is [`Self::call_deprecated`]:
-    ///     * Destination program of the given prepaid call can be determined.
+    ///     * For messaging calls: The destination program of the given prepaid
+    ///                            call can be determined.
+    ///     * For codes uploading: NEVER.
     ///
     /// Returns [`None`] for other cases.
     pub fn get_sponsor(&self, caller: AccountIdOf<T>) -> Option<AccountIdOf<T>> {
@@ -62,6 +68,22 @@ where
 }
 
 impl<T: Config> Pallet<T> {
+    /// Queries a voucher and asserts its validity.
+    pub fn get_active_voucher(
+        origin: AccountIdOf<T>,
+        voucher_id: VoucherId,
+    ) -> Result<VoucherInfo<AccountIdOf<T>, BlockNumberFor<T>>, Error<T>> {
+        let voucher =
+            Vouchers::<T>::get(origin.clone(), voucher_id).ok_or(Error::<T>::InexistentVoucher)?;
+
+        ensure!(
+            <frame_system::Pallet<T>>::block_number() < voucher.expiry,
+            Error::<T>::VoucherExpired
+        );
+
+        Ok(voucher)
+    }
+
     /// Return the account id of a synthetical account used to sponsor gas
     /// and transaction fee for legacy vouchers implementation.
     #[deprecated = "Legacy voucher issuing logic is deprecated, and this and \
@@ -84,28 +106,30 @@ impl<T: Config> Pallet<T> {
         voucher_id: VoucherId,
         call: &PrepaidCall<BalanceOf<T>>,
     ) -> Result<(), Error<T>> {
-        let voucher =
-            Vouchers::<T>::get(origin.clone(), voucher_id).ok_or(Error::<T>::InexistentVoucher)?;
+        let voucher = Self::get_active_voucher(origin.clone(), voucher_id)?;
 
-        ensure!(
-            <frame_system::Pallet<T>>::block_number() < voucher.expiry,
-            Error::<T>::VoucherExpired
-        );
+        match call {
+            PrepaidCall::DeclineVoucher => (),
+            PrepaidCall::UploadCode { .. } => {
+                ensure!(voucher.code_uploading, Error::<T>::CodeUploadingDisabled)
+            }
+            PrepaidCall::SendMessage { .. } | PrepaidCall::SendReply { .. } => {
+                if let Some(ref programs) = voucher.programs {
+                    let destination = Self::prepaid_call_destination(&origin, call)
+                        .ok_or(Error::<T>::UnknownDestination)?;
 
-        if let Some(ref programs) = voucher.programs {
-            let destination = Self::prepaid_call_destination(&origin, call)
-                .ok_or(Error::<T>::UnknownDestination)?;
-
-            ensure!(
-                programs.contains(&destination),
-                Error::<T>::InappropriateDestination
-            );
+                    ensure!(
+                        programs.contains(&destination),
+                        Error::<T>::InappropriateDestination
+                    );
+                }
+            }
         }
 
         Ok(())
     }
 
-    /// Return destination program of the [`PrepaidCall`].
+    /// Return destination program of the [`PrepaidCall`], if exists.
     pub fn prepaid_call_destination(
         who: &T::AccountId,
         call: &PrepaidCall<BalanceOf<T>>,
@@ -115,6 +139,7 @@ impl<T: Config> Pallet<T> {
             PrepaidCall::SendReply { reply_to_id, .. } => {
                 T::Mailbox::peek(who, reply_to_id).map(|stored_message| stored_message.source())
             }
+            PrepaidCall::UploadCode { .. } | PrepaidCall::DeclineVoucher => None,
         }
     }
 }
@@ -131,6 +156,7 @@ pub trait PrepaidCallsDispatcher {
     fn dispatch(
         account_id: Self::AccountId,
         sponsor_id: Self::AccountId,
+        voucher_id: VoucherId,
         call: PrepaidCall<Self::Balance>,
     ) -> DispatchResultWithPostInfo;
 }
@@ -169,6 +195,8 @@ pub struct VoucherInfo<AccountId, BlockNumber> {
     /// Set of programs this voucher could be used to interact with.
     /// In case of [`None`] means any gear program.
     pub programs: Option<BTreeSet<ProgramId>>,
+    /// Flag if this voucher's covers uploading codes as prepaid call.
+    pub code_uploading: bool,
     /// The block number at and after which voucher couldn't be used and
     /// can be revoked by owner.
     pub expiry: BlockNumber,
@@ -199,4 +227,8 @@ pub enum PrepaidCall<Balance> {
         value: Balance,
         keep_alive: bool,
     },
+    UploadCode {
+        code: Vec<u8>,
+    },
+    DeclineVoucher,
 }

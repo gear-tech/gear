@@ -22,8 +22,8 @@ use gear_core::ids::{CodeId, ProgramId};
 use gsdk::{Api, Error, Result};
 use jsonrpsee::types::error::{CallError, ErrorObject};
 use parity_scale_codec::Encode;
-use std::{borrow::Cow, process::Command, str::FromStr};
-use subxt::{error::RpcError, Error as SubxtError};
+use std::{borrow::Cow, process::Command, str::FromStr, time::Instant};
+use subxt::{error::RpcError, utils::H256, Error as SubxtError};
 use utils::{alice_account_id, dev_node, node_uri};
 
 mod utils;
@@ -67,7 +67,7 @@ async fn test_calculate_upload_gas() -> Result<()> {
 
     api.calculate_upload_gas(
         alice.into(),
-        demo_messager::WASM_BINARY.to_vec(),
+        demo_messenger::WASM_BINARY.to_vec(),
         vec![],
         0,
         true,
@@ -88,11 +88,11 @@ async fn test_calculate_create_gas() -> Result<()> {
         .signer("//Alice", None)?;
     signer
         .calls
-        .upload_code(demo_messager::WASM_BINARY.to_vec())
+        .upload_code(demo_messenger::WASM_BINARY.to_vec())
         .await?;
 
     // 2. calculate create gas and create program.
-    let code_id = CodeId::generate(demo_messager::WASM_BINARY);
+    let code_id = CodeId::generate(demo_messenger::WASM_BINARY);
     let gas_info = signer
         .rpc
         .calculate_create_gas(None, code_id, vec![], 0, true, None)
@@ -111,7 +111,7 @@ async fn test_calculate_handle_gas() -> Result<()> {
     let node = dev_node();
 
     let salt = vec![];
-    let pid = ProgramId::generate_from_user(CodeId::generate(demo_messager::WASM_BINARY), &salt);
+    let pid = ProgramId::generate_from_user(CodeId::generate(demo_messenger::WASM_BINARY), &salt);
 
     // 1. upload program.
     let signer = Api::new(Some(&node_uri(&node)))
@@ -121,7 +121,7 @@ async fn test_calculate_handle_gas() -> Result<()> {
     signer
         .calls
         .upload_program(
-            demo_messager::WASM_BINARY.to_vec(),
+            demo_messenger::WASM_BINARY.to_vec(),
             salt,
             vec![],
             100_000_000_000,
@@ -297,7 +297,7 @@ async fn test_original_code_storage() -> Result<()> {
     let node = dev_node();
 
     let salt = vec![];
-    let pid = ProgramId::generate_from_user(CodeId::generate(demo_messager::WASM_BINARY), &salt);
+    let pid = ProgramId::generate_from_user(CodeId::generate(demo_messenger::WASM_BINARY), &salt);
 
     let signer = Api::new(Some(&node_uri(&node)))
         .await?
@@ -306,7 +306,7 @@ async fn test_original_code_storage() -> Result<()> {
     signer
         .calls
         .upload_program(
-            demo_messager::WASM_BINARY.to_vec(),
+            demo_messenger::WASM_BINARY.to_vec(),
             salt,
             vec![],
             100_000_000_000,
@@ -322,7 +322,80 @@ async fn test_original_code_storage() -> Result<()> {
         .original_code_storage_at(program.code_hash.0.into(), Some(block_hash))
         .await?;
 
-    assert_eq!(code, demo_messager::WASM_BINARY.to_vec());
+    assert_eq!(code, demo_messenger::WASM_BINARY.to_vec());
 
     Ok(())
+}
+
+// The test demonstrates how to query some storage at a lower level.
+#[ignore]
+#[tokio::test]
+async fn test_program_counters() -> Result<()> {
+    // let uri = String::from("wss://rpc.vara.network:443");
+    // let uri = String::from("wss://archive-rpc.vara.network:443");
+    let uri = String::from("wss://testnet.vara.network:443");
+    // https://polkadot.js.org/apps/?rpc=wss://archive-rpc.vara.network#/explorer/query/9642000
+    // let block_hash = H256::from_slice(&hex::decode("533ab8551fc1ecc812cfa4fa91d8667bfb3bdbcf64eacc5fccdbbf9b20e539a3")?);
+    let instant = Instant::now();
+    let (block_hash, block_number, count_program, count_active_program, count_memory_page) =
+        query_program_counters(&uri, None).await?;
+    println!("elapsed = {:?}", instant.elapsed());
+    println!("testnet block_hash = {block_hash}, block_number = {block_number}, count_program = {count_program}, count_active_program = {count_active_program}, count_memory_page = {count_memory_page}");
+
+    Ok(())
+}
+
+async fn query_program_counters(
+    uri: &str,
+    block_hash: Option<H256>,
+) -> Result<(H256, u32, u64, u64, u64)> {
+    use gsdk::{
+        metadata::{runtime_types::gear_common::Program, storage::GearProgramStorage},
+        BlockNumber,
+    };
+    use parity_scale_codec::Decode;
+    use subxt::dynamic::Value;
+
+    let signer = Api::new(Some(uri)).await?.signer("//Alice", None)?;
+
+    let client_block = signer.api().blocks();
+    let (block_hash, block_number) = match block_hash {
+        Some(hash) => {
+            let block = client_block.at(hash).await?;
+            assert_eq!(hash, block.hash());
+
+            (hash, block.number())
+        }
+
+        None => {
+            let latest_block = client_block.at_latest().await?;
+
+            (latest_block.hash(), latest_block.number())
+        }
+    };
+
+    let storage = signer.api().get_storage(Some(block_hash)).await?;
+    let addr = Api::storage(GearProgramStorage::ProgramStorage, Vec::<Value>::new());
+
+    let mut iter = storage.iter(addr).await?;
+    let mut count_memory_page = 0u64;
+    let mut count_program = 0u64;
+    let mut count_active_program = 0u64;
+    while let Some(Ok((_key, value))) = iter.next().await {
+        let program = Program::<BlockNumber>::decode(&mut value.encoded())?;
+        count_program += 1;
+
+        if let Program::Active(p) = program {
+            count_active_program += 1;
+            count_memory_page += p.pages_with_data.len() as u64;
+        }
+    }
+
+    Ok((
+        block_hash,
+        block_number,
+        count_program,
+        count_active_program,
+        count_memory_page,
+    ))
 }

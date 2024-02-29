@@ -25,8 +25,8 @@ use crate::{
     },
     utils::{self, WasmWords},
     wasm::{PageCount as WasmPageCount, WasmModule},
-    ActorKind, InvocableSyscall, PtrParamAllowedValues, RegularParamAllowedValues, SyscallsConfig,
-    SyscallsParamsConfig,
+    ActorKind, InvocableSyscall, MemoryLayout, PtrParamAllowedValues, RegularParamAllowedValues,
+    SyscallsConfig, SyscallsParamsConfig,
 };
 use arbitrary::{Result, Unstructured};
 use gear_wasm_instrument::{
@@ -94,11 +94,14 @@ pub(crate) fn process_syscall_params(
                 Length if length_param_indexes.contains(&param_idx) => {
                     // Due to match guard `RegularParamType::Length` can be processed in two ways:
                     // 1. The function will return `ProcessedSyscallParams::MemoryArraySize`
-                    //    if this parameter is associated with Ptr::SizedBufferStart { .. }`.
+                    //    if this parameter is associated with Ptr::SizedBufferStart { .. }`
+                    //    or `Ptr::MutSizedBufferStart`.
                     // 2. Otherwise, `ProcessedSyscallParams::Value` will be returned from the function.
                     ProcessedSyscallParams::MemoryArrayLength
                 }
-                Pointer(Ptr::SizedBufferStart { .. }) => ProcessedSyscallParams::MemoryArrayPtr,
+                Pointer(Ptr::SizedBufferStart { .. } | Ptr::MutSizedBufferStart { .. }) => {
+                    ProcessedSyscallParams::MemoryArrayPtr
+                }
                 // It's guaranteed that fallible syscall has error pointer as a last param.
                 Pointer(ptr) => ProcessedSyscallParams::MemoryPtrValue {
                     allowed_values: params_config.get_ptr_rule(ptr),
@@ -122,16 +125,6 @@ pub(crate) fn process_syscall_params(
 /// Syscalls invocator.
 ///
 /// Inserts syscalls invokes randomly into internal functions.
-///
-/// This type is instantiated from disable additional data injector and
-/// data injection outcome ([`AddressesInjectionOutcome`]). The latter was introduced
-/// to give additional guarantees for config and generators consistency. Otherwise,
-/// if there wasn't any addresses injection outcome, which signals that there was a try to
-/// inject addresses, syscalls invocator could falsely set `gr_send*` and `gr_exit` call's destination param
-/// to random value. For example, existing addresses could have been defined in the config, but
-/// additional data injector was disabled, before injecting addresses from the config. As a result,
-/// invocator would set un-intended by config values as messages destination. To avoid such
-/// inconsistency the [`AddressesInjectionOutcome`] gives additional required guarantees.
 pub struct SyscallsInvocator<'a, 'b> {
     unstructured: &'b mut Unstructured<'a>,
     call_indexes: CallIndexes,
@@ -325,6 +318,14 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
         };
         instructions.append(&mut result_processing);
 
+        if let Some(waiting_probability) = self
+            .config
+            .waiting_probability()
+            .filter(|_| invocable.is_wait_syscall())
+        {
+            self.limit_infinite_waits(&mut instructions, waiting_probability.get());
+        }
+
         log::trace!(
             "Random data after building `{}` syscall invoke instructions - {}",
             invocable.to_str(),
@@ -343,13 +344,8 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
             self.unstructured.len()
         );
 
-        let mem_size_pages = self
-            .module
-            .initial_mem_size()
-            // To instantiate this generator, we must instantiate SyscallImportsGenerator, which can be
-            // instantiated only with memory import generation proof.
-            .expect("generator is instantiated with a memory import generation proof");
-        let mem_size = Into::<WasmPageCount>::into(mem_size_pages).memory_size();
+        let mem_size_pages = self.memory_size_pages();
+        let mem_size = self.memory_size_bytes();
 
         let mut ret = Vec::with_capacity(params.len());
         let mut memory_array_definition: Option<(i32, Option<i32>)> = None;
@@ -396,7 +392,8 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                 }
                 ProcessedSyscallParams::MemoryArrayLength => {
                     let length;
-                    let upper_limit = mem_size.saturating_sub(1) as i32;
+                    let upper_limit =
+                        mem_size.saturating_sub(MemoryLayout::RESERVED_MEMORY_SIZE) as i32;
 
                     (memory_array_definition, length) = if let Some((offset, _)) =
                         memory_array_definition
@@ -415,7 +412,8 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                 }
                 ProcessedSyscallParams::MemoryArrayPtr => {
                     let offset;
-                    let upper_limit = mem_size.saturating_sub(1) as i32;
+                    let upper_limit =
+                        mem_size.saturating_sub(MemoryLayout::RESERVED_MEMORY_SIZE) as i32;
 
                     (memory_array_definition, offset) =
                         if let Some((offset, _)) = memory_array_definition {
@@ -431,7 +429,9 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                 }
                 ProcessedSyscallParams::MemoryPtrValue { allowed_values } => {
                     // Subtract a bit more so entities from `gsys` fit.
-                    let upper_limit = mem_size.saturating_sub(100);
+                    let upper_limit = mem_size
+                        .saturating_sub(MemoryLayout::RESERVED_MEMORY_SIZE)
+                        .saturating_sub(128);
                     let offset = self.unstructured.int_in_range(0..=upper_limit)? as i32;
 
                     let param_instructions = if let Some(allowed_values) = allowed_values {
@@ -671,6 +671,46 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
         }
     }
 
+    /// Patches instructions of wait-syscalls to prevent deadlocks.
+    fn limit_infinite_waits(&self, instructions: &mut Vec<Instruction>, waiting_probability: u32) {
+        let MemoryLayout {
+            init_called_ptr,
+            wait_called_ptr,
+            ..
+        } = MemoryLayout::from(self.memory_size_bytes());
+
+        // add instructions before calling wait syscall
+        instructions.splice(
+            0..0,
+            [
+                Instruction::I32Const(init_called_ptr),
+                Instruction::I32Load8U(0, 0),
+                // if *init_called_ptr { .. }
+                Instruction::If(BlockType::NoResult),
+                Instruction::I32Const(wait_called_ptr),
+                Instruction::I32Load(2, 0),
+                Instruction::I32Const(waiting_probability as i32),
+                Instruction::I32RemU,
+                Instruction::I32Eqz,
+                // if *wait_called_ptr % waiting_probability == 0 { orig_wait_syscall(); }
+                Instruction::If(BlockType::NoResult),
+            ],
+        );
+
+        // add instructions after calling wait syscall
+        instructions.extend_from_slice(&[
+            Instruction::End,
+            // *wait_called_ptr += 1
+            Instruction::I32Const(wait_called_ptr),
+            Instruction::I32Const(wait_called_ptr),
+            Instruction::I32Load(2, 0),
+            Instruction::I32Const(1),
+            Instruction::I32Add,
+            Instruction::I32Store(2, 0),
+            Instruction::End,
+        ]);
+    }
+
     fn resolves_calls_indexes(&mut self) {
         log::trace!("Resolving calls indexes");
 
@@ -746,12 +786,26 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
             (module, ())
         })
     }
+
+    /// Returns the size of the memory in bytes.
+    fn memory_size_bytes(&self) -> u32 {
+        Into::<WasmPageCount>::into(self.memory_size_pages()).memory_size()
+    }
+
+    /// Returns the size of the memory in pages.
+    fn memory_size_pages(&self) -> u32 {
+        self.module
+            .initial_mem_size()
+            // To instantiate this generator, we must instantiate SyscallImportsGenerator, which can be
+            // instantiated only with memory import generation proof.
+            .expect("generator is instantiated with a memory import generation proof")
+    }
 }
 
 /// Disabled syscalls invocator.
 ///
-/// This type signals that syscalls imports generation, additional data injection and
-/// syscalls invocation (with further call indexes resolution) is done.
+/// This type signals that syscalls imports generation and syscalls invocation
+/// (with further call indexes resolution) is done.
 pub struct DisabledSyscallsInvocator {
     module: WasmModule,
     call_indexes: CallIndexes,

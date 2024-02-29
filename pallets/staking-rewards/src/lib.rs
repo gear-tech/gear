@@ -26,7 +26,7 @@
 //!
 //! ## Overview
 //!
-//! The Staking Rewards pallet provides a pool that allowas to postpone the inflationary impact
+//! The Staking Rewards pallet provides a pool that allows to postpone the inflationary impact
 //! of the validators rewards minted out of thin air at the end of every era until the pool is
 //! completely depleted after a certain period of time (approx. 2 years).
 //! Thereby the nominal base token inflation stays around zero. Instead, the so-called
@@ -59,17 +59,18 @@ use frame_support::{
     weights::Weight,
     PalletId,
 };
-use pallet_staking::EraPayout;
+use pallet_staking::{ActiveEraInfo, EraPayout};
 use parity_scale_codec::{Decode, Encode};
 pub use scale_info::TypeInfo;
 use sp_runtime::{
-    traits::{AccountIdConversion, Saturating, StaticLookup},
+    traits::{AccountIdConversion, Saturating, StaticLookup, UniqueSaturatedInto},
     PerThing, Perquintill,
 };
 use sp_std::{collections::btree_set::BTreeSet, vec::Vec};
 
 pub use extension::StakingBlackList;
 pub use inflation::compute_total_payout;
+pub mod migrations;
 pub use pallet::*;
 pub use weights::WeightInfo;
 
@@ -82,6 +83,7 @@ pub type NegativeImbalanceOf<T> = <<T as pallet_staking::Config>::Currency as Cu
     <T as frame_system::Config>::AccountId,
 >>::NegativeImbalance;
 type AccountIdLookupOf<T> = <<T as frame_system::Config>::Lookup as StaticLookup>::Source;
+pub(crate) type AccountIdOf<T> = <T as frame_system::Config>::AccountId;
 
 /// Token economics related details.
 #[derive(Clone, Decode, Encode, Eq, PartialEq, TypeInfo)]
@@ -102,6 +104,14 @@ pub mod pallet {
 
     /// The current storage version.
     const STORAGE_VERSION: StorageVersion = StorageVersion::new(2);
+
+    pub struct RentPoolId<T: Config>(PhantomData<T>);
+
+    impl<T: Config> Get<Option<AccountIdOf<T>>> for RentPoolId<T> {
+        fn get() -> Option<AccountIdOf<T>> {
+            Some(Pallet::<T>::rent_pool_account_id())
+        }
+    }
 
     #[pallet::pallet]
     #[pallet::storage_version(STORAGE_VERSION)]
@@ -192,10 +202,17 @@ pub mod pallet {
                 .pool_balance
                 .saturating_add(T::Currency::minimum_balance());
             if T::Currency::free_balance(&account_id) < amount {
-                // Set the stakinig rewards pool account balance to the initial value.
+                // Set the staking rewards pool account balance to the initial value.
                 // Dropping the resulting imbalance as the funds are minted out of thin air.
                 let _ = T::Currency::make_free_balance_be(&account_id, amount);
             }
+
+            // create account for the rent pool
+            let _ = T::Currency::make_free_balance_be(
+                &Pallet::<T>::rent_pool_account_id(),
+                T::Currency::minimum_balance(),
+            );
+
             TargetInflation::<T>::put(self.target_inflation);
             IdealStakingRatio::<T>::put(self.ideal_stake);
             NonStakeableShare::<T>::put(self.non_stakeable);
@@ -356,7 +373,7 @@ pub mod pallet {
                 .saturating_sub(Self::pool())
         }
 
-        /// Calculate actual infaltion and ROI parameters.
+        /// Calculate actual inflation and ROI parameters.
         pub fn inflation_info() -> InflationInfo {
             let total_staked = pallet_staking::Pallet::<T>::eras_total_stake(
                 pallet_staking::Pallet::<T>::current_era().unwrap_or(0),
@@ -380,6 +397,53 @@ pub mod pallet {
 
             InflationInfo { inflation, roi }
         }
+
+        /// The account ID of the rent rewards pool.
+        pub fn rent_pool_account_id() -> T::AccountId {
+            use sp_runtime::traits::TrailingZeroInput;
+
+            let entropy =
+                (T::PalletId::get(), b"gear rent pool").using_encoded(sp_io::hashing::blake2_256);
+            let actor_id = Decode::decode(&mut TrailingZeroInput::new(entropy.as_ref()))
+                .expect("infinite length input; no invalid inputs for type; qed");
+
+            actor_id
+        }
+
+        /// Return the amount in the rent pool.
+        // The existential deposit is not a part of the pool so the account never gets deleted.
+        pub fn rent_pool_balance() -> BalanceOf<T> {
+            T::Currency::free_balance(&Self::rent_pool_account_id())
+                // Must never be less than 0 but better be safe.
+                .saturating_sub(T::Currency::minimum_balance())
+        }
+    }
+}
+
+// TODO: consider to optimize the process #3729
+fn pay_rent_rewards_out<T: Config>(maybe_active_era_info: Option<ActiveEraInfo>) {
+    let Some(active_era_info) = maybe_active_era_info else {
+        return;
+    };
+
+    let reward_points = pallet_staking::Pallet::<T>::eras_reward_points(active_era_info.index);
+    let total = u128::from(reward_points.total);
+    if total == 0 {
+        return;
+    }
+
+    let funds: u128 = pallet::Pallet::<T>::rent_pool_balance().unique_saturated_into();
+    for (account_id, points) in reward_points.individual {
+        let payout = funds.saturating_mul(u128::from(points)) / total;
+        if payout > 0 {
+            CurrencyOf::<T>::transfer(
+                &pallet::Pallet::<T>::rent_pool_account_id(),
+                &account_id,
+                payout.unique_saturated_into(),
+                ExistenceRequirement::KeepAlive,
+            )
+            .unwrap_or_else(|e| log::error!("Failed to transfer rent reward: {e:?}; account_id = {account_id:#?}, points = {points}, payout = {payout}"));
+        }
     }
 }
 
@@ -389,6 +453,8 @@ impl<T: Config> EraPayout<BalanceOf<T>> for Pallet<T> {
         total_issuance: BalanceOf<T>,
         era_duration_millis: u64,
     ) -> (BalanceOf<T>, BalanceOf<T>) {
+        pay_rent_rewards_out::<T>(pallet_staking::Pallet::<T>::active_era());
+
         let period_fraction =
             Perquintill::from_rational(era_duration_millis, T::MillisecondsPerYear::get());
         inflation::compute_total_payout(

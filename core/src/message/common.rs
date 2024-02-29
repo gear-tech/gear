@@ -18,10 +18,12 @@
 
 use crate::{
     ids::{MessageId, ProgramId},
-    message::{DispatchKind, GasLimit, Payload, StoredDispatch, StoredMessage, Value},
+    message::{
+        DispatchKind, GasLimit, Payload, StoredDelayedDispatch, StoredDispatch, StoredMessage,
+        Value,
+    },
 };
-use alloc::string::ToString;
-use core::{convert::TryInto, ops::Deref};
+use core::ops::Deref;
 use gear_core_errors::{ReplyCode, SignalCode};
 use scale_info::{
     scale::{Decode, Encode},
@@ -126,23 +128,6 @@ impl Message {
     /// Message signal.
     pub fn signal_details(&self) -> Option<SignalDetails> {
         self.details.and_then(|d| d.to_signal_details())
-    }
-
-    #[allow(clippy::result_large_err)]
-    /// Consumes self in order to create new `StoredMessage`, which payload
-    /// contains string representation of initial bytes,
-    /// decoded into given type.
-    // TODO: issue #2849.
-    pub fn with_string_payload<D: Decode + ToString>(self) -> Result<Self, Self> {
-        if let Ok(decoded) = D::decode(&mut self.payload.inner()) {
-            if let Ok(payload) = decoded.to_string().into_bytes().try_into() {
-                Ok(Self { payload, ..self })
-            } else {
-                Err(self)
-            }
-        } else {
-            Err(self)
-        }
     }
 
     /// Returns bool defining if message is error reply.
@@ -297,6 +282,12 @@ impl From<Dispatch> for StoredDispatch {
     }
 }
 
+impl From<Dispatch> for StoredDelayedDispatch {
+    fn from(dispatch: Dispatch) -> StoredDelayedDispatch {
+        StoredDelayedDispatch::new(dispatch.kind, dispatch.message.into())
+    }
+}
+
 impl From<Dispatch> for (DispatchKind, Message) {
     fn from(dispatch: Dispatch) -> (DispatchKind, Message) {
         (dispatch.kind, dispatch.message)
@@ -311,6 +302,11 @@ impl Dispatch {
 
     /// Convert Dispatch into gasless StoredDispatch with empty previous context.
     pub fn into_stored(self) -> StoredDispatch {
+        self.into()
+    }
+
+    /// Convert Dispatch into gasless StoredDelayedDispatch.
+    pub fn into_stored_delayed(self) -> StoredDelayedDispatch {
         self.into()
     }
 
