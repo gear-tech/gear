@@ -21,7 +21,7 @@
 use crate::{
     code::errors::*,
     message::{DispatchKind, WasmEntryPoint},
-    pages::{PageNumber, PageU32Size, WasmPage},
+    pages::{PageNumber, WasmPage, WasmPagesAmount},
 };
 use alloc::{collections::BTreeSet, vec};
 use gear_wasm_instrument::{
@@ -36,7 +36,7 @@ use gear_wasm_instrument::{
 };
 
 /// Defines maximal permitted count of memory pages.
-pub const MAX_WASM_PAGE_AMOUNT: WasmPagesAmount = WasmPagesAmount::from_u16(512);
+pub const MAX_WASM_PAGES_AMOUNT: WasmPagesAmount = WasmPagesAmount::from_u16(512);
 
 /// Name of exports allowed on chain.
 pub const ALLOWED_EXPORTS: [&str; 6] = [
@@ -51,7 +51,7 @@ pub const ALLOWED_EXPORTS: [&str; 6] = [
 /// Name of exports required on chain (only 1 of these is required).
 pub const REQUIRED_EXPORTS: [&str; 2] = ["init", "handle"];
 
-pub fn get_static_pages(module: &Module) -> Result<WasmPage, CodeError> {
+pub fn get_static_pages(module: &Module) -> Result<WasmPagesAmount, CodeError> {
     // get initial memory size from memory import
     let static_pages = module
         .import_section()
@@ -66,7 +66,7 @@ pub fn get_static_pages(module: &Module) -> Result<WasmPage, CodeError> {
         .ok_or(MemoryError::EntryNotFound)?
         .map_err(|_| MemoryError::InvalidStaticPageCount)?;
 
-    if static_pages > MAX_WASM_PAGE_AMOUNT {
+    if static_pages > MAX_WASM_PAGES_AMOUNT {
         Err(MemoryError::InvalidStaticPageCount)?;
     }
 
@@ -319,12 +319,12 @@ pub fn check_data_section(module: &Module, check_stack_end: bool) -> Result<(), 
             .checked_add(size)
             .ok_or(DataSectionError::EndAddressOverflow(data_segment_offset))?;
 
-        (data_segment_last_byte_offset < static_pages.offset())
+        (static_pages > WasmPage::from_offset(data_segment_last_byte_offset))
             .then_some(())
             .ok_or(DataSectionError::EndAddressOutOfStaticMemory(
                 data_segment_offset,
                 data_segment_last_byte_offset,
-                static_pages.offset(),
+                static_pages.raw(),
             ))?;
     }
 

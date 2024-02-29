@@ -102,5 +102,5 @@ pub type Migrations = (
     // check for existence of the rent pool account
     pallet_gear_staking_rewards::migrations::CheckRentPoolId<Runtime>,
     // unreleased
-    pallet_gear_program::migration_alloc::MigrateToV3<Runtime>,
+    pallet_gear_program::migration_alloc::MigrateToV4<Runtime>,
 );

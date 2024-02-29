@@ -86,7 +86,7 @@ pub struct DispatchResult {
     /// Page updates.
     pub page_update: BTreeMap<GearPage, PageBuf>,
     /// New allocations set for program.
-    pub allocations: IntervalsTree<WasmPage>,
+    pub allocations: Option<IntervalsTree<WasmPage>>,
     /// Whether this execution sent out a reply.
     pub reply_sent: bool,
 }
@@ -134,7 +134,7 @@ impl DispatchResult {
             gas_reserver: None,
             system_reservation_context,
             page_update: Default::default(),
-            allocations: Default::default(),
+            allocations: None,
             // This function is only used to generate a dispatch result if nothing is executed,
             // therefore reply_sent will always be false
             reply_sent: false,
@@ -253,7 +253,7 @@ pub enum JournalNote {
     UpdateAllocations {
         /// Program id.
         program_id: ProgramId,
-        /// New allocations set for the program.
+        /// Allocations after execution.
         allocations: IntervalsTree<WasmPage>,
     },
     /// Send value

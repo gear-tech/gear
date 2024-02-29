@@ -298,7 +298,7 @@ where
             let allocations = IntervalIterator::<WasmPage>::from(..);
             let intervals_to_free = (0..repetitions).map(|r| {
                 let start = WasmPage::try_from(r.checked_mul(pages_per_call).unwrap()).unwrap();
-                Interval::<WasmPage>::new_with_len(start, pages_per_call).unwrap()
+                Interval::<WasmPage>::with_len(start, pages_per_call).unwrap()
             });
             (allocations.collect(), intervals_to_free.collect())
         } else {
@@ -307,7 +307,7 @@ where
                 .map(|p| WasmPage::try_from(p.checked_mul(2).unwrap()).unwrap());
             let intervals_to_free = (0..repetitions).map(|r| {
                 let start = WasmPage::try_from(r.checked_mul(pages_per_call).unwrap()).unwrap();
-                Interval::<WasmPage>::new_with_len(start, pages_per_call).unwrap()
+                Interval::<WasmPage>::with_len(start, pages_per_call).unwrap()
             });
             (allocations.collect(), intervals_to_free.collect())
         };

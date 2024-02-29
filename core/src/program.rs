@@ -78,7 +78,6 @@ impl Program {
         }
     }
 
-    // TODO: is_initialized is used only in gtest, so may be we should remove it #+_+_+
     /// Get program parts
     pub fn into_parts(
         self,
@@ -86,16 +85,9 @@ impl Program {
         ProgramId,
         InstrumentedCode,
         IntervalsTree<WasmPage>,
-        bool,
         MemoryInfix,
     ) {
-        (
-            self.id,
-            self.code,
-            self.allocations,
-            self.is_initialized,
-            self.memory_infix,
-        )
+        (self.id, self.code, self.allocations, self.memory_infix)
     }
 
     /// Reference to [`InstrumentedCode`] of this program.

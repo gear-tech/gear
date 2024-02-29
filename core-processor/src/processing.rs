@@ -506,10 +506,12 @@ pub fn process_success(
         })
     }
 
-    journal.push(JournalNote::UpdateAllocations {
-        program_id,
-        allocations,
-    });
+    if let Some(allocations) = allocations {
+        journal.push(JournalNote::UpdateAllocations {
+            program_id,
+            allocations,
+        });
+    }
 
     let outcome = match kind {
         Wait(duration, waited_type) => {

@@ -32,7 +32,7 @@ mod utils;
 
 pub use errors::*;
 pub use instrumented::*;
-pub use utils::{ALLOWED_EXPORTS, MAX_WASM_PAGE_AMOUNT, REQUIRED_EXPORTS};
+pub use utils::{ALLOWED_EXPORTS, MAX_WASM_PAGES_AMOUNT, REQUIRED_EXPORTS};
 
 /// Contains instrumented binary code of a program and initial memory size from memory import.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -469,7 +469,7 @@ mod tests {
         assert_code_err!(
             Code::try_new(wat2wasm(wat), 1, |_| ConstantCostRules::default(), None),
             CodeError::DataSection(DataSectionError::EndAddressOutOfStaticMemory(
-                0x10000, 0x10003, 0x10000
+                0x10000, 0x10003, 1
             ))
         );
 
@@ -485,7 +485,7 @@ mod tests {
         assert_code_err!(
             Code::try_new(wat2wasm(wat), 1, |_| ConstantCostRules::default(), None),
             CodeError::DataSection(DataSectionError::EndAddressOutOfStaticMemory(
-                0xfffd, 0x10000, 0x10000
+                0xfffd, 0x10000, 1
             ))
         );
     }

@@ -33,6 +33,7 @@ use core::{
     fmt::Debug,
     ops::{Deref, DerefMut, RangeInclusive},
 };
+use numerated::IntervalIterator;
 use scale_info::{
     scale::{self, Decode, Encode, EncodeLike, Input, Output},
     TypeInfo,
@@ -330,13 +331,12 @@ impl AllocationsContext {
             return Ok(0.into());
         }
 
+        let search_interval = IntervalIterator::try_from(self.static_pages..mem_size)
+            .map_err(|_| AllocError::IncorrectAllocationData)?;
+
         let mut suitable_interval: Option<Interval<WasmPage>> = None;
-        for v in self
-            .allocations
-            .try_voids(self.static_pages..mem_size)
-            .map_err(|_| AllocError::IncorrectAllocationData)?
-        {
-            let interval = Interval::<WasmPage>::new_with_len(v.start(), Some(pages.raw()))
+        for v in self.allocations.voids(search_interval) {
+            let interval = Interval::<WasmPage>::with_len(v.start(), Some(pages.raw()))
                 .map_err(|_| AllocError::ProgramAllocOutOfBounds)?;
             if WasmPagesAmount::from(v.len()) >= pages {
                 suitable_interval = Some(interval);
@@ -358,7 +358,7 @@ impl AllocationsContext {
             )
             .ok_or(AllocError::ProgramAllocOutOfBounds)?;
 
-        let interval = Interval::<WasmPage>::new_with_len(start, Some(pages.raw()))
+        let interval = Interval::<WasmPage>::with_len(start, Some(pages.raw()))
             .map_err(|_| AllocError::ProgramAllocOutOfBounds)?;
         let Some(interval) = (self.max_pages > interval.end()).then_some(interval) else {
             return Err(AllocError::ProgramAllocOutOfBounds);
@@ -394,6 +394,7 @@ impl AllocationsContext {
         }
     }
 
+    // TODO: change range to interval +_+_+
     /// Try to free pages in range. Will only return error if range is invalid.
     ///
     /// Currently running program should own this pages.
@@ -405,8 +406,10 @@ impl AllocationsContext {
             ));
         }
 
-        // TODO: change range to interval +_+_+
-        self.allocations.try_remove(range).unwrap();
+        let interval = Interval::try_from(range.clone())
+            .map_err(|_| AllocError::InvalidFreeRange(range.start().raw(), range.end().raw()))?;
+
+        self.allocations.remove(interval);
         Ok(())
     }
 

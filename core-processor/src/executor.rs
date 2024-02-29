@@ -161,7 +161,7 @@ where
         memory_size,
     } = context;
 
-    let (program_id, code, allocations, _, memory_infix) = program.into_parts();
+    let (program_id, code, allocations, memory_infix) = program.into_parts();
 
     let kind = dispatch.kind();
 
@@ -328,7 +328,7 @@ where
         gas_reserver: Some(info.gas_reserver),
         system_reservation_context: info.system_reservation_context,
         page_update,
-        allocations: info.allocations,
+        allocations: Some(info.allocations),
         reply_sent: info.reply_sent,
     })
 }

@@ -31,7 +31,7 @@ pub struct InstrumentedCode {
     pub(crate) code: Vec<u8>,
     pub(crate) original_code_len: u32,
     pub(crate) exports: BTreeSet<DispatchKind>,
-    pub(crate) static_pages: WasmPage,
+    pub(crate) static_pages: WasmPagesAmount,
     pub(crate) version: u32,
 }
 
