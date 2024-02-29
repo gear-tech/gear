@@ -54,5 +54,5 @@ jobs:
       macos: ${{ needs.status.outputs.macos == 'true' }}
 
   validator:
-    if: ${{ needs.status.outputs.validator = 'true' }}
+    if: ${{ needs.status.outputs.validator == 'true' }}
     uses: ./.github/workflows/validation.yml
