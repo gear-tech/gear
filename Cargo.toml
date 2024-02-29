@@ -338,6 +338,7 @@ sp-core = { version = "21.0.0", git = "https://github.com/gear-tech/substrate.gi
 sp-consensus = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v1.0.0-canary", default-features = false }
 sp-consensus-babe = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v1.0.0-canary", default-features = false }
 sp-consensus-slots = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v1.0.0-canary", default-features = false }
+sp-crypto-ec-utils = { version = "0.4.1", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v1.0.0-canary", default-features = false }
 sp-externalities = { version = "0.19.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v1.0.0-canary", default-features = false }
 sp-consensus-grandpa = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v1.0.0-canary", default-features = false }
 sp-inherents = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v1.0.0-canary", default-features = false }
