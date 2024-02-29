@@ -16,6 +16,13 @@ env:
   BINARYEN_VERSION: version_111
 
 jobs:
+  typos:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: typos-action
+        uses: crate-ci/typos@master
+
   status:
     runs-on: ubuntu-latest
     outputs:
