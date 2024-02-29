@@ -13,19 +13,31 @@ jobs:
       || github.event.label.name == 'E2-forcemacos'
       || github.event.label.name == 'A4-insubstantial'
       || github.event.label.name == 'A2-mergeoncegreen'
+
     steps:
       - uses: actions/checkout@v4
+
+      - uses: gear-tech/fork-action@v0.1.0
+        if: github.event.label.name != 'E2-forcemacos'
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
-      - uses: actions/github-script@v7
-        env:
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          LABEL: ${{ github.event.label.name }}
-          REF: ${{ github.head_ref || github.ref_name }}
-          TITLE: ${{ github.event.pull_request.title }}
-          NUMBER: ${{ github.event.number }}
-          REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          head_sha: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.head_ref || github.ref_name }}
+          repo: "gear-tech/gear"
+          workflow_id: ".github/workflows/build.yml"
+          prefix: "build"
+          jobs: '["linux", "win-cross"]'
+          inputs:
+            '{ "title": "${{ github.event.pull_request.title }}", "number": "${{
+            github.event.number }}" }'
+
+      - uses: gear-tech/fork-action@v0.1.0
+        if: github.event.label.name == 'E2-forcemacos'
         with:
-          script: |
-            const script = require('./.github/actions/label/build.js');
-            await script({ github, core });
+          token: ${{ secrets.GITHUB_TOKEN }}
+          head_sha: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.head_ref || github.ref_name }}
+          repo: "gear-tech/gear"
+          workflow_id: ".github/workflows/build-macos.yml"
+          prefix: "build"
+          jobs: '["x86"]'
