@@ -4096,6 +4096,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "gear-builtins-bls381"
+version = "1.2.0"
+dependencies = [
+ "derive_more",
+ "parity-scale-codec",
+]
+
+[[package]]
 name = "gear-call-gen"
 version = "0.1.0"
 dependencies = [
@@ -7759,6 +7767,7 @@ dependencies = [
  "frame-support",
  "frame-support-test",
  "frame-system",
+ "gear-builtins-bls381",
  "gear-common",
  "gear-core",
  "gear-core-errors",

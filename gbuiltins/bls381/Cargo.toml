@@ -1,0 +1,15 @@
+[package]
+name = "gear-builtins-bls381"
+description = "Entities for working with Gear builtin actor providing bls12_381 cryptography"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+codec = { workspace = true, features = ["derive"] }
+derive_more.workspace = true
+
+[features]
+default = ["std"]
+std = ["codec/std"]

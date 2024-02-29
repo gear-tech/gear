@@ -21,12 +21,13 @@ derive_more.workspace = true
 impl-trait-for-tuples.workspace = true
 ark-std = { workspace = true, optional = true }
 ark-bls12-381 = { workspace = true, features = ["curve"], optional = true }
-ark-serialize = { workspace = true, features = ["derive"], optional = true }
+ark-serialize = { workspace = true, features = ["derive"] }
 ark-ec = { workspace = true, optional = true }
 ark-ff = { workspace = true, optional = true }
-ark-scale = { workspace = true, features = ["hazmat"], optional = true }
+ark-scale = { workspace = true, features = ["hazmat"] }
 
 core-processor.workspace = true
+gear-builtins-bls381.workspace = true
 gear-core.workspace = true
 gear-core-errors.workspace = true
 frame-support.workspace = true
@@ -63,6 +64,7 @@ std = [
 	"frame-benchmarking?/std",
 	"frame-support/std",
 	"frame-system/std",
+	"gear-builtins-bls381/std",
 	"gear-core/std",
 	"pallet-gear/std",
     "parity-scale-codec/std",
@@ -73,10 +75,10 @@ std = [
 	"sp-std/std",
 	"ark-bls12-381?/std",
 	"ark-std?/std",
-	"ark-serialize?/std",
+	"ark-serialize/std",
 	"ark-ec?/std",
 	"ark-ff?/std",
-	"ark-scale?/std",
+	"ark-scale/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",
@@ -85,9 +87,7 @@ runtime-benchmarks = [
 	"sp-core",
 	"ark-bls12-381",
 	"ark-std",
-	"ark-serialize",
 	"ark-ec",
 	"ark-ff",
-	"ark-scale",
 ]
 try-runtime = ["frame-support/try-runtime"]
