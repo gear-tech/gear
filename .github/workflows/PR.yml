@@ -55,4 +55,4 @@ jobs:
 
   validator:
     if: ${{ needs.status.outputs.validator = 'true' }}
-    uses: ./.github/workflows/.yml
+    uses: ./.github/workflows/check-validator.yml
