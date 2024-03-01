@@ -58,6 +58,7 @@ pub struct Cli {
     pub no_hardware_benchmarks: bool,
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, clap::Subcommand)]
 pub enum Subcommand {
     /// Key management cli utilities
