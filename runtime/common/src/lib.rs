@@ -106,8 +106,8 @@ where
         use pallet_treasury::Pallet as Treasury;
 
         if let Some(fees) = fees_then_tips.next() {
-            // for fees, 50% to treasury, 50% to author
-            let (mut to_author, to_treasury) = fees.ration(50, 50);
+            // for fees, 0% to treasury, 100% to author
+            let (mut to_author, to_treasury) = fees.ration(100, 0);
             if let Some(tips) = fees_then_tips.next() {
                 // for tips, if any, 100% to author
                 tips.merge_into(&mut to_author);

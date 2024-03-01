@@ -985,7 +985,7 @@ parameter_types! {
     pub Schedule: pallet_gear::Schedule<Runtime> = Default::default();
     pub BankAddress: AccountId = BANK_ADDRESS.into();
     pub const GasMultiplier: common::GasMultiplier<Balance, u64> = common::GasMultiplier::ValuePerGas(VALUE_PER_GAS);
-    pub SplitFee: Perbill = Perbill::from_percent(50);
+    pub SplitFee: Perbill = Perbill::from_percent(0);
     pub FeeDest: AccountId = PalletId(*b"py/trsry").into_account_truncating();
 }
 

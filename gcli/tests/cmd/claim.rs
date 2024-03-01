@@ -75,12 +75,9 @@ async fn test_command_claim_works() -> Result<()> {
     let rent_pool = signer.api().get_balance(RENT_POOL_SS58_ADDRESS).await?;
 
     // burned * 2 because we have 50% fee split to treasury
+    assert_eq!(initial_balance - before - burned_before, REWARD_PER_BLOCK);
     assert_eq!(
-        initial_balance - before - (burned_before * 2),
-        REWARD_PER_BLOCK
-    );
-    assert_eq!(
-        initial_balance - (burned_after * 2) - (rent_pool - rent_pool_initial),
+        initial_balance - burned_after - (rent_pool - rent_pool_initial),
         after
     );
 

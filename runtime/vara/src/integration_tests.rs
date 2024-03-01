@@ -652,12 +652,12 @@ fn test_fees_and_tip_split() {
 
             DealWithFees::on_unbalanceds(vec![fee, tip].into_iter());
 
-            // Author gets 100% of tip and 50% of fee = 25
-            assert_eq!(Balances::free_balance(alice.to_account_id()), STASH + 25);
-            // Treasury gets 50% of fee
+            // Author gets 100% of the tip and 100% of the fee = 30
+            assert_eq!(Balances::free_balance(alice.to_account_id()), STASH + 30);
+            // Treasury gets 0% of the fee
             assert_eq!(
                 Balances::free_balance(Treasury::account_id()),
-                EXISTENTIAL_DEPOSIT + 5
+                EXISTENTIAL_DEPOSIT
             );
         });
 }
