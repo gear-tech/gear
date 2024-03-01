@@ -347,22 +347,19 @@ pub mod pallet {
             }
 
             let value = Self::withdraw_gas_no_transfer(account_id, amount, multiplier)?;
-            // for gas, `SplitFee` goes to treasury else to author
+            // for gas, `SplitFee` goes to `FeeDest` else to author
             let split = T::SplitFee::get();
-            let to_treasury = split.mul_floor(value);
-            let to_author = value - to_treasury;
-            let block_author = Authorship::<T>::author()
-                .unwrap_or_else(|| unreachable!("Failed to find block author!"));
+            let to_split = split.mul_floor(value);
+            let to_dest = value - to_split;
 
-            let fee_destination = T::FeeDest::get();
+            let split_dest = T::FeeDest::get();
 
             // All the checks and internal values withdrawals performed in
             // `*_no_transfer` function above.
             //
             // This call does only currency trait final transfer.
-            Self::withdraw(&block_author, to_author)
-                .unwrap_or_else(|e| unreachable!("qed above: {e:?}"));
-            Self::withdraw(&fee_destination, to_treasury)
+            Self::withdraw(to, to_dest).unwrap_or_else(|e| unreachable!("qed above: {e:?}"));
+            Self::withdraw(&split_dest, to_split)
                 .unwrap_or_else(|e| unreachable!("qed above: {e:?}"));
 
             Ok(())
