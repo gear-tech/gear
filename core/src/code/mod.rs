@@ -346,6 +346,14 @@ impl CodeAndId {
         Self { code, code_id }
     }
 
+    /// Creates the instance from the hash and incompatible with that hash code.
+    ///
+    /// # Safety
+    /// USE FOR TEST PURPOSES ONLY.
+    pub unsafe fn from_incompatible_parts(code: Code, code_id: CodeId) -> Self {
+        Self { code, code_id }
+    }
+
     /// Returns corresponding id (hash) for the code.
     pub fn code_id(&self) -> CodeId {
         self.code_id

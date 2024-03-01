@@ -26,11 +26,12 @@ use gmeta::{Metadata, MetadataRepr};
 use regex::Regex;
 use std::{env, path::PathBuf, process};
 use wasm_project::ProjectType;
-pub use wasm_project::{PreProcessOutput, PreProcessor};
+pub use wasm_project::{PreProcessor, PreProcessorResult, PreProcessorTarget};
 
 mod builder_error;
 mod cargo_command;
 mod cargo_toolchain;
+pub mod code_validator;
 mod crate_info;
 pub mod optimize;
 mod smart_fs;
@@ -76,7 +77,7 @@ impl WasmBuilder {
         self
     }
 
-    /// Add pre-processor for wasm file
+    /// Add pre-processor for wasm file.
     pub fn with_pre_processor(mut self, pre_processor: Box<dyn PreProcessor>) -> Self {
         self.wasm_project.add_preprocessor(pre_processor);
         self
@@ -149,8 +150,8 @@ impl WasmBuilder {
         let mut matched_features = Vec::new();
         let mut unmatched_features = Vec::new();
         for enabled_feature in enabled_features_iter {
-            // Features coming via the CARGO_FEATURE_<feature> environment variable are in normilized form,
-            // i.e. all dashes are replaced with underscores.
+            // Features coming via the CARGO_FEATURE_<feature> environment variable are in
+            // normilized form, i.e. all dashes are replaced with underscores.
             let enabled_feature_regex =
                 Regex::new(&format!("^{}$", enabled_feature.replace('_', "[-_]")))?;
             if self
@@ -171,11 +172,13 @@ impl WasmBuilder {
         }
 
         // It may turn out that crate with a build script is built as a dependency of
-        // another crate with build script in the same process (runtime -> pallet-gear -> examples).
-        // In that case, all the CARGO_FEATURE_<feature> environment variables are propagated down to
-        // the dependent crate which might not have the corresponding features at all.
-        // In such situation, we just warn about unmatched features for diagnostic purposes and ignore them
-        // as cargo itself checks initial set of features before they reach the build script.
+        // another crate with build script in the same process (runtime -> pallet-gear
+        // -> examples). In that case, all the CARGO_FEATURE_<feature>
+        // environment variables are propagated down to the dependent crate
+        // which might not have the corresponding features at all.
+        // In such situation, we just warn about unmatched features for diagnostic
+        // purposes and ignore them as cargo itself checks initial set of
+        // features before they reach the build script.
         if !unmatched_features.is_empty() && unmatched_features != ["default"] {
             println!(
                 "cargo:warning=Package {}: features `{}` are not available and will be ignored",
@@ -222,8 +225,9 @@ impl Default for WasmBuilder {
     }
 }
 
-// The `std` feature is excluded by default because it is usually used for building
-// so called WASM wrapper which is a static library exposing the built WASM.
+// The `std` feature is excluded by default because it is usually used for
+// building so called WASM wrapper which is a static library exposing the built
+// WASM.
 const FEATURES_TO_EXCLUDE_BY_DEFAULT: &[&str] = &["std"];
 
 /// Shorthand function to be used in `build.rs`.

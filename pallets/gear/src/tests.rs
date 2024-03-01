@@ -32,8 +32,8 @@ use crate::{
     ProgramStorageOf, QueueOf, Schedule, TaskPoolOf, WaitlistOf,
 };
 use common::{
-    event::*, scheduler::*, storage::*, CodeStorage, GasTree, LockId, LockableTree, Origin as _,
-    ProgramStorage, ReservableTree,
+    event::*, scheduler::*, storage::*, ActiveProgram, CodeStorage, GasTree, LockId, LockableTree,
+    Origin as _, ProgramStorage, ReservableTree,
 };
 use core_processor::{common::ActorExecutionErrorReplyReason, ActorPrepareMemoryError};
 use frame_support::{
@@ -45,7 +45,7 @@ use frame_support::{
 };
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
-    code::{self, Code, CodeError, ExportError},
+    code::{self, Code, CodeAndId, CodeError, ExportError, InstrumentedCodeAndId},
     ids::{CodeId, MessageId, ProgramId},
     message::{
         ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext, Payload,
@@ -69,6 +69,77 @@ pub use utils::init_logger;
 use utils::*;
 
 type Gas = <<Test as Config>::GasProvider as common::GasProvider>::GasTree;
+
+#[test]
+fn state_rpc_calls_trigger_reinstrumentation() {
+    use demo_new_meta::{MessageInitIn, META_WASM_V1, WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        // Program uploading.
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_2),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            <MessageInitIn as Default>::default().encode(),
+            DEFAULT_GAS_LIMIT * 100,
+            10_000,
+            false,
+        ));
+
+        let program_id = utils::get_last_program_id();
+
+        run_to_next_block(None);
+
+        let program: ActiveProgram<_> = ProgramStorageOf::<Test>::get_program(program_id)
+            .expect("Failed to find program with such id")
+            .try_into()
+            .expect("Program should be active");
+
+        // Below goes invalidation of instrumented code for uploaded program
+        // with following instrumentation version dump to check that
+        // re-instrumentation takes place.
+
+        /* starts here */
+        let empty_wat = r#"
+        (module
+            (import "env" "memory" (memory 1))
+            (export "handle" (func $handle))
+            (export "init" (func $init))
+            (func $init)
+            (func $handle)
+        )
+        "#;
+
+        let schedule = <Test as Config>::Schedule::get();
+
+        let code = Code::try_new(
+            ProgramCodeKind::Custom(empty_wat).to_bytes(),
+            0, // invalid version
+            |module| schedule.rules(module),
+            schedule.limits.stack_height,
+        )
+        .expect("Failed to create dummy code");
+
+        let code_and_id =
+            unsafe { CodeAndId::from_incompatible_parts(code, program.code_hash.cast()) };
+        let code_and_id = InstrumentedCodeAndId::from(code_and_id);
+
+        <Test as Config>::CodeStorage::update_code(code_and_id);
+        /* ends here */
+
+        assert_ok!(Gear::read_metahash_impl(program_id, None));
+        assert_ok!(Gear::read_state_impl(program_id, Default::default(), None));
+        assert_ok!(Gear::read_state_using_wasm_impl(
+            program_id,
+            Default::default(),
+            "last_wallet",
+            META_WASM_V1.to_vec(),
+            None,
+            None,
+        ));
+    });
+}
 
 #[test]
 fn calculate_gas_init_failure() {
