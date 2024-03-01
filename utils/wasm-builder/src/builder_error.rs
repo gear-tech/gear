@@ -16,7 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use gear_core::code::CodeError;
 use std::path::PathBuf;
 use thiserror::Error;
 
@@ -34,9 +33,6 @@ pub enum BuilderError {
 
     #[error("unable to find the root package in cargo metadata")]
     RootPackageNotFound,
-
-    #[error("code check failed: `{0}`")]
-    CodeCheckFailed(CodeError),
 
     #[error("cargo toolchain is invalid `{0}`")]
     CargoToolchainInvalid(String),

@@ -20,28 +20,10 @@ use crate::{
     internal::HoldBoundBuilder,
     manager::HandleKind,
     mock::{
-        self,
-        new_test_ext,
-        run_for_blocks,
-        run_to_block,
-        run_to_block_maybe_with_queue,
-        run_to_next_block,
-        Balances,
-        BlockNumber,
-        DynamicSchedule,
-        Gear,
-        GearVoucher,
-        // Randomness,
-        RuntimeEvent as MockRuntimeEvent,
-        RuntimeOrigin,
-        System,
-        Test,
-        Timestamp,
-        BLOCK_AUTHOR,
-        LOW_BALANCE_USER,
-        USER_1,
-        USER_2,
-        USER_3,
+        self, new_test_ext, run_for_blocks, run_to_block, run_to_block_maybe_with_queue,
+        run_to_next_block, Balances, BlockNumber, DynamicSchedule, Gear, GearVoucher,
+        RuntimeEvent as MockRuntimeEvent, RuntimeOrigin, System, Test, Timestamp, BLOCK_AUTHOR,
+        LOW_BALANCE_USER, RENT_POOL, USER_1, USER_2, USER_3,
     },
     pallet,
     runtime_api::{ALLOWANCE_LIMIT_ERR, RUNTIME_API_BLOCK_LIMITS_COUNT},
@@ -50,12 +32,12 @@ use crate::{
     ProgramStorageOf, QueueOf, Schedule, TaskPoolOf, WaitlistOf,
 };
 use common::{
-    event::*, scheduler::*, storage::*, CodeStorage, GasTree, LockId, LockableTree, Origin as _,
-    ProgramStorage, ReservableTree,
+    event::*, scheduler::*, storage::*, ActiveProgram, CodeStorage, GasTree, LockId, LockableTree,
+    Origin as _, ProgramStorage, ReservableTree,
 };
 use core_processor::{common::ActorExecutionErrorReplyReason, ActorPrepareMemoryError};
 use frame_support::{
-    assert_err, assert_noop, assert_ok,
+    assert_noop, assert_ok,
     codec::{Decode, Encode},
     dispatch::Dispatchable,
     sp_runtime::traits::{TypedGet, Zero},
@@ -63,7 +45,7 @@ use frame_support::{
 };
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
-    code::{self, Code, CodeError},
+    code::{self, Code, CodeAndId, CodeError, ExportError, InstrumentedCodeAndId},
     ids::{CodeId, MessageId, ProgramId},
     message::UserStoredMessage,
     pages::{PageNumber, PageU32Size, WasmPage},
@@ -84,6 +66,77 @@ pub use utils::init_logger;
 use utils::*;
 
 type Gas = <<Test as Config>::GasProvider as common::GasProvider>::GasTree;
+
+#[test]
+fn state_rpc_calls_trigger_reinstrumentation() {
+    use demo_new_meta::{MessageInitIn, META_WASM_V1, WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        // Program uploading.
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_2),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            <MessageInitIn as Default>::default().encode(),
+            DEFAULT_GAS_LIMIT * 100,
+            10_000,
+            false,
+        ));
+
+        let program_id = utils::get_last_program_id();
+
+        run_to_next_block(None);
+
+        let program: ActiveProgram<_> = ProgramStorageOf::<Test>::get_program(program_id)
+            .expect("Failed to find program with such id")
+            .try_into()
+            .expect("Program should be active");
+
+        // Below goes invalidation of instrumented code for uploaded program
+        // with following instrumentation version dump to check that
+        // re-instrumentation takes place.
+
+        /* starts here */
+        let empty_wat = r#"
+        (module
+            (import "env" "memory" (memory 1))
+            (export "handle" (func $handle))
+            (export "init" (func $init))
+            (func $init)
+            (func $handle)
+        )
+        "#;
+
+        let schedule = <Test as Config>::Schedule::get();
+
+        let code = Code::try_new(
+            ProgramCodeKind::Custom(empty_wat).to_bytes(),
+            0, // invalid version
+            |module| schedule.rules(module),
+            schedule.limits.stack_height,
+        )
+        .expect("Failed to create dummy code");
+
+        let code_and_id =
+            unsafe { CodeAndId::from_incompatible_parts(code, program.code_hash.cast()) };
+        let code_and_id = InstrumentedCodeAndId::from(code_and_id);
+
+        <Test as Config>::CodeStorage::update_code(code_and_id);
+        /* ends here */
+
+        assert_ok!(Gear::read_metahash_impl(program_id, None));
+        assert_ok!(Gear::read_state_impl(program_id, Default::default(), None));
+        assert_ok!(Gear::read_state_using_wasm_impl(
+            program_id,
+            Default::default(),
+            "last_wallet",
+            META_WASM_V1.to_vec(),
+            None,
+            None,
+        ));
+    });
+}
 
 #[test]
 fn calculate_gas_init_failure() {
@@ -1361,9 +1414,7 @@ fn reply_deposit_gstd_async() {
     });
 }
 
-// TODO (#2763): resolve panic caused by "duplicate" wake in message A
 #[test]
-#[should_panic]
 fn pseudo_duplicate_wake() {
     use demo_constructor::{Calls, Scheme};
 
@@ -1820,6 +1871,7 @@ fn delayed_send_user_message_payment() {
         ));
 
         let proxy_msg_id = get_last_message_id();
+        let balance_rent_pool = Balances::free_balance(RENT_POOL);
 
         // Run blocks to make message get into dispatch stash.
         run_to_block(3, None);
@@ -1873,6 +1925,10 @@ fn delayed_send_user_message_payment() {
         assert_eq!(
             total_balance - delay_holding_fee + reserve_for_fee,
             Balances::free_balance(USER_1)
+        );
+        assert_eq!(
+            Balances::free_balance(RENT_POOL),
+            balance_rent_pool + delay_holding_fee - reserve_for_fee
         );
     }
 
@@ -4612,7 +4668,7 @@ fn claim_value_works() {
 
         run_to_block(bn_of_insertion + holding_duration, None);
 
-        let block_producer_balance = Balances::free_balance(BLOCK_AUTHOR);
+        let balance_rent_pool = Balances::free_balance(RENT_POOL);
 
         assert_ok!(Gear::claim_value(
             RuntimeOrigin::signed(USER_1),
@@ -4644,8 +4700,8 @@ fn claim_value_works() {
             sender_balance + charged_for_page_load - value_sent - gas_burned - burned_for_hold;
         assert_eq!(Balances::free_balance(USER_2), expected_sender_balance);
         assert_eq!(
-            Balances::free_balance(BLOCK_AUTHOR),
-            block_producer_balance + burned_for_hold
+            Balances::free_balance(RENT_POOL),
+            balance_rent_pool + burned_for_hold
         );
 
         System::assert_last_event(
@@ -5198,6 +5254,7 @@ fn test_different_waits_success() {
         let duration = 5;
         let wl_gas = duration_gas(duration) + reserve_gas;
         let value = 0;
+        let balance_rent_pool = Balances::free_balance(RENT_POOL);
 
         let gas_info = Gear::calculate_gas_info(
             USER_1.into_origin(),
@@ -5225,6 +5282,14 @@ fn test_different_waits_success() {
         run_to_next_block(None);
 
         assert_eq!(get_waitlist_expiration(wait_success), expiration(duration));
+
+        run_for_blocks(duration.into(), None);
+
+        // rent for keeping the message in the wait list should go to the pool
+        assert_eq!(
+            Balances::free_balance(RENT_POOL),
+            balance_rent_pool + gas_price(duration_gas(duration)),
+        );
 
         // Command::WaitFor case.
         let duration = 5;
@@ -9029,7 +9094,7 @@ fn async_sleep_for() {
 
         // Assert the program replied with a message after the sleep.
         // The message payload is a number of the block the program
-        // exited the dealy, i.e. sleep_for_block_number + SLEEP_FOR_BLOCKS.
+        // exited the delay, i.e. sleep_for_block_number + SLEEP_FOR_BLOCKS.
         assert_waiter_single_reply(format!(
             "After the sleep at block: {}",
             sleep_for_block_number + SLEEP_FOR_BLOCKS
@@ -9075,7 +9140,7 @@ fn async_sleep_for() {
 
             // Assert the program replied with a message after the sleep.
             // The message payload is a number of the block the program
-            // exited the dealy, i.e. sleep_for_block_number + LONGER_SLEEP_FOR_BLOCKS.
+            // exited the delay, i.e. sleep_for_block_number + LONGER_SLEEP_FOR_BLOCKS.
             assert_waiter_single_reply(format!(
                 "After the sleep at block: {}",
                 sleep_for_block_number + LONGER_SLEEP_FOR_BLOCKS
@@ -9122,7 +9187,7 @@ fn async_sleep_for() {
 
             // Assert the program replied with a message after the sleep.
             // The message payload is a number of the block the program
-            // exited the dealy, i.e. sleep_for_block_number + LONGER_SLEEP_FOR_BLOCKS.
+            // exited the delay, i.e. sleep_for_block_number + LONGER_SLEEP_FOR_BLOCKS.
             assert_waiter_single_reply(format!(
                 "After the sleep at block: {}",
                 sleep_for_block_number + LONGER_SLEEP_FOR_BLOCKS
@@ -9156,7 +9221,7 @@ fn async_sleep_for() {
 
             // Assert the program replied with a message after the sleep.
             // The message payload is a number of the block the program
-            // exited the dealy, i.e. sleep_for_block_number + SLEEP_FOR_BLOCKS.
+            // exited the delay, i.e. sleep_for_block_number + SLEEP_FOR_BLOCKS.
             assert_waiter_single_reply(format!(
                 "After the sleep at block: {}",
                 sleep_for_block_number + SLEEP_FOR_BLOCKS
@@ -9190,7 +9255,7 @@ fn async_sleep_for() {
 
             // Assert the program replied with a message after the sleep.
             // The message payload is a number of the block the program
-            // exited the dealy, i.e. sleep_for_block_number + SLEEP_FOR_BLOCKS.
+            // exited the delay, i.e. sleep_for_block_number + SLEEP_FOR_BLOCKS.
             assert_waiter_single_reply(format!(
                 "After the sleep at block: {}",
                 sleep_for_block_number + SLEEP_FOR_BLOCKS
@@ -9564,7 +9629,7 @@ fn missing_handle_is_not_executed() {
 }
 
 #[test]
-fn invalid_memory_page_count_rejected() {
+fn invalid_memory_page_amount_rejected() {
     let wat = format!(
         r#"
     (module
@@ -9572,7 +9637,7 @@ fn invalid_memory_page_count_rejected() {
         (export "init" (func $init))
         (func $init)
     )"#,
-        code::MAX_WASM_PAGE_COUNT + 1
+        code::MAX_WASM_PAGE_AMOUNT + 1
     );
 
     init_logger();
@@ -11020,6 +11085,7 @@ fn gas_reservation_works() {
         ));
 
         let pid = get_last_program_id();
+        let balance_rent_pool = Balances::free_balance(RENT_POOL);
 
         run_to_block(2, None);
 
@@ -11064,6 +11130,11 @@ fn gas_reservation_works() {
         assert_eq!(
             Balances::free_balance(USER_1),
             user_initial_balance - gas_reserved + reservation_amount + reservation_holding
+        );
+        // reservation was held for one block so the rent pool should be increased accordingly
+        assert_eq!(
+            Balances::free_balance(RENT_POOL),
+            balance_rent_pool + gas_price(CostsPerBlockOf::<Test>::reservation())
         );
 
         run_to_block(2 + 2, None);
@@ -12866,15 +12937,17 @@ fn relay_messages() {
     );
 }
 
+// TODO: move to gear-core after #3736
 #[test]
 fn module_instantiation_error() {
+    // Unknown global import leads to instantiation error.
     let wat = r#"
-    (module
-        (import "env" "memory" (memory 1))
-        (export "init" (func $init))
-        (func $init)
-        (data (;0;) (i32.const -15186172) "\b9w\92")
-    )
+        (module
+            (import "env" "memory" (memory 1))
+            (import "env" "unknown" (global $unknown i32))
+            (export "init" (func $init))
+            (func $init)
+        )
     "#;
 
     init_logger();
@@ -12882,7 +12955,7 @@ fn module_instantiation_error() {
         let code = ProgramCodeKind::Custom(wat).to_bytes();
         let salt = DEFAULT_SALT.to_vec();
         let prog_id = generate_program_id(&code, &salt);
-        let res = Gear::upload_program(
+        Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
             code,
             salt,
@@ -12891,10 +12964,9 @@ fn module_instantiation_error() {
             0,
             false,
         )
-        .map(|_| prog_id);
-        let mid = get_last_message_id();
+        .unwrap();
 
-        assert_ok!(res);
+        let mid = get_last_message_id();
 
         run_to_next_block(None);
 
@@ -12916,15 +12988,15 @@ fn wrong_entry_type() {
 
     init_logger();
     new_test_ext().execute_with(|| {
-        assert_err!(
+        assert!(matches!(
             Code::try_new(
                 ProgramCodeKind::Custom(wat).to_bytes(),
                 1,
                 |_| ConstantCostRules::default(),
                 None
             ),
-            CodeError::InvalidExportFnSignature
-        );
+            Err(CodeError::Export(ExportError::InvalidExportFnSignature(0)))
+        ));
     });
 }
 
@@ -13700,7 +13772,7 @@ fn test_gas_allowance_exceed_no_context() {
         // Setting to 100 million the gas allowance ends faster than gas limit
         run_to_next_block(Some(100_000_000));
 
-        // Execution is denied after reque
+        // Execution is denied after requeue
         assert!(QueueProcessingOf::<Test>::denied());
 
         // Low level check, that no execution context is saved after gas allowance exceeded error
@@ -13835,7 +13907,7 @@ fn test_gas_allowance_exceed_with_context() {
         // execution of the message.
         run_to_next_block(Some(gas_info.min_limit - 100_000));
 
-        // Execution is denied after reque.
+        // Execution is denied after requeue.
         assert!(QueueProcessingOf::<Test>::denied());
 
         // Low level check, that no information on reply sent is saved in the execution
@@ -14307,7 +14379,7 @@ fn calculate_gas_wait() {
         })
         .expect("calculate_gas_info failed");
 
-        // 'wait' syscall greedely consumes all available gas so
+        // 'wait' syscall greedily consumes all available gas so
         // calculated limits should not be equal
         assert!(min_limit > limit_no_rent);
     });

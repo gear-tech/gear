@@ -27,6 +27,12 @@ macro_rules! impl_config {
         type GearConfigProgramRentEnabled = ConstBool<true>;
         #[allow(dead_code)]
         type GearConfigSchedule = ();
+        #[allow(dead_code)]
+        type GearConfigBuiltinDispatcherFactory = ();
+        #[allow(dead_code)]
+        type GearConfigBuiltinCache = ();
+        #[allow(dead_code)]
+        type GearRentPoolId = ();
 
         mod pallet_tests_gear_config_impl {
             use super::*;
@@ -56,12 +62,15 @@ macro_rules! impl_config_inner {
             type BlockLimiter = GearGas;
             type Scheduler = GearScheduler;
             type QueueRunner = Gear;
+            type BuiltinDispatcherFactory = GearConfigBuiltinDispatcherFactory;
+            type BuiltinCache = GearConfigBuiltinCache;
             type ProgramRentFreePeriod = RentFreePeriod;
             type ProgramResumeMinimalRentPeriod = ResumeMinimalPeriod;
             type ProgramRentCostPerBlock = RentCostPerBlock;
             type ProgramResumeSessionDuration = ResumeSessionDuration;
             type ProgramRentEnabled = GearConfigProgramRentEnabled;
             type ProgramRentDisabledDelta = RentFreePeriod;
+            type RentPoolId = GearRentPoolId;
         }
     };
 
@@ -79,6 +88,24 @@ macro_rules! impl_config_inner {
 
     ($runtime:ty, ProgramRentEnabled = $program_rent_enabled:ty $(, $( $rest:tt )*)?) => {
         type GearConfigProgramRentEnabled = $program_rent_enabled;
+
+        $crate::impl_config_inner!($runtime, $($( $rest )*)?);
+    };
+
+    ($runtime:ty, BuiltinDispatcherFactory = $builtin_dispatcher_factory:ty $(, $( $rest:tt )*)?) => {
+        type GearConfigBuiltinDispatcherFactory = $builtin_dispatcher_factory;
+
+        $crate::impl_config_inner!($runtime, $($( $rest )*)?);
+    };
+
+    ($runtime:ty, BuiltinCache = $builtin_cache:ty $(, $( $rest:tt )*)?) => {
+        type GearConfigBuiltinCache = $builtin_cache;
+
+        $crate::impl_config_inner!($runtime, $($( $rest )*)?);
+    };
+
+    ($runtime:ty, RentPoolId = $rent_pool_id:ty $(, $( $rest:tt )*)?) => {
+        type GearRentPoolId = $rent_pool_id;
 
         $crate::impl_config_inner!($runtime, $($( $rest )*)?);
     };

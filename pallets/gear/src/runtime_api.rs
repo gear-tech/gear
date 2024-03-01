@@ -166,6 +166,9 @@ where
 
         Self::update_gas_allowance(gas_allowance);
 
+        // Create an instance of a builtin dispatcher.
+        let (builtin_dispatcher, _) = T::BuiltinDispatcherFactory::create();
+
         loop {
             if QueueProcessingOf::<T>::denied() {
                 return Err(ALLOWANCE_LIMIT_ERR.as_bytes().to_vec());
@@ -180,27 +183,29 @@ where
             let actor_id = queued_dispatch.destination();
             let dispatch_id = queued_dispatch.id();
 
-            let balance = CurrencyOf::<T>::free_balance(&actor_id.cast());
-
-            let success_reply = queued_dispatch
-                .reply_details()
-                .map(|rd| rd.to_reply_code().is_success())
-                .unwrap_or(false);
-
             let gas_limit = GasHandlerOf::<T>::get_limit(dispatch_id)
                 .map_err(|_| internal_err("Failed to get gas limit"))?;
 
-            let skip_if_allowed = success_reply && gas_limit == 0;
+            let (journal, skip_if_allowed) = if let Some(f) = builtin_dispatcher.lookup(&actor_id) {
+                (builtin_dispatcher.run(f, queued_dispatch, gas_limit), false)
+            } else {
+                let balance = CurrencyOf::<T>::free_balance(&actor_id.cast());
 
-            let step = QueueStep {
-                block_config: &block_config,
-                ext_manager: &mut ext_manager,
-                gas_limit,
-                dispatch: queued_dispatch,
-                balance: balance.unique_saturated_into(),
+                let success_reply = queued_dispatch
+                    .reply_details()
+                    .map(|rd| rd.to_reply_code().is_success())
+                    .unwrap_or(false);
+
+                let step = QueueStep {
+                    block_config: &block_config,
+                    ext_manager: &mut ext_manager,
+                    gas_limit,
+                    dispatch: queued_dispatch,
+                    balance: balance.unique_saturated_into(),
+                };
+
+                (Self::run_queue_step(step), success_reply && gas_limit == 0)
             };
-
-            let journal = Self::run_queue_step(step);
 
             let get_main_limit = || {
                 // For case when node is not consumed and has any (even zero) balance
@@ -306,17 +311,29 @@ where
     }
 
     fn code_with_memory(program_id: ProgramId) -> Result<CodeWithMemoryData, String> {
-        let program = ProgramStorageOf::<T>::get_program(program_id)
-            .ok_or(String::from("Program not found"))?;
-
-        let program = ActiveProgram::try_from(program)
+        // Load active program from storage.
+        let program: ActiveProgram<_> = ProgramStorageOf::<T>::get_program(program_id)
+            .ok_or(String::from("Program not found"))?
+            .try_into()
             .map_err(|e| format!("Get active program error: {e:?}"))?;
 
-        let instrumented_code = T::CodeStorage::get_code(program.code_hash.cast())
-            .ok_or_else(|| String::from("Failed to get code for given program id"))?;
+        let code_id = program.code_hash.cast();
+
+        // Load instrumented binary code from storage.
+        let mut code = T::CodeStorage::get_code(code_id).ok_or_else(|| {
+            format!("Program '{program_id:?}' exists so must do code '{code_id:?}'")
+        })?;
+
+        // Reinstrument the code if necessary.
+        let schedule = T::Schedule::get();
+
+        if code.instruction_weights_version() != schedule.instruction_weights.version {
+            code = Pallet::<T>::reinstrument_code(code_id, &schedule)
+                .map_err(|e| format!("Code {code_id:?} failed reinstrumentation: {e:?}"))?;
+        }
 
         Ok(CodeWithMemoryData {
-            instrumented_code,
+            instrumented_code: code,
             allocations: program.allocations,
             memory_infix: program.memory_infix,
         })

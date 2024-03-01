@@ -157,7 +157,7 @@ where
 {
     init_block::<T>(None);
 
-    Gear::<T>::process_queue(Default::default());
+    Gear::<T>::process_queue(Default::default(), ());
 }
 
 fn default_processor_context<T: Config>() -> ProcessorContext {

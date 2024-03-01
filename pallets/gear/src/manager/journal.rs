@@ -58,19 +58,17 @@ where
     ) {
         use CoreDispatchOutcome::*;
 
-        let wake_waiting_init_msgs = |p_id: ProgramId| {
-            ProgramStorageOf::<T>::waiting_init_take_messages(p_id)
+        let wake_waiting_init_msgs = |program_id: ProgramId| {
+            ProgramStorageOf::<T>::waiting_init_take_messages(program_id)
                 .into_iter()
-                .for_each(|m_id| {
-                    if let Some(m) = Pallet::<T>::wake_dispatch(
-                        p_id,
-                        m_id,
+                .for_each(|message_id| {
+                    if let Some(dispatch) = Pallet::<T>::wake_dispatch(
+                        program_id,
+                        message_id,
                         MessageWokenSystemReason::ProgramGotInitialized.into_reason(),
                     ) {
-                        QueueOf::<T>::queue(m)
+                        QueueOf::<T>::queue(dispatch)
                             .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
-                    } else {
-                        log::error!("Cannot find message in wl")
                     }
                 })
         };
@@ -162,7 +160,7 @@ where
 
         GasAllowanceOf::<T>::decrease(amount);
 
-        Pallet::<T>::spend_gas(message_id, amount)
+        Pallet::<T>::spend_burned(message_id, amount)
     }
 
     fn exit_dispatch(&mut self, id_exited: ProgramId, value_destination: ProgramId) {
