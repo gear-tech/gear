@@ -64,6 +64,7 @@ use gear_core::{
 use impl_trait_for_tuples::impl_for_tuples;
 use pallet_gear::{BuiltinCache, BuiltinDispatcher, BuiltinDispatcherFactory, HandleFn};
 use parity_scale_codec::{Decode, Encode};
+use sp_runtime::BoundedBTreeSet;
 use sp_std::prelude::*;
 
 pub use pallet::*;
@@ -153,7 +154,6 @@ pub mod pallet {
 
     // This pallet doesn't define a storage version because it doesn't use any storage
     #[pallet::pallet]
-    #[pallet::without_storage_info]
     pub struct Pallet<T>(PhantomData<T>);
 
     #[pallet::config]
@@ -161,13 +161,16 @@ pub mod pallet {
         /// The builtin actor type.
         type Builtins: BuiltinCollection<BuiltinActorError>;
 
+        /// This is enforced in the code; the quick cache size can not exceed this limit.
+        type MaxQuickCache: Get<u32>;
+
         /// Weight cost incurred by builtin actors calls.
         type WeightInfo: WeightInfo;
     }
 
     #[pallet::storage]
     #[pallet::getter(fn quick_cache)]
-    pub type QuickCache<T: Config> = StorageValue<_, BTreeSet<ProgramId>>;
+    pub type QuickCache<T: Config> = StorageValue<_, BoundedBTreeSet<ProgramId, T::MaxQuickCache>>;
 
     #[pallet::hooks]
     impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {}
@@ -202,7 +205,12 @@ impl<T: Config> BuiltinCache for Pallet<T> {
             // Populate the cache at the first call
             let registry = BuiltinRegistry::<T>::new();
             QuickCache::<T>::mutate(|keys| {
-                *keys = Some(registry.registry.keys().cloned().collect())
+                let set: BoundedBTreeSet<ProgramId, T::MaxQuickCache> =
+                    BoundedBTreeSet::<ProgramId, T::MaxQuickCache>::try_from(
+                        registry.registry.keys().cloned().collect::<BTreeSet<_>>(),
+                    )
+                    .expect("Filtered accounts vec too big");
+                *keys = Some(set)
             });
         }
         Self::quick_cache()

@@ -1064,6 +1064,7 @@ parameter_types! {
 
 impl pallet_gear_builtin::Config for Runtime {
     type Builtins = BuiltinActors;
+    type MaxQuickCache = ConstU32<100>;
     type WeightInfo = pallet_gear_builtin::weights::SubstrateWeight<Runtime>;
 }
 
