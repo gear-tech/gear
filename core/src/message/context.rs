@@ -232,7 +232,10 @@ impl MessageContext {
             None => 0,
         };
 
-        (outgoing_bytes_counter <= settings.outgoing_bytes_limit).then_some(())?;
+        if outgoing_bytes_counter > settings.outgoing_bytes_limit {
+            // Outgoing messages bytes limit exceeded.
+            return None;
+        }
 
         Some(Self {
             kind,
