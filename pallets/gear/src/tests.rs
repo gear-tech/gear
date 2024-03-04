@@ -71,6 +71,8 @@ type Gas = <<Test as Config>::GasProvider as common::GasProvider>::GasTree;
 fn calculate_gas_results_in_finite_wait() {
     use demo_constructor::{Calls, Scheme};
 
+    // Imagine that this is async `send_for_reply` to some user
+    // with wait up to 20 that is not rare case.
     let receiver_scheme = Scheme::with_handle(Calls::builder().wait_for(20));
 
     let sender_scheme = |receiver_id: ProgramId| {
