@@ -459,8 +459,9 @@ extern "C" fn metahash() {{
 
         fs::create_dir_all(&self.target_dir).context("Failed to create target directory")?;
 
-        let mut wasm_files = vec![(original_wasm_path.clone(), file_base_name.clone())];
         self.generate_bin_path(file_base_name)?;
+
+        let mut wasm_files = vec![(original_wasm_path.clone(), file_base_name.clone())];
 
         for pre_processor in &self.pre_processors {
             let pre_processor_name = pre_processor.name().to_lowercase().replace('-', "_");
