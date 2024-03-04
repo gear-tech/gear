@@ -68,6 +68,43 @@ use utils::*;
 type Gas = <<Test as Config>::GasProvider as common::GasProvider>::GasTree;
 
 #[test]
+fn calculate_gas_results_in_finite_wait() {
+    use demo_constructor::{Calls, Scheme};
+
+    let receiver_scheme = Scheme::with_handle(Calls::builder().wait_for(20));
+
+    let sender_scheme = |receiver_id: ProgramId| {
+        Scheme::with_handle(Calls::builder().send_wgas(
+            <[u8; 32]>::from(receiver_id),
+            [],
+            40_000_000_000u64,
+        ))
+    };
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let (_init_mid, receiver) = init_constructor(receiver_scheme);
+        let (_init_mid, sender) =
+            submit_constructor_with_args(USER_1, "salty salt", sender_scheme(receiver), 0);
+
+        run_to_next_block(None);
+
+        let GasInfo { min_limit, .. } = Gear::calculate_gas_info(
+            USER_1.into_origin(),
+            HandleKind::Handle(sender),
+            EMPTY_PAYLOAD.to_vec(),
+            0,
+            true,
+            true,
+        )
+        .expect("calculate_gas_info failed");
+
+        // Original issue: this case used to return block gas limit as minimal.
+        assert!(BlockGasLimitOf::<Test>::get() / 2 > min_limit);
+    });
+}
+
+#[test]
 fn state_rpc_calls_trigger_reinstrumentation() {
     use demo_new_meta::{MessageInitIn, META_WASM_V1, WASM_BINARY};
 
