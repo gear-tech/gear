@@ -28,7 +28,7 @@ use crate::{
     pallet,
     runtime_api::{ALLOWANCE_LIMIT_ERR, RUNTIME_API_BLOCK_LIMITS_COUNT},
     AccountIdOf, BlockGasLimitOf, Config, CostsPerBlockOf, CurrencyOf, DbWeightOf, DispatchStashOf,
-    Error, Event, GasAllowanceOf, GasBalanceOf, GasHandlerOf, GasInfo, GearBank, MailboxOf,
+    Error, Event, GasAllowanceOf, GasBalanceOf, GasHandlerOf, GasInfo, GearBank, Limits, MailboxOf,
     ProgramStorageOf, QueueOf, Schedule, TaskPoolOf, WaitlistOf,
 };
 use common::{
@@ -14630,6 +14630,55 @@ fn export_is_import() {
             Gear::upload_code(RuntimeOrigin::signed(USER_1), code),
             Error::<Test>::ProgramConstructionFailed
         );
+    });
+}
+
+#[test]
+fn program_with_large_indexes() {
+    // There is a security problem in module deserialization found by
+    // casper-wasm https://github.com/casper-network/casper-wasm/pull/1,
+    // parity-wasm results OOM on deserializing a module with large indexes.
+    //
+    // bytecodealliance/wasm-tools has similar tests:
+    // https://github.com/bytecodealliance/wasm-tools/blob/main/crates/wasmparser/tests/big-module.rs
+    //
+    // This test is to make sure that we are not affected by the same problem.
+    let code_len_limit = Limits::default().code_len;
+
+    // Here we generate a valid program full with empty functions to reach the limit
+    // of both the function indexes and the code length in our node.
+    //
+    // The testing program has length `60` with only 1 mocked function, each empty
+    // function takes byte code size `4`.
+    //
+    // NOTE: Leaving 35 indexes (140 bytes) for injecting the stack limiter
+    // [`wasm_instrument::InstrumentationBuilder::instrument`].
+    let empty_prog_len = 60;
+    let empty_fn_len = 4;
+    let indexes_in_stack_limiter = 35;
+    let indexes_limit = (code_len_limit - empty_prog_len) / empty_fn_len - indexes_in_stack_limiter;
+    let funcs = "(func)".repeat(indexes_limit as usize);
+    let wat = format!(
+        r#"
+          (module
+           (type (func))
+           (import "env" "memory" (memory (;0;) 17))
+           {funcs}
+           (export "handle" (func 0))
+           (export "init" (func 0))
+          )
+    "#
+    );
+
+    let wasm = wabt::wat2wasm(&wat).expect("failed to compile wat to wasm");
+    assert!(
+        code_len_limit as usize - wasm.len() < 140,
+        "Failed to reach the max limit of code size."
+    );
+
+    new_test_ext().execute_with(|| {
+        let code = ProgramCodeKind::Custom(&wat).to_bytes();
+        assert_ok!(Gear::upload_code(RuntimeOrigin::signed(USER_1), code));
     });
 }
 
