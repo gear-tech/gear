@@ -1,0 +1,45 @@
+[package]
+name = "pallet-gear-bridges"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+
+[dependencies]
+parity-scale-codec = { workspace = true, features = ["derive"] }
+scale-info = { workspace = true, features = ["derive"] }
+gear-core.workspace = true
+
+frame-support.workspace = true
+frame-system.workspace = true
+frame-benchmarking = { workspace = true, optional = true }
+sp-runtime.workspace = true
+sp-std.workspace = true
+
+pallet-gear-builtin-actor.workspace = true
+
+[dev-dependencies]
+sp-io.workspace = true
+common = { workspace = true, features = ["std"] }
+primitive-types.workspace = true
+pallet-balances.workspace = true
+
+[features]
+std = [
+    "frame-support/std",
+    "frame-system/std",
+    "frame-benchmarking?/std",
+    "pallet-balances/std",
+    "sp-runtime/std",
+    "sp-std/std",
+    "pallet-gear-builtin-actor/std",
+]
+default = ['std']
+runtime-benchmarks = [
+    "frame-support/runtime-benchmarks",
+    "frame-system/runtime-benchmarks",
+    "frame-benchmarking/runtime-benchmarks",
+]
+try-runtime = ["frame-support/try-runtime", "frame-system/try-runtime"]
