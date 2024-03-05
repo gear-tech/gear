@@ -698,7 +698,7 @@ impl<'a> Program<'a> {
     /// # use gtest::{state_args, Program, System, WasmProgram, Result};
     /// # fn doctest() -> Result<()> {
     /// # #[derive(Debug)]
-    /// # struct MockWasm {}
+    /// # struct MockWasm;
     /// #
     /// # impl WasmProgram for MockWasm {
     /// #     fn init(&mut self, _payload: Vec<u8>) -> Result<Option<Vec<u8>>, &'static str> { unimplemented!() }
@@ -708,7 +708,7 @@ impl<'a> Program<'a> {
     /// #     fn state(&mut self) -> Result<Vec<u8>, &'static str> { unimplemented!()  }
     /// #  }
     /// # let system = System::new();
-    /// # let program = Program::mock(&system, MockWasm { });
+    /// # let program = Program::mock(&system, MockWasm);
     /// # let ARG_1 = 0u8;
     /// # let ARG_2 = 0u8;
     /// //Read state bytes with no arguments passed to wasm.
