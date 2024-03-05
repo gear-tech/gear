@@ -59,9 +59,10 @@ macro_rules! dry_run {
     ) => {
         GasAllowanceOf::<Test>::put($initial_weight);
 
-        let mut ext_manager = Default::default();
+        let (builtins, _) = <Test as Config>::BuiltinDispatcherFactory::create();
+        let mut ext_manager = ExtManager::<Test>::new(builtins);
         pallet_gear::Pallet::<Test>::process_tasks(&mut ext_manager);
-        pallet_gear::Pallet::<Test>::process_queue(ext_manager, ());
+        pallet_gear::Pallet::<Test>::process_queue(ext_manager);
 
         let $weight = $initial_weight.saturating_sub(GasAllowanceOf::<Test>::get());
     };

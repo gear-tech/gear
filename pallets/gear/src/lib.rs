@@ -44,7 +44,7 @@ mod tests;
 pub mod pallet_tests;
 
 pub use crate::{
-    builtin::{BuiltinCache, BuiltinDispatcher, BuiltinDispatcherFactory, HandleFn},
+    builtin::{BuiltinDispatcher, BuiltinDispatcherFactory, HandleFn},
     manager::{ExtManager, HandleKind},
     pallet::*,
     schedule::{HostFnWeights, InstructionWeights, Limits, MemoryWeights, Schedule},
@@ -266,9 +266,6 @@ pub mod pallet {
 
         /// The builtin dispatcher factory.
         type BuiltinDispatcherFactory: BuiltinDispatcherFactory;
-
-        /// The builtin cache for quick actor ids lookup.
-        type BuiltinCache: BuiltinCache;
 
         /// The account id of the rent pool if any.
         #[pallet::constant]
@@ -580,9 +577,10 @@ pub mod pallet {
             );
 
             let program_id = packet.destination();
+            let (builtins, _) = T::BuiltinDispatcherFactory::create();
             // Make sure there is no program with such id in program storage
             ensure!(
-                !Self::program_exists(program_id),
+                !Self::program_exists(&builtins, program_id),
                 Error::<T>::ProgramAlreadyExists
             );
 
@@ -608,7 +606,7 @@ pub mod pallet {
             let message_id = Self::next_message_id(origin);
             let block_number = Self::block_number();
 
-            ExtManager::<T>::default().set_program(
+            ExtManager::<T>::new(builtins).set_program(
                 program_id,
                 &code_info,
                 message_id,
@@ -822,8 +820,8 @@ pub mod pallet {
         }
 
         /// Returns true if `program_id` is that of a in active status or the builtin actor.
-        pub fn is_active(program_id: ProgramId) -> bool {
-            T::BuiltinCache::exists(&program_id)
+        pub fn is_active(builtins: &impl BuiltinDispatcher, program_id: ProgramId) -> bool {
+            builtins.lookup(&program_id).is_some()
                 || ProgramStorageOf::<T>::get_program(program_id)
                     .map(|program| program.is_active())
                     .unwrap_or_default()
@@ -845,10 +843,10 @@ pub mod pallet {
 
         /// Returns true if there is a program with the specified `program_id`` (it may be paused)
         /// or this `program_id` belongs to the built-in actor.
-        pub fn program_exists(program_id: ProgramId) -> bool {
-            ProgramStorageOf::<T>::program_exists(program_id)
+        pub fn program_exists(builtins: &impl BuiltinDispatcher, program_id: ProgramId) -> bool {
+            builtins.lookup(&program_id).is_some()
+                || ProgramStorageOf::<T>::program_exists(program_id)
                 || ProgramStorageOf::<T>::paused_program_exists(&program_id)
-                || T::BuiltinCache::exists(&program_id)
         }
 
         /// Returns exit argument of an exited program.
@@ -1176,9 +1174,10 @@ pub mod pallet {
             );
 
             let program_id = packet.destination();
+            let (builtins, _) = T::BuiltinDispatcherFactory::create();
             // Make sure there is no program with such id in program storage
             ensure!(
-                !Self::program_exists(program_id),
+                !Self::program_exists(&builtins, program_id),
                 Error::<T>::ProgramAlreadyExists
             );
 
@@ -1200,12 +1199,9 @@ pub mod pallet {
             let message_id = Self::next_message_id(origin);
             let block_number = Self::block_number();
 
-            ExtManager::<T>::default().set_program(
-                packet.destination(),
-                &code_info,
-                message_id,
-                block_number,
-            );
+            let (builtins, _) = T::BuiltinDispatcherFactory::create();
+            let ext_manager = ExtManager::<T>::new(builtins);
+            ext_manager.set_program(packet.destination(), &code_info, message_id, block_number);
 
             let program_id = packet.destination();
             let program_event = Event::ProgramChanged {
@@ -1516,7 +1512,8 @@ pub mod pallet {
             let mailboxed = Self::read_message(origin.clone(), message_id, reason)
                 .ok_or(Error::<T>::MessageNotFound)?;
 
-            if Self::is_active(mailboxed.source()) {
+            let (builtins, _) = T::BuiltinDispatcherFactory::create();
+            if Self::is_active(&builtins, mailboxed.source()) {
                 // Creating reply message.
                 let message = ReplyMessage::auto(mailboxed.id());
 
@@ -1644,8 +1641,12 @@ pub mod pallet {
                 ),
             );
 
-            if Self::program_exists(destination) {
-                ensure!(Self::is_active(destination), Error::<T>::InactiveProgram);
+            let (builtins, _) = T::BuiltinDispatcherFactory::create();
+            if Self::program_exists(&builtins, destination) {
+                ensure!(
+                    Self::is_active(&builtins, destination),
+                    Error::<T>::InactiveProgram
+                );
 
                 // Message is not guaranteed to be executed, that's why value is not immediately transferred.
                 // That's because destination can fail to be initialized, while this dispatch message is next
@@ -1725,7 +1726,11 @@ pub mod pallet {
             let destination = mailboxed.source();
 
             // Checking that program, origin replies to, is not terminated.
-            ensure!(Self::is_active(destination), Error::<T>::InactiveProgram);
+            let (builtins, _) = T::BuiltinDispatcherFactory::create();
+            ensure!(
+                Self::is_active(&builtins, destination),
+                Error::<T>::InactiveProgram
+            );
 
             let reply_id = MessageId::generate_reply(mailboxed.id());
 
@@ -1882,13 +1887,13 @@ pub mod pallet {
             // It will be processing messages execution results following its `JournalHandler`
             // trait implementation.
             // It also will handle delayed tasks following `TasksHandler`.
-            let mut ext_manager = Default::default();
+            let mut ext_manager = ExtManager::<T>::new(builtin_dispatcher);
 
             // Processing regular and delayed tasks.
             Self::process_tasks(&mut ext_manager);
 
             // Processing message queue.
-            Self::process_queue(ext_manager, builtin_dispatcher);
+            Self::process_queue(ext_manager);
 
             // Calculating weight burned within the block.
             initial_gas.saturating_sub(GasAllowanceOf::<T>::get())

@@ -90,7 +90,6 @@ pallet_gear::impl_config!(
     Test,
     Schedule = GearSchedule,
     BuiltinDispatcherFactory = GearBuiltin,
-    BuiltinCache = GearBuiltin,
 );
 
 pub struct FirstBuiltinActor {}
