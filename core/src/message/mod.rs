@@ -80,7 +80,7 @@ pub type Payload = LimitedVec<u8, PayloadSizeError, MAX_PAYLOAD_SIZE>;
 impl Payload {
     /// Get payload length as u32.
     pub fn len_u32(&self) -> u32 {
-        // Safe, cause it's guarantied: `MAX_PAYLOAD_SIZE` < u32::MAX
+        // Safe, cause it's guarantied: `MAX_PAYLOAD_SIZE` <= u32::MAX
         self.inner().len() as u32
     }
 }
