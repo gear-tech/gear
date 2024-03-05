@@ -347,6 +347,27 @@ extern "C" fn metahash() {{
         .map_err(Into::into)
     }
 
+    fn generate_bin_path(&self, file_base_name: &String) -> Result<()> {
+        let relative_path_to_wasm = pathdiff::diff_paths(&self.wasm_target_dir, &self.original_dir)
+            .with_context(|| {
+                format!(
+                    "wasm_target_dir={}; original_dir={}",
+                    self.wasm_target_dir.display(),
+                    self.original_dir.display()
+                )
+            })
+            .expect("Unable to calculate relative path")
+            .join(file_base_name);
+
+        smart_fs::write(
+            self.original_dir.join(".binpath"),
+            format!("{}", relative_path_to_wasm.display()),
+        )
+        .context("unable to write `.binpath`")?;
+
+        Ok(())
+    }
+
     /// Generates output optimized wasm file, `.binpath` file for our tests
     /// system and wasm binaries informational file.
     /// Makes a copy of original wasm file in `self.wasm_target_dir`.
@@ -391,23 +412,6 @@ extern "C" fn metahash() {{
             fs::write(opt_wasm_path.clone(), optimizer.optimize(OptType::Opt)?)
                 .context("Failed to write optimized WASM binary")?;
         }
-
-        // Create path string in `.binpath` file.
-        let relative_path_to_wasm = pathdiff::diff_paths(&self.wasm_target_dir, &self.original_dir)
-            .with_context(|| {
-                format!(
-                    "wasm_target_dir={}; original_dir={}",
-                    self.wasm_target_dir.display(),
-                    self.original_dir.display()
-                )
-            })
-            .expect("Unable to calculate relative path")
-            .join(file_base_name);
-        smart_fs::write(
-            self.original_dir.join(".binpath"),
-            format!("{}", relative_path_to_wasm.display()),
-        )
-        .context("unable to write `.binpath`")?;
 
         // Create `wasm_binary.rs`
         let metadata = self
@@ -454,6 +458,8 @@ extern "C" fn metahash() {{
         ));
 
         fs::create_dir_all(&self.target_dir).context("Failed to create target directory")?;
+
+        self.generate_bin_path(file_base_name)?;
 
         let mut wasm_files = vec![(original_wasm_path.clone(), file_base_name.clone())];
 
