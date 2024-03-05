@@ -307,14 +307,20 @@ impl MessageContext {
         delay: u32,
         reservation: Option<ReservationId>,
     ) -> Result<MessageId, Error> {
-        let new_outgoing_bytes = self
-            .outgoing_bytes_counter
-            .checked_add(packet.payload_len())
-            .and_then(|counter| (counter <= self.settings.outgoing_bytes_limit).then_some(counter))
-            .ok_or(Error::OutgoingMessagesBytesLimitExceeded)?;
-
         if let Some(payload) = self.store.outgoing.get_mut(&handle) {
             if let Some(data) = payload.take() {
+                let Some(new_outgoing_bytes) = self
+                    .outgoing_bytes_counter
+                    .checked_add(packet.payload_len())
+                    .and_then(|counter| {
+                        (counter <= self.settings.outgoing_bytes_limit).then_some(counter)
+                    })
+                else {
+                    *payload = Some(data);
+                    return Err(Error::OutgoingMessagesBytesLimitExceeded);
+                };
+
+                // TODO: set data back if error #3779
                 let packet = {
                     let mut packet = packet;
                     packet
@@ -363,18 +369,16 @@ impl MessageContext {
 
     /// Pushes payload into stored payload by handle.
     pub fn send_push(&mut self, handle: u32, buffer: &[u8]) -> Result<(), Error> {
-        // Both `MaxMessageSizeExceed` and `OutgoingMessagesBytesLimitExceeded` are suitable to be returned here.
-        // Use `MaxMessageSizeExceed` for legacy compatibility: it was the only error returned before.
-        let bytes_amount = u32::try_from(buffer.len()).map_err(|_| Error::MaxMessageSizeExceed)?;
-
-        let new_outgoing_bytes = self
-            .outgoing_bytes_counter
-            .checked_add(bytes_amount)
-            .and_then(|counter| (counter <= self.settings.outgoing_bytes_limit).then_some(counter))
-            .ok_or(Error::OutgoingMessagesBytesLimitExceeded)?;
-
         match self.store.outgoing.get_mut(&handle) {
             Some(Some(data)) => {
+                let new_outgoing_bytes = u32::try_from(buffer.len())
+                    .ok()
+                    .and_then(|bytes_amount| self.outgoing_bytes_counter.checked_add(bytes_amount))
+                    .and_then(|counter| {
+                        (counter <= self.settings.outgoing_bytes_limit).then_some(counter)
+                    })
+                    .ok_or(Error::OutgoingMessagesBytesLimitExceeded)?;
+
                 data.try_extend_from_slice(buffer)
                     .map_err(|_| Error::MaxMessageSizeExceed)?;
                 self.outgoing_bytes_counter = new_outgoing_bytes;
@@ -400,16 +404,13 @@ impl MessageContext {
             excluded_end,
         } = range;
 
-        // Both `MaxMessageSizeExceed` and `OutgoingMessagesBytesLimitExceeded` are suitable to be returned here.
-        // Use `MaxMessageSizeExceed` for legacy compatibility: it was the only error returned before.
-        let bytes_amount = u32::try_from(excluded_end.checked_sub(offset).unwrap_or_else(|| {
+        let bytes_amount = excluded_end.checked_sub(offset).unwrap_or_else(|| {
             unreachable!("`CheckedRange` must guarantee that `excluded_end` >= `offset`")
-        }))
-        .map_err(|_| Error::MaxMessageSizeExceed)?;
+        });
 
-        let new_outgoing_bytes = self
-            .outgoing_bytes_counter
-            .checked_add(bytes_amount)
+        let new_outgoing_bytes = u32::try_from(bytes_amount)
+            .ok()
+            .and_then(|bytes_amount| self.outgoing_bytes_counter.checked_add(bytes_amount))
             .and_then(|counter| (counter <= self.settings.outgoing_bytes_limit).then_some(counter))
             .ok_or(Error::OutgoingMessagesBytesLimitExceeded)?;
 
@@ -458,6 +459,7 @@ impl MessageContext {
         if !self.reply_sent() {
             let data = self.store.reply.take().unwrap_or_default();
 
+            // TODO: set data back if error #3779
             let packet = {
                 let mut packet = packet;
                 packet
