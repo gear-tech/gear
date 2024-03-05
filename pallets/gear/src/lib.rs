@@ -167,9 +167,13 @@ pub mod pallet {
         #[pallet::constant]
         type Schedule: Get<Schedule<Self>>;
 
-        /// The maximum amount of messages that can be produced in single run.
+        /// The maximum amount of messages that can be produced in during all message executions.
         #[pallet::constant]
         type OutgoingLimit: Get<u32>;
+
+        /// The maximum amount of bytes in outgoing messages during message execution.
+        #[pallet::constant]
+        type OutgoingBytesLimit: Get<u32>;
 
         /// Performance multiplier.
         #[pallet::constant]
@@ -1028,6 +1032,7 @@ pub mod pallet {
                 page_costs: schedule.memory_weights.clone().into(),
                 existential_deposit,
                 outgoing_limit: T::OutgoingLimit::get(),
+                outgoing_bytes_limit: T::OutgoingBytesLimit::get(),
                 host_fn_weights: schedule.host_fn_weights.into_core(),
                 forbidden_funcs: Default::default(),
                 mailbox_threshold: T::MailboxThreshold::get(),

@@ -53,6 +53,7 @@ use std::{
 };
 
 const OUTGOING_LIMIT: u32 = 1024;
+const OUTGOING_BYTES_LIMIT: u32 = 64 * 1024 * 1024;
 
 pub(crate) type Balance = u128;
 
@@ -871,6 +872,7 @@ impl ExtManager {
             page_costs: PageCosts::new_for_tests(),
             existential_deposit: EXISTENTIAL_DEPOSIT,
             outgoing_limit: OUTGOING_LIMIT,
+            outgoing_bytes_limit: OUTGOING_BYTES_LIMIT,
             host_fn_weights: Default::default(),
             forbidden_funcs: Default::default(),
             mailbox_threshold: MAILBOX_THRESHOLD,

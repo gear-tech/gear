@@ -53,8 +53,7 @@ use gear_wasm_instrument::syscalls::SyscallName;
 /// Max payload size which one message can have (8 MiB).
 pub const MAX_PAYLOAD_SIZE: usize = 8 * 1024 * 1024;
 
-// **WARNING**: do not remove this check until be sure that
-// all `MAX_PAYLOAD_SIZE` conversions are safe!
+// **WARNING**: do not remove this check
 const _: () = assert!(MAX_PAYLOAD_SIZE <= u32::MAX as usize);
 
 /// Payload size exceed error
@@ -77,6 +76,14 @@ impl Display for PayloadSizeError {
 
 /// Payload type for message.
 pub type Payload = LimitedVec<u8, PayloadSizeError, MAX_PAYLOAD_SIZE>;
+
+impl Payload {
+    /// Get payload length as u32.
+    pub fn len_u32(&self) -> u32 {
+        // Safe, cause it's guarantied: `MAX_PAYLOAD_SIZE` <= u32::MAX
+        self.inner().len() as u32
+    }
+}
 
 /// Gas limit type for message.
 pub type GasLimit = u64;
@@ -213,6 +220,9 @@ impl DispatchKind {
 pub trait Packet {
     /// Packet payload bytes.
     fn payload_bytes(&self) -> &[u8];
+
+    /// Payload len
+    fn payload_len(&self) -> u32;
 
     /// Packet optional gas limit.
     fn gas_limit(&self) -> Option<GasLimit>;
