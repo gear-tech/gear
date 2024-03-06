@@ -49,10 +49,13 @@ pub use crate::{
     pallet::*,
     schedule::{HostFnWeights, InstructionWeights, Limits, MemoryWeights, Schedule},
 };
-pub use gear_core::gas::GasInfo;
+pub use gear_core::{gas::GasInfo, message::ReadOnlyReply};
 pub use weights::WeightInfo;
 
-use alloc::{format, string::String};
+use alloc::{
+    format,
+    string::{String, ToString},
+};
 use common::{
     self, event::*, gas_provider::GasNodeId, paused_program_storage::SessionId, scheduler::*,
     storage::*, BlockLimiter, CodeMetadata, CodeStorage, GasProvider, GasTree, Origin,
@@ -100,6 +103,7 @@ pub(crate) type BalanceOf<T> = <CurrencyOf<T> as Currency<AccountIdOf<T>>>::Bala
 pub(crate) type SentOf<T> = <<T as Config>::Messenger as Messenger>::Sent;
 pub(crate) type DbWeightOf<T> = <T as frame_system::Config>::DbWeight;
 pub(crate) type DequeuedOf<T> = <<T as Config>::Messenger as Messenger>::Dequeued;
+pub(crate) type PalletInfoOf<T> = <T as frame_system::Config>::PalletInfo;
 pub(crate) type QueueProcessingOf<T> = <<T as Config>::Messenger as Messenger>::QueueProcessing;
 pub(crate) type QueueOf<T> = <<T as Config>::Messenger as Messenger>::Queue;
 pub(crate) type MailboxOf<T> = <<T as Config>::Messenger as Messenger>::Mailbox;
@@ -799,6 +803,47 @@ pub mod pallet {
             log::debug!("\n==============================\n");
 
             res
+        }
+
+        #[cfg(not(test))]
+        pub fn read_only_send_message(
+            origin: H256,
+            destination: H256,
+            payload: Vec<u8>,
+            gas_limit: u64,
+            value: u128,
+            allowance_multiplier: u64,
+        ) -> Result<ReadOnlyReply, Vec<u8>> {
+            Self::read_only_send_message_impl(
+                origin,
+                destination.cast(),
+                payload,
+                gas_limit,
+                value,
+                allowance_multiplier,
+            )
+            .map_err(|v| v.into_bytes())
+        }
+
+        #[cfg(test)]
+        pub fn read_only_send_message(
+            origin: H256,
+            destination: ProgramId,
+            payload: Vec<u8>,
+            gas_limit: u64,
+            value: u128,
+            allowance_multiplier: u64,
+        ) -> Result<ReadOnlyReply, String> {
+            Self::run_with_ext_copy(|| {
+                Self::read_only_send_message_impl(
+                    origin,
+                    destination,
+                    payload,
+                    gas_limit,
+                    value,
+                    allowance_multiplier,
+                )
+            })
         }
 
         pub fn run_with_ext_copy<R, F: FnOnce() -> R>(f: F) -> R {

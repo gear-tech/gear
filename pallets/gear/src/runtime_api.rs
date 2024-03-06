@@ -20,8 +20,10 @@ use super::*;
 use crate::queue::QueueStep;
 use common::ActiveProgram;
 use core::convert::TryFrom;
-use frame_support::traits::PalletInfo;
-use gear_core::{code::TryNewCodeConfig, pages::WasmPage, program::MemoryInfix};
+use frame_support::{dispatch::RawOrigin, traits::PalletInfo};
+use gear_core::{
+    code::TryNewCodeConfig, message::ReadOnlyReply, pages::WasmPage, program::MemoryInfix,
+};
 use gear_wasm_instrument::syscalls::SyscallName;
 use sp_runtime::{DispatchErrorWithPostInfo, ModuleError};
 
@@ -40,9 +42,202 @@ impl<T: Config> Pallet<T>
 where
     T::AccountId: Origin,
 {
+    // Prepares account id to be able to execute some extrinsic in terms of funds.
+    fn prepare_origin_account(
+        origin: AccountIdOf<T>,
+        gas: u64,
+        value: BalanceOf<T>,
+    ) -> RawOrigin<AccountIdOf<T>> {
+        // Querying balance of the account.
+        let origin_balance = CurrencyOf::<T>::free_balance(&origin);
+
+        // Calculating amount of value to be payed for gas.
+        let value_for_gas = <T as pallet_gear_bank::Config>::GasMultiplier::get().gas_to_value(gas);
+
+        // Required balance of the account.
+        let required_balance = CurrencyOf::<T>::minimum_balance()
+            .saturating_add(value_for_gas)
+            .saturating_add(value);
+
+        // Updating balance of the account.
+        let _ = CurrencyOf::<T>::deposit_creating(
+            &origin,
+            required_balance.saturating_sub(origin_balance),
+        );
+
+        // Returning origin account as signed origin.
+        RawOrigin::Signed(origin)
+    }
+
+    // Converts given dispatch error into dedicated runtime api string format.
+    fn dispatch_err_to_string(
+        extrinsic_name: &'static str,
+        e: DispatchErrorWithPostInfo<PostDispatchInfo>,
+    ) -> String {
+        // Extracting index of module returned error, if possible.
+        let error_module_idx = match e.error {
+            DispatchError::Module(ModuleError { index, .. }) => Some(index as usize),
+            _ => None,
+        };
+
+        // Converting dispatch error into string representation in default impl.
+        let error_message: &'static str = e.into();
+
+        // Creating result message.
+        let mut res = format!("Extrinsic `gear.{extrinsic_name}` failed: '{error_message}'");
+
+        // Extracting `pallet_gear` index from runtime to compare with dispatch error.
+        let Some(gear_module_idx) = PalletInfoOf::<T>::index::<Self>() else {
+            return Self::internal_err_string("No index found for `pallet_gear` in the runtime");
+        };
+
+        // Appending result message with pallet index returned error, if not this.
+        if let Some(module_idx) = error_module_idx.filter(|i| *i != gear_module_idx) {
+            res = format!("{res} (pallet index of the error: {module_idx}");
+        }
+
+        res
+    }
+
+    // Queries first element of the queue and extracts its message id.
+    fn queue_head() -> Result<MessageId, String> {
+        QueueOf::<T>::iter()
+            .next()
+            .ok_or_else(|| Self::internal_err_string("Failed to get last message from the queue"))
+            .and_then(|queued| {
+                queued
+                    .map(|dispatch| dispatch.id())
+                    .map_err(|_| Self::internal_err_string("Failed to extract queued dispatch"))
+            })
+    }
+
+    // Formats given message into dedicated runtime api string format.
+    fn internal_err_string(message: impl ToString) -> String {
+        format!(
+            "Internal error: entered unreachable code '{}'",
+            message.to_string()
+        )
+    }
+
+    // Returns none if queue is empty, otherwise - associated journal and bool,
+    // defining was it processed by builtin actor or not.
+    fn dequeue_head_and_run(
+        ext_manager: &mut ExtManager<T>,
+        builtin_dispatcher: &impl BuiltinDispatcher,
+    ) -> Result<Option<(Vec<JournalNote>, bool)>, String> {
+        // Extracting queued dispatch.
+        let head =
+            QueueOf::<T>::dequeue().map_err(|_| Self::internal_err_string("Queue corrupted"))?;
+
+        let Some(dispatch) = head else {
+            return Ok(None);
+        };
+
+        // Extracting destination from dispatch.
+        let destination = dispatch.destination();
+
+        // Querying gas limit for dispatch.
+        let gas_limit = GasHandlerOf::<T>::get_limit(dispatch.id())
+            .map_err(|_| Self::internal_err_string("Failed to get gas limit"))?;
+
+        // Processing of the message, if destination is builtin actor.
+        if let Some(f) = builtin_dispatcher.lookup(&destination) {
+            let journal = builtin_dispatcher.run(f, dispatch, gas_limit);
+            return Ok(Some((journal, true)));
+        }
+
+        // Processing of the message, if destination is common program.
+        let journal = Self::run_queue_step(QueueStep {
+            block_config: &Self::block_config(),
+            ext_manager,
+            gas_limit,
+            dispatch,
+            balance: CurrencyOf::<T>::free_balance(&destination.cast()).unique_saturated_into(),
+        });
+
+        Ok(Some((journal, false)))
+    }
+
     fn update_gas_allowance(gas_allowance: u64) {
         GasAllowanceOf::<T>::put(gas_allowance);
         QueueProcessingOf::<T>::allow();
+    }
+
+    pub(crate) fn read_only_send_message_impl(
+        origin: H256,
+        destination: ProgramId,
+        payload: Vec<u8>,
+        gas_limit: u64,
+        value: u128,
+        allowance_multiplier: u64,
+    ) -> Result<ReadOnlyReply, String> {
+        // Enabling lazy-pages for this thread.
+        Self::enable_lazy_pages();
+
+        // Clearing queue.
+        QueueOf::<T>::clear();
+
+        // Calculating gas allowance for a whole operation,
+        // according to allowance multiplier.
+        let gas_allowance = allowance_multiplier.saturating_mul(BlockGasLimitOf::<T>::get());
+
+        // Updating gas allowance with calculated value.
+        Self::update_gas_allowance(gas_allowance);
+
+        // Casting types into runtime assoc-s.
+        let origin = origin.cast();
+        let value = value.unique_saturated_into();
+
+        // Preparing origin balance for extrinsic expenses.
+        let who = Self::prepare_origin_account(origin, gas_limit, value);
+
+        // Executing `send_message` call.
+        Self::send_message(who.into(), destination, payload, gas_limit, value, false)
+            .map_err(|e| Self::dispatch_err_to_string("send_message", e))?;
+
+        // Looking up queue head for message id sent above.
+        let message_id = Self::queue_head()?;
+
+        // Creating new manager for queue processing.
+        let mut ext_manager = ExtManager::<T>::default();
+
+        // Creating builtin dispatcher for queue processing.
+        let (builtin_dispatcher, _) = T::BuiltinDispatcherFactory::create();
+
+        // Queue processing loop.
+        //
+        // Running queue head message if exists.
+        while let Some((journal, _)) =
+            Self::dequeue_head_and_run(&mut ext_manager, &builtin_dispatcher)?
+        {
+            // Looking through all notes in order to find required reply.
+            for note in &journal {
+                if let JournalNote::SendDispatch { dispatch, .. } = note {
+                    if let Some((replied_to, code)) =
+                        dispatch.reply_details().map(|d| d.into_parts())
+                    {
+                        if replied_to == message_id {
+                            return Ok(ReadOnlyReply {
+                                payload: dispatch.payload_bytes().to_vec(),
+                                value: dispatch.value(),
+                                code,
+                            });
+                        }
+                    }
+                }
+            }
+
+            // Processing notes since reply wasn't found.
+            core_processor::handle_journal(journal, &mut ext_manager);
+
+            // If some message overcame block allowance, aborting processing.
+            if QueueProcessingOf::<T>::denied() {
+                return Err(ALLOWANCE_LIMIT_ERR.to_string());
+            }
+        }
+
+        // Ran out of messages in queue.
+        Err(String::from("Queue is empty, but reply wasn't found"))
     }
 
     #[allow(clippy::too_many_arguments)]
