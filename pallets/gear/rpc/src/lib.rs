@@ -31,7 +31,7 @@ use jsonrpsee::{
     types::error::{CallError, ErrorObject},
 };
 pub use pallet_gear_rpc_runtime_api::GearApi as GearRuntimeApi;
-use pallet_gear_rpc_runtime_api::{GasInfo, HandleKind};
+use pallet_gear_rpc_runtime_api::{GasInfo, HandleKind, ReadOnlyReply};
 use sp_api::{ApiError, ApiExt, ApiRef, ProvideRuntimeApi};
 use sp_blockchain::HeaderBackend;
 use sp_core::{Bytes, H256};
@@ -50,6 +50,17 @@ fn runtime_error_into_rpc_error(err: impl std::fmt::Display) -> JsonRpseeError {
 
 #[rpc(server)]
 pub trait GearApi<BlockHash, ResponseType> {
+    #[method(name = "gear_readOnlySendMessage")]
+    fn read_only_send_message(
+        &self,
+        origin: H256,
+        destination: H256,
+        payload: Vec<u8>,
+        gas_limit: u64,
+        value: u128,
+        at: Option<BlockHash>,
+    ) -> RpcResult<ReadOnlyReply>;
+
     #[method(name = "gear_calculateInitCreateGas")]
     fn get_init_create_gas_spent(
         &self,
@@ -257,6 +268,30 @@ where
     C: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block>,
     C::Api: GearRuntimeApi<Block>,
 {
+    fn read_only_send_message(
+        &self,
+        origin: H256,
+        destination: H256,
+        payload: Vec<u8>,
+        gas_limit: u64,
+        value: u128,
+        at: Option<<Block as BlockT>::Hash>,
+    ) -> RpcResult<ReadOnlyReply> {
+        let at_hash = at.unwrap_or_else(|| self.client.info().best_hash);
+
+        self.run_with_api_copy(|api| {
+            api.read_only_send_message(
+                at_hash,
+                origin,
+                destination,
+                payload,
+                gas_limit,
+                value,
+                self.allowance_multiplier,
+            )
+        })
+    }
+
     fn get_init_create_gas_spent(
         &self,
         source: H256,
