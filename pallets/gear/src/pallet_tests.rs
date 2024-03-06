@@ -51,6 +51,7 @@ macro_rules! impl_config_inner {
             type WeightInfo = pallet_gear::weights::SubstrateWeight<Self>;
             type Schedule = GearConfigSchedule;
             type OutgoingLimit = OutgoingLimit;
+            type OutgoingBytesLimit = OutgoingBytesLimit;
             type PerformanceMultiplier = PerformanceMultiplier;
             type DebugInfo = GearConfigDebugInfo;
             type CodeStorage = GearProgram;

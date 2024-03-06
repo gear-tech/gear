@@ -192,6 +192,8 @@ pub struct BlockConfig {
     pub existential_deposit: u128,
     /// Outgoing limit.
     pub outgoing_limit: u32,
+    /// Outgoing bytes limit.
+    pub outgoing_bytes_limit: u32,
     /// Host function weights.
     pub host_fn_weights: HostFnWeights,
     /// Forbidden functions.

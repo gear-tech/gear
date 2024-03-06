@@ -66,6 +66,7 @@ where
         page_costs,
         existential_deposit,
         outgoing_limit,
+        outgoing_bytes_limit,
         host_fn_weights,
         forbidden_funcs,
         mailbox_threshold,
@@ -117,14 +118,21 @@ where
     //
     // Waking fee: double write cost for removal from waitlist
     // and further enqueueing.
-    let msg_ctx_settings = ContextSettings::new(
-        write_cost.saturating_mul(2),
-        write_cost.saturating_mul(4),
-        write_cost.saturating_mul(3),
-        write_cost.saturating_mul(2),
-        write_cost.saturating_mul(2),
+    let msg_ctx_settings = ContextSettings {
+        sending_fee: write_cost.saturating_mul(2),
+        scheduled_sending_fee: write_cost.saturating_mul(4),
+        waiting_fee: write_cost.saturating_mul(3),
+        waking_fee: write_cost.saturating_mul(2),
+        reservation_fee: write_cost.saturating_mul(2),
         outgoing_limit,
-    );
+        outgoing_bytes_limit,
+    };
+
+    // TODO: add tests that system reservation is successfully unreserved after
+    // actor execution error #3756.
+
+    // Get system reservation context in order to use it if actor execution error occurs.
+    let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
 
     let exec_result = executor::execute_wasm::<Ext>(
         balance,
@@ -158,12 +166,11 @@ where
                 process_allowance_exceed(dispatch, program_id, res.gas_amount.burned())
             }
         }),
-        // TODO: we must use message reservation context here instead of default #3718
         Err(ExecutionError::Actor(e)) => Ok(process_execution_error(
             dispatch,
             program_id,
             e.gas_amount.burned(),
-            SystemReservationContext::default(),
+            system_reservation_ctx,
             e.reason,
         )),
         Err(ExecutionError::System(e)) => Err(e),

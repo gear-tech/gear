@@ -52,6 +52,15 @@ impl Scheme {
         )
     }
 
+    pub fn with_handle(handle: Calls) -> Self {
+        Self::Predefined(
+            Default::default(),
+            handle.calls(),
+            Default::default(),
+            Default::default(),
+        )
+    }
+
     pub fn init(&self) -> &Vec<Call> {
         match self {
             Self::Direct(init) => init,

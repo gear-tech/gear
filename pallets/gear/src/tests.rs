@@ -28,7 +28,7 @@ use crate::{
     pallet,
     runtime_api::{ALLOWANCE_LIMIT_ERR, RUNTIME_API_BLOCK_LIMITS_COUNT},
     AccountIdOf, BlockGasLimitOf, Config, CostsPerBlockOf, CurrencyOf, DbWeightOf, DispatchStashOf,
-    Error, Event, GasAllowanceOf, GasBalanceOf, GasHandlerOf, GasInfo, GearBank, MailboxOf,
+    Error, Event, GasAllowanceOf, GasBalanceOf, GasHandlerOf, GasInfo, GearBank, Limits, MailboxOf,
     ProgramStorageOf, QueueOf, Schedule, TaskPoolOf, WaitlistOf,
 };
 use common::{
@@ -47,7 +47,10 @@ use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
     code::{self, Code, CodeAndId, CodeError, ExportError, InstrumentedCodeAndId},
     ids::{CodeId, MessageId, ProgramId},
-    message::UserStoredMessage,
+    message::{
+        ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext, Payload,
+        StoredDispatch, UserStoredMessage,
+    },
     pages::PageNumber,
 };
 use gear_core_backend::error::{
@@ -66,6 +69,45 @@ pub use utils::init_logger;
 use utils::*;
 
 type Gas = <<Test as Config>::GasProvider as common::GasProvider>::GasTree;
+
+#[test]
+fn calculate_gas_results_in_finite_wait() {
+    use demo_constructor::{Calls, Scheme};
+
+    // Imagine that this is async `send_for_reply` to some user
+    // with wait up to 20 that is not rare case.
+    let receiver_scheme = Scheme::with_handle(Calls::builder().wait_for(20));
+
+    let sender_scheme = |receiver_id: ProgramId| {
+        Scheme::with_handle(Calls::builder().send_wgas(
+            <[u8; 32]>::from(receiver_id),
+            [],
+            40_000_000_000u64,
+        ))
+    };
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let (_init_mid, receiver) = init_constructor(receiver_scheme);
+        let (_init_mid, sender) =
+            submit_constructor_with_args(USER_1, "salty salt", sender_scheme(receiver), 0);
+
+        run_to_next_block(None);
+
+        let GasInfo { min_limit, .. } = Gear::calculate_gas_info(
+            USER_1.into_origin(),
+            HandleKind::Handle(sender),
+            EMPTY_PAYLOAD.to_vec(),
+            0,
+            true,
+            true,
+        )
+        .expect("calculate_gas_info failed");
+
+        // Original issue: this case used to return block gas limit as minimal.
+        assert!(BlockGasLimitOf::<Test>::get() / 2 > min_limit);
+    });
+}
 
 #[test]
 fn state_rpc_calls_trigger_reinstrumentation() {
@@ -14635,6 +14677,181 @@ fn export_is_import() {
             Gear::upload_code(RuntimeOrigin::signed(USER_1), code),
             Error::<Test>::ProgramConstructionFailed
         );
+    });
+}
+
+#[test]
+fn program_with_large_indexes() {
+    // There is a security problem in module deserialization found by
+    // casper-wasm https://github.com/casper-network/casper-wasm/pull/1,
+    // parity-wasm results OOM on deserializing a module with large indexes.
+    //
+    // bytecodealliance/wasm-tools has similar tests:
+    // https://github.com/bytecodealliance/wasm-tools/blob/main/crates/wasmparser/tests/big-module.rs
+    //
+    // This test is to make sure that we are not affected by the same problem.
+    let code_len_limit = Limits::default().code_len;
+
+    // Here we generate a valid program full with empty functions to reach the limit
+    // of both the function indexes and the code length in our node.
+    //
+    // The testing program has length `60` with only 1 mocked function, each empty
+    // function takes byte code size `4`.
+    //
+    // NOTE: Leaving 35 indexes (140 bytes) for injecting the stack limiter
+    // [`wasm_instrument::InstrumentationBuilder::instrument`].
+    let empty_prog_len = 60;
+    let empty_fn_len = 4;
+    let indexes_in_stack_limiter = 35;
+    let indexes_limit = (code_len_limit - empty_prog_len) / empty_fn_len - indexes_in_stack_limiter;
+    let funcs = "(func)".repeat(indexes_limit as usize);
+    let wat = format!(
+        r#"
+          (module
+           (type (func))
+           (import "env" "memory" (memory (;0;) 17))
+           {funcs}
+           (export "handle" (func 0))
+           (export "init" (func 0))
+          )
+    "#
+    );
+
+    let wasm = wabt::wat2wasm(&wat).expect("failed to compile wat to wasm");
+    assert!(
+        code_len_limit as usize - wasm.len() < 140,
+        "Failed to reach the max limit of code size."
+    );
+
+    new_test_ext().execute_with(|| {
+        let code = ProgramCodeKind::Custom(&wat).to_bytes();
+        assert_ok!(Gear::upload_code(RuntimeOrigin::signed(USER_1), code));
+    });
+}
+
+#[test]
+fn outgoing_messages_bytes_limit_exceeded() {
+    let error_code = MessageError::OutgoingMessagesBytesLimitExceeded as u32;
+
+    let wat = format!(
+        r#"
+        (module
+            (import "env" "memory" (memory 0x100))
+            (import "env" "gr_send" (func $gr_send (param i32 i32 i32 i32 i32)))
+            (export "init" (func $init))
+            (func $init
+                (loop $loop
+                    i32.const 0        ;; destination and value ptr
+                    i32.const 0        ;; payload ptr
+                    i32.const 0x4c0000 ;; payload length
+                    i32.const 0        ;; delay
+                    i32.const 0x4d0000 ;; result ptr
+                    call $gr_send
+
+                    ;; if it's not an error, then continue the loop
+                    (if (i32.eqz (i32.load (i32.const 0x4d0000))) (then (br $loop)))
+
+                    ;; if it's sought-for error, then finish successfully
+                    ;; if it's unknown error, then panic
+                    (if (i32.eq (i32.const {error_code}) (i32.load (i32.const 0x4d0000)))
+                        (then)
+                        (else unreachable)
+                    )
+                )
+            )
+            (export "__gear_stack_end" (global 0))
+            (global i32 (i32.const 0x1000000))     ;; all memory
+        )"#
+    );
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let code = ProgramCodeKind::Custom(wat.as_str()).to_bytes();
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            code,
+            DEFAULT_SALT.to_vec(),
+            vec![],
+            100_000_000_000,
+            0,
+            false,
+        ));
+
+        let mid = get_last_message_id();
+
+        run_to_next_block(None);
+
+        assert_succeed(mid);
+    });
+}
+
+// TODO: this test must be moved to `core-processor` crate,
+// but it's not possible currently, because mock for `core-processor` does not exist #3742
+#[test]
+fn incorrect_store_context() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            ProgramCodeKind::Default.to_bytes(),
+            DEFAULT_SALT.to_vec(),
+            vec![],
+            100_000_000_000,
+            0,
+            false,
+        ));
+
+        let pid = get_last_program_id();
+        let mid = get_last_message_id();
+
+        run_to_next_block(None);
+
+        assert_succeed(mid);
+
+        let gas_limit = 10_000_000_000;
+        Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            vec![],
+            gas_limit,
+            0,
+            true,
+        )
+        .unwrap();
+        let mid = get_last_message_id();
+
+        // Dequeue dispatch in order to queue corrupted dispatch with same id later
+        QueueOf::<Test>::dequeue().unwrap().unwrap();
+
+        // Start creating dispatch with outgoing messages total bytes limit exceeded
+        let payload = Vec::new().try_into().unwrap();
+        let message = IncomingMessage::new(mid, USER_1.cast(), payload, gas_limit, 0, None);
+
+        // Get overloaded `StoreContext` using `MessageContext`
+        let limit = <Test as Config>::OutgoingBytesLimit::get();
+        let dispatch = IncomingDispatch::new(DispatchKind::Handle, message.clone(), None);
+        let settings = ContextSettings::with_outgoing_limits(1024, limit + 1);
+        let mut message_context = MessageContext::new(dispatch, pid, settings).unwrap();
+        let mut counter = 0;
+        // Fill until the limit is reached
+        while counter < limit + 1 {
+            let handle = message_context.send_init().unwrap();
+            let len = (Payload::max_len() as u32).min(limit + 1 - counter);
+            message_context
+                .send_push(handle, &vec![1; len as usize])
+                .unwrap();
+            counter += len;
+        }
+        let (_, context_store) = message_context.drain();
+
+        // Enqueue dispatch with corrupted context
+        let message = message.into_stored(pid);
+        let dispatch = StoredDispatch::new(DispatchKind::Handle, message, Some(context_store));
+        QueueOf::<Test>::queue(dispatch).unwrap();
+
+        run_to_next_block(None);
+
+        assert_failed(mid, ActorExecutionErrorReplyReason::UnsupportedMessage);
     });
 }
 

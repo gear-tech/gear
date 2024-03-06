@@ -182,6 +182,10 @@ impl Packet for HandlePacket {
         self.payload.inner()
     }
 
+    fn payload_len(&self) -> u32 {
+        self.payload.len_u32()
+    }
+
     fn gas_limit(&self) -> Option<GasLimit> {
         self.gas_limit
     }

@@ -175,7 +175,14 @@ where
         AllocationsContext::new(allocations, static_pages, settings.max_pages);
 
     // Creating message context.
-    let message_context = MessageContext::new(dispatch.clone(), program_id, msg_ctx_settings);
+    let Some(message_context) = MessageContext::new(dispatch.clone(), program_id, msg_ctx_settings)
+    else {
+        return Err(ActorExecutionError {
+            gas_amount: gas_counter.to_amount(),
+            reason: ActorExecutionErrorReplyReason::UnsupportedMessage,
+        }
+        .into());
+    };
 
     // Creating value counter.
     //
@@ -358,30 +365,33 @@ where
     let allocations = allocations.unwrap_or_else(|| program.allocations().clone());
     let memory_size = allocations.end().map(|p| p.inc()).unwrap_or(static_pages);
 
+    let message_context = MessageContext::new(
+        IncomingDispatch::new(
+            DispatchKind::Handle,
+            IncomingMessage::new(
+                Default::default(),
+                Default::default(),
+                payload
+                    .try_into()
+                    .map_err(|e| format!("Failed to create payload: {e:?}"))?,
+                gas_limit,
+                Default::default(),
+                Default::default(),
+            ),
+            None,
+        ),
+        program.id(),
+        Default::default(),
+    )
+    .ok_or("Incorrect message store context: out of outgoing bytes limit")?;
+
     let context = ProcessorContext {
         gas_counter: GasCounter::new(gas_limit),
         gas_allowance_counter: GasAllowanceCounter::new(gas_limit),
         gas_reserver: GasReserver::new(&Default::default(), Default::default(), Default::default()),
         value_counter: ValueCounter::new(Default::default()),
         allocations_context: AllocationsContext::new(allocations, static_pages, 512.into()),
-        message_context: MessageContext::new(
-            IncomingDispatch::new(
-                DispatchKind::Handle,
-                IncomingMessage::new(
-                    Default::default(),
-                    Default::default(),
-                    payload
-                        .try_into()
-                        .map_err(|e| format!("Failed to create payload: {e:?}"))?,
-                    gas_limit,
-                    Default::default(),
-                    Default::default(),
-                ),
-                None,
-            ),
-            program.id(),
-            ContextSettings::new(0, 0, 0, 0, 0, 0),
-        ),
+        message_context,
         block_info,
         performance_multiplier: gsys::Percent::new(100),
         max_pages: 512.into(),

@@ -1437,4 +1437,54 @@ mod test {
             assert!(custom_cost_rules.instruction_cost(i).is_some());
         })
     }
+
+    /// This function creates a program with full of empty
+    /// functions, and returns the size of the wasm code.
+    fn module_with_full_idx(count: usize) -> usize {
+        let funcs = "(func)".repeat(count);
+        let wat = format!("(module {funcs})");
+        wabt::wat2wasm(wat).expect("Failed to serialize wasm").len()
+    }
+
+    #[test]
+    fn deserialize_max_fn_idx_with_code_limit() {
+        use gear_wasm_instrument::parity_wasm::elements::{IndexMap, Serialize, VarUint32};
+        use std::io;
+
+        // Calculates the max limit of the function indexes
+        // with our code length limit.
+        let code_limit = Limits::default().code_len as usize;
+        let empty_program_len = module_with_full_idx(1);
+        let empty_fn_len = module_with_full_idx(2) - empty_program_len;
+
+        // NOTE:
+        //
+        // For triggering the bug, assigning `u32::MAX` to `max_idx`.
+        let max_idx = ((code_limit - empty_program_len) / empty_fn_len + 1) as u32;
+
+        // NOTE:
+        //
+        // We are not generating the wasm module in memory because it
+        // takes too much.
+        //
+        // Mock the max idx in the index map of parity-wasm, cherry-pick
+        // https://github.com/casper-network/casper-wasm/pull/1 to our
+        // parity-wasm fork when this test getting failed which could be
+        // happened on **raising the code len limit of our programs**.
+        //
+        // For the current testing machine, Apple M1 chip, 16GB memory,
+        // deserializing a program with full of indexes in code size 4GB
+        // will lead to the problem.
+        let mut buffer = vec![];
+        VarUint32::from(1u32).serialize(&mut buffer).unwrap();
+        VarUint32::from(max_idx - 1).serialize(&mut buffer).unwrap();
+        "foobar".to_string().serialize(&mut buffer).unwrap();
+
+        let indexmap =
+            IndexMap::<String>::deserialize(max_idx as usize, &mut io::Cursor::new(buffer))
+                .unwrap();
+
+        assert_eq!(indexmap.get(max_idx - 1), Some(&"foobar".to_string()));
+        assert_eq!(indexmap.len(), 1);
+    }
 }

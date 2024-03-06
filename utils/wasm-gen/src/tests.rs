@@ -173,6 +173,8 @@ fn remove_multiple_recursions() {
 
 #[test]
 fn test_avoid_waits_works() {
+    gear_utils::init_default_logger();
+
     let mut rng = SmallRng::seed_from_u64(123);
     let mut buf = vec![0; UNSTRUCTURED_SIZE];
     rng.fill_bytes(&mut buf);
@@ -195,6 +197,8 @@ fn test_avoid_waits_works() {
 
 #[test]
 fn test_source_as_address_param() {
+    gear_utils::init_default_logger();
+
     let mut rng = SmallRng::seed_from_u64(123);
     let mut buf = vec![0; UNSTRUCTURED_SIZE];
     rng.fill_bytes(&mut buf);
@@ -222,6 +226,8 @@ fn test_source_as_address_param() {
 
 #[test]
 fn test_existing_address_as_address_param() {
+    gear_utils::init_default_logger();
+
     let mut rng = SmallRng::seed_from_u64(123);
     let mut buf = vec![0; UNSTRUCTURED_SIZE];
     rng.fill_bytes(&mut buf);
@@ -270,6 +276,8 @@ fn test_existing_address_as_address_param() {
 // processing flow.
 #[test]
 fn test_msg_value_ptr() {
+    gear_utils::init_default_logger();
+
     const INITIAL_BALANCE: u128 = 10_000;
     const REPLY_VALUE: u128 = 1_000;
 
@@ -316,6 +324,7 @@ fn test_msg_value_ptr() {
 #[test]
 fn test_msg_value_ptr_dest() {
     gear_utils::init_default_logger();
+
     const INITIAL_BALANCE: u128 = 10_000;
     const REPLY_VALUE: u128 = 1_000;
 
@@ -585,8 +594,9 @@ fn execute_wasm_with_custom_configs(
     let mut message_context = MessageContext::new(
         IncomingDispatch::new(DispatchKind::Init, incoming_message, None),
         program_id,
-        ContextSettings::new(0, 0, 0, 0, 0, outgoing_limit),
-    );
+        ContextSettings::with_outgoing_limits(outgoing_limit, u32::MAX),
+    )
+    .unwrap();
 
     if imitate_reply {
         let _ = message_context.reply_commit(ReplyPacket::auto(), None);

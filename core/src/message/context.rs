@@ -34,75 +34,35 @@ use scale_info::{
     TypeInfo,
 };
 
-use super::{DispatchKind, IncomingDispatch};
+use super::{DispatchKind, IncomingDispatch, Packet};
 
 /// Context settings.
-#[derive(
-    Copy, Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo,
-)]
+#[derive(Copy, Clone, Debug, Default)]
 pub struct ContextSettings {
     /// Fee for sending message.
-    sending_fee: u64,
+    pub sending_fee: u64,
     /// Fee for sending scheduled message.
-    scheduled_sending_fee: u64,
+    pub scheduled_sending_fee: u64,
     /// Fee for calling wait.
-    waiting_fee: u64,
+    pub waiting_fee: u64,
     /// Fee for waking messages.
-    waking_fee: u64,
+    pub waking_fee: u64,
     /// Fee for creating reservation.
-    reservation_fee: u64,
-    /// Limit of outgoing messages that program can send during execution of current message.
-    outgoing_limit: u32,
+    pub reservation_fee: u64,
+    /// Limit of outgoing messages, that program can send in current message processing.
+    pub outgoing_limit: u32,
+    /// Limit of bytes in outgoing messages during current execution.
+    pub outgoing_bytes_limit: u32,
 }
 
 impl ContextSettings {
-    /// Create new ContextSettings.
-    pub fn new(
-        sending_fee: u64,
-        scheduled_sending_fee: u64,
-        waiting_fee: u64,
-        waking_fee: u64,
-        reservation_fee: u64,
-        outgoing_limit: u32,
-    ) -> Self {
+    /// Returns default settings with specified outgoing messages limits.
+    pub fn with_outgoing_limits(outgoing_limit: u32, outgoing_bytes_limit: u32) -> Self {
         Self {
-            sending_fee,
-            scheduled_sending_fee,
-            waiting_fee,
-            waking_fee,
-            reservation_fee,
             outgoing_limit,
+            outgoing_bytes_limit,
+            ..Default::default()
         }
-    }
-
-    /// Getter for inner sending fee field.
-    pub fn sending_fee(&self) -> u64 {
-        self.sending_fee
-    }
-
-    /// Getter for inner scheduled sending fee field.
-    pub fn scheduled_sending_fee(&self) -> u64 {
-        self.scheduled_sending_fee
-    }
-
-    /// Getter for inner waiting fee field.
-    pub fn waiting_fee(&self) -> u64 {
-        self.waiting_fee
-    }
-
-    /// Getter for inner waking fee field.
-    pub fn waking_fee(&self) -> u64 {
-        self.waking_fee
-    }
-
-    /// Getter for inner reservation fee field.
-    pub fn reservation_fee(&self) -> u64 {
-        self.reservation_fee
-    }
-
-    /// Getter for inner outgoing limit field.
-    pub fn outgoing_limit(&self) -> u32 {
-        self.outgoing_limit
     }
 }
 
@@ -125,7 +85,7 @@ pub struct ContextOutcomeDrain {
 /// Context outcome.
 ///
 /// Contains all outgoing messages and wakes that should be done after execution.
-#[derive(Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
+#[derive(Default, Debug)]
 pub struct ContextOutcome {
     init: Vec<OutgoingMessageInfo<InitMessage>>,
     handle: Vec<OutgoingMessageInfo<HandleMessage>>,
@@ -241,31 +201,50 @@ impl ContextStore {
 }
 
 /// Context of currently processing incoming message.
-#[derive(Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
+#[derive(Debug)]
 pub struct MessageContext {
     kind: DispatchKind,
     current: IncomingMessage,
     outcome: ContextOutcome,
     store: ContextStore,
     settings: ContextSettings,
+    outgoing_bytes_counter: u32,
 }
 
 impl MessageContext {
-    /// Create new MessageContext with given ContextSettings.
+    /// Create new message context.
+    /// Returns `None` if outgoing messages bytes limit exceeded.
     pub fn new(
         dispatch: IncomingDispatch,
         program_id: ProgramId,
         settings: ContextSettings,
-    ) -> Self {
+    ) -> Option<Self> {
         let (kind, message, store) = dispatch.into_parts();
 
-        Self {
+        let outgoing_bytes_counter = match &store {
+            Some(store) => {
+                let mut counter = 0u32;
+                for payload in store.outgoing.values().filter_map(|x| x.as_ref()) {
+                    counter = counter.checked_add(payload.len_u32())?;
+                }
+                counter
+            }
+            None => 0,
+        };
+
+        if outgoing_bytes_counter > settings.outgoing_bytes_limit {
+            // Outgoing messages bytes limit exceeded.
+            return None;
+        }
+
+        Some(Self {
             kind,
             outcome: ContextOutcome::new(program_id, message.source(), message.id()),
             current: message,
             store: store.unwrap_or_default(),
             settings,
-        }
+            outgoing_bytes_counter,
+        })
     }
 
     /// Getter for inner settings.
@@ -330,6 +309,18 @@ impl MessageContext {
     ) -> Result<MessageId, Error> {
         if let Some(payload) = self.store.outgoing.get_mut(&handle) {
             if let Some(data) = payload.take() {
+                let Some(new_outgoing_bytes) = self
+                    .outgoing_bytes_counter
+                    .checked_add(packet.payload_len())
+                    .and_then(|counter| {
+                        (counter <= self.settings.outgoing_bytes_limit).then_some(counter)
+                    })
+                else {
+                    *payload = Some(data);
+                    return Err(Error::OutgoingMessagesBytesLimitExceeded);
+                };
+
+                // TODO: set data back if error #3779
                 let packet = {
                     let mut packet = packet;
                     packet
@@ -342,6 +333,15 @@ impl MessageContext {
                 let message = HandleMessage::from_packet(message_id, packet);
 
                 self.outcome.handle.push((message, delay, reservation));
+
+                // Increasing `outgoing_bytes_counter`, instead of decreasing it, because
+                // this counter takes into account also messages, that are already committed
+                // during this execution.
+                // The message subsequent executions will recalculate this counter from
+                // store outgoing messages (see `Self::new`),
+                // so committed during this execution messages won't be taken into account
+                // during next executions.
+                self.outgoing_bytes_counter = new_outgoing_bytes;
 
                 Ok(message_id)
             } else {
@@ -371,8 +371,17 @@ impl MessageContext {
     pub fn send_push(&mut self, handle: u32, buffer: &[u8]) -> Result<(), Error> {
         match self.store.outgoing.get_mut(&handle) {
             Some(Some(data)) => {
+                let new_outgoing_bytes = u32::try_from(buffer.len())
+                    .ok()
+                    .and_then(|bytes_amount| self.outgoing_bytes_counter.checked_add(bytes_amount))
+                    .and_then(|counter| {
+                        (counter <= self.settings.outgoing_bytes_limit).then_some(counter)
+                    })
+                    .ok_or(Error::OutgoingMessagesBytesLimitExceeded)?;
+
                 data.try_extend_from_slice(buffer)
                     .map_err(|_| Error::MaxMessageSizeExceed)?;
+                self.outgoing_bytes_counter = new_outgoing_bytes;
                 Ok(())
             }
             Some(None) => Err(Error::LateAccess),
@@ -395,8 +404,19 @@ impl MessageContext {
             excluded_end,
         } = range;
 
+        let bytes_amount = excluded_end.checked_sub(offset).unwrap_or_else(|| {
+            unreachable!("`CheckedRange` must guarantee that `excluded_end` >= `offset`")
+        });
+
+        let new_outgoing_bytes = u32::try_from(bytes_amount)
+            .ok()
+            .and_then(|bytes_amount| self.outgoing_bytes_counter.checked_add(bytes_amount))
+            .and_then(|counter| (counter <= self.settings.outgoing_bytes_limit).then_some(counter))
+            .ok_or(Error::OutgoingMessagesBytesLimitExceeded)?;
+
         data.try_extend_from_slice(&self.current.payload_bytes()[offset..excluded_end])
             .map_err(|_| Error::MaxMessageSizeExceed)?;
+        self.outgoing_bytes_counter = new_outgoing_bytes;
 
         Ok(())
     }
@@ -439,6 +459,7 @@ impl MessageContext {
         if !self.reply_sent() {
             let data = self.store.reply.take().unwrap_or_default();
 
+            // TODO: set data back if error #3779
             let packet = {
                 let mut packet = packet;
                 packet
@@ -601,13 +622,18 @@ mod tests {
         };
     }
 
+    // Set of constants for clarity of a part of the test
+    const INCOMING_MESSAGE_ID: u64 = 3;
+    const INCOMING_MESSAGE_SOURCE: u64 = 4;
+
     #[test]
     fn duplicated_init() {
         let mut message_context = MessageContext::new(
             Default::default(),
             Default::default(),
-            ContextSettings::new(0, 0, 0, 0, 0, 1024),
-        );
+            ContextSettings::with_outgoing_limits(1024, u32::MAX),
+        )
+        .expect("Outgoing messages bytes limit exceeded");
 
         // first init to default ProgramId.
         assert_ok!(message_context.init_program(Default::default(), 0));
@@ -620,16 +646,155 @@ mod tests {
     }
 
     #[test]
+    fn send_push_bytes_exceeded() {
+        let mut message_context = MessageContext::new(
+            Default::default(),
+            Default::default(),
+            ContextSettings::with_outgoing_limits(1024, 10),
+        )
+        .expect("Outgoing messages bytes limit exceeded");
+
+        let handle = message_context.send_init().unwrap();
+
+        // push 5 bytes
+        assert_ok!(message_context.send_push(handle, &[1, 2, 3, 4, 5]));
+
+        // push 5 bytes
+        assert_ok!(message_context.send_push(handle, &[1, 2, 3, 4, 5]));
+
+        // push 1 byte should get error.
+        assert_err!(
+            message_context.send_push(handle, &[1]),
+            Error::OutgoingMessagesBytesLimitExceeded,
+        );
+    }
+
+    #[test]
+    fn send_commit_bytes_exceeded() {
+        let mut message_context = MessageContext::new(
+            Default::default(),
+            Default::default(),
+            ContextSettings::with_outgoing_limits(1024, 10),
+        )
+        .expect("Outgoing messages bytes limit exceeded");
+
+        let handle = message_context.send_init().unwrap();
+
+        // push 5 bytes
+        assert_ok!(message_context.send_push(handle, &[1, 2, 3, 4, 5]));
+
+        // commit 6 bytes should get error.
+        assert_err!(
+            message_context.send_commit(
+                handle,
+                HandlePacket::new(
+                    Default::default(),
+                    Payload::try_from([1, 2, 3, 4, 5, 6].to_vec()).unwrap(),
+                    0
+                ),
+                0,
+                None
+            ),
+            Error::OutgoingMessagesBytesLimitExceeded,
+        );
+    }
+
+    #[test]
+    fn send_push_input_bytes_exceeded() {
+        let incoming_message = IncomingMessage::new(
+            MessageId::from(INCOMING_MESSAGE_ID),
+            ProgramId::from(INCOMING_MESSAGE_SOURCE),
+            vec![1, 2, 3, 4, 5].try_into().unwrap(),
+            0,
+            0,
+            None,
+        );
+
+        let incoming_dispatch = IncomingDispatch::new(DispatchKind::Handle, incoming_message, None);
+
+        // Creating a message context
+        let mut message_context = MessageContext::new(
+            incoming_dispatch,
+            Default::default(),
+            ContextSettings::with_outgoing_limits(1024, 10),
+        )
+        .expect("Outgoing messages bytes limit exceeded");
+
+        let handle = message_context.send_init().unwrap();
+
+        // push 5 bytes
+        assert_ok!(message_context.send_push_input(
+            handle,
+            CheckedRange {
+                offset: 0,
+                excluded_end: 5,
+            }
+        ));
+
+        // push 5 bytes
+        assert_ok!(message_context.send_push_input(
+            handle,
+            CheckedRange {
+                offset: 0,
+                excluded_end: 5,
+            }
+        ));
+
+        // push 1 byte should get error.
+        assert_err!(
+            message_context.send_push_input(
+                handle,
+                CheckedRange {
+                    offset: 0,
+                    excluded_end: 1,
+                }
+            ),
+            Error::OutgoingMessagesBytesLimitExceeded,
+        );
+    }
+
+    #[test]
+    fn create_wrong_context() {
+        let context_store = ContextStore {
+            outgoing: [(1, Some(vec![1, 2].try_into().unwrap()))]
+                .iter()
+                .cloned()
+                .collect(),
+            reply: None,
+            initialized: BTreeSet::new(),
+            reservation_nonce: ReservationNonce::default(),
+            system_reservation: None,
+        };
+
+        let incoming_dispatch = IncomingDispatch::new(
+            DispatchKind::Handle,
+            Default::default(),
+            Some(context_store),
+        );
+
+        let ctx = MessageContext::new(
+            incoming_dispatch,
+            Default::default(),
+            ContextSettings::with_outgoing_limits(1024, 1),
+        );
+
+        // Creating a message context must return None,
+        // because of the outgoing messages bytes limit exceeded.
+        assert!(ctx.is_none(), "Expect None, got {:?}", ctx);
+    }
+
+    #[test]
     fn outgoing_limit_exceeded() {
         // Check that we can always send exactly outgoing_limit messages.
         let max_n = 5;
 
         for n in 0..=max_n {
             // for outgoing_limit n checking that LimitExceeded will be after n's message.
-            let settings = ContextSettings::new(0, 0, 0, 0, 0, n);
+            let settings = ContextSettings::with_outgoing_limits(n, u32::MAX);
 
             let mut message_context =
-                MessageContext::new(Default::default(), Default::default(), settings);
+                MessageContext::new(Default::default(), Default::default(), settings)
+                    .expect("Outgoing messages bytes limit exceeded");
             // send n messages
             for _ in 0..n {
                 let handle = message_context.send_init().expect("unreachable");
@@ -661,8 +826,9 @@ mod tests {
         let mut message_context = MessageContext::new(
             Default::default(),
             Default::default(),
-            ContextSettings::new(0, 0, 0, 0, 0, 1024),
-        );
+            ContextSettings::with_outgoing_limits(1024, u32::MAX),
+        )
+        .expect("Outgoing messages bytes limit exceeded");
 
         // Use invalid handle 0.
         let out_of_bounds = message_context.send_commit(0, Default::default(), 0, None);
@@ -687,8 +853,9 @@ mod tests {
         let mut message_context = MessageContext::new(
             Default::default(),
             Default::default(),
-            ContextSettings::new(0, 0, 0, 0, 0, 1024),
-        );
+            ContextSettings::with_outgoing_limits(1024, u32::MAX),
+        )
+        .expect("Outgoing messages bytes limit exceeded");
 
         // First reply.
         assert_ok!(message_context.reply_commit(Default::default(), None));
@@ -699,10 +866,6 @@ mod tests {
             Error::DuplicateReply,
         );
     }
-
-    // Set of constants for clarity of a part of the test
-    const INCOMING_MESSAGE_ID: u64 = 3;
-    const INCOMING_MESSAGE_SOURCE: u64 = 4;
 
     #[test]
     /// Test that covers full api of `MessageContext`
@@ -723,8 +886,9 @@ mod tests {
         let mut context = MessageContext::new(
             incoming_dispatch,
             Default::default(),
-            ContextSettings::new(0, 0, 0, 0, 0, 1024),
-        );
+            ContextSettings::with_outgoing_limits(1024, u32::MAX),
+        )
+        .expect("Outgoing messages bytes limit exceeded");
 
         // Checking that the initial parameters of the context match the passed constants
         assert_eq!(context.current().id(), MessageId::from(INCOMING_MESSAGE_ID));
@@ -865,8 +1029,9 @@ mod tests {
         let mut context = MessageContext::new(
             incoming_dispatch,
             Default::default(),
-            ContextSettings::new(0, 0, 0, 0, 0, 1024),
-        );
+            ContextSettings::with_outgoing_limits(1024, u32::MAX),
+        )
+        .expect("Outgoing messages bytes limit exceeded");
 
         context.wake(MessageId::default(), 10).unwrap();
 
@@ -892,8 +1057,9 @@ mod tests {
         let mut message_context = MessageContext::new(
             incoming_dispatch,
             Default::default(),
-            ContextSettings::new(0, 0, 0, 0, 0, 1024),
-        );
+            ContextSettings::with_outgoing_limits(1024, u32::MAX),
+        )
+        .expect("Outgoing messages bytes limit exceeded");
 
         let handle = message_context.send_init().expect("unreachable");
         message_context
@@ -926,8 +1092,9 @@ mod tests {
         let mut message_context = MessageContext::new(
             incoming_dispatch,
             Default::default(),
-            ContextSettings::new(0, 0, 0, 0, 0, 1024),
-        );
+            ContextSettings::with_outgoing_limits(1024, u32::MAX),
+        )
+        .expect("Outgoing messages bytes limit exceeded");
 
         let message_id = message_context
             .reply_commit(ReplyPacket::default(), None)
