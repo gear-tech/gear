@@ -25,6 +25,9 @@
 #[cfg(all(feature = "std", not(feature = "fuzz")))]
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
+#[cfg(not(all(feature = "std", not(feature = "fuzz"))))]
+pub const WASM_BINARY: Option<&[u8]> = None;
+
 use common::{storage::Messenger, DelegateFee};
 use frame_election_provider_support::{
     onchain, ElectionDataProvider, NposSolution, SequentialPhragmen, VoteWeight,

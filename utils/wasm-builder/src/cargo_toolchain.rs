@@ -24,6 +24,7 @@ use std::{borrow::Cow, process::Command};
 
 // The channel patterns we support (borrowed from the rustup code)
 static TOOLCHAIN_CHANNELS: &[&str] = &[
+    "kapnightly",
     "nightly",
     "beta",
     "stable",
