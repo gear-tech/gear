@@ -123,13 +123,12 @@ pub fn set_program<ProgramStorage, BlockNumber>(
     ProgramStorage: super::ProgramStorage<BlockNumber = BlockNumber>,
     BlockNumber: Zero + Copy + Saturating,
 {
-    let code_id = CodeId::generate(&code).into_origin();
     ProgramStorage::add_program(
         program_id,
         ActiveProgram {
             allocations: Default::default(),
             pages_with_data: Default::default(),
-            code_hash: code_id,
+            code_hash: CodeId::generate(&code).into_origin(),
             code_exports: Default::default(),
             static_pages,
             state: ProgramState::Initialized,
