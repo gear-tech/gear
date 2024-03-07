@@ -18,19 +18,19 @@
 
 //! Costs module.
 
-use crate::gas::Token;
+use crate::{gas::Token, pages::PageNumber};
 use core::{fmt::Debug, marker::PhantomData};
 use paste::paste;
 use scale_info::scale::{Decode, Encode};
 
 /// Cost per one memory page.
 #[derive(Clone, Copy, PartialEq, Eq, Encode, Decode)]
-pub struct CostPerPage<P: Into<u32>> {
+pub struct CostPerPage<P: PageNumber> {
     cost: u64,
     _phantom: PhantomData<P>,
 }
 
-impl<P: Into<u32>> CostPerPage<P> {
+impl<P: PageNumber> CostPerPage<P> {
     /// Const constructor
     pub const fn new(cost: u64) -> Self {
         Self {
@@ -45,43 +45,37 @@ impl<P: Into<u32>> CostPerPage<P> {
     }
 
     /// Cost for one page.
-    pub fn one(&self) -> u64 {
+    pub const fn one(&self) -> u64 {
         self.cost
     }
 
     /// Returns another [CostPerPage] with increased `cost` to `other.cost`.
-    pub fn saturating_add(&self, other: Self) -> Self {
-        self.cost.saturating_add(other.cost).into()
+    pub const fn saturating_add(&self, other: Self) -> Self {
+        Self::new(self.cost.saturating_add(other.cost))
     }
 }
 
-impl<P: Into<u32>> Debug for CostPerPage<P> {
+impl<P: PageNumber> Debug for CostPerPage<P> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.write_fmt(format_args!("{}", &self.cost))
     }
 }
 
-impl<P: Into<u32>> From<u64> for CostPerPage<P> {
+impl<P: PageNumber> From<u64> for CostPerPage<P> {
     fn from(cost: u64) -> Self {
-        CostPerPage {
-            cost,
-            _phantom: PhantomData,
-        }
+        CostPerPage::new(cost)
     }
 }
 
-impl<P: Into<u32>> From<CostPerPage<P>> for u64 {
+impl<P: PageNumber> From<CostPerPage<P>> for u64 {
     fn from(value: CostPerPage<P>) -> Self {
         value.cost
     }
 }
 
-impl<P: Into<u32>> Default for CostPerPage<P> {
+impl<P: PageNumber> Default for CostPerPage<P> {
     fn default() -> Self {
-        Self {
-            cost: 0,
-            _phantom: PhantomData,
-        }
+        CostPerPage::new(0)
     }
 }
 
