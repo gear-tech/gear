@@ -23,7 +23,6 @@ use crate::{
 };
 use alloc::format;
 use elements::Instruction::*;
-use gas_metering::ConstantCostRules;
 use parity_wasm::serialize;
 
 fn inject<R, GetRulesFn>(
@@ -97,7 +96,12 @@ fn simple_grow() {
         )"#,
     );
 
-    let injected_module = inject(module, |_| ConstantCostRules::new(1, 10_000, 0), "env").unwrap();
+    let injected_module = inject(
+        module,
+        |_| CustomConstantCostRules::new(1, 10_000, 0),
+        "env",
+    )
+    .unwrap();
 
     // two new imports (index 0), the original func (i = 1), so
     // gas charge will occupy the next index.
@@ -143,7 +147,7 @@ fn grow_no_gas_no_track() {
         )",
     );
 
-    let injected_module = inject(module, |_| ConstantCostRules::default(), "env").unwrap();
+    let injected_module = inject(module, |_| CustomConstantCostRules::default(), "env").unwrap();
 
     let gas_charge_index = 2;
 
@@ -180,7 +184,7 @@ fn duplicate_import() {
     let module = parse_wat(&wat);
 
     assert_eq!(
-        inject(module, |_| ConstantCostRules::default(), "env"),
+        inject(module, |_| CustomConstantCostRules::default(), "env"),
         Err(InstrumentationError::SystemBreakImportAlreadyExists)
     );
 }
@@ -201,7 +205,7 @@ fn duplicate_export() {
     let module = parse_wat(&wat);
 
     assert_eq!(
-        inject(module, |_| ConstantCostRules::default(), "env"),
+        inject(module, |_| CustomConstantCostRules::default(), "env"),
         Err(InstrumentationError::GasGlobalAlreadyExists)
     );
 }
@@ -229,7 +233,7 @@ fn unsupported_instruction() {
 fn call_index() {
     let injected_module = inject(
         prebuilt_simple_module(),
-        |_| ConstantCostRules::default(),
+        |_| CustomConstantCostRules::default(),
         "env",
     )
     .unwrap();
@@ -267,7 +271,7 @@ fn cost_overflow() {
     let instruction_cost = u32::MAX / 2;
     let injected_module = inject(
         prebuilt_simple_module(),
-        |_| ConstantCostRules::new(instruction_cost, 0, 0),
+        |_| CustomConstantCostRules::new(instruction_cost, 0, 0),
         "env",
     )
     .unwrap();
@@ -321,8 +325,9 @@ macro_rules! test_gas_counter_injection {
             let input_module = parse_wat($input);
             let expected_module = parse_wat($expected);
 
-            let injected_module = inject(input_module, |_| ConstantCostRules::default(), "env")
-                .expect("inject_gas_counter call failed");
+            let injected_module =
+                inject(input_module, |_| CustomConstantCostRules::default(), "env")
+                    .expect("inject_gas_counter call failed");
 
             let actual_func_body = get_function_body(&injected_module, 0)
                 .expect("injected module must have a function body");

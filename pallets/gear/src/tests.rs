@@ -57,7 +57,7 @@ use gear_core_backend::error::{
     TrapExplanation, UnrecoverableExecutionError, UnrecoverableExtError, UnrecoverableWaitError,
 };
 use gear_core_errors::*;
-use gear_wasm_instrument::{gas_metering::ConstantCostRules, STACK_END_EXPORT_NAME};
+use gear_wasm_instrument::{rules::CustomConstantCostRules, STACK_END_EXPORT_NAME};
 use gstd::{collections::BTreeMap, errors::Error as GstdError};
 use pallet_gear_voucher::PrepaidCall;
 use sp_runtime::{
@@ -13034,7 +13034,7 @@ fn wrong_entry_type() {
             Code::try_new(
                 ProgramCodeKind::Custom(wat).to_bytes(),
                 1,
-                |_| ConstantCostRules::default(),
+                |_| CustomConstantCostRules::default(),
                 None
             ),
             Err(CodeError::Export(ExportError::InvalidExportFnSignature(0)))
