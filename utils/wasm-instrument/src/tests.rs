@@ -643,8 +643,7 @@ test_gas_counter_injection! {
 
 #[test]
 fn check_memory_array_pointers_definition_correctness() {
-    let syscalls = SyscallName::instrumentable();
-    for syscall in syscalls {
+    for syscall in SyscallName::instrumentable() {
         let signature = syscall.signature();
         let size_param_indexes = signature
             .params()
@@ -662,8 +661,11 @@ fn check_memory_array_pointers_definition_correctness() {
     }
 }
 
-// Basically checks that mutable error pointer is always last in every fallible syscall params set.
-// WARNING: this test must never fail, unless a huge redesign in syscalls signatures has occurred.
+/// Basically checks that mutable error pointer is always last in every fallible
+/// syscall params set.
+///
+/// WARNING: this test must never fail, unless a huge redesign in syscalls
+/// signatures has occurred.
 #[test]
 fn check_syscall_err_ptr_position() {
     for syscall in SyscallName::instrumentable() {

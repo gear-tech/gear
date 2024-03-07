@@ -1,9 +1,36 @@
+// This file is part of Gear.
+
+// Copyright (C) 2023-2024 Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+//! Mock for `ScheduleRules`.
+
 use core::num::NonZeroU32;
 use gwasm_instrument::{
     gas_metering::{MemoryGrowCost, Rules},
     parity_wasm::elements::{self, Instruction},
 };
 
+/// This type provides the functionality of
+/// [`gwasm_instrument::gas_metering::ConstantCostRules`].
+///
+/// This implementation of [`Rules`] will also check the WASM module for
+/// instructions that are not supported by Gear Protocol. So, it's preferable to
+/// use this type instead of `pallet_gear::Schedule::default().rules()` in unit
+/// testing.
 pub struct CustomConstantCostRules {
     instruction_cost: u32,
     memory_grow_cost: u32,
@@ -11,6 +38,10 @@ pub struct CustomConstantCostRules {
 }
 
 impl CustomConstantCostRules {
+    /// Create a new [`CustomConstantCostRules`].
+    ///
+    /// Uses `instruction_cost` for every instruction and `memory_grow_cost` to
+    /// dynamically meter the memory growth instruction.
     pub fn new(instruction_cost: u32, memory_grow_cost: u32, call_per_local_cost: u32) -> Self {
         Self {
             instruction_cost,
@@ -21,6 +52,7 @@ impl CustomConstantCostRules {
 }
 
 impl Default for CustomConstantCostRules {
+    /// Uses instruction cost of `1` and disables memory growth instrumentation.
     fn default() -> Self {
         Self {
             instruction_cost: 1,
@@ -34,7 +66,8 @@ impl Rules for CustomConstantCostRules {
     fn instruction_cost(&self, instruction: &Instruction) -> Option<u32> {
         use self::elements::Instruction::*;
 
-        // list of allowed instructions from `ScheduleRules::<T>::instruction_cost(...)` method
+        // list of allowed instructions from `ScheduleRules::<T>::instruction_cost(...)`
+        // method
         match *instruction {
             End
             | Unreachable
