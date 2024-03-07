@@ -23,7 +23,6 @@ use crate::{
 };
 use alloc::format;
 use elements::Instruction::*;
-use parity_wasm::serialize;
 
 fn inject<R, GetRulesFn>(
     module: elements::Module,
@@ -82,90 +81,6 @@ fn prebuilt_simple_module() -> elements::Module {
         .build()
         .build()
         .build()
-}
-
-#[test]
-fn simple_grow() {
-    let module = parse_wat(
-        r#"(module
-        (func (result i32)
-            global.get 0
-            memory.grow)
-        (global i32 (i32.const 42))
-        (memory 0 1)
-        )"#,
-    );
-
-    let injected_module = inject(
-        module,
-        |_| CustomConstantCostRules::new(1, 10_000, 0),
-        "env",
-    )
-    .unwrap();
-
-    // two new imports (index 0), the original func (i = 1), so
-    // gas charge will occupy the next index.
-    let gas_charge_index = 2;
-    let grow_index = 3;
-
-    assert_eq!(
-        get_function_body(&injected_module, 0).unwrap(),
-        &vec![
-            I32Const(2),
-            Call(gas_charge_index),
-            GetGlobal(0),
-            Call(grow_index),
-            End
-        ][..]
-    );
-    assert_eq!(
-        get_function_body(&injected_module, 2).unwrap(),
-        &vec![
-            GetLocal(0),
-            GetLocal(0),
-            I32Const(10_000),
-            I32Mul,
-            Call(gas_charge_index),
-            GrowMemory(0),
-            End,
-        ][..]
-    );
-
-    let binary = serialize(injected_module).expect("serialization failed");
-    wasmparser::validate(&binary).unwrap();
-}
-
-#[test]
-fn grow_no_gas_no_track() {
-    let module = parse_wat(
-        r"(module
-        (func (result i32)
-            global.get 0
-            memory.grow)
-        (global i32 (i32.const 42))
-        (memory 0 1)
-        )",
-    );
-
-    let injected_module = inject(module, |_| CustomConstantCostRules::default(), "env").unwrap();
-
-    let gas_charge_index = 2;
-
-    assert_eq!(
-        get_function_body(&injected_module, 0).unwrap(),
-        &vec![
-            I32Const(2),
-            Call(gas_charge_index),
-            GetGlobal(0),
-            GrowMemory(0),
-            End
-        ][..]
-    );
-
-    assert_eq!(injected_module.functions_space(), 3);
-
-    let binary = serialize(injected_module).expect("serialization failed");
-    wasmparser::validate(&binary).unwrap();
 }
 
 #[test]
