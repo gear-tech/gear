@@ -238,13 +238,14 @@ pub fn instantiate(
     #[cfg(not(feature = "wasmer-cache"))]
     let module = {
         let code_hash = Hash::generate(wasm);
-        let modules = CACHED_MODULES.read().expect("CACHED_MODULES write fail");
-        let module = modules.get(&code_hash).or_else(|| {
-            Arc::new(
+        let mut modules = CACHED_MODULES.write().expect("CACHED_MODULES write fail");
+        modules
+            .entry(code_hash)
+            .or_insert(Arc::new(
                 sandbox_wasmer::Module::new(&context.store, wasm)
                     .map_err(|_| InstantiationError::ModuleDecoding)?,
-            )
-        })?;
+            ))
+            .clone()
     };
 
     type Exports = HashMap<String, sandbox_wasmer::Exports>;
