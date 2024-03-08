@@ -18,9 +18,8 @@
 
 //! Mock for `ScheduleRules`.
 
-use core::num::NonZeroU32;
 use gwasm_instrument::{
-    gas_metering::{MemoryGrowCost, Rules},
+    gas_metering::{ConstantCostRules, MemoryGrowCost, Rules},
     parity_wasm::elements::{self, Instruction},
 };
 
@@ -32,9 +31,7 @@ use gwasm_instrument::{
 /// use this type instead of `pallet_gear::Schedule::default().rules()` in unit
 /// testing.
 pub struct CustomConstantCostRules {
-    instruction_cost: u32,
-    memory_grow_cost: u32,
-    call_per_local_cost: u32,
+    constant_cost_rules: ConstantCostRules,
 }
 
 impl CustomConstantCostRules {
@@ -44,9 +41,11 @@ impl CustomConstantCostRules {
     /// dynamically meter the memory growth instruction.
     pub fn new(instruction_cost: u32, memory_grow_cost: u32, call_per_local_cost: u32) -> Self {
         Self {
-            instruction_cost,
-            memory_grow_cost,
-            call_per_local_cost,
+            constant_cost_rules: ConstantCostRules::new(
+                instruction_cost,
+                memory_grow_cost,
+                call_per_local_cost,
+            ),
         }
     }
 }
@@ -55,9 +54,7 @@ impl Default for CustomConstantCostRules {
     /// Uses instruction cost of `1` and disables memory growth instrumentation.
     fn default() -> Self {
         Self {
-            instruction_cost: 1,
-            memory_grow_cost: 0,
-            call_per_local_cost: 1,
+            constant_cost_rules: ConstantCostRules::new(1, 0, 1),
         }
     }
 }
@@ -172,16 +169,16 @@ impl Rules for CustomConstantCostRules {
             | I64Rotl
             | I32Rotr
             | I64Rotr
-            | SignExt(_) => Some(self.instruction_cost),
+            | SignExt(_) => Some(self.constant_cost_rules.instruction_cost(instruction)?),
             _ => None,
         }
     }
 
     fn memory_grow_cost(&self) -> MemoryGrowCost {
-        NonZeroU32::new(self.memory_grow_cost).map_or(MemoryGrowCost::Free, MemoryGrowCost::Linear)
+        self.constant_cost_rules.memory_grow_cost()
     }
 
     fn call_per_local_cost(&self) -> u32 {
-        self.call_per_local_cost
+        self.constant_cost_rules.call_per_local_cost()
     }
 }
