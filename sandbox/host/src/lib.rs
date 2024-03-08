@@ -20,6 +20,7 @@
 
 #![warn(missing_docs)]
 #![deny(unused_crate_dependencies)]
+#![feature(lazy_cell)]
 
 pub mod error;
 pub mod sandbox;

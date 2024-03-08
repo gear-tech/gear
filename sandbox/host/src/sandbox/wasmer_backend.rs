@@ -18,7 +18,12 @@
 
 //! Wasmer specific impls for sandbox
 
-use std::{cell::RefCell, collections::HashMap, rc::Rc};
+use std::{
+    cell::RefCell,
+    collections::HashMap,
+    rc::Rc,
+    sync::{Arc, LazyLock, RwLock},
+};
 
 use sandbox_wasmer::{Exportable, RuntimeError};
 use sandbox_wasmer_types::TrapCode;
@@ -55,6 +60,9 @@ use {
 
 #[cfg(feature = "wasmer-cache")]
 static CACHE_DIR: OnceLock<TempDir> = OnceLock::new();
+
+static CACHED_MODULES: LazyLock<RwLock<HashMap<Hash, Arc<Module>>>> =
+    LazyLock::new(|| RwLock::new(HashMap::new()));
 
 /// Wasmer specific context
 pub struct Backend {
@@ -152,26 +160,48 @@ pub fn invoke(
 fn get_cached_module(
     wasm: &[u8],
     store: &sandbox_wasmer::Store,
-) -> core::result::Result<Module, CachedModuleErr> {
-    let cache_path = CACHE_DIR
-        .get_or_init(|| {
-            tempfile::tempdir().expect("Cannot create temporary directory for wasmer caches")
-        })
-        .path();
-    log::trace!("Wasmer sandbox cache dir is: {cache_path:?}");
-
-    let fs_cache = FileSystemCache::new(cache_path).map_err(|_| FileSystemErr)?;
+) -> core::result::Result<Arc<Module>, CachedModuleErr> {
     let code_hash = Hash::generate(wasm);
-    unsafe {
-        fs_cache
-            .load(store, code_hash)
-            .map_err(|_| ModuleLoadErr(fs_cache, code_hash))
+
+    // Try to load from mem cache first
+    if let Some(module) = CACHED_MODULES
+        .read()
+        .expect("CACHED_MODULES read fail")
+        .get(&code_hash)
+    {
+        Ok(module.clone())
+    } else {
+        let cache_path = CACHE_DIR
+            .get_or_init(|| {
+                tempfile::tempdir().expect("Cannot create temporary directory for wasmer caches")
+            })
+            .path();
+        log::trace!("Wasmer sandbox cache dir is: {cache_path:?}");
+
+        let fs_cache = FileSystemCache::new(cache_path).map_err(|_| FileSystemErr)?;
+
+        let module = Arc::new(unsafe {
+            fs_cache
+                .load(store, code_hash)
+                .map_err(|_| ModuleLoadErr(fs_cache, code_hash))?
+        });
+        CACHED_MODULES
+            .write()
+            .expect("CACHED_MODULES write fail")
+            .insert(code_hash, module.clone());
+        Ok(module)
     }
 }
 
 #[cfg(feature = "wasmer-cache")]
-fn try_to_store_module_in_cache(mut fs_cache: FileSystemCache, code_hash: Hash, module: &Module) {
-    let res = fs_cache.store(code_hash, &module.clone());
+fn try_to_store_module_in_cache(
+    mut fs_cache: FileSystemCache,
+    code_hash: Hash,
+    module: &Arc<Module>,
+) {
+    let mut modules = CACHED_MODULES.write().expect("CACHED_MODULES write fail");
+    let _ = modules.insert(code_hash, module.clone());
+    let res = fs_cache.store(code_hash, module);
     log::trace!("Store module cache with result: {:?}", res);
 }
 
@@ -191,8 +221,10 @@ pub fn instantiate(
         }
         Err(err) => {
             log::trace!("Cache for program has not been found, so compile it now");
-            let module = sandbox_wasmer::Module::new(&context.store, wasm)
-                .map_err(|_| InstantiationError::ModuleDecoding)?;
+            let module = Arc::new(
+                sandbox_wasmer::Module::new(&context.store, wasm)
+                    .map_err(|_| InstantiationError::ModuleDecoding)?,
+            );
             match err {
                 CachedModuleErr::FileSystemErr => log::error!("Cannot open fs cache"),
                 CachedModuleErr::ModuleLoadErr(fs_cache, code_hash) => {
@@ -204,8 +236,16 @@ pub fn instantiate(
     };
 
     #[cfg(not(feature = "wasmer-cache"))]
-    let module = sandbox_wasmer::Module::new(&context.store, wasm)
-        .map_err(|_| InstantiationError::ModuleDecoding)?;
+    let module = {
+        let code_hash = Hash::generate(wasm);
+        let modules = CACHED_MODULES.read().expect("CACHED_MODULES write fail");
+        let module = modules.get(&code_hash).or_else(|| {
+            Arc::new(
+                sandbox_wasmer::Module::new(&context.store, wasm)
+                    .map_err(|_| InstantiationError::ModuleDecoding)?,
+            )
+        })?;
+    };
 
     type Exports = HashMap<String, sandbox_wasmer::Exports>;
     let mut exports_map = Exports::new();
