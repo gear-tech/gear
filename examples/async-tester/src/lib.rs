@@ -1,4 +1,5 @@
 #![cfg_attr(not(feature = "std"), no_std)]
+use gstd::CodeId;
 use parity_scale_codec::{Decode, Encode};
 
 #[cfg(feature = "std")]
@@ -20,4 +21,5 @@ pub enum Kind {
     SendBytesWithGas(u64),
     SendCommit,
     SendCommitWithGas(u64),
+    CreateProgram(CodeId),
 }

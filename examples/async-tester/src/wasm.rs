@@ -2,6 +2,7 @@ use crate::Kind;
 use gstd::{
     msg::{self, MessageHandle},
     prelude::*,
+    prog::ProgramGenerator,
 };
 
 #[no_mangle]
@@ -49,6 +50,10 @@ async fn main() {
                 .expect("send message failed")
                 .await
         }
+        Kind::CreateProgram(id) => ProgramGenerator::create_program_bytes_for_reply(id, b"", 0, 0)
+            .expect("create program failed")
+            .await
+            .map(|(_pid, reply)| reply),
     }
     .expect("ran into error-reply");
 

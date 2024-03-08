@@ -9380,6 +9380,50 @@ fn test_async_messages() {
 }
 
 #[test]
+fn test_async_program_creation() {
+    use demo_async_tester::{Kind, WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        System::reset_events();
+
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            10_000_000_000u64,
+            0,
+            false,
+        ));
+
+        let pid = utils::get_last_program_id();
+
+        // Upload a template code.
+        run_to_next_block(None);
+        let code = ProgramCodeKind::Default.to_bytes();
+        let code_id = CodeId::generate(&code).into_bytes();
+        assert_ok!(Gear::upload_code(RuntimeOrigin::signed(USER_1), code));
+
+        // create program from code id.
+        run_to_next_block(None);
+        let msg = Kind::CreateProgram(code_id.into());
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            msg.encode(),
+            30_000_000_000u64,
+            0,
+            false,
+        ));
+        let pid = utils::get_last_program_id();
+
+        // verify the new created program is active.
+        run_to_next_block(None);
+        assert!(Gear::is_active(pid))
+    })
+}
+#[test]
 fn program_generator_works() {
     use demo_program_generator::{CHILD_WAT, WASM_BINARY};
 
