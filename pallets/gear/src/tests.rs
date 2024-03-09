@@ -9382,6 +9382,7 @@ fn test_async_messages() {
 #[test]
 fn test_async_program_creation() {
     use demo_async_tester::{Kind, WASM_BINARY};
+    use demo_ping::WASM_BINARY as REPLIER;
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -9399,11 +9400,13 @@ fn test_async_program_creation() {
 
         let pid = utils::get_last_program_id();
 
-        // Upload a template code.
+        // upload a replier.
         run_to_next_block(None);
-        let code = ProgramCodeKind::Default.to_bytes();
-        let code_id = CodeId::generate(&code).into_bytes();
-        assert_ok!(Gear::upload_code(RuntimeOrigin::signed(USER_1), code));
+        let code_id = CodeId::generate(&REPLIER).into_bytes();
+        assert_ok!(Gear::upload_code(
+            RuntimeOrigin::signed(USER_1),
+            REPLIER.into()
+        ));
 
         // create program from code id.
         run_to_next_block(None);
@@ -9416,11 +9419,10 @@ fn test_async_program_creation() {
             0,
             false,
         ));
-        let pid = utils::get_last_program_id();
 
         // verify the new created program is active.
         run_to_next_block(None);
-        assert!(Gear::is_active(pid))
+        assert_init_success(2);
     })
 }
 #[test]
