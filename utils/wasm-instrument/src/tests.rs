@@ -23,8 +23,6 @@ use crate::{
 };
 use alloc::format;
 use elements::Instruction::*;
-use gas_metering::ConstantCostRules;
-use parity_wasm::serialize;
 
 fn inject<R, GetRulesFn>(
     module: elements::Module,
@@ -86,92 +84,13 @@ fn prebuilt_simple_module() -> elements::Module {
 }
 
 #[test]
-fn simple_grow() {
-    let module = parse_wat(
-        r#"(module
-        (func (result i32)
-            global.get 0
-            memory.grow)
-        (global i32 (i32.const 42))
-        (memory 0 1)
-        )"#,
-    );
-
-    let injected_module = inject(module, |_| ConstantCostRules::new(1, 10_000, 0), "env").unwrap();
-
-    // two new imports (index 0), the original func (i = 1), so
-    // gas charge will occupy the next index.
-    let gas_charge_index = 2;
-    let grow_index = 3;
-
-    assert_eq!(
-        get_function_body(&injected_module, 0).unwrap(),
-        &vec![
-            I32Const(2),
-            Call(gas_charge_index),
-            GetGlobal(0),
-            Call(grow_index),
-            End
-        ][..]
-    );
-    assert_eq!(
-        get_function_body(&injected_module, 2).unwrap(),
-        &vec![
-            GetLocal(0),
-            GetLocal(0),
-            I32Const(10_000),
-            I32Mul,
-            Call(gas_charge_index),
-            GrowMemory(0),
-            End,
-        ][..]
-    );
-
-    let binary = serialize(injected_module).expect("serialization failed");
-    wasmparser::validate(&binary).unwrap();
-}
-
-#[test]
-fn grow_no_gas_no_track() {
-    let module = parse_wat(
-        r"(module
-        (func (result i32)
-            global.get 0
-            memory.grow)
-        (global i32 (i32.const 42))
-        (memory 0 1)
-        )",
-    );
-
-    let injected_module = inject(module, |_| ConstantCostRules::default(), "env").unwrap();
-
-    let gas_charge_index = 2;
-
-    assert_eq!(
-        get_function_body(&injected_module, 0).unwrap(),
-        &vec![
-            I32Const(2),
-            Call(gas_charge_index),
-            GetGlobal(0),
-            GrowMemory(0),
-            End
-        ][..]
-    );
-
-    assert_eq!(injected_module.functions_space(), 3);
-
-    let binary = serialize(injected_module).expect("serialization failed");
-    wasmparser::validate(&binary).unwrap();
-}
-
-#[test]
 fn duplicate_import() {
     let wat = format!(
         r#"(module
             (import "env" "{system_break}" (func))
             (func (result i32)
                 global.get 0
-                memory.grow)
+            )
             (global i32 (i32.const 42))
             (memory 0 1)
             )"#,
@@ -180,7 +99,7 @@ fn duplicate_import() {
     let module = parse_wat(&wat);
 
     assert_eq!(
-        inject(module, |_| ConstantCostRules::default(), "env"),
+        inject(module, |_| CustomConstantCostRules::default(), "env"),
         Err(InstrumentationError::SystemBreakImportAlreadyExists)
     );
 }
@@ -191,7 +110,7 @@ fn duplicate_export() {
         r#"(module
         (func (result i32)
             global.get 0
-            memory.grow)
+        )
         (global (;0;) i32 (i32.const 42))
         (memory 0 1)
         (global (;1;) (mut i32) (i32.const 0))
@@ -201,13 +120,14 @@ fn duplicate_export() {
     let module = parse_wat(&wat);
 
     assert_eq!(
-        inject(module, |_| ConstantCostRules::default(), "env"),
+        inject(module, |_| CustomConstantCostRules::default(), "env"),
         Err(InstrumentationError::GasGlobalAlreadyExists)
     );
 }
 
 #[test]
 fn unsupported_instruction() {
+    // floats
     let module = parse_wat(
         r#"(module
         (func (result f64)
@@ -223,13 +143,30 @@ fn unsupported_instruction() {
         inject(module, |_| CustomConstantCostRules::default(), "env"),
         Err(InstrumentationError::GasInjection)
     );
+
+    // memory grow
+    let module = parse_wat(
+        r#"(module
+        (func (result i32)
+            global.get 0
+            memory.grow
+        )
+        (global i32 (i32.const 42))
+        (memory 0 1)
+        )"#,
+    );
+
+    assert_eq!(
+        inject(module, |_| CustomConstantCostRules::default(), "env"),
+        Err(InstrumentationError::GasInjection)
+    );
 }
 
 #[test]
 fn call_index() {
     let injected_module = inject(
         prebuilt_simple_module(),
-        |_| ConstantCostRules::default(),
+        |_| CustomConstantCostRules::default(),
         "env",
     )
     .unwrap();
@@ -267,7 +204,7 @@ fn cost_overflow() {
     let instruction_cost = u32::MAX / 2;
     let injected_module = inject(
         prebuilt_simple_module(),
-        |_| ConstantCostRules::new(instruction_cost, 0, 0),
+        |_| CustomConstantCostRules::new(instruction_cost, 0, 0),
         "env",
     )
     .unwrap();
@@ -321,8 +258,9 @@ macro_rules! test_gas_counter_injection {
             let input_module = parse_wat($input);
             let expected_module = parse_wat($expected);
 
-            let injected_module = inject(input_module, |_| ConstantCostRules::default(), "env")
-                .expect("inject_gas_counter call failed");
+            let injected_module =
+                inject(input_module, |_| CustomConstantCostRules::default(), "env")
+                    .expect("inject_gas_counter call failed");
 
             let actual_func_body = get_function_body(&injected_module, 0)
                 .expect("injected module must have a function body");
@@ -643,8 +581,7 @@ test_gas_counter_injection! {
 
 #[test]
 fn check_memory_array_pointers_definition_correctness() {
-    let syscalls = SyscallName::instrumentable();
-    for syscall in syscalls {
+    for syscall in SyscallName::instrumentable() {
         let signature = syscall.signature();
         let size_param_indexes = signature
             .params()
@@ -662,8 +599,11 @@ fn check_memory_array_pointers_definition_correctness() {
     }
 }
 
-// Basically checks that mutable error pointer is always last in every fallible syscall params set.
-// WARNING: this test must never fail, unless a huge redesign in syscalls signatures has occurred.
+/// Basically checks that mutable error pointer is always last in every fallible
+/// syscall params set.
+///
+/// WARNING: this test must never fail, unless a huge redesign in syscalls
+/// signatures has occurred.
 #[test]
 fn check_syscall_err_ptr_position() {
     for syscall in SyscallName::instrumentable() {

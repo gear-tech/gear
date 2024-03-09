@@ -31,7 +31,7 @@ use gear_core::{
 };
 use gear_core_errors::SignalCode;
 use gear_utils::{MemoryPageDump, ProgramMemoryDump};
-use gear_wasm_instrument::wasm_instrument::gas_metering::ConstantCostRules;
+use gear_wasm_instrument::rules::CustomConstantCostRules;
 use path_clean::PathClean;
 use std::{
     cell::RefCell,
@@ -489,7 +489,7 @@ impl<'a> Program<'a> {
         optimized: Vec<u8>,
         metadata: Option<Vec<u8>>,
     ) -> Self {
-        let code = Code::try_new(optimized, 1, |_| ConstantCostRules::default(), None)
+        let code = Code::try_new(optimized, 1, |_| CustomConstantCostRules::default(), None)
             .expect("Failed to create Program from code");
 
         let code_and_id: InstrumentedCodeAndId = CodeAndId::new(code).into();

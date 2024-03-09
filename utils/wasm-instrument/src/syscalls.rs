@@ -19,20 +19,15 @@
 //! Gear syscalls for programs execution signatures.
 
 use crate::parity_wasm::elements::{FunctionType, ValueType};
-use alloc::{
-    borrow::ToOwned,
-    collections::{BTreeMap, BTreeSet},
-    string::String,
-    vec::Vec,
-};
+use alloc::{borrow::ToOwned, collections::BTreeMap, string::String, vec::Vec};
 use core::iter;
 use enum_iterator::{self, Sequence};
 pub use pointers::*;
 
 /// All available syscalls.
 ///
-/// The type is mainly used to prevent from skipping syscall integration test for
-/// a newly introduced syscall or from typo in syscall name.
+/// The type is mainly used to prevent from skipping syscall integration test
+/// for a newly introduced syscall or from typo in syscall name.
 #[derive(Debug, Clone, Copy, Ord, PartialOrd, Eq, PartialEq, Sequence, Hash)]
 pub enum SyscallName {
     // Message sending related
@@ -113,141 +108,82 @@ pub enum SyscallName {
 }
 
 impl SyscallName {
+    /// Returns name of the syscall.
     pub fn to_str(&self) -> &'static str {
         match self {
-            SyscallName::Alloc => "alloc",
-            SyscallName::EnvVars => "gr_env_vars",
-            SyscallName::BlockHeight => "gr_block_height",
-            SyscallName::BlockTimestamp => "gr_block_timestamp",
-            SyscallName::CreateProgram => "gr_create_program",
-            SyscallName::CreateProgramWGas => "gr_create_program_wgas",
-            SyscallName::ReplyDeposit => "gr_reply_deposit",
-            SyscallName::Debug => "gr_debug",
-            SyscallName::Panic => "gr_panic",
-            SyscallName::OomPanic => "gr_oom_panic",
-            SyscallName::Exit => "gr_exit",
-            SyscallName::Free => "free",
-            SyscallName::FreeRange => "free_range",
-            SyscallName::GasAvailable => "gr_gas_available",
-            SyscallName::Leave => "gr_leave",
-            SyscallName::MessageId => "gr_message_id",
-            SyscallName::SystemBreak => "gr_system_break",
-            SyscallName::ProgramId => "gr_program_id",
-            SyscallName::Random => "gr_random",
-            SyscallName::Read => "gr_read",
-            SyscallName::Reply => "gr_reply",
-            SyscallName::ReplyCommit => "gr_reply_commit",
-            SyscallName::ReplyCommitWGas => "gr_reply_commit_wgas",
-            SyscallName::ReplyPush => "gr_reply_push",
-            SyscallName::ReplyTo => "gr_reply_to",
-            SyscallName::SignalFrom => "gr_signal_from",
-            SyscallName::ReplyWGas => "gr_reply_wgas",
-            SyscallName::ReplyInput => "gr_reply_input",
-            SyscallName::ReplyPushInput => "gr_reply_push_input",
-            SyscallName::ReplyInputWGas => "gr_reply_input_wgas",
-            SyscallName::ReservationReply => "gr_reservation_reply",
-            SyscallName::ReservationReplyCommit => "gr_reservation_reply_commit",
-            SyscallName::ReservationSend => "gr_reservation_send",
-            SyscallName::ReservationSendCommit => "gr_reservation_send_commit",
-            SyscallName::ReserveGas => "gr_reserve_gas",
-            SyscallName::Send => "gr_send",
-            SyscallName::SendCommit => "gr_send_commit",
-            SyscallName::SendCommitWGas => "gr_send_commit_wgas",
-            SyscallName::SendInit => "gr_send_init",
-            SyscallName::SendPush => "gr_send_push",
-            SyscallName::SendWGas => "gr_send_wgas",
-            SyscallName::SendInput => "gr_send_input",
-            SyscallName::SendPushInput => "gr_send_push_input",
-            SyscallName::SendInputWGas => "gr_send_input_wgas",
-            SyscallName::Size => "gr_size",
-            SyscallName::Source => "gr_source",
-            SyscallName::ReplyCode => "gr_reply_code",
-            SyscallName::SignalCode => "gr_signal_code",
-            SyscallName::SystemReserveGas => "gr_system_reserve_gas",
-            SyscallName::UnreserveGas => "gr_unreserve_gas",
-            SyscallName::Value => "gr_value",
-            SyscallName::ValueAvailable => "gr_value_available",
-            SyscallName::Wait => "gr_wait",
-            SyscallName::WaitFor => "gr_wait_for",
-            SyscallName::WaitUpTo => "gr_wait_up_to",
-            SyscallName::Wake => "gr_wake",
+            Self::Alloc => "alloc",
+            Self::EnvVars => "gr_env_vars",
+            Self::BlockHeight => "gr_block_height",
+            Self::BlockTimestamp => "gr_block_timestamp",
+            Self::CreateProgram => "gr_create_program",
+            Self::CreateProgramWGas => "gr_create_program_wgas",
+            Self::ReplyDeposit => "gr_reply_deposit",
+            Self::Debug => "gr_debug",
+            Self::Panic => "gr_panic",
+            Self::OomPanic => "gr_oom_panic",
+            Self::Exit => "gr_exit",
+            Self::Free => "free",
+            Self::FreeRange => "free_range",
+            Self::GasAvailable => "gr_gas_available",
+            Self::Leave => "gr_leave",
+            Self::MessageId => "gr_message_id",
+            Self::SystemBreak => "gr_system_break",
+            Self::ProgramId => "gr_program_id",
+            Self::Random => "gr_random",
+            Self::Read => "gr_read",
+            Self::Reply => "gr_reply",
+            Self::ReplyCommit => "gr_reply_commit",
+            Self::ReplyCommitWGas => "gr_reply_commit_wgas",
+            Self::ReplyPush => "gr_reply_push",
+            Self::ReplyTo => "gr_reply_to",
+            Self::SignalFrom => "gr_signal_from",
+            Self::ReplyWGas => "gr_reply_wgas",
+            Self::ReplyInput => "gr_reply_input",
+            Self::ReplyPushInput => "gr_reply_push_input",
+            Self::ReplyInputWGas => "gr_reply_input_wgas",
+            Self::ReservationReply => "gr_reservation_reply",
+            Self::ReservationReplyCommit => "gr_reservation_reply_commit",
+            Self::ReservationSend => "gr_reservation_send",
+            Self::ReservationSendCommit => "gr_reservation_send_commit",
+            Self::ReserveGas => "gr_reserve_gas",
+            Self::Send => "gr_send",
+            Self::SendCommit => "gr_send_commit",
+            Self::SendCommitWGas => "gr_send_commit_wgas",
+            Self::SendInit => "gr_send_init",
+            Self::SendPush => "gr_send_push",
+            Self::SendWGas => "gr_send_wgas",
+            Self::SendInput => "gr_send_input",
+            Self::SendPushInput => "gr_send_push_input",
+            Self::SendInputWGas => "gr_send_input_wgas",
+            Self::Size => "gr_size",
+            Self::Source => "gr_source",
+            Self::ReplyCode => "gr_reply_code",
+            Self::SignalCode => "gr_signal_code",
+            Self::SystemReserveGas => "gr_system_reserve_gas",
+            Self::UnreserveGas => "gr_unreserve_gas",
+            Self::Value => "gr_value",
+            Self::ValueAvailable => "gr_value_available",
+            Self::Wait => "gr_wait",
+            Self::WaitFor => "gr_wait_for",
+            Self::WaitUpTo => "gr_wait_up_to",
+            Self::Wake => "gr_wake",
         }
     }
 
+    /// Returns iterator of all syscalls.
     pub fn all() -> impl Iterator<Item = Self> {
         enum_iterator::all()
     }
 
-    pub fn count() -> usize {
-        Self::all().count()
-    }
-
-    /// Returns list of all syscall names (actually supported by this module syscalls).
-    pub fn instrumentable() -> BTreeSet<Self> {
-        [
-            Self::Alloc,
-            Self::Free,
-            Self::FreeRange,
-            Self::Debug,
-            Self::Panic,
-            Self::OomPanic,
-            Self::BlockHeight,
-            Self::BlockTimestamp,
-            Self::Exit,
-            Self::GasAvailable,
-            Self::ProgramId,
-            Self::Leave,
-            Self::ValueAvailable,
-            Self::Wait,
-            Self::WaitUpTo,
-            Self::WaitFor,
-            Self::Wake,
-            Self::ReplyCode,
-            Self::SignalCode,
-            Self::MessageId,
-            Self::Read,
-            Self::Reply,
-            Self::ReplyWGas,
-            Self::ReplyInput,
-            Self::ReplyInputWGas,
-            Self::ReplyCommit,
-            Self::ReplyCommitWGas,
-            Self::ReservationReply,
-            Self::ReservationReplyCommit,
-            Self::ReplyPush,
-            Self::ReplyPushInput,
-            Self::ReplyTo,
-            Self::SignalFrom,
-            Self::Send,
-            Self::SendWGas,
-            Self::SendInput,
-            Self::SendInputWGas,
-            Self::SendCommit,
-            Self::SendCommitWGas,
-            Self::SendInit,
-            Self::SendPush,
-            Self::SendPushInput,
-            Self::ReservationSend,
-            Self::ReservationSendCommit,
-            Self::Size,
-            Self::Source,
-            Self::Value,
-            Self::CreateProgram,
-            Self::CreateProgramWGas,
-            Self::ReplyDeposit,
-            Self::ReserveGas,
-            Self::UnreserveGas,
-            Self::Random,
-            Self::SystemReserveGas,
-            Self::EnvVars,
-        ]
-        .into()
+    /// Returns iterator of all syscall names (actually supported by this module
+    /// syscalls).
+    pub fn instrumentable() -> impl Iterator<Item = Self> {
+        Self::all().filter(|syscall| *syscall != Self::SystemBreak)
     }
 
     /// Returns map of all syscall string values to syscall names.
     pub fn instrumentable_map() -> BTreeMap<String, SyscallName> {
         Self::instrumentable()
-            .into_iter()
             .map(|syscall| (syscall.to_str().into(), syscall))
             .collect()
     }
@@ -540,23 +476,11 @@ impl SyscallName {
         }
     }
 
-    pub fn to_wgas(self) -> Option<Self> {
-        Some(match self {
-            Self::Reply => Self::ReplyWGas,
-            Self::ReplyInput => Self::ReplyInputWGas,
-            Self::ReplyCommit => Self::ReplyCommitWGas,
-            Self::Send => Self::SendWGas,
-            Self::SendInput => Self::SendInputWGas,
-            Self::SendCommit => Self::SendCommitWGas,
-            Self::CreateProgram => Self::CreateProgramWGas,
-            _ => return None,
-        })
-    }
-
-    /// Checks whether the syscall returns error either by writing to input error pointer
-    /// or by returning value indicating an error.
+    /// Checks whether the syscall returns error either by writing to input
+    /// error pointer or by returning value indicating an error.
     ///
-    /// There are only 3 syscalls returning error value: `Alloc`, `Free` & `FreeRange`.
+    /// There are only 3 syscalls returning error value: `Alloc`, `Free` &
+    /// `FreeRange`.
     pub fn returns_error(self) -> bool {
         let signature = self.signature();
 
@@ -569,7 +493,7 @@ impl SyscallName {
     /// Checks whether the syscall is fallible.
     ///
     /// ### Note:
-    /// This differs from `SysCallName::returns_error` as fallible syscalls
+    /// This differs from [`SyscallName::returns_error`] as fallible syscalls
     /// are those last param of which is a mutable error pointer.
     pub fn is_fallible(self) -> bool {
         self.signature().is_fallible()
@@ -577,15 +501,16 @@ impl SyscallName {
 }
 
 /// Syscall param type.
-///
-/// `Ptr` variant contains additional data about the type this pointer
-/// belongs to. See [`PtrInfo`] and [`PtrType`] for more details.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum ParamType {
     Regular(RegularParamType),
     Error(ErrPtr),
 }
 
+/// Syscall regular param type.
+///
+/// `Pointer` variant contains additional data about the type this pointer
+/// belongs to, see [`Ptr`] for more details.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum RegularParamType {
     Length,              // i32 buffers length
@@ -776,6 +701,7 @@ impl<const N: usize, const M: usize> From<([RegularParamType; N], [ValueType; M]
 mod pointers {
     use super::{HashType, ParamType, RegularParamType};
 
+    /// Pointer type.
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
     pub enum Ptr {
         // Const ptrs.
@@ -827,6 +753,7 @@ mod pointers {
         }
     }
 
+    /// Error pointer type.
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
     pub enum ErrPtr {
         ErrorCode,
