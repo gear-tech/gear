@@ -23,8 +23,7 @@ use gwasm_instrument::{
     parity_wasm::elements::{self, Instruction},
 };
 
-/// This type provides the functionality of
-/// [`gwasm_instrument::gas_metering::ConstantCostRules`].
+/// This type provides the functionality of [`ConstantCostRules`].
 ///
 /// This implementation of [`Rules`] will also check the WASM module for
 /// instructions that are not supported by Gear Protocol. So, it's preferable to
