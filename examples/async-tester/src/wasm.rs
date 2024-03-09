@@ -50,10 +50,12 @@ async fn main() {
                 .expect("send message failed")
                 .await
         }
-        Kind::CreateProgram(id) => ProgramGenerator::create_program_bytes_for_reply(id, b"", 0, 0)
-            .expect("create program failed")
-            .await
-            .map(|(_pid, reply)| reply),
+        Kind::CreateProgram(id) => {
+            ProgramGenerator::create_program_bytes_for_reply(id, b"PING", 0, 0)
+                .expect("create program failed")
+                .await
+                .map(|(p, r)| r)
+        }
     }
     .expect("ran into error-reply");
 
