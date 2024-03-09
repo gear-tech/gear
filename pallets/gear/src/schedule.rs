@@ -1267,8 +1267,7 @@ impl<'a, T: Config> Rules for ScheduleRules<'a, T> {
 mod test {
     use super::*;
     use crate::mock::Test;
-    use gas_metering::Rules;
-    use gear_wasm_instrument::rules::CustomConstantCostRules;
+    use gear_wasm_instrument::{gas_metering::Rules, rules::CustomConstantCostRules};
 
     fn all_measured_instructions() -> Vec<elements::Instruction> {
         use elements::{BlockType, BrTableData, Instruction::*};
