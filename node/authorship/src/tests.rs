@@ -21,8 +21,8 @@
 // The block proposer explicitly pushes the `pallet_gear::run`
 // extrinsic at the end of each block.
 
-#![allow(clippy::redundant_clone)]
-#![allow(unused_mut)]
+#![allow(clippy::type_complexity)]
+#![allow(clippy::too_many_arguments)]
 
 use crate::{authorship::MAX_SKIPPED_TRANSACTIONS, block_builder::BlockBuilder, ProposerFactory};
 
@@ -34,11 +34,12 @@ use frame_support::{assert_ok, storage::storage_prefix, traits::PalletInfoAccess
 use futures::executor::block_on;
 use gear_runtime_common::constants::BANK_ADDRESS;
 use pallet_gear_rpc_runtime_api::GearApi;
-use parking_lot::Mutex;
-use runtime_primitives::BlockNumber;
+use parking_lot::{Mutex, RwLock};
+use runtime_primitives::{Block as TestBlock, BlockNumber};
 use sc_client_api::Backend as _;
+use sc_executor::{NativeElseWasmExecutor, WasmExecutor};
 use sc_service::client::Client;
-use sc_transaction_pool::BasicPool;
+use sc_transaction_pool::{BasicPool, FullPool};
 use sc_transaction_pool_api::{
     ChainEvent, MaintainedTransactionPool, TransactionPool, TransactionSource,
 };
@@ -58,16 +59,34 @@ use sp_runtime::{
 use sp_timestamp::Timestamp;
 use std::{
     ops::Deref,
-    sync::Arc,
+    sync::{Arc, OnceLock},
     time::{self, SystemTime, UNIX_EPOCH},
 };
 use testing::{
-    client::{ClientBlockImportExt, TestClientBuilder, TestClientBuilderExt},
+    client::{
+        Backend as TestBackend, Client as TestClient, ClientBlockImportExt, ExecutorDispatch,
+        TestClientBuilder, TestClientBuilderExt,
+    },
     keyring::{alice, bob, sign, signed_extra, CheckedExtrinsic},
 };
 use vara_runtime::{
     AccountId, Runtime, RuntimeApi as RA, RuntimeCall, UncheckedExtrinsic, SLOT_DURATION, VERSION,
 };
+
+type TestProposal = sp_consensus::Proposal<
+    TestBlock,
+    sc_client_api::backend::TransactionFor<TestBackend, TestBlock>,
+    (),
+>;
+
+fn get_executor() -> &'static RwLock<ExecutorDispatch> {
+    static EXECUTOR: OnceLock<RwLock<ExecutorDispatch>> = OnceLock::new();
+    EXECUTOR.get_or_init(|| {
+        RwLock::new(NativeElseWasmExecutor::new_with_wasm_executor(
+            WasmExecutor::builder().build(),
+        ))
+    })
+}
 
 const SOURCE: TransactionSource = TransactionSource::External;
 const DEFAULT_GAS_LIMIT: u64 = 10_000_000_000;
@@ -117,14 +136,14 @@ fn sign_extrinsics<E>(
     extrinsics: Vec<CheckedExtrinsic>,
     spec_version: u32,
     tx_version: u32,
-    genesis_hash: [u8; 32],
+    best_hash: [u8; 32],
 ) -> Vec<E>
 where
     E: From<UncheckedExtrinsic>,
 {
     extrinsics
         .into_iter()
-        .map(|x| sign(x, spec_version, tx_version, genesis_hash).into())
+        .map(|x| sign(x, spec_version, tx_version, best_hash).into())
         .collect()
 }
 
@@ -222,117 +241,137 @@ pub(crate) fn init_logger() {
         .try_init();
 }
 
-macro_rules! init {
-    {
-        $client:ident,
-        $backend:ident,
-        $txpool:ident,
-        $spawner:ident,
-        $genesis_hash:ident
-    } => {
-        let client_builder = TestClientBuilder::new();
-        let $backend = client_builder.backend();
-        let mut $client = Arc::new(client_builder.build());
-        let $spawner = sp_core::testing::TaskExecutor::new();
-        let $txpool = BasicPool::new_full(
-            Default::default(),
-            true.into(),
-            None,
-            $spawner.clone(),
-            $client.clone(),
-        );
+pub fn init() -> (
+    Arc<TestClient>,
+    Arc<TestBackend>,
+    Arc<FullPool<TestBlock, TestClient>>,
+    sp_core::testing::TaskExecutor,
+    [u8; 32],
+) {
+    let client_builder = TestClientBuilder::new();
+    let backend = client_builder.backend();
+    let executor = get_executor().read();
+    let client = Arc::new(client_builder.build_with_wasm_executor(Some(executor.clone())));
+    let spawner = sp_core::testing::TaskExecutor::new();
+    let txpool = BasicPool::new_full(
+        Default::default(),
+        true.into(),
+        None,
+        spawner.clone(),
+        client.clone(),
+    );
 
-        let $genesis_hash =
-            <[u8; 32]>::try_from(&$client.info().best_hash[..]).expect("H256 is a 32 byte type");
-    }
+    let genesis_hash =
+        <[u8; 32]>::try_from(&client.info().best_hash[..]).expect("H256 is a 32 byte type");
+    (client, backend, txpool, spawner, genesis_hash)
 }
 
-macro_rules! submit_txs {
-    {
-        $client:ident,
-        $txpool:ident,
-        $block_id:expr,
-        $extrinsics:expr
-    } => {
-        block_on($txpool.submit_at(&$block_id, SOURCE, $extrinsics)).unwrap();
+pub fn create_proposal<A>(
+    mut client: Arc<TestClient>,
+    backend: Arc<TestBackend>,
+    txpool: Arc<A>,
+    spawner: sp_core::testing::TaskExecutor,
+    parent_number: BlockNumber,
+    deadline: time::Duration,
+    now: Box<dyn Fn() -> time::Instant + Send + Sync>,
+    max_gas: Option<u64>,
+) -> TestProposal
+where
+    A: TransactionPool<Block = TestBlock> + 'static,
+{
+    let mut proposer_factory = ProposerFactory::new(
+        spawner.clone(),
+        client.clone(),
+        backend.clone(),
+        txpool.clone(),
+        None,
+        None,
+        max_gas,
+    );
 
-        block_on(
-            $txpool.maintain(chain_event(
-                $client
-                    .header(
-                        $client
-                            .block_hash_from_id(&$block_id)
-                            .unwrap()
-                            .unwrap(),
-                    )
-                    .expect("header get error")
-                    .expect("there should be header"),
-            )),
-        );
-    }
-}
-
-macro_rules! propose_block {
-    {
-        $client:ident,
-        $backend:ident,
-        $txpool:ident,
-        $spawner:ident,
-        $best_hash:ident,
-        $block_id:expr,
-        $now:expr,
-        $timestamp:expr,
-        $max_duration:expr,
-        $max_gas:expr,
-        $proposal:ident
-    } => {
-        let mut proposer_factory = ProposerFactory::new(
-            $spawner.clone(),
-            $client.clone(),
-            $backend.clone(),
-            $txpool.clone(),
-            None,
-            None,
-            $max_gas,
-        );
-
-        let timestamp_provider = sp_timestamp::InherentDataProvider::new($timestamp);
-        let time_slot = $timestamp.as_millis() / SLOT_DURATION;
-        let inherent_data =
-            block_on(timestamp_provider.create_inherent_data()).expect("Create inherent data failed");
-
-        let proposer = proposer_factory.init_with_now(
-            &$client.expect_header(
-                $client
-                    .block_hash_from_id(&$block_id)
-                    .unwrap()
-                    .unwrap()
-                ).expect("There must be a header"),
-            $now,
-        );
-
-        let $proposal = block_on(proposer.propose(
-            inherent_data,
-            pre_digest(time_slot, 0),
-            time::Duration::from_millis($max_duration),
-            None,
-        ))
+    let hash = client
+        .expect_block_hash_from_id(&BlockId::Number(parent_number))
         .unwrap();
+    let proposer = proposer_factory.init_with_now(&client.expect_header(hash).unwrap(), now);
 
-        // Importing last block
-        block_on($client.import(BlockOrigin::Own, $proposal.block.clone())).unwrap();
+    let time_slot = parent_number as u64 + 1000_u64;
+    let timestamp = Timestamp::new(time_slot * SLOT_DURATION + 100_u64);
+    let timestamp_provider = sp_timestamp::InherentDataProvider::new(timestamp);
+    let inherent_data =
+        block_on(timestamp_provider.create_inherent_data()).expect("Create inherent data failed");
 
-        let $best_hash = $client.info().best_hash;
-        assert_eq!($best_hash, $proposal.block.hash());
-    }
+    let proposal =
+        block_on(proposer.propose(inherent_data, pre_digest(time_slot, 0), deadline, None))
+            .unwrap();
+
+    // Import last block
+    block_on(client.import(BlockOrigin::Own, proposal.block.clone())).unwrap();
+
+    assert_eq!(client.info().best_hash, proposal.block.hash());
+
+    proposal
 }
+
+fn submit_and_maintain<A>(client: Arc<TestClient>, txpool: Arc<A>, extrinsics: Vec<OpaqueExtrinsic>)
+where
+    A: MaintainedTransactionPool<Block = TestBlock> + 'static,
+{
+    let block_id = BlockId::Number(client.info().best_number);
+    let hash = client.info().best_hash;
+
+    block_on(txpool.submit_at(&block_id, SOURCE, extrinsics)).unwrap();
+    block_on(txpool.maintain(chain_event(
+        client.expect_header(hash).expect("there should be header"),
+    )));
+}
+
+type TestCase = Box<dyn Fn() + Send + 'static>;
 
 #[test]
-fn custom_extrinsic_is_placed_in_each_block() {
+fn run_all_tests() {
     init_logger();
     gear_runtime_interface::sandbox_init();
 
-    init!(client, backend, txpool, spawner, genesis_hash);
+    use basic_tests::*;
+
+    let tests = vec![
+        Box::new(custom_extrinsic_is_placed_in_each_block) as TestCase,
+        Box::new(queue_remains_intact_if_processing_fails) as TestCase,
+        Box::new(block_max_gas_works) as TestCase,
+        Box::new(terminal_extrinsic_discarded_from_txpool) as TestCase,
+        Box::new(block_builder_cloned_ok) as TestCase,
+        Box::new(proposal_timing_consistent) as TestCase,
+        Box::new(should_cease_building_block_when_deadline_is_reached) as TestCase,
+        Box::new(should_not_panic_when_deadline_is_reached) as TestCase,
+        Box::new(proposed_storage_changes_should_match_execute_block_storage_changes) as TestCase,
+        Box::new(should_not_remove_invalid_transactions_when_skipping) as TestCase,
+        Box::new(should_cease_building_block_when_block_limit_is_reached) as TestCase,
+        Box::new(should_keep_adding_transactions_after_exhausts_resources_before_soft_deadline)
+            as TestCase,
+        Box::new(should_only_skip_up_to_some_limit_after_soft_deadline) as TestCase,
+    ];
+
+    let handles: Vec<_> = tests
+        .into_iter()
+        .map(|test| {
+            std::thread::spawn(move || {
+                test();
+            })
+        })
+        .collect();
+
+    let mut output = vec![];
+    for handle in handles {
+        output.push(handle.join());
+    }
+    for result in output {
+        assert!(result.is_ok());
+    }
+}
+
+// Test case 1
+fn custom_extrinsic_is_placed_in_each_block() {
+    let (client, backend, txpool, spawner, genesis_hash) = init();
 
     let extrinsics = sign_extrinsics(
         checked_extrinsics(1, bob(), 0_u32, || CallBuilder::noop().build()),
@@ -341,89 +380,33 @@ fn custom_extrinsic_is_placed_in_each_block() {
         genesis_hash,
     );
 
-    submit_txs!(client, txpool, BlockId::number(0), extrinsics);
+    submit_and_maintain(client.clone(), txpool.clone(), extrinsics);
     assert_eq!(txpool.ready().count(), 1);
 
-    propose_block!(
-        client,
-        backend,
-        txpool,
-        spawner,
-        best_hash,
-        BlockId::number(0),
+    let current_block = client.info().best_number;
+
+    let block = create_proposal(
+        client.clone(),
+        backend.clone(),
+        txpool.clone(),
+        spawner.clone(),
+        current_block,
+        time::Duration::from_millis(1500_u64),
         Box::new(time::Instant::now),
-        Timestamp::current(),
-        1500_u64,
         None,
-        proposal
-    );
+    )
+    .block;
+
     // then
     // block should have exactly 3 txs: an inherent (timestamp), a normal and a mandatory one
-    assert_eq!(proposal.block.extrinsics().len(), 3);
+    assert_eq!(block.extrinsics().len(), 3);
 }
 
-#[test]
-fn proposed_storage_changes_match_execute_block_storage_changes() {
-    init_logger();
-    gear_runtime_interface::sandbox_init();
-
-    init!(client, backend, txpool, spawner, genesis_hash);
-
-    let extrinsics = sign_extrinsics(
-        checked_extrinsics(1, bob(), 0_u32, || CallBuilder::noop().build()),
-        VERSION.spec_version,
-        VERSION.transaction_version,
-        genesis_hash,
-    );
-    submit_txs!(client, txpool, BlockId::number(0), extrinsics);
-
-    let timestamp = Timestamp::current();
-
-    propose_block!(
-        client,
-        backend,
-        txpool,
-        spawner,
-        best_hash,
-        BlockId::number(0),
-        Box::new(time::Instant::now),
-        timestamp,
-        1500_u64,
-        None,
-        proposal
-    );
-    // then
-    // 1 inherent + 1 signed extrinsic + 1 terminal unsigned one
-    assert_eq!(proposal.block.extrinsics().len(), 3);
-
-    let api = client.runtime_api();
-    api.execute_block(genesis_hash.into(), proposal.block)
-        .unwrap();
-    let state = backend.state_at(best_hash).unwrap();
-
-    let storage_changes = api.into_storage_changes(&state, best_hash).unwrap();
-
-    assert_eq!(
-        proposal.storage_changes.transaction_storage_root,
-        storage_changes.transaction_storage_root,
-    );
-
-    let queue_head_key = storage_prefix(
-        pallet_gear_messenger::Pallet::<Runtime>::name().as_bytes(),
-        "Head".as_bytes(),
-    );
-    // Ensure message queue is empty given the terminal extrinsic completed successfully
-    assert!(state.storage(&queue_head_key[..]).unwrap().is_none());
-}
-
-#[test]
+// Test case 2
 fn queue_remains_intact_if_processing_fails() {
     use sp_state_machine::IterArgs;
 
-    init_logger();
-    gear_runtime_interface::sandbox_init();
-
-    init!(client, backend, txpool, spawner, genesis_hash);
+    let (client, backend, txpool, spawner, genesis_hash) = init();
 
     // Create an extrinsic that prefunds the bank account
     let pre_fund_bank_xt = CheckedExtrinsic {
@@ -448,26 +431,39 @@ fn queue_remains_intact_if_processing_fails() {
         VERSION.transaction_version,
         genesis_hash,
     );
-    submit_txs!(client, txpool, BlockId::number(0), extrinsics);
+    submit_and_maintain(client.clone(), txpool.clone(), extrinsics);
     assert_eq!(txpool.ready().count(), 7);
 
-    let timestamp = Timestamp::current();
+    let current_block = client.info().best_number;
 
-    propose_block!(
-        client,
-        backend,
-        txpool,
-        spawner,
-        best_hash,
-        BlockId::number(0),
-        Box::new(time::Instant::now),
-        timestamp,
-        1500_u64,
+    let cell = Mutex::new((0_u32, time::Instant::now()));
+
+    // Proposer's `self.now()` function increments the `Instant` by 0.02s each time it's called
+    // which will allow us to place all our extrinsics in a single block
+    let now = Box::new(move || {
+        let mut value = cell.lock();
+        let increment = 20_u64;
+        let old = value.1;
+        let new = old + time::Duration::from_millis(increment);
+        *value = (value.0 + 1, new);
+        old
+    });
+
+    let block = create_proposal(
+        client.clone(),
+        backend.clone(),
+        txpool.clone(),
+        spawner.clone(),
+        current_block,
+        time::Duration::from_millis(1500_u64),
+        now,
         None,
-        proposal
-    );
+    )
+    .block;
     // Pseudo-inherent rolled back, therefore only have 1 inherent + 7 normal
-    assert_eq!(proposal.block.extrinsics().len(), 8);
+    assert_eq!(block.extrinsics().len(), 8);
+
+    let best_hash = block.hash();
 
     // Ensure message queue still has 5 messages
     let state = backend.state_at(best_hash).unwrap();
@@ -493,24 +489,26 @@ fn queue_remains_intact_if_processing_fails() {
         VERSION.transaction_version,
         genesis_hash,
     );
-    submit_txs!(client, txpool, BlockId::Hash(best_hash), extrinsics);
+    submit_and_maintain(client.clone(), txpool.clone(), extrinsics);
     assert_eq!(txpool.ready().count(), 3);
 
-    propose_block!(
-        client,
-        backend,
-        txpool,
-        spawner,
-        best_hash,
-        BlockId::Hash(best_hash),
+    let current_block = client.info().best_number;
+
+    let block = create_proposal(
+        client.clone(),
+        backend.clone(),
+        txpool.clone(),
+        spawner.clone(),
+        current_block,
+        time::Duration::from_millis(1500_u64),
         Box::new(time::Instant::now),
-        Timestamp::new(timestamp.as_millis() + SLOT_DURATION),
-        1500_u64,
         None,
-        proposal
-    );
+    )
+    .block;
     // Terminal extrinsic rolled back, therefore only have 1 inherent + another 3 normal
-    assert_eq!(proposal.block.extrinsics().len(), 4);
+    assert_eq!(block.extrinsics().len(), 4);
+
+    let best_hash = block.hash();
 
     let state = backend.state_at(best_hash).unwrap();
     // Ensure message queue has not been drained again, and now has 8 messages
@@ -524,7 +522,7 @@ fn queue_remains_intact_if_processing_fails() {
     assert_eq!(queue_len, 8);
 }
 
-#[test]
+// Test case 3
 fn block_max_gas_works() {
     use pallet_gear_builtin::WeightInfo;
     use sp_state_machine::IterArgs;
@@ -535,7 +533,7 @@ fn block_max_gas_works() {
     init_logger();
     gear_runtime_interface::sandbox_init();
 
-    init!(client, backend, txpool, spawner, genesis_hash);
+    let (client, backend, txpool, spawner, genesis_hash) = init();
 
     // Prepare block #1
     // Create an extrinsic that prefunds the bank account
@@ -549,22 +547,24 @@ fn block_max_gas_works() {
         genesis_hash,
     )
     .into()];
-    submit_txs!(client, txpool, BlockId::number(0), extrinsics);
+    submit_and_maintain(client.clone(), txpool.clone(), extrinsics.clone());
 
-    let timestamp = Timestamp::current();
-    propose_block!(
-        client,
-        backend,
-        txpool,
-        spawner,
-        best_hash,
-        BlockId::number(0),
+    let current_block = client.info().best_number;
+
+    let block = create_proposal(
+        client.clone(),
+        backend.clone(),
+        txpool.clone(),
+        spawner.clone(),
+        current_block,
+        time::Duration::from_millis(1500_u64),
         Box::new(time::Instant::now),
-        timestamp,
-        1500_u64,
         None,
-        proposal
-    );
+    )
+    .block;
+
+    let best_hash = block.hash();
+
     let api = client.runtime_api();
     let gear_core::gas::GasInfo { min_limit, .. } = api
         .calculate_gas_info(
@@ -595,27 +595,26 @@ fn block_max_gas_works() {
         VERSION.transaction_version,
         genesis_hash,
     );
-    submit_txs!(client, txpool, BlockId::Hash(best_hash), extrinsics);
+    submit_and_maintain(client.clone(), txpool.clone(), extrinsics);
 
-    let timestamp = Timestamp::new(timestamp.as_millis() + SLOT_DURATION);
+    let current_block = client.info().best_number;
 
-    propose_block!(
-        client,
-        backend,
-        txpool,
-        spawner,
-        best_hash,
-        BlockId::Hash(best_hash),
+    let block = create_proposal(
+        client.clone(),
+        backend.clone(),
+        txpool.clone(),
+        spawner.clone(),
+        current_block,
+        time::Duration::from_millis(1500_u64),
         Box::new(time::Instant::now),
-        Timestamp::new(timestamp.as_millis() + SLOT_DURATION),
-        1500_u64,
         max_gas,
-        proposal
-    );
-    // All extrinsics have been included in the block: 1 inherent + 5 normal + 1 terminal
-    assert_eq!(proposal.block.extrinsics().len(), 7);
+    )
+    .block;
 
-    let state = backend.state_at(best_hash).unwrap();
+    // All extrinsics have been included in the block: 1 inherent + 5 normal + 1 terminal
+    assert_eq!(block.extrinsics().len(), 7);
+
+    let state = backend.state_at(block.hash()).unwrap();
     // Ensure message queue still has 5 messages as none of the messages fit into the gas allowance
     let queue_entry_prefix = storage_prefix(
         pallet_gear_messenger::Pallet::<Runtime>::name().as_bytes(),
@@ -652,12 +651,12 @@ fn block_max_gas_works() {
     assert_eq!(inited_count, 2);
 }
 
-#[test]
+// Test case 4
 fn terminal_extrinsic_discarded_from_txpool() {
     init_logger();
     gear_runtime_interface::sandbox_init();
 
-    init!(client, backend, txpool, spawner, genesis_hash);
+    let (client, backend, txpool, spawner, genesis_hash) = init();
 
     // Create Gear::run() extrinsic - both unsigned and signed
     let unsigned_gear_run_xt =
@@ -689,38 +688,34 @@ fn terminal_extrinsic_discarded_from_txpool() {
         signed_gear_run_xt.into(),
         legit_xt.into(),
     ];
-    submit_txs!(client, txpool, BlockId::number(0), extrinsics);
+    submit_and_maintain(client.clone(), txpool.clone(), extrinsics);
     assert_eq!(txpool.ready().count(), 1);
 
-    propose_block!(
-        client,
-        backend,
-        txpool,
-        spawner,
-        best_hash,
-        BlockId::number(0),
+    let current_block = client.info().best_number;
+
+    let block = create_proposal(
+        client.clone(),
+        backend.clone(),
+        txpool.clone(),
+        spawner.clone(),
+        current_block,
+        time::Duration::from_millis(1500_u64),
         Box::new(time::Instant::now),
-        Timestamp::current(),
-        1500_u64,
         None,
-        proposal
-    );
+    )
+    .block;
+
     // Both mandatory extrinsics should have been discarded, therefore there are only 3 txs
     // in the block: 1 timestamp inherent + 1 normal extrinsic + 1 terminal
-    assert_eq!(proposal.block.extrinsics().len(), 3);
+    assert_eq!(block.extrinsics().len(), 3);
 }
 
-#[test]
+// Test case 5
 fn block_builder_cloned_ok() {
     init_logger();
     gear_runtime_interface::sandbox_init();
 
-    let client_builder = TestClientBuilder::new();
-    let backend = client_builder.backend();
-    let client = Arc::new(client_builder.build());
-
-    let genesis_hash =
-        <[u8; 32]>::try_from(&client.info().best_hash[..]).expect("H256 is a 32 byte type");
+    let (client, backend, _, _, genesis_hash) = init();
 
     let extrinsics = sign_extrinsics(
         checked_extrinsics(5, bob(), 0, || CallBuilder::noop().build()),
@@ -794,14 +789,14 @@ fn block_builder_cloned_ok() {
     );
 }
 
-#[test]
+// Test case 6
 fn proposal_timing_consistent() {
     use sp_state_machine::IterArgs;
 
     init_logger();
     gear_runtime_interface::sandbox_init();
 
-    init!(client, backend, txpool, spawner, genesis_hash);
+    let (client, backend, txpool, spawner, genesis_hash) = init();
 
     // Create an extrinsic that prefunds the bank account
     let pre_fund_bank_xt = CheckedExtrinsic {
@@ -833,26 +828,24 @@ fn proposal_timing_consistent() {
         genesis_hash,
     );
 
-    submit_txs!(client, txpool, BlockId::number(0), extrinsics);
+    submit_and_maintain(client.clone(), txpool.clone(), extrinsics);
 
-    let timestamp = Timestamp::current();
+    let current_block = client.info().best_number;
     let max_duration = 15_000_u64; // sufficient time
 
-    propose_block!(
-        client,
-        backend,
-        txpool,
-        spawner,
-        best_hash,
-        BlockId::number(0),
+    let block = create_proposal(
+        client.clone(),
+        backend.clone(),
+        txpool.clone(),
+        spawner.clone(),
+        current_block,
+        time::Duration::from_millis(max_duration),
         Box::new(time::Instant::now),
-        timestamp,
-        max_duration,
         None,
-        proposal
-    );
+    )
+    .block;
 
-    let state = backend.state_at(best_hash).unwrap();
+    let state = backend.state_at(block.hash()).unwrap();
 
     let queue_entry_prefix = storage_prefix(
         pallet_gear_messenger::Pallet::<Runtime>::name().as_bytes(),
@@ -874,7 +867,9 @@ fn proposal_timing_consistent() {
         VERSION.transaction_version,
         genesis_hash,
     );
-    submit_txs!(client, txpool, BlockId::Hash(best_hash), extrinsics);
+    submit_and_maintain(client.clone(), txpool.clone(), extrinsics);
+
+    let current_block = client.info().best_number;
 
     // Simulate the situation when the `Gear::run()` takes longer time to execute than
     // the actual time that remains till the deadline.
@@ -897,21 +892,19 @@ fn proposal_timing_consistent() {
         old
     });
 
-    propose_block!(
-        client,
-        backend,
-        txpool,
-        spawner,
-        best_hash,
-        BlockId::Hash(best_hash),
+    let block = create_proposal(
+        client.clone(),
+        backend.clone(),
+        txpool.clone(),
+        spawner.clone(),
+        current_block,
+        time::Duration::from_millis(max_duration),
         now,
-        Timestamp::new(timestamp.as_millis() + SLOT_DURATION),
-        max_duration,
         None,
-        proposal
-    );
+    )
+    .block;
 
-    let state = backend.state_at(best_hash).unwrap();
+    let state = backend.state_at(block.hash()).unwrap();
 
     // Check that the message queue has all messages pushed to it
     let queue_entry_prefix = storage_prefix(
@@ -931,27 +924,26 @@ fn proposal_timing_consistent() {
     std::thread::sleep(time::Duration::from_millis(500));
 
     // Preparing block #3
-    submit_txs!(client, txpool, BlockId::Hash(best_hash), vec![]);
+    submit_and_maintain(client.clone(), txpool.clone(), vec![]);
 
     // In the meantime make sure we can still keep creating blocks
     // This time we set the deadline to a very high value to ensure that all messages go through.
     let max_duration = 15_000_u64;
+    let current_block = client.info().best_number;
 
-    propose_block!(
-        client,
-        backend,
-        txpool,
-        spawner,
-        best_hash,
-        BlockId::Hash(best_hash),
+    let block = create_proposal(
+        client.clone(),
+        backend.clone(),
+        txpool.clone(),
+        spawner.clone(),
+        current_block,
+        time::Duration::from_millis(max_duration),
         Box::new(time::Instant::now),
-        Timestamp::new(timestamp.as_millis() + 2 * SLOT_DURATION),
-        max_duration,
         None,
-        proposal
-    );
+    )
+    .block;
 
-    let state = backend.state_at(best_hash).unwrap();
+    let state = backend.state_at(block.hash()).unwrap();
 
     let mut queue_entry_args = IterArgs::default();
     queue_entry_args.prefix = Some(&queue_entry_prefix);
@@ -1008,12 +1000,12 @@ mod basic_tests {
         .clone()
     }
 
-    #[test]
-    fn should_cease_building_block_when_deadline_is_reached() {
+    // Test case 7
+    pub(super) fn should_cease_building_block_when_deadline_is_reached() {
         init_logger();
         gear_runtime_interface::sandbox_init();
 
-        init!(client, backend, txpool, spawner, genesis_hash);
+        let (client, backend, txpool, spawner, genesis_hash) = init();
 
         let mut extrinsics = vec![disable_gear_run(0, genesis_hash)];
 
@@ -1023,7 +1015,7 @@ mod basic_tests {
             VERSION.transaction_version,
             genesis_hash,
         ));
-        submit_txs!(client, txpool, BlockId::number(0), extrinsics);
+        submit_and_maintain(client.clone(), txpool.clone(), extrinsics);
 
         let cell = Mutex::new((0_u32, time::Instant::now()));
 
@@ -1042,36 +1034,35 @@ mod basic_tests {
         //  (2/3) * 3s * 0.35 = 0.7s, which will allow to include in the block 1 normal extrinsic
         let max_duration = 3000_u64;
 
-        propose_block!(
-            client,
-            backend,
-            txpool,
-            spawner,
-            best_hash,
-            BlockId::number(0),
+        let current_block = client.info().best_number;
+
+        let block = create_proposal(
+            client.clone(),
+            backend.clone(),
+            txpool.clone(),
+            spawner.clone(),
+            current_block,
+            time::Duration::from_millis(max_duration),
             now,
-            Timestamp::current(),
-            max_duration,
             None,
-            proposal
-        );
+        )
+        .block;
 
         // then
         // The block has 2 txs: the timestamp inherent and one normal.
         // The pseudo-inherent is disabled.
-        assert_eq!(proposal.block.extrinsics().len(), 2);
+        assert_eq!(block.extrinsics().len(), 2);
 
         assert_eq!(txpool.ready().count(), 3);
     }
 
-    #[test]
-    fn should_not_panic_when_deadline_is_reached() {
+    // Test case 8
+    pub(super) fn should_not_panic_when_deadline_is_reached() {
         init_logger();
         gear_runtime_interface::sandbox_init();
 
-        init!(client, backend, txpool, spawner, _genesis_hash);
+        let (client, backend, txpool, spawner, _) = init();
 
-        let block_id = BlockId::number(0);
         let cell = Mutex::new((false, time::Instant::now()));
         // The `proposer.now()` that increments the `Instant` by 160s each time it's called
         let now = Box::new(move || {
@@ -1086,27 +1077,25 @@ mod basic_tests {
         });
         let max_duration = 1000_u64; // 1s
 
-        propose_block!(
-            client,
-            backend,
-            txpool,
-            spawner,
-            best_hash,
-            block_id,
+        let _ = create_proposal(
+            client.clone(),
+            backend.clone(),
+            txpool.clone(),
+            spawner.clone(),
+            0_u32,
+            time::Duration::from_millis(max_duration),
             now,
-            Timestamp::current(),
-            max_duration,
             None,
-            proposal
-        );
+        )
+        .block;
     }
 
-    #[test]
-    fn proposed_storage_changes_should_match_execute_block_storage_changes() {
+    // Test case 9
+    pub(super) fn proposed_storage_changes_should_match_execute_block_storage_changes() {
         init_logger();
         gear_runtime_interface::sandbox_init();
 
-        init!(client, backend, txpool, spawner, genesis_hash);
+        let (client, backend, txpool, spawner, genesis_hash) = init();
 
         let extrinsics = sign_extrinsics(
             checked_extrinsics(1, bob(), 0_u32, || CallBuilder::noop().build()),
@@ -1115,31 +1104,30 @@ mod basic_tests {
             genesis_hash,
         );
 
-        submit_txs!(client, txpool, BlockId::number(0), extrinsics);
+        submit_and_maintain(client.clone(), txpool.clone(), extrinsics);
 
-        propose_block!(
-            client,
-            backend,
-            txpool,
-            spawner,
-            best_hash,
-            BlockId::number(0),
+        let proposal = create_proposal(
+            client.clone(),
+            backend.clone(),
+            txpool.clone(),
+            spawner.clone(),
+            0_u32,
+            time::Duration::from_millis(1500),
             Box::new(time::Instant::now),
-            Timestamp::current(),
-            1500_u64,
             None,
-            proposal
         );
+
         // then
         // 1 inherent + 1 signed extrinsic + 1 terminal unsigned one
         assert_eq!(proposal.block.extrinsics().len(), 3);
 
         let api = client.runtime_api();
-        api.execute_block(genesis_hash.into(), proposal.block)
-            .unwrap();
-        let state = backend.state_at(genesis_hash.into()).unwrap();
+        let genesis_hash = genesis_hash.into();
+        api.execute_block(genesis_hash, proposal.block).unwrap();
 
-        let storage_changes = api.into_storage_changes(&state, best_hash).unwrap();
+        let state = backend.state_at(genesis_hash).unwrap();
+
+        let storage_changes = api.into_storage_changes(&state, genesis_hash).unwrap();
 
         assert_eq!(
             proposal.storage_changes.transaction_storage_root,
@@ -1154,12 +1142,12 @@ mod basic_tests {
         assert!(state.storage(&queue_head_key[..]).unwrap().is_none());
     }
 
-    #[test]
-    fn should_not_remove_invalid_transactions_when_skipping() {
+    // Test case 10
+    pub(super) fn should_not_remove_invalid_transactions_when_skipping() {
         init_logger();
         gear_runtime_interface::sandbox_init();
 
-        init!(client, backend, txpool, spawner, genesis_hash);
+        let (client, backend, txpool, spawner, genesis_hash) = init();
 
         let alice = alice();
 
@@ -1173,57 +1161,55 @@ mod basic_tests {
             extrinsic(6, &alice, genesis_hash),
         ];
 
-        submit_txs!(client, txpool, BlockId::number(0), extrinsics);
+        submit_and_maintain(client.clone(), txpool.clone(), extrinsics);
         assert_eq!(txpool.ready().count(), 7);
 
-        let timestamp = Timestamp::current();
-
-        propose_block!(
-            client,
-            backend,
-            txpool,
-            spawner,
-            best_hash,
-            BlockId::number(0),
+        let block = create_proposal(
+            client.clone(),
+            backend.clone(),
+            txpool.clone(),
+            spawner.clone(),
+            0_u32,
+            time::Duration::from_millis(1500_u64),
             Box::new(time::Instant::now),
-            timestamp,
-            1500_u64,
             None,
-            proposal
-        );
+        )
+        .block;
+
         // then
         // block should have some extrinsics although we have some more in the pool.
         assert_eq!(txpool.ready().count(), 7);
-        assert_eq!(proposal.block.extrinsics().len(), 6);
+        assert_eq!(block.extrinsics().len(), 6);
 
         // Preparing block #2
-        submit_txs!(client, txpool, BlockId::Hash(best_hash), vec![]);
+        submit_and_maintain(client.clone(), txpool.clone(), vec![]);
         assert_eq!(txpool.ready().count(), 3);
 
-        propose_block!(
-            client,
-            backend,
-            txpool,
-            spawner,
-            best_hash,
-            BlockId::Hash(best_hash),
+        let current_block = client.info().best_number;
+
+        let block = create_proposal(
+            client.clone(),
+            backend.clone(),
+            txpool.clone(),
+            spawner.clone(),
+            current_block,
+            time::Duration::from_millis(1500_u64),
             Box::new(time::Instant::now),
-            Timestamp::new(timestamp.as_millis() + SLOT_DURATION),
-            1500_u64,
             None,
-            proposal
-        );
+        )
+        .block;
+
         // 1 normal extrinsic should still make it into block (together with inherents):
         assert_eq!(txpool.ready().count(), 3);
-        assert_eq!(proposal.block.extrinsics().len(), 5);
+        assert_eq!(block.extrinsics().len(), 5);
     }
 
-    #[test]
-    fn should_cease_building_block_when_block_limit_is_reached() {
+    // Test case 11
+    pub(super) fn should_cease_building_block_when_block_limit_is_reached() {
         init_logger();
         gear_runtime_interface::sandbox_init();
 
-        init!(client, backend, txpool, spawner, genesis_hash);
+        let (client, backend, txpool, spawner, genesis_hash) = init();
 
         let block_id = BlockId::number(0);
         let genesis_header = client
@@ -1332,12 +1318,12 @@ mod basic_tests {
         assert_eq!(block.extrinsics().len(), extrinsics_num - 2 + 2);
     }
 
-    #[test]
-    fn should_keep_adding_transactions_after_exhausts_resources_before_soft_deadline() {
+    // Test case 12
+    pub(super) fn should_keep_adding_transactions_after_exhausts_resources_before_soft_deadline() {
         init_logger();
         gear_runtime_interface::sandbox_init();
 
-        init!(client, backend, txpool, spawner, genesis_hash);
+        let (client, backend, txpool, spawner, genesis_hash) = init();
 
         let alice = alice();
         let bob = bob();
@@ -1351,39 +1337,37 @@ mod basic_tests {
             )
             .collect();
 
-        submit_txs!(client, txpool, BlockId::number(0), extrinsics);
+        submit_and_maintain(client.clone(), txpool.clone(), extrinsics);
         assert_eq!(txpool.ready().count(), MAX_SKIPPED_TRANSACTIONS * 3);
 
         // give it enough time so that deadline is never triggered.
         let max_duration = 900_000_u64;
 
-        propose_block!(
-            client,
-            backend,
-            txpool,
-            spawner,
-            best_hash,
-            BlockId::number(0),
+        let current_block = client.info().best_number;
+
+        let block = create_proposal(
+            client.clone(),
+            backend.clone(),
+            txpool.clone(),
+            spawner.clone(),
+            current_block,
+            time::Duration::from_millis(max_duration),
             Box::new(time::Instant::now),
-            Timestamp::current(),
-            max_duration,
             None,
-            proposal
-        );
+        )
+        .block;
+
         // then
         // MAX_SKIPPED_TRANSACTIONS + inherents have been included in the block
-        assert_eq!(
-            proposal.block.extrinsics().len(),
-            MAX_SKIPPED_TRANSACTIONS + 3
-        );
+        assert_eq!(block.extrinsics().len(), MAX_SKIPPED_TRANSACTIONS + 3);
     }
 
-    #[test]
-    fn should_only_skip_up_to_some_limit_after_soft_deadline() {
+    // Test case 13
+    pub(super) fn should_only_skip_up_to_some_limit_after_soft_deadline() {
         init_logger();
         gear_runtime_interface::sandbox_init();
 
-        init!(client, backend, txpool, spawner, genesis_hash);
+        let (client, backend, txpool, spawner, genesis_hash) = init();
 
         let alice = alice();
         let extrinsics = (0_usize..MAX_SKIPPED_TRANSACTIONS + 2)
@@ -1393,9 +1377,8 @@ mod basic_tests {
                     .map(|i| extrinsic(i as u32, &alice, genesis_hash)),
             )
             .collect();
-        let block_id = BlockId::number(0);
 
-        submit_txs!(client, txpool, block_id, extrinsics);
+        submit_and_maintain(client.clone(), txpool.clone(), extrinsics);
         assert_eq!(txpool.ready().count(), MAX_SKIPPED_TRANSACTIONS * 2 + 2);
 
         let cell = Arc::new(Mutex::new((0, time::Instant::now())));
@@ -1416,22 +1399,22 @@ mod basic_tests {
             *value = (called + 1, old + increase);
             old
         });
+        let current_block = client.info().best_number;
 
-        propose_block!(
-            client,
-            backend,
-            txpool,
-            spawner,
-            best_hash,
-            block_id,
+        let block = create_proposal(
+            client.clone(),
+            backend.clone(),
+            txpool.clone(),
+            spawner.clone(),
+            current_block,
+            time::Duration::from_millis(max_duration),
             now,
-            Timestamp::current(),
-            max_duration,
             None,
-            proposal
-        );
+        )
+        .block;
+
         // the block should have a single ordinary transaction despite more being in the pool
-        assert_eq!(proposal.block.extrinsics().len(), 3);
+        assert_eq!(block.extrinsics().len(), 3);
         assert!(
             cell2.lock().0 > MAX_SKIPPED_TRANSACTIONS,
             "Not enough calls to current time, which indicates the test might have ended \
