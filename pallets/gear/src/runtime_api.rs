@@ -51,7 +51,7 @@ where
         // Querying balance of the account.
         let origin_balance = CurrencyOf::<T>::free_balance(&origin);
 
-        // Calculating amount of value to be payed for gas.
+        // Calculating amount of value to be paid for gas.
         let value_for_gas = <T as pallet_gear_bank::Config>::GasMultiplier::get().gas_to_value(gas);
 
         // Required balance of the account.
