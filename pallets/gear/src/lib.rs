@@ -827,21 +827,20 @@ pub mod pallet {
 
         #[cfg(test)]
         pub fn read_only_send_message(
-            origin: H256,
+            origin: AccountIdOf<T>,
             destination: ProgramId,
             payload: Vec<u8>,
             gas_limit: u64,
             value: u128,
-            allowance_multiplier: u64,
         ) -> Result<ReadOnlyReply, String> {
             Self::run_with_ext_copy(|| {
                 Self::read_only_send_message_impl(
-                    origin,
+                    origin.cast(),
                     destination,
                     payload,
                     gas_limit,
                     value,
-                    allowance_multiplier,
+                    crate::runtime_api::RUNTIME_API_BLOCK_LIMITS_COUNT,
                 )
             })
         }
