@@ -81,18 +81,16 @@ where
         // Looking up queue head for message id sent above.
         let (message_id, _) = Self::queue_head()?;
 
-        // Creating new manager for queue processing.
-        let mut ext_manager = ExtManager::<T>::default();
-
         // Creating builtin dispatcher for queue processing.
         let (builtin_dispatcher, _) = T::BuiltinDispatcherFactory::create();
+
+        // Creating new manager for queue processing.
+        let mut ext_manager = ExtManager::<T>::new(builtin_dispatcher);
 
         // Queue processing loop.
         //
         // Running queue head message if exists.
-        while let Some((_, journal, _)) =
-            Self::dequeue_head_and_run(&mut ext_manager, &builtin_dispatcher, None)?
-        {
+        while let Some((_, journal, _)) = Self::dequeue_head_and_run(&mut ext_manager, None)? {
             // Looking through all notes in order to find required reply.
             for note in &journal {
                 // Only paying attention on dispatch sends.
@@ -212,11 +210,11 @@ where
         // Looking up queue head for message id and destination sent above.
         let (main_message_id, main_program_id) = Self::queue_head()?;
 
-        // Creating new manager for queue processing.
-        let mut ext_manager = ExtManager::<T>::default();
-
         // Creating builtin dispatcher for queue processing.
         let (builtin_dispatcher, _) = T::BuiltinDispatcherFactory::create();
+
+        // Creating new manager for queue processing.
+        let mut ext_manager = ExtManager::<T>::new(builtin_dispatcher);
 
         // Creating forbidden funcs registry.
         let forbidden_funcs = [SyscallName::GasAvailable];
@@ -243,7 +241,7 @@ where
                 })
         };
 
-        // Getter for identifying were message in primary messages chain.
+        // Getter for identifying if message was in primary messages chain.
         let from_main_chain = |msg_id| {
             GasHandlerOf::<T>::get_origin_key(msg_id)
                 .map(|v| v == main_message_id.into())
@@ -256,11 +254,9 @@ where
         // Queue processing loop.
         //
         // Running queue head message if exists.
-        while let Some((processed, journal, by_builtin)) = Self::dequeue_head_and_run(
-            &mut ext_manager,
-            &builtin_dispatcher,
-            Some(forbidden_funcs.into()),
-        )? {
+        while let Some((processed, journal, by_builtin)) =
+            Self::dequeue_head_and_run(&mut ext_manager, Some(forbidden_funcs.into()))?
+        {
             // Defining if success reply was processed.
             let success_reply = processed
                 .reply_details()
@@ -581,7 +577,6 @@ where
     // was it processed by builtin actor or not.
     fn dequeue_head_and_run(
         ext_manager: &mut ExtManager<T>,
-        builtin_dispatcher: &impl BuiltinDispatcher,
         forbidden_funcs: Option<BTreeSet<SyscallName>>,
     ) -> Result<Option<(Dispatch, Vec<JournalNote>, bool)>, String> {
         // Extracting queued dispatch.
@@ -618,6 +613,7 @@ where
         );
 
         // Processing of the message, if destination is builtin actor.
+        let builtin_dispatcher = ext_manager.builtins();
         if let Some(f) = builtin_dispatcher.lookup(&destination) {
             let journal = builtin_dispatcher.run(f, dispatch, gas_limit);
             return Ok(Some((processed, journal, true)));
