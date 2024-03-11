@@ -51,10 +51,23 @@ async fn main() {
                 .await
         }
         Kind::CreateProgram(id) => {
-            ProgramGenerator::create_program_bytes_for_reply(id, b"PING", 0, 0)
+            let (_, reply) = ProgramGenerator::create_program_bytes_for_reply(id, b"PING", 0, 0)
                 .expect("create program failed")
                 .await
-                .map(|(_p, r)| r)
+                .expect("Send message failed");
+
+            assert_eq!(reply, b"PONG");
+            Ok(reply)
+        }
+        Kind::CreateProgramWithGas(id, gas) => {
+            let (_, reply) =
+                ProgramGenerator::create_program_bytes_with_gas_for_reply(id, b"PING", gas, 0, 0)
+                    .expect("create program failed")
+                    .await
+                    .expect("Send message failed");
+
+            assert_eq!(reply, b"PONG");
+            Ok(reply)
         }
     }
     .expect("ran into error-reply");

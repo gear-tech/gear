@@ -22,4 +22,5 @@ pub enum Kind {
     SendCommit,
     SendCommitWithGas(u64),
     CreateProgram(CodeId),
+    CreateProgramWithGas(CodeId, u64),
 }

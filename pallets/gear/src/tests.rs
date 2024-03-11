@@ -9408,21 +9408,41 @@ fn test_async_program_creation() {
             REPLIER.into()
         ));
 
-        // create program from code id.
+        // 1. create program from code id.
         run_to_next_block(None);
-        let msg = Kind::CreateProgram(code_id.into());
+        let kind = Kind::CreateProgram(code_id.into());
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
             pid,
-            msg.encode(),
+            kind.encode(),
             30_000_000_000u64,
             0,
             false,
         ));
 
-        // verify the new created program is active.
+        // verify the new created program has been initialized successfully.
         run_to_next_block(None);
+        let last_mail = get_last_mail(USER_1);
+        assert_eq!(last_mail.payload_bytes(), b"PONG");
         assert_init_success(2);
+
+        // 2. create program from with gas code id.
+        run_to_next_block(None);
+        let kind = Kind::CreateProgramWithGas(code_id.into(), 10_000_000_000u64);
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            kind.encode(),
+            30_000_000_000u64,
+            0,
+            false,
+        ));
+
+        // verify the new created program has been initialized successfully.
+        run_to_next_block(None);
+        let last_mail = get_last_mail(USER_1);
+        assert_eq!(last_mail.payload_bytes(), b"PONG");
+        assert_init_success(3);
     })
 }
 #[test]
