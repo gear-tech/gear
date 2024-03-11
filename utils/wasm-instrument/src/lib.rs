@@ -44,14 +44,15 @@ pub mod rules;
 pub mod syscalls;
 
 // TODO #3057
+/// Gas global export name in WASM module.
 pub const GLOBAL_NAME_GAS: &str = "gear_gas";
-pub const GLOBAL_NAME_FLAGS: &str = "gear_flags";
 
-/// '__gear_stack_end' export is inserted by wasm-proc or wasm-builder,
+/// `__gear_stack_end` export is inserted by wasm-proc or wasm-builder,
 /// it indicates the end of program stack memory.
 pub const STACK_END_EXPORT_NAME: &str = "__gear_stack_end";
-/// '__gear_stack_height' export is inserted by gwasm-instrument,
-/// it points to stack height global that is used by [`gwasm_instrument::stack_limiter`].
+/// `__gear_stack_height` export is inserted by gwasm-instrument,
+/// it points to stack height global that is used by
+/// [`gwasm_instrument::stack_limiter`].
 pub const STACK_HEIGHT_EXPORT_NAME: &str = "__gear_stack_height";
 
 /// System break code for [`SyscallName::SystemBreak`] syscall.
@@ -61,7 +62,8 @@ pub enum SystemBreakCode {
     StackLimitExceeded = 1,
 }
 
-/// The error type returned when a conversion from `i32` or `u32` to [`SystemBreakCode`] fails.
+/// The error type returned when a conversion from `i32` or `u32` to
+/// [`SystemBreakCode`] fails.
 #[derive(Clone, Debug, derive_more::Display)]
 #[display(fmt = "Unsupported system break code")]
 pub struct SystemBreakCodeTryFromError;
@@ -108,8 +110,8 @@ pub enum InstrumentationError {
     InstructionCostNotFound,
     /// Error occurred during injecting gas metering instructions.
     ///
-    /// This might be due to program contained unsupported/non-deterministic instructions
-    /// (floats, memory grow, etc.).
+    /// This might be due to program contained unsupported/non-deterministic
+    /// instructions (floats, memory grow, etc.).
     #[display(fmt = "Failed to inject instructions for gas metrics: may be in case \
         program contains unsupported instructions (floats, memory grow, etc.)")]
     GasInjection,
@@ -134,7 +136,8 @@ where
     R: Rules,
     GetRulesFn: FnMut(&Module) -> R,
 {
-    /// Creates a new [`InstrumentationBuilder`] with the given module name to import syscalls.
+    /// Creates a new [`InstrumentationBuilder`] with the given module name to
+    /// import syscalls.
     pub fn new(module_name: &'a str) -> Self {
         Self {
             module_name,

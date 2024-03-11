@@ -186,10 +186,7 @@ where
     }
 
     /// Message Queue processing.
-    pub(crate) fn process_queue(
-        mut ext_manager: ExtManager<T>,
-        builtin_dispatcher: impl BuiltinDispatcher,
-    ) {
+    pub(crate) fn process_queue(mut ext_manager: ExtManager<T>) {
         Self::enable_lazy_pages();
 
         let block_config = Self::block_config();
@@ -234,6 +231,7 @@ where
             // If the dispatch destination (a.k.a. `program_id`) resolves to some `handle` function
             // of a builtin actor, we handle the dispatch as a builtin actor dispatch.
             // Otherwise we proceed with the regular flow.
+            let builtin_dispatcher = ext_manager.builtins();
             if let Some(f) = builtin_dispatcher.lookup(&program_id) {
                 core_processor::handle_journal(
                     builtin_dispatcher.run(f, dispatch, gas_limit),
