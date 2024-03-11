@@ -158,7 +158,7 @@ macro_rules! impl_runtime_apis_plus_common {
 
 			// Here we implement our custom runtime API.
 			impl pallet_gear_rpc_runtime_api::GearApi<Block> for Runtime {
-				fn read_only_send_message(
+				fn calculate_reply_for_handle(
 					origin: H256,
 					destination: H256,
 					payload: Vec<u8>,
@@ -166,7 +166,7 @@ macro_rules! impl_runtime_apis_plus_common {
 					value: u128,
 					allowance_multiplier: u64,
 				) -> Result<pallet_gear::ReplyInfo, Vec<u8>> {
-					Gear::read_only_send_message(origin, destination, payload, gas_limit, value, allowance_multiplier)
+					Gear::calculate_reply_for_handle(origin, destination, payload, gas_limit, value, allowance_multiplier)
 				}
 
 				fn calculate_gas_info(

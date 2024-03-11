@@ -51,7 +51,7 @@ fn runtime_error_into_rpc_error(err: impl std::fmt::Display) -> JsonRpseeError {
 #[rpc(server)]
 pub trait GearApi<BlockHash, ResponseType> {
     #[method(name = "gear_readOnlySendMessage")]
-    fn read_only_send_message(
+    fn calculate_reply_for_handle(
         &self,
         origin: H256,
         destination: H256,
@@ -268,7 +268,7 @@ where
     C: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block>,
     C::Api: GearRuntimeApi<Block>,
 {
-    fn read_only_send_message(
+    fn calculate_reply_for_handle(
         &self,
         origin: H256,
         destination: H256,
@@ -280,7 +280,7 @@ where
         let at_hash = at.unwrap_or_else(|| self.client.info().best_hash);
 
         self.run_with_api_copy(|api| {
-            api.read_only_send_message(
+            api.calculate_reply_for_handle(
                 at_hash,
                 origin,
                 destination,

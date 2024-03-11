@@ -795,7 +795,7 @@ pub mod pallet {
         }
 
         #[cfg(not(test))]
-        pub fn read_only_send_message(
+        pub fn calculate_reply_for_handle(
             origin: H256,
             destination: H256,
             payload: Vec<u8>,
@@ -803,7 +803,7 @@ pub mod pallet {
             value: u128,
             allowance_multiplier: u64,
         ) -> Result<ReplyInfo, Vec<u8>> {
-            Self::read_only_send_message_impl(
+            Self::calculate_reply_for_handle_impl(
                 origin,
                 destination.cast(),
                 payload,
@@ -815,7 +815,7 @@ pub mod pallet {
         }
 
         #[cfg(test)]
-        pub fn read_only_send_message(
+        pub fn calculate_reply_for_handle(
             origin: AccountIdOf<T>,
             destination: ProgramId,
             payload: Vec<u8>,
@@ -823,7 +823,7 @@ pub mod pallet {
             value: u128,
         ) -> Result<ReplyInfo, String> {
             Self::run_with_ext_copy(|| {
-                Self::read_only_send_message_impl(
+                Self::calculate_reply_for_handle_impl(
                     origin.cast(),
                     destination,
                     payload,

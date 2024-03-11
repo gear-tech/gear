@@ -71,7 +71,7 @@ use utils::*;
 type Gas = <<Test as Config>::GasProvider as common::GasProvider>::GasTree;
 
 #[test]
-fn read_only_send_message_works() {
+fn calculate_reply_for_handle_works() {
     use demo_constructor::demo_ping;
 
     init_logger();
@@ -82,7 +82,7 @@ fn read_only_send_message_works() {
 
         // Happy case.
         let res =
-            Gear::read_only_send_message(USER_1, ping_pong, b"PING".to_vec(), 100_000_000_000, 0)
+            Gear::calculate_reply_for_handle(USER_1, ping_pong, b"PING".to_vec(), 100_000_000_000, 0)
                 .expect("Failed to query reply");
 
         assert_eq!(
@@ -96,7 +96,7 @@ fn read_only_send_message_works() {
 
         // Out of gas panic case.
         let res =
-            Gear::read_only_send_message(USER_1, ping_pong, b"PING".to_vec(), 1_000_000_000, 0)
+            Gear::calculate_reply_for_handle(USER_1, ping_pong, b"PING".to_vec(), 1_000_000_000, 0)
                 .expect("Failed to query reply");
 
         assert_eq!(
@@ -115,7 +115,7 @@ fn read_only_send_message_works() {
         // TODO: uncomment code below (issue #3804).
         // // Value returned in case of error.
         // let value = get_ed() * 2;
-        // let res = Gear::read_only_send_message(
+        // let res = Gear::calculate_reply_for_handle(
         //     USER_1,
         //     ping_pong,
         //     vec![],
@@ -125,7 +125,7 @@ fn read_only_send_message_works() {
         // assert_eq!(res.value, value);
 
         // Extrinsic error.
-        let res = Gear::read_only_send_message(USER_1, ping_pong, vec![], 0, get_ed() - 1)
+        let res = Gear::calculate_reply_for_handle(USER_1, ping_pong, vec![], 0, get_ed() - 1)
             .expect_err("Extrinsic should've failed");
 
         assert!(res.contains(&format!("{:?}", Error::<Test>::ValueLessThanMinimal)))

@@ -46,7 +46,7 @@ where
     //
     // The RPC call is used to figure out the reply that would be send
     // on calling `Gear::send_message(..)` with following arguments.
-    pub(crate) fn read_only_send_message_impl(
+    pub(crate) fn calculate_reply_for_handle_impl(
         origin: H256,
         destination: ProgramId,
         payload: Vec<u8>,
