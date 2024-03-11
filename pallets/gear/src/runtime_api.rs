@@ -42,153 +42,10 @@ impl<T: Config> Pallet<T>
 where
     T::AccountId: Origin,
 {
-    // Prepares account id to be able to execute some extrinsic in terms of funds.
-    fn prepare_origin_account(
-        origin: AccountIdOf<T>,
-        gas: u64,
-        value: BalanceOf<T>,
-    ) -> RawOrigin<AccountIdOf<T>> {
-        // Querying balance of the account.
-        let origin_balance = CurrencyOf::<T>::free_balance(&origin);
-
-        // Calculating amount of value to be paid for gas.
-        let value_for_gas = <T as pallet_gear_bank::Config>::GasMultiplier::get().gas_to_value(gas);
-
-        // Required balance of the account.
-        let required_balance = CurrencyOf::<T>::minimum_balance()
-            .saturating_add(value_for_gas)
-            .saturating_add(value);
-
-        // Updating balance of the account.
-        let _ = CurrencyOf::<T>::deposit_creating(
-            &origin,
-            required_balance.saturating_sub(origin_balance),
-        );
-
-        // Returning origin account as signed origin.
-        RawOrigin::Signed(origin)
-    }
-
-    // Converts given dispatch error into dedicated runtime api string format.
-    fn dispatch_err_to_string(
-        extrinsic_name: &'static str,
-        e: DispatchErrorWithPostInfo<PostDispatchInfo>,
-    ) -> String {
-        // Extracting index of module returned error, if possible.
-        let error_module_idx = match e.error {
-            DispatchError::Module(ModuleError { index, .. }) => Some(index as usize),
-            _ => None,
-        };
-
-        // Converting dispatch error into string representation in default impl.
-        let error_message: &'static str = e.into();
-
-        // Creating result message.
-        let mut res = format!("Extrinsic `gear.{extrinsic_name}` failed: '{error_message}'");
-
-        // Extracting `pallet_gear` index from runtime to compare with dispatch error.
-        let Some(gear_module_idx) = PalletInfoOf::<T>::index::<Self>() else {
-            return Self::internal_err_string("No index found for `pallet_gear` in the runtime");
-        };
-
-        // Appending result message with pallet index returned error, if not this.
-        if let Some(module_idx) = error_module_idx.filter(|i| *i != gear_module_idx) {
-            res = format!("{res} (pallet index of the error: {module_idx}");
-        }
-
-        res
-    }
-
-    // Queries first element of the queue and extracts its message id and destination.
-    fn queue_head() -> Result<(MessageId, ProgramId), String> {
-        QueueOf::<T>::iter()
-            .next()
-            .ok_or_else(|| Self::internal_err_string("Failed to get last message from the queue"))
-            .and_then(|queued| {
-                queued
-                    .map(|dispatch| (dispatch.id(), dispatch.destination()))
-                    .map_err(|_| Self::internal_err_string("Failed to extract queued dispatch"))
-            })
-    }
-
-    // Formats given message into dedicated runtime api string format.
-    fn internal_err_string(message: impl ToString) -> String {
-        format!(
-            "Internal error: entered unreachable code '{}'",
-            message.to_string()
-        )
-    }
-
-    // Returns none if queue is empty, otherwise - processed message,
-    // resulting journal notes of the processing and bool, defining
-    // was it processed by builtin actor or not.
-    fn dequeue_head_and_run(
-        ext_manager: &mut ExtManager<T>,
-        builtin_dispatcher: &impl BuiltinDispatcher,
-        forbidden_funcs: Option<BTreeSet<SyscallName>>,
-    ) -> Result<Option<(Dispatch, Vec<JournalNote>, bool)>, String> {
-        // Extracting queued dispatch.
-        let head =
-            QueueOf::<T>::dequeue().map_err(|_| Self::internal_err_string("Queue corrupted"))?;
-
-        let Some(dispatch) = head else {
-            return Ok(None);
-        };
-
-        // Extracting destination from dispatch.
-        let destination = dispatch.destination();
-
-        // Querying gas limit for dispatch.
-        let gas_limit = GasHandlerOf::<T>::get_limit(dispatch.id())
-            .map_err(|_| Self::internal_err_string("Failed to get gas limit"))?;
-
-        // Storing processed dispatch.
-        let processed = Dispatch::new(
-            dispatch.kind(),
-            Message::new(
-                dispatch.id(),
-                dispatch.source(),
-                dispatch.destination(),
-                dispatch
-                    .payload_bytes()
-                    .to_vec()
-                    .try_into()
-                    .expect("Infallible"),
-                Some(gas_limit),
-                dispatch.value(),
-                dispatch.details(),
-            ),
-        );
-
-        // Processing of the message, if destination is builtin actor.
-        if let Some(f) = builtin_dispatcher.lookup(&destination) {
-            let journal = builtin_dispatcher.run(f, dispatch, gas_limit);
-            return Ok(Some((processed, journal, true)));
-        }
-
-        let mut block_config = Self::block_config();
-
-        if let Some(forbidden_funcs) = forbidden_funcs {
-            block_config.forbidden_funcs = forbidden_funcs;
-        }
-
-        // Processing of the message, if destination is common program.
-        let journal = Self::run_queue_step(QueueStep {
-            block_config: &block_config,
-            ext_manager,
-            gas_limit,
-            dispatch,
-            balance: CurrencyOf::<T>::free_balance(&destination.cast()).unique_saturated_into(),
-        });
-
-        Ok(Some((processed, journal, false)))
-    }
-
-    fn update_gas_allowance(gas_allowance: u64) {
-        GasAllowanceOf::<T>::put(gas_allowance);
-        QueueProcessingOf::<T>::allow();
-    }
-
+    // Internal implementation of RPC call `gear_readOnlySendMessage(..)`.
+    //
+    // The RPC call is used to figure out the reply that would be send
+    // on calling `Gear::send_message(..)` with following arguments.
     pub(crate) fn read_only_send_message_impl(
         origin: H256,
         destination: ProgramId,
@@ -266,6 +123,10 @@ where
         Err(String::from("Queue is empty, but reply wasn't found"))
     }
 
+    // Internal implementation of RPC calls `gear_calculate*Entry*Gas(..)`.
+    //
+    // The RPC call is used to figure out required gas amount for successful
+    // execution of the message.
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn calculate_gas_info_impl(
         origin: H256,
@@ -516,35 +377,6 @@ where
         Ok(gas_info)
     }
 
-    fn code_with_memory(program_id: ProgramId) -> Result<CodeWithMemoryData, String> {
-        // Load active program from storage.
-        let program: ActiveProgram<_> = ProgramStorageOf::<T>::get_program(program_id)
-            .ok_or(String::from("Program not found"))?
-            .try_into()
-            .map_err(|e| format!("Get active program error: {e:?}"))?;
-
-        let code_id = program.code_hash.cast();
-
-        // Load instrumented binary code from storage.
-        let mut code = T::CodeStorage::get_code(code_id).ok_or_else(|| {
-            format!("Program '{program_id:?}' exists so must do code '{code_id:?}'")
-        })?;
-
-        // Reinstrument the code if necessary.
-        let schedule = T::Schedule::get();
-
-        if code.instruction_weights_version() != schedule.instruction_weights.version {
-            code = Pallet::<T>::reinstrument_code(code_id, &schedule)
-                .map_err(|e| format!("Code {code_id:?} failed reinstrumentation: {e:?}"))?;
-        }
-
-        Ok(CodeWithMemoryData {
-            instrumented_code: code,
-            allocations: program.allocations,
-            memory_infix: program.memory_infix,
-        })
-    }
-
     pub(crate) fn read_state_using_wasm_impl(
         program_id: ProgramId,
         payload: Vec<u8>,
@@ -681,5 +513,183 @@ where
         .and_then(|bytes| {
             H256::decode(&mut bytes.as_ref()).map_err(|_| "Failed to decode hash".into())
         })
+    }
+
+    // Returns code and allocations of the given program id.
+    fn code_with_memory(program_id: ProgramId) -> Result<CodeWithMemoryData, String> {
+        // Load active program from storage.
+        let program: ActiveProgram<_> = ProgramStorageOf::<T>::get_program(program_id)
+            .ok_or(String::from("Program not found"))?
+            .try_into()
+            .map_err(|e| format!("Get active program error: {e:?}"))?;
+
+        let code_id = program.code_hash.cast();
+
+        // Load instrumented binary code from storage.
+        let mut code = T::CodeStorage::get_code(code_id).ok_or_else(|| {
+            format!("Program '{program_id:?}' exists so must do code '{code_id:?}'")
+        })?;
+
+        // Reinstrument the code if necessary.
+        let schedule = T::Schedule::get();
+
+        if code.instruction_weights_version() != schedule.instruction_weights.version {
+            code = Pallet::<T>::reinstrument_code(code_id, &schedule)
+                .map_err(|e| format!("Code {code_id:?} failed reinstrumentation: {e:?}"))?;
+        }
+
+        Ok(CodeWithMemoryData {
+            instrumented_code: code,
+            allocations: program.allocations,
+            memory_infix: program.memory_infix,
+        })
+    }
+
+    // Prepares account id to be able to execute some extrinsic in terms of funds.
+    fn prepare_origin_account(
+        origin: AccountIdOf<T>,
+        gas: u64,
+        value: BalanceOf<T>,
+    ) -> RawOrigin<AccountIdOf<T>> {
+        // Querying balance of the account.
+        let origin_balance = CurrencyOf::<T>::free_balance(&origin);
+
+        // Calculating amount of value to be paid for gas.
+        let value_for_gas = <T as pallet_gear_bank::Config>::GasMultiplier::get().gas_to_value(gas);
+
+        // Required balance of the account.
+        let required_balance = CurrencyOf::<T>::minimum_balance()
+            .saturating_add(value_for_gas)
+            .saturating_add(value);
+
+        // Updating balance of the account.
+        let _ = CurrencyOf::<T>::deposit_creating(
+            &origin,
+            required_balance.saturating_sub(origin_balance),
+        );
+
+        // Returning origin account as signed origin.
+        RawOrigin::Signed(origin)
+    }
+
+    // Returns none if queue is empty, otherwise - processed message,
+    // resulting journal notes of the processing and bool, defining
+    // was it processed by builtin actor or not.
+    fn dequeue_head_and_run(
+        ext_manager: &mut ExtManager<T>,
+        builtin_dispatcher: &impl BuiltinDispatcher,
+        forbidden_funcs: Option<BTreeSet<SyscallName>>,
+    ) -> Result<Option<(Dispatch, Vec<JournalNote>, bool)>, String> {
+        // Extracting queued dispatch.
+        let head =
+            QueueOf::<T>::dequeue().map_err(|_| Self::internal_err_string("Queue corrupted"))?;
+
+        let Some(dispatch) = head else {
+            return Ok(None);
+        };
+
+        // Extracting destination from dispatch.
+        let destination = dispatch.destination();
+
+        // Querying gas limit for dispatch.
+        let gas_limit = GasHandlerOf::<T>::get_limit(dispatch.id())
+            .map_err(|_| Self::internal_err_string("Failed to get gas limit"))?;
+
+        // Storing processed dispatch.
+        let processed = Dispatch::new(
+            dispatch.kind(),
+            Message::new(
+                dispatch.id(),
+                dispatch.source(),
+                dispatch.destination(),
+                dispatch
+                    .payload_bytes()
+                    .to_vec()
+                    .try_into()
+                    .expect("Infallible"),
+                Some(gas_limit),
+                dispatch.value(),
+                dispatch.details(),
+            ),
+        );
+
+        // Processing of the message, if destination is builtin actor.
+        if let Some(f) = builtin_dispatcher.lookup(&destination) {
+            let journal = builtin_dispatcher.run(f, dispatch, gas_limit);
+            return Ok(Some((processed, journal, true)));
+        }
+
+        let mut block_config = Self::block_config();
+
+        if let Some(forbidden_funcs) = forbidden_funcs {
+            block_config.forbidden_funcs = forbidden_funcs;
+        }
+
+        // Processing of the message, if destination is common program.
+        let journal = Self::run_queue_step(QueueStep {
+            block_config: &block_config,
+            ext_manager,
+            gas_limit,
+            dispatch,
+            balance: CurrencyOf::<T>::free_balance(&destination.cast()).unique_saturated_into(),
+        });
+
+        Ok(Some((processed, journal, false)))
+    }
+
+    // Converts given dispatch error into dedicated runtime api string format.
+    fn dispatch_err_to_string(
+        extrinsic_name: &'static str,
+        e: DispatchErrorWithPostInfo<PostDispatchInfo>,
+    ) -> String {
+        // Extracting index of module returned error, if possible.
+        let error_module_idx = match e.error {
+            DispatchError::Module(ModuleError { index, .. }) => Some(index as usize),
+            _ => None,
+        };
+
+        // Converting dispatch error into string representation in default impl.
+        let error_message: &'static str = e.into();
+
+        // Creating result message.
+        let mut res = format!("Extrinsic `gear.{extrinsic_name}` failed: '{error_message}'");
+
+        // Extracting `pallet_gear` index from runtime to compare with dispatch error.
+        let Some(gear_module_idx) = PalletInfoOf::<T>::index::<Self>() else {
+            return Self::internal_err_string("No index found for `pallet_gear` in the runtime");
+        };
+
+        // Appending result message with pallet index returned error, if not this.
+        if let Some(module_idx) = error_module_idx.filter(|i| *i != gear_module_idx) {
+            res = format!("{res} (pallet index of the error: {module_idx}");
+        }
+
+        res
+    }
+
+    // Queries first element of the queue and extracts its message id and destination.
+    fn queue_head() -> Result<(MessageId, ProgramId), String> {
+        QueueOf::<T>::iter()
+            .next()
+            .ok_or_else(|| Self::internal_err_string("Failed to get last message from the queue"))
+            .and_then(|queued| {
+                queued
+                    .map(|dispatch| (dispatch.id(), dispatch.destination()))
+                    .map_err(|_| Self::internal_err_string("Failed to extract queued dispatch"))
+            })
+    }
+
+    // Updates gas allowance and allows queue processing.
+    fn update_gas_allowance(gas_allowance: u64) {
+        GasAllowanceOf::<T>::put(gas_allowance);
+        QueueProcessingOf::<T>::allow();
+    }
+
+    // Formats given message into dedicated runtime api string format.
+    fn internal_err_string(message: impl ToString) -> String {
+        format!(
+            "Internal error: entered unreachable code '{}'",
+            message.to_string()
+        )
     }
 }
