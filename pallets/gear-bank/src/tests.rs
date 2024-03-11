@@ -277,7 +277,7 @@ fn withdraw_gas_small_amount() {
 #[test]
 fn withdraw_gas_small_amount_user_account_deleted() {
     new_test_ext().execute_with(|| {
-        const GAS_VALUE_AMOUNT: Balance = EXISTENTIAL_DEPOSIT - VALUE_PER_GAS;
+        const GAS_VALUE_AMOUNT: Balance = (EXISTENTIAL_DEPOSIT - 1) / VALUE_PER_GAS * VALUE_PER_GAS;
         assert!(GAS_VALUE_AMOUNT < CurrencyOf::<Test>::minimum_balance());
 
         const GAS_AMOUNT: u64 = (GAS_VALUE_AMOUNT / VALUE_PER_GAS) as u64;
@@ -523,7 +523,7 @@ fn spend_gas_small_amount() {
 #[test]
 fn spend_gas_small_amount_validator_account_deleted() {
     new_test_ext().execute_with(|| {
-        const GAS_VALUE_AMOUNT: Balance = EXISTENTIAL_DEPOSIT - VALUE_PER_GAS;
+        const GAS_VALUE_AMOUNT: Balance = (EXISTENTIAL_DEPOSIT - 1) / VALUE_PER_GAS * VALUE_PER_GAS;
         assert!(GAS_VALUE_AMOUNT < CurrencyOf::<Test>::minimum_balance());
 
         const GAS_AMOUNT: u64 = (GAS_VALUE_AMOUNT / VALUE_PER_GAS) as u64;
