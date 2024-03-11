@@ -21,7 +21,11 @@ use crate::queue::QueueStep;
 use common::ActiveProgram;
 use core::convert::TryFrom;
 use frame_support::traits::PalletInfo;
-use gear_core::{code::TryNewCodeConfig, pages::WasmPage, program::MemoryInfix};
+use gear_core::{
+    code::TryNewCodeConfig,
+    pages::{IntervalsTree, WasmPage},
+    program::MemoryInfix,
+};
 use gear_wasm_instrument::syscalls::SyscallName;
 use sp_runtime::{DispatchErrorWithPostInfo, ModuleError};
 
@@ -32,7 +36,7 @@ pub(crate) const ALLOWANCE_LIMIT_ERR: &str = "Calculation gas limit exceeded. Us
 
 pub(crate) struct CodeWithMemoryData {
     pub instrumented_code: InstrumentedCode,
-    pub allocations: BTreeSet<WasmPage>,
+    pub allocations: IntervalsTree<WasmPage>,
     pub memory_infix: MemoryInfix,
 }
 

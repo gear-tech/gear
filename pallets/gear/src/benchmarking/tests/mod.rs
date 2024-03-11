@@ -45,7 +45,7 @@ where
     let instrs = vec![Instruction::Call(0)];
 
     let module: WasmModule<T> = ModuleDefinition {
-        memory: Some(ImportedMemory::new(0)),
+        memory: Some(Default::default()),
         init_body: Some(body::from_instructions(instrs)),
         ..Default::default()
     }

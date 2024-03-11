@@ -25,12 +25,7 @@ use crate::{
     ext::{ProcessorContext, ProcessorExternalities},
 };
 use actor_system_error::actor_system_error;
-use alloc::{
-    collections::BTreeSet,
-    format,
-    string::{String, ToString},
-    vec::Vec,
-};
+use alloc::{format, string::String, vec::Vec};
 use gear_core::{
     code::InstrumentedCode,
     env::Externalities,
@@ -41,7 +36,7 @@ use gear_core::{
         ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext,
         WasmEntryPoint,
     },
-    pages::{PageU32Size, WasmPage},
+    pages::{IntervalsTree, WasmPage, WasmPagesAmount},
     program::{MemoryInfix, Program},
     reservation::GasReserver,
 };
@@ -72,7 +67,7 @@ actor_system_error! {
 pub enum ActorPrepareMemoryError {
     /// Stack end page, which value is specified in WASM code, cannot be bigger than static memory size.
     #[display(fmt = "Stack end page {_0:?} is bigger then WASM static memory size {_1:?}")]
-    StackEndPageBiggerWasmMemSize(WasmPage, WasmPage),
+    StackEndPageBiggerWasmMemSize(WasmPage, WasmPagesAmount),
     /// Stack is not aligned to WASM page size
     #[display(fmt = "Stack end addr {_0:#x} must be aligned to WASM page size")]
     StackIsNotAligned(u32),
@@ -87,8 +82,8 @@ pub enum SystemPrepareMemoryError {
 
 /// Make checks that everything with memory goes well.
 fn check_memory(
-    static_pages: WasmPage,
-    memory_size: WasmPage,
+    static_pages: WasmPagesAmount,
+    memory_size: WasmPagesAmount,
 ) -> Result<(), SystemPrepareMemoryError> {
     if memory_size < static_pages {
         log::error!(
@@ -108,17 +103,17 @@ fn prepare_memory<ProcessorExt: ProcessorExternalities, EnvMem: Memory>(
     mem: &mut EnvMem,
     program_id: ProgramId,
     memory_infix: MemoryInfix,
-    static_pages: WasmPage,
+    static_pages: WasmPagesAmount,
     stack_end: Option<u32>,
     globals_config: GlobalsAccessConfig,
     lazy_pages_weights: LazyPagesWeights,
 ) -> Result<(), PrepareMemoryError> {
     let stack_end = if let Some(stack_end) = stack_end {
-        let stack_end = (stack_end % WasmPage::size() == 0)
+        let stack_end = (stack_end % WasmPage::SIZE == 0)
             .then_some(WasmPage::from_offset(stack_end))
             .ok_or(ActorPrepareMemoryError::StackIsNotAligned(stack_end))?;
 
-        if stack_end > static_pages {
+        if static_pages < stack_end {
             return Err(ActorPrepareMemoryError::StackEndPageBiggerWasmMemSize(
                 stack_end,
                 static_pages,
@@ -166,20 +161,18 @@ where
         memory_size,
     } = context;
 
-    let program_id = program.id();
+    let (program_id, code, allocations, memory_infix) = program.into_parts();
+
     let kind = dispatch.kind();
 
     log::debug!("Executing program {}", program_id);
     log::debug!("Executing dispatch {:?}", dispatch);
 
-    let static_pages = program.static_pages();
-    let allocations = program.allocations();
-
+    let static_pages = code.static_pages();
     check_memory(static_pages, memory_size).map_err(SystemExecutionError::PrepareMemory)?;
 
-    // Creating allocations context.
     let allocations_context =
-        AllocationsContext::new(allocations.clone(), static_pages, settings.max_pages);
+        AllocationsContext::new(allocations, static_pages, settings.max_pages);
 
     // Creating message context.
     let Some(message_context) = MessageContext::new(dispatch.clone(), program_id, msg_ctx_settings)
@@ -240,19 +233,13 @@ where
 
     // Execute program in backend env.
     let execute = || {
-        let env = Environment::new(
-            ext,
-            program.code_bytes(),
-            kind,
-            program.code().exports().clone(),
-            memory_size,
-        )
-        .map_err(EnvironmentError::from_infallible)?;
+        let env = Environment::new(ext, code.code(), kind, code.exports().clone(), memory_size)
+            .map_err(EnvironmentError::from_infallible)?;
         env.execute(|memory, stack_end, globals_config| {
             prepare_memory::<Ext, MemoryWrap<_>>(
                 memory,
                 program_id,
-                program.memory_infix(),
+                memory_infix,
                 static_pages,
                 stack_end,
                 globals_config,
@@ -348,7 +335,7 @@ where
         gas_reserver: Some(info.gas_reserver),
         system_reservation_context: info.system_reservation_context,
         page_update,
-        allocations: info.allocations,
+        allocations: Some(info.allocations),
         reply_sent: info.reply_sent,
     })
 }
@@ -358,7 +345,7 @@ where
 pub fn execute_for_reply<Ext, EP>(
     function: EP,
     instrumented_code: InstrumentedCode,
-    allocations: Option<BTreeSet<WasmPage>>,
+    allocations: Option<IntervalsTree<WasmPage>>,
     program_info: Option<(ProgramId, MemoryInfix)>,
     payload: Vec<u8>,
     gas_limit: u64,
@@ -376,16 +363,7 @@ where
     let program = Program::new(program_id, memory_infix, instrumented_code);
     let static_pages = program.static_pages();
     let allocations = allocations.unwrap_or_else(|| program.allocations().clone());
-
-    let memory_size = if let Some(page) = allocations.iter().next_back() {
-        page.inc()
-            .map_err(|err| err.to_string())
-            .expect("Memory size overflow, impossible")
-    } else if static_pages != WasmPage::from(0) {
-        static_pages
-    } else {
-        0.into()
-    };
+    let memory_size = allocations.end().map(|p| p.inc()).unwrap_or(static_pages);
 
     let message_context = MessageContext::new(
         IncomingDispatch::new(

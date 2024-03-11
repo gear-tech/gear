@@ -35,7 +35,7 @@ use gear_core::{
     code::{Code, CodeAndId},
     ids::{CodeId, MessageId, ProgramId},
     message::{Dispatch, DispatchKind, Message, ReplyDetails, SignalDetails},
-    pages::WasmPage,
+    pages::WasmPagesAmount,
 };
 use sp_core::H256;
 use sp_runtime::traits::UniqueSaturatedInto;
@@ -62,10 +62,16 @@ where
 
     let schedule = T::Schedule::get();
 
+    let max_pages = T::Schedule::get()
+        .limits
+        .memory_pages
+        .try_into()
+        .unwrap_or_else(|_| panic!("Max pages limit is bigger than possible for 4GB memory"));
+
     BlockConfig {
         block_info,
         performance_multiplier: T::PerformanceMultiplier::get().into(),
-        max_pages: T::Schedule::get().limits.memory_pages.into(),
+        max_pages,
         page_costs: T::Schedule::get().memory_weights.into(),
         existential_deposit,
         outgoing_limit: 2048,
@@ -93,7 +99,7 @@ pub struct PrepareConfig {
     pub value: u128,
     pub gas_allowance: u64,
     pub gas_limit: u64,
-    pub max_pages_override: Option<WasmPage>,
+    pub max_pages: Option<WasmPagesAmount>,
 }
 
 impl Default for PrepareConfig {
@@ -102,7 +108,7 @@ impl Default for PrepareConfig {
             value: 0,
             gas_allowance: u64::MAX,
             gas_limit: u64::MAX / 2,
-            max_pages_override: None,
+            max_pages: None,
         }
     }
 }
@@ -257,7 +263,7 @@ where
         .ok_or("Program not found in the storage")?;
 
     let mut block_config = prepare_block_config::<T>();
-    block_config.max_pages = config.max_pages_override.unwrap_or(block_config.max_pages);
+    block_config.max_pages = config.max_pages.unwrap_or(block_config.max_pages);
 
     let precharged_dispatch = core_processor::precharge_for_program(
         &block_config,

@@ -38,6 +38,7 @@ pallet-authorship = { workspace = true, features = ["std"] }
 pallet-timestamp = { workspace = true, features = ["std"] }
 pallet-gear-gas = { workspace = true, features = ["std"] }
 pallet-gear-scheduler = { workspace = true, features = ["std"] }
+env_logger.workspace = true
 
 [features]
 default = ['std']

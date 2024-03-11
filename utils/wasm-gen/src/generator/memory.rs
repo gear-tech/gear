@@ -22,7 +22,7 @@ use crate::{
     generator::{CallIndexes, FrozenGearWasmGenerator, GearWasmGenerator, ModuleWithCallIndexes},
     MemoryPagesConfig, WasmModule,
 };
-use gear_core::pages::WASM_PAGE_SIZE;
+use gear_core::pages::WasmPage;
 use gear_wasm_instrument::{
     parity_wasm::{
         builder,
@@ -107,7 +107,7 @@ impl MemoryGenerator {
             if let Some(stack_end_page) = stack_end_page {
                 log::trace!("Stack end offset - {:?}", stack_end_page);
 
-                let stack_end = stack_end_page * WASM_PAGE_SIZE as u32;
+                let stack_end = stack_end_page * WasmPage::SIZE;
                 module = builder::from_module(module)
                     .global()
                     .value_type()

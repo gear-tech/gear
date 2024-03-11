@@ -29,10 +29,10 @@ use frame_support::{
     weights::Weight,
 };
 use gear_core::{
-    code::MAX_WASM_PAGE_AMOUNT,
+    code::MAX_WASM_PAGES_AMOUNT,
     costs::HostFnWeights as CoreHostFnWeights,
     message,
-    pages::{GearPage, PageU32Size, WasmPage, GEAR_PAGE_SIZE},
+    pages::{GearPage, PageNumber, WasmPage},
 };
 use gear_wasm_instrument::{
     gas_metering::{MemoryGrowCost, Rules},
@@ -178,7 +178,7 @@ pub struct Limits {
     pub parameters: u32,
 
     /// Maximum number of memory pages allowed for a program.
-    pub memory_pages: u16,
+    pub memory_pages: u32,
 
     /// Maximum number of elements allowed in a table.
     ///
@@ -206,7 +206,7 @@ pub struct Limits {
 impl Limits {
     /// The maximum memory size in bytes that a program can occupy.
     pub fn max_memory_size(&self) -> u32 {
-        self.memory_pages as u32 * 64 * 1024
+        self.memory_pages * 64 * 1024
     }
 }
 
@@ -348,17 +348,26 @@ pub struct HostFnWeights<T: Config> {
     /// Weight of calling `alloc`.
     pub alloc: Weight,
 
-    /// Weight per page in `alloc`.
+    /// Weight of calling `alloc` per page.
     pub alloc_per_page: Weight,
+
+    /// Weight of calling `alloc` per intervals amount in program allocations.
+    pub alloc_per_interval: Weight,
 
     /// Weight of calling `free`.
     pub free: Weight,
+
+    /// Weight of calling `free` per intervals amount in program allocations.
+    pub free_per_interval: Weight,
 
     /// Weight of calling `free_range`.
     pub free_range: Weight,
 
     /// Weight of calling `free_range` per page.
     pub free_range_per_page: Weight,
+
+    /// Weight of calling `free_range` per intervals amount in program allocations.
+    pub free_range_per_interval: Weight,
 
     /// Weight of calling `gr_reserve_gas`.
     pub gr_reserve_gas: Weight,
@@ -612,6 +621,9 @@ pub struct MemoryWeights<T: Config> {
     /// Cost per one [WasmPage] for memory growing.
     pub mem_grow: Weight,
 
+    /// Cost per one [WasmPage] for memory growing.
+    pub mem_grow_per_page: Weight,
+
     /// Cost per one [GearPage].
     /// When we read page data from storage in para-chain, then it should be sent to relay-chain,
     /// in order to use it for process queue execution. So, reading from storage cause
@@ -642,7 +654,8 @@ impl<T: Config> From<MemoryWeights<T>> for PageCosts {
             load_page_data: val.load_page_data.ref_time().into(),
             upload_page_data: val.upload_page_data.ref_time().into(),
             static_page: val.static_page.ref_time().into(),
-            mem_grow: val.mem_grow.ref_time().into(),
+            mem_grow: val.mem_grow.ref_time(),
+            mem_grow_per_page: val.mem_grow_per_page.ref_time().into(),
             parachain_load_heuristic: val.parachain_read_heuristic.ref_time().into(),
         }
     }
@@ -761,7 +774,7 @@ impl Default for Limits {
             globals: 256,
             locals: 1024,
             parameters: 128,
-            memory_pages: MAX_WASM_PAGE_AMOUNT,
+            memory_pages: MAX_WASM_PAGES_AMOUNT.raw(),
             // 4k function pointers (This is in count not bytes).
             table_size: 4096,
             br_table_size: 256,
@@ -874,9 +887,12 @@ impl<T: Config> HostFnWeights<T> {
         CoreHostFnWeights {
             alloc: self.alloc.ref_time(),
             alloc_per_page: self.alloc_per_page.ref_time(),
+            alloc_per_interval: self.alloc_per_interval.ref_time(),
             free: self.free.ref_time(),
+            free_per_interval: self.free_per_interval.ref_time(),
             free_range: self.free_range.ref_time(),
             free_range_per_page: self.free_range_per_page.ref_time(),
+            free_range_per_interval: self.free_range_per_interval.ref_time(),
             gr_reserve_gas: self.gr_reserve_gas.ref_time(),
             gr_unreserve_gas: self.gr_unreserve_gas.ref_time(),
             gr_system_reserve_gas: self.gr_system_reserve_gas.ref_time(),
@@ -992,14 +1008,16 @@ impl<T: Config> Default for HostFnWeights<T> {
             gr_reply_push_input: to_weight!(cost_batched!(gr_reply_push_input)),
             gr_reply_push_input_per_byte: to_weight!(cost_byte!(gr_reply_push_input_per_kb)),
 
-            // Alloc benchmark causes grow memory calls so we subtract it here as grow is charged separately.
             alloc: to_weight!(cost_batched!(alloc))
-                .saturating_sub(to_weight!(cost_batched!(alloc_per_page)))
-                .saturating_sub(to_weight!(cost_batched!(mem_grow))),
+                .saturating_sub(to_weight!(cost_batched!(alloc_per_page))),
             alloc_per_page: to_weight!(cost_batched!(alloc_per_page)),
+            alloc_per_interval: to_weight!(cost_batched!(alloc_per_interval)),
             free: to_weight!(cost_batched!(free)),
+            free_per_interval: to_weight!(cost_batched!(free_per_interval)),
             free_range: to_weight!(cost_batched!(free_range)),
             free_range_per_page: to_weight!(cost_batched!(free_range_per_page)),
+            free_range_per_interval: to_weight!(cost_batched!(free_range_per_interval)),
+
             gr_reserve_gas: to_weight!(cost!(gr_reserve_gas)),
             gr_system_reserve_gas: to_weight!(cost_batched!(gr_system_reserve_gas)),
             gr_unreserve_gas: to_weight!(cost!(gr_unreserve_gas)),
@@ -1062,7 +1080,7 @@ impl<T: Config> Default for MemoryWeights<T> {
         // so here we must convert it to cost per gear page.
         macro_rules! to_cost_per_gear_page {
             ($name:ident) => {
-                cost!($name) / (WasmPage::size() / GearPage::size()) as u64
+                cost!($name) / (WasmPage::SIZE / GearPage::SIZE) as u64
             };
         }
 
@@ -1074,14 +1092,14 @@ impl<T: Config> Default for MemoryWeights<T> {
             ($name:ident, $syscall:ident) => {{
                 let syscall_per_kb_weight = cost_batched!($syscall);
                 let syscall_per_gear_page_weight =
-                    (syscall_per_kb_weight / KB_SIZE) * GearPage::size() as u64;
+                    (syscall_per_kb_weight / KB_SIZE) * GearPage::SIZE as u64;
                 to_cost_per_gear_page!($name).saturating_sub(syscall_per_gear_page_weight)
             }};
         }
 
-        const KB_AMOUNT_IN_ONE_GEAR_PAGE: u64 = GEAR_PAGE_SIZE as u64 / KB_SIZE;
+        const KB_AMOUNT_IN_ONE_GEAR_PAGE: u64 = GearPage::SIZE as u64 / KB_SIZE;
         const _: () = assert!(KB_AMOUNT_IN_ONE_GEAR_PAGE > 0);
-        const _: () = assert!(GEAR_PAGE_SIZE as u64 % KB_SIZE == 0);
+        const _: () = assert!(GearPage::SIZE as u64 % KB_SIZE == 0);
 
         Self {
             lazy_pages_signal_read: to_weight!(to_cost_per_gear_page!(lazy_pages_signal_read)),
@@ -1112,6 +1130,7 @@ impl<T: Config> Default for MemoryWeights<T> {
             // TODO: make benches to calculate static page cost and mem grow cost (issue #2226)
             static_page: Weight::from_parts(100, 0),
             mem_grow: to_weight!(cost_batched!(mem_grow)),
+            mem_grow_per_page: to_weight!(cost_batched!(mem_grow_per_page)),
             // TODO: make it non-zero for para-chains (issue #2225)
             parachain_read_heuristic: Weight::zero(),
             _phantom: PhantomData,

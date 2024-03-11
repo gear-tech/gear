@@ -20,7 +20,7 @@
 
 use gear_core::{
     memory::PageBuf,
-    pages::{GearPage, PageNumber, PageU32Size},
+    pages::{GearPage, PageNumber},
 };
 pub use nonempty::NonEmpty;
 use parity_scale_codec::{Decode, Encode};
@@ -113,7 +113,7 @@ impl MemoryPageDump {
             PageBuf::new_zeroed()
         };
         (
-            GearPage::new(self.page)
+            GearPage::try_from(self.page)
                 .unwrap_or_else(|_| panic!("Couldn't decode GearPage from u32: {}", self.page)),
             page_buf,
         )

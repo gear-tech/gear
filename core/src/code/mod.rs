@@ -18,7 +18,7 @@
 
 //! Module for checked code.
 
-use crate::{ids::CodeId, message::DispatchKind, pages::WasmPage};
+use crate::{ids::CodeId, message::DispatchKind, pages::WasmPagesAmount};
 use alloc::{collections::BTreeSet, vec::Vec};
 use gear_wasm_instrument::{
     parity_wasm::{self, elements::Module},
@@ -33,7 +33,7 @@ mod utils;
 
 pub use errors::*;
 pub use instrumented::*;
-pub use utils::{ALLOWED_EXPORTS, MAX_WASM_PAGE_AMOUNT, REQUIRED_EXPORTS};
+pub use utils::{ALLOWED_EXPORTS, MAX_WASM_PAGES_AMOUNT, REQUIRED_EXPORTS};
 
 /// Contains instrumented binary code of a program and initial memory size from memory import.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -45,7 +45,7 @@ pub struct Code {
     /// Exports of the wasm module.
     exports: BTreeSet<DispatchKind>,
     /// Static pages count from memory import.
-    static_pages: WasmPage,
+    static_pages: WasmPagesAmount,
     /// Instruction weights version.
     instruction_weights_version: u32,
 }
@@ -308,7 +308,7 @@ impl Code {
     }
 
     /// Returns initial memory size from memory import.
-    pub fn static_pages(&self) -> WasmPage {
+    pub fn static_pages(&self) -> WasmPagesAmount {
         self.static_pages
     }
 
@@ -486,7 +486,7 @@ mod tests {
                 None
             ),
             CodeError::DataSection(DataSectionError::EndAddressOutOfStaticMemory(
-                0x10000, 0x10003, 0x10000
+                0x10000, 0x10003, 1
             ))
         );
 
@@ -507,7 +507,7 @@ mod tests {
                 None
             ),
             CodeError::DataSection(DataSectionError::EndAddressOutOfStaticMemory(
-                0xfffd, 0x10000, 0x10000
+                0xfffd, 0x10000, 1
             ))
         );
     }
