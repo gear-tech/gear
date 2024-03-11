@@ -18,7 +18,7 @@
 
 //! Costs module.
 
-use crate::pages::{PageU32Size, WasmPage};
+use crate::pages::WasmPage;
 use core::{fmt::Debug, marker::PhantomData};
 use paste::paste;
 use scale_info::scale::{Decode, Encode};
@@ -90,7 +90,7 @@ pub struct Call;
 pub struct Bytes(u32);
 
 // +_+_+ change naming weights to cost
-// Comments
+// +_+_+ Comments
 /// Describes the weight for each imported function that a program is allowed to call.
 #[derive(Clone, Default)]
 pub struct ExtWeights {
@@ -308,13 +308,14 @@ pub struct ExtWeights {
     pub gr_create_program_wgas_salt_per_byte: CostPer<Bytes>,
 }
 
+// +_+_+ comments
 /// Enumerates syscalls that can be charged by gas meter.
 #[derive(Debug, Copy, Clone)]
 pub enum CostToken {
     /// Charge zero gas
     Null,
-    /// Charge for calling `alloc`, taking into account pages amount.
-    Alloc(u32),
+    /// Charge for calling `alloc`.
+    Alloc,
     /// Charge for calling `free`.
     Free,
     /// Charge for calling `free_range`
@@ -436,11 +437,7 @@ impl CostToken {
 
         match *self {
             Null => 0,
-            Alloc(pages) => {
-                // +_+_+ tmp
-                let pages = WasmPage::new(pages).unwrap();
-                s.alloc.one().saturating_add(s.alloc_per_page.calc(pages))
-            }
+            Alloc => s.alloc.one(),
             Free => s.free.one(),
             FreeRange => s.free_range.one(),
             ReserveGas => s.gr_reserve_gas.one(),

@@ -368,23 +368,23 @@ mod tests {
 
     #[test]
     fn charge_token_fails() {
-        let token = CostToken::Alloc(0).token(&ExtWeights {
+        let amount = CostToken::Alloc.token(&ExtWeights {
             alloc: 1_000.into(),
             ..Default::default()
         });
 
         let mut counter = GasCounter::new(10);
-        assert_eq!(counter.charge(token), ChargeResult::NotEnough);
+        assert_eq!(counter.charge(amount), ChargeResult::NotEnough);
     }
 
     #[test]
     fn charge_allowance_token_fails() {
-        let token = CostToken::Alloc(0).token(&ExtWeights {
+        let amount = CostToken::Alloc.token(&ExtWeights {
             alloc: 1_000.into(),
             ..Default::default()
         });
 
         let mut counter = GasAllowanceCounter::new(10);
-        assert_eq!(counter.charge(token), ChargeResult::NotEnough);
+        assert_eq!(counter.charge(amount), ChargeResult::NotEnough);
     }
 }

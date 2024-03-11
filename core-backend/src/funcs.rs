@@ -625,7 +625,7 @@ where
     }
 
     pub fn alloc(pages: u32) -> impl Syscall<Ext, u32> {
-        InfallibleSyscall::new(CostToken::Alloc(pages), move |ctx: &mut CallerWrap<Ext>| {
+        InfallibleSyscall::new(CostToken::Alloc, move |ctx: &mut CallerWrap<Ext>| {
             let res = ctx.alloc(pages);
             let res = ctx.process_alloc_func_result(res)?;
 

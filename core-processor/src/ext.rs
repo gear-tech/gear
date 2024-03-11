@@ -764,6 +764,9 @@ impl Externalities for Ext {
     ) -> Result<WasmPage, Self::AllocError> {
         let pages = WasmPage::new(pages_num).map_err(|_| AllocError::ProgramAllocOutOfBounds)?;
 
+        // Charge for pages amount
+        self.charge_gas_if_enough(self.context.host_fn_weights.alloc_per_page.calc(pages))?;
+
         self.context
             .allocations_context
             .alloc::<LazyGrowHandler>(pages, mem, |pages| {
