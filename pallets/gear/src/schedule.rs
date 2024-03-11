@@ -30,7 +30,7 @@ use frame_support::{
 };
 use gear_core::{
     code::MAX_WASM_PAGE_AMOUNT,
-    costs::HostFnWeights as CoreHostFnWeights,
+    costs::ExtWeights as CoreHostFnWeights,
     message,
     pages::{GearPage, PageU32Size, WasmPage, GEAR_PAGE_SIZE},
 };

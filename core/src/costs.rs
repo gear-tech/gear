@@ -81,7 +81,7 @@ impl<P: PageNumber> Default for CostPerPage<P> {
 
 /// Describes the weight for each imported function that a program is allowed to call.
 #[derive(Clone, Encode, Decode, PartialEq, Eq, Default)]
-pub struct HostFnWeights {
+pub struct ExtWeights {
     /// Weight of calling `alloc`.
     pub alloc: u64,
 
@@ -316,129 +316,129 @@ impl Token for RuntimeToken {
 
 /// Enumerates syscalls that can be charged by gas meter.
 #[derive(Debug, Copy, Clone)]
-pub enum RuntimeCosts {
+pub enum CostToken {
     /// Charge zero gas
     Null,
-    /// Weight of calling `alloc` per amount of pages.
+    /// Charge for calling `alloc`, taking into account pages amount.
     Alloc(u32),
-    /// Weight of calling `free`.
+    /// Charge for calling `free`.
     Free,
-    /// Base weight of calling `free_range`
+    /// Charge for calling `free_range`
     FreeRange,
-    /// Weight of calling `free_range` per amount of pages.
+    /// Charge for amount of pages in `free_range` calling.
     FreeRangePerPage(u32),
-    /// Weight of calling `gr_reserve_gas`.
+    /// Charge for calling `gr_reserve_gas`.
     ReserveGas,
-    /// Weight of calling `gr_unreserve_gas`.
+    /// Charge for calling `gr_unreserve_gas`.
     UnreserveGas,
-    /// Weight of calling `gr_system_reserve_gas`.
+    /// Charge for calling `gr_system_reserve_gas`.
     SystemReserveGas,
-    /// Weight of calling `gr_gas_available`.
+    /// Charge for calling `gr_gas_available`.
     GasAvailable,
-    /// Weight of calling `gr_message_id`.
+    /// Charge for calling `gr_message_id`.
     MsgId,
-    /// Weight of calling `gr_program_id`.
+    /// Charge for calling `gr_program_id`.
     ProgramId,
-    /// Weight of calling `gr_source`.
+    /// Charge for calling `gr_source`.
     Source,
-    /// Weight of calling `gr_value`.
+    /// Charge for calling `gr_value`.
     Value,
-    /// Weight of calling `gr_value_available`.
+    /// Charge for calling `gr_value_available`.
     ValueAvailable,
-    /// Weight of calling `gr_size`.
+    /// Charge for calling `gr_size`.
     Size,
-    /// Weight of calling `gr_read`.
+    /// Charge for calling `gr_read`.
     Read,
-    /// Weight of calling `gr_read` per read buffer bytes number.
+    /// Charge for calling `gr_read`, taking into account buffer size in bytes.
     ReadPerByte(u32),
-    /// Weight of calling `gr_env_vars`.
+    /// Charge for calling `gr_env_vars`.
     EnvVars,
-    /// Weight of calling `gr_block_height`.
+    /// Charge for calling `gr_block_height`.
     BlockHeight,
-    /// Weight of calling `gr_block_timestamp`.
+    /// Charge for calling `gr_block_timestamp`.
     BlockTimestamp,
-    /// Weight of calling `gr_random`.
+    /// Charge for calling `gr_random`.
     Random,
-    /// Weight of calling `gr_reply_deposit`.
+    /// Charge for calling `gr_reply_deposit`.
     ReplyDeposit,
-    /// Weight of calling `gr_send`.
+    /// Charge for calling `gr_send`.
     Send(u32),
-    /// Weight of calling `gr_send_wgas`.
+    /// Charge for calling `gr_send_wgas`.
     SendWGas(u32),
-    /// Weight of calling `gr_send_init`.
+    /// Charge for calling `gr_send_init`.
     SendInit,
-    /// Weight of calling `gr_send_push`.
+    /// Charge for calling `gr_send_push`.
     SendPush(u32),
-    /// Weight of calling `gr_send_commit`.
+    /// Charge for calling `gr_send_commit`.
     SendCommit,
-    /// Weight of calling `gr_send_commit_wgas`.
+    /// Charge for calling `gr_send_commit_wgas`.
     SendCommitWGas,
-    /// Weight of calling `gr_reservation_send`.
+    /// Charge for calling `gr_reservation_send`.
     ReservationSend(u32),
-    /// Weight of calling `gr_reservation_send_commit`.
+    /// Charge for calling `gr_reservation_send_commit`.
     ReservationSendCommit,
-    /// Weight of calling `gr_send_input`.
+    /// Charge for calling `gr_send_input`.
     SendInput,
-    /// Weight of calling `gr_send_input_wgas`.
+    /// Charge for calling `gr_send_input_wgas`.
     SendInputWGas,
-    /// Weight of calling `gr_send_push_input`.
+    /// Charge for calling `gr_send_push_input`.
     SendPushInput,
     /// Weight per buffer bytes number in sent input.
     SendPushInputPerByte(u32),
-    /// Weight of calling `gr_reply`.
+    /// Charge for calling `gr_reply`.
     Reply(u32),
-    /// Weight of calling `gr_reply_wgas`.
+    /// Charge for calling `gr_reply_wgas`.
     ReplyWGas(u32),
-    /// Weight of calling `gr_reply_push`.
+    /// Charge for calling `gr_reply_push`.
     ReplyPush(u32),
-    /// Weight of calling `gr_reply_commit`.
+    /// Charge for calling `gr_reply_commit`.
     ReplyCommit,
-    /// Weight of calling `gr_reply_commit_wgas`.
+    /// Charge for calling `gr_reply_commit_wgas`.
     ReplyCommitWGas,
-    /// Weight of calling `gr_reservation_reply`.
+    /// Charge for calling `gr_reservation_reply`.
     ReservationReply(u32),
-    /// Weight of calling `gr_reservation_reply_commit`.
+    /// Charge for calling `gr_reservation_reply_commit`.
     ReservationReplyCommit,
-    /// Weight of calling `gr_reply_input`.
+    /// Charge for calling `gr_reply_input`.
     ReplyInput,
-    /// Weight of calling `gr_reply_input_wgas`.
+    /// Charge for calling `gr_reply_input_wgas`.
     ReplyInputWGas,
-    /// Weight of calling `gr_reply_push_input`.
+    /// Charge for calling `gr_reply_push_input`.
     ReplyPushInput,
     /// Weight per buffer bytes number in reply input.
     ReplyPushInputPerByte(u32),
-    /// Weight of calling `gr_reply_to`.
+    /// Charge for calling `gr_reply_to`.
     ReplyTo,
-    /// Weight of calling `gr_signal_code`.
+    /// Charge for calling `gr_signal_code`.
     SignalCode,
-    /// Weight of calling `gr_signal_from`.
+    /// Charge for calling `gr_signal_from`.
     SignalFrom,
-    /// Weight of calling `gr_debug`.
+    /// Charge for calling `gr_debug`.
     Debug(u32),
-    /// Weight of calling `gr_reply_code`.
+    /// Charge for calling `gr_reply_code`.
     ReplyCode,
-    /// Weight of calling `gr_exit`.
+    /// Charge for calling `gr_exit`.
     Exit,
-    /// Weight of calling `gr_leave`.
+    /// Charge for calling `gr_leave`.
     Leave,
-    /// Weight of calling `gr_wait`.
+    /// Charge for calling `gr_wait`.
     Wait,
-    /// Weight of calling `gr_wait_for`.
+    /// Charge for calling `gr_wait_for`.
     WaitFor,
-    /// Weight of calling `gr_wait_up_to`.
+    /// Charge for calling `gr_wait_up_to`.
     WaitUpTo,
-    /// Weight of calling `gr_wake`.
+    /// Charge for calling `gr_wake`.
     Wake,
-    /// Weight of calling `gr_create_program`.
+    /// Charge for calling `gr_create_program`.
     CreateProgram(u32, u32),
-    /// Weight of calling `gr_create_program_wgas`.
+    /// Charge for calling `gr_create_program_wgas`.
     CreateProgramWGas(u32, u32),
 }
 
-impl RuntimeCosts {
+impl CostToken {
     /// Returns a token with a weight given the parameters from `HostFnWeights`.
-    pub fn token(&self, s: &HostFnWeights) -> RuntimeToken {
-        use self::RuntimeCosts::*;
+    pub fn token(&self, s: &ExtWeights) -> RuntimeToken {
+        use self::CostToken::*;
 
         let cost_per_byte =
             |weight_per_byte: u64, len: u32| weight_per_byte.saturating_mul(len.into());

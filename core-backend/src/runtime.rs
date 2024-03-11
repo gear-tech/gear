@@ -29,7 +29,7 @@ use crate::{
 };
 use alloc::vec::Vec;
 use codec::{Decode, MaxEncodedLen};
-use gear_core::{costs::RuntimeCosts, pages::WasmPage};
+use gear_core::{costs::CostToken, pages::WasmPage};
 use gear_sandbox::{default_executor::Caller, AsContextExt, HostError, Value};
 
 pub(crate) fn as_i64(v: Value) -> Option<i64> {
@@ -74,7 +74,7 @@ impl<'a, 'b, Ext: BackendExternalities + 'static> CallerWrap<'a, 'b, Ext> {
     pub fn run_any<T, F>(
         &mut self,
         gas: u64,
-        cost: RuntimeCosts,
+        cost: CostToken,
         f: F,
     ) -> Result<(u64, T), HostError>
     where
@@ -100,7 +100,7 @@ impl<'a, 'b, Ext: BackendExternalities + 'static> CallerWrap<'a, 'b, Ext> {
         &mut self,
         gas: u64,
         res_ptr: u32,
-        cost: RuntimeCosts,
+        cost: CostToken,
         f: F,
     ) -> Result<(u64, ()), HostError>
     where

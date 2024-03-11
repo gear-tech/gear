@@ -18,7 +18,7 @@
 
 //! Gas module.
 
-use crate::costs::RuntimeCosts;
+use crate::costs::CostToken;
 use enum_iterator::Sequence;
 use scale_info::{
     scale::{Decode, Encode},
@@ -279,9 +279,9 @@ pub enum ChargeError {
 /// Counters owner can change gas limit and allowance counters.
 pub trait CountersOwner {
     /// Charge for runtime api call.
-    fn charge_gas_runtime(&mut self, cost: RuntimeCosts) -> Result<(), ChargeError>;
+    fn charge_gas_runtime(&mut self, cost: CostToken) -> Result<(), ChargeError>;
     /// Charge for runtime api call if has enough of gas, else just returns error.
-    fn charge_gas_runtime_if_enough(&mut self, cost: RuntimeCosts) -> Result<(), ChargeError>;
+    fn charge_gas_runtime_if_enough(&mut self, cost: CostToken) -> Result<(), ChargeError>;
     /// Charge gas if enough, else just returns error.
     fn charge_gas_if_enough(&mut self, amount: u64) -> Result<(), ChargeError>;
     /// Returns gas limit and gas allowance left.
@@ -357,7 +357,7 @@ pub struct GasInfo {
 mod tests {
     use super::{ChargeResult, GasCounter};
     use crate::{
-        costs::{HostFnWeights, RuntimeCosts},
+        costs::{ExtWeights, CostToken},
         gas::GasAllowanceCounter,
     };
 
@@ -387,7 +387,7 @@ mod tests {
 
     #[test]
     fn charge_token_fails() {
-        let token = RuntimeCosts::Alloc(0).token(&HostFnWeights {
+        let token = CostToken::Alloc(0).token(&ExtWeights {
             alloc: 1_000,
             ..Default::default()
         });
@@ -398,7 +398,7 @@ mod tests {
 
     #[test]
     fn charge_allowance_token_fails() {
-        let token = RuntimeCosts::Alloc(0).token(&HostFnWeights {
+        let token = CostToken::Alloc(0).token(&ExtWeights {
             alloc: 1_000,
             ..Default::default()
         });

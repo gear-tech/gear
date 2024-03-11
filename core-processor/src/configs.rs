@@ -20,7 +20,7 @@
 
 use alloc::{collections::BTreeSet, vec::Vec};
 use gear_core::{
-    costs::{CostPerPage, HostFnWeights},
+    costs::{CostPerPage, ExtWeights},
     pages::{GearPage, WasmPage},
 };
 use gear_lazy_pages_common::LazyPagesWeights;
@@ -96,7 +96,7 @@ impl PageCosts {
     pub fn lazy_pages_weights(&self) -> LazyPagesWeights {
         // Because page may have not data in storage, we do not include
         // cost for loading page data from storage in weights. We provide
-        // this cost in `load_page_data` field, so lazy-pages can use it
+        // this cost in `load_page_storage_data` field, so lazy-pages can use it
         // when page data is in storage and must be loaded.
         // On other hand we include cost for uploading page data to storage
         // in each `write` weight, because each write cause page uploading.
@@ -153,7 +153,7 @@ pub struct ExecutionSettings {
     /// Minimal amount of existence for account.
     pub existential_deposit: u128,
     /// Weights of host functions.
-    pub host_fn_weights: HostFnWeights,
+    pub host_fn_weights: ExtWeights,
     /// Functions forbidden to be called.
     pub forbidden_funcs: BTreeSet<SyscallName>,
     /// Threshold for inserting into mailbox
@@ -191,7 +191,7 @@ pub struct BlockConfig {
     /// Outgoing bytes limit.
     pub outgoing_bytes_limit: u32,
     /// Host function weights.
-    pub host_fn_weights: HostFnWeights,
+    pub host_fn_weights: ExtWeights,
     /// Forbidden functions.
     pub forbidden_funcs: BTreeSet<SyscallName>,
     /// Mailbox threshold.

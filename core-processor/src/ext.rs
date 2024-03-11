@@ -25,7 +25,7 @@ use alloc::{
     vec::Vec,
 };
 use gear_core::{
-    costs::{HostFnWeights, RuntimeCosts},
+    costs::{ExtWeights, CostToken},
     env::{Externalities, PayloadSliceLock, UnlockPayloadBound},
     env_vars::{EnvVars, EnvVarsV1},
     gas::{
@@ -91,7 +91,7 @@ pub struct ProcessorContext {
     /// initialized with the corresponding code (with the same code hash).
     pub program_candidates_data: BTreeMap<CodeId, Vec<(MessageId, ProgramId)>>,
     /// Weights of host functions.
-    pub host_fn_weights: HostFnWeights,
+    pub host_fn_weights: ExtWeights,
     /// Functions forbidden to be called.
     pub forbidden_funcs: BTreeSet<SyscallName>,
     /// Mailbox threshold.
@@ -675,7 +675,7 @@ impl Ext {
 }
 
 impl CountersOwner for Ext {
-    fn charge_gas_runtime(&mut self, cost: RuntimeCosts) -> Result<(), ChargeError> {
+    fn charge_gas_runtime(&mut self, cost: CostToken) -> Result<(), ChargeError> {
         let token = cost.token(&self.context.host_fn_weights);
         let common_charge = self.context.gas_counter.charge(token);
         let allowance_charge = self.context.gas_allowance_counter.charge(token);
@@ -688,7 +688,7 @@ impl CountersOwner for Ext {
         }
     }
 
-    fn charge_gas_runtime_if_enough(&mut self, cost: RuntimeCosts) -> Result<(), ChargeError> {
+    fn charge_gas_runtime_if_enough(&mut self, cost: CostToken) -> Result<(), ChargeError> {
         let amount = cost.token(&self.context.host_fn_weights).weight();
         self.charge_gas_if_enough(amount)
     }
@@ -849,7 +849,7 @@ impl Externalities for Ext {
         len: u32,
     ) -> Result<(), Self::FallibleError> {
         let range = self.context.message_context.check_input_range(offset, len);
-        self.charge_gas_runtime_if_enough(RuntimeCosts::SendPushInputPerByte(range.len()))?;
+        self.charge_gas_runtime_if_enough(CostToken::SendPushInputPerByte(range.len()))?;
 
         self.context
             .message_context
@@ -956,7 +956,7 @@ impl Externalities for Ext {
 
     fn reply_push_input(&mut self, offset: u32, len: u32) -> Result<(), Self::FallibleError> {
         let range = self.context.message_context.check_input_range(offset, len);
-        self.charge_gas_runtime_if_enough(RuntimeCosts::ReplyPushInputPerByte(range.len()))?;
+        self.charge_gas_runtime_if_enough(CostToken::ReplyPushInputPerByte(range.len()))?;
 
         self.context.message_context.reply_push_input(range)?;
 
@@ -1006,7 +1006,7 @@ impl Externalities for Ext {
         let end = at
             .checked_add(len)
             .ok_or(FallibleExecutionError::TooBigReadLen)?;
-        self.charge_gas_runtime_if_enough(RuntimeCosts::ReadPerByte(len))?;
+        self.charge_gas_runtime_if_enough(CostToken::ReadPerByte(len))?;
         PayloadSliceLock::try_new((at, end), &mut self.context.message_context)
             .ok_or_else(|| FallibleExecutionError::ReadWrongRange.into())
     }
@@ -1284,7 +1284,7 @@ mod tests {
             self
         }
 
-        fn with_weighs(mut self, weights: HostFnWeights) -> Self {
+        fn with_weighs(mut self, weights: ExtWeights) -> Self {
             self.0.host_fn_weights = weights;
 
             self
@@ -1340,7 +1340,7 @@ mod tests {
     fn test_counter_zeroes() {
         // Set initial Ext state
         let free_weight = 1000;
-        let host_fn_weights = HostFnWeights {
+        let host_fn_weights = ExtWeights {
             free: free_weight,
             ..Default::default()
         };
@@ -1357,7 +1357,7 @@ mod tests {
         );
 
         assert_eq!(
-            lack_gas_ext.charge_gas_runtime(RuntimeCosts::Free),
+            lack_gas_ext.charge_gas_runtime(CostToken::Free),
             Err(ChargeError::GasLimitExceeded),
         );
 
@@ -1380,7 +1380,7 @@ mod tests {
         );
 
         assert_eq!(
-            lack_allowance_ext.charge_gas_runtime(RuntimeCosts::Free),
+            lack_allowance_ext.charge_gas_runtime(CostToken::Free),
             Err(ChargeError::GasAllowanceExceeded),
         );
 
