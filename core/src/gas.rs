@@ -388,7 +388,7 @@ mod tests {
     #[test]
     fn charge_token_fails() {
         let token = CostToken::Alloc(0).token(&ExtWeights {
-            alloc: 1_000,
+            alloc: 1_000.into(),
             ..Default::default()
         });
 
@@ -399,7 +399,7 @@ mod tests {
     #[test]
     fn charge_allowance_token_fails() {
         let token = CostToken::Alloc(0).token(&ExtWeights {
-            alloc: 1_000,
+            alloc: 1_000.into(),
             ..Default::default()
         });
 

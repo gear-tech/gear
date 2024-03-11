@@ -797,13 +797,16 @@ impl Externalities for Ext {
             )))?
             .into();
 
+        // +_+_+
+        let pages_amount = WasmPage::new(page_count).unwrap();
+
         Ext::charge_gas_if_enough(
             &mut self.context.gas_counter,
             &mut self.context.gas_allowance_counter,
             self.context
                 .host_fn_weights
                 .free_range_per_page
-                .saturating_mul(page_count as u64),
+                .calc(pages_amount),
         )?;
 
         self.context
@@ -849,7 +852,12 @@ impl Externalities for Ext {
         len: u32,
     ) -> Result<(), Self::FallibleError> {
         let range = self.context.message_context.check_input_range(offset, len);
-        self.charge_gas_runtime_if_enough(CostToken::SendPushInputPerByte(range.len()))?;
+        self.charge_gas_if_enough(
+            self.context
+                .host_fn_weights
+                .gr_send_push_input_per_byte
+                .calc(range.len().into()),
+        )?;
 
         self.context
             .message_context
@@ -956,7 +964,12 @@ impl Externalities for Ext {
 
     fn reply_push_input(&mut self, offset: u32, len: u32) -> Result<(), Self::FallibleError> {
         let range = self.context.message_context.check_input_range(offset, len);
-        self.charge_gas_runtime_if_enough(CostToken::ReplyPushInputPerByte(range.len()))?;
+        self.charge_gas_if_enough(
+            self.context
+                .host_fn_weights
+                .gr_reply_push_input_per_byte
+                .calc(range.len().into()),
+        )?;
 
         self.context.message_context.reply_push_input(range)?;
 
@@ -1006,7 +1019,12 @@ impl Externalities for Ext {
         let end = at
             .checked_add(len)
             .ok_or(FallibleExecutionError::TooBigReadLen)?;
-        self.charge_gas_runtime_if_enough(CostToken::ReadPerByte(len))?;
+        self.charge_gas_if_enough(
+            self.context
+                .host_fn_weights
+                .gr_read_per_byte
+                .calc(len.into()),
+        )?;
         PayloadSliceLock::try_new((at, end), &mut self.context.message_context)
             .ok_or_else(|| FallibleExecutionError::ReadWrongRange.into())
     }
@@ -1341,7 +1359,7 @@ mod tests {
         // Set initial Ext state
         let free_weight = 1000;
         let host_fn_weights = ExtWeights {
-            free: free_weight,
+            free: free_weight.into(),
             ..Default::default()
         };
 
