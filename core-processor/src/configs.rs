@@ -20,7 +20,7 @@
 
 use alloc::{collections::BTreeSet, vec::Vec};
 use gear_core::{
-    costs::{CostPerPage, ExtWeights},
+    costs::{CostPer, ExtWeights},
     pages::{GearPage, WasmPage},
 };
 use gear_lazy_pages_common::LazyPagesWeights;
@@ -54,41 +54,41 @@ pub struct BlockInfo {
 #[codec(crate = scale)]
 pub struct PageCosts {
     /// Cost per one [GearPage] signal `read` processing in lazy-pages.
-    pub lazy_pages_signal_read: CostPerPage<GearPage>,
+    pub lazy_pages_signal_read: CostPer<GearPage>,
 
     /// Cost per one [GearPage] signal `write` processing in lazy-pages,
-    pub lazy_pages_signal_write: CostPerPage<GearPage>,
+    pub lazy_pages_signal_write: CostPer<GearPage>,
 
     /// Cost per one [GearPage] signal `write after read` processing in lazy-pages.
-    pub lazy_pages_signal_write_after_read: CostPerPage<GearPage>,
+    pub lazy_pages_signal_write_after_read: CostPer<GearPage>,
 
     /// Cost per one [GearPage] host func `read` access processing in lazy-pages.
-    pub lazy_pages_host_func_read: CostPerPage<GearPage>,
+    pub lazy_pages_host_func_read: CostPer<GearPage>,
 
     /// Cost per one [GearPage] host func `write` access processing in lazy-pages.
-    pub lazy_pages_host_func_write: CostPerPage<GearPage>,
+    pub lazy_pages_host_func_write: CostPer<GearPage>,
 
     /// Cost per one [GearPage] host func `write after read` access processing in lazy-pages,
-    pub lazy_pages_host_func_write_after_read: CostPerPage<GearPage>,
+    pub lazy_pages_host_func_write_after_read: CostPer<GearPage>,
 
     /// Cost per one [GearPage] data loading from storage and moving it in program memory.
     /// Does not include cost for storage read, because it is taken in account separately.
-    pub load_page_data: CostPerPage<GearPage>,
+    pub load_page_data: CostPer<GearPage>,
 
     /// Cost per one [GearPage] uploading data to storage.
     /// Does not include cost for processing changed page data in runtime,
     /// cause it is taken in account separately.
-    pub upload_page_data: CostPerPage<GearPage>,
+    pub upload_page_data: CostPer<GearPage>,
 
     /// Cost per one [WasmPage] static page. Static pages can have static data,
     /// and executor must to move this data to static pages before execution.
-    pub static_page: CostPerPage<WasmPage>,
+    pub static_page: CostPer<WasmPage>,
 
     /// Cost per one [WasmPage] for memory growing.
-    pub mem_grow: CostPerPage<WasmPage>,
+    pub mem_grow: CostPer<WasmPage>,
 
     /// Cost per one [GearPage] storage read, when para-chain execution.
-    pub parachain_load_heuristic: CostPerPage<GearPage>,
+    pub parachain_load_heuristic: CostPer<GearPage>,
 }
 
 impl PageCosts {

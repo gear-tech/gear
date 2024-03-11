@@ -18,19 +18,19 @@
 
 //! Costs module.
 
-use crate::{gas::Token, pages::PageNumber};
+use crate::gas::Token;
 use core::{fmt::Debug, marker::PhantomData};
 use paste::paste;
 use scale_info::scale::{Decode, Encode};
 
-/// Cost per one memory page.
+/// +_+_+
 #[derive(Clone, Copy, PartialEq, Eq, Encode, Decode)]
-pub struct CostPerPage<P: PageNumber> {
+pub struct CostPer<T> {
     cost: u64,
-    _phantom: PhantomData<P>,
+    _phantom: PhantomData<T>,
 }
 
-impl<P: PageNumber> CostPerPage<P> {
+impl<T> CostPer<T> {
     /// Const constructor
     pub const fn new(cost: u64) -> Self {
         Self {
@@ -39,43 +39,45 @@ impl<P: PageNumber> CostPerPage<P> {
         }
     }
 
-    /// Calculate cost for `pages`.
-    pub fn calc(&self, pages: P) -> u64 {
-        self.cost.saturating_mul(pages.raw() as u64)
-    }
-
-    /// Cost for one page.
+    /// Cost for one.
     pub const fn one(&self) -> u64 {
         self.cost
     }
 
-    /// Returns another [CostPerPage] with increased `cost` to `other.cost`.
+    /// Returns another [`CostPer`] with increased `cost` to `other.cost`.
     pub const fn saturating_add(&self, other: Self) -> Self {
         Self::new(self.cost.saturating_add(other.cost))
     }
 }
 
-impl<P: PageNumber> Debug for CostPerPage<P> {
+impl<T: Into<u32>> CostPer<T> {
+    /// Calculate cost for `num` amount of `T`.
+    pub fn calc(&self, num: T) -> u64 {
+        self.cost.saturating_mul(Into::<u32>::into(num).into())
+    }
+}
+
+impl<T> Debug for CostPer<T> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.write_fmt(format_args!("{}", &self.cost))
     }
 }
 
-impl<P: PageNumber> From<u64> for CostPerPage<P> {
+impl<T> From<u64> for CostPer<T> {
     fn from(cost: u64) -> Self {
-        CostPerPage::new(cost)
+        CostPer::new(cost)
     }
 }
 
-impl<P: PageNumber> From<CostPerPage<P>> for u64 {
-    fn from(value: CostPerPage<P>) -> Self {
+impl<T> From<CostPer<T>> for u64 {
+    fn from(value: CostPer<T>) -> Self {
         value.cost
     }
 }
 
-impl<P: PageNumber> Default for CostPerPage<P> {
+impl<T> Default for CostPer<T> {
     fn default() -> Self {
-        CostPerPage::new(0)
+        CostPer::new(0)
     }
 }
 

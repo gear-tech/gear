@@ -25,7 +25,7 @@ use alloc::{
     vec::Vec,
 };
 use gear_core::{
-    costs::{ExtWeights, CostToken},
+    costs::{CostToken, ExtWeights},
     env::{Externalities, PayloadSliceLock, UnlockPayloadBound},
     env_vars::{EnvVars, EnvVarsV1},
     gas::{

@@ -357,7 +357,7 @@ pub struct GasInfo {
 mod tests {
     use super::{ChargeResult, GasCounter};
     use crate::{
-        costs::{ExtWeights, CostToken},
+        costs::{CostToken, ExtWeights},
         gas::GasAllowanceCounter,
     };
 

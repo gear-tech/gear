@@ -71,12 +71,7 @@ impl<'a, 'b, Ext: BackendExternalities + 'static> CallerWrap<'a, 'b, Ext> {
     }
 
     #[track_caller]
-    pub fn run_any<T, F>(
-        &mut self,
-        gas: u64,
-        cost: CostToken,
-        f: F,
-    ) -> Result<(u64, T), HostError>
+    pub fn run_any<T, F>(&mut self, gas: u64, cost: CostToken, f: F) -> Result<(u64, T), HostError>
     where
         F: FnOnce(&mut Self) -> Result<T, UndefinedTerminationReason>,
     {
