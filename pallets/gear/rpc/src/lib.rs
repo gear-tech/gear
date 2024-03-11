@@ -50,7 +50,7 @@ fn runtime_error_into_rpc_error(err: impl std::fmt::Display) -> JsonRpseeError {
 
 #[rpc(server)]
 pub trait GearApi<BlockHash, ResponseType> {
-    #[method(name = "gear_readOnlySendMessage")]
+    #[method(name = "gear_calculate_replyForHandle")]
     fn calculate_reply_for_handle(
         &self,
         origin: H256,

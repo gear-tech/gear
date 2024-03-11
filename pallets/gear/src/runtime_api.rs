@@ -42,7 +42,7 @@ impl<T: Config> Pallet<T>
 where
     T::AccountId: Origin,
 {
-    // Internal implementation of RPC call `gear_readOnlySendMessage(..)`.
+    // Internal implementation of RPC call `gear_calculate_replyForHandle(..)`.
     //
     // The RPC call is used to figure out the reply that would be send
     // on calling `Gear::send_message(..)` with following arguments.
