@@ -158,7 +158,8 @@ where
         let mut reserved = 0;
         let mut burned = 0;
 
-        let mut ext_manager = ExtManager::<T>::default();
+        let (builtin_dispatcher, _) = T::BuiltinDispatcherFactory::create();
+        let mut ext_manager = ExtManager::<T>::new(builtin_dispatcher);
 
         let gas_allowance = allowance_multiplier
             .unwrap_or(RUNTIME_API_BLOCK_LIMITS_COUNT)
