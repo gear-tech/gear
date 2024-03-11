@@ -50,7 +50,7 @@ fn runtime_error_into_rpc_error(err: impl std::fmt::Display) -> JsonRpseeError {
 
 #[rpc(server)]
 pub trait GearApi<BlockHash, ResponseType> {
-    #[method(name = "gear_calculate_replyForHandle")]
+    #[method(name = "gear_calculateReplyForHandle")]
     fn calculate_reply_for_handle(
         &self,
         origin: H256,
@@ -61,7 +61,7 @@ pub trait GearApi<BlockHash, ResponseType> {
         at: Option<BlockHash>,
     ) -> RpcResult<ReplyInfo>;
 
-    #[method(name = "gear_calculateInitCreateGas", aliases = ["gear_calculate_gasForCreate"])]
+    #[method(name = "gear_calculateInitCreateGas", aliases = ["gear_calculateGasForCreate"])]
     fn get_init_create_gas_spent(
         &self,
         source: H256,
@@ -72,7 +72,7 @@ pub trait GearApi<BlockHash, ResponseType> {
         at: Option<BlockHash>,
     ) -> RpcResult<GasInfo>;
 
-    #[method(name = "gear_calculateInitUploadGas", aliases = ["gear_calculate_gasForUpload"])]
+    #[method(name = "gear_calculateInitUploadGas", aliases = ["gear_calculateGasForUpload"])]
     fn get_init_upload_gas_spent(
         &self,
         source: H256,
@@ -83,7 +83,7 @@ pub trait GearApi<BlockHash, ResponseType> {
         at: Option<BlockHash>,
     ) -> RpcResult<GasInfo>;
 
-    #[method(name = "gear_calculateHandleGas", aliases = ["gear_calculate_gasForHandle"])]
+    #[method(name = "gear_calculateHandleGas", aliases = ["gear_calculateGasForHandle"])]
     fn get_handle_gas_spent(
         &self,
         source: H256,
@@ -94,7 +94,7 @@ pub trait GearApi<BlockHash, ResponseType> {
         at: Option<BlockHash>,
     ) -> RpcResult<GasInfo>;
 
-    #[method(name = "gear_calculateReplyGas", aliases = ["gear_calculate_gasForReply"])]
+    #[method(name = "gear_calculateReplyGas", aliases = ["gear_calculateGasForReply"])]
     fn get_reply_gas_spent(
         &self,
         source: H256,
