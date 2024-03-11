@@ -61,7 +61,7 @@ pub trait GearApi<BlockHash, ResponseType> {
         at: Option<BlockHash>,
     ) -> RpcResult<ReplyInfo>;
 
-    #[method(name = "gear_calculateInitCreateGas")]
+    #[method(name = "gear_calculateInitCreateGas", aliases = ["gear_calculate_gasForCreate"])]
     fn get_init_create_gas_spent(
         &self,
         source: H256,
@@ -72,7 +72,7 @@ pub trait GearApi<BlockHash, ResponseType> {
         at: Option<BlockHash>,
     ) -> RpcResult<GasInfo>;
 
-    #[method(name = "gear_calculateInitUploadGas")]
+    #[method(name = "gear_calculateInitUploadGas", aliases = ["gear_calculate_gasForUpload"])]
     fn get_init_upload_gas_spent(
         &self,
         source: H256,
@@ -83,7 +83,7 @@ pub trait GearApi<BlockHash, ResponseType> {
         at: Option<BlockHash>,
     ) -> RpcResult<GasInfo>;
 
-    #[method(name = "gear_calculateHandleGas")]
+    #[method(name = "gear_calculateHandleGas", aliases = ["gear_calculate_gasForHandle"])]
     fn get_handle_gas_spent(
         &self,
         source: H256,
@@ -94,7 +94,7 @@ pub trait GearApi<BlockHash, ResponseType> {
         at: Option<BlockHash>,
     ) -> RpcResult<GasInfo>;
 
-    #[method(name = "gear_calculateReplyGas")]
+    #[method(name = "gear_calculateReplyGas", aliases = ["gear_calculate_gasForReply"])]
     fn get_reply_gas_spent(
         &self,
         source: H256,
