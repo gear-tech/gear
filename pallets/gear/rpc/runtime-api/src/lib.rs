@@ -26,7 +26,7 @@ use sp_runtime::traits::Block as BlockT;
 use sp_std::vec::Vec;
 
 sp_api::decl_runtime_apis! {
-    #[api_version(3)]
+    #[api_version(2)]
     pub trait GearApi {
         #[allow(clippy::too_many_arguments)]
         fn read_only_send_message(origin: H256, destination: H256, payload: Vec<u8>, gas_limit: u64, value: u128, allowance_multiplier: u64) -> Result<ReadOnlyReply, Vec<u8>>;
