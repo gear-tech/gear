@@ -49,7 +49,7 @@ pub use crate::{
     pallet::*,
     schedule::{HostFnWeights, InstructionWeights, Limits, MemoryWeights, Schedule},
 };
-pub use gear_core::{gas::GasInfo, message::ReadOnlyReply};
+pub use gear_core::{gas::GasInfo, message::ReplyInfo};
 pub use weights::WeightInfo;
 
 use alloc::{
@@ -802,7 +802,7 @@ pub mod pallet {
             gas_limit: u64,
             value: u128,
             allowance_multiplier: u64,
-        ) -> Result<ReadOnlyReply, Vec<u8>> {
+        ) -> Result<ReplyInfo, Vec<u8>> {
             Self::read_only_send_message_impl(
                 origin,
                 destination.cast(),
@@ -821,7 +821,7 @@ pub mod pallet {
             payload: Vec<u8>,
             gas_limit: u64,
             value: u128,
-        ) -> Result<ReadOnlyReply, String> {
+        ) -> Result<ReplyInfo, String> {
             Self::run_with_ext_copy(|| {
                 Self::read_only_send_message_impl(
                     origin.cast(),

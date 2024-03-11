@@ -234,7 +234,7 @@ pub trait Packet {
 /// The struct contains results of read only send message RPC call.
 #[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
-pub struct ReadOnlyReply {
+pub struct ReplyInfo {
     /// Payload of the reply.
     pub payload: Vec<u8>,
     /// Value sent with reply.

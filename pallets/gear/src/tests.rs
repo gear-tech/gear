@@ -49,7 +49,7 @@ use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
     message::{
         ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext, Payload,
-        ReadOnlyReply, StoredDispatch, UserStoredMessage,
+        ReplyInfo, StoredDispatch, UserStoredMessage,
     },
     pages::{PageNumber, PageU32Size, WasmPage},
 };
@@ -87,7 +87,7 @@ fn read_only_send_message_works() {
 
         assert_eq!(
             res,
-            ReadOnlyReply {
+            ReplyInfo {
                 payload: b"PONG".to_vec(),
                 value: 0,
                 code: ReplyCode::Success(SuccessReplyReason::Manual)
@@ -101,7 +101,7 @@ fn read_only_send_message_works() {
 
         assert_eq!(
             res,
-            ReadOnlyReply {
+            ReplyInfo {
                 payload: ActorExecutionErrorReplyReason::Trap(TrapExplanation::GasLimitExceeded)
                     .to_string()
                     .into_bytes(),

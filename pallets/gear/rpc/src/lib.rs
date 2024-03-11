@@ -31,7 +31,7 @@ use jsonrpsee::{
     types::error::{CallError, ErrorObject},
 };
 pub use pallet_gear_rpc_runtime_api::GearApi as GearRuntimeApi;
-use pallet_gear_rpc_runtime_api::{GasInfo, HandleKind, ReadOnlyReply};
+use pallet_gear_rpc_runtime_api::{GasInfo, HandleKind, ReplyInfo};
 use sp_api::{ApiError, ApiExt, ApiRef, ProvideRuntimeApi};
 use sp_blockchain::HeaderBackend;
 use sp_core::{Bytes, H256};
@@ -59,7 +59,7 @@ pub trait GearApi<BlockHash, ResponseType> {
         gas_limit: u64,
         value: u128,
         at: Option<BlockHash>,
-    ) -> RpcResult<ReadOnlyReply>;
+    ) -> RpcResult<ReplyInfo>;
 
     #[method(name = "gear_calculateInitCreateGas")]
     fn get_init_create_gas_spent(
@@ -276,7 +276,7 @@ where
         gas_limit: u64,
         value: u128,
         at: Option<<Block as BlockT>::Hash>,
-    ) -> RpcResult<ReadOnlyReply> {
+    ) -> RpcResult<ReplyInfo> {
         let at_hash = at.unwrap_or_else(|| self.client.info().best_hash);
 
         self.run_with_api_copy(|api| {

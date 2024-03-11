@@ -22,7 +22,7 @@ use common::ActiveProgram;
 use core::convert::TryFrom;
 use frame_support::{dispatch::RawOrigin, traits::PalletInfo};
 use gear_core::{
-    code::TryNewCodeConfig, message::ReadOnlyReply, pages::WasmPage, program::MemoryInfix,
+    code::TryNewCodeConfig, message::ReplyInfo, pages::WasmPage, program::MemoryInfix,
 };
 use gear_wasm_instrument::syscalls::SyscallName;
 use sp_runtime::{DispatchErrorWithPostInfo, ModuleError};
@@ -53,7 +53,7 @@ where
         gas_limit: u64,
         value: u128,
         allowance_multiplier: u64,
-    ) -> Result<ReadOnlyReply, String> {
+    ) -> Result<ReplyInfo, String> {
         // Enabling lazy-pages for this thread.
         Self::enable_lazy_pages();
 
@@ -104,7 +104,7 @@ where
                     .map(ReplyDetails::into_parts)
                     .and_then(|(replied_to, code)| replied_to.eq(&message_id).then_some(code))
                 {
-                    return Ok(ReadOnlyReply {
+                    return Ok(ReplyInfo {
                         payload: dispatch.payload_bytes().to_vec(),
                         value: dispatch.value(),
                         code,

@@ -165,7 +165,7 @@ macro_rules! impl_runtime_apis_plus_common {
 					gas_limit: u64,
 					value: u128,
 					allowance_multiplier: u64,
-				) -> Result<pallet_gear::ReadOnlyReply, Vec<u8>> {
+				) -> Result<pallet_gear::ReplyInfo, Vec<u8>> {
 					Gear::read_only_send_message(origin, destination, payload, gas_limit, value, allowance_multiplier)
 				}
 
