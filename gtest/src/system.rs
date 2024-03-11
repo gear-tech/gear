@@ -230,13 +230,27 @@ impl System {
     /// stores the code in storage.
     #[track_caller]
     pub fn submit_code<P: AsRef<Path>>(&self, code_path: P) -> CodeId {
+        let code = fs::read(&code_path).unwrap_or_else(|_| {
+            panic!(
+                "Failed to read file {}",
+                code_path.as_ref().to_string_lossy()
+            )
+        });
+        self.0.borrow_mut().store_new_code(&code)
+    }
+
+    /// Saves code to the storage and returns it's code hash
+    ///
+    /// Same as ['submit_code'], but path is provided as relative to the current
+    /// directory.
+    #[track_caller]
+    pub fn submit_code_local<P: AsRef<Path>>(&self, code_path: P) -> CodeId {
         let path = env::current_dir()
             .expect("Unable to get root directory of the project")
             .join(code_path)
             .clean();
 
-        let code = fs::read(&path).unwrap_or_else(|_| panic!("Failed to read file {:?}", path));
-        self.0.borrow_mut().store_new_code(&code)
+        self.submit_code(path)
     }
 
     /// Extract mailbox of user with given `id`.

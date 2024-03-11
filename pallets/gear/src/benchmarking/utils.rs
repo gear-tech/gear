@@ -69,6 +69,7 @@ where
         page_costs: T::Schedule::get().memory_weights.into(),
         existential_deposit,
         outgoing_limit: 2048,
+        outgoing_bytes_limit: u32::MAX,
         host_fn_weights: Default::default(),
         forbidden_funcs: Default::default(),
         mailbox_threshold,

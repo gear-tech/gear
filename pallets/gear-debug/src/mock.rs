@@ -58,6 +58,7 @@ impl pallet_gear_debug::Config for Test {
 
 parameter_types! {
     pub const OutgoingLimit: u32 = 1024;
+    pub const OutgoingBytesLimit: u32 = 64 * 1024 * 1024;
     pub const BlockGasLimit: u64 = 100_000_000_000;
     pub const PerformanceMultiplier: u32 = 100;
 }

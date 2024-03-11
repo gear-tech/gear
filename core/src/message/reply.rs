@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use super::{common::ReplyDetails, PayloadSizeError};
+use super::common::ReplyDetails;
 use crate::{
     ids::{MessageId, ProgramId},
     message::{
@@ -222,8 +222,13 @@ impl ReplyPacket {
     }
 
     /// Prepend payload.
-    pub(super) fn try_prepend(&mut self, data: Payload) -> Result<(), PayloadSizeError> {
-        self.payload.try_prepend(data)
+    pub(super) fn try_prepend(&mut self, mut data: Payload) -> Result<(), Payload> {
+        if data.try_extend_from_slice(self.payload_bytes()).is_err() {
+            Err(data)
+        } else {
+            self.payload = data;
+            Ok(())
+        }
     }
 
     /// Packet status code.
@@ -235,6 +240,10 @@ impl ReplyPacket {
 impl Packet for ReplyPacket {
     fn payload_bytes(&self) -> &[u8] {
         self.payload.inner()
+    }
+
+    fn payload_len(&self) -> u32 {
+        self.payload.len_u32()
     }
 
     fn gas_limit(&self) -> Option<GasLimit> {

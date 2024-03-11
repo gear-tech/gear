@@ -414,12 +414,10 @@ fn error_processing_works_for_fallible_syscalls() {
     let mut unstructured = Unstructured::new(&buf);
     let mut unstructured2 = Unstructured::new(&buf);
 
-    let fallible_syscalls = SyscallName::instrumentable()
-        .into_iter()
-        .filter_map(|syscall| {
-            let invocable_syscall = InvocableSyscall::Loose(syscall);
-            invocable_syscall.is_fallible().then_some(invocable_syscall)
-        });
+    let fallible_syscalls = SyscallName::instrumentable().filter_map(|syscall| {
+        let invocable_syscall = InvocableSyscall::Loose(syscall);
+        invocable_syscall.is_fallible().then_some(invocable_syscall)
+    });
 
     for syscall in fallible_syscalls {
         // Prepare syscalls config & context settings for test case.
@@ -486,12 +484,9 @@ fn precise_syscalls_works() {
     rng.fill_bytes(&mut buf);
     let mut unstructured = Unstructured::new(&buf);
 
-    let precise_syscalls = SyscallName::instrumentable()
-        .into_iter()
-        .filter_map(|syscall| {
-            InvocableSyscall::has_precise_variant(syscall)
-                .then_some(InvocableSyscall::Precise(syscall))
-        });
+    let precise_syscalls = SyscallName::instrumentable().filter_map(|syscall| {
+        InvocableSyscall::has_precise_variant(syscall).then_some(InvocableSyscall::Precise(syscall))
+    });
 
     for syscall in precise_syscalls {
         // Prepare syscalls config & context settings for test case.
@@ -594,8 +589,9 @@ fn execute_wasm_with_custom_configs(
     let mut message_context = MessageContext::new(
         IncomingDispatch::new(DispatchKind::Init, incoming_message, None),
         program_id,
-        ContextSettings::new(0, 0, 0, 0, 0, outgoing_limit),
-    );
+        ContextSettings::with_outgoing_limits(outgoing_limit, u32::MAX),
+    )
+    .unwrap();
 
     if imitate_reply {
         let _ = message_context.reply_commit(ReplyPacket::auto(), None);

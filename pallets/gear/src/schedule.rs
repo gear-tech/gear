@@ -34,7 +34,10 @@ use gear_core::{
     message,
     pages::{GearPage, PageU32Size, WasmPage, GEAR_PAGE_SIZE},
 };
-use gear_wasm_instrument::{parity_wasm::elements, wasm_instrument::gas_metering};
+use gear_wasm_instrument::{
+    gas_metering::{MemoryGrowCost, Rules},
+    parity_wasm::elements,
+};
 use pallet_gear_proc_macro::{ScheduleDebug, WeightDebug};
 use scale_info::TypeInfo;
 #[cfg(feature = "std")]
@@ -333,6 +336,7 @@ pub struct InstructionWeights<T: Config> {
     pub i32rotr: u32,
     /// The type parameter is used in the default implementation.
     #[codec(skip)]
+    #[cfg_attr(feature = "std", serde(skip))]
     pub _phantom: PhantomData<T>,
 }
 
@@ -556,6 +560,7 @@ pub struct HostFnWeights<T: Config> {
 
     /// The type parameter is used in the default implementation.
     #[codec(skip)]
+    #[cfg_attr(feature = "std", serde(skip))]
     pub _phantom: PhantomData<T>,
 }
 
@@ -615,6 +620,7 @@ pub struct MemoryWeights<T: Config> {
 
     /// The type parameter is used in the default implementation.
     #[codec(skip)]
+    #[cfg_attr(feature = "std", serde(skip))]
     pub _phantom: PhantomData<T>,
 }
 
@@ -1119,7 +1125,7 @@ struct ScheduleRules<'a, T: Config> {
 }
 
 impl<T: Config> Schedule<T> {
-    pub fn rules(&self, module: &elements::Module) -> impl gas_metering::Rules + '_ {
+    pub fn rules(&self, module: &elements::Module) -> impl Rules + '_ {
         ScheduleRules {
             schedule: self,
             params: module
@@ -1135,7 +1141,7 @@ impl<T: Config> Schedule<T> {
     }
 }
 
-impl<'a, T: Config> gas_metering::Rules for ScheduleRules<'a, T> {
+impl<'a, T: Config> Rules for ScheduleRules<'a, T> {
     fn instruction_cost(&self, instruction: &elements::Instruction) -> Option<u32> {
         use self::elements::{Instruction::*, SignExtInstruction::*};
         let w = &self.schedule.instruction_weights;
@@ -1248,8 +1254,8 @@ impl<'a, T: Config> gas_metering::Rules for ScheduleRules<'a, T> {
         Some(weight)
     }
 
-    fn memory_grow_cost(&self) -> gas_metering::MemoryGrowCost {
-        gas_metering::MemoryGrowCost::Free
+    fn memory_grow_cost(&self) -> MemoryGrowCost {
+        MemoryGrowCost::Free
     }
 
     fn call_per_local_cost(&self) -> u32 {
@@ -1261,8 +1267,7 @@ impl<'a, T: Config> gas_metering::Rules for ScheduleRules<'a, T> {
 mod test {
     use super::*;
     use crate::mock::Test;
-    use gas_metering::Rules;
-    use gear_wasm_instrument::rules::CustomConstantCostRules;
+    use gear_wasm_instrument::{gas_metering::Rules, rules::CustomConstantCostRules};
 
     fn all_measured_instructions() -> Vec<elements::Instruction> {
         use elements::{BlockType, BrTableData, Instruction::*};
@@ -1417,5 +1422,55 @@ mod test {
             assert!(schedule_rules.instruction_cost(i).is_some());
             assert!(custom_cost_rules.instruction_cost(i).is_some());
         })
+    }
+
+    /// This function creates a program with full of empty
+    /// functions, and returns the size of the wasm code.
+    fn module_with_full_idx(count: usize) -> usize {
+        let funcs = "(func)".repeat(count);
+        let wat = format!("(module {funcs})");
+        wabt::wat2wasm(wat).expect("Failed to serialize wasm").len()
+    }
+
+    #[test]
+    fn deserialize_max_fn_idx_with_code_limit() {
+        use gear_wasm_instrument::parity_wasm::elements::{IndexMap, Serialize, VarUint32};
+        use std::io;
+
+        // Calculates the max limit of the function indexes
+        // with our code length limit.
+        let code_limit = Limits::default().code_len as usize;
+        let empty_program_len = module_with_full_idx(1);
+        let empty_fn_len = module_with_full_idx(2) - empty_program_len;
+
+        // NOTE:
+        //
+        // For triggering the bug, assigning `u32::MAX` to `max_idx`.
+        let max_idx = ((code_limit - empty_program_len) / empty_fn_len + 1) as u32;
+
+        // NOTE:
+        //
+        // We are not generating the wasm module in memory because it
+        // takes too much.
+        //
+        // Mock the max idx in the index map of parity-wasm, cherry-pick
+        // https://github.com/casper-network/casper-wasm/pull/1 to our
+        // parity-wasm fork when this test getting failed which could be
+        // happened on **raising the code len limit of our programs**.
+        //
+        // For the current testing machine, Apple M1 chip, 16GB memory,
+        // deserializing a program with full of indexes in code size 4GB
+        // will lead to the problem.
+        let mut buffer = vec![];
+        VarUint32::from(1u32).serialize(&mut buffer).unwrap();
+        VarUint32::from(max_idx - 1).serialize(&mut buffer).unwrap();
+        "foobar".to_string().serialize(&mut buffer).unwrap();
+
+        let indexmap =
+            IndexMap::<String>::deserialize(max_idx as usize, &mut io::Cursor::new(buffer))
+                .unwrap();
+
+        assert_eq!(indexmap.get(max_idx - 1), Some(&"foobar".to_string()));
+        assert_eq!(indexmap.len(), 1);
     }
 }

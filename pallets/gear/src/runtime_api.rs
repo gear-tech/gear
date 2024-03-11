@@ -248,11 +248,11 @@ where
                         // 'wait_for' and 'wait_up_to' should not consume all available gas
                         // because of the limited durations. If a duration is a big enough then it
                         // won't matter how to calculate the limit: it will be the same.
-                        JournalNote::WaitDispatch { ref dispatch, .. }
-                            if from_main_chain(dispatch.id())? =>
-                        {
-                            min_limit = initial_gas
-                        }
+                        JournalNote::WaitDispatch {
+                            ref dispatch,
+                            waited_type: MessageWaitedType::Wait,
+                            ..
+                        } if from_main_chain(dispatch.id())? => min_limit = initial_gas,
                         _ => (),
                     },
                 }
