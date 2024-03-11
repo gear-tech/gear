@@ -9402,7 +9402,7 @@ fn test_async_program_creation() {
 
         // upload a replier.
         run_to_next_block(None);
-        let code_id = CodeId::generate(&REPLIER).into_bytes();
+        let code_id = CodeId::generate(REPLIER).into_bytes();
         assert_ok!(Gear::upload_code(
             RuntimeOrigin::signed(USER_1),
             REPLIER.into()

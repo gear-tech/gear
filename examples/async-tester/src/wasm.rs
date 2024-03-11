@@ -54,7 +54,7 @@ async fn main() {
             ProgramGenerator::create_program_bytes_for_reply(id, b"PING", 0, 0)
                 .expect("create program failed")
                 .await
-                .map(|(p, r)| r)
+                .map(|(_p, r)| r)
         }
     }
     .expect("ran into error-reply");
