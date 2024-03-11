@@ -337,10 +337,7 @@ pub struct GasInfo {
 #[cfg(test)]
 mod tests {
     use super::{ChargeResult, GasCounter};
-    use crate::{
-        costs::{CostToken, ExtWeights},
-        gas::GasAllowanceCounter,
-    };
+    use crate::gas::GasAllowanceCounter;
 
     #[test]
     /// Test that `GasCounter` object returns `Enough` and decreases the remaining count
@@ -368,23 +365,13 @@ mod tests {
 
     #[test]
     fn charge_token_fails() {
-        let amount = CostToken::Alloc.token(&ExtWeights {
-            alloc: 1_000.into(),
-            ..Default::default()
-        });
-
         let mut counter = GasCounter::new(10);
-        assert_eq!(counter.charge(amount), ChargeResult::NotEnough);
+        assert_eq!(counter.charge(1000u64), ChargeResult::NotEnough);
     }
 
     #[test]
     fn charge_allowance_token_fails() {
-        let amount = CostToken::Alloc.token(&ExtWeights {
-            alloc: 1_000.into(),
-            ..Default::default()
-        });
-
         let mut counter = GasAllowanceCounter::new(10);
-        assert_eq!(counter.charge(amount), ChargeResult::NotEnough);
+        assert_eq!(counter.charge(1000u64), ChargeResult::NotEnough);
     }
 }

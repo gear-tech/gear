@@ -3918,7 +3918,6 @@ dependencies = [
  "log",
  "num-traits",
  "parity-scale-codec",
- "paste",
  "proptest",
  "rand 0.8.5",
  "scale-info",
@@ -3970,6 +3969,7 @@ dependencies = [
  "gear-wasm-instrument",
  "gsys",
  "log",
+ "paste",
  "scale-info",
 ]
 

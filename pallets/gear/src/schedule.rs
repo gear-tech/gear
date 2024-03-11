@@ -30,7 +30,6 @@ use frame_support::{
 };
 use gear_core::{
     code::MAX_WASM_PAGE_AMOUNT,
-    costs::ExtWeights as CoreHostFnWeights,
     message,
     pages::{GearPage, PageU32Size, WasmPage, GEAR_PAGE_SIZE},
 };
@@ -44,6 +43,7 @@ use scale_info::TypeInfo;
 use serde::{Deserialize, Serialize};
 use sp_runtime::RuntimeDebug;
 use sp_std::{marker::PhantomData, vec::Vec};
+use core_processor::configs::ExtWeights as CoreHostFnWeights;
 
 /// How many API calls are executed in a single batch. The reason for increasing the amount
 /// of API calls in batches (per benchmark component increase) is so that the linear regression

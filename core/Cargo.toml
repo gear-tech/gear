@@ -22,7 +22,6 @@ gear-wasm-instrument.workspace = true
 wasmparser.workspace = true
 hex = { workspace = true, features = ["alloc"] }
 hashbrown.workspace = true
-paste.workspace = true
 enum-iterator.workspace = true
 byteorder.workspace = true
 num-traits.workspace = true

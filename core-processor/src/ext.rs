@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    configs::{BlockInfo, PageCosts},
+    configs::{BlockInfo, ExtWeights, PageCosts},
     context::SystemReservationContext,
 };
 use alloc::{
@@ -25,7 +25,7 @@ use alloc::{
     vec::Vec,
 };
 use gear_core::{
-    costs::{CostToken, ExtWeights},
+    costs::CostToken,
     env::{Externalities, PayloadSliceLock, UnlockPayloadBound},
     env_vars::{EnvVars, EnvVarsV1},
     gas::{
@@ -676,7 +676,7 @@ impl Ext {
 
 impl CountersOwner for Ext {
     fn charge_gas_for_token(&mut self, token: CostToken) -> Result<(), ChargeError> {
-        let amount = token.token(&self.context.host_fn_weights);
+        let amount = self.context.host_fn_weights.cost_for_token(token);
         let common_charge = self.context.gas_counter.charge(amount);
         let allowance_charge = self.context.gas_allowance_counter.charge(amount);
         match (common_charge, allowance_charge) {
