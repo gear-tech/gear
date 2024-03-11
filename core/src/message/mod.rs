@@ -18,12 +18,6 @@
 
 //! Message processing module.
 
-use alloc::{collections::BTreeSet, string::String};
-use scale_info::{
-    scale::{Decode, Encode},
-    TypeInfo,
-};
-
 mod common;
 mod context;
 mod handle;
@@ -47,8 +41,14 @@ pub use stored::{StoredDelayedDispatch, StoredDispatch, StoredMessage};
 pub use user::{UserMessage, UserStoredMessage};
 
 use super::buffer::LimitedVec;
+use alloc::{collections::BTreeSet, string::String, vec::Vec};
 use core::fmt::Display;
+use gear_core_errors::ReplyCode;
 use gear_wasm_instrument::syscalls::SyscallName;
+use scale_info::{
+    scale::{Decode, Encode},
+    TypeInfo,
+};
 
 /// Max payload size which one message can have (8 MiB).
 pub const MAX_PAYLOAD_SIZE: usize = 8 * 1024 * 1024;
@@ -229,4 +229,16 @@ pub trait Packet {
 
     /// Packet value.
     fn value(&self) -> Value;
+}
+
+/// The struct contains results of read only send message RPC call.
+#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
+pub struct ReplyInfo {
+    /// Payload of the reply.
+    pub payload: Vec<u8>,
+    /// Value sent with reply.
+    pub value: u128,
+    /// Reply code of the reply.
+    pub code: ReplyCode,
 }

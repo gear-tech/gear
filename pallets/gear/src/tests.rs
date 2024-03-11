@@ -49,7 +49,7 @@ use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
     message::{
         ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext, Payload,
-        StoredDispatch, UserStoredMessage,
+        ReplyInfo, StoredDispatch, UserStoredMessage,
     },
     pages::{PageNumber, PageU32Size, WasmPage},
 };
@@ -69,6 +69,73 @@ pub use utils::init_logger;
 use utils::*;
 
 type Gas = <<Test as Config>::GasProvider as common::GasProvider>::GasTree;
+
+#[test]
+fn calculate_reply_for_handle_works() {
+    use demo_constructor::demo_ping;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let (_init_mid, ping_pong) = init_constructor(demo_ping::scheme());
+
+        run_to_next_block(None);
+
+        // Happy case.
+        let res = Gear::calculate_reply_for_handle(
+            USER_1,
+            ping_pong,
+            b"PING".to_vec(),
+            100_000_000_000,
+            0,
+        )
+        .expect("Failed to query reply");
+
+        assert_eq!(
+            res,
+            ReplyInfo {
+                payload: b"PONG".to_vec(),
+                value: 0,
+                code: ReplyCode::Success(SuccessReplyReason::Manual)
+            }
+        );
+
+        // Out of gas panic case.
+        let res =
+            Gear::calculate_reply_for_handle(USER_1, ping_pong, b"PING".to_vec(), 1_000_000_000, 0)
+                .expect("Failed to query reply");
+
+        assert_eq!(
+            res,
+            ReplyInfo {
+                payload: ActorExecutionErrorReplyReason::Trap(TrapExplanation::GasLimitExceeded)
+                    .to_string()
+                    .into_bytes(),
+                value: 0,
+                code: ReplyCode::Error(ErrorReplyReason::Execution(
+                    SimpleExecutionError::RanOutOfGas
+                ))
+            }
+        );
+
+        // TODO: uncomment code below (issue #3804).
+        // // Value returned in case of error.
+        // let value = get_ed() * 2;
+        // let res = Gear::calculate_reply_for_handle(
+        //     USER_1,
+        //     ping_pong,
+        //     vec![],
+        //     0,
+        //     value,
+        // ).expect("Failed to query reply");
+        // assert_eq!(res.value, value);
+
+        // Extrinsic error.
+        let res = Gear::calculate_reply_for_handle(USER_1, ping_pong, vec![], 0, get_ed() - 1)
+            .expect_err("Extrinsic should've failed");
+
+        assert!(res.contains(&format!("{:?}", Error::<Test>::ValueLessThanMinimal)))
+    })
+}
 
 #[test]
 fn calculate_gas_results_in_finite_wait() {
