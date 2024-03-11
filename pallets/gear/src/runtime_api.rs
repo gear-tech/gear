@@ -95,18 +95,22 @@ where
         {
             // Looking through all notes in order to find required reply.
             for note in &journal {
-                if let JournalNote::SendDispatch { dispatch, .. } = note {
-                    if let Some((replied_to, code)) =
-                        dispatch.reply_details().map(|d| d.into_parts())
-                    {
-                        if replied_to == message_id {
-                            return Ok(ReadOnlyReply {
-                                payload: dispatch.payload_bytes().to_vec(),
-                                value: dispatch.value(),
-                                code,
-                            });
-                        }
-                    }
+                // Only paying attention on dispatch sends.
+                let JournalNote::SendDispatch { dispatch, .. } = note else {
+                    continue;
+                };
+
+                // Only paying attention if replies to `message_id`.
+                if let Some(code) = dispatch
+                    .reply_details()
+                    .map(ReplyDetails::into_parts)
+                    .and_then(|(replied_to, code)| replied_to.eq(&message_id).then_some(code))
+                {
+                    return Ok(ReadOnlyReply {
+                        payload: dispatch.payload_bytes().to_vec(),
+                        value: dispatch.value(),
+                        code,
+                    });
                 }
             }
 
