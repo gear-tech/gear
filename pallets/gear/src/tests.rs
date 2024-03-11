@@ -81,9 +81,14 @@ fn calculate_reply_for_handle_works() {
         run_to_next_block(None);
 
         // Happy case.
-        let res =
-            Gear::calculate_reply_for_handle(USER_1, ping_pong, b"PING".to_vec(), 100_000_000_000, 0)
-                .expect("Failed to query reply");
+        let res = Gear::calculate_reply_for_handle(
+            USER_1,
+            ping_pong,
+            b"PING".to_vec(),
+            100_000_000_000,
+            0,
+        )
+        .expect("Failed to query reply");
 
         assert_eq!(
             res,
