@@ -82,11 +82,11 @@ impl<T> Default for CostPer<T> {
 }
 
 /// +_+_+
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, Copy)]
 pub struct Call;
 
 /// +_+_+
-#[derive(Debug, Default, Clone, derive_more::From, derive_more::Into)]
+#[derive(Debug, Default, Clone, Copy, derive_more::From, derive_more::Into)]
 pub struct Bytes(u32);
 
 // +_+_+ change naming weights to cost
@@ -352,19 +352,19 @@ pub enum CostToken {
     /// Charge for calling `gr_reply_deposit`.
     ReplyDeposit,
     /// Charge for calling `gr_send`.
-    Send(u32),
+    Send(Bytes),
     /// Charge for calling `gr_send_wgas`.
-    SendWGas(u32),
+    SendWGas(Bytes),
     /// Charge for calling `gr_send_init`.
     SendInit,
     /// Charge for calling `gr_send_push`.
-    SendPush(u32),
+    SendPush(Bytes),
     /// Charge for calling `gr_send_commit`.
     SendCommit,
     /// Charge for calling `gr_send_commit_wgas`.
     SendCommitWGas,
     /// Charge for calling `gr_reservation_send`.
-    ReservationSend(u32),
+    ReservationSend(Bytes),
     /// Charge for calling `gr_reservation_send_commit`.
     ReservationSendCommit,
     /// Charge for calling `gr_send_input`.
@@ -374,17 +374,17 @@ pub enum CostToken {
     /// Charge for calling `gr_send_push_input`.
     SendPushInput,
     /// Charge for calling `gr_reply`.
-    Reply(u32),
+    Reply(Bytes),
     /// Charge for calling `gr_reply_wgas`.
-    ReplyWGas(u32),
+    ReplyWGas(Bytes),
     /// Charge for calling `gr_reply_push`.
-    ReplyPush(u32),
+    ReplyPush(Bytes),
     /// Charge for calling `gr_reply_commit`.
     ReplyCommit,
     /// Charge for calling `gr_reply_commit_wgas`.
     ReplyCommitWGas,
     /// Charge for calling `gr_reservation_reply`.
-    ReservationReply(u32),
+    ReservationReply(Bytes),
     /// Charge for calling `gr_reservation_reply_commit`.
     ReservationReplyCommit,
     /// Charge for calling `gr_reply_input`.
@@ -400,7 +400,7 @@ pub enum CostToken {
     /// Charge for calling `gr_signal_from`.
     SignalFrom,
     /// Charge for calling `gr_debug`.
-    Debug(u32),
+    Debug(Bytes),
     /// Charge for calling `gr_reply_code`.
     ReplyCode,
     /// Charge for calling `gr_exit`.
@@ -416,9 +416,9 @@ pub enum CostToken {
     /// Charge for calling `gr_wake`.
     Wake,
     /// Charge for calling `gr_create_program`.
-    CreateProgram(u32, u32),
+    CreateProgram(Bytes, Bytes),
     /// Charge for calling `gr_create_program_wgas`.
-    CreateProgramWGas(u32, u32),
+    CreateProgramWGas(Bytes, Bytes),
 }
 
 impl CostToken {
@@ -429,7 +429,7 @@ impl CostToken {
         macro_rules! cost_with_weight_per_byte {
             ($name:ident, $len:expr) => {
                 paste! {
-                    s.$name.one().saturating_add(s.[< $name _per_byte >].calc($len.into()))
+                    s.$name.one().saturating_add(s.[< $name _per_byte >].calc($len))
                 }
             };
         }
@@ -494,19 +494,13 @@ impl CostToken {
             CreateProgram(payload_len, salt_len) => s
                 .gr_create_program
                 .one()
-                .saturating_add(
-                    s.gr_create_program_payload_per_byte
-                        .calc(payload_len.into()),
-                )
-                .saturating_add(s.gr_create_program_salt_per_byte.calc(salt_len.into())),
+                .saturating_add(s.gr_create_program_payload_per_byte.calc(payload_len))
+                .saturating_add(s.gr_create_program_salt_per_byte.calc(salt_len)),
             CreateProgramWGas(payload_len, salt_len) => s
                 .gr_create_program_wgas
                 .one()
-                .saturating_add(
-                    s.gr_create_program_wgas_payload_per_byte
-                        .calc(payload_len.into()),
-                )
-                .saturating_add(s.gr_create_program_wgas_salt_per_byte.calc(salt_len.into())),
+                .saturating_add(s.gr_create_program_wgas_payload_per_byte.calc(payload_len))
+                .saturating_add(s.gr_create_program_wgas_salt_per_byte.calc(salt_len)),
         }
     }
 }
