@@ -30,7 +30,7 @@ use gear_core::{
     env_vars::{EnvVars, EnvVarsV1},
     gas::{
         ChargeError, ChargeResult, CounterType, CountersOwner, GasAllowanceCounter, GasAmount,
-        GasCounter, GasLeft, Token, ValueCounter,
+        GasCounter, GasLeft, ValueCounter,
     },
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{
@@ -675,10 +675,10 @@ impl Ext {
 }
 
 impl CountersOwner for Ext {
-    fn charge_gas_runtime(&mut self, cost: CostToken) -> Result<(), ChargeError> {
-        let token = cost.token(&self.context.host_fn_weights);
-        let common_charge = self.context.gas_counter.charge(token);
-        let allowance_charge = self.context.gas_allowance_counter.charge(token);
+    fn charge_gas_for_token(&mut self, token: CostToken) -> Result<(), ChargeError> {
+        let amount = token.token(&self.context.host_fn_weights);
+        let common_charge = self.context.gas_counter.charge(amount);
+        let allowance_charge = self.context.gas_allowance_counter.charge(amount);
         match (common_charge, allowance_charge) {
             (ChargeResult::NotEnough, _) => Err(ChargeError::GasLimitExceeded),
             (ChargeResult::Enough, ChargeResult::NotEnough) => {
@@ -686,11 +686,6 @@ impl CountersOwner for Ext {
             }
             (ChargeResult::Enough, ChargeResult::Enough) => Ok(()),
         }
-    }
-
-    fn charge_gas_runtime_if_enough(&mut self, cost: CostToken) -> Result<(), ChargeError> {
-        let amount = cost.token(&self.context.host_fn_weights).weight();
-        self.charge_gas_if_enough(amount)
     }
 
     fn charge_gas_if_enough(&mut self, amount: u64) -> Result<(), ChargeError> {
@@ -1375,7 +1370,7 @@ mod tests {
         );
 
         assert_eq!(
-            lack_gas_ext.charge_gas_runtime(CostToken::Free),
+            lack_gas_ext.charge_gas_for_token(CostToken::Free),
             Err(ChargeError::GasLimitExceeded),
         );
 
@@ -1398,7 +1393,7 @@ mod tests {
         );
 
         assert_eq!(
-            lack_allowance_ext.charge_gas_runtime(CostToken::Free),
+            lack_allowance_ext.charge_gas_for_token(CostToken::Free),
             Err(ChargeError::GasAllowanceExceeded),
         );
 

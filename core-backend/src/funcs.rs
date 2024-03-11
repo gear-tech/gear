@@ -249,7 +249,7 @@ impl SyscallContext for FallibleSyscallContext {
 
 /// Fallible syscall that calls [`CallerWrap::run_fallible`] underneath.
 struct FallibleSyscall<E, F> {
-    costs: CostToken,
+    token: CostToken,
     error: PhantomData<E>,
     f: F,
 }
@@ -257,7 +257,7 @@ struct FallibleSyscall<E, F> {
 impl<F> FallibleSyscall<(), F> {
     fn new<E>(costs: CostToken, f: F) -> FallibleSyscall<E, F> {
         FallibleSyscall {
-            costs,
+            token: costs,
             error: PhantomData,
             f,
         }
@@ -278,7 +278,7 @@ where
         context: Self::Context,
     ) -> Result<(Gas, ()), HostError> {
         let Self {
-            costs,
+            token: costs,
             error: _error,
             f,
         } = self;

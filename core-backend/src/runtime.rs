@@ -71,14 +71,14 @@ impl<'a, 'b, Ext: BackendExternalities + 'static> CallerWrap<'a, 'b, Ext> {
     }
 
     #[track_caller]
-    pub fn run_any<T, F>(&mut self, gas: u64, cost: CostToken, f: F) -> Result<(u64, T), HostError>
+    pub fn run_any<T, F>(&mut self, gas: u64, token: CostToken, f: F) -> Result<(u64, T), HostError>
     where
         F: FnOnce(&mut Self) -> Result<T, UndefinedTerminationReason>,
     {
         self.host_state_mut().ext.decrease_current_counter_to(gas);
 
         let run = || {
-            self.host_state_mut().ext.charge_gas_runtime(cost)?;
+            self.host_state_mut().ext.charge_gas_for_token(token)?;
             f(self)
         };
 
@@ -95,7 +95,7 @@ impl<'a, 'b, Ext: BackendExternalities + 'static> CallerWrap<'a, 'b, Ext> {
         &mut self,
         gas: u64,
         res_ptr: u32,
-        cost: CostToken,
+        token: CostToken,
         f: F,
     ) -> Result<(u64, ()), HostError>
     where
@@ -104,7 +104,7 @@ impl<'a, 'b, Ext: BackendExternalities + 'static> CallerWrap<'a, 'b, Ext> {
     {
         self.run_any(
             gas,
-            cost,
+            token,
             |ctx: &mut Self| -> Result<_, UndefinedTerminationReason> {
                 let res = f(ctx);
                 let res = ctx.process_fallible_func_result(res)?;

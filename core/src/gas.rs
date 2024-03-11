@@ -39,23 +39,6 @@ pub enum LockId {
     DispatchStash,
 }
 
-/// This trait represents a token that can be used for charging `GasCounter`.
-///
-/// Implementing type is expected to be super lightweight hence `Copy` (`Clone` is added
-/// for consistency). If inlined there should be no observable difference compared
-/// to a hand-written code.
-pub trait Token: Copy + Clone + Into<u64> {
-    /// Return the amount of gas that should be taken by this token.
-    ///
-    /// This function should be really lightweight and must not fail. It is not
-    /// expected that implementors will query the storage or do any kinds of heavy operations.
-    ///
-    /// That said, implementors of this function still can run into overflows
-    /// while calculating the amount. In this case it is ok to use saturating operations
-    /// since on overflow they will return `max_value` which should consume all gas.
-    fn weight(&self) -> u64;
-}
-
 /// The result of charging gas.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ChargeResult {
@@ -279,9 +262,7 @@ pub enum ChargeError {
 /// Counters owner can change gas limit and allowance counters.
 pub trait CountersOwner {
     /// Charge for runtime api call.
-    fn charge_gas_runtime(&mut self, cost: CostToken) -> Result<(), ChargeError>;
-    /// Charge for runtime api call if has enough of gas, else just returns error.
-    fn charge_gas_runtime_if_enough(&mut self, cost: CostToken) -> Result<(), ChargeError>;
+    fn charge_gas_for_token(&mut self, token: CostToken) -> Result<(), ChargeError>;
     /// Charge gas if enough, else just returns error.
     fn charge_gas_if_enough(&mut self, amount: u64) -> Result<(), ChargeError>;
     /// Returns gas limit and gas allowance left.

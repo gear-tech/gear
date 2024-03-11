@@ -73,11 +73,7 @@ impl BackendAllocSyscallError for Error {
 pub struct MockExt(BTreeSet<SyscallName>);
 
 impl CountersOwner for MockExt {
-    fn charge_gas_runtime(&mut self, _cost: CostToken) -> Result<(), ChargeError> {
-        Ok(())
-    }
-
-    fn charge_gas_runtime_if_enough(&mut self, _cost: CostToken) -> Result<(), ChargeError> {
+    fn charge_gas_for_token(&mut self, _token: CostToken) -> Result<(), ChargeError> {
         Ok(())
     }
 

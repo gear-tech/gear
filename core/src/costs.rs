@@ -18,10 +18,7 @@
 
 //! Costs module.
 
-use crate::{
-    gas::Token,
-    pages::{PageU32Size, WasmPage},
-};
+use crate::pages::{PageU32Size, WasmPage};
 use core::{fmt::Debug, marker::PhantomData};
 use paste::paste;
 use scale_info::scale::{Decode, Encode};
@@ -311,24 +308,6 @@ pub struct ExtWeights {
     pub gr_create_program_wgas_salt_per_byte: CostPer<Bytes>,
 }
 
-/// Token to consume gas amount.
-#[derive(Copy, Clone)]
-pub struct RuntimeToken {
-    weight: u64,
-}
-
-impl From<RuntimeToken> for u64 {
-    fn from(value: RuntimeToken) -> Self {
-        value.weight
-    }
-}
-
-impl Token for RuntimeToken {
-    fn weight(&self) -> u64 {
-        self.weight
-    }
-}
-
 /// Enumerates syscalls that can be charged by gas meter.
 #[derive(Debug, Copy, Clone)]
 pub enum CostToken {
@@ -444,7 +423,7 @@ pub enum CostToken {
 
 impl CostToken {
     /// Returns a token with a weight given the parameters from `HostFnWeights`.
-    pub fn token(&self, s: &ExtWeights) -> RuntimeToken {
+    pub fn token(&self, s: &ExtWeights) -> u64 {
         use self::CostToken::*;
 
         macro_rules! cost_with_weight_per_byte {
@@ -455,7 +434,7 @@ impl CostToken {
             };
         }
 
-        let weight = match *self {
+        match *self {
             Null => 0,
             Alloc(pages) => {
                 // +_+_+ tmp
@@ -528,7 +507,6 @@ impl CostToken {
                         .calc(payload_len.into()),
                 )
                 .saturating_add(s.gr_create_program_wgas_salt_per_byte.calc(salt_len.into())),
-        };
-        RuntimeToken { weight }
+        }
     }
 }
