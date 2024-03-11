@@ -728,6 +728,7 @@ pub mod pallet {
                 false,
                 gas_allowance,
             )
+            .map_err(|e| e.into_bytes())
         }
 
         #[cfg(test)]
@@ -769,35 +770,25 @@ pub mod pallet {
 
             let GasInfo {
                 min_limit, waited, ..
-            } = Self::run_with_ext_copy(|| {
-                calc_gas(BlockGasLimitOf::<T>::get()).map_err(|e| {
-                    String::from_utf8(e)
-                        .unwrap_or_else(|_| String::from("Failed to parse error to string"))
-                })
-            })?;
+            } = Self::run_with_ext_copy(|| calc_gas(BlockGasLimitOf::<T>::get()))?;
 
             log::debug!("\n--- SECOND TRY ---\n");
 
             let res = Self::run_with_ext_copy(|| {
-                calc_gas(min_limit)
-                    .map(
-                        |GasInfo {
-                             reserved,
-                             burned,
-                             may_be_returned,
-                             ..
-                         }| GasInfo {
-                            min_limit,
-                            reserved,
-                            burned,
-                            may_be_returned,
-                            waited,
-                        },
-                    )
-                    .map_err(|e| {
-                        String::from_utf8(e)
-                            .unwrap_or_else(|_| String::from("Failed to parse error to string"))
-                    })
+                calc_gas(min_limit).map(
+                    |GasInfo {
+                         reserved,
+                         burned,
+                         may_be_returned,
+                         ..
+                     }| GasInfo {
+                        min_limit,
+                        reserved,
+                        burned,
+                        may_be_returned,
+                        waited,
+                    },
+                )
             });
 
             log::debug!("\n==============================\n");
