@@ -353,7 +353,7 @@ fn custom_extrinsic_is_placed_in_each_block() {
         BlockId::number(0),
         Box::new(time::Instant::now),
         Timestamp::current(),
-        60_000_u64,
+        1500_u64,
         None,
         proposal
     );
@@ -388,7 +388,7 @@ fn proposed_storage_changes_match_execute_block_storage_changes() {
         BlockId::number(0),
         Box::new(time::Instant::now),
         timestamp,
-        60_000_u64,
+        1500_u64,
         None,
         proposal
     );
@@ -462,7 +462,7 @@ fn queue_remains_intact_if_processing_fails() {
         BlockId::number(0),
         Box::new(time::Instant::now),
         timestamp,
-        60_000_u64,
+        1500_u64,
         None,
         proposal
     );
@@ -505,7 +505,7 @@ fn queue_remains_intact_if_processing_fails() {
         BlockId::Hash(best_hash),
         Box::new(time::Instant::now),
         Timestamp::new(timestamp.as_millis() + SLOT_DURATION),
-        60_000_u64,
+        1500_u64,
         None,
         proposal
     );
@@ -561,7 +561,7 @@ fn block_max_gas_works() {
         BlockId::number(0),
         Box::new(time::Instant::now),
         timestamp,
-        60_000_u64,
+        1500_u64,
         None,
         proposal
     );
@@ -608,7 +608,7 @@ fn block_max_gas_works() {
         BlockId::Hash(best_hash),
         Box::new(time::Instant::now),
         Timestamp::new(timestamp.as_millis() + SLOT_DURATION),
-        60_000_u64,
+        1500_u64,
         max_gas,
         proposal
     );
@@ -701,7 +701,7 @@ fn terminal_extrinsic_discarded_from_txpool() {
         BlockId::number(0),
         Box::new(time::Instant::now),
         Timestamp::current(),
-        60_000_u64,
+        1500_u64,
         None,
         proposal
     );
@@ -1126,7 +1126,7 @@ mod basic_tests {
             BlockId::number(0),
             Box::new(time::Instant::now),
             Timestamp::current(),
-            60_000_u64,
+            1500_u64,
             None,
             proposal
         );
@@ -1187,7 +1187,7 @@ mod basic_tests {
             BlockId::number(0),
             Box::new(time::Instant::now),
             timestamp,
-            60_000_u64,
+            1500_u64,
             None,
             proposal
         );
@@ -1209,7 +1209,7 @@ mod basic_tests {
             BlockId::Hash(best_hash),
             Box::new(time::Instant::now),
             Timestamp::new(timestamp.as_millis() + SLOT_DURATION),
-            60_000_u64,
+            1500_u64,
             None,
             proposal
         );
