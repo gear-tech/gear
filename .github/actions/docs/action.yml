@@ -1,7 +1,8 @@
 runs:
   using: composite
   steps:
-    - uses: actions/checkout@v4
+    - name: "ACTIONS: Checkout"
+      uses: actions/checkout@v4
 
     - name: "Install: Rust toolchain"
       uses: dsherret/rust-toolchain-file@v1
