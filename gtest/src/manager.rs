@@ -42,7 +42,7 @@ use gear_core::{
     reservation::{GasReservationMap, GasReserver},
 };
 use gear_core_errors::{ErrorReplyReason, SignalCode, SimpleExecutionError};
-use gear_wasm_instrument::wasm_instrument::gas_metering::ConstantCostRules;
+use gear_wasm_instrument::rules::CustomConstantCostRules;
 use rand::{rngs::StdRng, RngCore, SeedableRng};
 use std::{
     cell::{Ref, RefCell, RefMut},
@@ -53,6 +53,7 @@ use std::{
 };
 
 const OUTGOING_LIMIT: u32 = 1024;
+const OUTGOING_BYTES_LIMIT: u32 = 64 * 1024 * 1024;
 
 pub(crate) type Balance = u128;
 
@@ -404,7 +405,7 @@ impl ExtManager {
             );
         }
 
-        if !self.is_user(&dispatch.source()) {
+        if self.is_program(&dispatch.source()) {
             panic!("Sending messages allowed only from users id");
         }
 
@@ -442,7 +443,7 @@ impl ExtManager {
             .entry(dispatch.id())
             .or_insert_with(|| dispatch.gas_limit().unwrap_or(u64::MAX));
 
-        if !self.is_user(&dispatch.destination()) {
+        if self.is_program(&dispatch.destination()) {
             self.dispatches.push_back(dispatch.into_stored());
         } else {
             let message = dispatch.into_parts().1.into_stored();
@@ -574,8 +575,26 @@ impl ExtManager {
     }
 
     pub(crate) fn is_user(&self, id: &ProgramId) -> bool {
-        !self.actors.contains_key(id)
-            || matches!(self.actors.borrow().get(id), Some((TestActor::User, _)))
+        matches!(
+            self.actors.borrow().get(id),
+            Some((TestActor::User, _)) | None
+        )
+    }
+
+    pub(crate) fn is_active_program(&self, id: &ProgramId) -> bool {
+        matches!(
+            self.actors.borrow().get(id),
+            Some((TestActor::Initialized(_), _)) | Some((TestActor::Uninitialized(_, _), _))
+        )
+    }
+
+    pub(crate) fn is_program(&self, id: &ProgramId) -> bool {
+        matches!(
+            self.actors.borrow().get(id),
+            Some((TestActor::Initialized(_), _))
+                | Some((TestActor::Uninitialized(_, _), _))
+                | Some((TestActor::Dormant, _))
+        )
     }
 
     pub(crate) fn mint_to(&mut self, id: &ProgramId, value: Balance) {
@@ -853,6 +872,7 @@ impl ExtManager {
             page_costs: PageCosts::new_for_tests(),
             existential_deposit: EXISTENTIAL_DEPOSIT,
             outgoing_limit: OUTGOING_LIMIT,
+            outgoing_bytes_limit: OUTGOING_BYTES_LIMIT,
             host_fn_weights: Default::default(),
             forbidden_funcs: Default::default(),
             mailbox_threshold: MAILBOX_THRESHOLD,
@@ -985,7 +1005,7 @@ impl JournalHandler for ExtManager {
             .entry(dispatch.id())
             .or_insert_with(|| dispatch.gas_limit().unwrap_or(u64::MAX));
 
-        if !self.is_user(&dispatch.destination()) {
+        if self.is_program(&dispatch.destination()) {
             self.dispatches.push_back(dispatch.into_stored());
         } else {
             let message = dispatch.into_stored().into_parts().1;
@@ -1083,7 +1103,7 @@ impl JournalHandler for ExtManager {
             return;
         }
         if let Some(ref to) = to {
-            if !self.is_user(&from) {
+            if self.is_program(&from) {
                 let mut actors = self.actors.borrow_mut();
                 let (_, balance) = actors.get_mut(&from).expect("Can't fail");
 
@@ -1109,9 +1129,13 @@ impl JournalHandler for ExtManager {
         if let Some(code) = self.opt_binaries.get(&code_id).cloned() {
             for (init_message_id, candidate_id) in candidates {
                 if !self.actors.contains_key(&candidate_id) {
-                    let code =
-                        Code::try_new(code.clone(), 1, |_| ConstantCostRules::default(), None)
-                            .expect("Program can't be constructed with provided code");
+                    let code = Code::try_new(
+                        code.clone(),
+                        1,
+                        |_| CustomConstantCostRules::default(),
+                        None,
+                    )
+                    .expect("Program can't be constructed with provided code");
 
                     let code_and_id: InstrumentedCodeAndId =
                         CodeAndId::from_parts_unchecked(code, code_id).into();

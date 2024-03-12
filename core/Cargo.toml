@@ -39,4 +39,8 @@ rand = { workspace = true, features = ["std", "std_rng"] }
 [features]
 default = []
 strict = []
-std = ["serde/std"]
+std = [
+    "serde/std",
+    "wasmparser/std",
+    "gear-core-errors/serde",
+]

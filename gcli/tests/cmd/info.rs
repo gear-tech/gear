@@ -25,22 +25,7 @@ use crate::common::{
 
 // ExtraFlags is hardcoded
 // const IS_NEW_LOGIC: u128 = 0x80000000_00000000_00000000_00000000u128;
-const EXPECTED_BALANCE: &str = r#"
-AccountInfo {
-    nonce: 0,
-    consumers: 0,
-    providers: 1,
-    sufficients: 0,
-    data: AccountData {
-        free: 1000000000000000000,
-        reserved: 0,
-        frozen: 0,
-        flags: ExtraFlags(
-            170141183460469231731687303715884105728,
-        ),
-    },
-}
-"#;
+const EXPECTED_BALANCE: &str = "Free balance: 1000000000000000000";
 
 const EXPECTED_MAILBOX: &str = r#"
     destination: "0xd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d",

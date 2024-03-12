@@ -182,7 +182,7 @@ where
             (context, code, balance).into(),
             (random.encode(), bn.unique_saturated_into()),
         )
-        .unwrap_or_else(|e| unreachable!("core-processor logic invalidated: {e}"))
+        .unwrap_or_else(|e| unreachable!("{e}"))
     }
 
     /// Message Queue processing.
@@ -227,6 +227,18 @@ where
             });
 
             let program_id = dispatch.destination();
+
+            // If the dispatch destination (a.k.a. `program_id`) resolves to some `handle` function
+            // of a builtin actor, we handle the dispatch as a builtin actor dispatch.
+            // Otherwise we proceed with the regular flow.
+            let builtin_dispatcher = ext_manager.builtins();
+            if let Some(f) = builtin_dispatcher.lookup(&program_id) {
+                core_processor::handle_journal(
+                    builtin_dispatcher.run(f, dispatch, gas_limit),
+                    &mut ext_manager,
+                );
+                continue;
+            }
 
             let balance = CurrencyOf::<T>::free_balance(&program_id.cast());
 

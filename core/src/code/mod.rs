@@ -22,7 +22,8 @@ use crate::{ids::CodeId, message::DispatchKind, pages::WasmPage};
 use alloc::{collections::BTreeSet, vec::Vec};
 use gear_wasm_instrument::{
     parity_wasm::{self, elements::Module},
-    wasm_instrument::gas_metering::{ConstantCostRules, Rules},
+    rules::CustomConstantCostRules,
+    wasm_instrument::gas_metering::Rules,
     InstrumentationBuilder,
 };
 
@@ -32,7 +33,7 @@ mod utils;
 
 pub use errors::*;
 pub use instrumented::*;
-pub use utils::{ALLOWED_EXPORTS, MAX_WASM_PAGE_COUNT, REQUIRED_EXPORTS};
+pub use utils::{ALLOWED_EXPORTS, MAX_WASM_PAGE_AMOUNT, REQUIRED_EXPORTS};
 
 /// Contains instrumented binary code of a program and initial memory size from memory import.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -68,6 +69,8 @@ pub struct TryNewCodeConfig {
     pub check_mut_global_exports: bool,
     /// Check start section (not allowed for programs)
     pub check_start_section: bool,
+    /// Check data section
+    pub check_data_section: bool,
     /// Make wasmparser validation
     pub make_validation: bool,
 }
@@ -83,6 +86,7 @@ impl Default for TryNewCodeConfig {
             check_and_canonize_stack_end: true,
             check_mut_global_exports: true,
             check_start_section: true,
+            check_data_section: true,
             make_validation: true,
         }
     }
@@ -110,20 +114,20 @@ impl Code {
         GetRulesFn: FnMut(&Module) -> R,
     {
         if config.make_validation {
-            wasmparser::validate(&original_code).map_err(|err| {
-                log::trace!("Wasm validation failed: {err}");
-                CodeError::Validation
-            })?;
+            wasmparser::validate(&original_code).map_err(CodeError::Validation)?;
         }
 
-        let mut module: Module =
-            parity_wasm::deserialize_buffer(&original_code).map_err(|err| {
-                log::trace!("The wasm bytecode is failed to be decoded: {err}");
-                CodeError::Decode
-            })?;
+        let mut module =
+            parity_wasm::deserialize_buffer(&original_code).map_err(CodecError::Decode)?;
 
+        // Canonize stack end before any changes in module
         if config.check_and_canonize_stack_end {
             utils::check_and_canonize_gear_stack_end(&mut module)?;
+        }
+
+        // Not changing steps
+        if config.check_data_section {
+            utils::check_data_section(&module, config.check_and_canonize_stack_end)?;
         }
         if config.check_mut_global_exports {
             utils::check_mut_global_exports(&module)?;
@@ -131,38 +135,28 @@ impl Code {
         if config.check_start_section {
             utils::check_start_section(&module)?;
         }
-
-        let static_pages = utils::get_static_pages(&module)?;
-
         if config.check_exports {
             utils::check_exports(&module)?;
         }
-
         if config.check_imports {
             utils::check_imports(&module)?;
         }
 
+        // Get exports set before instrumentations.
         let exports = utils::get_exports(&module);
 
         let mut instrumentation_builder = InstrumentationBuilder::new("env");
-
         if let Some(stack_limit) = config.stack_height {
             instrumentation_builder.with_stack_limiter(stack_limit, config.export_stack_height);
         }
-
         if let Some(get_gas_rules) = get_gas_rules {
             instrumentation_builder.with_gas_limiter(get_gas_rules);
         }
+        module = instrumentation_builder.instrument(module)?;
 
-        module = instrumentation_builder.instrument(module).map_err(|err| {
-            log::trace!("Failed to instrument program: {err}");
-            CodeError::Instrumentation(err)
-        })?;
+        let static_pages = utils::get_static_pages(&module)?;
 
-        let code = parity_wasm::elements::serialize(module).map_err(|err| {
-            log::trace!("Failed to encode instrumented program: {err}");
-            CodeError::Encode
-        })?;
+        let code = parity_wasm::elements::serialize(module).map_err(CodecError::Encode)?;
 
         Ok(Self {
             code,
@@ -275,7 +269,8 @@ impl Code {
         const_rules: bool,
         config: TryNewCodeConfig,
     ) -> Result<Self, CodeError> {
-        let get_gas_rules = const_rules.then_some(|_module: &Module| ConstantCostRules::default());
+        let get_gas_rules =
+            const_rules.then_some(|_module: &Module| CustomConstantCostRules::default());
         Self::try_new_internal(original_code, get_gas_rules, config)
     }
 
@@ -353,6 +348,14 @@ impl CodeAndId {
         Self { code, code_id }
     }
 
+    /// Creates the instance from the hash and incompatible with that hash code.
+    ///
+    /// # Safety
+    /// USE FOR TEST PURPOSES ONLY.
+    pub unsafe fn from_incompatible_parts(code: Code, code_id: CodeId) -> Self {
+        Self { code, code_id }
+    }
+
     /// Returns corresponding id (hash) for the code.
     pub fn code_id(&self) -> CodeId {
         self.code_id
@@ -371,9 +374,9 @@ impl CodeAndId {
 
 #[cfg(test)]
 mod tests {
-    use crate::code::{Code, CodeError, ExportError};
+    use crate::code::{Code, CodeError, DataSectionError, ExportError};
     use alloc::vec::Vec;
-    use gear_wasm_instrument::wasm_instrument::gas_metering::ConstantCostRules;
+    use gear_wasm_instrument::rules::CustomConstantCostRules;
 
     fn wat2wasm(s: &str) -> Vec<u8> {
         wabt::Wat2Wasm::new()
@@ -382,6 +385,19 @@ mod tests {
             .unwrap()
             .as_ref()
             .to_vec()
+    }
+
+    macro_rules! assert_code_err {
+        ($res:expr, $expected:pat) => {
+            let err = $res.expect_err("Code::try_new must return an error");
+            let expected_err = stringify!($expected);
+            assert!(
+                matches!(err, $expected),
+                "Must receive {:?}, got {:?}",
+                expected_err,
+                err
+            );
+        };
     }
 
     #[test]
@@ -396,9 +412,14 @@ mod tests {
 
         let original_code = wat2wasm(WAT);
 
-        assert_eq!(
-            Code::try_new(original_code, 1, |_| ConstantCostRules::default(), None),
-            Err(CodeError::Export(ExportError::ExcessExport(0)))
+        assert_code_err!(
+            Code::try_new(
+                original_code,
+                1,
+                |_| CustomConstantCostRules::default(),
+                None
+            ),
+            CodeError::Export(ExportError::ExcessExport(0))
         );
     }
 
@@ -414,9 +435,14 @@ mod tests {
 
         let original_code = wat2wasm(WAT);
 
-        assert_eq!(
-            Code::try_new(original_code, 1, |_| ConstantCostRules::default(), None),
-            Err(CodeError::Export(ExportError::RequiredExportNotFound))
+        assert_code_err!(
+            Code::try_new(
+                original_code,
+                1,
+                |_| CustomConstantCostRules::default(),
+                None
+            ),
+            CodeError::Export(ExportError::RequiredExportNotFound)
         );
     }
 
@@ -435,9 +461,124 @@ mod tests {
         let _ = Code::try_new(
             original_code,
             1,
-            |_| ConstantCostRules::default(),
+            |_| CustomConstantCostRules::default(),
             Some(16 * 1024),
         )
         .unwrap();
+    }
+
+    #[test]
+    fn data_segment_out_of_static_memory() {
+        // Data segment end address is out of static memory.
+        let wat = r#"
+            (module
+                (import "env" "memory" (memory 1))
+                (export "init" (func $init))
+                (func $init)
+                (data (;0;) (i32.const 0x10000) "gear")
+            )
+        "#;
+        assert_code_err!(
+            Code::try_new(
+                wat2wasm(wat),
+                1,
+                |_| CustomConstantCostRules::default(),
+                None
+            ),
+            CodeError::DataSection(DataSectionError::EndAddressOutOfStaticMemory(
+                0x10000, 0x10003, 0x10000
+            ))
+        );
+
+        // Data segment last byte is next byte after static memory
+        let wat = r#"
+            (module
+                (import "env" "memory" (memory 1))
+                (export "init" (func $init))
+                (func $init)
+                (data (;0;) (i32.const 0xfffd) "gear")
+            )
+        "#;
+        assert_code_err!(
+            Code::try_new(
+                wat2wasm(wat),
+                1,
+                |_| CustomConstantCostRules::default(),
+                None
+            ),
+            CodeError::DataSection(DataSectionError::EndAddressOutOfStaticMemory(
+                0xfffd, 0x10000, 0x10000
+            ))
+        );
+    }
+
+    #[test]
+    fn data_segment_out_of_u32() {
+        // Data segment end address is out of possible 32 bits address space.
+        let wat = r#"
+            (module
+                (import "env" "memory" (memory 1))
+                (export "init" (func $init))
+                (func $init)
+                (data (;0;) (i32.const 0xffffffff) "gear")
+            )
+        "#;
+        assert_code_err!(
+            Code::try_new(
+                wat2wasm(wat),
+                1,
+                |_| CustomConstantCostRules::default(),
+                None
+            ),
+            CodeError::DataSection(DataSectionError::EndAddressOverflow(0xffffffff))
+        );
+    }
+
+    #[test]
+    fn data_segment_stack_overlaps() {
+        // Data segment overlaps gear stack.
+        let wat = r#"
+            (module
+                (import "env" "memory" (memory 1))
+                (export "init" (func $init))
+                (func $init)
+                (data (;0;) (i32.const 0x100) "gear")
+                (export "__gear_stack_end" (global 0))
+                (global (mut i32) (i32.const 0x200))
+            )
+        "#;
+        assert_code_err!(
+            Code::try_new(
+                wat2wasm(wat),
+                1,
+                |_| CustomConstantCostRules::default(),
+                None
+            ),
+            CodeError::DataSection(DataSectionError::GearStackOverlaps(0x100, 0x200))
+        );
+    }
+
+    #[test]
+    fn data_section() {
+        let wat = r#"
+            (module
+                (import "env" "memory" (memory 3))
+                (export "init" (func $init))
+                (func $init)
+                (data (i32.const 0x20000) "gear")
+                (data (i32.const 0x10000) "")     ;; empty data segment
+                (data (i32.const 0x1ffff) "gear") ;; overlapping other segments, also ok
+                (data (i32.const 0x2ffff) "g")    ;; one byte before the end of memory
+                (export "__gear_stack_end" (global 0))
+                (global (mut i32) (i32.const 0x10000))
+            )
+        "#;
+        Code::try_new(
+            wat2wasm(wat),
+            1,
+            |_| CustomConstantCostRules::default(),
+            None,
+        )
+        .expect("Must be ok");
     }
 }

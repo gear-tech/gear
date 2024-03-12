@@ -24,7 +24,12 @@ pub mod storage;
 
 use crate::{ws::WSAddress, EventListener};
 use error::*;
-use gsdk::{ext::sp_runtime::AccountId32, signer::Signer, testing::Node, Api};
+use gsdk::{
+    ext::{sp_core::sr25519, sp_runtime::AccountId32},
+    signer::Signer,
+    testing::Node,
+    Api,
+};
 use std::{ffi::OsStr, sync::Arc};
 
 /// The API instance contains methods to access the node.
@@ -166,5 +171,23 @@ impl GearApi {
     /// ```
     pub fn account_id(&self) -> &AccountId32 {
         self.0.account_id()
+    }
+}
+
+impl From<Signer> for GearApi {
+    fn from(signer: Signer) -> Self {
+        Self(signer, None)
+    }
+}
+
+impl From<(Api, sr25519::Pair)> for GearApi {
+    fn from((api, signer): (Api, sr25519::Pair)) -> Self {
+        Signer::from((api, signer.into())).into()
+    }
+}
+
+impl From<GearApi> for Signer {
+    fn from(api: GearApi) -> Self {
+        api.0
     }
 }

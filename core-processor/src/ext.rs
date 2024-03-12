@@ -114,7 +114,7 @@ pub struct ProcessorContext {
 impl ProcessorContext {
     /// Create new mock [`ProcessorContext`] for usage in tests.
     pub fn new_mock() -> ProcessorContext {
-        use gear_core::message::{ContextSettings, IncomingDispatch};
+        use gear_core::message::IncomingDispatch;
 
         ProcessorContext {
             gas_counter: GasCounter::new(0),
@@ -134,8 +134,9 @@ impl ProcessorContext {
             message_context: MessageContext::new(
                 Default::default(),
                 Default::default(),
-                ContextSettings::new(0, 0, 0, 0, 0, 0),
-            ),
+                Default::default(),
+            )
+            .unwrap(),
             block_info: Default::default(),
             performance_multiplier: gsys::Percent::new(100),
             max_pages: 512.into(),
@@ -168,6 +169,7 @@ pub struct ExtInfo {
     pub reply_deposits: Vec<(MessageId, u64)>,
     pub program_candidates_data: BTreeMap<CodeId, Vec<(MessageId, ProgramId)>>,
     pub context_store: ContextStore,
+    pub reply_sent: bool,
 }
 
 /// Trait to which ext must have to work in processor wasm executor.
@@ -394,6 +396,7 @@ impl ProcessorExternalities for Ext {
             outgoing_dispatches: generated_dispatches,
             awakening,
             reply_deposits,
+            reply_sent,
         } = outcome.drain();
 
         let system_reservation_context = SystemReservationContext {
@@ -419,6 +422,7 @@ impl ProcessorExternalities for Ext {
             reply_deposits,
             context_store,
             program_candidates_data,
+            reply_sent,
         };
         Ok(info)
     }
@@ -623,13 +627,13 @@ impl Ext {
 
     fn charge_sending_fee(&mut self, delay: u32) -> Result<(), ChargeError> {
         if delay == 0 {
-            self.charge_gas_if_enough(self.context.message_context.settings().sending_fee())
+            self.charge_gas_if_enough(self.context.message_context.settings().sending_fee)
         } else {
             self.charge_gas_if_enough(
                 self.context
                     .message_context
                     .settings()
-                    .scheduled_sending_fee(),
+                    .scheduled_sending_fee,
             )
         }
     }
@@ -1020,7 +1024,7 @@ impl Externalities for Ext {
         amount: u64,
         duration: u32,
     ) -> Result<ReservationId, Self::FallibleError> {
-        self.charge_gas_if_enough(self.context.message_context.settings().reservation_fee())?;
+        self.charge_gas_if_enough(self.context.message_context.settings().reservation_fee)?;
 
         if duration == 0 {
             return Err(ReservationError::ZeroReservationDuration.into());
@@ -1087,7 +1091,7 @@ impl Externalities for Ext {
     }
 
     fn wait(&mut self) -> Result<(), Self::UnrecoverableError> {
-        self.charge_gas_if_enough(self.context.message_context.settings().waiting_fee())?;
+        self.charge_gas_if_enough(self.context.message_context.settings().waiting_fee)?;
 
         if self.context.message_context.reply_sent() {
             return Err(UnrecoverableWaitError::WaitAfterReply.into());
@@ -1104,7 +1108,7 @@ impl Externalities for Ext {
     }
 
     fn wait_for(&mut self, duration: u32) -> Result<(), Self::UnrecoverableError> {
-        self.charge_gas_if_enough(self.context.message_context.settings().waiting_fee())?;
+        self.charge_gas_if_enough(self.context.message_context.settings().waiting_fee)?;
 
         if self.context.message_context.reply_sent() {
             return Err(UnrecoverableWaitError::WaitAfterReply.into());
@@ -1125,7 +1129,7 @@ impl Externalities for Ext {
     }
 
     fn wait_up_to(&mut self, duration: u32) -> Result<bool, Self::UnrecoverableError> {
-        self.charge_gas_if_enough(self.context.message_context.settings().waiting_fee())?;
+        self.charge_gas_if_enough(self.context.message_context.settings().waiting_fee)?;
 
         if self.context.message_context.reply_sent() {
             return Err(UnrecoverableWaitError::WaitAfterReply.into());
@@ -1150,7 +1154,7 @@ impl Externalities for Ext {
     }
 
     fn wake(&mut self, waker_id: MessageId, delay: u32) -> Result<(), Self::FallibleError> {
-        self.charge_gas_if_enough(self.context.message_context.settings().waking_fee())?;
+        self.charge_gas_if_enough(self.context.message_context.settings().waking_fee)?;
 
         self.context.message_context.wake(waker_id, delay)?;
         Ok(())
@@ -1220,12 +1224,7 @@ mod tests {
     struct MessageContextBuilder {
         incoming_dispatch: IncomingDispatch,
         program_id: ProgramId,
-        sending_fee: u64,
-        scheduled_sending_fee: u64,
-        waiting_fee: u64,
-        waking_fee: u64,
-        reservation_fee: u64,
-        outgoing_limit: u32,
+        context_settings: ContextSettings,
     }
 
     impl MessageContextBuilder {
@@ -1233,12 +1232,7 @@ mod tests {
             Self {
                 incoming_dispatch: Default::default(),
                 program_id: Default::default(),
-                sending_fee: 0,
-                scheduled_sending_fee: 0,
-                waiting_fee: 0,
-                waking_fee: 0,
-                reservation_fee: 0,
-                outgoing_limit: 0,
+                context_settings: ContextSettings::with_outgoing_limits(u32::MAX, u32::MAX),
             }
         }
 
@@ -1246,19 +1240,14 @@ mod tests {
             MessageContext::new(
                 self.incoming_dispatch,
                 self.program_id,
-                ContextSettings::new(
-                    self.sending_fee,
-                    self.scheduled_sending_fee,
-                    self.waiting_fee,
-                    self.waking_fee,
-                    self.reservation_fee,
-                    self.outgoing_limit,
-                ),
+                self.context_settings,
             )
+            .unwrap()
         }
 
         fn with_outgoing_limit(mut self, outgoing_limit: u32) -> Self {
-            self.outgoing_limit = outgoing_limit;
+            self.context_settings.outgoing_limit = outgoing_limit;
+
             self
         }
     }
@@ -1458,11 +1447,7 @@ mod tests {
     fn test_send_push() {
         let mut ext = Ext::new(
             ProcessorContextBuilder::new()
-                .with_message_context(
-                    MessageContextBuilder::new()
-                        .with_outgoing_limit(u32::MAX)
-                        .build(),
-                )
+                .with_message_context(MessageContextBuilder::new().build())
                 .build(),
         );
 
@@ -1526,11 +1511,7 @@ mod tests {
     fn test_send_push_input() {
         let mut ext = Ext::new(
             ProcessorContextBuilder::new()
-                .with_message_context(
-                    MessageContextBuilder::new()
-                        .with_outgoing_limit(u32::MAX)
-                        .build(),
-                )
+                .with_message_context(MessageContextBuilder::new().build())
                 .build(),
         );
 
@@ -1592,11 +1573,7 @@ mod tests {
         let mut ext = Ext::new(
             ProcessorContextBuilder::new()
                 .with_gas(GasCounter::new(u64::MAX))
-                .with_message_context(
-                    MessageContextBuilder::new()
-                        .with_outgoing_limit(u32::MAX)
-                        .build(),
-                )
+                .with_message_context(MessageContextBuilder::new().build())
                 .build(),
         );
 
@@ -1633,11 +1610,7 @@ mod tests {
         let mut ext = Ext::new(
             ProcessorContextBuilder::new()
                 .with_gas(GasCounter::new(u64::MAX))
-                .with_message_context(
-                    MessageContextBuilder::new()
-                        .with_outgoing_limit(u32::MAX)
-                        .build(),
-                )
+                .with_message_context(MessageContextBuilder::new().build())
                 .build(),
         );
 
@@ -1688,11 +1661,7 @@ mod tests {
     fn test_reply_push_input() {
         let mut ext = Ext::new(
             ProcessorContextBuilder::new()
-                .with_message_context(
-                    MessageContextBuilder::new()
-                        .with_outgoing_limit(u32::MAX)
-                        .build(),
-                )
+                .with_message_context(MessageContextBuilder::new().build())
                 .build(),
         );
 

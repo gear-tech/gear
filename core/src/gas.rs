@@ -334,7 +334,7 @@ impl From<(i64, i64)> for GasLeft {
 
 /// The struct contains results of gas calculation required to process
 /// a message.
-#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]
+#[derive(Clone, Debug, Decode, Default, Encode, PartialEq, Eq, TypeInfo)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct GasInfo {
     /// Represents minimum gas limit required for execution.

@@ -39,10 +39,8 @@ use gear_core::{
     program::{MemoryInfix, Program},
     reservation::{GasReservationMap, GasReserver},
 };
-use gear_core_backend::{
-    env::SystemEnvironmentError,
-    error::{SystemTerminationReason, TrapExplanation},
-};
+pub use gear_core_backend::error::TrapExplanation;
+use gear_core_backend::{env::SystemEnvironmentError, error::SystemTerminationReason};
 use gear_core_errors::{SignalCode, SimpleExecutionError};
 use scale_info::scale::{self, Decode, Encode};
 
@@ -89,6 +87,8 @@ pub struct DispatchResult {
     pub page_update: BTreeMap<GearPage, PageBuf>,
     /// New allocations set for program if it has been changed.
     pub allocations: BTreeSet<WasmPage>,
+    /// Whether this execution sent out a reply.
+    pub reply_sent: bool,
 }
 
 impl DispatchResult {
@@ -135,6 +135,9 @@ impl DispatchResult {
             system_reservation_context,
             page_update: Default::default(),
             allocations: Default::default(),
+            // This function is only used to generate a dispatch result if nothing is executed,
+            // therefore reply_sent will always be false
+            reply_sent: false,
         }
     }
 }
@@ -459,6 +462,13 @@ pub enum ActorExecutionErrorReplyReason {
     /// Trap explanation
     #[display(fmt = "{_0}")]
     Trap(TrapExplanation),
+    // TODO: move this to SystemExecutionError after runtime upgrade,
+    // if wait-list does not contain messages with total outgoing bytes more than `OutgoingBytesLimit` #3751.
+    /// Message is not supported now
+    #[display(
+        fmt = "Message is not supported: outgoing bytes limit is exceeded after runtime-upgrade"
+    )]
+    UnsupportedMessage,
 }
 
 impl ActorExecutionErrorReplyReason {
@@ -477,6 +487,7 @@ impl ActorExecutionErrorReplyReason {
                 TrapExplanation::StackLimitExceeded => SimpleExecutionError::StackLimitExceeded,
                 TrapExplanation::Unknown => SimpleExecutionError::UnreachableInstruction,
             },
+            Self::UnsupportedMessage => SimpleExecutionError::Unsupported,
         }
     }
 }
@@ -498,6 +509,10 @@ pub enum SystemExecutionError {
     /// Error during `into_ext_info()` call
     #[display(fmt = "`into_ext_info()` error: {_0}")]
     IntoExtInfo(MemoryError),
+    // TODO: uncomment when #3751
+    // /// Incoming dispatch store has too many outgoing messages total bytes.
+    // #[display(fmt = "Incoming dispatch store has too many outgoing messages total bytes")]
+    // MessageStoreOutgoingBytesOverflow,
 }
 
 /// Actor.

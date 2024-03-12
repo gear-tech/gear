@@ -18,15 +18,17 @@
 
 //! Integration tests for command `send`
 
-use crate::common::{self, node::NodeExec, Args, Result, ALICE_SS58_ADDRESS as ADDRESS};
+use crate::common::{
+    self, node::NodeExec, Args, Result, ALICE_SS58_ADDRESS as ADDRESS, RENT_POOL_SS58_ADDRESS,
+};
 use gsdk::Api;
 
-const REWARD_PER_BLOCK: u128 = 75_000; // 3_000 gas * 25 value per gas
+const REWARD_PER_BLOCK: u128 = 18_000; // 3_000 gas * 6 value per gas
 
 #[tokio::test]
 async fn test_command_claim_works() -> Result<()> {
     // hack to check initial alice balance
-    let (initial_balance, initial_stash) = {
+    let (initial_balance, initial_stash, rent_pool_initial) = {
         let node = common::dev()?;
 
         // Get balance of the testing address
@@ -38,6 +40,11 @@ async fn test_command_claim_works() -> Result<()> {
             signer
                 .api()
                 .get_balance(&signer.address())
+                .await
+                .unwrap_or(0),
+            signer
+                .api()
+                .get_balance(RENT_POOL_SS58_ADDRESS)
                 .await
                 .unwrap_or(0),
         )
@@ -65,8 +72,13 @@ async fn test_command_claim_works() -> Result<()> {
 
     let burned_after = signer.api().get_balance(&signer.address()).await? - initial_stash;
     let after = signer.api().get_balance(ADDRESS).await?;
+    let rent_pool = signer.api().get_balance(RENT_POOL_SS58_ADDRESS).await?;
 
     assert_eq!(initial_balance - before - burned_before, REWARD_PER_BLOCK);
-    assert_eq!(initial_balance - burned_after, after);
+    assert_eq!(
+        initial_balance - burned_after - (rent_pool - rent_pool_initial),
+        after
+    );
+
     Ok(())
 }

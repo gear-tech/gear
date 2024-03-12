@@ -36,7 +36,7 @@ use gear_wasm_instrument::{
 };
 
 /// Defines maximal permitted count of memory pages.
-pub const MAX_WASM_PAGE_COUNT: u16 = 512;
+pub const MAX_WASM_PAGE_AMOUNT: u16 = 512;
 
 /// Name of exports allowed on chain.
 pub const ALLOWED_EXPORTS: [&str; 6] = [
@@ -66,7 +66,7 @@ pub fn get_static_pages(module: &Module) -> Result<WasmPage, CodeError> {
         .ok_or(MemoryError::EntryNotFound)?
         .map_err(|_| MemoryError::InvalidStaticPageCount)?;
 
-    if static_pages.raw() > MAX_WASM_PAGE_COUNT as u32 {
+    if static_pages.raw() > MAX_WASM_PAGE_AMOUNT as u32 {
         Err(MemoryError::InvalidStaticPageCount)?;
     }
 
@@ -135,12 +135,12 @@ pub fn check_exports(module: &Module) -> Result<(), CodeError> {
             .get(type_id)
             .unwrap_or_else(|| unreachable!("Module structure is invalid"));
 
-        if !(func_type.params().is_empty() && func_type.results().is_empty()) {
-            Err(ExportError::InvalidExportFnSignature(export_index as u32))?;
-        }
-
         if !ALLOWED_EXPORTS.contains(&export.field()) {
             Err(ExportError::ExcessExport(export_index as u32))?;
+        }
+
+        if !(func_type.params().is_empty() && func_type.results().is_empty()) {
+            Err(ExportError::InvalidExportFnSignature(export_index as u32))?;
         }
 
         if REQUIRED_EXPORTS.contains(&export.field()) {
@@ -254,56 +254,95 @@ fn get_global_entry(module: &Module, global_index: u32) -> Option<&GlobalEntry> 
         .get(global_index as usize)
 }
 
-fn get_global_init_const_i32(
-    module: &Module,
-    global_index: u32,
-    export_inedx: u32,
-) -> Result<i32, CodeError> {
-    let init_expr = get_global_entry(module, global_index)
-        .ok_or(ExportError::IncorrectGlobalIndex(
-            global_index,
-            export_inedx,
-        ))?
-        .init_expr();
-    get_init_expr_const_i32(init_expr)
-        .ok_or(InitializationError::StackEnd)
-        .map_err(CodeError::Initialization)
+struct StackEndInfo {
+    offset: i32,
+    is_mutable: bool,
+}
+
+fn get_stack_end_info(module: &Module) -> Result<Option<StackEndInfo>, CodeError> {
+    let Some((export_index, global_index)) =
+        get_export_global_with_index(module, STACK_END_EXPORT_NAME)
+    else {
+        return Ok(None);
+    };
+
+    let entry = get_global_entry(module, global_index).ok_or(ExportError::IncorrectGlobalIndex(
+        global_index,
+        export_index,
+    ))?;
+
+    Ok(Some(StackEndInfo {
+        offset: get_init_expr_const_i32(entry.init_expr()).ok_or(StackEndError::Initialization)?,
+        is_mutable: entry.global_type().is_mutable(),
+    }))
+}
+
+/// Check that data segments are not overlapping with stack and are inside static pages.
+pub fn check_data_section(module: &Module, check_stack_end: bool) -> Result<(), CodeError> {
+    let Some(data_section) = module.data_section() else {
+        // No data section - nothing to check.
+        return Ok(());
+    };
+
+    let static_pages = get_static_pages(module)?;
+    let stack_end_offset = match check_stack_end {
+        true => get_stack_end_info(module)?.map(|info| info.offset),
+        false => None,
+    };
+
+    for data_segment in data_section.entries() {
+        let data_segment_offset = data_segment
+            .offset()
+            .as_ref()
+            .and_then(get_init_expr_const_i32)
+            .ok_or(DataSectionError::Initialization)? as u32;
+
+        if let Some(stack_end_offset) = stack_end_offset {
+            // Checks, that each data segment does not overlap the user stack.
+            (data_segment_offset >= stack_end_offset as u32)
+                .then_some(())
+                .ok_or(DataSectionError::GearStackOverlaps(
+                    data_segment_offset,
+                    stack_end_offset as u32,
+                ))?;
+        }
+
+        let Some(size) = u32::try_from(data_segment.value().len())
+            .map_err(|_| DataSectionError::EndAddressOverflow(data_segment_offset))?
+            .checked_sub(1)
+        else {
+            // Zero size data segment - strange, but allowed.
+            continue;
+        };
+
+        let data_segment_last_byte_offset = data_segment_offset
+            .checked_add(size)
+            .ok_or(DataSectionError::EndAddressOverflow(data_segment_offset))?;
+
+        (data_segment_last_byte_offset < static_pages.offset())
+            .then_some(())
+            .ok_or(DataSectionError::EndAddressOutOfStaticMemory(
+                data_segment_offset,
+                data_segment_last_byte_offset,
+                static_pages.offset(),
+            ))?;
+    }
+
+    Ok(())
 }
 
 pub fn check_and_canonize_gear_stack_end(module: &mut Module) -> Result<(), CodeError> {
-    let Some((stack_end_export_index, stack_end_global_index)) =
-        get_export_global_with_index(module, STACK_END_EXPORT_NAME)
+    let Some(StackEndInfo {
+        offset: stack_end_offset,
+        is_mutable: stack_end_global_is_mutable,
+    }) = get_stack_end_info(module)?
     else {
         return Ok(());
-    };
-    let stack_end_offset =
-        get_global_init_const_i32(module, stack_end_global_index, stack_end_export_index)?;
-
-    // Checks, that each data segment does not overlap with stack.
-    if let Some(data_section) = module.data_section() {
-        for data_segment in data_section.entries() {
-            let offset = data_segment
-                .offset()
-                .as_ref()
-                .and_then(get_init_expr_const_i32)
-                .ok_or(InitializationError::DataSegment)?;
-
-            if offset < stack_end_offset {
-                Err(StackEndError::StackEndOverlaps)?;
-            }
-        }
     };
 
     // If [STACK_END_EXPORT_NAME] points to mutable global, then make new const global
     // with the same init expr and change the export internal to point to the new global.
-    if get_global_entry(module, stack_end_global_index)
-        .ok_or(ExportError::IncorrectGlobalIndex(
-            stack_end_global_index,
-            stack_end_export_index,
-        ))?
-        .global_type()
-        .is_mutable()
-    {
+    if stack_end_global_is_mutable {
         // Panic is impossible, because we have checked above, that global section exists.
         let global_section = module
             .global_section_mut()

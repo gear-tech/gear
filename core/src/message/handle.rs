@@ -28,8 +28,6 @@ use scale_info::{
     TypeInfo,
 };
 
-use super::PayloadSizeError;
-
 /// Message for Handle entry point.
 /// Represents a standard message that sends between actors.
 #[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
@@ -167,8 +165,13 @@ impl HandlePacket {
     }
 
     /// Prepend payload.
-    pub(super) fn try_prepend(&mut self, data: Payload) -> Result<(), PayloadSizeError> {
-        self.payload.try_prepend(data)
+    pub(super) fn try_prepend(&mut self, mut data: Payload) -> Result<(), Payload> {
+        if data.try_extend_from_slice(self.payload_bytes()).is_err() {
+            Err(data)
+        } else {
+            self.payload = data;
+            Ok(())
+        }
     }
 
     /// Packet destination.
@@ -180,6 +183,10 @@ impl HandlePacket {
 impl Packet for HandlePacket {
     fn payload_bytes(&self) -> &[u8] {
         self.payload.inner()
+    }
+
+    fn payload_len(&self) -> u32 {
+        self.payload.len_u32()
     }
 
     fn gas_limit(&self) -> Option<GasLimit> {

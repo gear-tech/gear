@@ -220,10 +220,6 @@ pub trait WeightInfo {
     fn tasks_wake_message_no_wake() -> Weight;
     fn tasks_remove_from_waitlist() -> Weight;
     fn tasks_remove_from_mailbox() -> Weight;
-    fn allocation_cost() -> Weight;
-    fn grow_cost() -> Weight;
-    fn initial_cost() -> Weight;
-    fn load_cost() -> Weight;
     fn instr_i64const(r: u32, ) -> Weight;
 }
 
@@ -357,20 +353,6 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
         Weight::from_parts(105_649_884, 0)
             // Standard Error: 2_260_663
             .saturating_add(Weight::from_parts(188_425_504, 0).saturating_mul(r.into()))
-    }
-    fn allocation_cost() -> Weight {
-        // To be changed with the proper value.
-        T::DbWeight::get().writes(1)
-    }
-    fn grow_cost() -> Weight {
-        // To be changed with the proper value.
-        T::DbWeight::get().writes(1)
-    }
-    fn initial_cost() -> Weight {
-        T::DbWeight::get().writes(1)
-    }
-    fn load_cost() -> Weight {
-        T::DbWeight::get().reads(1)
     }
     /// The range of component `c` is `[0, 512]`.
     fn db_write_per_kb(c: u32, ) -> Weight {
@@ -2233,20 +2215,6 @@ impl WeightInfo for () {
         Weight::from_parts(105_649_884, 0)
             // Standard Error: 2_260_663
             .saturating_add(Weight::from_parts(188_425_504, 0).saturating_mul(r.into()))
-    }
-    fn allocation_cost() -> Weight {
-        // To be changed with the proper value.
-        RocksDbWeight::get().writes(1)
-    }
-    fn grow_cost() -> Weight {
-        // To be changed with the proper value.
-        RocksDbWeight::get().writes(1)
-    }
-    fn initial_cost() -> Weight {
-        RocksDbWeight::get().writes(1)
-    }
-    fn load_cost() -> Weight {
-        RocksDbWeight::get().reads(1)
     }
     /// The range of component `c` is `[0, 512]`.
     fn db_write_per_kb(c: u32, ) -> Weight {

@@ -52,8 +52,8 @@ use gear_core_errors::{ReplyCode, SignalCode};
 pub use task::*;
 
 use crate::{
-    Config, CurrencyOf, Event, GasHandlerOf, Pallet, ProgramStorageOf, QueueOf, TaskPoolOf,
-    WaitlistOf,
+    BuiltinDispatcherFactory, Config, CurrencyOf, Event, GasHandlerOf, Pallet, ProgramStorageOf,
+    QueueOf, TaskPoolOf, WaitlistOf,
 };
 use common::{
     event::*,
@@ -133,7 +133,6 @@ impl CodeInfo {
 }
 
 /// Journal handler implementation for `pallet_gear`.
-#[derive(Clone)]
 pub struct ExtManager<T: Config> {
     /// Ids checked that they are users.
     users: BTreeSet<ProgramId>,
@@ -145,6 +144,8 @@ pub struct ExtManager<T: Config> {
     dispatch_statuses: BTreeMap<MessageId, DispatchStatus>,
     /// Programs, which state changed.
     state_changes: BTreeSet<ProgramId>,
+    /// Builtin programs.
+    builtins: <T::BuiltinDispatcherFactory as BuiltinDispatcherFactory>::Output,
     /// Phantom data for generic usage.
     _phantom: PhantomData<T>,
 }
@@ -166,26 +167,28 @@ impl<T: Config> From<ExtManager<T>> for QueuePostProcessingData {
     }
 }
 
-impl<T: Config> Default for ExtManager<T>
+impl<T: Config> ExtManager<T>
 where
     T::AccountId: Origin,
 {
-    fn default() -> Self {
-        ExtManager {
+    pub fn new(
+        builtins: <T::BuiltinDispatcherFactory as BuiltinDispatcherFactory>::Output,
+    ) -> Self {
+        Self {
             _phantom: PhantomData,
             users: Default::default(),
             programs: Default::default(),
             program_loaded_pages: Default::default(),
             dispatch_statuses: Default::default(),
             state_changes: Default::default(),
+            builtins,
         }
     }
-}
 
-impl<T: Config> ExtManager<T>
-where
-    T::AccountId: Origin,
-{
+    pub fn builtins(&self) -> &<T::BuiltinDispatcherFactory as BuiltinDispatcherFactory>::Output {
+        &self.builtins
+    }
+
     /// Check if id is program and save result.
     pub fn check_program_id(&mut self, id: &ProgramId) -> bool {
         // TODO: research how much need to charge for `program_exists` query.
@@ -193,7 +196,7 @@ where
             true
         } else if self.users.contains(id) {
             false
-        } else if Pallet::<T>::program_exists(*id) {
+        } else if Pallet::<T>::program_exists(&self.builtins, *id) {
             self.programs.insert(*id);
             true
         } else {

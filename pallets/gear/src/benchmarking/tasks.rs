@@ -42,7 +42,8 @@ where
     )
     .expect("submit program failed");
 
-    Gear::<T>::process_queue(Default::default());
+    let (builtins, _) = T::BuiltinDispatcherFactory::create();
+    Gear::<T>::process_queue(ExtManager::<T>::new(builtins));
 }
 
 #[track_caller]
@@ -72,7 +73,8 @@ where
     )
     .expect("submit program failed");
 
-    Gear::<T>::process_queue(Default::default());
+    let (builtins, _) = T::BuiltinDispatcherFactory::create();
+    Gear::<T>::process_queue(ExtManager::<T>::new(builtins));
 
     let program: ActiveProgram<_> = ProgramStorageOf::<T>::get_program(program_id)
         .expect("program should exist")
@@ -158,7 +160,8 @@ where
     )
     .expect("failed to send message");
 
-    Gear::<T>::process_queue(Default::default());
+    let (builtins, _) = T::BuiltinDispatcherFactory::create();
+    Gear::<T>::process_queue(ExtManager::<T>::new(builtins));
 
     let task = TaskPoolOf::<T>::iter_prefix_keys(Gear::<T>::block_number() + delay.into())
         .next()
@@ -208,7 +211,8 @@ where
     )
     .expect("failed to send message");
 
-    Gear::<T>::process_queue(Default::default());
+    let (builtins, _) = T::BuiltinDispatcherFactory::create();
+    Gear::<T>::process_queue(ExtManager::<T>::new(builtins));
 
     let task = TaskPoolOf::<T>::iter_prefix_keys(Gear::<T>::block_number() + delay.into())
         .next()
@@ -258,7 +262,8 @@ where
     )
     .expect("failed to send message");
 
-    Gear::<T>::process_queue(Default::default());
+    let (builtins, _) = T::BuiltinDispatcherFactory::create();
+    Gear::<T>::process_queue(ExtManager::<T>::new(builtins));
 
     let expiration = find_latest_event::<T, _, _>(|event| match event {
         Event::MessageWaited { expiration, .. } => Some(expiration),

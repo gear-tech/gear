@@ -65,6 +65,7 @@ actor_system_error! {
     pub type PrepareMemoryError = ActorSystemError<ActorPrepareMemoryError, SystemPrepareMemoryError>;
 }
 
+// TODO: add this cases checks to Code::try_new in gear-core #3735
 /// Prepare memory error
 #[derive(Encode, Decode, TypeInfo, Debug, PartialEq, Eq, PartialOrd, Ord, derive_more::Display)]
 #[codec(crate = scale)]
@@ -79,8 +80,8 @@ pub enum ActorPrepareMemoryError {
 
 #[derive(Debug, Eq, PartialEq, derive_more::Display)]
 pub enum SystemPrepareMemoryError {
-    /// Mem size less then static pages num
-    #[display(fmt = "Mem size less then static pages num")]
+    /// Mem size less than static pages num
+    #[display(fmt = "Mem size less than static pages num")]
     InsufficientMemorySize,
 }
 
@@ -181,7 +182,14 @@ where
         AllocationsContext::new(allocations.clone(), static_pages, settings.max_pages);
 
     // Creating message context.
-    let message_context = MessageContext::new(dispatch.clone(), program_id, msg_ctx_settings);
+    let Some(message_context) = MessageContext::new(dispatch.clone(), program_id, msg_ctx_settings)
+    else {
+        return Err(ActorExecutionError {
+            gas_amount: gas_counter.to_amount(),
+            reason: ActorExecutionErrorReplyReason::UnsupportedMessage,
+        }
+        .into());
+    };
 
     // Creating value counter.
     //
@@ -341,6 +349,7 @@ where
         system_reservation_context: info.system_reservation_context,
         page_update,
         allocations: info.allocations,
+        reply_sent: info.reply_sent,
     })
 }
 
@@ -378,30 +387,33 @@ where
         0.into()
     };
 
+    let message_context = MessageContext::new(
+        IncomingDispatch::new(
+            DispatchKind::Handle,
+            IncomingMessage::new(
+                Default::default(),
+                Default::default(),
+                payload
+                    .try_into()
+                    .map_err(|e| format!("Failed to create payload: {e:?}"))?,
+                gas_limit,
+                Default::default(),
+                Default::default(),
+            ),
+            None,
+        ),
+        program.id(),
+        Default::default(),
+    )
+    .ok_or("Incorrect message store context: out of outgoing bytes limit")?;
+
     let context = ProcessorContext {
         gas_counter: GasCounter::new(gas_limit),
         gas_allowance_counter: GasAllowanceCounter::new(gas_limit),
         gas_reserver: GasReserver::new(&Default::default(), Default::default(), Default::default()),
         value_counter: ValueCounter::new(Default::default()),
         allocations_context: AllocationsContext::new(allocations, static_pages, 512.into()),
-        message_context: MessageContext::new(
-            IncomingDispatch::new(
-                DispatchKind::Handle,
-                IncomingMessage::new(
-                    Default::default(),
-                    Default::default(),
-                    payload
-                        .try_into()
-                        .map_err(|e| format!("Failed to create payload: {e:?}"))?,
-                    gas_limit,
-                    Default::default(),
-                    Default::default(),
-                ),
-                None,
-            ),
-            program.id(),
-            ContextSettings::new(0, 0, 0, 0, 0, 0),
-        ),
+        message_context,
         block_info,
         performance_multiplier: gsys::Percent::new(100),
         max_pages: 512.into(),
