@@ -61,7 +61,6 @@ async function main() {
 
   // Calculate configurations.
   const isDepbot = fullName === `${owner}/${repo}` && title.includes(DEPBOT);
-  const skipCache = [title, message].some(s => s.includes(SKIP_CACHE));
   const skipCI = [title, message].some(s => s.includes(SKIP_CI));
   const build = !skipCI && (isDepbot || BUILD_LABELS.some(label => labels.includes(label)));
   const win_native = !skipCI && labels.includes(WINDOWS_NATIVE);
