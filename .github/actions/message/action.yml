@@ -10,9 +10,12 @@ outputs:
     description: If trigger build.
   check:
     description: If trigger check.
+  win-native:
+    description: If enable native Windows build.
   macos:
-    description: If enable macos.
-  # TODO: add another outputs
+    description: If enable macOS build.
+  release:
+    description: If enable release build.
 
 runs:
   using: node20
