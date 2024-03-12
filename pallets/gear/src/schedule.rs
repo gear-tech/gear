@@ -34,7 +34,10 @@ use gear_core::{
     message,
     pages::{GearPage, PageU32Size, WasmPage, GEAR_PAGE_SIZE},
 };
-use gear_wasm_instrument::{parity_wasm::elements, wasm_instrument::gas_metering};
+use gear_wasm_instrument::{
+    gas_metering::{MemoryGrowCost, Rules},
+    parity_wasm::elements,
+};
 use pallet_gear_proc_macro::{ScheduleDebug, WeightDebug};
 use scale_info::TypeInfo;
 #[cfg(feature = "std")]
@@ -333,6 +336,7 @@ pub struct InstructionWeights<T: Config> {
     pub i32rotr: u32,
     /// The type parameter is used in the default implementation.
     #[codec(skip)]
+    #[cfg_attr(feature = "std", serde(skip))]
     pub _phantom: PhantomData<T>,
 }
 
@@ -556,6 +560,7 @@ pub struct HostFnWeights<T: Config> {
 
     /// The type parameter is used in the default implementation.
     #[codec(skip)]
+    #[cfg_attr(feature = "std", serde(skip))]
     pub _phantom: PhantomData<T>,
 }
 
@@ -615,6 +620,7 @@ pub struct MemoryWeights<T: Config> {
 
     /// The type parameter is used in the default implementation.
     #[codec(skip)]
+    #[cfg_attr(feature = "std", serde(skip))]
     pub _phantom: PhantomData<T>,
 }
 
@@ -770,7 +776,7 @@ impl Default for Limits {
 impl<T: Config> Default for InstructionWeights<T> {
     fn default() -> Self {
         Self {
-            version: 1110,
+            version: 1200,
             i64const: cost_instr!(instr_i64const, 1),
             i64load: cost_instr!(instr_i64load, 0),
             i32load: cost_instr!(instr_i32load, 0),
@@ -1119,7 +1125,7 @@ struct ScheduleRules<'a, T: Config> {
 }
 
 impl<T: Config> Schedule<T> {
-    pub fn rules(&self, module: &elements::Module) -> impl gas_metering::Rules + '_ {
+    pub fn rules(&self, module: &elements::Module) -> impl Rules + '_ {
         ScheduleRules {
             schedule: self,
             params: module
@@ -1135,7 +1141,7 @@ impl<T: Config> Schedule<T> {
     }
 }
 
-impl<'a, T: Config> gas_metering::Rules for ScheduleRules<'a, T> {
+impl<'a, T: Config> Rules for ScheduleRules<'a, T> {
     fn instruction_cost(&self, instruction: &elements::Instruction) -> Option<u32> {
         use self::elements::{Instruction::*, SignExtInstruction::*};
         let w = &self.schedule.instruction_weights;
@@ -1248,8 +1254,8 @@ impl<'a, T: Config> gas_metering::Rules for ScheduleRules<'a, T> {
         Some(weight)
     }
 
-    fn memory_grow_cost(&self) -> gas_metering::MemoryGrowCost {
-        gas_metering::MemoryGrowCost::Free
+    fn memory_grow_cost(&self) -> MemoryGrowCost {
+        MemoryGrowCost::Free
     }
 
     fn call_per_local_cost(&self) -> u32 {
@@ -1261,8 +1267,7 @@ impl<'a, T: Config> gas_metering::Rules for ScheduleRules<'a, T> {
 mod test {
     use super::*;
     use crate::mock::Test;
-    use gas_metering::Rules;
-    use gear_wasm_instrument::rules::CustomConstantCostRules;
+    use gear_wasm_instrument::{gas_metering::Rules, rules::CustomConstantCostRules};
 
     fn all_measured_instructions() -> Vec<elements::Instruction> {
         use elements::{BlockType, BrTableData, Instruction::*};

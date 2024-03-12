@@ -68,13 +68,10 @@ impl SyscallsInjectionTypes {
 
     /// Instantiate a syscalls map with given injection type.
     fn new_with_injection_type(injection_type: SyscallInjectionType) -> Self {
-        let syscalls = SyscallName::instrumentable();
         Self(
-            syscalls
-                .iter()
-                .cloned()
+            SyscallName::instrumentable()
                 .map(|name| (InvocableSyscall::Loose(name), injection_type.clone()))
-                .chain(syscalls.iter().cloned().filter_map(|name| {
+                .chain(SyscallName::instrumentable().filter_map(|name| {
                     InvocableSyscall::has_precise_variant(name)
                         .then_some((InvocableSyscall::Precise(name), injection_type.clone()))
                 }))
