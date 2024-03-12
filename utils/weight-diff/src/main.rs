@@ -23,12 +23,22 @@ use frame_support::{
     sp_runtime::{FixedPointNumber, FixedU128 as Fixed},
     weights::Weight,
 };
+use gear_utils::codegen::{format_with_rustfmt, LICENSE};
 use indexmap::IndexMap;
 use pallet_gear::Schedule;
+use proc_macro2::TokenStream;
+use quote::quote;
 use serde::{Deserialize, Serialize};
-use std::{fs, path::PathBuf};
+use serde_json::Value;
+use std::{fs, path::PathBuf, str::FromStr};
+use syn::{
+    ext::IdentExt,
+    visit::{self, Visit},
+    AngleBracketedGenericArguments, Fields, Generics, ItemStruct, PathArguments, Type, TypePath,
+};
 use tabled::{builder::Builder, Style};
 
+/// Utility for working with weights
 #[derive(Debug, Parser)]
 struct Cli {
     #[command(subcommand)]
@@ -64,6 +74,15 @@ enum Commands {
         #[arg(long)]
         display_units: bool,
     },
+    /// Creates lightweight scheduler with weights from the given json file
+    Codegen {
+        /// path to json file
+        #[arg(value_parser)]
+        path: PathBuf,
+        /// what runtime to compare?
+        #[arg(ignore_case = true, value_enum)]
+        runtime: Runtime,
+    },
 }
 
 #[derive(Debug, Copy, Clone, ValueEnum)]
@@ -91,11 +110,14 @@ struct DeserializableDump {
     label: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 struct DeserializableSchedule {
-    instruction_weights: IndexMap<String, serde_json::Value>,
-    host_fn_weights: IndexMap<String, serde_json::Value>,
-    memory_weights: IndexMap<String, serde_json::Value>,
+    limits: IndexMap<String, Value>,
+    instruction_weights: IndexMap<String, Value>,
+    host_fn_weights: IndexMap<String, Weight>,
+    memory_weights: IndexMap<String, Weight>,
+    #[serde(flatten)]
+    other_fields: IndexMap<String, Weight>,
 }
 
 impl DeserializableSchedule {
@@ -119,9 +141,7 @@ impl DeserializableSchedule {
         let mut map = IndexMap::new();
 
         for (k, v) in self.host_fn_weights.clone() {
-            if let Ok(v) = serde_json::from_value::<Weight>(v) {
-                map.insert(k, v.ref_time());
-            }
+            map.insert(k, v.ref_time());
         }
 
         map
@@ -131,9 +151,7 @@ impl DeserializableSchedule {
         let mut map = IndexMap::new();
 
         for (k, v) in self.memory_weights.clone() {
-            if let Ok(v) = serde_json::from_value::<Weight>(v) {
-                map.insert(k, v.ref_time());
-            }
+            map.insert(k, v.ref_time());
         }
 
         map
@@ -181,6 +199,62 @@ fn format_diff(before: Option<u64>, after: Option<u64>) -> String {
         format!("{percentage_diff:+.2}%")
     } else {
         "N/A".to_string()
+    }
+}
+
+#[derive(Default)]
+struct StructuresVisitor {
+    structures: IndexMap<String, ItemStruct>,
+}
+
+impl<'ast> Visit<'ast> for StructuresVisitor {
+    fn visit_item_struct(&mut self, node: &'ast ItemStruct) {
+        let structure_name = node.ident.to_string();
+        if !matches!(
+            structure_name.as_str(),
+            "Schedule" | "Limits" | "InstructionWeights" | "HostFnWeights" | "MemoryWeights"
+        ) {
+            return;
+        }
+
+        let mut structure = node.clone();
+
+        structure.attrs.clear();
+        structure.generics = Generics::default();
+
+        if let Fields::Named(ref mut fields) = structure.fields {
+            let last_ident = fields
+                .named
+                .last()
+                .and_then(|field| field.ident.as_ref().map(|ident| ident.to_string()));
+            if last_ident == Some(String::from("_phantom")) {
+                fields.named.pop();
+            }
+        }
+
+        for field in structure.fields.iter_mut() {
+            field.vis = syn::parse2(quote! { pub }).unwrap();
+
+            if let Type::Path(TypePath { path, .. }) = &mut field.ty {
+                for segment in path.segments.iter_mut() {
+                    if let PathArguments::AngleBracketed(AngleBracketedGenericArguments {
+                        args,
+                        ..
+                    }) = &mut segment.arguments
+                    {
+                        let token_stream = quote! { #args };
+                        if token_stream.to_string() == "T" {
+                            segment.arguments = PathArguments::None;
+                        }
+                    }
+                }
+            }
+            field.attrs.clear();
+        }
+
+        self.structures.insert(structure_name, structure);
+
+        visit::visit_item_struct(self, node);
     }
 }
 
@@ -265,6 +339,98 @@ fn main() {
 
             println!("{table}");
             println!();
+        }
+        Commands::Codegen { path, runtime } => {
+            let dump: DeserializableDump =
+                serde_json::from_str(&fs::read_to_string(path).unwrap()).unwrap();
+            let raw_schedule = match runtime {
+                Runtime::Vara => serde_json::to_value(dump.vara_schedule).unwrap(),
+            };
+
+            let file =
+                syn::parse_file(&fs::read_to_string("pallets/gear/src/schedule.rs").unwrap())
+                    .unwrap();
+
+            let mut visitor = StructuresVisitor::default();
+            visitor.visit_file(&file);
+
+            let mut declarations = Vec::new();
+
+            for (structure_name, structure) in visitor.structures {
+                let structure_ident = &structure.ident;
+
+                let fields = structure.fields.iter().map(|field| {
+                    let ty = &field.ty;
+                    let type_name = quote! { #ty }.to_string().replace(' ', "");
+
+                    let field_ident = field.ident.as_ref().unwrap();
+                    let field_name = field_ident.unraw().to_string();
+
+                    let value = match structure_name.as_str() {
+                        "Schedule" => &raw_schedule[field_name],
+                        "Limits" => &raw_schedule["limits"][field_name],
+                        "InstructionWeights" => &raw_schedule["instruction_weights"][field_name],
+                        "HostFnWeights" => &raw_schedule["host_fn_weights"][field_name],
+                        "MemoryWeights" => &raw_schedule["memory_weights"][field_name],
+                        _ => &raw_schedule,
+                    };
+
+                    let default_value = match type_name.as_str() {
+                        "Weight" => {
+                            let ref_time =
+                                TokenStream::from_str(&value["ref_time"].to_string()).unwrap();
+                            let proof_size =
+                                TokenStream::from_str(&value["proof_size"].to_string()).unwrap();
+                            quote! {
+                                Weight {
+                                    ref_time: #ref_time,
+                                    proof_size: #proof_size,
+                                }
+                            }
+                        }
+                        "Option<u32>" => {
+                            let value = TokenStream::from_str(&value.to_string()).unwrap();
+                            quote! { Some(#value) }
+                        }
+                        "u32" | "u16" => {
+                            let value = TokenStream::from_str(&value.to_string()).unwrap();
+                            quote! { #value }
+                        }
+                        _ => quote! { #ty::default() },
+                    };
+
+                    quote! {
+                        #field_ident: #default_value,
+                    }
+                });
+
+                declarations.push(quote! { #structure });
+                declarations.push(quote! {
+                    impl Default for #structure_ident {
+                        fn default() -> Self {
+                            Self {
+                                #(#fields)*
+                            }
+                        }
+                    }
+                });
+            }
+
+            declarations.push(quote! {
+                pub struct Weight {
+                    pub ref_time: u64,
+                    pub proof_size: u64,
+                }
+            });
+
+            let output = declarations
+                .into_iter()
+                .map(|stream| stream.to_string())
+                .collect::<Vec<_>>()
+                .join("\n\n");
+            let formatted =
+                format_with_rustfmt(format!("{}{output}", LICENSE.trim_start()).as_bytes());
+            println!("{formatted}");
         }
     }
 }
