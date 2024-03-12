@@ -194,6 +194,7 @@ test-gear: # Crates except gclient, gcli, gsdk are excluded to significantly dec
 		--exclude gclient \
 		--exclude gcli \
 		--exclude gsdk \
+		--exclude gear-authorship \
 		--exclude pallet-gear-staking-rewards \
 		--exclude gear-wasm-gen \
 		--exclude demo-stack-allocations \

@@ -335,20 +335,20 @@ fn run_all_tests() {
     use basic_tests::*;
 
     let tests = vec![
-        Box::new(custom_extrinsic_is_placed_in_each_block) as TestCase,
-        Box::new(queue_remains_intact_if_processing_fails) as TestCase,
-        Box::new(block_max_gas_works) as TestCase,
-        Box::new(terminal_extrinsic_discarded_from_txpool) as TestCase,
-        Box::new(block_builder_cloned_ok) as TestCase,
-        Box::new(proposal_timing_consistent) as TestCase,
-        Box::new(should_cease_building_block_when_deadline_is_reached) as TestCase,
-        Box::new(should_not_panic_when_deadline_is_reached) as TestCase,
-        Box::new(proposed_storage_changes_should_match_execute_block_storage_changes) as TestCase,
-        Box::new(should_not_remove_invalid_transactions_when_skipping) as TestCase,
-        Box::new(should_cease_building_block_when_block_limit_is_reached) as TestCase,
-        Box::new(should_keep_adding_transactions_after_exhausts_resources_before_soft_deadline)
+        Box::new(test_pseudo_inherent_placed_in_each_block) as TestCase,
+        Box::new(test_queue_remains_intact_if_processing_fails) as TestCase,
+        Box::new(test_block_max_gas_works) as TestCase,
+        Box::new(test_pseudo_inherent_discarded_from_txpool) as TestCase,
+        Box::new(test_block_builder_cloned_ok) as TestCase,
+        Box::new(test_proposal_timing_consistent) as TestCase,
+        Box::new(test_building_block_ceased_when_deadline_is_reached) as TestCase,
+        Box::new(test_no_panic_when_deadline_is_reached) as TestCase,
+        Box::new(test_proposed_storage_changes_match_execute_block_storage_changes) as TestCase,
+        Box::new(test_invalid_transactions_not_removed_when_skipping) as TestCase,
+        Box::new(test_building_block_ceased_when_block_limit_is_reached) as TestCase,
+        Box::new(test_transactions_keep_being_added_after_exhaust_resources_before_soft_deadline)
             as TestCase,
-        Box::new(should_only_skip_up_to_some_limit_after_soft_deadline) as TestCase,
+        Box::new(test_skipping_only_up_to_some_limit_after_soft_deadline) as TestCase,
     ];
 
     let handles: Vec<_> = tests
@@ -369,8 +369,7 @@ fn run_all_tests() {
     }
 }
 
-// Test case 1
-fn custom_extrinsic_is_placed_in_each_block() {
+fn test_pseudo_inherent_placed_in_each_block() {
     let (client, backend, txpool, spawner, genesis_hash) = init();
 
     let extrinsics = sign_extrinsics(
@@ -402,8 +401,7 @@ fn custom_extrinsic_is_placed_in_each_block() {
     assert_eq!(block.extrinsics().len(), 3);
 }
 
-// Test case 2
-fn queue_remains_intact_if_processing_fails() {
+fn test_queue_remains_intact_if_processing_fails() {
     use sp_state_machine::IterArgs;
 
     let (client, backend, txpool, spawner, genesis_hash) = init();
@@ -522,16 +520,12 @@ fn queue_remains_intact_if_processing_fails() {
     assert_eq!(queue_len, 8);
 }
 
-// Test case 3
-fn block_max_gas_works() {
+fn test_block_max_gas_works() {
     use pallet_gear_builtin::WeightInfo;
     use sp_state_machine::IterArgs;
 
     // Amount of gas burned in each block (even empty) by default
     const FIXED_BLOCK_GAS: u64 = 25_000_000;
-
-    init_logger();
-    gear_runtime_interface::sandbox_init();
 
     let (client, backend, txpool, spawner, genesis_hash) = init();
 
@@ -651,11 +645,7 @@ fn block_max_gas_works() {
     assert_eq!(inited_count, 2);
 }
 
-// Test case 4
-fn terminal_extrinsic_discarded_from_txpool() {
-    init_logger();
-    gear_runtime_interface::sandbox_init();
-
+fn test_pseudo_inherent_discarded_from_txpool() {
     let (client, backend, txpool, spawner, genesis_hash) = init();
 
     // Create Gear::run() extrinsic - both unsigned and signed
@@ -710,11 +700,7 @@ fn terminal_extrinsic_discarded_from_txpool() {
     assert_eq!(block.extrinsics().len(), 3);
 }
 
-// Test case 5
-fn block_builder_cloned_ok() {
-    init_logger();
-    gear_runtime_interface::sandbox_init();
-
+fn test_block_builder_cloned_ok() {
     let (client, backend, _, _, genesis_hash) = init();
 
     let extrinsics = sign_extrinsics(
@@ -789,12 +775,8 @@ fn block_builder_cloned_ok() {
     );
 }
 
-// Test case 6
-fn proposal_timing_consistent() {
+fn test_proposal_timing_consistent() {
     use sp_state_machine::IterArgs;
-
-    init_logger();
-    gear_runtime_interface::sandbox_init();
 
     let (client, backend, txpool, spawner, genesis_hash) = init();
 
@@ -1000,11 +982,7 @@ mod basic_tests {
         .clone()
     }
 
-    // Test case 7
-    pub(super) fn should_cease_building_block_when_deadline_is_reached() {
-        init_logger();
-        gear_runtime_interface::sandbox_init();
-
+    pub(super) fn test_building_block_ceased_when_deadline_is_reached() {
         let (client, backend, txpool, spawner, genesis_hash) = init();
 
         let mut extrinsics = vec![disable_gear_run(0, genesis_hash)];
@@ -1056,11 +1034,7 @@ mod basic_tests {
         assert_eq!(txpool.ready().count(), 3);
     }
 
-    // Test case 8
-    pub(super) fn should_not_panic_when_deadline_is_reached() {
-        init_logger();
-        gear_runtime_interface::sandbox_init();
-
+    pub(super) fn test_no_panic_when_deadline_is_reached() {
         let (client, backend, txpool, spawner, _) = init();
 
         let cell = Mutex::new((false, time::Instant::now()));
@@ -1090,11 +1064,7 @@ mod basic_tests {
         .block;
     }
 
-    // Test case 9
-    pub(super) fn proposed_storage_changes_should_match_execute_block_storage_changes() {
-        init_logger();
-        gear_runtime_interface::sandbox_init();
-
+    pub(super) fn test_proposed_storage_changes_match_execute_block_storage_changes() {
         let (client, backend, txpool, spawner, genesis_hash) = init();
 
         let extrinsics = sign_extrinsics(
@@ -1142,11 +1112,7 @@ mod basic_tests {
         assert!(state.storage(&queue_head_key[..]).unwrap().is_none());
     }
 
-    // Test case 10
-    pub(super) fn should_not_remove_invalid_transactions_when_skipping() {
-        init_logger();
-        gear_runtime_interface::sandbox_init();
-
+    pub(super) fn test_invalid_transactions_not_removed_when_skipping() {
         let (client, backend, txpool, spawner, genesis_hash) = init();
 
         let alice = alice();
@@ -1204,11 +1170,7 @@ mod basic_tests {
         assert_eq!(block.extrinsics().len(), 5);
     }
 
-    // Test case 11
-    pub(super) fn should_cease_building_block_when_block_limit_is_reached() {
-        init_logger();
-        gear_runtime_interface::sandbox_init();
-
+    pub(super) fn test_building_block_ceased_when_block_limit_is_reached() {
         let (client, backend, txpool, spawner, genesis_hash) = init();
 
         let block_id = BlockId::number(0);
@@ -1318,11 +1280,8 @@ mod basic_tests {
         assert_eq!(block.extrinsics().len(), extrinsics_num - 2 + 2);
     }
 
-    // Test case 12
-    pub(super) fn should_keep_adding_transactions_after_exhausts_resources_before_soft_deadline() {
-        init_logger();
-        gear_runtime_interface::sandbox_init();
-
+    pub(super) fn test_transactions_keep_being_added_after_exhaust_resources_before_soft_deadline()
+    {
         let (client, backend, txpool, spawner, genesis_hash) = init();
 
         let alice = alice();
@@ -1362,11 +1321,7 @@ mod basic_tests {
         assert_eq!(block.extrinsics().len(), MAX_SKIPPED_TRANSACTIONS + 3);
     }
 
-    // Test case 13
-    pub(super) fn should_only_skip_up_to_some_limit_after_soft_deadline() {
-        init_logger();
-        gear_runtime_interface::sandbox_init();
-
+    pub(super) fn test_skipping_only_up_to_some_limit_after_soft_deadline() {
         let (client, backend, txpool, spawner, genesis_hash) = init();
 
         let alice = alice();
