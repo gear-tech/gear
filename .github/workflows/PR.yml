@@ -20,7 +20,6 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       build: ${{ steps.config.outputs.build }}
-      cache: ${{ steps.config.outputs.cache }}
       check: ${{ steps.config.outputs.check }}
       win-native: ${{ steps.config.outputs.win-native }}
       macos: ${{ steps.config.outputs.macos }}
@@ -43,15 +42,12 @@ jobs:
     needs: status
     if: ${{ needs.status.outputs.check == 'true' }}
     uses: ./.github/workflows/check.yml
-    with:
-      cache: ${{ needs.status.outputs.cache }}
 
   build:
     needs: status
     if: ${{ needs.status.outputs.build == 'true' }}
     uses: ./.github/workflows/build.yml
     with:
-      cache: ${{ needs.status.outputs.cache }}
       macos: ${{ needs.status.outputs.macos == 'true' }}
       win-native: ${{ needs.status.outputs.win-native == 'true' }}
       release: ${{ needs.status.outputs.release == 'true' }}

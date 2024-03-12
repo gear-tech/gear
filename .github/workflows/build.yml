@@ -3,9 +3,6 @@ name: Build
 on:
   workflow_call:
     inputs:
-      cache:
-        type: string
-        required: true
       macos:
         type: boolean
         default: false
@@ -50,7 +47,7 @@ jobs:
           echo "matrix=${matrix}" >> $GITHUB_OUTPUT
 
   linux:
-    runs-on: [kuberunner, github-runner-02]
+    runs-on: [ kuberunner, github-runner-02 ]
     needs: matrix
     strategy:
       matrix: ${{ fromJson(needs.matrix.outputs.matrix) }}
@@ -59,7 +56,6 @@ jobs:
     env:
       LLVM_PROFILE_FILE: "gear-%p-%m.profraw"
       RUSTUP_HOME: /tmp/rustup_home
-      SCCACHE_DIR: ${{ inputs.cache }}
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
@@ -166,7 +162,7 @@ jobs:
           path: artifact
 
   win-cross:
-    runs-on: [kuberunner, github-runner-03]
+    runs-on: [ kuberunner, github-runner-03 ]
     needs: matrix
     strategy:
       matrix: ${{ fromJson(needs.matrix.outputs.matrix) }}
@@ -248,14 +244,14 @@ jobs:
           CARGO_BUILD_TARGET: x86_64-pc-windows-msvc
 
   win-native:
-    needs: [matrix, linux]
+    needs: [ matrix, linux ]
     if: ${{ !cancelled() && (github.ref == 'refs/heads/master' || inputs.win-native) }}
     uses: ./.github/workflows/build-win-native.yml
     with:
       matrix: ${{ needs.matrix.outputs.matrix }}
 
   macos:
-    needs: [matrix, linux]
+    needs: [ matrix, linux ]
     if: ${{ !cancelled() && inputs.macos }}
     uses: ./.github/workflows/build-macos.yml
     with:

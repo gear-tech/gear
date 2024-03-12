@@ -8,12 +8,11 @@ inputs:
 outputs:
   build:
     description: If trigger build.
-  cache:
-    description: If enable cache.
   check:
     description: If trigger check.
   macos:
     description: If enable macos.
+  # TODO: add another outputs
 
 runs:
   using: node20

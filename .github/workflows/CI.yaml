@@ -19,31 +19,12 @@ env:
   BINARYEN_VERSION: version_111
 
 jobs:
-  cache:
-    runs-on: ubuntu-latest
-    outputs:
-      sccache_path: ${{ steps.sccache.outputs.sccache_path }}
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: "CACHE: Set sccache path"
-        id: sccache
-        run: |
-          sccache_path="/mnt/sccache/$(echo ${GITHUB_REF#refs/heads/} | tr / _)"
-          echo "sccache_path=$sccache_path" >> $GITHUB_OUTPUT
-
   check:
-    needs: [ cache ]
     uses: ./.github/workflows/check.yml
-    with:
-      cache: ${{ needs.cache.outputs.sccache_path }}
 
   build:
-    needs: [ cache ]
     uses: ./.github/workflows/build.yml
     with:
-      cache: ${{ needs.cache.outputs.sccache_path }}
       macos: true
       win-native: true
       release: true
