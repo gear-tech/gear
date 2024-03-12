@@ -16,7 +16,7 @@ env:
   BINARYEN_VERSION: version_111
 
 jobs:
-  macos-x86:
+  x86:
     runs-on: macos-latest
     strategy:
       matrix: ${{ fromJson(inputs.matrix) }}
@@ -61,7 +61,7 @@ jobs:
         # so we just check compilation
         if: ${{ matrix.profile == 'release' }}
         run: cargo build -p gear-cli --release --locked
-        
+
       - name: "Check: Stack height limit"
         # no need to run check twice
         if: ${{ matrix.profile == 'release' }}
