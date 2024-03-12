@@ -17,7 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use clap::Parser;
-use gear_wasm_builder::optimize::{self, OptType, Optimizer};
+use gear_wasm_builder::{
+    code_validator::CodeValidator,
+    optimize::{self, OptType, Optimizer},
+};
 use parity_wasm::elements::External;
 use std::{collections::HashSet, fs, path::PathBuf};
 
@@ -221,8 +224,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let original_wasm_path = PathBuf::from(file);
         let optimized_wasm_path = original_wasm_path.clone().with_extension("opt.wasm");
 
-        // Make pre-handle if input wasm has been built from as-script
-        let wasm_path = if assembly_script {
+        // Make sure to run through gear semantic optimizer (preserving only required exports)
+        let wasm_path = {
             let mut optimizer = Optimizer::new(original_wasm_path.clone())?;
             optimizer
                 .insert_start_call_in_export_funcs()
@@ -232,11 +235,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .expect("Failed to move mutable globals to static");
             optimizer.flush_to_file(&optimized_wasm_path);
             optimized_wasm_path.clone()
-        } else {
-            original_wasm_path.clone()
         };
 
-        // Make size optimizations
+        // Make generic size optimizations by wasm-opt
         let res = optimize::optimize_wasm(wasm_path, optimized_wasm_path.clone(), "s", true)?;
         log::debug!(
             "wasm-opt has changed wasm size: {} Kb -> {} Kb",
@@ -244,12 +245,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             res.optimized_size
         );
 
+        // Insert stack hint for optimized performance on-chain
         let mut optimizer = Optimizer::new(optimized_wasm_path.clone())?;
         if insert_stack_end {
             optimizer.insert_stack_end_export().unwrap_or_else(|err| {
                 log::debug!("Failed to insert stack end: {}", err);
             })
         }
+
+        // Make sure debug sections are stripped
         if strip_custom_sections {
             optimizer.strip_custom_sections();
         }
@@ -261,7 +265,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let code = optimizer.optimize(OptType::Opt)?;
         log::info!("Optimized wasm: {}", optimized_wasm_path.to_string_lossy());
 
-        fs::write(optimized_wasm_path, code)?;
+        fs::write(&optimized_wasm_path, &code)?;
+
+        log::debug!(
+            "*** Validating wasm code: {}",
+            optimized_wasm_path.display()
+        );
+
+        CodeValidator::try_from(code)?.validate_program()?;
     }
 
     Ok(())

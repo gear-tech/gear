@@ -20,6 +20,7 @@
 
 use super::Exec;
 use crate::{
+    builtin::BuiltinDispatcherFactory,
     manager::{CodeInfo, ExtManager, HandleKind},
     Config, CostsPerBlockOf, CurrencyOf, DbWeightOf, MailboxOf, Pallet as Gear, ProgramStorageOf,
     QueueOf,
@@ -68,6 +69,7 @@ where
         page_costs: T::Schedule::get().memory_weights.into(),
         existential_deposit,
         outgoing_limit: 2048,
+        outgoing_bytes_limit: u32::MAX,
         host_fn_weights: Default::default(),
         forbidden_funcs: Default::default(),
         mailbox_threshold,
@@ -123,7 +125,8 @@ where
     #[cfg(feature = "std")]
     let _ = env_logger::try_init();
 
-    let ext_manager = ExtManager::<T>::default();
+    let (builtins, _) = T::BuiltinDispatcherFactory::create();
+    let ext_manager = ExtManager::<T>::new(builtins);
     let bn: u64 = Gear::<T>::block_number().unique_saturated_into();
     let root_message_id = MessageId::from(bn);
 
@@ -145,7 +148,7 @@ where
 
             let _ = Gear::<T>::set_code_with_metadata(code_and_id, source);
 
-            ExtManager::<T>::default().set_program(
+            ext_manager.set_program(
                 program_id,
                 &code_info,
                 root_message_id,
@@ -171,7 +174,7 @@ where
             let code = T::CodeStorage::get_code(code_id).ok_or("Code not found in storage")?;
             let code_info = CodeInfo::from_code(&code_id, &code);
 
-            ExtManager::<T>::default().set_program(
+            ext_manager.set_program(
                 program_id,
                 &code_info,
                 root_message_id,

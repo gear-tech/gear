@@ -16,11 +16,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{Config, Pallet};
-use frame_support::traits::{Currency, OnRuntimeUpgrade};
+use crate::Config;
+use frame_support::traits::OnRuntimeUpgrade;
 use sp_std::marker::PhantomData;
 #[cfg(feature = "try-runtime")]
-use {sp_runtime::TryRuntimeError, sp_std::vec::Vec};
+use {
+    crate::Pallet, frame_support::traits::Currency, sp_runtime::TryRuntimeError, sp_std::vec::Vec,
+};
 
 pub struct CheckRentPoolId<T: Config>(PhantomData<T>);
 
