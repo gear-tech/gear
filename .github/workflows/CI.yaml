@@ -4,7 +4,7 @@ on:
   schedule:
     - cron: "0 3 * * *"
   push:
-    branches: [master, vara-stage-1, vara-stage-2, vara-stage-3]
+    branches: [ master ]
   workflow_dispatch:
 
 concurrency:
@@ -19,20 +19,6 @@ env:
   BINARYEN_VERSION: version_111
 
 jobs:
-  # TODO: add to specific branches.
-  # spec_version:
-  #   runs-on: [kuberunner]
-  #   steps:
-  #     - name: "ACTIONS: Checkout"
-  #       uses: actions/checkout@v4
-
-  #     - name: "Fetch origin"
-  #       run: git fetch origin
-
-  #     - name: "Check spec version"
-  #       if: ${{ ! contains(github.event.pull_request.labels.*.name, 'A4-insubstantial') }}
-  #       run: ./scripts/check-spec.sh
-
   cache:
     runs-on: ubuntu-latest
     outputs:
@@ -48,13 +34,13 @@ jobs:
           echo "sccache_path=$sccache_path" >> $GITHUB_OUTPUT
 
   check:
-    needs: [cache]
+    needs: [ cache ]
     uses: ./.github/workflows/check.yml
     with:
       cache: ${{ needs.cache.outputs.sccache_path }}
 
   build:
-    needs: [cache]
+    needs: [ cache ]
     uses: ./.github/workflows/build.yml
     with:
       cache: ${{ needs.cache.outputs.sccache_path }}
