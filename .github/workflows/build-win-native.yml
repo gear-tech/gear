@@ -1,4 +1,4 @@
-name: Build MacOS
+name: Build native Windows
 
 on:
   workflow_call:
