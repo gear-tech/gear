@@ -46,6 +46,8 @@ pub struct Code {
     exports: BTreeSet<DispatchKind>,
     /// Static pages count from memory import.
     static_pages: WasmPage,
+    /// +_+_+
+    stack_end: Option<WasmPage>,
     /// Instruction weights version.
     instruction_weights_version: u32,
 }
@@ -120,14 +122,17 @@ impl Code {
         let mut module =
             parity_wasm::deserialize_buffer(&original_code).map_err(CodecError::Decode)?;
 
+        let static_pages = utils::get_static_pages(&module)?;
+
         // Canonize stack end before any changes in module
-        if config.check_and_canonize_stack_end {
-            utils::check_and_canonize_gear_stack_end(&mut module)?;
-        }
+        let stack_end = match config.check_and_canonize_stack_end {
+            true => utils::check_and_canonize_gear_stack_end(&mut module, static_pages)?,
+            false => None,
+        };
 
         // Not changing steps
         if config.check_data_section {
-            utils::check_data_section(&module, config.check_and_canonize_stack_end)?;
+            utils::check_data_section(&module, static_pages, stack_end)?;
         }
         if config.check_mut_global_exports {
             utils::check_mut_global_exports(&module)?;
@@ -154,8 +159,6 @@ impl Code {
         }
         module = instrumentation_builder.instrument(module)?;
 
-        let static_pages = utils::get_static_pages(&module)?;
-
         let code = parity_wasm::elements::serialize(module).map_err(CodecError::Encode)?;
 
         Ok(Self {
@@ -163,6 +166,7 @@ impl Code {
             original_code,
             exports,
             static_pages,
+            stack_end,
             instruction_weights_version: config.version,
         })
     }
@@ -321,6 +325,7 @@ impl Code {
                 original_code_len,
                 exports: self.exports,
                 static_pages: self.static_pages,
+                stack_end: self.stack_end,
                 version: self.instruction_weights_version,
             },
             self.original_code,

@@ -35,7 +35,7 @@ use common::{
     event::*, scheduler::*, storage::*, ActiveProgram, CodeStorage, GasTree, LockId, LockableTree,
     Origin as _, ProgramStorage, ReservableTree,
 };
-use core_processor::{common::ActorExecutionErrorReplyReason, ActorPrepareMemoryError};
+use core_processor::common::ActorExecutionErrorReplyReason;
 use frame_support::{
     assert_noop, assert_ok,
     codec::{Decode, Encode},
@@ -51,7 +51,7 @@ use gear_core::{
         ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext, Payload,
         ReplyInfo, StoredDispatch, UserStoredMessage,
     },
-    pages::{PageNumber, PageU32Size, WasmPage},
+    pages::PageNumber,
 };
 use gear_core_backend::error::{
     TrapExplanation, UnrecoverableExecutionError, UnrecoverableExtError, UnrecoverableWaitError,
@@ -12470,97 +12470,6 @@ fn wake_after_exit() {
 
         // Execution after wake must be skipped, so status must be NotExecuted.
         assert_not_executed(mid);
-    });
-}
-
-#[test]
-fn check_gear_stack_end_fail() {
-    // This test checks, that in case user makes WASM file with incorrect
-    // gear stack end export, then execution will end with an error.
-    let wat_template = |addr| {
-        format!(
-            r#"
-            (module
-                (import "env" "memory" (memory 4))
-                (export "init" (func $init))
-                (func $init)
-                (global (;0;) (mut i32) (i32.const {addr}))
-                (export "{STACK_END_EXPORT_NAME}" (global 0))
-            )"#,
-        )
-    };
-
-    init_logger();
-    new_test_ext().execute_with(|| {
-        // Check error when stack end bigger then static mem size
-        let wat = wat_template(0x50000);
-        Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            ProgramCodeKind::Custom(wat.as_str()).to_bytes(),
-            DEFAULT_SALT.to_vec(),
-            EMPTY_PAYLOAD.to_vec(),
-            50_000_000_000,
-            0,
-            false,
-        )
-        .expect("Failed to upload program");
-
-        let message_id = get_last_message_id();
-
-        run_to_next_block(None);
-        assert_last_dequeued(1);
-        assert_failed(
-            message_id,
-            ActorExecutionErrorReplyReason::PrepareMemory(
-                ActorPrepareMemoryError::StackEndPageBiggerWasmMemSize(
-                    WasmPage::new(5).unwrap(),
-                    WasmPage::new(4).unwrap(),
-                ),
-            ),
-        );
-
-        // Check error when stack end is not aligned
-        let wat = wat_template(0x10001);
-        Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            ProgramCodeKind::Custom(wat.as_str()).to_bytes(),
-            DEFAULT_SALT.to_vec(),
-            EMPTY_PAYLOAD.to_vec(),
-            50_000_000_000,
-            0,
-            false,
-        )
-        .expect("Failed to upload program");
-
-        let message_id = get_last_message_id();
-
-        run_to_next_block(None);
-        assert_last_dequeued(1);
-        assert_failed(
-            message_id,
-            ActorExecutionErrorReplyReason::PrepareMemory(
-                ActorPrepareMemoryError::StackIsNotAligned(65537),
-            ),
-        );
-
-        // Check OK if stack end is suitable
-        let wat = wat_template(0x10000);
-        Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            ProgramCodeKind::Custom(wat.as_str()).to_bytes(),
-            DEFAULT_SALT.to_vec(),
-            EMPTY_PAYLOAD.to_vec(),
-            50_000_000_000,
-            0,
-            false,
-        )
-        .expect("Failed to upload program");
-
-        let message_id = get_last_message_id();
-
-        run_to_next_block(None);
-        assert_last_dequeued(1);
-        assert_succeed(message_id);
     });
 }
 

@@ -72,6 +72,10 @@ pub enum StackEndError {
     /// Too many globals to create new const global for stack end.
     #[display(fmt = "Too many globals, so cannot create new global for stack end")]
     GlobalIndexOverflow,
+    /// +_+_+
+    NotAligned,
+    /// +_+_+
+    OutOfStatic,
 }
 
 /// Stack end error in WASM module.

@@ -32,6 +32,7 @@ pub struct InstrumentedCode {
     pub(crate) original_code_len: u32,
     pub(crate) exports: BTreeSet<DispatchKind>,
     pub(crate) static_pages: WasmPage,
+    pub(crate) stack_end: Option<WasmPage>,
     pub(crate) version: u32,
 }
 
@@ -61,6 +62,11 @@ impl InstrumentedCode {
         self.static_pages
     }
 
+    /// Returns stack end page if exists.
+    pub fn stack_end(&self) -> Option<WasmPage> {
+        self.stack_end
+    }
+
     /// Consumes the instance and returns the instrumented code.
     pub fn into_code(self) -> Vec<u8> {
         self.code
@@ -68,7 +74,7 @@ impl InstrumentedCode {
 }
 
 /// The newtype contains the instrumented code and the corresponding id (hash).
-#[derive(Clone, Debug, Decode, Encode)]
+#[derive(Clone, Debug)]
 pub struct InstrumentedCodeAndId {
     code: InstrumentedCode,
     code_id: CodeId,

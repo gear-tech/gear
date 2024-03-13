@@ -18,10 +18,7 @@
 
 //! Common structures for processing.
 
-use crate::{
-    context::SystemReservationContext, executor::SystemPrepareMemoryError,
-    precharge::PreChargeGasOperation, ActorPrepareMemoryError,
-};
+use crate::{context::SystemReservationContext, precharge::PreChargeGasOperation};
 use actor_system_error::actor_system_error;
 use alloc::{
     collections::{BTreeMap, BTreeSet},
@@ -42,7 +39,6 @@ use gear_core::{
 pub use gear_core_backend::error::TrapExplanation;
 use gear_core_backend::{env::SystemEnvironmentError, error::SystemTerminationReason};
 use gear_core_errors::{SignalCode, SimpleExecutionError};
-use scale_info::scale::{self, Decode, Encode};
 
 /// Kind of the dispatch result.
 #[derive(Clone)]
@@ -447,15 +443,11 @@ pub struct ActorExecutionError {
 }
 
 /// Reason of execution error
-#[derive(Encode, Decode, Debug, PartialEq, Eq, PartialOrd, Ord, derive_more::Display)]
-#[codec(crate = scale)]
+#[derive(Debug, PartialEq, Eq, derive_more::Display)]
 pub enum ActorExecutionErrorReplyReason {
     /// Not enough gas to perform an operation during precharge.
     #[display(fmt = "Not enough gas to {_0}")]
     PreChargeGasLimitExceeded(PreChargeGasOperation),
-    /// Prepare memory error
-    #[display(fmt = "{_0}")]
-    PrepareMemory(ActorPrepareMemoryError),
     /// Backend error
     #[display(fmt = "Environment error: <host error stripped>")]
     Environment,
@@ -476,7 +468,6 @@ impl ActorExecutionErrorReplyReason {
     pub fn as_simple(&self) -> SimpleExecutionError {
         match self {
             Self::PreChargeGasLimitExceeded(_) => SimpleExecutionError::RanOutOfGas,
-            Self::PrepareMemory(_) | Self::Environment => SimpleExecutionError::Unsupported,
             Self::Trap(expl) => match expl {
                 TrapExplanation::GasLimitExceeded => SimpleExecutionError::RanOutOfGas,
                 TrapExplanation::ForbiddenFunction | TrapExplanation::UnrecoverableExt(_) => {
@@ -487,6 +478,7 @@ impl ActorExecutionErrorReplyReason {
                 TrapExplanation::StackLimitExceeded => SimpleExecutionError::StackLimitExceeded,
                 TrapExplanation::Unknown => SimpleExecutionError::UnreachableInstruction,
             },
+            Self::Environment => SimpleExecutionError::Unsupported,
             Self::UnsupportedMessage => SimpleExecutionError::Unsupported,
         }
     }
@@ -495,10 +487,9 @@ impl ActorExecutionErrorReplyReason {
 /// System execution error
 #[derive(Debug, derive_more::Display, derive_more::From)]
 pub enum SystemExecutionError {
-    /// Prepare memory error
-    #[from]
-    #[display(fmt = "Prepare memory: {_0}")]
-    PrepareMemory(SystemPrepareMemoryError),
+    /// Insufficient memory size
+    #[display(fmt = "Memory size {_0:?} must be at least {_1:?}")]
+    InsufficientMemorySize(WasmPage, WasmPage),
     /// Environment error
     #[display(fmt = "Backend error: {_0}")]
     Environment(SystemEnvironmentError),
