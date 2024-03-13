@@ -405,71 +405,58 @@ mod tests {
         };
     }
 
+    fn try_new_code_from_wat(wat: &str, stack_height: Option<u32>) -> Result<Code, CodeError> {
+        Code::try_new(
+            wat2wasm(wat),
+            1,
+            |_| CustomConstantCostRules::default(),
+            stack_height,
+        )
+    }
+
     #[test]
     fn reject_unknown_exports() {
-        const WAT: &str = r#"
-        (module
-            (import "env" "memory" (memory 1))
-            (export "this_import_is_unknown" (func $test))
-            (func $test)
-        )
+        let wat = r#"
+            (module
+                (import "env" "memory" (memory 1))
+                (export "this_import_is_unknown" (func $test))
+                (func $test)
+            )
         "#;
 
-        let original_code = wat2wasm(WAT);
-
         assert_code_err!(
-            Code::try_new(
-                original_code,
-                1,
-                |_| CustomConstantCostRules::default(),
-                None
-            ),
+            try_new_code_from_wat(wat, None),
             CodeError::Export(ExportError::ExcessExport(0))
         );
     }
 
     #[test]
     fn required_fn_not_found() {
-        const WAT: &str = r#"
-        (module
-            (import "env" "memory" (memory 1))
-            (export "handle_signal" (func $handle_signal))
-            (func $handle_signal)
-        )
+        let wat = r#"
+            (module
+                (import "env" "memory" (memory 1))
+                (export "handle_signal" (func $handle_signal))
+                (func $handle_signal)
+            )
         "#;
 
-        let original_code = wat2wasm(WAT);
-
         assert_code_err!(
-            Code::try_new(
-                original_code,
-                1,
-                |_| CustomConstantCostRules::default(),
-                None
-            ),
+            try_new_code_from_wat(wat, None),
             CodeError::Export(ExportError::RequiredExportNotFound)
         );
     }
 
     #[test]
     fn stack_limit_injection_works() {
-        const WAT: &str = r#"
-        (module
-            (import "env" "memory" (memory 1))
-            (export "init" (func $init))
-            (func $init)
-        )
+        let wat = r#"
+            (module
+                (import "env" "memory" (memory 1))
+                (export "init" (func $init))
+                (func $init)
+            )
         "#;
 
-        let original_code = wat2wasm(WAT);
-
-        let _ = Code::try_new(
-            original_code,
-            1,
-            |_| CustomConstantCostRules::default(),
-            Some(16 * 1024),
-        )
-        .unwrap();
+        let _ = try_new_code_from_wat(wat, Some(16 * 1024)).unwrap();
     }
 
     #[test]
@@ -483,13 +470,9 @@ mod tests {
                 (data (;0;) (i32.const 0x10000) "gear")
             )
         "#;
+
         assert_code_err!(
-            Code::try_new(
-                wat2wasm(wat),
-                1,
-                |_| CustomConstantCostRules::default(),
-                None
-            ),
+            try_new_code_from_wat(wat, None),
             CodeError::DataSection(DataSectionError::EndAddressOutOfStaticMemory(
                 0x10000, 0x10003, 0x10000
             ))
@@ -504,13 +487,9 @@ mod tests {
                 (data (;0;) (i32.const 0xfffd) "gear")
             )
         "#;
+
         assert_code_err!(
-            Code::try_new(
-                wat2wasm(wat),
-                1,
-                |_| CustomConstantCostRules::default(),
-                None
-            ),
+            try_new_code_from_wat(wat, None),
             CodeError::DataSection(DataSectionError::EndAddressOutOfStaticMemory(
                 0xfffd, 0x10000, 0x10000
             ))
@@ -528,13 +507,9 @@ mod tests {
                 (data (;0;) (i32.const 0xffffffff) "gear")
             )
         "#;
+
         assert_code_err!(
-            Code::try_new(
-                wat2wasm(wat),
-                1,
-                |_| CustomConstantCostRules::default(),
-                None
-            ),
+            try_new_code_from_wat(wat, None),
             CodeError::DataSection(DataSectionError::EndAddressOverflow(0xffffffff))
         );
     }
@@ -542,30 +517,28 @@ mod tests {
     #[test]
     fn data_segment_stack_overlaps() {
         // Data segment overlaps gear stack.
-        let wat = r#"
+        let wat = format!(
+            r#"
             (module
                 (import "env" "memory" (memory 3))
                 (export "init" (func $init))
                 (func $init)
                 (data (;0;) (i32.const 0x10000) "gear")
-                (export "__gear_stack_end" (global 0))
+                (export "{STACK_END_EXPORT_NAME}" (global 0))
                 (global (mut i32) (i32.const 0x20000))
-            )
-        "#;
+            )"#
+        );
+
         assert_code_err!(
-            Code::try_new(
-                wat2wasm(wat),
-                1,
-                |_| CustomConstantCostRules::default(),
-                None
-            ),
+            try_new_code_from_wat(wat.as_str(), None),
             CodeError::DataSection(DataSectionError::GearStackOverlaps(0x10000, 0x20000))
         );
     }
 
     #[test]
     fn data_section() {
-        let wat = r#"
+        let wat = format!(
+            r#"
             (module
                 (import "env" "memory" (memory 3))
                 (export "init" (func $init))
@@ -574,18 +547,12 @@ mod tests {
                 (data (i32.const 0x10000) "")     ;; empty data segment
                 (data (i32.const 0x1ffff) "gear") ;; overlapping other segments, also ok
                 (data (i32.const 0x2ffff) "g")    ;; one byte before the end of memory
-                (export "__gear_stack_end" (global 0))
+                (export "{STACK_END_EXPORT_NAME}" (global 0))
                 (global (mut i32) (i32.const 0x10000))
-            )
-        "#;
+            )"#
+        );
 
-        Code::try_new(
-            wat2wasm(wat),
-            1,
-            |_| CustomConstantCostRules::default(),
-            None,
-        )
-        .expect("Must be ok");
+        try_new_code_from_wat(wat.as_str(), None).expect("Must be ok");
     }
 
     #[test]
@@ -600,12 +567,7 @@ mod tests {
             )"#;
 
         assert_code_err!(
-            Code::try_new(
-                wat2wasm(wat),
-                1,
-                |_| CustomConstantCostRules::default(),
-                None
-            ),
+            try_new_code_from_wat(wat, None),
             CodeError::Export(ExportError::MutableGlobalExport(0, 1))
         );
     }
@@ -625,12 +587,7 @@ mod tests {
         );
 
         assert_code_err!(
-            Code::try_new(
-                wat2wasm(wat.as_str()),
-                1,
-                |_| CustomConstantCostRules::default(),
-                None
-            ),
+            try_new_code_from_wat(wat.as_str(), None),
             CodeError::StackEnd(StackEndError::Initialization)
         );
     }
@@ -649,12 +606,7 @@ mod tests {
         );
 
         assert_code_err!(
-            Code::try_new(
-                wat2wasm(wat.as_str()),
-                1,
-                |_| CustomConstantCostRules::default(),
-                None
-            ),
+            try_new_code_from_wat(wat.as_str(), None),
             CodeError::StackEnd(StackEndError::NotAligned)
         );
     }
@@ -673,12 +625,7 @@ mod tests {
         );
 
         assert_code_err!(
-            Code::try_new(
-                wat2wasm(wat.as_str()),
-                1,
-                |_| CustomConstantCostRules::default(),
-                None
-            ),
+            try_new_code_from_wat(wat.as_str(), None),
             CodeError::StackEnd(StackEndError::OutOfStatic)
         );
     }
@@ -696,14 +643,40 @@ mod tests {
             )"#
         );
 
-        let code = Code::try_new(
-            wat2wasm(wat.as_str()),
-            1,
-            |_| CustomConstantCostRules::default(),
-            None,
-        )
-        .expect("Must be ok");
-
+        let code = try_new_code_from_wat(wat.as_str(), None).expect("Must be ok");
         assert_eq!(code.stack_end, Some(1.into()));
+    }
+
+    #[test]
+    fn export_to_imported_function() {
+        let wat = r#"
+            (module
+                (import "env" "memory" (memory 1))
+                (import "env" "gr_leave" (func $gr_leave))
+                (export "init" (func $gr_leave))
+                (func)
+            )"#;
+
+        assert_code_err!(
+            try_new_code_from_wat(wat, None),
+            CodeError::Export(ExportError::ExportReferencesToImport(0, 0))
+        );
+    }
+
+    #[test]
+    fn export_to_imported_global() {
+        let wat = r#"
+            (module
+                (import "env" "memory" (memory 1))
+                (import "env" "global" (global i32))
+                (export "init" (func 0))
+                (export "global" (global 0))
+                (func)
+            )"#;
+
+        assert_code_err!(
+            try_new_code_from_wat(wat, None),
+            CodeError::Export(ExportError::ExportReferencesToImport(1, 0))
+        );
     }
 }

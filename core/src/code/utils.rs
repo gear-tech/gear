@@ -343,7 +343,7 @@ pub fn check_and_canonize_gear_stack_end(
 }
 
 pub fn check_mut_global_exports(module: &Module) -> Result<(), CodeError> {
-    let (Some(export_section), Some(_)) = (module.export_section(), module.global_section()) else {
+    let Some(export_section) = module.export_section() else {
         return Ok(());
     };
 
