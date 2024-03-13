@@ -229,11 +229,22 @@ fn get_init_expr_const_i32(init_expr: &InitExpr) -> Option<i32> {
     }
 }
 
-fn get_global_entry(module: &Module, global_index: u32) -> Option<&GlobalEntry> {
+fn get_export_global_entry(
+    module: &Module,
+    export_index: u32,
+    global_index: u32,
+) -> Result<&GlobalEntry, CodeError> {
+    let index = (global_index as usize)
+        .checked_sub(module.import_count(ImportCountType::Global))
+        .ok_or(ExportError::ExportReferencesToImport(
+            export_index,
+            global_index,
+        ))?;
+
     module
-        .global_section()?
-        .entries()
-        .get(global_index as usize)
+        .global_section()
+        .and_then(|s| s.entries().get(index))
+        .ok_or(ExportError::IncorrectGlobalIndex(global_index, export_index).into())
 }
 
 /// Check that data segments are not overlapping with stack and are inside static pages.
@@ -295,13 +306,11 @@ fn get_stack_end_offset(module: &Module) -> Result<Option<u32>, CodeError> {
         return Ok(None);
     };
 
-    let entry = get_global_entry(module, global_index).ok_or(ExportError::IncorrectGlobalIndex(
-        global_index,
-        export_index,
-    ))?;
-
     Ok(Some(
-        get_init_expr_const_i32(entry.init_expr()).ok_or(StackEndError::Initialization)? as u32,
+        get_init_expr_const_i32(
+            get_export_global_entry(module, export_index, global_index)?.init_expr(),
+        )
+        .ok_or(StackEndError::Initialization)? as u32,
     ))
 }
 
@@ -334,9 +343,7 @@ pub fn check_and_canonize_gear_stack_end(
 }
 
 pub fn check_mut_global_exports(module: &Module) -> Result<(), CodeError> {
-    let (Some(export_section), Some(global_section)) =
-        (module.export_section(), module.global_section())
-    else {
+    let (Some(export_section), Some(_)) = (module.export_section(), module.global_section()) else {
         return Ok(());
     };
 
@@ -349,16 +356,8 @@ pub fn check_mut_global_exports(module: &Module) -> Result<(), CodeError> {
             _ => None,
         })
         .try_for_each(|(export_index, global_index)| {
-            if global_section
-                .entries()
-                .get(global_index as usize)
-                .ok_or(ExportError::IncorrectGlobalIndex(
-                    global_index,
-                    export_index,
-                ))?
-                .global_type()
-                .is_mutable()
-            {
+            let entry = get_export_global_entry(module, export_index, global_index)?;
+            if entry.global_type().is_mutable() {
                 Err(ExportError::MutableGlobalExport(global_index, export_index).into())
             } else {
                 Ok(())

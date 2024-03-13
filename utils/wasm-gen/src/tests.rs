@@ -626,8 +626,7 @@ fn execute_wasm_with_custom_configs(
         );
 
         if let Some(mem_write) = initial_memory_write {
-            mem
-                .write(mem_write.offset, &mem_write.content)
+            mem.write(mem_write.offset, &mem_write.content)
                 .expect("Failed to write to memory");
         };
     })

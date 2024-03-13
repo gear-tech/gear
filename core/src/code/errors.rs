@@ -69,9 +69,6 @@ pub enum StackEndError {
     /// Unsupported initialization of gear stack end global variable.
     #[display(fmt = "Unsupported initialization of gear stack end global")]
     Initialization,
-    /// Too many globals to create new const global for stack end.
-    #[display(fmt = "Too many globals, so cannot create new global for stack end")]
-    GlobalIndexOverflow,
     /// +_+_+
     NotAligned,
     /// +_+_+
@@ -104,6 +101,7 @@ pub enum ExportError {
     /// Exporting mutable globals is restricted by the Gear protocol.
     #[display(fmt = "Global index `{_0}` in export index `{_1}` cannot be mutable")]
     MutableGlobalExport(u32, u32),
+    // +_+_+
     /// Export references to an import function, which is not allowed.
     #[display(fmt = "Export index `{_0}` references to imported function with index `{_1}`")]
     ExportReferencesToImport(u32, u32),
@@ -114,7 +112,7 @@ pub enum ExportError {
     #[display(fmt = "Excess export with index `{_0}` found")]
     ExcessExport(u32),
     /// The provided code doesn't contain the required `init` or `handle` export function.
-    #[display(fmt = "Required export function `init` or `handle` not found")]
+    #[display(fmt = "Required export function `init` or `handle` is not found")]
     RequiredExportNotFound,
 }
 
