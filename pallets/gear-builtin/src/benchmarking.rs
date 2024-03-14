@@ -150,15 +150,7 @@ benchmarks! {
 
         let mut rng = ark_std::test_rng();
 
-        let messages = {
-            let mut messages = Vec::with_capacity(count);
-            for _ in 0..count {
-                let message: G1Affine = G1::rand(&mut rng).into();
-                messages.push(message);
-            }
-
-            messages
-        };
+        let messages = (0..count).map(|_| G1::rand(&mut rng).into()).collect::<Vec<G1Affine>>();
 
         let message: ArkScale<Vec<<Bls12_381 as Pairing>::G1Affine>> = messages.into();
         let encoded_message = message.encode();

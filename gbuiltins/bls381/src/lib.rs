@@ -93,7 +93,7 @@ pub enum Request {
 /// The enumeration represents possible common errors for all requests.
 #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq)]
 #[codec(crate = codec)]
-pub enum CommonError {
+pub enum Error {
     /// Failed to scale-decode the length of a `Vec<u8>`.
     DecodeVecLength,
     /// Failed to scale-decode bytes.
@@ -108,7 +108,7 @@ pub enum CommonError {
 pub enum Response {
     /// Common error.
     #[from]
-    Error(CommonError),
+    Error(Error),
     /// Result of the multi Miller loop [`MultiMillerLoopResult`].
     #[from]
     MultiMillerLoop(MultiMillerLoopResult),

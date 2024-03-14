@@ -69,9 +69,9 @@ fn decode_vec<T: Config, I: Input>(
     gas_limit: u64,
     mut gas_spent: u64,
     input: &mut I,
-) -> (u64, Option<Result<Vec<u8>, CommonError>>) {
+) -> (u64, Option<Result<Vec<u8>, Error>>) {
     let Ok(len) = Compact::<u32>::decode(input).map(u32::from) else {
-        return (gas_spent, Some(Err(CommonError::DecodeVecLength)));
+        return (gas_spent, Some(Err(Error::DecodeVecLength)));
     };
 
     let to_spend = <T as Config>::WeightInfo::decode_bytes(len).ref_time();
@@ -86,7 +86,7 @@ fn decode_vec<T: Config, I: Input>(
     let result = input
         .read(bytes_slice)
         .map(|_| items)
-        .map_err(|_| CommonError::DecodeVecData);
+        .map_err(|_| Error::DecodeVecData);
 
     (gas_spent, Some(result))
 }
@@ -119,7 +119,7 @@ fn multi_miller_loop<T: Config>(
             "Failed to decode item count in a",
         );
 
-        return (Ok(CommonError::DecodeItemCount.into()), gas_spent);
+        return (Ok(Error::DecodeItemCount.into()), gas_spent);
     };
 
     let mut slice = b.as_slice();
@@ -137,7 +137,7 @@ fn multi_miller_loop<T: Config>(
                 "Failed to decode item count in b",
             );
 
-            return (Ok(CommonError::DecodeItemCount.into()), gas_spent);
+            return (Ok(Error::DecodeItemCount.into()), gas_spent);
         }
         Ok(_) => (),
     }
@@ -210,7 +210,7 @@ fn msm<T: Config>(
             "Failed to decode item count in bases",
         );
 
-        return (Ok(CommonError::DecodeItemCount.into()), gas_spent);
+        return (Ok(Error::DecodeItemCount.into()), gas_spent);
     };
 
     let mut slice = scalars.as_slice();
@@ -228,7 +228,7 @@ fn msm<T: Config>(
                 "Failed to decode item count in scalars",
             );
 
-            return (Ok(CommonError::DecodeItemCount.into()), gas_spent);
+            return (Ok(Error::DecodeItemCount.into()), gas_spent);
         }
         Ok(_) => (),
     }
@@ -292,7 +292,7 @@ fn projective_multiplication<T: Config>(
             "Failed to decode item count in scalar",
         );
 
-        return (Ok(CommonError::DecodeItemCount.into()), gas_spent);
+        return (Ok(Error::DecodeItemCount.into()), gas_spent);
     };
 
     let to_spend = gas_to_spend(count as u32);
