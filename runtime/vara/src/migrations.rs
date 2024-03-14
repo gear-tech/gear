@@ -23,6 +23,8 @@ pub type Migrations = (
     /* release v1.2.0 */
     // migration for stored contexts
     pallet_gear_messenger::migrations::MigrateToV3<Runtime>,
+    // migration for removed waiting init list
+    pallet_gear::migrations::MigrateWaitingInitList<Runtime>,
     // check for existence of the rent pool account
     pallet_gear_staking_rewards::migrations::CheckRentPoolId<Runtime>,
 );
