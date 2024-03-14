@@ -2,10 +2,6 @@ name: Check
 
 on:
   workflow_call:
-    inputs:
-      cache:
-        type: string
-        required: true
 
 env:
   CARGO_INCREMENTAL: 0
@@ -16,10 +12,9 @@ env:
 
 jobs:
   linux:
-    runs-on: [kuberunner, github-runner-01]
+    runs-on: [ kuberunner, github-runner-01 ]
     env:
       RUSTUP_HOME: /tmp/rustup_home
-      SCCACHE_DIR: ${{ inputs.cache }}
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
@@ -79,10 +74,9 @@ jobs:
         run: cargo run --release -p crates-io check
 
   fuzzer:
-    runs-on: [kuberunner, github-runner-01]
+    runs-on: [ kuberunner, github-runner-01 ]
     env:
       RUSTUP_HOME: /tmp/rustup_home
-      SCCACHE_DIR: ${{ inputs.cache }}
     steps:
       - name: Cancel Previous Runs
         if: ${{ github.event_name == 'pull_request' }}

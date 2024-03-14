@@ -2,6 +2,7 @@ use crate::Kind;
 use gstd::{
     msg::{self, MessageHandle},
     prelude::*,
+    prog::ProgramGenerator,
 };
 
 #[no_mangle]
@@ -48,6 +49,25 @@ async fn main() {
                 .commit_with_gas_for_reply(msg::source(), gas, 0, 0)
                 .expect("send message failed")
                 .await
+        }
+        Kind::CreateProgram(id) => {
+            let (_, reply) = ProgramGenerator::create_program_bytes_for_reply(id, b"PING", 0, 0)
+                .expect("create program failed")
+                .await
+                .expect("Send message failed");
+
+            assert_eq!(reply, b"PONG");
+            Ok(reply)
+        }
+        Kind::CreateProgramWithGas(id, gas) => {
+            let (_, reply) =
+                ProgramGenerator::create_program_bytes_with_gas_for_reply(id, b"PING", gas, 0, 0)
+                    .expect("create program failed")
+                    .await
+                    .expect("Send message failed");
+
+            assert_eq!(reply, b"PONG");
+            Ok(reply)
         }
     }
     .expect("ran into error-reply");
