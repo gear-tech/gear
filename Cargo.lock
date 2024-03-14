@@ -426,20 +426,6 @@ dependencies = [
 
 [[package]]
 name = "ark-scale"
-version = "0.0.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "51bd73bb6ddb72630987d37fa963e99196896c0d0ea81b7c894567e74a2f83af"
-dependencies = [
- "ark-ec",
- "ark-ff",
- "ark-serialize",
- "ark-std",
- "parity-scale-codec",
- "scale-info",
-]
-
-[[package]]
-name = "ark-scale"
 version = "0.0.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5f69c00b3b529be29528a6f2fd5fa7b1790f8bed81b9cdca17e326538545a179"
@@ -7756,7 +7742,7 @@ dependencies = [
  "ark-bls12-381",
  "ark-ec",
  "ark-ff",
- "ark-scale 0.0.11",
+ "ark-scale",
  "ark-serialize",
  "ark-std",
  "demo-waiting-proxy",
@@ -11906,7 +11892,7 @@ dependencies = [
  "ark-ed-on-bls12-377-ext",
  "ark-ed-on-bls12-381-bandersnatch",
  "ark-ed-on-bls12-381-bandersnatch-ext",
- "ark-scale 0.0.12",
+ "ark-scale",
  "sp-runtime-interface",
  "sp-std 8.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-polkadot-v1.0.0-canary)",
 ]

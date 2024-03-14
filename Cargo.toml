@@ -171,7 +171,7 @@ ark-bls12-381 = { version = "0.4.0", default-features = false }
 ark-serialize = { version = "0.4", default-features = false }
 ark-ec = { version = "0.4.2", default-features = false }
 ark-ff = { version = "0.4.2", default-features = false }
-ark-scale = { version = "0.0.11", default-features = false }
+ark-scale = { version = "0.0.12", default-features = false }
 
 # Published deps
 #
