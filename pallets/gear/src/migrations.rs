@@ -96,7 +96,9 @@ where
 
     #[cfg(feature = "try-runtime")]
     fn pre_upgrade() -> Result<Vec<u8>, TryRuntimeError> {
-        let init_msgs = waiting_init_list::WaitingInitStorage::<T>::iter().count();
+        let init_msgs: usize = waiting_init_list::WaitingInitStorage::<T>::iter_values()
+            .map(|d| d.len())
+            .sum();
         let queue_msgs = QueueOf::<T>::iter().count();
 
         Ok((init_msgs as u64, queue_msgs as u64).encode())
@@ -145,11 +147,14 @@ mod waiting_init_list {
 mod tests {
     use super::*;
     use crate::{
-        mock::{new_test_ext, GearProgram, Test},
+        mock::{new_test_ext, GearProgram, Test, USER_1},
         tests::init_logger,
         GasHandlerOf, WaitlistOf,
     };
-    use common::{storage::Waitlist, GasTree};
+    use common::{
+        storage::{LinkedNode, Waitlist},
+        GasTree,
+    };
     use frame_support::pallet_prelude::StorageVersion;
     use frame_system::pallet_prelude::BlockNumberFor;
     use gear_core::message::{
@@ -157,7 +162,82 @@ mod tests {
         StoredDispatch, StoredMessage,
     };
     use gear_core_errors::{ReplyCode, SignalCode, SuccessReplyReason};
+    use pallet_gear_messenger::Dispatches;
+    use rand::random;
     use sp_runtime::traits::Zero;
+
+    fn random_payload() -> Payload {
+        Payload::try_from(up_to(8 * 1024, random::<u8>).collect::<Vec<_>>())
+            .expect("Len is always smaller than max capacity")
+    }
+
+    fn up_to<T>(limit: usize, f: impl Fn() -> T) -> impl Iterator<Item = T> {
+        std::iter::from_fn(move || Some(f())).take(random::<usize>() % limit)
+    }
+
+    fn random_dispatch(destination: ProgramId) -> StoredDispatch {
+        let kind = match random::<u8>() % 4 {
+            0 => DispatchKind::Init,
+            1 => DispatchKind::Handle,
+            2 => DispatchKind::Reply,
+            3 => DispatchKind::Signal,
+            _ => unreachable!(),
+        };
+        let details = if random() {
+            if random() {
+                Some(MessageDetails::Reply(ReplyDetails::new(
+                    MessageId::from(random::<u64>()),
+                    ReplyCode::Success(SuccessReplyReason::Auto),
+                )))
+            } else {
+                Some(MessageDetails::Signal(SignalDetails::new(
+                    MessageId::from(random::<u64>()),
+                    SignalCode::RemovedFromWaitlist,
+                )))
+            }
+        } else {
+            None
+        };
+        let context = if random() {
+            None
+        } else {
+            let outgoing = up_to(32, || {
+                (
+                    random(),
+                    if random() {
+                        Some(random_payload())
+                    } else {
+                        None
+                    },
+                )
+            })
+            .collect();
+            let initialized = up_to(32, || ProgramId::from(random::<u64>())).collect();
+            Some(ContextStore::new(
+                outgoing,
+                if random() {
+                    Some(random_payload())
+                } else {
+                    None
+                },
+                initialized,
+                Default::default(),
+                if random() { Some(random()) } else { None },
+            ))
+        };
+        StoredDispatch::new(
+            kind,
+            StoredMessage::new(
+                MessageId::from(random::<u64>()),
+                ProgramId::from(random::<u64>()),
+                destination,
+                random_payload(),
+                random(),
+                details,
+            ),
+            context,
+        )
+    }
 
     #[test]
     fn migration_works() {
@@ -166,28 +246,36 @@ mod tests {
         new_test_ext().execute_with(|| {
             StorageVersion::new(3).put::<GearProgram>();
 
-            let program_id = ProgramId::from(0);
-            let message_id = MessageId::from(0);
-            let messages = vec![message_id];
-
-            let stored_msg = StoredMessage::new(
-                message_id,
-                program_id,
-                program_id,
-                Payload::default(),
-                0,
-                None,
-            );
-            let stored_dispatch = StoredDispatch::new(DispatchKind::Init, stored_msg, None);
-
             let multiplier = <Test as pallet_gear_bank::Config>::GasMultiplier::get();
-            GasHandlerOf::<Test>::create(0, multiplier, message_id, 0).unwrap();
-            waiting_init_list::WaitingInitStorage::<Test>::insert(program_id, messages);
-            WaitlistOf::<Test>::insert(
-                stored_dispatch.clone(),
-                BlockNumberFor::<Test>::max_value(),
-            )
-            .unwrap();
+
+            let destinations: Vec<ProgramId> =
+                up_to(32, || ProgramId::from(random::<u64>())).collect();
+            let dispatches: Vec<_> = destinations
+                .iter()
+                .cloned()
+                .map(|destination| {
+                    (
+                        destination,
+                        up_to(32, || random_dispatch(destination)).collect::<Vec<_>>(),
+                    )
+                })
+                .collect();
+
+            for (destination, dispatches) in dispatches.clone() {
+                let mut messages = vec![];
+                for dispatch in dispatches {
+                    messages.push(dispatch.id());
+
+                    GasHandlerOf::<Test>::create(USER_1, multiplier, dispatch.id(), 0).unwrap();
+                    WaitlistOf::<Test>::insert(
+                        dispatch,
+                        BlockNumberFor::<Test>::from(random::<u64>()),
+                    )
+                    .unwrap();
+                }
+
+                waiting_init_list::WaitingInitStorage::<Test>::insert(destination, messages);
+            }
 
             let state = MigrateWaitingInitList::<Test>::pre_upgrade().unwrap();
             let weight = MigrateWaitingInitList::<Test>::on_runtime_upgrade();
@@ -195,11 +283,29 @@ mod tests {
             MigrateWaitingInitList::<Test>::post_upgrade(state).unwrap();
 
             assert_eq!(StorageVersion::get::<GearProgram>(), 4);
+
             assert_eq!(
                 waiting_init_list::WaitingInitStorage::<Test>::iter().count(),
                 0
             );
-            assert_eq!(QueueOf::<Test>::dequeue().unwrap(), Some(stored_dispatch));
+
+            let messages_in_queue: usize = dispatches.iter().map(|(_, d)| d.len()).sum();
+            assert_eq!(QueueOf::<Test>::iter().count(), messages_in_queue);
+
+            let mut compared = 0;
+            for (destination, dispatches) in dispatches.clone() {
+                for dispatch in dispatches {
+                    let LinkedNode {
+                        value: queued_dispatch,
+                        ..
+                    } = Dispatches::<Test>::get(dispatch.id()).unwrap();
+                    assert_eq!(queued_dispatch, dispatch);
+                    assert_eq!(queued_dispatch.destination(), destination);
+
+                    compared += 1;
+                }
+            }
+            assert_eq!(compared, messages_in_queue);
         });
     }
 }
