@@ -42,7 +42,7 @@ impl InstrumentedCode {
     /// # Safety
     /// The caller must ensure that the `code` is a valid wasm binary,
     /// and other parameters are valid and suitable for the wasm binary.
-    pub unsafe fn unsafe_new(
+    pub unsafe fn new_unchecked(
         code: Vec<u8>,
         original_code_len: u32,
         exports: BTreeSet<DispatchKind>,

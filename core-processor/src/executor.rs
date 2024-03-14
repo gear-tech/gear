@@ -19,7 +19,7 @@
 use crate::{
     common::{
         ActorExecutionError, ActorExecutionErrorReplyReason, DispatchResult, DispatchResultKind,
-        ExecutionError, SystemExecutionError, WasmExecutionContext,
+        ExecutionError, MemoryParamsError, SystemExecutionError, WasmExecutionContext,
     },
     configs::{BlockInfo, ExecutionSettings},
     ext::{ProcessorContext, ProcessorExternalities},
@@ -53,6 +53,59 @@ use gear_core_backend::{
     BackendExternalities,
 };
 
+fn validate_memory_params(
+    memory_size: WasmPage,
+    program: &Program,
+    settings: &ExecutionSettings,
+) -> Result<(), MemoryParamsError> {
+    if memory_size > settings.max_pages {
+        return Err(MemoryParamsError::MemorySizeExceedsMaxPages(
+            memory_size,
+            settings.max_pages,
+        ));
+    }
+
+    let static_pages = program.static_pages();
+    if static_pages > memory_size {
+        return Err(MemoryParamsError::InsufficientMemorySize(
+            memory_size,
+            static_pages,
+        ));
+    }
+
+    let stack_end = program.stack_end();
+    if let Some(stack_end) = stack_end {
+        if stack_end > static_pages {
+            return Err(MemoryParamsError::StackEndOutOfStaticMemory(
+                stack_end,
+                static_pages,
+            ));
+        }
+    }
+
+    let allocations = program.allocations();
+    if let Some(&page) = allocations.last() {
+        if page >= memory_size {
+            return Err(MemoryParamsError::AllocatedPageOutOfAllowedInterval(
+                page,
+                static_pages,
+                memory_size,
+            ));
+        }
+    }
+    if let Some(&page) = allocations.first() {
+        if page < static_pages {
+            return Err(MemoryParamsError::AllocatedPageOutOfAllowedInterval(
+                page,
+                static_pages,
+                memory_size,
+            ));
+        }
+    }
+
+    Ok(())
+}
+
 /// Execute wasm with dispatch and return dispatch result.
 pub fn execute_wasm<Ext>(
     balance: u128,
@@ -82,15 +135,12 @@ where
     log::debug!("Executing program {}", program_id);
     log::debug!("Executing dispatch {:?}", dispatch);
 
-    let static_pages = program.static_pages();
-    if memory_size < static_pages {
-        return Err(SystemExecutionError::InsufficientMemorySize(memory_size, static_pages).into());
-    }
+    validate_memory_params(memory_size, &program, &settings).map_err(SystemExecutionError::from)?;
 
     // Creating allocations context.
     let allocations_context = AllocationsContext::new(
         program.allocations().clone(),
-        static_pages,
+        program.static_pages(),
         settings.max_pages,
     );
 

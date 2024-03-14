@@ -484,12 +484,30 @@ impl ActorExecutionErrorReplyReason {
     }
 }
 
-/// System execution error
-#[derive(Debug, derive_more::Display, derive_more::From)]
-pub enum SystemExecutionError {
+/// Inconsistency in memory parameters provided for wasm execution.
+#[derive(Debug, derive_more::Display)]
+pub enum MemoryParamsError {
+    /// Memory size exceeds max pages
+    #[display(fmt = "Memory size {_0:?} must be less than or equal to {_1:?}")]
+    MemorySizeExceedsMaxPages(WasmPage, WasmPage),
     /// Insufficient memory size
     #[display(fmt = "Memory size {_0:?} must be at least {_1:?}")]
     InsufficientMemorySize(WasmPage, WasmPage),
+    /// Stack end is out of static memory
+    #[display(fmt = "Stack end {_0:?} is out of static memory 0..{_1:?}")]
+    StackEndOutOfStaticMemory(WasmPage, WasmPage),
+    /// Allocated page is out of allowed memory interval
+    #[display(fmt = "Allocated page {_0:?} is out of allowed memory interval {_1:?}..{_2:?}")]
+    AllocatedPageOutOfAllowedInterval(WasmPage, WasmPage, WasmPage),
+}
+
+/// System execution error
+#[derive(Debug, derive_more::Display, derive_more::From)]
+pub enum SystemExecutionError {
+    /// Incorrect memory parameters
+    #[from]
+    #[display(fmt = "Memory parameters error: {_0}")]
+    MemoryParams(MemoryParamsError),
     /// Environment error
     #[display(fmt = "Backend error: {_0}")]
     Environment(SystemEnvironmentError),
