@@ -13,7 +13,6 @@ repository.workspace = true
 [dependencies]
 gear-core.workspace = true
 gear-core-errors = { workspace = true, features = ["codec"] }
-gear-common.workspace = true
 gear-core-backend.workspace = true
 gear-wasm-instrument.workspace = true
 gear-lazy-pages-common.workspace = true
@@ -31,6 +30,6 @@ enum-iterator.workspace = true
 
 [features]
 default = ["std"]
-std = ["gear-common/std", "gear-lazy-pages-interface/std", "gear-core-backend/std"]
+std = ["gear-lazy-pages-interface/std", "gear-core-backend/std"]
 strict = []
 mock = []
