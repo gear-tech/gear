@@ -16,6 +16,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+#![doc = r" This is auto-generated module that contains cost schedule from"]
+#![doc = r" `pallets/gear/src/schedule.rs`."]
+#![doc = r""]
+#![doc = r" See `./scripts/weight-dump.sh` if you want to update it."]
+
 pub struct Schedule {
     pub limits: Limits,
     pub instruction_weights: InstructionWeights,
@@ -185,7 +190,7 @@ pub struct InstructionWeights {
 impl Default for InstructionWeights {
     fn default() -> Self {
         Self {
-            version: 1110,
+            version: 1200,
             i64const: 155,
             i64load: 9514,
             i32load: 9159,

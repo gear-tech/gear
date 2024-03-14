@@ -354,7 +354,12 @@ fn main() {
             let mut visitor = StructuresVisitor::default();
             visitor.visit_file(&file);
 
-            let mut declarations = Vec::new();
+            let mut declarations = vec![quote! {
+                //! This is auto-generated module that contains cost schedule from
+                //! `pallets/gear/src/schedule.rs`.
+                //!
+                //! See `./scripts/weight-dump.sh` if you want to update it.
+            }];
 
             for (structure_name, structure) in visitor.structures {
                 let structure_ident = &structure.ident;
