@@ -12502,7 +12502,7 @@ fn async_init() {
     };
 
     new_test_ext().execute_with(|| {
-        // upload and send to unitialized program
+        // upload and send to uninitialized program
         let demo = upload();
         send_payloads(USER_1, demo, vec![b"PING".to_vec()]);
 
