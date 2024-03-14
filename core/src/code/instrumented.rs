@@ -37,6 +37,29 @@ pub struct InstrumentedCode {
 }
 
 impl InstrumentedCode {
+    /// Creates a new instance of the instrumented code.
+    ///
+    /// # Safety
+    /// The caller must ensure that the `code` is a valid wasm binary,
+    /// and other parameters are valid and suitable for the wasm binary.
+    pub unsafe fn unsafe_new(
+        code: Vec<u8>,
+        original_code_len: u32,
+        exports: BTreeSet<DispatchKind>,
+        static_pages: WasmPage,
+        stack_end: Option<WasmPage>,
+        version: u32,
+    ) -> Self {
+        Self {
+            code,
+            original_code_len,
+            exports,
+            static_pages,
+            stack_end,
+            version,
+        }
+    }
+
     /// Returns reference to the instrumented binary code.
     pub fn code(&self) -> &[u8] {
         &self.code

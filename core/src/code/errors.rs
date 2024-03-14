@@ -69,10 +69,12 @@ pub enum StackEndError {
     /// Unsupported initialization of gear stack end global variable.
     #[display(fmt = "Unsupported initialization of gear stack end global")]
     Initialization,
-    /// +_+_+
-    NotAligned,
-    /// +_+_+
-    OutOfStatic,
+    /// Gear stack end offset {_0} is not aligned to wasm page size.
+    #[display(fmt = "Gear stack end {_0:#x} is not aligned to wasm page size")]
+    NotAligned(u32),
+    /// Gear stack end is out of static memory.
+    #[display(fmt = "Gear stack end {_0:#x} is out of static memory 0x0..{_1:#x}")]
+    OutOfStatic(u32, u32),
 }
 
 /// Stack end error in WASM module.

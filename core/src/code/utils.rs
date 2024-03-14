@@ -331,12 +331,12 @@ pub fn check_and_canonize_gear_stack_end(
         .retain(|export| export.field() != STACK_END_EXPORT_NAME);
 
     if stack_end_offset % WasmPage::size() != 0 {
-        return Err(StackEndError::NotAligned.into());
+        return Err(StackEndError::NotAligned(stack_end_offset).into());
     }
 
     let stack_end = WasmPage::from_offset(stack_end_offset);
     if stack_end > static_pages {
-        return Err(StackEndError::OutOfStatic.into());
+        return Err(StackEndError::OutOfStatic(stack_end_offset, static_pages.offset()).into());
     }
 
     Ok(Some(stack_end))

@@ -46,7 +46,7 @@ pub struct Code {
     exports: BTreeSet<DispatchKind>,
     /// Static pages count from memory import.
     static_pages: WasmPage,
-    /// +_+_+
+    /// Stack end page.
     stack_end: Option<WasmPage>,
     /// Instruction weights version.
     instruction_weights_version: u32,
@@ -607,7 +607,7 @@ mod tests {
 
         assert_code_err!(
             try_new_code_from_wat(wat.as_str(), None),
-            CodeError::StackEnd(StackEndError::NotAligned)
+            CodeError::StackEnd(StackEndError::NotAligned(0x10001))
         );
     }
 
@@ -626,7 +626,7 @@ mod tests {
 
         assert_code_err!(
             try_new_code_from_wat(wat.as_str(), None),
-            CodeError::StackEnd(StackEndError::OutOfStatic)
+            CodeError::StackEnd(StackEndError::OutOfStatic(0x20000, 0x10000))
         );
     }
 

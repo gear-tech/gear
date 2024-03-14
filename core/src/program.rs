@@ -102,7 +102,7 @@ impl Program {
         self.code.static_pages()
     }
 
-    /// +_+_+
+    /// Get stack end page if exists.
     pub fn stack_end(&self) -> Option<WasmPage> {
         self.code.stack_end()
     }

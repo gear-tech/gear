@@ -25,4 +25,5 @@ pub type Migrations = (
     pallet_gear_messenger::migrations::MigrateToV3<Runtime>,
     // check for existence of the rent pool account
     pallet_gear_staking_rewards::migrations::CheckRentPoolId<Runtime>,
+    pallet_gear_program::migration::AppendStackEndMigration<Runtime>,
 );
