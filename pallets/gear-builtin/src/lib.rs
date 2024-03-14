@@ -45,7 +45,7 @@ mod tests;
 pub use weights::WeightInfo;
 
 use alloc::{
-    collections::{btree_map::Entry, BTreeMap, BTreeSet},
+    collections::{btree_map::Entry, BTreeMap},
     string::ToString,
 };
 use core_processor::{
@@ -62,7 +62,7 @@ use gear_core::{
     str::LimitedStr,
 };
 use impl_trait_for_tuples::impl_for_tuples;
-use pallet_gear::{BuiltinCache, BuiltinDispatcher, BuiltinDispatcherFactory, HandleFn};
+use pallet_gear::{BuiltinDispatcher, BuiltinDispatcherFactory, HandleFn};
 use parity_scale_codec::{Decode, Encode};
 use sp_std::prelude::*;
 
@@ -165,10 +165,6 @@ pub mod pallet {
         type WeightInfo: WeightInfo;
     }
 
-    #[pallet::storage]
-    #[pallet::getter(fn quick_cache)]
-    pub type QuickCache<T: Config> = StorageValue<_, BTreeSet<ProgramId>>;
-
     #[pallet::hooks]
     impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {}
 
@@ -193,21 +189,6 @@ impl<T: Config> BuiltinDispatcherFactory for Pallet<T> {
             BuiltinRegistry::<T>::new(),
             <T as Config>::WeightInfo::create_dispatcher().ref_time(),
         )
-    }
-}
-
-impl<T: Config> BuiltinCache for Pallet<T> {
-    fn exists(id: &ProgramId) -> bool {
-        if QuickCache::<T>::get().is_none() {
-            // Populate the cache at the first call
-            let registry = BuiltinRegistry::<T>::new();
-            QuickCache::<T>::mutate(|keys| {
-                *keys = Some(registry.registry.keys().cloned().collect())
-            });
-        }
-        Self::quick_cache()
-            .expect("Guaranteed to have value; qed")
-            .contains(id)
     }
 }
 

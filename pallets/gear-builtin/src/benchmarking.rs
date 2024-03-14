@@ -101,17 +101,6 @@ benchmarks! {
     } verify {
         // No changes in runtime are expected since the actual dispatch doesn't take place.
     }
-
-    quick_lookup {
-        // Populate quick cache by calling quick_lookup on empty cache.
-        <T as pallet_gear::Config>::BuiltinCache::exists(&Pallet::<T>::generate_actor_id(1_u64));
-        let looked_up_id = Pallet::<T>::generate_actor_id(100_u64);
-    }: {
-        // Lookup the actor in the quick cache.
-        let _ = <T as pallet_gear::Config>::BuiltinCache::exists(&looked_up_id);
-    } verify {
-        // No changes in runtime are expected since the actual dispatch doesn't take place.
-    }
 }
 
 impl_benchmark_test_suite!(

@@ -3,10 +3,13 @@ name: Build
 on:
   workflow_call:
     inputs:
-      cache:
-        type: string
-        required: true
       macos:
+        type: boolean
+        default: false
+      win-native:
+        type: boolean
+        default: false
+      release:
         type: boolean
         default: false
   workflow_dispatch:
@@ -28,12 +31,31 @@ env:
   BINARYEN_VERSION: version_111
 
 jobs:
+  matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - id: set-matrix
+        run: |
+          variants='{"profile": "debug", "profile_flags": ""}'
+          if [ "${{ inputs.release }}" = "true" ]; then
+            variants+=', {"profile": "release", "profile_flags": "--release"}'
+          fi
+          matrix="{\"include\": [${variants}]}"
+          echo "Matrix: ${matrix}"
+          echo "matrix=${matrix}" >> $GITHUB_OUTPUT
+
   linux:
-    runs-on: [kuberunner, github-runner-02]
+    runs-on: [ kuberunner, github-runner-02 ]
+    needs: matrix
+    strategy:
+      matrix: ${{ fromJson(needs.matrix.outputs.matrix) }}
+      fail-fast: false
+    name: linux (${{ matrix.profile }})
     env:
       LLVM_PROFILE_FILE: "gear-%p-%m.profraw"
       RUSTUP_HOME: /tmp/rustup_home
-      SCCACHE_DIR: ${{ inputs.cache }}
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
@@ -50,64 +72,76 @@ jobs:
       - name: "Build: Init"
         run: ./scripts/gear.sh init cargo
 
+      - name: "Build: Node"
+        run: ./scripts/gear.sh build node --release --locked
+
       - name: "Build: Gear"
-        run: ./scripts/gear.sh build gear --locked --release
+        run: ./scripts/gear.sh build gear --locked ${{ matrix.profile_flags }}
 
       - name: "Build fuzzer"
-        run: ./scripts/gear.sh build fuzz --locked --release
+        run: ./scripts/gear.sh build fuzz --locked ${{ matrix.profile_flags }}
 
       - name: "Check: Vara runtime imports"
-        run: ./target/release/wasm-proc --check-runtime-imports target/release/wbuild/vara-runtime/vara_runtime.compact.wasm
+        run: ./target/${{ matrix.profile }}/wasm-proc --check-runtime-imports target/release/wbuild/vara-runtime/vara_runtime.compact.wasm
 
       - name: "Check: Stack height limit"
+        # no need to run check twice
+        if: ${{ matrix.profile == 'release' }}
         run: cargo run -p calc-stack-height --release --locked
 
       - name: "Test: Gear workspace"
-        run: ./scripts/gear.sh test gear --exclude gclient --exclude gcli --exclude gsdk --release --locked
+        run: ./scripts/gear.sh test gear --exclude gclient --exclude gcli --exclude gsdk --locked ${{ matrix.profile_flags }}
 
       - name: "Test: gsdk tests"
-        run: ./scripts/gear.sh test gsdk --release
+        run: ./scripts/gear.sh test gsdk ${{ matrix.profile_flags }}
 
       - name: "Test: `gcli`"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: ./scripts/gear.sh test gcli --release --locked --retries 3
+        run: ./scripts/gear.sh test gcli --locked --retries 3 ${{ matrix.profile_flags }}
 
       - name: "Test: Client tests"
-        run: ./scripts/gear.sh test client --release
+        run: ./scripts/gear.sh test client ${{ matrix.profile_flags }}
 
-      - name: "Test: Runtime benchmarks and benchmark tests work"
+      - name: "Test: Benchmarks in native"
         run: |
-          cargo build -p gear-cli --release --features=runtime-benchmarks,runtime-benchmarks-checkers
+          # fast benchmark tests before long run
+          cargo test -p "pallet-*" --features runtime-benchmarks,runtime-benchmarks-checkers --locked ${{ matrix.profile_flags }} bench
+
+      - name: "Test: Benchmarks in WASM"
+        # unoptimized benchmarks take a few hours to run
+        if: ${{ matrix.profile == 'release' }}
+        run: |
+          cargo build -p gear-cli --features=runtime-benchmarks,runtime-benchmarks-checkers ${{ matrix.profile_flags }}
           # check that perf benchmarks works. `--steps=5` need to test, that benchmarks works for different input number.
-          ./target/release/gear benchmark pallet --chain=dev --pallet="*" --steps=5 --extrinsic="*" --heap-pages=4096
+          ./target/${{ matrix.profile }}/gear benchmark pallet --chain=dev --pallet="*" --steps=5 --extrinsic="*" --heap-pages=4096
           # check that read_big_state benchmarks works
-          ./target/release/gear benchmark pallet --chain=dev --pallet=pallet_gear --extrinsic="read_big_state" --heap-pages=4096 --extra
+          ./target/${{ matrix.profile }}/gear benchmark pallet --chain=dev --pallet=pallet_gear --extrinsic="read_big_state" --heap-pages=4096 --extra
           # check that signal_stack_limit_exceeded_works benchmarks works
-          ./target/release/gear benchmark pallet --chain=dev --pallet=pallet_gear --extrinsic="signal_stack_limit_exceeded_works" --heap-pages=4096 --extra
+          ./target/${{ matrix.profile }}/gear benchmark pallet --chain=dev --pallet=pallet_gear --extrinsic="signal_stack_limit_exceeded_works" --heap-pages=4096 --extra
           # check that check/test benchmarks works
-          ./target/release/gear benchmark pallet --chain=dev --pallet=pallet_gear --extrinsic="check_all" --heap-pages=4096 --extra
+          ./target/${{ matrix.profile }}/gear benchmark pallet --chain=dev --pallet=pallet_gear --extrinsic="check_all" --heap-pages=4096 --extra
 
       - name: "Test: Syscalls Wasmi integrity"
-        run: ./scripts/gear.sh test syscalls --release
+        run: ./scripts/gear.sh test syscalls ${{ matrix.profile_flags }}
 
       - name: "Test: `try-runtime` feature tests"
         run: |
-          cargo test -p "pallet-*" --features try-runtime --release --locked
+          cargo test -p "pallet-*" --features try-runtime --locked ${{ matrix.profile_flags }}
 
       - name: "Test: Try runtime migrations"
         run: |
-          cargo build -p gear-cli --features try-runtime --release --locked
-          ./target/release/gear try-runtime --runtime ./target/release/wbuild/vara-runtime/vara_runtime.wasm on-runtime-upgrade --checks live --uri ws://rpc-private.vara-network.io:9944
+          cargo build -p gear-cli --features try-runtime --locked ${{ matrix.profile_flags }}
+          ./target/${{ matrix.profile }}/gear try-runtime --runtime ./target/${{ matrix.profile }}/wbuild/vara-runtime/vara_runtime.wasm on-runtime-upgrade --checks live --uri ws://rpc-private.vara-network.io:9944
         env:
           RUST_LOG: info
 
       - name: "Build: Production binaries"
-        if: github.event_name == 'push'
+        if: ${{ github.event_name == 'push' && inputs.release }}
         run: cargo build -p gear-cli -F cli --profile production
 
       - name: Prepare artifacts
-        if: github.event_name == 'push'
+        if: ${{ github.event_name == 'push' && inputs.release }}
         run: |
           mkdir -p artifact
           cd target/wasm32-unknown-unknown/release
@@ -122,13 +156,18 @@ jobs:
           strip artifact/wasm-proc || true
 
       - name: Upload artifacts
-        if: github.event_name == 'push'
+        if: ${{ github.event_name == 'push' && inputs.release }}
         uses: actions/upload-artifact@v4
         with:
           path: artifact
 
   win-cross:
-    runs-on: [kuberunner, github-runner-03]
+    runs-on: [ kuberunner, github-runner-03 ]
+    needs: matrix
+    strategy:
+      matrix: ${{ fromJson(needs.matrix.outputs.matrix) }}
+      fail-fast: false
+    name: win-cross (${{ matrix.profile }})
     env:
       XWIN_ARCH: x86_64
       RUSTUP_HOME: /tmp/rustup_home
@@ -179,6 +218,8 @@ jobs:
           CARGO_BUILD_TARGET: x86_64-pc-windows-msvc
 
       - name: "Check: Stack height limit"
+        # no need to run check twice
+        if: ${{ matrix.profile == 'release' }}
         run: cargo xwin run -p calc-stack-height --release --locked
         env:
           CARGO_BUILD_TARGET: x86_64-pc-windows-msvc
@@ -198,11 +239,20 @@ jobs:
           -p "pallet-*"
           -p gear-lazy-pages
           -p gear-runtime-interface
-          --release
+          ${{ matrix.profile_flags }}
         env:
           CARGO_BUILD_TARGET: x86_64-pc-windows-msvc
 
+  win-native:
+    needs: [ matrix, linux ]
+    if: ${{ !cancelled() && (github.ref == 'refs/heads/master' || inputs.win-native) }}
+    uses: ./.github/workflows/build-win-native.yml
+    with:
+      matrix: ${{ needs.matrix.outputs.matrix }}
+
   macos:
-    needs: linux
-    if: ${{ always() && inputs.macos }}
+    needs: [ matrix, linux ]
+    if: ${{ !cancelled() && inputs.macos }}
     uses: ./.github/workflows/build-macos.yml
+    with:
+      matrix: ${{ needs.matrix.outputs.matrix }}

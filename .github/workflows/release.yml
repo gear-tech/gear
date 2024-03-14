@@ -8,6 +8,7 @@ env:
   CARGO_INCREMENTAL: 0
   CARGO_TERM_COLOR: always
   TERM: xterm-256color
+  GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
 
 jobs:
   changelog:
@@ -82,7 +83,7 @@ jobs:
           strip artifact/gear || true
 
       - name: Publish
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           body: ${{ needs.changelog.outputs.release_body }}
           files: artifact/*

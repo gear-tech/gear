@@ -73,13 +73,3 @@ impl BuiltinDispatcherFactory for () {
         ((), 0)
     }
 }
-
-pub trait BuiltinCache {
-    fn exists(id: &ProgramId) -> bool;
-}
-
-impl BuiltinCache for () {
-    fn exists(_id: &ProgramId) -> bool {
-        false
-    }
-}

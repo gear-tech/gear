@@ -22,7 +22,8 @@ use crate::{ids::CodeId, message::DispatchKind, pages::WasmPage};
 use alloc::{collections::BTreeSet, vec::Vec};
 use gear_wasm_instrument::{
     parity_wasm::{self, elements::Module},
-    wasm_instrument::gas_metering::{ConstantCostRules, Rules},
+    rules::CustomConstantCostRules,
+    wasm_instrument::gas_metering::Rules,
     InstrumentationBuilder,
 };
 
@@ -268,7 +269,8 @@ impl Code {
         const_rules: bool,
         config: TryNewCodeConfig,
     ) -> Result<Self, CodeError> {
-        let get_gas_rules = const_rules.then_some(|_module: &Module| ConstantCostRules::default());
+        let get_gas_rules =
+            const_rules.then_some(|_module: &Module| CustomConstantCostRules::default());
         Self::try_new_internal(original_code, get_gas_rules, config)
     }
 
@@ -374,7 +376,7 @@ impl CodeAndId {
 mod tests {
     use crate::code::{Code, CodeError, DataSectionError, ExportError};
     use alloc::vec::Vec;
-    use gear_wasm_instrument::wasm_instrument::gas_metering::ConstantCostRules;
+    use gear_wasm_instrument::rules::CustomConstantCostRules;
 
     fn wat2wasm(s: &str) -> Vec<u8> {
         wabt::Wat2Wasm::new()
@@ -411,7 +413,12 @@ mod tests {
         let original_code = wat2wasm(WAT);
 
         assert_code_err!(
-            Code::try_new(original_code, 1, |_| ConstantCostRules::default(), None),
+            Code::try_new(
+                original_code,
+                1,
+                |_| CustomConstantCostRules::default(),
+                None
+            ),
             CodeError::Export(ExportError::ExcessExport(0))
         );
     }
@@ -429,7 +436,12 @@ mod tests {
         let original_code = wat2wasm(WAT);
 
         assert_code_err!(
-            Code::try_new(original_code, 1, |_| ConstantCostRules::default(), None),
+            Code::try_new(
+                original_code,
+                1,
+                |_| CustomConstantCostRules::default(),
+                None
+            ),
             CodeError::Export(ExportError::RequiredExportNotFound)
         );
     }
@@ -449,7 +461,7 @@ mod tests {
         let _ = Code::try_new(
             original_code,
             1,
-            |_| ConstantCostRules::default(),
+            |_| CustomConstantCostRules::default(),
             Some(16 * 1024),
         )
         .unwrap();
@@ -467,7 +479,12 @@ mod tests {
             )
         "#;
         assert_code_err!(
-            Code::try_new(wat2wasm(wat), 1, |_| ConstantCostRules::default(), None),
+            Code::try_new(
+                wat2wasm(wat),
+                1,
+                |_| CustomConstantCostRules::default(),
+                None
+            ),
             CodeError::DataSection(DataSectionError::EndAddressOutOfStaticMemory(
                 0x10000, 0x10003, 0x10000
             ))
@@ -483,7 +500,12 @@ mod tests {
             )
         "#;
         assert_code_err!(
-            Code::try_new(wat2wasm(wat), 1, |_| ConstantCostRules::default(), None),
+            Code::try_new(
+                wat2wasm(wat),
+                1,
+                |_| CustomConstantCostRules::default(),
+                None
+            ),
             CodeError::DataSection(DataSectionError::EndAddressOutOfStaticMemory(
                 0xfffd, 0x10000, 0x10000
             ))
@@ -502,7 +524,12 @@ mod tests {
             )
         "#;
         assert_code_err!(
-            Code::try_new(wat2wasm(wat), 1, |_| ConstantCostRules::default(), None),
+            Code::try_new(
+                wat2wasm(wat),
+                1,
+                |_| CustomConstantCostRules::default(),
+                None
+            ),
             CodeError::DataSection(DataSectionError::EndAddressOverflow(0xffffffff))
         );
     }
@@ -521,7 +548,12 @@ mod tests {
             )
         "#;
         assert_code_err!(
-            Code::try_new(wat2wasm(wat), 1, |_| ConstantCostRules::default(), None),
+            Code::try_new(
+                wat2wasm(wat),
+                1,
+                |_| CustomConstantCostRules::default(),
+                None
+            ),
             CodeError::DataSection(DataSectionError::GearStackOverlaps(0x100, 0x200))
         );
     }
@@ -541,7 +573,12 @@ mod tests {
                 (global (mut i32) (i32.const 0x10000))
             )
         "#;
-        Code::try_new(wat2wasm(wat), 1, |_| ConstantCostRules::default(), None)
-            .expect("Must be ok");
+        Code::try_new(
+            wat2wasm(wat),
+            1,
+            |_| CustomConstantCostRules::default(),
+            None,
+        )
+        .expect("Must be ok");
     }
 }

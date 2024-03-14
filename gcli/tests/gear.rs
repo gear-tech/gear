@@ -25,7 +25,7 @@ mod common;
 #[test]
 fn paths() {
     [
-        env::bin("gear"),
+        env::node_bin(),
         env::bin("gcli"),
         env::wasm_bin("demo_new_meta.opt.wasm"),
         env::wasm_bin("demo_new_meta.meta.txt"),

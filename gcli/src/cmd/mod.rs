@@ -108,7 +108,7 @@ pub struct Opt {
     pub timeout: u64,
     /// Enable verbose logs.
     #[clap(short, long, action = clap::ArgAction::Count)]
-    pub verbose: u16,
+    pub verbose: u8,
     /// Gear node rpc endpoint.
     #[arg(short, long)]
     pub endpoint: Option<String>,
@@ -123,7 +123,7 @@ impl App for Opt {
         self.timeout
     }
 
-    fn verbose(&self) -> u16 {
+    fn verbose(&self) -> u8 {
         self.verbose
     }
 

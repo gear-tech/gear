@@ -322,7 +322,7 @@ where
         // condition is not met.
         assert_eq!(
             builder.funcs_count,
-            SyscallName::count(),
+            SyscallName::all().count(),
             "Not all existing syscalls were added to the module's env."
         );
 

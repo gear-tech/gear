@@ -119,7 +119,6 @@ pallet_gear::impl_config!(
     Test,
     Schedule = GearSchedule,
     BuiltinDispatcherFactory = GearBuiltin,
-    BuiltinCache = GearBuiltin,
 );
 
 // A builtin actor who always returns success (even if not enough gas is provided).

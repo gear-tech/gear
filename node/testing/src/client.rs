@@ -44,8 +44,8 @@ impl sc_executor::NativeExecutionDispatch for LocalExecutorDispatch {
 
 pub type ExecutorDispatch = sc_executor::NativeElseWasmExecutor<LocalExecutorDispatch>;
 
-/// Default backend type.
-pub type Backend = sc_client_db::Backend<runtime_primitives::Block>;
+/// Test client backend.
+pub type Backend = substrate_test_client::Backend<runtime_primitives::Block>;
 
 /// Test client type.
 pub type Client = client::Client<
@@ -55,7 +55,7 @@ pub type Client = client::Client<
     runtime::RuntimeApi,
 >;
 
-/// Transaction for kitchensink-runtime.
+/// Transaction for given runtime.
 pub type Transaction = sc_client_api::backend::TransactionFor<Backend, runtime_primitives::Block>;
 
 /// Genesis configuration parameters for `TestClient`.
@@ -77,6 +77,9 @@ pub trait TestClientBuilderExt: Sized {
 
     /// Build the test client.
     fn build(self) -> Client;
+
+    /// Build the test client with customized executor.
+    fn build_with_wasm_executor(self, executor: Option<ExecutorDispatch>) -> Client;
 }
 
 impl TestClientBuilderExt
@@ -93,5 +96,13 @@ impl TestClientBuilderExt
 
     fn build(self) -> Client {
         self.build_with_native_executor(None).0
+    }
+
+    fn build_with_wasm_executor(self, executor: Option<ExecutorDispatch>) -> Client {
+        let executor = executor.unwrap_or_else(|| {
+            NativeElseWasmExecutor::new_with_wasm_executor(WasmExecutor::builder().build())
+        });
+
+        self.build_with_native_executor(executor).0
     }
 }

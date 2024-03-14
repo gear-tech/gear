@@ -10,8 +10,10 @@ repository.workspace = true
 
 [dependencies]
 scale-info = { workspace = true, features = ["derive"], optional = true }
+serde = { workspace = true, features = ["std", "derive"], optional = true }
 derive_more.workspace = true
 enum-iterator.workspace = true
 
 [features]
 codec = ["scale-info"]
+serde = ["dep:serde"]
