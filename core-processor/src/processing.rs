@@ -191,7 +191,7 @@ impl ProcessErrorCase {
     pub fn to_reason_and_payload(&self) -> (ErrorReplyReason, String) {
         match self {
             ProcessErrorCase::WaitInit | ProcessErrorCase::NonExecutable => {
-                let reason = ErrorReplyReason::InactiveProgram;
+                let reason = ErrorReplyReason::MessageProcessingHalted;
                 (reason, reason.to_string())
             }
             ProcessErrorCase::ExecutionFailed(reason) => {

@@ -183,8 +183,8 @@ pub enum ErrorReplyReason {
 
     /// Destination actor is in wait-in-init state
     /// or become inactive program, so it can't process the message.
-    #[display(fmt = "inactivity of destination program")]
-    InactiveProgram = 2,
+    #[display(fmt = "message processing has been halted")]
+    MessageProcessingHalted = 2,
 
     /// Message has died in Waitlist as out of rent one.
     #[display(fmt = "removal from waitlist")]
@@ -215,7 +215,7 @@ impl ErrorReplyReason {
         match self {
             Self::Execution(error) => bytes[1..].copy_from_slice(&error.to_bytes()),
             Self::FailedToCreateProgram(error) => bytes[1..].copy_from_slice(&error.to_bytes()),
-            Self::InactiveProgram
+            Self::MessageProcessingHalted
             | Self::RemovedFromWaitlist
             | Self::ReinstrumentationFailure
             | Self::Unsupported => {}
@@ -235,7 +235,7 @@ impl ErrorReplyReason {
                 let err_bytes = bytes[1..].try_into().unwrap_or_else(|_| unreachable!());
                 Self::FailedToCreateProgram(SimpleProgramCreationError::from_bytes(err_bytes))
             }
-            b if Self::InactiveProgram.discriminant() == b => Self::InactiveProgram,
+            b if Self::MessageProcessingHalted.discriminant() == b => Self::MessageProcessingHalted,
             b if Self::RemovedFromWaitlist.discriminant() == b => Self::RemovedFromWaitlist,
             b if Self::ReinstrumentationFailure.discriminant() == b => {
                 Self::ReinstrumentationFailure
