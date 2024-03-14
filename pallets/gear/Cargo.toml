@@ -35,6 +35,7 @@ pallet-gear-proc-macro = { path = "proc-macro" }
 gsys = { workspace = true, optional = true }
 pallet-gear-voucher.workspace = true
 pallet-gear-bank.workspace = true
+pallet-gear-program.workspace = true
 
 # Substrate deps
 frame-support.workspace = true
@@ -159,6 +160,7 @@ std = [
     "pallet-gear-voucher/std",
     "pallet-gear-bank/std",
     "pallet-gear-proc-macro/full",
+    "pallet-gear-program/std",
     "primitive-types/std",
     "serde/std",
     "sp-consensus-babe/std",

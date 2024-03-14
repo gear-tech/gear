@@ -32,7 +32,6 @@ use sp_std::marker::PhantomData;
 #[cfg(feature = "try-runtime")]
 use {
     common::storage::IterableMap,
-    gear_core::ids::ProgramId,
     parity_scale_codec::{Decode, Encode},
     sp_runtime::TryRuntimeError,
     sp_std::vec::Vec,
@@ -157,9 +156,12 @@ mod tests {
     };
     use frame_support::pallet_prelude::StorageVersion;
     use frame_system::pallet_prelude::BlockNumberFor;
-    use gear_core::message::{
-        ContextStore, DispatchKind, MessageDetails, Payload, ReplyDetails, SignalDetails,
-        StoredDispatch, StoredMessage,
+    use gear_core::{
+        ids::ProgramId,
+        message::{
+            ContextStore, DispatchKind, MessageDetails, Payload, ReplyDetails, SignalDetails,
+            StoredDispatch, StoredMessage,
+        },
     };
     use gear_core_errors::{ReplyCode, SignalCode, SuccessReplyReason};
     use pallet_gear_messenger::Dispatches;
