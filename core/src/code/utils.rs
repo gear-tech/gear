@@ -113,13 +113,9 @@ pub fn check_exports(module: &Module) -> Result<(), CodeError> {
             continue;
         };
 
-        let index =
-            func_index
-                .checked_sub(import_count)
-                .ok_or(ExportError::ExportReferencesToImport(
-                    export_index as u32,
-                    func_index,
-                ))?;
+        let index = func_index.checked_sub(import_count).ok_or(
+            ExportError::ExportReferencesToImportFunction(export_index as u32, func_index),
+        )?;
 
         // Panic is impossible, unless the Module structure is invalid.
         let type_id = funcs
@@ -236,7 +232,7 @@ fn get_export_global_entry(
 ) -> Result<&GlobalEntry, CodeError> {
     let index = (global_index as usize)
         .checked_sub(module.import_count(ImportCountType::Global))
-        .ok_or(ExportError::ExportReferencesToImport(
+        .ok_or(ExportError::ExportReferencesToImportGlobal(
             export_index,
             global_index,
         ))?;
@@ -342,6 +338,10 @@ pub fn check_and_canonize_gear_stack_end(
     Ok(Some(stack_end))
 }
 
+/// Checks that module:
+/// 1) Does not have exports to mutable globals.
+/// 2) Does not have exports to imported globals.
+/// 3) Does not have exports with incorrect global index.
 pub fn check_mut_global_exports(module: &Module) -> Result<(), CodeError> {
     let Some(export_section) = module.export_section() else {
         return Ok(());

@@ -659,7 +659,7 @@ mod tests {
 
         assert_code_err!(
             try_new_code_from_wat(wat, None),
-            CodeError::Export(ExportError::ExportReferencesToImport(0, 0))
+            CodeError::Export(ExportError::ExportReferencesToImportFunction(0, 0))
         );
     }
 
@@ -676,7 +676,7 @@ mod tests {
 
         assert_code_err!(
             try_new_code_from_wat(wat, None),
-            CodeError::Export(ExportError::ExportReferencesToImport(1, 0))
+            CodeError::Export(ExportError::ExportReferencesToImportGlobal(1, 0))
         );
     }
 }

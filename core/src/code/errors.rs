@@ -103,10 +103,12 @@ pub enum ExportError {
     /// Exporting mutable globals is restricted by the Gear protocol.
     #[display(fmt = "Global index `{_0}` in export index `{_1}` cannot be mutable")]
     MutableGlobalExport(u32, u32),
-    // +_+_+
     /// Export references to an import function, which is not allowed.
     #[display(fmt = "Export index `{_0}` references to imported function with index `{_1}`")]
-    ExportReferencesToImport(u32, u32),
+    ExportReferencesToImportFunction(u32, u32),
+    /// Export references to an import global, which is not allowed.
+    #[display(fmt = "Export index `{_0}` references to imported global with index `{_1}`")]
+    ExportReferencesToImportGlobal(u32, u32),
     /// The signature of an exported function is invalid.
     #[display(fmt = "Exported function with index `{_0}` must have signature `fn f() {{ ... }}`")]
     InvalidExportFnSignature(u32),
