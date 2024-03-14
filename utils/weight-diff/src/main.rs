@@ -79,7 +79,7 @@ enum Commands {
         /// path to json file
         #[arg(value_parser)]
         path: PathBuf,
-        /// what runtime to compare?
+        /// what runtime to use as source?
         #[arg(ignore_case = true, value_enum)]
         runtime: Runtime,
     },
