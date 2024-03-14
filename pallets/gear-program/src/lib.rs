@@ -150,7 +150,6 @@ pub mod pallet {
         CodeMetadata, Program,
     };
     use frame_support::{
-        dispatch::EncodeLike,
         pallet_prelude::*,
         storage::{Key, PrefixIterator},
         traits::StorageVersion,
@@ -159,7 +158,7 @@ pub mod pallet {
     use frame_system::pallet_prelude::*;
     use gear_core::{
         code::InstrumentedCode,
-        ids::{CodeId, MessageId, ProgramId},
+        ids::{CodeId, ProgramId},
         memory::PageBuf,
         pages::GearPage,
         program::MemoryInfix,
@@ -314,18 +313,6 @@ pub mod pallet {
     );
 
     #[pallet::storage]
-    #[pallet::unbounded]
-    pub(crate) type WaitingInitStorage<T: Config> =
-        StorageMap<_, Identity, ProgramId, Vec<MessageId>>;
-
-    common::wrap_storage_map!(
-        storage: WaitingInitStorage,
-        name: WaitingInitStorageWrap,
-        key: ProgramId,
-        value: Vec<MessageId>
-    );
-
-    #[pallet::storage]
     pub(crate) type PausedProgramStorage<T: Config> =
         StorageMap<_, Identity, ProgramId, (BlockNumberFor<T>, H256)>;
 
@@ -376,7 +363,6 @@ pub mod pallet {
 
         type ProgramMap = ProgramStorageWrap<T>;
         type MemoryPageMap = MemoryPageStorageWrap<T>;
-        type WaitingInitMap = WaitingInitStorageWrap<T>;
 
         fn pages_final_prefix() -> [u8; 32] {
             MemoryPages::<T>::final_prefix()
@@ -400,18 +386,6 @@ pub mod pallet {
 
         fn iter() -> Self::Iter {
             ProgramStorage::<T>::iter()
-        }
-    }
-
-    impl<T: Config> AppendMapStorage<MessageId, ProgramId, Vec<MessageId>>
-        for WaitingInitStorageWrap<T>
-    {
-        fn append<EncodeLikeKey, EncodeLikeItem>(key: EncodeLikeKey, item: EncodeLikeItem)
-        where
-            EncodeLikeKey: EncodeLike<Self::Key>,
-            EncodeLikeItem: EncodeLike<MessageId>,
-        {
-            WaitingInitStorage::<T>::append(key, item);
         }
     }
 }

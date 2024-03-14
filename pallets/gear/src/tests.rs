@@ -5126,7 +5126,7 @@ fn messages_to_uninitialized_program_wait() {
         assert!(utils::is_active(program_id));
 
         assert_ok!(Gear::send_message(
-            RuntimeOrigin::signed(1),
+            RuntimeOrigin::signed(USER_1),
             program_id,
             vec![],
             10_000u64,
@@ -5136,9 +5136,15 @@ fn messages_to_uninitialized_program_wait() {
 
         run_to_block(3, None);
 
+        let auto_reply = maybe_last_message(USER_1).expect("Should be");
+        assert!(auto_reply.details().is_some());
         assert_eq!(
-            ProgramStorageOf::<Test>::waiting_init_take_messages(program_id).len(),
-            1
+            auto_reply.payload_bytes(),
+            ErrorReplyReason::InactiveProgram.to_string().as_bytes()
+        );
+        assert_eq!(
+            auto_reply.reply_code().expect("Should be"),
+            ReplyCode::Error(ErrorReplyReason::InactiveProgram)
         );
     })
 }
@@ -5271,8 +5277,7 @@ fn wake_messages_after_program_inited() {
 
         run_to_block(2, None);
 
-        // While program is not inited all messages addressed to it are waiting.
-        // There could be dozens of them.
+        // While program is not inited all messages addressed to it got error reply
         let n = 10;
         for _ in 0..n {
             assert_ok!(Gear::send_message(
@@ -5309,7 +5314,10 @@ fn wake_messages_after_program_inited() {
                 MockRuntimeEvent::Gear(Event::UserMessageSent { message, .. })
                     if message.destination().into_origin() == USER_3.into_origin() =>
                 {
-                    assert_eq!(message.payload_bytes().to_vec(), b"Hello, world!".encode());
+                    assert_eq!(
+                        message.reply_code(),
+                        Some(ReplyCode::Error(ErrorReplyReason::InactiveProgram))
+                    );
                     Some(())
                 }
                 _ => None,
@@ -7156,12 +7164,17 @@ fn init_wait_reply_exit_cleaned_storage() {
 
         // block 3
         //
-        // - count waiting init messages
+        // - assert responses in events
         // - reply and wake program
         // - check program status
         run_to_block(3, None);
-        assert_eq!(waiting_init_messages(pid).len(), count);
-        assert_eq!(WaitlistOf::<Test>::iter_key(pid).count(), count + 1);
+
+        let mut responses =
+            vec![Assertion::ReplyCode(ReplyCode::Error(ErrorReplyReason::InactiveProgram)); count];
+        responses.insert(0, Assertion::Payload(vec![])); // init response
+        assert_responses_to_user(USER_1, responses);
+
+        assert_eq!(WaitlistOf::<Test>::iter_key(pid).count(), 1);
 
         let msg_id = MailboxOf::<Test>::iter_key(USER_1)
             .next()
@@ -7183,12 +7196,10 @@ fn init_wait_reply_exit_cleaned_storage() {
         // block 4
         //
         // - check if program has terminated
-        // - check waiting_init storage is empty
         // - check wait list is empty
         run_to_block(4, None);
         assert!(!Gear::is_initialized(pid));
         assert!(!utils::is_active(pid));
-        assert_eq!(waiting_init_messages(pid).len(), 0);
         assert_eq!(WaitlistOf::<Test>::iter_key(pid).count(), 0);
     })
 }
@@ -12420,14 +12431,35 @@ fn async_init() {
     };
 
     new_test_ext().execute_with(|| {
+        // upload and send to unitialized program
         let demo = upload();
         send_payloads(USER_1, demo, vec![b"PING".to_vec()]);
+
         run_to_next_block(None);
 
         assert_responses_to_user(
             USER_1,
             vec![
+                // `demo_async_init` sent error reply on "PING" message
+                Assertion::ReplyCode(ErrorReplyReason::InactiveProgram.into()),
+                // `demo_async_init`'s `init` was successful
                 Assertion::ReplyCode(SuccessReplyReason::Auto.into()),
+            ],
+        );
+
+        print_gear_events();
+
+        System::reset_events();
+
+        // send to already initialized program
+        send_payloads(USER_1, demo, vec![b"PING".to_vec()]);
+
+        run_to_next_block(None);
+
+        assert_responses_to_user(
+            USER_1,
+            vec![
+                // `demo_async_init` sent amount of responses it got from `demo_ping`
                 Assertion::Payload(2u8.encode()),
             ],
         );
@@ -14955,6 +14987,7 @@ mod utils {
     use sp_core::H256;
     use sp_runtime::traits::UniqueSaturatedInto;
     use sp_std::{convert::TryFrom, fmt::Debug};
+    use std::iter;
 
     pub(super) const DEFAULT_GAS_LIMIT: u64 = 200_000_000;
     pub(super) const DEFAULT_SALT: &[u8; 4] = b"salt";
@@ -15755,10 +15788,6 @@ mod utils {
         }
     }
 
-    pub(super) fn waiting_init_messages(pid: ProgramId) -> Vec<MessageId> {
-        ProgramStorageOf::<Test>::waiting_init_get_messages(pid)
-    }
-
     #[track_caller]
     pub(super) fn send_payloads(
         user_id: AccountId,
@@ -15790,25 +15819,38 @@ mod utils {
 
     #[track_caller]
     pub(super) fn assert_responses_to_user(user_id: AccountId, assertions: Vec<Assertion>) {
-        let mut res = vec![];
+        let messages: Vec<UserMessage> = System::events()
+            .into_iter()
+            .filter_map(|e| {
+                if let MockRuntimeEvent::Gear(Event::UserMessageSent { message, .. }) = e.event {
+                    Some(message)
+                } else {
+                    None
+                }
+            })
+            .filter(|message| message.destination() == user_id.into())
+            .collect();
 
-        System::events().iter().for_each(|e| {
-            if let MockRuntimeEvent::Gear(Event::UserMessageSent { message, .. }) = &e.event {
-                if message.destination() == user_id.into() {
-                    match assertions[res.len()] {
-                        Assertion::Payload(_) => {
-                            res.push(Assertion::Payload(message.payload_bytes().to_vec()))
-                        }
-                        Assertion::ReplyCode(_) => {
-                            // `ReplyCode::Unsupported` used to avoid options here.
-                            res.push(Assertion::ReplyCode(
-                                message.reply_code().unwrap_or(ReplyCode::Unsupported),
-                            ))
-                        }
+        if messages.len() != assertions.len() {
+            panic!(
+                "Expected {} messages, you assert only {} of them\n{:?}",
+                messages.len(),
+                assertions.len(),
+                messages
+            )
+        }
+
+        let res: Vec<Assertion> = iter::zip(messages, &assertions)
+            .map(|(message, assertion)| {
+                match assertion {
+                    Assertion::Payload(_) => Assertion::Payload(message.payload_bytes().to_vec()),
+                    Assertion::ReplyCode(_) => {
+                        // `ReplyCode::Unsupported` used to avoid options here.
+                        Assertion::ReplyCode(message.reply_code().unwrap_or(ReplyCode::Unsupported))
                     }
                 }
-            }
-        });
+            })
+            .collect();
 
         assert_eq!(res, assertions);
     }
