@@ -436,10 +436,7 @@ pub mod runtime_types {
                     WaitUpToCalledFull,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-                pub enum MessageWaitedSystemReason {
-                    #[codec(index = 0)]
-                    ProgramIsNotInitialized,
-                }
+                pub enum MessageWaitedSystemReason {}
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub enum MessageWokenRuntimeReason {
                     #[codec(index = 0)]
@@ -453,6 +450,8 @@ pub mod runtime_types {
                     TimeoutHasCome,
                     #[codec(index = 2)]
                     OutOfRent,
+                    #[codec(index = 3)]
+                    WaitInitListMigration,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub enum ProgramChangeKind<_0> {
@@ -958,7 +957,7 @@ pub mod runtime_types {
                         runtime_types::gear_core_errors::simple::SimpleProgramCreationError,
                     ),
                     #[codec(index = 2)]
-                    InactiveProgram,
+                    MessageProcessingHalted,
                     #[codec(index = 3)]
                     RemovedFromWaitlist,
                     #[codec(index = 4)]
@@ -8758,7 +8757,6 @@ pub mod storage {
         MetadataStorage,
         ProgramStorage,
         MemoryPages,
-        WaitingInitStorage,
         PausedProgramStorage,
         ResumeSessionsNonce,
         ResumeSessions,
@@ -8773,7 +8771,6 @@ pub mod storage {
                 Self::MetadataStorage => "MetadataStorage",
                 Self::ProgramStorage => "ProgramStorage",
                 Self::MemoryPages => "MemoryPages",
-                Self::WaitingInitStorage => "WaitingInitStorage",
                 Self::PausedProgramStorage => "PausedProgramStorage",
                 Self::ResumeSessionsNonce => "ResumeSessionsNonce",
                 Self::ResumeSessions => "ResumeSessions",
