@@ -48,14 +48,14 @@ fi
 
 git checkout "$branch1"
 dump_path1="$dump_path/${branch1//\//-}.json"
-cargo run $CARGO_FLAGS --package gear-weight-diff --release -- dump "$dump_path1" --label "$branch1"
+cargo run $CARGO_FLAGS --package gear-weight-diff -- dump "$dump_path1" --label "$branch1"
 
 git checkout "$branch2"
 dump_path2="$dump_path/${branch2//\//-}.json"
-cargo run $CARGO_FLAGS --package gear-weight-diff --release -- dump "$dump_path2" --label "$branch2"
+cargo run $CARGO_FLAGS --package gear-weight-diff -- dump "$dump_path2" --label "$branch2"
 
 git checkout "$current_branch"
 
-cargo run $CARGO_FLAGS --package gear-weight-diff --release -- diff "$dump_path1" "$dump_path2" "$runtime" "instruction" $flag
-cargo run $CARGO_FLAGS --package gear-weight-diff --release -- diff "$dump_path1" "$dump_path2" "$runtime" "host-fn" $flag
-cargo run $CARGO_FLAGS --package gear-weight-diff --release -- diff "$dump_path1" "$dump_path2" "$runtime" "memory" $flag
+cargo run $CARGO_FLAGS --package gear-weight-diff -- diff "$dump_path1" "$dump_path2" "$runtime" "instruction" $flag
+cargo run $CARGO_FLAGS --package gear-weight-diff -- diff "$dump_path1" "$dump_path2" "$runtime" "host-fn" $flag
+cargo run $CARGO_FLAGS --package gear-weight-diff -- diff "$dump_path1" "$dump_path2" "$runtime" "memory" $flag

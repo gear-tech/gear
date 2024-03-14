@@ -9447,6 +9447,72 @@ fn test_async_messages() {
 }
 
 #[test]
+fn test_async_program_creation() {
+    use demo_async_tester::{Kind, WASM_BINARY};
+    use demo_ping::WASM_BINARY as REPLIER;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        System::reset_events();
+
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            10_000_000_000u64,
+            0,
+            false,
+        ));
+
+        let pid = utils::get_last_program_id();
+
+        // upload a replier.
+        run_to_next_block(None);
+        let code_id = CodeId::generate(REPLIER).into_bytes();
+        assert_ok!(Gear::upload_code(
+            RuntimeOrigin::signed(USER_1),
+            REPLIER.into()
+        ));
+
+        // 1. create program from code id.
+        run_to_next_block(None);
+        let kind = Kind::CreateProgram(code_id.into());
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            kind.encode(),
+            30_000_000_000u64,
+            0,
+            false,
+        ));
+
+        // verify the new created program has been initialized successfully.
+        run_to_next_block(None);
+        let last_mail = get_last_mail(USER_1);
+        assert_eq!(last_mail.payload_bytes(), b"PONG");
+        assert_init_success(2);
+
+        // 2. create program from with gas code id.
+        run_to_next_block(None);
+        let kind = Kind::CreateProgramWithGas(code_id.into(), 10_000_000_000u64);
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            kind.encode(),
+            30_000_000_000u64,
+            0,
+            false,
+        ));
+
+        // verify the new created program has been initialized successfully.
+        run_to_next_block(None);
+        let last_mail = get_last_mail(USER_1);
+        assert_eq!(last_mail.payload_bytes(), b"PONG");
+        assert_init_success(3);
+    })
+}
+#[test]
 fn program_generator_works() {
     use demo_program_generator::{CHILD_WAT, WASM_BINARY};
 
