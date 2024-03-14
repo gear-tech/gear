@@ -27,14 +27,13 @@ use frame_support::{
     weights::Weight,
 };
 use gear_core::ids::MessageId;
-use sp_std::marker::PhantomData;
+use sp_std::{marker::PhantomData, vec::Vec};
 
 #[cfg(feature = "try-runtime")]
 use {
     common::storage::IterableMap,
     parity_scale_codec::{Decode, Encode},
     sp_runtime::TryRuntimeError,
-    sp_std::vec::Vec,
 };
 
 pub struct MigrateWaitingInitList<T>(PhantomData<T>);
