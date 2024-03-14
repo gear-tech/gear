@@ -485,7 +485,7 @@ impl ActorExecutionErrorReplyReason {
 }
 
 /// Inconsistency in memory parameters provided for wasm execution.
-#[derive(Debug, derive_more::Display)]
+#[derive(Debug, PartialEq, Eq, derive_more::Display)]
 pub enum MemoryParamsError {
     /// Memory size exceeds max pages
     #[display(fmt = "Memory size {_0:?} must be less than or equal to {_1:?}")]

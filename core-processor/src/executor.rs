@@ -55,17 +55,18 @@ use gear_core_backend::{
 
 fn validate_memory_params(
     memory_size: WasmPage,
-    program: &Program,
-    settings: &ExecutionSettings,
+    static_pages: WasmPage,
+    stack_end: Option<WasmPage>,
+    allocations: &BTreeSet<WasmPage>,
+    max_pages: WasmPage,
 ) -> Result<(), MemoryParamsError> {
-    if memory_size > settings.max_pages {
+    if memory_size > max_pages {
         return Err(MemoryParamsError::MemorySizeExceedsMaxPages(
             memory_size,
-            settings.max_pages,
+            max_pages,
         ));
     }
 
-    let static_pages = program.static_pages();
     if static_pages > memory_size {
         return Err(MemoryParamsError::InsufficientMemorySize(
             memory_size,
@@ -73,7 +74,6 @@ fn validate_memory_params(
         ));
     }
 
-    let stack_end = program.stack_end();
     if let Some(stack_end) = stack_end {
         if stack_end > static_pages {
             return Err(MemoryParamsError::StackEndOutOfStaticMemory(
@@ -83,7 +83,6 @@ fn validate_memory_params(
         }
     }
 
-    let allocations = program.allocations();
     if let Some(&page) = allocations.last() {
         if page >= memory_size {
             return Err(MemoryParamsError::AllocatedPageOutOfAllowedInterval(
@@ -135,7 +134,15 @@ where
     log::debug!("Executing program {}", program_id);
     log::debug!("Executing dispatch {:?}", dispatch);
 
-    validate_memory_params(memory_size, &program, &settings).map_err(SystemExecutionError::from)?;
+    // TODO: move to `AllocationContext::new` #3813
+    validate_memory_params(
+        memory_size,
+        program.static_pages(),
+        program.stack_end(),
+        program.allocations(),
+        settings.max_pages,
+    )
+    .map_err(SystemExecutionError::from)?;
 
     // Creating allocations context.
     let allocations_context = AllocationsContext::new(
@@ -463,4 +470,96 @@ where
     }
 
     Err("Reply not found".into())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use core::iter;
+
+    #[test]
+    fn memory_params_validation() {
+        assert_eq!(
+            validate_memory_params(
+                4.into(),
+                2.into(),
+                Some(2.into()),
+                &iter::once(2.into()).collect(),
+                4.into(),
+            ),
+            Ok(())
+        );
+
+        assert_eq!(
+            validate_memory_params(
+                4.into(),
+                2.into(),
+                Some(2.into()),
+                &BTreeSet::new(),
+                3.into(),
+            ),
+            Err(MemoryParamsError::MemorySizeExceedsMaxPages(
+                4.into(),
+                3.into()
+            ))
+        );
+
+        assert_eq!(
+            validate_memory_params(
+                1.into(),
+                2.into(),
+                Some(1.into()),
+                &BTreeSet::new(),
+                4.into(),
+            ),
+            Err(MemoryParamsError::InsufficientMemorySize(
+                1.into(),
+                2.into()
+            ))
+        );
+
+        assert_eq!(
+            validate_memory_params(
+                4.into(),
+                2.into(),
+                Some(3.into()),
+                &BTreeSet::new(),
+                4.into(),
+            ),
+            Err(MemoryParamsError::StackEndOutOfStaticMemory(
+                3.into(),
+                2.into()
+            ))
+        );
+
+        assert_eq!(
+            validate_memory_params(
+                4.into(),
+                2.into(),
+                Some(2.into()),
+                &iter::once(1.into()).collect(),
+                4.into(),
+            ),
+            Err(MemoryParamsError::AllocatedPageOutOfAllowedInterval(
+                1.into(),
+                2.into(),
+                4.into()
+            ))
+        );
+
+        assert_eq!(
+            validate_memory_params(
+                4.into(),
+                2.into(),
+                Some(2.into()),
+                &iter::once(4.into()).collect(),
+                4.into(),
+            ),
+            Err(MemoryParamsError::AllocatedPageOutOfAllowedInterval(
+                4.into(),
+                2.into(),
+                4.into()
+            ))
+        );
+    }
 }

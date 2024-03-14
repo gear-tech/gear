@@ -37,7 +37,7 @@ proptest.workspace = true
 rand = { workspace = true, features = ["std", "std_rng"] }
 
 [features]
-default = ["std"]
+default = []
 strict = []
 std = [
     "serde/std",
