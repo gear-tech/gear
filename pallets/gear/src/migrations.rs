@@ -70,7 +70,7 @@ where
                             weight = weight.saturating_add(T::DbWeight::get().writes(1));
 
                             QueueOf::<T>::queue(dispatch).unwrap_or_else(|e| {
-                                unreachable!("Message queue corrupted! {:?}", e)
+                                log::error!("Message queue corrupted! {:?}", e)
                             });
 
                             // push to queue
