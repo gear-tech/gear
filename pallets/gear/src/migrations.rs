@@ -116,7 +116,6 @@ where
 
 mod waiting_init_list {
     use super::*;
-    use crate::Pallet;
     use frame_support::{pallet_prelude::StorageMap, Identity};
     use gear_core::ids::{MessageId, ProgramId};
 
@@ -134,7 +133,7 @@ mod waiting_init_list {
         for _GeneratedPrefixForStorageWaitingInitStorage<T>
     {
         fn pallet_prefix() -> &'static str {
-            <<T as frame_system::Config>::PalletInfo as frame_support::traits::PalletInfo>::name::<Pallet<T>>().expect("No name found for the pallet in the runtime! This usually means that the pallet wasn't added to `construct_runtime!`.")
+            <<T as frame_system::Config>::PalletInfo as frame_support::traits::PalletInfo>::name::<pallet_gear_program::Pallet<T>>().expect("No name found for the pallet in the runtime! This usually means that the pallet wasn't added to `construct_runtime!`.")
         }
         const STORAGE_PREFIX: &'static str = "WaitingInitStorage";
     }
