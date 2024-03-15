@@ -18,7 +18,7 @@
 
 use super::*;
 use crate::{
-    rules::CustomConstantCostRules,
+    gas_metering::CustomConstantCostRules,
     syscalls::{ParamType::*, Ptr, RegularParamType::*, SyscallName},
 };
 use alloc::format;

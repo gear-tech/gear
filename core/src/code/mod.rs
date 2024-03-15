@@ -21,9 +21,8 @@
 use crate::{ids::CodeId, message::DispatchKind, pages::WasmPage};
 use alloc::{collections::BTreeSet, vec::Vec};
 use gear_wasm_instrument::{
+    gas_metering::{CustomConstantCostRules, Rules},
     parity_wasm::{self, elements::Module},
-    rules::CustomConstantCostRules,
-    wasm_instrument::gas_metering::Rules,
     InstrumentationBuilder,
 };
 
@@ -376,7 +375,7 @@ impl CodeAndId {
 mod tests {
     use crate::code::{Code, CodeError, DataSectionError, ExportError};
     use alloc::vec::Vec;
-    use gear_wasm_instrument::rules::CustomConstantCostRules;
+    use gear_wasm_instrument::gas_metering::CustomConstantCostRules;
 
     fn wat2wasm(s: &str) -> Vec<u8> {
         wabt::Wat2Wasm::new()
