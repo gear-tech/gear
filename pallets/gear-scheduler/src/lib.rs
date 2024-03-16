@@ -58,12 +58,12 @@ pub mod pallet {
         BlockLimiter, Origin,
     };
     use frame_support::{
-        dispatch::DispatchError,
         pallet_prelude::*,
         storage::PrefixIterator,
         traits::{Get, StorageVersion},
     };
     use frame_system::pallet_prelude::*;
+    use sp_runtime::DispatchError;
     use sp_std::{convert::TryInto, marker::PhantomData};
 
     pub type Cost = u64;

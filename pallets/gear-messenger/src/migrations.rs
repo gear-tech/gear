@@ -27,8 +27,8 @@ use gear_core::ids::MessageId;
 use sp_std::marker::PhantomData;
 #[cfg(feature = "try-runtime")]
 use {
-    frame_support::{codec::Decode, dispatch::DispatchError},
-    parity_scale_codec::Encode,
+    parity_scale_codec::{Decode, Encode},
+    sp_runtime::DispatchError,
     sp_std::vec::Vec,
 };
 
@@ -117,8 +117,6 @@ mod v2 {
     #[cfg(feature = "try-runtime")]
     use common::storage::{Interval, LinkedNode};
     use frame_support::{
-        codec::{Decode, Encode},
-        scale_info::TypeInfo,
         storage::types::CountedStorageMapInstance,
         traits::{PalletInfo, StorageInstance},
     };
@@ -126,6 +124,10 @@ mod v2 {
         ids::{MessageId, ProgramId},
         message::{DispatchKind, Payload, StoredDelayedDispatch, StoredMessage},
         reservation::ReservationNonce,
+    };
+    use sp_runtime::{
+        codec::{Decode, Encode},
+        scale_info::TypeInfo,
     };
     use sp_std::{
         collections::{btree_map::BTreeMap, btree_set::BTreeSet},

@@ -20,7 +20,11 @@ use super::*;
 use core::ops::{Add, Index, IndexMut};
 use enum_iterator::cardinality;
 use gear_core::ids::ReservationId;
-use sp_runtime::{codec::{self, MaxEncodedLen}, scale_info, traits::Zero};
+use sp_runtime::{
+    codec::{self, MaxEncodedLen},
+    scale_info,
+    traits::Zero,
+};
 
 /// ID of the [`GasNode`].
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, TypeInfo)]

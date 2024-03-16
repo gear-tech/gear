@@ -23,11 +23,7 @@
 
 use crate::{weights::WeightInfo, Config};
 use core_processor::configs::PageCosts;
-use frame_support::{
-    codec::{Decode, Encode},
-    traits::Get,
-    weights::Weight,
-};
+use frame_support::{traits::Get, weights::Weight};
 use gear_core::{
     code::MAX_WASM_PAGE_AMOUNT,
     costs::HostFnWeights as CoreHostFnWeights,
@@ -42,7 +38,10 @@ use pallet_gear_proc_macro::{ScheduleDebug, WeightDebug};
 use scale_info::TypeInfo;
 #[cfg(feature = "std")]
 use serde::{Deserialize, Serialize};
-use sp_runtime::RuntimeDebug;
+use sp_runtime::{
+    codec::{Decode, Encode},
+    RuntimeDebug,
+};
 use sp_std::{marker::PhantomData, vec::Vec};
 
 /// How many API calls are executed in a single batch. The reason for increasing the amount
