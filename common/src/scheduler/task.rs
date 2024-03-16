@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{paused_program_storage::SessionId, Gas};
-use frame_support::{
+use sp_runtime::{
     codec::{self, Decode, Encode, MaxEncodedLen},
     scale_info::{self, TypeInfo},
 };

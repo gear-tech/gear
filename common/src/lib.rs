@@ -46,15 +46,17 @@ pub mod pallet_tests;
 
 use core::fmt;
 use frame_support::{
-    codec::{self, Decode, Encode},
     pallet_prelude::MaxEncodedLen,
-    scale_info::{self, TypeInfo},
     sp_runtime::{
         self,
         generic::{CheckedExtrinsic, UncheckedExtrinsic},
         traits::{Dispatchable, SignedExtension},
     },
     traits::Get,
+};
+use sp_runtime::{
+    codec::{self, Decode, Encode},
+    scale_info::{self, TypeInfo},
 };
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId},

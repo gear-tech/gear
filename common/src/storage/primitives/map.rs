@@ -21,8 +21,7 @@
 //! This primitive defines interface of interaction
 //! with globally stored single-key map (Key -> Value).
 
-use frame_support::codec::{Encode, EncodeAppend, EncodeLike};
-
+use sp_runtime::codec::{Encode, EncodeAppend, EncodeLike};
 /// Represents logic of managing globally stored
 /// single-key map for more complicated logic.
 ///

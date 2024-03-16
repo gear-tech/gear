@@ -21,7 +21,7 @@
 //! This module contains components for depositing proper
 //! and extensive data about actions happen.
 
-use frame_support::{
+use sp_runtime::{
     codec::{self, Decode, Encode},
     scale_info::{self, TypeInfo},
 };

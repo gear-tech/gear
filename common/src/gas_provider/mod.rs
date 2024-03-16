@@ -18,8 +18,9 @@
 
 use super::*;
 use frame_support::{
-    sp_runtime::traits::Zero, traits::tokens::Balance as BalanceTrait, RuntimeDebug,
+    sp_runtime::traits::Zero, traits::tokens::Balance as BalanceTrait,
 };
+use sp_runtime::RuntimeDebug;
 use sp_std::marker::PhantomData;
 
 mod error;
