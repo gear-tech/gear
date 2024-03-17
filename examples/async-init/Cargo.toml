@@ -7,6 +7,8 @@ license.workspace = true
 homepage.workspace = true
 repository.workspace = true
 
+[package.metadata.cargo-gear]
+
 [dependencies]
 gstd.workspace = true
 parity-scale-codec.workspace = true

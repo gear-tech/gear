@@ -62,7 +62,7 @@ fn check_changed(path: &Path, contents: &[u8]) -> Result<bool> {
     Ok(old_contents != contents)
 }
 
-pub(crate) fn write<P: AsRef<Path>, C: AsRef<[u8]>>(path: P, contents: C) -> Result<()> {
+pub fn write<P: AsRef<Path>, C: AsRef<[u8]>>(path: P, contents: C) -> Result<()> {
     let path = path.as_ref();
     let contents = contents.as_ref();
 

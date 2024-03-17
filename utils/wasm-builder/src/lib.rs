@@ -34,7 +34,7 @@ mod cargo_toolchain;
 pub mod code_validator;
 mod crate_info;
 pub mod optimize;
-mod smart_fs;
+pub mod smart_fs;
 mod stack_end;
 mod wasm_project;
 
