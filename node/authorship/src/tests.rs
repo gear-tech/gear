@@ -73,11 +73,7 @@ use vara_runtime::{
     AccountId, Runtime, RuntimeApi as RA, RuntimeCall, UncheckedExtrinsic, SLOT_DURATION, VERSION,
 };
 
-type TestProposal = sp_consensus::Proposal<
-    TestBlock,
-    sc_client_api::backend::TransactionFor<TestBackend, TestBlock>,
-    (),
->;
+type TestProposal = sp_consensus::Proposal<TestBlock, ()>;
 
 fn get_executor() -> &'static RwLock<ExecutorDispatch> {
     static EXECUTOR: OnceLock<RwLock<ExecutorDispatch>> = OnceLock::new();

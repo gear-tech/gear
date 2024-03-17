@@ -44,9 +44,7 @@ impl<'a, Block, A, B> BlockBuilder<'a, Block, A, B>
 where
     Block: BlockT,
     A: ProvideRuntimeApi<Block> + 'a,
-    A::Api: ApiExt<Block, StateBackend = backend::StateBackendFor<B, Block>>
-        + BlockBuilderApi<Block>
-        + GearRuntimeApi<Block>,
+    A::Api: ApiExt<Block> + BlockBuilderApi<Block> + GearRuntimeApi<Block>,
     B: backend::Backend<Block>,
 {
     /// Create a new instance of builder based on the given `parent_hash` and `parent_number`.
@@ -169,7 +167,7 @@ where
     /// Returns the build `Block`, the changes to the storage and an optional `StorageProof`
     /// supplied by `self.api`, combined as [`BuiltBlock`].
     /// The storage proof will be `Some(_)` when proof recording was enabled.
-    pub fn build(mut self) -> Result<BuiltBlock<Block, backend::StateBackendFor<B, Block>>, Error> {
+    pub fn build(mut self) -> Result<BuiltBlock<Block>, Error> {
         let header = self.api.finalize_block(self.parent_hash)?;
 
         debug_assert_eq!(
@@ -304,10 +302,7 @@ impl<'a, Block, A, B> Clone for BlockBuilder<'a, Block, A, B>
 where
     Block: BlockT,
     A: ProvideRuntimeApi<Block> + 'a,
-    A::Api: ApiExt<Block, StateBackend = backend::StateBackendFor<B, Block>>
-        + BlockBuilderApi<Block>
-        + GearRuntimeApi<Block>
-        + Clone,
+    A::Api: ApiExt<Block> + BlockBuilderApi<Block> + GearRuntimeApi<Block> + Clone,
     B: backend::Backend<Block>,
 {
     fn clone(&self) -> Self {

@@ -56,7 +56,7 @@ pub type Client = client::Client<
 >;
 
 /// Transaction for given runtime.
-pub type Transaction = sc_client_api::backend::TransactionFor<Backend, runtime_primitives::Block>;
+// pub type Transaction = sc_client_api::backend::TransactionFor<Backend, runtime_primitives::Block>;
 
 /// Genesis configuration parameters for `TestClient`.
 #[derive(Default)]
