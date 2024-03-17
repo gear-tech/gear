@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use clap::{Parser, Subcommand};
-use frame_support::dispatch::GetCallName;
+use frame_support::traits::GetCallName;
 use junit_common::TestSuites;
 use pallet_gear::{HostFnWeights, InstructionWeights};
 use quick_xml::de::from_str;
