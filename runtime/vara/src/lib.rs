@@ -27,7 +27,8 @@ include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
 use common::{storage::Messenger, DelegateFee};
 use frame_election_provider_support::{
-    onchain, ElectionDataProvider, NposSolution, SequentialPhragmen, VoteWeight,
+    bounds::ElectionBoundsBuilder, onchain, ElectionDataProvider, NposSolution, SequentialPhragmen,
+    VoteWeight,
 };
 use frame_support::weights::ConstantMultiplier;
 pub use frame_support::{
@@ -505,7 +506,11 @@ parameter_types! {
     // 16; TODO: Kusama has 24 => which one is more appropriate?
     pub MaxNominations: u32 = <NposSolution16 as NposSolution>::LIMIT as u32;
     pub MaxElectingVoters: u32 = 40_000;
-    pub MaxElectableTargets: u16 = 10_000;
+    /// We take the top 40_000 nominators as electing voters and all of the validators as electable
+    /// targets. Whilst this is the case, we cannot and shall not increase the size of the
+    /// validator intentions.
+    pub ElectionBounds: frame_election_provider_support::bounds::ElectionBounds =
+        ElectionBoundsBuilder::default().voters_count(MaxElectingVoters::get().into()).build();
     // OnChain values are lower.
     pub MaxOnChainElectingVoters: u32 = 5000;
     pub MaxOnChainElectableTargets: u16 = 1250;
@@ -524,8 +529,7 @@ impl onchain::Config for OnChainSeqPhragmen {
     type DataProvider = <Runtime as pallet_election_provider_multi_phase::Config>::DataProvider;
     type WeightInfo = frame_election_provider_support::weights::SubstrateWeight<Runtime>;
     type MaxWinners = <Runtime as pallet_election_provider_multi_phase::Config>::MaxWinners;
-    type VotersBound = MaxOnChainElectingVoters;
-    type TargetsBound = MaxOnChainElectableTargets;
+    type Bounds = ElectionBounds;
 }
 
 impl pallet_election_provider_multi_phase::MinerConfig for Runtime {
@@ -583,9 +587,8 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
     type GovernanceFallback = onchain::OnChainExecution<OnChainSeqPhragmen>;
     type Solver = SequentialPhragmen<AccountId, SolutionAccuracyOf<Self>, ()>;
     type ForceOrigin = AdminOrigin;
-    type MaxElectableTargets = MaxElectableTargets;
     type MaxWinners = MaxActiveValidators;
-    type MaxElectingVoters = MaxElectingVoters;
+    type ElectionBounds = ElectionBounds;
     type BenchmarkingConfig = ElectionProviderBenchmarkConfig;
     type WeightInfo = pallet_election_provider_multi_phase::weights::SubstrateWeight<Self>;
 }
@@ -614,7 +617,6 @@ impl pallet_staking::BenchmarkingConfig for StakingBenchmarkingConfig {
 }
 
 impl pallet_staking::Config for Runtime {
-    type MaxNominations = MaxNominations;
     type Currency = Balances;
     type CurrencyBalance = Balance;
     type UnixTime = Timestamp;
@@ -638,6 +640,7 @@ impl pallet_staking::Config for Runtime {
     type OffendingValidatorsThreshold = OffendingValidatorsThreshold;
     type VoterList = BagsList;
     type TargetList = pallet_staking::UseValidatorsMap<Self>;
+    type NominationsQuota = pallet_staking::FixedNominationsQuota<{ MaxNominations::get() }>;
     type MaxUnlockingChunks = ConstU32<32>;
     type HistoryDepth = HistoryDepth;
     type EventListeners = NominationPools;
