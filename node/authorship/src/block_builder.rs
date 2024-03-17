@@ -24,7 +24,7 @@ use sp_api::{ApiExt, ApiRef, Core, ProvideRuntimeApi, TransactionOutcome};
 use sp_blockchain::{ApplyExtrinsicFailed, Error};
 use sp_runtime::{
     legacy,
-    traits::{Block as BlockT, Hash, HashFor, Header as HeaderT, NumberFor, One},
+    traits::{Block as BlockT, Hash, HashingFor, Header as HeaderT, NumberFor, One},
     Digest,
 };
 use std::ops::DerefMut;
@@ -174,7 +174,7 @@ where
 
         debug_assert_eq!(
             header.extrinsics_root().clone(),
-            HashFor::<Block>::ordered_trie_root(
+            HashingFor::<Block>::ordered_trie_root(
                 self.extrinsics.iter().map(Encode::encode).collect(),
                 sp_runtime::StateVersion::V0,
             ),

@@ -84,14 +84,13 @@ use sp_api::{
 };
 use sp_core::{crypto::KeyTypeId, ConstBool, ConstU64, ConstU8, OpaqueMetadata, H256};
 #[cfg(any(feature = "std", test))]
-use sp_runtime::traits::HashFor;
+use sp_runtime::traits::HashingFor;
 use sp_runtime::{
     codec::{Decode, Encode, MaxEncodedLen},
-    RuntimeDebug,
     create_runtime_str, generic, impl_opaque_keys,
     traits::{AccountIdLookup, BlakeTwo256, Block as BlockT, ConvertInto, NumberFor, OpaqueKeys},
     transaction_validity::{TransactionPriority, TransactionSource, TransactionValidity},
-    ApplyExtrinsicResult, FixedU128, Perbill, Percent, Permill, Perquintill,
+    ApplyExtrinsicResult, FixedU128, Perbill, Percent, Permill, Perquintill, RuntimeDebug,
 };
 use sp_std::{
     convert::{TryFrom, TryInto},
@@ -1469,8 +1468,8 @@ impl<B, C> Clone for RuntimeApiImpl<B, C>
 where
     B: BlockT,
     C: CallApiAt<B>,
-    C::StateBackend: StateBackend<HashFor<B>>,
-    <C::StateBackend as StateBackend<HashFor<B>>>::Transaction: Clone,
+    C::StateBackend: StateBackend<HashingFor<B>>,
+    <C::StateBackend as StateBackend<HashingFor<B>>>::Transaction: Clone,
 {
     fn clone(&self) -> Self {
         Self {
@@ -1495,8 +1494,8 @@ impl<B, C> common::Deconstructable<C> for RuntimeApiImpl<B, C>
 where
     B: BlockT,
     C: CallApiAt<B>,
-    C::StateBackend: StateBackend<HashFor<B>>,
-    <C::StateBackend as StateBackend<HashFor<B>>>::Transaction: Clone,
+    C::StateBackend: StateBackend<HashingFor<B>>,
+    <C::StateBackend as StateBackend<HashingFor<B>>>::Transaction: Clone,
 {
     type Params = (
         u16,
