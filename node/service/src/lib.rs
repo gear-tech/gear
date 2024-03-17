@@ -177,8 +177,7 @@ where
         + Send
         + Sync
         + 'static,
-    RuntimeApi::RuntimeApi: RuntimeApiCollection<StateBackend = sc_client_api::StateBackendFor<FullBackend, Block>>
-        + Clone,
+    RuntimeApi::RuntimeApi: RuntimeApiCollection + Clone,
     ExecutorDispatch: NativeExecutionDispatch + 'static,
 {
     let telemetry = config
@@ -348,8 +347,7 @@ where
         + Send
         + Sync
         + 'static,
-    RuntimeApi::RuntimeApi: RuntimeApiCollection<StateBackend = sc_client_api::StateBackendFor<FullBackend, Block>>
-        + Clone,
+    RuntimeApi::RuntimeApi: RuntimeApiCollection + Clone,
     ExecutorDispatch: NativeExecutionDispatch + 'static,
 {
     /// The task manager of the node.
@@ -387,7 +385,7 @@ where
         + Send
         + Sync
         + 'static,
-    RuntimeApi::RuntimeApi: RuntimeApiCollection<StateBackend = sc_client_api::StateBackendFor<FullBackend, Block>>
+    RuntimeApi::RuntimeApi: RuntimeApiCollection
         + Clone
         + common::Deconstructable<FullClient<RuntimeApi, ExecutorDispatch>>,
     ExecutorDispatch: NativeExecutionDispatch + 'static,
@@ -648,7 +646,7 @@ impl ExecuteWithClient for RevertConsensus {
         <Api as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
         Backend: BackendT<Block> + 'static,
         Backend::State: sp_api::StateBackend<BlakeTwo256>,
-        Api: RuntimeApiCollection<StateBackend = Backend::State>,
+        Api: RuntimeApiCollection,
         Client: AbstractClient<Block, Backend, Api = Api>
             + 'static
             + HeaderMetadata<

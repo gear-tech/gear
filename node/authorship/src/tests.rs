@@ -43,7 +43,7 @@ use sc_transaction_pool::{BasicPool, FullPool};
 use sc_transaction_pool_api::{
     ChainEvent, MaintainedTransactionPool, TransactionPool, TransactionSource,
 };
-use sp_api::{ApiExt, Core, ProvideRuntimeApi, StateBackend};
+use sp_api::{ApiExt, Core, ProvideRuntimeApi};
 use sp_blockchain::HeaderBackend;
 use sp_consensus::{BlockOrigin, Environment, Proposer};
 use sp_consensus_babe::{

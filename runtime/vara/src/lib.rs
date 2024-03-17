@@ -79,10 +79,7 @@ pub use runtime_primitives::{AccountId, Signature, VARA_SS58_PREFIX};
 use runtime_primitives::{Balance, BlockNumber, Hash, Moment, Nonce};
 use sp_api::impl_runtime_apis;
 #[cfg(any(feature = "std", test))]
-use sp_api::{
-    CallApiAt, CallContext, Extensions, OverlayedChanges, ProofRecorder, StateBackend,
-    StorageTransactionCache,
-};
+use sp_api::{CallApiAt, CallContext, Extensions, OverlayedChanges, ProofRecorder};
 use sp_core::{crypto::KeyTypeId, ConstBool, ConstU64, ConstU8, OpaqueMetadata, H256};
 #[cfg(any(feature = "std", test))]
 use sp_runtime::traits::HashingFor;
@@ -270,6 +267,7 @@ impl pallet_babe::Config for Runtime {
 
     type WeightInfo = ();
     type MaxAuthorities = MaxAuthorities;
+    type MaxNominators = MaxNominatorRewardedPerValidator;
 
     type KeyOwnerProof = sp_session::MembershipProof;
     type EquivocationReportSystem =
@@ -281,6 +279,7 @@ impl pallet_grandpa::Config for Runtime {
 
     type WeightInfo = ();
     type MaxAuthorities = MaxAuthorities;
+    type MaxNominators = MaxNominatorRewardedPerValidator;
     type MaxSetIdSessionEntries = MaxSetIdSessionEntries;
     type KeyOwnerProof = sp_session::MembershipProof;
     type EquivocationReportSystem =
@@ -504,7 +503,7 @@ frame_election_provider_support::generate_solution_type!(
 
 parameter_types! {
     // 16; TODO: Kusama has 24 => which one is more appropriate?
-    pub MaxNominations: u32 = <NposSolution16 as NposSolution>::LIMIT as u32;
+    pub const MaxNominations: u32 = <NposSolution16 as NposSolution>::LIMIT as u32;
     pub MaxElectingVoters: u32 = 40_000;
     /// We take the top 40_000 nominators as electing voters and all of the validators as electable
     /// targets. Whilst this is the case, we cannot and shall not increase the size of the
@@ -1471,15 +1470,12 @@ impl<B, C> Clone for RuntimeApiImpl<B, C>
 where
     B: BlockT,
     C: CallApiAt<B>,
-    C::StateBackend: StateBackend<HashingFor<B>>,
-    <C::StateBackend as StateBackend<HashingFor<B>>>::Transaction: Clone,
 {
     fn clone(&self) -> Self {
         Self {
             call: <&C>::clone(&self.call),
             transaction_depth: self.transaction_depth.clone(),
             changes: self.changes.clone(),
-            storage_transaction_cache: self.storage_transaction_cache.clone(),
             recorder: self.recorder.clone(),
             call_context: self.call_context,
             extensions: Default::default(),
@@ -1497,13 +1493,10 @@ impl<B, C> common::Deconstructable<C> for RuntimeApiImpl<B, C>
 where
     B: BlockT,
     C: CallApiAt<B>,
-    C::StateBackend: StateBackend<HashingFor<B>>,
-    <C::StateBackend as StateBackend<HashingFor<B>>>::Transaction: Clone,
 {
     type Params = (
         u16,
-        OverlayedChanges,
-        StorageTransactionCache<B, C::StateBackend>,
+        OverlayedChanges<HashingFor<B>>,
         Option<ProofRecorder<B>>,
         CallContext,
         Extensions,
@@ -1516,7 +1509,6 @@ where
             (
                 *core::cell::RefCell::borrow(&self.transaction_depth),
                 self.changes.into_inner(),
-                self.storage_transaction_cache.into_inner(),
                 self.recorder,
                 self.call_context,
                 self.extensions.into_inner(),
@@ -1530,11 +1522,10 @@ where
             call: unsafe { std::mem::transmute(call) },
             transaction_depth: params.0.into(),
             changes: core::cell::RefCell::new(params.1),
-            storage_transaction_cache: core::cell::RefCell::new(params.2),
-            recorder: params.3,
-            call_context: params.4,
-            extensions: core::cell::RefCell::new(params.5),
-            extensions_generated_for: core::cell::RefCell::new(params.6),
+            recorder: params.2,
+            call_context: params.3,
+            extensions: core::cell::RefCell::new(params.4),
+            extensions_generated_for: core::cell::RefCell::new(params.5),
         }
     }
 }

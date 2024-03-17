@@ -233,9 +233,7 @@ where
     }
 
     #[cfg(test)]
-    pub fn into_storage_changes(
-        self,
-    ) -> Result<sp_api::StorageChanges<backend::StateBackendFor<B, Block>, Block>, Error> {
+    pub fn into_storage_changes(self) -> Result<sp_api::StorageChanges<Block>, Error> {
         let state = self.backend.state_at(self.parent_hash)?;
 
         let storage_changes = self
