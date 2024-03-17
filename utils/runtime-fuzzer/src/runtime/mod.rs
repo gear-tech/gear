@@ -92,6 +92,6 @@ pub fn new_test_ext() -> TestExternalities {
     ext
 }
 
-pub fn set_balance(who: AccountId, free: Balance) -> DispatchResultWithPostInfo {
+pub fn set_balance(who: AccountId, free: Balance) -> Result<(), sp_runtime::DispatchError> {
     BalancesPallet::<Runtime>::force_set_balance(RuntimeOrigin::root(), who.into(), free)
 }
