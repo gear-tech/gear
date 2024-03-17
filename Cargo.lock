@@ -13870,6 +13870,7 @@ dependencies = [
  "sp-session",
  "sp-staking",
  "sp-std 8.0.0 (git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-release-polkadot-v1.1.0)",
+ "sp-storage",
  "sp-transaction-pool",
  "sp-version",
  "substrate-build-script-utils",
