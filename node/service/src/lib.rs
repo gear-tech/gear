@@ -26,8 +26,7 @@ use sc_executor::{
     DEFAULT_HEAP_ALLOC_STRATEGY,
 };
 use sc_network::NetworkService;
-use sc_network_common::sync::warp::WarpSyncParams;
-use sc_network_sync::SyncingService;
+use sc_network_sync::{warp::WarpSyncParams, SyncingService};
 use sc_service::{
     error::Error as ServiceError, ChainSpec, Configuration, PartialComponents, RpcHandlers,
     TaskManager,
@@ -39,7 +38,6 @@ use sp_runtime::{
     traits::{BlakeTwo256, Block as BlockT},
     OpaqueExtrinsic,
 };
-use sp_trie::PrefixedMemoryDB;
 use std::sync::Arc;
 
 pub use client::*;
@@ -80,6 +78,10 @@ type FullGrandpaBlockImport<RuntimeApi, ExecutorDispatch, ChainSelection = FullS
 type TransactionPool<RuntimeApi, ExecutorDispatch> =
     sc_transaction_pool::FullPool<Block, FullClient<RuntimeApi, ExecutorDispatch>>;
 
+/// The minimum period of blocks on which justifications will be
+/// imported and generated.
+const GRANDPA_JUSTIFICATION_PERIOD: u32 = 512;
+
 macro_rules! chain_ops {
     ($config:expr, $rpc_calculations_multiplier:expr, $rpc_max_batch_size:expr, $scope:ident, $executor:ident, $variant:ident) => {{
         let PartialComponents {
@@ -113,7 +115,7 @@ pub fn new_chain_ops(
     (
         Arc<Client>,
         Arc<FullBackend>,
-        sc_consensus::BasicQueue<Block, PrefixedMemoryDB<BlakeTwo256>>,
+        sc_consensus::BasicQueue<Block>,
         TaskManager,
     ),
     ServiceError,
@@ -146,7 +148,7 @@ pub fn new_partial<RuntimeApi, ExecutorDispatch>(
         FullClient<RuntimeApi, ExecutorDispatch>,
         FullBackend,
         FullSelectChain,
-        sc_consensus::DefaultImportQueue<Block, FullClient<RuntimeApi, ExecutorDispatch>>,
+        sc_consensus::DefaultImportQueue<Block>,
         sc_transaction_pool::FullPool<Block, FullClient<RuntimeApi, ExecutorDispatch>>,
         (
             impl Fn(
@@ -236,6 +238,7 @@ where
 
     let (grandpa_block_import, grandpa_link) = sc_consensus_grandpa::block_import(
         client.clone(),
+        GRANDPA_JUSTIFICATION_PERIOD,
         &(client.clone() as Arc<_>),
         select_chain.clone(),
         telemetry.as_ref().map(|x| x.handle()),
@@ -564,7 +567,7 @@ where
 
     let grandpa_config = sc_consensus_grandpa::Config {
         gossip_duration: std::time::Duration::from_millis(1000),
-        justification_period: 512,
+        justification_generation_period: GRANDPA_JUSTIFICATION_PERIOD,
         name: Some(name),
         observer_enabled: false,
         keystore,
@@ -643,7 +646,6 @@ impl ExecuteWithClient for RevertConsensus {
 
     fn execute_with_client<Client, Api, Backend>(self, client: Arc<Client>) -> Self::Output
     where
-        <Api as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
         Backend: BackendT<Block> + 'static,
         Backend::State: sp_api::StateBackend<BlakeTwo256>,
         Api: RuntimeApiCollection,
