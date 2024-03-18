@@ -56,6 +56,7 @@ use sp_runtime::{
     traits::{Block as BlockT, Header as HeaderT, NumberFor},
     Digest, DigestItem, OpaqueExtrinsic, Perbill, Percent,
 };
+use sp_state_machine::Backend;
 use sp_timestamp::Timestamp;
 use std::{
     ops::Deref,

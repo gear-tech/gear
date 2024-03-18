@@ -19,8 +19,7 @@
 use crate::{self as pallet_gear_staking_rewards, CurrencyOf};
 use core::marker::PhantomData;
 use frame_election_provider_support::{
-    bounds::{ElectionBounds, ElectionBoundsBuilder},
-    onchain, ElectionDataProvider, SequentialPhragmen, VoteWeight,
+    bounds::ElectionBoundsBuilder, onchain, ElectionDataProvider, SequentialPhragmen, VoteWeight,
 };
 use frame_support::{
     construct_runtime, parameter_types,
@@ -234,7 +233,9 @@ parameter_types! {
     pub const MaxElectableTargets: u16 = 10_000;
     pub const MaxOnChainElectingVoters: u32 = 500;
     pub const MaxOnChainElectableTargets: u16 = 100;
-    pub static ElectionsBounds: ElectionBounds = ElectionBoundsBuilder::default().build();
+    // pub static ElectionsBounds: ElectionBounds = ElectionBoundsBuilder::default().build();
+    pub ElectionBounds: frame_election_provider_support::bounds::ElectionBounds =
+        ElectionBoundsBuilder::default().voters_count(MaxElectingVoters::get().into()).build();
 }
 
 frame_election_provider_support::generate_solution_type!(
