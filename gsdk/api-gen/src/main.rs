@@ -15,7 +15,9 @@
 //
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
+
 use color_eyre::eyre::Result;
+use gear_utils::codegen::LICENSE;
 use heck::ToSnakeCase as _;
 use parity_scale_codec::Decode;
 use proc_macro2::{Ident, Span, TokenStream};
@@ -32,26 +34,6 @@ use syn::{parse_quote, Fields, ItemEnum, ItemImpl, ItemMod, Variant};
 const RUNTIME_WASM: &str = "RUNTIME_WASM";
 const USAGE: &str = r#"
 Usage: RUNTIME_WASM=<path> generate-client-api
-"#;
-const LICENSE: &str = r#"
-// This file is part of Gear.
-//
-// Copyright (C) 2021-2024 Gear Technologies Inc.
-// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
-#[allow(rustdoc::broken_intra_doc_links)] //subxt-codegen produces incorrect docs
 "#;
 
 fn main() -> Result<()> {

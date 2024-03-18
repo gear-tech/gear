@@ -1,5 +1,5 @@
 [workspace.package]
-version = "1.1.2"
+version = "1.2.0"
 authors = ["Gear Technologies"]
 edition = "2021"
 license = "GPL-3.0"
@@ -307,7 +307,6 @@ sp-debug-derive = { version = "8.0.0", git = "https://github.com/gear-tech/subst
 sc-chain-spec = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v1.0.0-canary" }
 sc-cli = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v1.0.0-canary" }
 sc-client-api = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v1.0.0-canary" }
-sc-client-db = { version = "0.10.0-dev", features = ["rocksdb"], git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v1.0.0-canary" }
 sc-executor = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v1.0.0-canary" }
 sc-executor-common = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v1.0.0-canary" }
 sc-consensus-grandpa = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v1.0.0-canary" }

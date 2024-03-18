@@ -606,7 +606,7 @@ fn test_syscalls_table() {
     };
     use gear_core::message::DispatchKind;
     use gear_wasm_instrument::{
-        gas_metering::ConstantCostRules,
+        gas_metering::CustomConstantCostRules,
         parity_wasm::{self, builder},
         InstrumentationBuilder, SyscallName,
     };
@@ -637,7 +637,7 @@ fn test_syscalls_table() {
     }
 
     let module = InstrumentationBuilder::new("env")
-        .with_gas_limiter(|_| ConstantCostRules::default())
+        .with_gas_limiter(|_| CustomConstantCostRules::default())
         .instrument(module)
         .unwrap();
     let code = module.into_bytes().unwrap();

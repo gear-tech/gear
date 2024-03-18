@@ -192,6 +192,8 @@ where
         })
         .transpose()?;
 
+    // TODO: consider to set ours `default_heap_pages` here,
+    // instead of using substrate's default #3741.
     let heap_pages = config
         .default_heap_pages
         .map_or(DEFAULT_HEAP_ALLOC_STRATEGY, |h| HeapAllocStrategy::Static {

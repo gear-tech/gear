@@ -162,7 +162,7 @@ impl Default for SyscallsParamsConfig {
     fn default() -> Self {
         Self::new()
             .with_default_regular_config()
-            .with_default_regular_config()
+            .with_default_ptr_config()
     }
 }
 

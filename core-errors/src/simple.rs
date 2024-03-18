@@ -40,6 +40,7 @@ use scale_info::{
     derive_more::From,
 )]
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo, Sequence), codec(crate = scale), allow(clippy::unnecessary_cast))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 /// Enum representing reply code with reason of its creation.
 pub enum ReplyCode {
     /// Success reply.
@@ -119,6 +120,7 @@ impl ReplyCode {
     Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default, derive_more::Display,
 )]
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo, Sequence), codec(crate = scale), allow(clippy::unnecessary_cast))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 /// Reason of success reply creation.
 pub enum SuccessReplyReason {
     /// Success reply was created by system automatically.
@@ -165,6 +167,7 @@ impl SuccessReplyReason {
     derive_more::From,
 )]
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo, Sequence), codec(crate = scale), allow(clippy::unnecessary_cast))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 /// Reason of error reply creation.
 ///
 /// NOTE: Adding new variants to this enum you must also update `ErrorReplyReason::to_bytes` and
@@ -246,6 +249,7 @@ impl ErrorReplyReason {
     Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default, derive_more::Display,
 )]
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo, Sequence), codec(crate = scale), allow(clippy::unnecessary_cast))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 /// Simplified error occurred during execution.
 pub enum SimpleExecutionError {
     /// Message ran out of gas while executing.
@@ -302,6 +306,7 @@ impl SimpleExecutionError {
     Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default, derive_more::Display,
 )]
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo, Sequence), codec(crate = scale), allow(clippy::unnecessary_cast))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 /// Simplified error occurred during program creation.
 pub enum SimpleProgramCreationError {
     /// Given code id for program creation doesn't exist.
@@ -349,6 +354,7 @@ impl SimpleProgramCreationError {
     derive_more::From,
 )]
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo, Sequence), codec(crate = scale), allow(clippy::unnecessary_cast))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 /// Enum representing signal code and reason of its creation.
 ///
 /// # Testing

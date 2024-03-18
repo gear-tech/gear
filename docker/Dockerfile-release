@@ -6,10 +6,12 @@ RUN apt-get update && \
     apt-get install -y curl sudo xz-utils && \
     rm -rf /var/lib/apt/lists/*
 
-RUN if [ -z "$RELEASE_VERSION" ]; then \
-        curl --proto '=https' --tlsv1.2 -sSf https://get.gear.rs/install.sh | bash -s -- --to /usr/local/bin/ ; \
+RUN if [ "$RELEASE_VERSION" = "latest" ]; then \
+        curl -L https://github.com/gear-tech/gear/releases/latest/download/gear -o /usr/local/bin/gear && \
+        chmod +x /usr/local/bin/gear ; \
     else \
-        curl --proto '=https' --tlsv1.2 -sSf https://get.gear.rs/install.sh | bash -s -- --tag ${RELEASE_VERSION} --to /usr/local/bin/ ; \
+        curl -L https://github.com/gear-tech/gear/releases/download/$RELEASE_VERSION/gear -o /usr/local/bin/gear && \
+        chmod +x /usr/local/bin/gear ; \
     fi
 
 RUN gear --version

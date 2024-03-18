@@ -157,7 +157,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     // The version of the runtime specification. A full node will not attempt to use its native
     //   runtime in substitute for the on-chain Wasm runtime unless all of `spec_name`,
     //   `spec_version`, and `authoring_version` are the same between Wasm and native.
-    spec_version: 1120,
+    spec_version: 1200,
     impl_version: 1,
     apis: RUNTIME_API_VERSIONS,
     transaction_version: 1,
@@ -973,6 +973,9 @@ parameter_types! {
     pub const DispatchHoldCost: u64 = 100;
 
     pub const OutgoingLimit: u32 = 1024;
+    // 64 MB, must be less than max runtime heap memory.
+    // NOTE: currently runtime heap memory is 1 GB (see https://shorturl.at/DET45)
+    pub const OutgoingBytesLimit: u32 = 64 * 1024 * 1024;
     pub const MailboxThreshold: u64 = 3000;
 
     pub const PerformanceMultiplier: u32 = 100;
@@ -996,6 +999,7 @@ impl pallet_gear::Config for Runtime {
     type WeightInfo = weights::pallet_gear::SubstrateWeight<Runtime>;
     type Schedule = Schedule;
     type OutgoingLimit = OutgoingLimit;
+    type OutgoingBytesLimit = OutgoingBytesLimit;
     type PerformanceMultiplier = PerformanceMultiplier;
     type DebugInfo = DebugInfo;
     type CodeStorage = GearProgram;
@@ -1008,7 +1012,6 @@ impl pallet_gear::Config for Runtime {
     type Scheduler = GearScheduler;
     type QueueRunner = Gear;
     type BuiltinDispatcherFactory = GearBuiltin;
-    type BuiltinCache = GearBuiltin;
     type ProgramRentFreePeriod = ConstU32<{ MONTHS * RENT_FREE_PERIOD_MONTH_FACTOR }>;
     type ProgramResumeMinimalRentPeriod = ConstU32<{ WEEKS * RENT_RESUME_WEEK_FACTOR }>;
     type ProgramRentCostPerBlock = ConstU128<RENT_COST_PER_BLOCK>;

@@ -55,6 +55,7 @@ use self::{
     sandbox::Sandbox,
 };
 use crate::{
+    builtin::BuiltinDispatcherFactory,
     manager::ExtManager,
     pallet,
     schedule::{API_BENCHMARK_BATCH_SIZE, INSTR_BENCHMARK_BATCH_SIZE},
@@ -85,7 +86,7 @@ use gear_core::{
     gas::{GasAllowanceCounter, GasCounter, ValueCounter},
     ids::{CodeId, MessageId, ProgramId},
     memory::{AllocationsContext, Memory, PageBuf},
-    message::{ContextSettings, DispatchKind, IncomingDispatch, MessageContext},
+    message::{DispatchKind, IncomingDispatch, MessageContext},
     pages::{GearPage, PageU32Size, WasmPage},
     reservation::GasReserver,
 };
@@ -157,7 +158,9 @@ where
 {
     init_block::<T>(None);
 
-    Gear::<T>::process_queue(Default::default(), ());
+    let (builtins, _) = T::BuiltinDispatcherFactory::create();
+    let ext_manager = ExtManager::<T>::new(builtins);
+    Gear::<T>::process_queue(ext_manager);
 }
 
 fn default_processor_context<T: Config>() -> ProcessorContext {
@@ -179,8 +182,9 @@ fn default_processor_context<T: Config>() -> ProcessorContext {
         message_context: MessageContext::new(
             Default::default(),
             Default::default(),
-            ContextSettings::new(0, 0, 0, 0, 0, 0),
-        ),
+            Default::default(),
+        )
+        .unwrap(),
         block_info: Default::default(),
         performance_multiplier: gsys::Percent::new(100),
         max_pages: TESTS_MAX_PAGES_NUMBER.into(),
@@ -2587,55 +2591,67 @@ benchmarks! {
 
     tasks_remove_gas_reservation {
         let (program_id, reservation_id) = tasks::remove_gas_reservation::<T>();
-        let mut ext_manager = ExtManager::<T>::default();
+        let (builtins, _) = T::BuiltinDispatcherFactory::create();
+        let mut ext_manager = ExtManager::<T>::new(builtins);
     }: {
         ext_manager.remove_gas_reservation(program_id, reservation_id);
     }
 
     tasks_send_user_message_to_mailbox {
         let message_id = tasks::send_user_message::<T>();
-        let mut ext_manager = ExtManager::<T>::default();
+        let (builtins, _) = T::BuiltinDispatcherFactory::create();
+        let mut ext_manager = ExtManager::<T>::new(builtins);
     }: {
         ext_manager.send_user_message(message_id, true);
     }
 
     tasks_send_user_message {
         let message_id = tasks::send_user_message::<T>();
-        let mut ext_manager = ExtManager::<T>::default();
+        let (builtins, _) = T::BuiltinDispatcherFactory::create();
+        let mut ext_manager = ExtManager::<T>::new(builtins);
     }: {
         ext_manager.send_user_message(message_id, false);
     }
 
     tasks_send_dispatch {
         let message_id = tasks::send_dispatch::<T>();
-        let mut ext_manager = ExtManager::<T>::default();
+
+        let (builtins, _) = T::BuiltinDispatcherFactory::create();
+        let mut ext_manager = ExtManager::<T>::new(builtins);
     }: {
         ext_manager.send_dispatch(message_id);
     }
 
     tasks_wake_message {
         let (program_id, message_id) = tasks::wake_message::<T>();
-        let mut ext_manager = ExtManager::<T>::default();
+
+        let (builtins, _) = T::BuiltinDispatcherFactory::create();
+        let mut ext_manager = ExtManager::<T>::new(builtins);
     }: {
         ext_manager.wake_message(program_id, message_id);
     }
 
     tasks_wake_message_no_wake {
-        let mut ext_manager = ExtManager::<T>::default();
+        let (builtins, _) = T::BuiltinDispatcherFactory::create();
+        let mut ext_manager = ExtManager::<T>::new(builtins);
     }: {
         ext_manager.wake_message(Default::default(), Default::default());
     }
 
     tasks_remove_from_waitlist {
         let (program_id, message_id) = tasks::remove_from_waitlist::<T>();
-        let mut ext_manager = ExtManager::<T>::default();
+
+        let (builtins, _) = T::BuiltinDispatcherFactory::create();
+        let mut ext_manager = ExtManager::<T>::new(builtins);
     }: {
         ext_manager.remove_from_waitlist(program_id, message_id);
     }
 
     tasks_remove_from_mailbox {
         let (user, message_id) = tasks::remove_from_mailbox::<T>();
-        let mut ext_manager = ExtManager::<T>::default();
+
+        let (builtins, _) = T::BuiltinDispatcherFactory::create();
+        let mut ext_manager = ExtManager::<T>::new(builtins);
     }: {
         ext_manager.remove_from_mailbox(user.cast(), message_id);
     }

@@ -51,7 +51,6 @@ use sp_std::marker::PhantomData;
 pub trait WeightInfo {
 	fn calculate_id() -> Weight;
 	fn create_dispatcher() -> Weight;
-	fn quick_lookup() -> Weight;
 }
 
 /// Weights for `pallet_gear_builtin` using a Gear node and recommended hardware.
@@ -73,17 +72,6 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 		Weight::from_parts(7_000_000, 0)
 			.saturating_add(Weight::from_parts(0, 0))
 	}
-	/// Storage: `GearBuiltin::QuickCache` (r:1 w:0)
-	/// Proof: `GearBuiltin::QuickCache` (`max_values`: Some(1), `max_size`: None, mode: `Measured`)
-	fn quick_lookup() -> Weight {
-		// Proof Size summary in bytes:
-		//  Measured:  `544`
-		//  Estimated: `2029`
-		// Minimum execution time: 5_000_000 picoseconds.
-		Weight::from_parts(6_000_000, 0)
-			.saturating_add(Weight::from_parts(0, 2029))
-			.saturating_add(T::DbWeight::get().reads(1))
-	}
 }
 
 impl WeightInfo for () {
@@ -102,16 +90,5 @@ impl WeightInfo for () {
 		// Minimum execution time: 7_000_000 picoseconds.
 		Weight::from_parts(8_000_000, 0)
 			.saturating_add(Weight::from_parts(0, 0))
-	}
-	/// Storage: `GearBuiltin::QuickCache` (r:1 w:0)
-	/// Proof: `GearBuiltin::QuickCache` (`max_values`: Some(1), `max_size`: None, mode: `Measured`)
-	fn quick_lookup() -> Weight {
-		// Proof Size summary in bytes:
-		//  Measured:  `544`
-		//  Estimated: `2029`
-		// Minimum execution time: 5_000_000 picoseconds.
-		Weight::from_parts(6_000_000, 0)
-			.saturating_add(Weight::from_parts(0, 2029))
-			.saturating_add(RocksDbWeight::get().reads(1))
 	}
 }

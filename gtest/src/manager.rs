@@ -42,7 +42,7 @@ use gear_core::{
     reservation::{GasReservationMap, GasReserver},
 };
 use gear_core_errors::{ErrorReplyReason, SignalCode, SimpleExecutionError};
-use gear_wasm_instrument::wasm_instrument::gas_metering::ConstantCostRules;
+use gear_wasm_instrument::gas_metering::Schedule;
 use rand::{rngs::StdRng, RngCore, SeedableRng};
 use std::{
     cell::{Ref, RefCell, RefMut},
@@ -53,6 +53,7 @@ use std::{
 };
 
 const OUTGOING_LIMIT: u32 = 1024;
+const OUTGOING_BYTES_LIMIT: u32 = 64 * 1024 * 1024;
 
 pub(crate) type Balance = u128;
 
@@ -871,6 +872,7 @@ impl ExtManager {
             page_costs: PageCosts::new_for_tests(),
             existential_deposit: EXISTENTIAL_DEPOSIT,
             outgoing_limit: OUTGOING_LIMIT,
+            outgoing_bytes_limit: OUTGOING_BYTES_LIMIT,
             host_fn_weights: Default::default(),
             forbidden_funcs: Default::default(),
             mailbox_threshold: MAILBOX_THRESHOLD,
@@ -1127,9 +1129,14 @@ impl JournalHandler for ExtManager {
         if let Some(code) = self.opt_binaries.get(&code_id).cloned() {
             for (init_message_id, candidate_id) in candidates {
                 if !self.actors.contains_key(&candidate_id) {
-                    let code =
-                        Code::try_new(code.clone(), 1, |_| ConstantCostRules::default(), None)
-                            .expect("Program can't be constructed with provided code");
+                    let schedule = Schedule::default();
+                    let code = Code::try_new(
+                        code.clone(),
+                        schedule.instruction_weights.version,
+                        |module| schedule.rules(module),
+                        schedule.limits.stack_height,
+                    )
+                    .expect("Program can't be constructed with provided code");
 
                     let code_and_id: InstrumentedCodeAndId =
                         CodeAndId::from_parts_unchecked(code, code_id).into();

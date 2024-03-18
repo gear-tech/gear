@@ -15,7 +15,7 @@
 //
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
-#[allow(rustdoc::broken_intra_doc_links)] //subxt-codegen produces incorrect docs
+
 #[allow(dead_code, unused_imports, non_camel_case_types)]
 #[allow(clippy::all)]
 #[allow(rustdoc::broken_intra_doc_links)]
@@ -8685,18 +8685,6 @@ pub mod storage {
             match self {
                 Self::Bank => "Bank",
                 Self::UnusedValue => "UnusedValue",
-            }
-        }
-    }
-    #[doc = "Storage of pallet `GearBuiltin`."]
-    pub enum GearBuiltinStorage {
-        QuickCache,
-    }
-    impl StorageInfo for GearBuiltinStorage {
-        const PALLET: &'static str = "GearBuiltin";
-        fn storage_name(&self) -> &'static str {
-            match self {
-                Self::QuickCache => "QuickCache",
             }
         }
     }

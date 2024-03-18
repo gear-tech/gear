@@ -2,7 +2,7 @@ name: PR
 
 on:
   pull_request:
-    branches: [master, vara-stage-1, vara-stage-2, vara-stage-3]
+    branches: [master]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -27,10 +27,10 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       build: ${{ steps.config.outputs.build }}
-      cache: ${{ steps.config.outputs.cache }}
       check: ${{ steps.config.outputs.check }}
-      docs: ${{ steps.config.outputs.docs }}
+      win-native: ${{ steps.config.outputs.win-native }}
       macos: ${{ steps.config.outputs.macos }}
+      release: ${{ steps.config.outputs.release }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -46,8 +46,6 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
   docs:
-    needs: status
-    if: ${{ needs.status.outputs.docs == 'true' }}
     runs-on: ubuntu-lastet
     env:
       RUSTUP_HOME: /tmp/rustup_home
@@ -58,13 +56,12 @@ jobs:
     needs: status
     if: ${{ needs.status.outputs.check == 'true' }}
     uses: ./.github/workflows/check.yml
-    with:
-      cache: ${{ needs.status.outputs.cache }}
 
   build:
     needs: status
     if: ${{ needs.status.outputs.build == 'true' }}
     uses: ./.github/workflows/build.yml
     with:
-      cache: ${{ needs.status.outputs.cache }}
       macos: ${{ needs.status.outputs.macos == 'true' }}
+      win-native: ${{ needs.status.outputs.win-native == 'true' }}
+      release: ${{ needs.status.outputs.release == 'true' }}
