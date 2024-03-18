@@ -13,7 +13,7 @@ use serde::Deserialize;
 use std::{
     collections::{HashMap, HashSet},
     env, fs, io,
-    io::Read,
+    io::{Read, Write},
     path::PathBuf,
     process,
     process::Command,
@@ -327,6 +327,19 @@ fn socket_name() -> String {
     }
 }
 
+fn rustc_wrapper() {
+    let mut args: Vec<String> = env::args().skip(1).collect();
+
+    let name = env::var("__CARGO_GEAR_SOCKET_NAME").unwrap();
+    let mut stream = local_socket::LocalSocketStream::connect(name).unwrap();
+    write!(&mut stream, "{}", args.join(" ")).unwrap();
+    drop(stream);
+
+    let rustc = args.remove(0);
+    let status = Command::new(rustc).args(args).status().unwrap();
+    assert!(status.success());
+}
+
 fn collect_rustc_args(
     socket_name: String,
     mut child: process::Child,
@@ -375,6 +388,11 @@ fn proxy_cargo_call(wasm32_target_dir: PathBuf) -> anyhow::Result<()> {
 }
 
 fn main() -> anyhow::Result<()> {
+    if env::var("__CARGO_GEAR_RUSTC_WRAPPER_MODE").as_deref() == Ok("1") {
+        rustc_wrapper();
+        return Ok(());
+    }
+
     let args = CargoArgs::from_env()?;
 
     let metadata = cargo_metadata::MetadataCommand::new().no_deps().exec()?;
@@ -402,9 +420,10 @@ fn main() -> anyhow::Result<()> {
         .env("CARGO_TARGET_DIR", &target_dir)
         .env(
             "CARGO_BUILD_RUSTC_WORKSPACE_WRAPPER",
-            "/Users/ark0f/CLionProjects/gear/target/debug/cargo-gear-rustc-wrapper",
+            env::current_exe()?,
         )
         .env("__CARGO_GEAR_SOCKET_NAME", &socket_name)
+        .env("__CARGO_GEAR_RUSTC_WRAPPER_MODE", "1")
         .env("__GEAR_WASM_BUILDER_NO_BUILD", "1")
         .env("SKIP_WASM_BUILD", "1");
 

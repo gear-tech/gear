@@ -91,7 +91,6 @@ members = [
     "pallets/*",
     "runtime/*",
     "utils/*",
-    "utils/cargo-gear/rustc-wrapper",
     "utils/runtime-fuzzer/fuzz"
 ]
 
