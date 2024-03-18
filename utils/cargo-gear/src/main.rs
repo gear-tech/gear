@@ -268,7 +268,7 @@ impl CargoArgs {
                 Arg::Value(_) => continue,
                 // we don't care about other cargo flags
                 Arg::Short(_) | Arg::Long(_) => {
-                    let _ = parser.value()?;
+                    let _ = parser.value();
                 }
             }
         }
