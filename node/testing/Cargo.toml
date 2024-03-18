@@ -29,7 +29,6 @@ service = { workspace = true, features = ["vara-native"] }
 # Substrate Client
 sc-block-builder.workspace = true
 sc-client-api.workspace = true
-sc-client-db.workspace = true
 sc-proposer-metrics.workspace = true
 sc-service = { workspace = true, features = [ "test-helpers", "rocksdb" ] }
 sc-telemetry.workspace = true

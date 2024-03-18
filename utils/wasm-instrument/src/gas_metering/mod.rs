@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2023-2024 Gear Technologies Inc.
+// Copyright (C) 2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -16,22 +16,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use gstd::{msg, prelude::*};
+//! This module is used to instrument a Wasm module with gas metering code.
 
-#[no_mangle]
-extern "C" fn init() {
-    let payload = msg::load_bytes().expect("Failed to load payload");
-    gstd::debug!("Received payload: {payload:?}");
-    if payload == b"PING" {
-        msg::reply_bytes("PONG", 0).expect("Failed to send reply");
-    }
-}
+pub use gwasm_instrument::gas_metering::*;
+pub use rules::*;
+pub use schedule::*;
 
-#[no_mangle]
-extern "C" fn handle() {
-    let payload = msg::load_bytes().expect("Failed to load payload");
-
-    if payload == b"PING" {
-        msg::reply_bytes("PONG", 0).expect("Failed to send reply");
-    }
-}
+mod rules;
+mod schedule;
