@@ -1,3 +1,7 @@
+inputs:
+  github_token:
+    required: true
+
 runs:
   using: composite
   steps:
@@ -9,15 +13,17 @@ runs:
 
     - name: Build docs
       run: make doc
+      shell: bash
 
     - name: Copy logo image
       run: cp ./images/logo.svg ./target/doc/
+      shell: bash
 
     - name: Deploy
       if: github.event_name == 'push'
       uses: peaceiris/actions-gh-pages@v3
       with:
-        github_token: ${{ secrets.GITHUB_TOKEN }}
+        github_token: ${{ inputs.github_token }}
         publish_dir: ./target/doc
         cname: docs.gear.rs
         force_orphan: true
@@ -28,6 +34,6 @@ runs:
       if: github.event_name == 'pull_request'
       uses: peaceiris/actions-gh-pages@v3
       with:
-        github_token: ${{ secrets.GITHUB_TOKEN }}
+        github_token: ${{ inputs.github_token }}
         publish_dir: ./target/doc
         destination_dir: pr-${{ github.event.number }}

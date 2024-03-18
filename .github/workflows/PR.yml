@@ -52,6 +52,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/docs
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
 
   check:
     needs: status
