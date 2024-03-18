@@ -50,6 +50,7 @@ jobs:
     env:
       RUSTUP_HOME: /tmp/rustup_home
     steps:
+      - uses: actions/checkout@v4
       - uses: ./.github/actions/docs
 
   check:
