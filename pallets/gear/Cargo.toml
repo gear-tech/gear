@@ -198,4 +198,3 @@ runtime-benchmarks = [
 runtime-benchmarks-checkers = []
 try-runtime = ["frame-support/try-runtime"]
 fuzz = ["pallet-gear-gas/fuzz", "common/fuzz"]
-tests-with-demos = []

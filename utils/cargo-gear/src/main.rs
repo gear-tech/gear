@@ -286,13 +286,22 @@ impl CargoArgs {
         })
     }
 
-    fn profile(&self) -> String {
+    fn cargo_profile(&self) -> String {
         if let Some(profile) = self.profile.clone() {
             profile
         } else if self.release {
             "release".to_string()
         } else {
             "dev".to_string()
+        }
+    }
+
+    fn dir_profile(&self) -> String {
+        let profile = self.cargo_profile();
+        if profile == "dev" {
+            "debug".to_string()
+        } else {
+            profile
         }
     }
 
@@ -353,13 +362,13 @@ fn collect_rustc_args(
     Ok(buf)
 }
 
-fn proxy_cargo_call() -> anyhow::Result<()> {
+fn proxy_cargo_call(wasm32_target_dir: PathBuf) -> anyhow::Result<()> {
     let cargo = env::var("CARGO")?;
     let mut cargo = Command::new(cargo);
     cargo
         .args(env::args().skip(2)) // skip exe path and subcommand
-        .arg("--features=tests-with-demos")
-        .env("__GEAR_WASM_BUILT", "1");
+        .env("__GEAR_WASM_BUILT", "1")
+        .env("__GEAR_WASM_TARGET_DIR", wasm32_target_dir);
     println!("{:?}", cargo);
     cargo.status()?;
     Ok(())
@@ -387,7 +396,7 @@ fn main() -> anyhow::Result<()> {
         .arg("build")
         .args(build_packages.cargo_args())
         .arg("--profile")
-        .arg(args.profile())
+        .arg(args.cargo_profile())
         .current_dir(workspace_dir)
         .env("CARGO_BUILD_TARGET", "wasm32-unknown-unknown")
         .env("CARGO_TARGET_DIR", &target_dir)
@@ -414,6 +423,11 @@ fn main() -> anyhow::Result<()> {
     let rustc_args = collect_rustc_args(socket_name, child)?;
     println!("{:#?}", rustc_args);
 
+    let wasm32_target_dir = target_dir
+        .join("wasm32-unknown-unknown")
+        .join(args.dir_profile())
+        .into_std_path_buf();
+
     for package in &build_packages.inner {
         let artifact_name = package.artifact_name();
 
@@ -425,10 +439,6 @@ fn main() -> anyhow::Result<()> {
             continue;
         }
 
-        let wasm32_target_dir = target_dir
-            .join("wasm32-unknown-unknown")
-            .join(args.profile())
-            .into_std_path_buf();
         let wasm_bloaty = wasm32_target_dir.join(format!("{artifact_name}.wasm"));
         let wasm = wasm32_target_dir.join(format!("{artifact_name}.opt.wasm"));
 
@@ -456,7 +466,7 @@ fn main() -> anyhow::Result<()> {
         println!("{artifact_name} has been optimized");
     }
 
-    proxy_cargo_call()?;
+    proxy_cargo_call(wasm32_target_dir)?;
 
     Ok(())
 }

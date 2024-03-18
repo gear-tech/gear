@@ -14934,17 +14934,18 @@ mod utils {
     }
 
     #[track_caller]
-    #[cfg(feature = "tests-with-demos")]
+    #[cfg(cargo_gear)]
     pub(crate) fn get_binary(name: &str) -> Vec<u8> {
         fs::read(dbg!(format!(
-            "/Users/ark0f/CLionProjects/gear/target/cargo-gear/target/wasm32-unknown-unknown/debug/{}.opt.wasm",
+            "{}/{}.opt.wasm",
+            env!("__GEAR_WASM_TARGET_DIR"),
             name.replace('-', "_")
         )))
         .unwrap()
     }
 
     #[track_caller]
-    #[cfg(not(feature = "tests-with-demos"))]
+    #[cfg(not(cargo_gear))]
     pub(crate) fn get_binary(_name: &str) -> Vec<u8> {
         panic!("Run via cargo-gear")
     }
