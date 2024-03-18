@@ -46,7 +46,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
   docs:
-    runs-on: ubuntu-lastet
+    runs-on: ubuntu-latest
     env:
       RUSTUP_HOME: /tmp/rustup_home
     steps:
