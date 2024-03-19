@@ -25,10 +25,10 @@ use std::{
     sync::{Arc, Mutex, OnceLock},
 };
 
-use sandbox_wasmer::{Exportable, Module, RuntimeError};
-use sandbox_wasmer_types::TrapCode;
 use codec::{Decode, Encode};
 use gear_sandbox_env::{HostError, Instantiate, WasmReturnValue, GLOBAL_NAME_GAS};
+use sandbox_wasmer::{Exportable, Module, RuntimeError};
+use sandbox_wasmer_types::TrapCode;
 use sp_wasm_interface_common::{util, Pointer, ReturnValue, Value, WordSize};
 use uluru::LRUCache;
 
