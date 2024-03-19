@@ -18,7 +18,7 @@
 
 use anyhow::{anyhow, bail};
 use gear_core::code::{Code, CodeError, ExportError, ImportError, TryNewCodeConfig};
-use gear_wasm_instrument::{rules::CustomConstantCostRules, SyscallName};
+use gear_wasm_instrument::{gas_metering::CustomConstantCostRules, SyscallName};
 use pwasm_utils::parity_wasm::{
     self,
     elements::{

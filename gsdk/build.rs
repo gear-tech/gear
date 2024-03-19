@@ -1,9 +1,5 @@
-use std::{
-    env, fs,
-    io::Write,
-    path::PathBuf,
-    process::{Command, Stdio},
-};
+use gear_utils::codegen::format_with_rustfmt;
+use std::{env, fs, path::PathBuf, process::Command};
 
 const GSDK_API_GEN: &str = "GSDK_API_GEN";
 const GSDK_API_GEN_PKG: &str = "gsdk-api-gen";
@@ -15,7 +11,7 @@ const ENV_RUNTIME_WASM: &str = "RUNTIME_WASM";
 
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
-    println!("cargo:rerun-if-env-changed={}", GSDK_API_GEN);
+    println!("cargo:rerun-if-env-changed={GSDK_API_GEN}");
 
     // This build script should only work when building gsdk
     // with GSDK_API_GEN=1
@@ -23,7 +19,7 @@ fn main() {
         return;
     }
 
-    let generated = format!("{}/{}", env!("CARGO_MANIFEST_DIR"), GENERATED_API_PATH);
+    let generated = format!("{}/{GENERATED_API_PATH}", env!("CARGO_MANIFEST_DIR"));
     fs::write(generated, generate_api()).expect("Failed to write generated api");
 }
 
@@ -52,34 +48,12 @@ fn generate_api() -> Vec<u8> {
         .expect("Failed to generate client api.")
         .stdout;
 
-    format(&code).into_bytes()
-}
-
-// Format generated code with rustfmt.
-//
-// - remove the incompatible attributes.
-// - remove verbose whitespaces.
-fn format(stream: &[u8]) -> String {
-    let raw = String::from_utf8_lossy(stream).to_string();
-    let mut rustfmt = Command::new("rustfmt");
-    let mut code = rustfmt
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .spawn()
-        .expect("Spawn rustfmt failed");
-
-    code.stdin
-        .as_mut()
-        .expect("Get stdin of rustfmt failed")
-        .write_all(raw.as_bytes())
-        .expect("pipe generated code to rustfmt failed");
-
-    let out = code.wait_with_output().expect("Run rustfmt failed").stdout;
-    String::from_utf8_lossy(&out)
-        .to_string()
+    // Remove the incompatible attributes and verbose whitespaces.
+    format_with_rustfmt(&code)
         .replace(":: subxt", "::subxt")
         .replace(" : :: ", ": ::")
         .replace(" :: ", "::")
+        .into_bytes()
 }
 
 // Get the path of the compiled package.
@@ -90,7 +64,7 @@ fn get_path(
     pkg: &str,
     features: Vec<&'static str>,
 ) -> PathBuf {
-    let path = PathBuf::from(format!("{}/../target/{}/{}", root, profile, relative_path));
+    let path = PathBuf::from(format!("{root}/../target/{profile}/{relative_path}"));
 
     // If package has not been compiled, compile it.
     if !path.exists() {
@@ -111,9 +85,8 @@ fn get_path(
         // NOTE: not gonna compile the package here since it may block the
         // build process.
         panic!(
-            "package {} has not been compiled yet, please run \
+            "package {pkg} has not been compiled yet, please run \
              `cargo {}` first, or override environment `GEN_CLIENT_API` with `0` for disabling the api generation",
-            pkg,
             args.join(" ")
         );
     }
