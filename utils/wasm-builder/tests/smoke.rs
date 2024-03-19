@@ -121,3 +121,32 @@ fn no_infinite_build() {
 
     CargoRunner::new().args(["build"]).run();
 }
+
+#[ignore]
+#[test]
+fn features_tracking() {
+    #[track_caller]
+    fn read_export_entry(name: &str) -> Option<parity_wasm::elements::ExportEntry> {
+        parity_wasm::deserialize_file(format!(
+            "test-program/target/wasm32-unknown-unknown/{}/test_program.wasm",
+            if cfg!(debug_assertions) {
+                "debug"
+            } else {
+                "release"
+            }
+        ))
+        .unwrap()
+        .export_section()
+        .unwrap()
+        .entries()
+        .iter()
+        .find(|entry| entry.field() == name)
+        .cloned()
+    }
+
+    CargoRunner::new().args(["build", "--features=a"]).run();
+    assert!(read_export_entry("handle_reply").is_some());
+
+    CargoRunner::new().args(["build", "--features=b"]).run();
+    assert!(read_export_entry("handle_signal").is_some());
+}
