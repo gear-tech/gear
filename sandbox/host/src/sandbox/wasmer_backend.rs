@@ -27,11 +27,9 @@ use std::{
 
 use sandbox_wasmer::{Exportable, Module, RuntimeError};
 use sandbox_wasmer_types::TrapCode;
-
 use codec::{Decode, Encode};
 use gear_sandbox_env::{HostError, Instantiate, WasmReturnValue, GLOBAL_NAME_GAS};
 use sp_wasm_interface_common::{util, Pointer, ReturnValue, Value, WordSize};
-
 use uluru::LRUCache;
 
 use crate::{
