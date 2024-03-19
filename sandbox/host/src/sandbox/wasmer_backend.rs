@@ -22,7 +22,7 @@ use std::{
     cell::RefCell,
     collections::HashMap,
     rc::Rc,
-    sync::{Arc, LazyLock, Mutex},
+    sync::{Arc, Mutex, OnceLock},
 };
 
 use sandbox_wasmer::{Exportable, Module, RuntimeError};
@@ -53,7 +53,6 @@ enum CachedModuleErr {
 
 #[cfg(feature = "wasmer-cache")]
 use {
-    std::sync::OnceLock,
     tempfile::TempDir,
     wasmer_cache::{Cache, FileSystemCache, Hash},
     CachedModuleErr::*,
@@ -61,11 +60,18 @@ use {
 
 type CachedModule = (Vec<u8>, Arc<Module>);
 
+// CachedModules holds a mutex-protected LRU cache of compiled wasm modules.
+// This allows for efficient reuse of modules across invocations.
+type CachedModules = Mutex<LRUCache<CachedModule, 1024>>;
+
 #[cfg(feature = "wasmer-cache")]
 static CACHE_DIR: OnceLock<TempDir> = OnceLock::new();
 
-static CACHED_MODULES: LazyLock<Mutex<LRUCache<CachedModule, 1024>>> =
-    LazyLock::new(|| Mutex::new(LRUCache::default()));
+// The cached_modules function provides thread-safe access to the CACHED_MODULES static.
+fn cached_modules() -> &'static CachedModules {
+    static CACHED_MODULES: OnceLock<CachedModules> = OnceLock::new();
+    CACHED_MODULES.get_or_init(|| Mutex::new(LRUCache::default()))
+}
 
 /// Wasmer specific context
 pub struct Backend {
@@ -164,7 +170,7 @@ fn get_cached_module(
     wasm: &[u8],
     store: &sandbox_wasmer::Store,
 ) -> core::result::Result<Arc<Module>, CachedModuleErr> {
-    let mut modules = CACHED_MODULES.lock().expect("CACHED_MODULES lock fail");
+    let mut modules = cached_modules().lock().expect("CACHED_MODULES lock fail");
 
     // Try to load from LRU cache first
     if let Some((_, module)) = modules.find(|x| x.0 == wasm) {
@@ -197,7 +203,7 @@ fn try_to_store_module_in_cache(
     wasm: &[u8],
     module: &Arc<Module>,
 ) {
-    let mut modules = CACHED_MODULES.lock().expect("CACHED_MODULES lock fail");
+    let mut modules = cached_modules().lock().expect("CACHED_MODULES lock fail");
     let _ = modules.insert((wasm.to_vec(), module.clone()));
     let res = fs_cache.store(code_hash, module);
     log::trace!("Store module cache with result: {:?}", res);
@@ -235,7 +241,7 @@ pub fn instantiate(
 
     #[cfg(not(feature = "wasmer-cache"))]
     let module = {
-        let mut modules = CACHED_MODULES.lock().expect("CACHED_MODULES lock fail");
+        let mut modules = cached_modules().lock().expect("CACHED_MODULES lock fail");
 
         // Try to load from LRU cache first
         if let Some((_, module)) = modules.find(|x| x.0 == wasm) {
