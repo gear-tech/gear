@@ -16,6 +16,8 @@ outputs:
     description: If enable macOS build.
   release:
     description: If enable release build.
+  production:
+    description: If enable production build.
 
 runs:
   using: node20

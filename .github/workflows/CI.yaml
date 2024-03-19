@@ -28,7 +28,7 @@ jobs:
       macos: true
       win-native: true
       release: true
-
+      production: true
   upload:
     if: github.event_name == 'push' && github.ref_name == 'master'
     runs-on: ubuntu-latest

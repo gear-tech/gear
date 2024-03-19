@@ -16,6 +16,7 @@ const DEPBOT = "[depbot]";
 const WINDOWS_NATIVE = "E1-forcenatwin";
 const MACOS = "E2-forcemacos";
 const RELEASE = "E3-forcerelease";
+const PRODUCTION = "E4-forceproduction";
 const SKIP_CI = "[skip-ci]";
 const [owner, repo] = ["gear-tech", "gear"];
 
@@ -78,6 +79,7 @@ async function main() {
   const win_native = !skipCI && labels.includes(WINDOWS_NATIVE);
   const macos = !skipCI && labels.includes(MACOS);
   const release = !skipCI && labels.includes(RELEASE);
+  const production = !skipCI && labels.includes(PRODUCTION);
 
   // Set outputs
   core.setOutput("build", build);
@@ -85,6 +87,7 @@ async function main() {
   core.setOutput("win-native", win_native);
   core.setOutput("macos", macos);
   core.setOutput("release", release);
+  core.setOutput("production", production);
 
   console.log("---");
   console.log("build: ", build);

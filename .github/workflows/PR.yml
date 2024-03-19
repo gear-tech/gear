@@ -2,7 +2,7 @@ name: PR
 
 on:
   pull_request:
-    branches: [master]
+    branches: [ master ]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -31,6 +31,7 @@ jobs:
       win-native: ${{ steps.config.outputs.win-native }}
       macos: ${{ steps.config.outputs.macos }}
       release: ${{ steps.config.outputs.release }}
+      production: ${{ steps.config.outputs.production }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -68,3 +69,4 @@ jobs:
       macos: ${{ needs.status.outputs.macos == 'true' }}
       win-native: ${{ needs.status.outputs.win-native == 'true' }}
       release: ${{ needs.status.outputs.release == 'true' }}
+      production: ${{ needs.status.outputs.production == 'true' }}
