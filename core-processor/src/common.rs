@@ -478,8 +478,7 @@ impl ActorExecutionErrorReplyReason {
                 TrapExplanation::StackLimitExceeded => SimpleExecutionError::StackLimitExceeded,
                 TrapExplanation::Unknown => SimpleExecutionError::UnreachableInstruction,
             },
-            Self::Environment => SimpleExecutionError::Unsupported,
-            Self::UnsupportedMessage => SimpleExecutionError::Unsupported,
+            Self::Environment | Self::UnsupportedMessage => SimpleExecutionError::Unsupported,
         }
     }
 }
@@ -488,17 +487,41 @@ impl ActorExecutionErrorReplyReason {
 #[derive(Debug, PartialEq, Eq, derive_more::Display)]
 pub enum MemoryParamsError {
     /// Memory size exceeds max pages
-    #[display(fmt = "Memory size {_0:?} must be less than or equal to {_1:?}")]
-    MemorySizeExceedsMaxPages(WasmPage, WasmPage),
+    #[display(fmt = "Memory size {memory_size:?} must be less than or equal to {max_pages:?}")]
+    MemorySizeExceedsMaxPages {
+        /// Memory size
+        memory_size: WasmPage,
+        /// Max allowed memory size
+        max_pages: WasmPage,
+    },
     /// Insufficient memory size
-    #[display(fmt = "Memory size {_0:?} must be at least {_1:?}")]
-    InsufficientMemorySize(WasmPage, WasmPage),
+    #[display(fmt = "Memory size {memory_size:?} must be at least {static_pages:?}")]
+    InsufficientMemorySize {
+        /// Memory size
+        memory_size: WasmPage,
+        /// Static memory size
+        static_pages: WasmPage,
+    },
     /// Stack end is out of static memory
-    #[display(fmt = "Stack end {_0:?} is out of static memory 0..{_1:?}")]
-    StackEndOutOfStaticMemory(WasmPage, WasmPage),
+    #[display(fmt = "Stack end {stack_end:?} is out of static memory 0..{static_pages:?}")]
+    StackEndOutOfStaticMemory {
+        /// Stack end
+        stack_end: WasmPage,
+        /// Static memory size
+        static_pages: WasmPage,
+    },
     /// Allocated page is out of allowed memory interval
-    #[display(fmt = "Allocated page {_0:?} is out of allowed memory interval {_1:?}..{_2:?}")]
-    AllocatedPageOutOfAllowedInterval(WasmPage, WasmPage, WasmPage),
+    #[display(
+        fmt = "Allocated page {page:?} is out of allowed memory interval {static_pages:?}..{memory_size:?}"
+    )]
+    AllocatedPageOutOfAllowedInterval {
+        /// Allocated page
+        page: WasmPage,
+        /// Static memory size
+        static_pages: WasmPage,
+        /// Memory size
+        memory_size: WasmPage,
+    },
 }
 
 /// System execution error

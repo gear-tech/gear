@@ -61,44 +61,44 @@ fn validate_memory_params(
     max_pages: WasmPage,
 ) -> Result<(), MemoryParamsError> {
     if memory_size > max_pages {
-        return Err(MemoryParamsError::MemorySizeExceedsMaxPages(
+        return Err(MemoryParamsError::MemorySizeExceedsMaxPages {
             memory_size,
             max_pages,
-        ));
+        });
     }
 
     if static_pages > memory_size {
-        return Err(MemoryParamsError::InsufficientMemorySize(
+        return Err(MemoryParamsError::InsufficientMemorySize {
             memory_size,
             static_pages,
-        ));
+        });
     }
 
     if let Some(stack_end) = stack_end {
         if stack_end > static_pages {
-            return Err(MemoryParamsError::StackEndOutOfStaticMemory(
+            return Err(MemoryParamsError::StackEndOutOfStaticMemory {
                 stack_end,
                 static_pages,
-            ));
+            });
         }
     }
 
     if let Some(&page) = allocations.last() {
         if page >= memory_size {
-            return Err(MemoryParamsError::AllocatedPageOutOfAllowedInterval(
+            return Err(MemoryParamsError::AllocatedPageOutOfAllowedInterval {
                 page,
                 static_pages,
                 memory_size,
-            ));
+            });
         }
     }
     if let Some(&page) = allocations.first() {
         if page < static_pages {
-            return Err(MemoryParamsError::AllocatedPageOutOfAllowedInterval(
+            return Err(MemoryParamsError::AllocatedPageOutOfAllowedInterval {
                 page,
                 static_pages,
                 memory_size,
-            ));
+            });
         }
     }
 
@@ -498,10 +498,10 @@ mod tests {
                 &BTreeSet::new(),
                 3.into(),
             ),
-            Err(MemoryParamsError::MemorySizeExceedsMaxPages(
-                4.into(),
-                3.into()
-            ))
+            Err(MemoryParamsError::MemorySizeExceedsMaxPages {
+                memory_size: 4.into(),
+                max_pages: 3.into()
+            })
         );
 
         assert_eq!(
@@ -512,10 +512,10 @@ mod tests {
                 &BTreeSet::new(),
                 4.into(),
             ),
-            Err(MemoryParamsError::InsufficientMemorySize(
-                1.into(),
-                2.into()
-            ))
+            Err(MemoryParamsError::InsufficientMemorySize {
+                memory_size: 1.into(),
+                static_pages: 2.into()
+            })
         );
 
         assert_eq!(
@@ -526,10 +526,10 @@ mod tests {
                 &BTreeSet::new(),
                 4.into(),
             ),
-            Err(MemoryParamsError::StackEndOutOfStaticMemory(
-                3.into(),
-                2.into()
-            ))
+            Err(MemoryParamsError::StackEndOutOfStaticMemory {
+                stack_end: 3.into(),
+                static_pages: 2.into()
+            })
         );
 
         assert_eq!(
@@ -540,11 +540,11 @@ mod tests {
                 &iter::once(1.into()).collect(),
                 4.into(),
             ),
-            Err(MemoryParamsError::AllocatedPageOutOfAllowedInterval(
-                1.into(),
-                2.into(),
-                4.into()
-            ))
+            Err(MemoryParamsError::AllocatedPageOutOfAllowedInterval {
+                page: 1.into(),
+                static_pages: 2.into(),
+                memory_size: 4.into()
+            })
         );
 
         assert_eq!(
@@ -555,11 +555,11 @@ mod tests {
                 &iter::once(4.into()).collect(),
                 4.into(),
             ),
-            Err(MemoryParamsError::AllocatedPageOutOfAllowedInterval(
-                4.into(),
-                2.into(),
-                4.into()
-            ))
+            Err(MemoryParamsError::AllocatedPageOutOfAllowedInterval {
+                page: 4.into(),
+                static_pages: 2.into(),
+                memory_size: 4.into()
+            })
         );
     }
 }

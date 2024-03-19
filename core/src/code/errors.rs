@@ -69,7 +69,7 @@ pub enum StackEndError {
     /// Unsupported initialization of gear stack end global variable.
     #[display(fmt = "Unsupported initialization of gear stack end global")]
     Initialization,
-    /// Gear stack end offset {_0} is not aligned to wasm page size.
+    /// Gear stack end offset is not aligned to wasm page size.
     #[display(fmt = "Gear stack end {_0:#x} is not aligned to wasm page size")]
     NotAligned(u32),
     /// Gear stack end is out of static memory.
@@ -140,7 +140,7 @@ pub enum CodecError {
     /// The wasm bytecode is failed to be decoded
     #[display(fmt = "The wasm bytecode is failed to be decoded: {_0}")]
     Decode(SerializationError),
-    /// Failed to encode instrumented program: {_0}
+    /// Failed to encode instrumented program
     #[display(fmt = "Failed to encode instrumented program: {_0}")]
     Encode(SerializationError),
 }

@@ -50,7 +50,7 @@ impl<T: Config> OnRuntimeUpgrade for AppendStackEndMigration<T> {
             "🚚 Running migration with current storage version {current:?} / onchain {onchain:?}"
         );
 
-        // 1 read for on chain storage version
+        // 1 read for onchain storage version
         let mut weight = T::DbWeight::get().reads(1);
         let mut counter = 0;
 
@@ -67,6 +67,7 @@ impl<T: Config> OnRuntimeUpgrade for AppendStackEndMigration<T> {
                         code.original_code_len,
                         code.exports,
                         code.static_pages,
+                        // Set stack end as None here. Correct value will be set lazily on re-instrumentation.
                         None,
                         code.version,
                     )
@@ -74,6 +75,9 @@ impl<T: Config> OnRuntimeUpgrade for AppendStackEndMigration<T> {
 
                 Some(code)
             });
+
+            // Put new storage version
+            weight = weight.saturating_add(T::DbWeight::get().writes(1));
 
             current.put::<Pallet<T>>();
 
@@ -149,7 +153,7 @@ mod test {
     use super::*;
     use crate::mock::*;
     use frame_support::traits::StorageVersion;
-    use gear_core::ids::CodeId;
+    use gear_core::{ids::CodeId, message::DispatchKind};
     use sp_runtime::traits::Zero;
 
     #[test]
@@ -160,7 +164,7 @@ mod test {
             let code = onchain::InstrumentedCode {
                 code: vec![1, 2, 3, 4, 5],
                 original_code_len: 100,
-                exports: Default::default(),
+                exports: vec![DispatchKind::Init].into_iter().collect(),
                 static_pages: 1.into(),
                 version: 1,
             };
