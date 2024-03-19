@@ -4,8 +4,6 @@ on:
   workflow_dispatch:
   workflow_call:
     secrets:
-      GITHUB_TOKEN:
-        required: true
       VARA_VALIDATOR_8:
         required: true
       SSH_VARA_USERNAME:
