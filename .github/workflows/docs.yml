@@ -1,8 +1,6 @@
 name: Docs
 
 on:
-  pull_request:
-    branches: [master]
   push:
     branches: [master]
 
@@ -15,37 +13,5 @@ jobs:
     runs-on: ubuntu-latest
     env:
       RUSTUP_HOME: /tmp/rustup_home
-    if: ${{ !contains(github.event.pull_request.title, '[skip-ci]') && github.actor != 'dependabot[bot]' }}
     steps:
-      - uses: actions/checkout@v4
-
-      - name: "Install: Rust toolchain"
-        uses: dsherret/rust-toolchain-file@v1
-
-      - name: Cache
-        uses: Swatinem/rust-cache@v2
-
-      - name: Build docs
-        run: make doc
-
-      - name: Copy logo image
-        run: cp ./images/logo.svg ./target/doc/
-
-      - name: Deploy
-        if: github.event_name == 'push'
-        uses: peaceiris/actions-gh-pages@v3
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./target/doc
-          cname: docs.gear.rs
-          force_orphan: true
-          user_name: "github-actions[bot]"
-          user_email: "github-actions[bot]@users.noreply.github.com"
-
-      - name: Deploy PR
-        if: github.event_name == 'pull_request'
-        uses: peaceiris/actions-gh-pages@v3
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./target/doc
-          destination_dir: pr-${{ github.event.number }}
+      - uses: ./.github/actions/docs
