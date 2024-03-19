@@ -2,7 +2,7 @@ name: PR
 
 on:
   pull_request:
-    branches: [ master ]
+    branches: [master]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -16,6 +16,13 @@ env:
   BINARYEN_VERSION: version_111
 
 jobs:
+  typos:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: typos-action
+        uses: crate-ci/typos@master
+
   status:
     runs-on: ubuntu-latest
     outputs:
@@ -37,6 +44,16 @@ jobs:
         uses: ./.github/actions/message
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+
+  docs:
+    runs-on: ubuntu-latest
+    env:
+      RUSTUP_HOME: /tmp/rustup_home
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/docs
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
 
   check:
     needs: status
