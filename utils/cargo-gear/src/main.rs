@@ -1,3 +1,4 @@
+use crate::args::CargoArgs;
 use anyhow::Context;
 use cargo_metadata::Package;
 use cargo_toml::Inheritable;
@@ -18,6 +19,9 @@ use std::{
     process,
     process::Command,
 };
+
+mod args;
+mod rustc_wrapper;
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -160,221 +164,6 @@ fn workspace(cargo_gear_dir: PathBuf, packages: &BuildPackages) -> anyhow::Resul
     Ok(workspace_dir)
 }
 
-#[derive(Debug)]
-struct RustcArgs {
-    input: String,
-    crate_name: Option<String>,
-    crate_type: Vec<String>,
-    target: Option<String>,
-    cfg: HashMap<String, Vec<String>>,
-}
-
-impl RustcArgs {
-    fn new(args: String) -> anyhow::Result<Self> {
-        let args = args.split(' ');
-        let mut parser = lexopt::Parser::from_iter(args);
-
-        let mut input = None;
-        let mut crate_name = None;
-        let mut crate_type = vec![];
-        let mut target = None;
-        let mut cfg = HashMap::<String, Vec<String>>::new();
-
-        while let Some(arg) = parser.next()? {
-            match arg {
-                Arg::Value(value) => {
-                    input = Some(value.string()?);
-                }
-                Arg::Long("crate-name") => {
-                    let value = parser.value()?.string()?;
-                    crate_name = Some(value);
-                }
-                Arg::Long("crate-type") => {
-                    let value = parser.value()?.string()?;
-                    let value = value.split(',').map(str::to_string);
-                    crate_type.extend(value);
-                }
-                Arg::Long("target") => {
-                    let value = parser.value()?.string()?;
-                    target = Some(value)
-                }
-                Arg::Long("cfg") => {
-                    let value = parser.value()?.string()?;
-                    let mut value = value.splitn(2, '=');
-                    let key = value.next().expect("always Some").to_string();
-                    let value = value
-                        .next()
-                        .map(|s| s.trim_matches('"'))
-                        .map(str::to_string);
-                    cfg.entry(key).or_default().extend(value);
-                }
-                // we don't care about other rustc flags
-                Arg::Long(_) | Arg::Short(_) => {
-                    let _ = parser.value();
-                }
-            }
-        }
-
-        Ok(Self {
-            input: input.context("`INPUT` argument expected")?,
-            crate_name,
-            crate_type,
-            target,
-            cfg,
-        })
-    }
-}
-
-#[derive(Debug)]
-struct CargoArgs {
-    features: HashSet<String>,
-    profile: Option<String>,
-    release: bool,
-    target_dir: Option<PathBuf>,
-}
-
-impl CargoArgs {
-    fn from_env() -> anyhow::Result<Self> {
-        let mut parser = lexopt::Parser::from_env();
-
-        let mut features = HashSet::new();
-        let mut profile = None;
-        let mut release = false;
-        let mut target_dir = None;
-
-        while let Some(arg) = parser.next()? {
-            match arg {
-                Arg::Short('F') | Arg::Long("features") => {
-                    parser.values()?.try_fold(
-                        &mut features,
-                        |features, value| -> anyhow::Result<&mut _> {
-                            let value = value.string()?;
-                            features.extend(value.split(',').map(str::to_string));
-                            Ok(features)
-                        },
-                    )?;
-                }
-                Arg::Long("profile") => {
-                    let value = parser.value()?.string()?;
-                    profile = Some(value);
-                }
-                Arg::Short('r') | Arg::Long("release") => {
-                    release = true;
-                }
-                Arg::Long("target-dir") => {
-                    let value: PathBuf = parser.value()?.parse()?;
-                    target_dir = Some(value);
-                }
-                Arg::Value(_) => continue,
-                // we don't care about other cargo flags
-                Arg::Short(_) | Arg::Long(_) => {
-                    let _ = parser.value();
-                }
-            }
-        }
-
-        anyhow::ensure!(
-            !(release && profile.is_some()),
-            "`--release` and `--profile` flags are mutually inclusive"
-        );
-
-        Ok(Self {
-            features,
-            profile,
-            release,
-            target_dir,
-        })
-    }
-
-    fn cargo_profile(&self) -> String {
-        if let Some(profile) = self.profile.clone() {
-            profile
-        } else if self.release {
-            "release".to_string()
-        } else {
-            "dev".to_string()
-        }
-    }
-
-    fn dir_profile(&self) -> String {
-        let profile = self.cargo_profile();
-        if profile == "dev" {
-            "debug".to_string()
-        } else {
-            profile
-        }
-    }
-
-    fn features(&self) -> &HashSet<String> {
-        &self.features
-    }
-
-    fn target_dir(&self) -> Option<&PathBuf> {
-        self.target_dir.as_ref()
-    }
-}
-
-fn socket_name() -> String {
-    let socket_name = Alphanumeric.sample_string(&mut rand::thread_rng(), 16);
-    match local_socket::NameTypeSupport::query() {
-        local_socket::NameTypeSupport::Both | local_socket::NameTypeSupport::OnlyNamespaced => {
-            format!("@cargo-gear-{socket_name}")
-        }
-        local_socket::NameTypeSupport::OnlyPaths => env::temp_dir()
-            .join(format!("cargo-gear-{socket_name}.sock"))
-            .display()
-            .to_string(),
-    }
-}
-
-fn rustc_wrapper() {
-    let mut args: Vec<String> = env::args().skip(1).collect();
-
-    let name = env::var("__CARGO_GEAR_SOCKET_NAME").unwrap();
-    let mut stream = local_socket::LocalSocketStream::connect(name).unwrap();
-    write!(&mut stream, "{}", args.join(" ")).unwrap();
-    drop(stream);
-
-    let rustc = args.remove(0);
-    let status = Command::new(rustc).args(args).status().unwrap();
-    assert!(status.success());
-}
-
-fn collect_rustc_args(
-    socket_name: String,
-    mut child: process::Child,
-) -> anyhow::Result<Vec<RustcArgs>> {
-    let listener = local_socket::LocalSocketListener::bind(socket_name)?;
-    listener.set_nonblocking(true)?;
-
-    let mut buf = vec![];
-
-    let status = loop {
-        let res = listener.accept();
-        let mut stream = match res {
-            Ok(stream) => stream,
-            Err(err) if err.kind() == io::ErrorKind::WouldBlock => {
-                if let Some(status) = child.try_wait()? {
-                    break status;
-                } else {
-                    continue;
-                }
-            }
-            err => err?,
-        };
-        stream.set_nonblocking(false)?;
-
-        let mut content = String::new();
-        stream.read_to_string(&mut content)?;
-        println!("{}", content);
-        let args = RustcArgs::new(content)?;
-        buf.push(args);
-    };
-    anyhow::ensure!(status.success(), "WASM build failed");
-
-    Ok(buf)
-}
-
 fn proxy_cargo_call(wasm32_target_dir: PathBuf) -> anyhow::Result<()> {
     let cargo = env::var("CARGO")?;
     let mut cargo = Command::new(cargo);
@@ -389,7 +178,7 @@ fn proxy_cargo_call(wasm32_target_dir: PathBuf) -> anyhow::Result<()> {
 
 fn main() -> anyhow::Result<()> {
     if env::var("__CARGO_GEAR_RUSTC_WRAPPER_MODE").as_deref() == Ok("1") {
-        rustc_wrapper();
+        rustc_wrapper::main();
         return Ok(());
     }
 
@@ -404,7 +193,8 @@ fn main() -> anyhow::Result<()> {
     let target_dir = cargo_gear_dir.join("target");
 
     let workspace_dir = workspace(cargo_gear_dir.clone().into_std_path_buf(), &build_packages)?;
-    let socket_name = socket_name();
+
+    let rustc_args = rustc_wrapper::ArgsCollector::new();
 
     let cargo = env::var("CARGO")?;
     let mut cargo = Command::new(cargo);
@@ -422,7 +212,7 @@ fn main() -> anyhow::Result<()> {
             "CARGO_BUILD_RUSTC_WORKSPACE_WRAPPER",
             env::current_exe()?,
         )
-        .env("__CARGO_GEAR_SOCKET_NAME", &socket_name)
+        .env("__CARGO_GEAR_SOCKET_NAME", rustc_args.socket_name())
         .env("__CARGO_GEAR_RUSTC_WRAPPER_MODE", "1")
         .env("__GEAR_WASM_BUILDER_NO_BUILD", "1")
         .env("SKIP_WASM_BUILD", "1");
@@ -439,7 +229,8 @@ fn main() -> anyhow::Result<()> {
 
     println!("{:?}", cargo);
     let child = cargo.spawn()?;
-    let rustc_args = collect_rustc_args(socket_name, child)?;
+    let (status, rustc_args) = rustc_args.collect(child)?;
+    anyhow::ensure!(status.success(), "WASM build failed");
     println!("{:#?}", rustc_args);
 
     let wasm32_target_dir = target_dir
