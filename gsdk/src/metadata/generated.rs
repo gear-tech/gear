@@ -957,7 +957,7 @@ pub mod runtime_types {
                         runtime_types::gear_core_errors::simple::SimpleProgramCreationError,
                     ),
                     #[codec(index = 2)]
-                    MessageProcessingHalted,
+                    InactiveActor,
                     #[codec(index = 3)]
                     RemovedFromWaitlist,
                     #[codec(index = 4)]
