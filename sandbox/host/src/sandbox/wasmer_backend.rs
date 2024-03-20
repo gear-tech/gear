@@ -168,12 +168,17 @@ fn get_cached_module(
     wasm: &[u8],
     store: &sandbox_wasmer::Store,
 ) -> core::result::Result<Arc<Module>, CachedModuleErr> {
-    let mut modules = cached_modules().lock().expect("CACHED_MODULES lock fail");
+    let maybe_module = cached_modules()
+        .lock()
+        .expect("CACHED_MODULES lock fail")
+        .find(|x| x.0 == wasm)
+        .cloned();
 
     // Try to load from LRU cache first
-    if let Some((_, module)) = modules.find(|x| x.0 == wasm) {
-        Ok(module.clone())
+    if let Some((_, module)) = maybe_module {
+        Ok(module)
     } else {
+        // Try to load from tempfile cache
         let cache_path = CACHE_DIR
             .get_or_init(|| {
                 tempfile::tempdir().expect("Cannot create temporary directory for wasmer caches")
@@ -189,7 +194,10 @@ fn get_cached_module(
                 .load(store, code_hash)
                 .map_err(|_| ModuleLoadErr(fs_cache, code_hash))?
         });
-        modules.insert((wasm.to_vec(), module.clone()));
+        cached_modules()
+            .lock()
+            .expect("CACHED_MODULES lock fail")
+            .insert((wasm.to_vec(), module.clone()));
         Ok(module)
     }
 }
@@ -201,8 +209,10 @@ fn try_to_store_module_in_cache(
     wasm: &[u8],
     module: &Arc<Module>,
 ) {
-    let mut modules = cached_modules().lock().expect("CACHED_MODULES lock fail");
-    let _ = modules.insert((wasm.to_vec(), module.clone()));
+    let _ = cached_modules()
+        .lock()
+        .expect("CACHED_MODULES lock fail")
+        .insert((wasm.to_vec(), module.clone()));
     let res = fs_cache.store(code_hash, module);
     log::trace!("Store module cache with result: {:?}", res);
 }
