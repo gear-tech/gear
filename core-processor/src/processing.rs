@@ -374,7 +374,7 @@ pub fn process_non_executable(
     )
 }
 
-/// Helper function for journal creation in case of waiting during init.
+/// Helper function for journal creation in case of uninitialized program.
 pub fn process_uninitialized(
     context: PrechargedDispatch,
     destination_id: ProgramId,
