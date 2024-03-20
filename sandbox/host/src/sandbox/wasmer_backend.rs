@@ -30,7 +30,6 @@ use gear_sandbox_env::{HostError, Instantiate, WasmReturnValue, GLOBAL_NAME_GAS}
 use sandbox_wasmer::{Exportable, Module, RuntimeError};
 use sandbox_wasmer_types::TrapCode;
 use sp_wasm_interface_common::{util, Pointer, ReturnValue, Value, WordSize};
-use uluru::LRUCache;
 
 use crate::{
     error::{Error, Result},
@@ -52,6 +51,7 @@ enum CachedModuleErr {
 #[cfg(feature = "wasmer-cache")]
 use {
     tempfile::TempDir,
+    uluru::LRUCache,
     wasmer_cache::{Cache, FileSystemCache, Hash},
     CachedModuleErr::*,
 };
@@ -248,21 +248,8 @@ pub fn instantiate(
     };
 
     #[cfg(not(feature = "wasmer-cache"))]
-    let module = {
-        let mut modules = cached_modules().lock().expect("CACHED_MODULES lock fail");
-
-        // Try to load from LRU cache first
-        if let Some((_, module)) = modules.find(|x| x.0 == wasm) {
-            module.clone()
-        } else {
-            let module = Arc::new(
-                Module::new(&context.store, wasm)
-                    .map_err(|_| InstantiationError::ModuleDecoding)?,
-            );
-            modules.insert((wasm.to_vec(), module.clone()));
-            module
-        }
-    };
+    let module =
+        Module::new(&context.store, wasm).map_err(|_| InstantiationError::ModuleDecoding)?;
 
     type Exports = HashMap<String, sandbox_wasmer::Exports>;
     let mut exports_map = Exports::new();
