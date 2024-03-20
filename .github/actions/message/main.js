@@ -17,6 +17,7 @@ const WINDOWS_NATIVE = "E1-forcenatwin";
 const MACOS = "E2-forcemacos";
 const RELEASE = "E3-forcerelease";
 const SKIP_CI = "[skip-ci]";
+const VALIDATOR_LABEL = "check-validator";
 const [owner, repo] = ["gear-tech", "gear"];
 
 /**
@@ -75,6 +76,7 @@ async function main() {
   const build =
     !skipCI &&
     (isDepbot || BUILD_LABELS.some((label) => labels.includes(label)));
+  const validator = !skipCI && labels.includes(VALIDATOR_LABEL);
   const win_native = !skipCI && labels.includes(WINDOWS_NATIVE);
   const macos = !skipCI && labels.includes(MACOS);
   const release = !skipCI && labels.includes(RELEASE);
@@ -85,12 +87,14 @@ async function main() {
   core.setOutput("win-native", win_native);
   core.setOutput("macos", macos);
   core.setOutput("release", release);
+  core.setOutput("validator", !skipCI);
 
   console.log("---");
   console.log("build: ", build);
   console.log("check: ", !skipCI);
   console.log("native windows: ", win_native);
   console.log("macos: ", macos);
+  console.log("validator: ", validator);
   console.log("release: ", release);
 
   // Mock checks if skipping CI.

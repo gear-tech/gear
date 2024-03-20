@@ -1,10 +1,15 @@
 name: Live check on Vara Network Validator machine
 
 on:
-  pull_request:
-    types: [synchronize, labeled, opened, reopened, ready_for_review]
-    branches: [master]
   workflow_dispatch:
+  workflow_call:
+    secrets:
+      VARA_VALIDATOR_8:
+        required: true
+      SSH_VARA_USERNAME:
+        required: true
+      VARA_SSH_PRIVATE_KEY:
+        required: true
 
 env:
   CARGO_TERM_COLOR: always
@@ -12,7 +17,6 @@ env:
 jobs:
   tag-image:
     runs-on: ubuntu-latest
-    if: contains(github.event.pull_request.labels.*.name, 'check-validator')
     outputs:
       image_tag: ${{ steps.image-tag.outputs.tag }}
     steps:
@@ -25,10 +29,8 @@ jobs:
 
   build-update-validator:
     runs-on: [kuberunner]
-    if: contains(github.event.pull_request.labels.*.name, 'check-validator')
     needs: tag-image
     steps:
-
       - name: Checkout repo
         uses: actions/checkout@v4
 
@@ -56,7 +58,7 @@ jobs:
 
       - name: SSH into VM
         uses: appleboy/ssh-action@v1.0.3
-        env: 
+        env:
           NEW_IMAGE: ${{ needs.tag-image.outputs.image_tag }}
         with:
           host: ${{ secrets.VARA_VALIDATOR_8 }}
