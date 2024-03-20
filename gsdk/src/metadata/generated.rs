@@ -2320,7 +2320,7 @@ pub mod runtime_types {
             pub mod schedule {
                 use super::runtime_types;
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-                pub struct HostFnWeights {
+                pub struct SyscallWeights {
                     pub alloc: runtime_types::sp_weights::weight_v2::Weight,
                     pub alloc_per_page: runtime_types::sp_weights::weight_v2::Weight,
                     pub free: runtime_types::sp_weights::weight_v2::Weight,
@@ -2523,7 +2523,7 @@ pub mod runtime_types {
                     pub limits: runtime_types::pallet_gear::schedule::Limits,
                     pub instruction_weights:
                         runtime_types::pallet_gear::schedule::InstructionWeights,
-                    pub host_fn_weights: runtime_types::pallet_gear::schedule::HostFnWeights,
+                    pub host_fn_weights: runtime_types::pallet_gear::schedule::SyscallWeights,
                     pub memory_weights: runtime_types::pallet_gear::schedule::MemoryWeights,
                     pub module_instantiation_per_byte: runtime_types::sp_weights::weight_v2::Weight,
                     pub db_write_per_byte: runtime_types::sp_weights::weight_v2::Weight,

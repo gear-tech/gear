@@ -22,7 +22,7 @@
 #![allow(unused_parens)]
 
 use crate::{weights::WeightInfo, Config};
-use core_processor::configs::PageCosts;
+use core_processor::configs::{PageCosts, SyscallCosts};
 use frame_support::{
     codec::{Decode, Encode},
     traits::Get,
@@ -43,7 +43,6 @@ use scale_info::TypeInfo;
 use serde::{Deserialize, Serialize};
 use sp_runtime::RuntimeDebug;
 use sp_std::{marker::PhantomData, vec::Vec};
-use core_processor::configs::ExtWeights as CoreHostFnWeights;
 
 /// How many API calls are executed in a single batch. The reason for increasing the amount
 /// of API calls in batches (per benchmark component increase) is so that the linear regression
@@ -112,7 +111,7 @@ pub struct Schedule<T: Config> {
     pub instruction_weights: InstructionWeights<T>,
 
     /// The weights for each imported function a program is allowed to call.
-    pub host_fn_weights: HostFnWeights<T>,
+    pub host_fn_weights: SyscallWeights<T>,
 
     /// The weights for memory interaction.
     pub memory_weights: MemoryWeights<T>,
@@ -344,7 +343,7 @@ pub struct InstructionWeights<T: Config> {
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 #[derive(Clone, Encode, Decode, PartialEq, Eq, WeightDebug, TypeInfo)]
 #[scale_info(skip_type_params(T))]
-pub struct HostFnWeights<T: Config> {
+pub struct SyscallWeights<T: Config> {
     /// Weight of calling `alloc`.
     pub alloc: Weight,
 
@@ -869,86 +868,89 @@ impl<T: Config> Default for InstructionWeights<T> {
     }
 }
 
-impl<T: Config> HostFnWeights<T> {
-    pub fn into_core(self) -> CoreHostFnWeights {
-        CoreHostFnWeights {
-            alloc: self.alloc.ref_time().into(),
-            alloc_per_page: self.alloc_per_page.ref_time().into(),
-            free: self.free.ref_time().into(),
-            free_range: self.free_range.ref_time().into(),
-            free_range_per_page: self.free_range_per_page.ref_time().into(),
-            gr_reserve_gas: self.gr_reserve_gas.ref_time().into(),
-            gr_unreserve_gas: self.gr_unreserve_gas.ref_time().into(),
-            gr_system_reserve_gas: self.gr_system_reserve_gas.ref_time().into(),
-            gr_gas_available: self.gr_gas_available.ref_time().into(),
-            gr_message_id: self.gr_message_id.ref_time().into(),
-            gr_program_id: self.gr_program_id.ref_time().into(),
-            gr_source: self.gr_source.ref_time().into(),
-            gr_value: self.gr_value.ref_time().into(),
-            gr_value_available: self.gr_value_available.ref_time().into(),
-            gr_size: self.gr_size.ref_time().into(),
-            gr_read: self.gr_read.ref_time().into(),
-            gr_read_per_byte: self.gr_read_per_byte.ref_time().into(),
-            gr_env_vars: self.gr_env_vars.ref_time().into(),
-            gr_block_height: self.gr_block_height.ref_time().into(),
-            gr_block_timestamp: self.gr_block_timestamp.ref_time().into(),
-            gr_random: self.gr_random.ref_time().into(),
-            gr_reply_deposit: self.gr_reply_deposit.ref_time().into(),
-            gr_send: self.gr_send.ref_time().into(),
-            gr_send_per_byte: self.gr_send_per_byte.ref_time().into(),
-            gr_send_wgas: self.gr_send_wgas.ref_time().into(),
-            gr_send_wgas_per_byte: self.gr_send_wgas_per_byte.ref_time().into(),
-            gr_send_init: self.gr_send_init.ref_time().into(),
-            gr_send_push: self.gr_send_push.ref_time().into(),
-            gr_send_push_per_byte: self.gr_send_push_per_byte.ref_time().into(),
-            gr_send_commit: self.gr_send_commit.ref_time().into(),
-            gr_send_commit_wgas: self.gr_send_commit_wgas.ref_time().into(),
-            gr_reservation_send: self.gr_reservation_send.ref_time().into(),
-            gr_reservation_send_per_byte: self.gr_reservation_send_per_byte.ref_time().into(),
-            gr_reservation_send_commit: self.gr_reservation_send_commit.ref_time().into(),
-            gr_send_input: self.gr_send_input.ref_time().into(),
-            gr_send_input_wgas: self.gr_send_input_wgas.ref_time().into(),
-            gr_send_push_input: self.gr_send_push_input.ref_time().into(),
-            gr_send_push_input_per_byte: self.gr_send_push_input_per_byte.ref_time().into(),
-            gr_reply: self.gr_reply.ref_time().into(),
-            gr_reply_per_byte: self.gr_reply_per_byte.ref_time().into(),
-            gr_reply_wgas: self.gr_reply_wgas.ref_time().into(),
-            gr_reply_wgas_per_byte: self.gr_reply_wgas_per_byte.ref_time().into(),
-            gr_reply_push: self.gr_reply_push.ref_time().into(),
-            gr_reply_push_per_byte: self.gr_reply_push_per_byte.ref_time().into(),
-            gr_reply_commit: self.gr_reply_commit.ref_time().into(),
-            gr_reply_commit_wgas: self.gr_reply_commit_wgas.ref_time().into(),
-            gr_reservation_reply: self.gr_reservation_reply.ref_time().into(),
-            gr_reservation_reply_per_byte: self.gr_reservation_reply_per_byte.ref_time().into(),
-            gr_reservation_reply_commit: self.gr_reservation_reply_commit.ref_time().into(),
-            gr_reply_input: self.gr_reply_input.ref_time().into(),
-            gr_reply_input_wgas: self.gr_reply_input_wgas.ref_time().into(),
-            gr_reply_push_input: self.gr_reply_push_input.ref_time().into(),
-            gr_reply_push_input_per_byte: self.gr_reply_push_input_per_byte.ref_time().into(),
-            gr_debug: self.gr_debug.ref_time().into(),
-            gr_debug_per_byte: self.gr_debug_per_byte.ref_time().into(),
-            gr_reply_to: self.gr_reply_to.ref_time().into(),
-            gr_signal_code: self.gr_signal_code.ref_time().into(),
-            gr_signal_from: self.gr_signal_from.ref_time().into(),
-            gr_reply_code: self.gr_reply_code.ref_time().into(),
-            gr_exit: self.gr_exit.ref_time().into(),
-            gr_leave: self.gr_leave.ref_time().into(),
-            gr_wait: self.gr_wait.ref_time().into(),
-            gr_wait_for: self.gr_wait_for.ref_time().into(),
-            gr_wait_up_to: self.gr_wait_up_to.ref_time().into(),
-            gr_wake: self.gr_wake.ref_time().into(),
-            gr_create_program: self.gr_create_program.ref_time().into(),
-            gr_create_program_payload_per_byte: self
+impl<T: Config> From<SyscallWeights<T>> for SyscallCosts {
+    fn from(weights: SyscallWeights<T>) -> SyscallCosts {
+        SyscallCosts {
+            alloc: weights.alloc.ref_time().into(),
+            alloc_per_page: weights.alloc_per_page.ref_time().into(),
+            free: weights.free.ref_time().into(),
+            free_range: weights.free_range.ref_time().into(),
+            free_range_per_page: weights.free_range_per_page.ref_time().into(),
+            gr_reserve_gas: weights.gr_reserve_gas.ref_time().into(),
+            gr_unreserve_gas: weights.gr_unreserve_gas.ref_time().into(),
+            gr_system_reserve_gas: weights.gr_system_reserve_gas.ref_time().into(),
+            gr_gas_available: weights.gr_gas_available.ref_time().into(),
+            gr_message_id: weights.gr_message_id.ref_time().into(),
+            gr_program_id: weights.gr_program_id.ref_time().into(),
+            gr_source: weights.gr_source.ref_time().into(),
+            gr_value: weights.gr_value.ref_time().into(),
+            gr_value_available: weights.gr_value_available.ref_time().into(),
+            gr_size: weights.gr_size.ref_time().into(),
+            gr_read: weights.gr_read.ref_time().into(),
+            gr_read_per_byte: weights.gr_read_per_byte.ref_time().into(),
+            gr_env_vars: weights.gr_env_vars.ref_time().into(),
+            gr_block_height: weights.gr_block_height.ref_time().into(),
+            gr_block_timestamp: weights.gr_block_timestamp.ref_time().into(),
+            gr_random: weights.gr_random.ref_time().into(),
+            gr_reply_deposit: weights.gr_reply_deposit.ref_time().into(),
+            gr_send: weights.gr_send.ref_time().into(),
+            gr_send_per_byte: weights.gr_send_per_byte.ref_time().into(),
+            gr_send_wgas: weights.gr_send_wgas.ref_time().into(),
+            gr_send_wgas_per_byte: weights.gr_send_wgas_per_byte.ref_time().into(),
+            gr_send_init: weights.gr_send_init.ref_time().into(),
+            gr_send_push: weights.gr_send_push.ref_time().into(),
+            gr_send_push_per_byte: weights.gr_send_push_per_byte.ref_time().into(),
+            gr_send_commit: weights.gr_send_commit.ref_time().into(),
+            gr_send_commit_wgas: weights.gr_send_commit_wgas.ref_time().into(),
+            gr_reservation_send: weights.gr_reservation_send.ref_time().into(),
+            gr_reservation_send_per_byte: weights.gr_reservation_send_per_byte.ref_time().into(),
+            gr_reservation_send_commit: weights.gr_reservation_send_commit.ref_time().into(),
+            gr_send_input: weights.gr_send_input.ref_time().into(),
+            gr_send_input_wgas: weights.gr_send_input_wgas.ref_time().into(),
+            gr_send_push_input: weights.gr_send_push_input.ref_time().into(),
+            gr_send_push_input_per_byte: weights.gr_send_push_input_per_byte.ref_time().into(),
+            gr_reply: weights.gr_reply.ref_time().into(),
+            gr_reply_per_byte: weights.gr_reply_per_byte.ref_time().into(),
+            gr_reply_wgas: weights.gr_reply_wgas.ref_time().into(),
+            gr_reply_wgas_per_byte: weights.gr_reply_wgas_per_byte.ref_time().into(),
+            gr_reply_push: weights.gr_reply_push.ref_time().into(),
+            gr_reply_push_per_byte: weights.gr_reply_push_per_byte.ref_time().into(),
+            gr_reply_commit: weights.gr_reply_commit.ref_time().into(),
+            gr_reply_commit_wgas: weights.gr_reply_commit_wgas.ref_time().into(),
+            gr_reservation_reply: weights.gr_reservation_reply.ref_time().into(),
+            gr_reservation_reply_per_byte: weights.gr_reservation_reply_per_byte.ref_time().into(),
+            gr_reservation_reply_commit: weights.gr_reservation_reply_commit.ref_time().into(),
+            gr_reply_input: weights.gr_reply_input.ref_time().into(),
+            gr_reply_input_wgas: weights.gr_reply_input_wgas.ref_time().into(),
+            gr_reply_push_input: weights.gr_reply_push_input.ref_time().into(),
+            gr_reply_push_input_per_byte: weights.gr_reply_push_input_per_byte.ref_time().into(),
+            gr_debug: weights.gr_debug.ref_time().into(),
+            gr_debug_per_byte: weights.gr_debug_per_byte.ref_time().into(),
+            gr_reply_to: weights.gr_reply_to.ref_time().into(),
+            gr_signal_code: weights.gr_signal_code.ref_time().into(),
+            gr_signal_from: weights.gr_signal_from.ref_time().into(),
+            gr_reply_code: weights.gr_reply_code.ref_time().into(),
+            gr_exit: weights.gr_exit.ref_time().into(),
+            gr_leave: weights.gr_leave.ref_time().into(),
+            gr_wait: weights.gr_wait.ref_time().into(),
+            gr_wait_for: weights.gr_wait_for.ref_time().into(),
+            gr_wait_up_to: weights.gr_wait_up_to.ref_time().into(),
+            gr_wake: weights.gr_wake.ref_time().into(),
+            gr_create_program: weights.gr_create_program.ref_time().into(),
+            gr_create_program_payload_per_byte: weights
                 .gr_create_program_payload_per_byte
                 .ref_time()
                 .into(),
-            gr_create_program_salt_per_byte: self.gr_create_program_salt_per_byte.ref_time().into(),
-            gr_create_program_wgas: self.gr_create_program_wgas.ref_time().into(),
-            gr_create_program_wgas_payload_per_byte: self
+            gr_create_program_salt_per_byte: weights
+                .gr_create_program_salt_per_byte
+                .ref_time()
+                .into(),
+            gr_create_program_wgas: weights.gr_create_program_wgas.ref_time().into(),
+            gr_create_program_wgas_payload_per_byte: weights
                 .gr_create_program_wgas_payload_per_byte
                 .ref_time()
                 .into(),
-            gr_create_program_wgas_salt_per_byte: self
+            gr_create_program_wgas_salt_per_byte: weights
                 .gr_create_program_wgas_salt_per_byte
                 .ref_time()
                 .into(),
@@ -956,7 +958,7 @@ impl<T: Config> HostFnWeights<T> {
     }
 }
 
-impl<T: Config> Default for HostFnWeights<T> {
+impl<T: Config> Default for SyscallWeights<T> {
     fn default() -> Self {
         Self {
             gr_reply_deposit: to_weight!(cost_batched!(gr_reply_deposit))

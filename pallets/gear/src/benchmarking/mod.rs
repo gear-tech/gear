@@ -72,7 +72,7 @@ use common::{
 };
 use core_processor::{
     common::{DispatchOutcome, JournalNote},
-    configs::{BlockConfig, PageCosts, TESTS_MAX_PAGES_NUMBER},
+    configs::BlockConfig,
     Ext, ProcessExecutionContext, ProcessorContext, ProcessorExternalities,
 };
 use frame_benchmarking::{benchmarks, whitelisted_caller};
@@ -83,10 +83,9 @@ use frame_support::{
 use frame_system::{Pallet as SystemPallet, RawOrigin};
 use gear_core::{
     code::{Code, CodeAndId},
-    gas::{GasAllowanceCounter, GasCounter, ValueCounter},
     ids::{CodeId, MessageId, ProgramId},
-    memory::{AllocationsContext, Memory, PageBuf},
-    message::{DispatchKind, IncomingDispatch, MessageContext},
+    memory::{Memory, PageBuf},
+    message::{DispatchKind, IncomingDispatch},
     pages::{GearPage, PageU32Size, WasmPage},
     reservation::GasReserver,
 };
@@ -163,44 +162,20 @@ where
     Gear::<T>::process_queue(ext_manager);
 }
 
+// +_+_+
 fn default_processor_context<T: Config>() -> ProcessorContext {
+    let ctx = ProcessorContext::new_mock();
     ProcessorContext {
-        gas_counter: GasCounter::new(0),
-        gas_allowance_counter: GasAllowanceCounter::new(0),
         gas_reserver: GasReserver::new(
             &<IncomingDispatch as Default>::default(),
             Default::default(),
             T::ReservationsLimit::get(),
         ),
-        system_reservation: None,
-        value_counter: ValueCounter::new(0),
-        allocations_context: AllocationsContext::new(
-            Default::default(),
-            Default::default(),
-            Default::default(),
-        ),
-        message_context: MessageContext::new(
-            Default::default(),
-            Default::default(),
-            Default::default(),
-        )
-        .unwrap(),
-        block_info: Default::default(),
         performance_multiplier: gsys::Percent::new(100),
-        max_pages: TESTS_MAX_PAGES_NUMBER.into(),
-        page_costs: PageCosts::new_for_tests(),
         existential_deposit: 42,
-        program_id: Default::default(),
-        program_candidates_data: Default::default(),
-        host_fn_weights: Default::default(),
-        forbidden_funcs: Default::default(),
         mailbox_threshold: 500,
-        waitlist_cost: 0,
-        dispatch_hold_cost: 0,
-        reserve_for: 0,
-        reservation: 0,
-        random_data: ([0u8; 32].to_vec(), 0),
         gas_multiplier: gsys::GasMultiplier::from_value_per_gas(30),
+        ..ctx
     }
 }
 

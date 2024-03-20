@@ -22,15 +22,14 @@ use super::Exec;
 use crate::{
     builtin::BuiltinDispatcherFactory,
     manager::{CodeInfo, ExtManager, HandleKind},
-    Config, CostsPerBlockOf, CurrencyOf, DbWeightOf, MailboxOf, Pallet as Gear, ProgramStorageOf,
-    QueueOf,
+    Config, MailboxOf, Pallet as Gear, ProgramStorageOf, QueueOf,
 };
-use common::{scheduler::SchedulingCostsPerBlock, storage::*, CodeStorage, Origin, ProgramStorage};
+use common::{storage::*, CodeStorage, Origin, ProgramStorage};
 use core_processor::{
-    configs::{BlockConfig, BlockInfo},
+    configs::{BlockConfig, ProcessLimits},
     ContextChargedForCode, ContextChargedForInstrumentation,
 };
-use frame_support::traits::{Currency, Get};
+use frame_support::traits::Get;
 use gear_core::{
     code::{Code, CodeAndId},
     ids::{CodeId, MessageId, ProgramId},
@@ -49,44 +48,55 @@ where
     T: Config,
     T::AccountId: Origin,
 {
-    let block_info = BlockInfo {
-        height: Gear::<T>::block_number().unique_saturated_into(),
-        timestamp: <pallet_timestamp::Pallet<T>>::get().unique_saturated_into(),
-    };
-
-    let existential_deposit = CurrencyOf::<T>::minimum_balance().unique_saturated_into();
-    let mailbox_threshold = <T as Config>::MailboxThreshold::get();
-    let waitlist_cost = CostsPerBlockOf::<T>::waitlist();
-    let reserve_for = CostsPerBlockOf::<T>::reserve_for().unique_saturated_into();
-    let reservation = CostsPerBlockOf::<T>::reservation().unique_saturated_into();
-
-    let schedule = T::Schedule::get();
+    let pallet_config = Gear::<T>::block_config();
 
     BlockConfig {
-        block_info,
-        performance_multiplier: T::PerformanceMultiplier::get().into(),
-        max_pages: T::Schedule::get().limits.memory_pages.into(),
-        page_costs: T::Schedule::get().memory_weights.into(),
-        existential_deposit,
-        outgoing_limit: 2048,
-        outgoing_bytes_limit: u32::MAX,
-        host_fn_weights: Default::default(),
-        forbidden_funcs: Default::default(),
-        mailbox_threshold,
-        waitlist_cost,
-        dispatch_hold_cost: CostsPerBlockOf::<T>::dispatch_stash(),
-        reserve_for,
-        reservation,
-        read_cost: DbWeightOf::<T>::get().reads(1).ref_time(),
-        write_cost: DbWeightOf::<T>::get().writes(1).ref_time(),
-        write_per_byte_cost: schedule.db_write_per_byte.ref_time(),
-        read_per_byte_cost: schedule.db_read_per_byte.ref_time(),
-        module_instantiation_byte_cost: schedule.module_instantiation_per_byte.ref_time(),
-        max_reservations: T::ReservationsLimit::get(),
-        code_instrumentation_cost: schedule.code_instrumentation_cost.ref_time(),
-        code_instrumentation_byte_cost: schedule.code_instrumentation_byte_cost.ref_time(),
-        gas_multiplier: <T as pallet_gear_bank::Config>::GasMultiplier::get().into(),
+        limits: ProcessLimits {
+            outgoing_limit: 2048,
+            outgoing_bytes_limit: u32::MAX,
+            ..pallet_config.limits
+        },
+        ..pallet_config
     }
+
+    // let block_info = BlockInfo {
+    //     height: Gear::<T>::block_number().unique_saturated_into(),
+    //     timestamp: <pallet_timestamp::Pallet<T>>::get().unique_saturated_into(),
+    // };
+
+    // let existential_deposit = CurrencyOf::<T>::minimum_balance().unique_saturated_into();
+    // let mailbox_threshold = <T as Config>::MailboxThreshold::get();
+    // let waitlist_cost = CostsPerBlockOf::<T>::waitlist();
+    // let reserve_for = CostsPerBlockOf::<T>::reserve_for().unique_saturated_into();
+    // let reservation = CostsPerBlockOf::<T>::reservation().unique_saturated_into();
+
+    // let schedule = T::Schedule::get();
+
+    // BlockConfig {
+    //     block_info,
+    //     performance_multiplier: T::PerformanceMultiplier::get().into(),
+    //     max_pages: T::Schedule::get().limits.memory_pages.into(),
+    //     page_costs: T::Schedule::get().memory_weights.into(),
+    //     existential_deposit,
+    //     outgoing_limit: 2048,
+    //     outgoing_bytes_limit: u32::MAX,
+    //     host_fn_weights: Default::default(),
+    //     forbidden_funcs: Default::default(),
+    //     mailbox_threshold,
+    //     waitlist_cost,
+    //     dispatch_hold_cost: CostsPerBlockOf::<T>::dispatch_stash(),
+    //     reserve_for,
+    //     reservation,
+    //     read_cost: DbWeightOf::<T>::get().reads(1).ref_time(),
+    //     write_cost: DbWeightOf::<T>::get().writes(1).ref_time(),
+    //     write_per_byte_cost: schedule.db_write_per_byte.ref_time(),
+    //     read_per_byte_cost: schedule.db_read_per_byte.ref_time(),
+    //     module_instantiation_byte_cost: schedule.module_instantiation_per_byte.ref_time(),
+    //     max_reservations: T::ReservationsLimit::get(),
+    //     code_instrumentation_cost: schedule.code_instrumentation_cost.ref_time(),
+    //     code_instrumentation_byte_cost: schedule.code_instrumentation_byte_cost.ref_time(),
+    //     gas_multiplier: <T as pallet_gear_bank::Config>::GasMultiplier::get().into(),
+    // }
 }
 
 pub struct PrepareConfig {
@@ -257,7 +267,9 @@ where
         .ok_or("Program not found in the storage")?;
 
     let mut block_config = prepare_block_config::<T>();
-    block_config.max_pages = config.max_pages_override.unwrap_or(block_config.max_pages);
+    block_config.limits.max_pages = config
+        .max_pages_override
+        .unwrap_or(block_config.limits.max_pages);
 
     let precharged_dispatch = core_processor::precharge_for_program(
         &block_config,

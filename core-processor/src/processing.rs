@@ -62,36 +62,24 @@ where
     let BlockConfig {
         block_info,
         performance_multiplier,
-        max_pages,
-        page_costs,
-        existential_deposit,
-        outgoing_limit,
-        outgoing_bytes_limit,
-        host_fn_weights,
         forbidden_funcs,
-        mailbox_threshold,
-        waitlist_cost,
-        dispatch_hold_cost,
         reserve_for,
-        reservation,
-        write_cost,
         gas_multiplier,
+        costs,
+        limits,
         ..
     } = block_config.clone();
 
     let execution_settings = ExecutionSettings {
         block_info,
         performance_multiplier,
-        existential_deposit,
-        max_pages,
-        page_costs,
-        host_fn_weights,
+        existential_deposit: limits.existential_deposit,
+        mailbox_threshold: limits.mailbox_threshold,
+        max_pages: limits.max_pages,
+        ext_costs: costs.execution,
+        lazy_pages_costs: costs.lazy_pages,
         forbidden_funcs,
-        mailbox_threshold,
-        waitlist_cost,
-        dispatch_hold_cost,
         reserve_for,
-        reservation,
         random_data,
         gas_multiplier,
     };
@@ -119,13 +107,13 @@ where
     // Waking fee: double write cost for removal from waitlist
     // and further enqueueing.
     let msg_ctx_settings = ContextSettings {
-        sending_fee: write_cost.saturating_mul(2),
-        scheduled_sending_fee: write_cost.saturating_mul(4),
-        waiting_fee: write_cost.saturating_mul(3),
-        waking_fee: write_cost.saturating_mul(2),
-        reservation_fee: write_cost.saturating_mul(2),
-        outgoing_limit,
-        outgoing_bytes_limit,
+        sending_fee: costs.write.calc(2.into()),
+        scheduled_sending_fee: costs.write.calc(4.into()),
+        waiting_fee: costs.write.calc(3.into()),
+        waking_fee: costs.write.calc(2.into()),
+        reservation_fee: costs.write.calc(2.into()),
+        outgoing_limit: limits.outgoing_limit,
+        outgoing_bytes_limit: limits.outgoing_bytes_limit,
     };
 
     // TODO: add tests that system reservation is successfully unreserved after

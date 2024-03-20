@@ -47,7 +47,7 @@ pub use crate::{
     builtin::{BuiltinDispatcher, BuiltinDispatcherFactory, HandleFn},
     manager::{ExtManager, HandleKind},
     pallet::*,
-    schedule::{HostFnWeights, InstructionWeights, Limits, MemoryWeights, Schedule},
+    schedule::{InstructionWeights, Limits, MemoryWeights, Schedule, SyscallWeights},
 };
 pub use gear_core::gas::GasInfo;
 pub use weights::WeightInfo;
@@ -143,6 +143,8 @@ impl DebugInfo for () {
 
 #[frame_support::pallet]
 pub mod pallet {
+    use core_processor::configs::{ExtWeights, PageCosts, ProcessCosts, ProcessLimits};
+
     use super::*;
 
     #[pallet::config]
@@ -1019,34 +1021,46 @@ pub mod pallet {
                 timestamp: <pallet_timestamp::Pallet<T>>::get().unique_saturated_into(),
             };
 
-            let existential_deposit = CurrencyOf::<T>::minimum_balance().unique_saturated_into();
-
             let schedule = T::Schedule::get();
 
             BlockConfig {
                 block_info,
                 performance_multiplier: T::PerformanceMultiplier::get().into(),
-                max_pages: schedule.limits.memory_pages.into(),
-                page_costs: schedule.memory_weights.clone().into(),
-                existential_deposit,
-                outgoing_limit: T::OutgoingLimit::get(),
-                outgoing_bytes_limit: T::OutgoingBytesLimit::get(),
-                host_fn_weights: schedule.host_fn_weights.into_core(),
                 forbidden_funcs: Default::default(),
-                mailbox_threshold: T::MailboxThreshold::get(),
-                waitlist_cost: CostsPerBlockOf::<T>::waitlist(),
-                dispatch_hold_cost: CostsPerBlockOf::<T>::dispatch_stash(),
                 reserve_for: CostsPerBlockOf::<T>::reserve_for().unique_saturated_into(),
-                reservation: CostsPerBlockOf::<T>::reservation().unique_saturated_into(),
-                read_cost: DbWeightOf::<T>::get().reads(1).ref_time(),
-                write_cost: DbWeightOf::<T>::get().writes(1).ref_time(),
-                write_per_byte_cost: schedule.db_write_per_byte.ref_time(),
-                read_per_byte_cost: schedule.db_read_per_byte.ref_time(),
-                module_instantiation_byte_cost: schedule.module_instantiation_per_byte.ref_time(),
-                max_reservations: T::ReservationsLimit::get(),
-                code_instrumentation_cost: schedule.code_instrumentation_cost.ref_time(),
-                code_instrumentation_byte_cost: schedule.code_instrumentation_byte_cost.ref_time(),
                 gas_multiplier: <T as pallet_gear_bank::Config>::GasMultiplier::get().into(),
+                costs: ProcessCosts {
+                    execution: ExtWeights {
+                        syscalls: schedule.host_fn_weights.into(),
+                        waitlist_cost: CostsPerBlockOf::<T>::waitlist(),
+                        dispatch_hold_cost: CostsPerBlockOf::<T>::dispatch_stash(),
+                        reservation: CostsPerBlockOf::<T>::reservation().unique_saturated_into(),
+                        mem_grow: schedule.memory_weights.mem_grow.ref_time().into(),
+                    },
+                    lazy_pages: PageCosts::from(schedule.memory_weights.clone())
+                        .lazy_pages_weights(),
+                    read: DbWeightOf::<T>::get().reads(1).ref_time().into(),
+                    read_per_byte: schedule.db_read_per_byte.ref_time().into(),
+                    write: DbWeightOf::<T>::get().writes(1).ref_time().into(),
+                    static_page: schedule.memory_weights.static_page.ref_time().into(),
+                    instrumentation: schedule.code_instrumentation_cost.ref_time().into(),
+                    instrumentation_per_byte: schedule
+                        .code_instrumentation_byte_cost
+                        .ref_time()
+                        .into(),
+                    module_instantiation_byte_cost: schedule
+                        .module_instantiation_per_byte
+                        .ref_time()
+                        .into(),
+                },
+                limits: ProcessLimits {
+                    existential_deposit: CurrencyOf::<T>::minimum_balance().unique_saturated_into(),
+                    mailbox_threshold: T::MailboxThreshold::get(),
+                    max_reservations: T::ReservationsLimit::get(),
+                    max_pages: schedule.limits.memory_pages.into(),
+                    outgoing_limit: T::OutgoingLimit::get(),
+                    outgoing_bytes_limit: T::OutgoingBytesLimit::get(),
+                },
             }
         }
 

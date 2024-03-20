@@ -28,7 +28,7 @@ use gear_core::{
     memory::MemoryInterval,
     pages::{PageNumber, PageU32Size},
 };
-use gear_lazy_pages_common::Status;
+use gear_lazy_pages_common::{LazyPagesWeights, Status};
 use rand::{Rng, SeedableRng};
 
 use super::*;
@@ -159,8 +159,7 @@ impl<P: PageU32Size> PageSets<P> {
             .into()
     }
 
-    fn charged_for_pages(&self, costs: &PageCosts) -> u64 {
-        let costs = costs.lazy_pages_weights();
+    fn charged_for_pages(&self, costs: &LazyPagesWeights) -> u64 {
         let costs = [
             costs.signal_read,
             costs.signal_write,
@@ -296,17 +295,17 @@ where
             .unwrap();
 
             let mut rand_cost = || rng.gen_range(0..MAX_COST).into();
-            let costs = &mut exec.block_config.page_costs;
-            costs.lazy_pages_signal_read = rand_cost();
-            costs.lazy_pages_signal_write = rand_cost();
-            costs.lazy_pages_signal_write_after_read = rand_cost();
-            costs.lazy_pages_host_func_read = rand_cost();
-            costs.lazy_pages_host_func_write = rand_cost();
-            costs.lazy_pages_host_func_write_after_read = rand_cost();
-            costs.load_page_data = rand_cost();
-            costs.upload_page_data = rand_cost();
+            let costs = &mut exec.block_config.costs.lazy_pages;
+            costs.signal_read = rand_cost();
+            costs.signal_write = rand_cost();
+            costs.signal_write_after_read = rand_cost();
+            costs.host_func_read = rand_cost();
+            costs.host_func_write = rand_cost();
+            costs.host_func_write_after_read = rand_cost();
+            costs.load_page_storage_data = rand_cost();
 
-            let charged_for_pages = page_sets.charged_for_pages(&exec.block_config.page_costs);
+            let charged_for_pages =
+                page_sets.charged_for_pages(&exec.block_config.costs.lazy_pages);
 
             let notes =
                 core_processor::process::<Ext>(&exec.block_config, exec.context, exec.random_data)
@@ -331,8 +330,8 @@ where
         };
 
         // Difference between gas burned in two runs must be equal to difference,
-        // between gas burned for pages accesses and data loading, because in `run`
-        // only `page_costs` is different.
+        // between gas burned for pages accesses and data loading,
+        // because in `run` only `lazy_pages_costs` is different.
         let (charged_for_pages1, gas_burned1) = run(0);
         let (charged_for_pages2, gas_burned2) = run(1);
         assert_eq!(
@@ -375,11 +374,10 @@ where
             )
             .unwrap();
 
-            exec.block_config.page_costs.lazy_pages_signal_read = (read_cost * i).into();
-            exec.block_config.page_costs.lazy_pages_signal_write = (write_cost * i).into();
-            exec.block_config
-                .page_costs
-                .lazy_pages_signal_write_after_read = (write_after_read_cost * i).into();
+            exec.block_config.costs.lazy_pages.signal_read = (read_cost * i).into();
+            exec.block_config.costs.lazy_pages.signal_write = (write_cost * i).into();
+            exec.block_config.costs.lazy_pages.signal_write_after_read =
+                (write_after_read_cost * i).into();
 
             let notes =
                 core_processor::process::<Ext>(&exec.block_config, exec.context, exec.random_data)
@@ -535,7 +533,7 @@ where
         )
         .unwrap();
 
-        exec.block_config.page_costs = Default::default();
+        exec.block_config.costs.lazy_pages = Default::default();
 
         let notes =
             core_processor::process::<Ext>(&exec.block_config, exec.context, exec.random_data)
@@ -572,8 +570,8 @@ where
         )
         .unwrap();
 
-        exec.block_config.page_costs = PageCosts {
-            lazy_pages_signal_write: 1.into(),
+        exec.block_config.costs.lazy_pages = LazyPagesWeights {
+            signal_write: 1.into(),
             ..Default::default()
         };
 
@@ -610,8 +608,8 @@ where
         )
         .unwrap();
 
-        exec.block_config.page_costs = PageCosts {
-            lazy_pages_signal_write: 1.into(),
+        exec.block_config.costs.lazy_pages = LazyPagesWeights {
+            signal_write: 1.into(),
             ..Default::default()
         };
 

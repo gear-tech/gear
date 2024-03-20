@@ -599,7 +599,6 @@ fn execute_wasm_with_custom_configs(
 
     let processor_context = ProcessorContext {
         message_context,
-        max_pages: INITIAL_PAGES.into(),
         program_id,
         value_counter: ValueCounter::new(value),
         ..ProcessorContext::new_mock()

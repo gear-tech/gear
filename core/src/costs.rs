@@ -80,8 +80,8 @@ impl<T> Default for CostPer<T> {
 }
 
 /// +_+_+
-#[derive(Debug, Default, Clone, Copy)]
-pub struct Call;
+#[derive(Debug, Default, Clone, Copy, derive_more::From, derive_more::Into)]
+pub struct Call(u32);
 
 /// +_+_+
 #[derive(Debug, Default, Clone, Copy, derive_more::From, derive_more::Into)]

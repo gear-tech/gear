@@ -22,11 +22,13 @@ use crate::{
     Result, TestError, DISPATCH_HOLD_COST, EPOCH_DURATION_IN_BLOCKS, EXISTENTIAL_DEPOSIT,
     INITIAL_RANDOM_SEED, MAILBOX_THRESHOLD, MAX_RESERVATIONS, MODULE_INSTANTIATION_BYTE_COST,
     MODULE_INSTRUMENTATION_BYTE_COST, MODULE_INSTRUMENTATION_COST, READ_COST, READ_PER_BYTE_COST,
-    RESERVATION_COST, RESERVE_FOR, VALUE_PER_GAS, WAITLIST_COST, WRITE_COST, WRITE_PER_BYTE_COST,
+    RESERVATION_COST, RESERVE_FOR, VALUE_PER_GAS, WAITLIST_COST, WRITE_COST,
 };
 use core_processor::{
     common::*,
-    configs::{BlockConfig, BlockInfo, PageCosts, TESTS_MAX_PAGES_NUMBER},
+    configs::{
+        BlockConfig, BlockInfo, ExtWeights, ProcessCosts, ProcessLimits, TESTS_MAX_PAGES_NUMBER,
+    },
     ContextChargedForCode, ContextChargedForInstrumentation, Ext,
 };
 use gear_core::{
@@ -42,6 +44,7 @@ use gear_core::{
     reservation::{GasReservationMap, GasReserver},
 };
 use gear_core_errors::{ErrorReplyReason, SignalCode, SimpleExecutionError};
+use gear_lazy_pages_common::LazyPagesWeights;
 use gear_wasm_instrument::rules::CustomConstantCostRules;
 use rand::{rngs::StdRng, RngCore, SeedableRng};
 use std::{
@@ -868,27 +871,51 @@ impl ExtManager {
         let block_config = BlockConfig {
             block_info: self.block_info,
             performance_multiplier: gsys::Percent::new(100),
-            max_pages: TESTS_MAX_PAGES_NUMBER.into(),
-            page_costs: PageCosts::new_for_tests(),
-            existential_deposit: EXISTENTIAL_DEPOSIT,
-            outgoing_limit: OUTGOING_LIMIT,
-            outgoing_bytes_limit: OUTGOING_BYTES_LIMIT,
-            host_fn_weights: Default::default(),
+            // max_pages: TESTS_MAX_PAGES_NUMBER.into(),
+            // page_costs: PageCosts::new_for_tests(),
+            // existential_deposit: EXISTENTIAL_DEPOSIT,
+            // outgoing_limit: OUTGOING_LIMIT,
+            // outgoing_bytes_limit: OUTGOING_BYTES_LIMIT,
+            // host_fn_weights: Default::default(),
             forbidden_funcs: Default::default(),
-            mailbox_threshold: MAILBOX_THRESHOLD,
-            waitlist_cost: WAITLIST_COST,
-            dispatch_hold_cost: DISPATCH_HOLD_COST,
+            // mailbox_threshold: MAILBOX_THRESHOLD,
+            // waitlist_cost: WAITLIST_COST,
+            // dispatch_hold_cost: DISPATCH_HOLD_COST,
             reserve_for: RESERVE_FOR,
-            reservation: RESERVATION_COST,
-            read_cost: READ_COST,
-            write_cost: WRITE_COST,
-            read_per_byte_cost: READ_PER_BYTE_COST,
-            write_per_byte_cost: WRITE_PER_BYTE_COST,
-            module_instantiation_byte_cost: MODULE_INSTANTIATION_BYTE_COST,
-            max_reservations: MAX_RESERVATIONS,
-            code_instrumentation_cost: MODULE_INSTRUMENTATION_COST,
-            code_instrumentation_byte_cost: MODULE_INSTRUMENTATION_BYTE_COST,
+            // reservation: RESERVATION_COST,
+            // read_cost: READ_COST,
+            // write_cost: WRITE_COST,
+            // read_per_byte_cost: READ_PER_BYTE_COST,
+            // write_per_byte_cost: WRITE_PER_BYTE_COST,
+            // module_instantiation_byte_cost: MODULE_INSTANTIATION_BYTE_COST,
+            // max_reservations: MAX_RESERVATIONS,
+            // code_instrumentation_cost: MODULE_INSTRUMENTATION_COST,
+            // code_instrumentation_byte_cost: MODULE_INSTRUMENTATION_BYTE_COST,
             gas_multiplier: gsys::GasMultiplier::from_value_per_gas(VALUE_PER_GAS),
+            costs: ProcessCosts {
+                execution: ExtWeights {
+                    reservation: RESERVATION_COST,
+                    waitlist_cost: WAITLIST_COST,
+                    dispatch_hold_cost: DISPATCH_HOLD_COST,
+                    ..Default::default()
+                },
+                lazy_pages: LazyPagesWeights::default(),
+                read: READ_COST.into(),
+                read_per_byte: READ_PER_BYTE_COST.into(),
+                write: WRITE_COST.into(),
+                instrumentation: MODULE_INSTRUMENTATION_COST.into(),
+                instrumentation_per_byte: MODULE_INSTRUMENTATION_BYTE_COST.into(),
+                static_page: Default::default(),
+                module_instantiation_byte_cost: MODULE_INSTANTIATION_BYTE_COST.into(),
+            },
+            limits: ProcessLimits {
+                existential_deposit: EXISTENTIAL_DEPOSIT,
+                mailbox_threshold: MAILBOX_THRESHOLD,
+                max_reservations: MAX_RESERVATIONS,
+                max_pages: TESTS_MAX_PAGES_NUMBER.into(),
+                outgoing_limit: OUTGOING_LIMIT,
+                outgoing_bytes_limit: OUTGOING_BYTES_LIMIT,
+            },
         };
 
         let precharged_dispatch = match core_processor::precharge_for_program(
