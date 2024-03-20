@@ -233,7 +233,6 @@ parameter_types! {
     pub const MaxElectableTargets: u16 = 10_000;
     pub const MaxOnChainElectingVoters: u32 = 500;
     pub const MaxOnChainElectableTargets: u16 = 100;
-    // pub static ElectionsBounds: ElectionBounds = ElectionBoundsBuilder::default().build();
     pub ElectionBounds: frame_election_provider_support::bounds::ElectionBounds =
         ElectionBoundsBuilder::default().voters_count(MaxElectingVoters::get().into()).build();
 }

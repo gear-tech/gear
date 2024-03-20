@@ -75,7 +75,6 @@ use core_processor::{
     configs::{BlockConfig, PageCosts, TESTS_MAX_PAGES_NUMBER},
     Ext, ProcessExecutionContext, ProcessorContext, ProcessorExternalities,
 };
-
 use parity_scale_codec::Encode;
 
 use frame_benchmarking::{benchmarks, whitelisted_caller};
