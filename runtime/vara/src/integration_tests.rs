@@ -589,8 +589,11 @@ fn slashed_proposals_back_to_treasury() {
                 1_000 * UNITS,
                 sp_runtime::MultiAddress::Id(ferdie.to_account_id()),
             ));
-            let proposal_bond =
-                <Runtime as pallet_treasury::Config>::ProposalBond::get() * UNITS * 1_000;
+            let proposal_bond = <Runtime as pallet_treasury::Config>::ProposalBond::get(
+                &treasury_id,
+                initial_total_issuance,
+            ) * UNITS
+                * 1_000;
             let dave_acc_data = System::account(dave.to_account_id()).data;
             // Proposer's free balance has decreased by the `proposal_bond`
             assert_eq!(dave_acc_data.free, ENDOWMENT - proposal_bond);
