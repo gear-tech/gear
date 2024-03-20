@@ -138,7 +138,7 @@ jobs:
           chmod +x ./try-runtime
 
           echo "---------- Building vara runtime ----------"
-          time cargo build -p vara-runtime --features try-runtime --locked ${{ matrix.profile_flags }}
+          time cargo build -p vara-runtime -F std,try-runtime --locked ${{ matrix.profile_flags }}
           echo "---------- Executing on-runtime-upgrade for Vara ----------"
           time ./try-runtime --runtime ./target/${{ matrix.profile }}/wbuild/vara-runtime/vara_runtime.wasm on-runtime-upgrade --checks=all live --uri ws://rpc-private.vara-network.io:9944
           sleep 5
