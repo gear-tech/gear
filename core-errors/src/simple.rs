@@ -181,8 +181,7 @@ pub enum ErrorReplyReason {
     #[display(fmt = "fail in program creation ({_0})")]
     FailedToCreateProgram(SimpleProgramCreationError) = 1,
 
-    /// Destination actor is in wait-in-init state
-    /// or become inactive program, so it can't process the message.
+    /// Destination actor is inactive or uninitialized, so it can't process the message.
     #[display(fmt = "message processing has been halted")]
     MessageProcessingHalted = 2,
 

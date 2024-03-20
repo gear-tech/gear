@@ -178,7 +178,8 @@ where
 }
 
 enum ProcessErrorCase {
-    WaitInit,
+    /// The program is not initialized.
+    Uninitialized,
     /// Message is not executable error.
     NonExecutable,
     /// Error is considered as an execution failure.
@@ -190,7 +191,7 @@ enum ProcessErrorCase {
 impl ProcessErrorCase {
     pub fn to_reason_and_payload(&self) -> (ErrorReplyReason, String) {
         match self {
-            ProcessErrorCase::WaitInit | ProcessErrorCase::NonExecutable => {
+            ProcessErrorCase::Uninitialized | ProcessErrorCase::NonExecutable => {
                 let reason = ErrorReplyReason::MessageProcessingHalted;
                 (reason, reason.to_string())
             }
@@ -253,7 +254,7 @@ fn process_error(
     }
 
     let outcome = match case {
-        ProcessErrorCase::WaitInit => {
+        ProcessErrorCase::Uninitialized => {
             return journal;
         }
         ProcessErrorCase::ExecutionFailed { .. } | ProcessErrorCase::ReinstrumentationFailed => {
@@ -374,12 +375,10 @@ pub fn process_non_executable(
 }
 
 /// Helper function for journal creation in case of waiting during init.
-pub fn process_wait_init(
+pub fn process_uninitialized(
     context: PrechargedDispatch,
     destination_id: ProgramId,
 ) -> Vec<JournalNote> {
-    log::error!("process_wait_init");
-
     let (dispatch, gas_counter, _) = context.into_parts();
     let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
 
@@ -388,7 +387,7 @@ pub fn process_wait_init(
         destination_id,
         gas_counter.burned(),
         system_reservation_ctx,
-        ProcessErrorCase::WaitInit,
+        ProcessErrorCase::Uninitialized,
     )
 }
 
