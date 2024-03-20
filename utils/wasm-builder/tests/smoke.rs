@@ -149,4 +149,5 @@ fn features_tracking() {
     assert!(read_export_entry("handle_signal").is_none());
     CargoRunner::new().args(["build", "--features=b"]).run();
     assert!(read_export_entry("handle_signal").is_some());
+    assert!(read_export_entry("handle_reply").is_none());
 }
