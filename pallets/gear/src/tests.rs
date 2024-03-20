@@ -4468,14 +4468,14 @@ fn events_logging_works() {
                 Some(ActorExecutionErrorReplyReason::Trap(
                     TrapExplanation::GasLimitExceeded,
                 )),
-                Some(ErrorReplyReason::MessageProcessingHalted.into()),
+                Some(ErrorReplyReason::InactiveActor.into()),
             ),
             (
                 ProgramCodeKind::Custom(wat_trap_in_init),
                 Some(ActorExecutionErrorReplyReason::Trap(
                     TrapExplanation::Unknown,
                 )),
-                Some(ErrorReplyReason::MessageProcessingHalted.into()),
+                Some(ErrorReplyReason::InactiveActor.into()),
             ),
             // First try asserts by status code.
             (
@@ -5140,13 +5140,11 @@ fn messages_to_uninitialized_program_wait() {
         assert!(auto_reply.details().is_some());
         assert_eq!(
             auto_reply.payload_bytes(),
-            ErrorReplyReason::MessageProcessingHalted
-                .to_string()
-                .as_bytes()
+            ErrorReplyReason::InactiveActor.to_string().as_bytes()
         );
         assert_eq!(
             auto_reply.reply_code().expect("Should be"),
-            ReplyCode::Error(ErrorReplyReason::MessageProcessingHalted)
+            ReplyCode::Error(ErrorReplyReason::InactiveActor)
         );
     })
 }
@@ -5318,7 +5316,7 @@ fn wake_messages_after_program_inited() {
                 {
                     assert_eq!(
                         message.reply_code(),
-                        Some(ReplyCode::Error(ErrorReplyReason::MessageProcessingHalted))
+                        Some(ReplyCode::Error(ErrorReplyReason::InactiveActor))
                     );
                     Some(())
                 }
@@ -7172,10 +7170,7 @@ fn init_wait_reply_exit_cleaned_storage() {
         run_to_block(3, None);
 
         let mut responses =
-            vec![
-                Assertion::ReplyCode(ReplyCode::Error(ErrorReplyReason::MessageProcessingHalted));
-                count
-            ];
+            vec![Assertion::ReplyCode(ReplyCode::Error(ErrorReplyReason::InactiveActor)); count];
         responses.insert(0, Assertion::Payload(vec![])); // init response
         assert_responses_to_user(USER_1, responses);
 
@@ -12512,7 +12507,7 @@ fn async_init() {
             USER_1,
             vec![
                 // `demo_async_init` sent error reply on "PING" message
-                Assertion::ReplyCode(ErrorReplyReason::MessageProcessingHalted.into()),
+                Assertion::ReplyCode(ErrorReplyReason::InactiveActor.into()),
                 // `demo_async_init`'s `init` was successful
                 Assertion::ReplyCode(SuccessReplyReason::Auto.into()),
             ],
@@ -14208,7 +14203,7 @@ fn test_send_to_terminated_from_program() {
             .expect("internal error: no message from proxy");
         assert_eq!(
             mail_from_proxy.payload_bytes().to_vec(),
-            ReplyCode::Error(ErrorReplyReason::MessageProcessingHalted).encode()
+            ReplyCode::Error(ErrorReplyReason::InactiveActor).encode()
         );
         assert_eq!(mails_from_proxy_iter.next(), None);
 

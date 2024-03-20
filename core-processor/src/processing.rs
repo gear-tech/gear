@@ -192,7 +192,7 @@ impl ProcessErrorCase {
     pub fn to_reason_and_payload(&self) -> (ErrorReplyReason, String) {
         match self {
             ProcessErrorCase::Uninitialized | ProcessErrorCase::NonExecutable => {
-                let reason = ErrorReplyReason::MessageProcessingHalted;
+                let reason = ErrorReplyReason::InactiveActor;
                 (reason, reason.to_string())
             }
             ProcessErrorCase::ExecutionFailed(reason) => {

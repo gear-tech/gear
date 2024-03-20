@@ -858,7 +858,7 @@ mod tests {
 
         let run_result = prog.send(user_id, String::from("should_be_skipped"));
 
-        let expected_log = Log::error_builder(ErrorReplyReason::MessageProcessingHalted)
+        let expected_log = Log::error_builder(ErrorReplyReason::InactiveActor)
             .source(prog.id())
             .dest(user_id);
 
