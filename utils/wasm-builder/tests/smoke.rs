@@ -146,7 +146,7 @@ fn features_tracking() {
 
     CargoRunner::new().args(["build", "--features=a"]).run();
     assert!(read_export_entry("handle_reply").is_some());
-
+    assert!(read_export_entry("handle_signal").is_none());
     CargoRunner::new().args(["build", "--features=b"]).run();
     assert!(read_export_entry("handle_signal").is_some());
 }
