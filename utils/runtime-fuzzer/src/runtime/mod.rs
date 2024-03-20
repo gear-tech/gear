@@ -18,7 +18,7 @@
 
 use account::*;
 use block::*;
-use frame_support::{dispatch::DispatchResultWithPostInfo, traits::Currency};
+use frame_support::traits::Currency;
 use frame_system::GenesisConfig as SystemConfig;
 use pallet_balances::{GenesisConfig as BalancesConfig, Pallet as BalancesPallet};
 use runtime_primitives::Balance;
