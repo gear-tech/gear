@@ -21,8 +21,8 @@
 
 #![allow(unused_parens)]
 
-use crate::{weights::WeightInfo, Config};
-use core_processor::configs::{PageCosts, SyscallCosts};
+use crate::{weights::WeightInfo, Config, CostsPerBlockOf, DbWeightOf};
+use core_processor::configs::{PageCosts, ProcessCosts, SyscallCosts};
 use frame_support::{
     codec::{Decode, Encode},
     traits::Get,
@@ -43,6 +43,9 @@ use scale_info::TypeInfo;
 use serde::{Deserialize, Serialize};
 use sp_runtime::RuntimeDebug;
 use sp_std::{marker::PhantomData, vec::Vec};
+use common::scheduler::SchedulingCostsPerBlock;
+use sp_runtime::traits::UniqueSaturatedInto;
+use core_processor::configs::ExtWeights;
 
 /// How many API calls are executed in a single batch. The reason for increasing the amount
 /// of API calls in batches (per benchmark component increase) is so that the linear regression
@@ -1144,6 +1147,26 @@ impl<T: Config> Schedule<T> {
                     func.params().len() as u32
                 })
                 .collect(),
+        }
+    }
+
+    pub fn process_costs(&self) -> ProcessCosts {
+        ProcessCosts {
+            execution: ExtWeights {
+                syscalls: self.host_fn_weights.clone().into(),
+                waitlist_cost: CostsPerBlockOf::<T>::waitlist(),
+                dispatch_hold_cost: CostsPerBlockOf::<T>::dispatch_stash(),
+                reservation: CostsPerBlockOf::<T>::reservation().unique_saturated_into(),
+                mem_grow: self.memory_weights.mem_grow.ref_time().into(),
+            },
+            lazy_pages: PageCosts::from(self.memory_weights.clone()).lazy_pages_weights(),
+            read: DbWeightOf::<T>::get().reads(1).ref_time().into(),
+            read_per_byte: self.db_read_per_byte.ref_time().into(),
+            write: DbWeightOf::<T>::get().writes(1).ref_time().into(),
+            static_page: self.memory_weights.static_page.ref_time().into(),
+            instrumentation: self.code_instrumentation_cost.ref_time().into(),
+            instrumentation_per_byte: self.code_instrumentation_byte_cost.ref_time().into(),
+            module_instantiation_byte_cost: self.module_instantiation_per_byte.ref_time().into(),
         }
     }
 }

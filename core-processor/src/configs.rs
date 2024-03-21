@@ -33,7 +33,6 @@ pub const TESTS_MAX_PAGES_NUMBER: u16 = 512;
 
 /// Contextual block information.
 #[derive(Clone, Copy, Debug, Default)]
-#[codec(crate = scale)]
 pub struct BlockInfo {
     /// Height.
     pub height: u32,

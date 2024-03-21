@@ -147,8 +147,6 @@ impl DebugInfo for () {
 
 #[frame_support::pallet]
 pub mod pallet {
-    use core_processor::configs::{ExtWeights, PageCosts, ProcessCosts};
-
     use super::*;
 
     #[pallet::config]
@@ -1064,30 +1062,7 @@ pub mod pallet {
                 forbidden_funcs: Default::default(),
                 reserve_for: CostsPerBlockOf::<T>::reserve_for().unique_saturated_into(),
                 gas_multiplier: <T as pallet_gear_bank::Config>::GasMultiplier::get().into(),
-                costs: ProcessCosts {
-                    execution: ExtWeights {
-                        syscalls: schedule.host_fn_weights.into(),
-                        waitlist_cost: CostsPerBlockOf::<T>::waitlist(),
-                        dispatch_hold_cost: CostsPerBlockOf::<T>::dispatch_stash(),
-                        reservation: CostsPerBlockOf::<T>::reservation().unique_saturated_into(),
-                        mem_grow: schedule.memory_weights.mem_grow.ref_time().into(),
-                    },
-                    lazy_pages: PageCosts::from(schedule.memory_weights.clone())
-                        .lazy_pages_weights(),
-                    read: DbWeightOf::<T>::get().reads(1).ref_time().into(),
-                    read_per_byte: schedule.db_read_per_byte.ref_time().into(),
-                    write: DbWeightOf::<T>::get().writes(1).ref_time().into(),
-                    static_page: schedule.memory_weights.static_page.ref_time().into(),
-                    instrumentation: schedule.code_instrumentation_cost.ref_time().into(),
-                    instrumentation_per_byte: schedule
-                        .code_instrumentation_byte_cost
-                        .ref_time()
-                        .into(),
-                    module_instantiation_byte_cost: schedule
-                        .module_instantiation_per_byte
-                        .ref_time()
-                        .into(),
-                },
+                costs: schedule.process_costs(),
                 existential_deposit: CurrencyOf::<T>::minimum_balance().unique_saturated_into(),
                 mailbox_threshold: T::MailboxThreshold::get(),
                 max_reservations: T::ReservationsLimit::get(),
