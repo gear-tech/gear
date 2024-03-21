@@ -22,7 +22,8 @@
 #![allow(unused_parens)]
 
 use crate::{weights::WeightInfo, Config, CostsPerBlockOf, DbWeightOf};
-use core_processor::configs::{PageCosts, ProcessCosts, SyscallCosts};
+use common::scheduler::SchedulingCostsPerBlock;
+use core_processor::configs::{ExtWeights, ProcessCosts, SyscallCosts};
 use frame_support::{
     codec::{Decode, Encode},
     traits::Get,
@@ -33,6 +34,7 @@ use gear_core::{
     message,
     pages::{GearPage, PageU32Size, WasmPage, GEAR_PAGE_SIZE},
 };
+use gear_lazy_pages_common::LazyPagesWeights;
 use gear_wasm_instrument::{
     gas_metering::{MemoryGrowCost, Rules},
     parity_wasm::elements::{Instruction, Module, SignExtInstruction, Type},
@@ -41,11 +43,8 @@ use pallet_gear_proc_macro::{ScheduleDebug, WeightDebug};
 use scale_info::TypeInfo;
 #[cfg(feature = "std")]
 use serde::{Deserialize, Serialize};
-use sp_runtime::RuntimeDebug;
+use sp_runtime::{traits::UniqueSaturatedInto, RuntimeDebug};
 use sp_std::{marker::PhantomData, vec::Vec};
-use common::scheduler::SchedulingCostsPerBlock;
-use sp_runtime::traits::UniqueSaturatedInto;
-use core_processor::configs::ExtWeights;
 
 /// How many API calls are executed in a single batch. The reason for increasing the amount
 /// of API calls in batches (per benchmark component increase) is so that the linear regression
@@ -626,26 +625,36 @@ pub struct MemoryWeights<T: Config> {
     pub _phantom: PhantomData<T>,
 }
 
-impl<T: Config> From<MemoryWeights<T>> for PageCosts {
+impl<T: Config> From<MemoryWeights<T>> for LazyPagesWeights {
     fn from(val: MemoryWeights<T>) -> Self {
         Self {
-            lazy_pages_signal_read: val.lazy_pages_signal_read.ref_time().into(),
-            lazy_pages_signal_write: val.lazy_pages_signal_write.ref_time().into(),
-            lazy_pages_signal_write_after_read: val
+            signal_read: val.lazy_pages_signal_read.ref_time().into(),
+            signal_write: val
+                .lazy_pages_signal_write
+                .saturating_add(val.upload_page_data)
+                .ref_time()
+                .into(),
+            signal_write_after_read: val
                 .lazy_pages_signal_write_after_read
+                .saturating_add(val.upload_page_data)
                 .ref_time()
                 .into(),
-            lazy_pages_host_func_read: val.lazy_pages_host_func_read.ref_time().into(),
-            lazy_pages_host_func_write: val.lazy_pages_host_func_write.ref_time().into(),
-            lazy_pages_host_func_write_after_read: val
+            host_func_read: val.lazy_pages_host_func_read.ref_time().into(),
+            host_func_write: val
+                .lazy_pages_host_func_write
+                .saturating_add(val.upload_page_data)
+                .ref_time()
+                .into(),
+            host_func_write_after_read: val
                 .lazy_pages_host_func_write_after_read
+                .saturating_add(val.upload_page_data)
                 .ref_time()
                 .into(),
-            load_page_data: val.load_page_data.ref_time().into(),
-            upload_page_data: val.upload_page_data.ref_time().into(),
-            static_page: val.static_page.ref_time().into(),
-            mem_grow: val.mem_grow.ref_time().into(),
-            parachain_load_heuristic: val.parachain_read_heuristic.ref_time().into(),
+            load_page_storage_data: val
+                .load_page_data
+                .saturating_add(val.parachain_read_heuristic)
+                .ref_time()
+                .into(),
         }
     }
 }
@@ -1159,7 +1168,7 @@ impl<T: Config> Schedule<T> {
                 reservation: CostsPerBlockOf::<T>::reservation().unique_saturated_into(),
                 mem_grow: self.memory_weights.mem_grow.ref_time().into(),
             },
-            lazy_pages: PageCosts::from(self.memory_weights.clone()).lazy_pages_weights(),
+            lazy_pages: self.memory_weights.clone().into(),
             read: DbWeightOf::<T>::get().reads(1).ref_time().into(),
             read_per_byte: self.db_read_per_byte.ref_time().into(),
             write: DbWeightOf::<T>::get().writes(1).ref_time().into(),

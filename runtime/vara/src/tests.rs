@@ -18,7 +18,6 @@
 
 use super::*;
 use crate::Runtime;
-use gear_core_processor::configs::PageCosts;
 use gear_lazy_pages_common::LazyPagesWeights;
 use pallet_gear::{InstructionWeights, MemoryWeights};
 use runtime_common::weights::{check_instructions_weights, check_pages_weights};
@@ -132,22 +131,7 @@ fn instruction_weights_heuristics_test() {
 
 #[test]
 fn page_costs_heuristic_test() {
-    let page_costs: PageCosts = MemoryWeights::<Runtime>::default().into();
-    let lazy_pages_weights: LazyPagesWeights = page_costs.lazy_pages_weights();
-
-    let expected_pages_costs = PageCosts {
-        lazy_pages_signal_read: 28_000_000.into(),
-        lazy_pages_signal_write: 33_000_000.into(),
-        lazy_pages_signal_write_after_read: 10_000_000.into(),
-        lazy_pages_host_func_read: 29_000_000.into(),
-        lazy_pages_host_func_write: 37_500_000.into(),
-        lazy_pages_host_func_write_after_read: 9_000_000.into(),
-        load_page_data: 10_800_000.into(),
-        upload_page_data: 104_000_000.into(),
-        static_page: 100.into(),
-        mem_grow: 1_300_000.into(),
-        parachain_load_heuristic: 0.into(),
-    };
+    let lazy_pages_weights: LazyPagesWeights = MemoryWeights::<Runtime>::default().into();
 
     let expected_lazy_pages_weights = LazyPagesWeights {
         signal_read: 28_000_000.into(),
@@ -159,10 +143,5 @@ fn page_costs_heuristic_test() {
         load_page_storage_data: 10_700_000.into(),
     };
 
-    check_pages_weights(
-        page_costs,
-        expected_pages_costs,
-        lazy_pages_weights,
-        expected_lazy_pages_weights,
-    );
+    check_pages_weights(lazy_pages_weights, expected_lazy_pages_weights);
 }

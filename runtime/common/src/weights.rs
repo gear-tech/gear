@@ -1,4 +1,3 @@
-use gear_core_processor::configs::PageCosts;
 use gear_lazy_pages_common::LazyPagesWeights;
 use pallet_gear::InstructionWeights;
 
@@ -126,55 +125,9 @@ pub fn check_instructions_weights<T: pallet_gear::Config>(
 
 /// Check that the weights of page operations are within the expected range
 pub fn check_pages_weights(
-    weights: PageCosts,
-    expected_page_costs: PageCosts,
     lazy_pages_weights: LazyPagesWeights,
     expected_lazy_pages_weights: LazyPagesWeights,
 ) {
-    check_pages_weight(
-        weights.lazy_pages_signal_read.one(),
-        expected_page_costs.lazy_pages_signal_read.one(),
-    );
-    check_pages_weight(
-        weights.lazy_pages_signal_write.one(),
-        expected_page_costs.lazy_pages_signal_write.one(),
-    );
-    check_pages_weight(
-        weights.lazy_pages_signal_write_after_read.one(),
-        expected_page_costs.lazy_pages_signal_write_after_read.one(),
-    );
-    check_pages_weight(
-        weights.lazy_pages_host_func_read.one(),
-        expected_page_costs.lazy_pages_host_func_read.one(),
-    );
-    check_pages_weight(
-        weights.lazy_pages_host_func_write.one(),
-        expected_page_costs.lazy_pages_host_func_write.one(),
-    );
-    check_pages_weight(
-        weights.lazy_pages_host_func_write_after_read.one(),
-        expected_page_costs
-            .lazy_pages_host_func_write_after_read
-            .one(),
-    );
-    check_pages_weight(
-        weights.load_page_data.one(),
-        expected_page_costs.load_page_data.one(),
-    );
-    check_pages_weight(
-        weights.upload_page_data.one(),
-        expected_page_costs.upload_page_data.one(),
-    );
-    check_pages_weight(
-        weights.static_page.one(),
-        expected_page_costs.static_page.one(),
-    );
-    check_pages_weight(weights.mem_grow.one(), expected_page_costs.mem_grow.one());
-    check_pages_weight(
-        weights.parachain_load_heuristic.one(),
-        expected_page_costs.parachain_load_heuristic.one(),
-    );
-
     check_pages_weight(
         lazy_pages_weights.signal_read.one(),
         expected_lazy_pages_weights.signal_read.one(),

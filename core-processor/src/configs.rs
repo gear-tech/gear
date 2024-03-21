@@ -21,12 +21,11 @@
 use alloc::{collections::BTreeSet, vec::Vec};
 use gear_core::{
     costs::{Bytes, Call, CostPer, CostToken},
-    pages::{GearPage, WasmPage},
+    pages::WasmPage,
 };
 use gear_lazy_pages_common::LazyPagesWeights;
 use gear_wasm_instrument::syscalls::SyscallName;
 use paste::paste;
-use scale_info::scale::{self, Decode, Encode};
 
 /// Number of max pages number to use it in tests.
 pub const TESTS_MAX_PAGES_NUMBER: u16 = 512;
@@ -61,106 +60,6 @@ pub struct ProcessCosts {
     pub static_page: CostPer<WasmPage>,
     /// WASM module instantiation byte cost.
     pub module_instantiation_byte_cost: CostPer<Bytes>,
-}
-
-/// Memory operations costs.
-///
-/// Each weight with `lazy_pages_` prefix contains weight for storage read,
-/// because for each first page access we need at least check if page exists in storage.
-/// But they do not include cost for loading page data from storage into program memory.
-/// This weight is taken in account separately, when loading occurs.
-///
-/// Lazy-pages write accesses does not include cost for uploading page data to storage,
-/// because uploading happens after execution, so benchmarks do not include this cost.
-/// But they include cost for processing changed page data in runtime.
-#[derive(Clone, Debug, Decode, Encode, Default)]
-#[codec(crate = scale)]
-pub struct PageCosts {
-    /// Cost per one [GearPage] signal `read` processing in lazy-pages.
-    pub lazy_pages_signal_read: CostPer<GearPage>,
-
-    /// Cost per one [GearPage] signal `write` processing in lazy-pages,
-    pub lazy_pages_signal_write: CostPer<GearPage>,
-
-    /// Cost per one [GearPage] signal `write after read` processing in lazy-pages.
-    pub lazy_pages_signal_write_after_read: CostPer<GearPage>,
-
-    /// Cost per one [GearPage] host func `read` access processing in lazy-pages.
-    pub lazy_pages_host_func_read: CostPer<GearPage>,
-
-    /// Cost per one [GearPage] host func `write` access processing in lazy-pages.
-    pub lazy_pages_host_func_write: CostPer<GearPage>,
-
-    /// Cost per one [GearPage] host func `write after read` access processing in lazy-pages,
-    pub lazy_pages_host_func_write_after_read: CostPer<GearPage>,
-
-    /// Cost per one [GearPage] data loading from storage and moving it in program memory.
-    /// Does not include cost for storage read, because it is taken in account separately.
-    pub load_page_data: CostPer<GearPage>,
-
-    /// Cost per one [GearPage] uploading data to storage.
-    /// Does not include cost for processing changed page data in runtime,
-    /// cause it is taken in account separately.
-    pub upload_page_data: CostPer<GearPage>,
-
-    /// Cost per one [WasmPage] static page. Static pages can have static data,
-    /// and executor must to move this data to static pages before execution.
-    pub static_page: CostPer<WasmPage>,
-
-    /// Cost per one [WasmPage] for memory growing.
-    pub mem_grow: CostPer<WasmPage>,
-
-    /// Cost per one [GearPage] storage read, when para-chain execution.
-    pub parachain_load_heuristic: CostPer<GearPage>,
-}
-
-impl PageCosts {
-    /// Calculates and returns weights for lazy-pages.
-    pub fn lazy_pages_weights(&self) -> LazyPagesWeights {
-        // Because page may have not data in storage, we do not include
-        // cost for loading page data from storage in weights. We provide
-        // this cost in `load_page_storage_data` field, so lazy-pages can use it
-        // when page data is in storage and must be loaded.
-        // On other hand we include cost for uploading page data to storage
-        // in each `write` weight, because each write cause page uploading.
-        LazyPagesWeights {
-            signal_read: self.lazy_pages_signal_read,
-            signal_write: self
-                .lazy_pages_signal_write
-                .saturating_add(self.upload_page_data),
-            signal_write_after_read: self
-                .lazy_pages_signal_write_after_read
-                .saturating_add(self.upload_page_data),
-            host_func_read: self.lazy_pages_host_func_read,
-            host_func_write: self
-                .lazy_pages_host_func_write
-                .saturating_add(self.upload_page_data),
-            host_func_write_after_read: self
-                .lazy_pages_host_func_write_after_read
-                .saturating_add(self.upload_page_data),
-            load_page_storage_data: self
-                .load_page_data
-                .saturating_add(self.parachain_load_heuristic),
-        }
-    }
-    /// New one for tests usage.
-    pub fn new_for_tests() -> Self {
-        let a = 1000.into();
-        let b = 4000.into();
-        Self {
-            lazy_pages_signal_read: a,
-            lazy_pages_signal_write: a,
-            lazy_pages_signal_write_after_read: a,
-            lazy_pages_host_func_read: a,
-            lazy_pages_host_func_write: a,
-            lazy_pages_host_func_write_after_read: a,
-            load_page_data: a,
-            upload_page_data: a,
-            static_page: b,
-            mem_grow: b,
-            parachain_load_heuristic: a,
-        }
-    }
 }
 
 /// Execution settings for handling messages.
