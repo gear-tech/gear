@@ -83,7 +83,7 @@ pub enum ExportErrorWithContext {
     IncorrectGlobalIndex(u32, String),
     #[error("Global index `{_0}` in export `{_1}` cannot be mutable")]
     MutableGlobalExport(u32, String),
-    #[error("Export `{_0}` references to imported function `{_1}`")]
+    #[error("Export `{_0}` references to import `{_1}`")]
     ExportReferencesToImport(String, String),
     #[error(
         "Exported function `{_0}` must have signature `fn {_0}() {{ ... }}:\n\
@@ -110,7 +110,7 @@ impl TryFrom<(&Module, &ExportError)> for ExportErrorWithContext {
             MutableGlobalExport(global_index, export_index) => {
                 Self::MutableGlobalExport(*global_index, get_export_name(module, *export_index)?)
             }
-            ExportReferencesToImport(export_index, func_index) => {
+            ExportReferencesToImportFunction(export_index, func_index) => {
                 let Some(import_name) = module.import_section().and_then(|section| {
                     section
                         .entries()
@@ -120,6 +120,22 @@ impl TryFrom<(&Module, &ExportError)> for ExportErrorWithContext {
                                 .then_some(import.field().into())
                         })
                         .nth(*func_index as usize)
+                }) else {
+                    bail!("failed to get import entry by index");
+                };
+
+                Self::ExportReferencesToImport(get_export_name(module, *export_index)?, import_name)
+            }
+            ExportReferencesToImportGlobal(export_index, global_index) => {
+                let Some(import_name) = module.import_section().and_then(|section| {
+                    section
+                        .entries()
+                        .iter()
+                        .filter_map(|import| {
+                            matches!(import.external(), External::Global(_))
+                                .then_some(import.field().into())
+                        })
+                        .nth(*global_index as usize)
                 }) else {
                     bail!("failed to get import entry by index");
                 };

@@ -42,7 +42,7 @@ impl MemoryInfix {
 }
 
 /// Program.
-#[derive(Clone, Debug, Decode, Encode)]
+#[derive(Clone, Debug)]
 pub struct Program {
     id: ProgramId,
     memory_infix: MemoryInfix,
@@ -102,6 +102,11 @@ impl Program {
         self.code.static_pages()
     }
 
+    /// Get stack end page if exists.
+    pub fn stack_end(&self) -> Option<WasmPage> {
+        self.code.stack_end()
+    }
+
     /// Get allocations as a set of page numbers.
     pub fn allocations(&self) -> &BTreeSet<WasmPage> {
         &self.allocations
@@ -114,8 +119,6 @@ impl Program {
 }
 
 #[cfg(test)]
-/// This module contains tests of `fn encode_hex(bytes: &[u8]) -> String`
-/// and ProgramId's `fn from_slice(s: &[u8]) -> Self` constructor
 mod tests {
     use super::Program;
     use crate::{code::Code, ids::ProgramId};
