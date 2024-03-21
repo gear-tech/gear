@@ -87,7 +87,7 @@ async function main() {
   core.setOutput("win-native", win_native);
   core.setOutput("macos", macos);
   core.setOutput("release", release);
-  core.setOutput("validator", !skipCI);
+  core.setOutput("validator", validator);
 
   console.log("---");
   console.log("build: ", build);
