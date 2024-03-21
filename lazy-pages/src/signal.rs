@@ -19,7 +19,7 @@
 //! Lazy-pages system signals accesses support.
 
 use crate::{
-    common::{Error, GasCharger, LazyPagesExecutionContext, LazyPagesRuntimeContext, CostNo},
+    common::{CostNo, Error, GasCharger, LazyPagesExecutionContext, LazyPagesRuntimeContext},
     globals::{self, GlobalNo},
     process::{self, AccessHandler},
     LAZY_PAGES_CONTEXT,

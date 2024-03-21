@@ -48,7 +48,7 @@ pub use common::{LazyPagesVersion, PageSizes};
 pub use host_func::pre_process_memory_accesses;
 
 use crate::{
-    common::{ContextError, LazyPagesContext, PagePrefix, CostNo, Costs},
+    common::{ContextError, CostNo, Costs, LazyPagesContext, PagePrefix},
     globals::{GlobalNo, GlobalsContext},
     init_flag::InitializationFlag,
 };
@@ -144,9 +144,9 @@ pub fn initialize_for_program(
 
         let stack_end = WasmPage::new(stack_end, runtime_ctx).ok_or(Error::StackEndOverflow)?;
 
-        let costs: Costs = costs.try_into().map_err(|ws: Vec<u64>| {
-            Error::WrongCostsAmount(ws.len(), CostNo::Amount as usize)
-        })?;
+        let costs: Costs = costs
+            .try_into()
+            .map_err(|costs: Vec<u64>| Error::WrongCostsAmount(costs.len(), CostNo::Amount as usize))?;
 
         let execution_ctx = LazyPagesExecutionContext {
             costs,

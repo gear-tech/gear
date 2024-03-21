@@ -19,7 +19,7 @@
 //! Host function call `pre_process_memory_accesses` support in lazy-pages.
 
 use crate::{
-    common::{Error, GasCharger, LazyPagesExecutionContext, LazyPagesRuntimeContext, CostNo},
+    common::{CostNo, Error, GasCharger, LazyPagesExecutionContext, LazyPagesRuntimeContext},
     process::{self, AccessHandler},
     LAZY_PAGES_CONTEXT,
 };
