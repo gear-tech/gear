@@ -55,9 +55,9 @@ pub enum GlobalsAccessMod {
     NativeRuntime,
 }
 
-/// Lazy-pages cases weights.
+/// Memory pages lazy access costs.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
-pub struct LazyPagesWeights {
+pub struct LazyPagesCosts {
     /// First read page access cost.
     pub signal_read: CostPer<GearPage>,
     /// First write page access cost.

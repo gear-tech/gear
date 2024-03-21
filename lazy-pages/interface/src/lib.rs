@@ -30,7 +30,7 @@ use gear_core::{
     pages::{GearPage, PageNumber, PageU32Size, WasmPage},
     program::MemoryInfix,
 };
-use gear_lazy_pages_common::{GlobalsAccessConfig, LazyPagesWeights, ProcessAccessError, Status};
+use gear_lazy_pages_common::{GlobalsAccessConfig, LazyPagesCosts, ProcessAccessError, Status};
 use gear_runtime_interface::{gear_ri, LazyPagesProgramContext};
 use sp_std::{mem, vec::Vec};
 
@@ -55,16 +55,16 @@ pub fn init_for_program(
     memory_infix: MemoryInfix,
     stack_end: Option<WasmPage>,
     globals_config: GlobalsAccessConfig,
-    weights: LazyPagesWeights,
+    costs: LazyPagesCosts,
 ) {
-    let weights = [
-        weights.signal_read,
-        weights.signal_write,
-        weights.signal_write_after_read,
-        weights.host_func_read,
-        weights.host_func_write,
-        weights.host_func_write_after_read,
-        weights.load_page_storage_data,
+    let costs = [
+        costs.signal_read,
+        costs.signal_write,
+        costs.signal_write_after_read,
+        costs.host_func_read,
+        costs.host_func_write,
+        costs.host_func_write_after_read,
+        costs.load_page_storage_data,
     ]
     .map(|w| w.one())
     .to_vec();
@@ -79,7 +79,7 @@ pub fn init_for_program(
             [program_id.as_ref(), memory_infix.as_ref()].concat()
         },
         globals_config,
-        weights,
+        costs,
     };
 
     // Cannot panic unless OS allocates buffer in not aligned by native page addr, or

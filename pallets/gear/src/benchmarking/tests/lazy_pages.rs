@@ -28,7 +28,7 @@ use gear_core::{
     memory::MemoryInterval,
     pages::{PageNumber, PageU32Size},
 };
-use gear_lazy_pages_common::{LazyPagesWeights, Status};
+use gear_lazy_pages_common::{LazyPagesCosts, Status};
 use rand::{Rng, SeedableRng};
 
 use super::*;
@@ -159,7 +159,7 @@ impl<P: PageU32Size> PageSets<P> {
             .into()
     }
 
-    fn charged_for_pages(&self, costs: &LazyPagesWeights) -> u64 {
+    fn charged_for_pages(&self, costs: &LazyPagesCosts) -> u64 {
         let costs = [
             costs.signal_read,
             costs.signal_write,
@@ -570,7 +570,7 @@ where
         )
         .unwrap();
 
-        exec.block_config.costs.lazy_pages = LazyPagesWeights {
+        exec.block_config.costs.lazy_pages = LazyPagesCosts {
             signal_write: 1.into(),
             ..Default::default()
         };
@@ -608,7 +608,7 @@ where
         )
         .unwrap();
 
-        exec.block_config.costs.lazy_pages = LazyPagesWeights {
+        exec.block_config.costs.lazy_pages = LazyPagesCosts {
             signal_write: 1.into(),
             ..Default::default()
         };

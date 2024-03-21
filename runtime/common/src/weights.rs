@@ -1,4 +1,4 @@
-use gear_lazy_pages_common::LazyPagesWeights;
+use gear_lazy_pages_common::LazyPagesCosts;
 use pallet_gear::InstructionWeights;
 
 const INSTRUCTIONS_SPREAD: u8 = 50;
@@ -123,37 +123,37 @@ pub fn check_instructions_weights<T: pallet_gear::Config>(
     check_instruction_weight(weights.i32rotr, expected.i32rotr);
 }
 
-/// Check that the weights of page operations are within the expected range
-pub fn check_pages_weights(
-    lazy_pages_weights: LazyPagesWeights,
-    expected_lazy_pages_weights: LazyPagesWeights,
+/// Check that the lazy-pages costs are within the expected range
+pub fn check_lazy_pages_costs(
+    lazy_pages_costs: LazyPagesCosts,
+    expected_lazy_pages_costs: LazyPagesCosts,
 ) {
     check_pages_weight(
-        lazy_pages_weights.signal_read.one(),
-        expected_lazy_pages_weights.signal_read.one(),
+        lazy_pages_costs.signal_read.one(),
+        expected_lazy_pages_costs.signal_read.one(),
     );
     check_pages_weight(
-        lazy_pages_weights.signal_write.one(),
-        expected_lazy_pages_weights.signal_write.one(),
+        lazy_pages_costs.signal_write.one(),
+        expected_lazy_pages_costs.signal_write.one(),
     );
     check_pages_weight(
-        lazy_pages_weights.signal_write_after_read.one(),
-        expected_lazy_pages_weights.signal_write_after_read.one(),
+        lazy_pages_costs.signal_write_after_read.one(),
+        expected_lazy_pages_costs.signal_write_after_read.one(),
     );
     check_pages_weight(
-        lazy_pages_weights.host_func_read.one(),
-        expected_lazy_pages_weights.host_func_read.one(),
+        lazy_pages_costs.host_func_read.one(),
+        expected_lazy_pages_costs.host_func_read.one(),
     );
     check_pages_weight(
-        lazy_pages_weights.host_func_write.one(),
-        expected_lazy_pages_weights.host_func_write.one(),
+        lazy_pages_costs.host_func_write.one(),
+        expected_lazy_pages_costs.host_func_write.one(),
     );
     check_pages_weight(
-        lazy_pages_weights.host_func_write_after_read.one(),
-        expected_lazy_pages_weights.host_func_write_after_read.one(),
+        lazy_pages_costs.host_func_write_after_read.one(),
+        expected_lazy_pages_costs.host_func_write_after_read.one(),
     );
     check_pages_weight(
-        lazy_pages_weights.load_page_storage_data.one(),
-        expected_lazy_pages_weights.load_page_storage_data.one(),
+        lazy_pages_costs.load_page_storage_data.one(),
+        expected_lazy_pages_costs.load_page_storage_data.one(),
     );
 }

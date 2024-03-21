@@ -89,7 +89,7 @@ impl<'a> GasPrecharger<'a> {
             instrumentation_cost: block_config.costs.instrumentation,
             instrumentation_cost_per_byte: block_config.costs.instrumentation_per_byte,
             static_page_cost: block_config.costs.static_page,
-            instantiation_per_byte_cost: block_config.costs.module_instantiation_byte_cost,
+            instantiation_per_byte_cost: block_config.costs.module_instantiation_per_byte,
         }
     }
 

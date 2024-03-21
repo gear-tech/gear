@@ -23,7 +23,7 @@ use gear_core::{
     costs::{Blocks, Bytes, Calls, CostPer, SyscallCosts},
     pages::WasmPage,
 };
-use gear_lazy_pages_common::LazyPagesWeights;
+use gear_lazy_pages_common::LazyPagesCosts;
 use gear_wasm_instrument::syscalls::SyscallName;
 
 /// Number of max pages number to use it in tests.
@@ -38,13 +38,28 @@ pub struct BlockInfo {
     pub timestamp: u64,
 }
 
+/// Execution externalities costs.
+#[derive(Debug, Default, Clone)]
+pub struct ExtCosts {
+    /// Syscalls costs.
+    pub syscalls: SyscallCosts,
+    /// Holding message in waitlist cost per block.
+    pub waitlist_cost: CostPer<Blocks>,
+    /// Holding message in dispatch stash cost per block.
+    pub dispatch_hold_cost: CostPer<Blocks>,
+    /// Holding reservation cost per block.
+    pub reservation: CostPer<Blocks>,
+    /// Memory grow cost per page.
+    pub mem_grow: CostPer<WasmPage>,
+}
+
 /// Costs for message processing
 #[derive(Clone, Debug, Default)]
 pub struct ProcessCosts {
     /// Execution externalities costs.
-    pub execution: ExtWeights,
+    pub ext: ExtCosts,
     /// Lazy pages costs.
-    pub lazy_pages: LazyPagesWeights,
+    pub lazy_pages: LazyPagesCosts,
     /// Storage read cost.
     pub read: CostPer<Calls>,
     /// Storage read per byte cost.
@@ -57,9 +72,8 @@ pub struct ProcessCosts {
     pub instrumentation_per_byte: CostPer<Bytes>,
     /// Static page cost.
     pub static_page: CostPer<WasmPage>,
-    // +_+_+ rename
     /// WASM module instantiation per byte cost.
-    pub module_instantiation_byte_cost: CostPer<Bytes>,
+    pub module_instantiation_per_byte: CostPer<Bytes>,
 }
 
 /// Execution settings for handling messages.
@@ -69,9 +83,9 @@ pub(crate) struct ExecutionSettings {
     /// Performance multiplier.
     pub performance_multiplier: gsys::Percent,
     /// Execution externalities costs.
-    pub ext_costs: ExtWeights,
+    pub ext_costs: ExtCosts,
     /// Lazy pages costs.
-    pub lazy_pages_costs: LazyPagesWeights,
+    pub lazy_pages_costs: LazyPagesCosts,
     /// Existential deposit.
     pub existential_deposit: u128,
     /// Mailbox threshold.
@@ -116,20 +130,4 @@ pub struct BlockConfig {
     pub outgoing_limit: u32,
     /// Outgoing bytes limit.
     pub outgoing_bytes_limit: u32,
-}
-
-// +_+_+ change naming weights to cost
-/// Execution externalities costs.
-#[derive(Debug, Default, Clone)]
-pub struct ExtWeights {
-    /// Syscalls costs.
-    pub syscalls: SyscallCosts,
-    /// Holding message in waitlist cost per block.
-    pub waitlist_cost: CostPer<Blocks>,
-    /// Holding message in dispatch stash cost per block.
-    pub dispatch_hold_cost: CostPer<Blocks>,
-    /// Holding reservation cost per block.
-    pub reservation: CostPer<Blocks>,
-    /// Memory grow cost per page.
-    pub mem_grow: CostPer<WasmPage>,
 }

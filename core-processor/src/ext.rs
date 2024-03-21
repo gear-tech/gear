@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    configs::{BlockInfo, ExtWeights},
+    configs::{BlockInfo, ExtCosts},
     context::SystemReservationContext,
 };
 use alloc::{
@@ -56,7 +56,7 @@ use gear_core_errors::{
     ExecutionError as FallibleExecutionError, ExtError as FallibleExtErrorCore, MessageError,
     ReplyCode, ReservationError, SignalCode,
 };
-use gear_lazy_pages_common::{GlobalsAccessConfig, LazyPagesWeights, ProcessAccessError, Status};
+use gear_lazy_pages_common::{GlobalsAccessConfig, LazyPagesCosts, ProcessAccessError, Status};
 use gear_wasm_instrument::syscalls::SyscallName;
 
 /// Processor context.
@@ -97,7 +97,7 @@ pub struct ProcessorContext {
     /// Mailbox threshold.
     pub mailbox_threshold: u64,
     /// Execution externalities costs.
-    pub costs: ExtWeights,
+    pub costs: ExtCosts,
 }
 
 // #[cfg(any(feature = "mock", test))]
@@ -173,7 +173,7 @@ pub trait ProcessorExternalities {
         memory_infix: MemoryInfix,
         stack_end: Option<WasmPage>,
         globals_config: GlobalsAccessConfig,
-        lazy_pages_weights: LazyPagesWeights,
+        lazy_pages_costs: LazyPagesCosts,
     );
 
     /// Lazy pages program post execution actions
@@ -418,7 +418,7 @@ impl ProcessorExternalities for Ext {
         memory_infix: MemoryInfix,
         stack_end: Option<WasmPage>,
         globals_config: GlobalsAccessConfig,
-        lazy_pages_weights: LazyPagesWeights,
+        lazy_pages_costs: LazyPagesCosts,
     ) {
         gear_lazy_pages_interface::init_for_program(
             mem,
@@ -426,7 +426,7 @@ impl ProcessorExternalities for Ext {
             memory_infix,
             stack_end,
             globals_config,
-            lazy_pages_weights,
+            lazy_pages_costs,
         );
     }
 
@@ -1304,8 +1304,8 @@ mod tests {
             self
         }
 
-        fn with_weighs(mut self, weights: ExtWeights) -> Self {
-            self.0.costs = weights;
+        fn with_costs(mut self, costs: ExtCosts) -> Self {
+            self.0.costs = costs;
 
             self
         }
@@ -1359,23 +1359,23 @@ mod tests {
     #[test]
     fn test_counter_zeroes() {
         // Set initial Ext state
-        let free_weight = 1000;
-        let host_fn_weights = ExtWeights {
+        let free_cost = 1000;
+        let ext_costs = ExtCosts {
             syscalls: SyscallCosts {
-                free: free_weight.into(),
+                free: free_cost.into(),
                 ..Default::default()
             },
             ..Default::default()
         };
 
-        let initial_gas = free_weight - 1;
-        let initial_allowance = free_weight + 1;
+        let initial_gas = free_cost - 1;
+        let initial_allowance = free_cost + 1;
 
         let mut lack_gas_ext = Ext::new(
             ProcessorContextBuilder::new()
                 .with_gas(GasCounter::new(initial_gas))
                 .with_allowance(GasAllowanceCounter::new(initial_allowance))
-                .with_weighs(host_fn_weights.clone())
+                .with_costs(ext_costs.clone())
                 .build(),
         );
 
@@ -1389,16 +1389,16 @@ mod tests {
         // there was lack of gas
         assert_eq!(0, gas_amount.left());
         assert_eq!(initial_gas, gas_amount.burned());
-        assert_eq!(initial_allowance - free_weight, allowance);
+        assert_eq!(initial_allowance - free_cost, allowance);
 
-        let initial_gas = free_weight;
-        let initial_allowance = free_weight - 1;
+        let initial_gas = free_cost;
+        let initial_allowance = free_cost - 1;
 
         let mut lack_allowance_ext = Ext::new(
             ProcessorContextBuilder::new()
                 .with_gas(GasCounter::new(initial_gas))
                 .with_allowance(GasAllowanceCounter::new(initial_allowance))
-                .with_weighs(host_fn_weights)
+                .with_costs(ext_costs)
                 .build(),
         );
 
@@ -1409,7 +1409,7 @@ mod tests {
 
         let gas_amount = lack_allowance_ext.gas_amount();
         let allowance = lack_allowance_ext.context.gas_allowance_counter.left();
-        assert_eq!(initial_gas - free_weight, gas_amount.left());
+        assert_eq!(initial_gas - free_cost, gas_amount.left());
         assert_eq!(initial_gas, gas_amount.burned());
         // there was lack of allowance
         assert_eq!(0, allowance);

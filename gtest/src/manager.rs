@@ -26,7 +26,7 @@ use crate::{
 };
 use core_processor::{
     common::*,
-    configs::{BlockConfig, BlockInfo, ExtWeights, ProcessCosts, TESTS_MAX_PAGES_NUMBER},
+    configs::{BlockConfig, BlockInfo, ExtCosts, ProcessCosts, TESTS_MAX_PAGES_NUMBER},
     ContextChargedForCode, ContextChargedForInstrumentation, Ext,
 };
 use gear_core::{
@@ -42,7 +42,7 @@ use gear_core::{
     reservation::{GasReservationMap, GasReserver},
 };
 use gear_core_errors::{ErrorReplyReason, SignalCode, SimpleExecutionError};
-use gear_lazy_pages_common::LazyPagesWeights;
+use gear_lazy_pages_common::LazyPagesCosts;
 use gear_wasm_instrument::gas_metering::Schedule;
 use rand::{rngs::StdRng, RngCore, SeedableRng};
 use std::{
@@ -873,21 +873,21 @@ impl ExtManager {
             reserve_for: RESERVE_FOR,
             gas_multiplier: gsys::GasMultiplier::from_value_per_gas(VALUE_PER_GAS),
             costs: ProcessCosts {
-                execution: ExtWeights {
+                ext: ExtCosts {
                     syscalls: Default::default(),
                     reservation: RESERVATION_COST.into(),
                     waitlist_cost: WAITLIST_COST.into(),
                     dispatch_hold_cost: DISPATCH_HOLD_COST.into(),
                     mem_grow: Default::default(),
                 },
-                lazy_pages: LazyPagesWeights::default(),
+                lazy_pages: LazyPagesCosts::default(),
                 read: READ_COST.into(),
                 read_per_byte: READ_PER_BYTE_COST.into(),
                 write: WRITE_COST.into(),
                 instrumentation: MODULE_INSTRUMENTATION_COST.into(),
                 instrumentation_per_byte: MODULE_INSTRUMENTATION_BYTE_COST.into(),
                 static_page: Default::default(),
-                module_instantiation_byte_cost: MODULE_INSTANTIATION_BYTE_COST.into(),
+                module_instantiation_per_byte: MODULE_INSTANTIATION_BYTE_COST.into(),
             },
             existential_deposit: EXISTENTIAL_DEPOSIT,
             mailbox_threshold: MAILBOX_THRESHOLD,

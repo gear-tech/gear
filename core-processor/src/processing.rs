@@ -80,7 +80,7 @@ where
         existential_deposit,
         mailbox_threshold,
         max_pages,
-        ext_costs: costs.execution,
+        ext_costs: costs.ext,
         lazy_pages_costs: costs.lazy_pages,
         forbidden_funcs,
         reserve_for,

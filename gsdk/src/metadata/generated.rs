@@ -2523,7 +2523,7 @@ pub mod runtime_types {
                     pub limits: runtime_types::pallet_gear::schedule::Limits,
                     pub instruction_weights:
                         runtime_types::pallet_gear::schedule::InstructionWeights,
-                    pub host_fn_weights: runtime_types::pallet_gear::schedule::SyscallWeights,
+                    pub syscall_weights: runtime_types::pallet_gear::schedule::SyscallWeights,
                     pub memory_weights: runtime_types::pallet_gear::schedule::MemoryWeights,
                     pub module_instantiation_per_byte: runtime_types::sp_weights::weight_v2::Weight,
                     pub db_write_per_byte: runtime_types::sp_weights::weight_v2::Weight,

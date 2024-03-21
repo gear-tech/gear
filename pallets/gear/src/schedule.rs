@@ -23,7 +23,7 @@
 
 use crate::{weights::WeightInfo, Config, CostsPerBlockOf, DbWeightOf};
 use common::scheduler::SchedulingCostsPerBlock;
-use core_processor::configs::{ExtWeights, ProcessCosts};
+use core_processor::configs::{ExtCosts, ProcessCosts};
 use frame_support::{
     codec::{Decode, Encode},
     traits::Get,
@@ -35,7 +35,7 @@ use gear_core::{
     message,
     pages::{GearPage, PageU32Size, WasmPage, GEAR_PAGE_SIZE},
 };
-use gear_lazy_pages_common::LazyPagesWeights;
+use gear_lazy_pages_common::LazyPagesCosts;
 use gear_wasm_instrument::{
     gas_metering::{MemoryGrowCost, Rules},
     parity_wasm::elements::{Instruction, Module, SignExtInstruction, Type},
@@ -114,7 +114,7 @@ pub struct Schedule<T: Config> {
     pub instruction_weights: InstructionWeights<T>,
 
     /// The weights for each imported function a program is allowed to call.
-    pub host_fn_weights: SyscallWeights<T>,
+    pub syscall_weights: SyscallWeights<T>,
 
     /// The weights for memory interaction.
     pub memory_weights: MemoryWeights<T>,
@@ -626,7 +626,7 @@ pub struct MemoryWeights<T: Config> {
     pub _phantom: PhantomData<T>,
 }
 
-impl<T: Config> From<MemoryWeights<T>> for LazyPagesWeights {
+impl<T: Config> From<MemoryWeights<T>> for LazyPagesCosts {
     fn from(val: MemoryWeights<T>) -> Self {
         Self {
             signal_read: val.lazy_pages_signal_read.ref_time().into(),
@@ -752,7 +752,7 @@ impl<T: Config> Default for Schedule<T> {
         Self {
             limits: Default::default(),
             instruction_weights: Default::default(),
-            host_fn_weights: Default::default(),
+            syscall_weights: Default::default(),
             memory_weights: Default::default(),
             db_write_per_byte: to_weight!(cost_byte!(db_write_per_kb)),
             db_read_per_byte: to_weight!(cost_byte!(db_read_per_kb)),
@@ -1162,8 +1162,8 @@ impl<T: Config> Schedule<T> {
 
     pub fn process_costs(&self) -> ProcessCosts {
         ProcessCosts {
-            execution: ExtWeights {
-                syscalls: self.host_fn_weights.clone().into(),
+            ext: ExtCosts {
+                syscalls: self.syscall_weights.clone().into(),
                 waitlist_cost: CostsPerBlockOf::<T>::waitlist().into(),
                 dispatch_hold_cost: CostsPerBlockOf::<T>::dispatch_stash().into(),
                 reservation: CostsPerBlockOf::<T>::reservation().into(),
@@ -1176,7 +1176,7 @@ impl<T: Config> Schedule<T> {
             static_page: self.memory_weights.static_page.ref_time().into(),
             instrumentation: self.code_instrumentation_cost.ref_time().into(),
             instrumentation_per_byte: self.code_instrumentation_byte_cost.ref_time().into(),
-            module_instantiation_byte_cost: self.module_instantiation_per_byte.ref_time().into(),
+            module_instantiation_per_byte: self.module_instantiation_per_byte.ref_time().into(),
         }
     }
 }

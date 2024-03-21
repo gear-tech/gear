@@ -18,9 +18,9 @@
 
 use super::*;
 use crate::Runtime;
-use gear_lazy_pages_common::LazyPagesWeights;
+use gear_lazy_pages_common::LazyPagesCosts;
 use pallet_gear::{InstructionWeights, MemoryWeights};
-use runtime_common::weights::{check_instructions_weights, check_pages_weights};
+use runtime_common::weights::{check_instructions_weights, check_lazy_pages_costs};
 
 #[test]
 fn instruction_weights_heuristics_test() {
@@ -131,9 +131,9 @@ fn instruction_weights_heuristics_test() {
 
 #[test]
 fn page_costs_heuristic_test() {
-    let lazy_pages_weights: LazyPagesWeights = MemoryWeights::<Runtime>::default().into();
+    let lazy_pages_costs: LazyPagesCosts = MemoryWeights::<Runtime>::default().into();
 
-    let expected_lazy_pages_weights = LazyPagesWeights {
+    let expected_lazy_pages_costs = LazyPagesCosts {
         signal_read: 28_000_000.into(),
         signal_write: 138_000_000.into(),
         signal_write_after_read: 112_000_000.into(),
@@ -143,5 +143,5 @@ fn page_costs_heuristic_test() {
         load_page_storage_data: 10_700_000.into(),
     };
 
-    check_pages_weights(lazy_pages_weights, expected_lazy_pages_weights);
+    check_lazy_pages_costs(lazy_pages_costs, expected_lazy_pages_costs);
 }

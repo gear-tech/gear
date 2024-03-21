@@ -54,7 +54,7 @@ use gear_core_backend::{
     memory::MemoryWrap,
     BackendExternalities,
 };
-use gear_lazy_pages_common::{GlobalsAccessConfig, LazyPagesWeights};
+use gear_lazy_pages_common::{GlobalsAccessConfig, LazyPagesCosts};
 use scale_info::{
     scale::{self, Decode, Encode},
     TypeInfo,
@@ -111,7 +111,7 @@ fn prepare_memory<ProcessorExt: ProcessorExternalities, EnvMem: Memory>(
     static_pages: WasmPage,
     stack_end: Option<u32>,
     globals_config: GlobalsAccessConfig,
-    lazy_pages_weights: LazyPagesWeights,
+    lazy_pages_costs: LazyPagesCosts,
 ) -> Result<(), PrepareMemoryError> {
     let stack_end = if let Some(stack_end) = stack_end {
         let stack_end = (stack_end % WasmPage::size() == 0)
@@ -137,7 +137,7 @@ fn prepare_memory<ProcessorExt: ProcessorExternalities, EnvMem: Memory>(
         memory_infix,
         stack_end,
         globals_config,
-        lazy_pages_weights,
+        lazy_pages_costs,
     );
 
     Ok(())
@@ -228,7 +228,7 @@ where
         costs: settings.ext_costs,
     };
 
-    let lazy_pages_weights = settings.lazy_pages_costs;
+    let lazy_pages_costs = settings.lazy_pages_costs;
 
     // Creating externalities.
     let ext = Ext::new(context);
@@ -251,7 +251,7 @@ where
                 static_pages,
                 stack_end,
                 globals_config,
-                lazy_pages_weights,
+                lazy_pages_costs,
             )
         })
     };
@@ -423,7 +423,7 @@ where
         costs: Default::default(),
     };
 
-    let lazy_pages_weights = Default::default();
+    let lazy_pages_costs = Default::default();
 
     // Creating externalities.
     let ext = Ext::new(context);
@@ -446,7 +446,7 @@ where
                 static_pages,
                 stack_end,
                 globals_config,
-                lazy_pages_weights,
+                lazy_pages_costs,
             )
         })
     };
