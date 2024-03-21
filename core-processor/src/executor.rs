@@ -19,7 +19,7 @@
 use crate::{
     common::{
         ActorExecutionError, ActorExecutionErrorReplyReason, DispatchResult, DispatchResultKind,
-        ExecutionError, MemoryParamsError, SystemExecutionError, WasmExecutionContext,
+        ExecutionError, MemorySetupError, SystemExecutionError, WasmExecutionContext,
     },
     configs::{BlockInfo, ExecutionSettings},
     ext::{ProcessorContext, ProcessorExternalities},
@@ -53,22 +53,24 @@ use gear_core_backend::{
     BackendExternalities,
 };
 
+/// Checks memory parameters, that are provided for wasm execution.
+/// NOTE: this params partially checked in `Code::try_new` in `gear-core`.
 fn validate_memory_params(
     memory_size: WasmPage,
     static_pages: WasmPage,
     stack_end: Option<WasmPage>,
     allocations: &BTreeSet<WasmPage>,
     max_pages: WasmPage,
-) -> Result<(), MemoryParamsError> {
+) -> Result<(), MemorySetupError> {
     if memory_size > max_pages {
-        return Err(MemoryParamsError::MemorySizeExceedsMaxPages {
+        return Err(MemorySetupError::MemorySizeExceedsMaxPages {
             memory_size,
             max_pages,
         });
     }
 
     if static_pages > memory_size {
-        return Err(MemoryParamsError::InsufficientMemorySize {
+        return Err(MemorySetupError::InsufficientMemorySize {
             memory_size,
             static_pages,
         });
@@ -76,7 +78,7 @@ fn validate_memory_params(
 
     if let Some(stack_end) = stack_end {
         if stack_end > static_pages {
-            return Err(MemoryParamsError::StackEndOutOfStaticMemory {
+            return Err(MemorySetupError::StackEndOutOfStaticMemory {
                 stack_end,
                 static_pages,
             });
@@ -85,7 +87,7 @@ fn validate_memory_params(
 
     if let Some(&page) = allocations.last() {
         if page >= memory_size {
-            return Err(MemoryParamsError::AllocatedPageOutOfAllowedInterval {
+            return Err(MemorySetupError::AllocatedPageOutOfAllowedInterval {
                 page,
                 static_pages,
                 memory_size,
@@ -94,7 +96,7 @@ fn validate_memory_params(
     }
     if let Some(&page) = allocations.first() {
         if page < static_pages {
-            return Err(MemoryParamsError::AllocatedPageOutOfAllowedInterval {
+            return Err(MemorySetupError::AllocatedPageOutOfAllowedInterval {
                 page,
                 static_pages,
                 memory_size,
@@ -134,7 +136,7 @@ where
     log::debug!("Executing program {}", program_id);
     log::debug!("Executing dispatch {:?}", dispatch);
 
-    // TODO: move to `AllocationContext::new` #3813
+    // TODO: move to `AllocationsContext::new` #3813
     validate_memory_params(
         memory_size,
         program.static_pages(),
@@ -210,14 +212,14 @@ where
 
     // Execute program in backend env.
     let execute = || {
-        Environment::new(
+        let env = Environment::new(
             ext,
             program.code_bytes(),
             kind,
             program.code().exports().clone(),
             memory_size,
-        )?
-        .execute(|memory, globals_config| {
+        )?;
+        env.execute(|memory, globals_config| {
             Ext::lazy_pages_init_for_program(
                 memory,
                 program_id,
@@ -400,14 +402,14 @@ where
 
     // Execute program in backend env.
     let execute = || {
-        Environment::new(
+        let env = Environment::new(
             ext,
             program.code_bytes(),
             function,
             program.code().exports().clone(),
             memory_size,
-        )?
-        .execute(|memory, globals_config| {
+        )?;
+        env.execute(|memory, globals_config| {
             Ext::lazy_pages_init_for_program(
                 memory,
                 program_id,
@@ -498,7 +500,7 @@ mod tests {
                 &BTreeSet::new(),
                 3.into(),
             ),
-            Err(MemoryParamsError::MemorySizeExceedsMaxPages {
+            Err(MemorySetupError::MemorySizeExceedsMaxPages {
                 memory_size: 4.into(),
                 max_pages: 3.into()
             })
@@ -512,7 +514,7 @@ mod tests {
                 &BTreeSet::new(),
                 4.into(),
             ),
-            Err(MemoryParamsError::InsufficientMemorySize {
+            Err(MemorySetupError::InsufficientMemorySize {
                 memory_size: 1.into(),
                 static_pages: 2.into()
             })
@@ -526,7 +528,7 @@ mod tests {
                 &BTreeSet::new(),
                 4.into(),
             ),
-            Err(MemoryParamsError::StackEndOutOfStaticMemory {
+            Err(MemorySetupError::StackEndOutOfStaticMemory {
                 stack_end: 3.into(),
                 static_pages: 2.into()
             })
@@ -540,7 +542,7 @@ mod tests {
                 &iter::once(1.into()).collect(),
                 4.into(),
             ),
-            Err(MemoryParamsError::AllocatedPageOutOfAllowedInterval {
+            Err(MemorySetupError::AllocatedPageOutOfAllowedInterval {
                 page: 1.into(),
                 static_pages: 2.into(),
                 memory_size: 4.into()
@@ -555,7 +557,7 @@ mod tests {
                 &iter::once(4.into()).collect(),
                 4.into(),
             ),
-            Err(MemoryParamsError::AllocatedPageOutOfAllowedInterval {
+            Err(MemorySetupError::AllocatedPageOutOfAllowedInterval {
                 page: 4.into(),
                 static_pages: 2.into(),
                 memory_size: 4.into()
