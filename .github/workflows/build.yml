@@ -78,6 +78,9 @@ jobs:
       - name: "Build: Gear"
         run: ./scripts/gear.sh build gear --locked ${{ matrix.profile_flags }}
 
+      - name: "Build: Examples"
+        run: ./scripts/gear.sh build examples --locked ${{ matrix.profile_flags }}
+
       - name: "Build fuzzer"
         run: ./scripts/gear.sh build fuzz --locked ${{ matrix.profile_flags }}
 
@@ -142,9 +145,10 @@ jobs:
 
       - name: Prepare artifacts
         # if: ${{ github.event_name == 'push' && inputs.release }}
+        if: ${{ inputs.release }}
         run: |
           mkdir -p artifact
-          tar czvf artifact/examples.tar.gz target/debug/wasm32-unknown-unknown/*.wasm
+          tar czvf artifact/examples.tar.gz target/wasm32-unknown-unknown/release/*.wasm
           cp target/production/wbuild/vara-runtime/vara_runtime.compact.compressed.wasm artifact/
           cp target/production/wbuild/vara-runtime/vara_runtime.compact.wasm artifact/
           cp target/production/wbuild/vara-runtime/vara_runtime.wasm artifact/
