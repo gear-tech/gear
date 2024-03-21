@@ -23,7 +23,7 @@
 
 use crate::{weights::WeightInfo, Config, CostsPerBlockOf, DbWeightOf};
 use common::scheduler::SchedulingCostsPerBlock;
-use core_processor::configs::{ExtWeights, ProcessCosts, SyscallCosts};
+use core_processor::configs::{ExtWeights, ProcessCosts};
 use frame_support::{
     codec::{Decode, Encode},
     traits::Get,
@@ -31,6 +31,7 @@ use frame_support::{
 };
 use gear_core::{
     code::MAX_WASM_PAGE_AMOUNT,
+    costs::SyscallCosts,
     message,
     pages::{GearPage, PageU32Size, WasmPage, GEAR_PAGE_SIZE},
 };

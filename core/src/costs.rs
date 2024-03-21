@@ -18,7 +18,9 @@
 
 //! Costs module.
 
+use crate::pages::WasmPage;
 use core::{fmt::Debug, marker::PhantomData};
+use paste::paste;
 
 /// Gas cost per some type of action or data size.
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -73,19 +75,235 @@ impl<T> Default for CostPer<T> {
     }
 }
 
-/// +_+_+
+/// Some actions or calls amount.
 #[derive(Debug, Default, Clone, Copy, derive_more::From, derive_more::Into)]
 pub struct Calls(u32);
 
-/// +_+_+
+/// Bytes amount.
 #[derive(Debug, Default, Clone, Copy, derive_more::From, derive_more::Into)]
 pub struct Bytes(u32);
 
-/// +_+_+
+/// Chain blocks amount.
 #[derive(Debug, Default, Clone, Copy, derive_more::From, derive_more::Into)]
 pub struct Blocks(u32);
 
-// +_+_+ comments
+/// Program imported function call (syscall) costs.
+#[derive(Debug, Clone, Default)]
+pub struct SyscallCosts {
+    /// Weight of calling `alloc`.
+    pub alloc: CostPer<Calls>,
+
+    /// Weight per allocated page for `alloc`.
+    pub alloc_per_page: CostPer<WasmPage>,
+
+    /// Weight of calling `free`.
+    pub free: CostPer<Calls>,
+
+    /// Weight of calling `free_range`
+    pub free_range: CostPer<Calls>,
+
+    /// Weight of calling `free_range` per page
+    pub free_range_per_page: CostPer<WasmPage>,
+
+    /// Weight of calling `gr_reserve_gas`.
+    pub gr_reserve_gas: CostPer<Calls>,
+
+    /// Weight of calling `gr_unreserve_gas`
+    pub gr_unreserve_gas: CostPer<Calls>,
+
+    /// Weight of calling `gr_system_reserve_gas`
+    pub gr_system_reserve_gas: CostPer<Calls>,
+
+    /// Weight of calling `gr_gas_available`.
+    pub gr_gas_available: CostPer<Calls>,
+
+    /// Weight of calling `gr_message_id`.
+    pub gr_message_id: CostPer<Calls>,
+
+    /// Weight of calling `gr_program_id`.
+    pub gr_program_id: CostPer<Calls>,
+
+    /// Weight of calling `gr_source`.
+    pub gr_source: CostPer<Calls>,
+
+    /// Weight of calling `gr_value`.
+    pub gr_value: CostPer<Calls>,
+
+    /// Weight of calling `gr_value_available`.
+    pub gr_value_available: CostPer<Calls>,
+
+    /// Weight of calling `gr_size`.
+    pub gr_size: CostPer<Calls>,
+
+    /// Weight of calling `gr_read`.
+    pub gr_read: CostPer<Calls>,
+
+    /// Weight per payload byte for `gr_read`.
+    pub gr_read_per_byte: CostPer<Bytes>,
+
+    /// Weight of calling `gr_env_vars`.
+    pub gr_env_vars: CostPer<Calls>,
+
+    /// Weight of calling `gr_block_height`.
+    pub gr_block_height: CostPer<Calls>,
+
+    /// Weight of calling `gr_block_timestamp`.
+    pub gr_block_timestamp: CostPer<Calls>,
+
+    /// Weight of calling `gr_random`.
+    pub gr_random: CostPer<Calls>,
+
+    /// Weight of calling `gr_reply_deposit`.
+    pub gr_reply_deposit: CostPer<Calls>,
+
+    /// Weight of calling `gr_send`
+    pub gr_send: CostPer<Calls>,
+
+    /// Weight per bytes for `gr_send`.
+    pub gr_send_per_byte: CostPer<Bytes>,
+
+    /// Weight of calling `gr_send_wgas`.
+    pub gr_send_wgas: CostPer<Calls>,
+
+    /// Weight of calling `gr_send_wgas` per one payload byte.
+    pub gr_send_wgas_per_byte: CostPer<Bytes>,
+
+    /// Weight of calling `gr_send_init`.
+    pub gr_send_init: CostPer<Calls>,
+
+    /// Weight of calling `gr_send_push`.
+    pub gr_send_push: CostPer<Calls>,
+
+    /// Weight per payload byte by `gr_send_push`.
+    pub gr_send_push_per_byte: CostPer<Bytes>,
+
+    /// Weight of calling `gr_send_commit`.
+    pub gr_send_commit: CostPer<Calls>,
+
+    /// Weight of calling `gr_send_commit_wgas`.
+    pub gr_send_commit_wgas: CostPer<Calls>,
+
+    /// Weight of calling `gr_reservation_send`.
+    pub gr_reservation_send: CostPer<Calls>,
+
+    /// Weight of calling `gr_reservation_send` per one payload byte.
+    pub gr_reservation_send_per_byte: CostPer<Bytes>,
+
+    /// Weight of calling `gr_reservation_send_commit`.
+    pub gr_reservation_send_commit: CostPer<Calls>,
+
+    /// Weight of calling `gr_send_init`.
+    pub gr_send_input: CostPer<Calls>,
+
+    /// Weight of calling `gr_send_init_wgas`.
+    pub gr_send_input_wgas: CostPer<Calls>,
+
+    /// Weight of calling `gr_send_push_input`.
+    pub gr_send_push_input: CostPer<Calls>,
+
+    /// Weight per payload byte by `gr_send_push_input`.
+    pub gr_send_push_input_per_byte: CostPer<Bytes>,
+
+    /// Weight of calling `gr_reply`.
+    pub gr_reply: CostPer<Calls>,
+
+    /// Weight of calling `gr_reply` per one payload byte.
+    pub gr_reply_per_byte: CostPer<Bytes>,
+
+    /// Weight of calling `gr_reply_wgas`.
+    pub gr_reply_wgas: CostPer<Calls>,
+
+    /// Weight of calling `gr_reply_wgas` per one payload byte.
+    pub gr_reply_wgas_per_byte: CostPer<Bytes>,
+
+    /// Weight of calling `gr_reply_commit`.
+    pub gr_reply_commit: CostPer<Calls>,
+
+    /// Weight of calling `gr_reply_commit_wgas`.
+    pub gr_reply_commit_wgas: CostPer<Calls>,
+
+    /// Weight of calling `gr_reservation_reply`.
+    pub gr_reservation_reply: CostPer<Calls>,
+
+    /// Weight of calling `gr_reservation_reply` per one payload byte.
+    pub gr_reservation_reply_per_byte: CostPer<Bytes>,
+
+    /// Weight of calling `gr_reservation_reply_commit`.
+    pub gr_reservation_reply_commit: CostPer<Calls>,
+
+    /// Weight of calling `gr_reply_push`.
+    pub gr_reply_push: CostPer<Calls>,
+
+    /// Weight per payload byte by `gr_reply_push`.
+    pub gr_reply_push_per_byte: CostPer<Bytes>,
+
+    /// Weight of calling `gr_reply_input`.
+    pub gr_reply_input: CostPer<Calls>,
+
+    /// Weight of calling `gr_reply_input_wgas`.
+    pub gr_reply_input_wgas: CostPer<Calls>,
+
+    /// Weight of calling `gr_reply_push_input`.
+    pub gr_reply_push_input: CostPer<Calls>,
+
+    /// Weight per payload byte by `gr_reply_push_input`.
+    pub gr_reply_push_input_per_byte: CostPer<Bytes>,
+
+    /// Weight of calling `gr_reply_to`.
+    pub gr_reply_to: CostPer<Calls>,
+
+    /// Weight of calling `gr_signal_code`.
+    pub gr_signal_code: CostPer<Calls>,
+
+    /// Weight of calling `gr_signal_from`.
+    pub gr_signal_from: CostPer<Calls>,
+
+    /// Weight of calling `gr_debug`.
+    pub gr_debug: CostPer<Calls>,
+
+    /// Weight per payload byte by `gr_debug`.
+    pub gr_debug_per_byte: CostPer<Bytes>,
+
+    /// Weight of calling `gr_reply_code`.
+    pub gr_reply_code: CostPer<Calls>,
+
+    /// Weight of calling `gr_exit`.
+    pub gr_exit: CostPer<Calls>,
+
+    /// Weight of calling `gr_leave`.
+    pub gr_leave: CostPer<Calls>,
+
+    /// Weight of calling `gr_wait`.
+    pub gr_wait: CostPer<Calls>,
+
+    /// Weight of calling `gr_wait_for`.
+    pub gr_wait_for: CostPer<Calls>,
+
+    /// Weight of calling `gr_wait_up_to`.
+    pub gr_wait_up_to: CostPer<Calls>,
+
+    /// Weight of calling `gr_wake`.
+    pub gr_wake: CostPer<Calls>,
+
+    /// Weight of calling `gr_create_program_wgas`.
+    pub gr_create_program: CostPer<Calls>,
+
+    /// Weight per payload byte by `gr_create_program_wgas`.
+    pub gr_create_program_payload_per_byte: CostPer<Bytes>,
+
+    /// Weight per salt byte by `gr_create_program_wgas`.
+    pub gr_create_program_salt_per_byte: CostPer<Bytes>,
+
+    /// Weight of calling `gr_create_program_wgas`.
+    pub gr_create_program_wgas: CostPer<Calls>,
+
+    /// Weight per payload byte by `gr_create_program_wgas`.
+    pub gr_create_program_wgas_payload_per_byte: CostPer<Bytes>,
+
+    /// Weight per salt byte by `gr_create_program_wgas`.
+    pub gr_create_program_wgas_salt_per_byte: CostPer<Bytes>,
+}
+
 /// Enumerates syscalls that can be charged by gas meter.
 #[derive(Debug, Copy, Clone)]
 pub enum CostToken {
@@ -129,19 +347,19 @@ pub enum CostToken {
     Random,
     /// Charge for calling `gr_reply_deposit`.
     ReplyDeposit,
-    /// Charge for calling `gr_send`.
+    /// Charge for calling `gr_send`, taking in account payload size.
     Send(Bytes),
-    /// Charge for calling `gr_send_wgas`.
+    /// Charge for calling `gr_send_wgas`, taking in account payload size.
     SendWGas(Bytes),
     /// Charge for calling `gr_send_init`.
     SendInit,
-    /// Charge for calling `gr_send_push`.
+    /// Charge for calling `gr_send_push`, taking in account payload size.
     SendPush(Bytes),
     /// Charge for calling `gr_send_commit`.
     SendCommit,
     /// Charge for calling `gr_send_commit_wgas`.
     SendCommitWGas,
-    /// Charge for calling `gr_reservation_send`.
+    /// Charge for calling `gr_reservation_send`, taking in account payload size.
     ReservationSend(Bytes),
     /// Charge for calling `gr_reservation_send_commit`.
     ReservationSendCommit,
@@ -151,17 +369,17 @@ pub enum CostToken {
     SendInputWGas,
     /// Charge for calling `gr_send_push_input`.
     SendPushInput,
-    /// Charge for calling `gr_reply`.
+    /// Charge for calling `gr_reply`, taking in account payload size.
     Reply(Bytes),
-    /// Charge for calling `gr_reply_wgas`.
+    /// Charge for calling `gr_reply_wgas`, taking in account payload size.
     ReplyWGas(Bytes),
-    /// Charge for calling `gr_reply_push`.
+    /// Charge for calling `gr_reply_push`, taking in account payload size.
     ReplyPush(Bytes),
     /// Charge for calling `gr_reply_commit`.
     ReplyCommit,
     /// Charge for calling `gr_reply_commit_wgas`.
     ReplyCommitWGas,
-    /// Charge for calling `gr_reservation_reply`.
+    /// Charge for calling `gr_reservation_reply`, taking in account payload size.
     ReservationReply(Bytes),
     /// Charge for calling `gr_reservation_reply_commit`.
     ReservationReplyCommit,
@@ -177,7 +395,7 @@ pub enum CostToken {
     SignalCode,
     /// Charge for calling `gr_signal_from`.
     SignalFrom,
-    /// Charge for calling `gr_debug`.
+    /// Charge for calling `gr_debug`, taking in account payload size.
     Debug(Bytes),
     /// Charge for calling `gr_reply_code`.
     ReplyCode,
@@ -193,8 +411,88 @@ pub enum CostToken {
     WaitUpTo,
     /// Charge for calling `gr_wake`.
     Wake,
-    /// Charge for calling `gr_create_program`.
+    /// Charge for calling `gr_create_program`, taking in account payload and salt size.
     CreateProgram(Bytes, Bytes),
-    /// Charge for calling `gr_create_program_wgas`.
+    /// Charge for calling `gr_create_program_wgas`, taking in account payload and salt size.
     CreateProgramWGas(Bytes, Bytes),
+}
+
+impl SyscallCosts {
+    /// Get cost for a token.
+    pub fn cost_for_token(&self, token: CostToken) -> u64 {
+        use CostToken::*;
+
+        macro_rules! cost_with_weight_per_byte {
+            ($name:ident, $len:expr) => {
+                paste! {
+                    self.$name.one().saturating_add(self.[< $name _per_byte >].calc($len))
+                }
+            };
+        }
+
+        match token {
+            Null => 0,
+            Alloc => self.alloc.one(),
+            Free => self.free.one(),
+            FreeRange => self.free_range.one(),
+            ReserveGas => self.gr_reserve_gas.one(),
+            UnreserveGas => self.gr_unreserve_gas.one(),
+            SystemReserveGas => self.gr_system_reserve_gas.one(),
+            GasAvailable => self.gr_gas_available.one(),
+            MsgId => self.gr_message_id.one(),
+            ProgramId => self.gr_program_id.one(),
+            Source => self.gr_source.one(),
+            Value => self.gr_value.one(),
+            ValueAvailable => self.gr_value_available.one(),
+            Size => self.gr_size.one(),
+            Read => self.gr_read.one(),
+            EnvVars => self.gr_env_vars.one(),
+            BlockHeight => self.gr_block_height.one(),
+            BlockTimestamp => self.gr_block_timestamp.one(),
+            Random => self.gr_random.one(),
+            ReplyDeposit => self.gr_reply_deposit.one(),
+            Send(len) => cost_with_weight_per_byte!(gr_send, len),
+            SendWGas(len) => cost_with_weight_per_byte!(gr_send_wgas, len),
+            SendInit => self.gr_send_init.one(),
+            SendPush(len) => cost_with_weight_per_byte!(gr_send_push, len),
+            SendCommit => self.gr_send_commit.one(),
+            SendCommitWGas => self.gr_send_commit_wgas.one(),
+            ReservationSend(len) => cost_with_weight_per_byte!(gr_reservation_send, len),
+            ReservationSendCommit => self.gr_reservation_send_commit.one(),
+            SendInput => self.gr_send_input.one(),
+            SendInputWGas => self.gr_send_input_wgas.one(),
+            SendPushInput => self.gr_send_push_input.one(),
+            Reply(len) => cost_with_weight_per_byte!(gr_reply, len),
+            ReplyWGas(len) => cost_with_weight_per_byte!(gr_reply_wgas, len),
+            ReplyPush(len) => cost_with_weight_per_byte!(gr_reply_push, len),
+            ReplyCommit => self.gr_reply_commit.one(),
+            ReplyCommitWGas => self.gr_reply_commit_wgas.one(),
+            ReservationReply(len) => cost_with_weight_per_byte!(gr_reservation_reply, len),
+            ReservationReplyCommit => self.gr_reservation_reply_commit.one(),
+            ReplyInput => self.gr_reply_input.one(),
+            ReplyInputWGas => self.gr_reply_input_wgas.one(),
+            ReplyPushInput => self.gr_reply_push_input.one(),
+            ReplyTo => self.gr_reply_to.one(),
+            SignalCode => self.gr_signal_code.one(),
+            SignalFrom => self.gr_signal_from.one(),
+            Debug(len) => cost_with_weight_per_byte!(gr_debug, len),
+            ReplyCode => self.gr_reply_code.one(),
+            Exit => self.gr_exit.one(),
+            Leave => self.gr_leave.one(),
+            Wait => self.gr_wait.one(),
+            WaitFor => self.gr_wait_for.one(),
+            WaitUpTo => self.gr_wait_up_to.one(),
+            Wake => self.gr_wake.one(),
+            CreateProgram(payload, salt) => self
+                .gr_create_program
+                .one()
+                .saturating_add(self.gr_create_program_payload_per_byte.calc(payload))
+                .saturating_add(self.gr_create_program_salt_per_byte.calc(salt)),
+            CreateProgramWGas(payload, salt) => self
+                .gr_create_program_wgas
+                .one()
+                .saturating_add(self.gr_create_program_wgas_payload_per_byte.calc(payload))
+                .saturating_add(self.gr_create_program_wgas_salt_per_byte.calc(salt)),
+        }
+    }
 }

@@ -18,7 +18,6 @@ gear-wasm-instrument.workspace = true
 gear-lazy-pages-common.workspace = true
 gear-lazy-pages-interface.workspace = true
 gsys.workspace = true
-paste.workspace = true
 
 scale-info = { workspace = true, features = ["derive"] }
 log.workspace = true

@@ -96,7 +96,7 @@ pub struct ProcessorContext {
     pub existential_deposit: u128,
     /// Mailbox threshold.
     pub mailbox_threshold: u64,
-    /// +_+_+
+    /// Execution externalities costs.
     pub costs: ExtWeights,
 }
 
@@ -1043,7 +1043,6 @@ impl Externalities for Ext {
             .reservation
             .calc(self.context.reserve_for.saturating_add(duration).into());
 
-
         let reduce_amount = amount.saturating_add(reserve);
         if self.context.gas_counter.reduce(reduce_amount) == ChargeResult::NotEnough {
             return Err(FallibleExecutionError::NotEnoughGas.into());
@@ -1238,11 +1237,12 @@ impl Externalities for Ext {
 
 #[cfg(test)]
 mod tests {
-    use crate::configs::SyscallCosts;
-
     use super::*;
     use alloc::vec;
-    use gear_core::message::{ContextSettings, IncomingDispatch, Payload, MAX_PAYLOAD_SIZE};
+    use gear_core::{
+        costs::SyscallCosts,
+        message::{ContextSettings, IncomingDispatch, Payload, MAX_PAYLOAD_SIZE},
+    };
 
     struct MessageContextBuilder {
         incoming_dispatch: IncomingDispatch,
