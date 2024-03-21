@@ -49,7 +49,7 @@ use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
     message::{
         ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext, Payload,
-        StoredDispatch, UserStoredMessage,
+        ReplyInfo, StoredDispatch, UserStoredMessage,
     },
     pages::{PageNumber, PageU32Size, WasmPage},
 };
@@ -57,7 +57,7 @@ use gear_core_backend::error::{
     TrapExplanation, UnrecoverableExecutionError, UnrecoverableExtError, UnrecoverableWaitError,
 };
 use gear_core_errors::*;
-use gear_wasm_instrument::{rules::CustomConstantCostRules, STACK_END_EXPORT_NAME};
+use gear_wasm_instrument::{gas_metering::CustomConstantCostRules, STACK_END_EXPORT_NAME};
 use gstd::{collections::BTreeMap, errors::Error as GstdError};
 use pallet_gear_voucher::PrepaidCall;
 use sp_runtime::{
@@ -69,6 +69,73 @@ pub use utils::init_logger;
 use utils::*;
 
 type Gas = <<Test as Config>::GasProvider as common::GasProvider>::GasTree;
+
+#[test]
+fn calculate_reply_for_handle_works() {
+    use demo_constructor::demo_ping;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let (_init_mid, ping_pong) = init_constructor(demo_ping::scheme());
+
+        run_to_next_block(None);
+
+        // Happy case.
+        let res = Gear::calculate_reply_for_handle(
+            USER_1,
+            ping_pong,
+            b"PING".to_vec(),
+            100_000_000_000,
+            0,
+        )
+        .expect("Failed to query reply");
+
+        assert_eq!(
+            res,
+            ReplyInfo {
+                payload: b"PONG".to_vec(),
+                value: 0,
+                code: ReplyCode::Success(SuccessReplyReason::Manual)
+            }
+        );
+
+        // Out of gas panic case.
+        let res =
+            Gear::calculate_reply_for_handle(USER_1, ping_pong, b"PING".to_vec(), 1_000_000_000, 0)
+                .expect("Failed to query reply");
+
+        assert_eq!(
+            res,
+            ReplyInfo {
+                payload: ActorExecutionErrorReplyReason::Trap(TrapExplanation::GasLimitExceeded)
+                    .to_string()
+                    .into_bytes(),
+                value: 0,
+                code: ReplyCode::Error(ErrorReplyReason::Execution(
+                    SimpleExecutionError::RanOutOfGas
+                ))
+            }
+        );
+
+        // TODO: uncomment code below (issue #3804).
+        // // Value returned in case of error.
+        // let value = get_ed() * 2;
+        // let res = Gear::calculate_reply_for_handle(
+        //     USER_1,
+        //     ping_pong,
+        //     vec![],
+        //     0,
+        //     value,
+        // ).expect("Failed to query reply");
+        // assert_eq!(res.value, value);
+
+        // Extrinsic error.
+        let res = Gear::calculate_reply_for_handle(USER_1, ping_pong, vec![], 0, get_ed() - 1)
+            .expect_err("Extrinsic should've failed");
+
+        assert!(res.contains(&format!("{:?}", Error::<Test>::ValueLessThanMinimal)))
+    })
+}
 
 #[test]
 fn calculate_gas_results_in_finite_wait() {
@@ -9387,6 +9454,72 @@ fn test_async_messages() {
     })
 }
 
+#[test]
+fn test_async_program_creation() {
+    use demo_async_tester::{Kind, WASM_BINARY};
+    use demo_ping::WASM_BINARY as REPLIER;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        System::reset_events();
+
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            10_000_000_000u64,
+            0,
+            false,
+        ));
+
+        let pid = utils::get_last_program_id();
+
+        // upload a replier.
+        run_to_next_block(None);
+        let code_id = CodeId::generate(REPLIER).into_bytes();
+        assert_ok!(Gear::upload_code(
+            RuntimeOrigin::signed(USER_1),
+            REPLIER.into()
+        ));
+
+        // 1. create program from code id.
+        run_to_next_block(None);
+        let kind = Kind::CreateProgram(code_id.into());
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            kind.encode(),
+            30_000_000_000u64,
+            0,
+            false,
+        ));
+
+        // verify the new created program has been initialized successfully.
+        run_to_next_block(None);
+        let last_mail = get_last_mail(USER_1);
+        assert_eq!(last_mail.payload_bytes(), b"PONG");
+        assert_init_success(2);
+
+        // 2. create program from with gas code id.
+        run_to_next_block(None);
+        let kind = Kind::CreateProgramWithGas(code_id.into(), 10_000_000_000u64);
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            kind.encode(),
+            30_000_000_000u64,
+            0,
+            false,
+        ));
+
+        // verify the new created program has been initialized successfully.
+        run_to_next_block(None);
+        let last_mail = get_last_mail(USER_1);
+        assert_eq!(last_mail.payload_bytes(), b"PONG");
+        assert_init_success(3);
+    })
+}
 #[test]
 fn program_generator_works() {
     use demo_program_generator::{CHILD_WAT, WASM_BINARY};

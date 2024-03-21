@@ -606,8 +606,8 @@ fn test_syscalls_table() {
     };
     use gear_core::message::DispatchKind;
     use gear_wasm_instrument::{
+        gas_metering::CustomConstantCostRules,
         parity_wasm::{self, builder},
-        rules::CustomConstantCostRules,
         InstrumentationBuilder, SyscallName,
     };
 

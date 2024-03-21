@@ -8,12 +8,16 @@ inputs:
 outputs:
   build:
     description: If trigger build.
-  cache:
-    description: If enable cache.
   check:
     description: If trigger check.
+  win-native:
+    description: If enable native Windows build.
   macos:
-    description: If enable macos.
+    description: If enable macOS build.
+  validator:
+    description: If enable validator checks.
+  release:
+    description: If enable release build.
 
 runs:
   using: node20

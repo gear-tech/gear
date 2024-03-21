@@ -120,7 +120,7 @@ mod tests {
     use super::Program;
     use crate::{code::Code, ids::ProgramId};
     use alloc::vec::Vec;
-    use gear_wasm_instrument::rules::CustomConstantCostRules;
+    use gear_wasm_instrument::gas_metering::CustomConstantCostRules;
 
     fn parse_wat(source: &str) -> Vec<u8> {
         let module_bytes = wabt::Wat2Wasm::new()

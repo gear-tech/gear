@@ -35,7 +35,7 @@ use gear_core::{
 };
 use gear_wasm_instrument::{
     gas_metering::{MemoryGrowCost, Rules},
-    parity_wasm::elements,
+    parity_wasm::elements::{Instruction, Module, SignExtInstruction, Type},
 };
 use pallet_gear_proc_macro::{ScheduleDebug, WeightDebug};
 use scale_info::TypeInfo;
@@ -775,7 +775,7 @@ impl Default for Limits {
 impl<T: Config> Default for InstructionWeights<T> {
     fn default() -> Self {
         Self {
-            version: 1110,
+            version: 1200,
             i64const: cost_instr!(instr_i64const, 1),
             i64load: cost_instr!(instr_i64load, 0),
             i32load: cost_instr!(instr_i32load, 0),
@@ -1132,7 +1132,7 @@ struct ScheduleRules<'a, T: Config> {
 }
 
 impl<T: Config> Schedule<T> {
-    pub fn rules(&self, module: &elements::Module) -> impl Rules + '_ {
+    pub fn rules(&self, module: &Module) -> impl Rules + '_ {
         ScheduleRules {
             schedule: self,
             params: module
@@ -1140,7 +1140,7 @@ impl<T: Config> Schedule<T> {
                 .iter()
                 .flat_map(|section| section.types())
                 .map(|func| {
-                    let elements::Type::Function(func) = func;
+                    let Type::Function(func) = func;
                     func.params().len() as u32
                 })
                 .collect(),
@@ -1149,8 +1149,10 @@ impl<T: Config> Schedule<T> {
 }
 
 impl<'a, T: Config> Rules for ScheduleRules<'a, T> {
-    fn instruction_cost(&self, instruction: &elements::Instruction) -> Option<u32> {
-        use self::elements::{Instruction::*, SignExtInstruction::*};
+    fn instruction_cost(&self, instruction: &Instruction) -> Option<u32> {
+        use Instruction::*;
+        use SignExtInstruction::*;
+
         let w = &self.schedule.instruction_weights;
         let max_params = self.schedule.limits.parameters;
 
@@ -1274,10 +1276,14 @@ impl<'a, T: Config> Rules for ScheduleRules<'a, T> {
 mod test {
     use super::*;
     use crate::mock::Test;
-    use gear_wasm_instrument::{gas_metering::Rules, rules::CustomConstantCostRules};
+    use gear_wasm_instrument::{
+        gas_metering::{CustomConstantCostRules, Rules, Schedule as WasmInstrumentSchedule},
+        parity_wasm::elements,
+    };
 
-    fn all_measured_instructions() -> Vec<elements::Instruction> {
+    fn all_measured_instructions() -> Vec<Instruction> {
         use elements::{BlockType, BrTableData, Instruction::*};
+
         let default_table_data = BrTableData {
             table: Default::default(),
             default: 0,
@@ -1392,7 +1398,7 @@ mod test {
         ]
     }
 
-    fn default_wasm_module() -> elements::Module {
+    fn default_wasm_module() -> Module {
         let simple_wat = r#"
         (module
             (import "env" "memory" (memory 1))
@@ -1401,7 +1407,7 @@ mod test {
             (func $handle)
             (func $init)
         )"#;
-        elements::Module::from_bytes(
+        Module::from_bytes(
             wabt::Wat2Wasm::new()
                 .validate(false)
                 .convert(simple_wat)
@@ -1418,15 +1424,23 @@ mod test {
     #[test]
     fn instructions_backward_compatibility() {
         let schedule = Schedule::<Test>::default();
+        let wasm_instrument_schedule = WasmInstrumentSchedule::default();
 
         // used in `pallet-gear` to estimate the gas used by the program
         let schedule_rules = schedule.rules(&default_wasm_module());
 
-        // used in `gear-wasm-builder` to check program code at an early stage
+        // used to simulate real gas from `pallet-gear` in crates like gtest
+        let wasm_instrument_schedule_rules = wasm_instrument_schedule.rules(&default_wasm_module());
+
+        // used to simulate gas and reject unsupported instructions in unit tests
         let custom_cost_rules = CustomConstantCostRules::default();
 
         all_measured_instructions().iter().for_each(|i| {
             assert!(schedule_rules.instruction_cost(i).is_some());
+            assert_eq!(
+                schedule_rules.instruction_cost(i),
+                wasm_instrument_schedule_rules.instruction_cost(i)
+            );
             assert!(custom_cost_rules.instruction_cost(i).is_some());
         })
     }

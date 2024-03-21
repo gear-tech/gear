@@ -35,8 +35,8 @@ use gear_core_backend::{
 use gear_core_processor::{ProcessorContext, ProcessorExternalities};
 use gear_utils::NonEmpty;
 use gear_wasm_instrument::{
+    gas_metering::CustomConstantCostRules,
     parity_wasm::{self, elements::Module},
-    rules::CustomConstantCostRules,
 };
 use proptest::prelude::*;
 use rand::{rngs::SmallRng, RngCore, SeedableRng};
@@ -49,7 +49,6 @@ proptest! {
     #[test]
     // Test that valid config always generates a valid gear wasm.
     fn test_standard_config(buf in prop::collection::vec(any::<u8>(), UNSTRUCTURED_SIZE)) {
-        use gear_wasm_instrument::rules::CustomConstantCostRules;
         let mut u = Unstructured::new(&buf);
         let configs_bundle: StandardGearWasmConfigsBundle = StandardGearWasmConfigsBundle {
             log_info: Some("Some data".into()),

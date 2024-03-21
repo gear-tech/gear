@@ -49,10 +49,13 @@ pub use crate::{
     pallet::*,
     schedule::{InstructionWeights, Limits, MemoryWeights, Schedule, SyscallWeights},
 };
-pub use gear_core::gas::GasInfo;
+pub use gear_core::{gas::GasInfo, message::ReplyInfo};
 pub use weights::WeightInfo;
 
-use alloc::{format, string::String};
+use alloc::{
+    format,
+    string::{String, ToString},
+};
 use common::{
     self, event::*, gas_provider::GasNodeId, paused_program_storage::SessionId, scheduler::*,
     storage::*, BlockLimiter, CodeMetadata, CodeStorage, GasProvider, GasTree, Origin,
@@ -100,6 +103,7 @@ pub(crate) type BalanceOf<T> = <CurrencyOf<T> as Currency<AccountIdOf<T>>>::Bala
 pub(crate) type SentOf<T> = <<T as Config>::Messenger as Messenger>::Sent;
 pub(crate) type DbWeightOf<T> = <T as frame_system::Config>::DbWeight;
 pub(crate) type DequeuedOf<T> = <<T as Config>::Messenger as Messenger>::Dequeued;
+pub(crate) type PalletInfoOf<T> = <T as frame_system::Config>::PalletInfo;
 pub(crate) type QueueProcessingOf<T> = <<T as Config>::Messenger as Messenger>::QueueProcessing;
 pub(crate) type QueueOf<T> = <<T as Config>::Messenger as Messenger>::Queue;
 pub(crate) type MailboxOf<T> = <<T as Config>::Messenger as Messenger>::Mailbox;
@@ -724,6 +728,7 @@ pub mod pallet {
                 false,
                 gas_allowance,
             )
+            .map_err(|e| e.into_bytes())
         }
 
         #[cfg(test)]
@@ -765,40 +770,70 @@ pub mod pallet {
 
             let GasInfo {
                 min_limit, waited, ..
-            } = Self::run_with_ext_copy(|| {
-                calc_gas(BlockGasLimitOf::<T>::get()).map_err(|e| {
-                    String::from_utf8(e)
-                        .unwrap_or_else(|_| String::from("Failed to parse error to string"))
-                })
-            })?;
+            } = Self::run_with_ext_copy(|| calc_gas(BlockGasLimitOf::<T>::get()))?;
 
             log::debug!("\n--- SECOND TRY ---\n");
 
             let res = Self::run_with_ext_copy(|| {
-                calc_gas(min_limit)
-                    .map(
-                        |GasInfo {
-                             reserved,
-                             burned,
-                             may_be_returned,
-                             ..
-                         }| GasInfo {
-                            min_limit,
-                            reserved,
-                            burned,
-                            may_be_returned,
-                            waited,
-                        },
-                    )
-                    .map_err(|e| {
-                        String::from_utf8(e)
-                            .unwrap_or_else(|_| String::from("Failed to parse error to string"))
-                    })
+                calc_gas(min_limit).map(
+                    |GasInfo {
+                         reserved,
+                         burned,
+                         may_be_returned,
+                         ..
+                     }| GasInfo {
+                        min_limit,
+                        reserved,
+                        burned,
+                        may_be_returned,
+                        waited,
+                    },
+                )
             });
 
             log::debug!("\n==============================\n");
 
             res
+        }
+
+        #[cfg(not(test))]
+        pub fn calculate_reply_for_handle(
+            origin: H256,
+            destination: H256,
+            payload: Vec<u8>,
+            gas_limit: u64,
+            value: u128,
+            allowance_multiplier: u64,
+        ) -> Result<ReplyInfo, Vec<u8>> {
+            Self::calculate_reply_for_handle_impl(
+                origin,
+                destination.cast(),
+                payload,
+                gas_limit,
+                value,
+                allowance_multiplier,
+            )
+            .map_err(|v| v.into_bytes())
+        }
+
+        #[cfg(test)]
+        pub fn calculate_reply_for_handle(
+            origin: AccountIdOf<T>,
+            destination: ProgramId,
+            payload: Vec<u8>,
+            gas_limit: u64,
+            value: u128,
+        ) -> Result<ReplyInfo, String> {
+            Self::run_with_ext_copy(|| {
+                Self::calculate_reply_for_handle_impl(
+                    origin.cast(),
+                    destination,
+                    payload,
+                    gas_limit,
+                    value,
+                    crate::runtime_api::RUNTIME_API_BLOCK_LIMITS_COUNT,
+                )
+            })
         }
 
         pub fn run_with_ext_copy<R, F: FnOnce() -> R>(f: F) -> R {
