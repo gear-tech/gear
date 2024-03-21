@@ -47,7 +47,7 @@ jobs:
           echo "matrix=${matrix}" >> $GITHUB_OUTPUT
 
   linux:
-    runs-on: [ kuberunner, github-runner-02 ]
+    runs-on: [kuberunner, github-runner-02]
     needs: matrix
     strategy:
       matrix: ${{ fromJson(needs.matrix.outputs.matrix) }}
@@ -141,12 +141,10 @@ jobs:
         run: cargo build -p gear-cli -F cli --profile production
 
       - name: Prepare artifacts
-        if: ${{ github.event_name == 'push' && inputs.release }}
+        # if: ${{ github.event_name == 'push' && inputs.release }}
         run: |
           mkdir -p artifact
-          cd target/wasm32-unknown-unknown/release
-          tar czvf ../../../artifact/examples.tar.gz *.wasm
-          cd ../../..
+          tar czvf artifact/examples.tar.gz target/release/wasm32-unknown-unknown/*.wasm
           cp target/production/wbuild/vara-runtime/vara_runtime.compact.compressed.wasm artifact/
           cp target/production/wbuild/vara-runtime/vara_runtime.compact.wasm artifact/
           cp target/production/wbuild/vara-runtime/vara_runtime.wasm artifact/
@@ -162,7 +160,7 @@ jobs:
           path: artifact
 
   win-cross:
-    runs-on: [ kuberunner, github-runner-03 ]
+    runs-on: [kuberunner, github-runner-03]
     needs: matrix
     strategy:
       matrix: ${{ fromJson(needs.matrix.outputs.matrix) }}
@@ -244,14 +242,14 @@ jobs:
           CARGO_BUILD_TARGET: x86_64-pc-windows-msvc
 
   win-native:
-    needs: [ matrix, linux ]
+    needs: [matrix, linux]
     if: ${{ !cancelled() && (github.ref == 'refs/heads/master' || inputs.win-native) }}
     uses: ./.github/workflows/build-win-native.yml
     with:
       matrix: ${{ needs.matrix.outputs.matrix }}
 
   macos:
-    needs: [ matrix, linux ]
+    needs: [matrix, linux]
     if: ${{ !cancelled() && inputs.macos }}
     uses: ./.github/workflows/build-macos.yml
     with:
