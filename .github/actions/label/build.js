@@ -36,17 +36,20 @@ const checkSkip = async ({ github, core }) => {
     ref: REF,
   });
 
-  if (check_runs.filter((run) => (
-    (run.name === "build" && run.conclusion !== "skipped")
-    || run.name === "build / linux"
-    || run.name === "build / macos-x86"
-  )).length > 0) {
+  if (
+    check_runs.filter(
+      (run) =>
+        (run.name === "build" && run.conclusion !== "skipped") ||
+        run.name === "build / linux" ||
+        run.name === "build / macos-x86"
+    ).length > 0
+  ) {
     core.info(
       "Build has already been processed, check runs: ",
       JSON.stringify(check_runs, null, 2)
     );
 
-    process.exit(0)
+    process.exit(0);
   }
 };
 
@@ -59,7 +62,7 @@ const checkSkip = async ({ github, core }) => {
  **/
 const createChecks = async ({ core, github }) => {
   let status = {};
-  for (check of checks) {
+  for (const check of checks) {
     const { data: res } = await github.rest.checks.create({
       owner,
       repo,
@@ -153,7 +156,7 @@ module.exports = async ({ github, core }) => {
     const jobs = await listJobs({ github, core, run_id: run.id });
     completed = jobs.filter((job) => job.status === "completed").length;
 
-    for (job of jobs) {
+    for (const job of jobs) {
       let checkJob = labelChecks[job.name];
       if (
         checkJob.status !== job.status ||
