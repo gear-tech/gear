@@ -145,7 +145,7 @@ jobs:
 
       - name: Prepare artifacts
         # if: ${{ github.event_name == 'push' && matrix.profile == 'release' }}
-        if: ${{ matrix.profile == 'release' }}
+        if: ${{ matrix.profile == 'debug' }}
         run: |
           mkdir -p artifact
           tar czvf artifact/examples.tar.gz target/wasm32-unknown-unknown/debug/*.wasm
