@@ -875,9 +875,9 @@ impl ExtManager {
             costs: ProcessCosts {
                 execution: ExtWeights {
                     syscalls: Default::default(),
-                    reservation: RESERVATION_COST,
-                    waitlist_cost: WAITLIST_COST,
-                    dispatch_hold_cost: DISPATCH_HOLD_COST,
+                    reservation: RESERVATION_COST.into(),
+                    waitlist_cost: WAITLIST_COST.into(),
+                    dispatch_hold_cost: DISPATCH_HOLD_COST.into(),
                     mem_grow: Default::default(),
                 },
                 lazy_pages: LazyPagesWeights::default(),

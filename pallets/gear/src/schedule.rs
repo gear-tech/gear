@@ -43,7 +43,7 @@ use pallet_gear_proc_macro::{ScheduleDebug, WeightDebug};
 use scale_info::TypeInfo;
 #[cfg(feature = "std")]
 use serde::{Deserialize, Serialize};
-use sp_runtime::{traits::UniqueSaturatedInto, RuntimeDebug};
+use sp_runtime::RuntimeDebug;
 use sp_std::{marker::PhantomData, vec::Vec};
 
 /// How many API calls are executed in a single batch. The reason for increasing the amount
@@ -1163,9 +1163,9 @@ impl<T: Config> Schedule<T> {
         ProcessCosts {
             execution: ExtWeights {
                 syscalls: self.host_fn_weights.clone().into(),
-                waitlist_cost: CostsPerBlockOf::<T>::waitlist(),
-                dispatch_hold_cost: CostsPerBlockOf::<T>::dispatch_stash(),
-                reservation: CostsPerBlockOf::<T>::reservation().unique_saturated_into(),
+                waitlist_cost: CostsPerBlockOf::<T>::waitlist().into(),
+                dispatch_hold_cost: CostsPerBlockOf::<T>::dispatch_stash().into(),
+                reservation: CostsPerBlockOf::<T>::reservation().into(),
                 mem_grow: self.memory_weights.mem_grow.ref_time().into(),
             },
             lazy_pages: self.memory_weights.clone().into(),

@@ -28,7 +28,7 @@ use crate::{
 };
 use alloc::{collections::BTreeSet, vec::Vec};
 use gear_core::{
-    costs::{Bytes, Call, CostPer},
+    costs::{Bytes, Calls, CostPer},
     gas::{ChargeResult, GasAllowanceCounter, GasCounter},
     ids::ProgramId,
     message::{IncomingDispatch, MessageWaitedType},
@@ -67,9 +67,9 @@ enum PrechargeError {
 struct GasPrecharger<'a> {
     counter: &'a mut GasCounter,
     allowance_counter: &'a mut GasAllowanceCounter,
-    read_cost: CostPer<Call>,
+    read_cost: CostPer<Calls>,
     read_per_byte_cost: CostPer<Bytes>,
-    instrumentation_cost: CostPer<Call>,
+    instrumentation_cost: CostPer<Calls>,
     instrumentation_cost_per_byte: CostPer<Bytes>,
     static_page_cost: CostPer<WasmPage>,
     instantiation_per_byte_cost: CostPer<Bytes>,

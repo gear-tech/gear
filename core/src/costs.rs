@@ -40,11 +40,6 @@ impl<T> CostPer<T> {
     pub const fn one(&self) -> u64 {
         self.cost
     }
-
-    /// Returns another [`CostPer`] with increased `cost` to `other.cost`.
-    pub const fn saturating_add(&self, other: Self) -> Self {
-        Self::new(self.cost.saturating_add(other.cost))
-    }
 }
 
 impl<T: Into<u32>> CostPer<T> {
@@ -80,11 +75,15 @@ impl<T> Default for CostPer<T> {
 
 /// +_+_+
 #[derive(Debug, Default, Clone, Copy, derive_more::From, derive_more::Into)]
-pub struct Call(u32);
+pub struct Calls(u32);
 
 /// +_+_+
 #[derive(Debug, Default, Clone, Copy, derive_more::From, derive_more::Into)]
 pub struct Bytes(u32);
+
+/// +_+_+
+#[derive(Debug, Default, Clone, Copy, derive_more::From, derive_more::Into)]
+pub struct Blocks(u32);
 
 // +_+_+ comments
 /// Enumerates syscalls that can be charged by gas meter.

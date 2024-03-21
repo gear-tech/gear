@@ -493,12 +493,11 @@ impl Ext {
                 .limit_of(reservation_id)
                 .ok_or(ReservationError::InvalidReservationId)?;
 
-            // Take delay and get cost of block.
-            // reserve = wait_cost * (delay + reserve_for).
-            let cost_per_block = self.context.costs.dispatch_hold_cost;
-            let waiting_reserve = (self.context.reserve_for as u64)
-                .saturating_add(delay as u64)
-                .saturating_mul(cost_per_block);
+            let waiting_reserve = self
+                .context
+                .costs
+                .dispatch_hold_cost
+                .calc(self.context.reserve_for.saturating_add(delay).into());
 
             if limit < waiting_reserve {
                 return Err(MessageError::InsufficientGasForDelayedSending.into());
@@ -625,12 +624,11 @@ impl Ext {
 
     fn charge_for_dispatch_stash_hold(&mut self, delay: u32) -> Result<(), FallibleExtError> {
         if delay != 0 {
-            // Take delay and get cost of block.
-            // reserve = wait_cost * (delay + reserve_for).
-            let cost_per_block = self.context.costs.dispatch_hold_cost;
-            let waiting_reserve = (self.context.reserve_for as u64)
-                .saturating_add(delay as u64)
-                .saturating_mul(cost_per_block);
+            let waiting_reserve = self
+                .context
+                .costs
+                .dispatch_hold_cost
+                .calc(self.context.reserve_for.saturating_add(delay).into());
 
             // Reduce gas for block waiting in dispatch stash.
             if self.context.gas_counter.reduce(waiting_reserve) != ChargeResult::Enough {
@@ -1039,8 +1037,13 @@ impl Externalities for Ext {
             return Err(ReservationError::ReservationBelowMailboxThreshold.into());
         }
 
-        let reserve = u64::from(self.context.reserve_for.saturating_add(duration))
-            .saturating_mul(self.context.costs.reservation);
+        let reserve = self
+            .context
+            .costs
+            .reservation
+            .calc(self.context.reserve_for.saturating_add(duration).into());
+
+
         let reduce_amount = amount.saturating_add(reserve);
         if self.context.gas_counter.reduce(reduce_amount) == ChargeResult::NotEnough {
             return Err(FallibleExecutionError::NotEnoughGas.into());
@@ -1102,8 +1105,11 @@ impl Externalities for Ext {
             return Err(UnrecoverableWaitError::WaitAfterReply.into());
         }
 
-        let reserve = u64::from(self.context.reserve_for.saturating_add(1))
-            .saturating_mul(self.context.costs.waitlist_cost);
+        let reserve = self
+            .context
+            .costs
+            .waitlist_cost
+            .calc(self.context.reserve_for.saturating_add(1).into());
 
         if self.context.gas_counter.reduce(reserve) != ChargeResult::Enough {
             return Err(UnrecoverableExecutionError::NotEnoughGas.into());
@@ -1123,8 +1129,11 @@ impl Externalities for Ext {
             return Err(UnrecoverableWaitError::ZeroDuration.into());
         }
 
-        let reserve = u64::from(self.context.reserve_for.saturating_add(duration))
-            .saturating_mul(self.context.costs.waitlist_cost);
+        let reserve = self
+            .context
+            .costs
+            .waitlist_cost
+            .calc(self.context.reserve_for.saturating_add(duration).into());
 
         if self.context.gas_counter.reduce(reserve) != ChargeResult::Enough {
             return Err(UnrecoverableExecutionError::NotEnoughGas.into());
@@ -1144,15 +1153,22 @@ impl Externalities for Ext {
             return Err(UnrecoverableWaitError::ZeroDuration.into());
         }
 
-        let reserve = u64::from(self.context.reserve_for.saturating_add(1))
-            .saturating_mul(self.context.costs.waitlist_cost);
+        let reserve = self
+            .context
+            .costs
+            .waitlist_cost
+            .calc(self.context.reserve_for.saturating_add(1).into());
 
         if self.context.gas_counter.reduce(reserve) != ChargeResult::Enough {
             return Err(UnrecoverableExecutionError::NotEnoughGas.into());
         }
 
-        let reserve_full = u64::from(self.context.reserve_for.saturating_add(duration))
-            .saturating_mul(self.context.costs.waitlist_cost);
+        let reserve_full = self
+            .context
+            .costs
+            .waitlist_cost
+            .calc(self.context.reserve_for.saturating_add(duration).into());
+
         let reserve_diff = reserve_full - reserve;
 
         Ok(self.context.gas_counter.reduce(reserve_diff) == ChargeResult::Enough)
