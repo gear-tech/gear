@@ -144,7 +144,7 @@ jobs:
         # if: ${{ github.event_name == 'push' && inputs.release }}
         run: |
           mkdir -p artifact
-          tar czvf artifact/examples.tar.gz target/release/wasm32-unknown-unknown/*.wasm
+          tar czvf artifact/examples.tar.gz target/debug/wasm32-unknown-unknown/*.wasm
           cp target/production/wbuild/vara-runtime/vara_runtime.compact.compressed.wasm artifact/
           cp target/production/wbuild/vara-runtime/vara_runtime.compact.wasm artifact/
           cp target/production/wbuild/vara-runtime/vara_runtime.wasm artifact/
