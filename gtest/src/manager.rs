@@ -26,9 +26,7 @@ use crate::{
 };
 use core_processor::{
     common::*,
-    configs::{
-        BlockConfig, BlockInfo, ExtWeights, ProcessCosts, ProcessLimits, TESTS_MAX_PAGES_NUMBER,
-    },
+    configs::{BlockConfig, BlockInfo, ExtWeights, ProcessCosts, TESTS_MAX_PAGES_NUMBER},
     ContextChargedForCode, ContextChargedForInstrumentation, Ext,
 };
 use gear_core::{
@@ -908,14 +906,12 @@ impl ExtManager {
                 static_page: Default::default(),
                 module_instantiation_byte_cost: MODULE_INSTANTIATION_BYTE_COST.into(),
             },
-            limits: ProcessLimits {
-                existential_deposit: EXISTENTIAL_DEPOSIT,
-                mailbox_threshold: MAILBOX_THRESHOLD,
-                max_reservations: MAX_RESERVATIONS,
-                max_pages: TESTS_MAX_PAGES_NUMBER.into(),
-                outgoing_limit: OUTGOING_LIMIT,
-                outgoing_bytes_limit: OUTGOING_BYTES_LIMIT,
-            },
+            existential_deposit: EXISTENTIAL_DEPOSIT,
+            mailbox_threshold: MAILBOX_THRESHOLD,
+            max_reservations: MAX_RESERVATIONS,
+            max_pages: TESTS_MAX_PAGES_NUMBER.into(),
+            outgoing_limit: OUTGOING_LIMIT,
+            outgoing_bytes_limit: OUTGOING_BYTES_LIMIT,
         };
 
         let precharged_dispatch = match core_processor::precharge_for_program(

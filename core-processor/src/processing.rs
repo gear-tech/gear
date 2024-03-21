@@ -66,16 +66,20 @@ where
         reserve_for,
         gas_multiplier,
         costs,
-        limits,
+        existential_deposit,
+        mailbox_threshold,
+        max_pages,
+        outgoing_limit,
+        outgoing_bytes_limit,
         ..
     } = block_config.clone();
 
     let execution_settings = ExecutionSettings {
         block_info,
         performance_multiplier,
-        existential_deposit: limits.existential_deposit,
-        mailbox_threshold: limits.mailbox_threshold,
-        max_pages: limits.max_pages,
+        existential_deposit,
+        mailbox_threshold,
+        max_pages,
         ext_costs: costs.execution,
         lazy_pages_costs: costs.lazy_pages,
         forbidden_funcs,
@@ -112,8 +116,8 @@ where
         waiting_fee: costs.write.calc(3.into()),
         waking_fee: costs.write.calc(2.into()),
         reservation_fee: costs.write.calc(2.into()),
-        outgoing_limit: limits.outgoing_limit,
-        outgoing_bytes_limit: limits.outgoing_bytes_limit,
+        outgoing_limit,
+        outgoing_bytes_limit,
     };
 
     // TODO: add tests that system reservation is successfully unreserved after

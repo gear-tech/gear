@@ -32,7 +32,7 @@ use scale_info::scale::{self, Decode, Encode};
 pub const TESTS_MAX_PAGES_NUMBER: u16 = 512;
 
 /// Contextual block information.
-#[derive(Clone, Copy, Debug, Encode, Decode, Default)]
+#[derive(Clone, Copy, Debug, Default)]
 #[codec(crate = scale)]
 pub struct BlockInfo {
     /// Height.
@@ -62,23 +62,6 @@ pub struct ProcessCosts {
     pub static_page: CostPer<WasmPage>,
     /// WASM module instantiation byte cost.
     pub module_instantiation_byte_cost: CostPer<Bytes>,
-}
-
-/// +_+_+
-#[derive(Clone, Debug, Default)]
-pub struct ProcessLimits {
-    /// Existential deposit.
-    pub existential_deposit: u128,
-    /// Mailbox threshold.
-    pub mailbox_threshold: u64,
-    /// Amount of reservations can exist for 1 program.
-    pub max_reservations: u64,
-    /// Max allowed page numbers for wasm program.
-    pub max_pages: WasmPage,
-    /// Outgoing limit.
-    pub outgoing_limit: u32,
-    /// Outgoing bytes limit.
-    pub outgoing_bytes_limit: u32,
 }
 
 /// Memory operations costs.
@@ -219,8 +202,18 @@ pub struct BlockConfig {
     pub gas_multiplier: gsys::GasMultiplier,
     /// +_+_+
     pub costs: ProcessCosts,
-    /// +_+_+
-    pub limits: ProcessLimits,
+    /// Existential deposit.
+    pub existential_deposit: u128,
+    /// Mailbox threshold.
+    pub mailbox_threshold: u64,
+    /// Amount of reservations can exist for 1 program.
+    pub max_reservations: u64,
+    /// Max allowed page numbers for wasm program.
+    pub max_pages: WasmPage,
+    /// Outgoing limit.
+    pub outgoing_limit: u32,
+    /// Outgoing bytes limit.
+    pub outgoing_bytes_limit: u32,
 }
 
 /// +_+_+

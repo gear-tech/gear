@@ -21,7 +21,7 @@
 use core::{fmt::Debug, marker::PhantomData};
 use scale_info::scale::{Decode, Encode};
 
-/// +_+_+
+/// Gas cost per some type of action or data size.
 #[derive(Clone, Copy, PartialEq, Eq, Encode, Decode)]
 pub struct CostPer<T> {
     cost: u64,

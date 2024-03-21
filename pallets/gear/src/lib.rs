@@ -147,7 +147,7 @@ impl DebugInfo for () {
 
 #[frame_support::pallet]
 pub mod pallet {
-    use core_processor::configs::{ExtWeights, PageCosts, ProcessCosts, ProcessLimits};
+    use core_processor::configs::{ExtWeights, PageCosts, ProcessCosts};
 
     use super::*;
 
@@ -1088,14 +1088,12 @@ pub mod pallet {
                         .ref_time()
                         .into(),
                 },
-                limits: ProcessLimits {
-                    existential_deposit: CurrencyOf::<T>::minimum_balance().unique_saturated_into(),
-                    mailbox_threshold: T::MailboxThreshold::get(),
-                    max_reservations: T::ReservationsLimit::get(),
-                    max_pages: schedule.limits.memory_pages.into(),
-                    outgoing_limit: T::OutgoingLimit::get(),
-                    outgoing_bytes_limit: T::OutgoingBytesLimit::get(),
-                },
+                existential_deposit: CurrencyOf::<T>::minimum_balance().unique_saturated_into(),
+                mailbox_threshold: T::MailboxThreshold::get(),
+                max_reservations: T::ReservationsLimit::get(),
+                max_pages: schedule.limits.memory_pages.into(),
+                outgoing_limit: T::OutgoingLimit::get(),
+                outgoing_bytes_limit: T::OutgoingBytesLimit::get(),
             }
         }
 

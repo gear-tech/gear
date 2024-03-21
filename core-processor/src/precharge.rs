@@ -377,7 +377,7 @@ pub fn precharge_for_memory(
             log::trace!("Charged for module instantiation and memory pages. Size: {memory_size:?}");
             Ok(ContextChargedForMemory {
                 data: context.data,
-                max_reservations: block_config.limits.max_reservations,
+                max_reservations: block_config.max_reservations,
                 memory_size,
             })
         }
