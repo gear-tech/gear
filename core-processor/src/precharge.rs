@@ -34,14 +34,9 @@ use gear_core::{
     message::{IncomingDispatch, MessageWaitedType},
     pages::{PageU32Size, WasmPage},
 };
-use scale_info::{
-    scale::{self, Decode, Encode},
-    TypeInfo,
-};
 
 /// Operation related to gas charging.
-#[derive(Encode, Decode, TypeInfo, Debug, PartialEq, Eq, PartialOrd, Ord, derive_more::Display)]
-#[codec(crate = scale)]
+#[derive(Debug, PartialEq, Eq, derive_more::Display)]
 pub enum PreChargeGasOperation {
     /// Handle memory static pages.
     #[display(fmt = "handle memory static pages")]

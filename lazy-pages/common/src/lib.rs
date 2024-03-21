@@ -56,8 +56,7 @@ pub enum GlobalsAccessMod {
 }
 
 /// Lazy-pages cases weights.
-#[derive(Debug, Default, Clone, PartialEq, Eq, Encode, Decode)]
-#[codec(crate = codec)]
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct LazyPagesWeights {
     /// First read page access cost.
     pub signal_read: CostPer<GearPage>,

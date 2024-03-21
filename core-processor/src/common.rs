@@ -42,7 +42,6 @@ use gear_core::{
 pub use gear_core_backend::error::TrapExplanation;
 use gear_core_backend::{env::SystemEnvironmentError, error::SystemTerminationReason};
 use gear_core_errors::{SignalCode, SimpleExecutionError};
-use scale_info::scale::{self, Decode, Encode};
 
 /// Kind of the dispatch result.
 #[derive(Clone)]
@@ -447,8 +446,7 @@ pub struct ActorExecutionError {
 }
 
 /// Reason of execution error
-#[derive(Encode, Decode, Debug, PartialEq, Eq, PartialOrd, Ord, derive_more::Display)]
-#[codec(crate = scale)]
+#[derive(Debug, PartialEq, Eq, derive_more::Display)]
 pub enum ActorExecutionErrorReplyReason {
     /// Not enough gas to perform an operation during precharge.
     #[display(fmt = "Not enough gas to {_0}")]

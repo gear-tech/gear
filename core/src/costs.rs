@@ -19,10 +19,9 @@
 //! Costs module.
 
 use core::{fmt::Debug, marker::PhantomData};
-use scale_info::scale::{Decode, Encode};
 
 /// Gas cost per some type of action or data size.
-#[derive(Clone, Copy, PartialEq, Eq, Encode, Decode)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct CostPer<T> {
     cost: u64,
     _phantom: PhantomData<T>,
