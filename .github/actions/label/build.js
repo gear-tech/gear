@@ -8,7 +8,7 @@ const linux =
   LABEL === "A0-pleasereview" ||
   LABEL === "A4-insubstantial" ||
   LABEL === "A2-mergeoncegreen";
-const checks = linux ? ["linux", "win-cross"] : ["x86"];
+const checks = linux ? ["linux (debug)", "win-cross (debug)"] : ["x86"];
 const workflow_id = linux
   ? ".github/workflows/build.yml"
   : ".github/workflows/build-macos.yml";
