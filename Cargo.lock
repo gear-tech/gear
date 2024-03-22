@@ -3929,6 +3929,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "gbuiltin-bls381"
+version = "1.2.0"
+dependencies = [
+ "derive_more",
+ "parity-scale-codec",
+]
+
+[[package]]
 name = "gcli"
 version = "1.2.0"
 dependencies = [
@@ -4079,14 +4087,6 @@ dependencies = [
  "clap 4.5.3",
  "generate-bags",
  "vara-runtime",
-]
-
-[[package]]
-name = "gear-builtins-bls381"
-version = "1.2.0"
-dependencies = [
- "derive_more",
- "parity-scale-codec",
 ]
 
 [[package]]
@@ -7767,7 +7767,7 @@ dependencies = [
  "frame-support",
  "frame-support-test",
  "frame-system",
- "gear-builtins-bls381",
+ "gbuiltin-bls381",
  "gear-common",
  "gear-core",
  "gear-core-errors",

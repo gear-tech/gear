@@ -20,7 +20,7 @@ use super::*;
 use ark_scale::HOST_CALL;
 use ark_serialize::{CanonicalDeserialize, Compress, Validate};
 use core::marker::PhantomData;
-use gear_builtins_bls381::*;
+use gbuiltin_bls381::*;
 use parity_scale_codec::{Compact, Input};
 use sp_crypto_ec_utils::bls12_381;
 

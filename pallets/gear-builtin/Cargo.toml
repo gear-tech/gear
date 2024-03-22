@@ -27,7 +27,7 @@ ark-ff = { workspace = true, optional = true }
 ark-std = { workspace = true, optional = true }
 
 core-processor.workspace = true
-gear-builtins-bls381.workspace = true
+gbuiltin-bls381.workspace = true
 gear-core.workspace = true
 gear-core-errors.workspace = true
 frame-support.workspace = true
@@ -63,7 +63,6 @@ std = [
 	"frame-benchmarking?/std",
 	"frame-support/std",
 	"frame-system/std",
-	"gear-builtins-bls381/std",
 	"gear-core/std",
 	"pallet-gear/std",
     "parity-scale-codec/std",
