@@ -19,12 +19,12 @@ primitive-types = { workspace = true, features = ["scale-info"] }
 log.workspace = true
 derive_more.workspace = true
 impl-trait-for-tuples.workspace = true
-ark-std = { workspace = true, optional = true }
-ark-bls12-381 = { workspace = true, features = ["curve"], optional = true }
 ark-serialize = { workspace = true, features = ["derive"] }
+ark-scale = { workspace = true, features = ["hazmat"] }
+ark-bls12-381 = { workspace = true, features = ["curve"], optional = true }
 ark-ec = { workspace = true, optional = true }
 ark-ff = { workspace = true, optional = true }
-ark-scale = { workspace = true, features = ["hazmat"] }
+ark-std = { workspace = true, optional = true }
 
 core-processor.workspace = true
 gear-builtins-bls381.workspace = true
@@ -71,20 +71,20 @@ std = [
 	"sp-crypto-ec-utils/std",
 	"sp-runtime/std",
 	"sp-std/std",
-	"ark-bls12-381?/std",
-	"ark-std?/std",
 	"ark-serialize/std",
+	"ark-scale/std",
+	"ark-bls12-381?/std",
 	"ark-ec?/std",
 	"ark-ff?/std",
-	"ark-scale/std",
+	"ark-std?/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",
 	"frame-support/runtime-benchmarks",
 	"frame-system/runtime-benchmarks",
 	"ark-bls12-381",
-	"ark-std",
 	"ark-ec",
 	"ark-ff",
+	"ark-std",
 ]
 try-runtime = ["frame-support/try-runtime"]
