@@ -171,67 +171,54 @@ mod tests {
     // The following test checks that scale codec indexes of variants are set correctly.
     #[test]
     fn codec_enum_indexes() {
-        let request = Request::MultiMillerLoop {
-            a: vec![],
-            b: vec![],
-        };
-        let encoded = request.encode();
+        for (index, (variant, request)) in [
+            (
+                REQUEST_MULTI_MILLER_LOOP,
+                Request::MultiMillerLoop {
+                    a: vec![],
+                    b: vec![],
+                },
+            ),
+            (
+                REQUEST_FINAL_EXPONENTIATION,
+                Request::FinalExponentiation { f: vec![] },
+            ),
+            (
+                REQUEST_MULTI_SCALAR_MULTIPLICATION_G1,
+                Request::MultiScalarMultiplicationG1 {
+                    bases: vec![],
+                    scalars: vec![],
+                },
+            ),
+            (
+                REQUEST_MULTI_SCALAR_MULTIPLICATION_G2,
+                Request::MultiScalarMultiplicationG2 {
+                    bases: vec![],
+                    scalars: vec![],
+                },
+            ),
+            (
+                REQUEST_PROJECTIVE_MULTIPLICATION_G1,
+                Request::ProjectiveMultiplicationG1 {
+                    base: vec![],
+                    scalar: vec![],
+                },
+            ),
+            (
+                REQUEST_PROJECTIVE_MULTIPLICATION_G2,
+                Request::ProjectiveMultiplicationG2 {
+                    base: vec![],
+                    scalar: vec![],
+                },
+            ),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            assert_eq!(index, variant.into());
+            let encoded = request.encode();
 
-        assert!(matches!(
-            encoded.first().copied(),
-            Some(REQUEST_MULTI_MILLER_LOOP)
-        ));
-
-        let request = Request::FinalExponentiation { f: vec![] };
-        let encoded = request.encode();
-
-        assert!(matches!(
-            encoded.first().copied(),
-            Some(REQUEST_FINAL_EXPONENTIATION)
-        ));
-
-        let request = Request::MultiScalarMultiplicationG1 {
-            bases: vec![],
-            scalars: vec![],
-        };
-        let encoded = request.encode();
-
-        assert!(matches!(
-            encoded.first().copied(),
-            Some(REQUEST_MULTI_SCALAR_MULTIPLICATION_G1)
-        ));
-
-        let request = Request::MultiScalarMultiplicationG2 {
-            bases: vec![],
-            scalars: vec![],
-        };
-        let encoded = request.encode();
-
-        assert!(matches!(
-            encoded.first().copied(),
-            Some(REQUEST_MULTI_SCALAR_MULTIPLICATION_G2)
-        ));
-
-        let request = Request::ProjectiveMultiplicationG1 {
-            base: vec![],
-            scalar: vec![],
-        };
-        let encoded = request.encode();
-
-        assert!(matches!(
-            encoded.first().copied(),
-            Some(REQUEST_PROJECTIVE_MULTIPLICATION_G1)
-        ));
-
-        let request = Request::ProjectiveMultiplicationG2 {
-            base: vec![],
-            scalar: vec![],
-        };
-        let encoded = request.encode();
-
-        assert!(matches!(
-            encoded.first().copied(),
-            Some(REQUEST_PROJECTIVE_MULTIPLICATION_G2)
-        ));
+            assert!(matches!(encoded.first().copied(), Some(variant)));
+        }
     }
 }
