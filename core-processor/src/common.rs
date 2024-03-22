@@ -18,10 +18,7 @@
 
 //! Common structures for processing.
 
-use crate::{
-    context::SystemReservationContext, executor::SystemPrepareMemoryError,
-    precharge::PreChargeGasOperation, ActorPrepareMemoryError,
-};
+use crate::{context::SystemReservationContext, precharge::PreChargeGasOperation};
 use actor_system_error::actor_system_error;
 use alloc::{
     collections::{BTreeMap, BTreeSet},
@@ -42,7 +39,6 @@ use gear_core::{
 pub use gear_core_backend::error::TrapExplanation;
 use gear_core_backend::{env::SystemEnvironmentError, error::SystemTerminationReason};
 use gear_core_errors::{SignalCode, SimpleExecutionError};
-use scale_info::scale::{self, Decode, Encode};
 
 /// Kind of the dispatch result.
 #[derive(Clone)]
@@ -438,15 +434,11 @@ pub struct ActorExecutionError {
 }
 
 /// Reason of execution error
-#[derive(Encode, Decode, Debug, PartialEq, Eq, PartialOrd, Ord, derive_more::Display)]
-#[codec(crate = scale)]
+#[derive(Debug, PartialEq, Eq, derive_more::Display)]
 pub enum ActorExecutionErrorReplyReason {
     /// Not enough gas to perform an operation during precharge.
     #[display(fmt = "Not enough gas to {_0}")]
     PreChargeGasLimitExceeded(PreChargeGasOperation),
-    /// Prepare memory error
-    #[display(fmt = "{_0}")]
-    PrepareMemory(ActorPrepareMemoryError),
     /// Backend error
     #[display(fmt = "Environment error: <host error stripped>")]
     Environment,
@@ -467,7 +459,6 @@ impl ActorExecutionErrorReplyReason {
     pub fn as_simple(&self) -> SimpleExecutionError {
         match self {
             Self::PreChargeGasLimitExceeded(_) => SimpleExecutionError::RanOutOfGas,
-            Self::PrepareMemory(_) | Self::Environment => SimpleExecutionError::Unsupported,
             Self::Trap(expl) => match expl {
                 TrapExplanation::GasLimitExceeded => SimpleExecutionError::RanOutOfGas,
                 TrapExplanation::ForbiddenFunction | TrapExplanation::UnrecoverableExt(_) => {
@@ -478,18 +469,59 @@ impl ActorExecutionErrorReplyReason {
                 TrapExplanation::StackLimitExceeded => SimpleExecutionError::StackLimitExceeded,
                 TrapExplanation::Unknown => SimpleExecutionError::UnreachableInstruction,
             },
-            Self::UnsupportedMessage => SimpleExecutionError::Unsupported,
+            Self::Environment | Self::UnsupportedMessage => SimpleExecutionError::Unsupported,
         }
     }
+}
+
+/// Inconsistency in memory parameters provided for wasm execution.
+#[derive(Debug, PartialEq, Eq, derive_more::Display)]
+pub enum MemorySetupError {
+    /// Memory size exceeds max pages
+    #[display(fmt = "Memory size {memory_size:?} must be less than or equal to {max_pages:?}")]
+    MemorySizeExceedsMaxPages {
+        /// Memory size
+        memory_size: WasmPage,
+        /// Max allowed memory size
+        max_pages: WasmPage,
+    },
+    /// Insufficient memory size
+    #[display(fmt = "Memory size {memory_size:?} must be at least {static_pages:?}")]
+    InsufficientMemorySize {
+        /// Memory size
+        memory_size: WasmPage,
+        /// Static memory size
+        static_pages: WasmPage,
+    },
+    /// Stack end is out of static memory
+    #[display(fmt = "Stack end {stack_end:?} is out of static memory 0..{static_pages:?}")]
+    StackEndOutOfStaticMemory {
+        /// Stack end
+        stack_end: WasmPage,
+        /// Static memory size
+        static_pages: WasmPage,
+    },
+    /// Allocated page is out of allowed memory interval
+    #[display(
+        fmt = "Allocated page {page:?} is out of allowed memory interval {static_pages:?}..{memory_size:?}"
+    )]
+    AllocatedPageOutOfAllowedInterval {
+        /// Allocated page
+        page: WasmPage,
+        /// Static memory size
+        static_pages: WasmPage,
+        /// Memory size
+        memory_size: WasmPage,
+    },
 }
 
 /// System execution error
 #[derive(Debug, derive_more::Display, derive_more::From)]
 pub enum SystemExecutionError {
-    /// Prepare memory error
+    /// Incorrect memory parameters
     #[from]
-    #[display(fmt = "Prepare memory: {_0}")]
-    PrepareMemory(SystemPrepareMemoryError),
+    #[display(fmt = "Memory parameters error: {_0}")]
+    MemoryParams(MemorySetupError),
     /// Environment error
     #[display(fmt = "Backend error: {_0}")]
     Environment(SystemEnvironmentError),

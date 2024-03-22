@@ -42,7 +42,7 @@ use gear_core::{
     reservation::{GasReservationMap, GasReserver},
 };
 use gear_core_errors::{ErrorReplyReason, SignalCode, SimpleExecutionError};
-use gear_wasm_instrument::rules::CustomConstantCostRules;
+use gear_wasm_instrument::gas_metering::Schedule;
 use rand::{rngs::StdRng, RngCore, SeedableRng};
 use std::{
     cell::{Ref, RefCell, RefMut},
@@ -1129,11 +1129,12 @@ impl JournalHandler for ExtManager {
         if let Some(code) = self.opt_binaries.get(&code_id).cloned() {
             for (init_message_id, candidate_id) in candidates {
                 if !self.actors.contains_key(&candidate_id) {
+                    let schedule = Schedule::default();
                     let code = Code::try_new(
                         code.clone(),
-                        1,
-                        |_| CustomConstantCostRules::default(),
-                        None,
+                        schedule.instruction_weights.version,
+                        |module| schedule.rules(module),
+                        schedule.limits.stack_height,
                     )
                     .expect("Program can't be constructed with provided code");
 

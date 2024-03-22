@@ -35,7 +35,7 @@ use common::{
     event::*, scheduler::*, storage::*, ActiveProgram, CodeStorage, GasTree, LockId, LockableTree,
     Origin as _, ProgramStorage, ReservableTree,
 };
-use core_processor::{common::ActorExecutionErrorReplyReason, ActorPrepareMemoryError};
+use core_processor::common::ActorExecutionErrorReplyReason;
 use frame_support::{
     assert_noop, assert_ok,
     codec::{Decode, Encode},
@@ -51,13 +51,13 @@ use gear_core::{
         ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext, Payload,
         ReplyInfo, StoredDispatch, UserStoredMessage,
     },
-    pages::{PageNumber, PageU32Size, WasmPage},
+    pages::PageNumber,
 };
 use gear_core_backend::error::{
     TrapExplanation, UnrecoverableExecutionError, UnrecoverableExtError, UnrecoverableWaitError,
 };
 use gear_core_errors::*;
-use gear_wasm_instrument::{rules::CustomConstantCostRules, STACK_END_EXPORT_NAME};
+use gear_wasm_instrument::{gas_metering::CustomConstantCostRules, STACK_END_EXPORT_NAME};
 use gstd::{collections::BTreeMap, errors::Error as GstdError};
 use pallet_gear_voucher::PrepaidCall;
 use sp_runtime::{
@@ -12571,97 +12571,6 @@ fn wake_after_exit() {
     });
 }
 
-#[test]
-fn check_gear_stack_end_fail() {
-    // This test checks, that in case user makes WASM file with incorrect
-    // gear stack end export, then execution will end with an error.
-    let wat_template = |addr| {
-        format!(
-            r#"
-            (module
-                (import "env" "memory" (memory 4))
-                (export "init" (func $init))
-                (func $init)
-                (global (;0;) (mut i32) (i32.const {addr}))
-                (export "{STACK_END_EXPORT_NAME}" (global 0))
-            )"#,
-        )
-    };
-
-    init_logger();
-    new_test_ext().execute_with(|| {
-        // Check error when stack end bigger then static mem size
-        let wat = wat_template(0x50000);
-        Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            ProgramCodeKind::Custom(wat.as_str()).to_bytes(),
-            DEFAULT_SALT.to_vec(),
-            EMPTY_PAYLOAD.to_vec(),
-            50_000_000_000,
-            0,
-            false,
-        )
-        .expect("Failed to upload program");
-
-        let message_id = get_last_message_id();
-
-        run_to_next_block(None);
-        assert_last_dequeued(1);
-        assert_failed(
-            message_id,
-            ActorExecutionErrorReplyReason::PrepareMemory(
-                ActorPrepareMemoryError::StackEndPageBiggerWasmMemSize(
-                    WasmPage::new(5).unwrap(),
-                    WasmPage::new(4).unwrap(),
-                ),
-            ),
-        );
-
-        // Check error when stack end is not aligned
-        let wat = wat_template(0x10001);
-        Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            ProgramCodeKind::Custom(wat.as_str()).to_bytes(),
-            DEFAULT_SALT.to_vec(),
-            EMPTY_PAYLOAD.to_vec(),
-            50_000_000_000,
-            0,
-            false,
-        )
-        .expect("Failed to upload program");
-
-        let message_id = get_last_message_id();
-
-        run_to_next_block(None);
-        assert_last_dequeued(1);
-        assert_failed(
-            message_id,
-            ActorExecutionErrorReplyReason::PrepareMemory(
-                ActorPrepareMemoryError::StackIsNotAligned(65537),
-            ),
-        );
-
-        // Check OK if stack end is suitable
-        let wat = wat_template(0x10000);
-        Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            ProgramCodeKind::Custom(wat.as_str()).to_bytes(),
-            DEFAULT_SALT.to_vec(),
-            EMPTY_PAYLOAD.to_vec(),
-            50_000_000_000,
-            0,
-            false,
-        )
-        .expect("Failed to upload program");
-
-        let message_id = get_last_message_id();
-
-        run_to_next_block(None);
-        assert_last_dequeued(1);
-        assert_succeed(message_id);
-    });
-}
-
 /// Test that error is generated in case `gr_read` requests out of bounds data from message.
 #[test]
 fn check_gr_read_error_works() {
@@ -13656,42 +13565,6 @@ fn reservation_manager() {
             vec![Assertion::ReplyCode(ReplyCode::error(
                 SimpleExecutionError::UserspacePanic,
             ))],
-        );
-    });
-}
-
-#[test]
-fn check_mutable_global_exports_restriction() {
-    init_logger();
-
-    let wat_correct = format!(
-        r#"
-        (module
-            (import "env" "memory" (memory 0))
-            (func $init)
-            (global (;0;) (mut i32) (i32.const 65536))
-            (export "init" (func $init))
-            (export "{STACK_END_EXPORT_NAME}" (global 0))
-        )"#
-    );
-
-    let wat_incorrect = r#"
-        (module
-            (import "env" "memory" (memory 0))
-            (func $init)
-            (global (;0;) (mut i32) (i32.const 65536))
-            (export "init" (func $init))
-            (export "global" (global 0))
-        )"#;
-
-    new_test_ext().execute_with(|| {
-        assert_ok!(upload_program_default(
-            USER_1,
-            ProgramCodeKind::CustomInvalid(&wat_correct)
-        ));
-        assert_noop!(
-            upload_program_default(USER_1, ProgramCodeKind::CustomInvalid(wat_incorrect)),
-            Error::<Test>::ProgramConstructionFailed
         );
     });
 }
@@ -14817,26 +14690,6 @@ fn critical_hook_in_handle_signal() {
         let signal_msg_id = MessageId::generate_signal(mid);
         let status = dispatch_status(signal_msg_id);
         assert_eq!(status, Some(DispatchStatus::Failed));
-    });
-}
-
-#[test]
-fn export_is_import() {
-    let wat = r#"
-        (module
-            (import "env" "memory" (memory 1))
-            (import "env" "gr_leave" (func $gr_leave))
-            (export "init" (func $gr_leave))
-            (func)
-        )"#;
-
-    init_logger();
-    new_test_ext().execute_with(|| {
-        let code = ProgramCodeKind::Custom(wat).to_bytes();
-        assert_noop!(
-            Gear::upload_code(RuntimeOrigin::signed(USER_1), code),
-            Error::<Test>::ProgramConstructionFailed
-        );
     });
 }
 

@@ -15,7 +15,7 @@
 //
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
-#[allow(rustdoc::broken_intra_doc_links)] //subxt-codegen produces incorrect docs
+
 #[allow(dead_code, unused_imports, non_camel_case_types)]
 #[allow(clippy::all)]
 #[allow(rustdoc::broken_intra_doc_links)]
@@ -715,6 +715,8 @@ pub mod runtime_types {
                         pub exports:
                             ::std::vec::Vec<runtime_types::gear_core::message::DispatchKind>,
                         pub static_pages: runtime_types::gear_core::pages::WasmPage,
+                        pub stack_end:
+                            ::core::option::Option<runtime_types::gear_core::pages::WasmPage>,
                         pub version: ::core::primitive::u32,
                     }
                 }
