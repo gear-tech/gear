@@ -15,3 +15,7 @@ gear-wasm-builder = { path = ".." }
 
 # To exclude this project from the outer workspace
 [workspace]
+
+[features]
+a = []
+b = []

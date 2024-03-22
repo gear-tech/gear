@@ -153,6 +153,7 @@ subxt-codegen = "0.32.1"
 syn = "2.0.53"
 thiserror = "1.0.58"
 tokio = { version = "1.36.0" }
+uluru = "3.0.0"
 url = "2.5.0"
 wat = "1.0.83"
 wabt = "0.10.0"
