@@ -307,113 +307,113 @@ pub struct SyscallCosts {
 /// Enumerates syscalls that can be charged by gas meter.
 #[derive(Debug, Copy, Clone)]
 pub enum CostToken {
-    /// Charge zero gas
+    /// Zero cost.
     Null,
-    /// Charge for calling `alloc`.
+    /// Cost of calling `alloc`.
     Alloc,
-    /// Charge for calling `free`.
+    /// Cost of calling `free`.
     Free,
-    /// Charge for calling `free_range`
+    /// Cost of calling `free_range`
     FreeRange,
-    /// Charge for calling `gr_reserve_gas`.
+    /// Cost of calling `gr_reserve_gas`.
     ReserveGas,
-    /// Charge for calling `gr_unreserve_gas`.
+    /// Cost of calling `gr_unreserve_gas`.
     UnreserveGas,
-    /// Charge for calling `gr_system_reserve_gas`.
+    /// Cost of calling `gr_system_reserve_gas`.
     SystemReserveGas,
-    /// Charge for calling `gr_gas_available`.
+    /// Cost of calling `gr_gas_available`.
     GasAvailable,
-    /// Charge for calling `gr_message_id`.
+    /// Cost of calling `gr_message_id`.
     MsgId,
-    /// Charge for calling `gr_program_id`.
+    /// Cost of calling `gr_program_id`.
     ProgramId,
-    /// Charge for calling `gr_source`.
+    /// Cost of calling `gr_source`.
     Source,
-    /// Charge for calling `gr_value`.
+    /// Cost of calling `gr_value`.
     Value,
-    /// Charge for calling `gr_value_available`.
+    /// Cost of calling `gr_value_available`.
     ValueAvailable,
-    /// Charge for calling `gr_size`.
+    /// Cost of calling `gr_size`.
     Size,
-    /// Charge for calling `gr_read`.
+    /// Cost of calling `gr_read`.
     Read,
-    /// Charge for calling `gr_env_vars`.
+    /// Cost of calling `gr_env_vars`.
     EnvVars,
-    /// Charge for calling `gr_block_height`.
+    /// Cost of calling `gr_block_height`.
     BlockHeight,
-    /// Charge for calling `gr_block_timestamp`.
+    /// Cost of calling `gr_block_timestamp`.
     BlockTimestamp,
-    /// Charge for calling `gr_random`.
+    /// Cost of calling `gr_random`.
     Random,
-    /// Charge for calling `gr_reply_deposit`.
+    /// Cost of calling `gr_reply_deposit`.
     ReplyDeposit,
-    /// Charge for calling `gr_send`, taking in account payload size.
+    /// Cost of calling `gr_send`, taking in account payload size.
     Send(Bytes),
-    /// Charge for calling `gr_send_wgas`, taking in account payload size.
+    /// Cost of calling `gr_send_wgas`, taking in account payload size.
     SendWGas(Bytes),
-    /// Charge for calling `gr_send_init`.
+    /// Cost of calling `gr_send_init`.
     SendInit,
-    /// Charge for calling `gr_send_push`, taking in account payload size.
+    /// Cost of calling `gr_send_push`, taking in account payload size.
     SendPush(Bytes),
-    /// Charge for calling `gr_send_commit`.
+    /// Cost of calling `gr_send_commit`.
     SendCommit,
-    /// Charge for calling `gr_send_commit_wgas`.
+    /// Cost of calling `gr_send_commit_wgas`.
     SendCommitWGas,
-    /// Charge for calling `gr_reservation_send`, taking in account payload size.
+    /// Cost of calling `gr_reservation_send`, taking in account payload size.
     ReservationSend(Bytes),
-    /// Charge for calling `gr_reservation_send_commit`.
+    /// Cost of calling `gr_reservation_send_commit`.
     ReservationSendCommit,
-    /// Charge for calling `gr_send_input`.
+    /// Cost of calling `gr_send_input`.
     SendInput,
-    /// Charge for calling `gr_send_input_wgas`.
+    /// Cost of calling `gr_send_input_wgas`.
     SendInputWGas,
-    /// Charge for calling `gr_send_push_input`.
+    /// Cost of calling `gr_send_push_input`.
     SendPushInput,
-    /// Charge for calling `gr_reply`, taking in account payload size.
+    /// Cost of calling `gr_reply`, taking in account payload size.
     Reply(Bytes),
-    /// Charge for calling `gr_reply_wgas`, taking in account payload size.
+    /// Cost of calling `gr_reply_wgas`, taking in account payload size.
     ReplyWGas(Bytes),
-    /// Charge for calling `gr_reply_push`, taking in account payload size.
+    /// Cost of calling `gr_reply_push`, taking in account payload size.
     ReplyPush(Bytes),
-    /// Charge for calling `gr_reply_commit`.
+    /// Cost of calling `gr_reply_commit`.
     ReplyCommit,
-    /// Charge for calling `gr_reply_commit_wgas`.
+    /// Cost of calling `gr_reply_commit_wgas`.
     ReplyCommitWGas,
-    /// Charge for calling `gr_reservation_reply`, taking in account payload size.
+    /// Cost of calling `gr_reservation_reply`, taking in account payload size.
     ReservationReply(Bytes),
-    /// Charge for calling `gr_reservation_reply_commit`.
+    /// Cost of calling `gr_reservation_reply_commit`.
     ReservationReplyCommit,
-    /// Charge for calling `gr_reply_input`.
+    /// Cost of calling `gr_reply_input`.
     ReplyInput,
-    /// Charge for calling `gr_reply_input_wgas`.
+    /// Cost of calling `gr_reply_input_wgas`.
     ReplyInputWGas,
-    /// Charge for calling `gr_reply_push_input`.
+    /// Cost of calling `gr_reply_push_input`.
     ReplyPushInput,
-    /// Charge for calling `gr_reply_to`.
+    /// Cost of calling `gr_reply_to`.
     ReplyTo,
-    /// Charge for calling `gr_signal_code`.
+    /// Cost of calling `gr_signal_code`.
     SignalCode,
-    /// Charge for calling `gr_signal_from`.
+    /// Cost of calling `gr_signal_from`.
     SignalFrom,
-    /// Charge for calling `gr_debug`, taking in account payload size.
+    /// Cost of calling `gr_debug`, taking in account payload size.
     Debug(Bytes),
-    /// Charge for calling `gr_reply_code`.
+    /// Cost of calling `gr_reply_code`.
     ReplyCode,
-    /// Charge for calling `gr_exit`.
+    /// Cost of calling `gr_exit`.
     Exit,
-    /// Charge for calling `gr_leave`.
+    /// Cost of calling `gr_leave`.
     Leave,
-    /// Charge for calling `gr_wait`.
+    /// Cost of calling `gr_wait`.
     Wait,
-    /// Charge for calling `gr_wait_for`.
+    /// Cost of calling `gr_wait_for`.
     WaitFor,
-    /// Charge for calling `gr_wait_up_to`.
+    /// Cost of calling `gr_wait_up_to`.
     WaitUpTo,
-    /// Charge for calling `gr_wake`.
+    /// Cost of calling `gr_wake`.
     Wake,
-    /// Charge for calling `gr_create_program`, taking in account payload and salt size.
+    /// Cost of calling `gr_create_program`, taking in account payload and salt size.
     CreateProgram(Bytes, Bytes),
-    /// Charge for calling `gr_create_program_wgas`, taking in account payload and salt size.
+    /// Cost of calling `gr_create_program_wgas`, taking in account payload and salt size.
     CreateProgramWGas(Bytes, Bytes),
 }
 
