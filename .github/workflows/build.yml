@@ -154,7 +154,7 @@ jobs:
           cp target/production/wbuild/vara-runtime/vara_runtime.compact.wasm artifact/
           cp target/production/wbuild/vara-runtime/vara_runtime.wasm artifact/
           cp target/production/gear artifact/
-          cp target/release/wasm-proc artifact/
+          cp target/debug/wasm-proc artifact/
           strip artifact/gear || true
           strip artifact/wasm-proc || true
 
