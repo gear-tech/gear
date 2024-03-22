@@ -39,7 +39,7 @@ pub use context::{
     ContextChargedForCode, ContextChargedForInstrumentation, ProcessExecutionContext,
     SystemReservationContext,
 };
-pub use executor::{execute_wasm, ActorPrepareMemoryError};
+pub use executor::execute_wasm;
 pub use ext::{
     AllocExtError, Ext, FallibleExtError, ProcessorContext, ProcessorExternalities,
     UnrecoverableExtError,

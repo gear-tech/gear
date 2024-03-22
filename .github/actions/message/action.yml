@@ -14,6 +14,8 @@ outputs:
     description: If enable native Windows build.
   macos:
     description: If enable macOS build.
+  validator:
+    description: If enable validator checks.
   release:
     description: If enable release build.
 

@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2024 Gear Technologies Inc.
+// Copyright (C) 2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -16,15 +16,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::*;
+//! This module is used to instrument a Wasm module with gas metering code.
 
-/// All migrations that will run on the next runtime upgrade.
-pub type Migrations = (
-    /* release v1.2.0 */
-    // migration for stored contexts
-    pallet_gear_messenger::migrations::MigrateToV3<Runtime>,
-    // check for existence of the rent pool account
-    pallet_gear_staking_rewards::migrations::CheckRentPoolId<Runtime>,
-    /* unapplied migrations */
-    pallet_gear_program::migration::AppendStackEndMigration<Runtime>,
-);
+pub use gwasm_instrument::gas_metering::*;
+pub use rules::*;
+pub use schedule::*;
+
+mod rules;
+mod schedule;
