@@ -103,9 +103,7 @@ impl WasmBuilder {
 
     /// Build the program and produce an output WASM binary.
     pub fn build(self) {
-        if env::var("__GEAR_WASM_BUILDER_NO_BUILD").is_ok()
-            || is_intellij_sync()
-        {
+        if env::var("__GEAR_WASM_BUILDER_NO_BUILD").is_ok() || is_intellij_sync() {
             self.wasm_project.provide_dummy_wasm_binary_if_not_exist();
             return;
         }
