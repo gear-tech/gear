@@ -778,8 +778,9 @@ impl Externalities for Ext {
             )))?
             .into();
 
-        // +_+_+
-        let pages_amount = WasmPage::new(page_count).unwrap();
+        // TODO: use numerated::Interval #+_+_+
+        let pages_amount = WasmPage::new(page_count)
+            .map_err(|_| AllocError::InvalidFreeRange(start.raw(), end.raw()))?;
 
         Ext::charge_gas_if_enough(
             &mut self.context.gas_counter,

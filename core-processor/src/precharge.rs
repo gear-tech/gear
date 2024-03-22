@@ -19,7 +19,7 @@ use crate::{
         ActorExecutionErrorReplyReason, DispatchResult, ExecutableActorData, JournalNote,
         PrechargedDispatch,
     },
-    configs::BlockConfig,
+    configs::{BlockConfig, ProcessCosts},
     context::{
         ContextChargedForCodeLength, ContextChargedForMemory, ContextData, SystemReservationContext,
     },
@@ -79,17 +79,17 @@ impl<'a> GasPrecharger<'a> {
     pub fn new(
         counter: &'a mut GasCounter,
         allowance_counter: &'a mut GasAllowanceCounter,
-        block_config: &BlockConfig,
+        costs: &ProcessCosts,
     ) -> Self {
         Self {
             counter,
             allowance_counter,
-            read_cost: block_config.costs.read,
-            read_per_byte_cost: block_config.costs.read_per_byte,
-            instrumentation_cost: block_config.costs.instrumentation,
-            instrumentation_cost_per_byte: block_config.costs.instrumentation_per_byte,
-            static_page_cost: block_config.costs.static_page,
-            instantiation_per_byte_cost: block_config.costs.module_instantiation_per_byte,
+            read_cost: costs.read,
+            read_per_byte_cost: costs.read_per_byte,
+            instrumentation_cost: costs.instrumentation,
+            instrumentation_cost_per_byte: costs.instrumentation_per_byte,
+            static_page_cost: costs.static_page,
+            instantiation_per_byte_cost: costs.module_instantiation_per_byte,
         }
     }
 
@@ -190,8 +190,11 @@ pub fn precharge_for_program(
 ) -> PrechargeResult<PrechargedDispatch> {
     let mut gas_counter = GasCounter::new(dispatch.gas_limit());
     let mut gas_allowance_counter = GasAllowanceCounter::new(gas_allowance);
-    let mut charger =
-        GasPrecharger::new(&mut gas_counter, &mut gas_allowance_counter, block_config);
+    let mut charger = GasPrecharger::new(
+        &mut gas_counter,
+        &mut gas_allowance_counter,
+        &block_config.costs,
+    );
 
     match charger.charge_gas_for_program_data() {
         Ok(()) => Ok(PrechargedDispatch::from_parts(
@@ -244,8 +247,11 @@ pub fn precharge_for_code_length(
         ));
     }
 
-    let mut charger =
-        GasPrecharger::new(&mut gas_counter, &mut gas_allowance_counter, block_config);
+    let mut charger = GasPrecharger::new(
+        &mut gas_counter,
+        &mut gas_allowance_counter,
+        &block_config.costs,
+    );
     match charger.charge_gas_for_program_code_len() {
         Ok(()) => Ok(ContextChargedForCodeLength {
             data: ContextData {
@@ -283,7 +289,7 @@ pub fn precharge_for_code(
     let mut charger = GasPrecharger::new(
         &mut context.data.gas_counter,
         &mut context.data.gas_allowance_counter,
-        block_config,
+        &block_config.costs,
     );
 
     match charger.charge_gas_for_program_code(code_len_bytes.into()) {
@@ -316,7 +322,7 @@ pub fn precharge_for_instrumentation(
     let mut charger = GasPrecharger::new(
         &mut context.data.gas_counter,
         &mut context.data.gas_allowance_counter,
-        block_config,
+        &block_config.costs,
     );
 
     match charger.charge_gas_for_instrumentation(original_code_len_bytes.into()) {
@@ -357,7 +363,8 @@ pub fn precharge_for_memory(
     } = &mut context;
 
     let mut f = || {
-        let mut charger = GasPrecharger::new(gas_counter, gas_allowance_counter, block_config);
+        let mut charger =
+            GasPrecharger::new(gas_counter, gas_allowance_counter, &block_config.costs);
 
         let memory_size =
             charger.charge_gas_for_pages(&actor_data.allocations, actor_data.static_pages)?;
@@ -400,32 +407,36 @@ pub fn precharge_for_memory(
     }
 }
 
-//     // +_+_+
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-//     fn prepare_gas_counters() -> (GasCounter, GasAllowanceCounter) {
-//         (
-//             GasCounter::new(1_000_000),
-//             GasAllowanceCounter::new(4_000_000),
-//         )
-//     }
+    fn prepare_gas_counters() -> (GasCounter, GasAllowanceCounter) {
+        (
+            GasCounter::new(1_000_000),
+            GasAllowanceCounter::new(4_000_000),
+        )
+    }
 
-//     // #[test]
-//     // fn gas_for_static_pages() {
-//     //     let costs = PageCosts::new_for_tests();
-//     //     let (mut gas_counter, mut gas_allowance_counter) = prepare_gas_counters();
-//     //     let mut charger = GasPrecharger::new(&mut gas_counter, &mut gas_allowance_counter);
-//     //     let static_pages = 4.into();
-//     //     let res = charger
-//     //         .charge_gas_for_pages(&costs, &Default::default(), static_pages)
-//     //         .unwrap();
-//     //     // Result is static pages count
-//     //     assert_eq!(res, static_pages);
-//     //     // Charging for static pages initialization
-//     //     let charge = costs.static_page.calc(static_pages);
-//     //     assert_eq!(charger.counter.left(), 1_000_000 - charge);
-//     //     assert_eq!(charger.allowance_counter.left(), 4_000_000 - charge);
-//     // }
-// }
+    #[test]
+    fn gas_for_static_pages() {
+        let (mut gas_counter, mut gas_allowance_counter) = prepare_gas_counters();
+        let costs = ProcessCosts {
+            static_page: 1.into(),
+            ..Default::default()
+        };
+        let mut charger = GasPrecharger::new(&mut gas_counter, &mut gas_allowance_counter, &costs);
+        let static_pages = 4.into();
+        let allocations = Default::default();
+
+        let res = charger.charge_gas_for_pages(&allocations, static_pages);
+
+        // Result is static pages count
+        assert_eq!(res, Ok(static_pages));
+
+        // Charging for static pages initialization
+        let charge = costs.static_page.calc(static_pages);
+        assert_eq!(charger.counter.left(), 1_000_000 - charge);
+        assert_eq!(charger.allowance_counter.left(), 4_000_000 - charge);
+    }
+}

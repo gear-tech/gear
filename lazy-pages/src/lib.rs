@@ -144,9 +144,9 @@ pub fn initialize_for_program(
 
         let stack_end = WasmPage::new(stack_end, runtime_ctx).ok_or(Error::StackEndOverflow)?;
 
-        let costs: Costs = costs
-            .try_into()
-            .map_err(|costs: Vec<u64>| Error::WrongCostsAmount(costs.len(), CostNo::Amount as usize))?;
+        let costs: Costs = costs.try_into().map_err(|costs: Vec<u64>| {
+            Error::WrongCostsAmount(costs.len(), CostNo::Amount as usize)
+        })?;
 
         let execution_ctx = LazyPagesExecutionContext {
             costs,

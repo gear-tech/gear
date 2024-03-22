@@ -85,9 +85,8 @@ use gear_core::{
     code::{Code, CodeAndId},
     ids::{CodeId, MessageId, ProgramId},
     memory::{Memory, PageBuf},
-    message::{DispatchKind, IncomingDispatch},
+    message::DispatchKind,
     pages::{GearPage, PageU32Size, WasmPage},
-    reservation::GasReserver,
 };
 use gear_core_backend::{
     env::Environment,
@@ -160,23 +159,6 @@ where
     let (builtins, _) = T::BuiltinDispatcherFactory::create();
     let ext_manager = ExtManager::<T>::new(builtins);
     Gear::<T>::process_queue(ext_manager);
-}
-
-// +_+_+
-fn default_processor_context<T: Config>() -> ProcessorContext {
-    let ctx = ProcessorContext::new_mock();
-    ProcessorContext {
-        gas_reserver: GasReserver::new(
-            &<IncomingDispatch as Default>::default(),
-            Default::default(),
-            T::ReservationsLimit::get(),
-        ),
-        performance_multiplier: gsys::Percent::new(100),
-        existential_deposit: 42,
-        mailbox_threshold: 500,
-        gas_multiplier: gsys::GasMultiplier::from_value_per_gas(30),
-        ..ctx
-    }
 }
 
 fn verify_process(notes: Vec<JournalNote>) {
@@ -396,7 +378,7 @@ benchmarks! {
 
         let WasmModule { code, .. } = WasmModule::<T>::sized(c * 1024, Location::Init);
     }: {
-        let ext = Externalities::new(default_processor_context::<T>());
+        let ext = Externalities::new(ProcessorContext::new_mock());
         Environment::new(ext, &code, DispatchKind::Init, Default::default(), max_pages::<T>().into()).unwrap();
     }
 
