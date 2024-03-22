@@ -27,9 +27,8 @@ use ark_ff::biginteger::BigInt;
 use ark_scale::hazmat::ArkScaleProjective;
 use ark_std::{ops::Mul, UniformRand};
 use frame_benchmarking::{benchmarks, impl_benchmark_test_suite};
-use gear_core::message::{Payload, StoredDispatch};
+use gear_core::message::{Payload, StoredDispatch, MAX_PAYLOAD_SIZE};
 use parity_scale_codec::{Compact, Encode, Input};
-use sp_core::MAX_POSSIBLE_ALLOCATION;
 
 type ArkScale<T> = ark_scale::ArkScale<T, { ark_scale::HOST_CALL }>;
 type ScalarField = <G2 as Group>::ScalarField;
@@ -125,7 +124,7 @@ benchmarks! {
     }
 
     decode_bytes {
-        let a in 0 .. (MAX_POSSIBLE_ALLOCATION - 100);
+        let a in 1 .. MAX_PAYLOAD_SIZE as u32;
 
         let bytes = vec![1u8; a as usize];
         let encoded = bytes.encode();
