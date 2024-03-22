@@ -304,8 +304,7 @@ where
             costs.host_func_write_after_read = rand_cost();
             costs.load_page_storage_data = rand_cost();
 
-            let charged_for_pages =
-                page_sets.charged_for_pages(&exec.block_config.costs.lazy_pages);
+            let charged_for_pages = page_sets.charged_for_pages(costs);
 
             let notes =
                 core_processor::process::<Ext>(&exec.block_config, exec.context, exec.random_data)

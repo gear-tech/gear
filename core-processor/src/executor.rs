@@ -200,8 +200,6 @@ where
         costs: settings.ext_costs,
     };
 
-    let lazy_pages_costs = settings.lazy_pages_costs;
-
     // Creating externalities.
     let ext = Ext::new(context);
 
@@ -221,7 +219,7 @@ where
                 program.memory_infix(),
                 program.stack_end(),
                 globals_config,
-                lazy_pages_costs,
+                settings.lazy_pages_costs,
             )
         })
     };
@@ -385,8 +383,6 @@ where
         costs: Default::default(),
     };
 
-    let lazy_pages_costs = Default::default();
-
     // Creating externalities.
     let ext = Ext::new(context);
 
@@ -406,7 +402,7 @@ where
                 program.memory_infix(),
                 program.stack_end(),
                 globals_config,
-                lazy_pages_costs,
+                Default::default(),
             )
         })
     };

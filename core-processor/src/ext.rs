@@ -100,7 +100,7 @@ pub struct ProcessorContext {
     pub costs: ExtCosts,
 }
 
-// #[cfg(any(feature = "mock", test))]
+#[cfg(any(feature = "mock", test))]
 impl ProcessorContext {
     /// Create new mock [`ProcessorContext`] for usage in tests.
     pub fn new_mock() -> ProcessorContext {

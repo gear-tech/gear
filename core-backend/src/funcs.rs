@@ -255,9 +255,9 @@ struct FallibleSyscall<E, F> {
 }
 
 impl<F> FallibleSyscall<(), F> {
-    fn new<E>(costs: CostToken, f: F) -> FallibleSyscall<E, F> {
+    fn new<E>(token: CostToken, f: F) -> FallibleSyscall<E, F> {
         FallibleSyscall {
-            token: costs,
+            token,
             error: PhantomData,
             f,
         }
@@ -277,13 +277,9 @@ where
         caller: &mut CallerWrap<Ext>,
         context: Self::Context,
     ) -> Result<(Gas, ()), HostError> {
-        let Self {
-            token: costs,
-            error: _error,
-            f,
-        } = self;
+        let Self { token, f, .. } = self;
         let FallibleSyscallContext { gas, res_ptr } = context;
-        caller.run_fallible::<T, _, E>(gas, res_ptr, costs, f)
+        caller.run_fallible::<T, _, E>(gas, res_ptr, token, f)
     }
 }
 
@@ -302,13 +298,13 @@ impl SyscallContext for InfallibleSyscallContext {
 
 /// Infallible syscall that calls [`CallerWrap::run_any`] underneath
 struct InfallibleSyscall<F> {
-    costs: CostToken,
+    token: CostToken,
     f: F,
 }
 
 impl<F> InfallibleSyscall<F> {
-    fn new(costs: CostToken, f: F) -> Self {
-        Self { costs, f }
+    fn new(token: CostToken, f: F) -> Self {
+        Self { token, f }
     }
 }
 
@@ -324,9 +320,9 @@ where
         caller: &mut CallerWrap<Ext>,
         ctx: Self::Context,
     ) -> Result<(Gas, T), HostError> {
-        let Self { costs, f } = self;
+        let Self { token, f } = self;
         let InfallibleSyscallContext { gas } = ctx;
-        caller.run_any::<T, _>(gas, costs, f)
+        caller.run_any::<T, _>(gas, token, f)
     }
 }
 
