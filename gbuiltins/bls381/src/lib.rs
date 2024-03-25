@@ -90,77 +90,22 @@ pub enum Request {
     ProjectiveMultiplicationG2 { base: Vec<u8>, scalar: Vec<u8> },
 }
 
-/// The enumeration represents possible common errors for all requests.
-#[derive(Encode, Decode, Clone, Debug, PartialEq, Eq)]
-#[codec(crate = codec)]
-pub enum Error {
-    /// Failed to scale-decode the length of a `Vec<u8>`.
-    DecodeVecLength,
-    /// Failed to scale-decode bytes.
-    DecodeVecData,
-    /// Failed to decode the length of a `Vec<G(1,2)Affine>`.
-    DecodeItemCount,
-}
-
 /// The enumeration contains result to a request.
-#[derive(Encode, Decode, Clone, Debug, PartialEq, Eq, derive_more::From)]
+#[derive(Encode, Decode, Clone, Debug, PartialEq, Eq)]
 #[codec(crate = codec)]
 pub enum Response {
-    /// Common error.
-    #[from]
-    Error(Error),
-    /// Result of the multi Miller loop [`MultiMillerLoopResult`].
-    #[from]
-    MultiMillerLoop(MultiMillerLoopResult),
-    /// Result of the final exponentiation.
-    FinalExponentiation(Result<Vec<u8>, ()>),
-    /// Result of the multi scalar multiplication [`MultiScalarMultiplicationResult`].
-    #[from]
-    MultiScalarMultiplication(MultiScalarMultiplicationResult),
-    /// Result of the projective multiplication.
-    ProjectiveMultiplication(Result<Vec<u8>, ()>),
-}
-
-/// Result of the multi Miller loop computation.
-#[derive(Encode, Decode, Clone, Debug, PartialEq, Eq)]
-#[codec(crate = codec)]
-pub enum MultiMillerLoopResult {
-    /// Encoded: `ArkScale<Bls12_381::TargetField>`.
-    Ok(Vec<u8>),
-    /// Computation error.
-    Error,
-    /// The input lists don't have the same number of items.
-    NonEqualItemCount,
-}
-
-impl From<Result<Vec<u8>, ()>> for MultiMillerLoopResult {
-    fn from(result: Result<Vec<u8>, ()>) -> Self {
-        match result {
-            Ok(v) => MultiMillerLoopResult::Ok(v),
-            Err(_) => MultiMillerLoopResult::Error,
-        }
-    }
-}
-
-/// Result of the multi scalar multiplication.
-#[derive(Encode, Decode, Clone, Debug, PartialEq, Eq)]
-#[codec(crate = codec)]
-pub enum MultiScalarMultiplicationResult {
-    // Encoded: `ArkScaleProjective<ark_bls12_381::G(1,2)Projective>`.
-    Ok(Vec<u8>),
-    /// Computation error.
-    Error,
-    /// The input lists don't have the same number of items.
-    NonEqualItemCount,
-}
-
-impl From<Result<Vec<u8>, ()>> for MultiScalarMultiplicationResult {
-    fn from(result: Result<Vec<u8>, ()>) -> Self {
-        match result {
-            Ok(v) => MultiScalarMultiplicationResult::Ok(v),
-            Err(_) => MultiScalarMultiplicationResult::Error,
-        }
-    }
+    /// Result of the multi Miller loop, encoded: `ArkScale<Bls12_381::TargetField>`.
+    MultiMillerLoop(Vec<u8>),
+    /// Result of the final exponentiation, encoded: `ArkScale<Bls12_381::TargetField>`.
+    FinalExponentiation(Vec<u8>),
+    /// Result of the multi scalar multiplication, encoded: `ArkScaleProjective<G1Projective>`.
+    MultiScalarMultiplicationG1(Vec<u8>),
+    /// Result of the multi scalar multiplication, encoded: `ArkScaleProjective<G2Projective>`.
+    MultiScalarMultiplicationG2(Vec<u8>),
+    /// Result of the projective multiplication, encoded: `ArkScaleProjective<G1Projective>`.
+    ProjectiveMultiplicationG1(Vec<u8>),
+    /// Result of the projective multiplication, encoded: `ArkScaleProjective<G2Projective>`.
+    ProjectiveMultiplicationG2(Vec<u8>),
 }
 
 #[cfg(test)]

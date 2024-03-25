@@ -69,9 +69,13 @@ fn decode_vec<T: Config, I: Input>(
     gas_limit: u64,
     mut gas_spent: u64,
     input: &mut I,
-) -> (u64, Option<Result<Vec<u8>, Error>>) {
+) -> (u64, Option<Result<Vec<u8>, BuiltinActorError>>) {
     let Ok(len) = Compact::<u32>::decode(input).map(u32::from) else {
-        return (gas_spent, Some(Err(Error::DecodeVecLength)));
+        log::debug!(
+            target: LOG_TARGET,
+            "Failed to scale-decode vector length"
+        );
+        return (gas_spent, Some(Err(BuiltinActorError::DecodingError)));
     };
 
     let to_spend = <T as Config>::WeightInfo::decode_bytes(len).ref_time();
@@ -83,10 +87,14 @@ fn decode_vec<T: Config, I: Input>(
 
     let mut items = vec![0u8; len as usize];
     let bytes_slice = items.as_mut_slice();
-    let result = input
-        .read(bytes_slice)
-        .map(|_| items)
-        .map_err(|_| Error::DecodeVecData);
+    let result = input.read(bytes_slice).map(|_| items).map_err(|_| {
+        log::debug!(
+            target: LOG_TARGET,
+            "Failed to scale-decode vector data",
+        );
+
+        BuiltinActorError::DecodingError
+    });
 
     (gas_spent, Some(result))
 }
@@ -98,14 +106,14 @@ fn multi_miller_loop<T: Config>(
     let (gas_spent, result) = decode_vec::<T, _>(gas_limit, 0, &mut payload);
     let a = match result {
         Some(Ok(array)) => array,
-        Some(Err(e)) => return (Ok(e.into()), gas_spent),
+        Some(Err(e)) => return (Err(e), gas_spent),
         None => return (Err(BuiltinActorError::InsufficientGas), gas_spent),
     };
 
     let (mut gas_spent, result) = decode_vec::<T, _>(gas_limit, gas_spent, &mut payload);
     let b = match result {
         Some(Ok(array)) => array,
-        Some(Err(e)) => return (Ok(e.into()), gas_spent),
+        Some(Err(e)) => return (Err(e), gas_spent),
         None => return (Err(BuiltinActorError::InsufficientGas), gas_spent),
     };
 
@@ -119,7 +127,7 @@ fn multi_miller_loop<T: Config>(
             "Failed to decode item count in a",
         );
 
-        return (Ok(Error::DecodeItemCount.into()), gas_spent);
+        return (Err(BuiltinActorError::DecodingError), gas_spent);
     };
 
     let mut slice = b.as_slice();
@@ -127,7 +135,9 @@ fn multi_miller_loop<T: Config>(
     match u64::deserialize_with_mode(&mut reader, IS_COMPRESSED, IS_VALIDATED) {
         Ok(count_b) if count_b != count => {
             return (
-                Ok(MultiMillerLoopResult::NonEqualItemCount.into()),
+                Err(BuiltinActorError::Custom(LimitedStr::from_small_str(
+                    "Multi Miller loop: non equal item count",
+                ))),
                 gas_spent,
             )
         }
@@ -137,7 +147,7 @@ fn multi_miller_loop<T: Config>(
                 "Failed to decode item count in b",
             );
 
-            return (Ok(Error::DecodeItemCount.into()), gas_spent);
+            return (Err(BuiltinActorError::DecodingError), gas_spent);
         }
         Ok(_) => (),
     }
@@ -148,10 +158,16 @@ fn multi_miller_loop<T: Config>(
     }
 
     gas_spent += to_spend;
-    let result: MultiMillerLoopResult =
-        bls12_381::host_calls::bls12_381_multi_miller_loop(a, b).into();
 
-    (Ok(result.into()), gas_spent)
+    match bls12_381::host_calls::bls12_381_multi_miller_loop(a, b) {
+        Ok(result) => (Ok(Response::MultiMillerLoop(result)), gas_spent),
+        Err(_) => (
+            Err(BuiltinActorError::Custom(LimitedStr::from_small_str(
+                "Multi Miller loop: computation error",
+            ))),
+            gas_spent,
+        ),
+    }
 }
 
 fn final_exponentiation<T: Config>(
@@ -161,7 +177,7 @@ fn final_exponentiation<T: Config>(
     let (mut gas_spent, result) = decode_vec::<T, _>(gas_limit, 0, &mut payload);
     let f = match result {
         Some(Ok(array)) => array,
-        Some(Err(e)) => return (Ok(e.into()), gas_spent),
+        Some(Err(e)) => return (Err(e), gas_spent),
         None => return (Err(BuiltinActorError::InsufficientGas), gas_spent),
     };
 
@@ -172,31 +188,34 @@ fn final_exponentiation<T: Config>(
 
     gas_spent += to_spend;
 
-    (
-        Ok(Response::FinalExponentiation(
-            bls12_381::host_calls::bls12_381_final_exponentiation(f),
-        )),
-        gas_spent,
-    )
+    match bls12_381::host_calls::bls12_381_final_exponentiation(f) {
+        Ok(result) => (Ok(Response::FinalExponentiation(result)), gas_spent),
+        Err(_) => (
+            Err(BuiltinActorError::Custom(LimitedStr::from_small_str(
+                "Final exponentiation: computation error",
+            ))),
+            gas_spent,
+        ),
+    }
 }
 
 fn msm<T: Config>(
     mut payload: &[u8],
     gas_limit: u64,
     gas_to_spend: impl FnOnce(u32) -> u64,
-    call: impl FnOnce(Vec<u8>, Vec<u8>) -> Result<Vec<u8>, ()>,
+    call: impl FnOnce(Vec<u8>, Vec<u8>) -> Result<Response, ()>,
 ) -> (Result<Response, BuiltinActorError>, u64) {
     let (gas_spent, result) = decode_vec::<T, _>(gas_limit, 0, &mut payload);
     let bases = match result {
         Some(Ok(array)) => array,
-        Some(Err(e)) => return (Ok(e.into()), gas_spent),
+        Some(Err(e)) => return (Err(e), gas_spent),
         None => return (Err(BuiltinActorError::InsufficientGas), gas_spent),
     };
 
     let (mut gas_spent, result) = decode_vec::<T, _>(gas_limit, gas_spent, &mut payload);
     let scalars = match result {
         Some(Ok(array)) => array,
-        Some(Err(e)) => return (Ok(e.into()), gas_spent),
+        Some(Err(e)) => return (Err(e), gas_spent),
         None => return (Err(BuiltinActorError::InsufficientGas), gas_spent),
     };
 
@@ -210,7 +229,7 @@ fn msm<T: Config>(
             "Failed to decode item count in bases",
         );
 
-        return (Ok(Error::DecodeItemCount.into()), gas_spent);
+        return (Err(BuiltinActorError::DecodingError), gas_spent);
     };
 
     let mut slice = scalars.as_slice();
@@ -218,7 +237,9 @@ fn msm<T: Config>(
     match u64::deserialize_with_mode(&mut reader, IS_COMPRESSED, IS_VALIDATED) {
         Ok(count_b) if count_b != count => {
             return (
-                Ok(MultiScalarMultiplicationResult::NonEqualItemCount.into()),
+                Err(BuiltinActorError::Custom(LimitedStr::from_small_str(
+                    "Multi scalar multiplication: non equal item count",
+                ))),
                 gas_spent,
             )
         }
@@ -228,7 +249,7 @@ fn msm<T: Config>(
                 "Failed to decode item count in scalars",
             );
 
-            return (Ok(Error::DecodeItemCount.into()), gas_spent);
+            return (Err(BuiltinActorError::DecodingError), gas_spent);
         }
         Ok(_) => (),
     }
@@ -239,9 +260,16 @@ fn msm<T: Config>(
     }
 
     gas_spent += to_spend;
-    let result: MultiScalarMultiplicationResult = call(bases, scalars).into();
 
-    (Ok(result.into()), gas_spent)
+    match call(bases, scalars) {
+        Ok(result) => (Ok(result), gas_spent),
+        Err(_) => (
+            Err(BuiltinActorError::Custom(LimitedStr::from_small_str(
+                "Multi scalar multiplication: computation error",
+            ))),
+            gas_spent,
+        ),
+    }
 }
 
 fn msm_g1<T: Config>(payload: &[u8], gas_limit: u64) -> (Result<Response, BuiltinActorError>, u64) {
@@ -249,7 +277,10 @@ fn msm_g1<T: Config>(payload: &[u8], gas_limit: u64) -> (Result<Response, Builti
         payload,
         gas_limit,
         |count| <T as Config>::WeightInfo::bls12_381_msm_g1(count).ref_time(),
-        bls12_381::host_calls::bls12_381_msm_g1,
+        |bases, scalars| {
+            bls12_381::host_calls::bls12_381_msm_g1(bases, scalars)
+                .map(Response::MultiScalarMultiplicationG1)
+        },
     )
 }
 
@@ -258,7 +289,10 @@ fn msm_g2<T: Config>(payload: &[u8], gas_limit: u64) -> (Result<Response, Builti
         payload,
         gas_limit,
         |count| <T as Config>::WeightInfo::bls12_381_msm_g2(count).ref_time(),
-        bls12_381::host_calls::bls12_381_msm_g2,
+        |bases, scalars| {
+            bls12_381::host_calls::bls12_381_msm_g2(bases, scalars)
+                .map(Response::MultiScalarMultiplicationG2)
+        },
     )
 }
 
@@ -266,19 +300,19 @@ fn projective_multiplication<T: Config>(
     mut payload: &[u8],
     gas_limit: u64,
     gas_to_spend: impl FnOnce(u32) -> u64,
-    call: impl FnOnce(Vec<u8>, Vec<u8>) -> Result<Vec<u8>, ()>,
+    call: impl FnOnce(Vec<u8>, Vec<u8>) -> Result<Response, ()>,
 ) -> (Result<Response, BuiltinActorError>, u64) {
     let (gas_spent, result) = decode_vec::<T, _>(gas_limit, 0, &mut payload);
     let base = match result {
         Some(Ok(array)) => array,
-        Some(Err(e)) => return (Ok(e.into()), gas_spent),
+        Some(Err(e)) => return (Err(e), gas_spent),
         None => return (Err(BuiltinActorError::InsufficientGas), gas_spent),
     };
 
     let (mut gas_spent, result) = decode_vec::<T, _>(gas_limit, gas_spent, &mut payload);
     let scalar = match result {
         Some(Ok(array)) => array,
-        Some(Err(e)) => return (Ok(e.into()), gas_spent),
+        Some(Err(e)) => return (Err(e), gas_spent),
         None => return (Err(BuiltinActorError::InsufficientGas), gas_spent),
     };
 
@@ -292,7 +326,7 @@ fn projective_multiplication<T: Config>(
             "Failed to decode item count in scalar",
         );
 
-        return (Ok(Error::DecodeItemCount.into()), gas_spent);
+        return (Err(BuiltinActorError::DecodingError), gas_spent);
     };
 
     let to_spend = gas_to_spend(count as u32);
@@ -302,10 +336,15 @@ fn projective_multiplication<T: Config>(
 
     gas_spent += to_spend;
 
-    (
-        Ok(Response::ProjectiveMultiplication(call(base, scalar))),
-        gas_spent,
-    )
+    match call(base, scalar) {
+        Ok(result) => (Ok(result), gas_spent),
+        Err(_) => (
+            Err(BuiltinActorError::Custom(LimitedStr::from_small_str(
+                "Projective multiplication: computation error",
+            ))),
+            gas_spent,
+        ),
+    }
 }
 
 fn projective_multiplication_g1<T: Config>(
@@ -316,7 +355,10 @@ fn projective_multiplication_g1<T: Config>(
         payload,
         gas_limit,
         |count| <T as Config>::WeightInfo::bls12_381_mul_projective_g1(count).ref_time(),
-        bls12_381::host_calls::bls12_381_mul_projective_g1,
+        |base, scalar| {
+            bls12_381::host_calls::bls12_381_mul_projective_g1(base, scalar)
+                .map(Response::ProjectiveMultiplicationG1)
+        },
     )
 }
 
@@ -328,6 +370,9 @@ fn projective_multiplication_g2<T: Config>(
         payload,
         gas_limit,
         |count| <T as Config>::WeightInfo::bls12_381_mul_projective_g2(count).ref_time(),
-        bls12_381::host_calls::bls12_381_mul_projective_g2,
+        |base, scalar| {
+            bls12_381::host_calls::bls12_381_mul_projective_g2(base, scalar)
+                .map(Response::ProjectiveMultiplicationG2)
+        },
     )
 }
