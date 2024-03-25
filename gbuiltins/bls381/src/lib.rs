@@ -218,7 +218,7 @@ mod tests {
             assert_eq!(index, variant.into());
             let encoded = request.encode();
 
-            assert!(matches!(encoded.first().copied(), Some(variant)));
+            assert!(matches!(encoded.first().copied(), Some(v) if v == variant));
         }
     }
 }
