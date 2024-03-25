@@ -2312,6 +2312,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-bls381"
+version = "0.1.0"
+dependencies = [
+ "ark-bls12-381",
+ "ark-ec",
+ "ark-scale",
+ "gbuiltin-bls381",
+ "gear-wasm-builder",
+ "gstd",
+ "hex-literal",
+ "parity-scale-codec",
+]
+
+[[package]]
 name = "demo-calc-hash"
 version = "0.1.0"
 dependencies = [
