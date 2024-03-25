@@ -880,6 +880,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "cargo-gbuild"
+version = "1.2.0"
+dependencies = [
+ "anyhow",
+ "ccli",
+ "serde",
+ "toml 0.7.8",
+ "tracing",
+]
+
+[[package]]
 name = "cargo-platform"
 version = "0.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -924,6 +935,18 @@ checksum = "f1174fb0b6ec23863f8b971027804a42614e347eafb0a95bf0b12cdae21fc4d0"
 dependencies = [
  "jobserver",
  "libc",
+]
+
+[[package]]
+name = "ccli"
+version = "0.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "75d93ef90b6cd71fede89bad7702d57789ecde315277428bdd0eddd6e1c469b5"
+dependencies = [
+ "anyhow",
+ "clap 4.5.3",
+ "color-eyre",
+ "tracing-subscriber 0.3.18",
 ]
 
 [[package]]

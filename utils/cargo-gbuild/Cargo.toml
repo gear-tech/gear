@@ -1,0 +1,15 @@
+[package]
+name = "cargo-gbuild"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+ccli.workspace = true
+serde = { workspace = true, features = ["derive"] }
+toml.workspace = true
+tracing.workspace = true
