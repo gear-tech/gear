@@ -132,6 +132,14 @@ const listJobs = async ({ github, core, run_id }) => {
     return;
   }
 
+  // DEBUG
+  console.log(
+    "All jobs:",
+    jobs.map((job) => job.name)
+  );
+  console.log("All checks", checks);
+  // DEBUG
+
   const requiredJobs = jobs.filter((job) => checks.includes(job.name));
   if (requiredJobs.length !== checks.length) {
     core.setFailed(`Incorrect count for disptached jobs`);
@@ -145,7 +153,7 @@ const listJobs = async ({ github, core, run_id }) => {
  *  The main function.
  **/
 module.exports = async ({ github, core }) => {
-  await checkSkip({ github, core });
+  // await checkSkip({ github, core });
 
   const run = await dispatchWorkflow({ core, github });
   core.info(`Dispatched workflow ${run.html_url}`);
