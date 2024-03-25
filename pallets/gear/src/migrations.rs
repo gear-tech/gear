@@ -268,6 +268,7 @@ mod tests {
                     )
                 })
                 .collect();
+            let dispatches_amount = dispatches.iter().map(|(_, d)| d.len()).sum::<usize>();
 
             let mut waitlist_bns = vec![];
             for (destination, dispatches) in dispatches.clone() {
@@ -296,6 +297,25 @@ mod tests {
                 waiting_init_list::WaitingInitStorage::<Test>::insert(destination, messages);
             }
 
+            assert_eq!(
+                waiting_init_list::WaitingInitStorage::<Test>::iter().count(),
+                dispatches.len(),
+            );
+            assert_eq!(
+                waitlist_bns
+                    .iter()
+                    .map(|bn| { TaskPoolOf::<Test>::len(bn) })
+                    .sum::<usize>(),
+                dispatches_amount,
+            );
+            assert_eq!(
+                dispatches
+                    .iter()
+                    .map(|(destination, _)| { WaitlistOf::<Test>::len(destination) })
+                    .sum::<usize>(),
+                dispatches_amount,
+            );
+
             let state = MigrateWaitingInitList::<Test>::pre_upgrade().unwrap();
             let weight = MigrateWaitingInitList::<Test>::on_runtime_upgrade();
             assert!(!weight.is_zero());
@@ -314,9 +334,15 @@ mod tests {
                     .sum::<usize>(),
                 0
             );
+            assert_eq!(
+                dispatches
+                    .iter()
+                    .map(|(destination, _)| { WaitlistOf::<Test>::len(destination) })
+                    .sum::<usize>(),
+                0
+            );
 
-            let messages_in_queue: usize = dispatches.iter().map(|(_, d)| d.len()).sum();
-            assert_eq!(QueueOf::<Test>::iter().count(), messages_in_queue);
+            assert_eq!(QueueOf::<Test>::iter().count(), dispatches_amount);
 
             for (destination, dispatches) in dispatches.clone() {
                 for (_source, dispatch) in dispatches {
@@ -331,7 +357,7 @@ mod tests {
 
             run_to_next_block(None);
 
-            assert_last_dequeued(messages_in_queue as u32);
+            assert_last_dequeued(dispatches_amount as u32);
 
             for (_destination, dispatches) in dispatches {
                 for (_source, dispatch) in dispatches {
