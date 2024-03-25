@@ -3,16 +3,16 @@ name: Label
 on:
   pull_request:
     branches: [master]
-    # types: [labeled]
+    types: [labeled]
 
 jobs:
   dispatch:
     runs-on: ubuntu-latest
-    # if: >-
-    #   github.event.label.name == 'A0-pleasereview'
-    #   || github.event.label.name == 'E2-forcemacos'
-    #   || github.event.label.name == 'A4-insubstantial'
-    #   || github.event.label.name == 'A2-mergeoncegreen'
+    if: >-
+      github.event.label.name == 'A0-pleasereview'
+      || github.event.label.name == 'E2-forcemacos'
+      || github.event.label.name == 'A4-insubstantial'
+      || github.event.label.name == 'A2-mergeoncegreen'
     steps:
       - uses: actions/checkout@v4
         with:

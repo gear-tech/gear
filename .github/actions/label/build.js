@@ -151,7 +151,7 @@ const listJobs = async ({ github, core, run_id }) => {
  *  The main function.
  **/
 module.exports = async ({ github, core }) => {
-  // await checkSkip({ github, core });
+  await checkSkip({ github, core });
 
   const run = await dispatchWorkflow({ core, github });
   core.info(`Dispatched workflow ${run.html_url}`);
