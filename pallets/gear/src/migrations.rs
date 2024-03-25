@@ -146,15 +146,15 @@ mod tests {
     use crate::{
         mock::{new_test_ext, run_to_next_block, GearProgram, RuntimeEvent, System, Test, USER_1},
         tests::{init_logger, utils::assert_last_dequeued},
-        CurrencyOf, Event, GasHandlerOf, GearBank, WaitlistOf,
+        CurrencyOf, Event, GasHandlerOf, GearBank, TaskPoolOf, WaitlistOf,
     };
     use common::{
         event::Reason,
-        storage::{LinkedNode, Waitlist},
+        scheduler::{ScheduledTask, TaskPool},
+        storage::{CountedByKey, LinkedNode, Waitlist},
         GasTree,
     };
     use frame_support::{pallet_prelude::StorageVersion, traits::Currency};
-    use frame_system::pallet_prelude::BlockNumberFor;
     use gear_core::{
         ids::ProgramId,
         message::{
@@ -269,14 +269,21 @@ mod tests {
                 })
                 .collect();
 
+            let mut waitlist_bns = vec![];
             for (destination, dispatches) in dispatches.clone() {
                 let mut messages = vec![];
                 for (source, dispatch) in dispatches {
                     messages.push(dispatch.id());
 
+                    let bn = random::<u64>();
+                    waitlist_bns.push(bn);
+                    let task =
+                        ScheduledTask::RemoveFromWaitlist(dispatch.destination(), dispatch.id());
+                    TaskPoolOf::<Test>::add(bn, task).unwrap();
+                    WaitlistOf::<Test>::insert(dispatch.clone(), bn).unwrap();
+
                     GasHandlerOf::<Test>::create(USER_1, multiplier, dispatch.id(), 1_000_000)
                         .unwrap();
-
                     GearBank::<Test>::deposit_gas(&USER_1, 1_000_000, true).unwrap();
 
                     let _ = CurrencyOf::<Test>::deposit_creating(
@@ -284,12 +291,6 @@ mod tests {
                         100_000_000_000_000_000_u128.unique_saturated_into(),
                     );
                     GearBank::<Test>::deposit_value(&source, 1_000_000, true).unwrap();
-
-                    WaitlistOf::<Test>::insert(
-                        dispatch,
-                        BlockNumberFor::<Test>::from(random::<u64>()),
-                    )
-                    .unwrap();
                 }
 
                 waiting_init_list::WaitingInitStorage::<Test>::insert(destination, messages);
@@ -304,6 +305,13 @@ mod tests {
 
             assert_eq!(
                 waiting_init_list::WaitingInitStorage::<Test>::iter().count(),
+                0
+            );
+            assert_eq!(
+                waitlist_bns
+                    .into_iter()
+                    .map(|bn| { TaskPoolOf::<Test>::len(&bn) })
+                    .sum::<usize>(),
                 0
             );
 
