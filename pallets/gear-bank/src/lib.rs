@@ -159,12 +159,12 @@ pub mod pallet {
     // Private storage that keeps account bank details.
     #[pallet::storage]
     #[pallet::getter(fn account)]
-    pub type Bank<T> = StorageMap<_, Identity, AccountIdOf<T>, BankAccount<BalanceOf<T>>>;
+    type Bank<T> = StorageMap<_, Identity, AccountIdOf<T>, BankAccount<BalanceOf<T>>>;
 
     // Private storage that keeps amount of value that wasn't sent because owner is inexistent account.
     #[pallet::storage]
     #[pallet::getter(fn unused_value)]
-    pub type UnusedValue<T> = StorageValue<_, BalanceOf<T>, ValueQuery>;
+    type UnusedValue<T> = StorageValue<_, BalanceOf<T>, ValueQuery>;
 
     impl<T: Config> Pallet<T> {
         /// Transfers value from `account_id` to bank address.
