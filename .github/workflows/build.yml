@@ -81,9 +81,6 @@ jobs:
       - name: "Build: Gear"
         run: ./scripts/gear.sh build gear --locked ${{ matrix.profile_flags }}
 
-      - name: "Build: Examples"
-        run: ./scripts/gear.sh build examples --locked ${{ matrix.profile_flags }}
-
       - name: "Build fuzzer"
         run: ./scripts/gear.sh build fuzz --locked ${{ matrix.profile_flags }}
 
