@@ -310,7 +310,6 @@ mod tests {
             let messages_in_queue: usize = dispatches.iter().map(|(_, d)| d.len()).sum();
             assert_eq!(QueueOf::<Test>::iter().count(), messages_in_queue);
 
-            let mut compared = 0;
             for (destination, dispatches) in dispatches.clone() {
                 for (_source, dispatch) in dispatches {
                     let LinkedNode {
@@ -319,11 +318,8 @@ mod tests {
                     } = Dispatches::<Test>::get(dispatch.id()).unwrap();
                     assert_eq!(queued_dispatch, dispatch);
                     assert_eq!(queued_dispatch.destination(), destination);
-
-                    compared += 1;
                 }
             }
-            assert_eq!(compared, messages_in_queue);
 
             run_to_next_block(None);
 
