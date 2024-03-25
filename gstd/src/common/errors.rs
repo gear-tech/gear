@@ -80,6 +80,15 @@ impl Error {
     pub fn timed_out(&self) -> bool {
         matches!(self, Error::Timeout(..))
     }
+
+    /// Check whether an error is [`Error::ErrorReply`] and return its payload.
+    pub fn error_payload(&self) -> Option<&String> {
+        if let Self::ErrorReply(payload, _) = self {
+            Some(payload)
+        } else {
+            None
+        }
+    }
 }
 
 impl fmt::Display for Error {
