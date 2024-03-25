@@ -58,9 +58,11 @@ pub mod pallet {
         ensure,
         pallet_prelude::{StorageMap, StorageValue, ValueQuery},
         sp_runtime::{traits::CheckedSub, Saturating},
-        traits::{ExistenceRequirement, Get, ReservableCurrency, WithdrawReasons},
+        traits::{ExistenceRequirement, Get, Hooks, ReservableCurrency, WithdrawReasons},
+        weights::Weight,
         Identity,
     };
+    use frame_system::pallet_prelude::BlockNumberFor;
     use pallet_authorship::Pallet as Authorship;
     use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
     use scale_info::TypeInfo;
@@ -165,6 +167,33 @@ pub mod pallet {
     #[pallet::storage]
     #[pallet::getter(fn unused_value)]
     type UnusedValue<T> = StorageValue<_, BalanceOf<T>, ValueQuery>;
+
+    // Private storage that keeps registry of transfers to be performed at the end of the block.
+    #[pallet::storage]
+    type OnFinalizeTransfers<T> = StorageMap<_, Identity, AccountIdOf<T>, BalanceOf<T>>;
+
+    #[pallet::hooks]
+    impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
+        /// Start of the block.
+        fn on_initialize(bn: BlockNumberFor<T>) -> Weight {
+            if OnFinalizeTransfers::<T>::iter().next().is_some() {
+                log::error!("Block #{bn:?} started with non-empty on-finalize transfers");
+            }
+
+            T::DbWeight::get().reads(1)
+        }
+
+        /// End of the block.
+        fn on_finalize(bn: BlockNumberFor<T>) {
+            while let Some((account_id, value)) = OnFinalizeTransfers::<T>::drain().next() {
+                if let Err(e) = Self::withdraw(&account_id, value) {
+                    log::error!(
+                        "Unreachable error occurred while performing on-finalize transfers for block #{bn:?}: {e:?}"
+                    );
+                }
+            }
+        }
+    }
 
     impl<T: Config> Pallet<T> {
         /// Transfers value from `account_id` to bank address.
