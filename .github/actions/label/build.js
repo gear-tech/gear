@@ -127,21 +127,19 @@ const listJobs = async ({ github, core, run_id }) => {
     run_id,
   });
 
-  if (jobs.length === 0) {
-    core.setFailed(`Empty jobs from dispatched workflow`);
-    return;
-  }
-
-  const matrix = jobs.filter((job) => job.name === "matrix");
-  if (!matrix || matrix.status !== "completed") {
-    console.log(jobs);
+  if (jobs.length == 1 && jobs[0].name === "matrix") {
     core.info("Waiting for matrix job to be completed ... ");
-    await sleep(10000);
+    await sleep(5000);
     return await listJobs({ github, core, run_id });
+  } else if (jobs.length !== 3) {
+    core.setFailed("Unexpected jobs from dispatched workflow", jobs);
+    return;
   }
 
   const requiredJobs = jobs.filter((job) => checks.includes(job.name));
   if (requiredJobs.length !== checks.length) {
+    console.log("all jobs:", jobs);
+    console.log("required jobs:", requiredJobs);
     core.setFailed(`Incorrect count for disptached jobs`);
     return;
   }
