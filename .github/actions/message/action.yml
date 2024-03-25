@@ -14,8 +14,12 @@ outputs:
     description: If enable native Windows build.
   macos:
     description: If enable macOS build.
+  validator:
+    description: If enable validator checks.
   release:
     description: If enable release build.
+  production:
+    description: If enable production build.
 
 runs:
   using: node20

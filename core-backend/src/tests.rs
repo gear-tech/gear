@@ -646,9 +646,7 @@ fn test_syscalls_table() {
     let ext = MockExt::default();
     let env =
         Environment::new(ext, &code, DispatchKind::Init, Default::default(), 0.into()).unwrap();
-    let report = env
-        .execute(|_, _, _| -> Result<(), u32> { Ok(()) })
-        .unwrap();
+    let report = env.execute(|_, _| {}).unwrap();
 
     let BackendReport {
         termination_reason, ..

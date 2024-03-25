@@ -716,6 +716,8 @@ pub mod runtime_types {
                         pub exports:
                             ::std::vec::Vec<runtime_types::gear_core::message::DispatchKind>,
                         pub static_pages: runtime_types::gear_core::pages::WasmPage,
+                        pub stack_end:
+                            ::core::option::Option<runtime_types::gear_core::pages::WasmPage>,
                         pub version: ::core::primitive::u32,
                     }
                 }
