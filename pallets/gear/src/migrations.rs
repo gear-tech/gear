@@ -144,27 +144,28 @@ mod waiting_init_list {
 mod tests {
     use super::*;
     use crate::{
-        mock::{new_test_ext, GearProgram, Test, USER_1},
-        tests::init_logger,
-        GasHandlerOf, WaitlistOf,
+        mock::{new_test_ext, run_to_next_block, GearProgram, RuntimeEvent, System, Test, USER_1},
+        tests::{init_logger, utils::assert_last_dequeued},
+        CurrencyOf, Event, GasHandlerOf, GearBank, WaitlistOf,
     };
     use common::{
+        event::Reason,
         storage::{LinkedNode, Waitlist},
         GasTree,
     };
-    use frame_support::pallet_prelude::StorageVersion;
+    use frame_support::{pallet_prelude::StorageVersion, traits::Currency};
     use frame_system::pallet_prelude::BlockNumberFor;
     use gear_core::{
         ids::ProgramId,
         message::{
             ContextStore, DispatchKind, MessageDetails, Payload, ReplyDetails, SignalDetails,
-            StoredDispatch, StoredMessage,
+            StoredDispatch, StoredMessage, Value,
         },
     };
     use gear_core_errors::{ReplyCode, SignalCode, SuccessReplyReason};
     use pallet_gear_messenger::Dispatches;
     use rand::random;
-    use sp_runtime::traits::Zero;
+    use sp_runtime::traits::{UniqueSaturatedInto, Zero};
 
     fn random_payload() -> Payload {
         Payload::try_from(up_to(8 * 1024, random::<u8>).collect::<Vec<_>>())
@@ -175,7 +176,7 @@ mod tests {
         std::iter::from_fn(move || Some(f())).take(random::<usize>() % limit)
     }
 
-    fn random_dispatch(destination: ProgramId) -> StoredDispatch {
+    fn random_dispatch(source: u64, destination: ProgramId) -> StoredDispatch {
         let kind = match random::<u8>() % 4 {
             0 => DispatchKind::Init,
             1 => DispatchKind::Handle,
@@ -225,14 +226,17 @@ mod tests {
                 if random() { Some(random()) } else { None },
             ))
         };
+
+        let value = random::<Value>() % 1_000_000;
+
         StoredDispatch::new(
             kind,
             StoredMessage::new(
                 MessageId::from(random::<u64>()),
-                ProgramId::from(random::<u64>()),
+                ProgramId::from(source),
                 destination,
                 random_payload(),
-                random(),
+                value,
                 details,
             ),
             context,
@@ -256,17 +260,31 @@ mod tests {
                 .map(|destination| {
                     (
                         destination,
-                        up_to(32, || random_dispatch(destination)).collect::<Vec<_>>(),
+                        up_to(32, || {
+                            let source = random();
+                            (source, random_dispatch(source, destination))
+                        })
+                        .collect::<Vec<_>>(),
                     )
                 })
                 .collect();
 
             for (destination, dispatches) in dispatches.clone() {
                 let mut messages = vec![];
-                for dispatch in dispatches {
+                for (source, dispatch) in dispatches {
                     messages.push(dispatch.id());
 
-                    GasHandlerOf::<Test>::create(USER_1, multiplier, dispatch.id(), 0).unwrap();
+                    GasHandlerOf::<Test>::create(USER_1, multiplier, dispatch.id(), 1_000_000)
+                        .unwrap();
+
+                    GearBank::<Test>::deposit_gas(&USER_1, 1_000_000, true).unwrap();
+
+                    let _ = CurrencyOf::<Test>::deposit_creating(
+                        &source,
+                        100_000_000_000_000_000_u128.unique_saturated_into(),
+                    );
+                    GearBank::<Test>::deposit_value(&source, 1_000_000, true).unwrap();
+
                     WaitlistOf::<Test>::insert(
                         dispatch,
                         BlockNumberFor::<Test>::from(random::<u64>()),
@@ -294,7 +312,7 @@ mod tests {
 
             let mut compared = 0;
             for (destination, dispatches) in dispatches.clone() {
-                for dispatch in dispatches {
+                for (_source, dispatch) in dispatches {
                     let LinkedNode {
                         value: queued_dispatch,
                         ..
@@ -306,6 +324,19 @@ mod tests {
                 }
             }
             assert_eq!(compared, messages_in_queue);
+
+            run_to_next_block(None);
+
+            assert_last_dequeued(messages_in_queue as u32);
+
+            for (_destination, dispatches) in dispatches {
+                for (_source, dispatch) in dispatches {
+                    System::assert_has_event(RuntimeEvent::Gear(Event::MessageWoken {
+                        id: dispatch.id(),
+                        reason: Reason::System(MessageWokenSystemReason::WaitInitListMigration),
+                    }));
+                }
+            }
         });
     }
 }

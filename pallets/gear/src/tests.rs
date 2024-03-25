@@ -14868,7 +14868,7 @@ fn incorrect_store_context() {
     });
 }
 
-mod utils {
+pub(crate) mod utils {
     #![allow(unused)]
 
     use super::{
@@ -15058,7 +15058,7 @@ mod utils {
     }
 
     #[track_caller]
-    pub(super) fn assert_last_dequeued(expected: u32) {
+    pub(crate) fn assert_last_dequeued(expected: u32) {
         let last_dequeued = System::events()
             .iter()
             .filter_map(|e| {
@@ -15695,7 +15695,7 @@ mod utils {
         }
     }
 
-    pub(super) fn print_gear_events() {
+    pub(crate) fn print_gear_events() {
         let v = System::events()
             .into_iter()
             .map(|r| r.event)
@@ -15731,13 +15731,13 @@ mod utils {
     }
 
     #[derive(Clone, Debug, Eq, PartialEq)]
-    pub(super) enum Assertion {
+    pub(crate) enum Assertion {
         Payload(Vec<u8>),
         ReplyCode(ReplyCode),
     }
 
     #[track_caller]
-    pub(super) fn assert_responses_to_user(user_id: AccountId, assertions: Vec<Assertion>) {
+    pub(crate) fn assert_responses_to_user(user_id: AccountId, assertions: Vec<Assertion>) {
         let messages: Vec<UserMessage> = System::events()
             .into_iter()
             .filter_map(|e| {
