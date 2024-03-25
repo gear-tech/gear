@@ -40,8 +40,8 @@ const checkSkip = async ({ github, core }) => {
     check_runs.filter(
       (run) =>
         (run.name === "build" && run.conclusion !== "skipped") ||
-        run.name === "build / linux" ||
-        run.name === "build / macos-x86"
+        run.name === "build / linux (debug)" ||
+        run.name === "build / macos / x86"
     ).length > 0
   ) {
     core.info(
