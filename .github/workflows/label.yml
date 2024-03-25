@@ -3,7 +3,7 @@ name: Label
 on:
   pull_request:
     branches: [master]
-    types: [labeled]
+    # types: [labeled]
 
 jobs:
   dispatch:

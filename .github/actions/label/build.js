@@ -132,13 +132,11 @@ const listJobs = async ({ github, core, run_id }) => {
     return;
   }
 
-  // DEBUG
-  console.log(
-    "All jobs:",
-    jobs.map((job) => job.name)
-  );
-  console.log("All checks", checks);
-  // DEBUG
+  if (jobs.length == 1 && jobs[0].name === "matrix") {
+    core.info("Waiting for matrix job to be completed ... ");
+    await sleep(10000);
+    return await listJobs({ github, core, run_id });
+  }
 
   const requiredJobs = jobs.filter((job) => checks.includes(job.name));
   if (requiredJobs.length !== checks.length) {
