@@ -208,15 +208,29 @@ impl PageCount {
 /// If you want to store some data in memory and then access it in the program,
 /// consider adding a new pointer to this structure.
 pub struct MemoryLayout {
+    /// pointer to `init_called_ptr: bool`
     pub init_called_ptr: i32,
+    /// pointer to `wait_called_ptr: u32`
     pub wait_called_ptr: i32,
+    /// pointer to `reservation_temp_ptr: u32`
+    pub reservation_temp_ptr: i32,
+    /// pointer to `reservation_flags_ptr: u32`
+    pub reservation_flags_ptr: i32,
+    /// pointer to `reservation_array_ptr: [Hash; 5]`
+    pub reservation_array_ptr: i32,
+    /// used memory length
+    pub used_memory_len: u32,
+    /// remaining memory length
     pub remaining_memory_len: u32,
+    /// remaining memory pointer
     pub remaining_memory_ptr: i32,
 }
 
 impl MemoryLayout {
     /// The amount of reserved memory.
     pub const RESERVED_MEMORY_SIZE: u32 = 256;
+    /// The amount of reservation ids.
+    pub const AMOUNT_OF_RESERVATIONS: u32 = 5;
 }
 
 impl From<u32> for MemoryLayout {
@@ -224,17 +238,27 @@ impl From<u32> for MemoryLayout {
         let start_memory_ptr = mem_size.saturating_sub(Self::RESERVED_MEMORY_SIZE) as i32;
         let init_called_ptr = start_memory_ptr;
         let wait_called_ptr = init_called_ptr + mem::size_of::<bool>() as i32;
-        let remaining_memory_ptr = wait_called_ptr + mem::size_of::<u32>() as i32;
-        let remaining_memory_len = (remaining_memory_ptr - start_memory_ptr) as u32;
+        let reservation_temp_ptr = wait_called_ptr + mem::size_of::<u32>() as i32;
+        let reservation_flags_ptr = reservation_temp_ptr + mem::size_of::<u32>() as i32;
+        let reservation_array_ptr = reservation_flags_ptr + mem::size_of::<u32>() as i32;
+        let remaining_memory_ptr = reservation_array_ptr
+            + (mem::size_of::<gsys::Hash>() * Self::AMOUNT_OF_RESERVATIONS as usize) as i32;
+        let used_memory_len = (remaining_memory_ptr - start_memory_ptr) as u32;
 
         assert!(
-            remaining_memory_len <= Self::RESERVED_MEMORY_SIZE,
+            used_memory_len <= Self::RESERVED_MEMORY_SIZE,
             "reserved memory exceeded"
         );
+
+        let remaining_memory_len = Self::RESERVED_MEMORY_SIZE - used_memory_len;
 
         Self {
             init_called_ptr,
             wait_called_ptr,
+            reservation_temp_ptr,
+            reservation_flags_ptr,
+            reservation_array_ptr,
+            used_memory_len,
             remaining_memory_len,
             remaining_memory_ptr,
         }

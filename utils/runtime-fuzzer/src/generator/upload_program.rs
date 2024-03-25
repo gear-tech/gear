@@ -146,7 +146,15 @@ fn config(
         .with_ptr_rule(PtrParamAllowedValues::ActorIdWithValue {
             actor_kind: actor_kind.clone(),
             range: EXISTENTIAL_DEPOSIT..=max_value,
-        });
+        })
+        .with_ptr_rule(PtrParamAllowedValues::ReservationIdWithValue(
+            EXISTENTIAL_DEPOSIT..=max_value,
+        ))
+        .with_ptr_rule(PtrParamAllowedValues::ReservationIdWithActorIdAndValue {
+            actor_kind: actor_kind.clone(),
+            range: EXISTENTIAL_DEPOSIT..=max_value,
+        })
+        .with_ptr_rule(PtrParamAllowedValues::ReservationId);
 
     StandardGearWasmConfigsBundle {
         entry_points_set: EntryPointsSet::InitHandleHandleReply,

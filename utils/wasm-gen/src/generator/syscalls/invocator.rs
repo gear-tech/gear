@@ -279,6 +279,9 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
         invocable: InvocableSyscall,
         call_indexes_handle: CallIndexesHandle,
     ) -> Result<Vec<Instruction>> {
+        use InvocableSyscall::*;
+        use SyscallName::*;
+
         log::trace!(
             "Random data before building `{}` syscall invoke instructions - {}",
             invocable.to_str(),
@@ -310,7 +313,7 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                 // It's guaranteed by definition that these variants return an error either by returning
                 // error indicating value or by having err mut pointer in params.
                 if process_error {
-                    Self::build_error_processing(signature, param_instructions)
+                    Self::build_error_processing(signature, param_instructions.clone())
                 } else {
                     Self::build_error_processing_ignored(signature)
                 }
@@ -318,12 +321,87 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
         };
         instructions.append(&mut result_processing);
 
-        if let Some(waiting_probability) = self
-            .config
-            .waiting_probability()
-            .filter(|_| invocable.is_wait_syscall())
-        {
-            self.limit_infinite_waits(&mut instructions, waiting_probability.get());
+        match invocable {
+            Loose(Wait | WaitFor | WaitUpTo) => {
+                if let Some(waiting_probability) = self.config.waiting_probability() {
+                    self.limit_infinite_waits(&mut instructions, waiting_probability.get());
+                }
+            }
+            Loose(ReserveGas) => {
+                const _: () = assert!(mem::size_of::<gsys::ErrorCode>() == mem::size_of::<u32>());
+                let no_error_val = gsys::ErrorCode::default() as i32;
+
+                let res_ptr = param_instructions
+                    .last()
+                    .expect("At least one argument in fallible syscall")
+                    .as_i32()
+                    .expect("Incorrect last parameter type: expected i32 pointer");
+
+                let MemoryLayout {
+                    reservation_temp_ptr,
+                    reservation_flags_ptr,
+                    reservation_array_ptr,
+                    ..
+                } = MemoryLayout::from(self.memory_size_bytes());
+
+                instructions.extend_from_slice(&[
+                    // if *res_ptr == no_error_val
+                    Instruction::I32Const(res_ptr),
+                    Instruction::I32Load(2, 0),
+                    Instruction::I32Const(no_error_val),
+                    Instruction::I32Eq,
+                    Instruction::If(BlockType::NoResult),
+                    // *reservation_temp_ptr = (*reservation_flags_ptr).trailing_ones()
+                    Instruction::I32Const(reservation_temp_ptr),
+                    Instruction::I32Const(reservation_flags_ptr),
+                    Instruction::I32Load(2, 0),
+                    Instruction::I32Const(u32::MAX as i32),
+                    Instruction::I32Xor,
+                    Instruction::I32Ctz,
+                    Instruction::I32Store(2, 0),
+                    // if *reservation_temp_ptr < MemoryLayout::AMOUNT_OF_RESERVATIONS
+                    Instruction::I32Const(reservation_temp_ptr),
+                    Instruction::I32Load(2, 0),
+                    Instruction::I32Const(MemoryLayout::AMOUNT_OF_RESERVATIONS as i32),
+                    Instruction::I32LtU,
+                    Instruction::If(BlockType::NoResult),
+                    // *reservation_flags_ptr |= 1 << *reservation_temp_ptr
+                    Instruction::I32Const(reservation_flags_ptr),
+                    Instruction::I32Const(1),
+                    Instruction::I32Const(reservation_temp_ptr),
+                    Instruction::I32Load(2, 0),
+                    Instruction::I32Shl,
+                    Instruction::I32Const(reservation_flags_ptr),
+                    Instruction::I32Load(2, 0),
+                    Instruction::I32Or,
+                    Instruction::I32Store(2, 0),
+                    // *reservation_temp_ptr = reservation_array_ptr + *reservation_temp_ptr * 32
+                    Instruction::I32Const(reservation_temp_ptr),
+                    Instruction::I32Const(reservation_temp_ptr),
+                    Instruction::I32Load(2, 0),
+                    Instruction::I32Const(mem::size_of::<gsys::Hash>() as i32),
+                    Instruction::I32Mul,
+                    Instruction::I32Const(reservation_array_ptr),
+                    Instruction::I32Add,
+                    Instruction::I32Store(2, 0),
+                ]);
+
+                // Copy the Hash struct (32 bytes) containing the reservation id.
+                let mut copy_instr = utils::memcpy64_with_offsets(
+                    &[
+                        Instruction::I32Const(reservation_temp_ptr),
+                        Instruction::I32Load(2, 0),
+                    ],
+                    0,
+                    &[Instruction::I32Const(res_ptr)],
+                    mem::size_of::<gsys::ErrorCode>(),
+                    4,
+                );
+                instructions.append(&mut copy_instr);
+
+                instructions.extend_from_slice(&[Instruction::End, Instruction::End]);
+            }
+            _ => {}
         }
 
         log::trace!(
@@ -484,102 +562,173 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                 let value = self.unstructured.int_in_range(range)?;
                 utils::translate_ptr_data(
                     WasmWords::new(value.to_le_bytes()),
-                    (value_set_ptr, value_set_ptr),
+                    (value_set_ptr, Some(value_set_ptr)),
                 )
             }
             PtrParamAllowedValues::ActorId(actor) => {
-                match actor {
-                    ActorKind::Source => {
-                        let gr_source_call_indexes_handle = self
-                            .syscalls_imports
-                            .get(&InvocableSyscall::Loose(SyscallName::Source))
-                            .map(|&(_, call_indexes_handle)| call_indexes_handle as u32)
-                            .expect(
-                                "by config if destination is source, then `gr_source` is generated",
-                            );
-
-                        vec![
-                            // call `gsys::gr_source` storing actor id at `value_set_ptr` pointer.
-                            Instruction::I32Const(value_set_ptr),
-                            Instruction::Call(gr_source_call_indexes_handle),
-                            Instruction::I32Const(value_set_ptr),
-                        ]
-                    }
-                    ActorKind::ExistingAddresses(addresses) => {
-                        let addresses = utils::non_empty_to_vec(addresses);
-                        let address = self.unstructured.choose(&addresses)?;
-                        utils::translate_ptr_data(
-                            WasmWords::new(*address),
-                            (value_set_ptr, value_set_ptr),
-                        )
-                    }
-                    ActorKind::Random => {
-                        let random_address: [u8; 32] = self.unstructured.arbitrary()?;
-                        utils::translate_ptr_data(
-                            WasmWords::new(random_address),
-                            (value_set_ptr, value_set_ptr),
-                        )
-                    }
-                }
+                self.build_actor_id_instructions(actor, (value_set_ptr, Some(value_set_ptr)))?
             }
             PtrParamAllowedValues::ActorIdWithValue {
                 actor_kind: actor,
                 range,
             } => {
-                match actor {
-                    ActorKind::Source => {
-                        let gr_source_call_indexes_handle = self
-                            .syscalls_imports
-                            .get(&InvocableSyscall::Loose(SyscallName::Source))
-                            .map(|&(_, call_indexes_handle)| call_indexes_handle as u32)
-                            .expect(
-                                "by config if destination is source, then `gr_source` is generated",
-                            );
+                let mut ret_instr =
+                    self.build_actor_id_instructions(actor, (value_set_ptr, None))?;
 
-                        // Put call to `gr_source`` instructions
-                        let mut ret_instr = vec![
-                            // call `gsys::gr_source` storing actor id at `value_set_ptr` pointer.
-                            Instruction::I32Const(value_set_ptr),
-                            Instruction::Call(gr_source_call_indexes_handle),
-                        ];
-                        // Generate value definition instructions.
-                        // Value data is put right after `gr_source` bytes (value_set_ptr + hash len).
-                        let mut value_instr = utils::translate_ptr_data(
-                            WasmWords::new(self.unstructured.int_in_range(range)?.to_le_bytes()),
-                            (value_set_ptr + mem::size_of::<Hash>() as i32, value_set_ptr),
-                        );
-                        ret_instr.append(&mut value_instr);
+                // Generate value definition instructions.
+                // Value data is put right after actor id bytes (value_set_ptr + hash len).
+                let mut value_instr = utils::translate_ptr_data(
+                    WasmWords::new(self.unstructured.int_in_range(range)?.to_le_bytes()),
+                    (
+                        value_set_ptr + mem::size_of::<Hash>() as i32,
+                        Some(value_set_ptr),
+                    ),
+                );
+                ret_instr.append(&mut value_instr);
 
-                        ret_instr
-                    }
-                    ActorKind::ExistingAddresses(addresses) => {
-                        let address_words = WasmWords::new(
-                            *self
-                                .unstructured
-                                .choose(&utils::non_empty_to_vec(addresses))?,
-                        );
-                        let value_words =
-                            WasmWords::new(self.unstructured.int_in_range(range)?.to_le_bytes());
-                        utils::translate_ptr_data(
-                            address_words.merge(value_words),
-                            (value_set_ptr, value_set_ptr),
-                        )
-                    }
-                    ActorKind::Random => {
-                        let random_address_words =
-                            WasmWords::new(self.unstructured.arbitrary::<[u8; 32]>()?);
-                        let value_words =
-                            WasmWords::new(self.unstructured.int_in_range(range)?.to_le_bytes());
-                        utils::translate_ptr_data(
-                            random_address_words.merge(value_words),
-                            (value_set_ptr, value_set_ptr),
-                        )
-                    }
+                ret_instr
+            }
+            ref ptr_allowed_values @ (PtrParamAllowedValues::ReservationIdWithValue(_)
+            | PtrParamAllowedValues::ReservationIdWithActorIdAndValue {
+                ..
+            }
+            | PtrParamAllowedValues::ReservationId) => {
+                let MemoryLayout {
+                    reservation_temp_ptr,
+                    reservation_flags_ptr,
+                    reservation_array_ptr,
+                    ..
+                } = MemoryLayout::from(self.memory_size_bytes());
+
+                let mut ret_instr = vec![
+                    // if *reservation_flags_ptr > 0
+                    Instruction::I32Const(reservation_flags_ptr),
+                    Instruction::I32Load(2, 0),
+                    Instruction::I32Const(0),
+                    Instruction::I32Ne,
+                    Instruction::If(BlockType::NoResult),
+                    // *reservation_temp_ptr = reservation_array_ptr + ((*reservation_flags_ptr).trailing_ones() - 1) * 32
+                    Instruction::I32Const(reservation_temp_ptr),
+                    Instruction::I32Const(reservation_flags_ptr),
+                    Instruction::I32Load(2, 0),
+                    Instruction::I32Const(u32::MAX as i32),
+                    Instruction::I32Xor,
+                    Instruction::I32Ctz,
+                    Instruction::I32Const(1),
+                    Instruction::I32Sub,
+                    Instruction::I32Const(mem::size_of::<gsys::Hash>() as i32),
+                    Instruction::I32Mul,
+                    Instruction::I32Const(reservation_array_ptr),
+                    Instruction::I32Add,
+                    Instruction::I32Store(2, 0),
+                ];
+
+                // Copy the Hash struct (32 bytes) containing the reservation id.
+                let mut copy_instr = utils::memcpy64(
+                    &[Instruction::I32Const(value_set_ptr)],
+                    &[
+                        Instruction::I32Const(reservation_temp_ptr),
+                        Instruction::I32Load(2, 0),
+                    ],
+                    4,
+                );
+                ret_instr.append(&mut copy_instr);
+
+                // else
+                ret_instr.push(Instruction::Else);
+
+                let random_reservation_words =
+                    WasmWords::new(self.unstructured.arbitrary::<[u8; 32]>()?);
+                let mut reservation_id_instr =
+                    utils::translate_ptr_data(random_reservation_words, (value_set_ptr, None));
+                ret_instr.append(&mut reservation_id_instr);
+
+                ret_instr.push(Instruction::End);
+
+                let (value_words, value_words_offset) = match ptr_allowed_values {
+                    PtrParamAllowedValues::ReservationIdWithValue(range) => (
+                        WasmWords::new(
+                            self.unstructured.int_in_range(range.clone())?.to_le_bytes(),
+                        ),
+                        mem::size_of::<Hash>() as i32,
+                    ),
+                    PtrParamAllowedValues::ReservationIdWithActorIdAndValue { range, .. } => (
+                        WasmWords::new(
+                            self.unstructured.int_in_range(range.clone())?.to_le_bytes(),
+                        ),
+                        mem::size_of::<[Hash; 2]>() as i32,
+                    ),
+                    _ => (WasmWords::default(), 0),
+                };
+
+                // Generate value definition instructions.
+                let mut value_instr = utils::translate_ptr_data(
+                    value_words,
+                    (value_set_ptr + value_words_offset, None),
+                );
+                ret_instr.append(&mut value_instr);
+
+                // Generate actor id definition instructions.
+                if let PtrParamAllowedValues::ReservationIdWithActorIdAndValue {
+                    actor_kind, ..
+                } = ptr_allowed_values
+                {
+                    let mut actor_id_instr = self.build_actor_id_instructions(
+                        actor_kind.clone(),
+                        (value_set_ptr + mem::size_of::<Hash>() as i32, None),
+                    )?;
+                    ret_instr.append(&mut actor_id_instr);
                 }
+
+                ret_instr.push(Instruction::I32Const(value_set_ptr));
+
+                ret_instr
             }
         };
 
         Ok(ParamInstructions(ret))
+    }
+
+    fn build_actor_id_instructions(
+        &mut self,
+        actor: ActorKind,
+        (start_offset, end_offset): (i32, Option<i32>),
+    ) -> Result<Vec<Instruction>> {
+        let ret = match actor {
+            ActorKind::Source => {
+                let gr_source_call_indexes_handle = self
+                    .syscalls_imports
+                    .get(&InvocableSyscall::Loose(SyscallName::Source))
+                    .map(|&(_, call_indexes_handle)| call_indexes_handle as u32)
+                    .expect("by config if destination is source, then `gr_source` is generated");
+
+                let mut ret_instr = vec![
+                    // call `gsys::gr_source` storing actor id at `start_offset` pointer.
+                    Instruction::I32Const(start_offset),
+                    Instruction::Call(gr_source_call_indexes_handle),
+                ];
+
+                if let Some(end_offset) = end_offset {
+                    ret_instr.push(Instruction::I32Const(end_offset));
+                }
+
+                ret_instr
+            }
+            ActorKind::ExistingAddresses(addresses) => {
+                let addresses = utils::non_empty_to_vec(addresses);
+                let address = self.unstructured.choose(&addresses)?;
+                utils::translate_ptr_data(WasmWords::new(*address), (start_offset, end_offset))
+            }
+            ActorKind::Random => {
+                let random_address: [u8; 32] = self.unstructured.arbitrary()?;
+                utils::translate_ptr_data(
+                    WasmWords::new(random_address),
+                    (start_offset, end_offset),
+                )
+            }
+        };
+
+        Ok(ret)
     }
 
     fn build_error_processing(
