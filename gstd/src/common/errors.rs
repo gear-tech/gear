@@ -62,7 +62,6 @@ pub enum Error {
     /// NOTE: this error could only be returned from async messaging.
     ErrorReply(String, ErrorReplyReason),
 
-    // TODO: consider should we meant unsupported replies as success.
     /// Received reply that couldn't be identified as successful or not
     /// due to unsupported reply code.
     ///
@@ -120,11 +119,11 @@ impl From<CoreError> for Error {
 pub enum UsageError {
     /// This error occurs when providing zero duration to waiting functions
     /// (e.g. see `exactly` and `up_to` functions in
-    /// [CodecMessageFuture](crate::msg::CodecMessageFuture)).
+    /// [`CodecMessageFuture`](crate::msg::CodecMessageFuture)).
     EmptyWaitDuration,
     /// This error occurs when providing zero gas amount to system gas reserving
     /// function (see
-    /// [Config::set_system_reserve](crate::Config::set_system_reserve)).
+    /// [`Config::set_system_reserve`](crate::Config::set_system_reserve)).
     ZeroSystemReservationAmount,
     /// This error occurs when providing zero duration to mutex lock function
     ZeroMxLockDuration,
