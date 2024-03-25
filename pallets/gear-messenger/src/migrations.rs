@@ -19,7 +19,6 @@
 use crate::{Config, DispatchStash, Dispatches, Pallet, Waitlist};
 use common::storage::{Interval, LinkedNode};
 use frame_support::{
-    ensure,
     traits::{Get, GetStorageVersion, OnRuntimeUpgrade},
     weights::Weight,
 };
@@ -28,6 +27,7 @@ use gear_core::ids::MessageId;
 use sp_std::marker::PhantomData;
 #[cfg(feature = "try-runtime")]
 use {
+    frame_support::ensure,
     parity_scale_codec::{Decode, Encode},
     sp_runtime::DispatchError,
     sp_std::vec::Vec,
