@@ -172,6 +172,10 @@ pub mod pallet {
     #[pallet::storage]
     type OnFinalizeTransfers<T> = StorageMap<_, Identity, AccountIdOf<T>, BalanceOf<T>>;
 
+    // Private storage that represents sum of values in OnFinalizeTransfers.
+    #[pallet::storage]
+    type OnFinalizeValue<T> = StorageValue<_, BalanceOf<T>, ValueQuery>;
+
     #[pallet::hooks]
     impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
         /// Start of the block.
@@ -180,17 +184,32 @@ pub mod pallet {
                 log::error!("Block #{bn:?} started with non-empty on-finalize transfers");
             }
 
-            T::DbWeight::get().reads(1)
+            if !OnFinalizeValue::<T>::get().is_zero() {
+                log::error!("Block #{bn:?} started with non-zero on-finalize value");
+            }
+
+            T::DbWeight::get().reads(2)
         }
 
         /// End of the block.
         fn on_finalize(bn: BlockNumberFor<T>) {
+            let mut total = BalanceOf::<T>::zero();
+
             while let Some((account_id, value)) = OnFinalizeTransfers::<T>::drain().next() {
+                total = total.saturating_add(value);
+
                 if let Err(e) = Self::withdraw(&account_id, value) {
                     log::error!(
-                        "Unreachable error occurred while performing on-finalize transfers for block #{bn:?}: {e:?}"
+                        "Block #{bn:?} ended with unreachable error while performing on-finalize transfer to {account_id}: {e:?}"
                     );
                 }
+            }
+
+            let expected = OnFinalizeValue::<T>::take();
+
+            if total != expected {
+                log::error!("Block #{bn:?} ended with unreachable error while performing cleaning of on-finalize value: \
+                total tried to transfer is {total:?}, expected amount is {expected:?}")
             }
         }
     }
