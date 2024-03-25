@@ -132,7 +132,8 @@ const listJobs = async ({ github, core, run_id }) => {
     return;
   }
 
-  if (jobs.length == 1 && jobs[0].name === "matrix") {
+  const matrix = jobs.filter((job) => job.name === "matrix");
+  if (!matrix || matrix.status !== "completed") {
     core.info("Waiting for matrix job to be completed ... ");
     await sleep(10000);
     return await listJobs({ github, core, run_id });
