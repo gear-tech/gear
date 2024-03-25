@@ -22,6 +22,7 @@
 //! Errors related to conversion, decoding, message status code, other internal
 //! errors.
 
+use alloc::{string::String, vec::Vec};
 use core::fmt;
 use gcore::errors::Error as CoreError;
 
@@ -42,7 +43,7 @@ pub enum Error {
     /* API lib under-hood errors */
     /// Conversion error.
     ///
-    /// NOTE: this error returns from incorrect addresses bytes conversion.
+    /// NOTE: this error returns from incorrect bytes conversion.
     Convert(&'static str),
 
     /// `scale-codec` decoding error.
@@ -56,13 +57,22 @@ pub enum Error {
     Gstd(UsageError),
 
     /* Business logic errors */
+    /// Received error reply while awaited response from another actor.
+    ///
+    /// NOTE: this error could only be returned from async messaging.
+    ErrorReply(String, ErrorReplyReason),
+
+    // TODO: consider should we meant unsupported replies as success.
+    /// Received reply that couldn't be identified as successful or not
+    /// due to unsupported reply code.
+    ///
+    /// NOTE: this error could only be returned from async messaging.
+    UnsupportedReply(Vec<u8>),
+
     /// Timeout reached while expecting for reply.
     ///
     /// NOTE: this error could only be returned from async messaging.
     Timeout(u32, u32),
-
-    /// Reply code returned by another program.
-    ReplyCode(ReplyCode),
 }
 
 impl Error {
@@ -76,13 +86,16 @@ impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Error::Core(e) => fmt::Display::fmt(e, f),
-            Error::Timeout(expected, now) => {
-                write!(f, "Wait lock timeout at {expected}, now is {now}")
-            }
             Error::Convert(e) => write!(f, "Conversion error: {e:?}"),
-            Error::Decode(e) => write!(f, "Decoding codec bytes error: {e}"),
-            Error::ReplyCode(e) => write!(f, "Reply came with non success reply code {e:?}"),
+            Error::Decode(e) => write!(f, "Scale codec decoding error: {e}"),
             Error::Gstd(e) => write!(f, "`Gstd` API error: {e:?}"),
+            Error::ErrorReply(err, reason) => write!(f, "Received reply '{err}' due to {reason:?}"),
+            Error::UnsupportedReply(payload) => {
+                write!(f, "Received unsupported reply 0x'{}'", hex::encode(payload))
+            }
+            Error::Timeout(expected, now) => {
+                write!(f, "Timeout has occurred: expected at {expected}, now {now}")
+            }
         }
     }
 }
