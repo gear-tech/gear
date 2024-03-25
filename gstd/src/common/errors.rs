@@ -33,26 +33,36 @@ pub type Result<T, E = Error> = core::result::Result<T, E>;
 /// Common error type returned by API functions from other modules.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Error {
+    /* Protocol under-hood errors */
     /// [`gcore::errors::Error`] type.
+    ///
+    /// NOTE: this error could only be returned from syscalls.
     Core(CoreError),
-    /// Timeout reached while expecting for reply.
-    Timeout(u32, u32),
+
+    /* API lib under-hood errors */
     /// Conversion error.
+    ///
+    /// NOTE: this error returns from incorrect addresses bytes conversion.
     Convert(&'static str),
-    /// Decoding error.
+
+    /// `scale-codec` decoding error.
+    ///
+    /// NOTE: this error returns from APIs that return specific `Decode` types.
     Decode(scale_info::scale::Error),
+
+    /// Gstd API usage error.
+    ///
+    /// Note: this error returns from `gstd` APIs in case of invalid arguments.
+    Gstd(UsageError),
+
+    /* Business logic errors */
+    /// Timeout reached while expecting for reply.
+    ///
+    /// NOTE: this error could only be returned from async messaging.
+    Timeout(u32, u32),
+
     /// Reply code returned by another program.
     ReplyCode(ReplyCode),
-    /// This error occurs when providing zero duration to waiting functions
-    /// (e.g. see `exactly` and `up_to` functions in
-    /// [CodecMessageFuture](crate::msg::CodecMessageFuture)).
-    EmptyWaitDuration,
-    /// This error occurs when providing zero gas amount to system gas reserving
-    /// function (see
-    /// [Config::set_system_reserve](crate::Config::set_system_reserve)).
-    ZeroSystemReservationAmount,
-    /// This error occurs when providing zero duration to mutex lock function
-    ZeroMxLockDuration,
 }
 
 impl Error {
@@ -72,11 +82,7 @@ impl fmt::Display for Error {
             Error::Convert(e) => write!(f, "Conversion error: {e:?}"),
             Error::Decode(e) => write!(f, "Decoding codec bytes error: {e}"),
             Error::ReplyCode(e) => write!(f, "Reply came with non success reply code {e:?}"),
-            Error::EmptyWaitDuration => write!(f, "Wait duration can not be zero."),
-            Error::ZeroSystemReservationAmount => {
-                write!(f, "System reservation amount can not be zero in config.")
-            }
-            Error::ZeroMxLockDuration => write!(f, "Mutex lock duration can not be zero."),
+            Error::Gstd(e) => write!(f, "`Gstd` API error: {e:?}"),
         }
     }
 }
@@ -84,6 +90,33 @@ impl fmt::Display for Error {
 impl From<CoreError> for Error {
     fn from(err: CoreError) -> Self {
         Self::Core(err)
+    }
+}
+
+/// Error type returned by gstd API while using invalid arguments.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum UsageError {
+    /// This error occurs when providing zero duration to waiting functions
+    /// (e.g. see `exactly` and `up_to` functions in
+    /// [CodecMessageFuture](crate::msg::CodecMessageFuture)).
+    EmptyWaitDuration,
+    /// This error occurs when providing zero gas amount to system gas reserving
+    /// function (see
+    /// [Config::set_system_reserve](crate::Config::set_system_reserve)).
+    ZeroSystemReservationAmount,
+    /// This error occurs when providing zero duration to mutex lock function
+    ZeroMxLockDuration,
+}
+
+impl fmt::Display for UsageError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            UsageError::EmptyWaitDuration => write!(f, "Wait duration can not be zero"),
+            UsageError::ZeroSystemReservationAmount => {
+                write!(f, "System reservation amount can not be zero in config")
+            }
+            UsageError::ZeroMxLockDuration => write!(f, "Mutex lock duration can not be zero"),
+        }
     }
 }
 
