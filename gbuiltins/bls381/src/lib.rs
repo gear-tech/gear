@@ -37,6 +37,9 @@ pub const REQUEST_PROJECTIVE_MULTIPLICATION_G1: u8 = 4;
 pub const REQUEST_PROJECTIVE_MULTIPLICATION_G2: u8 = 5;
 
 /// Type that should be used to create a message to the bls12_381 builtin actor.
+/// Use the following crates to construct a request:
+///  - `ark-scale`: <https://docs.rs/ark-scale/>;
+///  - `ark-bls12-381`: <https://docs.rs/ark-bls12-381/>.
 #[derive(Encode, Clone, PartialEq, Eq, Debug)]
 #[codec(crate = codec)]
 pub enum Request {
