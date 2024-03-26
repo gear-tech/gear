@@ -1,0 +1,2 @@
+[alias]
+gear = "run -p cargo-gear -- gear"

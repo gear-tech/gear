@@ -12474,7 +12474,7 @@ fn async_init() {
 
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            WASM_BINARY.to_vec(),
+            get_binary("demo-async-init").to_vec(),
             DEFAULT_SALT.to_vec(),
             InputArgs::from_two(ping, ping).encode(),
             BlockGasLimitOf::<Test>::get(),
@@ -14874,6 +14874,7 @@ mod utils {
     use sp_core::H256;
     use sp_runtime::traits::UniqueSaturatedInto;
     use sp_std::{convert::TryFrom, fmt::Debug};
+    use std::{fs, path::PathBuf};
 
     pub(super) const DEFAULT_GAS_LIMIT: u64 = 200_000_000;
     pub(super) const DEFAULT_SALT: &[u8; 4] = b"salt";
@@ -14930,6 +14931,23 @@ mod utils {
         ));
 
         (get_last_message_id(), get_last_program_id())
+    }
+
+    #[track_caller]
+    #[cfg(cargo_gear)]
+    pub(crate) fn get_binary(name: &str) -> Vec<u8> {
+        fs::read(dbg!(format!(
+            "{}/{}.opt.wasm",
+            env!("__GEAR_WASM_TARGET_DIR"),
+            name.replace('-', "_")
+        )))
+        .unwrap()
+    }
+
+    #[track_caller]
+    #[cfg(not(cargo_gear))]
+    pub(crate) fn get_binary(_name: &str) -> Vec<u8> {
+        panic!("Run via cargo-gear")
     }
 
     #[track_caller]

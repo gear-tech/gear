@@ -1,0 +1,23 @@
+[package]
+name = "cargo-gear"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+cargo_metadata.workspace = true
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+cargo_toml = "0.19.2"
+toml.workspace = true
+gear-wasm-builder.workspace = true
+interprocess = "1.2.1"
+rand = { workspace = true, features = ["std", "std_rng"] }
+clap = { workspace = true, features = ["std", "derive"] }
+lexopt = "0.3.0"
