@@ -347,7 +347,7 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                     .expect("Incorrect last parameter type: expected i32 pointer");
 
                 let MemoryLayout {
-                    reservation_temp_ptr,
+                    reservation_temp1_ptr,
                     reservation_flags_ptr,
                     reservation_array_ptr,
                     ..
@@ -360,33 +360,33 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                     Instruction::I32Const(no_error_val),
                     Instruction::I32Eq,
                     Instruction::If(BlockType::NoResult),
-                    // *reservation_temp_ptr = (*reservation_flags_ptr).trailing_ones()
-                    Instruction::I32Const(reservation_temp_ptr),
+                    // *reservation_temp1_ptr = (*reservation_flags_ptr).trailing_ones()
+                    Instruction::I32Const(reservation_temp1_ptr),
                     Instruction::I32Const(reservation_flags_ptr),
                     Instruction::I32Load(2, 0),
                     Instruction::I32Const(u32::MAX as i32),
                     Instruction::I32Xor,
                     Instruction::I32Ctz,
                     Instruction::I32Store(2, 0),
-                    // if *reservation_temp_ptr < MemoryLayout::AMOUNT_OF_RESERVATIONS
-                    Instruction::I32Const(reservation_temp_ptr),
+                    // if *reservation_temp1_ptr < MemoryLayout::AMOUNT_OF_RESERVATIONS
+                    Instruction::I32Const(reservation_temp1_ptr),
                     Instruction::I32Load(2, 0),
                     Instruction::I32Const(MemoryLayout::AMOUNT_OF_RESERVATIONS as i32),
                     Instruction::I32LtU,
                     Instruction::If(BlockType::NoResult),
-                    // *reservation_flags_ptr |= 1 << *reservation_temp_ptr
+                    // *reservation_flags_ptr |= 1 << *reservation_temp1_ptr
                     Instruction::I32Const(reservation_flags_ptr),
                     Instruction::I32Const(1),
-                    Instruction::I32Const(reservation_temp_ptr),
+                    Instruction::I32Const(reservation_temp1_ptr),
                     Instruction::I32Load(2, 0),
                     Instruction::I32Shl,
                     Instruction::I32Const(reservation_flags_ptr),
                     Instruction::I32Load(2, 0),
                     Instruction::I32Or,
                     Instruction::I32Store(2, 0),
-                    // *reservation_temp_ptr = reservation_array_ptr + *reservation_temp_ptr * 32
-                    Instruction::I32Const(reservation_temp_ptr),
-                    Instruction::I32Const(reservation_temp_ptr),
+                    // *reservation_temp1_ptr = reservation_array_ptr + *reservation_temp1_ptr * 32
+                    Instruction::I32Const(reservation_temp1_ptr),
+                    Instruction::I32Const(reservation_temp1_ptr),
                     Instruction::I32Load(2, 0),
                     Instruction::I32Const(mem::size_of::<gsys::Hash>() as i32),
                     Instruction::I32Mul,
@@ -398,7 +398,7 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                 // Copy the Hash struct (32 bytes) containing the reservation id.
                 let mut copy_instr = utils::memcpy64_with_offsets(
                     &[
-                        Instruction::I32Const(reservation_temp_ptr),
+                        Instruction::I32Const(reservation_temp1_ptr),
                         Instruction::I32Load(2, 0),
                     ],
                     0,
@@ -603,7 +603,7 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
             }
             | PtrParamAllowedValues::ReservationId) => {
                 let MemoryLayout {
-                    reservation_temp_ptr,
+                    reservation_temp1_ptr,
                     reservation_flags_ptr,
                     reservation_array_ptr,
                     ..
@@ -616,8 +616,8 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                     Instruction::I32Const(0),
                     Instruction::I32Ne,
                     Instruction::If(BlockType::NoResult),
-                    // *reservation_temp_ptr = reservation_array_ptr + ((*reservation_flags_ptr).trailing_ones() - 1) * 32
-                    Instruction::I32Const(reservation_temp_ptr),
+                    // *reservation_temp1_ptr = reservation_array_ptr + ((*reservation_flags_ptr).trailing_ones() - 1) * 32
+                    Instruction::I32Const(reservation_temp1_ptr),
                     Instruction::I32Const(reservation_flags_ptr),
                     Instruction::I32Load(2, 0),
                     Instruction::I32Const(u32::MAX as i32),
@@ -636,7 +636,7 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                 let mut copy_instr = utils::memcpy64(
                     &[Instruction::I32Const(value_set_ptr)],
                     &[
-                        Instruction::I32Const(reservation_temp_ptr),
+                        Instruction::I32Const(reservation_temp1_ptr),
                         Instruction::I32Load(2, 0),
                     ],
                     4,
