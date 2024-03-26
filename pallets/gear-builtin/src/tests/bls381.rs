@@ -109,7 +109,7 @@ fn multi_miller_loop() {
         let generator: G2 = G2::generator();
         let pub_key: G2Affine = generator.mul(priv_key).into();
 
-        let a: ArkScale<Vec<<Bls12_381 as Pairing>::G1Affine>> = vec![message.clone()].into();
+        let a: ArkScale<Vec<<Bls12_381 as Pairing>::G1Affine>> = vec![message].into();
         let b: ArkScale<Vec<<Bls12_381 as Pairing>::G2Affine>> = vec![].into();
         let payload = Request::MultiMillerLoop { a: a.encode(), b: b.encode(), }.encode();
 
@@ -137,7 +137,7 @@ fn multi_miller_loop() {
             _ => false,
         }));
 
-        let result = <Bls12_381 as Pairing>::multi_miller_loop(vec![message.clone()], vec![pub_key.clone()]);
+        let result = <Bls12_381 as Pairing>::multi_miller_loop(vec![message], vec![pub_key]);
 
         let a: ArkScale<Vec<<Bls12_381 as Pairing>::G1Affine>> = vec![message].into();
         let b: ArkScale<Vec<<Bls12_381 as Pairing>::G2Affine>> = vec![pub_key].into();
@@ -223,8 +223,8 @@ fn final_exponentiation() {
         let generator: G2 = G2::generator();
         let pub_key: G2Affine = generator.mul(priv_key).into();
 
-        let loop_result = <Bls12_381 as Pairing>::multi_miller_loop(vec![message.clone()], vec![pub_key.clone()]);
-        let result = <Bls12_381 as Pairing>::final_exponentiation(loop_result.clone());
+        let loop_result = <Bls12_381 as Pairing>::multi_miller_loop(vec![message], vec![pub_key]);
+        let result = <Bls12_381 as Pairing>::final_exponentiation(loop_result);
 
         let f: ArkScale<<Bls12_381 as Pairing>::TargetField> = loop_result.0.into();
         let payload = Request::FinalExponentiation { f: f.encode() }.encode();
