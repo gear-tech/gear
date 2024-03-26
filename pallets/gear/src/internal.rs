@@ -26,8 +26,7 @@ use crate::{
 use alloc::collections::BTreeSet;
 use common::{
     event::{
-        MessageWaitedReason, MessageWaitedRuntimeReason::*,
-        MessageWaitedSystemReason::ProgramIsNotInitialized, MessageWokenReason, Reason::*,
+        MessageWaitedReason, MessageWaitedRuntimeReason::*, MessageWokenReason, Reason::*,
         UserMessageReadReason,
     },
     gas_provider::{GasNodeId, Imbalance},
@@ -381,13 +380,14 @@ where
                         .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
                 }
             }
-            Runtime(WaitCalled | WaitUpToCalled) | System(ProgramIsNotInitialized) => {
+            Runtime(WaitCalled | WaitUpToCalled) => {
                 TaskPoolOf::<T>::add(
                     hold.expected(),
                     ScheduledTask::RemoveFromWaitlist(dispatch.destination(), dispatch.id()),
                 )
                 .unwrap_or_else(|e| unreachable!("Scheduling logic invalidated! {:?}", e));
             }
+            System(reason) => match reason {},
         }
 
         // Depositing appropriate event.

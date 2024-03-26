@@ -130,11 +130,7 @@ impl From<MessageWaitedType> for MessageWaitedRuntimeReason {
 #[derive(Debug, Encode, Decode, Clone, PartialEq, Eq, TypeInfo, SystemReason)]
 #[codec(crate = codec)]
 #[scale_info(crate = scale_info)]
-pub enum MessageWaitedSystemReason {
-    /// Program hadn't finished initialization and can not
-    /// process received message yet.
-    ProgramIsNotInitialized,
-}
+pub enum MessageWaitedSystemReason {}
 
 /// Composite reason for messages waiting.
 pub type MessageWaitedReason = Reason<MessageWaitedRuntimeReason, MessageWaitedSystemReason>;
@@ -162,6 +158,8 @@ pub enum MessageWokenSystemReason {
     TimeoutHasCome,
     /// Message can no longer pay rent for holding in storage (see #646).
     OutOfRent,
+    /// Waiting init list has been removed, so we just wake all the messages from it.
+    WaitInitListMigration,
 }
 
 /// Composite reason for messages waking.

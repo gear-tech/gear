@@ -143,7 +143,6 @@ pub trait PausedProgramStorage: super::ProgramStorage {
                 }
             };
 
-            Self::waiting_init_remove(program_id);
             Self::remove_program_pages(program_id, program.memory_infix);
 
             Ok((program, memory_pages))
