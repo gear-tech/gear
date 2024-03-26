@@ -28,7 +28,7 @@ use crate::{
 };
 use alloc::{collections::BTreeSet, vec::Vec};
 use gear_core::{
-    costs::{Bytes, Calls, CostPer},
+    costs::Bytes,
     gas::{ChargeResult, GasAllowanceCounter, GasCounter},
     ids::ProgramId,
     message::{IncomingDispatch, MessageWaitedType},
@@ -67,29 +67,19 @@ enum PrechargeError {
 struct GasPrecharger<'a> {
     counter: &'a mut GasCounter,
     allowance_counter: &'a mut GasAllowanceCounter,
-    read_cost: CostPer<Calls>,
-    read_per_byte_cost: CostPer<Bytes>,
-    instrumentation_cost: CostPer<Calls>,
-    instrumentation_cost_per_byte: CostPer<Bytes>,
-    static_page_cost: CostPer<WasmPage>,
-    instantiation_per_byte_cost: CostPer<Bytes>,
+    costs: &'a ProcessCosts,
 }
 
 impl<'a> GasPrecharger<'a> {
     pub fn new(
         counter: &'a mut GasCounter,
         allowance_counter: &'a mut GasAllowanceCounter,
-        costs: &ProcessCosts,
+        costs: &'a ProcessCosts,
     ) -> Self {
         Self {
             counter,
             allowance_counter,
-            read_cost: costs.read,
-            read_per_byte_cost: costs.read_per_byte,
-            instrumentation_cost: costs.instrumentation,
-            instrumentation_cost_per_byte: costs.instrumentation_per_byte,
-            static_page_cost: costs.static_page,
-            instantiation_per_byte_cost: costs.module_instantiation_per_byte,
+            costs,
         }
     }
 
@@ -109,26 +99,27 @@ impl<'a> GasPrecharger<'a> {
     }
 
     pub fn charge_gas_for_program_data(&mut self) -> Result<(), PrechargeError> {
-        self.charge_gas(PreChargeGasOperation::ProgramData, self.read_cost.one())
+        self.charge_gas(PreChargeGasOperation::ProgramData, self.costs.read.one())
     }
 
     pub fn charge_gas_for_program_code_len(&mut self) -> Result<(), PrechargeError> {
-        self.charge_gas(PreChargeGasOperation::ProgramCodeLen, self.read_cost.one())
+        self.charge_gas(PreChargeGasOperation::ProgramCodeLen, self.costs.read.one())
     }
 
     pub fn charge_gas_for_program_code(&mut self, code_len: Bytes) -> Result<(), PrechargeError> {
         self.charge_gas(
             PreChargeGasOperation::ProgramCode,
-            self.read_cost
+            self.costs
+                .read
                 .one()
-                .saturating_add(self.read_per_byte_cost.calc(code_len)),
+                .saturating_add(self.costs.read_per_byte.calc(code_len)),
         )
     }
 
     pub fn charge_gas_for_instantiation(&mut self, code_len: Bytes) -> Result<(), PrechargeError> {
         self.charge_gas(
             PreChargeGasOperation::ModuleInstantiation,
-            self.instantiation_per_byte_cost.calc(code_len),
+            self.costs.module_instantiation_per_byte.calc(code_len),
         )
     }
 
@@ -138,8 +129,9 @@ impl<'a> GasPrecharger<'a> {
     ) -> Result<(), PrechargeError> {
         self.charge_gas(
             PreChargeGasOperation::ModuleInstrumentation,
-            self.instrumentation_cost.one().saturating_add(
-                self.instrumentation_cost_per_byte
+            self.costs.instrumentation.one().saturating_add(
+                self.costs
+                    .instrumentation_per_byte
                     .calc(original_code_len_bytes),
             ),
         )
@@ -153,7 +145,7 @@ impl<'a> GasPrecharger<'a> {
         static_pages: WasmPage,
     ) -> Result<WasmPage, PrechargeError> {
         // Charging gas for static pages.
-        let amount = self.static_page_cost.calc(static_pages);
+        let amount = self.costs.static_page.calc(static_pages);
         self.charge_gas(PreChargeGasOperation::StaticPages, amount)?;
 
         if let Some(page) = allocations.iter().next_back() {
