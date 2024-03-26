@@ -37,6 +37,8 @@ macro_rules! impl_config {
             type Currency = Balances;
             type BankAddress = BankAddress;
             type GasMultiplier = GasMultiplier;
+            type SplitFee = SplitFee;
+            type FeeDest = FeeDest;
         }
     };
 }
@@ -64,7 +66,7 @@ pub mod pallet {
     use pallet_authorship::Pallet as Authorship;
     use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
     use scale_info::TypeInfo;
-    use sp_runtime::traits::Zero;
+    use sp_runtime::{traits::Zero, Perbill};
 
     // Funds pallet struct itself.
     #[pallet::pallet]
@@ -84,6 +86,13 @@ pub mod pallet {
         #[pallet::constant]
         /// Gas price converter.
         type GasMultiplier: Get<GasMultiplier<Self>>;
+
+        /// How much gas fees will go to the `FeeDest`.
+        type SplitFee: Get<Perbill>;
+
+        #[pallet::constant]
+        /// Destination for gas fee split.
+        type FeeDest: Get<AccountIdOf<Self>>;
     }
 
     // Funds pallets error.
@@ -338,12 +347,20 @@ pub mod pallet {
             }
 
             let value = Self::withdraw_gas_no_transfer(account_id, amount, multiplier)?;
+            // for gas, `SplitFee` goes to `FeeDest` else to author
+            let split = T::SplitFee::get();
+            let to_split = split.mul_floor(value);
+            let to_dest = value - to_split;
+
+            let split_dest = T::FeeDest::get();
 
             // All the checks and internal values withdrawals performed in
             // `*_no_transfer` function above.
             //
             // This call does only currency trait final transfer.
-            Self::withdraw(to, value).unwrap_or_else(|e| unreachable!("qed above: {e:?}"));
+            Self::withdraw(to, to_dest).unwrap_or_else(|e| unreachable!("qed above: {e:?}"));
+            Self::withdraw(&split_dest, to_split)
+                .unwrap_or_else(|e| unreachable!("qed above: {e:?}"));
 
             Ok(())
         }
