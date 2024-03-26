@@ -135,6 +135,7 @@ impl<'a> GasPrecharger<'a> {
     ) -> Result<(), PrechargeError> {
         self.charge_gas(
             PreChargeGasOperation::ModuleInstrumentation,
+            // TODO: use `calc_for_with_bytes` here and in other places method #3838
             self.costs.instrumentation.one().saturating_add(
                 self.costs
                     .instrumentation_per_byte
