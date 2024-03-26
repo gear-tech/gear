@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{mock::*, GasMultiplier, *};
-use frame_support::{assert_noop, assert_ok};
+use frame_support::{assert_noop, assert_ok, traits::OnFinalize};
 use sp_runtime::traits::Zero;
 use utils::*;
 
@@ -403,6 +403,7 @@ fn spend_gas_different_users() {
 
         const ALICE_BURN: u64 = ALICE_GAS - 123_456;
         assert_ok!(GearBank::spend_gas(&ALICE, ALICE_BURN, mult()));
+        GearBank::on_finalize(1);
 
         assert_bank_balance(ALICE_GAS - ALICE_BURN + BOB_GAS, 0);
 
@@ -416,6 +417,7 @@ fn spend_gas_different_users() {
 
         const BOB_BURN: u64 = BOB_GAS - 1_234;
         assert_ok!(GearBank::spend_gas(&BOB, BOB_BURN, mult()));
+        GearBank::on_finalize(1);
 
         assert_bank_balance(ALICE_GAS - ALICE_BURN + BOB_GAS - BOB_BURN, 0);
 
@@ -437,6 +439,7 @@ fn spend_gas_single_user() {
 
         const BURN_1: u64 = GAS_AMOUNT - 23_456;
         assert_ok!(GearBank::spend_gas(&ALICE, BURN_1, mult()));
+        GearBank::on_finalize(1);
 
         assert_bank_balance(GAS_AMOUNT - BURN_1, 0);
 
@@ -447,6 +450,7 @@ fn spend_gas_single_user() {
 
         const BURN_2: u64 = GAS_AMOUNT - BURN_1 - 10_000;
         assert_ok!(GearBank::spend_gas(&ALICE, BURN_2, mult()));
+        GearBank::on_finalize(1);
 
         assert_bank_balance(GAS_AMOUNT - BURN_1 - BURN_2, 0);
 
@@ -464,6 +468,7 @@ fn spend_gas_all_balance() {
         assert_ok!(GearBank::deposit_gas(&ALICE, GAS_AMOUNT, false));
 
         assert_ok!(GearBank::spend_gas(&ALICE, GAS_AMOUNT, mult()));
+        GearBank::on_finalize(1);
 
         assert_bank_balance(0, 0);
 
@@ -490,6 +495,7 @@ fn spend_gas_all_balance_validator_account_deleted() {
         ));
 
         assert_ok!(GearBank::spend_gas(&ALICE, GAS_AMOUNT, mult()));
+        GearBank::on_finalize(1);
 
         assert_bank_balance(0, 0);
 
@@ -510,6 +516,7 @@ fn spend_gas_small_amount() {
         assert_ok!(GearBank::deposit_gas(&ALICE, GAS_AMOUNT, false));
 
         assert_ok!(GearBank::spend_gas(&ALICE, GAS_AMOUNT, mult()));
+        GearBank::on_finalize(1);
 
         assert_bank_balance(0, 0);
 
@@ -538,6 +545,7 @@ fn spend_gas_small_amount_validator_account_deleted() {
         ));
 
         assert_ok!(GearBank::spend_gas(&ALICE, GAS_AMOUNT, mult()));
+        GearBank::on_finalize(1);
 
         assert_eq!(GearBank::unused_value(), GAS_VALUE_AMOUNT);
         assert_balance(&BANK_ADDRESS, EXISTENTIAL_DEPOSIT + GAS_VALUE_AMOUNT);
@@ -1348,6 +1356,7 @@ fn empty_accounts_deleted() {
 
         assert_ok!(GearBank::spend_gas(&ALICE, GAS_AMOUNT, mult()));
         assert!(GearBank::account(ALICE).is_none());
+        GearBank::on_finalize(1);
 
         const VALUE: Balance = 123_456_000;
 
@@ -1384,6 +1393,7 @@ fn empty_zero_accounts_deleted() {
 
         assert_ok!(GearBank::spend_gas(&Zero::zero(), 0, mult()));
         assert!(GearBank::account(<AccountId as Zero>::zero()).is_none());
+        GearBank::on_finalize(1);
 
         assert_ok!(GearBank::deposit_value(&Zero::zero(), 0, false));
         assert!(GearBank::account(<AccountId as Zero>::zero()).is_none());
@@ -1423,6 +1433,7 @@ fn empty_composite_accounts_deleted() {
         const GAS_BURN: u64 = GAS_AMOUNT / 2;
 
         assert_ok!(GearBank::spend_gas(&ALICE, GAS_BURN, mult()));
+        GearBank::on_finalize(1);
 
         assert_bank_balance(GAS_AMOUNT - GAS_BURN, VALUE);
 
