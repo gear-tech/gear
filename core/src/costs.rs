@@ -45,7 +45,7 @@ impl<T> CostPer<T> {
 }
 
 impl<T: Into<u32>> CostPer<T> {
-    /// Calculate cost for `num` amount of `T`.
+    /// Calculate (saturating mult) cost for `num` amount of `T`.
     pub fn calc(&self, num: T) -> u64 {
         self.cost.saturating_mul(Into::<u32>::into(num).into())
     }
