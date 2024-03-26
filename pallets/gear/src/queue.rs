@@ -85,7 +85,7 @@ where
                 );
             }
 
-            return core_processor::process_uninitialized(precharged_dispatch, destination_id);
+            return core_processor::process_non_executable(precharged_dispatch, destination_id);
         }
 
         let actor_data = ExecutableActorData {

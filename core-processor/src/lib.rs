@@ -52,7 +52,7 @@ pub use precharge::{
 };
 pub use processing::{
     process, process_execution_error, process_non_executable, process_reinstrumentation_error,
-    process_success, process_uninitialized,
+    process_success,
 };
 
 /// Informational functions for core-processor and executor.
