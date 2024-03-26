@@ -194,6 +194,7 @@ runtime-benchmarks = [
 	"demo-waiter/wasm-wrapper",
 	"demo-init-wait/wasm-wrapper",
 	"demo-signal-entry/wasm-wrapper",
+	"core-processor/mock",
 ]
 runtime-benchmarks-checkers = []
 try-runtime = ["frame-support/try-runtime"]

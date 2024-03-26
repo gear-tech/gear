@@ -19,7 +19,7 @@
 use clap::{Parser, Subcommand};
 use frame_support::dispatch::GetCallName;
 use junit_common::TestSuites;
-use pallet_gear::{HostFnWeights, InstructionWeights};
+use pallet_gear::{InstructionWeights, SyscallWeights};
 use quick_xml::de::from_str;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -304,7 +304,7 @@ fn weights(kind: WeightsKind, input_file: PathBuf, output_file: PathBuf) {
             add_weights! {
                 weights = map;
                 benches = benches;
-                HostFnWeights {
+                SyscallWeights {
                     _phantom,
                     alloc,
                     alloc_per_page,
