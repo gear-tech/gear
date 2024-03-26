@@ -26,7 +26,7 @@ use crate::{
 };
 use core_processor::{
     common::*,
-    configs::{BlockConfig, BlockInfo, ExtCosts, ProcessCosts, TESTS_MAX_PAGES_NUMBER},
+    configs::{BlockConfig, BlockInfo, ExtCosts, ProcessCosts, RentCosts, TESTS_MAX_PAGES_NUMBER},
     ContextChargedForCode, ContextChargedForInstrumentation, Ext,
 };
 use gear_core::{
@@ -875,9 +875,11 @@ impl ExtManager {
             costs: ProcessCosts {
                 ext: ExtCosts {
                     syscalls: Default::default(),
-                    reservation: RESERVATION_COST.into(),
-                    waitlist_cost: WAITLIST_COST.into(),
-                    dispatch_hold_cost: DISPATCH_HOLD_COST.into(),
+                    rent: RentCosts {
+                        waitlist: WAITLIST_COST.into(),
+                        dispatch_stash: DISPATCH_HOLD_COST.into(),
+                        reservation: RESERVATION_COST.into(),
+                    },
                     mem_grow: Default::default(),
                 },
                 lazy_pages: LazyPagesCosts::default(),

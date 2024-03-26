@@ -496,7 +496,8 @@ impl Ext {
             let waiting_reserve = self
                 .context
                 .costs
-                .dispatch_hold_cost
+                .rent
+                .dispatch_stash
                 .calc(self.context.reserve_for.saturating_add(delay).into());
 
             if limit < waiting_reserve {
@@ -627,7 +628,8 @@ impl Ext {
             let waiting_reserve = self
                 .context
                 .costs
-                .dispatch_hold_cost
+                .rent
+                .dispatch_stash
                 .calc(self.context.reserve_for.saturating_add(delay).into());
 
             // Reduce gas for block waiting in dispatch stash.
@@ -1041,6 +1043,7 @@ impl Externalities for Ext {
         let reserve = self
             .context
             .costs
+            .rent
             .reservation
             .calc(self.context.reserve_for.saturating_add(duration).into());
 
@@ -1108,7 +1111,8 @@ impl Externalities for Ext {
         let reserve = self
             .context
             .costs
-            .waitlist_cost
+            .rent
+            .waitlist
             .calc(self.context.reserve_for.saturating_add(1).into());
 
         if self.context.gas_counter.reduce(reserve) != ChargeResult::Enough {
@@ -1132,7 +1136,8 @@ impl Externalities for Ext {
         let reserve = self
             .context
             .costs
-            .waitlist_cost
+            .rent
+            .waitlist
             .calc(self.context.reserve_for.saturating_add(duration).into());
 
         if self.context.gas_counter.reduce(reserve) != ChargeResult::Enough {
@@ -1156,7 +1161,8 @@ impl Externalities for Ext {
         let reserve = self
             .context
             .costs
-            .waitlist_cost
+            .rent
+            .waitlist
             .calc(self.context.reserve_for.saturating_add(1).into());
 
         if self.context.gas_counter.reduce(reserve) != ChargeResult::Enough {
@@ -1166,7 +1172,8 @@ impl Externalities for Ext {
         let reserve_full = self
             .context
             .costs
-            .waitlist_cost
+            .rent
+            .waitlist
             .calc(self.context.reserve_for.saturating_add(duration).into());
 
         let reserve_diff = reserve_full - reserve;

@@ -38,17 +38,24 @@ pub struct BlockInfo {
     pub timestamp: u64,
 }
 
+/// Holding in storages rent costs.
+#[derive(Debug, Default, Clone)]
+pub struct RentCosts {
+    /// Holding message in waitlist cost per block.
+    pub waitlist: CostPer<Blocks>,
+    /// Holding message in dispatch stash cost per block.
+    pub dispatch_stash: CostPer<Blocks>,
+    /// Holding reservation cost per block.
+    pub reservation: CostPer<Blocks>,
+}
+
 /// Execution externalities costs.
 #[derive(Debug, Default, Clone)]
 pub struct ExtCosts {
     /// Syscalls costs.
     pub syscalls: SyscallCosts,
-    /// Holding message in waitlist cost per block.
-    pub waitlist_cost: CostPer<Blocks>,
-    /// Holding message in dispatch stash cost per block.
-    pub dispatch_hold_cost: CostPer<Blocks>,
-    /// Holding reservation cost per block.
-    pub reservation: CostPer<Blocks>,
+    /// Rent costs.
+    pub rent: RentCosts,
     /// Memory grow cost per page.
     pub mem_grow: CostPer<WasmPage>,
 }

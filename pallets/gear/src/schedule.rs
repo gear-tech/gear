@@ -23,7 +23,7 @@
 
 use crate::{weights::WeightInfo, Config, CostsPerBlockOf, DbWeightOf};
 use common::scheduler::SchedulingCostsPerBlock;
-use core_processor::configs::{ExtCosts, ProcessCosts};
+use core_processor::configs::{ExtCosts, ProcessCosts, RentCosts};
 use frame_support::{
     codec::{Decode, Encode},
     traits::Get,
@@ -1164,9 +1164,11 @@ impl<T: Config> Schedule<T> {
         ProcessCosts {
             ext: ExtCosts {
                 syscalls: self.syscall_weights.clone().into(),
-                waitlist_cost: CostsPerBlockOf::<T>::waitlist().into(),
-                dispatch_hold_cost: CostsPerBlockOf::<T>::dispatch_stash().into(),
-                reservation: CostsPerBlockOf::<T>::reservation().into(),
+                rent: RentCosts {
+                    waitlist: CostsPerBlockOf::<T>::waitlist().into(),
+                    dispatch_stash: CostsPerBlockOf::<T>::dispatch_stash().into(),
+                    reservation: CostsPerBlockOf::<T>::reservation().into(),
+                },
                 mem_grow: self.memory_weights.mem_grow.ref_time().into(),
             },
             lazy_pages: self.memory_weights.clone().into(),
