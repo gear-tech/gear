@@ -98,7 +98,7 @@ fn config(
     current_balance: Balance,
 ) -> StandardGearWasmConfigsBundle {
     let initial_pages = 2;
-    let mut injection_types = SyscallsInjectionTypes::all_once();
+    let mut injection_types = SyscallsInjectionTypes::all_with_range(1..=3);
     injection_types.set_multiple(
         [
             (SyscallName::Leave, 0..=0),
