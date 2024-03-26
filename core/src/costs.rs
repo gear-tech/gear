@@ -77,231 +77,231 @@ impl<T> Default for CostOf<T> {
 
 /// Some actions or calls amount.
 #[derive(Debug, Default, Clone, Copy, derive_more::From, derive_more::Into)]
-pub struct Calls(u32);
+pub struct CallsAmount(u32);
 
 /// Bytes amount.
 #[derive(Debug, Default, Clone, Copy, derive_more::From, derive_more::Into)]
-pub struct Bytes(u32);
+pub struct BytesAmount(u32);
 
 /// Chain blocks amount.
 #[derive(Debug, Default, Clone, Copy, derive_more::From, derive_more::Into)]
-pub struct Blocks(u32);
+pub struct BlocksAmount(u32);
 
 /// Program imported function call (syscall) costs.
 #[derive(Debug, Clone, Default)]
 pub struct SyscallCosts {
     /// Cost of calling `alloc`.
-    pub alloc: CostOf<Calls>,
+    pub alloc: CostOf<CallsAmount>,
 
     /// Cost per allocated page for `alloc`.
     pub alloc_per_page: CostOf<WasmPage>,
 
     /// Cost of calling `free`.
-    pub free: CostOf<Calls>,
+    pub free: CostOf<CallsAmount>,
 
     /// Cost of calling `free_range`
-    pub free_range: CostOf<Calls>,
+    pub free_range: CostOf<CallsAmount>,
 
     /// Cost of calling `free_range` per page
     pub free_range_per_page: CostOf<WasmPage>,
 
     /// Cost of calling `gr_reserve_gas`.
-    pub gr_reserve_gas: CostOf<Calls>,
+    pub gr_reserve_gas: CostOf<CallsAmount>,
 
     /// Cost of calling `gr_unreserve_gas`
-    pub gr_unreserve_gas: CostOf<Calls>,
+    pub gr_unreserve_gas: CostOf<CallsAmount>,
 
     /// Cost of calling `gr_system_reserve_gas`
-    pub gr_system_reserve_gas: CostOf<Calls>,
+    pub gr_system_reserve_gas: CostOf<CallsAmount>,
 
     /// Cost of calling `gr_gas_available`.
-    pub gr_gas_available: CostOf<Calls>,
+    pub gr_gas_available: CostOf<CallsAmount>,
 
     /// Cost of calling `gr_message_id`.
-    pub gr_message_id: CostOf<Calls>,
+    pub gr_message_id: CostOf<CallsAmount>,
 
     /// Cost of calling `gr_program_id`.
-    pub gr_program_id: CostOf<Calls>,
+    pub gr_program_id: CostOf<CallsAmount>,
 
     /// Cost of calling `gr_source`.
-    pub gr_source: CostOf<Calls>,
+    pub gr_source: CostOf<CallsAmount>,
 
     /// Cost of calling `gr_value`.
-    pub gr_value: CostOf<Calls>,
+    pub gr_value: CostOf<CallsAmount>,
 
     /// Cost of calling `gr_value_available`.
-    pub gr_value_available: CostOf<Calls>,
+    pub gr_value_available: CostOf<CallsAmount>,
 
     /// Cost of calling `gr_size`.
-    pub gr_size: CostOf<Calls>,
+    pub gr_size: CostOf<CallsAmount>,
 
     /// Cost of calling `gr_read`.
-    pub gr_read: CostOf<Calls>,
+    pub gr_read: CostOf<CallsAmount>,
 
     /// Cost per payload byte for `gr_read`.
-    pub gr_read_per_byte: CostOf<Bytes>,
+    pub gr_read_per_byte: CostOf<BytesAmount>,
 
     /// Cost of calling `gr_env_vars`.
-    pub gr_env_vars: CostOf<Calls>,
+    pub gr_env_vars: CostOf<CallsAmount>,
 
     /// Cost of calling `gr_block_height`.
-    pub gr_block_height: CostOf<Calls>,
+    pub gr_block_height: CostOf<CallsAmount>,
 
     /// Cost of calling `gr_block_timestamp`.
-    pub gr_block_timestamp: CostOf<Calls>,
+    pub gr_block_timestamp: CostOf<CallsAmount>,
 
     /// Cost of calling `gr_random`.
-    pub gr_random: CostOf<Calls>,
+    pub gr_random: CostOf<CallsAmount>,
 
     /// Cost of calling `gr_reply_deposit`.
-    pub gr_reply_deposit: CostOf<Calls>,
+    pub gr_reply_deposit: CostOf<CallsAmount>,
 
     /// Cost of calling `gr_send`
-    pub gr_send: CostOf<Calls>,
+    pub gr_send: CostOf<CallsAmount>,
 
     /// Cost per bytes for `gr_send`.
-    pub gr_send_per_byte: CostOf<Bytes>,
+    pub gr_send_per_byte: CostOf<BytesAmount>,
 
     /// Cost of calling `gr_send_wgas`.
-    pub gr_send_wgas: CostOf<Calls>,
+    pub gr_send_wgas: CostOf<CallsAmount>,
 
     /// Cost of calling `gr_send_wgas` per one payload byte.
-    pub gr_send_wgas_per_byte: CostOf<Bytes>,
+    pub gr_send_wgas_per_byte: CostOf<BytesAmount>,
 
     /// Cost of calling `gr_send_init`.
-    pub gr_send_init: CostOf<Calls>,
+    pub gr_send_init: CostOf<CallsAmount>,
 
     /// Cost of calling `gr_send_push`.
-    pub gr_send_push: CostOf<Calls>,
+    pub gr_send_push: CostOf<CallsAmount>,
 
     /// Cost per payload byte by `gr_send_push`.
-    pub gr_send_push_per_byte: CostOf<Bytes>,
+    pub gr_send_push_per_byte: CostOf<BytesAmount>,
 
     /// Cost of calling `gr_send_commit`.
-    pub gr_send_commit: CostOf<Calls>,
+    pub gr_send_commit: CostOf<CallsAmount>,
 
     /// Cost of calling `gr_send_commit_wgas`.
-    pub gr_send_commit_wgas: CostOf<Calls>,
+    pub gr_send_commit_wgas: CostOf<CallsAmount>,
 
     /// Cost of calling `gr_reservation_send`.
-    pub gr_reservation_send: CostOf<Calls>,
+    pub gr_reservation_send: CostOf<CallsAmount>,
 
     /// Cost of calling `gr_reservation_send` per one payload byte.
-    pub gr_reservation_send_per_byte: CostOf<Bytes>,
+    pub gr_reservation_send_per_byte: CostOf<BytesAmount>,
 
     /// Cost of calling `gr_reservation_send_commit`.
-    pub gr_reservation_send_commit: CostOf<Calls>,
+    pub gr_reservation_send_commit: CostOf<CallsAmount>,
 
     /// Cost of calling `gr_send_init`.
-    pub gr_send_input: CostOf<Calls>,
+    pub gr_send_input: CostOf<CallsAmount>,
 
     /// Cost of calling `gr_send_init_wgas`.
-    pub gr_send_input_wgas: CostOf<Calls>,
+    pub gr_send_input_wgas: CostOf<CallsAmount>,
 
     /// Cost of calling `gr_send_push_input`.
-    pub gr_send_push_input: CostOf<Calls>,
+    pub gr_send_push_input: CostOf<CallsAmount>,
 
     /// Cost per payload byte by `gr_send_push_input`.
-    pub gr_send_push_input_per_byte: CostOf<Bytes>,
+    pub gr_send_push_input_per_byte: CostOf<BytesAmount>,
 
     /// Cost of calling `gr_reply`.
-    pub gr_reply: CostOf<Calls>,
+    pub gr_reply: CostOf<CallsAmount>,
 
     /// Cost of calling `gr_reply` per one payload byte.
-    pub gr_reply_per_byte: CostOf<Bytes>,
+    pub gr_reply_per_byte: CostOf<BytesAmount>,
 
     /// Cost of calling `gr_reply_wgas`.
-    pub gr_reply_wgas: CostOf<Calls>,
+    pub gr_reply_wgas: CostOf<CallsAmount>,
 
     /// Cost of calling `gr_reply_wgas` per one payload byte.
-    pub gr_reply_wgas_per_byte: CostOf<Bytes>,
+    pub gr_reply_wgas_per_byte: CostOf<BytesAmount>,
 
     /// Cost of calling `gr_reply_commit`.
-    pub gr_reply_commit: CostOf<Calls>,
+    pub gr_reply_commit: CostOf<CallsAmount>,
 
     /// Cost of calling `gr_reply_commit_wgas`.
-    pub gr_reply_commit_wgas: CostOf<Calls>,
+    pub gr_reply_commit_wgas: CostOf<CallsAmount>,
 
     /// Cost of calling `gr_reservation_reply`.
-    pub gr_reservation_reply: CostOf<Calls>,
+    pub gr_reservation_reply: CostOf<CallsAmount>,
 
     /// Cost of calling `gr_reservation_reply` per one payload byte.
-    pub gr_reservation_reply_per_byte: CostOf<Bytes>,
+    pub gr_reservation_reply_per_byte: CostOf<BytesAmount>,
 
     /// Cost of calling `gr_reservation_reply_commit`.
-    pub gr_reservation_reply_commit: CostOf<Calls>,
+    pub gr_reservation_reply_commit: CostOf<CallsAmount>,
 
     /// Cost of calling `gr_reply_push`.
-    pub gr_reply_push: CostOf<Calls>,
+    pub gr_reply_push: CostOf<CallsAmount>,
 
     /// Cost per payload byte by `gr_reply_push`.
-    pub gr_reply_push_per_byte: CostOf<Bytes>,
+    pub gr_reply_push_per_byte: CostOf<BytesAmount>,
 
     /// Cost of calling `gr_reply_input`.
-    pub gr_reply_input: CostOf<Calls>,
+    pub gr_reply_input: CostOf<CallsAmount>,
 
     /// Cost of calling `gr_reply_input_wgas`.
-    pub gr_reply_input_wgas: CostOf<Calls>,
+    pub gr_reply_input_wgas: CostOf<CallsAmount>,
 
     /// Cost of calling `gr_reply_push_input`.
-    pub gr_reply_push_input: CostOf<Calls>,
+    pub gr_reply_push_input: CostOf<CallsAmount>,
 
     /// Cost per payload byte by `gr_reply_push_input`.
-    pub gr_reply_push_input_per_byte: CostOf<Bytes>,
+    pub gr_reply_push_input_per_byte: CostOf<BytesAmount>,
 
     /// Cost of calling `gr_reply_to`.
-    pub gr_reply_to: CostOf<Calls>,
+    pub gr_reply_to: CostOf<CallsAmount>,
 
     /// Cost of calling `gr_signal_code`.
-    pub gr_signal_code: CostOf<Calls>,
+    pub gr_signal_code: CostOf<CallsAmount>,
 
     /// Cost of calling `gr_signal_from`.
-    pub gr_signal_from: CostOf<Calls>,
+    pub gr_signal_from: CostOf<CallsAmount>,
 
     /// Cost of calling `gr_debug`.
-    pub gr_debug: CostOf<Calls>,
+    pub gr_debug: CostOf<CallsAmount>,
 
     /// Cost per payload byte by `gr_debug`.
-    pub gr_debug_per_byte: CostOf<Bytes>,
+    pub gr_debug_per_byte: CostOf<BytesAmount>,
 
     /// Cost of calling `gr_reply_code`.
-    pub gr_reply_code: CostOf<Calls>,
+    pub gr_reply_code: CostOf<CallsAmount>,
 
     /// Cost of calling `gr_exit`.
-    pub gr_exit: CostOf<Calls>,
+    pub gr_exit: CostOf<CallsAmount>,
 
     /// Cost of calling `gr_leave`.
-    pub gr_leave: CostOf<Calls>,
+    pub gr_leave: CostOf<CallsAmount>,
 
     /// Cost of calling `gr_wait`.
-    pub gr_wait: CostOf<Calls>,
+    pub gr_wait: CostOf<CallsAmount>,
 
     /// Cost of calling `gr_wait_for`.
-    pub gr_wait_for: CostOf<Calls>,
+    pub gr_wait_for: CostOf<CallsAmount>,
 
     /// Cost of calling `gr_wait_up_to`.
-    pub gr_wait_up_to: CostOf<Calls>,
+    pub gr_wait_up_to: CostOf<CallsAmount>,
 
     /// Cost of calling `gr_wake`.
-    pub gr_wake: CostOf<Calls>,
+    pub gr_wake: CostOf<CallsAmount>,
 
     /// Cost of calling `gr_create_program_wgas`.
-    pub gr_create_program: CostOf<Calls>,
+    pub gr_create_program: CostOf<CallsAmount>,
 
     /// Cost per payload byte by `gr_create_program_wgas`.
-    pub gr_create_program_payload_per_byte: CostOf<Bytes>,
+    pub gr_create_program_payload_per_byte: CostOf<BytesAmount>,
 
     /// Cost per salt byte by `gr_create_program_wgas`.
-    pub gr_create_program_salt_per_byte: CostOf<Bytes>,
+    pub gr_create_program_salt_per_byte: CostOf<BytesAmount>,
 
     /// Cost of calling `gr_create_program_wgas`.
-    pub gr_create_program_wgas: CostOf<Calls>,
+    pub gr_create_program_wgas: CostOf<CallsAmount>,
 
     /// Cost per payload byte by `gr_create_program_wgas`.
-    pub gr_create_program_wgas_payload_per_byte: CostOf<Bytes>,
+    pub gr_create_program_wgas_payload_per_byte: CostOf<BytesAmount>,
 
     /// Cost per salt byte by `gr_create_program_wgas`.
-    pub gr_create_program_wgas_salt_per_byte: CostOf<Bytes>,
+    pub gr_create_program_wgas_salt_per_byte: CostOf<BytesAmount>,
 }
 
 /// Enumerates syscalls that can be charged by gas meter.
@@ -348,19 +348,19 @@ pub enum CostToken {
     /// Cost of calling `gr_reply_deposit`.
     ReplyDeposit,
     /// Cost of calling `gr_send`, taking in account payload size.
-    Send(Bytes),
+    Send(BytesAmount),
     /// Cost of calling `gr_send_wgas`, taking in account payload size.
-    SendWGas(Bytes),
+    SendWGas(BytesAmount),
     /// Cost of calling `gr_send_init`.
     SendInit,
     /// Cost of calling `gr_send_push`, taking in account payload size.
-    SendPush(Bytes),
+    SendPush(BytesAmount),
     /// Cost of calling `gr_send_commit`.
     SendCommit,
     /// Cost of calling `gr_send_commit_wgas`.
     SendCommitWGas,
     /// Cost of calling `gr_reservation_send`, taking in account payload size.
-    ReservationSend(Bytes),
+    ReservationSend(BytesAmount),
     /// Cost of calling `gr_reservation_send_commit`.
     ReservationSendCommit,
     /// Cost of calling `gr_send_input`.
@@ -370,17 +370,17 @@ pub enum CostToken {
     /// Cost of calling `gr_send_push_input`.
     SendPushInput,
     /// Cost of calling `gr_reply`, taking in account payload size.
-    Reply(Bytes),
+    Reply(BytesAmount),
     /// Cost of calling `gr_reply_wgas`, taking in account payload size.
-    ReplyWGas(Bytes),
+    ReplyWGas(BytesAmount),
     /// Cost of calling `gr_reply_push`, taking in account payload size.
-    ReplyPush(Bytes),
+    ReplyPush(BytesAmount),
     /// Cost of calling `gr_reply_commit`.
     ReplyCommit,
     /// Cost of calling `gr_reply_commit_wgas`.
     ReplyCommitWGas,
     /// Cost of calling `gr_reservation_reply`, taking in account payload size.
-    ReservationReply(Bytes),
+    ReservationReply(BytesAmount),
     /// Cost of calling `gr_reservation_reply_commit`.
     ReservationReplyCommit,
     /// Cost of calling `gr_reply_input`.
@@ -396,7 +396,7 @@ pub enum CostToken {
     /// Cost of calling `gr_signal_from`.
     SignalFrom,
     /// Cost of calling `gr_debug`, taking in account payload size.
-    Debug(Bytes),
+    Debug(BytesAmount),
     /// Cost of calling `gr_reply_code`.
     ReplyCode,
     /// Cost of calling `gr_exit`.
@@ -412,9 +412,9 @@ pub enum CostToken {
     /// Cost of calling `gr_wake`.
     Wake,
     /// Cost of calling `gr_create_program`, taking in account payload and salt size.
-    CreateProgram(Bytes, Bytes),
+    CreateProgram(BytesAmount, BytesAmount),
     /// Cost of calling `gr_create_program_wgas`, taking in account payload and salt size.
-    CreateProgramWGas(Bytes, Bytes),
+    CreateProgramWGas(BytesAmount, BytesAmount),
 }
 
 impl SyscallCosts {

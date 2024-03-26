@@ -20,7 +20,7 @@
 
 use alloc::{collections::BTreeSet, vec::Vec};
 use gear_core::{
-    costs::{Blocks, Bytes, Calls, CostOf, SyscallCosts},
+    costs::{BlocksAmount, BytesAmount, CallsAmount, CostOf, SyscallCosts},
     pages::WasmPage,
 };
 use gear_lazy_pages_common::LazyPagesCosts;
@@ -42,11 +42,11 @@ pub struct BlockInfo {
 #[derive(Debug, Default, Clone)]
 pub struct RentCosts {
     /// Holding message in waitlist cost per block.
-    pub waitlist: CostOf<Blocks>,
+    pub waitlist: CostOf<BlocksAmount>,
     /// Holding message in dispatch stash cost per block.
-    pub dispatch_stash: CostOf<Blocks>,
+    pub dispatch_stash: CostOf<BlocksAmount>,
     /// Holding reservation cost per block.
-    pub reservation: CostOf<Blocks>,
+    pub reservation: CostOf<BlocksAmount>,
 }
 
 /// Execution externalities costs.
@@ -68,19 +68,19 @@ pub struct ProcessCosts {
     /// Lazy pages costs.
     pub lazy_pages: LazyPagesCosts,
     /// Storage read cost.
-    pub read: CostOf<Calls>,
+    pub read: CostOf<CallsAmount>,
     /// Storage read per byte cost.
-    pub read_per_byte: CostOf<Bytes>,
+    pub read_per_byte: CostOf<BytesAmount>,
     /// Storage write cost.
-    pub write: CostOf<Calls>,
+    pub write: CostOf<CallsAmount>,
     /// Code instrumentation cost.
-    pub instrumentation: CostOf<Calls>,
+    pub instrumentation: CostOf<CallsAmount>,
     /// Code instrumentation per byte cost.
-    pub instrumentation_per_byte: CostOf<Bytes>,
+    pub instrumentation_per_byte: CostOf<BytesAmount>,
     /// Static page cost.
     pub static_page: CostOf<WasmPage>,
     /// WASM module instantiation per byte cost.
-    pub module_instantiation_per_byte: CostOf<Bytes>,
+    pub module_instantiation_per_byte: CostOf<BytesAmount>,
 }
 
 /// Execution settings for handling messages.

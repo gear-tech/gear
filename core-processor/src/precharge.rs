@@ -28,7 +28,7 @@ use crate::{
 };
 use alloc::{collections::BTreeSet, vec::Vec};
 use gear_core::{
-    costs::Bytes,
+    costs::BytesAmount,
     gas::{ChargeResult, GasAllowanceCounter, GasCounter},
     ids::ProgramId,
     message::{IncomingDispatch, MessageWaitedType},
@@ -106,7 +106,10 @@ impl<'a> GasPrecharger<'a> {
         self.charge_gas(PreChargeGasOperation::ProgramCodeLen, self.costs.read.one())
     }
 
-    pub fn charge_gas_for_program_code(&mut self, code_len: Bytes) -> Result<(), PrechargeError> {
+    pub fn charge_gas_for_program_code(
+        &mut self,
+        code_len: BytesAmount,
+    ) -> Result<(), PrechargeError> {
         self.charge_gas(
             PreChargeGasOperation::ProgramCode,
             self.costs
@@ -116,7 +119,10 @@ impl<'a> GasPrecharger<'a> {
         )
     }
 
-    pub fn charge_gas_for_instantiation(&mut self, code_len: Bytes) -> Result<(), PrechargeError> {
+    pub fn charge_gas_for_instantiation(
+        &mut self,
+        code_len: BytesAmount,
+    ) -> Result<(), PrechargeError> {
         self.charge_gas(
             PreChargeGasOperation::ModuleInstantiation,
             self.costs.module_instantiation_per_byte.calc(code_len),
@@ -125,7 +131,7 @@ impl<'a> GasPrecharger<'a> {
 
     pub fn charge_gas_for_instrumentation(
         &mut self,
-        original_code_len_bytes: Bytes,
+        original_code_len_bytes: BytesAmount,
     ) -> Result<(), PrechargeError> {
         self.charge_gas(
             PreChargeGasOperation::ModuleInstrumentation,
