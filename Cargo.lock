@@ -4362,6 +4362,7 @@ dependencies = [
  "sp-blockchain",
  "sp-consensus",
  "sp-core",
+ "sp-crypto-ec-utils",
  "sp-inherents",
  "sp-io",
  "sp-keyring",
