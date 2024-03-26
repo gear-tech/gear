@@ -206,7 +206,7 @@ pub mod pallet {
 
                 if let Err(e) = Self::withdraw(&account_id, value) {
                     log::error!(
-                        "Block #{bn:?} ended with unreachable error while performing on-finalize transfer to {account_id}: {e:?}"
+                        "Block #{bn:?} ended with unreachable error while performing on-finalize transfer to {account_id:?}: {e:?}"
                     );
                 }
             }
