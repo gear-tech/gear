@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{mock::*, GasMultiplier, *};
-use frame_support::{assert_noop, assert_ok, traits::OnFinalize};
+use frame_support::{assert_noop, assert_ok, traits::Hooks};
 use sp_runtime::traits::Zero;
 use utils::*;
 
@@ -1463,6 +1463,94 @@ fn empty_composite_accounts_deleted() {
     })
 }
 
+#[test]
+fn spend_gas_on_finalize_different_users() {
+    new_test_ext().execute_with(|| {
+        const ALICE_GAS: u64 = 1_234_567;
+        assert_ok!(GearBank::deposit_gas(&ALICE, ALICE_GAS, false));
+
+        const BOB_GAS: u64 = 56_789;
+        assert_ok!(GearBank::deposit_gas(&BOB, BOB_GAS, false));
+
+        assert_eq!(GearBank::on_finalize_value(), 0);
+
+        const ALICE_BURN: u64 = ALICE_GAS - 123_456;
+        assert_ok!(GearBank::spend_gas(&ALICE, ALICE_BURN, mult()));
+
+        assert_bank_balance(ALICE_GAS - ALICE_BURN + BOB_GAS, 0);
+
+        assert_block_author_inc(0);
+        assert_eq!(GearBank::on_finalize_value(), gas_price(ALICE_BURN));
+
+        assert_alice_dec(gas_price(ALICE_GAS));
+        assert_gas_value(&ALICE, ALICE_GAS - ALICE_BURN, 0);
+
+        assert_bob_dec(gas_price(BOB_GAS));
+        assert_gas_value(&BOB, BOB_GAS, 0);
+
+        const BOB_BURN: u64 = BOB_GAS - 1_234;
+        assert_ok!(GearBank::spend_gas(&BOB, BOB_BURN, mult()));
+
+        assert_bank_balance(ALICE_GAS - ALICE_BURN + BOB_GAS - BOB_BURN, 0);
+
+        assert_block_author_inc(0);
+        assert_eq!(
+            GearBank::on_finalize_value(),
+            gas_price(ALICE_BURN + BOB_BURN)
+        );
+
+        assert_alice_dec(gas_price(ALICE_GAS));
+        assert_gas_value(&ALICE, ALICE_GAS - ALICE_BURN, 0);
+
+        assert_bob_dec(gas_price(BOB_GAS));
+        assert_gas_value(&BOB, BOB_GAS - BOB_BURN, 0);
+
+        /* what happens at the end of block */
+        GearBank::on_finalize(1);
+        assert_eq!(GearBank::on_finalize_value(), 0);
+        assert_block_author_inc(gas_price(ALICE_BURN + BOB_BURN));
+
+        GearBank::on_initialize(2);
+    })
+}
+
+#[test]
+fn spend_gas_on_finalize_single_user() {
+    new_test_ext().execute_with(|| {
+        const GAS_AMOUNT: u64 = 123_456;
+        assert_ok!(GearBank::deposit_gas(&ALICE, GAS_AMOUNT, false));
+
+        const BURN_1: u64 = GAS_AMOUNT - 23_456;
+        assert_ok!(GearBank::spend_gas(&ALICE, BURN_1, mult()));
+
+        assert_bank_balance(GAS_AMOUNT - BURN_1, 0);
+
+        assert_eq!(GearBank::on_finalize_value(), gas_price(BURN_1));
+        assert_block_author_inc(0);
+
+        assert_alice_dec(gas_price(GAS_AMOUNT));
+        assert_gas_value(&ALICE, GAS_AMOUNT - BURN_1, 0);
+
+        const BURN_2: u64 = GAS_AMOUNT - BURN_1 - 10_000;
+        assert_ok!(GearBank::spend_gas(&ALICE, BURN_2, mult()));
+
+        assert_bank_balance(GAS_AMOUNT - BURN_1 - BURN_2, 0);
+
+        assert_eq!(GearBank::on_finalize_value(), gas_price(BURN_1 + BURN_2));
+        assert_block_author_inc(0);
+
+        assert_alice_dec(gas_price(GAS_AMOUNT));
+        assert_gas_value(&ALICE, GAS_AMOUNT - BURN_1 - BURN_2, 0);
+
+        /* what happens at the end of block */
+        GearBank::on_finalize(1);
+        assert_eq!(GearBank::on_finalize_value(), 0);
+        assert_block_author_inc(gas_price(BURN_1 + BURN_2));
+
+        GearBank::on_initialize(2);
+    })
+}
+
 mod utils {
     use super::*;
 
@@ -1502,7 +1590,11 @@ mod utils {
         let gas_value = gas_price(gas);
         assert_balance(
             &BANK_ADDRESS,
-            CurrencyOf::<Test>::minimum_balance() + GearBank::unused_value() + gas_value + value,
+            CurrencyOf::<Test>::minimum_balance()
+                + GearBank::unused_value()
+                + GearBank::on_finalize_value()
+                + gas_value
+                + value,
         );
     }
 

@@ -174,6 +174,7 @@ pub mod pallet {
 
     // Private storage that represents sum of values in OnFinalizeTransfers.
     #[pallet::storage]
+    #[pallet::getter(fn on_finalize_value)]
     type OnFinalizeValue<T> = StorageValue<_, BalanceOf<T>, ValueQuery>;
 
     #[pallet::hooks]
