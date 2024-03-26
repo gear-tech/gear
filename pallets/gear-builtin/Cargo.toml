@@ -19,13 +19,21 @@ primitive-types = { workspace = true, features = ["scale-info"] }
 log.workspace = true
 derive_more.workspace = true
 impl-trait-for-tuples.workspace = true
+ark-serialize = { workspace = true, features = ["derive"] }
+ark-scale = { workspace = true, features = ["hazmat"] }
+ark-bls12-381 = { workspace = true, features = ["curve"], optional = true }
+ark-ec = { workspace = true, optional = true }
+ark-ff = { workspace = true, optional = true }
+ark-std = { workspace = true, optional = true }
 
 core-processor.workspace = true
+gbuiltin-bls381.workspace = true
 gear-core.workspace = true
 gear-core-errors.workspace = true
 frame-support.workspace = true
 frame-system.workspace = true
 frame-benchmarking = { workspace = true, optional = true }
+sp-crypto-ec-utils = { workspace = true, features = ["bls12-381"] }
 sp-std.workspace = true
 sp-runtime = { workspace = true, features = ["serde"] }
 pallet-gear.workspace = true
@@ -48,6 +56,10 @@ frame-executive = { workspace = true, features = ["std"] }
 frame-support-test = { workspace = true, features = ["std"] }
 env_logger.workspace = true
 hex-literal.workspace = true
+ark-bls12-381.workspace = true
+ark-ec.workspace = true
+ark-ff.workspace = true
+ark-std.workspace = true
 
 [features]
 default = ["std"]
@@ -59,12 +71,23 @@ std = [
 	"pallet-gear/std",
     "parity-scale-codec/std",
 	"scale-info/std",
+	"sp-crypto-ec-utils/std",
 	"sp-runtime/std",
 	"sp-std/std",
+	"ark-serialize/std",
+	"ark-scale/std",
+	"ark-bls12-381?/std",
+	"ark-ec?/std",
+	"ark-ff?/std",
+	"ark-std?/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",
 	"frame-support/runtime-benchmarks",
 	"frame-system/runtime-benchmarks",
+	"ark-bls12-381",
+	"ark-ec",
+	"ark-ff",
+	"ark-std",
 ]
 try-runtime = ["frame-support/try-runtime"]

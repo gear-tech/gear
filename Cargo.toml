@@ -72,6 +72,7 @@ members = [
     "examples/waiting-proxy",
     "examples/wat",
     "galloc",
+    "gbuiltins/bls381",
     "gcli",
     "gclient",
     "gcore",
@@ -166,6 +167,12 @@ which = "4.4.2"
 winapi = "0.3.9"
 paste = "1.0"
 tempfile = "3.10.1"
+ark-std = { version = "0.4.0", default-features = false }
+ark-bls12-381 = { version = "0.4.0", default-features = false }
+ark-serialize = { version = "0.4", default-features = false }
+ark-ec = { version = "0.4.2", default-features = false }
+ark-ff = { version = "0.4.2", default-features = false }
+ark-scale = { version = "0.0.12", default-features = false }
 
 # Published deps
 #
@@ -182,6 +189,7 @@ authorship = { package = "gear-authorship", path = "node/authorship" }
 common = { package = "gear-common", path = "common", default-features = false }
 core-processor = { package = "gear-core-processor", path = "core-processor", default-features = false }
 galloc = { path = "galloc" }
+gbuiltin-bls381 = { path = "gbuiltins/bls381", default-features = false }
 gcore = { path = "gcore" }
 gcli = { path = "gcli" }
 gclient = { path = "gclient" }
@@ -339,6 +347,7 @@ sp-core = { version = "21.0.0", git = "https://github.com/gear-tech/substrate.gi
 sp-consensus = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v1.0.0-canary", default-features = false }
 sp-consensus-babe = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v1.0.0-canary", default-features = false }
 sp-consensus-slots = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v1.0.0-canary", default-features = false }
+sp-crypto-ec-utils = { version = "0.4.1", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v1.0.0-canary", default-features = false }
 sp-externalities = { version = "0.19.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v1.0.0-canary", default-features = false }
 sp-consensus-grandpa = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v1.0.0-canary", default-features = false }
 sp-inherents = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-polkadot-v1.0.0-canary", default-features = false }

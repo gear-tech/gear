@@ -277,6 +277,14 @@ mod substrate {
                 table.insert("version", GP_RUNTIME_INTERFACE_VERSION.into());
                 table.insert("package", "gp-runtime-interface".into());
             }
+            // Depends on sp-wasm-interface.
+            //
+            // ref:
+            // - sp-runtime-interface-18.0.0
+            // - sp-runtime-interface-proc-macro-12.0.0
+            "sp-crypto-ec-utils" => {
+                table.insert("package", "gp-crypto-ec-utils".into());
+            }
             _ => {}
         }
 

@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{self as pallet_gear_builtin, BuiltinActor, BuiltinActorError};
+use crate::{self as pallet_gear_builtin, bls12_381, BuiltinActor, BuiltinActorError};
 use common::{GasProvider, GasTree};
 use core::cell::RefCell;
 use frame_support::{
@@ -211,7 +211,12 @@ impl BuiltinActor for HonestBuiltinActor {
 }
 
 impl pallet_gear_builtin::Config for Test {
-    type Builtins = (SuccessBuiltinActor, ErrorBuiltinActor, HonestBuiltinActor);
+    type Builtins = (
+        SuccessBuiltinActor,
+        ErrorBuiltinActor,
+        HonestBuiltinActor,
+        bls12_381::Actor<Self>,
+    );
     type WeightInfo = ();
 }
 
