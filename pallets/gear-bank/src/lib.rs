@@ -193,6 +193,11 @@ pub mod pallet {
 
         /// End of the block.
         fn on_finalize(bn: BlockNumberFor<T>) {
+            // Take of on-finalize value should always be performed before
+            // `withdraw`s, since `withdraw`s ensure bank balance,
+            // that relies on that value "locked".
+            let expected = OnFinalizeValue::<T>::take();
+
             let mut total = BalanceOf::<T>::zero();
 
             while let Some((account_id, value)) = OnFinalizeTransfers::<T>::drain().next() {
@@ -204,8 +209,6 @@ pub mod pallet {
                     );
                 }
             }
-
-            let expected = OnFinalizeValue::<T>::take();
 
             if total != expected {
                 log::error!("Block #{bn:?} ended with unreachable error while performing cleaning of on-finalize value: \
@@ -281,6 +284,26 @@ pub mod pallet {
                 ExistenceRequirement::KeepAlive,
             )
             .map_err(|_| Error::<T>::InsufficientBankBalance)
+        }
+
+        /// Transfers value from bank address to `account_id` on block finalize.
+        fn withdraw_on_finalize(
+            account_id: &AccountIdOf<T>,
+            value: BalanceOf<T>,
+        ) -> Result<(), Error<T>> {
+            if value.is_zero() {
+                return Ok(());
+            };
+
+            Self::ensure_bank_can_transfer(value)?;
+
+            OnFinalizeValue::<T>::mutate(|v| *v = v.saturating_add(value));
+            OnFinalizeTransfers::<T>::mutate(account_id, |v| {
+                let inner = v.get_or_insert(Zero::zero());
+                *inner = inner.saturating_add(value);
+            });
+
+            Ok(())
         }
 
         pub fn deposit_gas(
@@ -381,11 +404,8 @@ pub mod pallet {
 
             let value = Self::withdraw_gas_no_transfer(account_id, amount, multiplier)?;
 
-            // All the checks and internal values withdrawals performed in
-            // `*_no_transfer` function above.
-            //
-            // This call does only currency trait final transfer.
-            Self::withdraw(to, value).unwrap_or_else(|e| unreachable!("qed above: {e:?}"));
+            Self::withdraw_on_finalize(to, value)
+                .unwrap_or_else(|e| unreachable!("qed above: {e:?}"));
 
             Ok(())
         }
