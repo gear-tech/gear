@@ -24,7 +24,7 @@ use gear_wasm_builder::{
 use parity_wasm::elements::External;
 use std::{collections::HashSet, fs, path::PathBuf};
 
-const RT_ALLOWED_IMPORTS: [&str; 67] = [
+const RT_ALLOWED_IMPORTS: [&str; 73] = [
     // From `Allocator` (substrate/primitives/io/src/lib.rs)
     "ext_allocator_free_version_1",
     "ext_allocator_malloc_version_1",
