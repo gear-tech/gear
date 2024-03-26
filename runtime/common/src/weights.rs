@@ -129,31 +129,37 @@ pub fn check_lazy_pages_costs(
     expected_lazy_pages_costs: LazyPagesCosts,
 ) {
     check_pages_weight(
-        lazy_pages_costs.signal_read.one(),
-        expected_lazy_pages_costs.signal_read.one(),
+        lazy_pages_costs.signal_read.cost_for_one(),
+        expected_lazy_pages_costs.signal_read.cost_for_one(),
     );
     check_pages_weight(
-        lazy_pages_costs.signal_write.one(),
-        expected_lazy_pages_costs.signal_write.one(),
+        lazy_pages_costs.signal_write.cost_for_one(),
+        expected_lazy_pages_costs.signal_write.cost_for_one(),
     );
     check_pages_weight(
-        lazy_pages_costs.signal_write_after_read.one(),
-        expected_lazy_pages_costs.signal_write_after_read.one(),
+        lazy_pages_costs.signal_write_after_read.cost_for_one(),
+        expected_lazy_pages_costs
+            .signal_write_after_read
+            .cost_for_one(),
     );
     check_pages_weight(
-        lazy_pages_costs.host_func_read.one(),
-        expected_lazy_pages_costs.host_func_read.one(),
+        lazy_pages_costs.host_func_read.cost_for_one(),
+        expected_lazy_pages_costs.host_func_read.cost_for_one(),
     );
     check_pages_weight(
-        lazy_pages_costs.host_func_write.one(),
-        expected_lazy_pages_costs.host_func_write.one(),
+        lazy_pages_costs.host_func_write.cost_for_one(),
+        expected_lazy_pages_costs.host_func_write.cost_for_one(),
     );
     check_pages_weight(
-        lazy_pages_costs.host_func_write_after_read.one(),
-        expected_lazy_pages_costs.host_func_write_after_read.one(),
+        lazy_pages_costs.host_func_write_after_read.cost_for_one(),
+        expected_lazy_pages_costs
+            .host_func_write_after_read
+            .cost_for_one(),
     );
     check_pages_weight(
-        lazy_pages_costs.load_page_storage_data.one(),
-        expected_lazy_pages_costs.load_page_storage_data.one(),
+        lazy_pages_costs.load_page_storage_data.cost_for_one(),
+        expected_lazy_pages_costs
+            .load_page_storage_data
+            .cost_for_one(),
     );
 }

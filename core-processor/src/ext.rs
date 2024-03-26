@@ -498,7 +498,7 @@ impl Ext {
                 .costs
                 .rent
                 .dispatch_stash
-                .calc(self.context.reserve_for.saturating_add(delay).into());
+                .cost_for(self.context.reserve_for.saturating_add(delay).into());
 
             if limit < waiting_reserve {
                 return Err(MessageError::InsufficientGasForDelayedSending.into());
@@ -630,7 +630,7 @@ impl Ext {
                 .costs
                 .rent
                 .dispatch_stash
-                .calc(self.context.reserve_for.saturating_add(delay).into());
+                .cost_for(self.context.reserve_for.saturating_add(delay).into());
 
             // Reduce gas for block waiting in dispatch stash.
             if self.context.gas_counter.reduce(waiting_reserve) != ChargeResult::Enough {
@@ -750,7 +750,7 @@ impl Externalities for Ext {
         let pages = WasmPage::new(pages_num).map_err(|_| AllocError::ProgramAllocOutOfBounds)?;
 
         // Charge for pages amount
-        self.charge_gas_if_enough(self.context.costs.syscalls.alloc_per_page.calc(pages))?;
+        self.charge_gas_if_enough(self.context.costs.syscalls.alloc_per_page.cost_for(pages))?;
 
         self.context
             .allocations_context
@@ -758,7 +758,7 @@ impl Externalities for Ext {
                 Ext::charge_gas_if_enough(
                     &mut self.context.gas_counter,
                     &mut self.context.gas_allowance_counter,
-                    self.context.costs.mem_grow.calc(pages),
+                    self.context.costs.mem_grow.cost_for(pages),
                 )
             })
             .map_err(Into::into)
@@ -791,7 +791,7 @@ impl Externalities for Ext {
                 .costs
                 .syscalls
                 .free_range_per_page
-                .calc(pages_amount),
+                .cost_for(pages_amount),
         )?;
 
         self.context
@@ -842,7 +842,7 @@ impl Externalities for Ext {
                 .costs
                 .syscalls
                 .gr_send_push_input_per_byte
-                .calc(range.len().into()),
+                .cost_for(range.len().into()),
         )?;
 
         self.context
@@ -955,7 +955,7 @@ impl Externalities for Ext {
                 .costs
                 .syscalls
                 .gr_reply_push_input_per_byte
-                .calc(range.len().into()),
+                .cost_for(range.len().into()),
         )?;
 
         self.context.message_context.reply_push_input(range)?;
@@ -1011,7 +1011,7 @@ impl Externalities for Ext {
                 .costs
                 .syscalls
                 .gr_read_per_byte
-                .calc(len.into()),
+                .cost_for(len.into()),
         )?;
         PayloadSliceLock::try_new((at, end), &mut self.context.message_context)
             .ok_or_else(|| FallibleExecutionError::ReadWrongRange.into())
@@ -1045,7 +1045,7 @@ impl Externalities for Ext {
             .costs
             .rent
             .reservation
-            .calc(self.context.reserve_for.saturating_add(duration).into());
+            .cost_for(self.context.reserve_for.saturating_add(duration).into());
 
         let reduce_amount = amount.saturating_add(reserve);
         if self.context.gas_counter.reduce(reduce_amount) == ChargeResult::NotEnough {
@@ -1113,7 +1113,7 @@ impl Externalities for Ext {
             .costs
             .rent
             .waitlist
-            .calc(self.context.reserve_for.saturating_add(1).into());
+            .cost_for(self.context.reserve_for.saturating_add(1).into());
 
         if self.context.gas_counter.reduce(reserve) != ChargeResult::Enough {
             return Err(UnrecoverableExecutionError::NotEnoughGas.into());
@@ -1138,7 +1138,7 @@ impl Externalities for Ext {
             .costs
             .rent
             .waitlist
-            .calc(self.context.reserve_for.saturating_add(duration).into());
+            .cost_for(self.context.reserve_for.saturating_add(duration).into());
 
         if self.context.gas_counter.reduce(reserve) != ChargeResult::Enough {
             return Err(UnrecoverableExecutionError::NotEnoughGas.into());
@@ -1163,7 +1163,7 @@ impl Externalities for Ext {
             .costs
             .rent
             .waitlist
-            .calc(self.context.reserve_for.saturating_add(1).into());
+            .cost_for(self.context.reserve_for.saturating_add(1).into());
 
         if self.context.gas_counter.reduce(reserve) != ChargeResult::Enough {
             return Err(UnrecoverableExecutionError::NotEnoughGas.into());
@@ -1174,7 +1174,7 @@ impl Externalities for Ext {
             .costs
             .rent
             .waitlist
-            .calc(self.context.reserve_for.saturating_add(duration).into());
+            .cost_for(self.context.reserve_for.saturating_add(duration).into());
 
         let reserve_diff = reserve_full - reserve;
 

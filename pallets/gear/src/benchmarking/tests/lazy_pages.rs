@@ -174,12 +174,12 @@ impl<P: PageU32Size> PageSets<P> {
         #[allow(clippy::needless_range_loop)]
         for set_no in SetNo::SignalRead as usize..SetNo::WithData as usize {
             amount = amount
-                .checked_add(costs[set_no].calc((self.sets[set_no].len() as u16).into()))
+                .checked_add(costs[set_no].cost_for((self.sets[set_no].len() as u16).into()))
                 .unwrap();
         }
 
         amount = amount
-            .checked_add(costs[SetNo::WithData as usize].calc(self.loaded_pages_count()))
+            .checked_add(costs[SetNo::WithData as usize].cost_for(self.loaded_pages_count()))
             .unwrap();
 
         amount

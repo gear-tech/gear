@@ -99,11 +99,17 @@ impl<'a> GasPrecharger<'a> {
     }
 
     pub fn charge_gas_for_program_data(&mut self) -> Result<(), PrechargeError> {
-        self.charge_gas(PreChargeGasOperation::ProgramData, self.costs.read.one())
+        self.charge_gas(
+            PreChargeGasOperation::ProgramData,
+            self.costs.read.cost_for_one(),
+        )
     }
 
     pub fn charge_gas_for_program_code_len(&mut self) -> Result<(), PrechargeError> {
-        self.charge_gas(PreChargeGasOperation::ProgramCodeLen, self.costs.read.one())
+        self.charge_gas(
+            PreChargeGasOperation::ProgramCodeLen,
+            self.costs.read.cost_for_one(),
+        )
     }
 
     pub fn charge_gas_for_program_code(
@@ -114,8 +120,8 @@ impl<'a> GasPrecharger<'a> {
             PreChargeGasOperation::ProgramCode,
             self.costs
                 .read
-                .one()
-                .saturating_add(self.costs.read_per_byte.calc(code_len)),
+                .cost_for_one()
+                .saturating_add(self.costs.read_per_byte.cost_for(code_len)),
         )
     }
 
@@ -125,7 +131,7 @@ impl<'a> GasPrecharger<'a> {
     ) -> Result<(), PrechargeError> {
         self.charge_gas(
             PreChargeGasOperation::ModuleInstantiation,
-            self.costs.module_instantiation_per_byte.calc(code_len),
+            self.costs.module_instantiation_per_byte.cost_for(code_len),
         )
     }
 
@@ -136,10 +142,10 @@ impl<'a> GasPrecharger<'a> {
         self.charge_gas(
             PreChargeGasOperation::ModuleInstrumentation,
             // TODO: use `calc_for_with_bytes` here and in other places method #3838
-            self.costs.instrumentation.one().saturating_add(
+            self.costs.instrumentation.cost_for_one().saturating_add(
                 self.costs
                     .instrumentation_per_byte
-                    .calc(original_code_len_bytes),
+                    .cost_for(original_code_len_bytes),
             ),
         )
     }
@@ -152,7 +158,7 @@ impl<'a> GasPrecharger<'a> {
         static_pages: WasmPage,
     ) -> Result<WasmPage, PrechargeError> {
         // Charging gas for static pages.
-        let amount = self.costs.static_page.calc(static_pages);
+        let amount = self.costs.static_page.cost_for(static_pages);
         self.charge_gas(PreChargeGasOperation::StaticPages, amount)?;
 
         if let Some(page) = allocations.iter().next_back() {
@@ -434,7 +440,7 @@ mod tests {
         assert_eq!(res, Ok(static_pages));
 
         // Charging for static pages initialization
-        let charge = costs.static_page.calc(static_pages);
+        let charge = costs.static_page.cost_for(static_pages);
         assert_eq!(charger.counter.left(), 1_000_000 - charge);
         assert_eq!(charger.allowance_counter.left(), 4_000_000 - charge);
     }

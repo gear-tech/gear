@@ -66,7 +66,7 @@ pub fn init_for_program(
         costs.host_func_write_after_read,
         costs.load_page_storage_data,
     ]
-    .map(|w| w.one())
+    .map(|w| w.cost_for_one())
     .to_vec();
 
     let ctx = LazyPagesProgramContext {

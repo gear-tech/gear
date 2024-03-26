@@ -39,14 +39,14 @@ impl<T> CostOf<T> {
     }
 
     /// Cost for one.
-    pub const fn one(&self) -> u64 {
+    pub const fn cost_for_one(&self) -> u64 {
         self.cost
     }
 }
 
 impl<T: Into<u32>> CostOf<T> {
     /// Calculate (saturating mult) cost for `num` amount of `T`.
-    pub fn calc(&self, num: T) -> u64 {
+    pub fn cost_for(&self, num: T) -> u64 {
         self.cost.saturating_mul(Into::<u32>::into(num).into())
     }
 }
@@ -425,74 +425,77 @@ impl SyscallCosts {
         macro_rules! cost_with_per_byte {
             ($name:ident, $len:expr) => {
                 paste! {
-                    self.$name.one().saturating_add(self.[< $name _per_byte >].calc($len))
+                    self.$name.cost_for_one().saturating_add(self.[< $name _per_byte >].cost_for($len))
                 }
             };
         }
 
         match token {
             Null => 0,
-            Alloc => self.alloc.one(),
-            Free => self.free.one(),
-            FreeRange => self.free_range.one(),
-            ReserveGas => self.gr_reserve_gas.one(),
-            UnreserveGas => self.gr_unreserve_gas.one(),
-            SystemReserveGas => self.gr_system_reserve_gas.one(),
-            GasAvailable => self.gr_gas_available.one(),
-            MsgId => self.gr_message_id.one(),
-            ProgramId => self.gr_program_id.one(),
-            Source => self.gr_source.one(),
-            Value => self.gr_value.one(),
-            ValueAvailable => self.gr_value_available.one(),
-            Size => self.gr_size.one(),
-            Read => self.gr_read.one(),
-            EnvVars => self.gr_env_vars.one(),
-            BlockHeight => self.gr_block_height.one(),
-            BlockTimestamp => self.gr_block_timestamp.one(),
-            Random => self.gr_random.one(),
-            ReplyDeposit => self.gr_reply_deposit.one(),
+            Alloc => self.alloc.cost_for_one(),
+            Free => self.free.cost_for_one(),
+            FreeRange => self.free_range.cost_for_one(),
+            ReserveGas => self.gr_reserve_gas.cost_for_one(),
+            UnreserveGas => self.gr_unreserve_gas.cost_for_one(),
+            SystemReserveGas => self.gr_system_reserve_gas.cost_for_one(),
+            GasAvailable => self.gr_gas_available.cost_for_one(),
+            MsgId => self.gr_message_id.cost_for_one(),
+            ProgramId => self.gr_program_id.cost_for_one(),
+            Source => self.gr_source.cost_for_one(),
+            Value => self.gr_value.cost_for_one(),
+            ValueAvailable => self.gr_value_available.cost_for_one(),
+            Size => self.gr_size.cost_for_one(),
+            Read => self.gr_read.cost_for_one(),
+            EnvVars => self.gr_env_vars.cost_for_one(),
+            BlockHeight => self.gr_block_height.cost_for_one(),
+            BlockTimestamp => self.gr_block_timestamp.cost_for_one(),
+            Random => self.gr_random.cost_for_one(),
+            ReplyDeposit => self.gr_reply_deposit.cost_for_one(),
             Send(len) => cost_with_per_byte!(gr_send, len),
             SendWGas(len) => cost_with_per_byte!(gr_send_wgas, len),
-            SendInit => self.gr_send_init.one(),
+            SendInit => self.gr_send_init.cost_for_one(),
             SendPush(len) => cost_with_per_byte!(gr_send_push, len),
-            SendCommit => self.gr_send_commit.one(),
-            SendCommitWGas => self.gr_send_commit_wgas.one(),
+            SendCommit => self.gr_send_commit.cost_for_one(),
+            SendCommitWGas => self.gr_send_commit_wgas.cost_for_one(),
             ReservationSend(len) => cost_with_per_byte!(gr_reservation_send, len),
-            ReservationSendCommit => self.gr_reservation_send_commit.one(),
-            SendInput => self.gr_send_input.one(),
-            SendInputWGas => self.gr_send_input_wgas.one(),
-            SendPushInput => self.gr_send_push_input.one(),
+            ReservationSendCommit => self.gr_reservation_send_commit.cost_for_one(),
+            SendInput => self.gr_send_input.cost_for_one(),
+            SendInputWGas => self.gr_send_input_wgas.cost_for_one(),
+            SendPushInput => self.gr_send_push_input.cost_for_one(),
             Reply(len) => cost_with_per_byte!(gr_reply, len),
             ReplyWGas(len) => cost_with_per_byte!(gr_reply_wgas, len),
             ReplyPush(len) => cost_with_per_byte!(gr_reply_push, len),
-            ReplyCommit => self.gr_reply_commit.one(),
-            ReplyCommitWGas => self.gr_reply_commit_wgas.one(),
+            ReplyCommit => self.gr_reply_commit.cost_for_one(),
+            ReplyCommitWGas => self.gr_reply_commit_wgas.cost_for_one(),
             ReservationReply(len) => cost_with_per_byte!(gr_reservation_reply, len),
-            ReservationReplyCommit => self.gr_reservation_reply_commit.one(),
-            ReplyInput => self.gr_reply_input.one(),
-            ReplyInputWGas => self.gr_reply_input_wgas.one(),
-            ReplyPushInput => self.gr_reply_push_input.one(),
-            ReplyTo => self.gr_reply_to.one(),
-            SignalCode => self.gr_signal_code.one(),
-            SignalFrom => self.gr_signal_from.one(),
+            ReservationReplyCommit => self.gr_reservation_reply_commit.cost_for_one(),
+            ReplyInput => self.gr_reply_input.cost_for_one(),
+            ReplyInputWGas => self.gr_reply_input_wgas.cost_for_one(),
+            ReplyPushInput => self.gr_reply_push_input.cost_for_one(),
+            ReplyTo => self.gr_reply_to.cost_for_one(),
+            SignalCode => self.gr_signal_code.cost_for_one(),
+            SignalFrom => self.gr_signal_from.cost_for_one(),
             Debug(len) => cost_with_per_byte!(gr_debug, len),
-            ReplyCode => self.gr_reply_code.one(),
-            Exit => self.gr_exit.one(),
-            Leave => self.gr_leave.one(),
-            Wait => self.gr_wait.one(),
-            WaitFor => self.gr_wait_for.one(),
-            WaitUpTo => self.gr_wait_up_to.one(),
-            Wake => self.gr_wake.one(),
+            ReplyCode => self.gr_reply_code.cost_for_one(),
+            Exit => self.gr_exit.cost_for_one(),
+            Leave => self.gr_leave.cost_for_one(),
+            Wait => self.gr_wait.cost_for_one(),
+            WaitFor => self.gr_wait_for.cost_for_one(),
+            WaitUpTo => self.gr_wait_up_to.cost_for_one(),
+            Wake => self.gr_wake.cost_for_one(),
             CreateProgram(payload, salt) => self
                 .gr_create_program
-                .one()
-                .saturating_add(self.gr_create_program_payload_per_byte.calc(payload))
-                .saturating_add(self.gr_create_program_salt_per_byte.calc(salt)),
+                .cost_for_one()
+                .saturating_add(self.gr_create_program_payload_per_byte.cost_for(payload))
+                .saturating_add(self.gr_create_program_salt_per_byte.cost_for(salt)),
             CreateProgramWGas(payload, salt) => self
                 .gr_create_program_wgas
-                .one()
-                .saturating_add(self.gr_create_program_wgas_payload_per_byte.calc(payload))
-                .saturating_add(self.gr_create_program_wgas_salt_per_byte.calc(salt)),
+                .cost_for_one()
+                .saturating_add(
+                    self.gr_create_program_wgas_payload_per_byte
+                        .cost_for(payload),
+                )
+                .saturating_add(self.gr_create_program_wgas_salt_per_byte.cost_for(salt)),
         }
     }
 }
