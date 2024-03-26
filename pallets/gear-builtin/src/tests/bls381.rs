@@ -146,7 +146,7 @@ fn multi_miller_loop() {
         let builtin_id: ProgramId = H256::from(ACTOR_ID).cast();
         let gas_info = get_gas_info(builtin_id, payload.clone());
 
-        // Check the case of unsufficient gas
+        // Check the case of insufficient gas
         System::reset_events();
 
         assert_ok!(Gear::send_message(
@@ -232,7 +232,7 @@ fn final_exponentiation() {
         let builtin_actor_id: ProgramId = H256::from(ACTOR_ID).cast();
         let gas_info = get_gas_info(builtin_actor_id, payload.clone());
 
-        // check case of unsufficient gas
+        // check case of insufficient gas
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(SIGNER),
             builtin_actor_id,
@@ -349,7 +349,7 @@ fn msm_g1() {
         let builtin_actor_id: ProgramId = H256::from(ACTOR_ID).cast();
         let gas_info = get_gas_info(builtin_actor_id, payload.clone());
 
-        // Check the case of unsufficient gas
+        // Check the case of insufficient gas
         System::reset_events();
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(SIGNER),
@@ -467,7 +467,7 @@ fn msm_g2() {
         let builtin_actor_id: ProgramId = H256::from(ACTOR_ID).cast();
         let gas_info = get_gas_info(builtin_actor_id, payload.clone());
 
-        // Check the case of unsufficient gas
+        // Check the case of insufficient gas
         System::reset_events();
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(SIGNER),
@@ -549,7 +549,7 @@ fn mul_projective_g1() {
         let builtin_actor_id: ProgramId = H256::from(ACTOR_ID).cast();
         let gas_info = get_gas_info(builtin_actor_id, payload.clone());
 
-        // Check the case of unsufficient gas
+        // Check the case of insufficient gas
         System::reset_events();
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(SIGNER),
@@ -631,7 +631,7 @@ fn mul_projective_g2() {
         let builtin_actor_id: ProgramId = H256::from(ACTOR_ID).cast();
         let gas_info = get_gas_info(builtin_actor_id, payload.clone());
 
-        // Check the case of unsufficient gas
+        // Check the case of insufficient gas
         System::reset_events();
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(SIGNER),
