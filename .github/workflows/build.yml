@@ -12,6 +12,9 @@ on:
       release:
         type: boolean
         default: false
+      production:
+        type: boolean
+        default: false
   workflow_dispatch:
     inputs:
       title:
@@ -137,11 +140,11 @@ jobs:
           RUST_LOG: info
 
       - name: "Build: Production binaries"
-        if: ${{ github.event_name == 'push' && inputs.release }}
+        if: ${{ inputs.production && matrix.profile == 'release' }}
         run: cargo build -p gear-cli -F cli --profile production
 
       - name: Prepare artifacts
-        if: ${{ github.event_name == 'push' && inputs.release }}
+        if: ${{ inputs.production && matrix.profile == 'release' }}
         run: |
           mkdir -p artifact
           cd target/wasm32-unknown-unknown/release
@@ -156,7 +159,7 @@ jobs:
           strip artifact/wasm-proc || true
 
       - name: Upload artifacts
-        if: ${{ github.event_name == 'push' && inputs.release }}
+        if: ${{ github.event_name == 'push' && inputs.production && matrix.profile == 'release' }}
         uses: actions/upload-artifact@v4
         with:
           path: artifact
