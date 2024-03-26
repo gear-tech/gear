@@ -58,7 +58,7 @@ pub mod pallet {
         ensure,
         pallet_prelude::{StorageMap, StorageValue, ValueQuery},
         sp_runtime::{traits::CheckedSub, Saturating},
-        traits::{ExistenceRequirement, Get, Hooks, ReservableCurrency, WithdrawReasons},
+        traits::{ExistenceRequirement, Get, Hooks, ReservableCurrency},
         weights::Weight,
         Identity,
     };
@@ -242,19 +242,13 @@ pub mod pallet {
 
         /// Ensures that bank account is able to transfer requested value.
         fn ensure_bank_can_transfer(value: BalanceOf<T>) -> Result<(), Error<T>> {
-            let bank_address = T::BankAddress::get();
+            let minimum_balance = CurrencyOf::<T>::minimum_balance()
+                .saturating_add(UnusedValue::<T>::get())
+                .saturating_add(OnFinalizeValue::<T>::get());
 
-            CurrencyOf::<T>::free_balance(&bank_address)
+            CurrencyOf::<T>::free_balance(&T::BankAddress::get())
                 .checked_sub(&value)
-                .map_or(false, |new_balance| {
-                    CurrencyOf::<T>::ensure_can_withdraw(
-                        &bank_address,
-                        value,
-                        WithdrawReasons::TRANSFER,
-                        new_balance,
-                    )
-                    .is_ok()
-                })
+                .map_or(false, |balance| balance >= minimum_balance)
                 .then_some(())
                 .ok_or(Error::<T>::InsufficientBankBalance)
         }
