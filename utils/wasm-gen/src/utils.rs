@@ -419,6 +419,7 @@ pub fn inject_critical_gas_limit(module: Module, critical_gas_limit: u64) -> Mod
 /// params of a pointer type. The value is converted first
 /// to bytes and then to wasm words, which are later translated
 /// to wasm instructions (see [`translate_ptr_data`]).
+#[derive(Default)]
 pub(crate) struct WasmWords(Vec<i32>);
 
 impl WasmWords {
@@ -445,12 +446,6 @@ impl WasmWords {
 
         Self(words)
     }
-
-    pub(crate) fn merge(mut self, Self(mut other): Self) -> Self {
-        self.0.append(&mut other);
-
-        Self(self.0)
-    }
 }
 
 /// Translates ptr data wasm words to instructions that set this data
@@ -463,7 +458,7 @@ impl WasmWords {
 /// end offset just points to the start of the param value.
 pub(crate) fn translate_ptr_data(
     WasmWords(words): WasmWords,
-    (start_offset, end_offset): (i32, i32),
+    (start_offset, end_offset): (i32, Option<i32>),
 ) -> Vec<Instruction> {
     words
         .into_iter()
@@ -475,7 +470,45 @@ pub(crate) fn translate_ptr_data(
                 Instruction::I32Store(2, (word_idx * mem::size_of::<i32>()) as u32),
             ]
         })
-        .chain(iter::once(Instruction::I32Const(end_offset)))
+        .chain(
+            end_offset
+                .into_iter()
+                .flat_map(|end_offset| iter::once(Instruction::I32Const(end_offset))),
+        )
+        .collect()
+}
+
+/// Creates instructions that copy 64 bits from the source pointer to the
+/// destination pointer.
+pub(crate) fn memcpy64(
+    dest: &[Instruction],
+    src: &[Instruction],
+    count: usize,
+) -> Vec<Instruction> {
+    memcpy64_with_offsets(dest, 0, src, 0, count)
+}
+
+/// Creates instructions that copy 64 bits from the source pointer to the
+/// destination pointer, starting at the specified offsets.
+pub(crate) fn memcpy64_with_offsets(
+    dest: &[Instruction],
+    dest_offset: usize,
+    src: &[Instruction],
+    src_offset: usize,
+    count: usize,
+) -> Vec<Instruction> {
+    (0..count)
+        .flat_map(|word_idx| {
+            let word_offset = word_idx * mem::size_of::<i64>();
+            let mut ret_instr = Vec::with_capacity(dest.len() + src.len() + 2);
+            ret_instr.extend_from_slice(dest);
+            ret_instr.extend_from_slice(src);
+            ret_instr.extend_from_slice(&[
+                Instruction::I64Load(3, (src_offset + word_offset) as u32),
+                Instruction::I64Store(3, (dest_offset + word_offset) as u32),
+            ]);
+            ret_instr
+        })
         .collect()
 }
 

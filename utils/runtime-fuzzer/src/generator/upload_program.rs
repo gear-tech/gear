@@ -98,7 +98,7 @@ fn config(
     current_balance: Balance,
 ) -> StandardGearWasmConfigsBundle {
     let initial_pages = 2;
-    let mut injection_types = SyscallsInjectionTypes::all_once();
+    let mut injection_types = SyscallsInjectionTypes::all_with_range(1..=3);
     injection_types.set_multiple(
         [
             (SyscallName::Leave, 0..=0),
@@ -146,7 +146,15 @@ fn config(
         .with_ptr_rule(PtrParamAllowedValues::ActorIdWithValue {
             actor_kind: actor_kind.clone(),
             range: EXISTENTIAL_DEPOSIT..=max_value,
-        });
+        })
+        .with_ptr_rule(PtrParamAllowedValues::ReservationIdWithValue(
+            EXISTENTIAL_DEPOSIT..=max_value,
+        ))
+        .with_ptr_rule(PtrParamAllowedValues::ReservationIdWithActorIdAndValue {
+            actor_kind: actor_kind.clone(),
+            range: EXISTENTIAL_DEPOSIT..=max_value,
+        })
+        .with_ptr_rule(PtrParamAllowedValues::ReservationId);
 
     StandardGearWasmConfigsBundle {
         entry_points_set: EntryPointsSet::InitHandleHandleReply,

@@ -58,12 +58,17 @@ pub struct SyscallsInjectionTypes(HashMap<InvocableSyscall, SyscallInjectionType
 impl SyscallsInjectionTypes {
     /// Instantiate a syscalls map, where each gear syscall is injected into wasm-module only once.
     pub fn all_once() -> Self {
-        Self::new_with_injection_type(SyscallInjectionType::Function(1..=1))
+        Self::all_with_range(1..=1)
     }
 
     /// Instantiate a syscalls map, where no gear syscall is ever injected into wasm-module.
     pub fn all_never() -> Self {
         Self::new_with_injection_type(SyscallInjectionType::None)
+    }
+
+    /// Instantiate a syscalls map, where each gear syscall is injected into wasm-module with given range.
+    pub fn all_with_range(range: RangeInclusive<u32>) -> Self {
+        Self::new_with_injection_type(SyscallInjectionType::Function(range))
     }
 
     /// Instantiate a syscalls map with given injection type.
