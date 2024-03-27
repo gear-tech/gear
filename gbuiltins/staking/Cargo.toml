@@ -1,0 +1,13 @@
+[package]
+name = "gbuiltin-staking"
+description = "Types and traits to interact with staking builtin actor."
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+
+[dependencies]
+derive_more.workspace = true
+scale-info = { workspace = true, features = ["derive"] }

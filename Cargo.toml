@@ -80,6 +80,7 @@ members = [
     "examples/wat",
     "galloc",
     "gbuiltins/bls381",
+    "gbuiltins/staking",
     "gcli",
     "gclient",
     "gcore",
@@ -202,6 +203,7 @@ common = { package = "gear-common", path = "common", default-features = false }
 core-processor = { package = "gear-core-processor", path = "core-processor", default-features = false }
 galloc = { path = "galloc" }
 gbuiltin-bls381 = { path = "gbuiltins/bls381", default-features = false }
+gbuiltin-staking = { path = "gbuiltins/staking" }
 gcore = { path = "gcore" }
 gcli = { path = "gcli" }
 gclient = { path = "gclient" }
@@ -443,6 +445,7 @@ demo-reserve-gas = { path = "examples/reserve-gas", default-features = false }
 demo-rwlock = { path = "examples/rwlock" }
 demo-send-from-reservation = { path = "examples/send-from-reservation" }
 demo-signal-entry = { path = "examples/signal-entry", default-features = false }
+demo-staking-broker = { path = "examples/staking-broker" }
 demo-state-rollback = { path = "examples/state-rollback" }
 demo-sync-duplicate = { path = "examples/sync-duplicate" }
 demo-vec = { path = "examples/vec" }
