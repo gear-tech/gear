@@ -627,18 +627,6 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                     Instruction::I32Const(1),
                     Instruction::I32Sub,
                     Instruction::I32Store(2, 0),
-                    // *reservation_flags_ptr &= !(1 << *reservation_temp1_ptr)
-                    Instruction::I32Const(reservation_flags_ptr),
-                    Instruction::I32Const(reservation_flags_ptr),
-                    Instruction::I32Load(2, 0),
-                    Instruction::I32Const(1),
-                    Instruction::I32Const(reservation_temp1_ptr),
-                    Instruction::I32Load(2, 0),
-                    Instruction::I32Shl,
-                    Instruction::I32Const(u32::MAX as i32),
-                    Instruction::I32Xor,
-                    Instruction::I32And,
-                    Instruction::I32Store(2, 0),
                     // *reservation_temp2_ptr = reservation_array_ptr + *reservation_temp1_ptr * 32
                     Instruction::I32Const(reservation_temp2_ptr),
                     Instruction::I32Const(reservation_temp1_ptr),
@@ -649,6 +637,24 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                     Instruction::I32Add,
                     Instruction::I32Store(2, 0),
                 ];
+
+                let reset_bit_flag = self.unstructured.arbitrary()?;
+                if reset_bit_flag {
+                    ret_instr.extend_from_slice(&[
+                        // *reservation_flags_ptr &= !(1 << *reservation_temp1_ptr)
+                        Instruction::I32Const(reservation_flags_ptr),
+                        Instruction::I32Const(reservation_flags_ptr),
+                        Instruction::I32Load(2, 0),
+                        Instruction::I32Const(1),
+                        Instruction::I32Const(reservation_temp1_ptr),
+                        Instruction::I32Load(2, 0),
+                        Instruction::I32Shl,
+                        Instruction::I32Const(u32::MAX as i32),
+                        Instruction::I32Xor,
+                        Instruction::I32And,
+                        Instruction::I32Store(2, 0),
+                    ]);
+                }
 
                 // Copy the Hash struct (32 bytes) containing the reservation id.
                 let mut copy_instr = utils::memcpy64(
