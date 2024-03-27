@@ -66,20 +66,6 @@ pub type SignalCode = u32;
 /// Represents value type.
 pub type Value = u128;
 
-/// Packed type marker trait, so it can be safely converted to and from raw bytes.
-///
-/// # Safety
-///
-/// Must be implemented only on `#[repr(C, packed)]` types.
-pub unsafe trait Packed {}
-
-unsafe impl Packed for u8 {}
-unsafe impl Packed for u32 {}
-unsafe impl Packed for u64 {}
-unsafe impl Packed for u128 {}
-unsafe impl Packed for [u8; 4] {}
-unsafe impl Packed for [u8; 32] {}
-
 /// Represents type defining concatenated block number with hash. 36 bytes.
 #[repr(C, packed)]
 #[derive(Default, Debug)]
@@ -94,8 +80,6 @@ impl BlockNumberWithHash {
     }
 }
 
-unsafe impl Packed for BlockNumberWithHash {}
-
 /// Represents type defining concatenated hash with value. 48 bytes.
 #[repr(C, packed)]
 #[derive(Default, Debug, Clone)]
@@ -109,8 +93,6 @@ impl HashWithValue {
         self as _
     }
 }
-
-unsafe impl Packed for HashWithValue {}
 
 /// Represents type defining concatenated reply code with error code. 8 bytes.
 #[repr(C, packed)]
@@ -139,8 +121,6 @@ impl From<Result<ReplyCode, ErrorCode>> for ErrorWithReplyCode {
     }
 }
 
-unsafe impl Packed for ErrorWithReplyCode {}
-
 /// Represents type defining concatenated signal code with length. 8 bytes.
 #[repr(C, packed)]
 #[derive(Default, Debug)]
@@ -167,8 +147,6 @@ impl From<Result<SignalCode, ErrorCode>> for ErrorWithSignalCode {
         res
     }
 }
-
-unsafe impl Packed for ErrorWithSignalCode {}
 
 /// Represents type defining concatenated error code with gas. 12 bytes.
 #[repr(C, packed)]
@@ -197,8 +175,6 @@ impl From<Result<Gas, ErrorCode>> for ErrorWithGas {
     }
 }
 
-unsafe impl Packed for ErrorWithGas {}
-
 /// Represents type defining concatenated length with handle. 8 bytes.
 #[repr(C, packed)]
 #[derive(Default, Debug)]
@@ -226,8 +202,6 @@ impl From<Result<Handle, ErrorCode>> for ErrorWithHandle {
     }
 }
 
-unsafe impl Packed for ErrorWithHandle {}
-
 #[repr(C, packed)]
 #[derive(Default, Debug)]
 pub struct ErrorBytes([u8; mem::size_of::<ErrorCode>()]);
@@ -237,8 +211,6 @@ impl From<Result<(), ErrorCode>> for ErrorBytes {
         Self(value.err().unwrap_or_default().to_le_bytes())
     }
 }
-
-unsafe impl Packed for ErrorBytes {}
 
 /// Represents type defining concatenated hash with error code. 36 bytes.
 #[repr(C, packed)]
@@ -266,8 +238,6 @@ impl<T: Into<[u8; 32]>> From<Result<T, ErrorCode>> for ErrorWithHash {
         res
     }
 }
-
-unsafe impl Packed for ErrorWithHash {}
 
 /// Represents type defining concatenated two hashes with error code. 68 bytes.
 #[repr(C, packed)]
@@ -304,8 +274,6 @@ where
     }
 }
 
-unsafe impl Packed for ErrorWithTwoHashes {}
-
 /// Represents type defining concatenated two hashes. 64 bytes.
 #[repr(C, packed)]
 #[derive(Default, Debug)]
@@ -319,8 +287,6 @@ impl TwoHashes {
         self as _
     }
 }
-
-unsafe impl Packed for TwoHashes {}
 
 /// Represents type defining concatenated two hashes with value. 80 bytes.
 #[repr(C, packed)]
@@ -336,8 +302,6 @@ impl TwoHashesWithValue {
         self as _
     }
 }
-
-unsafe impl Packed for TwoHashesWithValue {}
 
 /// Current version of execution settings.
 ///
@@ -357,8 +321,6 @@ pub struct EnvVars {
     pub gas_multiplier: GasMultiplier,
 }
 
-unsafe impl Packed for EnvVars {}
-
 /// Basic struct for working with integer percentages allowing
 /// values greater than 100.
 // This is a "copy-paste" of the similar struct from the `core` crate
@@ -376,8 +338,6 @@ impl Percent {
         self.0
     }
 }
-
-unsafe impl Packed for Percent {}
 
 /// Type representing converter between gas and value.
 // This is an FFI-friendly "copy-paste" of the similar enum from the `common` crate
@@ -416,8 +376,6 @@ impl GasMultiplier {
         (gas as u128).saturating_mul(self.value_per_gas)
     }
 }
-
-unsafe impl Packed for GasMultiplier {}
 
 #[allow(improper_ctypes)]
 extern "C" {

@@ -8,15 +8,12 @@ use crate::{
 use codec::{self, Decode, Encode, MaxEncodedLen};
 use core::{fmt::Debug, marker::PhantomData};
 use gear_core::{memory::Memory, pages::WASM_PAGE_SIZE};
-use gsys::Packed;
 
 const GAS_COUNTER: u64 = u64::MAX;
 
 #[derive(Encode, Decode, MaxEncodedLen)]
 #[codec(crate = codec)]
 struct ZeroSizeStruct;
-
-unsafe impl Packed for ZeroSizeStruct {}
 
 #[test]
 fn test_pre_process_memory_accesses_with_no_accesses() {
@@ -84,9 +81,9 @@ fn test_read_of_zero_size_struct() {
     let mut gas_counter = GAS_COUNTER;
     let mut memory_access_manager = MemoryAccessManager::<MockExt>::default();
     let memory = MockMemory::new(0);
-    let read = memory_access_manager.register_read_packed::<ZeroSizeStruct>(0);
+    let read = memory_access_manager.register_read_as::<ZeroSizeStruct>(0);
 
-    let result = memory_access_manager.read_packed(&memory, read, &mut gas_counter);
+    let result = memory_access_manager.read_as(&memory, read, &mut gas_counter);
 
     assert!(result.is_ok());
     assert_eq!(memory.read_attempt_count(), 0);
@@ -244,13 +241,13 @@ fn test_read_decoded_reading_error() {
 fn test_read_as_with_valid_data() {
     let mut gas_counter = GAS_COUNTER;
     let mut memory_access_manager = MemoryAccessManager::<MockExt>::default();
-    memory_access_manager.register_read_packed::<u64>(0);
+    memory_access_manager.register_read_as::<u64>(0);
 
     let memory = &mut MockMemory::new(1);
     let encoded = 1234u64.to_le_bytes();
     memory.write(0, &encoded).unwrap();
 
-    let result = memory_access_manager.read_packed::<MockMemory, u64>(
+    let result = memory_access_manager.read_as::<MockMemory, u64>(
         memory,
         WasmMemoryReadAs {
             ptr: 0,
@@ -269,9 +266,9 @@ fn test_read_as_with_invalid_pointer() {
     let memory = &mut MockMemory::new(1);
 
     let mut memory_access_manager = MemoryAccessManager::<MockExt>::default();
-    memory_access_manager.register_read_packed::<u64>(0);
+    memory_access_manager.register_read_as::<u64>(0);
 
-    let result = memory_access_manager.read_packed::<MockMemory, u128>(
+    let result = memory_access_manager.read_as::<MockMemory, u128>(
         memory,
         WasmMemoryReadAs {
             ptr: u32::MAX,
@@ -449,7 +446,7 @@ fn test_register_read_of_zero_size_buf() {
 fn test_register_read_of_zero_size_struct() {
     let mut mem_access_manager = MemoryAccessManager::<()>::default();
 
-    mem_access_manager.register_read_packed::<ZeroSizeStruct>(142);
+    mem_access_manager.register_read_as::<ZeroSizeStruct>(142);
 
     assert_eq!(mem_access_manager.reads.len(), 0);
 }
@@ -467,7 +464,7 @@ fn test_register_read_of_zero_size_encoded_value() {
 fn test_register_read_as_with_valid_interval() {
     let mut memory_access_manager = MemoryAccessManager::<MockExt>::default();
 
-    let result = memory_access_manager.register_read_packed::<u8>(0);
+    let result = memory_access_manager.register_read_as::<u8>(0);
 
     assert_eq!(result.ptr, 0);
     assert_eq!(memory_access_manager.reads.len(), 1);
@@ -483,7 +480,7 @@ fn test_register_read_as_with_valid_interval() {
 fn test_register_read_as_with_zero_size() {
     let mut memory_access_manager = MemoryAccessManager::<MockExt>::default();
 
-    let result = memory_access_manager.register_read_packed::<u8>(0);
+    let result = memory_access_manager.register_read_as::<u8>(0);
 
     assert_eq!(result.ptr, 0);
     assert_eq!(memory_access_manager.reads.len(), 1);

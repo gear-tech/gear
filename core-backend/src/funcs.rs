@@ -395,12 +395,12 @@ where
         gas_limit: Option<u64>,
         delay: u32,
     ) -> Result<MessageId, RunFallibleError> {
-        let read_hash_val = ctx.manager.register_read_packed(pid_value_ptr);
+        let read_hash_val = ctx.manager.register_read_as(pid_value_ptr);
         let read_payload = ctx.manager.register_read(payload_ptr, len);
         let HashWithValue {
             hash: destination,
             value,
-        } = ctx.read_packed(read_hash_val)?;
+        } = ctx.read_as(read_hash_val)?;
         let payload = Self::read_message_payload(ctx, read_payload)?;
 
         ctx.ext_mut()
@@ -442,11 +442,11 @@ where
         gas_limit: Option<u64>,
         delay: u32,
     ) -> Result<MessageId, RunFallibleError> {
-        let read_pid_value = ctx.manager.register_read_packed(pid_value_ptr);
+        let read_pid_value = ctx.manager.register_read_as(pid_value_ptr);
         let HashWithValue {
             hash: destination,
             value,
-        } = ctx.read_packed(read_pid_value)?;
+        } = ctx.read_as(read_pid_value)?;
 
         ctx.ext_mut()
             .send_commit(
@@ -515,13 +515,13 @@ where
         FallibleSyscall::new::<ErrorWithHash>(
             CostToken::ReservationSend(len.into()),
             move |ctx: &mut CallerWrap<Ext>| {
-                let read_rid_pid_value = ctx.manager.register_read_packed(rid_pid_value_ptr);
+                let read_rid_pid_value = ctx.manager.register_read_as(rid_pid_value_ptr);
                 let read_payload = ctx.manager.register_read(payload_ptr, len);
                 let TwoHashesWithValue {
                     hash1: reservation_id,
                     hash2: destination,
                     value,
-                } = ctx.read_packed(read_rid_pid_value)?;
+                } = ctx.read_as(read_rid_pid_value)?;
                 let payload = Self::read_message_payload(ctx, read_payload)?;
 
                 ctx.ext_mut()
@@ -543,12 +543,12 @@ where
         FallibleSyscall::new::<ErrorWithHash>(
             CostToken::ReservationSendCommit,
             move |ctx: &mut CallerWrap<Ext>| {
-                let read_rid_pid_value = ctx.manager.register_read_packed(rid_pid_value_ptr);
+                let read_rid_pid_value = ctx.manager.register_read_as(rid_pid_value_ptr);
                 let TwoHashesWithValue {
                     hash1: reservation_id,
                     hash2: destination,
                     value,
-                } = ctx.read_packed(read_rid_pid_value)?;
+                } = ctx.read_as(read_rid_pid_value)?;
 
                 ctx.ext_mut()
                     .reservation_send_commit(
@@ -816,12 +816,12 @@ where
         FallibleSyscall::new::<ErrorWithHash>(
             CostToken::ReservationReply(len.into()),
             move |ctx: &mut CallerWrap<Ext>| {
-                let read_rid_value = ctx.manager.register_read_packed(rid_value_ptr);
+                let read_rid_value = ctx.manager.register_read_as(rid_value_ptr);
                 let read_payload = ctx.manager.register_read(payload_ptr, len);
                 let HashWithValue {
                     hash: reservation_id,
                     value,
-                } = ctx.read_packed(read_rid_value)?;
+                } = ctx.read_as(read_rid_value)?;
                 let payload = Self::read_message_payload(ctx, read_payload)?;
 
                 ctx.ext_mut()
@@ -835,11 +835,11 @@ where
         FallibleSyscall::new::<ErrorWithHash>(
             CostToken::ReservationReplyCommit,
             move |ctx: &mut CallerWrap<Ext>| {
-                let read_rid_value = ctx.manager.register_read_packed(rid_value_ptr);
+                let read_rid_value = ctx.manager.register_read_as(rid_value_ptr);
                 let HashWithValue {
                     hash: reservation_id,
                     value,
-                } = ctx.read_packed(read_rid_value)?;
+                } = ctx.read_as(read_rid_value)?;
 
                 ctx.ext_mut()
                     .reservation_reply_commit(
@@ -940,11 +940,11 @@ where
         gas_limit: Option<u64>,
         delay: u32,
     ) -> Result<MessageId, RunFallibleError> {
-        let read_pid_value = ctx.manager.register_read_packed(pid_value_ptr);
+        let read_pid_value = ctx.manager.register_read_as(pid_value_ptr);
         let HashWithValue {
             hash: destination,
             value,
-        } = ctx.read_packed(read_pid_value)?;
+        } = ctx.read_as(read_pid_value)?;
 
         let handle = ctx.ext_mut().send_init()?;
         // Charge for `len` inside `send_push_input`
@@ -1203,13 +1203,13 @@ where
         gas_limit: Option<u64>,
         delay: u32,
     ) -> Result<(MessageId, ProgramId), RunFallibleError> {
-        let read_cid_value = ctx.manager.register_read_packed(cid_value_ptr);
+        let read_cid_value = ctx.manager.register_read_as(cid_value_ptr);
         let read_salt = ctx.manager.register_read(salt_ptr, salt_len);
         let read_payload = ctx.manager.register_read(payload_ptr, payload_len);
         let HashWithValue {
             hash: code_id,
             value,
-        } = ctx.read_packed(read_cid_value)?;
+        } = ctx.read_as(read_cid_value)?;
         let salt = Self::read_message_payload(ctx, read_salt)?;
         let payload = Self::read_message_payload(ctx, read_payload)?;
 

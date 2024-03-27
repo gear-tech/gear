@@ -31,7 +31,6 @@ use alloc::vec::Vec;
 use codec::{Decode, MaxEncodedLen};
 use gear_core::{costs::CostToken, pages::WasmPage};
 use gear_sandbox::{default_executor::Caller, AsContextExt, HostError, Value};
-use gsys::Packed;
 
 pub(crate) fn as_i64(v: Value) -> Option<i64> {
     match v {
@@ -210,11 +209,8 @@ impl<'a, 'b, Ext: BackendExternalities + 'static> CallerWrap<'a, 'b, Ext> {
         self.with_memory(|manager, memory, gas_left| manager.read(memory, read, gas_left))
     }
 
-    pub fn read_packed<T: Packed>(
-        &mut self,
-        read: WasmMemoryReadAs<T>,
-    ) -> Result<T, MemoryAccessError> {
-        self.with_memory(|manager, memory, gas_left| manager.read_packed(memory, read, gas_left))
+    pub fn read_as<T: Sized>(&mut self, read: WasmMemoryReadAs<T>) -> Result<T, MemoryAccessError> {
+        self.with_memory(|manager, memory, gas_left| manager.read_as(memory, read, gas_left))
     }
 
     pub fn read_decoded<T: Decode + MaxEncodedLen>(
