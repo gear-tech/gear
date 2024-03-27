@@ -61,6 +61,7 @@ pub(crate) fn on_initialize(new_block_number: BlockNumberFor<Runtime>) {
     GearProgram::on_initialize(new_block_number);
     GearMessenger::on_initialize(new_block_number);
     Gear::on_initialize(new_block_number);
+    GearBank::on_initialize(new_block_number);
     GearGas::on_initialize(new_block_number);
     // Session::on_initialize(new_block_number);
 }
@@ -71,6 +72,7 @@ pub(crate) fn on_finalize(current_blk: BlockNumberFor<Runtime>) {
     GearPayment::on_finalize(current_blk);
     GearGas::on_finalize(current_blk);
     Gear::on_finalize(current_blk);
+    GearBank::on_finalize(current_blk);
     GearMessenger::on_finalize(current_blk);
     GearProgram::on_finalize(current_blk);
     Treasury::on_finalize(current_blk);

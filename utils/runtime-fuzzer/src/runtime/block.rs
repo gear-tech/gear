@@ -30,8 +30,8 @@ use sp_consensus_babe::{
 use sp_consensus_slots::Slot;
 use sp_runtime::{Digest, DigestItem, Perbill};
 use vara_runtime::{
-    Authorship, BlockGasLimit, Gear, GearGas, GearMessenger, Runtime, RuntimeBlockWeights,
-    RuntimeEvent, System, TransactionPayment,
+    Authorship, BlockGasLimit, Gear, GearBank, GearGas, GearMessenger, Runtime,
+    RuntimeBlockWeights, RuntimeEvent, System, TransactionPayment,
 };
 
 /// This is not set to `BlockGasLimitOf::<Runtime>::get`, because of the
@@ -51,6 +51,7 @@ pub fn run_to_next_block() {
 fn run_to_block(n: u32) {
     while System::block_number() < n {
         System::on_finalize(System::block_number());
+        GearBank::on_finalize(System::block_number());
         initialize(System::block_number() + 1);
         on_initialize();
 
@@ -95,12 +96,14 @@ pub(super) fn on_initialize() {
     GearGas::on_initialize(System::block_number());
     GearMessenger::on_initialize(System::block_number());
     Gear::on_initialize(System::block_number());
+    GearBank::on_initialize(System::block_number());
 }
 
 /// Run on_finalize hooks in pallets reversed order, as they appear in `vara_runtime`.
 fn on_finalize_without_system() {
     let bn = System::block_number();
     Gear::on_finalize(bn);
+    GearBank::on_finalize(bn);
     GearMessenger::on_finalize(bn);
     GearGas::on_finalize(bn);
     TransactionPayment::on_finalize(bn);

@@ -126,11 +126,13 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
 pub fn run_to_block(n: u64, remaining_weight: Option<u64>) {
     while System::block_number() < n {
         System::on_finalize(System::block_number());
+        GearBank::on_finalize(System::block_number());
         System::set_block_number(System::block_number() + 1);
         System::on_initialize(System::block_number());
         GearGas::on_initialize(System::block_number());
         GearMessenger::on_initialize(System::block_number());
         Gear::on_initialize(System::block_number());
+        GearBank::on_initialize(System::block_number());
 
         if let Some(remaining_weight) = remaining_weight {
             GasAllowanceOf::<Test>::put(remaining_weight);
@@ -149,6 +151,7 @@ pub fn run_to_block(n: u64, remaining_weight: Option<u64>) {
         System::register_extra_weight_unchecked(max_block_weight, DispatchClass::Mandatory);
         Gear::run(frame_support::dispatch::RawOrigin::None.into(), None).unwrap();
         Gear::on_finalize(System::block_number());
+        GearBank::on_finalize(System::block_number());
 
         assert!(!System::events().iter().any(|e| {
             matches!(
