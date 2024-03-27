@@ -39,7 +39,7 @@ pub struct GBuild {
     /// If disable wasm-opt
     pub no_wasm_opt: bool,
 
-    /// If enable meta build
+    /// TODO: If enable meta build
     #[clap(short, long)]
     pub meta: bool,
 }
@@ -84,11 +84,15 @@ impl GBuild {
             .build
             .and_then(|b| b.target_dir)
             .unwrap_or(root.join("target"));
-        let name = manifest.package.name;
+        let name = manifest.package.name.replace('-', "_");
+        let target_dir = self.target_dir.clone().unwrap_or(orgi_target_dir.clone());
 
+        fs::create_dir_all(target_dir.join("gbuild"))?;
+
+        // TODO: set the output of wasm opt as to the gbuild folder.
         fs::copy(
             orgi_target_dir.join(format!("wasm32-unknown-unknown/release/{name}.wasm")),
-            orgi_target_dir.join(format!("gbuild/{name}.wasm")),
+            target_dir.join(format!("gbuild/{name}.wasm")),
         )?;
 
         // TODO: process wasm-opt

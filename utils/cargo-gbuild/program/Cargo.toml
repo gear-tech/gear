@@ -11,4 +11,7 @@ debug = ["gstd/debug"]
 default = ["std"]
 std = []
 
+[lib]
+crate-type = ["cdylib"]
+
 [workspace]

@@ -17,8 +17,21 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use anyhow::Result;
+use cargo_gbuild::GBuild;
+use std::path::PathBuf;
 
 #[test]
-fn program() -> Result<()> {
+fn compile_program() -> Result<()> {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("program/Cargo.toml");
+
+    GBuild {
+        manifest_path: root.to_string_lossy().to_string().into(),
+        features: vec![],
+        target_dir: None,
+        no_wasm_opt: true,
+        meta: false,
+    }
+    .build()?;
+
     Ok(())
 }
