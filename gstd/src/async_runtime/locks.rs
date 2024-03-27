@@ -19,7 +19,7 @@
 use crate::{
     collections::BTreeMap,
     config::WaitType,
-    errors::{Error, Result},
+    errors::{Error, Result, UsageError},
     exec,
     sync::MutexId,
     BlockCount, BlockNumber, Config, MessageId,
@@ -47,7 +47,7 @@ impl Lock {
     /// Wait for
     pub fn exactly(b: BlockCount) -> Result<Self> {
         if b == 0 {
-            return Err(Error::EmptyWaitDuration);
+            return Err(Error::Gstd(UsageError::EmptyWaitDuration));
         }
 
         Ok(Self {
@@ -59,7 +59,7 @@ impl Lock {
     /// Wait up to
     pub fn up_to(b: BlockCount) -> Result<Self> {
         if b == 0 {
-            return Err(Error::EmptyWaitDuration);
+            return Err(Error::Gstd(UsageError::EmptyWaitDuration));
         }
 
         Ok(Self {

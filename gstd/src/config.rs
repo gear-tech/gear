@@ -21,7 +21,7 @@
 
 //! This module is for configuring `gstd` inside gear programs.
 use crate::{
-    errors::{Error, Result},
+    errors::{Error, Result, UsageError},
     BlockCount,
 };
 
@@ -100,7 +100,7 @@ impl Config {
     /// Set `wait_for` duration (in blocks).
     pub fn set_wait_for(duration: BlockCount) -> Result<()> {
         if duration == 0 {
-            return Err(Error::EmptyWaitDuration);
+            return Err(Error::Gstd(UsageError::EmptyWaitDuration));
         }
 
         unsafe { CONFIG.wait_for = duration };
@@ -121,7 +121,7 @@ impl Config {
     /// Set the `wait_up_to` duration (in blocks).
     pub fn set_wait_up_to(duration: BlockCount) -> Result<()> {
         if duration == 0 {
-            return Err(Error::EmptyWaitDuration);
+            return Err(Error::Gstd(UsageError::EmptyWaitDuration));
         }
 
         unsafe { CONFIG.wait_up_to = duration };
@@ -142,7 +142,7 @@ impl Config {
     /// Set `mx_lock_duration_max` duration (in blocks).
     pub fn set_mx_lock_duration(duration: BlockCount) -> Result<()> {
         if duration == 0 {
-            return Err(Error::ZeroMxLockDuration);
+            return Err(Error::Gstd(UsageError::ZeroMxLockDuration));
         }
 
         unsafe { CONFIG.mx_lock_duration = duration };
@@ -152,7 +152,7 @@ impl Config {
     /// Set `system_reserve` gas amount.
     pub fn set_system_reserve(amount: u64) -> Result<()> {
         if amount == 0 {
-            return Err(Error::ZeroSystemReservationAmount);
+            return Err(Error::Gstd(UsageError::ZeroSystemReservationAmount));
         }
 
         unsafe { CONFIG.system_reserve = amount };
