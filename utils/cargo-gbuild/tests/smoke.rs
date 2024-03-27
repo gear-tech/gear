@@ -16,29 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use serde::Deserialize;
-use std::path::PathBuf;
+use anyhow::Result;
 
-/// Cargo manifest abstraction.
-#[derive(Debug, Deserialize)]
-pub struct Manifest {
-    /// The build section in the cargo manifest.
-    pub build: Option<Build>,
-
-    /// The package section in the cargo manifest.
-    pub package: Package,
-}
-
-/// The package section in the cargo manifest.
-#[derive(Debug, Deserialize)]
-pub struct Package {
-    /// Name of the package
-    pub name: String,
-}
-
-/// The build section in the cargo manifest.
-#[derive(Debug, Deserialize)]
-pub struct Build {
-    /// The target directory of the cargo project.
-    pub target_dir: Option<PathBuf>,
+#[test]
+fn program() -> Result<()> {
+    Ok(())
 }

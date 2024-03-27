@@ -17,9 +17,9 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::manifest;
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use ccli::{clap, Parser};
-use std::path::PathBuf;
+use std::{fs, path::PathBuf, process::Command};
 
 /// Command `gbuild` as cargo extension.
 #[derive(Parser)]
@@ -35,22 +35,63 @@ pub struct GBuild {
     /// Directory for all generated artifacts
     #[clap(short, long)]
     pub target_dir: Option<PathBuf>,
+
+    /// If disable wasm-opt
+    pub no_wasm_opt: bool,
+
+    /// If enable meta build
+    #[clap(short, long)]
+    pub meta: bool,
 }
 
 impl GBuild {
     /// Build program
     pub fn build(&self) -> Result<()> {
-        let _target = self
-            .target_dir
-            .clone()
-            .unwrap_or(manifest::parse_target(&self.manifest_path)?);
+        self.cargo()?;
+        self.collect()
+    }
 
-        // TODO: inheirt the logging format of cargo.
-        //
-        // for example:
-        //
-        // Compiling program-name v0.0.1 ( /path/to/the/program )
-        tracing::info!("Program artifacts have been output in {_target:?} !");
+    /// Process the cargo command.
+    ///
+    /// NOTE: only supports release build.
+    fn cargo(&self) -> Result<()> {
+        let mut cargo = Command::new("cargo");
+        cargo.args(["build", "--release", "--target", "wasm32-unknown-unknown"]);
+        cargo.args([
+            "--manifest-path",
+            self.manifest_path.to_string_lossy().to_string().as_str(),
+        ]);
+        if !self.features.is_empty() {
+            cargo.args(["--features", &self.features.join(",")]);
+        }
+
+        if !cargo.status()?.success() {
+            return Err(anyhow!("Failed to process the cargo command."));
+        }
+
+        Ok(())
+    }
+
+    // Collects the artifacts.
+    fn collect(&self) -> Result<()> {
+        let root = self
+            .manifest_path
+            .parent()
+            .ok_or_else(|| anyhow!("Failed to parse the root directory."))?;
+        let manifest =
+            toml::from_str::<manifest::Manifest>(&fs::read_to_string(&self.manifest_path)?)?;
+        let orgi_target_dir = manifest
+            .build
+            .and_then(|b| b.target_dir)
+            .unwrap_or(root.join("target"));
+        let name = manifest.package.name;
+
+        fs::copy(
+            orgi_target_dir.join(format!("wasm32-unknown-unknown/release/{name}.wasm")),
+            orgi_target_dir.join(format!("gbuild/{name}.wasm")),
+        )?;
+
+        // TODO: process wasm-opt
         Ok(())
     }
 }
