@@ -604,6 +604,7 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
             | PtrParamAllowedValues::ReservationId) => {
                 let MemoryLayout {
                     reservation_temp1_ptr,
+                    reservation_temp2_ptr,
                     reservation_flags_ptr,
                     reservation_array_ptr,
                     ..
@@ -616,7 +617,7 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                     Instruction::I32Const(0),
                     Instruction::I32Ne,
                     Instruction::If(BlockType::NoResult),
-                    // *reservation_temp1_ptr = reservation_array_ptr + ((*reservation_flags_ptr).trailing_ones() - 1) * 32
+                    // *reservation_temp1_ptr = ((*reservation_flags_ptr).trailing_ones() - 1)
                     Instruction::I32Const(reservation_temp1_ptr),
                     Instruction::I32Const(reservation_flags_ptr),
                     Instruction::I32Load(2, 0),
@@ -625,6 +626,23 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                     Instruction::I32Ctz,
                     Instruction::I32Const(1),
                     Instruction::I32Sub,
+                    Instruction::I32Store(2, 0),
+                    // *reservation_flags_ptr &= !(1 << *reservation_temp1_ptr)
+                    Instruction::I32Const(reservation_flags_ptr),
+                    Instruction::I32Const(reservation_flags_ptr),
+                    Instruction::I32Load(2, 0),
+                    Instruction::I32Const(1),
+                    Instruction::I32Const(reservation_temp1_ptr),
+                    Instruction::I32Load(2, 0),
+                    Instruction::I32Shl,
+                    Instruction::I32Const(u32::MAX as i32),
+                    Instruction::I32Xor,
+                    Instruction::I32And,
+                    Instruction::I32Store(2, 0),
+                    // *reservation_temp2_ptr = reservation_array_ptr + *reservation_temp1_ptr * 32
+                    Instruction::I32Const(reservation_temp2_ptr),
+                    Instruction::I32Const(reservation_temp1_ptr),
+                    Instruction::I32Load(2, 0),
                     Instruction::I32Const(mem::size_of::<gsys::Hash>() as i32),
                     Instruction::I32Mul,
                     Instruction::I32Const(reservation_array_ptr),
@@ -636,7 +654,7 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                 let mut copy_instr = utils::memcpy64(
                     &[Instruction::I32Const(value_set_ptr)],
                     &[
-                        Instruction::I32Const(reservation_temp1_ptr),
+                        Instruction::I32Const(reservation_temp2_ptr),
                         Instruction::I32Load(2, 0),
                     ],
                     4,
