@@ -8680,6 +8680,8 @@ pub mod storage {
     pub enum GearBankStorage {
         Bank,
         UnusedValue,
+        OnFinalizeTransfers,
+        OnFinalizeValue,
     }
     impl StorageInfo for GearBankStorage {
         const PALLET: &'static str = "GearBank";
@@ -8687,6 +8689,8 @@ pub mod storage {
             match self {
                 Self::Bank => "Bank",
                 Self::UnusedValue => "UnusedValue",
+                Self::OnFinalizeTransfers => "OnFinalizeTransfers",
+                Self::OnFinalizeValue => "OnFinalizeValue",
             }
         }
     }
