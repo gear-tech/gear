@@ -90,7 +90,7 @@ impl<T: Config> OnRuntimeUpgrade for MigrateToV3<T> {
         if onchain_version < 3 {
             let mut count = v2::Waitlist::<T>::iter().count();
             count += v2::Dispatches::<T>::iter().count();
-            count += v2::DispatchStashV2::<T>::iter().inspect(
+            count += v2::DispatchStash::<T>::iter().inspect(
                 |store| {
                     if store.1.0.context.is_some() {
                         panic!("Previous context on StoredDispatch in DispatchStash should always be None, but was Some for message id {:?}", store.1.0.message.id());
@@ -233,7 +233,8 @@ mod v2 {
     }
 
     #[cfg(feature = "try-runtime")]
-    pub type DispatchStashV2<T> = StorageMap<
+    #[allow(type_alias_bounds)]
+    pub type DispatchStash<T: Config> = StorageMap<
         DispatchStashPrefix<T>,
         Identity,
         MessageId,
@@ -416,7 +417,7 @@ mod tests {
             .collect::<Vec<_>>();
 
             for (msg_id, dispatch, interval) in dispatch_stash.clone() {
-                v2::DispatchStashV2::<Test>::insert(msg_id, (dispatch.clone(), interval.clone()));
+                v2::DispatchStash::<Test>::insert(msg_id, (dispatch.clone(), interval.clone()));
             }
 
             let state = MigrateToV3::<Test>::pre_upgrade().unwrap();
