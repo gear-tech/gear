@@ -27,12 +27,12 @@ gear-core-errors.workspace = true
 frame-support.workspace = true
 frame-system.workspace = true
 frame-benchmarking = { workspace = true, optional = true }
+sp-runtime = { workspace = true }
 sp-std = { workspace = true }
 sp-io.workspace = true
 
 [dev-dependencies]
 pallet-gear-gas = { workspace = true, features = ["std"] }
-sp-runtime = { workspace = true, features = ["std"] }
 pallet-balances = { workspace = true, features = ["std"] }
 pallet-authorship = { workspace = true, features = ["std"] }
 pallet-timestamp = { workspace = true, features = ["std"] }
@@ -51,9 +51,10 @@ std = [
 	"frame-system/std",
 	"frame-benchmarking/std",
 	"scale-info/std",
+	"sp-runtime/std",
 	"sp-std/std",
-	"primitive-types/std",
 	"sp-io/std",
+	"primitive-types/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",

@@ -151,7 +151,6 @@ pub mod pallet {
         CodeMetadata, Program,
     };
     use frame_support::{
-        dispatch::EncodeLike,
         pallet_prelude::*,
         storage::{Key, PrefixIterator},
         traits::StorageVersion,
@@ -165,6 +164,7 @@ pub mod pallet {
         pages::GearPage,
         program::MemoryInfix,
     };
+    use parity_scale_codec::EncodeLike;
     use primitive_types::H256;
     use sp_runtime::DispatchError;
 

@@ -38,8 +38,6 @@ use common::{
 use core_processor::common::ActorExecutionErrorReplyReason;
 use frame_support::{
     assert_noop, assert_ok,
-    codec::{Decode, Encode},
-    dispatch::Dispatchable,
     sp_runtime::traits::{TypedGet, Zero},
     traits::{Currency, Randomness},
 };
@@ -61,7 +59,8 @@ use gear_wasm_instrument::{gas_metering::CustomConstantCostRules, STACK_END_EXPO
 use gstd::{collections::BTreeMap, errors::Error as GstdError};
 use pallet_gear_voucher::PrepaidCall;
 use sp_runtime::{
-    traits::{One, UniqueSaturatedInto},
+    codec::{Decode, Encode},
+    traits::{Dispatchable, One, UniqueSaturatedInto},
     SaturatedConversion,
 };
 use sp_std::convert::TryFrom;
@@ -14855,7 +14854,6 @@ mod utils {
     use core_processor::common::ActorExecutionErrorReplyReason;
     use demo_constructor::{Scheme, WASM_BINARY as DEMO_CONSTRUCTOR_WASM_BINARY};
     use frame_support::{
-        codec::Decode,
         dispatch::{DispatchErrorWithPostInfo, DispatchResultWithPostInfo},
         traits::tokens::{currency::Currency, Balance},
     };
@@ -14869,7 +14867,7 @@ mod utils {
     use pallet_gear_voucher::VoucherId;
     use parity_scale_codec::Encode;
     use sp_core::H256;
-    use sp_runtime::traits::UniqueSaturatedInto;
+    use sp_runtime::{codec::Decode, traits::UniqueSaturatedInto};
     use sp_std::{convert::TryFrom, fmt::Debug};
 
     pub(super) const DEFAULT_GAS_LIMIT: u64 = 200_000_000;

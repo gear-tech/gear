@@ -22,9 +22,6 @@ use sc_cli::{ChainSpec, SubstrateCli};
 use sc_service::config::BasePath;
 use service::{chain_spec, IdentifyVariant};
 
-#[cfg(feature = "try-runtime")]
-use try_runtime_cli::block_building_info::substrate_info;
-
 impl SubstrateCli for Cli {
     fn impl_name() -> String {
         "Gear Node".into()
@@ -322,36 +319,7 @@ pub fn run() -> sc_cli::Result<()> {
             })
         }
         #[cfg(feature = "try-runtime")]
-        Some(Subcommand::TryRuntime(cmd)) => {
-            use sc_executor::{sp_wasm_interface::ExtendedHostFunctions, NativeExecutionDispatch};
-            let runner = cli.create_runner(cmd)?;
-            let chain_spec = &runner.config().chain_spec;
-
-            let registry = &runner
-                .config()
-                .prometheus_config
-                .as_ref()
-                .map(|cfg| &cfg.registry);
-            let task_manager =
-                sc_service::TaskManager::new(runner.config().tokio_handle.clone(), *registry)
-                    .map_err(|e| sc_cli::Error::Service(sc_service::Error::Prometheus(e)))?;
-
-            match chain_spec {
-                #[cfg(feature = "vara-native")]
-                spec if spec.is_vara() => runner.async_run(|_| {
-                    let info_provider =
-                        substrate_info(vara_runtime::constants::time::SLOT_DURATION);
-                    Ok((
-                        cmd.run::<service::vara_runtime::Block, ExtendedHostFunctions<
-						sp_io::SubstrateHostFunctions,
-						<service::VaraExecutorDispatch as NativeExecutionDispatch>::ExtendHostFunctions,
-					>, _>(Some(info_provider)),
-                        task_manager,
-                    ))
-                }),
-                _ => panic!("No runtime feature [gear, vara] is enabled"),
-            }
-        }
+        Some(Subcommand::TryRuntime) => Err(try_runtime_cli::DEPRECATION_NOTICE.to_owned().into()),
         #[cfg(not(feature = "try-runtime"))]
         Some(Subcommand::TryRuntime) => Err("TryRuntime wasn't enabled when building the node. \
                 You can enable it with `--features try-runtime`."
