@@ -41,6 +41,7 @@ use gear_sandbox::{
     default_executor::{Caller, Store},
     SandboxMemory,
 };
+use gsys::Packed;
 
 pub type ExecutorMemory = gear_sandbox::default_executor::Memory;
 
@@ -226,7 +227,7 @@ impl<Ext> MemoryAccessManager<Ext> {
         WasmMemoryRead { ptr, size }
     }
 
-    pub fn register_read_as<T: Sized>(&mut self, ptr: u32) -> WasmMemoryReadAs<T> {
+    pub fn register_read_packed<T: Packed>(&mut self, ptr: u32) -> WasmMemoryReadAs<T> {
         let size = mem::size_of::<T>() as u32;
         if size > 0 {
             self.reads.push(MemoryInterval { offset: ptr, size });
@@ -336,8 +337,8 @@ impl<Ext: BackendExternalities> MemoryAccessManager<Ext> {
         Ok(decoded)
     }
 
-    /// Pre-process registered accesses if need and read data as `T` from `memory`.
-    pub fn read_as<M: Memory, T: Sized>(
+    /// Pre-process registered accesses if need and read packed data as `T` from `memory`.
+    pub fn read_packed<M: Memory, T: Packed>(
         &mut self,
         memory: &M,
         read: WasmMemoryReadAs<T>,
