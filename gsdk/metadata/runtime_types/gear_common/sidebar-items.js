@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["GasMultiplier","Program","ProgramState"],"mod":["event","gas_provider","paused_program_storage","scheduler","storage"],"struct":["ActiveProgram","CodeMetadata"]};

@@ -1,0 +1,313 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Testing with `gtest`"><title>gtest - Rust</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../static.files/rustdoc-b1a3e7f8283b8434.css"><meta name="rustdoc-vars" data-root-path="../" data-static-root-path="../static.files/" data-current-crate="gtest" data-themes="" data-resource-suffix="" data-rustdoc-version="1.77.0-nightly (7ffc697ce 2024-01-24)" data-channel="nightly" data-search-js="search-dd67cee4cfa65049.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../crates.js"></script><script defer src="../static.files/main-48f368f3872407c8.js"></script><noscript><link rel="stylesheet" href="../static.files/noscript-04d5337699b92874.css"></noscript><link rel="icon" href="https://gear-tech.io/favicons/favicon.ico"></head><body class="rustdoc mod crate"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle" title="show sidebar"></button><a class="logo-container" href="../gtest/index.html"><img src="https://docs.gear.rs/logo.svg" alt=""></a></nav><nav class="sidebar"><div class="sidebar-crate"><a class="logo-container" href="../gtest/index.html"><img src="https://docs.gear.rs/logo.svg" alt="logo"></a><h2><a href="../gtest/index.html">gtest</a><span class="version">1.2.0</span></h2></div><div class="sidebar-elems"><ul class="block">
+            <li><a id="all-types" href="all.html">All Items</a></li></ul><section><ul class="block"><li><a href="#reexports">Re-exports</a></li><li><a href="#modules">Modules</a></li><li><a href="#macros">Macros</a></li><li><a href="#structs">Structs</a></li><li><a href="#enums">Enums</a></li><li><a href="#traits">Traits</a></li><li><a href="#functions">Functions</a></li><li><a href="#types">Type Aliases</a></li></ul></section></div></nav><div class="sidebar-resizer"></div>
+    <main><div class="width-limiter"><nav class="sub"><form class="search-form"><span></span><div id="sidebar-button" tabindex="-1"><a href="../gtest/all.html" title="show sidebar"></a></div><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="main-heading"><h1>Crate <a class="mod" href="#">gtest</a><button id="copy-path" title="Copy item path to clipboard"><img src="../static.files/clipboard-7571035ce49a181d.svg" width="19" height="18" alt="Copy item path"></button></h1><span class="out-of-band"><a class="src" href="../src/gtest/lib.rs.html#19-506">source</a> · <button id="toggle-all-docs" title="collapse all docs">[<span>&#x2212;</span>]</button></span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><h2 id="testing-with-gtest"><a class="doc-anchor" href="#testing-with-gtest">§</a>Testing with <code>gtest</code></h2>
+<p><code>gtest</code> simulates a real network by providing mockups of the user, program,
+balances, mailbox, etc. Since it does not include parts of the actual
+blockchain, it is fast and lightweight. But being a model of the blockchain
+network, <code>gtest</code> cannot be a complete reflection of the latter.</p>
+<p>As we said earlier, <code>gtest</code> is excellent for unit and integration testing.
+It is also helpful for debugging Gear program logic. Nothing other than the
+Rust compiler is required for running tests based on <code>gtest</code>. It is
+predictable and robust when used in continuous integration.</p>
+<h3 id="main-concepts"><a class="doc-anchor" href="#main-concepts">§</a>Main concepts</h3>
+<p><code>gtest</code> is a library that provides a set of tools for testing Gear programs.
+The most important structures are:</p>
+<ul>
+<li><a href="struct.System.html" title="struct gtest::System"><code>System</code></a> — a structure that represents the environment of the Gear
+network. It contains the current block number, timestamp, and other
+parameters. It also stores the mailbox and the list of programs.</li>
+<li><a href="struct.Program.html" title="struct gtest::Program"><code>Program</code></a> — a structure that represents a Gear program. It contains the
+information about program and allows sending messages to other programs.</li>
+<li><a href="struct.Log.html" title="struct gtest::Log"><code>Log</code></a> — a structure that represents a message log. It allows checking
+the result of the program execution.</li>
+</ul>
+<p>Let’s take a closer look at how to write tests using <code>gtest</code>.</p>
+<h3 id="import-gtest-lib"><a class="doc-anchor" href="#import-gtest-lib">§</a>Import <code>gtest</code> lib</h3>
+<p>To use the <code>gtest</code> library, you must import it into your <code>Cargo.toml</code> file
+in the <code>[dev-dependencies]</code> block to fetch and compile it for tests only:</p>
+<div class="example-wrap"><pre class="language-toml"><code>[package]
+name = &quot;my-gear-app&quot;
+version = &quot;0.1.0&quot;
+authors = [&quot;Your Name&quot;]
+edition = &quot;2021&quot;
+
+[dependencies]
+gstd = { git = &quot;https://github.com/gear-tech/gear.git&quot;, tag = &quot;v1.0.1&quot; }
+
+[build-dependencies]
+gear-wasm-builder = { git = &quot;https://github.com/gear-tech/gear.git&quot;, tag = &quot;v1.0.1&quot; }
+
+[dev-dependencies]
+gtest = { git = &quot;https://github.com/gear-tech/gear.git&quot;, tag = &quot;v1.0.1&quot; }
+</code></pre></div><h3 id="program-example"><a class="doc-anchor" href="#program-example">§</a>Program example</h3>
+<p>Let’s write a simple program that will receive a message and reply to it.</p>
+<p><code>lib.rs</code>:</p>
+
+<div class="example-wrap ignore"><a href="#" class="tooltip" title="This example is not tested">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="attr">#![no_std]
+</span><span class="kw">use </span>gstd::msg;
+
+<span class="attr">#[no_mangle]
+</span><span class="kw">extern </span><span class="string">"C" </span><span class="kw">fn </span>handle() {
+    <span class="kw">let </span>payload = msg::load_bytes().expect(<span class="string">"Failed to load payload"</span>);
+
+    <span class="kw">if </span>payload == <span class="string">b"PING" </span>{
+        msg::reply_bytes(<span class="string">b"PONG"</span>, <span class="number">0</span>).expect(<span class="string">"Failed to send reply"</span>);
+    }
+}</code></pre></div>
+<p><code>build.rs</code>:</p>
+
+<div class="example-wrap ignore"><a href="#" class="tooltip" title="This example is not tested">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="kw">fn </span>main() {
+    gear_wasm_builder::build();
+}</code></pre></div>
+<p>We will add a test that will check the program’s behavior. To do this, we
+will use the <code>gtest</code> library.</p>
+<p>Our test will consist of the following steps:</p>
+<ol>
+<li>Initialize the <code>System</code> structure.</li>
+<li>Initialize the <code>Program</code> structure.</li>
+<li>Send an init message to the program. Even though we don’t have the <code>init</code>
+function in our program, the first message to the program sent via
+<code>gtest</code> is always the init one.</li>
+<li>Send a handle message to the program.</li>
+<li>Check the result of the program execution.</li>
+</ol>
+<p>Add these lines to the bottom of the <code>lib.rs</code> file:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="attr">#[cfg(test)]
+</span><span class="kw">mod </span>tests {
+    <span class="kw">use </span>gtest::{Log, Program, System};
+
+    <span class="kw">const </span>USER_ID: u64 = <span class="number">100001</span>;
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_ping_pong() {
+        <span class="comment">// Initialization of the common environment for running programs.
+        </span><span class="kw">let </span>sys = System::new();
+
+        <span class="comment">// Initialization of the current program structure.
+        </span><span class="kw">let </span>prog = Program::current(<span class="kw-2">&amp;</span>sys);
+
+        <span class="comment">// Send an init message to the program.
+        </span><span class="kw">let </span>res = prog.send_bytes(USER_ID, <span class="string">b"Doesn't matter"</span>);
+
+        <span class="comment">// Check whether the program was initialized successfully.
+        </span><span class="macro">assert!</span>(!res.main_failed());
+
+        <span class="comment">// Send a handle message to the program.
+        </span><span class="kw">let </span>res = prog.send_bytes(USER_ID, <span class="string">b"PING"</span>);
+
+        <span class="comment">// Check the result of the program execution.
+        // 1. Create a log pattern with the expected result.
+        </span><span class="kw">let </span>log = Log::builder()
+            .source(prog.id())
+            .dest(USER_ID)
+            .payload_bytes(<span class="string">b"PONG"</span>);
+
+        <span class="comment">// 2. Check whether the program was executed successfully.
+        </span><span class="macro">assert!</span>(!res.main_failed());
+
+        <span class="comment">// 3. Make sure the log entry is in the result.
+        </span><span class="macro">assert!</span>(res.contains(<span class="kw-2">&amp;</span>log));
+    }
+}</code></pre></div>
+<p>To run the test, use the following command:</p>
+<div class="example-wrap"><pre class="language-bash"><code>cargo test
+</code></pre></div><h2 id="gtest-capabilities"><a class="doc-anchor" href="#gtest-capabilities">§</a><code>gtest</code> capabilities</h2>
+<p>Let’s take a closer look at the <code>gtest</code> capabilities.</p>
+<h3 id="initialization-of-the-network-environment-for-running-programs"><a class="doc-anchor" href="#initialization-of-the-network-environment-for-running-programs">§</a>Initialization of the network environment for running programs</h3>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">let </span>sys = System::new();</code></pre></div>
+<p>This emulates node’s and chain’s behavior. By default, the <a href="struct.System.html#method.new" title="associated function gtest::System::new"><code>System::new</code></a>
+function sets the following parameters:</p>
+<ul>
+<li>current block equals <code>0</code></li>
+<li>current timestamp equals UNIX timestamp of your system</li>
+<li>starting message id equals <code>0x010000..</code></li>
+<li>starting program id equals <code>0x010000..</code></li>
+</ul>
+<h3 id="program-initialization"><a class="doc-anchor" href="#program-initialization">§</a>Program initialization</h3>
+<p>There are a few ways to initialize a program:</p>
+<ul>
+<li>
+<p>Initialize the current program using the <a href="struct.Program.html#method.current" title="associated function gtest::Program::current"><code>Program::current</code></a> function:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">let </span>prog = Program::current(<span class="kw-2">&amp;</span>sys);</code></pre></div>
+</li>
+<li>
+<p>Initialize a program from a Wasm-file with a default id using the
+<a href="struct.Program.html#method.from_file" title="associated function gtest::Program::from_file"><code>Program::from_file</code></a> function:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">let </span>prog = Program::from_file(
+    <span class="kw-2">&amp;</span>sys,
+    <span class="string">"./target/wasm32-unknown-unknown/release/demo_ping.wasm"</span>,
+);</code></pre></div>
+</li>
+<li>
+<p>Initialize a program from a Wasm-file with a custom id using the
+<a href="struct.Program.html#method.from_file_with_id" title="associated function gtest::Program::from_file_with_id"><code>Program::from_file_with_id</code></a> function:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">let </span>prog = Program::from_file_with_id(
+    <span class="kw-2">&amp;</span>sys,
+    <span class="number">105</span>,
+    <span class="string">"./target/wasm32-unknown-unknown/release/demo_ping.wasm"</span>,
+);</code></pre></div>
+<p>Every place in this lib, where you need to specify some ids, it requires
+generic type <code>ID</code>, which implements <code>Into&lt;ProgramIdWrapper&gt;</code>.</p>
+<p><code>ProgramIdWrapper</code> may be built from:</p>
+<ul>
+<li><code>u64</code></li>
+<li><code>[u8; 32]</code></li>
+<li><code>String</code></li>
+<li><code>&amp;str</code></li>
+<li><a href="https://docs.gear.rs/gear_core/ids/struct.ProgramId.html"><code>ProgramId</code></a>
+(from <code>gear_core</code> one’s, not from <code>gstd</code>).</li>
+</ul>
+<p><code>String</code> implementation means the input as hex (with or without “0x”).</p>
+</li>
+</ul>
+<h3 id="getting-the-program-from-the-system"><a class="doc-anchor" href="#getting-the-program-from-the-system">§</a>Getting the program from the system</h3>
+<p>If you initialize program not in this scope, in cycle, in other conditions,
+where you didn’t save the structure, you may get the object from the system
+by id.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">let </span>prog = sys.get_program(<span class="number">105</span>);</code></pre></div>
+<h3 id="initialization-of-styled-env_logger"><a class="doc-anchor" href="#initialization-of-styled-env_logger">§</a>Initialization of styled <code>env_logger</code></h3>
+<p>Initialization of styled <code>env_logger</code> to print logs (only from <code>gwasm</code> by
+default) into stdout:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code>sys.init_logger();</code></pre></div>
+<p>To specify printed logs, set the env variable <code>RUST_LOG</code>:</p>
+<div class="example-wrap"><pre class="language-bash"><code>RUST_LOG=&quot;target_1=logging_level,target_2=logging_level&quot; cargo test
+</code></pre></div><h3 id="sending-messages"><a class="doc-anchor" href="#sending-messages">§</a>Sending messages</h3>
+<p>To send message to the program need to call one of two program’s functions:</p>
+<ul>
+<li><a href="struct.Program.html#method.send" title="method gtest::Program::send"><code>Program::send</code></a> (or <a href="struct.Program.html#method.send_with_value" title="method gtest::Program::send_with_value"><code>Program::send_with_value</code></a> if you need to send a
+message with attached funds).</li>
+<li><a href="struct.Program.html#method.send_bytes" title="method gtest::Program::send_bytes"><code>Program::send_bytes</code></a> (or <a href="struct.Program.html#method.send_bytes_with_value" title="method gtest::Program::send_bytes_with_value"><code>Program::send_bytes_with_value</code></a> if you need
+to send a message with attached funds).</li>
+</ul>
+<p>Both of the methods require sender id as the first argument and the payload
+as second.</p>
+<p>The difference between them is pretty simple and similar to <a href="https://docs.gear.rs/gstd/"><code>gstd</code></a> functions <a href="https://docs.gear.rs/gstd/msg/fn.send.html"><code>msg::send</code></a> and <a href="https://docs.gear.rs/gstd/msg/fn.send_bytes.html"><code>msg::send_bytes</code></a>.</p>
+<p>The first one requires payload to be CODEC Encodable, while the second
+requires payload implement <code>AsRef&lt;[u8]&gt;</code>, that means to be able to represent
+as bytes.</p>
+<p><a href="struct.Program.html#method.send" title="method gtest::Program::send"><code>Program::send</code></a> uses <a href="struct.Program.html#method.send_bytes" title="method gtest::Program::send_bytes"><code>Program::send_bytes</code></a> under the hood with bytes
+from <code>payload.encode()</code>.</p>
+<p>First message to the initialized program structure is always the init
+message.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">let </span>res = prog.send_bytes(<span class="number">100001</span>, <span class="string">"INIT MESSAGE"</span>);</code></pre></div>
+<h3 id="processing-the-result-of-the-program-execution"><a class="doc-anchor" href="#processing-the-result-of-the-program-execution">§</a>Processing the result of the program execution</h3>
+<p>Any sending functions in the lib returns <a href="struct.RunResult.html" title="struct gtest::RunResult"><code>RunResult</code></a> structure.</p>
+<p>It contains the final result of the processing message and others, which
+were created during the execution.</p>
+<p>It has 4 main functions:</p>
+<ul>
+<li><a href="struct.RunResult.html#method.log" title="method gtest::RunResult::log"><code>RunResult::log</code></a> — returns the reference to the Vec produced to users
+messages. You may assert them as you wish, iterating through them.</li>
+<li><a href="struct.RunResult.html#method.main_failed" title="method gtest::RunResult::main_failed"><code>RunResult::main_failed</code></a> — returns bool which shows that there was panic
+during the execution of the main message.</li>
+<li><a href="struct.RunResult.html#method.others_failed" title="method gtest::RunResult::others_failed"><code>RunResult::others_failed</code></a> — returns bool which shows that there was
+panic during the execution of the created messages during the main
+execution. Equals false if no others were called.</li>
+<li><a href="struct.RunResult.html#method.contains" title="method gtest::RunResult::contains"><code>RunResult::contains</code></a> — returns bool which shows that logs contain a
+given log. Syntax sugar around <code>res.log().iter().any(|v| v == arg)</code>.</li>
+</ul>
+<p>To build a log for assertion you need to use <a href="struct.Log.html" title="struct gtest::Log"><code>Log</code></a> structure with its
+builders. All fields here are optional. Assertion with <code>Log</code>s from core are
+made on the <code>Some(..)</code> fields. You will run into panic if you try to set the
+already specified field.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="comment">// Constructor for success log.
+</span><span class="kw">let </span>log = Log::builder();
+
+<span class="comment">// Constructor for error reply log.
+</span><span class="kw">let </span>log = Log::error_builder(ErrorReplyReason::InactiveProgram);
+<span class="comment">// Other fields are set optionally by `dest()`, `source()`, `payload()`, `payload_bytes()`.
+</span><span class="kw">let </span>log = Log::builder()
+    .source(prog.id())
+    .dest(<span class="number">100001</span>)
+    .payload_bytes(<span class="string">"PONG"</span>);</code></pre></div>
+<p>Log also has <code>From</code> implementations from <code>(ID, T)</code> and from <code>(ID_1, ID_2, T)</code>, where <code>ID: Into&lt;ProgramIdWrapper&gt;</code>, <code>T: AsRef&lt;[u8]&gt;</code>.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">let </span>x = Log::builder().dest(<span class="number">5</span>).payload_bytes(<span class="string">"A"</span>);
+<span class="kw">let </span>x_from: Log = (<span class="number">5</span>, <span class="string">"A"</span>).into();
+<span class="macro">assert_eq!</span>(x, x_from);
+
+<span class="kw">let </span>y = Log::builder().dest(<span class="number">5</span>).source(<span class="number">15</span>).payload_bytes(<span class="string">"A"</span>);
+<span class="kw">let </span>y_from: Log = (<span class="number">15</span>, <span class="number">5</span>, <span class="string">"A"</span>).into();
+<span class="macro">assert_eq!</span>(y, y_from);</code></pre></div>
+<h3 id="spending-blocks"><a class="doc-anchor" href="#spending-blocks">§</a>Spending blocks</h3>
+<p>You may control time in the system by spending blocks.</p>
+<p>It adds the amount of blocks passed as arguments to the current block of the
+system. Same for the timestamp. Note, that for now 1 block in Gear-based
+network is 3 sec duration.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="comment">// Spend 150 blocks (7.5 mins for 3 sec block).
+</span>sys.spend_blocks(<span class="number">150</span>);</code></pre></div>
+<p>Note that processing messages (e.g. by using
+<a href="struct.Program.html#method.send" title="method gtest::Program::send"><code>Program::send</code></a>/<a href="struct.Program.html#method.send_bytes" title="method gtest::Program::send_bytes"><code>Program::send_bytes</code></a> methods) doesn’t spend blocks, nor
+changes the timestamp. If you write time dependent logic, you should spend
+blocks manually.</p>
+<h3 id="balance"><a class="doc-anchor" href="#balance">§</a>Balance:</h3>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="comment">// If you need to send a message with value you have to mint balance for the message sender:
+</span><span class="kw">let </span>user_id = <span class="number">42</span>;
+sys.mint_to(user_id, <span class="number">5000</span>);
+<span class="macro">assert_eq!</span>(sys.balance_of(user_id), <span class="number">5000</span>);
+
+<span class="comment">// To give the balance to the program you should use `mint` method:
+</span><span class="kw">let </span><span class="kw-2">mut </span>prog = Program::current(<span class="kw-2">&amp;</span>sys);
+prog.mint(<span class="number">1000</span>);
+<span class="macro">assert_eq!</span>(prog.balance(), <span class="number">1000</span>);</code></pre></div>
+<!--
+- Reading the program state:
+```ignore
+// To read the program state you need to call one of two program's functions:
+// `meta_state()` or `meta_state_with_bytes()`.
+//
+// The methods require the payload as the input argument.
+//
+// The first one requires payload to be CODEC Encodable, while the second requires payload
+// implement `AsRef<[u8]>`, that means to be able to represent as bytes.
+//
+// Let we have the following program state and `meta_state` function:
+#[derive(Encode, Decode, TypeInfo)]
+pub struct ProgramState {
+    a: u128,
+    b: u128,
+}
+
+pub enum State {
+    A,
+    B,
+}
+
+pub enum StateReply {
+    A(u128),
+    B(u128),
+}
+
+#[no_mangle]
+unsafe extern "C" fn meta_state() -> *mut [i32; 2] {
+    let query: State = msg::load().expect("Unable to decode `State`");
+    let encoded = match query {
+        State::A => StateReply::A(STATE.a),
+        State::B => StateReply::B(STATE.b),
+    }
+    .encode();
+    gstd::util::to_leak_ptr(encoded)
+}
+
+// Let's send a query from gtest:
+let reply: StateReply = self.meta_state(&State::A).expect("Meta_state failed");
+let expected_reply = StateReply::A(10);
+assert_eq!(reply, expected_reply);
+
+// If your `meta_state` function doesn't require input payloads,
+// you can use `meta_state_empty` or `meta_state_empty_with_bytes` functions
+// without any arguments.
+```
+--></div></details><h2 id="reexports" class="section-header">Re-exports<a href="#reexports" class="anchor">§</a></h2><ul class="item-table"><li><div class="item-name" id="reexport.codec"><code>pub use codec;</code></div></li></ul><h2 id="modules" class="section-header">Modules<a href="#modules" class="anchor">§</a></h2><ul class="item-table"><li><div class="item-name"><a class="mod" href="constants/index.html" title="mod gtest::constants">constants</a></div><div class="desc docblock-short">Module containing constants of Gear protocol.</div></li></ul><h2 id="macros" class="section-header">Macros<a href="#macros" class="anchor">§</a></h2><ul class="item-table"><li><div class="item-name"><a class="macro" href="macro.state_args.html" title="macro gtest::state_args">state_args</a></div><div class="desc docblock-short">Construct state arguments.</div></li><li><div class="item-name"><a class="macro" href="macro.state_args_encoded.html" title="macro gtest::state_args_encoded">state_args_encoded</a></div><div class="desc docblock-short">Construct encoded state arguments.</div></li></ul><h2 id="structs" class="section-header">Structs<a href="#structs" class="anchor">§</a></h2><ul class="item-table"><li><div class="item-name"><a class="struct" href="struct.CoreLog.html" title="struct gtest::CoreLog">CoreLog</a></div><div class="desc docblock-short">A log that emitted by a program, for user defined logs,
+see <a href="struct.Log.html" title="struct gtest::Log"><code>Log</code></a>.</div></li><li><div class="item-name"><a class="struct" href="struct.Gas.html" title="struct gtest::Gas">Gas</a></div><div class="desc docblock-short">Gas for gear programs.</div></li><li><div class="item-name"><a class="struct" href="struct.Log.html" title="struct gtest::Log">Log</a></div><div class="desc docblock-short">A log that can be emitted by a program.</div></li><li><div class="item-name"><a class="struct" href="struct.Program.html" title="struct gtest::Program">Program</a></div><div class="desc docblock-short">Gear program instance.</div></li><li><div class="item-name"><a class="struct" href="struct.RunResult.html" title="struct gtest::RunResult">RunResult</a></div><div class="desc docblock-short">The result of a message run.</div></li><li><div class="item-name"><a class="struct" href="struct.System.html" title="struct gtest::System">System</a></div><div class="desc docblock-short">The testing environment which simulates the chain state and its
+transactions but somehow the real on-chain execution environment
+could be different.</div></li></ul><h2 id="enums" class="section-header">Enums<a href="#enums" class="anchor">§</a></h2><ul class="item-table"><li><div class="item-name"><a class="enum" href="enum.TestError.html" title="enum gtest::TestError">TestError</a></div><div class="desc docblock-short">List of general errors.</div></li></ul><h2 id="traits" class="section-header">Traits<a href="#traits" class="anchor">§</a></h2><ul class="item-table"><li><div class="item-name"><a class="trait" href="trait.WasmProgram.html" title="trait gtest::WasmProgram">WasmProgram</a></div><div class="desc docblock-short">Trait for mocking gear programs.</div></li></ul><h2 id="functions" class="section-header">Functions<a href="#functions" class="anchor">§</a></h2><ul class="item-table"><li><div class="item-name"><a class="fn" href="fn.calculate_program_id.html" title="fn gtest::calculate_program_id">calculate_program_id</a></div><div class="desc docblock-short">Calculate program id from code id and salt.</div></li></ul><h2 id="types" class="section-header">Type Aliases<a href="#types" class="anchor">§</a></h2><ul class="item-table"><li><div class="item-name"><a class="type" href="type.Result.html" title="type gtest::Result">Result</a></div><div class="desc docblock-short">Type alias for the testing functions running result.</div></li></ul></section></div></main></body></html>

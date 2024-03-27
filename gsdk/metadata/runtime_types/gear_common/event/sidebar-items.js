@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["CodeChangeKind","DispatchStatus","MessageEntry","MessageWaitedRuntimeReason","MessageWaitedSystemReason","MessageWokenRuntimeReason","MessageWokenSystemReason","ProgramChangeKind","Reason","UserMessageReadRuntimeReason","UserMessageReadSystemReason"]};

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["AllocError","MemoryError"],"struct":["AllocationsContext","IncorrectAllocationDataError","MemoryInterval","NoopGrowHandler","PageBuf"],"trait":["GrowHandler","Memory"],"type":["HostPointer","PageBufInner"]};

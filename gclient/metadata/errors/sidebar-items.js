@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["BagsList","Balances","ConvictionVoting","Gear","GearDebug","GearStakingRewards","Grandpa","Identity","ImOnline","ModuleError","Preimage","RanckedCollective","Referenda","Scheduler","Session","Staking","Sudo","System","Treasury","Utility","Vesting","Whitelist"]};

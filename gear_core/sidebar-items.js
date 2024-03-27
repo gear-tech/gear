@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"macro":["declare_id"],"mod":["buffer","code","costs","env","env_vars","gas","ids","memory","message","pages","percent","program","reservation","str"]};

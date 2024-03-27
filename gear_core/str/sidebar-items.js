@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["TRIMMED_MAX_LEN"],"struct":["LimitedStr","LimitedStrTryFromError"]};

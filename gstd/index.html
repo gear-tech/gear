@@ -1,0 +1,100 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Standard library for use in Gear programs."><title>gstd - Rust</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../static.files/rustdoc-b1a3e7f8283b8434.css"><meta name="rustdoc-vars" data-root-path="../" data-static-root-path="../static.files/" data-current-crate="gstd" data-themes="" data-resource-suffix="" data-rustdoc-version="1.77.0-nightly (7ffc697ce 2024-01-24)" data-channel="nightly" data-search-js="search-dd67cee4cfa65049.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../crates.js"></script><script defer src="../static.files/main-48f368f3872407c8.js"></script><noscript><link rel="stylesheet" href="../static.files/noscript-04d5337699b92874.css"></noscript><link rel="icon" href="https://gear-tech.io/favicons/favicon.ico"></head><body class="rustdoc mod crate"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle" title="show sidebar"></button><a class="logo-container" href="../gstd/index.html"><img src="https://docs.gear.rs/logo.svg" alt=""></a></nav><nav class="sidebar"><div class="sidebar-crate"><a class="logo-container" href="../gstd/index.html"><img src="https://docs.gear.rs/logo.svg" alt="logo"></a><h2><a href="../gstd/index.html">gstd</a><span class="version">1.2.0</span></h2></div><div class="sidebar-elems"><ul class="block">
+            <li><a id="all-types" href="all.html">All Items</a></li></ul><section><ul class="block"><li><a href="#modules">Modules</a></li><li><a href="#macros">Macros</a></li><li><a href="#structs">Structs</a></li><li><a href="#functions">Functions</a></li><li><a href="#types">Type Aliases</a></li><li><a href="#attributes">Attribute Macros</a></li></ul></section></div></nav><div class="sidebar-resizer"></div>
+    <main><div class="width-limiter"><nav class="sub"><form class="search-form"><span></span><div id="sidebar-button" tabindex="-1"><a href="../gstd/all.html" title="show sidebar"></a></div><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="main-heading"><h1>Crate <a class="mod" href="#">gstd</a><button id="copy-path" title="Copy item path to clipboard"><img src="../static.files/clipboard-7571035ce49a181d.svg" width="19" height="18" alt="Copy item path"></button></h1><span class="out-of-band"><a class="src" href="../src/gstd/lib.rs.html#19-179">source</a> · <button id="toggle-all-docs" title="collapse all docs">[<span>&#x2212;</span>]</button></span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Standard library for use in Gear programs.</p>
+<p>This library should be used as a standard library when writing Gear
+programs. Compared to <a href="https://docs.gear.rs/gcore/"><code>gcore</code></a> crate,
+this library provides higher-level primitives that allow you to develop more
+complex dApps. Choose this library if you are ready to spend more gas but
+receive refined code.</p>
+<p><code>gstd</code> crate provides many advanced tools for a developer, such as
+asynchronous programming primitives, arbitrary types encoding/decoding,
+providing convenient instruments for creating programs from programs, etc.</p>
+<h2 id="minimum-supported-rust-version"><a class="doc-anchor" href="#minimum-supported-rust-version">§</a>Minimum supported Rust version</h2>
+<p>This crate requires <strong>Rust &gt;= 1.73</strong> due to the implementation of the panic
+handler in the stable version.</p>
+<h2 id="crate-features"><a class="doc-anchor" href="#crate-features">§</a>Crate features</h2><h2 id="examples"><a class="doc-anchor" href="#examples">§</a>Examples</h2>
+<p>Decode input payload using a custom type:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="attr">#![no_std]
+
+</span><span class="kw">use </span>gstd::{msg, prelude::<span class="kw-2">*</span>};
+
+<span class="attr">#[derive(Decode, Encode, TypeInfo)]
+#[codec(<span class="kw">crate </span>= gstd::codec)]
+#[scale_info(<span class="kw">crate </span>= gstd::scale_info)]
+</span><span class="kw">struct </span>Payload {
+    question: String,
+    answer: u8,
+}
+
+<span class="attr">#[no_mangle]
+</span><span class="kw">extern </span><span class="string">"C" </span><span class="kw">fn </span>handle() {
+    <span class="kw">let </span>payload: Payload = msg::load().expect(<span class="string">"Unable to decode payload"</span>);
+    <span class="kw">if </span>payload.question == <span class="string">"life-universe-everything" </span>{
+        msg::reply(payload.answer, <span class="number">0</span>).expect(<span class="string">"Unable to reply"</span>);
+    }
+}</code></pre></div>
+<p>Asynchronous program example.</p>
+<p>It sends empty messages to three addresses and waits for at least two
+replies (“approvals”) during initialization. When invoked, it handles only
+<code>PING</code> messages and sends empty messages to the three addresses, and waits
+for just one approval. If approval is obtained, the program replies with
+<code>PONG</code>.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="attr">#![no_std]
+</span><span class="kw">use </span>futures::future;
+<span class="kw">use </span>gstd::{msg, prelude::<span class="kw-2">*</span>, ActorId};
+
+<span class="kw">static </span><span class="kw-2">mut </span>APPROVERS: [ActorId; <span class="number">3</span>] = [ActorId::zero(); <span class="number">3</span>];
+
+<span class="attr">#[derive(Debug, Decode, TypeInfo)]
+#[codec(<span class="kw">crate </span>= gstd::codec)]
+#[scale_info(<span class="kw">crate </span>= gstd::scale_info)]
+</span><span class="kw">pub struct </span>Input {
+    <span class="kw">pub </span>approvers: [ActorId; <span class="number">3</span>],
+}
+
+<span class="attr">#[gstd::async_init]
+</span><span class="kw">async fn </span>init() {
+    <span class="kw">let </span>payload: Input = msg::load().expect(<span class="string">"Failed to decode input"</span>);
+    <span class="kw">unsafe </span>{ APPROVERS = payload.approvers };
+
+    <span class="kw">let </span><span class="kw-2">mut </span>requests: Vec&lt;<span class="kw">_</span>&gt; = <span class="kw">unsafe </span>{ APPROVERS }
+        .iter()
+        .map(|addr| msg::send_bytes_for_reply(<span class="kw-2">*</span>addr, <span class="string">b""</span>, <span class="number">0</span>, <span class="number">0</span>))
+        .collect::&lt;<span class="prelude-ty">Result</span>&lt;<span class="kw">_</span>, <span class="kw">_</span>&gt;&gt;()
+        .unwrap();
+
+    <span class="kw">let </span><span class="kw-2">mut </span>threshold = <span class="number">0</span>;
+    <span class="kw">while </span>!requests.is_empty() {
+        <span class="kw">let </span>(.., remaining) = future::select_all(requests).<span class="kw">await</span>;
+        threshold += <span class="number">1</span>;
+        <span class="kw">if </span>threshold &gt;= <span class="number">2 </span>{
+            <span class="kw">break</span>;
+        }
+        requests = remaining;
+    }
+}
+
+<span class="attr">#[gstd::async_main]
+</span><span class="kw">async fn </span>main() {
+    <span class="kw">let </span>message = msg::load_bytes().expect(<span class="string">"Failed to load payload bytes"</span>);
+    <span class="kw">if </span>message != <span class="string">b"PING" </span>{
+        <span class="kw">return</span>;
+    }
+
+    <span class="kw">let </span>requests: Vec&lt;<span class="kw">_</span>&gt; = <span class="kw">unsafe </span>{ APPROVERS }
+        .iter()
+        .map(|addr| msg::send_bytes_for_reply(<span class="kw-2">*</span>addr, <span class="string">b""</span>, <span class="number">0</span>, <span class="number">0</span>))
+        .collect::&lt;<span class="prelude-ty">Result</span>&lt;<span class="kw">_</span>, <span class="kw">_</span>&gt;&gt;()
+        .unwrap();
+
+    <span class="kw">_ </span>= future::select_all(requests).<span class="kw">await</span>;
+    msg::reply(<span class="string">b"PONG"</span>, <span class="number">0</span>).expect(<span class="string">"Unable to reply"</span>);
+}</code></pre></div>
+</div></details><h2 id="reexports" class="section-header">Re-exports<a href="#reexports" class="anchor">§</a></h2><ul class="item-table"><li><div class="item-name"><code>pub use <a class="mod" href="prelude/index.html" title="mod gstd::prelude">prelude</a>::*;</code></div></li></ul><h2 id="modules" class="section-header">Modules<a href="#modules" class="anchor">§</a></h2><ul class="item-table"><li><div class="item-name"><a class="mod" href="critical/index.html" title="mod gstd::critical">critical</a></div><div class="desc docblock-short">Critical hook that guarantees code section execution.</div></li><li><div class="item-name"><a class="mod" href="errors/index.html" title="mod gstd::errors">errors</a></div><div class="desc docblock-short">Type definitions and helpers for error handling.</div></li><li><div class="item-name"><a class="mod" href="exec/index.html" title="mod gstd::exec">exec</a></div><div class="desc docblock-short">Utility functions related to the current execution context or program
+execution flow.</div></li><li><div class="item-name"><a class="mod" href="ext/index.html" title="mod gstd::ext">ext</a></div><div class="desc docblock-short">Extensions for additional features.</div></li><li><div class="item-name"><a class="mod" href="msg/index.html" title="mod gstd::msg">msg</a></div><div class="desc docblock-short">Messaging API for Gear programs.</div></li><li><div class="item-name"><a class="mod" href="prelude/index.html" title="mod gstd::prelude">prelude</a></div><div class="desc docblock-short">The <code>gstd</code> default prelude. Re-imports default <code>std</code> modules and traits.
+<code>std</code> can be safely replaced to <code>gstd</code> in the Rust programs.</div></li><li><div class="item-name"><a class="mod" href="prog/index.html" title="mod gstd::prog">prog</a></div><div class="desc docblock-short">Functions and helpers for creating programs from programs.</div></li><li><div class="item-name"><a class="mod" href="sync/index.html" title="mod gstd::sync">sync</a></div><div class="desc docblock-short">Data access synchronization objects.</div></li><li><div class="item-name"><a class="mod" href="util/index.html" title="mod gstd::util">util</a></div><div class="desc docblock-short">Utility functions.</div></li></ul><h2 id="macros" class="section-header">Macros<a href="#macros" class="anchor">§</a></h2><ul class="item-table"><li><div class="item-name"><a class="macro" href="macro.bail.html" title="macro gstd::bail">bail</a></div><div class="desc docblock-short">Unwrap <code>Result&lt;T, E&gt;</code> to <code>T</code> if it is <code>Ok(T)</code> or panic with the provided
+message if the result is <code>Err(E)</code>.</div></li><li><div class="item-name"><a class="macro" href="macro.dbg.html" title="macro gstd::dbg">dbg</a></div><div class="desc docblock-short">Prints and returns the value of a given expression for quick and dirty
+debugging.</div></li><li><div class="item-name"><a class="macro" href="macro.debug.html" title="macro gstd::debug">debug</a></div><div class="desc docblock-short">Add a debug message to the log.</div></li></ul><h2 id="structs" class="section-header">Structs<a href="#structs" class="anchor">§</a></h2><ul class="item-table"><li><div class="item-name"><a class="struct" href="struct.ActorId.html" title="struct gstd::ActorId">ActorId</a></div><div class="desc docblock-short">Program (actor) identifier.</div></li><li><div class="item-name"><a class="struct" href="struct.CodeId.html" title="struct gstd::CodeId">CodeId</a></div><div class="desc docblock-short">Code identifier.</div></li><li><div class="item-name"><a class="struct" href="struct.Config.html" title="struct gstd::Config">Config</a></div><div class="desc docblock-short">The set of broadly used internal parameters.</div></li><li><div class="item-name"><a class="struct" href="struct.EnvVars.html" title="struct gstd::EnvVars">EnvVars</a></div><div class="desc docblock-short">Current version of execution settings.</div></li><li><div class="item-name"><a class="struct" href="struct.GasMultiplier.html" title="struct gstd::GasMultiplier">GasMultiplier</a></div><div class="desc docblock-short">Type representing converter between gas and value.</div></li><li><div class="item-name"><a class="struct" href="struct.MessageId.html" title="struct gstd::MessageId">MessageId</a></div><div class="desc docblock-short">Message identifier.</div></li><li><div class="item-name"><a class="struct" href="struct.Percent.html" title="struct gstd::Percent">Percent</a></div><div class="desc docblock-short">Basic struct for working with integer percentages allowing
+values greater than 100.</div></li><li><div class="item-name"><a class="struct" href="struct.Reservation.html" title="struct gstd::Reservation">Reservation</a></div><div class="desc docblock-short">Stores additional data along with <a href="struct.ReservationId.html" title="struct gstd::ReservationId"><code>ReservationId</code></a> to track its state.</div></li><li><div class="item-name"><a class="struct" href="struct.ReservationId.html" title="struct gstd::ReservationId">ReservationId</a></div><div class="desc docblock-short">Reservation identifier.</div></li><li><div class="item-name"><a class="struct" href="struct.Reservations.html" title="struct gstd::Reservations">Reservations</a></div><div class="desc docblock-short">Reservation manager.</div></li></ul><h2 id="functions" class="section-header">Functions<a href="#functions" class="anchor">§</a></h2><ul class="item-table"><li><div class="item-name"><a class="fn" href="fn.handle_signal.html" title="fn gstd::handle_signal">handle_signal</a></div><div class="desc docblock-short">Default signal handler.</div></li><li><div class="item-name"><a class="fn" href="fn.message_loop.html" title="fn gstd::message_loop">message_loop</a></div><div class="desc docblock-short">The main asynchronous message handling loop.</div></li><li><div class="item-name"><a class="fn" href="fn.record_reply.html" title="fn gstd::record_reply">record_reply</a></div><div class="desc docblock-short">Default reply handler.</div></li></ul><h2 id="types" class="section-header">Type Aliases<a href="#types" class="anchor">§</a></h2><ul class="item-table"><li><div class="item-name"><a class="type" href="type.BlockCount.html" title="type gstd::BlockCount">BlockCount</a></div><div class="desc docblock-short">Represents block count type.</div></li><li><div class="item-name"><a class="type" href="type.BlockNumber.html" title="type gstd::BlockNumber">BlockNumber</a></div><div class="desc docblock-short">Represents block number type.</div></li><li><div class="item-name"><a class="type" href="type.Gas.html" title="type gstd::Gas">Gas</a></div><div class="desc docblock-short">Represents gas type.</div></li><li><div class="item-name"><a class="type" href="type.Value.html" title="type gstd::Value">Value</a></div><div class="desc docblock-short">Represents value type.</div></li></ul><h2 id="attributes" class="section-header">Attribute Macros<a href="#attributes" class="anchor">§</a></h2><ul class="item-table"><li><div class="item-name"><a class="attr" href="attr.async_init.html" title="attr gstd::async_init">async_init</a></div><div class="desc docblock-short">Mark async function to be the program initialization method.</div></li><li><div class="item-name"><a class="attr" href="attr.async_main.html" title="attr gstd::async_main">async_main</a></div><div class="desc docblock-short">Mark the main async function to be the program entry point.</div></li></ul></section></div></main></body></html>

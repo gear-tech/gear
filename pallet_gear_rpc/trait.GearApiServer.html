@@ -1,0 +1,162 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Server trait implementation for the `GearApi` RPC API."><title>GearApiServer in pallet_gear_rpc - Rust</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../static.files/rustdoc-b1a3e7f8283b8434.css"><meta name="rustdoc-vars" data-root-path="../" data-static-root-path="../static.files/" data-current-crate="pallet_gear_rpc" data-themes="" data-resource-suffix="" data-rustdoc-version="1.77.0-nightly (7ffc697ce 2024-01-24)" data-channel="nightly" data-search-js="search-dd67cee4cfa65049.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="sidebar-items.js"></script><script defer src="../static.files/main-48f368f3872407c8.js"></script><noscript><link rel="stylesheet" href="../static.files/noscript-04d5337699b92874.css"></noscript><link rel="icon" href="https://gear-tech.io/favicons/favicon.ico"></head><body class="rustdoc trait"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle" title="show sidebar"></button><a class="logo-container" href="../pallet_gear_rpc/index.html"><img src="https://docs.gear.rs/logo.svg" alt=""></a></nav><nav class="sidebar"><div class="sidebar-crate"><a class="logo-container" href="../pallet_gear_rpc/index.html"><img src="https://docs.gear.rs/logo.svg" alt="logo"></a><h2><a href="../pallet_gear_rpc/index.html">pallet_gear_rpc</a><span class="version">1.2.0</span></h2></div><h2 class="location"><a href="#">GearApiServer</a></h2><div class="sidebar-elems"><section><h3><a href="#required-methods">Required Methods</a></h3><ul class="block"><li><a href="#tymethod.calculate_reply_for_handle">calculate_reply_for_handle</a></li><li><a href="#tymethod.get_handle_gas_spent">get_handle_gas_spent</a></li><li><a href="#tymethod.get_init_create_gas_spent">get_init_create_gas_spent</a></li><li><a href="#tymethod.get_init_upload_gas_spent">get_init_upload_gas_spent</a></li><li><a href="#tymethod.get_reply_gas_spent">get_reply_gas_spent</a></li><li><a href="#tymethod.read_metahash">read_metahash</a></li><li><a href="#tymethod.read_state">read_state</a></li><li><a href="#tymethod.read_state_batch">read_state_batch</a></li><li><a href="#tymethod.read_state_using_wasm">read_state_using_wasm</a></li><li><a href="#tymethod.read_state_using_wasm_batch">read_state_using_wasm_batch</a></li></ul><h3><a href="#provided-methods">Provided Methods</a></h3><ul class="block"><li><a href="#method.into_rpc">into_rpc</a></li></ul><h3><a href="#object-safety">Object Safety</a></h3><h3><a href="#implementors">Implementors</a></h3></section><h2><a href="index.html">In crate pallet_gear_rpc</a></h2></div></nav><div class="sidebar-resizer"></div>
+    <main><div class="width-limiter"><nav class="sub"><form class="search-form"><span></span><div id="sidebar-button" tabindex="-1"><a href="../pallet_gear_rpc/all.html" title="show sidebar"></a></div><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="main-heading"><h1>Trait <a href="index.html">pallet_gear_rpc</a>::<wbr><a class="trait" href="#">GearApiServer</a><button id="copy-path" title="Copy item path to clipboard"><img src="../static.files/clipboard-7571035ce49a181d.svg" width="19" height="18" alt="Copy item path"></button></h1><span class="out-of-band"><a class="src" href="../src/pallet_gear_rpc/lib.rs.html#51">source</a> · <button id="toggle-all-docs" title="collapse all docs">[<span>&#x2212;</span>]</button></span></div><pre class="rust item-decl"><code>pub trait GearApiServer&lt;BlockHash, ResponseType&gt;: <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sized.html" title="trait core::marker::Sized">Sized</a> + <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sync.html" title="trait core::marker::Sync">Sync</a> + 'static {
+    // Required methods
+    fn <a href="#tymethod.calculate_reply_for_handle" class="fn">calculate_reply_for_handle</a>(
+        &amp;self,
+        origin: H256,
+        destination: H256,
+        payload: Bytes,
+        gas_limit: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a>,
+        value: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u128.html">u128</a>,
+        at: <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;BlockHash&gt;
+    ) -&gt; RpcResult&lt;ReplyInfo&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.get_init_create_gas_spent" class="fn">get_init_create_gas_spent</a>(
+        &amp;self,
+        source: H256,
+        code_id: H256,
+        payload: Bytes,
+        value: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u128.html">u128</a>,
+        allow_other_panics: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>,
+        at: <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;BlockHash&gt;
+    ) -&gt; RpcResult&lt;GasInfo&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.get_init_upload_gas_spent" class="fn">get_init_upload_gas_spent</a>(
+        &amp;self,
+        source: H256,
+        code: Bytes,
+        payload: Bytes,
+        value: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u128.html">u128</a>,
+        allow_other_panics: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>,
+        at: <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;BlockHash&gt;
+    ) -&gt; RpcResult&lt;GasInfo&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.get_handle_gas_spent" class="fn">get_handle_gas_spent</a>(
+        &amp;self,
+        source: H256,
+        dest: H256,
+        payload: Bytes,
+        value: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u128.html">u128</a>,
+        allow_other_panics: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>,
+        at: <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;BlockHash&gt;
+    ) -&gt; RpcResult&lt;GasInfo&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.get_reply_gas_spent" class="fn">get_reply_gas_spent</a>(
+        &amp;self,
+        source: H256,
+        message_id: H256,
+        payload: Bytes,
+        value: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u128.html">u128</a>,
+        allow_other_panics: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>,
+        at: <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;BlockHash&gt;
+    ) -&gt; RpcResult&lt;GasInfo&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.read_state" class="fn">read_state</a>(
+        &amp;self,
+        program_id: H256,
+        payload: Bytes,
+        at: <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;BlockHash&gt;
+    ) -&gt; RpcResult&lt;Bytes&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.read_state_batch" class="fn">read_state_batch</a>(
+        &amp;self,
+        batch_id_payload: <a class="struct" href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;(H256, Bytes)&gt;,
+        at: <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;BlockHash&gt;
+    ) -&gt; RpcResult&lt;<a class="struct" href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;Bytes&gt;&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.read_state_using_wasm" class="fn">read_state_using_wasm</a>(
+        &amp;self,
+        program_id: H256,
+        payload: Bytes,
+        fn_name: Bytes,
+        wasm: Bytes,
+        argument: <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;Bytes&gt;,
+        at: <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;BlockHash&gt;
+    ) -&gt; RpcResult&lt;Bytes&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.read_state_using_wasm_batch" class="fn">read_state_using_wasm_batch</a>(
+        &amp;self,
+        batch_id_payload: <a class="struct" href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;(H256, Bytes)&gt;,
+        fn_name: Bytes,
+        wasm: Bytes,
+        argument: <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;Bytes&gt;,
+        at: <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;BlockHash&gt;
+    ) -&gt; RpcResult&lt;<a class="struct" href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;Bytes&gt;&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.read_metahash" class="fn">read_metahash</a>(
+        &amp;self,
+        program_id: H256,
+        at: <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;BlockHash&gt;
+    ) -&gt; RpcResult&lt;H256&gt;;
+
+    // Provided method
+    fn <a href="#method.into_rpc" class="fn">into_rpc</a>(self) -&gt; RpcModule&lt;Self&gt;
+       <span class="where">where BlockHash: <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sync.html" title="trait core::marker::Sync">Sync</a> + 'static + <a class="trait" href="https://docs.rs/serde/1.0.197/serde/de/trait.DeserializeOwned.html" title="trait serde::de::DeserializeOwned">DeserializeOwned</a>,
+             ResponseType: <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sync.html" title="trait core::marker::Sync">Sync</a> + 'static</span> { ... }
+}</code></pre><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Server trait implementation for the <code>GearApi</code> RPC API.</p>
+</div></details><h2 id="required-methods" class="section-header">Required Methods<a href="#required-methods" class="anchor">§</a></h2><div class="methods"><section id="tymethod.calculate_reply_for_handle" class="method"><a class="src rightside" href="../src/pallet_gear_rpc/lib.rs.html#54-62">source</a><h4 class="code-header">fn <a href="#tymethod.calculate_reply_for_handle" class="fn">calculate_reply_for_handle</a>(
+    &amp;self,
+    origin: H256,
+    destination: H256,
+    payload: Bytes,
+    gas_limit: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a>,
+    value: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u128.html">u128</a>,
+    at: <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;BlockHash&gt;
+) -&gt; RpcResult&lt;ReplyInfo&gt;</h4></section><section id="tymethod.get_init_create_gas_spent" class="method"><a class="src rightside" href="../src/pallet_gear_rpc/lib.rs.html#65-73">source</a><h4 class="code-header">fn <a href="#tymethod.get_init_create_gas_spent" class="fn">get_init_create_gas_spent</a>(
+    &amp;self,
+    source: H256,
+    code_id: H256,
+    payload: Bytes,
+    value: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u128.html">u128</a>,
+    allow_other_panics: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>,
+    at: <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;BlockHash&gt;
+) -&gt; RpcResult&lt;GasInfo&gt;</h4></section><section id="tymethod.get_init_upload_gas_spent" class="method"><a class="src rightside" href="../src/pallet_gear_rpc/lib.rs.html#76-84">source</a><h4 class="code-header">fn <a href="#tymethod.get_init_upload_gas_spent" class="fn">get_init_upload_gas_spent</a>(
+    &amp;self,
+    source: H256,
+    code: Bytes,
+    payload: Bytes,
+    value: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u128.html">u128</a>,
+    allow_other_panics: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>,
+    at: <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;BlockHash&gt;
+) -&gt; RpcResult&lt;GasInfo&gt;</h4></section><section id="tymethod.get_handle_gas_spent" class="method"><a class="src rightside" href="../src/pallet_gear_rpc/lib.rs.html#87-95">source</a><h4 class="code-header">fn <a href="#tymethod.get_handle_gas_spent" class="fn">get_handle_gas_spent</a>(
+    &amp;self,
+    source: H256,
+    dest: H256,
+    payload: Bytes,
+    value: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u128.html">u128</a>,
+    allow_other_panics: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>,
+    at: <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;BlockHash&gt;
+) -&gt; RpcResult&lt;GasInfo&gt;</h4></section><section id="tymethod.get_reply_gas_spent" class="method"><a class="src rightside" href="../src/pallet_gear_rpc/lib.rs.html#98-106">source</a><h4 class="code-header">fn <a href="#tymethod.get_reply_gas_spent" class="fn">get_reply_gas_spent</a>(
+    &amp;self,
+    source: H256,
+    message_id: H256,
+    payload: Bytes,
+    value: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u128.html">u128</a>,
+    allow_other_panics: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>,
+    at: <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;BlockHash&gt;
+) -&gt; RpcResult&lt;GasInfo&gt;</h4></section><section id="tymethod.read_state" class="method"><a class="src rightside" href="../src/pallet_gear_rpc/lib.rs.html#109-114">source</a><h4 class="code-header">fn <a href="#tymethod.read_state" class="fn">read_state</a>(
+    &amp;self,
+    program_id: H256,
+    payload: Bytes,
+    at: <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;BlockHash&gt;
+) -&gt; RpcResult&lt;Bytes&gt;</h4></section><section id="tymethod.read_state_batch" class="method"><a class="src rightside" href="../src/pallet_gear_rpc/lib.rs.html#117-121">source</a><h4 class="code-header">fn <a href="#tymethod.read_state_batch" class="fn">read_state_batch</a>(
+    &amp;self,
+    batch_id_payload: <a class="struct" href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;(H256, Bytes)&gt;,
+    at: <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;BlockHash&gt;
+) -&gt; RpcResult&lt;<a class="struct" href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;Bytes&gt;&gt;</h4></section><section id="tymethod.read_state_using_wasm" class="method"><a class="src rightside" href="../src/pallet_gear_rpc/lib.rs.html#124-132">source</a><h4 class="code-header">fn <a href="#tymethod.read_state_using_wasm" class="fn">read_state_using_wasm</a>(
+    &amp;self,
+    program_id: H256,
+    payload: Bytes,
+    fn_name: Bytes,
+    wasm: Bytes,
+    argument: <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;Bytes&gt;,
+    at: <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;BlockHash&gt;
+) -&gt; RpcResult&lt;Bytes&gt;</h4></section><section id="tymethod.read_state_using_wasm_batch" class="method"><a class="src rightside" href="../src/pallet_gear_rpc/lib.rs.html#135-142">source</a><h4 class="code-header">fn <a href="#tymethod.read_state_using_wasm_batch" class="fn">read_state_using_wasm_batch</a>(
+    &amp;self,
+    batch_id_payload: <a class="struct" href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;(H256, Bytes)&gt;,
+    fn_name: Bytes,
+    wasm: Bytes,
+    argument: <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;Bytes&gt;,
+    at: <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;BlockHash&gt;
+) -&gt; RpcResult&lt;<a class="struct" href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;Bytes&gt;&gt;</h4></section><section id="tymethod.read_metahash" class="method"><a class="src rightside" href="../src/pallet_gear_rpc/lib.rs.html#145">source</a><h4 class="code-header">fn <a href="#tymethod.read_metahash" class="fn">read_metahash</a>(
+    &amp;self,
+    program_id: H256,
+    at: <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;BlockHash&gt;
+) -&gt; RpcResult&lt;H256&gt;</h4></section></div><h2 id="provided-methods" class="section-header">Provided Methods<a href="#provided-methods" class="anchor">§</a></h2><div class="methods"><details class="toggle method-toggle" open><summary><section id="method.into_rpc" class="method"><a class="src rightside" href="../src/pallet_gear_rpc/lib.rs.html#51">source</a><h4 class="code-header">fn <a href="#method.into_rpc" class="fn">into_rpc</a>(self) -&gt; RpcModule&lt;Self&gt;<div class="where">where
+    BlockHash: <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sync.html" title="trait core::marker::Sync">Sync</a> + 'static + <a class="trait" href="https://docs.rs/serde/1.0.197/serde/de/trait.DeserializeOwned.html" title="trait serde::de::DeserializeOwned">DeserializeOwned</a>,
+    ResponseType: <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sync.html" title="trait core::marker::Sync">Sync</a> + 'static,</div></h4></section></summary><div class="docblock"><p>Collects all the methods and subscriptions defined in the trait and adds them into a single <code>RpcModule</code>.</p>
+</div></details></div><h2 id="object-safety" class="section-header">Object Safety<a href="#object-safety" class="anchor">§</a></h2><div class="object-safety-info">This trait is <b>not</b> <a href="https://doc.rust-lang.org/nightly/reference/items/traits.html#object-safety">object safe</a>.</div><h2 id="implementors" class="section-header">Implementors<a href="#implementors" class="anchor">§</a></h2><div id="implementors-list"><section id="impl-GearApiServer%3C%3CBlock+as+BlockT%3E::Hash,+Result%3Cu64,+Vec%3Cu8%3E%3E%3E-for-Gear%3CC,+Block%3E" class="impl"><a class="src rightside" href="../src/pallet_gear_rpc/lib.rs.html#265-631">source</a><a href="#impl-GearApiServer%3C%3CBlock+as+BlockT%3E::Hash,+Result%3Cu64,+Vec%3Cu8%3E%3E%3E-for-Gear%3CC,+Block%3E" class="anchor">§</a><h3 class="code-header">impl&lt;C, Block&gt; <a class="trait" href="trait.GearApiServer.html" title="trait pallet_gear_rpc::GearApiServer">GearApiServer</a>&lt;&lt;Block as Block&gt;::Hash, <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a>, <a class="struct" href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>&gt;&gt;&gt; for <a class="struct" href="struct.Gear.html" title="struct pallet_gear_rpc::Gear">Gear</a>&lt;C, Block&gt;<div class="where">where
+    Block: BlockT,
+    C: 'static + ProvideRuntimeApi&lt;Block&gt; + HeaderBackend&lt;Block&gt;,
+    C::Api: <a class="trait" href="trait.GearRuntimeApi.html" title="trait pallet_gear_rpc::GearRuntimeApi">GearRuntimeApi</a>&lt;Block&gt;,</div></h3></section></div><script src="../trait.impl/pallet_gear_rpc/trait.GearApiServer.js" async></script></section></div></main></body></html>

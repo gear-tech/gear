@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["DispatchError","MultiSignature","TokenError","TransactionalError"],"mod":["generic"],"struct":["DispatchErrorWithPostInfo","ModuleError"]};

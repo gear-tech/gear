@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["TARGET"],"enum":["PreProcessorTarget"],"fn":["build","build_metawasm","build_with_metadata","recommended_nightly","recommended_nightly_metawasm","recommended_nightly_with_metadata"],"mod":["code_validator","optimize"],"struct":["WasmBuilder"],"trait":["PreProcessor"],"type":["PreProcessorResult"]};

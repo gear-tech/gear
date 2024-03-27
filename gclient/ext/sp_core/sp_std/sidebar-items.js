@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"macro":["if_std","map","vec"],"mod":["alloc","any","cell","clone","cmp","collections","convert","default","hash","iter","marker","mem","num","ops","prelude","result","sync","thread","time"],"struct":["Writer"]};
