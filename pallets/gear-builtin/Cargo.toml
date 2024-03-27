@@ -26,8 +26,10 @@ ark-ec = { workspace = true, optional = true }
 ark-ff = { workspace = true, optional = true }
 ark-std = { workspace = true, optional = true }
 
+common.workspace = true
 core-processor.workspace = true
 gbuiltin-bls381.workspace = true
+gbuiltin-staking.workspace = true
 gear-core.workspace = true
 gear-core-errors.workspace = true
 gear-runtime-interface.workspace = true
@@ -38,15 +40,18 @@ sp-crypto-ec-utils = { workspace = true, features = ["bls12-381"] }
 sp-std.workspace = true
 sp-runtime = { workspace = true, features = ["serde"] }
 pallet-gear.workspace = true
+pallet-staking.workspace = true
 
 [dev-dependencies]
-common = { workspace = true, features = ["std"] }
 demo-waiting-proxy.workspace = true
+demo-staking-broker.workspace = true
 sp-core = { workspace = true, features = ["std"] }
 sp-externalities = { workspace = true, features = ["std"] }
 sp-io = { workspace = true, features = ["std"] }
+frame-election-provider-support = { workspace = true, features = ["std"] }
 pallet-authorship = { workspace = true, features = ["std"] }
 pallet-balances = { workspace = true, features = ["std"] }
+pallet-session = { workspace = true, features = ["std"] }
 pallet-timestamp = { workspace = true, features = ["std"] }
 pallet-gear-bank = { workspace = true, features = ["std"] }
 pallet-gear-gas = { workspace = true, features = ["std"] }
@@ -66,13 +71,15 @@ sha2 = { workspace = true, features = ["std"] }
 [features]
 default = ["std"]
 std = [
+	"common/std",
 	"frame-benchmarking?/std",
 	"frame-support/std",
 	"frame-system/std",
 	"gear-core/std",
 	"gear-runtime-interface/std",
 	"pallet-gear/std",
-	"parity-scale-codec/std",
+	"pallet-staking/std",
+    "parity-scale-codec/std",
 	"scale-info/std",
 	"sp-crypto-ec-utils/std",
 	"sp-runtime/std",
@@ -85,6 +92,7 @@ std = [
 	"ark-std?/std",
 ]
 runtime-benchmarks = [
+	"common/runtime-benchmarks",
 	"frame-benchmarking/runtime-benchmarks",
 	"frame-support/runtime-benchmarks",
 	"frame-system/runtime-benchmarks",

@@ -1091,13 +1091,13 @@ impl pallet_gear_messenger::Config for Runtime {
 }
 
 /// Builtin actors arranged in a tuple.
-pub type BuiltinActors = (pallet_gear_builtin::bls12_381::Actor<Runtime>,);
-
-parameter_types! {
-    pub const BuiltinActorPalletId: PalletId = PalletId(*b"py/biact");
-}
+pub type BuiltinActors = (
+    pallet_gear_builtin::bls12_381::Actor<Runtime>,
+    pallet_gear_builtin::staking::Actor<Runtime>,
+);
 
 impl pallet_gear_builtin::Config for Runtime {
+    type RuntimeCall = RuntimeCall;
     type Builtins = BuiltinActors;
     type WeightInfo = pallet_gear_builtin::weights::SubstrateWeight<Runtime>;
 }

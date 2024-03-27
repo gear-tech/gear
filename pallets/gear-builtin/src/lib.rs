@@ -35,6 +35,7 @@ extern crate alloc;
 pub mod benchmarking;
 
 pub mod bls12_381;
+pub mod staking;
 pub mod weights;
 
 #[cfg(test)]
@@ -147,8 +148,12 @@ impl<E> BuiltinCollection<E> for Tuple {
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
-    use frame_support::pallet_prelude::*;
+    use frame_support::{
+        dispatch::{GetDispatchInfo, PostDispatchInfo},
+        pallet_prelude::*,
+    };
     use frame_system::pallet_prelude::*;
+    use sp_runtime::traits::Dispatchable;
 
     pub(crate) const SEED: [u8; 8] = *b"built/in";
 
@@ -158,7 +163,13 @@ pub mod pallet {
     pub struct Pallet<T>(PhantomData<T>);
 
     #[pallet::config]
-    pub trait Config: frame_system::Config {
+    pub trait Config: frame_system::Config + pallet_staking::Config {
+        /// The overarching call type.
+        type RuntimeCall: Parameter
+            + Dispatchable<RuntimeOrigin = Self::RuntimeOrigin, PostInfo = PostDispatchInfo>
+            + GetDispatchInfo
+            + From<pallet_staking::Call<Self>>;
+
         /// The builtin actor type.
         type Builtins: BuiltinCollection<BuiltinActorError>;
 
