@@ -23,6 +23,7 @@ use crate::{
         BackendSyscallError, RunFallibleError, TrapExplanation, UndefinedTerminationReason,
         UnrecoverableMemoryError,
     },
+    runtime::CallerWrap,
     state::HostState,
     BackendExternalities,
 };
@@ -44,7 +45,7 @@ use gear_sandbox::{
 
 pub type ExecutorMemory = gear_sandbox::default_executor::Memory;
 
-pub(crate) struct MemoryWrapRef<'a, 'b: 'a, Ext: Externalities + 'static> {
+pub(crate) struct MemoryWrapRef<'a, 'b: 'a, Ext> {
     pub memory: ExecutorMemory,
     pub caller: &'a mut Caller<'b, HostState<Ext, ExecutorMemory>>,
 }
@@ -184,8 +185,11 @@ impl BackendSyscallError for MemoryAccessError {
     }
 }
 
-/// Memory access manager. Allows to pre-register memory accesses,
-/// and pre-process, them together. For example:
+/// Memory access manager.
+///
+/// Allows to pre-register memory accesses,
+/// and pre-process, them together.
+/// For example:
 /// ```ignore
 /// let manager = MemoryAccessManager::default();
 /// let read1 = manager.new_read(10, 20);
@@ -201,32 +205,31 @@ impl BackendSyscallError for MemoryAccessError {
 /// manager.write_as(write1, 111).unwrap();
 /// ```
 #[derive(Debug)]
-pub(crate) struct MemoryAccessManager<Ext> {
-    // Contains non-zero length intervals only.
+pub(crate) struct MemoryAccessRegistrar<Ext> {
     pub(crate) reads: Vec<MemoryInterval>,
     pub(crate) writes: Vec<MemoryInterval>,
-    pub(crate) _phantom: PhantomData<Ext>,
+    _ext: PhantomData<Ext>,
 }
 
-impl<Ext> Default for MemoryAccessManager<Ext> {
+impl<Ext> Default for MemoryAccessRegistrar<Ext> {
     fn default() -> Self {
         Self {
-            reads: Vec::new(),
-            writes: Vec::new(),
-            _phantom: PhantomData,
+            reads: Default::default(),
+            writes: Default::default(),
+            _ext: PhantomData,
         }
     }
 }
 
-impl<Ext> MemoryAccessManager<Ext> {
-    pub fn register_read(&mut self, ptr: u32, size: u32) -> WasmMemoryRead {
+impl<Ext: BackendExternalities + 'static> MemoryAccessRegistrar<Ext> {
+    pub(crate) fn register_read(&mut self, ptr: u32, size: u32) -> WasmMemoryRead {
         if size > 0 {
             self.reads.push(MemoryInterval { offset: ptr, size });
         }
         WasmMemoryRead { ptr, size }
     }
 
-    pub fn register_read_as<T: Sized>(&mut self, ptr: u32) -> WasmMemoryReadAs<T> {
+    pub(crate) fn register_read_as<T: Sized>(&mut self, ptr: u32) -> WasmMemoryReadAs<T> {
         let size = mem::size_of::<T>() as u32;
         if size > 0 {
             self.reads.push(MemoryInterval { offset: ptr, size });
@@ -237,7 +240,7 @@ impl<Ext> MemoryAccessManager<Ext> {
         }
     }
 
-    pub fn register_read_decoded<T: Decode + MaxEncodedLen>(
+    pub(crate) fn register_read_decoded<T: Decode + MaxEncodedLen>(
         &mut self,
         ptr: u32,
     ) -> WasmMemoryReadDecoded<T> {
@@ -251,14 +254,14 @@ impl<Ext> MemoryAccessManager<Ext> {
         }
     }
 
-    pub fn register_write(&mut self, ptr: u32, size: u32) -> WasmMemoryWrite {
+    pub(crate) fn register_write(&mut self, ptr: u32, size: u32) -> WasmMemoryWrite {
         if size > 0 {
             self.writes.push(MemoryInterval { offset: ptr, size });
         }
         WasmMemoryWrite { ptr, size }
     }
 
-    pub fn register_write_as<T: Sized>(&mut self, ptr: u32) -> WasmMemoryWriteAs<T> {
+    pub(crate) fn register_write_as<T: Sized>(&mut self, ptr: u32) -> WasmMemoryWriteAs<T> {
         let size = mem::size_of::<T>() as u32;
         if size > 0 {
             self.writes.push(MemoryInterval { offset: ptr, size });
@@ -268,115 +271,146 @@ impl<Ext> MemoryAccessManager<Ext> {
             _phantom: PhantomData,
         }
     }
+
+    /*pub(crate) struct CallerWrap<'a, 'b: 'a, Ext> {}
+
+    pub(crate) fn memory_ref<'c, 'd: 'c>(&'c mut self) -> MemoryWrapRef<'c, 'd, Ext> {
+        MemoryWrapRef::<'c, 'd, _> {}
+    }*/
+
+    /// Call pre-processing of registered memory accesses.
+    pub(crate) fn pre_process<'a, 'b: 'a, 'c: 'b>(
+        self,
+        ctx: &'a mut CallerWrap<'b, 'c, Ext>,
+    ) -> Result<MemoryAccessIo<'a, 'c, Ext>, MemoryAccessError> {
+        let mut gas_counter = ctx.host_state_mut().ext.define_current_counter();
+
+        let res = Ext::pre_process_memory_accesses(&self.reads, &self.writes, &mut gas_counter);
+
+        ctx.host_state_mut()
+            .ext
+            .decrease_current_counter_to(gas_counter);
+
+        res?;
+
+        Ok(MemoryAccessIo {
+            memory: CallerWrap::memory(ctx.caller, ctx.memory.clone()),
+        })
+    }
 }
 
-impl<Ext: BackendExternalities> MemoryAccessManager<Ext> {
-    /// Call pre-processing of registered memory accesses. Clear `self.reads` and `self.writes`.
-    pub(crate) fn pre_process_memory_accesses(
-        &mut self,
-        gas_counter: &mut u64,
-    ) -> Result<(), MemoryAccessError> {
-        if self.reads.is_empty() && self.writes.is_empty() {
-            return Ok(());
-        }
+pub(crate) struct MemoryAccessIo<'a, 'b: 'a, Ext> {
+    memory: MemoryWrapRef<'a, 'b, Ext>,
+}
 
-        let res = Ext::pre_process_memory_accesses(&self.reads, &self.writes, gas_counter);
-
-        self.reads.clear();
-        self.writes.clear();
-
-        res.map_err(Into::into)
+impl<Ext: Externalities + 'static> MemoryAccessIo<'_, '_, Ext> {
+    pub(crate) fn read(&self, wasm_read: WasmMemoryRead) -> Result<Vec<u8>, MemoryAccessError> {
+        read(&self.memory, wasm_read)
     }
 
-    /// Pre-process registered accesses if need and read data from `memory` to `buff`.
-    fn read_into_buf<M: Memory>(
-        &mut self,
-        memory: &M,
-        ptr: u32,
-        buff: &mut [u8],
-        gas_counter: &mut u64,
-    ) -> Result<(), MemoryAccessError> {
-        self.pre_process_memory_accesses(gas_counter)?;
-        memory.read(ptr, buff).map_err(Into::into)
-    }
-
-    /// Pre-process registered accesses if need and read data from `memory` into new vector.
-    pub fn read<M: Memory>(
-        &mut self,
-        memory: &M,
-        read: WasmMemoryRead,
-        gas_counter: &mut u64,
-    ) -> Result<Vec<u8>, MemoryAccessError> {
-        let buff = if read.size == 0 {
-            Vec::new()
-        } else {
-            let mut buff = RuntimeBuffer::try_new_default(read.size as usize)?.into_vec();
-            self.read_into_buf(memory, read.ptr, &mut buff, gas_counter)?;
-            buff
-        };
-        Ok(buff)
-    }
-
-    /// Pre-process registered accesses if need and read and decode data as `T` from `memory`.
-    pub fn read_decoded<M: Memory, T: Decode + MaxEncodedLen>(
-        &mut self,
-        memory: &M,
-        read: WasmMemoryReadDecoded<T>,
-        gas_counter: &mut u64,
-    ) -> Result<T, MemoryAccessError> {
-        let size = T::max_encoded_len();
-        let buff = if size == 0 {
-            Vec::new()
-        } else {
-            let mut buff = RuntimeBuffer::try_new_default(size)?.into_vec();
-            self.read_into_buf(memory, read.ptr, &mut buff, gas_counter)?;
-            buff
-        };
-        let decoded = T::decode_all(&mut &buff[..]).map_err(|_| MemoryAccessError::Decode)?;
-        Ok(decoded)
-    }
-
-    /// Pre-process registered accesses if need and read data as `T` from `memory`.
-    pub fn read_as<M: Memory, T: Sized>(
-        &mut self,
-        memory: &M,
+    pub(crate) fn read_as<T: Sized>(
+        &self,
         read: WasmMemoryReadAs<T>,
-        gas_counter: &mut u64,
     ) -> Result<T, MemoryAccessError> {
-        self.pre_process_memory_accesses(gas_counter)?;
-        read_memory_as(memory, read.ptr).map_err(Into::into)
+        read_as(&self.memory, read)
     }
 
-    /// Pre-process registered accesses if need and write data from `buff` to `memory`.
-    pub fn write<M: Memory>(
+    pub(crate) fn read_decoded<T: Decode + MaxEncodedLen>(
+        &self,
+        read: WasmMemoryReadDecoded<T>,
+    ) -> Result<T, MemoryAccessError> {
+        read_decoded(&self.memory, read)
+    }
+
+    pub(crate) fn write(
         &mut self,
-        memory: &mut M,
-        write: WasmMemoryWrite,
+        wasm_write: WasmMemoryWrite,
         buff: &[u8],
-        gas_counter: &mut u64,
     ) -> Result<(), MemoryAccessError> {
-        if buff.len() != write.size as usize {
-            unreachable!("Backend bug error: buffer size is not equal to registered buffer size");
-        }
-        if write.size == 0 {
-            Ok(())
-        } else {
-            self.pre_process_memory_accesses(gas_counter)?;
-            memory.write(write.ptr, buff).map_err(Into::into)
-        }
+        write(&mut self.memory, wasm_write, buff)
     }
 
-    /// Pre-process registered accesses if need and write `obj` data to `memory`.
-    pub fn write_as<M: Memory, T: Sized>(
+    pub(crate) fn write_as<T: Sized>(
         &mut self,
-        memory: &mut M,
         write: WasmMemoryWriteAs<T>,
         obj: T,
-        gas_counter: &mut u64,
     ) -> Result<(), MemoryAccessError> {
-        self.pre_process_memory_accesses(gas_counter)?;
-        write_memory_as(memory, write.ptr, obj).map_err(Into::into)
+        write_as(&mut self.memory, write, obj)
     }
+}
+
+/// Read data from `memory` to `buff`.
+fn read_into_buf<M: Memory>(
+    memory: &M,
+    ptr: u32,
+    buff: &mut [u8],
+) -> Result<(), MemoryAccessError> {
+    memory.read(ptr, buff).map_err(Into::into)
+}
+
+/// Read data from `memory` into new vector.
+pub(crate) fn read<M: Memory>(
+    memory: &M,
+    read: WasmMemoryRead,
+) -> Result<Vec<u8>, MemoryAccessError> {
+    let buff = if read.size == 0 {
+        Vec::new()
+    } else {
+        let mut buff = RuntimeBuffer::try_new_default(read.size as usize)?.into_vec();
+        read_into_buf(memory, read.ptr, &mut buff)?;
+        buff
+    };
+    Ok(buff)
+}
+
+/// Read and decode data as `T` from `memory`.
+pub(crate) fn read_decoded<M: Memory, T: Decode + MaxEncodedLen>(
+    memory: &M,
+    read: WasmMemoryReadDecoded<T>,
+) -> Result<T, MemoryAccessError> {
+    let size = T::max_encoded_len();
+    let buff = if size == 0 {
+        Vec::new()
+    } else {
+        let mut buff = RuntimeBuffer::try_new_default(size)?.into_vec();
+        read_into_buf(memory, read.ptr, &mut buff)?;
+        buff
+    };
+    let decoded = T::decode_all(&mut &buff[..]).map_err(|_| MemoryAccessError::Decode)?;
+    Ok(decoded)
+}
+
+/// Pre-process registered accesses if need and read data as `T` from `memory`.
+pub(crate) fn read_as<M: Memory, T: Sized>(
+    memory: &M,
+    read: WasmMemoryReadAs<T>,
+) -> Result<T, MemoryAccessError> {
+    read_memory_as(memory, read.ptr).map_err(Into::into)
+}
+
+/// Write data from `buff` to `memory`.
+pub(crate) fn write<M: Memory>(
+    memory: &mut M,
+    write: WasmMemoryWrite,
+    buff: &[u8],
+) -> Result<(), MemoryAccessError> {
+    if buff.len() != write.size as usize {
+        unreachable!("Backend bug error: buffer size is not equal to registered buffer size");
+    }
+    if write.size == 0 {
+        Ok(())
+    } else {
+        memory.write(write.ptr, buff).map_err(Into::into)
+    }
+}
+
+/// Write `obj` data to `memory`.
+pub(crate) fn write_as<M: Memory, T: Sized>(
+    memory: &mut M,
+    write: WasmMemoryWriteAs<T>,
+    obj: T,
+) -> Result<(), MemoryAccessError> {
+    write_memory_as(memory, write.ptr, obj).map_err(Into::into)
 }
 
 /// Writes object in given memory as bytes.

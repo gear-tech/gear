@@ -20,15 +20,10 @@
 
 use crate::{
     error::{BackendAllocSyscallError, RunFallibleError, UndefinedTerminationReason},
-    memory::{
-        ExecutorMemory, MemoryAccessError, MemoryAccessManager, MemoryWrapRef, WasmMemoryRead,
-        WasmMemoryReadAs, WasmMemoryReadDecoded, WasmMemoryWrite, WasmMemoryWriteAs,
-    },
+    memory::{ExecutorMemory, MemoryAccessRegistrar, MemoryWrapRef},
     state::{HostState, State},
     BackendExternalities,
 };
-use alloc::vec::Vec;
-use codec::{Decode, MaxEncodedLen};
 use gear_core::{costs::CostToken, pages::WasmPage};
 use gear_sandbox::{default_executor::Caller, AsContextExt, HostError, Value};
 
@@ -61,7 +56,6 @@ pub(crate) fn caller_host_state_take<Ext>(
 
 pub(crate) struct CallerWrap<'a, 'b: 'a, Ext> {
     pub caller: &'a mut Caller<'b, HostState<Ext, ExecutorMemory>>,
-    pub manager: MemoryAccessManager<Ext>,
     pub memory: ExecutorMemory,
 }
 
@@ -110,9 +104,10 @@ impl<'a, 'b, Ext: BackendExternalities + 'static> CallerWrap<'a, 'b, Ext> {
                 let res = ctx.process_fallible_func_result(res)?;
 
                 // TODO: move above or make normal process memory access.
-                let write_res = ctx.manager.register_write_as::<R>(res_ptr);
-
-                ctx.write_as(write_res, R::from(res)).map_err(Into::into)
+                let mut registrar = MemoryAccessRegistrar::default();
+                let write_res = registrar.register_write_as::<R>(res_ptr);
+                let mut io = registrar.pre_process(ctx)?;
+                io.write_as(write_res, R::from(res)).map_err(Into::into)
             },
         )
     }
@@ -128,11 +123,7 @@ impl<'a, 'b, Ext: BackendExternalities + 'static> CallerWrap<'a, 'b, Ext> {
     #[track_caller]
     pub fn prepare(caller: &'a mut Caller<'b, HostState<Ext, ExecutorMemory>>) -> Self {
         let memory = caller_host_state_mut(caller).memory.clone();
-        Self {
-            caller,
-            manager: Default::default(),
-            memory,
-        }
+        Self { caller, memory }
     }
 
     #[track_caller]
@@ -146,27 +137,6 @@ impl<'a, 'b, Ext: BackendExternalities + 'static> CallerWrap<'a, 'b, Ext> {
         memory: ExecutorMemory,
     ) -> MemoryWrapRef<'c, 'd, Ext> {
         MemoryWrapRef::<'c, 'd, _> { memory, caller }
-    }
-
-    fn with_memory<R, F>(&mut self, f: F) -> Result<R, MemoryAccessError>
-    where
-        F: FnOnce(
-            &mut MemoryAccessManager<Ext>,
-            &mut MemoryWrapRef<Ext>,
-            &mut u64,
-        ) -> Result<R, MemoryAccessError>,
-    {
-        let mut gas_counter = self.host_state_mut().ext.define_current_counter();
-
-        let mut memory = Self::memory(self.caller, self.memory.clone());
-
-        // With memory ops do similar subtractions for both counters.
-        let res = f(&mut self.manager, &mut memory, &mut gas_counter);
-
-        self.host_state_mut()
-            .ext
-            .decrease_current_counter_to(gas_counter);
-        res
     }
 
     pub fn set_termination_reason(&mut self, reason: UndefinedTerminationReason) {
@@ -201,40 +171,5 @@ impl<'a, 'b, Ext: BackendExternalities + 'static> CallerWrap<'a, 'b, Ext> {
                 Err(alloc_err) => Ok(Err(alloc_err)),
             },
         }
-    }
-}
-
-impl<'a, 'b, Ext: BackendExternalities + 'static> CallerWrap<'a, 'b, Ext> {
-    pub fn read(&mut self, read: WasmMemoryRead) -> Result<Vec<u8>, MemoryAccessError> {
-        self.with_memory(|manager, memory, gas_left| manager.read(memory, read, gas_left))
-    }
-
-    pub fn read_as<T: Sized>(&mut self, read: WasmMemoryReadAs<T>) -> Result<T, MemoryAccessError> {
-        self.with_memory(|manager, memory, gas_left| manager.read_as(memory, read, gas_left))
-    }
-
-    pub fn read_decoded<T: Decode + MaxEncodedLen>(
-        &mut self,
-        read: WasmMemoryReadDecoded<T>,
-    ) -> Result<T, MemoryAccessError> {
-        self.with_memory(move |manager, memory, gas_left| {
-            manager.read_decoded(memory, read, gas_left)
-        })
-    }
-
-    pub fn write(&mut self, write: WasmMemoryWrite, buff: &[u8]) -> Result<(), MemoryAccessError> {
-        self.with_memory(move |manager, memory, gas_left| {
-            manager.write(memory, write, buff, gas_left)
-        })
-    }
-
-    pub fn write_as<T: Sized>(
-        &mut self,
-        write: WasmMemoryWriteAs<T>,
-        obj: T,
-    ) -> Result<(), MemoryAccessError> {
-        self.with_memory(move |manager, memory, gas_left| {
-            manager.write_as(memory, write, obj, gas_left)
-        })
     }
 }
