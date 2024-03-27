@@ -25,7 +25,6 @@ use crate::{weights::WeightInfo, Config, CostsPerBlockOf, DbWeightOf};
 use common::scheduler::SchedulingCostsPerBlock;
 use core_processor::configs::{ExtCosts, ProcessCosts, RentCosts};
 use frame_support::{
-    codec::{Decode, Encode},
     traits::Get,
     weights::Weight,
 };
