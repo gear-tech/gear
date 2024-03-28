@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) Gear Technologies Inc.
+// Copyright (C) 2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -103,6 +103,7 @@ fn multi_miller_loop<T: Config>(
     mut payload: &[u8],
     gas_limit: u64,
 ) -> (Result<Response, BuiltinActorError>, u64) {
+    // TODO: consider to refactor #3841
     let (gas_spent, result) = decode_vec::<T, _>(gas_limit, 0, &mut payload);
     let a = match result {
         Some(Ok(array)) => array,
@@ -141,14 +142,7 @@ fn multi_miller_loop<T: Config>(
                 gas_spent,
             )
         }
-        Err(_) => {
-            log::debug!(
-                target: LOG_TARGET,
-                "Failed to decode item count in b",
-            );
-
-            return (Err(BuiltinActorError::DecodingError), gas_spent);
-        }
+        Err(_) => return (Err(BuiltinActorError::DecodingError), gas_spent),
         Ok(_) => (),
     }
 

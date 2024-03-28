@@ -2315,9 +2315,6 @@ dependencies = [
 name = "demo-bls381"
 version = "0.1.0"
 dependencies = [
- "ark-bls12-381",
- "ark-ec",
- "ark-scale 0.0.12",
  "gbuiltin-bls381",
  "gear-wasm-builder",
  "gstd",
@@ -4144,6 +4141,11 @@ dependencies = [
 name = "gbuiltin-bls381"
 version = "1.2.0"
 dependencies = [
+ "ark-bls12-381",
+ "ark-ec",
+ "ark-ff",
+ "ark-scale 0.0.12",
+ "ark-serialize",
  "derive_more",
  "parity-scale-codec",
 ]

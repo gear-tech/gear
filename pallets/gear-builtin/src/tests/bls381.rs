@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) Gear Technologies Inc.
+// Copyright (C) 2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -61,6 +61,11 @@ fn get_gas_info(builtin_id: ProgramId, payload: Vec<u8>) -> GasInfo {
     )
     .expect("calculate_gas_info failed");
     rollback_transaction();
+
+    assert_ne!(res.min_limit, 0);
+    assert_ne!(res.burned, 0);
+    // < 90% * block_gas_limit
+    assert!(res.burned < BlockGasLimit::get() / 10 * 9);
 
     res
 }

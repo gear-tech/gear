@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) Gear Technologies Inc.
+// Copyright (C) 2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -22,6 +22,12 @@ extern crate alloc;
 
 use alloc::vec::Vec;
 use codec::{Decode, Encode};
+
+pub use ark_bls12_381;
+pub use ark_ec;
+pub use ark_ff;
+pub use ark_scale;
+pub use ark_serialize;
 
 /// Constant defines codec index of [`Request::MultiMillerLoop`].
 pub const REQUEST_MULTI_MILLER_LOOP: u8 = 0;
@@ -46,46 +52,46 @@ pub enum Request {
     /// Request to pairing multi Miller loop for *BLS12-381*.
     ///
     /// Encoded:
-    ///   - `a`: `ArkScale<Vec<G1Affine>>`.
-    ///   - `b`: `ArkScale<Vec<G2Affine>>`.
+    ///   - `a`: [`ArkScale<Vec<G1Affine>>`].
+    ///   - `b`: [`ArkScale<Vec<G2Affine>>`].
     #[codec(index = 0)]
     MultiMillerLoop { a: Vec<u8>, b: Vec<u8> },
 
     /// Request to pairing final exponentiation for *BLS12-381*.
     ///
-    /// Encoded: `ArkScale<<Bls12_381::TargetField>`.
+    /// Encoded: [`ArkScale<<Bls12_381::TargetField>`].
     #[codec(index = 1)]
     FinalExponentiation { f: Vec<u8> },
 
     /// Request to multi scalar multiplication on *G1* for *BLS12-381*
     ///
     /// Encoded:
-    ///   - `bases`: `ArkScale<Vec<G1Affine>>`.
-    ///   - `scalars`: `ArkScale<Vec<G1Config::ScalarField>>`.
+    ///   - `bases`: [`ArkScale<Vec<G1Affine>>`].
+    ///   - `scalars`: [`ArkScale<Vec<G1Config::ScalarField>>`].
     #[codec(index = 2)]
     MultiScalarMultiplicationG1 { bases: Vec<u8>, scalars: Vec<u8> },
 
     /// Request to multi scalar multiplication on *G2* for *BLS12-381*
     ///
     /// Encoded:
-    ///   - `bases`: `ArkScale<Vec<G2Affine>>`.
-    ///   - `scalars`: `ArkScale<Vec<G2Config::ScalarField>>`.
+    ///   - `bases`: [`ArkScale<Vec<G2Affine>>`].
+    ///   - `scalars`: [`ArkScale<Vec<G2Config::ScalarField>>`].
     #[codec(index = 3)]
     MultiScalarMultiplicationG2 { bases: Vec<u8>, scalars: Vec<u8> },
 
     /// Request to projective multiplication on *G1* for *BLS12-381*.
     ///
     /// Encoded:
-    ///   - `base`: `ArkScaleProjective<G1Projective>`.
-    ///   - `scalar`: `ArkScale<Vec<u64>>`.
+    ///   - `base`: [`ArkScaleProjective<G1Projective>`].
+    ///   - `scalar`: [`ArkScale<Vec<u64>>`].
     #[codec(index = 4)]
     ProjectiveMultiplicationG1 { base: Vec<u8>, scalar: Vec<u8> },
 
     /// Request to projective multiplication on *G2* for *BLS12-381*.
     ///
     /// Encoded:
-    ///   - `base`: `ArkScaleProjective<G2Projective>`.
-    ///   - `scalar`: `ArkScale<Vec<u64>>`.
+    ///   - `base`: [`ArkScaleProjective<G2Projective>`].
+    ///   - `scalar`: [`ArkScale<Vec<u64>>`].
     #[codec(index = 5)]
     ProjectiveMultiplicationG2 { base: Vec<u8>, scalar: Vec<u8> },
 }
@@ -94,17 +100,17 @@ pub enum Request {
 #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq)]
 #[codec(crate = codec)]
 pub enum Response {
-    /// Result of the multi Miller loop, encoded: `ArkScale<Bls12_381::TargetField>`.
+    /// Result of the multi Miller loop, encoded: [`ArkScale<Bls12_381::TargetField>`].
     MultiMillerLoop(Vec<u8>),
-    /// Result of the final exponentiation, encoded: `ArkScale<Bls12_381::TargetField>`.
+    /// Result of the final exponentiation, encoded: [`ArkScale<Bls12_381::TargetField>`].
     FinalExponentiation(Vec<u8>),
-    /// Result of the multi scalar multiplication, encoded: `ArkScaleProjective<G1Projective>`.
+    /// Result of the multi scalar multiplication, encoded: [`ArkScaleProjective<G1Projective>`].
     MultiScalarMultiplicationG1(Vec<u8>),
-    /// Result of the multi scalar multiplication, encoded: `ArkScaleProjective<G2Projective>`.
+    /// Result of the multi scalar multiplication, encoded: [`ArkScaleProjective<G2Projective>`].
     MultiScalarMultiplicationG2(Vec<u8>),
-    /// Result of the projective multiplication, encoded: `ArkScaleProjective<G1Projective>`.
+    /// Result of the projective multiplication, encoded: [`ArkScaleProjective<G1Projective>`].
     ProjectiveMultiplicationG1(Vec<u8>),
-    /// Result of the projective multiplication, encoded: `ArkScaleProjective<G2Projective>`.
+    /// Result of the projective multiplication, encoded: [`ArkScaleProjective<G2Projective>`].
     ProjectiveMultiplicationG2(Vec<u8>),
 }
 

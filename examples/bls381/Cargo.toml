@@ -8,9 +8,6 @@ homepage.workspace = true
 repository.workspace = true
 
 [dependencies]
-ark-bls12-381 = { workspace = true, features = ["curve"] }
-ark-ec.workspace = true
-ark-scale.workspace = true
 codec = { workspace = true, features = ["derive"] }
 gstd = { workspace = true, features = ["debug"] }
 gbuiltin-bls381.workspace = true
@@ -21,9 +18,4 @@ gear-wasm-builder.workspace = true
 
 [features]
 default = ["std"]
-std = [
-    "ark-bls12-381/std",
-    "ark-ec/std",
-    "ark-scale/std",
-    "codec/std",
-]
+std = ["codec/std"]
