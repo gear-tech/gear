@@ -267,10 +267,7 @@ where
         + Send
         + Sync
         + 'static,
-    C::Api: ApiExt<Block, StateBackend = backend::StateBackendFor<B, Block>>
-        + BlockBuilderApi<Block>
-        + GearRuntimeApi<Block>
-        + Clone,
+    C::Api: ApiExt<Block> + BlockBuilderApi<Block> + GearRuntimeApi<Block> + Clone,
 {
     pub(super) fn init_with_now(
         &mut self,
@@ -318,11 +315,8 @@ where
         + Send
         + Sync
         + 'static,
-    C::Api: ApiExt<Block, StateBackend = backend::StateBackendFor<B, Block>>
-        + BlockBuilderApi<Block>
-        + GearRuntimeApi<Block>
-        + Clone
-        + Deconstructable<C>,
+    C::Api:
+        ApiExt<Block> + BlockBuilderApi<Block> + GearRuntimeApi<Block> + Clone + Deconstructable<C>,
     PR: ProofRecording,
 {
     type CreateProposer = future::Ready<Result<Self::Proposer, Self::Error>>;
@@ -365,20 +359,12 @@ where
         + Send
         + Sync
         + 'static,
-    C::Api: ApiExt<Block, StateBackend = backend::StateBackendFor<B, Block>>
-        + BlockBuilderApi<Block>
-        + GearRuntimeApi<Block>
-        + Clone
-        + Deconstructable<C>,
+    C::Api:
+        ApiExt<Block> + BlockBuilderApi<Block> + GearRuntimeApi<Block> + Clone + Deconstructable<C>,
     PR: ProofRecording,
 {
-    type Transaction = backend::TransactionFor<B, Block>;
-    type Proposal = Pin<
-        Box<
-            dyn Future<Output = Result<Proposal<Block, Self::Transaction, PR::Proof>, Self::Error>>
-                + Send,
-        >,
-    >;
+    type Proposal =
+        Pin<Box<dyn Future<Output = Result<Proposal<Block, PR::Proof>, Self::Error>> + Send>>;
     type Error = sp_blockchain::Error;
     type ProofRecording = PR;
     type Proof = PR::Proof;
@@ -428,11 +414,8 @@ where
         + Send
         + Sync
         + 'static,
-    C::Api: ApiExt<Block, StateBackend = backend::StateBackendFor<B, Block>>
-        + BlockBuilderApi<Block>
-        + GearRuntimeApi<Block>
-        + Clone
-        + Deconstructable<C>,
+    C::Api:
+        ApiExt<Block> + BlockBuilderApi<Block> + GearRuntimeApi<Block> + Clone + Deconstructable<C>,
     PR: ProofRecording,
 {
     async fn propose_with(
@@ -441,8 +424,7 @@ where
         inherent_digests: Digest,
         deadline: Instant,
         block_size_limit: Option<usize>,
-    ) -> Result<Proposal<Block, backend::TransactionFor<B, Block>, PR::Proof>, sp_blockchain::Error>
-    {
+    ) -> Result<Proposal<Block, PR::Proof>, sp_blockchain::Error> {
         let propose_with_start = Instant::now();
         let parent_hash = self.parent_hash;
         let parent_number = self

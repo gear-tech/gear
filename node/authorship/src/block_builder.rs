@@ -24,7 +24,7 @@ use sp_api::{ApiExt, ApiRef, Core, ProvideRuntimeApi, TransactionOutcome};
 use sp_blockchain::{ApplyExtrinsicFailed, Error};
 use sp_runtime::{
     legacy,
-    traits::{Block as BlockT, Hash, HashFor, Header as HeaderT, NumberFor, One},
+    traits::{Block as BlockT, Hash, HashingFor, Header as HeaderT, NumberFor, One},
     Digest,
 };
 use std::ops::DerefMut;
@@ -44,9 +44,7 @@ impl<'a, Block, A, B> BlockBuilder<'a, Block, A, B>
 where
     Block: BlockT,
     A: ProvideRuntimeApi<Block> + 'a,
-    A::Api: ApiExt<Block, StateBackend = backend::StateBackendFor<B, Block>>
-        + BlockBuilderApi<Block>
-        + GearRuntimeApi<Block>,
+    A::Api: ApiExt<Block> + BlockBuilderApi<Block> + GearRuntimeApi<Block>,
     B: backend::Backend<Block>,
 {
     /// Create a new instance of builder based on the given `parent_hash` and `parent_number`.
@@ -169,12 +167,12 @@ where
     /// Returns the build `Block`, the changes to the storage and an optional `StorageProof`
     /// supplied by `self.api`, combined as [`BuiltBlock`].
     /// The storage proof will be `Some(_)` when proof recording was enabled.
-    pub fn build(mut self) -> Result<BuiltBlock<Block, backend::StateBackendFor<B, Block>>, Error> {
+    pub fn build(mut self) -> Result<BuiltBlock<Block>, Error> {
         let header = self.api.finalize_block(self.parent_hash)?;
 
         debug_assert_eq!(
             header.extrinsics_root().clone(),
-            HashFor::<Block>::ordered_trie_root(
+            HashingFor::<Block>::ordered_trie_root(
                 self.extrinsics.iter().map(Encode::encode).collect(),
                 sp_runtime::StateVersion::V0,
             ),
@@ -235,9 +233,7 @@ where
     }
 
     #[cfg(test)]
-    pub fn into_storage_changes(
-        self,
-    ) -> Result<sp_api::StorageChanges<backend::StateBackendFor<B, Block>, Block>, Error> {
+    pub fn into_storage_changes(self) -> Result<sp_api::StorageChanges<Block>, Error> {
         let state = self.backend.state_at(self.parent_hash)?;
 
         let storage_changes = self
@@ -304,10 +300,7 @@ impl<'a, Block, A, B> Clone for BlockBuilder<'a, Block, A, B>
 where
     Block: BlockT,
     A: ProvideRuntimeApi<Block> + 'a,
-    A::Api: ApiExt<Block, StateBackend = backend::StateBackendFor<B, Block>>
-        + BlockBuilderApi<Block>
-        + GearRuntimeApi<Block>
-        + Clone,
+    A::Api: ApiExt<Block> + BlockBuilderApi<Block> + GearRuntimeApi<Block> + Clone,
     B: backend::Backend<Block>,
 {
     fn clone(&self) -> Self {

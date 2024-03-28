@@ -68,7 +68,7 @@ use core_processor::{
     Ext,
 };
 use frame_support::{
-    dispatch::{DispatchError, DispatchResultWithPostInfo, PostDispatchInfo},
+    dispatch::{DispatchResultWithPostInfo, PostDispatchInfo},
     ensure,
     pallet_prelude::*,
     traits::{ConstBool, Currency, ExistenceRequirement, Get, Randomness, StorageVersion},
@@ -89,7 +89,7 @@ use pallet_gear_voucher::{PrepaidCall, PrepaidCallsDispatcher, VoucherId, Weight
 use primitive_types::H256;
 use sp_runtime::{
     traits::{Bounded, One, Saturating, UniqueSaturatedInto, Zero},
-    SaturatedConversion,
+    DispatchError, SaturatedConversion,
 };
 use sp_std::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
