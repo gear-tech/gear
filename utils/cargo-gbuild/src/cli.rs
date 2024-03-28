@@ -19,7 +19,10 @@
 use crate::manifest;
 use anyhow::{anyhow, Result};
 use ccli::{clap, Parser};
+use gear_wasm_builder::optimize::{self, OptType, Optimizer};
 use std::{fs, path::PathBuf, process::Command};
+
+const ARTIFACT_DIR: &str = "gbuild";
 
 /// Command `gbuild` as cargo extension.
 #[derive(Parser)]
@@ -46,7 +49,7 @@ pub struct GBuild {
 
 impl GBuild {
     /// Build program
-    pub fn build(&self) -> Result<()> {
+    pub fn build(&self) -> Result<Artifact> {
         self.cargo()?;
         self.collect()
     }
@@ -73,7 +76,7 @@ impl GBuild {
     }
 
     // Collects the artifacts.
-    fn collect(&self) -> Result<()> {
+    fn collect(&self) -> Result<Artifact> {
         let root = self
             .manifest_path
             .parent()
@@ -84,18 +87,53 @@ impl GBuild {
             .build
             .and_then(|b| b.target_dir)
             .unwrap_or(root.join("target"));
+
+        // Register the path of the built artifacts.
         let name = manifest.package.name.replace('-', "_");
-        let target_dir = self.target_dir.clone().unwrap_or(orgi_target_dir.clone());
+        let target_dir = self
+            .target_dir
+            .clone()
+            .unwrap_or(orgi_target_dir.clone())
+            .join(ARTIFACT_DIR);
+        let artifact = Artifact {
+            program: target_dir.join(format!("{name}.wasm")),
+            // TODO: support meta build
+            //
+            // target_dir.join(format!("{name}.meta.wasm")),
+            meta: None,
+            root: target_dir,
+        };
 
-        fs::create_dir_all(target_dir.join("gbuild"))?;
+        // Optimize the built wasm and return the artifact
+        artifact
+            .process(orgi_target_dir.join(format!("wasm32-unknown-unknown/release/{name}.wasm")))?;
+        Ok(artifact)
+    }
+}
 
-        // TODO: set the output of wasm opt as to the gbuild folder.
-        fs::copy(
-            orgi_target_dir.join(format!("wasm32-unknown-unknown/release/{name}.wasm")),
-            target_dir.join(format!("gbuild/{name}.wasm")),
-        )?;
+/// Artifact registry
+///
+/// This instance simply holds the paths of the built binaries
+/// for re-using stuffs.
+pub struct Artifact {
+    /// The path of the root artifact
+    pub root: PathBuf,
+    /// The path to the built program.
+    pub program: PathBuf,
+    /// The path to the built metadata.
+    pub meta: Option<PathBuf>,
+}
 
-        // TODO: process wasm-opt
-        Ok(())
+impl Artifact {
+    /// Build artifacts with optimization.
+    pub fn process(&self, src: PathBuf) -> Result<()> {
+        fs::create_dir_all(&self.root)?;
+        optimize::optimize_wasm(src, self.program.clone(), "4", true)?;
+        let mut optimizer = Optimizer::new(self.program.clone())?;
+        optimizer
+            .insert_stack_end_export()
+            .map_err(|e| anyhow!(e))?;
+        optimizer.strip_custom_sections();
+        fs::write(self.program.clone(), optimizer.optimize(OptType::Opt)?).map_err(Into::into)
     }
 }

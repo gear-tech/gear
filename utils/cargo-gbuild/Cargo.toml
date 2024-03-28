@@ -13,6 +13,7 @@ ccli.workspace = true
 serde = { workspace = true, features = ["derive"] }
 toml.workspace = true
 tracing.workspace = true
+gear-wasm-builder.workspace = true
 
 [dev-dependencies]
 gsdk = { workspace = true, features = ["testing"] }

@@ -40,7 +40,7 @@ impl App for Opt {
     }
 
     fn run(&self) -> Result<()> {
-        self.command.build()
+        self.command.build().map(|_| ())
     }
 }
 
