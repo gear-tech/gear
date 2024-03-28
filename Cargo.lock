@@ -2312,6 +2312,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-bls381"
+version = "0.1.0"
+dependencies = [
+ "ark-bls12-381",
+ "ark-ec",
+ "ark-scale 0.0.12",
+ "gbuiltin-bls381",
+ "gear-wasm-builder",
+ "gstd",
+ "hex-literal",
+ "parity-scale-codec",
+]
+
+[[package]]
 name = "demo-calc-hash"
 version = "0.1.0"
 dependencies = [
@@ -4182,8 +4196,15 @@ name = "gclient"
 version = "1.2.0"
 dependencies = [
  "anyhow",
+ "ark-bls12-381",
+ "ark-ec",
+ "ark-ff",
+ "ark-scale 0.0.12",
+ "ark-serialize",
+ "ark-std",
  "async-trait",
  "demo-async-tester",
+ "demo-bls381",
  "demo-calc-hash",
  "demo-calc-hash-in-one-block",
  "demo-constructor",
