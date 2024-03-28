@@ -26,7 +26,7 @@ use alloc::{collections::BTreeSet, vec, vec::Vec};
 use codec::{Decode, Encode};
 use core::{cell::Cell, fmt, fmt::Debug};
 use gear_core::{
-    costs::RuntimeCosts,
+    costs::CostToken,
     env::{Externalities, PayloadSliceLock, UnlockPayloadBound},
     env_vars::{EnvVars, EnvVarsV1},
     gas::{ChargeError, CounterType, CountersOwner, GasAmount, GasCounter, GasLeft},
@@ -73,11 +73,7 @@ impl BackendAllocSyscallError for Error {
 pub struct MockExt(BTreeSet<SyscallName>);
 
 impl CountersOwner for MockExt {
-    fn charge_gas_runtime(&mut self, _cost: RuntimeCosts) -> Result<(), ChargeError> {
-        Ok(())
-    }
-
-    fn charge_gas_runtime_if_enough(&mut self, _cost: RuntimeCosts) -> Result<(), ChargeError> {
+    fn charge_gas_for_token(&mut self, _token: CostToken) -> Result<(), ChargeError> {
         Ok(())
     }
 

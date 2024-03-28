@@ -22,11 +22,11 @@ use crate::{
     Result, TestError, DISPATCH_HOLD_COST, EPOCH_DURATION_IN_BLOCKS, EXISTENTIAL_DEPOSIT,
     INITIAL_RANDOM_SEED, MAILBOX_THRESHOLD, MAX_RESERVATIONS, MODULE_INSTANTIATION_BYTE_COST,
     MODULE_INSTRUMENTATION_BYTE_COST, MODULE_INSTRUMENTATION_COST, READ_COST, READ_PER_BYTE_COST,
-    RESERVATION_COST, RESERVE_FOR, VALUE_PER_GAS, WAITLIST_COST, WRITE_COST, WRITE_PER_BYTE_COST,
+    RESERVATION_COST, RESERVE_FOR, VALUE_PER_GAS, WAITLIST_COST, WRITE_COST,
 };
 use core_processor::{
     common::*,
-    configs::{BlockConfig, BlockInfo, PageCosts, TESTS_MAX_PAGES_NUMBER},
+    configs::{BlockConfig, BlockInfo, ExtCosts, ProcessCosts, RentCosts, TESTS_MAX_PAGES_NUMBER},
     ContextChargedForCode, ContextChargedForInstrumentation, Ext,
 };
 use gear_core::{
@@ -42,7 +42,8 @@ use gear_core::{
     reservation::{GasReservationMap, GasReserver},
 };
 use gear_core_errors::{ErrorReplyReason, SignalCode, SimpleExecutionError};
-use gear_wasm_instrument::wasm_instrument::gas_metering::ConstantCostRules;
+use gear_lazy_pages_common::LazyPagesCosts;
+use gear_wasm_instrument::gas_metering::Schedule;
 use rand::{rngs::StdRng, RngCore, SeedableRng};
 use std::{
     cell::{Ref, RefCell, RefMut},
@@ -868,27 +869,34 @@ impl ExtManager {
         let block_config = BlockConfig {
             block_info: self.block_info,
             performance_multiplier: gsys::Percent::new(100),
-            max_pages: TESTS_MAX_PAGES_NUMBER.into(),
-            page_costs: PageCosts::new_for_tests(),
+            forbidden_funcs: Default::default(),
+            reserve_for: RESERVE_FOR,
+            gas_multiplier: gsys::GasMultiplier::from_value_per_gas(VALUE_PER_GAS),
+            costs: ProcessCosts {
+                ext: ExtCosts {
+                    syscalls: Default::default(),
+                    rent: RentCosts {
+                        waitlist: WAITLIST_COST.into(),
+                        dispatch_stash: DISPATCH_HOLD_COST.into(),
+                        reservation: RESERVATION_COST.into(),
+                    },
+                    mem_grow: Default::default(),
+                },
+                lazy_pages: LazyPagesCosts::default(),
+                read: READ_COST.into(),
+                read_per_byte: READ_PER_BYTE_COST.into(),
+                write: WRITE_COST.into(),
+                instrumentation: MODULE_INSTRUMENTATION_COST.into(),
+                instrumentation_per_byte: MODULE_INSTRUMENTATION_BYTE_COST.into(),
+                static_page: Default::default(),
+                module_instantiation_per_byte: MODULE_INSTANTIATION_BYTE_COST.into(),
+            },
             existential_deposit: EXISTENTIAL_DEPOSIT,
+            mailbox_threshold: MAILBOX_THRESHOLD,
+            max_reservations: MAX_RESERVATIONS,
+            max_pages: TESTS_MAX_PAGES_NUMBER.into(),
             outgoing_limit: OUTGOING_LIMIT,
             outgoing_bytes_limit: OUTGOING_BYTES_LIMIT,
-            host_fn_weights: Default::default(),
-            forbidden_funcs: Default::default(),
-            mailbox_threshold: MAILBOX_THRESHOLD,
-            waitlist_cost: WAITLIST_COST,
-            dispatch_hold_cost: DISPATCH_HOLD_COST,
-            reserve_for: RESERVE_FOR,
-            reservation: RESERVATION_COST,
-            read_cost: READ_COST,
-            write_cost: WRITE_COST,
-            read_per_byte_cost: READ_PER_BYTE_COST,
-            write_per_byte_cost: WRITE_PER_BYTE_COST,
-            module_instantiation_byte_cost: MODULE_INSTANTIATION_BYTE_COST,
-            max_reservations: MAX_RESERVATIONS,
-            code_instrumentation_cost: MODULE_INSTRUMENTATION_COST,
-            code_instrumentation_byte_cost: MODULE_INSTRUMENTATION_BYTE_COST,
-            gas_multiplier: gsys::GasMultiplier::from_value_per_gas(VALUE_PER_GAS),
         };
 
         let precharged_dispatch = match core_processor::precharge_for_program(
@@ -1130,9 +1138,14 @@ impl JournalHandler for ExtManager {
         if let Some(code) = self.opt_binaries.get(&code_id).cloned() {
             for (init_message_id, candidate_id) in candidates {
                 if !self.actors.contains_key(&candidate_id) {
-                    let code =
-                        Code::try_new(code.clone(), 1, |_| ConstantCostRules::default(), None)
-                            .expect("Program can't be constructed with provided code");
+                    let schedule = Schedule::default();
+                    let code = Code::try_new(
+                        code.clone(),
+                        schedule.instruction_weights.version,
+                        |module| schedule.rules(module),
+                        schedule.limits.stack_height,
+                    )
+                    .expect("Program can't be constructed with provided code");
 
                     let code_and_id: InstrumentedCodeAndId =
                         CodeAndId::from_parts_unchecked(code, code_id).into();

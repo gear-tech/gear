@@ -34,8 +34,9 @@ use gear_core::{
     memory::{MemoryInterval, PageBuf},
     pages::{GearPage, GearPagesAmount, IntervalIterator, PageNumber},
 };
-use gear_lazy_pages_common::Status;
 use gear_wasm_instrument::{parity_wasm::elements::Instruction, syscalls::SyscallName};
+use gear_lazy_pages_common::{LazyPagesCosts, Status};
+use parity_scale_codec::MaxEncodedLen;
 use rand::{Rng, SeedableRng};
 
 use crate::{
@@ -170,8 +171,7 @@ impl PageSets {
         c.try_into().unwrap()
     }
 
-    fn charged_for_pages(&self, costs: &PageCosts) -> u64 {
-        let costs = costs.lazy_pages_weights();
+    fn charged_for_pages(&self, costs: &LazyPagesCosts) -> u64 {
         let costs = [
             costs.signal_read,
             costs.signal_write,
@@ -187,12 +187,12 @@ impl PageSets {
         #[allow(clippy::needless_range_loop)]
         for set_no in SetNo::SignalRead as usize..SetNo::WithData as usize {
             amount = amount
-                .checked_add(costs[set_no].calc((self.sets[set_no].len() as u16).into()))
+                .checked_add(costs[set_no].cost_for((self.sets[set_no].len() as u16).into()))
                 .unwrap();
         }
 
         amount = amount
-            .checked_add(costs[SetNo::WithData as usize].calc(self.loaded_pages_count()))
+            .checked_add(costs[SetNo::WithData as usize].cost_for(self.loaded_pages_count()))
             .unwrap();
 
         amount
@@ -308,17 +308,16 @@ where
             .unwrap();
 
             let mut rand_cost = || rng.gen_range(0..MAX_COST).into();
-            let costs = &mut exec.block_config.page_costs;
-            costs.lazy_pages_signal_read = rand_cost();
-            costs.lazy_pages_signal_write = rand_cost();
-            costs.lazy_pages_signal_write_after_read = rand_cost();
-            costs.lazy_pages_host_func_read = rand_cost();
-            costs.lazy_pages_host_func_write = rand_cost();
-            costs.lazy_pages_host_func_write_after_read = rand_cost();
-            costs.load_page_data = rand_cost();
-            costs.upload_page_data = rand_cost();
+            let costs = &mut exec.block_config.costs.lazy_pages;
+            costs.signal_read = rand_cost();
+            costs.signal_write = rand_cost();
+            costs.signal_write_after_read = rand_cost();
+            costs.host_func_read = rand_cost();
+            costs.host_func_write = rand_cost();
+            costs.host_func_write_after_read = rand_cost();
+            costs.load_page_storage_data = rand_cost();
 
-            let charged_for_pages = page_sets.charged_for_pages(&exec.block_config.page_costs);
+            let charged_for_pages = page_sets.charged_for_pages(costs);
 
             let notes =
                 core_processor::process::<Ext>(&exec.block_config, exec.context, exec.random_data)
@@ -343,8 +342,8 @@ where
         };
 
         // Difference between gas burned in two runs must be equal to difference,
-        // between gas burned for pages accesses and data loading, because in `run`
-        // only `page_costs` is different.
+        // between gas burned for pages accesses and data loading,
+        // because in `run` only `lazy_pages_costs` is different.
         let (charged_for_pages1, gas_burned1) = run(0);
         let (charged_for_pages2, gas_burned2) = run(1);
         assert_eq!(
@@ -387,11 +386,10 @@ where
             )
             .unwrap();
 
-            exec.block_config.page_costs.lazy_pages_signal_read = (read_cost * i).into();
-            exec.block_config.page_costs.lazy_pages_signal_write = (write_cost * i).into();
-            exec.block_config
-                .page_costs
-                .lazy_pages_signal_write_after_read = (write_after_read_cost * i).into();
+            exec.block_config.costs.lazy_pages.signal_read = (read_cost * i).into();
+            exec.block_config.costs.lazy_pages.signal_write = (write_cost * i).into();
+            exec.block_config.costs.lazy_pages.signal_write_after_read =
+                (write_after_read_cost * i).into();
 
             let notes =
                 core_processor::process::<Ext>(&exec.block_config, exec.context, exec.random_data)
@@ -547,7 +545,7 @@ where
         )
         .unwrap();
 
-        exec.block_config.page_costs = Default::default();
+        exec.block_config.costs.lazy_pages = Default::default();
 
         let notes =
             core_processor::process::<Ext>(&exec.block_config, exec.context, exec.random_data)
@@ -584,8 +582,8 @@ where
         )
         .unwrap();
 
-        exec.block_config.page_costs = PageCosts {
-            lazy_pages_signal_write: 1.into(),
+        exec.block_config.costs.lazy_pages = LazyPagesCosts {
+            signal_write: 1.into(),
             ..Default::default()
         };
 
@@ -622,8 +620,8 @@ where
         )
         .unwrap();
 
-        exec.block_config.page_costs = PageCosts {
-            lazy_pages_signal_write: 1.into(),
+        exec.block_config.costs.lazy_pages = LazyPagesCosts {
+            signal_write: 1.into(),
             ..Default::default()
         };
 

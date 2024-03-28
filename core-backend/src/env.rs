@@ -30,11 +30,7 @@ use crate::{
     BackendExternalities,
 };
 use alloc::{collections::BTreeSet, format, string::String};
-use core::{
-    any::Any,
-    convert::Infallible,
-    fmt::{Debug, Display},
-};
+use core::{any::Any, fmt::Debug};
 use gear_core::{
     env::Externalities,
     gas::GasAmount,
@@ -55,7 +51,7 @@ use gear_sandbox::{
 };
 use gear_wasm_instrument::{
     syscalls::SyscallName::{self, *},
-    GLOBAL_NAME_GAS, STACK_END_EXPORT_NAME,
+    GLOBAL_NAME_GAS,
 };
 
 // we have requirement to pass function pointer for `gear_sandbox`
@@ -76,35 +72,20 @@ fn store_host_state_mut<Ext>(
         .unwrap_or_else(|| unreachable!("State must be set in `WasmiEnvironment::new`; qed"))
 }
 
-pub type EnvironmentExecutionResult<Ext, PrepareMemoryError> =
-    Result<BackendReport<Ext>, EnvironmentError<PrepareMemoryError>>;
+pub type EnvironmentExecutionResult<Ext> = Result<BackendReport<Ext>, EnvironmentError>;
 
 #[derive(Debug, derive_more::Display)]
-pub enum EnvironmentError<PrepareMemoryError: Display> {
+pub enum EnvironmentError {
     #[display(fmt = "Actor backend error: {_1}")]
     Actor(GasAmount, String),
     #[display(fmt = "System backend error: {_0}")]
     System(SystemEnvironmentError),
-    #[display(fmt = "Prepare error: {_1}")]
-    PrepareMemory(GasAmount, PrepareMemoryError),
-}
-
-impl<PrepareMemoryError: Display> EnvironmentError<PrepareMemoryError> {
-    pub fn from_infallible(err: EnvironmentError<Infallible>) -> Self {
-        match err {
-            EnvironmentError::System(err) => Self::System(err),
-            EnvironmentError::PrepareMemory(_, err) => match err {},
-            EnvironmentError::Actor(gas_amount, s) => Self::Actor(gas_amount, s),
-        }
-    }
 }
 
 #[derive(Debug, derive_more::Display)]
 pub enum SystemEnvironmentError {
     #[display(fmt = "Failed to create env memory: {_0:?}")]
     CreateEnvMemory(gear_sandbox::Error),
-    #[display(fmt = "Globals are not supported")]
-    GlobalsNotSupported,
     #[display(fmt = "Gas counter not found or has wrong type")]
     WrongInjectedGas,
 }
@@ -284,7 +265,8 @@ where
         entry_point: EntryPoint,
         entries: BTreeSet<DispatchKind>,
         mem_size: WasmPagesAmount,
-    ) -> Result<Self, EnvironmentError<Infallible>> {
+        mem_size: WasmPage,
+    ) -> Result<Self, EnvironmentError> {
         use EnvironmentError::*;
         use SystemEnvironmentError::*;
 
@@ -322,7 +304,7 @@ where
         // condition is not met.
         assert_eq!(
             builder.funcs_count,
-            SyscallName::count(),
+            SyscallName::all().count(),
             "Not all existing syscalls were added to the module's env."
         );
 
@@ -350,18 +332,10 @@ where
         })
     }
 
-    pub fn execute<PrepareMemory, PrepareMemoryError>(
+    pub fn execute(
         self,
-        prepare_memory: PrepareMemory,
-    ) -> EnvironmentExecutionResult<EnvExt, PrepareMemoryError>
-    where
-        PrepareMemory: FnOnce(
-            &mut MemoryWrap<EnvExt>,
-            Option<u32>,
-            GlobalsAccessConfig,
-        ) -> Result<(), PrepareMemoryError>,
-        PrepareMemoryError: Display,
-    {
+        prepare_memory: impl FnOnce(&mut MemoryWrap<EnvExt>, GlobalsAccessConfig),
+    ) -> EnvironmentExecutionResult<EnvExt> {
         use EnvironmentError::*;
         use SystemEnvironmentError::*;
 
@@ -372,11 +346,6 @@ where
             mut store,
             memory,
         } = self;
-
-        let stack_end = instance
-            .get_global_val(&store, STACK_END_EXPORT_NAME)
-            .and_then(|global| global.as_i32())
-            .map(|global| global as u32);
 
         let gas = store_host_state_mut(&mut store)
             .ext
@@ -415,10 +384,7 @@ where
         };
 
         let mut memory_wrap = MemoryWrap::new(memory.clone(), store);
-        prepare_memory(&mut memory_wrap, stack_end, globals_config).map_err(|e| {
-            let store = &mut memory_wrap.store;
-            PrepareMemory(store_host_state_mut(store).ext.gas_amount(), e)
-        })?;
+        prepare_memory(&mut memory_wrap, globals_config);
 
         let needs_execution = entry_point
             .try_into_kind()

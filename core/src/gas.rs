@@ -18,7 +18,7 @@
 
 //! Gas module.
 
-use crate::costs::RuntimeCosts;
+use crate::costs::CostToken;
 use enum_iterator::Sequence;
 use scale_info::{
     scale::{Decode, Encode},
@@ -37,23 +37,6 @@ pub enum LockId {
     Reservation,
     /// The gas lock is provided by dispatch stash.
     DispatchStash,
-}
-
-/// This trait represents a token that can be used for charging `GasCounter`.
-///
-/// Implementing type is expected to be super lightweight hence `Copy` (`Clone` is added
-/// for consistency). If inlined there should be no observable difference compared
-/// to a hand-written code.
-pub trait Token: Copy + Clone + Into<u64> {
-    /// Return the amount of gas that should be taken by this token.
-    ///
-    /// This function should be really lightweight and must not fail. It is not
-    /// expected that implementors will query the storage or do any kinds of heavy operations.
-    ///
-    /// That said, implementors of this function still can run into overflows
-    /// while calculating the amount. In this case it is ok to use saturating operations
-    /// since on overflow they will return `max_value` which should consume all gas.
-    fn weight(&self) -> u64;
 }
 
 /// The result of charging gas.
@@ -279,9 +262,7 @@ pub enum ChargeError {
 /// Counters owner can change gas limit and allowance counters.
 pub trait CountersOwner {
     /// Charge for runtime api call.
-    fn charge_gas_runtime(&mut self, cost: RuntimeCosts) -> Result<(), ChargeError>;
-    /// Charge for runtime api call if has enough of gas, else just returns error.
-    fn charge_gas_runtime_if_enough(&mut self, cost: RuntimeCosts) -> Result<(), ChargeError>;
+    fn charge_gas_for_token(&mut self, token: CostToken) -> Result<(), ChargeError>;
     /// Charge gas if enough, else just returns error.
     fn charge_gas_if_enough(&mut self, amount: u64) -> Result<(), ChargeError>;
     /// Returns gas limit and gas allowance left.
@@ -334,7 +315,7 @@ impl From<(i64, i64)> for GasLeft {
 
 /// The struct contains results of gas calculation required to process
 /// a message.
-#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]
+#[derive(Clone, Debug, Decode, Default, Encode, PartialEq, Eq, TypeInfo)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct GasInfo {
     /// Represents minimum gas limit required for execution.
@@ -356,10 +337,7 @@ pub struct GasInfo {
 #[cfg(test)]
 mod tests {
     use super::{ChargeResult, GasCounter};
-    use crate::{
-        costs::{HostFnWeights, RuntimeCosts},
-        gas::GasAllowanceCounter,
-    };
+    use crate::gas::GasAllowanceCounter;
 
     #[test]
     /// Test that `GasCounter` object returns `Enough` and decreases the remaining count
@@ -387,23 +365,13 @@ mod tests {
 
     #[test]
     fn charge_token_fails() {
-        let token = RuntimeCosts::Alloc(0).token(&HostFnWeights {
-            alloc: 1_000,
-            ..Default::default()
-        });
-
         let mut counter = GasCounter::new(10);
-        assert_eq!(counter.charge(token), ChargeResult::NotEnough);
+        assert_eq!(counter.charge(1000u64), ChargeResult::NotEnough);
     }
 
     #[test]
     fn charge_allowance_token_fails() {
-        let token = RuntimeCosts::Alloc(0).token(&HostFnWeights {
-            alloc: 1_000,
-            ..Default::default()
-        });
-
         let mut counter = GasAllowanceCounter::new(10);
-        assert_eq!(counter.charge(token), ChargeResult::NotEnough);
+        assert_eq!(counter.charge(1000u64), ChargeResult::NotEnough);
     }
 }

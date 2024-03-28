@@ -65,7 +65,7 @@ pub fn dev() -> Result<Node> {
     login_as_alice()?;
 
     let args = vec!["--tmp", "--dev"];
-    let mut node = Node::try_from_path(env::bin("gear"), args)?;
+    let mut node = Node::try_from_path(env::node_bin(), args)?;
 
     // TODO: use [`Node::wait_while_initialized`] instead,
     // it currently presents infinite loop even after capturing

@@ -20,10 +20,12 @@ use crate::*;
 
 /// All migrations that will run on the next runtime upgrade.
 pub type Migrations = (
-    // not yet executed
+    /* release v1.2.0 */
+    // migration for stored contexts
     pallet_gear_messenger::migrations::MigrateToV3<Runtime>,
     // check for existence of the rent pool account
     pallet_gear_staking_rewards::migrations::CheckRentPoolId<Runtime>,
-    // not yet executed
+    /* unapplied migrations */
+    pallet_gear_program::migration::AppendStackEndMigration<Runtime>,
     pallet_gear_program::migration_alloc::MigrateToV4<Runtime>,
 );

@@ -31,11 +31,36 @@ pub struct InstrumentedCode {
     pub(crate) code: Vec<u8>,
     pub(crate) original_code_len: u32,
     pub(crate) exports: BTreeSet<DispatchKind>,
+    // +_+_+ need migration ?
     pub(crate) static_pages: WasmPagesAmount,
+    pub(crate) stack_end: Option<WasmPage>,
     pub(crate) version: u32,
 }
 
 impl InstrumentedCode {
+    /// Creates a new instance of the instrumented code.
+    ///
+    /// # Safety
+    /// The caller must ensure that the `code` is a valid wasm binary,
+    /// and other parameters are valid and suitable for the wasm binary.
+    pub unsafe fn new_unchecked(
+        code: Vec<u8>,
+        original_code_len: u32,
+        exports: BTreeSet<DispatchKind>,
+        static_pages: WasmPage,
+        stack_end: Option<WasmPage>,
+        version: u32,
+    ) -> Self {
+        Self {
+            code,
+            original_code_len,
+            exports,
+            static_pages,
+            stack_end,
+            version,
+        }
+    }
+
     /// Returns reference to the instrumented binary code.
     pub fn code(&self) -> &[u8] {
         &self.code
@@ -61,6 +86,11 @@ impl InstrumentedCode {
         self.static_pages
     }
 
+    /// Returns stack end page if exists.
+    pub fn stack_end(&self) -> Option<WasmPage> {
+        self.stack_end
+    }
+
     /// Consumes the instance and returns the instrumented code.
     pub fn into_code(self) -> Vec<u8> {
         self.code
@@ -68,7 +98,7 @@ impl InstrumentedCode {
 }
 
 /// The newtype contains the instrumented code and the corresponding id (hash).
-#[derive(Clone, Debug, Decode, Encode)]
+#[derive(Clone, Debug)]
 pub struct InstrumentedCodeAndId {
     code: InstrumentedCode,
     code_id: CodeId,

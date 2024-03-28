@@ -21,25 +21,29 @@
 
 #![allow(unused_parens)]
 
-use crate::{weights::WeightInfo, Config};
-use core_processor::configs::PageCosts;
-use frame_support::{
-    codec::{Decode, Encode},
-    traits::Get,
-    weights::Weight,
-};
+use crate::{weights::WeightInfo, Config, CostsPerBlockOf, DbWeightOf};
+use common::scheduler::SchedulingCostsPerBlock;
+use core_processor::configs::{ExtCosts, ProcessCosts, RentCosts};
+use frame_support::{traits::Get, weights::Weight};
 use gear_core::{
     code::MAX_WASM_PAGES_AMOUNT,
-    costs::HostFnWeights as CoreHostFnWeights,
+    costs::SyscallCosts,
     message,
     pages::{GearPage, PageNumber, WasmPage},
 };
-use gear_wasm_instrument::{parity_wasm::elements, wasm_instrument::gas_metering};
+use gear_lazy_pages_common::LazyPagesCosts;
+use gear_wasm_instrument::{
+    gas_metering::{MemoryGrowCost, Rules},
+    parity_wasm::elements::{Instruction, Module, SignExtInstruction, Type},
+};
 use pallet_gear_proc_macro::{ScheduleDebug, WeightDebug};
 use scale_info::TypeInfo;
 #[cfg(feature = "std")]
 use serde::{Deserialize, Serialize};
-use sp_runtime::RuntimeDebug;
+use sp_runtime::{
+    codec::{Decode, Encode},
+    RuntimeDebug,
+};
 use sp_std::{marker::PhantomData, vec::Vec};
 
 /// How many API calls are executed in a single batch. The reason for increasing the amount
@@ -109,7 +113,7 @@ pub struct Schedule<T: Config> {
     pub instruction_weights: InstructionWeights<T>,
 
     /// The weights for each imported function a program is allowed to call.
-    pub host_fn_weights: HostFnWeights<T>,
+    pub syscall_weights: SyscallWeights<T>,
 
     /// The weights for memory interaction.
     pub memory_weights: MemoryWeights<T>,
@@ -333,6 +337,7 @@ pub struct InstructionWeights<T: Config> {
     pub i32rotr: u32,
     /// The type parameter is used in the default implementation.
     #[codec(skip)]
+    #[cfg_attr(feature = "std", serde(skip))]
     pub _phantom: PhantomData<T>,
 }
 
@@ -340,7 +345,7 @@ pub struct InstructionWeights<T: Config> {
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 #[derive(Clone, Encode, Decode, PartialEq, Eq, WeightDebug, TypeInfo)]
 #[scale_info(skip_type_params(T))]
-pub struct HostFnWeights<T: Config> {
+pub struct SyscallWeights<T: Config> {
     /// Weight of calling `alloc`.
     pub alloc: Weight,
 
@@ -565,6 +570,7 @@ pub struct HostFnWeights<T: Config> {
 
     /// The type parameter is used in the default implementation.
     #[codec(skip)]
+    #[cfg_attr(feature = "std", serde(skip))]
     pub _phantom: PhantomData<T>,
 }
 
@@ -627,30 +633,41 @@ pub struct MemoryWeights<T: Config> {
 
     /// The type parameter is used in the default implementation.
     #[codec(skip)]
+    #[cfg_attr(feature = "std", serde(skip))]
     pub _phantom: PhantomData<T>,
 }
 
-impl<T: Config> From<MemoryWeights<T>> for PageCosts {
+impl<T: Config> From<MemoryWeights<T>> for LazyPagesCosts {
     fn from(val: MemoryWeights<T>) -> Self {
         Self {
-            lazy_pages_signal_read: val.lazy_pages_signal_read.ref_time().into(),
-            lazy_pages_signal_write: val.lazy_pages_signal_write.ref_time().into(),
-            lazy_pages_signal_write_after_read: val
+            signal_read: val.lazy_pages_signal_read.ref_time().into(),
+            signal_write: val
+                .lazy_pages_signal_write
+                .saturating_add(val.upload_page_data)
+                .ref_time()
+                .into(),
+            signal_write_after_read: val
                 .lazy_pages_signal_write_after_read
+                .saturating_add(val.upload_page_data)
                 .ref_time()
                 .into(),
-            lazy_pages_host_func_read: val.lazy_pages_host_func_read.ref_time().into(),
-            lazy_pages_host_func_write: val.lazy_pages_host_func_write.ref_time().into(),
-            lazy_pages_host_func_write_after_read: val
+            host_func_read: val.lazy_pages_host_func_read.ref_time().into(),
+            host_func_write: val
+                .lazy_pages_host_func_write
+                .saturating_add(val.upload_page_data)
+                .ref_time()
+                .into(),
+            host_func_write_after_read: val
                 .lazy_pages_host_func_write_after_read
+                .saturating_add(val.upload_page_data)
                 .ref_time()
                 .into(),
-            load_page_data: val.load_page_data.ref_time().into(),
-            upload_page_data: val.upload_page_data.ref_time().into(),
-            static_page: val.static_page.ref_time().into(),
-            mem_grow: val.mem_grow.ref_time(),
-            mem_grow_per_page: val.mem_grow_per_page.ref_time().into(),
-            parachain_load_heuristic: val.parachain_read_heuristic.ref_time().into(),
+            load_page_storage_data: val
+                .load_page_data
+                .saturating_add(val.parachain_read_heuristic)
+                .ref_time()
+                .into(),
+            // +_+_+ mem_grow_per_page: val.mem_grow_per_page.ref_time().into(),
         }
     }
 }
@@ -747,7 +764,7 @@ impl<T: Config> Default for Schedule<T> {
         Self {
             limits: Default::default(),
             instruction_weights: Default::default(),
-            host_fn_weights: Default::default(),
+            syscall_weights: Default::default(),
             memory_weights: Default::default(),
             db_write_per_byte: to_weight!(cost_byte!(db_write_per_kb)),
             db_read_per_byte: to_weight!(cost_byte!(db_read_per_kb)),
@@ -783,7 +800,7 @@ impl Default for Limits {
 impl<T: Config> Default for InstructionWeights<T> {
     fn default() -> Self {
         Self {
-            version: 1110,
+            version: 1201,
             i64const: cost_instr!(instr_i64const, 1),
             i64load: cost_instr!(instr_i64load, 0),
             i32load: cost_instr!(instr_i32load, 0),
@@ -876,92 +893,97 @@ impl<T: Config> Default for InstructionWeights<T> {
     }
 }
 
-impl<T: Config> HostFnWeights<T> {
-    pub fn into_core(self) -> CoreHostFnWeights {
-        CoreHostFnWeights {
-            alloc: self.alloc.ref_time(),
-            alloc_per_page: self.alloc_per_page.ref_time(),
-            alloc_per_interval: self.alloc_per_interval.ref_time(),
-            free: self.free.ref_time(),
-            free_per_interval: self.free_per_interval.ref_time(),
-            free_range: self.free_range.ref_time(),
-            free_range_per_page: self.free_range_per_page.ref_time(),
-            free_range_per_interval: self.free_range_per_interval.ref_time(),
-            gr_reserve_gas: self.gr_reserve_gas.ref_time(),
-            gr_unreserve_gas: self.gr_unreserve_gas.ref_time(),
-            gr_system_reserve_gas: self.gr_system_reserve_gas.ref_time(),
-            gr_gas_available: self.gr_gas_available.ref_time(),
-            gr_message_id: self.gr_message_id.ref_time(),
-            gr_program_id: self.gr_program_id.ref_time(),
-            gr_source: self.gr_source.ref_time(),
-            gr_value: self.gr_value.ref_time(),
-            gr_value_available: self.gr_value_available.ref_time(),
-            gr_size: self.gr_size.ref_time(),
-            gr_read: self.gr_read.ref_time(),
-            gr_read_per_byte: self.gr_read_per_byte.ref_time(),
-            gr_env_vars: self.gr_env_vars.ref_time(),
-            gr_block_height: self.gr_block_height.ref_time(),
-            gr_block_timestamp: self.gr_block_timestamp.ref_time(),
-            gr_random: self.gr_random.ref_time(),
-            gr_reply_deposit: self.gr_reply_deposit.ref_time(),
-            gr_send: self.gr_send.ref_time(),
-            gr_send_per_byte: self.gr_send_per_byte.ref_time(),
-            gr_send_wgas: self.gr_send_wgas.ref_time(),
-            gr_send_wgas_per_byte: self.gr_send_wgas_per_byte.ref_time(),
-            gr_send_init: self.gr_send_init.ref_time(),
-            gr_send_push: self.gr_send_push.ref_time(),
-            gr_send_push_per_byte: self.gr_send_push_per_byte.ref_time(),
-            gr_send_commit: self.gr_send_commit.ref_time(),
-            gr_send_commit_wgas: self.gr_send_commit_wgas.ref_time(),
-            gr_reservation_send: self.gr_reservation_send.ref_time(),
-            gr_reservation_send_per_byte: self.gr_reservation_send_per_byte.ref_time(),
-            gr_reservation_send_commit: self.gr_reservation_send_commit.ref_time(),
-            gr_send_input: self.gr_send_input.ref_time(),
-            gr_send_input_wgas: self.gr_send_input_wgas.ref_time(),
-            gr_send_push_input: self.gr_send_push_input.ref_time(),
-            gr_send_push_input_per_byte: self.gr_send_push_input_per_byte.ref_time(),
-            gr_reply: self.gr_reply.ref_time(),
-            gr_reply_per_byte: self.gr_reply_per_byte.ref_time(),
-            gr_reply_wgas: self.gr_reply_wgas.ref_time(),
-            gr_reply_wgas_per_byte: self.gr_reply_wgas_per_byte.ref_time(),
-            gr_reply_push: self.gr_reply_push.ref_time(),
-            gr_reply_push_per_byte: self.gr_reply_push_per_byte.ref_time(),
-            gr_reply_commit: self.gr_reply_commit.ref_time(),
-            gr_reply_commit_wgas: self.gr_reply_commit_wgas.ref_time(),
-            gr_reservation_reply: self.gr_reservation_reply.ref_time(),
-            gr_reservation_reply_per_byte: self.gr_reservation_reply_per_byte.ref_time(),
-            gr_reservation_reply_commit: self.gr_reservation_reply_commit.ref_time(),
-            gr_reply_input: self.gr_reply_input.ref_time(),
-            gr_reply_input_wgas: self.gr_reply_input_wgas.ref_time(),
-            gr_reply_push_input: self.gr_reply_push_input.ref_time(),
-            gr_reply_push_input_per_byte: self.gr_reply_push_input_per_byte.ref_time(),
-            gr_debug: self.gr_debug.ref_time(),
-            gr_debug_per_byte: self.gr_debug_per_byte.ref_time(),
-            gr_reply_to: self.gr_reply_to.ref_time(),
-            gr_signal_code: self.gr_signal_code.ref_time(),
-            gr_signal_from: self.gr_signal_from.ref_time(),
-            gr_reply_code: self.gr_reply_code.ref_time(),
-            gr_exit: self.gr_exit.ref_time(),
-            gr_leave: self.gr_leave.ref_time(),
-            gr_wait: self.gr_wait.ref_time(),
-            gr_wait_for: self.gr_wait_for.ref_time(),
-            gr_wait_up_to: self.gr_wait_up_to.ref_time(),
-            gr_wake: self.gr_wake.ref_time(),
-            gr_create_program: self.gr_create_program.ref_time(),
-            gr_create_program_payload_per_byte: self.gr_create_program_payload_per_byte.ref_time(),
-            gr_create_program_salt_per_byte: self.gr_create_program_salt_per_byte.ref_time(),
-            gr_create_program_wgas: self.gr_create_program_wgas.ref_time(),
-            gr_create_program_wgas_payload_per_byte: self
+impl<T: Config> From<SyscallWeights<T>> for SyscallCosts {
+    fn from(weights: SyscallWeights<T>) -> SyscallCosts {
+        SyscallCosts {
+            alloc: weights.alloc.ref_time().into(),
+            alloc_per_page: weights.alloc_per_page.ref_time().into(),
+            free: weights.free.ref_time().into(),
+            free_range: weights.free_range.ref_time().into(),
+            free_range_per_page: weights.free_range_per_page.ref_time().into(),
+            gr_reserve_gas: weights.gr_reserve_gas.ref_time().into(),
+            gr_unreserve_gas: weights.gr_unreserve_gas.ref_time().into(),
+            gr_system_reserve_gas: weights.gr_system_reserve_gas.ref_time().into(),
+            gr_gas_available: weights.gr_gas_available.ref_time().into(),
+            gr_message_id: weights.gr_message_id.ref_time().into(),
+            gr_program_id: weights.gr_program_id.ref_time().into(),
+            gr_source: weights.gr_source.ref_time().into(),
+            gr_value: weights.gr_value.ref_time().into(),
+            gr_value_available: weights.gr_value_available.ref_time().into(),
+            gr_size: weights.gr_size.ref_time().into(),
+            gr_read: weights.gr_read.ref_time().into(),
+            gr_read_per_byte: weights.gr_read_per_byte.ref_time().into(),
+            gr_env_vars: weights.gr_env_vars.ref_time().into(),
+            gr_block_height: weights.gr_block_height.ref_time().into(),
+            gr_block_timestamp: weights.gr_block_timestamp.ref_time().into(),
+            gr_random: weights.gr_random.ref_time().into(),
+            gr_reply_deposit: weights.gr_reply_deposit.ref_time().into(),
+            gr_send: weights.gr_send.ref_time().into(),
+            gr_send_per_byte: weights.gr_send_per_byte.ref_time().into(),
+            gr_send_wgas: weights.gr_send_wgas.ref_time().into(),
+            gr_send_wgas_per_byte: weights.gr_send_wgas_per_byte.ref_time().into(),
+            gr_send_init: weights.gr_send_init.ref_time().into(),
+            gr_send_push: weights.gr_send_push.ref_time().into(),
+            gr_send_push_per_byte: weights.gr_send_push_per_byte.ref_time().into(),
+            gr_send_commit: weights.gr_send_commit.ref_time().into(),
+            gr_send_commit_wgas: weights.gr_send_commit_wgas.ref_time().into(),
+            gr_reservation_send: weights.gr_reservation_send.ref_time().into(),
+            gr_reservation_send_per_byte: weights.gr_reservation_send_per_byte.ref_time().into(),
+            gr_reservation_send_commit: weights.gr_reservation_send_commit.ref_time().into(),
+            gr_send_input: weights.gr_send_input.ref_time().into(),
+            gr_send_input_wgas: weights.gr_send_input_wgas.ref_time().into(),
+            gr_send_push_input: weights.gr_send_push_input.ref_time().into(),
+            gr_send_push_input_per_byte: weights.gr_send_push_input_per_byte.ref_time().into(),
+            gr_reply: weights.gr_reply.ref_time().into(),
+            gr_reply_per_byte: weights.gr_reply_per_byte.ref_time().into(),
+            gr_reply_wgas: weights.gr_reply_wgas.ref_time().into(),
+            gr_reply_wgas_per_byte: weights.gr_reply_wgas_per_byte.ref_time().into(),
+            gr_reply_push: weights.gr_reply_push.ref_time().into(),
+            gr_reply_push_per_byte: weights.gr_reply_push_per_byte.ref_time().into(),
+            gr_reply_commit: weights.gr_reply_commit.ref_time().into(),
+            gr_reply_commit_wgas: weights.gr_reply_commit_wgas.ref_time().into(),
+            gr_reservation_reply: weights.gr_reservation_reply.ref_time().into(),
+            gr_reservation_reply_per_byte: weights.gr_reservation_reply_per_byte.ref_time().into(),
+            gr_reservation_reply_commit: weights.gr_reservation_reply_commit.ref_time().into(),
+            gr_reply_input: weights.gr_reply_input.ref_time().into(),
+            gr_reply_input_wgas: weights.gr_reply_input_wgas.ref_time().into(),
+            gr_reply_push_input: weights.gr_reply_push_input.ref_time().into(),
+            gr_reply_push_input_per_byte: weights.gr_reply_push_input_per_byte.ref_time().into(),
+            gr_debug: weights.gr_debug.ref_time().into(),
+            gr_debug_per_byte: weights.gr_debug_per_byte.ref_time().into(),
+            gr_reply_to: weights.gr_reply_to.ref_time().into(),
+            gr_signal_code: weights.gr_signal_code.ref_time().into(),
+            gr_signal_from: weights.gr_signal_from.ref_time().into(),
+            gr_reply_code: weights.gr_reply_code.ref_time().into(),
+            gr_exit: weights.gr_exit.ref_time().into(),
+            gr_leave: weights.gr_leave.ref_time().into(),
+            gr_wait: weights.gr_wait.ref_time().into(),
+            gr_wait_for: weights.gr_wait_for.ref_time().into(),
+            gr_wait_up_to: weights.gr_wait_up_to.ref_time().into(),
+            gr_wake: weights.gr_wake.ref_time().into(),
+            gr_create_program: weights.gr_create_program.ref_time().into(),
+            gr_create_program_payload_per_byte: weights
+                .gr_create_program_payload_per_byte
+                .ref_time()
+                .into(),
+            gr_create_program_salt_per_byte: weights
+                .gr_create_program_salt_per_byte
+                .ref_time()
+                .into(),
+            gr_create_program_wgas: weights.gr_create_program_wgas.ref_time().into(),
+            gr_create_program_wgas_payload_per_byte: weights
                 .gr_create_program_wgas_payload_per_byte
-                .ref_time(),
-            gr_create_program_wgas_salt_per_byte: self
+                .ref_time()
+                .into(),
+            gr_create_program_wgas_salt_per_byte: weights
                 .gr_create_program_wgas_salt_per_byte
-                .ref_time(),
+                .ref_time()
+                .into(),
         }
     }
 }
 
-impl<T: Config> Default for HostFnWeights<T> {
+impl<T: Config> Default for SyscallWeights<T> {
     fn default() -> Self {
         Self {
             gr_reply_deposit: to_weight!(cost_batched!(gr_reply_deposit))
@@ -1138,7 +1160,7 @@ struct ScheduleRules<'a, T: Config> {
 }
 
 impl<T: Config> Schedule<T> {
-    pub fn rules(&self, module: &elements::Module) -> impl gas_metering::Rules + '_ {
+    pub fn rules(&self, module: &Module) -> impl Rules + '_ {
         ScheduleRules {
             schedule: self,
             params: module
@@ -1146,17 +1168,41 @@ impl<T: Config> Schedule<T> {
                 .iter()
                 .flat_map(|section| section.types())
                 .map(|func| {
-                    let elements::Type::Function(func) = func;
+                    let Type::Function(func) = func;
                     func.params().len() as u32
                 })
                 .collect(),
         }
     }
+
+    pub fn process_costs(&self) -> ProcessCosts {
+        ProcessCosts {
+            ext: ExtCosts {
+                syscalls: self.syscall_weights.clone().into(),
+                rent: RentCosts {
+                    waitlist: CostsPerBlockOf::<T>::waitlist().into(),
+                    dispatch_stash: CostsPerBlockOf::<T>::dispatch_stash().into(),
+                    reservation: CostsPerBlockOf::<T>::reservation().into(),
+                },
+                mem_grow: self.memory_weights.mem_grow.ref_time().into(),
+            },
+            lazy_pages: self.memory_weights.clone().into(),
+            read: DbWeightOf::<T>::get().reads(1).ref_time().into(),
+            read_per_byte: self.db_read_per_byte.ref_time().into(),
+            write: DbWeightOf::<T>::get().writes(1).ref_time().into(),
+            static_page: self.memory_weights.static_page.ref_time().into(),
+            instrumentation: self.code_instrumentation_cost.ref_time().into(),
+            instrumentation_per_byte: self.code_instrumentation_byte_cost.ref_time().into(),
+            module_instantiation_per_byte: self.module_instantiation_per_byte.ref_time().into(),
+        }
+    }
 }
 
-impl<'a, T: Config> gas_metering::Rules for ScheduleRules<'a, T> {
-    fn instruction_cost(&self, instruction: &elements::Instruction) -> Option<u32> {
-        use self::elements::{Instruction::*, SignExtInstruction::*};
+impl<'a, T: Config> Rules for ScheduleRules<'a, T> {
+    fn instruction_cost(&self, instruction: &Instruction) -> Option<u32> {
+        use Instruction::*;
+        use SignExtInstruction::*;
+
         let w = &self.schedule.instruction_weights;
         let max_params = self.schedule.limits.parameters;
 
@@ -1267,8 +1313,8 @@ impl<'a, T: Config> gas_metering::Rules for ScheduleRules<'a, T> {
         Some(weight)
     }
 
-    fn memory_grow_cost(&self) -> gas_metering::MemoryGrowCost {
-        gas_metering::MemoryGrowCost::Free
+    fn memory_grow_cost(&self) -> MemoryGrowCost {
+        MemoryGrowCost::Free
     }
 
     fn call_per_local_cost(&self) -> u32 {
@@ -1280,11 +1326,14 @@ impl<'a, T: Config> gas_metering::Rules for ScheduleRules<'a, T> {
 mod test {
     use super::*;
     use crate::mock::Test;
-    use gas_metering::Rules;
-    use gear_wasm_instrument::rules::CustomConstantCostRules;
+    use gear_wasm_instrument::{
+        gas_metering::{CustomConstantCostRules, Rules, Schedule as WasmInstrumentSchedule},
+        parity_wasm::elements,
+    };
 
-    fn all_measured_instructions() -> Vec<elements::Instruction> {
+    fn all_measured_instructions() -> Vec<Instruction> {
         use elements::{BlockType, BrTableData, Instruction::*};
+
         let default_table_data = BrTableData {
             table: Default::default(),
             default: 0,
@@ -1399,7 +1448,7 @@ mod test {
         ]
     }
 
-    fn default_wasm_module() -> elements::Module {
+    fn default_wasm_module() -> Module {
         let simple_wat = r#"
         (module
             (import "env" "memory" (memory 1))
@@ -1408,7 +1457,7 @@ mod test {
             (func $handle)
             (func $init)
         )"#;
-        elements::Module::from_bytes(
+        Module::from_bytes(
             wabt::Wat2Wasm::new()
                 .validate(false)
                 .convert(simple_wat)
@@ -1425,15 +1474,23 @@ mod test {
     #[test]
     fn instructions_backward_compatibility() {
         let schedule = Schedule::<Test>::default();
+        let wasm_instrument_schedule = WasmInstrumentSchedule::default();
 
         // used in `pallet-gear` to estimate the gas used by the program
         let schedule_rules = schedule.rules(&default_wasm_module());
 
-        // used in `gear-wasm-builder` to check program code at an early stage
+        // used to simulate real gas from `pallet-gear` in crates like gtest
+        let wasm_instrument_schedule_rules = wasm_instrument_schedule.rules(&default_wasm_module());
+
+        // used to simulate gas and reject unsupported instructions in unit tests
         let custom_cost_rules = CustomConstantCostRules::default();
 
         all_measured_instructions().iter().for_each(|i| {
             assert!(schedule_rules.instruction_cost(i).is_some());
+            assert_eq!(
+                schedule_rules.instruction_cost(i),
+                wasm_instrument_schedule_rules.instruction_cost(i)
+            );
             assert!(custom_cost_rules.instruction_cost(i).is_some());
         })
     }

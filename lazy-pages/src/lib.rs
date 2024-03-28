@@ -45,7 +45,7 @@ mod tests;
 
 pub use crate::common::LazyPagesStorage;
 use crate::{
-    common::{ContextError, LazyPagesContext, PagePrefix, PageSizes, WeightNo, Weights},
+    common::{ContextError, LazyPagesContext, PagePrefix, PageSizes, CostNo, Costs},
     globals::{GlobalNo, GlobalsContext},
     init_flag::InitializationFlag,
     pages::{
@@ -99,8 +99,8 @@ pub enum Error {
     #[display(fmt = "{_0}")]
     #[from]
     GlobalContext(ContextError),
-    #[display(fmt = "Wrong weights amount: get {_0}, must be {_1}")]
-    WrongWeightsAmount(usize, usize),
+    #[display(fmt = "Wrong costs amount: get {_0}, must be {_1}")]
+    WrongCostsAmount(usize, usize),
 }
 
 fn check_memory_interval(addr: usize, size: usize) -> Result<(), Error> {
@@ -115,7 +115,7 @@ pub fn initialize_for_program(
     stack_end: Option<u32>,
     program_key: Vec<u8>,
     globals_config: Option<GlobalsAccessConfig>,
-    weights: Vec<u64>,
+    costs: Vec<u64>,
 ) -> Result<(), Error> {
     // Initialize new execution context
     LAZY_PAGES_CONTEXT.with(|ctx| {
@@ -148,12 +148,12 @@ pub fn initialize_for_program(
 
         let stack_end = WasmPage::new(runtime_ctx, stack_end).ok_or(Error::StackEndOverflow)?;
 
-        let weights: Weights = weights.try_into().map_err(|ws: Vec<u64>| {
-            Error::WrongWeightsAmount(ws.len(), WeightNo::Amount as usize)
+        let costs: Costs = costs.try_into().map_err(|costs: Vec<u64>| {
+            Error::WrongCostsAmount(costs.len(), CostNo::Amount as usize)
         })?;
 
         let execution_ctx = LazyPagesExecutionContext {
-            weights,
+            costs,
             wasm_mem_addr,
             wasm_mem_size,
             program_storage_prefix: PagePrefix::new_from_program_prefix(

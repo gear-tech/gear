@@ -35,8 +35,8 @@ use gear_core_backend::{
 use gear_core_processor::{ProcessorContext, ProcessorExternalities};
 use gear_utils::NonEmpty;
 use gear_wasm_instrument::{
+    gas_metering::CustomConstantCostRules,
     parity_wasm::{self, elements::Module},
-    rules::CustomConstantCostRules,
 };
 use proptest::prelude::*;
 use rand::{rngs::SmallRng, RngCore, SeedableRng};
@@ -49,7 +49,6 @@ proptest! {
     #[test]
     // Test that valid config always generates a valid gear wasm.
     fn test_standard_config(buf in prop::collection::vec(any::<u8>(), UNSTRUCTURED_SIZE)) {
-        use gear_wasm_instrument::rules::CustomConstantCostRules;
         let mut u = Unstructured::new(&buf);
         let configs_bundle: StandardGearWasmConfigsBundle = StandardGearWasmConfigsBundle {
             log_info: Some("Some data".into()),
@@ -414,12 +413,10 @@ fn error_processing_works_for_fallible_syscalls() {
     let mut unstructured = Unstructured::new(&buf);
     let mut unstructured2 = Unstructured::new(&buf);
 
-    let fallible_syscalls = SyscallName::instrumentable()
-        .into_iter()
-        .filter_map(|syscall| {
-            let invocable_syscall = InvocableSyscall::Loose(syscall);
-            invocable_syscall.is_fallible().then_some(invocable_syscall)
-        });
+    let fallible_syscalls = SyscallName::instrumentable().filter_map(|syscall| {
+        let invocable_syscall = InvocableSyscall::Loose(syscall);
+        invocable_syscall.is_fallible().then_some(invocable_syscall)
+    });
 
     for syscall in fallible_syscalls {
         // Prepare syscalls config & context settings for test case.
@@ -486,12 +483,9 @@ fn precise_syscalls_works() {
     rng.fill_bytes(&mut buf);
     let mut unstructured = Unstructured::new(&buf);
 
-    let precise_syscalls = SyscallName::instrumentable()
-        .into_iter()
-        .filter_map(|syscall| {
-            InvocableSyscall::has_precise_variant(syscall)
-                .then_some(InvocableSyscall::Precise(syscall))
-        });
+    let precise_syscalls = SyscallName::instrumentable().filter_map(|syscall| {
+        InvocableSyscall::has_precise_variant(syscall).then_some(InvocableSyscall::Precise(syscall))
+    });
 
     for syscall in precise_syscalls {
         // Prepare syscalls config & context settings for test case.
@@ -604,7 +598,6 @@ fn execute_wasm_with_custom_configs(
 
     let processor_context = ProcessorContext {
         message_context,
-        max_pages: INITIAL_PAGES.into(),
         program_id,
         value_counter: ValueCounter::new(value),
         ..ProcessorContext::new_mock()
@@ -620,7 +613,7 @@ fn execute_wasm_with_custom_configs(
     )
     .expect("Failed to create environment");
 
-    env.execute(|mem, _stack_end, globals_config| -> Result<(), u32> {
+    env.execute(|mem, globals_config| {
         gear_core_processor::Ext::lazy_pages_init_for_program(
             mem,
             program_id,
@@ -635,12 +628,9 @@ fn execute_wasm_with_custom_configs(
         );
 
         if let Some(mem_write) = initial_memory_write {
-            return mem
-                .write(mem_write.offset, &mem_write.content)
-                .map_err(|_| 1);
+            mem.write(mem_write.offset, &mem_write.content)
+                .expect("Failed to write to memory");
         };
-
-        Ok(())
     })
     .expect("Failed to execute WASM module")
 }

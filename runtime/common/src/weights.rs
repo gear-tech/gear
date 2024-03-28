@@ -1,5 +1,4 @@
-use gear_core_processor::configs::PageCosts;
-use gear_lazy_pages_common::LazyPagesWeights;
+use gear_lazy_pages_common::LazyPagesCosts;
 use pallet_gear::InstructionWeights;
 
 const INSTRUCTIONS_SPREAD: u8 = 50;
@@ -124,83 +123,43 @@ pub fn check_instructions_weights<T: pallet_gear::Config>(
     check_instruction_weight(weights.i32rotr, expected.i32rotr);
 }
 
-/// Check that the weights of page operations are within the expected range
-pub fn check_pages_weights(
-    weights: PageCosts,
-    expected_page_costs: PageCosts,
-    lazy_pages_weights: LazyPagesWeights,
-    expected_lazy_pages_weights: LazyPagesWeights,
+/// Check that the lazy-pages costs are within the expected range
+pub fn check_lazy_pages_costs(
+    lazy_pages_costs: LazyPagesCosts,
+    expected_lazy_pages_costs: LazyPagesCosts,
 ) {
     check_pages_weight(
-        weights.lazy_pages_signal_read.one(),
-        expected_page_costs.lazy_pages_signal_read.one(),
+        lazy_pages_costs.signal_read.cost_for_one(),
+        expected_lazy_pages_costs.signal_read.cost_for_one(),
     );
     check_pages_weight(
-        weights.lazy_pages_signal_write.one(),
-        expected_page_costs.lazy_pages_signal_write.one(),
+        lazy_pages_costs.signal_write.cost_for_one(),
+        expected_lazy_pages_costs.signal_write.cost_for_one(),
     );
     check_pages_weight(
-        weights.lazy_pages_signal_write_after_read.one(),
-        expected_page_costs.lazy_pages_signal_write_after_read.one(),
+        lazy_pages_costs.signal_write_after_read.cost_for_one(),
+        expected_lazy_pages_costs
+            .signal_write_after_read
+            .cost_for_one(),
     );
     check_pages_weight(
-        weights.lazy_pages_host_func_read.one(),
-        expected_page_costs.lazy_pages_host_func_read.one(),
+        lazy_pages_costs.host_func_read.cost_for_one(),
+        expected_lazy_pages_costs.host_func_read.cost_for_one(),
     );
     check_pages_weight(
-        weights.lazy_pages_host_func_write.one(),
-        expected_page_costs.lazy_pages_host_func_write.one(),
+        lazy_pages_costs.host_func_write.cost_for_one(),
+        expected_lazy_pages_costs.host_func_write.cost_for_one(),
     );
     check_pages_weight(
-        weights.lazy_pages_host_func_write_after_read.one(),
-        expected_page_costs
-            .lazy_pages_host_func_write_after_read
-            .one(),
+        lazy_pages_costs.host_func_write_after_read.cost_for_one(),
+        expected_lazy_pages_costs
+            .host_func_write_after_read
+            .cost_for_one(),
     );
     check_pages_weight(
-        weights.load_page_data.one(),
-        expected_page_costs.load_page_data.one(),
-    );
-    check_pages_weight(
-        weights.upload_page_data.one(),
-        expected_page_costs.upload_page_data.one(),
-    );
-    check_pages_weight(
-        weights.static_page.one(),
-        expected_page_costs.static_page.one(),
-    );
-    check_pages_weight(weights.mem_grow, expected_page_costs.mem_grow);
-    check_pages_weight(
-        weights.parachain_load_heuristic.one(),
-        expected_page_costs.parachain_load_heuristic.one(),
-    );
-
-    check_pages_weight(
-        lazy_pages_weights.signal_read.one(),
-        expected_lazy_pages_weights.signal_read.one(),
-    );
-    check_pages_weight(
-        lazy_pages_weights.signal_write.one(),
-        expected_lazy_pages_weights.signal_write.one(),
-    );
-    check_pages_weight(
-        lazy_pages_weights.signal_write_after_read.one(),
-        expected_lazy_pages_weights.signal_write_after_read.one(),
-    );
-    check_pages_weight(
-        lazy_pages_weights.host_func_read.one(),
-        expected_lazy_pages_weights.host_func_read.one(),
-    );
-    check_pages_weight(
-        lazy_pages_weights.host_func_write.one(),
-        expected_lazy_pages_weights.host_func_write.one(),
-    );
-    check_pages_weight(
-        lazy_pages_weights.host_func_write_after_read.one(),
-        expected_lazy_pages_weights.host_func_write_after_read.one(),
-    );
-    check_pages_weight(
-        lazy_pages_weights.load_page_storage_data.one(),
-        expected_lazy_pages_weights.load_page_storage_data.one(),
+        lazy_pages_costs.load_page_storage_data.cost_for_one(),
+        expected_lazy_pages_costs
+            .load_page_storage_data
+            .cost_for_one(),
     );
 }

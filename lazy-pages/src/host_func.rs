@@ -19,7 +19,7 @@
 //! Host function call `pre_process_memory_accesses` support in lazy-pages.
 
 use crate::{
-    common::{Error, GasCharger, LazyPagesExecutionContext, LazyPagesRuntimeContext, WeightNo},
+    common::{Error, GasCharger, LazyPagesExecutionContext, LazyPagesRuntimeContext, CostNo},
     pages::GearPage,
     process::{self, AccessHandler},
     LAZY_PAGES_CONTEXT,
@@ -137,10 +137,10 @@ pub fn pre_process_memory_accesses(
 
             let gas_charger = {
                 GasCharger {
-                    read_cost: exec_ctx.weight(WeightNo::HostFuncRead),
-                    write_cost: exec_ctx.weight(WeightNo::HostFuncWrite),
-                    write_after_read_cost: exec_ctx.weight(WeightNo::HostFuncWriteAfterRead),
-                    load_data_cost: exec_ctx.weight(WeightNo::LoadPageDataFromStorage),
+                    read_cost: exec_ctx.cost(CostNo::HostFuncRead),
+                    write_cost: exec_ctx.cost(CostNo::HostFuncWrite),
+                    write_after_read_cost: exec_ctx.cost(CostNo::HostFuncWriteAfterRead),
+                    load_data_cost: exec_ctx.cost(CostNo::LoadPageDataFromStorage),
                 }
             };
             let mut status = Status::Normal;

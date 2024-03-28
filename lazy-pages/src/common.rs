@@ -125,7 +125,7 @@ impl LazyPagesContext {
     }
 }
 
-pub(crate) type Weights = [u64; WeightNo::Amount as usize];
+pub(crate) type Costs = [u64; CostNo::Amount as usize];
 pub(crate) type GlobalNames = Vec<LimitedStr<'static>>;
 pub(crate) type PageSizes = [NonZeroU32; SIZES_AMOUNT];
 
@@ -172,8 +172,8 @@ pub trait LazyPagesStorage: fmt::Debug {
 
 #[derive(Debug)]
 pub(crate) struct LazyPagesExecutionContext {
-    /// Lazy-pages accesses weights.
-    pub weights: Weights,
+    /// Lazy-pages accesses costs.
+    pub costs: Costs,
     /// Pointer to the begin of wasm memory buffer
     pub wasm_mem_addr: Option<usize>,
     /// Wasm memory buffer size, to identify whether signal is from wasm memory buffer.
@@ -231,8 +231,8 @@ impl LazyPagesExecutionContext {
         Ok(())
     }
 
-    pub fn weight(&self, no: WeightNo) -> u64 {
-        self.weights[no as usize]
+    pub fn cost(&self, no: CostNo) -> u64 {
+        self.costs[no as usize]
     }
 }
 
@@ -304,7 +304,7 @@ impl GasCharger {
     }
 }
 
-pub(crate) enum WeightNo {
+pub(crate) enum CostNo {
     SignalRead = 0,
     SignalWrite = 1,
     SignalWriteAfterRead = 2,

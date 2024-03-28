@@ -20,19 +20,17 @@
 
 use alloc::{collections::BTreeSet, vec::Vec};
 use gear_core::{
-    costs::{CostPerPage, HostFnWeights},
-    pages::{GearPagesAmount, WasmPagesAmount},
+    costs::{BlocksAmount, BytesAmount, CallsAmount, CostOf, SyscallCosts},
+    pages::WasmPagesAmount,
 };
-use gear_lazy_pages_common::LazyPagesWeights;
+use gear_lazy_pages_common::LazyPagesCosts;
 use gear_wasm_instrument::syscalls::SyscallName;
-use scale_info::scale::{self, Decode, Encode};
 
 /// Number of max pages number to use it in tests.
 pub const TESTS_MAX_PAGES_NUMBER: u16 = 512;
 
 /// Contextual block information.
-#[derive(Clone, Copy, Debug, Encode, Decode, Default)]
-#[codec(crate = scale)]
+#[derive(Clone, Copy, Debug, Default)]
 pub struct BlockInfo {
     /// Height.
     pub height: u32,
@@ -40,136 +38,71 @@ pub struct BlockInfo {
     pub timestamp: u64,
 }
 
-/// Memory operations costs.
-///
-/// Each weight with `lazy_pages_` prefix contains weight for storage read,
-/// because for each first page access we need at least check if page exists in storage.
-/// But they do not include cost for loading page data from storage into program memory.
-/// This weight is taken in account separately, when loading occurs.
-///
-/// Lazy-pages write accesses does not include cost for uploading page data to storage,
-/// because uploading happens after execution, so benchmarks do not include this cost.
-/// But they include cost for processing changed page data in runtime.
-#[derive(Clone, Debug, Decode, Encode, Default)]
-#[codec(crate = scale)]
-pub struct PageCosts {
-    /// Cost per one [GearPage] signal `read` processing in lazy-pages.
-    pub lazy_pages_signal_read: CostPerPage<GearPagesAmount>,
-
-    /// Cost per one [GearPage] signal `write` processing in lazy-pages,
-    pub lazy_pages_signal_write: CostPerPage<GearPagesAmount>,
-
-    /// Cost per one [GearPage] signal `write after read` processing in lazy-pages.
-    pub lazy_pages_signal_write_after_read: CostPerPage<GearPagesAmount>,
-
-    /// Cost per one [GearPage] host func `read` access processing in lazy-pages.
-    pub lazy_pages_host_func_read: CostPerPage<GearPagesAmount>,
-
-    /// Cost per one [GearPage] host func `write` access processing in lazy-pages.
-    pub lazy_pages_host_func_write: CostPerPage<GearPagesAmount>,
-
-    /// Cost per one [GearPage] host func `write after read` access processing in lazy-pages,
-    pub lazy_pages_host_func_write_after_read: CostPerPage<GearPagesAmount>,
-
-    /// Cost per one [GearPage] data loading from storage and moving it in program memory.
-    /// Does not include cost for storage read, because it is taken in account separately.
-    pub load_page_data: CostPerPage<GearPagesAmount>,
-
-    /// Cost per one [GearPage] uploading data to storage.
-    /// Does not include cost for processing changed page data in runtime,
-    /// cause it is taken in account separately.
-    pub upload_page_data: CostPerPage<GearPagesAmount>,
-
-    /// Cost per one [WasmPage] static page. Static pages can have static data,
-    /// and executor must to move this data to static pages before execution.
-    pub static_page: CostPerPage<WasmPagesAmount>,
-
-    /// Cost per one memory growing call.
-    pub mem_grow: u64,
-
-    /// Cost of growing memory per one page.
-    pub mem_grow_per_page: CostPerPage<WasmPagesAmount>,
-
-    /// Cost per one [GearPage] storage read, when para-chain execution.
-    pub parachain_load_heuristic: CostPerPage<GearPagesAmount>,
+/// Holding in storages rent costs.
+#[derive(Debug, Default, Clone)]
+pub struct RentCosts {
+    /// Holding message in waitlist cost per block.
+    pub waitlist: CostOf<BlocksAmount>,
+    /// Holding message in dispatch stash cost per block.
+    pub dispatch_stash: CostOf<BlocksAmount>,
+    /// Holding reservation cost per block.
+    pub reservation: CostOf<BlocksAmount>,
 }
 
-impl PageCosts {
-    /// Calculates and returns weights for lazy-pages.
-    pub fn lazy_pages_weights(&self) -> LazyPagesWeights {
-        // Because page may have not data in storage, we do not include
-        // cost for loading page data from storage in weights. We provide
-        // this cost in `load_page_data` field, so lazy-pages can use it
-        // when page data is in storage and must be loaded.
-        // On other hand we include cost for uploading page data to storage
-        // in each `write` weight, because each write cause page uploading.
-        LazyPagesWeights {
-            signal_read: self.lazy_pages_signal_read,
-            signal_write: self
-                .lazy_pages_signal_write
-                .saturating_add(self.upload_page_data),
-            signal_write_after_read: self
-                .lazy_pages_signal_write_after_read
-                .saturating_add(self.upload_page_data),
-            host_func_read: self.lazy_pages_host_func_read,
-            host_func_write: self
-                .lazy_pages_host_func_write
-                .saturating_add(self.upload_page_data),
-            host_func_write_after_read: self
-                .lazy_pages_host_func_write_after_read
-                .saturating_add(self.upload_page_data),
-            load_page_storage_data: self
-                .load_page_data
-                .saturating_add(self.parachain_load_heuristic),
-        }
-    }
-    /// New one for tests usage.
-    pub fn new_for_tests() -> Self {
-        let a = 1000.into();
-        let b = 4000.into();
-        Self {
-            lazy_pages_signal_read: a,
-            lazy_pages_signal_write: a,
-            lazy_pages_signal_write_after_read: a,
-            lazy_pages_host_func_read: a,
-            lazy_pages_host_func_write: a,
-            lazy_pages_host_func_write_after_read: a,
-            load_page_data: a,
-            upload_page_data: a,
-            static_page: b,
-            mem_grow: 4000,
-            mem_grow_per_page: 0.into(),
-            parachain_load_heuristic: a,
-        }
-    }
+/// Execution externalities costs.
+#[derive(Debug, Default, Clone)]
+pub struct ExtCosts {
+    /// Syscalls costs.
+    pub syscalls: SyscallCosts,
+    /// Rent costs.
+    pub rent: RentCosts,
+    /// Memory grow cost per page.
+    pub mem_grow: CostOf<WasmPagesAmount>,
+}
+
+/// Costs for message processing
+#[derive(Clone, Debug, Default)]
+pub struct ProcessCosts {
+    /// Execution externalities costs.
+    pub ext: ExtCosts,
+    /// Lazy pages costs.
+    pub lazy_pages: LazyPagesCosts,
+    /// Storage read cost.
+    pub read: CostOf<CallsAmount>,
+    /// Storage read per byte cost.
+    pub read_per_byte: CostOf<BytesAmount>,
+    /// Storage write cost.
+    pub write: CostOf<CallsAmount>,
+    /// Code instrumentation cost.
+    pub instrumentation: CostOf<CallsAmount>,
+    /// Code instrumentation per byte cost.
+    pub instrumentation_per_byte: CostOf<BytesAmount>,
+    /// Static page cost.
+    pub static_page: CostOf<WasmPagesAmount>,
+    /// WASM module instantiation per byte cost.
+    pub module_instantiation_per_byte: CostOf<BytesAmount>,
 }
 
 /// Execution settings for handling messages.
-pub struct ExecutionSettings {
+pub(crate) struct ExecutionSettings {
     /// Contextual block information.
     pub block_info: BlockInfo,
     /// Performance multiplier.
     pub performance_multiplier: gsys::Percent,
-    /// Max amount of pages in program memory during execution.
-    pub max_pages: WasmPagesAmount,
-    /// Pages costs.
-    pub page_costs: PageCosts,
-    /// Minimal amount of existence for account.
+    /// Execution externalities costs.
+    pub ext_costs: ExtCosts,
+    /// Lazy pages costs.
+    pub lazy_pages_costs: LazyPagesCosts,
+    /// Existential deposit.
     pub existential_deposit: u128,
-    /// Weights of host functions.
-    pub host_fn_weights: HostFnWeights,
-    /// Functions forbidden to be called.
-    pub forbidden_funcs: BTreeSet<SyscallName>,
-    /// Threshold for inserting into mailbox
+    /// Mailbox threshold.
     pub mailbox_threshold: u64,
-    /// Cost for single block waitlist holding.
-    pub waitlist_cost: u64,
-    /// Cost of holding a message in dispatch stash.
-    pub dispatch_hold_cost: u64,
+    /// Max allowed memory size.
+    pub max_pages: WasmPagesAmount,
+    /// Forbidden functions.
+    pub forbidden_funcs: BTreeSet<SyscallName>,
     /// Reserve for parameter of scheduling.
     pub reserve_for: u32,
-    /// Cost for reservation holding.
-    pub reservation: u64,
     /// Most recently determined random seed, along with the time in the past since when it was determinable by chain observers.
     // TODO: find a way to put a random seed inside block config.
     pub random_data: (Vec<u8>, u32),
@@ -184,46 +117,24 @@ pub struct BlockConfig {
     pub block_info: BlockInfo,
     /// Performance multiplier.
     pub performance_multiplier: gsys::Percent,
-    /// Max allowed page numbers for wasm program.
-    pub max_pages: WasmPagesAmount,
-    /// Allocations config.
-    pub page_costs: PageCosts,
+    /// Forbidden functions.
+    pub forbidden_funcs: BTreeSet<SyscallName>,
+    /// Reserve for parameter of scheduling.
+    pub reserve_for: u32,
+    /// Gas multiplier.
+    pub gas_multiplier: gsys::GasMultiplier,
+    /// Program processing costs.
+    pub costs: ProcessCosts,
     /// Existential deposit.
     pub existential_deposit: u128,
+    /// Mailbox threshold.
+    pub mailbox_threshold: u64,
+    /// Amount of reservations can exist for 1 program.
+    pub max_reservations: u64,
+    /// Max allowed page numbers for wasm program.
+    pub max_pages: WasmPagesAmount,
     /// Outgoing limit.
     pub outgoing_limit: u32,
     /// Outgoing bytes limit.
     pub outgoing_bytes_limit: u32,
-    /// Host function weights.
-    pub host_fn_weights: HostFnWeights,
-    /// Forbidden functions.
-    pub forbidden_funcs: BTreeSet<SyscallName>,
-    /// Mailbox threshold.
-    pub mailbox_threshold: u64,
-    /// Cost for single block waitlist holding.
-    pub waitlist_cost: u64,
-    /// Cost of holding a message in dispatch stash.
-    pub dispatch_hold_cost: u64,
-    /// Reserve for parameter of scheduling.
-    pub reserve_for: u32,
-    /// Cost for reservation holding.
-    pub reservation: u64,
-    /// One-time db-read cost.
-    pub read_cost: u64,
-    /// One-time db-write cost.
-    pub write_cost: u64,
-    /// Per written byte cost.
-    pub write_per_byte_cost: u64,
-    /// Per loaded byte cost.
-    pub read_per_byte_cost: u64,
-    /// WASM module instantiation byte cost.
-    pub module_instantiation_byte_cost: u64,
-    /// Amount of reservations can exist for 1 program.
-    pub max_reservations: u64,
-    /// WASM code instrumentation base cost.
-    pub code_instrumentation_cost: u64,
-    /// WASM code instrumentation per-byte cost.
-    pub code_instrumentation_byte_cost: u64,
-    /// Gas multiplier.
-    pub gas_multiplier: gsys::GasMultiplier,
 }

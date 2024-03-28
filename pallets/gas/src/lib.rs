@@ -130,9 +130,10 @@ use common::{
     storage::{MapStorage, ValueStorage},
     BlockLimiter, GasProvider,
 };
-use frame_support::{dispatch::DispatchError, pallet_prelude::*, traits::StorageVersion};
+use frame_support::{pallet_prelude::*, traits::StorageVersion};
 pub use pallet::*;
 pub use primitive_types::H256;
+use sp_runtime::DispatchError;
 use sp_std::convert::TryInto;
 
 #[cfg(test)]

@@ -44,15 +44,18 @@ mod tests;
 pub mod pallet_tests;
 
 pub use crate::{
-    builtin::{BuiltinCache, BuiltinDispatcher, BuiltinDispatcherFactory, HandleFn},
+    builtin::{BuiltinDispatcher, BuiltinDispatcherFactory, HandleFn},
     manager::{ExtManager, HandleKind},
     pallet::*,
-    schedule::{HostFnWeights, InstructionWeights, Limits, MemoryWeights, Schedule},
+    schedule::{InstructionWeights, Limits, MemoryWeights, Schedule, SyscallWeights},
 };
-pub use gear_core::{gas::GasInfo, pages::WasmPagesAmount};
+pub use gear_core::{gas::GasInfo, message::ReplyInfo, pages::WasmPagesAmount};
 pub use weights::WeightInfo;
 
-use alloc::{format, string::String};
+use alloc::{
+    format,
+    string::{String, ToString},
+};
 use common::{
     self, event::*, gas_provider::GasNodeId, paused_program_storage::SessionId, scheduler::*,
     storage::*, BlockLimiter, CodeMetadata, CodeStorage, GasProvider, GasTree, Origin,
@@ -65,7 +68,7 @@ use core_processor::{
     Ext,
 };
 use frame_support::{
-    dispatch::{DispatchError, DispatchResultWithPostInfo, PostDispatchInfo},
+    dispatch::{DispatchResultWithPostInfo, PostDispatchInfo},
     ensure,
     pallet_prelude::*,
     traits::{ConstBool, Currency, ExistenceRequirement, Get, Randomness, StorageVersion},
@@ -86,7 +89,7 @@ use pallet_gear_voucher::{PrepaidCall, PrepaidCallsDispatcher, VoucherId, Weight
 use primitive_types::H256;
 use sp_runtime::{
     traits::{Bounded, One, Saturating, UniqueSaturatedInto, Zero},
-    SaturatedConversion,
+    DispatchError, SaturatedConversion,
 };
 use sp_std::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
@@ -100,6 +103,7 @@ pub(crate) type BalanceOf<T> = <CurrencyOf<T> as Currency<AccountIdOf<T>>>::Bala
 pub(crate) type SentOf<T> = <<T as Config>::Messenger as Messenger>::Sent;
 pub(crate) type DbWeightOf<T> = <T as frame_system::Config>::DbWeight;
 pub(crate) type DequeuedOf<T> = <<T as Config>::Messenger as Messenger>::Dequeued;
+pub(crate) type PalletInfoOf<T> = <T as frame_system::Config>::PalletInfo;
 pub(crate) type QueueProcessingOf<T> = <<T as Config>::Messenger as Messenger>::QueueProcessing;
 pub(crate) type QueueOf<T> = <<T as Config>::Messenger as Messenger>::Queue;
 pub(crate) type MailboxOf<T> = <<T as Config>::Messenger as Messenger>::Mailbox;
@@ -270,9 +274,6 @@ pub mod pallet {
 
         /// The builtin dispatcher factory.
         type BuiltinDispatcherFactory: BuiltinDispatcherFactory;
-
-        /// The builtin cache for quick actor ids lookup.
-        type BuiltinCache: BuiltinCache;
 
         /// The account id of the rent pool if any.
         #[pallet::constant]
@@ -584,9 +585,10 @@ pub mod pallet {
             );
 
             let program_id = packet.destination();
+            let (builtins, _) = T::BuiltinDispatcherFactory::create();
             // Make sure there is no program with such id in program storage
             ensure!(
-                !Self::program_exists(program_id),
+                !Self::program_exists(&builtins, program_id),
                 Error::<T>::ProgramAlreadyExists
             );
 
@@ -612,7 +614,7 @@ pub mod pallet {
             let message_id = Self::next_message_id(origin);
             let block_number = Self::block_number();
 
-            ExtManager::<T>::default().set_program(
+            ExtManager::<T>::new(builtins).set_program(
                 program_id,
                 &code_info,
                 message_id,
@@ -724,6 +726,7 @@ pub mod pallet {
                 false,
                 gas_allowance,
             )
+            .map_err(|e| e.into_bytes())
         }
 
         #[cfg(test)]
@@ -765,40 +768,70 @@ pub mod pallet {
 
             let GasInfo {
                 min_limit, waited, ..
-            } = Self::run_with_ext_copy(|| {
-                calc_gas(BlockGasLimitOf::<T>::get()).map_err(|e| {
-                    String::from_utf8(e)
-                        .unwrap_or_else(|_| String::from("Failed to parse error to string"))
-                })
-            })?;
+            } = Self::run_with_ext_copy(|| calc_gas(BlockGasLimitOf::<T>::get()))?;
 
             log::debug!("\n--- SECOND TRY ---\n");
 
             let res = Self::run_with_ext_copy(|| {
-                calc_gas(min_limit)
-                    .map(
-                        |GasInfo {
-                             reserved,
-                             burned,
-                             may_be_returned,
-                             ..
-                         }| GasInfo {
-                            min_limit,
-                            reserved,
-                            burned,
-                            may_be_returned,
-                            waited,
-                        },
-                    )
-                    .map_err(|e| {
-                        String::from_utf8(e)
-                            .unwrap_or_else(|_| String::from("Failed to parse error to string"))
-                    })
+                calc_gas(min_limit).map(
+                    |GasInfo {
+                         reserved,
+                         burned,
+                         may_be_returned,
+                         ..
+                     }| GasInfo {
+                        min_limit,
+                        reserved,
+                        burned,
+                        may_be_returned,
+                        waited,
+                    },
+                )
             });
 
             log::debug!("\n==============================\n");
 
             res
+        }
+
+        #[cfg(not(test))]
+        pub fn calculate_reply_for_handle(
+            origin: H256,
+            destination: H256,
+            payload: Vec<u8>,
+            gas_limit: u64,
+            value: u128,
+            allowance_multiplier: u64,
+        ) -> Result<ReplyInfo, Vec<u8>> {
+            Self::calculate_reply_for_handle_impl(
+                origin,
+                destination.cast(),
+                payload,
+                gas_limit,
+                value,
+                allowance_multiplier,
+            )
+            .map_err(|v| v.into_bytes())
+        }
+
+        #[cfg(test)]
+        pub fn calculate_reply_for_handle(
+            origin: AccountIdOf<T>,
+            destination: ProgramId,
+            payload: Vec<u8>,
+            gas_limit: u64,
+            value: u128,
+        ) -> Result<ReplyInfo, String> {
+            Self::run_with_ext_copy(|| {
+                Self::calculate_reply_for_handle_impl(
+                    origin.cast(),
+                    destination,
+                    payload,
+                    gas_limit,
+                    value,
+                    crate::runtime_api::RUNTIME_API_BLOCK_LIMITS_COUNT,
+                )
+            })
         }
 
         pub fn run_with_ext_copy<R, F: FnOnce() -> R>(f: F) -> R {
@@ -826,8 +859,8 @@ pub mod pallet {
         }
 
         /// Returns true if `program_id` is that of a in active status or the builtin actor.
-        pub fn is_active(program_id: ProgramId) -> bool {
-            T::BuiltinCache::exists(&program_id)
+        pub fn is_active(builtins: &impl BuiltinDispatcher, program_id: ProgramId) -> bool {
+            builtins.lookup(&program_id).is_some()
                 || ProgramStorageOf::<T>::get_program(program_id)
                     .map(|program| program.is_active())
                     .unwrap_or_default()
@@ -849,10 +882,10 @@ pub mod pallet {
 
         /// Returns true if there is a program with the specified `program_id`` (it may be paused)
         /// or this `program_id` belongs to the built-in actor.
-        pub fn program_exists(program_id: ProgramId) -> bool {
-            ProgramStorageOf::<T>::program_exists(program_id)
+        pub fn program_exists(builtins: &impl BuiltinDispatcher, program_id: ProgramId) -> bool {
+            builtins.lookup(&program_id).is_some()
+                || ProgramStorageOf::<T>::program_exists(program_id)
                 || ProgramStorageOf::<T>::paused_program_exists(&program_id)
-                || T::BuiltinCache::exists(&program_id)
         }
 
         /// Returns exit argument of an exited program.
@@ -1021,10 +1054,9 @@ pub mod pallet {
                 timestamp: <pallet_timestamp::Pallet<T>>::get().unique_saturated_into(),
             };
 
-            let existential_deposit = CurrencyOf::<T>::minimum_balance().unique_saturated_into();
-
             let schedule = T::Schedule::get();
 
+            // +_+_+ comment
             let max_pages =
                 WasmPagesAmount::try_from(schedule.limits.memory_pages).unwrap_or_else(|_| {
                     unreachable!(
@@ -1035,27 +1067,16 @@ pub mod pallet {
             BlockConfig {
                 block_info,
                 performance_multiplier: T::PerformanceMultiplier::get().into(),
+                forbidden_funcs: Default::default(),
+                reserve_for: CostsPerBlockOf::<T>::reserve_for().unique_saturated_into(),
+                gas_multiplier: <T as pallet_gear_bank::Config>::GasMultiplier::get().into(),
+                costs: schedule.process_costs(),
+                existential_deposit: CurrencyOf::<T>::minimum_balance().unique_saturated_into(),
+                mailbox_threshold: T::MailboxThreshold::get(),
+                max_reservations: T::ReservationsLimit::get(),
                 max_pages,
-                page_costs: schedule.memory_weights.clone().into(),
-                existential_deposit,
                 outgoing_limit: T::OutgoingLimit::get(),
                 outgoing_bytes_limit: T::OutgoingBytesLimit::get(),
-                host_fn_weights: schedule.host_fn_weights.into_core(),
-                forbidden_funcs: Default::default(),
-                mailbox_threshold: T::MailboxThreshold::get(),
-                waitlist_cost: CostsPerBlockOf::<T>::waitlist(),
-                dispatch_hold_cost: CostsPerBlockOf::<T>::dispatch_stash(),
-                reserve_for: CostsPerBlockOf::<T>::reserve_for().unique_saturated_into(),
-                reservation: CostsPerBlockOf::<T>::reservation().unique_saturated_into(),
-                read_cost: DbWeightOf::<T>::get().reads(1).ref_time(),
-                write_cost: DbWeightOf::<T>::get().writes(1).ref_time(),
-                write_per_byte_cost: schedule.db_write_per_byte.ref_time(),
-                read_per_byte_cost: schedule.db_read_per_byte.ref_time(),
-                module_instantiation_byte_cost: schedule.module_instantiation_per_byte.ref_time(),
-                max_reservations: T::ReservationsLimit::get(),
-                code_instrumentation_cost: schedule.code_instrumentation_cost.ref_time(),
-                code_instrumentation_byte_cost: schedule.code_instrumentation_byte_cost.ref_time(),
-                gas_multiplier: <T as pallet_gear_bank::Config>::GasMultiplier::get().into(),
             }
         }
 
@@ -1188,9 +1209,10 @@ pub mod pallet {
             );
 
             let program_id = packet.destination();
+            let (builtins, _) = T::BuiltinDispatcherFactory::create();
             // Make sure there is no program with such id in program storage
             ensure!(
-                !Self::program_exists(program_id),
+                !Self::program_exists(&builtins, program_id),
                 Error::<T>::ProgramAlreadyExists
             );
 
@@ -1212,12 +1234,9 @@ pub mod pallet {
             let message_id = Self::next_message_id(origin);
             let block_number = Self::block_number();
 
-            ExtManager::<T>::default().set_program(
-                packet.destination(),
-                &code_info,
-                message_id,
-                block_number,
-            );
+            let (builtins, _) = T::BuiltinDispatcherFactory::create();
+            let ext_manager = ExtManager::<T>::new(builtins);
+            ext_manager.set_program(packet.destination(), &code_info, message_id, block_number);
 
             let program_id = packet.destination();
             let program_event = Event::ProgramChanged {
@@ -1528,7 +1547,8 @@ pub mod pallet {
             let mailboxed = Self::read_message(origin.clone(), message_id, reason)
                 .ok_or(Error::<T>::MessageNotFound)?;
 
-            if Self::is_active(mailboxed.source()) {
+            let (builtins, _) = T::BuiltinDispatcherFactory::create();
+            if Self::is_active(&builtins, mailboxed.source()) {
                 // Creating reply message.
                 let message = ReplyMessage::auto(mailboxed.id());
 
@@ -1656,8 +1676,12 @@ pub mod pallet {
                 ),
             );
 
-            if Self::program_exists(destination) {
-                ensure!(Self::is_active(destination), Error::<T>::InactiveProgram);
+            let (builtins, _) = T::BuiltinDispatcherFactory::create();
+            if Self::program_exists(&builtins, destination) {
+                ensure!(
+                    Self::is_active(&builtins, destination),
+                    Error::<T>::InactiveProgram
+                );
 
                 // Message is not guaranteed to be executed, that's why value is not immediately transferred.
                 // That's because destination can fail to be initialized, while this dispatch message is next
@@ -1737,7 +1761,11 @@ pub mod pallet {
             let destination = mailboxed.source();
 
             // Checking that program, origin replies to, is not terminated.
-            ensure!(Self::is_active(destination), Error::<T>::InactiveProgram);
+            let (builtins, _) = T::BuiltinDispatcherFactory::create();
+            ensure!(
+                Self::is_active(&builtins, destination),
+                Error::<T>::InactiveProgram
+            );
 
             let reply_id = MessageId::generate_reply(mailboxed.id());
 
@@ -1894,13 +1922,13 @@ pub mod pallet {
             // It will be processing messages execution results following its `JournalHandler`
             // trait implementation.
             // It also will handle delayed tasks following `TasksHandler`.
-            let mut ext_manager = Default::default();
+            let mut ext_manager = ExtManager::<T>::new(builtin_dispatcher);
 
             // Processing regular and delayed tasks.
             Self::process_tasks(&mut ext_manager);
 
             // Processing message queue.
-            Self::process_queue(ext_manager, builtin_dispatcher);
+            Self::process_queue(ext_manager);
 
             // Calculating weight burned within the block.
             initial_gas.saturating_sub(GasAllowanceOf::<T>::get())

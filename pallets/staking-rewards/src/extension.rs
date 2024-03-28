@@ -17,13 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::Config;
-use frame_support::{
-    codec::{Decode, Encode},
-    dispatch::DispatchInfo,
-    traits::Contains,
-};
+use frame_support::{dispatch::DispatchInfo, traits::Contains};
 use scale_info::TypeInfo;
 use sp_runtime::{
+    codec::{Decode, Encode},
     traits::{DispatchInfoOf, Dispatchable, SignedExtension},
     transaction_validity::{InvalidTransaction, TransactionValidity, TransactionValidityError},
 };

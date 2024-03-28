@@ -111,7 +111,7 @@ demo-state-rollback.workspace = true
 demo-async-signal-entry.workspace = true
 demo-async-custom-entry.workspace = true
 demo-out-of-memory.workspace = true
-demo-ping.workspace = true
+demo-ping = { workspace = true, features = ["debug"] }
 demo-sync-duplicate.workspace = true
 demo-custom.workspace = true
 demo-delayed-reservation-sender = { workspace = true, features = ["debug"] }
@@ -194,6 +194,7 @@ runtime-benchmarks = [
 	"demo-waiter/wasm-wrapper",
 	"demo-init-wait/wasm-wrapper",
 	"demo-signal-entry/wasm-wrapper",
+	"core-processor/mock",
 ]
 runtime-benchmarks-checkers = []
 try-runtime = ["frame-support/try-runtime"]

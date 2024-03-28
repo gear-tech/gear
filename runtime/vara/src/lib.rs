@@ -27,11 +27,11 @@ include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
 use common::{storage::Messenger, DelegateFee};
 use frame_election_provider_support::{
-    onchain, ElectionDataProvider, NposSolution, SequentialPhragmen, VoteWeight,
+    bounds::ElectionBoundsBuilder, onchain, ElectionDataProvider, NposSolution, SequentialPhragmen,
+    VoteWeight,
 };
 use frame_support::weights::ConstantMultiplier;
 pub use frame_support::{
-    codec::{Decode, Encode, MaxEncodedLen},
     construct_runtime,
     dispatch::{DispatchClass, WeighData},
     parameter_types,
@@ -47,7 +47,7 @@ pub use frame_support::{
         },
         Weight,
     },
-    PalletId, RuntimeDebug, StorageValue,
+    PalletId, StorageValue,
 };
 use frame_system::{
     limits::{BlockLength, BlockWeights},
@@ -79,18 +79,16 @@ pub use runtime_primitives::{AccountId, Signature, VARA_SS58_PREFIX};
 use runtime_primitives::{Balance, BlockNumber, Hash, Moment, Nonce};
 use sp_api::impl_runtime_apis;
 #[cfg(any(feature = "std", test))]
-use sp_api::{
-    CallApiAt, CallContext, Extensions, OverlayedChanges, ProofRecorder, StateBackend,
-    StorageTransactionCache,
-};
+use sp_api::{CallApiAt, CallContext, Extensions, OverlayedChanges, ProofRecorder};
 use sp_core::{crypto::KeyTypeId, ConstBool, ConstU64, ConstU8, OpaqueMetadata, H256};
 #[cfg(any(feature = "std", test))]
-use sp_runtime::traits::HashFor;
+use sp_runtime::traits::HashingFor;
 use sp_runtime::{
+    codec::{Decode, Encode, MaxEncodedLen},
     create_runtime_str, generic, impl_opaque_keys,
     traits::{AccountIdLookup, BlakeTwo256, Block as BlockT, ConvertInto, NumberFor, OpaqueKeys},
     transaction_validity::{TransactionPriority, TransactionSource, TransactionValidity},
-    ApplyExtrinsicResult, FixedU128, Perbill, Percent, Permill, Perquintill,
+    ApplyExtrinsicResult, FixedU128, Perbill, Percent, Permill, Perquintill, RuntimeDebug,
 };
 use sp_std::{
     convert::{TryFrom, TryInto},
@@ -157,7 +155,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     // The version of the runtime specification. A full node will not attempt to use its native
     //   runtime in substitute for the on-chain Wasm runtime unless all of `spec_name`,
     //   `spec_version`, and `authoring_version` are the same between Wasm and native.
-    spec_version: 1120,
+    spec_version: 1200,
     impl_version: 1,
     apis: RUNTIME_API_VERSIONS,
     transaction_version: 1,
@@ -269,6 +267,7 @@ impl pallet_babe::Config for Runtime {
 
     type WeightInfo = ();
     type MaxAuthorities = MaxAuthorities;
+    type MaxNominators = MaxNominatorRewardedPerValidator;
 
     type KeyOwnerProof = sp_session::MembershipProof;
     type EquivocationReportSystem =
@@ -280,6 +279,7 @@ impl pallet_grandpa::Config for Runtime {
 
     type WeightInfo = ();
     type MaxAuthorities = MaxAuthorities;
+    type MaxNominators = MaxNominatorRewardedPerValidator;
     type MaxSetIdSessionEntries = MaxSetIdSessionEntries;
     type KeyOwnerProof = sp_session::MembershipProof;
     type EquivocationReportSystem =
@@ -503,9 +503,13 @@ frame_election_provider_support::generate_solution_type!(
 
 parameter_types! {
     // 16; TODO: Kusama has 24 => which one is more appropriate?
-    pub MaxNominations: u32 = <NposSolution16 as NposSolution>::LIMIT as u32;
+    pub const MaxNominations: u32 = <NposSolution16 as NposSolution>::LIMIT as u32;
     pub MaxElectingVoters: u32 = 40_000;
-    pub MaxElectableTargets: u16 = 10_000;
+    /// We take the top 40_000 nominators as electing voters and all of the validators as electable
+    /// targets. Whilst this is the case, we cannot and shall not increase the size of the
+    /// validator intentions.
+    pub ElectionBounds: frame_election_provider_support::bounds::ElectionBounds =
+        ElectionBoundsBuilder::default().voters_count(MaxElectingVoters::get().into()).build();
     // OnChain values are lower.
     pub MaxOnChainElectingVoters: u32 = 5000;
     pub MaxOnChainElectableTargets: u16 = 1250;
@@ -524,8 +528,7 @@ impl onchain::Config for OnChainSeqPhragmen {
     type DataProvider = <Runtime as pallet_election_provider_multi_phase::Config>::DataProvider;
     type WeightInfo = frame_election_provider_support::weights::SubstrateWeight<Runtime>;
     type MaxWinners = <Runtime as pallet_election_provider_multi_phase::Config>::MaxWinners;
-    type VotersBound = MaxOnChainElectingVoters;
-    type TargetsBound = MaxOnChainElectableTargets;
+    type Bounds = ElectionBounds;
 }
 
 impl pallet_election_provider_multi_phase::MinerConfig for Runtime {
@@ -583,9 +586,8 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
     type GovernanceFallback = onchain::OnChainExecution<OnChainSeqPhragmen>;
     type Solver = SequentialPhragmen<AccountId, SolutionAccuracyOf<Self>, ()>;
     type ForceOrigin = AdminOrigin;
-    type MaxElectableTargets = MaxElectableTargets;
     type MaxWinners = MaxActiveValidators;
-    type MaxElectingVoters = MaxElectingVoters;
+    type ElectionBounds = ElectionBounds;
     type BenchmarkingConfig = ElectionProviderBenchmarkConfig;
     type WeightInfo = pallet_election_provider_multi_phase::weights::SubstrateWeight<Self>;
 }
@@ -614,7 +616,6 @@ impl pallet_staking::BenchmarkingConfig for StakingBenchmarkingConfig {
 }
 
 impl pallet_staking::Config for Runtime {
-    type MaxNominations = MaxNominations;
     type Currency = Balances;
     type CurrencyBalance = Balance;
     type UnixTime = Timestamp;
@@ -638,6 +639,7 @@ impl pallet_staking::Config for Runtime {
     type OffendingValidatorsThreshold = OffendingValidatorsThreshold;
     type VoterList = BagsList;
     type TargetList = pallet_staking::UseValidatorsMap<Self>;
+    type NominationsQuota = pallet_staking::FixedNominationsQuota<{ MaxNominations::get() }>;
     type MaxUnlockingChunks = ConstU32<32>;
     type HistoryDepth = HistoryDepth;
     type EventListeners = NominationPools;
@@ -1012,7 +1014,6 @@ impl pallet_gear::Config for Runtime {
     type Scheduler = GearScheduler;
     type QueueRunner = Gear;
     type BuiltinDispatcherFactory = GearBuiltin;
-    type BuiltinCache = GearBuiltin;
     type ProgramRentFreePeriod = ConstU32<{ MONTHS * RENT_FREE_PERIOD_MONTH_FACTOR }>;
     type ProgramResumeMinimalRentPeriod = ConstU32<{ WEEKS * RENT_RESUME_WEEK_FACTOR }>;
     type ProgramRentCostPerBlock = ConstU128<RENT_COST_PER_BLOCK>;
@@ -1335,13 +1336,14 @@ impl_runtime_apis_plus_common! {
             // slot duration and expected target block time, for safely
             // resisting network delays of maximum two seconds.
             // <https://research.web3.foundation/en/latest/polkadot/BABE/Babe/#6-practical-results>
+            let epoch_config = Babe::epoch_config().unwrap_or(BABE_GENESIS_EPOCH_CONFIG);
             sp_consensus_babe::BabeConfiguration {
                 slot_duration: Babe::slot_duration(),
                 epoch_length: EpochDuration::get(),
-                c: BABE_GENESIS_EPOCH_CONFIG.c,
+                c: epoch_config.c,
                 authorities: Babe::authorities().to_vec(),
                 randomness: Babe::randomness(),
-                allowed_slots: BABE_GENESIS_EPOCH_CONFIG.allowed_slots,
+                allowed_slots: epoch_config.allowed_slots,
             }
         }
 
@@ -1469,15 +1471,12 @@ impl<B, C> Clone for RuntimeApiImpl<B, C>
 where
     B: BlockT,
     C: CallApiAt<B>,
-    C::StateBackend: StateBackend<HashFor<B>>,
-    <C::StateBackend as StateBackend<HashFor<B>>>::Transaction: Clone,
 {
     fn clone(&self) -> Self {
         Self {
             call: <&C>::clone(&self.call),
             transaction_depth: self.transaction_depth.clone(),
             changes: self.changes.clone(),
-            storage_transaction_cache: self.storage_transaction_cache.clone(),
             recorder: self.recorder.clone(),
             call_context: self.call_context,
             extensions: Default::default(),
@@ -1495,13 +1494,10 @@ impl<B, C> common::Deconstructable<C> for RuntimeApiImpl<B, C>
 where
     B: BlockT,
     C: CallApiAt<B>,
-    C::StateBackend: StateBackend<HashFor<B>>,
-    <C::StateBackend as StateBackend<HashFor<B>>>::Transaction: Clone,
 {
     type Params = (
         u16,
-        OverlayedChanges,
-        StorageTransactionCache<B, C::StateBackend>,
+        OverlayedChanges<HashingFor<B>>,
         Option<ProofRecorder<B>>,
         CallContext,
         Extensions,
@@ -1514,7 +1510,6 @@ where
             (
                 *core::cell::RefCell::borrow(&self.transaction_depth),
                 self.changes.into_inner(),
-                self.storage_transaction_cache.into_inner(),
                 self.recorder,
                 self.call_context,
                 self.extensions.into_inner(),
@@ -1528,11 +1523,10 @@ where
             call: unsafe { std::mem::transmute(call) },
             transaction_depth: params.0.into(),
             changes: core::cell::RefCell::new(params.1),
-            storage_transaction_cache: core::cell::RefCell::new(params.2),
-            recorder: params.3,
-            call_context: params.4,
-            extensions: core::cell::RefCell::new(params.5),
-            extensions_generated_for: core::cell::RefCell::new(params.6),
+            recorder: params.2,
+            call_context: params.3,
+            extensions: core::cell::RefCell::new(params.4),
+            extensions_generated_for: core::cell::RefCell::new(params.5),
         }
     }
 }

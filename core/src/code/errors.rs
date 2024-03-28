@@ -69,9 +69,12 @@ pub enum StackEndError {
     /// Unsupported initialization of gear stack end global variable.
     #[display(fmt = "Unsupported initialization of gear stack end global")]
     Initialization,
-    /// Too many globals to create new const global for stack end.
-    #[display(fmt = "Too many globals, so cannot create new global for stack end")]
-    GlobalIndexOverflow,
+    /// Gear stack end offset is not aligned to wasm page size.
+    #[display(fmt = "Gear stack end {_0:#x} is not aligned to wasm page size")]
+    NotAligned(u32),
+    /// Gear stack end is out of static memory.
+    #[display(fmt = "Gear stack end {_0:#x} is out of static memory 0x0..{_1:#x}")]
+    OutOfStatic(u32, u32),
 }
 
 /// Stack end error in WASM module.
@@ -104,7 +107,10 @@ pub enum ExportError {
     MutableGlobalExport(u32, u32),
     /// Export references to an import function, which is not allowed.
     #[display(fmt = "Export index `{_0}` references to imported function with index `{_1}`")]
-    ExportReferencesToImport(u32, u32),
+    ExportReferencesToImportFunction(u32, u32),
+    /// Export references to an import global, which is not allowed.
+    #[display(fmt = "Export index `{_0}` references to imported global with index `{_1}`")]
+    ExportReferencesToImportGlobal(u32, u32),
     /// The signature of an exported function is invalid.
     #[display(fmt = "Exported function with index `{_0}` must have signature `fn f() {{ ... }}`")]
     InvalidExportFnSignature(u32),
@@ -112,7 +118,7 @@ pub enum ExportError {
     #[display(fmt = "Excess export with index `{_0}` found")]
     ExcessExport(u32),
     /// The provided code doesn't contain the required `init` or `handle` export function.
-    #[display(fmt = "Required export function `init` or `handle` not found")]
+    #[display(fmt = "Required export function `init` or `handle` is not found")]
     RequiredExportNotFound,
 }
 
@@ -136,7 +142,7 @@ pub enum CodecError {
     /// The wasm bytecode is failed to be decoded
     #[display(fmt = "The wasm bytecode is failed to be decoded: {_0}")]
     Decode(SerializationError),
-    /// Failed to encode instrumented program: {_0}
+    /// Failed to encode instrumented program
     #[display(fmt = "Failed to encode instrumented program: {_0}")]
     Encode(SerializationError),
 }

@@ -46,9 +46,7 @@ pub mod pallet_tests;
 
 use core::fmt;
 use frame_support::{
-    codec::{self, Decode, Encode},
     pallet_prelude::MaxEncodedLen,
-    scale_info::{self, TypeInfo},
     sp_runtime::{
         self,
         generic::{CheckedExtrinsic, UncheckedExtrinsic},
@@ -66,6 +64,10 @@ use gear_core::{
 };
 use primitive_types::H256;
 use sp_arithmetic::traits::{BaseArithmetic, One, Saturating, UniqueSaturatedInto, Unsigned};
+use sp_runtime::{
+    codec::{self, Decode, Encode},
+    scale_info::{self, TypeInfo},
+};
 use sp_std::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
     prelude::*,
