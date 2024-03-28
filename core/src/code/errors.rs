@@ -74,7 +74,7 @@ pub enum StackEndError {
     NotAligned(u32),
     /// Gear stack end is out of static memory.
     #[display(fmt = "Gear stack end {_0:#x} is out of static memory 0x0..{_1:#x}")]
-    OutOfStatic(u32, u32),
+    OutOfStatic(u32, u64),
 }
 
 /// Stack end error in WASM module.

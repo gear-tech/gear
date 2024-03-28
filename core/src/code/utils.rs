@@ -246,7 +246,7 @@ fn get_export_global_entry(
 /// Check that data segments are not overlapping with stack and are inside static pages.
 pub fn check_data_section(
     module: &Module,
-    static_pages: WasmPage,
+    static_pages: WasmPagesAmount,
     stack_end: Option<WasmPage>,
 ) -> Result<(), CodeError> {
     let Some(data_section) = module.data_section() else {
@@ -312,7 +312,7 @@ fn get_stack_end_offset(module: &Module) -> Result<Option<u32>, CodeError> {
 
 pub fn check_and_canonize_gear_stack_end(
     module: &mut Module,
-    static_pages: WasmPage,
+    static_pages: WasmPagesAmount,
 ) -> Result<Option<WasmPage>, CodeError> {
     let Some(stack_end_offset) = get_stack_end_offset(module)? else {
         return Ok(None);
@@ -326,7 +326,7 @@ pub fn check_and_canonize_gear_stack_end(
         .entries_mut()
         .retain(|export| export.field() != STACK_END_EXPORT_NAME);
 
-    if stack_end_offset % WasmPage::size() != 0 {
+    if stack_end_offset % WasmPage::SIZE != 0 {
         return Err(StackEndError::NotAligned(stack_end_offset).into());
     }
 

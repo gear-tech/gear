@@ -36,7 +36,7 @@ use gear_core::{
     gas::GasAmount,
     memory::HostPointer,
     message::{DispatchKind, WasmEntryPoint},
-    pages::{PageNumber, WasmPagesAmount},
+    pages::WasmPagesAmount,
     str::LimitedStr,
 };
 use gear_lazy_pages_common::{
@@ -265,7 +265,6 @@ where
         entry_point: EntryPoint,
         entries: BTreeSet<DispatchKind>,
         mem_size: WasmPagesAmount,
-        mem_size: WasmPage,
     ) -> Result<Self, EnvironmentError> {
         use EnvironmentError::*;
         use SystemEnvironmentError::*;
@@ -290,7 +289,7 @@ where
         };
 
         let memory: DefaultExecutorMemory =
-            match SandboxMemory::new(&mut store, mem_size.raw(), None) {
+            match SandboxMemory::new(&mut store, mem_size.into(), None) {
                 Ok(mem) => mem,
                 Err(e) => return Err(System(CreateEnvMemory(e))),
             };

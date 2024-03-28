@@ -154,7 +154,7 @@ impl<'a> GasPrecharger<'a> {
     /// Returns size of wasm memory buffer which must be created in execution environment.
     pub fn charge_gas_for_pages(
         &mut self,
-        allocations: &BTreeSet<WasmPage>,
+        allocations: &IntervalsTree<WasmPage>,
         static_pages: WasmPagesAmount,
     ) -> Result<WasmPagesAmount, PrechargeError> {
         // Charging gas for static pages.

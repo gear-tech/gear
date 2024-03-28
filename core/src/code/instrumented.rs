@@ -18,7 +18,12 @@
 
 //! Module for instrumented code.
 
-use crate::{code::CodeAndId, ids::CodeId, message::DispatchKind, pages::WasmPagesAmount};
+use crate::{
+    code::CodeAndId,
+    ids::CodeId,
+    message::DispatchKind,
+    pages::{WasmPage, WasmPagesAmount},
+};
 use alloc::{collections::BTreeSet, vec::Vec};
 use scale_info::{
     scale::{Decode, Encode},
@@ -47,7 +52,7 @@ impl InstrumentedCode {
         code: Vec<u8>,
         original_code_len: u32,
         exports: BTreeSet<DispatchKind>,
-        static_pages: WasmPage,
+        static_pages: WasmPagesAmount,
         stack_end: Option<WasmPage>,
         version: u32,
     ) -> Self {

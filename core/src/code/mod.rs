@@ -18,7 +18,11 @@
 
 //! Module for checked code.
 
-use crate::{ids::CodeId, message::DispatchKind, pages::WasmPagesAmount};
+use crate::{
+    ids::CodeId,
+    message::DispatchKind,
+    pages::{WasmPage, WasmPagesAmount},
+};
 use alloc::{collections::BTreeSet, vec::Vec};
 use gear_wasm_instrument::{
     gas_metering::{CustomConstantCostRules, Rules},

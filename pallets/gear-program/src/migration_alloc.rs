@@ -27,8 +27,10 @@ use sp_std::marker::PhantomData;
 
 #[cfg(feature = "try-runtime")]
 use {
-    frame_support::codec::{Decode, Encode},
-    sp_runtime::TryRuntimeError,
+    sp_runtime::{
+        codec::{Decode, Encode},
+        TryRuntimeError,
+    },
     sp_std::vec::Vec,
 };
 
@@ -96,10 +98,6 @@ impl<T: Config> OnRuntimeUpgrade for MigrateToV4<T> {
 
 mod v2 {
     use common::ProgramState;
-    use frame_support::{
-        codec::{self, Decode, Encode},
-        scale_info::{self, TypeInfo},
-    };
     use gear_core::{
         ids::ProgramId,
         message::DispatchKind,
@@ -108,7 +106,11 @@ mod v2 {
         reservation::GasReservationMap,
     };
     use primitive_types::H256;
-    use sp_runtime::traits::Saturating;
+    use sp_runtime::{
+        codec::{self, Decode, Encode},
+        scale_info::{self, TypeInfo},
+        traits::Saturating,
+    };
     use sp_std::{collections::btree_set::BTreeSet, prelude::*};
 
     #[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]

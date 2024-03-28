@@ -24,12 +24,7 @@ use crate::{
     configs::{BlockInfo, ExecutionSettings},
     ext::{ProcessorContext, ProcessorExternalities},
 };
-use alloc::{
-    collections::BTreeSet,
-    format,
-    string::{String, ToString},
-    vec::Vec,
-};
+use alloc::{format, string::String, vec::Vec};
 use gear_core::{
     code::InstrumentedCode,
     env::Externalities,
@@ -59,7 +54,7 @@ fn validate_memory_params(
     memory_size: WasmPagesAmount,
     static_pages: WasmPagesAmount,
     stack_end: Option<WasmPage>,
-    allocations: &BTreeSet<WasmPage>,
+    allocations: &IntervalsTree<WasmPage>,
     max_pages: WasmPagesAmount,
 ) -> Result<(), MemorySetupError> {
     if memory_size > max_pages {
@@ -85,7 +80,7 @@ fn validate_memory_params(
         }
     }
 
-    if let Some(&page) = allocations.last() {
+    if let Some(page) = allocations.end() {
         if page >= memory_size {
             return Err(MemorySetupError::AllocatedPageOutOfAllowedInterval {
                 page,
@@ -94,7 +89,7 @@ fn validate_memory_params(
             });
         }
     }
-    if let Some(&page) = allocations.first() {
+    if let Some(page) = allocations.start() {
         if page < static_pages {
             return Err(MemorySetupError::AllocatedPageOutOfAllowedInterval {
                 page,
@@ -130,8 +125,7 @@ where
         memory_size,
     } = context;
 
-    let (program_id, code, allocations, memory_infix) = program.into_parts();
-
+    let program_id = program.id();
     let kind = dispatch.kind();
 
     log::debug!("Executing program {}", program_id);
@@ -464,7 +458,7 @@ mod tests {
                 4.into(),
                 2.into(),
                 Some(2.into()),
-                &iter::once(2.into()).collect(),
+                &iter::once(WasmPage::from(2)).collect(),
                 4.into(),
             ),
             Ok(())
@@ -475,7 +469,7 @@ mod tests {
                 4.into(),
                 2.into(),
                 Some(2.into()),
-                &BTreeSet::new(),
+                &IntervalsTree::new(),
                 3.into(),
             ),
             Err(MemorySetupError::MemorySizeExceedsMaxPages {
@@ -489,7 +483,7 @@ mod tests {
                 1.into(),
                 2.into(),
                 Some(1.into()),
-                &BTreeSet::new(),
+                &IntervalsTree::new(),
                 4.into(),
             ),
             Err(MemorySetupError::InsufficientMemorySize {
@@ -503,7 +497,7 @@ mod tests {
                 4.into(),
                 2.into(),
                 Some(3.into()),
-                &BTreeSet::new(),
+                &IntervalsTree::new(),
                 4.into(),
             ),
             Err(MemorySetupError::StackEndOutOfStaticMemory {
@@ -517,7 +511,7 @@ mod tests {
                 4.into(),
                 2.into(),
                 Some(2.into()),
-                &iter::once(1.into()).collect(),
+                &iter::once(WasmPage::from(1)).collect(),
                 4.into(),
             ),
             Err(MemorySetupError::AllocatedPageOutOfAllowedInterval {
@@ -532,7 +526,7 @@ mod tests {
                 4.into(),
                 2.into(),
                 Some(2.into()),
-                &iter::once(4.into()).collect(),
+                &iter::once(WasmPage::from(4)).collect(),
                 4.into(),
             ),
             Err(MemorySetupError::AllocatedPageOutOfAllowedInterval {

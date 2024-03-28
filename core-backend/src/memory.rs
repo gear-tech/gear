@@ -510,7 +510,7 @@ mod tests {
         assert_eq!(
             ctx.alloc::<NoopGrowHandler>(16.into(), &mut mem_wrap, |_| Ok(()))
                 .unwrap(),
-            16.into()
+            WasmPage::from(16)
         );
 
         assert_eq!(
@@ -545,7 +545,7 @@ mod tests {
 
         assert_eq!(
             ctx.alloc::<NoopGrowHandler>(2.into(), &mut mem_wrap, |_| Ok(())),
-            Ok(117.into())
+            Ok(WasmPage::from(117))
         );
 
         // same as above, if we free_range 2 in a row we can allocate 2
@@ -553,7 +553,7 @@ mod tests {
 
         assert_eq!(
             ctx.alloc::<NoopGrowHandler>(2.into(), &mut mem_wrap, |_| Ok(())),
-            Ok(117.into())
+            Ok(WasmPage::from(117))
         );
 
         // but if 2 are not in a row, bad luck

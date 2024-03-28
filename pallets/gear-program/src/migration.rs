@@ -68,7 +68,7 @@ impl<T: Config> OnRuntimeUpgrade for AppendStackEndMigration<T> {
                         code.code,
                         code.original_code_len,
                         code.exports,
-                        code.static_pages,
+                        code.static_pages.into(),
                         // Set stack end as None here. Correct value will be set lazily on re-instrumentation.
                         None,
                         code.version,

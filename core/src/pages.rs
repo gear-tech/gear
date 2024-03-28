@@ -94,6 +94,11 @@ impl<const SIZE: u32> PagesAmount<SIZE> {
         };
         PagesAmount(raw)
     }
+
+    /// +_+_+
+    pub fn offset(&self) -> u64 {
+        self.0 as u64 * SIZE as u64
+    }
 }
 
 impl<const SIZE: u32> PageNumber for PagesAmount<SIZE> {
@@ -152,6 +157,18 @@ impl<const SIZE: u32> PartialEq<Page<SIZE>> for PagesAmount<SIZE> {
 
 impl<const SIZE: u32> PartialOrd<Page<SIZE>> for PagesAmount<SIZE> {
     fn partial_cmp(&self, other: &Page<SIZE>) -> Option<Ordering> {
+        self.0.partial_cmp(&other.0)
+    }
+}
+
+impl<const SIZE: u32> PartialEq<PagesAmount<SIZE>> for Page<SIZE> {
+    fn eq(&self, other: &PagesAmount<SIZE>) -> bool {
+        self.0 == other.0
+    }
+}
+
+impl <const SIZE: u32> PartialOrd<PagesAmount<SIZE>> for Page<SIZE> {
+    fn partial_cmp(&self, other: &PagesAmount<SIZE>) -> Option<Ordering> {
         self.0.partial_cmp(&other.0)
     }
 }

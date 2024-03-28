@@ -213,7 +213,7 @@ where
     let block_config = BlockConfig {
         outgoing_limit: 2048,
         outgoing_bytes_limit: u32::MAX,
-        max_pages: config.max_pages_override.unwrap_or(pallet_config.max_pages),
+        max_pages: config.max_pages.unwrap_or(pallet_config.max_pages),
         ..pallet_config
     };
 
