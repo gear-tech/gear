@@ -45,7 +45,7 @@ mod tests;
 
 pub use crate::common::LazyPagesStorage;
 use crate::{
-    common::{ContextError, LazyPagesContext, PagePrefix, PageSizes, CostNo, Costs},
+    common::{ContextError, CostNo, Costs, LazyPagesContext, PagePrefix, PageSizes},
     globals::{GlobalNo, GlobalsContext},
     init_flag::InitializationFlag,
     pages::{

@@ -28,14 +28,14 @@ use core_processor::{
     common::{DispatchOutcome, JournalNote},
     Ext,
 };
-use sp_runtime::codec::MaxEncodedLen;
 use gear_core::{
     memory::{MemoryInterval, PageBuf},
     pages::{GearPage, GearPagesAmount, IntervalIterator, PageNumber},
 };
-use gear_wasm_instrument::{parity_wasm::elements::Instruction, syscalls::SyscallName};
 use gear_lazy_pages_common::{LazyPagesCosts, Status};
+use gear_wasm_instrument::{parity_wasm::elements::Instruction, syscalls::SyscallName};
 use rand::{Rng, SeedableRng};
+use sp_runtime::codec::MaxEncodedLen;
 
 use crate::{
     benchmarking::{

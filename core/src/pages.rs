@@ -167,7 +167,7 @@ impl<const SIZE: u32> PartialEq<PagesAmount<SIZE>> for Page<SIZE> {
     }
 }
 
-impl <const SIZE: u32> PartialOrd<PagesAmount<SIZE>> for Page<SIZE> {
+impl<const SIZE: u32> PartialOrd<PagesAmount<SIZE>> for Page<SIZE> {
     fn partial_cmp(&self, other: &PagesAmount<SIZE>) -> Option<Ordering> {
         self.0.partial_cmp(&other.0)
     }
