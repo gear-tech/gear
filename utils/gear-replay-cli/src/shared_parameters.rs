@@ -16,14 +16,19 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Replaying a block against the live chain state
+
 use clap::Parser;
-use gear_replay_cli::cmd::ReplayCli;
+use std::fmt::Debug;
 
-#[tokio::main]
-async fn main() {
-    let cli = ReplayCli::parse();
-
-    cli.init_logger().expect("Failed to initialize logger");
-
-    cli.run().await.unwrap();
+/// Parameters shared across the subcommands
+#[derive(Clone, Debug, Parser)]
+#[group(skip)]
+pub struct SharedParams {
+    /// Sets a custom logging filter. Syntax is `<target>=<level>`, e.g. -lsync=debug.
+    ///
+    /// Log levels (least to most verbose) are error, warn, info, debug, and trace.
+    /// By default, all targets log `info`. The global log level can be set with `-l<level>`.
+    #[arg(short = 'l', long, value_name = "NODE_LOG", num_args = 0..)]
+    pub log: Vec<String>,
 }

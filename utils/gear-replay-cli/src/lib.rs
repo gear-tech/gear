@@ -18,101 +18,262 @@
 
 //! Replaying a block against the live chain state
 
-use clap::{Parser, Subcommand};
-use cmd::*;
 use runtime_primitives::Block;
-use sc_tracing::logging::LoggerBuilder;
-use sp_runtime::traits::{Block as BlockT, Header as HeaderT};
-use std::fmt::Debug;
+#[cfg(feature = "always-wasm")]
+use sc_executor::sp_wasm_interface::HostFunctions;
+#[cfg(not(feature = "always-wasm"))]
+use sc_executor::{HeapAllocStrategy, NativeElseWasmExecutor, NativeExecutionDispatch};
+use sc_executor::{WasmExecutionMethod, WasmExecutor, WasmtimeInstantiationStrategy};
+use sp_core::{
+    offchain::{
+        testing::{TestOffchainExt, TestTransactionPoolExt},
+        OffchainDbExt, OffchainWorkerExt, TransactionPoolExt,
+    },
+    traits::{CallContext, CodeExecutor},
+};
+use sp_externalities::Extensions;
+use sp_keystore::{testing::MemoryKeystore, KeystoreExt, KeystorePtr};
+use sp_rpc::{list::ListOrValue, number::NumberOrHex};
+use sp_runtime::{
+    generic::SignedBlock,
+    traits::{Block as BlockT, HashingFor, Header as HeaderT},
+    DeserializeOwned,
+};
+use sp_state_machine::{
+    backend::BackendRuntimeCode, OverlayedChanges, StateMachine, TestExternalities,
+};
+use std::{fmt::Debug, sync::Arc};
+use substrate_rpc_client::{ChainApi, WsClient};
 
-pub(crate) const LOG_TARGET: &str = "gear_replay";
+pub const LOG_TARGET: &str = "gear_replay";
 
-mod cmd;
+pub mod cmd;
 mod parse;
-mod util;
+mod shared_parameters;
+mod state;
 
-const VARA_SS58_PREFIX: u8 = 137;
-const GEAR_SS58_PREFIX: u8 = 42;
-
-pub(crate) type HashFor<B> = <B as BlockT>::Hash;
-pub(crate) type NumberFor<B> = <<B as BlockT>::Header as HeaderT>::Number;
+pub type HashFor<B> = <B as BlockT>::Hash;
+pub type NumberFor<B> = <<B as BlockT>::Header as HeaderT>::Number;
 
 #[derive(Clone, Debug)]
-pub(crate) enum BlockHashOrNumber<B: BlockT> {
+pub enum BlockHashOrNumber<B: BlockT> {
     Hash(HashFor<B>),
     Number(NumberFor<B>),
 }
 
-/// Commands of `gear-replay` CLI
-#[derive(Debug, Subcommand)]
-pub enum Command {
-    ReplayBlock(replay_block::ReplayBlockCmd<Block>),
-    GearRun(gear_run::GearRunCmd<Block>),
-}
-
-/// Parameters shared across the subcommands
-#[derive(Clone, Debug, Parser)]
-#[group(skip)]
-pub struct SharedParams {
-    /// The RPC url.
-    #[arg(
-		short,
-		long,
-		value_parser = parse::url,
-		default_value = "wss://archive-rpc.vara.network:443"
-	)]
-    uri: String,
-
-    /// Sets a custom logging filter. Syntax is `<target>=<level>`, e.g. -lsync=debug.
-    ///
-    /// Log levels (least to most verbose) are error, warn, info, debug, and trace.
-    /// By default, all targets log `info`. The global log level can be set with `-l<level>`.
-    #[arg(short = 'l', long, value_name = "NODE_LOG", num_args = 0..)]
-    pub log: Vec<String>,
-}
-
-#[derive(Debug, Parser)]
-struct ReplayCli {
-    #[clap(flatten)]
-    pub shared: SharedParams,
-
-    /// Commands.
-    #[command(subcommand)]
-    pub command: Command,
-}
-
-impl ReplayCli {
-    fn log_filters(&self) -> sc_cli::Result<String> {
-        Ok(self.shared.log.join(","))
-    }
-
-    fn init_logger(&self) -> sc_cli::Result<()> {
-        let logger = LoggerBuilder::new(self.log_filters()?);
-        Ok(logger.init()?)
+impl<B: BlockT> core::fmt::Display for BlockHashOrNumber<B> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            BlockHashOrNumber::Hash(hash) => {
+                write!(f, "{}", hex::encode(hash.as_ref()))
+            }
+            BlockHashOrNumber::Number(number) => {
+                write!(f, "{}", number)
+            }
+        }
     }
 }
 
-pub async fn run() -> sc_cli::Result<()> {
-    gear_runtime_interface::sandbox_init();
+impl<Block: BlockT> BlockHashOrNumber<Block> {
+    pub(crate) async fn as_hash(&self, rpc: &WsClient) -> sc_cli::Result<Block::Hash>
+    where
+        Block: DeserializeOwned,
+        Block::Header: DeserializeOwned,
+    {
+        match self {
+            BlockHashOrNumber::Hash(h) => Ok(*h),
+            BlockHashOrNumber::Number(n) => Ok(
+                match ChainApi::<(), Block::Hash, Block::Header, ()>::block_hash(
+                    rpc,
+                    Some(ListOrValue::Value(NumberOrHex::Number(
+                        (*n).try_into()
+                            .map_err(|_| "failed to convert number to block number")?,
+                    ))),
+                )
+                .await
+                .map_err(rpc_err_handler)?
+                {
+                    ListOrValue::Value(t) => t.expect("value passed in; value comes out; qed"),
+                    _ => unreachable!(),
+                },
+            ),
+        }
+    }
+}
 
-    let options = ReplayCli::parse();
-
-    options.init_logger()?;
-
-    let ss58_prefix = match options.shared.uri.contains("vara") {
-        true => VARA_SS58_PREFIX,
-        false => GEAR_SS58_PREFIX,
+#[cfg(not(feature = "always-wasm"))]
+pub(crate) fn build_executor<D: NativeExecutionDispatch>() -> NativeElseWasmExecutor<D> {
+    let heap_alloc_strategy = HeapAllocStrategy::Dynamic {
+        maximum_pages: Some(2048),
     };
-    sp_core::crypto::set_default_ss58_version(ss58_prefix.into());
+    let max_runtime_instances = 8;
+    let runtime_cache_size = 2;
 
-    match &options.command {
-        Command::ReplayBlock(cmd) => {
-            cmd::replay_block::replay_block::<Block>(options.shared.clone(), cmd.clone()).await?
-        }
-        Command::GearRun(cmd) => {
-            cmd::gear_run::gear_run::<Block>(options.shared.clone(), cmd.clone()).await?
-        }
-    }
+    let wasm_executor = WasmExecutor::builder()
+        .with_execution_method(WasmExecutionMethod::Compiled {
+            instantiation_strategy: WasmtimeInstantiationStrategy::RecreateInstanceCopyOnWrite,
+        })
+        .with_onchain_heap_alloc_strategy(heap_alloc_strategy)
+        .with_offchain_heap_alloc_strategy(heap_alloc_strategy)
+        .with_max_runtime_instances(max_runtime_instances)
+        .with_runtime_cache_size(runtime_cache_size)
+        .build();
 
-    Ok(())
+    NativeElseWasmExecutor::<D>::new_with_wasm_executor(wasm_executor)
+}
+
+#[cfg(feature = "always-wasm")]
+pub(crate) fn build_executor<H: HostFunctions>() -> WasmExecutor<H> {
+    let execution_method = WasmExecutionMethod::Compiled {
+        instantiation_strategy: WasmtimeInstantiationStrategy::RecreateInstanceCopyOnWrite,
+    };
+    let heap_pages =
+        sc_executor_common::wasm_runtime::HeapAllocStrategy::Static { extra_pages: 2048 };
+    let max_runtime_instances = 8;
+    let runtime_cache_size = 2;
+
+    WasmExecutor::<H>::builder()
+        .with_execution_method(execution_method)
+        .with_onchain_heap_alloc_strategy(heap_pages)
+        .with_offchain_heap_alloc_strategy(heap_pages)
+        .with_max_runtime_instances(max_runtime_instances)
+        .with_runtime_cache_size(runtime_cache_size)
+        .build()
+}
+
+// pub(crate) async fn build_externalities<Block: BlockT + DeserializeOwned>(
+//     uri: String,
+//     at: Option<Block::Hash>,
+//     pallet: Vec<String>,
+//     child_tree: bool,
+// ) -> sc_cli::Result<RemoteExternalities<Block>>
+// where
+//     Block::Hash: FromStr,
+//     Block::Header: DeserializeOwned,
+//     Block::Hash: DeserializeOwned,
+//     <Block::Hash as FromStr>::Err: Debug,
+// {
+//     let builder = Builder::<Block>::new().mode(Mode::Online(OnlineConfig {
+//         at,
+//         transport: uri.to_owned().into(),
+//         state_snapshot: None,
+//         pallets: pallet.clone(),
+//         child_trie: child_tree,
+//         hashed_keys: vec![
+//             // we always download the code
+//             well_known_keys::CODE.to_vec(),
+//             // we will always download this key, since it helps detect if we should do
+//             // runtime migration or not.
+//             [twox_128(b"System"), twox_128(b"LastRuntimeUpgrade")].concat(),
+//             [twox_128(b"System"), twox_128(b"Number")].concat(),
+//         ],
+//         hashed_prefixes: vec![],
+//     }));
+
+//     // build the main ext.
+//     Ok(builder.build().await?)
+// }
+
+// pub(crate) async fn block_hash_to_number<Block: BlockT>(
+//     rpc: &WsClient,
+//     hash: HashFor<Block>,
+// ) -> sc_cli::Result<NumberFor<Block>>
+// where
+//     Block: BlockT + DeserializeOwned,
+//     Block::Header: DeserializeOwned,
+// {
+//     Ok(
+//         ChainApi::<(), Block::Hash, Block::Header, ()>::header(rpc, Some(hash))
+//             .await
+//             .map_err(rpc_err_handler)
+//             .and_then(|maybe_header| maybe_header.ok_or("header_not_found").map(|h| *h.number()))?,
+//     )
+// }
+
+// pub(crate) async fn block_number_to_hash<Block: BlockT>(
+//     rpc: &WsClient,
+//     block_number: NumberFor<Block>,
+// ) -> sc_cli::Result<Block::Hash>
+// where
+//     Block: BlockT + DeserializeOwned,
+//     Block::Header: DeserializeOwned,
+// {
+//     Ok(
+//         match ChainApi::<(), Block::Hash, Block::Header, ()>::block_hash(
+//             rpc,
+//             Some(ListOrValue::Value(NumberOrHex::Number(
+//                 block_number
+//                     .try_into()
+//                     .map_err(|_| "failed to convert number to block number")?,
+//             ))),
+//         )
+//         .await
+//         .map_err(rpc_err_handler)?
+//         {
+//             ListOrValue::Value(t) => t.expect("value passed in; value comes out; qed"),
+//             _ => unreachable!(),
+//         },
+//     )
+// }
+
+pub(crate) async fn fetch_block<Block: BlockT>(
+    rpc: &WsClient,
+    hash: Option<HashFor<Block>>,
+) -> sc_cli::Result<Block>
+where
+    Block: BlockT + DeserializeOwned,
+    Block::Header: DeserializeOwned,
+{
+    Ok(
+        ChainApi::<(), Block::Hash, Block::Header, SignedBlock<Block>>::block(rpc, hash)
+            .await
+            .map_err(rpc_err_handler)?
+            .expect("header exists, block should also exist; qed")
+            .block,
+    )
+}
+
+pub(crate) fn rpc_err_handler(error: impl Debug) -> &'static str {
+    log::error!(target: LOG_TARGET, "rpc error: {:?}", error);
+    "rpc error."
+}
+
+/// Execute the given `method` and `data` on top of `ext` using the `executor` and `strategy`.
+/// Returning the results (encoded) and the state `changes`.
+pub(crate) fn state_machine_call<Block: BlockT, Executor: CodeExecutor>(
+    ext: &TestExternalities<HashingFor<Block>>,
+    executor: &Executor,
+    method: &'static str,
+    data: &[u8],
+    mut extensions: Extensions,
+) -> sc_cli::Result<(OverlayedChanges<HashingFor<Block>>, Vec<u8>)> {
+    let mut changes = Default::default();
+    let encoded_results = StateMachine::new(
+        &ext.backend,
+        &mut changes,
+        executor,
+        method,
+        data,
+        &mut extensions,
+        &BackendRuntimeCode::new(&ext.backend).runtime_code()?,
+        CallContext::Offchain,
+    )
+    .execute()
+    .map_err(|e| format!("failed to execute '{method}': {e}"))
+    .map_err::<sc_cli::Error, _>(Into::into)?;
+
+    Ok((changes, encoded_results))
+}
+
+/// Build all extensions that are typically used
+pub(crate) fn full_extensions() -> Extensions {
+    let mut extensions = Extensions::default();
+    let (offchain, _offchain_state) = TestOffchainExt::new();
+    let (pool, _pool_state) = TestTransactionPoolExt::new();
+    extensions.register(OffchainDbExt::new(offchain.clone()));
+    extensions.register(OffchainWorkerExt::new(offchain));
+    extensions.register(KeystoreExt(Arc::new(MemoryKeystore::new()) as KeystorePtr));
+    extensions.register(TransactionPoolExt::new(pool));
+
+    extensions
 }
