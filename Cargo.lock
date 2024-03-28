@@ -2317,7 +2317,7 @@ version = "0.1.0"
 dependencies = [
  "ark-bls12-381",
  "ark-ec",
- "ark-scale",
+ "ark-scale 0.0.12",
  "gbuiltin-bls381",
  "gear-wasm-builder",
  "gstd",
@@ -4199,7 +4199,7 @@ dependencies = [
  "ark-bls12-381",
  "ark-ec",
  "ark-ff",
- "ark-scale",
+ "ark-scale 0.0.12",
  "ark-serialize",
  "ark-std",
  "async-trait",

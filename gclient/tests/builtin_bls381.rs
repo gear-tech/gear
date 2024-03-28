@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) Gear Technologies Inc.
+// Copyright (C) 2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -69,7 +69,6 @@ async fn upload_program(
 
 #[tokio::test]
 async fn builtin_bls381() -> Result<()> {
-    // let client = GearApi::dev().await?.with("//Alice")?;
     let client = GearApi::dev_from_path("../target/release/gear").await?;
     let mut listener = client.subscribe().await?;
 
