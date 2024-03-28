@@ -18,10 +18,7 @@
 
 //! Useful utilities needed for testing and other stuff.
 
-use gear_core::{
-    memory::PageBuf,
-    pages::{GearPage, PageNumber},
-};
+use gear_core::{memory::PageBuf, pages::GearPage};
 pub use nonempty::NonEmpty;
 use parity_scale_codec::{Decode, Encode};
 use path_clean::PathClean;
@@ -102,7 +99,7 @@ impl MemoryPageDump {
             .then(|| hex::encode(data_vec));
 
         MemoryPageDump {
-            page: page_number.raw(),
+            page: page_number.into(),
             data,
         }
     }

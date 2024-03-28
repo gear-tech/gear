@@ -22,7 +22,7 @@ use gear_core::{
     gas::LockId,
     ids::*,
     memory::PageBuf,
-    pages::{GearPage, PageNumber, WasmPage},
+    pages::{GearPage, WasmPage},
 };
 use gear_utils::{MemoryPageDump, ProgramMemoryDump};
 use gsdk::{
@@ -595,8 +595,8 @@ impl GearApi {
             .pages
             .into_iter()
             .map(|page| page.into_gear_page())
-            .map(|(page_number, page_data)| (page_number.raw(), page_data.encode()))
-            .collect::<HashMap<_, _>>();
+            .map(|(page, page_data)| (page.into(), page_data.encode()))
+            .collect::<HashMap<u32, _>>();
 
         self.force_set_balance(
             MultiAddress::Id(program_id.into_account_id()),

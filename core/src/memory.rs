@@ -22,8 +22,7 @@ use crate::{
     buffer::LimitedVec,
     gas::ChargeError,
     pages::{
-        GearPage, Interval, IntervalsTree, Numerated, PageNumber, UpperBounded, WasmPage,
-        WasmPagesAmount,
+        GearPage, Interval, IntervalsTree, Numerated, UpperBounded, WasmPage, WasmPagesAmount,
     },
 };
 use alloc::format;
@@ -262,12 +261,12 @@ pub enum AllocError {
     ProgramAllocOutOfBounds,
     /// The error occurs in attempt to free-up a memory page from static area or
     /// outside additionally allocated for this program.
-    #[display(fmt = "Page {_0} cannot be freed by the current program")]
-    InvalidFree(u32),
+    #[display(fmt = "{_0:?} cannot be freed by the current program")]
+    InvalidFree(WasmPage),
     /// Invalid range for free_range
     // TODO: change to WasmPage
-    #[display(fmt = "Invalid range {_0}:{_1} for free_range")]
-    InvalidFreeRange(u32, u32),
+    #[display(fmt = "Invalid range {_0:?}..{_1:?} for free_range")]
+    InvalidFreeRange(WasmPage, WasmPage),
     /// Gas charge error
     #[from]
     #[display(fmt = "{_0}")]
@@ -336,7 +335,7 @@ impl AllocationsContext {
 
         let mut suitable_interval: Option<Interval<WasmPage>> = None;
         for v in self.allocations.voids(search_interval) {
-            let interval = Interval::<WasmPage>::with_len(v.start(), Some(pages.raw()))
+            let interval = Interval::<WasmPage>::with_len(v.start(), Some(pages.into()))
                 .map_err(|_| AllocError::ProgramAllocOutOfBounds)?;
             if WasmPagesAmount::from(v.len()) >= pages {
                 suitable_interval = Some(interval);
@@ -358,7 +357,7 @@ impl AllocationsContext {
             )
             .ok_or(AllocError::ProgramAllocOutOfBounds)?;
 
-        let interval = Interval::<WasmPage>::with_len(start, Some(pages.raw()))
+        let interval = Interval::<WasmPage>::with_len(start, Some(pages.into()))
             .map_err(|_| AllocError::ProgramAllocOutOfBounds)?;
         let Some(interval) = (self.max_pages > interval.end()).then_some(interval) else {
             return Err(AllocError::ProgramAllocOutOfBounds);
@@ -387,7 +386,7 @@ impl AllocationsContext {
     /// Free specific memory page.
     pub fn free(&mut self, page: WasmPage) -> Result<(), AllocError> {
         if self.static_pages > page || self.max_pages <= page || !self.allocations.contains(page) {
-            Err(AllocError::InvalidFree(page.raw()))
+            Err(AllocError::InvalidFree(page))
         } else {
             self.allocations.remove(page);
             Ok(())
@@ -400,14 +399,11 @@ impl AllocationsContext {
     /// Currently running program should own this pages.
     pub fn free_range(&mut self, range: RangeInclusive<WasmPage>) -> Result<(), AllocError> {
         if self.static_pages > *range.start() || self.max_pages <= *range.end() {
-            return Err(AllocError::InvalidFreeRange(
-                range.start().raw(),
-                range.end().raw(),
-            ));
+            return Err(AllocError::InvalidFreeRange(*range.start(), *range.end()));
         }
 
         let interval = Interval::try_from(range.clone())
-            .map_err(|_| AllocError::InvalidFreeRange(range.start().raw(), range.end().raw()))?;
+            .map_err(|_| AllocError::InvalidFreeRange(*range.start(), *range.end()))?;
 
         self.allocations.remove(interval);
         Ok(())
@@ -433,7 +429,7 @@ mod tests {
         let gear_pages: Vec<u32> = wasm_pages
             .iter()
             .flat_map(|p| p.to_iter())
-            .map(|p: GearPage| p.raw())
+            .map(|p: GearPage| p.into())
             .collect();
 
         let expectation = [0, 1, 2, 3, 40, 41, 42, 43];
@@ -454,17 +450,17 @@ mod tests {
     #[test]
     fn free_fails() {
         let mut ctx = AllocationsContext::new(Default::default(), 0.into(), 0.into());
-        assert_eq!(ctx.free(1.into()), Err(AllocError::InvalidFree(1)));
+        assert_eq!(ctx.free(1.into()), Err(AllocError::InvalidFree(1.into())));
 
         let mut ctx = AllocationsContext::new(Default::default(), 1.into(), 0.into());
-        assert_eq!(ctx.free(0.into()), Err(AllocError::InvalidFree(0)));
+        assert_eq!(ctx.free(0.into()), Err(AllocError::InvalidFree(0.into())));
 
         let mut ctx = AllocationsContext::new(
             [WasmPage::from(0)].into_iter().collect(),
             1.into(),
             1.into(),
         );
-        assert_eq!(ctx.free(1.into()), Err(AllocError::InvalidFree(1)));
+        assert_eq!(ctx.free(1.into()), Err(AllocError::InvalidFree(1.into())));
 
         let mut ctx = AllocationsContext::new(
             [WasmPage::from(1), WasmPage::from(3)].into_iter().collect(),
@@ -626,7 +622,7 @@ mod tests {
                             }
                         }
                         Action::FreeRange { page, size } => {
-                            let Some(end) = u16::try_from(page.raw().saturating_add(size as u32)).map(WasmPage::from).ok() else {
+                            let Some(end) = u16::try_from(u32::from(page).saturating_add(size as u32)).map(WasmPage::from).ok() else {
                                 continue;
                             };
                             if let Err(err) = ctx.free_range(page..=end) {

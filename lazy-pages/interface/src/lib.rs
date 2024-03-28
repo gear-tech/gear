@@ -27,7 +27,7 @@ use core::fmt;
 use gear_core::{
     ids::ProgramId,
     memory::{HostPointer, Memory, MemoryInterval},
-    pages::{GearPage, PageNumber, WasmPage, WasmPagesAmount},
+    pages::{GearPage, WasmPage, WasmPagesAmount},
     program::MemoryInfix,
 };
 use gear_lazy_pages_common::{GlobalsAccessConfig, LazyPagesCosts, ProcessAccessError, Status};
@@ -71,8 +71,8 @@ pub fn init_for_program(
 
     let ctx = LazyPagesProgramContext {
         wasm_mem_addr: mem.get_buffer_host_addr(),
-        wasm_mem_size: mem.size().raw(),
-        stack_end: stack_end.map(|p| p.raw()),
+        wasm_mem_size: mem.size().into(),
+        stack_end: stack_end.map(|p| p.into()),
         program_key: {
             let memory_infix = memory_infix.inner().to_le_bytes();
 
@@ -124,7 +124,7 @@ pub fn update_lazy_pages_and_protect_again(
     };
 
     let new_mem_size = mem.size();
-    let changed_size = (new_mem_size > old_mem_size).then_some(new_mem_size.raw());
+    let changed_size = (new_mem_size > old_mem_size).then_some(new_mem_size.into());
 
     if !matches!((changed_addr, changed_size), (None, None)) {
         gear_ri::change_wasm_memory_addr_and_size(changed_addr, changed_size)

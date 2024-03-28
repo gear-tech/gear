@@ -21,7 +21,7 @@
 use crate::{
     code::errors::*,
     message::{DispatchKind, WasmEntryPoint},
-    pages::{PageNumber, WasmPage, WasmPagesAmount},
+    pages::{WasmPage, WasmPagesAmount},
 };
 use alloc::collections::BTreeSet;
 use gear_wasm_instrument::{
@@ -288,7 +288,7 @@ pub fn check_data_section(
             .ok_or(DataSectionError::EndAddressOutOfStaticMemory(
                 data_segment_offset,
                 data_segment_last_byte_offset,
-                static_pages.raw(),
+                static_pages.offset(),
             ))?;
     }
 

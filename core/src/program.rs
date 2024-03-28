@@ -134,7 +134,7 @@ impl Program {
 #[cfg(test)]
 mod tests {
     use super::Program;
-    use crate::{code::Code, ids::ProgramId, pages::PageNumber};
+    use crate::{code::Code, ids::ProgramId, pages::WasmPagesAmount};
     use alloc::vec::Vec;
     use gear_wasm_instrument::gas_metering::CustomConstantCostRules;
 
@@ -185,7 +185,7 @@ mod tests {
         let program = Program::new(ProgramId::from(1), Default::default(), code);
 
         // 2 static pages
-        assert_eq!(program.static_pages().raw(), 2);
+        assert_eq!(program.static_pages(), WasmPagesAmount::from(2));
 
         // Has no allocations because we do not set them in new
         assert_eq!(program.allocations().points_amount(), Some(0));

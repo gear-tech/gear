@@ -41,7 +41,7 @@ use gear_core::{
     message::{
         HandlePacket, InitPacket, MessageWaitedType, Payload, PayloadSizeError, ReplyPacket,
     },
-    pages::{PageNumber, WasmPage},
+    pages::WasmPage,
 };
 use gear_core_errors::{MessageError, ReplyCode, SignalCode};
 use gear_sandbox::{default_executor::Caller, ReturnValue, Value};
@@ -628,7 +628,7 @@ where
             let page = match res {
                 Ok(page) => {
                     log::trace!("Alloc {pages:?} pages at {page:?}");
-                    page.raw()
+                    page.into()
                 }
                 Err(err) => {
                     log::trace!("Alloc failed: {err}");

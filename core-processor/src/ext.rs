@@ -1402,7 +1402,7 @@ mod tests {
         assert_eq!(
             ext.free(non_existing_page),
             Err(AllocExtError::Alloc(AllocError::InvalidFree(
-                non_existing_page.into()
+                non_existing_page
             )))
         );
         assert_eq!(ext.gas_left(), gas_left);

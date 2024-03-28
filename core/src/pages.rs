@@ -101,12 +101,6 @@ impl<const SIZE: u32> PagesAmount<SIZE> {
     }
 }
 
-impl<const SIZE: u32> PageNumber for PagesAmount<SIZE> {
-    unsafe fn from_raw(raw: u32) -> Self {
-        Self(raw)
-    }
-}
-
 impl<const SIZE: u32> From<Page<SIZE>> for PagesAmount<SIZE> {
     fn from(value: Page<SIZE>) -> Self {
         Self(value.0)
@@ -210,18 +204,17 @@ impl<const SIZE: u32> Page<SIZE> {
 
     /// Constructs new page from byte offset: returns page which contains this byte.
     pub fn from_offset(offset: u32) -> Self {
-        // Safe, cause offset is always less or equal to u32::MAX.
-        unsafe { Self::from_raw(offset / Self::SIZE) }
+        Self(offset / Self::SIZE)
     }
 
     /// Returns page zero byte offset.
     pub fn offset(&self) -> u32 {
-        self.raw() * Self::SIZE
+        self.0 * Self::SIZE
     }
 
     /// Returns page last byte offset.
     pub fn end_offset(&self) -> u32 {
-        self.raw() * Self::SIZE + (Self::SIZE - 1)
+        self.0 * Self::SIZE + (Self::SIZE - 1)
     }
 
     /// Returns new page, which contains `self` zero byte.
@@ -263,12 +256,6 @@ impl<const SIZE: u32> TryFrom<u32> for Page<SIZE> {
         } else {
             Ok(Self(raw))
         }
-    }
-}
-
-impl<const SIZE: u32> PageNumber for Page<SIZE> {
-    unsafe fn from_raw(raw: u32) -> Self {
-        Self(raw)
     }
 }
 
@@ -350,20 +337,6 @@ impl From<u16> for GearPage {
     }
 }
 
-/// Page number trait - page, which can return it number as u32.
-pub trait PageNumber: Copy + Into<u32> {
-    /// Creates page from raw number.
-    ///
-    /// # Safety
-    /// This function is unsafe because it can create invalid page number.
-    unsafe fn from_raw(raw: u32) -> Self;
-
-    /// Returns raw (u32) page number.
-    fn raw(&self) -> u32 {
-        Into::<u32>::into(*self)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -371,11 +344,11 @@ mod tests {
     use proptest::{proptest, strategy::Strategy, test_runner::Config as ProptestConfig};
 
     fn rand_gear_page() -> impl Strategy<Value = GearPage> {
-        (0..=GearPage::UPPER.raw()).prop_map(Page)
+        (0..=GearPage::UPPER.0).prop_map(Page)
     }
 
     fn rand_wasm_page() -> impl Strategy<Value = WasmPage> {
-        (0..=WasmPage::UPPER.raw()).prop_map(Page)
+        (0..=WasmPage::UPPER.0).prop_map(Page)
     }
 
     proptest! {

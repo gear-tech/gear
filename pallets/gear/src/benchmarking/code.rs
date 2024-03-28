@@ -30,7 +30,7 @@ use common::Origin;
 use frame_support::traits::Get;
 use gear_core::{
     ids::CodeId,
-    pages::{PageNumber, WasmPage, WasmPagesAmount},
+    pages::{WasmPage, WasmPagesAmount},
 };
 use gear_sandbox::{
     default_executor::{EnvironmentDefinitionBuilder, Memory, Store},
@@ -227,7 +227,7 @@ where
                 .module("env")
                 .field("memory")
                 .external()
-                .memory(memory.min_pages.raw(), None)
+                .memory(memory.min_pages.into(), None)
                 .build();
         }
 
@@ -393,7 +393,7 @@ where
         } else {
             return None;
         };
-        let memory = Memory::new(store, memory.min_pages.raw(), None).unwrap();
+        let memory = Memory::new(store, memory.min_pages.into(), None).unwrap();
         env.add_memory("env", "memory", memory.clone());
         Some(memory)
     }

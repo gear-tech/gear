@@ -38,9 +38,7 @@ use gear_core::{
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{PageBuf, PageBufInner},
     message::{Message, Value},
-    pages::{
-        GearPage, Interval, IntervalIterator, IntervalsTree, PageNumber, WasmPage, WasmPagesAmount,
-    },
+    pages::{GearPage, Interval, IntervalIterator, IntervalsTree, WasmPage, WasmPagesAmount},
     reservation::GasReservationSlot,
 };
 use gear_core_errors::*;
@@ -271,7 +269,7 @@ where
 
         let mut instructions = vec![];
         for page in pages_to_free {
-            instructions.extend([I32Const(page.raw() as i32), Call(0)]);
+            instructions.extend([I32Const(u32::from(page) as i32), Call(0)]);
             unreachable_condition_i32(&mut instructions, I32Ne, 0);
         }
 
@@ -319,8 +317,8 @@ where
         let mut instructions = vec![];
         for interval in intervals_to_free {
             instructions.extend([
-                I32Const(interval.start().raw() as i32),
-                I32Const(interval.end().raw() as i32),
+                I32Const(u32::from(interval.start()) as i32),
+                I32Const(u32::from(interval.end()) as i32),
                 Call(0),
             ]);
             unreachable_condition_i32(&mut instructions, I32Ne, 0);

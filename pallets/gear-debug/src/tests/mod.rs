@@ -24,7 +24,7 @@ use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
     memory::PageBuf,
     message::{DispatchKind, StoredDispatch, StoredMessage, UserMessage},
-    pages::{GearPage, PageNumber, WasmPage},
+    pages::{GearPage, WasmPage},
 };
 use gear_wasm_instrument::STACK_END_EXPORT_NAME;
 use pallet_gear::{DebugInfo, Event, Pallet as PalletGear};
@@ -100,7 +100,7 @@ fn vec() {
             .fold(BTreeSet::new(), |mut set, page| {
                 let wasm_page: WasmPage = page.to_page();
                 if static_pages <= wasm_page {
-                    set.insert(wasm_page.raw());
+                    set.insert(u32::from(wasm_page));
                 }
                 set
             });

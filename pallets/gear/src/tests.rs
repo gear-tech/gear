@@ -49,7 +49,6 @@ use gear_core::{
         ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext, Payload,
         ReplyInfo, StoredDispatch, UserStoredMessage,
     },
-    pages::PageNumber,
 };
 use gear_core_backend::error::{
     TrapExplanation, UnrecoverableExecutionError, UnrecoverableExtError, UnrecoverableWaitError,
@@ -6303,7 +6302,7 @@ fn terminated_locking_funds() {
             .memory_weights
             .static_page
             .ref_time()
-            .saturating_mul(code.static_pages().raw() as u64);
+            .saturating_mul(u32::from(code.static_pages()) as u64);
 
         // Additional gas for loading resources on next wake up.
         // Must be exactly equal to gas, which we must pre-charge for program execution.
@@ -9809,7 +9808,7 @@ fn missing_handle_is_not_executed() {
 fn invalid_memory_page_amount_rejected() {
     let Some(incorrect_amount) = code::MAX_WASM_PAGES_AMOUNT
         .to_page_number()
-        .map(|p| p.inc().raw())
+        .map(|p| u32::from(p.inc()))
     else {
         // In case max memory is 4GB, then it's impossible to make invalid memory pages amount.
         return;

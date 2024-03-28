@@ -18,7 +18,7 @@
 
 use super::{program_storage::MemoryMap, *};
 use crate::storage::{MapStorage, ValueStorage};
-use gear_core::{code::MAX_WASM_PAGES_AMOUNT, pages::PageNumber};
+use gear_core::code::MAX_WASM_PAGES_AMOUNT;
 use sp_core::MAX_POSSIBLE_ALLOCATION;
 use sp_io::hashing;
 
@@ -35,7 +35,7 @@ impl From<(BTreeSet<WasmPage>, H256, MemoryMap)> for Item {
     fn from(
         (allocations, code_hash, mut memory_pages): (BTreeSet<WasmPage>, H256, MemoryMap),
     ) -> Self {
-        let split_page = (WasmPage::SIZE / GearPage::SIZE) * MAX_WASM_PAGES_AMOUNT.raw() / 2;
+        let split_page = (WasmPage::SIZE / GearPage::SIZE) * u32::from(MAX_WASM_PAGES_AMOUNT) / 2;
         let remaining_pages = memory_pages.split_off(&GearPage::from(split_page as u16));
         Self {
             data: (allocations, code_hash, memory_pages),

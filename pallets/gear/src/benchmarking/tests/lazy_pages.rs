@@ -30,7 +30,7 @@ use core_processor::{
 };
 use gear_core::{
     memory::{MemoryInterval, PageBuf},
-    pages::{GearPage, GearPagesAmount, IntervalIterator, PageNumber},
+    pages::{GearPage, GearPagesAmount, IntervalIterator},
 };
 use gear_lazy_pages_common::{LazyPagesCosts, Status};
 use gear_wasm_instrument::{parity_wasm::elements::Instruction, syscalls::SyscallName};
@@ -284,7 +284,7 @@ where
 
         // Append data in storage for some pages.
         for page in (0..rng.gen_range(0..MAX_PAGES_WITH_DATA))
-            .map(|_| GearPage::try_from(rng.gen_range(0..size_gear.raw())).unwrap())
+            .map(|_| GearPage::try_from(rng.gen_range(0u32..size_gear.into())).unwrap())
         {
             page_sets.add_page_with_data(page);
             ProgramStorageOf::<T>::set_program_page_data(
