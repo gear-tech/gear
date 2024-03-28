@@ -22,7 +22,9 @@ use crate::{
         runtime_types::{
             frame_system::{AccountInfo, EventRecord},
             gear_common::{storage::primitives::Interval, ActiveProgram, Program},
-            gear_core::{code::instrumented::InstrumentedCode, message::user::UserStoredMessage},
+            gear_core::{
+                code::instrumented::InstrumentedCode, message::user::UserStoredMessage, pages::Page,
+            },
             pallet_balances::types::AccountData,
             pallet_gear_bank::pallet::BankAccount,
         },
@@ -317,7 +319,13 @@ impl Api {
     ) -> Result<GearPages> {
         let mut pages = HashMap::new();
 
-        for page in &program.pages_with_data {
+        for page in program
+            .pages_with_data
+            .inner
+            .iter()
+            .flat_map(|(s, e)| s.0..e.0)
+            .map(Page)
+        {
             let addr = Self::storage(
                 GearProgramStorage::MemoryPages,
                 vec![
