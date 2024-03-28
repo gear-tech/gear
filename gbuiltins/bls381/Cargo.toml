@@ -1,0 +1,16 @@
+[package]
+name = "gbuiltin-bls381"
+description = "Entities for working with Gear builtin actor providing bls12_381 cryptography"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+codec = { workspace = true, features = ["derive"] }
+derive_more.workspace = true
+ark-bls12-381 = { workspace = true, features = ["curve"] }
+ark-ec.workspace = true
+ark-ff.workspace = true
+ark-scale = { workspace = true, features = ["hazmat"] }
+ark-serialize = { workspace = true, features = ["derive"] }

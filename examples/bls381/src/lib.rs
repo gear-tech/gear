@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2024 Gear Technologies Inc.
+// Copyright (C) 2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -16,8 +16,37 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Builtin actor pallet tests.
+#![cfg_attr(not(feature = "std"), no_std)]
 
-pub mod bad_builtin_ids;
-pub mod basic;
-pub mod bls381;
+extern crate alloc;
+
+use alloc::vec::Vec;
+use codec::{Decode, Encode};
+
+#[cfg(feature = "std")]
+mod code {
+    include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
+}
+
+#[cfg(feature = "std")]
+pub use code::WASM_BINARY_OPT as WASM_BINARY;
+
+#[derive(Encode, Decode)]
+#[codec(crate = codec)]
+pub enum HandleMessage {
+    MillerLoop {
+        message: Vec<u8>,
+        signatures: Vec<Vec<u8>>,
+    },
+    Exp,
+}
+
+#[derive(Encode, Decode)]
+#[codec(crate = codec)]
+pub struct InitMessage {
+    pub g2_gen: Vec<u8>,
+    pub pub_keys: Vec<Vec<u8>>,
+}
+
+#[cfg(not(feature = "std"))]
+mod wasm;
