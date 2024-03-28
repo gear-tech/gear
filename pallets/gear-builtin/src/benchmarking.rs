@@ -205,15 +205,17 @@ benchmarks! {
     }
 
     bls12_381_msm_g1 {
-        let c in 0 .. 1_000;
+        let c in 1 .. 1_000;
 
         let count = c as usize;
 
         let mut rng = ark_std::test_rng();
 
-        let scalars = (0..count)
+        let scalar = (0..count)
             .map(|_| <G1 as Group>::ScalarField::rand(&mut rng))
-            .collect::<Vec<_>>();
+            .max()
+            .unwrap();
+        let scalars = vec![scalar; count];
         let ark_scalars: ArkScale<Vec<<G1 as Group>::ScalarField>> = scalars.clone().into();
         let encoded_scalars = ark_scalars.encode();
 
@@ -233,15 +235,17 @@ benchmarks! {
     }
 
     bls12_381_msm_g2 {
-        let c in 0 .. 1_000;
+        let c in 1 .. 1_000;
 
         let count = c as usize;
 
         let mut rng = ark_std::test_rng();
 
-        let scalars = (0..count)
+        let scalar = (0..count)
             .map(|_| <G2 as Group>::ScalarField::rand(&mut rng))
-            .collect::<Vec<_>>();
+            .max()
+            .unwrap();
+        let scalars = vec![scalar; count];
         let ark_scalars: ArkScale<Vec<<G2 as Group>::ScalarField>> = scalars.clone().into();
         let encoded_scalars = ark_scalars.encode();
 
