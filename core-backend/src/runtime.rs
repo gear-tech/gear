@@ -56,6 +56,7 @@ where
             .unwrap_or_else(|| unreachable!("host_state must be set before execution"))
     }
 
+    #[track_caller]
     pub fn take_state(&mut self) -> State<Ext, Mem> {
         self.caller
             .data_mut()
