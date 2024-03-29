@@ -84,7 +84,7 @@ impl Error {
     /// representation.
     pub fn error_reply_str(&self) -> Option<&str> {
         if let Self::ErrorReply(payload, _) = self {
-            payload.as_str()
+            payload.try_as_str()
         } else {
             None
         }
@@ -100,7 +100,7 @@ impl fmt::Display for Error {
             Error::Gstd(e) => write!(f, "`Gstd` API error: {e:?}"),
             Error::ErrorReply(err, reason) => write!(f, "Received reply '{err}' due to {reason:?}"),
             Error::UnsupportedReply(payload) => {
-                write!(f, "Received unsupported reply 0x'{}'", hex::encode(payload))
+                write!(f, "Received unsupported reply '0x{}'", hex::encode(payload))
             }
             Error::Timeout(expected, now) => {
                 write!(f, "Timeout has occurred: expected at {expected}, now {now}")
@@ -120,9 +120,16 @@ impl From<CoreError> for Error {
 pub struct ErrorReplyPayload(pub Vec<u8>);
 
 impl ErrorReplyPayload {
-    /// Represents self as utf-8 str.
-    pub fn as_str(&self) -> Option<&str> {
+    /// Represents self as utf-8 str, if possible.
+    pub fn try_as_str(&self) -> Option<&str> {
         str::from_utf8(&self.0).ok()
+    }
+
+    /// Similar to [`try_as_str`], but panics in `None` case.
+    /// Preferable to use only for test purposes.
+    #[track_caller]
+    pub fn as_str(&self) -> &str {
+        str::from_utf8(&self.0).expect("Failed to create `str`")
     }
 }
 
@@ -134,7 +141,7 @@ impl From<Vec<u8>> for ErrorReplyPayload {
 
 impl fmt::Debug for ErrorReplyPayload {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.as_str()
+        self.try_as_str()
             .map(|v| write!(f, "{v}"))
             .unwrap_or_else(|| write!(f, "0x{}", hex::encode(&self.0)))
     }
