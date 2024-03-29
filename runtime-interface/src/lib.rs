@@ -301,3 +301,65 @@ pub trait GearDebug {
             .as_nanos()
     }
 }
+
+#[repr(u32)]
+pub enum Plonky2VerifyResult {
+    Verified,
+    Rejected,
+    FailedToDecodeCommonData,
+    FailedToDecodeVerifierData,
+    FailedToDecodeProof,
+}
+
+impl From<Plonky2VerifyResult> for u32 {
+    fn from(value: Plonky2VerifyResult) -> Self {
+        value as u32
+    }
+}
+
+#[runtime_interface]
+pub trait SpecificPlonky2 {
+    fn verify(
+        common_curcuit_data: Vec<u8>,
+        verifier_circuit_data: Vec<u8>,
+        proof: Vec<u8>,
+    ) -> u32 {
+        use plonky2::plonk::{
+            self,
+            config::{GenericConfig, PoseidonGoldilocksConfig},
+        };
+        use plonky2::util::serialization::DefaultGateSerializer;
+
+        pub const DIMENSION: usize = 2;
+        pub type Config = PoseidonGoldilocksConfig;
+        pub type Field = <Config as GenericConfig<DIMENSION>>::F;
+        // pub type CircuitData = plonk::circuit_data::CircuitData<Field, Config, DIMENSION>;
+        pub type CommonCircuitData = plonk::circuit_data::CommonCircuitData<Field, DIMENSION>;
+        pub type VerifierOnlyCircuitData = plonk::circuit_data::VerifierOnlyCircuitData<Config, DIMENSION>;
+        pub type VerifierCircuitData = plonk::circuit_data::VerifierCircuitData<Field, Config, DIMENSION>;
+        // pub type ProverOnlyCircuitData = plonk::circuit_data::ProverOnlyCircuitData<Field, Config, DIMENSION>;
+        pub type ProofWithPublicInputs = plonk::proof::ProofWithPublicInputs<Field, Config, DIMENSION>;
+
+        let Ok(common) = CommonCircuitData::from_bytes(common_curcuit_data, &DefaultGateSerializer) else {
+            return Plonky2VerifyResult::FailedToDecodeCommonData.into();
+        };
+
+        let Ok(verifier_only) = VerifierOnlyCircuitData::from_bytes(verifier_circuit_data) else {
+            return Plonky2VerifyResult::FailedToDecodeVerifierData.into();
+        };
+
+        let Ok(proof_with_pis) = ProofWithPublicInputs::from_bytes(proof, &common) else {
+            return Plonky2VerifyResult::FailedToDecodeProof.into();
+        };
+
+        let verifier_circuit_data = VerifierCircuitData { verifier_only, common };
+        match verifier_circuit_data.verify(proof_with_pis) {
+            Ok(()) => Plonky2VerifyResult::Verified,
+            Err(e) => {
+                log::debug!("VerifierCircuitData::verify failed: {e:?}");
+
+                Plonky2VerifyResult::Rejected
+            }
+        }.into()
+    }
+}
