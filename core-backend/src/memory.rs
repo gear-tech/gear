@@ -38,19 +38,21 @@ use gear_core::{
 };
 use gear_core_errors::MemoryError as FallibleMemoryError;
 use gear_lazy_pages_common::ProcessAccessError;
-use gear_sandbox::{
-    default_executor::{Caller, Store},
-    SandboxMemory,
-};
+use gear_sandbox::{default_executor::Store, AsContextExt, SandboxMemory};
 
 pub type ExecutorMemory = gear_sandbox::default_executor::Memory;
 
-pub(crate) struct MemoryWrapRef<'a, 'b: 'a, Ext> {
-    pub memory: ExecutorMemory,
-    pub caller: &'a mut Caller<'b, HostState<Ext, ExecutorMemory>>,
+pub(crate) struct MemoryWrapRef<'a, Caller, Memory> {
+    pub caller: &'a mut Caller,
+    pub memory: Memory,
 }
 
-impl<Ext: Externalities + 'static> Memory for MemoryWrapRef<'_, '_, Ext> {
+impl<Caller, Ext, Mem> Memory for MemoryWrapRef<'_, Caller, Mem>
+where
+    Caller: AsContextExt<State = HostState<Ext, Mem>>,
+    Ext: BackendExternalities,
+    Mem: SandboxMemory<Caller::State>,
+{
     type GrowError = gear_sandbox::Error;
 
     fn grow(&mut self, pages: WasmPage) -> Result<(), Self::GrowError> {
@@ -205,23 +207,28 @@ impl BackendSyscallError for MemoryAccessError {
 /// manager.write_as(write1, 111).unwrap();
 /// ```
 #[derive(Debug)]
-pub(crate) struct MemoryAccessRegistrar<Ext> {
+pub(crate) struct MemoryAccessRegistrar<Caller> {
     pub(crate) reads: Vec<MemoryInterval>,
     pub(crate) writes: Vec<MemoryInterval>,
-    _ext: PhantomData<Ext>,
+    _phantom: PhantomData<Caller>,
 }
 
-impl<Ext> Default for MemoryAccessRegistrar<Ext> {
+impl<Caller> Default for MemoryAccessRegistrar<Caller> {
     fn default() -> Self {
         Self {
             reads: Default::default(),
             writes: Default::default(),
-            _ext: PhantomData,
+            _phantom: PhantomData,
         }
     }
 }
 
-impl<Ext: BackendExternalities + 'static> MemoryAccessRegistrar<Ext> {
+impl<Caller, Ext, Mem> MemoryAccessRegistrar<Caller>
+where
+    Caller: AsContextExt<State = HostState<Ext, Mem>>,
+    Ext: BackendExternalities + 'static,
+    Mem: SandboxMemory<Caller::State> + Clone + 'static,
+{
     pub(crate) fn register_read(&mut self, ptr: u32, size: u32) -> WasmMemoryRead {
         if size > 0 {
             self.reads.push(MemoryInterval { offset: ptr, size });
@@ -272,17 +279,14 @@ impl<Ext: BackendExternalities + 'static> MemoryAccessRegistrar<Ext> {
         }
     }
 
-    /*pub(crate) struct CallerWrap<'a, 'b: 'a, Ext> {}
-
-    pub(crate) fn memory_ref<'c, 'd: 'c>(&'c mut self) -> MemoryWrapRef<'c, 'd, Ext> {
-        MemoryWrapRef::<'c, 'd, _> {}
-    }*/
-
     /// Call pre-processing of registered memory accesses.
-    pub(crate) fn pre_process<'a, 'b: 'a, 'c: 'b>(
+    pub(crate) fn pre_process<'a, 'b: 'a, MemoryWrap>(
         self,
-        ctx: &'a mut CallerWrap<'b, 'c, Ext>,
-    ) -> Result<MemoryAccessIo<'a, 'c, Ext>, MemoryAccessError> {
+        ctx: &'a mut CallerWrap<'b, Caller>,
+    ) -> Result<MemoryAccessIo<MemoryWrap>, MemoryAccessError>
+    where
+        MemoryWrap: From<&'a mut CallerWrap<'b, Caller>>,
+    {
         let mut gas_counter = ctx.host_state_mut().ext.define_current_counter();
 
         let res = Ext::pre_process_memory_accesses(&self.reads, &self.writes, &mut gas_counter);
@@ -294,16 +298,19 @@ impl<Ext: BackendExternalities + 'static> MemoryAccessRegistrar<Ext> {
         res?;
 
         Ok(MemoryAccessIo {
-            memory: CallerWrap::memory(ctx.caller, ctx.memory.clone()),
+            memory: MemoryWrap::from(ctx),
         })
     }
 }
 
-pub(crate) struct MemoryAccessIo<'a, 'b: 'a, Ext> {
-    memory: MemoryWrapRef<'a, 'b, Ext>,
+pub(crate) struct MemoryAccessIo<Memory> {
+    memory: Memory,
 }
 
-impl<Ext: Externalities + 'static> MemoryAccessIo<'_, '_, Ext> {
+impl<Mem> MemoryAccessIo<Mem>
+where
+    Mem: Memory,
+{
     pub(crate) fn read(&self, wasm_read: WasmMemoryRead) -> Result<Vec<u8>, MemoryAccessError> {
         read(&self.memory, wasm_read)
     }

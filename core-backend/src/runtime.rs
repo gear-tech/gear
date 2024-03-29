@@ -20,12 +20,13 @@
 
 use crate::{
     error::{BackendAllocSyscallError, RunFallibleError, UndefinedTerminationReason},
+    funcs,
     memory::{ExecutorMemory, MemoryAccessRegistrar, MemoryWrapRef},
     state::{HostState, State},
     BackendExternalities,
 };
 use gear_core::{costs::CostToken, pages::WasmPage};
-use gear_sandbox::{default_executor::Caller, AsContextExt, HostError, Value};
+use gear_sandbox::{AsContextExt, HostError, SandboxMemory, Value};
 
 pub(crate) fn as_i64(v: Value) -> Option<i64> {
     match v {
@@ -35,9 +36,10 @@ pub(crate) fn as_i64(v: Value) -> Option<i64> {
 }
 
 #[track_caller]
-pub(crate) fn caller_host_state_mut<'a, 'b: 'a, Ext>(
-    caller: &'a mut Caller<'_, HostState<Ext, ExecutorMemory>>,
-) -> &'a mut State<Ext, ExecutorMemory> {
+pub(crate) fn caller_host_state_mut<Caller, Ext, Mem>(caller: &mut Caller) -> &mut State<Ext, Mem>
+where
+    Caller: AsContextExt<State = HostState<Ext, Mem>>,
+{
     caller
         .data_mut()
         .as_mut()
@@ -45,29 +47,53 @@ pub(crate) fn caller_host_state_mut<'a, 'b: 'a, Ext>(
 }
 
 #[track_caller]
-pub(crate) fn caller_host_state_take<Ext>(
-    caller: &mut Caller<'_, HostState<Ext, ExecutorMemory>>,
-) -> State<Ext, ExecutorMemory> {
+pub(crate) fn caller_host_state_take<Caller, Ext, Mem>(caller: &mut Caller) -> State<Ext, Mem>
+where
+    Caller: AsContextExt<State = HostState<Ext, Mem>>,
+{
     caller
         .data_mut()
         .take()
         .unwrap_or_else(|| unreachable!("host_state must be set before execution"))
 }
 
-pub(crate) struct CallerWrap<'a, 'b: 'a, Ext> {
-    pub caller: &'a mut Caller<'b, HostState<Ext, ExecutorMemory>>,
-    pub memory: ExecutorMemory,
+pub(crate) struct CallerWrap<'a, Caller> {
+    pub caller: &'a mut Caller,
 }
 
-impl<'a, 'b, Ext: BackendExternalities + 'static> CallerWrap<'a, 'b, Ext> {
-    pub fn ext_mut(&mut self) -> &mut Ext {
-        &mut self.host_state_mut().ext
+impl<'a, Caller, Ext, Mem> CallerWrap<'a, Caller>
+where
+    Caller: AsContextExt<State = HostState<Ext, Mem>>,
+    Mem: 'static,
+{
+    #[track_caller]
+    pub fn prepare(caller: &'a mut Caller) -> Self {
+        Self { caller }
     }
 
     #[track_caller]
-    pub fn run_any<T, F>(&mut self, gas: u64, token: CostToken, f: F) -> Result<(u64, T), HostError>
+    pub fn host_state_mut(&mut self) -> &mut State<Ext, Mem> {
+        caller_host_state_mut(self.caller)
+    }
+
+    pub fn set_termination_reason(&mut self, reason: UndefinedTerminationReason) {
+        self.host_state_mut().termination_reason = reason;
+    }
+
+    pub fn ext_mut(&mut self) -> &mut Ext {
+        &mut self.host_state_mut().ext
+    }
+}
+
+impl<'a, Caller, Ext> CallerWrap<'a, Caller>
+where
+    Caller: AsContextExt<State = HostState<Ext, ExecutorMemory>>,
+    Ext: BackendExternalities + 'static,
+{
+    #[track_caller]
+    pub fn run_any<U, F>(&mut self, gas: u64, token: CostToken, f: F) -> Result<(u64, U), HostError>
     where
-        F: FnOnce(&mut Self) -> Result<T, UndefinedTerminationReason>,
+        F: FnOnce(&mut Self) -> Result<U, UndefinedTerminationReason>,
     {
         self.host_state_mut().ext.decrease_current_counter_to(gas);
 
@@ -85,7 +111,7 @@ impl<'a, 'b, Ext: BackendExternalities + 'static> CallerWrap<'a, 'b, Ext> {
     }
 
     #[track_caller]
-    pub fn run_fallible<T: Sized, F, R>(
+    pub fn run_fallible<U: Sized, F, R>(
         &mut self,
         gas: u64,
         res_ptr: u32,
@@ -93,8 +119,8 @@ impl<'a, 'b, Ext: BackendExternalities + 'static> CallerWrap<'a, 'b, Ext> {
         f: F,
     ) -> Result<(u64, ()), HostError>
     where
-        F: FnOnce(&mut Self) -> Result<T, RunFallibleError>,
-        R: From<Result<T, u32>> + Sized,
+        F: FnOnce(&mut Self) -> Result<U, RunFallibleError>,
+        R: From<Result<U, u32>> + Sized,
     {
         self.run_any(
             gas,
@@ -106,7 +132,7 @@ impl<'a, 'b, Ext: BackendExternalities + 'static> CallerWrap<'a, 'b, Ext> {
                 // TODO: move above or make normal process memory access.
                 let mut registrar = MemoryAccessRegistrar::default();
                 let write_res = registrar.register_write_as::<R>(res_ptr);
-                let mut io = registrar.pre_process(ctx)?;
+                let mut io: funcs::MemoryAccessIo<Caller> = registrar.pre_process(ctx)?;
                 io.write_as(write_res, R::from(res)).map_err(Into::into)
             },
         )
@@ -114,40 +140,21 @@ impl<'a, 'b, Ext: BackendExternalities + 'static> CallerWrap<'a, 'b, Ext> {
 
     pub fn alloc(&mut self, pages: u32) -> Result<WasmPage, <Ext>::AllocError> {
         let mut state = caller_host_state_take(self.caller);
-        let mut mem = CallerWrap::memory(self.caller, self.memory.clone());
-        let res = state.ext.alloc(pages, &mut mem);
+        let memory = state.memory.clone();
+        let mut memory = MemoryWrapRef {
+            memory,
+            caller: self.caller,
+        };
+        let res = state.ext.alloc(pages, &mut memory);
         self.caller.data_mut().replace(state);
         res
     }
 
-    #[track_caller]
-    pub fn prepare(caller: &'a mut Caller<'b, HostState<Ext, ExecutorMemory>>) -> Self {
-        let memory = caller_host_state_mut(caller).memory.clone();
-        Self { caller, memory }
-    }
-
-    #[track_caller]
-    pub fn host_state_mut(&mut self) -> &mut State<Ext, ExecutorMemory> {
-        caller_host_state_mut(self.caller)
-    }
-
-    #[track_caller]
-    pub fn memory<'c, 'd: 'c>(
-        caller: &'c mut Caller<'d, HostState<Ext, ExecutorMemory>>,
-        memory: ExecutorMemory,
-    ) -> MemoryWrapRef<'c, 'd, Ext> {
-        MemoryWrapRef::<'c, 'd, _> { memory, caller }
-    }
-
-    pub fn set_termination_reason(&mut self, reason: UndefinedTerminationReason) {
-        self.host_state_mut().termination_reason = reason;
-    }
-
     /// Process fallible syscall function result
-    pub fn process_fallible_func_result<T: Sized>(
+    pub fn process_fallible_func_result<U: Sized>(
         &mut self,
-        res: Result<T, RunFallibleError>,
-    ) -> Result<Result<T, u32>, UndefinedTerminationReason> {
+        res: Result<U, RunFallibleError>,
+    ) -> Result<Result<U, u32>, UndefinedTerminationReason> {
         match res {
             Err(RunFallibleError::FallibleExt(ext_err)) => {
                 let code = ext_err.to_u32();
@@ -160,16 +167,32 @@ impl<'a, 'b, Ext: BackendExternalities + 'static> CallerWrap<'a, 'b, Ext> {
     }
 
     /// Process alloc function result
-    pub fn process_alloc_func_result<T: Sized, ExtAllocError: BackendAllocSyscallError>(
+    pub fn process_alloc_func_result<U: Sized, ExtAllocError: BackendAllocSyscallError>(
         &mut self,
-        res: Result<T, ExtAllocError>,
-    ) -> Result<Result<T, ExtAllocError>, UndefinedTerminationReason> {
+        res: Result<U, ExtAllocError>,
+    ) -> Result<Result<U, ExtAllocError>, UndefinedTerminationReason> {
         match res {
             Ok(t) => Ok(Ok(t)),
             Err(err) => match err.into_backend_error() {
                 Ok(ext_err) => Err(ext_err.into()),
                 Err(alloc_err) => Ok(Err(alloc_err)),
             },
+        }
+    }
+}
+
+impl<'a, 'b, Caller, Ext, Mem> From<&'a mut CallerWrap<'b, Caller>>
+    for MemoryWrapRef<'a, Caller, Mem>
+where
+    Caller: AsContextExt<State = HostState<Ext, Mem>>,
+    Ext: BackendExternalities + 'static,
+    Mem: SandboxMemory<Caller::State>,
+{
+    fn from(caller: &'a mut CallerWrap<'b, Caller>) -> Self {
+        let memory = caller_host_state_mut(caller.caller).memory.clone();
+        MemoryWrapRef {
+            memory,
+            caller: caller.caller,
         }
     }
 }

@@ -37,7 +37,7 @@ use scale_info::{
 };
 
 /// Interval in wasm program memory.
-#[derive(Clone, Copy, Encode, Decode)]
+#[derive(Clone, Copy, Eq, PartialEq, Encode, Decode)]
 pub struct MemoryInterval {
     /// Interval offset in bytes.
     pub offset: u32,
