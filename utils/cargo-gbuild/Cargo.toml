@@ -16,4 +16,5 @@ tracing.workspace = true
 gear-wasm-builder.workspace = true
 
 [dev-dependencies]
-gsdk = { workspace = true, features = ["testing"] }
+gclient.workspace = true
+tokio = { workspace = true, features = ["macros"] }

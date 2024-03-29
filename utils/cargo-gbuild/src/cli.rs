@@ -19,8 +19,11 @@
 use crate::manifest;
 use anyhow::{anyhow, Result};
 use ccli::{clap, Parser};
-use gear_wasm_builder::optimize::{self, OptType, Optimizer};
-use std::{fs, path::PathBuf, process::Command};
+use gear_wasm_builder::{
+    optimize::{self, OptType, Optimizer},
+    CargoCommand,
+};
+use std::{fs, path::PathBuf};
 
 const ARTIFACT_DIR: &str = "gbuild";
 
@@ -35,12 +38,16 @@ pub struct GBuild {
     #[clap(short, long)]
     pub features: Vec<String>,
 
+    /// If enables the release profile.
+    #[clap(short, long)]
+    pub release: bool,
+
     /// Directory for all generated artifacts
+    ///
+    /// If not set, the default value will be the target folder
+    /// of the cargo project.
     #[clap(short, long)]
     pub target_dir: Option<PathBuf>,
-
-    /// If disable wasm-opt
-    pub no_wasm_opt: bool,
 
     /// TODO: If enable meta build
     #[clap(short, long)]
@@ -57,25 +64,20 @@ impl GBuild {
     /// Process the cargo command.
     ///
     /// NOTE: only supports release build.
+    ///
+    /// TODO: support workspace build.
     fn cargo(&self) -> Result<()> {
-        let mut cargo = Command::new("cargo");
-        cargo.args(["build", "--release", "--target", "wasm32-unknown-unknown"]);
-        cargo.args([
-            "--manifest-path",
-            self.manifest_path.to_string_lossy().to_string().as_str(),
-        ]);
-        if !self.features.is_empty() {
-            cargo.args(["--features", &self.features.join(",")]);
+        let mut kargo = CargoCommand::new();
+        if self.release {
+            kargo.set_profile("release".into());
         }
-
-        if !cargo.status()?.success() {
-            return Err(anyhow!("Failed to process the cargo command."));
-        }
-
-        Ok(())
+        kargo.set_manifest_path(self.manifest_path.clone());
+        kargo.run()
     }
 
     // Collects the artifacts.
+    ///
+    /// TODO: generate `wasm_binary.rs` in the output directory.
     fn collect(&self) -> Result<Artifact> {
         let root = self
             .manifest_path

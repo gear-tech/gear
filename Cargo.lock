@@ -885,9 +885,10 @@ version = "1.2.0"
 dependencies = [
  "anyhow",
  "ccli",
+ "gclient",
  "gear-wasm-builder",
- "gsdk",
  "serde",
+ "tokio",
  "toml 0.7.8",
  "tracing",
 ]

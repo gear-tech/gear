@@ -18,20 +18,27 @@
 
 use anyhow::Result;
 use cargo_gbuild::GBuild;
+use gclient::{GearApi, WSAddress};
 use std::path::PathBuf;
 
-#[test]
-fn compile_program() -> Result<()> {
+#[tokio::test]
+async fn compile_program() -> Result<()> {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("program/Cargo.toml");
-
-    GBuild {
+    let artifact = GBuild {
         manifest_path: root.to_string_lossy().to_string().into(),
         features: vec![],
         target_dir: None,
-        no_wasm_opt: true,
+        release: false,
         meta: false,
     }
     .build()?;
+
+    // Upload the program to the chain
+    // let node = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../target/release/gear");
+    // let api = GearApi::dev_from_path(node).await?;
+    let api = GearApi::init(WSAddress::dev()).await?;
+    api.upload_program_by_path(artifact.program, b"", b"PING", 200_000_000, 0)
+        .await?;
 
     Ok(())
 }

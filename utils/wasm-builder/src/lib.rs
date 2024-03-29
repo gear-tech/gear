@@ -20,8 +20,9 @@
 #![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
 #![doc(html_favicon_url = "https://gear-tech.io/favicons/favicon.ico")]
 
-use crate::{cargo_command::CargoCommand, wasm_project::WasmProject};
+use crate::wasm_project::WasmProject;
 use anyhow::{Context, Result};
+pub use cargo_command::CargoCommand;
 use gmeta::{Metadata, MetadataRepr};
 use regex::Regex;
 use std::{env, path::PathBuf, process};
