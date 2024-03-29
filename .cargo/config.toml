@@ -1,0 +1,2 @@
+[registries]
+gear-registry = { index = "sparse+http://3.75.247.246:50000/index/" }

@@ -8021,6 +8021,7 @@ dependencies = [
  "pallet-gear-voucher",
  "pallet-timestamp",
  "parity-scale-codec",
+ "plonky2-benchmarks-data",
  "primitive-types 0.12.2",
  "rand 0.8.5",
  "rand_pcg",
@@ -9169,6 +9170,12 @@ dependencies = [
  "unroll",
  "web-time",
 ]
+
+[[package]]
+name = "plonky2-benchmarks-data"
+version = "0.1.0"
+source = "sparse+http://3.75.247.246:50000/index/"
+checksum = "a0b0782d4477519365db933f3bb60f26b1cf1cbac2bb55de5994041a7070fd86"
 
 [[package]]
 name = "plonky2_field"

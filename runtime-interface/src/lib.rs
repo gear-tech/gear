@@ -309,6 +309,7 @@ pub enum Plonky2VerifyResult {
     FailedToDecodeCommonData,
     FailedToDecodeVerifierData,
     FailedToDecodeProof,
+    ConfigNotSupported,
 }
 
 impl From<Plonky2VerifyResult> for u32 {
@@ -343,6 +344,12 @@ pub trait SpecificPlonky2 {
         let Ok(common) = CommonCircuitData::from_bytes(common_curcuit_data, &DefaultGateSerializer) else {
             return Plonky2VerifyResult::FailedToDecodeCommonData.into();
         };
+
+        if common.config.fri_config.rate_bits != 3
+            || common.config.fri_config.proof_of_work_bits != 16
+        {
+            return Plonky2VerifyResult::ConfigNotSupported.into();
+        }
 
         let Ok(verifier_only) = VerifierOnlyCircuitData::from_bytes(verifier_circuit_data) else {
             return Plonky2VerifyResult::FailedToDecodeVerifierData.into();

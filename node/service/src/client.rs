@@ -57,6 +57,7 @@ impl sc_executor::NativeExecutionDispatch for VaraExecutorDispatch {
         gear_ri::sandbox::HostFunctions,
         sp_crypto_ec_utils::bls12_381::host_calls::HostFunctions,
         gear_ri::specific_plonky_2::HostFunctions,
+        gear_ri::gear_debug::HostFunctions,
     );
     /// Otherwise we only use the default Substrate host functions.
     #[cfg(not(feature = "runtime-benchmarks"))]

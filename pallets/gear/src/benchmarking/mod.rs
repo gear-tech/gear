@@ -2612,6 +2612,28 @@ benchmarks! {
         ext_manager.remove_from_mailbox(user.cast(), message_id);
     }
 
+    plonky2_verify {
+        let i in 1..100;
+        let n in 10..28;
+
+        let proof_of_work_bits = 16;
+
+        let file_name = ::alloc::format!("{}{i}_{n}_{proof_of_work_bits}_common_curcuit_data", plonky2_benchmarks_data::get_path());
+        let common_curcuit_data = gear_runtime_interface::gear_debug::file_read(&file_name);
+
+        let file_name = ::alloc::format!("{}{i}_{n}_{proof_of_work_bits}_verifier_only_data", plonky2_benchmarks_data::get_path());
+        let verifier_only_data = gear_runtime_interface::gear_debug::file_read(&file_name);
+
+        let file_name = ::alloc::format!("{}{i}_{n}_{proof_of_work_bits}_proof", plonky2_benchmarks_data::get_path());
+        let proof = gear_runtime_interface::gear_debug::file_read(&file_name);
+        let mut _result = 0u32;
+    } : {
+        _result = gear_runtime_interface::specific_plonky_2::verify(common_curcuit_data, verifier_only_data, proof);
+    }
+    verify {
+        assert_eq!(_result, u32::from(gear_runtime_interface::Plonky2VerifyResult::Verified));
+    }
+
     // This is no benchmark. It merely exist to have an easy way to pretty print the currently
     // configured `Schedule` during benchmark development.
     // It can be outputted using the following command:

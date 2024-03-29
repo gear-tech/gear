@@ -65,6 +65,7 @@ demo-constructor = { workspace = true, optional = true }
 demo-waiter = { workspace = true, optional = true }
 demo-init-wait = { workspace = true, optional = true }
 demo-signal-entry = { workspace = true, optional = true }
+plonky2-benchmarks-data = { version = "0.1.0", optional = true, registry = "gear-registry" }
 
 # Some of tests require `debug` feature enabled
 [dev-dependencies]
@@ -195,6 +196,7 @@ runtime-benchmarks = [
 	"demo-init-wait/wasm-wrapper",
 	"demo-signal-entry/wasm-wrapper",
 	"core-processor/mock",
+	"plonky2-benchmarks-data",
 ]
 runtime-benchmarks-checkers = []
 try-runtime = ["frame-support/try-runtime"]
