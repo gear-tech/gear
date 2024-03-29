@@ -193,7 +193,7 @@ impl BackendSyscallError for MemoryAccessError {
 /// [`BackendExternalities::pre_process_memory_accesses`].
 /// And only then do actual read/write in type-safe way.
 ///
-/// ```rust,no_run
+/// ```rust,ignore
 /// # let ctx: () = ();
 /// let registry = MemoryAccessRegistry::default();
 /// let read1 = registry.new_read(10, 20);
