@@ -23,7 +23,6 @@ use crate::{
     prelude::Vec,
     ActorId, Config, MessageId,
 };
-use alloc::string::String;
 use core::{
     future::Future,
     marker::PhantomData,
@@ -60,14 +59,7 @@ where
             match reply_code {
                 ReplyCode::Success(_) => Poll::Ready(f(payload)),
                 ReplyCode::Error(reason) => {
-                    let err = String::from_utf8(payload)
-                        .map(|p| Error::ErrorReply(p, reason))
-                        .unwrap_or_else(|_| {
-                            // supposed to be unreachable
-                            Error::Convert("Failed to convert error reply payload to string")
-                        });
-
-                    Poll::Ready(Err(err))
+                    Poll::Ready(Err(Error::ErrorReply(payload.into(), reason)))
                 }
                 ReplyCode::Unsupported => Poll::Ready(Err(Error::UnsupportedReply(payload))),
             }

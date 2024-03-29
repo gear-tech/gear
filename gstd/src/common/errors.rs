@@ -22,8 +22,8 @@
 //! Errors related to conversion, decoding, message status code, other internal
 //! errors.
 
-use alloc::{string::String, vec::Vec};
-use core::fmt;
+use alloc::vec::Vec;
+use core::{fmt, str};
 use gcore::errors::Error as CoreError;
 
 pub use gcore::errors::*;
@@ -60,7 +60,7 @@ pub enum Error {
     /// Received error reply while awaited response from another actor.
     ///
     /// NOTE: this error could only be returned from async messaging.
-    ErrorReply(String, ErrorReplyReason),
+    ErrorReply(ErrorReplyPayload, ErrorReplyReason),
 
     /// Received reply that couldn't be identified as successful or not
     /// due to unsupported reply code.
@@ -80,10 +80,11 @@ impl Error {
         matches!(self, Error::Timeout(..))
     }
 
-    /// Check whether an error is [`Error::ErrorReply`] and return its payload.
-    pub fn error_payload(&self) -> Option<&String> {
+    /// Check whether an error is [`Error::ErrorReply`] and return its str
+    /// representation.
+    pub fn error_reply_str(&self) -> Option<&str> {
         if let Self::ErrorReply(payload, _) = self {
-            Some(payload)
+            payload.as_str()
         } else {
             None
         }
@@ -111,6 +112,37 @@ impl fmt::Display for Error {
 impl From<CoreError> for Error {
     fn from(err: CoreError) -> Self {
         Self::Core(err)
+    }
+}
+
+/// New-type representing error reply payload. Expected to be utf-8 string.
+#[derive(Clone, Eq, PartialEq)]
+pub struct ErrorReplyPayload(pub Vec<u8>);
+
+impl ErrorReplyPayload {
+    /// Represents self as utf-8 str.
+    pub fn as_str(&self) -> Option<&str> {
+        str::from_utf8(&self.0).ok()
+    }
+}
+
+impl From<Vec<u8>> for ErrorReplyPayload {
+    fn from(value: Vec<u8>) -> Self {
+        Self(value)
+    }
+}
+
+impl fmt::Debug for ErrorReplyPayload {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.as_str()
+            .map(|v| write!(f, "{v}"))
+            .unwrap_or_else(|| write!(f, "0x{}", hex::encode(&self.0)))
+    }
+}
+
+impl fmt::Display for ErrorReplyPayload {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Debug::fmt(self, f)
     }
 }
 
