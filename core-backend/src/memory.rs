@@ -321,7 +321,7 @@ where
         } else {
             let mut buff = RuntimeBuffer::try_new_default(read.size as usize)?.into_vec();
             let ptr = read.ptr;
-            self.memory.read(ptr, &mut buff).map_err(Into::into)?;
+            self.memory.read(ptr, &mut buff)?;
             buff
         };
         Ok(buff)
@@ -350,7 +350,7 @@ where
 
             self.memory.read(read.ptr, mut_slice)?;
         }
-        Ok(unsafe { buf.assume_init() }).map_err(Into::into)
+        Ok(unsafe { buf.assume_init() })
     }
 
     pub(crate) fn read_decoded<T: Decode + MaxEncodedLen>(
@@ -363,7 +363,7 @@ where
         } else {
             let mut buff = RuntimeBuffer::try_new_default(size)?.into_vec();
             let ptr = read.ptr;
-            self.memory.read(ptr, &mut buff).map_err(Into::into)?;
+            self.memory.read(ptr, &mut buff)?;
             buff
         };
         let decoded = T::decode_all(&mut &buff[..]).map_err(|_| MemoryAccessError::Decode)?;
