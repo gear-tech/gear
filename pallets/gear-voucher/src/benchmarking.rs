@@ -20,10 +20,10 @@
 
 use crate::*;
 use common::{benchmarking, Origin};
-use frame_benchmarking::{benchmarks, Zero};
+use frame_benchmarking::benchmarks;
 use frame_support::traits::Currency;
 use frame_system::{pallet_prelude::BlockNumberFor, RawOrigin};
-use sp_runtime::traits::{One, UniqueSaturatedInto};
+use sp_runtime::traits::{One, UniqueSaturatedInto, Zero};
 
 pub(crate) type CurrencyOf<T> = <T as Config>::Currency;
 

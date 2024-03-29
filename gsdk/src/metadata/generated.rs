@@ -1120,6 +1120,12 @@ pub mod runtime_types {
                     put_in_front_of {
                         lighter: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
                     },
+                    #[codec(index = 2)]
+                    #[doc = "See [`Pallet::put_in_front_of_other`]."]
+                    put_in_front_of_other {
+                        heavier: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
+                        lighter: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
+                    },
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 #[doc = "The `Error` enum of this pallet."]
@@ -5675,6 +5681,12 @@ pub mod runtime_types {
                             prefs: runtime_types::pallet_staking::ValidatorPrefs,
                         },
                         #[codec(index = 14)]
+                        #[doc = "Voters size limit reached."]
+                        SnapshotVotersSizeExceeded { size: ::core::primitive::u32 },
+                        #[codec(index = 15)]
+                        #[doc = "Targets size limit reached."]
+                        SnapshotTargetsSizeExceeded { size: ::core::primitive::u32 },
+                        #[codec(index = 16)]
                         #[doc = "A new force era mode was set."]
                         ForceEra {
                             mode: runtime_types::pallet_staking::Forcing,
@@ -7706,6 +7718,7 @@ pub mod calls {
     pub enum BagsListCall {
         Rebag,
         PutInFrontOf,
+        PutInFrontOfOther,
     }
     impl CallInfo for BagsListCall {
         const PALLET: &'static str = "BagsList";
@@ -7713,6 +7726,7 @@ pub mod calls {
             match self {
                 Self::Rebag => "rebag",
                 Self::PutInFrontOf => "put_in_front_of",
+                Self::PutInFrontOfOther => "put_in_front_of_other",
             }
         }
     }

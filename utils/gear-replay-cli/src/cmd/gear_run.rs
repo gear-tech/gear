@@ -121,7 +121,7 @@ where
         >,
     >();
 
-    let (_changes, _enc_res) = state_machine_call(
+    let (_changes, _enc_res) = state_machine_call::<Block, _>(
         &ext,
         &executor,
         "Core_initialize_block",
@@ -144,7 +144,7 @@ where
         let tx_encoded = extrinsic.encode();
         if tx_encoded != gear_run_tx {
             // Apply all extrinsics in the block except for the timestamp and gear::run
-            let _ = state_machine_call(
+            let _ = state_machine_call::<Block, _>(
                 &ext,
                 &executor,
                 "BlockBuilder_apply_extrinsic",
@@ -155,7 +155,7 @@ where
     }
 
     // Applying the `gear_run()` in the end
-    let (_changes, enc_res) = state_machine_call(
+    let (_changes, enc_res) = state_machine_call::<Block, _>(
         &ext,
         &executor,
         "BlockBuilder_apply_extrinsic",

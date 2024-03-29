@@ -26,8 +26,10 @@ use sp_std::marker::PhantomData;
 
 #[cfg(feature = "try-runtime")]
 use {
-    frame_support::codec::{Decode, Encode},
-    sp_runtime::TryRuntimeError,
+    sp_runtime::{
+        codec::{Decode, Encode},
+        TryRuntimeError,
+    },
     sp_std::vec::Vec,
 };
 
@@ -102,11 +104,11 @@ impl<T: Config> OnRuntimeUpgrade for AppendStackEndMigration<T> {
 }
 
 mod onchain {
-    use frame_support::{
+    use gear_core::{message::DispatchKind, pages::WasmPage};
+    use sp_runtime::{
         codec::{Decode, Encode},
         scale_info::TypeInfo,
     };
-    use gear_core::{message::DispatchKind, pages::WasmPage};
     use sp_std::{collections::btree_set::BTreeSet, vec::Vec};
 
     #[derive(Clone, Debug, Decode, Encode, TypeInfo)]

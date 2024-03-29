@@ -20,9 +20,7 @@
 
 use crate::{HashFor, NumberFor, LOG_TARGET};
 
-use frame_remote_externalities::{
-    Builder, Mode, OnlineConfig, RemoteExternalities, TestExternalities,
-};
+use frame_remote_externalities::{Builder, Mode, OnlineConfig, RemoteExternalities};
 #[cfg(feature = "always-wasm")]
 use sc_executor::sp_wasm_interface::HostFunctions;
 #[cfg(not(feature = "always-wasm"))]
@@ -42,10 +40,12 @@ use sp_keystore::{testing::MemoryKeystore, KeystoreExt, KeystorePtr};
 use sp_rpc::{list::ListOrValue, number::NumberOrHex};
 use sp_runtime::{
     generic::SignedBlock,
-    traits::{Block as BlockT, Header as HeaderT},
+    traits::{Block as BlockT, HashingFor, Header as HeaderT},
     DeserializeOwned,
 };
-use sp_state_machine::{backend::BackendRuntimeCode, OverlayedChanges, StateMachine};
+use sp_state_machine::{
+    backend::BackendRuntimeCode, OverlayedChanges, StateMachine, TestExternalities,
+};
 use std::{fmt::Debug, str::FromStr, sync::Arc};
 use substrate_rpc_client::{ChainApi, WsClient};
 
@@ -184,13 +184,13 @@ pub(crate) fn rpc_err_handler(error: impl Debug) -> &'static str {
 
 /// Execute the given `method` and `data` on top of `ext` using the `executor` and `strategy`.
 /// Returning the results (encoded) and the state `changes`.
-pub(crate) fn state_machine_call<Executor: CodeExecutor>(
-    ext: &TestExternalities,
+pub(crate) fn state_machine_call<Block: BlockT, Executor: CodeExecutor>(
+    ext: &TestExternalities<HashingFor<Block>>,
     executor: &Executor,
     method: &'static str,
     data: &[u8],
     mut extensions: Extensions,
-) -> sc_cli::Result<(OverlayedChanges, Vec<u8>)> {
+) -> sc_cli::Result<(OverlayedChanges<HashingFor<Block>>, Vec<u8>)> {
     let mut changes = Default::default();
     let encoded_results = StateMachine::new(
         &ext.backend,
