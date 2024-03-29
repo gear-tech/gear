@@ -18,7 +18,11 @@
 
 //! Module for programs.
 
-use crate::{code::InstrumentedCode, ids::ProgramId, pages::WasmPage};
+use crate::{
+    code::InstrumentedCode,
+    ids::ProgramId,
+    pages::{WasmPage, WasmPagesAmount},
+};
 use alloc::collections::BTreeSet;
 use scale_info::{
     scale::{Decode, Encode},
@@ -77,6 +81,11 @@ impl Program {
         }
     }
 
+    /// Get program parts
+    pub fn into_parts(self) -> (ProgramId, InstrumentedCode, BTreeSet<WasmPage>, MemoryInfix) {
+        (self.id, self.code, self.allocations, self.memory_infix)
+    }
+
     /// Reference to [`InstrumentedCode`] of this program.
     pub fn code(&self) -> &InstrumentedCode {
         &self.code
@@ -98,7 +107,7 @@ impl Program {
     }
 
     /// Get initial memory size for this program.
-    pub fn static_pages(&self) -> WasmPage {
+    pub fn static_pages(&self) -> WasmPagesAmount {
         self.code.static_pages()
     }
 
@@ -121,7 +130,7 @@ impl Program {
 #[cfg(test)]
 mod tests {
     use super::Program;
-    use crate::{code::Code, ids::ProgramId};
+    use crate::{code::Code, ids::ProgramId, pages::WasmPagesAmount};
     use alloc::vec::Vec;
     use gear_wasm_instrument::gas_metering::CustomConstantCostRules;
 
@@ -172,7 +181,7 @@ mod tests {
         let program = Program::new(ProgramId::from(1), Default::default(), code);
 
         // 2 static pages
-        assert_eq!(program.static_pages(), 2.into());
+        assert_eq!(program.static_pages(), WasmPagesAmount::from(2));
 
         // Has no allocations because we do not set them in new
         assert_eq!(program.allocations().len(), 0);

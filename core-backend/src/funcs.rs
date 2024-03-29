@@ -41,7 +41,7 @@ use gear_core::{
     message::{
         HandlePacket, InitPacket, MessageWaitedType, Payload, PayloadSizeError, ReplyPacket,
     },
-    pages::{PageNumber, PageU32Size, WasmPage},
+    pages::WasmPage,
 };
 use gear_core_errors::{MessageError, ReplyCode, SignalCode};
 use gear_sandbox::{default_executor::Caller, ReturnValue, Value};
@@ -628,7 +628,7 @@ where
             let page = match res {
                 Ok(page) => {
                     log::trace!("Alloc {pages:?} pages at {page:?}");
-                    page.raw()
+                    page.into()
                 }
                 Err(err) => {
                     log::trace!("Alloc failed: {err}");
@@ -641,7 +641,7 @@ where
 
     pub fn free(page_no: u32) -> impl Syscall<Ext, i32> {
         InfallibleSyscall::new(CostToken::Free, move |ctx: &mut CallerWrap<Ext>| {
-            let page = WasmPage::new(page_no).map_err(|_| {
+            let page = WasmPage::try_from(page_no).map_err(|_| {
                 UndefinedTerminationReason::Actor(ActorTerminationReason::Trap(
                     TrapExplanation::Unknown,
                 ))
@@ -671,8 +671,8 @@ where
                 ))
             };
 
-            let start = WasmPage::new(start).map_err(page_err)?;
-            let end = WasmPage::new(end).map_err(page_err)?;
+            let start = WasmPage::try_from(start).map_err(page_err)?;
+            let end = WasmPage::try_from(end).map_err(page_err)?;
 
             let result = ctx.ext_mut().free_range(start, end);
 

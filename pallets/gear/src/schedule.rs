@@ -26,10 +26,10 @@ use common::scheduler::SchedulingCostsPerBlock;
 use core_processor::configs::{ExtCosts, ProcessCosts, RentCosts};
 use frame_support::{traits::Get, weights::Weight};
 use gear_core::{
-    code::MAX_WASM_PAGE_AMOUNT,
+    code::MAX_WASM_PAGES_AMOUNT,
     costs::SyscallCosts,
     message,
-    pages::{GearPage, PageU32Size, WasmPage, GEAR_PAGE_SIZE},
+    pages::{GearPage, WasmPage},
 };
 use gear_lazy_pages_common::LazyPagesCosts;
 use gear_wasm_instrument::{
@@ -179,7 +179,7 @@ pub struct Limits {
     pub parameters: u32,
 
     /// Maximum number of memory pages allowed for a program.
-    pub memory_pages: u16,
+    pub memory_pages: u32,
 
     /// Maximum number of elements allowed in a table.
     ///
@@ -207,7 +207,7 @@ pub struct Limits {
 impl Limits {
     /// The maximum memory size in bytes that a program can occupy.
     pub fn max_memory_size(&self) -> u32 {
-        self.memory_pages as u32 * 64 * 1024
+        self.memory_pages * 64 * 1024
     }
 }
 
@@ -772,7 +772,7 @@ impl Default for Limits {
             globals: 256,
             locals: 1024,
             parameters: 128,
-            memory_pages: MAX_WASM_PAGE_AMOUNT,
+            memory_pages: MAX_WASM_PAGES_AMOUNT.into(),
             // 4k function pointers (This is in count not bytes).
             table_size: 4096,
             br_table_size: 256,
@@ -1081,7 +1081,7 @@ impl<T: Config> Default for MemoryWeights<T> {
         // so here we must convert it to cost per gear page.
         macro_rules! to_cost_per_gear_page {
             ($name:ident) => {
-                cost!($name) / (WasmPage::size() / GearPage::size()) as u64
+                cost!($name) / (WasmPage::SIZE / GearPage::SIZE) as u64
             };
         }
 
@@ -1093,14 +1093,14 @@ impl<T: Config> Default for MemoryWeights<T> {
             ($name:ident, $syscall:ident) => {{
                 let syscall_per_kb_weight = cost_batched!($syscall);
                 let syscall_per_gear_page_weight =
-                    (syscall_per_kb_weight / KB_SIZE) * GearPage::size() as u64;
+                    (syscall_per_kb_weight / KB_SIZE) * GearPage::SIZE as u64;
                 to_cost_per_gear_page!($name).saturating_sub(syscall_per_gear_page_weight)
             }};
         }
 
-        const KB_AMOUNT_IN_ONE_GEAR_PAGE: u64 = GEAR_PAGE_SIZE as u64 / KB_SIZE;
+        const KB_AMOUNT_IN_ONE_GEAR_PAGE: u64 = GearPage::SIZE as u64 / KB_SIZE;
         const _: () = assert!(KB_AMOUNT_IN_ONE_GEAR_PAGE > 0);
-        const _: () = assert!(GEAR_PAGE_SIZE as u64 % KB_SIZE == 0);
+        const _: () = assert!(GearPage::SIZE as u64 % KB_SIZE == 0);
 
         Self {
             lazy_pages_signal_read: to_weight!(to_cost_per_gear_page!(lazy_pages_signal_read)),

@@ -74,7 +74,7 @@ pub enum StackEndError {
     NotAligned(u32),
     /// Gear stack end is out of static memory.
     #[display(fmt = "Gear stack end {_0:#x} is out of static memory 0x0..{_1:#x}")]
-    OutOfStatic(u32, u32),
+    OutOfStatic(u32, u64),
 }
 
 /// Stack end error in WASM module.
@@ -90,8 +90,8 @@ pub enum DataSectionError {
     #[display(fmt = "Data segment {_0:#x} ends out of possible 32 bits address space")]
     EndAddressOverflow(u32),
     /// Data segment end address is out of static memory.
-    #[display(fmt = "Data segment [{_0:#x}, {_1:#x}] is out of static memory [0x0, {_2:#x})")]
-    EndAddressOutOfStaticMemory(u32, u32, u32),
+    #[display(fmt = "Data segment [{_0:#x}, {_1:#x}] is out of static memory 0..{_2:#x?}")]
+    EndAddressOutOfStaticMemory(u32, u32, u64),
 }
 
 /// Export error in WASM module.

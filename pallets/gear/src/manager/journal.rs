@@ -35,7 +35,7 @@ use gear_core::{
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::PageBuf,
     message::{Dispatch, IncomingDispatch, MessageWaitedType, StoredDispatch},
-    pages::{GearPage, PageU32Size, WasmPage},
+    pages::{GearPage, WasmPage},
     reservation::GasReserver,
 };
 use gear_core_errors::SignalCode;
@@ -360,7 +360,7 @@ where
     fn update_allocations(&mut self, program_id: ProgramId, allocations: BTreeSet<WasmPage>) {
         ProgramStorageOf::<T>::update_active_program(program_id, |p| {
             let removed_pages = p.allocations.difference(&allocations);
-            for page in removed_pages.flat_map(|page| page.to_pages_iter()) {
+            for page in removed_pages.flat_map(|page| page.to_iter()) {
                 if p.pages_with_data.remove(&page) {
                     ProgramStorageOf::<T>::remove_program_page_data(program_id, p.memory_infix, page);
                 }

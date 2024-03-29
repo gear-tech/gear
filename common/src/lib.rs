@@ -58,7 +58,7 @@ use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
     memory::PageBuf,
     message::DispatchKind,
-    pages::{GearPage, WasmPage},
+    pages::{GearPage, WasmPage, WasmPagesAmount},
     program::MemoryInfix,
     reservation::GasReservationMap,
 };
@@ -289,7 +289,7 @@ pub struct ActiveProgram<BlockNumber: Copy + Saturating> {
     pub gas_reservation_map: GasReservationMap,
     pub code_hash: H256,
     pub code_exports: BTreeSet<DispatchKind>,
-    pub static_pages: WasmPage,
+    pub static_pages: WasmPagesAmount,
     pub state: ProgramState,
     pub expiration_block: BlockNumber,
 }

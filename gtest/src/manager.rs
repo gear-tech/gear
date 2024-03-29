@@ -37,7 +37,7 @@ use gear_core::{
         Dispatch, DispatchKind, IncomingDispatch, Message, MessageWaitedType, ReplyMessage,
         ReplyPacket, StoredDispatch, StoredMessage,
     },
-    pages::{GearPage, PageU32Size, WasmPage},
+    pages::{GearPage, WasmPage},
     program::Program as CoreProgram,
     reservation::{GasReservationMap, GasReserver},
 };
@@ -1094,7 +1094,7 @@ impl JournalHandler for ExtManager {
                 program
                     .allocations()
                     .difference(&allocations)
-                    .flat_map(PageU32Size::to_pages_iter)
+                    .flat_map(|page| page.to_iter())
                     .for_each(|ref page| {
                         pages_data.remove(page);
                     });
