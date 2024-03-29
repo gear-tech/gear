@@ -20,13 +20,12 @@
 
 use crate::{
     error::{BackendAllocSyscallError, RunFallibleError, UndefinedTerminationReason},
-    funcs,
     memory::{ExecutorMemory, MemoryAccessRegistrar, MemoryWrapRef},
     state::{HostState, State},
     BackendExternalities,
 };
 use gear_core::{costs::CostToken, pages::WasmPage};
-use gear_sandbox::{AsContextExt, HostError, SandboxMemory, Value};
+use gear_sandbox::{AsContextExt, HostError, Value};
 
 pub(crate) fn as_i64(v: Value) -> Option<i64> {
     match v {
@@ -64,7 +63,7 @@ pub(crate) struct CallerWrap<'a, Caller> {
 impl<'a, Caller, Ext, Mem> CallerWrap<'a, Caller>
 where
     Caller: AsContextExt<State = HostState<Ext, Mem>>,
-    Mem: 'static,
+    Mem: Clone + 'static,
 {
     #[track_caller]
     pub fn prepare(caller: &'a mut Caller) -> Self {
@@ -132,7 +131,7 @@ where
                 // TODO: move above or make normal process memory access.
                 let mut registrar = MemoryAccessRegistrar::default();
                 let write_res = registrar.register_write_as::<R>(res_ptr);
-                let mut io: funcs::MemoryAccessIo<Caller> = registrar.pre_process(ctx)?;
+                let mut io = registrar.pre_process(ctx)?;
                 io.write_as(write_res, R::from(res)).map_err(Into::into)
             },
         )
@@ -177,22 +176,6 @@ where
                 Ok(ext_err) => Err(ext_err.into()),
                 Err(alloc_err) => Ok(Err(alloc_err)),
             },
-        }
-    }
-}
-
-impl<'a, 'b, Caller, Ext, Mem> From<&'a mut CallerWrap<'b, Caller>>
-    for MemoryWrapRef<'a, Caller, Mem>
-where
-    Caller: AsContextExt<State = HostState<Ext, Mem>>,
-    Ext: BackendExternalities + 'static,
-    Mem: SandboxMemory<Caller::State>,
-{
-    fn from(caller: &'a mut CallerWrap<'b, Caller>) -> Self {
-        let memory = caller_host_state_mut(caller.caller).memory.clone();
-        MemoryWrapRef {
-            memory,
-            caller: caller.caller,
         }
     }
 }

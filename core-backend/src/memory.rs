@@ -23,7 +23,7 @@ use crate::{
         BackendSyscallError, RunFallibleError, TrapExplanation, UndefinedTerminationReason,
         UnrecoverableMemoryError,
     },
-    runtime::CallerWrap,
+    runtime::{caller_host_state_mut, CallerWrap},
     state::HostState,
     BackendExternalities,
 };
@@ -279,14 +279,14 @@ where
         }
     }
 
+    // impl<'a, 'b, Caller, Ext, Mem> From<&'a mut CallerWrap<'b, Caller>>
+    //     for MemoryWrapRef<'a, Caller, Mem>
+
     /// Call pre-processing of registered memory accesses.
-    pub(crate) fn pre_process<'a, 'b: 'a, MemoryWrap>(
+    pub(crate) fn pre_process<'a>(
         self,
-        ctx: &'a mut CallerWrap<'b, Caller>,
-    ) -> Result<MemoryAccessIo<MemoryWrap>, MemoryAccessError>
-    where
-        MemoryWrap: From<&'a mut CallerWrap<'b, Caller>>,
-    {
+        ctx: &'a mut CallerWrap<'_, Caller>,
+    ) -> Result<MemoryAccessIo<MemoryWrapRef<'a, Caller, Mem>>, MemoryAccessError> {
         let mut gas_counter = ctx.host_state_mut().ext.define_current_counter();
 
         let res = Ext::pre_process_memory_accesses(&self.reads, &self.writes, &mut gas_counter);
@@ -297,9 +297,13 @@ where
 
         res?;
 
-        Ok(MemoryAccessIo {
-            memory: MemoryWrap::from(ctx),
-        })
+        let memory = caller_host_state_mut(ctx.caller).memory.clone();
+        let memory = MemoryWrapRef {
+            memory,
+            caller: ctx.caller,
+        };
+
+        Ok(MemoryAccessIo { memory })
     }
 }
 
