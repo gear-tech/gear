@@ -67,7 +67,7 @@ impl WasmBuilder {
     fn create(wasm_project: WasmProject) -> Self {
         WasmBuilder {
             wasm_project,
-            cargo: CargoCommand::new(),
+            cargo: CargoCommand::default(),
             excluded_features: vec![],
         }
     }
