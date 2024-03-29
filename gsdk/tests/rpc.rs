@@ -387,7 +387,12 @@ async fn query_program_counters(
 
         if let Program::Active(p) = program {
             count_active_program += 1;
-            count_memory_page += p.pages_with_data.len() as u64;
+            count_memory_page += p
+                .pages_with_data
+                .inner
+                .iter()
+                .flat_map(|(s, e)| s.0..e.0)
+                .count() as u64;
         }
     }
 
