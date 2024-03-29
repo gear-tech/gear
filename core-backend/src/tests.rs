@@ -7,7 +7,7 @@ use crate::{
 };
 use codec::{self, Decode, Encode, MaxEncodedLen};
 use core::{fmt::Debug, marker::PhantomData};
-use gear_core::{memory::Memory, pages::WASM_PAGE_SIZE};
+use gear_core::pages::WASM_PAGE_SIZE;
 use gear_sandbox::{default_executor::Store, SandboxStore};
 
 type MemoryAccessRegistrar =

@@ -31,7 +31,7 @@ use gear_core::{
     env_vars::{EnvVars, EnvVarsV1},
     gas::{ChargeError, CounterType, CountersOwner, GasAmount, GasCounter, GasLeft},
     ids::{MessageId, ProgramId, ReservationId},
-    memory::{Memory, MemoryError, MemoryInterval},
+    memory::{Memory, MemoryInterval},
     message::{HandlePacket, InitPacket, ReplyPacket},
     pages::{PageNumber, PageU32Size, WasmPage, WASM_PAGE_SIZE},
 };
@@ -433,36 +433,9 @@ impl MockMemory {
     pub fn write_attempt_count(&self) -> u32 {
         self.0.borrow().write_attempt_count
     }
-}
 
-impl Memory for MockMemory {
-    type GrowError = ();
-
-    fn grow(&mut self, pages: WasmPage) -> Result<(), Self::GrowError> {
-        self.0.borrow_mut().grow(pages.raw());
-        Ok(())
-    }
-
-    fn size(&self) -> WasmPage {
-        self.0.borrow().size()
-    }
-
-    fn write(&mut self, offset: u32, buffer: &[u8]) -> Result<(), MemoryError> {
-        self.0
-            .borrow_mut()
-            .write(offset, buffer)
-            .map_err(|_| MemoryError::AccessOutOfBounds)
-    }
-
-    fn read(&self, offset: u32, buffer: &mut [u8]) -> Result<(), MemoryError> {
-        self.0
-            .borrow_mut()
-            .read(offset, buffer)
-            .map_err(|_| MemoryError::AccessOutOfBounds)
-    }
-
-    unsafe fn get_buffer_host_addr_unsafe(&mut self) -> u64 {
-        unimplemented!();
+    pub fn write(&mut self, offset: u32, buffer: &[u8]) -> Result<(), Error> {
+        self.0.borrow_mut().write(offset, buffer)
     }
 }
 
