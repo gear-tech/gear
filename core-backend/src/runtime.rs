@@ -43,8 +43,7 @@ where
     Caller: AsContextExt<State = HostState<Ext, Mem>>,
     Mem: Clone + 'static,
 {
-    #[track_caller]
-    pub fn prepare(caller: &'a mut Caller) -> Self {
+    pub fn new(caller: &'a mut Caller) -> Self {
         Self { caller }
     }
 

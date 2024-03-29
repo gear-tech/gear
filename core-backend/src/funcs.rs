@@ -355,7 +355,7 @@ where
     {
         crate::log::trace_syscall::<Builder>(args);
 
-        let mut caller = CallerWrap::prepare(caller);
+        let mut caller = CallerWrap::new(caller);
 
         let (ctx, args) = Call::Context::from_args(args)?;
         let syscall = builder.build(args)?;
