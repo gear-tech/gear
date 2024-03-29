@@ -25,14 +25,7 @@ use crate::{
     BackendExternalities,
 };
 use gear_core::{costs::CostToken, pages::WasmPage};
-use gear_sandbox::{AsContextExt, HostError, Value};
-
-pub(crate) fn as_i64(v: Value) -> Option<i64> {
-    match v {
-        Value::I64(i) => Some(i),
-        _ => None,
-    }
-}
+use gear_sandbox::{AsContextExt, HostError};
 
 pub(crate) struct CallerWrap<'a, Caller> {
     pub caller: &'a mut Caller,
