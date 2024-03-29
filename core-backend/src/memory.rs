@@ -23,7 +23,7 @@ use crate::{
         BackendSyscallError, RunFallibleError, TrapExplanation, UndefinedTerminationReason,
         UnrecoverableMemoryError,
     },
-    runtime::{caller_host_state_mut, CallerWrap},
+    runtime::CallerWrap,
     state::HostState,
     BackendExternalities,
 };
@@ -297,7 +297,7 @@ where
 
         res?;
 
-        let memory = caller_host_state_mut(ctx.caller).memory.clone();
+        let memory = ctx.host_state_mut().memory.clone();
         let memory = MemoryWrapRef {
             memory,
             caller: ctx.caller,

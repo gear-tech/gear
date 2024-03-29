@@ -34,28 +34,6 @@ pub(crate) fn as_i64(v: Value) -> Option<i64> {
     }
 }
 
-#[track_caller]
-pub(crate) fn caller_host_state_mut<Caller, Ext, Mem>(caller: &mut Caller) -> &mut State<Ext, Mem>
-where
-    Caller: AsContextExt<State = HostState<Ext, Mem>>,
-{
-    caller
-        .data_mut()
-        .as_mut()
-        .unwrap_or_else(|| unreachable!("host_state must be set before execution"))
-}
-
-#[track_caller]
-pub(crate) fn caller_host_state_take<Caller, Ext, Mem>(caller: &mut Caller) -> State<Ext, Mem>
-where
-    Caller: AsContextExt<State = HostState<Ext, Mem>>,
-{
-    caller
-        .data_mut()
-        .take()
-        .unwrap_or_else(|| unreachable!("host_state must be set before execution"))
-}
-
 pub(crate) struct CallerWrap<'a, Caller> {
     pub caller: &'a mut Caller,
 }
@@ -72,7 +50,17 @@ where
 
     #[track_caller]
     pub fn host_state_mut(&mut self) -> &mut State<Ext, Mem> {
-        caller_host_state_mut(self.caller)
+        self.caller
+            .data_mut()
+            .as_mut()
+            .unwrap_or_else(|| unreachable!("host_state must be set before execution"))
+    }
+
+    pub fn take_state(&mut self) -> State<Ext, Mem> {
+        self.caller
+            .data_mut()
+            .take()
+            .unwrap_or_else(|| unreachable!("host_state must be set before execution"))
     }
 
     pub fn set_termination_reason(&mut self, reason: UndefinedTerminationReason) {
@@ -138,12 +126,13 @@ where
     }
 
     pub fn alloc(&mut self, pages: u32) -> Result<WasmPage, <Ext>::AllocError> {
-        let mut state = caller_host_state_take(self.caller);
+        let mut state = self.take_state();
         let memory = state.memory.clone();
         let mut memory = MemoryWrapRef {
             memory,
             caller: self.caller,
         };
+
         let res = state.ext.alloc(pages, &mut memory);
         self.caller.data_mut().replace(state);
         res
