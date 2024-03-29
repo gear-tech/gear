@@ -60,13 +60,13 @@ pub trait AsContext {}
 #[derive(RuntimeDebug)]
 pub struct Store<T>(T);
 
-impl<T> SandboxStore<T> for Store<T> {
+impl<T> SandboxStore for Store<T> {
     fn new(state: T) -> Self {
         Self(state)
     }
 }
 
-impl<T> AsContextExt<T> for Store<T> {
+impl<T> AsContextExt for Store<T> {
     type State = T;
 
     fn data_mut(&mut self) -> &mut T {
@@ -78,7 +78,9 @@ impl<T> AsContext for Store<T> {}
 
 pub struct Caller<'a, T>(&'a mut T);
 
-impl<T> AsContextExt<T> for Caller<'_, T> {
+impl<T> AsContextExt for Caller<'_, T> {
+    type State = T;
+
     fn data_mut(&mut self) -> &mut T {
         self.0
     }
