@@ -279,9 +279,6 @@ where
         }
     }
 
-    // impl<'a, 'b, Caller, Ext, Mem> From<&'a mut CallerWrap<'b, Caller>>
-    //     for MemoryWrapRef<'a, Caller, Mem>
-
     /// Call pre-processing of registered memory accesses.
     pub(crate) fn pre_process<'a>(
         self,
