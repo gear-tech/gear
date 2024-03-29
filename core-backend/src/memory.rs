@@ -315,30 +315,75 @@ impl<Mem> MemoryAccessIo<Mem>
 where
     Mem: Memory,
 {
-    pub(crate) fn read(&self, wasm_read: WasmMemoryRead) -> Result<Vec<u8>, MemoryAccessError> {
-        read(&self.memory, wasm_read)
+    pub(crate) fn read(&self, read: WasmMemoryRead) -> Result<Vec<u8>, MemoryAccessError> {
+        let buff = if read.size == 0 {
+            Vec::new()
+        } else {
+            let mut buff = RuntimeBuffer::try_new_default(read.size as usize)?.into_vec();
+            let ptr = read.ptr;
+            self.memory.read(ptr, &mut buff).map_err(Into::into)?;
+            buff
+        };
+        Ok(buff)
     }
 
     pub(crate) fn read_as<T: Sized>(
         &self,
         read: WasmMemoryReadAs<T>,
     ) -> Result<T, MemoryAccessError> {
-        read_as(&self.memory, read)
+        let mut buf = MaybeUninit::<T>::uninit();
+
+        let size = mem::size_of::<T>();
+        if size > 0 {
+            // # Safety:
+            //
+            // Usage of mutable slice is safe for the same reason from `write_as`.
+            // `MaybeUninit` is presented on stack as a contiguous sequence of bytes.
+            //
+            // It's also safe to construct T from any bytes, because we use the fn
+            // only for reading primitive const-size types that are `[repr(C)]`,
+            // so they always represented from a sequence of bytes.
+            //
+            // Bytes in memory are always stored continuously and without paddings, properly
+            // aligned due to `[repr(C, packed)]` attribute of the types we use as T.
+            let mut_slice = unsafe { slice::from_raw_parts_mut(buf.as_mut_ptr() as *mut u8, size) };
+
+            self.memory.read(read.ptr, mut_slice)?;
+        }
+        Ok(unsafe { buf.assume_init() }).map_err(Into::into)
     }
 
     pub(crate) fn read_decoded<T: Decode + MaxEncodedLen>(
         &self,
         read: WasmMemoryReadDecoded<T>,
     ) -> Result<T, MemoryAccessError> {
-        read_decoded(&self.memory, read)
+        let size = T::max_encoded_len();
+        let buff = if size == 0 {
+            Vec::new()
+        } else {
+            let mut buff = RuntimeBuffer::try_new_default(size)?.into_vec();
+            let ptr = read.ptr;
+            self.memory.read(ptr, &mut buff).map_err(Into::into)?;
+            buff
+        };
+        let decoded = T::decode_all(&mut &buff[..]).map_err(|_| MemoryAccessError::Decode)?;
+        Ok(decoded)
     }
 
     pub(crate) fn write(
         &mut self,
-        wasm_write: WasmMemoryWrite,
+        write: WasmMemoryWrite,
         buff: &[u8],
     ) -> Result<(), MemoryAccessError> {
-        write(&mut self.memory, wasm_write, buff)
+        if buff.len() != write.size as usize {
+            unreachable!("Backend bug error: buffer size is not equal to registered buffer size");
+        }
+
+        if write.size == 0 {
+            Ok(())
+        } else {
+            self.memory.write(write.ptr, buff).map_err(Into::into)
+        }
     }
 
     pub(crate) fn write_as<T: Sized>(
@@ -346,138 +391,25 @@ where
         write: WasmMemoryWriteAs<T>,
         obj: T,
     ) -> Result<(), MemoryAccessError> {
-        write_as(&mut self.memory, write, obj)
+        let size = mem::size_of::<T>();
+        if size > 0 {
+            // # Safety:
+            //
+            // A given object is `Sized` and we own them in the context of calling this
+            // function (it's on stack), it's safe to take ptr on the object and
+            // represent it as slice.
+            // Object will be dropped after `memory.write`
+            // finished execution, and no one will rely on this slice.
+            //
+            // Bytes in memory are always stored continuously and without paddings, properly
+            // aligned due to `[repr(C, packed)]` attribute of the types we use as T.
+            let slice = unsafe { slice::from_raw_parts(&obj as *const T as *const u8, size) };
+
+            self.memory.write(write.ptr, slice).map_err(Into::into)
+        } else {
+            Ok(())
+        }
     }
-}
-
-/// Read data from `memory` to `buff`.
-fn read_into_buf<M: Memory>(
-    memory: &M,
-    ptr: u32,
-    buff: &mut [u8],
-) -> Result<(), MemoryAccessError> {
-    memory.read(ptr, buff).map_err(Into::into)
-}
-
-/// Read data from `memory` into new vector.
-pub(crate) fn read<M: Memory>(
-    memory: &M,
-    read: WasmMemoryRead,
-) -> Result<Vec<u8>, MemoryAccessError> {
-    let buff = if read.size == 0 {
-        Vec::new()
-    } else {
-        let mut buff = RuntimeBuffer::try_new_default(read.size as usize)?.into_vec();
-        read_into_buf(memory, read.ptr, &mut buff)?;
-        buff
-    };
-    Ok(buff)
-}
-
-/// Read and decode data as `T` from `memory`.
-pub(crate) fn read_decoded<M: Memory, T: Decode + MaxEncodedLen>(
-    memory: &M,
-    read: WasmMemoryReadDecoded<T>,
-) -> Result<T, MemoryAccessError> {
-    let size = T::max_encoded_len();
-    let buff = if size == 0 {
-        Vec::new()
-    } else {
-        let mut buff = RuntimeBuffer::try_new_default(size)?.into_vec();
-        read_into_buf(memory, read.ptr, &mut buff)?;
-        buff
-    };
-    let decoded = T::decode_all(&mut &buff[..]).map_err(|_| MemoryAccessError::Decode)?;
-    Ok(decoded)
-}
-
-/// Pre-process registered accesses if need and read data as `T` from `memory`.
-pub(crate) fn read_as<M: Memory, T: Sized>(
-    memory: &M,
-    read: WasmMemoryReadAs<T>,
-) -> Result<T, MemoryAccessError> {
-    read_memory_as(memory, read.ptr).map_err(Into::into)
-}
-
-/// Write data from `buff` to `memory`.
-pub(crate) fn write<M: Memory>(
-    memory: &mut M,
-    write: WasmMemoryWrite,
-    buff: &[u8],
-) -> Result<(), MemoryAccessError> {
-    if buff.len() != write.size as usize {
-        unreachable!("Backend bug error: buffer size is not equal to registered buffer size");
-    }
-    if write.size == 0 {
-        Ok(())
-    } else {
-        memory.write(write.ptr, buff).map_err(Into::into)
-    }
-}
-
-/// Write `obj` data to `memory`.
-pub(crate) fn write_as<M: Memory, T: Sized>(
-    memory: &mut M,
-    write: WasmMemoryWriteAs<T>,
-    obj: T,
-) -> Result<(), MemoryAccessError> {
-    write_memory_as(memory, write.ptr, obj).map_err(Into::into)
-}
-
-/// Writes object in given memory as bytes.
-fn write_memory_as<T: Sized>(
-    memory: &mut impl Memory,
-    ptr: u32,
-    obj: T,
-) -> Result<(), MemoryError> {
-    let size = mem::size_of::<T>();
-    if size > 0 {
-        // # Safety:
-        //
-        // Given object is `Sized` and we own them in the context of calling this
-        // function (it's on stack), it's safe to take ptr on the object and
-        // represent it as slice. Object will be dropped after `memory.write`
-        // finished execution and no one will rely on this slice.
-        //
-        // Bytes in memory always stored continuously and without paddings, properly
-        // aligned due to `[repr(C, packed)]` attribute of the types we use as T.
-        let slice = unsafe { slice::from_raw_parts(&obj as *const T as *const u8, size) };
-
-        memory.write(ptr, slice)
-    } else {
-        Ok(())
-    }
-}
-
-/// Reads bytes from given pointer to construct type T from them.
-fn read_memory_as<T: Sized>(memory: &impl Memory, ptr: u32) -> Result<T, MemoryError> {
-    let mut buf = MaybeUninit::<T>::uninit();
-
-    let size = mem::size_of::<T>();
-    if size > 0 {
-        // # Safety:
-        //
-        // Usage of mutable slice is safe for the same reason from `write_memory_as`.
-        // `MaybeUninit` is presented on stack as a contiguous sequence of bytes.
-        //
-        // It's also safe to construct T from any bytes, because we use the fn
-        // only for reading primitive const-size types that are `[repr(C)]`,
-        // so they always represented from sequence of bytes.
-        //
-        // Bytes in memory always stored continuously and without paddings, properly
-        // aligned due to `[repr(C, packed)]` attribute of the types we use as T.
-        let mut_slice = unsafe { slice::from_raw_parts_mut(buf.as_mut_ptr() as *mut u8, size) };
-
-        memory.read(ptr, mut_slice)?;
-    }
-
-    // # Safety:
-    //
-    // Assuming init is always safe here due to the fact that we read proper
-    // amount of bytes from the wasm memory, which is never uninited: they may
-    // be filled by zeroes or some trash (valid for our primitives used as T),
-    // but always exist.
-    Ok(unsafe { buf.assume_init() })
 }
 
 /// Read static size type access wrapper.
