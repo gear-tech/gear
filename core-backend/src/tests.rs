@@ -92,7 +92,7 @@ fn test_read_of_zero_size_buf() {
     let io: MemoryAccessIo = registrar.pre_process(&mut caller_wrap).unwrap();
     io.read(read).unwrap();
 
-    assert_eq!(caller_wrap.host_state_mut().memory.read_attempt_count(), 0);
+    assert_eq!(caller_wrap.state_mut().memory.read_attempt_count(), 0);
 }
 
 #[test]
@@ -106,7 +106,7 @@ fn test_read_of_zero_size_struct() {
     let io: MemoryAccessIo = registrar.pre_process(&mut caller_wrap).unwrap();
     io.read_as(read).unwrap();
 
-    assert_eq!(caller_wrap.host_state_mut().memory.read_attempt_count(), 0);
+    assert_eq!(caller_wrap.state_mut().memory.read_attempt_count(), 0);
 }
 
 #[test]
@@ -118,28 +118,28 @@ fn test_read_of_zero_size_encoded_value() {
     let read = registrar.register_read_decoded::<ZeroSizeStruct>(0);
     let io: MemoryAccessIo = registrar.pre_process(&mut caller_wrap).unwrap();
     io.read_decoded(read).unwrap();
-    assert_eq!(caller_wrap.host_state_mut().memory.read_attempt_count(), 0);
+    assert_eq!(caller_wrap.state_mut().memory.read_attempt_count(), 0);
 }
 
 #[test]
 fn test_read_of_some_size_buf() {
     let mut store = new_store();
     let mut caller_wrap = CallerWrap::prepare(&mut store);
-    caller_wrap.host_state_mut().memory = MockMemory::new(1);
+    caller_wrap.state_mut().memory = MockMemory::new(1);
 
     let mut registrar = MemoryAccessRegistrar::default();
     let read = registrar.register_read(0, 10);
     let io: MemoryAccessIo = registrar.pre_process(&mut caller_wrap).unwrap();
     io.read(read).unwrap();
 
-    assert_eq!(caller_wrap.host_state_mut().memory.read_attempt_count(), 1);
+    assert_eq!(caller_wrap.state_mut().memory.read_attempt_count(), 1);
 }
 
 #[test]
 fn test_read_with_valid_memory_access() {
     let mut store = new_store();
     let mut caller_wrap = CallerWrap::prepare(&mut store);
-    let memory = &mut caller_wrap.host_state_mut().memory;
+    let memory = &mut caller_wrap.state_mut().memory;
     *memory = MockMemory::new(1);
     memory.write(0, &[5u8; 10]).unwrap();
 
@@ -161,7 +161,7 @@ fn test_read_decoded_with_valid_encoded_data() {
 
     let mut store = new_store();
     let mut caller_wrap = CallerWrap::prepare(&mut store);
-    let memory = &mut caller_wrap.host_state_mut().memory;
+    let memory = &mut caller_wrap.state_mut().memory;
     *memory = MockMemory::new(1);
     let encoded = MockEncodeData { data: 1234 }.encode();
     memory.write(0, &encoded).unwrap();
@@ -196,7 +196,7 @@ fn test_read_decoded_with_invalid_encoded_data() {
 
     let mut store = new_store();
     let mut caller_wrap = CallerWrap::prepare(&mut store);
-    let memory = &mut caller_wrap.host_state_mut().memory;
+    let memory = &mut caller_wrap.state_mut().memory;
     *memory = MockMemory::new(1);
     let encoded = alloc::vec![7u8; WASM_PAGE_SIZE];
     memory.write(0, &encoded).unwrap();
@@ -211,7 +211,7 @@ fn test_read_decoded_with_invalid_encoded_data() {
 fn test_read_decoded_reading_error() {
     let mut store = new_store();
     let mut caller_wrap = CallerWrap::prepare(&mut store);
-    caller_wrap.host_state_mut().memory = MockMemory::new(1);
+    caller_wrap.state_mut().memory = MockMemory::new(1);
     let mut registrar = MemoryAccessRegistrar::default();
     let _read = registrar.register_read_decoded::<u64>(0);
     let io: MemoryAccessIo = registrar.pre_process(&mut caller_wrap).unwrap();
@@ -227,7 +227,7 @@ fn test_read_as_with_valid_data() {
     let mut store = new_store();
     let mut caller_wrap = CallerWrap::prepare(&mut store);
 
-    let memory = &mut caller_wrap.host_state_mut().memory;
+    let memory = &mut caller_wrap.state_mut().memory;
     *memory = MockMemory::new(1);
     let encoded = 1234u64.to_le_bytes();
     memory.write(0, &encoded).unwrap();
@@ -243,7 +243,7 @@ fn test_read_as_with_valid_data() {
 fn test_read_as_with_invalid_pointer() {
     let mut store = new_store();
     let mut caller_wrap = CallerWrap::prepare(&mut store);
-    caller_wrap.host_state_mut().memory = MockMemory::new(1);
+    caller_wrap.state_mut().memory = MockMemory::new(1);
 
     let mut registrar = MemoryAccessRegistrar::default();
     let _read = registrar.register_read_as::<u64>(0);
@@ -265,7 +265,7 @@ fn test_write_of_zero_size_buf() {
     let mut io: MemoryAccessIo = registrar.pre_process(&mut caller_wrap).unwrap();
     io.write(write, &[]).unwrap();
 
-    assert_eq!(caller_wrap.host_state_mut().memory.write_attempt_count(), 0);
+    assert_eq!(caller_wrap.state_mut().memory.write_attempt_count(), 0);
 }
 
 #[test]
@@ -278,7 +278,7 @@ fn test_write_of_zero_size_struct() {
     let mut io: MemoryAccessIo = registrar.pre_process(&mut caller_wrap).unwrap();
     io.write_as(write, ZeroSizeStruct).unwrap();
 
-    assert_eq!(caller_wrap.host_state_mut().memory.write_attempt_count(), 0);
+    assert_eq!(caller_wrap.state_mut().memory.write_attempt_count(), 0);
 }
 
 #[test]
@@ -297,7 +297,7 @@ fn test_write_with_zero_buffer_size() {
 fn test_write_of_some_size_buf() {
     let mut store = new_store();
     let mut caller_wrap = CallerWrap::prepare(&mut store);
-    caller_wrap.host_state_mut().memory = MockMemory::new(1);
+    caller_wrap.state_mut().memory = MockMemory::new(1);
 
     let mut registrar = MemoryAccessRegistrar::default();
     let write = registrar.register_write(0, 10);
@@ -305,7 +305,7 @@ fn test_write_of_some_size_buf() {
     let buffer = [0u8; 10];
     io.write(write, &buffer).unwrap();
 
-    assert_eq!(caller_wrap.host_state_mut().memory.write_attempt_count(), 1);
+    assert_eq!(caller_wrap.state_mut().memory.write_attempt_count(), 1);
 }
 
 #[test]
@@ -313,7 +313,7 @@ fn test_write_of_some_size_buf() {
 fn test_write_with_larger_buffer_size() {
     let mut store = new_store();
     let mut caller_wrap = CallerWrap::prepare(&mut store);
-    caller_wrap.host_state_mut().memory = MockMemory::new(1);
+    caller_wrap.state_mut().memory = MockMemory::new(1);
 
     let mut registrar = MemoryAccessRegistrar::default();
     let write = registrar.register_write(0, 10);
@@ -326,7 +326,7 @@ fn test_write_with_larger_buffer_size() {
 fn test_write_as_with_zero_size_object() {
     let mut store = new_store();
     let mut caller_wrap = CallerWrap::prepare(&mut store);
-    caller_wrap.host_state_mut().memory = MockMemory::new(1);
+    caller_wrap.state_mut().memory = MockMemory::new(1);
 
     let mut registrar = MemoryAccessRegistrar::default();
     let write = registrar.register_write_as::<u32>(0);
@@ -338,7 +338,7 @@ fn test_write_as_with_zero_size_object() {
 fn test_write_as_with_same_object_size() {
     let mut store = new_store();
     let mut caller_wrap = CallerWrap::prepare(&mut store);
-    caller_wrap.host_state_mut().memory = MockMemory::new(1);
+    caller_wrap.state_mut().memory = MockMemory::new(1);
 
     let mut registrar = MemoryAccessRegistrar::default();
     registrar.register_write_as::<u8>(0);
@@ -357,7 +357,7 @@ fn test_write_as_with_same_object_size() {
 fn test_write_as_with_larger_object_size() {
     let mut store = new_store();
     let mut caller_wrap = CallerWrap::prepare(&mut store);
-    caller_wrap.host_state_mut().memory = MockMemory::new(1);
+    caller_wrap.state_mut().memory = MockMemory::new(1);
 
     let mut registrar = MemoryAccessRegistrar::default();
     registrar.register_write_as::<u8>(0);

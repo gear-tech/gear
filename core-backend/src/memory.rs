@@ -287,17 +287,15 @@ where
         self,
         ctx: &'a mut CallerWrap<'_, Caller>,
     ) -> Result<MemoryAccessIo<MemoryWrapRef<'a, Caller, Mem>>, MemoryAccessError> {
-        let mut gas_counter = ctx.host_state_mut().ext.define_current_counter();
+        let mut gas_counter = ctx.state_mut().ext.define_current_counter();
 
         let res = Ext::pre_process_memory_accesses(&self.reads, &self.writes, &mut gas_counter);
 
-        ctx.host_state_mut()
-            .ext
-            .decrease_current_counter_to(gas_counter);
+        ctx.state_mut().ext.decrease_current_counter_to(gas_counter);
 
         res?;
 
-        let memory = ctx.host_state_mut().memory.clone();
+        let memory = ctx.state_mut().memory.clone();
         let memory = MemoryWrapRef {
             memory,
             caller: ctx.caller,

@@ -49,7 +49,7 @@ where
     }
 
     #[track_caller]
-    pub fn host_state_mut(&mut self) -> &mut State<Ext, Mem> {
+    pub fn state_mut(&mut self) -> &mut State<Ext, Mem> {
         self.caller
             .data_mut()
             .as_mut()
@@ -64,11 +64,11 @@ where
     }
 
     pub fn set_termination_reason(&mut self, reason: UndefinedTerminationReason) {
-        self.host_state_mut().termination_reason = reason;
+        self.state_mut().termination_reason = reason;
     }
 
     pub fn ext_mut(&mut self) -> &mut Ext {
-        &mut self.host_state_mut().ext
+        &mut self.state_mut().ext
     }
 }
 
@@ -82,10 +82,10 @@ where
     where
         F: FnOnce(&mut Self) -> Result<U, UndefinedTerminationReason>,
     {
-        self.host_state_mut().ext.decrease_current_counter_to(gas);
+        self.state_mut().ext.decrease_current_counter_to(gas);
 
         let run = || {
-            self.host_state_mut().ext.charge_gas_for_token(token)?;
+            self.state_mut().ext.charge_gas_for_token(token)?;
             f(self)
         };
 
@@ -94,7 +94,7 @@ where
                 self.set_termination_reason(err);
                 HostError
             })
-            .map(|r| (self.host_state_mut().ext.define_current_counter(), r))
+            .map(|r| (self.state_mut().ext.define_current_counter(), r))
     }
 
     #[track_caller]
