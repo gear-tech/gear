@@ -24,7 +24,7 @@ use gear_wasm_builder::{
 use parity_wasm::elements::External;
 use std::{collections::HashSet, fs, path::PathBuf};
 
-const RT_ALLOWED_IMPORTS: [&str; 67] = [
+const RT_ALLOWED_IMPORTS: [&str; 73] = [
     // From `Allocator` (substrate/primitives/io/src/lib.rs)
     "ext_allocator_free_version_1",
     "ext_allocator_malloc_version_1",
@@ -103,6 +103,13 @@ const RT_ALLOWED_IMPORTS: [&str; 67] = [
     "ext_storage_start_transaction_version_1",
     // From `Trie` (substrate/primitives/io/src/lib.rs)
     "ext_trie_blake2_256_ordered_root_version_2",
+    // From `sp-crypto-ec-utils`
+    "ext_host_calls_bls12_381_final_exponentiation_version_1",
+    "ext_host_calls_bls12_381_msm_g1_version_1",
+    "ext_host_calls_bls12_381_msm_g2_version_1",
+    "ext_host_calls_bls12_381_mul_projective_g1_version_1",
+    "ext_host_calls_bls12_381_mul_projective_g2_version_1",
+    "ext_host_calls_bls12_381_multi_miller_loop_version_1",
 ];
 
 #[derive(Debug, clap::Parser)]

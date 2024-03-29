@@ -61,8 +61,8 @@ pub struct LazyPagesProgramContext {
     pub program_key: Vec<u8>,
     /// Globals config to access globals inside lazy-pages.
     pub globals_config: GlobalsAccessConfig,
-    /// Lazy-pages access weights.
-    pub weights: Vec<u64>,
+    /// Lazy-pages access costs.
+    pub costs: Vec<u64>,
 }
 
 impl PassBy for LazyPagesProgramContext {
@@ -234,7 +234,7 @@ pub trait GearRI {
             ctx.stack_end,
             ctx.program_key,
             Some(ctx.globals_config),
-            ctx.weights,
+            ctx.costs,
         )
         .map_err(|e| e.to_string())
         .expect("Cannot initialize lazy pages for current program");

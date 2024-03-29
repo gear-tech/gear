@@ -45,7 +45,7 @@ pub use map::{AppendMapStorage, MapStorage};
 pub use triple_map::TripleMapStorage;
 pub use value::ValueStorage;
 
-use frame_support::{
+use sp_runtime::{
     codec::{self, Decode, Encode, MaxEncodedLen},
     scale_info::{self, TypeInfo},
 };

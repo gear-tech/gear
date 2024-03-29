@@ -1120,6 +1120,12 @@ pub mod runtime_types {
                     put_in_front_of {
                         lighter: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
                     },
+                    #[codec(index = 2)]
+                    #[doc = "See [`Pallet::put_in_front_of_other`]."]
+                    put_in_front_of_other {
+                        heavier: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
+                        lighter: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
+                    },
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 #[doc = "The `Error` enum of this pallet."]
@@ -2322,84 +2328,6 @@ pub mod runtime_types {
             pub mod schedule {
                 use super::runtime_types;
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-                pub struct HostFnWeights {
-                    pub alloc: runtime_types::sp_weights::weight_v2::Weight,
-                    pub alloc_per_page: runtime_types::sp_weights::weight_v2::Weight,
-                    pub free: runtime_types::sp_weights::weight_v2::Weight,
-                    pub free_range: runtime_types::sp_weights::weight_v2::Weight,
-                    pub free_range_per_page: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_reserve_gas: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_unreserve_gas: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_system_reserve_gas: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_gas_available: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_message_id: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_program_id: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_source: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_value: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_value_available: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_size: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_read: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_read_per_byte: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_env_vars: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_block_height: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_block_timestamp: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_random: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_reply_deposit: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_send: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_send_per_byte: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_send_wgas: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_send_wgas_per_byte: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_send_init: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_send_push: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_send_push_per_byte: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_send_commit: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_send_commit_wgas: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_reservation_send: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_reservation_send_per_byte: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_reservation_send_commit: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_reply_commit: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_reply_commit_wgas: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_reservation_reply: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_reservation_reply_per_byte: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_reservation_reply_commit: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_reply_push: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_reply: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_reply_per_byte: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_reply_wgas: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_reply_wgas_per_byte: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_reply_push_per_byte: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_reply_to: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_signal_code: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_signal_from: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_reply_input: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_reply_input_wgas: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_reply_push_input: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_reply_push_input_per_byte: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_send_input: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_send_input_wgas: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_send_push_input: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_send_push_input_per_byte: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_debug: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_debug_per_byte: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_reply_code: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_exit: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_leave: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_wait: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_wait_for: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_wait_up_to: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_wake: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_create_program: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_create_program_payload_per_byte:
-                        runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_create_program_salt_per_byte:
-                        runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_create_program_wgas: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_create_program_wgas_payload_per_byte:
-                        runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_create_program_wgas_salt_per_byte:
-                        runtime_types::sp_weights::weight_v2::Weight,
-                }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub struct InstructionWeights {
                     pub version: ::core::primitive::u32,
                     pub i64const: ::core::primitive::u32,
@@ -2525,13 +2453,91 @@ pub mod runtime_types {
                     pub limits: runtime_types::pallet_gear::schedule::Limits,
                     pub instruction_weights:
                         runtime_types::pallet_gear::schedule::InstructionWeights,
-                    pub host_fn_weights: runtime_types::pallet_gear::schedule::HostFnWeights,
+                    pub syscall_weights: runtime_types::pallet_gear::schedule::SyscallWeights,
                     pub memory_weights: runtime_types::pallet_gear::schedule::MemoryWeights,
                     pub module_instantiation_per_byte: runtime_types::sp_weights::weight_v2::Weight,
                     pub db_write_per_byte: runtime_types::sp_weights::weight_v2::Weight,
                     pub db_read_per_byte: runtime_types::sp_weights::weight_v2::Weight,
                     pub code_instrumentation_cost: runtime_types::sp_weights::weight_v2::Weight,
                     pub code_instrumentation_byte_cost:
+                        runtime_types::sp_weights::weight_v2::Weight,
+                }
+                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                pub struct SyscallWeights {
+                    pub alloc: runtime_types::sp_weights::weight_v2::Weight,
+                    pub alloc_per_page: runtime_types::sp_weights::weight_v2::Weight,
+                    pub free: runtime_types::sp_weights::weight_v2::Weight,
+                    pub free_range: runtime_types::sp_weights::weight_v2::Weight,
+                    pub free_range_per_page: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_reserve_gas: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_unreserve_gas: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_system_reserve_gas: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_gas_available: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_message_id: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_program_id: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_source: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_value: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_value_available: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_size: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_read: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_read_per_byte: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_env_vars: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_block_height: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_block_timestamp: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_random: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_reply_deposit: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_send: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_send_per_byte: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_send_wgas: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_send_wgas_per_byte: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_send_init: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_send_push: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_send_push_per_byte: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_send_commit: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_send_commit_wgas: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_reservation_send: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_reservation_send_per_byte: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_reservation_send_commit: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_reply_commit: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_reply_commit_wgas: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_reservation_reply: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_reservation_reply_per_byte: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_reservation_reply_commit: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_reply_push: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_reply: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_reply_per_byte: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_reply_wgas: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_reply_wgas_per_byte: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_reply_push_per_byte: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_reply_to: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_signal_code: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_signal_from: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_reply_input: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_reply_input_wgas: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_reply_push_input: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_reply_push_input_per_byte: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_send_input: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_send_input_wgas: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_send_push_input: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_send_push_input_per_byte: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_debug: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_debug_per_byte: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_reply_code: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_exit: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_leave: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_wait: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_wait_for: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_wait_up_to: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_wake: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_create_program: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_create_program_payload_per_byte:
+                        runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_create_program_salt_per_byte:
+                        runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_create_program_wgas: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_create_program_wgas_payload_per_byte:
+                        runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_create_program_wgas_salt_per_byte:
                         runtime_types::sp_weights::weight_v2::Weight,
                 }
             }
@@ -5675,6 +5681,12 @@ pub mod runtime_types {
                             prefs: runtime_types::pallet_staking::ValidatorPrefs,
                         },
                         #[codec(index = 14)]
+                        #[doc = "Voters size limit reached."]
+                        SnapshotVotersSizeExceeded { size: ::core::primitive::u32 },
+                        #[codec(index = 15)]
+                        #[doc = "Targets size limit reached."]
+                        SnapshotTargetsSizeExceeded { size: ::core::primitive::u32 },
+                        #[codec(index = 16)]
                         #[doc = "A new force era mode was set."]
                         ForceEra {
                             mode: runtime_types::pallet_staking::Forcing,
@@ -7706,6 +7718,7 @@ pub mod calls {
     pub enum BagsListCall {
         Rebag,
         PutInFrontOf,
+        PutInFrontOfOther,
     }
     impl CallInfo for BagsListCall {
         const PALLET: &'static str = "BagsList";
@@ -7713,6 +7726,7 @@ pub mod calls {
             match self {
                 Self::Rebag => "rebag",
                 Self::PutInFrontOf => "put_in_front_of",
+                Self::PutInFrontOfOther => "put_in_front_of_other",
             }
         }
     }

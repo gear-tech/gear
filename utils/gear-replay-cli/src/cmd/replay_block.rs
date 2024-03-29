@@ -178,7 +178,7 @@ where
     let method = "TryRuntime_execute_block";
 
     let (_changes, _enc_res) =
-        state_machine_call(&ext, &executor, method, &payload, full_extensions())?;
+        state_machine_call::<Block, _>(&ext, &executor, method, &payload, full_extensions())?;
     log::info!(
         target: LOG_TARGET,
         "Core_execute_block for block {} completed",

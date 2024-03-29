@@ -55,12 +55,14 @@ impl sc_executor::NativeExecutionDispatch for VaraExecutorDispatch {
         frame_benchmarking::benchmarking::HostFunctions,
         gear_ri::gear_ri::HostFunctions,
         gear_ri::sandbox::HostFunctions,
+        sp_crypto_ec_utils::bls12_381::host_calls::HostFunctions,
     );
     /// Otherwise we only use the default Substrate host functions.
     #[cfg(not(feature = "runtime-benchmarks"))]
     type ExtendHostFunctions = (
         gear_ri::gear_ri::HostFunctions,
         gear_ri::sandbox::HostFunctions,
+        sp_crypto_ec_utils::bls12_381::host_calls::HostFunctions,
     );
 
     fn dispatch(method: &str, data: &[u8]) -> Option<Vec<u8>> {
@@ -90,13 +92,10 @@ pub trait RuntimeApiCollection:
     + pallet_gear_rpc_runtime_api::GearApi<Block>
     + pallet_gear_staking_rewards_rpc_runtime_api::GearStakingRewardsApi<Block>
     + pallet_gear_builtin_rpc_runtime_api::GearBuiltinApi<Block>
-where
-    <Self as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
 {
 }
 
-impl<Api> RuntimeApiCollection for Api
-where
+impl<Api> RuntimeApiCollection for Api where
     Api: sp_transaction_pool::runtime_api::TaggedTransactionQueue<Block>
         + sp_api::ApiExt<Block>
         + sp_consensus_babe::BabeApi<Block>
@@ -109,8 +108,7 @@ where
         + sp_session::SessionKeys<Block>
         + pallet_gear_rpc_runtime_api::GearApi<Block>
         + pallet_gear_staking_rewards_rpc_runtime_api::GearStakingRewardsApi<Block>
-        + pallet_gear_builtin_rpc_runtime_api::GearBuiltinApi<Block>,
-    <Self as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
+        + pallet_gear_builtin_rpc_runtime_api::GearBuiltinApi<Block>
 {
 }
 
@@ -124,12 +122,12 @@ pub trait AbstractClient<Block, Backend>:
     + Sync
     + ProvideRuntimeApi<Block>
     + HeaderBackend<Block>
-    + CallApiAt<Block, StateBackend = Backend::State>
+    + CallApiAt<Block>
 where
     Block: BlockT,
     Backend: BackendT<Block>,
     Backend::State: sp_api::StateBackend<BlakeTwo256>,
-    Self::Api: RuntimeApiCollection<StateBackend = Backend::State>,
+    Self::Api: RuntimeApiCollection,
 {
 }
 
@@ -144,8 +142,8 @@ where
         + Sized
         + Send
         + Sync
-        + CallApiAt<Block, StateBackend = Backend::State>,
-    Client::Api: RuntimeApiCollection<StateBackend = Backend::State>,
+        + CallApiAt<Block>,
+    Client::Api: RuntimeApiCollection,
 {
 }
 
@@ -167,10 +165,9 @@ pub trait ExecuteWithClient {
     /// Execute whatever should be executed with the given client instance.
     fn execute_with_client<Client, Api, Backend>(self, client: Arc<Client>) -> Self::Output
     where
-        <Api as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
         Backend: BackendT<Block> + 'static,
         Backend::State: sp_api::StateBackend<BlakeTwo256>,
-        Api: crate::RuntimeApiCollection<StateBackend = Backend::State>,
+        Api: crate::RuntimeApiCollection,
         Client: AbstractClient<Block, Backend, Api = Api>
             + 'static
             + HeaderMetadata<

@@ -114,7 +114,7 @@ struct DeserializableDump {
 struct DeserializableSchedule {
     limits: IndexMap<String, Value>,
     instruction_weights: IndexMap<String, Value>,
-    host_fn_weights: IndexMap<String, Weight>,
+    syscall_weights: IndexMap<String, Weight>,
     memory_weights: IndexMap<String, Weight>,
     #[serde(flatten)]
     other_fields: IndexMap<String, Weight>,
@@ -137,10 +137,10 @@ impl DeserializableSchedule {
         map
     }
 
-    fn host_fn_weights(&self) -> IndexMap<String, u64> {
+    fn syscall_weights(&self) -> IndexMap<String, u64> {
         let mut map = IndexMap::new();
 
-        for (k, v) in self.host_fn_weights.clone() {
+        for (k, v) in self.syscall_weights.clone() {
             map.insert(k, v.ref_time());
         }
 
@@ -212,7 +212,7 @@ impl<'ast> Visit<'ast> for StructuresVisitor {
         let structure_name = node.ident.to_string();
         if !matches!(
             structure_name.as_str(),
-            "Schedule" | "Limits" | "InstructionWeights" | "HostFnWeights" | "MemoryWeights"
+            "Schedule" | "Limits" | "InstructionWeights" | "SyscallWeights" | "MemoryWeights"
         ) {
             return;
         }
@@ -295,7 +295,7 @@ fn main() {
                     schedule1.instruction_weights(),
                     schedule2.instruction_weights(),
                 ),
-                WeightsKind::HostFn => (schedule1.host_fn_weights(), schedule2.host_fn_weights()),
+                WeightsKind::HostFn => (schedule1.syscall_weights(), schedule2.syscall_weights()),
                 WeightsKind::Memory => (schedule1.memory_weights(), schedule2.memory_weights()),
             };
 
@@ -375,7 +375,7 @@ fn main() {
                         "Schedule" => &raw_schedule[field_name],
                         "Limits" => &raw_schedule["limits"][field_name],
                         "InstructionWeights" => &raw_schedule["instruction_weights"][field_name],
-                        "HostFnWeights" => &raw_schedule["host_fn_weights"][field_name],
+                        "SyscallWeights" => &raw_schedule["syscall_weights"][field_name],
                         "MemoryWeights" => &raw_schedule["memory_weights"][field_name],
                         _ => &raw_schedule,
                     };
