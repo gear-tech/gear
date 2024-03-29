@@ -408,14 +408,123 @@ impl AllocationsContext {
     }
 }
 
+/// This module contains tests of `GearPage` and `AllocationContext`
 #[cfg(test)]
-/// This module contains tests of GearPage struct
 mod tests {
-    use crate::pages::{GearPage, PageNumber};
-
     use super::*;
-
+    use crate::pages::{GearPage, PageNumber};
     use alloc::vec::Vec;
+
+    struct MockMemory {
+        max_pages: u32,
+        allocated: u32,
+    }
+
+    impl Memory for MockMemory {
+        type GrowError = &'static str;
+
+        fn grow(&mut self, pages: WasmPage) -> Result<(), Self::GrowError> {
+            let new_allocated = self.allocated + pages.raw();
+
+            if new_allocated > self.max_pages {
+                return Err("trying to allocate too many pages");
+            }
+
+            self.allocated = new_allocated;
+
+            Ok(())
+        }
+
+        fn size(&self) -> WasmPage {
+            WasmPage::new(self.allocated).unwrap()
+        }
+
+        fn write(&mut self, _offset: u32, _buffer: &[u8]) -> Result<(), MemoryError> {
+            unimplemented!()
+        }
+
+        fn read(&self, _offset: u32, _buffer: &mut [u8]) -> Result<(), MemoryError> {
+            unimplemented!()
+        }
+
+        unsafe fn get_buffer_host_addr_unsafe(&mut self) -> HostPointer {
+            unimplemented!()
+        }
+    }
+
+    fn new_test_memory(static_pages: u16, max_pages: u16) -> (AllocationsContext, MockMemory) {
+        (
+            AllocationsContext::new(Default::default(), static_pages.into(), max_pages.into()),
+            MockMemory {
+                max_pages: max_pages as u32,
+                allocated: static_pages as u32,
+            },
+        )
+    }
+
+    #[test]
+    fn allocation_context_smoky() {
+        let (mut ctx, mut mem_wrap) = new_test_memory(16, 256);
+
+        assert_eq!(
+            ctx.alloc::<NoopGrowHandler>(16.into(), &mut mem_wrap, |_| Ok(()))
+                .unwrap(),
+            16.into()
+        );
+
+        assert_eq!(
+            ctx.alloc::<NoopGrowHandler>(0.into(), &mut mem_wrap, |_| Ok(()))
+                .unwrap(),
+            16.into()
+        );
+
+        // there is a space for 14 more
+        for _ in 0..14 {
+            ctx.alloc::<NoopGrowHandler>(16.into(), &mut mem_wrap, |_| Ok(()))
+                .unwrap();
+        }
+
+        // no more mem!
+        assert_eq!(
+            ctx.alloc::<NoopGrowHandler>(1.into(), &mut mem_wrap, |_| Ok(())),
+            Err(AllocError::ProgramAllocOutOfBounds)
+        );
+
+        // but we free some
+        ctx.free(137.into()).unwrap();
+
+        // and now can allocate page that was freed
+        assert_eq!(
+            ctx.alloc::<NoopGrowHandler>(1.into(), &mut mem_wrap, |_| Ok(())),
+            Ok(137.into())
+        );
+
+        // if we free 2 in a row we can allocate even 2
+        ctx.free(117.into()).unwrap();
+        ctx.free(118.into()).unwrap();
+
+        assert_eq!(
+            ctx.alloc::<NoopGrowHandler>(2.into(), &mut mem_wrap, |_| Ok(())),
+            Ok(117.into())
+        );
+
+        // same as above, if we free_range 2 in a row we can allocate 2
+        ctx.free_range(117.into()..=118.into()).unwrap();
+
+        assert_eq!(
+            ctx.alloc::<NoopGrowHandler>(2.into(), &mut mem_wrap, |_| Ok(())),
+            Ok(117.into())
+        );
+
+        // but if 2 are not in a row, bad luck
+        ctx.free(117.into()).unwrap();
+        ctx.free(158.into()).unwrap();
+
+        assert_eq!(
+            ctx.alloc::<NoopGrowHandler>(2.into(), &mut mem_wrap, |_| Ok(())),
+            Err(AllocError::ProgramAllocOutOfBounds)
+        );
+    }
 
     #[test]
     /// Test that [GearPage] add up correctly

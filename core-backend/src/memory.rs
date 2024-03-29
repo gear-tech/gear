@@ -451,16 +451,12 @@ pub(crate) struct WasmMemoryWrite {
 mod tests {
     use super::*;
     use crate::{
-        error::ActorTerminationReason,
         mock::{MockExt, MockMemory, PreProcessMemoryAccesses},
         state::State,
     };
     use codec::Encode;
-    use gear_core::{
-        memory::{AllocError, AllocationsContext, NoopGrowHandler},
-        pages::WASM_PAGE_SIZE,
-    };
-    use gear_sandbox::{AsContextExt, SandboxStore};
+    use gear_core::pages::WASM_PAGE_SIZE;
+    use gear_sandbox::SandboxStore;
 
     type MemoryAccessRegistry =
         crate::memory::MemoryAccessRegistry<Store<HostState<MockExt, MockMemory>>>;
@@ -471,94 +467,6 @@ mod tests {
     #[derive(Encode, Decode, MaxEncodedLen)]
     #[codec(crate = codec)]
     struct ZeroSizeStruct;
-
-    fn new_test_memory(
-        static_pages: u16,
-        max_pages: u16,
-    ) -> (AllocationsContext, MemoryWrap<MockExt>) {
-        use gear_sandbox::SandboxMemory as WasmMemory;
-
-        let mut store = Store::new(None);
-        let memory: ExecutorMemory =
-            WasmMemory::new(&mut store, static_pages as u32, Some(max_pages as u32))
-                .expect("Memory creation failed");
-        *store.data_mut() = Some(State {
-            ext: MockExt::default(),
-            memory: memory.clone(),
-            termination_reason: ActorTerminationReason::Success.into(),
-        });
-
-        let memory = MemoryWrap::new(memory, store);
-
-        (
-            AllocationsContext::new(Default::default(), static_pages.into(), max_pages.into()),
-            memory,
-        )
-    }
-
-    #[test]
-    fn smoky() {
-        let (mut ctx, mut mem_wrap) = new_test_memory(16, 256);
-
-        assert_eq!(
-            ctx.alloc::<NoopGrowHandler>(16.into(), &mut mem_wrap, |_| Ok(()))
-                .unwrap(),
-            16.into()
-        );
-
-        assert_eq!(
-            ctx.alloc::<NoopGrowHandler>(0.into(), &mut mem_wrap, |_| Ok(()))
-                .unwrap(),
-            16.into()
-        );
-
-        // there is a space for 14 more
-        for _ in 0..14 {
-            ctx.alloc::<NoopGrowHandler>(16.into(), &mut mem_wrap, |_| Ok(()))
-                .unwrap();
-        }
-
-        // no more mem!
-        assert_eq!(
-            ctx.alloc::<NoopGrowHandler>(1.into(), &mut mem_wrap, |_| Ok(())),
-            Err(AllocError::ProgramAllocOutOfBounds)
-        );
-
-        // but we free some
-        ctx.free(137.into()).unwrap();
-
-        // and now can allocate page that was freed
-        assert_eq!(
-            ctx.alloc::<NoopGrowHandler>(1.into(), &mut mem_wrap, |_| Ok(())),
-            Ok(137.into())
-        );
-
-        // if we free 2 in a row we can allocate even 2
-        ctx.free(117.into()).unwrap();
-        ctx.free(118.into()).unwrap();
-
-        assert_eq!(
-            ctx.alloc::<NoopGrowHandler>(2.into(), &mut mem_wrap, |_| Ok(())),
-            Ok(117.into())
-        );
-
-        // same as above, if we free_range 2 in a row we can allocate 2
-        ctx.free_range(117.into()..=118.into()).unwrap();
-
-        assert_eq!(
-            ctx.alloc::<NoopGrowHandler>(2.into(), &mut mem_wrap, |_| Ok(())),
-            Ok(117.into())
-        );
-
-        // but if 2 are not in a row, bad luck
-        ctx.free(117.into()).unwrap();
-        ctx.free(158.into()).unwrap();
-
-        assert_eq!(
-            ctx.alloc::<NoopGrowHandler>(2.into(), &mut mem_wrap, |_| Ok(())),
-            Err(AllocError::ProgramAllocOutOfBounds)
-        );
-    }
 
     fn new_store() -> Store<HostState<MockExt, MockMemory>> {
         Store::new(Some(State {
