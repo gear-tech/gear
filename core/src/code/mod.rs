@@ -477,7 +477,7 @@ mod tests {
         assert_code_err!(
             try_new_code_from_wat(wat, None),
             CodeError::DataSection(DataSectionError::EndAddressOutOfStaticMemory(
-                0x10000, 0x10003, 1
+                0x10000, 0x10003, 0x10000
             ))
         );
 
@@ -494,7 +494,7 @@ mod tests {
         assert_code_err!(
             try_new_code_from_wat(wat, None),
             CodeError::DataSection(DataSectionError::EndAddressOutOfStaticMemory(
-                0xfffd, 0x10000, 1
+                0xfffd, 0x10000, 0x10000
             ))
         );
     }

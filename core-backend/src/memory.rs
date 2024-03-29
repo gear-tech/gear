@@ -503,8 +503,6 @@ mod tests {
 
     #[test]
     fn smoky() {
-        let _ = env_logger::try_init();
-
         let (mut ctx, mut mem_wrap) = new_test_memory(16, 256);
 
         assert_eq!(

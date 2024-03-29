@@ -92,14 +92,12 @@ fn vec() {
         };
         assert_eq!(program_info.code_hash, code_id.into_origin());
 
-        log::trace!("persistent_pages: {:?}", program_info.persistent_pages);
-
         let pages = program_info
             .persistent_pages
             .keys()
             .fold(BTreeSet::new(), |mut set, page| {
                 let wasm_page: WasmPage = page.to_page();
-                if static_pages <= wasm_page {
+                if wasm_page >= static_pages {
                     set.insert(u32::from(wasm_page));
                 }
                 set

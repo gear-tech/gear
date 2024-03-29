@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Benchmarks for gear sys-calls.
+//! Benchmarks for gear syscalls.
 
 use super::{
     code::{
@@ -216,7 +216,7 @@ where
             HandleKind::Handle(program_id),
             vec![],
             PrepareConfig {
-                max_pages: Some(WasmPagesAmount::UPPER),
+                max_pages_override: Some(WasmPagesAmount::UPPER),
                 ..Default::default()
             },
         )

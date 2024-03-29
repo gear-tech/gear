@@ -385,7 +385,7 @@ impl AllocationsContext {
 
     /// Free specific memory page.
     pub fn free(&mut self, page: WasmPage) -> Result<(), AllocError> {
-        if self.static_pages > page || self.max_pages <= page || !self.allocations.contains(page) {
+        if page < self.static_pages || page >= self.max_pages || !self.allocations.contains(page) {
             Err(AllocError::InvalidFree(page))
         } else {
             self.allocations.remove(page);
@@ -398,7 +398,7 @@ impl AllocationsContext {
     ///
     /// Currently running program should own this pages.
     pub fn free_range(&mut self, range: RangeInclusive<WasmPage>) -> Result<(), AllocError> {
-        if self.static_pages > *range.start() || self.max_pages <= *range.end() {
+        if *range.start() < self.static_pages || *range.end() >= self.max_pages {
             return Err(AllocError::InvalidFreeRange(*range.start(), *range.end()));
         }
 

@@ -186,8 +186,6 @@ mod test {
 
     #[test]
     fn migration_to_v3_works() {
-        let _ = env_logger::try_init();
-
         new_test_ext().execute_with(|| {
             StorageVersion::new(2).put::<GearProgram>();
 

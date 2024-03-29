@@ -283,7 +283,7 @@ pub fn check_data_section(
             .checked_add(size)
             .ok_or(DataSectionError::EndAddressOverflow(data_segment_offset))?;
 
-        (static_pages > WasmPage::from_offset(data_segment_last_byte_offset))
+        (WasmPage::from_offset(data_segment_last_byte_offset) < static_pages)
             .then_some(())
             .ok_or(DataSectionError::EndAddressOutOfStaticMemory(
                 data_segment_offset,

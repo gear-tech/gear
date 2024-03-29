@@ -46,7 +46,7 @@ pub struct PrepareConfig {
     pub value: u128,
     pub gas_allowance: u64,
     pub gas_limit: u64,
-    pub max_pages: Option<WasmPagesAmount>,
+    pub max_pages_override: Option<WasmPagesAmount>,
 }
 
 impl Default for PrepareConfig {
@@ -55,7 +55,7 @@ impl Default for PrepareConfig {
             value: 0,
             gas_allowance: u64::MAX,
             gas_limit: u64::MAX / 2,
-            max_pages: None,
+            max_pages_override: None,
         }
     }
 }
@@ -213,7 +213,7 @@ where
     let block_config = BlockConfig {
         outgoing_limit: 2048,
         outgoing_bytes_limit: u32::MAX,
-        max_pages: config.max_pages.unwrap_or(pallet_config.max_pages),
+        max_pages: config.max_pages_override.unwrap_or(pallet_config.max_pages),
         ..pallet_config
     };
 
