@@ -221,8 +221,32 @@ impl<'a, 'b> EntryPointsGenerator<'a, 'b> {
     ) -> Result<Vec<Instruction>> {
         let params = export_body_call_func_type.params();
         let results = export_body_call_func_type.results();
+
+        // +3 for `*handle_count_ptr = 0` instructions.
+        // +3 for `*init_called_ptr = true` instructions (optional).
         // +2 for End and Call instructions.
-        let mut res = Vec::with_capacity(params.len() + results.len() + 2);
+        let mut res = Vec::with_capacity(3 + params.len() + results.len() + 3 + 2);
+
+        let memory_size_pages = self
+            .module
+            .initial_mem_size()
+            .expect("generator is instantiated with a mem import generation proof");
+        let mem_size = Into::<WasmPageCount>::into(memory_size_pages).memory_size();
+
+        let MemoryLayout {
+            init_called_ptr,
+            handle_count_ptr,
+            ..
+        } = MemoryLayout::from(mem_size);
+
+        // reset handle count because they cannot be used in different messages
+        res.extend_from_slice(&[
+            // *handle_count_ptr = 0
+            Instruction::I32Const(handle_count_ptr),
+            Instruction::I32Const(0),
+            Instruction::I32Store(2, 0),
+        ]);
+
         for param in params {
             let instr = match param {
                 ValueType::I32 => Instruction::I32Const(self.unstructured.arbitrary()?),
@@ -236,16 +260,6 @@ impl<'a, 'b> EntryPointsGenerator<'a, 'b> {
 
         // after initializing the program, we will write about this in a special pointer
         if name == "init" {
-            let memory_size_pages = self
-                .module
-                .initial_mem_size()
-                .expect("generator is instantiated with a mem import generation proof");
-            let mem_size = Into::<WasmPageCount>::into(memory_size_pages).memory_size();
-
-            let MemoryLayout {
-                init_called_ptr, ..
-            } = MemoryLayout::from(mem_size);
-
             res.extend_from_slice(&[
                 // *init_called_ptr = true
                 Instruction::I32Const(init_called_ptr),

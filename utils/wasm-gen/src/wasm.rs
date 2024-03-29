@@ -261,6 +261,7 @@ def_memory_layout! {
     struct MemoryLayout {
         init_called_ptr: bool,
         wait_called_ptr: u32,
+        handle_count_ptr: u32,
         reservation_temp1_ptr: u32,
         reservation_temp2_ptr: u32,
         reservation_flags_ptr: u32,
@@ -271,6 +272,9 @@ def_memory_layout! {
 impl MemoryLayout {
     /// The amount of reserved memory.
     pub const RESERVED_MEMORY_SIZE: u32 = 256;
+
+    /// The amount of handles.
+    pub const AMOUNT_OF_HANDLES: u32 = 5;
     /// The amount of reservation ids.
     pub const AMOUNT_OF_RESERVATIONS: u32 = 5;
 }

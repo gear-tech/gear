@@ -52,6 +52,9 @@ pub(crate) enum ProcessedSyscallParams {
     FreeUpperBound {
         allowed_values: Option<RegularParamAllowedValues>,
     },
+    Handler {
+        allowed_values: Option<RegularParamAllowedValues>,
+    },
     Value {
         value_type: ValueType,
         allowed_values: Option<RegularParamAllowedValues>,
@@ -90,6 +93,9 @@ pub(crate) fn process_syscall_params(
                 },
                 free_upped_bound @ FreeUpperBound => ProcessedSyscallParams::FreeUpperBound {
                     allowed_values: params_config.get_rule(free_upped_bound),
+                },
+                handler @ Handler => ProcessedSyscallParams::Handler {
+                    allowed_values: params_config.get_rule(handler),
                 },
                 Length if length_param_indexes.contains(&param_idx) => {
                     // Due to match guard `RegularParamType::Length` can be processed in two ways:
@@ -336,6 +342,44 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                     self.limit_infinite_waits(&mut instructions, waiting_probability.get());
                 }
             }
+            Loose(SendInit) => {
+                const _: () = assert!(mem::size_of::<gsys::ErrorCode>() == mem::size_of::<u32>());
+                let no_error_val = gsys::ErrorCode::default() as i32;
+
+                let res_ptr = param_instructions
+                    .last()
+                    .expect("At least one argument in fallible syscall")
+                    .as_i32()
+                    .expect("Incorrect last parameter type: expected i32 pointer");
+
+                let MemoryLayout {
+                    handle_count_ptr, ..
+                } = MemoryLayout::from(self.memory_size_bytes());
+
+                instructions.extend_from_slice(&[
+                    // if *res_ptr == no_error_val
+                    Instruction::I32Const(res_ptr),
+                    Instruction::I32Load(2, 0),
+                    Instruction::I32Const(no_error_val),
+                    Instruction::I32Eq,
+                    Instruction::If(BlockType::NoResult),
+                    // if *handle_count_ptr < MemoryLayout::AMOUNT_OF_HANDLES
+                    Instruction::I32Const(handle_count_ptr),
+                    Instruction::I32Load(2, 0),
+                    Instruction::I32Const(MemoryLayout::AMOUNT_OF_HANDLES as i32),
+                    Instruction::I32LtU,
+                    Instruction::If(BlockType::NoResult),
+                    // *handle_count_ptr += 1
+                    Instruction::I32Const(handle_count_ptr),
+                    Instruction::I32Const(handle_count_ptr),
+                    Instruction::I32Load(2, 0),
+                    Instruction::I32Const(1),
+                    Instruction::I32Add,
+                    Instruction::I32Store(2, 0),
+                    Instruction::End,
+                    Instruction::End,
+                ]);
+            }
             Loose(ReserveGas) => {
                 const _: () = assert!(mem::size_of::<gsys::ErrorCode>() == mem::size_of::<u32>());
                 let no_error_val = gsys::ErrorCode::default() as i32;
@@ -449,6 +493,54 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                     log::trace!("  ----  Allocate memory - {pages_to_alloc}");
 
                     ret.push(pages_to_alloc.into());
+                }
+                ProcessedSyscallParams::Handler { allowed_values } => {
+                    let MemoryLayout {
+                        handle_count_ptr, ..
+                    } = MemoryLayout::from(self.memory_size_bytes());
+
+                    let param = allowed_values
+                        .expect("allowed_values should be set for Handler")
+                        .get_i32(self.unstructured)?;
+
+                    let mut ret_instr = vec![
+                        // if *handle_count_ptr > 0
+                        Instruction::I32Const(handle_count_ptr),
+                        Instruction::I32Load(2, 0),
+                        Instruction::I32Const(0),
+                        Instruction::I32Ne,
+                        Instruction::If(BlockType::Value(ValueType::I32)),
+                    ];
+
+                    ret_instr.extend_from_slice(&[
+                        // handle_count_ptr - 1
+                        Instruction::I32Const(handle_count_ptr),
+                        Instruction::I32Load(2, 0),
+                        Instruction::I32Const(1),
+                        Instruction::I32Sub,
+                    ]);
+
+                    let decrease_handle_count = self.unstructured.arbitrary()?;
+                    if decrease_handle_count {
+                        ret_instr.extend_from_slice(&[
+                            // handle_count_ptr -= 1
+                            Instruction::I32Const(handle_count_ptr),
+                            Instruction::I32Const(handle_count_ptr),
+                            Instruction::I32Load(2, 0),
+                            Instruction::I32Const(1),
+                            Instruction::I32Sub,
+                            Instruction::I32Store(2, 0),
+                        ]);
+                    }
+
+                    ret_instr.extend_from_slice(&[
+                        // else
+                        Instruction::Else,
+                        Instruction::I32Const(param),
+                        Instruction::End,
+                    ]);
+
+                    ret.push(ParamInstructions(ret_instr));
                 }
                 ProcessedSyscallParams::Value {
                     value_type,

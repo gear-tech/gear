@@ -101,6 +101,7 @@ fn config(
     let mut injection_types = SyscallsInjectionTypes::all_with_range(1..=3);
     injection_types.set_multiple(
         [
+            (SyscallName::SendInit, 3..=5),
             (SyscallName::ReserveGas, 3..=5),
             (SyscallName::Leave, 0..=0),
             (SyscallName::Panic, 0..=0),
