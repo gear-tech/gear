@@ -479,30 +479,35 @@ fn read_memory_as<T: Sized>(memory: &impl Memory, ptr: u32) -> Result<T, MemoryE
 }
 
 /// Read static size type access wrapper.
+#[must_use]
 pub(crate) struct WasmMemoryReadAs<T> {
     pub(crate) ptr: u32,
     pub(crate) _phantom: PhantomData<T>,
 }
 
 /// Read decoded type access wrapper.
+#[must_use]
 pub(crate) struct WasmMemoryReadDecoded<T: Decode + MaxEncodedLen> {
     pub(crate) ptr: u32,
     pub(crate) _phantom: PhantomData<T>,
 }
 
 /// Read access wrapper.
+#[must_use]
 pub(crate) struct WasmMemoryRead {
     pub(crate) ptr: u32,
     pub(crate) size: u32,
 }
 
 /// Write static size type access wrapper.
+#[must_use]
 pub(crate) struct WasmMemoryWriteAs<T> {
     pub(crate) ptr: u32,
     pub(crate) _phantom: PhantomData<T>,
 }
 
 /// Write access wrapper.
+#[must_use]
 pub(crate) struct WasmMemoryWrite {
     pub(crate) ptr: u32,
     pub(crate) size: u32,

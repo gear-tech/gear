@@ -43,7 +43,7 @@ fn test_pre_process_with_only_reads() {
     let mut caller_wrap = CallerWrap::new(&mut store);
 
     let mut registrar = MemoryAccessRegistrar::default();
-    registrar.register_read(0, 10);
+    let _read = registrar.register_read(0, 10);
 
     let _io: MemoryAccessIo = registrar.pre_process(&mut caller_wrap).unwrap();
 
@@ -58,7 +58,7 @@ fn test_pre_process_with_only_writes() {
     let mut caller_wrap = CallerWrap::new(&mut store);
 
     let mut registrar = MemoryAccessRegistrar::default();
-    registrar.register_write(0, 10);
+    let _write = registrar.register_write(0, 10);
 
     let _io: MemoryAccessIo = registrar.pre_process(&mut caller_wrap).unwrap();
     PreProcessMemoryAccesses::with(|accesses| {
@@ -72,8 +72,8 @@ fn test_pre_process_with_reads_and_writes() {
     let mut caller_wrap = CallerWrap::new(&mut store);
 
     let mut registrar = MemoryAccessRegistrar::default();
-    registrar.register_read(0, 10);
-    registrar.register_write(10, 20);
+    let _read = registrar.register_read(0, 10);
+    let _write = registrar.register_write(10, 20);
 
     let _io: MemoryAccessIo = registrar.pre_process(&mut caller_wrap).unwrap();
     PreProcessMemoryAccesses::with(|accesses| {
@@ -341,7 +341,7 @@ fn test_write_as_with_same_object_size() {
     caller_wrap.state_mut().memory = MockMemory::new(1);
 
     let mut registrar = MemoryAccessRegistrar::default();
-    registrar.register_write_as::<u8>(0);
+    let _write = registrar.register_write_as::<u8>(0);
     let mut io: MemoryAccessIo = registrar.pre_process(&mut caller_wrap).unwrap();
     io.write_as(
         WasmMemoryWriteAs {
@@ -360,7 +360,7 @@ fn test_write_as_with_larger_object_size() {
     caller_wrap.state_mut().memory = MockMemory::new(1);
 
     let mut registrar = MemoryAccessRegistrar::default();
-    registrar.register_write_as::<u8>(0);
+    let _write = registrar.register_write_as::<u8>(0);
     let mut io: MemoryAccessIo = registrar.pre_process(&mut caller_wrap).unwrap();
     io.write_as(
         WasmMemoryWriteAs {
@@ -399,7 +399,7 @@ fn test_register_read_of_zero_size_buf() {
 fn test_register_read_of_zero_size_struct() {
     let mut mem_access_manager = MemoryAccessRegistrar::default();
 
-    mem_access_manager.register_read_as::<ZeroSizeStruct>(142);
+    let _read = mem_access_manager.register_read_as::<ZeroSizeStruct>(142);
 
     assert_eq!(mem_access_manager.reads.len(), 0);
 }
@@ -408,7 +408,7 @@ fn test_register_read_of_zero_size_struct() {
 fn test_register_read_of_zero_size_encoded_value() {
     let mut mem_access_manager = MemoryAccessRegistrar::default();
 
-    mem_access_manager.register_read_decoded::<ZeroSizeStruct>(142);
+    let _read = mem_access_manager.register_read_decoded::<ZeroSizeStruct>(142);
 
     assert_eq!(mem_access_manager.reads.len(), 0);
 }
@@ -506,7 +506,7 @@ fn test_register_write_of_zero_size_buf() {
 fn test_register_write_of_zero_size_struct() {
     let mut mem_access_manager = MemoryAccessRegistrar::default();
 
-    mem_access_manager.register_write_as::<ZeroSizeStruct>(142);
+    let _write = mem_access_manager.register_write_as::<ZeroSizeStruct>(142);
 
     assert_eq!(mem_access_manager.writes.len(), 0);
 }
