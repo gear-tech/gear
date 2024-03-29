@@ -187,24 +187,26 @@ impl BackendSyscallError for MemoryAccessError {
     }
 }
 
-/// Memory access manager.
+/// Memory access registry.
 ///
-/// Allows to pre-register memory accesses,
-/// and pre-process, them together.
-/// For example:
-/// ```ignore
-/// let manager = MemoryAccessManager::default();
-/// let read1 = manager.new_read(10, 20);
-/// let read2 = manager.new_read_as::<u128>(100);
-/// let write1 = manager.new_write_as::<usize>(190);
+/// Allows to pre-register memory accesses, and pre-process them together in
+/// [`BackendExternalities::pre_process_memory_accesses`].
+/// And only then do actual read/write in type-safe way.
 ///
-/// // First call of read or write interface leads to pre-processing of
-/// // all already registered memory accesses, and clear `self.reads` and `self.writes`.
-/// let value_u128 = manager.read_as(read2).unwrap();
+/// ```rust,no_run
+/// # let ctx: () = ();
+/// let registry = MemoryAccessRegistry::default();
+/// let read1 = registry.new_read(10, 20);
+/// let read2 = registry.new_read_as::<u128>(100);
+/// let write1 = registry.new_write_as::<usize>(190);
 ///
-/// // Next calls do not lead to access pre-processing.
-/// let value1 = manager.read().unwrap();
-/// manager.write_as(write1, 111).unwrap();
+/// // Pre-process all registered memory accesses
+/// let io = registry.pre_process(ctx);
+///
+/// let value_u128 = io.read_as(read2).unwrap();
+///
+/// let value1 = io.read(read1).unwrap();
+/// io.write_as(write1, 111).unwrap();
 /// ```
 #[derive(Debug)]
 pub(crate) struct MemoryAccessRegistry<Caller> {
@@ -302,6 +304,9 @@ where
     }
 }
 
+/// Memory access writer and reader.
+///
+/// See [`MemoryAccessRegistry`].
 pub(crate) struct MemoryAccessIo<Memory> {
     memory: Memory,
 }
