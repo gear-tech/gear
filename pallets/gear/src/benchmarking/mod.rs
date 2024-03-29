@@ -75,11 +75,10 @@ use core_processor::{
     configs::BlockConfig,
     Ext, ProcessExecutionContext, ProcessorContext, ProcessorExternalities,
 };
+use parity_scale_codec::Encode;
+
 use frame_benchmarking::{benchmarks, whitelisted_caller};
-use frame_support::{
-    codec::Encode,
-    traits::{Currency, Get, Hooks},
-};
+use frame_support::traits::{Currency, Get, Hooks};
 use frame_system::{Pallet as SystemPallet, RawOrigin};
 use gear_core::{
     code::{Code, CodeAndId},

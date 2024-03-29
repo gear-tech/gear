@@ -23,12 +23,12 @@ use core::mem::size_of;
 use ::alloc::{collections::BTreeSet, format};
 use common::ProgramStorage;
 use core_processor::Ext;
-use frame_support::codec::MaxEncodedLen;
 use gear_core::{
     memory::MemoryInterval,
     pages::{PageNumber, PageU32Size},
 };
 use gear_lazy_pages_common::{LazyPagesCosts, Status};
+use parity_scale_codec::MaxEncodedLen;
 use rand::{Rng, SeedableRng};
 
 use super::*;
