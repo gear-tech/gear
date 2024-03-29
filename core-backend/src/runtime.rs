@@ -20,7 +20,7 @@
 
 use crate::{
     error::{BackendAllocSyscallError, RunFallibleError, UndefinedTerminationReason},
-    memory::{ExecutorMemory, MemoryAccessRegistrar, MemoryWrapRef},
+    memory::{ExecutorMemory, MemoryAccessRegistry, MemoryWrapRef},
     state::{HostState, State},
     BackendExternalities,
 };
@@ -110,9 +110,9 @@ where
                 let res = ctx.process_fallible_func_result(res)?;
 
                 // TODO: move above or make normal process memory access.
-                let mut registrar = MemoryAccessRegistrar::default();
-                let write_res = registrar.register_write_as::<R>(res_ptr);
-                let mut io = registrar.pre_process(ctx)?;
+                let mut registry = MemoryAccessRegistry::default();
+                let write_res = registry.register_write_as::<R>(res_ptr);
+                let mut io = registry.pre_process(ctx)?;
                 io.write_as(write_res, R::from(res)).map_err(Into::into)
             },
         )

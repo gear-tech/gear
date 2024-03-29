@@ -207,13 +207,13 @@ impl BackendSyscallError for MemoryAccessError {
 /// manager.write_as(write1, 111).unwrap();
 /// ```
 #[derive(Debug)]
-pub(crate) struct MemoryAccessRegistrar<Caller> {
+pub(crate) struct MemoryAccessRegistry<Caller> {
     pub(crate) reads: Vec<MemoryInterval>,
     pub(crate) writes: Vec<MemoryInterval>,
     _phantom: PhantomData<Caller>,
 }
 
-impl<Caller> Default for MemoryAccessRegistrar<Caller> {
+impl<Caller> Default for MemoryAccessRegistry<Caller> {
     fn default() -> Self {
         Self {
             reads: Default::default(),
@@ -223,7 +223,7 @@ impl<Caller> Default for MemoryAccessRegistrar<Caller> {
     }
 }
 
-impl<Caller, Ext, Mem> MemoryAccessRegistrar<Caller>
+impl<Caller, Ext, Mem> MemoryAccessRegistry<Caller>
 where
     Caller: AsContextExt<State = HostState<Ext, Mem>>,
     Ext: BackendExternalities + 'static,

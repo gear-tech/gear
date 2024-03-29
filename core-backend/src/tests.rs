@@ -10,8 +10,8 @@ use core::{fmt::Debug, marker::PhantomData};
 use gear_core::pages::WASM_PAGE_SIZE;
 use gear_sandbox::{default_executor::Store, SandboxStore};
 
-type MemoryAccessRegistrar =
-    crate::memory::MemoryAccessRegistrar<Store<HostState<MockExt, MockMemory>>>;
+type MemoryAccessRegistry =
+    crate::memory::MemoryAccessRegistry<Store<HostState<MockExt, MockMemory>>>;
 type MemoryAccessIo<'a> = crate::memory::MemoryAccessIo<
     MemoryWrapRef<'a, Store<HostState<MockExt, MockMemory>>, MockMemory>,
 >;
@@ -33,8 +33,8 @@ fn test_pre_process_with_no_accesses() {
     let mut store = new_store();
     let mut caller_wrap = CallerWrap::new(&mut store);
 
-    let registrar = MemoryAccessRegistrar::default();
-    let _io: MemoryAccessIo = registrar.pre_process(&mut caller_wrap).unwrap();
+    let registry = MemoryAccessRegistry::default();
+    let _io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
 }
 
 #[test]
@@ -42,10 +42,10 @@ fn test_pre_process_with_only_reads() {
     let mut store = new_store();
     let mut caller_wrap = CallerWrap::new(&mut store);
 
-    let mut registrar = MemoryAccessRegistrar::default();
-    let _read = registrar.register_read(0, 10);
+    let mut registry = MemoryAccessRegistry::default();
+    let _read = registry.register_read(0, 10);
 
-    let _io: MemoryAccessIo = registrar.pre_process(&mut caller_wrap).unwrap();
+    let _io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
 
     PreProcessMemoryAccesses::with(|accesses| {
         assert_eq!(accesses.reads.len(), 1);
@@ -57,10 +57,10 @@ fn test_pre_process_with_only_writes() {
     let mut store = new_store();
     let mut caller_wrap = CallerWrap::new(&mut store);
 
-    let mut registrar = MemoryAccessRegistrar::default();
-    let _write = registrar.register_write(0, 10);
+    let mut registry = MemoryAccessRegistry::default();
+    let _write = registry.register_write(0, 10);
 
-    let _io: MemoryAccessIo = registrar.pre_process(&mut caller_wrap).unwrap();
+    let _io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
     PreProcessMemoryAccesses::with(|accesses| {
         assert_eq!(accesses.writes.len(), 1);
     });
@@ -71,11 +71,11 @@ fn test_pre_process_with_reads_and_writes() {
     let mut store = new_store();
     let mut caller_wrap = CallerWrap::new(&mut store);
 
-    let mut registrar = MemoryAccessRegistrar::default();
-    let _read = registrar.register_read(0, 10);
-    let _write = registrar.register_write(10, 20);
+    let mut registry = MemoryAccessRegistry::default();
+    let _read = registry.register_read(0, 10);
+    let _write = registry.register_write(10, 20);
 
-    let _io: MemoryAccessIo = registrar.pre_process(&mut caller_wrap).unwrap();
+    let _io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
     PreProcessMemoryAccesses::with(|accesses| {
         assert_eq!(accesses.reads.len(), 1);
         assert_eq!(accesses.writes.len(), 1);
@@ -87,9 +87,9 @@ fn test_read_of_zero_size_buf() {
     let mut store = new_store();
     let mut caller_wrap = CallerWrap::new(&mut store);
 
-    let mut registrar = MemoryAccessRegistrar::default();
-    let read = registrar.register_read(0, 0);
-    let io: MemoryAccessIo = registrar.pre_process(&mut caller_wrap).unwrap();
+    let mut registry = MemoryAccessRegistry::default();
+    let read = registry.register_read(0, 0);
+    let io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
     io.read(read).unwrap();
 
     assert_eq!(caller_wrap.state_mut().memory.read_attempt_count(), 0);
@@ -100,10 +100,10 @@ fn test_read_of_zero_size_struct() {
     let mut store = new_store();
     let mut caller_wrap = CallerWrap::new(&mut store);
 
-    let mut registrar = MemoryAccessRegistrar::default();
-    let read = registrar.register_read_as::<ZeroSizeStruct>(0);
+    let mut registry = MemoryAccessRegistry::default();
+    let read = registry.register_read_as::<ZeroSizeStruct>(0);
 
-    let io: MemoryAccessIo = registrar.pre_process(&mut caller_wrap).unwrap();
+    let io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
     io.read_as(read).unwrap();
 
     assert_eq!(caller_wrap.state_mut().memory.read_attempt_count(), 0);
@@ -114,9 +114,9 @@ fn test_read_of_zero_size_encoded_value() {
     let mut store = new_store();
     let mut caller_wrap = CallerWrap::new(&mut store);
 
-    let mut registrar = MemoryAccessRegistrar::default();
-    let read = registrar.register_read_decoded::<ZeroSizeStruct>(0);
-    let io: MemoryAccessIo = registrar.pre_process(&mut caller_wrap).unwrap();
+    let mut registry = MemoryAccessRegistry::default();
+    let read = registry.register_read_decoded::<ZeroSizeStruct>(0);
+    let io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
     io.read_decoded(read).unwrap();
     assert_eq!(caller_wrap.state_mut().memory.read_attempt_count(), 0);
 }
@@ -127,9 +127,9 @@ fn test_read_of_some_size_buf() {
     let mut caller_wrap = CallerWrap::new(&mut store);
     caller_wrap.state_mut().memory = MockMemory::new(1);
 
-    let mut registrar = MemoryAccessRegistrar::default();
-    let read = registrar.register_read(0, 10);
-    let io: MemoryAccessIo = registrar.pre_process(&mut caller_wrap).unwrap();
+    let mut registry = MemoryAccessRegistry::default();
+    let read = registry.register_read(0, 10);
+    let io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
     io.read(read).unwrap();
 
     assert_eq!(caller_wrap.state_mut().memory.read_attempt_count(), 1);
@@ -143,10 +143,10 @@ fn test_read_with_valid_memory_access() {
     *memory = MockMemory::new(1);
     memory.write(0, &[5u8; 10]).unwrap();
 
-    let mut registrar = MemoryAccessRegistrar::default();
-    let read = registrar.register_read(0, 10);
+    let mut registry = MemoryAccessRegistry::default();
+    let read = registry.register_read(0, 10);
 
-    let io: MemoryAccessIo = registrar.pre_process(&mut caller_wrap).unwrap();
+    let io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
     let vec = io.read(read).unwrap();
     assert_eq!(vec.as_slice(), &[5u8; 10]);
 }
@@ -166,9 +166,9 @@ fn test_read_decoded_with_valid_encoded_data() {
     let encoded = MockEncodeData { data: 1234 }.encode();
     memory.write(0, &encoded).unwrap();
 
-    let mut registrar = MemoryAccessRegistrar::default();
-    let read = registrar.register_read_decoded::<u64>(0);
-    let io: MemoryAccessIo = registrar.pre_process(&mut caller_wrap).unwrap();
+    let mut registry = MemoryAccessRegistry::default();
+    let read = registry.register_read_decoded::<u64>(0);
+    let io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
     let data: u64 = io.read_decoded(read).unwrap();
     assert_eq!(data, 1234u64);
 }
@@ -201,9 +201,9 @@ fn test_read_decoded_with_invalid_encoded_data() {
     let encoded = alloc::vec![7u8; WASM_PAGE_SIZE];
     memory.write(0, &encoded).unwrap();
 
-    let mut registrar = MemoryAccessRegistrar::default();
-    let read = registrar.register_read_decoded::<InvalidDecode>(0);
-    let io: MemoryAccessIo = registrar.pre_process(&mut caller_wrap).unwrap();
+    let mut registry = MemoryAccessRegistry::default();
+    let read = registry.register_read_decoded::<InvalidDecode>(0);
+    let io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
     io.read_decoded::<InvalidDecode>(read).unwrap_err();
 }
 
@@ -212,9 +212,9 @@ fn test_read_decoded_reading_error() {
     let mut store = new_store();
     let mut caller_wrap = CallerWrap::new(&mut store);
     caller_wrap.state_mut().memory = MockMemory::new(1);
-    let mut registrar = MemoryAccessRegistrar::default();
-    let _read = registrar.register_read_decoded::<u64>(0);
-    let io: MemoryAccessIo = registrar.pre_process(&mut caller_wrap).unwrap();
+    let mut registry = MemoryAccessRegistry::default();
+    let _read = registry.register_read_decoded::<u64>(0);
+    let io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
     io.read_decoded::<u64>(WasmMemoryReadDecoded {
         ptr: u32::MAX,
         _phantom: PhantomData,
@@ -232,9 +232,9 @@ fn test_read_as_with_valid_data() {
     let encoded = 1234u64.to_le_bytes();
     memory.write(0, &encoded).unwrap();
 
-    let mut registrar = MemoryAccessRegistrar::default();
-    let read = registrar.register_read_as::<u64>(0);
-    let io: MemoryAccessIo = registrar.pre_process(&mut caller_wrap).unwrap();
+    let mut registry = MemoryAccessRegistry::default();
+    let read = registry.register_read_as::<u64>(0);
+    let io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
     let decoded = io.read_as::<u64>(read).unwrap();
     assert_eq!(decoded, 1234);
 }
@@ -245,9 +245,9 @@ fn test_read_as_with_invalid_pointer() {
     let mut caller_wrap = CallerWrap::new(&mut store);
     caller_wrap.state_mut().memory = MockMemory::new(1);
 
-    let mut registrar = MemoryAccessRegistrar::default();
-    let _read = registrar.register_read_as::<u64>(0);
-    let io: MemoryAccessIo = registrar.pre_process(&mut caller_wrap).unwrap();
+    let mut registry = MemoryAccessRegistry::default();
+    let _read = registry.register_read_as::<u64>(0);
+    let io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
     io.read_as::<u128>(WasmMemoryReadAs {
         ptr: u32::MAX,
         _phantom: PhantomData,
@@ -260,9 +260,9 @@ fn test_write_of_zero_size_buf() {
     let mut store = new_store();
     let mut caller_wrap = CallerWrap::new(&mut store);
 
-    let mut registrar = MemoryAccessRegistrar::default();
-    let write = registrar.register_write(0, 0);
-    let mut io: MemoryAccessIo = registrar.pre_process(&mut caller_wrap).unwrap();
+    let mut registry = MemoryAccessRegistry::default();
+    let write = registry.register_write(0, 0);
+    let mut io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
     io.write(write, &[]).unwrap();
 
     assert_eq!(caller_wrap.state_mut().memory.write_attempt_count(), 0);
@@ -273,9 +273,9 @@ fn test_write_of_zero_size_struct() {
     let mut store = new_store();
     let mut caller_wrap = CallerWrap::new(&mut store);
 
-    let mut registrar = MemoryAccessRegistrar::default();
-    let write = registrar.register_write_as::<ZeroSizeStruct>(0);
-    let mut io: MemoryAccessIo = registrar.pre_process(&mut caller_wrap).unwrap();
+    let mut registry = MemoryAccessRegistry::default();
+    let write = registry.register_write_as::<ZeroSizeStruct>(0);
+    let mut io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
     io.write_as(write, ZeroSizeStruct).unwrap();
 
     assert_eq!(caller_wrap.state_mut().memory.write_attempt_count(), 0);
@@ -287,9 +287,9 @@ fn test_write_with_zero_buffer_size() {
     let mut store = new_store();
     let mut caller_wrap = CallerWrap::new(&mut store);
 
-    let mut registrar = MemoryAccessRegistrar::default();
-    let write = registrar.register_write(0, 10);
-    let mut io: MemoryAccessIo = registrar.pre_process(&mut caller_wrap).unwrap();
+    let mut registry = MemoryAccessRegistry::default();
+    let write = registry.register_write(0, 10);
+    let mut io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
     io.write(write, &[]).unwrap();
 }
 
@@ -299,9 +299,9 @@ fn test_write_of_some_size_buf() {
     let mut caller_wrap = CallerWrap::new(&mut store);
     caller_wrap.state_mut().memory = MockMemory::new(1);
 
-    let mut registrar = MemoryAccessRegistrar::default();
-    let write = registrar.register_write(0, 10);
-    let mut io: MemoryAccessIo = registrar.pre_process(&mut caller_wrap).unwrap();
+    let mut registry = MemoryAccessRegistry::default();
+    let write = registry.register_write(0, 10);
+    let mut io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
     let buffer = [0u8; 10];
     io.write(write, &buffer).unwrap();
 
@@ -315,9 +315,9 @@ fn test_write_with_larger_buffer_size() {
     let mut caller_wrap = CallerWrap::new(&mut store);
     caller_wrap.state_mut().memory = MockMemory::new(1);
 
-    let mut registrar = MemoryAccessRegistrar::default();
-    let write = registrar.register_write(0, 10);
-    let mut io: MemoryAccessIo = registrar.pre_process(&mut caller_wrap).unwrap();
+    let mut registry = MemoryAccessRegistry::default();
+    let write = registry.register_write(0, 10);
+    let mut io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
     let buffer = [0u8; 20];
     io.write(write, &buffer).unwrap();
 }
@@ -328,9 +328,9 @@ fn test_write_as_with_zero_size_object() {
     let mut caller_wrap = CallerWrap::new(&mut store);
     caller_wrap.state_mut().memory = MockMemory::new(1);
 
-    let mut registrar = MemoryAccessRegistrar::default();
-    let write = registrar.register_write_as::<u32>(0);
-    let mut io: MemoryAccessIo = registrar.pre_process(&mut caller_wrap).unwrap();
+    let mut registry = MemoryAccessRegistry::default();
+    let write = registry.register_write_as::<u32>(0);
+    let mut io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
     io.write_as(write, 0).unwrap();
 }
 
@@ -340,9 +340,9 @@ fn test_write_as_with_same_object_size() {
     let mut caller_wrap = CallerWrap::new(&mut store);
     caller_wrap.state_mut().memory = MockMemory::new(1);
 
-    let mut registrar = MemoryAccessRegistrar::default();
-    let _write = registrar.register_write_as::<u8>(0);
-    let mut io: MemoryAccessIo = registrar.pre_process(&mut caller_wrap).unwrap();
+    let mut registry = MemoryAccessRegistry::default();
+    let _write = registry.register_write_as::<u8>(0);
+    let mut io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
     io.write_as(
         WasmMemoryWriteAs {
             ptr: 0,
@@ -359,9 +359,9 @@ fn test_write_as_with_larger_object_size() {
     let mut caller_wrap = CallerWrap::new(&mut store);
     caller_wrap.state_mut().memory = MockMemory::new(1);
 
-    let mut registrar = MemoryAccessRegistrar::default();
-    let _write = registrar.register_write_as::<u8>(0);
-    let mut io: MemoryAccessIo = registrar.pre_process(&mut caller_wrap).unwrap();
+    let mut registry = MemoryAccessRegistry::default();
+    let _write = registry.register_write_as::<u8>(0);
+    let mut io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
     io.write_as(
         WasmMemoryWriteAs {
             ptr: WASM_PAGE_SIZE as u32,
@@ -374,30 +374,30 @@ fn test_write_as_with_larger_object_size() {
 
 #[test]
 fn test_register_read_of_valid_interval() {
-    let mut registrar = MemoryAccessRegistrar::default();
+    let mut registry = MemoryAccessRegistry::default();
 
-    let result = registrar.register_read(0, 10);
+    let result = registry.register_read(0, 10);
 
     assert_eq!(result.ptr, 0);
     assert_eq!(result.size, 10);
-    assert_eq!(registrar.reads.len(), 1);
-    assert_eq!(registrar.writes.len(), 0);
+    assert_eq!(registry.reads.len(), 1);
+    assert_eq!(registry.writes.len(), 0);
 }
 
 #[test]
 fn test_register_read_of_zero_size_buf() {
-    let mut registrar = MemoryAccessRegistrar::default();
+    let mut registry = MemoryAccessRegistry::default();
 
-    let result = registrar.register_read(0, 0);
+    let result = registry.register_read(0, 0);
 
     assert_eq!(result.ptr, 0);
     assert_eq!(result.size, 0);
-    assert_eq!(registrar.reads.len(), 0);
+    assert_eq!(registry.reads.len(), 0);
 }
 
 #[test]
 fn test_register_read_of_zero_size_struct() {
-    let mut mem_access_manager = MemoryAccessRegistrar::default();
+    let mut mem_access_manager = MemoryAccessRegistry::default();
 
     let _read = mem_access_manager.register_read_as::<ZeroSizeStruct>(142);
 
@@ -406,7 +406,7 @@ fn test_register_read_of_zero_size_struct() {
 
 #[test]
 fn test_register_read_of_zero_size_encoded_value() {
-    let mut mem_access_manager = MemoryAccessRegistrar::default();
+    let mut mem_access_manager = MemoryAccessRegistry::default();
 
     let _read = mem_access_manager.register_read_decoded::<ZeroSizeStruct>(142);
 
@@ -415,28 +415,28 @@ fn test_register_read_of_zero_size_encoded_value() {
 
 #[test]
 fn test_register_read_as_with_valid_interval() {
-    let mut registrar = MemoryAccessRegistrar::default();
+    let mut registry = MemoryAccessRegistry::default();
 
-    let result = registrar.register_read_as::<u8>(0);
+    let result = registry.register_read_as::<u8>(0);
 
     assert_eq!(result.ptr, 0);
-    assert_eq!(registrar.reads.len(), 1);
-    assert_eq!(registrar.writes.len(), 0);
-    assert_eq!(registrar.reads[0].offset, 0);
-    assert_eq!(registrar.reads[0].size, core::mem::size_of::<u8>() as u32);
+    assert_eq!(registry.reads.len(), 1);
+    assert_eq!(registry.writes.len(), 0);
+    assert_eq!(registry.reads[0].offset, 0);
+    assert_eq!(registry.reads[0].size, core::mem::size_of::<u8>() as u32);
 }
 
 #[test]
 fn test_register_read_as_with_zero_size() {
-    let mut registrar = MemoryAccessRegistrar::default();
+    let mut registry = MemoryAccessRegistry::default();
 
-    let result = registrar.register_read_as::<u8>(0);
+    let result = registry.register_read_as::<u8>(0);
 
     assert_eq!(result.ptr, 0);
-    assert_eq!(registrar.reads.len(), 1);
-    assert_eq!(registrar.writes.len(), 0);
-    assert_eq!(registrar.reads[0].offset, 0);
-    assert_eq!(registrar.reads[0].size, core::mem::size_of::<u8>() as u32);
+    assert_eq!(registry.reads.len(), 1);
+    assert_eq!(registry.writes.len(), 0);
+    assert_eq!(registry.reads[0].offset, 0);
+    assert_eq!(registry.reads[0].size, core::mem::size_of::<u8>() as u32);
 }
 
 #[derive(Debug, PartialEq, Eq, Encode, Decode, MaxEncodedLen)]
@@ -448,63 +448,57 @@ struct TestStruct {
 
 #[test]
 fn test_register_read_decoded_with_valid_interval() {
-    let mut registrar = MemoryAccessRegistrar::default();
+    let mut registry = MemoryAccessRegistry::default();
 
-    let result = registrar.register_read_decoded::<TestStruct>(0);
+    let result = registry.register_read_decoded::<TestStruct>(0);
 
     assert_eq!(result.ptr, 0);
-    assert_eq!(registrar.reads.len(), 1);
-    assert_eq!(registrar.writes.len(), 0);
-    assert_eq!(registrar.reads[0].offset, 0);
-    assert_eq!(
-        registrar.reads[0].size,
-        TestStruct::max_encoded_len() as u32
-    );
+    assert_eq!(registry.reads.len(), 1);
+    assert_eq!(registry.writes.len(), 0);
+    assert_eq!(registry.reads[0].offset, 0);
+    assert_eq!(registry.reads[0].size, TestStruct::max_encoded_len() as u32);
 }
 
 #[test]
 fn test_register_read_decoded_with_zero_size() {
-    let mut registrar = MemoryAccessRegistrar::default();
+    let mut registry = MemoryAccessRegistry::default();
 
-    let result = registrar.register_read_decoded::<TestStruct>(0);
+    let result = registry.register_read_decoded::<TestStruct>(0);
 
     assert_eq!(result.ptr, 0);
-    assert_eq!(registrar.reads.len(), 1);
-    assert_eq!(registrar.writes.len(), 0);
-    assert_eq!(registrar.reads[0].offset, 0);
-    assert_eq!(
-        registrar.reads[0].size,
-        TestStruct::max_encoded_len() as u32
-    );
+    assert_eq!(registry.reads.len(), 1);
+    assert_eq!(registry.writes.len(), 0);
+    assert_eq!(registry.reads[0].offset, 0);
+    assert_eq!(registry.reads[0].size, TestStruct::max_encoded_len() as u32);
 }
 
 #[test]
 fn test_register_write_of_valid_interval() {
-    let mut registrar = MemoryAccessRegistrar::default();
+    let mut registry = MemoryAccessRegistry::default();
 
-    let result = registrar.register_write(0, 10);
+    let result = registry.register_write(0, 10);
 
     assert_eq!(result.ptr, 0);
     assert_eq!(result.size, 10);
-    assert_eq!(registrar.reads.len(), 0);
-    assert_eq!(registrar.writes.len(), 1);
+    assert_eq!(registry.reads.len(), 0);
+    assert_eq!(registry.writes.len(), 1);
 }
 
 #[test]
 fn test_register_write_of_zero_size_buf() {
-    let mut registrar = MemoryAccessRegistrar::default();
+    let mut registry = MemoryAccessRegistry::default();
 
-    let result = registrar.register_write(0, 0);
+    let result = registry.register_write(0, 0);
 
     assert_eq!(result.ptr, 0);
     assert_eq!(result.size, 0);
-    assert_eq!(registrar.reads.len(), 0);
-    assert_eq!(registrar.writes.len(), 0);
+    assert_eq!(registry.reads.len(), 0);
+    assert_eq!(registry.writes.len(), 0);
 }
 
 #[test]
 fn test_register_write_of_zero_size_struct() {
-    let mut mem_access_manager = MemoryAccessRegistrar::default();
+    let mut mem_access_manager = MemoryAccessRegistry::default();
 
     let _write = mem_access_manager.register_write_as::<ZeroSizeStruct>(142);
 
@@ -513,28 +507,28 @@ fn test_register_write_of_zero_size_struct() {
 
 #[test]
 fn test_register_write_as_with_valid_interval() {
-    let mut registrar = MemoryAccessRegistrar::default();
+    let mut registry = MemoryAccessRegistry::default();
 
-    let result = registrar.register_write_as::<u8>(0);
+    let result = registry.register_write_as::<u8>(0);
 
     assert_eq!(result.ptr, 0);
-    assert_eq!(registrar.reads.len(), 0);
-    assert_eq!(registrar.writes.len(), 1);
-    assert_eq!(registrar.writes[0].offset, 0);
-    assert_eq!(registrar.writes[0].size, core::mem::size_of::<u8>() as u32);
+    assert_eq!(registry.reads.len(), 0);
+    assert_eq!(registry.writes.len(), 1);
+    assert_eq!(registry.writes[0].offset, 0);
+    assert_eq!(registry.writes[0].size, core::mem::size_of::<u8>() as u32);
 }
 
 #[test]
 fn test_register_write_as_with_zero_size() {
-    let mut registrar = MemoryAccessRegistrar::default();
+    let mut registry = MemoryAccessRegistry::default();
 
-    let result = registrar.register_write_as::<u8>(0);
+    let result = registry.register_write_as::<u8>(0);
 
     assert_eq!(result.ptr, 0);
-    assert_eq!(registrar.reads.len(), 0);
-    assert_eq!(registrar.writes.len(), 1);
-    assert_eq!(registrar.writes[0].offset, 0);
-    assert_eq!(registrar.writes[0].size, core::mem::size_of::<u8>() as u32);
+    assert_eq!(registry.reads.len(), 0);
+    assert_eq!(registry.writes.len(), 1);
+    assert_eq!(registry.writes[0].offset, 0);
+    assert_eq!(registry.writes[0].size, core::mem::size_of::<u8>() as u32);
 }
 
 /// Check that all syscalls are supported by backend.

@@ -25,7 +25,7 @@ use crate::{
         UnrecoverableMemoryError,
     },
     memory::{
-        ExecutorMemory, MemoryAccessError, MemoryAccessIo, MemoryAccessRegistrar, MemoryWrapRef,
+        ExecutorMemory, MemoryAccessError, MemoryAccessIo, MemoryAccessRegistry, MemoryWrapRef,
         WasmMemoryRead,
     },
     runtime::CallerWrap,
@@ -370,7 +370,7 @@ where
 
     fn register_and_read_value<'a, 'b: 'a>(
         ctx: &'a mut CallerWrap<'b, Caller>,
-        mut registrar: MemoryAccessRegistrar<Caller>,
+        mut registry: MemoryAccessRegistry<Caller>,
         value_ptr: u32,
     ) -> Result<
         (
@@ -380,12 +380,12 @@ where
         MemoryAccessError,
     > {
         if value_ptr != PTR_SPECIAL {
-            let read_value = registrar.register_read_decoded(value_ptr);
-            let io = registrar.pre_process(ctx)?;
+            let read_value = registry.register_read_decoded(value_ptr);
+            let io = registry.pre_process(ctx)?;
             let value = io.read_decoded(read_value)?;
             Ok((io, value))
         } else {
-            let io = registrar.pre_process(ctx)?;
+            let io = registry.pre_process(ctx)?;
             Ok((io, 0))
         }
     }
@@ -408,10 +408,10 @@ where
         gas_limit: Option<u64>,
         delay: u32,
     ) -> Result<MessageId, RunFallibleError> {
-        let mut registrar = MemoryAccessRegistrar::default();
-        let read_hash_val = registrar.register_read_as(pid_value_ptr);
-        let read_payload = registrar.register_read(payload_ptr, len);
-        let io = registrar.pre_process(ctx)?;
+        let mut registry = MemoryAccessRegistry::default();
+        let read_hash_val = registry.register_read_as(pid_value_ptr);
+        let read_payload = registry.register_read(payload_ptr, len);
+        let io = registry.pre_process(ctx)?;
         let HashWithValue {
             hash: destination,
             value,
@@ -462,9 +462,9 @@ where
         gas_limit: Option<u64>,
         delay: u32,
     ) -> Result<MessageId, RunFallibleError> {
-        let mut registrar = MemoryAccessRegistrar::default();
-        let read_pid_value = registrar.register_read_as(pid_value_ptr);
-        let io = registrar.pre_process(ctx)?;
+        let mut registry = MemoryAccessRegistry::default();
+        let read_pid_value = registry.register_read_as(pid_value_ptr);
+        let io = registry.pre_process(ctx)?;
         let HashWithValue {
             hash: destination,
             value,
@@ -518,9 +518,9 @@ where
         FallibleSyscall::new::<ErrorBytes>(
             CostToken::SendPush(len.into()),
             move |ctx: &mut CallerWrap<Caller>| {
-                let mut registrar = MemoryAccessRegistrar::default();
-                let read_payload = registrar.register_read(payload_ptr, len);
-                let io = registrar.pre_process(ctx)?;
+                let mut registry = MemoryAccessRegistry::default();
+                let read_payload = registry.register_read(payload_ptr, len);
+                let io = registry.pre_process(ctx)?;
                 let payload = io.read(read_payload)?;
 
                 ctx.ext_mut()
@@ -539,10 +539,10 @@ where
         FallibleSyscall::new::<ErrorWithHash>(
             CostToken::ReservationSend(len.into()),
             move |ctx: &mut CallerWrap<Caller>| {
-                let mut registrar = MemoryAccessRegistrar::default();
-                let read_rid_pid_value = registrar.register_read_as(rid_pid_value_ptr);
-                let read_payload = registrar.register_read(payload_ptr, len);
-                let io = registrar.pre_process(ctx)?;
+                let mut registry = MemoryAccessRegistry::default();
+                let read_rid_pid_value = registry.register_read_as(rid_pid_value_ptr);
+                let read_payload = registry.register_read(payload_ptr, len);
+                let io = registry.pre_process(ctx)?;
                 let TwoHashesWithValue {
                     hash1: reservation_id,
                     hash2: destination,
@@ -569,9 +569,9 @@ where
         FallibleSyscall::new::<ErrorWithHash>(
             CostToken::ReservationSendCommit,
             move |ctx: &mut CallerWrap<Caller>| {
-                let mut registrar = MemoryAccessRegistrar::default();
-                let read_rid_pid_value = registrar.register_read_as(rid_pid_value_ptr);
-                let io = registrar.pre_process(ctx)?;
+                let mut registry = MemoryAccessRegistry::default();
+                let read_rid_pid_value = registry.register_read_as(rid_pid_value_ptr);
+                let io = registry.pre_process(ctx)?;
                 let TwoHashesWithValue {
                     hash1: reservation_id,
                     hash2: destination,
@@ -596,9 +596,9 @@ where
             payload_lock
                 .drop_with::<MemoryAccessError, _>(|payload_access| {
                     let mut f = || {
-                        let mut registrar = MemoryAccessRegistrar::default();
-                        let write_buffer = registrar.register_write(buffer_ptr, len);
-                        let mut io = registrar.pre_process(ctx)?;
+                        let mut registry = MemoryAccessRegistry::default();
+                        let write_buffer = registry.register_write(buffer_ptr, len);
+                        let mut io = registry.pre_process(ctx)?;
                         io.write(write_buffer, payload_access.as_slice())?;
                         Ok(())
                     };
@@ -616,9 +616,9 @@ where
         InfallibleSyscall::new(CostToken::Size, move |ctx: &mut CallerWrap<Caller>| {
             let size = ctx.ext_mut().size()? as u32;
 
-            let mut registrar = MemoryAccessRegistrar::default();
-            let write_size = registrar.register_write_as(size_ptr);
-            let mut io = registrar.pre_process(ctx)?;
+            let mut registry = MemoryAccessRegistry::default();
+            let write_size = registry.register_write_as(size_ptr);
+            let mut io = registry.pre_process(ctx)?;
             io.write_as(write_size, size.to_le_bytes())
                 .map_err(Into::into)
         })
@@ -626,9 +626,9 @@ where
 
     pub fn exit(inheritor_id_ptr: u32) -> impl Syscall<Caller> {
         InfallibleSyscall::new(CostToken::Exit, move |ctx: &mut CallerWrap<Caller>| {
-            let mut registrar = MemoryAccessRegistrar::default();
-            let read_inheritor_id = registrar.register_read_decoded(inheritor_id_ptr);
-            let io = registrar.pre_process(ctx)?;
+            let mut registry = MemoryAccessRegistry::default();
+            let read_inheritor_id = registry.register_read_decoded(inheritor_id_ptr);
+            let io = registry.pre_process(ctx)?;
             let inheritor_id = io.read_decoded(read_inheritor_id)?;
             Err(ActorTerminationReason::Exit(inheritor_id).into())
         })
@@ -732,9 +732,9 @@ where
             let vars = ctx.ext_mut().env_vars(vars_ver)?;
             let vars_bytes = vars.to_bytes();
 
-            let mut registrar = MemoryAccessRegistrar::default();
-            let vars_write = registrar.register_write(vars_ptr, vars_bytes.len() as u32);
-            let mut io = registrar.pre_process(ctx)?;
+            let mut registry = MemoryAccessRegistry::default();
+            let vars_write = registry.register_write(vars_ptr, vars_bytes.len() as u32);
+            let mut io = registry.pre_process(ctx)?;
             io.write(vars_write, vars_bytes).map_err(Into::into)
         })
     }
@@ -745,9 +745,9 @@ where
             move |ctx: &mut CallerWrap<Caller>| {
                 let height = ctx.ext_mut().block_height()?;
 
-                let mut registrar = MemoryAccessRegistrar::default();
-                let write_height = registrar.register_write_as(height_ptr);
-                let mut io = registrar.pre_process(ctx)?;
+                let mut registry = MemoryAccessRegistry::default();
+                let write_height = registry.register_write_as(height_ptr);
+                let mut io = registry.pre_process(ctx)?;
                 io.write_as(write_height, height.to_le_bytes())
                     .map_err(Into::into)
             },
@@ -760,9 +760,9 @@ where
             move |ctx: &mut CallerWrap<Caller>| {
                 let timestamp = ctx.ext_mut().block_timestamp()?;
 
-                let mut registrar = MemoryAccessRegistrar::default();
-                let write_timestamp = registrar.register_write_as(timestamp_ptr);
-                let mut io = registrar.pre_process(ctx)?;
+                let mut registry = MemoryAccessRegistry::default();
+                let write_timestamp = registry.register_write_as(timestamp_ptr);
+                let mut io = registry.pre_process(ctx)?;
                 io.write_as(write_timestamp, timestamp.to_le_bytes())
                     .map_err(Into::into)
             },
@@ -774,10 +774,10 @@ where
             let (random, bn) = ctx.ext_mut().random()?;
             let random = random.to_vec();
 
-            let mut registrar = MemoryAccessRegistrar::default();
-            let read_subject = registrar.register_read_decoded(subject_ptr);
-            let write_bn_random = registrar.register_write_as(bn_random_ptr);
-            let mut io = registrar.pre_process(ctx)?;
+            let mut registry = MemoryAccessRegistry::default();
+            let read_subject = registry.register_read_decoded(subject_ptr);
+            let write_bn_random = registry.register_write_as(bn_random_ptr);
+            let mut io = registry.pre_process(ctx)?;
 
             let raw_subject: Hash = io.read_decoded(read_subject)?;
             let subject = [&raw_subject, &random[..]].concat();
@@ -797,9 +797,9 @@ where
         gas_limit: Option<u64>,
         value_ptr: u32,
     ) -> Result<MessageId, RunFallibleError> {
-        let mut registrar = MemoryAccessRegistrar::default();
-        let read_payload = registrar.register_read(payload_ptr, len);
-        let (io, value) = Self::register_and_read_value(ctx, registrar, value_ptr)?;
+        let mut registry = MemoryAccessRegistry::default();
+        let read_payload = registry.register_read(payload_ptr, len);
+        let (io, value) = Self::register_and_read_value(ctx, registry, value_ptr)?;
         let payload = Self::read_message_payload(&io, read_payload)?;
 
         ctx.ext_mut()
@@ -835,8 +835,8 @@ where
         gas_limit: Option<u64>,
         value_ptr: u32,
     ) -> Result<MessageId, RunFallibleError> {
-        let registrar = MemoryAccessRegistrar::default();
-        let (_io, value) = Self::register_and_read_value(ctx, registrar, value_ptr)?;
+        let registry = MemoryAccessRegistry::default();
+        let (_io, value) = Self::register_and_read_value(ctx, registry, value_ptr)?;
 
         ctx.ext_mut()
             .reply_commit(ReplyPacket::maybe_with_gas(
@@ -871,10 +871,10 @@ where
         FallibleSyscall::new::<ErrorWithHash>(
             CostToken::ReservationReply(len.into()),
             move |ctx: &mut CallerWrap<Caller>| {
-                let mut registrar = MemoryAccessRegistrar::default();
-                let read_rid_value = registrar.register_read_as(rid_value_ptr);
-                let read_payload = registrar.register_read(payload_ptr, len);
-                let io = registrar.pre_process(ctx)?;
+                let mut registry = MemoryAccessRegistry::default();
+                let read_rid_value = registry.register_read_as(rid_value_ptr);
+                let read_payload = registry.register_read(payload_ptr, len);
+                let io = registry.pre_process(ctx)?;
                 let HashWithValue {
                     hash: reservation_id,
                     value,
@@ -892,9 +892,9 @@ where
         FallibleSyscall::new::<ErrorWithHash>(
             CostToken::ReservationReplyCommit,
             move |ctx: &mut CallerWrap<Caller>| {
-                let mut registrar = MemoryAccessRegistrar::default();
-                let read_rid_value = registrar.register_read_as(rid_value_ptr);
-                let io = registrar.pre_process(ctx)?;
+                let mut registry = MemoryAccessRegistry::default();
+                let read_rid_value = registry.register_read_as(rid_value_ptr);
+                let io = registry.pre_process(ctx)?;
                 let HashWithValue {
                     hash: reservation_id,
                     value,
@@ -928,9 +928,9 @@ where
         FallibleSyscall::new::<ErrorBytes>(
             CostToken::ReplyPush(len.into()),
             move |ctx: &mut CallerWrap<Caller>| {
-                let mut registrar = MemoryAccessRegistrar::default();
-                let read_payload = registrar.register_read(payload_ptr, len);
-                let io = registrar.pre_process(ctx)?;
+                let mut registry = MemoryAccessRegistry::default();
+                let read_payload = registry.register_read(payload_ptr, len);
+                let io = registry.pre_process(ctx)?;
                 let payload = io.read(read_payload)?;
 
                 ctx.ext_mut().reply_push(&payload).map_err(Into::into)
@@ -945,8 +945,8 @@ where
         gas_limit: Option<u64>,
         value_ptr: u32,
     ) -> Result<MessageId, RunFallibleError> {
-        let registrar = MemoryAccessRegistrar::default();
-        let (_io, value) = Self::register_and_read_value(ctx, registrar, value_ptr)?;
+        let registry = MemoryAccessRegistry::default();
+        let (_io, value) = Self::register_and_read_value(ctx, registry, value_ptr)?;
 
         // Charge for `len` is inside `reply_push_input`
         ctx.ext_mut().reply_push_input(offset, len)?;
@@ -1002,9 +1002,9 @@ where
         gas_limit: Option<u64>,
         delay: u32,
     ) -> Result<MessageId, RunFallibleError> {
-        let mut registrar = MemoryAccessRegistrar::default();
-        let read_pid_value = registrar.register_read_as(pid_value_ptr);
-        let io = registrar.pre_process(ctx)?;
+        let mut registry = MemoryAccessRegistry::default();
+        let read_pid_value = registry.register_read_as(pid_value_ptr);
+        let io = registry.pre_process(ctx)?;
         let HashWithValue {
             hash: destination,
             value,
@@ -1072,9 +1072,9 @@ where
         InfallibleSyscall::new(
             CostToken::Debug(data_len.into()),
             move |ctx: &mut CallerWrap<Caller>| {
-                let mut registrar = MemoryAccessRegistrar::default();
-                let read_data = registrar.register_read(data_ptr, data_len);
-                let io = registrar.pre_process(ctx)?;
+                let mut registry = MemoryAccessRegistry::default();
+                let read_data = registry.register_read(data_ptr, data_len);
+                let io = registry.pre_process(ctx)?;
                 let data: RuntimeBuffer = io
                     .read(read_data)?
                     .try_into()
@@ -1095,9 +1095,9 @@ where
 
     pub fn panic(data_ptr: u32, data_len: u32) -> impl Syscall<Caller> {
         InfallibleSyscall::new(CostToken::Null, move |ctx: &mut CallerWrap<Caller>| {
-            let mut registrar = MemoryAccessRegistrar::default();
-            let read_data = registrar.register_read(data_ptr, data_len);
-            let io = registrar.pre_process(ctx)?;
+            let mut registry = MemoryAccessRegistry::default();
+            let read_data = registry.register_read(data_ptr, data_len);
+            let io = registry.pre_process(ctx)?;
             let data = io.read(read_data).unwrap_or_default();
 
             let s = String::from_utf8_lossy(&data).to_string();
@@ -1127,9 +1127,9 @@ where
         FallibleSyscall::new::<ErrorBytes>(
             CostToken::ReplyDeposit,
             move |ctx: &mut CallerWrap<Caller>| {
-                let mut registrar = MemoryAccessRegistrar::default();
-                let read_message_id = registrar.register_read_decoded(message_id_ptr);
-                let io = registrar.pre_process(ctx)?;
+                let mut registry = MemoryAccessRegistry::default();
+                let read_message_id = registry.register_read_decoded(message_id_ptr);
+                let io = registry.pre_process(ctx)?;
                 let message_id = io.read_decoded(read_message_id)?;
 
                 ctx.ext_mut()
@@ -1143,9 +1143,9 @@ where
         FallibleSyscall::new::<ErrorWithGas>(
             CostToken::UnreserveGas,
             move |ctx: &mut CallerWrap<Caller>| {
-                let mut registrar = MemoryAccessRegistrar::default();
-                let read_reservation_id = registrar.register_read_decoded(reservation_id_ptr);
-                let io = registrar.pre_process(ctx)?;
+                let mut registry = MemoryAccessRegistry::default();
+                let read_reservation_id = registry.register_read_decoded(reservation_id_ptr);
+                let io = registry.pre_process(ctx)?;
                 let reservation_id = io.read_decoded(read_reservation_id)?;
 
                 ctx.ext_mut()
@@ -1172,9 +1172,9 @@ where
             move |ctx: &mut CallerWrap<Caller>| {
                 let gas_available = ctx.ext_mut().gas_available()?;
 
-                let mut registrar = MemoryAccessRegistrar::default();
-                let write_gas = registrar.register_write_as(gas_ptr);
-                let mut io = registrar.pre_process(ctx)?;
+                let mut registry = MemoryAccessRegistry::default();
+                let write_gas = registry.register_write_as(gas_ptr);
+                let mut io = registry.pre_process(ctx)?;
                 io.write_as(write_gas, gas_available.to_le_bytes())
                     .map_err(Into::into)
             },
@@ -1185,9 +1185,9 @@ where
         InfallibleSyscall::new(CostToken::MsgId, move |ctx: &mut CallerWrap<Caller>| {
             let message_id = ctx.ext_mut().message_id()?;
 
-            let mut registrar = MemoryAccessRegistrar::default();
-            let write_message_id = registrar.register_write_as(message_id_ptr);
-            let mut io = registrar.pre_process(ctx)?;
+            let mut registry = MemoryAccessRegistry::default();
+            let write_message_id = registry.register_write_as(message_id_ptr);
+            let mut io = registry.pre_process(ctx)?;
             io.write_as(write_message_id, message_id.into_bytes())
                 .map_err(Into::into)
         })
@@ -1197,9 +1197,9 @@ where
         InfallibleSyscall::new(CostToken::ProgramId, move |ctx: &mut CallerWrap<Caller>| {
             let program_id = ctx.ext_mut().program_id()?;
 
-            let mut registrar = MemoryAccessRegistrar::default();
-            let write_program_id = registrar.register_write_as(program_id_ptr);
-            let mut io = registrar.pre_process(ctx)?;
+            let mut registry = MemoryAccessRegistry::default();
+            let write_program_id = registry.register_write_as(program_id_ptr);
+            let mut io = registry.pre_process(ctx)?;
             io.write_as(write_program_id, program_id.into_bytes())
                 .map_err(Into::into)
         })
@@ -1209,9 +1209,9 @@ where
         InfallibleSyscall::new(CostToken::Source, move |ctx: &mut CallerWrap<Caller>| {
             let source = ctx.ext_mut().source()?;
 
-            let mut registrar = MemoryAccessRegistrar::default();
-            let write_source = registrar.register_write_as(source_ptr);
-            let mut io = registrar.pre_process(ctx)?;
+            let mut registry = MemoryAccessRegistry::default();
+            let write_source = registry.register_write_as(source_ptr);
+            let mut io = registry.pre_process(ctx)?;
             io.write_as(write_source, source.into_bytes())
                 .map_err(Into::into)
         })
@@ -1221,9 +1221,9 @@ where
         InfallibleSyscall::new(CostToken::Value, move |ctx: &mut CallerWrap<Caller>| {
             let value = ctx.ext_mut().value()?;
 
-            let mut registrar = MemoryAccessRegistrar::default();
-            let write_value = registrar.register_write_as(value_ptr);
-            let mut io = registrar.pre_process(ctx)?;
+            let mut registry = MemoryAccessRegistry::default();
+            let write_value = registry.register_write_as(value_ptr);
+            let mut io = registry.pre_process(ctx)?;
             io.write_as(write_value, value.to_le_bytes())
                 .map_err(Into::into)
         })
@@ -1235,9 +1235,9 @@ where
             move |ctx: &mut CallerWrap<Caller>| {
                 let value_available = ctx.ext_mut().value_available()?;
 
-                let mut registrar = MemoryAccessRegistrar::default();
-                let write_value = registrar.register_write_as(value_ptr);
-                let mut io = registrar.pre_process(ctx)?;
+                let mut registry = MemoryAccessRegistry::default();
+                let write_value = registry.register_write_as(value_ptr);
+                let mut io = registry.pre_process(ctx)?;
                 io.write_as(write_value, value_available.to_le_bytes())
                     .map_err(Into::into)
             },
@@ -1277,9 +1277,9 @@ where
 
     pub fn wake(message_id_ptr: u32, delay: u32) -> impl Syscall<Caller> {
         FallibleSyscall::new::<ErrorBytes>(CostToken::Wake, move |ctx: &mut CallerWrap<Caller>| {
-            let mut registrar = MemoryAccessRegistrar::default();
-            let read_message_id = registrar.register_read_decoded(message_id_ptr);
-            let io = registrar.pre_process(ctx)?;
+            let mut registry = MemoryAccessRegistry::default();
+            let read_message_id = registry.register_read_decoded(message_id_ptr);
+            let io = registry.pre_process(ctx)?;
             let message_id = io.read_decoded(read_message_id)?;
 
             ctx.ext_mut().wake(message_id, delay).map_err(Into::into)
@@ -1297,11 +1297,11 @@ where
         gas_limit: Option<u64>,
         delay: u32,
     ) -> Result<(MessageId, ProgramId), RunFallibleError> {
-        let mut registrar = MemoryAccessRegistrar::default();
-        let read_cid_value = registrar.register_read_as(cid_value_ptr);
-        let read_salt = registrar.register_read(salt_ptr, salt_len);
-        let read_payload = registrar.register_read(payload_ptr, payload_len);
-        let io = registrar.pre_process(ctx)?;
+        let mut registry = MemoryAccessRegistry::default();
+        let read_cid_value = registry.register_read_as(cid_value_ptr);
+        let read_salt = registry.register_read(salt_ptr, salt_len);
+        let read_payload = registry.register_read(payload_ptr, payload_len);
+        let io = registry.pre_process(ctx)?;
         let HashWithValue {
             hash: code_id,
             value,
