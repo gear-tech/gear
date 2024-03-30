@@ -67,6 +67,7 @@ pub mod pallet {
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
     pub enum Event<T> {
         RootUpdated(H256),
+        MessageQueued(H256),
     }
 
     // Gear Bridge Pallet error type.
@@ -91,6 +92,25 @@ pub mod pallet {
 
     #[pallet::storage]
     pub(crate) type Queue<T> = StorageValue<_, BoundedVec<H256, <T as Config>::QueueLimit>>;
+
+    #[pallet::call]
+    impl<T: Config> Pallet<T> {
+        /// Queues new hash into hash queue.
+        #[pallet::call_index(0)]
+        #[pallet::weight(Weight::zero())]
+        pub fn send(origin: OriginFor<T>, hash: H256) -> DispatchResultWithPostInfo {
+            let _who = ensure_signed(origin)?;
+
+            Queue::<T>::mutate(|opt| {
+                let v = opt.get_or_insert_with(BoundedVec::new);
+                v.try_push(hash).map_err(|_| Error::<T>::QueueLimitExceeded)
+            })?;
+
+            Self::deposit_event(Event::<T>::MessageQueued(hash));
+
+            Ok(().into())
+        }
+    }
 
     #[pallet::hooks]
     impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
