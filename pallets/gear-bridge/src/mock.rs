@@ -49,12 +49,12 @@ common::impl_pallet_balances!(Test);
 parameter_types! {
     pub const BlockHashCount: BlockNumber = 250;
     pub const ExistentialDeposit: Balance = 1000;
-    pub const Limit: u32 = 128;
+    pub const QueueLimit: u32 = 128;
 }
 
 impl crate::Config for Test {
     type RuntimeEvent = RuntimeEvent;
-    type Limit = Limit;
+    type QueueLimit = QueueLimit;
 }
 
 // Build genesis storage according to the mock runtime.

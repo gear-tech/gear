@@ -59,20 +59,20 @@ pub mod pallet {
 
         /// Limit of messages to be bridged withing the era.
         #[pallet::constant]
-        type Limit: Get<u32>;
+        type QueueLimit: Get<u32>;
     }
 
     // Gear Bridge Pallet event type.
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
     pub enum Event<T> {
-        ImAlive,
+        RootUpdated(H256),
     }
 
     // Gear Bridge Pallet error type.
     #[pallet::error]
     pub enum Error<T> {
-        ImDead,
+        QueueLimitExceeded,
     }
 
     // Gear Bridge Pallet itself.
@@ -90,18 +90,11 @@ pub mod pallet {
     pub(crate) type QueueMerkleRoot<T> = StorageValue<_, H256>;
 
     #[pallet::storage]
-    pub(crate) type Queue<T> = StorageValue<_, BoundedVec<H256, <T as Config>::Limit>>;
+    pub(crate) type Queue<T> = StorageValue<_, BoundedVec<H256, <T as Config>::QueueLimit>>;
 
     #[pallet::hooks]
     impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
-        /// Start of the block.
-        fn on_initialize(_bn: BlockNumberFor<T>) -> Weight {
-            Weight::zero()
-        }
-
         /// End of the block.
-        fn on_finalize(_bn: BlockNumberFor<T>) {
-            Self::deposit_event(Event::<T>::ImAlive);
-        }
+        fn on_finalize(_bn: BlockNumberFor<T>) {}
     }
 }
