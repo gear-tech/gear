@@ -380,6 +380,7 @@ substrate-state-trie-migration-rpc = { version = "4.0.0-dev", git = "https://git
 substrate-test-client = { version = "2.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-v1.1.0" }
 substrate-wasm-builder = { version = "5.0.0-dev", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-v1.1.0" }
 try-runtime-cli = { version = "0.10.0-dev", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-v1.1.0" }
+binary-merkle-tree = { version = "4.0.0-dev", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-v1.1.0", default-features = false }
 
 # Examples
 test-syscalls = { path = "examples/syscalls", default-features = false }

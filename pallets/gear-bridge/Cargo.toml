@@ -29,6 +29,7 @@ frame-benchmarking = { workspace = true, optional = true }
 sp-runtime.workspace= true
 sp-std.workspace = true
 sp-io.workspace = true
+binary-merkle-tree.workspace = true
 
 [dev-dependencies]
 pallet-balances = { workspace = true, features = ["std"] }
@@ -48,6 +49,7 @@ std = [
 	"sp-runtime/std",
 	"sp-std/std",
 	"sp-io/std",
+	"binary-merkle-tree/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",

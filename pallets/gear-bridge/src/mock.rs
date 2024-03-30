@@ -53,6 +53,7 @@ parameter_types! {
 }
 
 impl crate::Config for Test {
+    type RuntimeEvent = RuntimeEvent;
     type Limit = Limit;
 }
 

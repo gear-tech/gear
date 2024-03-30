@@ -897,6 +897,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "binary-merkle-tree"
+version = "4.0.0-dev"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-v1.1.0#2dd122c65e27d0d09d84e1533e14565cf179aec1"
+dependencies = [
+ "hash-db",
+ "log",
+]
+
+[[package]]
 name = "bincode"
 version = "1.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8025,6 +8034,7 @@ dependencies = [
 name = "pallet-gear-bridge"
 version = "1.2.0"
 dependencies = [
+ "binary-merkle-tree",
  "frame-benchmarking",
  "frame-support",
  "frame-system",
