@@ -44,6 +44,7 @@ pub mod pallet {
     use binary_merkle_tree as merkle_tree;
     use frame_support::{pallet_prelude::*, traits::StorageVersion};
     use frame_system::pallet_prelude::*;
+    use primitive_types::H256;
 
     /// The current storage version.
     pub const BRIDGE_STORAGE_VERSION: StorageVersion = StorageVersion::new(0);
@@ -84,6 +85,12 @@ pub mod pallet {
     #[pallet::without_storage_info]
     #[pallet::storage_version(BRIDGE_STORAGE_VERSION)]
     pub struct Pallet<T>(_);
+
+    #[pallet::storage]
+    pub(crate) type QueueMerkleRoot<T> = StorageValue<_, H256>;
+
+    #[pallet::storage]
+    pub(crate) type Queue<T> = StorageValue<_, BoundedVec<H256, <T as Config>::Limit>>;
 
     #[pallet::hooks]
     impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
