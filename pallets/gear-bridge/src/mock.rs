@@ -35,6 +35,8 @@ type AccountId = u64;
 pub type BlockNumber = BlockNumberFor<Test>;
 type Balance = u128;
 
+pub const USER: AccountId = 1;
+
 // Configure a mock runtime to test the pallet.
 construct_runtime!(
     pub enum Test
@@ -85,4 +87,11 @@ pub fn run_to_block(n: u64) {
 
 pub fn run_to_next_block() {
     run_to_block(System::block_number() + 1)
+}
+
+pub fn init_logger() {
+    let _ = env_logger::Builder::from_default_env()
+        .format_module_path(false)
+        .format_level(true)
+        .try_init();
 }

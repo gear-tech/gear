@@ -33,6 +33,7 @@ binary-merkle-tree.workspace = true
 
 [dev-dependencies]
 pallet-balances = { workspace = true, features = ["std"] }
+env_logger.workspace = true
 
 [features]
 default = ['std']

@@ -8035,6 +8035,7 @@ name = "pallet-gear-bridge"
 version = "1.2.0"
 dependencies = [
  "binary-merkle-tree",
+ "env_logger",
  "frame-benchmarking",
  "frame-support",
  "frame-system",
