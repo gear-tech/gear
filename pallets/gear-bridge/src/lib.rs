@@ -44,7 +44,6 @@ pub mod pallet {
     use frame_support::{pallet_prelude::*, traits::StorageVersion};
     use frame_system::pallet_prelude::*;
     use primitive_types::H256;
-    use sp_runtime::traits::Zero;
 
     /// The current storage version.
     pub const BRIDGE_STORAGE_VERSION: StorageVersion = StorageVersion::new(0);
@@ -93,6 +92,9 @@ pub mod pallet {
     #[pallet::storage]
     pub(crate) type Queue<T> = StorageValue<_, BoundedVec<H256, <T as Config>::QueueLimit>>;
 
+    #[pallet::storage]
+    pub(crate) type QueueChanged<T> = StorageValue<_, bool, ValueQuery>;
+
     #[pallet::call]
     impl<T: Config> Pallet<T> {
         /// Queues new hash into hash queue.
@@ -106,6 +108,8 @@ pub mod pallet {
                 v.try_push(hash).map_err(|_| Error::<T>::QueueLimitExceeded)
             })?;
 
+            QueueChanged::<T>::put(true);
+
             Self::deposit_event(Event::<T>::MessageQueued(hash));
 
             Ok(().into())
@@ -114,15 +118,24 @@ pub mod pallet {
 
     #[pallet::hooks]
     impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
+        fn on_initialize(_n: BlockNumberFor<T>) -> Weight {
+            QueueChanged::<T>::kill();
+
+            T::DbWeight::get().writes(1)
+        }
+
         /// End of the block.
         fn on_finalize(_bn: BlockNumberFor<T>) {
+            // Check if queue was changed.
+            if !QueueChanged::<T>::get() {
+                return;
+            }
+
             // Querying non-empty queue.
             let Some(queue) = Queue::<T>::get() else {
+                log::error!("Queue supposed to be non-empty");
                 return;
             };
-
-            // Temporary debug assertion.
-            debug_assert!(!queue.len().is_zero());
 
             // Merkle root calculation.
             let root = merkle_tree::merkle_root::<Hasher, _>(queue);

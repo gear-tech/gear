@@ -30,9 +30,34 @@ type QueueLimit = <Test as crate::Config>::QueueLimit;
 fn on_finalize_noop_on_empty_queue() {
     init_logger();
     new_test_ext().execute_with(|| {
-        run_to_next_block();
+        const TEST_CASES: usize = 5;
 
-        assert!(System::events().is_empty());
+        for _ in 0..TEST_CASES {
+            run_to_next_block();
+
+            assert!(System::events().is_empty());
+        }
+    })
+}
+
+#[test]
+fn on_finalize_noop_on_unchanged_queue() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        const TEST_CASES: usize = 5;
+
+        assert_ok!(GearBridge::send(
+            RuntimeOrigin::signed(USER),
+            H256::random()
+        ));
+        run_to_next_block();
+        System::reset_events();
+
+        for _ in 0..TEST_CASES {
+            run_to_next_block();
+
+            assert!(System::events().is_empty());
+        }
     })
 }
 
