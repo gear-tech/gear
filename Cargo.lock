@@ -8022,6 +8022,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "pallet-gear-bridge"
+version = "1.2.0"
+dependencies = [
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "gear-common",
+ "gear-core",
+ "log",
+ "pallet-balances",
+ "parity-scale-codec",
+ "primitive-types",
+ "scale-info",
+ "sp-io",
+ "sp-runtime",
+ "sp-std 8.0.0 (git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-v1.1.0)",
+]
+
+[[package]]
 name = "pallet-gear-builtin"
 version = "1.2.0"
 dependencies = [
