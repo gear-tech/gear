@@ -19,7 +19,9 @@
 //! Module with runtime mock for running tests.
 
 use crate as pallet_gear_bridge;
-use frame_support::{construct_runtime, parameter_types, weights::constants::RocksDbWeight};
+use frame_support::{
+    construct_runtime, parameter_types, traits::Hooks, weights::constants::RocksDbWeight,
+};
 use frame_system::{self as system, pallet_prelude::BlockNumberFor};
 use primitive_types::H256;
 use sp_runtime::{
@@ -66,4 +68,21 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
     let mut ext = sp_io::TestExternalities::new(t);
     ext.execute_with(|| System::set_block_number(1));
     ext
+}
+
+// Runs blocks to some specific number.
+pub fn run_to_block(n: u64) {
+    while System::block_number() < n {
+        System::on_finalize(System::block_number());
+        GearBridge::on_finalize(System::block_number());
+
+        System::set_block_number(System::block_number() + 1);
+
+        System::on_initialize(System::block_number());
+        GearBridge::on_initialize(System::block_number());
+    }
+}
+
+pub fn run_to_next_block() {
+    run_to_block(System::block_number() + 1)
 }

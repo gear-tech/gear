@@ -17,11 +17,12 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::mock::*;
-use sp_runtime::traits::One;
 
 #[test]
-fn sample() {
+fn on_finalize_noop_on_empty_queue() {
     new_test_ext().execute_with(|| {
-        assert!(System::block_number().is_one());
+        run_to_next_block();
+
+        assert!(System::events().is_empty());
     });
 }

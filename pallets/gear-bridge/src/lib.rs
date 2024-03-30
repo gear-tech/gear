@@ -40,11 +40,11 @@ pub mod pallet {
 
     pub type Hasher = sp_runtime::traits::Keccak256;
 
-    #[allow(unused)]
     use binary_merkle_tree as merkle_tree;
     use frame_support::{pallet_prelude::*, traits::StorageVersion};
     use frame_system::pallet_prelude::*;
     use primitive_types::H256;
+    use sp_runtime::traits::Zero;
 
     /// The current storage version.
     pub const BRIDGE_STORAGE_VERSION: StorageVersion = StorageVersion::new(0);
@@ -95,6 +95,23 @@ pub mod pallet {
     #[pallet::hooks]
     impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
         /// End of the block.
-        fn on_finalize(_bn: BlockNumberFor<T>) {}
+        fn on_finalize(_bn: BlockNumberFor<T>) {
+            // Querying non-empty queue.
+            let Some(queue) = Queue::<T>::get() else {
+                return;
+            };
+
+            // Temporary debug assertion.
+            debug_assert!(!queue.len().is_zero());
+
+            // Merkle root calculation.
+            let root = merkle_tree::merkle_root::<Hasher, _>(queue);
+
+            // Storing new root.
+            QueueMerkleRoot::<T>::put(root);
+
+            // Depositing event.
+            Self::deposit_event(Event::<T>::RootUpdated(root));
+        }
     }
 }
