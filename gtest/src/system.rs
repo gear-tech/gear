@@ -270,7 +270,7 @@ impl System {
     /// Mint balance to user with given `id` and `value`.
     pub fn mint_to<ID: Into<ProgramIdWrapper>>(&self, id: ID, value: Balance) {
         let actor_id = id.into().0;
-        self.0.borrow_mut().mint_to(&actor_id, value);
+        self.0.borrow_mut().mint_to(&actor_id, value, true);
     }
 
     /// Returns balance of user with given `id`.

@@ -750,7 +750,7 @@ impl<'a> Program<'a> {
 
     /// Mint balance to the account.
     pub fn mint(&mut self, value: Balance) {
-        self.manager.borrow_mut().mint_to(&self.id(), value)
+        self.manager.borrow_mut().mint_to(&self.id(), value, true)
     }
 
     /// Returns the balance of the account.
@@ -1123,5 +1123,22 @@ mod tests {
             let result = prog.send_bytes(signer, b"send from reservation");
             assert!(!result.main_failed());
         }
+    }
+
+    #[test]
+    fn test_handle_exit_with_zero_balance() {
+        use demo_constructor::{demo_exit_handle, WASM_BINARY};
+
+        let sys = System::new();
+        sys.init_logger();
+
+        let user_id = [42; 32];
+        let prog = Program::from_opt_and_meta_code_with_id(&sys, 137, WASM_BINARY.to_vec(), None);
+
+        let run_result = prog.send(user_id, demo_exit_handle::scheme());
+        assert!(!run_result.main_failed());
+
+        let run_result = prog.send_bytes(user_id, []);
+        assert!(!run_result.main_failed());
     }
 }

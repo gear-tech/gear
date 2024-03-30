@@ -598,8 +598,8 @@ impl ExtManager {
         )
     }
 
-    pub(crate) fn mint_to(&mut self, id: &ProgramId, value: Balance) {
-        if value < crate::EXISTENTIAL_DEPOSIT {
+    pub(crate) fn mint_to(&mut self, id: &ProgramId, value: Balance, keep_alive: bool) {
+        if keep_alive && value < crate::EXISTENTIAL_DEPOSIT {
             panic!(
                 "An attempt to mint value ({}) less than existential deposit ({})",
                 value,
@@ -983,7 +983,7 @@ impl JournalHandler for ExtManager {
 
     fn exit_dispatch(&mut self, id_exited: ProgramId, value_destination: ProgramId) {
         if let Some((_, balance)) = self.actors.remove(&id_exited) {
-            self.mint_to(&value_destination, balance);
+            self.mint_to(&value_destination, balance, false);
         }
     }
 
@@ -1126,9 +1126,9 @@ impl JournalHandler for ExtManager {
                 }
             }
 
-            self.mint_to(to, value);
+            self.mint_to(to, value, true);
         } else {
-            self.mint_to(&from, value);
+            self.mint_to(&from, value, true);
         }
     }
 
