@@ -73,11 +73,10 @@ impl<const SIZE: u32> PagesAmount<SIZE> {
 
     /// Pages amount addition. Returns None if overflow.
     #[cfg(test)]
-    pub fn add<A: Into<Self>, B: Into<Self>>(a: A, b: B) -> Option<Self> {
-        let a: Self = a.into();
-        let b: Self = b.into();
-        a.0.checked_add(b.0)
-            .and_then(|c| (c <= Self::UPPER.0).then_some(Self(c)))
+    pub fn add(&self, other: Self) -> Option<Self> {
+        self.0
+            .checked_add(other.0)
+            .and_then(|r| (r <= Self::UPPER.0).then_some(Self(r)))
     }
 
     /// Get page number, which bounds this pages amount.
@@ -86,7 +85,7 @@ impl<const SIZE: u32> PagesAmount<SIZE> {
         self.unbound()
     }
 
-    /// Converts one page size to another.
+    /// Returns corresponding amount of pages with another size `S`.
     pub fn to_pages_amount<const S: u32>(&self) -> PagesAmount<S> {
         let raw = if Self::SIZE > S {
             (Self::SIZE / S) * self.0

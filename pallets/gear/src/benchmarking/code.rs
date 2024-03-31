@@ -701,13 +701,7 @@ pub fn max_pages<T: Config>() -> WasmPagesAmount
 where
     T: Config,
 {
-    T::Schedule::get()
-        .limits
-        .memory_pages
-        .try_into()
-        .unwrap_or_else(|_| {
-            unreachable!("Memory pages limit is bigger than possible for 32 bits addr space")
-        })
+    T::Schedule::get().limits.memory_pages.into()
 }
 
 // Used for producing different code based on instruction bit width: 32-bit or 64-bit.

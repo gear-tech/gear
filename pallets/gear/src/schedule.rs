@@ -179,7 +179,7 @@ pub struct Limits {
     pub parameters: u32,
 
     /// Maximum number of memory pages allowed for a program.
-    pub memory_pages: u32,
+    pub memory_pages: u16,
 
     /// Maximum number of elements allowed in a table.
     ///
@@ -207,7 +207,7 @@ pub struct Limits {
 impl Limits {
     /// The maximum memory size in bytes that a program can occupy.
     pub fn max_memory_size(&self) -> u32 {
-        self.memory_pages * 64 * 1024
+        self.memory_pages as u32 * 64 * 1024
     }
 }
 
@@ -772,7 +772,7 @@ impl Default for Limits {
             globals: 256,
             locals: 1024,
             parameters: 128,
-            memory_pages: MAX_WASM_PAGES_AMOUNT.into(),
+            memory_pages: MAX_WASM_PAGES_AMOUNT,
             // 4k function pointers (This is in count not bytes).
             table_size: 4096,
             br_table_size: 256,

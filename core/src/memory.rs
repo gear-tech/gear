@@ -462,7 +462,7 @@ mod tests {
             type GrowError = ();
 
             fn grow(&mut self, pages: WasmPagesAmount) -> Result<(), Self::GrowError> {
-                self.0 = WasmPagesAmount::add(self.0, pages).ok_or(())?;
+                self.0 = self.0.add(pages).ok_or(())?;
                 Ok(())
             }
 

@@ -9806,13 +9806,7 @@ fn missing_handle_is_not_executed() {
 
 #[test]
 fn invalid_memory_page_amount_rejected() {
-    let Some(incorrect_amount) = code::MAX_WASM_PAGES_AMOUNT
-        .to_page_number()
-        .map(|p| u32::from(p.inc()))
-    else {
-        // In case max memory is 4GB, then it's impossible to make invalid memory pages amount.
-        return;
-    };
+    let incorrect_amount = code::MAX_WASM_PAGES_AMOUNT + 1;
 
     let wat = format!(
         r#"
