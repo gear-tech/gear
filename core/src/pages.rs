@@ -95,7 +95,10 @@ impl<const SIZE: u32> PagesAmount<SIZE> {
         PagesAmount(raw)
     }
 
-    /// +_+_+
+    /// Returns amount in bytes.
+    /// Can be also considered as offset of a page with corresponding number.
+    /// In 32-bits address space it can be up to u32::MAX + 1,
+    /// so we returns u64 to prevent overflow.
     pub fn offset(&self) -> u64 {
         self.0 as u64 * SIZE as u64
     }

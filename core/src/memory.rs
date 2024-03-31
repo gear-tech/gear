@@ -30,7 +30,10 @@ use core::{
     fmt::Debug,
     ops::{Deref, DerefMut},
 };
-use numerated::interval::{NewWithLenError, TryFromRangeError};
+use numerated::{
+    interval::{NewWithLenError, TryFromRangeError},
+    Numerated,
+};
 use scale_info::{
     scale::{self, Decode, Encode, EncodeLike, Input, Output},
     TypeInfo,
@@ -160,8 +163,8 @@ impl PageBuf {
     }
 
     /// Creates PageBuf from inner buffer. If the buffer has
-    /// the size of GearPage then no reallocations occur. In other
-    /// case it will be extended with zeros.
+    /// the size of [`GearPage`] then no reallocations occur.
+    /// In other case it will be extended with zeros.
     ///
     /// The method is implemented intentionally instead of trait From to
     /// highlight conversion cases in the source code.
@@ -269,7 +272,7 @@ pub enum AllocError {
     #[display(fmt = "{_0:?} cannot be freed by the current program")]
     InvalidFree(WasmPage),
     /// Invalid range for free_range
-    #[display(fmt = "Invalid range {_0:?}..{_1:?} for free_range")]
+    #[display(fmt = "Invalid range {_0:?}..={_1:?} for free_range")]
     InvalidFreeRange(WasmPage, WasmPage),
     /// Gas charge error
     #[from]
@@ -310,7 +313,8 @@ impl AllocationsContext {
         mem: &mut impl Memory,
         charge_gas_for_grow: impl FnOnce(WasmPagesAmount) -> Result<(), ChargeError>,
     ) -> Result<WasmPage, AllocError> {
-        // +_+_+
+        // TODO: Temporary solution to avoid panics, should be removed in #3791.
+        // Presently, this error cannot appear because we have limit 512 pages.
         let (Some(end_mem_page), Some(end_static_page)) = (
             mem.size().to_page_number(),
             self.static_pages.to_page_number(),
@@ -374,15 +378,17 @@ impl AllocationsContext {
     ///
     /// Currently running program should own this pages.
     pub fn free_range(&mut self, interval: Interval<WasmPage>) -> Result<(), AllocError> {
-        if interval.start() < self.static_pages || interval.end() >= self.max_pages {
+        let (start, end) = interval.into_parts();
+
+        if start < self.static_pages || end >= self.max_pages {
             return Err(AllocError::InvalidFreeRange(
                 interval.start(),
                 interval.end(),
             ));
         }
 
-        self.allocations
-            .retain(|&p| p < interval.start() || p > interval.end());
+        self.allocations.retain(|p| !p.enclosed_by(&start, &end));
+
         Ok(())
     }
 

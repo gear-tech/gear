@@ -773,6 +773,7 @@ impl Externalities for Ext {
     }
 
     fn free_range(&mut self, start: WasmPage, end: WasmPage) -> Result<(), Self::AllocError> {
+        // +_+_+ fix bug: zero pages add tests
         let interval = Interval::try_from(start..=end)
             .map_err(|_| AllocExtError::Alloc(AllocError::InvalidFreeRange(start, end)))?;
 
