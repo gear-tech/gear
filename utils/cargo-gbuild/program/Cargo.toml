@@ -8,7 +8,7 @@ gstd = { path = "../../../gstd" }
 
 [features]
 debug = ["gstd/debug"]
-default = ["std"]
+default = []
 std = []
 
 [lib]

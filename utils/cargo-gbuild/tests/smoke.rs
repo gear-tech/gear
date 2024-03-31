@@ -26,19 +26,27 @@ async fn compile_program() -> Result<()> {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("program/Cargo.toml");
     let artifact = GBuild {
         manifest_path: root.to_string_lossy().to_string().into(),
-        features: vec![],
+        features: vec!["debug".into()],
         target_dir: None,
         release: false,
         meta: false,
     }
-    .build()?;
+    .collect()?;
 
     // Upload the program to the chain
     // let node = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../target/release/gear");
     // let api = GearApi::dev_from_path(node).await?;
     let api = GearApi::init(WSAddress::dev()).await?;
-    api.upload_program_by_path(artifact.program, b"", b"PING", 200_000_000, 0)
+    let (mid, pid, _) = api
+        .upload_program_by_path(artifact.program, b"", b"PING", 200_000_000, 0)
         .await?;
+
+    // TODO: Verify that the program is active
+    // and the sender has already received a PONG.
+    let mut listener = api.subscribe().await?;
+    listener.next_block_hash().await?;
+    let messages = api.get_mailbox_message(mid).await?;
+    println!("{:?}", messages);
 
     Ok(())
 }
