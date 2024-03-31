@@ -117,17 +117,15 @@ pub struct ImportedMemory {
 }
 
 impl ImportedMemory {
+    pub fn max<T: Config>() -> Self {
+        Self {
+            min_pages: max_pages::<T>().into(),
+        }
+    }
+
     pub fn new(min_pages: u16) -> Self {
         Self {
             min_pages: min_pages.into(),
-        }
-    }
-}
-
-impl Default for ImportedMemory {
-    fn default() -> Self {
-        Self {
-            min_pages: (super::DEFAULT_PAGES as u16).into(),
         }
     }
 }
@@ -337,7 +335,7 @@ where
     /// Creates a wasm module with an empty `handle` and `init` function and nothing else.
     pub fn dummy() -> Self {
         ModuleDefinition {
-            memory: Some(Default::default()),
+            memory: Some(ImportedMemory::max::<T>()),
             ..Default::default()
         }
         .into()
@@ -369,7 +367,7 @@ where
             End,
         ];
         let mut module = ModuleDefinition {
-            memory: Some(Default::default()),
+            memory: Some(ImportedMemory::max::<T>()),
             ..Default::default()
         };
         let body = Some(body::repeated(expansions, EXPANSION));
@@ -502,10 +500,10 @@ pub mod body {
     }
 
     pub fn write_access_all_pages_instrs(
-        mem_size: WasmPagesAmount,
+        end_page: WasmPage,
         mut head: Vec<Instruction>,
     ) -> Vec<Instruction> {
-        IntervalIterator::from(..mem_size)
+        IntervalIterator::from(..end_page)
             .flat_map(|p: WasmPage| p.to_iter())
             .for_each(|page: GearPage| {
                 head.push(Instruction::I32Const(page.offset() as i32));
@@ -516,10 +514,10 @@ pub mod body {
     }
 
     pub fn read_access_all_pages_instrs(
-        mem_size: WasmPagesAmount,
+        end_page: WasmPage,
         mut head: Vec<Instruction>,
     ) -> Vec<Instruction> {
-        IntervalIterator::from(..mem_size)
+        IntervalIterator::from(..end_page)
             .flat_map(|p: WasmPage| p.to_iter())
             .for_each(|page: GearPage| {
                 head.push(Instruction::I32Const(page.offset() as i32));
@@ -697,11 +695,11 @@ pub mod body {
 }
 
 /// The maximum amount of pages any program is allowed to have according to the current `Schedule`.
-pub fn max_pages<T: Config>() -> WasmPagesAmount
+pub fn max_pages<T: Config>() -> u16
 where
     T: Config,
 {
-    T::Schedule::get().limits.memory_pages.into()
+    T::Schedule::get().limits.memory_pages
 }
 
 // Used for producing different code based on instruction bit width: 32-bit or 64-bit.

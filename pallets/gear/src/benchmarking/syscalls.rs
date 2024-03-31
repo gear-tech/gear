@@ -238,7 +238,7 @@ where
     }
 
     pub fn free(r: u32) -> Result<Exec<T>, &'static str> {
-        assert!(r <= u32::from(max_pages::<T>()));
+        assert!(r <= max_pages::<T>() as u32);
 
         use Instruction::*;
         let mut instructions = vec![];
@@ -266,7 +266,7 @@ where
         use Instruction::*;
 
         let n_pages = repetitions.checked_mul(pages_per_call).unwrap();
-        assert!(n_pages <= u32::from(max_pages::<T>()));
+        assert!(n_pages <= max_pages::<T>() as u32);
 
         let mut instructions = vec![];
         for _ in 0..API_BENCHMARK_BATCH_SIZE {
@@ -460,7 +460,7 @@ where
         assert!(buffer_len <= MAX_PAYLOAD_LEN);
 
         let module = ModuleDefinition {
-            memory: Some(Default::default()),
+            memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec![SyscallName::Read],
             handle_body: Some(body::fallible_syscall(
                 repetitions,
@@ -513,7 +513,7 @@ where
         // `gr_send` is required to populate `message_context.outcome.handle`
         // so `gr_reply_deposit` can be called and won't fail.
         let module = ModuleDefinition {
-            memory: Some(Default::default()),
+            memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec![SyscallName::ReplyDeposit, SyscallName::Send],
             handle_body: Some(body::fallible_syscall(
                 repetitions,
@@ -575,7 +575,7 @@ where
         };
 
         let module = ModuleDefinition {
-            memory: Some(Default::default()),
+            memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec![name],
             handle_body: Some(body::fallible_syscall(repetitions, res_offset, &params)),
             ..Default::default()
@@ -667,7 +667,7 @@ where
         ));
 
         let module = ModuleDefinition {
-            memory: Some(Default::default()),
+            memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec![SyscallName::SendPush, SyscallName::SendInit],
             handle_body: Some(body::from_instructions(instructions)),
             ..Default::default()
@@ -748,7 +748,7 @@ where
         let res_offset = payload_offset + payload_len;
 
         let module = ModuleDefinition {
-            memory: Some(Default::default()),
+            memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec![SyscallName::ReservationSend],
             data_segments: vec![DataSegment {
                 offset: rid_pid_value_offset,
@@ -861,7 +861,7 @@ where
         };
 
         let module = ModuleDefinition {
-            memory: Some(Default::default()),
+            memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec![name],
             handle_body: Some(body::fallible_syscall(repetitions, res_offset, &params)),
             ..Default::default()
@@ -936,7 +936,7 @@ where
         let res_offset = payload_offset + payload_len;
 
         let module = ModuleDefinition {
-            memory: Some(Default::default()),
+            memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec![SyscallName::ReplyPush],
             handle_body: Some(body::fallible_syscall(
                 repetitions,
@@ -978,7 +978,7 @@ where
         let res_offset = payload_offset + payload_len;
 
         let module = ModuleDefinition {
-            memory: Some(Default::default()),
+            memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec![SyscallName::ReservationReply],
             data_segments: vec![DataSegment {
                 offset: rid_value_offset,
@@ -1047,7 +1047,7 @@ where
         let res_offset = payload_offset + payload_len;
 
         let module = ModuleDefinition {
-            memory: Some(Default::default()),
+            memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec![SyscallName::ReservationReply],
             handle_body: Some(body::fallible_syscall(
                 repetitions,
@@ -1164,7 +1164,7 @@ where
         };
 
         let module = ModuleDefinition {
-            memory: Some(Default::default()),
+            memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec![name],
             handle_body: Some(body::fallible_syscall(repetitions, res_offset, &params)),
             ..Default::default()
@@ -1190,7 +1190,7 @@ where
         assert!(input_len <= MAX_PAYLOAD_LEN);
 
         let module = ModuleDefinition {
-            memory: Some(Default::default()),
+            memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec![SyscallName::ReplyPushInput],
             handle_body: Some(body::fallible_syscall(
                 repetitions,
@@ -1242,7 +1242,7 @@ where
         };
 
         let module = ModuleDefinition {
-            memory: Some(Default::default()),
+            memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec![name],
             handle_body: Some(body::fallible_syscall(repetitions, res_offset, &params)),
             ..Default::default()
@@ -1283,7 +1283,7 @@ where
         ));
 
         let module = ModuleDefinition {
-            memory: Some(Default::default()),
+            memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec![SyscallName::SendPushInput, SyscallName::SendInit],
             handle_body: Some(body::from_instructions(instructions)),
             ..Default::default()
@@ -1359,7 +1359,7 @@ where
         let string_len = n * 1024;
 
         let module = ModuleDefinition {
-            memory: Some(Default::default()),
+            memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec![SyscallName::Debug],
             handle_body: Some(body::syscall(
                 repetitions,
@@ -1487,7 +1487,7 @@ where
         };
 
         let module = ModuleDefinition {
-            memory: Some(Default::default()),
+            memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec![name],
             data_segments: vec![DataSegment {
                 offset: cid_value_offset,
@@ -1500,10 +1500,10 @@ where
         Self::prepare_handle(module, 0)
     }
 
-    pub fn lazy_pages_signal_read(wasm_pages: WasmPagesAmount) -> Result<Exec<T>, &'static str> {
-        let instrs = body::read_access_all_pages_instrs(wasm_pages, vec![]);
+    pub fn lazy_pages_signal_read(end_page: WasmPage) -> Result<Exec<T>, &'static str> {
+        let instrs = body::read_access_all_pages_instrs(end_page, vec![]);
         let module = ModuleDefinition {
-            memory: Some(Default::default()),
+            memory: Some(ImportedMemory::max::<T>()),
             handle_body: Some(body::from_instructions(instrs)),
             stack_end: Some(0.into()),
             ..Default::default()
@@ -1511,10 +1511,10 @@ where
         Self::prepare_handle(module, 0)
     }
 
-    pub fn lazy_pages_signal_write(wasm_pages: WasmPagesAmount) -> Result<Exec<T>, &'static str> {
-        let instrs = body::write_access_all_pages_instrs(wasm_pages, vec![]);
+    pub fn lazy_pages_signal_write(end_page: WasmPage) -> Result<Exec<T>, &'static str> {
+        let instrs = body::write_access_all_pages_instrs(end_page, vec![]);
         let module = ModuleDefinition {
-            memory: Some(Default::default()),
+            memory: Some(ImportedMemory::max::<T>()),
             handle_body: Some(body::from_instructions(instrs)),
             stack_end: Some(0.into()),
             ..Default::default()
@@ -1522,14 +1522,11 @@ where
         Self::prepare_handle(module, 0)
     }
 
-    pub fn lazy_pages_signal_write_after_read(
-        wasm_pages: WasmPagesAmount,
-    ) -> Result<Exec<T>, &'static str> {
-        let instrs =
-            body::read_access_all_pages_instrs((super::DEFAULT_PAGES as u16).into(), vec![]);
-        let instrs = body::write_access_all_pages_instrs(wasm_pages, instrs);
+    pub fn lazy_pages_signal_write_after_read(end_page: WasmPage) -> Result<Exec<T>, &'static str> {
+        let instrs = body::read_access_all_pages_instrs(max_pages::<T>().into(), vec![]);
+        let instrs = body::write_access_all_pages_instrs(end_page, instrs);
         let module = ModuleDefinition {
-            memory: Some(Default::default()),
+            memory: Some(ImportedMemory::max::<T>()),
             handle_body: Some(body::from_instructions(instrs)),
             stack_end: Some(0.into()),
             ..Default::default()
@@ -1537,12 +1534,10 @@ where
         Self::prepare_handle(module, 0)
     }
 
-    pub fn lazy_pages_load_page_storage_data(
-        pages: WasmPagesAmount,
-    ) -> Result<Exec<T>, &'static str> {
-        let exec = Self::lazy_pages_signal_read(pages)?;
+    pub fn lazy_pages_load_page_storage_data(end_page: WasmPage) -> Result<Exec<T>, &'static str> {
+        let exec = Self::lazy_pages_signal_read(end_page)?;
         let program_id = exec.context.program().id();
-        IntervalIterator::from(..pages)
+        IntervalIterator::from(..end_page)
             .flat_map(|p: WasmPage| p.to_iter())
             .for_each(|page: GearPage| {
                 ProgramStorageOf::<T>::set_program_page_data(
@@ -1555,15 +1550,15 @@ where
         Ok(exec)
     }
 
-    pub fn lazy_pages_host_func_read(wasm_pages: WasmPage) -> Result<Exec<T>, &'static str> {
+    pub fn lazy_pages_host_func_read(end_page: WasmPage) -> Result<Exec<T>, &'static str> {
         let module = ModuleDefinition {
-            memory: Some(Default::default()),
+            memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec![SyscallName::Debug],
             handle_body: Some(body::from_instructions(vec![
                 // payload offset
                 Instruction::I32Const(0),
                 // payload len
-                Instruction::I32Const(wasm_pages.offset() as i32),
+                Instruction::I32Const(end_page.offset() as i32),
                 // CALL
                 Instruction::Call(0),
             ])),
@@ -1573,15 +1568,15 @@ where
         Self::prepare_handle(module, 0)
     }
 
-    pub fn lazy_pages_host_func_write(wasm_pages: WasmPage) -> Result<Exec<T>, &'static str> {
+    pub fn lazy_pages_host_func_write(end_page: WasmPage) -> Result<Exec<T>, &'static str> {
         let module = ModuleDefinition {
-            memory: Some(Default::default()),
+            memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec![SyscallName::Read],
             handle_body: Some(body::from_instructions(vec![
                 // at
                 Instruction::I32Const(0),
                 // len
-                Instruction::I32Const(wasm_pages.offset() as i32),
+                Instruction::I32Const(end_page.offset() as i32),
                 // buffer ptr
                 Instruction::I32Const(0),
                 // err len ptr
@@ -1597,25 +1592,20 @@ where
     }
 
     pub fn lazy_pages_host_func_write_after_read(
-        wasm_pages: WasmPagesAmount,
+        end_page: WasmPage,
     ) -> Result<Exec<T>, &'static str> {
-        let max_pages: WasmPagesAmount = WasmPage::from_offset(MAX_PAYLOAD_LEN).into();
-        assert!(wasm_pages <= max_pages);
-
-        let offset = wasm_pages
-            .to_page_number()
-            .expect("Size is too big to have u32 offset")
-            .offset() as i32;
+        let max_page = WasmPage::from_offset(MAX_PAYLOAD_LEN);
+        assert!(end_page <= max_page);
 
         // Access const amount of pages before `gr_read` calls in order to make all pages read accessed.
-        let mut instrs = body::read_access_all_pages_instrs(max_pages, vec![]);
+        let mut instrs = body::read_access_all_pages_instrs(max_page, vec![]);
 
         // Add `gr_read` call.
         instrs.extend_from_slice(&[
             // at
             Instruction::I32Const(0),
             // len
-            Instruction::I32Const(offset),
+            Instruction::I32Const(end_page.offset() as i32),
             // buffer ptr
             Instruction::I32Const(0),
             // err len ptr
@@ -1625,7 +1615,7 @@ where
         ]);
 
         let module = ModuleDefinition {
-            memory: Some(Default::default()),
+            memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec![SyscallName::Read],
             handle_body: Some(body::from_instructions(instrs)),
             stack_end: Some(0.into()),

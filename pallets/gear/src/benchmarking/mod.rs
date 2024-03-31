@@ -49,7 +49,8 @@ use tests::syscalls_integrity;
 use self::{
     code::{
         body::{self, DynInstr::*},
-        ImportedMemory, Location, ModuleDefinition, TableSegment, WasmModule, OFFSET_AUX,
+        max_pages, ImportedMemory, Location, ModuleDefinition, TableSegment, WasmModule,
+        OFFSET_AUX,
     },
     sandbox::Sandbox,
 };
@@ -110,7 +111,7 @@ use sp_std::prelude::*;
 
 const MAX_PAYLOAD_LEN: u32 = 32 * 64 * 1024;
 const MAX_PAYLOAD_LEN_KB: u32 = MAX_PAYLOAD_LEN / 1024;
-const DEFAULT_PAGES: u32 = 512;
+const MAX_PAGES: u32 = 512;
 const MAX_SALT_SIZE_BYTES: u32 = 4 * 1024 * 1024;
 
 /// How many batches we do per API benchmark.
@@ -378,7 +379,7 @@ benchmarks! {
         let WasmModule { code, .. } = WasmModule::<T>::sized(c * 1024, Location::Init);
     }: {
         let ext = Externalities::new(ProcessorContext::new_mock());
-        Environment::new(ext, &code, DispatchKind::Init, Default::default(), (DEFAULT_PAGES as u16).into()).unwrap();
+        Environment::new(ext, &code, DispatchKind::Init, Default::default(), max_pages::<T>().into()).unwrap();
     }
 
     claim_value {
@@ -431,10 +432,10 @@ benchmarks! {
         assert!(<T as pallet::Config>::CodeStorage::exists(code_id));
     }
 
-    // The size of the salt influences the runtime because it is hashed in order to
+    // The size of the salt influences the runtime because is is hashed in order to
     // determine the program address.
     //
-    // `s`: Size of the salt in bytes.
+    // `s`: Size of the salt in kilobytes.
     create_program {
         let s in 0 .. MAX_SALT_SIZE_BYTES;
 
@@ -462,7 +463,7 @@ benchmarks! {
     // determine the program address.
     //
     // `c`: Size of the code in kilobytes.
-    // `s`: Size of the salt in bytes.
+    // `s`: Size of the salt in kilobytes.
     //
     // # Note
     //
@@ -470,7 +471,7 @@ benchmarks! {
     // to be larger than the maximum size **after instrumentation**.
     upload_program {
         let c in 0 .. Perbill::from_percent(49).mul_ceil(T::Schedule::get().limits.code_len) / 1024;
-        let s in 0 .. MAX_SALT_SIZE_BYTES;
+        let s in 0 .. code::max_pages::<T>() as u32 * 64 * 128;
         let salt = vec![42u8; s as usize];
         let value = CurrencyOf::<T>::minimum_balance();
         let caller = whitelisted_caller();
@@ -556,7 +557,7 @@ benchmarks! {
         Gear::<T>::reinstrument_code(code_id, &schedule).expect("Re-instrumentation  failed");
     }
 
-// Alloc there 1 page because `alloc` execution time is non-linear along with other amounts of pages.
+    // Alloc there 1 page because `alloc` execution time is non-linear along with other amounts of pages.
     alloc {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
@@ -569,7 +570,7 @@ benchmarks! {
     }
 
     alloc_per_page {
-        let p in 1 .. DEFAULT_PAGES;
+        let p in 1 .. MAX_PAGES;
         let mut res = None;
         let exec = Benches::<T>::alloc(1, p)?;
     }: {
@@ -605,7 +606,7 @@ benchmarks! {
         let p in 1 .. API_BENCHMARK_BATCHES;
         let mut res = None;
         let exec = Benches::<T>::free_range(1, p)?;
-        }: {
+    }: {
         res.replace(run_process(exec));
     }
     verify {
@@ -1360,7 +1361,7 @@ benchmarks! {
     }
 
     lazy_pages_signal_read {
-        let p in 0 .. DEFAULT_PAGES;
+        let p in 0 .. code::max_pages::<T>() as u32;
         let mut res = None;
         let exec = Benches::<T>::lazy_pages_signal_read((p as u16).into())?;
     }: {
@@ -1371,7 +1372,7 @@ benchmarks! {
     }
 
     lazy_pages_signal_write {
-        let p in 0 .. DEFAULT_PAGES;
+        let p in 0 .. code::max_pages::<T>() as u32;
         let mut res = None;
         let exec = Benches::<T>::lazy_pages_signal_write((p as u16).into())?;
     }: {
@@ -1382,7 +1383,7 @@ benchmarks! {
     }
 
     lazy_pages_signal_write_after_read {
-        let p in 0 .. DEFAULT_PAGES;
+        let p in 0 .. code::max_pages::<T>() as u32;
         let mut res = None;
         let exec = Benches::<T>::lazy_pages_signal_write_after_read((p as u16).into())?;
     }: {
@@ -1393,7 +1394,7 @@ benchmarks! {
     }
 
     lazy_pages_load_page_storage_data {
-        let p in 0 .. DEFAULT_PAGES;
+        let p in 0 .. code::max_pages::<T>() as u32;
         let mut res = None;
         let exec = Benches::<T>::lazy_pages_load_page_storage_data((p as u16).into())?;
     }: {
@@ -1451,10 +1452,11 @@ benchmarks! {
     instr_i64load {
         // Increased interval in order to increase accuracy
         let r in INSTR_BENCHMARK_BATCHES .. 10 * INSTR_BENCHMARK_BATCHES;
+        let mem_pages = code::max_pages::<T>();
         let module = ModuleDefinition {
-            memory: Some(ImportedMemory::new(DEFAULT_PAGES as u16)),
+            memory: Some(ImportedMemory::new(mem_pages)),
             handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
-                        RandomUnaligned(0, DEFAULT_PAGES * WasmPage::SIZE - 8),
+                        RandomUnaligned(0, mem_pages as u32 * WasmPage::SIZE - 8),
                         Regular(Instruction::I64Load(3, 0)),
                         Regular(Instruction::Drop)])),
             .. Default::default()
@@ -1468,10 +1470,11 @@ benchmarks! {
     instr_i32load {
         // Increased interval in order to increase accuracy
         let r in INSTR_BENCHMARK_BATCHES .. 10 * INSTR_BENCHMARK_BATCHES;
+        let mem_pages = code::max_pages::<T>();
         let module = ModuleDefinition {
-            memory: Some(ImportedMemory::new(DEFAULT_PAGES as u16)),
+            memory: Some(ImportedMemory::new(mem_pages)),
             handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
-                        RandomUnaligned(0, DEFAULT_PAGES * WasmPage::SIZE - 4),
+                        RandomUnaligned(0, mem_pages as u32 * WasmPage::SIZE - 4),
                         Regular(Instruction::I32Load(2, 0)),
                         Regular(Instruction::Drop)])),
             .. Default::default()
@@ -1485,10 +1488,11 @@ benchmarks! {
     instr_i64store {
         // Increased interval in order to increase accuracy
         let r in INSTR_BENCHMARK_BATCHES .. 10 * INSTR_BENCHMARK_BATCHES;
+        let mem_pages = code::max_pages::<T>();
         let module = ModuleDefinition {
-            memory: Some(ImportedMemory::new(DEFAULT_PAGES as u16)),
+            memory: Some(ImportedMemory::new(mem_pages)),
             handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
-                        RandomUnaligned(0, DEFAULT_PAGES * WasmPage::SIZE - 8),
+                        RandomUnaligned(0, mem_pages as u32 * WasmPage::SIZE - 8),
                         RandomI64Repeated(1),
                         Regular(Instruction::I64Store(3, 0))])),
             .. Default::default()
@@ -1502,10 +1506,11 @@ benchmarks! {
     instr_i32store {
         // Increased interval in order to increase accuracy
         let r in INSTR_BENCHMARK_BATCHES .. 10 * INSTR_BENCHMARK_BATCHES;
+        let mem_pages = code::max_pages::<T>();
         let module = ModuleDefinition {
-            memory: Some(ImportedMemory::new(DEFAULT_PAGES as u16)),
+            memory: Some(ImportedMemory::new(mem_pages)),
             handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
-                        RandomUnaligned(0, DEFAULT_PAGES * WasmPage::SIZE - 4),
+                        RandomUnaligned(0, mem_pages as u32 * WasmPage::SIZE - 4),
                         RandomI32Repeated(1),
                         Regular(Instruction::I32Store(2, 0))])),
             .. Default::default()
@@ -1819,7 +1824,7 @@ benchmarks! {
     instr_memory_current {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
-            memory: Some(Default::default()),
+            memory: Some(ImportedMemory::max::<T>()),
             handle_body: Some(body::repeated(r * INSTR_BENCHMARK_BATCH_SIZE, &[
                 Instruction::CurrentMemory(0),
                 Instruction::Drop
