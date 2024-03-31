@@ -19,10 +19,14 @@
 //! Module for memory pages.
 
 use core::cmp::Ordering;
-// +_+_+ consider re-use
 pub use numerated::{
+    interval::{
+        EmptyRangeError, IncorrectRangeError, Interval, NewWithLenError, TryFromRangeError,
+    },
+    iterators::{DifferenceIterator, IntervalIterator, OutOfBoundsError, VoidsIterator},
     num_traits::bounds::{LowerBounded, UpperBounded},
-    Bound, Interval, IntervalIterator, IntervalsTree, Numerated,
+    numerated::{Bound, Numerated},
+    tree::IntervalsTree,
 };
 use scale_info::{
     scale::{Decode, Encode},

@@ -22,7 +22,7 @@ use crate::{
 };
 use gear_core::str::LimitedStr;
 use gear_lazy_pages_common::LazyPagesInitContext;
-use numerated::IntervalsTree;
+use numerated::tree::IntervalsTree;
 use region::Protection;
 
 #[derive(Debug)]

@@ -28,16 +28,10 @@
 extern crate alloc;
 
 pub mod interval;
-mod iterators;
-mod numerated;
-mod tree;
+pub mod iterators;
+pub mod numerated;
+pub mod tree;
 
-pub use crate::{
-    interval::Interval,
-    iterators::{DifferenceIterator, IntervalIterator, VoidsIterator},
-    numerated::{Bound, Numerated, OptionBound},
-    tree::IntervalsTree,
-};
 pub use num_traits;
 
 #[cfg(any(feature = "mock", test))]

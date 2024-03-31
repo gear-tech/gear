@@ -20,7 +20,7 @@
 
 use crate::pages::{Page, PagesAmount, PagesAmountTrait, SizeManager, SizeNumber};
 use core::ops::RangeInclusive;
-use numerated::Interval;
+use numerated::interval::Interval;
 use std::fmt::Debug;
 
 #[derive(Debug, derive_more::Display)]

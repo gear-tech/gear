@@ -18,7 +18,11 @@
 
 //! Mock for crate property testing and also can be used in other crates for their numerated types impls.
 
-use crate::{Bound, IntervalIterator, IntervalsTree, Numerated};
+use crate::{
+    iterators::IntervalIterator,
+    numerated::{Bound, Numerated},
+    tree::IntervalsTree,
+};
 use alloc::{collections::BTreeSet, fmt::Debug, vec::Vec};
 use num_traits::{bounds::UpperBounded, One, Zero};
 

@@ -25,7 +25,7 @@ use crate::{
 };
 use gear_core::str::LimitedStr;
 use gear_lazy_pages_common::{GlobalsAccessError, Status};
-use numerated::IntervalsTree;
+use numerated::tree::IntervalsTree;
 use std::{fmt, mem, num::NonZeroU32};
 
 // TODO: investigate error allocations #2441

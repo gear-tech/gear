@@ -19,8 +19,9 @@
 //! Property testing for Numerated, Interval and IntervalsTree.
 
 use crate::{
+    iterators::IntervalIterator,
     mock::{self, IntervalAction, TreeAction},
-    Bound, IntervalIterator, Numerated,
+    numerated::{Bound, Numerated},
 };
 use alloc::{collections::BTreeSet, fmt::Debug, vec::Vec};
 use num_traits::bounds::{LowerBounded, UpperBounded};

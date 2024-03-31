@@ -21,7 +21,10 @@
 use crate::{
     buffer::LimitedVec,
     gas::ChargeError,
-    pages::{GearPage, Interval, WasmPage, WasmPagesAmount},
+    pages::{
+        GearPage, Interval, NewWithLenError, Numerated, TryFromRangeError, WasmPage,
+        WasmPagesAmount,
+    },
 };
 use alloc::{collections::BTreeSet, format};
 use byteorder::{ByteOrder, LittleEndian};
@@ -29,10 +32,6 @@ use core::{
     fmt,
     fmt::Debug,
     ops::{Deref, DerefMut},
-};
-use numerated::{
-    interval::{NewWithLenError, TryFromRangeError},
-    Numerated,
 };
 use scale_info::{
     scale::{self, Decode, Encode, EncodeLike, Input, Output},
