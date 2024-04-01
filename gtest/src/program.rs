@@ -18,7 +18,7 @@
 
 use crate::{
     log::RunResult,
-    manager::{Balance, ExtManager, Program as InnerProgram, TestActor},
+    manager::{Balance, ExtManager, MintMode, Program as InnerProgram, TestActor},
     system::System,
     Result,
 };
@@ -750,7 +750,9 @@ impl<'a> Program<'a> {
 
     /// Mint balance to the account.
     pub fn mint(&mut self, value: Balance) {
-        self.manager.borrow_mut().mint_to(&self.id(), value, true)
+        self.manager
+            .borrow_mut()
+            .mint_to(&self.id(), value, MintMode::KeepAlive)
     }
 
     /// Returns the balance of the account.
