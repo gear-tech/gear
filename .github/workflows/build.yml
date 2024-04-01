@@ -50,7 +50,7 @@ jobs:
           echo "matrix=${matrix}" >> $GITHUB_OUTPUT
 
   linux:
-    runs-on: [ kuberunner, github-runner-02 ]
+    runs-on: [kuberunner, github-runner-02]
     needs: matrix
     strategy:
       matrix: ${{ fromJson(needs.matrix.outputs.matrix) }}
@@ -93,7 +93,7 @@ jobs:
         run: cargo run -p calc-stack-height --release --locked
 
       - name: "Test: Gear workspace"
-        run: ./scripts/gear.sh test gear --exclude gclient --exclude gcli --exclude gsdk --locked ${{ matrix.profile_flags }}
+        run: ./scripts/gear.sh test gear --exclude gclient --exclude gcli --exclude gsdk --locked ${{ matrix.profile_flags }} --exclude cargo-gbuild
 
       - name: "Test: gsdk tests"
         run: ./scripts/gear.sh test gsdk ${{ matrix.profile_flags }}
@@ -105,6 +105,9 @@ jobs:
 
       - name: "Test: Client tests"
         run: ./scripts/gear.sh test client ${{ matrix.profile_flags }}
+
+      - name: "Test: cargo-gbuild tests"
+        run: ./scripts/gear.sh test gbuild ${{ matrix.profile_flags }}
 
       - name: "Test: Benchmarks in native"
         run: |
@@ -165,7 +168,7 @@ jobs:
           path: artifact
 
   win-cross:
-    runs-on: [ kuberunner, github-runner-03 ]
+    runs-on: [kuberunner, github-runner-03]
     needs: matrix
     strategy:
       matrix: ${{ fromJson(needs.matrix.outputs.matrix) }}
@@ -247,14 +250,14 @@ jobs:
           CARGO_BUILD_TARGET: x86_64-pc-windows-msvc
 
   win-native:
-    needs: [ matrix, linux ]
+    needs: [matrix, linux]
     if: ${{ !cancelled() && (github.ref == 'refs/heads/master' || inputs.win-native) }}
     uses: ./.github/workflows/build-win-native.yml
     with:
       matrix: ${{ needs.matrix.outputs.matrix }}
 
   macos:
-    needs: [ matrix, linux ]
+    needs: [matrix, linux]
     if: ${{ !cancelled() && inputs.macos }}
     uses: ./.github/workflows/build-macos.yml
     with:
