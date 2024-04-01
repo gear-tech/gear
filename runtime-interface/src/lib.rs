@@ -359,9 +359,11 @@ pub trait SpecificPlonky2 {
         pub type Config = PoseidonGoldilocksConfig;
         pub type Field = <Config as GenericConfig<DIMENSION>>::F;
         pub type CommonCircuitData = plonk::circuit_data::CommonCircuitData<Field, DIMENSION>;
-        pub type ProofWithPublicInputs = plonk::proof::ProofWithPublicInputs<Field, Config, DIMENSION>;
+        pub type ProofWithPublicInputs =
+            plonk::proof::ProofWithPublicInputs<Field, Config, DIMENSION>;
 
-        let Ok(common) = CommonCircuitData::from_bytes(common_circuit_data, &DefaultGateSerializer) else {
+        let Ok(common) = CommonCircuitData::from_bytes(common_circuit_data, &DefaultGateSerializer)
+        else {
             return Err(());
         };
 
@@ -370,8 +372,8 @@ pub trait SpecificPlonky2 {
         };
 
         let config = &common.config;
-        Ok(
-            (CircuitConfig {
+        Ok((
+            CircuitConfig {
                 num_wires: config.num_wires as u32,
                 num_routed_wires: config.num_routed_wires as u32,
                 num_constants: config.num_constants as u32,
@@ -383,43 +385,48 @@ pub trait SpecificPlonky2 {
                 fri_config: FriConfig {
                     rate_bits: config.fri_config.rate_bits as u32,
                     cap_height: config.fri_config.cap_height as u32,
-                    proof_of_work_bits: config.fri_config.proof_of_work_bits as u32,
-                    num_query_rounds: config.fri_config.num_query_rounds as u32
+                    proof_of_work_bits: config.fri_config.proof_of_work_bits,
+                    num_query_rounds: config.fri_config.num_query_rounds as u32,
                 },
             },
             proof_with_pis.public_inputs.len() as u32,
-            ).encode()
         )
+            .encode())
     }
 
-    fn verify(
-        common_curcuit_data: Vec<u8>,
-        verifier_circuit_data: Vec<u8>,
-        proof: Vec<u8>,
-    ) -> u32 {
-        use plonky2::plonk::{
-            self,
-            config::{GenericConfig, PoseidonGoldilocksConfig},
+    fn verify(common_curcuit_data: Vec<u8>, verifier_circuit_data: Vec<u8>, proof: Vec<u8>) -> u32 {
+        use plonky2::{
+            plonk::{
+                self,
+                config::{GenericConfig, PoseidonGoldilocksConfig},
+            },
+            util::serialization::DefaultGateSerializer,
         };
-        use plonky2::util::serialization::DefaultGateSerializer;
 
         pub const DIMENSION: usize = 2;
         pub type Config = PoseidonGoldilocksConfig;
         pub type Field = <Config as GenericConfig<DIMENSION>>::F;
         // pub type CircuitData = plonk::circuit_data::CircuitData<Field, Config, DIMENSION>;
         pub type CommonCircuitData = plonk::circuit_data::CommonCircuitData<Field, DIMENSION>;
-        pub type VerifierOnlyCircuitData = plonk::circuit_data::VerifierOnlyCircuitData<Config, DIMENSION>;
-        pub type VerifierCircuitData = plonk::circuit_data::VerifierCircuitData<Field, Config, DIMENSION>;
+        pub type VerifierOnlyCircuitData =
+            plonk::circuit_data::VerifierOnlyCircuitData<Config, DIMENSION>;
+        pub type VerifierCircuitData =
+            plonk::circuit_data::VerifierCircuitData<Field, Config, DIMENSION>;
         // pub type ProverOnlyCircuitData = plonk::circuit_data::ProverOnlyCircuitData<Field, Config, DIMENSION>;
-        pub type ProofWithPublicInputs = plonk::proof::ProofWithPublicInputs<Field, Config, DIMENSION>;
+        pub type ProofWithPublicInputs =
+            plonk::proof::ProofWithPublicInputs<Field, Config, DIMENSION>;
 
-        let Ok(common) = CommonCircuitData::from_bytes(common_curcuit_data, &DefaultGateSerializer) else {
+        let Ok(common) = CommonCircuitData::from_bytes(common_curcuit_data, &DefaultGateSerializer)
+        else {
             return Plonky2VerifyResult::FailedToDecodeCommonData.into();
         };
 
         if common.config.fri_config.rate_bits != 3
             || common.config.fri_config.proof_of_work_bits != 16
-            || !matches!(common.config.fri_config.reduction_strategy, plonky2::fri::reduction_strategies::FriReductionStrategy::ConstantArityBits(..))
+            || !matches!(
+                common.config.fri_config.reduction_strategy,
+                plonky2::fri::reduction_strategies::FriReductionStrategy::ConstantArityBits(..)
+            )
         {
             return Plonky2VerifyResult::ConfigNotSupported.into();
         }
@@ -432,7 +439,10 @@ pub trait SpecificPlonky2 {
             return Plonky2VerifyResult::FailedToDecodeProof.into();
         };
 
-        let verifier_circuit_data = VerifierCircuitData { verifier_only, common };
+        let verifier_circuit_data = VerifierCircuitData {
+            verifier_only,
+            common,
+        };
         match verifier_circuit_data.verify(proof_with_pis) {
             Ok(()) => Plonky2VerifyResult::Verified,
             Err(e) => {
@@ -440,6 +450,7 @@ pub trait SpecificPlonky2 {
 
                 Plonky2VerifyResult::Rejected
             }
-        }.into()
+        }
+        .into()
     }
 }
