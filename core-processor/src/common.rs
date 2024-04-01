@@ -81,7 +81,7 @@ pub struct DispatchResult {
     pub system_reservation_context: SystemReservationContext,
     /// Page updates.
     pub page_update: BTreeMap<GearPage, PageBuf>,
-    // +_+_+ check this place for correctness
+    // TODO: there is no difference between no-allocations and no-changes #3853
     /// New allocations set for program if it has been changed.
     pub allocations: BTreeSet<WasmPage>,
     /// Whether this execution sent out a reply.
