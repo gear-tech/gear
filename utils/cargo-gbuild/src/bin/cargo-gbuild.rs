@@ -40,7 +40,9 @@ impl App for Opt {
     }
 
     fn run(&self) -> Result<()> {
-        self.command.collect().map(|_| ())
+        let artifact = self.command.collect()?;
+        tracing::info!("The artifact has been generated at {:?}", artifact.root);
+        Ok(())
     }
 }
 

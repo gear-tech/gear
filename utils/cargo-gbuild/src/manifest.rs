@@ -20,6 +20,8 @@ use serde::Deserialize;
 use std::path::PathBuf;
 
 /// Cargo manifest abstraction.
+///
+/// NOTE: considering using `cargo-edit` instead in the future.
 #[derive(Debug, Deserialize)]
 pub struct Manifest {
     /// The build section in the cargo manifest.

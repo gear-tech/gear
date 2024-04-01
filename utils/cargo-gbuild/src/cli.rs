@@ -52,7 +52,7 @@ pub struct GBuild {
     #[clap(short, long)]
     pub target_dir: Option<PathBuf>,
 
-    /// TODO: If enable meta build
+    /// TODO: If enable meta build (#3850)
     #[clap(short, long)]
     pub meta: bool,
 }
@@ -60,7 +60,7 @@ pub struct GBuild {
 impl GBuild {
     // Collects the artifacts.
     ///
-    /// TODO: generate `wasm_binary.rs` in the output directory.
+    /// TODO: support gtest (#3851)
     pub fn collect(&self) -> Result<Artifact> {
         let root = self
             .manifest_path
@@ -86,7 +86,7 @@ impl GBuild {
         self.cargo(&cargo_target_dir)?;
         let artifact = Artifact {
             program: gbuild_target_dir.join(format!("{name}.wasm")),
-            // TODO: support meta build
+            // TODO: support meta build (#3850)
             //
             // target_dir.join(format!("{name}.meta.wasm")),
             meta: None,
@@ -103,7 +103,7 @@ impl GBuild {
 
     /// Process the cargo command.
     ///
-    /// TODO: support workspace build.
+    /// TODO: support workspace build. (#3852)
     fn cargo(&self, target_dir: &Path) -> Result<()> {
         let mut kargo = CargoCommand::default();
         if self.release {
