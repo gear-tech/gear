@@ -63,10 +63,7 @@ use common::{
 };
 use core::fmt;
 use core_processor::common::{Actor, ExecutableActorData};
-use frame_support::{
-    codec::{Decode, Encode},
-    traits::{Currency, ExistenceRequirement},
-};
+use frame_support::traits::{Currency, ExistenceRequirement};
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
     code::{CodeAndId, InstrumentedCode},
@@ -78,7 +75,10 @@ use gear_core::{
 };
 use primitive_types::H256;
 use scale_info::TypeInfo;
-use sp_runtime::traits::{UniqueSaturatedInto, Zero};
+use sp_runtime::{
+    codec::{Decode, Encode},
+    traits::{UniqueSaturatedInto, Zero},
+};
 use sp_std::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
     convert::TryInto,

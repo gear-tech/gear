@@ -30,7 +30,7 @@
 
 use crate::storage::{Callback, Counted, EmptyCallback, IterableMap, MapStorage, ValueStorage};
 use core::marker::PhantomData;
-use frame_support::{
+use sp_runtime::{
     codec::{self, Decode, Encode},
     scale_info::{self, TypeInfo},
 };

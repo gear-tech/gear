@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    configs::{BlockInfo, PageCosts},
+    configs::{BlockInfo, ExtCosts},
     context::SystemReservationContext,
 };
 use alloc::{
@@ -25,12 +25,12 @@ use alloc::{
     vec::Vec,
 };
 use gear_core::{
-    costs::{HostFnWeights, RuntimeCosts},
+    costs::CostToken,
     env::{Externalities, PayloadSliceLock, UnlockPayloadBound},
     env_vars::{EnvVars, EnvVarsV1},
     gas::{
         ChargeError, ChargeResult, CounterType, CountersOwner, GasAllowanceCounter, GasAmount,
-        GasCounter, GasLeft, Token, ValueCounter,
+        GasCounter, GasLeft, ValueCounter,
     },
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{
@@ -56,7 +56,7 @@ use gear_core_errors::{
     ExecutionError as FallibleExecutionError, ExtError as FallibleExtErrorCore, MessageError,
     ReplyCode, ReservationError, SignalCode,
 };
-use gear_lazy_pages_common::{GlobalsAccessConfig, LazyPagesWeights, ProcessAccessError, Status};
+use gear_lazy_pages_common::{GlobalsAccessConfig, LazyPagesCosts, ProcessAccessError, Status};
 use gear_wasm_instrument::syscalls::SyscallName;
 
 /// Processor context.
@@ -79,35 +79,25 @@ pub struct ProcessorContext {
     pub block_info: BlockInfo,
     /// Performance multiplier.
     pub performance_multiplier: gsys::Percent,
-    /// Max allowed wasm memory pages.
-    pub max_pages: WasmPage,
-    /// Allocations config.
-    pub page_costs: PageCosts,
-    /// Account existential deposit
-    pub existential_deposit: u128,
     /// Current program id
     pub program_id: ProgramId,
     /// Map of code hashes to program ids of future programs, which are planned to be
     /// initialized with the corresponding code (with the same code hash).
     pub program_candidates_data: BTreeMap<CodeId, Vec<(MessageId, ProgramId)>>,
-    /// Weights of host functions.
-    pub host_fn_weights: HostFnWeights,
     /// Functions forbidden to be called.
     pub forbidden_funcs: BTreeSet<SyscallName>,
-    /// Mailbox threshold.
-    pub mailbox_threshold: u64,
-    /// Cost for single block waitlist holding.
-    pub waitlist_cost: u64,
-    /// Cost of holding a message in dispatch stash.
-    pub dispatch_hold_cost: u64,
     /// Reserve for parameter of scheduling.
     pub reserve_for: u32,
-    /// Cost for reservation holding.
-    pub reservation: u64,
     /// Output from Randomness.
     pub random_data: (Vec<u8>, u32),
     /// Gas multiplier.
     pub gas_multiplier: gsys::GasMultiplier,
+    /// Existential deposit.
+    pub existential_deposit: u128,
+    /// Mailbox threshold.
+    pub mailbox_threshold: u64,
+    /// Execution externalities costs.
+    pub costs: ExtCosts,
 }
 
 #[cfg(any(feature = "mock", test))]
@@ -139,20 +129,15 @@ impl ProcessorContext {
             .unwrap(),
             block_info: Default::default(),
             performance_multiplier: gsys::Percent::new(100),
-            max_pages: 512.into(),
-            page_costs: Default::default(),
-            existential_deposit: 0,
             program_id: Default::default(),
             program_candidates_data: Default::default(),
-            host_fn_weights: Default::default(),
             forbidden_funcs: Default::default(),
-            mailbox_threshold: 0,
-            waitlist_cost: 0,
-            dispatch_hold_cost: 0,
             reserve_for: 0,
-            reservation: 0,
             random_data: ([0u8; 32].to_vec(), 0),
             gas_multiplier: gsys::GasMultiplier::from_value_per_gas(1),
+            existential_deposit: Default::default(),
+            mailbox_threshold: Default::default(),
+            costs: Default::default(),
         }
     }
 }
@@ -188,7 +173,7 @@ pub trait ProcessorExternalities {
         memory_infix: MemoryInfix,
         stack_end: Option<WasmPage>,
         globals_config: GlobalsAccessConfig,
-        lazy_pages_weights: LazyPagesWeights,
+        lazy_pages_costs: LazyPagesCosts,
     );
 
     /// Lazy pages program post execution actions
@@ -433,7 +418,7 @@ impl ProcessorExternalities for Ext {
         memory_infix: MemoryInfix,
         stack_end: Option<WasmPage>,
         globals_config: GlobalsAccessConfig,
-        lazy_pages_weights: LazyPagesWeights,
+        lazy_pages_costs: LazyPagesCosts,
     ) {
         gear_lazy_pages_interface::init_for_program(
             mem,
@@ -441,7 +426,7 @@ impl ProcessorExternalities for Ext {
             memory_infix,
             stack_end,
             globals_config,
-            lazy_pages_weights,
+            lazy_pages_costs,
         );
     }
 
@@ -508,12 +493,12 @@ impl Ext {
                 .limit_of(reservation_id)
                 .ok_or(ReservationError::InvalidReservationId)?;
 
-            // Take delay and get cost of block.
-            // reserve = wait_cost * (delay + reserve_for).
-            let cost_per_block = self.context.dispatch_hold_cost;
-            let waiting_reserve = (self.context.reserve_for as u64)
-                .saturating_add(delay as u64)
-                .saturating_mul(cost_per_block);
+            let waiting_reserve = self
+                .context
+                .costs
+                .rent
+                .dispatch_stash
+                .cost_for(self.context.reserve_for.saturating_add(delay).into());
 
             if limit < waiting_reserve {
                 return Err(MessageError::InsufficientGasForDelayedSending.into());
@@ -640,12 +625,12 @@ impl Ext {
 
     fn charge_for_dispatch_stash_hold(&mut self, delay: u32) -> Result<(), FallibleExtError> {
         if delay != 0 {
-            // Take delay and get cost of block.
-            // reserve = wait_cost * (delay + reserve_for).
-            let cost_per_block = self.context.dispatch_hold_cost;
-            let waiting_reserve = (self.context.reserve_for as u64)
-                .saturating_add(delay as u64)
-                .saturating_mul(cost_per_block);
+            let waiting_reserve = self
+                .context
+                .costs
+                .rent
+                .dispatch_stash
+                .cost_for(self.context.reserve_for.saturating_add(delay).into());
 
             // Reduce gas for block waiting in dispatch stash.
             if self.context.gas_counter.reduce(waiting_reserve) != ChargeResult::Enough {
@@ -675,10 +660,10 @@ impl Ext {
 }
 
 impl CountersOwner for Ext {
-    fn charge_gas_runtime(&mut self, cost: RuntimeCosts) -> Result<(), ChargeError> {
-        let token = cost.token(&self.context.host_fn_weights);
-        let common_charge = self.context.gas_counter.charge(token);
-        let allowance_charge = self.context.gas_allowance_counter.charge(token);
+    fn charge_gas_for_token(&mut self, token: CostToken) -> Result<(), ChargeError> {
+        let amount = self.context.costs.syscalls.cost_for_token(token);
+        let common_charge = self.context.gas_counter.charge(amount);
+        let allowance_charge = self.context.gas_allowance_counter.charge(amount);
         match (common_charge, allowance_charge) {
             (ChargeResult::NotEnough, _) => Err(ChargeError::GasLimitExceeded),
             (ChargeResult::Enough, ChargeResult::NotEnough) => {
@@ -686,11 +671,6 @@ impl CountersOwner for Ext {
             }
             (ChargeResult::Enough, ChargeResult::Enough) => Ok(()),
         }
-    }
-
-    fn charge_gas_runtime_if_enough(&mut self, cost: RuntimeCosts) -> Result<(), ChargeError> {
-        let amount = cost.token(&self.context.host_fn_weights).weight();
-        self.charge_gas_if_enough(amount)
     }
 
     fn charge_gas_if_enough(&mut self, amount: u64) -> Result<(), ChargeError> {
@@ -769,13 +749,16 @@ impl Externalities for Ext {
     ) -> Result<WasmPage, Self::AllocError> {
         let pages = WasmPage::new(pages_num).map_err(|_| AllocError::ProgramAllocOutOfBounds)?;
 
+        // Charge for pages amount
+        self.charge_gas_if_enough(self.context.costs.syscalls.alloc_per_page.cost_for(pages))?;
+
         self.context
             .allocations_context
             .alloc::<LazyGrowHandler>(pages, mem, |pages| {
                 Ext::charge_gas_if_enough(
                     &mut self.context.gas_counter,
                     &mut self.context.gas_allowance_counter,
-                    self.context.page_costs.mem_grow.calc(pages),
+                    self.context.costs.mem_grow.cost_for(pages),
                 )
             })
             .map_err(Into::into)
@@ -797,13 +780,18 @@ impl Externalities for Ext {
             )))?
             .into();
 
+        // TODO: use numerated::Interval #3830
+        let pages_amount = WasmPage::new(page_count)
+            .map_err(|_| AllocError::InvalidFreeRange(start.raw(), end.raw()))?;
+
         Ext::charge_gas_if_enough(
             &mut self.context.gas_counter,
             &mut self.context.gas_allowance_counter,
             self.context
-                .host_fn_weights
+                .costs
+                .syscalls
                 .free_range_per_page
-                .saturating_mul(page_count as u64),
+                .cost_for(pages_amount),
         )?;
 
         self.context
@@ -849,7 +837,13 @@ impl Externalities for Ext {
         len: u32,
     ) -> Result<(), Self::FallibleError> {
         let range = self.context.message_context.check_input_range(offset, len);
-        self.charge_gas_runtime_if_enough(RuntimeCosts::SendPushInputPerByte(range.len()))?;
+        self.charge_gas_if_enough(
+            self.context
+                .costs
+                .syscalls
+                .gr_send_push_input_per_byte
+                .cost_for(range.len().into()),
+        )?;
 
         self.context
             .message_context
@@ -956,7 +950,13 @@ impl Externalities for Ext {
 
     fn reply_push_input(&mut self, offset: u32, len: u32) -> Result<(), Self::FallibleError> {
         let range = self.context.message_context.check_input_range(offset, len);
-        self.charge_gas_runtime_if_enough(RuntimeCosts::ReplyPushInputPerByte(range.len()))?;
+        self.charge_gas_if_enough(
+            self.context
+                .costs
+                .syscalls
+                .gr_reply_push_input_per_byte
+                .cost_for(range.len().into()),
+        )?;
 
         self.context.message_context.reply_push_input(range)?;
 
@@ -1006,7 +1006,13 @@ impl Externalities for Ext {
         let end = at
             .checked_add(len)
             .ok_or(FallibleExecutionError::TooBigReadLen)?;
-        self.charge_gas_runtime_if_enough(RuntimeCosts::ReadPerByte(len))?;
+        self.charge_gas_if_enough(
+            self.context
+                .costs
+                .syscalls
+                .gr_read_per_byte
+                .cost_for(len.into()),
+        )?;
         PayloadSliceLock::try_new((at, end), &mut self.context.message_context)
             .ok_or_else(|| FallibleExecutionError::ReadWrongRange.into())
     }
@@ -1034,8 +1040,13 @@ impl Externalities for Ext {
             return Err(ReservationError::ReservationBelowMailboxThreshold.into());
         }
 
-        let reserve = u64::from(self.context.reserve_for.saturating_add(duration))
-            .saturating_mul(self.context.reservation);
+        let reserve = self
+            .context
+            .costs
+            .rent
+            .reservation
+            .cost_for(self.context.reserve_for.saturating_add(duration).into());
+
         let reduce_amount = amount.saturating_add(reserve);
         if self.context.gas_counter.reduce(reduce_amount) == ChargeResult::NotEnough {
             return Err(FallibleExecutionError::NotEnoughGas.into());
@@ -1097,8 +1108,12 @@ impl Externalities for Ext {
             return Err(UnrecoverableWaitError::WaitAfterReply.into());
         }
 
-        let reserve = u64::from(self.context.reserve_for.saturating_add(1))
-            .saturating_mul(self.context.waitlist_cost);
+        let reserve = self
+            .context
+            .costs
+            .rent
+            .waitlist
+            .cost_for(self.context.reserve_for.saturating_add(1).into());
 
         if self.context.gas_counter.reduce(reserve) != ChargeResult::Enough {
             return Err(UnrecoverableExecutionError::NotEnoughGas.into());
@@ -1118,8 +1133,12 @@ impl Externalities for Ext {
             return Err(UnrecoverableWaitError::ZeroDuration.into());
         }
 
-        let reserve = u64::from(self.context.reserve_for.saturating_add(duration))
-            .saturating_mul(self.context.waitlist_cost);
+        let reserve = self
+            .context
+            .costs
+            .rent
+            .waitlist
+            .cost_for(self.context.reserve_for.saturating_add(duration).into());
 
         if self.context.gas_counter.reduce(reserve) != ChargeResult::Enough {
             return Err(UnrecoverableExecutionError::NotEnoughGas.into());
@@ -1139,15 +1158,24 @@ impl Externalities for Ext {
             return Err(UnrecoverableWaitError::ZeroDuration.into());
         }
 
-        let reserve = u64::from(self.context.reserve_for.saturating_add(1))
-            .saturating_mul(self.context.waitlist_cost);
+        let reserve = self
+            .context
+            .costs
+            .rent
+            .waitlist
+            .cost_for(self.context.reserve_for.saturating_add(1).into());
 
         if self.context.gas_counter.reduce(reserve) != ChargeResult::Enough {
             return Err(UnrecoverableExecutionError::NotEnoughGas.into());
         }
 
-        let reserve_full = u64::from(self.context.reserve_for.saturating_add(duration))
-            .saturating_mul(self.context.waitlist_cost);
+        let reserve_full = self
+            .context
+            .costs
+            .rent
+            .waitlist
+            .cost_for(self.context.reserve_for.saturating_add(duration).into());
+
         let reserve_diff = reserve_full - reserve;
 
         Ok(self.context.gas_counter.reduce(reserve_diff) == ChargeResult::Enough)
@@ -1219,7 +1247,10 @@ impl Externalities for Ext {
 mod tests {
     use super::*;
     use alloc::vec;
-    use gear_core::message::{ContextSettings, IncomingDispatch, Payload, MAX_PAYLOAD_SIZE};
+    use gear_core::{
+        costs::SyscallCosts,
+        message::{ContextSettings, IncomingDispatch, Payload, MAX_PAYLOAD_SIZE},
+    };
 
     struct MessageContextBuilder {
         incoming_dispatch: IncomingDispatch,
@@ -1256,10 +1287,7 @@ mod tests {
 
     impl ProcessorContextBuilder {
         fn new() -> Self {
-            Self(ProcessorContext {
-                page_costs: PageCosts::new_for_tests(),
-                ..ProcessorContext::new_mock()
-            })
+            Self(ProcessorContext::new_mock())
         }
 
         fn build(self) -> ProcessorContext {
@@ -1284,8 +1312,8 @@ mod tests {
             self
         }
 
-        fn with_weighs(mut self, weights: HostFnWeights) -> Self {
-            self.0.host_fn_weights = weights;
+        fn with_costs(mut self, costs: ExtCosts) -> Self {
+            self.0.costs = costs;
 
             self
         }
@@ -1339,25 +1367,28 @@ mod tests {
     #[test]
     fn test_counter_zeroes() {
         // Set initial Ext state
-        let free_weight = 1000;
-        let host_fn_weights = HostFnWeights {
-            free: free_weight,
+        let free_cost = 1000;
+        let ext_costs = ExtCosts {
+            syscalls: SyscallCosts {
+                free: free_cost.into(),
+                ..Default::default()
+            },
             ..Default::default()
         };
 
-        let initial_gas = free_weight - 1;
-        let initial_allowance = free_weight + 1;
+        let initial_gas = free_cost - 1;
+        let initial_allowance = free_cost + 1;
 
         let mut lack_gas_ext = Ext::new(
             ProcessorContextBuilder::new()
                 .with_gas(GasCounter::new(initial_gas))
                 .with_allowance(GasAllowanceCounter::new(initial_allowance))
-                .with_weighs(host_fn_weights.clone())
+                .with_costs(ext_costs.clone())
                 .build(),
         );
 
         assert_eq!(
-            lack_gas_ext.charge_gas_runtime(RuntimeCosts::Free),
+            lack_gas_ext.charge_gas_for_token(CostToken::Free),
             Err(ChargeError::GasLimitExceeded),
         );
 
@@ -1366,27 +1397,27 @@ mod tests {
         // there was lack of gas
         assert_eq!(0, gas_amount.left());
         assert_eq!(initial_gas, gas_amount.burned());
-        assert_eq!(initial_allowance - free_weight, allowance);
+        assert_eq!(initial_allowance - free_cost, allowance);
 
-        let initial_gas = free_weight;
-        let initial_allowance = free_weight - 1;
+        let initial_gas = free_cost;
+        let initial_allowance = free_cost - 1;
 
         let mut lack_allowance_ext = Ext::new(
             ProcessorContextBuilder::new()
                 .with_gas(GasCounter::new(initial_gas))
                 .with_allowance(GasAllowanceCounter::new(initial_allowance))
-                .with_weighs(host_fn_weights)
+                .with_costs(ext_costs)
                 .build(),
         );
 
         assert_eq!(
-            lack_allowance_ext.charge_gas_runtime(RuntimeCosts::Free),
+            lack_allowance_ext.charge_gas_for_token(CostToken::Free),
             Err(ChargeError::GasAllowanceExceeded),
         );
 
         let gas_amount = lack_allowance_ext.gas_amount();
         let allowance = lack_allowance_ext.context.gas_allowance_counter.left();
-        assert_eq!(initial_gas - free_weight, gas_amount.left());
+        assert_eq!(initial_gas - free_cost, gas_amount.left());
         assert_eq!(initial_gas, gas_amount.burned());
         // there was lack of allowance
         assert_eq!(0, allowance);

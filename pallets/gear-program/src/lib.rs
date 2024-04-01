@@ -164,6 +164,7 @@ pub mod pallet {
         pages::GearPage,
         program::MemoryInfix,
     };
+    use parity_scale_codec::EncodeLike;
     use primitive_types::H256;
     use sp_runtime::DispatchError;
 

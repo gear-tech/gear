@@ -52,7 +52,6 @@ sp-timestamp = { workspace = true, features = ["std"] }
 frame-system = { workspace = true, features = ["std"] }
 frame-benchmarking = { workspace = true, optional = true, features = ["std"] }
 frame-benchmarking-cli = { workspace = true, optional = true }
-try-runtime-cli = { workspace = true, optional = true }
 
 # Program CLI
 gcli = { workspace = true, optional = true }
@@ -76,10 +75,5 @@ runtime-benchmarks = [
 runtime-benchmarks-checkers = [
 	"vara-runtime?/runtime-benchmarks",
 	"service/runtime-benchmarks-checkers",
-]
-try-runtime = [
-	"vara-runtime?/try-runtime",
-	"service/try-runtime",
-	"try-runtime-cli/try-runtime",
 ]
 cli = [ "gcli" ]

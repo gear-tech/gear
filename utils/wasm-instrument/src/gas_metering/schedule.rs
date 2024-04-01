@@ -24,7 +24,7 @@
 pub struct Schedule {
     pub limits: Limits,
     pub instruction_weights: InstructionWeights,
-    pub host_fn_weights: HostFnWeights,
+    pub syscall_weights: SyscallWeights,
     pub memory_weights: MemoryWeights,
     pub module_instantiation_per_byte: Weight,
     pub db_write_per_byte: Weight,
@@ -38,7 +38,7 @@ impl Default for Schedule {
         Self {
             limits: Limits::default(),
             instruction_weights: InstructionWeights::default(),
-            host_fn_weights: HostFnWeights::default(),
+            syscall_weights: SyscallWeights::default(),
             memory_weights: MemoryWeights::default(),
             module_instantiation_per_byte: Weight {
                 ref_time: 2957,
@@ -282,7 +282,7 @@ impl Default for InstructionWeights {
     }
 }
 
-pub struct HostFnWeights {
+pub struct SyscallWeights {
     pub alloc: Weight,
     pub alloc_per_page: Weight,
     pub free: Weight,
@@ -356,7 +356,7 @@ pub struct HostFnWeights {
     pub gr_create_program_wgas_salt_per_byte: Weight,
 }
 
-impl Default for HostFnWeights {
+impl Default for SyscallWeights {
     fn default() -> Self {
         Self {
             alloc: Weight {
