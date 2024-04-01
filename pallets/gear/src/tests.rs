@@ -38,8 +38,6 @@ use common::{
 use core_processor::common::ActorExecutionErrorReplyReason;
 use frame_support::{
     assert_noop, assert_ok,
-    codec::{Decode, Encode},
-    dispatch::Dispatchable,
     sp_runtime::traits::{TypedGet, Zero},
     traits::{Currency, Randomness},
 };
@@ -61,7 +59,8 @@ use gear_wasm_instrument::{gas_metering::CustomConstantCostRules, STACK_END_EXPO
 use gstd::{collections::BTreeMap, errors::Error as GstdError};
 use pallet_gear_voucher::PrepaidCall;
 use sp_runtime::{
-    traits::{One, UniqueSaturatedInto},
+    codec::{Decode, Encode},
+    traits::{Dispatchable, One, UniqueSaturatedInto},
     SaturatedConversion,
 };
 use sp_std::convert::TryFrom;
@@ -6284,13 +6283,35 @@ fn terminated_locking_funds() {
         let code_id = get_last_code_id();
         let code = <Test as Config>::CodeStorage::get_code(code_id)
             .expect("code should be in the storage");
-        let code_length = code.code().len();
-        let read_cost = DbWeightOf::<Test>::get().reads(1).ref_time();
-        let module_instantiation =
-            schedule.module_instantiation_per_byte.ref_time() * code_length as u64;
+        let code_length = code.code().len() as u64;
         let system_reservation = demo_init_fail_sender::system_reserve();
         let reply_duration = demo_init_fail_sender::reply_duration();
+
+        let read_cost = DbWeightOf::<Test>::get().reads(1).ref_time();
+        let gas_for_module_instantiation = schedule
+            .module_instantiation_per_byte
+            .ref_time()
+            .saturating_mul(code_length);
         let gas_for_code_len = read_cost;
+        let gas_for_program = read_cost;
+        let gas_for_code = schedule
+            .db_read_per_byte
+            .ref_time()
+            .saturating_mul(code_length)
+            .saturating_add(read_cost);
+        let gas_for_static_pages = schedule
+            .memory_weights
+            .static_page
+            .ref_time()
+            .saturating_mul(code.static_pages().raw() as u64);
+
+        // Additional gas for loading resources on next wake up.
+        // Must be exactly equal to gas, which we must pre-charge for program execution.
+        let gas_for_second_init_execution = gas_for_program
+            + gas_for_code_len
+            + gas_for_code
+            + gas_for_module_instantiation
+            + gas_for_static_pages;
 
         // Value which must be returned to `USER1` after init message processing complete.
         let prog_free = 4000u128;
@@ -6307,24 +6328,6 @@ fn terminated_locking_funds() {
 
         // Value, which will be returned to `USER1` after init message processing complete.
         let returned_from_system_reservation = gas_price(system_reservation);
-
-        // Additional gas for loading resources on next wake up.
-        // Must be exactly equal to gas, which we must pre-charge for program execution.
-        let gas_for_second_init_execution = core_processor::calculate_gas_for_program(read_cost, 0)
-            + gas_for_code_len
-            + core_processor::calculate_gas_for_code(
-                read_cost,
-                <Test as Config>::Schedule::get()
-                    .db_read_per_byte
-                    .ref_time(),
-                code_length as u64,
-            )
-            + module_instantiation
-            + <Test as Config>::Schedule::get()
-                .memory_weights
-                .static_page
-                .ref_time()
-                * code.static_pages().raw() as u64;
 
         // Because we set gas for init message second execution only for resources loading, then
         // after execution system reserved gas and sended value and price for wait list must be returned
@@ -7468,16 +7471,20 @@ fn gas_spent_precalculated() {
             <Test as Config>::CodeStorage::get_code(code_id).unwrap()
         };
 
-        let get_program_code_len = |pid| get_program_code(pid).code().len() as u64;
-
         let get_gas_charged_for_code = |pid| {
             let schedule = <Test as Config>::Schedule::get();
-            let per_byte_cost = schedule.db_read_per_byte.ref_time();
-            let module_instantiation_per_byte = schedule.module_instantiation_per_byte.ref_time();
             let read_cost = DbWeightOf::<Test>::get().reads(1).ref_time();
-            let code_len = get_program_code_len(pid);
-            core_processor::calculate_gas_for_code(read_cost, per_byte_cost, code_len)
-                + module_instantiation_per_byte * code_len
+            let code_len = get_program_code(pid).code().len() as u64;
+            let gas_for_code_read = schedule
+                .db_read_per_byte
+                .ref_time()
+                .saturating_mul(code_len)
+                .saturating_add(read_cost);
+            let gas_for_code_instantiation = schedule
+                .module_instantiation_per_byte
+                .ref_time()
+                .saturating_mul(code_len);
+            gas_for_code_read + gas_for_code_instantiation
         };
 
         let instrumented_code = get_program_code(pid);
@@ -7539,7 +7546,7 @@ fn gas_spent_precalculated() {
             let read_cost = DbWeightOf::<Test>::get().reads(1).ref_time();
             execution_cost
                 // cost for loading program
-                + core_processor::calculate_gas_for_program(read_cost, 0)
+                + read_cost
                 // cost for loading code length
                 + read_cost
                 // cost for code loading and instantiation
@@ -9655,12 +9662,7 @@ fn missing_functions_are_not_executed() {
         )
         .expect("calculate_gas_info failed");
 
-        let program_cost = core_processor::calculate_gas_for_program(
-            DbWeightOf::<Test>::get().reads(1).ref_time(),
-            <Test as Config>::Schedule::get()
-                .db_read_per_byte
-                .ref_time(),
-        );
+        let program_cost = DbWeightOf::<Test>::get().reads(1).ref_time();
         // there is no execution so the values should be equal
         assert_eq!(min_limit, program_cost);
 
@@ -10403,17 +10405,11 @@ fn signal_during_prepare() {
 
         run_to_block(2, None);
 
-        let read_cost = DbWeightOf::<Test>::get().reads(1).ref_time();
-        let schedule = <Test as Config>::Schedule::get();
-        let program_gas = core_processor::calculate_gas_for_program(
-            read_cost,
-            schedule.db_read_per_byte.ref_time(),
-        );
-
+        let gas_for_program_read = DbWeightOf::<Test>::get().reads(1).ref_time();
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
             pid,
-            HandleAction::WaitWithReserveAmountAndPanic(program_gas).encode(),
+            HandleAction::WaitWithReserveAmountAndPanic(gas_for_program_read).encode(),
             10_000_000_000,
             0,
             false,
@@ -14858,7 +14854,6 @@ mod utils {
     use core_processor::common::ActorExecutionErrorReplyReason;
     use demo_constructor::{Scheme, WASM_BINARY as DEMO_CONSTRUCTOR_WASM_BINARY};
     use frame_support::{
-        codec::Decode,
         dispatch::{DispatchErrorWithPostInfo, DispatchResultWithPostInfo},
         traits::tokens::{currency::Currency, Balance},
     };
@@ -14872,7 +14867,7 @@ mod utils {
     use pallet_gear_voucher::VoucherId;
     use parity_scale_codec::Encode;
     use sp_core::H256;
-    use sp_runtime::traits::UniqueSaturatedInto;
+    use sp_runtime::{codec::Decode, traits::UniqueSaturatedInto};
     use sp_std::{convert::TryFrom, fmt::Debug};
 
     pub(super) const DEFAULT_GAS_LIMIT: u64 = 200_000_000;

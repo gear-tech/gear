@@ -108,7 +108,7 @@ fn validate_memory_params(
 }
 
 /// Execute wasm with dispatch and return dispatch result.
-pub fn execute_wasm<Ext>(
+pub(crate) fn execute_wasm<Ext>(
     balance: u128,
     dispatch: IncomingDispatch,
     context: WasmExecutionContext,
@@ -189,23 +189,16 @@ where
         message_context,
         block_info: settings.block_info,
         performance_multiplier: settings.performance_multiplier,
-        max_pages: settings.max_pages,
-        page_costs: settings.page_costs,
-        existential_deposit: settings.existential_deposit,
         program_id,
         program_candidates_data: Default::default(),
-        host_fn_weights: settings.host_fn_weights,
         forbidden_funcs: settings.forbidden_funcs,
-        mailbox_threshold: settings.mailbox_threshold,
-        waitlist_cost: settings.waitlist_cost,
-        dispatch_hold_cost: settings.dispatch_hold_cost,
         reserve_for: settings.reserve_for,
-        reservation: settings.reservation,
         random_data: settings.random_data,
         gas_multiplier: settings.gas_multiplier,
+        existential_deposit: settings.existential_deposit,
+        mailbox_threshold: settings.mailbox_threshold,
+        costs: settings.ext_costs,
     };
-
-    let lazy_pages_weights = context.page_costs.lazy_pages_weights();
 
     // Creating externalities.
     let ext = Ext::new(context);
@@ -226,7 +219,7 @@ where
                 program.memory_infix(),
                 program.stack_end(),
                 globals_config,
-                lazy_pages_weights,
+                settings.lazy_pages_costs,
             )
         })
     };
@@ -378,24 +371,17 @@ where
         message_context,
         block_info,
         performance_multiplier: gsys::Percent::new(100),
-        max_pages: 512.into(),
-        page_costs: Default::default(),
-        existential_deposit: Default::default(),
         program_id: program.id(),
         program_candidates_data: Default::default(),
-        host_fn_weights: Default::default(),
         forbidden_funcs: Default::default(),
-        mailbox_threshold: Default::default(),
-        waitlist_cost: Default::default(),
-        dispatch_hold_cost: Default::default(),
         reserve_for: Default::default(),
-        reservation: Default::default(),
         random_data: Default::default(),
         system_reservation: Default::default(),
         gas_multiplier: gsys::GasMultiplier::from_value_per_gas(1),
+        existential_deposit: Default::default(),
+        mailbox_threshold: Default::default(),
+        costs: Default::default(),
     };
-
-    let lazy_pages_weights = context.page_costs.lazy_pages_weights();
 
     // Creating externalities.
     let ext = Ext::new(context);
@@ -416,7 +402,7 @@ where
                 program.memory_infix(),
                 program.stack_end(),
                 globals_config,
-                lazy_pages_weights,
+                Default::default(),
             )
         })
     };

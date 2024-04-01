@@ -47,7 +47,7 @@ pub use crate::{
     builtin::{BuiltinDispatcher, BuiltinDispatcherFactory, HandleFn},
     manager::{ExtManager, HandleKind},
     pallet::*,
-    schedule::{HostFnWeights, InstructionWeights, Limits, MemoryWeights, Schedule},
+    schedule::{InstructionWeights, Limits, MemoryWeights, Schedule, SyscallWeights},
 };
 pub use gear_core::{gas::GasInfo, message::ReplyInfo};
 pub use weights::WeightInfo;
@@ -68,7 +68,7 @@ use core_processor::{
     Ext,
 };
 use frame_support::{
-    dispatch::{DispatchError, DispatchResultWithPostInfo, PostDispatchInfo},
+    dispatch::{DispatchResultWithPostInfo, PostDispatchInfo},
     ensure,
     pallet_prelude::*,
     traits::{ConstBool, Currency, ExistenceRequirement, Get, Randomness, StorageVersion},
@@ -89,7 +89,7 @@ use pallet_gear_voucher::{PrepaidCall, PrepaidCallsDispatcher, VoucherId, Weight
 use primitive_types::H256;
 use sp_runtime::{
     traits::{Bounded, One, Saturating, UniqueSaturatedInto, Zero},
-    SaturatedConversion,
+    DispatchError, SaturatedConversion,
 };
 use sp_std::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
@@ -1054,34 +1054,21 @@ pub mod pallet {
                 timestamp: <pallet_timestamp::Pallet<T>>::get().unique_saturated_into(),
             };
 
-            let existential_deposit = CurrencyOf::<T>::minimum_balance().unique_saturated_into();
-
             let schedule = T::Schedule::get();
 
             BlockConfig {
                 block_info,
                 performance_multiplier: T::PerformanceMultiplier::get().into(),
+                forbidden_funcs: Default::default(),
+                reserve_for: CostsPerBlockOf::<T>::reserve_for().unique_saturated_into(),
+                gas_multiplier: <T as pallet_gear_bank::Config>::GasMultiplier::get().into(),
+                costs: schedule.process_costs(),
+                existential_deposit: CurrencyOf::<T>::minimum_balance().unique_saturated_into(),
+                mailbox_threshold: T::MailboxThreshold::get(),
+                max_reservations: T::ReservationsLimit::get(),
                 max_pages: schedule.limits.memory_pages.into(),
-                page_costs: schedule.memory_weights.clone().into(),
-                existential_deposit,
                 outgoing_limit: T::OutgoingLimit::get(),
                 outgoing_bytes_limit: T::OutgoingBytesLimit::get(),
-                host_fn_weights: schedule.host_fn_weights.into_core(),
-                forbidden_funcs: Default::default(),
-                mailbox_threshold: T::MailboxThreshold::get(),
-                waitlist_cost: CostsPerBlockOf::<T>::waitlist(),
-                dispatch_hold_cost: CostsPerBlockOf::<T>::dispatch_stash(),
-                reserve_for: CostsPerBlockOf::<T>::reserve_for().unique_saturated_into(),
-                reservation: CostsPerBlockOf::<T>::reservation().unique_saturated_into(),
-                read_cost: DbWeightOf::<T>::get().reads(1).ref_time(),
-                write_cost: DbWeightOf::<T>::get().writes(1).ref_time(),
-                write_per_byte_cost: schedule.db_write_per_byte.ref_time(),
-                read_per_byte_cost: schedule.db_read_per_byte.ref_time(),
-                module_instantiation_byte_cost: schedule.module_instantiation_per_byte.ref_time(),
-                max_reservations: T::ReservationsLimit::get(),
-                code_instrumentation_cost: schedule.code_instrumentation_cost.ref_time(),
-                code_instrumentation_byte_cost: schedule.code_instrumentation_byte_cost.ref_time(),
-                gas_multiplier: <T as pallet_gear_bank::Config>::GasMultiplier::get().into(),
             }
         }
 

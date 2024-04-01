@@ -137,10 +137,19 @@ jobs:
 
       - name: "Test: Try runtime migrations"
         run: |
-          cargo build -p gear-cli --features try-runtime --locked ${{ matrix.profile_flags }}
-          ./target/${{ matrix.profile }}/gear try-runtime --runtime ./target/${{ matrix.profile }}/wbuild/vara-runtime/vara_runtime.wasm on-runtime-upgrade --checks live --uri ws://rpc-private.vara-network.io:9944
+          export RUST_LOG=remote-ext=debug,runtime=debug
+
+          echo "---------- Downloading try-runtime CLI ----------"
+          curl -sL https://github.com/paritytech/try-runtime-cli/releases/download/v0.5.4/try-runtime-x86_64-unknown-linux-musl -o try-runtime
+          chmod +x ./try-runtime
+
+          echo "---------- Building vara runtime ----------"
+          time cargo build -p vara-runtime -F std,try-runtime --locked ${{ matrix.profile_flags }}
+          echo "---------- Executing on-runtime-upgrade for Vara ----------"
+          time ./try-runtime --runtime ./target/${{ matrix.profile }}/wbuild/vara-runtime/vara_runtime.wasm on-runtime-upgrade --checks=all live --uri ws://rpc-private.vara-network.io:9944
+          sleep 5
         env:
-          RUST_LOG: info
+          RUST_LOG: info,remote-ext=debug,runtime=debug
 
       - name: "Build: Production binaries"
         if: ${{ inputs.production && matrix.profile == 'release' }}
@@ -150,9 +159,7 @@ jobs:
         if: ${{ inputs.production && matrix.profile == 'release' }}
         run: |
           mkdir -p artifact
-          cd target/wasm32-unknown-unknown/release
-          tar czvf ../../../artifact/examples.tar.gz *.wasm
-          cd ../../..
+          tar czvf artifact/examples.tar.gz target/wasm32-unknown-unknown/release/*.wasm
           cp target/production/wbuild/vara-runtime/vara_runtime.compact.compressed.wasm artifact/
           cp target/production/wbuild/vara-runtime/vara_runtime.compact.wasm artifact/
           cp target/production/wbuild/vara-runtime/vara_runtime.wasm artifact/

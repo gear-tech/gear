@@ -43,7 +43,7 @@ use sc_transaction_pool::{BasicPool, FullPool};
 use sc_transaction_pool_api::{
     ChainEvent, MaintainedTransactionPool, TransactionPool, TransactionSource,
 };
-use sp_api::{ApiExt, Core, ProvideRuntimeApi, StateBackend};
+use sp_api::{ApiExt, Core, ProvideRuntimeApi};
 use sp_blockchain::HeaderBackend;
 use sp_consensus::{BlockOrigin, Environment, Proposer};
 use sp_consensus_babe::{
@@ -56,6 +56,7 @@ use sp_runtime::{
     traits::{Block as BlockT, Header as HeaderT, NumberFor},
     Digest, DigestItem, OpaqueExtrinsic, Perbill, Percent,
 };
+use sp_state_machine::Backend;
 use sp_timestamp::Timestamp;
 use std::{
     ops::Deref,
@@ -73,11 +74,7 @@ use vara_runtime::{
     AccountId, Runtime, RuntimeApi as RA, RuntimeCall, UncheckedExtrinsic, SLOT_DURATION, VERSION,
 };
 
-type TestProposal = sp_consensus::Proposal<
-    TestBlock,
-    sc_client_api::backend::TransactionFor<TestBackend, TestBlock>,
-    (),
->;
+type TestProposal = sp_consensus::Proposal<TestBlock, ()>;
 
 fn get_executor() -> &'static RwLock<ExecutorDispatch> {
     static EXECUTOR: OnceLock<RwLock<ExecutorDispatch>> = OnceLock::new();
