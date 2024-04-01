@@ -16,9 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use cargo_gbuild::GBuild;
-use gclient::{GearApi, WSAddress};
+use gclient::{EventProcessor, GearApi};
 use std::path::PathBuf;
 
 #[tokio::test]
@@ -33,20 +33,26 @@ async fn compile_program() -> Result<()> {
     }
     .collect()?;
 
-    // Upload the program to the chain
-    // let node = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../target/release/gear");
-    // let api = GearApi::dev_from_path(node).await?;
-    let api = GearApi::init(WSAddress::dev()).await?;
-    let (mid, pid, _) = api
-        .upload_program_by_path(artifact.program, b"", b"PING", 200_000_000, 0)
+    // Set up testing environment.
+    let node = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../target/release/gear");
+    let api = GearApi::dev_from_path(&node)
+        .await
+        .map_err(|e| anyhow!("{e}, node path: {node:?}"))?;
+
+    // Upload program to the node.
+    let mut listener = api.subscribe().await?;
+    let (init_mid, pid, _hash) = api
+        .upload_program_by_path(artifact.program, b"", b"PING", 2_000_000_000, 0)
         .await?;
 
-    // TODO: Verify that the program is active
-    // and the sender has already received a PONG.
-    let mut listener = api.subscribe().await?;
-    listener.next_block_hash().await?;
-    let messages = api.get_mailbox_message(mid).await?;
-    println!("{:?}", messages);
+    // 1. verify the reply from the init logic.
+    let (_mid, payload, _value) = listener.reply_bytes_on(init_mid).await?;
+    assert_eq!(payload.map_err(|e| anyhow!(e))?, b"PONG");
+
+    // 2. verify the reply from the handle logic.
+    let (handle_mid, _hash) = api.send_message(pid, b"PING", 2_000_000_000, 0).await?;
+    let (_mid, payload, _value) = listener.reply_bytes_on(handle_mid).await?;
+    assert_eq!(payload.map_err(|e| anyhow!(e))?, b"PONG");
 
     Ok(())
 }
