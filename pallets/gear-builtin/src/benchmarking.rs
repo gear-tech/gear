@@ -336,19 +336,19 @@ benchmarks! {
     }
 
     plonky2_decode {
-        let i in 1..100;
-        let n in 10..28;
-
+        let public_input_count = 100;
+        let n = 28;
         let proof_of_work_bits = 16;
 
-        let file_name = ::alloc::format!("{}{i}_{n}_{proof_of_work_bits}_common_curcuit_data", plonky2_benchmarks_data::get_path());
+        let file_name = ::alloc::format!("{}{public_input_count}_{n}_{proof_of_work_bits}_common_curcuit_data", plonky2_benchmarks_data::get_path());
         let common_curcuit_data = gear_runtime_interface::gear_debug::file_read(&file_name);
 
-        let file_name = ::alloc::format!("{}{i}_{n}_{proof_of_work_bits}_proof", plonky2_benchmarks_data::get_path());
+        let file_name = ::alloc::format!("{}{public_input_count}_{n}_{proof_of_work_bits}_proof", plonky2_benchmarks_data::get_path());
         let proof = gear_runtime_interface::gear_debug::file_read(&file_name);
         let mut _result = Err(());
     } : {
-        _result = gear_runtime_interface::specific_plonky_2::decode(common_curcuit_data, proof);
+        // intentionally cloned to benchmark as well
+        _result = gear_runtime_interface::specific_plonky_2::decode(common_curcuit_data.clone(), proof.clone());
     }
     verify {
         assert!(_result.is_ok());

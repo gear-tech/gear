@@ -35,6 +35,7 @@ extern crate alloc;
 pub mod benchmarking;
 
 pub mod bls12_381;
+pub mod plonky2;
 pub mod weights;
 
 #[cfg(test)]

@@ -37,7 +37,7 @@ sp-crypto-ec-utils = { workspace = true, features = ["bls12-381"] }
 sp-std.workspace = true
 sp-runtime = { workspace = true, features = ["serde"] }
 pallet-gear.workspace = true
-gear-runtime-interface = { workspace = true, optional = true }
+gear-runtime-interface = { workspace = true }
 plonky2-benchmarks-data = { version = "0.1.0", optional = true, registry = "gear-registry" }
 
 [dev-dependencies]
@@ -91,7 +91,6 @@ runtime-benchmarks = [
 	"ark-ec",
 	"ark-ff",
 	"ark-std",
-	"gear-runtime-interface",
 	"plonky2-benchmarks-data",
 ]
 try-runtime = ["frame-support/try-runtime"]

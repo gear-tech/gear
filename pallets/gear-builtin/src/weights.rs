@@ -58,6 +58,9 @@ pub trait WeightInfo {
 	fn bls12_381_msm_g2(c: u32, ) -> Weight;
 	fn bls12_381_mul_projective_g1(c: u32, ) -> Weight;
 	fn bls12_381_mul_projective_g2(c: u32, ) -> Weight;
+    fn plonky2_verify(i: u32, n: u32, ) -> Weight;
+    fn plonky2_decode() -> Weight;
+    fn decode_benchmark_data() -> Weight;
 }
 
 /// Weights for `pallet_gear_builtin` using a Gear node and recommended hardware.
@@ -146,6 +149,33 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 			// Standard Error: 286_785
 			.saturating_add(Weight::from_parts(114_799_709, 0).saturating_mul(c.into()))
 	}
+    /// The range of component `i` is `[10, 109]`.
+    /// The range of component `n` is `[10, 28]`.
+    fn plonky2_verify(i: u32, n: u32, ) -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `0`
+        //  Estimated: `0`
+        // Minimum execution time: 1_176_476_000 picoseconds.
+        Weight::from_parts(177_338_457, 0)
+            // Standard Error: 1_145_534
+            .saturating_add(Weight::from_parts(733_083, 0).saturating_mul(i.into()))
+            // Standard Error: 6_257_029
+            .saturating_add(Weight::from_parts(94_510_545, 0).saturating_mul(n.into()))
+    }
+    fn plonky2_decode() -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `0`
+        //  Estimated: `0`
+        // Minimum execution time: 58_962_000 picoseconds.
+        Weight::from_parts(60_514_000, 0)
+    }
+    fn decode_benchmark_data() -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `0`
+        //  Estimated: `0`
+        // Minimum execution time: 561_000 picoseconds.
+        Weight::from_parts(3_777_000, 0)
+    }
 }
 
 impl WeightInfo for () {
@@ -232,4 +262,31 @@ impl WeightInfo for () {
 			// Standard Error: 286_785
 			.saturating_add(Weight::from_parts(114_799_709, 0).saturating_mul(c.into()))
 	}
+    /// The range of component `i` is `[10, 109]`.
+    /// The range of component `n` is `[10, 28]`.
+    fn plonky2_verify(i: u32, n: u32, ) -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `0`
+        //  Estimated: `0`
+        // Minimum execution time: 1_176_476_000 picoseconds.
+        Weight::from_parts(177_338_457, 0)
+            // Standard Error: 1_145_534
+            .saturating_add(Weight::from_parts(733_083, 0).saturating_mul(i.into()))
+            // Standard Error: 6_257_029
+            .saturating_add(Weight::from_parts(94_510_545, 0).saturating_mul(n.into()))
+    }
+    fn plonky2_decode() -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `0`
+        //  Estimated: `0`
+        // Minimum execution time: 58_962_000 picoseconds.
+        Weight::from_parts(60_514_000, 0)
+    }
+    fn decode_benchmark_data() -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `0`
+        //  Estimated: `0`
+        // Minimum execution time: 561_000 picoseconds.
+        Weight::from_parts(3_777_000, 0)
+    }
 }

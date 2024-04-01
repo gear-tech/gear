@@ -220,7 +220,6 @@ pub trait WeightInfo {
     fn tasks_wake_message_no_wake() -> Weight;
     fn tasks_remove_from_waitlist() -> Weight;
     fn tasks_remove_from_mailbox() -> Weight;
-    fn plonky2_verify(i: u32, n: u32, ) -> Weight;
     fn instr_i64const(r: u32, ) -> Weight;
 }
 
@@ -2085,17 +2084,6 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
             .saturating_add(T::DbWeight::get().reads(14_u64))
             .saturating_add(T::DbWeight::get().writes(13_u64))
     }
-    /// The range of component `i` is `[1, 100]`.
-    /// The range of component `n` is `[10, 28]`.
-    fn plonky2_verify(_i: u32, n: u32, ) -> Weight {
-        // Proof Size summary in bytes:
-        //  Measured:  `0`
-        //  Estimated: `0`
-        // Minimum execution time: 1_197_435_000 picoseconds.
-        Weight::from_parts(662_883_053, 0)
-            // Standard Error: 16_899_753
-            .saturating_add(Weight::from_parts(104_663_638, 0).saturating_mul(n.into()))
-    }
 }
 
 // For backwards compatibility and tests
@@ -3957,16 +3945,5 @@ impl WeightInfo for () {
         Weight::from_parts(114_706_000, 7234)
             .saturating_add(RocksDbWeight::get().reads(14_u64))
             .saturating_add(RocksDbWeight::get().writes(13_u64))
-    }
-    /// The range of component `i` is `[1, 100]`.
-    /// The range of component `n` is `[10, 28]`.
-    fn plonky2_verify(_i: u32, n: u32, ) -> Weight {
-        // Proof Size summary in bytes:
-        //  Measured:  `0`
-        //  Estimated: `0`
-        // Minimum execution time: 1_197_435_000 picoseconds.
-        Weight::from_parts(662_883_053, 0)
-            // Standard Error: 16_899_753
-            .saturating_add(Weight::from_parts(104_663_638, 0).saturating_mul(n.into()))
     }
 }
