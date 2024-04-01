@@ -20,7 +20,7 @@ sp-std.workspace = true
 sp-wasm-interface.workspace = true
 
 byteorder.workspace = true
-codec = { workspace = true }
+codec = { workspace = true, features = ["derive"] }
 log = { workspace = true, optional = true }
 
 plonky2 = { git = "https://github.com/0xPolygonZero/plonky2.git", rev = "1a08e783da3d3cedcc7ae3dc9c06e018ab90da71", optional = true }

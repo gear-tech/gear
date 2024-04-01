@@ -311,6 +311,78 @@ benchmarks! {
         let standard = <ark_bls12_381::g2::Config as SWCurveConfig>::mul_projective(&base, &bigint);
         assert_eq!(standard, result.0);
     }
+
+    plonky2_verify {
+        let i in 10..109;
+        let n in 10..28;
+
+        let proof_of_work_bits = 16;
+        let i = i - 9;
+
+        let file_name = ::alloc::format!("{}{i}_{n}_{proof_of_work_bits}_common_curcuit_data", plonky2_benchmarks_data::get_path());
+        let common_curcuit_data = gear_runtime_interface::gear_debug::file_read(&file_name);
+
+        let file_name = ::alloc::format!("{}{i}_{n}_{proof_of_work_bits}_verifier_only_data", plonky2_benchmarks_data::get_path());
+        let verifier_only_data = gear_runtime_interface::gear_debug::file_read(&file_name);
+
+        let file_name = ::alloc::format!("{}{i}_{n}_{proof_of_work_bits}_proof", plonky2_benchmarks_data::get_path());
+        let proof = gear_runtime_interface::gear_debug::file_read(&file_name);
+        let mut _result = 0u32;
+    } : {
+        _result = gear_runtime_interface::specific_plonky_2::verify(common_curcuit_data, verifier_only_data, proof);
+    }
+    verify {
+        assert_eq!(_result, u32::from(gear_runtime_interface::Plonky2VerifyResult::Verified));
+    }
+
+    plonky2_decode {
+        let i in 1..100;
+        let n in 10..28;
+
+        let proof_of_work_bits = 16;
+
+        let file_name = ::alloc::format!("{}{i}_{n}_{proof_of_work_bits}_common_curcuit_data", plonky2_benchmarks_data::get_path());
+        let common_curcuit_data = gear_runtime_interface::gear_debug::file_read(&file_name);
+
+        let file_name = ::alloc::format!("{}{i}_{n}_{proof_of_work_bits}_proof", plonky2_benchmarks_data::get_path());
+        let proof = gear_runtime_interface::gear_debug::file_read(&file_name);
+        let mut _result = Err(());
+    } : {
+        _result = gear_runtime_interface::specific_plonky_2::decode(common_curcuit_data, proof);
+    }
+    verify {
+        assert!(_result.is_ok());
+    }
+
+    decode_benchmark_data {
+        let proof_of_work_bits = 16;
+        let public_input_count = 100;
+        let n = 28;
+
+        let file_name = ::alloc::format!("{}{public_input_count}_{n}_{proof_of_work_bits}_common_curcuit_data", plonky2_benchmarks_data::get_path());
+        let common_circuit_data = gear_runtime_interface::gear_debug::file_read(&file_name);
+
+        let file_name = ::alloc::format!("{}{public_input_count}_{n}_{proof_of_work_bits}_proof", plonky2_benchmarks_data::get_path());
+        let proof = gear_runtime_interface::gear_debug::file_read(&file_name);
+        let circuit_config = gear_runtime_interface::specific_plonky_2::decode(common_circuit_data, proof).unwrap();
+        let mut _result = Err("".into());
+    } : {
+        _result = <(gear_runtime_interface::CircuitConfig, u32)>::decode(&mut &circuit_config[..]);
+    }
+    verify {
+        assert!(matches!(_result, Ok(
+            (gear_runtime_interface::CircuitConfig {
+                fri_config: gear_runtime_interface::FriConfig {
+                    rate_bits,
+                    cap_height,
+                    proof_of_work_bits: decoded_proof_of_work_bits,
+                    num_query_rounds,
+                },
+                ..
+            }, decoded_public_input_count)
+        ) if rate_bits == 3 && cap_height == 0 && decoded_proof_of_work_bits == proof_of_work_bits && num_query_rounds == n && { assert_eq!(decoded_public_input_count, public_input_count + 9); true }
+        ));
+    }
 }
 
 impl_benchmark_test_suite!(

@@ -318,8 +318,80 @@ impl From<Plonky2VerifyResult> for u32 {
     }
 }
 
+/// The struct mirrors the one from plonky2.
+#[derive(Debug, Clone, Eq, PartialEq, Decode, Encode)]
+#[codec(crate = codec)]
+pub struct FriConfig {
+    pub rate_bits: u32,
+    pub cap_height: u32,
+    pub proof_of_work_bits: u32,
+    pub num_query_rounds: u32,
+}
+
+/// The struct mirrors the one from plonky2.
+#[derive(Clone, Debug, Eq, PartialEq, Decode, Encode)]
+#[codec(crate = codec)]
+pub struct CircuitConfig {
+    pub num_wires: u32,
+    pub num_routed_wires: u32,
+    pub num_constants: u32,
+    pub use_base_arithmetic_gate: bool,
+    pub security_bits: u32,
+    pub num_challenges: u32,
+    pub zero_knowledge: bool,
+    pub max_quotient_degree_factor: u32,
+    pub fri_config: FriConfig,
+}
+
 #[runtime_interface]
 pub trait SpecificPlonky2 {
+    /// Returns encoded (CircuitConfig, public_input_count: u32) on success.
+    fn decode(common_circuit_data: Vec<u8>, proof: Vec<u8>) -> Result<Vec<u8>, ()> {
+        use plonky2::{
+            plonk::{
+                self,
+                config::{GenericConfig, PoseidonGoldilocksConfig},
+            },
+            util::serialization::DefaultGateSerializer,
+        };
+
+        pub const DIMENSION: usize = 2;
+        pub type Config = PoseidonGoldilocksConfig;
+        pub type Field = <Config as GenericConfig<DIMENSION>>::F;
+        pub type CommonCircuitData = plonk::circuit_data::CommonCircuitData<Field, DIMENSION>;
+        pub type ProofWithPublicInputs = plonk::proof::ProofWithPublicInputs<Field, Config, DIMENSION>;
+
+        let Ok(common) = CommonCircuitData::from_bytes(common_circuit_data, &DefaultGateSerializer) else {
+            return Err(());
+        };
+
+        let Ok(proof_with_pis) = ProofWithPublicInputs::from_bytes(proof, &common) else {
+            return Err(());
+        };
+
+        let config = &common.config;
+        Ok(
+            (CircuitConfig {
+                num_wires: config.num_wires as u32,
+                num_routed_wires: config.num_routed_wires as u32,
+                num_constants: config.num_constants as u32,
+                use_base_arithmetic_gate: config.use_base_arithmetic_gate,
+                security_bits: config.security_bits as u32,
+                num_challenges: config.num_challenges as u32,
+                zero_knowledge: config.zero_knowledge,
+                max_quotient_degree_factor: config.max_quotient_degree_factor as u32,
+                fri_config: FriConfig {
+                    rate_bits: config.fri_config.rate_bits as u32,
+                    cap_height: config.fri_config.cap_height as u32,
+                    proof_of_work_bits: config.fri_config.proof_of_work_bits as u32,
+                    num_query_rounds: config.fri_config.num_query_rounds as u32
+                },
+            },
+            proof_with_pis.public_inputs.len() as u32,
+            ).encode()
+        )
+    }
+
     fn verify(
         common_curcuit_data: Vec<u8>,
         verifier_circuit_data: Vec<u8>,
@@ -347,6 +419,7 @@ pub trait SpecificPlonky2 {
 
         if common.config.fri_config.rate_bits != 3
             || common.config.fri_config.proof_of_work_bits != 16
+            || !matches!(common.config.fri_config.reduction_strategy, plonky2::fri::reduction_strategies::FriReductionStrategy::ConstantArityBits(..))
         {
             return Plonky2VerifyResult::ConfigNotSupported.into();
         }
