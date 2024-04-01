@@ -5224,9 +5224,9 @@ name = "gtest"
 version = "1.2.0"
 dependencies = [
  "colored",
+ "demo-constructor",
  "demo-custom",
  "demo-futures-unordered",
- "demo-meta-io",
  "demo-piggy-bank",
  "demo-ping",
  "derive_more",
