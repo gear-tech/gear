@@ -30,20 +30,26 @@ mod mock;
 #[cfg(test)]
 mod tests;
 
+// Module with internal implementation details.
+mod internal;
+
 // Public exports from pallet.
 pub use pallet::*;
 
 // Gear Bridge Pallet module.
 #[frame_support::pallet]
 pub mod pallet {
-    pub use frame_support::weights::Weight;
+    use crate::internal::{EthMessage, EthMessageData, FirstNonce};
+    use binary_merkle_tree as merkle_tree;
+    use common::Origin;
+    use frame_support::{pallet_prelude::*, traits::StorageVersion};
+    use frame_system::pallet_prelude::*;
+    use gear_core::message::PayloadSizeError;
+    use primitive_types::{H160, H256, U256};
 
     pub type Hasher = sp_runtime::traits::Keccak256;
 
-    use binary_merkle_tree as merkle_tree;
-    use frame_support::{pallet_prelude::*, traits::StorageVersion};
-    use frame_system::pallet_prelude::*;
-    use primitive_types::H256;
+    pub use frame_support::weights::Weight;
 
     /// The current storage version.
     pub const BRIDGE_STORAGE_VERSION: StorageVersion = StorageVersion::new(0);
@@ -66,7 +72,7 @@ pub mod pallet {
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
     pub enum Event<T> {
         RootUpdated(H256),
-        MessageQueued(H256),
+        MessageQueued { message: EthMessage, hash: H256 },
     }
 
     // Gear Bridge Pallet error type.
@@ -86,38 +92,80 @@ pub mod pallet {
     #[pallet::storage_version(BRIDGE_STORAGE_VERSION)]
     pub struct Pallet<T>(_);
 
+    // TODO (breathx): extend hash with trailing zeroes.
     #[pallet::storage]
     pub(crate) type QueueMerkleRoot<T> = StorageValue<_, H256>;
 
+    // TODO (breathx): use value query.
     #[pallet::storage]
     pub(crate) type Queue<T> = StorageValue<_, BoundedVec<H256, <T as Config>::QueueLimit>>;
 
     #[pallet::storage]
     pub(crate) type QueueChanged<T> = StorageValue<_, bool, ValueQuery>;
 
+    // TODO (breathx): impl toggler accepting requests.
+
+    #[pallet::storage]
+    pub(crate) type Nonce<T> = StorageValue<_, U256, ValueQuery, FirstNonce>;
+
     #[pallet::call]
-    impl<T: Config> Pallet<T> {
+    impl<T: Config> Pallet<T>
+    where
+        T::AccountId: Origin,
+    {
         /// Queues new hash into hash queue.
         #[pallet::call_index(0)]
         #[pallet::weight(Weight::zero())]
-        pub fn send(origin: OriginFor<T>, hash: H256) -> DispatchResultWithPostInfo {
-            let _who = ensure_signed(origin)?;
+        pub fn send(
+            origin: OriginFor<T>,
+            destination: H160,
+            payload: Vec<u8>,
+        ) -> DispatchResultWithPostInfo {
+            let who = ensure_signed(origin)?;
 
-            Queue::<T>::mutate(|opt| {
+            let payload = payload
+                .try_into()
+                .map_err(|e: PayloadSizeError| DispatchError::Other(e.into()))?;
+
+            let data = EthMessageData::new(destination, payload);
+
+            let nonce = Nonce::<T>::mutate(|v| {
+                let res = *v;
+                *v = v.saturating_add(U256::one());
+                res
+            });
+
+            let source = who.into_origin();
+
+            let message = EthMessage::from_data(source, data, nonce);
+
+            let hash = Queue::<T>::mutate(|opt| {
                 let v = opt.get_or_insert_with(BoundedVec::new);
-                v.try_push(hash).map_err(|_| Error::<T>::QueueLimitExceeded)
+
+                (v.len() < T::QueueLimit::get() as usize)
+                    .then(|| {
+                        let hash = message.hash();
+
+                        // Always `Ok`: check performed above as in inner implementation.
+                        v.try_push(hash).map(|()| hash).ok()
+                    })
+                    .flatten()
+                    .ok_or(Error::<T>::QueueLimitExceeded)
             })?;
 
             QueueChanged::<T>::put(true);
 
-            Self::deposit_event(Event::<T>::MessageQueued(hash));
+            Self::deposit_event(Event::<T>::MessageQueued { message, hash });
 
             Ok(().into())
         }
     }
 
     #[pallet::hooks]
-    impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
+    impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T>
+    where
+        T::AccountId: Origin,
+    {
         fn on_initialize(_n: BlockNumberFor<T>) -> Weight {
             QueueChanged::<T>::kill();
 
