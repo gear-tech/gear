@@ -521,7 +521,7 @@ mod tests {
 
         assert_eq!(
             ctx.alloc::<NoopGrowHandler>(0.into(), &mut mem_wrap, |_| Ok(())),
-            Ok(WasmPage::from(32))
+            Ok(WasmPage::from(16))
         );
 
         // there is a space for 14 more
