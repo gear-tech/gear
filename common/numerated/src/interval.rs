@@ -18,7 +18,10 @@
 
 //! [`Interval`] implementations.
 
-use crate::{numerated::Numerated, numerated::Bound, iterators::IntervalIterator};
+use crate::{
+    iterators::IntervalIterator,
+    numerated::{Bound, Numerated},
+};
 use core::{
     fmt::{self, Debug, Formatter},
     ops::{Range, RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive},

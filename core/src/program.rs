@@ -81,11 +81,6 @@ impl Program {
         }
     }
 
-    /// Get program parts
-    pub fn into_parts(self) -> (ProgramId, InstrumentedCode, BTreeSet<WasmPage>, MemoryInfix) {
-        (self.id, self.code, self.allocations, self.memory_infix)
-    }
-
     /// Reference to [`InstrumentedCode`] of this program.
     pub fn code(&self) -> &InstrumentedCode {
         &self.code

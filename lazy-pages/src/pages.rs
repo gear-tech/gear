@@ -25,6 +25,7 @@ use numerated::{
 };
 use std::{cmp::Ordering, marker::PhantomData, mem, num::NonZeroU32};
 
+/// Size number for dyn-size pages.
 pub trait SizeNumber: Copy + Ord + Eq {
     const SIZE_NO: usize;
 }
@@ -33,22 +34,21 @@ const WASM_SIZE_NO: usize = 0;
 const GEAR_SIZE_NO: usize = 1;
 pub const SIZES_AMOUNT: usize = 2;
 
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Default)]
+/// Size number for wasm pages.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Default)]
 pub struct WasmSizeNo;
 
 impl SizeNumber for WasmSizeNo {
     const SIZE_NO: usize = WASM_SIZE_NO;
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Default)]
+/// Size number for gear pages.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Default)]
 pub struct GearSizeNo;
 
 impl SizeNumber for GearSizeNo {
     const SIZE_NO: usize = GEAR_SIZE_NO;
 }
-
-impl Copy for GearSizeNo {}
-impl Copy for WasmSizeNo {}
 
 /// Context where dynamic size pages store their sizes
 pub trait SizeManager {
@@ -63,7 +63,7 @@ impl SizeManager for u32 {
     }
 }
 
-pub(crate) type PagesAmount<S> = OptionBound<Page<S>>;
+pub type PagesAmount<S> = OptionBound<Page<S>>;
 
 pub trait PagesAmountTrait<S: SizeNumber>: Bound<Page<S>> {
     fn upper<M: SizeManager>(ctx: &M) -> u32 {
@@ -86,7 +86,7 @@ pub trait PagesAmountTrait<S: SizeNumber>: Bound<Page<S>> {
         (raw as usize)
             .checked_mul(Page::<S>::size(ctx) as usize)
             .unwrap_or_else(|| {
-                unreachable!("`self` page size has been changed during execution - it's restricted")
+                unreachable!("changing page size during program execution is restricted")
             })
     }
     fn convert<M: SizeManager, S1: SizeNumber>(self, ctx: &M) -> PagesAmount<S1> {
@@ -179,7 +179,7 @@ impl<S: SizeNumber> Page<S> {
 
 impl<S: SizeNumber> Numerated for Page<S> {
     type Distance = u32;
-    type Bound = OptionBound<Self>;
+    type Bound = PagesAmount<S>;
 
     fn add_if_enclosed_by(self, num: Self::Distance, other: Self) -> Option<Self> {
         self.raw.checked_add(num).and_then(|r| {

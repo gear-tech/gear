@@ -313,7 +313,7 @@ impl AllocationsContext {
         charge_gas_for_grow: impl FnOnce(WasmPagesAmount) -> Result<(), ChargeError>,
     ) -> Result<WasmPage, AllocError> {
         // TODO: Temporary solution to avoid panics, should be removed in #3791.
-        // Presently, this error cannot appear because we have limit 512 pages.
+        // Presently, this error cannot appear because we have limit 512 wasm pages.
         let (Some(end_mem_page), Some(end_static_page)) = (
             mem.size().to_page_number(),
             self.static_pages.to_page_number(),
@@ -340,7 +340,11 @@ impl AllocationsContext {
         let interval = match Interval::with_len(start, u32::from(pages)) {
             Ok(interval) => interval,
             Err(NewWithLenError::OutOfBounds) => return Err(AllocError::ProgramAllocOutOfBounds),
-            Err(NewWithLenError::ZeroLen) => return Ok(start),
+            Err(NewWithLenError::ZeroLen) => {
+                // Returns end of static pages in case `pages` == 0,
+                // in order to support `alloc` legacy behavior.
+                return Ok(end_static_page);
+            }
         };
 
         if interval.end() >= self.max_pages {
@@ -453,40 +457,93 @@ mod tests {
         assert_eq!(ctx.free_range(interval), Ok(()));
     }
 
+    struct TestMemory(WasmPagesAmount);
+
+    impl Memory for TestMemory {
+        type GrowError = ();
+
+        fn grow(&mut self, pages: WasmPagesAmount) -> Result<(), Self::GrowError> {
+            self.0 = self.0.add(pages).ok_or(())?;
+            Ok(())
+        }
+
+        fn size(&self) -> WasmPagesAmount {
+            self.0
+        }
+
+        fn write(&mut self, _offset: u32, _buffer: &[u8]) -> Result<(), MemoryError> {
+            unimplemented!()
+        }
+
+        fn read(&self, _offset: u32, _buffer: &mut [u8]) -> Result<(), MemoryError> {
+            unimplemented!()
+        }
+
+        unsafe fn get_buffer_host_addr_unsafe(&mut self) -> HostPointer {
+            unimplemented!()
+        }
+    }
+
+    #[test]
+    fn alloc() {
+        let _ = env_logger::try_init();
+
+        let mut ctx = AllocationsContext::new(Default::default(), 10.into(), 13.into());
+        let mut mem = TestMemory(0.into());
+        assert_eq!(
+            ctx.alloc::<NoopGrowHandler>(2.into(), &mut mem, |_| Ok(())),
+            Ok(10.into())
+        );
+        assert_eq!(
+            ctx.alloc::<NoopGrowHandler>(1.into(), &mut mem, |_| Ok(())),
+            Ok(12.into())
+        );
+        assert_eq!(
+            ctx.alloc::<NoopGrowHandler>(1.into(), &mut mem, |_| Ok(())),
+            Err(AllocError::ProgramAllocOutOfBounds)
+        );
+        assert_eq!(
+            ctx.alloc::<NoopGrowHandler>(0.into(), &mut mem, |_| Ok(())),
+            Ok(10.into())
+        );
+
+        let mut ctx =
+            AllocationsContext::new([1.into()].into_iter().collect(), 10.into(), 13.into());
+        let mut mem = TestMemory(0.into());
+        assert_eq!(
+            ctx.alloc::<NoopGrowHandler>(1.into(), &mut mem, |_| Ok(())),
+            Err(IncorrectAllocationDataError.into())
+        );
+
+        let mut ctx = AllocationsContext::new(
+            [1.into()].into_iter().collect(),
+            WasmPagesAmount::UPPER,
+            13.into(),
+        );
+        let mut mem = TestMemory(0.into());
+        assert_eq!(
+            ctx.alloc::<NoopGrowHandler>(1.into(), &mut mem, |_| Ok(())),
+            Err(IncorrectAllocationDataError.into())
+        );
+
+        let mut ctx = AllocationsContext::new(
+            [1.into()].into_iter().collect(),
+            10.into(),
+            WasmPagesAmount::UPPER,
+        );
+        let mut mem = TestMemory(0.into());
+        assert_eq!(
+            ctx.alloc::<NoopGrowHandler>(1.into(), &mut mem, |_| Ok(())),
+            Err(IncorrectAllocationDataError.into())
+        );
+    }
+
     mod property_tests {
         use super::*;
-        use crate::memory::HostPointer;
         use proptest::{
             arbitrary::any, collection::size_range, prop_oneof, proptest, strategy::Strategy,
             test_runner::Config as ProptestConfig,
         };
-
-        struct TestMemory(WasmPagesAmount);
-
-        impl Memory for TestMemory {
-            type GrowError = ();
-
-            fn grow(&mut self, pages: WasmPagesAmount) -> Result<(), Self::GrowError> {
-                self.0 = self.0.add(pages).ok_or(())?;
-                Ok(())
-            }
-
-            fn size(&self) -> WasmPagesAmount {
-                self.0
-            }
-
-            fn write(&mut self, _offset: u32, _buffer: &[u8]) -> Result<(), MemoryError> {
-                unimplemented!()
-            }
-
-            fn read(&self, _offset: u32, _buffer: &mut [u8]) -> Result<(), MemoryError> {
-                unimplemented!()
-            }
-
-            unsafe fn get_buffer_host_addr_unsafe(&mut self) -> HostPointer {
-                unimplemented!()
-            }
-        }
 
         #[derive(Debug, Clone)]
         enum Action {
