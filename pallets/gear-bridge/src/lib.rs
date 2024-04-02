@@ -96,9 +96,9 @@ pub mod pallet {
     #[pallet::storage]
     pub(crate) type QueueMerkleRoot<T> = StorageValue<_, H256>;
 
-    // TODO (breathx): use value query.
     #[pallet::storage]
-    pub(crate) type Queue<T> = StorageValue<_, BoundedVec<H256, <T as Config>::QueueLimit>>;
+    pub(crate) type Queue<T> =
+        StorageValue<_, BoundedVec<H256, <T as Config>::QueueLimit>, ValueQuery>;
 
     #[pallet::storage]
     pub(crate) type QueueChanged<T> = StorageValue<_, bool, ValueQuery>;
@@ -139,9 +139,7 @@ pub mod pallet {
 
             let message = EthMessage::from_data(source, data, nonce);
 
-            let hash = Queue::<T>::mutate(|opt| {
-                let v = opt.get_or_insert_with(BoundedVec::new);
-
+            let hash = Queue::<T>::mutate(|v| {
                 (v.len() < T::QueueLimit::get() as usize)
                     .then(|| {
                         let hash = message.hash();
@@ -180,7 +178,9 @@ pub mod pallet {
             }
 
             // Querying non-empty queue.
-            let Some(queue) = Queue::<T>::get() else {
+            let queue = Queue::<T>::get();
+
+            if queue.is_empty() {
                 log::error!("Queue supposed to be non-empty");
                 return;
             };
