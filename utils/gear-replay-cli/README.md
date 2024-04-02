@@ -14,7 +14,7 @@ Advantages with respect to the Substrate' `try-runtime` are:
 - doesn't require enabling additional features;
 - works with the native Runtime (in case the `RuntimeVersion` is as the one of the on-chain Runtime) rendering debugging possible.
 
-There are also some shortcomings though (which can easliy be fixed in later versions), like the fact it can only download state/block from the live chain and not use a local snapshot.
+There are also some shortcomings though (which can easily be fixed in later versions), like the fact it can only download state/block from the live chain and not use a local snapshot.
 
 <br/>
 
