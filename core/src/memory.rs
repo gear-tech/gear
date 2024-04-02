@@ -415,16 +415,16 @@ mod tests {
     use crate::pages::{GearPage, PageNumber};
     use alloc::vec::Vec;
 
-    struct MockMemory {
-        max_pages: u32,
-        allocated: u32,
+    struct TestMemory {
+        max_pages: WasmPage,
+        allocated: WasmPage,
     }
 
-    impl Memory for MockMemory {
+    impl Memory for TestMemory {
         type GrowError = &'static str;
 
         fn grow(&mut self, pages: WasmPage) -> Result<(), Self::GrowError> {
-            let new_allocated = self.allocated + pages.raw();
+            let new_allocated = self.allocated.add(pages).map_err(|_| "add failed")?;
 
             if new_allocated > self.max_pages {
                 return Err("trying to allocate too many pages");
@@ -436,7 +436,7 @@ mod tests {
         }
 
         fn size(&self) -> WasmPage {
-            WasmPage::new(self.allocated).unwrap()
+            self.allocated
         }
 
         fn write(&mut self, _offset: u32, _buffer: &[u8]) -> Result<(), MemoryError> {
@@ -452,12 +452,12 @@ mod tests {
         }
     }
 
-    fn new_test_memory(static_pages: u16, max_pages: u16) -> (AllocationsContext, MockMemory) {
+    fn new_test_memory(static_pages: u16, max_pages: u16) -> (AllocationsContext, TestMemory) {
         (
             AllocationsContext::new(Default::default(), static_pages.into(), max_pages.into()),
-            MockMemory {
-                max_pages: max_pages as u32,
-                allocated: static_pages as u32,
+            TestMemory {
+                max_pages: WasmPage::from(max_pages),
+                allocated: WasmPage::from(static_pages),
             },
         )
     }
@@ -631,7 +631,6 @@ mod tests {
 
     mod property_tests {
         use super::*;
-        use crate::{memory::HostPointer, pages::PageError};
         use proptest::{
             arbitrary::any,
             collection::size_range,
@@ -639,33 +638,6 @@ mod tests {
             strategy::{Just, Strategy},
             test_runner::Config as ProptestConfig,
         };
-
-        struct TestMemory(WasmPage);
-
-        impl Memory for TestMemory {
-            type GrowError = PageError;
-
-            fn grow(&mut self, pages: WasmPage) -> Result<(), Self::GrowError> {
-                self.0 = self.0.add(pages)?;
-                Ok(())
-            }
-
-            fn size(&self) -> WasmPage {
-                self.0
-            }
-
-            fn write(&mut self, _offset: u32, _buffer: &[u8]) -> Result<(), MemoryError> {
-                unimplemented!()
-            }
-
-            fn read(&self, _offset: u32, _buffer: &mut [u8]) -> Result<(), MemoryError> {
-                unimplemented!()
-            }
-
-            unsafe fn get_buffer_host_addr_unsafe(&mut self) -> HostPointer {
-                unimplemented!()
-            }
-        }
 
         #[derive(Debug, Clone)]
         enum Action {
@@ -730,7 +702,10 @@ mod tests {
                 let _ = env_logger::try_init();
 
                 let mut ctx = AllocationsContext::new(allocations, static_pages, max_pages);
-                let mut mem = TestMemory(mem_size);
+                let mut mem = TestMemory {
+                    max_pages: WasmPage::from(u16::MAX),
+                    allocated: mem_size,
+                };
 
                 for action in actions {
                     match action {
