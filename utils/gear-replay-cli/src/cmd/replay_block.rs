@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Replaying a block against the live chain state
+//! Replaying a block on top of the corresponding chain state
 
 use crate::{
     build_executor, fetch_block, full_extensions,

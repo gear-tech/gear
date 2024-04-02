@@ -16,8 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Replaying a block against the live chain state
-
 use runtime_primitives::Block;
 #[cfg(feature = "always-wasm")]
 use sc_executor::sp_wasm_interface::HostFunctions;

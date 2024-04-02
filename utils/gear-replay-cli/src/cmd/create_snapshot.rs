@@ -74,20 +74,6 @@ where
         }
     };
 
-    // // Create executor, suitable for usage in conjunction with the preferred execution strategy.
-    // #[cfg(all(not(feature = "always-wasm"), feature = "vara-native"))]
-    // let executor = build_executor::<VaraExecutorDispatch>();
-    // #[cfg(feature = "always-wasm")]
-    // let executor = build_executor::<
-    //     ExtendedHostFunctions<
-    //         sp_io::SubstrateHostFunctions,
-    //         (
-    //             gear_runtime_interface::gear_ri::HostFunctions,
-    //             gear_runtime_interface::sandbox::HostFunctions,
-    //         ),
-    //     >,
-    // >();
-
     let _ = State::Live(command.from).to_ext(Some(path.into())).await?;
 
     Ok(())
