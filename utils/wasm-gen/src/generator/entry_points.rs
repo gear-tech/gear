@@ -213,6 +213,13 @@ impl<'a, 'b> EntryPointsGenerator<'a, 'b> {
     }
 
     /// Generates body of the export function.
+    ///
+    /// Instructions that write `handle_count_ptr` and `init_called_ptr`
+    /// pointers are also inserted into the body of export:
+    /// 1. `handle_count_ptr` is set to `0` to forget about handles from
+    ///    previous executions.
+    /// 2. if the export name is `"init"`, then `init_called_ptr` is set to
+    ///    `true` to avoid wait deadlock at the `init` entry point.
     fn generate_export_body(
         &mut self,
         name: &str,

@@ -179,16 +179,7 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
 
     fn insert_syscalls(&mut self) -> Result<()> {
         let insertion_mapping = self.build_syscalls_insertion_mapping()?;
-        for (insert_into_fn, mut syscalls) in insertion_mapping {
-            // Shuffle syscalls before insertion to create better coverage.
-            let len = syscalls.len();
-            if len > 1 {
-                for i in 0..len {
-                    let j = self.unstructured.int_in_range(i..=(len - 1))?;
-                    syscalls.swap(i, j);
-                }
-            }
-
+        for (insert_into_fn, syscalls) in insertion_mapping {
             self.insert_syscalls_into_fn(insert_into_fn, syscalls)?;
         }
 
