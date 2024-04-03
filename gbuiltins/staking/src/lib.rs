@@ -38,7 +38,7 @@
 //! use parity_scale_codec::Encode;
 //!
 //! const BUILTIN_ADDRESS: ActorId = ActorId::new(hex_literal::hex!(
-//!     "9d765baea1938d17096421e4f881af7dc4ce5c15bb5022f409fc0d6265d97c3a"
+//!     "77f65ef190e11bfecb8fc8970fd3749e94bed66a23ec2f7a3623e785d0816761"
 //! ));
 //!
 //! #[gstd::async_main]
