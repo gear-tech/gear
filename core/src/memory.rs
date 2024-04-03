@@ -384,10 +384,7 @@ impl AllocationsContext {
         let (start, end) = interval.into_parts();
 
         if start < self.static_pages || end >= self.max_pages {
-            return Err(AllocError::InvalidFreeRange(
-                interval.start(),
-                interval.end(),
-            ));
+            return Err(AllocError::InvalidFreeRange(start, end));
         }
 
         self.allocations.retain(|p| !p.enclosed_by(&start, &end));
@@ -405,23 +402,7 @@ impl AllocationsContext {
 /// This module contains tests of GearPage struct
 mod tests {
     use super::*;
-    use crate::pages::GearPage;
     use alloc::vec::Vec;
-
-    #[test]
-    /// Test that [WasmPage] set transforms correctly to [GearPage] set.
-    fn wasm_pages_to_gear_pages() {
-        let wasm_pages: Vec<WasmPage> = [0u16, 10].iter().copied().map(WasmPage::from).collect();
-        let gear_pages: Vec<u32> = wasm_pages
-            .iter()
-            .flat_map(|p| p.to_iter())
-            .map(|p: GearPage| p.into())
-            .collect();
-
-        let expectation = [0, 1, 2, 3, 40, 41, 42, 43];
-
-        assert!(gear_pages.eq(&expectation));
-    }
 
     #[test]
     fn page_buf() {

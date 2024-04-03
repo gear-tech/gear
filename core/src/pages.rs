@@ -308,14 +308,6 @@ pub type WasmPagesAmount = PagesAmount<WASM_PAGE_SIZE>;
 /// Pages amount for gear page size - 16 kiB.
 pub type GearPagesAmount = PagesAmount<GEAR_PAGE_SIZE>;
 
-impl WasmPagesAmount {
-    /// Make wasm pages amount constant from u16.
-    pub const fn from_u16(raw: u16) -> Self {
-        const _: () = assert!(WASM_PAGE_SIZE <= 0x10_000);
-        Self(raw as u32)
-    }
-}
-
 impl From<u16> for WasmPagesAmount {
     fn from(value: u16) -> Self {
         const _: () = assert!(WASM_PAGE_SIZE <= 0x10_000);

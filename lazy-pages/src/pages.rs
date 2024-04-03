@@ -206,12 +206,12 @@ pub type WasmPagesAmount = PagesAmount<WasmSizeNo>;
 pub type GearPagesAmount = PagesAmount<GearSizeNo>;
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use std::fmt::Debug;
 
     #[derive(Debug, Clone, Copy)]
-    pub struct PageSizeManager([u32; 2]);
+    pub struct PageSizeManager(pub [u32; 2]);
 
     impl SizeManager for PageSizeManager {
         fn size_non_zero<S: SizeNumber>(&self) -> NonZeroU32 {
