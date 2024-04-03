@@ -32,7 +32,7 @@ impl GearWasmGeneratorConfigBuilder {
         Self(GearWasmGeneratorConfig::default())
     }
 
-    /// Defines memory pages confir for the gear wasm generator.
+    /// Defines memory pages config for the gear wasm generator.
     pub fn with_memory_config(mut self, mem_config: MemoryPagesConfig) -> Self {
         self.0.memory_config = mem_config;
 

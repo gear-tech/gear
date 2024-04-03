@@ -321,6 +321,10 @@ case "$COMMAND" in
         header "Running time consuming tests"
         time_consuming_tests "$@"; ;;
 
+      typos)
+        header "Running typo tests"
+        typo_tests ;;
+
       *)
         header  "Unknown option: '$SUBCOMMAND'"
         test_usage
