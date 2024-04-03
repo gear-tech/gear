@@ -17,13 +17,19 @@ ADDITIONAL_FILES=(
 for FILE in "${ADDITIONAL_FILES[@]}"; do
   echo "[+] Merging outputs from $FILE into $MAIN_FILE"
 
-  ALL_WEIGHTS=$(perl -0777 -nle 'print $1 if /(?:\G(?!^)|pallet_gear::WeightInfo for SubstrateWeight<T> {)\s(.*)}\s+\/\/ For backwards/gms' "$FILE")
+  ALL_WEIGHTS1=$(perl -0777 -nle 'print $1 if /(?:\G(?!^)|pallet_gear::WeightInfo for SubstrateWeight<T> {)\s(.*)}\s+\/\/ For backwards/gms' "$FILE")
 
   while IFS= read -r match; do
-    weights+=("$match")
-  done < <(echo "$ALL_WEIGHTS" | perl -0777 -nle 'print "$1\n" while / +(\/\/\/ The range of component [`\[\]\w\s,.]*?(^\s+fn gr_[\w\s\(\)->]+{$(?:.*)}))/gms')
+    weights1+=("$match")
+  done < <(echo "$ALL_WEIGHTS1" | perl -0777 -nle 'print "$1\n" while / +(\/\/\/ The range of component [`\[\]\w\s,.]*?(^\s+fn gr_[\w\s\(\)->]+{$(?:.*)}))/gms')
 
   DEFINITIONS=$(perl -0777 -nle 'print "$&\n" while / *fn gr_[\w_]+[\(\w:, \)->]+$/gms' "$FILE")
+
+  ALL_WEIGHTS2=$(perl -0777 -nle 'print $1 if /(?:\G(?!^)|WeightInfo for \(\) {)\s(.*)}/gms' "$FILE")
+
+  while IFS= read -r match; do
+    weights2+=("$match")
+  done < <(echo "$ALL_WEIGHTS2" | perl -0777 -nle 'print "$1\n" while / +(\/\/\/ The range of component [`\[\]\w\s,.]*?(^\s+fn gr_[\w\s\(\)->]+{$(?:.*)}))/gms')
 done
 
 # Iterate over lines in MAIN_FILE and append definitions and weights.
@@ -34,11 +40,18 @@ while IFS= read -r line; do
     for def_line in "${DEFINITIONS[@]}"; do
       echo "$def_line"
     done
-  elif [[ "$line" =~ ^impl.*WeightInfo\ for.*\{$ ]]; then
+  elif [[ "$line" =~ ^impl.*WeightInfo\ for\ SubstrateWeight.*\{$ ]]; then
     # Insert a tab (4 spaces) for the first line
     echo -n '    '
     # Insert the weights array here
-    for weight in "${weights[@]}"; do
+    for weight in "${weights1[@]}"; do
+      echo "$weight"
+    done
+  elif [[ "$line" =~ ^impl.*WeightInfo\ for\ \(\)\ \{$ ]]; then
+    # Insert a tab (4 spaces) for the first line
+    echo -n '    '
+    # Insert the weights array here
+    for weight in "${weights2[@]}"; do
       echo "$weight"
     done
   fi
