@@ -71,6 +71,7 @@ pub mod pallet {
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
     pub enum Event<T> {
+        RootReset,
         RootUpdated(H256),
         MessageQueued { message: EthMessage, hash: H256 },
     }
@@ -92,9 +93,11 @@ pub mod pallet {
     #[pallet::storage_version(BRIDGE_STORAGE_VERSION)]
     pub struct Pallet<T>(_);
 
-    // TODO (breathx): extend hash with trailing zeroes.
     #[pallet::storage]
-    pub(crate) type QueueMerkleRoot<T> = StorageValue<_, H256>;
+    pub(crate) type AcceptRequests<T> = StorageValue<_, bool, ValueQuery>;
+
+    #[pallet::storage]
+    pub(crate) type Nonce<T> = StorageValue<_, U256, ValueQuery, FirstNonce>;
 
     #[pallet::storage]
     pub(crate) type Queue<T> =
@@ -103,18 +106,27 @@ pub mod pallet {
     #[pallet::storage]
     pub(crate) type QueueChanged<T> = StorageValue<_, bool, ValueQuery>;
 
-    // TODO (breathx): impl toggler accepting requests.
-
+    // TODO (breathx): extend hash with trailing zeroes.
     #[pallet::storage]
-    pub(crate) type Nonce<T> = StorageValue<_, U256, ValueQuery, FirstNonce>;
+    pub(crate) type QueueMerkleRoot<T> = StorageValue<_, H256>;
 
     #[pallet::call]
     impl<T: Config> Pallet<T>
     where
         T::AccountId: Origin,
     {
-        /// Queues new hash into hash queue.
         #[pallet::call_index(0)]
+        #[pallet::weight(Weight::zero())]
+        pub fn switch(origin: OriginFor<T>) -> DispatchResultWithPostInfo {
+            ensure_root(origin)?;
+
+            AcceptRequests::<T>::mutate(|v| *v = !*v);
+
+            Ok(().into())
+        }
+
+        /// Queues new hash into hash queue.
+        #[pallet::call_index(1)]
         #[pallet::weight(Weight::zero())]
         pub fn send(
             origin: OriginFor<T>,
