@@ -74,7 +74,7 @@ impl<Block: BlockT> GearRunCmd<Block> {
 }
 
 pub(crate) async fn run<Block>(
-    _shared: SharedParams,
+    shared: SharedParams,
     command: GearRunCmd<Block>,
 ) -> sc_cli::Result<()>
 where
@@ -99,7 +99,7 @@ where
         _ => None,
     };
 
-    log::info!(target: LOG_TARGET, "Fetching block {:?} ", current_hash);
+    log::info!(target: LOG_TARGET, "Fetching block {current_hash:?} ");
     let block = fetch_block::<Block>(&rpc, current_hash).await?;
 
     let (mut header, extrinsics) = block.deconstruct();
@@ -110,7 +110,7 @@ where
 
     // Create executor, suitable for usage in conjunction with the preferred execution strategy.
     #[cfg(all(not(feature = "always-wasm"), feature = "vara-native"))]
-    let executor = build_executor::<VaraExecutorDispatch>();
+    let executor = build_executor::<VaraExecutorDispatch>(&shared);
     #[cfg(feature = "always-wasm")]
     let executor = build_executor::<
         ExtendedHostFunctions<
@@ -118,9 +118,10 @@ where
             (
                 gear_runtime_interface::gear_ri::HostFunctions,
                 gear_runtime_interface::sandbox::HostFunctions,
+                sp_crypto_ec_utils::bls12_381::host_calls::HostFunctions,
             ),
         >,
-    >();
+    >(&shared);
 
     let (_changes, _enc_res) = state_machine_call::<Block, _>(
         &ext,
@@ -173,8 +174,7 @@ where
     let r = ApplyExtrinsicResult::decode(&mut &enc_res[..]).unwrap();
     log::info!(
         target: LOG_TARGET,
-        "BlockBuilder_apply_extrinsic done with result {:?}",
-        r
+        "BlockBuilder_apply_extrinsic done with result {r:?}"
     );
 
     Ok(())

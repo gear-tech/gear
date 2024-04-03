@@ -74,9 +74,7 @@ $ gear-replay-cli create-snapshot -h
 ```
 Usage example:
 ```bash
-export BLOCK_NUM=2000000
-
-gear-replay-cli create-snapshot --uri wss://archive-rpc.vara.network:443 -b 
+gear-replay-cli create-snapshot --uri wss://archive-rpc.vara.network:443 -b 1999999
 ```
 
 #### Replaying block
@@ -104,16 +102,13 @@ The `--block-ws-uri` is needed in case we use state from local snapshot but stil
 
 Usage on live chain:
 ```bash
-export HASH=0x8dc1e32576c1ad4e28dc141769576efdbc19d0170d427b69edb2261cfc36e905
-export BLOCK_NUM=2000000
-
-gear-replay-cli -lgear,syscalls,pallet replay-block live -u wss://archive-rpc.vara.network:443 -b "$HASH"
-gear-replay-cli -lgear,syscalls,pallet replay-block --force-run live -u wss://archive-rpc.vara.network:443 -b "$BLOCK_NUM"
+gear-replay-cli -lgear,syscalls,pallet replay-block live -u wss://archive-rpc.vara.network:443 -b 0x8dc1e32576c1ad4e28dc141769576efdbc19d0170d427b69edb2261cfc36e905
+gear-replay-cli -lgear,syscalls,pallet replay-block --force-run live -u wss://archive-rpc.vara.network:443 -b 2000000
 ```
 
 Applying block on top of a state snapshot:
 ```bash
-gear-replay-cli -lgear,syscalls,pallet replay-block -f --block-ws-uri wss://archive-rpc.vara.network:443 snap -p ./vara-1200@1999999 -b "$BLOCK_NUM"
+gear-replay-cli -lgear,syscalls,pallet replay-block -f --block-ws-uri wss://archive-rpc.vara.network:443 snap -p ./vara-1200@1999999 -b 2000000
 ```
 
 Here the state is loaded from the file `./vara-1200@1999999` that is the state corresponding to the previous block with respect the one we want to apply.

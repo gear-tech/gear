@@ -17,11 +17,12 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use runtime_primitives::Block;
+use sc_cli::execution_method_from_cli;
 #[cfg(feature = "always-wasm")]
 use sc_executor::sp_wasm_interface::HostFunctions;
+use sc_executor::{HeapAllocStrategy, WasmExecutor, DEFAULT_HEAP_ALLOC_STRATEGY};
 #[cfg(not(feature = "always-wasm"))]
-use sc_executor::{HeapAllocStrategy, NativeElseWasmExecutor, NativeExecutionDispatch};
-use sc_executor::{WasmExecutionMethod, WasmExecutor, WasmtimeInstantiationStrategy};
+use sc_executor::{NativeElseWasmExecutor, NativeExecutionDispatch};
 use sp_core::{
     offchain::{
         testing::{TestOffchainExt, TestTransactionPoolExt},
@@ -40,8 +41,13 @@ use sp_runtime::{
 use sp_state_machine::{
     backend::BackendRuntimeCode, OverlayedChanges, StateMachine, TestExternalities,
 };
-use std::{fmt::Debug, sync::Arc};
+use std::{
+    fmt::{self, Debug},
+    sync::Arc,
+};
 use substrate_rpc_client::{ChainApi, WsClient};
+
+use crate::shared_parameters::SharedParams;
 
 pub const LOG_TARGET: &str = "gear_replay";
 
@@ -59,8 +65,8 @@ pub enum BlockHashOrNumber<B: BlockT> {
     Number(NumberFor<B>),
 }
 
-impl<B: BlockT> core::fmt::Display for BlockHashOrNumber<B> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl<B: BlockT> fmt::Display for BlockHashOrNumber<B> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             BlockHashOrNumber::Hash(hash) => {
                 write!(f, "{}", hex::encode(hash.as_ref()))
@@ -100,119 +106,48 @@ impl<Block: BlockT> BlockHashOrNumber<Block> {
 }
 
 #[cfg(not(feature = "always-wasm"))]
-pub(crate) fn build_executor<D: NativeExecutionDispatch>() -> NativeElseWasmExecutor<D> {
-    let heap_alloc_strategy = HeapAllocStrategy::Dynamic {
-        maximum_pages: Some(2048),
-    };
-    let max_runtime_instances = 8;
-    let runtime_cache_size = 2;
+pub(crate) fn build_executor<D: NativeExecutionDispatch>(
+    shared: &SharedParams,
+) -> NativeElseWasmExecutor<D> {
+    let heap_pages =
+        shared
+            .heap_pages
+            .map_or(DEFAULT_HEAP_ALLOC_STRATEGY, |p| HeapAllocStrategy::Static {
+                extra_pages: p as _,
+            });
 
     let wasm_executor = WasmExecutor::builder()
-        .with_execution_method(WasmExecutionMethod::Compiled {
-            instantiation_strategy: WasmtimeInstantiationStrategy::RecreateInstanceCopyOnWrite,
-        })
-        .with_onchain_heap_alloc_strategy(heap_alloc_strategy)
-        .with_offchain_heap_alloc_strategy(heap_alloc_strategy)
-        .with_max_runtime_instances(max_runtime_instances)
-        .with_runtime_cache_size(runtime_cache_size)
+        .with_execution_method(execution_method_from_cli(
+            shared.wasm_method,
+            shared.wasmtime_instantiation_strategy,
+        ))
+        .with_onchain_heap_alloc_strategy(heap_pages)
+        .with_offchain_heap_alloc_strategy(heap_pages)
+        .with_allow_missing_host_functions(true)
         .build();
 
     NativeElseWasmExecutor::<D>::new_with_wasm_executor(wasm_executor)
 }
 
 #[cfg(feature = "always-wasm")]
-pub(crate) fn build_executor<H: HostFunctions>() -> WasmExecutor<H> {
-    let execution_method = WasmExecutionMethod::Compiled {
-        instantiation_strategy: WasmtimeInstantiationStrategy::RecreateInstanceCopyOnWrite,
-    };
+pub(crate) fn build_executor<H: HostFunctions>(shared: &SharedParams) -> WasmExecutor<H> {
     let heap_pages =
-        sc_executor_common::wasm_runtime::HeapAllocStrategy::Static { extra_pages: 2048 };
-    let max_runtime_instances = 8;
-    let runtime_cache_size = 2;
+        shared
+            .heap_pages
+            .map_or(DEFAULT_HEAP_ALLOC_STRATEGY, |p| HeapAllocStrategy::Static {
+                extra_pages: p as _,
+            });
 
-    WasmExecutor::<H>::builder()
-        .with_execution_method(execution_method)
+    WasmExecutor::builder()
+        .with_execution_method(execution_method_from_cli(
+            shared.wasm_method,
+            shared.wasmtime_instantiation_strategy,
+        ))
         .with_onchain_heap_alloc_strategy(heap_pages)
         .with_offchain_heap_alloc_strategy(heap_pages)
-        .with_max_runtime_instances(max_runtime_instances)
-        .with_runtime_cache_size(runtime_cache_size)
+        .with_allow_missing_host_functions(true)
         .build()
 }
-
-// pub(crate) async fn build_externalities<Block: BlockT + DeserializeOwned>(
-//     uri: String,
-//     at: Option<Block::Hash>,
-//     pallet: Vec<String>,
-//     child_tree: bool,
-// ) -> sc_cli::Result<RemoteExternalities<Block>>
-// where
-//     Block::Hash: FromStr,
-//     Block::Header: DeserializeOwned,
-//     Block::Hash: DeserializeOwned,
-//     <Block::Hash as FromStr>::Err: Debug,
-// {
-//     let builder = Builder::<Block>::new().mode(Mode::Online(OnlineConfig {
-//         at,
-//         transport: uri.to_owned().into(),
-//         state_snapshot: None,
-//         pallets: pallet.clone(),
-//         child_trie: child_tree,
-//         hashed_keys: vec![
-//             // we always download the code
-//             well_known_keys::CODE.to_vec(),
-//             // we will always download this key, since it helps detect if we should do
-//             // runtime migration or not.
-//             [twox_128(b"System"), twox_128(b"LastRuntimeUpgrade")].concat(),
-//             [twox_128(b"System"), twox_128(b"Number")].concat(),
-//         ],
-//         hashed_prefixes: vec![],
-//     }));
-
-//     // build the main ext.
-//     Ok(builder.build().await?)
-// }
-
-// pub(crate) async fn block_hash_to_number<Block: BlockT>(
-//     rpc: &WsClient,
-//     hash: HashFor<Block>,
-// ) -> sc_cli::Result<NumberFor<Block>>
-// where
-//     Block: BlockT + DeserializeOwned,
-//     Block::Header: DeserializeOwned,
-// {
-//     Ok(
-//         ChainApi::<(), Block::Hash, Block::Header, ()>::header(rpc, Some(hash))
-//             .await
-//             .map_err(rpc_err_handler)
-//             .and_then(|maybe_header| maybe_header.ok_or("header_not_found").map(|h| *h.number()))?,
-//     )
-// }
-
-// pub(crate) async fn block_number_to_hash<Block: BlockT>(
-//     rpc: &WsClient,
-//     block_number: NumberFor<Block>,
-// ) -> sc_cli::Result<Block::Hash>
-// where
-//     Block: BlockT + DeserializeOwned,
-//     Block::Header: DeserializeOwned,
-// {
-//     Ok(
-//         match ChainApi::<(), Block::Hash, Block::Header, ()>::block_hash(
-//             rpc,
-//             Some(ListOrValue::Value(NumberOrHex::Number(
-//                 block_number
-//                     .try_into()
-//                     .map_err(|_| "failed to convert number to block number")?,
-//             ))),
-//         )
-//         .await
-//         .map_err(rpc_err_handler)?
-//         {
-//             ListOrValue::Value(t) => t.expect("value passed in; value comes out; qed"),
-//             _ => unreachable!(),
-//         },
-//     )
-// }
 
 pub(crate) async fn fetch_block<Block: BlockT>(
     rpc: &WsClient,

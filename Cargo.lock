@@ -4613,6 +4613,7 @@ dependencies = [
  "sc-executor-common",
  "sc-tracing",
  "sp-core",
+ "sp-crypto-ec-utils",
  "sp-externalities",
  "sp-io",
  "sp-keystore",

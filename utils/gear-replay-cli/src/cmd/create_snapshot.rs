@@ -69,7 +69,7 @@ where
                 remote_spec.spec_version,
                 block_hash,
             );
-            log::info!(target: LOG_TARGET, "snapshot path not provided (-s), using '{}'", path_str);
+            log::info!(target: LOG_TARGET, "snapshot path not provided (-s), using '{path_str}'");
             path_str
         }
     };
