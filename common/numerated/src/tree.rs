@@ -41,7 +41,7 @@ use scale_info::{
 ///
 /// # Examples
 /// ```
-/// use numerated::{IntervalsTree, Interval};
+/// use numerated::{tree::IntervalsTree, interval::Interval};
 /// use std::collections::BTreeSet;
 /// use std::ops::RangeInclusive;
 ///
