@@ -45,6 +45,7 @@ pub mod pallet {
     use frame_support::{pallet_prelude::*, traits::StorageVersion};
     use frame_system::pallet_prelude::*;
     use gear_core::message::PayloadSizeError;
+    use merkle_tree::MerkleProof;
     use primitive_types::{H160, H256, U256};
 
     pub type Hasher = sp_runtime::traits::Keccak256;
@@ -231,6 +232,26 @@ pub mod pallet {
             bytes[..32].copy_from_slice(root.as_bytes());
 
             QueueMerkleRoot::<T>::put(bytes)
+        }
+
+        pub fn reset() {
+            Queue::<T>::kill();
+            QueueMerkleRoot::<T>::kill();
+            QueueChanged::<T>::kill();
+            Self::deposit_event(Event::<T>::RootReset);
+        }
+
+        pub fn merkle_proof(hash: H256) -> Option<MerkleProof<H256, H256>> {
+            // TODO (breathx): consider `NonceStart` storage to generate proofs of insertion.
+            let queue = Queue::<T>::get();
+
+            (!queue.is_empty()).then_some(())?;
+
+            let idx = queue.iter().position(|&v| v == hash)?;
+
+            let proof = merkle_tree::merkle_proof::<Hasher, _, _>(queue, idx);
+
+            Some(proof)
         }
     }
 }
