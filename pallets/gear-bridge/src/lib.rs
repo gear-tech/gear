@@ -78,6 +78,7 @@ pub mod pallet {
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
     pub enum Event<T> {
+        ModeSwitched,
         RootReset,
         RootUpdated(H256),
         MessageQueued { message: EthMessage, hash: H256 },
@@ -86,6 +87,7 @@ pub mod pallet {
     // Gear Bridge Pallet error type.
     #[pallet::error]
     pub enum Error<T> {
+        QueueAccessRefused,
         QueueLimitExceeded,
     }
 
@@ -128,6 +130,8 @@ pub mod pallet {
 
             AcceptRequests::<T>::mutate(|v| *v = !*v);
 
+            Self::deposit_event(Event::<T>::ModeSwitched);
+
             Ok(().into())
         }
 
@@ -140,6 +144,10 @@ pub mod pallet {
             payload: Vec<u8>,
         ) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
+
+            AcceptRequests::<T>::get()
+                .then_some(())
+                .ok_or(Error::<T>::QueueAccessRefused)?;
 
             let payload = payload
                 .try_into()
@@ -244,8 +252,6 @@ pub mod pallet {
         pub fn merkle_proof(hash: H256) -> Option<MerkleProof<H256, H256>> {
             // TODO (breathx): consider `NonceStart` storage to generate proofs of insertion.
             let queue = Queue::<T>::get();
-
-            (!queue.is_empty()).then_some(())?;
 
             let idx = queue.iter().position(|&v| v == hash)?;
 
