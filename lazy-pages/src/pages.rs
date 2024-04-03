@@ -208,27 +208,195 @@ pub type GearPagesAmount = PagesAmount<GearSizeNo>;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use numerated::mock::test_numerated;
+    use std::fmt::Debug;
+
+    #[derive(Debug, Clone, Copy)]
+    pub struct PageSizeManager([u32; 2]);
+
+    impl SizeManager for PageSizeManager {
+        fn size_non_zero<S: SizeNumber>(&self) -> NonZeroU32 {
+            NonZeroU32::new(self.0[S::SIZE_NO]).expect("Size cannot be zero")
+        }
+    }
+
+    impl Default for PageSizeManager {
+        fn default() -> Self {
+            PageSizeManager([0x10000, 0x4000])
+        }
+    }
+
+    #[test]
+    fn raw() {
+        let page = GearPage::from_raw(0x100);
+        assert_eq!(page.raw(), 0x100);
+    }
+
+    #[test]
+    fn size() {
+        let ctx = PageSizeManager::default();
+        assert_eq!(GearPage::size(&ctx), 0x4000);
+        assert_eq!(WasmPage::size(&ctx), 0x10000);
+    }
+
+    #[test]
+    fn max_value() {
+        let ctx = PageSizeManager::default();
+        assert_eq!(GearPage::max_value(&ctx).raw(), 0x3FFFF);
+        assert_eq!(WasmPage::max_value(&ctx).raw(), 0xFFFF);
+    }
+
+    #[test]
+    fn new() {
+        let ctx = PageSizeManager::default();
+        assert_eq!(
+            GearPage::new(&ctx, 0x3FFFF),
+            Some(GearPage::from_raw(0x3FFFF))
+        );
+        assert_eq!(GearPage::new(&ctx, 0x40000), None);
+        assert_eq!(
+            WasmPage::new(&ctx, 0xFFFF),
+            Some(WasmPage::from_raw(0xFFFF))
+        );
+        assert_eq!(WasmPage::new(&ctx, 0x10000), None);
+    }
+
+    #[test]
+    fn offset() {
+        let ctx = PageSizeManager::default();
+        let page = GearPage::from_raw(0x100);
+        assert_eq!(page.offset(&ctx), 0x100 * ctx.0[GearSizeNo::SIZE_NO]);
+    }
+
+    #[test]
+    fn end_offset() {
+        let ctx = PageSizeManager::default();
+        let page = GearPage::from_raw(0x100);
+        assert_eq!(
+            page.end_offset(&ctx),
+            0x100 * ctx.0[GearSizeNo::SIZE_NO] + (ctx.0[GearSizeNo::SIZE_NO] - 1)
+        );
+    }
+
+    #[test]
+    fn from_offset() {
+        let ctx = PageSizeManager::default();
+        let page = GearPage::from_offset(&ctx, 0x100 * ctx.0[GearSizeNo::SIZE_NO]);
+        assert_eq!(page.raw(), 0x100);
+    }
+
+    #[test]
+    fn to_page() {
+        let ctx = PageSizeManager::default();
+        let page = GearPage::from_raw(0x400);
+        let page1 = page.to_page::<_, WasmSizeNo>(&ctx);
+        assert_eq!(page1.raw(), 0x100);
+    }
+
+    #[test]
+    fn to_end_interval() {
+        let ctx = PageSizeManager::default();
+        let page = GearPage::from_raw(0x100);
+        let interval: Vec<_> = page
+            .to_end_interval(&ctx, GearPage::from_raw(0x200))
+            .unwrap()
+            .collect();
+        assert_eq!(
+            interval,
+            (0x100..0x200).map(GearPage::from_raw).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn pages_amount_upper() {
+        let ctx = PageSizeManager::default();
+        assert_eq!(GearPagesAmount::upper(&ctx), 0x40000);
+        assert_eq!(WasmPagesAmount::upper(&ctx), 0x10000);
+    }
+
+    #[test]
+    fn pages_amount_new() {
+        let ctx = PageSizeManager::default();
+        assert_eq!(
+            GearPagesAmount::new(&ctx, 0x3FFFF),
+            Some(GearPage::from_raw(0x3FFFF).into())
+        );
+        assert_eq!(GearPagesAmount::new(&ctx, 0x40000), Some(None.into()));
+        assert_eq!(GearPagesAmount::new(&ctx, 0x40001), None);
+        assert_eq!(
+            WasmPagesAmount::new(&ctx, 0xFFFF),
+            Some(WasmPage::from_raw(0xFFFF).into())
+        );
+        assert_eq!(WasmPagesAmount::new(&ctx, 0x10000), Some(None.into()));
+        assert_eq!(WasmPagesAmount::new(&ctx, 0x10001), None);
+    }
+
+    #[test]
+    fn pages_amount_offset() {
+        let ctx = PageSizeManager::default();
+        let page = GearPage::from_raw(0x100);
+        assert_eq!(
+            GearPagesAmount::offset(&page.into(), &ctx),
+            0x100 * ctx.0[GearSizeNo::SIZE_NO] as usize
+        );
+    }
+
+    #[test]
+    fn pages_amount_convert() {
+        let ctx = PageSizeManager::default();
+        let page1: GearPagesAmount = GearPage::from_raw(0x400).into();
+        let page2: WasmPagesAmount = page1.convert(&ctx);
+        assert_eq!(page2, Some(WasmPage::from_raw(0x100)));
+    }
+}
+
+#[cfg(test)]
+mod property_tests {
+    use super::{tests::PageSizeManager, *};
+    use numerated::mock;
     use proptest::{
-        arbitrary::any, proptest, strategy::Strategy, test_runner::Config as ProptestConfig,
+        prelude::{any, Arbitrary},
+        proptest,
+        strategy::{BoxedStrategy, Strategy},
+        test_runner::Config as ProptestConfig,
     };
     use std::fmt::Debug;
 
-    fn rand_page<S: SizeNumber + Debug>() -> impl Strategy<Value = Page<S>> {
-        any::<u16>().prop_map(|raw| Page::from_raw(raw as u32))
+    impl<S: SizeNumber + Debug + 'static> Arbitrary for Page<S> {
+        type Parameters = PageSizeManager;
+        type Strategy = BoxedStrategy<Page<S>>;
+
+        fn arbitrary_with(ctx: Self::Parameters) -> Self::Strategy {
+            (0..Page::<S>::max_value(&ctx).raw)
+                .prop_map(Page::from_raw)
+                .boxed()
+        }
     }
 
     proptest! {
         #![proptest_config(ProptestConfig::with_cases(1024))]
 
         #[test]
-        fn proptest_gear_page_numerated(p1 in rand_page::<GearSizeNo>(), p2 in rand_page::<GearSizeNo>()) {
-            test_numerated(p1, p2);
+        fn gear_page_numerated(x in any::<GearPage>(), y in any::<GearPage>()) {
+            mock::test_numerated(x, y);
         }
 
         #[test]
-        fn proptest_wasm_page_numerated(p1 in rand_page::<WasmSizeNo>(), p2 in rand_page::<WasmSizeNo>()) {
-            test_numerated(p1, p2);
+        fn wasm_page_numerated(x in any::<WasmPage>(), y in any::<WasmPage>()) {
+            mock::test_numerated(x, y);
+        }
+    }
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(64))]
+
+        #[test]
+        fn gear_page_tree((initial, actions) in mock::tree_actions::<GearPage>(0..128, 2..8)) {
+            mock::test_tree(initial, actions);
+        }
+
+        #[test]
+        fn wasm_page_tree((initial, actions) in mock::tree_actions::<WasmPage>(0..128, 10..20)) {
+            mock::test_tree(initial, actions);
         }
     }
 }

@@ -129,7 +129,7 @@ fn btree_set_voids<T: Numerated>(set: &BTreeSet<T>, interval: IntervalIterator<T
 }
 
 /// Mock function for [`IntervalsTree`] testing for any [`Numerated`] implementation.
-pub fn test_tree<T: Numerated + UpperBounded + Debug>(
+pub fn test_tree<T: Numerated + Debug>(
     initial: BTreeSet<T>,
     actions: Vec<TreeAction<T>>,
 ) {
