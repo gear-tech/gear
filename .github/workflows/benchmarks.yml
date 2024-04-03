@@ -46,6 +46,10 @@ jobs:
           sed -i -E 's/\w+::WeightInfo for SubstrateWeight/WeightInfo for SubstrateWeight/' pallets/gear/src/weights.rs
           # generate code for lightweight scheduler that is used in gtest and other crates
           ./scripts/weight-dump.sh
+
+      - name: Clear target directory
+        if: ${{ always() }}
+        run: |
           # clear the target directory because our benchmarking machine is not ephemeral
           cargo clean
 
