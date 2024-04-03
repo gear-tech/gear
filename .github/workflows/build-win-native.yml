@@ -9,7 +9,6 @@ on:
   workflow_dispatch:
 
 env:
-  CARGO_INCREMENTAL: 0
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: short
   TERM: xterm-256color
@@ -25,8 +24,6 @@ jobs:
     defaults:
       run:
         shell: msys2 {0}
-    env:
-      CARGO_INCREMENTAL: 0
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
