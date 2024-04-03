@@ -54,6 +54,12 @@ pub mod pallet {
     /// The current storage version.
     pub const BRIDGE_STORAGE_VERSION: StorageVersion = StorageVersion::new(0);
 
+    /// Amount of trailing zeroes kept with queue root.
+    ///
+    /// SAFETY: changing this param will require significant changes around the
+    /// bridge and root value migration.
+    pub const TRAILING_ZEROES: usize = 1;
+
     /// Gear Bridge Pallet's `Config`.
     #[pallet::config]
     pub trait Config: frame_system::Config {
@@ -106,9 +112,8 @@ pub mod pallet {
     #[pallet::storage]
     pub(crate) type QueueChanged<T> = StorageValue<_, bool, ValueQuery>;
 
-    // TODO (breathx): extend hash with trailing zeroes.
     #[pallet::storage]
-    pub(crate) type QueueMerkleRoot<T> = StorageValue<_, H256>;
+    pub(crate) type QueueMerkleRoot<T> = StorageValue<_, [u8; 32 + TRAILING_ZEROES]>;
 
     #[pallet::call]
     impl<T: Config> Pallet<T>
@@ -201,10 +206,31 @@ pub mod pallet {
             let root = merkle_tree::merkle_root::<Hasher, _>(queue);
 
             // Storing new root.
-            QueueMerkleRoot::<T>::put(root);
+            Self::put_root(root);
 
             // Depositing event.
             Self::deposit_event(Event::<T>::RootUpdated(root));
+        }
+    }
+
+    impl<T: Config> Pallet<T>
+    where
+        T::AccountId: Origin,
+    {
+        pub fn get_root() -> Option<H256> {
+            let root_with_zeroes = QueueMerkleRoot::<T>::get()?;
+
+            let mut bytes = [0; 32];
+            bytes.copy_from_slice(&root_with_zeroes[..32]);
+
+            Some(bytes.into())
+        }
+
+        pub fn put_root(root: H256) {
+            let mut bytes = [0; 32 + TRAILING_ZEROES];
+            bytes[..32].copy_from_slice(root.as_bytes());
+
+            QueueMerkleRoot::<T>::put(bytes)
         }
     }
 }
