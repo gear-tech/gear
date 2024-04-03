@@ -4,7 +4,7 @@ show:
 	@ ./scripts/gear.sh show
 
 .PHONY: pre-commit # Here should be no release builds to keep checks fast.
-pre-commit: fmt clippy test check-runtime-imports
+pre-commit: fmt typos clippy test check-runtime-imports
 
 .PHONY: check-spec
 check-spec:
@@ -266,3 +266,7 @@ kill-rust:
 .PHONY: install
 install:
 	@ cargo install --path ./node/cli --force --locked
+
+.PHONY: typos
+typos:
+	@ ./scripts/gear.sh test typos
