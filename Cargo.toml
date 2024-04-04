@@ -522,3 +522,4 @@ wabt = { git = "https://github.com/gear-tech/wabt-rs", branch = "al-win-crt" }
 
 lz4-sys = { registry = "gear-registry" }
 wasm-opt-sys.registry = "gear-registry"
+librocksdb-sys.registry = "gear-registry"
