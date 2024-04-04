@@ -245,6 +245,8 @@ pallet-gear-staking-rewards-rpc-runtime-api = { path = "pallets/staking-rewards/
 pallet-gear-voucher = { path = "pallets/gear-voucher", default-features = false }
 pallet-gear-bank = { path = "pallets/gear-bank", default-features = false }
 pallet-gear-bridge = { path = "pallets/gear-bridge", default-features = false }
+pallet-gear-bridge-rpc = { path = "pallets/gear-bridge/rpc" }
+pallet-gear-bridge-rpc-runtime-api = { path = "pallets/gear-bridge/rpc/runtime-api", default-features = false }
 pallet-gear-builtin = { path = "pallets/gear-builtin", default-features = false }
 pallet-gear-builtin-rpc = { path = "pallets/gear-builtin/rpc" }
 pallet-gear-builtin-rpc-runtime-api = { path = "pallets/gear-builtin/rpc/runtime-api", default-features = false }

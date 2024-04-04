@@ -16,13 +16,36 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::Hasher;
+use crate::{merkle_tree::MerkleProof, Hasher};
 use frame_support::traits::Get;
 use gear_core::message::Payload;
 use parity_scale_codec::{Decode, Encode};
 use primitive_types::{H160, H256, U256};
 use scale_info::TypeInfo;
 use sp_runtime::traits::Hash;
+use sp_std::vec::Vec;
+
+#[derive(Debug, PartialEq, Eq, Encode, Decode, TypeInfo)]
+#[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
+pub struct Proof {
+    root: H256,
+    proof: Vec<H256>,
+    number_of_leaves: u64,
+    leaf_index: u64,
+    leaf: H256,
+}
+
+impl From<MerkleProof<H256, H256>> for Proof {
+    fn from(value: MerkleProof<H256, H256>) -> Self {
+        Self {
+            root: value.root,
+            proof: value.proof,
+            number_of_leaves: value.number_of_leaves as u64,
+            leaf_index: value.leaf_index as u64,
+            leaf: value.leaf,
+        }
+    }
+}
 
 /// `OnEmpty` implementation for `Nonce` storage.
 pub(crate) struct FirstNonce;

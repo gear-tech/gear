@@ -18,6 +18,8 @@
 
 //! Module with runtime mock for running tests.
 
+#![allow(unused)]
+
 use crate as pallet_gear_bridge;
 use frame_support::{
     construct_runtime, parameter_types, traits::Hooks, weights::constants::RocksDbWeight,

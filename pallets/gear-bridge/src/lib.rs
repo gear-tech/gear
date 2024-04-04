@@ -36,17 +36,20 @@ mod internal;
 // Public exports from pallet.
 pub use pallet::*;
 
+pub use crate::internal::Proof;
+
 // Gear Bridge Pallet module.
 #[frame_support::pallet]
 pub mod pallet {
-    use crate::internal::{EthMessage, EthMessageData, FirstNonce};
-    use binary_merkle_tree as merkle_tree;
+    use crate::internal::{EthMessage, EthMessageData, FirstNonce, Proof};
     use common::Origin;
     use frame_support::{pallet_prelude::*, traits::StorageVersion};
     use frame_system::pallet_prelude::*;
     use gear_core::message::PayloadSizeError;
-    use merkle_tree::MerkleProof;
     use primitive_types::{H160, H256, U256};
+    use sp_std::vec::Vec;
+
+    pub(crate) use binary_merkle_tree as merkle_tree;
 
     pub type Hasher = sp_runtime::traits::Keccak256;
 
@@ -249,7 +252,7 @@ pub mod pallet {
             Self::deposit_event(Event::<T>::RootReset);
         }
 
-        pub fn merkle_proof(hash: H256) -> Option<MerkleProof<H256, H256>> {
+        pub fn merkle_proof(hash: H256) -> Option<Proof> {
             // TODO (breathx): consider `NonceStart` storage to generate proofs of insertion.
             let queue = Queue::<T>::get();
 
@@ -257,7 +260,7 @@ pub mod pallet {
 
             let proof = merkle_tree::merkle_proof::<Hasher, _, _>(queue, idx);
 
-            Some(proof)
+            Some(proof.into())
         }
     }
 }

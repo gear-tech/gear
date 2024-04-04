@@ -92,6 +92,7 @@ pub trait RuntimeApiCollection:
     + pallet_gear_rpc_runtime_api::GearApi<Block>
     + pallet_gear_staking_rewards_rpc_runtime_api::GearStakingRewardsApi<Block>
     + pallet_gear_builtin_rpc_runtime_api::GearBuiltinApi<Block>
+    + pallet_gear_bridge_rpc_runtime_api::GearBridgeApi<Block>
 {
 }
 
@@ -109,6 +110,7 @@ impl<Api> RuntimeApiCollection for Api where
         + pallet_gear_rpc_runtime_api::GearApi<Block>
         + pallet_gear_staking_rewards_rpc_runtime_api::GearStakingRewardsApi<Block>
         + pallet_gear_builtin_rpc_runtime_api::GearBuiltinApi<Block>
+        + pallet_gear_bridge_rpc_runtime_api::GearBridgeApi<Block>
 {
 }
 

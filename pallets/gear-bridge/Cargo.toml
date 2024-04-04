@@ -17,6 +17,7 @@ parity-scale-codec = { workspace = true, features = ["derive"] }
 primitive-types = { workspace = true, features = ["scale-info"] }
 scale-info = { workspace = true, features = ["derive"] }
 log.workspace = true
+serde = { workspace = true, features = ["derive"], optional = true }
 
 # Internal deps
 common.workspace = true
@@ -42,11 +43,12 @@ std = [
 	"primitive-types/std",
 	"scale-info/std",
 	"log/std",
+	"serde/std",
 	"common/std",
 	"gear-core/std",
-	"frame-benchmarking?/std",
 	"frame-support/std",
 	"frame-system/std",
+	"frame-benchmarking?/std",
 	"sp-runtime/std",
 	"sp-std/std",
 	"sp-io/std",

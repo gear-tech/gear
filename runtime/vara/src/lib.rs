@@ -1071,6 +1071,11 @@ impl pallet_gear_builtin::Config for Runtime {
     type WeightInfo = pallet_gear_builtin::weights::SubstrateWeight<Runtime>;
 }
 
+impl pallet_gear_bridge::Config for Runtime {
+    type RuntimeEvent = RuntimeEvent;
+    type QueueLimit = ConstU32<128>;
+}
+
 pub struct ExtraFeeFilter;
 impl Contains<RuntimeCall> for ExtraFeeFilter {
     fn contains(call: &RuntimeCall) -> bool {
@@ -1197,6 +1202,7 @@ construct_runtime!(
         GearVoucher: pallet_gear_voucher = 107,
         GearBank: pallet_gear_bank = 108,
         GearBuiltin: pallet_gear_builtin = 109,
+        GearBridge: pallet_gear_bridge = 110,
 
         Sudo: pallet_sudo = 99,
 
@@ -1258,6 +1264,7 @@ construct_runtime!(
         GearVoucher: pallet_gear_voucher = 107,
         GearBank: pallet_gear_bank = 108,
         GearBuiltin: pallet_gear_builtin = 109,
+        // GearBridge: pallet_gear_bridge = 110,
 
         // NOTE (!): `pallet_sudo` used to be idx(99).
         // NOTE (!): `pallet_airdrop` used to be idx(198).
@@ -1432,6 +1439,17 @@ impl_runtime_apis_plus_common! {
     impl pallet_gear_builtin_rpc_runtime_api::GearBuiltinApi<Block> for Runtime {
         fn query_actor_id(builtin_id: u64) -> H256 {
             GearBuiltin::generate_actor_id(builtin_id).into_bytes().into()
+        }
+    }
+
+    impl pallet_gear_bridge_rpc_runtime_api::GearBridgeApi<Block> for Runtime {
+        fn merkle_proof(hash: H256) -> Option<pallet_gear_bridge_rpc_runtime_api::Proof> {
+            match () {
+                #[cfg(not(feature = "dev"))]
+                () => None,
+                #[cfg(feature = "dev")]
+                () => GearBridge::merkle_proof(hash),
+            }
         }
     }
 

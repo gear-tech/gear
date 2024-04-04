@@ -4754,6 +4754,8 @@ dependencies = [
  "hex-literal",
  "jsonrpsee 0.16.3",
  "log",
+ "pallet-gear-bridge-rpc",
+ "pallet-gear-bridge-rpc-runtime-api",
  "pallet-gear-builtin-rpc",
  "pallet-gear-builtin-rpc-runtime-api",
  "pallet-gear-rpc",
@@ -8046,9 +8048,31 @@ dependencies = [
  "parity-scale-codec",
  "primitive-types",
  "scale-info",
+ "serde",
  "sp-io",
  "sp-runtime",
  "sp-std 8.0.0 (git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-v1.1.0)",
+]
+
+[[package]]
+name = "pallet-gear-bridge-rpc"
+version = "1.2.0"
+dependencies = [
+ "jsonrpsee 0.16.3",
+ "pallet-gear-bridge-rpc-runtime-api",
+ "primitive-types",
+ "sp-api",
+ "sp-blockchain",
+ "sp-runtime",
+]
+
+[[package]]
+name = "pallet-gear-bridge-rpc-runtime-api"
+version = "1.2.0"
+dependencies = [
+ "pallet-gear-bridge",
+ "sp-api",
+ "sp-core",
 ]
 
 [[package]]
@@ -14049,6 +14073,8 @@ dependencies = [
  "pallet-election-provider-multi-phase",
  "pallet-gear",
  "pallet-gear-bank",
+ "pallet-gear-bridge",
+ "pallet-gear-bridge-rpc-runtime-api",
  "pallet-gear-builtin",
  "pallet-gear-builtin-rpc-runtime-api",
  "pallet-gear-debug",

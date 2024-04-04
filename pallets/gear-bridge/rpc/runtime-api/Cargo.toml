@@ -1,0 +1,21 @@
+[package]
+name = "pallet-gear-bridge-rpc-runtime-api"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage = "https://gear-tech.io"
+repository = "https://github.com/gear-tech/gear"
+
+[dependencies]
+sp-api.workspace = true
+sp-core.workspace = true
+pallet-gear-bridge.workspace = true
+
+[features]
+default = ["std"]
+std = [
+    "sp-api/std",
+    "sp-core/std",
+    "pallet-gear-bridge/std",
+]
