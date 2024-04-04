@@ -41,6 +41,8 @@ jobs:
 
       - name: "ACTIONS: Setup caching"
         uses: Swatinem/rust-cache@v2
+        with:
+          key: "${{ matrix.profile }}"
 
       - name: "Install: cargo-nextest"
         run: curl -LsSf https://get.nexte.st/latest/mac | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
