@@ -1056,14 +1056,6 @@ pub mod pallet {
 
             let schedule = T::Schedule::get();
 
-            // +_+_+ comment
-            let max_pages =
-                WasmPagesAmount::try_from(schedule.limits.memory_pages).unwrap_or_else(|_| {
-                    unreachable!(
-                        "Max pages amount is bigger than possible for 32-bits address space"
-                    )
-                });
-
             BlockConfig {
                 block_info,
                 performance_multiplier: T::PerformanceMultiplier::get().into(),
@@ -1074,7 +1066,7 @@ pub mod pallet {
                 existential_deposit: CurrencyOf::<T>::minimum_balance().unique_saturated_into(),
                 mailbox_threshold: T::MailboxThreshold::get(),
                 max_reservations: T::ReservationsLimit::get(),
-                max_pages,
+                max_pages: schedule.limits.memory_pages.into(),
                 outgoing_limit: T::OutgoingLimit::get(),
                 outgoing_bytes_limit: T::OutgoingBytesLimit::get(),
             }

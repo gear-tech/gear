@@ -378,7 +378,7 @@ benchmarks! {
         let WasmModule { code, .. } = WasmModule::<T>::sized(c * 1024, Location::Init);
     }: {
         let ext = Externalities::new(ProcessorContext::new_mock());
-        Environment::new(ext, &code, DispatchKind::Init, Default::default(), (DEFAULT_PAGES as u16).into()).unwrap();
+        Environment::new(ext, &code, DispatchKind::Init, Default::default(), (MAX_PAGES as u16).into()).unwrap();
     }
 
     claim_value {
@@ -1414,7 +1414,7 @@ benchmarks! {
     }
 
     lazy_pages_signal_read {
-        let p in 0 .. DEFAULT_PAGES;
+        let p in 0 .. MAX_PAGES;
         let mut res = None;
         let exec = Benches::<T>::lazy_pages_signal_read((p as u16).into())?;
     }: {
@@ -1425,7 +1425,7 @@ benchmarks! {
     }
 
     lazy_pages_signal_write {
-        let p in 0 .. DEFAULT_PAGES;
+        let p in 0 .. MAX_PAGES;
         let mut res = None;
         let exec = Benches::<T>::lazy_pages_signal_write((p as u16).into())?;
     }: {
@@ -1436,7 +1436,7 @@ benchmarks! {
     }
 
     lazy_pages_signal_write_after_read {
-        let p in 0 .. DEFAULT_PAGES;
+        let p in 0 .. MAX_PAGES;
         let mut res = None;
         let exec = Benches::<T>::lazy_pages_signal_write_after_read((p as u16).into())?;
     }: {
@@ -1447,7 +1447,7 @@ benchmarks! {
     }
 
     lazy_pages_load_page_storage_data {
-        let p in 0 .. DEFAULT_PAGES;
+        let p in 0 .. MAX_PAGES;
         let mut res = None;
         let exec = Benches::<T>::lazy_pages_load_page_storage_data((p as u16).into())?;
     }: {
@@ -1495,9 +1495,9 @@ benchmarks! {
         // Increased interval in order to increase accuracy
         let r in INSTR_BENCHMARK_BATCHES .. 10 * INSTR_BENCHMARK_BATCHES;
         let module = ModuleDefinition {
-            memory: Some(ImportedMemory::new(DEFAULT_PAGES as u16)),
+            memory: Some(ImportedMemory::new(MAX_PAGES as u16)),
             handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
-                        RandomUnaligned(0, mem_pages as u32 * WasmPage::SIZE - 8),
+                        RandomUnaligned(0, MAX_PAGES * WasmPage::SIZE - 8),
                         Regular(Instruction::I64Load(3, 0)),
                         Regular(Instruction::Drop)])),
             .. Default::default()
@@ -1512,9 +1512,9 @@ benchmarks! {
         // Increased interval in order to increase accuracy
         let r in INSTR_BENCHMARK_BATCHES .. 10 * INSTR_BENCHMARK_BATCHES;
         let module = ModuleDefinition {
-            memory: Some(ImportedMemory::new(DEFAULT_PAGES as u16)),
+            memory: Some(ImportedMemory::new(MAX_PAGES as u16)),
             handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
-                        RandomUnaligned(0, mem_pages as u32 * WasmPage::SIZE - 4),
+                        RandomUnaligned(0, MAX_PAGES * WasmPage::SIZE - 4),
                         Regular(Instruction::I32Load(2, 0)),
                         Regular(Instruction::Drop)])),
             .. Default::default()
@@ -1529,9 +1529,9 @@ benchmarks! {
         // Increased interval in order to increase accuracy
         let r in INSTR_BENCHMARK_BATCHES .. 10 * INSTR_BENCHMARK_BATCHES;
         let module = ModuleDefinition {
-            memory: Some(ImportedMemory::new(DEFAULT_PAGES as u16)),
+            memory: Some(ImportedMemory::new(MAX_PAGES as u16)),
             handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
-                        RandomUnaligned(0, mem_pages as u32 * WasmPage::SIZE - 8),
+                        RandomUnaligned(0, MAX_PAGES * WasmPage::SIZE - 8),
                         RandomI64Repeated(1),
                         Regular(Instruction::I64Store(3, 0))])),
             .. Default::default()
@@ -1546,9 +1546,9 @@ benchmarks! {
         // Increased interval in order to increase accuracy
         let r in INSTR_BENCHMARK_BATCHES .. 10 * INSTR_BENCHMARK_BATCHES;
         let module = ModuleDefinition {
-            memory: Some(ImportedMemory::new(DEFAULT_PAGES as u16)),
+            memory: Some(ImportedMemory::new(MAX_PAGES as u16)),
             handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
-                        RandomUnaligned(0, mem_pages as u32 * WasmPage::SIZE - 4),
+                        RandomUnaligned(0, MAX_PAGES * WasmPage::SIZE - 4),
                         RandomI32Repeated(1),
                         Regular(Instruction::I32Store(2, 0))])),
             .. Default::default()
@@ -1862,7 +1862,7 @@ benchmarks! {
     instr_memory_current {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
-            memory: Some(Default::default()),
+            memory: Some(ImportedMemory::max::<T>()),
             handle_body: Some(body::repeated(r * INSTR_BENCHMARK_BATCH_SIZE, &[
                 Instruction::CurrentMemory(0),
                 Instruction::Drop

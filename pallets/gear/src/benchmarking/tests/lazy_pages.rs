@@ -208,7 +208,7 @@ where
     let (load_prob, store_prob, syscall_prob) = (4, 4, 2);
     let prob_max = load_prob + store_prob + syscall_prob;
 
-    let memory = ImportedMemory::default();
+    let memory = ImportedMemory::max::<T>();
     let size_wasm_pages = memory.min_pages;
     let size_gear: GearPagesAmount = size_wasm_pages.to_pages_amount();
     let access_size = size_of::<u32>() as u32;
@@ -366,7 +366,7 @@ where
 
     let test = |instrs, expected| {
         let module = ModuleDefinition {
-            memory: Some(Default::default()),
+            memory: Some(ImportedMemory::max::<T>()),
             handle_body: Some(body::from_instructions(instrs)),
             stack_end: Some(0.into()),
             ..Default::default()
@@ -523,7 +523,7 @@ where
         Instruction::I32Store(2, 0),
     ];
     let module = ModuleDefinition {
-        memory: Some(Default::default()),
+        memory: Some(ImportedMemory::max::<T>()),
         handle_body: Some(body::from_instructions(instrs)),
         stack_end: Some(0.into()),
         ..Default::default()

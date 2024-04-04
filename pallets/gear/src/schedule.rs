@@ -179,7 +179,7 @@ pub struct Limits {
     pub parameters: u32,
 
     /// Maximum number of memory pages allowed for a program.
-    pub memory_pages: u32,
+    pub memory_pages: u16,
 
     /// Maximum number of elements allowed in a table.
     ///
@@ -202,13 +202,6 @@ pub struct Limits {
     /// version of the code. Therefore `instantiate_with_code` can fail even when supplying
     /// a wasm binary below this maximum size.
     pub code_len: u32,
-}
-
-impl Limits {
-    /// The maximum memory size in bytes that a program can occupy.
-    pub fn max_memory_size(&self) -> u32 {
-        self.memory_pages * 64 * 1024
-    }
 }
 
 /// Describes the weight for all categories of supported wasm instructions.
