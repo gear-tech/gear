@@ -115,7 +115,7 @@ checksum = "03cdc46ec28bd728e67540c528013c6a10eb69a02eb31078a1bda695438cbfb8"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.55",
+ "syn 2.0.58",
 ]
 
 [[package]]
@@ -196,7 +196,7 @@ dependencies = [
 
 [[package]]
 name = "galloc"
-version = "1.2.0"
+version = "1.2.1"
 dependencies = [
  "gear-dlmalloc",
 ]
@@ -210,7 +210,7 @@ dependencies = [
 
 [[package]]
 name = "gcore"
-version = "1.2.0"
+version = "1.2.1"
 dependencies = [
  "gear-core-errors",
  "gear-stack-buffer",
@@ -220,7 +220,7 @@ dependencies = [
 
 [[package]]
 name = "gear-core-errors"
-version = "1.2.0"
+version = "1.2.1"
 dependencies = [
  "derive_more",
  "enum-iterator",
@@ -242,11 +242,11 @@ dependencies = [
 
 [[package]]
 name = "gear-stack-buffer"
-version = "1.2.0"
+version = "1.2.1"
 
 [[package]]
 name = "gstd"
-version = "1.2.0"
+version = "1.2.1"
 dependencies = [
  "arrayvec",
  "bs58",
@@ -265,16 +265,16 @@ dependencies = [
 
 [[package]]
 name = "gstd-codegen"
-version = "1.2.0"
+version = "1.2.1"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.55",
+ "syn 2.0.58",
 ]
 
 [[package]]
 name = "gsys"
-version = "1.2.0"
+version = "1.2.1"
 
 [[package]]
 name = "hashbrown"
@@ -509,9 +509,9 @@ dependencies = [
 
 [[package]]
 name = "syn"
-version = "2.0.55"
+version = "2.0.58"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "002a1b3dbf967edfafc32655d0f377ab0bb7b994aa1d32c8cc7e9b8bf3ebb8f0"
+checksum = "44cfb93f38070beee36b3fef7d4f5a16f27751d94b187b666a5cc5e9b0d30687"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -639,5 +639,5 @@ checksum = "9ce1b18ccd8e73a9321186f97e46f9f04b778851177567b1975109d26a08d2a6"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.55",
+ "syn 2.0.58",
 ]

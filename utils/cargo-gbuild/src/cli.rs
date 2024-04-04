@@ -18,7 +18,7 @@
 
 use crate::manifest;
 use anyhow::{anyhow, Result};
-use ccli::{clap, Parser};
+use clap::Parser;
 use gear_wasm_builder::{
     optimize::{self, OptType, Optimizer},
     CargoCommand,

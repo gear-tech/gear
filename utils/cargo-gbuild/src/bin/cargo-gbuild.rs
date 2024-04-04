@@ -18,13 +18,14 @@
 
 use anyhow::Result;
 use cargo_gbuild::GBuild;
-use ccli::{clap, App, Parser};
+use clap::{CommandFactory, Parser};
+use tracing_subscriber::filter::EnvFilter;
 
 /// Command `gbuild` as cargo extension.
 #[derive(Parser)]
 #[clap(author, version)]
-#[command(name = "cargo_gbuild")]
-struct Opt {
+#[command(name = "cargo-gbuild")]
+struct App {
     /// The verbosity level
     #[clap(short, long, action = clap::ArgAction::Count)]
     pub verbose: u8,
@@ -34,11 +35,7 @@ struct Opt {
     pub command: GBuild,
 }
 
-impl App for Opt {
-    fn verbose(&self) -> u8 {
-        self.verbose
-    }
-
+impl App {
     fn run(&self) -> Result<()> {
         let artifact = self.command.collect()?;
         tracing::info!("The artifact has been generated at {:?}", artifact.root);
@@ -46,6 +43,18 @@ impl App for Opt {
     }
 }
 
-fn main() {
-    Opt::start().expect("Failed to process cargo-gbuild.");
+fn main() -> Result<()> {
+    let app = App::parse();
+
+    // Replace the binary name to library name.
+    let name = App::command().get_name().to_string().replace('-', "_");
+    let env = EnvFilter::try_from_default_env().unwrap_or(EnvFilter::new(match app.verbose {
+        0 => format!("{name}=info"),
+        1 => format!("{name}=debug"),
+        2 => "debug".into(),
+        _ => "trace".into(),
+    }));
+
+    tracing_subscriber::fmt().with_env_filter(env).init();
+    app.run()
 }
