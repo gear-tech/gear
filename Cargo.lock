@@ -6813,9 +6813,9 @@ dependencies = [
 
 [[package]]
 name = "lz4-sys"
-version = "1.9.4+2"
+version = "1.9.4+3"
 source = "sparse+http://3.75.247.246:50000/index/"
-checksum = "d40a2c93d745d368360debb09a6f9f638e0f459438215fbfd76b6a35d1e139cd"
+checksum = "d26c8e0344a165dd950e4f2b1553edda6e7dcbda1fbf14163e08173488d57b9c"
 dependencies = [
  "cc",
  "libc",
