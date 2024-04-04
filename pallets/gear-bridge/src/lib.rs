@@ -22,6 +22,18 @@
 #![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
 #![doc(html_favicon_url = "https://gear-tech.io/favicons/favicon.ico")]
 
+// TODO (breathx):
+// - [ ] *Consider*: named events for ON/OFF and `switch` naming;
+// - [ ] *Consider*: `NonceStart` storage;
+// - [ ] *Consider*: storages visibility;
+// - [ ] *Consider*: RPC-call with validator set;
+// - [ ] *Code*: reset + set hash of validators on epoch change (beginning of second block of the epoch);
+// - [ ] *Code*: tests coverage;
+// - [ ] *Code*: impl builtin.
+
+// Move nonce before payload
+// keep hash of val set here.
+
 // Runtime mock for running tests.
 #[cfg(test)]
 mod mock;
@@ -231,7 +243,6 @@ pub mod pallet {
         }
 
         pub fn merkle_proof(hash: H256) -> Option<Proof> {
-            // TODO (breathx): consider `NonceStart` storage to generate proofs of insertion.
             let queue = Queue::<T>::get();
 
             let idx = queue.iter().position(|&v| v == hash)?;
