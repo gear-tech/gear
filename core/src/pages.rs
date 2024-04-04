@@ -20,8 +20,13 @@
 
 use core::cmp::Ordering;
 pub use numerated::{
+    interval::{
+        EmptyRangeError, IncorrectRangeError, Interval, NewWithLenError, TryFromRangeError,
+    },
+    iterators::{DifferenceIterator, IntervalIterator, OutOfBoundsError, VoidsIterator},
     num_traits::bounds::{LowerBounded, UpperBounded},
-    Bound, Interval, IntervalIterator, IntervalsTree, Numerated,
+    numerated::{Bound, Numerated},
+    tree::IntervalsTree,
 };
 use scale_info::{
     scale::{Decode, Encode},
@@ -29,15 +34,15 @@ use scale_info::{
 };
 
 /// A WebAssembly page has a constant size of 64KiB.
-const WASM_PAGE_SIZE: usize = 64 * 1024;
+const WASM_PAGE_SIZE: u32 = 64 * 1024;
 
 /// A size of memory pages in program data storage.
 /// If program changes some memory page during execution, then page of this size will be uploaded to the storage.
 /// If during execution program accesses some data in memory, then data of this size will be downloaded from the storage.
 /// Currently equal to 16KiB to be bigger than most common host page sizes.
-const GEAR_PAGE_SIZE: usize = 16 * 1024;
+const GEAR_PAGE_SIZE: u32 = 16 * 1024;
 
-const _: () = assert!(WASM_PAGE_SIZE < u32::MAX as usize);
+const _: () = assert!(WASM_PAGE_SIZE < u32::MAX);
 const _: () = assert!(WASM_PAGE_SIZE % GEAR_PAGE_SIZE == 0);
 
 /// Struct represents memory pages amount with some constant size `SIZE` in bytes.
@@ -72,11 +77,10 @@ impl<const SIZE: u32> PagesAmount<SIZE> {
 
     /// Pages amount addition. Returns None if overflow.
     #[cfg(test)]
-    pub fn add<A: Into<Self>, B: Into<Self>>(a: A, b: B) -> Option<Self> {
-        let a: Self = a.into();
-        let b: Self = b.into();
-        a.0.checked_add(b.0)
-            .and_then(|c| (c <= Self::UPPER.0).then_some(Self(c)))
+    pub fn add(&self, other: Self) -> Option<Self> {
+        self.0
+            .checked_add(other.0)
+            .and_then(|r| (r <= Self::UPPER.0).then_some(Self(r)))
     }
 
     /// Get page number, which bounds this pages amount.
@@ -85,7 +89,7 @@ impl<const SIZE: u32> PagesAmount<SIZE> {
         self.unbound()
     }
 
-    /// Converts one page size to another.
+    /// Returns corresponding amount of pages with another size `S`.
     pub fn to_pages_amount<const S: u32>(&self) -> PagesAmount<S> {
         let raw = if Self::SIZE > S {
             (Self::SIZE / S) * self.0
@@ -95,7 +99,10 @@ impl<const SIZE: u32> PagesAmount<SIZE> {
         PagesAmount(raw)
     }
 
-    /// +_+_+
+    /// Returns amount in bytes.
+    /// Can be also considered as offset of a page with corresponding number.
+    /// In 32-bits address space it can be up to u32::MAX + 1,
+    /// so we returns u64 to prevent overflow.
     pub fn offset(&self) -> u64 {
         self.0 as u64 * SIZE as u64
     }
@@ -293,21 +300,13 @@ impl<const SIZE: u32> UpperBounded for Page<SIZE> {
 }
 
 /// Page of wasm page size - 64 kiB.
-pub type WasmPage = Page<{ WASM_PAGE_SIZE as u32 }>;
+pub type WasmPage = Page<WASM_PAGE_SIZE>;
 /// Page of gear page size - 16 kiB.
-pub type GearPage = Page<{ GEAR_PAGE_SIZE as u32 }>;
+pub type GearPage = Page<GEAR_PAGE_SIZE>;
 /// Pages amount for wasm page size - 64 kiB.
-pub type WasmPagesAmount = PagesAmount<{ WASM_PAGE_SIZE as u32 }>;
+pub type WasmPagesAmount = PagesAmount<WASM_PAGE_SIZE>;
 /// Pages amount for gear page size - 16 kiB.
-pub type GearPagesAmount = PagesAmount<{ GEAR_PAGE_SIZE as u32 }>;
-
-impl WasmPagesAmount {
-    /// Make wasm pages amount constant from u16.
-    pub const fn from_u16(raw: u16) -> Self {
-        const _: () = assert!(WASM_PAGE_SIZE <= 0x10_000);
-        Self(raw as u32)
-    }
-}
+pub type GearPagesAmount = PagesAmount<GEAR_PAGE_SIZE>;
 
 impl From<u16> for WasmPagesAmount {
     fn from(value: u16) -> Self {
@@ -340,28 +339,149 @@ impl From<u16> for GearPage {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use numerated::mock::test_numerated;
-    use proptest::{proptest, strategy::Strategy, test_runner::Config as ProptestConfig};
+    use alloc::{vec, vec::Vec};
 
-    fn rand_gear_page() -> impl Strategy<Value = GearPage> {
-        (0..=GearPage::UPPER.0).prop_map(Page)
+    #[test]
+    fn test_page_inc() {
+        assert_eq!(WasmPage::from(10).inc(), WasmPagesAmount::from(11));
+        assert_eq!(WasmPage::UPPER.inc(), WasmPagesAmount::UPPER);
     }
 
-    fn rand_wasm_page() -> impl Strategy<Value = WasmPage> {
-        (0..=WasmPage::UPPER.0).prop_map(Page)
+    #[test]
+    fn test_page_from_offset() {
+        assert_eq!(WasmPage::from_offset(WASM_PAGE_SIZE - 1), WasmPage::from(0));
+        assert_eq!(WasmPage::from_offset(WASM_PAGE_SIZE), WasmPage::from(1));
+        assert_eq!(WasmPage::from_offset(WASM_PAGE_SIZE + 1), WasmPage::from(1));
+    }
+
+    #[test]
+    fn test_page_offset() {
+        assert_eq!(WasmPage::from(80).offset(), 80 * WASM_PAGE_SIZE);
+    }
+
+    #[test]
+    fn test_page_end_offset() {
+        assert_eq!(
+            WasmPage::from(80).end_offset(),
+            80 * WASM_PAGE_SIZE + (WASM_PAGE_SIZE - 1)
+        );
+    }
+
+    #[test]
+    fn test_page_to_page() {
+        assert_eq!(
+            WasmPage::from(80).to_page::<GEAR_PAGE_SIZE>(),
+            GearPage::from(80 * 4)
+        );
+    }
+
+    #[test]
+    fn test_page_to_iter() {
+        assert_eq!(
+            WasmPage::from(5).to_iter().collect::<Vec<GearPage>>(),
+            vec![
+                GearPage::from(20),
+                GearPage::from(21),
+                GearPage::from(22),
+                GearPage::from(23)
+            ]
+        );
+    }
+
+    #[test]
+    fn test_pages_amount_add() {
+        let a = WasmPagesAmount::from(10);
+        let b = WasmPagesAmount::from(20);
+        assert_eq!(a.add(b), Some(WasmPagesAmount::from(30)));
+        assert_eq!(a.add(WasmPagesAmount::UPPER), None);
+    }
+
+    #[test]
+    fn test_pages_amount_to_page_number() {
+        assert_eq!(
+            WasmPagesAmount::from(10).to_page_number(),
+            Some(WasmPage::from(10))
+        );
+        assert_eq!(WasmPagesAmount::UPPER.to_page_number(), None);
+    }
+
+    #[test]
+    fn test_pages_amount_to_pages_amount() {
+        assert_eq!(
+            WasmPagesAmount::from(10).to_pages_amount::<GEAR_PAGE_SIZE>(),
+            GearPagesAmount::from(40)
+        );
+        assert_eq!(
+            GearPagesAmount::from(40).to_pages_amount::<WASM_PAGE_SIZE>(),
+            WasmPagesAmount::from(10)
+        );
+    }
+
+    #[test]
+    fn test_pages_amount_offset() {
+        assert_eq!(
+            WasmPagesAmount::from(10).offset(),
+            10 * WASM_PAGE_SIZE as u64
+        );
+        assert_eq!(WasmPagesAmount::UPPER.offset(), u32::MAX as u64 + 1);
+    }
+}
+
+#[cfg(test)]
+mod property_tests {
+    use super::*;
+    use numerated::mock::{self, IntervalAction};
+    use proptest::{
+        prelude::{any, Arbitrary},
+        proptest,
+        strategy::{BoxedStrategy, Strategy},
+        test_runner::Config as ProptestConfig,
+    };
+
+    impl<const S: u32> Arbitrary for Page<S> {
+        type Parameters = ();
+        type Strategy = BoxedStrategy<Page<S>>;
+
+        fn arbitrary_with(_: Self::Parameters) -> Self::Strategy {
+            (0..=Page::<S>::UPPER.0).prop_map(Page).boxed()
+        }
     }
 
     proptest! {
         #![proptest_config(ProptestConfig::with_cases(1024))]
 
         #[test]
-        fn proptest_gear_page_numerated(p1 in rand_gear_page(), p2 in rand_gear_page()) {
-            test_numerated(p1, p2);
+        fn gear_page_numerated(x in any::<GearPage>(), y in any::<GearPage>()) {
+            mock::test_numerated(x, y);
         }
 
         #[test]
-        fn proptest_wasm_page_numerated(p1 in rand_wasm_page(), p2 in rand_wasm_page()) {
-            test_numerated(p1, p2);
+        fn gear_page_interval(action in any::<IntervalAction<GearPage>>()) {
+            mock::test_interval(action);
+        }
+
+        #[test]
+        fn wasm_page_numerated(x in any::<WasmPage>(), y in any::<WasmPage>()) {
+            mock::test_numerated(x, y);
+        }
+
+        #[test]
+        fn wasm_page_interval(action in any::<IntervalAction<WasmPage>>()) {
+            mock::test_interval(action);
+        }
+    }
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(64))]
+
+        #[test]
+        fn gear_page_tree((initial, actions) in mock::tree_actions::<GearPage>(0..128, 2..8)) {
+            mock::test_tree(initial, actions);
+        }
+
+        #[test]
+        fn wasm_page_tree((initial, actions) in mock::tree_actions::<WasmPage>(0..128, 10..20)) {
+            mock::test_tree(initial, actions);
         }
     }
 }

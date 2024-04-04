@@ -17,13 +17,19 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    common::Error, init_with_handler, mprotect, pages::GearPage, signal::ExceptionInfo,
+    common::Error,
+    init_with_handler, mprotect,
+    pages::{tests::PageSizeManager, GearPage},
+    signal::ExceptionInfo,
     LazyPagesStorage, LazyPagesVersion, UserSignalHandler,
 };
 use gear_core::str::LimitedStr;
 use gear_lazy_pages_common::LazyPagesInitContext;
-use numerated::IntervalsTree;
+use numerated::tree::IntervalsTree;
 use region::Protection;
+
+const GEAR_PAGE_SIZE: usize = 0x4000;
+const WASM_PAGE_SIZE: usize = 0x10000;
 
 #[derive(Debug)]
 struct NoopStorage;
@@ -40,7 +46,7 @@ impl LazyPagesStorage for NoopStorage {
 
 fn init_ctx() -> LazyPagesInitContext {
     LazyPagesInitContext {
-        page_sizes: vec![0x8000, 0x4000],
+        page_sizes: vec![WASM_PAGE_SIZE as u32, GEAR_PAGE_SIZE as u32],
         global_names: vec![LimitedStr::from_small_str("gear_gas")],
         pages_storage_prefix: Default::default(),
     }
@@ -117,11 +123,9 @@ fn test_mprotect_pages() {
     const OLD_VALUE: u8 = 99;
     const NEW_VALUE: u8 = 100;
 
-    const WASM_PAGE_SIZE: u32 = 0x4000;
-    const PAGE_SIZE: u32 = 0x4000;
-
-    let new_page = |p: u32| GearPage::new(&PAGE_SIZE, p).unwrap();
-    let offset = |p: GearPage| p.offset(&PAGE_SIZE) as usize;
+    let ctx = PageSizeManager([WASM_PAGE_SIZE as u32, GEAR_PAGE_SIZE as u32]);
+    let new_page = |p: u32| GearPage::new(&ctx, p).unwrap();
+    let offset = |p: GearPage| p.offset(&ctx) as usize;
 
     struct TestHandler;
 
@@ -129,9 +133,9 @@ fn test_mprotect_pages() {
         unsafe fn handle(info: ExceptionInfo) -> Result<(), Error> {
             let mem = info.fault_addr as usize;
             let addr = region::page::floor(info.fault_addr);
-            region::protect(addr, PAGE_SIZE as usize, region::Protection::READ_WRITE).unwrap();
+            region::protect(addr, GEAR_PAGE_SIZE, region::Protection::READ_WRITE).unwrap();
             *(mem as *mut u8) = NEW_VALUE;
-            region::protect(addr, PAGE_SIZE as usize, region::Protection::READ).unwrap();
+            region::protect(addr, GEAR_PAGE_SIZE, region::Protection::READ).unwrap();
 
             Ok(())
         }
@@ -142,28 +146,28 @@ fn test_mprotect_pages() {
     init_with_handler::<TestHandler, _>(LazyPagesVersion::Version1, init_ctx(), NoopStorage)
         .unwrap();
 
-    let mut v = vec![0u8; 3 * WASM_PAGE_SIZE as usize];
+    let mut v = vec![0u8; 3 * WASM_PAGE_SIZE];
     let buff = v.as_mut_ptr() as usize;
-    let page_begin =
-        ((buff + WASM_PAGE_SIZE as usize) / WASM_PAGE_SIZE as usize) * WASM_PAGE_SIZE as usize;
+    let page_begin = ((buff + WASM_PAGE_SIZE) / WASM_PAGE_SIZE) * WASM_PAGE_SIZE;
 
-    // Randomly choose pages, which will be protected.
-    let pages_protected: IntervalsTree<GearPage> = [0, 4, 5].map(new_page).into_iter().collect();
-    let pages_unprotected: IntervalsTree<GearPage> =
-        [1, 2, 3, 6, 7].map(new_page).into_iter().collect();
+    let pages: IntervalsTree<_> = (0..(2 * WASM_PAGE_SIZE / GEAR_PAGE_SIZE) as u32)
+        .map(new_page)
+        .collect();
+
+    // Randomly choose pages, which is going to be protected.
+    let pages_protected: IntervalsTree<_> = [0, 4, 5].map(new_page).into_iter().collect();
+    let pages_unprotected: IntervalsTree<_> = pages.difference(&pages).collect();
+    assert!(pages.end() >= pages_protected.end());
 
     // Set `OLD_VALUE` as value for each first byte of gear pages
     unsafe {
-        for p in pages_unprotected
-            .points_iter()
-            .chain(pages_protected.points_iter())
-        {
+        for p in pages.points_iter() {
             let addr = page_begin + offset(p) + 1;
             *(addr as *mut u8) = OLD_VALUE;
         }
     }
 
-    mprotect::mprotect_pages(page_begin, pages_protected.iter(), &PAGE_SIZE, false, false)
+    mprotect::mprotect_pages(page_begin, pages_protected.iter(), &ctx, false, false)
         .expect("Must be correct");
 
     unsafe {
@@ -182,6 +186,6 @@ fn test_mprotect_pages() {
         }
     }
 
-    mprotect::mprotect_pages(page_begin, pages_protected.iter(), &PAGE_SIZE, true, true)
+    mprotect::mprotect_pages(page_begin, pages_protected.iter(), &ctx, true, true)
         .expect("Must be correct");
 }

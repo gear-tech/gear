@@ -110,7 +110,7 @@ use sp_std::prelude::*;
 
 const MAX_PAYLOAD_LEN: u32 = 32 * 64 * 1024;
 const MAX_PAYLOAD_LEN_KB: u32 = MAX_PAYLOAD_LEN / 1024;
-const DEFAULT_PAGES: u32 = 512;
+const MAX_PAGES: u32 = 512;
 const MAX_SALT_SIZE_BYTES: u32 = 4 * 1024 * 1024;
 
 /// How many batches we do per API benchmark.
@@ -1497,7 +1497,7 @@ benchmarks! {
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(DEFAULT_PAGES as u16)),
             handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
-                        RandomUnaligned(0, DEFAULT_PAGES * WasmPage::SIZE - 8),
+                        RandomUnaligned(0, mem_pages as u32 * WasmPage::SIZE - 8),
                         Regular(Instruction::I64Load(3, 0)),
                         Regular(Instruction::Drop)])),
             .. Default::default()
@@ -1514,7 +1514,7 @@ benchmarks! {
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(DEFAULT_PAGES as u16)),
             handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
-                        RandomUnaligned(0, DEFAULT_PAGES * WasmPage::SIZE - 4),
+                        RandomUnaligned(0, mem_pages as u32 * WasmPage::SIZE - 4),
                         Regular(Instruction::I32Load(2, 0)),
                         Regular(Instruction::Drop)])),
             .. Default::default()
@@ -1531,7 +1531,7 @@ benchmarks! {
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(DEFAULT_PAGES as u16)),
             handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
-                        RandomUnaligned(0, DEFAULT_PAGES * WasmPage::SIZE - 8),
+                        RandomUnaligned(0, mem_pages as u32 * WasmPage::SIZE - 8),
                         RandomI64Repeated(1),
                         Regular(Instruction::I64Store(3, 0))])),
             .. Default::default()
@@ -1548,7 +1548,7 @@ benchmarks! {
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(DEFAULT_PAGES as u16)),
             handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
-                        RandomUnaligned(0, DEFAULT_PAGES * WasmPage::SIZE - 4),
+                        RandomUnaligned(0, mem_pages as u32 * WasmPage::SIZE - 4),
                         RandomI32Repeated(1),
                         Regular(Instruction::I32Store(2, 0))])),
             .. Default::default()

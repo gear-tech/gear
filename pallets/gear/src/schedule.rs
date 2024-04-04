@@ -785,7 +785,7 @@ impl Default for Limits {
             globals: 256,
             locals: 1024,
             parameters: 128,
-            memory_pages: MAX_WASM_PAGES_AMOUNT.into(),
+            memory_pages: MAX_WASM_PAGES_AMOUNT,
             // 4k function pointers (This is in count not bytes).
             table_size: 4096,
             br_table_size: 256,

@@ -35,8 +35,8 @@ impl From<(BTreeSet<WasmPage>, H256, MemoryMap)> for Item {
     fn from(
         (allocations, code_hash, mut memory_pages): (BTreeSet<WasmPage>, H256, MemoryMap),
     ) -> Self {
-        let split_page = (WasmPage::SIZE / GearPage::SIZE) * u32::from(MAX_WASM_PAGES_AMOUNT) / 2;
-        let remaining_pages = memory_pages.split_off(&GearPage::from(split_page as u16));
+        let split_page = WasmPage::from(MAX_WASM_PAGES_AMOUNT / 2);
+        let remaining_pages = memory_pages.split_off(&split_page.to_page());
         Self {
             data: (allocations, code_hash, memory_pages),
             remaining_pages,

@@ -57,8 +57,11 @@ impl<Ext: Externalities + 'static> Memory for MemoryWrapRef<'_, '_, Ext> {
     }
 
     fn size(&self) -> WasmPagesAmount {
-        WasmPagesAmount::try_from(self.memory.size(self.caller))
-            .expect("Unexpected executor behavior: wasm size is bigger then 4 GB")
+        WasmPagesAmount::try_from(self.memory.size(self.caller)).unwrap_or_else(|_| {
+            unreachable!(
+                "Unexpected backend behavior: wasm size is bigger than possible in 32-bits address space"
+            )
+        })
     }
 
     fn write(&mut self, offset: u32, buffer: &[u8]) -> Result<(), MemoryError> {
@@ -113,9 +116,14 @@ where
     }
 
     fn size(&self) -> WasmPagesAmount {
-        self.memory.size(&self.store).try_into().unwrap_or_else( |_|
-            unreachable!("Unexpected executor behavior: memory size is bigger than possible u32 address space")
-        )
+        self.memory
+            .size(&self.store)
+            .try_into()
+            .unwrap_or_else(|_| {
+                unreachable!(
+                    "Unexpected backend behavior: memory size is bigger than possible in 32 bits address space"
+                )
+            })
     }
 
     fn write(&mut self, offset: u32, buffer: &[u8]) -> Result<(), MemoryError> {
@@ -513,13 +521,15 @@ mod tests {
 
         assert_eq!(
             ctx.alloc::<NoopGrowHandler>(0.into(), &mut mem_wrap, |_| Ok(())),
-            Ok(WasmPage::from(0))
+            Ok(WasmPage::from(16))
         );
 
         // there is a space for 14 more
-        for _ in 0..14 {
-            ctx.alloc::<NoopGrowHandler>(16.into(), &mut mem_wrap, |_| Ok(()))
-                .unwrap();
+        for i in 2u16..16 {
+            assert_eq!(
+                ctx.alloc::<NoopGrowHandler>(16.into(), &mut mem_wrap, |_| Ok(())),
+                Ok(WasmPage::from(i * 16))
+            )
         }
 
         // no more mem!
@@ -547,7 +557,7 @@ mod tests {
         );
 
         // same as above, if we free_range 2 in a row we can allocate 2
-        ctx.free_range(117.into()..=118.into()).unwrap();
+        ctx.free_range((117..119).try_into().unwrap()).unwrap();
 
         assert_eq!(
             ctx.alloc::<NoopGrowHandler>(2.into(), &mut mem_wrap, |_| Ok(())),

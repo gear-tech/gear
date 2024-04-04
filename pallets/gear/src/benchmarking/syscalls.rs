@@ -1535,8 +1535,8 @@ where
         Self::prepare_handle(module, 0)
     }
 
-    pub fn lazy_pages_signal_read(wasm_pages: WasmPagesAmount) -> Result<Exec<T>, &'static str> {
-        let instrs = body::read_access_all_pages_instrs(wasm_pages, vec![]);
+    pub fn lazy_pages_signal_read(end_page: WasmPage) -> Result<Exec<T>, &'static str> {
+        let instrs = body::read_access_all_pages_instrs(end_page, vec![]);
         let module = ModuleDefinition {
             memory: Some(Default::default()),
             handle_body: Some(body::from_instructions(instrs)),
@@ -1546,8 +1546,8 @@ where
         Self::prepare_handle(module, 0)
     }
 
-    pub fn lazy_pages_signal_write(wasm_pages: WasmPagesAmount) -> Result<Exec<T>, &'static str> {
-        let instrs = body::write_access_all_pages_instrs(wasm_pages, vec![]);
+    pub fn lazy_pages_signal_write(end_page: WasmPage) -> Result<Exec<T>, &'static str> {
+        let instrs = body::write_access_all_pages_instrs(end_page, vec![]);
         let module = ModuleDefinition {
             memory: Some(Default::default()),
             handle_body: Some(body::from_instructions(instrs)),
@@ -1557,12 +1557,9 @@ where
         Self::prepare_handle(module, 0)
     }
 
-    pub fn lazy_pages_signal_write_after_read(
-        wasm_pages: WasmPagesAmount,
-    ) -> Result<Exec<T>, &'static str> {
-        let instrs =
-            body::read_access_all_pages_instrs((super::DEFAULT_PAGES as u16).into(), vec![]);
-        let instrs = body::write_access_all_pages_instrs(wasm_pages, instrs);
+    pub fn lazy_pages_signal_write_after_read(end_page: WasmPage) -> Result<Exec<T>, &'static str> {
+        let instrs = body::read_access_all_pages_instrs(max_pages::<T>().into(), vec![]);
+        let instrs = body::write_access_all_pages_instrs(end_page, instrs);
         let module = ModuleDefinition {
             memory: Some(Default::default()),
             handle_body: Some(body::from_instructions(instrs)),
@@ -1572,12 +1569,10 @@ where
         Self::prepare_handle(module, 0)
     }
 
-    pub fn lazy_pages_load_page_storage_data(
-        pages: WasmPagesAmount,
-    ) -> Result<Exec<T>, &'static str> {
-        let exec = Self::lazy_pages_signal_read(pages)?;
+    pub fn lazy_pages_load_page_storage_data(end_page: WasmPage) -> Result<Exec<T>, &'static str> {
+        let exec = Self::lazy_pages_signal_read(end_page)?;
         let program_id = exec.context.program().id();
-        IntervalIterator::from(..pages)
+        IntervalIterator::from(..end_page)
             .flat_map(|p: WasmPage| p.to_iter())
             .for_each(|page: GearPage| {
                 ProgramStorageOf::<T>::set_program_page_data(
@@ -1590,7 +1585,7 @@ where
         Ok(exec)
     }
 
-    pub fn lazy_pages_host_func_read(wasm_pages: WasmPage) -> Result<Exec<T>, &'static str> {
+    pub fn lazy_pages_host_func_read(end_page: WasmPage) -> Result<Exec<T>, &'static str> {
         let module = ModuleDefinition {
             memory: Some(Default::default()),
             imported_functions: vec![SyscallName::Debug],
@@ -1598,7 +1593,7 @@ where
                 // payload offset
                 Instruction::I32Const(0),
                 // payload len
-                Instruction::I32Const(wasm_pages.offset() as i32),
+                Instruction::I32Const(end_page.offset() as i32),
                 // CALL
                 Instruction::Call(0),
             ])),
@@ -1608,7 +1603,7 @@ where
         Self::prepare_handle(module, 0)
     }
 
-    pub fn lazy_pages_host_func_write(wasm_pages: WasmPage) -> Result<Exec<T>, &'static str> {
+    pub fn lazy_pages_host_func_write(end_page: WasmPage) -> Result<Exec<T>, &'static str> {
         let module = ModuleDefinition {
             memory: Some(Default::default()),
             imported_functions: vec![SyscallName::Read],
@@ -1616,7 +1611,7 @@ where
                 // at
                 Instruction::I32Const(0),
                 // len
-                Instruction::I32Const(wasm_pages.offset() as i32),
+                Instruction::I32Const(end_page.offset() as i32),
                 // buffer ptr
                 Instruction::I32Const(0),
                 // err len ptr
@@ -1632,10 +1627,10 @@ where
     }
 
     pub fn lazy_pages_host_func_write_after_read(
-        wasm_pages: WasmPagesAmount,
+        end_page: WasmPage,
     ) -> Result<Exec<T>, &'static str> {
-        let max_pages: WasmPagesAmount = WasmPage::from_offset(MAX_PAYLOAD_LEN).into();
-        assert!(wasm_pages <= max_pages);
+        let max_page = WasmPage::from_offset(MAX_PAYLOAD_LEN);
+        assert!(end_page <= max_page);
 
         let offset = wasm_pages
             .to_page_number()
@@ -1643,14 +1638,14 @@ where
             .offset() as i32;
 
         // Access const amount of pages before `gr_read` calls in order to make all pages read accessed.
-        let mut instrs = body::read_access_all_pages_instrs(max_pages, vec![]);
+        let mut instrs = body::read_access_all_pages_instrs(max_page, vec![]);
 
         // Add `gr_read` call.
         instrs.extend_from_slice(&[
             // at
             Instruction::I32Const(0),
             // len
-            Instruction::I32Const(offset),
+            Instruction::I32Const(end_page.offset() as i32),
             // buffer ptr
             Instruction::I32Const(0),
             // err len ptr

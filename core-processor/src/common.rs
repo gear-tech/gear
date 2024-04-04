@@ -81,6 +81,7 @@ pub struct DispatchResult {
     pub system_reservation_context: SystemReservationContext,
     /// Page updates.
     pub page_update: BTreeMap<GearPage, PageBuf>,
+    // +_+_+ append test for #3853
     /// New allocations set for program.
     pub allocations: Option<IntervalsTree<WasmPage>>,
     /// Whether this execution sent out a reply.

@@ -137,7 +137,7 @@ impl<Balance: Zero + Copy + sp_runtime::traits::Saturating> NodeLock<Balance> {
 pub enum GasNode<ExternalId: Clone, Id: Clone, Balance: Zero + Clone, Funds> {
     /// A root node for each gas tree.
     ///
-    /// Usually created when a new gas-ful logic started (i.e., message sent).
+    /// Usually created when a new gasful logic started (i.e., message sent).
     External {
         id: ExternalId,
         multiplier: GasMultiplier<Funds, Balance>,

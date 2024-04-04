@@ -18,6 +18,15 @@
 
 //! Lazy-pages wasm runtime tests.
 
+use crate::{
+    benchmarking::{
+        code::{body, ImportedMemory, ModuleDefinition},
+        utils as common_utils,
+        utils::PrepareConfig,
+        Program,
+    },
+    Config, HandleKind, ProgramStorageOf,
+};
 use ::alloc::{collections::BTreeSet, format, vec};
 use common::{Origin, ProgramStorage};
 use core::{
@@ -36,16 +45,6 @@ use gear_lazy_pages_common::{LazyPagesCosts, Status};
 use gear_wasm_instrument::{parity_wasm::elements::Instruction, syscalls::SyscallName};
 use rand::{Rng, SeedableRng};
 use sp_runtime::codec::MaxEncodedLen;
-
-use crate::{
-    benchmarking::{
-        code::{body, ImportedMemory, ModuleDefinition},
-        utils as common_utils,
-        utils::PrepareConfig,
-        Program,
-    },
-    Config, HandleKind, ProgramStorageOf,
-};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum SetNo {

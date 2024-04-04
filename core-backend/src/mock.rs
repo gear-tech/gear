@@ -305,7 +305,7 @@ pub struct MockMemory {
 impl MockMemory {
     pub fn new(initial_pages: u32) -> Self {
         Self {
-            pages: vec![0; WasmPage::try_from(initial_pages).unwrap().offset() as usize],
+            pages: vec![0; (initial_pages * WasmPage::SIZE) as usize],
             read_attempt_count: Cell::new(0),
             write_attempt_count: Cell::new(0),
         }
@@ -324,9 +324,8 @@ impl Memory for MockMemory {
     type GrowError = ();
 
     fn grow(&mut self, pages: WasmPagesAmount) -> Result<(), Self::GrowError> {
-        let new_size = pages
-            .to_page_number()
-            .and_then(|p| p.offset().checked_add(self.pages.len() as u32))
+        let new_size = (pages.offset() as u32)
+            .checked_add(self.pages.len() as u32)
             .ok_or(())?;
 
         self.pages.resize(new_size as usize, 0);

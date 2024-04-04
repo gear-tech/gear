@@ -58,7 +58,7 @@ use common::{LazyPagesExecutionContext, LazyPagesRuntimeContext};
 use gear_lazy_pages_common::{GlobalsAccessConfig, LazyPagesInitContext, Status};
 pub use host_func::pre_process_memory_accesses;
 use mprotect::MprotectError;
-use numerated::IntervalIterator;
+use numerated::iterators::IntervalIterator;
 use pages::GearPage;
 use signal::{DefaultUserSignalHandler, UserSignalHandler};
 use std::{cell::RefCell, convert::TryInto, num::NonZeroU32};

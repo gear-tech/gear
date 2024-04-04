@@ -23,8 +23,10 @@ use crate::{
     ids::ProgramId,
     pages::{IntervalsTree, WasmPage, WasmPagesAmount},
 };
-use parity_scale_codec::{Decode, Encode};
-use scale_info::TypeInfo;
+use scale_info::{
+    scale::{Decode, Encode},
+    TypeInfo,
+};
 
 /// Struct defines infix of memory pages storage.
 #[derive(Clone, Copy, Debug, Default, Decode, Encode, PartialEq, Eq, TypeInfo)]

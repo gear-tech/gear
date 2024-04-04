@@ -28,6 +28,7 @@ test_usage() {
     docs           run doc tests
     validators     run validator checks
     time-consuming run time consuming tests
+    typos          run typo tests
 EOF
 }
 
@@ -115,4 +116,16 @@ doc_test() {
 time_consuming_tests() {
   $CARGO test -p demo-fungible-token --no-fail-fast "$@" -- --nocapture --ignored
   $CARGO test -p gear-wasm-builder --no-fail-fast "$@" -- --nocapture --ignored
+}
+
+typo_tests() {
+  readonly COMMAND="typos"
+  readonly VERSION='typos-cli 1.20.3'
+
+  # Install typos-cli if not exist or outdated.
+  if ! [ -x "$(command -v ${COMMAND})" ] || [ "$($COMMAND --version)" != "$VERSION" ]; then
+    cargo install typos-cli
+  fi
+
+  typos
 }

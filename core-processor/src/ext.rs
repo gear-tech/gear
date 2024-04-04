@@ -366,7 +366,7 @@ impl ProcessorExternalities for Ext {
         let mut accessed_pages = gear_lazy_pages_interface::get_write_accessed_pages();
         accessed_pages.retain(|p| {
             let wasm_page: WasmPage = p.to_page();
-            static_pages > wasm_page || allocations.contains(wasm_page)
+            wasm_page < static_pages || allocations.contains(wasm_page)
         });
         log::trace!("accessed pages numbers = {:?}", accessed_pages);
 
@@ -837,10 +837,22 @@ impl Externalities for Ext {
         //                 .cost_for(intervals_amount),
         //         ),
         // )?;
+        let interval = Interval::try_from(start..=end)
+            .map_err(|_| AllocExtError::Alloc(AllocError::InvalidFreeRange(start, end)))?;
+
+        Ext::charge_gas_if_enough(
+            &mut self.context.gas_counter,
+            &mut self.context.gas_allowance_counter,
+            self.context
+                .costs
+                .syscalls
+                .free_range_per_page
+                .cost_for(interval.len()),
+        )?;
 
         self.context
             .allocations_context
-            .free_range(start..=end)
+            .free_range(interval)
             .map_err(Into::into)
     }
 
