@@ -519,3 +519,5 @@ blake3 = { git = "https://github.com/gear-tech/BLAKE3", branch = "fix-clang-cl-c
 
 # TODO: remove after https://github.com/pepyakin/wabt-rs/pull/84
 wabt = { git = "https://github.com/gear-tech/wabt-rs", branch = "al-win-crt" }
+
+lz4-sys = { registry = "gear-registry" }
