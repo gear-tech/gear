@@ -13,7 +13,6 @@ Advantages with respect to the Substrate' `try-runtime` are:
 - doesn't require enabling additional features;
 - can (potentially) still work with the native Runtime implementation for debugging purposes; this, however, would require fiddling with the state machine call to support execution strategies that have been deprecated in Substrate for quite a long time already.
 
-
 <br/>
 
 ## Usage of the `gear-replay-cli` tool
