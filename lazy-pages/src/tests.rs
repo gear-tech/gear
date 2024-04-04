@@ -28,9 +28,8 @@ use gear_lazy_pages_common::LazyPagesInitContext;
 use numerated::tree::IntervalsTree;
 use region::Protection;
 
-// Sizes to use in tests, must be equal to `0x4000 * n` where n > 0.
 const GEAR_PAGE_SIZE: usize = 0x4000;
-const WASM_PAGE_SIZE: usize = 0x8000;
+const WASM_PAGE_SIZE: usize = 0x10000;
 
 #[derive(Debug)]
 struct NoopStorage;
@@ -151,17 +150,18 @@ fn test_mprotect_pages() {
     let buff = v.as_mut_ptr() as usize;
     let page_begin = ((buff + WASM_PAGE_SIZE) / WASM_PAGE_SIZE) * WASM_PAGE_SIZE;
 
+    let pages: IntervalsTree<_> = (0..(2 * WASM_PAGE_SIZE / GEAR_PAGE_SIZE) as u32)
+        .map(new_page)
+        .collect();
+
     // Randomly choose pages, which is going to be protected.
-    let pages_protected: IntervalsTree<GearPage> = [0, 4, 5].map(new_page).into_iter().collect();
-    let pages_unprotected: IntervalsTree<GearPage> =
-        [1, 2, 3, 6, 7].map(new_page).into_iter().collect();
+    let pages_protected: IntervalsTree<_> = [0, 4, 5].map(new_page).into_iter().collect();
+    let pages_unprotected: IntervalsTree<_> = pages.difference(&pages).collect();
+    assert!(pages.end() >= pages_protected.end());
 
     // Set `OLD_VALUE` as value for each first byte of gear pages
     unsafe {
-        for p in pages_unprotected
-            .points_iter()
-            .chain(pages_protected.points_iter())
-        {
+        for p in pages.points_iter() {
             let addr = page_begin + offset(p) + 1;
             *(addr as *mut u8) = OLD_VALUE;
         }
