@@ -571,8 +571,8 @@ pub mod runtime_types {
                     pub page_count: ::core::primitive::u32,
                     pub user: _0,
                     pub program_id: runtime_types::gear_core::ids::ProgramId,
-                    pub allocations: ::std::vec::Vec<runtime_types::gear_core::pages::WasmPage>,
-                    pub pages_with_data: ::std::vec::Vec<runtime_types::gear_core::pages::GearPage>,
+                    pub allocations: ::std::vec::Vec<runtime_types::gear_core::pages::Page2>,
+                    pub pages_with_data: ::std::vec::Vec<runtime_types::gear_core::pages::Page>,
                     pub code_hash: runtime_types::gear_core::ids::CodeId,
                     pub end_block: _1,
                 }
@@ -648,8 +648,8 @@ pub mod runtime_types {
             }
             #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
             pub struct ActiveProgram<_0> {
-                pub allocations: ::std::vec::Vec<runtime_types::gear_core::pages::WasmPage>,
-                pub pages_with_data: ::std::vec::Vec<runtime_types::gear_core::pages::GearPage>,
+                pub allocations: ::std::vec::Vec<runtime_types::gear_core::pages::Page2>,
+                pub pages_with_data: ::std::vec::Vec<runtime_types::gear_core::pages::Page>,
                 pub memory_infix: runtime_types::gear_core::program::MemoryInfix,
                 pub gas_reservation_map: ::subxt::utils::KeyedVec<
                     runtime_types::gear_core::ids::ReservationId,
@@ -657,7 +657,7 @@ pub mod runtime_types {
                 >,
                 pub code_hash: ::subxt::utils::H256,
                 pub code_exports: ::std::vec::Vec<runtime_types::gear_core::message::DispatchKind>,
-                pub static_pages: runtime_types::gear_core::pages::WasmPage,
+                pub static_pages: runtime_types::gear_core::pages::PagesAmount,
                 pub state: runtime_types::gear_common::ProgramState,
                 pub expiration_block: _0,
             }
@@ -715,9 +715,9 @@ pub mod runtime_types {
                         pub original_code_len: ::core::primitive::u32,
                         pub exports:
                             ::std::vec::Vec<runtime_types::gear_core::message::DispatchKind>,
-                        pub static_pages: runtime_types::gear_core::pages::WasmPage,
+                        pub static_pages: runtime_types::gear_core::pages::PagesAmount,
                         pub stack_end:
-                            ::core::option::Option<runtime_types::gear_core::pages::WasmPage>,
+                            ::core::option::Option<runtime_types::gear_core::pages::Page2>,
                         pub version: ::core::primitive::u32,
                     }
                 }
@@ -897,7 +897,7 @@ pub mod runtime_types {
                     crate::gp::DecodeAsType,
                     crate::gp::Encode,
                 )]
-                pub struct GearPage(pub ::core::primitive::u32);
+                pub struct Page(pub ::core::primitive::u32);
                 #[derive(
                     ::subxt::ext::codec::CompactAs,
                     Debug,
@@ -905,7 +905,15 @@ pub mod runtime_types {
                     crate::gp::DecodeAsType,
                     crate::gp::Encode,
                 )]
-                pub struct WasmPage(pub ::core::primitive::u32);
+                pub struct Page2(pub ::core::primitive::u32);
+                #[derive(
+                    ::subxt::ext::codec::CompactAs,
+                    Debug,
+                    crate::gp::Decode,
+                    crate::gp::DecodeAsType,
+                    crate::gp::Encode,
+                )]
+                pub struct PagesAmount(pub ::core::primitive::u32);
             }
             pub mod percent {
                 use super::runtime_types;
@@ -2618,9 +2626,9 @@ pub mod runtime_types {
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub struct ProgramInfo {
-                    pub static_pages: runtime_types::gear_core::pages::WasmPage,
+                    pub static_pages: runtime_types::gear_core::pages::PagesAmount,
                     pub persistent_pages: ::subxt::utils::KeyedVec<
-                        runtime_types::gear_core::pages::GearPage,
+                        runtime_types::gear_core::pages::Page,
                         runtime_types::gear_core::memory::PageBuf,
                     >,
                     pub code_hash: ::subxt::utils::H256,
