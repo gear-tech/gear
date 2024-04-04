@@ -28,6 +28,10 @@ use gear_lazy_pages_common::LazyPagesInitContext;
 use numerated::tree::IntervalsTree;
 use region::Protection;
 
+// Sizes to use in tests, must be equal to `0x4000 * n` where n > 0.
+const GEAR_PAGE_SIZE: usize = 0x4000;
+const WASM_PAGE_SIZE: usize = 0x8000;
+
 #[derive(Debug)]
 struct NoopStorage;
 
@@ -43,7 +47,7 @@ impl LazyPagesStorage for NoopStorage {
 
 fn init_ctx() -> LazyPagesInitContext {
     LazyPagesInitContext {
-        page_sizes: vec![0x8000, 0x4000],
+        page_sizes: vec![WASM_PAGE_SIZE as u32, GEAR_PAGE_SIZE as u32],
         global_names: vec![LimitedStr::from_small_str("gear_gas")],
         pages_storage_prefix: Default::default(),
     }
@@ -119,9 +123,6 @@ fn read_write_flag_works() {
 fn test_mprotect_pages() {
     const OLD_VALUE: u8 = 99;
     const NEW_VALUE: u8 = 100;
-
-    const GEAR_PAGE_SIZE: usize = 0x4000;
-    const WASM_PAGE_SIZE: usize = 0x4000;
 
     let ctx = PageSizeManager([WASM_PAGE_SIZE as u32, GEAR_PAGE_SIZE as u32]);
     let new_page = |p: u32| GearPage::new(&ctx, p).unwrap();
