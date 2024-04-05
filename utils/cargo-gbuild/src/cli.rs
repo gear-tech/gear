@@ -101,26 +101,22 @@ impl GBuild {
     /// TODO: Support workspace build. (#3852)
     fn cargo(&self, target_dir: &Path) -> Result<PathBuf> {
         let mut kargo = CargoCommand::default();
-        let profile: String = if let Some(profile) = self.profile.clone() {
-            profile
-        } else if self.release {
-            "release".into()
-        } else {
-            "dev".into()
-        };
+        let mut artifact = None;
+        if self.release || self.profile.is_some() {
+            let profile = self.profile.clone().unwrap_or("release".into());
+            kargo.set_profile(profile.clone());
+            artifact = Some(profile);
+        }
 
-        kargo.set_profile(profile.clone());
         kargo.set_manifest_path(self.manifest_path.clone());
         kargo.set_target_dir(target_dir.to_path_buf());
         kargo.set_features(&self.features);
         kargo.run()?;
 
         // Returns the root of the built artifact
-        let artifact = if profile == "dev" {
-            "debug".into()
-        } else {
-            profile
-        };
-        Ok(target_dir.join(format!("wasm32-unknown-unknown/{artifact}")))
+        Ok(target_dir.join(format!(
+            "wasm32-unknown-unknown/{}",
+            artifact.as_deref().unwrap_or("debug")
+        )))
     }
 }

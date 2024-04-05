@@ -21,7 +21,7 @@ use cargo_gbuild::GBuild;
 use gclient::{EventProcessor, GearApi};
 use std::path::PathBuf;
 
-fn node() -> PathBuf {
+fn gear_bin() -> PathBuf {
     let node = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../target");
     node.join(if cfg!(debug_assertions) {
         "debug"
@@ -33,6 +33,7 @@ fn node() -> PathBuf {
 
 #[tokio::test]
 async fn compile_program() -> Result<()> {
+    let node = gear_bin();
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("program/Cargo.toml");
     let artifact = GBuild {
         manifest_path: root.to_string_lossy().to_string().into(),
@@ -45,7 +46,7 @@ async fn compile_program() -> Result<()> {
     .run()?;
 
     // Set up testing environment.
-    let api = GearApi::dev_from_path(&node())
+    let api = GearApi::dev_from_path(&node)
         .await
         .map_err(|e| anyhow!("{e}, node path: {node:?}"))?;
 
