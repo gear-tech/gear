@@ -6618,9 +6618,9 @@ dependencies = [
 
 [[package]]
 name = "librocksdb-sys"
-version = "0.11.0+8.1.1.0"
+version = "0.11.0+8.1.1.1"
 source = "sparse+http://3.75.247.246:50000/index/"
-checksum = "be840c7d4ee279dec1bc06e56dddc2d62ebaeaac9f06e5325be6c0dc6914696e"
+checksum = "76b3cb89449d034081bf95f7d084775bf6c6c2695aabff7e2c74e586248bb511"
 dependencies = [
  "bindgen",
  "bzip2-sys",
@@ -11434,9 +11434,9 @@ dependencies = [
 
 [[package]]
 name = "secp256k1-sys"
-version = "0.6.1"
+version = "0.6.1+1"
 source = "sparse+http://3.75.247.246:50000/index/"
-checksum = "9ed1f86c55b8906e6f4d87782ed70926fe56f29e3b375e67f54692150ea246eb"
+checksum = "b4709461a654fb0c83c7e2c93448a9788561f27e7a9ab229e65a178f2f4c0a6d"
 dependencies = [
  "cc",
 ]
@@ -13275,9 +13275,9 @@ dependencies = [
 
 [[package]]
 name = "tikv-jemalloc-sys"
-version = "0.5.4+5.3.0-patched.0"
+version = "0.5.4+5.3.0-patched.1"
 source = "sparse+http://3.75.247.246:50000/index/"
-checksum = "449d6459fa2f800098873fcf004ee557f4d802063849545a5f7c31a20c946e4b"
+checksum = "ed48cb1a2b9ced75c7d48626349398a18a176d2bd453f5ba229233092c6f1804"
 dependencies = [
  "cc",
  "libc",
@@ -14302,9 +14302,9 @@ dependencies = [
 
 [[package]]
 name = "wasm-opt-sys"
-version = "0.114.2"
+version = "0.114.2+1"
 source = "sparse+http://3.75.247.246:50000/index/"
-checksum = "ad0e411d036de62bbd86214cef4ba13755bbd5631d89d57212ec3a6c90c2905d"
+checksum = "b07674ce4fc65c997c3bcc9b447fdd11a729a18a732964a3e024746462fe62e6"
 dependencies = [
  "anyhow",
  "cc",
@@ -15633,9 +15633,9 @@ dependencies = [
 
 [[package]]
 name = "zstd-sys"
-version = "2.0.8+zstd.1.5.5.4"
+version = "2.0.8+zstd.1.5.5.5"
 source = "sparse+http://3.75.247.246:50000/index/"
-checksum = "98f45189ccf9fff749c9e6cf94ddb9b711df9d9e1a300ed787e32ba987adde64"
+checksum = "65954e81b0a22e12e3d10455ba43f7febe3806b96a35d4db4f70822fd6ce1a0d"
 dependencies = [
  "cc",
  "libc",
