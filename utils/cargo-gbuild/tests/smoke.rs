@@ -27,11 +27,12 @@ async fn compile_program() -> Result<()> {
     let artifact = GBuild {
         manifest_path: root.to_string_lossy().to_string().into(),
         features: vec!["debug".into()],
+        profile: None,
         target_dir: None,
         release: false,
         meta: false,
     }
-    .collect()?;
+    .run()?;
 
     // Set up testing environment.
     let node = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../target/release/gear");

@@ -15,16 +15,16 @@
 //
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
+//
+// TODO: Introduce a standard for the project structure of gear programs.
 
-use crate::manifest;
+use crate::Artifact;
 use anyhow::{anyhow, Result};
+use cargo_toml::Manifest;
 use clap::Parser;
-use gear_wasm_builder::{
-    optimize::{self, OptType, Optimizer},
-    CargoCommand,
-};
+use gear_wasm_builder::CargoCommand;
 use std::{
-    fs,
+    env, fs,
     path::{Path, PathBuf},
 };
 
@@ -52,94 +52,75 @@ pub struct GBuild {
     #[clap(short, long)]
     pub target_dir: Option<PathBuf>,
 
+    /// Build artifacts with the specified profile
+    #[clap(long)]
+    pub profile: Option<String>,
+
     /// TODO: If enable meta build (#3850)
     #[clap(short, long)]
     pub meta: bool,
 }
 
 impl GBuild {
-    // Collects the artifacts.
+    /// Run the gbuild command
     ///
-    /// TODO: support gtest (#3851)
-    pub fn collect(&self) -> Result<Artifact> {
-        let root = self
-            .manifest_path
-            .parent()
-            .ok_or_else(|| anyhow!("Failed to parse the root directory."))?;
+    /// TODO: Support gtest (#3851)
+    pub fn run(self) -> Result<Artifact> {
+        // 1. Get the cargo target directory
+        //
+        // TODO: Detect if the package is part of a workspace. (#3852)
+        // TODO: Support target dir defined in `.cargo/config.toml` (#3852)
+        let absolute_root = fs::canonicalize(self.manifest_path.clone())?;
+        let cargo_target_dir = env::var("CARGO_TARGET_DIR").map(PathBuf::from).unwrap_or(
+            absolute_root
+                .parent()
+                .ok_or_else(|| anyhow!("Failed to parse the root directory."))?
+                .join("target"),
+        );
 
-        let manifest =
-            toml::from_str::<manifest::Manifest>(&fs::read_to_string(&self.manifest_path)?)
-                .map_err(|e| anyhow!("Failed to find the manifest file, {e}"))?;
-        let cargo_target_dir = manifest
-            .build
-            .and_then(|b| b.target_dir)
-            .unwrap_or(root.join("target"));
-
-        // Register the path of the built artifacts.
-        let name = manifest.package.name.replace('-', "_");
-        let gbuild_target_dir = self
+        // 2. Run the cargo command, process optimizations and collect artifacts.
+        let cargo_artifact_dir = self.cargo(&cargo_target_dir)?;
+        let gbuild_artifact_dir = self
             .target_dir
-            .clone()
             .unwrap_or(cargo_target_dir.clone())
             .join(ARTIFACT_DIR);
 
-        self.cargo(&cargo_target_dir)?;
-        let artifact = Artifact {
-            program: gbuild_target_dir.join(format!("{name}.wasm")),
-            // TODO: support meta build (#3850)
-            //
-            // target_dir.join(format!("{name}.meta.wasm")),
-            meta: None,
-            root: gbuild_target_dir,
-        };
-
-        // Optimize the built wasm and return the artifact
-        artifact.process(cargo_target_dir.join(format!(
-            "wasm32-unknown-unknown/{}/{name}.wasm",
-            if self.release { "release" } else { "debug" }
-        )))?;
+        let artifact = Artifact::new(
+            gbuild_artifact_dir,
+            Manifest::from_path(self.manifest_path.clone())?
+                .package()
+                .name
+                .replace('-', "_"),
+        )?;
+        artifact.process(cargo_artifact_dir)?;
         Ok(artifact)
     }
 
     /// Process the cargo command.
     ///
-    /// TODO: support workspace build. (#3852)
-    fn cargo(&self, target_dir: &Path) -> Result<()> {
+    /// TODO: Support workspace build. (#3852)
+    fn cargo(&self, target_dir: &Path) -> Result<PathBuf> {
         let mut kargo = CargoCommand::default();
-        if self.release {
-            kargo.set_profile("release".into());
-        }
+        let profile: String = if let Some(profile) = self.profile.clone() {
+            profile
+        } else if self.release {
+            "release".into()
+        } else {
+            "dev".into()
+        };
+
+        kargo.set_profile(profile.clone());
         kargo.set_manifest_path(self.manifest_path.clone());
         kargo.set_target_dir(target_dir.to_path_buf());
         kargo.set_features(&self.features);
-        kargo.run()
-    }
-}
+        kargo.run()?;
 
-/// Artifact registry
-///
-/// This instance simply holds the paths of the built binaries
-/// for re-using stuffs.
-pub struct Artifact {
-    /// The path of the root artifact
-    pub root: PathBuf,
-    /// The path to the built program.
-    pub program: PathBuf,
-    /// The path to the built metadata.
-    pub meta: Option<PathBuf>,
-}
-
-impl Artifact {
-    /// Build artifacts with optimization.
-    pub fn process(&self, src: PathBuf) -> Result<()> {
-        fs::create_dir_all(&self.root)
-            .map_err(|e| anyhow!("Failed to create the artifact directory, {e}"))?;
-        optimize::optimize_wasm(src, self.program.clone(), "4", true)?;
-        let mut optimizer = Optimizer::new(self.program.clone())?;
-        optimizer
-            .insert_stack_end_export()
-            .map_err(|e| anyhow!(e))?;
-        optimizer.strip_custom_sections();
-        fs::write(self.program.clone(), optimizer.optimize(OptType::Opt)?).map_err(Into::into)
+        // Returns the root of the built artifact
+        let artifact = if profile == "dev" {
+            "debug".into()
+        } else {
+            profile
+        };
+        Ok(target_dir.join(format!("wasm32-unknown-unknown/{artifact}")))
     }
 }

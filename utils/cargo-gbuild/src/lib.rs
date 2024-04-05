@@ -20,7 +20,7 @@
 
 #![deny(missing_docs)]
 
+mod artifact;
 mod cli;
-pub(crate) mod manifest;
 
-pub use cli::GBuild;
+pub use self::{artifact::Artifact, cli::GBuild};

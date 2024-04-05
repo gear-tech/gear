@@ -35,14 +35,6 @@ struct App {
     pub command: GBuild,
 }
 
-impl App {
-    fn run(&self) -> Result<()> {
-        let artifact = self.command.collect()?;
-        tracing::info!("The artifact has been generated at {:?}", artifact.root);
-        Ok(())
-    }
-}
-
 fn main() -> Result<()> {
     let app = App::parse();
 
@@ -56,5 +48,7 @@ fn main() -> Result<()> {
     }));
 
     tracing_subscriber::fmt().with_env_filter(env).init();
-    app.run()
+    let artifact = app.command.run()?;
+    tracing::info!("The artifact has been generated at {:?}", artifact.root);
+    Ok(())
 }
