@@ -40,6 +40,14 @@ fn test_corpus_c6e2a597aebabecc9bbb11eefdaa4dd8a6770188() {
     assert!(run_impl(FuzzerInput::new(input)).is_ok());
 }
 
+#[test]
+fn test_corpus_aa91f1d5873e3fa7045ceeef9e26448e71f82482() {
+    gear_utils::init_default_logger();
+
+    let input = include_bytes!("../fuzz_corpus/aa91f1d5873e3fa7045ceeef9e26448e71f82482");
+    assert!(run_impl(FuzzerInput::new(input)).is_ok());
+}
+
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(10))]
     #[test]
