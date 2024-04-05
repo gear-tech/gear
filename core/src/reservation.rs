@@ -485,4 +485,31 @@ mod tests {
             Err(ReservationError::InvalidReservationId)
         );
     }
+
+    #[test]
+    #[should_panic]
+    fn unreserving_unreserved() {
+        let id = ReservationId::from([0xff; 32]);
+        let slot = GasReservationSlot {
+            amount: 1,
+            start: 2,
+            finish: 3,
+        };
+
+        let mut map = GasReservationMap::new();
+        map.insert(id, slot.clone());
+
+        let mut reserver = GasReserver::new(&Default::default(), map, 256);
+
+        let amount = reserver.unreserve(id).expect("Shouldn't fail");
+        assert_eq!(amount, slot.amount);
+
+        assert!(reserver.unreserve(id).is_err());
+        assert_eq!(
+            reserver.states().get(&id).cloned(),
+            Some(GasReservationState::Removed {
+                expiration: slot.finish
+            })
+        );
+    }
 }
