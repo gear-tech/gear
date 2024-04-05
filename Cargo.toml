@@ -524,3 +524,4 @@ lz4-sys = { registry = "gear-registry" }
 wasm-opt-sys.registry = "gear-registry"
 librocksdb-sys.registry = "gear-registry"
 zstd-sys.registry = "gear-registry"
+tikv-jemalloc-sys.registry = "gear-registry"
