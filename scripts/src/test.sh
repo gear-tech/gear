@@ -35,13 +35,13 @@ EOF
 
 workspace_test() {
   if [ "$CARGO" = "cargo xwin" ]; then
-    $CARGO test --workspace
-    \ --exclude runtime-fuzzer --exclude runtime-fuzzer-fuzz --exclude cargo-gbuild
-    \ --no-fail-fast "$@"
+    $CARGO test --workspace \
+    --exclude runtime-fuzzer --exclude runtime-fuzzer-fuzz --exclude cargo-gbuild \
+    --no-fail-fast "$@"
   else
-    cargo nextest run --workspace
-      \ --exclude runtime-fuzzer --exclude runtime-fuzzer-fuzz --exclude cargo-gbuild
-      \ --profile ci --no-fail-fast "$@"
+    cargo nextest run --workspace \
+      --exclude runtime-fuzzer --exclude runtime-fuzzer-fuzz --exclude cargo-gbuild \
+      --profile ci --no-fail-fast "$@"
   fi
 }
 
