@@ -15632,9 +15632,9 @@ dependencies = [
 
 [[package]]
 name = "zstd-sys"
-version = "2.0.8+zstd.1.5.5.0"
+version = "2.0.8+zstd.1.5.5.4"
 source = "sparse+http://3.75.247.246:50000/index/"
-checksum = "c43380bfbb2ac7bb3346fd0c447ae9433eb75aad57b4e689c961435781edffb9"
+checksum = "98f45189ccf9fff749c9e6cf94ddb9b711df9d9e1a300ed787e32ba987adde64"
 dependencies = [
  "cc",
  "libc",
