@@ -16,7 +16,14 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use clap::Parser;
+use gear_replay_cli::cmd::ReplayCli;
+
 #[tokio::main]
-async fn main() -> sc_cli::Result<()> {
-    gear_replay_cli::run().await
+async fn main() {
+    let cli = ReplayCli::parse();
+
+    cli.init_logger().expect("Failed to initialize logger");
+
+    cli.run().await.unwrap();
 }

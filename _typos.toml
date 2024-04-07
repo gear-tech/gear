@@ -1,6 +1,6 @@
 [default]
 extend-ignore-re = [
-    "\\w{48,49}",
+    "\\w{48,52}",
     "\"hel\""
 ]
 
@@ -8,5 +8,6 @@ extend-ignore-re = [
 extend-exclude = ["gsdk/src/metadata/generated.rs"]
 
 [default.extend-words]
-# typo in sp-state-machine, won't fix here for now.
-overlayed = "overlayed"
+overlayed = "overlayed" # typo in sp-state-machine, won't fix.
+ws = "ws"
+dur = "dur"
