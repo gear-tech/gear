@@ -66,7 +66,7 @@ pub use pallet_timestamp::Call as TimestampCall;
 pub use pallet_transaction_payment::{
     CurrencyAdapter, FeeDetails, Multiplier, RuntimeDispatchInfo,
 };
-use runtime_common::constants::BANK_ADDRESS;
+use runtime_common::constants::{BANK_ADDRESS, SPLIT_GAS_PERCENT};
 pub use runtime_common::{
     constants::{
         RENT_DISABLED_DELTA_WEEK_FACTOR, RENT_FREE_PERIOD_MONTH_FACTOR, RENT_RESUME_WEEK_FACTOR,
@@ -990,7 +990,7 @@ parameter_types! {
     pub Schedule: pallet_gear::Schedule<Runtime> = Default::default();
     pub BankAddress: AccountId = BANK_ADDRESS.into();
     pub const GasMultiplier: common::GasMultiplier<Balance, u64> = common::GasMultiplier::ValuePerGas(VALUE_PER_GAS);
-    pub SplitFee: Perbill = Perbill::from_percent(0);
+    pub SplitFee: Perbill = Perbill::from_percent(SPLIT_GAS_PERCENT);
     pub FeeDest: AccountId = PalletId(*b"py/trsry").into_account_truncating();
 }
 
