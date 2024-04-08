@@ -5,6 +5,10 @@ authors.workspace = true
 edition.workspace = true
 license.workspace = true
 
+[[bin]]
+name = "gear-replay-cli"
+path = "src/main.rs"
+
 [dependencies]
 # Internal
 gear-runtime-interface.workspace = true
@@ -14,6 +18,7 @@ service = { workspace = true, optional = true }
 
 # Substrate Primitives
 sp-core.workspace = true
+sp-crypto-ec-utils = { workspace = true, features = ["bls12-381"] }
 sp-externalities.workspace = true
 sp-io.workspace = true
 sp-keystore.workspace = true
@@ -46,6 +51,7 @@ std = [
     "log/std",
     "runtime-primitives/std",
     "sp-core/std",
+    "sp-crypto-ec-utils/std",
     "sp-io/std",
     "sp-runtime/std",
     "sp-state-machine/std",
