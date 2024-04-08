@@ -459,7 +459,7 @@ pub mod constants {
     /// requirement.
     pub const EXISTENTIAL_DEPOSIT: Value = 10 * UNITS;
     /// Value per gas.
-    pub const VALUE_PER_GAS: Value = 25;
+    pub const VALUE_PER_GAS: Value = 6;
     /// Duration of one block in msecs.
     pub const BLOCK_DURATION_IN_MSECS: u64 = 3000;
     /// Duration of one epoch.

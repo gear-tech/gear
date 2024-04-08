@@ -29,7 +29,6 @@ service = { workspace = true, features = ["vara-native"] }
 # Substrate Client
 sc-block-builder.workspace = true
 sc-client-api.workspace = true
-sc-client-db.workspace = true
 sc-proposer-metrics.workspace = true
 sc-service = { workspace = true, features = [ "test-helpers", "rocksdb" ] }
 sc-telemetry.workspace = true
@@ -39,6 +38,7 @@ substrate-test-client.workspace = true
 
 # Substrate Primitives
 sp-core.workspace = true
+sp-crypto-ec-utils = { workspace = true, features = ["bls12-381"] }
 sp-api.workspace = true
 sp-consensus.workspace = true
 sp-keyring.workspace = true
@@ -61,6 +61,7 @@ std = [
     "pallet-gear-rpc-runtime-api/std",
     "gear-runtime-interface/std",
     "sp-core/std",
+    "sp-crypto-ec-utils/std",
     "sp-api/std",
     "sp-runtime/std",
     "sp-inherents/std",

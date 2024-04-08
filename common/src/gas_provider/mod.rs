@@ -17,9 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::*;
-use frame_support::{
-    sp_runtime::traits::Zero, traits::tokens::Balance as BalanceTrait, RuntimeDebug,
-};
+use frame_support::traits::tokens::Balance as BalanceTrait;
+use sp_runtime::{traits::Zero, RuntimeDebug};
 use sp_std::marker::PhantomData;
 
 mod error;

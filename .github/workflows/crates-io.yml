@@ -32,8 +32,8 @@ jobs:
 
       - name: "Check packages"
         if: ${{ !inputs.publish }}
-        run: cargo run --release -p crates-io check
+        run: cargo run -p crates-io check
 
       - name: "Publish packages"
         if: ${{ inputs.publish }}
-        run: cargo run --release -p crates-io publish -v ${{ inputs.version }}
+        run: cargo run -p crates-io publish -v ${{ inputs.version }}

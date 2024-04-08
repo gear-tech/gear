@@ -32,6 +32,8 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
+pub mod codegen;
+
 /// Trait describes a collection which can get a value by it's index.
 /// The index can be in any range, even [length(implementor), ..).
 ///

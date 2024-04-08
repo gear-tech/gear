@@ -20,10 +20,10 @@
 
 use crate::*;
 use common::{benchmarking, Origin};
-use frame_benchmarking::{benchmarks, impl_benchmark_test_suite, Zero};
+use frame_benchmarking::benchmarks;
 use frame_support::traits::Currency;
 use frame_system::{pallet_prelude::BlockNumberFor, RawOrigin};
-use sp_runtime::traits::{One, UniqueSaturatedInto};
+use sp_runtime::traits::{One, UniqueSaturatedInto, Zero};
 
 pub(crate) type CurrencyOf<T> = <T as Config>::Currency;
 
@@ -181,6 +181,6 @@ benchmarks! {
         let voucher_info = Vouchers::<T>::get(spender, voucher_id).expect("Must be");
         assert_eq!(voucher_info.expiry, frame_system::Pallet::<T>::block_number());
     }
-}
 
-impl_benchmark_test_suite!(Pallet, crate::mock::new_test_ext(), crate::mock::Test);
+    impl_benchmark_test_suite!(Pallet, crate::mock::new_test_ext(), crate::mock::Test);
+}

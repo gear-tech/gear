@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-// TODO: describe denied sys-calls in entrypoint (#3580)
+// TODO: describe denied syscalls in entrypoint (#3580)
 //! Critical hook that guarantees code section execution.
 //!
 //! __Hook is set on per-message basis.__
@@ -29,7 +29,7 @@
 //!
 //! # async fn _dummy() {
 //! // get source outside of critical hook
-//! // because `gr_source` sys-call is forbidden inside `handle_signal` entry point
+//! // because `gr_source` syscall is forbidden inside `handle_signal` entry point
 //! let source = msg::source();
 //!
 //! critical::set_hook(move || {

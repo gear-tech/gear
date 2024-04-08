@@ -116,7 +116,7 @@ where
     P: TransactionPool + 'static,
     SC: SelectChain<Block> + 'static,
     B: Backend<Block> + Send + Sync + 'static,
-    B::State: StateBackend<sp_runtime::traits::HashFor<Block>>,
+    B::State: StateBackend<sp_runtime::traits::HashingFor<Block>>,
 {
     use pallet_gear_builtin_rpc::{GearBuiltin, GearBuiltinApiServer};
     use pallet_gear_rpc::{Gear, GearApiServer};

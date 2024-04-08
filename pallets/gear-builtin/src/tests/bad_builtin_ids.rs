@@ -71,6 +71,7 @@ common::impl_pallet_timestamp!(Test);
 parameter_types! {
     pub const BlockGasLimit: u64 = 100_000_000_000;
     pub const OutgoingLimit: u32 = 1024;
+    pub const OutgoingBytesLimit: u32 = 64 * 1024 * 1024;
     pub ReserveThreshold: BlockNumber = 1;
     pub GearSchedule: pallet_gear::Schedule<Test> = <pallet_gear::Schedule<Test>>::default();
     pub RentFreePeriod: BlockNumber = 12_000;
@@ -93,7 +94,6 @@ pallet_gear::impl_config!(
     Test,
     Schedule = GearSchedule,
     BuiltinDispatcherFactory = GearBuiltin,
-    BuiltinCache = GearBuiltin,
 );
 
 pub struct FirstBuiltinActor {}

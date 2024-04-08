@@ -62,19 +62,15 @@ where
     let BlockConfig {
         block_info,
         performance_multiplier,
-        max_pages,
-        page_costs,
-        existential_deposit,
-        outgoing_limit,
-        host_fn_weights,
         forbidden_funcs,
-        mailbox_threshold,
-        waitlist_cost,
-        dispatch_hold_cost,
         reserve_for,
-        reservation,
-        write_cost,
         gas_multiplier,
+        costs,
+        existential_deposit,
+        mailbox_threshold,
+        max_pages,
+        outgoing_limit,
+        outgoing_bytes_limit,
         ..
     } = block_config.clone();
 
@@ -82,15 +78,12 @@ where
         block_info,
         performance_multiplier,
         existential_deposit,
-        max_pages,
-        page_costs,
-        host_fn_weights,
-        forbidden_funcs,
         mailbox_threshold,
-        waitlist_cost,
-        dispatch_hold_cost,
+        max_pages,
+        ext_costs: costs.ext,
+        lazy_pages_costs: costs.lazy_pages,
+        forbidden_funcs,
         reserve_for,
-        reservation,
         random_data,
         gas_multiplier,
     };
@@ -117,14 +110,21 @@ where
     //
     // Waking fee: double write cost for removal from waitlist
     // and further enqueueing.
-    let msg_ctx_settings = ContextSettings::new(
-        write_cost.saturating_mul(2),
-        write_cost.saturating_mul(4),
-        write_cost.saturating_mul(3),
-        write_cost.saturating_mul(2),
-        write_cost.saturating_mul(2),
+    let msg_ctx_settings = ContextSettings {
+        sending_fee: costs.write.cost_for(2.into()),
+        scheduled_sending_fee: costs.write.cost_for(4.into()),
+        waiting_fee: costs.write.cost_for(3.into()),
+        waking_fee: costs.write.cost_for(2.into()),
+        reservation_fee: costs.write.cost_for(2.into()),
         outgoing_limit,
-    );
+        outgoing_bytes_limit,
+    };
+
+    // TODO: add tests that system reservation is successfully unreserved after
+    // actor execution error #3756.
+
+    // Get system reservation context in order to use it if actor execution error occurs.
+    let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
 
     let exec_result = executor::execute_wasm::<Ext>(
         balance,
@@ -158,12 +158,11 @@ where
                 process_allowance_exceed(dispatch, program_id, res.gas_amount.burned())
             }
         }),
-        // TODO: we must use message reservation context here instead of default #3718
         Err(ExecutionError::Actor(e)) => Ok(process_execution_error(
             dispatch,
             program_id,
             e.gas_amount.burned(),
-            SystemReservationContext::default(),
+            system_reservation_ctx,
             e.reason,
         )),
         Err(ExecutionError::System(e)) => Err(e),

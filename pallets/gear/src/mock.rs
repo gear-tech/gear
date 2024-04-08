@@ -59,9 +59,10 @@ macro_rules! dry_run {
     ) => {
         GasAllowanceOf::<Test>::put($initial_weight);
 
-        let mut ext_manager = Default::default();
+        let (builtins, _) = <Test as Config>::BuiltinDispatcherFactory::create();
+        let mut ext_manager = ExtManager::<Test>::new(builtins);
         pallet_gear::Pallet::<Test>::process_tasks(&mut ext_manager);
-        pallet_gear::Pallet::<Test>::process_queue(ext_manager, ());
+        pallet_gear::Pallet::<Test>::process_queue(ext_manager);
 
         let $weight = $initial_weight.saturating_sub(GasAllowanceOf::<Test>::get());
     };
@@ -105,6 +106,7 @@ parameter_types! {
     // Match the default `max_block` set in frame_system::limits::BlockWeights::with_sensible_defaults()
     pub const BlockGasLimit: u64 = MAX_BLOCK;
     pub const OutgoingLimit: u32 = 1024;
+    pub const OutgoingBytesLimit: u32 = 64 * 1024 * 1024;
     pub ReserveThreshold: BlockNumber = 1;
     pub RentFreePeriod: BlockNumber = 1_000;
     pub RentCostPerBlock: Balance = 11;

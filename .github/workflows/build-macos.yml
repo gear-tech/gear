@@ -2,6 +2,10 @@ name: Build MacOS
 
 on:
   workflow_call:
+    inputs:
+      matrix:
+        type: string
+        required: true
   workflow_dispatch:
 
 env:
@@ -14,6 +18,10 @@ env:
 jobs:
   x86:
     runs-on: macos-latest
+    strategy:
+      matrix: ${{ fromJson(inputs.matrix) }}
+      fail-fast: false
+    name: macos-x86 (${{ matrix.profile }})
     env:
       RUSTUP_HOME: /tmp/rustup_home
     steps:
@@ -36,6 +44,12 @@ jobs:
       - name: "Install: protobuf"
         run: brew install protobuf
 
+      - name: "Install: binaryen"
+        run: |
+          sudo wget -c https://github.com/WebAssembly/binaryen/releases/download/$BINARYEN_VERSION/binaryen-$BINARYEN_VERSION-x86_64-macos.tar.gz -O - | sudo tar -xz -C .
+          sudo cp binaryen-$BINARYEN_VERSION/bin/* /usr/local/bin
+          sudo cp binaryen-$BINARYEN_VERSION/lib/libbinaryen.dylib /usr/local/lib
+
       - name: "Install: Rust toolchain"
         uses: dsherret/rust-toolchain-file@v1
 
@@ -43,9 +57,14 @@ jobs:
         run: curl -LsSf https://get.nexte.st/latest/mac | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
 
       - name: "Build: Node"
-        run: cargo build -p gear-cli
-        
+        # node is not actually used in the following test sequence
+        # so we just check compilation
+        if: ${{ matrix.profile == 'release' }}
+        run: cargo build -p gear-cli --release --locked
+
       - name: "Check: Stack height limit"
+        # no need to run check twice
+        if: ${{ matrix.profile == 'release' }}
         run: cargo run -p calc-stack-height --release --locked
 
       - name: "Test: Lazy pages"
@@ -54,3 +73,4 @@ jobs:
           -p "pallet-*"
           -p gear-lazy-pages
           -p gear-runtime-interface
+          ${{ matrix.profile_flags }}

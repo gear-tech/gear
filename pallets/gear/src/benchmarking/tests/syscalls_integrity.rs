@@ -36,7 +36,7 @@ use gear_core::ids::{CodeId, ReservationId};
 use gear_core_errors::{ReplyCode, SuccessReplyReason};
 use gear_wasm_instrument::syscalls::SyscallName;
 use pallet_timestamp::Pallet as TimestampPallet;
-use parity_scale_codec::Decode;
+use parity_scale_codec::{Decode, Encode};
 use test_syscalls::{Kind, WASM_BINARY as SYSCALLS_TEST_WASM_BINARY};
 
 pub fn read_big_state<T>()
@@ -167,7 +167,8 @@ where
     utils::run_to_next_block::<T>(None);
 
     // Ensure that program is uploaded and initialized correctly
-    assert!(Gear::<T>::is_active(pid));
+    let (builtins, _) = T::BuiltinDispatcherFactory::create();
+    assert!(Gear::<T>::is_active(&builtins, pid));
     assert!(Gear::<T>::is_initialized(pid));
 
     // Save signal code to be compared with
@@ -464,8 +465,9 @@ where
     utils::run_to_next_block::<T>(None);
 
     // no errors occurred
+    let (builtins, _) = T::BuiltinDispatcherFactory::create();
     assert!(Gear::<T>::is_initialized(pid));
-    assert!(Gear::<T>::is_active(pid));
+    assert!(Gear::<T>::is_active(&builtins, pid));
     assert!(MailboxOf::<T>::is_empty(&default_account));
 
     Gear::<T>::send_message(
@@ -481,7 +483,7 @@ where
 
     // no errors occurred
     assert!(Gear::<T>::is_initialized(pid));
-    assert!(Gear::<T>::is_active(pid));
+    assert!(Gear::<T>::is_active(&builtins, pid));
     assert!(MailboxOf::<T>::is_empty(&default_account));
 
     Gear::<T>::reset();

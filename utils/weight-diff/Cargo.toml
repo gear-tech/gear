@@ -10,6 +10,10 @@ clap = { workspace = true, features = ["derive"] }
 indexmap = { workspace = true, features = ["serde"] }
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
+gear-utils.workspace = true
+syn = { workspace = true, features = ["default", "full", "visit"] }
+quote.workspace = true
+proc-macro2.workspace = true
 tabled.workspace = true
 
 pallet-gear = { workspace = true, features = ["std"] }

@@ -18,7 +18,7 @@
 
 use crate::{
     log::RunResult,
-    manager::{Balance, ExtManager, Program as InnerProgram, TestActor},
+    manager::{Balance, ExtManager, MintMode, Program as InnerProgram, TestActor},
     system::System,
     Result,
 };
@@ -31,7 +31,7 @@ use gear_core::{
 };
 use gear_core_errors::SignalCode;
 use gear_utils::{MemoryPageDump, ProgramMemoryDump};
-use gear_wasm_instrument::wasm_instrument::gas_metering::ConstantCostRules;
+use gear_wasm_instrument::gas_metering::Schedule;
 use path_clean::PathClean;
 use std::{
     cell::RefCell,
@@ -489,8 +489,14 @@ impl<'a> Program<'a> {
         optimized: Vec<u8>,
         metadata: Option<Vec<u8>>,
     ) -> Self {
-        let code = Code::try_new(optimized, 1, |_| ConstantCostRules::default(), None)
-            .expect("Failed to create Program from code");
+        let schedule = Schedule::default();
+        let code = Code::try_new(
+            optimized,
+            schedule.instruction_weights.version,
+            |module| schedule.rules(module),
+            schedule.limits.stack_height,
+        )
+        .expect("Failed to create Program from code");
 
         let code_and_id: InstrumentedCodeAndId = CodeAndId::new(code).into();
         let (code, code_id) = code_and_id.into_parts();
@@ -698,7 +704,7 @@ impl<'a> Program<'a> {
     /// # use gtest::{state_args, Program, System, WasmProgram, Result};
     /// # fn doctest() -> Result<()> {
     /// # #[derive(Debug)]
-    /// # struct MockWasm {}
+    /// # struct MockWasm;
     /// #
     /// # impl WasmProgram for MockWasm {
     /// #     fn init(&mut self, _payload: Vec<u8>) -> Result<Option<Vec<u8>>, &'static str> { unimplemented!() }
@@ -708,7 +714,7 @@ impl<'a> Program<'a> {
     /// #     fn state(&mut self) -> Result<Vec<u8>, &'static str> { unimplemented!()  }
     /// #  }
     /// # let system = System::new();
-    /// # let program = Program::mock(&system, MockWasm { });
+    /// # let program = Program::mock(&system, MockWasm);
     /// # let ARG_1 = 0u8;
     /// # let ARG_2 = 0u8;
     /// //Read state bytes with no arguments passed to wasm.
@@ -744,7 +750,9 @@ impl<'a> Program<'a> {
 
     /// Mint balance to the account.
     pub fn mint(&mut self, value: Balance) {
-        self.manager.borrow_mut().mint_to(&self.id(), value)
+        self.manager
+            .borrow_mut()
+            .mint_to(&self.id(), value, MintMode::KeepAlive)
     }
 
     /// Returns the balance of the account.
@@ -1117,5 +1125,22 @@ mod tests {
             let result = prog.send_bytes(signer, b"send from reservation");
             assert!(!result.main_failed());
         }
+    }
+
+    #[test]
+    fn test_handle_exit_with_zero_balance() {
+        use demo_constructor::{demo_exit_handle, WASM_BINARY};
+
+        let sys = System::new();
+        sys.init_logger();
+
+        let user_id = [42; 32];
+        let prog = Program::from_opt_and_meta_code_with_id(&sys, 137, WASM_BINARY.to_vec(), None);
+
+        let run_result = prog.send(user_id, demo_exit_handle::scheme());
+        assert!(!run_result.main_failed());
+
+        let run_result = prog.send_bytes(user_id, []);
+        assert!(!run_result.main_failed());
     }
 }

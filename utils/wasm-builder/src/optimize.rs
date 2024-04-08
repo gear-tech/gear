@@ -1,9 +1,26 @@
-use crate::{builder_error::BuilderError, stack_end};
+// This file is part of Gear.
+
+// Copyright (C) 2022-2024 Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+use crate::stack_end;
 use anyhow::{Context, Result};
 #[cfg(not(feature = "wasm-opt"))]
 use colored::Colorize;
-use gear_core::code::{Code, TryNewCodeConfig};
-use gear_wasm_instrument::{rules::CustomConstantCostRules, STACK_END_EXPORT_NAME};
+use gear_wasm_instrument::STACK_END_EXPORT_NAME;
 use pwasm_utils::{
     parity_wasm,
     parity_wasm::elements::{Internal, Module, Section, Serialize},
@@ -69,8 +86,8 @@ impl Optimizer {
 
     /// Strips all custom sections.
     ///
-    /// Presently all custom sections are not required so they can be stripped safely.
-    /// The name section is already stripped by `wasm-opt`.
+    /// Presently all custom sections are not required so they can be stripped
+    /// safely. The name section is already stripped by `wasm-opt`.
     pub fn strip_custom_sections(&mut self) {
         self.module
             .sections_mut()
@@ -84,11 +101,6 @@ impl Optimizer {
     /// Process optimization.
     pub fn optimize(&self, ty: OptType) -> Result<Vec<u8>> {
         let mut module = self.module.clone();
-
-        let mut code = vec![];
-        module.clone().serialize(&mut code)?;
-
-        self.post_check(code.clone(), ty)?;
 
         let exports = if ty == OptType::Opt {
             OPTIMIZED_EXPORTS.to_vec()
@@ -123,31 +135,6 @@ impl Optimizer {
 
         Ok(code)
     }
-
-    /// Performs post-checking the program code for possible errors.
-    /// `pallet-gear` crate performs the same check at the node level
-    /// when the user tries to upload program code.
-    fn post_check(&self, code: Vec<u8>, ty: OptType) -> Result<()> {
-        let module: Module = parity_wasm::deserialize_buffer(&code)?;
-        let result = match ty {
-            // validate metawasm code
-            // see `pallet_gear::pallet::Pallet::read_state_using_wasm(...)`
-            OptType::Meta => Code::try_new_mock_with_rules(
-                code,
-                |_| CustomConstantCostRules::default(),
-                TryNewCodeConfig::new_no_exports_check(),
-            ),
-            // validate wasm code
-            // see `pallet_gear::pallet::Pallet::upload_program(...)`
-            OptType::Opt => Code::try_new(code, 1, |_| CustomConstantCostRules::default(), None),
-        };
-
-        // here we add more details to the original code error
-        match result {
-            Err(code_error) => Err(BuilderError::CodeCheckFailed((module, code_error).into()))?,
-            _ => Ok(()),
-        }
-    }
 }
 
 pub struct OptimizationResult {
@@ -157,8 +144,8 @@ pub struct OptimizationResult {
 
 /// Attempts to perform optional Wasm optimization using `binaryen`.
 ///
-/// The intention is to reduce the size of bloated Wasm binaries as a result of missing
-/// optimizations (or bugs?) between Rust and Wasm.
+/// The intention is to reduce the size of bloated Wasm binaries as a result of
+/// missing optimizations (or bugs?) between Rust and Wasm.
 pub fn optimize_wasm(
     source: PathBuf,
     destination: PathBuf,

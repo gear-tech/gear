@@ -4,6 +4,14 @@ include!("rebuild_test.rs");
 
 use gstd::{debug, msg};
 
+#[cfg(feature = "a")]
+#[no_mangle]
+extern "C" fn handle_reply() {}
+
+#[cfg(feature = "b")]
+#[no_mangle]
+extern "C" fn handle_signal() {}
+
 #[no_mangle]
 extern "C" fn handle() {
     debug!("handle()");
@@ -29,12 +37,7 @@ mod gtest_tests {
         let this_program = Program::current(&system);
 
         let res = this_program.send_bytes(123, "INIT");
-        assert!(res.contains(
-            &Log::builder()
-                .source(1)
-                .dest(123)
-                .payload_bytes([])
-        ));
+        assert!(res.contains(&Log::builder().source(1).dest(123).payload_bytes([])));
 
         let res = this_program.send_bytes(123, "Hi");
         assert!(res.contains(

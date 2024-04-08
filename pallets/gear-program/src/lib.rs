@@ -135,11 +135,10 @@ use sp_std::{convert::TryInto, prelude::*};
 
 pub use pallet::*;
 
-pub mod migrations;
-
 #[cfg(test)]
 mod mock;
 
+pub mod migration;
 pub mod pallet_tests;
 
 #[frame_support::pallet]
@@ -152,7 +151,6 @@ pub mod pallet {
         CodeMetadata, Program,
     };
     use frame_support::{
-        dispatch::EncodeLike,
         pallet_prelude::*,
         storage::{Key, PrefixIterator},
         traits::StorageVersion,
@@ -166,11 +164,12 @@ pub mod pallet {
         pages::GearPage,
         program::MemoryInfix,
     };
+    use parity_scale_codec::EncodeLike;
     use primitive_types::H256;
     use sp_runtime::DispatchError;
 
     /// The current storage version.
-    pub(crate) const PROGRAM_STORAGE_VERSION: StorageVersion = StorageVersion::new(3);
+    pub(crate) const PROGRAM_STORAGE_VERSION: StorageVersion = StorageVersion::new(4);
 
     #[pallet::config]
     pub trait Config: frame_system::Config {

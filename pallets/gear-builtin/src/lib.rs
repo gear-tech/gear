@@ -34,6 +34,7 @@ extern crate alloc;
 #[cfg(feature = "runtime-benchmarks")]
 pub mod benchmarking;
 
+pub mod bls12_381;
 pub mod weights;
 
 #[cfg(test)]
@@ -45,7 +46,7 @@ mod tests;
 pub use weights::WeightInfo;
 
 use alloc::{
-    collections::{btree_map::Entry, BTreeMap, BTreeSet},
+    collections::{btree_map::Entry, BTreeMap},
     string::ToString,
 };
 use core_processor::{
@@ -62,7 +63,7 @@ use gear_core::{
     str::LimitedStr,
 };
 use impl_trait_for_tuples::impl_for_tuples;
-use pallet_gear::{BuiltinCache, BuiltinDispatcher, BuiltinDispatcherFactory, HandleFn};
+use pallet_gear::{BuiltinDispatcher, BuiltinDispatcherFactory, HandleFn};
 use parity_scale_codec::{Decode, Encode};
 use sp_std::prelude::*;
 
@@ -165,10 +166,6 @@ pub mod pallet {
         type WeightInfo: WeightInfo;
     }
 
-    #[pallet::storage]
-    #[pallet::getter(fn quick_cache)]
-    pub type QuickCache<T: Config> = StorageValue<_, BTreeSet<ProgramId>>;
-
     #[pallet::hooks]
     impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {}
 
@@ -193,21 +190,6 @@ impl<T: Config> BuiltinDispatcherFactory for Pallet<T> {
             BuiltinRegistry::<T>::new(),
             <T as Config>::WeightInfo::create_dispatcher().ref_time(),
         )
-    }
-}
-
-impl<T: Config> BuiltinCache for Pallet<T> {
-    fn exists(id: &ProgramId) -> bool {
-        if QuickCache::<T>::get().is_none() {
-            // Populate the cache at the first call
-            let registry = BuiltinRegistry::<T>::new();
-            QuickCache::<T>::mutate(|keys| {
-                *keys = Some(registry.registry.keys().cloned().collect())
-            });
-        }
-        Self::quick_cache()
-            .expect("Guaranteed to have value; qed")
-            .contains(id)
     }
 }
 
@@ -279,7 +261,14 @@ impl<T: Config> BuiltinDispatcher for BuiltinRegistry<T> {
                 // Create an artificial `MessageContext` object that will help us to generate
                 // a reply from the builtin actor.
                 let mut message_context =
-                    MessageContext::new(dispatch, actor_id, Default::default());
+                    MessageContext::new(dispatch, actor_id, Default::default()).unwrap_or_else(
+                        || {
+                            unreachable!(
+                                "Builtin actor can't have context stored,
+                                 so must be always possible to create a new message context"
+                            )
+                        },
+                    );
                 let packet = ReplyPacket::new(response_payload, 0);
 
                 // Mark reply as sent

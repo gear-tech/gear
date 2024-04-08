@@ -19,7 +19,7 @@
 use crate::{
     log::RunResult,
     mailbox::Mailbox,
-    manager::{Actors, Balance, ExtManager},
+    manager::{Actors, Balance, ExtManager, MintMode},
     program::{Program, ProgramIdWrapper},
     BLOCK_DURATION_IN_MSECS,
 };
@@ -230,13 +230,27 @@ impl System {
     /// stores the code in storage.
     #[track_caller]
     pub fn submit_code<P: AsRef<Path>>(&self, code_path: P) -> CodeId {
+        let code = fs::read(&code_path).unwrap_or_else(|_| {
+            panic!(
+                "Failed to read file {}",
+                code_path.as_ref().to_string_lossy()
+            )
+        });
+        self.0.borrow_mut().store_new_code(&code)
+    }
+
+    /// Saves code to the storage and returns it's code hash
+    ///
+    /// Same as ['submit_code'], but path is provided as relative to the current
+    /// directory.
+    #[track_caller]
+    pub fn submit_code_local<P: AsRef<Path>>(&self, code_path: P) -> CodeId {
         let path = env::current_dir()
             .expect("Unable to get root directory of the project")
             .join(code_path)
             .clean();
 
-        let code = fs::read(&path).unwrap_or_else(|_| panic!("Failed to read file {:?}", path));
-        self.0.borrow_mut().store_new_code(&code)
+        self.submit_code(path)
     }
 
     /// Extract mailbox of user with given `id`.
@@ -256,7 +270,9 @@ impl System {
     /// Mint balance to user with given `id` and `value`.
     pub fn mint_to<ID: Into<ProgramIdWrapper>>(&self, id: ID, value: Balance) {
         let actor_id = id.into().0;
-        self.0.borrow_mut().mint_to(&actor_id, value);
+        self.0
+            .borrow_mut()
+            .mint_to(&actor_id, value, MintMode::KeepAlive);
     }
 
     /// Returns balance of user with given `id`.

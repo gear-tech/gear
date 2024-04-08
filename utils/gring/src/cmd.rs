@@ -43,7 +43,7 @@ pub enum Command {
         #[arg(short, long)]
         passphrase: String,
         /// If the key should be a vanity key.
-        #[arg(short, long)]
+        #[arg(long)]
         vanity: Option<String>,
     },
     /// List all keys in keystore.

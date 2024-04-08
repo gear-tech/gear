@@ -385,7 +385,7 @@ where
         if let Some(code) = T::CodeStorage::get_code(code_id) {
             let code_info = CodeInfo::from_code(&code_id, &code);
             for (init_message, candidate_id) in candidates {
-                if !Pallet::<T>::program_exists(candidate_id) {
+                if !Pallet::<T>::program_exists(self.builtins(), candidate_id) {
                     let block_number = Pallet::<T>::block_number();
                     self.set_program(candidate_id, &code_info, init_message, block_number);
 
