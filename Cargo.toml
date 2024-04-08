@@ -152,10 +152,10 @@ sha-1 = "0.10.1"
 subxt = "0.32.1"
 subxt-metadata = "0.32.1"
 subxt-codegen = "0.32.1"
-syn = "2.0.57"
+syn = "2.0.58"
 thiserror = "1.0.58"
 tokio = { version = "1.37.0" }
-uluru = "3.0.0"
+uluru = "3.1.0"
 url = "2.5.0"
 wat = "1.0.83"
 wabt = "0.10.0"
@@ -457,7 +457,7 @@ schnorrkel = "0.9.1"                                                      # gcli
 scopeguard = { version = "1.2.0", default-features = false }              # pallets/gear
 tabled = "0.10.0"                                                         # utils/regression-analysis
 thousands = "0.2.0"                                                       # utils/regression-analysis
-toml = "0.8.2"                                                            # utils/wasm-builder
+toml = "0.8.12"                                                            # utils/wasm-builder
 tracing = "0.1.40"                                                        # utils/node-loader
 tracing-appender = "0.2"                                                  # utils/node-loader
 tracing-subscriber = "0.3.18"                                             # utils/node-loader
@@ -469,7 +469,7 @@ fail = "0.5"                                                              # gear
 scale-value = "^0.12"                                                     # gsdk
 heck = "0.5.0"                                                            # gsdk-api-gen
 etc = "0.1.19"                                                            # gcli
-toml_edit = "0.21.1"                                                      # crates-io
+toml_edit = "0.22.9"                                                      # crates-io
 scale-decode = "0.9.0"                                                    # gsdk
 directories = "5.0.1"                                                     # utils/key-finder
 num-traits = { version = "0.2", default-features = false }                # gear-core
