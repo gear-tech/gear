@@ -36,6 +36,12 @@ jobs:
             procps
             mingw-w64-x86_64-protobuf
 
+      - name: "Install: Rustup"
+        run: |
+          Invoke-WebRequest -OutFile rustup-init.exe https://win.rustup.rs/x86_64
+          .\rustup-init.exe -y
+          Remove-Item rustup-init.exe
+
       - name: "Install: Rust toolchain"
         uses: dsherret/rust-toolchain-file@v1
 
