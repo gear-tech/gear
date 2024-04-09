@@ -16,10 +16,14 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use std::env;
+
 use anyhow::Result;
 use cargo_gbuild::GBuild;
-use clap::{CommandFactory, Parser};
+use clap::Parser;
 use tracing_subscriber::filter::EnvFilter;
+
+const CUSTOM_COMMAND_NAME: &str = "gbuild";
 
 /// Command `gbuild` as cargo extension.
 #[derive(Parser)]
@@ -36,7 +40,15 @@ struct App {
 }
 
 fn main() -> Result<()> {
-    let app = App::parse();
+    let args = env::args().enumerate().filter_map(|(idx, arg)| {
+        if idx == 1 && arg == CUSTOM_COMMAND_NAME {
+            return None;
+        }
+
+        Some(arg)
+    });
+
+    let app = App::parse_from(args);
 
     // Replace the binary name to library name.
     let name = env!("CARGO_PKG_NAME").replace('-', "_");

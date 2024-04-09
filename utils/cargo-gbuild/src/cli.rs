@@ -58,10 +58,6 @@ pub struct GBuild {
     /// Build artifacts with the specified profile
     #[clap(long)]
     pub profile: Option<String>,
-
-    /// TODO: If enable meta build (#3850)
-    #[clap(short, long)]
-    pub meta: bool,
 }
 
 impl GBuild {
