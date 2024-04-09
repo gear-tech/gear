@@ -26,6 +26,7 @@ use sp_std::marker::PhantomData;
 
 #[cfg(feature = "try-runtime")]
 use {
+    frame_support::ensure,
     sp_runtime::{
         codec::{Decode, Encode},
         TryRuntimeError,
@@ -39,11 +40,6 @@ const SUITABLE_ONCHAIN_STORAGE_VERSION: u16 = 3;
 pub struct AppendStackEndMigration<T: Config>(PhantomData<T>);
 
 impl<T: Config> OnRuntimeUpgrade for AppendStackEndMigration<T> {
-    #[cfg(feature = "try-runtime")]
-    fn pre_upgrade() -> Result<Vec<u8>, TryRuntimeError> {
-        Ok((onchain::CodeStorage::<T>::iter().count() as u64).encode())
-    }
-
     fn on_runtime_upgrade() -> Weight {
         let current = Pallet::<T>::current_storage_version();
         let onchain = Pallet::<T>::on_chain_storage_version();
@@ -92,12 +88,23 @@ impl<T: Config> OnRuntimeUpgrade for AppendStackEndMigration<T> {
     }
 
     #[cfg(feature = "try-runtime")]
+    fn pre_upgrade() -> Result<Vec<u8>, TryRuntimeError> {
+        let onchain = Pallet::<T>::on_chain_storage_version();
+
+        let res = (onchain == SUITABLE_ONCHAIN_STORAGE_VERSION)
+            .then(|| onchain::CodeStorage::<T>::iter().count() as u64);
+
+        Ok(res.encode())
+    }
+
+    #[cfg(feature = "try-runtime")]
     fn post_upgrade(state: Vec<u8>) -> Result<(), TryRuntimeError> {
-        // Check that everything decoded fine.
-        let count = CodeStorage::<T>::iter_keys().count() as u64;
-        let old_count: u64 =
-            Decode::decode(&mut &state[..]).expect("pre_upgrade provides a valid state; qed");
-        assert_eq!(count, old_count);
+        if let Some(old_count) = Option::<u64>::decode(&mut state.as_ref())
+            .map_err(|_| "`pre_upgrade` provided an invalid state")?
+        {
+            let count = CodeStorage::<T>::iter_keys().count() as u64;
+            ensure!(old_count == count, "incorrect count of elements");
+        }
 
         Ok(())
     }
