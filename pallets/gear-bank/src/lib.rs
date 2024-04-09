@@ -38,7 +38,6 @@ macro_rules! impl_config {
             type BankAddress = BankAddress;
             type GasMultiplier = GasMultiplier;
             type SplitFee = SplitFee;
-            type FeeDest = FeeDest;
         }
     };
 }
@@ -87,12 +86,7 @@ pub mod pallet {
         /// Gas price converter.
         type GasMultiplier: Get<GasMultiplier<Self>>;
 
-        /// How much gas fees will go to the `FeeDest`.
-        type SplitFee: Get<Perbill>;
-
-        #[pallet::constant]
-        /// Destination for gas fee split.
-        type FeeDest: Get<AccountIdOf<Self>>;
+        type SplitFee: Get<Option<(Perbill, AccountIdOf<Self>)>>;
     }
 
     // Funds pallets error.
@@ -347,20 +341,25 @@ pub mod pallet {
             }
 
             let value = Self::withdraw_gas_no_transfer(account_id, amount, multiplier)?;
-            // for gas, `SplitFee` goes to `FeeDest` else to author
-            let split = T::SplitFee::get();
-            let to_split = split.mul_floor(value);
-            let to_dest = value - to_split;
 
-            let split_dest = T::FeeDest::get();
+            if let Some((gas_split, split_dest)) = T::SplitFee::get() {
+                let to_split = gas_split.mul_floor(value);
+                let to_dest = value - to_split;
 
-            // All the checks and internal values withdrawals performed in
-            // `*_no_transfer` function above.
-            //
-            // This call does only currency trait final transfer.
-            Self::withdraw(to, to_dest).unwrap_or_else(|e| unreachable!("qed above: {e:?}"));
-            Self::withdraw(&split_dest, to_split)
-                .unwrap_or_else(|e| unreachable!("qed above: {e:?}"));
+                // All the checks and internal values withdrawals performed in
+                // `*_no_transfer` function above.
+                //
+                // This call does only currency trait final transfer.
+                Self::withdraw(to, to_dest).unwrap_or_else(|e| unreachable!("qed above: {e:?}"));
+                Self::withdraw(&split_dest, to_split)
+                    .unwrap_or_else(|e| unreachable!("qed above: {e:?}"));
+            } else {
+                // All the checks and internal values withdrawals performed in
+                // `*_no_transfer` function above.
+                //
+                // This call does only currency trait final transfer.
+                Self::withdraw(to, value).unwrap_or_else(|e| unreachable!("qed above: {e:?}"));
+            }
 
             Ok(())
         }

@@ -107,7 +107,10 @@ where
 
         if let Some(fees) = fees_then_tips.next() {
             // for fees, SPLIT_TX_FEE_PERCENT to treasury else to author
-            let (mut to_author, to_treasury) = fees.ration(constants::SPLIT_TX_FEE_PERCENT, 0);
+            let (mut to_author, to_treasury) = fees.ration(
+                100 - constants::SPLIT_TX_FEE_PERCENT,
+                constants::SPLIT_TX_FEE_PERCENT,
+            );
             if let Some(tips) = fees_then_tips.next() {
                 // for tips, if any, 100% to author
                 tips.merge_into(&mut to_author);

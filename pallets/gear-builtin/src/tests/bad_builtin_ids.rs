@@ -81,8 +81,7 @@ parameter_types! {
     pub const PerformanceMultiplier: u32 = 100;
     pub const BankAddress: AccountId = 15082001;
     pub const GasMultiplier: common::GasMultiplier<Balance, u64> = common::GasMultiplier::ValuePerGas(25);
-    pub const SplitFee: Perbill = Perbill::from_percent(50);
-    pub FeeDest: AccountId = PalletId(*b"py/trsry").into_account_truncating();
+    pub SplitFee: Option<(Perbill, AccountId)> = None;
 }
 
 pallet_gear_bank::impl_config!(Test);
