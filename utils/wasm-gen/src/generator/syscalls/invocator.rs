@@ -333,118 +333,8 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                     self.limit_infinite_waits(&mut instructions, waiting_probability.get());
                 }
             }
-            Loose(SendInit) => {
-                const _: () = assert!(mem::size_of::<gsys::ErrorCode>() == mem::size_of::<u32>());
-                let no_error_val = gsys::ErrorCode::default() as i32;
-
-                let res_ptr = param_instructions
-                    .last()
-                    .expect("At least one argument in fallible syscall")
-                    .as_i32()
-                    .expect("Incorrect last parameter type: expected i32 pointer");
-
-                let MemoryLayout {
-                    handle_count_ptr, ..
-                } = MemoryLayout::from(self.memory_size_bytes());
-
-                instructions.extend_from_slice(&[
-                    // if *res_ptr == no_error_val
-                    Instruction::I32Const(res_ptr),
-                    Instruction::I32Load(2, 0),
-                    Instruction::I32Const(no_error_val),
-                    Instruction::I32Eq,
-                    Instruction::If(BlockType::NoResult),
-                    // if *handle_count_ptr < MemoryLayout::AMOUNT_OF_HANDLES
-                    Instruction::I32Const(handle_count_ptr),
-                    Instruction::I32Load(2, 0),
-                    Instruction::I32Const(MemoryLayout::AMOUNT_OF_HANDLES as i32),
-                    Instruction::I32LtU,
-                    Instruction::If(BlockType::NoResult),
-                    // *handle_count_ptr += 1
-                    Instruction::I32Const(handle_count_ptr),
-                    Instruction::I32Const(handle_count_ptr),
-                    Instruction::I32Load(2, 0),
-                    Instruction::I32Const(1),
-                    Instruction::I32Add,
-                    Instruction::I32Store(2, 0),
-                    Instruction::End,
-                    Instruction::End,
-                ]);
-            }
-            Loose(ReserveGas) => {
-                const _: () = assert!(mem::size_of::<gsys::ErrorCode>() == mem::size_of::<u32>());
-                let no_error_val = gsys::ErrorCode::default() as i32;
-
-                let res_ptr = param_instructions
-                    .last()
-                    .expect("At least one argument in fallible syscall")
-                    .as_i32()
-                    .expect("Incorrect last parameter type: expected i32 pointer");
-
-                let MemoryLayout {
-                    reservation_temp1_ptr,
-                    reservation_flags_ptr,
-                    reservation_array_ptr,
-                    ..
-                } = MemoryLayout::from(self.memory_size_bytes());
-
-                instructions.extend_from_slice(&[
-                    // if *res_ptr == no_error_val
-                    Instruction::I32Const(res_ptr),
-                    Instruction::I32Load(2, 0),
-                    Instruction::I32Const(no_error_val),
-                    Instruction::I32Eq,
-                    Instruction::If(BlockType::NoResult),
-                    // *reservation_temp1_ptr = (*reservation_flags_ptr).trailing_ones()
-                    Instruction::I32Const(reservation_temp1_ptr),
-                    Instruction::I32Const(reservation_flags_ptr),
-                    Instruction::I32Load(2, 0),
-                    Instruction::I32Const(u32::MAX as i32),
-                    Instruction::I32Xor,
-                    Instruction::I32Ctz,
-                    Instruction::I32Store(2, 0),
-                    // if *reservation_temp1_ptr < MemoryLayout::AMOUNT_OF_RESERVATIONS
-                    Instruction::I32Const(reservation_temp1_ptr),
-                    Instruction::I32Load(2, 0),
-                    Instruction::I32Const(MemoryLayout::AMOUNT_OF_RESERVATIONS as i32),
-                    Instruction::I32LtU,
-                    Instruction::If(BlockType::NoResult),
-                    // *reservation_flags_ptr |= 1 << *reservation_temp1_ptr
-                    Instruction::I32Const(reservation_flags_ptr),
-                    Instruction::I32Const(1),
-                    Instruction::I32Const(reservation_temp1_ptr),
-                    Instruction::I32Load(2, 0),
-                    Instruction::I32Shl,
-                    Instruction::I32Const(reservation_flags_ptr),
-                    Instruction::I32Load(2, 0),
-                    Instruction::I32Or,
-                    Instruction::I32Store(2, 0),
-                    // *reservation_temp1_ptr = reservation_array_ptr + *reservation_temp1_ptr * 32
-                    Instruction::I32Const(reservation_temp1_ptr),
-                    Instruction::I32Const(reservation_temp1_ptr),
-                    Instruction::I32Load(2, 0),
-                    Instruction::I32Const(mem::size_of::<gsys::Hash>() as i32),
-                    Instruction::I32Mul,
-                    Instruction::I32Const(reservation_array_ptr),
-                    Instruction::I32Add,
-                    Instruction::I32Store(2, 0),
-                ]);
-
-                // Copy the Hash struct (32 bytes) containing the reservation id.
-                let mut copy_instr = utils::memcpy64_with_offsets(
-                    &[
-                        Instruction::I32Const(reservation_temp1_ptr),
-                        Instruction::I32Load(2, 0),
-                    ],
-                    0,
-                    &[Instruction::I32Const(res_ptr)],
-                    mem::size_of::<gsys::ErrorCode>(),
-                    4,
-                );
-                instructions.append(&mut copy_instr);
-
-                instructions.extend_from_slice(&[Instruction::End, Instruction::End]);
-            }
+            Loose(SendInit) => self.store_handle(&mut instructions, param_instructions),
+            Loose(ReserveGas) => self.store_reservation_id(&mut instructions, param_instructions),
             _ => {}
         }
 
@@ -486,6 +376,8 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                     ret.push(pages_to_alloc.into());
                 }
                 ProcessedSyscallParams::Handler { allowed_values } => {
+                    // NOTE: Also see the `store_handle` method for an explanation of how handles are stored.
+
                     let MemoryLayout {
                         handle_count_ptr, ..
                     } = MemoryLayout::from(self.memory_size_bytes());
@@ -685,6 +577,8 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                 ..
             }
             | PtrParamAllowedValues::ReservationId) => {
+                // NOTE: Also see the `store_reservation_id` method for an explanation of how reservation ids are stored.
+
                 let MemoryLayout {
                     reservation_temp1_ptr,
                     reservation_temp2_ptr,
@@ -974,6 +868,152 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
             Instruction::I32Store(2, 0),
             Instruction::End,
         ]);
+    }
+
+    /// Patches instructions of send_init syscall to store handle in reserved
+    /// memory.
+    ///
+    /// The count of handles is stored in `MemoryLayout.handle_count_ptr`. Since
+    /// handles cannot be used between executions, we simply count them. Then a
+    /// valid handle can be obtained as `*handle_count_ptr - 1`.
+    fn store_handle(
+        &self,
+        instructions: &mut Vec<Instruction>,
+        param_instructions: Vec<ParamInstructions>,
+    ) {
+        const _: () = assert!(mem::size_of::<gsys::ErrorCode>() == mem::size_of::<u32>());
+        let no_error_val = gsys::ErrorCode::default() as i32;
+
+        let res_ptr = param_instructions
+            .last()
+            .expect("At least one argument in fallible syscall")
+            .as_i32()
+            .expect("Incorrect last parameter type: expected i32 pointer");
+
+        let MemoryLayout {
+            handle_count_ptr, ..
+        } = MemoryLayout::from(self.memory_size_bytes());
+
+        instructions.extend_from_slice(&[
+            // if *res_ptr == no_error_val
+            Instruction::I32Const(res_ptr),
+            Instruction::I32Load(2, 0),
+            Instruction::I32Const(no_error_val),
+            Instruction::I32Eq,
+            Instruction::If(BlockType::NoResult),
+            // if *handle_count_ptr < MemoryLayout::AMOUNT_OF_HANDLES
+            Instruction::I32Const(handle_count_ptr),
+            Instruction::I32Load(2, 0),
+            Instruction::I32Const(MemoryLayout::AMOUNT_OF_HANDLES as i32),
+            Instruction::I32LtU,
+            Instruction::If(BlockType::NoResult),
+            // *handle_count_ptr += 1
+            Instruction::I32Const(handle_count_ptr),
+            Instruction::I32Const(handle_count_ptr),
+            Instruction::I32Load(2, 0),
+            Instruction::I32Const(1),
+            Instruction::I32Add,
+            Instruction::I32Store(2, 0),
+            Instruction::End,
+            Instruction::End,
+        ]);
+    }
+
+    /// Patches instructions of reserve_gas syscall to store reservation id in
+    /// reserved memory.
+    ///
+    /// Reservations are stored in memory as follows:
+    /// 1. `MemoryLayout.reservation_array_ptr` is a pointer to `[gsys::Hash;
+    ///    MemoryLayout::AMOUNT_OF_RESERVATIONS as _]`, that is, a linear array
+    ///    of reservation ids.
+    /// 2. `MemoryLayout.reservation_flags_ptr` is a pointer to `u32` that
+    ///    stores reservation id indices as bit flags. For example, if the value
+    ///    of the flags is `0b111`, then this means that reservations with
+    ///    indices `0`, `1`, `2` exist in the linear array.
+    /// 3. The operations of adding and removing reservation IDs are performed
+    ///    in LIFO order, so this is a stack. For example, we had 3 reseravation
+    ///    ids and the value of the flags was `0b111`. After adding a
+    ///    reseravation id, the value of the flags will be `0b1111` and the 3rd
+    ///    index of the linear array will contain the added reseravation id.
+    ///    When deleted, the added reservation ID will be used by some system
+    ///    call and the flags will become equal to `0b111` again.
+    fn store_reservation_id(
+        &self,
+        instructions: &mut Vec<Instruction>,
+        param_instructions: Vec<ParamInstructions>,
+    ) {
+        const _: () = assert!(mem::size_of::<gsys::ErrorCode>() == mem::size_of::<u32>());
+        let no_error_val = gsys::ErrorCode::default() as i32;
+
+        let res_ptr = param_instructions
+            .last()
+            .expect("At least one argument in fallible syscall")
+            .as_i32()
+            .expect("Incorrect last parameter type: expected i32 pointer");
+
+        let MemoryLayout {
+            reservation_temp1_ptr,
+            reservation_flags_ptr,
+            reservation_array_ptr,
+            ..
+        } = MemoryLayout::from(self.memory_size_bytes());
+
+        instructions.extend_from_slice(&[
+            // if *res_ptr == no_error_val
+            Instruction::I32Const(res_ptr),
+            Instruction::I32Load(2, 0),
+            Instruction::I32Const(no_error_val),
+            Instruction::I32Eq,
+            Instruction::If(BlockType::NoResult),
+            // *reservation_temp1_ptr = (*reservation_flags_ptr).trailing_ones()
+            Instruction::I32Const(reservation_temp1_ptr),
+            Instruction::I32Const(reservation_flags_ptr),
+            Instruction::I32Load(2, 0),
+            Instruction::I32Const(u32::MAX as i32),
+            Instruction::I32Xor,
+            Instruction::I32Ctz,
+            Instruction::I32Store(2, 0),
+            // if *reservation_temp1_ptr < MemoryLayout::AMOUNT_OF_RESERVATIONS
+            Instruction::I32Const(reservation_temp1_ptr),
+            Instruction::I32Load(2, 0),
+            Instruction::I32Const(MemoryLayout::AMOUNT_OF_RESERVATIONS as i32),
+            Instruction::I32LtU,
+            Instruction::If(BlockType::NoResult),
+            // *reservation_flags_ptr |= 1 << *reservation_temp1_ptr
+            Instruction::I32Const(reservation_flags_ptr),
+            Instruction::I32Const(1),
+            Instruction::I32Const(reservation_temp1_ptr),
+            Instruction::I32Load(2, 0),
+            Instruction::I32Shl,
+            Instruction::I32Const(reservation_flags_ptr),
+            Instruction::I32Load(2, 0),
+            Instruction::I32Or,
+            Instruction::I32Store(2, 0),
+            // *reservation_temp1_ptr = reservation_array_ptr + *reservation_temp1_ptr * 32
+            Instruction::I32Const(reservation_temp1_ptr),
+            Instruction::I32Const(reservation_temp1_ptr),
+            Instruction::I32Load(2, 0),
+            Instruction::I32Const(mem::size_of::<gsys::Hash>() as i32),
+            Instruction::I32Mul,
+            Instruction::I32Const(reservation_array_ptr),
+            Instruction::I32Add,
+            Instruction::I32Store(2, 0),
+        ]);
+
+        // Copy the Hash struct (32 bytes) containing the reservation id.
+        let mut copy_instr = utils::memcpy64_with_offsets(
+            &[
+                Instruction::I32Const(reservation_temp1_ptr),
+                Instruction::I32Load(2, 0),
+            ],
+            0,
+            &[Instruction::I32Const(res_ptr)],
+            mem::size_of::<gsys::ErrorCode>(),
+            4,
+        );
+        instructions.append(&mut copy_instr);
+
+        instructions.extend_from_slice(&[Instruction::End, Instruction::End]);
     }
 
     fn resolves_calls_indexes(&mut self) {
