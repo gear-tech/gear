@@ -64,6 +64,7 @@ gear_usage() {
     init           initializes and updates packages and toolchains
     run            run gear node
     test           test tool
+    check_extensions checks the required cargo extensions and installs if necessary
 
   Try ./gear.sh <COMMAND> -h (or --help) to learn more about each command.
 
