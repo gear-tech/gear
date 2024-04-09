@@ -16,24 +16,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use cargo_gbuild::GBuild;
-use gclient::{EventProcessor, GearApi};
+use gtest::{Program, System};
 use std::path::PathBuf;
 
-fn gear_bin() -> PathBuf {
-    let node = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../target");
-    node.join(if cfg!(debug_assertions) {
-        "debug"
-    } else {
-        "release"
-    })
-    .join("gear")
-}
-
-#[tokio::test]
-async fn compile_program() -> Result<()> {
-    let node = gear_bin();
+#[test]
+fn test_compile_program_v2() -> Result<()> {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-program/Cargo.toml");
     let artifact = GBuild {
         manifest_path: root.to_string_lossy().to_string().into(),
@@ -41,29 +30,25 @@ async fn compile_program() -> Result<()> {
         profile: None,
         target_dir: None,
         release: false,
-        meta: false,
     }
     .run()?;
 
-    // Set up testing environment.
-    let api = GearApi::dev_from_path(&node)
-        .await
-        .map_err(|e| anyhow!("{e}, node path: {node:?}"))?;
+    // Initialize system environment
+    let system = System::new();
+    system.init_logger();
 
-    // Upload program to the node.
-    let mut listener = api.subscribe().await?;
-    let (init_mid, pid, _hash) = api
-        .upload_program_by_path(artifact.program, b"", b"PING", 2_000_000_000, 0)
-        .await?;
+    // Get program from artifact
+    let user = 0;
+    let program = Program::from_file(&system, artifact.program);
 
-    // 1. verify the reply from the init logic.
-    let (_mid, payload, _value) = listener.reply_bytes_on(init_mid).await?;
-    assert_eq!(payload.map_err(|e| anyhow!(e))?, b"PONG");
+    // Init program
+    let res = program.send_bytes(user, b"PING");
+    assert!(!res.main_failed());
+    assert!(res.contains(&(user, b"INIT_PONG")));
 
-    // 2. verify the reply from the handle logic.
-    let (handle_mid, _hash) = api.send_message(pid, b"PING", 2_000_000_000, 0).await?;
-    let (_mid, payload, _value) = listener.reply_bytes_on(handle_mid).await?;
-    assert_eq!(payload.map_err(|e| anyhow!(e))?, b"PONG");
-
+    // Handle program
+    let res = program.send_bytes(user, b"PING");
+    assert!(!res.main_failed());
+    assert!(res.contains(&(user, b"HANDLE_PONG")));
     Ok(())
 }

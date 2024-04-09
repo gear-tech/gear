@@ -63,7 +63,7 @@ pub struct GBuild {
 impl GBuild {
     /// Run the gbuild command
     ///
-    /// TODO: Support gtest (#3851)
+    /// TODO: Support `gtest::Program::current` (#3851)
     pub fn run(self) -> Result<Artifact> {
         // 1. Get the cargo target directory
         //

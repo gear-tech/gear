@@ -18,7 +18,6 @@ test_usage() {
     gear           run workspace tests
     gsdk           run gsdk package tests
     gcli           run gcli package tests
-    gbuild         run gbuild package tests
     pallet         run pallet-gear tests
     client         run client tests via gclient
     fuzz           run fuzzer
@@ -35,13 +34,9 @@ EOF
 
 workspace_test() {
   if [ "$CARGO" = "cargo xwin" ]; then
-    $CARGO test --workspace \
-    --exclude runtime-fuzzer --exclude runtime-fuzzer-fuzz --exclude cargo-gbuild \
-    --no-fail-fast "$@"
+    $CARGO test --workspace --exclude runtime-fuzzer --exclude runtime-fuzzer-fuzz --no-fail-fast "$@"
   else
-    cargo nextest run --workspace \
-      --exclude runtime-fuzzer --exclude runtime-fuzzer-fuzz --exclude cargo-gbuild \
-      --profile ci --no-fail-fast "$@"
+    cargo nextest run --workspace --exclude runtime-fuzzer --exclude runtime-fuzzer-fuzz --profile ci --no-fail-fast "$@"
   fi
 }
 
@@ -58,14 +53,6 @@ gcli_test() {
     $CARGO test -p gcli --no-fail-fast "$@"
   else
     cargo nextest run -p gcli --profile ci --no-fail-fast "$@"
-  fi
-}
-
-gbuild_test() {
-  if [ "$CARGO" = "cargo xwin" ]; then
-    $CARGO test -p cargo-gbuild --no-fail-fast "$@"
-  else
-    cargo nextest run -p cargo-gbuild --profile ci --no-fail-fast "$@"
   fi
 }
 

@@ -25,7 +25,7 @@ extern "C" fn init() {
     let payload = msg::load_bytes().expect("Failed to load payload");
     gstd::debug!("Received payload: {payload:?}");
     if payload == b"PING" {
-        msg::reply_bytes("PONG", 0).expect("Failed to send reply");
+        msg::reply_bytes("INIT_PONG", 0).expect("Failed to send reply");
     }
 }
 
@@ -34,6 +34,6 @@ extern "C" fn handle() {
     let payload = msg::load_bytes().expect("Failed to load payload");
 
     if payload == b"PING" {
-        msg::reply_bytes("PONG", 0).expect("Failed to send reply");
+        msg::reply_bytes("HANDLE_PONG", 0).expect("Failed to send reply");
     }
 }

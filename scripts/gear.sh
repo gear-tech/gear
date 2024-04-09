@@ -285,10 +285,6 @@ case "$COMMAND" in
         header "Running gcli tests"
         gcli_test "$@"; ;;
 
-      gbuild)
-        header "Running gbuild tests"
-        gbuild_test "$@"; ;;
-
       validators)
         header "Checking validators"
         validators "$ROOT_DIR" "$@"; ;;

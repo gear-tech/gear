@@ -18,5 +18,4 @@ tracing-subscriber = { workspace = true, features = ["env-filter"] }
 gear-wasm-builder.workspace = true
 
 [dev-dependencies]
-gclient.workspace = true
-tokio = { workspace = true, features = ["macros"] }
+gtest.workspace = true

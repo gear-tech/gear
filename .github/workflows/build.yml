@@ -106,9 +106,6 @@ jobs:
       - name: "Test: Client tests"
         run: ./scripts/gear.sh test client ${{ matrix.profile_flags }}
 
-      - name: "Test: cargo-gbuild tests"
-        run: ./scripts/gear.sh test gbuild ${{ matrix.profile_flags }}
-
       - name: "Test: Benchmarks in native"
         run: |
           # fast benchmark tests before long run
