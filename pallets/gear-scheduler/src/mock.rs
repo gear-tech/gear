@@ -25,14 +25,13 @@ use frame_support::{
     parameter_types,
     traits::{ConstU64, FindAuthor},
     weights::constants::RocksDbWeight,
-    PalletId,
 };
 use frame_support_test::TestRandomness;
 use frame_system::{self as system, limits::BlockWeights, pallet_prelude::BlockNumberFor};
 use pallet_gear::GasAllowanceOf;
 use sp_core::{ConstBool, H256};
 use sp_runtime::{
-    traits::{AccountIdConversion, BlakeTwo256, IdentityLookup},
+    traits::{BlakeTwo256, IdentityLookup},
     BuildStorage, Perbill,
 };
 

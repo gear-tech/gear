@@ -66,7 +66,7 @@ pub use pallet_timestamp::Call as TimestampCall;
 pub use pallet_transaction_payment::{
     CurrencyAdapter, FeeDetails, Multiplier, RuntimeDispatchInfo,
 };
-use runtime_common::constants::{BANK_ADDRESS, SPLIT_GAS_PERCENT};
+use runtime_common::constants::BANK_ADDRESS;
 pub use runtime_common::{
     constants::{
         RENT_DISABLED_DELTA_WEEK_FACTOR, RENT_FREE_PERIOD_MONTH_FACTOR, RENT_RESUME_WEEK_FACTOR,
@@ -86,10 +86,7 @@ use sp_runtime::traits::HashingFor;
 use sp_runtime::{
     codec::{Decode, Encode, MaxEncodedLen},
     create_runtime_str, generic, impl_opaque_keys,
-    traits::{
-        AccountIdConversion, AccountIdLookup, BlakeTwo256, Block as BlockT, ConvertInto, NumberFor,
-        OpaqueKeys,
-    },
+    traits::{AccountIdLookup, BlakeTwo256, Block as BlockT, ConvertInto, NumberFor, OpaqueKeys},
     transaction_validity::{TransactionPriority, TransactionSource, TransactionValidity},
     ApplyExtrinsicResult, FixedU128, Perbill, Percent, Permill, Perquintill, RuntimeDebug,
 };

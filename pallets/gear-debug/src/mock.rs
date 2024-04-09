@@ -24,7 +24,6 @@ use frame_support::{
     parameter_types,
     traits::{FindAuthor, Get, OnFinalize, OnInitialize},
     weights::Weight,
-    PalletId,
 };
 use frame_support_test::TestRandomness;
 use frame_system::{self as system, limits::BlockWeights, pallet_prelude::BlockNumberFor};
@@ -32,7 +31,7 @@ use pallet_gear::GasAllowanceOf;
 use primitive_types::H256;
 use sp_core::ConstBool;
 use sp_runtime::{
-    traits::{AccountIdConversion, BlakeTwo256, ConstU64, IdentityLookup},
+    traits::{BlakeTwo256, ConstU64, IdentityLookup},
     BuildStorage, Perbill,
 };
 use sp_std::convert::{TryFrom, TryInto};
