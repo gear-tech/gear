@@ -327,6 +327,9 @@ case "$COMMAND" in
         exit 1; ;;
     esac;;
 
+  check_extensions)
+    check_extensions ;;
+
   *)
     header "Unknown option: '$COMMAND'"
     gear_usage

@@ -46,6 +46,7 @@ jobs:
 
       - name: "Collect: Gear workspace tests"
         run: |
+          ./scripts/gear.sh check_extensions
           mkdir -p ./target/analysis/tests/
           mkdir -p ./target/analysis/output/
           cargo build --release --package regression-analysis
