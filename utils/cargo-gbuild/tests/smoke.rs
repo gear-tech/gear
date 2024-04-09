@@ -34,7 +34,7 @@ fn gear_bin() -> PathBuf {
 #[tokio::test]
 async fn compile_program() -> Result<()> {
     let node = gear_bin();
-    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("program/Cargo.toml");
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-program/Cargo.toml");
     let artifact = GBuild {
         manifest_path: root.to_string_lossy().to_string().into(),
         features: vec!["debug".into()],

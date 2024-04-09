@@ -221,11 +221,11 @@ test-gcli-release: node-release
 	@ ./scripts/gear.sh test gcli --release
 
 .PHONY: test-gbuild
-test-gcli: node
-	@ ./scripts/gear.sh test gcli
+test-gbuild: node
+	@ ./scripts/gear.sh test gbuild
 
 .PHONY: test-gbuild-release
-test-gcli-release: node-release
+test-gbuild-release: node-release
 	@ ./scripts/gear.sh test gbuild --release
 
 .PHONY: test-pallet

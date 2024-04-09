@@ -39,7 +39,7 @@ fn main() -> Result<()> {
     let app = App::parse();
 
     // Replace the binary name to library name.
-    let name = App::command().get_name().to_string().replace('-', "_");
+    let name = env!("CARGO_PKG_NAME").replace('-', "_");
     let env = EnvFilter::try_from_default_env().unwrap_or(EnvFilter::new(match app.verbose {
         0 => format!("{name}=info"),
         1 => format!("{name}=debug"),

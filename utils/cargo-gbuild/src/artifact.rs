@@ -33,8 +33,6 @@ pub struct Artifact {
     pub name: String,
     /// The path to the built program.
     pub program: PathBuf,
-    /// The path to the built metadata.
-    pub meta: Option<PathBuf>,
 }
 
 impl Artifact {
@@ -45,15 +43,12 @@ impl Artifact {
 
         Ok(Self {
             program: root.join(format!("{name}.wasm")),
-            meta: None,
             name,
             root,
         })
     }
 
     /// Build artifacts with optimization.
-    ///
-    /// TODO: support meta build. (#3850)
     pub fn process(&self, src: PathBuf) -> Result<()> {
         optimize::optimize_wasm(
             src.join(format!("{}.wasm", self.name)),

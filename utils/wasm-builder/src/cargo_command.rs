@@ -36,8 +36,9 @@ pub struct CargoCommand {
     paths_to_remap: Vec<(PathBuf, &'static str)>,
 }
 
-impl Default for CargoCommand {
-    fn default() -> CargoCommand {
+impl CargoCommand {
+    /// Initialize new cargo command.
+    pub fn new() -> CargoCommand {
         CargoCommand {
             path: "rustup".to_string(),
             manifest_path: "Cargo.toml".into(),
@@ -50,6 +51,12 @@ impl Default for CargoCommand {
             force_recommended_toolchain: false,
             paths_to_remap: vec![],
         }
+    }
+}
+
+impl Default for CargoCommand {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

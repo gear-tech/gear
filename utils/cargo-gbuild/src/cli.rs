@@ -15,8 +15,8 @@
 //
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
-//
-// TODO: Introduce a standard for the project structure of gear programs.
+
+//! TODO: Introduce a standard for the project structure of gear programs (#3866)
 
 use crate::Artifact;
 use anyhow::{anyhow, Result};
@@ -29,6 +29,9 @@ use std::{
 };
 
 const ARTIFACT_DIR: &str = "gbuild";
+const DEV_PROFILE: &str = "dev";
+const DEBUG_ARTIFACT: &str = "debug";
+const RELEASE_PROFILE: &str = "release";
 
 /// Command `gbuild` as cargo extension.
 #[derive(Parser)]
@@ -38,7 +41,7 @@ pub struct GBuild {
     pub manifest_path: PathBuf,
 
     /// Space or comma separated list of features to activate
-    #[clap(short, long)]
+    #[clap(short = 'F', long)]
     pub features: Vec<String>,
 
     /// If enables the release profile.
@@ -101,11 +104,17 @@ impl GBuild {
     /// TODO: Support workspace build. (#3852)
     fn cargo(&self, target_dir: &Path) -> Result<PathBuf> {
         let mut kargo = CargoCommand::default();
-        let mut artifact = None;
-        if self.release || self.profile.is_some() {
-            let profile = self.profile.clone().unwrap_or("release".into());
+        let mut artifact = DEBUG_ARTIFACT;
+
+        // NOTE: If profile is provided, ignore the release flag.
+        if let Some(profile) = &self.profile {
             kargo.set_profile(profile.clone());
-            artifact = Some(profile);
+            if profile != DEV_PROFILE {
+                artifact = profile;
+            }
+        } else if self.release {
+            kargo.set_profile(RELEASE_PROFILE.into());
+            artifact = RELEASE_PROFILE;
         }
 
         kargo.set_manifest_path(self.manifest_path.clone());
@@ -114,9 +123,6 @@ impl GBuild {
         kargo.run()?;
 
         // Returns the root of the built artifact
-        Ok(target_dir.join(format!(
-            "wasm32-unknown-unknown/{}",
-            artifact.as_deref().unwrap_or("debug")
-        )))
+        Ok(target_dir.join(format!("wasm32-unknown-unknown/{}", artifact)))
     }
 }
