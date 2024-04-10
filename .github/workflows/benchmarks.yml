@@ -82,7 +82,7 @@ jobs:
         with:
           commit_message: >-
             chore(runtime): update weights
-          file_pattern: "pallets/gear/src/ runtime/vara/src/weights/ utils/wasm-instrument/src/gas_metering/"
+          file_pattern: "pallets/gear/src/ pallets/gear-builtin/src/ runtime/vara/src/weights/ utils/wasm-instrument/src/gas_metering/"
 
       - name: Create Pull Request
         if: ${{ inputs.change-type == 'pull_request' }}
@@ -90,6 +90,7 @@ jobs:
         with:
           add-paths: |
             pallets/gear/src/
+            pallets/gear-builtin/src/
             runtime/vara/src/weights/
             utils/wasm-instrument/src/gas_metering/
           commit-message: update weights
