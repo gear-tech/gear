@@ -2,14 +2,13 @@ name: PR
 
 on:
   pull_request:
-    branches: [master]
+    branches: [ master ]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 env:
-  CARGO_INCREMENTAL: 0
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: short
   TERM: xterm-256color
