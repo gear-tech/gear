@@ -320,8 +320,7 @@ where
             Vec::new()
         } else {
             let mut buff = RuntimeBuffer::try_new_default(read.size as usize)?.into_vec();
-            let ptr = read.ptr;
-            self.memory.read(ptr, &mut buff)?;
+            self.memory.read(read.ptr, &mut buff)?;
             buff
         };
         Ok(buff)
@@ -362,8 +361,7 @@ where
             Vec::new()
         } else {
             let mut buff = RuntimeBuffer::try_new_default(size)?.into_vec();
-            let ptr = read.ptr;
-            self.memory.read(ptr, &mut buff)?;
+            self.memory.read(read.ptr, &mut buff)?;
             buff
         };
         let decoded = T::decode_all(&mut &buff[..]).map_err(|_| MemoryAccessError::Decode)?;
