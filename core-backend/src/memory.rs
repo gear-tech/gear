@@ -307,8 +307,8 @@ where
 /// Memory access writer and reader.
 ///
 /// See [`MemoryAccessRegistry`].
-pub(crate) struct MemoryAccessIo<Memory> {
-    memory: Memory,
+pub(crate) struct MemoryAccessIo<Mem> {
+    memory: Mem,
 }
 
 impl<Mem> MemoryAccessIo<Mem>
