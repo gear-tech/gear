@@ -495,9 +495,8 @@ mod tests {
 
         let _io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
 
-        PreProcessMemoryAccesses::with(|accesses| {
-            assert_eq!(accesses.reads.len(), 1);
-        });
+        let accesses = PreProcessMemoryAccesses::take();
+        assert_eq!(accesses.reads.len(), 1);
     }
 
     #[test]
@@ -509,9 +508,8 @@ mod tests {
         let _write = registry.register_write(0, 10);
 
         let _io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
-        PreProcessMemoryAccesses::with(|accesses| {
-            assert_eq!(accesses.writes.len(), 1);
-        });
+        let accesses = PreProcessMemoryAccesses::take();
+        assert_eq!(accesses.writes.len(), 1);
     }
 
     #[test]
@@ -524,10 +522,9 @@ mod tests {
         let _write = registry.register_write(10, 20);
 
         let _io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
-        PreProcessMemoryAccesses::with(|accesses| {
-            assert_eq!(accesses.reads.len(), 1);
-            assert_eq!(accesses.writes.len(), 1);
-        });
+        let accesses = PreProcessMemoryAccesses::take();
+        assert_eq!(accesses.reads.len(), 1);
+        assert_eq!(accesses.writes.len(), 1);
     }
 
     #[test]

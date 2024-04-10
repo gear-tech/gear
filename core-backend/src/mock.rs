@@ -39,7 +39,7 @@ use gear_core_errors::{ReplyCode, SignalCode};
 use gear_lazy_pages_common::ProcessAccessError;
 use gear_sandbox::{default_executor::Store, AsContextExt, SandboxMemory};
 use gear_wasm_instrument::syscalls::SyscallName;
-use std::cell::RefCell;
+use std::{cell::RefCell, mem};
 
 thread_local! {
     static MEMORY_ACCESSES: RefCell<PreProcessMemoryAccesses> = const { RefCell::new(PreProcessMemoryAccesses::new()) };
@@ -59,15 +59,12 @@ impl PreProcessMemoryAccesses {
         }
     }
 
-    fn without_clear(f: impl FnOnce(&mut Self)) {
+    fn with(f: impl FnOnce(&mut Self)) {
         MEMORY_ACCESSES.with_borrow_mut(f);
     }
 
-    pub fn with(f: impl FnOnce(&mut Self)) {
-        MEMORY_ACCESSES.with_borrow_mut(|accesses| {
-            f(accesses);
-            *accesses = Self::new();
-        });
+    pub fn take() -> Self {
+        MEMORY_ACCESSES.with_borrow_mut(|accesses| mem::replace(accesses, Self::new()))
     }
 }
 
@@ -328,7 +325,7 @@ impl BackendExternalities for MockExt {
         new_writes: &[MemoryInterval],
         _gas_counter: &mut u64,
     ) -> Result<(), ProcessAccessError> {
-        PreProcessMemoryAccesses::without_clear(|accesses| {
+        PreProcessMemoryAccesses::with(|accesses| {
             accesses.reads.extend(new_reads);
             accesses.writes.extend(new_writes);
         });
