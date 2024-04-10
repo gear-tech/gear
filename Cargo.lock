@@ -1280,9 +1280,8 @@ dependencies = [
 
 [[package]]
 name = "cc"
-version = "1.0.83"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f1174fb0b6ec23863f8b971027804a42614e347eafb0a95bf0b12cdae21fc4d0"
+version = "1.0.92"
+source = "git+https://github.com/gear-tech/cc-rs?branch=dependency-overloading#7a299d973c1b721a7e33acc456b6d9d10ba6e142"
 dependencies = [
  "jobserver",
  "libc",

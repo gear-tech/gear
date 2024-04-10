@@ -510,6 +510,7 @@ inherits = "release"
 debug = true
 
 [patch.crates-io]
+cc = { version = "1.0", git = "https://github.com/gear-tech/cc-rs", branch = "dependency-overloading" }
 parity-wasm = { version = "0.45.0", git = "https://github.com/gear-tech/parity-wasm", branch = "v0.45.0-sign-ext" }
 wasmi-validation = { version = "0.5.0", git = "https://github.com/gear-tech/wasmi", branch = "v0.13.2-sign-ext" }
 wasm-instrument = { version = "0.3.0", git = "https://github.com/gear-tech/wasm-instrument", branch = "v0.3.0-sign-ext" }
