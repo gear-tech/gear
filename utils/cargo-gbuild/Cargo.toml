@@ -11,6 +11,7 @@ repository.workspace = true
 anyhow.workspace = true
 cargo_toml.workspace = true
 clap = { workspace = true, features = ["derive"] }
+colored.workspace = true
 serde = { workspace = true, features = ["derive"] }
 toml.workspace = true
 tracing.workspace = true

@@ -1248,6 +1248,7 @@ dependencies = [
  "anyhow",
  "cargo_toml",
  "clap 4.5.4",
+ "colored",
  "gear-wasm-builder",
  "gtest",
  "serde",

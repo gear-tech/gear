@@ -22,6 +22,7 @@ use crate::Artifact;
 use anyhow::{anyhow, Result};
 use cargo_toml::Manifest;
 use clap::Parser;
+use colored::Colorize;
 use gear_wasm_builder::CargoCommand;
 use std::{
     env, fs,
@@ -102,8 +103,18 @@ impl GBuild {
         let mut kargo = CargoCommand::default();
         let mut artifact = DEBUG_ARTIFACT;
 
-        // NOTE: If profile is provided, ignore the release flag.
         if let Some(profile) = &self.profile {
+            if self.release {
+                eprintln!(
+                    "{}: conflicting usage of --profile={} and --release
+The `--release` flag is the same as `--profile=release`.
+Remove one flag or the other to continue.",
+                    "error".red().bold(),
+                    profile
+                );
+                std::process::exit(1);
+            }
+
             kargo.set_profile(profile.clone());
             if profile != DEV_PROFILE {
                 artifact = profile;

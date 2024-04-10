@@ -1,2 +1,2 @@
 [alias]
-gbuild = "run -p cargo-gbuild"
+gbuild = "run -p cargo-gbuild --"
