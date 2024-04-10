@@ -417,26 +417,26 @@ mod tests {
 
     struct TestMemory {
         max_pages: WasmPage,
-        allocated: WasmPage,
+        size: WasmPage,
     }
 
     impl Memory for TestMemory {
         type GrowError = &'static str;
 
         fn grow(&mut self, pages: WasmPage) -> Result<(), Self::GrowError> {
-            let new_allocated = self.allocated.add(pages).map_err(|_| "add failed")?;
+            let new_allocated = self.size.add(pages).map_err(|_| "add failed")?;
 
             if new_allocated > self.max_pages {
                 return Err("trying to allocate too many pages");
             }
 
-            self.allocated = new_allocated;
+            self.size = new_allocated;
 
             Ok(())
         }
 
         fn size(&self) -> WasmPage {
-            self.allocated
+            self.size
         }
 
         fn write(&mut self, _offset: u32, _buffer: &[u8]) -> Result<(), MemoryError> {
@@ -457,7 +457,7 @@ mod tests {
             AllocationsContext::new(Default::default(), static_pages.into(), max_pages.into()),
             TestMemory {
                 max_pages: WasmPage::from(max_pages),
-                allocated: WasmPage::from(static_pages),
+                size: WasmPage::from(static_pages),
             },
         )
     }
@@ -704,7 +704,7 @@ mod tests {
                 let mut ctx = AllocationsContext::new(allocations, static_pages, max_pages);
                 let mut mem = TestMemory {
                     max_pages: WasmPage::from(u16::MAX),
-                    allocated: mem_size,
+                    size: mem_size,
                 };
 
                 for action in actions {
