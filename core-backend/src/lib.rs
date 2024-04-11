@@ -43,8 +43,9 @@ use gear_lazy_pages_common::ProcessAccessError;
 pub trait BackendExternalities: Externalities + CountersOwner {
     fn gas_amount(&self) -> GasAmount;
 
-    /// Pre-process memory access if need.
+    /// Pre-process memory access if needed.
     fn pre_process_memory_accesses(
+        &mut self,
         reads: &[MemoryInterval],
         writes: &[MemoryInterval],
         gas_counter: &mut u64,

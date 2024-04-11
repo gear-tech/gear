@@ -210,8 +210,8 @@ impl BackendSyscallError for MemoryAccessError {
 /// ```
 #[derive(Debug)]
 pub(crate) struct MemoryAccessRegistry<Caller> {
-    pub(crate) reads: Vec<MemoryInterval>,
-    pub(crate) writes: Vec<MemoryInterval>,
+    reads: Vec<MemoryInterval>,
+    writes: Vec<MemoryInterval>,
     _phantom: PhantomData<Caller>,
 }
 
@@ -286,9 +286,10 @@ where
         self,
         ctx: &'a mut CallerWrap<'_, Caller>,
     ) -> Result<MemoryAccessIo<MemoryWrapRef<'a, Caller, Mem>>, MemoryAccessError> {
-        let mut gas_counter = ctx.state_mut().ext.define_current_counter();
+        let ext = ctx.ext_mut();
+        let mut gas_counter = ext.define_current_counter();
 
-        let res = Ext::pre_process_memory_accesses(&self.reads, &self.writes, &mut gas_counter);
+        let res = ext.pre_process_memory_accesses(&self.reads, &self.writes, &mut gas_counter);
 
         ctx.state_mut().ext.decrease_current_counter_to(gas_counter);
 
@@ -449,7 +450,7 @@ pub(crate) struct WasmMemoryWrite {
 mod tests {
     use super::*;
     use crate::{
-        mock::{MockExt, MockMemory, PreProcessMemoryAccesses},
+        mock::{MockExt, MockMemory},
         state::State,
     };
     use codec::Encode;
@@ -493,8 +494,9 @@ mod tests {
 
         let _io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
 
-        let accesses = PreProcessMemoryAccesses::take();
-        assert_eq!(accesses.reads.len(), 1);
+        let (reads, writes) = caller_wrap.ext_mut().take_pre_process_accesses();
+        assert_eq!(reads.len(), 1);
+        assert_eq!(writes, []);
     }
 
     #[test]
@@ -506,8 +508,9 @@ mod tests {
         let _write = registry.register_write(0, 10);
 
         let _io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
-        let accesses = PreProcessMemoryAccesses::take();
-        assert_eq!(accesses.writes.len(), 1);
+        let (reads, writes) = caller_wrap.ext_mut().take_pre_process_accesses();
+        assert_eq!(reads, []);
+        assert_eq!(writes.len(), 1);
     }
 
     #[test]
@@ -520,9 +523,9 @@ mod tests {
         let _write = registry.register_write(10, 20);
 
         let _io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
-        let accesses = PreProcessMemoryAccesses::take();
-        assert_eq!(accesses.reads.len(), 1);
-        assert_eq!(accesses.writes.len(), 1);
+        let (reads, writes) = caller_wrap.ext_mut().take_pre_process_accesses();
+        assert_eq!(reads.len(), 1);
+        assert_eq!(writes.len(), 1);
     }
 
     #[test]

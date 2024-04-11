@@ -41,33 +41,6 @@ use gear_sandbox::{default_executor::Store, AsContextExt, SandboxMemory};
 use gear_wasm_instrument::syscalls::SyscallName;
 use std::{cell::RefCell, mem};
 
-thread_local! {
-    static MEMORY_ACCESSES: RefCell<PreProcessMemoryAccesses> = const { RefCell::new(PreProcessMemoryAccesses::new()) };
-}
-
-#[derive(Debug)]
-pub struct PreProcessMemoryAccesses {
-    pub(crate) reads: Vec<MemoryInterval>,
-    pub(crate) writes: Vec<MemoryInterval>,
-}
-
-impl PreProcessMemoryAccesses {
-    const fn new() -> Self {
-        PreProcessMemoryAccesses {
-            reads: Vec::new(),
-            writes: Vec::new(),
-        }
-    }
-
-    fn with(f: impl FnOnce(&mut Self)) {
-        MEMORY_ACCESSES.with_borrow_mut(f);
-    }
-
-    pub fn take() -> Self {
-        MEMORY_ACCESSES.with_borrow_mut(|accesses| mem::replace(accesses, Self::new()))
-    }
-}
-
 /// Mock error
 #[derive(Debug, Clone, Encode, Decode)]
 #[codec(crate = codec)]
@@ -100,8 +73,15 @@ impl BackendAllocSyscallError for Error {
 /// Mock ext
 #[derive(Debug, PartialEq, Eq, Clone, Default)]
 pub struct MockExt {
-    gas_counter: u64,
-    forbidden_funcs: BTreeSet<SyscallName>,
+    reads: Vec<MemoryInterval>,
+    writes: Vec<MemoryInterval>,
+    _forbidden_funcs: BTreeSet<SyscallName>,
+}
+
+impl MockExt {
+    pub fn take_pre_process_accesses(&mut self) -> (Vec<MemoryInterval>, Vec<MemoryInterval>) {
+        (mem::take(&mut self.reads), mem::take(&mut self.writes))
+    }
 }
 
 impl CountersOwner for MockExt {
@@ -121,12 +101,10 @@ impl CountersOwner for MockExt {
         CounterType::GasLimit
     }
 
-    fn decrease_current_counter_to(&mut self, amount: u64) {
-        self.gas_counter = amount;
-    }
+    fn decrease_current_counter_to(&mut self, _amount: u64) {}
 
     fn define_current_counter(&mut self) -> u64 {
-        self.gas_counter
+        0
     }
 }
 
@@ -263,7 +241,7 @@ impl Externalities for MockExt {
         Ok(())
     }
     fn forbidden_funcs(&self) -> &BTreeSet<SyscallName> {
-        &self.forbidden_funcs
+        &self._forbidden_funcs
     }
     fn reserve_gas(
         &mut self,
@@ -321,14 +299,13 @@ impl BackendExternalities for MockExt {
     }
 
     fn pre_process_memory_accesses(
+        &mut self,
         new_reads: &[MemoryInterval],
         new_writes: &[MemoryInterval],
         _gas_counter: &mut u64,
     ) -> Result<(), ProcessAccessError> {
-        PreProcessMemoryAccesses::with(|accesses| {
-            accesses.reads.extend(new_reads);
-            accesses.writes.extend(new_writes);
-        });
+        self.reads.extend(new_reads);
+        self.writes.extend(new_writes);
 
         Ok(())
     }
