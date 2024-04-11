@@ -27,7 +27,6 @@ on:
 run-name: ${{ inputs.title }} ( ${{ format('#{0}', inputs.number) }} )
 
 env:
-  CARGO_INCREMENTAL: 0
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: short
   TERM: xterm-256color
@@ -50,7 +49,7 @@ jobs:
           echo "matrix=${matrix}" >> $GITHUB_OUTPUT
 
   linux:
-    runs-on: [kuberunner, github-runner-02]
+    runs-on: [ kuberunner, github-runner-02 ]
     needs: matrix
     strategy:
       matrix: ${{ fromJson(needs.matrix.outputs.matrix) }}
@@ -172,7 +171,7 @@ jobs:
           path: artifact
 
   win-cross:
-    runs-on: [kuberunner, github-runner-03]
+    runs-on: [ kuberunner, github-runner-03 ]
     needs: matrix
     strategy:
       matrix: ${{ fromJson(needs.matrix.outputs.matrix) }}
@@ -182,7 +181,7 @@ jobs:
       XWIN_ARCH: x86_64
       RUSTUP_HOME: /tmp/rustup_home
       WINEDEBUG: fixme-all
-      CARGO_INCREMENTAL: 0
+      
       CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
     steps:
       - name: "ACTIONS: Checkout"
@@ -254,14 +253,14 @@ jobs:
           CARGO_BUILD_TARGET: x86_64-pc-windows-msvc
 
   win-native:
-    needs: [matrix, linux]
+    needs: [ matrix, linux ]
     if: ${{ !cancelled() && (github.ref == 'refs/heads/master' || inputs.win-native) }}
     uses: ./.github/workflows/build-win-native.yml
     with:
       matrix: ${{ needs.matrix.outputs.matrix }}
 
   macos:
-    needs: [matrix, linux]
+    needs: [ matrix, linux ]
     if: ${{ !cancelled() && inputs.macos }}
     uses: ./.github/workflows/build-macos.yml
     with:
