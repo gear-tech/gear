@@ -21,7 +21,7 @@ jobs:
       matrix:
         profiles: ${{ fromJson(inputs.profiles) }}
       fail-fast: false
-    name: win-native (${{ matrix.profile }})
+    name: win-native (${{ matrix.profiles.name }})
     defaults:
       run:
         shell: msys2 {0}
@@ -50,7 +50,7 @@ jobs:
       - name: "ACTIONS: Setup caching"
         uses: Swatinem/rust-cache@v2
         with:
-          key: "${{ matrix.profile }}"
+          key: "${{ matrix.profiles.name }}"
           save-if: ${{ github.ref == 'refs/heads/master' }}
 
       - name: "Install: cargo-nextest"
@@ -98,14 +98,14 @@ jobs:
 
       - name: "Check: Stack height limit"
         # no need to run check twice
-        if: ${{ matrix.profile == 'release' }}
+        if: ${{ matrix.profiles.name == 'release' }}
         run: cargo run -p calc-stack-height --release --locked
 
       - name: "Test: gsdk tests"
-        run: ./scripts/gear.sh test gsdk ${{ matrix.profile_flags }}
+        run: ./scripts/gear.sh test gsdk ${{ matrix.profiles.flags }}
 
       - name: "Test: Client tests"
-        run: ./scripts/gear.sh test client ${{ matrix.profile_flags }}
+        run: ./scripts/gear.sh test client ${{ matrix.profiles.flags }}
 
       - name: "Test: Lazy pages"
         run: >-
@@ -113,4 +113,4 @@ jobs:
           -p "pallet-*"
           -p gear-lazy-pages
           -p gear-runtime-interface
-          ${{ matrix.profile_flags }}
+          ${{ matrix.profiles.flags }}
