@@ -4,6 +4,7 @@ target-no-lazy/
 target-xwin/
 log/
 weight-dumps/
+prebuilt-libraries/
 .binpath
 .vscode
 .DS_Store
