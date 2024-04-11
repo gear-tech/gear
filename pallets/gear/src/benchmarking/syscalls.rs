@@ -38,11 +38,13 @@ use gear_core::{
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{PageBuf, PageBufInner},
     message::{Message, Value},
-    pages::{GearPage, Interval, IntervalIterator, IntervalsTree, WasmPage, WasmPagesAmount},
+    pages::{GearPage, IntervalIterator, IntervalsTree, WasmPage, WasmPagesAmount},
     reservation::GasReservationSlot,
 };
 use gear_core_errors::*;
 use gear_wasm_instrument::{parity_wasm::elements::Instruction, syscalls::SyscallName};
+use rand::{seq::SliceRandom, SeedableRng};
+use rand_pcg::Pcg64;
 use sp_core::Get;
 use sp_runtime::{codec::Encode, traits::UniqueSaturatedInto};
 
@@ -222,18 +224,21 @@ where
         )
     }
 
-    pub fn alloc(
-        repetitions: u32,
-        allocation_intervals: u32,
-        allocation_size: u32,
-    ) -> Result<Exec<T>, &'static str> {
-        let repetitions = repetitions * API_BENCHMARK_BATCH_SIZE;
-        let allocation_intervals = u16::try_from(allocation_intervals).unwrap();
+    pub fn alloc(repetitions: u32) -> Result<Exec<T>, &'static str> {
+        let repetitions = repetitions.checked_mul(API_BENCHMARK_BATCH_SIZE).unwrap();
+        let max_pages_to_allocate = MAX_REPETITIONS.checked_mul(2).unwrap();
 
-        let mut instructions = vec![
-            Instruction::I32Const(allocation_size as i32),
-            Instruction::Call(0),
-        ];
+        assert!(repetitions <= MAX_REPETITIONS);
+        // Check that max pages to allocate amount is significantly less than max allocated intervals amount.
+        assert!(u16::MAX as u32 > 20 * max_pages_to_allocate);
+
+        // In order to measure the worst case scenario,
+        // allocates as many intervals as possible, but leave some place for further allocations:
+        // allocations == [1, 3, 5, ..., u16::MAX - max_pages_to_allocate]
+        let allocated_amount = (u16::MAX - max_pages_to_allocate as u16) / 2;
+        let allocations = (0..allocated_amount).map(|p| WasmPage::from(p * 2 + 1));
+
+        let mut instructions = vec![Instruction::I32Const(1), Instruction::Call(0)];
         unreachable_condition_i32(&mut instructions, Instruction::I32Eq, -1);
 
         let module = ModuleDefinition {
@@ -243,33 +248,24 @@ where
             ..Default::default()
         };
 
-        // multiply by `2` in order to have voids between allocations
-        let allocations =
-            (0..allocation_intervals).map(|p| WasmPage::from(p.checked_mul(2).unwrap()));
         Self::prepare_handle_with_allocations(module, allocations)
     }
 
-    pub fn free(repetitions: u32, allocation_intervals: u32) -> Result<Exec<T>, &'static str> {
+    pub fn free(repetitions: u32) -> Result<Exec<T>, &'static str> {
         use Instruction::*;
 
         let repetitions = repetitions.checked_mul(API_BENCHMARK_BATCH_SIZE).unwrap();
 
-        let (allocations, pages_to_free): (Vec<_>, Vec<_>) = if allocation_intervals == 0 {
-            let allocations = IntervalIterator::<WasmPage>::from(..);
-            let last_page = WasmPage::from(u16::try_from(repetitions).unwrap());
-            let pages_to_free = IntervalIterator::<WasmPage>::from(..last_page);
-            (allocations.collect(), pages_to_free.collect())
-        } else {
-            // multiply by `2` in order to have voids between allocations
-            let allocations = (0..allocation_intervals)
-                .map(|p| WasmPage::try_from(p.checked_mul(2).unwrap()).unwrap());
-            let pages_to_free = allocations.clone().take(repetitions as usize);
-            (allocations.collect(), pages_to_free.collect())
-        };
+        assert!(repetitions <= u16::MAX as u32 / 2 + 1);
+
+        // In order to measure the worst case scenario, allocates as many intervals as possible:
+        // allocations == [1, 3, 5, ..., u16::MAX]
+        let mut pages: Vec<_> = (0..=u16::MAX / 2).map(|p| p * 2 + 1).collect();
+        pages.shuffle(&mut Pcg64::seed_from_u64(1024));
 
         let mut instructions = vec![];
-        for page in pages_to_free {
-            instructions.extend([I32Const(u32::from(page) as i32), Call(0)]);
+        for &page in pages.iter().take(repetitions as usize) {
+            instructions.extend([I32Const(page as i32), Call(0)]);
             unreachable_condition_i32(&mut instructions, I32Ne, 0);
         }
 
@@ -280,45 +276,33 @@ where
             ..Default::default()
         };
 
-        Self::prepare_handle_with_allocations(module, allocations.into_iter())
+        Self::prepare_handle_with_allocations(module, pages.into_iter().map(WasmPage::from))
     }
 
-    pub fn free_range(
-        repetitions: u32,
-        allocation_intervals: u32,
-        pages_per_call: u32,
-    ) -> Result<Exec<T>, &'static str> {
+    pub fn free_range(repetitions: u32, pages: u32) -> Result<Exec<T>, &'static str> {
         use Instruction::*;
 
         let repetitions = repetitions.checked_mul(API_BENCHMARK_BATCH_SIZE).unwrap();
 
-        let (allocations, intervals_to_free): (Vec<_>, Vec<_>) = if allocation_intervals == 0 {
-            let allocations = IntervalIterator::<WasmPage>::from(..);
-            let intervals_to_free = (0..repetitions).map(|r| {
-                let start = WasmPage::try_from(r.checked_mul(pages_per_call).unwrap()).unwrap();
-                Interval::<WasmPage>::with_len(start, pages_per_call).unwrap()
-            });
-            (allocations.collect(), intervals_to_free.collect())
-        } else {
-            // multiply by `2` in order to have voids between allocations
-            let allocations = (0..allocation_intervals)
-                .map(|p| WasmPage::try_from(p.checked_mul(2).unwrap()).unwrap());
-            let intervals_to_free = (0..repetitions).map(|r| {
-                let start = WasmPage::try_from(r.checked_mul(pages_per_call).unwrap()).unwrap();
-                Interval::<WasmPage>::with_len(start, pages_per_call).unwrap()
-            });
-            (allocations.collect(), intervals_to_free.collect())
-        };
+        assert!(pages > 0);
+        assert!(repetitions * pages <= u16::MAX as u32 + 1);
 
-        if let Some(last) = intervals_to_free.last() {
-            assert!(last.end() <= *allocations.last().unwrap());
-        }
+        // In order to measure the worst case scenario, allocates as many intervals as possible:
+        // allocations == [1, 3, 5, ..., u16::MAX]
+        let allocations = (0..=u16::MAX / 2).map(|p| WasmPage::from(p * 2 + 1));
+
+        let mut numbers: Vec<_> = (0..u16::MAX as u32 / pages).collect();
+        numbers.shuffle(&mut Pcg64::seed_from_u64(1024));
 
         let mut instructions = vec![];
-        for interval in intervals_to_free {
+        for start in numbers
+            .into_iter()
+            .take(repetitions as usize)
+            .map(|i| i * pages)
+        {
             instructions.extend([
-                I32Const(u32::from(interval.start()) as i32),
-                I32Const(u32::from(interval.end()) as i32),
+                I32Const(start as i32),
+                I32Const((start + pages) as i32),
                 Call(0),
             ]);
             unreachable_condition_i32(&mut instructions, I32Ne, 0);

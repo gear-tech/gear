@@ -47,6 +47,7 @@ where
         // To start executing a message resources of a destination program should be
         // fetched from the storage.
         // The first step is to get program data so charge gas for the operation.
+        // TODO: add precharge for program allocations amount, pages with data amount, gas reservation map size +_+_+
         let precharged_dispatch = match core_processor::precharge_for_program(
             block_config,
             GasAllowanceOf::<T>::get(),

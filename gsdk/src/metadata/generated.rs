@@ -2488,7 +2488,6 @@ pub mod runtime_types {
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub struct SyscallWeights {
                     pub alloc: runtime_types::sp_weights::weight_v2::Weight,
-                    pub alloc_per_page: runtime_types::sp_weights::weight_v2::Weight,
                     pub alloc_per_interval: runtime_types::sp_weights::weight_v2::Weight,
                     pub free: runtime_types::sp_weights::weight_v2::Weight,
                     pub free_per_interval: runtime_types::sp_weights::weight_v2::Weight,

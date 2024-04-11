@@ -890,6 +890,7 @@ impl ExtManager {
                         reservation: RESERVATION_COST.into(),
                     },
                     mem_grow: Default::default(),
+                    mem_grow_per_page: Default::default(),
                 },
                 lazy_pages: LazyPagesCosts::default(),
                 read: READ_COST.into(),

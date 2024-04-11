@@ -93,9 +93,6 @@ pub struct SyscallCosts {
     /// Cost of calling `alloc`.
     pub alloc: CostOf<CallsAmount>,
 
-    /// Cost per allocated page for `alloc`.
-    pub alloc_per_page: CostOf<WasmPagesAmount>,
-
     /// Cost of calling `free`.
     pub free: CostOf<CallsAmount>,
 

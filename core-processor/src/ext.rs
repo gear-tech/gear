@@ -656,13 +656,6 @@ impl Ext {
         }
         Ok(())
     }
-
-    fn allocation_intervals_amount(&self) -> usize {
-        self.context
-            .allocations_context
-            .allocations()
-            .intervals_amount()
-    }
 }
 
 impl CountersOwner for Ext {
@@ -756,23 +749,11 @@ impl Externalities for Ext {
         let pages = WasmPagesAmount::try_from(pages_num)
             .map_err(|_| AllocError::ProgramAllocOutOfBounds)?;
 
-        // +_+_+ solve it later
-        // charge for allocation intervals amount
-        // self.charge_gas_if_enough(
-        //     self.context
-        //         .host_fn_weights
-        //         .alloc_per_interval
-        //         .saturating_mul(self.allocation_intervals_amount() as u64),
-        // )?;
-
-        // Charge for pages amount
-        self.charge_gas_if_enough(self.context.costs.syscalls.alloc_per_page.cost_for(pages))?;
-
         self.context
             .allocations_context
-            .alloc::<LazyGrowHandler>(pages, mem, |_pages| {
+            .alloc::<LazyGrowHandler>(pages, mem, |pages| {
                 let gas_for_call = self.context.costs.mem_grow.cost_for_one();
-                let gas_for_pages = 0; //self.context.costs.mem_grow_per_page.cost_for(pages);
+                let gas_for_pages = self.context.costs.mem_grow_per_page.cost_for(pages);
                 Ext::charge_gas_if_enough(
                     &mut self.context.gas_counter,
                     &mut self.context.gas_allowance_counter,
@@ -783,15 +764,6 @@ impl Externalities for Ext {
     }
 
     fn free(&mut self, page: WasmPage) -> Result<(), Self::AllocError> {
-        // +_+_+ fix it later
-        // charge for allocation intervals amount
-        // self.charge_gas_if_enough(
-        //     self.context
-        //         .host_fn_weights
-        //         .free_per_interval
-        //         .saturating_mul(self.allocation_intervals_amount() as u64),
-        // )?;
-
         self.context
             .allocations_context
             .free(page)
@@ -799,44 +771,6 @@ impl Externalities for Ext {
     }
 
     fn free_range(&mut self, start: WasmPage, end: WasmPage) -> Result<(), Self::AllocError> {
-        // +_+_+ fix charging
-
-        // let pages_amount = end
-        //     .raw()
-        //     .checked_sub(start.raw())
-        //     .ok_or(AllocExtError::Alloc(AllocError::InvalidFreeRange(
-        //         start.into(),
-        //         end.into(),
-        //     )))? as u64;
-
-        let _intervals_amount = self.allocation_intervals_amount() as u64;
-
-        // // TODO: use numerated::Interval #3830
-        // let _pages_amount = WasmPage::try_from(pages_amount as u32)
-        //     .map_err(|_| AllocError::InvalidFreeRange(start.raw(), end.raw()))?;
-
-        // +_+_+ fix it later
-        // The complexity of `free_range` is equal to O(log(n) + m), where
-        // - `n` is `intervals_amount`,
-        // - `m` is amount of intervals in intersection of allocations intervals and given range.
-        // Here we charge gas for O(`intervals_amount` + min(`intervals_amount`, `pages_amount`)).
-        // We can do this because: log(n) <= n and m <= min(`intervals_amount`, `pages_amount`),
-        // so charged amount of gas is greater or equal to actual complexity.
-        // Ext::charge_gas_if_enough(
-        //     &mut self.context.gas_counter,
-        //     &mut self.context.gas_allowance_counter,
-        //     self.context
-        //         .costs
-        //         .syscalls
-        //         .free_range_per_page
-        //         .cost_for(pages_amount.min(intervals_amount))
-        //         .saturating_add(
-        //             self.context
-        //                 .host_fn_weights
-        //                 .free_range_per_interval
-        //                 .cost_for(intervals_amount),
-        //         ),
-        // )?;
         let interval = Interval::try_from(start..=end)
             .map_err(|_| AllocExtError::Alloc(AllocError::InvalidFreeRange(start, end)))?;
 

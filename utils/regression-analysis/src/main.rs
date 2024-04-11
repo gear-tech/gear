@@ -307,13 +307,9 @@ fn weights(kind: WeightsKind, input_file: PathBuf, output_file: PathBuf) {
                 SyscallWeights {
                     _phantom,
                     alloc,
-                    alloc_per_page,
-                    alloc_per_interval,
                     free,
-                    free_per_interval,
                     free_range,
                     free_range_per_page,
-                    free_range_per_interval,
                     gr_gas_available,
                     gr_message_id,
                     gr_program_id,

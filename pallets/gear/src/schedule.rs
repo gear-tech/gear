@@ -342,26 +342,14 @@ pub struct SyscallWeights<T: Config> {
     /// Weight of calling `alloc`.
     pub alloc: Weight,
 
-    /// Weight of calling `alloc` per page.
-    pub alloc_per_page: Weight,
-
-    /// Weight of calling `alloc` per intervals amount in program allocations.
-    pub alloc_per_interval: Weight,
-
     /// Weight of calling `free`.
     pub free: Weight,
-
-    /// Weight of calling `free` per intervals amount in program allocations.
-    pub free_per_interval: Weight,
 
     /// Weight of calling `free_range`.
     pub free_range: Weight,
 
     /// Weight of calling `free_range` per page.
     pub free_range_per_page: Weight,
-
-    /// Weight of calling `free_range` per intervals amount in program allocations.
-    pub free_range_per_interval: Weight,
 
     /// Weight of calling `gr_reserve_gas`.
     pub gr_reserve_gas: Weight,
@@ -890,7 +878,6 @@ impl<T: Config> From<SyscallWeights<T>> for SyscallCosts {
     fn from(weights: SyscallWeights<T>) -> SyscallCosts {
         SyscallCosts {
             alloc: weights.alloc.ref_time().into(),
-            alloc_per_page: weights.alloc_per_page.ref_time().into(),
             free: weights.free.ref_time().into(),
             free_range: weights.free_range.ref_time().into(),
             free_range_per_page: weights.free_range_per_page.ref_time().into(),
@@ -1017,15 +1004,10 @@ impl<T: Config> Default for SyscallWeights<T> {
             gr_reply_push_input: to_weight!(cost_batched!(gr_reply_push_input)),
             gr_reply_push_input_per_byte: to_weight!(cost_byte!(gr_reply_push_input_per_kb)),
 
-            alloc: to_weight!(cost_batched!(alloc))
-                .saturating_sub(to_weight!(cost_batched!(alloc_per_page))),
-            alloc_per_page: to_weight!(cost_batched!(alloc_per_page)),
-            alloc_per_interval: to_weight!(cost_batched!(alloc_per_interval)),
+            alloc: to_weight!(cost_batched!(alloc)),
             free: to_weight!(cost_batched!(free)),
-            free_per_interval: to_weight!(cost_batched!(free_per_interval)),
             free_range: to_weight!(cost_batched!(free_range)),
             free_range_per_page: to_weight!(cost_batched!(free_range_per_page)),
-            free_range_per_interval: to_weight!(cost_batched!(free_range_per_interval)),
 
             gr_reserve_gas: to_weight!(cost!(gr_reserve_gas)),
             gr_system_reserve_gas: to_weight!(cost_batched!(gr_system_reserve_gas)),
@@ -1178,6 +1160,7 @@ impl<T: Config> Schedule<T> {
                     reservation: CostsPerBlockOf::<T>::reservation().into(),
                 },
                 mem_grow: self.memory_weights.mem_grow.ref_time().into(),
+                mem_grow_per_page: self.memory_weights.mem_grow_per_page.ref_time().into(),
             },
             lazy_pages: self.memory_weights.clone().into(),
             read: DbWeightOf::<T>::get().reads(1).ref_time().into(),

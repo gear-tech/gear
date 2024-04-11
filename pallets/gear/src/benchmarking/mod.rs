@@ -74,6 +74,7 @@ use core_processor::{
     configs::BlockConfig,
     Ext, ProcessExecutionContext, ProcessorContext, ProcessorExternalities,
 };
+use gear_core::pages::WasmPagesAmount;
 use parity_scale_codec::Encode;
 
 use frame_benchmarking::{benchmarks, whitelisted_caller};
@@ -559,29 +560,7 @@ benchmarks! {
     alloc {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
-        let exec = Benches::<T>::alloc(r, 0, 1)?;
-    }: {
-        res.replace(run_process(exec));
-    }
-    verify {
-        verify_process(res.unwrap());
-    }
-
-    alloc_per_page {
-        let s in 0 .. 500;
-        let mut res = None;
-        let exec = Benches::<T>::alloc(1, 0, s)?;
-    }: {
-        res.replace(run_process(exec));
-    }
-    verify {
-        verify_process(res.unwrap());
-    }
-
-    alloc_per_interval {
-        let i in 0 .. 20_000;
-        let mut res = None;
-        let exec = Benches::<T>::alloc(1, i, 2)?;
+        let exec = Benches::<T>::alloc(r)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -601,7 +580,8 @@ benchmarks! {
     }
 
     mem_grow_per_page {
-        let p in 1 .. 600;
+        let p in 1 .. 800;
+        assert!(p * API_BENCHMARK_BATCH_SIZE < WasmPagesAmount::UPPER.into());
         let mut store = Store::new(None);
         let mem = ExecutorMemory::new(&mut store, 0, None).unwrap();
         let mut mem = MemoryWrap::<gear_core_backend::mock::MockExt>::new(mem, store);
@@ -614,18 +594,7 @@ benchmarks! {
     free {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
-        let exec = Benches::<T>::free(r, 0)?;
-    }: {
-        res.replace(run_process(exec));
-    }
-    verify {
-        verify_process(res.unwrap());
-    }
-
-    free_per_interval {
-        let i in 1_000 .. 20_000;
-        let mut res = None;
-        let exec = Benches::<T>::free(1, i)?;
+        let exec = Benches::<T>::free(r)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -636,7 +605,7 @@ benchmarks! {
     free_range {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
-        let exec = Benches::<T>::free_range(r, 0, 1)?;
+        let exec = Benches::<T>::free_range(r, 1)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -645,20 +614,9 @@ benchmarks! {
     }
 
     free_range_per_page {
-        let p in 1 .. 400;
+        let p in 1 .. 700;
         let mut res = None;
-        let exec = Benches::<T>::free_range(1, 20_000, p)?;
-    }: {
-        res.replace(run_process(exec));
-    }
-    verify {
-        verify_process(res.unwrap());
-    }
-
-    free_range_per_interval {
-        let i in 1_000 .. 20_000;
-        let mut res = None;
-        let exec = Benches::<T>::free_range(1, i, 2)?;
+        let exec = Benches::<T>::free_range(1, p)?;
     }: {
         res.replace(run_process(exec));
     }
