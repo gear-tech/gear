@@ -3,7 +3,7 @@ name: Build native Windows
 on:
   workflow_call:
     inputs:
-      matrix:
+      profiles:
         type: string
         required: true
   workflow_dispatch:
@@ -18,7 +18,8 @@ jobs:
   win-native:
     runs-on: ci-win
     strategy:
-      matrix: ${{ fromJson(inputs.matrix) }}
+      matrix:
+        profiles: ${{ fromJson(inputs.profiles) }}
       fail-fast: false
     name: win-native (${{ matrix.profile }})
     defaults:

@@ -33,26 +33,27 @@ env:
   BINARYEN_VERSION: version_111
 
 jobs:
-  matrix:
+  dynamic-profiles:
     runs-on: ubuntu-latest
     outputs:
-      matrix: ${{ steps.set-matrix.outputs.matrix }}
+      profiles: ${{ steps.set-matrix.outputs.profiles }}
     steps:
       - id: set-matrix
         run: |
-          variants='{"profile": "debug", "profile_flags": ""}'
+          profiles='{"profile": "debug", "profile_flags": ""}'
           if [ "${{ inputs.release }}" = "true" ]; then
-            variants+=', {"profile": "release", "profile_flags": "--release"}'
+            profiles+=', {"profile": "release", "profile_flags": "--release"}'
           fi
-          matrix="{\"include\": [${variants}]}"
-          echo "Matrix: ${matrix}"
-          echo "matrix=${matrix}" >> $GITHUB_OUTPUT
+          profiles="[${profiles}]"
+          echo "Profiles: ${profiles}"
+          echo "profiles=${profiles}" >> $GITHUB_OUTPUT
 
   linux:
     runs-on: [ kuberunner, github-runner-02 ]
     needs: matrix
     strategy:
-      matrix: ${{ fromJson(needs.matrix.outputs.matrix) }}
+      matrix:
+        profiles: ${{ fromJson(needs.dynamic-profiles.outputs.profiles) }}
       fail-fast: false
     name: linux (${{ matrix.profile }})
     env:
@@ -174,7 +175,8 @@ jobs:
     runs-on: [ kuberunner, github-runner-03 ]
     needs: matrix
     strategy:
-      matrix: ${{ fromJson(needs.matrix.outputs.matrix) }}
+      matrix:
+        profiles: ${{ fromJson(needs.dynamic-profiles.outputs.profiles) }}
       fail-fast: false
     name: win-cross (${{ matrix.profile }})
     env:
@@ -257,11 +259,11 @@ jobs:
     if: ${{ !cancelled() && (github.ref == 'refs/heads/master' || inputs.win-native) }}
     uses: ./.github/workflows/build-win-native.yml
     with:
-      matrix: ${{ needs.matrix.outputs.matrix }}
+      profiles: ${{ fromJson(needs.dynamic-profiles.outputs.profiles) }}
 
   macos:
     needs: [ matrix, linux ]
     if: ${{ !cancelled() && inputs.macos }}
     uses: ./.github/workflows/build-macos.yml
     with:
-      matrix: ${{ needs.matrix.outputs.matrix }}
+      profiles: ${{ fromJson(needs.dynamic-profiles.outputs.profiles) }}
