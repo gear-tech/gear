@@ -12,7 +12,7 @@ if [ ! -d "$1" ]; then
     return 1
 fi
 
-PREBUILT_LIBRARIES_DIR=$1
+PREBUILT_LIBRARIES_DIR=$(realpath $1)
 HOST_TARGET=$(rustc -Vv | grep "host: " | sed "s/^host: \(.*\)$/\1/")
 
 export JEMALLOC_OVERRIDE="$PREBUILT_LIBRARIES_DIR/$HOST_TARGET/libjemalloc_pic.a"
