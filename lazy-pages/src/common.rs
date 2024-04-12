@@ -224,6 +224,7 @@ impl LazyPagesExecutionContext {
 
     pub fn set_write_accessed(&mut self, page: GearPage) -> Result<(), Error> {
         self.set_accessed(page);
+        // TODO: consider to optimize `contains + insert` after #3879
         if self.write_accessed_pages.contains(page) {
             return Err(Error::DoubleWriteAccess(page));
         }

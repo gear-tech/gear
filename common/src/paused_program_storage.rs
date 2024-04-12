@@ -35,6 +35,7 @@ impl From<(BTreeSet<WasmPage>, H256, MemoryMap)> for Item {
     fn from(
         (allocations, code_hash, mut memory_pages): (BTreeSet<WasmPage>, H256, MemoryMap),
     ) -> Self {
+        // TODO: consider memory pages batch size #1381
         let split_page = WasmPage::from(MAX_WASM_PAGES_AMOUNT / 2);
         let remaining_pages = memory_pages.split_off(&split_page.to_page());
         Self {
