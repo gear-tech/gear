@@ -122,13 +122,13 @@ impl<const SIZE: u32> From<Option<Page<SIZE>>> for PagesAmount<SIZE> {
 
 impl<const SIZE: u32> Bound<Page<SIZE>> for PagesAmount<SIZE> {
     fn unbound(self) -> Option<Page<SIZE>> {
-        match self {
-            a if a > Self::UPPER => {
+        match self.cmp(&Self::UPPER) {
+            Ordering::Greater => {
                 // This panic is impossible because of `PagesAmount` constructors implementation.
                 unreachable!("PageBound must be always less or equal than UPPER")
             }
-            a if a == Self::UPPER => None,
-            a => Some(Page(a.0)),
+            Ordering::Equal => None,
+            Ordering::Less => Some(Page(self.0)),
         }
     }
 }

@@ -32,7 +32,7 @@ pub trait SizeNumber: Copy + Ord + Eq {
 
 const WASM_SIZE_NO: usize = 0;
 const GEAR_SIZE_NO: usize = 1;
-pub const SIZES_AMOUNT: usize = 2;
+pub(crate) const SIZES_AMOUNT: usize = 2;
 
 /// Size number for wasm pages.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Default)]
@@ -117,7 +117,7 @@ impl<S: SizeNumber> Page<S> {
 
     /// Page size. Guaranteed to be > 0.
     pub fn size<M: SizeManager>(ctx: &M) -> u32 {
-        u32::from(ctx.size_non_zero::<S>())
+        ctx.size_non_zero::<S>().into()
     }
 
     /// Returns max possible page number for 32-bits address space.
