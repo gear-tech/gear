@@ -190,7 +190,7 @@ pub struct InstructionWeights {
 impl Default for InstructionWeights {
     fn default() -> Self {
         Self {
-            version: 1200,
+            version: 1300,
             i64const: 155,
             i64load: 9514,
             i32load: 9159,

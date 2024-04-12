@@ -46,6 +46,10 @@ jobs:
           sed -i -E 's/\w+::WeightInfo for SubstrateWeight/WeightInfo for SubstrateWeight/' pallets/gear/src/weights.rs
           # generate code for lightweight scheduler that is used in gtest and other crates
           ./scripts/weight-dump.sh
+
+      - name: Clear target directory
+        if: ${{ always() }}
+        run: |
           # clear the target directory because our benchmarking machine is not ephemeral
           cargo clean
 
@@ -61,7 +65,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: weights-vara
-          path: runtime/vara/src/weights/
+          path: |
+            runtime/vara/src/weights/
+            utils/wasm-instrument/src/gas_metering/
 
       - name: "TIP: download the artifacts and use `./scripts/unpack-weights.sh`"
         run: |
@@ -73,7 +79,7 @@ jobs:
         with:
           commit_message: >-
             chore(runtime): update weights
-          file_pattern: "pallets/gear/src/ runtime/vara/src/weights/"
+          file_pattern: "pallets/gear/src/ runtime/vara/src/weights/ utils/wasm-instrument/src/gas_metering/"
 
       - name: Create Pull Request
         if: ${{ inputs.change-type == 'pull_request' }}
@@ -82,6 +88,7 @@ jobs:
           add-paths: |
             pallets/gear/src/
             runtime/vara/src/weights/
+            utils/wasm-instrument/src/gas_metering/
           commit-message: update weights
           branch: weights/patch
           branch-suffix: short-commit-hash
