@@ -31,9 +31,10 @@ use crate::{
     Error, Event, GasAllowanceOf, GasBalanceOf, GasHandlerOf, GasInfo, GearBank, Limits, MailboxOf,
     ProgramStorageOf, QueueOf, Schedule, TaskPoolOf, WaitlistOf,
 };
+use alloc::collections::BTreeSet;
 use common::{
     event::*, scheduler::*, storage::*, ActiveProgram, CodeStorage, GasTree, LockId, LockableTree,
-    Origin as _, ProgramStorage, ReservableTree,
+    Origin as _, Program, ProgramStorage, ReservableTree,
 };
 use core_processor::common::ActorExecutionErrorReplyReason;
 use frame_support::{
@@ -49,6 +50,7 @@ use gear_core::{
         ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext, Payload,
         ReplyInfo, StoredDispatch, UserStoredMessage,
     },
+    pages::WasmPage,
 };
 use gear_core_backend::error::{
     TrapExplanation, UnrecoverableExecutionError, UnrecoverableExtError, UnrecoverableWaitError,
@@ -14862,6 +14864,68 @@ fn incorrect_store_context() {
         run_to_next_block(None);
 
         assert_failed(mid, ActorExecutionErrorReplyReason::UnsupportedMessage);
+    });
+}
+
+#[test]
+fn allocate_in_init_free_in_handle() {
+    let wat = r#"
+        (module
+            (import "env" "memory" (memory 16))
+            (import "env" "alloc" (func $alloc (param i32) (result i32)))
+            (import "env" "free" (func $free (param i32) (result i32)))
+            (export "init" (func $init))
+            (export "handle" (func $handle))
+            (func $init
+                (call $alloc (i32.const 1))
+                drop
+            )
+            (func $handle
+                (call $free (i32.const 16))
+                drop
+            )
+        )
+    "#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            ProgramCodeKind::Custom(wat).to_bytes(),
+            DEFAULT_SALT.to_vec(),
+            vec![],
+            1_000_000_000,
+            0,
+            false,
+        ));
+
+        let program_id = get_last_program_id();
+
+        run_to_next_block(None);
+
+        let Some(Program::Active(program)) = ProgramStorageOf::<Test>::get_program(program_id)
+        else {
+            panic!("program must be active")
+        };
+        assert_eq!(program.allocations, BTreeSet::from([WasmPage::from(16)]));
+
+        Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            program_id,
+            vec![],
+            1_000_000_000,
+            0,
+            true,
+        )
+        .unwrap();
+
+        run_to_next_block(None);
+
+        let Some(Program::Active(program)) = ProgramStorageOf::<Test>::get_program(program_id)
+        else {
+            panic!("program must be active")
+        };
+        assert_eq!(program.allocations, BTreeSet::new());
     });
 }
 
