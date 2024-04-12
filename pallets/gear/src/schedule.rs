@@ -648,7 +648,6 @@ impl<T: Config> From<MemoryWeights<T>> for LazyPagesCosts {
                 .saturating_add(val.parachain_read_heuristic)
                 .ref_time()
                 .into(),
-            // +_+_+ mem_grow_per_page: val.mem_grow_per_page.ref_time().into(),
         }
     }
 }

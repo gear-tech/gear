@@ -2446,7 +2446,7 @@ pub mod runtime_types {
                     pub globals: ::core::primitive::u32,
                     pub locals: ::core::primitive::u32,
                     pub parameters: ::core::primitive::u32,
-                    pub memory_pages: ::core::primitive::u32,
+                    pub memory_pages: ::core::primitive::u16,
                     pub table_size: ::core::primitive::u32,
                     pub br_table_size: ::core::primitive::u32,
                     pub subject_len: ::core::primitive::u32,
@@ -2488,12 +2488,9 @@ pub mod runtime_types {
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub struct SyscallWeights {
                     pub alloc: runtime_types::sp_weights::weight_v2::Weight,
-                    pub alloc_per_interval: runtime_types::sp_weights::weight_v2::Weight,
                     pub free: runtime_types::sp_weights::weight_v2::Weight,
-                    pub free_per_interval: runtime_types::sp_weights::weight_v2::Weight,
                     pub free_range: runtime_types::sp_weights::weight_v2::Weight,
                     pub free_range_per_page: runtime_types::sp_weights::weight_v2::Weight,
-                    pub free_range_per_interval: runtime_types::sp_weights::weight_v2::Weight,
                     pub gr_reserve_gas: runtime_types::sp_weights::weight_v2::Weight,
                     pub gr_unreserve_gas: runtime_types::sp_weights::weight_v2::Weight,
                     pub gr_system_reserve_gas: runtime_types::sp_weights::weight_v2::Weight,
