@@ -21,7 +21,6 @@ use common::{
     storage::{Counter, CounterImpl, Mailbox},
     Origin,
 };
-use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{declare_id, ids};
 use sp_std::collections::btree_set::BTreeSet;
 
@@ -68,22 +67,6 @@ where
 }
 
 impl<T: Config> Pallet<T> {
-    /// Queries a voucher and asserts its validity.
-    pub fn get_active_voucher(
-        origin: AccountIdOf<T>,
-        voucher_id: VoucherId,
-    ) -> Result<VoucherInfo<AccountIdOf<T>, BlockNumberFor<T>>, Error<T>> {
-        let voucher =
-            Vouchers::<T>::get(origin.clone(), voucher_id).ok_or(Error::<T>::InexistentVoucher)?;
-
-        ensure!(
-            <frame_system::Pallet<T>>::block_number() < voucher.expiry,
-            Error::<T>::VoucherExpired
-        );
-
-        Ok(voucher)
-    }
-
     /// Return the account id of a synthetical account used to sponsor gas
     /// and transaction fee for legacy vouchers implementation.
     #[deprecated = "Legacy voucher issuing logic is deprecated, and this and \
@@ -106,10 +89,15 @@ impl<T: Config> Pallet<T> {
         voucher_id: VoucherId,
         call: &PrepaidCall<BalanceOf<T>>,
     ) -> Result<(), Error<T>> {
-        let voucher = Self::get_active_voucher(origin.clone(), voucher_id)?;
+        let voucher =
+            Vouchers::<T>::get(origin.clone(), voucher_id).ok_or(Error::<T>::InexistentVoucher)?;
+
+        ensure!(
+            <frame_system::Pallet<T>>::block_number() < voucher.expiry,
+            Error::<T>::VoucherExpired
+        );
 
         match call {
-            PrepaidCall::DeclineVoucher => (),
             PrepaidCall::UploadCode { .. } => {
                 ensure!(voucher.code_uploading, Error::<T>::CodeUploadingDisabled)
             }
@@ -139,7 +127,7 @@ impl<T: Config> Pallet<T> {
             PrepaidCall::SendReply { reply_to_id, .. } => {
                 T::Mailbox::peek(who, reply_to_id).map(|stored_message| stored_message.source())
             }
-            PrepaidCall::UploadCode { .. } | PrepaidCall::DeclineVoucher => None,
+            PrepaidCall::UploadCode { .. } => None,
         }
     }
 }
@@ -156,7 +144,6 @@ pub trait PrepaidCallsDispatcher {
     fn dispatch(
         account_id: Self::AccountId,
         sponsor_id: Self::AccountId,
-        voucher_id: VoucherId,
         call: PrepaidCall<Self::Balance>,
     ) -> DispatchResultWithPostInfo;
 }
@@ -230,5 +217,4 @@ pub enum PrepaidCall<Balance> {
     UploadCode {
         code: Vec<u8>,
     },
-    DeclineVoucher,
 }

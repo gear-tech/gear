@@ -40,7 +40,6 @@ pub trait WeightInfo {
     fn issue() -> Weight;
     fn revoke() -> Weight;
     fn update() -> Weight;
-    fn decline() -> Weight;
 }
 
 /// Weights for pallet_gear_voucher using the Gear node and recommended hardware.
@@ -73,15 +72,6 @@ impl<T: frame_system::Config> pallet_gear_voucher::WeightInfo for SubstrateWeigh
             .saturating_add(T::DbWeight::get().reads(3_u64))
             .saturating_add(T::DbWeight::get().writes(3_u64))
     }
-    fn decline() -> Weight {
-        // Proof Size summary in bytes:
-        //  Measured:  `300`
-        //  Estimated: `3765`
-        // Minimum execution time: 13_000_000 picoseconds.
-        Weight::from_parts(14_000_000, 3765)
-            .saturating_add(T::DbWeight::get().reads(1_u64))
-            .saturating_add(T::DbWeight::get().writes(1_u64))
-    }
 }
 
 // For backwards compatibility and tests
@@ -112,14 +102,5 @@ impl WeightInfo for () {
         Weight::from_parts(56_419_000, 6196)
             .saturating_add(RocksDbWeight::get().reads(3_u64))
             .saturating_add(RocksDbWeight::get().writes(3_u64))
-    }
-    fn decline() -> Weight {
-        // Proof Size summary in bytes:
-        //  Measured:  `300`
-        //  Estimated: `3765`
-        // Minimum execution time: 13_000_000 picoseconds.
-        Weight::from_parts(14_000_000, 3765)
-            .saturating_add(RocksDbWeight::get().reads(1_u64))
-            .saturating_add(RocksDbWeight::get().writes(1_u64))
     }
 }

@@ -161,14 +161,6 @@ pub mod pallet {
             /// Optional field defining was the owner changed during update.
             new_owner: Option<AccountIdOf<T>>,
         },
-
-        /// Voucher has been declined (set to expired state).
-        VoucherDeclined {
-            /// Account id of user who declined its own voucher.
-            spender: AccountIdOf<T>,
-            /// Voucher identifier.
-            voucher_id: VoucherId,
-        },
     }
 
     // Pallet Gear Voucher error.
@@ -330,7 +322,7 @@ pub mod pallet {
             Self::validate_prepaid(origin.clone(), voucher_id, &call)?;
 
             // Dispatching of the call.
-            T::CallsDispatcher::dispatch(origin, voucher_id.cast(), voucher_id, call)
+            T::CallsDispatcher::dispatch(origin, voucher_id.cast(), call)
         }
 
         /// Revoke existing voucher.
@@ -567,13 +559,10 @@ pub mod pallet {
             let origin = ensure_signed(origin)?;
 
             // Validating the call for legacy implementation.
-            match call {
-                PrepaidCall::UploadCode { .. } => {
-                    return Err(Error::<T>::CodeUploadingDisabled.into())
-                }
-                PrepaidCall::DeclineVoucher => return Err(Error::<T>::InexistentVoucher.into()),
-                PrepaidCall::SendMessage { .. } | PrepaidCall::SendReply { .. } => (),
-            };
+            ensure!(
+                !matches!(call, PrepaidCall::UploadCode { .. }),
+                Error::<T>::CodeUploadingDisabled
+            );
 
             // Looking for sponsor synthetic account.
             #[allow(deprecated)]
@@ -581,39 +570,7 @@ pub mod pallet {
                 .ok_or(Error::<T>::UnknownDestination)?;
 
             // Dispatching call.
-            T::CallsDispatcher::dispatch(origin, sponsor.clone(), sponsor.cast(), call)
-        }
-
-        /// Decline existing and not expired voucher.
-        ///
-        /// This extrinsic expires voucher of the caller, if it's still active,
-        /// allowing it to be revoked.
-        ///
-        /// Arguments:
-        /// * voucher_id:   voucher id to be declined.
-        #[pallet::call_index(5)]
-        #[pallet::weight(T::WeightInfo::decline())]
-        pub fn decline(origin: OriginFor<T>, voucher_id: VoucherId) -> DispatchResultWithPostInfo {
-            // Ensuring origin.
-            let origin = ensure_signed(origin)?;
-
-            // Querying voucher if its not expired.
-            let mut voucher = Self::get_active_voucher(origin.clone(), voucher_id)?;
-
-            // Set voucher into expired state.
-            voucher.expiry = <frame_system::Pallet<T>>::block_number();
-
-            // Updating voucher in storage.
-            // TODO: consider revoke here once gas counting implemented (#3726).
-            Vouchers::<T>::insert(origin.clone(), voucher_id, voucher);
-
-            // Depositing event.
-            Self::deposit_event(Event::VoucherDeclined {
-                spender: origin,
-                voucher_id,
-            });
-
-            Ok(().into())
+            T::CallsDispatcher::dispatch(origin, sponsor, call)
         }
     }
 }
