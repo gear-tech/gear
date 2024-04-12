@@ -180,7 +180,30 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
     fn insert_syscalls(&mut self) -> Result<()> {
         let insertion_mapping = self.build_syscalls_insertion_mapping()?;
         for (insert_into_fn, syscalls) in insertion_mapping {
-            self.insert_syscalls_into_fn(insert_into_fn, syscalls)?;
+            self.insert_syscalls_into_fn(
+                insert_into_fn,
+                if self.config.keeping_insertion_order() {
+                    self.config
+                        .injection_types()
+                        .order()
+                        .into_iter()
+                        .filter(|syscall| self.syscalls_imports.get(syscall).is_some())
+                        .flat_map(|syscall1| {
+                            iter::repeat(syscall1)
+                                .take(
+                                    syscalls
+                                        .iter()
+                                        .filter(|&&syscall2| syscall1 == syscall2)
+                                        .count(),
+                                )
+                                .collect::<Vec<_>>()
+                        })
+                        .rev()
+                        .collect()
+                } else {
+                    syscalls
+                },
+            )?;
         }
 
         Ok(())

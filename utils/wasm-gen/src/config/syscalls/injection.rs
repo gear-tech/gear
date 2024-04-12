@@ -25,6 +25,7 @@
 use crate::InvocableSyscall;
 
 use gear_wasm_instrument::syscalls::SyscallName;
+use indexmap::IndexSet;
 use std::{collections::HashMap, ops::RangeInclusive};
 
 /// This enum defines how the syscall should be injected into wasm module.
@@ -53,7 +54,10 @@ pub enum SyscallInjectionType {
 
 /// Possible injection types for each syscall.
 #[derive(Debug, Clone)]
-pub struct SyscallsInjectionTypes(HashMap<InvocableSyscall, SyscallInjectionType>);
+pub struct SyscallsInjectionTypes {
+    inner: HashMap<InvocableSyscall, SyscallInjectionType>,
+    order: IndexSet<InvocableSyscall>,
+}
 
 impl SyscallsInjectionTypes {
     /// Instantiate a syscalls map, where each gear syscall is injected into wasm-module only once.
@@ -73,20 +77,26 @@ impl SyscallsInjectionTypes {
 
     /// Instantiate a syscalls map with given injection type.
     fn new_with_injection_type(injection_type: SyscallInjectionType) -> Self {
-        Self(
-            SyscallName::instrumentable()
+        Self {
+            inner: SyscallName::instrumentable()
                 .map(|name| (InvocableSyscall::Loose(name), injection_type.clone()))
                 .chain(SyscallName::instrumentable().filter_map(|name| {
                     InvocableSyscall::has_precise_variant(name)
                         .then_some((InvocableSyscall::Precise(name), injection_type.clone()))
                 }))
                 .collect(),
-        )
+            order: IndexSet::new(),
+        }
+    }
+
+    /// Gets insertion order of injection types.
+    pub fn order(&self) -> Vec<InvocableSyscall> {
+        self.order.iter().cloned().collect()
     }
 
     /// Gets injection type for given syscall.
     pub fn get(&self, name: InvocableSyscall) -> SyscallInjectionType {
-        self.0
+        self.inner
             .get(&name)
             .cloned()
             .expect("instantiated with all syscalls set")
@@ -96,8 +106,9 @@ impl SyscallsInjectionTypes {
     ///
     /// Sets injection type for `name` syscall to `SyscallInjectionType::Function`.
     pub fn set(&mut self, name: InvocableSyscall, min: u32, max: u32) {
-        self.0
+        self.inner
             .insert(name, SyscallInjectionType::Function(min..=max));
+        self.order.insert(name);
 
         if let InvocableSyscall::Precise(syscall) = name {
             let Some(required_imports) = InvocableSyscall::required_imports_for_syscall(syscall)
@@ -105,15 +116,19 @@ impl SyscallsInjectionTypes {
                 return;
             };
 
-            for &syscall_import in required_imports {
-                self.enable_syscall_import(InvocableSyscall::Loose(syscall_import));
+            for syscall_import in required_imports
+                .iter()
+                .map(|&syscall| InvocableSyscall::Loose(syscall))
+            {
+                self.enable_syscall_import(syscall_import);
+                self.order.insert(syscall_import);
             }
         }
     }
 
     /// Imports the given syscall, if possible.
     pub(crate) fn enable_syscall_import(&mut self, name: InvocableSyscall) {
-        if let Some(injection_type @ SyscallInjectionType::None) = self.0.get_mut(&name) {
+        if let Some(injection_type @ SyscallInjectionType::None) = self.inner.get_mut(&name) {
             *injection_type = SyscallInjectionType::Import;
         }
     }

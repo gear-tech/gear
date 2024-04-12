@@ -104,15 +104,15 @@ pub struct ProcessorContext {
 impl ProcessorContext {
     /// Create new mock [`ProcessorContext`] for usage in tests.
     pub fn new_mock() -> ProcessorContext {
-        use gear_core::message::IncomingDispatch;
+        const MAX_RESERVATIONS: u64 = 256;
 
         ProcessorContext {
             gas_counter: GasCounter::new(0),
             gas_allowance_counter: GasAllowanceCounter::new(0),
             gas_reserver: GasReserver::new(
-                &<IncomingDispatch as Default>::default(),
+                &Default::default(),
                 Default::default(),
-                Default::default(),
+                MAX_RESERVATIONS,
             ),
             system_reservation: None,
             value_counter: ValueCounter::new(0),
