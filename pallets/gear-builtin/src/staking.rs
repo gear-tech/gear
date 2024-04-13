@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021-2023 Gear Technologies Inc.
+// Copyright (C) 2021-2024 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -16,30 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! # Gear BuiltIn Actors Pallet
-//!
-//! The BuiltIn Actors pallet provides a set of unique accounts that are treated as built-in
-//! actors ids (`ProgramId`).
-//!
-//! - [`Config`]
-//!
-//! ## Overview
-//!
-//! The pallet implements a builtin actor that handles messages from the message queue that
-//! request some sort of staking-related logic (like tokens bonding, validators nominating etc.).
-//!//!
-//! The pallet defines a type `Actor` that implements the [crate::BuiltinActor] trait so that it
-//! can be plugged into the `Gear` pallet to intercept messages popped from the queue.
-//!
-//! The staking built-in actor does three things:
-//! 1. Decodes the message payload into a respective known type (the types are deinfed in the
-//! [gbuiltin-staking] crate);
-//! 2. Based on the action encoded in the message, created a respective dispatchable call from
-//! the `Staking` pallet and checks whether the gas limit is sufficient to execute the call;
-//! 3. Dispatches the call and prepares the response payload, if any.
-//!
-//! In case of an error (decoding, gas insufficiency or dispatch error) the actor returns the
-//! error type that is common for all built-in actors: the [crate::BuiltinActorError].
+//! Staking builtin actor implementation
 
 use super::*;
 use common::Origin;
@@ -47,7 +24,7 @@ use core::marker::PhantomData;
 use frame_support::dispatch::{extract_actual_weight, GetDispatchInfo};
 use gbuiltin_staking::*;
 use pallet_staking::RewardDestination;
-use parity_scale_codec::{Decode, Encode};
+use parity_scale_codec::Decode;
 use sp_runtime::traits::{Dispatchable, StaticLookup, UniqueSaturatedInto};
 
 pub struct Actor<T: Config>(PhantomData<T>);
@@ -80,11 +57,11 @@ where
                 (Ok(()), actual_gas)
             }
             Err(e) => {
-                log::error!(target: LOG_TARGET, "Error disptaching call: {:?}", e);
+                log::debug!(target: LOG_TARGET, "Error dispatching call: {:?}", e);
                 (
-                    Err(BuiltinActorError::Custom(
-                        DispatchErrorReason::RuntimeError.to_string().into(),
-                    )),
+                    Err(BuiltinActorError::Custom(LimitedStr::from_small_str(
+                        e.into(),
+                    ))),
                     actual_gas,
                 )
             }
@@ -110,23 +87,21 @@ where
 
         // Decode the message payload to derive the desired action
         let (result, gas_spent) = match Request::decode(&mut payload) {
-            Ok(Request::V1(request)) => {
-                // Handle the V1 staking requests
+            Ok(request) => {
+                // Handle staking requests
                 let gas_limit = gas_limit.saturating_sub(decoding_cost);
                 let call = match request {
-                    RequestV1::Bond { value, payee } => {
-                        let payee = if let Some(payee) = payee {
-                            match payee {
-                                RewardAccount::Program => RewardDestination::Stash,
-                                RewardAccount::Custom(account_id) => {
-                                    let dest = ProgramId::try_from(&account_id[..])
-                                        .unwrap_or_else(|_e| unreachable!("32 bytes type; qed"))
-                                        .cast();
-                                    RewardDestination::Account(dest)
-                                }
+                    Request::Bond { value, payee } => {
+                        let payee = match payee {
+                            RewardAccount::Staked => RewardDestination::Staked,
+                            RewardAccount::Program => RewardDestination::Stash,
+                            RewardAccount::Custom(account_id) => {
+                                let dest = ProgramId::try_from(&account_id[..])
+                                    .unwrap_or_else(|_e| unreachable!("32 bytes type; qed"))
+                                    .cast();
+                                RewardDestination::Account(dest)
                             }
-                        } else {
-                            RewardDestination::Stash
+                            RewardAccount::None => RewardDestination::None,
                         };
                         pallet_staking::Call::<T>::bond {
                             value: value.unique_saturated_into(),
@@ -134,18 +109,18 @@ where
                         }
                         .into()
                     }
-                    RequestV1::BondExtra { value } => pallet_staking::Call::<T>::bond_extra {
+                    Request::BondExtra { value } => pallet_staking::Call::<T>::bond_extra {
                         max_additional: value.unique_saturated_into(),
                     }
                     .into(),
-                    RequestV1::Unbond { value } => pallet_staking::Call::<T>::unbond {
+                    Request::Unbond { value } => pallet_staking::Call::<T>::unbond {
                         value: value.unique_saturated_into(),
                     }
                     .into(),
-                    RequestV1::WithdrawUnbonded { num_slashing_spans } => {
+                    Request::WithdrawUnbonded { num_slashing_spans } => {
                         pallet_staking::Call::<T>::withdraw_unbonded { num_slashing_spans }.into()
                     }
-                    RequestV1::Nominate { targets } => pallet_staking::Call::<T>::nominate {
+                    Request::Nominate { targets } => pallet_staking::Call::<T>::nominate {
                         targets: targets
                             .into_iter()
                             .map(|account_id| {
@@ -157,8 +132,8 @@ where
                             .collect(),
                     }
                     .into(),
-                    RequestV1::Chill => pallet_staking::Call::<T>::chill {}.into(),
-                    RequestV1::PayoutStakers {
+                    Request::Chill => pallet_staking::Call::<T>::chill {}.into(),
+                    Request::PayoutStakers {
                         validator_stash,
                         era,
                     } => {
@@ -171,12 +146,13 @@ where
                         }
                         .into()
                     }
-                    RequestV1::Rebond { value } => pallet_staking::Call::<T>::rebond {
+                    Request::Rebond { value } => pallet_staking::Call::<T>::rebond {
                         value: value.unique_saturated_into(),
                     }
                     .into(),
-                    RequestV1::SetPayee { payee } => {
+                    Request::SetPayee { payee } => {
                         let payee = match payee {
+                            RewardAccount::Staked => RewardDestination::Staked,
                             RewardAccount::Program => RewardDestination::Stash,
                             RewardAccount::Custom(account_id) => {
                                 let dest = ProgramId::try_from(&account_id[..])
@@ -184,6 +160,7 @@ where
                                     .cast();
                                 RewardDestination::Account(dest)
                             }
+                            RewardAccount::None => RewardDestination::None,
                         };
                         pallet_staking::Call::<T>::set_payee { payee }.into()
                     }
@@ -194,12 +171,7 @@ where
         };
 
         (
-            result.map(|response| {
-                response
-                    .encode()
-                    .try_into()
-                    .unwrap_or_else(|_| unreachable!("Encoded unit type always fits in; qed"))
-            }),
+            result.map(|_| Default::default()),
             gas_spent.saturating_add(decoding_cost),
         )
     }

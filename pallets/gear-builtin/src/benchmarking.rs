@@ -294,7 +294,7 @@ benchmarks! {
     staking_estimate_decode {
         let l in 1 .. MAX_PAYLOAD_SIZE as u32;
 
-        // Longest payload corresponds to the `RequestV1::Nominate` variant.
+        // Longest payload corresponds to the `Request::Nominate` variant.
         // Other variants have negligible payload sizes, thereby require near-zero decoding cost.
         let num_targets = (l / 32).max(1_u32); // 32 bytes per target, at least 1 target.
         let mut targets = vec![];
@@ -302,7 +302,7 @@ benchmarks! {
             targets.push(benchmarking::account::<T::AccountId>("target", 0, i).cast::<H256>().into());
         }
 
-        let encoded_request = Request::V1(RequestV1::Nominate { targets }).encode();
+        let encoded_request = Request::Nominate { targets }.encode();
     }: {
         let _ = Request::decode(&mut encoded_request.as_slice());
     } verify {
