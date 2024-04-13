@@ -16,356 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{
-    self as pallet_gear_builtin,
-    mock::{
-        BLOCK_AUTHOR, ENDOWMENT, EXISTENTIAL_DEPOSIT, MILLISECS_PER_BLOCK, SIGNER, UNITS,
-        VAL_1_STASH, VAL_2_STASH, VAL_3_STASH,
-    },
-    staking::Actor as StakingBuiltin,
-};
-use common::Origin;
-use demo_staking_broker::WASM_BINARY;
-use frame_support::{
-    assert_ok, construct_runtime, parameter_types,
-    traits::{ConstBool, ConstU64, FindAuthor, OnFinalize, OnInitialize},
-};
-use frame_support_test::TestRandomness;
-use frame_system::{self as system, pallet_prelude::BlockNumberFor};
-use gbuiltin_staking::*;
-use gear_core::ids::{CodeId, ProgramId};
-use pallet_session::historical::{self as pallet_session_historical};
-use parity_scale_codec::Encode;
-use sp_core::{crypto::key_types, H256};
-use sp_runtime::{
-    testing::UintAuthorityId,
-    traits::{BlakeTwo256, ConstU32, IdentityLookup, OpaqueKeys},
-    BuildStorage, KeyTypeId, Perbill, Permill,
-};
-use sp_std::convert::{TryFrom, TryInto};
+use frame_support::assert_ok;
 
-pub(crate) const SESSION_DURATION: u64 = 250;
-pub(crate) const REWARD_PAYEE: AccountId = 2;
-pub(crate) const VAL_1_AUTH_ID: UintAuthorityId = UintAuthorityId(11);
-pub(crate) const VAL_2_AUTH_ID: UintAuthorityId = UintAuthorityId(21);
-pub(crate) const VAL_3_AUTH_ID: UintAuthorityId = UintAuthorityId(31);
-
-type AccountId = u64;
-type BlockNumber = u64;
-type Balance = u128;
-type Block = frame_system::mocking::MockBlock<Test>;
-
-// Configure a mock runtime to test the pallet.
-construct_runtime!(
-    pub enum Test
-    {
-        System: system,
-        Balances: pallet_balances,
-        Authorship: pallet_authorship,
-        Timestamp: pallet_timestamp,
-        Session: pallet_session,
-        Historical: pallet_session_historical,
-        Staking: pallet_staking,
-        GearProgram: pallet_gear_program,
-        GearMessenger: pallet_gear_messenger,
-        GearScheduler: pallet_gear_scheduler,
-        GearBank: pallet_gear_bank,
-        Gear: pallet_gear,
-        GearGas: pallet_gear_gas,
-        GearBuiltin: pallet_gear_builtin,
-    }
-);
-
-parameter_types! {
-    pub const BlockHashCount: u64 = 250;
-    pub const ExistentialDeposit: Balance = EXISTENTIAL_DEPOSIT;
-}
-
-common::impl_pallet_system!(Test);
-common::impl_pallet_balances!(Test);
-common::impl_pallet_authorship!(Test);
-common::impl_pallet_timestamp!(Test);
-common::impl_pallet_staking!(Test, NextNewSession = Session);
-
-parameter_types! {
-    pub const BlockGasLimit: u64 = 100_000_000_000;
-    pub const OutgoingLimit: u32 = 1024;
-    pub const OutgoingBytesLimit: u32 = 64 * 1024 * 1024;
-    pub ReserveThreshold: BlockNumber = 1;
-    pub GearSchedule: pallet_gear::Schedule<Test> = <pallet_gear::Schedule<Test>>::default();
-    pub RentFreePeriod: BlockNumber = 12_000;
-    pub RentCostPerBlock: Balance = 11;
-    pub ResumeMinimalPeriod: BlockNumber = 100;
-    pub ResumeSessionDuration: BlockNumber = 1_000;
-    pub const PerformanceMultiplier: u32 = 100;
-    pub const BankAddress: AccountId = 15082001;
-    pub const GasMultiplier: common::GasMultiplier<Balance, u64> = common::GasMultiplier::ValuePerGas(25);
-}
-
-pub struct TestSessionHandler;
-impl pallet_session::SessionHandler<AccountId> for TestSessionHandler {
-    const KEY_TYPE_IDS: &'static [KeyTypeId] = &[key_types::DUMMY];
-
-    fn on_new_session<Ks: OpaqueKeys>(
-        _changed: bool,
-        _validators: &[(AccountId, Ks)],
-        _queued_validators: &[(AccountId, Ks)],
-    ) {
-    }
-
-    fn on_disabled(_validator_index: u32) {}
-
-    fn on_genesis_session<Ks: OpaqueKeys>(_validators: &[(AccountId, Ks)]) {}
-}
-
-parameter_types! {
-    pub const Period: u64 = SESSION_DURATION;
-    pub const Offset: u64 = SESSION_DURATION + 1;
-}
-
-impl pallet_session::Config for Test {
-    type RuntimeEvent = RuntimeEvent;
-    type ValidatorId = AccountId;
-    type ValidatorIdOf = pallet_staking::StashOf<Self>;
-    type ShouldEndSession = pallet_session::PeriodicSessions<Period, Offset>;
-    type NextSessionRotation = pallet_session::PeriodicSessions<Period, Offset>;
-    type SessionManager = pallet_session_historical::NoteHistoricalRoot<Self, Staking>;
-    type SessionHandler = TestSessionHandler;
-    type Keys = UintAuthorityId;
-    type WeightInfo = ();
-}
-
-impl pallet_session_historical::Config for Test {
-    type FullIdentification = pallet_staking::Exposure<AccountId, u128>;
-    type FullIdentificationOf = pallet_staking::ExposureOf<Test>;
-}
-
-pallet_gear_bank::impl_config!(Test);
-pallet_gear_gas::impl_config!(Test);
-pallet_gear_scheduler::impl_config!(Test);
-pallet_gear_program::impl_config!(Test);
-pallet_gear_messenger::impl_config!(Test, CurrentBlockNumber = Gear);
-pallet_gear::impl_config!(
-    Test,
-    Schedule = GearSchedule,
-    BuiltinDispatcherFactory = GearBuiltin,
-);
-
-impl pallet_gear_builtin::Config for Test {
-    type RuntimeCall = RuntimeCall;
-    type Builtins = (StakingBuiltin<Self>,);
-    type WeightInfo = ();
-}
-
-// Build genesis storage according to the mock runtime.
-#[derive(Default)]
-pub struct ExtBuilder {
-    initial_authorities: Vec<(AccountId, UintAuthorityId)>,
-    endowed_accounts: Vec<AccountId>,
-    endowment: Balance,
-}
-
-impl ExtBuilder {
-    pub fn endowment(mut self, e: Balance) -> Self {
-        self.endowment = e;
-        self
-    }
-
-    pub fn endowed_accounts(mut self, accounts: Vec<AccountId>) -> Self {
-        self.endowed_accounts = accounts;
-        self
-    }
-
-    pub fn initial_authorities(mut self, authorities: Vec<(AccountId, UintAuthorityId)>) -> Self {
-        self.initial_authorities = authorities;
-        self
-    }
-
-    pub fn build(self) -> sp_io::TestExternalities {
-        let mut storage = system::GenesisConfig::<Test>::default()
-            .build_storage()
-            .unwrap();
-
-        pallet_balances::GenesisConfig::<Test> {
-            balances: self
-                .initial_authorities
-                .iter()
-                .map(|x| (x.0, self.endowment))
-                .chain(self.endowed_accounts.iter().map(|k| (*k, self.endowment)))
-                .collect(),
-        }
-        .assimilate_storage(&mut storage)
-        .unwrap();
-
-        pallet_session::GenesisConfig::<Test> {
-            keys: self
-                .initial_authorities
-                .iter()
-                .map(|x| (x.0, x.0, x.1.clone()))
-                .collect(),
-        }
-        .assimilate_storage(&mut storage)
-        .unwrap();
-
-        pallet_staking::GenesisConfig::<Test> {
-            validator_count: self.initial_authorities.len() as u32,
-            minimum_validator_count: self.initial_authorities.len() as u32,
-            stakers: self
-                .initial_authorities
-                .iter()
-                .map(|x| {
-                    (
-                        x.0,
-                        x.0,
-                        self.endowment,
-                        pallet_staking::StakerStatus::<AccountId>::Validator,
-                    )
-                })
-                .collect::<Vec<_>>(),
-            invulnerables: self.initial_authorities.iter().map(|x| x.0).collect(),
-            slash_reward_fraction: Perbill::from_percent(10),
-            ..Default::default()
-        }
-        .assimilate_storage(&mut storage)
-        .unwrap();
-
-        let mut ext: sp_io::TestExternalities = storage.into();
-
-        ext.execute_with(|| {
-            let new_blk = 1;
-            System::set_block_number(new_blk);
-            on_initialize(new_blk);
-        });
-        ext
-    }
-}
-
-pub(crate) fn run_to_next_block() {
-    run_for_n_blocks(1)
-}
-
-pub(crate) fn run_for_n_blocks(n: u64) {
-    let now = System::block_number();
-    let until = now + n;
-    for current_blk in now..until {
-        Gear::run(frame_support::dispatch::RawOrigin::None.into(), None).unwrap();
-        on_finalize(current_blk);
-
-        let new_block_number = current_blk + 1;
-        System::set_block_number(new_block_number);
-        on_initialize(new_block_number);
-    }
-}
-
-// Run on_initialize hooks in order as they appear in AllPalletsWithSystem.
-pub(crate) fn on_initialize(new_block_number: BlockNumberFor<Test>) {
-    Timestamp::set_timestamp(new_block_number.saturating_mul(MILLISECS_PER_BLOCK));
-    Authorship::on_initialize(new_block_number);
-    GearGas::on_initialize(new_block_number);
-    GearMessenger::on_initialize(new_block_number);
-    Gear::on_initialize(new_block_number);
-}
-
-// Run on_finalize hooks (in pallets reverse order, as they appear in AllPalletsWithSystem)
-pub(crate) fn on_finalize(current_blk: BlockNumberFor<Test>) {
-    Authorship::on_finalize(current_blk);
-    Gear::on_finalize(current_blk);
-    assert!(!System::events().iter().any(|e| {
-        matches!(
-            e.event,
-            RuntimeEvent::Gear(pallet_gear::Event::QueueNotProcessed)
-        )
-    }))
-}
-
-pub(crate) fn gas_price(gas: u64) -> u128 {
-    <Test as pallet_gear_bank::Config>::GasMultiplier::get().gas_to_value(gas)
-}
-
-pub(crate) fn start_transaction() {
-    sp_externalities::with_externalities(|ext| ext.storage_start_transaction())
-        .expect("externalities should exists");
-}
-
-pub(crate) fn rollback_transaction() {
-    sp_externalities::with_externalities(|ext| {
-        ext.storage_rollback_transaction()
-            .expect("ongoing transaction must be there");
-    })
-    .expect("externalities should be set");
-}
-
-pub(crate) fn new_test_ext() -> sp_io::TestExternalities {
-    let bank_address = <Test as pallet_gear_bank::Config>::BankAddress::get();
-
-    ExtBuilder::default()
-        .initial_authorities(vec![
-            (VAL_1_STASH, VAL_1_AUTH_ID),
-            (VAL_2_STASH, VAL_2_AUTH_ID),
-            (VAL_3_STASH, VAL_3_AUTH_ID),
-        ])
-        .endowment(ENDOWMENT)
-        .endowed_accounts(vec![bank_address, SIGNER, REWARD_PAYEE])
-        .build()
-}
-
-pub(crate) fn init_logger() {
-    let _ = env_logger::Builder::from_default_env()
-        .format_module_path(false)
-        .format_level(true)
-        .try_init();
-}
-
-fn deploy_broker_contract() {
-    assert_ok!(Gear::upload_program(
-        RuntimeOrigin::signed(SIGNER),
-        WASM_BINARY.to_vec(),
-        b"contract".to_vec(),
-        Default::default(),
-        10_000_000_000,
-        EXISTENTIAL_DEPOSIT, // keep the contract's account "providing"
-        false,
-    ));
-}
-
-fn send_bond_message(contract_id: ProgramId, amount: Balance, payee: Option<RewardAccount>) {
-    assert_ok!(Gear::send_message(
-        RuntimeOrigin::signed(SIGNER),
-        contract_id,
-        Request::V1(RequestV1::Bond {
-            value: amount,
-            payee
-        })
-        .encode(),
-        10_000_000_000,
-        amount,
-        false,
-    ));
-}
-
-#[derive(PartialEq)]
-enum EventType {
-    Bonded,
-    Unbonded,
-    Withdrawn,
-}
-
-fn assert_staking_events(contract_id: AccountId, balance: Balance, t: EventType) {
-    assert!(System::events().into_iter().any(|e| {
-        match e.event {
-            RuntimeEvent::Staking(pallet_staking::Event::<Test>::Bonded { stash, amount }) => {
-                t == EventType::Bonded && stash == contract_id && balance == amount
-            }
-            RuntimeEvent::Staking(pallet_staking::Event::<Test>::Unbonded { stash, amount }) => {
-                t == EventType::Unbonded && stash == contract_id && balance == amount
-            }
-            RuntimeEvent::Staking(pallet_staking::Event::<Test>::Withdrawn { stash, amount }) => {
-                t == EventType::Withdrawn && stash == contract_id && balance == amount
-            }
-            _ => false,
-        }
-    }))
-}
+use util::*;
 
 #[test]
 fn bonding_works() {
@@ -386,10 +39,10 @@ fn bonding_works() {
             let res = Gear::calculate_gas_info(
                 SIGNER.into_origin(),
                 pallet_gear::manager::HandleKind::Handle(contract_id),
-                Request::V1(RequestV1::Bond {
+                Request::Bond {
                     value: bonded,
-                    payee: None,
-                })
+                    payee: RewardAccount::Program,
+                }
                 .encode(),
                 value.unwrap_or(bonded),
                 true,
@@ -444,10 +97,10 @@ fn bonding_works() {
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(SIGNER),
             contract_id,
-            Request::V1(RequestV1::Bond {
+            Request::Bond {
                 value: 50 * UNITS,
-                payee: None
-            })
+                payee: RewardAccount::Program
+            }
             .encode(),
             10_000_000_000,
             100 * UNITS,
@@ -498,7 +151,7 @@ fn unbonding_works() {
         let _gas_info = Gear::calculate_gas_info(
             SIGNER.into_origin(),
             pallet_gear::manager::HandleKind::Handle(contract_id),
-            Request::V1(RequestV1::Unbond { value: 200 * UNITS }).encode(),
+            Request::Unbond { value: 200 * UNITS }.encode(),
             0,
             true,
             None,
@@ -512,7 +165,7 @@ fn unbonding_works() {
             RuntimeOrigin::signed(SIGNER),
             contract_id,
             // expecting to unbond only 100 UNITS despite 200 UNITS are being requested
-            Request::V1(RequestV1::Unbond { value: 200 * UNITS }).encode(),
+            Request::Unbond { value: 200 * UNITS }.encode(),
             10_000_000_000,
             0,
             false,
@@ -542,12 +195,13 @@ fn nominating_works() {
             .collect();
 
         // Doesn't work without bonding first
+        System::reset_events();
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(SIGNER),
             contract_id,
-            Request::V1(RequestV1::Nominate {
+            Request::Nominate {
                 targets: targets.clone()
-            })
+            }
             .encode(),
             10_000_000_000,
             0,
@@ -555,9 +209,13 @@ fn nominating_works() {
         ));
 
         run_to_next_block();
+        // No staking-related events should have been emitted
+        assert_no_staking_events();
+        // Event with user message has been triggered
+        assert_user_message_sent();
 
+        // Bond some funds on behalf of the contract first
         System::reset_events();
-
         send_bond_message(contract_id, 100 * UNITS, None);
         run_to_next_block();
         assert_staking_events(contract_account_id, 100 * UNITS, EventType::Bonded);
@@ -570,9 +228,9 @@ fn nominating_works() {
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(SIGNER),
             contract_id,
-            Request::V1(RequestV1::Nominate {
+            Request::Nominate {
                 targets: targets.clone()
-            })
+            }
             .encode(),
             10_000_000_000,
             0,
@@ -613,7 +271,7 @@ fn withdraw_unbonded_works() {
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(SIGNER),
             contract_id,
-            Request::V1(RequestV1::Unbond { value: 200 * UNITS }).encode(),
+            Request::Unbond { value: 200 * UNITS }.encode(),
             10_000_000_000,
             0,
             false,
@@ -637,9 +295,9 @@ fn withdraw_unbonded_works() {
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(SIGNER),
             contract_id,
-            Request::V1(RequestV1::WithdrawUnbonded {
+            Request::WithdrawUnbonded {
                 num_slashing_spans: 0
-            })
+            }
             .encode(),
             10_000_000_000,
             0,
@@ -683,9 +341,9 @@ fn set_payee_works() {
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(SIGNER),
             contract_id,
-            Request::V1(RequestV1::SetPayee {
+            Request::SetPayee {
                 payee: RewardAccount::Custom(REWARD_PAYEE.into_origin().into())
-            })
+            }
             .encode(),
             10_000_000_000,
             0,
@@ -729,7 +387,7 @@ fn rebond_works() {
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(SIGNER),
             contract_id,
-            Request::V1(RequestV1::Unbond { value: 400 * UNITS }).encode(),
+            Request::Unbond { value: 400 * UNITS }.encode(),
             10_000_000_000,
             0,
             false,
@@ -753,7 +411,7 @@ fn rebond_works() {
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(SIGNER),
             contract_id,
-            Request::V1(RequestV1::Rebond { value: 200 * UNITS }).encode(),
+            Request::Rebond { value: 200 * UNITS }.encode(),
             10_000_000_000,
             0,
             false,
@@ -776,7 +434,7 @@ fn rebond_works() {
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(SIGNER),
             contract_id,
-            Request::V1(RequestV1::Rebond { value: 300 * UNITS }).encode(),
+            Request::Rebond { value: 300 * UNITS }.encode(),
             10_000_000_000,
             0,
             false,
@@ -812,21 +470,22 @@ fn payout_stakers_works() {
         // Only nominating one target
         let targets: Vec<[u8; 32]> = vec![VAL_1_STASH.into_origin().into()];
 
+        // Bonding a quarter of validator's stake for easier calculations
         send_bond_message(
             contract_id,
-            800 * UNITS,
+            250 * UNITS,
             Some(RewardAccount::Custom(REWARD_PAYEE.into_origin().into())),
         );
         run_to_next_block();
-        assert_staking_events(contract_account_id, 800 * UNITS, EventType::Bonded);
+        assert_staking_events(contract_account_id, 250 * UNITS, EventType::Bonded);
 
         // Nomintate the validator
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(SIGNER),
             contract_id,
-            Request::V1(RequestV1::Nominate {
+            Request::Nominate {
                 targets: targets.clone()
-            })
+            }
             .encode(),
             10_000_000_000,
             0,
@@ -844,7 +503,7 @@ fn payout_stakers_works() {
         let rewards_payee_initial_balance = Balances::free_balance(REWARD_PAYEE);
         assert_eq!(rewards_payee_initial_balance, ENDOWMENT);
 
-        // Run the chain for a few eras (5) to accumulate some rewards
+        // Actually run the chain for a few eras (5) to accumulate some rewards
         run_for_n_blocks(
             5 * SESSION_DURATION * <Test as pallet_staking::Config>::SessionsPerEra::get() as u64,
         );
@@ -853,10 +512,10 @@ fn payout_stakers_works() {
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(SIGNER),
             contract_id,
-            Request::V1(RequestV1::PayoutStakers {
+            Request::PayoutStakers {
                 validator_stash: VAL_1_STASH.into_origin().into(),
-                era: 4
-            })
+                era: 1
+            }
             .encode(),
             10_000_000_000,
             0,
@@ -864,5 +523,434 @@ fn payout_stakers_works() {
         ));
 
         run_to_next_block();
+
+        // Expecting the nominator to have received 1/5 of the rewards
+        let rewards_payee_final_balance = Balances::free_balance(REWARD_PAYEE);
+        assert_eq!(
+            rewards_payee_final_balance,
+            rewards_payee_initial_balance + (100 * UNITS) / 5
+        );
     });
+}
+
+mod util {
+    pub(super) use crate::mock::{
+        BLOCK_AUTHOR, ENDOWMENT, EXISTENTIAL_DEPOSIT, MILLISECS_PER_BLOCK, SIGNER, UNITS,
+        VAL_1_STASH, VAL_2_STASH, VAL_3_STASH,
+    };
+    use crate::{self as pallet_gear_builtin, staking::Actor as StakingBuiltin};
+    pub(super) use common::Origin;
+    pub(super) use demo_staking_broker::WASM_BINARY;
+    use frame_election_provider_support::{
+        bounds::{ElectionBounds, ElectionBoundsBuilder},
+        onchain, SequentialPhragmen,
+    };
+    use frame_support::{
+        assert_ok, construct_runtime, parameter_types,
+        traits::{ConstBool, ConstU64, FindAuthor, OnFinalize, OnInitialize},
+    };
+    use frame_support_test::TestRandomness;
+    use frame_system::{self as system, pallet_prelude::BlockNumberFor};
+    pub(super) use gbuiltin_staking::{Request, RewardAccount};
+    pub(super) use gear_core::ids::{CodeId, ProgramId};
+    use gear_core_errors::{ErrorReplyReason, ReplyCode, SimpleExecutionError};
+    use pallet_session::historical::{self as pallet_session_historical};
+    pub(super) use parity_scale_codec::Encode;
+    use sp_core::{crypto::key_types, H256};
+    use sp_runtime::{
+        testing::UintAuthorityId,
+        traits::{BlakeTwo256, ConstU32, IdentityLookup, OpaqueKeys},
+        BuildStorage, KeyTypeId, Perbill, Permill,
+    };
+    use sp_std::convert::{TryFrom, TryInto};
+
+    pub(super) const SESSION_DURATION: u64 = 250;
+    pub(super) const REWARD_PAYEE: AccountId = 2;
+    const VAL_1_AUTH_ID: UintAuthorityId = UintAuthorityId(11);
+    const VAL_2_AUTH_ID: UintAuthorityId = UintAuthorityId(21);
+    const VAL_3_AUTH_ID: UintAuthorityId = UintAuthorityId(31);
+
+    pub(super) type AccountId = u64;
+    type BlockNumber = u64;
+    type Balance = u128;
+    type Block = frame_system::mocking::MockBlock<Test>;
+
+    // Configure a mock runtime to test the pallet.
+    construct_runtime!(
+        pub enum Test
+        {
+            System: system,
+            Balances: pallet_balances,
+            Authorship: pallet_authorship,
+            Timestamp: pallet_timestamp,
+            Session: pallet_session,
+            Historical: pallet_session_historical,
+            Staking: pallet_staking,
+            GearProgram: pallet_gear_program,
+            GearMessenger: pallet_gear_messenger,
+            GearScheduler: pallet_gear_scheduler,
+            GearBank: pallet_gear_bank,
+            Gear: pallet_gear,
+            GearGas: pallet_gear_gas,
+            GearBuiltin: pallet_gear_builtin,
+        }
+    );
+
+    parameter_types! {
+        pub const BlockHashCount: u64 = 250;
+        pub const ExistentialDeposit: Balance = EXISTENTIAL_DEPOSIT;
+        pub ElectionBoundsOnChain: ElectionBounds = ElectionBoundsBuilder::default().build();
+    }
+
+    common::impl_pallet_system!(Test);
+    common::impl_pallet_balances!(Test);
+    common::impl_pallet_authorship!(Test, EventHandler = Staking);
+    common::impl_pallet_timestamp!(Test);
+
+    // Fixed payout for each era
+    pub struct FixedEraPayout<const PAYOUT: u128>;
+    impl<const PAYOUT: u128> pallet_staking::EraPayout<u128> for FixedEraPayout<PAYOUT> {
+        fn era_payout(
+            _total_staked: u128,
+            _total_issuance: u128,
+            _era_duration_millis: u64,
+        ) -> (u128, u128) {
+            (PAYOUT, 0)
+        }
+    }
+
+    pub struct OnChainSeqPhragmen;
+    impl onchain::Config for OnChainSeqPhragmen {
+        type System = Test;
+        type Solver = SequentialPhragmen<AccountId, Perbill>;
+        type DataProvider = Staking;
+        type WeightInfo = ();
+        type MaxWinners = ConstU32<100>;
+        type Bounds = ElectionBoundsOnChain;
+    }
+
+    common::impl_pallet_staking!(
+        Test,
+        EraPayout = FixedEraPayout::<{ 100 * UNITS }>,
+        NextNewSession = Session,
+        MaxNominatorRewardedPerValidator = ConstU32<1>,
+        ElectionProvider = onchain::OnChainExecution<OnChainSeqPhragmen>,
+        GenesisElectionProvider = onchain::OnChainExecution<OnChainSeqPhragmen>,
+    );
+
+    parameter_types! {
+        pub const BlockGasLimit: u64 = 100_000_000_000;
+        pub const OutgoingLimit: u32 = 1024;
+        pub const OutgoingBytesLimit: u32 = 64 * 1024 * 1024;
+        pub ReserveThreshold: BlockNumber = 1;
+        pub GearSchedule: pallet_gear::Schedule<Test> = <pallet_gear::Schedule<Test>>::default();
+        pub RentFreePeriod: BlockNumber = 12_000;
+        pub RentCostPerBlock: Balance = 11;
+        pub ResumeMinimalPeriod: BlockNumber = 100;
+        pub ResumeSessionDuration: BlockNumber = 1_000;
+        pub const PerformanceMultiplier: u32 = 100;
+        pub const BankAddress: AccountId = 15082001;
+        pub const GasMultiplier: common::GasMultiplier<Balance, u64> = common::GasMultiplier::ValuePerGas(25);
+    }
+
+    pub struct TestSessionHandler;
+    impl pallet_session::SessionHandler<AccountId> for TestSessionHandler {
+        const KEY_TYPE_IDS: &'static [KeyTypeId] = &[key_types::DUMMY];
+
+        fn on_new_session<Ks: OpaqueKeys>(
+            _changed: bool,
+            _validators: &[(AccountId, Ks)],
+            _queued_validators: &[(AccountId, Ks)],
+        ) {
+        }
+
+        fn on_disabled(_validator_index: u32) {}
+
+        fn on_genesis_session<Ks: OpaqueKeys>(_validators: &[(AccountId, Ks)]) {}
+    }
+
+    parameter_types! {
+        pub const Period: u64 = SESSION_DURATION;
+        pub const Offset: u64 = SESSION_DURATION + 1;
+    }
+
+    impl pallet_session::Config for Test {
+        type RuntimeEvent = RuntimeEvent;
+        type ValidatorId = AccountId;
+        type ValidatorIdOf = pallet_staking::StashOf<Self>;
+        type ShouldEndSession = pallet_session::PeriodicSessions<Period, Offset>;
+        type NextSessionRotation = pallet_session::PeriodicSessions<Period, Offset>;
+        type SessionManager = pallet_session_historical::NoteHistoricalRoot<Self, Staking>;
+        type SessionHandler = TestSessionHandler;
+        type Keys = UintAuthorityId;
+        type WeightInfo = ();
+    }
+
+    impl pallet_session_historical::Config for Test {
+        type FullIdentification = pallet_staking::Exposure<AccountId, u128>;
+        type FullIdentificationOf = pallet_staking::ExposureOf<Test>;
+    }
+
+    pallet_gear_bank::impl_config!(Test);
+    pallet_gear_gas::impl_config!(Test);
+    pallet_gear_scheduler::impl_config!(Test);
+    pallet_gear_program::impl_config!(Test);
+    pallet_gear_messenger::impl_config!(Test, CurrentBlockNumber = Gear);
+    pallet_gear::impl_config!(
+        Test,
+        Schedule = GearSchedule,
+        BuiltinDispatcherFactory = GearBuiltin,
+    );
+
+    impl pallet_gear_builtin::Config for Test {
+        type RuntimeCall = RuntimeCall;
+        type Builtins = (StakingBuiltin<Self>,);
+        type WeightInfo = ();
+    }
+
+    // Build genesis storage according to the mock runtime.
+    #[derive(Default)]
+    pub struct ExtBuilder {
+        initial_authorities: Vec<(AccountId, UintAuthorityId)>,
+        endowed_accounts: Vec<AccountId>,
+        endowment: Balance,
+    }
+
+    impl ExtBuilder {
+        pub fn endowment(mut self, e: Balance) -> Self {
+            self.endowment = e;
+            self
+        }
+
+        pub fn endowed_accounts(mut self, accounts: Vec<AccountId>) -> Self {
+            self.endowed_accounts = accounts;
+            self
+        }
+
+        pub fn initial_authorities(
+            mut self,
+            authorities: Vec<(AccountId, UintAuthorityId)>,
+        ) -> Self {
+            self.initial_authorities = authorities;
+            self
+        }
+
+        pub fn build(self) -> sp_io::TestExternalities {
+            let mut storage = system::GenesisConfig::<Test>::default()
+                .build_storage()
+                .unwrap();
+
+            pallet_balances::GenesisConfig::<Test> {
+                balances: self
+                    .initial_authorities
+                    .iter()
+                    .map(|x| (x.0, self.endowment))
+                    .chain(self.endowed_accounts.iter().map(|k| (*k, self.endowment)))
+                    .collect(),
+            }
+            .assimilate_storage(&mut storage)
+            .unwrap();
+
+            pallet_session::GenesisConfig::<Test> {
+                keys: self
+                    .initial_authorities
+                    .iter()
+                    .map(|x| (x.0, x.0, x.1.clone()))
+                    .collect(),
+            }
+            .assimilate_storage(&mut storage)
+            .unwrap();
+
+            pallet_staking::GenesisConfig::<Test> {
+                validator_count: self.initial_authorities.len() as u32,
+                minimum_validator_count: self.initial_authorities.len() as u32,
+                stakers: self
+                    .initial_authorities
+                    .iter()
+                    .map(|x| {
+                        (
+                            x.0,
+                            x.0,
+                            self.endowment,
+                            pallet_staking::StakerStatus::<AccountId>::Validator,
+                        )
+                    })
+                    .collect::<Vec<_>>(),
+                invulnerables: self.initial_authorities.iter().map(|x| x.0).collect(),
+                slash_reward_fraction: Perbill::from_percent(10),
+                ..Default::default()
+            }
+            .assimilate_storage(&mut storage)
+            .unwrap();
+
+            let mut ext: sp_io::TestExternalities = storage.into();
+
+            ext.execute_with(|| {
+                let new_blk = 1;
+                System::set_block_number(new_blk);
+                on_initialize(new_blk);
+            });
+            ext
+        }
+    }
+
+    pub(crate) fn run_to_next_block() {
+        run_for_n_blocks(1)
+    }
+
+    pub(crate) fn run_for_n_blocks(n: u64) {
+        let now = System::block_number();
+        let until = now + n;
+        for current_blk in now..until {
+            Gear::run(frame_support::dispatch::RawOrigin::None.into(), None).unwrap();
+            on_finalize(current_blk);
+
+            let new_block_number = current_blk + 1;
+            System::set_block_number(new_block_number);
+            on_initialize(new_block_number);
+        }
+    }
+
+    // Run on_initialize hooks in order as they appear in AllPalletsWithSystem.
+    pub(crate) fn on_initialize(new_block_number: BlockNumberFor<Test>) {
+        Timestamp::set_timestamp(new_block_number.saturating_mul(MILLISECS_PER_BLOCK));
+        Authorship::on_initialize(new_block_number);
+        Session::on_initialize(new_block_number);
+        GearGas::on_initialize(new_block_number);
+        GearMessenger::on_initialize(new_block_number);
+        Gear::on_initialize(new_block_number);
+    }
+
+    // Run on_finalize hooks (in pallets reverse order, as they appear in AllPalletsWithSystem)
+    pub(crate) fn on_finalize(current_blk: BlockNumberFor<Test>) {
+        Authorship::on_finalize(current_blk);
+        Staking::on_finalize(current_blk);
+        Gear::on_finalize(current_blk);
+        assert!(!System::events().iter().any(|e| {
+            matches!(
+                e.event,
+                RuntimeEvent::Gear(pallet_gear::Event::QueueNotProcessed)
+            )
+        }))
+    }
+
+    pub(crate) fn gas_price(gas: u64) -> u128 {
+        <Test as pallet_gear_bank::Config>::GasMultiplier::get().gas_to_value(gas)
+    }
+
+    pub(crate) fn start_transaction() {
+        sp_externalities::with_externalities(|ext| ext.storage_start_transaction())
+            .expect("externalities should exists");
+    }
+
+    pub(crate) fn rollback_transaction() {
+        sp_externalities::with_externalities(|ext| {
+            ext.storage_rollback_transaction()
+                .expect("ongoing transaction must be there");
+        })
+        .expect("externalities should be set");
+    }
+
+    pub(crate) fn new_test_ext() -> sp_io::TestExternalities {
+        let bank_address = <Test as pallet_gear_bank::Config>::BankAddress::get();
+
+        ExtBuilder::default()
+            .initial_authorities(vec![
+                (VAL_1_STASH, VAL_1_AUTH_ID),
+                (VAL_2_STASH, VAL_2_AUTH_ID),
+                (VAL_3_STASH, VAL_3_AUTH_ID),
+            ])
+            .endowment(ENDOWMENT)
+            .endowed_accounts(vec![bank_address, SIGNER, REWARD_PAYEE])
+            .build()
+    }
+
+    pub(super) fn init_logger() {
+        let _ = env_logger::Builder::from_default_env()
+            .format_module_path(false)
+            .format_level(true)
+            .try_init();
+    }
+
+    pub(super) fn deploy_broker_contract() {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(SIGNER),
+            WASM_BINARY.to_vec(),
+            b"contract".to_vec(),
+            Default::default(),
+            10_000_000_000,
+            EXISTENTIAL_DEPOSIT, // keep the contract's account "providing"
+            false,
+        ));
+    }
+
+    pub(super) fn send_bond_message(
+        contract_id: ProgramId,
+        amount: Balance,
+        payee: Option<RewardAccount>,
+    ) {
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(SIGNER),
+            contract_id,
+            Request::Bond {
+                value: amount,
+                payee: payee.unwrap_or(RewardAccount::Program)
+            }
+            .encode(),
+            10_000_000_000,
+            amount,
+            false,
+        ));
+    }
+
+    #[derive(PartialEq)]
+    pub(super) enum EventType {
+        Bonded,
+        Unbonded,
+        Withdrawn,
+    }
+
+    pub(super) fn assert_staking_events(contract_id: AccountId, balance: Balance, t: EventType) {
+        assert!(System::events().into_iter().any(|e| {
+            match e.event {
+                RuntimeEvent::Staking(pallet_staking::Event::<Test>::Bonded { stash, amount }) => {
+                    t == EventType::Bonded && stash == contract_id && balance == amount
+                }
+                RuntimeEvent::Staking(pallet_staking::Event::<Test>::Unbonded {
+                    stash,
+                    amount,
+                }) => t == EventType::Unbonded && stash == contract_id && balance == amount,
+                RuntimeEvent::Staking(pallet_staking::Event::<Test>::Withdrawn {
+                    stash,
+                    amount,
+                }) => t == EventType::Withdrawn && stash == contract_id && balance == amount,
+                _ => false,
+            }
+        }))
+    }
+
+    pub(super) fn assert_no_staking_events() {
+        assert!(System::events()
+            .into_iter()
+            .all(|e| { !matches!(e.event, RuntimeEvent::Staking(_)) }))
+    }
+
+    pub(super) fn assert_user_message_sent() {
+        assert!(System::events().into_iter().any(|e| {
+            match e.event {
+                RuntimeEvent::Gear(pallet_gear::Event::UserMessageSent { message, .. }) => {
+                    match message.details() {
+                        Some(details) => {
+                            details.to_reply_code()
+                                == ReplyCode::Error(ErrorReplyReason::Execution(
+                                    SimpleExecutionError::UserspacePanic,
+                                ))
+                        }
+                        _ => false,
+                    }
+                }
+                _ => false,
+            }
+        }))
+    }
 }

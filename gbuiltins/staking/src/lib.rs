@@ -34,7 +34,7 @@
 //!
 //! ```ignore
 //! use gstd::{msg, ActorId};
-//! use gbuiltins::staking::{Request, RequestV1, RewardAccount};
+//! use gbuiltins::staking::{Request, RewardAccount};
 //! use parity_scale_codec::Encode;
 //!
 //! const BUILTIN_ADDRESS: ActorId = ActorId::new(hex_literal::hex!(
@@ -44,8 +44,8 @@
 //! #[gstd::async_main]
 //! async fn main() {
 //!     let value = msg::value();
-//!     let payee: Option<RewardAccount> = None;
-//!     let payload = Request::V1(RequestV1::Bond { value, payee }).encode();
+//!     let payee: RewardAccount = RewardAccount::Program;
+//!     let payload = Request::Bond { value, payee }.encode();
 //!     let _ = msg::send_bytes_for_reply(BUILTIN_ADDRESS, &payload[..], 0, 0)
 //!         .expect("Error sending message")
 //!         .await;
@@ -70,18 +70,8 @@ pub type AccountId = [u8; 32];
 #[derive(Encode, Decode, Clone, PartialEq, Eq, Debug)]
 #[codec(crate = scale)]
 pub enum Request {
-    /// Version 1 of the staking built-in actor protocol.
-    V1(RequestV1),
-}
-
-#[derive(Encode, Decode, Clone, PartialEq, Eq, Debug)]
-#[codec(crate = scale)]
-pub enum RequestV1 {
     /// Bond up to the `value` from the sender to self as the controller.
-    Bond {
-        value: u128,
-        payee: Option<RewardAccount>,
-    },
+    Bond { value: u128, payee: RewardAccount },
     /// Add up to the `value` to the sender's bonded amount.
     BondExtra { value: u128 },
     /// Unbond up to the `value` to allow withdrawal after undonding period.
@@ -105,24 +95,17 @@ pub enum RequestV1 {
 
 /// An account where the rewards should accumulate on.
 ///
-/// In order to separate the contract's own balance from the rewards earned by users funds,
-/// a separate account for the rewards can be assigned.
+/// A "mirror" of the staking pallet's `RewardDestination` enum.
 #[derive(Encode, Decode, Clone, Copy, PartialEq, Eq, Debug)]
 #[codec(crate = scale)]
 pub enum RewardAccount {
-    /// Accumulate the rewards on contract's account derived from its `program_id`.
+    /// Pay rewards to the sender's account and increase the amount at stake.
+    Staked,
+    /// Pay rewards to the sender's account (usually, the one derived from `program_id`)
+    /// without increasing the amount at stake.
     Program,
-    /// Accumulate the rewards on a separate account.
+    /// Pay rewards to a custom account.
     Custom(AccountId),
-}
-
-/// Message processing output
-pub type Response = ();
-
-/// Type representing a dispatched Runtime call internal error.
-#[derive(Encode, Decode, Clone, Debug, PartialEq, Eq, derive_more::Display)]
-#[codec(crate = scale)]
-pub enum DispatchErrorReason {
-    #[display(fmt = "Runtime internal error")]
-    RuntimeError,
+    /// Opt for not receiving any rewards at all.
+    None,
 }
