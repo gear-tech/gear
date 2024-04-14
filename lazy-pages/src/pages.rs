@@ -32,6 +32,13 @@ pub trait SizeNumber: Copy + Ord + Eq {
 
 const WASM_SIZE_NO: usize = 0;
 const GEAR_SIZE_NO: usize = 1;
+
+/// Amount of different page sizes.
+///
+/// NOTE: Must be in connect with current runtime.
+/// If runtime wanna to reduce or increase amount of pages with different size,
+/// then we must add here support for old runtimes that used 2 sizes,
+/// and add support for new runtimes that uses some other amount of sizes.
 pub(crate) const SIZES_AMOUNT: usize = 2;
 
 /// Size number for wasm pages.
