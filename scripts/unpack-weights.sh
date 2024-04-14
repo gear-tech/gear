@@ -40,3 +40,7 @@ unzip -o $VARA_RUNTIME && rm $VARA_RUNTIME
 # apply some patches for `pallets/gear/src/weights.rs`
 cp runtime/vara/src/weights/pallet_gear.rs pallets/gear/src/weights.rs
 sed -i -E 's/\w+::WeightInfo for SubstrateWeight/WeightInfo for SubstrateWeight/' pallets/gear/src/weights.rs
+
+# apply some patches for `pallets/gear-builtin/src/weights.rs`
+cp runtime/vara/src/weights/pallet_gear_builtin.rs pallets/gear-builtin/src/weights.rs
+sed -i -E 's/\w+::WeightInfo for SubstrateWeight/WeightInfo for SubstrateWeight/' pallets/gear-builtin/src/weights.rs
