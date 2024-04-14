@@ -33,7 +33,7 @@ use num_traits::{One, PrimInt, Unsigned};
 ///
 /// 2) When `inner` field max value is always smaller than `inner` type max value, then we can use this variant:
 /// ```
-/// use numerated::numerated::Bound;
+/// use numerated::Bound;
 ///
 /// /// `inner` is a value from 0 to 99.
 /// struct Number { inner: u32 }

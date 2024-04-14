@@ -18,11 +18,7 @@
 
 //! Module for pages which size can be different for different runtime versions.
 
-use numerated::{
-    interval::Interval,
-    iterators::IntervalIterator,
-    numerated::{Bound, Numerated, OptionBound},
-};
+use numerated::{interval::Interval, iterators::IntervalIterator, Bound, Numerated, OptionBound};
 use std::{cmp::Ordering, marker::PhantomData, mem, num::NonZeroU32};
 
 /// Size number for dyn-size pages.

@@ -447,7 +447,7 @@ where
 
 /// Mechanisms to generate a function body that can be used inside a `ModuleDefinition`.
 pub mod body {
-    use gear_core::pages::{GearPage, IntervalIterator, WasmPage};
+    use gear_core::pages::{numerated::iterators::IntervalIterator, GearPage, WasmPage};
 
     use super::*;
 

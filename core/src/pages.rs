@@ -19,19 +19,14 @@
 //! Module for memory pages.
 
 use core::cmp::Ordering;
-pub use numerated::{
-    interval::{
-        EmptyRangeError, IncorrectRangeError, Interval, NewWithLenError, TryFromRangeError,
-    },
-    iterators::{DifferenceIterator, IntervalIterator, OutOfBoundsError, VoidsIterator},
-    num_traits::bounds::{LowerBounded, UpperBounded},
-    numerated::{Bound, Numerated},
-    tree::IntervalsTree,
-};
+use num_traits::bounds::{LowerBounded, UpperBounded};
+use numerated::{interval::Interval, iterators::IntervalIterator, Bound, Numerated};
 use scale_info::{
     scale::{Decode, Encode},
     TypeInfo,
 };
+
+pub use numerated::{self, num_traits};
 
 /// A WebAssembly page has a constant size of 64KiB.
 const WASM_PAGE_SIZE: u32 = 64 * 1024;

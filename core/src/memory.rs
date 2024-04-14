@@ -22,8 +22,11 @@ use crate::{
     buffer::LimitedVec,
     gas::ChargeError,
     pages::{
-        GearPage, Interval, NewWithLenError, Numerated, TryFromRangeError, WasmPage,
-        WasmPagesAmount,
+        numerated::{
+            interval::{Interval, NewWithLenError, TryFromRangeError},
+            Numerated,
+        },
+        GearPage, WasmPage, WasmPagesAmount,
     },
 };
 use alloc::{collections::BTreeSet, format};
