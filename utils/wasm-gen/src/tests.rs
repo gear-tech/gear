@@ -427,6 +427,51 @@ fn test_msg_value_ptr_dest() {
     }
 }
 
+/// The `send` and `send_init` syscalls increase count of handles, but we only
+/// need to take the last `send_init` handle since sending marks the handle as
+/// already used.
+#[test]
+fn test_send_init_with_send() {
+    gear_utils::init_default_logger();
+
+    let mut rng = SmallRng::seed_from_u64(123);
+    let mut buf = vec![0; UNSTRUCTURED_SIZE];
+    rng.fill_bytes(&mut buf);
+    let mut unstructured = Unstructured::new(&buf);
+
+    let params_config = SyscallsParamsConfig::new()
+        .with_default_regular_config()
+        .with_ptr_rule(PtrParamAllowedValues::ActorIdWithValue {
+            actor_kind: ActorKind::Source,
+            range: 0..=0,
+        });
+
+    let mut injection_types = SyscallsInjectionTypes::all_never();
+    injection_types.set(InvocableSyscall::Loose(SyscallName::SendInit), 1, 1);
+    injection_types.set(InvocableSyscall::Loose(SyscallName::Send), 1, 1);
+    injection_types.set(InvocableSyscall::Loose(SyscallName::SendCommit), 1, 1);
+    let syscalls_config = SyscallsConfigBuilder::new(injection_types)
+        .with_params_config(params_config)
+        .with_error_processing_config(ErrorProcessingConfig::All)
+        .with_keeping_insertion_order(true)
+        .build();
+
+    let backend_report = execute_wasm_with_custom_configs(
+        &mut unstructured,
+        syscalls_config,
+        None,
+        1024,
+        false,
+        0,
+        0,
+    );
+
+    assert_eq!(
+        backend_report.termination_reason,
+        TerminationReason::Actor(ActorTerminationReason::Success)
+    );
+}
+
 #[test]
 fn test_reservation_id_with_value_ptr() {
     gear_utils::init_default_logger();
