@@ -253,6 +253,11 @@ impl System {
         self.submit_code(path)
     }
 
+    /// Returns previously submitted code by its code hash.
+    pub fn submitted_code(&self, code_id: CodeId) -> Option<Vec<u8>> {
+        self.0.borrow().read_code(code_id).map(|code| code.to_vec())
+    }
+
     /// Extract mailbox of user with given `id`.
     ///
     /// The mailbox contains messages from the program that are waiting

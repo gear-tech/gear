@@ -304,6 +304,10 @@ impl ExtManager {
         code_id
     }
 
+    pub(crate) fn read_code(&self, code_id: CodeId) -> Option<&[u8]> {
+        self.opt_binaries.get(&code_id).map(Vec::as_slice)
+    }
+
     pub(crate) fn fetch_inc_message_nonce(&mut self) -> u64 {
         let nonce = self.msg_nonce;
         self.msg_nonce += 1;

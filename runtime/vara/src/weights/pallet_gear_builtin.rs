@@ -50,7 +50,7 @@ pub trait WeightInfo {
 
 /// Weights for pallet_gear_builtin using the Gear node and recommended hardware.
 pub struct SubstrateWeight<T>(PhantomData<T>);
-impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
+impl<T: frame_system::Config> pallet_gear_builtin::WeightInfo for SubstrateWeight<T> {
     fn calculate_id() -> Weight {
         // Proof Size summary in bytes:
         //  Measured:  `0`

@@ -100,7 +100,7 @@ fn calculate_reply_for_handle_works() {
 
         // Out of gas panic case.
         let res =
-            Gear::calculate_reply_for_handle(USER_1, ping_pong, b"PING".to_vec(), 1_000_000_000, 0)
+            Gear::calculate_reply_for_handle(USER_1, ping_pong, b"PING".to_vec(), 333_333_333, 0)
                 .expect("Failed to query reply");
 
         assert_eq!(
@@ -6658,7 +6658,7 @@ fn test_create_program_simple() {
             RuntimeOrigin::signed(USER_1),
             factory_id,
             CreateProgram::Custom(
-                vec![(child_code_hash, b"some_data".to_vec(), 300_000)] // too little gas
+                vec![(child_code_hash, b"some_data".to_vec(), 150_000)] // too little gas
             )
             .encode(),
             10_000_000_000,
@@ -6694,8 +6694,8 @@ fn test_create_program_simple() {
             RuntimeOrigin::signed(USER_1),
             factory_id,
             CreateProgram::Custom(vec![
-                (child_code_hash, b"salt3".to_vec(), 300_000), // too little gas
-                (child_code_hash, b"salt4".to_vec(), 300_000), // too little gas
+                (child_code_hash, b"salt3".to_vec(), 150_000), // too little gas
+                (child_code_hash, b"salt4".to_vec(), 150_000), // too little gas
             ])
             .encode(),
             50_000_000_000,
@@ -6993,7 +6993,7 @@ fn test_create_program_miscellaneous() {
             CreateProgram::Custom(vec![
                 // init fail (not enough gas) and reply generated (+2 dequeued, +1 dispatched),
                 // handle message is processed, but not executed, reply generated (+2 dequeued, +1 dispatched)
-                (child2_code_hash, b"salt1".to_vec(), 300_000),
+                (child2_code_hash, b"salt1".to_vec(), 150_000),
                 // one successful init with one handle message (+2 dequeued, +1 dispatched, +1 successful init)
                 (child2_code_hash, b"salt2".to_vec(), 200_000_000),
             ])
