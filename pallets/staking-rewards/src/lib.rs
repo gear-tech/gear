@@ -160,26 +160,22 @@ pub mod pallet {
 
     /// Target inflation (at ideal stake)
     #[pallet::storage]
-    #[pallet::getter(fn target_inflation)]
     pub(crate) type TargetInflation<T> = StorageValue<_, Perquintill, ValueQuery>;
 
     /// Ideal staking ratio
     #[pallet::storage]
-    #[pallet::getter(fn ideal_staking_ratio)]
     pub(crate) type IdealStakingRatio<T> = StorageValue<_, Perquintill, ValueQuery>;
 
     /// The current share of issued tokens that cannot be staked (e.g. being vested)
     /// This value is guaranteed to remain unchanged for the first year until vesting kicks in.
     /// Subsequently, the non-stakeable share should be calculated based on the vesting balances.
     #[pallet::storage]
-    #[pallet::getter(fn non_stakeable_share)]
     pub type NonStakeableShare<T> = StorageValue<_, Perquintill, ValueQuery>;
 
     /// List of accounts whose locked balance (due to incomplete vesting) should be excluded from
     /// the total stakeable quantity.
     /// During the 1st year the non-stakeable amount is accounted for as a fixed fraction of TTS.
     #[pallet::storage]
-    #[pallet::getter(fn filtered_accounts)]
     pub type FilteredAccounts<T: Config> = StorageValue<_, BTreeSet<T::AccountId>, ValueQuery>;
 
     #[pallet::genesis_config]
@@ -250,6 +246,28 @@ pub mod pallet {
     impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
         fn on_initialize(_n: BlockNumberFor<T>) -> Weight {
             Weight::zero()
+        }
+    }
+
+    impl<T: Config> Pallet<T> {
+        /// Getter for [`TargetInflation<T>`](TargetInflation)
+        pub fn target_inflation() -> Perquintill {
+            TargetInflation::<T>::get()
+        }
+
+        /// Getter for [`IdealStackingRation<T>`](IdealStakingRation)
+        pub fn ideal_staking_ratio() -> Perquintill {
+            IdealStakingRatio::<T>::get()
+        }
+
+        /// Getter for [`NonStakeableShare<T>`](NonStakeableShare)
+        pub fn non_stakeable_share() -> Perquintill {
+            NonStakeableShare::<T>::get()
+        }
+
+        /// Getter for [`FilteredAccounts<T>`](FilteredAccounts)
+        pub fn filtered_accounts() -> BTreeSet<T::AccountId> {
+            FilteredAccounts::<T>::get()
         }
     }
 

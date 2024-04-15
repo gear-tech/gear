@@ -62,7 +62,7 @@ pub mod pallet {
         Identity,
     };
     use pallet_authorship::Pallet as Authorship;
-    use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
+    use parity_scale_codec::{Decode, Encode, EncodeLike, MaxEncodedLen};
     use scale_info::TypeInfo;
     use sp_runtime::traits::Zero;
 
@@ -158,15 +158,18 @@ pub mod pallet {
 
     // Private storage that keeps account bank details.
     #[pallet::storage]
-    #[pallet::getter(fn account)]
     pub type Bank<T> = StorageMap<_, Identity, AccountIdOf<T>, BankAccount<BalanceOf<T>>>;
 
     // Private storage that keeps amount of value that wasn't sent because owner is inexistent account.
     #[pallet::storage]
-    #[pallet::getter(fn unused_value)]
     pub type UnusedValue<T> = StorageValue<_, BalanceOf<T>, ValueQuery>;
 
     impl<T: Config> Pallet<T> {
+        /// Getter for [`UnusedValue<T>`](UnusedValue).
+        pub fn unused_value() -> BalanceOf<T> {
+            UnusedValue::<T>::get()
+        }
+
         /// Transfers value from `account_id` to bank address.
         fn deposit(
             account_id: &AccountIdOf<T>,
@@ -436,6 +439,13 @@ pub mod pallet {
             Self::withdraw(destination, value).unwrap_or_else(|e| unreachable!("qed above: {e:?}"));
 
             Ok(())
+        }
+
+        /// Getter for [`Bank<T>`](Bank)
+        pub fn account<K: EncodeLike<AccountIdOf<T>>>(
+            account_id: K,
+        ) -> Option<BankAccount<BalanceOf<T>>> {
+            Bank::<T>::get(account_id)
         }
 
         pub fn account_gas(account_id: &AccountIdOf<T>) -> Option<BalanceOf<T>> {

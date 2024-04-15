@@ -140,15 +140,12 @@ pub mod pallet {
     }
 
     #[pallet::storage]
-    #[pallet::getter(fn debug_mode)]
     pub type DebugMode<T> = StorageValue<_, bool, ValueQuery>;
 
     #[pallet::storage]
-    #[pallet::getter(fn remap_program_id)]
     pub type RemapId<T> = StorageValue<_, bool, ValueQuery>;
 
     #[pallet::storage]
-    #[pallet::getter(fn programs_map)]
     pub type ProgramsMap<T> = StorageValue<_, BTreeMap<H256, H256>, ValueQuery>;
 
     #[pallet::hooks]
@@ -257,6 +254,23 @@ pub mod pallet {
             let programs_map = ProgramsMap::<T>::get();
 
             QueueOf::<T>::mutate_values(|d| remap_with(d, &programs_map));
+        }
+    }
+
+    impl<T: Config> Pallet<T> {
+        /// Getter for [`DebugMode<T>`](DebugMode<T>)
+        pub fn debug_mode() -> bool {
+            DebugMode::<T>::get()
+        }
+
+        /// Getter for [`RemapId<T>`](RemapId)
+        pub fn remap_program_id() -> bool {
+            RemapId::<T>::get()
+        }
+
+        /// Getter for [`ProgramsMap<T>`](ProgramsMap)
+        pub fn programs_map() -> BTreeMap<H256, H256> {
+            ProgramsMap::<T>::get()
         }
     }
 
