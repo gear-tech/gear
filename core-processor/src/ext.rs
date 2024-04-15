@@ -445,6 +445,7 @@ impl BackendExternalities for Ext {
     }
 
     fn pre_process_memory_accesses(
+        &mut self,
         reads: &[MemoryInterval],
         writes: &[MemoryInterval],
         gas_counter: &mut u64,
