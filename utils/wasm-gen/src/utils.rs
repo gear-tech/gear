@@ -478,19 +478,45 @@ pub(crate) fn translate_ptr_data(
         .collect()
 }
 
-/// Creates instructions that copy 64 bits from the source pointer to the
+pub(crate) trait MemcpyUnit: Sized {
+    fn load(offset: u32) -> Instruction;
+
+    fn store(offset: u32) -> Instruction;
+}
+
+impl MemcpyUnit for u32 {
+    fn load(offset: u32) -> Instruction {
+        Instruction::I32Load(2, offset)
+    }
+
+    fn store(offset: u32) -> Instruction {
+        Instruction::I32Store(2, offset)
+    }
+}
+
+impl MemcpyUnit for u64 {
+    fn load(offset: u32) -> Instruction {
+        Instruction::I64Load(3, offset)
+    }
+
+    fn store(offset: u32) -> Instruction {
+        Instruction::I64Store(3, offset)
+    }
+}
+
+/// Creates instructions that copy N bits from the source pointer to the
 /// destination pointer.
-pub(crate) fn memcpy64(
+pub(crate) fn memcpy<U: MemcpyUnit>(
     dest: &[Instruction],
     src: &[Instruction],
     count: usize,
 ) -> Vec<Instruction> {
-    memcpy64_with_offsets(dest, 0, src, 0, count)
+    memcpy_with_offsets::<U>(dest, 0, src, 0, count)
 }
 
-/// Creates instructions that copy 64 bits from the source pointer to the
+/// Creates instructions that copy N bits from the source pointer to the
 /// destination pointer, starting at the specified offsets.
-pub(crate) fn memcpy64_with_offsets(
+pub(crate) fn memcpy_with_offsets<U: MemcpyUnit>(
     dest: &[Instruction],
     dest_offset: usize,
     src: &[Instruction],
@@ -499,13 +525,13 @@ pub(crate) fn memcpy64_with_offsets(
 ) -> Vec<Instruction> {
     (0..count)
         .flat_map(|word_idx| {
-            let word_offset = word_idx * mem::size_of::<i64>();
+            let word_offset = word_idx * mem::size_of::<U>();
             let mut ret_instr = Vec::with_capacity(dest.len() + src.len() + 2);
             ret_instr.extend_from_slice(dest);
             ret_instr.extend_from_slice(src);
             ret_instr.extend_from_slice(&[
-                Instruction::I64Load(3, (src_offset + word_offset) as u32),
-                Instruction::I64Store(3, (dest_offset + word_offset) as u32),
+                U::load((src_offset + word_offset) as u32),
+                U::store((dest_offset + word_offset) as u32),
             ]);
             ret_instr
         })

@@ -23,7 +23,7 @@ use crate::{
         CallIndexes, CallIndexesHandle, DisabledAdditionalDataInjector, FunctionIndex,
         ModuleWithCallIndexes,
     },
-    utils::{self, WasmWords},
+    utils::{self, MemcpyUnit, WasmWords},
     wasm::{PageCount as WasmPageCount, WasmModule},
     ActorKind, InvocableSyscall, MemoryLayout, PtrParamAllowedValues, RegularParamAllowedValues,
     SyscallsConfig, SyscallsParamsConfig,
@@ -36,7 +36,7 @@ use gear_wasm_instrument::{
         SystemSyscallSignature,
     },
 };
-use gsys::Hash;
+use gsys::{ErrorCode, Hash};
 use std::{
     collections::{btree_map::Entry, BTreeMap, BinaryHeap, HashSet},
     fmt::{self, Debug, Display},
@@ -610,73 +610,22 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                     ..
                 } = MemoryLayout::from(self.memory_size_bytes());
 
-                let mut ret_instr = vec![
-                    // if *reservation_flags_ptr > 0
-                    Instruction::I32Const(reservation_flags_ptr),
-                    Instruction::I32Load(2, 0),
-                    Instruction::I32Const(0),
-                    Instruction::I32Ne,
-                    Instruction::If(BlockType::NoResult),
-                    // *reservation_temp1_ptr = ((*reservation_flags_ptr).trailing_ones() - 1)
-                    Instruction::I32Const(reservation_temp1_ptr),
-                    Instruction::I32Const(reservation_flags_ptr),
-                    Instruction::I32Load(2, 0),
-                    Instruction::I32Const(u32::MAX as i32),
-                    Instruction::I32Xor,
-                    Instruction::I32Ctz,
-                    Instruction::I32Const(1),
-                    Instruction::I32Sub,
-                    Instruction::I32Store(2, 0),
-                    // *reservation_temp2_ptr = reservation_array_ptr + *reservation_temp1_ptr * 32
-                    Instruction::I32Const(reservation_temp2_ptr),
-                    Instruction::I32Const(reservation_temp1_ptr),
-                    Instruction::I32Load(2, 0),
-                    Instruction::I32Const(mem::size_of::<gsys::Hash>() as i32),
-                    Instruction::I32Mul,
-                    Instruction::I32Const(reservation_array_ptr),
-                    Instruction::I32Add,
-                    Instruction::I32Store(2, 0),
-                ];
-
                 let reset_bit_flag = self.unstructured.arbitrary()?;
-                if reset_bit_flag {
-                    ret_instr.extend_from_slice(&[
-                        // *reservation_flags_ptr &= !(1 << *reservation_temp1_ptr)
-                        Instruction::I32Const(reservation_flags_ptr),
-                        Instruction::I32Const(reservation_flags_ptr),
-                        Instruction::I32Load(2, 0),
-                        Instruction::I32Const(1),
-                        Instruction::I32Const(reservation_temp1_ptr),
-                        Instruction::I32Load(2, 0),
-                        Instruction::I32Shl,
-                        Instruction::I32Const(u32::MAX as i32),
-                        Instruction::I32Xor,
-                        Instruction::I32And,
-                        Instruction::I32Store(2, 0),
-                    ]);
-                }
-
-                // Copy the Hash struct (32 bytes) containing the reservation id.
-                let mut copy_instr = utils::memcpy64(
-                    &[Instruction::I32Const(value_set_ptr)],
-                    &[
-                        Instruction::I32Const(reservation_temp2_ptr),
-                        Instruction::I32Load(2, 0),
-                    ],
-                    4,
-                );
-                ret_instr.append(&mut copy_instr);
-
-                // else
-                ret_instr.push(Instruction::Else);
 
                 let random_reservation_words =
                     WasmWords::new(self.unstructured.arbitrary::<[u8; 32]>()?);
-                let mut reservation_id_instr =
+                let reservation_id_instr =
                     utils::translate_ptr_data(random_reservation_words, (value_set_ptr, None));
-                ret_instr.append(&mut reservation_id_instr);
 
-                ret_instr.push(Instruction::End);
+                let mut ret_instr = Self::reuse_resource::<Hash, u64>(
+                    reservation_temp1_ptr,
+                    reservation_temp2_ptr,
+                    reservation_flags_ptr,
+                    reservation_array_ptr,
+                    value_set_ptr,
+                    reset_bit_flag,
+                    &reservation_id_instr,
+                );
 
                 let (value_words, value_words_offset) = match ptr_allowed_values {
                     PtrParamAllowedValues::ReservationIdWithValue(range) => (
@@ -786,8 +735,8 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
         fallible_signature: FallibleSyscallSignature,
         param_instructions: Vec<ParamInstructions>,
     ) -> Vec<Instruction> {
-        const _: () = assert!(mem::size_of::<gsys::ErrorCode>() == mem::size_of::<u32>());
-        let no_error_val = gsys::ErrorCode::default() as i32;
+        const _: () = assert!(mem::size_of::<ErrorCode>() == mem::size_of::<u32>());
+        let no_error_val = ErrorCode::default() as i32;
 
         assert_eq!(
             fallible_signature.params().len(),
@@ -904,8 +853,8 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
         instructions: &mut Vec<Instruction>,
         param_instructions: Vec<ParamInstructions>,
     ) {
-        const _: () = assert!(mem::size_of::<gsys::ErrorCode>() == mem::size_of::<u32>());
-        let no_error_val = gsys::ErrorCode::default() as i32;
+        const _: () = assert!(mem::size_of::<ErrorCode>() == mem::size_of::<u32>());
+        let no_error_val = ErrorCode::default() as i32;
 
         let res_ptr = param_instructions
             .last()
@@ -946,7 +895,7 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
     /// reserved memory.
     ///
     /// Reservations are stored in memory as follows:
-    /// 1. `MemoryLayout.reservation_array_ptr` is a pointer to `[gsys::Hash;
+    /// 1. `MemoryLayout.reservation_array_ptr` is a pointer to `[Hash;
     ///    MemoryLayout::AMOUNT_OF_RESERVATIONS as _]`, that is, a linear array
     ///    of reservation ids.
     /// 2. `MemoryLayout.reservation_flags_ptr` is a pointer to `u32` that
@@ -965,21 +914,41 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
         instructions: &mut Vec<Instruction>,
         param_instructions: Vec<ParamInstructions>,
     ) {
-        const _: () = assert!(mem::size_of::<gsys::ErrorCode>() == mem::size_of::<u32>());
-        let no_error_val = gsys::ErrorCode::default() as i32;
-
-        let res_ptr = param_instructions
-            .last()
-            .expect("At least one argument in fallible syscall")
-            .as_i32()
-            .expect("Incorrect last parameter type: expected i32 pointer");
-
         let MemoryLayout {
             reservation_temp1_ptr,
             reservation_flags_ptr,
             reservation_array_ptr,
             ..
         } = MemoryLayout::from(self.memory_size_bytes());
+
+        Self::store_resource::<Hash, u32>(
+            instructions,
+            param_instructions,
+            reservation_temp1_ptr,
+            reservation_flags_ptr,
+            reservation_array_ptr,
+            MemoryLayout::AMOUNT_OF_RESERVATIONS,
+        );
+    }
+
+    /// Patches instructions of syscall to some generic resource in reserved
+    /// memory.
+    fn store_resource<T, U: MemcpyUnit>(
+        instructions: &mut Vec<Instruction>,
+        param_instructions: Vec<ParamInstructions>,
+        temp1_ptr: i32,
+        flags_ptr: i32,
+        array_ptr: i32,
+        amount_of_resources: u32,
+    ) {
+        const _: () = assert!(mem::size_of::<ErrorCode>() == mem::size_of::<u32>());
+        let no_error_val = ErrorCode::default() as i32;
+
+        let res_ptr = param_instructions
+            .last()
+            .expect("At least one argument in fallible syscall")
+            .as_i32()
+            .expect("Incorrect last parameter type: expected i32 pointer");
 
         instructions.extend_from_slice(&[
             // if *res_ptr == no_error_val
@@ -988,55 +957,122 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
             Instruction::I32Const(no_error_val),
             Instruction::I32Eq,
             Instruction::If(BlockType::NoResult),
-            // *reservation_temp1_ptr = (*reservation_flags_ptr).trailing_ones()
-            Instruction::I32Const(reservation_temp1_ptr),
-            Instruction::I32Const(reservation_flags_ptr),
+            // *temp1_ptr = (*flags_ptr).trailing_ones()
+            Instruction::I32Const(temp1_ptr),
+            Instruction::I32Const(flags_ptr),
             Instruction::I32Load(2, 0),
             Instruction::I32Const(u32::MAX as i32),
             Instruction::I32Xor,
             Instruction::I32Ctz,
             Instruction::I32Store(2, 0),
-            // if *reservation_temp1_ptr < MemoryLayout::AMOUNT_OF_RESERVATIONS
-            Instruction::I32Const(reservation_temp1_ptr),
+            // if *temp1_ptr < amount_of_resources
+            Instruction::I32Const(temp1_ptr),
             Instruction::I32Load(2, 0),
-            Instruction::I32Const(MemoryLayout::AMOUNT_OF_RESERVATIONS as i32),
+            Instruction::I32Const(amount_of_resources as i32),
             Instruction::I32LtU,
             Instruction::If(BlockType::NoResult),
-            // *reservation_flags_ptr |= 1 << *reservation_temp1_ptr
-            Instruction::I32Const(reservation_flags_ptr),
+            // *flags_ptr |= 1 << *temp1_ptr
+            Instruction::I32Const(flags_ptr),
             Instruction::I32Const(1),
-            Instruction::I32Const(reservation_temp1_ptr),
+            Instruction::I32Const(temp1_ptr),
             Instruction::I32Load(2, 0),
             Instruction::I32Shl,
-            Instruction::I32Const(reservation_flags_ptr),
+            Instruction::I32Const(flags_ptr),
             Instruction::I32Load(2, 0),
             Instruction::I32Or,
             Instruction::I32Store(2, 0),
-            // *reservation_temp1_ptr = reservation_array_ptr + *reservation_temp1_ptr * 32
-            Instruction::I32Const(reservation_temp1_ptr),
-            Instruction::I32Const(reservation_temp1_ptr),
+            // *temp1_ptr = array_ptr + *temp1_ptr * mem::size_of::<T>()
+            Instruction::I32Const(temp1_ptr),
+            Instruction::I32Const(temp1_ptr),
             Instruction::I32Load(2, 0),
-            Instruction::I32Const(mem::size_of::<gsys::Hash>() as i32),
+            Instruction::I32Const(mem::size_of::<T>() as i32),
             Instruction::I32Mul,
-            Instruction::I32Const(reservation_array_ptr),
+            Instruction::I32Const(array_ptr),
             Instruction::I32Add,
             Instruction::I32Store(2, 0),
         ]);
 
-        // Copy the Hash struct (32 bytes) containing the reservation id.
-        let mut copy_instr = utils::memcpy64_with_offsets(
-            &[
-                Instruction::I32Const(reservation_temp1_ptr),
-                Instruction::I32Load(2, 0),
-            ],
+        let mut copy_instr = utils::memcpy_with_offsets::<U>(
+            &[Instruction::I32Const(temp1_ptr), Instruction::I32Load(2, 0)],
             0,
             &[Instruction::I32Const(res_ptr)],
-            mem::size_of::<gsys::ErrorCode>(),
-            4,
+            mem::size_of::<ErrorCode>(),
+            mem::size_of::<T>() / mem::size_of::<U>(),
         );
         instructions.append(&mut copy_instr);
 
         instructions.extend_from_slice(&[Instruction::End, Instruction::End]);
+    }
+
+    /// Generates instructions for using resource or makes fallback if
+    /// resource is not available.
+    fn reuse_resource<T, U: MemcpyUnit>(
+        temp1_ptr: i32,
+        temp2_ptr: i32,
+        flags_ptr: i32,
+        array_ptr: i32,
+        destination_ptr: i32,
+        reset_bit_flag: bool,
+        fallback: &[Instruction],
+    ) -> Vec<Instruction> {
+        let mut ret_instr = vec![
+            // if *flags_ptr > 0
+            Instruction::I32Const(flags_ptr),
+            Instruction::I32Load(2, 0),
+            Instruction::I32Const(0),
+            Instruction::I32Ne,
+            Instruction::If(BlockType::NoResult),
+            // *temp1_ptr = ((*flags_ptr).trailing_ones() - 1)
+            Instruction::I32Const(temp1_ptr),
+            Instruction::I32Const(flags_ptr),
+            Instruction::I32Load(2, 0),
+            Instruction::I32Const(u32::MAX as i32),
+            Instruction::I32Xor,
+            Instruction::I32Ctz,
+            Instruction::I32Const(1),
+            Instruction::I32Sub,
+            Instruction::I32Store(2, 0),
+            // *temp2_ptr = array_ptr + *temp1_ptr * mem::size_of::<T>()
+            Instruction::I32Const(temp2_ptr),
+            Instruction::I32Const(temp1_ptr),
+            Instruction::I32Load(2, 0),
+            Instruction::I32Const(mem::size_of::<T>() as i32),
+            Instruction::I32Mul,
+            Instruction::I32Const(array_ptr),
+            Instruction::I32Add,
+            Instruction::I32Store(2, 0),
+        ];
+
+        if reset_bit_flag {
+            ret_instr.extend_from_slice(&[
+                // *flags_ptr &= !(1 << *temp1_ptr)
+                Instruction::I32Const(flags_ptr),
+                Instruction::I32Const(flags_ptr),
+                Instruction::I32Load(2, 0),
+                Instruction::I32Const(1),
+                Instruction::I32Const(temp1_ptr),
+                Instruction::I32Load(2, 0),
+                Instruction::I32Shl,
+                Instruction::I32Const(u32::MAX as i32),
+                Instruction::I32Xor,
+                Instruction::I32And,
+                Instruction::I32Store(2, 0),
+            ]);
+        }
+
+        let mut copy_instr = utils::memcpy::<U>(
+            &[Instruction::I32Const(destination_ptr)],
+            &[Instruction::I32Const(temp2_ptr), Instruction::I32Load(2, 0)],
+            mem::size_of::<T>() / mem::size_of::<U>(),
+        );
+        ret_instr.append(&mut copy_instr);
+
+        // else
+        ret_instr.push(Instruction::Else);
+        ret_instr.extend_from_slice(fallback);
+        ret_instr.push(Instruction::End);
+
+        ret_instr
     }
 
     fn resolves_calls_indexes(&mut self) {
