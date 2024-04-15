@@ -228,10 +228,13 @@ async fn test_upload_failed() -> anyhow::Result<()> {
         .await
         .expect_err("Should fail");
 
-    assert!(matches!(
-        err,
-        Error::Module(errors::ModuleError::Gear(errors::Gear::GasLimitTooHigh))
-    ));
+    assert!(
+        matches!(
+            err,
+            Error::Module(errors::ModuleError::Gear(errors::Gear::GasLimitTooHigh))
+        ),
+        format!("{err:?}")
+    );
 
     Ok(())
 }
