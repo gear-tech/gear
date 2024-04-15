@@ -103,6 +103,11 @@ fn config(
         [
             (SyscallName::SendInit, 3..=5),
             (SyscallName::ReserveGas, 3..=5),
+            (SyscallName::Debug, 0..=1),
+            (SyscallName::Wait, 0..=1),
+            (SyscallName::WaitFor, 0..=1),
+            (SyscallName::WaitUpTo, 0..=1),
+            (SyscallName::Wake, 0..=1),
             (SyscallName::Leave, 0..=0),
             (SyscallName::Panic, 0..=0),
             (SyscallName::OomPanic, 0..=0),
