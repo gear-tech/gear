@@ -53,6 +53,6 @@ async fn set_code_failed() {
                 errors::System::SpecVersionNeedsToIncrease
             ))
         ),
-        format!("{err:?}")
+        "{err:?}"
     );
 }

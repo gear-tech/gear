@@ -233,7 +233,7 @@ async fn test_upload_failed() -> anyhow::Result<()> {
             err,
             Error::Module(errors::ModuleError::Gear(errors::Gear::GasLimitTooHigh))
         ),
-        format!("{err:?}")
+        "{err:?}"
     );
 
     Ok(())
