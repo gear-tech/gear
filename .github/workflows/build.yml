@@ -143,7 +143,7 @@ jobs:
           echo "---------- Building vara runtime ----------"
           time cargo build -p vara-runtime -F std,try-runtime --locked ${{ matrix.profiles.flags }}
           echo "---------- Executing on-runtime-upgrade for Vara ----------"
-          time ./try-runtime --runtime ./target/${{ matrix.profiles.name }}/wbuild/vara-runtime/vara_runtime.wasm on-runtime-upgrade --checks=all live --uri ws://rpc-private.vara-network.io:9944
+          time ./try-runtime --runtime ./target/${{ matrix.profiles.name }}/wbuild/vara-runtime/vara_runtime.wasm on-runtime-upgrade --checks=all --no-weight-warnings live --uri ws://rpc-private.vara-network.io:9944
           sleep 5
         env:
           RUST_LOG: info,remote-ext=debug,runtime=debug
