@@ -529,12 +529,12 @@ pub mod pallet {
 
     impl<T: Config> Pallet<T> {
         /// Getter for [`ExecuteInherent<T>`](ExecuteInherent)
-        pub fn execute_inherent() -> bool {
+        pub(crate) fn execute_inherent() -> bool {
             ExecuteInherent::<T>::get()
         }
 
         /// Getter for [`BlockNumberFor<T>`] (BlockNumberFor)
-        pub fn block_number() -> BlockNumberFor<T> {
+        pub(crate) fn block_number() -> BlockNumberFor<T> {
             BlockNumber::<T>::get()
         }
     }
