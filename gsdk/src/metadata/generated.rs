@@ -450,8 +450,6 @@ pub mod runtime_types {
                     TimeoutHasCome,
                     #[codec(index = 2)]
                     OutOfRent,
-                    #[codec(index = 3)]
-                    WaitInitListMigration,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub enum ProgramChangeKind<_0> {
