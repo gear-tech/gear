@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::*;
-use crate::storage::{AppendMapStorage, MapStorage, TripleMapStorage};
+use crate::storage::{MapStorage, TripleMapStorage};
 use core::fmt::Debug;
 
 /// Trait for ProgramStorage errors.
@@ -68,13 +68,11 @@ pub trait ProgramStorage {
         Key3 = GearPage,
         Value = PageBuf,
     >;
-    type WaitingInitMap: AppendMapStorage<MessageId, ProgramId, Vec<MessageId>>;
 
     /// Attempt to remove all items from all the associated maps.
     fn reset() {
         Self::ProgramMap::clear();
         Self::MemoryPageMap::clear();
-        Self::WaitingInitMap::clear();
     }
 
     /// Store a program to be associated with the given key `program_id` from the map.
@@ -180,24 +178,4 @@ pub trait ProgramStorage {
 
     /// Final full prefix that prefixes all keys of memory pages.
     fn pages_final_prefix() -> [u8; 32];
-
-    /// Load the messages to uninitialized program associated with the given key `program_id` from the map.
-    fn waiting_init_get_messages(program_id: ProgramId) -> Vec<MessageId> {
-        Self::WaitingInitMap::get(&program_id).unwrap_or_default()
-    }
-
-    /// Take the messages to uninitialized program under the given key `program_id`.
-    fn waiting_init_take_messages(program_id: ProgramId) -> Vec<MessageId> {
-        Self::WaitingInitMap::take(program_id).unwrap_or_default()
-    }
-
-    /// Append the given message id to the list of messages to uninitialized program in the storage.
-    fn waiting_init_append_message_id(dest_prog_id: ProgramId, message_id: MessageId) {
-        Self::WaitingInitMap::append(dest_prog_id, message_id);
-    }
-
-    /// Remove all messages to uninitialized program under the given key `program_id`.
-    fn waiting_init_remove(program_id: ProgramId) {
-        let _ = Self::waiting_init_take_messages(program_id);
-    }
 }

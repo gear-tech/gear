@@ -334,13 +334,6 @@ pub enum JournalNote {
         /// Amount of gas for reply.
         amount: u64,
     },
-    /// Append message to waiting init list and wait list for future wake.
-    WaitingInitMessage {
-        /// Incoming dispatch of the message.
-        dispatch: IncomingDispatch,
-        /// Destination of the message.
-        destination: ProgramId,
-    },
 }
 
 /// Journal handler.
@@ -423,8 +416,6 @@ pub trait JournalHandler {
     fn send_signal(&mut self, message_id: MessageId, destination: ProgramId, code: SignalCode);
     /// Create deposit for future reply.
     fn reply_deposit(&mut self, message_id: MessageId, future_reply_id: MessageId, amount: u64);
-    /// Append message to waiting init list and wait list for future wake.
-    fn waiting_init_message(&mut self, dispatch: IncomingDispatch, destination: ProgramId);
 }
 
 actor_system_error! {
