@@ -214,9 +214,9 @@ impl<'a, 'b> EntryPointsGenerator<'a, 'b> {
 
     /// Generates body of the export function.
     ///
-    /// Instructions that write `handle_count_ptr` and `init_called_ptr`
+    /// Instructions that write `handle_flags_ptr` and `init_called_ptr`
     /// pointers are also inserted into the body of export:
-    /// 1. `handle_count_ptr` is set to `0` to forget about handles from
+    /// 1. `handle_flags_ptr` is set to `0` to forget about handles from
     ///    previous executions.
     /// 2. if the export name is `"init"`, then `init_called_ptr` is set to
     ///    `true` to avoid wait deadlock at the `init` entry point.
@@ -229,7 +229,7 @@ impl<'a, 'b> EntryPointsGenerator<'a, 'b> {
         let params = export_body_call_func_type.params();
         let results = export_body_call_func_type.results();
 
-        // +3 for `*handle_count_ptr = 0` instructions.
+        // +3 for `*handle_flags_ptr = 0` instructions.
         // +3 for `*init_called_ptr = true` instructions (optional).
         // +2 for End and Call instructions.
         let mut res = Vec::with_capacity(3 + params.len() + results.len() + 3 + 2);
@@ -242,14 +242,14 @@ impl<'a, 'b> EntryPointsGenerator<'a, 'b> {
 
         let MemoryLayout {
             init_called_ptr,
-            handle_count_ptr,
+            handle_flags_ptr,
             ..
         } = MemoryLayout::from(mem_size);
 
-        // reset handle count because they cannot be used in different messages
+        // reset handle flags because they cannot be used in different messages
         res.extend_from_slice(&[
-            // *handle_count_ptr = 0
-            Instruction::I32Const(handle_count_ptr),
+            // *handle_flags_ptr = 0
+            Instruction::I32Const(handle_flags_ptr),
             Instruction::I32Const(0),
             Instruction::I32Store(2, 0),
         ]);

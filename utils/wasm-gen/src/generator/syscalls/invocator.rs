@@ -36,7 +36,7 @@ use gear_wasm_instrument::{
         SystemSyscallSignature,
     },
 };
-use gsys::{ErrorCode, Hash};
+use gsys::{ErrorCode, Handle, Hash};
 use std::{
     collections::{btree_map::Entry, BTreeMap, BinaryHeap, HashSet},
     fmt::{self, Debug, Display},
@@ -402,48 +402,37 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                     // NOTE: Also see the `store_handle` method for an explanation of how handles are stored.
 
                     let MemoryLayout {
-                        handle_count_ptr, ..
+                        handle_temp1_ptr,
+                        handle_temp2_ptr,
+                        handle_flags_ptr,
+                        handle_array_ptr,
+                        ..
                     } = MemoryLayout::from(self.memory_size_bytes());
+
+                    let destination_ptr = handle_temp1_ptr;
+                    let reset_bit_flag = self.unstructured.arbitrary()?;
 
                     let param = allowed_values
                         .expect("allowed_values should be set for Handler")
                         .get_i32(self.unstructured)?;
 
-                    let mut ret_instr = vec![
-                        // if *handle_count_ptr > 0
-                        Instruction::I32Const(handle_count_ptr),
-                        Instruction::I32Load(2, 0),
-                        Instruction::I32Const(0),
-                        Instruction::I32Ne,
-                        Instruction::If(BlockType::Value(ValueType::I32)),
-                    ];
-
-                    ret_instr.extend_from_slice(&[
-                        // handle_count_ptr - 1
-                        Instruction::I32Const(handle_count_ptr),
-                        Instruction::I32Load(2, 0),
-                        Instruction::I32Const(1),
-                        Instruction::I32Sub,
-                    ]);
-
-                    let decrease_handle_count = self.unstructured.arbitrary()?;
-                    if decrease_handle_count {
-                        ret_instr.extend_from_slice(&[
-                            // handle_count_ptr -= 1
-                            Instruction::I32Const(handle_count_ptr),
-                            Instruction::I32Const(handle_count_ptr),
-                            Instruction::I32Load(2, 0),
-                            Instruction::I32Const(1),
-                            Instruction::I32Sub,
+                    let mut ret_instr = Self::reuse_resource::<Handle, u32>(
+                        handle_temp1_ptr,
+                        handle_temp2_ptr,
+                        handle_flags_ptr,
+                        handle_array_ptr,
+                        destination_ptr,
+                        reset_bit_flag,
+                        &[
+                            Instruction::I32Const(destination_ptr),
+                            Instruction::I32Const(param),
                             Instruction::I32Store(2, 0),
-                        ]);
-                    }
+                        ],
+                    );
 
                     ret_instr.extend_from_slice(&[
-                        // else
-                        Instruction::Else,
-                        Instruction::I32Const(param),
-                        Instruction::End,
+                        Instruction::I32Const(destination_ptr),
+                        Instruction::I32Load(2, 0),
                     ]);
 
                     ret.push(ParamInstructions(ret_instr));
@@ -845,50 +834,28 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
     /// Patches instructions of send_init syscall to store handle in reserved
     /// memory.
     ///
-    /// The count of handles is stored in `MemoryLayout.handle_count_ptr`. Since
-    /// handles cannot be used between executions, we simply count them. Then a
-    /// valid handle can be obtained as `*handle_count_ptr - 1`.
+    /// More detailed information about how resources are stored can be found in
+    /// [`Self::store_reservation_id`].
     fn store_handle(
         &self,
         instructions: &mut Vec<Instruction>,
         param_instructions: Vec<ParamInstructions>,
     ) {
-        const _: () = assert!(mem::size_of::<ErrorCode>() == mem::size_of::<u32>());
-        let no_error_val = ErrorCode::default() as i32;
-
-        let res_ptr = param_instructions
-            .last()
-            .expect("At least one argument in fallible syscall")
-            .as_i32()
-            .expect("Incorrect last parameter type: expected i32 pointer");
-
         let MemoryLayout {
-            handle_count_ptr, ..
+            handle_temp1_ptr,
+            handle_flags_ptr,
+            handle_array_ptr,
+            ..
         } = MemoryLayout::from(self.memory_size_bytes());
 
-        instructions.extend_from_slice(&[
-            // if *res_ptr == no_error_val
-            Instruction::I32Const(res_ptr),
-            Instruction::I32Load(2, 0),
-            Instruction::I32Const(no_error_val),
-            Instruction::I32Eq,
-            Instruction::If(BlockType::NoResult),
-            // if *handle_count_ptr < MemoryLayout::AMOUNT_OF_HANDLES
-            Instruction::I32Const(handle_count_ptr),
-            Instruction::I32Load(2, 0),
-            Instruction::I32Const(MemoryLayout::AMOUNT_OF_HANDLES as i32),
-            Instruction::I32LtU,
-            Instruction::If(BlockType::NoResult),
-            // *handle_count_ptr += 1
-            Instruction::I32Const(handle_count_ptr),
-            Instruction::I32Const(handle_count_ptr),
-            Instruction::I32Load(2, 0),
-            Instruction::I32Const(1),
-            Instruction::I32Add,
-            Instruction::I32Store(2, 0),
-            Instruction::End,
-            Instruction::End,
-        ]);
+        Self::store_resource::<Handle, u32>(
+            instructions,
+            param_instructions,
+            handle_temp1_ptr,
+            handle_flags_ptr,
+            handle_array_ptr,
+            MemoryLayout::AMOUNT_OF_HANDLES,
+        );
     }
 
     /// Patches instructions of reserve_gas syscall to store reservation id in
@@ -921,7 +888,7 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
             ..
         } = MemoryLayout::from(self.memory_size_bytes());
 
-        Self::store_resource::<Hash, u32>(
+        Self::store_resource::<Hash, u64>(
             instructions,
             param_instructions,
             reservation_temp1_ptr,

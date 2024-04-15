@@ -483,10 +483,9 @@ fn test_reservation_id_with_actor_id_and_value_ptr() {
         });
 
     let mut injection_types = SyscallsInjectionTypes::all_never();
-    injection_types.set(InvocableSyscall::Loose(SyscallName::SendInit), 1, 1);
     injection_types.set(InvocableSyscall::Loose(SyscallName::ReserveGas), 2, 2);
     injection_types.set(InvocableSyscall::Loose(SyscallName::ReservationSend), 1, 1);
-    //injection_types.set(InvocableSyscall::Loose(SyscallName::SendInit), 1, 1); //TODO: fixme
+    injection_types.set(InvocableSyscall::Loose(SyscallName::SendInit), 1, 1);
     injection_types.set(
         InvocableSyscall::Loose(SyscallName::ReservationSendCommit),
         1,

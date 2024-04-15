@@ -29,6 +29,7 @@ use gear_wasm_instrument::{
     },
     STACK_END_EXPORT_NAME,
 };
+use gsys::{Handle, Hash};
 use wasm_smith::Module as WasmSmithModule;
 
 /// Wasm module.
@@ -261,11 +262,14 @@ def_memory_layout! {
     struct MemoryLayout {
         init_called_ptr: bool,
         wait_called_ptr: u32,
-        handle_count_ptr: u32,
+        handle_temp1_ptr: u32,
+        handle_temp2_ptr: u32,
+        handle_flags_ptr: u32,
+        handle_array_ptr: [Handle; MemoryLayout::AMOUNT_OF_HANDLES as _],
         reservation_temp1_ptr: u32,
         reservation_temp2_ptr: u32,
         reservation_flags_ptr: u32,
-        reservation_array_ptr: [gsys::Hash; MemoryLayout::AMOUNT_OF_RESERVATIONS as _],
+        reservation_array_ptr: [Hash; MemoryLayout::AMOUNT_OF_RESERVATIONS as _],
     }
 }
 
