@@ -22,7 +22,8 @@
 //! Errors related to conversion, decoding, message status code, other internal
 //! errors.
 
-use core::fmt;
+use alloc::vec::Vec;
+use core::{fmt, str};
 use gcore::errors::Error as CoreError;
 
 pub use gcore::errors::*;
@@ -33,26 +34,44 @@ pub type Result<T, E = Error> = core::result::Result<T, E>;
 /// Common error type returned by API functions from other modules.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Error {
+    /* Protocol under-hood errors */
     /// [`gcore::errors::Error`] type.
+    ///
+    /// NOTE: this error could only be returned from syscalls.
     Core(CoreError),
-    /// Timeout reached while expecting for reply.
-    Timeout(u32, u32),
+
+    /* API lib under-hood errors */
     /// Conversion error.
+    ///
+    /// NOTE: this error returns from incorrect bytes conversion.
     Convert(&'static str),
-    /// Decoding error.
+
+    /// `scale-codec` decoding error.
+    ///
+    /// NOTE: this error returns from APIs that return specific `Decode` types.
     Decode(scale_info::scale::Error),
-    /// Reply code returned by another program.
-    ReplyCode(ReplyCode),
-    /// This error occurs when providing zero duration to waiting functions
-    /// (e.g. see `exactly` and `up_to` functions in
-    /// [CodecMessageFuture](crate::msg::CodecMessageFuture)).
-    EmptyWaitDuration,
-    /// This error occurs when providing zero gas amount to system gas reserving
-    /// function (see
-    /// [Config::set_system_reserve](crate::Config::set_system_reserve)).
-    ZeroSystemReservationAmount,
-    /// This error occurs when providing zero duration to mutex lock function
-    ZeroMxLockDuration,
+
+    /// Gstd API usage error.
+    ///
+    /// Note: this error returns from `gstd` APIs in case of invalid arguments.
+    Gstd(UsageError),
+
+    /* Business logic errors */
+    /// Received error reply while awaited response from another actor.
+    ///
+    /// NOTE: this error could only be returned from async messaging.
+    ErrorReply(ErrorReplyPayload, ErrorReplyReason),
+
+    /// Received reply that couldn't be identified as successful or not
+    /// due to unsupported reply code.
+    ///
+    /// NOTE: this error could only be returned from async messaging.
+    UnsupportedReply(Vec<u8>),
+
+    /// Timeout reached while expecting for reply.
+    ///
+    /// NOTE: this error could only be returned from async messaging.
+    Timeout(u32, u32),
 }
 
 impl Error {
@@ -60,23 +79,32 @@ impl Error {
     pub fn timed_out(&self) -> bool {
         matches!(self, Error::Timeout(..))
     }
+
+    /// Check whether an error is [`Error::ErrorReply`] and return its str
+    /// representation.
+    pub fn error_reply_str(&self) -> Option<&str> {
+        if let Self::ErrorReply(payload, _) = self {
+            payload.try_as_str()
+        } else {
+            None
+        }
+    }
 }
 
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Error::Core(e) => fmt::Display::fmt(e, f),
-            Error::Timeout(expected, now) => {
-                write!(f, "Wait lock timeout at {expected}, now is {now}")
-            }
             Error::Convert(e) => write!(f, "Conversion error: {e:?}"),
-            Error::Decode(e) => write!(f, "Decoding codec bytes error: {e}"),
-            Error::ReplyCode(e) => write!(f, "Reply came with non success reply code {e:?}"),
-            Error::EmptyWaitDuration => write!(f, "Wait duration can not be zero."),
-            Error::ZeroSystemReservationAmount => {
-                write!(f, "System reservation amount can not be zero in config.")
+            Error::Decode(e) => write!(f, "Scale codec decoding error: {e}"),
+            Error::Gstd(e) => write!(f, "`Gstd` API error: {e:?}"),
+            Error::ErrorReply(err, reason) => write!(f, "Received reply '{err}' due to {reason:?}"),
+            Error::UnsupportedReply(payload) => {
+                write!(f, "Received unsupported reply '0x{}'", hex::encode(payload))
             }
-            Error::ZeroMxLockDuration => write!(f, "Mutex lock duration can not be zero."),
+            Error::Timeout(expected, now) => {
+                write!(f, "Timeout has occurred: expected at {expected}, now {now}")
+            }
         }
     }
 }
@@ -84,6 +112,71 @@ impl fmt::Display for Error {
 impl From<CoreError> for Error {
     fn from(err: CoreError) -> Self {
         Self::Core(err)
+    }
+}
+
+/// New-type representing error reply payload. Expected to be utf-8 string.
+#[derive(Clone, Eq, PartialEq)]
+pub struct ErrorReplyPayload(pub Vec<u8>);
+
+impl ErrorReplyPayload {
+    /// Represents self as utf-8 str, if possible.
+    pub fn try_as_str(&self) -> Option<&str> {
+        str::from_utf8(&self.0).ok()
+    }
+
+    /// Similar to [`Self::try_as_str`], but panics in `None` case.
+    /// Preferable to use only for test purposes.
+    #[track_caller]
+    pub fn as_str(&self) -> &str {
+        str::from_utf8(&self.0).expect("Failed to create `str`")
+    }
+}
+
+impl From<Vec<u8>> for ErrorReplyPayload {
+    fn from(value: Vec<u8>) -> Self {
+        Self(value)
+    }
+}
+
+impl fmt::Debug for ErrorReplyPayload {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.try_as_str()
+            .map(|v| write!(f, "{v}"))
+            .unwrap_or_else(|| write!(f, "0x{}", hex::encode(&self.0)))
+    }
+}
+
+impl fmt::Display for ErrorReplyPayload {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Debug::fmt(self, f)
+    }
+}
+
+/// Error type returned by gstd API while using invalid arguments.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum UsageError {
+    /// This error occurs when providing zero duration to waiting functions
+    /// (e.g. see `exactly` and `up_to` functions in
+    /// [`CodecMessageFuture`](crate::msg::CodecMessageFuture)).
+    EmptyWaitDuration,
+    /// This error occurs when providing zero gas amount to system gas reserving
+    /// function (see
+    /// [`Config::set_system_reserve`](crate::Config::set_system_reserve)).
+    ZeroSystemReservationAmount,
+    /// This error occurs when providing zero duration to mutex lock function
+    ZeroMxLockDuration,
+}
+
+impl fmt::Display for UsageError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            UsageError::EmptyWaitDuration => write!(f, "Wait duration can not be zero"),
+            UsageError::ZeroSystemReservationAmount => {
+                write!(f, "System reservation amount can not be zero in config")
+            }
+            UsageError::ZeroMxLockDuration => write!(f, "Mutex lock duration can not be zero"),
+        }
     }
 }
 

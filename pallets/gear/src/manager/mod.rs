@@ -401,8 +401,6 @@ where
             QueueOf::<T>::queue(message)
                 .unwrap_or_else(|e| unreachable!("Message queue corrupted! {e:?}"));
         });
-
-        ProgramStorageOf::<T>::waiting_init_remove(program_id);
     }
 
     fn process_failed_init(program_id: ProgramId, origin: ProgramId) {
