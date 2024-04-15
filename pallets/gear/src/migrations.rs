@@ -64,7 +64,7 @@ where
                         if let Some(dispatch) = Pallet::<T>::wake_dispatch(
                             program_id,
                             message_id,
-                            MessageWokenSystemReason::WaitInitListMigration.into_reason(),
+                            MessageWokenSystemReason::ProgramGotInitialized.into_reason(),
                         ) {
                             // remove from waitlist
                             weight = weight.saturating_add(T::DbWeight::get().writes(1));
@@ -363,7 +363,7 @@ mod tests {
                 for (_source, dispatch) in dispatches {
                     System::assert_has_event(RuntimeEvent::Gear(Event::MessageWoken {
                         id: dispatch.id(),
-                        reason: Reason::System(MessageWokenSystemReason::WaitInitListMigration),
+                        reason: Reason::System(MessageWokenSystemReason::ProgramGotInitialized),
                     }));
                 }
             }

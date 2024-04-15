@@ -158,8 +158,6 @@ pub enum MessageWokenSystemReason {
     TimeoutHasCome,
     /// Message can no longer pay rent for holding in storage (see #646).
     OutOfRent,
-    /// Waiting init list has been removed, so we just wake all the messages from it.
-    WaitInitListMigration,
 }
 
 /// Composite reason for messages waking.
