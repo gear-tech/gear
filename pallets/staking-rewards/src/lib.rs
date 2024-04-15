@@ -61,7 +61,6 @@ use frame_support::{
 };
 use pallet_staking::{ActiveEraInfo, EraPayout};
 use parity_scale_codec::{Decode, Encode};
-pub use scale_info::TypeInfo;
 use sp_runtime::{
     traits::{AccountIdConversion, Saturating, StaticLookup, UniqueSaturatedInto},
     PerThing, Perquintill,
@@ -70,8 +69,8 @@ use sp_std::{collections::btree_set::BTreeSet, vec::Vec};
 
 pub use extension::StakingBlackList;
 pub use inflation::compute_total_payout;
-pub mod migrations;
 pub use pallet::*;
+pub use scale_info::TypeInfo;
 pub use weights::WeightInfo;
 
 pub type BalanceOf<T> = <T as pallet_staking::Config>::CurrencyBalance;
