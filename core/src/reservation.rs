@@ -201,14 +201,20 @@ impl GasReserver {
     /// 2. Reservation was "unreserved", so in [`GasReservationState::Removed`] state.
     /// 3. Reservation was marked used.
     pub fn unreserve(&mut self, id: ReservationId) -> Result<u64, ReservationError> {
+        // Docs error case #1.
         let state = self
             .states
             .get(&id)
             .ok_or(ReservationError::InvalidReservationId)?;
 
-        if let GasReservationState::Exists { used: true, .. }
-        | GasReservationState::Created { used: true, .. } = state
-        {
+        if matches!(
+            state,
+            // Docs error case #2.
+            GasReservationState::Removed { .. } |
+            // Docs error case #3.
+            GasReservationState::Exists { used: true, .. } |
+            GasReservationState::Created { used: true, .. }
+        ) {
             return Err(ReservationError::InvalidReservationId);
         }
 
@@ -221,9 +227,7 @@ impl GasReserver {
                 amount
             }
             GasReservationState::Created { amount, .. } => amount,
-            GasReservationState::Removed { .. } => {
-                return Err(ReservationError::InvalidReservationId);
-            }
+            GasReservationState::Removed { .. } => unreachable!("Checked above"),
         };
 
         Ok(amount)
@@ -483,6 +487,32 @@ mod tests {
         assert_eq!(
             reserver.unreserve(id),
             Err(ReservationError::InvalidReservationId)
+        );
+    }
+
+    #[test]
+    fn unreserving_unreserved() {
+        let id = ReservationId::from([0xff; 32]);
+        let slot = GasReservationSlot {
+            amount: 1,
+            start: 2,
+            finish: 3,
+        };
+
+        let mut map = GasReservationMap::new();
+        map.insert(id, slot.clone());
+
+        let mut reserver = GasReserver::new(&Default::default(), map, 256);
+
+        let amount = reserver.unreserve(id).expect("Shouldn't fail");
+        assert_eq!(amount, slot.amount);
+
+        assert!(reserver.unreserve(id).is_err());
+        assert_eq!(
+            reserver.states().get(&id).cloned(),
+            Some(GasReservationState::Removed {
+                expiration: slot.finish
+            })
         );
     }
 }

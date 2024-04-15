@@ -13,10 +13,6 @@ say_err() {
 }
 
 err() {
-  if [ ! -z ${td-} ]; then
-    rm -rf $td
-  fi
-
   say_err "error: $@"
   exit 1
 }
@@ -39,8 +35,12 @@ if [[ ! -f $VARA_RUNTIME ]]; then
 fi
 
 # extract artifacts to the correct directories
-unzip -o $VARA_RUNTIME -d runtime/vara/src/weights/ && rm $VARA_RUNTIME
+unzip -o $VARA_RUNTIME && rm $VARA_RUNTIME
 
 # apply some patches for `pallets/gear/src/weights.rs`
 cp runtime/vara/src/weights/pallet_gear.rs pallets/gear/src/weights.rs
 sed -i -E 's/\w+::WeightInfo for SubstrateWeight/WeightInfo for SubstrateWeight/' pallets/gear/src/weights.rs
+
+# apply some patches for `pallets/gear-builtin/src/weights.rs`
+cp runtime/vara/src/weights/pallet_gear_builtin.rs pallets/gear-builtin/src/weights.rs
+sed -i -E 's/\w+::WeightInfo for SubstrateWeight/WeightInfo for SubstrateWeight/' pallets/gear-builtin/src/weights.rs

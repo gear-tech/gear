@@ -1731,4 +1731,88 @@ mod tests {
 
         assert_eq!(dispatch.message().payload_bytes(), &[3, 4, 5]);
     }
+
+    // TODO: fix me (issue #3881)
+    #[test]
+    fn gas_has_gone_on_err() {
+        const INIT_GAS: u64 = 1_000_000_000;
+
+        let mut ext = Ext::new(
+            ProcessorContextBuilder::new()
+                .with_message_context(
+                    MessageContextBuilder::new()
+                        .with_outgoing_limit(u32::MAX)
+                        .build(),
+                )
+                .with_gas(GasCounter::new(INIT_GAS))
+                .build(),
+        );
+
+        // initializing send message
+        let i = ext.send_init().expect("Shouldn't fail");
+
+        // this one fails due to lack of value, BUT [bug] gas for sending already
+        // gone and no longer could be used within the execution.
+        assert_eq!(
+            ext.send_commit(
+                i,
+                HandlePacket::new_with_gas(
+                    Default::default(),
+                    Default::default(),
+                    INIT_GAS,
+                    u128::MAX
+                ),
+                0
+            )
+            .unwrap_err(),
+            FallibleExecutionError::NotEnoughValue.into()
+        );
+
+        let res = ext.send_commit(
+            i,
+            HandlePacket::new_with_gas(Default::default(), Default::default(), INIT_GAS, 0),
+            0,
+        );
+        // replace the following code with `assert!(res.is_ok());`
+        assert_eq!(
+            res.unwrap_err(),
+            FallibleExecutionError::NotEnoughGas.into()
+        );
+    }
+
+    // TODO: fix me (issue #3881)
+    #[test]
+    fn reservation_used_on_err() {
+        let mut ext = Ext::new(
+            ProcessorContextBuilder::new()
+                .with_message_context(
+                    MessageContextBuilder::new()
+                        .with_outgoing_limit(u32::MAX)
+                        .build(),
+                )
+                .with_gas(GasCounter::new(1_000_000_000))
+                .build(),
+        );
+
+        // creating reservation to be used
+        let reservation_id = ext.reserve_gas(1_000_000, 1_000).expect("Shouldn't fail");
+
+        // this one fails due to absence of init nonce, BUT [bug] marks reservation used,
+        // so another `reservation_send_commit` fails due to used reservation.
+        assert_eq!(
+            ext.reservation_send_commit(reservation_id, u32::MAX, Default::default(), 0)
+                .unwrap_err(),
+            MessageError::OutOfBounds.into()
+        );
+
+        // initializing send message
+        let i = ext.send_init().expect("Shouldn't fail");
+
+        let res = ext.reservation_send_commit(reservation_id, i, Default::default(), 0);
+        // replace the following code with `assert!(res.is_ok());`
+        assert_eq!(
+            res.unwrap_err(),
+            ReservationError::InvalidReservationId.into()
+        );
+    }
 }
