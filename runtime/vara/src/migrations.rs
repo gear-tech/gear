@@ -22,4 +22,6 @@ use crate::*;
 pub type Migrations = (
     /* release v1.3.0 */
     pallet_gear_program::migration::AppendStackEndMigration<Runtime>,
+    // migration for removed waiting init list
+    pallet_gear::migrations::MigrateWaitingInitList<Runtime>,
 );

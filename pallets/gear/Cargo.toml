@@ -35,6 +35,7 @@ pallet-gear-proc-macro = { path = "proc-macro" }
 gsys = { workspace = true, optional = true }
 pallet-gear-voucher.workspace = true
 pallet-gear-bank.workspace = true
+pallet-gear-program.workspace = true
 
 # Substrate deps
 frame-support.workspace = true
@@ -48,7 +49,7 @@ sp-externalities.workspace = true
 pallet-balances.workspace = true
 pallet-authorship.workspace = true
 pallet-timestamp.workspace = true
-sp-consensus-babe = { workspace = true, optional = true}
+sp-consensus-babe = { workspace = true, optional = true }
 
 # Benchmark deps
 gear-sandbox = { workspace = true, optional = true }
@@ -126,6 +127,7 @@ pallet-gear-scheduler = { workspace = true, features = ["std"] }
 pallet-gear-program = { workspace = true, features = ["std"] }
 pallet-gear-voucher = { workspace = true, features = ["std"] }
 gmeta.workspace = true
+rand.workspace = true
 
 [features]
 default = ['std']
@@ -173,27 +175,27 @@ std = [
 	"gear-runtime-interface/std",
 ]
 runtime-benchmarks = [
-	"frame-benchmarking/runtime-benchmarks",
-	"frame-system/runtime-benchmarks",
-	"frame-support/runtime-benchmarks",
-	"common/runtime-benchmarks",
-	"gear-core-backend/mock",
-	"gear-core-errors/codec",
-	"gear-sandbox",
-	"sp-consensus-slots",
-	"sp-consensus-babe",
-	"rand",
-	"rand_pcg",
-	"test-syscalls/wasm-wrapper",
-	"demo-read-big-state/wasm-wrapper",
-	"demo-proxy/wasm-wrapper",
-	"gsys",
-	"demo-reserve-gas/wasm-wrapper",
-	"demo-delayed-sender/wasm-wrapper",
-	"demo-constructor/wasm-wrapper",
-	"demo-waiter/wasm-wrapper",
-	"demo-init-wait/wasm-wrapper",
-	"demo-signal-entry/wasm-wrapper",
+    "frame-benchmarking/runtime-benchmarks",
+    "frame-system/runtime-benchmarks",
+    "frame-support/runtime-benchmarks",
+    "common/runtime-benchmarks",
+    "gear-core-backend/mock",
+    "gear-core-errors/codec",
+    "gear-sandbox",
+    "sp-consensus-slots",
+    "sp-consensus-babe",
+    "rand",
+    "rand_pcg",
+    "test-syscalls/wasm-wrapper",
+    "demo-read-big-state/wasm-wrapper",
+    "demo-proxy/wasm-wrapper",
+    "gsys",
+    "demo-reserve-gas/wasm-wrapper",
+    "demo-delayed-sender/wasm-wrapper",
+    "demo-constructor/wasm-wrapper",
+    "demo-waiter/wasm-wrapper",
+    "demo-init-wait/wasm-wrapper",
+    "demo-signal-entry/wasm-wrapper",
 	"core-processor/mock",
 ]
 runtime-benchmarks-checkers = []

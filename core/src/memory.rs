@@ -42,7 +42,7 @@ use scale_info::{
 };
 
 /// Interval in wasm program memory.
-#[derive(Clone, Copy, Encode, Decode)]
+#[derive(Clone, Copy, Eq, PartialEq, Encode, Decode)]
 pub struct MemoryInterval {
     /// Interval offset in bytes.
     pub offset: u32,
@@ -401,11 +401,38 @@ impl AllocationsContext {
     }
 }
 
+/// This module contains tests of `GearPage` and `AllocationContext`
 #[cfg(test)]
-/// This module contains tests of GearPage struct
 mod tests {
     use super::*;
     use alloc::vec::Vec;
+
+    struct TestMemory(WasmPagesAmount);
+
+    impl Memory for TestMemory {
+        type GrowError = ();
+
+        fn grow(&mut self, pages: WasmPagesAmount) -> Result<(), Self::GrowError> {
+            self.0 = self.0.add(pages).ok_or(())?;
+            Ok(())
+        }
+
+        fn size(&self) -> WasmPagesAmount {
+            self.0
+        }
+
+        fn write(&mut self, _offset: u32, _buffer: &[u8]) -> Result<(), MemoryError> {
+            unimplemented!()
+        }
+
+        fn read(&self, _offset: u32, _buffer: &mut [u8]) -> Result<(), MemoryError> {
+            unimplemented!()
+        }
+
+        unsafe fn get_buffer_host_addr_unsafe(&mut self) -> HostPointer {
+            unimplemented!()
+        }
+    }
 
     #[test]
     fn page_buf() {
@@ -441,85 +468,67 @@ mod tests {
         assert_eq!(ctx.free_range(interval), Ok(()));
     }
 
-    struct TestMemory(WasmPagesAmount);
-
-    impl Memory for TestMemory {
-        type GrowError = ();
-
-        fn grow(&mut self, pages: WasmPagesAmount) -> Result<(), Self::GrowError> {
-            self.0 = self.0.add(pages).ok_or(())?;
-            Ok(())
-        }
-
-        fn size(&self) -> WasmPagesAmount {
-            self.0
-        }
-
-        fn write(&mut self, _offset: u32, _buffer: &[u8]) -> Result<(), MemoryError> {
-            unimplemented!()
-        }
-
-        fn read(&self, _offset: u32, _buffer: &mut [u8]) -> Result<(), MemoryError> {
-            unimplemented!()
-        }
-
-        unsafe fn get_buffer_host_addr_unsafe(&mut self) -> HostPointer {
-            unimplemented!()
-        }
-    }
-
     #[test]
     fn alloc() {
         let _ = env_logger::try_init();
 
-        let mut ctx = AllocationsContext::new(Default::default(), 10.into(), 13.into());
+        let alloc_ok =
+            |ctx: &mut AllocationContext, mem: &mut TestMemory, pages: u16, expected: u16| {
+                let res = ctx.alloc::<NoopGrowHandler>(pages.into(), mem, |_| Ok(()));
+                assert_eq!(res, Ok(expected.into()));
+            };
+
+        let alloc_err =
+            |ctx: &mut AllocationContext, mem: &mut TestMemory, pages: u16, err: AllocError| {
+                let res = ctx.alloc::<NoopGrowHandler>(pages.into(), mem, |_| Ok(()));
+                assert_eq!(res, Err(err));
+            };
+
+        let mut ctx = AllocationsContext::new(Default::default(), 16.into(), 256.into());
+        let mut mem = TestMemory(16.into());
+        alloc_ok(&mut ctx, &mut mem, 16, 16);
+        alloc_ok(&mut ctx, &mut mem, 0, 16);
+
+        // there is a space for 14 more
+        (2..16).for_each(|i| alloc_ok(&mut ctx, &mut mem, 16, i * 16));
+
+        // no more mem!
+        alloc_err(&mut ctx, &mut mem, 16, AllocError::ProgramAllocOutOfBounds);
+
+        // but we free some and then can allocate page that was freed
+        ctx.free(137.into()).unwrap();
+        alloc_ok(&mut ctx, &mut mem, 1, 137);
+
+        // if we free 2 in a row we can allocate even 2
+        ctx.free(117.into()).unwrap();
+        ctx.free(118.into()).unwrap();
+        alloc_ok(&mut ctx, &mut mem, 2, 117);
+
+        // same as above, if we free_range 2 in a row we can allocate 2
+        ctx.free_range(117.into()..=118.into()).unwrap();
+        alloc_ok(&mut ctx, &mut mem, 2, 117);
+
+        // but if 2 are not in a row, bad luck
+        ctx.free(117.into()).unwrap();
+        ctx.free(158.into()).unwrap();
+        alloc_err(&mut ctx, &mut mem, 2, AllocError::ProgramAllocOutOfBounds);
+
+        // test incorrect allocation data now
+        let allocations = [1.into()].into_iter().collect();
+
+        let mut ctx = AllocationsContext::new(allocations.clone(), 10.into(), 13.into());
         let mut mem = TestMemory(0.into());
-        assert_eq!(
-            ctx.alloc::<NoopGrowHandler>(2.into(), &mut mem, |_| Ok(())),
-            Ok(10.into())
-        );
-        assert_eq!(
-            ctx.alloc::<NoopGrowHandler>(1.into(), &mut mem, |_| Ok(())),
-            Ok(12.into())
-        );
-        assert_eq!(
-            ctx.alloc::<NoopGrowHandler>(1.into(), &mut mem, |_| Ok(())),
-            Err(AllocError::ProgramAllocOutOfBounds)
-        );
-        assert_eq!(
-            ctx.alloc::<NoopGrowHandler>(0.into(), &mut mem, |_| Ok(())),
-            Ok(10.into())
-        );
+        alloc_err(&mut ctx, &mut mem, 1, IncorrectAllocationDataError.into());
 
         let mut ctx =
-            AllocationsContext::new([1.into()].into_iter().collect(), 10.into(), 13.into());
+            AllocationsContext::new(allocations.clone(), WasmPagesAmount::UPPER, 13.into());
         let mut mem = TestMemory(0.into());
-        assert_eq!(
-            ctx.alloc::<NoopGrowHandler>(1.into(), &mut mem, |_| Ok(())),
-            Err(IncorrectAllocationDataError.into())
-        );
+        alloc_err(&mut ctx, &mut mem, 1, IncorrectAllocationDataError.into());
 
-        let mut ctx = AllocationsContext::new(
-            [1.into()].into_iter().collect(),
-            WasmPagesAmount::UPPER,
-            13.into(),
-        );
+        let mut ctx =
+            AllocationsContext::new(allocations.clone(), 10.into(), WasmPagesAmount::UPPER);
         let mut mem = TestMemory(0.into());
-        assert_eq!(
-            ctx.alloc::<NoopGrowHandler>(1.into(), &mut mem, |_| Ok(())),
-            Err(IncorrectAllocationDataError.into())
-        );
-
-        let mut ctx = AllocationsContext::new(
-            [1.into()].into_iter().collect(),
-            10.into(),
-            WasmPagesAmount::UPPER,
-        );
-        let mut mem = TestMemory(0.into());
-        assert_eq!(
-            ctx.alloc::<NoopGrowHandler>(1.into(), &mut mem, |_| Ok(())),
-            Err(IncorrectAllocationDataError.into())
-        );
+        alloc_err(&mut ctx, &mut mem, 1, AllocError::ProgramAllocOutOfBounds);
     }
 
     mod property_tests {
@@ -601,7 +610,10 @@ mod tests {
                 let _ = env_logger::try_init();
 
                 let mut ctx = AllocationsContext::new(allocations, static_pages, max_pages);
-                let mut mem = TestMemory(mem_size);
+                let mut mem = TestMemory {
+                    max_pages: WasmPage::from(u16::MAX),
+                    size: mem_size,
+                };
 
                 for action in actions {
                     match action {

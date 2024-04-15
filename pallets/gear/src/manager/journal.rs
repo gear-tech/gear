@@ -34,7 +34,7 @@ use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::PageBuf,
-    message::{Dispatch, IncomingDispatch, MessageWaitedType, StoredDispatch},
+    message::{Dispatch, MessageWaitedType, StoredDispatch},
     pages::{GearPage, WasmPage},
     reservation::GasReserver,
 };
@@ -57,21 +57,6 @@ where
         outcome: CoreDispatchOutcome,
     ) {
         use CoreDispatchOutcome::*;
-
-        let wake_waiting_init_msgs = |program_id: ProgramId| {
-            ProgramStorageOf::<T>::waiting_init_take_messages(program_id)
-                .into_iter()
-                .for_each(|message_id| {
-                    if let Some(dispatch) = Pallet::<T>::wake_dispatch(
-                        program_id,
-                        message_id,
-                        MessageWokenSystemReason::ProgramGotInitialized.into_reason(),
-                    ) {
-                        QueueOf::<T>::queue(dispatch)
-                            .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
-                    }
-                })
-        };
 
         let status = match outcome {
             Exit { program_id } => {
@@ -106,7 +91,6 @@ where
                     program_id
                 );
 
-                wake_waiting_init_msgs(program_id);
                 let expiration =
                     ProgramStorageOf::<T>::update_program_if_active(program_id, |p, bn| {
                         match p {
@@ -534,28 +518,5 @@ where
 
         GasHandlerOf::<T>::create_deposit(message_id, future_reply_id, amount)
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
-    }
-
-    fn waiting_init_message(&mut self, dispatch: IncomingDispatch, destination: ProgramId) {
-        let (kind, message, context) = dispatch.into();
-
-        log::trace!(
-            "Append message {:?} to the waiting init messages list",
-            message.id()
-        );
-
-        let dispatch = StoredDispatch::new(kind, message.into_stored(destination), context);
-
-        // Adding id in on-init wake list.
-        ProgramStorageOf::<T>::waiting_init_append_message_id(
-            dispatch.destination(),
-            dispatch.id(),
-        );
-
-        Pallet::<T>::wait_dispatch(
-            dispatch,
-            None,
-            MessageWaitedSystemReason::ProgramIsNotInitialized.into_reason(),
-        );
     }
 }

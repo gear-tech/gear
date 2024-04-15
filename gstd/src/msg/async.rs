@@ -30,6 +30,7 @@ use core::{
     task::{Context, Poll},
 };
 use futures::future::FusedFuture;
+use gear_core_errors::ReplyCode;
 use scale_info::scale::Decode;
 
 fn poll<F, R>(waiting_reply_to: MessageId, cx: &mut Context<'_>, f: F) -> Poll<Result<R>>
@@ -51,15 +52,17 @@ where
             "Somebody created a future with the MessageId that never ended in static replies!"
         ),
         ReplyPoll::Pending => Poll::Pending,
-        ReplyPoll::Some((actual_reply, reply_code)) => {
+        ReplyPoll::Some((payload, reply_code)) => {
             // Remove lock after waking.
             async_runtime::locks().remove(msg_id, waiting_reply_to);
 
-            if !reply_code.is_success() {
-                return Poll::Ready(Err(Error::ReplyCode(reply_code)));
+            match reply_code {
+                ReplyCode::Success(_) => Poll::Ready(f(payload)),
+                ReplyCode::Error(reason) => {
+                    Poll::Ready(Err(Error::ErrorReply(payload.into(), reason)))
+                }
+                ReplyCode::Unsupported => Poll::Ready(Err(Error::UnsupportedReply(payload))),
             }
-
-            Poll::Ready(f(actual_reply))
         }
     }
 }

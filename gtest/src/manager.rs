@@ -34,8 +34,8 @@ use gear_core::{
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::PageBuf,
     message::{
-        Dispatch, DispatchKind, IncomingDispatch, Message, MessageWaitedType, ReplyMessage,
-        ReplyPacket, StoredDispatch, StoredMessage,
+        Dispatch, DispatchKind, Message, MessageWaitedType, ReplyMessage, ReplyPacket,
+        StoredDispatch, StoredMessage,
     },
     pages::{GearPage, WasmPage},
     program::Program as CoreProgram,
@@ -1244,9 +1244,5 @@ impl JournalHandler for ExtManager {
 
     fn reply_deposit(&mut self, _message_id: MessageId, future_reply_id: MessageId, amount: u64) {
         self.gas_limits.insert(future_reply_id, amount);
-    }
-
-    fn waiting_init_message(&mut self, _dispatch: IncomingDispatch, _destination: ProgramId) {
-        unimplemented!("Waiting init message is used for on-chain logic only");
     }
 }
