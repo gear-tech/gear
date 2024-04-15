@@ -94,21 +94,29 @@ where
 
     #[cfg(feature = "try-runtime")]
     fn pre_upgrade() -> Result<Vec<u8>, TryRuntimeError> {
-        let init_msgs: usize = waiting_init_list::WaitingInitStorage::<T>::iter_values()
-            .map(|d| d.len())
-            .sum();
-        let queue_msgs = QueueOf::<T>::iter().count();
+        let onchain = Pallet::<T>::on_chain_storage_version();
 
-        Ok((init_msgs as u64, queue_msgs as u64).encode())
+        let data = if onchain == 3 {
+            let init_msgs: usize = waiting_init_list::WaitingInitStorage::<T>::iter_values()
+                .map(|d| d.len())
+                .sum();
+            let queue_msgs = QueueOf::<T>::iter().count();
+            Some((init_msgs as u64, queue_msgs as u64))
+        } else {
+            None
+        };
+
+        Ok(data.encode())
     }
 
     #[cfg(feature = "try-runtime")]
     fn post_upgrade(state: Vec<u8>) -> Result<(), TryRuntimeError> {
-        let (init_msgs, queue_msgs): (u64, u64) =
-            Decode::decode(&mut &state[..]).expect("failed to decode the state");
-
-        let current_queue_msgs = QueueOf::<T>::iter().count();
-        assert_eq!(init_msgs + queue_msgs, current_queue_msgs as u64);
+        if let Some((init_msgs, queue_msgs)) = Option::<(u64, u64)>::decode(&mut &state[..])
+            .map_err(|_| "failed to decode the state")?
+        {
+            let current_queue_msgs = QueueOf::<T>::iter().count();
+            assert_eq!(init_msgs + queue_msgs, current_queue_msgs as u64);
+        }
 
         Ok(())
     }
