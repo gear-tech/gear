@@ -182,6 +182,8 @@ pub enum ErrorReplyReason {
     FailedToCreateProgram(SimpleProgramCreationError) = 1,
 
     /// Destination actor is inactive, so it can't process the message.
+    // TODO: think whether to split this error into long (`gr_exit()`, rent, failed init)
+    // TODO: and short (uninitialized program) versions (#3890)
     #[display(fmt = "destination actor is inactive")]
     InactiveActor = 2,
 
