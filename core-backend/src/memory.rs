@@ -215,6 +215,7 @@ pub(crate) struct MemoryAccessRegistry<Caller> {
     _phantom: PhantomData<Caller>,
 }
 
+// TODO: remove this public constructor and use extractors in `funcs.rs` instead (#3891)
 impl<Caller> Default for MemoryAccessRegistry<Caller> {
     fn default() -> Self {
         Self {
