@@ -24,7 +24,7 @@ use crate::{
 };
 use alloc::{collections::BTreeSet, rc::Rc, vec, vec::Vec};
 use codec::{Decode, Encode};
-use core::{fmt, fmt::Debug};
+use core::{cell::RefCell, fmt, fmt::Debug, mem};
 use gear_core::{
     costs::CostToken,
     env::{Externalities, PayloadSliceLock, UnlockPayloadBound},
@@ -39,7 +39,6 @@ use gear_core_errors::{ReplyCode, SignalCode};
 use gear_lazy_pages_common::ProcessAccessError;
 use gear_sandbox::{default_executor::Store, AsContextExt, SandboxMemory};
 use gear_wasm_instrument::syscalls::SyscallName;
-use std::{cell::RefCell, mem};
 
 /// Mock error
 #[derive(Debug, Clone, Encode, Decode)]
