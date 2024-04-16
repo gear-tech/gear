@@ -29,10 +29,11 @@ extern crate alloc;
 
 pub mod interval;
 pub mod iterators;
-pub mod numerated;
+mod numerated;
 pub mod tree;
 
 pub use num_traits;
+pub use numerated::*;
 
 #[cfg(any(feature = "mock", test))]
 pub mod mock;

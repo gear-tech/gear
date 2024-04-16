@@ -74,7 +74,7 @@ where
 
         // If the destination program is uninitialized, then we allow
         // to process message, if it's a reply or init message.
-        // Otherwise, we append the message to the waiting init message list.
+        // Otherwise, we return error reply.
         if matches!(program.state, ProgramState::Uninitialized { message_id }
             if message_id != dispatch_id && dispatch_kind != DispatchKind::Reply)
         {
@@ -86,17 +86,7 @@ where
                 );
             }
 
-            let (dispatch, gas, _) = precharged_dispatch.into_parts();
-            return vec![
-                JournalNote::GasBurned {
-                    message_id: dispatch.id(),
-                    amount: gas.burned(),
-                },
-                JournalNote::WaitingInitMessage {
-                    dispatch,
-                    destination: destination_id,
-                },
-            ];
+            return core_processor::process_non_executable(precharged_dispatch, destination_id);
         }
 
         let actor_data = ExecutableActorData {

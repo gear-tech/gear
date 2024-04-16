@@ -39,7 +39,7 @@ use core_processor::{
 };
 use gear_core::{
     memory::{MemoryInterval, PageBuf},
-    pages::{GearPage, GearPagesAmount, IntervalIterator},
+    pages::{numerated::iterators::IntervalIterator, GearPage, GearPagesAmount},
 };
 use gear_lazy_pages_common::{LazyPagesCosts, Status};
 use gear_wasm_instrument::{parity_wasm::elements::Instruction, syscalls::SyscallName};

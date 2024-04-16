@@ -34,8 +34,8 @@ use gear_core::{
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::PageBuf,
     message::{
-        Dispatch, DispatchKind, IncomingDispatch, Message, MessageWaitedType, ReplyMessage,
-        ReplyPacket, StoredDispatch, StoredMessage,
+        Dispatch, DispatchKind, Message, MessageWaitedType, ReplyMessage, ReplyPacket,
+        StoredDispatch, StoredMessage,
     },
     pages::{GearPage, IntervalIterator, IntervalsTree, WasmPage},
     program::Program as CoreProgram,
@@ -302,6 +302,10 @@ impl ExtManager {
         let code_id = CodeId::generate(code);
         self.opt_binaries.insert(code_id, code.to_vec());
         code_id
+    }
+
+    pub(crate) fn read_code(&self, code_id: CodeId) -> Option<&[u8]> {
+        self.opt_binaries.get(&code_id).map(Vec::as_slice)
     }
 
     pub(crate) fn fetch_inc_message_nonce(&mut self) -> u64 {
@@ -1242,9 +1246,5 @@ impl JournalHandler for ExtManager {
 
     fn reply_deposit(&mut self, _message_id: MessageId, future_reply_id: MessageId, amount: u64) {
         self.gas_limits.insert(future_reply_id, amount);
-    }
-
-    fn waiting_init_message(&mut self, _dispatch: IncomingDispatch, _destination: ProgramId) {
-        unimplemented!("Waiting init message is used for on-chain logic only");
     }
 }

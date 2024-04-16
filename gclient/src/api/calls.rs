@@ -533,6 +533,7 @@ impl GearApi {
         let program = self.0.api().gprog_at(program_id, block_hash).await?;
 
         assert!(program.static_pages.0 > 0);
+        // TODO: consider to remove `-1` may be it's a bug #3893
         let static_page_count = (program.static_pages.0 - 1) * WasmPage::SIZE / GearPage::SIZE;
 
         let program_pages = self
