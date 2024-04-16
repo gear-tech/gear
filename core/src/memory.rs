@@ -331,7 +331,7 @@ impl AllocationsContext {
                 Err(TryFromRangeError::IncorrectRange) => {
                     return Err(IncorrectAllocationDataError.into())
                 }
-                _ => {}
+                Ok(_) | Err(TryFromRangeError::EmptyRange) => {}
             };
 
             start = end
