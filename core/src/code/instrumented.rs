@@ -18,7 +18,12 @@
 
 //! Module for instrumented code.
 
-use crate::{code::CodeAndId, ids::CodeId, message::DispatchKind, pages::WasmPage};
+use crate::{
+    code::CodeAndId,
+    ids::CodeId,
+    message::DispatchKind,
+    pages::{WasmPage, WasmPagesAmount},
+};
 use alloc::{collections::BTreeSet, vec::Vec};
 use scale_info::{
     scale::{Decode, Encode},
@@ -31,7 +36,7 @@ pub struct InstrumentedCode {
     pub(crate) code: Vec<u8>,
     pub(crate) original_code_len: u32,
     pub(crate) exports: BTreeSet<DispatchKind>,
-    pub(crate) static_pages: WasmPage,
+    pub(crate) static_pages: WasmPagesAmount,
     pub(crate) stack_end: Option<WasmPage>,
     pub(crate) version: u32,
 }
@@ -46,7 +51,7 @@ impl InstrumentedCode {
         code: Vec<u8>,
         original_code_len: u32,
         exports: BTreeSet<DispatchKind>,
-        static_pages: WasmPage,
+        static_pages: WasmPagesAmount,
         stack_end: Option<WasmPage>,
         version: u32,
     ) -> Self {
@@ -81,7 +86,7 @@ impl InstrumentedCode {
     }
 
     /// Returns initial memory size from memory import.
-    pub fn static_pages(&self) -> WasmPage {
+    pub fn static_pages(&self) -> WasmPagesAmount {
         self.static_pages
     }
 

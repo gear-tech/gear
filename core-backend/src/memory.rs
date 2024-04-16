@@ -34,7 +34,7 @@ use gear_core::{
     buffer::{RuntimeBuffer, RuntimeBufferSizeError},
     env::Externalities,
     memory::{HostPointer, Memory, MemoryError, MemoryInterval},
-    pages::{PageNumber, PageU32Size, WasmPage},
+    pages::WasmPagesAmount,
 };
 use gear_core_errors::MemoryError as FallibleMemoryError;
 use gear_lazy_pages_common::ProcessAccessError;
@@ -55,13 +55,16 @@ where
 {
     type GrowError = gear_sandbox::Error;
 
-    fn grow(&mut self, pages: WasmPage) -> Result<(), Self::GrowError> {
-        self.memory.grow(self.caller, pages.raw()).map(|_| ())
+    fn grow(&mut self, pages: WasmPagesAmount) -> Result<(), Self::GrowError> {
+        self.memory.grow(self.caller, pages.into()).map(|_| ())
     }
 
-    fn size(&self) -> WasmPage {
-        WasmPage::new(self.memory.size(self.caller))
-            .expect("Unexpected backend behavior: wasm size is bigger then u32::MAX")
+    fn size(&self) -> WasmPagesAmount {
+        WasmPagesAmount::try_from(self.memory.size(self.caller)).unwrap_or_else(|_| {
+            unreachable!(
+                "Unexpected backend behavior: wasm size is bigger than possible in 32-bits address space"
+            )
+        })
     }
 
     fn write(&mut self, offset: u32, buffer: &[u8]) -> Result<(), MemoryError> {
@@ -111,13 +114,19 @@ where
 {
     type GrowError = gear_sandbox::Error;
 
-    fn grow(&mut self, pages: WasmPage) -> Result<(), Self::GrowError> {
-        self.memory.grow(&mut self.store, pages.raw()).map(|_| ())
+    fn grow(&mut self, pages: WasmPagesAmount) -> Result<(), Self::GrowError> {
+        self.memory.grow(&mut self.store, pages.into()).map(|_| ())
     }
 
-    fn size(&self) -> WasmPage {
-        WasmPage::new(self.memory.size(&self.store))
-            .expect("Unexpected backend behavior: wasm size is bigger then u32::MAX")
+    fn size(&self) -> WasmPagesAmount {
+        self.memory
+            .size(&self.store)
+            .try_into()
+            .unwrap_or_else(|_| {
+                unreachable!(
+                    "Unexpected backend behavior: memory size is bigger than possible in 32 bits address space"
+                )
+            })
     }
 
     fn write(&mut self, offset: u32, buffer: &[u8]) -> Result<(), MemoryError> {
@@ -455,7 +464,7 @@ mod tests {
         state::State,
     };
     use codec::Encode;
-    use gear_core::pages::WASM_PAGE_SIZE;
+    use gear_core::pages::WasmPage;
     use gear_sandbox::SandboxStore;
 
     type MemoryAccessRegistry =
@@ -645,7 +654,7 @@ mod tests {
         let mut caller_wrap = CallerWrap::new(&mut store);
         let memory = &mut caller_wrap.state_mut().memory;
         *memory = MockMemory::new(1);
-        let encoded = alloc::vec![7u8; WASM_PAGE_SIZE];
+        let encoded = alloc::vec![7u8; WasmPage::SIZE as usize];
         memory.write(0, &encoded).unwrap();
 
         let mut registry = MemoryAccessRegistry::default();
@@ -811,7 +820,7 @@ mod tests {
         let mut io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
         io.write_as(
             WasmMemoryWriteAs {
-                ptr: WASM_PAGE_SIZE as u32,
+                ptr: WasmPage::SIZE,
                 _phantom: PhantomData,
             },
             7u8,

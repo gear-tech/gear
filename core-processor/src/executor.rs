@@ -24,12 +24,7 @@ use crate::{
     configs::{BlockInfo, ExecutionSettings},
     ext::{ProcessorContext, ProcessorExternalities},
 };
-use alloc::{
-    collections::BTreeSet,
-    format,
-    string::{String, ToString},
-    vec::Vec,
-};
+use alloc::{collections::BTreeSet, format, string::String, vec::Vec};
 use gear_core::{
     code::InstrumentedCode,
     env::Externalities,
@@ -40,7 +35,7 @@ use gear_core::{
         ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext,
         WasmEntryPoint,
     },
-    pages::{PageU32Size, WasmPage},
+    pages::{WasmPage, WasmPagesAmount},
     program::{MemoryInfix, Program},
     reservation::GasReserver,
 };
@@ -56,11 +51,11 @@ use gear_core_backend::{
 /// Checks memory parameters, that are provided for wasm execution.
 /// NOTE: this params partially checked in `Code::try_new` in `gear-core`.
 fn validate_memory_params(
-    memory_size: WasmPage,
-    static_pages: WasmPage,
+    memory_size: WasmPagesAmount,
+    static_pages: WasmPagesAmount,
     stack_end: Option<WasmPage>,
     allocations: &BTreeSet<WasmPage>,
-    max_pages: WasmPage,
+    max_pages: WasmPagesAmount,
 ) -> Result<(), MemorySetupError> {
     if memory_size > max_pages {
         return Err(MemorySetupError::MemorySizeExceedsMaxPages {
@@ -331,16 +326,7 @@ where
     let program = Program::new(program_id, memory_infix, instrumented_code);
     let static_pages = program.static_pages();
     let allocations = allocations.unwrap_or_else(|| program.allocations().clone());
-
-    let memory_size = if let Some(page) = allocations.iter().next_back() {
-        page.inc()
-            .map_err(|err| err.to_string())
-            .expect("Memory size overflow, impossible")
-    } else if static_pages != WasmPage::from(0) {
-        static_pages
-    } else {
-        0.into()
-    };
+    let memory_size = allocations.last().map(|p| p.inc()).unwrap_or(static_pages);
 
     let message_context = MessageContext::new(
         IncomingDispatch::new(
@@ -472,7 +458,7 @@ mod tests {
                 4.into(),
                 2.into(),
                 Some(2.into()),
-                &iter::once(2.into()).collect(),
+                &iter::once(WasmPage::from(2)).collect(),
                 4.into(),
             ),
             Ok(())
@@ -525,7 +511,7 @@ mod tests {
                 4.into(),
                 2.into(),
                 Some(2.into()),
-                &iter::once(1.into()).collect(),
+                &iter::once(WasmPage::from(1)).collect(),
                 4.into(),
             ),
             Err(MemorySetupError::AllocatedPageOutOfAllowedInterval {
@@ -540,7 +526,7 @@ mod tests {
                 4.into(),
                 2.into(),
                 Some(2.into()),
-                &iter::once(4.into()).collect(),
+                &iter::once(WasmPage::from(4)).collect(),
                 4.into(),
             ),
             Err(MemorySetupError::AllocatedPageOutOfAllowedInterval {

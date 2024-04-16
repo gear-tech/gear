@@ -49,7 +49,6 @@ use gear_core::{
         ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext, Payload,
         ReplyInfo, StoredDispatch, UserStoredMessage,
     },
-    pages::PageNumber,
 };
 use gear_core_backend::error::{
     TrapExplanation, UnrecoverableExecutionError, UnrecoverableExtError, UnrecoverableWaitError,
@@ -3858,7 +3857,7 @@ fn gas_limit_exceeded_oob_case() {
 
 #[test]
 fn lazy_pages() {
-    use gear_core::pages::{GearPage, PageU32Size};
+    use gear_core::pages::GearPage;
     use gear_runtime_interface as gear_ri;
     use std::collections::BTreeSet;
 
@@ -3953,14 +3952,14 @@ fn lazy_pages() {
         expected_write_accessed_pages.insert(0);
 
         // released from 2 wasm page:
-        expected_write_accessed_pages.insert(0x23ffe / GearPage::size());
-        expected_write_accessed_pages.insert(0x24001 / GearPage::size());
+        expected_write_accessed_pages.insert(0x23ffe / GearPage::SIZE);
+        expected_write_accessed_pages.insert(0x24001 / GearPage::SIZE);
 
         // nothing for 5 wasm page, because it's just read access
 
         // released from 8 and 9 wasm pages, must be several gear pages:
-        expected_write_accessed_pages.insert(0x8fffc / GearPage::size());
-        expected_write_accessed_pages.insert(0x90003 / GearPage::size());
+        expected_write_accessed_pages.insert(0x8fffc / GearPage::SIZE);
+        expected_write_accessed_pages.insert(0x90003 / GearPage::SIZE);
 
         assert_eq!(write_accessed_pages, expected_write_accessed_pages);
     });
@@ -6311,7 +6310,7 @@ fn terminated_locking_funds() {
             .memory_weights
             .static_page
             .ref_time()
-            .saturating_mul(code.static_pages().raw() as u64);
+            .saturating_mul(u32::from(code.static_pages()) as u64);
 
         // Additional gas for loading resources on next wake up.
         // Must be exactly equal to gas, which we must pre-charge for program execution.
@@ -9818,14 +9817,16 @@ fn missing_handle_is_not_executed() {
 
 #[test]
 fn invalid_memory_page_amount_rejected() {
+    let incorrect_amount = code::MAX_WASM_PAGES_AMOUNT + 1;
+
     let wat = format!(
         r#"
-    (module
-        (import "env" "memory" (memory {}))
-        (export "init" (func $init))
-        (func $init)
-    )"#,
-        code::MAX_WASM_PAGE_AMOUNT + 1
+            (module
+                (import "env" "memory" (memory {incorrect_amount}))
+                (export "init" (func $init))
+                (func $init)
+            )
+        "#
     );
 
     init_logger();
