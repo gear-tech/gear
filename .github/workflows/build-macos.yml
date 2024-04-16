@@ -41,7 +41,7 @@ jobs:
       - name: "ACTIONS: Setup caching"
         uses: Swatinem/rust-cache@v2
         with:
-          key: "${{ matrix.profiles.name }}"
+          key: "${{ matrix.arch.name }}-${{ matrix.profiles.name }}"
           save-if: ${{ github.ref == 'refs/heads/master' }}
 
       - name: "Install: cargo-nextest"
