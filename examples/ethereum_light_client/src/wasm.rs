@@ -25,11 +25,12 @@ use gstd::{
 };
 use hex_literal::hex;
 use ssz_rs::{Deserialize, Merkleized, Node};
+use ark_serialize::CanonicalSerialize;
 
 #[derive(Debug, Default)]
 struct LightClientStore {
     finalized_header: Header,
-    current_sync_committee: SyncCommittee,
+    current_sync_committee: Vec<G1>,
     next_sync_committee: Option<SyncCommittee>,
     optimistic_header: Header,
     previous_max_active_participants: u64,
@@ -100,6 +101,28 @@ extern "C" fn init() {
     }
 
     let mut current_sync_committee = SyncCommittee::deserialize(&init_msg.current_sync_committee[..]).expect("Unable to deserialize current sync_committee");
+
+    let mut buffer = Vec::with_capacity(512);
+    current_sync_committee
+        .pubkeys
+        .as_ref()
+        .iter()
+        .zip(init_msg.pub_keys.0.iter())
+        .for_each(|(pub_key_compressed, pub_key)| {
+            buffer.clear();
+            <G1 as CanonicalSerialize>::serialize_compressed(&pub_key, &mut buffer).unwrap();
+            assert_eq!(pub_key_compressed.as_ref(), &buffer[..]);
+        });
+
+    // let _pub_key_aggregated = init_msg
+    //     .pub_keys
+    //     .0
+    //     .iter()
+    //     .skip(1)
+    //     .fold(init_msg
+    //         .pub_keys
+    //         .0[0], |pub_key_aggregated, pub_key| pub_key_aggregated + *pub_key);
+
     let current_sync_committee_branch = init_msg
         .current_sync_committee_branch
         .iter()
@@ -118,7 +141,7 @@ extern "C" fn init() {
         LAST_CHECKPOINT = Some(last_checkpoint);
         STORE = Some(LightClientStore {
             finalized_header,
-            current_sync_committee,
+            current_sync_committee: init_msg.pub_keys.0,
             next_sync_committee: None,
             optimistic_header,
             previous_max_active_participants: 0,

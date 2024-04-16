@@ -18,9 +18,9 @@
 
 use ark_bls12_381::{G1Affine, G1Projective as G1, G2Affine, G2Projective as G2};
 use ark_ec::Group;
-use ark_serialize::CanonicalSerialize;
+use ark_serialize::{CanonicalSerialize, CanonicalDeserialize};
 use ark_std::{ops::Mul, UniformRand};
-use demo_ethereum_light_client::{Header, SyncCommittee, Bytes32, Init, WASM_BINARY, primitives::U64, Handle, SignatureBytes};
+use demo_ethereum_light_client::{Header, SyncCommittee, Bytes32, Init, WASM_BINARY, primitives::U64, Handle, SignatureBytes, ArkScale};
 use gclient::{EventListener, EventProcessor, GearApi, Result};
 use gstd::prelude::*;
 use serde::{Deserialize, de::DeserializeOwned};
@@ -28,7 +28,6 @@ use eyre::Result as EyreResult;
 use ssz_rs::Serialize;
 use std::cmp;
 
-type ArkScale<T> = ark_scale::ArkScale<T, { ark_scale::HOST_CALL }>;
 type ScalarField = <G2 as Group>::ScalarField;
 
 // https://github.com/ethereum/consensus-specs/blob/dev/specs/altair/light-client/p2p-interface.md#configuration
@@ -197,8 +196,18 @@ async fn ethereum_light_client() -> Result<()> {
 
         buffer.clone()
     };
+    let pub_keys = bootstrap
+        .current_sync_committee
+        .pubkeys
+        .as_ref()
+        .iter()
+        .map(|pub_key_compressed| {
+            <G1 as CanonicalDeserialize>::deserialize_compressed_unchecked(&pub_key_compressed[..]).unwrap()
+        })
+        .collect::<Vec<_>>();
     let init = Init {
         last_checkpoint: hex::decode(&checkpoint[2..]).unwrap().try_into().unwrap(),
+        pub_keys: pub_keys.into(),
         optimistic_header: finalized_header.clone(),
         finalized_header,
         current_sync_committee,
@@ -237,7 +246,7 @@ async fn ethereum_light_client() -> Result<()> {
 
         let signature_serialized = {
             let mut signature_serialized = Vec::with_capacity(512);
-            signature.serialize_uncompressed(&signature_serialized).unwrap();
+            signature.serialize_uncompressed(&mut signature_serialized).unwrap();
 
             signature_serialized 
         };

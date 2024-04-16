@@ -21,6 +21,7 @@
 extern crate alloc;
 
 use alloc::{vec, vec::Vec};
+use ark_bls12_381::{G1Projective as G1, G2Projective as G2};
 use codec::{Decode, Encode};
 use ssz_rs::{prelude::SimpleSerialize, Deserialize, DeserializeError, Sized};
 
@@ -37,6 +38,8 @@ pub use code::WASM_BINARY_OPT as WASM_BINARY;
 
 #[cfg(not(feature = "std"))]
 mod wasm;
+
+pub type ArkScale<T> = ark_scale::ArkScale<T, { ark_scale::HOST_CALL }>;
 
 pub type Address = ByteVector<20>;
 pub type Bytes32 = ByteVector<32>;
@@ -62,10 +65,11 @@ pub struct SyncCommittee {
     pub aggregate_pubkey: BLSPubKey,
 }
 
-#[derive(Debug, Clone, Default, Decode, Encode)]
+#[derive(Debug, Clone, Decode, Encode)]
 #[codec(crate = codec)]
 pub struct Init {
     pub last_checkpoint: [u8; 32],
+    pub pub_keys: ArkScale<Vec<G1>>,
     // all next fields are ssz_rs serialized
     pub finalized_header: Vec<u8>,
     pub optimistic_header: Vec<u8>,

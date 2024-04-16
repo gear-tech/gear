@@ -2404,6 +2404,9 @@ dependencies = [
 name = "demo-ethereum_light_client"
 version = "0.1.0"
 dependencies = [
+ "ark-bls12-381",
+ "ark-scale 0.0.12",
+ "ark-serialize",
  "gear-wasm-builder",
  "gstd",
  "hex",
