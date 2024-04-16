@@ -319,22 +319,20 @@ struct InnerMockMemory {
 }
 
 impl InnerMockMemory {
-    fn grow(&mut self, pages: WasmPagesAmount) -> Result<(), Self::GrowError> {
-        let new_size = (pages.offset() as u32)
-            .checked_add(self.pages.len() as u32)
-            .ok_or(())?;
-
+    fn grow(&mut self, pages: WasmPagesAmount) -> u32 {
+        let size = self.pages.len() as u32;
+        let new_size = size + pages.offset() as u32;
         self.pages.resize(new_size as usize, 0);
 
-        Ok(())
+        size / WasmPage::SIZE
     }
 
-    fn write(&mut self, offset: u32, buffer: &[u8]) -> Result<(), MemoryError> {
+    fn write(&mut self, offset: u32, buffer: &[u8]) -> Result<(), Error> {
         self.write_attempt_count += 1;
 
         let offset = offset as usize;
         if offset + buffer.len() > self.pages.len() {
-            return Err(MemoryError::AccessOutOfBounds);
+            return Err(Error);
         }
 
         self.pages[offset..offset + buffer.len()].copy_from_slice(buffer);
@@ -342,12 +340,12 @@ impl InnerMockMemory {
         Ok(())
     }
 
-    fn read(&self, offset: u32, buffer: &mut [u8]) -> Result<(), MemoryError> {
+    fn read(&mut self, offset: u32, buffer: &mut [u8]) -> Result<(), Error> {
         self.read_attempt_count += 1;
 
         let offset = offset as usize;
         if offset + buffer.len() > self.pages.len() {
-            return Err(MemoryError::AccessOutOfBounds);
+            return Err(Error);
         }
 
         buffer.copy_from_slice(&self.pages[offset..(offset + buffer.len())]);
@@ -365,7 +363,7 @@ pub struct MockMemory(Rc<RefCell<InnerMockMemory>>);
 
 impl MockMemory {
     pub fn new(initial_pages: u32) -> Self {
-        let pages = vec![0; initial_pages as usize * WasmPage::SIZE];
+        let pages = vec![0; initial_pages as usize * WasmPage::SIZE as usize];
 
         Self(Rc::new(RefCell::new(InnerMockMemory {
             pages,
@@ -430,17 +428,15 @@ impl<T> SandboxMemory<T> for MockMemory {
     where
         Context: AsContextExt<State = T>,
     {
-        self.0
-            .borrow_mut()
-            .grow(new_pages.try_into().expect("Invalid pages amount"))
-            .map_err(Into::into)
+        let new_pages = new_pages.try_into().expect("Invalid pages amount");
+        Ok(self.0.borrow_mut().grow(new_pages))
     }
 
     fn size<Context>(&self, _ctx: &Context) -> u32
     where
         Context: AsContextExt<State = T>,
     {
-        self.0.borrow_mut().size().raw()
+        self.0.borrow_mut().size().into()
     }
 
     unsafe fn get_buff<Context>(&self, _ctx: &mut Context) -> u64

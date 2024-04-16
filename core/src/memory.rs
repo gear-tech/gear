@@ -468,21 +468,21 @@ mod tests {
         assert_eq!(ctx.free_range(interval), Ok(()));
     }
 
+    #[track_caller]
+    fn alloc_ok(ctx: &mut AllocationsContext, mem: &mut TestMemory, pages: u16, expected: u16) {
+        let res = ctx.alloc::<NoopGrowHandler>(pages.into(), mem, |_| Ok(()));
+        assert_eq!(res, Ok(expected.into()));
+    }
+
+    #[track_caller]
+    fn alloc_err(ctx: &mut AllocationsContext, mem: &mut TestMemory, pages: u16, err: AllocError) {
+        let res = ctx.alloc::<NoopGrowHandler>(pages.into(), mem, |_| Ok(()));
+        assert_eq!(res, Err(err));
+    }
+
     #[test]
     fn alloc() {
         let _ = env_logger::try_init();
-
-        let alloc_ok =
-            |ctx: &mut AllocationContext, mem: &mut TestMemory, pages: u16, expected: u16| {
-                let res = ctx.alloc::<NoopGrowHandler>(pages.into(), mem, |_| Ok(()));
-                assert_eq!(res, Ok(expected.into()));
-            };
-
-        let alloc_err =
-            |ctx: &mut AllocationContext, mem: &mut TestMemory, pages: u16, err: AllocError| {
-                let res = ctx.alloc::<NoopGrowHandler>(pages.into(), mem, |_| Ok(()));
-                assert_eq!(res, Err(err));
-            };
 
         let mut ctx = AllocationsContext::new(Default::default(), 16.into(), 256.into());
         let mut mem = TestMemory(16.into());
@@ -505,16 +505,21 @@ mod tests {
         alloc_ok(&mut ctx, &mut mem, 2, 117);
 
         // same as above, if we free_range 2 in a row we can allocate 2
-        ctx.free_range(117.into()..=118.into()).unwrap();
+        let interval = Interval::<WasmPage>::try_from(117..119).unwrap();
+        ctx.free_range(interval).unwrap();
         alloc_ok(&mut ctx, &mut mem, 2, 117);
 
         // but if 2 are not in a row, bad luck
         ctx.free(117.into()).unwrap();
         ctx.free(158.into()).unwrap();
         alloc_err(&mut ctx, &mut mem, 2, AllocError::ProgramAllocOutOfBounds);
+    }
 
-        // test incorrect allocation data now
-        let allocations = [1.into()].into_iter().collect();
+    #[test]
+    fn alloc_incorrect_data() {
+        let _ = env_logger::try_init();
+
+        let allocations: BTreeSet<WasmPage> = [1.into()].into_iter().collect();
 
         let mut ctx = AllocationsContext::new(allocations.clone(), 10.into(), 13.into());
         let mut mem = TestMemory(0.into());
@@ -528,7 +533,7 @@ mod tests {
         let mut ctx =
             AllocationsContext::new(allocations.clone(), 10.into(), WasmPagesAmount::UPPER);
         let mut mem = TestMemory(0.into());
-        alloc_err(&mut ctx, &mut mem, 1, AllocError::ProgramAllocOutOfBounds);
+        alloc_err(&mut ctx, &mut mem, 1, IncorrectAllocationDataError.into());
     }
 
     mod property_tests {
@@ -610,10 +615,7 @@ mod tests {
                 let _ = env_logger::try_init();
 
                 let mut ctx = AllocationsContext::new(allocations, static_pages, max_pages);
-                let mut mem = TestMemory {
-                    max_pages: WasmPage::from(u16::MAX),
-                    size: mem_size,
-                };
+                let mut mem = TestMemory(mem_size);
 
                 for action in actions {
                     match action {
