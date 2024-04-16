@@ -71,7 +71,7 @@ impl SyscallsParamsConfig {
 
         // Setting regular params rules.
         self.with_rule(Length, (0..=1600).into())
-            .with_rule(Gas, (0..=250_000_000_000).into())
+            .with_rule(Gas, (0..=10_000_000_000).into())
             .with_rule(Offset, (0..=10).into())
             .with_rule(DurationBlockNumber, (1..=8).into())
             .with_rule(DelayBlockNumber, (0..=4).into())
@@ -87,9 +87,15 @@ impl SyscallsParamsConfig {
         self.with_ptr_rule(PtrParamAllowedValues::Value(range.clone()))
             .with_ptr_rule(PtrParamAllowedValues::ActorIdWithValue {
                 actor_kind: ActorKind::default(),
-                range,
+                range: range.clone(),
             })
             .with_ptr_rule(PtrParamAllowedValues::ActorId(ActorKind::default()))
+            .with_ptr_rule(PtrParamAllowedValues::ReservationIdWithValue(range.clone()))
+            .with_ptr_rule(PtrParamAllowedValues::ReservationIdWithActorIdAndValue {
+                actor_kind: ActorKind::default(),
+                range,
+            })
+            .with_ptr_rule(PtrParamAllowedValues::ReservationId)
     }
 
     /// Set rules for a regular syscall param.
@@ -112,6 +118,13 @@ impl SyscallsParamsConfig {
             PtrParamAllowedValues::Value(_) => Ptr::Value,
             PtrParamAllowedValues::ActorIdWithValue { .. } => Ptr::HashWithValue(HashType::ActorId),
             PtrParamAllowedValues::ActorId(_) => Ptr::Hash(HashType::ActorId),
+            PtrParamAllowedValues::ReservationIdWithValue(_) => {
+                Ptr::HashWithValue(HashType::ReservationId)
+            }
+            PtrParamAllowedValues::ReservationIdWithActorIdAndValue { .. } => {
+                Ptr::TwoHashesWithValue(HashType::ReservationId, HashType::ActorId)
+            }
+            PtrParamAllowedValues::ReservationId => Ptr::Hash(HashType::ReservationId),
         };
 
         self.ptr.insert(ptr, allowed_values);
@@ -242,6 +255,16 @@ pub enum PtrParamAllowedValues {
     },
     /// Variant of `Ptr::Hash` pointer type, where hash is actor id.
     ActorId(ActorKind),
+    /// Variant of `Ptr::HashWithValue` pointer type, where hash is reservation id.
+    ReservationIdWithValue(RangeInclusive<u128>),
+    /// Variant of `Ptr::TwoHashesWithValue` pointer type, where hashes are
+    /// reservation id and actor id.
+    ReservationIdWithActorIdAndValue {
+        actor_kind: ActorKind,
+        range: RangeInclusive<u128>,
+    },
+    /// Variant of `Ptr::Hash` pointer type, where hash is reservation id.
+    ReservationId,
 }
 
 /// Actor kind, which is actually a syscall destination choice.

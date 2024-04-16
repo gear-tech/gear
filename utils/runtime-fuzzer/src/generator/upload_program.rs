@@ -98,9 +98,16 @@ fn config(
     current_balance: Balance,
 ) -> StandardGearWasmConfigsBundle {
     let initial_pages = 2;
-    let mut injection_types = SyscallsInjectionTypes::all_once();
+    let mut injection_types = SyscallsInjectionTypes::all_with_range(1..=3);
     injection_types.set_multiple(
         [
+            (SyscallName::SendInit, 3..=5),
+            (SyscallName::ReserveGas, 3..=5),
+            (SyscallName::Debug, 0..=1),
+            (SyscallName::Wait, 0..=1),
+            (SyscallName::WaitFor, 0..=1),
+            (SyscallName::WaitUpTo, 0..=1),
+            (SyscallName::Wake, 0..=1),
             (SyscallName::Leave, 0..=0),
             (SyscallName::Panic, 0..=0),
             (SyscallName::OomPanic, 0..=0),
@@ -146,7 +153,15 @@ fn config(
         .with_ptr_rule(PtrParamAllowedValues::ActorIdWithValue {
             actor_kind: actor_kind.clone(),
             range: EXISTENTIAL_DEPOSIT..=max_value,
-        });
+        })
+        .with_ptr_rule(PtrParamAllowedValues::ReservationIdWithValue(
+            EXISTENTIAL_DEPOSIT..=max_value,
+        ))
+        .with_ptr_rule(PtrParamAllowedValues::ReservationIdWithActorIdAndValue {
+            actor_kind: actor_kind.clone(),
+            range: EXISTENTIAL_DEPOSIT..=max_value,
+        })
+        .with_ptr_rule(PtrParamAllowedValues::ReservationId);
 
     StandardGearWasmConfigsBundle {
         entry_points_set: EntryPointsSet::InitHandleHandleReply,

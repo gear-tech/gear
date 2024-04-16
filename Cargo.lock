@@ -4881,6 +4881,7 @@ dependencies = [
  "gear-utils",
  "gear-wasm-instrument",
  "gsys",
+ "indexmap 2.2.6",
  "indicatif",
  "log",
  "proptest",
