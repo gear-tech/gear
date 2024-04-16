@@ -35,7 +35,7 @@ use gear_core::{
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::PageBuf,
     message::{Dispatch, MessageWaitedType, StoredDispatch},
-    pages::{GearPage, WasmPage},
+    pages::{numerated::tree::IntervalsTree, GearPage, WasmPage},
     reservation::GasReserver,
 };
 use gear_core_errors::SignalCode;
@@ -338,11 +338,7 @@ where
         });
     }
 
-    fn update_allocations(
-        &mut self,
-        program_id: ProgramId,
-        allocations: gear_core::pages::IntervalsTree<WasmPage>,
-    ) {
+    fn update_allocations(&mut self, program_id: ProgramId, allocations: IntervalsTree<WasmPage>) {
         ProgramStorageOf::<T>::update_active_program(program_id, |p| {
             for page in p.allocations.difference(&allocations).flat_map(|i| i.iter()).flat_map(|p| p.to_iter()) {
                 if p.pages_with_data.contains(page) {

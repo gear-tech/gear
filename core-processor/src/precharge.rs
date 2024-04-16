@@ -32,7 +32,7 @@ use gear_core::{
     gas::{ChargeResult, GasAllowanceCounter, GasCounter},
     ids::ProgramId,
     message::{IncomingDispatch, MessageWaitedType},
-    pages::{IntervalsTree, WasmPage, WasmPagesAmount},
+    pages::{numerated::tree::IntervalsTree, WasmPage, WasmPagesAmount},
 };
 
 /// Operation related to gas charging.

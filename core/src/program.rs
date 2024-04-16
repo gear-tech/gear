@@ -21,7 +21,7 @@
 use crate::{
     code::InstrumentedCode,
     ids::ProgramId,
-    pages::{IntervalsTree, WasmPage, WasmPagesAmount},
+    pages::{numerated::tree::IntervalsTree, WasmPage, WasmPagesAmount},
 };
 use scale_info::{
     scale::{Decode, Encode},

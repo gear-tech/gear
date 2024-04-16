@@ -24,7 +24,7 @@ use frame_support::{dispatch::RawOrigin, traits::PalletInfo};
 use gear_core::{
     code::TryNewCodeConfig,
     message::ReplyInfo,
-    pages::{IntervalsTree, WasmPage},
+    pages::{numerated::tree::IntervalsTree, WasmPage},
     program::MemoryInfix,
 };
 use gear_wasm_instrument::syscalls::SyscallName;

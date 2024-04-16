@@ -58,7 +58,7 @@ use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
     memory::PageBuf,
     message::DispatchKind,
-    pages::{GearPage, IntervalsTree, WasmPage, WasmPagesAmount},
+    pages::{numerated::tree::IntervalsTree, GearPage, WasmPage, WasmPagesAmount},
     program::MemoryInfix,
     reservation::GasReservationMap,
 };
