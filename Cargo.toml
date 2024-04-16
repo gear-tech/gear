@@ -34,6 +34,7 @@ members = [
     "examples/constructor",
     "examples/delayed-sender",
     "examples/distributor",
+    "examples/ethereum_light_client",
     "examples/fungible-token",
     "examples/stack-allocations",
     "examples/futures-unordered",
@@ -145,7 +146,7 @@ regex = "^1.9"
 region = "3.0.2"
 reqwest = { version = "0.11.27", default-features = false }
 scale-info = { version = "2.5.0", default-features = false }
-serde = "^1"
+serde = { version = "^1", default-features = false }
 serde_json = "^1"
 serde_yaml = "0.8.26"
 sha-1 = "0.10.1"
@@ -399,6 +400,7 @@ demo-compose = { path = "examples/compose" }
 demo-constructor = { path = "examples/constructor", default-features = false }
 demo-delayed-sender = { path = "examples/delayed-sender" }
 demo-distributor = { path = "examples/distributor" }
+demo-ethereum_light_client = { path = "examples/ethereum_light_client", default-features = false }
 demo-futures-unordered = { path = "examples/futures-unordered", features = ["debug"] }
 demo-gas-burned = { path = "examples/gas-burned" }
 demo-fungible-token = { path = "examples/fungible-token" }

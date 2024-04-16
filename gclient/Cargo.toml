@@ -36,6 +36,7 @@ demo-calc-hash-in-one-block.workspace = true
 demo-custom.workspace = true
 demo-constructor = { workspace = true, features = ["std"] }
 demo-distributor.workspace = true
+demo-ethereum_light_client = { workspace = true, features = ["serde", "std"] }
 demo-meta-io.workspace = true
 demo-new-meta.workspace = true
 demo-mul-by-const.workspace = true
@@ -54,3 +55,8 @@ ark-bls12-381 = { workspace = true, features = ["curve"] }
 ark-ec = { workspace = true }
 ark-ff = { workspace = true }
 ark-std = { workspace = true }
+serde = { workspace = true, features = ["derive", "std"] }
+reqwest = "0.11.27"
+eyre = "0.6.12"
+serde_json.workspace = true
+ssz_rs = { version = "0.9.0" }

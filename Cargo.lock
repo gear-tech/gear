@@ -2401,6 +2401,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-ethereum_light_client"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+ "hex",
+ "hex-literal",
+ "parity-scale-codec",
+ "serde",
+ "ssz_rs",
+]
+
+[[package]]
 name = "demo-fungible-token"
 version = "0.1.4"
 dependencies = [
@@ -3408,9 +3421,9 @@ dependencies = [
 
 [[package]]
 name = "eyre"
-version = "0.6.8"
+version = "0.6.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4c2b6b5a29c02cdc822728b7d7b8ae1bab3e3b05d44522770ddd49722eeac7eb"
+checksum = "7cd915d99f24784cdc19fd37ef22b97e3ff0ae756c7e492e9fbfe897d61e2aec"
 dependencies = [
  "indenter",
  "once_cell",
@@ -4203,6 +4216,7 @@ dependencies = [
  "demo-constructor",
  "demo-custom",
  "demo-distributor",
+ "demo-ethereum_light_client",
  "demo-meta-io",
  "demo-mul-by-const",
  "demo-new-meta",
@@ -4213,6 +4227,7 @@ dependencies = [
  "demo-reserve-gas",
  "demo-wat",
  "env_logger",
+ "eyre",
  "futures",
  "gear-core",
  "gear-core-errors",
@@ -4224,6 +4239,10 @@ dependencies = [
  "hex-literal",
  "log",
  "parity-scale-codec",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "ssz_rs",
  "subxt",
  "thiserror",
  "tokio",
@@ -11757,9 +11776,9 @@ checksum = "826167069c09b99d56f31e9ae5c99049e932a98c9dc2dac47645b08dbbf76ba7"
 
 [[package]]
 name = "smallvec"
-version = "1.11.0"
+version = "1.13.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "62bb4feee49fdd9f707ef802e22365a35de4b7b299de4763d44bfea899442ff9"
+checksum = "3c5e1a9a646d36c3599cd173a41282daf47c44583ad367b8e6837255952e5c67"
 
 [[package]]
 name = "smol"
@@ -12724,6 +12743,31 @@ dependencies = [
  "serde",
  "serde_json",
  "unicode-xid",
+]
+
+[[package]]
+name = "ssz_rs"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "057291e5631f280978fa9c8009390663ca4613359fc1318e36a8c24c392f6d1f"
+dependencies = [
+ "bitvec",
+ "hex",
+ "num-bigint",
+ "serde",
+ "sha2 0.9.9",
+ "ssz_rs_derive",
+]
+
+[[package]]
+name = "ssz_rs_derive"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f07d54c4d01a1713eb363b55ba51595da15f6f1211435b71466460da022aa140"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
 ]
 
 [[package]]
