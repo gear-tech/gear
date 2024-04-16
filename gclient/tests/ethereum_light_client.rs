@@ -20,15 +20,20 @@ use ark_bls12_381::{G1Affine, G1Projective as G1, G2Affine, G2Projective as G2};
 use ark_ec::Group;
 use ark_serialize::CanonicalSerialize;
 use ark_std::{ops::Mul, UniformRand};
-use demo_ethereum_light_client::{Header, SyncCommittee, Bytes32, Init, WASM_BINARY};
+use demo_ethereum_light_client::{Header, SyncCommittee, Bytes32, Init, WASM_BINARY, primitives::U64, Handle, SignatureBytes};
 use gclient::{EventListener, EventProcessor, GearApi, Result};
 use gstd::prelude::*;
 use serde::{Deserialize, de::DeserializeOwned};
 use eyre::Result as EyreResult;
 use ssz_rs::Serialize;
+use std::cmp;
 
 type ArkScale<T> = ark_scale::ArkScale<T, { ark_scale::HOST_CALL }>;
 type ScalarField = <G2 as Group>::ScalarField;
+
+// https://github.com/ethereum/consensus-specs/blob/dev/specs/altair/light-client/p2p-interface.md#configuration
+pub const MAX_REQUEST_LIGHT_CLIENT_UPDATES: u8 = 128;
+const RPC_URL: &str = "http://unstable.sepolia.beacon-api.nimbus.team";
 
 #[derive(Deserialize)]
 #[serde(untagged)]
@@ -67,6 +72,32 @@ struct BootstrapResponse {
     data: Bootstrap,
 }
 
+#[derive(Deserialize, Debug, Clone, Default)]
+pub struct SyncAggregate {
+    pub sync_committee_bits: ssz_rs::Bitvector<512>,
+    pub sync_committee_signature: SignatureBytes,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct Update {
+    #[serde(deserialize_with = "header_deserialize")]
+    pub attested_header: Header,
+    pub next_sync_committee: SyncCommittee,
+    pub next_sync_committee_branch: Vec<Bytes32>,
+    #[serde(deserialize_with = "header_deserialize")]
+    pub finalized_header: Header,
+    pub finality_branch: Vec<Bytes32>,
+    pub sync_aggregate: SyncAggregate,
+    pub signature_slot: U64,
+}
+
+type UpdateResponse = Vec<UpdateData>;
+
+#[derive(Deserialize, Debug)]
+struct UpdateData {
+    data: Update,
+}
+
 async fn get<R: DeserializeOwned>(req: &str) -> EyreResult<R> {
     let bytes = reqwest::get(req).await?.bytes().await?;
 
@@ -75,7 +106,7 @@ async fn get<R: DeserializeOwned>(req: &str) -> EyreResult<R> {
 
 async fn get_bootstrap(checkpoint: &str) -> EyreResult<Bootstrap> {
     let req = format!(
-        "http://unstable.sepolia.beacon-api.nimbus.team/eth/v1/beacon/light_client/bootstrap/{checkpoint}",
+        "{RPC_URL}/eth/v1/beacon/light_client/bootstrap/{checkpoint}",
     );
 
     let res: BootstrapResponse = get(&req).await.map_err(|e| {
@@ -84,6 +115,22 @@ async fn get_bootstrap(checkpoint: &str) -> EyreResult<Bootstrap> {
     })?;
 
     Ok(res.data)
+}
+
+async fn get_updates(period: u64, count: u8) -> EyreResult<Vec<Update>> {
+    let count = cmp::min(count, MAX_REQUEST_LIGHT_CLIENT_UPDATES);
+    let req = format!(
+        "{RPC_URL}/eth/v1/beacon/light_client/updates?start_period={}&count={}",
+        period, count
+    );
+
+    let res: UpdateResponse = get(&req).await.map_err(|e| {
+        log::trace!("get updates: {e:?}");
+
+        e
+    })?;
+
+    Ok(res.into_iter().map(|d| d.data).collect())
 }
 
 async fn common_upload_program(
@@ -172,6 +219,35 @@ async fn ethereum_light_client() -> Result<()> {
         init,
     )
     .await?;
+
+    let current_period = demo_ethereum_light_client::calc_sync_period(bootstrap.header.slot.into());
+    let updates = get_updates(current_period, MAX_REQUEST_LIGHT_CLIENT_UPDATES)
+        .await
+        .map_err(|e| anyhow::Error::msg(e.to_string()))?;
+
+    for update in updates {
+        println!("111");
+        let signature = <G2 as ark_serialize::CanonicalDeserialize>::deserialize_compressed(update.sync_aggregate.sync_committee_signature.as_ref());
+        println!("222");
+        // println!("signature = {signature:?}");
+
+        let Ok(signature) = signature else {
+            continue;
+        };
+
+        let signature_serialized = {
+            let mut signature_serialized = Vec::with_capacity(512);
+            signature.serialize_uncompressed(&signature_serialized).unwrap();
+
+            signature_serialized 
+        };
+
+        println!("update.sync_aggregate.sync_committee_signature.len = {}", update.sync_aggregate.sync_committee_signature.as_ref().len());
+        println!("signature_serialized.len = {}", signature_serialized.len());
+
+        // self.verify_update(&update)?;
+        // self.apply_update(&update);
+    }
 
     // let message: ArkScale<Vec<G1Affine>> = vec![message].into();
     // let message_bytes = message.encode();

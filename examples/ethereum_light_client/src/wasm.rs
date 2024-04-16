@@ -129,7 +129,16 @@ extern "C" fn init() {
 
 #[gstd::async_main]
 async fn main() {
-    // let msg: HandleMessage = msg::load().expect("Unable to decode `HandleMessage`");
+    let msg: Handle = msg::load().expect("Unable to decode `HandleMessage`");
+    let Handle::Update {
+        update,
+        signature_slot,
+        sync_committee_signature,
+        next_sync_committee_branch,
+        finality_branch,
+    } = msg;
+
+    let update = Update::deserialize(&update[..]).expect("Unable to deserialize Update");
     // let contract = unsafe { CONTRACT.as_mut().expect("The contract is not initialized") };
 
     // match msg {

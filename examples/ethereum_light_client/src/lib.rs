@@ -72,3 +72,33 @@ pub struct Init {
     pub current_sync_committee: Vec<u8>,
     pub current_sync_committee_branch: Vec<[u8; 32]>,
 }
+
+#[derive(Debug, Clone, Default, SimpleSerialize)]
+pub struct Update {
+    pub attested_header: Header,
+    pub sync_committee_bits: ssz_rs::Bitvector<512>,
+    pub next_sync_committee: Option<SyncCommittee>,
+    pub finalized_header: Option<Header>,
+}
+
+#[derive(Debug, Clone, Decode, Encode)]
+#[codec(crate = codec)]
+pub enum Handle {
+    Update {
+        // ssz_rs serialized Update struct
+        update: Vec<u8>,
+        signature_slot: u64,
+        // serialized without compression
+        sync_committee_signature: Vec<u8>,
+        next_sync_committee_branch: Option<Vec<[u8; 32]>>,
+        finality_branch: Option<Vec<[u8; 32]>>,
+    },
+}
+
+pub fn calc_sync_period(slot: u64) -> u64 {
+    // 32 slots per epoch
+    let epoch = slot / 32;
+
+    // 256 epochs per sync committee
+    epoch / 256
+}
