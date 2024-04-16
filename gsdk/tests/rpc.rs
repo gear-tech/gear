@@ -129,7 +129,10 @@ async fn test_calculate_handle_gas() -> Result<()> {
         )
         .await?;
 
-    assert!(signer.api().gprog(pid).await.is_ok());
+    assert!(
+        signer.api().gprog(pid).await.is_ok(),
+        "Program not exists on chain."
+    );
 
     // 2. calculate handle gas and send message.
     let gas_info = signer
@@ -171,7 +174,10 @@ async fn test_calculate_reply_gas() -> Result<()> {
         )
         .await?;
 
-    assert!(signer.api().gprog(pid).await.is_ok());
+    assert!(
+        signer.api().gprog(pid).await.is_ok(),
+        "Program not exists on chain"
+    );
 
     // 2. send wait message.
     signer
@@ -322,7 +328,11 @@ async fn test_original_code_storage() -> Result<()> {
         .original_code_storage_at(program.code_hash.0.into(), Some(block_hash))
         .await?;
 
-    assert_eq!(code, demo_messenger::WASM_BINARY.to_vec());
+    assert_eq!(
+        code,
+        demo_messenger::WASM_BINARY.to_vec(),
+        "Program code mismatched"
+    );
 
     Ok(())
 }
@@ -362,7 +372,7 @@ async fn query_program_counters(
     let (block_hash, block_number) = match block_hash {
         Some(hash) => {
             let block = client_block.at(hash).await?;
-            assert_eq!(hash, block.hash());
+            assert_eq!(hash, block.hash(), "block hash mismatched");
 
             (hash, block.number())
         }

@@ -46,12 +46,13 @@ async fn set_code_failed() {
         .await
         .unwrap_err();
 
-    if !matches!(
-        err,
-        gclient::Error::Module(ModuleError::System(
-            errors::System::SpecVersionNeedsToIncrease
-        ))
-    ) {
-        panic!("Unexpected error: {:?}", err);
-    }
+    assert!(
+        matches!(
+            err,
+            gclient::Error::Module(ModuleError::System(
+                errors::System::SpecVersionNeedsToIncrease
+            ))
+        ),
+        "{err:?}"
+    );
 }

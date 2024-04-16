@@ -34,12 +34,15 @@ async fn transfer_backtrace() -> Result<()> {
         .get(tx.extrinsic_hash())
         .expect("Failed to get backtrace of transfer");
 
-    assert!(matches!(
-        backtrace.values().collect::<Vec<_>>()[..],
-        [
-            BacktraceStatus::InBestBlock { .. },
-            BacktraceStatus::InFinalizedBlock { .. },
-        ]
-    ));
+    assert!(
+        matches!(
+            backtrace.values().collect::<Vec<_>>()[..],
+            [
+                BacktraceStatus::InBestBlock { .. },
+                BacktraceStatus::InFinalizedBlock { .. },
+            ]
+        ),
+        "Event backtrace mismatched"
+    );
     Ok(())
 }
