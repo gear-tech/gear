@@ -250,21 +250,6 @@ pub mod pallet {
     }
 
     impl<T: Config> Pallet<T> {
-        /// Getter for [`TargetInflation<T>`](TargetInflation)
-        pub fn target_inflation() -> Perquintill {
-            TargetInflation::<T>::get()
-        }
-
-        /// Getter for [`IdealStackingRation<T>`](IdealStakingRation)
-        pub fn ideal_staking_ratio() -> Perquintill {
-            IdealStakingRatio::<T>::get()
-        }
-
-        /// Getter for [`NonStakeableShare<T>`](NonStakeableShare)
-        pub fn non_stakeable_share() -> Perquintill {
-            NonStakeableShare::<T>::get()
-        }
-
         /// Getter for [`FilteredAccounts<T>`](FilteredAccounts)
         pub fn filtered_accounts() -> BTreeSet<T::AccountId> {
             FilteredAccounts::<T>::get()
@@ -386,7 +371,7 @@ pub mod pallet {
         /// This value is not calculated but rather updated manually in line with tokenomics model.
         pub fn total_stakeable_tokens() -> BalanceOf<T> {
             // Should never be 0 but in theory could
-            (Self::non_stakeable_share().left_from_one() * T::Currency::total_issuance())
+            (NonStakeableShare::<T>::get().left_from_one() * T::Currency::total_issuance())
                 .saturating_sub(Self::pool())
         }
 
@@ -401,9 +386,9 @@ pub mod pallet {
                 total_staked,
                 Self::total_stakeable_tokens(),
                 total_issuance,
-                Self::ideal_staking_ratio(),
+                IdealStakingRatio::<T>::get(),
                 T::MinInflation::get(),
-                Self::target_inflation(),
+                TargetInflation::<T>::get(),
                 T::Falloff::get(),
                 T::MaxROI::get(),
                 Perquintill::one(),
@@ -478,9 +463,9 @@ impl<T: Config> EraPayout<BalanceOf<T>> for Pallet<T> {
             total_staked,
             Self::total_stakeable_tokens(),
             total_issuance,
-            Self::ideal_staking_ratio(),
+            IdealStakingRatio::<T>::get(),
             T::MinInflation::get(),
-            Self::target_inflation(),
+            TargetInflation::<T>::get(),
             T::Falloff::get(),
             T::MaxROI::get(),
             period_fraction,

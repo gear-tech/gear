@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{mock::*, GasMultiplier, *};
+use crate::{mock::*, UnusedValue, GasMultiplier, *};
 use frame_support::{assert_noop, assert_ok};
 use sp_runtime::{traits::Zero, StateVersion};
 use utils::*;
@@ -293,7 +293,7 @@ fn withdraw_gas_small_amount_user_account_deleted() {
 
         assert_ok!(GearBank::withdraw_gas(&ALICE, GAS_AMOUNT, mult()));
 
-        assert_eq!(GearBank::unused_value(), GAS_VALUE_AMOUNT);
+        assert_eq!(UnusedValue::<Test>::get(), GAS_VALUE_AMOUNT);
         assert_balance(&BANK_ADDRESS, EXISTENTIAL_DEPOSIT + GAS_VALUE_AMOUNT);
 
         assert_bank_balance(0, 0);
@@ -539,7 +539,7 @@ fn spend_gas_small_amount_validator_account_deleted() {
 
         assert_ok!(GearBank::spend_gas(&ALICE, GAS_AMOUNT, mult()));
 
-        assert_eq!(GearBank::unused_value(), GAS_VALUE_AMOUNT);
+        assert_eq!(UnusedValue::<Test>::get(), GAS_VALUE_AMOUNT);
         assert_balance(&BANK_ADDRESS, EXISTENTIAL_DEPOSIT + GAS_VALUE_AMOUNT);
 
         assert_bank_balance(0, 0);
@@ -881,7 +881,7 @@ fn withdraw_value_small_amount_user_account_deleted() {
 
         assert_ok!(GearBank::withdraw_value(&ALICE, VALUE));
 
-        assert_eq!(GearBank::unused_value(), VALUE);
+        assert_eq!(UnusedValue::<Test>::get(), VALUE);
         assert_balance(&BANK_ADDRESS, EXISTENTIAL_DEPOSIT + VALUE);
 
         assert_bank_balance(0, 0);
@@ -1165,7 +1165,7 @@ fn transfer_value_small_amount_destination_account_deleted() {
 
         assert_ok!(GearBank::transfer_value(&ALICE, &CHARLIE, VALUE));
 
-        assert_eq!(GearBank::unused_value(), VALUE);
+        assert_eq!(UnusedValue::<Test>::get(), VALUE);
         assert_balance(&BANK_ADDRESS, EXISTENTIAL_DEPOSIT + VALUE);
 
         assert_bank_balance(0, 0);
@@ -1191,7 +1191,7 @@ fn transfer_value_small_amount_self_account_deleted() {
 
         assert_ok!(GearBank::transfer_value(&ALICE, &ALICE, VALUE));
 
-        assert_eq!(GearBank::unused_value(), VALUE);
+        assert_eq!(UnusedValue::<Test>::get(), VALUE);
         assert_balance(&BANK_ADDRESS, EXISTENTIAL_DEPOSIT + VALUE);
 
         assert_bank_balance(0, 0);
@@ -1491,7 +1491,7 @@ mod utils {
         let gas_value = gas_price(gas);
         assert_balance(
             &BANK_ADDRESS,
-            CurrencyOf::<Test>::minimum_balance() + GearBank::unused_value() + gas_value + value,
+            CurrencyOf::<Test>::minimum_balance() + UnusedValue::<Test>::get() + gas_value + value,
         );
     }
 

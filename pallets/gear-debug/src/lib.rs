@@ -243,34 +243,17 @@ pub mod pallet {
         }
 
         fn is_enabled() -> bool {
-            Self::debug_mode()
+            DebugMode::<T>::get()
         }
 
         fn is_remap_id_enabled() -> bool {
-            Self::remap_program_id()
+            RemapId::<T>::get()
         }
 
         fn remap_id() {
             let programs_map = ProgramsMap::<T>::get();
 
             QueueOf::<T>::mutate_values(|d| remap_with(d, &programs_map));
-        }
-    }
-
-    impl<T: Config> Pallet<T> {
-        /// Getter for [`DebugMode<T>`](DebugMode<T>)
-        pub fn debug_mode() -> bool {
-            DebugMode::<T>::get()
-        }
-
-        /// Getter for [`RemapId<T>`](RemapId)
-        pub fn remap_program_id() -> bool {
-            RemapId::<T>::get()
-        }
-
-        /// Getter for [`ProgramsMap<T>`](ProgramsMap)
-        pub fn programs_map() -> BTreeMap<H256, H256> {
-            ProgramsMap::<T>::get()
         }
     }
 

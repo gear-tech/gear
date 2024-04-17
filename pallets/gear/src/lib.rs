@@ -516,7 +516,7 @@ pub mod pallet {
             // Check if the queue has been processed.
             // If not (while the queue processing enabled), fire an event and revert
             // the Gear internal block number increment made in `on_initialize()`.
-            if GearRunInBlock::<T>::take().is_none() && Self::execute_inherent() {
+            if GearRunInBlock::<T>::take().is_none() && ExecuteInherent::<T>::get() {
                 Self::deposit_event(Event::QueueNotProcessed);
                 BlockNumber::<T>::mutate(|bn| {
                     *bn = bn.saturating_sub(One::one());
@@ -528,11 +528,6 @@ pub mod pallet {
     }
 
     impl<T: Config> Pallet<T> {
-        /// Getter for [`ExecuteInherent<T>`](ExecuteInherent)
-        pub(crate) fn execute_inherent() -> bool {
-            ExecuteInherent::<T>::get()
-        }
-
         /// Getter for [`BlockNumberFor<T>`] (BlockNumberFor)
         pub(crate) fn block_number() -> BlockNumberFor<T> {
             BlockNumber::<T>::get()
