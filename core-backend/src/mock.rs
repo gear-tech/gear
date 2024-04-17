@@ -24,7 +24,7 @@ use crate::{
 };
 use alloc::{collections::BTreeSet, rc::Rc, vec, vec::Vec};
 use codec::{Decode, Encode};
-use core::{fmt, fmt::Debug};
+use core::{cell::RefCell, fmt, fmt::Debug, mem};
 use gear_core::{
     costs::CostToken,
     env::{Externalities, PayloadSliceLock, UnlockPayloadBound},
@@ -33,13 +33,12 @@ use gear_core::{
     ids::{MessageId, ProgramId, ReservationId},
     memory::{Memory, MemoryInterval},
     message::{HandlePacket, InitPacket, ReplyPacket},
-    pages::{PageNumber, PageU32Size, WasmPage, WASM_PAGE_SIZE},
+    pages::{WasmPage, WasmPagesAmount},
 };
 use gear_core_errors::{ReplyCode, SignalCode};
 use gear_lazy_pages_common::ProcessAccessError;
 use gear_sandbox::{default_executor::Store, AsContextExt, SandboxMemory};
 use gear_wasm_instrument::syscalls::SyscallName;
-use std::{cell::RefCell, mem};
 
 /// Mock error
 #[derive(Debug, Clone, Encode, Decode)]
@@ -319,40 +318,23 @@ struct InnerMockMemory {
 }
 
 impl InnerMockMemory {
-    fn grow(&mut self, new_pages: u32) -> u32 {
-        let current_pages = self.pages.len() / WASM_PAGE_SIZE;
-        let new_size = self.pages.len() + (new_pages as usize) * WASM_PAGE_SIZE;
+    fn grow(&mut self, pages: WasmPagesAmount) -> u32 {
+        let size = self.pages.len() as u32;
+        let new_size = size + pages.offset() as u32;
+        self.pages.resize(new_size as usize, 0);
 
-        self.pages.resize(new_size, 0);
-
-        current_pages as u32
-    }
-
-    fn page_index(&self, offset: u32) -> Option<usize> {
-        let offset = offset as usize;
-
-        (offset < self.pages.len()).then_some(offset / WASM_PAGE_SIZE)
+        size / WasmPage::SIZE
     }
 
     fn write(&mut self, offset: u32, buffer: &[u8]) -> Result<(), Error> {
         self.write_attempt_count += 1;
 
-        let page_index = self.page_index(offset).ok_or(Error)?;
-        let page_offset = offset as usize % WASM_PAGE_SIZE;
-
-        if page_offset + buffer.len() > WASM_PAGE_SIZE {
+        let offset = offset as usize;
+        if offset + buffer.len() > self.pages.len() {
             return Err(Error);
         }
 
-        let page_start = page_index * WASM_PAGE_SIZE;
-        let start = page_start + page_offset;
-
-        if start + buffer.len() > self.pages.len() {
-            return Err(Error);
-        }
-
-        let dest = &mut self.pages[start..(start + buffer.len())];
-        dest.copy_from_slice(buffer);
+        self.pages[offset..offset + buffer.len()].copy_from_slice(buffer);
 
         Ok(())
     }
@@ -360,28 +342,18 @@ impl InnerMockMemory {
     fn read(&mut self, offset: u32, buffer: &mut [u8]) -> Result<(), Error> {
         self.read_attempt_count += 1;
 
-        let page_index = self.page_index(offset).ok_or(Error)?;
-        let page_offset = offset as usize % WASM_PAGE_SIZE;
-
-        if page_offset + buffer.len() > WASM_PAGE_SIZE {
+        let offset = offset as usize;
+        if offset + buffer.len() > self.pages.len() {
             return Err(Error);
         }
 
-        let page_start = page_index * WASM_PAGE_SIZE;
-        let start = page_start + page_offset;
-
-        if start + buffer.len() > self.pages.len() {
-            return Err(Error);
-        }
-
-        let src = &self.pages[start..(start + buffer.len())];
-        buffer.copy_from_slice(src);
+        buffer.copy_from_slice(&self.pages[offset..(offset + buffer.len())]);
 
         Ok(())
     }
 
-    fn size(&self) -> WasmPage {
-        WasmPage::new((self.pages.len() / WASM_PAGE_SIZE) as u32).unwrap_or_default()
+    fn size(&self) -> WasmPagesAmount {
+        WasmPage::from_offset(self.pages.len() as u32).into()
     }
 }
 
@@ -390,8 +362,7 @@ pub struct MockMemory(Rc<RefCell<InnerMockMemory>>);
 
 impl MockMemory {
     pub fn new(initial_pages: u32) -> Self {
-        let size = initial_pages as usize * WASM_PAGE_SIZE;
-        let pages = vec![0; size];
+        let pages = vec![0; initial_pages as usize * WasmPage::SIZE as usize];
 
         Self(Rc::new(RefCell::new(InnerMockMemory {
             pages,
@@ -456,6 +427,7 @@ impl<T> SandboxMemory<T> for MockMemory {
     where
         Context: AsContextExt<State = T>,
     {
+        let new_pages = new_pages.try_into().expect("Invalid pages amount");
         Ok(self.0.borrow_mut().grow(new_pages))
     }
 
@@ -463,7 +435,7 @@ impl<T> SandboxMemory<T> for MockMemory {
     where
         Context: AsContextExt<State = T>,
     {
-        self.0.borrow_mut().size().raw()
+        self.0.borrow_mut().size().into()
     }
 
     unsafe fn get_buff<Context>(&self, _ctx: &mut Context) -> u64

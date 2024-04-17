@@ -32,7 +32,7 @@ use gear_core::{
     gas::{ChargeResult, GasAllowanceCounter, GasCounter},
     ids::ProgramId,
     message::{IncomingDispatch, MessageWaitedType},
-    pages::{PageU32Size, WasmPage},
+    pages::{WasmPage, WasmPagesAmount},
 };
 
 /// Operation related to gas charging.
@@ -155,19 +155,14 @@ impl<'a> GasPrecharger<'a> {
     pub fn charge_gas_for_pages(
         &mut self,
         allocations: &BTreeSet<WasmPage>,
-        static_pages: WasmPage,
-    ) -> Result<WasmPage, PrechargeError> {
+        static_pages: WasmPagesAmount,
+    ) -> Result<WasmPagesAmount, PrechargeError> {
         // Charging gas for static pages.
         let amount = self.costs.static_page.cost_for(static_pages);
         self.charge_gas(PreChargeGasOperation::StaticPages, amount)?;
 
-        if let Some(page) = allocations.iter().next_back() {
-            // It means we somehow violated some constraints:
-            // 1. one of allocated pages > MAX_WASM_PAGE_AMOUNT
-            // 2. static pages > MAX_WASM_PAGE_AMOUNT
-            Ok(page
-                .inc()
-                .unwrap_or_else(|_| unreachable!("WASM memory size is too big")))
+        if let Some(page) = allocations.last() {
+            Ok(page.inc())
         } else {
             Ok(static_pages)
         }

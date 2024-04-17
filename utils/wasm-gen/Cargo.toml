@@ -16,6 +16,7 @@ gear-utils.workspace = true
 gear-core.workspace = true
 wasmparser.workspace = true
 thiserror.workspace = true
+indexmap.workspace = true
 
 [dev-dependencies]
 rand = { workspace = true, features = ["small_rng"] }

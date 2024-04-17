@@ -40,7 +40,7 @@ use gear_core::{
         ContextOutcomeDrain, ContextStore, Dispatch, GasLimit, HandlePacket, InitPacket,
         MessageContext, Packet, ReplyPacket,
     },
-    pages::{GearPage, PageNumber, PageU32Size, WasmPage},
+    pages::{numerated::interval::Interval, GearPage, WasmPage, WasmPagesAmount},
     program::MemoryInfix,
     reservation::GasReserver,
 };
@@ -104,15 +104,15 @@ pub struct ProcessorContext {
 impl ProcessorContext {
     /// Create new mock [`ProcessorContext`] for usage in tests.
     pub fn new_mock() -> ProcessorContext {
-        use gear_core::message::IncomingDispatch;
+        const MAX_RESERVATIONS: u64 = 256;
 
         ProcessorContext {
             gas_counter: GasCounter::new(0),
             gas_allowance_counter: GasAllowanceCounter::new(0),
             gas_reserver: GasReserver::new(
-                &<IncomingDispatch as Default>::default(),
+                &Default::default(),
                 Default::default(),
-                Default::default(),
+                MAX_RESERVATIONS,
             ),
             system_reservation: None,
             value_counter: ValueCounter::new(0),
@@ -288,7 +288,7 @@ impl BackendAllocSyscallError for AllocExtError {
 
 struct LazyGrowHandler {
     old_mem_addr: Option<u64>,
-    old_mem_size: WasmPage,
+    old_mem_size: WasmPagesAmount,
 }
 
 impl GrowHandler for LazyGrowHandler {
@@ -364,7 +364,7 @@ impl ProcessorExternalities for Ext {
         // Accessed pages are all pages, that had been released and are in allocations set or static.
         let mut accessed_pages = gear_lazy_pages_interface::get_write_accessed_pages();
         accessed_pages.retain(|p| {
-            let wasm_page = p.to_page();
+            let wasm_page: WasmPage = p.to_page();
             wasm_page < static_pages || allocations.contains(&wasm_page)
         });
         log::trace!("accessed pages numbers = {:?}", accessed_pages);
@@ -748,7 +748,8 @@ impl Externalities for Ext {
         pages_num: u32,
         mem: &mut impl Memory,
     ) -> Result<WasmPage, Self::AllocError> {
-        let pages = WasmPage::new(pages_num).map_err(|_| AllocError::ProgramAllocOutOfBounds)?;
+        let pages = WasmPagesAmount::try_from(pages_num)
+            .map_err(|_| AllocError::ProgramAllocOutOfBounds)?;
 
         // Charge for pages amount
         self.charge_gas_if_enough(self.context.costs.syscalls.alloc_per_page.cost_for(pages))?;
@@ -773,17 +774,8 @@ impl Externalities for Ext {
     }
 
     fn free_range(&mut self, start: WasmPage, end: WasmPage) -> Result<(), Self::AllocError> {
-        let page_count: u32 = end
-            .checked_sub(start)
-            .ok_or(AllocExtError::Alloc(AllocError::InvalidFreeRange(
-                start.into(),
-                end.into(),
-            )))?
-            .into();
-
-        // TODO: use numerated::Interval #3830
-        let pages_amount = WasmPage::new(page_count)
-            .map_err(|_| AllocError::InvalidFreeRange(start.raw(), end.raw()))?;
+        let interval = Interval::try_from(start..=end)
+            .map_err(|_| AllocExtError::Alloc(AllocError::InvalidFreeRange(start, end)))?;
 
         Ext::charge_gas_if_enough(
             &mut self.context.gas_counter,
@@ -792,12 +784,12 @@ impl Externalities for Ext {
                 .costs
                 .syscalls
                 .free_range_per_page
-                .cost_for(pages_amount),
+                .cost_for(interval.len()),
         )?;
 
         self.context
             .allocations_context
-            .free_range(start..=end)
+            .free_range(interval)
             .map_err(Into::into)
     }
 
@@ -1359,7 +1351,7 @@ mod tests {
         assert_eq!(
             ext.free(non_existing_page),
             Err(AllocExtError::Alloc(AllocError::InvalidFree(
-                non_existing_page.raw()
+                non_existing_page
             )))
         );
         assert_eq!(ext.gas_left(), gas_left);
