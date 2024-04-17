@@ -93,7 +93,7 @@ jobs:
         run: cargo run -p calc-stack-height --release --locked
 
       - name: "Test: Gear workspace"
-        run: ./scripts/gear.sh test gear --locked ${{ matrix.profile.flags }}
+        run: ./scripts/gear.sh test gear --locked ${{ matrix.profiles.flags }}
 
       - name: "Test: gsdk tests"
         run: ./scripts/gear.sh test gsdk ${{ matrix.profiles.flags }}
