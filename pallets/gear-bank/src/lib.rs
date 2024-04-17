@@ -442,7 +442,7 @@ pub mod pallet {
         ) -> Option<BankAccount<BalanceOf<T>>> {
             Bank::<T>::get(account_id)
         }
- 
+
         pub fn account_gas(account_id: &AccountIdOf<T>) -> Option<BalanceOf<T>> {
             Self::account(account_id).map(|v| v.gas)
         }
