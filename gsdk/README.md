@@ -22,7 +22,7 @@ async fn main() {
     let signer = Api::new(None).signer("//Alice", None);
 
     // Transaction with block details.
-    let tx = signer.transfer("//Bob", 42).await.expect("Transfer value failed.");
+    let tx = signer.transfer_allow_death("//Bob", 42).await.expect("Transfer value failed.");
 
     // Fetch all of the events associated with this transaction.
     for events in tx.fetch_events().await {

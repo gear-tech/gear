@@ -35,7 +35,7 @@ async fn program_migrated_to_another_node() {
 
     // Transfer some funds to the source program
     src_node_api
-        .transfer(src_program_id, PROGRAM_FUNDS)
+        .transfer_allow_death(src_program_id, PROGRAM_FUNDS)
         .await
         .expect("Unable to transfer funds to source program");
 
