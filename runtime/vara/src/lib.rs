@@ -36,9 +36,10 @@ pub use frame_support::{
     dispatch::{DispatchClass, WeighData},
     parameter_types,
     traits::{
-        ConstU128, ConstU16, ConstU32, Contains, Currency, EitherOf, EitherOfDiverse,
-        EqualPrivilegeOnly, Everything, FindAuthor, InstanceFilter, KeyOwnerProofSystem,
-        LockIdentifier, Nothing, OnUnbalanced, Randomness, StorageInfo, WithdrawReasons,
+        fungible::HoldConsideration, ConstU128, ConstU16, ConstU32, Contains, Currency, EitherOf,
+        EitherOfDiverse, EqualPrivilegeOnly, Everything, FindAuthor, InstanceFilter,
+        KeyOwnerProofSystem, LinearStoragePrice, LockIdentifier, Nothing, OnUnbalanced, Randomness,
+        StorageInfo, WithdrawReasons,
     },
     weights::{
         constants::{
@@ -53,7 +54,7 @@ use frame_system::{
     limits::{BlockLength, BlockWeights},
     EnsureRoot,
 };
-use pallet_election_provider_multi_phase::SolutionAccuracyOf;
+use pallet_election_provider_multi_phase::{GeometricDepositBase, SolutionAccuracyOf};
 pub use pallet_gear::manager::{ExtManager, HandleKind};
 pub use pallet_gear_payment::CustomChargeTransactionPayment;
 pub use pallet_gear_staking_rewards::StakingBlackList;
@@ -472,6 +473,9 @@ parameter_types! {
     pub const UnsignedPhase: u32 = EPOCH_DURATION_IN_BLOCKS / 4;
 
     // signed config
+    pub const SignedFixedDeposit: Balance = deposit(2, 0);
+    pub const SignedDepositIncreaseFactor: Percent = Percent::from_percent(10);
+
     pub const SignedRewardBase: Balance = ECONOMIC_UNITS;
     pub const SignedDepositBase: Balance = ECONOMIC_UNITS;
     pub const SignedDepositByte: Balance = ECONOMIC_CENTIUNITS;
@@ -574,7 +578,8 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
     type MinerConfig = Self;
     type SignedMaxSubmissions = ConstU32<10>;
     type SignedRewardBase = SignedRewardBase;
-    type SignedDepositBase = SignedDepositBase;
+    type SignedDepositBase =
+        GeometricDepositBase<Balance, SignedFixedDeposit, SignedDepositIncreaseFactor>;
     type SignedDepositByte = SignedDepositByte;
     type SignedMaxRefunds = ConstU32<3>;
     type SignedDepositWeight = ();

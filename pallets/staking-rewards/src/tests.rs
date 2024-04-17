@@ -22,7 +22,7 @@
 
 use crate::{mock::*, *};
 use frame_support::{assert_noop, assert_ok, assert_storage_noop, traits::EstimateNextNewSession};
-use sp_runtime::{DispatchError, PerThing, Perbill};
+use sp_runtime::{traits::Convert, DispatchError, PerThing, Perbill};
 
 macro_rules! assert_approx_eq {
     ($left:expr, $right:expr, $tol:expr) => {{
@@ -1410,6 +1410,7 @@ fn election_solution_rewards_add_up() {
             round: 1,
         };
         let solutions = vec![good_solution.clone(), bad_solution, good_solution];
+        let solutions_len = solutions.len();
         for (i, s) in solutions.into_iter().enumerate() {
             let account = 100_u64 + i as u64;
             assert_ok!(ElectionProviderMultiPhase::submit(
@@ -1418,7 +1419,7 @@ fn election_solution_rewards_add_up() {
             ));
             assert_eq!(
                 Balances::free_balance(account),
-                ENDOWMENT - <Test as MPConfig>::SignedDepositBase::get()
+                ENDOWMENT - <Test as MPConfig>::SignedDepositBase::convert(solutions_len)
             );
         }
 
@@ -1440,7 +1441,7 @@ fn election_solution_rewards_add_up() {
         // 3. the account whose solution was rejected got slashed and lost the deposit and fee
         assert_eq!(
             Balances::free_balance(101),
-            ENDOWMENT - <Test as MPConfig>::SignedDepositBase::get()
+            ENDOWMENT - <Test as MPConfig>::SignedDepositBase::convert(solutions_len)
         );
         // 4. the third account got deposit unreserved and tx fee returned
         assert_eq!(
@@ -1450,7 +1451,7 @@ fn election_solution_rewards_add_up() {
         // 5. the slashed deposit went to `Treasury`
         assert_eq!(
             treasury_balance,
-            initial_treasury_balance + <Test as MPConfig>::SignedDepositBase::get()
+            initial_treasury_balance + <Test as MPConfig>::SignedDepositBase::convert(solutions_len)
         );
         // 6. the rewards offset pool's balanced decreased to compensate for reward and rebates.
         assert_eq!(
