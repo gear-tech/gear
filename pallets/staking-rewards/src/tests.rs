@@ -440,7 +440,7 @@ fn nominators_rewards_disbursement_works() {
         run_to_block(10);
 
         // Send some funds to the nominator
-        assert_ok!(Balances::transfer(
+        assert_ok!(Balances::transfer_allow_death(
             RuntimeOrigin::signed(SIGNER),
             NOM_1_STASH,
             VALIDATOR_STAKE * 5, // 500 UNITS
@@ -659,7 +659,7 @@ fn staking_blacklist_works() {
     );
 
     let valid_call = TestXt::<RuntimeCall, SignedExtra>::new(
-        RuntimeCall::Balances(pallet_balances::Call::transfer {
+        RuntimeCall::Balances(pallet_balances::Call::transfer_allow_death {
             dest: NOM_1_STASH,
             value: 10_000_u128,
         }),
@@ -786,7 +786,7 @@ fn inflation_at_ideal_staked_adds_up() {
         let nominator_stake = ideal_staked_value.saturating_sub(initial_validators_balance);
 
         // Send some funds to the nominator
-        assert_ok!(Balances::transfer(
+        assert_ok!(Balances::transfer_allow_death(
             RuntimeOrigin::signed(SIGNER),
             NOM_1_STASH,
             nominator_stake,
@@ -927,7 +927,7 @@ fn inflation_when_nobody_stakes_adds_up() {
         let yearly_inflation = Perquintill::from_parts(15_623_529_411_764_700);
 
         // Send some funds to the nominator
-        assert_ok!(Balances::transfer(
+        assert_ok!(Balances::transfer_allow_death(
             RuntimeOrigin::signed(SIGNER),
             NOM_1_STASH,
             nominator_stake,
@@ -1075,7 +1075,7 @@ fn inflation_with_too_many_stakers_adds_up() {
         let yearly_inflation = Perquintill::from_parts(14_224_963_017_589_600);
 
         // Send some funds to the nominator
-        assert_ok!(Balances::transfer(
+        assert_ok!(Balances::transfer_allow_death(
             RuntimeOrigin::signed(SIGNER),
             NOM_1_STASH,
             nominator_stake,
@@ -1194,7 +1194,7 @@ fn unclaimed_rewards_burn() {
         let nominator_stake = ideal_staked_value.saturating_sub(initial_validators_balance);
 
         // Send some funds to the nominator
-        assert_ok!(Balances::transfer(
+        assert_ok!(Balances::transfer_allow_death(
             RuntimeOrigin::signed(SIGNER),
             NOM_1_STASH,
             nominator_stake,
