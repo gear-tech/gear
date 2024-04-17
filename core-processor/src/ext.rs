@@ -147,7 +147,7 @@ pub struct ExtInfo {
     pub gas_amount: GasAmount,
     pub gas_reserver: GasReserver,
     pub system_reservation_context: SystemReservationContext,
-    pub allocations: BTreeSet<WasmPage>,
+    pub allocations: Option<BTreeSet<WasmPage>>,
     pub pages_data: BTreeMap<GearPage, PageBuf>,
     pub generated_dispatches: Vec<(Dispatch, u32, Option<ReservationId>)>,
     pub awakening: Vec<(MessageId, u32)>,
@@ -398,9 +398,7 @@ impl ProcessorExternalities for Ext {
             gas_amount: gas_counter.to_amount(),
             gas_reserver,
             system_reservation_context,
-            allocations: (allocations != initial_allocations)
-                .then_some(allocations)
-                .unwrap_or_default(),
+            allocations: (allocations != initial_allocations).then_some(allocations),
             pages_data,
             generated_dispatches,
             awakening,
