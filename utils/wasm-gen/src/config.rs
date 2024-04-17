@@ -163,9 +163,9 @@ impl Default for StandardGearWasmConfigsBundle {
     fn default() -> Self {
         Self {
             log_info: Some("StandardGearWasmConfigsBundle".into()),
-            waiting_probability: NonZeroU32::new(4),
+            waiting_probability: NonZeroU32::new(16),
             remove_recursion: false,
-            critical_gas_limit: Some(1_000_000),
+            critical_gas_limit: None,
             injection_types: SyscallsInjectionTypes::all_once(),
             entry_points_set: Default::default(),
             initial_pages: DEFAULT_INITIAL_SIZE,

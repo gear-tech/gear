@@ -71,7 +71,7 @@ impl SyscallsParamsConfig {
 
         // Setting regular params rules.
         self.with_rule(Length, (0..=1600).into())
-            .with_rule(Gas, (0..=10_000_000_000).into())
+            .with_rule(Gas, (0..=40_000_000_000).into())
             .with_rule(Offset, (0..=10).into())
             .with_rule(DurationBlockNumber, (1..=8).into())
             .with_rule(DelayBlockNumber, (0..=4).into())

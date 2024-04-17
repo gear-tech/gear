@@ -98,12 +98,12 @@ fn config(
     current_balance: Balance,
 ) -> StandardGearWasmConfigsBundle {
     let initial_pages = 2;
-    let mut injection_types = SyscallsInjectionTypes::all_with_range(1..=3);
+    let mut injection_types = SyscallsInjectionTypes::all_with_range(0..=3);
     injection_types.set_multiple(
         [
             (SyscallName::SendInit, 3..=5),
             (SyscallName::ReserveGas, 3..=5),
-            (SyscallName::Debug, 0..=1),
+            (SyscallName::Debug, 0..=0),
             (SyscallName::Wait, 0..=1),
             (SyscallName::WaitFor, 0..=1),
             (SyscallName::WaitUpTo, 0..=1),
@@ -112,7 +112,6 @@ fn config(
             (SyscallName::Panic, 0..=0),
             (SyscallName::OomPanic, 0..=0),
             (SyscallName::EnvVars, 0..=0),
-            (SyscallName::Send, 10..=15),
             (SyscallName::Exit, 0..=1),
             (SyscallName::Alloc, 3..=6),
             (SyscallName::Free, 3..=6),
@@ -121,7 +120,7 @@ fn config(
         .into_iter(),
     );
 
-    let max_value = {
+    let _max_value = {
         let d = current_balance
             .saturating_div(EXISTENTIAL_DEPOSIT)
             .saturating_sub(1)
@@ -137,7 +136,7 @@ fn config(
             (initial_pages..=initial_pages + 35).into(),
         )
         .with_ptr_rule(PtrParamAllowedValues::Value(
-            EXISTENTIAL_DEPOSIT..=max_value,
+            0..=0,
         ));
 
     let actor_kind = programs
@@ -152,14 +151,14 @@ fn config(
         .with_ptr_rule(PtrParamAllowedValues::ActorId(actor_kind.clone()))
         .with_ptr_rule(PtrParamAllowedValues::ActorIdWithValue {
             actor_kind: actor_kind.clone(),
-            range: EXISTENTIAL_DEPOSIT..=max_value,
+            range: 0..=0,
         })
         .with_ptr_rule(PtrParamAllowedValues::ReservationIdWithValue(
-            EXISTENTIAL_DEPOSIT..=max_value,
+            0..=0,
         ))
         .with_ptr_rule(PtrParamAllowedValues::ReservationIdWithActorIdAndValue {
             actor_kind: actor_kind.clone(),
-            range: EXISTENTIAL_DEPOSIT..=max_value,
+            range: 0..=0,
         })
         .with_ptr_rule(PtrParamAllowedValues::ReservationId);
 

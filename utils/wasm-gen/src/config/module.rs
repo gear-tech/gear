@@ -372,9 +372,9 @@ impl Default for SelectableParams {
     fn default() -> Self {
         Self {
             allowed_instructions: vec![
-                Numeric, Reference, Parametric, Variable, Table, Memory, Control,
+                Numeric, Reference, Parametric, Variable, Table, Memory,
             ],
-            max_instructions: 500,
+            max_instructions: 100,
             min_funcs: NonZeroUsize::new(3).expect("from non zero value; qed."),
             max_funcs: NonZeroUsize::new(5).expect("from non zero value; qed."),
         }
