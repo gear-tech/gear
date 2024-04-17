@@ -75,7 +75,10 @@ use frame_support::{
     traits::{ConstBool, Currency, ExistenceRequirement, Get, Randomness, StorageVersion},
     weights::Weight,
 };
-use frame_system::pallet_prelude::{BlockNumberFor, *};
+use frame_system::{
+    pallet_prelude::{BlockNumberFor, *},
+    RawOrigin,
+};
 use gear_core::{
     code::{Code, CodeAndId, CodeError, InstrumentedCode, InstrumentedCodeAndId},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
@@ -83,7 +86,7 @@ use gear_core::{
     percent::Percent,
 };
 use manager::{CodeInfo, QueuePostProcessingData};
-use pallet_gear_voucher::{PrepaidCall, PrepaidCallsDispatcher};
+use pallet_gear_voucher::{PrepaidCall, PrepaidCallsDispatcher, VoucherId, WeightInfo as _};
 use primitive_types::H256;
 use sp_runtime::{
     traits::{Bounded, One, Saturating, UniqueSaturatedInto, Zero},
@@ -1821,7 +1824,10 @@ pub mod pallet {
         }
     }
 
-    impl<T: Config> PrepaidCallsDispatcher for Pallet<T>
+    /// Dispatcher for all types of prepaid calls: gear or gear-voucher pallets.
+    pub struct PrepaidCallDispatcher<T: Config + pallet_gear_voucher::Config>(PhantomData<T>);
+
+    impl<T: Config + pallet_gear_voucher::Config> PrepaidCallsDispatcher for PrepaidCallDispatcher<T>
     where
         T::AccountId: Origin,
     {
@@ -1839,12 +1845,16 @@ pub mod pallet {
                 PrepaidCall::UploadCode { code } => {
                     <T as Config>::WeightInfo::upload_code(code.len() as u32 / 1024)
                 }
+                PrepaidCall::DeclineVoucher => {
+                    <T as pallet_gear_voucher::Config>::WeightInfo::decline()
+                }
             }
         }
 
         fn dispatch(
             account_id: Self::AccountId,
             sponsor_id: Self::AccountId,
+            voucher_id: VoucherId,
             call: PrepaidCall<Self::Balance>,
         ) -> DispatchResultWithPostInfo {
             match call {
@@ -1854,7 +1864,7 @@ pub mod pallet {
                     gas_limit,
                     value,
                     keep_alive,
-                } => Self::send_message_impl(
+                } => Pallet::<T>::send_message_impl(
                     account_id,
                     destination,
                     payload,
@@ -1869,7 +1879,7 @@ pub mod pallet {
                     gas_limit,
                     value,
                     keep_alive,
-                } => Self::send_reply_impl(
+                } => Pallet::<T>::send_reply_impl(
                     account_id,
                     reply_to_id,
                     payload,
@@ -1878,7 +1888,11 @@ pub mod pallet {
                     keep_alive,
                     Some(sponsor_id),
                 ),
-                PrepaidCall::UploadCode { code } => Self::upload_code_impl(account_id, code),
+                PrepaidCall::UploadCode { code } => Pallet::<T>::upload_code_impl(account_id, code),
+                PrepaidCall::DeclineVoucher => pallet_gear_voucher::Pallet::<T>::decline(
+                    RawOrigin::Signed(account_id).into(),
+                    voucher_id,
+                ),
             }
         }
     }

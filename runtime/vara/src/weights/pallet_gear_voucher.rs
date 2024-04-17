@@ -40,6 +40,7 @@ pub trait WeightInfo {
     fn issue() -> Weight;
     fn revoke() -> Weight;
     fn update() -> Weight;
+    fn decline() -> Weight;
 }
 
 /// Weights for pallet_gear_voucher using the Gear node and recommended hardware.
