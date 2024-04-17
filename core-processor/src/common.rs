@@ -32,7 +32,7 @@ use gear_core::{
     message::{
         ContextStore, Dispatch, DispatchKind, IncomingDispatch, MessageWaitedType, StoredDispatch,
     },
-    pages::{GearPage, WasmPage},
+    pages::{GearPage, WasmPage, WasmPagesAmount},
     program::{MemoryInfix, Program},
     reservation::{GasReservationMap, GasReserver},
 };
@@ -81,6 +81,7 @@ pub struct DispatchResult {
     pub system_reservation_context: SystemReservationContext,
     /// Page updates.
     pub page_update: BTreeMap<GearPage, PageBuf>,
+    // TODO: there is no difference between no-allocations and no-changes #3853
     /// New allocations set for program if it has been changed.
     pub allocations: BTreeSet<WasmPage>,
     /// Whether this execution sent out a reply.
@@ -334,13 +335,6 @@ pub enum JournalNote {
         /// Amount of gas for reply.
         amount: u64,
     },
-    /// Append message to waiting init list and wait list for future wake.
-    WaitingInitMessage {
-        /// Incoming dispatch of the message.
-        dispatch: IncomingDispatch,
-        /// Destination of the message.
-        destination: ProgramId,
-    },
 }
 
 /// Journal handler.
@@ -423,8 +417,6 @@ pub trait JournalHandler {
     fn send_signal(&mut self, message_id: MessageId, destination: ProgramId, code: SignalCode);
     /// Create deposit for future reply.
     fn reply_deposit(&mut self, message_id: MessageId, future_reply_id: MessageId, amount: u64);
-    /// Append message to waiting init list and wait list for future wake.
-    fn waiting_init_message(&mut self, dispatch: IncomingDispatch, destination: ProgramId);
 }
 
 actor_system_error! {
@@ -490,17 +482,17 @@ pub enum MemorySetupError {
     #[display(fmt = "Memory size {memory_size:?} must be less than or equal to {max_pages:?}")]
     MemorySizeExceedsMaxPages {
         /// Memory size
-        memory_size: WasmPage,
+        memory_size: WasmPagesAmount,
         /// Max allowed memory size
-        max_pages: WasmPage,
+        max_pages: WasmPagesAmount,
     },
     /// Insufficient memory size
     #[display(fmt = "Memory size {memory_size:?} must be at least {static_pages:?}")]
     InsufficientMemorySize {
         /// Memory size
-        memory_size: WasmPage,
+        memory_size: WasmPagesAmount,
         /// Static memory size
-        static_pages: WasmPage,
+        static_pages: WasmPagesAmount,
     },
     /// Stack end is out of static memory
     #[display(fmt = "Stack end {stack_end:?} is out of static memory 0..{static_pages:?}")]
@@ -508,7 +500,7 @@ pub enum MemorySetupError {
         /// Stack end
         stack_end: WasmPage,
         /// Static memory size
-        static_pages: WasmPage,
+        static_pages: WasmPagesAmount,
     },
     /// Allocated page is out of allowed memory interval
     #[display(
@@ -518,9 +510,9 @@ pub enum MemorySetupError {
         /// Allocated page
         page: WasmPage,
         /// Static memory size
-        static_pages: WasmPage,
+        static_pages: WasmPagesAmount,
         /// Memory size
-        memory_size: WasmPage,
+        memory_size: WasmPagesAmount,
     },
 }
 
@@ -572,7 +564,7 @@ pub struct ExecutableActorData {
     /// Exported functions by the program code.
     pub code_exports: BTreeSet<DispatchKind>,
     /// Count of static memory pages.
-    pub static_pages: WasmPage,
+    pub static_pages: WasmPagesAmount,
     /// Gas reservation map.
     pub gas_reservation_map: GasReservationMap,
 }
@@ -589,7 +581,7 @@ pub struct WasmExecutionContext {
     /// Program to be executed.
     pub program: Program,
     /// Size of the memory block.
-    pub memory_size: WasmPage,
+    pub memory_size: WasmPagesAmount,
 }
 
 /// Struct with dispatch and counters charged for program data.

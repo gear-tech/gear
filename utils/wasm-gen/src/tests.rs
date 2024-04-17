@@ -20,7 +20,7 @@ use super::*;
 use arbitrary::Unstructured;
 use gear_core::{
     code::Code,
-    gas::ValueCounter,
+    gas::{GasAllowanceCounter, GasCounter, ValueCounter},
     ids::{CodeId, ProgramId},
     memory::Memory,
     message::{
@@ -185,8 +185,15 @@ fn test_avoid_waits_works() {
         .with_waiting_probability(NonZeroU32::new(4).unwrap())
         .build();
 
-    let backend_report =
-        execute_wasm_with_custom_configs(&mut unstructured, syscalls_config, None, 1024, false, 0);
+    let backend_report = execute_wasm_with_custom_configs(
+        &mut unstructured,
+        syscalls_config,
+        None,
+        1024,
+        false,
+        0,
+        0,
+    );
 
     assert_eq!(
         backend_report.termination_reason,
@@ -214,8 +221,15 @@ fn test_source_as_address_param() {
         .with_error_processing_config(ErrorProcessingConfig::All)
         .build();
 
-    let backend_report =
-        execute_wasm_with_custom_configs(&mut unstructured, syscalls_config, None, 1024, false, 0);
+    let backend_report = execute_wasm_with_custom_configs(
+        &mut unstructured,
+        syscalls_config,
+        None,
+        1024,
+        false,
+        0,
+        0,
+    );
 
     assert_eq!(
         backend_report.termination_reason,
@@ -247,8 +261,15 @@ fn test_existing_address_as_address_param() {
         .with_error_processing_config(ErrorProcessingConfig::All)
         .build();
 
-    let backend_report =
-        execute_wasm_with_custom_configs(&mut unstructured, syscalls_config, None, 1024, false, 0);
+    let backend_report = execute_wasm_with_custom_configs(
+        &mut unstructured,
+        syscalls_config,
+        None,
+        1024,
+        false,
+        0,
+        0,
+    );
 
     assert_eq!(
         backend_report.termination_reason,
@@ -303,6 +324,7 @@ fn test_msg_value_ptr() {
         1024,
         false,
         INITIAL_BALANCE,
+        0,
     );
 
     assert_eq!(
@@ -370,6 +392,7 @@ fn test_msg_value_ptr_dest() {
                 1024,
                 false,
                 INITIAL_BALANCE,
+                0,
             );
 
             assert_eq!(
@@ -402,6 +425,175 @@ fn test_msg_value_ptr_dest() {
             }
         }
     }
+}
+
+/// The `send` and `send_init` syscalls increase count of handles, but we only
+/// need to take the last `send_init` handle since sending marks the handle as
+/// already used.
+#[test]
+fn test_send_init_with_send() {
+    gear_utils::init_default_logger();
+
+    let mut rng = SmallRng::seed_from_u64(123);
+    let mut buf = vec![0; UNSTRUCTURED_SIZE];
+    rng.fill_bytes(&mut buf);
+    let mut unstructured = Unstructured::new(&buf);
+
+    let params_config = SyscallsParamsConfig::new()
+        .with_default_regular_config()
+        .with_ptr_rule(PtrParamAllowedValues::ActorIdWithValue {
+            actor_kind: ActorKind::Source,
+            range: 0..=0,
+        });
+
+    let mut injection_types = SyscallsInjectionTypes::all_never();
+    injection_types.set(InvocableSyscall::Loose(SyscallName::SendInit), 1, 1);
+    injection_types.set(InvocableSyscall::Loose(SyscallName::Send), 1, 1);
+    injection_types.set(InvocableSyscall::Loose(SyscallName::SendCommit), 1, 1);
+    let syscalls_config = SyscallsConfigBuilder::new(injection_types)
+        .with_params_config(params_config)
+        .with_error_processing_config(ErrorProcessingConfig::All)
+        .with_keeping_insertion_order(true)
+        .build();
+
+    let backend_report = execute_wasm_with_custom_configs(
+        &mut unstructured,
+        syscalls_config,
+        None,
+        1024,
+        false,
+        0,
+        0,
+    );
+
+    assert_eq!(
+        backend_report.termination_reason,
+        TerminationReason::Actor(ActorTerminationReason::Success)
+    );
+}
+
+#[test]
+fn test_reservation_id_with_value_ptr() {
+    gear_utils::init_default_logger();
+
+    let mut rng = SmallRng::seed_from_u64(123);
+    let mut buf = vec![0; UNSTRUCTURED_SIZE];
+    rng.fill_bytes(&mut buf);
+    let mut unstructured = Unstructured::new(&buf);
+
+    let params_config = SyscallsParamsConfig::new()
+        .with_default_regular_config()
+        .with_ptr_rule(PtrParamAllowedValues::ReservationIdWithValue(0..=0));
+
+    let mut injection_types = SyscallsInjectionTypes::all_never();
+    injection_types.set(InvocableSyscall::Loose(SyscallName::ReserveGas), 1, 1);
+    injection_types.set(InvocableSyscall::Loose(SyscallName::ReservationReply), 1, 1);
+    let syscalls_config = SyscallsConfigBuilder::new(injection_types)
+        .with_params_config(params_config)
+        .with_error_processing_config(ErrorProcessingConfig::All)
+        .with_keeping_insertion_order(true)
+        .build();
+
+    let backend_report = execute_wasm_with_custom_configs(
+        &mut unstructured,
+        syscalls_config,
+        None,
+        1024,
+        false,
+        0,
+        250_000_000_000,
+    );
+
+    assert_eq!(
+        backend_report.termination_reason,
+        TerminationReason::Actor(ActorTerminationReason::Success)
+    );
+}
+
+#[test]
+fn test_reservation_id_with_actor_id_and_value_ptr() {
+    gear_utils::init_default_logger();
+
+    let mut rng = SmallRng::seed_from_u64(123);
+    let mut buf = vec![0; UNSTRUCTURED_SIZE];
+    rng.fill_bytes(&mut buf);
+    let mut unstructured = Unstructured::new(&buf);
+
+    let some_address = [5; 32];
+    let params_config = SyscallsParamsConfig::new()
+        .with_default_regular_config()
+        .with_ptr_rule(PtrParamAllowedValues::ReservationIdWithActorIdAndValue {
+            actor_kind: ActorKind::ExistingAddresses(NonEmpty::new(some_address)),
+            range: 0..=0,
+        });
+
+    let mut injection_types = SyscallsInjectionTypes::all_never();
+    injection_types.set(InvocableSyscall::Loose(SyscallName::ReserveGas), 2, 2);
+    injection_types.set(InvocableSyscall::Loose(SyscallName::ReservationSend), 1, 1);
+    injection_types.set(InvocableSyscall::Loose(SyscallName::SendInit), 1, 1);
+    injection_types.set(
+        InvocableSyscall::Loose(SyscallName::ReservationSendCommit),
+        1,
+        1,
+    );
+    let syscalls_config = SyscallsConfigBuilder::new(injection_types)
+        .with_params_config(params_config)
+        .with_error_processing_config(ErrorProcessingConfig::All)
+        .with_keeping_insertion_order(true)
+        .build();
+
+    let backend_report = execute_wasm_with_custom_configs(
+        &mut unstructured,
+        syscalls_config,
+        None,
+        1024,
+        false,
+        0,
+        250_000_000_000,
+    );
+
+    assert_eq!(
+        backend_report.termination_reason,
+        TerminationReason::Actor(ActorTerminationReason::Success)
+    );
+}
+
+#[test]
+fn test_reservation_id_ptr() {
+    gear_utils::init_default_logger();
+
+    let mut rng = SmallRng::seed_from_u64(123);
+    let mut buf = vec![0; UNSTRUCTURED_SIZE];
+    rng.fill_bytes(&mut buf);
+    let mut unstructured = Unstructured::new(&buf);
+
+    let params_config = SyscallsParamsConfig::new()
+        .with_default_regular_config()
+        .with_ptr_rule(PtrParamAllowedValues::ReservationId);
+
+    let mut injection_types = SyscallsInjectionTypes::all_never();
+    injection_types.set(InvocableSyscall::Loose(SyscallName::ReserveGas), 1, 1);
+    injection_types.set(InvocableSyscall::Loose(SyscallName::UnreserveGas), 1, 1);
+    let syscalls_config = SyscallsConfigBuilder::new(injection_types)
+        .with_params_config(params_config)
+        .with_error_processing_config(ErrorProcessingConfig::All)
+        .with_keeping_insertion_order(true)
+        .build();
+
+    let backend_report = execute_wasm_with_custom_configs(
+        &mut unstructured,
+        syscalls_config,
+        None,
+        1024,
+        false,
+        0,
+        250_000_000_000,
+    );
+
+    assert_eq!(
+        backend_report.termination_reason,
+        TerminationReason::Actor(ActorTerminationReason::Success)
+    );
 }
 
 #[test]
@@ -441,6 +633,7 @@ fn error_processing_works_for_fallible_syscalls() {
             0,
             true,
             0,
+            0,
         )
         .termination_reason;
 
@@ -458,6 +651,7 @@ fn error_processing_works_for_fallible_syscalls() {
             initial_memory_write.clone(),
             0,
             true,
+            0,
             0,
         )
         .termination_reason;
@@ -510,6 +704,7 @@ fn precise_syscalls_works() {
             1024,
             false,
             0,
+            0,
         )
         .termination_reason;
 
@@ -544,6 +739,7 @@ fn execute_wasm_with_custom_configs(
     outgoing_limit: u32,
     imitate_reply: bool,
     value: u128,
+    gas: u64,
 ) -> BackendReport<gear_core_processor::Ext> {
     const PROGRAM_STORAGE_PREFIX: [u8; 32] = *b"execute_wasm_with_custom_configs";
     const INITIAL_PAGES: u16 = 1;
@@ -600,6 +796,8 @@ fn execute_wasm_with_custom_configs(
         message_context,
         program_id,
         value_counter: ValueCounter::new(value),
+        gas_counter: GasCounter::new(gas),
+        gas_allowance_counter: GasAllowanceCounter::new(gas),
         ..ProcessorContext::new_mock()
     };
 
@@ -618,7 +816,11 @@ fn execute_wasm_with_custom_configs(
             mem,
             program_id,
             Default::default(),
-            Some(mem.size()),
+            Some(
+                mem.size()
+                    .to_page_number()
+                    .expect("Memory size is 4GB, so cannot be stack end"),
+            ),
             globals_config,
             Default::default(),
         );

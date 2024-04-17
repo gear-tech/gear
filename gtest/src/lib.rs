@@ -311,7 +311,7 @@
 //! let log = Log::builder();
 //!
 //! // Constructor for error reply log.
-//! let log = Log::error_builder(ErrorReplyReason::InactiveProgram);
+//! let log = Log::error_builder(ErrorReplyReason::InactiveActor);
 //! # let sys = gtest::System::new();
 //! # let prog = gtest::Program::current(&sys);
 //! // Other fields are set optionally by `dest()`, `source()`, `payload()`, `payload_bytes()`.
