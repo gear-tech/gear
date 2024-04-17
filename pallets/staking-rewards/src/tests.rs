@@ -1451,7 +1451,8 @@ fn election_solution_rewards_add_up() {
         // 5. the slashed deposit went to `Treasury`
         assert_eq!(
             treasury_balance,
-            initial_treasury_balance + <Test as MPConfig>::SignedDepositBase::convert(solutions_len)
+            initial_treasury_balance
+                + <Test as MPConfig>::SignedDepositBase::convert(solutions_len)
         );
         // 6. the rewards offset pool's balanced decreased to compensate for reward and rebates.
         assert_eq!(
