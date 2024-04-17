@@ -14869,9 +14869,11 @@ fn incorrect_store_context() {
 
 #[test]
 fn allocate_in_init_free_in_handle() {
-    let wat = r#"
+    let static_pages = 16u16;
+    let wat = format!(
+        r#"
         (module
-            (import "env" "memory" (memory 16))
+            (import "env" "memory" (memory {static_pages}))
             (import "env" "alloc" (func $alloc (param i32) (result i32)))
             (import "env" "free" (func $free (param i32) (result i32)))
             (export "init" (func $init))
@@ -14881,17 +14883,18 @@ fn allocate_in_init_free_in_handle() {
                 drop
             )
             (func $handle
-                (call $free (i32.const 16))
+                (call $free (i32.const {static_pages}))
                 drop
             )
         )
-    "#;
+    "#
+    );
 
     init_logger();
     new_test_ext().execute_with(|| {
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
-            ProgramCodeKind::Custom(wat).to_bytes(),
+            ProgramCodeKind::Custom(wat.as_str()).to_bytes(),
             DEFAULT_SALT.to_vec(),
             vec![],
             1_000_000_000,
@@ -14907,7 +14910,10 @@ fn allocate_in_init_free_in_handle() {
         else {
             panic!("program must be active")
         };
-        assert_eq!(program.allocations, BTreeSet::from([WasmPage::from(16)]));
+        assert_eq!(
+            program.allocations,
+            BTreeSet::from([WasmPage::from(static_pages)])
+        );
 
         Gear::send_message(
             RuntimeOrigin::signed(USER_1),
