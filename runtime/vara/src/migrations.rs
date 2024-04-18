@@ -25,5 +25,5 @@ pub type Migrations = (
     // migration for removed waiting init list
     pallet_gear::migrations::MigrateWaitingInitList<Runtime>,
     // +_+_+
-    pallet_gear_program::migration_alloc::MigrateToV4<Runtime>,
+    pallet_gear_program::migration_alloc::MigrateAllocations<Runtime>,
 );

@@ -19,7 +19,7 @@
 use crate::{Config, Pallet, ProgramStorage};
 use common::Program;
 use frame_support::{
-    traits::{Get, GetStorageVersion, OnRuntimeUpgrade},
+    traits::{Get, GetStorageVersion, OnRuntimeUpgrade, StorageVersion},
     weights::Weight,
 };
 use frame_system::pallet_prelude::BlockNumberFor;
@@ -27,6 +27,7 @@ use sp_std::marker::PhantomData;
 
 #[cfg(feature = "try-runtime")]
 use {
+    frame_support::ensure,
     sp_runtime::{
         codec::{Decode, Encode},
         TryRuntimeError,
@@ -34,31 +35,34 @@ use {
     sp_std::vec::Vec,
 };
 
-pub struct MigrateToV4<T: Config>(PhantomData<T>);
+const UPDATE_FROM_VERSION: u16 = 5;
+const UPDATE_TO_VERSION: u16 = 6;
+const ALLOWED_CURRENT_STORAGE_VERSION: u16 = 6;
 
-impl<T: Config> OnRuntimeUpgrade for MigrateToV4<T> {
-    #[cfg(feature = "try-runtime")]
-    fn pre_upgrade() -> Result<Vec<u8>, TryRuntimeError> {
-        Ok((v2::ProgramStorage::<T>::iter().count() as u64).encode())
-    }
+pub struct MigrateAllocations<T: Config>(PhantomData<T>);
 
+impl<T: Config> OnRuntimeUpgrade for MigrateAllocations<T> {
     fn on_runtime_upgrade() -> Weight {
-        let current = Pallet::<T>::current_storage_version();
         let onchain = Pallet::<T>::on_chain_storage_version();
-
-        log::info!(
-            "🚚 Running migration with current storage version {current:?} / onchain {onchain:?}"
-        );
 
         // 1 read for on chain storage version
         let mut weight = T::DbWeight::get().reads(1);
 
-        if current == 4 && onchain == 3 {
-            ProgramStorage::<T>::translate(|_, program: v2::Program<BlockNumberFor<T>>| {
+        if onchain == UPDATE_FROM_VERSION {
+            let current = Pallet::<T>::current_storage_version();
+            if current != ALLOWED_CURRENT_STORAGE_VERSION {
+                log::error!("❌ Migration is not allowed for current storage version {current:?}.");
+                return weight;
+            }
+
+            let update_to = StorageVersion::new(UPDATE_TO_VERSION);
+            log::info!("🚚 Running migration from {onchain:?} to {update_to:?}, current storage version is {current:?}.");
+
+            ProgramStorage::<T>::translate(|_, program: v5::Program<BlockNumberFor<T>>| {
                 weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
 
                 Some(match program {
-                    v2::Program::Active(p) => Program::Active(common::ActiveProgram {
+                    v5::Program::Active(p) => Program::Active(common::ActiveProgram {
                         allocations: p.allocations.into_iter().collect(),
                         pages_with_data: p.pages_with_data.into_iter().collect(),
                         gas_reservation_map: p.gas_reservation_map,
@@ -69,34 +73,61 @@ impl<T: Config> OnRuntimeUpgrade for MigrateToV4<T> {
                         expiration_block: p.expiration_block,
                         memory_infix: p.memory_infix,
                     }),
-                    v2::Program::Exited(id) => Program::Exited(id),
-                    v2::Program::Terminated(id) => Program::Terminated(id),
+                    v5::Program::Exited(id) => Program::Exited(id),
+                    v5::Program::Terminated(id) => Program::Terminated(id),
                 })
             });
 
-            current.put::<Pallet<T>>();
+            update_to.put::<Pallet<T>>();
 
-            log::info!("Successfully migrated storage");
+            log::info!("✅ Successfully migrates storage");
         } else {
-            log::info!("❌ Migration did not execute. This probably should be removed");
+            log::info!("🟠 Migration requires onchain version {UPDATE_FROM_VERSION}, so was skipped for {onchain:?}");
         }
 
         weight
     }
 
     #[cfg(feature = "try-runtime")]
+    fn pre_upgrade() -> Result<Vec<u8>, TryRuntimeError> {
+        let current = Pallet::<T>::current_storage_version();
+        let onchain = Pallet::<T>::on_chain_storage_version();
+
+        let res = if onchain == UPDATE_FROM_VERSION {
+            ensure!(
+                current == ALLOWED_CURRENT_STORAGE_VERSION,
+                "Current storage version is not allowed for migration, check migration code in order to allow it."
+            );
+
+            Some(v5::ProgramStorage::<T>::iter().count() as u64)
+        } else {
+            None
+        };
+
+        Ok(res.encode())
+    }
+
+    #[cfg(feature = "try-runtime")]
     fn post_upgrade(state: Vec<u8>) -> Result<(), TryRuntimeError> {
-        // Check that everything decoded fine.
-        let count = ProgramStorage::<T>::iter_keys().fold(0u64, |i, _| i + 1);
-        let old_count: u64 =
-            Decode::decode(&mut &state[..]).expect("pre_upgrade provides a valid state; qed");
-        assert_eq!(count, old_count);
+        if let Some(old_count) = Option::<u64>::decode(&mut state.as_ref())
+            .map_err(|_| "`pre_upgrade` provided an invalid state")?
+        {
+            let count = ProgramStorage::<T>::iter().count() as u64;
+            ensure!(
+                old_count == count,
+                "incorrect count of elements old {} != new {}",
+            );
+            ensure!(
+                Pallet::<T>::current_storage_version() == UPDATE_TO_VERSION,
+                "incorrect storage version after migration"
+            );
+        }
 
         Ok(())
     }
 }
 
-mod v2 {
+mod v5 {
     use common::ProgramState;
     use gear_core::{
         ids::ProgramId,
@@ -119,13 +150,13 @@ mod v2 {
     pub struct ActiveProgram<BlockNumber: Copy + Saturating> {
         pub allocations: BTreeSet<WasmPage>,
         pub pages_with_data: BTreeSet<GearPage>,
+        pub memory_infix: MemoryInfix,
         pub gas_reservation_map: GasReservationMap,
         pub code_hash: H256,
         pub code_exports: BTreeSet<DispatchKind>,
         pub static_pages: WasmPage,
         pub state: ProgramState,
         pub expiration_block: BlockNumber,
-        pub memory_infix: MemoryInfix,
     }
 
     #[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]
@@ -185,13 +216,13 @@ mod test {
     use sp_runtime::traits::Zero;
 
     #[test]
-    fn migration_to_v3_works() {
+    fn migration_works() {
         new_test_ext().execute_with(|| {
-            StorageVersion::new(2).put::<GearProgram>();
+            StorageVersion::new(UPDATE_FROM_VERSION).put::<GearProgram>();
 
             // add active program
             let active_program_id = ProgramId::from(1u64);
-            let program = v2::Program::<BlockNumberFor<Test>>::Active(v2::ActiveProgram {
+            let program = v5::Program::<BlockNumberFor<Test>>::Active(v5::ActiveProgram {
                 allocations: [1u16, 2, 3, 4, 5, 101, 102]
                     .into_iter()
                     .map(Into::into)
@@ -208,22 +239,22 @@ mod test {
                 expiration_block: 100,
                 memory_infix: Default::default(),
             });
-            v2::ProgramStorage::<Test>::insert(active_program_id, program);
+            v5::ProgramStorage::<Test>::insert(active_program_id, program);
 
             // add exited program
-            let program = v2::Program::<BlockNumberFor<Test>>::Exited(active_program_id);
+            let program = v5::Program::<BlockNumberFor<Test>>::Exited(active_program_id);
             let program_id = ProgramId::from(2u64);
-            v2::ProgramStorage::<Test>::insert(program_id, program);
+            v5::ProgramStorage::<Test>::insert(program_id, program);
 
             // add terminated program
-            let program = v2::Program::<BlockNumberFor<Test>>::Terminated(program_id);
+            let program = v5::Program::<BlockNumberFor<Test>>::Terminated(program_id);
             let program_id = ProgramId::from(3u64);
-            v2::ProgramStorage::<Test>::insert(program_id, program);
+            v5::ProgramStorage::<Test>::insert(program_id, program);
 
-            let state = MigrateToV4::<Test>::pre_upgrade().unwrap();
-            let w = MigrateToV4::<Test>::on_runtime_upgrade();
+            let state = MigrateAllocations::<Test>::pre_upgrade().unwrap();
+            let w = MigrateAllocations::<Test>::on_runtime_upgrade();
             assert!(!w.is_zero());
-            MigrateToV4::<Test>::post_upgrade(state).unwrap();
+            MigrateAllocations::<Test>::post_upgrade(state).unwrap();
 
             if let Program::Active(p) = ProgramStorage::<Test>::get(active_program_id).unwrap() {
                 assert_eq!(
@@ -253,7 +284,7 @@ mod test {
                 Program::Terminated(ProgramId::from(2u64))
             );
 
-            assert_eq!(StorageVersion::get::<GearProgram>(), 4);
+            assert_eq!(StorageVersion::get::<GearProgram>(), UPDATE_TO_VERSION);
         })
     }
 }
