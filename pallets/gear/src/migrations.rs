@@ -54,7 +54,7 @@ where
         // 1 read for the on-chain storage version
         let mut weight = T::DbWeight::get().reads(1);
 
-        if current == 4 && onchain == 3 {
+        if current == 5 && onchain == 4 {
             waiting_init_list::WaitingInitStorage::<T>::translate(
                 |program_id, messages: Vec<MessageId>| {
                     // read and remove an element
