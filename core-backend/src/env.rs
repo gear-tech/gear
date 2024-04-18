@@ -25,7 +25,6 @@ use crate::{
     },
     funcs::FuncsHandler,
     memory::MemoryWrap,
-    runtime,
     state::{HostState, State},
     BackendExternalities,
 };
@@ -36,7 +35,7 @@ use gear_core::{
     gas::GasAmount,
     memory::HostPointer,
     message::{DispatchKind, WasmEntryPoint},
-    pages::{PageNumber, WasmPage},
+    pages::WasmPagesAmount,
     str::LimitedStr,
 };
 use gear_lazy_pages_common::{
@@ -47,7 +46,7 @@ use gear_sandbox::{
         EnvironmentDefinitionBuilder, Instance, Memory as DefaultExecutorMemory, Store,
     },
     AsContextExt, HostFuncType, ReturnValue, SandboxEnvironmentBuilder, SandboxInstance,
-    SandboxMemory, SandboxStore, Value,
+    SandboxMemory, SandboxStore, TryFromValue, Value,
 };
 use gear_wasm_instrument::{
     syscalls::SyscallName::{self, *},
@@ -235,7 +234,7 @@ impl<Ext: Externalities + 'static> GlobalsAccessor for GlobalsAccessProvider<Ext
         let store = self.store.as_ref().ok_or(GlobalsAccessError)?;
         self.instance
             .get_global_val(store, name.as_str())
-            .and_then(runtime::as_i64)
+            .and_then(i64::try_from_value)
             .ok_or(GlobalsAccessError)
     }
 
@@ -264,7 +263,7 @@ where
         binary: &[u8],
         entry_point: EntryPoint,
         entries: BTreeSet<DispatchKind>,
-        mem_size: WasmPage,
+        mem_size: WasmPagesAmount,
     ) -> Result<Self, EnvironmentError> {
         use EnvironmentError::*;
         use SystemEnvironmentError::*;
@@ -289,7 +288,7 @@ where
         };
 
         let memory: DefaultExecutorMemory =
-            match SandboxMemory::new(&mut store, mem_size.raw(), None) {
+            match SandboxMemory::new(&mut store, mem_size.into(), None) {
                 Ok(mem) => mem,
                 Err(e) => return Err(System(CreateEnvMemory(e))),
             };
@@ -426,13 +425,13 @@ where
         // Fetching global value.
         let gas = instance
             .get_global_val(&store, GLOBAL_NAME_GAS)
-            .and_then(runtime::as_i64)
+            .and_then(i64::try_from_value)
             .ok_or(System(WrongInjectedGas))? as u64;
 
         let state = store
             .data_mut()
             .take()
-            .unwrap_or_else(|| unreachable!("State must be set in `WasmiEnvironment::new`; qed"));
+            .unwrap_or_else(|| unreachable!("State must be set; qed"));
 
         let (ext, termination_reason) = state.terminate(res, gas);
 

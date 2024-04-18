@@ -26,6 +26,7 @@ use crate::{
 use alloc::string::String;
 use gear_runtime_interface::sandbox;
 use gear_sandbox_env::WasmReturnValue;
+use sp_core::RuntimeDebug;
 use sp_std::{marker, mem, prelude::*, rc::Rc, slice, vec};
 use sp_wasm_interface_common::HostPointer;
 
@@ -56,15 +57,18 @@ mod ffi {
 
 pub trait AsContext {}
 
+#[derive(RuntimeDebug)]
 pub struct Store<T>(T);
 
-impl<T> SandboxStore<T> for Store<T> {
+impl<T> SandboxStore for Store<T> {
     fn new(state: T) -> Self {
         Self(state)
     }
 }
 
-impl<T> AsContextExt<T> for Store<T> {
+impl<T> AsContextExt for Store<T> {
+    type State = T;
+
     fn data_mut(&mut self) -> &mut T {
         &mut self.0
     }
@@ -74,7 +78,9 @@ impl<T> AsContext for Store<T> {}
 
 pub struct Caller<'a, T>(&'a mut T);
 
-impl<T> AsContextExt<T> for Caller<'_, T> {
+impl<T> AsContextExt for Caller<'_, T> {
+    type State = T;
+
     fn data_mut(&mut self) -> &mut T {
         self.0
     }
@@ -118,7 +124,7 @@ impl<T> super::SandboxMemory<T> for Memory {
 
     fn read<Context>(&self, _ctx: &Context, offset: u32, buf: &mut [u8]) -> Result<(), Error>
     where
-        Context: AsContextExt<T>,
+        Context: AsContextExt<State = T>,
     {
         let result = sandbox::memory_get(
             self.handle.memory_idx,
@@ -135,7 +141,7 @@ impl<T> super::SandboxMemory<T> for Memory {
 
     fn write<Context>(&self, _ctx: &mut Context, offset: u32, val: &[u8]) -> Result<(), Error>
     where
-        Context: AsContextExt<T>,
+        Context: AsContextExt<State = T>,
     {
         let result = sandbox::memory_set(
             self.handle.memory_idx,
@@ -152,7 +158,7 @@ impl<T> super::SandboxMemory<T> for Memory {
 
     fn grow<Context>(&self, ctx: &mut Context, pages: u32) -> Result<u32, Error>
     where
-        Context: AsContextExt<T>,
+        Context: AsContextExt<State = T>,
     {
         let size = self.size(ctx);
         sandbox::memory_grow(self.handle.memory_idx, pages);
@@ -161,14 +167,14 @@ impl<T> super::SandboxMemory<T> for Memory {
 
     fn size<Context>(&self, _ctx: &Context) -> u32
     where
-        Context: AsContextExt<T>,
+        Context: AsContextExt<State = T>,
     {
         sandbox::memory_size(self.handle.memory_idx)
     }
 
     unsafe fn get_buff<Context>(&self, _ctx: &mut Context) -> HostPointer
     where
-        Context: AsContextExt<T>,
+        Context: AsContextExt<State = T>,
     {
         sandbox::get_buff(self.handle.memory_idx)
     }

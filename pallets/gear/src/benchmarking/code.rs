@@ -30,7 +30,7 @@ use common::Origin;
 use frame_support::traits::Get;
 use gear_core::{
     ids::CodeId,
-    pages::{PageNumber, PageU32Size, WasmPage},
+    pages::{WasmPage, WasmPagesAmount},
 };
 use gear_sandbox::{
     default_executor::{EnvironmentDefinitionBuilder, Memory, Store},
@@ -113,15 +113,11 @@ pub struct DataSegment {
 
 #[derive(Clone)]
 pub struct ImportedMemory {
-    // TODO: change to WasmPage (issue #2094)
-    pub min_pages: WasmPage,
+    pub min_pages: WasmPagesAmount,
 }
 
 impl ImportedMemory {
-    pub fn max<T: Config>() -> Self
-    where
-        T: Config,
-    {
+    pub fn max<T: Config>() -> Self {
         Self {
             min_pages: max_pages::<T>().into(),
         }
@@ -229,7 +225,7 @@ where
                 .module("env")
                 .field("memory")
                 .external()
-                .memory(memory.min_pages.raw(), None)
+                .memory(memory.min_pages.into(), None)
                 .build();
         }
 
@@ -278,9 +274,15 @@ where
 
         // Add stack end export
         let stack_end = def.stack_end.unwrap_or(
+            // Set all static memory as stack
             def.memory
                 .as_ref()
-                .map(|memory| memory.min_pages)
+                .map(|memory| {
+                    memory
+                        .min_pages
+                        .to_page_number()
+                        .expect("memory size is too big")
+                })
                 .unwrap_or(0.into()),
         );
         program = program
@@ -389,7 +391,7 @@ where
         } else {
             return None;
         };
-        let memory = Memory::new(store, memory.min_pages.raw(), None).unwrap();
+        let memory = Memory::new(store, memory.min_pages.into(), None).unwrap();
         env.add_memory("env", "memory", memory.clone());
         Some(memory)
     }
@@ -445,7 +447,7 @@ where
 
 /// Mechanisms to generate a function body that can be used inside a `ModuleDefinition`.
 pub mod body {
-    use gear_core::pages::{GearPage, PageU32Size, WasmPage};
+    use gear_core::pages::{numerated::iterators::IntervalIterator, GearPage, WasmPage};
 
     use super::*;
 
@@ -498,32 +500,30 @@ pub mod body {
     }
 
     pub fn write_access_all_pages_instrs(
-        mem_size: WasmPage,
+        end_page: WasmPage,
         mut head: Vec<Instruction>,
     ) -> Vec<Instruction> {
-        for page in mem_size
-            .iter_from_zero()
-            .flat_map(|p| p.to_pages_iter::<GearPage>())
-        {
-            head.push(Instruction::I32Const(page.offset() as i32));
-            head.push(Instruction::I32Const(42));
-            head.push(Instruction::I32Store(2, 0));
-        }
+        IntervalIterator::from(..end_page)
+            .flat_map(|p: WasmPage| p.to_iter())
+            .for_each(|page: GearPage| {
+                head.push(Instruction::I32Const(page.offset() as i32));
+                head.push(Instruction::I32Const(42));
+                head.push(Instruction::I32Store(2, 0));
+            });
         head
     }
 
     pub fn read_access_all_pages_instrs(
-        mem_size: WasmPage,
+        end_page: WasmPage,
         mut head: Vec<Instruction>,
     ) -> Vec<Instruction> {
-        for page in mem_size
-            .iter_from_zero()
-            .flat_map(|p| p.to_pages_iter::<GearPage>())
-        {
-            head.push(Instruction::I32Const(page.offset() as i32));
-            head.push(Instruction::I32Load(2, 0));
-            head.push(Instruction::Drop);
-        }
+        IntervalIterator::from(..end_page)
+            .flat_map(|p: WasmPage| p.to_iter())
+            .for_each(|page: GearPage| {
+                head.push(Instruction::I32Const(page.offset() as i32));
+                head.push(Instruction::I32Load(2, 0));
+                head.push(Instruction::Drop);
+            });
         head
     }
 

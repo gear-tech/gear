@@ -33,7 +33,7 @@ use gear_core::{
     code::{Code, CodeAndId},
     ids::{CodeId, MessageId, ProgramId},
     message::{Dispatch, DispatchKind, Message, ReplyDetails, SignalDetails},
-    pages::WasmPage,
+    pages::WasmPagesAmount,
 };
 use sp_core::H256;
 use sp_runtime::traits::UniqueSaturatedInto;
@@ -46,7 +46,7 @@ pub struct PrepareConfig {
     pub value: u128,
     pub gas_allowance: u64,
     pub gas_limit: u64,
-    pub max_pages_override: Option<WasmPage>,
+    pub max_pages_override: Option<WasmPagesAmount>,
 }
 
 impl Default for PrepareConfig {

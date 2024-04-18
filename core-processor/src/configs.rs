@@ -21,7 +21,7 @@
 use alloc::{collections::BTreeSet, vec::Vec};
 use gear_core::{
     costs::{BlocksAmount, BytesAmount, CallsAmount, CostOf, SyscallCosts},
-    pages::WasmPage,
+    pages::WasmPagesAmount,
 };
 use gear_lazy_pages_common::LazyPagesCosts;
 use gear_wasm_instrument::syscalls::SyscallName;
@@ -57,7 +57,7 @@ pub struct ExtCosts {
     /// Rent costs.
     pub rent: RentCosts,
     /// Memory grow cost per page.
-    pub mem_grow: CostOf<WasmPage>,
+    pub mem_grow: CostOf<WasmPagesAmount>,
 }
 
 /// Costs for message processing
@@ -78,7 +78,7 @@ pub struct ProcessCosts {
     /// Code instrumentation per byte cost.
     pub instrumentation_per_byte: CostOf<BytesAmount>,
     /// Static page cost.
-    pub static_page: CostOf<WasmPage>,
+    pub static_page: CostOf<WasmPagesAmount>,
     /// WASM module instantiation per byte cost.
     pub module_instantiation_per_byte: CostOf<BytesAmount>,
 }
@@ -98,7 +98,7 @@ pub(crate) struct ExecutionSettings {
     /// Mailbox threshold.
     pub mailbox_threshold: u64,
     /// Max allowed memory size.
-    pub max_pages: WasmPage,
+    pub max_pages: WasmPagesAmount,
     /// Forbidden functions.
     pub forbidden_funcs: BTreeSet<SyscallName>,
     /// Reserve for parameter of scheduling.
@@ -132,7 +132,7 @@ pub struct BlockConfig {
     /// Amount of reservations can exist for 1 program.
     pub max_reservations: u64,
     /// Max allowed page numbers for wasm program.
-    pub max_pages: WasmPage,
+    pub max_pages: WasmPagesAmount,
     /// Outgoing limit.
     pub outgoing_limit: u32,
     /// Outgoing bytes limit.

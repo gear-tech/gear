@@ -48,6 +48,7 @@ impl SyscallsConfigBuilder {
             error_processing_config: ErrorProcessingConfig::None,
             log_info: None,
             waiting_probability: None,
+            keeping_insertion_order: false,
         })
     }
 
@@ -109,6 +110,14 @@ impl SyscallsConfigBuilder {
         self
     }
 
+    /// Set whether to keep insertion order of syscalls.
+    ///
+    /// Useful for testing with given order of execution of syscalls.
+    pub fn with_keeping_insertion_order(mut self, keeping_insertion_order: bool) -> Self {
+        self.0.keeping_insertion_order = keeping_insertion_order;
+        self
+    }
+
     /// Build the [`SyscallsConfig`].
     pub fn build(self) -> SyscallsConfig {
         self.0
@@ -124,11 +133,17 @@ pub struct SyscallsConfig {
     error_processing_config: ErrorProcessingConfig,
     log_info: Option<String>,
     waiting_probability: Option<NonZeroU32>,
+    keeping_insertion_order: bool,
 }
 
 impl SyscallsConfig {
+    /// Get injection types.
+    pub fn injection_types(&self) -> &SyscallsInjectionTypes {
+        &self.injection_types
+    }
+
     /// Get possible number of times (range) the syscall can be injected in the wasm.
-    pub fn injection_types(&self, name: InvocableSyscall) -> SyscallInjectionType {
+    pub fn injection_type(&self, name: InvocableSyscall) -> SyscallInjectionType {
         self.injection_types.get(name)
     }
 
@@ -157,5 +172,10 @@ impl SyscallsConfig {
     /// Get probability of wait syscalls.
     pub fn waiting_probability(&self) -> Option<NonZeroU32> {
         self.waiting_probability
+    }
+
+    /// Get whether to keep insertion order of syscalls.
+    pub fn keeping_insertion_order(&self) -> bool {
+        self.keeping_insertion_order
     }
 }
