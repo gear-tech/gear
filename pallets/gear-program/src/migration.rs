@@ -34,8 +34,8 @@ use {
     sp_std::vec::Vec,
 };
 
-const UPDATE_FROM_VERSION: u16 = 3;
-const UPDATE_TO_VERSION: u16 = 4;
+const MIGRATE_FROM_VERSION: u16 = 3;
+const MIGRATE_TO_VERSION: u16 = 4;
 const ALLOWED_CURRENT_STORAGE_VERSION: u16 = 5;
 
 pub struct AppendStackEndMigration<T: Config>(PhantomData<T>);
@@ -50,14 +50,14 @@ impl<T: Config> OnRuntimeUpgrade for AppendStackEndMigration<T> {
 
         // NOTE: in 1.3.0 release, current storage version == `UPDATE_TO_VERSION` is checked,
         // but we need to skip this check now, because storage version was increased.
-        if onchain == UPDATE_FROM_VERSION {
+        if onchain == MIGRATE_FROM_VERSION {
             let current = Pallet::<T>::current_storage_version();
             if current != ALLOWED_CURRENT_STORAGE_VERSION {
                 log::error!("❌ Migration is not allowed for current storage version {current:?}.");
                 return weight;
             }
 
-            let update_to = StorageVersion::new(UPDATE_TO_VERSION);
+            let update_to = StorageVersion::new(MIGRATE_TO_VERSION);
             log::info!("🚚 Running migration from {onchain:?} to {update_to:?}, current storage version is {current:?}.");
 
             CodeStorage::<T>::translate(|_, code: onchain::InstrumentedCode| {
@@ -86,7 +86,7 @@ impl<T: Config> OnRuntimeUpgrade for AppendStackEndMigration<T> {
 
             log::info!("✅ Successfully migrates storage. {counter} codes have been migrated");
         } else {
-            log::info!("🟠 Migration requires onchain version {UPDATE_FROM_VERSION}, so was skipped for {onchain:?}");
+            log::info!("🟠 Migration requires onchain version {MIGRATE_FROM_VERSION}, so was skipped for {onchain:?}");
         }
 
         weight
@@ -97,7 +97,7 @@ impl<T: Config> OnRuntimeUpgrade for AppendStackEndMigration<T> {
         let current = Pallet::<T>::current_storage_version();
         let onchain = Pallet::<T>::on_chain_storage_version();
 
-        let res = if onchain == UPDATE_FROM_VERSION {
+        let res = if onchain == MIGRATE_FROM_VERSION {
             ensure!(
                 current == ALLOWED_CURRENT_STORAGE_VERSION,
                 "Current storage version is not allowed for migration, check migration code in order to allow it."
