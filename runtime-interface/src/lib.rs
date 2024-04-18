@@ -23,6 +23,7 @@
 
 extern crate alloc;
 
+use ark_scale::ArkScale;
 use byteorder::{ByteOrder, LittleEndian};
 use codec::{Decode, Encode};
 use gear_core::{
@@ -299,5 +300,33 @@ pub trait GearDebug {
             .duration_since(SystemTime::UNIX_EPOCH)
             .unwrap()
             .as_nanos()
+    }
+}
+#[runtime_interface]
+pub trait GearBls12_381 {
+    // Aggregate G1-points. Useful for the cases with hundreds or more items.
+    // Accepts encoded `ArkScale<Vec<G1Projective>>`.
+    // Result is encoded `ArkScale<G1Projective>`.
+    fn aggregate_g1(points: &[u8]) -> Vec<u8> {
+        use ark_bls12_381::G1Projective as G1;
+
+        pub type ArkScale<T> = ark_scale::ArkScale<T, { ark_scale::HOST_CALL }>;
+
+        let Ok(ArkScale(points)) = ArkScale::<Vec<G1>>::decode(&mut &points[..]) else {
+            return vec![];
+        };
+
+        let Some(point_first) = points.first() else {
+            return vec![];
+        };
+
+        let point_aggregated = points
+            .iter()
+            .skip(1)
+            .fold(*point_first, |aggregated, point| aggregated + *point);
+
+        let result: ArkScale<G1> = point_aggregated.into();
+
+        result.encode()
     }
 }

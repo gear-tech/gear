@@ -30,6 +30,7 @@ core-processor.workspace = true
 gbuiltin-bls381.workspace = true
 gear-core.workspace = true
 gear-core-errors.workspace = true
+gear-runtime-interface.workspace = true
 frame-support.workspace = true
 frame-system.workspace = true
 frame-benchmarking = { workspace = true, optional = true }
@@ -68,6 +69,7 @@ std = [
 	"frame-support/std",
 	"frame-system/std",
 	"gear-core/std",
+	"gear-runtime-interface/std",
 	"pallet-gear/std",
     "parity-scale-codec/std",
 	"scale-info/std",

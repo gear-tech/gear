@@ -207,7 +207,7 @@ fn compute_committee_sign_root(header: Bytes32, _slot: u64) -> Node {
 }
 
 async fn verify_sync_committee_signture(
-    pub_keys: &[G1],
+    pub_keys: Vec<G1>,
     mut attested_header: Header,
     signature: &G2,
     signature_slot: u64,
@@ -217,13 +217,30 @@ async fn verify_sync_committee_signture(
     let signing_root = compute_committee_sign_root(header_root, signature_slot);
     debug!("signing_root = {:?}", signing_root.as_ref());
 
-    let pub_key_aggregated = pub_keys
-        .iter()
-        .skip(1)
-        .fold(pub_keys[0], |pub_key_aggregated, pub_key| pub_key_aggregated + *pub_key);
+    // let pub_key_aggregated = pub_keys
+    //     .iter()
+    //     .skip(1)
+    //     .fold(pub_keys[0], |pub_key_aggregated, pub_key| pub_key_aggregated + *pub_key);
+    let points: ArkScale<Vec<G1>> = pub_keys.into();
+    let request = Request::AggregateG1 {
+        points: points.encode(),
+    }
+    .encode();
+    let reply = msg::send_bytes_for_reply(BUILTIN_BLS381, &request, 0, 0)
+        .expect("Failed to send message")
+        .await
+        .expect("Received error reply");
+    let response = Response::decode(&mut reply.as_slice()).expect("Aggregate G1 reply should be properly encoded");
+    let pub_key_aggregated = match response {
+        Response::AggregateG1(v) => {
+            ArkScale::<G1>::decode(&mut v.as_slice())
+                .expect("Aggregate G1 result should properly encoded")
+        }
+        _ => unreachable!(),
+    };
 
     // Ensure AggregatePublicKey is not at infinity
-    if pub_key_aggregated.is_zero() {
+    if pub_key_aggregated.0.is_zero() {
         return false;
     }
 
@@ -233,7 +250,7 @@ async fn verify_sync_committee_signture(
     let message = mapper.hash(signing_root.as_ref()).unwrap();
     let message: G2Affine = message.into();
 
-    let pub_key: G1Affine = From::from(pub_key_aggregated);
+    let pub_key: G1Affine = From::from(pub_key_aggregated.0);
     let signature: G2Affine = From::from(*signature);
     let generator_g1_negative = G1Affine::generator().neg();
 
@@ -438,7 +455,7 @@ async fn main() {
         get_participating_keys(sync_committee, &update.sync_aggregate.sync_committee_bits);
 
     let is_valid_sig = verify_sync_committee_signture(
-        &pub_keys,
+        pub_keys,
         update.attested_header.clone(),
         &sync_committee_signature.0,
         signature_slot,

@@ -4680,6 +4680,8 @@ dependencies = [
 name = "gear-runtime-interface"
 version = "1.3.0"
 dependencies = [
+ "ark-bls12-381",
+ "ark-scale 0.0.12",
  "byteorder",
  "gear-core",
  "gear-lazy-pages",
@@ -8071,6 +8073,7 @@ dependencies = [
  "gear-core",
  "gear-core-errors",
  "gear-core-processor",
+ "gear-runtime-interface",
  "hex-literal",
  "impl-trait-for-tuples",
  "log",

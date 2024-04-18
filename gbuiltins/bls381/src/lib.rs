@@ -41,6 +41,8 @@ pub const REQUEST_MULTI_SCALAR_MULTIPLICATION_G2: u8 = 3;
 pub const REQUEST_PROJECTIVE_MULTIPLICATION_G1: u8 = 4;
 /// Constant defines codec index of [`Request::ProjectiveMultiplicationG2`].
 pub const REQUEST_PROJECTIVE_MULTIPLICATION_G2: u8 = 5;
+/// Constant defines codec index of [`Request::AggregateG1`].
+pub const REQUEST_AGGREGATE_G1: u8 = 6;
 
 /// Type that should be used to create a message to the bls12_381 builtin actor.
 /// Use the following crates to construct a request:
@@ -94,6 +96,12 @@ pub enum Request {
     ///   - `scalar`: [`ArkScale<Vec<u64>>`].
     #[codec(index = 5)]
     ProjectiveMultiplicationG2 { base: Vec<u8>, scalar: Vec<u8> },
+
+    /// Request to aggregate *G1* points for *BLS12-381*.
+    ///
+    /// Encoded: [`ArkScale<Vec<G1Projective>>`].
+    #[codec(index = 6)]
+    AggregateG1 { points: Vec<u8> },
 }
 
 /// The enumeration contains result to a request.
@@ -112,6 +120,8 @@ pub enum Response {
     ProjectiveMultiplicationG1(Vec<u8>),
     /// Result of the projective multiplication, encoded: [`ArkScaleProjective<G2Projective>`].
     ProjectiveMultiplicationG2(Vec<u8>),
+    /// Result of the aggregation, encoded: [`ArkScale<G1Projective>`].
+    AggregateG1(Vec<u8>),
 }
 
 #[cfg(test)]
