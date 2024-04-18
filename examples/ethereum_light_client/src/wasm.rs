@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::*;
-use core::ops::Neg;
+use core::{cmp, ops::Neg};
 use gbuiltin_bls381::*;
 use gstd::{
     codec::{Decode, Encode},
@@ -271,6 +271,13 @@ async fn verify_sync_committee_signture(
     <Bls12_381 as Pairing>::TargetField::ONE == exp.0
 }
 
+fn safety_threshold(store: &LightClientStore) -> u64 {
+    cmp::max(
+        store.current_max_active_participants,
+        store.previous_max_active_participants,
+    ) / 2
+}
+
 #[no_mangle]
 extern "C" fn init() {
     let init_msg: Init = msg::load().expect("Unable to decode `Init` message");
@@ -349,8 +356,8 @@ async fn main() {
 
     let update = Update::deserialize(&update[..]).expect("Unable to deserialize Update");
 
-    let bits = get_bits(&update.sync_aggregate.sync_committee_bits);
-    if bits == 0 {
+    let committee_bits = get_bits(&update.sync_aggregate.sync_committee_bits);
+    if committee_bits == 0 {
         debug!("ConsensusError::InsufficientParticipation");
         return;
     }
@@ -363,7 +370,7 @@ async fn main() {
         return;
     }
 
-    let store = unsafe { &STORE }.as_ref().unwrap();
+    let store = unsafe { STORE.as_mut() }.unwrap();
     let store_period = calc_sync_period(store.finalized_header.slot.into());
     let update_sig_period = calc_sync_period(signature_slot);
     let valid_period = if store.next_sync_committee.is_some() {
@@ -438,105 +445,78 @@ async fn main() {
     ).await;
 
     debug!("is_valid_sig = {is_valid_sig}");
+    if !is_valid_sig {
+        return;
+    }
 
-    // if !is_valid_sig {
-    //     return Err(ConsensusError::InvalidSignature.into());
-    // }
+    store.current_max_active_participants =
+        u64::max(store.current_max_active_participants, committee_bits);
 
-    // let contract = unsafe { CONTRACT.as_mut().expect("The contract is not initialized") };
+    let should_update_optimistic = committee_bits > safety_threshold(store)
+        && update.attested_header.slot > store.optimistic_header.slot;
 
-    // match msg {
-    //     HandleMessage::MillerLoop {
-    //         message,
-    //         signatures,
-    //     } => {
-    //         let aggregate_pub_key: ArkScale<Vec<G2Affine>> =
-    //             vec![contract.aggregate_pub_key].into();
+    if should_update_optimistic {
+        store.optimistic_header = update.attested_header.clone();
+        // self.log_optimistic_update(update);
+    }
 
-    //         let request = Request::MultiMillerLoop {
-    //             a: message,
-    //             b: aggregate_pub_key.encode(),
-    //         }
-    //         .encode();
-    //         let reply = msg::send_bytes_for_reply(BUILTIN_BLS381, &request, 0, 0)
-    //             .expect("Failed to send message")
-    //             .await
-    //             .expect("Received error reply");
+    let update_attested_period = calc_sync_period(update.attested_header.slot.into());
 
-    //         let response = Response::decode(&mut reply.as_slice()).unwrap();
-    //         let miller_out1 = match response {
-    //             Response::MultiMillerLoop(v) => v,
-    //             _ => unreachable!(),
-    //         };
+    let update_finalized_slot = update
+        .finalized_header
+        .as_ref()
+        .map(|h| h.slot.as_u64())
+        .unwrap_or(0);
 
-    //         let mut aggregate_signature: G1Affine = Default::default();
-    //         for signature in signatures.iter() {
-    //             let signature = <ArkScale<<Bls12_381 as Pairing>::G1Affine> as Decode>::decode(
-    //                 &mut signature.as_slice(),
-    //             )
-    //             .unwrap();
-    //             aggregate_signature = (aggregate_signature + signature.0).into();
-    //         }
-    //         let aggregate_signature: ArkScale<Vec<G1Affine>> = vec![aggregate_signature].into();
-    //         let g2_gen: ArkScale<Vec<G2Affine>> = vec![contract.g2_gen].into();
-    //         let request = Request::MultiMillerLoop {
-    //             a: aggregate_signature.encode(),
-    //             b: g2_gen.encode(),
-    //         }
-    //         .encode();
-    //         let reply = msg::send_bytes_for_reply(BUILTIN_BLS381, &request, 0, 0)
-    //             .expect("Failed to send message")
-    //             .await
-    //             .expect("Received error reply");
-    //         let response = Response::decode(&mut reply.as_slice()).unwrap();
-    //         let miller_out2 = match response {
-    //             Response::MultiMillerLoop(v) => v,
-    //             _ => unreachable!(),
-    //         };
+    let update_finalized_period = calc_sync_period(update_finalized_slot);
 
-    //         contract.miller_out = (Some(miller_out1), Some(miller_out2));
-    //     }
+    let update_has_finalized_next_committee = store.next_sync_committee.is_none()
+        // has sync update
+        && next_sync_committee.is_some() && next_sync_committee_branch.is_some()
+        // has finality update
+        && update.finalized_header.is_some() && finality_branch.is_some()
+        && update_finalized_period == update_attested_period;
 
-    //     HandleMessage::Exp => {
-    //         if let (Some(miller_out1), Some(miller_out2)) = &contract.miller_out {
-    //             let request = Request::FinalExponentiation {
-    //                 f: miller_out1.clone(),
-    //             }
-    //             .encode();
-    //             let reply = msg::send_bytes_for_reply(BUILTIN_BLS381, &request, 0, 0)
-    //                 .expect("Failed to send message")
-    //                 .await
-    //                 .expect("Received error reply");
-    //             let response = Response::decode(&mut reply.as_slice()).unwrap();
-    //             let exp1 = match response {
-    //                 Response::FinalExponentiation(v) => {
-    //                     ArkScale::<<Bls12_381 as Pairing>::TargetField>::decode(&mut v.as_slice())
-    //                         .unwrap()
-    //                 }
-    //                 _ => unreachable!(),
-    //             };
+    let should_apply_update = {
+        let has_majority = committee_bits * 3 >= 512 * 2;
+        if !has_majority {
+            debug!("skipping block with low vote count");
+        }
 
-    //             let request = Request::FinalExponentiation {
-    //                 f: miller_out2.clone(),
-    //             }
-    //             .encode();
-    //             let reply = msg::send_bytes_for_reply(BUILTIN_BLS381, &request, 0, 0)
-    //                 .expect("Failed to send message")
-    //                 .await
-    //                 .expect("Received error reply");
-    //             let response = Response::decode(&mut reply.as_slice()).unwrap();
-    //             let exp2 = match response {
-    //                 Response::FinalExponentiation(v) => {
-    //                     ArkScale::<<Bls12_381 as Pairing>::TargetField>::decode(&mut v.as_slice())
-    //                         .unwrap()
-    //                 }
-    //                 _ => unreachable!(),
-    //             };
+        let update_is_newer = update_finalized_slot > store.finalized_header.slot.as_u64();
+        let good_update = update_is_newer || update_has_finalized_next_committee;
 
-    //             assert_eq!(exp1.0, exp2.0);
+        has_majority && good_update
+    };
 
-    //             contract.miller_out = (None, None);
-    //         }
-    //     }
-    // }
+    if should_apply_update {
+        let store_period = calc_sync_period(store.finalized_header.slot.into());
+
+        if store.next_sync_committee.is_none() {
+            store.next_sync_committee = next_sync_committee.clone().map(|ark_scale| ark_scale.0);
+        } else if update_finalized_period == store_period + 1 {
+            debug!("sync committee updated");
+            store.current_sync_committee = store.next_sync_committee.clone().unwrap();
+            store.next_sync_committee = next_sync_committee.clone().map(|ark_scale| ark_scale.0);
+            store.previous_max_active_participants =
+                store.current_max_active_participants;
+            store.current_max_active_participants = 0;
+        }
+
+        if update_finalized_slot > store.finalized_header.slot.as_u64() {
+            store.finalized_header = update.finalized_header.clone().unwrap();
+            // self.log_finality_update(update);
+
+            if store.finalized_header.slot.as_u64() % 32 == 0 {
+                let checkpoint_res = store.finalized_header.hash_tree_root();
+                if let Ok(checkpoint) = checkpoint_res {
+                    unsafe { LAST_CHECKPOINT = Some(Bytes32::try_from(checkpoint.as_ref()).expect("Last checkpoint: unable to create Bytes32 from Vec")); }
+                }
+            }
+
+            if store.finalized_header.slot > store.optimistic_header.slot {
+                store.optimistic_header = store.finalized_header.clone();
+            }
+        }
+    }
 }
