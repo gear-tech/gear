@@ -189,11 +189,8 @@ test-doc:
 	@ ./scripts/gear.sh test docs
 
 .PHONY: test-gear
-test-gear: # Crates except gclient, gcli, gsdk are excluded to significantly decrease time.
+test-gear: # Crates are excluded to significantly decrease time.
 	@ ./scripts/gear.sh test gear \
-		--exclude gclient \
-		--exclude gcli \
-		--exclude gsdk \
 		--exclude gear-authorship \
 		--exclude pallet-gear-staking-rewards \
 		--exclude gear-wasm-gen \
@@ -202,7 +199,7 @@ test-gear: # Crates except gclient, gcli, gsdk are excluded to significantly dec
 
 .PHONY: test-gear-release
 test-gear-release:
-	@ ./scripts/gear.sh test gear --release --exclude gclient --exclude gcli --exclude gsdk
+	@ ./scripts/gear.sh test gear --release
 
 .PHONY: test-gsdk
 test-gsdk: node-release

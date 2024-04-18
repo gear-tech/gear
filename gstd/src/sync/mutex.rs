@@ -19,7 +19,7 @@
 use super::access::AccessQueue;
 use crate::{
     async_runtime,
-    errors::{Error, Result},
+    errors::{Error, Result, UsageError},
     exec, format, msg, BlockCount, BlockNumber, Config, MessageId,
 };
 use core::{
@@ -290,7 +290,7 @@ impl<'a, T> MutexLockFuture<'a, T> {
     /// some message before the ownership can be seized by another rival
     pub fn own_up_for(self, block_count: BlockCount) -> Result<Self> {
         if block_count == 0 {
-            Err(Error::ZeroMxLockDuration)
+            Err(Error::Gstd(UsageError::ZeroMxLockDuration))
         } else {
             Ok(MutexLockFuture {
                 mutex_id: self.mutex_id,

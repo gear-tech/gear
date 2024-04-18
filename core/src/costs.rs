@@ -18,7 +18,7 @@
 
 //! Costs module.
 
-use crate::pages::WasmPage;
+use crate::pages::WasmPagesAmount;
 use core::{fmt::Debug, marker::PhantomData};
 use paste::paste;
 
@@ -94,7 +94,7 @@ pub struct SyscallCosts {
     pub alloc: CostOf<CallsAmount>,
 
     /// Cost per allocated page for `alloc`.
-    pub alloc_per_page: CostOf<WasmPage>,
+    pub alloc_per_page: CostOf<WasmPagesAmount>,
 
     /// Cost of calling `free`.
     pub free: CostOf<CallsAmount>,
@@ -103,7 +103,7 @@ pub struct SyscallCosts {
     pub free_range: CostOf<CallsAmount>,
 
     /// Cost of calling `free_range` per page
-    pub free_range_per_page: CostOf<WasmPage>,
+    pub free_range_per_page: CostOf<WasmPagesAmount>,
 
     /// Cost of calling `gr_reserve_gas`.
     pub gr_reserve_gas: CostOf<CallsAmount>,
