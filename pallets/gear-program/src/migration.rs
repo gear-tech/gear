@@ -18,7 +18,7 @@
 
 use crate::{CodeStorage, Config, Pallet};
 use frame_support::{
-    traits::{Get, GetStorageVersion, OnRuntimeUpgrade},
+    traits::{Get, GetStorageVersion, OnRuntimeUpgrade, StorageVersion},
     weights::Weight,
 };
 use gear_core::code::InstrumentedCode;
