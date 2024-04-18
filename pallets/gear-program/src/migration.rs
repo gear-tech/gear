@@ -84,7 +84,7 @@ impl<T: Config> OnRuntimeUpgrade for AppendStackEndMigration<T> {
 
             update_to.put::<Pallet<T>>();
 
-            log::info!("Successfully migrated storage. {counter} codes has been migrated");
+            log::info!("✅ Successfully migrates storage. {counter} codes have been migrated");
         } else {
             log::info!("🟠 Migration requires onchain version {UPDATE_FROM_VERSION}, so was skipped for {onchain:?}");
         }
