@@ -23,7 +23,7 @@ extern crate alloc;
 use alloc::{vec, vec::Vec};
 use ark_bls12_381::{G1Projective as G1, G2Projective as G2};
 use codec::{Decode, Encode};
-use ssz_rs::{prelude::SimpleSerialize, Deserialize, DeserializeError, Sized};
+use ssz_rs::{prelude::SimpleSerialize, Deserialize, DeserializeError, Sized, Bitvector};
 
 #[cfg(feature = "std")]
 mod code {
@@ -78,9 +78,16 @@ pub struct Init {
 }
 
 #[derive(Debug, Clone, Default, SimpleSerialize)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize))]
+pub struct SyncAggregate {
+    pub sync_committee_bits: Bitvector<512>,
+    pub sync_committee_signature: SignatureBytes,
+}
+
+#[derive(Debug, Clone, Default, SimpleSerialize)]
 pub struct Update {
     pub attested_header: Header,
-    pub sync_committee_bits: ssz_rs::Bitvector<512>,
+    pub sync_aggregate: SyncAggregate,
     pub next_sync_committee: Option<SyncCommittee>,
     pub finalized_header: Option<Header>,
 }
@@ -93,7 +100,8 @@ pub enum Handle {
         update: Vec<u8>,
         signature_slot: u64,
         // serialized without compression
-        sync_committee_signature: Vec<u8>,
+        sync_committee_signature: ArkScale<G2>,
+        next_sync_committee: Option<ArkScale<Vec<G1>>>,
         next_sync_committee_branch: Option<Vec<[u8; 32]>>,
         finality_branch: Option<Vec<[u8; 32]>>,
     },

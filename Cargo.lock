@@ -2405,14 +2405,18 @@ name = "demo-ethereum_light_client"
 version = "0.1.0"
 dependencies = [
  "ark-bls12-381",
+ "ark-ec",
+ "ark-ff",
  "ark-scale 0.0.12",
  "ark-serialize",
+ "gbuiltin-bls381",
  "gear-wasm-builder",
  "gstd",
  "hex",
  "hex-literal",
  "parity-scale-codec",
  "serde",
+ "sha2 0.10.8",
  "ssz_rs",
 ]
 

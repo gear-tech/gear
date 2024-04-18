@@ -20,7 +20,7 @@ use ark_bls12_381::{G1Affine, G1Projective as G1, G2Affine, G2Projective as G2};
 use ark_ec::Group;
 use ark_serialize::{CanonicalSerialize, CanonicalDeserialize};
 use ark_std::{ops::Mul, UniformRand};
-use demo_ethereum_light_client::{Header, SyncCommittee, Bytes32, Init, WASM_BINARY, primitives::U64, Handle, SignatureBytes, ArkScale};
+use demo_ethereum_light_client::{Header, SyncCommittee, Bytes32, Init, WASM_BINARY, primitives::U64, Handle, SignatureBytes, ArkScale, SyncAggregate};
 use gclient::{EventListener, EventProcessor, GearApi, Result};
 use gstd::prelude::*;
 use serde::{Deserialize, de::DeserializeOwned};
@@ -71,12 +71,6 @@ struct BootstrapResponse {
     data: Bootstrap,
 }
 
-#[derive(Deserialize, Debug, Clone, Default)]
-pub struct SyncAggregate {
-    pub sync_committee_bits: ssz_rs::Bitvector<512>,
-    pub sync_committee_signature: SignatureBytes,
-}
-
 #[derive(Deserialize, Debug, Clone)]
 pub struct Update {
     #[serde(deserialize_with = "header_deserialize")]
@@ -104,8 +98,13 @@ async fn get<R: DeserializeOwned>(req: &str) -> EyreResult<R> {
 }
 
 async fn get_bootstrap(checkpoint: &str) -> EyreResult<Bootstrap> {
+    let checkpoint_no_prefix = match checkpoint.starts_with("0x") {
+        true => &checkpoint[2..],
+        false => checkpoint,
+    };
+
     let req = format!(
-        "{RPC_URL}/eth/v1/beacon/light_client/bootstrap/{checkpoint}",
+        "{RPC_URL}/eth/v1/beacon/light_client/bootstrap/0x{checkpoint_no_prefix}",
     );
 
     let res: BootstrapResponse = get(&req).await.map_err(|e| {
@@ -174,8 +173,10 @@ async fn upload_program(
 
 #[tokio::test]
 async fn ethereum_light_client() -> Result<()> {
-    let checkpoint = "0xde41619442beea57eeae7a5c37ed13f1ca4f02611d4ad117d7cfa2e008cac75b";
-    let bootstrap = get_bootstrap(checkpoint).await.map_err(|e| anyhow::Error::msg(e.to_string()))?;
+    // 0xde41619442beea57eeae7a5c37ed13f1ca4f02611d4ad117d7cfa2e008cac75b
+    let checkpoint = [222, 65, 97, 148, 66, 190, 234, 87, 238, 174, 122, 92, 55, 237, 19, 241, 202, 79, 2, 97, 29, 74, 209, 23, 215, 207, 162, 224, 8, 202, 199, 91];
+    let checkpoint_hex = hex::encode(checkpoint);
+    let bootstrap = get_bootstrap(&checkpoint_hex).await.map_err(|e| anyhow::Error::msg(e.to_string()))?;
     // println!("bootstrap = {bootstrap:?}");
 
     let mut buffer = Vec::with_capacity(10_000);
@@ -185,7 +186,7 @@ async fn ethereum_light_client() -> Result<()> {
 
         buffer.clone()
     };
-        println!("encoded = {finalized_header:?}");
+    println!("encoded = {finalized_header:?}");
 
     let deser = <Header as ssz_rs::Deserialize>::deserialize(&finalized_header[..]).unwrap();
     assert_eq!(bootstrap.header.slot, deser.slot);
@@ -206,7 +207,7 @@ async fn ethereum_light_client() -> Result<()> {
         })
         .collect::<Vec<_>>();
     let init = Init {
-        last_checkpoint: hex::decode(&checkpoint[2..]).unwrap().try_into().unwrap(),
+        last_checkpoint: checkpoint,
         pub_keys: pub_keys.into(),
         optimistic_header: finalized_header.clone(),
         finalized_header,
@@ -241,21 +242,65 @@ async fn ethereum_light_client() -> Result<()> {
         // println!("signature = {signature:?}");
 
         let Ok(signature) = signature else {
+            println!("failed to deserialize point on G2");
             continue;
         };
 
-        let signature_serialized = {
-            let mut signature_serialized = Vec::with_capacity(512);
-            signature.serialize_uncompressed(&mut signature_serialized).unwrap();
+        let next_sync_committee = Some({
+            let pub_keys = update
+                .next_sync_committee
+                .pubkeys
+                .as_ref()
+                .iter()
+                .map(|pub_key_compressed| {
+                    <G1 as CanonicalDeserialize>::deserialize_compressed_unchecked(&pub_key_compressed[..]).unwrap()
+                })
+                .collect::<Vec<_>>();
 
-            signature_serialized 
+            let ark_scale: ArkScale<Vec<G1>> = pub_keys.into();
+
+            ark_scale
+        });
+        let payload = Handle::Update {
+            update: {
+                let update = demo_ethereum_light_client::Update {
+                    attested_header: update.attested_header,
+                    sync_aggregate: update.sync_aggregate,
+                    next_sync_committee: Some(update.next_sync_committee),
+                    finalized_header: Some(update.finalized_header),
+                };
+
+                buffer.clear();
+                update.serialize(&mut buffer).unwrap();
+
+                buffer.clone()
+            },
+            signature_slot: update.signature_slot.into(),
+            sync_committee_signature: signature.into(),
+            next_sync_committee,
+            next_sync_committee_branch: Some(update
+                .next_sync_committee_branch
+                .iter()
+                .map(|branch| <[u8; 32]>::try_from(branch.as_slice()).unwrap())
+                .collect::<_>()),
+            finality_branch: Some(update
+                .finality_branch
+                .iter()
+                .map(|branch| <[u8; 32]>::try_from(branch.as_slice()).unwrap())
+                .collect::<_>()),
         };
 
-        println!("update.sync_aggregate.sync_committee_signature.len = {}", update.sync_aggregate.sync_committee_signature.as_ref().len());
-        println!("signature_serialized.len = {}", signature_serialized.len());
+        let gas_limit = client
+            .calculate_handle_gas(None, program_id.into(), payload.encode(), 0, true)
+            .await?
+            .min_limit;
+        println!("gas_limit {gas_limit:?}");
 
-        // self.verify_update(&update)?;
-        // self.apply_update(&update);
+        let (message_id, _) = client
+            .send_message(program_id.into(), payload, gas_limit, 0)
+            .await?;
+
+        assert!(listener.message_processed(message_id).await?.succeed());
     }
 
     // let message: ArkScale<Vec<G1Affine>> = vec![message].into();
