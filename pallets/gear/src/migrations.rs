@@ -93,7 +93,7 @@ where
 
             update_to.put::<pallet_gear_program::Pallet<T>>();
 
-            log::info!("✅ Successfully migrates storage");
+            log::info!("✅ Successfully migrated storage");
         } else {
             log::info!("🟠 Migration requires onchain version {MIGRATE_FROM_VERSION}, so was skipped for {onchain:?}");
         }
