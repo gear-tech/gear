@@ -21,7 +21,7 @@
 use crate::{
     code::errors::*,
     message::{DispatchKind, WasmEntryPoint},
-    pages::{PageNumber, PageU32Size, WasmPage},
+    pages::{WasmPage, WasmPagesAmount},
 };
 use alloc::collections::BTreeSet;
 use gear_wasm_instrument::{
@@ -33,7 +33,7 @@ use gear_wasm_instrument::{
 };
 
 /// Defines maximal permitted count of memory pages.
-pub const MAX_WASM_PAGE_AMOUNT: u16 = 512;
+pub const MAX_WASM_PAGES_AMOUNT: u16 = 512;
 
 /// Name of exports allowed on chain.
 pub const ALLOWED_EXPORTS: [&str; 6] = [
@@ -48,7 +48,7 @@ pub const ALLOWED_EXPORTS: [&str; 6] = [
 /// Name of exports required on chain (only 1 of these is required).
 pub const REQUIRED_EXPORTS: [&str; 2] = ["init", "handle"];
 
-pub fn get_static_pages(module: &Module) -> Result<WasmPage, CodeError> {
+pub fn get_static_pages(module: &Module) -> Result<WasmPagesAmount, CodeError> {
     // get initial memory size from memory import
     let static_pages = module
         .import_section()
@@ -59,11 +59,11 @@ pub fn get_static_pages(module: &Module) -> Result<WasmPage, CodeError> {
             External::Memory(mem_ty) => Some(mem_ty.limits().initial()),
             _ => None,
         })
-        .map(WasmPage::new)
+        .map(WasmPagesAmount::try_from)
         .ok_or(MemoryError::EntryNotFound)?
         .map_err(|_| MemoryError::InvalidStaticPageCount)?;
 
-    if static_pages.raw() > MAX_WASM_PAGE_AMOUNT as u32 {
+    if static_pages > WasmPagesAmount::from(MAX_WASM_PAGES_AMOUNT) {
         Err(MemoryError::InvalidStaticPageCount)?;
     }
 
@@ -246,7 +246,7 @@ fn get_export_global_entry(
 /// Check that data segments are not overlapping with stack and are inside static pages.
 pub fn check_data_section(
     module: &Module,
-    static_pages: WasmPage,
+    static_pages: WasmPagesAmount,
     stack_end: Option<WasmPage>,
 ) -> Result<(), CodeError> {
     let Some(data_section) = module.data_section() else {
@@ -283,7 +283,7 @@ pub fn check_data_section(
             .checked_add(size)
             .ok_or(DataSectionError::EndAddressOverflow(data_segment_offset))?;
 
-        (data_segment_last_byte_offset < static_pages.offset())
+        ((data_segment_last_byte_offset as u64) < static_pages.offset())
             .then_some(())
             .ok_or(DataSectionError::EndAddressOutOfStaticMemory(
                 data_segment_offset,
@@ -312,7 +312,7 @@ fn get_stack_end_offset(module: &Module) -> Result<Option<u32>, CodeError> {
 
 pub fn check_and_canonize_gear_stack_end(
     module: &mut Module,
-    static_pages: WasmPage,
+    static_pages: WasmPagesAmount,
 ) -> Result<Option<WasmPage>, CodeError> {
     let Some(stack_end_offset) = get_stack_end_offset(module)? else {
         return Ok(None);
@@ -326,7 +326,7 @@ pub fn check_and_canonize_gear_stack_end(
         .entries_mut()
         .retain(|export| export.field() != STACK_END_EXPORT_NAME);
 
-    if stack_end_offset % WasmPage::size() != 0 {
+    if stack_end_offset % WasmPage::SIZE != 0 {
         return Err(StackEndError::NotAligned(stack_end_offset).into());
     }
 

@@ -54,7 +54,7 @@ impl ErrorProcessingConfig {
 
 /// Set of syscalls that return an error.
 ///
-/// Basically, it's a wrapper over a hash set of [`InvocableSysCall`],
+/// Basically, it's a wrapper over a hash set of [`InvocableSyscall`],
 /// that controls types of inserted syscalls.
 #[derive(Debug, Clone, Default)]
 pub struct ErrorProneSyscalls(HashSet<InvocableSyscall>);

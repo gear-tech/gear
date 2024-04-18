@@ -3,7 +3,7 @@ name: Build MacOS
 on:
   workflow_call:
     inputs:
-      matrix:
+      profiles:
         type: string
         required: true
   workflow_dispatch:
@@ -12,29 +12,28 @@ env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: short
   TERM: xterm-256color
-  BINARYEN_VERSION: version_111
 
 jobs:
-  x86:
-    runs-on: macos-latest
+  macos:
     strategy:
-      matrix: ${{ fromJson(inputs.matrix) }}
+      matrix:
+        profiles: ${{ fromJson(inputs.profiles) }}
+        arch:
+          - name: aarch64
+            image: macos-14
+          - name: x86
+            image: macos-13
       fail-fast: false
-    name: macos-x86 (${{ matrix.profile }})
+    runs-on: ${{ matrix.arch.image }}
+    name: macos-${{ matrix.arch.name }} (${{ matrix.profiles.name }})
     env:
       RUSTUP_HOME: /tmp/rustup_home
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
 
-      - name: "Install: protobuf"
-        run: brew install protobuf
-
-      - name: "Install: binaryen"
-        run: |
-          sudo wget -c https://github.com/WebAssembly/binaryen/releases/download/$BINARYEN_VERSION/binaryen-$BINARYEN_VERSION-x86_64-macos.tar.gz -O - | sudo tar -xz -C .
-          sudo cp binaryen-$BINARYEN_VERSION/bin/* /usr/local/bin
-          sudo cp binaryen-$BINARYEN_VERSION/lib/libbinaryen.dylib /usr/local/lib
+      - name: "Install: Packages"
+        run: brew install protobuf binaryen
 
       - name: "Install: Rust toolchain"
         uses: dsherret/rust-toolchain-file@v1
@@ -42,21 +41,21 @@ jobs:
       - name: "ACTIONS: Setup caching"
         uses: Swatinem/rust-cache@v2
         with:
-          key: "${{ matrix.profile }}"
+          key: "${{ matrix.profiles.name }}"
           save-if: ${{ github.ref == 'refs/heads/master' }}
 
       - name: "Install: cargo-nextest"
         run: curl -LsSf https://get.nexte.st/latest/mac | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
 
       - name: "Build: Node"
-        # node is not actually used in the following test sequence
+        # the node is not used in the following test sequence,
         # so we just check compilation
-        if: ${{ matrix.profile == 'release' }}
+        if: ${{ matrix.profiles.name == 'release' }}
         run: cargo build -p gear-cli --release --locked
 
       - name: "Check: Stack height limit"
         # no need to run check twice
-        if: ${{ matrix.profile == 'release' }}
+        if: ${{ matrix.profiles.name == 'release' }}
         run: cargo run -p calc-stack-height --release --locked
 
       - name: "Test: Lazy pages"
@@ -65,4 +64,4 @@ jobs:
           -p "pallet-*"
           -p gear-lazy-pages
           -p gear-runtime-interface
-          ${{ matrix.profile_flags }}
+          ${{ matrix.profiles.flags }}

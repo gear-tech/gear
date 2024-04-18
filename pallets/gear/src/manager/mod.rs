@@ -69,7 +69,7 @@ use gear_core::{
     code::{CodeAndId, InstrumentedCode},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     message::{DispatchKind, SignalMessage},
-    pages::WasmPage,
+    pages::WasmPagesAmount,
     program::MemoryInfix,
     reservation::GasReservationSlot,
 };
@@ -111,7 +111,7 @@ impl fmt::Debug for HandleKind {
 pub struct CodeInfo {
     id: H256,
     exports: BTreeSet<DispatchKind>,
-    static_pages: WasmPage,
+    static_pages: WasmPagesAmount,
 }
 
 impl CodeInfo {
@@ -401,8 +401,6 @@ where
             QueueOf::<T>::queue(message)
                 .unwrap_or_else(|e| unreachable!("Message queue corrupted! {e:?}"));
         });
-
-        ProgramStorageOf::<T>::waiting_init_remove(program_id);
     }
 
     fn process_failed_init(program_id: ProgramId, origin: ProgramId) {

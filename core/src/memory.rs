@@ -21,15 +21,20 @@
 use crate::{
     buffer::LimitedVec,
     gas::ChargeError,
-    pages::{PageU32Size, WasmPage, GEAR_PAGE_SIZE},
+    pages::{
+        numerated::{
+            interval::{Interval, NewWithLenError, TryFromRangeError},
+            Numerated,
+        },
+        GearPage, WasmPage, WasmPagesAmount,
+    },
 };
 use alloc::{collections::BTreeSet, format};
 use byteorder::{ByteOrder, LittleEndian};
 use core::{
     fmt,
     fmt::Debug,
-    iter,
-    ops::{Deref, DerefMut, RangeInclusive},
+    ops::{Deref, DerefMut},
 };
 use scale_info::{
     scale::{self, Decode, Encode, EncodeLike, Input, Output},
@@ -37,7 +42,7 @@ use scale_info::{
 };
 
 /// Interval in wasm program memory.
-#[derive(Clone, Copy, Encode, Decode)]
+#[derive(Clone, Copy, Eq, PartialEq, Encode, Decode)]
 pub struct MemoryInterval {
     /// Interval offset in bytes.
     pub offset: u32,
@@ -96,7 +101,7 @@ impl Debug for MemoryInterval {
 }
 
 /// Alias for inner type of page buffer.
-pub type PageBufInner = LimitedVec<u8, (), GEAR_PAGE_SIZE>;
+pub type PageBufInner = LimitedVec<u8, (), { GearPage::SIZE as usize }>;
 
 /// Buffer for gear page data.
 #[derive(Clone, PartialEq, Eq, TypeInfo)]
@@ -110,7 +115,7 @@ pub struct PageBuf(PageBufInner);
 //      Grep 'Only support for [[]Type' to get more details on that.
 impl Encode for PageBuf {
     fn size_hint(&self) -> usize {
-        GEAR_PAGE_SIZE
+        GearPage::SIZE as usize
     }
 
     fn encode_to<W: Output + ?Sized>(&self, dest: &mut W) {
@@ -135,7 +140,7 @@ impl Debug for PageBuf {
             f,
             "PageBuf({:?}..{:?})",
             &self.0.inner()[0..10],
-            &self.0.inner()[GEAR_PAGE_SIZE - 10..GEAR_PAGE_SIZE]
+            &self.0.inner()[GearPage::SIZE as usize - 10..GearPage::SIZE as usize]
         )
     }
 }
@@ -160,8 +165,8 @@ impl PageBuf {
     }
 
     /// Creates PageBuf from inner buffer. If the buffer has
-    /// the size of GEAR_PAGE_SIZE then no reallocations occur. In other
-    /// case it will be extended with zeros.
+    /// the size of [`GearPage`] then no reallocations occur.
+    /// In other case it will be extended with zeros.
     ///
     /// The method is implemented intentionally instead of trait From to
     /// highlight conversion cases in the source code.
@@ -191,10 +196,10 @@ pub trait Memory {
     type GrowError: Debug;
 
     /// Grow memory by number of pages.
-    fn grow(&mut self, pages: WasmPage) -> Result<(), Self::GrowError>;
+    fn grow(&mut self, pages: WasmPagesAmount) -> Result<(), Self::GrowError>;
 
     /// Return current size of the memory.
-    fn size(&self) -> WasmPage;
+    fn size(&self) -> WasmPagesAmount;
 
     /// Set memory region at specific pointer.
     fn write(&mut self, offset: u32, buffer: &[u8]) -> Result<(), MemoryError>;
@@ -204,7 +209,7 @@ pub trait Memory {
 
     /// Returns native addr of wasm memory buffer in wasm executor
     fn get_buffer_host_addr(&mut self) -> Option<HostPointer> {
-        if self.size() == 0.into() {
+        if self.size() == WasmPagesAmount::from(0) {
             None
         } else {
             // We call this method only in case memory size is not zero,
@@ -225,8 +230,8 @@ pub struct AllocationsContext {
     /// Pages which has been in storage before execution
     init_allocations: BTreeSet<WasmPage>,
     allocations: BTreeSet<WasmPage>,
-    max_pages: WasmPage,
-    static_pages: WasmPage,
+    max_pages: WasmPagesAmount,
+    static_pages: WasmPagesAmount,
 }
 
 /// Before and after memory grow actions.
@@ -266,11 +271,11 @@ pub enum AllocError {
     ProgramAllocOutOfBounds,
     /// The error occurs in attempt to free-up a memory page from static area or
     /// outside additionally allocated for this program.
-    #[display(fmt = "Page {_0} cannot be freed by the current program")]
-    InvalidFree(u32),
+    #[display(fmt = "{_0:?} cannot be freed by the current program")]
+    InvalidFree(WasmPage),
     /// Invalid range for free_range
-    #[display(fmt = "Invalid range {_0}:{_1} for free_range")]
-    InvalidFreeRange(u32, u32),
+    #[display(fmt = "Invalid range {_0:?}..={_1:?} for free_range")]
+    InvalidFreeRange(WasmPage, WasmPage),
     /// Gas charge error
     #[from]
     #[display(fmt = "{_0}")]
@@ -285,8 +290,8 @@ impl AllocationsContext {
     /// are set.
     pub fn new(
         allocations: BTreeSet<WasmPage>,
-        static_pages: WasmPage,
-        max_pages: WasmPage,
+        static_pages: WasmPagesAmount,
+        max_pages: WasmPagesAmount,
     ) -> Self {
         Self {
             init_allocations: allocations.clone(),
@@ -306,73 +311,58 @@ impl AllocationsContext {
     /// and returns zero-based number of the first one.
     pub fn alloc<G: GrowHandler>(
         &mut self,
-        pages: WasmPage,
+        pages: WasmPagesAmount,
         mem: &mut impl Memory,
-        charge_gas_for_grow: impl FnOnce(WasmPage) -> Result<(), ChargeError>,
+        charge_gas_for_grow: impl FnOnce(WasmPagesAmount) -> Result<(), ChargeError>,
     ) -> Result<WasmPage, AllocError> {
-        let mem_size = mem.size();
-        let mut start = self.static_pages;
-        let mut start_page = None;
-        for &end in self.allocations.iter().chain(iter::once(&mem_size)) {
-            let page_gap = end.sub(start).map_err(|_| IncorrectAllocationDataError)?;
-
-            if page_gap >= pages {
-                start_page = Some(start);
-                break;
-            }
-
-            start = end.inc().map_err(|_| AllocError::ProgramAllocOutOfBounds)?;
-        }
-
-        let start = if let Some(start) = start_page {
-            start
-        } else {
-            // If we cannot find interval between already allocated pages, then try to alloc new pages.
-
-            // Panic is impossible, because we check, that last allocated page can be incremented in loop above.
-            let start = self
-                .allocations
-                .last()
-                .map(|last| last.inc().unwrap_or_else(|err| {
-                    unreachable!("Cannot increment last allocation: {}, but we checked in loop above that it can be done", err)
-                }))
-                .unwrap_or(self.static_pages);
-            let end = start
-                .add(pages)
-                .map_err(|_| AllocError::ProgramAllocOutOfBounds)?;
-            if end > self.max_pages {
-                return Err(AllocError::ProgramAllocOutOfBounds);
-            }
-
-            // Panic is impossible, because in loop above we checked it.
-            let extra_grow = end.sub(mem_size).unwrap_or_else(|err| {
-                unreachable!(
-                    "`mem_size` must be bigger than all allocations and static pages, but get {}",
-                    err
-                )
-            });
-
-            // Panic is impossible, in other case we would found interval inside existing memory.
-            if extra_grow == WasmPage::zero() {
-                unreachable!("`extra grow cannot be zero");
-            }
-
-            charge_gas_for_grow(extra_grow)?;
-
-            let grow_handler = G::before_grow_action(mem);
-            mem.grow(extra_grow)
-                .unwrap_or_else(|err| unreachable!("Failed to grow memory: {:?}", err));
-            grow_handler.after_grow_action(mem);
-
-            start
+        // TODO: Temporary solution to avoid panics, should be removed in #3791.
+        // Presently, this error cannot appear because we have limit 512 wasm pages.
+        let (Some(end_mem_page), Some(end_static_page)) = (
+            mem.size().to_page_number(),
+            self.static_pages.to_page_number(),
+        ) else {
+            return Err(IncorrectAllocationDataError.into());
         };
 
-        // Panic is impossible, because we calculated `start` suitable for `pages`.
-        let new_allocations = start
-            .iter_count(pages)
-            .unwrap_or_else(|err| unreachable!("`start` + `pages` is out of wasm memory: {}", err));
+        let mut start = end_static_page;
+        for &end in self.allocations.iter() {
+            match Interval::<WasmPage>::try_from(start..end) {
+                Ok(interval) if interval.len() >= pages => break,
+                Err(TryFromRangeError::IncorrectRange) => {
+                    return Err(IncorrectAllocationDataError.into())
+                }
+                Ok(_) | Err(TryFromRangeError::EmptyRange) => {}
+            };
 
-        self.allocations.extend(new_allocations);
+            start = end
+                .inc()
+                .to_page_number()
+                .ok_or(AllocError::ProgramAllocOutOfBounds)?;
+        }
+
+        let interval = match Interval::with_len(start, u32::from(pages)) {
+            Ok(interval) => interval,
+            Err(NewWithLenError::OutOfBounds) => return Err(AllocError::ProgramAllocOutOfBounds),
+            Err(NewWithLenError::ZeroLen) => {
+                // Returns end of static pages in case `pages` == 0,
+                // in order to support `alloc` legacy behavior.
+                return Ok(end_static_page);
+            }
+        };
+
+        if interval.end() >= self.max_pages {
+            return Err(AllocError::ProgramAllocOutOfBounds);
+        }
+
+        if let Ok(extra_grow) = Interval::<WasmPage>::try_from(end_mem_page..=interval.end()) {
+            charge_gas_for_grow(extra_grow.len())?;
+            let grow_handler = G::before_grow_action(mem);
+            mem.grow(extra_grow.len())
+                .unwrap_or_else(|err| unreachable!("Failed to grow memory: {:?}", err));
+            grow_handler.after_grow_action(mem);
+        }
+
+        self.allocations.extend(interval.iter());
 
         Ok(start)
     }
@@ -380,11 +370,11 @@ impl AllocationsContext {
     /// Free specific memory page.
     pub fn free(&mut self, page: WasmPage) -> Result<(), AllocError> {
         if page < self.static_pages || page >= self.max_pages {
-            return Err(AllocError::InvalidFree(page.0));
+            return Err(AllocError::InvalidFree(page));
         }
 
         if !self.allocations.remove(&page) {
-            return Err(AllocError::InvalidFree(page.0));
+            return Err(AllocError::InvalidFree(page));
         }
 
         Ok(())
@@ -393,68 +383,60 @@ impl AllocationsContext {
     /// Try to free pages in range. Will only return error if range is invalid.
     ///
     /// Currently running program should own this pages.
-    pub fn free_range(&mut self, range: RangeInclusive<WasmPage>) -> Result<(), AllocError> {
-        if *range.start() < self.static_pages || *range.end() >= self.max_pages {
-            return Err(AllocError::InvalidFreeRange(range.start().0, range.end().0));
+    pub fn free_range(&mut self, interval: Interval<WasmPage>) -> Result<(), AllocError> {
+        let (start, end) = interval.into_parts();
+
+        if start < self.static_pages || end >= self.max_pages {
+            return Err(AllocError::InvalidFreeRange(start, end));
         }
 
-        self.allocations.retain(|p| !range.contains(p));
+        self.allocations.retain(|p| !p.enclosed_by(&start, &end));
+
         Ok(())
     }
 
     /// Decomposes this instance and returns allocations.
-    pub fn into_parts(self) -> (WasmPage, BTreeSet<WasmPage>, BTreeSet<WasmPage>) {
+    pub fn into_parts(self) -> (WasmPagesAmount, BTreeSet<WasmPage>, BTreeSet<WasmPage>) {
         (self.static_pages, self.init_allocations, self.allocations)
     }
 }
 
+/// This module contains tests of `GearPage` and `AllocationContext`
 #[cfg(test)]
-/// This module contains tests of GearPage struct
 mod tests {
-    use crate::pages::{GearPage, PageNumber};
-
     use super::*;
-
     use alloc::vec::Vec;
 
-    #[test]
-    /// Test that [GearPage] add up correctly
-    fn page_number_addition() {
-        let sum = GearPage(100).add(200.into()).unwrap();
-        assert_eq!(sum, GearPage(300));
-    }
+    struct TestMemory(WasmPagesAmount);
 
-    #[test]
-    /// Test that [GearPage] subtract correctly
-    fn page_number_subtraction() {
-        let subtraction = GearPage(299).sub(199.into()).unwrap();
-        assert_eq!(subtraction, GearPage(100))
-    }
+    impl Memory for TestMemory {
+        type GrowError = ();
 
-    #[test]
-    /// Test that [WasmPage] set transforms correctly to [GearPage] set.
-    fn wasm_pages_to_gear_pages() {
-        let wasm_pages: Vec<WasmPage> = [0u32, 10u32].iter().copied().map(WasmPage).collect();
-        let gear_pages: Vec<u32> = wasm_pages
-            .iter()
-            .flat_map(|p| p.to_pages_iter::<GearPage>())
-            .map(|p| p.0)
-            .collect();
+        fn grow(&mut self, pages: WasmPagesAmount) -> Result<(), Self::GrowError> {
+            self.0 = self.0.add(pages).ok_or(())?;
+            Ok(())
+        }
 
-        let expectation = [0, 1, 2, 3, 40, 41, 42, 43];
+        fn size(&self) -> WasmPagesAmount {
+            self.0
+        }
 
-        assert!(gear_pages.eq(&expectation));
+        fn write(&mut self, _offset: u32, _buffer: &[u8]) -> Result<(), MemoryError> {
+            unimplemented!()
+        }
+
+        fn read(&self, _offset: u32, _buffer: &mut [u8]) -> Result<(), MemoryError> {
+            unimplemented!()
+        }
+
+        unsafe fn get_buffer_host_addr_unsafe(&mut self) -> HostPointer {
+            unimplemented!()
+        }
     }
 
     #[test]
     fn page_buf() {
-        env_logger::Builder::from_env(
-            env_logger::Env::default().default_filter_or("gear_core=debug"),
-        )
-        .format_module_path(false)
-        .format_level(true)
-        .try_init()
-        .expect("cannot init logger");
+        let _ = env_logger::try_init();
 
         let mut data = PageBufInner::filled_with(199u8);
         data.inner_mut()[1] = 2;
@@ -464,124 +446,136 @@ mod tests {
 
     #[test]
     fn free_fails() {
-        let mut ctx = AllocationsContext::new(BTreeSet::default(), WasmPage(0), WasmPage(0));
-        assert_eq!(ctx.free(WasmPage(1)), Err(AllocError::InvalidFree(1)));
+        let mut ctx = AllocationsContext::new(Default::default(), 0.into(), 0.into());
+        assert_eq!(ctx.free(1.into()), Err(AllocError::InvalidFree(1.into())));
 
-        let mut ctx = AllocationsContext::new(BTreeSet::default(), WasmPage(1), WasmPage(0));
-        assert_eq!(ctx.free(WasmPage(0)), Err(AllocError::InvalidFree(0)));
-
-        let mut ctx =
-            AllocationsContext::new(BTreeSet::from([WasmPage(0)]), WasmPage(1), WasmPage(1));
-        assert_eq!(ctx.free(WasmPage(1)), Err(AllocError::InvalidFree(1)));
+        let mut ctx = AllocationsContext::new(Default::default(), 1.into(), 0.into());
+        assert_eq!(ctx.free(0.into()), Err(AllocError::InvalidFree(0.into())));
 
         let mut ctx = AllocationsContext::new(
-            BTreeSet::from([WasmPage(1), WasmPage(3)]),
-            WasmPage(1),
-            WasmPage(4),
+            [WasmPage::from(0)].into_iter().collect(),
+            1.into(),
+            1.into(),
         );
-        assert_eq!(ctx.free_range(WasmPage(1)..=WasmPage(3)), Ok(()));
+        assert_eq!(ctx.free(1.into()), Err(AllocError::InvalidFree(1.into())));
+
+        let mut ctx = AllocationsContext::new(
+            [WasmPage::from(1), WasmPage::from(3)].into_iter().collect(),
+            1.into(),
+            4.into(),
+        );
+        let interval = Interval::<WasmPage>::try_from(1u16..4).unwrap();
+        assert_eq!(ctx.free_range(interval), Ok(()));
+    }
+
+    #[track_caller]
+    fn alloc_ok(ctx: &mut AllocationsContext, mem: &mut TestMemory, pages: u16, expected: u16) {
+        let res = ctx.alloc::<NoopGrowHandler>(pages.into(), mem, |_| Ok(()));
+        assert_eq!(res, Ok(expected.into()));
+    }
+
+    #[track_caller]
+    fn alloc_err(ctx: &mut AllocationsContext, mem: &mut TestMemory, pages: u16, err: AllocError) {
+        let res = ctx.alloc::<NoopGrowHandler>(pages.into(), mem, |_| Ok(()));
+        assert_eq!(res, Err(err));
     }
 
     #[test]
-    fn page_iterator() {
-        let test = |num1, num2| {
-            let p1 = GearPage::from(num1);
-            let p2 = GearPage::from(num2);
+    fn alloc() {
+        let _ = env_logger::try_init();
 
-            assert_eq!(
-                p1.iter_end(p2).unwrap().collect::<Vec<GearPage>>(),
-                (num1..num2).map(GearPage::from).collect::<Vec<GearPage>>(),
-            );
-            assert_eq!(
-                p1.iter_end_inclusive(p2)
-                    .unwrap()
-                    .collect::<Vec<GearPage>>(),
-                (num1..=num2).map(GearPage::from).collect::<Vec<GearPage>>(),
-            );
-            assert_eq!(
-                p1.iter_count(p2).unwrap().collect::<Vec<GearPage>>(),
-                (num1..num1 + num2)
-                    .map(GearPage::from)
-                    .collect::<Vec<GearPage>>(),
-            );
-            assert_eq!(
-                p1.iter_from_zero().collect::<Vec<GearPage>>(),
-                (0..num1).map(GearPage::from).collect::<Vec<GearPage>>(),
-            );
-            assert_eq!(
-                p1.iter_from_zero_inclusive().collect::<Vec<GearPage>>(),
-                (0..=num1).map(GearPage::from).collect::<Vec<GearPage>>(),
-            );
-        };
+        let mut ctx = AllocationsContext::new(Default::default(), 16.into(), 256.into());
+        let mut mem = TestMemory(16.into());
+        alloc_ok(&mut ctx, &mut mem, 16, 16);
+        alloc_ok(&mut ctx, &mut mem, 0, 16);
 
-        test(0, 1);
-        test(111, 365);
-        test(1238, 3498);
-        test(0, 64444);
+        // there is a space for 14 more
+        (2..16).for_each(|i| alloc_ok(&mut ctx, &mut mem, 16, i * 16));
+
+        // no more mem!
+        alloc_err(&mut ctx, &mut mem, 16, AllocError::ProgramAllocOutOfBounds);
+
+        // but we free some and then can allocate page that was freed
+        ctx.free(137.into()).unwrap();
+        alloc_ok(&mut ctx, &mut mem, 1, 137);
+
+        // if we free 2 in a row we can allocate even 2
+        ctx.free(117.into()).unwrap();
+        ctx.free(118.into()).unwrap();
+        alloc_ok(&mut ctx, &mut mem, 2, 117);
+
+        // same as above, if we free_range 2 in a row we can allocate 2
+        let interval = Interval::<WasmPage>::try_from(117..119).unwrap();
+        ctx.free_range(interval).unwrap();
+        alloc_ok(&mut ctx, &mut mem, 2, 117);
+
+        // but if 2 are not in a row, bad luck
+        ctx.free(117.into()).unwrap();
+        ctx.free(158.into()).unwrap();
+        alloc_err(&mut ctx, &mut mem, 2, AllocError::ProgramAllocOutOfBounds);
+    }
+
+    #[test]
+    fn alloc_incorrect_data() {
+        let _ = env_logger::try_init();
+
+        let allocations: BTreeSet<WasmPage> = [1.into()].into_iter().collect();
+
+        let mut ctx = AllocationsContext::new(allocations.clone(), 10.into(), 13.into());
+        let mut mem = TestMemory(0.into());
+        alloc_err(&mut ctx, &mut mem, 1, IncorrectAllocationDataError.into());
+
+        let mut ctx =
+            AllocationsContext::new(allocations.clone(), WasmPagesAmount::UPPER, 13.into());
+        let mut mem = TestMemory(0.into());
+        alloc_err(&mut ctx, &mut mem, 1, IncorrectAllocationDataError.into());
+
+        let mut ctx =
+            AllocationsContext::new(allocations.clone(), 10.into(), WasmPagesAmount::UPPER);
+        let mut mem = TestMemory(0.into());
+        alloc_err(&mut ctx, &mut mem, 1, IncorrectAllocationDataError.into());
     }
 
     mod property_tests {
         use super::*;
-        use crate::{memory::HostPointer, pages::PageError};
         use proptest::{
-            arbitrary::any,
-            collection::size_range,
-            prop_oneof, proptest,
-            strategy::{Just, Strategy},
+            arbitrary::any, collection::size_range, prop_oneof, proptest, strategy::Strategy,
             test_runner::Config as ProptestConfig,
         };
 
-        struct TestMemory(WasmPage);
-
-        impl Memory for TestMemory {
-            type GrowError = PageError;
-
-            fn grow(&mut self, pages: WasmPage) -> Result<(), Self::GrowError> {
-                self.0 = self.0.add(pages)?;
-                Ok(())
-            }
-
-            fn size(&self) -> WasmPage {
-                self.0
-            }
-
-            fn write(&mut self, _offset: u32, _buffer: &[u8]) -> Result<(), MemoryError> {
-                unimplemented!()
-            }
-
-            fn read(&self, _offset: u32, _buffer: &mut [u8]) -> Result<(), MemoryError> {
-                unimplemented!()
-            }
-
-            unsafe fn get_buffer_host_addr_unsafe(&mut self) -> HostPointer {
-                unimplemented!()
-            }
-        }
-
         #[derive(Debug, Clone)]
         enum Action {
-            Alloc { pages: WasmPage },
+            Alloc { pages: WasmPagesAmount },
             Free { page: WasmPage },
             FreeRange { page: WasmPage, size: u8 },
         }
 
         fn actions() -> impl Strategy<Value = Vec<Action>> {
-            let action = wasm_page_number().prop_flat_map(|page| {
-                prop_oneof![
-                    Just(Action::Alloc { pages: page }),
-                    Just(Action::Free { page }),
-                    any::<u8>().prop_map(move |size| Action::FreeRange { page, size }),
-                ]
-            });
+            let action = prop_oneof![
+                wasm_pages_amount().prop_map(|pages| Action::Alloc { pages }),
+                wasm_page().prop_map(|page| Action::Free { page }),
+                (wasm_page(), any::<u8>())
+                    .prop_map(|(page, size)| Action::FreeRange { page, size }),
+            ];
             proptest::collection::vec(action, 0..1024)
         }
 
         fn allocations() -> impl Strategy<Value = BTreeSet<WasmPage>> {
-            proptest::collection::btree_set(wasm_page_number(), size_range(0..1024))
+            proptest::collection::btree_set(wasm_page(), size_range(0..1024))
         }
 
-        fn wasm_page_number() -> impl Strategy<Value = WasmPage> {
+        fn wasm_page() -> impl Strategy<Value = WasmPage> {
             any::<u16>().prop_map(WasmPage::from)
+        }
+
+        fn wasm_pages_amount() -> impl Strategy<Value = WasmPagesAmount> {
+            (0..u16::MAX as u32 + 1).prop_map(|x| {
+                if x == u16::MAX as u32 + 1 {
+                    WasmPagesAmount::UPPER
+                } else {
+                    WasmPagesAmount::from(x as u16)
+                }
+            })
         }
 
         fn proptest_config() -> ProptestConfig {
@@ -612,10 +606,10 @@ mod tests {
             #![proptest_config(proptest_config())]
             #[test]
             fn alloc(
-                static_pages in wasm_page_number(),
+                static_pages in wasm_pages_amount(),
                 allocations in allocations(),
-                max_pages in wasm_page_number(),
-                mem_size in wasm_page_number(),
+                max_pages in wasm_pages_amount(),
+                mem_size in wasm_pages_amount(),
                 actions in actions(),
             ) {
                 let _ = env_logger::try_init();
@@ -636,9 +630,8 @@ mod tests {
                             }
                         }
                         Action::FreeRange { page, size } => {
-                            let end = WasmPage::from(page.0.saturating_add(size as u32) as u16);
-                            if let Err(err) = ctx.free_range(page..=end) {
-                                assert_free_error(err);
+                            if let Ok(interval) = Interval::<WasmPage>::with_len(page, size as u32) {
+                                let _ = ctx.free_range(interval).map_err(assert_free_error);
                             }
                         }
                     }

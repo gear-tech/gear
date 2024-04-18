@@ -196,7 +196,7 @@ impl<'a, 'b> SyscallsImportsGenerator<'a, 'b> {
         for (precise_syscall, generate_method) in precise_syscalls {
             let syscall_injection_type = self
                 .config
-                .injection_types(InvocableSyscall::Precise(precise_syscall));
+                .injection_type(InvocableSyscall::Precise(precise_syscall));
             if let SyscallInjectionType::Function(syscall_amount_range) = syscall_injection_type {
                 let precise_syscall_amount =
                     NonZeroU32::new(self.unstructured.int_in_range(syscall_amount_range)?);
@@ -245,9 +245,7 @@ impl<'a, 'b> SyscallsImportsGenerator<'a, 'b> {
         &mut self,
         syscall: SyscallName,
     ) -> Result<Option<(Option<NonZeroU32>, CallIndexesHandle)>> {
-        let syscall_injection_type = self
-            .config
-            .injection_types(InvocableSyscall::Loose(syscall));
+        let syscall_injection_type = self.config.injection_type(InvocableSyscall::Loose(syscall));
 
         let syscall_amount = match syscall_injection_type {
             SyscallInjectionType::Import => 0,

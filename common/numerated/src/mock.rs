@@ -18,9 +18,20 @@
 
 //! Mock for crate property testing and also can be used in other crates for their numerated types impls.
 
-use crate::{Bound, IntervalIterator, IntervalsTree, Numerated};
+use crate::{
+    iterators::IntervalIterator,
+    numerated::{Bound, Numerated},
+    tree::IntervalsTree,
+};
 use alloc::{collections::BTreeSet, fmt::Debug, vec::Vec};
+use core::ops::Range;
 use num_traits::{bounds::UpperBounded, One, Zero};
+use proptest::{
+    collection,
+    prelude::{any, Arbitrary},
+    prop_oneof,
+    strategy::{BoxedStrategy, Strategy},
+};
 
 /// Mock function for any [`Numerated`] implementation testing.
 pub fn test_numerated<T>(x: T, y: T)
@@ -118,10 +129,7 @@ fn btree_set_voids<T: Numerated>(set: &BTreeSet<T>, interval: IntervalIterator<T
 }
 
 /// Mock function for [`IntervalsTree`] testing for any [`Numerated`] implementation.
-pub fn test_tree<T: Numerated + UpperBounded + Debug>(
-    initial: BTreeSet<T>,
-    actions: Vec<TreeAction<T>>,
-) {
+pub fn test_tree<T: Numerated + Debug>(initial: BTreeSet<T>, actions: Vec<TreeAction<T>>) {
     let mut tree: IntervalsTree<T> = initial.iter().copied().collect();
     let mut expected: BTreeSet<T> = tree.points_iter().collect();
     assert_eq!(expected, initial);
@@ -151,4 +159,74 @@ pub fn test_tree<T: Numerated + UpperBounded + Debug>(
         }
         assert_eq!(expected, tree.points_iter().collect());
     }
+}
+
+impl<T> Arbitrary for IntervalIterator<T>
+where
+    T: Numerated + Arbitrary + 'static,
+{
+    type Parameters = ();
+    type Strategy = BoxedStrategy<Self>;
+
+    fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
+        any::<(T, T)>()
+            .prop_map(|(p1, p2)| (p1.min(p2)..=p1.max(p2)).try_into().unwrap())
+            .boxed()
+    }
+}
+
+impl<T> Arbitrary for TreeAction<T>
+where
+    T: Numerated + Arbitrary + 'static,
+{
+    type Parameters = Range<usize>;
+    type Strategy = BoxedStrategy<Self>;
+
+    fn arbitrary_with(range: Self::Parameters) -> Self::Strategy {
+        prop_oneof![
+            any::<IntervalIterator<T>>().prop_map(TreeAction::Insert),
+            any::<IntervalIterator<T>>().prop_map(TreeAction::Remove),
+            any::<IntervalIterator<T>>().prop_map(TreeAction::Voids),
+            collection::btree_set(any::<T>(), range).prop_map(TreeAction::Difference),
+        ]
+        .boxed()
+    }
+}
+
+impl<T> Arbitrary for IntervalAction<T>
+where
+    T: Numerated + Arbitrary + 'static,
+    T::Bound: Debug,
+{
+    type Parameters = ();
+    type Strategy = BoxedStrategy<Self>;
+
+    fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
+        let start = any::<Option<T>>();
+        let end = any::<Option<T>>();
+        (start, end)
+            .prop_map(|(start, end)| {
+                let start: T::Bound = start.into();
+                let end: T::Bound = end.into();
+                match (start.unbound(), end.unbound()) {
+                    (_, None) => IntervalAction::Correct(start, end),
+                    (Some(s), Some(e)) if s <= e => IntervalAction::Correct(start, end),
+                    (Some(_), Some(_)) => IntervalAction::Incorrect(start, end),
+                    (None, Some(_)) => IntervalAction::Incorrect(start, end),
+                }
+            })
+            .boxed()
+    }
+}
+
+/// Tree actions strategy.
+pub fn tree_actions<T: Numerated + Arbitrary + 'static>(
+    tree_size_range: Range<usize>,
+    actions_amount_range: Range<usize>,
+) -> impl Strategy<Value = (BTreeSet<T>, Vec<TreeAction<T>>)> {
+    let action = TreeAction::arbitrary_with(tree_size_range.clone());
+    (
+        collection::btree_set(any::<T>(), tree_size_range),
+        collection::vec(action, actions_amount_range),
+    )
 }
