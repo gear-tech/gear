@@ -39,8 +39,8 @@ use {
 
 pub struct MigrateWaitingInitList<T>(PhantomData<T>);
 
-const UPDATE_FROM_VERSION: u16 = 4;
-const UPDATE_TO_VERSION: u16 = 5;
+const MIGRATE_FROM_VERSION: u16 = 4;
+const MIGRATE_TO_VERSION: u16 = 5;
 const ALLOWED_CURRENT_STORAGE_VERSION: u16 = 6;
 
 impl<T> OnRuntimeUpgrade for MigrateWaitingInitList<T>
@@ -54,14 +54,14 @@ where
         // 1 read for the on-chain storage version
         let mut weight = T::DbWeight::get().reads(1);
 
-        if onchain == UPDATE_FROM_VERSION {
+        if onchain == MIGRATE_FROM_VERSION {
             let current = pallet_gear_program::Pallet::<T>::current_storage_version();
             if current != ALLOWED_CURRENT_STORAGE_VERSION {
                 log::error!("❌ Migration is not allowed for current storage version {current:?}.");
                 return weight;
             }
 
-            let update_to = StorageVersion::new(UPDATE_TO_VERSION);
+            let update_to = StorageVersion::new(MIGRATE_TO_VERSION);
             log::info!("🚚 Running migration from {onchain:?} to {update_to:?}, current storage version is {current:?}.");
 
             waiting_init_list::WaitingInitStorage::<T>::translate(
@@ -93,9 +93,9 @@ where
 
             update_to.put::<pallet_gear_program::Pallet<T>>();
 
-            log::info!("✅ Successfully migrates storage");
+            log::info!("✅ Successfully migrated storage");
         } else {
-            log::info!("🟠 Migration requires onchain version {UPDATE_FROM_VERSION}, so was skipped for {onchain:?}");
+            log::info!("🟠 Migration requires onchain version {MIGRATE_FROM_VERSION}, so was skipped for {onchain:?}");
         }
 
         weight
@@ -106,7 +106,7 @@ where
         let current = Pallet::<T>::current_storage_version();
         let onchain = Pallet::<T>::on_chain_storage_version();
 
-        let data = if onchain == UPDATE_FROM_VERSION {
+        let data = if onchain == MIGRATE_FROM_VERSION {
             ensure!(
                 current == ALLOWED_CURRENT_STORAGE_VERSION,
                 "Current storage version is not allowed for migration, check migration code in order to allow it."
@@ -271,7 +271,7 @@ mod tests {
         init_logger();
 
         new_test_ext().execute_with(|| {
-            StorageVersion::new(UPDATE_FROM_VERSION).put::<GearProgram>();
+            StorageVersion::new(MIGRATE_FROM_VERSION).put::<GearProgram>();
 
             let multiplier = <Test as pallet_gear_bank::Config>::GasMultiplier::get();
 
@@ -344,7 +344,7 @@ mod tests {
             assert!(!weight.is_zero());
             MigrateWaitingInitList::<Test>::post_upgrade(state).unwrap();
 
-            assert_eq!(StorageVersion::get::<GearProgram>(), UPDATE_TO_VERSION);
+            assert_eq!(StorageVersion::get::<GearProgram>(), MIGRATE_TO_VERSION);
 
             assert_eq!(
                 waiting_init_list::WaitingInitStorage::<Test>::iter().count(),
