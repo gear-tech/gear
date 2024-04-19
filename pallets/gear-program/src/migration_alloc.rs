@@ -35,8 +35,8 @@ use {
     sp_std::vec::Vec,
 };
 
-const UPDATE_FROM_VERSION: u16 = 5;
-const UPDATE_TO_VERSION: u16 = 6;
+const MIGRATE_FROM_VERSION: u16 = 5;
+const MIGRATE_TO_VERSION: u16 = 6;
 const ALLOWED_CURRENT_STORAGE_VERSION: u16 = 6;
 
 pub struct MigrateAllocations<T: Config>(PhantomData<T>);
@@ -48,14 +48,14 @@ impl<T: Config> OnRuntimeUpgrade for MigrateAllocations<T> {
         // 1 read for on chain storage version
         let mut weight = T::DbWeight::get().reads(1);
 
-        if onchain == UPDATE_FROM_VERSION {
+        if onchain == MIGRATE_FROM_VERSION {
             let current = Pallet::<T>::current_storage_version();
             if current != ALLOWED_CURRENT_STORAGE_VERSION {
                 log::error!("❌ Migration is not allowed for current storage version {current:?}.");
                 return weight;
             }
 
-            let update_to = StorageVersion::new(UPDATE_TO_VERSION);
+            let update_to = StorageVersion::new(MIGRATE_TO_VERSION);
             log::info!("🚚 Running migration from {onchain:?} to {update_to:?}, current storage version is {current:?}.");
 
             ProgramStorage::<T>::translate(|_, program: v5::Program<BlockNumberFor<T>>| {
@@ -82,7 +82,7 @@ impl<T: Config> OnRuntimeUpgrade for MigrateAllocations<T> {
 
             log::info!("✅ Successfully migrates storage");
         } else {
-            log::info!("🟠 Migration requires onchain version {UPDATE_FROM_VERSION}, so was skipped for {onchain:?}");
+            log::info!("🟠 Migration requires onchain version {MIGRATE_FROM_VERSION}, so was skipped for {onchain:?}");
         }
 
         weight
@@ -93,7 +93,7 @@ impl<T: Config> OnRuntimeUpgrade for MigrateAllocations<T> {
         let current = Pallet::<T>::current_storage_version();
         let onchain = Pallet::<T>::on_chain_storage_version();
 
-        let res = if onchain == UPDATE_FROM_VERSION {
+        let res = if onchain == MIGRATE_FROM_VERSION {
             ensure!(
                 current == ALLOWED_CURRENT_STORAGE_VERSION,
                 "Current storage version is not allowed for migration, check migration code in order to allow it."
@@ -218,7 +218,7 @@ mod test {
     #[test]
     fn migration_works() {
         new_test_ext().execute_with(|| {
-            StorageVersion::new(UPDATE_FROM_VERSION).put::<GearProgram>();
+            StorageVersion::new(MIGRATE_FROM_VERSION).put::<GearProgram>();
 
             // add active program
             let active_program_id = ProgramId::from(1u64);
@@ -284,7 +284,7 @@ mod test {
                 Program::Terminated(ProgramId::from(2u64))
             );
 
-            assert_eq!(StorageVersion::get::<GearProgram>(), UPDATE_TO_VERSION);
+            assert_eq!(StorageVersion::get::<GearProgram>(), MIGRATE_TO_VERSION);
         })
     }
 }
