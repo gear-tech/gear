@@ -31,4 +31,4 @@ jobs:
         run: ./scripts/gear.sh build node --release --locked
 
       - name: "Test: Time consuming tests"
-        run: ./scripts/gear.sh test time-consuming --release
+        run: ./scripts/gear.sh test time-consuming
