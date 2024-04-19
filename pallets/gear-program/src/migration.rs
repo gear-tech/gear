@@ -48,7 +48,7 @@ impl<T: Config> OnRuntimeUpgrade for AppendStackEndMigration<T> {
         let mut weight = T::DbWeight::get().reads(1);
         let mut counter = 0;
 
-        // NOTE: in 1.3.0 release, current storage version == `UPDATE_TO_VERSION` is checked,
+        // NOTE: in 1.3.0 release, current storage version == `MIGRATE_TO_VERSION` is checked,
         // but we need to skip this check now, because storage version was increased.
         if onchain == MIGRATE_FROM_VERSION {
             let current = Pallet::<T>::current_storage_version();
