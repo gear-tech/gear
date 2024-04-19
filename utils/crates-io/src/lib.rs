@@ -29,7 +29,7 @@ use anyhow::Result;
 use std::process::{Command, ExitStatus};
 
 /// Required Packages without local dependencies.
-pub const SAFE_DEPENDENCIES: [&str; 12] = [
+pub const SAFE_DEPENDENCIES: [&str; 13] = [
     "actor-system-error",
     "galloc",
     "gear-stack-buffer",
@@ -42,6 +42,7 @@ pub const SAFE_DEPENDENCIES: [&str; 12] = [
     "gsdk-codegen",
     "gstd-codegen",
     "gsys",
+    "numerated",
 ];
 
 /// Required packages with local dependencies.
