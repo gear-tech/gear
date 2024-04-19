@@ -26,7 +26,7 @@ use std::{
     ops::{Deref, DerefMut},
     path::PathBuf,
 };
-use toml_edit::Document;
+use toml_edit::{Document, Item};
 
 const WORKSPACE_NAME: &str = "__gear_workspace";
 
@@ -62,6 +62,8 @@ impl Workspace {
 
             workspace.manifest["workspace"]["package"]["version"] = toml_edit::value(version);
         }
+
+        workspace.manifest["workspace"]["dependencies"]["gstd"]["features"] = Item::None;
 
         Ok(workspace)
     }
