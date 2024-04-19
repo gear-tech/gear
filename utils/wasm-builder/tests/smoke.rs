@@ -72,7 +72,6 @@ fn install_stable_toolchain() {
 fn test_debug() {
     install_stable_toolchain();
 
-    //CargoRunner::new().args(["test"]).run();
     CargoRunner::stable().args(["test"]).run();
 }
 
@@ -90,7 +89,6 @@ fn build_debug() {
 fn test_release() {
     install_stable_toolchain();
 
-    //CargoRunner::new().args(["test", "--release"]).run();
     CargoRunner::stable().args(["test", "--release"]).run();
 }
 
