@@ -52,8 +52,8 @@ use gear_core_errors::{ReplyCode, SignalCode};
 pub use task::*;
 
 use crate::{
-    BuiltinDispatcherFactory, Config, CurrencyOf, Event, GasHandlerOf, Pallet, ProgramStorageOf,
-    QueueOf, TaskPoolOf, WaitlistOf,
+    fungible, BuiltinDispatcherFactory, Config, CurrencyOf, Event, Fortitude, GasHandlerOf, Pallet,
+    Preservation, ProgramStorageOf, QueueOf, TaskPoolOf, WaitlistOf,
 };
 use common::{
     event::*,
@@ -228,7 +228,13 @@ where
         let active: ActiveProgram<_> = ProgramStorageOf::<T>::get_program(id)?.try_into().ok()?;
         let code_id = active.code_hash.cast();
 
-        let balance = CurrencyOf::<T>::free_balance(&id.cast()).unique_saturated_into();
+        // Actor can only use so much of its balance that would keep its account alive.
+        let balance = <CurrencyOf<T> as fungible::Inspect<_>>::reducible_balance(
+            &id.cast(),
+            Preservation::Preserve,
+            Fortitude::Polite,
+        )
+        .unique_saturated_into();
 
         Some(Actor {
             balance,
@@ -377,7 +383,15 @@ where
         ProgramStorageOf::<T>::remove_program_pages(program_id, memory_infix);
 
         let program_account = program_id.cast();
-        let balance = CurrencyOf::<T>::free_balance(&program_account);
+
+        // Only `reducible_balance` is allowed to be transferred out, even if a part of the
+        // `free` balance of a deactivated program is still `frozen` for some reason.
+        // Note: the preservation requirement here actually allows the account to be removed.
+        let balance = <CurrencyOf<T> as fungible::Inspect<_>>::reducible_balance(
+            &program_account,
+            Preservation::Expendable,
+            Fortitude::Polite,
+        );
         if !balance.is_zero() {
             let destination = Pallet::<T>::inheritor_for(value_destination).cast();
 

@@ -4743,7 +4743,10 @@ fn claim_value_works() {
         assert_eq!(GearBank::<Test>::account_total(&USER_1), 0);
 
         let gas_sent = 10_000_000_000;
-        let value_sent = 1000;
+        let value_out = 1000;
+        // The program will try to send `value_out` units in its `handle` method.
+        // For this to go through the program will need at least the ED on its account afterwards.
+        let value_in = value_out + get_ed();
 
         let prog_id = {
             let res = upload_program_default(USER_3, ProgramCodeKind::OutgoingWithValueInHandle);
@@ -4753,7 +4756,7 @@ fn claim_value_works() {
 
         increase_prog_balance_for_mailbox_test(USER_3, prog_id);
 
-        let reply_to_id = populate_mailbox_from_program(prog_id, USER_2, 2, gas_sent, value_sent);
+        let reply_to_id = populate_mailbox_from_program(prog_id, USER_2, 2, gas_sent, value_in);
         assert!(!MailboxOf::<Test>::is_empty(&USER_1));
 
         let bn_of_insertion = Gear::block_number();
@@ -4787,7 +4790,7 @@ fn claim_value_works() {
         assert_eq!(GearBank::<Test>::account_total(&USER_1), 0);
         assert_eq!(GearBank::<Test>::account_total(&USER_2), 0);
 
-        let expected_claimer_balance = claimer_balance + value_sent;
+        let expected_claimer_balance = claimer_balance + value_out;
         assert_eq!(Balances::free_balance(USER_1), expected_claimer_balance);
 
         let burned_for_hold = gas_price(
@@ -4806,7 +4809,7 @@ fn claim_value_works() {
 
         // Gas left returns to sender from consuming of value tree while claiming.
         let expected_sender_balance =
-            sender_balance + charged_for_page_load - value_sent - gas_burned - burned_for_hold;
+            sender_balance + charged_for_page_load - value_in - gas_burned - burned_for_hold;
         assert_eq!(Balances::free_balance(USER_2), expected_sender_balance);
         assert_eq!(
             Balances::free_balance(RENT_POOL),
@@ -6258,6 +6261,83 @@ fn exit_locking_funds() {
 
         assert_balance(USER_2, user_2_balance + value, 0u128);
         assert_balance(program_id, 0u128, 0u128);
+    });
+}
+
+#[test]
+fn frozen_funds_remain_on_exit() {
+    use crate::{fungible, Fortitude, Preservation};
+    use demo_constructor::{Calls, Scheme};
+    use frame_support::traits::{LockableCurrency, WithdrawReasons};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let (_init_mid, program_id) = init_constructor(Scheme::empty());
+
+        let program_account = program_id.cast();
+
+        let user_2_initial_balance = CurrencyOf::<Test>::free_balance(USER_2);
+
+        assert!(Gear::is_initialized(program_id));
+
+        // Funding program account with this amount
+        let value = 5_000;
+
+        let calls = Calls::builder().send_value(program_id.into_bytes(), [], value);
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            program_id,
+            calls.encode(),
+            10_000_000_000,
+            value,
+            false,
+        ));
+
+        run_to_next_block(None);
+
+        // free balance includes the ED
+        assert_eq!(CurrencyOf::<Test>::free_balance(program_account), value);
+
+        // reducible balance for preserved account doesn't include the ED
+        assert_eq!(
+            <CurrencyOf<Test> as fungible::Inspect<_>>::reducible_balance(
+                &program_id.cast(),
+                Preservation::Preserve,
+                Fortitude::Polite,
+            ),
+            value - get_ed()
+        ); // this doesn't include the ED
+
+        <CurrencyOf<Test> as LockableCurrency<AccountId>>::set_lock(
+            *b"py/grlok",
+            &program_account,
+            value / 2,
+            WithdrawReasons::all(),
+        );
+
+        // `exit()` will trigger program deactivation
+        let calls = Calls::builder().exit(<[u8; 32]>::from(USER_2.into_origin()));
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            program_id,
+            calls.encode(),
+            10_000_000_000,
+            0,
+            false,
+        ));
+        let message_id = utils::get_last_message_id();
+
+        run_to_next_block(None);
+
+        assert_succeed(message_id);
+
+        // Frozen amount was not allowed to have been transferred to the beneficiary.
+        assert_eq!(CurrencyOf::<Test>::free_balance(program_account), value / 2);
+        // The beneficiary's account has only been topped up with half of the program's balance.
+        assert_eq!(
+            CurrencyOf::<Test>::free_balance(USER_2),
+            user_2_initial_balance + value / 2
+        );
     });
 }
 

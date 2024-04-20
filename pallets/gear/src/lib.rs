@@ -72,7 +72,11 @@ use frame_support::{
     dispatch::{DispatchResultWithPostInfo, PostDispatchInfo},
     ensure,
     pallet_prelude::*,
-    traits::{ConstBool, Currency, ExistenceRequirement, Get, Randomness, StorageVersion},
+    traits::{
+        fungible,
+        tokens::{Fortitude, Preservation},
+        ConstBool, Currency, ExistenceRequirement, Get, Randomness, StorageVersion,
+    },
     weights::Weight,
 };
 use frame_system::{
@@ -1656,8 +1660,6 @@ pub mod pallet {
             let who = origin;
             let origin = who.clone().into_origin();
 
-            Self::check_gas_limit_and_value(gas_limit, value)?;
-
             let message = HandleMessage::from_packet(
                 Self::next_message_id(origin),
                 HandlePacket::new_with_gas(
@@ -1674,6 +1676,8 @@ pub mod pallet {
                     Self::is_active(&builtins, destination),
                     Error::<T>::InactiveProgram
                 );
+
+                Self::check_gas_limit_and_value(gas_limit, value)?;
 
                 // Message is not guaranteed to be executed, that's why value is not immediately transferred.
                 // That's because destination can fail to be initialized, while this dispatch message is next
