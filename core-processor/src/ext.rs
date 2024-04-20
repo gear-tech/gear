@@ -477,16 +477,6 @@ impl BackendExternalities for Ext {
 }
 
 impl Ext {
-    fn check_message_value(&mut self, message_value: u128) -> Result<(), FallibleExtError> {
-        let existential_deposit = self.context.existential_deposit;
-        // Sending value should apply the range {0} ∪ [existential_deposit; +inf)
-        if message_value != 0 && message_value < existential_deposit {
-            Err(MessageError::InsufficientValue.into())
-        } else {
-            Ok(())
-        }
-    }
-
     fn check_gas_limit(
         &mut self,
         gas_limit: Option<GasLimit>,
@@ -613,7 +603,6 @@ impl Ext {
         packet: &T,
         check_gas_limit: bool,
     ) -> Result<(), FallibleExtError> {
-        self.check_message_value(packet.value())?;
         // Charge for using expiring resources. Charge for calling syscall was done earlier.
         let gas_limit = if check_gas_limit {
             self.check_gas_limit(packet.gas_limit())?
@@ -895,7 +884,6 @@ impl Externalities for Ext {
         delay: u32,
     ) -> Result<MessageId, Self::FallibleError> {
         self.check_forbidden_destination(msg.destination())?;
-        self.check_message_value(msg.value())?;
         // TODO: unify logic around different source of gas (may be origin msg,
         // or reservation) in order to implement #1828.
         self.check_reservation_gas_limit_for_delayed_sending(&id, delay)?;
@@ -934,7 +922,6 @@ impl Externalities for Ext {
         msg: ReplyPacket,
     ) -> Result<MessageId, Self::FallibleError> {
         self.check_forbidden_destination(self.context.message_context.reply_destination())?;
-        self.check_message_value(msg.value())?;
         // TODO: gasful sending (#1828)
         self.charge_message_value(msg.value())?;
         self.charge_sending_fee(0)?;
@@ -1213,6 +1200,9 @@ impl Externalities for Ext {
         self.charge_expiring_resources(&packet, true)?;
         self.charge_sending_fee(delay)?;
         self.charge_for_dispatch_stash_hold(delay)?;
+
+        // Charge ED to value_counter
+        self.charge_message_value(self.context.existential_deposit)?;
 
         let code_hash = packet.code_id();
 

@@ -397,14 +397,6 @@ impl ExtManager {
 
     #[track_caller]
     fn validate_dispatch(&mut self, dispatch: &Dispatch) {
-        if 0 < dispatch.value() && dispatch.value() < crate::EXISTENTIAL_DEPOSIT {
-            panic!(
-                "Value greater than 0, but less than \
-                required existential deposit ({})",
-                crate::EXISTENTIAL_DEPOSIT
-            );
-        }
-
         if self.is_program(&dispatch.source()) {
             panic!("Sending messages allowed only from users id");
         }
@@ -1122,7 +1114,12 @@ impl JournalHandler for ExtManager {
     }
 
     #[track_caller]
-    fn store_new_programs(&mut self, code_id: CodeId, candidates: Vec<(MessageId, ProgramId)>) {
+    fn store_new_programs(
+        &mut self,
+        _program_id: ProgramId,
+        code_id: CodeId,
+        candidates: Vec<(MessageId, ProgramId)>,
+    ) {
         if let Some(code) = self.opt_binaries.get(&code_id).cloned() {
             for (init_message_id, candidate_id) in candidates {
                 if !self.actors.contains_key(&candidate_id) {

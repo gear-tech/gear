@@ -52,8 +52,8 @@ use gear_core_errors::{ReplyCode, SignalCode};
 pub use task::*;
 
 use crate::{
-    BuiltinDispatcherFactory, Config, CurrencyOf, Event, GasHandlerOf, Pallet, ProgramStorageOf,
-    QueueOf, TaskPoolOf, WaitlistOf,
+    fungible, BuiltinDispatcherFactory, Config, CurrencyOf, Event, Fortitude, GasHandlerOf, Pallet,
+    Preservation, ProgramStorageOf, QueueOf, TaskPoolOf, WaitlistOf,
 };
 use common::{
     event::*,
@@ -64,7 +64,7 @@ use common::{
 use core::fmt;
 use core_processor::common::{Actor, ExecutableActorData};
 use frame_support::traits::{Currency, ExistenceRequirement};
-use frame_system::pallet_prelude::BlockNumberFor;
+use frame_system::{pallet_prelude::BlockNumberFor, Pallet as System};
 use gear_core::{
     code::{CodeAndId, InstrumentedCode},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
@@ -213,7 +213,12 @@ where
         let active: ActiveProgram<_> = ProgramStorageOf::<T>::get_program(id)?.try_into().ok()?;
         let code_id = active.code_hash.cast();
 
-        let balance = CurrencyOf::<T>::free_balance(&id.cast()).unique_saturated_into();
+        let balance = <CurrencyOf<T> as fungible::Inspect<_>>::reducible_balance(
+            &id.cast(),
+            Preservation::Expendable,
+            Fortitude::Polite,
+        )
+        .unique_saturated_into();
 
         Some(Actor {
             balance,
@@ -361,7 +366,18 @@ where
         ProgramStorageOf::<T>::remove_program_pages(program_id, memory_infix);
 
         let program_account = program_id.cast();
-        let balance = CurrencyOf::<T>::free_balance(&program_account);
+
+        // Delete the consumer to allow the account to be reaped.
+        System::<T>::dec_consumers(&program_account);
+
+        // The `reducible_balance` should now include the ED since no consumer is left.
+        // If some part of the program account's `free` balance is still `frozen` for some reason
+        // it will be offset against the `reducible_balance`.
+        let balance = <CurrencyOf<T> as fungible::Inspect<_>>::reducible_balance(
+            &program_account,
+            Preservation::Expendable,
+            Fortitude::Polite,
+        );
         if !balance.is_zero() {
             let destination = Pallet::<T>::inheritor_for(value_destination).cast();
 

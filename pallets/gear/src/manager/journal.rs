@@ -19,8 +19,8 @@
 use crate::{
     internal::HoldBoundBuilder,
     manager::{CodeInfo, ExtManager},
-    Config, Event, GasAllowanceOf, GasHandlerOf, GasTree, GearBank, Pallet, ProgramStorageOf,
-    QueueOf, TaskPoolOf, WaitlistOf,
+    Config, CurrencyOf, Event, GasAllowanceOf, GasHandlerOf, GasTree, GearBank, Pallet,
+    ProgramStorageOf, QueueOf, TaskPoolOf, WaitlistOf,
 };
 use common::{
     event::*,
@@ -29,8 +29,11 @@ use common::{
     CodeStorage, LockableTree, Origin, Program, ProgramState, ProgramStorage, ReservableTree,
 };
 use core_processor::common::{DispatchOutcome as CoreDispatchOutcome, JournalHandler};
-use frame_support::sp_runtime::Saturating;
-use frame_system::pallet_prelude::BlockNumberFor;
+use frame_support::{
+    sp_runtime::Saturating,
+    traits::{Currency, ExistenceRequirement},
+};
+use frame_system::{pallet_prelude::BlockNumberFor, Pallet as System};
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::PageBuf,
@@ -363,12 +366,30 @@ where
             .unwrap_or_else(|e| unreachable!("Gear bank error: {e:?}"));
     }
 
-    fn store_new_programs(&mut self, code_id: CodeId, candidates: Vec<(MessageId, ProgramId)>) {
+    fn store_new_programs(
+        &mut self,
+        program_id: ProgramId,
+        code_id: CodeId,
+        candidates: Vec<(MessageId, ProgramId)>,
+    ) {
         if let Some(code) = T::CodeStorage::get_code(code_id) {
             let code_info = CodeInfo::from_code(&code_id, &code);
             for (init_message, candidate_id) in candidates {
                 if !Pallet::<T>::program_exists(self.builtins(), candidate_id) {
                     let block_number = Pallet::<T>::block_number();
+
+                    // Make sure an account exists for the newly created program.
+                    // Balance validity check has been performed so we don't expect any errors.
+                    CurrencyOf::<T>::transfer(
+                        &program_id.cast(),
+                        &candidate_id.cast(),
+                        CurrencyOf::<T>::minimum_balance(),
+                        ExistenceRequirement::KeepAlive,
+                    )
+                    .unwrap_or_else(|e| unreachable!("Existential deposit transfer error: {e:?}"));
+                    System::<T>::inc_consumers(&candidate_id.cast())
+                        .unwrap_or_else(|e| unreachable!("Inc consumers error: {e:?}"));
+
                     self.set_program(candidate_id, &code_info, init_message, block_number);
 
                     Pallet::<T>::deposit_event(Event::ProgramChanged {

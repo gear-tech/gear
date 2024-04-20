@@ -72,12 +72,16 @@ use frame_support::{
     dispatch::{DispatchResultWithPostInfo, PostDispatchInfo},
     ensure,
     pallet_prelude::*,
-    traits::{ConstBool, Currency, ExistenceRequirement, Get, Randomness, StorageVersion},
+    traits::{
+        fungible,
+        tokens::{Fortitude, Preservation},
+        ConstBool, Currency, ExistenceRequirement, Get, Randomness, StorageVersion,
+    },
     weights::Weight,
 };
 use frame_system::{
     pallet_prelude::{BlockNumberFor, *},
-    RawOrigin,
+    Pallet as System, RawOrigin,
 };
 use gear_core::{
     code::{Code, CodeAndId, CodeError, InstrumentedCode, InstrumentedCodeAndId},
@@ -449,8 +453,6 @@ pub mod pallet {
         CodeTooLarge,
         /// Failed to create a program.
         ProgramConstructionFailed,
-        /// Value doesn't cover ExistentialDeposit.
-        ValueLessThanMinimal,
         /// Message queue processing is disabled.
         MessageQueueProcessingDisabled,
         /// Block count doesn't cover MinimalResumePeriod.
@@ -928,7 +930,7 @@ pub mod pallet {
         pub fn next_message_id(user_id: H256) -> MessageId {
             let nonce = SentOf::<T>::get();
             SentOf::<T>::increase();
-            let block_number = <frame_system::Pallet<T>>::block_number().unique_saturated_into();
+            let block_number = System::<T>::block_number().unique_saturated_into();
 
             MessageId::generate_from_user(block_number, user_id.cast(), nonce.into())
         }
@@ -1174,21 +1176,11 @@ pub mod pallet {
             Ok(CodeAndId::new(code))
         }
 
-        pub(crate) fn check_gas_limit_and_value(
-            gas_limit: u64,
-            value: BalanceOf<T>,
-        ) -> Result<(), DispatchError> {
+        pub(crate) fn check_gas_limit(gas_limit: u64) -> Result<(), DispatchError> {
             // Checking that applied gas limit doesn't exceed block limit.
             ensure!(
                 gas_limit <= BlockGasLimitOf::<T>::get(),
                 Error::<T>::GasLimitTooHigh
-            );
-
-            // Checking that applied value fits existence requirements:
-            // it should be zero or not less than existential deposit.
-            ensure!(
-                value.is_zero() || value >= CurrencyOf::<T>::minimum_balance(),
-                Error::<T>::ValueLessThanMinimal
             );
 
             Ok(())
@@ -1242,9 +1234,27 @@ pub mod pallet {
 
             let (builtins, _) = T::BuiltinDispatcherFactory::create();
             let ext_manager = ExtManager::<T>::new(builtins);
-            ext_manager.set_program(packet.destination(), &code_info, message_id, block_number);
 
             let program_id = packet.destination();
+
+            // Before storing the program to `ProgramStorage` we need to make sure that an account
+            // can be created for the program.
+            // Note: making a transfer outside of the `Ext::set_program()` because here a transfer
+            // is allowed to fail (as opposed to creating a program by a program).
+            CurrencyOf::<T>::transfer(
+                &who,
+                &program_id.cast(),
+                CurrencyOf::<T>::minimum_balance(),
+                ExistenceRequirement::KeepAlive,
+            )?;
+
+            // A consumer is added at program's account creation and removed it on termination
+            // to make sure the account is not removed by the runtime while the program exists.
+            // With a consumer, a correct runtime should not remove the account.
+            System::<T>::inc_consumers(&program_id.cast())?;
+
+            ext_manager.set_program(program_id, &code_info, message_id, block_number);
+
             let program_event = Event::ProgramChanged {
                 id: program_id,
                 change: ProgramChangeKind::ProgramSet {
@@ -1328,6 +1338,15 @@ pub mod pallet {
         /// The origin must be Signed and the sender must have sufficient funds to pay
         /// for `gas` and `value` (in case the latter is being transferred).
         ///
+        /// Gear runtime guarantees that an active program always has an account to store value.
+        /// If the underlying account management platform (e.g. Substrate's System pallet) requires
+        /// an existential deposit to keep an account alive, the related overhead is considered an
+        /// extra cost related with a program instantiation and is charged to the program's creator
+        /// and is released back to the creator when the program is removed.
+        /// In context of the above, the `value` parameter represents the so-called `reducible` balance
+        /// a program should have at its disposal upon instantiation. It is not used to offset the
+        /// existential deposit required for an account creation.
+        ///
         /// Parameters:
         /// - `code`: wasm code of a program as a byte vector.
         /// - `salt`: randomness term (a seed) to allow programs with identical code
@@ -1365,7 +1384,7 @@ pub mod pallet {
         ) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
 
-            Self::check_gas_limit_and_value(gas_limit, value)?;
+            Self::check_gas_limit(gas_limit)?;
 
             let code_and_id = Self::try_new_code(code)?;
             let code_info = CodeInfo::from_code_and_id(&code_and_id);
@@ -1431,8 +1450,8 @@ pub mod pallet {
             // Check if code exists.
             let code = T::CodeStorage::get_code(code_id).ok_or(Error::<T>::CodeDoesntExist)?;
 
-            // Check `gas_limit` and `value`
-            Self::check_gas_limit_and_value(gas_limit, value)?;
+            // Check `gas_limit`
+            Self::check_gas_limit(gas_limit)?;
 
             // Construct packet.
             let packet = Self::init_packet(
@@ -1599,7 +1618,7 @@ pub mod pallet {
             let max_weight = <T as frame_system::Config>::BlockWeights::get().max_block;
 
             // Subtract extrinsic weight from the current block weight to get used weight in the current block.
-            let weight_used = <frame_system::Pallet<T>>::block_weight()
+            let weight_used = System::<T>::block_weight()
                 .total()
                 .saturating_sub(max_weight);
             let remaining_weight = max_weight.saturating_sub(weight_used);
@@ -1671,8 +1690,6 @@ pub mod pallet {
             let who = origin;
             let origin = who.clone().into_origin();
 
-            Self::check_gas_limit_and_value(gas_limit, value)?;
-
             let message = HandleMessage::from_packet(
                 Self::next_message_id(origin),
                 HandlePacket::new_with_gas(
@@ -1689,6 +1706,8 @@ pub mod pallet {
                     Self::is_active(&builtins, destination),
                     Error::<T>::InactiveProgram
                 );
+
+                Self::check_gas_limit(gas_limit)?;
 
                 // Message is not guaranteed to be executed, that's why value is not immediately transferred.
                 // That's because destination can fail to be initialized, while this dispatch message is next
@@ -1763,7 +1782,7 @@ pub mod pallet {
             let mailboxed = Self::read_message(origin.clone(), reply_to_id, reason)
                 .ok_or(Error::<T>::MessageNotFound)?;
 
-            Self::check_gas_limit_and_value(gas_limit, value)?;
+            Self::check_gas_limit(gas_limit)?;
 
             let destination = mailboxed.source();
 

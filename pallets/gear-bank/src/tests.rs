@@ -737,9 +737,23 @@ fn deposit_value_zero() {
 }
 
 #[test]
-fn deposit_value_insufficient_balance() {
+fn deposit_value_overflow() {
     new_test_ext().execute_with(|| {
         const VALUE: Balance = Balance::MAX;
+
+        assert!(VALUE > Balances::free_balance(ALICE));
+
+        assert_noop!(
+            GearBank::deposit_value(&ALICE, VALUE, false),
+            Error::<Test>::Overflow
+        );
+    })
+}
+
+#[test]
+fn deposit_value_insufficient_balance() {
+    new_test_ext().execute_with(|| {
+        const VALUE: Balance = Balance::MAX / 2;
 
         assert!(VALUE > Balances::free_balance(ALICE));
 
@@ -1563,6 +1577,7 @@ mod utils {
                 Self::InsufficientGasBalance => matches!(other, Self::InsufficientGasBalance),
                 Self::InsufficientValueBalance => matches!(other, Self::InsufficientValueBalance),
                 Self::InsufficientDeposit => matches!(other, Self::InsufficientDeposit),
+                Self::Overflow => matches!(other, Self::Overflow),
                 _ => unimplemented!(),
             }
         }

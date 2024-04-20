@@ -74,9 +74,10 @@ pub fn handle_journal(
             }
             JournalNote::SendValue { from, to, value } => handler.send_value(from, to, value),
             JournalNote::StoreNewPrograms {
+                program_id,
                 code_id,
                 candidates,
-            } => handler.store_new_programs(code_id, candidates),
+            } => handler.store_new_programs(program_id, code_id, candidates),
             JournalNote::StopProcessing {
                 dispatch,
                 gas_burned,
