@@ -2576,6 +2576,10 @@ pub mod runtime_types {
                     #[doc = "Deposit of funds that will not keep bank account alive."]
                     #[doc = "**Must be unreachable in Gear main protocol.**"]
                     InsufficientDeposit,
+                    #[codec(index = 5)]
+                    #[doc = "Overflow during funds transfer."]
+                    #[doc = "**Must be unreachable in Gear main protocol.**"]
+                    Overflow,
                 }
             }
         }
