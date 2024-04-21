@@ -19,8 +19,11 @@
 use super::*;
 use crate::Runtime;
 use gear_lazy_pages_common::LazyPagesCosts;
-use pallet_gear::{InstructionWeights, MemoryWeights};
-use runtime_common::weights::{check_instructions_weights, check_lazy_pages_costs};
+use pallet_gear::{InstructionWeights, MemoryWeights, SyscallWeights};
+use runtime_common::weights::{
+    check_instructions_weights, check_lazy_pages_costs, check_pages_costs, check_syscall_weights,
+    PagesCosts,
+};
 
 #[test]
 fn instruction_weights_heuristics_test() {
@@ -40,7 +43,7 @@ fn instruction_weights_heuristics_test() {
         br: 3_300,
         br_if: 6_000,
         br_table: 10_900,
-        br_table_per_entry: 300,
+        br_table_per_entry: 100,
 
         call: 4_900,
         call_per_local: 0,
@@ -50,8 +53,8 @@ fn instruction_weights_heuristics_test() {
         local_get: 900,
         local_set: 1_900,
         local_tee: 2_500,
-        global_get: 2_000,
-        global_set: 3_000,
+        global_get: 700,
+        global_set: 1_000,
         memory_current: 14_200,
 
         i64clz: 6_100,
@@ -59,9 +62,9 @@ fn instruction_weights_heuristics_test() {
         i64ctz: 6_700,
         i32ctz: 6_700,
         i64popcnt: 1_000,
-        i32popcnt: 800,
-        i64eqz: 4_000,
-        i32eqz: 2_400,
+        i32popcnt: 350,
+        i64eqz: 1_300,
+        i32eqz: 1_200,
         i32extend8s: 800,
         i32extend16s: 800,
         i64extend8s: 800,
@@ -70,67 +73,164 @@ fn instruction_weights_heuristics_test() {
         i64extendsi32: 800,
         i64extendui32: 400,
         i32wrapi64: 300,
-        i64eq: 4_200,
-        i32eq: 2_200,
-        i64ne: 4_200,
-        i32ne: 2_200,
+        i64eq: 1_800,
+        i32eq: 1_100,
+        i64ne: 1_700,
+        i32ne: 1_000,
 
-        i64lts: 4_000,
-        i32lts: 2_000,
-        i64ltu: 4_000,
-        i32ltu: 2_000,
-        i64gts: 4_000,
-        i32gts: 2_000,
-        i64gtu: 4_000,
-        i32gtu: 2_000,
-        i64les: 4_000,
-        i32les: 2_000,
-        i64leu: 4_000,
-        i32leu: 2_000,
+        i64lts: 1_200,
+        i32lts: 1_000,
+        i64ltu: 1_200,
+        i32ltu: 1_000,
+        i64gts: 1_200,
+        i32gts: 1_000,
+        i64gtu: 1_200,
+        i32gtu: 1_000,
+        i64les: 1_200,
+        i32les: 1_000,
+        i64leu: 1_200,
+        i32leu: 1_000,
 
-        i64ges: 4_000,
-        i32ges: 2_000,
-        i64geu: 4_000,
-        i32geu: 2_000,
-        i64add: 2_500,
+        i64ges: 1_300,
+        i32ges: 1_000,
+        i64geu: 1_300,
+        i32geu: 1_000,
+        i64add: 1_300,
         i32add: 1_000,
-        i64sub: 3_000,
+        i64sub: 1_300,
         i32sub: 1_000,
-        i64mul: 4_000,
-        i32mul: 2_300,
-        i64divs: 4_800,
-        i32divs: 3_800,
+        i64mul: 2_000,
+        i32mul: 2_000,
+        i64divs: 3_500,
+        i32divs: 3_500,
 
-        i64divu: 5_200,
-        i32divu: 4_200,
-        i64rems: 21_100,
-        i32rems: 15_100,
-        i64remu: 4_300,
-        i32remu: 4_300,
-        i64and: 3_000,
+        i64divu: 3_500,
+        i32divu: 3_500,
+        i64rems: 10_000,
+        i32rems: 10_000,
+        i64remu: 3_500,
+        i32remu: 3_500,
+        i64and: 1_000,
         i32and: 1_000,
-        i64or: 3_000,
+        i64or: 1_000,
         i32or: 1_000,
-        i64xor: 3_000,
+        i64xor: 1_000,
         i32xor: 1_000,
 
-        i64shl: 2_500,
-        i32shl: 1_000,
-        i64shrs: 2_500,
-        i32shrs: 1_000,
-        i64shru: 2_500,
-        i32shru: 1_000,
-        i64rotl: 2_000,
-        i32rotl: 1_000,
-        i64rotr: 2_500,
-        i32rotr: 1_000,
+        i64shl: 1_000,
+        i32shl: 800,
+        i64shrs: 1_000,
+        i32shrs: 800,
+        i64shru: 1_000,
+        i32shru: 800,
+        i64rotl: 1_500,
+        i32rotl: 800,
+        i64rotr: 1_000,
+        i32rotr: 800,
     };
 
     check_instructions_weights(weights, expected_weights);
 }
 
 #[test]
+fn syscall_weights_test() {
+    let weights = SyscallWeights::<Runtime>::default();
+
+    let expected = SyscallWeights {
+        alloc: 8_000_000.into(),
+        alloc_per_page: 247_000.into(),
+        free: 628_000.into(),
+        free_range: 772_000.into(),
+        free_range_per_page: 63_000.into(),
+        gr_reserve_gas: 2_300_000.into(),
+        gr_unreserve_gas: 1_900_000.into(),
+        gr_system_reserve_gas: 1_000_000.into(),
+        gr_gas_available: 932_300.into(),
+        gr_message_id: 926_500.into(),
+        gr_program_id: 930_100.into(),
+        gr_source: 930_700.into(),
+        gr_value: 945_700.into(),
+        gr_value_available: 967_900.into(),
+        gr_size: 926_900.into(),
+        gr_read: 1_700_000.into(),
+        gr_read_per_byte: 157.into(),
+        gr_env_vars: 1_000_000.into(),
+        gr_block_height: 925_900.into(),
+        gr_block_timestamp: 933_000.into(),
+        gr_random: 1_900_000.into(),
+        gr_reply_deposit: 6_500_000.into(),
+        gr_send: 3_200_000.into(),
+        gr_send_per_byte: 373.into(),
+        gr_send_wgas: 3_300_000.into(),
+        gr_send_wgas_per_byte: 382.into(),
+        gr_send_init: 1_000_000.into(),
+        gr_send_push: 2_000_000.into(),
+        gr_send_push_per_byte: 379.into(),
+        gr_send_commit: 2_700_000.into(),
+        gr_send_commit_wgas: 2_700_000.into(),
+        gr_reservation_send: 3_400_000.into(),
+        gr_reservation_send_per_byte: 376.into(),
+        gr_reservation_send_commit: 2_900_000.into(),
+        gr_reply_commit: 21_300_000.into(),
+        gr_reply_commit_wgas: 19_200_000.into(),
+        gr_reservation_reply: 8_300_000.into(),
+        gr_reservation_reply_per_byte: 584_500.into(),
+        gr_reservation_reply_commit: 10_400_000.into(),
+        gr_reply_push: 1_700_000.into(),
+        gr_reply: 22_500_000.into(),
+        gr_reply_per_byte: 564.into(),
+        gr_reply_wgas: 21_400_000.into(),
+        gr_reply_wgas_per_byte: 575.into(),
+        gr_reply_push_per_byte: 640.into(),
+        gr_reply_to: 950_200.into(),
+        gr_signal_code: 962_500.into(),
+        gr_signal_from: 941_500.into(),
+        gr_reply_input: 25_900_000.into(),
+        gr_reply_input_wgas: 24_600_000.into(),
+        gr_reply_push_input: 1_200_000.into(),
+        gr_reply_push_input_per_byte: 146.into(),
+        gr_send_input: 3_100_000.into(),
+        gr_send_input_wgas: 3_100_000.into(),
+        gr_send_push_input: 1_500_000.into(),
+        gr_send_push_input_per_byte: 165.into(),
+        gr_debug: 1_200_000.into(),
+        gr_debug_per_byte: 316.into(),
+        gr_reply_code: 919_800.into(),
+        gr_exit: 24_100_000.into(),
+        gr_leave: 12_500_000.into(),
+        gr_wait: 11_400_000.into(),
+        gr_wait_for: 9_900_000.into(),
+        gr_wait_up_to: 11_600_000.into(),
+        gr_wake: 3_700_000.into(),
+        gr_create_program: 4_100_000.into(),
+        gr_create_program_payload_per_byte: 78.into(),
+        gr_create_program_salt_per_byte: 1_900.into(),
+        gr_create_program_wgas: 4_100_000.into(),
+        gr_create_program_wgas_payload_per_byte: 88.into(),
+        gr_create_program_wgas_salt_per_byte: 1_900.into(),
+        _phantom: Default::default(),
+    };
+
+    check_syscall_weights(weights, expected);
+}
+
+#[test]
 fn page_costs_heuristic_test() {
+    let page_costs: PagesCosts = MemoryWeights::<Runtime>::default().into();
+
+    let expected_page_costs = PagesCosts {
+        load_page_data: 10_000_000.into(),
+        upload_page_data: 105_000_000.into(),
+        static_page: 100.into(),
+        mem_grow: 1_100_000.into(),
+        parachain_read_heuristic: 0.into(),
+    };
+
+    check_pages_costs(page_costs, expected_page_costs);
+}
+
+#[test]
+fn lazy_page_costs_heuristic_test() {
     let lazy_pages_costs: LazyPagesCosts = MemoryWeights::<Runtime>::default().into();
 
     let expected_lazy_pages_costs = LazyPagesCosts {

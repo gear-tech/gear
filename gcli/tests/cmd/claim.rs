@@ -61,7 +61,7 @@ async fn test_command_claim_works() -> Result<()> {
         .mailbox(Some(common::alice_account_id()), 10)
         .await?;
 
-    assert_eq!(mailbox.len(), 1);
+    assert_eq!(mailbox.len(), 1, "Mailbox should have 1 message");
     let id = hex::encode(mailbox[0].0.id.0);
 
     let burned_before = signer.api().get_balance(&signer.address()).await? - initial_stash;
@@ -74,10 +74,15 @@ async fn test_command_claim_works() -> Result<()> {
     let after = signer.api().get_balance(ADDRESS).await?;
     let rent_pool = signer.api().get_balance(RENT_POOL_SS58_ADDRESS).await?;
 
-    assert_eq!(initial_balance - before - burned_before, REWARD_PER_BLOCK);
+    assert_eq!(
+        initial_balance - before - burned_before,
+        REWARD_PER_BLOCK,
+        "Reward per block mismatched "
+    );
     assert_eq!(
         initial_balance - burned_after - (rent_pool - rent_pool_initial),
-        after
+        after,
+        "Transaction spent mismatched"
     );
 
     Ok(())

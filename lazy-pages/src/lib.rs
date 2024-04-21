@@ -35,27 +35,31 @@ mod globals;
 mod host_func;
 mod init_flag;
 mod mprotect;
+mod pages;
 mod process;
 mod signal;
 mod sys;
-mod utils;
 
 #[cfg(test)]
 mod tests;
 
 pub use crate::common::LazyPagesStorage;
-pub use common::{LazyPagesVersion, PageSizes};
-pub use host_func::pre_process_memory_accesses;
-
 use crate::{
-    common::{ContextError, CostNo, Costs, LazyPagesContext, PagePrefix},
+    common::{ContextError, CostNo, Costs, LazyPagesContext, PagePrefix, PageSizes},
     globals::{GlobalNo, GlobalsContext},
     init_flag::InitializationFlag,
+    pages::{
+        GearPagesAmount, GearSizeNo, PagesAmountTrait, SizeNumber, WasmPage, WasmPagesAmount,
+        WasmSizeNo, SIZES_AMOUNT,
+    },
 };
+pub use common::LazyPagesVersion;
 use common::{LazyPagesExecutionContext, LazyPagesRuntimeContext};
-use gear_core::pages::{PageDynSize, PageNumber, PageSizeNo, WasmPage};
 use gear_lazy_pages_common::{GlobalsAccessConfig, LazyPagesInitContext, Status};
+pub use host_func::pre_process_memory_accesses;
 use mprotect::MprotectError;
+use numerated::iterators::IntervalIterator;
+use pages::GearPage;
 use signal::{DefaultUserSignalHandler, UserSignalHandler};
 use std::{cell::RefCell, convert::TryInto, num::NonZeroU32};
 
@@ -77,7 +81,7 @@ pub enum Error {
     #[from]
     Mprotect(MprotectError),
     #[display(fmt = "Wasm memory end addr is out of usize: begin addr = {_0:#x}, size = {_1:#x}")]
-    WasmMemoryEndAddrOverflow(usize, u32),
+    WasmMemoryEndAddrOverflow(usize, usize),
     #[display(fmt = "Prefix of storage with memory pages was not set")]
     MemoryPagesPrefixNotSet,
     #[display(fmt = "Memory size must be null when memory host addr is not set")]
@@ -99,8 +103,8 @@ pub enum Error {
     WrongCostsAmount(usize, usize),
 }
 
-fn check_memory_interval(addr: usize, size: u32) -> Result<(), Error> {
-    addr.checked_add(size as usize)
+fn check_memory_interval(addr: usize, size: usize) -> Result<(), Error> {
+    addr.checked_add(size)
         .ok_or(Error::WasmMemoryEndAddrOverflow(addr, size))
         .map(|_| ())
 }
@@ -132,7 +136,7 @@ pub fn initialize_for_program(
         }
 
         let wasm_mem_size =
-            WasmPage::new(wasm_mem_size, runtime_ctx).ok_or(Error::WasmMemSizeOverflow)?;
+            WasmPagesAmount::new(runtime_ctx, wasm_mem_size).ok_or(Error::WasmMemSizeOverflow)?;
         let wasm_mem_size_in_bytes = wasm_mem_size.offset(runtime_ctx);
 
         // Check wasm program memory size
@@ -142,7 +146,7 @@ pub fn initialize_for_program(
             return Err(Error::MemorySizeIsNotNull);
         }
 
-        let stack_end = WasmPage::new(stack_end, runtime_ctx).ok_or(Error::StackEndOverflow)?;
+        let stack_end = WasmPage::new(runtime_ctx, stack_end).ok_or(Error::StackEndOverflow)?;
 
         let costs: Costs = costs.try_into().map_err(|costs: Vec<u64>| {
             Error::WrongCostsAmount(costs.len(), CostNo::Amount as usize)
@@ -168,14 +172,13 @@ pub fn initialize_for_program(
 
         // Set protection if wasm memory exist.
         if let Some(addr) = wasm_mem_addr {
-            let stack_end_offset = execution_ctx.stack_end.offset(runtime_ctx);
-            log::trace!("{addr:#x} {stack_end_offset:#x}");
+            let stack_end_offset = execution_ctx.stack_end.offset(runtime_ctx) as usize;
             // `+` and `-` are safe because we checked
             // that `stack_end` is less or equal to `wasm_mem_size` and wasm end addr fits usize.
-            let addr = addr + stack_end_offset as usize;
+            let addr = addr + stack_end_offset;
             let size = wasm_mem_size_in_bytes - stack_end_offset;
             if size != 0 {
-                mprotect::mprotect_interval(addr, size as usize, false, false)?;
+                mprotect::mprotect_interval(addr, size, false, false)?;
             }
         }
 
@@ -193,27 +196,21 @@ pub fn set_lazy_pages_protection() -> Result<(), Error> {
         let ctx = ctx.borrow();
         let (rt_ctx, exec_ctx) = ctx.contexts()?;
         let mem_addr = exec_ctx.wasm_mem_addr.ok_or(Error::WasmMemAddrIsNotSet)?;
-        let start_offset = exec_ctx.stack_end.offset(rt_ctx);
-        let mem_size = exec_ctx.wasm_mem_size.offset(rt_ctx);
 
         // Set r/w protection for all pages except stack pages and write accessed pages.
-        mprotect::mprotect_mem_interval_except_pages(
-            mem_addr,
-            start_offset as usize,
-            mem_size as usize,
-            exec_ctx.write_accessed_pages.iter().copied(),
-            rt_ctx,
-            false,
-            false,
-        )?;
+        let start: GearPage = exec_ctx.stack_end.to_page(rt_ctx);
+        let end: GearPagesAmount = exec_ctx.wasm_mem_size.convert(rt_ctx);
+        let interval = start.to_end_interval(rt_ctx, end).unwrap_or_else(|| {
+            unreachable!("`stack_end` must be less or equal to `wasm_mem_size`")
+        });
+        let pages = exec_ctx.write_accessed_pages.voids(interval);
+        mprotect::mprotect_pages(mem_addr, pages, rt_ctx, false, false)?;
 
         // Set only write protection for already accessed, but not write accessed pages.
-        let read_only_pages = exec_ctx
+        let pages = exec_ctx
             .accessed_pages
-            .iter()
-            .filter(|&&page| !exec_ctx.write_accessed_pages.contains(&page))
-            .copied();
-        mprotect::mprotect_pages(mem_addr, read_only_pages, rt_ctx, true, false)?;
+            .difference(&exec_ctx.write_accessed_pages);
+        mprotect::mprotect_pages(mem_addr, pages, rt_ctx, true, false)?;
 
         // After that protections are:
         // 1) Only execution protection for stack pages.
@@ -232,7 +229,7 @@ pub fn unset_lazy_pages_protection() -> Result<(), Error> {
         let (rt_ctx, exec_ctx) = ctx.contexts()?;
         let addr = exec_ctx.wasm_mem_addr.ok_or(Error::WasmMemAddrIsNotSet)?;
         let size = exec_ctx.wasm_mem_size.offset(rt_ctx);
-        mprotect::mprotect_interval(addr, size as usize, true, true)?;
+        mprotect::mprotect_interval(addr, size, true, true)?;
         Ok(())
     })
 }
@@ -260,7 +257,7 @@ pub fn change_wasm_mem_addr_and_size(addr: Option<usize>, size: Option<u32>) -> 
         };
 
         let size = match size {
-            Some(size) => WasmPage::new(size, rt_ctx).ok_or(Error::WasmMemSizeOverflow)?,
+            Some(raw) => WasmPagesAmount::new(rt_ctx, raw).ok_or(Error::WasmMemSizeOverflow)?,
             None => exec_ctx.wasm_mem_size,
         };
 
@@ -278,7 +275,13 @@ pub fn write_accessed_pages() -> Result<Vec<u32>, Error> {
     LAZY_PAGES_CONTEXT.with(|ctx| {
         ctx.borrow()
             .execution_context()
-            .map(|ctx| ctx.write_accessed_pages.iter().map(|p| p.raw()).collect())
+            .map(|ctx| {
+                ctx.write_accessed_pages
+                    .iter()
+                    .flat_map(IntervalIterator::from)
+                    .map(|p| p.raw())
+                    .collect()
+            })
             .map_err(Into::into)
     })
 }
@@ -396,12 +399,12 @@ fn init_with_handler<H: UserSignalHandler, S: LazyPagesStorage + 'static>(
 
     let page_sizes: PageSizes = match page_sizes.try_into() {
         Ok(sizes) => sizes,
-        Err(sizes) => return Err(WrongSizesAmount(sizes.len(), PageSizeNo::Amount as usize)),
+        Err(sizes) => return Err(WrongSizesAmount(sizes.len(), SIZES_AMOUNT)),
     };
 
     // Check sizes suitability
-    let wasm_page_size = page_sizes[PageSizeNo::WasmSizeNo as usize];
-    let gear_page_size = page_sizes[PageSizeNo::GearSizeNo as usize];
+    let wasm_page_size = page_sizes[WasmSizeNo::SIZE_NO];
+    let gear_page_size = page_sizes[GearSizeNo::SIZE_NO];
     let native_page_size = region::page::size();
     if wasm_page_size < gear_page_size
         || (gear_page_size.get() as usize) < native_page_size

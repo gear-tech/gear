@@ -19,7 +19,7 @@
 use crate::{
     log::RunResult,
     mailbox::Mailbox,
-    manager::{Actors, Balance, ExtManager},
+    manager::{Actors, Balance, ExtManager, MintMode},
     program::{Program, ProgramIdWrapper},
     BLOCK_DURATION_IN_MSECS,
 };
@@ -253,6 +253,11 @@ impl System {
         self.submit_code(path)
     }
 
+    /// Returns previously submitted code by its code hash.
+    pub fn submitted_code(&self, code_id: CodeId) -> Option<Vec<u8>> {
+        self.0.borrow().read_code(code_id).map(|code| code.to_vec())
+    }
+
     /// Extract mailbox of user with given `id`.
     ///
     /// The mailbox contains messages from the program that are waiting
@@ -270,7 +275,9 @@ impl System {
     /// Mint balance to user with given `id` and `value`.
     pub fn mint_to<ID: Into<ProgramIdWrapper>>(&self, id: ID, value: Balance) {
         let actor_id = id.into().0;
-        self.0.borrow_mut().mint_to(&actor_id, value);
+        self.0
+            .borrow_mut()
+            .mint_to(&actor_id, value, MintMode::KeepAlive);
     }
 
     /// Returns balance of user with given `id`.

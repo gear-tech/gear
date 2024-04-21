@@ -41,6 +41,7 @@ mod mock;
 #[cfg(test)]
 mod tests;
 
+pub mod migrations;
 pub mod pallet_tests;
 
 pub use crate::{
@@ -559,9 +560,8 @@ pub mod pallet {
                     // actual version to avoid re-instrumentation
                     version: T::Schedule::get().instruction_weights.version,
                     // some benchmarks have data in user stack memory
-                    check_and_canonize_stack_end: false,
-                    // without stack end canonization, program has mutable globals.
-                    check_mut_global_exports: false,
+                    // TODO: consider to remove checking data section and stack overlap #3875
+                    check_data_section: false,
                     ..Default::default()
                 },
             )

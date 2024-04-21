@@ -78,7 +78,7 @@ pub mod pallet {
             + TryInto<Event<Self>>
             + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 
-        /// Limit of messages to be bridged withing the era.
+        /// Limit of messages to be bridged within the era.
         #[pallet::constant]
         type QueueLimit: Get<u32>;
     }

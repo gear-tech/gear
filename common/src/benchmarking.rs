@@ -18,10 +18,7 @@
 
 use super::*;
 
-use gear_core::{
-    pages::{PageNumber, WasmPage},
-    program::MemoryInfix,
-};
+use gear_core::{pages::WasmPage, program::MemoryInfix};
 use gear_wasm_instrument::parity_wasm::{self, elements::*};
 use sp_io::hashing::blake2_256;
 use sp_runtime::traits::Zero;
@@ -46,7 +43,7 @@ pub fn create_module(num_pages: WasmPage) -> parity_wasm::elements::Module {
         Section::Import(ImportSection::with_entries(vec![ImportEntry::new(
             "env".into(),
             "memory".into(),
-            External::Memory(MemoryType::new(num_pages.raw(), None)),
+            External::Memory(MemoryType::new(num_pages.into(), None)),
         )])),
         Section::Function(FunctionSection::with_entries(vec![Func::new(0)])),
         Section::Export(ExportSection::with_entries(vec![ExportEntry::new(
@@ -102,7 +99,7 @@ pub fn generate_wasm(num_pages: WasmPage) -> Result<Vec<u8>, &'static str> {
             FuncBody::new(
                 vec![Local::new(1, ValueType::I32)],
                 Instructions::new(vec![
-                    Instruction::I32Const(num_pages.raw() as i32),
+                    Instruction::I32Const(u32::from(num_pages) as i32),
                     Instruction::Call(0),
                     Instruction::SetLocal(0),
                     Instruction::End,
@@ -118,7 +115,7 @@ pub fn generate_wasm(num_pages: WasmPage) -> Result<Vec<u8>, &'static str> {
 pub fn set_program<ProgramStorage, BlockNumber>(
     program_id: ProgramId,
     code: Vec<u8>,
-    static_pages: WasmPage,
+    static_pages: WasmPagesAmount,
 ) where
     ProgramStorage: super::ProgramStorage<BlockNumber = BlockNumber>,
     BlockNumber: Zero + Copy + Saturating,

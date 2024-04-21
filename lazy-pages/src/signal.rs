@@ -21,10 +21,10 @@
 use crate::{
     common::{CostNo, Error, GasCharger, LazyPagesExecutionContext, LazyPagesRuntimeContext},
     globals::{self, GlobalNo},
+    pages::GearPage,
     process::{self, AccessHandler},
     LAZY_PAGES_CONTEXT,
 };
-use gear_core::pages::{GearPage, PageDynSize};
 use gear_lazy_pages_common::Status;
 use std::convert::TryFrom;
 

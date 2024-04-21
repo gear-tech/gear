@@ -34,10 +34,10 @@ use gear_core::{
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::PageBuf,
     message::{
-        Dispatch, DispatchKind, IncomingDispatch, Message, MessageWaitedType, ReplyMessage,
-        ReplyPacket, StoredDispatch, StoredMessage,
+        Dispatch, DispatchKind, Message, MessageWaitedType, ReplyMessage, ReplyPacket,
+        StoredDispatch, StoredMessage,
     },
-    pages::{GearPage, PageU32Size, WasmPage},
+    pages::{GearPage, WasmPage},
     program::Program as CoreProgram,
     reservation::{GasReservationMap, GasReserver},
 };
@@ -217,6 +217,15 @@ impl Actors {
     }
 }
 
+/// Simple boolean for whether an account needs to be kept in existence.
+#[derive(PartialEq)]
+pub(crate) enum MintMode {
+    /// Operation must not result in the account going out of existence.
+    KeepAlive,
+    /// Operation may result in account going out of existence.
+    AllowDeath,
+}
+
 #[derive(Default, Debug)]
 pub(crate) struct ExtManager {
     // State metadata
@@ -293,6 +302,10 @@ impl ExtManager {
         let code_id = CodeId::generate(code);
         self.opt_binaries.insert(code_id, code.to_vec());
         code_id
+    }
+
+    pub(crate) fn read_code(&self, code_id: CodeId) -> Option<&[u8]> {
+        self.opt_binaries.get(&code_id).map(Vec::as_slice)
     }
 
     pub(crate) fn fetch_inc_message_nonce(&mut self) -> u64 {
@@ -598,8 +611,8 @@ impl ExtManager {
         )
     }
 
-    pub(crate) fn mint_to(&mut self, id: &ProgramId, value: Balance) {
-        if value < crate::EXISTENTIAL_DEPOSIT {
+    pub(crate) fn mint_to(&mut self, id: &ProgramId, value: Balance, mint_mode: MintMode) {
+        if mint_mode == MintMode::KeepAlive && value < crate::EXISTENTIAL_DEPOSIT {
             panic!(
                 "An attempt to mint value ({}) less than existential deposit ({})",
                 value,
@@ -983,7 +996,7 @@ impl JournalHandler for ExtManager {
 
     fn exit_dispatch(&mut self, id_exited: ProgramId, value_destination: ProgramId) {
         if let Some((_, balance)) = self.actors.remove(&id_exited) {
-            self.mint_to(&value_destination, balance);
+            self.mint_to(&value_destination, balance, MintMode::AllowDeath);
         }
     }
 
@@ -1094,7 +1107,7 @@ impl JournalHandler for ExtManager {
                 program
                     .allocations()
                     .difference(&allocations)
-                    .flat_map(PageU32Size::to_pages_iter)
+                    .flat_map(|page| page.to_iter())
                     .for_each(|ref page| {
                         pages_data.remove(page);
                     });
@@ -1126,9 +1139,9 @@ impl JournalHandler for ExtManager {
                 }
             }
 
-            self.mint_to(to, value);
+            self.mint_to(to, value, MintMode::KeepAlive);
         } else {
-            self.mint_to(&from, value);
+            self.mint_to(&from, value, MintMode::KeepAlive);
         }
     }
 
@@ -1231,9 +1244,5 @@ impl JournalHandler for ExtManager {
 
     fn reply_deposit(&mut self, _message_id: MessageId, future_reply_id: MessageId, amount: u64) {
         self.gas_limits.insert(future_reply_id, amount);
-    }
-
-    fn waiting_init_message(&mut self, _dispatch: IncomingDispatch, _destination: ProgramId) {
-        unimplemented!("Waiting init message is used for on-chain logic only");
     }
 }
