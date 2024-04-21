@@ -16,21 +16,83 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use anyhow::{anyhow, Result};
 use clap::{builder::PossibleValue, Parser, ValueEnum};
+use colored::Colorize;
+use serde::{Deserialize, Serialize};
+use std::{fs, path::PathBuf};
 use url::Url;
 
+const CONFIG_PATH: &str = ".config/vara/config.toml";
+
 /// Gear command line configuration
-#[derive(Clone, Debug, Parser)]
+#[derive(Clone, Debug, Default, Parser, Serialize, Deserialize)]
 pub struct Config {
+    /// Config actions
+    #[clap(subcommand)]
+    #[serde(skip)]
+    pub action: Action,
     /// URL for Solana's JSON RPC or moniker
-    #[clap(short, long, name = "URL_OR_MONIKER")]
-    pub url: Network,
+    #[clap(short, long, name = "URL_OR_MONIKER", global = true)]
+    pub url: Option<Network>,
+}
+
+impl Config {
+    fn config() -> Result<PathBuf> {
+        dirs::home_dir()
+            .map(|h| h.join(CONFIG_PATH))
+            .ok_or_else(|| anyhow!("Could not find config.toml from ${{HOME}}/{CONFIG_PATH}"))
+    }
+
+    /// Read the config from disk
+    pub fn read(path: Option<PathBuf>) -> Result<Self> {
+        let conf = path.unwrap_or(Self::config()?);
+        toml::from_str(&fs::read_to_string(conf)?).map_err(Into::into)
+    }
+
+    /// Write self to disk
+    pub fn write(&self, path: Option<PathBuf>) -> Result<()> {
+        let conf = path.unwrap_or(Self::config()?);
+        if let Some(parent) = conf.parent() {
+            if !parent.exists() {
+                fs::create_dir_all(parent)?;
+            }
+        }
+
+        fs::write(conf, toml::to_string_pretty(self)?).map_err(Into::into)
+    }
+
+    /// NOTE: currently just a simple wrapper for [`Self::write`] since we
+    /// just have one config option.
+    pub fn exec(&self) -> Result<()> {
+        if self.action == Action::Set {
+            self.write(None)?
+        }
+
+        println!(
+            "{}: {}",
+            "RPC URL".bold(),
+            self.url.clone().unwrap_or_default().as_ref()
+        );
+        Ok(())
+    }
+}
+
+/// Config action
+#[derive(Clone, Debug, Parser, PartialEq, Eq, Default)]
+pub enum Action {
+    /// Set a config setting
+    Set,
+    /// Get current config settings
+    #[default]
+    Get,
 }
 
 /// Vara networks
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Network {
     /// Vara main network
+    #[default]
     Mainnet,
     /// Vara development network
     Testnet,
@@ -40,15 +102,20 @@ pub enum Network {
     Custom(Url),
 }
 
-impl Network {
-    /// Get the RPC url from the network varianet
-    pub fn to_rpc(&self) -> &str {
+impl AsRef<str> for Network {
+    fn as_ref(&self) -> &str {
         match self {
-            Self::Mainnet => "wss://rpc.vara.network",
-            Self::Testnet => "wss://testnet.vara.network",
+            Self::Mainnet => "wss://rpc.vara.network:443",
+            Self::Testnet => "wss://testnet.vara.network:443",
             Self::Localhost => "ws://localhost:9944",
             Self::Custom(url) => url.as_str(),
         }
+    }
+}
+
+impl ToString for Network {
+    fn to_string(&self) -> String {
+        self.as_ref().into()
     }
 }
 

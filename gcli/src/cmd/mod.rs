@@ -17,8 +17,6 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! commands
-use crate::App;
-use clap::Parser;
 
 pub mod claim;
 pub mod config;
@@ -38,6 +36,8 @@ pub use self::{
     claim::Claim, create::Create, info::Info, new::New, program::Program, reply::Reply, send::Send,
     transfer::Transfer, update::Update, upload::Upload, wallet::Wallet,
 };
+use crate::App;
+use clap::Parser;
 
 /// All SubCommands of gear command line interface.
 #[derive(Clone, Debug, Parser)]
@@ -62,7 +62,7 @@ impl Command {
     /// Execute the command.
     pub async fn exec(&self, app: &impl App) -> anyhow::Result<()> {
         match self {
-            Command::Config(config) => {}
+            Command::Config(config) => config.exec()?,
             Command::New(new) => new.exec().await?,
             Command::Program(program) => program.exec(app).await?,
             Command::Update(update) => update.exec().await?,
@@ -132,7 +132,17 @@ impl App for Opt {
     }
 
     fn endpoint(&self) -> Option<String> {
-        self.endpoint.clone()
+        if self.endpoint.is_some() {
+            return self.endpoint.clone();
+        }
+
+        Some(
+            Config::read(None)
+                .unwrap_or_default()
+                .url
+                .unwrap_or_default()
+                .to_string(),
+        )
     }
 
     fn passwd(&self) -> Option<String> {
