@@ -90,6 +90,16 @@ pub trait App: Parser + Sync {
     /// Exec program from the parsed arguments.
     async fn exec(&self) -> anyhow::Result<()>;
 
+    /// Get gear api without signing in with password.
+    async fn api(&self) -> anyhow::Result<GearApi> {
+        let endpoint = self.endpoint().clone();
+        let timeout = self.timeout();
+        Api::new_with_timeout(endpoint.as_deref(), Some(timeout))
+            .await
+            .map(Into::into)
+            .map_err(Into::into)
+    }
+
     /// Get signer.
     async fn signer(&self) -> anyhow::Result<GearApi> {
         let endpoint = self.endpoint().clone();

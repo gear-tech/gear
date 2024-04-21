@@ -56,7 +56,7 @@ pub struct Info {
 impl Info {
     /// execute command transfer
     pub async fn exec(&self, app: &impl App) -> Result<()> {
-        let signer = app.signer().await?;
+        let signer = app.api().await?;
         let mut address = self
             .address
             .clone()

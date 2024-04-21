@@ -4174,6 +4174,7 @@ dependencies = [
  "serde",
  "thiserror",
  "tokio",
+ "url",
  "wasmi 0.30.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "which",
  "whoami",

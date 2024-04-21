@@ -21,6 +21,7 @@ use crate::App;
 use clap::Parser;
 
 pub mod claim;
+pub mod config;
 pub mod create;
 pub mod info;
 pub mod new;
@@ -32,6 +33,7 @@ pub mod update;
 pub mod upload;
 pub mod wallet;
 
+use self::config::Config;
 pub use self::{
     claim::Claim, create::Create, info::Info, new::New, program::Program, reply::Reply, send::Send,
     transfer::Transfer, update::Update, upload::Upload, wallet::Wallet,
@@ -44,6 +46,7 @@ pub enum Command {
     Create(Create),
     Info(Info),
     New(New),
+    Config(Config),
     #[clap(subcommand)]
     Program(Program),
     Reply(Reply),
@@ -59,6 +62,7 @@ impl Command {
     /// Execute the command.
     pub async fn exec(&self, app: &impl App) -> anyhow::Result<()> {
         match self {
+            Command::Config(config) => {}
             Command::New(new) => new.exec().await?,
             Command::Program(program) => program.exec(app).await?,
             Command::Update(update) => update.exec().await?,
