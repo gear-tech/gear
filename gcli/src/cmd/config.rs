@@ -32,7 +32,7 @@ pub struct Config {
     #[clap(subcommand)]
     #[serde(skip)]
     pub action: Action,
-    /// URL for Solana's JSON RPC or moniker
+    /// URL for Vara's JSON RPC or moniker
     #[clap(short, long, name = "URL_OR_MONIKER", global = true)]
     pub url: Option<Network>,
 }
@@ -90,6 +90,7 @@ pub enum Action {
 
 /// Vara networks
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum Network {
     /// Vara main network
     #[default]
