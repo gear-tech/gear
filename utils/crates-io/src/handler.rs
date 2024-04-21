@@ -21,7 +21,7 @@
 use crate::Manifest;
 use anyhow::Result;
 use cargo_metadata::Package;
-use toml_edit::Document;
+use toml_edit::DocumentMut;
 
 /// The working version of sp-wasm-interface.
 pub const GP_RUNTIME_INTERFACE_VERSION: &str = "18.0.0";
@@ -81,7 +81,7 @@ pub fn patch_workspace(name: &str, table: &mut toml_edit::InlineTable) {
 // Trim the version of dev dependency.
 //
 // issue: https://github.com/rust-lang/cargo/issues/4242
-fn trim_dev_dep(name: &str, manifest: &mut Document) {
+fn trim_dev_dep(name: &str, manifest: &mut DocumentMut) {
     if let Some(dep) = manifest["dev-dependencies"][name].as_inline_table_mut() {
         dep.remove("workspace");
         dep.insert("version", "~1".into());
@@ -95,7 +95,7 @@ fn trim_dev_dep(name: &str, manifest: &mut Document) {
 
 /// gear-core-processor handler.
 mod core_processor {
-    use toml_edit::{Document, InlineTable};
+    use toml_edit::{DocumentMut, InlineTable};
 
     /// Pointing the package name of core-processor to
     /// `core-processor` on `crates-io` since this is
@@ -116,7 +116,7 @@ mod core_processor {
     }
 
     /// Patch the manifest of core-processor.
-    pub fn patch(manifest: &mut Document) {
+    pub fn patch(manifest: &mut DocumentMut) {
         manifest["package"]["name"] = toml_edit::value("core-processor");
     }
 }
@@ -124,10 +124,10 @@ mod core_processor {
 /// gmeta handler
 mod gmeta {
     use super::trim_dev_dep;
-    use toml_edit::Document;
+    use toml_edit::DocumentMut;
 
     /// Patch the manifest of gmetadata.
-    pub fn patch(manifest: &mut Document) {
+    pub fn patch(manifest: &mut DocumentMut) {
         trim_dev_dep("gstd", manifest);
         trim_dev_dep("gear-wasm-builder", manifest);
     }
@@ -136,10 +136,10 @@ mod gmeta {
 /// gmeta handler
 mod gmeta_codegen {
     use super::trim_dev_dep;
-    use toml_edit::Document;
+    use toml_edit::DocumentMut;
 
     /// Patch the manifest of gmeta.
-    pub fn patch(manifest: &mut Document) {
+    pub fn patch(manifest: &mut DocumentMut) {
         trim_dev_dep("gstd", manifest);
         trim_dev_dep("gmeta", manifest);
     }
@@ -147,14 +147,14 @@ mod gmeta_codegen {
 
 mod runtime_interface {
     use super::GP_RUNTIME_INTERFACE_VERSION;
-    use toml_edit::Document;
+    use toml_edit::DocumentMut;
 
     /// Patch the manifest of runtime-interface.
     ///
     /// We need to patch the manifest of package again because
     /// `sp_runtime_interface_proc_macro` includes some hardcode
     /// that could not locate alias packages.
-    pub fn patch(manifest: &mut Document) {
+    pub fn patch(manifest: &mut DocumentMut) {
         let Some(wi) = manifest["dependencies"]["sp-runtime-interface"].as_table_mut() else {
             return;
         };
@@ -166,10 +166,10 @@ mod runtime_interface {
 
 /// sandbox handler.
 mod sandbox {
-    use toml_edit::Document;
+    use toml_edit::DocumentMut;
 
     /// Replace the wasmi module to the crates-io version.
-    pub fn patch(manifest: &mut Document) {
+    pub fn patch(manifest: &mut DocumentMut) {
         let Some(wasmi) = manifest["dependencies"]["wasmi"].as_inline_table_mut() else {
             return;
         };
@@ -182,10 +182,10 @@ mod sandbox {
 
 /// sandbox_host handler.
 mod sandbox_host {
-    use toml_edit::Document;
+    use toml_edit::DocumentMut;
 
     /// Replace the wasmi module to the crates-io version.
-    pub fn patch(manifest: &mut Document) {
+    pub fn patch(manifest: &mut DocumentMut) {
         let Some(wasmi) = manifest["dependencies"]["wasmi"].as_inline_table_mut() else {
             return;
         };

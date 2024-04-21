@@ -26,7 +26,7 @@ use std::{
     ops::{Deref, DerefMut},
     path::PathBuf,
 };
-use toml_edit::Document;
+use toml_edit::DocumentMut;
 
 const WORKSPACE_NAME: &str = "__gear_workspace";
 
@@ -153,7 +153,7 @@ pub struct Manifest {
     /// Crate name
     pub name: String,
     /// Cargo manifest
-    pub manifest: Document,
+    pub manifest: DocumentMut,
     /// Path of the manifest
     pub path: PathBuf,
 }
@@ -163,7 +163,7 @@ impl Manifest {
     /// the workspace manifest
     pub fn new(pkg: &Package) -> Result<Self> {
         // Complete documentation as from <https://docs.rs>
-        let mut manifest: Document = fs::read_to_string(&pkg.manifest_path)?.parse()?;
+        let mut manifest: DocumentMut = fs::read_to_string(&pkg.manifest_path)?.parse()?;
         let name = pkg.name.clone();
         manifest["package"]["documentation"] = toml_edit::value(format!("https://docs.rs/{name}"));
 
