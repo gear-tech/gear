@@ -22,14 +22,20 @@
 
 use crate as pallet_gear_bridge;
 use frame_support::{
-    construct_runtime, parameter_types, traits::Hooks, weights::constants::RocksDbWeight,
+    construct_runtime, parameter_types,
+    traits::{ConstU32, ConstU64, Hooks},
+    weights::constants::RocksDbWeight,
 };
 use frame_system::{self as system, pallet_prelude::BlockNumberFor};
+use pallet_babe::{EquivocationReportSystem, ExternalTrigger};
+use pallet_session::{PeriodicSessions, TestSessionHandler};
 use primitive_types::H256;
 use sp_runtime::{
+    testing::UintAuthorityId,
     traits::{BlakeTwo256, IdentityLookup},
     BuildStorage,
 };
+use sp_session::MembershipProof;
 use sp_std::convert::{TryFrom, TryInto};
 
 type Block = frame_system::mocking::MockBlock<Test>;
@@ -45,6 +51,8 @@ construct_runtime!(
     {
         System: system,
         Balances: pallet_balances,
+        Babe: pallet_babe,
+        Session: pallet_session,
         GearBridge: pallet_gear_bridge,
     }
 );
@@ -61,6 +69,56 @@ parameter_types! {
 impl crate::Config for Test {
     type RuntimeEvent = RuntimeEvent;
     type QueueLimit = QueueLimit;
+}
+
+impl pallet_timestamp::Config for Test {
+    type Moment = u64;
+    type OnTimestampSet = Babe;
+    type MinimumPeriod = ConstU64<1>;
+    type WeightInfo = ();
+}
+
+parameter_types! {
+    pub const BondingDuration: u32 = 8;
+    pub const SessionsPerEra: u32 = 6;
+    pub const EpochDuration: u64 = 2400;
+    pub const ExpectedBlockTime: u64 = 3000;
+    pub const ReportLongevity: u64 =
+        BondingDuration::get() as u64 * SessionsPerEra::get() as u64 * EpochDuration::get();
+    pub const MaxSetIdSessionEntries: u32 = BondingDuration::get() * SessionsPerEra::get();
+}
+
+impl pallet_babe::Config for Test {
+    type EpochDuration = EpochDuration;
+    type ExpectedBlockTime = ExpectedBlockTime;
+    type EpochChangeTrigger = ExternalTrigger;
+    type DisabledValidators = Session;
+
+    type WeightInfo = ();
+    type MaxAuthorities = ConstU32<10>;
+    type MaxNominators = ConstU32<100>;
+
+    type KeyOwnerProof = MembershipProof;
+    type EquivocationReportSystem = (); // TODO (breathx): EquivocationReportSystem<Self, Offences, Historical, ReportLongevity>;
+}
+
+const SESSION_DURATION: u64 = 1000;
+
+parameter_types! {
+    pub const Period: u64 = SESSION_DURATION;
+    pub const Offset: u64 = SESSION_DURATION + 1;
+}
+
+impl pallet_session::Config for Test {
+    type RuntimeEvent = RuntimeEvent;
+    type ValidatorId = AccountId;
+    type ValidatorIdOf = (); // TODO (breathx): pallet_staking::StashOf<Self>;
+    type ShouldEndSession = PeriodicSessions<Period, Offset>;
+    type NextSessionRotation = PeriodicSessions<Period, Offset>;
+    type SessionManager = (); // TODO (breathx): pallet_session_historical::NoteHistoricalRoot<Self, Staking>;
+    type SessionHandler = TestSessionHandler;
+    type Keys = UintAuthorityId;
+    type WeightInfo = ();
 }
 
 // Build genesis storage according to the mock runtime.

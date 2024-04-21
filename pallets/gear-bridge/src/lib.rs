@@ -55,10 +55,11 @@ pub use crate::internal::Proof;
 pub mod pallet {
     use crate::internal::{EthMessage, EthMessageData, FirstNonce, Proof};
     use common::Origin;
-    use frame_support::{pallet_prelude::*, traits::StorageVersion};
+    use frame_support::{pallet_prelude::*, traits::StorageVersion, StorageHasher};
     use frame_system::pallet_prelude::*;
     use gear_core::message::PayloadSizeError;
     use primitive_types::{H160, H256, U256};
+    use sp_runtime::{key_types, traits::OpaqueKeys};
     use sp_std::vec::Vec;
 
     pub(crate) use binary_merkle_tree as merkle_tree;
@@ -72,7 +73,7 @@ pub mod pallet {
 
     /// Gear Bridge Pallet's `Config`.
     #[pallet::config]
-    pub trait Config: frame_system::Config {
+    pub trait Config: frame_system::Config + pallet_babe::Config + pallet_session::Config {
         /// Because this pallet emits events, it depends on the runtime's definition of an event.
         type RuntimeEvent: From<Event<Self>>
             + TryInto<Event<Self>>
@@ -91,6 +92,7 @@ pub mod pallet {
         RootReset,
         RootUpdated(H256),
         MessageQueued { message: EthMessage, hash: H256 },
+        ValidatorSetUpdated(H256),
     }
 
     // Gear Bridge Pallet error type.
@@ -126,6 +128,15 @@ pub mod pallet {
 
     #[pallet::storage]
     pub(crate) type QueueMerkleRoot<T> = StorageValue<_, H256>;
+
+    #[pallet::storage]
+    pub(crate) type ValidatorSet<T> = StorageValue<_, H256>;
+
+    #[pallet::storage]
+    pub(crate) type EpochIndex<T> = StorageValue<_, u64, ValueQuery>;
+
+    #[pallet::storage]
+    pub(crate) type ResetOnInitialize<T> = StorageValue<_, bool, ValueQuery>;
 
     #[pallet::call]
     impl<T: Config> Pallet<T>
@@ -200,9 +211,58 @@ pub mod pallet {
         T::AccountId: Origin,
     {
         fn on_initialize(_n: BlockNumberFor<T>) -> Weight {
-            QueueChanged::<T>::kill();
+            let mut weight = Weight::zero();
 
-            T::DbWeight::get().writes(1)
+            QueueChanged::<T>::kill();
+            weight = weight.saturating_add(T::DbWeight::get().writes(1));
+
+            let reset = ResetOnInitialize::<T>::take();
+            weight = weight.saturating_add(T::DbWeight::get().reads(1));
+
+            if reset {
+                weight = weight.saturating_add(T::DbWeight::get().writes(1));
+
+                Queue::<T>::kill();
+                weight = weight.saturating_add(T::DbWeight::get().writes(1));
+
+                QueueMerkleRoot::<T>::kill();
+                weight = weight.saturating_add(T::DbWeight::get().writes(1));
+
+                let queued_keys = <pallet_session::Pallet<T>>::queued_keys();
+                weight = weight.saturating_add(T::DbWeight::get().reads(1));
+
+                let grandpa_keys: Vec<[u8; 32]> = queued_keys
+                    .into_iter()
+                    .map(|(_, keys)| {
+                        keys.get(key_types::GRANDPA)
+                            .expect("TODO (breathx): consider type safety here")
+                    })
+                    .map(|v: sp_consensus_grandpa::AuthorityId| v.into_inner().0)
+                    .collect();
+
+                let validator_set_hash = Blake2_256::hash(grandpa_keys.concat().as_ref()).into();
+
+                ValidatorSet::<T>::put(validator_set_hash);
+                weight = weight.saturating_add(T::DbWeight::get().writes(1));
+
+                Self::deposit_event(Event::<T>::ValidatorSetUpdated(validator_set_hash));
+            } else {
+                let current_epoch = EpochIndex::<T>::get();
+                weight = weight.saturating_add(T::DbWeight::get().reads(1));
+
+                let babe_current_epoch = <pallet_babe::Pallet<T>>::epoch_index();
+                weight = weight.saturating_add(T::DbWeight::get().reads(1));
+
+                if babe_current_epoch != current_epoch {
+                    EpochIndex::<T>::put(babe_current_epoch);
+                    weight = weight.saturating_add(T::DbWeight::get().writes(1));
+
+                    ResetOnInitialize::<T>::put(true);
+                    weight = weight.saturating_add(T::DbWeight::get().writes(1));
+                }
+            }
+
+            weight
         }
 
         /// End of the block.
