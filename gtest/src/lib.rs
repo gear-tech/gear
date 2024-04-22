@@ -231,7 +231,7 @@
 //!
 //! ```no_run
 //! # let sys = gtest::System::new();
-//! let prog = sys.get_program(105);
+//! let prog = sys.get_program(105).unwrap();
 //! ```
 //!
 //! ## Initialization of styled `env_logger`

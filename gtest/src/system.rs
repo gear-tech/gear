@@ -198,16 +198,23 @@ impl System {
     }
 
     /// Returns a [`Program`] by `id`.
-    #[track_caller]
-    pub fn get_program<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> Program {
+    pub fn get_program<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> Option<Program> {
         let id = id.into().0;
+        let manager = self.0.borrow();
 
-        assert!(self.0.borrow().is_program(&id), "{id} is not program");
-
-        Program {
-            id,
-            manager: &self.0,
+        if manager.is_program(&id) {
+            Some(Program {
+                id,
+                manager: &self.0,
+            })
+        } else {
+            None
         }
+    }
+
+    /// Returns last added program.
+    pub fn last_program(&self) -> Option<Program> {
+        self.programs().into_iter().next_back()
     }
 
     /// Returns a list of programs.
