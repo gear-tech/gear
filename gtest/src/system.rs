@@ -198,16 +198,31 @@ impl System {
     }
 
     /// Returns a [`Program`] by `id`.
-    ///
-    /// The method doesn't check whether program exists or not.
-    /// So if provided `id` doesn't belong to program, message sent
-    /// to such "program" will cause panics.
+    #[track_caller]
     pub fn get_program<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> Program {
         let id = id.into().0;
+
+        assert!(self.0.borrow().is_program(&id), "{id} is not program");
+
         Program {
             id,
             manager: &self.0,
         }
+    }
+
+    /// Returns a list of programs.
+    pub fn programs(&self) -> Vec<Program> {
+        let manager = self.0.borrow();
+        let actors = manager.actors.borrow();
+        actors
+            .keys()
+            .copied()
+            .filter(|id| manager.is_program(id))
+            .map(|id| Program {
+                id,
+                manager: &self.0,
+            })
+            .collect()
     }
 
     /// Detect if a program is active with given `id`.
@@ -220,7 +235,7 @@ impl System {
         self.0.borrow().is_active_program(&program_id)
     }
 
-    /// Saves code to the storage and returns it's code hash
+    /// Saves code to the storage and returns its code hash
     ///
     /// This method is mainly used for providing a proper program from program
     /// creation logic. In order to successfully create a new program with
