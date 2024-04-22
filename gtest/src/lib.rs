@@ -433,7 +433,9 @@ mod system;
 pub use crate::log::{CoreLog, Log, RunResult};
 pub use codec;
 pub use error::{Result, TestError};
-pub use program::{calculate_program_id, Gas, Program, WasmProgram};
+pub use program::{
+    calculate_program_id, Gas, Program, ProgramBuilder, ProgramIdWrapper, WasmProgram,
+};
 pub use system::System;
 
 pub(crate) use constants::*;
