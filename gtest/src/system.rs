@@ -243,29 +243,36 @@ impl System {
     /// provide to the function "child's" code hash. Code for that code hash
     /// must be in storage at the time of the function call. So this method
     /// stores the code in storage.
+    pub fn submit_code(&self, binary: impl Into<Vec<u8>>) -> CodeId {
+        self.0.borrow_mut().store_new_code(binary.into())
+    }
+
+    /// Saves code from file to the storage and returns its code hash
+    ///
+    /// See also [`submit_code`]
     #[track_caller]
-    pub fn submit_code<P: AsRef<Path>>(&self, code_path: P) -> CodeId {
+    pub fn submit_code_file<P: AsRef<Path>>(&self, code_path: P) -> CodeId {
         let code = fs::read(&code_path).unwrap_or_else(|_| {
             panic!(
                 "Failed to read file {}",
                 code_path.as_ref().to_string_lossy()
             )
         });
-        self.0.borrow_mut().store_new_code(&code)
+        self.0.borrow_mut().store_new_code(code)
     }
 
-    /// Saves code to the storage and returns it's code hash
+    /// Saves code to the storage and returns its code hash
     ///
-    /// Same as ['submit_code'], but path is provided as relative to the current
-    /// directory.
+    /// Same as ['submit_code_file'], but the path is provided as relative to
+    /// the current directory.
     #[track_caller]
-    pub fn submit_code_local<P: AsRef<Path>>(&self, code_path: P) -> CodeId {
+    pub fn submit_local_code_file<P: AsRef<Path>>(&self, code_path: P) -> CodeId {
         let path = env::current_dir()
             .expect("Unable to get root directory of the project")
             .join(code_path)
             .clean();
 
-        self.submit_code(path)
+        self.submit_code_file(path)
     }
 
     /// Returns previously submitted code by its code hash.
