@@ -4174,7 +4174,7 @@ dependencies = [
  "serde",
  "thiserror",
  "tokio",
- "toml 0.8.2",
+ "toml 0.8.12",
  "url",
  "wasmi 0.30.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "which",
