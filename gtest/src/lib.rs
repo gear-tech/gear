@@ -197,17 +197,14 @@
 //!     );
 //!     ```
 //!
-//! - Initialize a program from a Wasm-file with a custom id using the
-//!   [`Program::from_file_with_id`] function:
+//! - Initialize a program via builder:
 //!
 //!     ```no_run
-//!     # use gtest::Program;
+//!     # use gtest::ProgramBuilder;
 //!     # let sys = gtest::System::new();
-//!     let prog = Program::from_file_with_id(
-//!         &sys,
-//!         105,
-//!         "./target/wasm32-unknown-unknown/release/demo_ping.wasm",
-//!     );
+//!     let prog = ProgramBuilder::from_file("./target/wasm32-unknown-unknown/release/demo_ping.wasm")
+//!         .with_id(105)
+//!         .build(&sys);
 //!     ```
 //!
 //!     Every place in this lib, where you need to specify some ids, it requires

@@ -256,7 +256,7 @@ impl System {
 
     /// Saves code from file to the storage and returns its code hash
     ///
-    /// See also [`submit_code`]
+    /// See also [`System::submit_code`]
     #[track_caller]
     pub fn submit_code_file<P: AsRef<Path>>(&self, code_path: P) -> CodeId {
         let code = fs::read(&code_path).unwrap_or_else(|_| {
