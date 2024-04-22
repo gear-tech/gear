@@ -160,37 +160,64 @@ pub fn check_imports(module: &Module) -> Result<(), CodeError> {
 
     let syscalls = SyscallName::instrumentable_map();
 
+    const EXPECTED_NUMBER_OF_MEMORY_IMPORTS: usize = 1;
+    let mut number_of_memory_imports = 0;
     let mut visited_imports = BTreeSet::new();
+
     for (import_index, import) in imports.iter().enumerate() {
-        let External::Function(i) = import.external() else {
-            continue;
-        };
+        let import_index: u32 = import_index
+            .try_into()
+            .unwrap_or_else(|_| unreachable!("Import index should fit in u32"));
 
-        // Panic is impossible, unless the Module structure is invalid.
-        let Type::Function(func_type) = &types
-            .get(*i as usize)
-            .unwrap_or_else(|| unreachable!("Module structure is invalid"));
+        match import.external() {
+            External::Function(i) => {
+                // Panic is impossible, unless the Module structure is invalid.
+                let Type::Function(func_type) = &types
+                    .get(*i as usize)
+                    .unwrap_or_else(|| unreachable!("Module structure is invalid"));
 
-        let syscall = syscalls
-            .get(import.field())
-            .ok_or(ImportError::UnknownImport(import_index as u32))?;
+                let syscall = syscalls
+                    .get(import.field())
+                    .ok_or(ImportError::UnknownImport(import_index))?;
 
-        if !visited_imports.insert(*syscall) {
-            Err(ImportError::DuplicateImport(import_index as u32))?;
+                if !visited_imports.insert(*syscall) {
+                    Err(ImportError::DuplicateImport(import_index))?;
+                }
+
+                let signature = syscall.signature();
+
+                let params = signature
+                    .params()
+                    .iter()
+                    .copied()
+                    .map(Into::<ValueType>::into);
+                let results = signature.results().unwrap_or(&[]);
+
+                if !(params.eq(func_type.params().iter().copied())
+                    && results == func_type.results())
+                {
+                    Err(ImportError::InvalidImportFnSignature(import_index))?;
+                }
+            }
+            External::Memory(_) => number_of_memory_imports += 1,
+            kind @ (External::Global(_) | External::Table(_)) => {
+                Err(ImportError::UnexpectedImportKind {
+                    kind: if matches!(kind, External::Global(_)) {
+                        &"Global"
+                    } else {
+                        &"Table"
+                    },
+                    index: import_index,
+                })?
+            }
         }
+    }
 
-        let signature = syscall.signature();
-
-        let params = signature
-            .params()
-            .iter()
-            .copied()
-            .map(Into::<ValueType>::into);
-        let results = signature.results().unwrap_or(&[]);
-
-        if !(params.eq(func_type.params().iter().copied()) && results == func_type.results()) {
-            Err(ImportError::InvalidImportFnSignature(import_index as u32))?;
-        }
+    // We expect only one memory import.
+    if number_of_memory_imports != EXPECTED_NUMBER_OF_MEMORY_IMPORTS {
+        Err(ImportError::WrongNumberOfMemoryImports {
+            number: number_of_memory_imports,
+        })?;
     }
 
     Ok(())

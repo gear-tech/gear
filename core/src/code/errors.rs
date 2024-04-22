@@ -132,6 +132,20 @@ pub enum ImportError {
     /// The signature of an imported function is invalid.
     #[display(fmt = "Invalid function signature for imported function with index `{_0}`")]
     InvalidImportFnSignature(u32),
+    /// Unexpected import kind.
+    #[display(fmt = "Unexpected import kind `{kind}` with index `{index}`")]
+    UnexpectedImportKind {
+        /// Kind of the import.
+        kind: &'static &'static str,
+        /// Index of the import.
+        index: u32,
+    },
+    /// Wrong number of memory imports.
+    #[display(fmt = "Wrong number of memory imports `{number}`")]
+    WrongNumberOfMemoryImports {
+        /// Total number of memory imports.
+        number: usize,
+    },
 }
 
 /// Module encode/decode error.

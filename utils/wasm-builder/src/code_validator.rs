@@ -201,6 +201,10 @@ pub enum ImportErrorWithContext {
         Actual signature: `{2}`"
     )]
     InvalidImportFnSignature(String, PrintableFunctionType, PrintableFunctionType),
+    #[error("Unexpected import `{name}` of kind `{kind}`")]
+    UnexpectedImportKind { kind: String, name: String },
+    #[error("Wrong number of memory imports `{number}`")]
+    WrongNumberOfMemoryImports { number: usize },
 }
 
 impl TryFrom<(&Module, &ImportError)> for ImportErrorWithContext {
@@ -209,8 +213,15 @@ impl TryFrom<(&Module, &ImportError)> for ImportErrorWithContext {
     fn try_from((module, import_error): (&Module, &ImportError)) -> Result<Self, Self::Error> {
         use ImportError::*;
 
-        let (UnknownImport(idx) | DuplicateImport(idx) | InvalidImportFnSignature(idx)) =
-            import_error;
+        let idx = match import_error {
+            UnknownImport(idx)
+            | DuplicateImport(idx)
+            | InvalidImportFnSignature(idx)
+            | UnexpectedImportKind { index: idx, .. } => idx,
+            WrongNumberOfMemoryImports { number } => {
+                return Ok(Self::WrongNumberOfMemoryImports { number: *number })
+            }
+        };
 
         let Some(import_entry) = module
             .import_section()
@@ -219,19 +230,23 @@ impl TryFrom<(&Module, &ImportError)> for ImportErrorWithContext {
             bail!("failed to get import entry by index");
         };
 
-        let &External::Function(func_index) = import_entry.external() else {
-            bail!("import must be function");
-        };
-
         let import_name = import_entry.field().to_owned();
 
         Ok(match import_error {
             UnknownImport(_) => Self::UnknownImport(import_name),
             DuplicateImport(_) => Self::DuplicateImport(import_name),
+            UnexpectedImportKind { kind, .. } => Self::UnexpectedImportKind {
+                kind: kind.to_string(),
+                name: import_name,
+            },
             InvalidImportFnSignature(_) => {
                 let syscalls = SyscallName::instrumentable_map();
                 let Some(syscall) = syscalls.get(&import_name) else {
                     bail!("failed to get syscall by name");
+                };
+
+                let &External::Function(func_index) = import_entry.external() else {
+                    bail!("import must be function");
                 };
 
                 let expected_signature =
@@ -247,6 +262,9 @@ impl TryFrom<(&Module, &ImportError)> for ImportErrorWithContext {
                 let actual_signature = PrintableFunctionType(import_name.clone(), func_type);
 
                 Self::InvalidImportFnSignature(import_name, expected_signature, actual_signature)
+            }
+            WrongNumberOfMemoryImports { .. } => {
+                unreachable!("handled by early return for code readability")
             }
         })
     }
