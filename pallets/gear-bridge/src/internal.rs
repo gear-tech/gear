@@ -73,14 +73,14 @@ impl EthMessageData {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Decode, Encode, TypeInfo)]
 pub struct EthMessage {
+    nonce: U256,
     source: H256,
     destination: H160,
     payload: Vec<u8>,
-    nonce: U256,
 }
 
 impl EthMessage {
-    pub(crate) fn from_data(source: H256, data: EthMessageData, nonce: U256) -> Self {
+    pub(crate) fn from_data(nonce: U256, source: H256, data: EthMessageData) -> Self {
         let EthMessageData {
             destination,
             payload,
@@ -88,10 +88,10 @@ impl EthMessage {
         let payload = payload.into_vec();
 
         Self {
+            nonce,
             source,
             destination,
             payload,
-            nonce,
         }
     }
 
@@ -101,10 +101,10 @@ impl EthMessage {
         self.nonce.to_little_endian(&mut nonce);
 
         let arg = [
+            nonce.as_ref(),
             self.source.as_bytes(),
             self.destination.as_bytes(),
             self.payload.as_ref(),
-            nonce.as_ref(),
         ]
         .concat();
 

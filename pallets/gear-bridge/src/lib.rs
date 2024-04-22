@@ -183,7 +183,7 @@ pub mod pallet {
 
             let source = who.into_origin();
 
-            let message = EthMessage::from_data(source, data, nonce);
+            let message = EthMessage::from_data(nonce, source, data);
 
             let hash = Queue::<T>::mutate(|v| {
                 (v.len() < T::QueueLimit::get() as usize)
