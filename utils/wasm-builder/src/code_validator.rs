@@ -203,8 +203,6 @@ pub enum ImportErrorWithContext {
     InvalidImportFnSignature(String, PrintableFunctionType, PrintableFunctionType),
     #[error("Unexpected import `{name}` of kind `{kind}`")]
     UnexpectedImportKind { kind: String, name: String },
-    #[error("Wrong number of memory imports `{number}`")]
-    WrongNumberOfMemoryImports { number: usize },
 }
 
 impl TryFrom<(&Module, &ImportError)> for ImportErrorWithContext {
@@ -218,9 +216,6 @@ impl TryFrom<(&Module, &ImportError)> for ImportErrorWithContext {
             | DuplicateImport(idx)
             | InvalidImportFnSignature(idx)
             | UnexpectedImportKind { index: idx, .. } => idx,
-            WrongNumberOfMemoryImports { number } => {
-                return Ok(Self::WrongNumberOfMemoryImports { number: *number })
-            }
         };
 
         let Some(import_entry) = module
@@ -262,9 +257,6 @@ impl TryFrom<(&Module, &ImportError)> for ImportErrorWithContext {
                 let actual_signature = PrintableFunctionType(import_name.clone(), func_type);
 
                 Self::InvalidImportFnSignature(import_name, expected_signature, actual_signature)
-            }
-            WrongNumberOfMemoryImports { .. } => {
-                unreachable!("handled by early return for code readability")
             }
         })
     }

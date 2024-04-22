@@ -140,12 +140,6 @@ pub enum ImportError {
         /// Index of the import.
         index: u32,
     },
-    /// Wrong number of memory imports.
-    #[display(fmt = "Wrong number of memory imports `{number}`")]
-    WrongNumberOfMemoryImports {
-        /// Total number of memory imports.
-        number: usize,
-    },
 }
 
 /// Module encode/decode error.

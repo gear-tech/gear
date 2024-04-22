@@ -160,8 +160,6 @@ pub fn check_imports(module: &Module) -> Result<(), CodeError> {
 
     let syscalls = SyscallName::instrumentable_map();
 
-    const EXPECTED_NUMBER_OF_MEMORY_IMPORTS: usize = 1;
-    let mut number_of_memory_imports = 0;
     let mut visited_imports = BTreeSet::new();
 
     for (import_index, import) in imports.iter().enumerate() {
@@ -199,25 +197,16 @@ pub fn check_imports(module: &Module) -> Result<(), CodeError> {
                     Err(ImportError::InvalidImportFnSignature(import_index))?;
                 }
             }
-            External::Memory(_) => number_of_memory_imports += 1,
-            kind @ (External::Global(_) | External::Table(_)) => {
-                Err(ImportError::UnexpectedImportKind {
-                    kind: if matches!(kind, External::Global(_)) {
-                        &"Global"
-                    } else {
-                        &"Table"
-                    },
-                    index: import_index,
-                })?
-            }
+            External::Global(_) => Err(ImportError::UnexpectedImportKind {
+                kind: &"Global",
+                index: import_index,
+            })?,
+            External::Table(_) => Err(ImportError::UnexpectedImportKind {
+                kind: &"Table",
+                index: import_index,
+            })?,
+            _ => continue,
         }
-    }
-
-    // We expect only one memory import.
-    if number_of_memory_imports != EXPECTED_NUMBER_OF_MEMORY_IMPORTS {
-        Err(ImportError::WrongNumberOfMemoryImports {
-            number: number_of_memory_imports,
-        })?;
     }
 
     Ok(())
