@@ -793,8 +793,7 @@ mod tests {
 
         let user_id = 100;
 
-        let prog =
-            Program::from_binary_with_id(&sys, 137, demo_futures_unordered::WASM_BINARY.to_vec());
+        let prog = Program::from_binary_with_id(&sys, 137, demo_futures_unordered::WASM_BINARY);
 
         let init_msg_payload = String::from("InvalidInput");
         let run_result = prog.send(user_id, init_msg_payload);
@@ -820,7 +819,7 @@ mod tests {
         sys.mint_to(user_id, 10 * crate::EXISTENTIAL_DEPOSIT);
         assert_eq!(sys.balance_of(user_id), 10 * crate::EXISTENTIAL_DEPOSIT);
 
-        let mut prog = Program::from_binary_with_id(&sys, 137, demo_ping::WASM_BINARY.to_vec());
+        let mut prog = Program::from_binary_with_id(&sys, 137, demo_ping::WASM_BINARY);
 
         prog.mint(2 * crate::EXISTENTIAL_DEPOSIT);
         assert_eq!(prog.balance(), 2 * crate::EXISTENTIAL_DEPOSIT);
@@ -849,7 +848,7 @@ mod tests {
         sys.mint_to(sender1, 20 * crate::EXISTENTIAL_DEPOSIT);
         sys.mint_to(sender2, 20 * crate::EXISTENTIAL_DEPOSIT);
 
-        let prog = Program::from_binary_with_id(&sys, 137, demo_piggy_bank::WASM_BINARY.to_vec());
+        let prog = Program::from_binary_with_id(&sys, 137, demo_piggy_bank::WASM_BINARY);
 
         prog.send_bytes(receiver, b"init");
         assert_eq!(prog.balance(), 0);
@@ -893,7 +892,7 @@ mod tests {
         let sys = System::new();
 
         let user = 1;
-        let prog = Program::from_binary_with_id(&sys, 2, demo_piggy_bank::WASM_BINARY.to_vec());
+        let prog = Program::from_binary_with_id(&sys, 2, demo_piggy_bank::WASM_BINARY);
 
         assert_eq!(sys.balance_of(user), 0);
         sys.mint_to(user, crate::EXISTENTIAL_DEPOSIT);
@@ -912,7 +911,7 @@ mod tests {
 
         sys.mint_to(sender, 20 * crate::EXISTENTIAL_DEPOSIT);
 
-        let prog = Program::from_binary_with_id(&sys, 137, demo_piggy_bank::WASM_BINARY.to_vec());
+        let prog = Program::from_binary_with_id(&sys, 137, demo_piggy_bank::WASM_BINARY);
 
         prog.send_bytes(receiver, b"init");
 
@@ -945,7 +944,7 @@ mod tests {
         let sys = System::new();
         sys.init_logger();
 
-        let mut prog = Program::from_binary_with_id(&sys, 420, WASM_BINARY.to_vec());
+        let mut prog = Program::from_binary_with_id(&sys, 420, WASM_BINARY);
 
         let signer = 42;
 
@@ -994,7 +993,7 @@ mod tests {
         let sys = System::new();
         sys.init_logger();
 
-        let prog = Program::from_binary_with_id(&sys, 420, WASM_BINARY.to_vec());
+        let prog = Program::from_binary_with_id(&sys, 420, WASM_BINARY);
 
         let signer = 42;
 
@@ -1025,7 +1024,7 @@ mod tests {
         let sys = System::new();
         sys.init_logger();
 
-        let prog = Program::from_binary_with_id(&sys, 420, WASM_BINARY.to_vec());
+        let prog = Program::from_binary_with_id(&sys, 420, WASM_BINARY);
 
         let signer = 42;
 
@@ -1051,7 +1050,7 @@ mod tests {
         sys.init_logger();
 
         let user_id = [42; 32];
-        let prog = Program::from_binary_with_id(&sys, 137, WASM_BINARY.to_vec());
+        let prog = Program::from_binary_with_id(&sys, 137, WASM_BINARY);
 
         let run_result = prog.send(user_id, demo_exit_handle::scheme());
         assert!(!run_result.main_failed());
