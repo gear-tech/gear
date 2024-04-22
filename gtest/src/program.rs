@@ -267,10 +267,21 @@ impl ProgramBuilder {
         Self::from_binary(fs::read(path).expect("Failed to read WASM file"))
     }
 
+    fn wasm_path(optimized: bool) -> PathBuf {
+        let extension = if optimized { "opt.wasm" } else { "wasm" };
+        let current_dir = env::current_dir().expect("Unable to get current dir");
+        let path_file = current_dir.join(".binpath");
+        let path_bytes = fs::read(path_file).expect("Unable to read path bytes");
+        let mut relative_path: PathBuf =
+            String::from_utf8(path_bytes).expect("Invalid path").into();
+        relative_path.set_extension(extension);
+        current_dir.join(relative_path)
+    }
+
     fn inner_current(optimized: bool) -> Self {
         let path = env::current_dir()
             .expect("Unable to get root directory of the project")
-            .join(Program::wasm_path(optimized))
+            .join(Self::wasm_path(optimized))
             // TODO: consider to use `.canonicalize()` instead
             .clean();
 
@@ -716,19 +727,6 @@ impl<'a> Program<'a> {
     /// Returns the balance of the account.
     pub fn balance(&self) -> Balance {
         self.manager.borrow().balance_of(&self.id())
-    }
-
-    /// Returns the wasm path with extension.
-    #[track_caller]
-    fn wasm_path(optimized: bool) -> PathBuf {
-        let extension = if optimized { "opt.wasm" } else { "wasm" };
-        let current_dir = env::current_dir().expect("Unable to get current dir");
-        let path_file = current_dir.join(".binpath");
-        let path_bytes = fs::read(path_file).expect("Unable to read path bytes");
-        let mut relative_path: PathBuf =
-            String::from_utf8(path_bytes).expect("Invalid path").into();
-        relative_path.set_extension(extension);
-        current_dir.join(relative_path)
     }
 
     /// Save the program's memory to path.
