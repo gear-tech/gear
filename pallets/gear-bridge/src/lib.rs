@@ -89,10 +89,10 @@ pub mod pallet {
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
     pub enum Event<T> {
         ModeSwitched,
-        RootReset,
         RootUpdated(H256),
         MessageQueued { message: EthMessage, hash: H256 },
         ValidatorSetUpdated(H256),
+        QueueReset,
     }
 
     // Gear Bridge Pallet error type.
@@ -228,24 +228,7 @@ pub mod pallet {
                 QueueMerkleRoot::<T>::kill();
                 weight = weight.saturating_add(T::DbWeight::get().writes(1));
 
-                let queued_keys = <pallet_session::Pallet<T>>::queued_keys();
-                weight = weight.saturating_add(T::DbWeight::get().reads(1));
-
-                let grandpa_keys: Vec<[u8; 32]> = queued_keys
-                    .into_iter()
-                    .map(|(_, keys)| {
-                        keys.get(key_types::GRANDPA)
-                            .expect("TODO (breathx): consider type safety here")
-                    })
-                    .map(|v: sp_consensus_grandpa::AuthorityId| v.into_inner().0)
-                    .collect();
-
-                let validator_set_hash = Blake2_256::hash(grandpa_keys.concat().as_ref()).into();
-
-                ValidatorSet::<T>::put(validator_set_hash);
-                weight = weight.saturating_add(T::DbWeight::get().writes(1));
-
-                Self::deposit_event(Event::<T>::ValidatorSetUpdated(validator_set_hash));
+                Self::deposit_event(Event::<T>::QueueReset);
             } else {
                 let current_epoch = EpochIndex::<T>::get();
                 weight = weight.saturating_add(T::DbWeight::get().reads(1));
@@ -259,6 +242,26 @@ pub mod pallet {
 
                     ResetOnInitialize::<T>::put(true);
                     weight = weight.saturating_add(T::DbWeight::get().writes(1));
+
+                    let queued_keys = <pallet_session::Pallet<T>>::queued_keys();
+                    weight = weight.saturating_add(T::DbWeight::get().reads(1));
+
+                    let grandpa_keys: Vec<[u8; 32]> = queued_keys
+                        .into_iter()
+                        .map(|(_, keys)| {
+                            keys.get(key_types::GRANDPA)
+                                .expect("TODO (breathx): consider type safety here")
+                        })
+                        .map(|v: sp_consensus_grandpa::AuthorityId| v.into_inner().0)
+                        .collect();
+
+                    let validator_set_hash =
+                        Blake2_256::hash(grandpa_keys.concat().as_ref()).into();
+
+                    ValidatorSet::<T>::put(validator_set_hash);
+                    weight = weight.saturating_add(T::DbWeight::get().writes(1));
+
+                    Self::deposit_event(Event::<T>::ValidatorSetUpdated(validator_set_hash));
                 }
             }
 
@@ -295,13 +298,6 @@ pub mod pallet {
     where
         T::AccountId: Origin,
     {
-        pub fn reset() {
-            Queue::<T>::kill();
-            QueueMerkleRoot::<T>::kill();
-            QueueChanged::<T>::kill();
-            Self::deposit_event(Event::<T>::RootReset);
-        }
-
         pub fn merkle_proof(hash: H256) -> Option<Proof> {
             let queue = Queue::<T>::get();
 
