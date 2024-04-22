@@ -202,7 +202,7 @@
 //!     ```no_run
 //!     # use gtest::ProgramBuilder;
 //!     # let sys = gtest::System::new();
-//!     let prog = ProgramBuilder::from_file("./target/wasm32-unknown-unknown/release/demo_ping.wasm")
+//!     let prog = ProgramBuilder::from_file("your_gear_program.wasm")
 //!         .with_id(105)
 //!         .build(&sys);
 //!     ```
