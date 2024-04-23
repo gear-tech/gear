@@ -20,24 +20,48 @@ use anyhow::{anyhow, Result};
 use clap::{builder::PossibleValue, Parser, ValueEnum};
 use colored::Colorize;
 use serde::{Deserialize, Serialize};
-use std::{fs, path::PathBuf};
+use std::{borrow::Cow, fmt, fs, path::PathBuf};
 use url::Url;
 
 const CONFIG_PATH: &str = ".config/vara/config.toml";
 
 /// Gear command line configuration
-#[derive(Clone, Debug, Default, Parser, Serialize, Deserialize)]
+#[derive(Clone, Debug, Parser)]
 pub struct Config {
     /// Config actions
     #[clap(subcommand)]
-    #[serde(skip)]
     pub action: Action,
-    /// URL for Vara's JSON RPC or moniker
-    #[clap(short, long, name = "URL_OR_MONIKER", global = true)]
-    pub url: Option<Network>,
 }
 
 impl Config {
+    /// NOTE: currently just a simple wrapper for [`ConfigSettings::write`]
+    /// since we just have one config option.
+    pub fn exec(&self) -> Result<()> {
+        match &self.action {
+            Action::Set(s) => {
+                s.write(None)?;
+                println!("{s}");
+            }
+            // prints the whole config atm.
+            Action::Get { url: _ } => {
+                let settings = ConfigSettings::read(None)?;
+                println!("{settings}");
+            }
+        }
+
+        Ok(())
+    }
+}
+
+/// Gear command client config settings
+#[derive(Clone, Debug, Parser, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct ConfigSettings {
+    /// URL for Vara's JSON RPC or moniker
+    #[clap(short, long, name = "URL_OR_MONIKER")]
+    pub url: Network,
+}
+
+impl ConfigSettings {
     fn config() -> Result<PathBuf> {
         dirs::home_dir()
             .map(|h| h.join(CONFIG_PATH))
@@ -45,12 +69,15 @@ impl Config {
     }
 
     /// Read the config from disk
-    pub fn read(path: Option<PathBuf>) -> Result<Self> {
+    pub fn read(path: Option<PathBuf>) -> Result<ConfigSettings> {
         let conf = path.unwrap_or(Self::config()?);
         toml::from_str(&fs::read_to_string(conf)?).map_err(Into::into)
     }
 
-    /// Write self to disk
+    /// Write the whole settings to disk
+    ///
+    /// NOTE: this method should be updated as well once
+    /// there are more options in the settings.
     pub fn write(&self, path: Option<PathBuf>) -> Result<()> {
         let conf = path.unwrap_or(Self::config()?);
         if let Some(parent) = conf.parent() {
@@ -61,31 +88,25 @@ impl Config {
 
         fs::write(conf, toml::to_string_pretty(self)?).map_err(Into::into)
     }
+}
 
-    /// NOTE: currently just a simple wrapper for [`Self::write`] since we
-    /// just have one config option.
-    pub fn exec(&self) -> Result<()> {
-        if self.action == Action::Set {
-            self.write(None)?
-        }
-
-        println!(
-            "{}: {}",
-            "RPC URL".bold(),
-            self.url.clone().unwrap_or_default().as_ref()
-        );
-        Ok(())
+impl fmt::Display for ConfigSettings {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}: {}", "RPC URL".bold(), self.url.clone().as_ref())
     }
 }
 
 /// Config action
-#[derive(Clone, Debug, Parser, PartialEq, Eq, Default)]
+#[derive(Clone, Debug, Parser, PartialEq, Eq)]
 pub enum Action {
     /// Set a config setting
-    Set,
+    Set(ConfigSettings),
     /// Get current config settings
-    #[default]
-    Get,
+    Get {
+        /// Get the rpc url from the current config settings.
+        #[clap(short, long)]
+        url: bool,
+    },
 }
 
 /// Vara networks
@@ -135,24 +156,17 @@ impl ValueEnum for Network {
     }
 
     fn from_str(input: &str, ignore_case: bool) -> Result<Self, String> {
-        Ok(match input {
-            mainnet
-                if mainnet == "mainnet" || ignore_case && mainnet.to_lowercase() == "mainnet" =>
-            {
-                Self::Mainnet
-            }
-            testnet
-                if testnet == "testnet" || ignore_case && testnet.to_lowercase() == "testnet" =>
-            {
-                Self::Testnet
-            }
-            localhost
-                if localhost == "localhost"
-                    || ignore_case && localhost.to_lowercase() == "localhost" =>
-            {
-                Self::Localhost
-            }
-            _ => Self::Custom(Url::parse(input).map_err(|_| input.to_string())?),
+        let input = if ignore_case {
+            Cow::Owned(input.to_lowercase())
+        } else {
+            Cow::Borrowed(input)
+        };
+
+        Ok(match input.as_ref() {
+            "mainnet" => Self::Mainnet,
+            "testnet" => Self::Testnet,
+            "localhost" => Self::Localhost,
+            input => Self::Custom(Url::parse(input).map_err(|_| input.to_string())?),
         })
     }
 }

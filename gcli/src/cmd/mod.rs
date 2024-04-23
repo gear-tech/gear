@@ -31,10 +31,19 @@ pub mod update;
 pub mod upload;
 pub mod wallet;
 
-use self::config::Config;
 pub use self::{
-    claim::Claim, create::Create, info::Info, new::New, program::Program, reply::Reply, send::Send,
-    transfer::Transfer, update::Update, upload::Upload, wallet::Wallet,
+    claim::Claim,
+    config::{Config, ConfigSettings},
+    create::Create,
+    info::Info,
+    new::New,
+    program::Program,
+    reply::Reply,
+    send::Send,
+    transfer::Transfer,
+    update::Update,
+    upload::Upload,
+    wallet::Wallet,
 };
 use crate::App;
 use clap::Parser;
@@ -136,13 +145,7 @@ impl App for Opt {
             return self.endpoint.clone();
         }
 
-        Some(
-            Config::read(None)
-                .unwrap_or_default()
-                .url
-                .unwrap_or_default()
-                .to_string(),
-        )
+        ConfigSettings::read(None).ok().map(|c| c.url.to_string())
     }
 
     fn passwd(&self) -> Option<String> {
