@@ -29,7 +29,7 @@ use anyhow::Result;
 use std::process::{Command, ExitStatus};
 
 /// Required Packages without local dependencies.
-pub const SAFE_DEPENDENCIES: [&str; 12] = [
+pub const SAFE_DEPENDENCIES: [&str; 13] = [
     "actor-system-error",
     "galloc",
     "gear-stack-buffer",
@@ -42,6 +42,7 @@ pub const SAFE_DEPENDENCIES: [&str; 12] = [
     "gsdk-codegen",
     "gstd-codegen",
     "gsys",
+    "numerated",
 ];
 
 /// Required packages with local dependencies.
@@ -85,7 +86,7 @@ pub const PACKAGE_ALIAS: [(&str, &str); 2] = [
 /// Check the input package
 pub fn check(manifest: &str) -> Result<ExitStatus> {
     Command::new("cargo")
-        .args(["check", "--lib", "--manifest-path", manifest])
+        .args(["+stable", "check", "--lib", "--manifest-path", manifest])
         .status()
         .map_err(Into::into)
 }
@@ -93,7 +94,7 @@ pub fn check(manifest: &str) -> Result<ExitStatus> {
 /// Test the input package
 pub fn test(package: &str, test: &str) -> Result<ExitStatus> {
     Command::new("cargo")
-        .args(["test", "-p", package, "--", test])
+        .args(["+stable", "test", "-p", package, "--", test])
         .status()
         .map_err(Into::into)
 }
@@ -101,7 +102,13 @@ pub fn test(package: &str, test: &str) -> Result<ExitStatus> {
 /// Publish the input package
 pub fn publish(manifest: &str) -> Result<ExitStatus> {
     Command::new("cargo")
-        .args(["publish", "--manifest-path", manifest, "--allow-dirty"])
+        .args([
+            "+stable",
+            "publish",
+            "--manifest-path",
+            manifest,
+            "--allow-dirty",
+        ])
         .status()
         .map_err(Into::into)
 }
