@@ -54,13 +54,11 @@ pub struct Info {
 }
 
 impl Info {
-    /// execute command transfer
+    /// Execute command transfer
     pub async fn exec(&self, app: &impl App) -> Result<()> {
-        let signer = app.api().await?;
-        let mut address = self
-            .address
-            .clone()
-            .unwrap_or_else(|| signer.account_id().to_ss58check());
+        let api = app.api().await?;
+        let mut address = self.address.clone().unwrap_or_else(|| app.ss58_address());
+
         if address.starts_with("//") {
             address = Pair::from_string(&address, None)
                 .expect("Parse development address failed")
@@ -70,8 +68,8 @@ impl Info {
 
         let acc = AccountId32::from_ss58check(&address)?;
         match self.action {
-            Action::Balance => Self::balance(signer, acc).await,
-            Action::Mailbox { count } => Self::mailbox(signer, acc, count).await,
+            Action::Balance => Self::balance(api, acc).await,
+            Action::Mailbox { count } => Self::mailbox(api, acc, count).await,
         }
     }
 

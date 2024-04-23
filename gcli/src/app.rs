@@ -21,7 +21,10 @@
 use clap::Parser;
 use color_eyre::{eyre::eyre, Result};
 use env_logger::{Builder, Env};
-use gclient::{ext::sp_core, GearApi};
+use gclient::{
+    ext::sp_core::{self, crypto::Ss58Codec, sr25519::Pair, Pair as _},
+    GearApi,
+};
 use gring::Keyring;
 use gsdk::Api;
 
@@ -85,6 +88,20 @@ pub trait App: Parser + Sync {
     /// Password of the signer account.
     fn passwd(&self) -> Option<String> {
         None
+    }
+
+    /// Get the address of the primary key
+    fn ss58_address(&self) -> String {
+        gring::cmd::Command::store()
+            .and_then(Keyring::load)
+            .and_then(|mut s| s.primary())
+            .map(|k| k.address)
+            .unwrap_or(
+                Pair::from_string("//Alice", None)
+                    .expect("Alice always works")
+                    .public()
+                    .to_ss58check(),
+            )
     }
 
     /// Exec program from the parsed arguments.
