@@ -13052,45 +13052,6 @@ fn relay_messages() {
     );
 }
 
-// TODO: move to gear-core after #3736
-#[test]
-fn module_instantiation_error() {
-    // Unknown global import leads to instantiation error.
-    let wat = r#"
-        (module
-            (import "env" "memory" (memory 1))
-            (import "env" "unknown" (global $unknown i32))
-            (export "init" (func $init))
-            (func $init)
-        )
-    "#;
-
-    init_logger();
-    new_test_ext().execute_with(|| {
-        let code = ProgramCodeKind::Custom(wat).to_bytes();
-        let salt = DEFAULT_SALT.to_vec();
-        let prog_id = generate_program_id(&code, &salt);
-        Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            code,
-            salt,
-            EMPTY_PAYLOAD.to_vec(),
-            50_000_000_000,
-            0,
-            false,
-        )
-        .unwrap();
-
-        let mid = get_last_message_id();
-
-        run_to_next_block(None);
-
-        assert!(Gear::is_terminated(prog_id));
-        let err = get_last_event_error(mid);
-        assert!(err.starts_with(&ActorExecutionErrorReplyReason::Environment.to_string()));
-    });
-}
-
 #[test]
 fn wrong_entry_type() {
     let wat = r#"

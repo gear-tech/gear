@@ -120,8 +120,7 @@ impl<'a> GasPrecharger<'a> {
             PreChargeGasOperation::ProgramCode,
             self.costs
                 .read
-                .cost_for_one()
-                .saturating_add(self.costs.read_per_byte.cost_for(code_len)),
+                .cost_for_with_bytes(self.costs.read_per_byte, code_len),
         )
     }
 
@@ -141,12 +140,9 @@ impl<'a> GasPrecharger<'a> {
     ) -> Result<(), PrechargeError> {
         self.charge_gas(
             PreChargeGasOperation::ModuleInstrumentation,
-            // TODO: use `calc_for_with_bytes` here and in other places method #3838
-            self.costs.instrumentation.cost_for_one().saturating_add(
-                self.costs
-                    .instrumentation_per_byte
-                    .cost_for(original_code_len_bytes),
-            ),
+            self.costs
+                .instrumentation
+                .cost_for_with_bytes(self.costs.instrumentation_per_byte, original_code_len_bytes),
         )
     }
 
