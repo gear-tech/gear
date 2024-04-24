@@ -96,14 +96,10 @@ impl GearApi {
     /// extrinsic.
     ///
     /// This function returns a hash of the block with the transfer transaction.
-    pub async fn transfer_allow_death(&self, destination: ProgramId, value: u128) -> Result<H256> {
+    pub async fn transfer_keep_alive(&self, destination: ProgramId, value: u128) -> Result<H256> {
         let destination: [u8; 32] = destination.into();
 
-        let tx = self
-            .0
-            .calls
-            .transfer_allow_death(destination, value)
-            .await?;
+        let tx = self.0.calls.transfer_keep_alive(destination, value).await?;
 
         for event in tx.wait_for_success().await?.iter() {
             if let Event::Balances(BalancesEvent::Transfer { .. }) =

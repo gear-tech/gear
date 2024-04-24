@@ -40,8 +40,8 @@ pub struct SignerCalls(pub(crate) Arc<Inner>);
 
 // pallet-balances
 impl SignerCalls {
-    /// `pallet_balances::transfer_allow_death`
-    pub async fn transfer_allow_death(
+    /// `pallet_balances::transfer_keep_alive`
+    pub async fn transfer_keep_alive(
         &self,
         dest: impl Into<AccountId32>,
         value: u128,

@@ -48,7 +48,7 @@ impl Transfer {
         println!("Value: {}", self.value);
 
         let addr: [u8; 32] = AccountId32::from_ss58check(&self.destination)?.into();
-        signer.transfer_allow_death(addr.into(), self.value).await?;
+        signer.transfer_keep_alive(addr.into(), self.value).await?;
 
         Ok(())
     }
