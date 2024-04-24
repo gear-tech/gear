@@ -34,9 +34,15 @@ EOF
 
 workspace_test() {
   if [ "$CARGO" = "cargo xwin" ]; then
-    $CARGO test --workspace --exclude runtime-fuzzer --exclude runtime-fuzzer-fuzz --no-fail-fast "$@"
+    $CARGO test --workspace \
+      --exclude gclient --exclude gcli --exclude gsdk \
+      --exclude runtime-fuzzer --exclude runtime-fuzzer-fuzz \
+      --no-fail-fast "$@"
   else
-    cargo nextest run --workspace --exclude runtime-fuzzer --exclude runtime-fuzzer-fuzz --profile ci --no-fail-fast "$@"
+    cargo nextest run --workspace \
+      --exclude gclient --exclude gcli --exclude gsdk \
+      --exclude runtime-fuzzer --exclude runtime-fuzzer-fuzz \
+      --profile ci --no-fail-fast "$@"
   fi
 }
 
@@ -114,7 +120,7 @@ doc_test() {
 }
 
 time_consuming_tests() {
-  $CARGO test -p demo-fungible-token --no-fail-fast "$@" -- --nocapture --ignored
+  $CARGO test -p demo-fungible-token --no-fail-fast --release -- --nocapture --ignored
   $CARGO test -p gear-wasm-builder --no-fail-fast "$@" -- --nocapture --ignored
 }
 

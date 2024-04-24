@@ -49,7 +49,7 @@ jobs:
           echo "profiles=${profiles}" >> $GITHUB_OUTPUT
 
   linux:
-    runs-on: [ kuberunner, github-runner-02 ]
+    runs-on: [kuberunner, github-runner-02]
     needs: dynamic-profiles
     strategy:
       matrix:
@@ -93,7 +93,7 @@ jobs:
         run: cargo run -p calc-stack-height --release --locked
 
       - name: "Test: Gear workspace"
-        run: ./scripts/gear.sh test gear --exclude gclient --exclude gcli --exclude gsdk --locked ${{ matrix.profiles.flags }}
+        run: ./scripts/gear.sh test gear --locked ${{ matrix.profiles.flags }}
 
       - name: "Test: gsdk tests"
         run: ./scripts/gear.sh test gsdk ${{ matrix.profiles.flags }}
@@ -172,7 +172,7 @@ jobs:
           path: artifact
 
   win-cross:
-    runs-on: [ kuberunner, github-runner-03 ]
+    runs-on: [kuberunner, github-runner-03]
     needs: dynamic-profiles
     strategy:
       matrix:
@@ -183,7 +183,6 @@ jobs:
       XWIN_ARCH: x86_64
       RUSTUP_HOME: /tmp/rustup_home
       WINEDEBUG: fixme-all
-      
       CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
     steps:
       - name: "ACTIONS: Checkout"
@@ -255,14 +254,14 @@ jobs:
           CARGO_BUILD_TARGET: x86_64-pc-windows-msvc
 
   win-native:
-    needs: [ dynamic-profiles, linux ]
+    needs: [dynamic-profiles, linux]
     if: ${{ !cancelled() && (github.ref == 'refs/heads/master' || inputs.win-native) }}
     uses: ./.github/workflows/build-win-native.yml
     with:
       profiles: ${{ needs.dynamic-profiles.outputs.profiles }}
 
   macos:
-    needs: [ dynamic-profiles, linux ]
+    needs: [dynamic-profiles, linux]
     if: ${{ !cancelled() && inputs.macos }}
     uses: ./.github/workflows/build-macos.yml
     with:

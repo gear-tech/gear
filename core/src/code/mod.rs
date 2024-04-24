@@ -382,17 +382,21 @@ impl CodeAndId {
 
 #[cfg(test)]
 mod tests {
-    use crate::code::{Code, CodeError, DataSectionError, ExportError, StackEndError};
+    use crate::code::{Code, CodeError, DataSectionError, ExportError, ImportError, StackEndError};
     use alloc::{format, vec::Vec};
     use gear_wasm_instrument::{gas_metering::CustomConstantCostRules, STACK_END_EXPORT_NAME};
 
-    fn wat2wasm(s: &str) -> Vec<u8> {
+    fn wat2wasm_with_validate(s: &str, validate: bool) -> Vec<u8> {
         wabt::Wat2Wasm::new()
-            .validate(true)
+            .validate(validate)
             .convert(s)
             .unwrap()
             .as_ref()
             .to_vec()
+    }
+
+    fn wat2wasm(s: &str) -> Vec<u8> {
+        wat2wasm_with_validate(s, true)
     }
 
     macro_rules! assert_code_err {
@@ -680,6 +684,67 @@ mod tests {
         assert_code_err!(
             try_new_code_from_wat(wat, None),
             CodeError::Export(ExportError::ExportReferencesToImportGlobal(1, 0))
+        );
+    }
+
+    #[test]
+    fn multi_memory_import() {
+        let wat = r#"
+            (module
+                (import "env" "memory" (memory 1))
+                (import "env" "memory2" (memory 2))
+                (export "init" (func $init))
+                (func $init)
+            )
+        "#;
+
+        let res = Code::try_new(
+            wat2wasm_with_validate(wat, false),
+            1,
+            |_| CustomConstantCostRules::default(),
+            None,
+        );
+
+        assert_code_err!(res, CodeError::Validation(_));
+    }
+
+    #[test]
+    fn global_import() {
+        let wat = r#"
+            (module
+                (import "env" "memory" (memory 1))
+                (import "env" "unknown" (global $unknown i32))
+                (export "init" (func $init))
+                (func $init)
+            )
+        "#;
+
+        assert_code_err!(
+            try_new_code_from_wat(wat, None),
+            CodeError::Import(ImportError::UnexpectedImportKind {
+                kind: &"Global",
+                index: 1
+            })
+        );
+    }
+
+    #[test]
+    fn table_import() {
+        let wat = r#"
+            (module
+                (import "env" "memory" (memory 1))
+                (import "env" "unknown" (table $unknown 10 20 funcref))
+                (export "init" (func $init))
+                (func $init)
+            )
+        "#;
+
+        assert_code_err!(
+            try_new_code_from_wat(wat, None),
+            CodeError::Import(ImportError::UnexpectedImportKind {
+                kind: &"Table",
+                index: 1
+            })
         );
     }
 }
