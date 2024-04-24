@@ -34,6 +34,9 @@ pub enum Command {
     Add {
         /// The path of the keystore file.
         path: PathBuf,
+        /// If converting the wallet address to vara address
+        #[clap(short, long)]
+        convert_to_vara: bool,
     },
     /// Generate a new key.
     New {
@@ -114,8 +117,16 @@ impl Command {
     pub fn run(self) -> Result<()> {
         let mut keyring = Keyring::load(Command::store()?)?;
         match self {
-            Command::Add { path } => {
-                let keystore = serde_json::from_str::<Keystore>(&fs::read_to_string(&path)?)?;
+            Command::Add {
+                path,
+                convert_to_vara,
+            } => {
+                let mut keystore = serde_json::from_str::<Keystore>(&fs::read_to_string(&path)?)?;
+                if convert_to_vara {
+                    keystore.address =
+                        ss58::encode(&ss58::decode(keystore.address.as_bytes(), 32)?);
+                }
+
                 let name = path
                     .file_stem()
                     .map(|s| s.to_string_lossy().to_string())
@@ -127,7 +138,10 @@ impl Command {
                     .find(|k| k.meta.name == keystore.meta.name)
                     .map_or_else(
                         || {
-                            fs::copy(&path, keyring.store.join(&name).with_extension("json"))?;
+                            fs::write(
+                                keyring.store.join(&name).with_extension("json"),
+                                serde_json::to_string_pretty(&keystore)?,
+                            )?;
                             println!(
                                 "Key {} has been imported!",
                                 keystore.meta.name.cyan().bold()
