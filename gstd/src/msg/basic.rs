@@ -122,13 +122,13 @@ impl MessageHandle {
     /// to the message target account.
     #[wait_for_reply(self)]
     pub fn commit(self, program: ActorId, value: u128) -> Result<MessageId> {
-        gcore::msg::send_commit(self.0, program.into(), value).into_result()
+        gcore::msg::send_commit(self.0, program, value).into_result()
     }
 
     /// Same as [`commit`](Self::commit), but sends the message after the
     /// `delay` expressed in block count.
     pub fn commit_delayed(self, program: ActorId, value: u128, delay: u32) -> Result<MessageId> {
-        gcore::msg::send_commit_delayed(self.0, program.into(), value, delay).into_result()
+        gcore::msg::send_commit_delayed(self.0, program, value, delay).into_result()
     }
 
     /// Same as [`commit`](Self::commit), but with an explicit gas
@@ -156,7 +156,7 @@ impl MessageHandle {
         gas_limit: u64,
         value: u128,
     ) -> Result<MessageId> {
-        gcore::msg::send_commit_with_gas(self.0, program.into(), gas_limit, value).into_result()
+        gcore::msg::send_commit_with_gas(self.0, program, gas_limit, value).into_result()
     }
 
     /// Same as [`commit_with_gas`](Self::commit_with_gas), but sends
@@ -168,7 +168,7 @@ impl MessageHandle {
         value: u128,
         delay: u32,
     ) -> Result<MessageId> {
-        gcore::msg::send_commit_with_gas_delayed(self.0, program.into(), gas_limit, value, delay)
+        gcore::msg::send_commit_with_gas_delayed(self.0, program, gas_limit, value, delay)
             .into_result()
     }
 
@@ -181,6 +181,7 @@ impl MessageHandle {
     /// ```
     /// use gstd::{
     ///     msg::{self, MessageHandle},
+    ///     prelude::*,
     ///     ReservationId,
     /// };
     ///
@@ -202,8 +203,7 @@ impl MessageHandle {
         program: ActorId,
         value: u128,
     ) -> Result<MessageId> {
-        gcore::msg::send_commit_from_reservation(id.into(), self.into(), program.into(), value)
-            .into_result()
+        gcore::msg::send_commit_from_reservation(id, self.into(), program, value).into_result()
     }
 
     /// Same as [`commit_from_reservation`](Self::commit_from_reservation), but
@@ -215,14 +215,8 @@ impl MessageHandle {
         value: u128,
         delay: u32,
     ) -> Result<MessageId> {
-        gcore::msg::send_commit_delayed_from_reservation(
-            id.into(),
-            self.into(),
-            program.into(),
-            value,
-            delay,
-        )
-        .into_result()
+        gcore::msg::send_commit_delayed_from_reservation(id, self.into(), program, value, delay)
+            .into_result()
     }
 }
 
@@ -307,7 +301,7 @@ pub fn signal_code() -> Result<Option<SignalCode>> {
 /// }
 /// ```
 pub fn id() -> MessageId {
-    gcore::msg::id().into()
+    gcore::msg::id()
 }
 
 /// Get a payload of the message that is currently being processed.
@@ -404,7 +398,7 @@ pub fn reply_bytes(payload: impl AsRef<[u8]>, value: u128) -> Result<MessageId> 
 /// # Examples
 ///
 /// ```
-/// use gstd::{msg, ReservationId};
+/// use gstd::{msg, prelude::*, ReservationId};
 ///
 /// #[no_mangle]
 /// extern "C" fn handle() {
@@ -422,7 +416,7 @@ pub fn reply_bytes_from_reservation(
     payload: impl AsRef<[u8]>,
     value: u128,
 ) -> Result<MessageId> {
-    gcore::msg::reply_from_reservation(id.into(), payload.as_ref(), value).into_result()
+    gcore::msg::reply_from_reservation(id, payload.as_ref(), value).into_result()
 }
 
 /// Same as [`reply_bytes`], but with an explicit gas limit.
@@ -491,7 +485,7 @@ pub fn reply_commit(value: u128) -> Result<MessageId> {
 /// # Examples
 ///
 /// ```
-/// use gstd::{msg, ReservationId};
+/// use gstd::{msg, prelude::*, ReservationId};
 ///
 /// #[no_mangle]
 /// extern "C" fn handle() {
@@ -507,7 +501,7 @@ pub fn reply_commit(value: u128) -> Result<MessageId> {
 /// - [`reply_push`] function allows forming a reply message in parts.
 /// - [`ReservationId`] struct allows reserve gas for later use.
 pub fn reply_commit_from_reservation(id: ReservationId, value: u128) -> Result<MessageId> {
-    gcore::msg::reply_commit_from_reservation(id.into(), value).into_result()
+    gcore::msg::reply_commit_from_reservation(id, value).into_result()
 }
 
 /// Same as [`reply_commit`], but with an explicit gas limit.
@@ -663,7 +657,7 @@ pub fn reply_push_input<Range: RangeBounds<usize>>(range: Range) -> Result<()> {
 ///   parts.
 #[wait_for_reply]
 pub fn send_bytes<T: AsRef<[u8]>>(program: ActorId, payload: T, value: u128) -> Result<MessageId> {
-    gcore::msg::send(program.into(), payload.as_ref(), value).into_result()
+    gcore::msg::send(program, payload.as_ref(), value).into_result()
 }
 
 /// Same as [`send_bytes`], but sends the message after the `delay` expressed in
@@ -674,7 +668,7 @@ pub fn send_bytes_delayed<T: AsRef<[u8]>>(
     value: u128,
     delay: u32,
 ) -> Result<MessageId> {
-    gcore::msg::send_delayed(program.into(), payload.as_ref(), value, delay).into_result()
+    gcore::msg::send_delayed(program, payload.as_ref(), value, delay).into_result()
 }
 
 /// Same as [`send_bytes`], but with an explicit gas limit.
@@ -710,7 +704,7 @@ pub fn send_bytes_with_gas<T: AsRef<[u8]>>(
     gas_limit: u64,
     value: u128,
 ) -> Result<MessageId> {
-    gcore::msg::send_with_gas(program.into(), payload.as_ref(), gas_limit, value).into_result()
+    gcore::msg::send_with_gas(program, payload.as_ref(), gas_limit, value).into_result()
 }
 
 /// Same as [`send_bytes_with_gas`], but sends the message after the `delay`
@@ -722,7 +716,7 @@ pub fn send_bytes_with_gas_delayed<T: AsRef<[u8]>>(
     value: u128,
     delay: u32,
 ) -> Result<MessageId> {
-    gcore::msg::send_with_gas_delayed(program.into(), payload.as_ref(), gas_limit, value, delay)
+    gcore::msg::send_with_gas_delayed(program, payload.as_ref(), gas_limit, value, delay)
         .into_result()
 }
 
@@ -740,7 +734,7 @@ pub fn send_bytes_with_gas_delayed<T: AsRef<[u8]>>(
 /// Send a message with value to the sender's address:
 ///
 /// ```
-/// use gstd::{msg, ReservationId};
+/// use gstd::{msg, prelude::*, ReservationId};
 ///
 /// #[no_mangle]
 /// extern "C" fn handle() {
@@ -766,8 +760,7 @@ pub fn send_bytes_from_reservation<T: AsRef<[u8]>>(
     payload: T,
     value: u128,
 ) -> Result<MessageId> {
-    gcore::msg::send_from_reservation(id.into(), program.into(), payload.as_ref(), value)
-        .into_result()
+    gcore::msg::send_from_reservation(id, program, payload.as_ref(), value).into_result()
 }
 
 /// Same as [`send_bytes_from_reservation`], but sends the message after the
@@ -779,14 +772,8 @@ pub fn send_bytes_delayed_from_reservation<T: AsRef<[u8]>>(
     value: u128,
     delay: u32,
 ) -> Result<MessageId> {
-    gcore::msg::send_delayed_from_reservation(
-        id.into(),
-        program.into(),
-        payload.as_ref(),
-        value,
-        delay,
-    )
-    .into_result()
+    gcore::msg::send_delayed_from_reservation(id, program, payload.as_ref(), value, delay)
+        .into_result()
 }
 
 /// Get the payload size of the message that is being processed.
@@ -824,7 +811,7 @@ pub fn size() -> usize {
 /// }
 /// ```
 pub fn source() -> ActorId {
-    gcore::msg::source().into()
+    gcore::msg::source()
 }
 
 /// Get the value associated with the message that is being processed.

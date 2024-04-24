@@ -85,14 +85,14 @@ pub fn create_program_bytes_delayed(
     delay: u32,
 ) -> Result<(MessageId, ActorId)> {
     let (message_id, program_id) = gcore::prog::create_program_delayed(
-        code_id.into(),
+        code_id,
         salt.as_ref(),
         payload.as_ref(),
         value,
         delay,
     )?;
 
-    Ok((message_id.into(), program_id.into()))
+    Ok((message_id, program_id))
 }
 
 /// Same as [`create_program_bytes`], but with an explicit gas limit.
@@ -118,7 +118,7 @@ pub fn create_program_bytes_with_gas_delayed(
     delay: u32,
 ) -> Result<(MessageId, ActorId)> {
     let (message_id, program_id) = gcore::prog::create_program_with_gas_delayed(
-        code_id.into(),
+        code_id,
         salt.as_ref(),
         payload.as_ref(),
         gas_limit,
@@ -126,5 +126,5 @@ pub fn create_program_bytes_with_gas_delayed(
         delay,
     )?;
 
-    Ok((message_id.into(), program_id.into()))
+    Ok((message_id, program_id))
 }

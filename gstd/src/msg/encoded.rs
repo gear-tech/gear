@@ -269,7 +269,7 @@ pub fn send_input<Range: RangeBounds<usize>>(
 ) -> Result<MessageId> {
     let (offset, len) = utils::decay_range(range);
 
-    gcore::msg::send_input(program.into(), value, offset, len).into_result()
+    gcore::msg::send_input(program, value, offset, len).into_result()
 }
 
 /// Same as [`send_input`], but sends the message after the `delay` expressed in
@@ -282,7 +282,7 @@ pub fn send_input_delayed<Range: RangeBounds<usize>>(
 ) -> Result<MessageId> {
     let (offset, len) = utils::decay_range(range);
 
-    gcore::msg::send_input_delayed(program.into(), value, offset, len, delay).into_result()
+    gcore::msg::send_input_delayed(program, value, offset, len, delay).into_result()
 }
 
 /// Same as [`send_input`], but with an explicit gas limit.
@@ -295,7 +295,7 @@ pub fn send_input_with_gas<Range: RangeBounds<usize>>(
 ) -> Result<MessageId> {
     let (offset, len) = utils::decay_range(range);
 
-    gcore::msg::send_input_with_gas(program.into(), gas_limit, value, offset, len).into_result()
+    gcore::msg::send_input_with_gas(program, gas_limit, value, offset, len).into_result()
 }
 
 /// Same as [`send_input_with_gas`], but sends the message after the `delay`
@@ -309,7 +309,7 @@ pub fn send_input_with_gas_delayed<Range: RangeBounds<usize>>(
 ) -> Result<MessageId> {
     let (offset, len) = utils::decay_range(range);
 
-    gcore::msg::send_input_with_gas_delayed(program.into(), gas_limit, value, offset, len, delay)
+    gcore::msg::send_input_with_gas_delayed(program, gas_limit, value, offset, len, delay)
         .into_result()
 }
 

@@ -73,10 +73,8 @@ pub mod errors;
 pub mod exec;
 pub mod msg;
 pub mod prog;
+pub use gcore_primitives::{ActorId, CodeId, MessageHandle, MessageId, ReservationId};
 pub use gear_stack_buffer as stack_buffer;
-
-mod general;
-pub use general::*;
 
 mod utils;
 pub use utils::ext;

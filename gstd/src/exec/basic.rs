@@ -44,7 +44,7 @@ use crate::{common::errors::Result, ActorId, MessageId};
 /// }
 /// ```
 pub fn reply_deposit(message_id: MessageId, amount: u64) -> Result<()> {
-    gcore::exec::reply_deposit(message_id.into(), amount).map_err(Into::into)
+    gcore::exec::reply_deposit(message_id, amount).map_err(Into::into)
 }
 
 /// Terminate the execution of a program.
@@ -71,7 +71,7 @@ pub fn reply_deposit(message_id: MessageId, amount: u64) -> Result<()> {
 /// }
 /// ```
 pub fn exit(inheritor_id: ActorId) -> ! {
-    gcore::exec::exit(inheritor_id.into())
+    gcore::exec::exit(inheritor_id)
 }
 
 /// Resume previously paused message handling.
@@ -106,7 +106,7 @@ pub fn wake(message_id: MessageId) -> Result<()> {
 
 /// Same as [`wake`], but executes after the `delay` expressed in block count.
 pub fn wake_delayed(message_id: MessageId, delay: u32) -> Result<()> {
-    gcore::exec::wake_delayed(message_id.into(), delay).map_err(Into::into)
+    gcore::exec::wake_delayed(message_id, delay).map_err(Into::into)
 }
 
 /// Return the identifier of the current program.
@@ -122,5 +122,5 @@ pub fn wake_delayed(message_id: MessageId, delay: u32) -> Result<()> {
 /// }
 /// ```
 pub fn program_id() -> ActorId {
-    gcore::exec::program_id().into()
+    gcore::exec::program_id()
 }
