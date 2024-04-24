@@ -12195,8 +12195,8 @@ version = "9.0.0"
 source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-v1.2.0#7a19c7c8fc22505f5865fd1f471adf9f28669f5f"
 dependencies = [
  "quote",
- "sp-core-hashing 9.0.0 (git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-v1.1.0)",
- "syn 2.0.59",
+ "sp-core-hashing 9.0.0 (git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-v1.2.0)",
+ "syn 2.0.58",
 ]
 
 [[package]]
