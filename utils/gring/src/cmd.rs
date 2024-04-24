@@ -34,7 +34,7 @@ pub enum Command {
     Add {
         /// The path of the keystore file.
         path: PathBuf,
-        /// If converting the wallet address to vara address
+        /// Convert the wallet address to VARA address.
         #[clap(short, long)]
         convert_to_vara: bool,
     },
@@ -55,6 +55,9 @@ pub enum Command {
         /// If only list the primary key.
         #[arg(short, long)]
         primary: bool,
+        /// Force listing addresses in VARA format.
+        #[arg(short, long)]
+        force_vara: bool,
     },
     /// Use the provided key as primary key.
     Use {
@@ -123,8 +126,7 @@ impl Command {
             } => {
                 let mut keystore = serde_json::from_str::<Keystore>(&fs::read_to_string(&path)?)?;
                 if convert_to_vara {
-                    keystore.address =
-                        ss58::encode(&ss58::decode(keystore.address.as_bytes(), 32)?);
+                    keystore.address = ss58::recode(&keystore.address)?;
                 }
 
                 let name = path
@@ -197,9 +199,15 @@ impl Command {
                     path.display().to_string().underline()
                 );
             }
-            Command::List { primary } => {
-                let key = keyring.primary()?;
+            Command::List {
+                primary,
+                force_vara,
+            } => {
                 if primary {
+                    let mut key = keyring.primary()?;
+                    if force_vara {
+                        key.address = ss58::recode(&key.address)?;
+                    }
                     Self::print_key(&key);
                     return Ok(());
                 }
@@ -210,6 +218,10 @@ impl Command {
                 for key in keyring.list() {
                     let mut name: ColoredString = key.meta.name.clone().into();
                     let mut address: ColoredString = key.address.clone().into();
+                    if force_vara {
+                        address = ss58::recode(&address)?.into();
+                    }
+
                     if key.meta.name == keyring.primary {
                         name = name.cyan();
                         address = address.cyan();
