@@ -5242,6 +5242,7 @@ dependencies = [
  "gear-wasm-instrument",
  "gsys",
  "hex",
+ "indexmap 2.2.6",
  "log",
  "parity-scale-codec",
  "path-clean",

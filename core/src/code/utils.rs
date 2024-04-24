@@ -161,35 +161,51 @@ pub fn check_imports(module: &Module) -> Result<(), CodeError> {
     let syscalls = SyscallName::instrumentable_map();
 
     let mut visited_imports = BTreeSet::new();
+
     for (import_index, import) in imports.iter().enumerate() {
-        let External::Function(i) = import.external() else {
-            continue;
-        };
+        let import_index: u32 = import_index
+            .try_into()
+            .unwrap_or_else(|_| unreachable!("Import index should fit in u32"));
 
-        // Panic is impossible, unless the Module structure is invalid.
-        let Type::Function(func_type) = &types
-            .get(*i as usize)
-            .unwrap_or_else(|| unreachable!("Module structure is invalid"));
+        match import.external() {
+            External::Function(i) => {
+                // Panic is impossible, unless the Module structure is invalid.
+                let Type::Function(func_type) = &types
+                    .get(*i as usize)
+                    .unwrap_or_else(|| unreachable!("Module structure is invalid"));
 
-        let syscall = syscalls
-            .get(import.field())
-            .ok_or(ImportError::UnknownImport(import_index as u32))?;
+                let syscall = syscalls
+                    .get(import.field())
+                    .ok_or(ImportError::UnknownImport(import_index))?;
 
-        if !visited_imports.insert(*syscall) {
-            Err(ImportError::DuplicateImport(import_index as u32))?;
-        }
+                if !visited_imports.insert(*syscall) {
+                    Err(ImportError::DuplicateImport(import_index))?;
+                }
 
-        let signature = syscall.signature();
+                let signature = syscall.signature();
 
-        let params = signature
-            .params()
-            .iter()
-            .copied()
-            .map(Into::<ValueType>::into);
-        let results = signature.results().unwrap_or(&[]);
+                let params = signature
+                    .params()
+                    .iter()
+                    .copied()
+                    .map(Into::<ValueType>::into);
+                let results = signature.results().unwrap_or(&[]);
 
-        if !(params.eq(func_type.params().iter().copied()) && results == func_type.results()) {
-            Err(ImportError::InvalidImportFnSignature(import_index as u32))?;
+                if !(params.eq(func_type.params().iter().copied())
+                    && results == func_type.results())
+                {
+                    Err(ImportError::InvalidImportFnSignature(import_index))?;
+                }
+            }
+            External::Global(_) => Err(ImportError::UnexpectedImportKind {
+                kind: &"Global",
+                index: import_index,
+            })?,
+            External::Table(_) => Err(ImportError::UnexpectedImportKind {
+                kind: &"Table",
+                index: import_index,
+            })?,
+            _ => continue,
         }
     }
 
