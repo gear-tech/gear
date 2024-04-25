@@ -370,8 +370,6 @@ impl pallet_treasury::Config for Test {
     type Paymaster = PayFromAccount<Balances, TreasuryAccount>;
     type BalanceConverter = UnityAssetBalanceConversion;
     type PayoutPeriod = ConstU64<10>;
-    #[cfg(feature = "runtime-benchmarks")]
-    type BenchmarkHelper = ();
 }
 
 parameter_types! {
@@ -904,8 +902,6 @@ pub(crate) mod two_block_producers {
         type Paymaster = PayFromAccount<Balances, TreasuryAccount>;
         type BalanceConverter = UnityAssetBalanceConversion;
         type PayoutPeriod = ConstU64<10>;
-        #[cfg(feature = "runtime-benchmarks")]
-        type BenchmarkHelper = ();
     }
 
     impl pallet_bags_list::Config<pallet_bags_list::Instance1> for Test {

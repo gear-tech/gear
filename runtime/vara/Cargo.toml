@@ -213,7 +213,6 @@ runtime-benchmarks = [
 	"pallet-conviction-voting/runtime-benchmarks",
 	"pallet-ranked-collective/runtime-benchmarks",
 	"pallet-referenda/runtime-benchmarks",
-	"pallet-treasury/runtime-benchmarks",
 ]
 runtime-benchmarks-checkers = [
 	"pallet-gear/runtime-benchmarks-checkers",
