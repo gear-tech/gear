@@ -208,7 +208,7 @@ pub trait Memory<Context> {
     fn read(&self, ctx: &Context, offset: u32, buffer: &mut [u8]) -> Result<(), MemoryError>;
 
     /// Returns native addr of wasm memory buffer in wasm executor
-    fn get_buffer_host_addr(&mut self, ctx: &mut Context) -> Option<HostPointer> {
+    fn get_buffer_host_addr(&self, ctx: &Context) -> Option<HostPointer> {
         if self.size(ctx) == WasmPagesAmount::from(0) {
             None
         } else {
@@ -219,9 +219,10 @@ pub trait Memory<Context> {
     }
 
     /// Get buffer addr unsafe.
+    ///
     /// # Safety
-    /// if memory size is 0 then buffer addr can be garbage
-    unsafe fn get_buffer_host_addr_unsafe(&mut self, ctx: &mut Context) -> HostPointer;
+    /// If memory size is 0 then buffer addr can be garbage
+    unsafe fn get_buffer_host_addr_unsafe(&self, ctx: &Context) -> HostPointer;
 }
 
 /// Pages allocations context for the running program.
@@ -435,7 +436,7 @@ mod tests {
             unimplemented!()
         }
 
-        unsafe fn get_buffer_host_addr_unsafe(&mut self, _ctx: &mut ()) -> HostPointer {
+        unsafe fn get_buffer_host_addr_unsafe(&mut self, ctx: &Context) -> HostPointer {
             unimplemented!()
         }
     }

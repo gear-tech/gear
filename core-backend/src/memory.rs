@@ -83,7 +83,7 @@ where
             .map_err(|_| MemoryError::AccessOutOfBounds)
     }
 
-    unsafe fn get_buffer_host_addr_unsafe(&mut self, ctx: &mut Caller) -> HostPointer {
+    unsafe fn get_buffer_host_addr_unsafe(&self, ctx: &Caller) -> HostPointer {
         self.inner.get_buff(ctx) as HostPointer
     }
 }

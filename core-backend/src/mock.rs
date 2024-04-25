@@ -404,7 +404,7 @@ impl<Context> Memory<Context> for MockMemory {
         self.0.borrow_mut().read(offset, buffer)
     }
 
-    unsafe fn get_buffer_host_addr_unsafe(&mut self, _ctx: &mut Context) -> HostPointer {
+    unsafe fn get_buffer_host_addr_unsafe(&self, _ctx: &Context) -> HostPointer {
         unimplemented!()
     }
 }
