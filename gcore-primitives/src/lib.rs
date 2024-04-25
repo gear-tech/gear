@@ -46,8 +46,13 @@ pub struct MessageHandle(u32);
 
 /// The error type returned when conversion from a slice fails.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Display)]
-#[display(fmt = "Slice should be 32 length")]
+#[display(fmt = "{}", Self::REASON)]
 pub struct TryFromSliceError(pub(crate) ());
+
+impl TryFromSliceError {
+    #[doc(hidden)]
+    pub const REASON: &'static str = "Slice should be 32 length";
+}
 
 macro_rules! declare_primitive {
     ($ty:ty) => {

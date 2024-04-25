@@ -21,6 +21,7 @@
 use core::fmt;
 
 pub use gear_core_errors::*;
+pub use gcore_primitives::TryFromSliceError;
 
 /// `Result` type with a predefined error type ([`ExtError`]).
 pub type Result<T, E = Error> = core::result::Result<T, E>;

@@ -115,6 +115,12 @@ impl From<CoreError> for Error {
     }
 }
 
+impl From<TryFromSliceError> for Error {
+    fn from(_: TryFromSliceError) -> Self {
+        Self::Convert(TryFromSliceError::REASON)
+    }
+}
+
 /// New-type representing error reply payload. Expected to be utf-8 string.
 #[derive(Clone, Eq, PartialEq)]
 pub struct ErrorReplyPayload(pub Vec<u8>);
