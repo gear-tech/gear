@@ -174,7 +174,7 @@ pub use gcore::{
     ext, ActorId, BlockCount, BlockNumber, CodeId, EnvVars, Gas, GasMultiplier, MessageId, Percent,
     ReservationId, Value,
 };
-pub use gstd_codegen::{async_init, async_main};
+pub use gstd_codegen::{actor_id, async_init, async_main};
 pub use prelude::*;
 pub use reservations::*;
 
