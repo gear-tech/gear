@@ -313,10 +313,9 @@ fn submit_and_maintain<A>(client: Arc<TestClient>, txpool: Arc<A>, extrinsics: V
 where
     A: MaintainedTransactionPool<Block = TestBlock> + 'static,
 {
-    let block_id = BlockId::Number(client.info().best_number);
     let hash = client.info().best_hash;
 
-    block_on(txpool.submit_at(&block_id, SOURCE, extrinsics)).unwrap();
+    block_on(txpool.submit_at(hash, SOURCE, extrinsics)).unwrap();
     block_on(txpool.maintain(chain_event(
         client.expect_header(hash).expect("there should be header"),
     )));
@@ -1198,7 +1197,9 @@ mod basic_tests {
                 .map(Encode::encoded_size)
                 .sum::<usize>();
 
-        block_on(txpool.submit_at(&BlockId::number(0), SOURCE, extrinsics)).unwrap();
+        let hashof0 = client.info().genesis_hash;
+
+        block_on(txpool.submit_at(hashof0, SOURCE, extrinsics)).unwrap();
 
         block_on(txpool.maintain(chain_event(genesis_header.clone())));
 
