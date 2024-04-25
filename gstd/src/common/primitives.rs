@@ -37,7 +37,7 @@
 
 use crate::{
     errors::{Error, IntoResult, Result},
-    prelude::{convert::TryFrom, String},
+    prelude::convert::TryFrom,
 };
 use primitive_types::H256;
 use scale::MaxEncodedLen;
@@ -45,8 +45,6 @@ use scale_info::{
     scale::{self, Decode, Encode},
     TypeInfo,
 };
-
-const BS58_MIN_LEN: usize = 35; // Prefix (1) + ID (32) + Checksum (2)
 
 /// Program (actor) identifier.
 ///
@@ -88,20 +86,6 @@ impl ActorId {
     /// Check whether `ActorId` is zero.
     pub fn is_zero(&self) -> bool {
         self == &Self::zero()
-    }
-
-    /// Create a new `ActorId` from the Base58 string.
-    pub fn from_bs58(address: String) -> Result<Self> {
-        let decoded = bs58::decode(address)
-            .into_vec()
-            .map_err(|_| Error::Convert("Unable to decode bs58 address"))?;
-
-        let len = decoded.len();
-        if len < BS58_MIN_LEN {
-            Err(Error::Convert("Wrong address len"))
-        } else {
-            Self::from_slice(&decoded[len - 34..len - 2])
-        }
     }
 
     /// Create a new `ActorId` from a byte slice.
