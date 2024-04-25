@@ -179,10 +179,9 @@ impl<Caller> Default for MemoryAccessRegistry<Caller> {
 
 impl<Caller, Ext, Mem> MemoryAccessRegistry<Caller>
 where
-    Caller: AsContextExt<State = HostState<Ext, BackendMemory<Mem>>>,
+    Caller: AsContextExt<State = HostState<Ext, Mem>>,
     Ext: BackendExternalities + 'static,
-    Mem: Clone + 'static,
-    BackendMemory<Mem>: Memory<Caller>,
+    Mem: Memory<Caller> + Clone + 'static,
 {
     pub(crate) fn register_read(&mut self, ptr: u32, size: u32) -> WasmMemoryRead {
         if size > 0 {
@@ -238,7 +237,7 @@ where
     pub(crate) fn pre_process(
         self,
         ctx: &mut CallerWrap<Caller>,
-    ) -> Result<MemoryAccessIo<Caller, BackendMemory<Mem>>, MemoryAccessError> {
+    ) -> Result<MemoryAccessIo<Caller, Mem>, MemoryAccessError> {
         let ext = ctx.ext_mut();
         let mut gas_counter = ext.define_current_counter();
 
@@ -418,20 +417,18 @@ mod tests {
     use gear_sandbox::{default_executor::Store, SandboxStore};
 
     type MemoryAccessRegistry =
-        crate::memory::MemoryAccessRegistry<Store<HostState<MockExt, BackendMemory<MockMemory>>>>;
-    type MemoryAccessIo<'a> = crate::memory::MemoryAccessIo<
-        Store<HostState<MockExt, BackendMemory<MockMemory>>>,
-        BackendMemory<MockMemory>,
-    >;
+        crate::memory::MemoryAccessRegistry<Store<HostState<MockExt, MockMemory>>>;
+    type MemoryAccessIo<'a> =
+        crate::memory::MemoryAccessIo<Store<HostState<MockExt, MockMemory>>, MockMemory>;
 
     #[derive(Encode, Decode, MaxEncodedLen)]
     #[codec(crate = codec)]
     struct ZeroSizeStruct;
 
-    fn new_store() -> Store<HostState<MockExt, BackendMemory<MockMemory>>> {
+    fn new_store() -> Store<HostState<MockExt, MockMemory>> {
         Store::new(Some(State {
             ext: MockExt::default(),
-            memory: MockMemory::new(0).into(),
+            memory: MockMemory::new(0),
             termination_reason: UndefinedTerminationReason::ProcessAccessErrorResourcesExceed,
         }))
     }
@@ -499,7 +496,7 @@ mod tests {
         let io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
         io.read(caller_wrap.caller, read).unwrap();
 
-        assert_eq!(caller_wrap.state_mut().memory.inner.read_attempt_count(), 0);
+        assert_eq!(caller_wrap.state_mut().memory.read_attempt_count(), 0);
     }
 
     #[test]
@@ -513,7 +510,7 @@ mod tests {
         let io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
         io.read_as(caller_wrap.caller, read).unwrap();
 
-        assert_eq!(caller_wrap.state_mut().memory.inner.read_attempt_count(), 0);
+        assert_eq!(caller_wrap.state_mut().memory.read_attempt_count(), 0);
     }
 
     #[test]
@@ -525,21 +522,21 @@ mod tests {
         let read = registry.register_read_decoded::<ZeroSizeStruct>(0);
         let io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
         io.read_decoded(caller_wrap.caller, read).unwrap();
-        assert_eq!(caller_wrap.state_mut().memory.inner.read_attempt_count(), 0);
+        assert_eq!(caller_wrap.state_mut().memory.read_attempt_count(), 0);
     }
 
     #[test]
     fn test_read_of_some_size_buf() {
         let mut store = new_store();
         let mut caller_wrap = CallerWrap::new(&mut store);
-        caller_wrap.state_mut().memory = MockMemory::new(1).into();
+        caller_wrap.state_mut().memory = MockMemory::new(1);
 
         let mut registry = MemoryAccessRegistry::default();
         let read = registry.register_read(0, 10);
         let io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
         io.read(caller_wrap.caller, read).unwrap();
 
-        assert_eq!(caller_wrap.state_mut().memory.inner.read_attempt_count(), 1);
+        assert_eq!(caller_wrap.state_mut().memory.read_attempt_count(), 1);
     }
 
     #[test]
@@ -547,10 +544,8 @@ mod tests {
         let mut store = new_store();
         let mut caller_wrap = CallerWrap::new(&mut store);
         let memory = &mut caller_wrap.state_mut().memory;
-        *memory = MockMemory::new(1).into();
-
-        let mut memory = memory.clone();
-        memory.write(caller_wrap.caller, 0, &[5u8; 10]).unwrap();
+        *memory = MockMemory::new(1);
+        memory.write(0, &[5u8; 10]).unwrap();
 
         let mut registry = MemoryAccessRegistry::default();
         let read = registry.register_read(0, 10);
@@ -571,11 +566,9 @@ mod tests {
         let mut store = new_store();
         let mut caller_wrap = CallerWrap::new(&mut store);
         let memory = &mut caller_wrap.state_mut().memory;
-        *memory = MockMemory::new(1).into();
-        let mut memory = memory.clone();
-
+        *memory = MockMemory::new(1);
         let encoded = MockEncodeData { data: 1234 }.encode();
-        memory.write(caller_wrap.caller, 0, &encoded).unwrap();
+        memory.write(0, &encoded).unwrap();
 
         let mut registry = MemoryAccessRegistry::default();
         let read = registry.register_read_decoded::<u64>(0);
@@ -608,11 +601,9 @@ mod tests {
         let mut store = new_store();
         let mut caller_wrap = CallerWrap::new(&mut store);
         let memory = &mut caller_wrap.state_mut().memory;
-        *memory = MockMemory::new(1).into();
-        let mut memory = memory.clone();
-
+        *memory = MockMemory::new(1);
         let encoded = alloc::vec![7u8; WasmPage::SIZE as usize];
-        memory.write(caller_wrap.caller, 0, &encoded).unwrap();
+        memory.write(0, &encoded).unwrap();
 
         let mut registry = MemoryAccessRegistry::default();
         let read = registry.register_read_decoded::<InvalidDecode>(0);
@@ -625,7 +616,7 @@ mod tests {
     fn test_read_decoded_reading_error() {
         let mut store = new_store();
         let mut caller_wrap = CallerWrap::new(&mut store);
-        caller_wrap.state_mut().memory = MockMemory::new(1).into();
+        caller_wrap.state_mut().memory = MockMemory::new(1);
         let mut registry = MemoryAccessRegistry::default();
         let _read = registry.register_read_decoded::<u64>(0);
         let io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
@@ -645,11 +636,11 @@ mod tests {
         let mut caller_wrap = CallerWrap::new(&mut store);
 
         let memory = &mut caller_wrap.state_mut().memory;
-        *memory = MockMemory::new(1).into();
+        *memory = MockMemory::new(1);
         let mut memory = memory.clone();
 
         let encoded = 1234u64.to_le_bytes();
-        memory.write(caller_wrap.caller, 0, &encoded).unwrap();
+        memory.write(0, &encoded).unwrap();
 
         let mut registry = MemoryAccessRegistry::default();
         let read = registry.register_read_as::<u64>(0);
@@ -662,7 +653,7 @@ mod tests {
     fn test_read_as_with_invalid_pointer() {
         let mut store = new_store();
         let mut caller_wrap = CallerWrap::new(&mut store);
-        caller_wrap.state_mut().memory = MockMemory::new(1).into();
+        caller_wrap.state_mut().memory = MockMemory::new(1);
 
         let mut registry = MemoryAccessRegistry::default();
         let _read = registry.register_read_as::<u64>(0);
@@ -687,10 +678,7 @@ mod tests {
         let mut io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
         io.write(caller_wrap.caller, write, &[]).unwrap();
 
-        assert_eq!(
-            caller_wrap.state_mut().memory.inner.write_attempt_count(),
-            0
-        );
+        assert_eq!(caller_wrap.state_mut().memory.write_attempt_count(), 0);
     }
 
     #[test]
@@ -704,10 +692,7 @@ mod tests {
         io.write_as(caller_wrap.caller, write, ZeroSizeStruct)
             .unwrap();
 
-        assert_eq!(
-            caller_wrap.state_mut().memory.inner.write_attempt_count(),
-            0
-        );
+        assert_eq!(caller_wrap.state_mut().memory.write_attempt_count(), 0);
     }
 
     #[test]
@@ -726,7 +711,7 @@ mod tests {
     fn test_write_of_some_size_buf() {
         let mut store = new_store();
         let mut caller_wrap = CallerWrap::new(&mut store);
-        caller_wrap.state_mut().memory = MockMemory::new(1).into();
+        caller_wrap.state_mut().memory = MockMemory::new(1);
 
         let mut registry = MemoryAccessRegistry::default();
         let write = registry.register_write(0, 10);
@@ -734,10 +719,7 @@ mod tests {
         let buffer = [0u8; 10];
         io.write(caller_wrap.caller, write, &buffer).unwrap();
 
-        assert_eq!(
-            caller_wrap.state_mut().memory.inner.write_attempt_count(),
-            1
-        );
+        assert_eq!(caller_wrap.state_mut().memory.write_attempt_count(), 1);
     }
 
     #[test]
@@ -745,7 +727,7 @@ mod tests {
     fn test_write_with_larger_buffer_size() {
         let mut store = new_store();
         let mut caller_wrap = CallerWrap::new(&mut store);
-        caller_wrap.state_mut().memory = MockMemory::new(1).into();
+        caller_wrap.state_mut().memory = MockMemory::new(1);
 
         let mut registry = MemoryAccessRegistry::default();
         let write = registry.register_write(0, 10);
@@ -758,7 +740,7 @@ mod tests {
     fn test_write_as_with_zero_size_object() {
         let mut store = new_store();
         let mut caller_wrap = CallerWrap::new(&mut store);
-        caller_wrap.state_mut().memory = MockMemory::new(1).into();
+        caller_wrap.state_mut().memory = MockMemory::new(1);
 
         let mut registry = MemoryAccessRegistry::default();
         let write = registry.register_write_as::<u32>(0);
@@ -770,7 +752,7 @@ mod tests {
     fn test_write_as_with_same_object_size() {
         let mut store = new_store();
         let mut caller_wrap = CallerWrap::new(&mut store);
-        caller_wrap.state_mut().memory = MockMemory::new(1).into();
+        caller_wrap.state_mut().memory = MockMemory::new(1);
 
         let mut registry = MemoryAccessRegistry::default();
         let _write = registry.register_write_as::<u8>(0);
@@ -790,7 +772,7 @@ mod tests {
     fn test_write_as_with_larger_object_size() {
         let mut store = new_store();
         let mut caller_wrap = CallerWrap::new(&mut store);
-        caller_wrap.state_mut().memory = MockMemory::new(1).into();
+        caller_wrap.state_mut().memory = MockMemory::new(1);
 
         let mut registry = MemoryAccessRegistry::default();
         let _write = registry.register_write_as::<u8>(0);

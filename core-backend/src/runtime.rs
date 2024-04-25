@@ -33,15 +33,15 @@ pub(crate) struct CallerWrap<'a, Caller> {
 
 impl<'a, Caller, Ext, Mem> CallerWrap<'a, Caller>
 where
-    Caller: AsContextExt<State = HostState<Ext, BackendMemory<Mem>>>,
-    Mem: Clone + 'static,
+    Caller: AsContextExt<State = HostState<Ext, Mem>>,
+    Mem: 'static,
 {
     pub fn new(caller: &'a mut Caller) -> Self {
         Self { caller }
     }
 
     #[track_caller]
-    pub fn state_mut(&mut self) -> &mut State<Ext, BackendMemory<Mem>> {
+    pub fn state_mut(&mut self) -> &mut State<Ext, Mem> {
         self.caller
             .data_mut()
             .as_mut()
@@ -49,7 +49,7 @@ where
     }
 
     #[track_caller]
-    pub fn take_state(&mut self) -> State<Ext, BackendMemory<Mem>> {
+    pub fn take_state(&mut self) -> State<Ext, Mem> {
         self.caller
             .data_mut()
             .take()
