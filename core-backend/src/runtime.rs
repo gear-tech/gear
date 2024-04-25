@@ -113,7 +113,7 @@ where
                 let mut registry = MemoryAccessRegistry::default();
                 let write_res = registry.register_write_as::<R>(res_ptr);
                 let mut io = registry.pre_process(ctx)?;
-                io.write_as(ctx.caller, write_res, R::from(res))
+                io.write_as(ctx, write_res, R::from(res))
                     .map_err(Into::into)
             },
         )
