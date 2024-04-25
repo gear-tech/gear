@@ -1251,7 +1251,7 @@ dependencies = [
  "gear-wasm-builder",
  "gtest",
  "serde",
- "toml 0.8.2",
+ "toml 0.8.12",
  "tracing",
  "tracing-subscriber 0.3.18",
 ]
@@ -1300,7 +1300,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a98356df42a2eb1bd8f1793ae4ee4de48e384dd974ce5eac8eee802edb7492be"
 dependencies = [
  "serde",
- "toml 0.8.2",
+ "toml 0.8.12",
 ]
 
 [[package]]
