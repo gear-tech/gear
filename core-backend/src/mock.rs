@@ -112,10 +112,11 @@ impl Externalities for MockExt {
     type FallibleError = Error;
     type AllocError = Error;
 
-    fn alloc(
+    fn alloc<Context>(
         &mut self,
+        _ctx: &mut Context,
+        _mem: &mut impl Memory<Context>,
         _pages_num: u32,
-        _mem: &mut impl Memory,
     ) -> Result<WasmPage, Self::AllocError> {
         Err(Error)
     }

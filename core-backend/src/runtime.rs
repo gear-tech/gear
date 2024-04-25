@@ -20,7 +20,7 @@
 
 use crate::{
     error::{BackendAllocSyscallError, RunFallibleError, UndefinedTerminationReason},
-    memory::{ExecutorMemory, MemoryAccessRegistry, MemoryWrapRef},
+    memory::{BackendMemory, ExecutorMemory, MemoryAccessRegistry},
     state::{HostState, State},
     BackendExternalities,
 };
@@ -33,7 +33,7 @@ pub(crate) struct CallerWrap<'a, Caller> {
 
 impl<'a, Caller, Ext, Mem> CallerWrap<'a, Caller>
 where
-    Caller: AsContextExt<State = HostState<Ext, Mem>>,
+    Caller: AsContextExt<State = HostState<Ext, BackendMemory<Mem>>>,
     Mem: Clone + 'static,
 {
     pub fn new(caller: &'a mut Caller) -> Self {
@@ -41,7 +41,7 @@ where
     }
 
     #[track_caller]
-    pub fn state_mut(&mut self) -> &mut State<Ext, Mem> {
+    pub fn state_mut(&mut self) -> &mut State<Ext, BackendMemory<Mem>> {
         self.caller
             .data_mut()
             .as_mut()
@@ -49,7 +49,7 @@ where
     }
 
     #[track_caller]
-    pub fn take_state(&mut self) -> State<Ext, Mem> {
+    pub fn take_state(&mut self) -> State<Ext, BackendMemory<Mem>> {
         self.caller
             .data_mut()
             .take()
@@ -67,7 +67,7 @@ where
 
 impl<'a, Caller, Ext> CallerWrap<'a, Caller>
 where
-    Caller: AsContextExt<State = HostState<Ext, ExecutorMemory>>,
+    Caller: AsContextExt<State = HostState<Ext, BackendMemory<ExecutorMemory>>>,
     Ext: BackendExternalities + 'static,
 {
     #[track_caller]
@@ -113,20 +113,16 @@ where
                 let mut registry = MemoryAccessRegistry::default();
                 let write_res = registry.register_write_as::<R>(res_ptr);
                 let mut io = registry.pre_process(ctx)?;
-                io.write_as(write_res, R::from(res)).map_err(Into::into)
+                io.write_as(ctx.caller, write_res, R::from(res))
+                    .map_err(Into::into)
             },
         )
     }
 
     pub fn alloc(&mut self, pages: u32) -> Result<WasmPage, <Ext>::AllocError> {
         let mut state = self.take_state();
-        let memory = state.memory.clone();
-        let mut memory = MemoryWrapRef {
-            memory,
-            caller: self.caller,
-        };
-
-        let res = state.ext.alloc(pages, &mut memory);
+        let mut memory = state.memory.clone();
+        let res = state.ext.alloc(self.caller, &mut memory, pages);
         self.caller.data_mut().replace(state);
         res
     }

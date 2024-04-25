@@ -191,37 +191,37 @@ pub enum MemoryError {
 }
 
 /// Backend wasm memory interface.
-pub trait Memory {
+pub trait Memory<Context> {
     /// Memory grow error.
     type GrowError: Debug;
 
     /// Grow memory by number of pages.
-    fn grow(&mut self, pages: WasmPagesAmount) -> Result<(), Self::GrowError>;
+    fn grow(&mut self, ctx: &mut Context, pages: WasmPagesAmount) -> Result<(), Self::GrowError>;
 
     /// Return current size of the memory.
-    fn size(&self) -> WasmPagesAmount;
+    fn size(&self, ctx: &Context) -> WasmPagesAmount;
 
     /// Set memory region at specific pointer.
-    fn write(&mut self, offset: u32, buffer: &[u8]) -> Result<(), MemoryError>;
+    fn write(&mut self, ctx: &mut Context, offset: u32, buffer: &[u8]) -> Result<(), MemoryError>;
 
     /// Reads memory contents at the given offset into a buffer.
-    fn read(&self, offset: u32, buffer: &mut [u8]) -> Result<(), MemoryError>;
+    fn read(&self, ctx: &Context, offset: u32, buffer: &mut [u8]) -> Result<(), MemoryError>;
 
     /// Returns native addr of wasm memory buffer in wasm executor
-    fn get_buffer_host_addr(&mut self) -> Option<HostPointer> {
-        if self.size() == WasmPagesAmount::from(0) {
+    fn get_buffer_host_addr(&mut self, ctx: &mut Context) -> Option<HostPointer> {
+        if self.size(ctx) == WasmPagesAmount::from(0) {
             None
         } else {
             // We call this method only in case memory size is not zero,
             // so memory buffer exists and has addr in host memory.
-            unsafe { Some(self.get_buffer_host_addr_unsafe()) }
+            unsafe { Some(self.get_buffer_host_addr_unsafe(ctx)) }
         }
     }
 
     /// Get buffer addr unsafe.
     /// # Safety
     /// if memory size is 0 then buffer addr can be garbage
-    unsafe fn get_buffer_host_addr_unsafe(&mut self) -> HostPointer;
+    unsafe fn get_buffer_host_addr_unsafe(&mut self, ctx: &mut Context) -> HostPointer;
 }
 
 /// Pages allocations context for the running program.
@@ -236,21 +236,21 @@ pub struct AllocationsContext {
 
 /// Before and after memory grow actions.
 #[must_use]
-pub trait GrowHandler {
+pub trait GrowHandler<Context> {
     /// Before grow action
-    fn before_grow_action(mem: &mut impl Memory) -> Self;
+    fn before_grow_action(ctx: &mut Context, mem: &mut impl Memory<Context>) -> Self;
     /// After grow action
-    fn after_grow_action(self, mem: &mut impl Memory);
+    fn after_grow_action(self, ctx: &mut Context, mem: &mut impl Memory<Context>);
 }
 
 /// Grow handler do nothing implementation
 pub struct NoopGrowHandler;
 
-impl GrowHandler for NoopGrowHandler {
-    fn before_grow_action(_mem: &mut impl Memory) -> Self {
+impl<Context> GrowHandler<Context> for NoopGrowHandler {
+    fn before_grow_action(_ctx: &mut Context, _mem: &mut impl Memory<Context>) -> Self {
         NoopGrowHandler
     }
-    fn after_grow_action(self, _mem: &mut impl Memory) {}
+    fn after_grow_action(self, _ctx: &mut Context, _mem: &mut impl Memory<Context>) {}
 }
 
 /// Incorrect allocation data error
@@ -309,16 +309,17 @@ impl AllocationsContext {
 
     /// Allocates specified number of continuously going pages
     /// and returns zero-based number of the first one.
-    pub fn alloc<G: GrowHandler>(
+    pub fn alloc<Context, G: GrowHandler<Context>>(
         &mut self,
+        ctx: &mut Context,
+        mem: &mut impl Memory<Context>,
         pages: WasmPagesAmount,
-        mem: &mut impl Memory,
         charge_gas_for_grow: impl FnOnce(WasmPagesAmount) -> Result<(), ChargeError>,
     ) -> Result<WasmPage, AllocError> {
         // TODO: Temporary solution to avoid panics, should be removed in #3791.
         // Presently, this error cannot appear because we have limit 512 wasm pages.
         let (Some(end_mem_page), Some(end_static_page)) = (
-            mem.size().to_page_number(),
+            mem.size(ctx).to_page_number(),
             self.static_pages.to_page_number(),
         ) else {
             return Err(IncorrectAllocationDataError.into());
@@ -356,10 +357,10 @@ impl AllocationsContext {
 
         if let Ok(extra_grow) = Interval::<WasmPage>::try_from(end_mem_page..=interval.end()) {
             charge_gas_for_grow(extra_grow.len())?;
-            let grow_handler = G::before_grow_action(mem);
-            mem.grow(extra_grow.len())
+            let grow_handler = G::before_grow_action(ctx, mem);
+            mem.grow(ctx, extra_grow.len())
                 .unwrap_or_else(|err| unreachable!("Failed to grow memory: {:?}", err));
-            grow_handler.after_grow_action(mem);
+            grow_handler.after_grow_action(ctx, mem);
         }
 
         self.allocations.extend(interval.iter());
@@ -409,27 +410,32 @@ mod tests {
 
     struct TestMemory(WasmPagesAmount);
 
-    impl Memory for TestMemory {
+    impl Memory<()> for TestMemory {
         type GrowError = ();
 
-        fn grow(&mut self, pages: WasmPagesAmount) -> Result<(), Self::GrowError> {
+        fn grow(&mut self, _ctx: &mut (), pages: WasmPagesAmount) -> Result<(), Self::GrowError> {
             self.0 = self.0.add(pages).ok_or(())?;
             Ok(())
         }
 
-        fn size(&self) -> WasmPagesAmount {
+        fn size(&self, _ctx: &()) -> WasmPagesAmount {
             self.0
         }
 
-        fn write(&mut self, _offset: u32, _buffer: &[u8]) -> Result<(), MemoryError> {
+        fn write(
+            &mut self,
+            _ctx: &mut (),
+            _offset: u32,
+            _buffer: &[u8],
+        ) -> Result<(), MemoryError> {
             unimplemented!()
         }
 
-        fn read(&self, _offset: u32, _buffer: &mut [u8]) -> Result<(), MemoryError> {
+        fn read(&self, _ctx: &(), _offset: u32, _buffer: &mut [u8]) -> Result<(), MemoryError> {
             unimplemented!()
         }
 
-        unsafe fn get_buffer_host_addr_unsafe(&mut self) -> HostPointer {
+        unsafe fn get_buffer_host_addr_unsafe(&mut self, _ctx: &mut ()) -> HostPointer {
             unimplemented!()
         }
     }
@@ -470,13 +476,13 @@ mod tests {
 
     #[track_caller]
     fn alloc_ok(ctx: &mut AllocationsContext, mem: &mut TestMemory, pages: u16, expected: u16) {
-        let res = ctx.alloc::<NoopGrowHandler>(pages.into(), mem, |_| Ok(()));
+        let res = ctx.alloc::<(), NoopGrowHandler>(&mut (), mem, pages.into(), |_| Ok(()));
         assert_eq!(res, Ok(expected.into()));
     }
 
     #[track_caller]
     fn alloc_err(ctx: &mut AllocationsContext, mem: &mut TestMemory, pages: u16, err: AllocError) {
-        let res = ctx.alloc::<NoopGrowHandler>(pages.into(), mem, |_| Ok(()));
+        let res = ctx.alloc::<(), NoopGrowHandler>(&mut (), mem, pages.into(), |_| Ok(()));
         assert_eq!(res, Err(err));
     }
 
@@ -620,7 +626,7 @@ mod tests {
                 for action in actions {
                     match action {
                         Action::Alloc { pages } => {
-                            if let Err(err) = ctx.alloc::<NoopGrowHandler>(pages, &mut mem, |_| Ok(())) {
+                            if let Err(err) = ctx.alloc::<(), NoopGrowHandler>(&mut (), &mut mem, pages, |_| Ok(())) {
                                 assert_alloc_error(err);
                             }
                         }
