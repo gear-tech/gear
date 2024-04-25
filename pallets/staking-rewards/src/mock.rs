@@ -23,7 +23,10 @@ use frame_election_provider_support::{
 };
 use frame_support::{
     construct_runtime, parameter_types,
-    traits::{ConstU32, Contains, Currency, FindAuthor, Hooks, NeverEnsureOrigin},
+    traits::{
+        tokens::{PayFromAccount, UnityAssetBalanceConversion},
+        ConstU32, ConstU64, Contains, Currency, FindAuthor, Hooks, NeverEnsureOrigin,
+    },
     weights::{constants::RocksDbWeight, Weight},
     PalletId,
 };
@@ -340,6 +343,7 @@ parameter_types! {
     pub const SpendPeriod: u32 = 100;
     pub const Burn: Permill = Permill::from_percent(50);
     pub const TreasuryPalletId: PalletId = PalletId(*b"py/trsry");
+    pub TreasuryAccount: AccountId = Treasury::account_id();
     pub const MaxApprovals: u32 = 100;
 }
 
@@ -360,6 +364,14 @@ impl pallet_treasury::Config for Test {
     type WeightInfo = ();
     type MaxApprovals = MaxApprovals;
     type SpendOrigin = NeverEnsureOrigin<u128>;
+    type AssetKind = ();
+    type Beneficiary = Self::AccountId;
+    type BeneficiaryLookup = IdentityLookup<Self::Beneficiary>;
+    type Paymaster = PayFromAccount<Balances, TreasuryAccount>;
+    type BalanceConverter = UnityAssetBalanceConversion;
+    type PayoutPeriod = ConstU64<10>;
+    #[cfg(feature = "runtime-benchmarks")]
+    type BenchmarkHelper = ();
 }
 
 parameter_types! {
@@ -865,6 +877,10 @@ pub(crate) mod two_block_producers {
         type FullIdentificationOf = pallet_staking::ExposureOf<Test>;
     }
 
+    parameter_types! {
+        pub TreasuryAccount: AccountId = Treasury::account_id();
+    }
+
     impl pallet_treasury::Config for Test {
         type PalletId = TreasuryPalletId;
         type Currency = Balances;
@@ -882,6 +898,14 @@ pub(crate) mod two_block_producers {
         type WeightInfo = ();
         type MaxApprovals = MaxApprovals;
         type SpendOrigin = NeverEnsureOrigin<u128>;
+        type AssetKind = ();
+        type Beneficiary = Self::AccountId;
+        type BeneficiaryLookup = IdentityLookup<Self::Beneficiary>;
+        type Paymaster = PayFromAccount<Balances, TreasuryAccount>;
+        type BalanceConverter = UnityAssetBalanceConversion;
+        type PayoutPeriod = ConstU64<10>;
+        #[cfg(feature = "runtime-benchmarks")]
+        type BenchmarkHelper = ();
     }
 
     impl pallet_bags_list::Config<pallet_bags_list::Instance1> for Test {
