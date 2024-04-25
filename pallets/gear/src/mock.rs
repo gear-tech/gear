@@ -23,7 +23,7 @@ use frame_support::{
     construct_runtime,
     pallet_prelude::*,
     parameter_types,
-    traits::{ConstU64, FindAuthor, Get},
+    traits::{ConstU32, ConstU64, FindAuthor, Get},
     PalletId,
 };
 use frame_support_test::TestRandomness;

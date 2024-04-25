@@ -360,8 +360,9 @@ impl pallet_balances::Config for Runtime {
     type ExistentialDeposit = ConstU128<EXISTENTIAL_DEPOSIT>;
     type AccountStore = System;
     type WeightInfo = ();
-    type FreezeIdentifier = ();
-    type MaxFreezes = ();
+    type RuntimeFreezeReason = RuntimeFreezeReason;
+    type FreezeIdentifier = RuntimeFreezeReason;
+    type MaxFreezes = ConstU32<8>;
     type RuntimeHoldReason = RuntimeHoldReason;
     type MaxHolds = ConstU32<2>;
 }
@@ -691,6 +692,7 @@ impl pallet_nomination_pools::Config for Runtime {
     type WeightInfo = ();
     type RuntimeEvent = RuntimeEvent;
     type Currency = Balances;
+    type RuntimeFreezeReason = RuntimeFreezeReason;
     type RewardCounter = FixedU128;
     type BalanceToU256 = BalanceToU256;
     type U256ToBalance = U256ToBalance;

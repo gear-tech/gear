@@ -22,7 +22,7 @@ use frame_support::{
     construct_runtime,
     dispatch::DispatchClass,
     parameter_types,
-    traits::{FindAuthor, Get, OnFinalize, OnInitialize},
+    traits::{ConstU32, FindAuthor, Get, OnFinalize, OnInitialize},
     weights::Weight,
 };
 use frame_support_test::TestRandomness;
