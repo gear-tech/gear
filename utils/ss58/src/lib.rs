@@ -103,6 +103,11 @@ pub fn decode(encoded: &[u8], body_len: usize) -> Result<Vec<u8>> {
     Ok(data[prefix_len..body_len + prefix_len].to_vec())
 }
 
+/// re-encoding a ss58 address in the current [`default_ss58_version`].
+pub fn recode(encoded: &str) -> Result<String> {
+    Ok(self::encode(&self::decode(encoded.as_bytes(), 32)?))
+}
+
 /// Get the default ss58 version.
 pub fn default_ss58_version() -> u16 {
     DEFAULT_SS58_VERSION.load(Ordering::Relaxed)
