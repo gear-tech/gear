@@ -436,7 +436,7 @@ mod tests {
             unimplemented!()
         }
 
-        unsafe fn get_buffer_host_addr_unsafe(&mut self, ctx: &Context) -> HostPointer {
+        unsafe fn get_buffer_host_addr_unsafe(&self, _ctx: &()) -> HostPointer {
             unimplemented!()
         }
     }
