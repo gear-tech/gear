@@ -320,11 +320,6 @@ impl GrowHandler for LazyGrowHandler {
 }
 
 enum Change {
-    /* TODO: Do we need charge/reduce?
-    Can we just assign `gas_counter` and others right back to `Ext.context`? */
-    ReduceGas(GasLimit),
-    ChargeMessageValue(u128),
-    ChargeGasIfEnough(u64),
     MarkUsed(ReservationId),
 }
 
@@ -335,7 +330,7 @@ enum Change {
 /// incrementally builds list of changes.
 ///
 /// Changes are applied after operation is completed
-struct ChangeBuilder {
+struct ExtChanges {
     gas_counter: GasCounter,
     gas_allowance_counter: GasAllowanceCounter,
     value_counter: ValueCounter,
@@ -345,42 +340,41 @@ struct ChangeBuilder {
     changes: Vec<Change>,
 }
 
-impl ChangeBuilder {
+impl ExtChanges {
     fn new(ext: &Ext) -> Self {
-        Self {
-            gas_counter: GasCounter::new(ext.context.gas_counter.left()),
-            gas_allowance_counter: GasAllowanceCounter::new(
-                ext.context.gas_allowance_counter.left(),
-            ),
-            value_counter: ValueCounter::new(ext.context.value_counter.left()),
-            outgoing_glassless: ext.outgoing_gasless,
-            mailbox_threshold: ext.context.mailbox_threshold,
-            changes: Vec::new(),
+        unsafe {
+            Self {
+                gas_counter: ext.context.gas_counter.clone(),
+                gas_allowance_counter: ext.context.gas_allowance_counter.clone(),
+                value_counter: ext.context.value_counter.clone(),
+                outgoing_glassless: ext.outgoing_gasless,
+                mailbox_threshold: ext.context.mailbox_threshold,
+                changes: Vec::new(),
+            }
         }
     }
 
-    fn reduce_gas(mut self, limit: GasLimit) -> Result<Self, FallibleExtError> {
+    fn reduce_gas(&mut self, limit: GasLimit) -> Result<(), FallibleExtError> {
         if self.gas_counter.reduce(limit) == ChargeResult::NotEnough {
             return Err(FallibleExecutionError::NotEnoughGas.into());
         }
-        self.changes.push(Change::ReduceGas(limit));
-        Ok(self)
+
+        Ok(())
     }
 
-    fn charge_message_value(mut self, value: u128) -> Result<Self, FallibleExtError> {
+    fn charge_message_value(&mut self, value: u128) -> Result<(), FallibleExtError> {
         if self.value_counter.reduce(value) == ChargeResult::NotEnough {
             return Err(FallibleExecutionError::NotEnoughValue.into());
         }
-        self.changes.push(Change::ChargeMessageValue(value));
 
-        Ok(self)
+        Ok(())
     }
 
     fn mark_used(
-        mut self,
+        &mut self,
         ext: &Ext,
         reservation_id: ReservationId,
-    ) -> Result<Self, ReservationError> {
+    ) -> Result<(), ReservationError> {
         if let Some(
             GasReservationState::Created { used, .. } | GasReservationState::Exists { used, .. },
         ) = ext.context.gas_reserver.states().get(&reservation_id)
@@ -389,39 +383,32 @@ impl ChangeBuilder {
                 Err(ReservationError::InvalidReservationId)
             } else {
                 self.changes.push(Change::MarkUsed(reservation_id));
-                Ok(self)
+                Ok(())
             }
         } else {
             Err(ReservationError::InvalidReservationId)
         }
     }
 
-    fn gasless_instant(self) -> Self {
-        /* no-op */
-        self
-    }
-
-    fn gasless_with_delay(self) -> Result<Self, FallibleExtError> {
+    fn gasless_with_delay(&mut self) -> Result<(), FallibleExtError> {
         let prev_gasless_fee = self
             .outgoing_glassless
             .saturating_mul(self.mailbox_threshold);
-        self.reduce_gas(prev_gasless_fee).map(|mut this| {
-            this.outgoing_glassless = 1;
-            this
-        })
+        self.reduce_gas(prev_gasless_fee)?;
+        self.outgoing_glassless = 1;
+        Ok(())
     }
 
-    fn non_zero_or_delay_gasfull(self) -> Result<Self, FallibleExtError> {
+    fn non_zero_or_delay_gasfull(&mut self) -> Result<(), FallibleExtError> {
         let prev_gasless_fee = self
             .outgoing_glassless
             .saturating_mul(self.mailbox_threshold);
-        self.reduce_gas(prev_gasless_fee).map(|mut this| {
-            this.outgoing_glassless = 0;
-            this
-        })
+        self.reduce_gas(prev_gasless_fee)?;
+        self.outgoing_glassless = 0;
+        Ok(())
     }
 
-    fn charge_sending_fee(self, ext: &mut Ext, delay: u32) -> Result<Self, ChargeError> {
+    fn charge_sending_fee(&mut self, ext: &mut Ext, delay: u32) -> Result<(), ChargeError> {
         if delay == 0 {
             self.charge_gas_if_enough(ext.context.message_context.settings().sending_fee)
         } else {
@@ -429,7 +416,7 @@ impl ChangeBuilder {
         }
     }
 
-    fn charge_gas_if_enough(mut self, gas: u64) -> Result<Self, ChargeError> {
+    fn charge_gas_if_enough(&mut self, gas: u64) -> Result<(), ChargeError> {
         if self.gas_counter.charge_if_enough(gas) == ChargeResult::NotEnough {
             return Err(ChargeError::GasLimitExceeded);
         }
@@ -437,33 +424,24 @@ impl ChangeBuilder {
         if self.gas_allowance_counter.charge_if_enough(gas) == ChargeResult::NotEnough {
             return Err(ChargeError::GasAllowanceExceeded);
         }
-        self.changes.push(Change::ChargeGasIfEnough(gas));
-        Ok(self)
+        Ok(())
     }
 
     fn apply(mut self, ext: &mut Ext) {
         for change in self.changes.drain(..) {
             match change {
-                Change::ReduceGas(gas) => {
-                    assert_eq!(ext.context.gas_counter.reduce(gas), ChargeResult::Enough);
-                }
-
-                Change::ChargeGasIfEnough(gas) => {
-                    assert_eq!(ext.context.gas_counter.charge(gas), ChargeResult::Enough);
-                }
-
-                Change::ChargeMessageValue(amount) => {
-                    assert_eq!(
-                        ext.context.value_counter.reduce(amount),
-                        ChargeResult::Enough
-                    );
-                }
-
                 Change::MarkUsed(id) => {
                     assert!(ext.context.gas_reserver.mark_used(id).is_ok());
                 }
             }
         }
+
+        core::mem::swap(&mut ext.context.value_counter, &mut self.value_counter);
+        core::mem::swap(&mut ext.context.gas_counter, &mut self.gas_counter);
+        core::mem::swap(
+            &mut ext.context.gas_allowance_counter,
+            &mut self.gas_allowance_counter,
+        );
 
         ext.outgoing_gasless = self.outgoing_glassless;
     }
@@ -659,29 +637,13 @@ impl Ext {
         Ok(())
     }
 
-    fn reduce_gas(&mut self, gas_limit: GasLimit) -> Result<(), FallibleExtError> {
-        if self.context.gas_counter.reduce(gas_limit) != ChargeResult::Enough {
-            Err(FallibleExecutionError::NotEnoughGas.into())
-        } else {
-            Ok(())
-        }
-    }
-
-    fn charge_message_value(&mut self, message_value: u128) -> Result<(), FallibleExtError> {
-        if self.context.value_counter.reduce(message_value) != ChargeResult::Enough {
-            Err(FallibleExecutionError::NotEnoughValue.into())
-        } else {
-            Ok(())
-        }
-    }
-
     // It's temporary fn, used to solve `core-audit/issue#22`.
     fn safe_gasfull_sends<T: Packet>(
         &mut self,
-        changes: ChangeBuilder,
+        changes: &mut ExtChanges,
         packet: &T,
         delay: u32,
-    ) -> Result<ChangeBuilder, FallibleExtError> {
+    ) -> Result<(), FallibleExtError> {
         // In case of delayed sending from origin message we keep some gas
         // for it while processing outgoing sending notes so gas for
         // previously gasless sends should appear to prevent their
@@ -690,7 +652,7 @@ impl Ext {
             // Zero gasfull instant.
             //
             // In this case there is nothing to do.
-            (Some(0), false) => Ok(changes),
+            (Some(0), false) => Ok(()),
 
             // Any non-zero gasfull or zero gasfull with delay.
             //
@@ -700,16 +662,7 @@ impl Ext {
             // In case of any non-zero gasfull we prevent stealing for any
             // previous gasless-es's thresholds from gas supposed to be
             // sent with this `packet`.
-            (Some(_), _) => {
-                /*let prev_gasless_fee = self
-                    .outgoing_gasless
-                    .saturating_mul(self.context.mailbox_threshold);
-
-                self.reduce_gas(prev_gasless_fee)?;
-
-                self.outgoing_gasless = 0;*/
-                changes.non_zero_or_delay_gasfull()
-            }
+            (Some(_), _) => changes.non_zero_or_delay_gasfull(),
 
             // Gasless with delay.
             //
@@ -718,35 +671,22 @@ impl Ext {
             // supposed to pay for delay.
             //
             // It doesn't guarantee threshold for itself.
-            (None, true) => {
-                /*let prev_gasless_fee = self
-                    .outgoing_gasless
-                    .saturating_mul(self.context.mailbox_threshold);
-
-                self.reduce_gas(prev_gasless_fee)?;
-
-                self.outgoing_gasless = 1;*/
-                changes.gasless_with_delay()
-            }
+            (None, true) => changes.gasless_with_delay(),
 
             // Gasless instant.
             //
             // In this case there is no need to give any thresholds for previous
             // gasless-es: only counter should be increased.
-            (None, false) =>
-            /*self.outgoing_gasless = self.outgoing_gasless.saturating_add(1)*/
-            {
-                Ok(changes.gasless_instant())
-            }
+            (None, false) => Ok(()),
         }
     }
 
     fn charge_expiring_resources<T: Packet>(
         &mut self,
-        mut changes: ChangeBuilder,
+        changes: &mut ExtChanges,
         packet: &T,
         check_gas_limit: bool,
-    ) -> Result<ChangeBuilder, FallibleExtError> {
+    ) -> Result<(), FallibleExtError> {
         self.check_message_value(packet.value())?;
         // Charge for using expiring resources. Charge for calling syscall was done earlier.
         let gas_limit = if check_gas_limit {
@@ -754,7 +694,7 @@ impl Ext {
         } else {
             packet.gas_limit().unwrap_or(0)
         };
-        changes = changes.reduce_gas(gas_limit)?;
+        changes.reduce_gas(gas_limit)?;
         changes.charge_message_value(packet.value())
     }
 
@@ -768,9 +708,9 @@ impl Ext {
 
     fn charge_sending_fee(
         &mut self,
-        changes: ChangeBuilder,
+        changes: &mut ExtChanges,
         delay: u32,
-    ) -> Result<ChangeBuilder, ChargeError> {
+    ) -> Result<(), ChargeError> {
         if delay == 0 {
             changes.charge_gas_if_enough(self.context.message_context.settings().sending_fee)
             //self.charge_gas_if_enough(self.context.message_context.settings().sending_fee)
@@ -792,9 +732,9 @@ impl Ext {
 
     fn charge_for_dispatch_stash_hold(
         &mut self,
-        changes: ChangeBuilder,
+        changes: &mut ExtChanges,
         delay: u32,
-    ) -> Result<ChangeBuilder, FallibleExtError> {
+    ) -> Result<(), FallibleExtError> {
         if delay != 0 {
             let waiting_reserve = self
                 .context
@@ -803,16 +743,13 @@ impl Ext {
                 .dispatch_stash
                 .cost_for(self.context.reserve_for.saturating_add(delay).into());
 
-            /*if self.context.gas_counter.reduce(waiting_reserve) != ChargeResult::Enough {
-                return Err(MessageError::InsufficientGasForDelayedSending.into());
-            }*/
             // Reduce gas for block waiting in dispatch stash.
             return changes
                 .reduce_gas(waiting_reserve)
                 .map_err(|_| MessageError::InsufficientGasForDelayedSending.into());
         }
 
-        Ok(changes)
+        Ok(())
     }
 
     fn charge_gas_if_enough(
@@ -923,20 +860,20 @@ impl Externalities for Ext {
     ) -> Result<WasmPage, Self::AllocError> {
         let pages = WasmPagesAmount::try_from(pages_num)
             .map_err(|_| AllocError::ProgramAllocOutOfBounds)?;
-
+        let mut changes = ExtChanges::new(self);
         // Charge for pages amount
-        self.charge_gas_if_enough(self.context.costs.syscalls.alloc_per_page.cost_for(pages))?;
+        changes.charge_gas_if_enough(self.context.costs.syscalls.alloc_per_page.cost_for(pages))?;
 
         self.context
             .allocations_context
             .alloc::<LazyGrowHandler>(pages, mem, |pages| {
-                Ext::charge_gas_if_enough(
-                    &mut self.context.gas_counter,
-                    &mut self.context.gas_allowance_counter,
-                    self.context.costs.mem_grow.cost_for(pages),
-                )
+                changes.charge_gas_if_enough(self.context.costs.mem_grow.cost_for(pages))
             })
             .map_err(Into::into)
+            .map(|x| {
+                changes.apply(self);
+                x
+            })
     }
 
     fn free(&mut self, page: WasmPage) -> Result<(), Self::AllocError> {
@@ -949,10 +886,8 @@ impl Externalities for Ext {
     fn free_range(&mut self, start: WasmPage, end: WasmPage) -> Result<(), Self::AllocError> {
         let interval = Interval::try_from(start..=end)
             .map_err(|_| AllocExtError::Alloc(AllocError::InvalidFreeRange(start, end)))?;
-
-        Ext::charge_gas_if_enough(
-            &mut self.context.gas_counter,
-            &mut self.context.gas_allowance_counter,
+        let mut changes = ExtChanges::new(self);
+        changes.charge_gas_if_enough(
             self.context
                 .costs
                 .syscalls
@@ -964,6 +899,10 @@ impl Externalities for Ext {
             .allocations_context
             .free_range(interval)
             .map_err(Into::into)
+            .map(|x| {
+                changes.apply(self);
+                x
+            })
     }
 
     fn env_vars(&self, version: u32) -> Result<EnvVars, Self::UnrecoverableError> {
@@ -1003,7 +942,8 @@ impl Externalities for Ext {
         len: u32,
     ) -> Result<(), Self::FallibleError> {
         let range = self.context.message_context.check_input_range(offset, len);
-        self.charge_gas_if_enough(
+        let mut changes = ExtChanges::new(self);
+        changes.charge_gas_if_enough(
             self.context
                 .costs
                 .syscalls
@@ -1014,7 +954,7 @@ impl Externalities for Ext {
         self.context
             .message_context
             .send_push_input(handle, range)?;
-
+        changes.apply(self);
         Ok(())
     }
 
@@ -1025,11 +965,11 @@ impl Externalities for Ext {
         delay: u32,
     ) -> Result<MessageId, Self::FallibleError> {
         self.check_forbidden_destination(msg.destination())?;
-        let mut changes = ChangeBuilder::new(self);
-        changes = self.safe_gasfull_sends(changes, &msg, delay)?;
-        changes = self.charge_expiring_resources(changes, &msg, true)?;
-        changes = changes.charge_sending_fee(self, delay)?;
-        changes = self.charge_for_dispatch_stash_hold(changes, delay)?;
+        let mut changes = ExtChanges::new(self);
+        self.safe_gasfull_sends(&mut changes, &msg, delay)?;
+        self.charge_expiring_resources(&mut changes, &msg, true)?;
+        changes.charge_sending_fee(self, delay)?;
+        self.charge_for_dispatch_stash_hold(&mut changes, delay)?;
 
         let msg_id = self
             .context
@@ -1052,13 +992,11 @@ impl Externalities for Ext {
         // or reservation) in order to implement #1828.
         self.check_reservation_gas_limit_for_delayed_sending(&id, delay)?;
         // TODO: gasful sending (#1828)
-        let mut changes = ChangeBuilder::new(self);
-        changes = changes.charge_message_value(msg.value())?;
-        changes = self.charge_sending_fee(changes, delay)?;
+        let mut changes = ExtChanges::new(self);
+        changes.charge_message_value(msg.value())?;
+        self.charge_sending_fee(&mut changes, delay)?;
 
-        changes = changes.mark_used(self, id)?;
-        //self.context.gas_reserver.mark_used(id)?;
-
+        changes.mark_used(self, id)?;
         let msg_id = self
             .context
             .message_context
@@ -1075,10 +1013,10 @@ impl Externalities for Ext {
     // TODO: Consider per byte charge (issue #2255).
     fn reply_commit(&mut self, msg: ReplyPacket) -> Result<MessageId, Self::FallibleError> {
         self.check_forbidden_destination(self.context.message_context.reply_destination())?;
-        let mut changes = ChangeBuilder::new(self);
-        changes = self.safe_gasfull_sends(changes, &msg, 0)?;
-        changes = self.charge_expiring_resources(changes, &msg, false)?;
-        changes = self.charge_sending_fee(changes, 0)?;
+        let mut changes = ExtChanges::new(self);
+        self.safe_gasfull_sends(&mut changes, &msg, 0)?;
+        self.charge_expiring_resources(&mut changes, &msg, false)?;
+        self.charge_sending_fee(&mut changes, 0)?;
 
         let msg_id = self.context.message_context.reply_commit(msg, None)?;
         changes.apply(self);
@@ -1093,9 +1031,9 @@ impl Externalities for Ext {
         self.check_forbidden_destination(self.context.message_context.reply_destination())?;
         self.check_message_value(msg.value())?;
         // TODO: gasful sending (#1828)
-        let mut changes = ChangeBuilder::new(self);
-        self.charge_message_value(msg.value())?;
-        changes = self.charge_sending_fee(changes, 0)?;
+        let mut changes = ExtChanges::new(self);
+        changes.charge_message_value(msg.value())?;
+        self.charge_sending_fee(&mut changes, 0)?;
 
         self.context.gas_reserver.mark_used(id)?;
 
@@ -1124,7 +1062,8 @@ impl Externalities for Ext {
 
     fn reply_push_input(&mut self, offset: u32, len: u32) -> Result<(), Self::FallibleError> {
         let range = self.context.message_context.check_input_range(offset, len);
-        self.charge_gas_if_enough(
+        let mut changes = ExtChanges::new(self);
+        changes.charge_gas_if_enough(
             self.context
                 .costs
                 .syscalls
@@ -1133,7 +1072,7 @@ impl Externalities for Ext {
         )?;
 
         self.context.message_context.reply_push_input(range)?;
-
+        changes.apply(self);
         Ok(())
     }
 
@@ -1180,6 +1119,7 @@ impl Externalities for Ext {
         let end = at
             .checked_add(len)
             .ok_or(FallibleExecutionError::TooBigReadLen)?;
+
         self.charge_gas_if_enough(
             self.context
                 .costs
@@ -1356,9 +1296,11 @@ impl Externalities for Ext {
     }
 
     fn wake(&mut self, waker_id: MessageId, delay: u32) -> Result<(), Self::FallibleError> {
-        self.charge_gas_if_enough(self.context.message_context.settings().waking_fee)?;
+        let mut changes = ExtChanges::new(self);
+        changes.charge_gas_if_enough(self.context.message_context.settings().waking_fee)?;
 
         self.context.message_context.wake(waker_id, delay)?;
+        changes.apply(self);
         Ok(())
     }
 
@@ -1368,11 +1310,11 @@ impl Externalities for Ext {
         delay: u32,
     ) -> Result<(MessageId, ProgramId), Self::FallibleError> {
         // We don't check for forbidden destination here, since dest is always unique and almost impossible to match SYSTEM_ID
-        let mut changes = ChangeBuilder::new(self);
-        changes = self.safe_gasfull_sends(changes, &packet, delay)?;
-        changes = self.charge_expiring_resources(changes, &packet, true)?;
-        changes = self.charge_sending_fee(changes, delay)?;
-        changes = self.charge_for_dispatch_stash_hold(changes, delay)?;
+        let mut changes = ExtChanges::new(self);
+        self.safe_gasfull_sends(&mut changes, &packet, delay)?;
+        self.charge_expiring_resources(&mut changes, &packet, true)?;
+        self.charge_sending_fee(&mut changes, delay)?;
+        self.charge_for_dispatch_stash_hold(&mut changes, delay)?;
 
         let code_hash = packet.code_id();
 
@@ -1401,11 +1343,14 @@ impl Externalities for Ext {
         message_id: MessageId,
         amount: u64,
     ) -> Result<(), Self::FallibleError> {
-        self.reduce_gas(amount)?;
+        let mut changes = ExtChanges::new(self);
+        changes.reduce_gas(amount)?;
 
         self.context
             .message_context
             .reply_deposit(message_id, amount)?;
+
+        changes.apply(self);
 
         Ok(())
     }
