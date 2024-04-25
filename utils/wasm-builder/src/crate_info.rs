@@ -18,6 +18,7 @@
 
 use anyhow::{Context, Result};
 use cargo_metadata::{Metadata, MetadataCommand, Package};
+use rustc_version::{version, version_meta, Channel, Version};
 use std::{collections::BTreeMap, path::Path};
 
 use crate::builder_error::BuilderError;
@@ -90,7 +91,13 @@ impl CrateInfo {
             .targets
             .iter()
             .find(|target| {
-                target.name.eq(&pkg.name) && target.crate_types.iter().any(validated_lib)
+                // Check for rustc version. See https://github.com/rust-lang/cargo/pull/12783
+                if version().unwrap() >= Version::parse("1.78.0").unwrap() {
+                    let pkg_snake_case_name = pkg.name.replace('-', "_");
+                    target.name.eq(&pkg_snake_case_name) && target.crate_types.iter().any(validated_lib)
+                } else {
+                    target.name.eq(&pkg.name) && target.crate_types.iter().any(validated_lib)
+                }
             })
             .ok_or(BuilderError::CrateTypeInvalid)?;
 
