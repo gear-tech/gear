@@ -780,7 +780,7 @@ where
                 .as_bytes()
                 .try_into()
                 .unwrap_or_else(|e| {
-                    unreachable!("`nn` parameter in `blake2b()` must be equal to bytes amount: {e}")
+                    unreachable!("`nn` argument in `blake2b()` must be equal to bytes amount: {e}")
                 });
 
             io.write_as(ctx, write_bn_random, BlockNumberWithHash { bn, hash })
