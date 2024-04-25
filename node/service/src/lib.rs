@@ -452,6 +452,7 @@ where
             import_queue,
             block_announce_validator_builder: None,
             warp_sync_params: Some(WarpSyncParams::WithProvider(warp_sync)),
+            block_relay: None,
         })?;
 
     let role = config.role.clone();

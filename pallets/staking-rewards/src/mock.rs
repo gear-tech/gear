@@ -34,7 +34,7 @@ use sp_core::{crypto::key_types, H256};
 use sp_runtime::{
     testing::{Block as TestBlock, UintAuthorityId},
     traits::{BlakeTwo256, IdentityLookup, One, OpaqueKeys, Scale},
-    BuildStorage, KeyTypeId, Perbill, Permill, Perquintill,
+    BuildStorage, KeyTypeId, Perbill, Percent, Permill, Perquintill,
 };
 use sp_std::convert::{TryFrom, TryInto};
 
@@ -376,6 +376,10 @@ parameter_types! {
     pub BetterUnsignedThreshold: Perbill = Perbill::zero();
     pub SignedMaxWeight: Weight = Weight::from_parts(u64::MAX, u64::MAX);
 
+    pub static MaxVotesPerVoter: u32 = 16;
+    pub static SignedFixedDeposit: Balance = 1;
+    pub static SignedDepositIncreaseFactor: Percent = Percent::from_percent(10);
+
     // miner configs
     pub static MinerTxPriority: u64 = 100;
     pub static MinerMaxWeight: Weight = Weight::from_parts(u64::MAX, u64::MAX);
@@ -419,7 +423,8 @@ impl multi_phase::Config for Test {
     type OffchainRepeat = OffchainRepeat;
     type MinerTxPriority = MinerTxPriority;
     type SignedRewardBase = SignedRewardBase;
-    type SignedDepositBase = SignedDepositBase;
+    type SignedDepositBase =
+        multi_phase::GeometricDepositBase<Balance, SignedFixedDeposit, SignedDepositIncreaseFactor>;
     type SignedDepositByte = ();
     type SignedDepositWeight = ();
     type SignedMaxWeight = SignedMaxWeight;
@@ -926,7 +931,11 @@ pub(crate) mod two_block_producers {
         type OffchainRepeat = OffchainRepeat;
         type MinerTxPriority = MinerTxPriority;
         type SignedRewardBase = SignedRewardBase;
-        type SignedDepositBase = SignedDepositBase;
+        type SignedDepositBase = multi_phase::GeometricDepositBase<
+            Balance,
+            SignedFixedDeposit,
+            SignedDepositIncreaseFactor,
+        >;
         type SignedDepositByte = ();
         type SignedDepositWeight = ();
         type SignedMaxWeight = SignedMaxWeight;

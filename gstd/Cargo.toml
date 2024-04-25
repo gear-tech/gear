@@ -21,7 +21,6 @@ gcore = { workspace = true, features = ["codec"] }
 gstd-codegen.workspace = true
 gear-core-errors.workspace = true
 hashbrown.workspace = true
-bs58 = { workspace = true, features = ["alloc"] }
 hex = { workspace = true, features = ["alloc"] }
 parity-scale-codec = { workspace = true, features = ["derive"] }
 primitive-types = { workspace = true, features = ["scale-info"] }
