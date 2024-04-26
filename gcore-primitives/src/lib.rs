@@ -71,16 +71,6 @@ macro_rules! declare_primitive {
             pub fn is_zero(&self) -> bool {
                 self == &Self::zero()
             }
-
-            #[doc(hidden)]
-            pub const fn as_ptr(&self) -> *const [u8; 32] {
-                self.0.as_ptr() as *const _
-            }
-
-            #[doc(hidden)]
-            pub fn as_mut_ptr(&mut self) -> *mut [u8; 32] {
-                self.0.as_mut_ptr() as *mut _
-            }
         }
 
         #[cfg(feature = "codec")]
