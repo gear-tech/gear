@@ -4860,6 +4860,7 @@ dependencies = [
  "parity-wasm",
  "pathdiff",
  "regex",
+ "rustc_version",
  "thiserror",
  "toml 0.8.12",
  "wabt",
