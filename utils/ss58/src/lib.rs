@@ -28,7 +28,6 @@
 extern crate alloc;
 
 use alloc::{string::String, vec, vec::Vec};
-use anyhow::{anyhow, Result};
 use blake2::{Blake2b512, Digest};
 use core::sync::atomic::{AtomicU16, Ordering};
 
@@ -67,12 +66,12 @@ pub fn encode(data: &[u8]) -> String {
 }
 
 /// Decode data from SS58 format.
-pub fn decode(encoded: &[u8], body_len: usize) -> Result<Vec<u8>> {
+pub fn decode(encoded: &[u8], body_len: usize) -> Result<Vec<u8>, &'static str> {
     let data = bs58::decode(encoded)
         .into_vec()
-        .map_err(|e| anyhow!("Invalid ss58 data: {e}"))?;
+        .map_err(|_| "Invalid ss58 data")?;
     if data.len() < CHECKSUM_LENGTH {
-        return Err(anyhow!("Invalid length of encoded ss58 data."));
+        return Err("Invalid length of encoded ss58 data");
     }
 
     let (prefix_len, _) = match data[0] {
@@ -87,24 +86,24 @@ pub fn decode(encoded: &[u8], body_len: usize) -> Result<Vec<u8>> {
             let upper = data[1] & 0b00111111;
             (2, (lower as u16) | ((upper as u16) << 8))
         }
-        _ => return Err(anyhow!("Invalid prefix of encoded ss58 data.")),
+        _ => return Err("Invalid prefix of encoded ss58 data"),
     };
 
     if data.len() != prefix_len + body_len + CHECKSUM_LENGTH {
-        return Err(anyhow!("Invalid length of encoded ss58 data."));
+        return Err("Invalid length of encoded ss58 data");
     }
 
     let hash = blake2b_512(&data[..prefix_len + body_len]);
     let checksum = &hash[0..CHECKSUM_LENGTH];
     if data[body_len + prefix_len..body_len + prefix_len + CHECKSUM_LENGTH] != *checksum {
-        return Err(anyhow!("Invalid checksum of encoded ss58 data."));
+        return Err("Invalid checksum of encoded ss58 data");
     }
 
     Ok(data[prefix_len..body_len + prefix_len].to_vec())
 }
 
 /// re-encoding a ss58 address in the current [`default_ss58_version`].
-pub fn recode(encoded: &str) -> Result<String> {
+pub fn recode(encoded: &str) -> Result<String, &'static str> {
     Ok(self::encode(&self::decode(encoded.as_bytes(), 32)?))
 }
 

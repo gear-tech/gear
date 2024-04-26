@@ -4821,7 +4821,6 @@ dependencies = [
 name = "gear-ss58"
 version = "1.3.0"
 dependencies = [
- "anyhow",
  "blake2",
  "bs58 0.5.1",
 ]
