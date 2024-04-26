@@ -106,6 +106,7 @@ base64 = "0.21.7"
 byteorder = { version = "1.5.0", default-features = false }
 blake2-rfc = { version = "0.2.18", default-features = false }
 bs58 = { version = "0.5.1", default-features = false }
+cargo_toml = "0.19.2"
 cargo_metadata = "0.18.1"
 clap = "4.5.4"
 codec = { package = "parity-scale-codec", version = "3.6.4", default-features = false }
@@ -456,11 +457,12 @@ libfuzzer-sys = "0.4"                                                     # util
 page_size = { version = "0.6", default-features = false }                 # pallets/gear
 pathdiff = { version = "0.2.1", default-features = false }                # utils/wasm-builder
 rand_pcg = "0.3.1"                                                        # pallets/gear
+rustc_version = "0.4.0"                                                   # utils/wasm-builder
 schnorrkel = "0.9.1"                                                      # gcli
 scopeguard = { version = "1.2.0", default-features = false }              # pallets/gear
 tabled = "0.10.0"                                                         # utils/regression-analysis
 thousands = "0.2.0"                                                       # utils/regression-analysis
-toml = "0.8.12"                                                            # utils/wasm-builder
+toml = "0.8.12"                                                           # utils/wasm-builder
 tracing = "0.1.40"                                                        # utils/node-loader
 tracing-appender = "0.2"                                                  # utils/node-loader
 tracing-subscriber = "0.3.18"                                             # utils/node-loader
