@@ -20,7 +20,7 @@
 
 use core::fmt;
 
-pub use gcore_primitives::TryFromSliceError;
+pub use gcore_primitives::ConversionError;
 pub use gear_core_errors::*;
 
 /// `Result` type with a predefined error type ([`ExtError`]).

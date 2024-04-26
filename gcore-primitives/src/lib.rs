@@ -44,14 +44,12 @@ use {
 #[cfg_attr(feature = "codec", derive(TypeInfo, Encode, Decode, MaxEncodedLen), codec(crate = scale))]
 pub struct MessageHandle(u32);
 
-/// The error type returned when conversion from a slice fails.
+/// The error type returned when conversion fails.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Display)]
-#[display(fmt = "{}", Self::REASON)]
-pub struct TryFromSliceError(pub(crate) ());
-
-impl TryFromSliceError {
-    #[doc(hidden)]
-    pub const REASON: &'static str = "Slice should be 32 length";
+pub enum ConversionError {
+    /// Invalid slice length.
+    #[display(fmt = "Slice should be 32 length")]
+    InvalidSliceLength,
 }
 
 macro_rules! declare_primitive {
@@ -81,11 +79,11 @@ macro_rules! declare_primitive {
         }
 
         impl TryFrom<&[u8]> for $ty {
-            type Error = TryFromSliceError;
+            type Error = ConversionError;
 
             fn try_from(slice: &[u8]) -> Result<Self, Self::Error> {
                 if slice.len() != 32 {
-                    return Err(TryFromSliceError(()));
+                    return Err(ConversionError::InvalidSliceLength);
                 }
 
                 let mut ret = Self::zero();

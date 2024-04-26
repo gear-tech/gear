@@ -44,7 +44,7 @@ pub enum Error {
     /// Conversion error.
     ///
     /// NOTE: this error returns from incorrect bytes conversion.
-    Convert(&'static str),
+    Convert(ConversionError),
 
     /// `scale-codec` decoding error.
     ///
@@ -115,9 +115,9 @@ impl From<CoreError> for Error {
     }
 }
 
-impl From<TryFromSliceError> for Error {
-    fn from(_: TryFromSliceError) -> Self {
-        Self::Convert(TryFromSliceError::REASON)
+impl From<ConversionError> for Error {
+    fn from(err: ConversionError) -> Self {
+        Self::Convert(err)
     }
 }
 
