@@ -39,11 +39,11 @@ pub const SAFE_DEPENDENCIES: [&str; 15] = [
     "gear-runtime-primitives",
     "gear-sandbox-env",
     "gear-wasm-instrument",
-    "gcore-primitives",
     "gmeta-codegen",
     "gsdk-codegen",
     "gstd-codegen",
     "gsys",
+    "gprimitives",
     "numerated",
 ];
 

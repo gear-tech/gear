@@ -77,9 +77,9 @@ members = [
     "gcli",
     "gclient",
     "gcore",
-    "gcore-primitives",
     "gmeta",
     "gmeta/codegen",
+    "gprimitives",
     "gsdk",
     "gsdk/codegen",
     "gsdk/api-gen",
@@ -193,7 +193,6 @@ core-processor = { package = "gear-core-processor", path = "core-processor", def
 galloc = { path = "galloc" }
 gbuiltin-bls381 = { path = "gbuiltins/bls381", default-features = false }
 gcore = { path = "gcore" }
-gcore-primitives = { path = "gcore-primitives", default-features = false }
 gcli = { path = "gcli" }
 gclient = { path = "gclient" }
 gsdk = { path = "gsdk" }
@@ -205,6 +204,7 @@ gsys = { path = "gsys" }
 gtest = { path = "gtest" }
 gmeta = { path = "gmeta" }
 gmeta-codegen = { path = "gmeta/codegen" }
+gprimitives = { path = "gprimitives", default-features = false }
 gear-authorship = { path = "node/authorship" }
 gear-core-backend = { path = "core-backend", default-features = false }
 gear-call-gen = { path = "utils/call-gen" }

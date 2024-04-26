@@ -20,8 +20,8 @@
 
 use core::fmt;
 
-pub use gcore_primitives::ConversionError;
 pub use gear_core_errors::*;
+pub use gprimitives::ConversionError;
 
 /// `Result` type with a predefined error type ([`ExtError`]).
 pub type Result<T, E = Error> = core::result::Result<T, E>;
