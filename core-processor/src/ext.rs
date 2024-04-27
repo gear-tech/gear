@@ -119,11 +119,14 @@ impl ProcessorContext {
             ),
             system_reservation: None,
             value_counter: ValueCounter::new(0),
-            allocations_context: AllocationsContext::new(
+            allocations_context: AllocationsContext::try_new(
                 Default::default(),
                 Default::default(),
                 Default::default(),
-            ),
+                Default::default(),
+                Default::default(),
+            )
+            .unwrap(),
             message_context: MessageContext::new(
                 Default::default(),
                 Default::default(),
@@ -1331,8 +1334,14 @@ mod tests {
         let existing_page = 99.into();
         let non_existing_page = 100.into();
 
-        let allocations_context =
-            AllocationsContext::new([existing_page].into_iter().collect(), 1.into(), 512.into());
+        let allocations_context = AllocationsContext::try_new(
+            512.into(),
+            [existing_page].into_iter().collect(),
+            1.into(),
+            None,
+            512.into(),
+        )
+        .unwrap();
 
         let mut ext = Ext::new(
             ProcessorContextBuilder::new()

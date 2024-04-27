@@ -421,7 +421,7 @@ fn treasury_surplus_is_not_burned() {
             let initial_total_issuance = Balances::total_issuance();
 
             // Top up treasury balance
-            assert_ok!(Balances::transfer(
+            assert_ok!(Balances::transfer_allow_death(
                 RuntimeOrigin::signed(charlie.to_account_id()),
                 sp_runtime::MultiAddress::Id(treasury_id.clone()),
                 1_000 * UNITS,
@@ -503,7 +503,7 @@ fn dust_ends_up_in_offset_pool() {
             let initial_total_issuance = Balances::total_issuance();
 
             // Sending ED to `ferdie` to create the account in storage
-            assert_ok!(Balances::transfer(
+            assert_ok!(Balances::transfer_allow_death(
                 RuntimeOrigin::signed(charlie.to_account_id()),
                 sp_runtime::MultiAddress::Id(ferdie.to_account_id()),
                 EXISTENTIAL_DEPOSIT,
@@ -515,7 +515,7 @@ fn dust_ends_up_in_offset_pool() {
             );
 
             // Sending ED / 2 out of `ferdie` creates dust
-            assert_ok!(Balances::transfer(
+            assert_ok!(Balances::transfer_allow_death(
                 RuntimeOrigin::signed(ferdie.to_account_id()),
                 sp_runtime::MultiAddress::Id(dave.to_account_id()),
                 EXISTENTIAL_DEPOSIT / 2,
@@ -577,7 +577,7 @@ fn slashed_proposals_back_to_treasury() {
             let initial_total_issuance = Balances::total_issuance();
 
             // Top up treasury balance
-            assert_ok!(Balances::transfer(
+            assert_ok!(Balances::transfer_allow_death(
                 RuntimeOrigin::signed(charlie.to_account_id()),
                 sp_runtime::MultiAddress::Id(treasury_id.clone()),
                 1_000 * UNITS,

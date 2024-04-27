@@ -140,15 +140,12 @@ pub mod pallet {
     }
 
     #[pallet::storage]
-    #[pallet::getter(fn debug_mode)]
     pub type DebugMode<T> = StorageValue<_, bool, ValueQuery>;
 
     #[pallet::storage]
-    #[pallet::getter(fn remap_program_id)]
     pub type RemapId<T> = StorageValue<_, bool, ValueQuery>;
 
     #[pallet::storage]
-    #[pallet::getter(fn programs_map)]
     pub type ProgramsMap<T> = StorageValue<_, BTreeMap<H256, H256>, ValueQuery>;
 
     #[pallet::hooks]
@@ -246,11 +243,11 @@ pub mod pallet {
         }
 
         fn is_enabled() -> bool {
-            Self::debug_mode()
+            DebugMode::<T>::get()
         }
 
         fn is_remap_id_enabled() -> bool {
-            Self::remap_program_id()
+            RemapId::<T>::get()
         }
 
         fn remap_id() {
