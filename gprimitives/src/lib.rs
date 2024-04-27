@@ -53,16 +53,19 @@ pub enum ConversionError {
 }
 
 macro_rules! declare_primitive {
-    ($ty:ty) => {
+    (@new $ty:ty) => {
         impl $ty {
             #[doc = concat!("Create a new `", stringify!($ty), "` from a 32-byte array.")]
             pub const fn new(array: [u8; 32]) -> Self {
                 Self(array)
             }
-
+        }
+    };
+    (@zero $ty:ty) => {
+        impl $ty {
             #[doc = concat!("Create a new zero `", stringify!($ty), "`.")]
             pub const fn zero() -> Self {
-                Self::new([0; 32])
+                Self([0; 32])
             }
 
             #[doc = concat!("Check whether `", stringify!($ty), "` is zero.")]
@@ -70,14 +73,16 @@ macro_rules! declare_primitive {
                 self == &Self::zero()
             }
         }
-
+    };
+    (@from_h256 $ty:ty) => {
         #[cfg(feature = "codec")]
         impl From<H256> for $ty {
             fn from(h256: H256) -> Self {
                 Self::new(h256.to_fixed_bytes())
             }
         }
-
+    };
+    (@try_from_slice $ty:ty) => {
         impl TryFrom<&[u8]> for $ty {
             type Error = ConversionError;
 
@@ -86,12 +91,17 @@ macro_rules! declare_primitive {
                     return Err(ConversionError::InvalidSliceLength);
                 }
 
-                let mut ret = Self::zero();
+                let mut ret = Self([0; 32]);
                 ret.as_mut().copy_from_slice(slice);
 
                 Ok(ret)
             }
         }
+    };
+    ($($feature:ident)*, $ty:ty) => {
+        $(
+            declare_primitive!(@$feature $ty);
+        )*
     };
 }
 
@@ -110,9 +120,8 @@ macro_rules! declare_primitive {
 #[cfg_attr(feature = "codec", derive(TypeInfo, Encode, Decode, MaxEncodedLen), codec(crate = scale))]
 pub struct ActorId([u8; 32]);
 
-declare_primitive!(ActorId);
+declare_primitive!(new zero from_h256 try_from_slice, ActorId);
 
-//TODO: find out why this is needed
 impl From<u64> for ActorId {
     fn from(value: u64) -> Self {
         let mut actor_id = Self::zero();
@@ -137,7 +146,7 @@ impl From<u64> for ActorId {
 #[cfg_attr(feature = "codec", derive(TypeInfo, Encode, Decode, MaxEncodedLen), codec(crate = scale))]
 pub struct MessageId([u8; 32]);
 
-declare_primitive!(MessageId);
+declare_primitive!(new zero from_h256, MessageId);
 
 /// Code identifier.
 ///
@@ -155,7 +164,7 @@ declare_primitive!(MessageId);
 #[cfg_attr(feature = "codec", derive(TypeInfo, Encode, Decode, MaxEncodedLen), codec(crate = scale))]
 pub struct CodeId([u8; 32]);
 
-declare_primitive!(CodeId);
+declare_primitive!(new from_h256 try_from_slice, CodeId);
 
 /// Reservation identifier.
 ///
@@ -169,4 +178,3 @@ declare_primitive!(CodeId);
 #[cfg_attr(feature = "codec", derive(TypeInfo, Encode, Decode, MaxEncodedLen), codec(crate = scale))]
 pub struct ReservationId([u8; 32]);
 
-declare_primitive!(ReservationId);
