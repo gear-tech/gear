@@ -168,7 +168,7 @@ pub mod pallet {
     use sp_runtime::DispatchError;
 
     /// The current storage version.
-    pub(crate) const PROGRAM_STORAGE_VERSION: StorageVersion = StorageVersion::new(4);
+    pub(crate) const PROGRAM_STORAGE_VERSION: StorageVersion = StorageVersion::new(5);
 
     #[pallet::config]
     pub trait Config: frame_system::Config {
