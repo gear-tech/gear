@@ -42,6 +42,17 @@ pub fn hash(data: &[u8]) -> Hash {
     ctx.finalize().into()
 }
 
+/// Creates a unique identifier by passing given argument to blake2b hash-function.
+///
+/// # SAFETY: DO NOT ADJUST HASH FUNCTION, BECAUSE MESSAGE ID IS SENSITIVE FOR IT.
+pub fn hash_of_array<T: AsRef<[u8]>, const N: usize>(array: [T; N]) -> Hash {
+    let mut ctx = Blake2b256::new();
+    for data in array {
+        ctx.update(data);
+    }
+    ctx.finalize().into()
+}
+
 /// Declares data type for storing any kind of id for gear-core,
 /// which stores 32 bytes under the hood.
 #[macro_export]
@@ -173,22 +184,20 @@ impl MessageId {
     ) -> MessageId {
         const SALT: &[u8] = b"external";
 
-        let argument = [
+        hash_of_array([
             SALT,
             &block_number.to_le_bytes(),
             user_id.as_ref(),
             &local_nonce.to_le_bytes(),
-        ]
-        .concat();
-        hash(&argument).into()
+        ])
+        .into()
     }
 
     /// Generate MessageId for program outgoing message
     pub fn generate_outgoing(origin_msg_id: MessageId, local_nonce: u32) -> MessageId {
         const SALT: &[u8] = b"outgoing";
 
-        let argument = [SALT, origin_msg_id.as_ref(), &local_nonce.to_le_bytes()].concat();
-        hash(&argument).into()
+        hash_of_array([SALT, origin_msg_id.as_ref(), &local_nonce.to_le_bytes()]).into()
     }
 
     /// Generate MessageId for reply message depend on status code
@@ -198,16 +207,14 @@ impl MessageId {
     pub fn generate_reply(origin_msg_id: MessageId) -> MessageId {
         const SALT: &[u8] = b"reply";
 
-        let argument = [SALT, origin_msg_id.as_ref()].concat();
-        hash(&argument).into()
+        hash_of_array([SALT, origin_msg_id.as_ref()]).into()
     }
 
     /// Generate MessageId for signal message depend on status code
     pub fn generate_signal(origin_msg_id: MessageId) -> MessageId {
         const SALT: &[u8] = b"signal";
 
-        let argument = [SALT, origin_msg_id.as_ref()].concat();
-        hash(&argument).into()
+        hash_of_array([SALT, origin_msg_id.as_ref()]).into()
     }
 }
 
@@ -221,16 +228,14 @@ impl ProgramId {
     pub fn generate_from_user(code_id: CodeId, salt: &[u8]) -> Self {
         const SALT: &[u8] = b"program_from_user";
 
-        let argument = [SALT, code_id.as_ref(), salt].concat();
-        hash(&argument).into()
+        hash_of_array([SALT, code_id.as_ref(), salt]).into()
     }
 
     /// Generate ProgramId from given CodeId, MessageId and salt
     pub fn generate_from_program(code_id: CodeId, salt: &[u8], message_id: MessageId) -> Self {
         const SALT: &[u8] = b"program_from_wasm";
 
-        let argument = [SALT, message_id.as_ref(), code_id.as_ref(), salt].concat();
-        hash(&argument).into()
+        hash_of_array([SALT, message_id.as_ref(), code_id.as_ref(), salt]).into()
     }
 }
 
@@ -241,8 +246,7 @@ impl ReservationId {
     pub fn generate(msg_id: MessageId, nonce: u64) -> Self {
         const SALT: &[u8] = b"reservation";
 
-        let argument = [SALT, msg_id.as_ref(), &nonce.to_le_bytes()].concat();
-        hash(&argument).into()
+        hash_of_array([SALT, msg_id.as_ref(), &nonce.to_le_bytes()]).into()
     }
 }
 
