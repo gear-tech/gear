@@ -12671,7 +12671,11 @@ fn check_reply_push_payload_exceed() {
 /// Check that random works and it's changing on next epoch.
 #[test]
 fn check_random_works() {
-    use blake2_rfc::blake2b::blake2b;
+    use blake2::{digest::typenum::U32, Blake2b, Digest};
+
+    /// BLAKE2b-256 hasher state.
+    type Blake2b256 = Blake2b<U32>;
+
     let wat = r#"
         (module
             (import "env" "gr_send_wgas" (func $send (param i32 i32 i32 i64 i32 i32)))
@@ -12737,10 +12741,11 @@ fn check_random_works() {
             .iter()
             .zip(random_data.iter())
             .for_each(|((msg, _bn), random_data)| {
-                assert_eq!(
-                    blake2b(32, &[], random_data).as_bytes(),
-                    msg.payload_bytes()
-                );
+                let mut ctx = Blake2b256::new();
+                ctx.update(random_data);
+                let expected: &[u8] = ctx.finalize().into();
+
+                assert_eq!(expected, msg.payload_bytes());
             });
 
         // assert_last_dequeued(1);

@@ -177,4 +177,3 @@ declare_primitive!(new from_h256 try_from_slice, CodeId);
 #[as_mut(forward)]
 #[cfg_attr(feature = "codec", derive(TypeInfo, Encode, Decode, MaxEncodedLen), codec(crate = scale))]
 pub struct ReservationId([u8; 32]);
-

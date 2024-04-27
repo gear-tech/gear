@@ -18,8 +18,7 @@
 
 //! Base identifiers for messaging primitives.
 
-use blake2_rfc::blake2b;
-use core::convert::TryInto;
+use blake2::{digest::typenum::U32, Blake2b, Digest};
 use scale_info::{
     scale::{Decode, Encode},
     TypeInfo,
@@ -31,16 +30,16 @@ pub const HASH_LENGTH: usize = 32;
 /// Hash type used in gear protocol.
 pub type Hash = [u8; HASH_LENGTH];
 
+/// BLAKE2b-256 hasher state.
+type Blake2b256 = Blake2b<U32>;
+
 /// Creates a unique identifier by passing given argument to blake2b hash-function.
 ///
 /// # SAFETY: DO NOT ADJUST HASH FUNCTION, BECAUSE MESSAGE ID IS SENSITIVE FOR IT.
-pub fn hash(argument: &[u8]) -> Hash {
-    let blake2b_hash = blake2b::blake2b(HASH_LENGTH, &[], argument);
-
-    blake2b_hash
-        .as_bytes()
-        .try_into()
-        .expect("we set hash len; qed")
+pub fn hash(data: &[u8]) -> Hash {
+    let mut ctx = Blake2b256::new();
+    ctx.update(data);
+    ctx.finalize().into()
 }
 
 /// Declares data type for storing any kind of id for gear-core,
