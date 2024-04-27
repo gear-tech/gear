@@ -164,7 +164,7 @@ declare_primitive!(new zero from_h256, MessageId);
 #[cfg_attr(feature = "codec", derive(TypeInfo, Encode, Decode, MaxEncodedLen), codec(crate = scale))]
 pub struct CodeId([u8; 32]);
 
-declare_primitive!(new from_h256 try_from_slice, CodeId);
+declare_primitive!(new zero from_h256 try_from_slice, CodeId);
 
 /// Reservation identifier.
 ///
@@ -177,3 +177,5 @@ declare_primitive!(new from_h256 try_from_slice, CodeId);
 #[as_mut(forward)]
 #[cfg_attr(feature = "codec", derive(TypeInfo, Encode, Decode, MaxEncodedLen), codec(crate = scale))]
 pub struct ReservationId([u8; 32]);
+
+declare_primitive!(new zero from_h256, ReservationId);
