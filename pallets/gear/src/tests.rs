@@ -12743,9 +12743,9 @@ fn check_random_works() {
             .for_each(|((msg, _bn), random_data)| {
                 let mut ctx = Blake2b256::new();
                 ctx.update(random_data);
-                let expected: &[u8] = ctx.finalize().into();
+                let expected = ctx.finalize();
 
-                assert_eq!(expected, msg.payload_bytes());
+                assert_eq!(expected.as_slice(), msg.payload_bytes());
             });
 
         // assert_last_dequeued(1);
