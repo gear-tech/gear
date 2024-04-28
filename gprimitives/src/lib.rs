@@ -83,7 +83,7 @@ pub enum ConversionError {
 macro_rules! declare_primitive {
     (@new $ty:ty) => {
         impl $ty {
-            #[doc = concat!("Create a new `", stringify!($ty), "` from a 32-byte array.")]
+            #[doc = concat!("Creates a new `", stringify!($ty), "` from a 32-byte array.")]
             pub const fn new(array: [u8; 32]) -> Self {
                 Self(array)
             }
@@ -91,14 +91,31 @@ macro_rules! declare_primitive {
     };
     (@zero $ty:ty) => {
         impl $ty {
-            #[doc = concat!("Create a new zero `", stringify!($ty), "`.")]
+            #[doc = concat!("Creates a new zero `", stringify!($ty), "`.")]
             pub const fn zero() -> Self {
                 Self([0; 32])
             }
 
-            #[doc = concat!("Check whether `", stringify!($ty), "` is zero.")]
+            #[doc = concat!("Checks whether `", stringify!($ty), "` is zero.")]
             pub fn is_zero(&self) -> bool {
                 self == &Self::zero()
+            }
+        }
+    };
+    (@into_bytes $ty:ty) => {
+        impl $ty {
+            #[doc = concat!("Returns `", stringify!($ty), "`as bytes array.")]
+            pub fn into_bytes(self) -> [u8; 32] {
+                self.0
+            }
+        }
+    };
+    (@from_u64 $ty:ty) => {
+        impl From<u64> for $ty {
+            fn from(value: u64) -> Self {
+                let mut id = Self::zero();
+                id.0[..8].copy_from_slice(&value.to_le_bytes()[..]);
+                id
             }
         }
     };
@@ -190,7 +207,7 @@ pub type ProgramId = ActorId;
 #[cfg_attr(feature = "codec", derive(TypeInfo, Encode, Decode, MaxEncodedLen), codec(crate = scale))]
 pub struct ActorId([u8; 32]);
 
-declare_primitive!(new zero from_h256 try_from_slice display debug, ActorId);
+declare_primitive!(new zero into_bytes from_u64 from_h256 try_from_slice display debug, ActorId);
 
 impl ActorId {
     /// System program identifier.
@@ -232,15 +249,6 @@ impl FromStr for ActorId {
     }
 }
 
-impl From<u64> for ActorId {
-    fn from(value: u64) -> Self {
-        let mut actor_id = Self::zero();
-        actor_id.0[..8].copy_from_slice(&value.to_le_bytes()[..]);
-
-        actor_id
-    }
-}
-
 /// Message identifier.
 ///
 /// Gear allows users and program interactions via messages. Each message has
@@ -254,7 +262,7 @@ impl From<u64> for ActorId {
 #[cfg_attr(feature = "codec", derive(TypeInfo, Encode, Decode, MaxEncodedLen), codec(crate = scale))]
 pub struct MessageId([u8; 32]);
 
-declare_primitive!(new zero from_h256 display debug, MessageId);
+declare_primitive!(new zero into_bytes from_u64 from_h256 display debug, MessageId);
 
 impl MessageId {
     /// Generates `MessageId` for non-program outgoing message.
@@ -309,7 +317,7 @@ impl MessageId {
 #[cfg_attr(feature = "codec", derive(TypeInfo, Encode, Decode, MaxEncodedLen), codec(crate = scale))]
 pub struct CodeId([u8; 32]);
 
-declare_primitive!(new zero from_h256 try_from_slice display debug, CodeId);
+declare_primitive!(new zero into_bytes from_u64 from_h256 try_from_slice display debug, CodeId);
 
 impl CodeId {
     /// Generates `CodeId` from given code.
@@ -344,7 +352,7 @@ impl FromStr for CodeId {
 #[cfg_attr(feature = "codec", derive(TypeInfo, Encode, Decode, MaxEncodedLen), codec(crate = scale))]
 pub struct ReservationId([u8; 32]);
 
-declare_primitive!(new zero from_h256 display debug, ReservationId);
+declare_primitive!(new zero into_bytes from_u64 from_h256 display debug, ReservationId);
 
 impl ReservationId {
     /// Generates `ReservationId` from given message and nonce.

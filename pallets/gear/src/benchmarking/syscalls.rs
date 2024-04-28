@@ -127,8 +127,8 @@ where
         let signal_code = SignalCode::RemovedFromWaitlist;
         let msg = Message::new(
             msg_id,
-            instance.addr.as_bytes().into(),
-            ProgramId::from(instance.caller.clone().into_origin().as_bytes()),
+            instance.addr.as_bytes().try_into().unwrap(),
+            ProgramId::try_from(instance.caller.clone().into_origin().as_bytes()).unwrap(),
             Default::default(),
             Some(1_000_000),
             0,
@@ -1083,8 +1083,8 @@ where
         let msg_id = MessageId::from(10);
         let msg = Message::new(
             msg_id,
-            instance.addr.as_bytes().into(),
-            ProgramId::from(instance.caller.clone().into_origin().as_bytes()),
+            instance.addr.as_bytes().try_into().unwrap(),
+            ProgramId::try_from(instance.caller.clone().into_origin().as_bytes()).unwrap(),
             Default::default(),
             Some(1_000_000),
             0,
@@ -1308,8 +1308,8 @@ where
         let msg_id = MessageId::from(10);
         let msg = Message::new(
             msg_id,
-            instance.addr.as_bytes().into(),
-            ProgramId::from(instance.caller.clone().into_origin().as_bytes()),
+            instance.addr.as_bytes().try_into().unwrap(),
+            ProgramId::try_from(instance.caller.clone().into_origin().as_bytes()).unwrap(),
             Default::default(),
             Some(1_000_000),
             0,

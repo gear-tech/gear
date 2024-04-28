@@ -140,12 +140,12 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Identifier must be 32 length")]
+    #[should_panic]
     /// Test that ProgramId's `from_slice(...)` constructor causes panic
     /// when the argument has the wrong length
     fn program_id_from_slice_error_implementation() {
         let bytes = "foobar";
-        let _: ProgramId = bytes.as_bytes().into();
+        let _: ProgramId = bytes.as_bytes().try_into().unwrap();
     }
 
     #[test]

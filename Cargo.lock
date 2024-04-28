@@ -4407,6 +4407,7 @@ dependencies = [
  "env_logger",
  "gear-core-errors",
  "gear-wasm-instrument",
+ "gprimitives",
  "gsys",
  "hashbrown 0.14.3",
  "hex",
