@@ -1018,13 +1018,21 @@ pub mod runtime_types {
         }
         pub mod gprimitives {
             use super::runtime_types;
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            #[derive(
+                Copy, Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
+            )]
             pub struct ActorId(pub [::core::primitive::u8; 32usize]);
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            #[derive(
+                Copy, Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
+            )]
             pub struct CodeId(pub [::core::primitive::u8; 32usize]);
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            #[derive(
+                Copy, Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
+            )]
             pub struct MessageId(pub [::core::primitive::u8; 32usize]);
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            #[derive(
+                Copy, Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
+            )]
             pub struct ReservationId(pub [::core::primitive::u8; 32usize]);
         }
         pub mod pallet_babe {

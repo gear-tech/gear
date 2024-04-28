@@ -11,10 +11,8 @@ use gear_wasm_gen::{
 };
 use gsdk::metadata::runtime_types::{
     gear_common::event::DispatchStatus as GenDispatchStatus,
-    gear_core::{
-        ids::MessageId as GenMId,
-        message::{common::ReplyDetails, user::UserMessage as GenUserMessage},
-    },
+    gear_core::message::{common::ReplyDetails, user::UserMessage as GenUserMessage},
+    gprimitives::MessageId as GenMId,
 };
 use rand::rngs::SmallRng;
 use reqwest::Client;
