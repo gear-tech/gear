@@ -217,6 +217,14 @@ test-gcli: node
 test-gcli-release: node-release
 	@ ./scripts/gear.sh test gcli --release
 
+.PHONY: test-gbuild
+test-gbuild: node
+	@ ./scripts/gear.sh test gbuild
+
+.PHONY: test-gbuild-release
+test-gbuild-release: node-release
+	@ ./scripts/gear.sh test gbuild --release
+
 .PHONY: test-pallet
 test-pallet:
 	@ ./scripts/gear.sh test pallet

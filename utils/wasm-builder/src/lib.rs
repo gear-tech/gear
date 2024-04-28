@@ -20,13 +20,15 @@
 #![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
 #![doc(html_favicon_url = "https://gear-tech.io/favicons/favicon.ico")]
 
-use crate::{cargo_command::CargoCommand, wasm_project::WasmProject};
+pub use cargo_command::CargoCommand;
+pub use wasm_project::{PreProcessor, PreProcessorResult, PreProcessorTarget};
+
+use crate::wasm_project::WasmProject;
 use anyhow::{Context, Result};
 use gmeta::{Metadata, MetadataRepr};
 use regex::Regex;
 use std::{env, path::PathBuf, process};
 use wasm_project::ProjectType;
-pub use wasm_project::{PreProcessor, PreProcessorResult, PreProcessorTarget};
 
 mod builder_error;
 mod cargo_command;
