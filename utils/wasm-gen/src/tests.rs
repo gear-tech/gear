@@ -418,7 +418,10 @@ fn test_msg_value_ptr_dest() {
                 match dest_var {
                     ActorKind::Source => assert_eq!(destination, message_sender()),
                     ActorKind::ExistingAddresses(_) => {
-                        assert_eq!(destination, ProgramId::try_from(some_address.as_ref()).unwrap())
+                        assert_eq!(
+                            destination,
+                            ProgramId::try_from(some_address.as_ref()).unwrap()
+                        )
                     }
                     ActorKind::Random => {}
                 }
