@@ -23,6 +23,7 @@
 #![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
 #![doc(html_favicon_url = "https://gear-tech.io/favicons/favicon.ico")]
 
+use core::str::FromStr;
 use derive_more::{AsMut, AsRef, Display, From, Into};
 #[cfg(feature = "codec")]
 use {
@@ -50,6 +51,12 @@ pub enum ConversionError {
     /// Invalid slice length.
     #[display(fmt = "Slice should be 32 length")]
     InvalidSliceLength,
+    /// Invalid hex string.
+    #[display(fmt = "Invalid hex string")]
+    InvalidHexString,
+    /// Invalid SS58 address.
+    #[display(fmt = "Invalid SS58 address")]
+    InvalidSs58Address,
 }
 
 macro_rules! declare_primitive {
@@ -122,6 +129,28 @@ pub struct ActorId([u8; 32]);
 
 declare_primitive!(new zero from_h256 try_from_slice, ActorId);
 
+impl FromStr for ActorId {
+    type Err = ConversionError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut actor_id = Self::zero();
+
+        if let Some(s) = s.strip_prefix("0x") {
+            if s.len() != 64 {
+                return Err(ConversionError::InvalidHexString);
+            }
+            hex::decode_to_slice(s, &mut actor_id.0)
+                .map_err(|_| ConversionError::InvalidHexString)?;
+        } else {
+            let buf = gear_ss58::decode(s.as_bytes(), 32)
+                .map_err(|_| ConversionError::InvalidSs58Address)?;
+            actor_id.0[..].copy_from_slice(&buf);
+        }
+
+        Ok(actor_id)
+    }
+}
+
 impl From<u64> for ActorId {
     fn from(value: u64) -> Self {
         let mut actor_id = Self::zero();
@@ -165,6 +194,22 @@ declare_primitive!(new zero from_h256, MessageId);
 pub struct CodeId([u8; 32]);
 
 declare_primitive!(new zero from_h256 try_from_slice, CodeId);
+
+impl FromStr for CodeId {
+    type Err = ConversionError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.strip_prefix("0x") {
+            Some(s) if s.len() == 64 => {
+                let mut code_id = Self::zero();
+                hex::decode_to_slice(s, &mut code_id.0)
+                    .map_err(|_| ConversionError::InvalidHexString)?;
+                Ok(code_id)
+            }
+            _ => Err(ConversionError::InvalidHexString),
+        }
+    }
+}
 
 /// Reservation identifier.
 ///
