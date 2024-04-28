@@ -23,7 +23,10 @@
 #![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
 #![doc(html_favicon_url = "https://gear-tech.io/favicons/favicon.ico")]
 
-use core::str::FromStr;
+use core::{
+    fmt,
+    str::{self, FromStr},
+};
 use derive_more::{AsMut, AsRef, Display, From, Into};
 #[cfg(feature = "codec")]
 use {
@@ -105,6 +108,47 @@ macro_rules! declare_primitive {
             }
         }
     };
+    (@display $ty:ty) => {
+        impl fmt::Display for $ty {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                const LEN: usize = 32;
+                const MEDIAN: usize = (LEN + 1) / 2;
+
+                let mut e1 = MEDIAN;
+                let mut s2 = MEDIAN;
+
+                if let Some(precision) = f.precision() {
+                    if precision < MEDIAN {
+                        e1 = precision;
+                        s2 = LEN - precision;
+                    }
+                }
+
+                let mut out1 = [0; MEDIAN * 2];
+                let mut out2 = [0; MEDIAN * 2];
+
+                let _ = hex::encode_to_slice(&self.0[..e1], &mut out1[..e1 * 2]);
+                let _ = hex::encode_to_slice(&self.0[s2..], &mut out2[..(LEN - s2) * 2]);
+
+                let p1 = unsafe { str::from_utf8_unchecked(&out1[..e1 * 2]) };
+                let p2 = unsafe { str::from_utf8_unchecked(&out2[..(LEN - s2) * 2]) };
+                let sep = e1.ne(&s2).then_some("..").unwrap_or_default();
+
+                if f.alternate() {
+                    write!(f, "{}(0x{p1}{sep}{p2})", stringify!($ty))
+                } else {
+                    write!(f, "0x{p1}{sep}{p2}")
+                }
+            }
+        }
+    };
+    (@debug $ty:ty) => {
+        impl fmt::Debug for $ty {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                fmt::Display::fmt(self, f)
+            }
+        }
+    };
     ($($feature:ident)*, $ty:ty) => {
         $(
             declare_primitive!(@$feature $ty);
@@ -119,15 +163,13 @@ macro_rules! declare_primitive {
 /// struct. The source `ActorId` for a message being processed can be obtained
 /// using `msg::source()` function. Also, each send function has a target
 /// `ActorId` as one of the arguments.
-#[derive(
-    Clone, Copy, Debug, Default, Hash, Ord, PartialEq, PartialOrd, Eq, From, Into, AsRef, AsMut,
-)]
+#[derive(Clone, Copy, Default, Hash, Ord, PartialEq, PartialOrd, Eq, From, Into, AsRef, AsMut)]
 #[as_ref(forward)]
 #[as_mut(forward)]
 #[cfg_attr(feature = "codec", derive(TypeInfo, Encode, Decode, MaxEncodedLen), codec(crate = scale))]
 pub struct ActorId([u8; 32]);
 
-declare_primitive!(new zero from_h256 try_from_slice, ActorId);
+declare_primitive!(new zero from_h256 try_from_slice display debug, ActorId);
 
 impl FromStr for ActorId {
     type Err = ConversionError;
@@ -167,15 +209,13 @@ impl From<u64> for ActorId {
 /// struct. The message identifier can be obtained for the currently processed
 /// message using the `msg::id()` function. Also, each send and reply functions
 /// return a message identifier.
-#[derive(
-    Clone, Copy, Debug, Default, Hash, Ord, PartialEq, PartialOrd, Eq, From, Into, AsRef, AsMut,
-)]
+#[derive(Clone, Copy, Default, Hash, Ord, PartialEq, PartialOrd, Eq, From, Into, AsRef, AsMut)]
 #[as_ref(forward)]
 #[as_mut(forward)]
 #[cfg_attr(feature = "codec", derive(TypeInfo, Encode, Decode, MaxEncodedLen), codec(crate = scale))]
 pub struct MessageId([u8; 32]);
 
-declare_primitive!(new zero from_h256, MessageId);
+declare_primitive!(new zero from_h256 display debug, MessageId);
 
 /// Code identifier.
 ///
@@ -185,15 +225,13 @@ declare_primitive!(new zero from_h256, MessageId);
 ///
 /// Code identifier is required when creating programs from programs (see `prog`
 /// module for details).
-#[derive(
-    Clone, Copy, Debug, Default, Hash, Ord, PartialEq, PartialOrd, Eq, From, Into, AsRef, AsMut,
-)]
+#[derive(Clone, Copy, Default, Hash, Ord, PartialEq, PartialOrd, Eq, From, Into, AsRef, AsMut)]
 #[as_ref(forward)]
 #[as_mut(forward)]
 #[cfg_attr(feature = "codec", derive(TypeInfo, Encode, Decode, MaxEncodedLen), codec(crate = scale))]
 pub struct CodeId([u8; 32]);
 
-declare_primitive!(new zero from_h256 try_from_slice, CodeId);
+declare_primitive!(new zero from_h256 try_from_slice display debug, CodeId);
 
 impl FromStr for CodeId {
     type Err = ConversionError;
@@ -215,12 +253,10 @@ impl FromStr for CodeId {
 ///
 /// The identifier is used to reserve and unreserve gas amount for program
 /// execution later.
-#[derive(
-    Clone, Copy, Debug, Default, Hash, Ord, PartialEq, PartialOrd, Eq, From, Into, AsRef, AsMut,
-)]
+#[derive(Clone, Copy, Default, Hash, Ord, PartialEq, PartialOrd, Eq, From, Into, AsRef, AsMut)]
 #[as_ref(forward)]
 #[as_mut(forward)]
 #[cfg_attr(feature = "codec", derive(TypeInfo, Encode, Decode, MaxEncodedLen), codec(crate = scale))]
 pub struct ReservationId([u8; 32]);
 
-declare_primitive!(new zero from_h256, ReservationId);
+declare_primitive!(new zero from_h256 display debug, ReservationId);
