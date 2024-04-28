@@ -23,6 +23,7 @@
 #![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
 #![doc(html_favicon_url = "https://gear-tech.io/favicons/favicon.ico")]
 
+use blake2::{digest::typenum::U32, Blake2b, Digest};
 use core::{
     fmt,
     str::{self, FromStr},
@@ -36,6 +37,23 @@ use {
         TypeInfo,
     },
 };
+
+/// BLAKE2b-256 hasher state.
+type Blake2b256 = Blake2b<U32>;
+
+fn hash(data: &[u8]) -> [u8; 32] {
+    let mut ctx = Blake2b256::new();
+    ctx.update(data);
+    ctx.finalize().into()
+}
+
+fn hash_of_array<T: AsRef<[u8]>, const N: usize>(array: [T; N]) -> [u8; 32] {
+    let mut ctx = Blake2b256::new();
+    for data in array {
+        ctx.update(data);
+    }
+    ctx.finalize().into()
+}
 
 /// Message handle.
 ///
@@ -156,6 +174,9 @@ macro_rules! declare_primitive {
     };
 }
 
+/// Program identifier.
+pub type ProgramId = ActorId;
+
 /// Program (actor) identifier.
 ///
 /// Gear allows user and program interactions via messages. Source and target
@@ -170,6 +191,24 @@ macro_rules! declare_primitive {
 pub struct ActorId([u8; 32]);
 
 declare_primitive!(new zero from_h256 try_from_slice display debug, ActorId);
+
+impl ActorId {
+    /// System program identifier.
+    pub const SYSTEM: Self = Self(*b"geargeargeargeargeargeargeargear");
+
+    /// Generates `ActorId` from given `CodeId` and `salt`.
+    pub fn generate_from_user(code_id: CodeId, salt: &[u8]) -> Self {
+        const SALT: &[u8] = b"program_from_user";
+        hash_of_array([SALT, code_id.as_ref(), salt]).into()
+    }
+
+    /// Generates `ActorId` from given `CodeId`, `MessageId` and `salt`.
+    pub fn generate_from_program(code_id: CodeId, salt: &[u8], message_id: MessageId) -> Self {
+        //TODO: consider to move `message_id` to first param
+        const SALT: &[u8] = b"program_from_wasm";
+        hash_of_array([SALT, message_id.as_ref(), code_id.as_ref(), salt]).into()
+    }
+}
 
 impl FromStr for ActorId {
     type Err = ConversionError;
@@ -217,6 +256,45 @@ pub struct MessageId([u8; 32]);
 
 declare_primitive!(new zero from_h256 display debug, MessageId);
 
+impl MessageId {
+    /// Generates `MessageId` for non-program outgoing message.
+    pub fn generate_from_user(
+        block_number: u32,
+        user_id: ProgramId,
+        local_nonce: u128,
+    ) -> MessageId {
+        const SALT: &[u8] = b"external";
+        hash_of_array([
+            SALT,
+            &block_number.to_le_bytes(),
+            user_id.as_ref(),
+            &local_nonce.to_le_bytes(),
+        ])
+        .into()
+    }
+
+    /// Generates `MessageId` for program outgoing message.
+    pub fn generate_outgoing(origin_msg_id: MessageId, local_nonce: u32) -> MessageId {
+        const SALT: &[u8] = b"outgoing";
+        hash_of_array([SALT, origin_msg_id.as_ref(), &local_nonce.to_le_bytes()]).into()
+    }
+
+    /// Generates `MessageId` for reply message depend on status code.
+    ///
+    /// # SAFETY: DO NOT ADJUST REPLY MESSAGE ID GENERATION,
+    /// BECAUSE AUTO-REPLY LOGIC DEPENDS ON PRE-DEFINED REPLY ID.
+    pub fn generate_reply(origin_msg_id: MessageId) -> MessageId {
+        const SALT: &[u8] = b"reply";
+        hash_of_array([SALT, origin_msg_id.as_ref()]).into()
+    }
+
+    /// Generates `MessageId` for signal message depend on status code.
+    pub fn generate_signal(origin_msg_id: MessageId) -> MessageId {
+        const SALT: &[u8] = b"signal";
+        hash_of_array([SALT, origin_msg_id.as_ref()]).into()
+    }
+}
+
 /// Code identifier.
 ///
 /// This identifier can be obtained as a result of executing the
@@ -232,6 +310,13 @@ declare_primitive!(new zero from_h256 display debug, MessageId);
 pub struct CodeId([u8; 32]);
 
 declare_primitive!(new zero from_h256 try_from_slice display debug, CodeId);
+
+impl CodeId {
+    /// Generates `CodeId` from given code.
+    pub fn generate(code: &[u8]) -> Self {
+        hash(code).into()
+    }
+}
 
 impl FromStr for CodeId {
     type Err = ConversionError;
@@ -260,3 +345,11 @@ impl FromStr for CodeId {
 pub struct ReservationId([u8; 32]);
 
 declare_primitive!(new zero from_h256 display debug, ReservationId);
+
+impl ReservationId {
+    /// Generates `ReservationId` from given message and nonce.
+    pub fn generate(msg_id: MessageId, nonce: u64) -> Self {
+        const SALT: &[u8] = b"reservation";
+        hash_of_array([SALT, msg_id.as_ref(), &nonce.to_le_bytes()]).into()
+    }
+}

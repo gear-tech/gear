@@ -11,7 +11,8 @@ derive_more.workspace = true
 parity-scale-codec = { workspace = true, features = ["derive"], optional = true }
 primitive-types = { workspace = true, features = ["scale-info"], optional = true }
 scale-info = { workspace = true, features = ["derive"], optional = true }
-hex = { workspace = true }
+hex.workspace = true
+blake2.workspace = true
 gear-ss58.workspace = true
 
 [features]
