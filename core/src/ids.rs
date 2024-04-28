@@ -18,37 +18,16 @@
 
 //! Base identifiers for messaging primitives.
 
-use blake2::{digest::typenum::U32, Blake2b, Digest};
-pub use gprimitives::{ActorId, CodeId, MessageId, ProgramId, ReservationId};
+pub use gprimitives::{
+    utils::{hash, hash_of_array},
+    ActorId, CodeId, MessageId, ProgramId, ReservationId,
+};
 
 /// Hash length used in gear protocol.
 pub const HASH_LENGTH: usize = 32;
 
 /// Hash type used in gear protocol.
 pub type Hash = [u8; HASH_LENGTH];
-
-/// BLAKE2b-256 hasher state.
-type Blake2b256 = Blake2b<U32>;
-
-/// Creates a unique identifier by passing given argument to blake2b hash-function.
-///
-/// # SAFETY: DO NOT ADJUST HASH FUNCTION, BECAUSE MESSAGE ID IS SENSITIVE FOR IT.
-pub fn hash(data: &[u8]) -> Hash {
-    let mut ctx = Blake2b256::new();
-    ctx.update(data);
-    ctx.finalize().into()
-}
-
-/// Creates a unique identifier by passing given argument to blake2b hash-function.
-///
-/// # SAFETY: DO NOT ADJUST HASH FUNCTION, BECAUSE MESSAGE ID IS SENSITIVE FOR IT.
-pub fn hash_of_array<T: AsRef<[u8]>, const N: usize>(array: [T; N]) -> Hash {
-    let mut ctx = Blake2b256::new();
-    for data in array {
-        ctx.update(data);
-    }
-    ctx.finalize().into()
-}
 
 /// Declares data type for storing any kind of id for gear-core,
 /// which stores 32 bytes under the hood.
@@ -159,43 +138,4 @@ macro_rules! declare_id {
             }
         }
     };
-}
-
-#[test]
-fn formatting_test() {
-    use alloc::format;
-
-    let code_id = CodeId::generate(&[0, 1, 2]);
-    let id = ProgramId::generate_from_user(code_id, &[2, 1, 0]);
-
-    // `Debug`/`Display`.
-    assert_eq!(
-        format!("{id:?}"),
-        "0x6a519a19ffdfd8f45c310b44aecf156b080c713bf841a8cb695b0ea5f765ed3e"
-    );
-    // `Debug`/`Display` with precision 0.
-    assert_eq!(format!("{id:.0?}"), "0x..");
-    // `Debug`/`Display` with precision 1.
-    assert_eq!(format!("{id:.1?}"), "0x6a..3e");
-    // `Debug`/`Display` with precision 2.
-    assert_eq!(format!("{id:.2?}"), "0x6a51..ed3e");
-    // `Debug`/`Display` with precision 4.
-    assert_eq!(format!("{id:.4?}"), "0x6a519a19..f765ed3e");
-    // `Debug`/`Display` with precision 15.
-    assert_eq!(
-        format!("{id:.15?}"),
-        "0x6a519a19ffdfd8f45c310b44aecf15..0c713bf841a8cb695b0ea5f765ed3e"
-    );
-    // `Debug`/`Display` with precision 30 (the same for any case >= 16).
-    assert_eq!(
-        format!("{id:.30?}"),
-        "0x6a519a19ffdfd8f45c310b44aecf156b080c713bf841a8cb695b0ea5f765ed3e"
-    );
-    // Alternate formatter.
-    assert_eq!(
-        format!("{id:#}"),
-        "ProgramId(0x6a519a19ffdfd8f45c310b44aecf156b080c713bf841a8cb695b0ea5f765ed3e)"
-    );
-    // Alternate formatter with precision 2.
-    assert_eq!(format!("{id:#.2}"), "ProgramId(0x6a51..ed3e)");
 }
