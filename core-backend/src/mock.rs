@@ -378,16 +378,12 @@ impl MockMemory {
     pub fn write_attempt_count(&self) -> u32 {
         self.0.borrow().write_attempt_count
     }
-
-    pub fn write(&mut self, offset: u32, buffer: &[u8]) -> Result<(), MemoryError> {
-        self.0.borrow_mut().write(offset, buffer)
-    }
 }
 
 impl<Context> Memory<Context> for MockMemory {
     type GrowError = &'static str;
 
-    fn grow(&mut self, _ctx: &mut Context, pages: WasmPagesAmount) -> Result<(), Self::GrowError> {
+    fn grow(&self, _ctx: &mut Context, pages: WasmPagesAmount) -> Result<(), Self::GrowError> {
         let _ = self.0.borrow_mut().grow(pages);
         Ok(())
     }
@@ -396,7 +392,7 @@ impl<Context> Memory<Context> for MockMemory {
         self.0.borrow_mut().size()
     }
 
-    fn write(&mut self, _ctx: &mut Context, offset: u32, buffer: &[u8]) -> Result<(), MemoryError> {
+    fn write(&self, _ctx: &mut Context, offset: u32, buffer: &[u8]) -> Result<(), MemoryError> {
         self.0.borrow_mut().write(offset, buffer)
     }
 

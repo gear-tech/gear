@@ -196,13 +196,13 @@ pub trait Memory<Context> {
     type GrowError: Debug;
 
     /// Grow memory by number of pages.
-    fn grow(&mut self, ctx: &mut Context, pages: WasmPagesAmount) -> Result<(), Self::GrowError>;
+    fn grow(&self, ctx: &mut Context, pages: WasmPagesAmount) -> Result<(), Self::GrowError>;
 
     /// Return current size of the memory.
     fn size(&self, ctx: &Context) -> WasmPagesAmount;
 
     /// Set memory region at specific pointer.
-    fn write(&mut self, ctx: &mut Context, offset: u32, buffer: &[u8]) -> Result<(), MemoryError>;
+    fn write(&self, ctx: &mut Context, offset: u32, buffer: &[u8]) -> Result<(), MemoryError>;
 
     /// Reads memory contents at the given offset into a buffer.
     fn read(&self, ctx: &Context, offset: u32, buffer: &mut [u8]) -> Result<(), MemoryError>;
@@ -518,28 +518,30 @@ impl AllocationsContext {
 mod tests {
     use super::*;
     use alloc::vec::Vec;
-    use core::iter;
+    use core::{cell::Cell, iter};
 
-    struct TestMemory(WasmPagesAmount);
+    struct TestMemory(Cell<WasmPagesAmount>);
+
+    impl TestMemory {
+        fn new(amount: WasmPagesAmount) -> Self {
+            Self(Cell::new(amount))
+        }
+    }
 
     impl Memory<()> for TestMemory {
         type GrowError = ();
 
-        fn grow(&mut self, _ctx: &mut (), pages: WasmPagesAmount) -> Result<(), Self::GrowError> {
-            self.0 = self.0.add(pages).ok_or(())?;
+        fn grow(&self, _ctx: &mut (), pages: WasmPagesAmount) -> Result<(), Self::GrowError> {
+            let new_pages_amount = self.0.get().add(pages).ok_or(())?;
+            self.0.set(new_pages_amount);
             Ok(())
         }
 
         fn size(&self, _ctx: &()) -> WasmPagesAmount {
-            self.0
+            self.0.get()
         }
 
-        fn write(
-            &mut self,
-            _ctx: &mut (),
-            _offset: u32,
-            _buffer: &[u8],
-        ) -> Result<(), MemoryError> {
+        fn write(&self, _ctx: &mut (), _offset: u32, _buffer: &[u8]) -> Result<(), MemoryError> {
             unimplemented!()
         }
 
@@ -615,7 +617,7 @@ mod tests {
             256.into(),
         )
         .unwrap();
-        let mut mem = TestMemory(16.into());
+        let mut mem = TestMemory::new(16.into());
         alloc_ok(&mut ctx, &mut mem, 16, 16);
         alloc_ok(&mut ctx, &mut mem, 0, 16);
 
@@ -657,7 +659,7 @@ mod tests {
             2.into(),
         )
         .unwrap();
-        let mut mem = TestMemory(WasmPagesAmount::UPPER);
+        let mut mem = TestMemory::new(WasmPagesAmount::UPPER);
         alloc_err(&mut ctx, &mut mem, 1, IncorrectAllocationDataError.into());
     }
 
@@ -919,7 +921,7 @@ mod tests {
                 let (max_pages, mem_size, static_pages, allocations) = mem_params;
                 let mut ctx = AllocationsContext::try_new(mem_size, allocations, static_pages, None, max_pages).unwrap();
 
-                let mut mem = TestMemory(mem_size);
+                let mut mem = TestMemory::new(mem_size);
 
                 for action in actions {
                     match action {

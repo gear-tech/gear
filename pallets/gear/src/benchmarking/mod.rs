@@ -1443,7 +1443,7 @@ benchmarks! {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut store = Store::<HostState<MockExt, BackendMemory<ExecutorMemory>>>::new(None);
         let mem = ExecutorMemory::new(&mut store, 1, None).unwrap();
-        let mut mem = BackendMemory::from(mem);
+        let mem = BackendMemory::from(mem);
     }: {
         for _ in 0..(r * API_BENCHMARK_BATCH_SIZE) {
             mem.grow(&mut store, 1.into()).unwrap();
