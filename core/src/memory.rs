@@ -22,11 +22,7 @@ use crate::{
     buffer::LimitedVec,
     gas::ChargeError,
     pages::{
-        numerated::{
-            interval::{IncorrectRangeError, Interval},
-            iterators::IntervalIterator,
-            tree::IntervalsTree,
-        },
+        numerated::{interval::Interval, tree::IntervalsTree},
         GearPage, WasmPage, WasmPagesAmount,
     },
 };
@@ -37,6 +33,7 @@ use core::{
     fmt::Debug,
     ops::{Deref, DerefMut},
 };
+use numerated::interval::TryFromRangeError;
 use scale_info::{
     scale::{self, Decode, Encode, EncodeLike, Input, Output},
     TypeInfo,
@@ -229,6 +226,7 @@ pub trait Memory {
 #[derive(Debug)]
 pub struct AllocationsContext {
     /// Pages which has been in storage before execution
+    initial_pages: IntervalsTree<WasmPage>,
     allocations: IntervalsTree<WasmPage>,
     max_pages: WasmPagesAmount,
     static_pages: WasmPagesAmount,
@@ -344,6 +342,7 @@ impl AllocationsContext {
         )?;
 
         Ok(Self {
+            initial_pages: allocations.clone(),
             allocations,
             max_pages,
             static_pages,
@@ -417,40 +416,38 @@ impl AllocationsContext {
         mem: &mut impl Memory,
         charge_gas_for_grow: impl FnOnce(WasmPagesAmount) -> Result<(), ChargeError>,
     ) -> Result<WasmPage, AllocError> {
-        let mem_size = mem.size();
-
-        let end_static = self
-            .static_pages
-            .to_page_number()
-            .ok_or(AllocError::ProgramAllocOutOfBounds)?;
-
-        // Trying to allocate zero pages, returns end of static page in that case.
-        if pages == WasmPage::from(0) {
-            return Ok(end_static);
-        }
-
-        let search_interval = match IntervalIterator::try_from(self.static_pages..self.max_pages) {
+        let heap = match Interval::try_from(self.static_pages..self.max_pages) {
             Ok(interval) => interval,
-            Err(IncorrectRangeError) => unreachable!(
-                "self.static_pages <= self.max_pages, this is guaranteed by `validate_memory_params`"
-            )
+            Err(TryFromRangeError::IncorrectRange) => unreachable!(
+                "Must be self.static_pages <= self.max_pages. This is guaranteed by `Self::try_new`."
+            ),
+            Err(TryFromRangeError::EmptyRange) => {
+                // If all memory is static, then no pages can be allocated.
+                // NOTE: returns an error even if `pages` == 0.
+                return Err(AllocError::ProgramAllocOutOfBounds)
+            },
         };
+
+        // If trying to allocate zero pages, then returns heap start page (legacy).
+        if pages == WasmPage::from(0) {
+            return Ok(heap.start());
+        }
 
         let Some(suitable_void) = self
             .allocations
-            .voids(search_interval)
+            .voids(heap)
             .find(|void| void.len() >= pages)
         else {
             return Err(AllocError::ProgramAllocOutOfBounds);
         };
 
-        // Panic is impossible, because `suitable_void` is found.
         let interval = Interval::<WasmPage>::with_len(suitable_void.start(), u32::from(pages))
             .unwrap_or_else(|err| {
+                // Panic is impossible, because `suitable_void` is found.
                 unreachable!("Cannot create interval with len == `pages`: {err:?}")
             });
 
-        if let Ok(grow) = Interval::<WasmPage>::try_from(mem_size..interval.end().inc()) {
+        if let Ok(grow) = Interval::<WasmPage>::try_from(mem.size()..interval.end().inc()) {
             charge_gas_for_grow(grow.len())?;
             let grow_handler = G::before_grow_action(mem);
             mem.grow(grow.len())
@@ -489,8 +486,14 @@ impl AllocationsContext {
     }
 
     /// Decomposes this instance and returns allocations.
-    pub fn into_parts(self) -> (WasmPagesAmount, IntervalsTree<WasmPage>) {
-        (self.static_pages, self.allocations)
+    pub fn into_parts(
+        self,
+    ) -> (
+        WasmPagesAmount,
+        IntervalsTree<WasmPage>,
+        IntervalsTree<WasmPage>,
+    ) {
+        (self.static_pages, self.initial_pages, self.allocations)
     }
 }
 

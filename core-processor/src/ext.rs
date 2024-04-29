@@ -153,8 +153,7 @@ pub struct ExtInfo {
     pub gas_amount: GasAmount,
     pub gas_reserver: GasReserver,
     pub system_reservation_context: SystemReservationContext,
-    // +_+_+ - fix this, return initial allocations
-    pub allocations: IntervalsTree<WasmPage>,
+    pub allocations: Option<IntervalsTree<WasmPage>>,
     pub pages_data: BTreeMap<GearPage, PageBuf>,
     pub generated_dispatches: Vec<(Dispatch, u32, Option<ReservationId>)>,
     pub awakening: Vec<(MessageId, u32)>,
@@ -366,7 +365,7 @@ impl ProcessorExternalities for Ext {
             ..
         } = self.context;
 
-        let (static_pages, allocations) = allocations_context.into_parts();
+        let (static_pages, init_allocations, allocations) = allocations_context.into_parts();
 
         // Accessed pages are all pages, that had been released and are in allocations set or static.
         let mut accessed_pages = gear_lazy_pages_interface::get_write_accessed_pages();
@@ -405,7 +404,7 @@ impl ProcessorExternalities for Ext {
             gas_amount: gas_counter.to_amount(),
             gas_reserver,
             system_reservation_context,
-            allocations,
+            allocations: (allocations != init_allocations).then_some(allocations),
             pages_data,
             generated_dispatches,
             awakening,

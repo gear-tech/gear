@@ -237,7 +237,7 @@ where
         gas_reserver: Some(info.gas_reserver),
         system_reservation_context: info.system_reservation_context,
         page_update,
-        allocations: Some(info.allocations),
+        allocations: info.allocations,
         reply_sent: info.reply_sent,
     })
 }
