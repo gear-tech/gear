@@ -18,7 +18,7 @@
 
 use crate::{CodeStorage, Config, Pallet};
 use frame_support::{
-    traits::{Get, GetStorageVersion, OnRuntimeUpgrade},
+    traits::{Get, GetStorageVersion, OnRuntimeUpgrade, StorageVersion},
     weights::Weight,
 };
 use gear_core::code::InstrumentedCode;
@@ -34,27 +34,32 @@ use {
     sp_std::vec::Vec,
 };
 
-const SUITABLE_CURRENT_STORAGE_VERSION: u16 = 4;
-const SUITABLE_ONCHAIN_STORAGE_VERSION: u16 = 3;
+const MIGRATE_FROM_VERSION: u16 = 3;
+const MIGRATE_TO_VERSION: u16 = 4;
+const ALLOWED_CURRENT_STORAGE_VERSION: u16 = 5;
 
 pub struct AppendStackEndMigration<T: Config>(PhantomData<T>);
 
 impl<T: Config> OnRuntimeUpgrade for AppendStackEndMigration<T> {
     fn on_runtime_upgrade() -> Weight {
-        let current = Pallet::<T>::current_storage_version();
         let onchain = Pallet::<T>::on_chain_storage_version();
-
-        log::info!(
-            "🚚 Running migration with current storage version {current:?} / onchain {onchain:?}"
-        );
 
         // 1 read for onchain storage version
         let mut weight = T::DbWeight::get().reads(1);
         let mut counter = 0;
 
-        if current == SUITABLE_CURRENT_STORAGE_VERSION
-            && onchain == SUITABLE_ONCHAIN_STORAGE_VERSION
-        {
+        // NOTE: in 1.3.0 release, current storage version == `MIGRATE_TO_VERSION` is checked,
+        // but we need to skip this check now, because storage version was increased.
+        if onchain == MIGRATE_FROM_VERSION {
+            let current = Pallet::<T>::current_storage_version();
+            if current != ALLOWED_CURRENT_STORAGE_VERSION {
+                log::error!("❌ Migration is not allowed for current storage version {current:?}.");
+                return weight;
+            }
+
+            let update_to = StorageVersion::new(MIGRATE_TO_VERSION);
+            log::info!("🚚 Running migration from {onchain:?} to {update_to:?}, current storage version is {current:?}.");
+
             CodeStorage::<T>::translate(|_, code: onchain::InstrumentedCode| {
                 weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
                 counter += 1;
@@ -77,11 +82,11 @@ impl<T: Config> OnRuntimeUpgrade for AppendStackEndMigration<T> {
             // Put new storage version
             weight = weight.saturating_add(T::DbWeight::get().writes(1));
 
-            current.put::<Pallet<T>>();
+            update_to.put::<Pallet<T>>();
 
-            log::info!("Successfully migrated storage. {counter} codes has been migrated");
+            log::info!("✅ Successfully migrated storage. {counter} codes have been migrated");
         } else {
-            log::info!("❌ Migration did not execute. This probably should be removed");
+            log::info!("🟠 Migration requires onchain version {MIGRATE_FROM_VERSION}, so was skipped for {onchain:?}");
         }
 
         weight
@@ -89,10 +94,19 @@ impl<T: Config> OnRuntimeUpgrade for AppendStackEndMigration<T> {
 
     #[cfg(feature = "try-runtime")]
     fn pre_upgrade() -> Result<Vec<u8>, TryRuntimeError> {
+        let current = Pallet::<T>::current_storage_version();
         let onchain = Pallet::<T>::on_chain_storage_version();
 
-        let res = (onchain == SUITABLE_ONCHAIN_STORAGE_VERSION)
-            .then(|| onchain::CodeStorage::<T>::iter().count() as u64);
+        let res = if onchain == MIGRATE_FROM_VERSION {
+            ensure!(
+                current == ALLOWED_CURRENT_STORAGE_VERSION,
+                "Current storage version is not allowed for migration, check migration code in order to allow it."
+            );
+
+            Some(onchain::CodeStorage::<T>::iter().count() as u64)
+        } else {
+            None
+        };
 
         Ok(res.encode())
     }
