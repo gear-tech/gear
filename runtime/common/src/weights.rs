@@ -144,8 +144,8 @@ pub fn check_syscall_weights<T: pallet_gear::Config>(
         };
     }
 
+    // +_+_+ add checks
     check!(alloc);
-    check!(alloc_per_page);
     check!(free);
     check!(free_range);
     check!(free_range_per_page);

@@ -137,8 +137,7 @@ fn syscall_weights_test() {
     let weights = SyscallWeights::<Runtime>::default();
 
     let expected = SyscallWeights {
-        alloc: 8_000_000.into(),
-        alloc_per_page: 247_000.into(),
+        alloc: 1_300_000.into(),
         free: 628_000.into(),
         free_range: 772_000.into(),
         free_range_per_page: 63_000.into(),
@@ -222,7 +221,7 @@ fn page_costs_heuristic_test() {
         load_page_data: 10_000_000.into(),
         upload_page_data: 105_000_000.into(),
         static_page: 100.into(),
-        mem_grow: 1_100_000.into(),
+        mem_grow: 1_000_000.into(),
         parachain_read_heuristic: 0.into(),
     };
 

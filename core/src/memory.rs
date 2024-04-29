@@ -303,9 +303,6 @@ pub struct IncorrectAllocationDataError;
 /// Allocation error
 #[derive(Debug, Clone, Eq, PartialEq, derive_more::Display, derive_more::From)]
 pub enum AllocError {
-    /// Incorrect allocation data error
-    #[display(fmt = "Allocated memory pages or memory size are incorrect")]
-    IncorrectAllocationData,
     /// The error occurs when a program tries to allocate more memory than
     /// allowed.
     #[display(fmt = "Trying to allocate more wasm program memory than allowed")]
@@ -347,7 +344,6 @@ impl AllocationsContext {
         )?;
 
         Ok(Self {
-            init_allocations: allocations.clone(),
             allocations,
             max_pages,
             static_pages,
@@ -358,7 +354,7 @@ impl AllocationsContext {
     /// NOTE: this params partially checked in `Code::try_new` in `gear-core`.
     fn validate_memory_params(
         memory_size: WasmPagesAmount,
-        allocations: &BTreeSet<WasmPage>,
+        allocations: &IntervalsTree<WasmPage>,
         static_pages: WasmPagesAmount,
         stack_end: Option<WasmPage>,
         max_pages: WasmPagesAmount,
@@ -386,7 +382,7 @@ impl AllocationsContext {
             }
         }
 
-        if let Some(&page) = allocations.last() {
+        if let Some(page) = allocations.start() {
             if page >= memory_size {
                 return Err(MemorySetupError::AllocatedPageOutOfAllowedInterval {
                     page,
@@ -395,7 +391,7 @@ impl AllocationsContext {
                 });
             }
         }
-        if let Some(&page) = allocations.first() {
+        if let Some(page) = allocations.end() {
             if page < static_pages {
                 return Err(MemorySetupError::AllocatedPageOutOfAllowedInterval {
                     page,
@@ -423,13 +419,14 @@ impl AllocationsContext {
     ) -> Result<WasmPage, AllocError> {
         let mem_size = mem.size();
 
-        // If trying to allocate zero pages, then returns end of static memory page.
-        if pages == WasmPagesAmount::from(0) {
-            // TODO: +_+_+
-            return self
-                .static_pages
-                .to_page_number()
-                .ok_or(AllocError::IncorrectAllocationData);
+        let end_static = self
+            .static_pages
+            .to_page_number()
+            .ok_or(AllocError::ProgramAllocOutOfBounds)?;
+
+        // Trying to allocate zero pages, returns end of static page in that case.
+        if pages == WasmPage::from(0) {
+            return Ok(end_static);
         }
 
         let search_interval = match IntervalIterator::try_from(self.static_pages..self.max_pages) {
@@ -625,27 +622,11 @@ mod tests {
     }
 
     #[test]
-    fn alloc_incorrect_data() {
-        let _ = env_logger::try_init();
-
-        let mut ctx = AllocationsContext::try_new(
-            2.into(),
-            iter::once(1.into()).collect(),
-            1.into(),
-            None,
-            2.into(),
-        )
-        .unwrap();
-        let mut mem = TestMemory(WasmPagesAmount::UPPER);
-        alloc_err(&mut ctx, &mut mem, 1, IncorrectAllocationDataError.into());
-    }
-
-    #[test]
     fn memory_params_validation() {
         assert_eq!(
             AllocationsContext::validate_memory_params(
                 4.into(),
-                &iter::once(2.into()).collect(),
+                &iter::once(WasmPage::from(2)).collect(),
                 2.into(),
                 Some(2.into()),
                 4.into(),
@@ -656,7 +637,7 @@ mod tests {
         assert_eq!(
             AllocationsContext::validate_memory_params(
                 4.into(),
-                &BTreeSet::new(),
+                &Default::default(),
                 2.into(),
                 Some(2.into()),
                 3.into(),
@@ -670,7 +651,7 @@ mod tests {
         assert_eq!(
             AllocationsContext::validate_memory_params(
                 1.into(),
-                &BTreeSet::new(),
+                &Default::default(),
                 2.into(),
                 Some(1.into()),
                 4.into(),
@@ -684,7 +665,7 @@ mod tests {
         assert_eq!(
             AllocationsContext::validate_memory_params(
                 4.into(),
-                &BTreeSet::new(),
+                &Default::default(),
                 2.into(),
                 Some(3.into()),
                 4.into(),
@@ -698,7 +679,7 @@ mod tests {
         assert_eq!(
             AllocationsContext::validate_memory_params(
                 4.into(),
-                &iter::once(1.into()).collect(),
+                &iter::once(WasmPage::from(1)).collect(),
                 2.into(),
                 Some(2.into()),
                 4.into(),
@@ -713,7 +694,7 @@ mod tests {
         assert_eq!(
             AllocationsContext::validate_memory_params(
                 4.into(),
-                &iter::once(4.into()).collect(),
+                &iter::once(WasmPage::from(4)).collect(),
                 2.into(),
                 Some(2.into()),
                 4.into(),
@@ -728,7 +709,7 @@ mod tests {
         assert_eq!(
             AllocationsContext::validate_memory_params(
                 13.into(),
-                &iter::once(1.into()).collect(),
+                &iter::once(WasmPage::from(1)).collect(),
                 10.into(),
                 None,
                 13.into()
@@ -743,7 +724,7 @@ mod tests {
         assert_eq!(
             AllocationsContext::validate_memory_params(
                 13.into(),
-                &iter::once(1.into()).collect(),
+                &iter::once(WasmPage::from(1)).collect(),
                 WasmPagesAmount::UPPER,
                 None,
                 13.into()
@@ -757,7 +738,7 @@ mod tests {
         assert_eq!(
             AllocationsContext::validate_memory_params(
                 WasmPagesAmount::UPPER,
-                &iter::once(1.into()).collect(),
+                &iter::once(WasmPage::from(1)).collect(),
                 10.into(),
                 None,
                 WasmPagesAmount::UPPER,
@@ -835,7 +816,7 @@ mod tests {
                 WasmPagesAmount,
                 WasmPagesAmount,
                 WasmPagesAmount,
-                BTreeSet<WasmPage>,
+                IntervalsTree<WasmPage>,
             ),
         > {
             wasm_pages_amount()
@@ -897,9 +878,6 @@ mod tests {
                     match action {
                         Action::Alloc { pages } => {
                             match ctx.alloc::<NoopGrowHandler>(pages, &mut mem, |_| Ok(())) {
-                                Err(AllocError::IncorrectAllocationData) => {
-                                    assert!(static_pages.to_page_number().is_none());
-                                }
                                 Err(AllocError::ProgramAllocOutOfBounds) => {
                                     let x = mem.size().add(pages);
                                     assert!(x.is_none() || x.unwrap() > max_pages);
