@@ -505,7 +505,6 @@ where
         let proposer = authorship::ProposerFactory::new(
             task_manager.spawn_handle(),
             client.clone(),
-            backend.clone(),
             transaction_pool.clone(),
             prometheus_registry.as_ref(),
             telemetry.as_ref().map(|x| x.handle()),
