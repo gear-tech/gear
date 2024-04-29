@@ -408,6 +408,40 @@ where
         module.into()
     }
 
+    /// Creates a WebAssembly module with a data section of size `data_section_bytes`.
+    /// The generated module contains `data_segment_num` data segments with an overall size of `data_section_bytes`.
+    /// If `data_segment_num` is 0, no data segments are added.
+    /// If the result of dividing `data_section_bytes` by `data_segment_num` is 0, zero-length data segments are added.
+    pub fn sized_data_section(data_section_bytes: u32, data_segment_num: u32) -> Self {
+        let mut module = ModuleDefinition {
+            memory: Some(ImportedMemory::max::<T>()),
+            ..Default::default()
+        };
+
+        if data_segment_num != 0 {
+            let (data_segment_size, residual_bytes) = (
+                data_section_bytes / data_segment_num,
+                data_section_bytes % data_segment_num,
+            );
+
+            for seg_idx in 0..data_segment_num {
+                module.data_segments.push(DataSegment {
+                    offset: seg_idx * data_segment_size,
+                    value: vec![0xA5; data_segment_size as usize],
+                });
+            }
+
+            // Add residual bytes to the last data segment
+            if residual_bytes != 0 {
+                if let Some(last) = module.data_segments.last_mut() {
+                    last.value
+                        .resize(data_segment_size as usize + residual_bytes as usize, 0xA5)
+                }
+            }
+        }
+        module.into()
+    }
+
     /// Creates a wasm module of `target_bytes` size.
     /// The generated module generates wasm module containing only global section.
     pub fn sized_global_section(target_bytes: u32) -> Self {
