@@ -274,7 +274,7 @@ impl pallet_babe::Config for Runtime {
 
     type WeightInfo = ();
     type MaxAuthorities = MaxAuthorities;
-    type MaxNominators = MaxNominatorRewardedPerValidator;
+    type MaxNominators = MaxNominators;
 
     type KeyOwnerProof = sp_session::MembershipProof;
     type EquivocationReportSystem =
@@ -286,7 +286,7 @@ impl pallet_grandpa::Config for Runtime {
 
     type WeightInfo = ();
     type MaxAuthorities = MaxAuthorities;
-    type MaxNominators = MaxNominatorRewardedPerValidator;
+    type MaxNominators = MaxNominators;
     type MaxSetIdSessionEntries = MaxSetIdSessionEntries;
     type KeyOwnerProof = sp_session::MembershipProof;
     type EquivocationReportSystem =
@@ -615,7 +615,11 @@ parameter_types! {
     pub const BondingDuration: sp_staking::EraIndex = 14;
     // 41 eras during which slashes can be cancelled (slightly less than 7 days)
     pub const SlashDeferDuration: sp_staking::EraIndex = 13;
-    pub const MaxNominatorRewardedPerValidator: u32 = 256;
+    pub const MaxExposurePageSize: u32 = 512;
+    // Note: this is not really correct as Max Nominators is (MaxExposurePageSize * page_count) but
+    // this is an unbounded number. We just set it to a reasonably high value, 1 full page
+    // of nominators.
+    pub const MaxNominators: u32 = 512;
     pub const OffendingValidatorsThreshold: Perbill = Perbill::from_percent(17);
     // 2 hour session, 30 min unsigned phase, 16 offchain executions.
     pub OffchainRepeat: BlockNumber = UnsignedPhase::get() / 16;
@@ -651,7 +655,7 @@ impl pallet_staking::Config for Runtime {
     type SessionInterface = Self;
     type EraPayout = StakingRewards;
     type NextNewSession = Session;
-    type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
+    type MaxExposurePageSize = MaxExposurePageSize;
     type OffendingValidatorsThreshold = OffendingValidatorsThreshold;
     type VoterList = BagsList;
     type TargetList = pallet_staking::UseValidatorsMap<Self>;
@@ -1441,9 +1445,13 @@ impl_runtime_apis_plus_common! {
         }
     }
 
-    impl pallet_staking_runtime_api::StakingApi<Block, Balance> for Runtime {
+    impl pallet_staking_runtime_api::StakingApi<Block, Balance, AccountId> for Runtime {
         fn nominations_quota(balance: Balance) -> u32 {
             Staking::api_nominations_quota(balance)
+        }
+
+        fn eras_stakers_page_count(era: sp_staking::EraIndex, account: AccountId) -> sp_staking::Page {
+            Staking::api_eras_stakers_page_count(era, account)
         }
     }
 
