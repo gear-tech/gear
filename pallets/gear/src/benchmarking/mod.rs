@@ -113,6 +113,7 @@ const MAX_PAYLOAD_LEN: u32 = 32 * 64 * 1024;
 const MAX_PAYLOAD_LEN_KB: u32 = MAX_PAYLOAD_LEN / 1024;
 const MAX_PAGES: u32 = 512;
 const MAX_SALT_SIZE_BYTES: u32 = 4 * 1024 * 1024;
+const MAX_NUMBER_OF_DATA_SEGMENTS: u32 = 1024;
 
 /// How many batches we do per API benchmark.
 const API_BENCHMARK_BATCHES: u32 = 20;
@@ -372,11 +373,21 @@ benchmarks! {
         BenchmarkStorage::<T>::get(c).expect("Infallible: Key not found in storage");
     }
 
-    // `c`: Size of the code in kilobytes.
-    instantiate_module_per_kb {
+    // `c`: Size of the code section in kilobytes.
+    instantiate_module_with_code_section_per_kb {
         let c in 0 .. T::Schedule::get().limits.code_len / 1024;
 
         let WasmModule { code, .. } = WasmModule::<T>::sized(c * 1024, Location::Init);
+    }: {
+        let ext = Externalities::new(ProcessorContext::new_mock());
+        Environment::new(ext, &code, DispatchKind::Init, Default::default(), max_pages::<T>().into()).unwrap();
+    }
+
+    // `d`: Size of the data section in kilobytes.
+    instantiate_module_with_data_section_per_kb {
+        let d in 0 .. T::Schedule::get().limits.code_len / 1024;
+
+        let WasmModule { code, .. } = WasmModule::<T>::sized_data_section(d * 1024, MAX_NUMBER_OF_DATA_SEGMENTS);
     }: {
         let ext = Externalities::new(ProcessorContext::new_mock());
         Environment::new(ext, &code, DispatchKind::Init, Default::default(), max_pages::<T>().into()).unwrap();
