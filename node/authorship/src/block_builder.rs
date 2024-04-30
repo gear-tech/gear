@@ -76,6 +76,7 @@ where
     ///
     /// Returns an error if the parent block specified in
     /// [`on_parent_block`](BlockBuilderBuilder::on_parent_block) does not exist.
+    #[allow(unused)]
     pub fn fetch_parent_block_number<H: HeaderBackend<B>>(
         self,
         header_backend: &H,
@@ -128,6 +129,7 @@ pub struct BlockBuilderBuilderStage2<'a, B: BlockT, C> {
 
 impl<'a, B: BlockT, C> BlockBuilderBuilderStage2<'a, B, C> {
     /// Enable proof recording for the block builder.
+    #[allow(unused)]
     pub fn enable_proof_recording(mut self) -> Self {
         self.enable_proof_recording = true;
         self
