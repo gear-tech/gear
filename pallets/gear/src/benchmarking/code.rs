@@ -682,8 +682,13 @@ pub mod body {
         *body.locals_mut() = vec![Local::new(num, ValueType::I64)];
     }
 
-    pub fn unreachable_condition(instructions: &mut Vec<Instruction>, flag: Instruction) {
+    pub fn unreachable_condition_i32(
+        instructions: &mut Vec<Instruction>,
+        flag: Instruction,
+        compare_with: i32,
+    ) {
         let additional = vec![
+            Instruction::I32Const(compare_with),
             flag,
             Instruction::If(BlockType::NoResult),
             Instruction::Unreachable,

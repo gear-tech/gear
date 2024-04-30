@@ -36,7 +36,7 @@ use {
 
 const MIGRATE_FROM_VERSION: u16 = 3;
 const MIGRATE_TO_VERSION: u16 = 4;
-const ALLOWED_CURRENT_STORAGE_VERSION: u16 = 5;
+const ALLOWED_CURRENT_STORAGE_VERSION: u16 = 6;
 
 pub struct AppendStackEndMigration<T: Config>(PhantomData<T>);
 
