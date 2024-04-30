@@ -55,21 +55,15 @@ impl Toolchain {
             "`rustup` exit code is not successful"
         );
 
-        let toolchain_desc = output
-            .stdout
-            .split(|&x| x == b' ')
-            .next()
-            .and_then(|s| std::str::from_utf8(s).ok())
-            .expect("unexpected `rustup` output");
+        let toolchain_desc =
+            std::str::from_utf8(&output.stdout).expect("unexpected `rustup` output");
 
         // TODO #3499: replace it with `std::sync::LazyLock` when it becomes stable
         static TOOLCHAIN_CHANNEL_RE: Lazy<Regex> = Lazy::new(|| {
-            // Matches toolchain desc, for example: `nightly-2024-01-25-aarch64-apple-darwin`.
-            let pattern = format!(
-                r"(?:{})(?:-(?:\d{{4}}-\d{{2}}-\d{{2}}))?",
-                TOOLCHAIN_CHANNELS.join("|")
-            );
-            // Note this regex gives you a guaranteed match of the channel[-date] as group 0
+            let channels = TOOLCHAIN_CHANNELS.join("|");
+            let pattern = format!(r"(?:{channels})(?:-\d{{4}}-\d{{2}}-\d{{2}})?");
+            // Note this regex gives you a guaranteed match of the channel[-date] as group 0,
+            // for example: `nightly-2024-01-25`
             Regex::new(&pattern).unwrap()
         });
 
