@@ -292,12 +292,6 @@ pub enum MemorySetupError {
     },
 }
 
-// TODO: This error type used for temporary solution, should be removed in #3791.
-/// Incorrect allocation data error
-#[derive(Debug, Clone, Eq, PartialEq, derive_more::Display)]
-#[display(fmt = "Allocated memory pages or memory size are incorrect")]
-pub struct IncorrectAllocationDataError;
-
 /// Allocation error
 #[derive(Debug, Clone, Eq, PartialEq, derive_more::Display, derive_more::From)]
 pub enum AllocError {
