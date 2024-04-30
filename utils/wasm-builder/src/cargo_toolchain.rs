@@ -64,12 +64,12 @@ impl Toolchain {
 
         // TODO #3499: replace it with `std::sync::LazyLock` when it becomes stable
         static TOOLCHAIN_CHANNEL_RE: Lazy<Regex> = Lazy::new(|| {
-            // This regex is borrowed from the rustup code and modified (added non-capturing groups)
+            // Matches toolchain desc, for example: `nightly-2024-01-25-aarch64-apple-darwin`.
             let pattern = format!(
                 r"(?:{})(?:-(?:\d{{4}}-\d{{2}}-\d{{2}}))?",
                 TOOLCHAIN_CHANNELS.join("|")
             );
-            // Note this regex gives you a guaranteed match of the channel[-date] as group 1
+            // Note this regex gives you a guaranteed match of the channel[-date] as group 0
             Regex::new(&pattern).unwrap()
         });
 
