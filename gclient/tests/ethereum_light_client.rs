@@ -20,19 +20,20 @@ use ark_bls12_381::{G1Affine, G1Projective as G1, G2Affine, G2Projective as G2};
 use ark_ec::Group;
 use ark_serialize::{CanonicalSerialize, CanonicalDeserialize};
 use ark_std::{ops::Mul, UniformRand};
-use demo_ethereum_light_client::{Header, SyncCommittee, Bytes32, Init, WASM_BINARY, primitives::U64, Handle, SignatureBytes, ArkScale, SyncAggregate};
+use demo_ethereum_light_client::{primitives::U64, ArkScale, BeaconBlock, BeaconBlockBody, BeaconBlockBodyLight, Bytes32, Handle, Header, Init, SignatureBytes, SyncAggregate, SyncCommittee, WASM_BINARY};
 use gclient::{EventListener, EventProcessor, GearApi, Result};
 use gstd::prelude::*;
 use serde::{Deserialize, de::DeserializeOwned};
 use eyre::Result as EyreResult;
-use ssz_rs::Serialize;
+use ssz_rs::{Deserialize as _, List, Merkleized, Node, Serialize};
 use std::cmp;
 
 type ScalarField = <G2 as Group>::ScalarField;
 
 // https://github.com/ethereum/consensus-specs/blob/dev/specs/altair/light-client/p2p-interface.md#configuration
 pub const MAX_REQUEST_LIGHT_CLIENT_UPDATES: u8 = 128;
-const RPC_URL: &str = "http://unstable.sepolia.beacon-api.nimbus.team";
+//const RPC_URL: &str = "http://unstable.sepolia.beacon-api.nimbus.team";
+const RPC_URL: &str = "http://127.0.0.1:5052";
 
 #[derive(Deserialize)]
 #[serde(untagged)]
@@ -91,6 +92,32 @@ struct UpdateData {
     data: Update,
 }
 
+#[derive(serde::Deserialize, Debug)]
+struct BeaconBlockResponse {
+    data: BeaconBlockData,
+}
+
+#[derive(serde::Deserialize, Debug)]
+struct BeaconBlockData {
+    message: BeaconBlock,
+}
+
+#[derive(serde::Deserialize, Debug)]
+struct FinalityUpdateResponse {
+    data: FinalityUpdate,
+}
+
+#[derive(serde::Deserialize, Debug)]
+pub struct FinalityUpdate {
+    #[serde(deserialize_with = "header_deserialize")]
+    pub attested_header: Header,
+    #[serde(deserialize_with = "header_deserialize")]
+    pub finalized_header: Header,
+    pub finality_branch: Vec<Bytes32>,
+    pub sync_aggregate: SyncAggregate,
+    pub signature_slot: U64,
+}
+
 async fn get<R: DeserializeOwned>(req: &str) -> EyreResult<R> {
     let bytes = reqwest::get(req).await?.bytes().await?;
 
@@ -108,7 +135,7 @@ async fn get_bootstrap(checkpoint: &str) -> EyreResult<Bootstrap> {
     );
 
     let res: BootstrapResponse = get(&req).await.map_err(|e| {
-        log::trace!("get bootstrap: {e:?}");
+        println!("get bootstrap: {e:?}");
         e
     })?;
 
@@ -123,12 +150,35 @@ async fn get_updates(period: u64, count: u8) -> EyreResult<Vec<Update>> {
     );
 
     let res: UpdateResponse = get(&req).await.map_err(|e| {
-        log::trace!("get updates: {e:?}");
+        println!("get updates: {e:?}");
 
         e
     })?;
 
     Ok(res.into_iter().map(|d| d.data).collect())
+}
+
+async fn get_block_body(slot: u64) -> EyreResult<BeaconBlockBody> {
+    let req = format!("{RPC_URL}/eth/v2/beacon/blocks/{slot}");
+
+    let res: BeaconBlockResponse = get(&req).await.map_err(|e| {
+        println!("get_block_body: {e:?}");
+
+        e
+    })?;
+
+    Ok(res.data.message.body)
+}
+
+async fn get_finality_update() -> EyreResult<FinalityUpdate> {
+    let req = format!("{RPC_URL}/eth/v1/beacon/light_client/finality_update");
+    let res: FinalityUpdateResponse = get(&req).await.map_err(|e| {
+        println!("get_finality_update: {e:?}");
+
+        e
+    })?;
+
+    Ok(res.data)
 }
 
 async fn common_upload_program(
@@ -173,8 +223,8 @@ async fn upload_program(
 
 #[tokio::test]
 async fn ethereum_light_client() -> Result<()> {
-    // 0xde41619442beea57eeae7a5c37ed13f1ca4f02611d4ad117d7cfa2e008cac75b
-    let checkpoint = [222, 65, 97, 148, 66, 190, 234, 87, 238, 174, 122, 92, 55, 237, 19, 241, 202, 79, 2, 97, 29, 74, 209, 23, 215, 207, 162, 224, 8, 202, 199, 91];
+    // 0xe8897518856db6c1585a4fb26c4f2192d4fa60a48ca68e2d971b5800932428b0
+    let checkpoint = [232, 137, 117, 24, 133, 109, 182, 193, 88, 90, 79, 178, 108, 79, 33, 146, 212, 250, 96, 164, 140, 166, 142, 45, 151, 27, 88, 0, 147, 36, 40, 176];
     let checkpoint_hex = hex::encode(checkpoint);
     let bootstrap = get_bootstrap(&checkpoint_hex).await.map_err(|e| anyhow::Error::msg(e.to_string()))?;
     // println!("bootstrap = {bootstrap:?}");
@@ -236,6 +286,9 @@ async fn ethereum_light_client() -> Result<()> {
         .map_err(|e| anyhow::Error::msg(e.to_string()))?;
 
     for update in updates {
+        let slot: u64 = update.finalized_header.slot.into();
+        let body_root = update.finalized_header.body_root.clone();
+
         println!("111");
         let signature = <G2 as ark_serialize::CanonicalDeserialize>::deserialize_compressed(update.sync_aggregate.sync_committee_signature.as_ref());
         println!("222");
@@ -288,6 +341,110 @@ async fn ethereum_light_client() -> Result<()> {
                 .iter()
                 .map(|branch| <[u8; 32]>::try_from(branch.as_slice()).unwrap())
                 .collect::<_>()),
+        };
+
+        let gas_limit = client
+            .calculate_handle_gas(None, program_id.into(), payload.encode(), 0, true)
+            .await?
+            .min_limit;
+        println!("gas_limit {gas_limit:?}");
+
+        let (message_id, _) = client
+            .send_message(program_id.into(), payload, gas_limit, 0)
+            .await?;
+
+        assert!(listener.message_processed(message_id).await?.succeed());
+    }
+
+    println!();
+    println!("before loop");
+    println!();
+
+    for _ in 0..20 {
+        let update = get_finality_update()
+            .await
+            .map_err(|e| anyhow::Error::msg(e.to_string()))?;
+
+        let slot: u64 = update.finalized_header.slot.into();
+
+        println!("111 slot = {slot:?}, attested slot = {:?}, signature slot = {:?}", update.attested_header.slot, update.signature_slot);
+        let signature = <G2 as ark_serialize::CanonicalDeserialize>::deserialize_compressed(update.sync_aggregate.sync_committee_signature.as_ref());
+        println!("222");
+
+        let Ok(signature) = signature else {
+            println!("failed to deserialize point on G2");
+            continue;
+        };
+
+        let payload = Handle::Update {
+            update: {
+                let update = demo_ethereum_light_client::Update {
+                    attested_header: update.attested_header,
+                    sync_aggregate: update.sync_aggregate,
+                    next_sync_committee: None,
+                    finalized_header: Some(update.finalized_header),
+                };
+
+                buffer.clear();
+                update.serialize(&mut buffer).unwrap();
+
+                buffer.clone()
+            },
+            signature_slot: update.signature_slot.into(),
+            sync_committee_signature: signature.into(),
+            next_sync_committee: None,
+            next_sync_committee_branch: None,
+            finality_branch: Some(update
+                .finality_branch
+                .iter()
+                .map(|branch| <[u8; 32]>::try_from(branch.as_slice()).unwrap())
+                .collect::<_>()),
+        };
+
+        let gas_limit = client
+            .calculate_handle_gas(None, program_id.into(), payload.encode(), 0, true)
+            .await?
+            .min_limit;
+        println!("gas_limit {gas_limit:?}");
+
+        let (message_id, _) = client
+            .send_message(program_id.into(), payload, gas_limit, 0)
+            .await?;
+
+        assert!(listener.message_processed(message_id).await?.succeed());
+
+        // send block
+        let block_body = get_block_body(slot)
+            .await
+            .map_err(|e| anyhow::Error::msg(e.to_string()))?;
+        let block_body_light: BeaconBlockBodyLight = block_body.to_ref().into();
+
+        let mut exec_payload = block_body.execution_payload().clone();
+
+        let transactions = exec_payload.transactions();
+        println!("transaction count = {}", transactions.len());
+        let mut transaction_hashes: List<Node, 1_048_576> = Default::default();
+        for transaction in transactions.iter() {
+            transaction_hashes.push(transaction.clone().hash_tree_root().unwrap());
+        }
+
+        let payload = Handle::BeaconBlockBody {
+            beacon_block_body_light: {
+                buffer.clear();
+                block_body_light.serialize(&mut buffer).unwrap();
+
+                // let deserialized = BeaconBlockBodyLight::deserialize(&buffer[..]).unwrap();
+                // println!("deserialized: {:?}", deserialized);
+                // println!("light origin: {:?}", block_body_light);
+
+                buffer.clone()
+            },
+            transaction_hashes: {
+                buffer.clear();
+                transaction_hashes.serialize(&mut buffer).unwrap();
+
+                buffer.clone()
+            }
         };
 
         let gas_limit = client

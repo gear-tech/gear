@@ -26,8 +26,9 @@ use gstd::{
     prelude::*,
     ActorId,
 };
+use circular_buffer::CircularBuffer;
 use hex_literal::hex;
-use ssz_rs::{Deserialize, Merkleized, Node, Bitvector, Vector};
+use ssz_rs::{Deserialize, Merkleized, Node, Bitvector, Vector, List};
 use ark_bls12_381::{Bls12_381, G1Affine, G2Affine};
 use ark_ec::{
     hashing::{map_to_curve_hasher::MapToCurveBasedHasher, HashToCurve, curve_maps::wb::WBConfig},
@@ -52,6 +53,7 @@ struct LightClientStore {
 
 static mut LAST_CHECKPOINT: Option<Bytes32> = None;
 static mut STORE: Option<LightClientStore> = None;
+static mut BLOCKS: CircularBuffer<256, (ExecutionPayloadHeader, List<Node, 1_048_576>)> = CircularBuffer::new();
 
 const BUILTIN_BLS381: ActorId = ActorId::new(hex!(
     "6b6e292c382945e80bf51af2ba7fe9f458dcff81ae6075c46f9095e1bbecdc37"
@@ -362,15 +364,32 @@ extern "C" fn init() {
 #[gstd::async_main]
 async fn main() {
     let msg: Handle = msg::load().expect("Unable to decode `HandleMessage`");
-    let Handle::Update {
-        update,
-        signature_slot,
-        sync_committee_signature,
-        next_sync_committee,
-        next_sync_committee_branch,
-        finality_branch,
-    } = msg;
+    match msg {
+        Handle::Update {
+            update,
+            signature_slot,
+            sync_committee_signature,
+            next_sync_committee,
+            next_sync_committee_branch,
+            finality_branch,
+        } => handle_update(update, signature_slot, sync_committee_signature, next_sync_committee, next_sync_committee_branch, finality_branch).await,
 
+        Handle::BeaconBlockBody {
+            beacon_block_body_light,
+            transaction_hashes,
+        } => handle_beacon_block_body(beacon_block_body_light, transaction_hashes).await,
+    }
+}
+
+async fn handle_update(
+    update: Vec<u8>,
+    signature_slot: u64,
+    // serialized without compression
+    sync_committee_signature: ArkScale<G2>,
+    next_sync_committee: Option<ArkScale<Vec<G1>>>,
+    next_sync_committee_branch: Option<Vec<[u8; 32]>>,
+    finality_branch: Option<Vec<[u8; 32]>>,
+) {
     let update = Update::deserialize(&update[..]).expect("Unable to deserialize Update");
 
     let committee_bits = get_bits(&update.sync_aggregate.sync_committee_bits);
@@ -379,9 +398,13 @@ async fn main() {
         return;
     }
 
-    let update_finalized_slot = update.finalized_header.clone().unwrap_or_default().slot;
+    let update_finalized_slot = update
+        .finalized_header
+        .as_ref()
+        .map(|h| h.slot.as_u64())
+        .unwrap_or(0);
     let valid_time = signature_slot > update.attested_header.slot.as_u64()
-        && update.attested_header.slot >= update_finalized_slot;
+        && update.attested_header.slot.as_u64() >= update_finalized_slot;
     if !valid_time {
         debug!("ConsensusError::InvalidTimestamp.into()");
         return;
@@ -479,11 +502,6 @@ async fn main() {
 
     let update_attested_period = calc_sync_period(update.attested_header.slot.into());
 
-    let update_finalized_slot = update
-        .finalized_header
-        .as_ref()
-        .map(|h| h.slot.as_u64())
-        .unwrap_or(0);
 
     let update_finalized_period = calc_sync_period(update_finalized_slot);
 
@@ -536,4 +554,40 @@ async fn main() {
             }
         }
     }
+}
+
+async fn handle_beacon_block_body(
+    // ssz_rs serialized
+    beacon_block_body_light: Vec<u8>,
+    // ssz_rs serialized
+    transaction_hashes: Vec<u8>,
+) {
+    let mut beacon_block_body_light = BeaconBlockBodyLight::deserialize(&beacon_block_body_light[..]).expect("Unable to deserialize BeaconBlockBodyLight");
+    let blocks = unsafe { &mut BLOCKS };
+    if blocks
+        .iter()
+        .find(|(execution_payload_header, _)| execution_payload_header.block_number() == beacon_block_body_light.execution_payload_header().block_number())
+        .is_some()
+    {
+        debug!("already contains the block. Skipping");
+        return;
+    }
+
+    let store = unsafe { STORE.as_mut() }.unwrap();
+
+    let block_hash = beacon_block_body_light.hash_tree_root().expect("Unable to calculate hash of beacon block body");
+    debug!("store.finalized_header.slot = {:?}", store.finalized_header.slot);
+    if store.finalized_header.body_root.as_slice() != block_hash.as_ref() {
+        debug!("Wrong beacon body");
+        return;
+    }
+
+    let mut transaction_hashes = List::<Node, 1_048_576>::deserialize(&transaction_hashes[..]).expect("Unable to deserialize transaction hashes");
+    let hash = transaction_hashes.hash_tree_root().expect("Unable to calculate transactions root");
+    if hash != beacon_block_body_light.execution_payload_header().transactions_root() {
+        debug!("Wrong transaction hashes");
+        return;
+    }
+
+    blocks.push_back((beacon_block_body_light.execution_payload_header().clone(), transaction_hashes));
 }
