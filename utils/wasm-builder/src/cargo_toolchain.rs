@@ -66,7 +66,7 @@ impl Toolchain {
         static TOOLCHAIN_CHANNEL_RE: Lazy<Regex> = Lazy::new(|| {
             // This regex is borrowed from the rustup code and modified (added non-capturing groups)
             let pattern = format!(
-                r"^((?:{})(?:-(?:\d{{4}}-\d{{2}}-\d{{2}}))?)(?:-(?:.+))?$",
+                r"(?:{})(?:-(?:\d{{4}}-\d{{2}}-\d{{2}}))?",
                 TOOLCHAIN_CHANNELS.join("|")
             );
             // Note this regex gives you a guaranteed match of the channel[-date] as group 1
@@ -76,7 +76,7 @@ impl Toolchain {
         let toolchain = TOOLCHAIN_CHANNEL_RE
             .captures(toolchain_desc)
             .ok_or_else(|| BuilderError::CargoToolchainInvalid(toolchain_desc.into()))?
-            .get(1)
+            .get(0)
             .unwrap() // It is safe to use unwrap here because we know the regex matches
             .as_str()
             .to_owned();
