@@ -49,6 +49,9 @@ pub type BLSPubKey = ByteVector<48>;
 pub type SignatureBytes = ByteVector<96>;
 pub type Transaction = ByteList<1_073_741_824>;
 
+pub const SLOTS_PER_EPOCH: u64 = 32;
+pub const EPOCHS_PER_SYNC_COMMITTEE: u64 = 256;
+
 macro_rules! superstruct_ssz {
     ($type:tt) => {
         impl ssz_rs::Merkleized for $type {
@@ -600,9 +603,7 @@ pub enum Handle {
 }
 
 pub fn calc_sync_period(slot: u64) -> u64 {
-    // 32 slots per epoch
-    let epoch = slot / 32;
+    let epoch = slot / SLOTS_PER_EPOCH;
 
-    // 256 epochs per sync committee
-    epoch / 256
+    epoch / EPOCHS_PER_SYNC_COMMITTEE
 }

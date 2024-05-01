@@ -46,9 +46,6 @@ struct LightClientStore {
     finalized_header: Header,
     current_sync_committee: Vec<G1>,
     next_sync_committee: Option<Vec<G1>>,
-    optimistic_header: Header,
-    previous_max_active_participants: u64,
-    current_max_active_participants: u64,
 }
 
 static mut LAST_CHECKPOINT: Option<Bytes32> = None;
@@ -58,12 +55,6 @@ static mut BLOCKS: CircularBuffer<256, (ExecutionPayloadHeader, List<Node, 1_048
 const BUILTIN_BLS381: ActorId = ActorId::new(hex!(
     "6b6e292c382945e80bf51af2ba7fe9f458dcff81ae6075c46f9095e1bbecdc37"
 ));
-
-fn get_bits(bitfield: &Bitvector<512>) -> u64 {
-    bitfield
-        .iter()
-        .fold(0u64, |sum, current| sum + u64::from(*current))
-}
 
 fn get_participating_keys(
     committee: &[G1],
@@ -290,13 +281,6 @@ async fn verify_sync_committee_signture(
     <Bls12_381 as Pairing>::TargetField::ONE == exp.0
 }
 
-fn safety_threshold(store: &LightClientStore) -> u64 {
-    cmp::max(
-        store.current_max_active_participants,
-        store.previous_max_active_participants,
-    ) / 2
-}
-
 #[no_mangle]
 extern "C" fn init() {
     let init_msg: Init = msg::load().expect("Unable to decode `Init` message");
@@ -347,16 +331,12 @@ extern "C" fn init() {
         panic!("Current sync committee proof is not valid.");
     }
 
-    let optimistic_header = Header::deserialize(&init_msg.optimistic_header[..]).expect("Unable to deserialize optimistic header");
     unsafe {
         LAST_CHECKPOINT = Some(last_checkpoint);
         STORE = Some(LightClientStore {
             finalized_header,
             current_sync_committee: init_msg.pub_keys.0,
             next_sync_committee: None,
-            optimistic_header,
-            previous_max_active_participants: 0,
-            current_max_active_participants: 0,
         });
     }
 }
@@ -392,12 +372,6 @@ async fn handle_update(
 ) {
     let update = Update::deserialize(&update[..]).expect("Unable to deserialize Update");
 
-    let committee_bits = get_bits(&update.sync_aggregate.sync_committee_bits);
-    if committee_bits == 0 {
-        debug!("ConsensusError::InsufficientParticipation");
-        return;
-    }
-
     let update_finalized_slot = update
         .finalized_header
         .as_ref()
@@ -421,6 +395,20 @@ async fn handle_update(
 
     if !valid_period {
         debug!("ConsensusError::InvalidPeriod.into()");
+        return;
+    }
+
+    let sync_committee = match update_sig_period {
+        period if period == store_period => &store.current_sync_committee,
+        _ => store.next_sync_committee.as_ref().unwrap(),
+    };
+
+    let pub_keys =
+        get_participating_keys(sync_committee, &update.sync_aggregate.sync_committee_bits);
+    let committee_count = pub_keys.len() as u64;
+    // committee_count < 512 * 2 / 3
+    if committee_count * 3 < 512 * 2 {
+        debug!("skipping block with low vote count");
         return;
     }
 
@@ -469,14 +457,6 @@ async fn handle_update(
         }
     }
 
-    let sync_committee = match update_sig_period {
-        period if period == store_period => &store.current_sync_committee,
-        _ => store.next_sync_committee.as_ref().unwrap(),
-    };
-
-    let pub_keys =
-        get_participating_keys(sync_committee, &update.sync_aggregate.sync_committee_bits);
-
     let is_valid_sig = verify_sync_committee_signture(
         pub_keys,
         update.attested_header.clone(),
@@ -489,20 +469,6 @@ async fn handle_update(
         return;
     }
 
-    store.current_max_active_participants =
-        u64::max(store.current_max_active_participants, committee_bits);
-
-    let should_update_optimistic = committee_bits > safety_threshold(store)
-        && update.attested_header.slot > store.optimistic_header.slot;
-
-    if should_update_optimistic {
-        store.optimistic_header = update.attested_header.clone();
-        // self.log_optimistic_update(update);
-    }
-
-    let update_attested_period = calc_sync_period(update.attested_header.slot.into());
-
-
     let update_finalized_period = calc_sync_period(update_finalized_slot);
 
     let update_has_finalized_next_committee = store.next_sync_committee.is_none()
@@ -513,15 +479,10 @@ async fn handle_update(
         && update_finalized_period == update_attested_period;
 
     let should_apply_update = {
-        let has_majority = committee_bits * 3 >= 512 * 2;
-        if !has_majority {
-            debug!("skipping block with low vote count");
-        }
-
         let update_is_newer = update_finalized_slot > store.finalized_header.slot.as_u64();
         let good_update = update_is_newer || update_has_finalized_next_committee;
 
-        has_majority && good_update
+        good_update
     };
 
     if should_apply_update {
@@ -533,24 +494,17 @@ async fn handle_update(
             debug!("sync committee updated");
             store.current_sync_committee = store.next_sync_committee.clone().unwrap();
             store.next_sync_committee = next_sync_committee.clone().map(|ark_scale| ark_scale.0);
-            store.previous_max_active_participants =
-                store.current_max_active_participants;
-            store.current_max_active_participants = 0;
         }
 
         if update_finalized_slot > store.finalized_header.slot.as_u64() {
             store.finalized_header = update.finalized_header.clone().unwrap();
             // self.log_finality_update(update);
 
-            if store.finalized_header.slot.as_u64() % 32 == 0 {
+            if store.finalized_header.slot.as_u64() % SLOTS_PER_EPOCH == 0 {
                 let checkpoint_res = store.finalized_header.hash_tree_root();
                 if let Ok(checkpoint) = checkpoint_res {
                     unsafe { LAST_CHECKPOINT = Some(Bytes32::try_from(checkpoint.as_ref()).expect("Last checkpoint: unable to create Bytes32 from Vec")); }
                 }
-            }
-
-            if store.finalized_header.slot > store.optimistic_header.slot {
-                store.optimistic_header = store.finalized_header.clone();
             }
         }
     }
