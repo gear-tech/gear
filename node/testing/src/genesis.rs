@@ -24,14 +24,8 @@ use sp_runtime::{Perbill, Perquintill};
 use vara_runtime::{
     constants::currency::*, AccountId, BabeConfig, BalancesConfig, GrandpaConfig,
     RuntimeGenesisConfig, SessionConfig, StakerStatus, StakingConfig, StakingRewardsConfig,
-    SudoConfig, SystemConfig, BABE_GENESIS_EPOCH_CONFIG, WASM_BINARY,
+    SudoConfig, SystemConfig, BABE_GENESIS_EPOCH_CONFIG,
 };
-
-fn wasm_binary() -> &'static [u8] {
-    WASM_BINARY.expect(
-        "Development wasm is not available. Rebuild with the `SKIP_WASM_BUILD` flag disabled.",
-    )
-}
 
 /// Create genesis runtime configuration for tests.
 pub fn genesis_config(code: Option<&[u8]>) -> RuntimeGenesisConfig {
@@ -40,7 +34,7 @@ pub fn genesis_config(code: Option<&[u8]>) -> RuntimeGenesisConfig {
 
 /// Create genesis runtime configuration for tests adding some extra
 /// endowed accounts if needed.
-pub fn config_endowed(code: Option<&[u8]>, extra_endowed: Vec<AccountId>) -> RuntimeGenesisConfig {
+pub fn config_endowed(_code: Option<&[u8]>, extra_endowed: Vec<AccountId>) -> RuntimeGenesisConfig {
     let mut endowed = vec![
         (alice(), 111 * ECONOMIC_UNITS),
         (bob(), 100 * ECONOMIC_UNITS),
@@ -58,9 +52,6 @@ pub fn config_endowed(code: Option<&[u8]>, extra_endowed: Vec<AccountId>) -> Run
 
     RuntimeGenesisConfig {
         system: SystemConfig {
-            code: code
-                .map(|x| x.to_vec())
-                .unwrap_or_else(|| wasm_binary().to_vec()),
             ..Default::default()
         },
         balances: BalancesConfig { balances: endowed },
