@@ -629,11 +629,11 @@ fn testnet_genesis(
             "slashRewardFraction": Perbill::from_percent(10),
             "minNominatorBond": MIN_NOMINATOR_BOND,
         },
-        "nomination_pools": {
+        "nominationPools": {
             "minCreateBond": 10 * ECONOMIC_UNITS,
             "minJoinBond": ECONOMIC_UNITS,
         },
-        "staking_rewards": {
+        "stakingRewards": {
             "nonStakeable": Perquintill::from_rational(4108_u64, 10_000_u64), // 41.08%
             "idealStake": Perquintill::from_percent(85), // 85%
             "targetInflation": Perquintill::from_rational(578_u64, 10_000_u64), // 5.78%
