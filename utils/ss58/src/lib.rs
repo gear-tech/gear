@@ -31,6 +31,9 @@ use alloc::{string::String, vec, vec::Vec};
 use blake2::{Blake2b512, Digest};
 use core::sync::atomic::{AtomicU16, Ordering};
 
+/// The SS58 prefix of substrate.
+pub const SUBSTRATE_SS58_PREFIX: u16 = 42;
+
 /// The SS58 prefix of vara network.
 pub const VARA_SS58_PREFIX: u16 = 137;
 
@@ -45,7 +48,12 @@ const CHECKSUM_LENGTH: usize = 2;
 
 /// Encode data to SS58 format.
 pub fn encode(data: &[u8]) -> String {
-    let ident: u16 = default_ss58_version() & 0b0011_1111_1111_1111;
+    encode_with_version(data, default_ss58_version())
+}
+
+/// Encode data to SS58 format.
+pub fn encode_with_version(data: &[u8], version: u16) -> String {
+    let ident: u16 = version & 0b0011_1111_1111_1111;
     let mut v = match ident {
         0..=63 => vec![ident as u8],
         64..=16_383 => {

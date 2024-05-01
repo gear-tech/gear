@@ -23,8 +23,11 @@
 #![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
 #![doc(html_favicon_url = "https://gear-tech.io/favicons/favicon.ico")]
 
+extern crate alloc;
+
 pub mod utils;
 
+use alloc::string::String;
 use core::{
     fmt,
     str::{self, FromStr},
@@ -97,6 +100,16 @@ impl ActorId {
         //TODO: consider to move `message_id` to first param
         const SALT: &[u8] = b"program_from_wasm";
         utils::hash_of_array([SALT, message_id.as_ref(), code_id.as_ref(), salt]).into()
+    }
+
+    /// Returns the ss58-check string with default ss58 version.
+    pub fn to_ss58check(&self) -> String {
+        self.to_ss58check_with_version(gear_ss58::default_ss58_version())
+    }
+
+    /// Returns the ss58-check string with given ss58 version.
+    pub fn to_ss58check_with_version(&self, version: u16) -> String {
+        gear_ss58::encode_with_version(self.as_ref(), version)
     }
 }
 
