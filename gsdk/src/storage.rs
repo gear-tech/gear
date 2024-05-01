@@ -321,7 +321,7 @@ impl Api {
             .pages_with_data
             .inner
             .iter()
-            .flat_map(|(s, e)| s.0..e.0)
+            .flat_map(|(s, e)| s.0..=e.0)
         {
             let addr = Self::storage(
                 GearProgramStorage::MemoryPages,
