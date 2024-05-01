@@ -396,13 +396,12 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
     }
     /// The range of component `d` is `[0, 512]`.
     fn instantiate_module_data_section_per_kb(d: u32, ) -> Weight {
-        // Proof Size summary in bytes:
-        //  Measured:  `0`
-        //  Estimated: `0`
-        // Minimum execution time: 36_743_000 picoseconds.
-        Weight::from_parts(3_352_752_600, 0)
-            // Standard Error: 2_541
-            .saturating_add(Weight::from_parts(262_101, 0).saturating_mul(d.into()))
+        // Model:
+        // Time ~=     45.7
+        //     + d    0.184
+        //               µs
+        Weight::from_parts(45_700_000, 0)
+            .saturating_add(Weight::from_parts(184_000, 0).saturating_mul(d.into()))
     }
     fn claim_value() -> Weight {
         // Proof Size summary in bytes:
@@ -2271,13 +2270,12 @@ impl WeightInfo for () {
 
     /// The range of component `d` is `[0, 512]`.
     fn instantiate_module_data_section_per_kb(d: u32, ) -> Weight {
-        // Proof Size summary in bytes:
-        //  Measured:  `0`
-        //  Estimated: `0`
-        // Minimum execution time: 36_743_000 picoseconds.
-        Weight::from_parts(3_352_752_600, 0)
-            // Standard Error: 2_541
-            .saturating_add(Weight::from_parts(262_101, 0).saturating_mul(d.into()))
+        // Model:
+        // Time ~=     45.7
+        //     + d    0.184
+        //               µs
+        Weight::from_parts(45_700_000, 0)
+            .saturating_add(Weight::from_parts(184_000, 0).saturating_mul(d.into()))
     }
 
     fn claim_value() -> Weight {
