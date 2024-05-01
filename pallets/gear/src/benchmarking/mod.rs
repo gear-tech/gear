@@ -374,7 +374,7 @@ benchmarks! {
     }
 
     // `c`: Size of the code section in kilobytes.
-    instantiate_module_with_code_section_per_kb {
+    instantiate_module_code_section_per_kb {
         let c in 0 .. T::Schedule::get().limits.code_len / 1024;
 
         let WasmModule { code, .. } = WasmModule::<T>::sized(c * 1024, Location::Init);
@@ -384,7 +384,7 @@ benchmarks! {
     }
 
     // `d`: Size of the data section in kilobytes.
-    instantiate_module_with_data_section_per_kb {
+    instantiate_module_data_section_per_kb {
         let d in 0 .. T::Schedule::get().limits.code_len / 1024;
 
         let WasmModule { code, .. } = WasmModule::<T>::sized_data_section(d * 1024, MAX_NUMBER_OF_DATA_SEGMENTS);
