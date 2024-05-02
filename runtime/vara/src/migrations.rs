@@ -28,6 +28,9 @@ pub type Migrations = (
     pallet_nomination_pools::migration::versioned_migrations::V5toV6<Runtime>,
     pallet_nomination_pools::migration::versioned_migrations::V6ToV7<Runtime>,
     staking_v13::MigrateToV13<Runtime>,
+    // substrate v1.4.0
+    pallet_staking::migrations::v14::MigrateToV14<Runtime>,
+    pallet_grandpa::migrations::MigrateV4ToV5<Runtime>,
 );
 
 mod staking_v13 {
