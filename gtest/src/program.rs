@@ -269,7 +269,7 @@ impl ProgramBuilder {
 
     fn wasm_path(optimized: bool) -> PathBuf {
         Self::wasm_path_from_binpath(optimized)
-            .unwrap_or(gbuild::wasm_path().expect("Unable to find built wasm"))
+            .unwrap_or_else(|| gbuild::wasm_path().expect("Unable to find built wasm"))
     }
 
     fn wasm_path_from_binpath(optimized: bool) -> Option<PathBuf> {
