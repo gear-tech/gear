@@ -59,7 +59,7 @@ proptest! {
         let original_code = generate_gear_program_code(&mut u, configs_bundle)
             .expect("failed generating wasm");
 
-        let code_res = Code::try_new(original_code, 1, |_| CustomConstantCostRules::default(), None);
+        let code_res = Code::try_new(original_code, 1, |_| CustomConstantCostRules::default(), None, None);
         assert!(code_res.is_ok());
     }
 
@@ -767,8 +767,14 @@ fn execute_wasm_with_custom_configs(
 
     let code =
         generate_gear_program_code(unstructured, gear_config).expect("failed wasm generation");
-    let code = Code::try_new(code, 1, |_| CustomConstantCostRules::new(0, 0, 0), None)
-        .expect("Failed to create Code");
+    let code = Code::try_new(
+        code,
+        1,
+        |_| CustomConstantCostRules::new(0, 0, 0),
+        None,
+        None,
+    )
+    .expect("Failed to create Code");
 
     let code_id = CodeId::generate(code.original_code());
     let program_id = ProgramId::generate_from_user(code_id, b"");
