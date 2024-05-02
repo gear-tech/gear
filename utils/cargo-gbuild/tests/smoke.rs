@@ -66,7 +66,7 @@ fn test_program_tests() {
             .stdout;
         if !String::from_utf8_lossy(&toolchains).contains("stable") {
             Command::new("rustup")
-                .args(["add", "stable"])
+                .args(["install", "stable"])
                 .status()
                 .expect("Failed to install stable toolchain");
         }
