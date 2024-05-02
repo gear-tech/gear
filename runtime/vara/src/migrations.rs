@@ -53,7 +53,7 @@ mod staking_v13 {
     /// Used for release versioning upto v12.
     ///
     /// Obsolete from v13. Keeping around to make encoding/decoding of old migration code easier.
-    #[derive(Encode, Decode, Clone, Debug, Copy, PartialEq, Eq, TypeInfo, MaxEncodedLen)]
+    #[derive(Default, Encode, Decode, Clone, Copy, PartialEq, Eq, TypeInfo, MaxEncodedLen)]
     enum ObsoleteReleases {
         V1_0_0Ancient,
         V2_0_0,
@@ -67,13 +67,8 @@ mod staking_v13 {
         V10_0_0, // remove `EarliestUnappliedSlash`.
         V11_0_0, // Move pallet storage prefix, e.g. BagsList -> VoterBagsList
         V12_0_0, // remove `HistoryDepth`.
+        #[default]
         V13_0_0, // Force migration from `ObsoleteReleases`.
-    }
-
-    impl Default for ObsoleteReleases {
-        fn default() -> Self {
-            ObsoleteReleases::V13_0_0
-        }
     }
 
     pub struct MigrateToV13<T>(sp_std::marker::PhantomData<T>);
@@ -91,7 +86,6 @@ mod staking_v13 {
         fn on_runtime_upgrade() -> Weight {
             let current = Pallet::<T>::current_storage_version();
             let onchain = StorageVersion::<T>::get();
-            log::warn!("{:?}", onchain);
 
             if current == 13 && onchain == ObsoleteReleases::V13_0_0 {
                 StorageVersion::<T>::kill();
