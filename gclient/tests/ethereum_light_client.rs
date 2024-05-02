@@ -259,7 +259,6 @@ async fn ethereum_light_client() -> Result<()> {
     let init = Init {
         last_checkpoint: checkpoint,
         pub_keys: pub_keys.into(),
-        optimistic_header: finalized_header.clone(),
         finalized_header,
         current_sync_committee,
         current_sync_committee_branch: bootstrap
@@ -320,7 +319,7 @@ async fn ethereum_light_client() -> Result<()> {
                     attested_header: update.attested_header,
                     sync_aggregate: update.sync_aggregate,
                     next_sync_committee: Some(update.next_sync_committee),
-                    finalized_header: Some(update.finalized_header),
+                    finalized_header: update.finalized_header,
                 };
 
                 buffer.clear();
@@ -336,11 +335,11 @@ async fn ethereum_light_client() -> Result<()> {
                 .iter()
                 .map(|branch| <[u8; 32]>::try_from(branch.as_slice()).unwrap())
                 .collect::<_>()),
-            finality_branch: Some(update
+            finality_branch: update
                 .finality_branch
                 .iter()
                 .map(|branch| <[u8; 32]>::try_from(branch.as_slice()).unwrap())
-                .collect::<_>()),
+                .collect::<_>(),
         };
 
         let gas_limit = client
@@ -382,7 +381,7 @@ async fn ethereum_light_client() -> Result<()> {
                     attested_header: update.attested_header,
                     sync_aggregate: update.sync_aggregate,
                     next_sync_committee: None,
-                    finalized_header: Some(update.finalized_header),
+                    finalized_header: update.finalized_header,
                 };
 
                 buffer.clear();
@@ -394,11 +393,11 @@ async fn ethereum_light_client() -> Result<()> {
             sync_committee_signature: signature.into(),
             next_sync_committee: None,
             next_sync_committee_branch: None,
-            finality_branch: Some(update
+            finality_branch: update
                 .finality_branch
                 .iter()
                 .map(|branch| <[u8; 32]>::try_from(branch.as_slice()).unwrap())
-                .collect::<_>()),
+                .collect::<_>(),
         };
 
         let gas_limit = client

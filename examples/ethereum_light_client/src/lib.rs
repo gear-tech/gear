@@ -561,7 +561,6 @@ pub struct Init {
     pub pub_keys: ArkScale<Vec<G1>>,
     // all next fields are ssz_rs serialized
     pub finalized_header: Vec<u8>,
-    pub optimistic_header: Vec<u8>,
     pub current_sync_committee: Vec<u8>,
     pub current_sync_committee_branch: Vec<[u8; 32]>,
 }
@@ -578,7 +577,7 @@ pub struct Update {
     pub attested_header: Header,
     pub sync_aggregate: SyncAggregate,
     pub next_sync_committee: Option<SyncCommittee>,
-    pub finalized_header: Option<Header>,
+    pub finalized_header: Header,
 }
 
 #[derive(Debug, Clone, Decode, Encode)]
@@ -592,7 +591,7 @@ pub enum Handle {
         sync_committee_signature: ArkScale<G2>,
         next_sync_committee: Option<ArkScale<Vec<G1>>>,
         next_sync_committee_branch: Option<Vec<[u8; 32]>>,
-        finality_branch: Option<Vec<[u8; 32]>>,
+        finality_branch: Vec<[u8; 32]>,
     },
     BeaconBlockBody {
         // ssz_rs serialized

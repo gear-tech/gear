@@ -368,15 +368,14 @@ async fn handle_update(
     sync_committee_signature: ArkScale<G2>,
     next_sync_committee: Option<ArkScale<Vec<G1>>>,
     next_sync_committee_branch: Option<Vec<[u8; 32]>>,
-    finality_branch: Option<Vec<[u8; 32]>>,
+    finality_branch: Vec<[u8; 32]>,
 ) {
     let update = Update::deserialize(&update[..]).expect("Unable to deserialize Update");
 
     let update_finalized_slot = update
         .finalized_header
-        .as_ref()
-        .map(|h| h.slot.as_u64())
-        .unwrap_or(0);
+        .slot
+        .as_u64();
     let valid_time = signature_slot > update.attested_header.slot.as_u64()
         && update.attested_header.slot.as_u64() >= update_finalized_slot;
     if !valid_time {
@@ -412,33 +411,52 @@ async fn handle_update(
         return;
     }
 
+    let update_finalized_period = calc_sync_period(update_finalized_slot);
+    let update_is_newer = update_finalized_slot > store.finalized_header.slot.as_u64();
     let update_attested_period = calc_sync_period(update.attested_header.slot.into());
-    let update_has_next_committee = store.next_sync_committee.is_none()
-        && update.next_sync_committee.is_some()
-        && next_sync_committee.is_some()
-        && update_attested_period == store_period;
+    let update_has_finalized_next_committee =
+        // has sync update
+        next_sync_committee.is_some() && next_sync_committee_branch.is_some()
+        && update_finalized_period == update_attested_period;
 
-    if update.attested_header.slot <= store.finalized_header.slot
-        && !update_has_next_committee
-    {
-        debug!("ConsensusError::NotRelevant.into()");
-        return;
-    }
-
-    if update.finalized_header.is_some() && finality_branch.is_some() {
-        let is_valid = is_finality_proof_valid(
-            &update.attested_header,
-            &mut update.finalized_header.clone().unwrap(),
-            &finality_branch.clone().unwrap()
-                .iter()
-                .map(|branch| Bytes32::try_from(&branch[..]).expect("Unable to create Bytes32 from [u8; 32]"))
-                .collect::<Vec<_>>(),
-        );
-
-        if !is_valid {
-            debug!("ConsensusError::InvalidFinalityProof.into()");
+    if update_is_newer || update_has_finalized_next_committee {
+        let is_valid_sig = verify_sync_committee_signture(
+            pub_keys,
+            update.attested_header.clone(),
+            &sync_committee_signature.0,
+            signature_slot,
+        ).await;
+    
+        debug!("is_valid_sig = {is_valid_sig}");
+        if !is_valid_sig {
             return;
         }
+    }
+
+    if update_is_newer {
+        if is_finality_proof_valid(
+            &update.attested_header,
+            &mut update.finalized_header.clone(),
+            &finality_branch
+                .iter()
+                .map(|branch| Bytes32::try_from(branch.as_ref()).expect("Unable to create Bytes32 from [u8; 32]"))
+                .collect::<Vec<_>>(),
+        ) {
+            store.finalized_header = update.finalized_header.clone();
+
+            if store.finalized_header.slot.as_u64() % SLOTS_PER_EPOCH == 0 {
+                let checkpoint_res = store.finalized_header.hash_tree_root();
+                if let Ok(checkpoint) = checkpoint_res {
+                    unsafe { LAST_CHECKPOINT = Some(Bytes32::try_from(checkpoint.as_ref()).expect("Last checkpoint: unable to create Bytes32 from Vec")); }
+                }
+            }
+        } else {
+            debug!("ConsensusError::InvalidFinalityProof.into()");
+        }
+    }
+
+    if !update_has_finalized_next_committee {
+        return;
     }
 
     if update.next_sync_committee.is_some() && next_sync_committee_branch.is_some() {
@@ -457,56 +475,18 @@ async fn handle_update(
         }
     }
 
-    let is_valid_sig = verify_sync_committee_signture(
-        pub_keys,
-        update.attested_header.clone(),
-        &sync_committee_signature.0,
-        signature_slot,
-    ).await;
-
-    debug!("is_valid_sig = {is_valid_sig}");
-    if !is_valid_sig {
-        return;
-    }
-
-    let update_finalized_period = calc_sync_period(update_finalized_slot);
-
-    let update_has_finalized_next_committee = store.next_sync_committee.is_none()
-        // has sync update
-        && next_sync_committee.is_some() && next_sync_committee_branch.is_some()
-        // has finality update
-        && update.finalized_header.is_some() && finality_branch.is_some()
-        && update_finalized_period == update_attested_period;
-
-    let should_apply_update = {
-        let update_is_newer = update_finalized_slot > store.finalized_header.slot.as_u64();
-        let good_update = update_is_newer || update_has_finalized_next_committee;
-
-        good_update
-    };
-
-    if should_apply_update {
-        let store_period = calc_sync_period(store.finalized_header.slot.into());
-
-        if store.next_sync_committee.is_none() {
-            store.next_sync_committee = next_sync_committee.clone().map(|ark_scale| ark_scale.0);
-        } else if update_finalized_period == store_period + 1 {
+    match &store.next_sync_committee {
+        Some(stored_next_sync_committee) if update_finalized_period == store_period + 1 => {
             debug!("sync committee updated");
-            store.current_sync_committee = store.next_sync_committee.clone().unwrap();
+            store.current_sync_committee = stored_next_sync_committee.clone();
             store.next_sync_committee = next_sync_committee.clone().map(|ark_scale| ark_scale.0);
         }
 
-        if update_finalized_slot > store.finalized_header.slot.as_u64() {
-            store.finalized_header = update.finalized_header.clone().unwrap();
-            // self.log_finality_update(update);
-
-            if store.finalized_header.slot.as_u64() % SLOTS_PER_EPOCH == 0 {
-                let checkpoint_res = store.finalized_header.hash_tree_root();
-                if let Ok(checkpoint) = checkpoint_res {
-                    unsafe { LAST_CHECKPOINT = Some(Bytes32::try_from(checkpoint.as_ref()).expect("Last checkpoint: unable to create Bytes32 from Vec")); }
-                }
-            }
+        None => {
+            store.next_sync_committee = next_sync_committee.clone().map(|ark_scale| ark_scale.0);
         }
+
+        _ => (),
     }
 }
 
