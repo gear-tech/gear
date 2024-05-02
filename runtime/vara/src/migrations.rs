@@ -43,8 +43,6 @@ mod staking_v13 {
     use sp_std::vec::Vec;
 
     #[cfg(feature = "try-runtime")]
-    use frame_support::ensure;
-    #[cfg(feature = "try-runtime")]
     use sp_runtime::TryRuntimeError;
 
     /// Alias to the old storage item used for release versioning. Obsolete since v13.
@@ -110,7 +108,7 @@ mod staking_v13 {
         #[cfg(feature = "try-runtime")]
         fn post_upgrade(_state: Vec<u8>) -> Result<(), TryRuntimeError> {
             frame_support::ensure!(
-                Pallet::<T>::on_chain_storage_version() == 13,
+                Pallet::<T>::on_chain_storage_version() >= 13,
                 "v13 not applied"
             );
 
