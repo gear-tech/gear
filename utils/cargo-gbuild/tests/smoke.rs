@@ -57,7 +57,9 @@ fn test_compile_program() -> Result<()> {
 fn test_program_tests() {
     assert!(Command::new("cargo")
         .current_dir("test-program")
-        .args(["test"])
+        // NOTE: for the stable toolchain, see issue #48556 <https://github.com/rust-lang/rust/issues/48556>
+        // for more information.
+        .args(["+stable", "test"])
         .status()
         .expect("Failed to run the tests of cargo-gbuild/test-program")
         .success())
