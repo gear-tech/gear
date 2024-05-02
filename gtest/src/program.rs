@@ -17,11 +17,13 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
+    error::TestError as Error,
     log::RunResult,
     manager::{Balance, ExtManager, MintMode, Program as InnerProgram, TestActor},
     system::System,
     Result,
 };
+use cargo_toml::Manifest;
 use codec::{Codec, Decode, Encode};
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCodeAndId},
@@ -268,14 +270,41 @@ impl ProgramBuilder {
     }
 
     fn wasm_path(optimized: bool) -> PathBuf {
+        Self::wasm_path_from_binpath(optimized)
+            .unwrap_or(Self::wasm_path_from_gbuild().expect("Unable to find built wasm"))
+    }
+
+    fn wasm_path_from_binpath(optimized: bool) -> Option<PathBuf> {
+        let cwd = env::current_dir().expect("Unable to get current dir");
         let extension = if optimized { "opt.wasm" } else { "wasm" };
-        let current_dir = env::current_dir().expect("Unable to get current dir");
-        let path_file = current_dir.join(".binpath");
-        let path_bytes = fs::read(path_file).expect("Unable to read path bytes");
+        let path_file = cwd.join(".binpath");
+        let path_bytes = fs::read(path_file).ok()?;
         let mut relative_path: PathBuf =
             String::from_utf8(path_bytes).expect("Invalid path").into();
         relative_path.set_extension(extension);
-        current_dir.join(relative_path)
+        Some(cwd.join(relative_path))
+    }
+
+    /// Search program wasm from
+    ///
+    /// - `target/gbuild`
+    /// - `$WORKSPACE_ROOT/target/gbuild`
+    ///
+    /// NOTE: Gbuild currently only supports optimized build.
+    fn wasm_path_from_gbuild() -> Result<PathBuf> {
+        let target = etc::find_up("target")
+            .map_err(|_| Error::GbuildArtifactNotFound("Could not find target folder".into()))?;
+        let manifest = Manifest::from_path(
+            etc::find_up("Cargo.toml")
+                .map_err(|_| Error::GbuildArtifactNotFound("Could not find manifest".into()))?,
+        )
+        .map_err(|_| Error::GbuildArtifactNotFound("Failed to parse manifest".into()))?;
+
+        let artifact = target
+            .join(format!("gbuild/{}", manifest.package().name()))
+            .with_extension("wasm");
+
+        Ok(artifact)
     }
 
     fn inner_current(optimized: bool) -> Self {

@@ -82,4 +82,9 @@ pub enum TestError {
     /// Reading of program state failed.
     #[display(fmt = "Reading of program state failed: `{_0}`")]
     ReadStateError(String),
+
+    /// Searching gbuild artifact failed.
+    #[from(ignore)]
+    #[display(fmt = "Reading of program state failed: `{_0}`")]
+    GbuildArtifactNotFound(String),
 }

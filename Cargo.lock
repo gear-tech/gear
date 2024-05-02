@@ -5252,6 +5252,7 @@ version = "1.3.0"
 name = "gtest"
 version = "1.3.0"
 dependencies = [
+ "cargo_toml",
  "colored",
  "demo-constructor",
  "demo-custom",
@@ -5260,6 +5261,7 @@ dependencies = [
  "demo-ping",
  "derive_more",
  "env_logger",
+ "etc",
  "gear-core",
  "gear-core-errors",
  "gear-core-processor",
