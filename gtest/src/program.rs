@@ -837,7 +837,7 @@ pub mod gbuild {
                         .nth(2)
                         .expect("The project is under the root directory"),
                 )
-                .args(&["gbuild", "-m"])
+                .args(["gbuild", "-m"])
                 .arg(&manifest)
                 .status()
                 .expect("cargo-gbuild is not installed, try `cargo install cargo-gbuild` first.")

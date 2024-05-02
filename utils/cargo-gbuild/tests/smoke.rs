@@ -19,10 +19,10 @@
 use anyhow::Result;
 use cargo_gbuild::GBuild;
 use gtest::{Program, System};
-use std::path::PathBuf;
+use std::{path::PathBuf, process::Command};
 
 #[test]
-fn test_compile_program_v2() -> Result<()> {
+fn test_compile_program() -> Result<()> {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-program/Cargo.toml");
     let artifact = GBuild {
         manifest_path: root.to_string_lossy().to_string().into(),
@@ -51,4 +51,14 @@ fn test_compile_program_v2() -> Result<()> {
     assert!(!res.main_failed());
     assert!(res.contains(&(user, b"HANDLE_PONG")));
     Ok(())
+}
+
+#[test]
+fn test_program_tests() {
+    assert!(Command::new("cargo")
+        .current_dir("test-program")
+        .args(["test"])
+        .status()
+        .expect("Failed to run the tests of cargo-gbuild/test-program")
+        .success())
 }
