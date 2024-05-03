@@ -799,16 +799,16 @@ mod tests {
             wasm_pages_amount_with_range(0, u16::MAX as u32 + 1)
         }
 
+        #[derive(Debug)]
+        struct MemoryParams {
+            max_pages: WasmPagesAmount,
+            mem_size: WasmPagesAmount,
+            static_pages: WasmPagesAmount,
+            allocations: IntervalsTree<WasmPage>,
+        }
+
         // This high-order strategy generates valid memory parameters in a specific way that allows passing `AllocationContext::validate_memory_params` checks.
-        fn combined_memory_params() -> impl Strategy<
-            // TODO: change strategy Value to struct MemoryParams #3906
-            Value = (
-                WasmPagesAmount,
-                WasmPagesAmount,
-                WasmPagesAmount,
-                IntervalsTree<WasmPage>,
-            ),
-        > {
+        fn combined_memory_params() -> impl Strategy<Value = MemoryParams> {
             wasm_pages_amount()
                 .prop_flat_map(|max_pages| {
                     let mem_size = wasm_pages_amount_with_range(0, u32::from(max_pages));
@@ -832,6 +832,14 @@ mod tests {
                         allocations(u32::from(static_pages) as u16, end_exclusive as u16),
                     )
                 })
+                .prop_map(
+                    |(max_pages, mem_size, static_pages, allocations)| MemoryParams {
+                        max_pages,
+                        mem_size,
+                        static_pages,
+                        allocations,
+                    },
+                )
         }
 
         fn proptest_config() -> ProptestConfig {
@@ -859,7 +867,7 @@ mod tests {
             ) {
                 let _ = env_logger::try_init();
 
-                let (max_pages, mem_size, static_pages, allocations) = mem_params;
+                let MemoryParams{max_pages, mem_size, static_pages, allocations} = mem_params;
                 let mut ctx = AllocationsContext::try_new(mem_size, allocations, static_pages, None, max_pages).unwrap();
 
                 let mut mem = TestMemory(mem_size);
