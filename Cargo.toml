@@ -485,6 +485,7 @@ debug-assertions = false
 
 [profile.release]
 panic = "unwind"
+debug = true
 
 [profile.release.package.gcore]
 opt-level = "s"
