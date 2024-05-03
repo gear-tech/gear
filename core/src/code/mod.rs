@@ -422,14 +422,22 @@ mod tests {
         };
     }
 
-    fn try_new_code_from_wat(wat: &str, stack_height: Option<u32>) -> Result<Code, CodeError> {
+    fn try_new_code_from_wat_with_params(
+        wat: &str,
+        stack_height: Option<u32>,
+        data_segments_amount_limit: Option<u32>,
+    ) -> Result<Code, CodeError> {
         Code::try_new(
             wat2wasm(wat),
             1,
             |_| CustomConstantCostRules::default(),
             stack_height,
-            None,
+            data_segments_amount_limit,
         )
+    }
+
+    fn try_new_code_from_wat(wat: &str, stack_height: Option<u32>) -> Result<Code, CodeError> {
+        try_new_code_from_wat_with_params(wat, stack_height, None)
     }
 
     #[test]
@@ -756,6 +764,37 @@ mod tests {
             CodeError::Import(ImportError::UnexpectedImportKind {
                 kind: &"Table",
                 index: 1
+            })
+        );
+    }
+
+    #[test]
+    fn data_segments_amount_limit() {
+        const DATA_SEGMENTS_AMOUNT_LIMIT: u32 = 1024;
+
+        let segment = r#"(data (i32.const 0x0) "gear")"#;
+
+        let wat = format!(
+            r#"
+            (module
+                (import "env" "memory" (memory 1))
+                (func $init)
+                (export "init" (func $init))
+                {}
+            )
+        "#,
+            segment.repeat(1025)
+        );
+
+        assert_code_err!(
+            try_new_code_from_wat_with_params(
+                wat.as_str(),
+                None,
+                DATA_SEGMENTS_AMOUNT_LIMIT.into()
+            ),
+            CodeError::DataSection(DataSectionError::DataSegmentsAmountLimit {
+                limit: DATA_SEGMENTS_AMOUNT_LIMIT,
+                actual: 1025
             })
         );
     }
