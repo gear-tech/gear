@@ -395,6 +395,36 @@ benchmarks! {
         Environment::new(ext, &code, DispatchKind::Init, Default::default(), max_pages::<T>().into()).unwrap();
     }
 
+    // `g`: Size of the global section in kilobytes.
+    instantiate_module_global_section_per_kb {
+        let g in 0 .. T::Schedule::get().limits.code_len / 1024;
+
+        let WasmModule { code, .. } = WasmModule::<T>::sized_global_section(g * 1024);
+    }: {
+        let ext = Externalities::new(ProcessorContext::new_mock());
+        Environment::new(ext, &code, DispatchKind::Init, Default::default(), max_pages::<T>().into()).unwrap();
+    }
+
+    // `t`: Size of the table section in kilobytes.
+    instantiate_module_table_section_per_kb {
+        let t in 0 .. T::Schedule::get().limits.code_len / 1024;
+
+        let WasmModule { code, .. } = WasmModule::<T>::sized_table_section(t * 1024);
+    }: {
+        let ext = Externalities::new(ProcessorContext::new_mock());
+        Environment::new(ext, &code, DispatchKind::Init, Default::default(), max_pages::<T>().into()).unwrap();
+    }
+
+    // `t`: Size of the type section in kilobytes.
+    instantiate_module_type_section_per_kb {
+        let t in 0 .. T::Schedule::get().limits.code_len / 1024;
+
+        let WasmModule { code, .. } = WasmModule::<T>::sized_type_section(t * 1024);
+    }: {
+        let ext = Externalities::new(ProcessorContext::new_mock());
+        Environment::new(ext, &code, DispatchKind::Init, Default::default(), max_pages::<T>().into()).unwrap();
+    }
+
     claim_value {
         let caller = benchmarking::account("caller", 0, 0);
         let _ = CurrencyOf::<T>::deposit_creating(&caller, 100_000_000_000_000_u128.unique_saturated_into());

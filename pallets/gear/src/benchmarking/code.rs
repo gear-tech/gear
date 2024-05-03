@@ -40,7 +40,8 @@ use gear_wasm_instrument::{
     parity_wasm::{
         builder,
         elements::{
-            self, BlockType, CustomSection, FuncBody, Instruction, Instructions, Section, ValueType,
+            self, BlockType, CustomSection, FuncBody, FunctionType, Instruction, Instructions,
+            Section, Type, ValueType,
         },
     },
     syscalls::SyscallName,
@@ -69,6 +70,8 @@ pub struct ModuleDefinition {
     pub data_segments: Vec<DataSegment>,
     /// Creates the supplied amount of i64 mutable globals initialized with random values.
     pub num_globals: u32,
+    /// Make i64 globals init expr occupy 9 bytes.
+    pub full_length_globals: bool,
     /// List of syscalls that the module should import. They start with index 0.
     pub imported_functions: Vec<SyscallName>,
     /// Function body of the exported `init` function. Body is empty if `None`.
@@ -90,6 +93,8 @@ pub struct ModuleDefinition {
     pub aux_res: Option<ValueType>,
     /// Create a table containing function pointers.
     pub table: Option<TableSegment>,
+    /// Create a type section with the specified amount of types.
+    pub types: Option<TypeSegment>,
     /// Create a section named "dummy" of the specified size. This is useful in order to
     /// benchmark the overhead of loading and storing codes of specified sizes. The dummy
     /// section only contributes to the size of the program but does not affect execution.
@@ -104,6 +109,10 @@ pub struct TableSegment {
     pub num_elements: u32,
     /// The function index with which all table elements should be initialized.
     pub function_index: u32,
+}
+
+pub struct TypeSegment {
+    pub num_elements: u32,
 }
 
 pub struct DataSegment {
@@ -261,7 +270,11 @@ where
         if def.num_globals > 0 {
             use rand::{distributions::Standard, prelude::*};
             let rng = rand_pcg::Pcg32::seed_from_u64(3112244599778833558);
-            for val in rng.sample_iter(Standard).take(def.num_globals as usize) {
+            for mut val in rng.sample_iter(Standard).take(def.num_globals as usize) {
+                // Make i64 const init expr use full length
+                if def.full_length_globals {
+                    val |= 1 << 63;
+                }
                 program = program
                     .global()
                     .value_type()
@@ -315,7 +328,24 @@ where
             )));
         }
 
-        let code = program.build();
+        let mut code = program.build();
+
+        // Add dummy type section
+        if let Some(types) = def.types {
+            for section in code.sections_mut() {
+                if let Section::Type(sec) = section {
+                    for _ in 0..types.num_elements {
+                        sec.types_mut().push(Type::Function(FunctionType::new(
+                            vec![ValueType::I64; 6],
+                            vec![ValueType::I64; 1],
+                        )));
+                    }
+                    // Add the types only to the first type section
+                    break;
+                }
+            }
+        }
+
         let code = code.into_bytes().unwrap();
         let hash = CodeId::generate(&code);
         Self {
@@ -409,6 +439,58 @@ where
                 }
             }
         }
+
+        module.into()
+    }
+
+    /// Creates a wasm module of `target_bytes` size.
+    /// The generated module generates wasm module containing only global section.
+    pub fn sized_global_section(target_bytes: u32) -> Self {
+        let mut module = ModuleDefinition {
+            memory: Some(ImportedMemory::max::<T>()),
+            ..Default::default()
+        };
+
+        // Maximum size of encoded i64 global is 14 bytes.
+        module.num_globals = target_bytes / 14;
+        module.full_length_globals = true;
+
+        module.into()
+    }
+
+    /// Creates a WebAssembly module with a table size of `target_bytes` bytes.
+    /// Each element in the table points to function index `0` and occupies 1 byte.
+    pub fn sized_table_section(target_bytes: u32) -> Self {
+        let mut module = ModuleDefinition {
+            memory: Some(ImportedMemory::max::<T>()),
+            ..Default::default()
+        };
+
+        module.init_body = Some(body::empty());
+
+        // 1 element with function index value `0` takes 1 byte to encode.
+        let num_elements = target_bytes;
+
+        module.table = Some(TableSegment {
+            num_elements,
+            function_index: 0,
+        });
+
+        module.into()
+    }
+
+    /// Creates a WebAssembly module with a type section of size `target_bytes` bytes.
+    pub fn sized_type_section(target_bytes: u32) -> Self {
+        let mut module = ModuleDefinition {
+            memory: Some(ImportedMemory::max::<T>()),
+            ..Default::default()
+        };
+
+        // Dummy type section takes 10 bytes.
+        module.types = Some(TypeSegment {
+            num_elements: target_bytes / 10,
+        });
+
         module.into()
     }
 
