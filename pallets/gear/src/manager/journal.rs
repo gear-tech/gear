@@ -164,11 +164,7 @@ where
                         core::mem::take(&mut program.gas_reservation_map),
                     );
 
-                    Self::clean_inactive_program(
-                        id_exited,
-                        program.memory_infix,
-                        value_destination,
-                    );
+                    Self::clean_inactive_program(id_exited, program.memory_infix);
                 }
                 _ => unreachable!("Action executed only for active program"),
             }
@@ -357,7 +353,7 @@ where
     }
 
     fn send_value(&mut self, from: ProgramId, to: Option<ProgramId>, value: u128) {
-        let to = Pallet::<T>::inheritor_for(to.unwrap_or(from)).cast();
+        let to = to.unwrap_or(from).cast();
         let from = from.cast();
         let value = value.unique_saturated_into();
 

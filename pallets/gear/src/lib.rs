@@ -899,28 +899,24 @@ pub mod pallet {
 
         /// Returns exit argument of an exited program.
         pub fn exit_inheritor_of(program_id: ProgramId) -> Option<ProgramId> {
-            ProgramStorageOf::<T>::get_program(program_id)
-                .map(|program| {
-                    if let Program::Exited(inheritor) = program {
-                        Some(inheritor)
-                    } else {
-                        None
-                    }
-                })
-                .unwrap_or_default()
+            ProgramStorageOf::<T>::get_program(program_id).and_then(|program| {
+                if let Program::Exited(inheritor) = program {
+                    Some(inheritor)
+                } else {
+                    None
+                }
+            })
         }
 
         /// Returns inheritor of terminated (failed it's init) program.
         pub fn termination_inheritor_of(program_id: ProgramId) -> Option<ProgramId> {
-            ProgramStorageOf::<T>::get_program(program_id)
-                .map(|program| {
-                    if let Program::Terminated(inheritor) = program {
-                        Some(inheritor)
-                    } else {
-                        None
-                    }
-                })
-                .unwrap_or_default()
+            ProgramStorageOf::<T>::get_program(program_id).and_then(|program| {
+                if let Program::Terminated(inheritor) = program {
+                    Some(inheritor)
+                } else {
+                    None
+                }
+            })
         }
 
         /// Returns MessageId for newly created user message.
@@ -1642,6 +1638,32 @@ pub mod pallet {
 
             log::debug!(target: "gear::runtime", "⚙️  Set ExecuteInherent flag to {}", value);
             ExecuteInherent::<T>::put(value);
+
+            Ok(())
+        }
+
+        #[pallet::call_index(8)]
+        #[pallet::weight(DbWeightOf::<T>::get().writes(1))] // TODO: bench
+        pub fn transfer_value_to_inheritor(
+            origin: OriginFor<T>,
+            program_id: ProgramId,
+            depth: Option<u32>,
+        ) -> DispatchResult {
+            ensure_signed(origin)?;
+
+            let program_account = program_id.cast();
+            let balance = CurrencyOf::<T>::free_balance(&program_account);
+            if !balance.is_zero() {
+                let depth = depth.map(|x| x as usize);
+                let destination = Self::inheritor_for(program_id, depth).cast();
+
+                CurrencyOf::<T>::transfer(
+                    &program_account,
+                    &destination,
+                    balance,
+                    ExistenceRequirement::AllowDeath,
+                )?;
+            }
 
             Ok(())
         }

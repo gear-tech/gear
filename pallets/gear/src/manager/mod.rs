@@ -63,7 +63,7 @@ use common::{
 };
 use core::fmt;
 use core_processor::common::{Actor, ExecutableActorData};
-use frame_support::traits::{Currency, ExistenceRequirement};
+use frame_support::traits::Currency;
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
     code::{CodeAndId, InstrumentedCode},
@@ -77,7 +77,7 @@ use primitive_types::H256;
 use scale_info::TypeInfo;
 use sp_runtime::{
     codec::{Decode, Encode},
-    traits::{UniqueSaturatedInto, Zero},
+    traits::UniqueSaturatedInto,
 };
 use sp_std::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
@@ -369,26 +369,8 @@ where
     }
 
     /// Removes memory pages of the program and transfers program balance to the `value_destination`.
-    fn clean_inactive_program(
-        program_id: ProgramId,
-        memory_infix: MemoryInfix,
-        value_destination: ProgramId,
-    ) {
+    fn clean_inactive_program(program_id: ProgramId, memory_infix: MemoryInfix) {
         ProgramStorageOf::<T>::remove_program_pages(program_id, memory_infix);
-
-        let program_account = program_id.cast();
-        let balance = CurrencyOf::<T>::free_balance(&program_account);
-        if !balance.is_zero() {
-            let destination = Pallet::<T>::inheritor_for(value_destination).cast();
-
-            CurrencyOf::<T>::transfer(
-                &program_account,
-                &destination,
-                balance,
-                ExistenceRequirement::AllowDeath,
-            )
-            .unwrap_or_else(|e| unreachable!("Failed to transfer value: {e:?}"));
-        }
     }
 
     /// Removes all messages to `program_id` from the waitlist.
@@ -420,7 +402,7 @@ where
                     core::mem::take(&mut program.gas_reservation_map),
                 );
 
-                Self::clean_inactive_program(program_id, program.memory_infix, origin);
+                Self::clean_inactive_program(program_id, program.memory_infix);
             }
 
             *p = Program::Terminated(origin);

@@ -17,8 +17,9 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
+    builtin::BuiltinDispatcherFactory,
     internal::HoldBoundBuilder,
-    manager::HandleKind,
+    manager::{CodeInfo, HandleKind},
     mock::{
         self, new_test_ext, run_for_blocks, run_to_block, run_to_block_maybe_with_queue,
         run_to_next_block, Balances, BlockNumber, DynamicSchedule, Gear, GearVoucher,
@@ -28,8 +29,8 @@ use crate::{
     pallet,
     runtime_api::{ALLOWANCE_LIMIT_ERR, RUNTIME_API_BLOCK_LIMITS_COUNT},
     AccountIdOf, BlockGasLimitOf, Config, CostsPerBlockOf, CurrencyOf, DbWeightOf, DispatchStashOf,
-    Error, Event, GasAllowanceOf, GasBalanceOf, GasHandlerOf, GasInfo, GearBank, Limits, MailboxOf,
-    ProgramStorageOf, QueueOf, Schedule, TaskPoolOf, WaitlistOf,
+    Error, Event, ExtManager, GasAllowanceOf, GasBalanceOf, GasHandlerOf, GasInfo, GearBank,
+    Limits, MailboxOf, ProgramStorageOf, QueueOf, Schedule, TaskPoolOf, WaitlistOf,
 };
 use alloc::collections::BTreeSet;
 use common::{
@@ -6256,6 +6257,17 @@ fn exit_locking_funds() {
         assert_succeed(message_1);
         assert_succeed(message_2);
 
+        assert_balance(USER_2, user_2_balance, 0u128);
+        assert_balance(program_id, value, 0u128);
+
+        assert_ok!(Gear::transfer_value_to_inheritor(
+            RuntimeOrigin::signed(USER_1),
+            program_id,
+            None,
+        ));
+
+        run_to_next_block(None);
+
         assert_balance(USER_2, user_2_balance + value, 0u128);
         assert_balance(program_id, 0u128, 0u128);
     });
@@ -6343,7 +6355,7 @@ fn terminated_locking_funds() {
         // to user. This is because program will stop his execution on first wasm block, because of gas
         // limit exceeded. So, gas counter will be equal to amount of returned from wait list gas in handle reply.
         let expected_balance_difference =
-            prog_free + returned_from_wait_list + returned_from_system_reservation;
+            returned_from_wait_list + returned_from_system_reservation;
 
         assert_ok!(Gear::create_program(
             RuntimeOrigin::signed(USER_1),
@@ -6411,7 +6423,7 @@ fn terminated_locking_funds() {
             ActorExecutionErrorReplyReason::Trap(TrapExplanation::GasLimitExceeded),
         );
         assert!(Gear::is_terminated(program_id));
-        assert_balance(program_id, 0u128, prog_reserve);
+        assert_balance(program_id, prog_free, prog_reserve);
 
         let expected_balance = user_1_balance + expected_balance_difference;
         let user_1_balance = Balances::free_balance(USER_1);
@@ -6431,7 +6443,7 @@ fn terminated_locking_funds() {
                 * GasBalanceOf::<Test>::saturated_from(CostsPerBlockOf::<Test>::reserve_for()),
         );
 
-        assert_balance(program_id, 0u128, 0u128);
+        assert_balance(program_id, prog_free, 0u128);
         assert_eq!(
             Balances::free_balance(USER_3),
             user_3_balance + prog_reserve
@@ -6440,6 +6452,90 @@ fn terminated_locking_funds() {
             Balances::free_balance(USER_1),
             user_1_balance + extra_gas_to_mb
         );
+
+        assert_ok!(Gear::transfer_value_to_inheritor(
+            RuntimeOrigin::signed(USER_1),
+            program_id,
+            None,
+        ));
+
+        run_to_next_block(None);
+
+        assert_balance(program_id, 0u128, 0u128);
+        assert_eq!(
+            Balances::free_balance(USER_3),
+            user_3_balance + prog_reserve
+        );
+        assert_eq!(
+            Balances::free_balance(USER_1),
+            user_1_balance + extra_gas_to_mb + prog_free,
+        );
+    });
+}
+
+#[test]
+fn transfer_value_to_inheritor() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let (builtins, _) = <Test as Config>::BuiltinDispatcherFactory::create();
+        let manager = ExtManager::<Test>::new(builtins);
+
+        assert_ok!(Gear::upload_code(
+            RuntimeOrigin::signed(USER_1),
+            demo_ping::WASM_BINARY.to_vec(),
+        ));
+        let code_id = get_last_code_id();
+        let code = <Test as Config>::CodeStorage::get_code(code_id).unwrap();
+        let code_info = CodeInfo::from_code(&code_id, &code);
+
+        let message_id = MessageId::from(1);
+
+        let mut programs = vec![];
+        for i in 1000..1100 {
+            let program_id = ProgramId::from(i);
+            manager.set_program(
+                program_id,
+                &code_info,
+                message_id,
+                1.unique_saturated_into(),
+            );
+
+            ProgramStorageOf::<Test>::update_program_if_active(program_id, |program, _bn| {
+                let inheritor = programs.last().copied().unwrap_or_else(|| USER_1.into());
+                if i % 2 == 0 {
+                    *program = Program::Exited(inheritor);
+                } else {
+                    *program = Program::Terminated(inheritor);
+                }
+            })
+            .unwrap();
+
+            programs.push(program_id);
+        }
+
+        let inheritor = Gear::inheritor_for(programs[99], None);
+        assert_eq!(inheritor, USER_1.into());
+
+        let inheritor = Gear::inheritor_for(programs[50], None);
+        assert_eq!(inheritor, USER_1.into());
+
+        let inheritor = Gear::inheritor_for(programs[0], None);
+        assert_eq!(inheritor, USER_1.into());
+
+        let inheritor = Gear::inheritor_for(programs[99], Some(usize::MAX));
+        assert_eq!(inheritor, USER_1.into());
+
+        let inheritor = Gear::inheritor_for(programs[99], Some(10));
+        assert_eq!(inheritor, programs[89]);
+
+        let inheritor = Gear::inheritor_for(programs[99], Some(20));
+        assert_eq!(inheritor, programs[79]);
+
+        let inheritor = Gear::inheritor_for(programs[99], Some(100));
+        assert_eq!(inheritor, USER_1.into());
+
+        let inheritor = Gear::inheritor_for(programs[99], Some(99));
+        assert_eq!(inheritor, programs[0]);
     });
 }
 
@@ -15023,10 +15119,15 @@ pub(crate) mod utils {
         reserved: impl Into<BalanceOf<Test>>,
     ) {
         let account_id = origin.cast();
-        assert_eq!(Balances::free_balance(account_id), free.into());
+        assert_eq!(
+            Balances::free_balance(account_id),
+            free.into(),
+            "Free balance"
+        );
         assert_eq!(
             GearBank::<Test>::account_total(&account_id),
-            reserved.into()
+            reserved.into(),
+            "Reserved balance"
         );
     }
 
