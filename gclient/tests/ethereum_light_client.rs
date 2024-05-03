@@ -20,7 +20,7 @@ use ark_bls12_381::{G1Affine, G1Projective as G1, G2Affine, G2Projective as G2};
 use ark_ec::Group;
 use ark_serialize::{CanonicalSerialize, CanonicalDeserialize};
 use ark_std::{ops::Mul, UniformRand};
-use demo_ethereum_light_client::{primitives::U64, ArkScale, BeaconBlock, BeaconBlockBody, BeaconBlockBodyLight, Bytes32, Handle, Header, Init, SignatureBytes, SyncAggregate, SyncCommittee, WASM_BINARY};
+use demo_ethereum_light_client::{primitives::U64, ArkScale, BeaconBlock, BeaconBlockBody, BeaconBlockBodyLight, Bytes32, Handle, Header, Init, SignatureBytes, SyncAggregate, SyncCommittee, WASM_BINARY, SyncCommittee2, Array512};
 use gclient::{EventListener, EventProcessor, GearApi, Result};
 use gstd::prelude::*;
 use serde::{Deserialize, de::DeserializeOwned};
@@ -241,12 +241,26 @@ async fn ethereum_light_client() -> Result<()> {
     let deser = <Header as ssz_rs::Deserialize>::deserialize(&finalized_header[..]).unwrap();
     assert_eq!(bootstrap.header.slot, deser.slot);
     assert_eq!(bootstrap.header.proposer_index, deser.proposer_index);
-    let current_sync_committee = {
-        buffer.clear();
-        bootstrap.current_sync_committee.serialize(&mut buffer).unwrap();
+    // let current_sync_committee = {
+    //     buffer.clear();
+    //     bootstrap.current_sync_committee.serialize(&mut buffer).unwrap();
 
-        buffer.clone()
-    };
+    //     buffer.clone()
+    // };
+    let current_sync_committee = SyncCommittee2 {
+        pubkeys: Array512(bootstrap
+            .current_sync_committee
+            .pubkeys
+            .as_ref()
+            .iter()
+            .map(|pub_key_compressed| {
+                <[u8; 48]>::try_from(pub_key_compressed.as_ref()).unwrap()
+            })
+            .collect::<Vec<[u8; 48]>>()
+            .try_into()
+            .unwrap()),
+        aggregate_pubkey: <[u8; 48]>::try_from(bootstrap.current_sync_committee.aggregate_pubkey.as_ref()).unwrap(),
+     };
     let pub_keys = bootstrap
         .current_sync_committee
         .pubkeys

@@ -38,6 +38,7 @@ use ark_ec::{
 };
 use ark_ff::{fields::field_hashers::DefaultFieldHasher, Zero, Field};
 use ark_serialize::CanonicalSerialize;
+use tree_hash::TreeHash;
 
 type WBMap = ark_ec::hashing::curve_maps::wb::WBMap<<ark_bls12_381::Config as Bls12Config>::G2Config>;
 
@@ -55,6 +56,57 @@ static mut BLOCKS: CircularBuffer<256, (ExecutionPayloadHeader, List<Node, 1_048
 const BUILTIN_BLS381: ActorId = ActorId::new(hex!(
     "6b6e292c382945e80bf51af2ba7fe9f458dcff81ae6075c46f9095e1bbecdc37"
 ));
+
+#[derive(Clone)]
+struct RingSha256(ring::digest::Context);
+
+impl Default for RingSha256 {
+    fn default() -> Self {
+        Self(ring::digest::Context::new(&ring::digest::SHA256))
+    }
+}
+
+impl digest::DynDigest for RingSha256 {
+    fn update(&mut self, data: &[u8]) {
+        self.0.update(data)
+    }
+
+    fn finalize_into(self, buf: &mut [u8]) -> Result<(), digest::InvalidBufferSize> {
+        if buf.len() != self.output_size() {
+            return Err(digest::InvalidBufferSize);
+        }
+
+        buf.copy_from_slice(self.0.finish().as_ref());
+
+        Ok(())
+    }
+
+    fn finalize_into_reset(
+        &mut self,
+        out: &mut [u8]
+    ) -> Result<(), digest::InvalidBufferSize> {
+        self
+            .clone()
+            .finalize_into(out)
+            .map(|result| {
+                self.reset();
+
+                result
+            })
+    }
+
+    fn reset(&mut self) {
+        self.0 = ring::digest::Context::new(&ring::digest::SHA256);
+    }
+
+    fn output_size(&self) -> usize {
+        32
+    }
+
+    fn box_clone(&self) -> Box<dyn digest::DynDigest> {
+        Box::new(self.clone())
+    }
+}
 
 fn get_participating_keys(
     committee: &[G1],
@@ -98,14 +150,60 @@ pub fn is_proof_valid<L: Merkleized>(
     ssz_rs::is_valid_merkle_branch(&leaf_hash, branch.iter(), depth, index, &state_root)
 }
 
-fn is_current_committee_proof_valid(
-    attested_header: &Header,
-    current_committee: &mut SyncCommittee,
-    current_committee_branch: &[Bytes32],
+fn is_valid_merkle_branch(
+    leaf: [u8; 32],
+    branch: &[[u8; 32]],
+    depth: u32,
+    index: u32,
+    root: &[u8; 32],
 ) -> bool {
-    is_proof_valid(
+    use digest::DynDigest;
+
+    let mut value = leaf;
+
+    let mut hasher = RingSha256::default();
+    let mut iter = branch.iter();
+    for i in 0..depth {
+        let Some(next_node) = iter.next() else {
+            return false;
+        };
+
+        let (node_first, node_second) = match (index / 2u32.pow(i)) % 2 {
+            0 => (value.as_ref(), next_node.as_ref()),
+            _ => (next_node.as_ref(), value.as_ref()),
+        };
+
+        hasher.update(node_first);
+        hasher.update(node_second);
+
+        hasher.finalize_into_reset(&mut value).unwrap()
+    }
+
+    value == *root
+}
+
+pub fn is_proof_valid2(
+    attested_header: &Header,
+    leaf_hash: [u8; 32],
+    branch: &[[u8; 32]],
+    depth: u32,
+    index: u32,
+) -> bool {
+    let state_root = <[u8; 32]>::try_from(attested_header.state_root.as_slice()).unwrap();
+
+    is_valid_merkle_branch(leaf_hash, branch, depth, index, &state_root)
+}
+
+fn is_current_committee_proof_valid2(
+    attested_header: &Header,
+    current_committee: &SyncCommittee2,
+    current_committee_branch: &[[u8; 32]],
+) -> bool {
+    let leaf_hash = current_committee.tree_hash_root();
+
+    is_proof_valid2(
         attested_header,
-        current_committee,
+        leaf_hash.0,
         current_committee_branch,
         5,
         22,
@@ -239,7 +337,8 @@ async fn verify_sync_committee_signture(
 
     /// Domain Separation Tag for signatures on G2
     pub const DST_G2: &[u8] = b"BLS_SIG_BLS12381G2_XMD:SHA-256_SSWU_RO_POP_";
-    let mapper = MapToCurveBasedHasher::<G2, DefaultFieldHasher<sha2::Sha256>, WBMap>::new(DST_G2).unwrap();
+    // let mapper = MapToCurveBasedHasher::<G2, DefaultFieldHasher<sha2::Sha256>, WBMap>::new(DST_G2).unwrap();
+    let mapper = MapToCurveBasedHasher::<G2, DefaultFieldHasher<RingSha256>, WBMap>::new(DST_G2).unwrap();
     let message = mapper.hash(signing_root.as_ref()).unwrap();
     let message: G2Affine = message.into();
 
@@ -292,11 +391,13 @@ extern "C" fn init() {
         panic!("Header hash is not valid. Expected = {:?}, actual = {:?}.", last_checkpoint, header_hash);
     }
 
-    let mut current_sync_committee = SyncCommittee::deserialize(&init_msg.current_sync_committee[..]).expect("Unable to deserialize current sync_committee");
+    // let mut current_sync_committee = SyncCommittee::deserialize(&init_msg.current_sync_committee[..]).expect("Unable to deserialize current sync_committee");
+    let current_sync_committee = init_msg.current_sync_committee;
 
     let mut buffer = Vec::with_capacity(512);
     let pub_key_count = current_sync_committee
         .pubkeys
+        .0
         .as_ref()
         .iter()
         .zip(init_msg.pub_keys.0.iter())
@@ -318,15 +419,15 @@ extern "C" fn init() {
     //         .pub_keys
     //         .0[0], |pub_key_aggregated, pub_key| pub_key_aggregated + *pub_key);
 
-    let current_sync_committee_branch = init_msg
-        .current_sync_committee_branch
-        .iter()
-        .map(|branch| Bytes32::try_from(&branch[..]).expect("Unable to create Bytes32 from [u8; 32]"))
-        .collect::<Vec<_>>();
-    if !is_current_committee_proof_valid(
+    // let current_sync_committee_branch = init_msg
+    //     .current_sync_committee_branch
+    //     .iter()
+    //     .map(|branch| Bytes32::try_from(&branch[..]).expect("Unable to create Bytes32 from [u8; 32]"))
+    //     .collect::<Vec<_>>();
+    if !is_current_committee_proof_valid2(
         &finalized_header,
-        &mut current_sync_committee,
-        &current_sync_committee_branch,
+        &current_sync_committee,
+        &init_msg.current_sync_committee_branch,
     ) {
         panic!("Current sync committee proof is not valid.");
     }

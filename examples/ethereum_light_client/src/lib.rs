@@ -20,11 +20,13 @@
 
 extern crate alloc;
 
+use core::fmt::Debug;
 use alloc::{vec, vec::Vec};
 use ark_bls12_381::{G1Projective as G1, G2Projective as G2};
 use codec::{Decode, Encode};
 use ssz_rs::{prelude::*, Deserialize, DeserializeError, Sized, Bitvector};
 use superstruct::superstruct;
+use tree_hash::Hash256;
 
 #[cfg(feature = "std")]
 mod code {
@@ -553,15 +555,84 @@ pub struct SyncCommittee {
     pub pubkeys: ssz_rs::Vector<BLSPubKey, 512>,
     pub aggregate_pubkey: BLSPubKey,
 }
+#[derive(Debug, Clone, tree_hash_derive::TreeHash, Decode, Encode)]
+#[codec(crate = codec)]
+pub struct SyncCommittee2 {
+    pub pubkeys: Array512<[u8; 48]>,
+    pub aggregate_pubkey: [u8; 48],
+}
+
+#[derive(Debug, Clone, Decode, Encode)]
+#[codec(crate = codec)]
+pub struct Array512<T: Debug + Clone + Decode + Encode + tree_hash::TreeHash>(pub [T; 512]);
+
+impl<T: Debug + Clone + Decode + Encode + tree_hash::TreeHash> tree_hash::TreeHash for Array512<T>
+{
+    fn tree_hash_type() -> tree_hash::TreeHashType {
+        tree_hash::TreeHashType::Vector
+    }
+
+    fn tree_hash_packed_encoding(&self) -> tree_hash::PackedEncoding {
+        unreachable!("Vector should never be packed.")
+    }
+
+    fn tree_hash_packing_factor() -> usize {
+        unreachable!("Vector should never be packed.")
+    }
+
+    fn tree_hash_root(&self) -> Hash256 {
+        vec_tree_hash_root::<T, 512>(&self.0)
+    }
+}
+
+/// A helper function providing common functionality between the `TreeHash` implementations for
+/// `FixedVector` and `VariableList`.
+pub fn vec_tree_hash_root<T, const N: usize>(vec: &[T]) -> Hash256
+where
+    T: tree_hash::TreeHash,
+{
+    use tree_hash::{MerkleHasher, TreeHash, TreeHashType, BYTES_PER_CHUNK};
+
+    match T::tree_hash_type() {
+        TreeHashType::Basic => {
+            let mut hasher = MerkleHasher::with_leaves(
+                (N + T::tree_hash_packing_factor() - 1) / T::tree_hash_packing_factor(),
+            );
+
+            for item in vec {
+                hasher
+                    .write(&item.tree_hash_packed_encoding())
+                    .expect("ssz_types variable vec should not contain more elements than max");
+            }
+
+            hasher
+                .finish()
+                .expect("ssz_types variable vec should not have a remaining buffer")
+        }
+        TreeHashType::Container | TreeHashType::List | TreeHashType::Vector => {
+            let mut hasher = MerkleHasher::with_leaves(N);
+
+            for item in vec {
+                hasher
+                    .write(item.tree_hash_root().as_bytes())
+                    .expect("ssz_types vec should not contain more elements than max");
+            }
+
+            hasher
+                .finish()
+                .expect("ssz_types vec should not have a remaining buffer")
+        }
+    }
+}
 
 #[derive(Debug, Clone, Decode, Encode)]
 #[codec(crate = codec)]
 pub struct Init {
     pub last_checkpoint: [u8; 32],
     pub pub_keys: ArkScale<Vec<G1>>,
+    pub current_sync_committee: SyncCommittee2,
     // all next fields are ssz_rs serialized
     pub finalized_header: Vec<u8>,
-    pub current_sync_committee: Vec<u8>,
     pub current_sync_committee_branch: Vec<[u8; 32]>,
 }
 
