@@ -257,7 +257,7 @@ pub enum JournalNote {
         /// Value sender
         from: ProgramId,
         /// Value beneficiary,
-        to: Option<ProgramId>,
+        to: ProgramId,
         /// Value amount
         value: u128,
     },
@@ -381,7 +381,7 @@ pub trait JournalHandler {
     /// Process [JournalNote::UpdateAllocations].
     fn update_allocations(&mut self, program_id: ProgramId, allocations: BTreeSet<WasmPage>);
     /// Send value.
-    fn send_value(&mut self, from: ProgramId, to: Option<ProgramId>, value: u128);
+    fn send_value(&mut self, from: ProgramId, to: ProgramId, value: u128);
     /// Store new programs in storage.
     ///
     /// Program ids are ids of _potential_ (planned to be initialized) programs.

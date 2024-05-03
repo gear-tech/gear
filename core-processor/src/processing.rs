@@ -222,11 +222,10 @@ fn process_error(
     // being waken, so the value were already transferred in
     // execution, where `gr_wait` was called.
     if dispatch.context().is_none() && value != 0 {
-        // Send back value
-        // TODO: handle sending back
+        // Send value from the bank to program free balance
         journal.push(JournalNote::SendValue {
             from: origin,
-            to: None,
+            to: origin,
             value,
         });
     }
@@ -439,7 +438,7 @@ pub fn process_success(
         // Send value further
         journal.push(JournalNote::SendValue {
             from: origin,
-            to: Some(program_id),
+            to: program_id,
             value,
         });
     }

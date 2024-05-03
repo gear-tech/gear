@@ -611,7 +611,7 @@ impl ExtManager {
         )
     }
 
-    pub(crate) fn mint_to(&mut self, id: &ProgramId, value: Balance, mint_mode: MintMode) {
+    pub(crate) fn mint_to(&mut self, id: ProgramId, value: Balance, mint_mode: MintMode) {
         if mint_mode == MintMode::KeepAlive && value < crate::EXISTENTIAL_DEPOSIT {
             panic!(
                 "An attempt to mint value ({}) less than existential deposit ({})",
@@ -621,7 +621,7 @@ impl ExtManager {
         }
 
         let mut actors = self.actors.borrow_mut();
-        let (_, balance) = actors.entry(*id).or_insert((TestActor::User, 0));
+        let (_, balance) = actors.entry(id).or_insert((TestActor::User, 0));
         *balance = balance.saturating_add(value);
     }
 
@@ -637,11 +637,7 @@ impl ExtManager {
         let messages = self.mailbox.remove(id);
         if let Some(messages) = messages {
             messages.into_iter().for_each(|message| {
-                self.send_value(
-                    message.source(),
-                    Some(message.destination()),
-                    message.value(),
-                )
+                self.send_value(message.source(), message.destination(), message.value())
             });
         }
     }
@@ -996,7 +992,7 @@ impl JournalHandler for ExtManager {
 
     fn exit_dispatch(&mut self, id_exited: ProgramId, value_destination: ProgramId) {
         if let Some((_, balance)) = self.actors.remove(&id_exited) {
-            self.mint_to(&value_destination, balance, MintMode::AllowDeath);
+            self.mint_to(value_destination, balance, MintMode::AllowDeath);
         }
     }
 
@@ -1118,31 +1114,28 @@ impl JournalHandler for ExtManager {
     }
 
     #[track_caller]
-    fn send_value(&mut self, from: ProgramId, to: Option<ProgramId>, value: Balance) {
+    fn send_value(&mut self, from: ProgramId, to: ProgramId, value: Balance) {
         if value == 0 {
             // Nothing to do
             return;
         }
-        if let Some(ref to) = to {
-            if self.is_program(&from) {
-                let mut actors = self.actors.borrow_mut();
-                let (_, balance) = actors.get_mut(&from).expect("Can't fail");
 
-                if *balance < value {
-                    unreachable!("Actor {:?} balance is less then sent value", from);
-                }
+        if self.is_program(&from) {
+            let mut actors = self.actors.borrow_mut();
+            let (_, balance) = actors.get_mut(&from).expect("Can't fail");
 
-                *balance -= value;
-
-                if *balance < crate::EXISTENTIAL_DEPOSIT {
-                    *balance = 0;
-                }
+            if *balance < value {
+                unreachable!("Actor {:?} balance is less then sent value", from);
             }
 
-            self.mint_to(to, value, MintMode::KeepAlive);
-        } else {
-            self.mint_to(&from, value, MintMode::KeepAlive);
+            *balance -= value;
+
+            if *balance < crate::EXISTENTIAL_DEPOSIT {
+                *balance = 0;
+            }
         }
+
+        self.mint_to(to, value, MintMode::KeepAlive);
     }
 
     #[track_caller]

@@ -721,7 +721,7 @@ impl<'a> Program<'a> {
     pub fn mint(&mut self, value: Balance) {
         self.manager
             .borrow_mut()
-            .mint_to(&self.id(), value, MintMode::KeepAlive)
+            .mint_to(self.id(), value, MintMode::KeepAlive)
     }
 
     /// Returns the balance of the account.
