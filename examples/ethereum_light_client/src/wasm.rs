@@ -220,12 +220,14 @@ fn is_finality_proof_valid(
 
 fn is_next_committee_proof_valid(
     attested_header: &Header,
-    next_committee: &mut SyncCommittee,
-    next_committee_branch: &[Bytes32],
+    next_committee: &SyncCommittee2,
+    next_committee_branch: &[[u8; 32]],
 ) -> bool {
-    is_proof_valid(
+    let leaf_hash = next_committee.tree_hash_root();
+
+    is_proof_valid2(
         attested_header,
-        next_committee,
+        leaf_hash.0,
         next_committee_branch,
         5,
         23,
@@ -449,11 +451,12 @@ async fn main() {
         Handle::Update {
             update,
             signature_slot,
-            sync_committee_signature,
             next_sync_committee,
+            sync_committee_signature,
+            next_sync_committee_keys,
             next_sync_committee_branch,
             finality_branch,
-        } => handle_update(update, signature_slot, sync_committee_signature, next_sync_committee, next_sync_committee_branch, finality_branch).await,
+        } => handle_update(update, signature_slot, next_sync_committee, sync_committee_signature, next_sync_committee_keys, next_sync_committee_branch, finality_branch).await,
 
         Handle::BeaconBlockBody {
             beacon_block_body_light,
@@ -465,9 +468,10 @@ async fn main() {
 async fn handle_update(
     update: Vec<u8>,
     signature_slot: u64,
+    next_sync_committee: Option<SyncCommittee2>,
     // serialized without compression
     sync_committee_signature: ArkScale<G2>,
-    next_sync_committee: Option<ArkScale<Vec<G1>>>,
+    next_sync_committee_keys: Option<ArkScale<Vec<G1>>>,
     next_sync_committee_branch: Option<Vec<[u8; 32]>>,
     finality_branch: Vec<[u8; 32]>,
 ) {
@@ -517,7 +521,7 @@ async fn handle_update(
     let update_attested_period = calc_sync_period(update.attested_header.slot.into());
     let update_has_finalized_next_committee =
         // has sync update
-        next_sync_committee.is_some() && next_sync_committee_branch.is_some()
+        next_sync_committee_keys.is_some() && next_sync_committee_branch.is_some()
         && update_finalized_period == update_attested_period;
 
     if update_is_newer || update_has_finalized_next_committee {
@@ -560,14 +564,11 @@ async fn handle_update(
         return;
     }
 
-    if update.next_sync_committee.is_some() && next_sync_committee_branch.is_some() {
+    if next_sync_committee.is_some() && next_sync_committee_branch.is_some() {
         let is_valid = is_next_committee_proof_valid(
             &update.attested_header,
-            &mut update.next_sync_committee.clone().unwrap(),
-            &next_sync_committee_branch.clone().unwrap()
-                .iter()
-                .map(|branch| Bytes32::try_from(&branch[..]).expect("Unable to create Bytes32 from [u8; 32]"))
-                .collect::<Vec<_>>(),
+            &next_sync_committee.as_ref().unwrap(),
+            &next_sync_committee_branch.as_ref().unwrap(),
         );
 
         if !is_valid {
@@ -580,11 +581,11 @@ async fn handle_update(
         Some(stored_next_sync_committee) if update_finalized_period == store_period + 1 => {
             debug!("sync committee updated");
             store.current_sync_committee = stored_next_sync_committee.clone();
-            store.next_sync_committee = next_sync_committee.clone().map(|ark_scale| ark_scale.0);
+            store.next_sync_committee = next_sync_committee_keys.clone().map(|ark_scale| ark_scale.0);
         }
 
         None => {
-            store.next_sync_committee = next_sync_committee.clone().map(|ark_scale| ark_scale.0);
+            store.next_sync_committee = next_sync_committee_keys.clone().map(|ark_scale| ark_scale.0);
         }
 
         _ => (),

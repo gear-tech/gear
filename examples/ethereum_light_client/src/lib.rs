@@ -647,7 +647,6 @@ pub struct SyncAggregate {
 pub struct Update {
     pub attested_header: Header,
     pub sync_aggregate: SyncAggregate,
-    pub next_sync_committee: Option<SyncCommittee>,
     pub finalized_header: Header,
 }
 
@@ -658,9 +657,10 @@ pub enum Handle {
         // ssz_rs serialized Update struct
         update: Vec<u8>,
         signature_slot: u64,
+        next_sync_committee: Option<SyncCommittee2>,
         // serialized without compression
         sync_committee_signature: ArkScale<G2>,
-        next_sync_committee: Option<ArkScale<Vec<G1>>>,
+        next_sync_committee_keys: Option<ArkScale<Vec<G1>>>,
         next_sync_committee_branch: Option<Vec<[u8; 32]>>,
         finality_branch: Vec<[u8; 32]>,
     },

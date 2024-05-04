@@ -312,7 +312,7 @@ async fn ethereum_light_client() -> Result<()> {
             continue;
         };
 
-        let next_sync_committee = Some({
+        let next_sync_committee_keys = Some({
             let pub_keys = update
                 .next_sync_committee
                 .pubkeys
@@ -327,12 +327,26 @@ async fn ethereum_light_client() -> Result<()> {
 
             ark_scale
         });
+        let next_sync_committee = SyncCommittee2 {
+            pubkeys: Array512(update
+                .next_sync_committee
+                .pubkeys
+                .as_ref()
+                .iter()
+                .map(|pub_key_compressed| {
+                    <[u8; 48]>::try_from(pub_key_compressed.as_ref()).unwrap()
+                })
+                .collect::<Vec<[u8; 48]>>()
+                .try_into()
+                .unwrap()),
+            aggregate_pubkey: <[u8; 48]>::try_from(update.next_sync_committee.aggregate_pubkey.as_ref()).unwrap(),
+        };
+
         let payload = Handle::Update {
             update: {
                 let update = demo_ethereum_light_client::Update {
                     attested_header: update.attested_header,
                     sync_aggregate: update.sync_aggregate,
-                    next_sync_committee: Some(update.next_sync_committee),
                     finalized_header: update.finalized_header,
                 };
 
@@ -342,8 +356,9 @@ async fn ethereum_light_client() -> Result<()> {
                 buffer.clone()
             },
             signature_slot: update.signature_slot.into(),
+            next_sync_committee: Some(next_sync_committee),
             sync_committee_signature: signature.into(),
-            next_sync_committee,
+            next_sync_committee_keys,
             next_sync_committee_branch: Some(update
                 .next_sync_committee_branch
                 .iter()
@@ -394,7 +409,6 @@ async fn ethereum_light_client() -> Result<()> {
                 let update = demo_ethereum_light_client::Update {
                     attested_header: update.attested_header,
                     sync_aggregate: update.sync_aggregate,
-                    next_sync_committee: None,
                     finalized_header: update.finalized_header,
                 };
 
@@ -404,8 +418,9 @@ async fn ethereum_light_client() -> Result<()> {
                 buffer.clone()
             },
             signature_slot: update.signature_slot.into(),
-            sync_committee_signature: signature.into(),
             next_sync_committee: None,
+            sync_committee_signature: signature.into(),
+            next_sync_committee_keys: None,
             next_sync_committee_branch: None,
             finality_branch: update
                 .finality_branch
