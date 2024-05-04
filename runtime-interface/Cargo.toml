@@ -25,6 +25,9 @@ log = { workspace = true, optional = true }
 
 ark-bls12-381 = { workspace = true, features = ["curve"] }
 ark-scale.workspace = true
+ark-ec = { workspace = true, optional = true }
+ark-ff = { workspace = true, optional = true }
+sha2 = { workspace = true, optional = true }
 
 [target.'cfg(windows)'.dependencies]
 winapi = { workspace = true, features = ["memoryapi"] }
@@ -46,4 +49,7 @@ std = [
 	"log",
     "ark-bls12-381/std",
     "ark-scale/std",
+	"ark-ec/std",
+	"ark-ff/std",
+	"sha2/std"
 ]

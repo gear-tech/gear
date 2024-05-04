@@ -21,7 +21,7 @@ ark-bls12-381 = { workspace = true, features = ["curve"] }
 ark-scale.workspace = true
 ark-ec.workspace = true
 ark-ff.workspace = true
-sha2 = { version = "0.10.8", default-features = false }
+sha2.workspace = true
 superstruct = "0.7.0"
 ethereum-types = { version = "0.14.1", default-features = false, optional = true }
 circular-buffer = { version = "0.1.7", default-features = false }
@@ -58,6 +58,7 @@ std = [
     "digest/std",
     "getrandom/std",
     "tree_hash/std",
-    "primitive-types/std"
+    "primitive-types/std",
+    "sha2/std",
 ]
 serde = ["dep:serde", "hex", "ssz_rs/serde", "ethereum-types"]

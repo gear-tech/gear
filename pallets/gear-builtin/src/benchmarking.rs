@@ -336,6 +336,37 @@ benchmarks! {
 
         assert_eq!(point_aggregated, decoded.0);
     }
+
+    map_to_g2 {
+        let c in 1 .. 1_000;
+
+        let count = c as usize;
+
+        let message = vec![1u8; count];
+
+        let mut _result: Result<Vec<u8>, u32> = Err(0);
+    }: {
+        _result = gear_runtime_interface::gear_bls_12_381::map_to_g2(&message);
+    } verify {
+        assert!(_result.is_ok());
+        let decoded = ArkScale::<G2Affine>::decode(&mut &_result.unwrap()[..]).unwrap();
+
+        use ark_bls12_381::{G2Projective as G2, G2Affine};
+        use ark_ff::fields::field_hashers::DefaultFieldHasher;
+        use ark_ec::{
+            hashing::{map_to_curve_hasher::MapToCurveBasedHasher, HashToCurve, curve_maps::wb},
+            bls12::Bls12Config,
+        };
+
+        type WBMap = wb::WBMap<<ark_bls12_381::Config as Bls12Config>::G2Config>;
+
+        // Domain Separation Tag for signatures on G2
+        pub const DST_G2: &[u8] = b"BLS_SIG_BLS12381G2_XMD:SHA-256_SSWU_RO_POP_";
+        let mapper = MapToCurveBasedHasher::<G2, DefaultFieldHasher<sha2::Sha256>, WBMap>::new(DST_G2).unwrap();
+        let point = mapper.hash(&message).unwrap();
+
+        assert_eq!(point, decoded.0);
+    }
 }
 
 impl_benchmark_test_suite!(

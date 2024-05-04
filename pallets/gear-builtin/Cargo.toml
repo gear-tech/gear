@@ -38,6 +38,7 @@ sp-crypto-ec-utils = { workspace = true, features = ["bls12-381"] }
 sp-std.workspace = true
 sp-runtime = { workspace = true, features = ["serde"] }
 pallet-gear.workspace = true
+sha2 = { workspace = true, optional = true }
 
 [dev-dependencies]
 common = { workspace = true, features = ["std"] }
@@ -82,6 +83,7 @@ std = [
 	"ark-ec?/std",
 	"ark-ff?/std",
 	"ark-std?/std",
+    "sha2?/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",
@@ -91,5 +93,6 @@ runtime-benchmarks = [
 	"ark-ec",
 	"ark-ff",
 	"ark-std",
+    "sha2",
 ]
 try-runtime = ["frame-support/try-runtime"]

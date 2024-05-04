@@ -329,4 +329,32 @@ pub trait GearBls12_381 {
 
         result.encode()
     }
+
+    // Map an arbitrary message to G2Affine-point.
+    // Result is encoded `ArkScale<G2Affine>`.
+    fn map_to_g2(message: &[u8]) -> Result<Vec<u8>, u32> {
+        use ark_bls12_381::{G2Projective as G2, G2Affine};
+        use ark_ff::fields::field_hashers::DefaultFieldHasher;
+        use ark_ec::{
+            hashing::{map_to_curve_hasher::MapToCurveBasedHasher, HashToCurve, curve_maps::wb},
+            bls12::Bls12Config,
+        };
+
+        type ArkScale<T> = ark_scale::ArkScale<T, { ark_scale::HOST_CALL }>;
+        type WBMap = wb::WBMap<<ark_bls12_381::Config as Bls12Config>::G2Config>;
+
+        // Domain Separation Tag for signatures on G2
+        pub const DST_G2: &[u8] = b"BLS_SIG_BLS12381G2_XMD:SHA-256_SSWU_RO_POP_";
+        let Ok(mapper) = MapToCurveBasedHasher::<G2, DefaultFieldHasher<sha2::Sha256>, WBMap>::new(DST_G2) else {
+            return Err(0);
+        };
+
+        let Ok(point) = mapper.hash(message) else {
+            return Err(1);
+        };
+
+        let result: ArkScale<G2Affine> = point.into();
+
+        Ok(result.encode())
+    }
 }
