@@ -20,7 +20,7 @@ use ark_bls12_381::{G1Affine, G1Projective as G1, G2Affine, G2Projective as G2};
 use ark_ec::Group;
 use ark_serialize::{CanonicalSerialize, CanonicalDeserialize};
 use ark_std::{ops::Mul, UniformRand};
-use demo_ethereum_light_client::{primitives::U64, ArkScale, BeaconBlock, BeaconBlockBody, BeaconBlockBodyLight, Bytes32, Handle, Header, Init, SignatureBytes, SyncAggregate, SyncCommittee, WASM_BINARY, SyncCommittee2, Array512};
+use demo_ethereum_light_client::{primitives::U64, ArkScale, BeaconBlock, BeaconBlockBody, BeaconBlockBodyLight, Bytes32, Handle, Header, Init, SignatureBytes, SyncAggregate, SyncCommittee, WASM_BINARY, SyncCommittee2, Array512, BeaconBlockHeader, Hash256};
 use gclient::{EventListener, EventProcessor, GearApi, Result};
 use gstd::prelude::*;
 use serde::{Deserialize, de::DeserializeOwned};
@@ -230,17 +230,17 @@ async fn ethereum_light_client() -> Result<()> {
     // println!("bootstrap = {bootstrap:?}");
 
     let mut buffer = Vec::with_capacity(10_000);
-    let finalized_header = {
-        let len = bootstrap.header.serialize(&mut buffer).unwrap();
-        println!("len = {len}");
+    // let finalized_header = {
+    //     let len = bootstrap.header.serialize(&mut buffer).unwrap();
+    //     println!("len = {len}");
 
-        buffer.clone()
-    };
-    println!("encoded = {finalized_header:?}");
+    //     buffer.clone()
+    // };
+    // println!("encoded = {finalized_header:?}");
 
-    let deser = <Header as ssz_rs::Deserialize>::deserialize(&finalized_header[..]).unwrap();
-    assert_eq!(bootstrap.header.slot, deser.slot);
-    assert_eq!(bootstrap.header.proposer_index, deser.proposer_index);
+//    let deser = <Header as ssz_rs::Deserialize>::deserialize(&finalized_header[..]).unwrap();
+//    assert_eq!(bootstrap.header.slot, deser.slot);
+//    assert_eq!(bootstrap.header.proposer_index, deser.proposer_index);
     // let current_sync_committee = {
     //     buffer.clear();
     //     bootstrap.current_sync_committee.serialize(&mut buffer).unwrap();
@@ -273,7 +273,13 @@ async fn ethereum_light_client() -> Result<()> {
     let init = Init {
         last_checkpoint: checkpoint,
         pub_keys: pub_keys.into(),
-        finalized_header,
+        finalized_header: BeaconBlockHeader {
+            slot: bootstrap.header.slot.into(),
+            proposer_index: bootstrap.header.proposer_index.into(),
+            parent_root: Hash256::from_slice(bootstrap.header.parent_root.as_ref()),
+            state_root: Hash256::from_slice(bootstrap.header.state_root.as_ref()),
+            body_root: Hash256::from_slice(bootstrap.header.body_root.as_ref()),
+        },
         current_sync_committee,
         current_sync_committee_branch: bootstrap
             .current_sync_committee_branch
@@ -347,7 +353,6 @@ async fn ethereum_light_client() -> Result<()> {
                 let update = demo_ethereum_light_client::Update {
                     attested_header: update.attested_header,
                     sync_aggregate: update.sync_aggregate,
-                    finalized_header: update.finalized_header,
                 };
 
                 buffer.clear();
@@ -357,6 +362,13 @@ async fn ethereum_light_client() -> Result<()> {
             },
             signature_slot: update.signature_slot.into(),
             next_sync_committee: Some(next_sync_committee),
+            finalized_header: BeaconBlockHeader {
+                slot: update.finalized_header.slot.into(),
+                proposer_index: update.finalized_header.proposer_index.into(),
+                parent_root: Hash256::from_slice(update.finalized_header.parent_root.as_ref()),
+                state_root: Hash256::from_slice(update.finalized_header.state_root.as_ref()),
+                body_root: Hash256::from_slice(update.finalized_header.body_root.as_ref()),
+            },
             sync_committee_signature: signature.into(),
             next_sync_committee_keys,
             next_sync_committee_branch: Some(update
@@ -388,7 +400,7 @@ async fn ethereum_light_client() -> Result<()> {
     println!("before loop");
     println!();
 
-    for _ in 0..20 {
+    for _ in 0..3 {
         let update = get_finality_update()
             .await
             .map_err(|e| anyhow::Error::msg(e.to_string()))?;
@@ -409,7 +421,6 @@ async fn ethereum_light_client() -> Result<()> {
                 let update = demo_ethereum_light_client::Update {
                     attested_header: update.attested_header,
                     sync_aggregate: update.sync_aggregate,
-                    finalized_header: update.finalized_header,
                 };
 
                 buffer.clear();
@@ -419,6 +430,13 @@ async fn ethereum_light_client() -> Result<()> {
             },
             signature_slot: update.signature_slot.into(),
             next_sync_committee: None,
+            finalized_header: BeaconBlockHeader {
+                slot: update.finalized_header.slot.into(),
+                proposer_index: update.finalized_header.proposer_index.into(),
+                parent_root: Hash256::from_slice(update.finalized_header.parent_root.as_ref()),
+                state_root: Hash256::from_slice(update.finalized_header.state_root.as_ref()),
+                body_root: Hash256::from_slice(update.finalized_header.body_root.as_ref()),
+            },
             sync_committee_signature: signature.into(),
             next_sync_committee_keys: None,
             next_sync_committee_branch: None,

@@ -26,7 +26,7 @@ use ark_bls12_381::{G1Projective as G1, G2Projective as G2};
 use codec::{Decode, Encode};
 use ssz_rs::{prelude::*, Deserialize, DeserializeError, Sized, Bitvector};
 use superstruct::superstruct;
-use tree_hash::Hash256;
+pub use tree_hash::Hash256;
 
 #[cfg(feature = "std")]
 mod code {
@@ -549,12 +549,23 @@ pub struct Header {
     pub body_root: Bytes32,
 }
 
+#[derive(Debug, Clone, tree_hash_derive::TreeHash, Decode, Encode)]
+#[codec(crate = codec)]
+pub struct BeaconBlockHeader {
+    pub slot: u64,
+    pub proposer_index: u64,
+    pub parent_root: Hash256,
+    pub state_root: Hash256,
+    pub body_root: Hash256,
+}
+
 #[derive(Debug, Clone, Default, SimpleSerialize)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize))]
 pub struct SyncCommittee {
     pub pubkeys: ssz_rs::Vector<BLSPubKey, 512>,
     pub aggregate_pubkey: BLSPubKey,
 }
+
 #[derive(Debug, Clone, tree_hash_derive::TreeHash, Decode, Encode)]
 #[codec(crate = codec)]
 pub struct SyncCommittee2 {
@@ -631,8 +642,7 @@ pub struct Init {
     pub last_checkpoint: [u8; 32],
     pub pub_keys: ArkScale<Vec<G1>>,
     pub current_sync_committee: SyncCommittee2,
-    // all next fields are ssz_rs serialized
-    pub finalized_header: Vec<u8>,
+    pub finalized_header: BeaconBlockHeader,
     pub current_sync_committee_branch: Vec<[u8; 32]>,
 }
 
@@ -647,7 +657,6 @@ pub struct SyncAggregate {
 pub struct Update {
     pub attested_header: Header,
     pub sync_aggregate: SyncAggregate,
-    pub finalized_header: Header,
 }
 
 #[derive(Debug, Clone, Decode, Encode)]
@@ -658,6 +667,7 @@ pub enum Handle {
         update: Vec<u8>,
         signature_slot: u64,
         next_sync_committee: Option<SyncCommittee2>,
+        finalized_header: BeaconBlockHeader,
         // serialized without compression
         sync_committee_signature: ArkScale<G2>,
         next_sync_committee_keys: Option<ArkScale<Vec<G1>>>,

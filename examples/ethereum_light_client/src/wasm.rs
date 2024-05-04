@@ -42,9 +42,9 @@ use tree_hash::TreeHash;
 
 type WBMap = ark_ec::hashing::curve_maps::wb::WBMap<<ark_bls12_381::Config as Bls12Config>::G2Config>;
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 struct LightClientStore {
-    finalized_header: Header,
+    finalized_header: BeaconBlockHeader,
     current_sync_committee: Vec<G1>,
     next_sync_committee: Option<Vec<G1>>,
 }
@@ -183,26 +183,24 @@ fn is_valid_merkle_branch(
 }
 
 pub fn is_proof_valid2(
-    attested_header: &Header,
+    state_root: [u8; 32],
     leaf_hash: [u8; 32],
     branch: &[[u8; 32]],
     depth: u32,
     index: u32,
 ) -> bool {
-    let state_root = <[u8; 32]>::try_from(attested_header.state_root.as_slice()).unwrap();
-
     is_valid_merkle_branch(leaf_hash, branch, depth, index, &state_root)
 }
 
 fn is_current_committee_proof_valid2(
-    attested_header: &Header,
+    attested_header: &BeaconBlockHeader,
     current_committee: &SyncCommittee2,
     current_committee_branch: &[[u8; 32]],
 ) -> bool {
     let leaf_hash = current_committee.tree_hash_root();
 
     is_proof_valid2(
-        attested_header,
+        attested_header.state_root.0,
         leaf_hash.0,
         current_committee_branch,
         5,
@@ -212,10 +210,13 @@ fn is_current_committee_proof_valid2(
 
 fn is_finality_proof_valid(
     attested_header: &Header,
-    finality_header: &mut Header,
-    finality_branch: &[Bytes32],
+    finality_header: &BeaconBlockHeader,
+    finality_branch: &[[u8; 32]],
 ) -> bool {
-    is_proof_valid(attested_header, finality_header, finality_branch, 6, 41)
+    let leaf_hash = finality_header.tree_hash_root();
+    let state_root = <[u8; 32]>::try_from(attested_header.state_root.as_slice()).unwrap();
+
+    is_proof_valid2(state_root, leaf_hash.0, finality_branch, 6, 41)
 }
 
 fn is_next_committee_proof_valid(
@@ -224,9 +225,10 @@ fn is_next_committee_proof_valid(
     next_committee_branch: &[[u8; 32]],
 ) -> bool {
     let leaf_hash = next_committee.tree_hash_root();
+    let state_root = <[u8; 32]>::try_from(attested_header.state_root.as_slice()).unwrap();
 
     is_proof_valid2(
-        attested_header,
+        state_root,
         leaf_hash.0,
         next_committee_branch,
         5,
@@ -387,8 +389,9 @@ extern "C" fn init() {
     let init_msg: Init = msg::load().expect("Unable to decode `Init` message");
 
     let last_checkpoint = Bytes32::try_from(&init_msg.last_checkpoint[..]).expect("Unable to create Bytes32 from [u8; 32]");
-    let mut finalized_header = Header::deserialize(&init_msg.finalized_header[..]).expect("Unable to deserialize finalized header");
-    let header_hash = finalized_header.hash_tree_root().expect("Unable to calculate header hash");
+    // let mut finalized_header = Header::deserialize(&init_msg.finalized_header[..]).expect("Unable to deserialize finalized header");
+    let finalized_header = init_msg.finalized_header;
+    let header_hash = finalized_header.tree_hash_root();
     if header_hash.as_ref() != last_checkpoint.as_slice() {
         panic!("Header hash is not valid. Expected = {:?}, actual = {:?}.", last_checkpoint, header_hash);
     }
@@ -452,11 +455,12 @@ async fn main() {
             update,
             signature_slot,
             next_sync_committee,
+            finalized_header,
             sync_committee_signature,
             next_sync_committee_keys,
             next_sync_committee_branch,
             finality_branch,
-        } => handle_update(update, signature_slot, next_sync_committee, sync_committee_signature, next_sync_committee_keys, next_sync_committee_branch, finality_branch).await,
+        } => handle_update(update, signature_slot, next_sync_committee, finalized_header, sync_committee_signature, next_sync_committee_keys, next_sync_committee_branch, finality_branch).await,
 
         Handle::BeaconBlockBody {
             beacon_block_body_light,
@@ -469,6 +473,7 @@ async fn handle_update(
     update: Vec<u8>,
     signature_slot: u64,
     next_sync_committee: Option<SyncCommittee2>,
+    finalized_header: BeaconBlockHeader,
     // serialized without compression
     sync_committee_signature: ArkScale<G2>,
     next_sync_committee_keys: Option<ArkScale<Vec<G1>>>,
@@ -477,10 +482,8 @@ async fn handle_update(
 ) {
     let update = Update::deserialize(&update[..]).expect("Unable to deserialize Update");
 
-    let update_finalized_slot = update
-        .finalized_header
-        .slot
-        .as_u64();
+    let update_finalized_slot = finalized_header
+        .slot;
     let valid_time = signature_slot > update.attested_header.slot.as_u64()
         && update.attested_header.slot.as_u64() >= update_finalized_slot;
     if !valid_time {
@@ -517,7 +520,7 @@ async fn handle_update(
     }
 
     let update_finalized_period = calc_sync_period(update_finalized_slot);
-    let update_is_newer = update_finalized_slot > store.finalized_header.slot.as_u64();
+    let update_is_newer = update_finalized_slot > store.finalized_header.slot;
     let update_attested_period = calc_sync_period(update.attested_header.slot.into());
     let update_has_finalized_next_committee =
         // has sync update
@@ -541,20 +544,17 @@ async fn handle_update(
     if update_is_newer {
         if is_finality_proof_valid(
             &update.attested_header,
-            &mut update.finalized_header.clone(),
-            &finality_branch
-                .iter()
-                .map(|branch| Bytes32::try_from(branch.as_ref()).expect("Unable to create Bytes32 from [u8; 32]"))
-                .collect::<Vec<_>>(),
+            &finalized_header,
+            &finality_branch,
         ) {
-            store.finalized_header = update.finalized_header.clone();
+            store.finalized_header = finalized_header;
 
-            if store.finalized_header.slot.as_u64() % SLOTS_PER_EPOCH == 0 {
+            /*if store.finalized_header.slot % SLOTS_PER_EPOCH == 0 {
                 let checkpoint_res = store.finalized_header.hash_tree_root();
                 if let Ok(checkpoint) = checkpoint_res {
                     unsafe { LAST_CHECKPOINT = Some(Bytes32::try_from(checkpoint.as_ref()).expect("Last checkpoint: unable to create Bytes32 from Vec")); }
                 }
-            }
+            }*/
         } else {
             debug!("ConsensusError::InvalidFinalityProof.into()");
         }
@@ -613,7 +613,7 @@ async fn handle_beacon_block_body(
 
     let block_hash = beacon_block_body_light.hash_tree_root().expect("Unable to calculate hash of beacon block body");
     debug!("store.finalized_header.slot = {:?}", store.finalized_header.slot);
-    if store.finalized_header.body_root.as_slice() != block_hash.as_ref() {
+    if store.finalized_header.body_root.as_ref() != block_hash.as_ref() {
         debug!("Wrong beacon body");
         return;
     }

@@ -2462,6 +2462,7 @@ dependencies = [
  "lazy_static",
  "parity-scale-codec",
  "paste",
+ "primitive-types",
  "ring 0.17.8",
  "serde",
  "sha2 0.10.8",

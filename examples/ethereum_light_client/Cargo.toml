@@ -30,6 +30,7 @@ ring = { git = "file:///home/user/devel/gear-tech/ring", branch = "gshep/excess_
 digest = { version = "0.10.7", default-features = false, features = ["alloc", "core-api"] }
 tree_hash = { git = "file:///home/user/devel/gear-tech/tree_hash", branch = "gshep/no_std", default-features = false }
 tree_hash_derive = { git = "file:///home/user/devel/gear-tech/tree_hash", branch = "gshep/no_std" }
+primitive-types = { version = "0.12.2", default-features = false, features = ["codec"] }
 
 [target.'cfg(all(target_arch = "wasm32", target_os = "unknown"))'.dependencies]
 getrandom = { version = "0.2", default-features = false, features = ["js"] }
@@ -56,6 +57,7 @@ std = [
     "ring/std",
     "digest/std",
     "getrandom/std",
-    "tree_hash/std"
+    "tree_hash/std",
+    "primitive-types/std"
 ]
 serde = ["dep:serde", "hex", "ssz_rs/serde", "ethereum-types"]
