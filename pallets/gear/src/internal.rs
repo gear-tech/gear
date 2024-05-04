@@ -903,7 +903,7 @@ where
         );
     }
 
-    pub(crate) fn inheritor_for(program_id: ProgramId, max_depth: Option<usize>) -> ProgramId {
+    pub(crate) fn inheritor_for(program_id: ProgramId, max_depth: usize) -> ProgramId {
         let mut inheritor = program_id;
         let mut visited_ids: BTreeSet<_> = [program_id].into();
 
@@ -911,7 +911,7 @@ where
             Self::exit_inheritor_of(inheritor).or_else(|| Self::termination_inheritor_of(inheritor))
         {
             // `-1` is `program_id` itself
-            if max_depth == Some(visited_ids.len() - 1) {
+            if max_depth == visited_ids.len() - 1 {
                 break;
             }
 

@@ -1643,19 +1643,18 @@ pub mod pallet {
         }
 
         #[pallet::call_index(8)]
-        #[pallet::weight(DbWeightOf::<T>::get().writes(1))] // TODO: bench
+        #[pallet::weight(<T as Config>::WeightInfo::transfer_value_to_inheritor(*depth))]
         pub fn transfer_value_to_inheritor(
             origin: OriginFor<T>,
             program_id: ProgramId,
-            depth: Option<u32>,
+            depth: u32,
         ) -> DispatchResult {
             ensure_signed(origin)?;
 
             let program_account = program_id.cast();
             let balance = CurrencyOf::<T>::free_balance(&program_account);
             if !balance.is_zero() {
-                let depth = depth.map(|x| x as usize);
-                let destination = Self::inheritor_for(program_id, depth).cast();
+                let destination = Self::inheritor_for(program_id, depth as usize).cast();
 
                 CurrencyOf::<T>::transfer(
                     &program_account,

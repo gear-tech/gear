@@ -6263,7 +6263,7 @@ fn exit_locking_funds() {
         assert_ok!(Gear::transfer_value_to_inheritor(
             RuntimeOrigin::signed(USER_1),
             program_id,
-            None,
+            u32::MAX,
         ));
 
         run_to_next_block(None);
@@ -6456,7 +6456,7 @@ fn terminated_locking_funds() {
         assert_ok!(Gear::transfer_value_to_inheritor(
             RuntimeOrigin::signed(USER_1),
             program_id,
-            None,
+            u32::MAX,
         ));
 
         run_to_next_block(None);
@@ -6513,28 +6513,25 @@ fn transfer_value_to_inheritor() {
             programs.push(program_id);
         }
 
-        let inheritor = Gear::inheritor_for(programs[99], None);
+        let inheritor = Gear::inheritor_for(programs[99], usize::MAX);
         assert_eq!(inheritor, USER_1.into());
 
-        let inheritor = Gear::inheritor_for(programs[50], None);
+        let inheritor = Gear::inheritor_for(programs[50], usize::MAX);
         assert_eq!(inheritor, USER_1.into());
 
-        let inheritor = Gear::inheritor_for(programs[0], None);
+        let inheritor = Gear::inheritor_for(programs[0], usize::MAX);
         assert_eq!(inheritor, USER_1.into());
 
-        let inheritor = Gear::inheritor_for(programs[99], Some(usize::MAX));
-        assert_eq!(inheritor, USER_1.into());
-
-        let inheritor = Gear::inheritor_for(programs[99], Some(10));
+        let inheritor = Gear::inheritor_for(programs[99], 10);
         assert_eq!(inheritor, programs[89]);
 
-        let inheritor = Gear::inheritor_for(programs[99], Some(20));
+        let inheritor = Gear::inheritor_for(programs[99], 20);
         assert_eq!(inheritor, programs[79]);
 
-        let inheritor = Gear::inheritor_for(programs[99], Some(100));
+        let inheritor = Gear::inheritor_for(programs[99], 100);
         assert_eq!(inheritor, USER_1.into());
 
-        let inheritor = Gear::inheritor_for(programs[99], Some(99));
+        let inheritor = Gear::inheritor_for(programs[99], 99);
         assert_eq!(inheritor, programs[0]);
     });
 }

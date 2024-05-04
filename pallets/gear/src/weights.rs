@@ -59,6 +59,7 @@ pub trait WeightInfo {
     fn upload_program(c: u32, s: u32, ) -> Weight;
     fn send_message(p: u32, ) -> Weight;
     fn send_reply(p: u32, ) -> Weight;
+    fn transfer_value_to_inheritor(d: u32, ) -> Weight;
     fn reinstrument_per_kb(c: u32, ) -> Weight;
     fn alloc(r: u32, ) -> Weight;
     fn alloc_per_page(p: u32, ) -> Weight;
@@ -460,6 +461,17 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
             .saturating_add(Weight::from_parts(894, 0).saturating_mul(p.into()))
             .saturating_add(T::DbWeight::get().reads(16_u64))
             .saturating_add(T::DbWeight::get().writes(13_u64))
+    }
+    /// The range of component `d` is `[0, 1024]`.
+    fn transfer_value_to_inheritor(d: u32, ) -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `0`
+        //  Estimated: `3593`
+        // Minimum execution time: 5_000_000 picoseconds.
+        Weight::from_parts(5_500_000, 3593)
+            // Standard Error: 5_879
+            .saturating_add(Weight::from_parts(10_253, 0).saturating_mul(d.into()))
+            .saturating_add(T::DbWeight::get().reads(1_u64))
     }
     /// The range of component `c` is `[0, 512]`.
     fn reinstrument_per_kb(c: u32, ) -> Weight {
@@ -2324,6 +2336,17 @@ impl WeightInfo for () {
             .saturating_add(Weight::from_parts(894, 0).saturating_mul(p.into()))
             .saturating_add(RocksDbWeight::get().reads(16_u64))
             .saturating_add(RocksDbWeight::get().writes(13_u64))
+    }
+    /// The range of component `d` is `[0, 1024]`.
+    fn transfer_value_to_inheritor(d: u32, ) -> Weight {
+        // Proof Size summary in bytes:
+        //  Measured:  `0`
+        //  Estimated: `3593`
+        // Minimum execution time: 5_000_000 picoseconds.
+        Weight::from_parts(5_500_000, 3593)
+            // Standard Error: 5_879
+            .saturating_add(Weight::from_parts(10_253, 0).saturating_mul(d.into()))
+            .saturating_add(RocksDbWeight::get().reads(1_u64))
     }
     /// The range of component `c` is `[0, 512]`.
     fn reinstrument_per_kb(c: u32, ) -> Weight {
