@@ -55,28 +55,22 @@ impl Toolchain {
             "`rustup` exit code is not successful"
         );
 
-        let toolchain_desc = output
-            .stdout
-            .split(|&x| x == b' ')
-            .next()
-            .and_then(|s| std::str::from_utf8(s).ok())
-            .expect("unexpected `rustup` output");
+        let toolchain_desc =
+            std::str::from_utf8(&output.stdout).expect("unexpected `rustup` output");
 
         // TODO #3499: replace it with `std::sync::LazyLock` when it becomes stable
         static TOOLCHAIN_CHANNEL_RE: Lazy<Regex> = Lazy::new(|| {
-            // This regex is borrowed from the rustup code and modified (added non-capturing groups)
-            let pattern = format!(
-                r"^((?:{})(?:-(?:\d{{4}}-\d{{2}}-\d{{2}}))?)(?:-(?:.+))?$",
-                TOOLCHAIN_CHANNELS.join("|")
-            );
-            // Note this regex gives you a guaranteed match of the channel[-date] as group 1
+            let channels = TOOLCHAIN_CHANNELS.join("|");
+            let pattern = format!(r"(?:{channels})(?:-\d{{4}}-\d{{2}}-\d{{2}})?");
+            // Note this regex gives you a guaranteed match of the channel[-date] as group 0,
+            // for example: `nightly-2024-01-25`
             Regex::new(&pattern).unwrap()
         });
 
         let toolchain = TOOLCHAIN_CHANNEL_RE
             .captures(toolchain_desc)
             .ok_or_else(|| BuilderError::CargoToolchainInvalid(toolchain_desc.into()))?
-            .get(1)
+            .get(0)
             .unwrap() // It is safe to use unwrap here because we know the regex matches
             .as_str()
             .to_owned();
