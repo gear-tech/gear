@@ -25,6 +25,14 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
+#[cfg(feature = "alloc")]
+extern crate alloc;
+
+#[cfg(feature = "alloc")]
+use alloc::{
+    string::{String, ToString},
+    vec::Vec,
+};
 use blake2::{Blake2b512, Digest};
 use bs58::{
     decode::{self, DecodeTarget},
@@ -141,7 +149,7 @@ pub enum Error {
     BadLength,
     InvalidPrefix,
     InvalidChecksum,
-    #[cfg(feature = "std")]
+    #[cfg(feature = "alloc")]
     InvalidSliceLength,
 }
 
@@ -153,7 +161,7 @@ impl fmt::Display for Error {
             Self::BadLength => writeln!(f, "Length is bad"),
             Self::InvalidPrefix => writeln!(f, "Invalid SS58 prefix byte"),
             Self::InvalidChecksum => writeln!(f, "Invalid checksum"),
-            #[cfg(feature = "std")]
+            #[cfg(feature = "alloc")]
             Self::InvalidSliceLength => writeln!(f, "Slice should be 32 length"),
         }
     }
@@ -331,7 +339,7 @@ fn ss58hash(data: &[u8]) -> [u8; 64] {
 }
 
 /// Encode data to SS58 format.
-#[cfg(feature = "std")]
+#[cfg(feature = "alloc")]
 pub fn encode(data: &[u8]) -> Result<String, Error> {
     let raw_address = RawSs58Address::try_from(data).map_err(|_| Error::InvalidSliceLength)?;
     let address = raw_address.to_ss58check()?;
@@ -339,14 +347,14 @@ pub fn encode(data: &[u8]) -> Result<String, Error> {
 }
 
 /// Decode data from SS58 format.
-#[cfg(feature = "std")]
+#[cfg(feature = "alloc")]
 pub fn decode(encoded: &str) -> Result<Vec<u8>, Error> {
     let raw_address: [u8; BODY_LEN] = RawSs58Address::from_ss58check(encoded)?.into();
     Ok(raw_address.to_vec())
 }
 
 /// Re-encoding a ss58 address in the current [`default_ss58_version()`].
-#[cfg(feature = "std")]
+#[cfg(feature = "alloc")]
 pub fn recode(encoded: &str) -> Result<String, Error> {
     self::encode(&self::decode(encoded)?)
 }

@@ -12,4 +12,5 @@ blake2.workspace = true
 hex.workspace = true
 
 [features]
-std = []
+alloc = []
+std = ["alloc"]
