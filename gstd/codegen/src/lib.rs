@@ -47,8 +47,7 @@ fn literal_to_actor_id(literal: syn::LitStr) -> syn::Result<TokenStream> {
         }
         hex::decode(actor_id_hex).map_err(|err| syn::Error::new_spanned(literal, err))?
     } else {
-        gear_ss58::decode(literal.value().as_bytes(), 32)
-            .map_err(|err| syn::Error::new_spanned(literal, err))?
+        gear_ss58::decode(&literal.value()).map_err(|err| syn::Error::new_spanned(literal, err))?
     };
 
     let actor_id_array = format!("{actor_id:?}")

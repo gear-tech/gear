@@ -74,7 +74,7 @@ pub mod exec;
 pub mod msg;
 pub mod prog;
 pub use gear_stack_buffer as stack_buffer;
-pub use gprimitives::{ActorId, CodeId, MessageHandle, MessageId, ReservationId};
+pub use gprimitives::{ActorId, CodeId, MessageHandle, MessageId, ReservationId, Ss58Address};
 
 mod utils;
 pub use utils::ext;

@@ -23,11 +23,10 @@
 #![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
 #![doc(html_favicon_url = "https://gear-tech.io/favicons/favicon.ico")]
 
-extern crate alloc;
+pub use gear_ss58::{RawSs58Address, Ss58Address};
 
 pub mod utils;
 
-use alloc::string::String;
 use core::{
     fmt,
     str::{self, FromStr},
@@ -54,6 +53,9 @@ pub enum ConversionError {
     /// Invalid SS58 address.
     #[display(fmt = "Invalid SS58 address")]
     InvalidSs58Address,
+    /// SS58 encoding failed.
+    #[display(fmt = "SS58 encoding failed")]
+    Ss58Encode,
 }
 
 /// Message handle.
@@ -102,14 +104,18 @@ impl ActorId {
         utils::hash_of_array([SALT, message_id.as_ref(), code_id.as_ref(), salt]).into()
     }
 
-    /// Returns the ss58-check string with default ss58 version.
-    pub fn to_ss58check(&self) -> String {
-        self.to_ss58check_with_version(gear_ss58::default_ss58_version())
+    /// Returns the ss58-check address with default ss58 version.
+    pub fn to_ss58check(&self) -> Result<Ss58Address, ConversionError> {
+        RawSs58Address::from(self.0)
+            .to_ss58check()
+            .map_err(|_| ConversionError::Ss58Encode)
     }
 
-    /// Returns the ss58-check string with given ss58 version.
-    pub fn to_ss58check_with_version(&self, version: u16) -> String {
-        gear_ss58::encode_with_version(self.as_ref(), version)
+    /// Returns the ss58-check address with given ss58 version.
+    pub fn to_ss58check_with_version(&self, version: u16) -> Result<Ss58Address, ConversionError> {
+        RawSs58Address::from(self.0)
+            .to_ss58check_with_prefix(version)
+            .map_err(|_| ConversionError::Ss58Encode)
     }
 }
 
@@ -126,9 +132,10 @@ impl FromStr for ActorId {
             hex::decode_to_slice(s, &mut actor_id.0)
                 .map_err(|_| ConversionError::InvalidHexString)?;
         } else {
-            let buf = gear_ss58::decode(s.as_bytes(), 32)
+            let raw_address: [u8; 32] = RawSs58Address::from_ss58check(s)
+                .map(Into::into)
                 .map_err(|_| ConversionError::InvalidSs58Address)?;
-            actor_id.0[..].copy_from_slice(&buf);
+            actor_id.0[..].copy_from_slice(&raw_address);
         }
 
         Ok(actor_id)

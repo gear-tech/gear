@@ -262,11 +262,11 @@ impl Command {
                     if let Some(encoded) = address.strip_prefix("0x") {
                         hex::decode(encoded).map_err(Into::into)
                     } else {
-                        ss58::decode(address.as_bytes(), 32).map_err(|e| anyhow!(e))
+                        ss58::decode(&address).map_err(|e| anyhow!(e))
                     }
                 } else {
                     let key = keyring.primary()?;
-                    ss58::decode(key.address.as_bytes(), 32).map_err(|e| anyhow!(e))
+                    ss58::decode(&key.address).map_err(|e| anyhow!(e))
                 }?;
 
                 let pk = PublicKey::from_bytes(&pk_bytes)
@@ -290,7 +290,7 @@ impl Command {
                 println!("{:<16}{message}", "Message:");
                 println!("{:<16}0x{signature}", "Signature:");
                 println!("{:<16}0x{}", "Public Key:", hex::encode(&pk_bytes));
-                println!("{:<16}{}", "SS58 Address:", ss58::encode(&pk_bytes));
+                println!("{:<16}{}", "SS58 Address:", ss58::encode(&pk_bytes)?);
             }
         }
         Ok(())

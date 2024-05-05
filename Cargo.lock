@@ -4824,6 +4824,7 @@ version = "1.3.0"
 dependencies = [
  "blake2",
  "bs58 0.5.1",
+ "hex",
 ]
 
 [[package]]

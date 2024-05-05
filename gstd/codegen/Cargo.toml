@@ -17,7 +17,7 @@ proc-macro = true
 syn = { workspace = true, features = ["default", "full"] }
 quote.workspace = true
 proc-macro2.workspace = true
-gear-ss58.workspace = true
+gear-ss58 = { workspace = true, features = ["std"] }
 hex = { workspace = true, features = ["alloc"] }
 
 [dev-dependencies]

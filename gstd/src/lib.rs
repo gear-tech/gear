@@ -172,7 +172,7 @@ pub use common::{errors, primitives_ext::*};
 pub use config::Config;
 pub use gcore::{
     ext, ActorId, BlockCount, BlockNumber, CodeId, EnvVars, Gas, GasMultiplier, MessageId, Percent,
-    ReservationId, Value,
+    ReservationId, Ss58Address, Value,
 };
 pub use gstd_codegen::{actor_id, async_init, async_main};
 pub use prelude::*;
