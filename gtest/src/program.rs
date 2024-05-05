@@ -268,14 +268,19 @@ impl ProgramBuilder {
     }
 
     fn wasm_path(optimized: bool) -> PathBuf {
+        Self::wasm_path_from_binpath(optimized)
+            .unwrap_or_else(|| gbuild::wasm_path().expect("Unable to find built wasm"))
+    }
+
+    fn wasm_path_from_binpath(optimized: bool) -> Option<PathBuf> {
+        let cwd = env::current_dir().expect("Unable to get current dir");
         let extension = if optimized { "opt.wasm" } else { "wasm" };
-        let current_dir = env::current_dir().expect("Unable to get current dir");
-        let path_file = current_dir.join(".binpath");
-        let path_bytes = fs::read(path_file).expect("Unable to read path bytes");
+        let path_file = cwd.join(".binpath");
+        let path_bytes = fs::read(path_file).ok()?;
         let mut relative_path: PathBuf =
             String::from_utf8(path_bytes).expect("Invalid path").into();
         relative_path.set_extension(extension);
-        current_dir.join(relative_path)
+        Some(cwd.join(relative_path))
     }
 
     fn inner_current(optimized: bool) -> Self {
@@ -777,6 +782,70 @@ pub fn calculate_program_id(code_id: CodeId, salt: &[u8], id: Option<MessageId>)
         ProgramId::generate_from_program(code_id, salt, id)
     } else {
         ProgramId::generate_from_user(code_id, salt)
+    }
+}
+
+/// `cargo-gbuild` utils
+pub mod gbuild {
+    use crate::{error::TestError as Error, Result};
+    use cargo_toml::Manifest;
+    use std::{path::PathBuf, process::Command};
+
+    /// Search program wasm from
+    ///
+    /// - `target/gbuild`
+    /// - `$WORKSPACE_ROOT/target/gbuild`
+    ///
+    /// NOTE: Release or Debug is decided by the users
+    /// who run the command `cargo-gbuild`.
+    pub fn wasm_path() -> Result<PathBuf> {
+        let target = etc::find_up("target")
+            .map_err(|_| Error::GbuildArtifactNotFound("Could not find target folder".into()))?;
+        let manifest = Manifest::from_path(
+            etc::find_up("Cargo.toml")
+                .map_err(|_| Error::GbuildArtifactNotFound("Could not find manifest".into()))?,
+        )
+        .map_err(|_| Error::GbuildArtifactNotFound("Failed to parse manifest".into()))?;
+
+        let artifact = target
+            .join(format!(
+                "gbuild/{}",
+                manifest.package().name().replace('-', "_")
+            ))
+            .with_extension("wasm");
+
+        if artifact.exists() {
+            Ok(artifact)
+        } else {
+            Err(Error::GbuildArtifactNotFound(format!(
+                "Program artifact not exist, {artifact:?}"
+            )))
+        }
+    }
+
+    /// Ensure the current project has been built by `cargo-gbuild`.
+    pub fn ensure_gbuild() {
+        if wasm_path().is_err() {
+            let manifest = etc::find_up("Cargo.toml").expect("Unable to find project manifest.");
+            if !Command::new("cargo")
+                // NOTE: The `cargo-gbuild` command could be overridden by user defined alias,
+                // this is a workaround for our workspace, for the details, see: issue #10049
+                // <https://github.com/rust-lang/cargo/issues/10049>.
+                .current_dir(
+                    manifest
+                        .ancestors()
+                        .nth(2)
+                        .expect("The project is under the root directory"),
+                )
+                .args(["gbuild", "-m"])
+                .arg(&manifest)
+                .status()
+                .expect("cargo-gbuild is not installed, try `cargo install cargo-gbuild` first.")
+                .success()
+            {
+                panic!("Error occurs while compiling the current program, please run `cargo gbuild` directly for the current project to detect the problem, manifest path: {manifest:?}")
+            }
+        }
     }
 }
 

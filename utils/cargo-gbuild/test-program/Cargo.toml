@@ -6,6 +6,9 @@ edition = "2021"
 [dependencies]
 gstd = { path = "../../../gstd" }
 
+[dev-dependencies]
+gtest = { path = "../../../gtest" }
+
 [features]
 debug = ["gstd/debug"]
 default = []
