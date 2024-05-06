@@ -146,8 +146,9 @@ where
             program.code().exports().clone(),
             memory_size,
         )?;
-        env.execute(|memory, globals_config| {
+        env.execute(|ctx, memory, globals_config| {
             Ext::lazy_pages_init_for_program(
+                ctx,
                 memory,
                 program_id,
                 program.memory_infix(),
@@ -158,11 +159,12 @@ where
         })
     };
 
-    let (termination, memory, ext) = match execute() {
+    let (termination, mut store, memory, ext) = match execute() {
         Ok(report) => {
             let BackendReport {
                 termination_reason,
-                memory_wrap: mut memory,
+                mut store,
+                mut memory,
                 ext,
             } = report;
 
@@ -174,13 +176,13 @@ where
             };
 
             // released pages initial data will be added to `pages_initial_data` after execution.
-            Ext::lazy_pages_post_execution_actions(&mut memory);
+            Ext::lazy_pages_post_execution_actions(&mut store, &mut memory);
 
             if !Ext::lazy_pages_status().is_normal() {
                 termination = ext.current_counter_type().into()
             }
 
-            (termination, memory, ext)
+            (termination, store, memory, ext)
         }
         Err(EnvironmentError::System(e)) => {
             return Err(ExecutionError::System(SystemExecutionError::Environment(e)))
@@ -197,7 +199,7 @@ where
     log::debug!("Termination reason: {:?}", termination);
 
     let info = ext
-        .into_ext_info(&memory)
+        .into_ext_info(&mut store, &memory)
         .map_err(SystemExecutionError::IntoExtInfo)?;
 
     // Parsing outcome.
@@ -327,8 +329,9 @@ where
             program.code().exports().clone(),
             memory_size,
         )?;
-        env.execute(|memory, globals_config| {
+        env.execute(|ctx, memory, globals_config| {
             Ext::lazy_pages_init_for_program(
+                ctx,
                 memory,
                 program_id,
                 program.memory_infix(),
@@ -339,11 +342,12 @@ where
         })
     };
 
-    let (termination, memory, ext) = match execute() {
+    let (termination, mut store, memory, ext) = match execute() {
         Ok(report) => {
             let BackendReport {
                 termination_reason,
-                memory_wrap,
+                store,
+                memory,
                 ext,
             } = report;
 
@@ -354,7 +358,7 @@ where
                 }
             };
 
-            (termination_reason, memory_wrap, ext)
+            (termination_reason, store, memory, ext)
         }
         Err(e) => return Err(format!("Backend error: {e}")),
     };
@@ -375,7 +379,7 @@ where
     };
 
     let info = ext
-        .into_ext_info(&memory)
+        .into_ext_info(&mut store, &memory)
         .map_err(|e| format!("Backend postprocessing error: {e:?}"))?;
 
     log::debug!(
