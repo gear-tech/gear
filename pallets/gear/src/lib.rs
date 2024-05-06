@@ -58,9 +58,8 @@ use alloc::{
     string::{String, ToString},
 };
 use common::{
-    self, event::*, gas_provider::GasNodeId, paused_program_storage::SessionId, scheduler::*,
-    storage::*, BlockLimiter, CodeMetadata, CodeStorage, GasProvider, GasTree, Origin,
-    PausedProgramStorage, Program, ProgramState, ProgramStorage, QueueRunner,
+    self, event::*, gas_provider::GasNodeId, scheduler::*, storage::*, BlockLimiter, CodeMetadata,
+    CodeStorage, GasProvider, GasTree, Origin, Program, ProgramState, ProgramStorage, QueueRunner,
 };
 use core::marker::PhantomData;
 use core_processor::{
@@ -190,7 +189,7 @@ pub mod pallet {
         type CodeStorage: CodeStorage;
 
         /// Implementation of a storage for programs.
-        type ProgramStorage: PausedProgramStorage<
+        type ProgramStorage: ProgramStorage<
             BlockNumber = BlockNumberFor<Self>,
             Error = DispatchError,
             AccountId = Self::AccountId,
@@ -397,18 +396,6 @@ pub mod pallet {
 
         /// The pseudo-inherent extrinsic that runs queue processing rolled back or not executed.
         QueueNotProcessed,
-
-        /// Program resume session has been started.
-        ProgramResumeSessionStarted {
-            /// Id of the session.
-            session_id: SessionId,
-            /// Owner of the session.
-            account_id: T::AccountId,
-            /// Id of the program affected.
-            program_id: ProgramId,
-            /// Block number when the session will be removed if not finished.
-            session_end_block: BlockNumberFor<T>,
-        },
     }
 
     // Gear pallet error.
@@ -895,7 +882,6 @@ pub mod pallet {
         pub fn program_exists(builtins: &impl BuiltinDispatcher, program_id: ProgramId) -> bool {
             builtins.lookup(&program_id).is_some()
                 || ProgramStorageOf::<T>::program_exists(program_id)
-                || ProgramStorageOf::<T>::paused_program_exists(&program_id)
         }
 
         /// Returns exit argument of an exited program.

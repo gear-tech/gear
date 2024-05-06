@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{paused_program_storage::SessionId, Gas};
+use crate::Gas;
 use gear_core::ids::{CodeId, MessageId, ProgramId, ReservationId};
 use sp_runtime::{
     codec::{self, Decode, Encode, MaxEncodedLen},
@@ -78,10 +78,6 @@ pub enum ScheduledTask<AccountId> {
     /// Remove gas reservation.
     #[codec(index = 8)]
     RemoveGasReservation(ProgramId, ReservationId),
-
-    /// Remove resume program session.
-    #[codec(index = 9)]
-    RemoveResumeSession(SessionId),
 }
 
 impl<AccountId> ScheduledTask<AccountId> {
@@ -107,7 +103,6 @@ impl<AccountId> ScheduledTask<AccountId> {
             RemoveGasReservation(program_id, reservation_id) => {
                 handler.remove_gas_reservation(program_id, reservation_id)
             }
-            RemoveResumeSession(session_id) => handler.remove_resume_session(session_id),
         }
     }
 }
@@ -144,9 +139,6 @@ pub trait TaskHandler<AccountId> {
         program_id: ProgramId,
         reservation_id: ReservationId,
     ) -> Gas;
-
-    /// Remove data created by resume program session.
-    fn remove_resume_session(&mut self, session_id: SessionId) -> Gas;
 }
 
 #[test]
