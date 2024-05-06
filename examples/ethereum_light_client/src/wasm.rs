@@ -31,7 +31,6 @@ use hex_literal::hex;
 use ssz_rs::{Deserialize, Merkleized, Node, Bitvector, Vector, List};
 use ark_bls12_381::{Bls12_381, G1Affine, G2Affine};
 use ark_ec::{
-    hashing::{map_to_curve_hasher::MapToCurveBasedHasher, HashToCurve, curve_maps::wb::WBConfig},
     bls12::Bls12Config,
     pairing::Pairing,
     CurveGroup, Group, AffineRepr,
@@ -39,8 +38,7 @@ use ark_ec::{
 use ark_ff::{fields::field_hashers::DefaultFieldHasher, Zero, Field};
 use ark_serialize::CanonicalSerialize;
 use tree_hash::TreeHash;
-
-type WBMap = ark_ec::hashing::curve_maps::wb::WBMap<<ark_bls12_381::Config as Bls12Config>::G2Config>;
+use ring::digest::{Context as RingContext, SHA256 as RingSHA256};
 
 #[derive(Debug)]
 struct LightClientStore {
@@ -56,57 +54,6 @@ static mut BLOCKS: CircularBuffer<256, (ExecutionPayloadHeader, List<Node, 1_048
 const BUILTIN_BLS381: ActorId = ActorId::new(hex!(
     "6b6e292c382945e80bf51af2ba7fe9f458dcff81ae6075c46f9095e1bbecdc37"
 ));
-
-#[derive(Clone)]
-struct RingSha256(ring::digest::Context);
-
-impl Default for RingSha256 {
-    fn default() -> Self {
-        Self(ring::digest::Context::new(&ring::digest::SHA256))
-    }
-}
-
-impl digest::DynDigest for RingSha256 {
-    fn update(&mut self, data: &[u8]) {
-        self.0.update(data)
-    }
-
-    fn finalize_into(self, buf: &mut [u8]) -> Result<(), digest::InvalidBufferSize> {
-        if buf.len() != self.output_size() {
-            return Err(digest::InvalidBufferSize);
-        }
-
-        buf.copy_from_slice(self.0.finish().as_ref());
-
-        Ok(())
-    }
-
-    fn finalize_into_reset(
-        &mut self,
-        out: &mut [u8]
-    ) -> Result<(), digest::InvalidBufferSize> {
-        self
-            .clone()
-            .finalize_into(out)
-            .map(|result| {
-                self.reset();
-
-                result
-            })
-    }
-
-    fn reset(&mut self) {
-        self.0 = ring::digest::Context::new(&ring::digest::SHA256);
-    }
-
-    fn output_size(&self) -> usize {
-        32
-    }
-
-    fn box_clone(&self) -> Box<dyn digest::DynDigest> {
-        Box::new(self.clone())
-    }
-}
 
 fn get_participating_keys(
     committee: &[G1],
@@ -157,11 +104,9 @@ fn is_valid_merkle_branch(
     index: u32,
     root: &[u8; 32],
 ) -> bool {
-    use digest::DynDigest;
-
     let mut value = leaf;
 
-    let mut hasher = RingSha256::default();
+    let mut hasher = RingContext::new(&RingSHA256);
     let mut iter = branch.iter();
     for i in 0..depth {
         let Some(next_node) = iter.next() else {
@@ -176,7 +121,8 @@ fn is_valid_merkle_branch(
         hasher.update(node_first);
         hasher.update(node_second);
 
-        hasher.finalize_into_reset(&mut value).unwrap()
+        value.copy_from_slice(hasher.finish().as_ref());
+        hasher = RingContext::new(&RingSHA256);
     }
 
     value == *root
@@ -339,12 +285,22 @@ async fn verify_sync_committee_signture(
         return false;
     }
 
-    /// Domain Separation Tag for signatures on G2
-    pub const DST_G2: &[u8] = b"BLS_SIG_BLS12381G2_XMD:SHA-256_SSWU_RO_POP_";
-    // let mapper = MapToCurveBasedHasher::<G2, DefaultFieldHasher<sha2::Sha256>, WBMap>::new(DST_G2).unwrap();
-    let mapper = MapToCurveBasedHasher::<G2, DefaultFieldHasher<RingSha256>, WBMap>::new(DST_G2).unwrap();
-    let message = mapper.hash(signing_root.as_ref()).unwrap();
-    let message: G2Affine = message.into();
+    let request = Request::MapToG2Affine {
+        message: signing_root.as_ref().to_vec(),
+    }
+    .encode();
+    let reply = msg::send_bytes_for_reply(BUILTIN_BLS381, &request, 0, 0)
+        .expect("Failed to send message")
+        .await
+        .expect("Received error reply");
+    let response = Response::decode(&mut reply.as_slice()).expect("MapToG2Affine reply should be properly encoded");
+    let message = match response {
+        Response::MapToG2Affine(v) => {
+            ArkScale::<G2Affine>::decode(&mut v.as_slice())
+                .expect("MapToG2Affine result should properly encoded")
+        }
+        _ => unreachable!(),
+    };
 
     let pub_key: G1Affine = From::from(pub_key_aggregated.0);
     let signature: G2Affine = From::from(*signature);
@@ -352,7 +308,7 @@ async fn verify_sync_committee_signture(
 
     // pairing
     let a: ArkScale<Vec<G1Affine>> = vec![generator_g1_negative, pub_key].into();
-    let b: ArkScale<Vec<G2Affine>> = vec![signature, message].into();
+    let b: ArkScale<Vec<G2Affine>> = vec![signature, message.0].into();
     let request = Request::MultiMillerLoop { a: a.encode(), b: b.encode(), }.encode();
     let reply = msg::send_bytes_for_reply(BUILTIN_BLS381, &request, 0, 0)
         .expect("Failed to send message")

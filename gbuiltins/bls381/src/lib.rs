@@ -43,6 +43,8 @@ pub const REQUEST_PROJECTIVE_MULTIPLICATION_G1: u8 = 4;
 pub const REQUEST_PROJECTIVE_MULTIPLICATION_G2: u8 = 5;
 /// Constant defines codec index of [`Request::AggregateG1`].
 pub const REQUEST_AGGREGATE_G1: u8 = 6;
+/// Constant defines codec index of [`Request::MapToG2Affine`].
+pub const REQUEST_MAP_TO_G2AFFINE: u8 = 7;
 
 /// Type that should be used to create a message to the bls12_381 builtin actor.
 /// Use the following crates to construct a request:
@@ -102,6 +104,12 @@ pub enum Request {
     /// Encoded: [`ArkScale<Vec<G1Projective>>`].
     #[codec(index = 6)]
     AggregateG1 { points: Vec<u8> },
+
+    /// Request to map an arbitrary message to *G2Affine* point for *BLS12-381*.
+    ///
+    /// Raw message bytes to map.
+    #[codec(index = 7)]
+    MapToG2Affine { message: Vec<u8> },
 }
 
 /// The enumeration contains result to a request.
@@ -122,6 +130,8 @@ pub enum Response {
     ProjectiveMultiplicationG2(Vec<u8>),
     /// Result of the aggregation, encoded: [`ArkScale<G1Projective>`].
     AggregateG1(Vec<u8>),
+    /// Result of the mapping, encoded: [`ArkScale<G2Affine>`].
+    MapToG2Affine(Vec<u8>),
 }
 
 #[cfg(test)]

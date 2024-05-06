@@ -602,7 +602,7 @@ pub fn vec_tree_hash_root<T, const N: usize>(vec: &[T]) -> Hash256
 where
     T: tree_hash::TreeHash,
 {
-    use tree_hash::{MerkleHasher, TreeHash, TreeHashType, BYTES_PER_CHUNK};
+    use tree_hash::{MerkleHasher, TreeHashType};
 
     match T::tree_hash_type() {
         TreeHashType::Basic => {

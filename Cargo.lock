@@ -2451,7 +2451,6 @@ dependencies = [
  "ark-scale 0.0.12",
  "ark-serialize",
  "circular-buffer",
- "digest 0.10.7",
  "ethereum-types",
  "gbuiltin-bls381",
  "gear-wasm-builder",

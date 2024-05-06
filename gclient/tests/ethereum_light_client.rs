@@ -16,19 +16,15 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use ark_bls12_381::{G1Affine, G1Projective as G1, G2Affine, G2Projective as G2};
-use ark_ec::Group;
-use ark_serialize::{CanonicalSerialize, CanonicalDeserialize};
-use ark_std::{ops::Mul, UniformRand};
-use demo_ethereum_light_client::{primitives::U64, ArkScale, BeaconBlock, BeaconBlockBody, BeaconBlockBodyLight, Bytes32, Handle, Header, Init, SignatureBytes, SyncAggregate, SyncCommittee, WASM_BINARY, SyncCommittee2, Array512, BeaconBlockHeader, Hash256};
+use ark_bls12_381::{G1Projective as G1, G2Projective as G2};
+use ark_serialize::CanonicalDeserialize;
+use demo_ethereum_light_client::{primitives::U64, ArkScale, BeaconBlock, BeaconBlockBody, BeaconBlockBodyLight, Bytes32, Handle, Header, Init, SyncAggregate, SyncCommittee, WASM_BINARY, SyncCommittee2, Array512, BeaconBlockHeader, Hash256};
 use gclient::{EventListener, EventProcessor, GearApi, Result};
 use gstd::prelude::*;
 use serde::{Deserialize, de::DeserializeOwned};
 use eyre::Result as EyreResult;
-use ssz_rs::{Deserialize as _, List, Merkleized, Node, Serialize};
+use ssz_rs::{List, Merkleized, Node, Serialize};
 use std::cmp;
-
-type ScalarField = <G2 as Group>::ScalarField;
 
 // https://github.com/ethereum/consensus-specs/blob/dev/specs/altair/light-client/p2p-interface.md#configuration
 pub const MAX_REQUEST_LIGHT_CLIENT_UPDATES: u8 = 128;
@@ -305,9 +301,6 @@ async fn ethereum_light_client() -> Result<()> {
         .map_err(|e| anyhow::Error::msg(e.to_string()))?;
 
     for update in updates {
-        let slot: u64 = update.finalized_header.slot.into();
-        let body_root = update.finalized_header.body_root.clone();
-
         println!("111");
         let signature = <G2 as ark_serialize::CanonicalDeserialize>::deserialize_compressed(update.sync_aggregate.sync_committee_signature.as_ref());
         println!("222");
@@ -465,7 +458,7 @@ async fn ethereum_light_client() -> Result<()> {
             .map_err(|e| anyhow::Error::msg(e.to_string()))?;
         let block_body_light: BeaconBlockBodyLight = block_body.to_ref().into();
 
-        let mut exec_payload = block_body.execution_payload().clone();
+        let exec_payload = block_body.execution_payload().clone();
 
         let transactions = exec_payload.transactions();
         println!("transaction count = {}", transactions.len());
