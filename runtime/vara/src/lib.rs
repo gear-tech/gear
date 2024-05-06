@@ -84,8 +84,10 @@ pub use runtime_primitives::{AccountId, Signature, VARA_SS58_PREFIX};
 use runtime_primitives::{Balance, BlockNumber, Hash, Moment, Nonce};
 use sp_api::impl_runtime_apis;
 #[cfg(any(feature = "std", test))]
-use sp_api::{CallApiAt, CallContext, Extensions, OverlayedChanges, ProofRecorder};
+use sp_api::{CallApiAt, CallContext, ProofRecorder};
 use sp_core::{crypto::KeyTypeId, ConstBool, ConstU64, ConstU8, OpaqueMetadata, H256};
+#[cfg(any(feature = "std", test))]
+use sp_externalities::Extensions;
 #[cfg(any(feature = "std", test))]
 use sp_runtime::traits::HashingFor;
 use sp_runtime::{
@@ -98,6 +100,8 @@ use sp_runtime::{
     transaction_validity::{TransactionPriority, TransactionSource, TransactionValidity},
     ApplyExtrinsicResult, FixedU128, Perbill, Percent, Permill, Perquintill, RuntimeDebug,
 };
+#[cfg(any(feature = "std", test))]
+use sp_state_machine::OverlayedChanges;
 use sp_std::{
     convert::{TryFrom, TryInto},
     prelude::*,
