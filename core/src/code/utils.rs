@@ -264,11 +264,23 @@ pub fn check_data_section(
     module: &Module,
     static_pages: WasmPagesAmount,
     stack_end: Option<WasmPage>,
+    data_section_amount_limit: Option<u32>,
 ) -> Result<(), CodeError> {
     let Some(data_section) = module.data_section() else {
         // No data section - nothing to check.
         return Ok(());
     };
+
+    // Check that data segments amount does not exceed the limit.
+    if let Some(data_segments_amount_limit) = data_section_amount_limit {
+        let number_of_data_segments = data_section.entries().len() as u32;
+        if number_of_data_segments > data_segments_amount_limit {
+            Err(DataSectionError::DataSegmentsAmountLimit {
+                limit: data_segments_amount_limit,
+                actual: number_of_data_segments,
+            })?;
+        }
+    }
 
     for data_segment in data_section.entries() {
         let data_segment_offset = data_segment
