@@ -18,7 +18,7 @@
 
 use crate::{CodeStorage, Config, Pallet};
 use frame_support::{
-    traits::{Get, GetStorageVersion, OnRuntimeUpgrade},
+    traits::{Get, GetStorageVersion, OnRuntimeUpgrade, StorageVersion},
     weights::Weight,
 };
 use gear_core::code::InstrumentedCode;
@@ -26,37 +26,40 @@ use sp_std::marker::PhantomData;
 
 #[cfg(feature = "try-runtime")]
 use {
-    frame_support::codec::{Decode, Encode},
-    sp_runtime::TryRuntimeError,
+    frame_support::ensure,
+    sp_runtime::{
+        codec::{Decode, Encode},
+        TryRuntimeError,
+    },
     sp_std::vec::Vec,
 };
 
-const SUITABLE_CURRENT_STORAGE_VERSION: u16 = 4;
-const SUITABLE_ONCHAIN_STORAGE_VERSION: u16 = 3;
+const MIGRATE_FROM_VERSION: u16 = 3;
+const MIGRATE_TO_VERSION: u16 = 4;
+const ALLOWED_CURRENT_STORAGE_VERSION: u16 = 5;
 
 pub struct AppendStackEndMigration<T: Config>(PhantomData<T>);
 
 impl<T: Config> OnRuntimeUpgrade for AppendStackEndMigration<T> {
-    #[cfg(feature = "try-runtime")]
-    fn pre_upgrade() -> Result<Vec<u8>, TryRuntimeError> {
-        Ok((onchain::CodeStorage::<T>::iter().count() as u64).encode())
-    }
-
     fn on_runtime_upgrade() -> Weight {
-        let current = Pallet::<T>::current_storage_version();
         let onchain = Pallet::<T>::on_chain_storage_version();
-
-        log::info!(
-            "🚚 Running migration with current storage version {current:?} / onchain {onchain:?}"
-        );
 
         // 1 read for onchain storage version
         let mut weight = T::DbWeight::get().reads(1);
         let mut counter = 0;
 
-        if current == SUITABLE_CURRENT_STORAGE_VERSION
-            && onchain == SUITABLE_ONCHAIN_STORAGE_VERSION
-        {
+        // NOTE: in 1.3.0 release, current storage version == `MIGRATE_TO_VERSION` is checked,
+        // but we need to skip this check now, because storage version was increased.
+        if onchain == MIGRATE_FROM_VERSION {
+            let current = Pallet::<T>::current_storage_version();
+            if current != ALLOWED_CURRENT_STORAGE_VERSION {
+                log::error!("❌ Migration is not allowed for current storage version {current:?}.");
+                return weight;
+            }
+
+            let update_to = StorageVersion::new(MIGRATE_TO_VERSION);
+            log::info!("🚚 Running migration from {onchain:?} to {update_to:?}, current storage version is {current:?}.");
+
             CodeStorage::<T>::translate(|_, code: onchain::InstrumentedCode| {
                 weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
                 counter += 1;
@@ -66,7 +69,7 @@ impl<T: Config> OnRuntimeUpgrade for AppendStackEndMigration<T> {
                         code.code,
                         code.original_code_len,
                         code.exports,
-                        code.static_pages,
+                        code.static_pages.into(),
                         // Set stack end as None here. Correct value will be set lazily on re-instrumentation.
                         None,
                         code.version,
@@ -79,34 +82,54 @@ impl<T: Config> OnRuntimeUpgrade for AppendStackEndMigration<T> {
             // Put new storage version
             weight = weight.saturating_add(T::DbWeight::get().writes(1));
 
-            current.put::<Pallet<T>>();
+            update_to.put::<Pallet<T>>();
 
-            log::info!("Successfully migrated storage. {counter} codes has been migrated");
+            log::info!("✅ Successfully migrated storage. {counter} codes have been migrated");
         } else {
-            log::info!("❌ Migration did not execute. This probably should be removed");
+            log::info!("🟠 Migration requires onchain version {MIGRATE_FROM_VERSION}, so was skipped for {onchain:?}");
         }
 
         weight
     }
 
     #[cfg(feature = "try-runtime")]
+    fn pre_upgrade() -> Result<Vec<u8>, TryRuntimeError> {
+        let current = Pallet::<T>::current_storage_version();
+        let onchain = Pallet::<T>::on_chain_storage_version();
+
+        let res = if onchain == MIGRATE_FROM_VERSION {
+            ensure!(
+                current == ALLOWED_CURRENT_STORAGE_VERSION,
+                "Current storage version is not allowed for migration, check migration code in order to allow it."
+            );
+
+            Some(onchain::CodeStorage::<T>::iter().count() as u64)
+        } else {
+            None
+        };
+
+        Ok(res.encode())
+    }
+
+    #[cfg(feature = "try-runtime")]
     fn post_upgrade(state: Vec<u8>) -> Result<(), TryRuntimeError> {
-        // Check that everything decoded fine.
-        let count = CodeStorage::<T>::iter_keys().count() as u64;
-        let old_count: u64 =
-            Decode::decode(&mut &state[..]).expect("pre_upgrade provides a valid state; qed");
-        assert_eq!(count, old_count);
+        if let Some(old_count) = Option::<u64>::decode(&mut state.as_ref())
+            .map_err(|_| "`pre_upgrade` provided an invalid state")?
+        {
+            let count = CodeStorage::<T>::iter_keys().count() as u64;
+            ensure!(old_count == count, "incorrect count of elements");
+        }
 
         Ok(())
     }
 }
 
 mod onchain {
-    use frame_support::{
+    use gear_core::{message::DispatchKind, pages::WasmPage};
+    use sp_runtime::{
         codec::{Decode, Encode},
         scale_info::TypeInfo,
     };
-    use gear_core::{message::DispatchKind, pages::WasmPage};
     use sp_std::{collections::btree_set::BTreeSet, vec::Vec};
 
     #[derive(Clone, Debug, Decode, Encode, TypeInfo)]

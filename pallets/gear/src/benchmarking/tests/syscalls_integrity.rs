@@ -36,7 +36,7 @@ use gear_core::ids::{CodeId, ReservationId};
 use gear_core_errors::{ReplyCode, SuccessReplyReason};
 use gear_wasm_instrument::syscalls::SyscallName;
 use pallet_timestamp::Pallet as TimestampPallet;
-use parity_scale_codec::Decode;
+use parity_scale_codec::{Decode, Encode};
 use test_syscalls::{Kind, WASM_BINARY as SYSCALLS_TEST_WASM_BINARY};
 
 pub fn read_big_state<T>()
@@ -1031,8 +1031,8 @@ where
     run_tester::<T, _, _, T::AccountId>(|_, _| {
         // Expected to burn not more than 750_000_000
         // Provided gas in the test by default is 50_000_000_000
-        let lower = 50_000_000_000 - 1_000_000_000;
-        let upper = 50_000_000_000 - 200_000_000;
+        let lower = 50_000_000_000 - 750_000_000;
+        let upper = 50_000_000_000 - 150_000_000;
         let mp = vec![Kind::GasAvailable(lower, upper)].encode().into();
 
         (TestCall::send_message(mp), None::<DefaultPostCheck>)

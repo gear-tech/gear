@@ -19,7 +19,7 @@
 use crate::{
     log::RunResult,
     mailbox::Mailbox,
-    manager::{Actors, Balance, ExtManager},
+    manager::{Actors, Balance, ExtManager, MintMode},
     program::{Program, ProgramIdWrapper},
     BLOCK_DURATION_IN_MSECS,
 };
@@ -198,16 +198,38 @@ impl System {
     }
 
     /// Returns a [`Program`] by `id`.
-    ///
-    /// The method doesn't check whether program exists or not.
-    /// So if provided `id` doesn't belong to program, message sent
-    /// to such "program" will cause panics.
-    pub fn get_program<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> Program {
+    pub fn get_program<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> Option<Program> {
         let id = id.into().0;
-        Program {
-            id,
-            manager: &self.0,
+        let manager = self.0.borrow();
+
+        if manager.is_program(&id) {
+            Some(Program {
+                id,
+                manager: &self.0,
+            })
+        } else {
+            None
         }
+    }
+
+    /// Returns last added program.
+    pub fn last_program(&self) -> Option<Program> {
+        self.programs().into_iter().next_back()
+    }
+
+    /// Returns a list of programs.
+    pub fn programs(&self) -> Vec<Program> {
+        let manager = self.0.borrow();
+        let actors = manager.actors.borrow();
+        actors
+            .keys()
+            .copied()
+            .filter(|id| manager.is_program(id))
+            .map(|id| Program {
+                id,
+                manager: &self.0,
+            })
+            .collect()
     }
 
     /// Detect if a program is active with given `id`.
@@ -220,7 +242,7 @@ impl System {
         self.0.borrow().is_active_program(&program_id)
     }
 
-    /// Saves code to the storage and returns it's code hash
+    /// Saves code to the storage and returns its code hash
     ///
     /// This method is mainly used for providing a proper program from program
     /// creation logic. In order to successfully create a new program with
@@ -228,29 +250,41 @@ impl System {
     /// provide to the function "child's" code hash. Code for that code hash
     /// must be in storage at the time of the function call. So this method
     /// stores the code in storage.
+    pub fn submit_code(&self, binary: impl Into<Vec<u8>>) -> CodeId {
+        self.0.borrow_mut().store_new_code(binary.into())
+    }
+
+    /// Saves code from file to the storage and returns its code hash
+    ///
+    /// See also [`System::submit_code`]
     #[track_caller]
-    pub fn submit_code<P: AsRef<Path>>(&self, code_path: P) -> CodeId {
+    pub fn submit_code_file<P: AsRef<Path>>(&self, code_path: P) -> CodeId {
         let code = fs::read(&code_path).unwrap_or_else(|_| {
             panic!(
                 "Failed to read file {}",
                 code_path.as_ref().to_string_lossy()
             )
         });
-        self.0.borrow_mut().store_new_code(&code)
+        self.0.borrow_mut().store_new_code(code)
     }
 
-    /// Saves code to the storage and returns it's code hash
+    /// Saves code to the storage and returns its code hash
     ///
-    /// Same as ['submit_code'], but path is provided as relative to the current
-    /// directory.
+    /// Same as ['submit_code_file'], but the path is provided as relative to
+    /// the current directory.
     #[track_caller]
-    pub fn submit_code_local<P: AsRef<Path>>(&self, code_path: P) -> CodeId {
+    pub fn submit_local_code_file<P: AsRef<Path>>(&self, code_path: P) -> CodeId {
         let path = env::current_dir()
             .expect("Unable to get root directory of the project")
             .join(code_path)
             .clean();
 
-        self.submit_code(path)
+        self.submit_code_file(path)
+    }
+
+    /// Returns previously submitted code by its code hash.
+    pub fn submitted_code(&self, code_id: CodeId) -> Option<Vec<u8>> {
+        self.0.borrow().read_code(code_id).map(|code| code.to_vec())
     }
 
     /// Extract mailbox of user with given `id`.
@@ -270,7 +304,9 @@ impl System {
     /// Mint balance to user with given `id` and `value`.
     pub fn mint_to<ID: Into<ProgramIdWrapper>>(&self, id: ID, value: Balance) {
         let actor_id = id.into().0;
-        self.0.borrow_mut().mint_to(&actor_id, value);
+        self.0
+            .borrow_mut()
+            .mint_to(&actor_id, value, MintMode::KeepAlive);
     }
 
     /// Returns balance of user with given `id`.

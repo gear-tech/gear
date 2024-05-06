@@ -16,9 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{mock::*, GasMultiplier, *};
+use crate::{mock::*, GasMultiplier, OnFinalizeValue, UnusedValue, *};
 use frame_support::{assert_noop, assert_ok, traits::Hooks};
-use sp_runtime::traits::Zero;
+use sp_runtime::{traits::Zero, StateVersion};
 use utils::*;
 
 #[test]
@@ -113,7 +113,7 @@ fn deposit_gas_user_account_deleted() {
 #[test]
 fn deposit_gas_zero() {
     new_test_ext().execute_with(|| {
-        let h = frame_support::storage_root(frame_support::StateVersion::V1);
+        let h = sp_io::storage::root(StateVersion::V1);
 
         assert_ok!(GearBank::deposit_gas(&ALICE, 0, false));
 
@@ -122,7 +122,7 @@ fn deposit_gas_zero() {
         // No-op operation assertion.
         assert_eq!(
             h,
-            frame_support::storage_root(frame_support::StateVersion::V1),
+            sp_io::storage::root(StateVersion::V1),
             "storage has been mutated"
         );
     })
@@ -293,7 +293,7 @@ fn withdraw_gas_small_amount_user_account_deleted() {
 
         assert_ok!(GearBank::withdraw_gas(&ALICE, GAS_AMOUNT, mult()));
 
-        assert_eq!(GearBank::unused_value(), GAS_VALUE_AMOUNT);
+        assert_eq!(UnusedValue::<Test>::get(), GAS_VALUE_AMOUNT);
         assert_balance(&BANK_ADDRESS, EXISTENTIAL_DEPOSIT + GAS_VALUE_AMOUNT);
 
         assert_bank_balance(0, 0);
@@ -306,7 +306,7 @@ fn withdraw_gas_small_amount_user_account_deleted() {
 #[test]
 fn withdraw_gas_zero() {
     new_test_ext().execute_with(|| {
-        let h = frame_support::storage_root(frame_support::StateVersion::V1);
+        let h = sp_io::storage::root(StateVersion::V1);
 
         assert_ok!(GearBank::withdraw_gas(&ALICE, 0, mult()));
 
@@ -315,7 +315,7 @@ fn withdraw_gas_zero() {
         // No-op operation assertion.
         assert_eq!(
             h,
-            frame_support::storage_root(frame_support::StateVersion::V1),
+            sp_io::storage::root(StateVersion::V1),
             "storage has been mutated"
         );
     })
@@ -547,7 +547,7 @@ fn spend_gas_small_amount_validator_account_deleted() {
         assert_ok!(GearBank::spend_gas(&ALICE, GAS_AMOUNT, mult()));
         GearBank::on_finalize(1);
 
-        assert_eq!(GearBank::unused_value(), GAS_VALUE_AMOUNT);
+        assert_eq!(UnusedValue::<Test>::get(), GAS_VALUE_AMOUNT);
         assert_balance(&BANK_ADDRESS, EXISTENTIAL_DEPOSIT + GAS_VALUE_AMOUNT);
 
         assert_bank_balance(0, 0);
@@ -564,7 +564,7 @@ fn spend_gas_zero() {
     new_test_ext().execute_with(|| {
         let _block_author = Authorship::author();
 
-        let h = frame_support::storage_root(frame_support::StateVersion::V1);
+        let h = sp_io::storage::root(StateVersion::V1);
 
         assert_ok!(GearBank::spend_gas(&ALICE, 0, mult()));
 
@@ -573,7 +573,7 @@ fn spend_gas_zero() {
         // No-op operation assertion.
         assert_eq!(
             h,
-            frame_support::storage_root(frame_support::StateVersion::V1),
+            sp_io::storage::root(StateVersion::V1),
             "storage has been mutated"
         );
     })
@@ -721,7 +721,7 @@ fn deposit_value_user_account_deleted() {
 #[test]
 fn deposit_value_zero() {
     new_test_ext().execute_with(|| {
-        let h = frame_support::storage_root(frame_support::StateVersion::V1);
+        let h = sp_io::storage::root(StateVersion::V1);
 
         assert_ok!(GearBank::deposit_value(&ALICE, 0, false));
 
@@ -730,7 +730,7 @@ fn deposit_value_zero() {
         // No-op operation assertion.
         assert_eq!(
             h,
-            frame_support::storage_root(frame_support::StateVersion::V1),
+            sp_io::storage::root(StateVersion::V1),
             "storage has been mutated"
         );
     })
@@ -889,7 +889,7 @@ fn withdraw_value_small_amount_user_account_deleted() {
 
         assert_ok!(GearBank::withdraw_value(&ALICE, VALUE));
 
-        assert_eq!(GearBank::unused_value(), VALUE);
+        assert_eq!(UnusedValue::<Test>::get(), VALUE);
         assert_balance(&BANK_ADDRESS, EXISTENTIAL_DEPOSIT + VALUE);
 
         assert_bank_balance(0, 0);
@@ -902,7 +902,7 @@ fn withdraw_value_small_amount_user_account_deleted() {
 #[test]
 fn withdraw_value_zero() {
     new_test_ext().execute_with(|| {
-        let h = frame_support::storage_root(frame_support::StateVersion::V1);
+        let h = sp_io::storage::root(StateVersion::V1);
 
         assert_ok!(GearBank::withdraw_value(&ALICE, 0));
 
@@ -911,7 +911,7 @@ fn withdraw_value_zero() {
         // No-op operation assertion.
         assert_eq!(
             h,
-            frame_support::storage_root(frame_support::StateVersion::V1),
+            sp_io::storage::root(StateVersion::V1),
             "storage has been mutated"
         );
     })
@@ -1173,7 +1173,7 @@ fn transfer_value_small_amount_destination_account_deleted() {
 
         assert_ok!(GearBank::transfer_value(&ALICE, &CHARLIE, VALUE));
 
-        assert_eq!(GearBank::unused_value(), VALUE);
+        assert_eq!(UnusedValue::<Test>::get(), VALUE);
         assert_balance(&BANK_ADDRESS, EXISTENTIAL_DEPOSIT + VALUE);
 
         assert_bank_balance(0, 0);
@@ -1199,7 +1199,7 @@ fn transfer_value_small_amount_self_account_deleted() {
 
         assert_ok!(GearBank::transfer_value(&ALICE, &ALICE, VALUE));
 
-        assert_eq!(GearBank::unused_value(), VALUE);
+        assert_eq!(UnusedValue::<Test>::get(), VALUE);
         assert_balance(&BANK_ADDRESS, EXISTENTIAL_DEPOSIT + VALUE);
 
         assert_bank_balance(0, 0);
@@ -1212,7 +1212,7 @@ fn transfer_value_small_amount_self_account_deleted() {
 #[test]
 fn transfer_value_zero() {
     new_test_ext().execute_with(|| {
-        let h = frame_support::storage_root(frame_support::StateVersion::V1);
+        let h = sp_io::storage::root(StateVersion::V1);
 
         assert_ok!(GearBank::transfer_value(&ALICE, &ALICE, 0));
         assert_ok!(GearBank::transfer_value(&ALICE, &CHARLIE, 0));
@@ -1224,7 +1224,7 @@ fn transfer_value_zero() {
         // No-op operation assertion.
         assert_eq!(
             h,
-            frame_support::storage_root(frame_support::StateVersion::V1),
+            sp_io::storage::root(StateVersion::V1),
             "storage has been mutated"
         );
     })
@@ -1472,7 +1472,7 @@ fn spend_gas_on_finalize_different_users() {
         const BOB_GAS: u64 = 56_789;
         assert_ok!(GearBank::deposit_gas(&BOB, BOB_GAS, false));
 
-        assert_eq!(GearBank::on_finalize_value(), 0);
+        assert_eq!(OnFinalizeValue::<Test>::get(), 0);
 
         const ALICE_BURN: u64 = ALICE_GAS - 123_456;
         assert_ok!(GearBank::spend_gas(&ALICE, ALICE_BURN, mult()));
@@ -1480,7 +1480,7 @@ fn spend_gas_on_finalize_different_users() {
         assert_bank_balance(ALICE_GAS - ALICE_BURN + BOB_GAS, 0);
 
         assert_block_author_inc(0);
-        assert_eq!(GearBank::on_finalize_value(), gas_price(ALICE_BURN));
+        assert_eq!(OnFinalizeValue::<Test>::get(), gas_price(ALICE_BURN));
 
         assert_alice_dec(gas_price(ALICE_GAS));
         assert_gas_value(&ALICE, ALICE_GAS - ALICE_BURN, 0);
@@ -1495,7 +1495,7 @@ fn spend_gas_on_finalize_different_users() {
 
         assert_block_author_inc(0);
         assert_eq!(
-            GearBank::on_finalize_value(),
+            OnFinalizeValue::<Test>::get(),
             gas_price(ALICE_BURN + BOB_BURN)
         );
 
@@ -1507,7 +1507,7 @@ fn spend_gas_on_finalize_different_users() {
 
         /* what happens at the end of block */
         GearBank::on_finalize(1);
-        assert_eq!(GearBank::on_finalize_value(), 0);
+        assert_eq!(OnFinalizeValue::<Test>::get(), 0);
         assert_block_author_inc(gas_price(ALICE_BURN + BOB_BURN));
 
         GearBank::on_initialize(2);
@@ -1525,7 +1525,7 @@ fn spend_gas_on_finalize_single_user() {
 
         assert_bank_balance(GAS_AMOUNT - BURN_1, 0);
 
-        assert_eq!(GearBank::on_finalize_value(), gas_price(BURN_1));
+        assert_eq!(OnFinalizeValue::<Test>::get(), gas_price(BURN_1));
         assert_block_author_inc(0);
 
         assert_alice_dec(gas_price(GAS_AMOUNT));
@@ -1536,7 +1536,7 @@ fn spend_gas_on_finalize_single_user() {
 
         assert_bank_balance(GAS_AMOUNT - BURN_1 - BURN_2, 0);
 
-        assert_eq!(GearBank::on_finalize_value(), gas_price(BURN_1 + BURN_2));
+        assert_eq!(OnFinalizeValue::<Test>::get(), gas_price(BURN_1 + BURN_2));
         assert_block_author_inc(0);
 
         assert_alice_dec(gas_price(GAS_AMOUNT));
@@ -1544,7 +1544,7 @@ fn spend_gas_on_finalize_single_user() {
 
         /* what happens at the end of block */
         GearBank::on_finalize(1);
-        assert_eq!(GearBank::on_finalize_value(), 0);
+        assert_eq!(OnFinalizeValue::<Test>::get(), 0);
         assert_block_author_inc(gas_price(BURN_1 + BURN_2));
 
         GearBank::on_initialize(2);
@@ -1591,8 +1591,8 @@ mod utils {
         assert_balance(
             &BANK_ADDRESS,
             CurrencyOf::<Test>::minimum_balance()
-                + GearBank::unused_value()
-                + GearBank::on_finalize_value()
+                + UnusedValue::<Test>::get()
+                + OnFinalizeValue::<Test>::get()
                 + gas_value
                 + value,
         );

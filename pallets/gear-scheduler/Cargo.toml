@@ -29,6 +29,7 @@ frame-system.workspace = true
 frame-benchmarking = { workspace = true, optional = true }
 sp-std.workspace = true
 sp-io.workspace = true
+sp-runtime.workspace = true
 
 [dev-dependencies]
 core-processor = { workspace = true, features = ["std"] }

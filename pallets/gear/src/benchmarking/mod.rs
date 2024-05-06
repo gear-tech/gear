@@ -72,23 +72,20 @@ use common::{
 };
 use core_processor::{
     common::{DispatchOutcome, JournalNote},
-    configs::{BlockConfig, PageCosts, TESTS_MAX_PAGES_NUMBER},
+    configs::BlockConfig,
     Ext, ProcessExecutionContext, ProcessorContext, ProcessorExternalities,
 };
+use parity_scale_codec::Encode;
+
 use frame_benchmarking::{benchmarks, whitelisted_caller};
-use frame_support::{
-    codec::Encode,
-    traits::{Currency, Get, Hooks},
-};
+use frame_support::traits::{Currency, Get, Hooks};
 use frame_system::{Pallet as SystemPallet, RawOrigin};
 use gear_core::{
     code::{Code, CodeAndId},
-    gas::{GasAllowanceCounter, GasCounter, ValueCounter},
     ids::{CodeId, MessageId, ProgramId},
-    memory::{AllocationsContext, Memory, PageBuf},
-    message::{DispatchKind, IncomingDispatch, MessageContext},
-    pages::{GearPage, PageU32Size, WasmPage},
-    reservation::GasReserver,
+    memory::Memory,
+    message::DispatchKind,
+    pages::WasmPage,
 };
 use gear_core_backend::{
     env::Environment,
@@ -115,6 +112,7 @@ use sp_std::prelude::*;
 const MAX_PAYLOAD_LEN: u32 = 32 * 64 * 1024;
 const MAX_PAYLOAD_LEN_KB: u32 = MAX_PAYLOAD_LEN / 1024;
 const MAX_PAGES: u32 = 512;
+const MAX_SALT_SIZE_BYTES: u32 = 4 * 1024 * 1024;
 
 /// How many batches we do per API benchmark.
 const API_BENCHMARK_BATCHES: u32 = 20;
@@ -161,47 +159,6 @@ where
     let (builtins, _) = T::BuiltinDispatcherFactory::create();
     let ext_manager = ExtManager::<T>::new(builtins);
     Gear::<T>::process_queue(ext_manager);
-}
-
-fn default_processor_context<T: Config>() -> ProcessorContext {
-    ProcessorContext {
-        gas_counter: GasCounter::new(0),
-        gas_allowance_counter: GasAllowanceCounter::new(0),
-        gas_reserver: GasReserver::new(
-            &<IncomingDispatch as Default>::default(),
-            Default::default(),
-            T::ReservationsLimit::get(),
-        ),
-        system_reservation: None,
-        value_counter: ValueCounter::new(0),
-        allocations_context: AllocationsContext::new(
-            Default::default(),
-            Default::default(),
-            Default::default(),
-        ),
-        message_context: MessageContext::new(
-            Default::default(),
-            Default::default(),
-            Default::default(),
-        )
-        .unwrap(),
-        block_info: Default::default(),
-        performance_multiplier: gsys::Percent::new(100),
-        max_pages: TESTS_MAX_PAGES_NUMBER.into(),
-        page_costs: PageCosts::new_for_tests(),
-        existential_deposit: 42,
-        program_id: Default::default(),
-        program_candidates_data: Default::default(),
-        host_fn_weights: Default::default(),
-        forbidden_funcs: Default::default(),
-        mailbox_threshold: 500,
-        waitlist_cost: 0,
-        dispatch_hold_cost: 0,
-        reserve_for: 0,
-        reservation: 0,
-        random_data: ([0u8; 32].to_vec(), 0),
-        gas_multiplier: gsys::GasMultiplier::from_value_per_gas(30),
-    }
 }
 
 fn verify_process(notes: Vec<JournalNote>) {
@@ -421,7 +378,7 @@ benchmarks! {
 
         let WasmModule { code, .. } = WasmModule::<T>::sized(c * 1024, Location::Init);
     }: {
-        let ext = Externalities::new(default_processor_context::<T>());
+        let ext = Externalities::new(ProcessorContext::new_mock());
         Environment::new(ext, &code, DispatchKind::Init, Default::default(), max_pages::<T>().into()).unwrap();
     }
 
@@ -480,7 +437,7 @@ benchmarks! {
     //
     // `s`: Size of the salt in kilobytes.
     create_program {
-        let s in 0 .. code::max_pages::<T>() as u32 * 64 * 128;
+        let s in 0 .. MAX_SALT_SIZE_BYTES;
 
         let caller = whitelisted_caller();
         let origin = RawOrigin::Signed(caller);
@@ -1448,7 +1405,7 @@ benchmarks! {
     }
 
     lazy_pages_host_func_read {
-        let p in 0 .. MAX_PAYLOAD_LEN / WasmPage::size();
+        let p in 0 .. MAX_PAYLOAD_LEN / WasmPage::SIZE;
         let mut res = None;
         let exec = Benches::<T>::lazy_pages_host_func_read((p as u16).into())?;
     }: {
@@ -1459,7 +1416,7 @@ benchmarks! {
     }
 
     lazy_pages_host_func_write {
-        let p in 0 .. MAX_PAYLOAD_LEN / WasmPage::size();
+        let p in 0 .. MAX_PAYLOAD_LEN / WasmPage::SIZE;
         let mut res = None;
         let exec = Benches::<T>::lazy_pages_host_func_write((p as u16).into())?;
     }: {
@@ -1470,7 +1427,7 @@ benchmarks! {
     }
 
     lazy_pages_host_func_write_after_read {
-        let p in 0 .. MAX_PAYLOAD_LEN / WasmPage::size();
+        let p in 0 .. MAX_PAYLOAD_LEN / WasmPage::SIZE;
         let mut res = None;
         let exec = Benches::<T>::lazy_pages_host_func_write_after_read((p as u16).into())?;
     }: {
@@ -1499,7 +1456,7 @@ benchmarks! {
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(mem_pages)),
             handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
-                        RandomUnaligned(0, mem_pages as u32 * WasmPage::size() - 8),
+                        RandomUnaligned(0, mem_pages as u32 * WasmPage::SIZE - 8),
                         Regular(Instruction::I64Load(3, 0)),
                         Regular(Instruction::Drop)])),
             .. Default::default()
@@ -1517,7 +1474,7 @@ benchmarks! {
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(mem_pages)),
             handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
-                        RandomUnaligned(0, mem_pages as u32 * WasmPage::size() - 4),
+                        RandomUnaligned(0, mem_pages as u32 * WasmPage::SIZE - 4),
                         Regular(Instruction::I32Load(2, 0)),
                         Regular(Instruction::Drop)])),
             .. Default::default()
@@ -1535,7 +1492,7 @@ benchmarks! {
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(mem_pages)),
             handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
-                        RandomUnaligned(0, mem_pages as u32 * WasmPage::size() - 8),
+                        RandomUnaligned(0, mem_pages as u32 * WasmPage::SIZE - 8),
                         RandomI64Repeated(1),
                         Regular(Instruction::I64Store(3, 0))])),
             .. Default::default()
@@ -1553,7 +1510,7 @@ benchmarks! {
         let module = ModuleDefinition {
             memory: Some(ImportedMemory::new(mem_pages)),
             handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
-                        RandomUnaligned(0, mem_pages as u32 * WasmPage::size() - 4),
+                        RandomUnaligned(0, mem_pages as u32 * WasmPage::SIZE - 4),
                         RandomI32Repeated(1),
                         Regular(Instruction::I32Store(2, 0))])),
             .. Default::default()

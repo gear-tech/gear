@@ -1,0 +1,21 @@
+[package]
+name = "demo-bls381"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+
+[dependencies]
+codec = { workspace = true, features = ["derive"] }
+gstd = { workspace = true, features = ["debug"] }
+gbuiltin-bls381.workspace = true
+hex-literal.workspace = true
+
+[build-dependencies]
+gear-wasm-builder.workspace = true
+
+[features]
+default = ["std"]
+std = ["codec/std"]

@@ -64,6 +64,7 @@ gear_usage() {
     init           initializes and updates packages and toolchains
     run            run gear node
     test           test tool
+    check_extensions checks the required cargo extensions and installs if necessary
 
   Try ./gear.sh <COMMAND> -h (or --help) to learn more about each command.
 
@@ -317,11 +318,18 @@ case "$COMMAND" in
         header "Running time consuming tests"
         time_consuming_tests "$@"; ;;
 
+      typos)
+        header "Running typo tests"
+        typo_tests ;;
+
       *)
         header  "Unknown option: '$SUBCOMMAND'"
         test_usage
         exit 1; ;;
     esac;;
+
+  check_extensions)
+    check_extensions ;;
 
   *)
     header "Unknown option: '$COMMAND'"

@@ -63,22 +63,22 @@ use common::{
 };
 use core::fmt;
 use core_processor::common::{Actor, ExecutableActorData};
-use frame_support::{
-    codec::{Decode, Encode},
-    traits::{Currency, ExistenceRequirement},
-};
+use frame_support::traits::{Currency, ExistenceRequirement};
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
     code::{CodeAndId, InstrumentedCode},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     message::{DispatchKind, SignalMessage},
-    pages::WasmPage,
+    pages::WasmPagesAmount,
     program::MemoryInfix,
     reservation::GasReservationSlot,
 };
 use primitive_types::H256;
 use scale_info::TypeInfo;
-use sp_runtime::traits::{UniqueSaturatedInto, Zero};
+use sp_runtime::{
+    codec::{Decode, Encode},
+    traits::{UniqueSaturatedInto, Zero},
+};
 use sp_std::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
     convert::TryInto,
@@ -111,7 +111,7 @@ impl fmt::Debug for HandleKind {
 pub struct CodeInfo {
     id: H256,
     exports: BTreeSet<DispatchKind>,
-    static_pages: WasmPage,
+    static_pages: WasmPagesAmount,
 }
 
 impl CodeInfo {
@@ -401,8 +401,6 @@ where
             QueueOf::<T>::queue(message)
                 .unwrap_or_else(|e| unreachable!("Message queue corrupted! {e:?}"));
         });
-
-        ProgramStorageOf::<T>::waiting_init_remove(program_id);
     }
 
     fn process_failed_init(program_id: ProgramId, origin: ProgramId) {

@@ -57,7 +57,7 @@ impl From<GenDispatchStatus> for DispatchStatus {
 
 impl DispatchStatus {
     /// Check whether `DispatchStatus` is
-    /// [`Success`](DispatchStatus::Success)ful.
+    /// [`Success`](DispatchStatus::Success).
     pub fn succeed(&self) -> bool {
         matches!(self, DispatchStatus::Success)
     }

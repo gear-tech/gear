@@ -22,7 +22,7 @@ use gear_core::{
     gas::LockId,
     ids::*,
     memory::PageBuf,
-    pages::{GearPage, PageNumber, PageU32Size, GEAR_PAGE_SIZE, WASM_PAGE_SIZE},
+    pages::{GearPage, WasmPage},
 };
 use gear_utils::{MemoryPageDump, ProgramMemoryDump};
 use gsdk::{
@@ -96,10 +96,10 @@ impl GearApi {
     /// extrinsic.
     ///
     /// This function returns a hash of the block with the transfer transaction.
-    pub async fn transfer(&self, destination: ProgramId, value: u128) -> Result<H256> {
+    pub async fn transfer_keep_alive(&self, destination: ProgramId, value: u128) -> Result<H256> {
         let destination: [u8; 32] = destination.into();
 
-        let tx = self.0.calls.transfer(destination, value).await?;
+        let tx = self.0.calls.transfer_keep_alive(destination, value).await?;
 
         for event in tx.wait_for_success().await?.iter() {
             if let Event::Balances(BalancesEvent::Transfer { .. }) =
@@ -532,10 +532,9 @@ impl GearApi {
     ) -> Result {
         let program = self.0.api().gprog_at(program_id, block_hash).await?;
 
-        const _: () = assert!(WASM_PAGE_SIZE % GEAR_PAGE_SIZE == 0);
         assert!(program.static_pages.0 > 0);
-        let static_page_count =
-            (program.static_pages.0 as usize - 1) * WASM_PAGE_SIZE / GEAR_PAGE_SIZE;
+        // TODO: consider to remove `-1` may be it's a bug #3893
+        let static_page_count = (program.static_pages.0 - 1) * WasmPage::SIZE / GearPage::SIZE;
 
         let program_pages = self
             .0
@@ -544,11 +543,11 @@ impl GearApi {
             .await?
             .into_iter()
             .filter_map(|(page_number, page_data)| {
-                if page_number < static_page_count as u32 {
+                if page_number < static_page_count {
                     None
                 } else {
                     Some(MemoryPageDump::new(
-                        GearPage::new(page_number).unwrap_or_else(|_| {
+                        GearPage::try_from(page_number).unwrap_or_else(|_| {
                             panic!("Couldn't decode GearPage from u32: {}", page_number)
                         }),
                         PageBuf::decode(&mut &*page_data).expect("Couldn't decode PageBuf"),
@@ -597,8 +596,8 @@ impl GearApi {
             .pages
             .into_iter()
             .map(|page| page.into_gear_page())
-            .map(|(page_number, page_data)| (page_number.raw(), page_data.encode()))
-            .collect::<HashMap<_, _>>();
+            .map(|(page, page_data)| (page.into(), page_data.encode()))
+            .collect::<HashMap<u32, _>>();
 
         self.force_set_balance(
             MultiAddress::Id(program_id.into_account_id()),

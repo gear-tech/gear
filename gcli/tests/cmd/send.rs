@@ -46,9 +46,12 @@ async fn test_command_send_works() -> Result<()> {
         2,
         "Alice now should have 2 messages in mailbox"
     );
-    assert!(mailbox
-        .iter()
-        .any(|mail| mail.0.payload.0 == demo_messenger::SEND_REPLY.encode()));
+    assert!(
+        mailbox
+            .iter()
+            .any(|mail| mail.0.payload.0 == demo_messenger::SEND_REPLY.encode()),
+        "Mailbox should have the send reply message"
+    );
 
     Ok(())
 }

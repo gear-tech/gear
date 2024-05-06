@@ -19,15 +19,12 @@
 //! Host function call `pre_process_memory_accesses` support in lazy-pages.
 
 use crate::{
-    common::{Error, GasCharger, LazyPagesExecutionContext, LazyPagesRuntimeContext, WeightNo},
+    common::{CostNo, Error, GasCharger, LazyPagesExecutionContext, LazyPagesRuntimeContext},
+    pages::GearPage,
     process::{self, AccessHandler},
     LAZY_PAGES_CONTEXT,
 };
-use gear_core::{
-    self,
-    memory::MemoryInterval,
-    pages::{GearPage, PageDynSize},
-};
+use gear_core::{self, memory::MemoryInterval};
 use gear_lazy_pages_common::{ProcessAccessError, Status};
 use std::collections::BTreeSet;
 
@@ -46,7 +43,6 @@ impl<'a> AccessHandler for HostFuncAccessHandler<'a> {
     }
 
     fn check_status_is_gas_exceeded() -> Result<(), Error> {
-        // Currently, we charge gas for syscall after memory processing, so this can appear.
         // In this case we do nothing, because all memory is already unprotected, and no need
         // to take in account pages data from storage, because gas is exceeded.
         Ok(())
@@ -106,7 +102,7 @@ fn accesses_pages(
     accesses
         .iter()
         .try_for_each(|access| -> Result<(), Error> {
-            // TODO: here we suppose zero byte access like one byte access, because
+            // Here we suppose zero byte access like one byte access, because
             // backend memory impl can access memory even in case access has size 0.
             let last_byte = access
                 .offset
@@ -141,10 +137,10 @@ pub fn pre_process_memory_accesses(
 
             let gas_charger = {
                 GasCharger {
-                    read_cost: exec_ctx.weight(WeightNo::HostFuncRead),
-                    write_cost: exec_ctx.weight(WeightNo::HostFuncWrite),
-                    write_after_read_cost: exec_ctx.weight(WeightNo::HostFuncWriteAfterRead),
-                    load_data_cost: exec_ctx.weight(WeightNo::LoadPageDataFromStorage),
+                    read_cost: exec_ctx.cost(CostNo::HostFuncRead),
+                    write_cost: exec_ctx.cost(CostNo::HostFuncWrite),
+                    write_after_read_cost: exec_ctx.cost(CostNo::HostFuncWriteAfterRead),
+                    load_data_cost: exec_ctx.cost(CostNo::LoadPageDataFromStorage),
                 }
             };
             let mut status = Status::Normal;

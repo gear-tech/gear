@@ -30,15 +30,6 @@ static mut INIT_MESSAGE: MessageId = MessageId::new([0; 32]);
 static mut TEST_DYNAMIC_MEMORY: BTreeMap<u32, ()> = BTreeMap::new();
 
 #[no_mangle]
-extern "C" fn handle() {
-    if unsafe { STATE != State::Inited } {
-        panic!("not initialized");
-    }
-
-    msg::reply(b"Hello, world!", 0).unwrap();
-}
-
-#[no_mangle]
 extern "C" fn init() {
     let state = unsafe { &mut STATE };
     match state {
@@ -64,6 +55,15 @@ extern "C" fn init() {
         }
         _ => panic!("unreachable!"),
     }
+}
+
+#[no_mangle]
+extern "C" fn handle() {
+    if unsafe { STATE != State::Inited } {
+        panic!("not initialized");
+    }
+
+    msg::reply(b"Hello, world!", 0).unwrap();
 }
 
 #[no_mangle]

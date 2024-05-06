@@ -18,13 +18,15 @@
 
 //! Lazy-pages structures for common usage.
 
-use crate::{globals::GlobalsContext, mprotect::MprotectError};
-use gear_core::{
-    pages::{GearPage, PageDynSize, PageSizeNo, SizeManager, WasmPage},
-    str::LimitedStr,
+use crate::{
+    globals::GlobalsContext,
+    mprotect::MprotectError,
+    pages::{GearPage, SizeManager, SizeNumber, WasmPage, WasmPagesAmount, SIZES_AMOUNT},
 };
+use gear_core::str::LimitedStr;
 use gear_lazy_pages_common::{GlobalsAccessError, Status};
-use std::{collections::BTreeSet, fmt, mem, num::NonZeroU32};
+use numerated::tree::IntervalsTree;
+use std::{fmt, mem, num::NonZeroU32};
 
 // TODO: investigate error allocations #2441
 #[derive(Debug, derive_more::Display, derive_more::From)]
@@ -123,9 +125,9 @@ impl LazyPagesContext {
     }
 }
 
-pub(crate) type Weights = [u64; WeightNo::Amount as usize];
+pub(crate) type Costs = [u64; CostNo::Amount as usize];
 pub(crate) type GlobalNames = Vec<LimitedStr<'static>>;
-pub type PageSizes = [NonZeroU32; PageSizeNo::Amount as usize];
+pub(crate) type PageSizes = [NonZeroU32; SIZES_AMOUNT];
 
 #[derive(Debug)]
 pub(crate) struct LazyPagesRuntimeContext {
@@ -170,24 +172,24 @@ pub trait LazyPagesStorage: fmt::Debug {
 
 #[derive(Debug)]
 pub(crate) struct LazyPagesExecutionContext {
-    /// Lazy-pages accesses weights.
-    pub weights: Weights,
+    /// Lazy-pages accesses costs.
+    pub costs: Costs,
     /// Pointer to the begin of wasm memory buffer
     pub wasm_mem_addr: Option<usize>,
     /// Wasm memory buffer size, to identify whether signal is from wasm memory buffer.
-    pub wasm_mem_size: WasmPage,
+    pub wasm_mem_size: WasmPagesAmount,
     /// Current program prefix in storage
     pub program_storage_prefix: PagePrefix,
     /// Pages which has been accessed by program during current execution
-    pub accessed_pages: BTreeSet<GearPage>,
+    pub accessed_pages: IntervalsTree<GearPage>,
     /// Pages which has been write accessed by program during current execution
-    pub write_accessed_pages: BTreeSet<GearPage>,
-    /// End of stack wasm address. Default is `0`, which means,
+    pub write_accessed_pages: IntervalsTree<GearPage>,
+    /// End of stack page (not inclusive). Default is `0`, which means,
     /// that wasm data has no stack region. It's not necessary to specify
     /// this value, `lazy-pages` uses it to identify memory, for which we
     /// can skip processing and this memory won't be protected. So, pages
     /// which lies before this value will never get into `write_accessed_pages`,
-    /// which means that they will never be updated in storage.
+    /// which means that they will never be uploaded to storage.
     pub stack_end: WasmPage,
     /// Context to access globals and works with them: charge gas, set status global.
     pub globals_context: Option<GlobalsContext>,
@@ -202,18 +204,18 @@ pub enum LazyPagesVersion {
 }
 
 impl SizeManager for LazyPagesRuntimeContext {
-    fn size_non_zero<P: PageDynSize>(&self) -> NonZeroU32 {
-        self.page_sizes[P::SIZE_NO]
+    fn size_non_zero<S: SizeNumber>(&self) -> NonZeroU32 {
+        self.page_sizes[S::SIZE_NO]
     }
 }
 
 impl LazyPagesExecutionContext {
     pub fn is_accessed(&self, page: GearPage) -> bool {
-        self.accessed_pages.contains(&page)
+        self.accessed_pages.contains(page)
     }
 
     pub fn is_write_accessed(&self, page: GearPage) -> bool {
-        self.write_accessed_pages.contains(&page)
+        self.write_accessed_pages.contains(page)
     }
 
     pub fn set_accessed(&mut self, page: GearPage) {
@@ -222,14 +224,16 @@ impl LazyPagesExecutionContext {
 
     pub fn set_write_accessed(&mut self, page: GearPage) -> Result<(), Error> {
         self.set_accessed(page);
-        match self.write_accessed_pages.insert(page) {
-            true => Ok(()),
-            false => Err(Error::DoubleWriteAccess(page)),
+        // TODO: consider to optimize `contains + insert` after #3879
+        if self.write_accessed_pages.contains(page) {
+            return Err(Error::DoubleWriteAccess(page));
         }
+        self.write_accessed_pages.insert(page);
+        Ok(())
     }
 
-    pub fn weight(&self, no: WeightNo) -> u64 {
-        self.weights[no as usize]
+    pub fn cost(&self, no: CostNo) -> u64 {
+        self.costs[no as usize]
     }
 }
 
@@ -256,9 +260,8 @@ impl PagePrefix {
     /// Returns key in storage for `page`.
     fn key_for_page(&mut self, page: GearPage) -> &[u8] {
         let len = self.buffer.len();
-        let page_no: u32 = page.into();
         self.buffer[len - mem::size_of::<u32>()..len]
-            .copy_from_slice(page_no.to_le_bytes().as_slice());
+            .copy_from_slice(page.raw().to_le_bytes().as_slice());
         &self.buffer
     }
 }
@@ -302,7 +305,7 @@ impl GasCharger {
     }
 }
 
-pub(crate) enum WeightNo {
+pub(crate) enum CostNo {
     SignalRead = 0,
     SignalWrite = 1,
     SignalWriteAfterRead = 2,

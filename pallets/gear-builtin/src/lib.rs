@@ -34,6 +34,7 @@ extern crate alloc;
 #[cfg(feature = "runtime-benchmarks")]
 pub mod benchmarking;
 
+pub mod bls12_381;
 pub mod weights;
 
 #[cfg(test)]
@@ -292,7 +293,7 @@ impl<T: Config> BuiltinDispatcher for BuiltinRegistry<T> {
                 // Builtin actor call failed.
                 log::debug!(target: LOG_TARGET, "Builtin actor error: {:?}", err);
                 let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
-                // The core prcessor will take care of creating necessary `JournalNote`'s.
+                // The core processor will take care of creating necessary `JournalNote`'s.
                 process_execution_error(dispatch, actor_id, gas_spent, system_reservation_ctx, err)
             }
         }

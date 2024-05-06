@@ -64,7 +64,7 @@ pub mod pallet {
     };
     use frame_system::pallet_prelude::BlockNumberFor;
     use pallet_authorship::Pallet as Authorship;
-    use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
+    use parity_scale_codec::{Decode, Encode, EncodeLike, MaxEncodedLen};
     use scale_info::TypeInfo;
     use sp_runtime::traits::Zero;
 
@@ -160,13 +160,11 @@ pub mod pallet {
 
     // Private storage that keeps account bank details.
     #[pallet::storage]
-    #[pallet::getter(fn account)]
     type Bank<T> = StorageMap<_, Identity, AccountIdOf<T>, BankAccount<BalanceOf<T>>>;
 
     // Private storage that keeps amount of value that wasn't sent because owner is inexistent account.
     #[pallet::storage]
-    #[pallet::getter(fn unused_value)]
-    type UnusedValue<T> = StorageValue<_, BalanceOf<T>, ValueQuery>;
+    pub type UnusedValue<T> = StorageValue<_, BalanceOf<T>, ValueQuery>;
 
     // Private storage that keeps registry of transfers to be performed at the end of the block.
     #[pallet::storage]
@@ -174,8 +172,7 @@ pub mod pallet {
 
     // Private storage that represents sum of values in OnFinalizeTransfers.
     #[pallet::storage]
-    #[pallet::getter(fn on_finalize_value)]
-    type OnFinalizeValue<T> = StorageValue<_, BalanceOf<T>, ValueQuery>;
+    pub(crate) type OnFinalizeValue<T> = StorageValue<_, BalanceOf<T>, ValueQuery>;
 
     #[pallet::hooks]
     impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
@@ -499,6 +496,13 @@ pub mod pallet {
             Self::withdraw(destination, value).unwrap_or_else(|e| unreachable!("qed above: {e:?}"));
 
             Ok(())
+        }
+
+        /// Getter for [`Bank<T>`](Bank)
+        pub fn account<K: EncodeLike<AccountIdOf<T>>>(
+            account_id: K,
+        ) -> Option<BankAccount<BalanceOf<T>>> {
+            Bank::<T>::get(account_id)
         }
 
         pub fn account_gas(account_id: &AccountIdOf<T>) -> Option<BalanceOf<T>> {

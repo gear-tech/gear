@@ -21,11 +21,11 @@
 //! This module contains components for depositing proper
 //! and extensive data about actions happen.
 
-use frame_support::{
+use gear_core::{ids::MessageId, message::MessageWaitedType};
+use sp_runtime::{
     codec::{self, Decode, Encode},
     scale_info::{self, TypeInfo},
 };
-use gear_core::{ids::MessageId, message::MessageWaitedType};
 
 /// Programs entry for messages.
 ///
@@ -130,11 +130,7 @@ impl From<MessageWaitedType> for MessageWaitedRuntimeReason {
 #[derive(Debug, Encode, Decode, Clone, PartialEq, Eq, TypeInfo, SystemReason)]
 #[codec(crate = codec)]
 #[scale_info(crate = scale_info)]
-pub enum MessageWaitedSystemReason {
-    /// Program hadn't finished initialization and can not
-    /// process received message yet.
-    ProgramIsNotInitialized,
-}
+pub enum MessageWaitedSystemReason {}
 
 /// Composite reason for messages waiting.
 pub type MessageWaitedReason = Reason<MessageWaitedRuntimeReason, MessageWaitedSystemReason>;

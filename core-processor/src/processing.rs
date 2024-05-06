@@ -62,20 +62,15 @@ where
     let BlockConfig {
         block_info,
         performance_multiplier,
-        max_pages,
-        page_costs,
+        forbidden_funcs,
+        reserve_for,
+        gas_multiplier,
+        costs,
         existential_deposit,
+        mailbox_threshold,
+        max_pages,
         outgoing_limit,
         outgoing_bytes_limit,
-        host_fn_weights,
-        forbidden_funcs,
-        mailbox_threshold,
-        waitlist_cost,
-        dispatch_hold_cost,
-        reserve_for,
-        reservation,
-        write_cost,
-        gas_multiplier,
         ..
     } = block_config.clone();
 
@@ -83,15 +78,12 @@ where
         block_info,
         performance_multiplier,
         existential_deposit,
-        max_pages,
-        page_costs,
-        host_fn_weights,
-        forbidden_funcs,
         mailbox_threshold,
-        waitlist_cost,
-        dispatch_hold_cost,
+        max_pages,
+        ext_costs: costs.ext,
+        lazy_pages_costs: costs.lazy_pages,
+        forbidden_funcs,
         reserve_for,
-        reservation,
         random_data,
         gas_multiplier,
     };
@@ -119,11 +111,11 @@ where
     // Waking fee: double write cost for removal from waitlist
     // and further enqueueing.
     let msg_ctx_settings = ContextSettings {
-        sending_fee: write_cost.saturating_mul(2),
-        scheduled_sending_fee: write_cost.saturating_mul(4),
-        waiting_fee: write_cost.saturating_mul(3),
-        waking_fee: write_cost.saturating_mul(2),
-        reservation_fee: write_cost.saturating_mul(2),
+        sending_fee: costs.write.cost_for(2.into()),
+        scheduled_sending_fee: costs.write.cost_for(4.into()),
+        waiting_fee: costs.write.cost_for(3.into()),
+        waking_fee: costs.write.cost_for(2.into()),
+        reservation_fee: costs.write.cost_for(2.into()),
         outgoing_limit,
         outgoing_bytes_limit,
     };
@@ -190,7 +182,7 @@ impl ProcessErrorCase {
     pub fn to_reason_and_payload(&self) -> (ErrorReplyReason, String) {
         match self {
             ProcessErrorCase::NonExecutable => {
-                let reason = ErrorReplyReason::InactiveProgram;
+                let reason = ErrorReplyReason::InactiveActor;
                 (reason, reason.to_string())
             }
             ProcessErrorCase::ExecutionFailed(reason) => {
@@ -513,7 +505,7 @@ pub fn process_success(
         })
     }
 
-    if !allocations.is_empty() {
+    if let Some(allocations) = allocations {
         journal.push(JournalNote::UpdateAllocations {
             program_id,
             allocations,

@@ -61,7 +61,6 @@ use frame_support::{
 };
 use pallet_staking::{ActiveEraInfo, EraPayout};
 use parity_scale_codec::{Decode, Encode};
-pub use scale_info::TypeInfo;
 use sp_runtime::{
     traits::{AccountIdConversion, Saturating, StaticLookup, UniqueSaturatedInto},
     PerThing, Perquintill,
@@ -70,8 +69,8 @@ use sp_std::{collections::btree_set::BTreeSet, vec::Vec};
 
 pub use extension::StakingBlackList;
 pub use inflation::compute_total_payout;
-pub mod migrations;
 pub use pallet::*;
+pub use scale_info::TypeInfo;
 pub use weights::WeightInfo;
 
 pub type BalanceOf<T> = <T as pallet_staking::Config>::CurrencyBalance;
@@ -161,26 +160,22 @@ pub mod pallet {
 
     /// Target inflation (at ideal stake)
     #[pallet::storage]
-    #[pallet::getter(fn target_inflation)]
     pub(crate) type TargetInflation<T> = StorageValue<_, Perquintill, ValueQuery>;
 
     /// Ideal staking ratio
     #[pallet::storage]
-    #[pallet::getter(fn ideal_staking_ratio)]
     pub(crate) type IdealStakingRatio<T> = StorageValue<_, Perquintill, ValueQuery>;
 
     /// The current share of issued tokens that cannot be staked (e.g. being vested)
     /// This value is guaranteed to remain unchanged for the first year until vesting kicks in.
     /// Subsequently, the non-stakeable share should be calculated based on the vesting balances.
     #[pallet::storage]
-    #[pallet::getter(fn non_stakeable_share)]
     pub type NonStakeableShare<T> = StorageValue<_, Perquintill, ValueQuery>;
 
     /// List of accounts whose locked balance (due to incomplete vesting) should be excluded from
     /// the total stakeable quantity.
     /// During the 1st year the non-stakeable amount is accounted for as a fixed fraction of TTS.
     #[pallet::storage]
-    #[pallet::getter(fn filtered_accounts)]
     pub type FilteredAccounts<T: Config> = StorageValue<_, BTreeSet<T::AccountId>, ValueQuery>;
 
     #[pallet::genesis_config]
@@ -251,6 +246,13 @@ pub mod pallet {
     impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
         fn on_initialize(_n: BlockNumberFor<T>) -> Weight {
             Weight::zero()
+        }
+    }
+
+    impl<T: Config> Pallet<T> {
+        /// Getter for [`FilteredAccounts<T>`](FilteredAccounts)
+        pub fn filtered_accounts() -> BTreeSet<T::AccountId> {
+            FilteredAccounts::<T>::get()
         }
     }
 
@@ -369,7 +371,7 @@ pub mod pallet {
         /// This value is not calculated but rather updated manually in line with tokenomics model.
         pub fn total_stakeable_tokens() -> BalanceOf<T> {
             // Should never be 0 but in theory could
-            (Self::non_stakeable_share().left_from_one() * T::Currency::total_issuance())
+            (NonStakeableShare::<T>::get().left_from_one() * T::Currency::total_issuance())
                 .saturating_sub(Self::pool())
         }
 
@@ -384,9 +386,9 @@ pub mod pallet {
                 total_staked,
                 Self::total_stakeable_tokens(),
                 total_issuance,
-                Self::ideal_staking_ratio(),
+                IdealStakingRatio::<T>::get(),
                 T::MinInflation::get(),
-                Self::target_inflation(),
+                TargetInflation::<T>::get(),
                 T::Falloff::get(),
                 T::MaxROI::get(),
                 Perquintill::one(),
@@ -461,9 +463,9 @@ impl<T: Config> EraPayout<BalanceOf<T>> for Pallet<T> {
             total_staked,
             Self::total_stakeable_tokens(),
             total_issuance,
-            Self::ideal_staking_ratio(),
+            IdealStakingRatio::<T>::get(),
             T::MinInflation::get(),
-            Self::target_inflation(),
+            TargetInflation::<T>::get(),
             T::Falloff::get(),
             T::MaxROI::get(),
             period_fraction,

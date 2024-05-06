@@ -181,9 +181,11 @@ pub enum ErrorReplyReason {
     #[display(fmt = "fail in program creation ({_0})")]
     FailedToCreateProgram(SimpleProgramCreationError) = 1,
 
-    /// Destination actor become inactive program and can't process the message.
-    #[display(fmt = "inactivity of destination program")]
-    InactiveProgram = 2,
+    /// Destination actor is inactive, so it can't process the message.
+    // TODO: think whether to split this error into long (`gr_exit()`, rent, failed init)
+    // TODO: and short (uninitialized program) versions (#3890)
+    #[display(fmt = "destination actor is inactive")]
+    InactiveActor = 2,
 
     /// Message has died in Waitlist as out of rent one.
     #[display(fmt = "removal from waitlist")]
@@ -214,7 +216,7 @@ impl ErrorReplyReason {
         match self {
             Self::Execution(error) => bytes[1..].copy_from_slice(&error.to_bytes()),
             Self::FailedToCreateProgram(error) => bytes[1..].copy_from_slice(&error.to_bytes()),
-            Self::InactiveProgram
+            Self::InactiveActor
             | Self::RemovedFromWaitlist
             | Self::ReinstrumentationFailure
             | Self::Unsupported => {}
@@ -234,7 +236,7 @@ impl ErrorReplyReason {
                 let err_bytes = bytes[1..].try_into().unwrap_or_else(|_| unreachable!());
                 Self::FailedToCreateProgram(SimpleProgramCreationError::from_bytes(err_bytes))
             }
-            b if Self::InactiveProgram.discriminant() == b => Self::InactiveProgram,
+            b if Self::InactiveActor.discriminant() == b => Self::InactiveActor,
             b if Self::RemovedFromWaitlist.discriminant() == b => Self::RemovedFromWaitlist,
             b if Self::ReinstrumentationFailure.discriminant() == b => {
                 Self::ReinstrumentationFailure

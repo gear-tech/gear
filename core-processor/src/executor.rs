@@ -19,17 +19,12 @@
 use crate::{
     common::{
         ActorExecutionError, ActorExecutionErrorReplyReason, DispatchResult, DispatchResultKind,
-        ExecutionError, MemorySetupError, SystemExecutionError, WasmExecutionContext,
+        ExecutionError, SystemExecutionError, WasmExecutionContext,
     },
     configs::{BlockInfo, ExecutionSettings},
     ext::{ProcessorContext, ProcessorExternalities},
 };
-use alloc::{
-    collections::BTreeSet,
-    format,
-    string::{String, ToString},
-    vec::Vec,
-};
+use alloc::{collections::BTreeSet, format, string::String, vec::Vec};
 use gear_core::{
     code::InstrumentedCode,
     env::Externalities,
@@ -40,7 +35,7 @@ use gear_core::{
         ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext,
         WasmEntryPoint,
     },
-    pages::{PageU32Size, WasmPage},
+    pages::WasmPage,
     program::{MemoryInfix, Program},
     reservation::GasReserver,
 };
@@ -53,62 +48,8 @@ use gear_core_backend::{
     BackendExternalities,
 };
 
-/// Checks memory parameters, that are provided for wasm execution.
-/// NOTE: this params partially checked in `Code::try_new` in `gear-core`.
-fn validate_memory_params(
-    memory_size: WasmPage,
-    static_pages: WasmPage,
-    stack_end: Option<WasmPage>,
-    allocations: &BTreeSet<WasmPage>,
-    max_pages: WasmPage,
-) -> Result<(), MemorySetupError> {
-    if memory_size > max_pages {
-        return Err(MemorySetupError::MemorySizeExceedsMaxPages {
-            memory_size,
-            max_pages,
-        });
-    }
-
-    if static_pages > memory_size {
-        return Err(MemorySetupError::InsufficientMemorySize {
-            memory_size,
-            static_pages,
-        });
-    }
-
-    if let Some(stack_end) = stack_end {
-        if stack_end > static_pages {
-            return Err(MemorySetupError::StackEndOutOfStaticMemory {
-                stack_end,
-                static_pages,
-            });
-        }
-    }
-
-    if let Some(&page) = allocations.last() {
-        if page >= memory_size {
-            return Err(MemorySetupError::AllocatedPageOutOfAllowedInterval {
-                page,
-                static_pages,
-                memory_size,
-            });
-        }
-    }
-    if let Some(&page) = allocations.first() {
-        if page < static_pages {
-            return Err(MemorySetupError::AllocatedPageOutOfAllowedInterval {
-                page,
-                static_pages,
-                memory_size,
-            });
-        }
-    }
-
-    Ok(())
-}
-
 /// Execute wasm with dispatch and return dispatch result.
-pub fn execute_wasm<Ext>(
+pub(crate) fn execute_wasm<Ext>(
     balance: u128,
     dispatch: IncomingDispatch,
     context: WasmExecutionContext,
@@ -136,22 +77,15 @@ where
     log::debug!("Executing program {}", program_id);
     log::debug!("Executing dispatch {:?}", dispatch);
 
-    // TODO: move to `AllocationsContext::new` #3813
-    validate_memory_params(
+    // Creating allocations context.
+    let allocations_context = AllocationsContext::try_new(
         memory_size,
+        program.allocations().clone(),
         program.static_pages(),
         program.stack_end(),
-        program.allocations(),
         settings.max_pages,
     )
     .map_err(SystemExecutionError::from)?;
-
-    // Creating allocations context.
-    let allocations_context = AllocationsContext::new(
-        program.allocations().clone(),
-        program.static_pages(),
-        settings.max_pages,
-    );
 
     // Creating message context.
     let Some(message_context) = MessageContext::new(dispatch.clone(), program_id, msg_ctx_settings)
@@ -189,23 +123,16 @@ where
         message_context,
         block_info: settings.block_info,
         performance_multiplier: settings.performance_multiplier,
-        max_pages: settings.max_pages,
-        page_costs: settings.page_costs,
-        existential_deposit: settings.existential_deposit,
         program_id,
         program_candidates_data: Default::default(),
-        host_fn_weights: settings.host_fn_weights,
         forbidden_funcs: settings.forbidden_funcs,
-        mailbox_threshold: settings.mailbox_threshold,
-        waitlist_cost: settings.waitlist_cost,
-        dispatch_hold_cost: settings.dispatch_hold_cost,
         reserve_for: settings.reserve_for,
-        reservation: settings.reservation,
         random_data: settings.random_data,
         gas_multiplier: settings.gas_multiplier,
+        existential_deposit: settings.existential_deposit,
+        mailbox_threshold: settings.mailbox_threshold,
+        costs: settings.ext_costs,
     };
-
-    let lazy_pages_weights = context.page_costs.lazy_pages_weights();
 
     // Creating externalities.
     let ext = Ext::new(context);
@@ -226,7 +153,7 @@ where
                 program.memory_infix(),
                 program.stack_end(),
                 globals_config,
-                lazy_pages_weights,
+                settings.lazy_pages_costs,
             )
         })
     };
@@ -338,16 +265,7 @@ where
     let program = Program::new(program_id, memory_infix, instrumented_code);
     let static_pages = program.static_pages();
     let allocations = allocations.unwrap_or_else(|| program.allocations().clone());
-
-    let memory_size = if let Some(page) = allocations.iter().next_back() {
-        page.inc()
-            .map_err(|err| err.to_string())
-            .expect("Memory size overflow, impossible")
-    } else if static_pages != WasmPage::from(0) {
-        static_pages
-    } else {
-        0.into()
-    };
+    let memory_size = allocations.last().map(|p| p.inc()).unwrap_or(static_pages);
 
     let message_context = MessageContext::new(
         IncomingDispatch::new(
@@ -374,28 +292,28 @@ where
         gas_allowance_counter: GasAllowanceCounter::new(gas_limit),
         gas_reserver: GasReserver::new(&Default::default(), Default::default(), Default::default()),
         value_counter: ValueCounter::new(Default::default()),
-        allocations_context: AllocationsContext::new(allocations, static_pages, 512.into()),
+        allocations_context: AllocationsContext::try_new(
+            memory_size,
+            allocations,
+            static_pages,
+            program.stack_end(),
+            512.into(),
+        )
+        .map_err(|e| format!("Failed to create alloc ctx: {e:?}"))?,
         message_context,
         block_info,
         performance_multiplier: gsys::Percent::new(100),
-        max_pages: 512.into(),
-        page_costs: Default::default(),
-        existential_deposit: Default::default(),
         program_id: program.id(),
         program_candidates_data: Default::default(),
-        host_fn_weights: Default::default(),
         forbidden_funcs: Default::default(),
-        mailbox_threshold: Default::default(),
-        waitlist_cost: Default::default(),
-        dispatch_hold_cost: Default::default(),
         reserve_for: Default::default(),
-        reservation: Default::default(),
         random_data: Default::default(),
         system_reservation: Default::default(),
         gas_multiplier: gsys::GasMultiplier::from_value_per_gas(1),
+        existential_deposit: Default::default(),
+        mailbox_threshold: Default::default(),
+        costs: Default::default(),
     };
-
-    let lazy_pages_weights = context.page_costs.lazy_pages_weights();
 
     // Creating externalities.
     let ext = Ext::new(context);
@@ -416,7 +334,7 @@ where
                 program.memory_infix(),
                 program.stack_end(),
                 globals_config,
-                lazy_pages_weights,
+                Default::default(),
             )
         })
     };
@@ -472,96 +390,4 @@ where
     }
 
     Err("Reply not found".into())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use core::iter;
-
-    #[test]
-    fn memory_params_validation() {
-        assert_eq!(
-            validate_memory_params(
-                4.into(),
-                2.into(),
-                Some(2.into()),
-                &iter::once(2.into()).collect(),
-                4.into(),
-            ),
-            Ok(())
-        );
-
-        assert_eq!(
-            validate_memory_params(
-                4.into(),
-                2.into(),
-                Some(2.into()),
-                &BTreeSet::new(),
-                3.into(),
-            ),
-            Err(MemorySetupError::MemorySizeExceedsMaxPages {
-                memory_size: 4.into(),
-                max_pages: 3.into()
-            })
-        );
-
-        assert_eq!(
-            validate_memory_params(
-                1.into(),
-                2.into(),
-                Some(1.into()),
-                &BTreeSet::new(),
-                4.into(),
-            ),
-            Err(MemorySetupError::InsufficientMemorySize {
-                memory_size: 1.into(),
-                static_pages: 2.into()
-            })
-        );
-
-        assert_eq!(
-            validate_memory_params(
-                4.into(),
-                2.into(),
-                Some(3.into()),
-                &BTreeSet::new(),
-                4.into(),
-            ),
-            Err(MemorySetupError::StackEndOutOfStaticMemory {
-                stack_end: 3.into(),
-                static_pages: 2.into()
-            })
-        );
-
-        assert_eq!(
-            validate_memory_params(
-                4.into(),
-                2.into(),
-                Some(2.into()),
-                &iter::once(1.into()).collect(),
-                4.into(),
-            ),
-            Err(MemorySetupError::AllocatedPageOutOfAllowedInterval {
-                page: 1.into(),
-                static_pages: 2.into(),
-                memory_size: 4.into()
-            })
-        );
-
-        assert_eq!(
-            validate_memory_params(
-                4.into(),
-                2.into(),
-                Some(2.into()),
-                &iter::once(4.into()).collect(),
-                4.into(),
-            ),
-            Err(MemorySetupError::AllocatedPageOutOfAllowedInterval {
-                page: 4.into(),
-                static_pages: 2.into(),
-                memory_size: 4.into()
-            })
-        );
-    }
 }

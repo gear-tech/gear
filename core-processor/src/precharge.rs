@@ -19,7 +19,7 @@ use crate::{
         ActorExecutionErrorReplyReason, DispatchResult, ExecutableActorData, JournalNote,
         PrechargedDispatch,
     },
-    configs::{BlockConfig, PageCosts},
+    configs::{BlockConfig, ProcessCosts},
     context::{
         ContextChargedForCodeLength, ContextChargedForMemory, ContextData, SystemReservationContext,
     },
@@ -28,19 +28,15 @@ use crate::{
 };
 use alloc::{collections::BTreeSet, vec::Vec};
 use gear_core::{
+    costs::BytesAmount,
     gas::{ChargeResult, GasAllowanceCounter, GasCounter},
     ids::ProgramId,
     message::{IncomingDispatch, MessageWaitedType},
-    pages::{PageU32Size, WasmPage},
-};
-use scale_info::{
-    scale::{self, Decode, Encode},
-    TypeInfo,
+    pages::{WasmPage, WasmPagesAmount},
 };
 
 /// Operation related to gas charging.
-#[derive(Encode, Decode, TypeInfo, Debug, PartialEq, Eq, PartialOrd, Ord, derive_more::Display)]
-#[codec(crate = scale)]
+#[derive(Debug, PartialEq, Eq, derive_more::Display)]
 pub enum PreChargeGasOperation {
     /// Handle memory static pages.
     #[display(fmt = "handle memory static pages")]
@@ -71,16 +67,19 @@ enum PrechargeError {
 struct GasPrecharger<'a> {
     counter: &'a mut GasCounter,
     allowance_counter: &'a mut GasAllowanceCounter,
+    costs: &'a ProcessCosts,
 }
 
 impl<'a> GasPrecharger<'a> {
     pub fn new(
         counter: &'a mut GasCounter,
         allowance_counter: &'a mut GasAllowanceCounter,
+        costs: &'a ProcessCosts,
     ) -> Self {
         Self {
             counter,
             allowance_counter,
+            costs,
         }
     }
 
@@ -99,90 +98,71 @@ impl<'a> GasPrecharger<'a> {
         Ok(())
     }
 
-    pub fn charge_gas_for_program_data(
-        &mut self,
-        read_cost: u64,
-        per_byte_cost: u64,
-    ) -> Result<(), PrechargeError> {
+    pub fn charge_gas_for_program_data(&mut self) -> Result<(), PrechargeError> {
         self.charge_gas(
             PreChargeGasOperation::ProgramData,
-            calculate_gas_for_program(read_cost, per_byte_cost),
+            self.costs.read.cost_for_one(),
         )
     }
 
-    pub fn charge_gas_for_program_code_len(
-        &mut self,
-        read_cost: u64,
-    ) -> Result<(), PrechargeError> {
-        self.charge_gas(PreChargeGasOperation::ProgramCodeLen, read_cost)
+    pub fn charge_gas_for_program_code_len(&mut self) -> Result<(), PrechargeError> {
+        self.charge_gas(
+            PreChargeGasOperation::ProgramCodeLen,
+            self.costs.read.cost_for_one(),
+        )
     }
 
     pub fn charge_gas_for_program_code(
         &mut self,
-        read_cost: u64,
-        per_byte_cost: u64,
-        code_len_bytes: u32,
+        code_len: BytesAmount,
     ) -> Result<(), PrechargeError> {
         self.charge_gas(
             PreChargeGasOperation::ProgramCode,
-            calculate_gas_for_code(read_cost, per_byte_cost, code_len_bytes.into()),
+            self.costs
+                .read
+                .cost_for_with_bytes(self.costs.read_per_byte, code_len),
         )
     }
 
     pub fn charge_gas_for_instantiation(
         &mut self,
-        gas_per_byte: u64,
-        code_length: u32,
+        code_len: BytesAmount,
     ) -> Result<(), PrechargeError> {
-        let amount = gas_per_byte.saturating_mul(code_length as u64);
-        self.charge_gas(PreChargeGasOperation::ModuleInstantiation, amount)
+        self.charge_gas(
+            PreChargeGasOperation::ModuleInstantiation,
+            self.costs.module_instantiation_per_byte.cost_for(code_len),
+        )
     }
 
     pub fn charge_gas_for_instrumentation(
         &mut self,
-        instrumentation_cost: u64,
-        instrumentation_byte_cost: u64,
-        original_code_len_bytes: u32,
+        original_code_len_bytes: BytesAmount,
     ) -> Result<(), PrechargeError> {
-        let amount = instrumentation_cost.saturating_add(
-            instrumentation_byte_cost.saturating_mul(original_code_len_bytes.into()),
-        );
-        self.charge_gas(PreChargeGasOperation::ModuleInstrumentation, amount)
+        self.charge_gas(
+            PreChargeGasOperation::ModuleInstrumentation,
+            self.costs
+                .instrumentation
+                .cost_for_with_bytes(self.costs.instrumentation_per_byte, original_code_len_bytes),
+        )
     }
 
     /// Charge gas for pages and checks that there is enough gas for that.
     /// Returns size of wasm memory buffer which must be created in execution environment.
     pub fn charge_gas_for_pages(
         &mut self,
-        costs: &PageCosts,
         allocations: &BTreeSet<WasmPage>,
-        static_pages: WasmPage,
-    ) -> Result<WasmPage, PrechargeError> {
+        static_pages: WasmPagesAmount,
+    ) -> Result<WasmPagesAmount, PrechargeError> {
         // Charging gas for static pages.
-        let amount = costs.static_page.calc(static_pages);
+        let amount = self.costs.static_page.cost_for(static_pages);
         self.charge_gas(PreChargeGasOperation::StaticPages, amount)?;
 
-        if let Some(page) = allocations.iter().next_back() {
-            // It means we somehow violated some constraints:
-            // 1. one of allocated pages > MAX_WASM_PAGE_AMOUNT
-            // 2. static pages > MAX_WASM_PAGE_AMOUNT
-            Ok(page
-                .inc()
-                .unwrap_or_else(|_| unreachable!("WASM memory size is too big")))
+        if let Some(page) = allocations.last() {
+            Ok(page.inc())
         } else {
             Ok(static_pages)
         }
     }
-}
-
-/// Calculates gas amount required to charge for program loading.
-pub fn calculate_gas_for_program(read_cost: u64, _per_byte_cost: u64) -> u64 {
-    read_cost
-}
-
-/// Calculates gas amount required to charge for code loading.
-pub fn calculate_gas_for_code(read_cost: u64, per_byte_cost: u64, code_len_bytes: u64) -> u64 {
-    read_cost.saturating_add(code_len_bytes.saturating_mul(per_byte_cost))
 }
 
 /// Possible variants of the `DispatchResult` if the latter contains value.
@@ -204,14 +184,15 @@ pub fn precharge_for_program(
     dispatch: IncomingDispatch,
     destination_id: ProgramId,
 ) -> PrechargeResult<PrechargedDispatch> {
-    let read_per_byte_cost = block_config.read_per_byte_cost;
-    let read_cost = block_config.read_cost;
-
     let mut gas_counter = GasCounter::new(dispatch.gas_limit());
     let mut gas_allowance_counter = GasAllowanceCounter::new(gas_allowance);
-    let mut charger = GasPrecharger::new(&mut gas_counter, &mut gas_allowance_counter);
+    let mut charger = GasPrecharger::new(
+        &mut gas_counter,
+        &mut gas_allowance_counter,
+        &block_config.costs,
+    );
 
-    match charger.charge_gas_for_program_data(read_cost, read_per_byte_cost) {
+    match charger.charge_gas_for_program_data() {
         Ok(()) => Ok(PrechargedDispatch::from_parts(
             dispatch,
             gas_counter,
@@ -253,8 +234,6 @@ pub fn precharge_for_code_length(
     destination_id: ProgramId,
     actor_data: ExecutableActorData,
 ) -> PrechargeResult<ContextChargedForCodeLength> {
-    let read_cost = block_config.read_cost;
-
     let (dispatch, mut gas_counter, mut gas_allowance_counter) = dispatch.into_parts();
 
     if !actor_data.code_exports.contains(&dispatch.kind()) {
@@ -264,8 +243,12 @@ pub fn precharge_for_code_length(
         ));
     }
 
-    let mut charger = GasPrecharger::new(&mut gas_counter, &mut gas_allowance_counter);
-    match charger.charge_gas_for_program_code_len(read_cost) {
+    let mut charger = GasPrecharger::new(
+        &mut gas_counter,
+        &mut gas_allowance_counter,
+        &block_config.costs,
+    );
+    match charger.charge_gas_for_program_code_len() {
         Ok(()) => Ok(ContextChargedForCodeLength {
             data: ContextData {
                 gas_counter,
@@ -299,15 +282,13 @@ pub fn precharge_for_code(
     mut context: ContextChargedForCodeLength,
     code_len_bytes: u32,
 ) -> PrechargeResult<ContextChargedForCode> {
-    let read_per_byte_cost = block_config.read_per_byte_cost;
-    let read_cost = block_config.read_cost;
-
     let mut charger = GasPrecharger::new(
         &mut context.data.gas_counter,
         &mut context.data.gas_allowance_counter,
+        &block_config.costs,
     );
 
-    match charger.charge_gas_for_program_code(read_cost, read_per_byte_cost, code_len_bytes) {
+    match charger.charge_gas_for_program_code(code_len_bytes.into()) {
         Ok(()) => Ok((context, code_len_bytes).into()),
         Err(PrechargeError::BlockGasExceeded) => Err(process_allowance_exceed(
             context.data.dispatch,
@@ -334,16 +315,13 @@ pub fn precharge_for_instrumentation(
     mut context: ContextChargedForCode,
     original_code_len_bytes: u32,
 ) -> PrechargeResult<ContextChargedForInstrumentation> {
-    let cost_base = block_config.code_instrumentation_cost;
-    let cost_per_byte = block_config.code_instrumentation_byte_cost;
-
     let mut charger = GasPrecharger::new(
         &mut context.data.gas_counter,
         &mut context.data.gas_allowance_counter,
+        &block_config.costs,
     );
 
-    match charger.charge_gas_for_instrumentation(cost_base, cost_per_byte, original_code_len_bytes)
-    {
+    match charger.charge_gas_for_instrumentation(original_code_len_bytes.into()) {
         Ok(()) => Ok(context.into()),
         Err(PrechargeError::BlockGasExceeded) => Err(process_allowance_exceed(
             context.data.dispatch,
@@ -381,18 +359,13 @@ pub fn precharge_for_memory(
     } = &mut context;
 
     let mut f = || {
-        let mut charger = GasPrecharger::new(gas_counter, gas_allowance_counter);
+        let mut charger =
+            GasPrecharger::new(gas_counter, gas_allowance_counter, &block_config.costs);
 
-        let memory_size = charger.charge_gas_for_pages(
-            &block_config.page_costs,
-            &actor_data.allocations,
-            actor_data.static_pages,
-        )?;
+        let memory_size =
+            charger.charge_gas_for_pages(&actor_data.allocations, actor_data.static_pages)?;
 
-        charger.charge_gas_for_instantiation(
-            block_config.module_instantiation_byte_cost,
-            *code_len_bytes,
-        )?;
+        charger.charge_gas_for_instantiation((*code_len_bytes).into())?;
 
         Ok(memory_size)
     };
@@ -443,17 +416,22 @@ mod tests {
 
     #[test]
     fn gas_for_static_pages() {
-        let costs = PageCosts::new_for_tests();
         let (mut gas_counter, mut gas_allowance_counter) = prepare_gas_counters();
-        let mut charger = GasPrecharger::new(&mut gas_counter, &mut gas_allowance_counter);
+        let costs = ProcessCosts {
+            static_page: 1.into(),
+            ..Default::default()
+        };
+        let mut charger = GasPrecharger::new(&mut gas_counter, &mut gas_allowance_counter, &costs);
         let static_pages = 4.into();
-        let res = charger
-            .charge_gas_for_pages(&costs, &Default::default(), static_pages)
-            .unwrap();
+        let allocations = Default::default();
+
+        let res = charger.charge_gas_for_pages(&allocations, static_pages);
+
         // Result is static pages count
-        assert_eq!(res, static_pages);
+        assert_eq!(res, Ok(static_pages));
+
         // Charging for static pages initialization
-        let charge = costs.static_page.calc(static_pages);
+        let charge = costs.static_page.cost_for(static_pages);
         assert_eq!(charger.counter.left(), 1_000_000 - charge);
         assert_eq!(charger.allowance_counter.left(), 4_000_000 - charge);
     }

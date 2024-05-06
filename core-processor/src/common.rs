@@ -28,11 +28,11 @@ use alloc::{
 use gear_core::{
     gas::{GasAllowanceCounter, GasAmount, GasCounter},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
-    memory::{MemoryError, PageBuf},
+    memory::{MemoryError, MemorySetupError, PageBuf},
     message::{
         ContextStore, Dispatch, DispatchKind, IncomingDispatch, MessageWaitedType, StoredDispatch,
     },
-    pages::{GearPage, WasmPage},
+    pages::{GearPage, WasmPage, WasmPagesAmount},
     program::{MemoryInfix, Program},
     reservation::{GasReservationMap, GasReserver},
 };
@@ -82,7 +82,7 @@ pub struct DispatchResult {
     /// Page updates.
     pub page_update: BTreeMap<GearPage, PageBuf>,
     /// New allocations set for program if it has been changed.
-    pub allocations: BTreeSet<WasmPage>,
+    pub allocations: Option<BTreeSet<WasmPage>>,
     /// Whether this execution sent out a reply.
     pub reply_sent: bool,
 }
@@ -334,13 +334,6 @@ pub enum JournalNote {
         /// Amount of gas for reply.
         amount: u64,
     },
-    /// Append message to waiting init list and wait list for future wake.
-    WaitingInitMessage {
-        /// Incoming dispatch of the message.
-        dispatch: IncomingDispatch,
-        /// Destination of the message.
-        destination: ProgramId,
-    },
 }
 
 /// Journal handler.
@@ -423,8 +416,6 @@ pub trait JournalHandler {
     fn send_signal(&mut self, message_id: MessageId, destination: ProgramId, code: SignalCode);
     /// Create deposit for future reply.
     fn reply_deposit(&mut self, message_id: MessageId, future_reply_id: MessageId, amount: u64);
-    /// Append message to waiting init list and wait list for future wake.
-    fn waiting_init_message(&mut self, dispatch: IncomingDispatch, destination: ProgramId);
 }
 
 actor_system_error! {
@@ -483,47 +474,6 @@ impl ActorExecutionErrorReplyReason {
     }
 }
 
-/// Inconsistency in memory parameters provided for wasm execution.
-#[derive(Debug, PartialEq, Eq, derive_more::Display)]
-pub enum MemorySetupError {
-    /// Memory size exceeds max pages
-    #[display(fmt = "Memory size {memory_size:?} must be less than or equal to {max_pages:?}")]
-    MemorySizeExceedsMaxPages {
-        /// Memory size
-        memory_size: WasmPage,
-        /// Max allowed memory size
-        max_pages: WasmPage,
-    },
-    /// Insufficient memory size
-    #[display(fmt = "Memory size {memory_size:?} must be at least {static_pages:?}")]
-    InsufficientMemorySize {
-        /// Memory size
-        memory_size: WasmPage,
-        /// Static memory size
-        static_pages: WasmPage,
-    },
-    /// Stack end is out of static memory
-    #[display(fmt = "Stack end {stack_end:?} is out of static memory 0..{static_pages:?}")]
-    StackEndOutOfStaticMemory {
-        /// Stack end
-        stack_end: WasmPage,
-        /// Static memory size
-        static_pages: WasmPage,
-    },
-    /// Allocated page is out of allowed memory interval
-    #[display(
-        fmt = "Allocated page {page:?} is out of allowed memory interval {static_pages:?}..{memory_size:?}"
-    )]
-    AllocatedPageOutOfAllowedInterval {
-        /// Allocated page
-        page: WasmPage,
-        /// Static memory size
-        static_pages: WasmPage,
-        /// Memory size
-        memory_size: WasmPage,
-    },
-}
-
 /// System execution error
 #[derive(Debug, derive_more::Display, derive_more::From)]
 pub enum SystemExecutionError {
@@ -572,7 +522,7 @@ pub struct ExecutableActorData {
     /// Exported functions by the program code.
     pub code_exports: BTreeSet<DispatchKind>,
     /// Count of static memory pages.
-    pub static_pages: WasmPage,
+    pub static_pages: WasmPagesAmount,
     /// Gas reservation map.
     pub gas_reservation_map: GasReservationMap,
 }
@@ -589,7 +539,7 @@ pub struct WasmExecutionContext {
     /// Program to be executed.
     pub program: Program,
     /// Size of the memory block.
-    pub memory_size: WasmPage,
+    pub memory_size: WasmPagesAmount,
 }
 
 /// Struct with dispatch and counters charged for program data.
