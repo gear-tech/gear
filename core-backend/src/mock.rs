@@ -31,13 +31,12 @@ use gear_core::{
     env_vars::{EnvVars, EnvVarsV1},
     gas::{ChargeError, CounterType, CountersOwner, GasAmount, GasCounter, GasLeft},
     ids::{MessageId, ProgramId, ReservationId},
-    memory::{Memory, MemoryInterval},
+    memory::{HostPointer, Memory, MemoryError, MemoryInterval},
     message::{HandlePacket, InitPacket, ReplyPacket},
     pages::{WasmPage, WasmPagesAmount},
 };
 use gear_core_errors::{ReplyCode, SignalCode};
 use gear_lazy_pages_common::ProcessAccessError;
-use gear_sandbox::{default_executor::Store, AsContextExt, SandboxMemory};
 use gear_wasm_instrument::syscalls::SyscallName;
 
 /// Mock error
@@ -112,10 +111,11 @@ impl Externalities for MockExt {
     type FallibleError = Error;
     type AllocError = Error;
 
-    fn alloc(
+    fn alloc<Context>(
         &mut self,
+        _ctx: &mut Context,
+        _mem: &mut impl Memory<Context>,
         _pages_num: u32,
-        _mem: &mut impl Memory,
     ) -> Result<WasmPage, Self::AllocError> {
         Err(Error)
     }
@@ -326,12 +326,12 @@ impl InnerMockMemory {
         size / WasmPage::SIZE
     }
 
-    fn write(&mut self, offset: u32, buffer: &[u8]) -> Result<(), Error> {
+    fn write(&mut self, offset: u32, buffer: &[u8]) -> Result<(), MemoryError> {
         self.write_attempt_count += 1;
 
         let offset = offset as usize;
         if offset + buffer.len() > self.pages.len() {
-            return Err(Error);
+            return Err(MemoryError::AccessOutOfBounds);
         }
 
         self.pages[offset..offset + buffer.len()].copy_from_slice(buffer);
@@ -339,12 +339,12 @@ impl InnerMockMemory {
         Ok(())
     }
 
-    fn read(&mut self, offset: u32, buffer: &mut [u8]) -> Result<(), Error> {
+    fn read(&mut self, offset: u32, buffer: &mut [u8]) -> Result<(), MemoryError> {
         self.read_attempt_count += 1;
 
         let offset = offset as usize;
         if offset + buffer.len() > self.pages.len() {
-            return Err(Error);
+            return Err(MemoryError::AccessOutOfBounds);
         }
 
         buffer.copy_from_slice(&self.pages[offset..(offset + buffer.len())]);
@@ -378,70 +378,29 @@ impl MockMemory {
     pub fn write_attempt_count(&self) -> u32 {
         self.0.borrow().write_attempt_count
     }
-
-    pub fn write(&mut self, offset: u32, buffer: &[u8]) -> Result<(), Error> {
-        self.0.borrow_mut().write(offset, buffer)
-    }
 }
 
-impl<T> SandboxMemory<T> for MockMemory {
-    fn new(
-        _store: &mut Store<T>,
-        _initial: u32,
-        _maximum: Option<u32>,
-    ) -> Result<Self, gear_sandbox::Error> {
-        unimplemented!()
+impl<Context> Memory<Context> for MockMemory {
+    type GrowError = &'static str;
+
+    fn grow(&self, _ctx: &mut Context, pages: WasmPagesAmount) -> Result<(), Self::GrowError> {
+        let _ = self.0.borrow_mut().grow(pages);
+        Ok(())
     }
 
-    fn read<Context>(
-        &self,
-        _ctx: &Context,
-        ptr: u32,
-        buf: &mut [u8],
-    ) -> Result<(), gear_sandbox::Error>
-    where
-        Context: AsContextExt<State = T>,
-    {
-        self.0
-            .borrow_mut()
-            .read(ptr, buf)
-            .map_err(|_| gear_sandbox::Error::OutOfBounds)
+    fn size(&self, _ctx: &Context) -> WasmPagesAmount {
+        self.0.borrow_mut().size()
     }
 
-    fn write<Context>(
-        &self,
-        _ctx: &mut Context,
-        ptr: u32,
-        value: &[u8],
-    ) -> Result<(), gear_sandbox::Error>
-    where
-        Context: AsContextExt<State = T>,
-    {
-        self.0
-            .borrow_mut()
-            .write(ptr, value)
-            .map_err(|_| gear_sandbox::Error::OutOfBounds)
+    fn write(&self, _ctx: &mut Context, offset: u32, buffer: &[u8]) -> Result<(), MemoryError> {
+        self.0.borrow_mut().write(offset, buffer)
     }
 
-    fn grow<Context>(&self, _ctx: &mut Context, new_pages: u32) -> Result<u32, gear_sandbox::Error>
-    where
-        Context: AsContextExt<State = T>,
-    {
-        let new_pages = new_pages.try_into().expect("Invalid pages amount");
-        Ok(self.0.borrow_mut().grow(new_pages))
+    fn read(&self, _ctx: &Context, offset: u32, buffer: &mut [u8]) -> Result<(), MemoryError> {
+        self.0.borrow_mut().read(offset, buffer)
     }
 
-    fn size<Context>(&self, _ctx: &Context) -> u32
-    where
-        Context: AsContextExt<State = T>,
-    {
-        self.0.borrow_mut().size().into()
-    }
-
-    unsafe fn get_buff<Context>(&self, _ctx: &mut Context) -> u64
-    where
-        Context: AsContextExt<State = T>,
-    {
+    unsafe fn get_buffer_host_addr_unsafe(&self, _ctx: &Context) -> HostPointer {
         unimplemented!()
     }
 }
