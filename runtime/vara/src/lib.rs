@@ -1111,7 +1111,7 @@ impl pallet_gear_payment::Config for Runtime {
 
 parameter_types! {
     pub const VoucherPalletId: PalletId = PalletId(*b"py/vouch");
-    pub const MinVoucherDuration: BlockNumber = 30 * MINUTES;
+    pub const MinVoucherDuration: BlockNumber = MINUTES;
     pub const MaxVoucherDuration: BlockNumber = 3 * MONTHS;
 }
 
