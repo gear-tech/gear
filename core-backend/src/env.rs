@@ -24,7 +24,7 @@ use crate::{
         TerminationReason,
     },
     funcs::FuncsHandler,
-    memory::MemoryWrap,
+    memory::{BackendMemory, ExecutorMemory},
     state::{HostState, State},
     BackendExternalities,
 };
@@ -42,9 +42,7 @@ use gear_lazy_pages_common::{
     GlobalsAccessConfig, GlobalsAccessError, GlobalsAccessMod, GlobalsAccessor,
 };
 use gear_sandbox::{
-    default_executor::{
-        EnvironmentDefinitionBuilder, Instance, Memory as DefaultExecutorMemory, Store,
-    },
+    default_executor::{EnvironmentDefinitionBuilder, Instance, Store},
     AsContextExt, HostFuncType, ReturnValue, SandboxEnvironmentBuilder, SandboxInstance,
     SandboxMemory, SandboxStore, TryFromValue, Value,
 };
@@ -63,8 +61,8 @@ macro_rules! wrap_syscall {
 }
 
 fn store_host_state_mut<Ext>(
-    store: &mut Store<HostState<Ext, DefaultExecutorMemory>>,
-) -> &mut State<Ext, DefaultExecutorMemory> {
+    store: &mut Store<HostState<Ext, BackendMemory<ExecutorMemory>>>,
+) -> &mut State<Ext, BackendMemory<ExecutorMemory>> {
     store
         .data_mut()
         .as_mut()
@@ -95,11 +93,11 @@ where
     Ext: BackendExternalities,
     EntryPoint: WasmEntryPoint,
 {
-    instance: Instance<HostState<Ext, DefaultExecutorMemory>>,
+    instance: Instance<HostState<Ext, BackendMemory<ExecutorMemory>>>,
     entries: BTreeSet<DispatchKind>,
     entry_point: EntryPoint,
-    store: Store<HostState<Ext, DefaultExecutorMemory>>,
-    memory: DefaultExecutorMemory,
+    store: Store<HostState<Ext, BackendMemory<ExecutorMemory>>>,
+    memory: BackendMemory<ExecutorMemory>,
 }
 
 pub struct BackendReport<Ext>
@@ -107,14 +105,15 @@ where
     Ext: Externalities + 'static,
 {
     pub termination_reason: TerminationReason,
-    pub memory_wrap: MemoryWrap<Ext>,
+    pub store: Store<HostState<Ext, BackendMemory<ExecutorMemory>>>,
+    pub memory: BackendMemory<ExecutorMemory>,
     pub ext: Ext,
 }
 
 // A helping wrapper for `EnvironmentDefinitionBuilder` and `forbidden_funcs`.
 // It makes adding functions to `EnvironmentDefinitionBuilder` shorter.
 struct EnvBuilder<Ext: BackendExternalities> {
-    env_def_builder: EnvironmentDefinitionBuilder<HostState<Ext, DefaultExecutorMemory>>,
+    env_def_builder: EnvironmentDefinitionBuilder<HostState<Ext, BackendMemory<ExecutorMemory>>>,
     forbidden_funcs: BTreeSet<SyscallName>,
     funcs_count: usize,
 }
@@ -129,7 +128,7 @@ where
     fn add_func(
         &mut self,
         name: SyscallName,
-        f: HostFuncType<HostState<Ext, DefaultExecutorMemory>>,
+        f: HostFuncType<HostState<Ext, BackendMemory<ExecutorMemory>>>,
     ) {
         if self.forbidden_funcs.contains(&name) {
             self.env_def_builder
@@ -141,13 +140,14 @@ where
         self.funcs_count += 1;
     }
 
-    fn add_memory(&mut self, memory: DefaultExecutorMemory) {
-        self.env_def_builder.add_memory("env", "memory", memory);
+    fn add_memory(&mut self, memory: BackendMemory<ExecutorMemory>) {
+        self.env_def_builder
+            .add_memory("env", "memory", memory.into_inner());
     }
 }
 
 impl<Ext: BackendExternalities> From<EnvBuilder<Ext>>
-    for EnvironmentDefinitionBuilder<HostState<Ext, DefaultExecutorMemory>>
+    for EnvironmentDefinitionBuilder<HostState<Ext, BackendMemory<ExecutorMemory>>>
 {
     fn from(builder: EnvBuilder<Ext>) -> Self {
         builder.env_def_builder
@@ -225,8 +225,8 @@ where
 }
 
 struct GlobalsAccessProvider<Ext: Externalities> {
-    instance: Instance<HostState<Ext, DefaultExecutorMemory>>,
-    store: Option<Store<HostState<Ext, DefaultExecutorMemory>>>,
+    instance: Instance<HostState<Ext, BackendMemory<ExecutorMemory>>>,
+    store: Option<Store<HostState<Ext, BackendMemory<ExecutorMemory>>>>,
 }
 
 impl<Ext: Externalities + 'static> GlobalsAccessor for GlobalsAccessProvider<Ext> {
@@ -287,9 +287,9 @@ where
             funcs_count: 0,
         };
 
-        let memory: DefaultExecutorMemory =
-            match SandboxMemory::new(&mut store, mem_size.into(), None) {
-                Ok(mem) => mem,
+        let memory: BackendMemory<ExecutorMemory> =
+            match ExecutorMemory::new(&mut store, mem_size.into(), None) {
+                Ok(mem) => mem.into(),
                 Err(e) => return Err(System(CreateEnvMemory(e))),
             };
 
@@ -332,7 +332,11 @@ where
 
     pub fn execute(
         self,
-        prepare_memory: impl FnOnce(&mut MemoryWrap<EnvExt>, GlobalsAccessConfig),
+        prepare_memory: impl FnOnce(
+            &mut Store<HostState<EnvExt, BackendMemory<ExecutorMemory>>>,
+            &mut BackendMemory<ExecutorMemory>,
+            GlobalsAccessConfig,
+        ),
     ) -> EnvironmentExecutionResult<EnvExt> {
         use EnvironmentError::*;
         use SystemEnvironmentError::*;
@@ -342,7 +346,7 @@ where
             entries,
             entry_point,
             mut store,
-            memory,
+            mut memory,
         } = self;
 
         let gas = store_host_state_mut(&mut store)
@@ -381,15 +385,13 @@ where
             access_mod: GlobalsAccessMod::WasmRuntime,
         };
 
-        let mut memory_wrap = MemoryWrap::new(memory.clone(), store);
-        prepare_memory(&mut memory_wrap, globals_config);
+        prepare_memory(&mut store, &mut memory, globals_config);
 
         let needs_execution = entry_point
             .try_into_kind()
             .map(|kind| entries.contains(&kind))
             .unwrap_or(true);
 
-        let mut store = memory_wrap.into_store();
         let res = if needs_execution {
             #[cfg(feature = "std")]
             let res = {
@@ -437,7 +439,8 @@ where
 
         Ok(BackendReport {
             termination_reason,
-            memory_wrap: MemoryWrap::new(memory, store),
+            store,
+            memory,
             ext,
         })
     }

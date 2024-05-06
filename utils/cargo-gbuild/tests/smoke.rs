@@ -19,10 +19,10 @@
 use anyhow::Result;
 use cargo_gbuild::GBuild;
 use gtest::{Program, System};
-use std::path::PathBuf;
+use std::{path::PathBuf, process::Command};
 
 #[test]
-fn test_compile_program_v2() -> Result<()> {
+fn test_compile_program() -> Result<()> {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-program/Cargo.toml");
     let artifact = GBuild {
         manifest_path: root.to_string_lossy().to_string().into(),
@@ -51,4 +51,33 @@ fn test_compile_program_v2() -> Result<()> {
     assert!(!res.main_failed());
     assert!(res.contains(&(user, b"HANDLE_PONG")));
     Ok(())
+}
+
+#[test]
+fn test_program_tests() {
+    // NOTE: workaround for installing stable toolchain if not exist
+    // This is momently only for adapting the environment (nightly)
+    // of our CI.
+    {
+        let toolchains = Command::new("rustup")
+            .args(["toolchain", "list"])
+            .output()
+            .expect("Failed to list rust toolchains")
+            .stdout;
+        if !String::from_utf8_lossy(&toolchains).contains("stable") {
+            Command::new("rustup")
+                .args(["install", "stable"])
+                .status()
+                .expect("Failed to install stable toolchain");
+        }
+    }
+
+    assert!(Command::new("cargo")
+        .current_dir("test-program")
+        // NOTE: for the stable toolchain, see issue #48556 <https://github.com/rust-lang/rust/issues/48556>
+        // for more information.
+        .args(["+stable", "test"])
+        .status()
+        .expect("Failed to run the tests of cargo-gbuild/test-program")
+        .success())
 }
