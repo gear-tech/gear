@@ -25,8 +25,8 @@ pub type Migrations = (
     // migration for removed waiting init list
     pallet_gear::migrations::MigrateWaitingInitList<Runtime>,
     // substrate v1.3.0
-    pallet_nomination_pools::migration::versioned_migrations::V5toV6<Runtime>,
-    pallet_nomination_pools::migration::versioned_migrations::V6ToV7<Runtime>,
+    pallet_nomination_pools::migration::versioned::V5toV6<Runtime>,
+    pallet_nomination_pools::migration::versioned::V6ToV7<Runtime>,
     staking_v13::MigrateToV13<Runtime>,
     // substrate v1.4.0
     pallet_staking::migrations::v14::MigrateToV14<Runtime>,

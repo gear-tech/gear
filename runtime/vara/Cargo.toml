@@ -64,6 +64,7 @@ sp-authority-discovery.workspace = true
 sp-block-builder.workspace = true
 sp-consensus-babe.workspace = true
 sp-core.workspace = true
+sp-externalities = { workspace = true, optional = true }
 sp-genesis-builder.workspace = true
 sp-inherents.workspace = true
 sp-npos-elections.workspace = true
@@ -71,6 +72,7 @@ sp-offchain.workspace = true
 sp-runtime.workspace = true
 sp-session.workspace = true
 sp-staking.workspace = true
+sp-state-machine = { workspace = true, optional = true }
 sp-std.workspace = true
 sp-storage.workspace = true
 sp-transaction-pool.workspace = true
@@ -194,6 +196,8 @@ std = [
 	"sp-transaction-pool/std",
 	"sp-version/std",
 	"substrate-wasm-builder",
+	"sp-externalities",
+	"sp-state-machine",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",
