@@ -27,7 +27,7 @@ jobs:
           workflow_id: ".github/workflows/build.yml"
           prefix: "build"
           needs: '["dynamic-profiles"]'
-          jobs: '["linux (debug)", win-cross (debug)]'
+          jobs: '["linux (debug)", "win-cross (debug)"]'
           inputs:
             '{ "title": "${{ github.event.pull_request.title }}", "number": "${{
             github.event.number }}" }'
