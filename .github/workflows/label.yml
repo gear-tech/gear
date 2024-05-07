@@ -6,19 +6,17 @@ on:
     # types: [labeled]
 
 jobs:
-  dispatch:
+  linux:
     runs-on: ubuntu-latest
     # if: >-
     #   github.event.label.name == 'A0-pleasereview'
-    #   || github.event.label.name == 'E2-forcemacos'
     #   || github.event.label.name == 'A4-insubstantial'
     #   || github.event.label.name == 'A2-mergeoncegreen'
 
     steps:
       - uses: actions/checkout@v4
-
-      - uses: gear-tech/fork-action@cl/required-checks
-        # if: github.event.label.name != 'E2-forcemacos'
+      - name: Fork Linux checks
+        uses: gear-tech/fork-action@cl/required-checks
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           head_sha: ${{ github.event.pull_request.head.sha }}
@@ -32,8 +30,13 @@ jobs:
             '{ "title": "${{ github.event.pull_request.title }}", "number": "${{
             github.event.number }}" }'
 
-      - uses: gear-tech/fork-action@cl/required-checks
-        # if: github.event.label.name == 'E2-forcemacos'
+  osx:
+    runs-on: ubuntu-latest
+    # if: github.event.label.name == 'E2-forcemacos'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fork OSX checks
+        uses: gear-tech/fork-action@cl/required-checks
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           head_sha: ${{ github.event.pull_request.head.sha }}
@@ -43,3 +46,4 @@ jobs:
           prefix: "build"
           needs: '["dynamic-profiles"]'
           jobs: '["macos-x86 (debug)", "macos-aarch64 (debug)"]'
+          inputs: '{ "name": "debug", "flags": "" }'
