@@ -35,6 +35,11 @@ jobs:
     # if: github.event.label.name == 'E2-forcemacos'
     steps:
       - uses: actions/checkout@v4
+      - id: profiles
+        run: |
+          profiles='{"name": "debug", "flags": ""}'
+          profiles="[${profiles}]"
+          echo "profiles=${profiles}" >> "$GITHUB_OUTPUT"
       - name: Fork OSX checks
         uses: gear-tech/fork-action@cl/required-checks
         with:
@@ -46,4 +51,4 @@ jobs:
           prefix: "build"
           needs: '["dynamic-profiles"]'
           jobs: '["macos-x86 (debug)", "macos-aarch64 (debug)"]'
-          inputs: "{ 'profiles': '[{ ''name'': ''debug'', ''flags'': '''' }]' }"
+          inputs: '{ "profiles": ${{ steps.profiles.outputs.profiles }} }'
