@@ -190,7 +190,7 @@ mod tests {
             ),
             (
                 REQUEST_AGGREGATE_G1,
-                Request::AggregateG1 { points: vec![], },
+                Request::AggregateG1 { points: vec![] },
                 Response::AggregateG1(vec![]),
             ),
         ]

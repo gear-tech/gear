@@ -30,18 +30,14 @@ use gear_core::{
     memory::{HostPointer, MemoryInterval},
     str::LimitedStr,
 };
-#[cfg(feature = "std")]
-use {
-    ark_bls12_381::G1Projective as G1,
-    ark_scale::ArkScale,
-    gear_lazy_pages::LazyPagesStorage,
-};
 use gear_lazy_pages_common::{GlobalsAccessConfig, ProcessAccessError, Status};
 use sp_runtime_interface::{
     pass_by::{Codec, PassBy},
     runtime_interface,
 };
 use sp_std::{convert::TryFrom, mem, result::Result, vec::Vec};
+#[cfg(feature = "std")]
+use {ark_bls12_381::G1Projective as G1, ark_scale::ArkScale, gear_lazy_pages::LazyPagesStorage};
 
 mod gear_sandbox;
 

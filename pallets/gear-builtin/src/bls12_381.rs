@@ -403,5 +403,10 @@ fn aggregate_g1<T: Config>(
 
     gas_spent += to_spend;
 
-    (Ok(Response::AggregateG1(gear_runtime_interface::gear_bls_12_381::aggregate_g1(&points))), gas_spent)
+    (
+        Ok(Response::AggregateG1(
+            gear_runtime_interface::gear_bls_12_381::aggregate_g1(&points),
+        )),
+        gas_spent,
+    )
 }
