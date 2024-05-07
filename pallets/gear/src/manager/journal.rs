@@ -158,14 +158,7 @@ where
             let _ = TaskPoolOf::<T>::delete(bn, ScheduledTask::PauseProgram(id_exited));
 
             match p {
-                Program::Active(program) => {
-                    Self::remove_gas_reservation_map(
-                        id_exited,
-                        core::mem::take(&mut program.gas_reservation_map),
-                    );
-
-                    Self::clean_inactive_program(id_exited, program.memory_infix);
-                }
+                Program::Active(program) => Self::clean_inactive_program(id_exited, program),
                 _ => unreachable!("Action executed only for active program"),
             }
 

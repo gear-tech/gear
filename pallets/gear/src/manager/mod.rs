@@ -61,7 +61,7 @@ use common::{
     storage::{Interval, IterableByKeyMap, Queue},
     ActiveProgram, CodeStorage, Origin, Program, ProgramStorage, ReservableTree,
 };
-use core::fmt;
+use core::{fmt, mem};
 use core_processor::common::{Actor, ExecutableActorData};
 use frame_support::traits::Currency;
 use frame_system::pallet_prelude::BlockNumberFor;
@@ -70,7 +70,6 @@ use gear_core::{
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     message::{DispatchKind, SignalMessage},
     pages::WasmPagesAmount,
-    program::MemoryInfix,
     reservation::GasReservationSlot,
 };
 use primitive_types::H256;
@@ -318,7 +317,7 @@ where
         Self::remove_gas_reservation_slot(reservation_id, slot)
     }
 
-    pub fn remove_gas_reservation_map(
+    fn remove_gas_reservation_map(
         program_id: ProgramId,
         gas_reservation_map: BTreeMap<ReservationId, GasReservationSlot>,
     ) {
@@ -368,9 +367,14 @@ where
         }
     }
 
-    /// Removes memory pages of the program and transfers program balance to the `value_destination`.
-    fn clean_inactive_program(program_id: ProgramId, memory_infix: MemoryInfix) {
-        ProgramStorageOf::<T>::remove_program_pages(program_id, memory_infix);
+    /// Removes reservation map and memory pages of the program
+    fn clean_inactive_program(
+        program_id: ProgramId,
+        program: &mut ActiveProgram<BlockNumberFor<T>>,
+    ) {
+        Self::remove_gas_reservation_map(program_id, mem::take(&mut program.gas_reservation_map));
+
+        ProgramStorageOf::<T>::remove_program_pages(program_id, program.memory_infix);
     }
 
     /// Removes all messages to `program_id` from the waitlist.
@@ -397,12 +401,7 @@ where
             let _ = TaskPoolOf::<T>::delete(bn, ScheduledTask::PauseProgram(program_id));
 
             if let Program::Active(program) = p {
-                Self::remove_gas_reservation_map(
-                    program_id,
-                    core::mem::take(&mut program.gas_reservation_map),
-                );
-
-                Self::clean_inactive_program(program_id, program.memory_infix);
+                Self::clean_inactive_program(program_id, program);
             }
 
             *p = Program::Terminated(origin);
