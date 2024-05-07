@@ -698,3 +698,89 @@ fn mul_projective_g2() {
         assert_eq!(result, builtin_result.0);
     });
 }
+
+#[test]
+fn aggregate_g1() {
+    init_logger();
+
+    new_test_ext().execute_with(|| {
+        const COUNT: usize = 5;
+
+        let mut rng = ark_std::test_rng();
+
+        let points = (0..COUNT).map(|_| G1::rand(&mut rng)).collect::<Vec<_>>();
+        let ark_points: ArkScale<Vec<G1>> = points.clone().into();
+        let encoded_points = ark_points.encode();
+
+        let payload = Request::AggregateG1 { points: encoded_points }.encode();
+        let builtin_actor_id: ProgramId = H256::from(ACTOR_ID).cast();
+        let gas_info = get_gas_info(builtin_actor_id, payload.clone());
+
+        // Check the case of insufficient gas
+        System::reset_events();
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(SIGNER),
+            builtin_actor_id,
+            payload.clone(),
+            gas_info.min_limit / 2,
+            0,
+            false,
+        ));
+
+        run_to_next_block();
+
+        // An error reply should have been sent.
+        assert!(System::events().into_iter().any(|e| match e.event {
+            RuntimeEvent::Gear(pallet_gear::Event::<Test>::UserMessageSent { message, .. }) => {
+                message.destination() == ProgramId::from(SIGNER)
+                    && matches!(message.details(), Some(details) if details.to_reply_code()
+                    == ReplyCode::Error(ErrorReplyReason::Execution(
+                        SimpleExecutionError::RanOutOfGas,
+                    )))
+            }
+            _ => false,
+        }));
+
+        // Check the computations are correct
+        System::reset_events();
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(SIGNER),
+            builtin_actor_id,
+            payload,
+            gas_info.min_limit,
+            0,
+            false,
+        ));
+
+        run_to_next_block();
+
+        let response = match System::events().into_iter().find_map(|e| match e.event {
+            RuntimeEvent::Gear(pallet_gear::Event::<Test>::UserMessageSent { message, .. }) => {
+                assert_eq!(message.destination(), ProgramId::from(SIGNER));
+                assert!(matches!(message.details(), Some(details) if matches!(details.to_reply_code(), ReplyCode::Success(..))));
+
+                Some(message.payload_bytes().to_vec())
+            }
+
+            _ => None,
+        }) {
+            Some(response) => response,
+            _ => unreachable!(),
+        };
+
+        let builtin_result = match Response::decode(&mut response.as_slice()) {
+            Ok(Response::AggregateG1(builtin_result)) => builtin_result,
+            _ => unreachable!(),
+        };
+
+        let builtin_result = ArkScale::<G1>::decode(&mut builtin_result.as_slice()).unwrap();
+        let point_first = points.first().unwrap();
+        let point_aggregated = points
+            .iter()
+            .skip(1)
+            .fold(*point_first, |aggregated, point| aggregated + *point);
+
+        assert_eq!(point_aggregated, builtin_result.0);
+    });
+}
