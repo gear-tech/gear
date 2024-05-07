@@ -916,7 +916,7 @@ where
         let max_depth = max_depth.get();
 
         let mut inheritor = program_id;
-        let mut holders = BTreeSet::new();
+        let mut holders: BTreeSet<_> = [program_id].into();
 
         loop {
             let next_inheritor = get_inheritor(inheritor)?;
@@ -929,8 +929,7 @@ where
                 break;
             }
 
-            // `-1` because the check is before insertion
-            if holders.len() == max_depth - 1 {
+            if holders.len() == max_depth {
                 break;
             }
 
@@ -939,8 +938,6 @@ where
                 panic!("Cyclic inheritors detected");
             }
         }
-
-        holders.insert(program_id);
 
         Some((inheritor, holders))
     }
