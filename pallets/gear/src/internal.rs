@@ -925,7 +925,7 @@ where
 
             // don't insert user or active program
             // because it's the final inheritor we already return
-            if let None = get_inheritor(inheritor) {
+            if get_inheritor(inheritor).is_none() {
                 break;
             }
 
