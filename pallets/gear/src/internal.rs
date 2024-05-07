@@ -925,7 +925,7 @@ where
 
             // don't insert user or active program
             // because it's the final inheritor we already return
-            if get_inheritor(inheritor).is_none() {
+            if get_inheritor(next_inheritor).is_none() {
                 break;
             }
 
@@ -933,9 +933,9 @@ where
                 break;
             }
 
-            // TODO: handle cyclic reference
             if !holders.insert(next_inheritor) {
-                panic!("Cyclic inheritors detected");
+                log::warn!("Cyclic inheritor detected for {next_inheritor}");
+                break;
             }
         }
 
