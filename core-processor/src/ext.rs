@@ -395,15 +395,16 @@ impl<'a, 'b> ExtMutator<'a, 'b> {
                 if self.changes.gas_counter.charge_if_enough(cost) == ChargeResult::NotEnough {
                     return Err(ChargeError::GasLimitExceeded);
                 }
-        
-                if self.changes.gas_allowance_counter.charge_if_enough(cost) == ChargeResult::NotEnough {
+
+                if self.changes.gas_allowance_counter.charge_if_enough(cost)
+                    == ChargeResult::NotEnough
+                {
                     return Err(ChargeError::GasAllowanceExceeded);
                 }
                 Ok(())
             })
             .map_err(Into::into)
     }
-
 
     fn reduce_gas(&mut self, limit: GasLimit) -> Result<(), FallibleExtError> {
         if self.changes.gas_counter.reduce(limit) == ChargeResult::NotEnough {
@@ -937,8 +938,7 @@ impl Externalities for Ext {
                     .cost_for(pages),
             )?;
 
-            mutator.alloc(ctx, mem, pages)
-                .map_err(Into::into)
+            mutator.alloc(ctx, mem, pages).map_err(Into::into)
         })
     }
 
