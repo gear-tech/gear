@@ -2134,15 +2134,8 @@ fn delayed_send_user_message_with_reservation() {
 
         run_to_next_block(None);
 
-        // Check that last event is UserMessageSent.
-        let last_event = match get_last_event() {
-            MockRuntimeEvent::Gear(e) => e,
-            _ => panic!("Should be one Gear event"),
-        };
-        match last_event {
-            Event::UserMessageSent { message, .. } => assert_eq!(delayed_id, message.id()),
-            _ => panic!("Test failed: expected Event::UserMessageSent"),
-        }
+        let last_mail = get_last_mail(USER_2);
+        assert_eq!(last_mail.id(), delayed_id);
 
         // Mailbox should not be empty.
         assert!(!MailboxOf::<Test>::is_empty(&USER_2));
@@ -4809,12 +4802,16 @@ fn claim_value_works() {
         let expected_sender_balance =
             sender_balance + charged_for_page_load - value_sent - gas_burned - burned_for_hold;
         assert_eq!(Balances::free_balance(USER_2), expected_sender_balance);
+
+        // To trigger GearBank::on_finalize -> transfer to pool performed.
+        run_to_next_block(Some(0));
+
         assert_eq!(
             Balances::free_balance(RENT_POOL),
             balance_rent_pool + burned_for_hold
         );
 
-        System::assert_last_event(
+        System::assert_has_event(
             Event::UserMessageRead {
                 id: reply_to_id,
                 reason: UserMessageReadRuntimeReason::MessageClaimed.into_reason(),
