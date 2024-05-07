@@ -6475,7 +6475,7 @@ fn terminated_locking_funds() {
 }
 
 #[test]
-fn transfer_value_to_inheritor() {
+fn test_inheritor_of() {
     init_logger();
     new_test_ext().execute_with(|| {
         let (builtins, _) = <Test as Config>::BuiltinDispatcherFactory::create();
