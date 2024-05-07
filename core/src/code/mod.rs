@@ -62,6 +62,8 @@ pub struct TryNewCodeConfig {
     pub version: u32,
     /// Stack height limit
     pub stack_height: Option<u32>,
+    /// Limit of data section amount
+    pub data_segments_amount_limit: Option<u32>,
     /// Export `STACK_HEIGHT_EXPORT_NAME` global
     pub export_stack_height: bool,
     /// Check exports (wasm contains init or handle exports)
@@ -85,6 +87,7 @@ impl Default for TryNewCodeConfig {
         Self {
             version: 1,
             stack_height: None,
+            data_segments_amount_limit: None,
             export_stack_height: false,
             check_exports: true,
             check_imports: true,
@@ -135,7 +138,12 @@ impl Code {
 
         // Not changing steps
         if config.check_data_section {
-            utils::check_data_section(&module, static_pages, stack_end)?;
+            utils::check_data_section(
+                &module,
+                static_pages,
+                stack_end,
+                config.data_segments_amount_limit,
+            )?;
         }
         if config.check_mut_global_exports {
             utils::check_mut_global_exports(&module)?;
@@ -254,6 +262,7 @@ impl Code {
         version: u32,
         get_gas_rules: GetRulesFn,
         stack_height: Option<u32>,
+        data_segments_amount_limit: Option<u32>,
     ) -> Result<Self, CodeError>
     where
         R: Rules,
@@ -265,6 +274,7 @@ impl Code {
             TryNewCodeConfig {
                 version,
                 stack_height,
+                data_segments_amount_limit,
                 ..Default::default()
             },
         )
@@ -412,13 +422,22 @@ mod tests {
         };
     }
 
-    fn try_new_code_from_wat(wat: &str, stack_height: Option<u32>) -> Result<Code, CodeError> {
+    fn try_new_code_from_wat_with_params(
+        wat: &str,
+        stack_height: Option<u32>,
+        data_segments_amount_limit: Option<u32>,
+    ) -> Result<Code, CodeError> {
         Code::try_new(
             wat2wasm(wat),
             1,
             |_| CustomConstantCostRules::default(),
             stack_height,
+            data_segments_amount_limit,
         )
+    }
+
+    fn try_new_code_from_wat(wat: &str, stack_height: Option<u32>) -> Result<Code, CodeError> {
+        try_new_code_from_wat_with_params(wat, stack_height, None)
     }
 
     #[test]
@@ -703,6 +722,7 @@ mod tests {
             1,
             |_| CustomConstantCostRules::default(),
             None,
+            None,
         );
 
         assert_code_err!(res, CodeError::Validation(_));
@@ -744,6 +764,37 @@ mod tests {
             CodeError::Import(ImportError::UnexpectedImportKind {
                 kind: &"Table",
                 index: 1
+            })
+        );
+    }
+
+    #[test]
+    fn data_segments_amount_limit() {
+        const DATA_SEGMENTS_AMOUNT_LIMIT: u32 = 1024;
+
+        let segment = r#"(data (i32.const 0x0) "gear")"#;
+
+        let wat = format!(
+            r#"
+            (module
+                (import "env" "memory" (memory 1))
+                (func $init)
+                (export "init" (func $init))
+                {}
+            )
+        "#,
+            segment.repeat(1025)
+        );
+
+        assert_code_err!(
+            try_new_code_from_wat_with_params(
+                wat.as_str(),
+                None,
+                DATA_SEGMENTS_AMOUNT_LIMIT.into()
+            ),
+            CodeError::DataSection(DataSectionError::DataSegmentsAmountLimit {
+                limit: DATA_SEGMENTS_AMOUNT_LIMIT,
+                actual: 1025
             })
         );
     }

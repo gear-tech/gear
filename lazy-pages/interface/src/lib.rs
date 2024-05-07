@@ -34,8 +34,8 @@ use gear_lazy_pages_common::{GlobalsAccessConfig, LazyPagesCosts, ProcessAccessE
 use gear_runtime_interface::{gear_ri, LazyPagesProgramContext};
 use sp_std::{mem, vec::Vec};
 
-fn mprotect_lazy_pages(mem: &mut impl Memory, protect: bool) {
-    if mem.get_buffer_host_addr().is_none() {
+fn mprotect_lazy_pages<Context>(ctx: &mut Context, mem: &mut impl Memory<Context>, protect: bool) {
+    if mem.get_buffer_host_addr(ctx).is_none() {
         return;
     }
 
@@ -49,8 +49,9 @@ pub fn try_to_enable_lazy_pages(prefix: [u8; 32]) -> bool {
 }
 
 /// Protect and save storage keys for pages which has no data
-pub fn init_for_program(
-    mem: &mut impl Memory,
+pub fn init_for_program<Context>(
+    ctx: &mut Context,
+    mem: &mut impl Memory<Context>,
     program_id: ProgramId,
     memory_infix: MemoryInfix,
     stack_end: Option<WasmPage>,
@@ -70,8 +71,8 @@ pub fn init_for_program(
     .to_vec();
 
     let ctx = LazyPagesProgramContext {
-        wasm_mem_addr: mem.get_buffer_host_addr(),
-        wasm_mem_size: mem.size().into(),
+        wasm_mem_addr: mem.get_buffer_host_addr(ctx),
+        wasm_mem_size: mem.size(ctx).into(),
         stack_end: stack_end.map(|p| p.into()),
         program_key: {
             let memory_infix = memory_infix.inner().to_le_bytes();
@@ -88,14 +89,15 @@ pub fn init_for_program(
 }
 
 /// Remove lazy-pages protection, returns wasm memory begin addr
-pub fn remove_lazy_pages_prot(mem: &mut impl Memory) {
-    mprotect_lazy_pages(mem, false);
+pub fn remove_lazy_pages_prot<Context>(ctx: &mut Context, mem: &mut impl Memory<Context>) {
+    mprotect_lazy_pages(ctx, mem, false);
 }
 
 /// Protect lazy-pages and set new wasm mem addr and size,
 /// if they have been changed.
-pub fn update_lazy_pages_and_protect_again(
-    mem: &mut impl Memory,
+pub fn update_lazy_pages_and_protect_again<Context>(
+    ctx: &mut Context,
+    mem: &mut impl Memory<Context>,
     old_mem_addr: Option<HostPointer>,
     old_mem_size: WasmPagesAmount,
     new_mem_addr: HostPointer,
@@ -123,14 +125,14 @@ pub fn update_lazy_pages_and_protect_again(
         None
     };
 
-    let new_mem_size = mem.size();
+    let new_mem_size = mem.size(ctx);
     let changed_size = (new_mem_size > old_mem_size).then_some(new_mem_size.into());
 
     if !matches!((changed_addr, changed_size), (None, None)) {
         gear_ri::change_wasm_memory_addr_and_size(changed_addr, changed_size)
     }
 
-    mprotect_lazy_pages(mem, true);
+    mprotect_lazy_pages(ctx, mem, true);
 }
 
 /// Returns list of released pages numbers.
