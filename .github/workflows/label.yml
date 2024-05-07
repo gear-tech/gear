@@ -17,7 +17,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: gear-tech/fork-action@v0.1.0
+      - uses: gear-tech/fork-action@cl/required-checks
         if: github.event.label.name != 'E2-forcemacos'
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -26,12 +26,13 @@ jobs:
           repo: "gear-tech/gear"
           workflow_id: ".github/workflows/build.yml"
           prefix: "build"
-          jobs: '["linux", "win-cross"]'
+          needs: '["dynamic-profiles"]'
+          jobs: '["linux (debug)", win-cross (debug)]'
           inputs:
             '{ "title": "${{ github.event.pull_request.title }}", "number": "${{
             github.event.number }}" }'
 
-      - uses: gear-tech/fork-action@v0.1.0
+      - uses: gear-tech/fork-action@cl/required-checks
         if: github.event.label.name == 'E2-forcemacos'
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -40,4 +41,5 @@ jobs:
           repo: "gear-tech/gear"
           workflow_id: ".github/workflows/build-macos.yml"
           prefix: "build"
-          jobs: '["x86"]'
+          needs: '["dynamic-profiles"]'
+          jobs: ["macos-x86 (debug)", "macos-aarch64 (debug)"]
