@@ -43,6 +43,8 @@ mod staking_v13 {
     use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
     use scale_info::TypeInfo;
     use sp_core::Get;
+
+    #[cfg(feature = "try-runtime")]
     use sp_std::vec::Vec;
 
     #[cfg(feature = "try-runtime")]
