@@ -1084,10 +1084,7 @@ impl pallet_gear_messenger::Config for Runtime {
 }
 
 /// Builtin actors arranged in a tuple.
-#[cfg(not(feature = "runtime-benchmarks"))]
 pub type BuiltinActors = (pallet_gear_builtin::bls12_381::Actor<Runtime>,);
-#[cfg(feature = "runtime-benchmarks")]
-pub type BuiltinActors = pallet_gear_builtin::benchmarking::BenchmarkingBuiltinActor<Runtime>;
 
 parameter_types! {
     pub const BuiltinActorPalletId: PalletId = PalletId(*b"py/biact");

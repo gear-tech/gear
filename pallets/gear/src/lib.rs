@@ -559,12 +559,13 @@ pub mod pallet {
             value: BalanceOf<T>,
         ) -> DispatchResultWithPostInfo {
             use gear_core::code::TryNewCodeConfig;
+            use gear_wasm_instrument::gas_metering::CustomConstantCostRules;
 
             let who = ensure_signed(origin)?;
 
-            let code = Code::try_new_mock_const_or_no_rules(
+            let code = Code::try_new_mock_with_rules(
                 code,
-                true,
+                |_| CustomConstantCostRules::new(0, 0, 0),
                 TryNewCodeConfig {
                     // actual version to avoid re-instrumentation
                     version: T::Schedule::get().instruction_weights.version,
@@ -1134,6 +1135,7 @@ pub mod pallet {
                 schedule.instruction_weights.version,
                 |module| schedule.rules(module),
                 schedule.limits.stack_height,
+                schedule.limits.data_segments_amount.into(),
             )?;
 
             let code_and_id = CodeAndId::from_parts_unchecked(code, code_id);
@@ -1157,6 +1159,7 @@ pub mod pallet {
                 schedule.instruction_weights.version,
                 |module| schedule.rules(module),
                 schedule.limits.stack_height,
+                schedule.limits.data_segments_amount.into(),
             )
             .map_err(|e| {
                 log::debug!("Code checking or instrumentation failed: {e}");

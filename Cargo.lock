@@ -3456,9 +3456,9 @@ dependencies = [
 
 [[package]]
 name = "etc"
-version = "0.1.19"
+version = "0.1.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ed70d0ae6f3c7bc89341edb96cce201d5e009b7bb038b72c98d210acffbce2e3"
+checksum = "1b241177c7107d9829286c2ffdc5eee98d992d6356f3515e7f412f988b1a72fd"
 
 [[package]]
 name = "event-listener"
@@ -5326,6 +5326,7 @@ version = "1.3.0"
 name = "gtest"
 version = "1.3.0"
 dependencies = [
+ "cargo_toml",
  "colored",
  "demo-constructor",
  "demo-custom",
@@ -5334,6 +5335,7 @@ dependencies = [
  "demo-ping",
  "derive_more",
  "env_logger",
+ "etc",
  "gear-core",
  "gear-core-errors",
  "gear-core-processor",

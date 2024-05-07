@@ -36,11 +36,6 @@ jobs:
           sudo wget -c https://github.com/WebAssembly/binaryen/releases/download/$BINARYEN_VERSION/binaryen-$BINARYEN_VERSION-x86_64-linux.tar.gz -O - | sudo tar -xz -C .
           sudo cp binaryen-$BINARYEN_VERSION/bin/wasm-opt /usr/bin/
 
-      - name: "Cache: Unpack"
-        continue-on-error: true
-        run: |
-          tar -xf /cache/check_cargo_registry_${{ github.ref_name }}.tar -C /
-
       - name: "Build: Gear"
         run: ./scripts/gear.sh build gear --release --locked --features=runtime-benchmarks
 

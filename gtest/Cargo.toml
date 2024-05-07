@@ -25,6 +25,8 @@ path-clean.workspace = true
 rand = { workspace = true, features = ["std", "std_rng"] }
 log.workspace = true
 indexmap.workspace = true
+cargo_toml.workspace = true
+etc.workspace = true
 
 [dev-dependencies]
 demo-custom.workspace = true

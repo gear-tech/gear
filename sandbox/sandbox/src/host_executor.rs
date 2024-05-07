@@ -172,7 +172,7 @@ impl<T> super::SandboxMemory<T> for Memory {
         sandbox::memory_size(self.handle.memory_idx)
     }
 
-    unsafe fn get_buff<Context>(&self, _ctx: &mut Context) -> HostPointer
+    unsafe fn get_buff<Context>(&self, _ctx: &Context) -> HostPointer
     where
         Context: AsContextExt<State = T>,
     {
