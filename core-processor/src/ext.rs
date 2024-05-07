@@ -380,30 +380,30 @@ impl<'a, 'b> ExtMutator<'a, 'b> {
         Self { changes, ext }
     }
 
-    fn alloc(
+    fn alloc<Context>(
         &mut self,
+        ctx: &mut Context,
+        mem: &mut impl Memory<Context>,
         pages: WasmPagesAmount,
-        mem: &mut impl Memory,
     ) -> Result<WasmPage, AllocError> {
         self.ext
             .context
             .allocations_context
-            .alloc::<LazyGrowHandler>(pages, mem, |pages| {
+            .alloc::<Context, LazyGrowHandler>(ctx, mem, pages, |pages| {
                 let cost = self.ext.context.costs.mem_grow.cost_for(pages);
-                // have to inline `charge_gas_if_enough`, otherwise borrow error because of `ext.context.allocations_context` access
+                // Inline charge_gas_if_enough because otherwise we have borrow error due to access to `allocations_context` mutable
                 if self.changes.gas_counter.charge_if_enough(cost) == ChargeResult::NotEnough {
                     return Err(ChargeError::GasLimitExceeded);
                 }
-
-                if self.changes.gas_allowance_counter.charge_if_enough(cost)
-                    == ChargeResult::NotEnough
-                {
+        
+                if self.changes.gas_allowance_counter.charge_if_enough(cost) == ChargeResult::NotEnough {
                     return Err(ChargeError::GasAllowanceExceeded);
                 }
-
                 Ok(())
             })
+            .map_err(Into::into)
     }
+
 
     fn reduce_gas(&mut self, limit: GasLimit) -> Result<(), FallibleExtError> {
         if self.changes.gas_counter.reduce(limit) == ChargeResult::NotEnough {
@@ -937,16 +937,9 @@ impl Externalities for Ext {
                     .cost_for(pages),
             )?;
 
-        self.context
-            .allocations_context
-            .alloc::<Context, LazyGrowHandler>(ctx, mem, pages, |pages| {
-                Ext::charge_gas_if_enough(
-                    &mut self.context.gas_counter,
-                    &mut self.context.gas_allowance_counter,
-                    self.context.costs.mem_grow.cost_for(pages),
-                )
-            })
-            .map_err(Into::into)
+            mutator.alloc(ctx, mem, pages)
+                .map_err(Into::into)
+        })
     }
 
     fn free(&mut self, page: WasmPage) -> Result<(), Self::AllocError> {
