@@ -32,6 +32,7 @@ impl sc_executor::NativeExecutionDispatch for LocalExecutorDispatch {
         gear_runtime_interface::gear_ri::HostFunctions,
         gear_runtime_interface::sandbox::HostFunctions,
         sp_crypto_ec_utils::bls12_381::host_calls::HostFunctions,
+        gear_runtime_interface::gear_bls_12_381::HostFunctions,
     );
 
     fn dispatch(method: &str, data: &[u8]) -> Option<Vec<u8>> {

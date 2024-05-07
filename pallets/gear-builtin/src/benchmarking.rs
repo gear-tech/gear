@@ -254,6 +254,31 @@ benchmarks! {
         let standard = <ark_bls12_381::g2::Config as SWCurveConfig>::mul_projective(&base, &bigint);
         assert_eq!(standard, result.0);
     }
+
+    bls12_381_aggregate_g1 {
+        let c in 1 .. 1_000;
+
+        let count = c as usize;
+
+        let mut rng = ark_std::test_rng();
+
+        let points = (0..count).map(|_| G1::rand(&mut rng)).collect::<Vec<_>>();
+        let ark_points: ArkScale<Vec<G1>> = points.clone().into();
+        let encoded_points = ark_points.encode();
+
+        let mut _result: Vec<u8> = vec![];
+    }: {
+        _result = gear_runtime_interface::gear_bls_12_381::aggregate_g1(&encoded_points);
+    } verify {
+        let decoded = ArkScale::<G1>::decode(&mut &_result[..]).unwrap();
+        let point_first = points.first().unwrap();
+        let point_aggregated = points
+            .iter()
+            .skip(1)
+            .fold(*point_first, |aggregated, point| aggregated + *point);
+
+        assert_eq!(point_aggregated, decoded.0);
+    }
 }
 
 impl_benchmark_test_suite!(

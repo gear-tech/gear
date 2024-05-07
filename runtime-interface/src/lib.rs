@@ -31,7 +31,11 @@ use gear_core::{
     str::LimitedStr,
 };
 #[cfg(feature = "std")]
-use gear_lazy_pages::LazyPagesStorage;
+use {
+    ark_bls12_381::G1Projective as G1,
+    ark_scale::ArkScale,
+    gear_lazy_pages::LazyPagesStorage,
+};
 use gear_lazy_pages_common::{GlobalsAccessConfig, ProcessAccessError, Status};
 use sp_runtime_interface::{
     pass_by::{Codec, PassBy},
@@ -299,5 +303,30 @@ pub trait GearDebug {
             .duration_since(SystemTime::UNIX_EPOCH)
             .unwrap()
             .as_nanos()
+    }
+}
+
+#[runtime_interface]
+pub trait GearBls12_381 {
+    /// Aggregate provided G1-points. Useful for cases with hundreds or more items.
+    /// Accepts scale-encoded `ArkScale<Vec<G1Projective>>`.
+    /// Result is scale-encoded `ArkScale<G1Projective>`. Returns an empty array on failure.
+    fn aggregate_g1(points: &[u8]) -> Vec<u8> {
+        type ArkScale<T> = ark_scale::ArkScale<T, { ark_scale::HOST_CALL }>;
+
+        let Ok(ArkScale(points)) = ArkScale::<Vec<G1>>::decode(&mut &points[..]) else {
+            return vec![];
+        };
+
+        let Some(point_first) = points.first() else {
+            return vec![];
+        };
+
+        let point_aggregated = points
+            .iter()
+            .skip(1)
+            .fold(*point_first, |aggregated, point| aggregated + *point);
+
+        ArkScale::<G1>::from(point_aggregated).encode()
     }
 }

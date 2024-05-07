@@ -57,6 +57,7 @@ impl sc_executor::NativeExecutionDispatch for VaraExecutorDispatch {
         gear_ri::gear_ri::HostFunctions,
         gear_ri::sandbox::HostFunctions,
         sp_crypto_ec_utils::bls12_381::host_calls::HostFunctions,
+        gear_ri::gear_bls_12_381::HostFunctions,
     );
     /// Otherwise we only use the default Substrate host functions.
     #[cfg(not(feature = "runtime-benchmarks"))]
@@ -64,6 +65,7 @@ impl sc_executor::NativeExecutionDispatch for VaraExecutorDispatch {
         gear_ri::gear_ri::HostFunctions,
         gear_ri::sandbox::HostFunctions,
         sp_crypto_ec_utils::bls12_381::host_calls::HostFunctions,
+        gear_ri::gear_bls_12_381::HostFunctions,
     );
 
     fn dispatch(method: &str, data: &[u8]) -> Option<Vec<u8>> {
