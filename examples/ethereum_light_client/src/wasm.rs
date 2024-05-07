@@ -483,7 +483,10 @@ async fn handle_update(
         next_sync_committee_keys.is_some() && next_sync_committee_branch.is_some()
         && update_finalized_period == update_attested_period;
 
-    if update_is_newer || update_has_finalized_next_committee {
+
+    debug!("store_period = {store_period}, update_sig_period = {update_sig_period}, update_finalized_period = {update_finalized_period}, update_attested_period = {update_attested_period}");
+
+    if update_is_newer || (update_has_finalized_next_committee && store.next_sync_committee.is_none()) {
         let is_valid_sig = verify_sync_committee_signture(
             pub_keys,
             update.attested_header.clone(),
@@ -498,6 +501,7 @@ async fn handle_update(
     }
 
     if update_is_newer {
+        debug!("update is newer");
         if is_finality_proof_valid(
             &update.attested_header,
             &finalized_header,
@@ -517,6 +521,12 @@ async fn handle_update(
     }
 
     if !update_has_finalized_next_committee {
+        debug!("update doesn't have next committee");
+        return;
+    }
+
+    if !update_is_newer && store.next_sync_committee.is_some() {
+        debug!("update has next committee but store has it too");
         return;
     }
 

@@ -177,6 +177,83 @@ async fn get_finality_update() -> EyreResult<FinalityUpdate> {
     Ok(res.data)
 }
 
+fn create_payload(update: Update) -> Handle {
+    // println!("111");
+    let signature = <G2 as ark_serialize::CanonicalDeserialize>::deserialize_compressed(update.sync_aggregate.sync_committee_signature.as_ref()).unwrap();
+    // println!("222");
+    // println!("signature = {signature:?}");
+
+    // let Ok(signature) = signature else {
+    //     println!("failed to deserialize point on G2");
+    //     continue;
+    // };
+
+    let next_sync_committee_keys = Some({
+        let pub_keys = update
+            .next_sync_committee
+            .pubkeys
+            .as_ref()
+            .iter()
+            .map(|pub_key_compressed| {
+                <G1 as CanonicalDeserialize>::deserialize_compressed_unchecked(&pub_key_compressed[..]).unwrap()
+            })
+            .collect::<Vec<_>>();
+
+        let ark_scale: ArkScale<Vec<G1>> = pub_keys.into();
+
+        ark_scale
+    });
+    let next_sync_committee = SyncCommittee2 {
+        pubkeys: Array512(update
+            .next_sync_committee
+            .pubkeys
+            .as_ref()
+            .iter()
+            .map(|pub_key_compressed| {
+                <[u8; 48]>::try_from(pub_key_compressed.as_ref()).unwrap()
+            })
+            .collect::<Vec<[u8; 48]>>()
+            .try_into()
+            .unwrap()),
+        aggregate_pubkey: <[u8; 48]>::try_from(update.next_sync_committee.aggregate_pubkey.as_ref()).unwrap(),
+    };
+
+    Handle::Update {
+        update: {
+            let update = demo_ethereum_light_client::Update {
+                attested_header: update.attested_header,
+                sync_aggregate: update.sync_aggregate,
+            };
+
+            let mut buffer = Vec::with_capacity(10_000);
+            update.serialize(&mut buffer).unwrap();
+
+            buffer
+        },
+        signature_slot: update.signature_slot.into(),
+        next_sync_committee: Some(next_sync_committee),
+        finalized_header: BeaconBlockHeader {
+            slot: update.finalized_header.slot.into(),
+            proposer_index: update.finalized_header.proposer_index.into(),
+            parent_root: Hash256::from_slice(update.finalized_header.parent_root.as_ref()),
+            state_root: Hash256::from_slice(update.finalized_header.state_root.as_ref()),
+            body_root: Hash256::from_slice(update.finalized_header.body_root.as_ref()),
+        },
+        sync_committee_signature: signature.into(),
+        next_sync_committee_keys,
+        next_sync_committee_branch: Some(update
+            .next_sync_committee_branch
+            .iter()
+            .map(|branch| <[u8; 32]>::try_from(branch.as_slice()).unwrap())
+            .collect::<_>()),
+        finality_branch: update
+            .finality_branch
+            .iter()
+            .map(|branch| <[u8; 32]>::try_from(branch.as_slice()).unwrap())
+            .collect::<_>(),
+    }
+}
+
 async fn common_upload_program(
     client: &GearApi,
     code: Vec<u8>,
@@ -301,80 +378,7 @@ async fn ethereum_light_client() -> Result<()> {
         .map_err(|e| anyhow::Error::msg(e.to_string()))?;
 
     for update in updates {
-        println!("111");
-        let signature = <G2 as ark_serialize::CanonicalDeserialize>::deserialize_compressed(update.sync_aggregate.sync_committee_signature.as_ref());
-        println!("222");
-        // println!("signature = {signature:?}");
-
-        let Ok(signature) = signature else {
-            println!("failed to deserialize point on G2");
-            continue;
-        };
-
-        let next_sync_committee_keys = Some({
-            let pub_keys = update
-                .next_sync_committee
-                .pubkeys
-                .as_ref()
-                .iter()
-                .map(|pub_key_compressed| {
-                    <G1 as CanonicalDeserialize>::deserialize_compressed_unchecked(&pub_key_compressed[..]).unwrap()
-                })
-                .collect::<Vec<_>>();
-
-            let ark_scale: ArkScale<Vec<G1>> = pub_keys.into();
-
-            ark_scale
-        });
-        let next_sync_committee = SyncCommittee2 {
-            pubkeys: Array512(update
-                .next_sync_committee
-                .pubkeys
-                .as_ref()
-                .iter()
-                .map(|pub_key_compressed| {
-                    <[u8; 48]>::try_from(pub_key_compressed.as_ref()).unwrap()
-                })
-                .collect::<Vec<[u8; 48]>>()
-                .try_into()
-                .unwrap()),
-            aggregate_pubkey: <[u8; 48]>::try_from(update.next_sync_committee.aggregate_pubkey.as_ref()).unwrap(),
-        };
-
-        let payload = Handle::Update {
-            update: {
-                let update = demo_ethereum_light_client::Update {
-                    attested_header: update.attested_header,
-                    sync_aggregate: update.sync_aggregate,
-                };
-
-                buffer.clear();
-                update.serialize(&mut buffer).unwrap();
-
-                buffer.clone()
-            },
-            signature_slot: update.signature_slot.into(),
-            next_sync_committee: Some(next_sync_committee),
-            finalized_header: BeaconBlockHeader {
-                slot: update.finalized_header.slot.into(),
-                proposer_index: update.finalized_header.proposer_index.into(),
-                parent_root: Hash256::from_slice(update.finalized_header.parent_root.as_ref()),
-                state_root: Hash256::from_slice(update.finalized_header.state_root.as_ref()),
-                body_root: Hash256::from_slice(update.finalized_header.body_root.as_ref()),
-            },
-            sync_committee_signature: signature.into(),
-            next_sync_committee_keys,
-            next_sync_committee_branch: Some(update
-                .next_sync_committee_branch
-                .iter()
-                .map(|branch| <[u8; 32]>::try_from(branch.as_slice()).unwrap())
-                .collect::<_>()),
-            finality_branch: update
-                .finality_branch
-                .iter()
-                .map(|branch| <[u8; 32]>::try_from(branch.as_slice()).unwrap())
-                .collect::<_>(),
-        };
+        let payload = create_payload(update);
 
         let gas_limit = client
             .calculate_handle_gas(None, program_id.into(), payload.encode(), 0, true)
@@ -393,12 +397,38 @@ async fn ethereum_light_client() -> Result<()> {
     println!("before loop");
     println!();
 
-    for _ in 0..3 {
+    let mut last_period = current_period;
+    for _ in 0..1_000 {
         let update = get_finality_update()
             .await
             .map_err(|e| anyhow::Error::msg(e.to_string()))?;
 
         let slot: u64 = update.finalized_header.slot.into();
+        let current_period = demo_ethereum_light_client::calc_sync_period(slot);
+        if current_period == last_period + 1 {
+            println!("checking for sync committee update");
+            let mut updates = get_updates(current_period, 1)
+                .await
+                .map_err(|e| anyhow::Error::msg(e.to_string()))?;
+            match updates.pop() {
+                Some(update) if updates.is_empty() => {
+                    let payload = create_payload(update);
+                    let gas_limit = client
+                        .calculate_handle_gas(None, program_id.into(), payload.encode(), 0, true)
+                        .await?
+                        .min_limit;
+                    println!("update gas_limit {gas_limit:?}");
+    
+                    let (message_id, _) = client
+                        .send_message(program_id.into(), payload, gas_limit, 0)
+                        .await?;
+    
+                    assert!(listener.message_processed(message_id).await?.succeed());
+                }
+    
+                _ => ()
+            }
+        } else {
 
         println!("111 slot = {slot:?}, attested slot = {:?}, signature slot = {:?}", update.attested_header.slot, update.signature_slot);
         let signature = <G2 as ark_serialize::CanonicalDeserialize>::deserialize_compressed(update.sync_aggregate.sync_committee_signature.as_ref());
@@ -424,7 +454,7 @@ async fn ethereum_light_client() -> Result<()> {
             signature_slot: update.signature_slot.into(),
             next_sync_committee: None,
             finalized_header: BeaconBlockHeader {
-                slot: update.finalized_header.slot.into(),
+                slot,
                 proposer_index: update.finalized_header.proposer_index.into(),
                 parent_root: Hash256::from_slice(update.finalized_header.parent_root.as_ref()),
                 state_root: Hash256::from_slice(update.finalized_header.state_root.as_ref()),
@@ -444,13 +474,15 @@ async fn ethereum_light_client() -> Result<()> {
             .calculate_handle_gas(None, program_id.into(), payload.encode(), 0, true)
             .await?
             .min_limit;
-        println!("gas_limit {gas_limit:?}");
+        println!("finality_update gas_limit {gas_limit:?}");
 
         let (message_id, _) = client
             .send_message(program_id.into(), payload, gas_limit, 0)
             .await?;
 
         assert!(listener.message_processed(message_id).await?.succeed());
+
+        }
 
         // send block
         let block_body = get_block_body(slot)
@@ -490,51 +522,16 @@ async fn ethereum_light_client() -> Result<()> {
             .calculate_handle_gas(None, program_id.into(), payload.encode(), 0, true)
             .await?
             .min_limit;
-        println!("gas_limit {gas_limit:?}");
+        println!("send_block gas_limit {gas_limit:?}");
 
         let (message_id, _) = client
             .send_message(program_id.into(), payload, gas_limit, 0)
             .await?;
 
         assert!(listener.message_processed(message_id).await?.succeed());
+
+        println!();
     }
-
-    // let message: ArkScale<Vec<G1Affine>> = vec![message].into();
-    // let message_bytes = message.encode();
-
-    // let payload = HandleMessage::MillerLoop {
-    //     message: message_bytes,
-    //     signatures,
-    // };
-    // let gas_limit = client
-    //     .calculate_handle_gas(None, program_id.into(), payload.encode(), 0, true)
-    //     .await?
-    //     .min_limit;
-    // println!("gas_limit {gas_limit:?}");
-
-    // let (message_id, _) = client
-    //     .send_message(program_id.into(), payload, gas_limit, 0)
-    //     .await?;
-
-    // assert!(listener.message_processed(message_id).await?.succeed());
-
-    // let gas_limit = client
-    //     .calculate_handle_gas(
-    //         None,
-    //         program_id.into(),
-    //         HandleMessage::Exp.encode(),
-    //         0,
-    //         true,
-    //     )
-    //     .await?
-    //     .min_limit;
-    // println!("gas_limit {gas_limit:?}");
-
-    // let (message_id, _) = client
-    //     .send_message(program_id.into(), HandleMessage::Exp, gas_limit, 0)
-    //     .await?;
-
-    // assert!(listener.message_processed(message_id).await?.succeed());
 
     Ok(())
 }
