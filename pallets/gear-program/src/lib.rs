@@ -145,12 +145,7 @@ pub mod pallet_tests;
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
-    use common::{
-        paused_program_storage::{ResumeSession, SessionId},
-        scheduler::*,
-        storage::*,
-        CodeMetadata, Program,
-    };
+    use common::{scheduler::*, storage::*, CodeMetadata, Program};
     use frame_support::{
         pallet_prelude::*,
         storage::{Key, PrefixIterator},
@@ -193,11 +188,8 @@ pub mod pallet {
         ProgramNotFound,
         NotActiveProgram,
         CannotFindDataForPage,
-        ResumeSessionNotFound,
         NotSessionOwner,
-        ResumeSessionFailed,
         ProgramCodeNotFound,
-        DuplicateResumeSession,
     }
 
     impl<T: Config> common::ProgramStorageError for Error<T> {
@@ -217,24 +209,12 @@ pub mod pallet {
             Self::CannotFindDataForPage
         }
 
-        fn resume_session_not_found() -> Self {
-            Self::ResumeSessionNotFound
-        }
-
         fn not_session_owner() -> Self {
             Self::NotSessionOwner
         }
 
-        fn resume_session_failed() -> Self {
-            Self::ResumeSessionFailed
-        }
-
         fn program_code_not_found() -> Self {
             Self::ProgramCodeNotFound
-        }
-
-        fn duplicate_resume_session() -> Self {
-            Self::DuplicateResumeSession
         }
     }
 
@@ -325,31 +305,6 @@ pub mod pallet {
         value: (BlockNumberFor<T>, H256)
     );
 
-    #[pallet::storage]
-    pub(crate) type ResumeSessionsNonce<T> = StorageValue<_, SessionId>;
-
-    common::wrap_storage_value!(
-        storage: ResumeSessionsNonce,
-        name: ResumeSessionsNonceWrap,
-        value: SessionId
-    );
-
-    #[pallet::storage]
-    #[pallet::unbounded]
-    pub(crate) type ResumeSessions<T: Config> = StorageMap<
-        _,
-        Identity,
-        SessionId,
-        ResumeSession<<T as frame_system::Config>::AccountId, BlockNumberFor<T>>,
-    >;
-
-    common::wrap_storage_map!(
-        storage: ResumeSessions,
-        name: ResumeSessionsWrap,
-        key: SessionId,
-        value: ResumeSession<<T as frame_system::Config>::AccountId, BlockNumberFor<T>>
-    );
-
     impl<T: Config> common::CodeStorage for pallet::Pallet<T> {
         type InstrumentedCodeStorage = CodeStorageWrap<T>;
         type InstrumentedLenStorage = CodeLenStorageWrap<T>;
@@ -369,13 +324,6 @@ pub mod pallet {
         fn pages_final_prefix() -> [u8; 32] {
             MemoryPages::<T>::final_prefix()
         }
-    }
-
-    impl<T: Config> common::PausedProgramStorage for pallet::Pallet<T> {
-        type PausedProgramMap = PausedProgramStorageWrap<T>;
-        type CodeStorage = Self;
-        type NonceStorage = ResumeSessionsNonceWrap<T>;
-        type ResumeSessions = ResumeSessionsWrap<T>;
     }
 
     impl<T: Config> IterableMap<(ProgramId, Program<BlockNumberFor<T>>)> for pallet::Pallet<T> {

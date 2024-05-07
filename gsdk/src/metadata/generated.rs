@@ -572,19 +572,6 @@ pub mod runtime_types {
                     pub struct NodeLock<_0>(pub [_0; 4usize]);
                 }
             }
-            pub mod paused_program_storage {
-                use super::runtime_types;
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-                pub struct ResumeSession<_0, _1> {
-                    pub page_count: ::core::primitive::u32,
-                    pub user: _0,
-                    pub program_id: runtime_types::gear_core::ids::ProgramId,
-                    pub allocations: ::std::vec::Vec<runtime_types::gear_core::pages::Page2>,
-                    pub pages_with_data: ::std::vec::Vec<runtime_types::gear_core::pages::Page>,
-                    pub code_hash: runtime_types::gear_core::ids::CodeId,
-                    pub end_block: _1,
-                }
-            }
             pub mod scheduler {
                 use super::runtime_types;
                 pub mod task {
@@ -623,8 +610,6 @@ pub mod runtime_types {
                             runtime_types::gear_core::ids::ProgramId,
                             runtime_types::gear_core::ids::ReservationId,
                         ),
-                        #[codec(index = 9)]
-                        RemoveResumeSession(::core::primitive::u32),
                     }
                 }
             }
@@ -2329,14 +2314,6 @@ pub mod runtime_types {
                     #[codec(index = 8)]
                     #[doc = "The pseudo-inherent extrinsic that runs queue processing rolled back or not executed."]
                     QueueNotProcessed,
-                    #[codec(index = 9)]
-                    #[doc = "Program resume session has been started."]
-                    ProgramResumeSessionStarted {
-                        session_id: ::core::primitive::u32,
-                        account_id: ::subxt::utils::AccountId32,
-                        program_id: runtime_types::gear_core::ids::ProgramId,
-                        session_end_block: ::core::primitive::u32,
-                    },
                 }
             }
             pub mod schedule {
@@ -2783,15 +2760,9 @@ pub mod runtime_types {
                     #[codec(index = 3)]
                     CannotFindDataForPage,
                     #[codec(index = 4)]
-                    ResumeSessionNotFound,
-                    #[codec(index = 5)]
                     NotSessionOwner,
-                    #[codec(index = 6)]
-                    ResumeSessionFailed,
-                    #[codec(index = 7)]
+                    #[codec(index = 5)]
                     ProgramCodeNotFound,
-                    #[codec(index = 8)]
-                    DuplicateResumeSession,
                 }
             }
         }
@@ -8839,8 +8810,6 @@ pub mod storage {
         ProgramStorage,
         MemoryPages,
         PausedProgramStorage,
-        ResumeSessionsNonce,
-        ResumeSessions,
     }
     impl StorageInfo for GearProgramStorage {
         const PALLET: &'static str = "GearProgram";
@@ -8853,8 +8822,6 @@ pub mod storage {
                 Self::ProgramStorage => "ProgramStorage",
                 Self::MemoryPages => "MemoryPages",
                 Self::PausedProgramStorage => "PausedProgramStorage",
-                Self::ResumeSessionsNonce => "ResumeSessionsNonce",
-                Self::ResumeSessions => "ResumeSessions",
             }
         }
     }

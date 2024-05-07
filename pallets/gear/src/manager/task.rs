@@ -25,7 +25,6 @@ use common::{
         MessageWokenRuntimeReason, MessageWokenSystemReason, RuntimeReason, SystemReason,
         UserMessageReadSystemReason,
     },
-    paused_program_storage::SessionId,
     scheduler::*,
     storage::*,
     Gas, Origin,
@@ -62,7 +61,6 @@ pub fn get_maximum_task_gas<T: Config>(task: &ScheduledTask<T::AccountId>) -> Ga
         RemoveGasReservation(_, _) => {
             <T as Config>::WeightInfo::tasks_remove_gas_reservation().ref_time()
         }
-        RemoveResumeSession(_) => 0,
     }
 }
 
@@ -271,9 +269,5 @@ where
         log::trace!("Task gas: tasks_remove_gas_reservation = {gas}");
 
         gas
-    }
-
-    fn remove_resume_session(&mut self, _session_id: SessionId) -> Gas {
-        0
     }
 }
