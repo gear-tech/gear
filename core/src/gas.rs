@@ -155,7 +155,7 @@ impl GasCounter {
     ///
     /// # Safety
     ///
-    /// Use only when it's absolutely necessary to cloen the counter i.e atomic implementation of `Ext`.
+    /// Use only when it's absolutely necessary to clone the counter i.e atomic implementation of `Ext`.
     pub unsafe fn clone(&self) -> Self {
         Self {
             left: self.left,
@@ -220,7 +220,7 @@ impl ValueCounter {
     ///
     /// # Safety
     ///
-    /// Use only when it's absolutely necessary to cloen the counter i.e atomic implementation of `Ext`.
+    /// Use only when it's absolutely necessary to clone the counter i.e atomic implementation of `Ext`.
     pub unsafe fn clone(&self) -> Self {
         Self(self.0)
     }
@@ -272,7 +272,7 @@ impl GasAllowanceCounter {
     ///
     /// # Safety
     ///
-    /// Use only when it's absolutely necessary to cloen the counter i.e atomic implementation of `Ext`.
+    /// Use only when it's absolutely necessary to clone the counter i.e atomic implementation of `Ext`.
     pub unsafe fn clone(&self) -> Self {
         Self(self.0)
     }
