@@ -25,7 +25,7 @@ use crate::{
 use codec::{Codec, Decode, Encode};
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCodeAndId},
-    ids::{CodeId, MessageId, ProgramId},
+    ids::{prelude::*, CodeId, MessageId, ProgramId},
     message::{Dispatch, DispatchKind, Message, SignalMessage},
     program::Program as CoreProgram,
 };
@@ -767,7 +767,7 @@ impl<'a> Program<'a> {
 /// Calculate program id from code id and salt.
 pub fn calculate_program_id(code_id: CodeId, salt: &[u8], id: Option<MessageId>) -> ProgramId {
     if let Some(id) = id {
-        ProgramId::generate_from_program(code_id, salt, id)
+        ProgramId::generate_from_program(id, code_id, salt)
     } else {
         ProgramId::generate_from_user(code_id, salt)
     }

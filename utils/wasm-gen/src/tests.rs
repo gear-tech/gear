@@ -21,7 +21,7 @@ use arbitrary::Unstructured;
 use gear_core::{
     code::Code,
     gas::{GasAllowanceCounter, GasCounter, ValueCounter},
-    ids::{CodeId, ProgramId},
+    ids::{prelude::*, CodeId, ProgramId},
     memory::Memory,
     message::{
         ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext,
