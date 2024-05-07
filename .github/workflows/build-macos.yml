@@ -10,7 +10,7 @@ on:
     inputs:
       profiles:
         type: string
-        required: true
+        default: '[{ "name": "debug", "flags": "" }]'
 
 env:
   CARGO_TERM_COLOR: always
