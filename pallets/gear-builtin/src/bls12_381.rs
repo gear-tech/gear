@@ -50,6 +50,7 @@ impl<T: Config> BuiltinActor for Actor<T> {
             Some(REQUEST_PROJECTIVE_MULTIPLICATION_G2) => {
                 projective_multiplication_g2::<T>(&payload[1..], gas_limit)
             }
+            Some(REQUEST_AGGREGATE_G1) => aggregate_g1::<T>(&payload[1..], gas_limit),
             _ => (Err(BuiltinActorError::DecodingError), 0),
         };
 
@@ -369,4 +370,38 @@ fn projective_multiplication_g2<T: Config>(
                 .map(Response::ProjectiveMultiplicationG2)
         },
     )
+}
+
+fn aggregate_g1<T: Config>(
+    mut payload: &[u8],
+    gas_limit: u64,
+) -> (Result<Response, BuiltinActorError>, u64) {
+    let (mut gas_spent, result) = decode_vec::<T, _>(gas_limit, 0, &mut payload);
+    let points = match result {
+        Some(Ok(array)) => array,
+        Some(Err(e)) => return (Err(e), gas_spent),
+        None => return (Err(BuiltinActorError::InsufficientGas), gas_spent),
+    };
+
+    // decode the count of items
+
+    let mut slice = points.as_slice();
+    let mut reader = ark_scale::rw::InputAsRead(&mut slice);
+    let Ok(count) = u64::deserialize_with_mode(&mut reader, IS_COMPRESSED, IS_VALIDATED) else {
+        log::debug!(
+            target: LOG_TARGET,
+            "Failed to decode item count in points",
+        );
+
+        return (Err(BuiltinActorError::DecodingError), gas_spent);
+    };
+
+    let to_spend = <T as Config>::WeightInfo::bls12_381_aggregate_g1(count as u32).ref_time();
+    if gas_limit < gas_spent + to_spend {
+        return (Err(BuiltinActorError::InsufficientGas), gas_spent);
+    }
+
+    gas_spent += to_spend;
+
+    (Ok(Response::AggregateG1(gear_runtime_interface::gear_bls_12_381::aggregate_g1(&points))), gas_spent)
 }
