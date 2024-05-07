@@ -162,7 +162,7 @@ pub trait SandboxMemory<T>: Sized + Clone {
     /// Returns pointer to the begin of wasm mem buffer
     /// # Safety
     /// Pointer is intended to use by `mprotect` function.
-    unsafe fn get_buff<Context>(&self, ctx: &mut Context) -> HostPointer
+    unsafe fn get_buff<Context>(&self, ctx: &Context) -> HostPointer
     where
         Context: AsContextExt<State = T>;
 }

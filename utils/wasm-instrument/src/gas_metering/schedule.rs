@@ -76,6 +76,7 @@ pub struct Limits {
     pub call_depth: u32,
     pub payload_len: u32,
     pub code_len: u32,
+    pub data_segments_amount: u32,
 }
 
 impl Default for Limits {
@@ -92,6 +93,7 @@ impl Default for Limits {
             call_depth: 32,
             payload_len: 8388608,
             code_len: 524288,
+            data_segments_amount: 1024,
         }
     }
 }

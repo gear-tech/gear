@@ -431,7 +431,8 @@ pub use crate::log::{CoreLog, Log, RunResult};
 pub use codec;
 pub use error::{Result, TestError};
 pub use program::{
-    calculate_program_id, Gas, Program, ProgramBuilder, ProgramIdWrapper, WasmProgram,
+    calculate_program_id, gbuild::ensure_gbuild, Gas, Program, ProgramBuilder, ProgramIdWrapper,
+    WasmProgram,
 };
 pub use system::System;
 

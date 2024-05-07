@@ -170,11 +170,16 @@ pub trait ProcessorExternalities {
     fn new(context: ProcessorContext) -> Self;
 
     /// Convert externalities into info.
-    fn into_ext_info(self, memory: &impl Memory) -> Result<ExtInfo, MemoryError>;
+    fn into_ext_info<Context>(
+        self,
+        ctx: &mut Context,
+        memory: &impl Memory<Context>,
+    ) -> Result<ExtInfo, MemoryError>;
 
     /// Protect and save storage keys for pages which has no data
-    fn lazy_pages_init_for_program(
-        mem: &mut impl Memory,
+    fn lazy_pages_init_for_program<Context>(
+        ctx: &mut Context,
+        mem: &mut impl Memory<Context>,
         prog_id: ProgramId,
         memory_infix: MemoryInfix,
         stack_end: Option<WasmPage>,
@@ -183,7 +188,10 @@ pub trait ProcessorExternalities {
     );
 
     /// Lazy pages program post execution actions
-    fn lazy_pages_post_execution_actions(mem: &mut impl Memory);
+    fn lazy_pages_post_execution_actions<Context>(
+        ctx: &mut Context,
+        mem: &mut impl Memory<Context>,
+    );
 
     /// Returns lazy pages status
     fn lazy_pages_status() -> Status;
@@ -297,26 +305,27 @@ struct LazyGrowHandler {
     old_mem_size: WasmPagesAmount,
 }
 
-impl GrowHandler for LazyGrowHandler {
-    fn before_grow_action(mem: &mut impl Memory) -> Self {
+impl<Context> GrowHandler<Context> for LazyGrowHandler {
+    fn before_grow_action(ctx: &mut Context, mem: &mut impl Memory<Context>) -> Self {
         // New pages allocation may change wasm memory buffer location.
         // So we remove protections from lazy-pages
         // and then in `after_grow_action` we set protection back for new wasm memory buffer.
-        let old_mem_addr = mem.get_buffer_host_addr();
-        gear_lazy_pages_interface::remove_lazy_pages_prot(mem);
+        let old_mem_addr = mem.get_buffer_host_addr(ctx);
+        gear_lazy_pages_interface::remove_lazy_pages_prot(ctx, mem);
         Self {
             old_mem_addr,
-            old_mem_size: mem.size(),
+            old_mem_size: mem.size(ctx),
         }
     }
 
-    fn after_grow_action(self, mem: &mut impl Memory) {
+    fn after_grow_action(self, ctx: &mut Context, mem: &mut impl Memory<Context>) {
         // Add new allocations to lazy pages.
         // Protect all lazy pages including new allocations.
-        let new_mem_addr = mem.get_buffer_host_addr().unwrap_or_else(|| {
+        let new_mem_addr = mem.get_buffer_host_addr(ctx).unwrap_or_else(|| {
             unreachable!("Memory size cannot be zero after grow is applied for memory")
         });
         gear_lazy_pages_interface::update_lazy_pages_and_protect_again(
+            ctx,
             mem,
             self.old_mem_addr,
             self.old_mem_size,
@@ -354,7 +363,11 @@ impl ProcessorExternalities for Ext {
         }
     }
 
-    fn into_ext_info(self, memory: &impl Memory) -> Result<ExtInfo, MemoryError> {
+    fn into_ext_info<Context>(
+        self,
+        ctx: &mut Context,
+        memory: &impl Memory<Context>,
+    ) -> Result<ExtInfo, MemoryError> {
         let ProcessorContext {
             allocations_context,
             message_context,
@@ -378,7 +391,7 @@ impl ProcessorExternalities for Ext {
         let mut pages_data = BTreeMap::new();
         for page in accessed_pages {
             let mut buf = PageBuf::new_zeroed();
-            memory.read(page.offset(), &mut buf)?;
+            memory.read(ctx, page.offset(), &mut buf)?;
             pages_data.insert(page, buf);
         }
 
@@ -416,8 +429,9 @@ impl ProcessorExternalities for Ext {
         Ok(info)
     }
 
-    fn lazy_pages_init_for_program(
-        mem: &mut impl Memory,
+    fn lazy_pages_init_for_program<Context>(
+        ctx: &mut Context,
+        mem: &mut impl Memory<Context>,
         prog_id: ProgramId,
         memory_infix: MemoryInfix,
         stack_end: Option<WasmPage>,
@@ -425,6 +439,7 @@ impl ProcessorExternalities for Ext {
         lazy_pages_costs: LazyPagesCosts,
     ) {
         gear_lazy_pages_interface::init_for_program(
+            ctx,
             mem,
             prog_id,
             memory_infix,
@@ -434,8 +449,11 @@ impl ProcessorExternalities for Ext {
         );
     }
 
-    fn lazy_pages_post_execution_actions(mem: &mut impl Memory) {
-        gear_lazy_pages_interface::remove_lazy_pages_prot(mem);
+    fn lazy_pages_post_execution_actions<Context>(
+        ctx: &mut Context,
+        mem: &mut impl Memory<Context>,
+    ) {
+        gear_lazy_pages_interface::remove_lazy_pages_prot(ctx, mem);
     }
 
     fn lazy_pages_status() -> Status {
@@ -747,17 +765,18 @@ impl Externalities for Ext {
     type FallibleError = FallibleExtError;
     type AllocError = AllocExtError;
 
-    fn alloc(
+    fn alloc<Context>(
         &mut self,
+        ctx: &mut Context,
+        mem: &mut impl Memory<Context>,
         pages_num: u32,
-        mem: &mut impl Memory,
     ) -> Result<WasmPage, Self::AllocError> {
         let pages = WasmPagesAmount::try_from(pages_num)
             .map_err(|_| AllocError::ProgramAllocOutOfBounds)?;
 
         self.context
             .allocations_context
-            .alloc::<LazyGrowHandler>(pages, mem, |pages| {
+            .alloc::<Context, LazyGrowHandler>(ctx, mem, pages, |pages| {
                 let gas_for_call = self.context.costs.mem_grow.cost_for_one();
                 let gas_for_pages = self.context.costs.mem_grow_per_page.cost_for(pages);
                 Ext::charge_gas_if_enough(

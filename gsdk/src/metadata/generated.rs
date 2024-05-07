@@ -2445,6 +2445,7 @@ pub mod runtime_types {
                     pub call_depth: ::core::primitive::u32,
                     pub payload_len: ::core::primitive::u32,
                     pub code_len: ::core::primitive::u32,
+                    pub data_segments_amount: ::core::primitive::u32,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub struct MemoryWeights {
@@ -8753,6 +8754,8 @@ pub mod storage {
     pub enum GearBankStorage {
         Bank,
         UnusedValue,
+        OnFinalizeTransfers,
+        OnFinalizeValue,
     }
     impl StorageInfo for GearBankStorage {
         const PALLET: &'static str = "GearBank";
@@ -8760,6 +8763,8 @@ pub mod storage {
             match self {
                 Self::Bank => "Bank",
                 Self::UnusedValue => "UnusedValue",
+                Self::OnFinalizeTransfers => "OnFinalizeTransfers",
+                Self::OnFinalizeValue => "OnFinalizeValue",
             }
         }
     }
