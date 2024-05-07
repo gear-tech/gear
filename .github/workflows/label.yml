@@ -46,4 +46,4 @@ jobs:
           prefix: "build"
           needs: '["dynamic-profiles"]'
           jobs: '["macos-x86 (debug)", "macos-aarch64 (debug)"]'
-          inputs: '[{ "name": "debug", "flags": "" }]'
+          inputs: '{ "profiles": [{ "name": "debug", "flags": "" }] }'
