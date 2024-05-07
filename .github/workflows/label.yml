@@ -3,20 +3,20 @@ name: Label
 on:
   pull_request:
     branches: [master]
-    # types: [labeled]
+    types: [labeled]
 
 jobs:
   linux:
     runs-on: ubuntu-latest
-    # if: >-
-    #   github.event.label.name == 'A0-pleasereview'
-    #   || github.event.label.name == 'A4-insubstantial'
-    #   || github.event.label.name == 'A2-mergeoncegreen'
+    if: >-
+      github.event.label.name == 'A0-pleasereview'
+      || github.event.label.name == 'A4-insubstantial'
+      || github.event.label.name == 'A2-mergeoncegreen'
 
     steps:
       - uses: actions/checkout@v4
       - name: Fork Linux checks
-        uses: gear-tech/fork-action@cl/required-checks
+        uses: gear-tech/fork-action@main
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           head_sha: ${{ github.event.pull_request.head.sha }}
@@ -32,11 +32,11 @@ jobs:
 
   osx:
     runs-on: ubuntu-latest
-    # if: github.event.label.name == 'E2-forcemacos'
+    if: github.event.label.name == 'E2-forcemacos'
     steps:
       - uses: actions/checkout@v4
       - name: Fork OSX checks
-        uses: gear-tech/fork-action@cl/required-checks
+        uses: gear-tech/fork-action@main
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           head_sha: ${{ github.event.pull_request.head.sha }}
