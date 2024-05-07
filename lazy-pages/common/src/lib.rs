@@ -26,9 +26,9 @@ use alloc::{vec, vec::Vec};
 use codec::{Decode, Encode};
 use core::{any::Any, fmt::Debug};
 use gear_core::{
-    costs::CostPerPage,
+    costs::CostOf,
     memory::HostPointer,
-    pages::{GearPage, PageU32Size, WasmPage},
+    pages::{GearPage, GearPagesAmount, WasmPage},
     str::LimitedStr,
 };
 use num_enum::{IntoPrimitive, TryFromPrimitive};
@@ -55,24 +55,23 @@ pub enum GlobalsAccessMod {
     NativeRuntime,
 }
 
-/// Lazy-pages cases weights.
-#[derive(Debug, Default, Clone, PartialEq, Eq, Encode, Decode)]
-#[codec(crate = codec)]
-pub struct LazyPagesWeights {
+/// Memory pages lazy access costs.
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct LazyPagesCosts {
     /// First read page access cost.
-    pub signal_read: CostPerPage<GearPage>,
+    pub signal_read: CostOf<GearPagesAmount>,
     /// First write page access cost.
-    pub signal_write: CostPerPage<GearPage>,
+    pub signal_write: CostOf<GearPagesAmount>,
     /// First write access cost for page, which has been already read accessed.
-    pub signal_write_after_read: CostPerPage<GearPage>,
+    pub signal_write_after_read: CostOf<GearPagesAmount>,
     /// First read page access cost from host function call.
-    pub host_func_read: CostPerPage<GearPage>,
+    pub host_func_read: CostOf<GearPagesAmount>,
     /// First write page access cost from host function call.
-    pub host_func_write: CostPerPage<GearPage>,
+    pub host_func_write: CostOf<GearPagesAmount>,
     /// First write page access cost from host function call.
-    pub host_func_write_after_read: CostPerPage<GearPage>,
+    pub host_func_write_after_read: CostOf<GearPagesAmount>,
     /// Loading page data from storage cost.
-    pub load_page_storage_data: CostPerPage<GearPage>,
+    pub load_page_storage_data: CostOf<GearPagesAmount>,
 }
 
 /// Globals ctx for lazy-pages initialization for program.
@@ -149,7 +148,7 @@ pub struct LazyPagesInitContext {
 impl LazyPagesInitContext {
     pub fn new(prefix: [u8; 32]) -> Self {
         Self {
-            page_sizes: vec![WasmPage::size(), GearPage::size()],
+            page_sizes: vec![WasmPage::SIZE, GearPage::SIZE],
             global_names: vec![LimitedStr::from_small_str(GLOBAL_NAME_GAS)],
             pages_storage_prefix: prefix.to_vec(),
         }

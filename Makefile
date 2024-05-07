@@ -4,7 +4,7 @@ show:
 	@ ./scripts/gear.sh show
 
 .PHONY: pre-commit # Here should be no release builds to keep checks fast.
-pre-commit: fmt clippy test check-runtime-imports
+pre-commit: fmt typos clippy test check-runtime-imports
 
 .PHONY: check-spec
 check-spec:
@@ -62,11 +62,11 @@ vara-release:
 
 .PHONY: gear-replay
 gear-replay:
-	@ ./scripts/gear.sh build gear-replay --release
+	@ ./scripts/gear.sh build gear-replay
 
 .PHONY: gear-replay-vara-native
 gear-replay-vara-native:
-	@ ./scripts/gear.sh build gear-replay --release --no-default-features --features=std,vara-native
+	@ ./scripts/gear.sh build gear-replay --no-default-features --features=std,vara-native
 
 # Check section
 .PHONY: check
@@ -189,11 +189,8 @@ test-doc:
 	@ ./scripts/gear.sh test docs
 
 .PHONY: test-gear
-test-gear: # Crates except gclient, gcli, gsdk are excluded to significantly decrease time.
+test-gear: # Crates are excluded to significantly decrease time.
 	@ ./scripts/gear.sh test gear \
-		--exclude gclient \
-		--exclude gcli \
-		--exclude gsdk \
 		--exclude gear-authorship \
 		--exclude pallet-gear-staking-rewards \
 		--exclude gear-wasm-gen \
@@ -202,7 +199,7 @@ test-gear: # Crates except gclient, gcli, gsdk are excluded to significantly dec
 
 .PHONY: test-gear-release
 test-gear-release:
-	@ ./scripts/gear.sh test gear --release --exclude gclient --exclude gcli --exclude gsdk
+	@ ./scripts/gear.sh test gear --release
 
 .PHONY: test-gsdk
 test-gsdk: node-release
@@ -219,6 +216,14 @@ test-gcli: node
 .PHONY: test-gcli-release
 test-gcli-release: node-release
 	@ ./scripts/gear.sh test gcli --release
+
+.PHONY: test-gbuild
+test-gbuild: node
+	@ ./scripts/gear.sh test gbuild
+
+.PHONY: test-gbuild-release
+test-gbuild-release: node-release
+	@ ./scripts/gear.sh test gbuild --release
 
 .PHONY: test-pallet
 test-pallet:
@@ -266,3 +271,7 @@ kill-rust:
 .PHONY: install
 install:
 	@ cargo install --path ./node/cli --force --locked
+
+.PHONY: typos
+typos:
+	@ ./scripts/gear.sh test typos

@@ -17,11 +17,14 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use clap::Parser;
-use gear_wasm_builder::optimize::{self, OptType, Optimizer};
+use gear_wasm_builder::{
+    code_validator::CodeValidator,
+    optimize::{self, OptType, Optimizer},
+};
 use parity_wasm::elements::External;
 use std::{collections::HashSet, fs, path::PathBuf};
 
-const RT_ALLOWED_IMPORTS: [&str; 67] = [
+const RT_ALLOWED_IMPORTS: [&str; 73] = [
     // From `Allocator` (substrate/primitives/io/src/lib.rs)
     "ext_allocator_free_version_1",
     "ext_allocator_malloc_version_1",
@@ -100,6 +103,13 @@ const RT_ALLOWED_IMPORTS: [&str; 67] = [
     "ext_storage_start_transaction_version_1",
     // From `Trie` (substrate/primitives/io/src/lib.rs)
     "ext_trie_blake2_256_ordered_root_version_2",
+    // From `sp-crypto-ec-utils`
+    "ext_host_calls_bls12_381_final_exponentiation_version_1",
+    "ext_host_calls_bls12_381_msm_g1_version_1",
+    "ext_host_calls_bls12_381_msm_g2_version_1",
+    "ext_host_calls_bls12_381_mul_projective_g1_version_1",
+    "ext_host_calls_bls12_381_mul_projective_g2_version_1",
+    "ext_host_calls_bls12_381_multi_miller_loop_version_1",
 ];
 
 #[derive(Debug, clap::Parser)]
@@ -236,7 +246,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             original_wasm_path.clone()
         };
 
-        // Make size optimizations
+        // Make generic size optimizations by wasm-opt
         let res = optimize::optimize_wasm(wasm_path, optimized_wasm_path.clone(), "s", true)?;
         log::debug!(
             "wasm-opt has changed wasm size: {} Kb -> {} Kb",
@@ -244,12 +254,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             res.optimized_size
         );
 
+        // Insert stack hint for optimized performance on-chain
         let mut optimizer = Optimizer::new(optimized_wasm_path.clone())?;
         if insert_stack_end {
             optimizer.insert_stack_end_export().unwrap_or_else(|err| {
                 log::debug!("Failed to insert stack end: {}", err);
             })
         }
+
+        // Make sure debug sections are stripped
         if strip_custom_sections {
             optimizer.strip_custom_sections();
         }
@@ -261,7 +274,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let code = optimizer.optimize(OptType::Opt)?;
         log::info!("Optimized wasm: {}", optimized_wasm_path.to_string_lossy());
 
-        fs::write(optimized_wasm_path, code)?;
+        fs::write(&optimized_wasm_path, &code)?;
+
+        log::debug!(
+            "*** Validating wasm code: {}",
+            optimized_wasm_path.display()
+        );
+
+        CodeValidator::try_from(code)?.validate_program()?;
     }
 
     Ok(())

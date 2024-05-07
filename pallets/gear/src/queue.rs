@@ -73,7 +73,7 @@ where
 
         // If the destination program is uninitialized, then we allow
         // to process message, if it's a reply or init message.
-        // Otherwise, we append the message to the waiting init message list.
+        // Otherwise, we return error reply.
         if matches!(program.state, ProgramState::Uninitialized { message_id }
             if message_id != dispatch_id && dispatch_kind != DispatchKind::Reply)
         {
@@ -85,17 +85,7 @@ where
                 );
             }
 
-            let (dispatch, gas, _) = precharged_dispatch.into_parts();
-            return vec![
-                JournalNote::GasBurned {
-                    message_id: dispatch.id(),
-                    amount: gas.burned(),
-                },
-                JournalNote::WaitingInitMessage {
-                    dispatch,
-                    destination: destination_id,
-                },
-            ];
+            return core_processor::process_non_executable(precharged_dispatch, destination_id);
         }
 
         let actor_data = ExecutableActorData {
@@ -182,14 +172,11 @@ where
             (context, code, balance).into(),
             (random.encode(), bn.unique_saturated_into()),
         )
-        .unwrap_or_else(|e| unreachable!("core-processor logic invalidated: {e}"))
+        .unwrap_or_else(|e| unreachable!("{e}"))
     }
 
     /// Message Queue processing.
-    pub(crate) fn process_queue(
-        mut ext_manager: ExtManager<T>,
-        builtin_dispatcher: impl BuiltinDispatcher,
-    ) {
+    pub(crate) fn process_queue(mut ext_manager: ExtManager<T>) {
         Self::enable_lazy_pages();
 
         let block_config = Self::block_config();
@@ -234,6 +221,7 @@ where
             // If the dispatch destination (a.k.a. `program_id`) resolves to some `handle` function
             // of a builtin actor, we handle the dispatch as a builtin actor dispatch.
             // Otherwise we proceed with the regular flow.
+            let builtin_dispatcher = ext_manager.builtins();
             if let Some(f) = builtin_dispatcher.lookup(&program_id) {
                 core_processor::handle_journal(
                     builtin_dispatcher.run(f, dispatch, gas_limit),

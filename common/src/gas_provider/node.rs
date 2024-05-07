@@ -19,9 +19,12 @@
 use super::*;
 use core::ops::{Add, Index, IndexMut};
 use enum_iterator::cardinality;
-use frame_support::{codec, dispatch::MaxEncodedLen, scale_info};
 use gear_core::ids::ReservationId;
-use sp_runtime::traits::Zero;
+use sp_runtime::{
+    codec::{self, MaxEncodedLen},
+    scale_info,
+    traits::Zero,
+};
 
 /// ID of the [`GasNode`].
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, TypeInfo)]
@@ -134,7 +137,7 @@ impl<Balance: Zero + Copy + sp_runtime::traits::Saturating> NodeLock<Balance> {
 pub enum GasNode<ExternalId: Clone, Id: Clone, Balance: Zero + Clone, Funds> {
     /// A root node for each gas tree.
     ///
-    /// Usually created when a new gas-ful logic started (i.e., message sent).
+    /// Usually created when a new gasful logic started (i.e., message sent).
     External {
         id: ExternalId,
         multiplier: GasMultiplier<Funds, Balance>,

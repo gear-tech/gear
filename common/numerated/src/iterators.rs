@@ -19,8 +19,8 @@
 //! [`IntervalIterator`], [`VoidsIterator`], [`DifferenceIterator`] implementations.
 
 use crate::{
-    interval::{IncorrectRangeError, NewWithLenError, TryFromRangeError},
-    Interval, Numerated,
+    interval::{IncorrectRangeError, Interval, NewWithLenError, TryFromRangeError},
+    numerated::Numerated,
 };
 use core::{
     fmt::{self, Debug, Display, Formatter},

@@ -18,10 +18,7 @@
 
 //! Useful utilities needed for testing and other stuff.
 
-use gear_core::{
-    memory::PageBuf,
-    pages::{GearPage, PageNumber, PageU32Size},
-};
+use gear_core::{memory::PageBuf, pages::GearPage};
 pub use nonempty::NonEmpty;
 use parity_scale_codec::{Decode, Encode};
 use path_clean::PathClean;
@@ -31,6 +28,8 @@ use std::{
     path::Path,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
+
+pub mod codegen;
 
 /// Trait describes a collection which can get a value by it's index.
 /// The index can be in any range, even [length(implementor), ..).
@@ -100,7 +99,7 @@ impl MemoryPageDump {
             .then(|| hex::encode(data_vec));
 
         MemoryPageDump {
-            page: page_number.raw(),
+            page: page_number.into(),
             data,
         }
     }
@@ -113,7 +112,7 @@ impl MemoryPageDump {
             PageBuf::new_zeroed()
         };
         (
-            GearPage::new(self.page)
+            GearPage::try_from(self.page)
                 .unwrap_or_else(|_| panic!("Couldn't decode GearPage from u32: {}", self.page)),
             page_buf,
         )

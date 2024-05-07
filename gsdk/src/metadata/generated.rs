@@ -15,7 +15,7 @@
 //
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
-#[allow(rustdoc::broken_intra_doc_links)] //subxt-codegen produces incorrect docs
+
 #[allow(dead_code, unused_imports, non_camel_case_types)]
 #[allow(clippy::all)]
 #[allow(rustdoc::broken_intra_doc_links)]
@@ -119,7 +119,7 @@ pub mod runtime_types {
                     #[derive(
                         Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                     )]
-                    pub enum Bounded<_0> {
+                    pub enum Bounded<_0, _1> {
                         #[codec(index = 0)]
                         Legacy {
                             hash: ::subxt::utils::H256,
@@ -135,7 +135,7 @@ pub mod runtime_types {
                             hash: ::subxt::utils::H256,
                             len: ::core::primitive::u32,
                         },
-                        __Ignore(::core::marker::PhantomData<_0>),
+                        __Ignore(::core::marker::PhantomData<(_0, _1)>),
                     }
                 }
                 pub mod schedule {
@@ -152,6 +152,17 @@ pub mod runtime_types {
                 }
                 pub mod tokens {
                     use super::runtime_types;
+                    pub mod fungible {
+                        use super::runtime_types;
+                        #[derive(
+                            ::subxt::ext::codec::CompactAs,
+                            Debug,
+                            crate::gp::Decode,
+                            crate::gp::DecodeAsType,
+                            crate::gp::Encode,
+                        )]
+                        pub struct HoldConsideration(pub ::core::primitive::u128);
+                    }
                     pub mod misc {
                         use super::runtime_types;
                         #[derive(
@@ -436,10 +447,7 @@ pub mod runtime_types {
                     WaitUpToCalledFull,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-                pub enum MessageWaitedSystemReason {
-                    #[codec(index = 0)]
-                    ProgramIsNotInitialized,
-                }
+                pub enum MessageWaitedSystemReason {}
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub enum MessageWokenRuntimeReason {
                     #[codec(index = 0)]
@@ -571,8 +579,8 @@ pub mod runtime_types {
                     pub page_count: ::core::primitive::u32,
                     pub user: _0,
                     pub program_id: runtime_types::gear_core::ids::ProgramId,
-                    pub allocations: ::std::vec::Vec<runtime_types::gear_core::pages::WasmPage>,
-                    pub pages_with_data: ::std::vec::Vec<runtime_types::gear_core::pages::GearPage>,
+                    pub allocations: ::std::vec::Vec<runtime_types::gear_core::pages::Page2>,
+                    pub pages_with_data: ::std::vec::Vec<runtime_types::gear_core::pages::Page>,
                     pub code_hash: runtime_types::gear_core::ids::CodeId,
                     pub end_block: _1,
                 }
@@ -648,8 +656,8 @@ pub mod runtime_types {
             }
             #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
             pub struct ActiveProgram<_0> {
-                pub allocations: ::std::vec::Vec<runtime_types::gear_core::pages::WasmPage>,
-                pub pages_with_data: ::std::vec::Vec<runtime_types::gear_core::pages::GearPage>,
+                pub allocations: ::std::vec::Vec<runtime_types::gear_core::pages::Page2>,
+                pub pages_with_data: ::std::vec::Vec<runtime_types::gear_core::pages::Page>,
                 pub memory_infix: runtime_types::gear_core::program::MemoryInfix,
                 pub gas_reservation_map: ::subxt::utils::KeyedVec<
                     runtime_types::gear_core::ids::ReservationId,
@@ -657,7 +665,7 @@ pub mod runtime_types {
                 >,
                 pub code_hash: ::subxt::utils::H256,
                 pub code_exports: ::std::vec::Vec<runtime_types::gear_core::message::DispatchKind>,
-                pub static_pages: runtime_types::gear_core::pages::WasmPage,
+                pub static_pages: runtime_types::gear_core::pages::PagesAmount,
                 pub state: runtime_types::gear_common::ProgramState,
                 pub expiration_block: _0,
             }
@@ -715,7 +723,9 @@ pub mod runtime_types {
                         pub original_code_len: ::core::primitive::u32,
                         pub exports:
                             ::std::vec::Vec<runtime_types::gear_core::message::DispatchKind>,
-                        pub static_pages: runtime_types::gear_core::pages::WasmPage,
+                        pub static_pages: runtime_types::gear_core::pages::PagesAmount,
+                        pub stack_end:
+                            ::core::option::Option<runtime_types::gear_core::pages::Page2>,
                         pub version: ::core::primitive::u32,
                     }
                 }
@@ -895,7 +905,7 @@ pub mod runtime_types {
                     crate::gp::DecodeAsType,
                     crate::gp::Encode,
                 )]
-                pub struct GearPage(pub ::core::primitive::u32);
+                pub struct Page(pub ::core::primitive::u32);
                 #[derive(
                     ::subxt::ext::codec::CompactAs,
                     Debug,
@@ -903,7 +913,15 @@ pub mod runtime_types {
                     crate::gp::DecodeAsType,
                     crate::gp::Encode,
                 )]
-                pub struct WasmPage(pub ::core::primitive::u32);
+                pub struct Page2(pub ::core::primitive::u32);
+                #[derive(
+                    ::subxt::ext::codec::CompactAs,
+                    Debug,
+                    crate::gp::Decode,
+                    crate::gp::DecodeAsType,
+                    crate::gp::Encode,
+                )]
+                pub struct PagesAmount(pub ::core::primitive::u32);
             }
             pub mod percent {
                 use super::runtime_types;
@@ -958,7 +976,7 @@ pub mod runtime_types {
                         runtime_types::gear_core_errors::simple::SimpleProgramCreationError,
                     ),
                     #[codec(index = 2)]
-                    InactiveProgram,
+                    InactiveActor,
                     #[codec(index = 3)]
                     RemovedFromWaitlist,
                     #[codec(index = 4)]
@@ -1118,6 +1136,12 @@ pub mod runtime_types {
                     put_in_front_of {
                         lighter: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
                     },
+                    #[codec(index = 2)]
+                    #[doc = "See [`Pallet::put_in_front_of_other`]."]
+                    put_in_front_of_other {
+                        heavier: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
+                        lighter: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
+                    },
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 #[doc = "The `Error` enum of this pallet."]
@@ -1159,15 +1183,6 @@ pub mod runtime_types {
                         #[codec(compact)]
                         value: ::core::primitive::u128,
                     },
-                    #[codec(index = 1)]
-                    #[doc = "See [`Pallet::set_balance_deprecated`]."]
-                    set_balance_deprecated {
-                        who: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
-                        #[codec(compact)]
-                        new_free: ::core::primitive::u128,
-                        #[codec(compact)]
-                        old_reserved: ::core::primitive::u128,
-                    },
                     #[codec(index = 2)]
                     #[doc = "See [`Pallet::force_transfer`]."]
                     force_transfer {
@@ -1199,13 +1214,6 @@ pub mod runtime_types {
                     #[doc = "See [`Pallet::upgrade_accounts`]."]
                     upgrade_accounts {
                         who: ::std::vec::Vec<::subxt::utils::AccountId32>,
-                    },
-                    #[codec(index = 7)]
-                    #[doc = "See [`Pallet::transfer`]."]
-                    transfer {
-                        dest: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
-                        #[codec(compact)]
-                        value: ::core::primitive::u128,
                     },
                     #[codec(index = 8)]
                     #[doc = "See [`Pallet::force_set_balance`]."]
@@ -2320,84 +2328,6 @@ pub mod runtime_types {
             pub mod schedule {
                 use super::runtime_types;
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-                pub struct HostFnWeights {
-                    pub alloc: runtime_types::sp_weights::weight_v2::Weight,
-                    pub alloc_per_page: runtime_types::sp_weights::weight_v2::Weight,
-                    pub free: runtime_types::sp_weights::weight_v2::Weight,
-                    pub free_range: runtime_types::sp_weights::weight_v2::Weight,
-                    pub free_range_per_page: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_reserve_gas: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_unreserve_gas: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_system_reserve_gas: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_gas_available: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_message_id: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_program_id: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_source: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_value: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_value_available: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_size: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_read: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_read_per_byte: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_env_vars: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_block_height: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_block_timestamp: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_random: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_reply_deposit: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_send: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_send_per_byte: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_send_wgas: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_send_wgas_per_byte: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_send_init: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_send_push: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_send_push_per_byte: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_send_commit: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_send_commit_wgas: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_reservation_send: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_reservation_send_per_byte: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_reservation_send_commit: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_reply_commit: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_reply_commit_wgas: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_reservation_reply: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_reservation_reply_per_byte: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_reservation_reply_commit: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_reply_push: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_reply: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_reply_per_byte: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_reply_wgas: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_reply_wgas_per_byte: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_reply_push_per_byte: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_reply_to: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_signal_code: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_signal_from: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_reply_input: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_reply_input_wgas: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_reply_push_input: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_reply_push_input_per_byte: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_send_input: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_send_input_wgas: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_send_push_input: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_send_push_input_per_byte: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_debug: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_debug_per_byte: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_reply_code: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_exit: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_leave: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_wait: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_wait_for: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_wait_up_to: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_wake: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_create_program: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_create_program_payload_per_byte:
-                        runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_create_program_salt_per_byte:
-                        runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_create_program_wgas: runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_create_program_wgas_payload_per_byte:
-                        runtime_types::sp_weights::weight_v2::Weight,
-                    pub gr_create_program_wgas_salt_per_byte:
-                        runtime_types::sp_weights::weight_v2::Weight,
-                }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub struct InstructionWeights {
                     pub version: ::core::primitive::u32,
                     pub i64const: ::core::primitive::u32,
@@ -2523,13 +2453,91 @@ pub mod runtime_types {
                     pub limits: runtime_types::pallet_gear::schedule::Limits,
                     pub instruction_weights:
                         runtime_types::pallet_gear::schedule::InstructionWeights,
-                    pub host_fn_weights: runtime_types::pallet_gear::schedule::HostFnWeights,
+                    pub syscall_weights: runtime_types::pallet_gear::schedule::SyscallWeights,
                     pub memory_weights: runtime_types::pallet_gear::schedule::MemoryWeights,
                     pub module_instantiation_per_byte: runtime_types::sp_weights::weight_v2::Weight,
                     pub db_write_per_byte: runtime_types::sp_weights::weight_v2::Weight,
                     pub db_read_per_byte: runtime_types::sp_weights::weight_v2::Weight,
                     pub code_instrumentation_cost: runtime_types::sp_weights::weight_v2::Weight,
                     pub code_instrumentation_byte_cost:
+                        runtime_types::sp_weights::weight_v2::Weight,
+                }
+                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                pub struct SyscallWeights {
+                    pub alloc: runtime_types::sp_weights::weight_v2::Weight,
+                    pub alloc_per_page: runtime_types::sp_weights::weight_v2::Weight,
+                    pub free: runtime_types::sp_weights::weight_v2::Weight,
+                    pub free_range: runtime_types::sp_weights::weight_v2::Weight,
+                    pub free_range_per_page: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_reserve_gas: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_unreserve_gas: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_system_reserve_gas: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_gas_available: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_message_id: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_program_id: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_source: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_value: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_value_available: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_size: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_read: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_read_per_byte: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_env_vars: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_block_height: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_block_timestamp: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_random: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_reply_deposit: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_send: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_send_per_byte: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_send_wgas: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_send_wgas_per_byte: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_send_init: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_send_push: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_send_push_per_byte: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_send_commit: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_send_commit_wgas: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_reservation_send: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_reservation_send_per_byte: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_reservation_send_commit: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_reply_commit: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_reply_commit_wgas: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_reservation_reply: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_reservation_reply_per_byte: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_reservation_reply_commit: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_reply_push: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_reply: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_reply_per_byte: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_reply_wgas: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_reply_wgas_per_byte: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_reply_push_per_byte: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_reply_to: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_signal_code: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_signal_from: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_reply_input: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_reply_input_wgas: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_reply_push_input: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_reply_push_input_per_byte: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_send_input: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_send_input_wgas: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_send_push_input: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_send_push_input_per_byte: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_debug: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_debug_per_byte: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_reply_code: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_exit: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_leave: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_wait: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_wait_for: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_wait_up_to: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_wake: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_create_program: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_create_program_payload_per_byte:
+                        runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_create_program_salt_per_byte:
+                        runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_create_program_wgas: runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_create_program_wgas_payload_per_byte:
+                        runtime_types::sp_weights::weight_v2::Weight,
+                    pub gr_create_program_wgas_salt_per_byte:
                         runtime_types::sp_weights::weight_v2::Weight,
                 }
             }
@@ -2610,9 +2618,9 @@ pub mod runtime_types {
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub struct ProgramInfo {
-                    pub static_pages: runtime_types::gear_core::pages::WasmPage,
+                    pub static_pages: runtime_types::gear_core::pages::PagesAmount,
                     pub persistent_pages: ::subxt::utils::KeyedVec<
-                        runtime_types::gear_core::pages::GearPage,
+                        runtime_types::gear_core::pages::Page,
                         runtime_types::gear_core::memory::PageBuf,
                     >,
                     pub code_hash: ::subxt::utils::H256,
@@ -4277,6 +4285,11 @@ pub mod runtime_types {
                     #[codec(index = 3)]
                     #[doc = "See [`Pallet::unrequest_preimage`]."]
                     unrequest_preimage { hash: ::subxt::utils::H256 },
+                    #[codec(index = 4)]
+                    #[doc = "See [`Pallet::ensure_updated`]."]
+                    ensure_updated {
+                        hashes: ::std::vec::Vec<::subxt::utils::H256>,
+                    },
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 #[doc = "The `Error` enum of this pallet."]
@@ -4299,6 +4312,12 @@ pub mod runtime_types {
                     #[codec(index = 5)]
                     #[doc = "The preimage request cannot be removed since no outstanding requests exist."]
                     NotRequested,
+                    #[codec(index = 6)]
+                    #[doc = "More than `MAX_HASH_UPGRADE_BULK_COUNT` hashes were requested to be upgraded at once."]
+                    TooMany,
+                    #[codec(index = 7)]
+                    #[doc = "Too few hashes were requested to be upgraded (i.e. zero)."]
+                    TooFew,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 #[doc = "The `Event` enum of this pallet"]
@@ -4313,9 +4332,14 @@ pub mod runtime_types {
                     #[doc = "A preimage has ben cleared."]
                     Cleared { hash: ::subxt::utils::H256 },
                 }
+                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                pub enum HoldReason {
+                    #[codec(index = 0)]
+                    Preimage,
+                }
             }
             #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-            pub enum RequestStatus<_0, _1> {
+            pub enum OldRequestStatus<_0, _1> {
                 #[codec(index = 0)]
                 Unrequested {
                     deposit: (_0, _1),
@@ -4326,6 +4350,20 @@ pub mod runtime_types {
                     deposit: ::core::option::Option<(_0, _1)>,
                     count: ::core::primitive::u32,
                     len: ::core::option::Option<::core::primitive::u32>,
+                },
+            }
+            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            pub enum RequestStatus<_0, _1> {
+                #[codec(index = 0)]
+                Unrequested {
+                    ticket: (_0, _1),
+                    len: ::core::primitive::u32,
+                },
+                #[codec(index = 1)]
+                Requested {
+                    maybe_ticket: ::core::option::Option<(_0, _1)>,
+                    count: ::core::primitive::u32,
+                    maybe_len: ::core::option::Option<::core::primitive::u32>,
                 },
             }
         }
@@ -4630,6 +4668,7 @@ pub mod runtime_types {
                             ::std::boxed::Box<runtime_types::vara_runtime::OriginCaller>,
                         proposal: runtime_types::frame_support::traits::preimages::Bounded<
                             runtime_types::vara_runtime::RuntimeCall,
+                            runtime_types::sp_runtime::traits::BlakeTwo256,
                         >,
                         enactment_moment:
                             runtime_types::frame_support::traits::schedule::DispatchTime<
@@ -4674,6 +4713,7 @@ pub mod runtime_types {
                             ::std::boxed::Box<runtime_types::vara_runtime::OriginCaller>,
                         proposal: runtime_types::frame_support::traits::preimages::Bounded<
                             runtime_types::vara_runtime::RuntimeCall,
+                            runtime_types::sp_runtime::traits::BlakeTwo256,
                         >,
                         enactment_moment:
                             runtime_types::frame_support::traits::schedule::DispatchTime<
@@ -4804,6 +4844,7 @@ pub mod runtime_types {
                         track: ::core::primitive::u16,
                         proposal: runtime_types::frame_support::traits::preimages::Bounded<
                             runtime_types::vara_runtime::RuntimeCall,
+                            runtime_types::sp_runtime::traits::BlakeTwo256,
                         >,
                     },
                     #[codec(index = 1)]
@@ -4833,6 +4874,7 @@ pub mod runtime_types {
                         track: ::core::primitive::u16,
                         proposal: runtime_types::frame_support::traits::preimages::Bounded<
                             runtime_types::vara_runtime::RuntimeCall,
+                            runtime_types::sp_runtime::traits::BlakeTwo256,
                         >,
                         tally: runtime_types::pallet_conviction_voting::types::Tally<
                             ::core::primitive::u128,
@@ -4915,6 +4957,7 @@ pub mod runtime_types {
                         track: ::core::primitive::u16,
                         proposal: runtime_types::frame_support::traits::preimages::Bounded<
                             runtime_types::vara_runtime::RuntimeCall,
+                            runtime_types::sp_runtime::traits::BlakeTwo256,
                         >,
                     },
                     #[codec(index = 1)]
@@ -4944,6 +4987,7 @@ pub mod runtime_types {
                         track: ::core::primitive::u16,
                         proposal: runtime_types::frame_support::traits::preimages::Bounded<
                             runtime_types::vara_runtime::RuntimeCall,
+                            runtime_types::sp_runtime::traits::BlakeTwo256,
                         >,
                         tally: runtime_types::pallet_ranked_collective::Tally,
                     },
@@ -5598,9 +5642,12 @@ pub mod runtime_types {
                             remainder: ::core::primitive::u128,
                         },
                         #[codec(index = 1)]
-                        #[doc = "The nominator has been rewarded by this amount."]
+                        #[doc = "The nominator has been rewarded by this amount to this destination."]
                         Rewarded {
                             stash: ::subxt::utils::AccountId32,
+                            dest: runtime_types::pallet_staking::RewardDestination<
+                                ::subxt::utils::AccountId32,
+                            >,
                             amount: ::core::primitive::u128,
                         },
                         #[codec(index = 2)]
@@ -5673,6 +5720,12 @@ pub mod runtime_types {
                             prefs: runtime_types::pallet_staking::ValidatorPrefs,
                         },
                         #[codec(index = 14)]
+                        #[doc = "Voters size limit reached."]
+                        SnapshotVotersSizeExceeded { size: ::core::primitive::u32 },
+                        #[codec(index = 15)]
+                        #[doc = "Targets size limit reached."]
+                        SnapshotTargetsSizeExceeded { size: ::core::primitive::u32 },
+                        #[codec(index = 16)]
                         #[doc = "A new force era mode was set."]
                         ForceEra {
                             mode: runtime_types::pallet_staking::Forcing,
@@ -5829,18 +5882,18 @@ pub mod runtime_types {
                 #[doc = "The `Event` enum of this pallet"]
                 pub enum Event {
                     #[codec(index = 0)]
-                    #[doc = "A sudo just took place. \\[result\\]"]
+                    #[doc = "A sudo call just took place."]
                     Sudid {
                         sudo_result:
                             ::core::result::Result<(), runtime_types::sp_runtime::DispatchError>,
                     },
                     #[codec(index = 1)]
-                    #[doc = "The \\[sudoer\\] just switched identity; the old key is supplied if one existed."]
+                    #[doc = "The sudo key has been updated."]
                     KeyChanged {
                         old_sudoer: ::core::option::Option<::subxt::utils::AccountId32>,
                     },
                     #[codec(index = 2)]
-                    #[doc = "A sudo just took place. \\[result\\]"]
+                    #[doc = "A [sudo_as](Pallet::sudo_as) call just took place."]
                     SudoAsDone {
                         sudo_result:
                             ::core::result::Result<(), runtime_types::sp_runtime::DispatchError>,
@@ -7069,6 +7122,11 @@ pub mod runtime_types {
                     }
                 }
             }
+            pub mod traits {
+                use super::runtime_types;
+                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                pub struct BlakeTwo256;
+            }
             #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
             pub enum DispatchError {
                 #[codec(index = 0)]
@@ -7666,7 +7724,10 @@ pub mod runtime_types {
                 GearDebug(runtime_types::pallet_gear_debug::pallet::Event),
             }
             #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-            pub enum RuntimeHoldReason {}
+            pub enum RuntimeHoldReason {
+                #[codec(index = 23)]
+                Preimage(runtime_types::pallet_preimage::pallet::HoldReason),
+            }
             #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
             pub struct SessionKeys {
                 pub babe: runtime_types::sp_consensus_babe::app::Public,
@@ -7704,6 +7765,7 @@ pub mod calls {
     pub enum BagsListCall {
         Rebag,
         PutInFrontOf,
+        PutInFrontOfOther,
     }
     impl CallInfo for BagsListCall {
         const PALLET: &'static str = "BagsList";
@@ -7711,19 +7773,18 @@ pub mod calls {
             match self {
                 Self::Rebag => "rebag",
                 Self::PutInFrontOf => "put_in_front_of",
+                Self::PutInFrontOfOther => "put_in_front_of_other",
             }
         }
     }
     #[doc = "Calls of pallet `Balances`."]
     pub enum BalancesCall {
         TransferAllowDeath,
-        SetBalanceDeprecated,
         ForceTransfer,
         TransferKeepAlive,
         TransferAll,
         ForceUnreserve,
         UpgradeAccounts,
-        Transfer,
         ForceSetBalance,
     }
     impl CallInfo for BalancesCall {
@@ -7731,13 +7792,11 @@ pub mod calls {
         fn call_name(&self) -> &'static str {
             match self {
                 Self::TransferAllowDeath => "transfer_allow_death",
-                Self::SetBalanceDeprecated => "set_balance_deprecated",
                 Self::ForceTransfer => "force_transfer",
                 Self::TransferKeepAlive => "transfer_keep_alive",
                 Self::TransferAll => "transfer_all",
                 Self::ForceUnreserve => "force_unreserve",
                 Self::UpgradeAccounts => "upgrade_accounts",
-                Self::Transfer => "transfer",
                 Self::ForceSetBalance => "force_set_balance",
             }
         }
@@ -8092,6 +8151,7 @@ pub mod calls {
         UnnotePreimage,
         RequestPreimage,
         UnrequestPreimage,
+        EnsureUpdated,
     }
     impl CallInfo for PreimageCall {
         const PALLET: &'static str = "Preimage";
@@ -8101,6 +8161,7 @@ pub mod calls {
                 Self::UnnotePreimage => "unnote_preimage",
                 Self::RequestPreimage => "request_preimage",
                 Self::UnrequestPreimage => "unrequest_preimage",
+                Self::EnsureUpdated => "ensure_updated",
             }
         }
     }
@@ -8688,18 +8749,6 @@ pub mod storage {
             }
         }
     }
-    #[doc = "Storage of pallet `GearBuiltin`."]
-    pub enum GearBuiltinStorage {
-        QuickCache,
-    }
-    impl StorageInfo for GearBuiltinStorage {
-        const PALLET: &'static str = "GearBuiltin";
-        fn storage_name(&self) -> &'static str {
-            match self {
-                Self::QuickCache => "QuickCache",
-            }
-        }
-    }
     #[doc = "Storage of pallet `GearDebug`."]
     pub enum GearDebugStorage {
         DebugMode,
@@ -8770,7 +8819,6 @@ pub mod storage {
         MetadataStorage,
         ProgramStorage,
         MemoryPages,
-        WaitingInitStorage,
         PausedProgramStorage,
         ResumeSessionsNonce,
         ResumeSessions,
@@ -8785,7 +8833,6 @@ pub mod storage {
                 Self::MetadataStorage => "MetadataStorage",
                 Self::ProgramStorage => "ProgramStorage",
                 Self::MemoryPages => "MemoryPages",
-                Self::WaitingInitStorage => "WaitingInitStorage",
                 Self::PausedProgramStorage => "PausedProgramStorage",
                 Self::ResumeSessionsNonce => "ResumeSessionsNonce",
                 Self::ResumeSessions => "ResumeSessions",
@@ -8971,6 +9018,7 @@ pub mod storage {
     #[doc = "Storage of pallet `Preimage`."]
     pub enum PreimageStorage {
         StatusFor,
+        RequestStatusFor,
         PreimageFor,
     }
     impl StorageInfo for PreimageStorage {
@@ -8978,6 +9026,7 @@ pub mod storage {
         fn storage_name(&self) -> &'static str {
             match self {
                 Self::StatusFor => "StatusFor",
+                Self::RequestStatusFor => "RequestStatusFor",
                 Self::PreimageFor => "PreimageFor",
             }
         }

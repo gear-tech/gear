@@ -16,9 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{mock::*, GasMultiplier, *};
+use crate::{mock::*, GasMultiplier, UnusedValue, *};
 use frame_support::{assert_noop, assert_ok};
-use sp_runtime::traits::Zero;
+use sp_runtime::{traits::Zero, StateVersion};
 use utils::*;
 
 #[test]
@@ -113,7 +113,7 @@ fn deposit_gas_user_account_deleted() {
 #[test]
 fn deposit_gas_zero() {
     new_test_ext().execute_with(|| {
-        let h = frame_support::storage_root(frame_support::StateVersion::V1);
+        let h = sp_io::storage::root(StateVersion::V1);
 
         assert_ok!(GearBank::deposit_gas(&ALICE, 0, false));
 
@@ -122,7 +122,7 @@ fn deposit_gas_zero() {
         // No-op operation assertion.
         assert_eq!(
             h,
-            frame_support::storage_root(frame_support::StateVersion::V1),
+            sp_io::storage::root(StateVersion::V1),
             "storage has been mutated"
         );
     })
@@ -277,7 +277,7 @@ fn withdraw_gas_small_amount() {
 #[test]
 fn withdraw_gas_small_amount_user_account_deleted() {
     new_test_ext().execute_with(|| {
-        const GAS_VALUE_AMOUNT: Balance = EXISTENTIAL_DEPOSIT - VALUE_PER_GAS;
+        const GAS_VALUE_AMOUNT: Balance = (EXISTENTIAL_DEPOSIT - 1) / VALUE_PER_GAS * VALUE_PER_GAS;
         assert!(GAS_VALUE_AMOUNT < CurrencyOf::<Test>::minimum_balance());
 
         const GAS_AMOUNT: u64 = (GAS_VALUE_AMOUNT / VALUE_PER_GAS) as u64;
@@ -293,7 +293,7 @@ fn withdraw_gas_small_amount_user_account_deleted() {
 
         assert_ok!(GearBank::withdraw_gas(&ALICE, GAS_AMOUNT, mult()));
 
-        assert_eq!(GearBank::unused_value(), GAS_VALUE_AMOUNT);
+        assert_eq!(UnusedValue::<Test>::get(), GAS_VALUE_AMOUNT);
         assert_balance(&BANK_ADDRESS, EXISTENTIAL_DEPOSIT + GAS_VALUE_AMOUNT);
 
         assert_bank_balance(0, 0);
@@ -306,7 +306,7 @@ fn withdraw_gas_small_amount_user_account_deleted() {
 #[test]
 fn withdraw_gas_zero() {
     new_test_ext().execute_with(|| {
-        let h = frame_support::storage_root(frame_support::StateVersion::V1);
+        let h = sp_io::storage::root(StateVersion::V1);
 
         assert_ok!(GearBank::withdraw_gas(&ALICE, 0, mult()));
 
@@ -315,7 +315,7 @@ fn withdraw_gas_zero() {
         // No-op operation assertion.
         assert_eq!(
             h,
-            frame_support::storage_root(frame_support::StateVersion::V1),
+            sp_io::storage::root(StateVersion::V1),
             "storage has been mutated"
         );
     })
@@ -523,7 +523,7 @@ fn spend_gas_small_amount() {
 #[test]
 fn spend_gas_small_amount_validator_account_deleted() {
     new_test_ext().execute_with(|| {
-        const GAS_VALUE_AMOUNT: Balance = EXISTENTIAL_DEPOSIT - VALUE_PER_GAS;
+        const GAS_VALUE_AMOUNT: Balance = (EXISTENTIAL_DEPOSIT - 1) / VALUE_PER_GAS * VALUE_PER_GAS;
         assert!(GAS_VALUE_AMOUNT < CurrencyOf::<Test>::minimum_balance());
 
         const GAS_AMOUNT: u64 = (GAS_VALUE_AMOUNT / VALUE_PER_GAS) as u64;
@@ -539,7 +539,7 @@ fn spend_gas_small_amount_validator_account_deleted() {
 
         assert_ok!(GearBank::spend_gas(&ALICE, GAS_AMOUNT, mult()));
 
-        assert_eq!(GearBank::unused_value(), GAS_VALUE_AMOUNT);
+        assert_eq!(UnusedValue::<Test>::get(), GAS_VALUE_AMOUNT);
         assert_balance(&BANK_ADDRESS, EXISTENTIAL_DEPOSIT + GAS_VALUE_AMOUNT);
 
         assert_bank_balance(0, 0);
@@ -556,7 +556,7 @@ fn spend_gas_zero() {
     new_test_ext().execute_with(|| {
         let _block_author = Authorship::author();
 
-        let h = frame_support::storage_root(frame_support::StateVersion::V1);
+        let h = sp_io::storage::root(StateVersion::V1);
 
         assert_ok!(GearBank::spend_gas(&ALICE, 0, mult()));
 
@@ -565,7 +565,7 @@ fn spend_gas_zero() {
         // No-op operation assertion.
         assert_eq!(
             h,
-            frame_support::storage_root(frame_support::StateVersion::V1),
+            sp_io::storage::root(StateVersion::V1),
             "storage has been mutated"
         );
     })
@@ -713,7 +713,7 @@ fn deposit_value_user_account_deleted() {
 #[test]
 fn deposit_value_zero() {
     new_test_ext().execute_with(|| {
-        let h = frame_support::storage_root(frame_support::StateVersion::V1);
+        let h = sp_io::storage::root(StateVersion::V1);
 
         assert_ok!(GearBank::deposit_value(&ALICE, 0, false));
 
@@ -722,7 +722,7 @@ fn deposit_value_zero() {
         // No-op operation assertion.
         assert_eq!(
             h,
-            frame_support::storage_root(frame_support::StateVersion::V1),
+            sp_io::storage::root(StateVersion::V1),
             "storage has been mutated"
         );
     })
@@ -881,7 +881,7 @@ fn withdraw_value_small_amount_user_account_deleted() {
 
         assert_ok!(GearBank::withdraw_value(&ALICE, VALUE));
 
-        assert_eq!(GearBank::unused_value(), VALUE);
+        assert_eq!(UnusedValue::<Test>::get(), VALUE);
         assert_balance(&BANK_ADDRESS, EXISTENTIAL_DEPOSIT + VALUE);
 
         assert_bank_balance(0, 0);
@@ -894,7 +894,7 @@ fn withdraw_value_small_amount_user_account_deleted() {
 #[test]
 fn withdraw_value_zero() {
     new_test_ext().execute_with(|| {
-        let h = frame_support::storage_root(frame_support::StateVersion::V1);
+        let h = sp_io::storage::root(StateVersion::V1);
 
         assert_ok!(GearBank::withdraw_value(&ALICE, 0));
 
@@ -903,7 +903,7 @@ fn withdraw_value_zero() {
         // No-op operation assertion.
         assert_eq!(
             h,
-            frame_support::storage_root(frame_support::StateVersion::V1),
+            sp_io::storage::root(StateVersion::V1),
             "storage has been mutated"
         );
     })
@@ -1165,7 +1165,7 @@ fn transfer_value_small_amount_destination_account_deleted() {
 
         assert_ok!(GearBank::transfer_value(&ALICE, &CHARLIE, VALUE));
 
-        assert_eq!(GearBank::unused_value(), VALUE);
+        assert_eq!(UnusedValue::<Test>::get(), VALUE);
         assert_balance(&BANK_ADDRESS, EXISTENTIAL_DEPOSIT + VALUE);
 
         assert_bank_balance(0, 0);
@@ -1191,7 +1191,7 @@ fn transfer_value_small_amount_self_account_deleted() {
 
         assert_ok!(GearBank::transfer_value(&ALICE, &ALICE, VALUE));
 
-        assert_eq!(GearBank::unused_value(), VALUE);
+        assert_eq!(UnusedValue::<Test>::get(), VALUE);
         assert_balance(&BANK_ADDRESS, EXISTENTIAL_DEPOSIT + VALUE);
 
         assert_bank_balance(0, 0);
@@ -1204,7 +1204,7 @@ fn transfer_value_small_amount_self_account_deleted() {
 #[test]
 fn transfer_value_zero() {
     new_test_ext().execute_with(|| {
-        let h = frame_support::storage_root(frame_support::StateVersion::V1);
+        let h = sp_io::storage::root(StateVersion::V1);
 
         assert_ok!(GearBank::transfer_value(&ALICE, &ALICE, 0));
         assert_ok!(GearBank::transfer_value(&ALICE, &CHARLIE, 0));
@@ -1216,7 +1216,7 @@ fn transfer_value_zero() {
         // No-op operation assertion.
         assert_eq!(
             h,
-            frame_support::storage_root(frame_support::StateVersion::V1),
+            sp_io::storage::root(StateVersion::V1),
             "storage has been mutated"
         );
     })
@@ -1491,7 +1491,7 @@ mod utils {
         let gas_value = gas_price(gas);
         assert_balance(
             &BANK_ADDRESS,
-            CurrencyOf::<Test>::minimum_balance() + GearBank::unused_value() + gas_value + value,
+            CurrencyOf::<Test>::minimum_balance() + UnusedValue::<Test>::get() + gas_value + value,
         );
     }
 

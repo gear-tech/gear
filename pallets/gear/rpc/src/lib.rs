@@ -31,7 +31,7 @@ use jsonrpsee::{
     types::error::{CallError, ErrorObject},
 };
 pub use pallet_gear_rpc_runtime_api::GearApi as GearRuntimeApi;
-use pallet_gear_rpc_runtime_api::{GasInfo, HandleKind};
+use pallet_gear_rpc_runtime_api::{GasInfo, HandleKind, ReplyInfo};
 use sp_api::{ApiError, ApiExt, ApiRef, ProvideRuntimeApi};
 use sp_blockchain::HeaderBackend;
 use sp_core::{Bytes, H256};
@@ -50,7 +50,18 @@ fn runtime_error_into_rpc_error(err: impl std::fmt::Display) -> JsonRpseeError {
 
 #[rpc(server)]
 pub trait GearApi<BlockHash, ResponseType> {
-    #[method(name = "gear_calculateInitCreateGas")]
+    #[method(name = "gear_calculateReplyForHandle")]
+    fn calculate_reply_for_handle(
+        &self,
+        origin: H256,
+        destination: H256,
+        payload: Bytes,
+        gas_limit: u64,
+        value: u128,
+        at: Option<BlockHash>,
+    ) -> RpcResult<ReplyInfo>;
+
+    #[method(name = "gear_calculateInitCreateGas", aliases = ["gear_calculateGasForCreate"])]
     fn get_init_create_gas_spent(
         &self,
         source: H256,
@@ -61,7 +72,7 @@ pub trait GearApi<BlockHash, ResponseType> {
         at: Option<BlockHash>,
     ) -> RpcResult<GasInfo>;
 
-    #[method(name = "gear_calculateInitUploadGas")]
+    #[method(name = "gear_calculateInitUploadGas", aliases = ["gear_calculateGasForUpload"])]
     fn get_init_upload_gas_spent(
         &self,
         source: H256,
@@ -72,7 +83,7 @@ pub trait GearApi<BlockHash, ResponseType> {
         at: Option<BlockHash>,
     ) -> RpcResult<GasInfo>;
 
-    #[method(name = "gear_calculateHandleGas")]
+    #[method(name = "gear_calculateHandleGas", aliases = ["gear_calculateGasForHandle"])]
     fn get_handle_gas_spent(
         &self,
         source: H256,
@@ -83,7 +94,7 @@ pub trait GearApi<BlockHash, ResponseType> {
         at: Option<BlockHash>,
     ) -> RpcResult<GasInfo>;
 
-    #[method(name = "gear_calculateReplyGas")]
+    #[method(name = "gear_calculateReplyGas", aliases = ["gear_calculateGasForReply"])]
     fn get_reply_gas_spent(
         &self,
         source: H256,
@@ -257,6 +268,30 @@ where
     C: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block>,
     C::Api: GearRuntimeApi<Block>,
 {
+    fn calculate_reply_for_handle(
+        &self,
+        origin: H256,
+        destination: H256,
+        payload: Bytes,
+        gas_limit: u64,
+        value: u128,
+        at: Option<<Block as BlockT>::Hash>,
+    ) -> RpcResult<ReplyInfo> {
+        let at_hash = at.unwrap_or_else(|| self.client.info().best_hash);
+
+        self.run_with_api_copy(|api| {
+            api.calculate_reply_for_handle(
+                at_hash,
+                origin,
+                destination,
+                payload.to_vec(),
+                gas_limit,
+                value,
+                self.allowance_multiplier,
+            )
+        })
+    }
+
     fn get_init_create_gas_spent(
         &self,
         source: H256,

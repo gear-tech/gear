@@ -8,7 +8,7 @@ const linux =
   LABEL === "A0-pleasereview" ||
   LABEL === "A4-insubstantial" ||
   LABEL === "A2-mergeoncegreen";
-const checks = linux ? ["linux", "win-cross"] : ["x86"];
+const checks = linux ? ["linux (debug)", "win-cross (debug)"] : ["macos-x86 (debug)", "macos-aarch64 (debug)"];
 const workflow_id = linux
   ? ".github/workflows/build.yml"
   : ".github/workflows/build-macos.yml";
@@ -36,17 +36,20 @@ const checkSkip = async ({ github, core }) => {
     ref: REF,
   });
 
-  if (check_runs.filter((run) => (
-    (run.name === "build" && run.conclusion !== "skipped")
-    || run.name === "build / linux"
-    || run.name === "build / macos-x86"
-  )).length > 0) {
+  if (
+    check_runs.filter(
+      (run) =>
+        (run.name === "build" && run.conclusion !== "skipped") ||
+        run.name === "build / linux (debug)" ||
+        run.name === "build / macos / x86"
+    ).length > 0
+  ) {
     core.info(
       "Build has already been processed, check runs: ",
       JSON.stringify(check_runs, null, 2)
     );
 
-    process.exit(0)
+    process.exit(0);
   }
 };
 
@@ -59,7 +62,7 @@ const checkSkip = async ({ github, core }) => {
  **/
 const createChecks = async ({ core, github }) => {
   let status = {};
-  for (check of checks) {
+  for (const check of checks) {
     const { data: res } = await github.rest.checks.create({
       owner,
       repo,
@@ -125,12 +128,17 @@ const listJobs = async ({ github, core, run_id }) => {
   });
 
   if (jobs.length === 0) {
-    core.setFailed(`Empty jobs from dispatched workflow`);
-    return;
+    core.setFailed("Empty jobs from dispatched workflow", jobs);
+  } else if (jobs.length == 1 && jobs[0].name === "dynamic-profiles") {
+    core.info("Waiting for matrix job to be completed ... ");
+    await sleep(5000);
+    return await listJobs({ github, core, run_id });
   }
 
   const requiredJobs = jobs.filter((job) => checks.includes(job.name));
   if (requiredJobs.length !== checks.length) {
+    console.log("all jobs:", jobs);
+    console.log("required jobs:", requiredJobs);
     core.setFailed(`Incorrect count for disptached jobs`);
     return;
   }
@@ -153,7 +161,7 @@ module.exports = async ({ github, core }) => {
     const jobs = await listJobs({ github, core, run_id: run.id });
     completed = jobs.filter((job) => job.status === "completed").length;
 
-    for (job of jobs) {
+    for (const job of jobs) {
       let checkJob = labelChecks[job.name];
       if (
         checkJob.status !== job.status ||

@@ -40,7 +40,7 @@ pub mod pallet {
         ids::ProgramId,
         memory::PageBuf,
         message::{StoredDelayedDispatch, StoredDispatch, StoredMessage},
-        pages::{GearPage, PageU32Size, WasmPage},
+        pages::{GearPage, WasmPagesAmount},
     };
     use primitive_types::H256;
     use scale_info::TypeInfo;
@@ -90,7 +90,7 @@ pub mod pallet {
     /// Program debug info.
     #[derive(Encode, Decode, Clone, Default, PartialEq, Eq, TypeInfo)]
     pub struct ProgramInfo {
-        pub static_pages: WasmPage,
+        pub static_pages: WasmPagesAmount,
         pub persistent_pages: BTreeMap<GearPage, PageBuf>,
         pub code_hash: H256,
     }
@@ -140,15 +140,12 @@ pub mod pallet {
     }
 
     #[pallet::storage]
-    #[pallet::getter(fn debug_mode)]
     pub type DebugMode<T> = StorageValue<_, bool, ValueQuery>;
 
     #[pallet::storage]
-    #[pallet::getter(fn remap_program_id)]
     pub type RemapId<T> = StorageValue<_, bool, ValueQuery>;
 
     #[pallet::storage]
-    #[pallet::getter(fn programs_map)]
     pub type ProgramsMap<T> = StorageValue<_, BTreeMap<H256, H256>, ValueQuery>;
 
     #[pallet::hooks]
@@ -217,7 +214,7 @@ pub mod pallet {
                     };
                     let static_pages = match T::CodeStorage::get_code(active.code_hash.cast()) {
                         Some(code) => code.static_pages(),
-                        None => WasmPage::zero(),
+                        None => 0.into(),
                     };
                     let persistent_pages = T::ProgramStorage::get_program_data_for_pages(
                         id,
@@ -246,11 +243,11 @@ pub mod pallet {
         }
 
         fn is_enabled() -> bool {
-            Self::debug_mode()
+            DebugMode::<T>::get()
         }
 
         fn is_remap_id_enabled() -> bool {
-            Self::remap_program_id()
+            RemapId::<T>::get()
         }
 
         fn remap_id() {

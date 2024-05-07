@@ -19,12 +19,12 @@
 //! Lazy-pages system signals accesses support.
 
 use crate::{
-    common::{Error, GasCharger, LazyPagesExecutionContext, LazyPagesRuntimeContext, WeightNo},
+    common::{CostNo, Error, GasCharger, LazyPagesExecutionContext, LazyPagesRuntimeContext},
     globals::{self, GlobalNo},
+    pages::GearPage,
     process::{self, AccessHandler},
     LAZY_PAGES_CONTEXT,
 };
-use gear_core::pages::{GearPage, PageDynSize};
 use gear_lazy_pages_common::Status;
 use std::convert::TryFrom;
 
@@ -79,10 +79,10 @@ unsafe fn user_signal_handler_internal(
 
     let gas_ctx = if let Some(globals_config) = exec_ctx.globals_context.as_ref() {
         let gas_charger = GasCharger {
-            read_cost: exec_ctx.weight(WeightNo::SignalRead),
-            write_cost: exec_ctx.weight(WeightNo::SignalWrite),
-            write_after_read_cost: exec_ctx.weight(WeightNo::SignalWriteAfterRead),
-            load_data_cost: exec_ctx.weight(WeightNo::LoadPageDataFromStorage),
+            read_cost: exec_ctx.cost(CostNo::SignalRead),
+            write_cost: exec_ctx.cost(CostNo::SignalWrite),
+            write_after_read_cost: exec_ctx.cost(CostNo::SignalWriteAfterRead),
+            load_data_cost: exec_ctx.cost(CostNo::LoadPageDataFromStorage),
         };
 
         let gas_counter = globals::apply_for_global(

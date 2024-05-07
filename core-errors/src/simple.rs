@@ -40,6 +40,7 @@ use scale_info::{
     derive_more::From,
 )]
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo, Sequence), codec(crate = scale), allow(clippy::unnecessary_cast))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 /// Enum representing reply code with reason of its creation.
 pub enum ReplyCode {
     /// Success reply.
@@ -119,6 +120,7 @@ impl ReplyCode {
     Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default, derive_more::Display,
 )]
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo, Sequence), codec(crate = scale), allow(clippy::unnecessary_cast))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 /// Reason of success reply creation.
 pub enum SuccessReplyReason {
     /// Success reply was created by system automatically.
@@ -165,6 +167,7 @@ impl SuccessReplyReason {
     derive_more::From,
 )]
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo, Sequence), codec(crate = scale), allow(clippy::unnecessary_cast))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 /// Reason of error reply creation.
 ///
 /// NOTE: Adding new variants to this enum you must also update `ErrorReplyReason::to_bytes` and
@@ -178,9 +181,11 @@ pub enum ErrorReplyReason {
     #[display(fmt = "fail in program creation ({_0})")]
     FailedToCreateProgram(SimpleProgramCreationError) = 1,
 
-    /// Destination actor become inactive program and can't process the message.
-    #[display(fmt = "inactivity of destination program")]
-    InactiveProgram = 2,
+    /// Destination actor is inactive, so it can't process the message.
+    // TODO: think whether to split this error into long (`gr_exit()`, rent, failed init)
+    // TODO: and short (uninitialized program) versions (#3890)
+    #[display(fmt = "destination actor is inactive")]
+    InactiveActor = 2,
 
     /// Message has died in Waitlist as out of rent one.
     #[display(fmt = "removal from waitlist")]
@@ -211,7 +216,7 @@ impl ErrorReplyReason {
         match self {
             Self::Execution(error) => bytes[1..].copy_from_slice(&error.to_bytes()),
             Self::FailedToCreateProgram(error) => bytes[1..].copy_from_slice(&error.to_bytes()),
-            Self::InactiveProgram
+            Self::InactiveActor
             | Self::RemovedFromWaitlist
             | Self::ReinstrumentationFailure
             | Self::Unsupported => {}
@@ -231,7 +236,7 @@ impl ErrorReplyReason {
                 let err_bytes = bytes[1..].try_into().unwrap_or_else(|_| unreachable!());
                 Self::FailedToCreateProgram(SimpleProgramCreationError::from_bytes(err_bytes))
             }
-            b if Self::InactiveProgram.discriminant() == b => Self::InactiveProgram,
+            b if Self::InactiveActor.discriminant() == b => Self::InactiveActor,
             b if Self::RemovedFromWaitlist.discriminant() == b => Self::RemovedFromWaitlist,
             b if Self::ReinstrumentationFailure.discriminant() == b => {
                 Self::ReinstrumentationFailure
@@ -246,6 +251,7 @@ impl ErrorReplyReason {
     Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default, derive_more::Display,
 )]
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo, Sequence), codec(crate = scale), allow(clippy::unnecessary_cast))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 /// Simplified error occurred during execution.
 pub enum SimpleExecutionError {
     /// Message ran out of gas while executing.
@@ -302,6 +308,7 @@ impl SimpleExecutionError {
     Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default, derive_more::Display,
 )]
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo, Sequence), codec(crate = scale), allow(clippy::unnecessary_cast))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 /// Simplified error occurred during program creation.
 pub enum SimpleProgramCreationError {
     /// Given code id for program creation doesn't exist.
@@ -349,6 +356,7 @@ impl SimpleProgramCreationError {
     derive_more::From,
 )]
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo, Sequence), codec(crate = scale), allow(clippy::unnecessary_cast))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 /// Enum representing signal code and reason of its creation.
 ///
 /// # Testing

@@ -2,13 +2,8 @@ name: Check
 
 on:
   workflow_call:
-    inputs:
-      cache:
-        type: string
-        required: true
 
 env:
-  CARGO_INCREMENTAL: 0
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: short
   TERM: xterm-256color
@@ -16,10 +11,9 @@ env:
 
 jobs:
   linux:
-    runs-on: [kuberunner, github-runner-01]
+    runs-on: [ kuberunner, github-runner-01 ]
     env:
       RUSTUP_HOME: /tmp/rustup_home
-      SCCACHE_DIR: ${{ inputs.cache }}
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
@@ -76,13 +70,12 @@ jobs:
           cargo +stable check --manifest-path utils/wasm-builder/test-program/Cargo.toml
 
       - name: "Check: crates-io packages"
-        run: cargo run --release -p crates-io check
+        run: cargo +stable run --release -p crates-io check
 
   fuzzer:
-    runs-on: [kuberunner, github-runner-01]
+    runs-on: [ kuberunner, github-runner-01 ]
     env:
       RUSTUP_HOME: /tmp/rustup_home
-      SCCACHE_DIR: ${{ inputs.cache }}
     steps:
       - name: Cancel Previous Runs
         if: ${{ github.event_name == 'pull_request' }}

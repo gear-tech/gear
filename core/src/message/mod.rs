@@ -18,12 +18,6 @@
 
 //! Message processing module.
 
-use alloc::{collections::BTreeSet, string::String};
-use scale_info::{
-    scale::{Decode, Encode},
-    TypeInfo,
-};
-
 mod common;
 mod context;
 mod handle;
@@ -47,14 +41,19 @@ pub use stored::{StoredDelayedDispatch, StoredDispatch, StoredMessage};
 pub use user::{UserMessage, UserStoredMessage};
 
 use super::buffer::LimitedVec;
+use alloc::{collections::BTreeSet, string::String, vec::Vec};
 use core::fmt::Display;
+use gear_core_errors::ReplyCode;
 use gear_wasm_instrument::syscalls::SyscallName;
+use scale_info::{
+    scale::{Decode, Encode},
+    TypeInfo,
+};
 
 /// Max payload size which one message can have (8 MiB).
 pub const MAX_PAYLOAD_SIZE: usize = 8 * 1024 * 1024;
 
-// **WARNING**: do not remove this check until be sure that
-// all `MAX_PAYLOAD_SIZE` conversions are safe!
+// **WARNING**: do not remove this check
 const _: () = assert!(MAX_PAYLOAD_SIZE <= u32::MAX as usize);
 
 /// Payload size exceed error
@@ -77,6 +76,14 @@ impl Display for PayloadSizeError {
 
 /// Payload type for message.
 pub type Payload = LimitedVec<u8, PayloadSizeError, MAX_PAYLOAD_SIZE>;
+
+impl Payload {
+    /// Get payload length as u32.
+    pub fn len_u32(&self) -> u32 {
+        // Safe, cause it's guarantied: `MAX_PAYLOAD_SIZE` <= u32::MAX
+        self.inner().len() as u32
+    }
+}
 
 /// Gas limit type for message.
 pub type GasLimit = u64;
@@ -214,9 +221,24 @@ pub trait Packet {
     /// Packet payload bytes.
     fn payload_bytes(&self) -> &[u8];
 
+    /// Payload len
+    fn payload_len(&self) -> u32;
+
     /// Packet optional gas limit.
     fn gas_limit(&self) -> Option<GasLimit>;
 
     /// Packet value.
     fn value(&self) -> Value;
+}
+
+/// The struct contains results of read only send message RPC call.
+#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
+pub struct ReplyInfo {
+    /// Payload of the reply.
+    pub payload: Vec<u8>,
+    /// Value sent with reply.
+    pub value: u128,
+    /// Reply code of the reply.
+    pub code: ReplyCode,
 }

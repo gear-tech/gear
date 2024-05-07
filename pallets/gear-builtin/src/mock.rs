@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{self as pallet_gear_builtin, BuiltinActor, BuiltinActorError};
+use crate::{self as pallet_gear_builtin, bls12_381, BuiltinActor, BuiltinActorError};
 use common::{GasProvider, GasTree};
 use core::cell::RefCell;
 use frame_support::{
@@ -98,6 +98,7 @@ common::impl_pallet_timestamp!(Test);
 parameter_types! {
     pub const BlockGasLimit: u64 = 100_000_000_000;
     pub const OutgoingLimit: u32 = 1024;
+    pub const OutgoingBytesLimit: u32 = 64 * 1024 * 1024;
     pub ReserveThreshold: BlockNumber = 1;
     pub GearSchedule: pallet_gear::Schedule<Test> = <pallet_gear::Schedule<Test>>::default();
     pub RentFreePeriod: BlockNumber = 12_000;
@@ -118,7 +119,6 @@ pallet_gear::impl_config!(
     Test,
     Schedule = GearSchedule,
     BuiltinDispatcherFactory = GearBuiltin,
-    BuiltinCache = GearBuiltin,
 );
 
 // A builtin actor who always returns success (even if not enough gas is provided).
@@ -211,7 +211,12 @@ impl BuiltinActor for HonestBuiltinActor {
 }
 
 impl pallet_gear_builtin::Config for Test {
-    type Builtins = (SuccessBuiltinActor, ErrorBuiltinActor, HonestBuiltinActor);
+    type Builtins = (
+        SuccessBuiltinActor,
+        ErrorBuiltinActor,
+        HonestBuiltinActor,
+        bls12_381::Actor<Self>,
+    );
     type WeightInfo = ();
 }
 

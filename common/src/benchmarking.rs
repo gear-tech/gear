@@ -18,10 +18,7 @@
 
 use super::*;
 
-use gear_core::{
-    pages::{PageNumber, PageU32Size, WasmPage},
-    program::MemoryInfix,
-};
+use gear_core::{pages::WasmPage, program::MemoryInfix};
 use gear_wasm_instrument::parity_wasm::{self, elements::*};
 use sp_io::hashing::blake2_256;
 use sp_runtime::traits::Zero;
@@ -46,7 +43,7 @@ pub fn create_module(num_pages: WasmPage) -> parity_wasm::elements::Module {
         Section::Import(ImportSection::with_entries(vec![ImportEntry::new(
             "env".into(),
             "memory".into(),
-            External::Memory(MemoryType::new(num_pages.raw(), None)),
+            External::Memory(MemoryType::new(num_pages.into(), None)),
         )])),
         Section::Function(FunctionSection::with_entries(vec![Func::new(0)])),
         Section::Export(ExportSection::with_entries(vec![ExportEntry::new(
@@ -102,7 +99,7 @@ pub fn generate_wasm(num_pages: WasmPage) -> Result<Vec<u8>, &'static str> {
             FuncBody::new(
                 vec![Local::new(1, ValueType::I32)],
                 Instructions::new(vec![
-                    Instruction::I32Const(num_pages.raw() as i32),
+                    Instruction::I32Const(u32::from(num_pages) as i32),
                     Instruction::Call(0),
                     Instruction::SetLocal(0),
                     Instruction::End,
@@ -115,39 +112,27 @@ pub fn generate_wasm(num_pages: WasmPage) -> Result<Vec<u8>, &'static str> {
     Ok(code)
 }
 
-pub fn set_program<
-    ProgramStorage: super::ProgramStorage<BlockNumber = BlockNumber>,
-    BlockNumber: Zero + Copy + Saturating,
->(
+pub fn set_program<ProgramStorage, BlockNumber>(
     program_id: ProgramId,
     code: Vec<u8>,
-    static_pages: WasmPage,
-) {
-    let code_id = CodeId::generate(&code).into_origin();
-    let allocations: BTreeSet<WasmPage> = static_pages.iter_from_zero().collect();
-    let persistent_pages_data: BTreeMap<GearPage, PageBuf> = allocations
-        .iter()
-        .flat_map(|p| p.to_pages_iter())
-        .map(|p| (p, PageBuf::new_zeroed()))
-        .collect();
-    let pages_with_data = persistent_pages_data.keys().copied().collect();
-
-    let memory_infix = MemoryInfix::new(1u32);
-    let program = ActiveProgram {
-        allocations,
-        pages_with_data,
-        code_hash: code_id,
-        code_exports: Default::default(),
-        static_pages,
-        state: ProgramState::Initialized,
-        gas_reservation_map: GasReservationMap::default(),
-        expiration_block: Zero::zero(),
-        memory_infix,
-    };
-    for (page, page_buf) in persistent_pages_data {
-        ProgramStorage::set_program_page_data(program_id, memory_infix, page, page_buf);
-    }
-
-    ProgramStorage::add_program(program_id, program)
-        .expect("benchmarking; program duplicates should not exist");
+    static_pages: WasmPagesAmount,
+) where
+    ProgramStorage: super::ProgramStorage<BlockNumber = BlockNumber>,
+    BlockNumber: Zero + Copy + Saturating,
+{
+    ProgramStorage::add_program(
+        program_id,
+        ActiveProgram {
+            allocations: Default::default(),
+            pages_with_data: Default::default(),
+            code_hash: CodeId::generate(&code).into_origin(),
+            code_exports: Default::default(),
+            static_pages,
+            state: ProgramState::Initialized,
+            gas_reservation_map: GasReservationMap::default(),
+            expiration_block: Zero::zero(),
+            memory_infix: MemoryInfix::new(1u32),
+        },
+    )
+    .expect("benchmarking; program duplicates should not exist");
 }

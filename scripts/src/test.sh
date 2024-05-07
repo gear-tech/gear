@@ -28,14 +28,21 @@ test_usage() {
     docs           run doc tests
     validators     run validator checks
     time-consuming run time consuming tests
+    typos          run typo tests
 EOF
 }
 
 workspace_test() {
   if [ "$CARGO" = "cargo xwin" ]; then
-    $CARGO test --workspace --exclude runtime-fuzzer --exclude runtime-fuzzer-fuzz --no-fail-fast "$@"
+    $CARGO test --workspace \
+      --exclude gclient --exclude gcli --exclude gsdk \
+      --exclude runtime-fuzzer --exclude runtime-fuzzer-fuzz \
+      --no-fail-fast "$@"
   else
-    cargo nextest run --workspace --exclude runtime-fuzzer --exclude runtime-fuzzer-fuzz --profile ci --no-fail-fast "$@"
+    cargo nextest run --workspace \
+      --exclude gclient --exclude gcli --exclude gsdk \
+      --exclude runtime-fuzzer --exclude runtime-fuzzer-fuzz \
+      --profile ci --no-fail-fast "$@"
   fi
 }
 
@@ -74,7 +81,7 @@ client_tests() {
 validators() {
     ROOT_DIR="$1"
 
-    $ROOT_DIR/target/release/validator-checks "${@:2}"
+    $ROOT_DIR/target/debug/validator-checks "${@:2}"
 }
 
 run_fuzzer() {
@@ -113,6 +120,18 @@ doc_test() {
 }
 
 time_consuming_tests() {
-  $CARGO test -p demo-fungible-token --no-fail-fast "$@" -- --nocapture --ignored
+  $CARGO test -p demo-fungible-token --no-fail-fast --release -- --nocapture --ignored
   $CARGO test -p gear-wasm-builder --no-fail-fast "$@" -- --nocapture --ignored
+}
+
+typo_tests() {
+  readonly COMMAND="typos"
+  readonly VERSION='typos-cli 1.20.3'
+
+  # Install typos-cli if not exist or outdated.
+  if ! [ -x "$(command -v ${COMMAND})" ] || [ "$($COMMAND --version)" != "$VERSION" ]; then
+    cargo install typos-cli
+  fi
+
+  typos
 }

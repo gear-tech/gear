@@ -23,6 +23,11 @@
 //!
 //! [ss58-codec]: https://paritytech.github.io/polkadot-sdk/master/sp_core/crypto/trait.Ss58Codec.html
 
+#![no_std]
+
+extern crate alloc;
+
+use alloc::{string::String, vec, vec::Vec};
 use anyhow::{anyhow, Result};
 use blake2::{Blake2b512, Digest};
 use core::sync::atomic::{AtomicU16, Ordering};
@@ -65,7 +70,7 @@ pub fn encode(data: &[u8]) -> String {
 pub fn decode(encoded: &[u8], body_len: usize) -> Result<Vec<u8>> {
     let data = bs58::decode(encoded)
         .into_vec()
-        .map_err(|e| anyhow!("Invalid ss58 data: {}", e))?;
+        .map_err(|e| anyhow!("Invalid ss58 data: {e}"))?;
     if data.len() < CHECKSUM_LENGTH {
         return Err(anyhow!("Invalid length of encoded ss58 data."));
     }
@@ -96,6 +101,11 @@ pub fn decode(encoded: &[u8], body_len: usize) -> Result<Vec<u8>> {
     }
 
     Ok(data[prefix_len..body_len + prefix_len].to_vec())
+}
+
+/// re-encoding a ss58 address in the current [`default_ss58_version`].
+pub fn recode(encoded: &str) -> Result<String> {
+    Ok(self::encode(&self::decode(encoded.as_bytes(), 32)?))
 }
 
 /// Get the default ss58 version.

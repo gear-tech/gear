@@ -72,7 +72,8 @@ fn install_stable_toolchain() {
 fn test_debug() {
     install_stable_toolchain();
 
-    CargoRunner::new().args(["test"]).run();
+    //TODO: uncomment after solving issue #3915
+    //CargoRunner::new().args(["test"]).run();
     CargoRunner::stable().args(["test"]).run();
 }
 
@@ -90,7 +91,8 @@ fn build_debug() {
 fn test_release() {
     install_stable_toolchain();
 
-    CargoRunner::new().args(["test", "--release"]).run();
+    //TODO: uncomment after solving issue #3915
+    //CargoRunner::new().args(["test", "--release"]).run();
     CargoRunner::stable().args(["test", "--release"]).run();
 }
 
@@ -120,4 +122,34 @@ fn no_infinite_build() {
     fs::write("test-program/src/rebuild_test.rs", "mod b {}").unwrap();
 
     CargoRunner::new().args(["build"]).run();
+}
+
+#[ignore]
+#[test]
+fn features_tracking() {
+    #[track_caller]
+    fn read_export_entry(name: &str) -> Option<parity_wasm::elements::ExportEntry> {
+        parity_wasm::deserialize_file(format!(
+            "test-program/target/wasm32-unknown-unknown/{}/test_program.wasm",
+            if cfg!(debug_assertions) {
+                "debug"
+            } else {
+                "release"
+            }
+        ))
+        .unwrap()
+        .export_section()
+        .unwrap()
+        .entries()
+        .iter()
+        .find(|entry| entry.field() == name)
+        .cloned()
+    }
+
+    CargoRunner::new().args(["build", "--features=a"]).run();
+    assert!(read_export_entry("handle_reply").is_some());
+    assert!(read_export_entry("handle_signal").is_none());
+    CargoRunner::new().args(["build", "--features=b"]).run();
+    assert!(read_export_entry("handle_signal").is_some());
+    assert!(read_export_entry("handle_reply").is_none());
 }

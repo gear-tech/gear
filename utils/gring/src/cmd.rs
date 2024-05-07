@@ -34,6 +34,9 @@ pub enum Command {
     Add {
         /// The path of the keystore file.
         path: PathBuf,
+        /// Convert the wallet address to VARA address.
+        #[clap(short, long)]
+        convert_to_vara: bool,
     },
     /// Generate a new key.
     New {
@@ -43,7 +46,7 @@ pub enum Command {
         #[arg(short, long)]
         passphrase: String,
         /// If the key should be a vanity key.
-        #[arg(short, long)]
+        #[arg(long)]
         vanity: Option<String>,
     },
     /// List all keys in keystore.
@@ -52,6 +55,9 @@ pub enum Command {
         /// If only list the primary key.
         #[arg(short, long)]
         primary: bool,
+        /// Force listing addresses in VARA format.
+        #[arg(short, long)]
+        force_vara: bool,
     },
     /// Use the provided key as primary key.
     Use {
@@ -114,8 +120,15 @@ impl Command {
     pub fn run(self) -> Result<()> {
         let mut keyring = Keyring::load(Command::store()?)?;
         match self {
-            Command::Add { path } => {
-                let keystore = serde_json::from_str::<Keystore>(&fs::read_to_string(&path)?)?;
+            Command::Add {
+                path,
+                convert_to_vara,
+            } => {
+                let mut keystore = serde_json::from_str::<Keystore>(&fs::read_to_string(&path)?)?;
+                if convert_to_vara {
+                    keystore.address = ss58::recode(&keystore.address)?;
+                }
+
                 let name = path
                     .file_stem()
                     .map(|s| s.to_string_lossy().to_string())
@@ -127,7 +140,10 @@ impl Command {
                     .find(|k| k.meta.name == keystore.meta.name)
                     .map_or_else(
                         || {
-                            fs::copy(&path, keyring.store.join(&name).with_extension("json"))?;
+                            fs::write(
+                                keyring.store.join(&name).with_extension("json"),
+                                serde_json::to_string_pretty(&keystore)?,
+                            )?;
                             println!(
                                 "Key {} has been imported!",
                                 keystore.meta.name.cyan().bold()
@@ -183,9 +199,15 @@ impl Command {
                     path.display().to_string().underline()
                 );
             }
-            Command::List { primary } => {
-                let key = keyring.primary()?;
+            Command::List {
+                primary,
+                force_vara,
+            } => {
                 if primary {
+                    let mut key = keyring.primary()?;
+                    if force_vara {
+                        key.address = ss58::recode(&key.address)?;
+                    }
                     Self::print_key(&key);
                     return Ok(());
                 }
@@ -196,6 +218,10 @@ impl Command {
                 for key in keyring.list() {
                     let mut name: ColoredString = key.meta.name.clone().into();
                     let mut address: ColoredString = key.address.clone().into();
+                    if force_vara {
+                        address = ss58::recode(&address)?.into();
+                    }
+
                     if key.meta.name == keyring.primary {
                         name = name.cyan();
                         address = address.cyan();

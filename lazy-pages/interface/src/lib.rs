@@ -27,10 +27,10 @@ use core::fmt;
 use gear_core::{
     ids::ProgramId,
     memory::{HostPointer, Memory, MemoryInterval},
-    pages::{GearPage, PageNumber, PageU32Size, WasmPage},
+    pages::{GearPage, WasmPage, WasmPagesAmount},
     program::MemoryInfix,
 };
-use gear_lazy_pages_common::{GlobalsAccessConfig, LazyPagesWeights, ProcessAccessError, Status};
+use gear_lazy_pages_common::{GlobalsAccessConfig, LazyPagesCosts, ProcessAccessError, Status};
 use gear_runtime_interface::{gear_ri, LazyPagesProgramContext};
 use sp_std::{mem, vec::Vec};
 
@@ -55,31 +55,31 @@ pub fn init_for_program(
     memory_infix: MemoryInfix,
     stack_end: Option<WasmPage>,
     globals_config: GlobalsAccessConfig,
-    weights: LazyPagesWeights,
+    costs: LazyPagesCosts,
 ) {
-    let weights = [
-        weights.signal_read,
-        weights.signal_write,
-        weights.signal_write_after_read,
-        weights.host_func_read,
-        weights.host_func_write,
-        weights.host_func_write_after_read,
-        weights.load_page_storage_data,
+    let costs = [
+        costs.signal_read,
+        costs.signal_write,
+        costs.signal_write_after_read,
+        costs.host_func_read,
+        costs.host_func_write,
+        costs.host_func_write_after_read,
+        costs.load_page_storage_data,
     ]
-    .map(|w| w.one())
+    .map(|w| w.cost_for_one())
     .to_vec();
 
     let ctx = LazyPagesProgramContext {
         wasm_mem_addr: mem.get_buffer_host_addr(),
-        wasm_mem_size: mem.size().raw(),
-        stack_end: stack_end.map(|p| p.raw()),
+        wasm_mem_size: mem.size().into(),
+        stack_end: stack_end.map(|p| p.into()),
         program_key: {
             let memory_infix = memory_infix.inner().to_le_bytes();
 
             [program_id.as_ref(), memory_infix.as_ref()].concat()
         },
         globals_config,
-        weights,
+        costs,
     };
 
     // Cannot panic unless OS allocates buffer in not aligned by native page addr, or
@@ -97,7 +97,7 @@ pub fn remove_lazy_pages_prot(mem: &mut impl Memory) {
 pub fn update_lazy_pages_and_protect_again(
     mem: &mut impl Memory,
     old_mem_addr: Option<HostPointer>,
-    old_mem_size: WasmPage,
+    old_mem_size: WasmPagesAmount,
     new_mem_addr: HostPointer,
 ) {
     struct PointerDisplay(HostPointer);
@@ -124,7 +124,7 @@ pub fn update_lazy_pages_and_protect_again(
     };
 
     let new_mem_size = mem.size();
-    let changed_size = (new_mem_size > old_mem_size).then_some(new_mem_size.raw());
+    let changed_size = (new_mem_size > old_mem_size).then_some(new_mem_size.into());
 
     if !matches!((changed_addr, changed_size), (None, None)) {
         gear_ri::change_wasm_memory_addr_and_size(changed_addr, changed_size)
@@ -138,8 +138,9 @@ pub fn get_write_accessed_pages() -> Vec<GearPage> {
     gear_ri::write_accessed_pages()
         .into_iter()
         .map(|p| {
-            GearPage::new(p)
-                .unwrap_or_else(|_| unreachable!("Lazy pages backend returns wrong pages"))
+            GearPage::try_from(p).unwrap_or_else(|_| {
+                unreachable!("Lazy pages backend returns wrong write accessed pages")
+            })
         })
         .collect()
 }

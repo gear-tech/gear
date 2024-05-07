@@ -18,13 +18,17 @@
 
 //! Wasmer specific impls for sandbox
 
-use std::{cell::RefCell, collections::HashMap, rc::Rc};
-
-use sandbox_wasmer::{Exportable, RuntimeError};
-use sandbox_wasmer_types::TrapCode;
+use std::{
+    cell::RefCell,
+    collections::HashMap,
+    rc::Rc,
+    sync::{Arc, Mutex, OnceLock},
+};
 
 use codec::{Decode, Encode};
 use gear_sandbox_env::{HostError, Instantiate, WasmReturnValue, GLOBAL_NAME_GAS};
+use sandbox_wasmer::{Exportable, Module, RuntimeError};
+use sandbox_wasmer_types::TrapCode;
 use sp_wasm_interface_common::{util, Pointer, ReturnValue, Value, WordSize};
 
 use crate::{
@@ -46,15 +50,26 @@ enum CachedModuleErr {
 
 #[cfg(feature = "wasmer-cache")]
 use {
-    sandbox_wasmer::Module,
-    std::sync::OnceLock,
     tempfile::TempDir,
+    uluru::LRUCache,
     wasmer_cache::{Cache, FileSystemCache, Hash},
     CachedModuleErr::*,
 };
 
+type CachedModule = (Vec<u8>, Arc<Module>);
+
+// CachedModules holds a mutex-protected LRU cache of compiled wasm modules.
+// This allows for efficient reuse of modules across invocations.
+type CachedModules = Mutex<LRUCache<CachedModule, 1024>>;
+
 #[cfg(feature = "wasmer-cache")]
 static CACHE_DIR: OnceLock<TempDir> = OnceLock::new();
+
+// The cached_modules function provides thread-safe access to the CACHED_MODULES static.
+fn cached_modules() -> &'static CachedModules {
+    static CACHED_MODULES: OnceLock<CachedModules> = OnceLock::new();
+    CACHED_MODULES.get_or_init(|| Mutex::new(LRUCache::default()))
+}
 
 /// Wasmer specific context
 pub struct Backend {
@@ -152,26 +167,53 @@ pub fn invoke(
 fn get_cached_module(
     wasm: &[u8],
     store: &sandbox_wasmer::Store,
-) -> core::result::Result<Module, CachedModuleErr> {
-    let cache_path = CACHE_DIR
-        .get_or_init(|| {
-            tempfile::tempdir().expect("Cannot create temporary directory for wasmer caches")
-        })
-        .path();
-    log::trace!("Wasmer sandbox cache dir is: {cache_path:?}");
+) -> core::result::Result<Arc<Module>, CachedModuleErr> {
+    let maybe_module = cached_modules()
+        .lock()
+        .expect("CACHED_MODULES lock fail")
+        .find(|x| x.0 == wasm)
+        .cloned();
 
-    let fs_cache = FileSystemCache::new(cache_path).map_err(|_| FileSystemErr)?;
-    let code_hash = Hash::generate(wasm);
-    unsafe {
-        fs_cache
-            .load(store, code_hash)
-            .map_err(|_| ModuleLoadErr(fs_cache, code_hash))
+    // Try to load from LRU cache first
+    if let Some((_, module)) = maybe_module {
+        Ok(module)
+    } else {
+        // Try to load from tempfile cache
+        let cache_path = CACHE_DIR
+            .get_or_init(|| {
+                tempfile::tempdir().expect("Cannot create temporary directory for wasmer caches")
+            })
+            .path();
+        log::trace!("Wasmer sandbox cache dir is: {cache_path:?}");
+
+        let fs_cache = FileSystemCache::new(cache_path).map_err(|_| FileSystemErr)?;
+
+        let code_hash = Hash::generate(wasm);
+        let module = Arc::new(unsafe {
+            fs_cache
+                .load(store, code_hash)
+                .map_err(|_| ModuleLoadErr(fs_cache, code_hash))?
+        });
+        cached_modules()
+            .lock()
+            .expect("CACHED_MODULES lock fail")
+            .insert((wasm.to_vec(), module.clone()));
+        Ok(module)
     }
 }
 
 #[cfg(feature = "wasmer-cache")]
-fn try_to_store_module_in_cache(mut fs_cache: FileSystemCache, code_hash: Hash, module: &Module) {
-    let res = fs_cache.store(code_hash, &module.clone());
+fn try_to_store_module_in_cache(
+    mut fs_cache: FileSystemCache,
+    code_hash: Hash,
+    wasm: &[u8],
+    module: &Arc<Module>,
+) {
+    let _ = cached_modules()
+        .lock()
+        .expect("CACHED_MODULES lock fail")
+        .insert((wasm.to_vec(), module.clone()));
+    let res = fs_cache.store(code_hash, module);
     log::trace!("Store module cache with result: {:?}", res);
 }
 
@@ -191,12 +233,14 @@ pub fn instantiate(
         }
         Err(err) => {
             log::trace!("Cache for program has not been found, so compile it now");
-            let module = sandbox_wasmer::Module::new(&context.store, wasm)
-                .map_err(|_| InstantiationError::ModuleDecoding)?;
+            let module = Arc::new(
+                Module::new(&context.store, wasm)
+                    .map_err(|_| InstantiationError::ModuleDecoding)?,
+            );
             match err {
                 CachedModuleErr::FileSystemErr => log::error!("Cannot open fs cache"),
                 CachedModuleErr::ModuleLoadErr(fs_cache, code_hash) => {
-                    try_to_store_module_in_cache(fs_cache, code_hash, &module)
+                    try_to_store_module_in_cache(fs_cache, code_hash, wasm, &module)
                 }
             };
             module
@@ -204,8 +248,8 @@ pub fn instantiate(
     };
 
     #[cfg(not(feature = "wasmer-cache"))]
-    let module = sandbox_wasmer::Module::new(&context.store, wasm)
-        .map_err(|_| InstantiationError::ModuleDecoding)?;
+    let module =
+        Module::new(&context.store, wasm).map_err(|_| InstantiationError::ModuleDecoding)?;
 
     type Exports = HashMap<String, sandbox_wasmer::Exports>;
     let mut exports_map = Exports::new();

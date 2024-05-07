@@ -18,7 +18,11 @@
 
 //! Module for programs.
 
-use crate::{code::InstrumentedCode, ids::ProgramId, pages::WasmPage};
+use crate::{
+    code::InstrumentedCode,
+    ids::ProgramId,
+    pages::{WasmPage, WasmPagesAmount},
+};
 use alloc::collections::BTreeSet;
 use scale_info::{
     scale::{Decode, Encode},
@@ -42,7 +46,7 @@ impl MemoryInfix {
 }
 
 /// Program.
-#[derive(Clone, Debug, Decode, Encode)]
+#[derive(Clone, Debug)]
 pub struct Program {
     id: ProgramId,
     memory_infix: MemoryInfix,
@@ -98,8 +102,13 @@ impl Program {
     }
 
     /// Get initial memory size for this program.
-    pub fn static_pages(&self) -> WasmPage {
+    pub fn static_pages(&self) -> WasmPagesAmount {
         self.code.static_pages()
+    }
+
+    /// Get stack end page if exists.
+    pub fn stack_end(&self) -> Option<WasmPage> {
+        self.code.stack_end()
     }
 
     /// Get allocations as a set of page numbers.
@@ -114,13 +123,11 @@ impl Program {
 }
 
 #[cfg(test)]
-/// This module contains tests of `fn encode_hex(bytes: &[u8]) -> String`
-/// and ProgramId's `fn from_slice(s: &[u8]) -> Self` constructor
 mod tests {
     use super::Program;
-    use crate::{code::Code, ids::ProgramId};
+    use crate::{code::Code, ids::ProgramId, pages::WasmPagesAmount};
     use alloc::vec::Vec;
-    use gear_wasm_instrument::wasm_instrument::gas_metering::ConstantCostRules;
+    use gear_wasm_instrument::gas_metering::CustomConstantCostRules;
 
     fn parse_wat(source: &str) -> Vec<u8> {
         let module_bytes = wabt::Wat2Wasm::new()
@@ -164,12 +171,12 @@ mod tests {
 
         let binary: Vec<u8> = parse_wat(wat);
 
-        let code = Code::try_new(binary, 1, |_| ConstantCostRules::default(), None).unwrap();
+        let code = Code::try_new(binary, 1, |_| CustomConstantCostRules::default(), None).unwrap();
         let (code, _) = code.into_parts();
         let program = Program::new(ProgramId::from(1), Default::default(), code);
 
         // 2 static pages
-        assert_eq!(program.static_pages(), 2.into());
+        assert_eq!(program.static_pages(), WasmPagesAmount::from(2));
 
         // Has no allocations because we do not set them in new
         assert_eq!(program.allocations().len(), 0);

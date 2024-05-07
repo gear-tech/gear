@@ -19,7 +19,7 @@
 use crate::{self as pallet_gear_staking_rewards, CurrencyOf};
 use core::marker::PhantomData;
 use frame_election_provider_support::{
-    onchain, ElectionDataProvider, SequentialPhragmen, VoteWeight,
+    bounds::ElectionBoundsBuilder, onchain, ElectionDataProvider, SequentialPhragmen, VoteWeight,
 };
 use frame_support::{
     construct_runtime, parameter_types,
@@ -34,7 +34,7 @@ use sp_core::{crypto::key_types, H256};
 use sp_runtime::{
     testing::{Block as TestBlock, UintAuthorityId},
     traits::{BlakeTwo256, IdentityLookup, One, OpaqueKeys, Scale},
-    BuildStorage, KeyTypeId, Perbill, Permill, Perquintill,
+    BuildStorage, KeyTypeId, Perbill, Percent, Permill, Perquintill,
 };
 use sp_std::convert::{TryFrom, TryInto};
 
@@ -233,6 +233,8 @@ parameter_types! {
     pub const MaxElectableTargets: u16 = 10_000;
     pub const MaxOnChainElectingVoters: u32 = 500;
     pub const MaxOnChainElectableTargets: u16 = 100;
+    pub ElectionBounds: frame_election_provider_support::bounds::ElectionBounds =
+        ElectionBoundsBuilder::default().voters_count(MaxElectingVoters::get().into()).build();
 }
 
 frame_election_provider_support::generate_solution_type!(
@@ -252,12 +254,10 @@ impl<T: frame_system::Config + pallet_staking::Config> onchain::Config for OnCha
     type DataProvider = pallet_staking::Pallet<T>;
     type WeightInfo = ();
     type MaxWinners = MaxActiveValidators;
-    type VotersBound = MaxOnChainElectingVoters;
-    type TargetsBound = MaxOnChainElectableTargets;
+    type Bounds = ElectionBounds;
 }
 
 impl pallet_staking::Config for Test {
-    type MaxNominations = MaxNominations;
     type Currency = Balances;
     type UnixTime = Timestamp;
     type CurrencyBalance = <Self as pallet_balances::Config>::Balance;
@@ -279,6 +279,7 @@ impl pallet_staking::Config for Test {
     type OffendingValidatorsThreshold = OffendingValidatorsThreshold;
     type VoterList = BagsList;
     type TargetList = pallet_staking::UseValidatorsMap<Self>;
+    type NominationsQuota = pallet_staking::FixedNominationsQuota<16>;
     type MaxUnlockingChunks = ConstU32<32>;
     type HistoryDepth = HistoryDepth;
     type EventListeners = ();
@@ -375,6 +376,10 @@ parameter_types! {
     pub BetterUnsignedThreshold: Perbill = Perbill::zero();
     pub SignedMaxWeight: Weight = Weight::from_parts(u64::MAX, u64::MAX);
 
+    pub static MaxVotesPerVoter: u32 = 16;
+    pub static SignedFixedDeposit: Balance = 1;
+    pub static SignedDepositIncreaseFactor: Percent = Percent::from_percent(10);
+
     // miner configs
     pub static MinerTxPriority: u64 = 100;
     pub static MinerMaxWeight: Weight = Weight::from_parts(u64::MAX, u64::MAX);
@@ -418,7 +423,8 @@ impl multi_phase::Config for Test {
     type OffchainRepeat = OffchainRepeat;
     type MinerTxPriority = MinerTxPriority;
     type SignedRewardBase = SignedRewardBase;
-    type SignedDepositBase = SignedDepositBase;
+    type SignedDepositBase =
+        multi_phase::GeometricDepositBase<Balance, SignedFixedDeposit, SignedDepositIncreaseFactor>;
     type SignedDepositByte = ();
     type SignedDepositWeight = ();
     type SignedMaxWeight = SignedMaxWeight;
@@ -430,9 +436,8 @@ impl multi_phase::Config for Test {
     type Fallback = onchain::OnChainExecution<OnChainSeqPhragmen<Self>>;
     type GovernanceFallback = onchain::OnChainExecution<OnChainSeqPhragmen<Self>>;
     type ForceOrigin = frame_system::EnsureRoot<AccountId>;
-    type MaxElectableTargets = MaxElectableTargets;
     type MaxWinners = MaxActiveValidators;
-    type MaxElectingVoters = MaxElectingVoters;
+    type ElectionBounds = ElectionBounds;
     type WeightInfo = ();
     type BenchmarkingConfig = TestBenchmarkingConfig;
     type MinerConfig = Self;
@@ -814,7 +819,6 @@ pub(crate) mod two_block_producers {
     common::impl_pallet_balances!(Test);
 
     impl pallet_staking::Config for Test {
-        type MaxNominations = MaxNominations;
         type Currency = Balances;
         type UnixTime = Timestamp;
         type CurrencyBalance = <Self as pallet_balances::Config>::Balance;
@@ -836,6 +840,7 @@ pub(crate) mod two_block_producers {
         type OffendingValidatorsThreshold = OffendingValidatorsThreshold;
         type VoterList = BagsList;
         type TargetList = pallet_staking::UseValidatorsMap<Self>;
+        type NominationsQuota = pallet_staking::FixedNominationsQuota<16>;
         type MaxUnlockingChunks = ConstU32<32>;
         type HistoryDepth = HistoryDepth;
         type EventListeners = ();
@@ -926,7 +931,11 @@ pub(crate) mod two_block_producers {
         type OffchainRepeat = OffchainRepeat;
         type MinerTxPriority = MinerTxPriority;
         type SignedRewardBase = SignedRewardBase;
-        type SignedDepositBase = SignedDepositBase;
+        type SignedDepositBase = multi_phase::GeometricDepositBase<
+            Balance,
+            SignedFixedDeposit,
+            SignedDepositIncreaseFactor,
+        >;
         type SignedDepositByte = ();
         type SignedDepositWeight = ();
         type SignedMaxWeight = SignedMaxWeight;
@@ -938,9 +947,8 @@ pub(crate) mod two_block_producers {
         type Fallback = onchain::OnChainExecution<OnChainSeqPhragmen<Self>>;
         type GovernanceFallback = onchain::OnChainExecution<OnChainSeqPhragmen<Self>>;
         type ForceOrigin = frame_system::EnsureRoot<AccountId>;
-        type MaxElectableTargets = MaxElectableTargets;
         type MaxWinners = MaxActiveValidators;
-        type MaxElectingVoters = MaxElectingVoters;
+        type ElectionBounds = ElectionBounds;
         type WeightInfo = ();
         type BenchmarkingConfig = TestBenchmarkingConfig;
         type MinerConfig = Self;

@@ -18,10 +18,7 @@
 
 //! Common structures for processing.
 
-use crate::{
-    context::SystemReservationContext, executor::SystemPrepareMemoryError,
-    precharge::PreChargeGasOperation, ActorPrepareMemoryError,
-};
+use crate::{context::SystemReservationContext, precharge::PreChargeGasOperation};
 use actor_system_error::actor_system_error;
 use alloc::{
     collections::{BTreeMap, BTreeSet},
@@ -31,18 +28,17 @@ use alloc::{
 use gear_core::{
     gas::{GasAllowanceCounter, GasAmount, GasCounter},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
-    memory::{MemoryError, PageBuf},
+    memory::{MemoryError, MemorySetupError, PageBuf},
     message::{
         ContextStore, Dispatch, DispatchKind, IncomingDispatch, MessageWaitedType, StoredDispatch,
     },
-    pages::{GearPage, WasmPage},
+    pages::{GearPage, WasmPage, WasmPagesAmount},
     program::{MemoryInfix, Program},
     reservation::{GasReservationMap, GasReserver},
 };
 pub use gear_core_backend::error::TrapExplanation;
 use gear_core_backend::{env::SystemEnvironmentError, error::SystemTerminationReason};
 use gear_core_errors::{SignalCode, SimpleExecutionError};
-use scale_info::scale::{self, Decode, Encode};
 
 /// Kind of the dispatch result.
 #[derive(Clone)]
@@ -86,7 +82,7 @@ pub struct DispatchResult {
     /// Page updates.
     pub page_update: BTreeMap<GearPage, PageBuf>,
     /// New allocations set for program if it has been changed.
-    pub allocations: BTreeSet<WasmPage>,
+    pub allocations: Option<BTreeSet<WasmPage>>,
     /// Whether this execution sent out a reply.
     pub reply_sent: bool,
 }
@@ -338,13 +334,6 @@ pub enum JournalNote {
         /// Amount of gas for reply.
         amount: u64,
     },
-    /// Append message to waiting init list and wait list for future wake.
-    WaitingInitMessage {
-        /// Incoming dispatch of the message.
-        dispatch: IncomingDispatch,
-        /// Destination of the message.
-        destination: ProgramId,
-    },
 }
 
 /// Journal handler.
@@ -427,8 +416,6 @@ pub trait JournalHandler {
     fn send_signal(&mut self, message_id: MessageId, destination: ProgramId, code: SignalCode);
     /// Create deposit for future reply.
     fn reply_deposit(&mut self, message_id: MessageId, future_reply_id: MessageId, amount: u64);
-    /// Append message to waiting init list and wait list for future wake.
-    fn waiting_init_message(&mut self, dispatch: IncomingDispatch, destination: ProgramId);
 }
 
 actor_system_error! {
@@ -447,21 +434,24 @@ pub struct ActorExecutionError {
 }
 
 /// Reason of execution error
-#[derive(Encode, Decode, Debug, PartialEq, Eq, PartialOrd, Ord, derive_more::Display)]
-#[codec(crate = scale)]
+#[derive(Debug, PartialEq, Eq, derive_more::Display)]
 pub enum ActorExecutionErrorReplyReason {
     /// Not enough gas to perform an operation during precharge.
     #[display(fmt = "Not enough gas to {_0}")]
     PreChargeGasLimitExceeded(PreChargeGasOperation),
-    /// Prepare memory error
-    #[display(fmt = "{_0}")]
-    PrepareMemory(ActorPrepareMemoryError),
     /// Backend error
     #[display(fmt = "Environment error: <host error stripped>")]
     Environment,
     /// Trap explanation
     #[display(fmt = "{_0}")]
     Trap(TrapExplanation),
+    // TODO: move this to SystemExecutionError after runtime upgrade,
+    // if wait-list does not contain messages with total outgoing bytes more than `OutgoingBytesLimit` #3751.
+    /// Message is not supported now
+    #[display(
+        fmt = "Message is not supported: outgoing bytes limit is exceeded after runtime-upgrade"
+    )]
+    UnsupportedMessage,
 }
 
 impl ActorExecutionErrorReplyReason {
@@ -469,7 +459,6 @@ impl ActorExecutionErrorReplyReason {
     pub fn as_simple(&self) -> SimpleExecutionError {
         match self {
             Self::PreChargeGasLimitExceeded(_) => SimpleExecutionError::RanOutOfGas,
-            Self::PrepareMemory(_) | Self::Environment => SimpleExecutionError::Unsupported,
             Self::Trap(expl) => match expl {
                 TrapExplanation::GasLimitExceeded => SimpleExecutionError::RanOutOfGas,
                 TrapExplanation::ForbiddenFunction | TrapExplanation::UnrecoverableExt(_) => {
@@ -480,6 +469,7 @@ impl ActorExecutionErrorReplyReason {
                 TrapExplanation::StackLimitExceeded => SimpleExecutionError::StackLimitExceeded,
                 TrapExplanation::Unknown => SimpleExecutionError::UnreachableInstruction,
             },
+            Self::Environment | Self::UnsupportedMessage => SimpleExecutionError::Unsupported,
         }
     }
 }
@@ -487,10 +477,10 @@ impl ActorExecutionErrorReplyReason {
 /// System execution error
 #[derive(Debug, derive_more::Display, derive_more::From)]
 pub enum SystemExecutionError {
-    /// Prepare memory error
+    /// Incorrect memory parameters
     #[from]
-    #[display(fmt = "Prepare memory: {_0}")]
-    PrepareMemory(SystemPrepareMemoryError),
+    #[display(fmt = "Memory parameters error: {_0}")]
+    MemoryParams(MemorySetupError),
     /// Environment error
     #[display(fmt = "Backend error: {_0}")]
     Environment(SystemEnvironmentError),
@@ -501,6 +491,10 @@ pub enum SystemExecutionError {
     /// Error during `into_ext_info()` call
     #[display(fmt = "`into_ext_info()` error: {_0}")]
     IntoExtInfo(MemoryError),
+    // TODO: uncomment when #3751
+    // /// Incoming dispatch store has too many outgoing messages total bytes.
+    // #[display(fmt = "Incoming dispatch store has too many outgoing messages total bytes")]
+    // MessageStoreOutgoingBytesOverflow,
 }
 
 /// Actor.
@@ -528,7 +522,7 @@ pub struct ExecutableActorData {
     /// Exported functions by the program code.
     pub code_exports: BTreeSet<DispatchKind>,
     /// Count of static memory pages.
-    pub static_pages: WasmPage,
+    pub static_pages: WasmPagesAmount,
     /// Gas reservation map.
     pub gas_reservation_map: GasReservationMap,
 }
@@ -545,7 +539,7 @@ pub struct WasmExecutionContext {
     /// Program to be executed.
     pub program: Program,
     /// Size of the memory block.
-    pub memory_size: WasmPage,
+    pub memory_size: WasmPagesAmount,
 }
 
 /// Struct with dispatch and counters charged for program data.

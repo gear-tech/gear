@@ -2,17 +2,17 @@ name: Release
 
 on:
   push:
-    tags: ["*"]
+    tags: [ "*" ]
 
 env:
-  CARGO_INCREMENTAL: 0
   CARGO_TERM_COLOR: always
   TERM: xterm-256color
+  GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
 
 jobs:
   changelog:
     name: Generate changelog
-    runs-on: [kuberunner]
+    runs-on: [ kuberunner ]
     outputs:
       release_body: ${{ steps.git-cliff.outputs.content }}
     steps:
@@ -32,7 +32,7 @@ jobs:
 
   build:
     needs: changelog
-    runs-on: [kuberunner]
+    runs-on: [ kuberunner ]
     steps:
       - name: "Actions: Checkout"
         uses: actions/checkout@v4
@@ -82,7 +82,7 @@ jobs:
           strip artifact/gear || true
 
       - name: Publish
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           body: ${{ needs.changelog.outputs.release_body }}
           files: artifact/*

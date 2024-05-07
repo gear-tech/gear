@@ -30,8 +30,6 @@ macro_rules! impl_config {
         #[allow(dead_code)]
         type GearConfigBuiltinDispatcherFactory = ();
         #[allow(dead_code)]
-        type GearConfigBuiltinCache = ();
-        #[allow(dead_code)]
         type GearRentPoolId = ();
 
         mod pallet_tests_gear_config_impl {
@@ -51,6 +49,7 @@ macro_rules! impl_config_inner {
             type WeightInfo = pallet_gear::weights::SubstrateWeight<Self>;
             type Schedule = GearConfigSchedule;
             type OutgoingLimit = OutgoingLimit;
+            type OutgoingBytesLimit = OutgoingBytesLimit;
             type PerformanceMultiplier = PerformanceMultiplier;
             type DebugInfo = GearConfigDebugInfo;
             type CodeStorage = GearProgram;
@@ -63,7 +62,6 @@ macro_rules! impl_config_inner {
             type Scheduler = GearScheduler;
             type QueueRunner = Gear;
             type BuiltinDispatcherFactory = GearConfigBuiltinDispatcherFactory;
-            type BuiltinCache = GearConfigBuiltinCache;
             type ProgramRentFreePeriod = RentFreePeriod;
             type ProgramResumeMinimalRentPeriod = ResumeMinimalPeriod;
             type ProgramRentCostPerBlock = RentCostPerBlock;
@@ -94,12 +92,6 @@ macro_rules! impl_config_inner {
 
     ($runtime:ty, BuiltinDispatcherFactory = $builtin_dispatcher_factory:ty $(, $( $rest:tt )*)?) => {
         type GearConfigBuiltinDispatcherFactory = $builtin_dispatcher_factory;
-
-        $crate::impl_config_inner!($runtime, $($( $rest )*)?);
-    };
-
-    ($runtime:ty, BuiltinCache = $builtin_cache:ty $(, $( $rest:tt )*)?) => {
-        type GearConfigBuiltinCache = $builtin_cache;
 
         $crate::impl_config_inner!($runtime, $($( $rest )*)?);
     };

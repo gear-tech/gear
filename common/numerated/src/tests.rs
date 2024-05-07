@@ -18,59 +18,8 @@
 
 //! Property testing for Numerated, Interval and IntervalsTree.
 
-use crate::{
-    mock::{self, IntervalAction, TreeAction},
-    Bound, IntervalIterator, Numerated,
-};
-use alloc::{collections::BTreeSet, fmt::Debug, vec::Vec};
-use num_traits::bounds::{LowerBounded, UpperBounded};
-use proptest::{
-    arbitrary::{any, Arbitrary},
-    prop_oneof, proptest,
-    strategy::Strategy,
-    test_runner::Config as ProptestConfig,
-};
-
-struct Generator<T>(T);
-
-impl<T> Generator<T>
-where
-    T: Numerated + Arbitrary + Debug + LowerBounded + UpperBounded,
-    T::Bound: Debug,
-{
-    fn rand_interval() -> impl Strategy<Value = IntervalIterator<T>> {
-        any::<(T, T)>().prop_map(|(p1, p2)| (p1.min(p2)..=p1.max(p2)).try_into().unwrap())
-    }
-
-    fn interval_action() -> impl Strategy<Value = IntervalAction<T>> {
-        let start = any::<Option<T>>();
-        let end = any::<Option<T>>();
-        (start, end).prop_map(|(start, end)| {
-            let start: T::Bound = start.into();
-            let end: T::Bound = end.into();
-            match (start.unbound(), end.unbound()) {
-                (_, None) => IntervalAction::Correct(start, end),
-                (Some(s), Some(e)) if s <= e => IntervalAction::Correct(start, end),
-                (Some(_), Some(_)) => IntervalAction::Incorrect(start, end),
-                (None, Some(_)) => IntervalAction::Incorrect(start, end),
-            }
-        })
-    }
-
-    fn rand_set() -> impl Strategy<Value = BTreeSet<T>> {
-        proptest::collection::btree_set(any::<T>(), 0..1000)
-    }
-
-    fn tree_actions() -> impl Strategy<Value = Vec<TreeAction<T>>> {
-        let action = prop_oneof![
-            Self::rand_interval().prop_map(TreeAction::Insert),
-            Self::rand_interval().prop_map(TreeAction::Remove),
-            Self::rand_interval().prop_map(TreeAction::Voids),
-            Self::rand_set().prop_map(TreeAction::Difference),
-        ];
-        proptest::collection::vec(action, 10..20)
-    }
-}
+use crate::mock::{self, IntervalAction};
+use proptest::{arbitrary::any, proptest, test_runner::Config as ProptestConfig};
 
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(10_000))]
@@ -81,7 +30,7 @@ proptest! {
     }
 
     #[test]
-    fn proptest_interval_i16(action in Generator::<i16>::interval_action()) {
+    fn proptest_interval_i16(action in any::<IntervalAction::<i16>>()) {
         mock::test_interval(action);
     }
 
@@ -91,7 +40,7 @@ proptest! {
     }
 
     #[test]
-    fn proptest_interval_u16(action in Generator::<u16>::interval_action()) {
+    fn proptest_interval_u16(action in any::<IntervalAction::<u16>>()) {
         mock::test_interval(action);
     }
 }
@@ -100,12 +49,12 @@ proptest! {
     #![proptest_config(ProptestConfig::with_cases(128))]
 
     #[test]
-    fn proptest_tree_i16(actions in Generator::<i16>::tree_actions(), initial in Generator::<i16>::rand_set()) {
+    fn proptest_tree_i16((initial, actions) in mock::tree_actions::<i16>(0..1000, 10..20)) {
         mock::test_tree(initial, actions);
     }
 
     #[test]
-    fn proptest_tree_u16(actions in Generator::<u16>::tree_actions(), initial in Generator::<u16>::rand_set()) {
+    fn proptest_tree_u16((initial, actions) in mock::tree_actions::<i16>(0..1000, 10..20)) {
         mock::test_tree(initial, actions);
     }
 }

@@ -180,6 +180,14 @@ impl From<Signer> for GearApi {
     }
 }
 
+impl From<Api> for GearApi {
+    fn from(api: Api) -> Self {
+        Signer::new(api, "//Alice", None)
+            .expect("//Alice always works")
+            .into()
+    }
+}
+
 impl From<(Api, sr25519::Pair)> for GearApi {
     fn from((api, signer): (Api, sr25519::Pair)) -> Self {
         Signer::from((api, signer.into())).into()

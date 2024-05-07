@@ -136,8 +136,6 @@
 #![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
 #![doc(html_favicon_url = "https://gear-tech.io/favicons/favicon.ico")]
 
-pub mod migrations;
-
 // Runtime mock for running tests.
 #[cfg(test)]
 mod mock;
@@ -157,14 +155,13 @@ pub mod pallet {
     pub use frame_support::weights::Weight;
 
     use common::{storage::*, BlockLimiter, Origin};
-    use frame_support::{
-        dispatch::DispatchError, pallet_prelude::*, storage::PrefixIterator, traits::StorageVersion,
-    };
+    use frame_support::{pallet_prelude::*, storage::PrefixIterator, traits::StorageVersion};
     use frame_system::pallet_prelude::BlockNumberFor;
     use gear_core::{
         ids::{MessageId, ProgramId},
         message::{StoredDelayedDispatch, StoredDispatch, UserStoredMessage},
     };
+    use sp_runtime::DispatchError;
     use sp_std::{convert::TryInto, marker::PhantomData};
 
     /// The current storage version.
