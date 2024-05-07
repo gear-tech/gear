@@ -156,7 +156,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     // The version of the runtime specification. A full node will not attempt to use its native
     //   runtime in substitute for the on-chain Wasm runtime unless all of `spec_name`,
     //   `spec_version`, and `authoring_version` are the same between Wasm and native.
-    spec_version: 1300,
+    spec_version: 1310,
     impl_version: 1,
     apis: RUNTIME_API_VERSIONS,
     transaction_version: 1,
@@ -1111,7 +1111,7 @@ impl pallet_gear_payment::Config for Runtime {
 
 parameter_types! {
     pub const VoucherPalletId: PalletId = PalletId(*b"py/vouch");
-    pub const MinVoucherDuration: BlockNumber = 30 * MINUTES;
+    pub const MinVoucherDuration: BlockNumber = MINUTES;
     pub const MaxVoucherDuration: BlockNumber = 3 * MONTHS;
 }
 

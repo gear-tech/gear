@@ -1135,6 +1135,7 @@ pub mod pallet {
                 schedule.instruction_weights.version,
                 |module| schedule.rules(module),
                 schedule.limits.stack_height,
+                schedule.limits.data_segments_amount.into(),
             )?;
 
             let code_and_id = CodeAndId::from_parts_unchecked(code, code_id);
@@ -1158,6 +1159,7 @@ pub mod pallet {
                 schedule.instruction_weights.version,
                 |module| schedule.rules(module),
                 schedule.limits.stack_height,
+                schedule.limits.data_segments_amount.into(),
             )
             .map_err(|e| {
                 log::debug!("Code checking or instrumentation failed: {e}");
