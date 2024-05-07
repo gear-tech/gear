@@ -1978,7 +1978,6 @@ mod tests {
             HandlePacket::new_with_gas(Default::default(), Default::default(), INIT_GAS, 0),
             0,
         );
-        // replace the following code with `assert!(res.is_ok());`
         assert!(res.is_ok());
     }
 
@@ -2011,7 +2010,6 @@ mod tests {
         let i = ext.send_init().expect("Shouldn't fail");
 
         let res = ext.reservation_send_commit(reservation_id, i, Default::default(), 0);
-        // replace the following code with `assert!(res.is_ok());`
         assert!(res.is_ok());
     }
 }
