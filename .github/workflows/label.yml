@@ -51,4 +51,4 @@ jobs:
           prefix: "build"
           needs: '["dynamic-profiles"]'
           jobs: '["macos-x86 (debug)", "macos-aarch64 (debug)"]'
-          inputs: '{ "profiles": ${{ steps.profiles.outputs.profiles }} }'
+          inputs: '{ "profiles": "${{ steps.profiles.outputs.profiles }}" }'
