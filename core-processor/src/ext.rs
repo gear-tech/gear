@@ -562,7 +562,8 @@ impl<'a, 'b> ExtMutator<'a, 'b> {
 
     fn apply(self) {
         if let Some(reservation) = self.changes.reservation_to_mark.take() {
-            assert!(self.ext.context.gas_reserver.mark_used(reservation).is_ok());
+            let result = self.ext.context.gas_reserver.mark_used(reservation);
+            debug_assert!(result.is_ok());
         }
 
         core::mem::swap(
