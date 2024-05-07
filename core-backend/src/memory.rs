@@ -32,117 +32,59 @@ use codec::{Decode, DecodeAll, MaxEncodedLen};
 use core::{marker::PhantomData, mem, mem::MaybeUninit, slice};
 use gear_core::{
     buffer::{RuntimeBuffer, RuntimeBufferSizeError},
-    env::Externalities,
     memory::{HostPointer, Memory, MemoryError, MemoryInterval},
     pages::WasmPagesAmount,
 };
 use gear_core_errors::MemoryError as FallibleMemoryError;
 use gear_lazy_pages_common::ProcessAccessError;
-use gear_sandbox::{default_executor::Store, AsContextExt, SandboxMemory};
+use gear_sandbox::{AsContextExt, SandboxMemory};
 
 pub type ExecutorMemory = gear_sandbox::default_executor::Memory;
 
-pub(crate) struct MemoryWrapRef<'a, Caller, Memory> {
-    pub caller: &'a mut Caller,
-    pub memory: Memory,
+#[derive(Debug, Clone, derive_more::From)]
+pub struct BackendMemory<Mem> {
+    inner: Mem,
 }
 
-impl<Caller, Ext, Mem> Memory for MemoryWrapRef<'_, Caller, Mem>
+impl<Mem> BackendMemory<Mem> {
+    pub fn into_inner(self) -> Mem {
+        self.inner
+    }
+}
+
+impl<Caller, Ext, Mem> Memory<Caller> for BackendMemory<Mem>
 where
-    Caller: AsContextExt<State = HostState<Ext, Mem>>,
-    Ext: BackendExternalities,
-    Mem: SandboxMemory<Caller::State>,
+    Caller: AsContextExt<State = HostState<Ext, BackendMemory<Mem>>>,
+    Mem: SandboxMemory<HostState<Ext, BackendMemory<Mem>>>,
 {
     type GrowError = gear_sandbox::Error;
 
-    fn grow(&mut self, pages: WasmPagesAmount) -> Result<(), Self::GrowError> {
-        self.memory.grow(self.caller, pages.into()).map(|_| ())
+    fn grow(&self, ctx: &mut Caller, pages: WasmPagesAmount) -> Result<(), Self::GrowError> {
+        self.inner.grow(ctx, pages.into()).map(|_| ())
     }
 
-    fn size(&self) -> WasmPagesAmount {
-        WasmPagesAmount::try_from(self.memory.size(self.caller)).unwrap_or_else(|_| {
+    fn size(&self, ctx: &Caller) -> WasmPagesAmount {
+        WasmPagesAmount::try_from(self.inner.size(ctx)).unwrap_or_else(|_| {
             unreachable!(
                 "Unexpected backend behavior: wasm size is bigger than possible in 32-bits address space"
             )
         })
     }
 
-    fn write(&mut self, offset: u32, buffer: &[u8]) -> Result<(), MemoryError> {
-        self.memory
-            .write(self.caller, offset, buffer)
+    fn write(&self, ctx: &mut Caller, offset: u32, buffer: &[u8]) -> Result<(), MemoryError> {
+        self.inner
+            .write(ctx, offset, buffer)
             .map_err(|_| MemoryError::AccessOutOfBounds)
     }
 
-    fn read(&self, offset: u32, buffer: &mut [u8]) -> Result<(), MemoryError> {
-        self.memory
-            .read(self.caller, offset, buffer)
+    fn read(&self, ctx: &Caller, offset: u32, buffer: &mut [u8]) -> Result<(), MemoryError> {
+        self.inner
+            .read(ctx, offset, buffer)
             .map_err(|_| MemoryError::AccessOutOfBounds)
     }
 
-    unsafe fn get_buffer_host_addr_unsafe(&mut self) -> HostPointer {
-        self.memory.get_buff(self.caller) as HostPointer
-    }
-}
-
-/// Wrapper for executor memory.
-pub struct MemoryWrap<Ext>
-where
-    Ext: Externalities + 'static,
-{
-    pub(crate) memory: ExecutorMemory,
-    pub(crate) store: Store<HostState<Ext, ExecutorMemory>>,
-}
-
-impl<Ext> MemoryWrap<Ext>
-where
-    Ext: Externalities + 'static,
-{
-    /// Wrap [`ExecutorMemory`] for Memory trait.
-    pub fn new(memory: ExecutorMemory, store: Store<HostState<Ext, ExecutorMemory>>) -> Self {
-        MemoryWrap { memory, store }
-    }
-
-    pub(crate) fn into_store(self) -> Store<HostState<Ext, ExecutorMemory>> {
-        self.store
-    }
-}
-
-/// Memory interface for the allocator.
-impl<Ext> Memory for MemoryWrap<Ext>
-where
-    Ext: Externalities + 'static,
-{
-    type GrowError = gear_sandbox::Error;
-
-    fn grow(&mut self, pages: WasmPagesAmount) -> Result<(), Self::GrowError> {
-        self.memory.grow(&mut self.store, pages.into()).map(|_| ())
-    }
-
-    fn size(&self) -> WasmPagesAmount {
-        self.memory
-            .size(&self.store)
-            .try_into()
-            .unwrap_or_else(|_| {
-                unreachable!(
-                    "Unexpected backend behavior: memory size is bigger than possible in 32 bits address space"
-                )
-            })
-    }
-
-    fn write(&mut self, offset: u32, buffer: &[u8]) -> Result<(), MemoryError> {
-        self.memory
-            .write(&mut self.store, offset, buffer)
-            .map_err(|_| MemoryError::AccessOutOfBounds)
-    }
-
-    fn read(&self, offset: u32, buffer: &mut [u8]) -> Result<(), MemoryError> {
-        self.memory
-            .read(&self.store, offset, buffer)
-            .map_err(|_| MemoryError::AccessOutOfBounds)
-    }
-
-    unsafe fn get_buffer_host_addr_unsafe(&mut self) -> HostPointer {
-        self.memory.get_buff(&mut self.store) as HostPointer
+    unsafe fn get_buffer_host_addr_unsafe(&self, ctx: &Caller) -> HostPointer {
+        self.inner.get_buff(ctx) as HostPointer
     }
 }
 
@@ -239,7 +181,7 @@ impl<Caller, Ext, Mem> MemoryAccessRegistry<Caller>
 where
     Caller: AsContextExt<State = HostState<Ext, Mem>>,
     Ext: BackendExternalities + 'static,
-    Mem: SandboxMemory<Caller::State> + Clone + 'static,
+    Mem: Memory<Caller> + Clone + 'static,
 {
     pub(crate) fn register_read(&mut self, ptr: u32, size: u32) -> WasmMemoryRead {
         if size > 0 {
@@ -292,46 +234,49 @@ where
     }
 
     /// Call pre-processing of registered memory accesses.
-    pub(crate) fn pre_process<'a>(
+    pub(crate) fn pre_process(
         self,
-        ctx: &'a mut CallerWrap<'_, Caller>,
-    ) -> Result<MemoryAccessIo<MemoryWrapRef<'a, Caller, Mem>>, MemoryAccessError> {
+        ctx: &mut CallerWrap<Caller>,
+    ) -> Result<MemoryAccessIo<Caller, Mem>, MemoryAccessError> {
         let ext = ctx.ext_mut();
         let mut gas_counter = ext.define_current_counter();
 
         let res = ext.pre_process_memory_accesses(&self.reads, &self.writes, &mut gas_counter);
 
-        ctx.state_mut().ext.decrease_current_counter_to(gas_counter);
+        ext.decrease_current_counter_to(gas_counter);
 
         res?;
 
         let memory = ctx.state_mut().memory.clone();
-        let memory = MemoryWrapRef {
+        Ok(MemoryAccessIo {
             memory,
-            caller: ctx.caller,
-        };
-
-        Ok(MemoryAccessIo { memory })
+            _phantom: PhantomData,
+        })
     }
 }
 
 /// Memory access writer and reader.
 ///
 /// See [`MemoryAccessRegistry`].
-pub(crate) struct MemoryAccessIo<Mem> {
+pub(crate) struct MemoryAccessIo<Context, Mem> {
     memory: Mem,
+    _phantom: PhantomData<Context>,
 }
 
-impl<Mem> MemoryAccessIo<Mem>
+impl<Context, Mem> MemoryAccessIo<Context, Mem>
 where
-    Mem: Memory,
+    Mem: Memory<Context>,
 {
-    pub(crate) fn read(&self, read: WasmMemoryRead) -> Result<Vec<u8>, MemoryAccessError> {
+    pub(crate) fn read(
+        &self,
+        ctx: &mut CallerWrap<Context>,
+        read: WasmMemoryRead,
+    ) -> Result<Vec<u8>, MemoryAccessError> {
         let buff = if read.size == 0 {
             Vec::new()
         } else {
             let mut buff = RuntimeBuffer::try_new_default(read.size as usize)?.into_vec();
-            self.memory.read(read.ptr, &mut buff)?;
+            self.memory.read(ctx.caller, read.ptr, &mut buff)?;
             buff
         };
         Ok(buff)
@@ -339,6 +284,7 @@ where
 
     pub(crate) fn read_as<T: Sized>(
         &self,
+        ctx: &mut CallerWrap<Context>,
         read: WasmMemoryReadAs<T>,
     ) -> Result<T, MemoryAccessError> {
         let mut buf = MaybeUninit::<T>::uninit();
@@ -358,13 +304,14 @@ where
             // aligned due to `[repr(C, packed)]` attribute of the types we use as T.
             let mut_slice = unsafe { slice::from_raw_parts_mut(buf.as_mut_ptr() as *mut u8, size) };
 
-            self.memory.read(read.ptr, mut_slice)?;
+            self.memory.read(ctx.caller, read.ptr, mut_slice)?;
         }
         Ok(unsafe { buf.assume_init() })
     }
 
     pub(crate) fn read_decoded<T: Decode + MaxEncodedLen>(
         &self,
+        ctx: &mut CallerWrap<Context>,
         read: WasmMemoryReadDecoded<T>,
     ) -> Result<T, MemoryAccessError> {
         let size = T::max_encoded_len();
@@ -372,7 +319,7 @@ where
             Vec::new()
         } else {
             let mut buff = RuntimeBuffer::try_new_default(size)?.into_vec();
-            self.memory.read(read.ptr, &mut buff)?;
+            self.memory.read(ctx.caller, read.ptr, &mut buff)?;
             buff
         };
         let decoded = T::decode_all(&mut &buff[..]).map_err(|_| MemoryAccessError::Decode)?;
@@ -381,6 +328,7 @@ where
 
     pub(crate) fn write(
         &mut self,
+        ctx: &mut CallerWrap<Context>,
         write: WasmMemoryWrite,
         buff: &[u8],
     ) -> Result<(), MemoryAccessError> {
@@ -391,12 +339,15 @@ where
         if write.size == 0 {
             Ok(())
         } else {
-            self.memory.write(write.ptr, buff).map_err(Into::into)
+            self.memory
+                .write(ctx.caller, write.ptr, buff)
+                .map_err(Into::into)
         }
     }
 
     pub(crate) fn write_as<T: Sized>(
         &mut self,
+        ctx: &mut CallerWrap<Context>,
         write: WasmMemoryWriteAs<T>,
         obj: T,
     ) -> Result<(), MemoryAccessError> {
@@ -414,7 +365,9 @@ where
             // aligned due to `[repr(C, packed)]` attribute of the types we use as T.
             let slice = unsafe { slice::from_raw_parts(&obj as *const T as *const u8, size) };
 
-            self.memory.write(write.ptr, slice).map_err(Into::into)
+            self.memory
+                .write(ctx.caller, write.ptr, slice)
+                .map_err(Into::into)
         } else {
             Ok(())
         }
@@ -465,13 +418,12 @@ mod tests {
     };
     use codec::Encode;
     use gear_core::pages::WasmPage;
-    use gear_sandbox::SandboxStore;
+    use gear_sandbox::{default_executor::Store, SandboxStore};
 
     type MemoryAccessRegistry =
         crate::memory::MemoryAccessRegistry<Store<HostState<MockExt, MockMemory>>>;
-    type MemoryAccessIo<'a> = crate::memory::MemoryAccessIo<
-        MemoryWrapRef<'a, Store<HostState<MockExt, MockMemory>>, MockMemory>,
-    >;
+    type MemoryAccessIo<'a> =
+        crate::memory::MemoryAccessIo<Store<HostState<MockExt, MockMemory>>, MockMemory>;
 
     #[derive(Encode, Decode, MaxEncodedLen)]
     #[codec(crate = codec)]
@@ -546,7 +498,7 @@ mod tests {
         let mut registry = MemoryAccessRegistry::default();
         let read = registry.register_read(0, 0);
         let io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
-        io.read(read).unwrap();
+        io.read(&mut caller_wrap, read).unwrap();
 
         assert_eq!(caller_wrap.state_mut().memory.read_attempt_count(), 0);
     }
@@ -560,7 +512,7 @@ mod tests {
         let read = registry.register_read_as::<ZeroSizeStruct>(0);
 
         let io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
-        io.read_as(read).unwrap();
+        io.read_as(&mut caller_wrap, read).unwrap();
 
         assert_eq!(caller_wrap.state_mut().memory.read_attempt_count(), 0);
     }
@@ -573,7 +525,7 @@ mod tests {
         let mut registry = MemoryAccessRegistry::default();
         let read = registry.register_read_decoded::<ZeroSizeStruct>(0);
         let io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
-        io.read_decoded(read).unwrap();
+        io.read_decoded(&mut caller_wrap, read).unwrap();
         assert_eq!(caller_wrap.state_mut().memory.read_attempt_count(), 0);
     }
 
@@ -586,7 +538,7 @@ mod tests {
         let mut registry = MemoryAccessRegistry::default();
         let read = registry.register_read(0, 10);
         let io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
-        io.read(read).unwrap();
+        io.read(&mut caller_wrap, read).unwrap();
 
         assert_eq!(caller_wrap.state_mut().memory.read_attempt_count(), 1);
     }
@@ -597,13 +549,14 @@ mod tests {
         let mut caller_wrap = CallerWrap::new(&mut store);
         let memory = &mut caller_wrap.state_mut().memory;
         *memory = MockMemory::new(1);
-        memory.write(0, &[5u8; 10]).unwrap();
+        let buffer = &[5u8; 10];
+        memory.write(&mut (), 0, buffer).unwrap();
 
         let mut registry = MemoryAccessRegistry::default();
         let read = registry.register_read(0, 10);
 
         let io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
-        let vec = io.read(read).unwrap();
+        let vec = io.read(&mut caller_wrap, read).unwrap();
         assert_eq!(vec.as_slice(), &[5u8; 10]);
     }
 
@@ -620,12 +573,12 @@ mod tests {
         let memory = &mut caller_wrap.state_mut().memory;
         *memory = MockMemory::new(1);
         let encoded = MockEncodeData { data: 1234 }.encode();
-        memory.write(0, &encoded).unwrap();
+        memory.write(&mut (), 0, &encoded).unwrap();
 
         let mut registry = MemoryAccessRegistry::default();
         let read = registry.register_read_decoded::<u64>(0);
         let io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
-        let data: u64 = io.read_decoded(read).unwrap();
+        let data: u64 = io.read_decoded(&mut caller_wrap, read).unwrap();
         assert_eq!(data, 1234u64);
     }
 
@@ -655,12 +608,13 @@ mod tests {
         let memory = &mut caller_wrap.state_mut().memory;
         *memory = MockMemory::new(1);
         let encoded = alloc::vec![7u8; WasmPage::SIZE as usize];
-        memory.write(0, &encoded).unwrap();
+        memory.write(&mut (), 0, &encoded).unwrap();
 
         let mut registry = MemoryAccessRegistry::default();
         let read = registry.register_read_decoded::<InvalidDecode>(0);
         let io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
-        io.read_decoded::<InvalidDecode>(read).unwrap_err();
+        io.read_decoded::<InvalidDecode>(&mut caller_wrap, read)
+            .unwrap_err();
     }
 
     #[test]
@@ -671,10 +625,13 @@ mod tests {
         let mut registry = MemoryAccessRegistry::default();
         let _read = registry.register_read_decoded::<u64>(0);
         let io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
-        io.read_decoded::<u64>(WasmMemoryReadDecoded {
-            ptr: u32::MAX,
-            _phantom: PhantomData,
-        })
+        io.read_decoded::<u64>(
+            &mut caller_wrap,
+            WasmMemoryReadDecoded {
+                ptr: u32::MAX,
+                _phantom: PhantomData,
+            },
+        )
         .unwrap_err();
     }
 
@@ -686,12 +643,12 @@ mod tests {
         let memory = &mut caller_wrap.state_mut().memory;
         *memory = MockMemory::new(1);
         let encoded = 1234u64.to_le_bytes();
-        memory.write(0, &encoded).unwrap();
+        memory.write(&mut (), 0, &encoded).unwrap();
 
         let mut registry = MemoryAccessRegistry::default();
         let read = registry.register_read_as::<u64>(0);
         let io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
-        let decoded = io.read_as::<u64>(read).unwrap();
+        let decoded = io.read_as::<u64>(&mut caller_wrap, read).unwrap();
         assert_eq!(decoded, 1234);
     }
 
@@ -704,10 +661,13 @@ mod tests {
         let mut registry = MemoryAccessRegistry::default();
         let _read = registry.register_read_as::<u64>(0);
         let io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
-        io.read_as::<u128>(WasmMemoryReadAs {
-            ptr: u32::MAX,
-            _phantom: PhantomData,
-        })
+        io.read_as::<u128>(
+            &mut caller_wrap,
+            WasmMemoryReadAs {
+                ptr: u32::MAX,
+                _phantom: PhantomData,
+            },
+        )
         .unwrap_err();
     }
 
@@ -719,7 +679,7 @@ mod tests {
         let mut registry = MemoryAccessRegistry::default();
         let write = registry.register_write(0, 0);
         let mut io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
-        io.write(write, &[]).unwrap();
+        io.write(&mut caller_wrap, write, &[]).unwrap();
 
         assert_eq!(caller_wrap.state_mut().memory.write_attempt_count(), 0);
     }
@@ -732,7 +692,8 @@ mod tests {
         let mut registry = MemoryAccessRegistry::default();
         let write = registry.register_write_as::<ZeroSizeStruct>(0);
         let mut io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
-        io.write_as(write, ZeroSizeStruct).unwrap();
+        io.write_as(&mut caller_wrap, write, ZeroSizeStruct)
+            .unwrap();
 
         assert_eq!(caller_wrap.state_mut().memory.write_attempt_count(), 0);
     }
@@ -746,7 +707,7 @@ mod tests {
         let mut registry = MemoryAccessRegistry::default();
         let write = registry.register_write(0, 10);
         let mut io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
-        io.write(write, &[]).unwrap();
+        io.write(&mut caller_wrap, write, &[]).unwrap();
     }
 
     #[test]
@@ -759,7 +720,7 @@ mod tests {
         let write = registry.register_write(0, 10);
         let mut io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
         let buffer = [0u8; 10];
-        io.write(write, &buffer).unwrap();
+        io.write(&mut caller_wrap, write, &buffer).unwrap();
 
         assert_eq!(caller_wrap.state_mut().memory.write_attempt_count(), 1);
     }
@@ -775,7 +736,7 @@ mod tests {
         let write = registry.register_write(0, 10);
         let mut io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
         let buffer = [0u8; 20];
-        io.write(write, &buffer).unwrap();
+        io.write(&mut caller_wrap, write, &buffer).unwrap();
     }
 
     #[test]
@@ -787,7 +748,7 @@ mod tests {
         let mut registry = MemoryAccessRegistry::default();
         let write = registry.register_write_as::<u32>(0);
         let mut io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
-        io.write_as(write, 0).unwrap();
+        io.write_as(&mut caller_wrap, write, 0).unwrap();
     }
 
     #[test]
@@ -800,6 +761,7 @@ mod tests {
         let _write = registry.register_write_as::<u8>(0);
         let mut io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
         io.write_as(
+            &mut caller_wrap,
             WasmMemoryWriteAs {
                 ptr: 0,
                 _phantom: PhantomData,
@@ -819,6 +781,7 @@ mod tests {
         let _write = registry.register_write_as::<u8>(0);
         let mut io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
         io.write_as(
+            &mut caller_wrap,
             WasmMemoryWriteAs {
                 ptr: WasmPage::SIZE,
                 _phantom: PhantomData,
@@ -879,7 +842,7 @@ mod tests {
         assert_eq!(registry.reads.len(), 1);
         assert_eq!(registry.writes.len(), 0);
         assert_eq!(registry.reads[0].offset, 0);
-        assert_eq!(registry.reads[0].size, core::mem::size_of::<u8>() as u32);
+        assert_eq!(registry.reads[0].size, mem::size_of::<u8>() as u32);
     }
 
     #[test]
@@ -892,7 +855,7 @@ mod tests {
         assert_eq!(registry.reads.len(), 1);
         assert_eq!(registry.writes.len(), 0);
         assert_eq!(registry.reads[0].offset, 0);
-        assert_eq!(registry.reads[0].size, core::mem::size_of::<u8>() as u32);
+        assert_eq!(registry.reads[0].size, mem::size_of::<u8>() as u32);
     }
 
     #[derive(Debug, PartialEq, Eq, Encode, Decode, MaxEncodedLen)]
@@ -971,7 +934,7 @@ mod tests {
         assert_eq!(registry.reads.len(), 0);
         assert_eq!(registry.writes.len(), 1);
         assert_eq!(registry.writes[0].offset, 0);
-        assert_eq!(registry.writes[0].size, core::mem::size_of::<u8>() as u32);
+        assert_eq!(registry.writes[0].size, mem::size_of::<u8>() as u32);
     }
 
     #[test]
@@ -984,6 +947,6 @@ mod tests {
         assert_eq!(registry.reads.len(), 0);
         assert_eq!(registry.writes.len(), 1);
         assert_eq!(registry.writes[0].offset, 0);
-        assert_eq!(registry.writes[0].size, core::mem::size_of::<u8>() as u32);
+        assert_eq!(registry.writes[0].size, mem::size_of::<u8>() as u32);
     }
 }
