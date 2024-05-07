@@ -14,6 +14,7 @@ codec = { workspace = true, features = ["derive"] }
 hex.workspace = true
 log.workspace = true
 sha-1.workspace = true
+hex-literal.workspace = true
 
 # Temporary deps for the reproducing crash script until #2313 is implemented
 clap = { workspace = true, features = ["derive"] }
@@ -30,7 +31,7 @@ pallet-gear-bank.workspace = true
 
 frame-support.workspace = true
 frame-system.workspace = true
-sp-core.workspace = true
+sp-core = { workspace = true, features = ["std", "full_crypto"] }
 sp-io.workspace = true
 sp-keyring.workspace = true
 sp-runtime.workspace = true

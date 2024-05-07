@@ -10228,6 +10228,7 @@ dependencies = [
  "gear-utils",
  "gear-wasm-gen",
  "hex",
+ "hex-literal",
  "log",
  "pallet-authorship",
  "pallet-balances",

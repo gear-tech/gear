@@ -54,8 +54,12 @@ fn run_impl(fuzzer_input: FuzzerInput<'_>) -> Result<TestExternalities> {
     let corpus_id = get_sha1_string(raw_data);
     log::trace!("Generating gear calls from corpus - {}", corpus_id);
 
-    let mut balance_manager =
-        BalanceManager::new(runtime::alice(), balance_manager_data_requirement);
+    let mut balance_manager = BalanceManager::new(
+        AccountId::from(hex_literal::hex!(
+            "d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d"
+        )),
+        balance_manager_data_requirement,
+    );
     let mut test_ext = runtime::new_test_ext();
     run_calls_loop(
         RuntimeStateViewProducer::new(corpus_id, balance_manager.sender.clone()),
