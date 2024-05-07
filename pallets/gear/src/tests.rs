@@ -31,9 +31,10 @@ use crate::{
     Error, Event, GasAllowanceOf, GasBalanceOf, GasHandlerOf, GasInfo, GearBank, Limits, MailboxOf,
     ProgramStorageOf, QueueOf, Schedule, TaskPoolOf, WaitlistOf,
 };
+use alloc::collections::BTreeSet;
 use common::{
     event::*, scheduler::*, storage::*, ActiveProgram, CodeStorage, GasTree, LockId, LockableTree,
-    Origin as _, ProgramStorage, ReservableTree,
+    Origin as _, Program, ProgramStorage, ReservableTree,
 };
 use core_processor::common::ActorExecutionErrorReplyReason;
 use frame_support::{
@@ -49,6 +50,7 @@ use gear_core::{
         ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext, Payload,
         ReplyInfo, StoredDispatch, UserStoredMessage,
     },
+    pages::WasmPage,
 };
 use gear_core_backend::error::{
     TrapExplanation, UnrecoverableExecutionError, UnrecoverableExtError, UnrecoverableWaitError,
@@ -222,6 +224,7 @@ fn state_rpc_calls_trigger_reinstrumentation() {
             0, // invalid version
             |module| schedule.rules(module),
             schedule.limits.stack_height,
+            schedule.limits.data_segments_amount.into(),
         )
         .expect("Failed to create dummy code");
 
@@ -4968,6 +4971,7 @@ fn test_code_submission_pass() {
             schedule.instruction_weights.version,
             |module| schedule.rules(module),
             schedule.limits.stack_height,
+            schedule.limits.data_segments_amount.into(),
         )
         .expect("Error creating Code");
         assert_eq!(saved_code.unwrap().code(), code.code());
@@ -6463,6 +6467,7 @@ fn test_create_program_works() {
             schedule.instruction_weights.version,
             |module| schedule.rules(module),
             schedule.limits.stack_height,
+            schedule.limits.data_segments_amount.into(),
         )
         .expect("Code failed to load");
 
@@ -10002,6 +10007,7 @@ fn test_mad_big_prog_instrumentation() {
             schedule.instruction_weights.version,
             |module| schedule.rules(module),
             schedule.limits.stack_height,
+            schedule.limits.data_segments_amount.into(),
         );
         // In any case of the defined weights on the platform, instrumentation of the valid
         // huge wasm mustn't fail
@@ -13050,45 +13056,6 @@ fn relay_messages() {
     );
 }
 
-// TODO: move to gear-core after #3736
-#[test]
-fn module_instantiation_error() {
-    // Unknown global import leads to instantiation error.
-    let wat = r#"
-        (module
-            (import "env" "memory" (memory 1))
-            (import "env" "unknown" (global $unknown i32))
-            (export "init" (func $init))
-            (func $init)
-        )
-    "#;
-
-    init_logger();
-    new_test_ext().execute_with(|| {
-        let code = ProgramCodeKind::Custom(wat).to_bytes();
-        let salt = DEFAULT_SALT.to_vec();
-        let prog_id = generate_program_id(&code, &salt);
-        Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            code,
-            salt,
-            EMPTY_PAYLOAD.to_vec(),
-            50_000_000_000,
-            0,
-            false,
-        )
-        .unwrap();
-
-        let mid = get_last_message_id();
-
-        run_to_next_block(None);
-
-        assert!(Gear::is_terminated(prog_id));
-        let err = get_last_event_error(mid);
-        assert!(err.starts_with(&ActorExecutionErrorReplyReason::Environment.to_string()));
-    });
-}
-
 #[test]
 fn wrong_entry_type() {
     let wat = r#"
@@ -13106,7 +13073,8 @@ fn wrong_entry_type() {
                 ProgramCodeKind::Custom(wat).to_bytes(),
                 1,
                 |_| CustomConstantCostRules::default(),
-                None
+                None,
+                None,
             ),
             Err(CodeError::Export(ExportError::InvalidExportFnSignature(0)))
         ));
@@ -14862,6 +14830,74 @@ fn incorrect_store_context() {
         run_to_next_block(None);
 
         assert_failed(mid, ActorExecutionErrorReplyReason::UnsupportedMessage);
+    });
+}
+
+#[test]
+fn allocate_in_init_free_in_handle() {
+    let static_pages = 16u16;
+    let wat = format!(
+        r#"
+        (module
+            (import "env" "memory" (memory {static_pages}))
+            (import "env" "alloc" (func $alloc (param i32) (result i32)))
+            (import "env" "free" (func $free (param i32) (result i32)))
+            (export "init" (func $init))
+            (export "handle" (func $handle))
+            (func $init
+                (call $alloc (i32.const 1))
+                drop
+            )
+            (func $handle
+                (call $free (i32.const {static_pages}))
+                drop
+            )
+        )
+    "#
+    );
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            ProgramCodeKind::Custom(wat.as_str()).to_bytes(),
+            DEFAULT_SALT.to_vec(),
+            vec![],
+            1_000_000_000,
+            0,
+            false,
+        ));
+
+        let program_id = get_last_program_id();
+
+        run_to_next_block(None);
+
+        let Some(Program::Active(program)) = ProgramStorageOf::<Test>::get_program(program_id)
+        else {
+            panic!("program must be active")
+        };
+        assert_eq!(
+            program.allocations,
+            BTreeSet::from([WasmPage::from(static_pages)])
+        );
+
+        Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            program_id,
+            vec![],
+            1_000_000_000,
+            0,
+            true,
+        )
+        .unwrap();
+
+        run_to_next_block(None);
+
+        let Some(Program::Active(program)) = ProgramStorageOf::<Test>::get_program(program_id)
+        else {
+            panic!("program must be active")
+        };
+        assert_eq!(program.allocations, BTreeSet::new());
     });
 }
 

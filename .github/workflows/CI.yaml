@@ -38,7 +38,7 @@ jobs:
         uses: actions/download-artifact@v4
 
       - name: Delete previous release
-        uses: dev-drprasad/delete-tag-and-release@v1.0.1
+        uses: dev-drprasad/delete-tag-and-release@v1.1
         with:
           delete_release: true
           tag_name: build

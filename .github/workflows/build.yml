@@ -49,7 +49,7 @@ jobs:
           echo "profiles=${profiles}" >> $GITHUB_OUTPUT
 
   linux:
-    runs-on: [ kuberunner, github-runner-02 ]
+    runs-on: [kuberunner, github-runner-02]
     needs: dynamic-profiles
     strategy:
       matrix:
@@ -93,7 +93,7 @@ jobs:
         run: cargo run -p calc-stack-height --release --locked
 
       - name: "Test: Gear workspace"
-        run: ./scripts/gear.sh test gear --exclude gclient --exclude gcli --exclude gsdk --locked ${{ matrix.profiles.flags }}
+        run: ./scripts/gear.sh test gear --locked ${{ matrix.profiles.flags }}
 
       - name: "Test: gsdk tests"
         run: ./scripts/gear.sh test gsdk ${{ matrix.profiles.flags }}
@@ -117,13 +117,13 @@ jobs:
         run: |
           cargo build -p gear-cli --features=runtime-benchmarks,runtime-benchmarks-checkers ${{ matrix.profiles.flags }}
           # check that perf benchmarks works. `--steps=5` need to test, that benchmarks works for different input number.
-          ./target/${{ matrix.profiles.name }}/gear benchmark pallet --chain=dev --pallet="*" --steps=5 --extrinsic="*" --heap-pages=4096
+          ./target/${{ matrix.profiles.name }}/gear benchmark pallet --chain=dev --pallet="*" --steps=5 --repeat=0 --extrinsic="*" --heap-pages=4096
           # check that read_big_state benchmarks works
-          ./target/${{ matrix.profiles.name }}/gear benchmark pallet --chain=dev --pallet=pallet_gear --extrinsic="read_big_state" --heap-pages=4096 --extra
+          ./target/${{ matrix.profiles.name }}/gear benchmark pallet --chain=dev --pallet=pallet_gear --repeat=0 --extrinsic="read_big_state" --heap-pages=4096 --extra
           # check that signal_stack_limit_exceeded_works benchmarks works
-          ./target/${{ matrix.profiles.name }}/gear benchmark pallet --chain=dev --pallet=pallet_gear --extrinsic="signal_stack_limit_exceeded_works" --heap-pages=4096 --extra
+          ./target/${{ matrix.profiles.name }}/gear benchmark pallet --chain=dev --pallet=pallet_gear --repeat=0 --extrinsic="signal_stack_limit_exceeded_works" --heap-pages=4096 --extra
           # check that check/test benchmarks works
-          ./target/${{ matrix.profiles.name }}/gear benchmark pallet --chain=dev --pallet=pallet_gear --extrinsic="check_all" --heap-pages=4096 --extra
+          ./target/${{ matrix.profiles.name }}/gear benchmark pallet --chain=dev --pallet=pallet_gear --repeat=0 --extrinsic="check_all" --heap-pages=4096 --extra
 
       - name: "Test: Syscalls Wasmi integrity"
         run: ./scripts/gear.sh test syscalls ${{ matrix.profiles.flags }}
@@ -143,7 +143,7 @@ jobs:
           echo "---------- Building vara runtime ----------"
           time cargo build -p vara-runtime -F std,try-runtime --locked ${{ matrix.profiles.flags }}
           echo "---------- Executing on-runtime-upgrade for Vara ----------"
-          time ./try-runtime --runtime ./target/${{ matrix.profiles.name }}/wbuild/vara-runtime/vara_runtime.wasm on-runtime-upgrade --checks=all --no-weight-warnings live --uri ws://rpc-private.vara-network.io:9944
+          time ./try-runtime --runtime ./target/${{ matrix.profiles.name }}/wbuild/vara-runtime/vara_runtime.wasm on-runtime-upgrade --checks=all --no-weight-warnings --disable-spec-version-check live --uri ws://rpc-private.vara-network.io:9944
           sleep 5
         env:
           RUST_LOG: info,remote-ext=debug,runtime=debug
@@ -172,7 +172,7 @@ jobs:
           path: artifact
 
   win-cross:
-    runs-on: [ kuberunner, github-runner-03 ]
+    runs-on: [kuberunner, github-runner-03]
     needs: dynamic-profiles
     strategy:
       matrix:
@@ -183,7 +183,6 @@ jobs:
       XWIN_ARCH: x86_64
       RUSTUP_HOME: /tmp/rustup_home
       WINEDEBUG: fixme-all
-      
       CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
     steps:
       - name: "ACTIONS: Checkout"
@@ -255,14 +254,14 @@ jobs:
           CARGO_BUILD_TARGET: x86_64-pc-windows-msvc
 
   win-native:
-    needs: [ dynamic-profiles, linux ]
+    needs: [dynamic-profiles, linux]
     if: ${{ !cancelled() && (github.ref == 'refs/heads/master' || inputs.win-native) }}
     uses: ./.github/workflows/build-win-native.yml
     with:
       profiles: ${{ needs.dynamic-profiles.outputs.profiles }}
 
   macos:
-    needs: [ dynamic-profiles, linux ]
+    needs: [dynamic-profiles, linux]
     if: ${{ !cancelled() && inputs.macos }}
     uses: ./.github/workflows/build-macos.yml
     with:

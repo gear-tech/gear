@@ -28,7 +28,7 @@ use alloc::{
 use gear_core::{
     gas::{GasAllowanceCounter, GasAmount, GasCounter},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
-    memory::{MemoryError, PageBuf},
+    memory::{MemoryError, MemorySetupError, PageBuf},
     message::{
         ContextStore, Dispatch, DispatchKind, IncomingDispatch, MessageWaitedType, StoredDispatch,
     },
@@ -81,9 +81,8 @@ pub struct DispatchResult {
     pub system_reservation_context: SystemReservationContext,
     /// Page updates.
     pub page_update: BTreeMap<GearPage, PageBuf>,
-    // TODO: there is no difference between no-allocations and no-changes #3853
     /// New allocations set for program if it has been changed.
-    pub allocations: BTreeSet<WasmPage>,
+    pub allocations: Option<BTreeSet<WasmPage>>,
     /// Whether this execution sent out a reply.
     pub reply_sent: bool,
 }
@@ -473,47 +472,6 @@ impl ActorExecutionErrorReplyReason {
             Self::Environment | Self::UnsupportedMessage => SimpleExecutionError::Unsupported,
         }
     }
-}
-
-/// Inconsistency in memory parameters provided for wasm execution.
-#[derive(Debug, PartialEq, Eq, derive_more::Display)]
-pub enum MemorySetupError {
-    /// Memory size exceeds max pages
-    #[display(fmt = "Memory size {memory_size:?} must be less than or equal to {max_pages:?}")]
-    MemorySizeExceedsMaxPages {
-        /// Memory size
-        memory_size: WasmPagesAmount,
-        /// Max allowed memory size
-        max_pages: WasmPagesAmount,
-    },
-    /// Insufficient memory size
-    #[display(fmt = "Memory size {memory_size:?} must be at least {static_pages:?}")]
-    InsufficientMemorySize {
-        /// Memory size
-        memory_size: WasmPagesAmount,
-        /// Static memory size
-        static_pages: WasmPagesAmount,
-    },
-    /// Stack end is out of static memory
-    #[display(fmt = "Stack end {stack_end:?} is out of static memory 0..{static_pages:?}")]
-    StackEndOutOfStaticMemory {
-        /// Stack end
-        stack_end: WasmPage,
-        /// Static memory size
-        static_pages: WasmPagesAmount,
-    },
-    /// Allocated page is out of allowed memory interval
-    #[display(
-        fmt = "Allocated page {page:?} is out of allowed memory interval {static_pages:?}..{memory_size:?}"
-    )]
-    AllocatedPageOutOfAllowedInterval {
-        /// Allocated page
-        page: WasmPage,
-        /// Static memory size
-        static_pages: WasmPagesAmount,
-        /// Memory size
-        memory_size: WasmPagesAmount,
-    },
 }
 
 /// System execution error

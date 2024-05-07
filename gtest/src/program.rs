@@ -242,6 +242,150 @@ macro_rules! state_args_encoded {
     };
 }
 
+/// Builder for [`Program`].
+#[must_use = "`build()` must be called at the end"]
+#[derive(Debug, Clone)]
+pub struct ProgramBuilder {
+    code: Vec<u8>,
+    meta: Option<Vec<u8>>,
+    id: Option<ProgramIdWrapper>,
+}
+
+impl ProgramBuilder {
+    /// Create program from WASM binary.
+    pub fn from_binary(code: impl Into<Vec<u8>>) -> Self {
+        Self {
+            code: code.into(),
+            meta: None,
+            id: None,
+        }
+    }
+
+    /// Create a program instance from wasm file.
+    #[track_caller]
+    pub fn from_file(path: impl AsRef<Path>) -> Self {
+        Self::from_binary(fs::read(path).expect("Failed to read WASM file"))
+    }
+
+    fn wasm_path(optimized: bool) -> PathBuf {
+        Self::wasm_path_from_binpath(optimized)
+            .unwrap_or_else(|| gbuild::wasm_path().expect("Unable to find built wasm"))
+    }
+
+    fn wasm_path_from_binpath(optimized: bool) -> Option<PathBuf> {
+        let cwd = env::current_dir().expect("Unable to get current dir");
+        let extension = if optimized { "opt.wasm" } else { "wasm" };
+        let path_file = cwd.join(".binpath");
+        let path_bytes = fs::read(path_file).ok()?;
+        let mut relative_path: PathBuf =
+            String::from_utf8(path_bytes).expect("Invalid path").into();
+        relative_path.set_extension(extension);
+        Some(cwd.join(relative_path))
+    }
+
+    fn inner_current(optimized: bool) -> Self {
+        let path = env::current_dir()
+            .expect("Unable to get root directory of the project")
+            .join(Self::wasm_path(optimized))
+            // TODO: consider to use `.canonicalize()` instead
+            .clean();
+
+        let filename = path.file_name().and_then(OsStr::to_str).unwrap_or_default();
+        assert!(
+            filename.ends_with(".wasm"),
+            "File must have `.wasm` extension"
+        );
+
+        let code = fs::read(&path).unwrap_or_else(|_| panic!("Failed to read file {:?}", path));
+
+        Self {
+            code,
+            meta: None,
+            id: None,
+        }
+    }
+
+    /// Get program of the root crate with provided `system`.
+    ///
+    /// It looks up the wasm binary of the root crate that contains
+    /// the current test, uploads it to the testing system, then
+    /// returns the program instance.
+    #[track_caller]
+    pub fn current() -> Self {
+        Self::inner_current(false)
+    }
+
+    /// Get optimized program of the root crate with provided `system`,
+    ///
+    /// See also [`ProgramBuilder::current`].
+    #[track_caller]
+    pub fn current_opt() -> Self {
+        Self::inner_current(true)
+    }
+
+    /// Set ID for future program.
+    pub fn with_id(mut self, id: impl Into<ProgramIdWrapper>) -> Self {
+        self.id = Some(id.into());
+        self
+    }
+
+    /// Set metadata for future program.
+    pub fn with_meta(mut self, meta: impl Into<Vec<u8>>) -> Self {
+        self.meta = Some(meta.into());
+        self
+    }
+
+    /// Set metadata for future program from file.
+    ///
+    /// See also [`ProgramBuilder::with_meta`].
+    #[track_caller]
+    pub fn with_meta_file(self, path: impl AsRef<Path>) -> Self {
+        self.with_meta(fs::read(path).expect("Failed to read metadata file"))
+    }
+
+    /// Build program with set parameters.
+    #[track_caller]
+    pub fn build(self, system: &System) -> Program {
+        let id = self
+            .id
+            .unwrap_or_else(|| system.0.borrow_mut().free_id_nonce().into());
+
+        let schedule = Schedule::default();
+        let code = Code::try_new(
+            self.code,
+            schedule.instruction_weights.version,
+            |module| schedule.rules(module),
+            schedule.limits.stack_height,
+            schedule.limits.data_segments_amount.into(),
+        )
+        .expect("Failed to create Program from code");
+
+        let code_and_id: InstrumentedCodeAndId = CodeAndId::new(code).into();
+        let (code, code_id) = code_and_id.into_parts();
+
+        if let Some(metadata) = self.meta {
+            system
+                .0
+                .borrow_mut()
+                .meta_binaries
+                .insert(code_id, metadata);
+        }
+
+        let program = CoreProgram::new(id.0, Default::default(), code);
+
+        Program::program_with_id(
+            system,
+            id,
+            InnerProgram::Genuine {
+                program,
+                code_id,
+                pages_data: Default::default(),
+                gas_reservation_map: Default::default(),
+            },
+        )
+    }
+}
+
 /// Gear program instance.
 ///
 /// ```ignore
@@ -287,18 +431,14 @@ impl<'a> Program<'a> {
         }
     }
 
-    /// Get program of the root crate with provided `system`.
+    /// Get the program of the root crate with provided `system`.
     ///
-    /// It looks up the wasm binary of the root crate that contains
-    /// the current test, upload it to the testing system, then,
-    /// returns the program instance.
+    /// See [`ProgramBuilder::current`]
     pub fn current(system: &'a System) -> Self {
-        let nonce = system.0.borrow_mut().free_id_nonce();
-
-        Self::current_with_id(system, nonce)
+        ProgramBuilder::current().build(system)
     }
 
-    /// Get program of the root crate with provided `system` and
+    /// Get the program of the root crate with provided `system` and
     /// initialize it with given `id`.
     ///
     /// See also [`Program::current`].
@@ -306,27 +446,34 @@ impl<'a> Program<'a> {
         system: &'a System,
         id: I,
     ) -> Self {
-        Self::from_file_with_id(system, id, Self::wasm_path("wasm"))
+        ProgramBuilder::current().with_id(id).build(system)
     }
 
     /// Get optimized program of the root crate with provided `system`,
     ///
     /// See also [`Program::current`].
     pub fn current_opt(system: &'a System) -> Self {
-        let nonce = system.0.borrow_mut().free_id_nonce();
-
-        Self::current_opt_with_id(system, nonce)
+        ProgramBuilder::current_opt().build(system)
     }
 
-    /// Get optimized program of the root crate with provided `system` and
-    /// initialize it with provided `id`.
+    /// Create a program instance from wasm file.
     ///
-    /// See also [`Program::current_with_id`].
-    pub fn current_opt_with_id<I: Into<ProgramIdWrapper> + Clone + Debug>(
-        system: &'a System,
-        id: I,
-    ) -> Self {
-        Self::from_file_with_id(system, id, Self::wasm_path("opt.wasm"))
+    /// See also [`Program::current`].
+    pub fn from_file<P: AsRef<Path>>(system: &'a System, path: P) -> Self {
+        ProgramBuilder::from_file(path).build(system)
+    }
+
+    /// Create a program instance from wasm file with given ID.
+    ///
+    /// See also [`Program::from_file`].
+    pub fn from_binary_with_id<ID, B>(system: &'a System, id: ID, binary: B) -> Self
+    where
+        ID: Into<ProgramIdWrapper> + Clone + Debug,
+        B: Into<Vec<u8>>,
+    {
+        ProgramBuilder::from_binary(binary)
+            .with_id(id)
+            .build(system)
     }
 
     /// Mock a program with provided `system` and `mock`.
@@ -342,220 +489,48 @@ impl<'a> Program<'a> {
     /// and initialize it with provided `id`.
     ///
     /// See also [`Program::mock`].
-    pub fn mock_with_id<T: WasmProgram + 'static, I: Into<ProgramIdWrapper> + Clone + Debug>(
-        system: &'a System,
-        id: I,
-        mock: T,
-    ) -> Self {
+    pub fn mock_with_id<ID, T>(system: &'a System, id: ID, mock: T) -> Self
+    where
+        T: WasmProgram + 'static,
+        ID: Into<ProgramIdWrapper> + Clone + Debug,
+    {
         Self::program_with_id(system, id, InnerProgram::new_mock(mock))
     }
 
-    /// Create a program instance from wasm file.
-    ///
-    /// See also [`Program::current`].
-    pub fn from_file<P: AsRef<Path>>(system: &'a System, path: P) -> Self {
-        let nonce = system.0.borrow_mut().free_id_nonce();
-
-        Self::from_file_with_id(system, nonce, path)
-    }
-
-    /// Create a program from file and initialize it with provided
-    /// `path` and `id`.
-    ///
-    /// `id` may be built from:
-    /// - `u64`
-    /// - `[u8; 32]`
-    /// - `String`
-    /// - `&str`
-    /// - [`ProgramId`](https://docs.gear.rs/gear_core/ids/struct.ProgramId.html)
-    ///   (from `gear_core` one's, not from `gstd`).
-    ///
-    /// # Examples
-    ///
-    /// From numeric id:
-    ///
-    /// ```no_run
-    /// # use gtest::{Program, System};
-    /// # let sys = System::new();
-    /// let prog = Program::from_file_with_id(
-    ///     &sys,
-    ///     105,
-    ///     "./target/wasm32-unknown-unknown/release/demo_ping.wasm",
-    /// );
-    /// ```
-    ///
-    /// From hex string starting with `0x`:
-    ///
-    /// ```no_run
-    /// # use gtest::{Program, System};
-    /// # let sys = System::new();
-    /// let prog = Program::from_file_with_id(
-    ///     &sys,
-    ///     "0xe659a7a1628cdd93febc04a4e0646ea20e9f5f0ce097d9a05290d4a9e054df4e",
-    ///     "./target/wasm32-unknown-unknown/release/demo_ping.wasm",
-    /// );
-    /// ```
-    ///
-    /// From hex string starting without `0x`:
-    ///
-    /// ```no_run
-    /// # use gtest::{Program, System};
-    /// # let sys = System::new();
-    /// let prog = Program::from_file_with_id(
-    ///     &sys,
-    ///     "e659a7a1628cdd93febc04a4e0646ea20e9f5f0ce097d9a05290d4a9e054df5e",
-    ///     "./target/wasm32-unknown-unknown/release/demo_ping.wasm",
-    /// );
-    /// ```
-    ///
-    /// From array of bytes (e.g. filled with `5`):
-    ///
-    /// ```no_run
-    /// # use gtest::{Program, System};
-    /// # let sys = System::new();
-    /// let prog = Program::from_file_with_id(
-    ///     &sys,
-    ///     [5; 32],
-    ///     "./target/wasm32-unknown-unknown/release/demo_ping.wasm",
-    /// );
-    /// ```
-    ///
-    /// # See also
-    ///
-    /// - [`Program::from_file`] for creating a program from file with default
-    ///   id.
-    #[track_caller]
-    pub fn from_file_with_id<P: AsRef<Path>, I: Into<ProgramIdWrapper> + Clone + Debug>(
-        system: &'a System,
-        id: I,
-        path: P,
-    ) -> Self {
-        let path = env::current_dir()
-            .expect("Unable to get root directory of the project")
-            .join(path)
-            .clean();
-
-        let filename = path.file_name().and_then(OsStr::to_str).unwrap_or_default();
-        assert!(
-            filename.ends_with(".wasm"),
-            "File must have `.wasm` extension"
-        );
-        assert!(
-            !filename.ends_with(".meta.wasm"),
-            "Cannot load `.meta.wasm` file without `.opt.wasm` one. \
-            Use Program::from_opt_and_meta() instead"
-        );
-
-        let code = fs::read(&path).unwrap_or_else(|_| panic!("Failed to read file {:?}", path));
-        Self::from_opt_and_meta_code_with_id(system, id, code, None)
-    }
-
-    /// Create a program from optimized and metadata files.
-    ///
-    /// See also [`Program::from_file`].
-    pub fn from_opt_and_meta<P: AsRef<Path>>(
-        system: &'a System,
-        optimized: P,
-        metadata: P,
-    ) -> Self {
-        let nonce = system.0.borrow_mut().free_id_nonce();
-        Self::from_opt_and_meta_with_id(system, nonce, optimized, metadata)
-    }
-
-    /// Create a program from optimized and metadata files and initialize
-    /// it with given `id`.
-    ///
-    /// See also [`Program::from_file`].
-    pub fn from_opt_and_meta_with_id<P: AsRef<Path>, I: Into<ProgramIdWrapper> + Clone + Debug>(
-        system: &'a System,
-        id: I,
-        optimized: P,
-        metadata: P,
-    ) -> Self {
-        let opt_code = read_file(optimized, ".opt.wasm");
-        let meta_code = read_file(metadata, ".meta.wasm");
-
-        Self::from_opt_and_meta_code_with_id(system, id, opt_code, Some(meta_code))
-    }
-
-    /// Create a program from optimized and metadata code and initialize
-    /// it with given `id`.
-    ///
-    /// See also [`Program::from_file`].
-    #[track_caller]
-    pub fn from_opt_and_meta_code_with_id<I: Into<ProgramIdWrapper> + Clone + Debug>(
-        system: &'a System,
-        id: I,
-        optimized: Vec<u8>,
-        metadata: Option<Vec<u8>>,
-    ) -> Self {
-        let schedule = Schedule::default();
-        let code = Code::try_new(
-            optimized,
-            schedule.instruction_weights.version,
-            |module| schedule.rules(module),
-            schedule.limits.stack_height,
-        )
-        .expect("Failed to create Program from code");
-
-        let code_and_id: InstrumentedCodeAndId = CodeAndId::new(code).into();
-        let (code, code_id) = code_and_id.into_parts();
-
-        if let Some(metadata) = metadata {
-            system
-                .0
-                .borrow_mut()
-                .meta_binaries
-                .insert(code_id, metadata);
-        }
-
-        let program_id = id.clone().into().0;
-        let program = CoreProgram::new(program_id, Default::default(), code);
-
-        Self::program_with_id(
-            system,
-            id,
-            InnerProgram::Genuine {
-                program,
-                code_id,
-                pages_data: Default::default(),
-                gas_reservation_map: Default::default(),
-            },
-        )
-    }
-
     /// Send message to the program.
-    pub fn send<ID: Into<ProgramIdWrapper>, C: Codec>(&self, from: ID, payload: C) -> RunResult {
+    pub fn send<ID, C>(&self, from: ID, payload: C) -> RunResult
+    where
+        ID: Into<ProgramIdWrapper>,
+        C: Codec,
+    {
         self.send_with_value(from, payload, 0)
     }
 
     /// Send message to the program with value.
-    pub fn send_with_value<ID: Into<ProgramIdWrapper>, C: Codec>(
-        &self,
-        from: ID,
-        payload: C,
-        value: u128,
-    ) -> RunResult {
+    pub fn send_with_value<ID, C>(&self, from: ID, payload: C, value: u128) -> RunResult
+    where
+        ID: Into<ProgramIdWrapper>,
+        C: Codec,
+    {
         self.send_bytes_with_value(from, payload.encode(), value)
     }
 
     /// Send message to the program with bytes payload.
-    pub fn send_bytes<ID: Into<ProgramIdWrapper>, T: AsRef<[u8]>>(
-        &self,
-        from: ID,
-        payload: T,
-    ) -> RunResult {
+    pub fn send_bytes<ID, T>(&self, from: ID, payload: T) -> RunResult
+    where
+        ID: Into<ProgramIdWrapper>,
+        T: Into<Vec<u8>>,
+    {
         self.send_bytes_with_value(from, payload, 0)
     }
 
-    /// Send message to the program with bytes payload and value.
+    /// Send the message to the program with bytes payload and value.
     #[track_caller]
-    pub fn send_bytes_with_value<ID: Into<ProgramIdWrapper>, T: AsRef<[u8]>>(
-        &self,
-        from: ID,
-        payload: T,
-        value: u128,
-    ) -> RunResult {
+    pub fn send_bytes_with_value<ID, T>(&self, from: ID, payload: T, value: u128) -> RunResult
+    where
+        ID: Into<ProgramIdWrapper>,
+        T: Into<Vec<u8>>,
+    {
         let mut system = self.manager.borrow_mut();
 
         let source = from.into().0;
@@ -568,7 +543,7 @@ impl<'a> Program<'a> {
             ),
             source,
             self.id,
-            payload.as_ref().to_vec().try_into().unwrap(),
+            payload.into().try_into().unwrap(),
             Some(u64::MAX),
             value,
             None,
@@ -760,18 +735,6 @@ impl<'a> Program<'a> {
         self.manager.borrow().balance_of(&self.id())
     }
 
-    /// Returns the wasm path with extension.
-    #[track_caller]
-    fn wasm_path(extension: &str) -> PathBuf {
-        let current_dir = env::current_dir().expect("Unable to get current dir");
-        let path_file = current_dir.join(".binpath");
-        let path_bytes = fs::read(path_file).expect("Unable to read path bytes");
-        let mut relative_path: PathBuf =
-            String::from_utf8(path_bytes).expect("Invalid path").into();
-        relative_path.set_extension(extension);
-        current_dir.join(relative_path)
-    }
-
     /// Save the program's memory to path.
     pub fn save_memory_dump(&self, path: impl AsRef<Path>) {
         let manager = self.manager.borrow();
@@ -814,28 +777,76 @@ impl<'a> Program<'a> {
     }
 }
 
-#[track_caller]
-fn read_file<P: AsRef<Path>>(path: P, extension: &str) -> Vec<u8> {
-    let path = env::current_dir()
-        .expect("Unable to get root directory of the project")
-        .join(path)
-        .clean();
-
-    let filename = path.file_name().and_then(OsStr::to_str).unwrap_or_default();
-    assert!(
-        filename.ends_with(extension),
-        "Wrong file extension: {extension}",
-    );
-
-    fs::read(&path).unwrap_or_else(|_| panic!("Failed to read file {:?}", path))
-}
-
 /// Calculate program id from code id and salt.
 pub fn calculate_program_id(code_id: CodeId, salt: &[u8], id: Option<MessageId>) -> ProgramId {
     if let Some(id) = id {
         ProgramId::generate_from_program(code_id, salt, id)
     } else {
         ProgramId::generate_from_user(code_id, salt)
+    }
+}
+
+/// `cargo-gbuild` utils
+pub mod gbuild {
+    use crate::{error::TestError as Error, Result};
+    use cargo_toml::Manifest;
+    use std::{path::PathBuf, process::Command};
+
+    /// Search program wasm from
+    ///
+    /// - `target/gbuild`
+    /// - `$WORKSPACE_ROOT/target/gbuild`
+    ///
+    /// NOTE: Release or Debug is decided by the users
+    /// who run the command `cargo-gbuild`.
+    pub fn wasm_path() -> Result<PathBuf> {
+        let target = etc::find_up("target")
+            .map_err(|_| Error::GbuildArtifactNotFound("Could not find target folder".into()))?;
+        let manifest = Manifest::from_path(
+            etc::find_up("Cargo.toml")
+                .map_err(|_| Error::GbuildArtifactNotFound("Could not find manifest".into()))?,
+        )
+        .map_err(|_| Error::GbuildArtifactNotFound("Failed to parse manifest".into()))?;
+
+        let artifact = target
+            .join(format!(
+                "gbuild/{}",
+                manifest.package().name().replace('-', "_")
+            ))
+            .with_extension("wasm");
+
+        if artifact.exists() {
+            Ok(artifact)
+        } else {
+            Err(Error::GbuildArtifactNotFound(format!(
+                "Program artifact not exist, {artifact:?}"
+            )))
+        }
+    }
+
+    /// Ensure the current project has been built by `cargo-gbuild`.
+    pub fn ensure_gbuild() {
+        if wasm_path().is_err() {
+            let manifest = etc::find_up("Cargo.toml").expect("Unable to find project manifest.");
+            if !Command::new("cargo")
+                // NOTE: The `cargo-gbuild` command could be overridden by user defined alias,
+                // this is a workaround for our workspace, for the details, see: issue #10049
+                // <https://github.com/rust-lang/cargo/issues/10049>.
+                .current_dir(
+                    manifest
+                        .ancestors()
+                        .nth(2)
+                        .expect("The project is under the root directory"),
+                )
+                .args(["gbuild", "-m"])
+                .arg(&manifest)
+                .status()
+                .expect("cargo-gbuild is not installed, try `cargo install cargo-gbuild` first.")
+                .success()
+            {
+                panic!("Error occurs while compiling the current program, please run `cargo gbuild` directly for the current project to detect the problem, manifest path: {manifest:?}")
+            }
+        }
     }
 }
 
@@ -852,12 +863,7 @@ mod tests {
 
         let user_id = 100;
 
-        let prog = Program::from_opt_and_meta_code_with_id(
-            &sys,
-            137,
-            demo_futures_unordered::WASM_BINARY.to_vec(),
-            None,
-        );
+        let prog = Program::from_binary_with_id(&sys, 137, demo_futures_unordered::WASM_BINARY);
 
         let init_msg_payload = String::from("InvalidInput");
         let run_result = prog.send(user_id, init_msg_payload);
@@ -883,12 +889,7 @@ mod tests {
         sys.mint_to(user_id, 10 * crate::EXISTENTIAL_DEPOSIT);
         assert_eq!(sys.balance_of(user_id), 10 * crate::EXISTENTIAL_DEPOSIT);
 
-        let mut prog = Program::from_opt_and_meta_code_with_id(
-            &sys,
-            137,
-            demo_ping::WASM_BINARY.to_vec(),
-            None,
-        );
+        let mut prog = Program::from_binary_with_id(&sys, 137, demo_ping::WASM_BINARY);
 
         prog.mint(2 * crate::EXISTENTIAL_DEPOSIT);
         assert_eq!(prog.balance(), 2 * crate::EXISTENTIAL_DEPOSIT);
@@ -917,12 +918,7 @@ mod tests {
         sys.mint_to(sender1, 20 * crate::EXISTENTIAL_DEPOSIT);
         sys.mint_to(sender2, 20 * crate::EXISTENTIAL_DEPOSIT);
 
-        let prog = Program::from_opt_and_meta_code_with_id(
-            &sys,
-            137,
-            demo_piggy_bank::WASM_BINARY.to_vec(),
-            None,
-        );
+        let prog = Program::from_binary_with_id(&sys, 137, demo_piggy_bank::WASM_BINARY);
 
         prog.send_bytes(receiver, b"init");
         assert_eq!(prog.balance(), 0);
@@ -966,12 +962,7 @@ mod tests {
         let sys = System::new();
 
         let user = 1;
-        let prog = Program::from_opt_and_meta_code_with_id(
-            &sys,
-            2,
-            demo_piggy_bank::WASM_BINARY.to_vec(),
-            None,
-        );
+        let prog = Program::from_binary_with_id(&sys, 2, demo_piggy_bank::WASM_BINARY);
 
         assert_eq!(sys.balance_of(user), 0);
         sys.mint_to(user, crate::EXISTENTIAL_DEPOSIT);
@@ -990,12 +981,7 @@ mod tests {
 
         sys.mint_to(sender, 20 * crate::EXISTENTIAL_DEPOSIT);
 
-        let prog = Program::from_opt_and_meta_code_with_id(
-            &sys,
-            137,
-            demo_piggy_bank::WASM_BINARY.to_vec(),
-            None,
-        );
+        let prog = Program::from_binary_with_id(&sys, 137, demo_piggy_bank::WASM_BINARY);
 
         prog.send_bytes(receiver, b"init");
 
@@ -1028,8 +1014,7 @@ mod tests {
         let sys = System::new();
         sys.init_logger();
 
-        let mut prog =
-            Program::from_opt_and_meta_code_with_id(&sys, 420, WASM_BINARY.to_vec(), None);
+        let mut prog = Program::from_binary_with_id(&sys, 420, WASM_BINARY);
 
         let signer = 42;
 
@@ -1078,7 +1063,7 @@ mod tests {
         let sys = System::new();
         sys.init_logger();
 
-        let prog = Program::from_opt_and_meta_code_with_id(&sys, 420, WASM_BINARY.to_vec(), None);
+        let prog = Program::from_binary_with_id(&sys, 420, WASM_BINARY);
 
         let signer = 42;
 
@@ -1109,7 +1094,7 @@ mod tests {
         let sys = System::new();
         sys.init_logger();
 
-        let prog = Program::from_opt_and_meta_code_with_id(&sys, 420, WASM_BINARY.to_vec(), None);
+        let prog = Program::from_binary_with_id(&sys, 420, WASM_BINARY);
 
         let signer = 42;
 
@@ -1135,7 +1120,7 @@ mod tests {
         sys.init_logger();
 
         let user_id = [42; 32];
-        let prog = Program::from_opt_and_meta_code_with_id(&sys, 137, WASM_BINARY.to_vec(), None);
+        let prog = Program::from_binary_with_id(&sys, 137, WASM_BINARY);
 
         let run_result = prog.send(user_id, demo_exit_handle::scheme());
         assert!(!run_result.main_failed());

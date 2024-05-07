@@ -19,7 +19,7 @@
 use crate::{
     common::{
         ActorExecutionError, ActorExecutionErrorReplyReason, DispatchResult, DispatchResultKind,
-        ExecutionError, MemorySetupError, SystemExecutionError, WasmExecutionContext,
+        ExecutionError, SystemExecutionError, WasmExecutionContext,
     },
     configs::{BlockInfo, ExecutionSettings},
     ext::{ProcessorContext, ProcessorExternalities},
@@ -35,7 +35,7 @@ use gear_core::{
         ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext,
         WasmEntryPoint,
     },
-    pages::{WasmPage, WasmPagesAmount},
+    pages::WasmPage,
     program::{MemoryInfix, Program},
     reservation::GasReserver,
 };
@@ -47,60 +47,6 @@ use gear_core_backend::{
     },
     BackendExternalities,
 };
-
-/// Checks memory parameters, that are provided for wasm execution.
-/// NOTE: this params partially checked in `Code::try_new` in `gear-core`.
-fn validate_memory_params(
-    memory_size: WasmPagesAmount,
-    static_pages: WasmPagesAmount,
-    stack_end: Option<WasmPage>,
-    allocations: &BTreeSet<WasmPage>,
-    max_pages: WasmPagesAmount,
-) -> Result<(), MemorySetupError> {
-    if memory_size > max_pages {
-        return Err(MemorySetupError::MemorySizeExceedsMaxPages {
-            memory_size,
-            max_pages,
-        });
-    }
-
-    if static_pages > memory_size {
-        return Err(MemorySetupError::InsufficientMemorySize {
-            memory_size,
-            static_pages,
-        });
-    }
-
-    if let Some(stack_end) = stack_end {
-        if stack_end > static_pages {
-            return Err(MemorySetupError::StackEndOutOfStaticMemory {
-                stack_end,
-                static_pages,
-            });
-        }
-    }
-
-    if let Some(&page) = allocations.last() {
-        if page >= memory_size {
-            return Err(MemorySetupError::AllocatedPageOutOfAllowedInterval {
-                page,
-                static_pages,
-                memory_size,
-            });
-        }
-    }
-    if let Some(&page) = allocations.first() {
-        if page < static_pages {
-            return Err(MemorySetupError::AllocatedPageOutOfAllowedInterval {
-                page,
-                static_pages,
-                memory_size,
-            });
-        }
-    }
-
-    Ok(())
-}
 
 /// Execute wasm with dispatch and return dispatch result.
 pub(crate) fn execute_wasm<Ext>(
@@ -131,22 +77,15 @@ where
     log::debug!("Executing program {}", program_id);
     log::debug!("Executing dispatch {:?}", dispatch);
 
-    // TODO: move to `AllocationsContext::new` #3813
-    validate_memory_params(
+    // Creating allocations context.
+    let allocations_context = AllocationsContext::try_new(
         memory_size,
+        program.allocations().clone(),
         program.static_pages(),
         program.stack_end(),
-        program.allocations(),
         settings.max_pages,
     )
     .map_err(SystemExecutionError::from)?;
-
-    // Creating allocations context.
-    let allocations_context = AllocationsContext::new(
-        program.allocations().clone(),
-        program.static_pages(),
-        settings.max_pages,
-    );
 
     // Creating message context.
     let Some(message_context) = MessageContext::new(dispatch.clone(), program_id, msg_ctx_settings)
@@ -207,8 +146,9 @@ where
             program.code().exports().clone(),
             memory_size,
         )?;
-        env.execute(|memory, globals_config| {
+        env.execute(|ctx, memory, globals_config| {
             Ext::lazy_pages_init_for_program(
+                ctx,
                 memory,
                 program_id,
                 program.memory_infix(),
@@ -219,11 +159,12 @@ where
         })
     };
 
-    let (termination, memory, ext) = match execute() {
+    let (termination, mut store, memory, ext) = match execute() {
         Ok(report) => {
             let BackendReport {
                 termination_reason,
-                memory_wrap: mut memory,
+                mut store,
+                mut memory,
                 ext,
             } = report;
 
@@ -235,13 +176,13 @@ where
             };
 
             // released pages initial data will be added to `pages_initial_data` after execution.
-            Ext::lazy_pages_post_execution_actions(&mut memory);
+            Ext::lazy_pages_post_execution_actions(&mut store, &mut memory);
 
             if !Ext::lazy_pages_status().is_normal() {
                 termination = ext.current_counter_type().into()
             }
 
-            (termination, memory, ext)
+            (termination, store, memory, ext)
         }
         Err(EnvironmentError::System(e)) => {
             return Err(ExecutionError::System(SystemExecutionError::Environment(e)))
@@ -258,7 +199,7 @@ where
     log::debug!("Termination reason: {:?}", termination);
 
     let info = ext
-        .into_ext_info(&memory)
+        .into_ext_info(&mut store, &memory)
         .map_err(SystemExecutionError::IntoExtInfo)?;
 
     // Parsing outcome.
@@ -353,7 +294,14 @@ where
         gas_allowance_counter: GasAllowanceCounter::new(gas_limit),
         gas_reserver: GasReserver::new(&Default::default(), Default::default(), Default::default()),
         value_counter: ValueCounter::new(Default::default()),
-        allocations_context: AllocationsContext::new(allocations, static_pages, 512.into()),
+        allocations_context: AllocationsContext::try_new(
+            memory_size,
+            allocations,
+            static_pages,
+            program.stack_end(),
+            512.into(),
+        )
+        .map_err(|e| format!("Failed to create alloc ctx: {e:?}"))?,
         message_context,
         block_info,
         performance_multiplier: gsys::Percent::new(100),
@@ -381,8 +329,9 @@ where
             program.code().exports().clone(),
             memory_size,
         )?;
-        env.execute(|memory, globals_config| {
+        env.execute(|ctx, memory, globals_config| {
             Ext::lazy_pages_init_for_program(
+                ctx,
                 memory,
                 program_id,
                 program.memory_infix(),
@@ -393,11 +342,12 @@ where
         })
     };
 
-    let (termination, memory, ext) = match execute() {
+    let (termination, mut store, memory, ext) = match execute() {
         Ok(report) => {
             let BackendReport {
                 termination_reason,
-                memory_wrap,
+                store,
+                memory,
                 ext,
             } = report;
 
@@ -408,7 +358,7 @@ where
                 }
             };
 
-            (termination_reason, memory_wrap, ext)
+            (termination_reason, store, memory, ext)
         }
         Err(e) => return Err(format!("Backend error: {e}")),
     };
@@ -429,7 +379,7 @@ where
     };
 
     let info = ext
-        .into_ext_info(&memory)
+        .into_ext_info(&mut store, &memory)
         .map_err(|e| format!("Backend postprocessing error: {e:?}"))?;
 
     log::debug!(
@@ -444,96 +394,4 @@ where
     }
 
     Err("Reply not found".into())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use core::iter;
-
-    #[test]
-    fn memory_params_validation() {
-        assert_eq!(
-            validate_memory_params(
-                4.into(),
-                2.into(),
-                Some(2.into()),
-                &iter::once(WasmPage::from(2)).collect(),
-                4.into(),
-            ),
-            Ok(())
-        );
-
-        assert_eq!(
-            validate_memory_params(
-                4.into(),
-                2.into(),
-                Some(2.into()),
-                &BTreeSet::new(),
-                3.into(),
-            ),
-            Err(MemorySetupError::MemorySizeExceedsMaxPages {
-                memory_size: 4.into(),
-                max_pages: 3.into()
-            })
-        );
-
-        assert_eq!(
-            validate_memory_params(
-                1.into(),
-                2.into(),
-                Some(1.into()),
-                &BTreeSet::new(),
-                4.into(),
-            ),
-            Err(MemorySetupError::InsufficientMemorySize {
-                memory_size: 1.into(),
-                static_pages: 2.into()
-            })
-        );
-
-        assert_eq!(
-            validate_memory_params(
-                4.into(),
-                2.into(),
-                Some(3.into()),
-                &BTreeSet::new(),
-                4.into(),
-            ),
-            Err(MemorySetupError::StackEndOutOfStaticMemory {
-                stack_end: 3.into(),
-                static_pages: 2.into()
-            })
-        );
-
-        assert_eq!(
-            validate_memory_params(
-                4.into(),
-                2.into(),
-                Some(2.into()),
-                &iter::once(WasmPage::from(1)).collect(),
-                4.into(),
-            ),
-            Err(MemorySetupError::AllocatedPageOutOfAllowedInterval {
-                page: 1.into(),
-                static_pages: 2.into(),
-                memory_size: 4.into()
-            })
-        );
-
-        assert_eq!(
-            validate_memory_params(
-                4.into(),
-                2.into(),
-                Some(2.into()),
-                &iter::once(WasmPage::from(4)).collect(),
-                4.into(),
-            ),
-            Err(MemorySetupError::AllocatedPageOutOfAllowedInterval {
-                page: 4.into(),
-                static_pages: 2.into(),
-                memory_size: 4.into()
-            })
-        );
-    }
 }
