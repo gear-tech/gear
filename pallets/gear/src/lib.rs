@@ -461,6 +461,8 @@ pub mod pallet {
         GearRunAlreadyInBlock,
         /// The program rent logic is disabled.
         ProgramRentDisabled,
+        /// Inheritor is not found for the program.
+        InheritorNotFound,
     }
 
     #[cfg(feature = "runtime-benchmarks")]
@@ -1655,7 +1657,7 @@ pub mod pallet {
                 unreachable!("NonZeroU32 to NoZeroUsize conversion must be infallible: {e}")
             });
             let Some((destination, holders)) = Self::inheritor_for(program_id, depth) else {
-                return Ok(());
+                return Err(Error::<T>::InheritorNotFound.into());
             };
 
             let destination = destination.cast();

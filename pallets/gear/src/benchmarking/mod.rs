@@ -105,7 +105,7 @@ use sp_consensus_babe::{
 use sp_core::H256;
 use sp_runtime::{
     traits::{Bounded, CheckedAdd, One, UniqueSaturatedInto, Zero},
-    Digest, DigestItem, Perbill, SaturatedConversion,
+    Digest, DigestItem, Perbill,
 };
 use sp_std::{num::NonZeroU32, prelude::*};
 
@@ -535,28 +535,29 @@ benchmarks! {
     }
 
     transfer_value_to_inheritor {
-        let d in 0 .. 1024;
+        let d in 1 .. 1024;
 
-        const INITIAL_PROGRAM_BALANCE: u128 = 1_000;
+        let minimum_balance = CurrencyOf::<T>::minimum_balance();
 
         let caller: T::AccountId = benchmarking::account("caller", 0, 0);
-        let _ = CurrencyOf::<T>::deposit_creating(&caller, 0_u128.unique_saturated_into());
 
         let mut inheritor = caller.clone().cast();
+        let mut programs = vec![];
         for i in 0..d {
             let program_id = benchmarking::account::<T::AccountId>("program", i, 100);
-            let _ = CurrencyOf::<T>::deposit_creating(&program_id, INITIAL_PROGRAM_BALANCE.unique_saturated_into());
+            programs.push(program_id.clone());
+            let _ = CurrencyOf::<T>::deposit_creating(&program_id, minimum_balance);
             let program_id = program_id.cast();
-            benchmarking::set_program::<ProgramStorageOf::<T>, _>(program_id, vec![], 0.into());
+            benchmarking::set_program::<ProgramStorageOf::<T>, _>(program_id, vec![], 1.into());
 
             ProgramStorageOf::<T>::update_program_if_active(program_id, |program, _bn| {
                 // we set program to terminated state and not exited one because
                 // it's the longest branch in `PalletGear::inheritor_for()`
                 *program = common::Program::Terminated(inheritor);
-
-                inheritor = program_id;
             })
             .unwrap();
+
+            inheritor = program_id;
         }
 
         let program_id = inheritor;
@@ -566,8 +567,12 @@ benchmarks! {
     verify {
         assert_eq!(
             CurrencyOf::<T>::free_balance(&caller),
-            BalanceOf::<T>::saturated_from(INITIAL_PROGRAM_BALANCE * d as u128)
+            minimum_balance * d.unique_saturated_into()
         );
+
+        for program_id in programs {
+            assert_eq!(CurrencyOf::<T>::free_balance(&program_id), BalanceOf::<T>::zero());
+        }
     }
 
     // This benchmarks the additional weight that is charged when a program is executed the
