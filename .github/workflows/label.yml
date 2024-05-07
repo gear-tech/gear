@@ -6,16 +6,18 @@ on:
     types: [labeled]
 
 jobs:
-  linux:
+  dispatch:
     runs-on: ubuntu-latest
     if: >-
       github.event.label.name == 'A0-pleasereview'
       || github.event.label.name == 'A4-insubstantial'
       || github.event.label.name == 'A2-mergeoncegreen'
+      || github.event.label.name == 'E2-forcemacos'
 
     steps:
       - uses: actions/checkout@v4
       - name: Fork Linux checks
+        if: github.event.label.name != 'E2-forcemacos'
         uses: gear-tech/fork-action@main
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -30,12 +32,8 @@ jobs:
             '{ "title": "${{ github.event.pull_request.title }}", "number": "${{
             github.event.number }}" }'
 
-  osx:
-    runs-on: ubuntu-latest
-    if: github.event.label.name == 'E2-forcemacos'
-    steps:
-      - uses: actions/checkout@v4
       - name: Fork OSX checks
+        if: github.event.label.name == 'E2-forcemacos'
         uses: gear-tech/fork-action@main
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -44,5 +42,4 @@ jobs:
           repo: "gear-tech/gear"
           workflow_id: ".github/workflows/build-macos.yml"
           prefix: "build"
-          needs: '["dynamic-profiles"]'
           jobs: '["macos-x86 (debug)", "macos-aarch64 (debug)"]'
