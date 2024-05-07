@@ -66,6 +66,7 @@ use sp_runtime::{
     SaturatedConversion,
 };
 use sp_std::convert::TryFrom;
+use std::num::{NonZeroU32, NonZeroUsize};
 pub use utils::init_logger;
 use utils::*;
 
@@ -6263,7 +6264,7 @@ fn exit_locking_funds() {
         assert_ok!(Gear::transfer_value_to_inheritor(
             RuntimeOrigin::signed(USER_1),
             program_id,
-            u32::MAX,
+            NonZeroU32::MAX,
         ));
 
         run_to_next_block(None);
@@ -6456,7 +6457,7 @@ fn terminated_locking_funds() {
         assert_ok!(Gear::transfer_value_to_inheritor(
             RuntimeOrigin::signed(USER_1),
             program_id,
-            u32::MAX,
+            NonZeroU32::MAX,
         ));
 
         run_to_next_block(None);
@@ -6513,26 +6514,56 @@ fn transfer_value_to_inheritor() {
             programs.push(program_id);
         }
 
-        let inheritor = Gear::inheritor_for(programs[99], usize::MAX);
-        assert_eq!(inheritor, USER_1.into());
+        let indexed_programs: Vec<u64> = (1000..1100).collect();
+        let convert_holders = |holders: BTreeSet<ProgramId>| {
+            let mut holders = holders
+                .into_iter()
+                .map(|x| u64::from_le_bytes(*x.into_bytes().split_first_chunk::<8>().unwrap().0))
+                .collect::<Vec<u64>>();
+            holders.sort();
+            holders
+        };
+        let inheritor_for = |id, max_depth| {
+            let max_depth = NonZeroUsize::new(max_depth).unwrap();
+            let (inheritor, holders) = Gear::inheritor_for(id, max_depth).unwrap();
+            let holders = convert_holders(holders);
+            (inheritor, holders)
+        };
 
-        let inheritor = Gear::inheritor_for(programs[50], usize::MAX);
-        assert_eq!(inheritor, USER_1.into());
+        let res = Gear::inheritor_for(USER_1.into(), NonZeroUsize::MAX);
+        assert_eq!(res, None);
 
-        let inheritor = Gear::inheritor_for(programs[0], usize::MAX);
+        let (inheritor, holders) = inheritor_for(programs[99], usize::MAX);
         assert_eq!(inheritor, USER_1.into());
+        assert_eq!(holders, indexed_programs);
 
-        let inheritor = Gear::inheritor_for(programs[99], 10);
+        let (inheritor, holders) = inheritor_for(programs[49], usize::MAX);
+        assert_eq!(inheritor, USER_1.into());
+        assert_eq!(holders, indexed_programs[..=49]);
+
+        let (inheritor, holders) = inheritor_for(programs[0], usize::MAX);
+        assert_eq!(inheritor, USER_1.into());
+        assert_eq!(holders, indexed_programs[..=0]);
+
+        let (inheritor, holders) = inheritor_for(programs[0], 1);
+        assert_eq!(inheritor, USER_1.into());
+        assert_eq!(holders, indexed_programs[..=0]);
+
+        let (inheritor, holders) = inheritor_for(programs[99], 10);
         assert_eq!(inheritor, programs[89]);
+        assert_eq!(holders, indexed_programs[90..]);
 
-        let inheritor = Gear::inheritor_for(programs[99], 20);
-        assert_eq!(inheritor, programs[79]);
+        let (inheritor, holders) = inheritor_for(programs[99], 50);
+        assert_eq!(inheritor, programs[49]);
+        assert_eq!(holders, indexed_programs[50..]);
 
-        let inheritor = Gear::inheritor_for(programs[99], 100);
+        let (inheritor, holders) = inheritor_for(programs[99], 100);
         assert_eq!(inheritor, USER_1.into());
+        assert_eq!(holders, indexed_programs);
 
-        let inheritor = Gear::inheritor_for(programs[99], 99);
+        let (inheritor, holders) = inheritor_for(programs[99], 99);
         assert_eq!(inheritor, programs[0]);
+        assert_eq!(holders, indexed_programs[1..]);
     });
 }
 

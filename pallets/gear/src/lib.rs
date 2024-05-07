@@ -62,7 +62,7 @@ use common::{
     storage::*, BlockLimiter, CodeMetadata, CodeStorage, GasProvider, GasTree, Origin,
     PausedProgramStorage, Program, ProgramState, ProgramStorage, QueueRunner,
 };
-use core::marker::PhantomData;
+use core::{marker::PhantomData, num::NonZeroU32};
 use core_processor::{
     common::{DispatchOutcome as CoreDispatchOutcome, ExecutableActorData, JournalNote},
     configs::{BlockConfig, BlockInfo},
@@ -1643,25 +1643,34 @@ pub mod pallet {
         }
 
         #[pallet::call_index(8)]
-        #[pallet::weight(<T as Config>::WeightInfo::transfer_value_to_inheritor(*depth))]
+        #[pallet::weight(<T as Config>::WeightInfo::transfer_value_to_inheritor(depth.get()))]
         pub fn transfer_value_to_inheritor(
             origin: OriginFor<T>,
             program_id: ProgramId,
-            depth: u32,
+            depth: NonZeroU32,
         ) -> DispatchResult {
             ensure_signed(origin)?;
 
-            let program_account = program_id.cast();
-            let balance = CurrencyOf::<T>::free_balance(&program_account);
-            if !balance.is_zero() {
-                let destination = Self::inheritor_for(program_id, depth as usize).cast();
+            let depth = depth.try_into().unwrap_or_else(|e| {
+                unreachable!("NonZeroU32 to NoZeroUsize conversion must be infallible: {e}")
+            });
+            let Some((destination, holders)) = Self::inheritor_for(program_id, depth) else {
+                return Ok(());
+            };
 
-                CurrencyOf::<T>::transfer(
-                    &program_account,
-                    &destination,
-                    balance,
-                    ExistenceRequirement::AllowDeath,
-                )?;
+            let destination = destination.cast();
+
+            for holder in holders {
+                let holder = holder.cast();
+                let balance = CurrencyOf::<T>::free_balance(&holder);
+                if !balance.is_zero() {
+                    CurrencyOf::<T>::transfer(
+                        &holder,
+                        &destination,
+                        balance,
+                        ExistenceRequirement::AllowDeath,
+                    )?;
+                }
             }
 
             Ok(())

@@ -34,7 +34,10 @@ use common::{
     storage::*,
     GasTree, LockId, LockableTree, Origin,
 };
-use core::cmp::{Ord, Ordering};
+use core::{
+    cmp::{Ord, Ordering},
+    num::NonZeroUsize,
+};
 use frame_support::traits::{Currency, ExistenceRequirement};
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
@@ -903,26 +906,43 @@ where
         );
     }
 
-    pub(crate) fn inheritor_for(program_id: ProgramId, max_depth: usize) -> ProgramId {
+    pub(crate) fn inheritor_for(
+        program_id: ProgramId,
+        max_depth: NonZeroUsize,
+    ) -> Option<(ProgramId, BTreeSet<ProgramId>)> {
+        let get_inheritor =
+            |id| Self::exit_inheritor_of(id).or_else(|| Self::termination_inheritor_of(id));
+
+        let max_depth = max_depth.get();
+
         let mut inheritor = program_id;
-        let mut visited_ids: BTreeSet<_> = [program_id].into();
+        let mut holders = BTreeSet::new();
 
-        while let Some(id) =
-            Self::exit_inheritor_of(inheritor).or_else(|| Self::termination_inheritor_of(inheritor))
-        {
-            // `-1` is `program_id` itself
-            if max_depth == visited_ids.len() - 1 {
+        loop {
+            let next_inheritor = get_inheritor(inheritor)?;
+
+            inheritor = next_inheritor;
+
+            // don't insert user or active program
+            // because it's the final inheritor we already return
+            if let None = get_inheritor(inheritor) {
                 break;
             }
 
-            if !visited_ids.insert(id) {
+            // `-1` because the check is before insertion
+            if holders.len() == max_depth - 1 {
                 break;
             }
 
-            inheritor = id
+            // TODO: handle cyclic reference
+            if !holders.insert(next_inheritor) {
+                panic!("Cyclic inheritors detected");
+            }
         }
 
-        inheritor
+        holders.insert(program_id);
+
+        Some((inheritor, holders))
     }
 
     /// This fn and [`split_with_value`] works the same: they call api of gas

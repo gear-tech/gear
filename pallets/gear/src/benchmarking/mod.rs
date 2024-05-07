@@ -107,7 +107,7 @@ use sp_runtime::{
     traits::{Bounded, CheckedAdd, One, UniqueSaturatedInto, Zero},
     Digest, DigestItem, Perbill, SaturatedConversion,
 };
-use sp_std::prelude::*;
+use sp_std::{num::NonZeroU32, prelude::*};
 
 const MAX_PAYLOAD_LEN: u32 = 32 * 64 * 1024;
 const MAX_PAYLOAD_LEN_KB: u32 = MAX_PAYLOAD_LEN / 1024;
@@ -537,15 +537,17 @@ benchmarks! {
     transfer_value_to_inheritor {
         let d in 0 .. 1024;
 
+        const INITIAL_PROGRAM_BALANCE: u128 = 1_000;
+
         let caller: T::AccountId = benchmarking::account("caller", 0, 0);
         let _ = CurrencyOf::<T>::deposit_creating(&caller, 0_u128.unique_saturated_into());
 
         let mut inheritor = caller.clone().cast();
-        for i in 0..=d {
+        for i in 0..d {
             let program_id = benchmarking::account::<T::AccountId>("program", i, 100);
-            let _ = CurrencyOf::<T>::deposit_creating(&program_id, 1_000_u128.unique_saturated_into());
+            let _ = CurrencyOf::<T>::deposit_creating(&program_id, INITIAL_PROGRAM_BALANCE.unique_saturated_into());
             let program_id = program_id.cast();
-            benchmarking::set_program::<ProgramStorageOf::<T>, _>(program_id, vec![], 1.into());
+            benchmarking::set_program::<ProgramStorageOf::<T>, _>(program_id, vec![], 0.into());
 
             ProgramStorageOf::<T>::update_program_if_active(program_id, |program, _bn| {
                 // we set program to terminated state and not exited one because
@@ -560,9 +562,12 @@ benchmarks! {
         let program_id = inheritor;
 
         init_block::<T>(None);
-    }: _(RawOrigin::Signed(caller.clone()), program_id, u32::MAX)
+    }: _(RawOrigin::Signed(caller.clone()), program_id, NonZeroU32::MAX)
     verify {
-        assert_eq!(CurrencyOf::<T>::free_balance(&caller), BalanceOf::<T>::saturated_from(0_u64));
+        assert_eq!(
+            CurrencyOf::<T>::free_balance(&caller),
+            BalanceOf::<T>::saturated_from(INITIAL_PROGRAM_BALANCE * d as u128)
+        );
     }
 
     // This benchmarks the additional weight that is charged when a program is executed the
