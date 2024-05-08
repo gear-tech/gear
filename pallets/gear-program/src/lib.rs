@@ -157,10 +157,9 @@ pub mod pallet {
         code::InstrumentedCode,
         ids::{CodeId, ProgramId},
         memory::PageBuf,
-        pages::GearPage,
         program::MemoryInfix,
+        pages::{WasmPage, GearPage, numerated::tree::IntervalsTree},
     };
-    use primitive_types::H256;
     use sp_runtime::DispatchError;
 
     /// The current storage version.
@@ -263,6 +262,30 @@ pub mod pallet {
 
     #[pallet::storage]
     #[pallet::unbounded]
+    pub(crate) type AllocationsStorage<T: Config> =
+        StorageMap<_, Identity, ProgramId, IntervalsTree<WasmPage>>;
+
+    common::wrap_storage_map!(
+        storage: AllocationsStorage,
+        name: AllocationsStorageWrap,
+        key: ProgramId,
+        value: IntervalsTree<WasmPage>
+    );
+
+    #[pallet::storage]
+    #[pallet::unbounded]
+    pub(crate) type PagesWithDataStorage<T: Config> =
+        StorageMap<_, Identity, ProgramId, IntervalsTree<GearPage>>;
+
+    common::wrap_storage_map!(
+        storage: PagesWithDataStorage,
+        name: PagesWithDataStorageWrap,
+        key: ProgramId,
+        value: IntervalsTree<GearPage>
+    );
+
+    #[pallet::storage]
+    #[pallet::unbounded]
     pub(crate) type ProgramStorage<T: Config> =
         StorageMap<_, Identity, ProgramId, Program<BlockNumberFor<T>>>;
 
@@ -294,17 +317,6 @@ pub mod pallet {
         value: PageBuf
     );
 
-    #[pallet::storage]
-    pub(crate) type PausedProgramStorage<T: Config> =
-        StorageMap<_, Identity, ProgramId, (BlockNumberFor<T>, H256)>;
-
-    common::wrap_storage_map!(
-        storage: PausedProgramStorage,
-        name: PausedProgramStorageWrap,
-        key: ProgramId,
-        value: (BlockNumberFor<T>, H256)
-    );
-
     impl<T: Config> common::CodeStorage for pallet::Pallet<T> {
         type InstrumentedCodeStorage = CodeStorageWrap<T>;
         type InstrumentedLenStorage = CodeLenStorageWrap<T>;
@@ -318,6 +330,8 @@ pub mod pallet {
         type BlockNumber = BlockNumberFor<T>;
         type AccountId = T::AccountId;
 
+        type AllocationsMap = AllocationsStorageWrap<T>;
+        type PagesWithDataMap = PagesWithDataStorageWrap<T>;
         type ProgramMap = ProgramStorageWrap<T>;
         type MemoryPageMap = MemoryPageStorageWrap<T>;
 

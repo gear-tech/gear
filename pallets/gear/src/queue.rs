@@ -88,8 +88,10 @@ where
             return core_processor::process_non_executable(precharged_dispatch, destination_id);
         }
 
+        let allocations = ProgramStorageOf::<T>::allocations(destination_id).unwrap_or_default();
+
         let actor_data = ExecutableActorData {
-            allocations: program.allocations,
+            allocations,
             code_id: program.code_hash.cast(),
             code_exports: program.code_exports,
             static_pages: program.static_pages,

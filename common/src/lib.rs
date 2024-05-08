@@ -277,15 +277,23 @@ impl<BlockNumber: Copy + Saturating> core::convert::TryFrom<Program<BlockNumber>
     }
 }
 
+// #[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]
+// #[codec(crate = codec)]
+// #[scale_info(crate = scale_info)]
+// pub struct ProgramAllocations(pub IntervalsTree<WasmPage>);
+
+// #[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]
+// #[codec(crate = codec)]
+// #[scale_info(crate = scale_info)]
+// pub struct ProgramPagesWithData(pub IntervalsTree<GearPage>);
+
 #[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]
 #[codec(crate = codec)]
 #[scale_info(crate = scale_info)]
 pub struct ActiveProgram<BlockNumber: Copy + Saturating> {
-    /// Set of wasm pages, that were allocated by the program.
-    pub allocations: IntervalsTree<WasmPage>,
-    /// Set of gear pages, that have data in storage.
-    pub pages_with_data: IntervalsTree<GearPage>,
+    pub allocations_tree_len: u32,
     pub memory_infix: MemoryInfix,
+    // TODO: investigate wether we need to charge for gas reservation map size +_+_+
     pub gas_reservation_map: GasReservationMap,
     pub code_hash: H256,
     pub code_exports: BTreeSet<DispatchKind>,

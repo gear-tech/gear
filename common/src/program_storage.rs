@@ -58,11 +58,15 @@ pub trait ProgramStorage {
         Key3 = GearPage,
         Value = PageBuf,
     >;
+    type AllocationsMap: MapStorage<Key = ProgramId, Value = IntervalsTree<WasmPage>>;
+    type PagesWithDataMap: MapStorage<Key = ProgramId, Value = IntervalsTree<GearPage>>;
 
     /// Attempt to remove all items from all the associated maps.
     fn reset() {
         Self::ProgramMap::clear();
         Self::MemoryPageMap::clear();
+        Self::AllocationsMap::clear();
+        Self::PagesWithDataMap::clear();
     }
 
     /// Store a program to be associated with the given key `program_id` from the map.
@@ -102,6 +106,44 @@ pub trait ProgramStorage {
             Program::Active(active_program) => update_action(active_program),
             _ => unreachable!("invariant kept by update_program_if_active"),
         })
+    }
+
+    fn pages_with_data(program_id: ProgramId) -> Option<IntervalsTree<GearPage>> {
+        Self::PagesWithDataMap::get(&program_id)
+    }
+
+    fn append_pages_with_data(program_id: ProgramId, pages: impl Iterator<Item = GearPage>) {
+        Self::PagesWithDataMap::mutate(program_id, |maybe| {
+            let tree = maybe.get_or_insert(Default::default());
+            pages.for_each(|page| tree.insert(page));
+        });
+    }
+
+    fn remove_pages_with_data(program_id: ProgramId, memory_infix: MemoryInfix, pages: impl Iterator<Item = GearPage>) {
+        Self::PagesWithDataMap::mutate(program_id, |maybe| {
+            let tree = maybe.get_or_insert(Default::default());
+            for page in pages {
+                if tree.contains(page) {
+                    tree.remove(page);
+                    Self::remove_program_page_data(program_id, memory_infix, page)
+                }
+            }
+        });
+    }
+
+    fn allocations(program_id: ProgramId) -> Option<IntervalsTree<WasmPage>> {
+        Self::AllocationsMap::get(&program_id)
+    }
+
+    fn set_allocations(program_id: ProgramId, allocations: IntervalsTree<WasmPage>) {
+        Self::AllocationsMap::insert(program_id, allocations);
+    }
+
+    fn memory_infix(program_id: ProgramId) -> Option<MemoryInfix> {
+        match Self::ProgramMap::get(&program_id) {
+            Some(Program::Active(program)) => Some(program.memory_infix),
+            _ => None,
+        }
     }
 
     /// Update the program under the given key `program_id` only if the

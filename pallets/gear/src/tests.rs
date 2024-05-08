@@ -33,7 +33,7 @@ use crate::{
 };
 use common::{
     event::*, scheduler::*, storage::*, ActiveProgram, CodeStorage, GasTree, LockId, LockableTree,
-    Origin as _, Program, ProgramStorage, ReservableTree,
+    Origin as _, ProgramStorage, ReservableTree,
 };
 use core_processor::common::ActorExecutionErrorReplyReason;
 use frame_support::{
@@ -14868,12 +14868,9 @@ fn allocate_in_init_free_in_handle() {
 
         run_to_next_block(None);
 
-        let Some(Program::Active(program)) = ProgramStorageOf::<Test>::get_program(program_id)
-        else {
-            panic!("program must be active")
-        };
+        let allocations = ProgramStorageOf::<Test>::allocations(program_id).unwrap_or_default();
         assert_eq!(
-            program.allocations,
+            allocations,
             [WasmPage::from(static_pages)].into_iter().collect()
         );
 
@@ -14889,11 +14886,8 @@ fn allocate_in_init_free_in_handle() {
 
         run_to_next_block(None);
 
-        let Some(Program::Active(program)) = ProgramStorageOf::<Test>::get_program(program_id)
-        else {
-            panic!("program must be active")
-        };
-        assert_eq!(program.allocations, Default::default());
+        let allocations = ProgramStorageOf::<Test>::allocations(program_id).unwrap_or_default();
+        assert_eq!(allocations, Default::default());
     });
 }
 

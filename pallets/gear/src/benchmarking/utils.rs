@@ -22,11 +22,12 @@ use super::Exec;
 use crate::{
     builtin::BuiltinDispatcherFactory,
     manager::{CodeInfo, ExtManager, HandleKind},
-    Config, MailboxOf, Pallet as Gear, ProgramStorageOf, QueueOf,
+    Config, MailboxOf, Pallet as Gear, ProgramStorageOf, QueueOf, CurrencyOf,
 };
-use common::{storage::*, CodeStorage, Origin, ProgramStorage};
+use common::{storage::*, CodeStorage, Origin, ProgramStorage, Program};
 use core_processor::{
     configs::BlockConfig, ContextChargedForCode, ContextChargedForInstrumentation,
+    common::ExecutableActorData,
 };
 use frame_support::traits::Get;
 use gear_core::{
@@ -38,6 +39,7 @@ use gear_core::{
 use sp_core::H256;
 use sp_runtime::traits::UniqueSaturatedInto;
 use sp_std::{convert::TryInto, prelude::*};
+use frame_support::traits::Currency;
 
 const DEFAULT_BLOCK_NUMBER: u32 = 0;
 const DEFAULT_INTERVAL: u32 = 1_000;
@@ -206,9 +208,6 @@ where
     };
 
     let actor_id = queued_dispatch.destination();
-    let actor = ext_manager
-        .get_actor(actor_id)
-        .ok_or("Program not found in the storage")?;
 
     let pallet_config = Gear::<T>::block_config();
     let block_config = BlockConfig {
@@ -226,12 +225,27 @@ where
     )
     .map_err(|_| "core_processor::precharge_for_program failed")?;
 
-    let balance = actor.balance;
+    let active = match ProgramStorageOf::<T>::get_program(actor_id) {
+        Some(Program::Active(active)) => active,
+        _ => return Err("Program not found"),
+    };
+    let balance = CurrencyOf::<T>::free_balance(&actor_id.cast()).unique_saturated_into();
+    let allocations = ProgramStorageOf::<T>::allocations(actor_id).unwrap_or_default();
+
+    let executable_data = ExecutableActorData {
+        allocations,
+        code_id: active.code_hash.cast(),
+        code_exports: active.code_exports,
+        static_pages: active.static_pages,
+        gas_reservation_map: active.gas_reservation_map,
+        memory_infix: active.memory_infix,
+    };
+
     let context = core_processor::precharge_for_code_length(
         &block_config,
         precharged_dispatch,
         actor_id,
-        actor.executable_data,
+        executable_data,
     )
     .map_err(|_| "core_processor::precharge_for_code failed")?;
 

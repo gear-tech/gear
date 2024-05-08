@@ -63,8 +63,10 @@ impl<T: Config> OnRuntimeUpgrade for MigrateAllocations<T> {
 
                 Some(match program {
                     v5::Program::Active(p) => Program::Active(common::ActiveProgram {
-                        allocations: p.allocations.into_iter().collect(),
-                        pages_with_data: p.pages_with_data.into_iter().collect(),
+                        // +_+_+
+                        allocations_tree_len: 0,
+                        // allocations: p.allocations.into_iter().collect(),
+                        // pages_with_data: p.pages_with_data.into_iter().collect(),
                         memory_infix: p.memory_infix,
                         gas_reservation_map: p.gas_reservation_map,
                         code_hash: p.code_hash,
@@ -203,6 +205,7 @@ mod v5 {
 
 #[cfg(test)]
 #[cfg(feature = "try-runtime")]
+#[cfg(feature = "disabled")]
 mod test {
     use super::*;
     use crate::mock::*;

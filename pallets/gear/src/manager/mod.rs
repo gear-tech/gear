@@ -59,10 +59,9 @@ use common::{
     event::*,
     scheduler::{ScheduledTask, StorageType, TaskPool},
     storage::{Interval, IterableByKeyMap, Queue},
-    ActiveProgram, CodeStorage, Origin, Program, ProgramStorage, ReservableTree,
+    CodeStorage, Origin, Program, ProgramStorage, ReservableTree,
 };
 use core::fmt;
-use core_processor::common::{Actor, ExecutableActorData};
 use frame_support::traits::{Currency, ExistenceRequirement};
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
@@ -77,11 +76,10 @@ use primitive_types::H256;
 use scale_info::TypeInfo;
 use sp_runtime::{
     codec::{Decode, Encode},
-    traits::{UniqueSaturatedInto, Zero},
+    traits::Zero,
 };
 use sp_std::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
-    convert::TryInto,
     marker::PhantomData,
     prelude::*,
 };
@@ -222,27 +220,6 @@ where
 
         self.program_loaded_pages.insert(id);
     }
-    /// NOTE: By calling this function we can't differ whether `None` returned, because
-    /// program with `id` doesn't exist or it's terminated
-    pub fn get_actor(&self, id: ProgramId) -> Option<Actor> {
-        let active: ActiveProgram<_> = ProgramStorageOf::<T>::get_program(id)?.try_into().ok()?;
-        let code_id = active.code_hash.cast();
-
-        let balance = CurrencyOf::<T>::free_balance(&id.cast()).unique_saturated_into();
-
-        Some(Actor {
-            balance,
-            destination_program: id,
-            executable_data: ExecutableActorData {
-                allocations: active.allocations.clone(),
-                code_id,
-                code_exports: active.code_exports,
-                static_pages: active.static_pages,
-                gas_reservation_map: active.gas_reservation_map,
-                memory_infix: active.memory_infix,
-            },
-        })
-    }
 
     pub fn set_program(
         &self,
@@ -262,8 +239,7 @@ where
 
         // An empty program has been just constructed: it contains no mem allocations.
         let program = common::ActiveProgram {
-            allocations: Default::default(),
-            pages_with_data: Default::default(),
+            allocations_tree_len: 0,
             code_hash: code_info.id,
             code_exports: code_info.exports.clone(),
             static_pages: code_info.static_pages,
