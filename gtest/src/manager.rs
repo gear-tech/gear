@@ -132,7 +132,7 @@ impl TestActor {
 
     // Gets a new executable actor derived from the inner program.
     fn get_executable_actor_data(&self) -> Option<(ExecutableActorData, CoreProgram)> {
-        let (program, pages_data, code_id, gas_reservation_map) = match self {
+        let (program, _, code_id, gas_reservation_map) = match self {
             TestActor::Initialized(Program::Genuine {
                 program,
                 pages_data,
@@ -164,7 +164,6 @@ impl TestActor {
                 code_id: *code_id,
                 code_exports: program.code().exports().clone(),
                 static_pages: program.code().static_pages(),
-                pages_with_data: pages_data.keys().cloned().collect(),
                 gas_reservation_map,
                 memory_infix: program.memory_infix(),
             },
