@@ -75,11 +75,6 @@ mod staking_v13 {
     impl<T: pallet_staking::Config> OnRuntimeUpgrade for MigrateToV13<T> {
         #[cfg(feature = "try-runtime")]
         fn pre_upgrade() -> Result<Vec<u8>, TryRuntimeError> {
-            frame_support::ensure!(
-                StorageVersion::<T>::get() == ObsoleteReleases::V13_0_0,
-                "Required ObsoleteReleases::V13_0_0 before upgrading to v13"
-            );
-
             Ok(Default::default())
         }
 
@@ -101,11 +96,6 @@ mod staking_v13 {
 
         #[cfg(feature = "try-runtime")]
         fn post_upgrade(_state: Vec<u8>) -> Result<(), TryRuntimeError> {
-            frame_support::ensure!(
-                Pallet::<T>::on_chain_storage_version() >= 13,
-                "v13 not applied"
-            );
-
             frame_support::ensure!(
                 !StorageVersion::<T>::exists(),
                 "Storage version not migrated correctly"
