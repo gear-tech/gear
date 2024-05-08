@@ -37,7 +37,16 @@ use sp_runtime_interface::{
 };
 use sp_std::{convert::TryFrom, mem, result::Result, vec::Vec};
 #[cfg(feature = "std")]
-use {ark_bls12_381::G1Projective as G1, ark_scale::ArkScale, gear_lazy_pages::LazyPagesStorage};
+use {
+    ark_bls12_381::{G1Projective as G1, G2Affine, G2Projective as G2},
+    ark_ec::{
+        bls12::Bls12Config,
+        hashing::{curve_maps::wb, map_to_curve_hasher::MapToCurveBasedHasher, HashToCurve},
+    },
+    ark_ff::fields::field_hashers::DefaultFieldHasher,
+    ark_scale::ArkScale,
+    gear_lazy_pages::LazyPagesStorage,
+};
 
 mod gear_sandbox;
 
@@ -46,6 +55,9 @@ pub use gear_sandbox::init as sandbox_init;
 pub use gear_sandbox::sandbox;
 
 const _: () = assert!(core::mem::size_of::<HostPointer>() >= core::mem::size_of::<usize>());
+
+// Domain Separation Tag for signatures on G2.
+pub const DST_G2: &[u8] = b"BLS_SIG_BLS12381G2_XMD:SHA-256_SSWU_RO_POP_";
 
 #[derive(Debug, Clone, Encode, Decode)]
 #[codec(crate = codec)]
@@ -324,5 +336,24 @@ pub trait GearBls12_381 {
             .fold(*point_first, |aggregated, point| aggregated + *point);
 
         ArkScale::<G1>::from(point_aggregated).encode()
+    }
+
+    /// Map a message to G2Affine-point using the domain separation tag from `milagro_bls`.
+    /// Result is encoded `ArkScale<G2Affine>`. Returns an empty array on failure.
+    fn map_to_g2affine(message: &[u8]) -> Vec<u8> {
+        type ArkScale<T> = ark_scale::ArkScale<T, { ark_scale::HOST_CALL }>;
+        type WBMap = wb::WBMap<<ark_bls12_381::Config as Bls12Config>::G2Config>;
+
+        let Ok(mapper) =
+            MapToCurveBasedHasher::<G2, DefaultFieldHasher<sha2::Sha256>, WBMap>::new(DST_G2)
+        else {
+            return vec![];
+        };
+
+        let Ok(point) = mapper.hash(message) else {
+            return vec![];
+        };
+
+        ArkScale::<G2Affine>::from(point).encode()
     }
 }

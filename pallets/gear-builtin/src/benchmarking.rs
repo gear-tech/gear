@@ -279,6 +279,20 @@ benchmarks! {
 
         assert_eq!(point_aggregated, decoded.0);
     }
+
+    bls12_381_map_to_g2affine {
+        let c in 0 .. MAX_PAYLOAD_SIZE as u32;
+
+        let message = vec![1u8; c as usize];
+
+        let mut _result = vec![];
+    }: {
+        _result = gear_runtime_interface::gear_bls_12_381::map_to_g2affine(&message);
+    } verify {
+        assert!(
+            ArkScale::<G2Affine>::decode(&mut &_result[..]).is_ok()
+        )
+    }
 }
 
 impl_benchmark_test_suite!(
