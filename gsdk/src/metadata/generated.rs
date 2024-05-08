@@ -8791,6 +8791,7 @@ pub mod storage {
         ProgramStorage,
         MemoryPages,
         PausedProgramStorage,
+        CounterForPausedProgramStorage,
     }
     impl StorageInfo for GearProgramStorage {
         const PALLET: &'static str = "GearProgram";
@@ -8803,6 +8804,7 @@ pub mod storage {
                 Self::ProgramStorage => "ProgramStorage",
                 Self::MemoryPages => "MemoryPages",
                 Self::PausedProgramStorage => "PausedProgramStorage",
+                Self::CounterForPausedProgramStorage => "CounterForPausedProgramStorage",
             }
         }
     }
