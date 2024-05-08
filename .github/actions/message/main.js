@@ -11,7 +11,7 @@ const BUILD_LABELS = [
   "A4-insubstantial",
   "A2-mergeoncegreen",
 ];
-const CHECKS = ["check", "build"];
+const CHECKS = ["check / linux", "build / linux (debug)"];
 const DEPBOT = "[depbot]";
 const WINDOWS_NATIVE = "E1-forcenatwin";
 const MACOS = "E2-forcemacos";
@@ -37,13 +37,13 @@ async function mock(head_sha) {
     const { data: res } = await octokit.rest.checks.create({
       owner,
       repo,
-      name: `${check} / linux (debug)`,
+      name: check,
       head_sha,
       status: "completed",
       conclusion: "success",
     });
 
-    core.info(`Created check "${check} / linux (debug)"`);
+    core.info(`Created check "${check})"`);
     core.info(res.html_url);
   }
 }
