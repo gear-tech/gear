@@ -33,17 +33,17 @@ const [owner, repo] = ["gear-tech", "gear"];
 async function mock(head_sha) {
   const token = core.getInput("token");
   const octokit = github.getOctokit(token);
-  for (const check of CHECKS) {
+  for (const name of CHECKS) {
     const { data: res } = await octokit.rest.checks.create({
       owner,
       repo,
-      name: check,
+      name,
       head_sha,
       status: "completed",
       conclusion: "success",
     });
 
-    core.info(`Created check "${check})"`);
+    core.info(`Created check "${name}"`);
     core.info(res.html_url);
   }
 }
