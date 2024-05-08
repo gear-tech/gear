@@ -57,7 +57,7 @@ impl<T: Config> OnRuntimeUpgrade for AppendStackEndMigration<T> {
                 return weight;
             }
 
-            if crate::PausedProgramStorage::<T>::count() != 0 {
+            if paused_program_storage::PausedProgramStorage::<T>::count() != 0 {
                 log::error!("❌ Migration is not allowed for non-empty paused program storage");
                 return weight;
             }
@@ -109,7 +109,7 @@ impl<T: Config> OnRuntimeUpgrade for AppendStackEndMigration<T> {
             );
 
             ensure!(
-                super::PausedProgramStorage::<T>::count() == 0,
+                paused_program_storage::PausedProgramStorage::<T>::count() == 0,
                 "Current paused program storage is not empty, not allowed for migration"
             );
 
@@ -131,6 +131,48 @@ impl<T: Config> OnRuntimeUpgrade for AppendStackEndMigration<T> {
         }
 
         Ok(())
+    }
+}
+
+mod paused_program_storage {
+    use super::*;
+    use frame_support::{
+        pallet_prelude::CountedStorageMap, storage::types::CountedStorageMapInstance,
+        traits::StorageInstance, Identity,
+    };
+    use frame_system::pallet_prelude::BlockNumberFor;
+    use gear_core::ids::ProgramId;
+    use primitive_types::H256;
+
+    pub type PausedProgramStorage<T> = CountedStorageMap<
+        _GeneratedPrefixForPausedProgramStorage<T>,
+        Identity,
+        ProgramId,
+        (BlockNumberFor<T>, H256),
+    >;
+
+    #[doc(hidden)]
+    pub struct _GeneratedPrefixForPausedProgramStorage<T>(PhantomData<(T,)>);
+
+    #[doc(hidden)]
+    pub struct _GeneratedCounterPrefixForPausedProgramStorage<T>(PhantomData<T>);
+
+    impl<T: Config> StorageInstance for _GeneratedCounterPrefixForPausedProgramStorage<T> {
+        fn pallet_prefix() -> &'static str {
+            <<T as frame_system::Config>::PalletInfo as frame_support::traits::PalletInfo>::name::<crate::Pallet<T>>().expect("No name found for the pallet in the runtime! This usually means that the pallet wasn't added to `construct_runtime!`.")
+        }
+        const STORAGE_PREFIX: &'static str = "CounterForPausedProgramStorage";
+    }
+
+    impl<T: Config> StorageInstance for _GeneratedPrefixForPausedProgramStorage<T> {
+        fn pallet_prefix() -> &'static str {
+            <<T as frame_system::Config>::PalletInfo as frame_support::traits::PalletInfo>::name::<crate::Pallet<T>>().expect("No name found for the pallet in the runtime! This usually means that the pallet wasn't added to `construct_runtime!`.")
+        }
+        const STORAGE_PREFIX: &'static str = "PausedProgramStorage";
+    }
+
+    impl<T: Config> CountedStorageMapInstance for _GeneratedPrefixForPausedProgramStorage<T> {
+        type CounterPrefix = _GeneratedCounterPrefixForPausedProgramStorage<T>;
     }
 }
 
