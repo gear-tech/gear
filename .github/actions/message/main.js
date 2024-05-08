@@ -37,13 +37,13 @@ async function mock(head_sha) {
     const { data: res } = await octokit.rest.checks.create({
       owner,
       repo,
-      name: `${check} / linux`,
+      name: `${check} / linux (debug)`,
       head_sha,
       status: "completed",
       conclusion: "success",
     });
 
-    core.info(`Created check "${check} / linux"`);
+    core.info(`Created check "${check} / linux (debug)"`);
     core.info(res.html_url);
   }
 }
