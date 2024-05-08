@@ -295,14 +295,7 @@ pub mod pallet {
 
     #[pallet::storage]
     pub(crate) type PausedProgramStorage<T: Config> =
-        StorageMap<_, Identity, ProgramId, (BlockNumberFor<T>, H256)>;
-
-    common::wrap_storage_map!(
-        storage: PausedProgramStorage,
-        name: PausedProgramStorageWrap,
-        key: ProgramId,
-        value: (BlockNumberFor<T>, H256)
-    );
+        CountedStorageMap<_, Identity, ProgramId, (BlockNumberFor<T>, H256)>;
 
     impl<T: Config> common::CodeStorage for pallet::Pallet<T> {
         type InstrumentedCodeStorage = CodeStorageWrap<T>;

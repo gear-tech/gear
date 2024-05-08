@@ -34,8 +34,8 @@ use {
     sp_std::vec::Vec,
 };
 
-const MIGRATE_FROM_VERSION: u16 = 3;
-const MIGRATE_TO_VERSION: u16 = 4;
+const MIGRATE_FROM_VERSION: u16 = 4;
+const MIGRATE_TO_VERSION: u16 = 5;
 const ALLOWED_CURRENT_STORAGE_VERSION: u16 = 5;
 
 pub struct AppendStackEndMigration<T: Config>(PhantomData<T>);
@@ -54,6 +54,11 @@ impl<T: Config> OnRuntimeUpgrade for AppendStackEndMigration<T> {
             let current = Pallet::<T>::current_storage_version();
             if current != ALLOWED_CURRENT_STORAGE_VERSION {
                 log::error!("❌ Migration is not allowed for current storage version {current:?}.");
+                return weight;
+            }
+
+            if crate::PausedProgramStorage::<T>::count() != 0 {
+                log::error!("❌ Migration is not allowed for non-empty paused program storage");
                 return weight;
             }
 
@@ -101,6 +106,11 @@ impl<T: Config> OnRuntimeUpgrade for AppendStackEndMigration<T> {
             ensure!(
                 current == ALLOWED_CURRENT_STORAGE_VERSION,
                 "Current storage version is not allowed for migration, check migration code in order to allow it."
+            );
+
+            ensure!(
+                super::PausedProgramStorage::<T>::count() == 0,
+                "Current paused program storage is not empty, not allowed for migration"
             );
 
             Some(onchain::CodeStorage::<T>::iter().count() as u64)
