@@ -89,7 +89,9 @@ use gear_core::{
 };
 use gear_core_backend::{
     env::Environment,
-    memory::{ExecutorMemory, MemoryWrap},
+    memory::{BackendMemory, ExecutorMemory},
+    mock::MockExt,
+    state::HostState,
 };
 use gear_core_errors::*;
 use gear_sandbox::{default_executor::Store, SandboxMemory, SandboxStore};
@@ -1450,12 +1452,12 @@ benchmarks! {
 
     mem_grow {
         let r in 0 .. API_BENCHMARK_BATCHES;
-        let mut store = Store::new(None);
+        let mut store = Store::<HostState<MockExt, BackendMemory<ExecutorMemory>>>::new(None);
         let mem = ExecutorMemory::new(&mut store, 1, None).unwrap();
-        let mut mem = MemoryWrap::<gear_core_backend::mock::MockExt>::new(mem, store);
+        let mem = BackendMemory::from(mem);
     }: {
         for _ in 0..(r * API_BENCHMARK_BATCH_SIZE) {
-            mem.grow(1.into()).unwrap();
+            mem.grow(&mut store, 1.into()).unwrap();
         }
     }
 

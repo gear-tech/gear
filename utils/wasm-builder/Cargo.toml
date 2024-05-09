@@ -27,6 +27,7 @@ gear-wasm-instrument.workspace = true
 wasm-opt = { workspace = true, optional = true }
 wasmparser.workspace = true
 regex.workspace = true
+rustc_version.workspace = true
 
 [dev-dependencies]
 wabt.workspace = true

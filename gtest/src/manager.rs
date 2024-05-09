@@ -292,15 +292,15 @@ impl ExtManager {
         init_message_id: Option<MessageId>,
     ) -> Option<(TestActor, Balance)> {
         if let Program::Genuine { program, .. } = &program {
-            self.store_new_code(program.code_bytes());
+            self.store_new_code(program.code_bytes().to_vec());
         }
         self.actors
             .insert(program_id, (TestActor::new(init_message_id, program), 0))
     }
 
-    pub(crate) fn store_new_code(&mut self, code: &[u8]) -> CodeId {
-        let code_id = CodeId::generate(code);
-        self.opt_binaries.insert(code_id, code.to_vec());
+    pub(crate) fn store_new_code(&mut self, code: Vec<u8>) -> CodeId {
+        let code_id = CodeId::generate(&code);
+        self.opt_binaries.insert(code_id, code);
         code_id
     }
 
@@ -1156,6 +1156,7 @@ impl JournalHandler for ExtManager {
                         schedule.instruction_weights.version,
                         |module| schedule.rules(module),
                         schedule.limits.stack_height,
+                        schedule.limits.data_segments_amount.into(),
                     )
                     .expect("Program can't be constructed with provided code");
 
