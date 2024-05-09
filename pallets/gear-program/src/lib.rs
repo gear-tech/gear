@@ -157,8 +157,8 @@ pub mod pallet {
         code::InstrumentedCode,
         ids::{CodeId, ProgramId},
         memory::PageBuf,
+        pages::{numerated::tree::IntervalsTree, GearPage, WasmPage},
         program::MemoryInfix,
-        pages::{WasmPage, GearPage, numerated::tree::IntervalsTree},
     };
     use sp_runtime::DispatchError;
 

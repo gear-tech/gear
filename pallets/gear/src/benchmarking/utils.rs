@@ -22,14 +22,14 @@ use super::Exec;
 use crate::{
     builtin::BuiltinDispatcherFactory,
     manager::{CodeInfo, ExtManager, HandleKind},
-    Config, MailboxOf, Pallet as Gear, ProgramStorageOf, QueueOf, CurrencyOf,
+    Config, CurrencyOf, MailboxOf, Pallet as Gear, ProgramStorageOf, QueueOf,
 };
-use common::{storage::*, CodeStorage, Origin, ProgramStorage, Program};
+use common::{storage::*, CodeStorage, Origin, Program, ProgramStorage};
 use core_processor::{
-    configs::BlockConfig, ContextChargedForCode, ContextChargedForInstrumentation,
-    common::ExecutableActorData,
+    common::ExecutableActorData, configs::BlockConfig, ContextChargedForCode,
+    ContextChargedForInstrumentation,
 };
-use frame_support::traits::Get;
+use frame_support::traits::{Currency, Get};
 use gear_core::{
     code::{Code, CodeAndId},
     ids::{CodeId, MessageId, ProgramId},
@@ -39,7 +39,6 @@ use gear_core::{
 use sp_core::H256;
 use sp_runtime::traits::UniqueSaturatedInto;
 use sp_std::{convert::TryInto, prelude::*};
-use frame_support::traits::Currency;
 
 const DEFAULT_BLOCK_NUMBER: u32 = 0;
 const DEFAULT_INTERVAL: u32 = 1_000;

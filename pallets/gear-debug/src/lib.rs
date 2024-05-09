@@ -216,7 +216,8 @@ pub mod pallet {
                         Some(code) => code.static_pages(),
                         None => 0.into(),
                     };
-                    let pages_with_data = T::ProgramStorage::pages_with_data(id).unwrap_or_default();
+                    let pages_with_data =
+                        T::ProgramStorage::pages_with_data(id).unwrap_or_default();
                     let persistent_pages = T::ProgramStorage::get_program_data_for_pages(
                         id,
                         active.memory_infix,

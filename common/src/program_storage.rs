@@ -119,7 +119,11 @@ pub trait ProgramStorage {
         });
     }
 
-    fn remove_pages_with_data(program_id: ProgramId, memory_infix: MemoryInfix, pages: impl Iterator<Item = GearPage>) {
+    fn remove_pages_with_data(
+        program_id: ProgramId,
+        memory_infix: MemoryInfix,
+        pages: impl Iterator<Item = GearPage>,
+    ) {
         Self::PagesWithDataMap::mutate(program_id, |maybe| {
             let tree = maybe.get_or_insert(Default::default());
             for page in pages {

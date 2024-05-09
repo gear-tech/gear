@@ -16,13 +16,14 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{Config, Pallet, ProgramStorage};
+use crate::{AllocationsStorage, Config, PagesWithDataStorage, Pallet, ProgramStorage};
 use common::Program;
 use frame_support::{
     traits::{Get, GetStorageVersion, OnRuntimeUpgrade, StorageVersion},
     weights::Weight,
 };
 use frame_system::pallet_prelude::BlockNumberFor;
+use gear_core::pages::{numerated::tree::IntervalsTree, GearPage, WasmPage};
 use sp_std::marker::PhantomData;
 
 #[cfg(feature = "try-runtime")]
@@ -58,23 +59,34 @@ impl<T: Config> OnRuntimeUpgrade for MigrateAllocations<T> {
             let update_to = StorageVersion::new(MIGRATE_TO_VERSION);
             log::info!("🚚 Running migration from {onchain:?} to {update_to:?}, current storage version is {current:?}.");
 
-            ProgramStorage::<T>::translate(|_, program: v5::Program<BlockNumberFor<T>>| {
+            ProgramStorage::<T>::translate(|id, program: v5::Program<BlockNumberFor<T>>| {
                 weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
 
                 Some(match program {
-                    v5::Program::Active(p) => Program::Active(common::ActiveProgram {
-                        // +_+_+
-                        allocations_tree_len: 0,
-                        // allocations: p.allocations.into_iter().collect(),
-                        // pages_with_data: p.pages_with_data.into_iter().collect(),
-                        memory_infix: p.memory_infix,
-                        gas_reservation_map: p.gas_reservation_map,
-                        code_hash: p.code_hash,
-                        code_exports: p.code_exports,
-                        static_pages: p.static_pages.into(),
-                        state: p.state,
-                        expiration_block: p.expiration_block,
-                    }),
+                    v5::Program::Active(p) => {
+                        AllocationsStorage::<T>::insert(
+                            id,
+                            p.allocations
+                                .into_iter()
+                                .collect::<IntervalsTree<WasmPage>>(),
+                        );
+                        PagesWithDataStorage::<T>::insert(
+                            id,
+                            p.pages_with_data
+                                .into_iter()
+                                .collect::<IntervalsTree<GearPage>>(),
+                        );
+                        Program::Active(common::ActiveProgram {
+                            allocations_tree_len: 0,
+                            memory_infix: p.memory_infix,
+                            gas_reservation_map: p.gas_reservation_map,
+                            code_hash: p.code_hash,
+                            code_exports: p.code_exports,
+                            static_pages: p.static_pages.into(),
+                            state: p.state,
+                            expiration_block: p.expiration_block,
+                        })
+                    }
                     v5::Program::Exited(id) => Program::Exited(id),
                     v5::Program::Terminated(id) => Program::Terminated(id),
                 })
@@ -118,6 +130,16 @@ impl<T: Config> OnRuntimeUpgrade for MigrateAllocations<T> {
             ensure!(
                 old_count == count,
                 "incorrect count of elements old {} != new {}",
+            );
+            let count = AllocationsStorage::<T>::iter().count() as u64;
+            ensure!(
+                old_count == count,
+                "incorrect count of elements in allocations old {} != new {}",
+            );
+            let count = PagesWithDataStorage::<T>::iter().count() as u64;
+            ensure!(
+                old_count == count,
+                "incorrect count of elements in pages with data old {} != new {}",
             );
             ensure!(
                 Pallet::<T>::current_storage_version() == MIGRATE_TO_VERSION,
@@ -205,7 +227,6 @@ mod v5 {
 
 #[cfg(test)]
 #[cfg(feature = "try-runtime")]
-#[cfg(feature = "disabled")]
 mod test {
     use super::*;
     use crate::mock::*;
@@ -259,24 +280,27 @@ mod test {
             assert!(!w.is_zero());
             MigrateAllocations::<Test>::post_upgrade(state).unwrap();
 
-            if let Program::Active(p) = ProgramStorage::<Test>::get(active_program_id).unwrap() {
-                assert_eq!(
-                    p.allocations.to_vec(),
-                    [
-                        WasmPage::from(1)..=WasmPage::from(5),
-                        WasmPage::from(101)..=WasmPage::from(102)
-                    ]
-                );
-                assert_eq!(
-                    p.pages_with_data.to_vec(),
-                    [
-                        GearPage::from(4)..=GearPage::from(8),
-                        GearPage::from(400)..=GearPage::from(401)
-                    ]
-                );
-            } else {
+            let allocations = AllocationsStorage::<Test>::get(active_program_id).unwrap();
+            assert_eq!(
+                allocations.to_vec(),
+                [
+                    WasmPage::from(1)..=WasmPage::from(5),
+                    WasmPage::from(101)..=WasmPage::from(102)
+                ]
+            );
+
+            let pages_with_data = PagesWithDataStorage::<Test>::get(active_program_id).unwrap();
+            assert_eq!(
+                pages_with_data.to_vec(),
+                [
+                    GearPage::from(4)..=GearPage::from(8),
+                    GearPage::from(400)..=GearPage::from(401)
+                ]
+            );
+
+            let Some(Program::Active(_)) = ProgramStorage::<Test>::get(active_program_id) else {
                 panic!("Program must be active");
-            }
+            };
 
             assert_eq!(
                 ProgramStorage::<Test>::get(ProgramId::from(2u64)).unwrap(),

@@ -293,7 +293,7 @@ impl<BlockNumber: Copy + Saturating> core::convert::TryFrom<Program<BlockNumber>
 pub struct ActiveProgram<BlockNumber: Copy + Saturating> {
     pub allocations_tree_len: u32,
     pub memory_infix: MemoryInfix,
-    // TODO: investigate wether we need to charge for gas reservation map size +_+_+
+    // TODO: investigate whether we need to charge for gas reservation map size +_+_+
     pub gas_reservation_map: GasReservationMap,
     pub code_hash: H256,
     pub code_exports: BTreeSet<DispatchKind>,
