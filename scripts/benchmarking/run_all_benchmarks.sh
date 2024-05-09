@@ -155,7 +155,7 @@ for PALLET in "${PALLETS[@]}"; do
   echo "[+] Benchmarking $PALLET with weight file $WEIGHT_FILE";
 
   OUTPUT=$(
-    $GEAR benchmark pallet \
+    taskset -c 3 $GEAR benchmark pallet \
     --chain="$chain_spec" \
     --steps=$BENCHMARK_STEPS \
     --repeat=$BENCHMARK_REPEAT \
@@ -176,7 +176,7 @@ for PALLET in "${PALLETS[@]}"; do
   then
     echo "[+] Benchmarking $PALLET one-time syscalls with weight file ./${WEIGHTS_OUTPUT}/${PALLET}_onetime.rs";
     OUTPUT=$(
-        $GEAR benchmark pallet \
+        taskset -c 3 $GEAR benchmark pallet \
         --chain="$chain_spec" \
         --steps=$BENCHMARK_STEPS_ONE_TIME_EXTRINSICS \
         --repeat=$BENCHMARK_REPEAT_ONE_TIME_EXTRINSICS \
