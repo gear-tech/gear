@@ -23,8 +23,7 @@ use crate::{
             frame_system::{AccountInfo, EventRecord},
             gear_common::{storage::primitives::Interval, ActiveProgram, Program},
             gear_core::{
-                code::instrumented::InstrumentedCode, message::user::UserStoredMessage,
-                pages::Page,
+                code::instrumented::InstrumentedCode, message::user::UserStoredMessage, pages::Page,
             },
             numerated::tree::IntervalsTree,
             pallet_balances::types::AccountData,
