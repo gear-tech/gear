@@ -34,8 +34,8 @@ use {
     sp_std::vec::Vec,
 };
 
-const MIGRATE_FROM_VERSION: u16 = 4;
-const MIGRATE_TO_VERSION: u16 = 5;
+const MIGRATE_FROM_VERSION: u16 = 3;
+const MIGRATE_TO_VERSION: u16 = 4;
 const ALLOWED_CURRENT_STORAGE_VERSION: u16 = 5;
 
 pub struct AppendStackEndMigration<T: Config>(PhantomData<T>);
