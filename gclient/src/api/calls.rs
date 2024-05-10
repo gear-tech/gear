@@ -337,7 +337,11 @@ impl GearApi {
         let src_program_pages = self
             .0
             .api()
-            .gpages_at(src_program_id, &src_program, src_block_hash)
+            .gpages_at(
+                src_program_id,
+                Some(src_program.memory_infix.0),
+                src_block_hash,
+            )
             .await?;
 
         let src_program_reserved_gas_node_ids: Vec<GearGasNodeId> = src_program
@@ -539,7 +543,7 @@ impl GearApi {
         let program_pages = self
             .0
             .api()
-            .gpages_at(program_id, &program, block_hash)
+            .gpages_at(program_id, Some(program.memory_infix.0), block_hash)
             .await?
             .into_iter()
             .filter_map(|(page_number, page_data)| {

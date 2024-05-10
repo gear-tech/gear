@@ -22,7 +22,11 @@ use crate::{
         runtime_types::{
             frame_system::{AccountInfo, EventRecord},
             gear_common::{storage::primitives::Interval, ActiveProgram, Program},
-            gear_core::{code::instrumented::InstrumentedCode, message::user::UserStoredMessage},
+            gear_core::{
+                code::instrumented::InstrumentedCode, message::user::UserStoredMessage,
+                pages::Page,
+            },
+            numerated::tree::IntervalsTree,
             pallet_balances::types::AccountData,
             pallet_gear_bank::pallet::BankAccount,
         },
@@ -56,7 +60,7 @@ impl Api {
     ///
     /// # You may not need this.
     ///
-    /// Read the docs of [`Api`] to checkout the wrappred storage queries,
+    /// Read the docs of [`Api`] to checkout the wrapped storage queries,
     /// we need this function only when we want to execute a query which
     /// has not been wrapped in `gsdk`.
     ///
@@ -108,9 +112,8 @@ impl Api {
     }
 
     /// Get program pages from program id.
-    pub async fn program_pages(&self, pid: ProgramId) -> Result<GearPages> {
-        let program = self.gprog(pid).await?;
-        self.gpages(pid, &program).await
+    pub async fn program_pages(&self, program_id: ProgramId) -> Result<GearPages> {
+        self.gpages(program_id, None).await
     }
 }
 
@@ -307,18 +310,50 @@ impl Api {
         }
     }
 
+    /// +_+_+ at specified block.
+    #[storage_fetch]
+    pub async fn pages_with_data_numbers_at(
+        &self,
+        program_id: ProgramId,
+        block_hash: Option<H256>,
+    ) -> Result<IntervalsTree<Page>> {
+        let addr = Self::storage(
+            GearProgramStorage::PagesWithDataStorage,
+            vec![Value::from_bytes(program_id)],
+        );
+
+        match self
+            .fetch_storage_at::<_, IntervalsTree<Page>>(&addr, block_hash)
+            .await
+        {
+            Ok(pages) => Ok(pages),
+            Err(Error::StorageNotFound) => Ok(IntervalsTree {
+                inner: Default::default(),
+            }),
+            Err(err) => Err(err),
+        }
+    }
+
     /// Get pages of active program at specified block.
     #[storage_fetch]
     pub async fn gpages_at(
         &self,
         program_id: ProgramId,
-        program: &ActiveProgram<BlockNumber>,
+        memory_infix: Option<u32>,
         block_hash: Option<H256>,
     ) -> Result<GearPages> {
         let mut pages = HashMap::new();
 
-        for page in program
-            .pages_with_data
+        let pages_with_data = self
+            .pages_with_data_numbers_at(program_id, block_hash)
+            .await?;
+
+        let memory_infix = match memory_infix {
+            Some(infix) => infix,
+            None => self.gprog_at(program_id, block_hash).await?.memory_infix.0,
+        };
+
+        for page in pages_with_data
             .inner
             .iter()
             .flat_map(|(start, end)| start.0..=end.0)
@@ -327,7 +362,7 @@ impl Api {
                 GearProgramStorage::MemoryPages,
                 vec![
                     Value::from_bytes(program_id),
-                    Value::u128(program.memory_infix.0 as u128),
+                    Value::u128(memory_infix as u128),
                     Value::u128(page as u128),
                 ],
             );

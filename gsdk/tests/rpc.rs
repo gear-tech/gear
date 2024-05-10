@@ -391,14 +391,18 @@ async fn query_program_counters(
     let mut count_memory_page = 0u64;
     let mut count_program = 0u64;
     let mut count_active_program = 0u64;
-    while let Some(Ok((_key, value))) = iter.next().await {
+    while let Some(Ok((key, value))) = iter.next().await {
         let program = Program::<BlockNumber>::decode(&mut value.encoded())?;
         count_program += 1;
 
-        if let Program::Active(p) = program {
+        let program_id = ProgramId::decode(&mut key.as_slice())?;
+
+        if let Program::Active(_) = program {
             count_active_program += 1;
-            count_memory_page += p
-                .pages_with_data
+            count_memory_page += signer
+                .api()
+                .pages_with_data_numbers(program_id)
+                .await?
                 .inner
                 .iter()
                 .flat_map(|(start, end)| start.0..=end.0)

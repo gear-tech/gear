@@ -641,12 +641,7 @@ pub mod runtime_types {
             }
             #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
             pub struct ActiveProgram<_0> {
-                pub allocations: runtime_types::numerated::tree::IntervalsTree<
-                    runtime_types::gear_core::pages::Page2,
-                >,
-                pub pages_with_data: runtime_types::numerated::tree::IntervalsTree<
-                    runtime_types::gear_core::pages::Page,
-                >,
+                pub allocations_tree_len: ::core::primitive::u32,
                 pub memory_infix: runtime_types::gear_core::program::MemoryInfix,
                 pub gas_reservation_map: ::subxt::utils::KeyedVec<
                     runtime_types::gear_core::ids::ReservationId,
@@ -8807,9 +8802,10 @@ pub mod storage {
         CodeLenStorage,
         OriginalCodeStorage,
         MetadataStorage,
+        AllocationsStorage,
+        PagesWithDataStorage,
         ProgramStorage,
         MemoryPages,
-        PausedProgramStorage,
     }
     impl StorageInfo for GearProgramStorage {
         const PALLET: &'static str = "GearProgram";
@@ -8819,9 +8815,10 @@ pub mod storage {
                 Self::CodeLenStorage => "CodeLenStorage",
                 Self::OriginalCodeStorage => "OriginalCodeStorage",
                 Self::MetadataStorage => "MetadataStorage",
+                Self::AllocationsStorage => "AllocationsStorage",
+                Self::PagesWithDataStorage => "PagesWithDataStorage",
                 Self::ProgramStorage => "ProgramStorage",
                 Self::MemoryPages => "MemoryPages",
-                Self::PausedProgramStorage => "PausedProgramStorage",
             }
         }
     }
