@@ -906,6 +906,9 @@ impl ExtManager {
                     MODULE_CODE_SECTION_INSTANTIATION_BYTE_COST.into(),
                 module_data_section_instantiation_per_byte:
                     MODULE_DATA_SECTION_INSTANTIATION_BYTE_COST.into(),
+                module_global_section_instantiation_per_byte: Default::default(),
+                module_table_section_instantiation_per_byte: Default::default(),
+                module_type_section_instantiation_per_byte: Default::default(),
             },
             existential_deposit: EXISTENTIAL_DEPOSIT,
             mailbox_threshold: MAILBOX_THRESHOLD,
@@ -947,12 +950,12 @@ impl ExtManager {
             }
         };
 
-        let context = ContextChargedForCode::from((context, code.code().len() as u32));
+        let context = ContextChargedForCode::from(context);
         let context = ContextChargedForInstrumentation::from(context);
         let context = match core_processor::precharge_for_module_instantiation(
             &block_config,
             context,
-            code.data_section_bytes(),
+            code.section_sizes(),
         ) {
             Ok(c) => c,
             Err(journal) => {

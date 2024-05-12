@@ -129,6 +129,15 @@ pub struct Schedule<T: Config> {
     /// WASM module data section instantiation per byte cost.
     pub module_data_section_instantiation_per_byte: Weight,
 
+    /// WASM module global section instantiation per byte cost.
+    pub module_global_section_instantiation_per_byte: Weight,
+
+    /// WASM module table section instantiation per byte cost.
+    pub module_table_section_instantiation_per_byte: Weight,
+
+    /// WASM module type section instantiation per byte cost.
+    pub module_type_section_instantiation_per_byte: Weight,
+
     /// Single db write per byte cost.
     pub db_write_per_byte: Weight,
 
@@ -772,6 +781,15 @@ impl<T: Config> Default for Schedule<T> {
             module_data_section_instantiation_per_byte: to_weight!(cost_byte!(
                 instantiate_module_data_section_per_kb
             )),
+            module_global_section_instantiation_per_byte: to_weight!(cost_byte!(
+                instantiate_module_global_section_per_kb
+            )),
+            module_table_section_instantiation_per_byte: to_weight!(cost_byte!(
+                instantiate_module_table_section_per_kb
+            )),
+            module_type_section_instantiation_per_byte: to_weight!(cost_byte!(
+                instantiate_module_type_section_per_kb
+            )),
             code_instrumentation_cost: call_zero!(reinstrument_per_kb, 0),
             code_instrumentation_byte_cost: to_weight!(cost_byte!(reinstrument_per_kb)),
         }
@@ -1200,6 +1218,18 @@ impl<T: Config> Schedule<T> {
                 .into(),
             module_data_section_instantiation_per_byte: self
                 .module_data_section_instantiation_per_byte
+                .ref_time()
+                .into(),
+            module_global_section_instantiation_per_byte: self
+                .module_global_section_instantiation_per_byte
+                .ref_time()
+                .into(),
+            module_table_section_instantiation_per_byte: self
+                .module_table_section_instantiation_per_byte
+                .ref_time()
+                .into(),
+            module_type_section_instantiation_per_byte: self
+                .module_type_section_instantiation_per_byte
                 .ref_time()
                 .into(),
         }

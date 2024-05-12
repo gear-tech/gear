@@ -28,6 +28,7 @@ use crate::{
 };
 use alloc::{collections::BTreeSet, vec::Vec};
 use gear_core::{
+    code::SectionSizes,
     costs::BytesAmount,
     gas::{ChargeResult, GasAllowanceCounter, GasCounter},
     ids::ProgramId,
@@ -53,9 +54,18 @@ pub enum PreChargeGasOperation {
     /// Instantiate the code section of the Wasm module.
     #[display(fmt = "instantiate code section of Wasm module")]
     ModuleCodeSectionInstantiation,
-    /// Instantiate the code section of the Wasm module.
+    /// Instantiate the data section of the Wasm module.
     #[display(fmt = "instantiate data section of Wasm module")]
     ModuleDataSectionInstantiation,
+    /// Instantiate the global section of the Wasm module.
+    #[display(fmt = "instantiate global section of Wasm module")]
+    ModuleGlobalSectionInstantiation,
+    /// Instantiate the table section of the Wasm module.
+    #[display(fmt = "instantiate table section of Wasm module")]
+    ModuleTableSectionInstantiation,
+    /// Instantiate the type section of the Wasm module.
+    #[display(fmt = "instantiate type section of Wasm module")]
+    ModuleTypeSectionInstantiation,
     /// Instrument Wasm module.
     #[display(fmt = "instrument Wasm module")]
     ModuleInstrumentation,
@@ -127,29 +137,35 @@ impl<'a> GasPrecharger<'a> {
         )
     }
 
-    pub fn charge_gas_for_code_section_instantiation(
-        &mut self,
-        code_section_len: BytesAmount,
-    ) -> Result<(), PrechargeError> {
-        self.charge_gas(
-            PreChargeGasOperation::ModuleCodeSectionInstantiation,
-            self.costs
-                .module_code_section_instantiation_per_byte
-                .cost_for(code_section_len),
-        )
-    }
+    impl_charge_gas_for_section_instantiation!(
+        charge_gas_for_code_section_instantiation,
+        ModuleCodeSectionInstantiation,
+        module_code_section_instantiation_per_byte
+    );
 
-    pub fn charge_gas_for_data_section_instantiation(
-        &mut self,
-        data_section_len: BytesAmount,
-    ) -> Result<(), PrechargeError> {
-        self.charge_gas(
-            PreChargeGasOperation::ModuleDataSectionInstantiation,
-            self.costs
-                .module_data_section_instantiation_per_byte
-                .cost_for(data_section_len),
-        )
-    }
+    impl_charge_gas_for_section_instantiation!(
+        charge_gas_for_data_section_instantiation,
+        ModuleDataSectionInstantiation,
+        module_data_section_instantiation_per_byte
+    );
+
+    impl_charge_gas_for_section_instantiation!(
+        charge_gas_for_global_section_instantiation,
+        ModuleGlobalSectionInstantiation,
+        module_global_section_instantiation_per_byte
+    );
+
+    impl_charge_gas_for_section_instantiation!(
+        charge_gas_for_table_section_instantiation,
+        ModuleTableSectionInstantiation,
+        module_table_section_instantiation_per_byte
+    );
+
+    impl_charge_gas_for_section_instantiation!(
+        charge_gas_for_type_section_instantiation,
+        ModuleTypeSectionInstantiation,
+        module_type_section_instantiation_per_byte
+    );
 
     pub fn charge_gas_for_instrumentation(
         &mut self,
@@ -306,7 +322,7 @@ pub fn precharge_for_code(
     );
 
     match charger.charge_gas_for_program_code(code_len_bytes.into()) {
-        Ok(()) => Ok((context, code_len_bytes).into()),
+        Ok(()) => Ok(context.into()),
         Err(PrechargeError::BlockGasExceeded) => Err(process_allowance_exceed(
             context.data.dispatch,
             context.data.destination_id,
@@ -363,7 +379,7 @@ pub fn precharge_for_instrumentation(
 pub fn precharge_for_module_instantiation(
     block_config: &BlockConfig,
     mut context: ContextChargedForInstrumentation,
-    data_section_bytes: u32,
+    section_sizes: &SectionSizes,
 ) -> PrechargeResult<ContextChargedForMemory> {
     let ContextChargedForInstrumentation {
         data:
@@ -373,7 +389,7 @@ pub fn precharge_for_module_instantiation(
                 actor_data,
                 ..
             },
-        code_len_bytes,
+        ..
     } = &mut context;
 
     let mut f = || {
@@ -387,10 +403,17 @@ pub fn precharge_for_module_instantiation(
             actor_data.static_pages
         };
 
-        // ATM, we charge separately for the data section, and for the remaining sections, we charge as for a code section.
-        let code_len_bytes_adjusted = (*code_len_bytes).saturating_sub(data_section_bytes);
-        charger.charge_gas_for_code_section_instantiation(code_len_bytes_adjusted.into())?;
-        charger.charge_gas_for_data_section_instantiation(data_section_bytes.into())?;
+        charger
+            .charge_gas_for_code_section_instantiation(section_sizes.code_section_bytes.into())?;
+        charger
+            .charge_gas_for_data_section_instantiation(section_sizes.data_section_bytes.into())?;
+        charger.charge_gas_for_global_section_instantiation(
+            section_sizes.global_section_bytes.into(),
+        )?;
+        charger
+            .charge_gas_for_table_section_instantiation(section_sizes.table_section_bytes.into())?;
+        charger
+            .charge_gas_for_type_section_instantiation(section_sizes.type_section_bytes.into())?;
 
         Ok(memory_size)
     };
@@ -428,36 +451,15 @@ pub fn precharge_for_module_instantiation(
     }
 }
 
-//#[cfg(test)]
-//mod tests {
-//    use super::*;
-//
-//    fn prepare_gas_counters() -> (GasCounter, GasAllowanceCounter) {
-//        (
-//            GasCounter::new(1_000_000),
-//            GasAllowanceCounter::new(4_000_000),
-//        )
-//    }
-//
-//    #[test]
-//    fn gas_for_static_pages() {
-//        let (mut gas_counter, mut gas_allowance_counter) = prepare_gas_counters();
-//        let costs = ProcessCosts {
-//            static_page: 1.into(),
-//            ..Default::default()
-//        };
-//        let mut charger = GasPrecharger::new(&mut gas_counter, &mut gas_allowance_counter, &costs);
-//        let static_pages = 4.into();
-//        let allocations = Default::default();
-//
-//        let res = charger.charge_gas_for_pages(&allocations, static_pages);
-//
-//        // Result is static pages count
-//        assert_eq!(res, Ok(static_pages));
-//
-//        // Charging for static pages initialization
-//        let charge = costs.static_page.cost_for(static_pages);
-//        assert_eq!(charger.counter.left(), 1_000_000 - charge);
-//        assert_eq!(charger.allowance_counter.left(), 4_000_000 - charge);
-//    }
-//}
+macro_rules! impl_charge_gas_for_section_instantiation {
+    ($fn_name:ident, $section_op:ident, $section_field:ident) => {
+        pub fn $fn_name(&mut self, section_len: BytesAmount) -> Result<(), PrechargeError> {
+            self.charge_gas(
+                PreChargeGasOperation::$section_op,
+                self.costs.$section_field.cost_for(section_len),
+            )
+        }
+    };
+}
+
+use impl_charge_gas_for_section_instantiation;

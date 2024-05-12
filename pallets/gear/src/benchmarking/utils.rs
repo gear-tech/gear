@@ -238,11 +238,11 @@ where
     let code =
         T::CodeStorage::get_code(context.actor_data().code_id).ok_or("Program code not found")?;
 
-    let context = ContextChargedForCode::from((context, code.code().len() as u32));
+    let context = ContextChargedForCode::from(context);
     let context = core_processor::precharge_for_module_instantiation(
         &block_config,
         ContextChargedForInstrumentation::from(context),
-        code.data_section_bytes(),
+        code.section_sizes(),
     )
     .map_err(|_| "core_processor::precharge_for_module_instantiation failed")?;
 

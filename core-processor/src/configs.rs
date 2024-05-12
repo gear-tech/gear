@@ -83,6 +83,12 @@ pub struct ProcessCosts {
     pub module_code_section_instantiation_per_byte: CostOf<BytesAmount>,
     /// WASM module data section instantiation per byte cost.
     pub module_data_section_instantiation_per_byte: CostOf<BytesAmount>,
+    /// WASM module global section instantiation per byte cost.
+    pub module_global_section_instantiation_per_byte: CostOf<BytesAmount>,
+    /// WASM module table section instantiation per byte cost.
+    pub module_table_section_instantiation_per_byte: CostOf<BytesAmount>,
+    /// WASM module type section instantiation per byte cost.
+    pub module_type_section_instantiation_per_byte: CostOf<BytesAmount>,
 }
 
 /// Execution settings for handling messages.
