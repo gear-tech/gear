@@ -79,8 +79,10 @@ pub struct ProcessCosts {
     pub instrumentation_per_byte: CostOf<BytesAmount>,
     /// Static page cost.
     pub static_page: CostOf<WasmPagesAmount>,
-    /// WASM module instantiation per byte cost.
-    pub module_instantiation_per_byte: CostOf<BytesAmount>,
+    /// WASM module code section instantiation per byte cost.
+    pub module_code_section_instantiation_per_byte: CostOf<BytesAmount>,
+    /// WASM module data section instantiation per byte cost.
+    pub module_data_section_instantiation_per_byte: CostOf<BytesAmount>,
 }
 
 /// Execution settings for handling messages.

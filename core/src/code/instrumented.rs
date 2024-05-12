@@ -38,6 +38,9 @@ pub struct InstrumentedCode {
     pub(crate) exports: BTreeSet<DispatchKind>,
     pub(crate) static_pages: WasmPagesAmount,
     pub(crate) stack_end: Option<WasmPage>,
+    /// Data section size in bytes based on the number of OS pages
+    /// used during data section instantiation (see `GENERIC_OS_PAGE_SIZE`).
+    pub(crate) data_section_bytes: u32,
     pub(crate) version: u32,
 }
 
@@ -53,6 +56,7 @@ impl InstrumentedCode {
         exports: BTreeSet<DispatchKind>,
         static_pages: WasmPagesAmount,
         stack_end: Option<WasmPage>,
+        data_section_bytes: u32,
         version: u32,
     ) -> Self {
         Self {
@@ -61,6 +65,7 @@ impl InstrumentedCode {
             exports,
             static_pages,
             stack_end,
+            data_section_bytes,
             version,
         }
     }
@@ -93,6 +98,12 @@ impl InstrumentedCode {
     /// Returns stack end page if exists.
     pub fn stack_end(&self) -> Option<WasmPage> {
         self.stack_end
+    }
+
+    /// Returns data section size in bytes based on the number of OS pages
+    /// used during data section instantiation.
+    pub fn data_section_bytes(&self) -> u32 {
+        self.data_section_bytes
     }
 
     /// Consumes the instance and returns the instrumented code.

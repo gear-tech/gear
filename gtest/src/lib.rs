@@ -495,8 +495,12 @@ pub mod constants {
 
     /// Maximal amount of reservations program may have.
     pub const MAX_RESERVATIONS: u64 = 256;
-    /// Cost of wasm module instantiation before execution per byte of code.
-    pub const MODULE_INSTANTIATION_BYTE_COST: Gas = 20;
+    /// Cost of wasm module code section instantiation before execution per byte
+    /// of code.
+    pub const MODULE_CODE_SECTION_INSTANTIATION_BYTE_COST: Gas = 20;
+    /// Cost of wasm module data section instantiation before execution per byte
+    /// of code.
+    pub const MODULE_DATA_SECTION_INSTANTIATION_BYTE_COST: Gas = 40;
     /// Cost of instrumenting wasm code on upload.
     pub const MODULE_INSTRUMENTATION_COST: Gas = 297;
     /// Cost of instrumenting wasm code on upload per byte of code.

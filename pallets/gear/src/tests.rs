@@ -6297,7 +6297,7 @@ fn terminated_locking_funds() {
 
         let read_cost = DbWeightOf::<Test>::get().reads(1).ref_time();
         let gas_for_module_instantiation = schedule
-            .module_instantiation_per_byte
+            .module_code_section_instantiation_per_byte
             .ref_time()
             .saturating_mul(code_length);
         let gas_for_code_len = read_cost;
@@ -7493,7 +7493,7 @@ fn gas_spent_precalculated() {
                 .saturating_mul(code_len)
                 .saturating_add(read_cost);
             let gas_for_code_instantiation = schedule
-                .module_instantiation_per_byte
+                .module_code_section_instantiation_per_byte
                 .ref_time()
                 .saturating_mul(code_len);
             gas_for_code_read + gas_for_code_instantiation

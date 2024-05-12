@@ -19,7 +19,7 @@
 //! Module that contains functions to check code.
 
 use crate::{
-    code::errors::*,
+    code::{errors::*, GENERIC_OS_PAGE_SIZE},
     message::{DispatchKind, WasmEntryPoint},
     pages::{WasmPage, WasmPagesAmount},
 };
@@ -400,4 +400,38 @@ pub fn check_start_section(module: &Module) -> Result<(), CodeError> {
     } else {
         Ok(())
     }
+}
+
+/// Calculates the data section size based on the number of OS pages used (see `GENERIC_OS_PAGE_SIZE`).
+pub fn get_data_section_bytes(module: &Module) -> Result<u32, CodeError> {
+    let Some(data_section) = module.data_section() else {
+        // No data section
+        return Ok(0);
+    };
+
+    let mut used_pages = BTreeSet::new();
+    for data_segment in data_section.entries() {
+        let data_segment_offset = data_segment
+            .offset()
+            .as_ref()
+            .and_then(get_init_expr_const_i32)
+            .ok_or(DataSectionError::Initialization)? as u32;
+        let data_segment_start = data_segment_offset / GENERIC_OS_PAGE_SIZE;
+
+        let data_segment_size = data_segment.value().len() as u32;
+        let data_segment_end = if data_segment_size == 0 {
+            data_segment_start
+        } else {
+            (data_segment_offset // We should use `offset` here and not `start`
+                .saturating_add(data_segment_size)
+                .saturating_add(GENERIC_OS_PAGE_SIZE - 1)) // Round up to the nearest whole number
+                / GENERIC_OS_PAGE_SIZE
+        };
+
+        for page in data_segment_start..data_segment_end {
+            used_pages.insert(page);
+        }
+    }
+
+    Ok(used_pages.len() as u32 * GENERIC_OS_PAGE_SIZE)
 }

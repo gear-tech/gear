@@ -20,7 +20,8 @@ use crate::{
     log::{CoreLog, RunResult},
     program::{Gas, WasmProgram},
     Result, TestError, DISPATCH_HOLD_COST, EPOCH_DURATION_IN_BLOCKS, EXISTENTIAL_DEPOSIT,
-    INITIAL_RANDOM_SEED, MAILBOX_THRESHOLD, MAX_RESERVATIONS, MODULE_INSTANTIATION_BYTE_COST,
+    INITIAL_RANDOM_SEED, MAILBOX_THRESHOLD, MAX_RESERVATIONS,
+    MODULE_CODE_SECTION_INSTANTIATION_BYTE_COST, MODULE_DATA_SECTION_INSTANTIATION_BYTE_COST,
     MODULE_INSTRUMENTATION_BYTE_COST, MODULE_INSTRUMENTATION_COST, READ_COST, READ_PER_BYTE_COST,
     RESERVATION_COST, RESERVE_FOR, VALUE_PER_GAS, WAITLIST_COST, WRITE_COST,
 };
@@ -901,7 +902,10 @@ impl ExtManager {
                 instrumentation: MODULE_INSTRUMENTATION_COST.into(),
                 instrumentation_per_byte: MODULE_INSTRUMENTATION_BYTE_COST.into(),
                 static_page: Default::default(),
-                module_instantiation_per_byte: MODULE_INSTANTIATION_BYTE_COST.into(),
+                module_code_section_instantiation_per_byte:
+                    MODULE_CODE_SECTION_INSTANTIATION_BYTE_COST.into(),
+                module_data_section_instantiation_per_byte:
+                    MODULE_DATA_SECTION_INSTANTIATION_BYTE_COST.into(),
             },
             existential_deposit: EXISTENTIAL_DEPOSIT,
             mailbox_threshold: MAILBOX_THRESHOLD,
@@ -945,7 +949,11 @@ impl ExtManager {
 
         let context = ContextChargedForCode::from((context, code.code().len() as u32));
         let context = ContextChargedForInstrumentation::from(context);
-        let context = match core_processor::precharge_for_memory(&block_config, context) {
+        let context = match core_processor::precharge_for_module_instantiation(
+            &block_config,
+            context,
+            code.data_section_bytes(),
+        ) {
             Ok(c) => c,
             Err(journal) => {
                 core_processor::handle_journal(journal, self);

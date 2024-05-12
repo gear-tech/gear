@@ -38,6 +38,9 @@ pub use errors::*;
 pub use instrumented::*;
 pub use utils::{ALLOWED_EXPORTS, MAX_WASM_PAGES_AMOUNT, REQUIRED_EXPORTS};
 
+/// Generic OS page size. Approximated to 4KB as a most common value.
+const GENERIC_OS_PAGE_SIZE: u32 = 4096;
+
 /// Contains instrumented binary code of a program and initial memory size from memory import.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Code {
@@ -53,6 +56,9 @@ pub struct Code {
     stack_end: Option<WasmPage>,
     /// Instruction weights version.
     instruction_weights_version: u32,
+    /// Data section size in bytes based on the number of OS pages
+    /// used during data section instantiation (see `GENERIC_OS_PAGE_SIZE`).
+    data_section_bytes: u32,
 }
 
 /// Configuration for `Code::try_new_mock_`.
@@ -170,6 +176,8 @@ impl Code {
         }
         module = instrumentation_builder.instrument(module)?;
 
+        let data_section_bytes = utils::get_data_section_bytes(&module)?;
+
         let code = parity_wasm::elements::serialize(module).map_err(CodecError::Encode)?;
 
         Ok(Self {
@@ -179,6 +187,7 @@ impl Code {
             static_pages,
             stack_end,
             instruction_weights_version: config.version,
+            data_section_bytes,
         })
     }
 
@@ -339,6 +348,7 @@ impl Code {
                 exports: self.exports,
                 static_pages: self.static_pages,
                 stack_end: self.stack_end,
+                data_section_bytes: self.data_section_bytes,
                 version: self.instruction_weights_version,
             },
             self.original_code,
@@ -392,7 +402,10 @@ impl CodeAndId {
 
 #[cfg(test)]
 mod tests {
-    use crate::code::{Code, CodeError, DataSectionError, ExportError, ImportError, StackEndError};
+    use crate::code::{
+        Code, CodeError, DataSectionError, ExportError, ImportError, StackEndError,
+        GENERIC_OS_PAGE_SIZE,
+    };
     use alloc::{format, vec::Vec};
     use gear_wasm_instrument::{gas_metering::CustomConstantCostRules, STACK_END_EXPORT_NAME};
 
@@ -796,6 +809,162 @@ mod tests {
                 limit: DATA_SEGMENTS_AMOUNT_LIMIT,
                 actual: 1025
             })
+        );
+    }
+
+    #[test]
+    fn data_section_bytes() {
+        // Smoke
+        let wat = r#"
+            (module
+                (import "env" "memory" (memory 3))
+                (func $init)
+                (export "init" (func $init))
+                (data (i32.const 0x20000) "gear")
+            )
+        "#;
+
+        assert_eq!(
+            try_new_code_from_wat(wat, Some(1024))
+                .unwrap()
+                .data_section_bytes,
+            GENERIC_OS_PAGE_SIZE,
+        );
+
+        // 2 adjacent
+        let wat = r#"
+            (module
+                (import "env" "memory" (memory 3))
+                (func $init)
+                (export "init" (func $init))
+                (data (i32.const 0x0000) "gear")
+                (data (i32.const 0x1000) "gear")
+            )
+        "#;
+
+        assert_eq!(
+            try_new_code_from_wat(wat, Some(1024))
+                .unwrap()
+                .data_section_bytes,
+            GENERIC_OS_PAGE_SIZE * 2,
+        );
+
+        // 2 not adjacent
+        let wat = r#"
+            (module
+                (import "env" "memory" (memory 3))
+                (func $init)
+                (export "init" (func $init))
+                (data (i32.const  0x0000) "gear")
+                (data (i32.const 0x10000) "gear")
+            )
+        "#;
+
+        assert_eq!(
+            try_new_code_from_wat(wat, Some(1024))
+                .unwrap()
+                .data_section_bytes,
+            GENERIC_OS_PAGE_SIZE * 2,
+        );
+
+        // 2 zero sized
+        let wat = r#"
+            (module
+                (import "env" "memory" (memory 3))
+                (func $init)
+                (export "init" (func $init))
+                (data (i32.const 0x0) "")
+                (data (i32.const 0x0) "")
+            )
+        "#;
+
+        assert_eq!(
+            try_new_code_from_wat(wat, Some(1024))
+                .unwrap()
+                .data_section_bytes,
+            0,
+        );
+
+        // Overlap
+        let wat = r#"
+            (module
+                (import "env" "memory" (memory 3))
+                (func $init)
+                (export "init" (func $init))
+                (data (i32.const 0x20000) "gear")
+                (data (i32.const 0x20001) "gear")
+            )
+        "#;
+
+        assert_eq!(
+            try_new_code_from_wat(wat, Some(1024))
+                .unwrap()
+                .data_section_bytes,
+            GENERIC_OS_PAGE_SIZE,
+        );
+
+        // Big segment
+        let wat = format!(
+            r#"
+            (module
+                (import "env" "memory" (memory 3))
+                (func $init)
+                (export "init" (func $init))
+                (data (i32.const 0x20000) "{}")
+            )
+        "#,
+            "a".repeat((GENERIC_OS_PAGE_SIZE + 1) as usize)
+        );
+
+        assert_eq!(
+            try_new_code_from_wat(&wat, Some(1024))
+                .unwrap()
+                .data_section_bytes,
+            GENERIC_OS_PAGE_SIZE * 2,
+        );
+
+        // 2 big segments
+        let wat = format!(
+            r#"
+            (module
+                (import "env" "memory" (memory 3))
+                (func $init)
+                (export "init" (func $init))
+                (data (i32.const 0x20000) "{0}")
+                (data (i32.const 0x23000) "{1}")
+            )
+            "#,
+            "a".repeat((GENERIC_OS_PAGE_SIZE * 3) as usize),
+            "b".repeat((GENERIC_OS_PAGE_SIZE) as usize)
+        );
+
+        assert_eq!(
+            try_new_code_from_wat(&wat, Some(1024))
+                .unwrap()
+                .data_section_bytes,
+            GENERIC_OS_PAGE_SIZE * 4,
+        );
+
+        // 2 big segments overlap
+        let wat = format!(
+            r#"
+            (module
+                (import "env" "memory" (memory 3))
+                (func $init)
+                (export "init" (func $init))
+                (data (i32.const 0x20000) "{0}")
+                (data (i32.const 0x21000) "{1}")
+            )
+            "#,
+            "a".repeat((GENERIC_OS_PAGE_SIZE * 2 + 1) as usize),
+            "b".repeat((GENERIC_OS_PAGE_SIZE * 2 + 1) as usize)
+        );
+
+        assert_eq!(
+            try_new_code_from_wat(&wat, Some(1024))
+                .unwrap()
+                .data_section_bytes,
+            GENERIC_OS_PAGE_SIZE * 4,
         );
     }
 }

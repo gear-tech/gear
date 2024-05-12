@@ -123,8 +123,11 @@ pub struct Schedule<T: Config> {
     /// The weights for memory interaction.
     pub memory_weights: MemoryWeights<T>,
 
-    /// WASM module instantiation per byte cost.
-    pub module_instantiation_per_byte: Weight,
+    /// WASM module code section instantiation per byte cost.
+    pub module_code_section_instantiation_per_byte: Weight,
+
+    /// WASM module data section instantiation per byte cost.
+    pub module_data_section_instantiation_per_byte: Weight,
 
     /// Single db write per byte cost.
     pub db_write_per_byte: Weight,
@@ -763,8 +766,11 @@ impl<T: Config> Default for Schedule<T> {
             memory_weights: Default::default(),
             db_write_per_byte: to_weight!(cost_byte!(db_write_per_kb)),
             db_read_per_byte: to_weight!(cost_byte!(db_read_per_kb)),
-            module_instantiation_per_byte: to_weight!(cost_byte!(
+            module_code_section_instantiation_per_byte: to_weight!(cost_byte!(
                 instantiate_module_code_section_per_kb
+            )),
+            module_data_section_instantiation_per_byte: to_weight!(cost_byte!(
+                instantiate_module_data_section_per_kb
             )),
             code_instrumentation_cost: call_zero!(reinstrument_per_kb, 0),
             code_instrumentation_byte_cost: to_weight!(cost_byte!(reinstrument_per_kb)),
@@ -1188,7 +1194,14 @@ impl<T: Config> Schedule<T> {
             static_page: self.memory_weights.static_page.ref_time().into(),
             instrumentation: self.code_instrumentation_cost.ref_time().into(),
             instrumentation_per_byte: self.code_instrumentation_byte_cost.ref_time().into(),
-            module_instantiation_per_byte: self.module_instantiation_per_byte.ref_time().into(),
+            module_code_section_instantiation_per_byte: self
+                .module_code_section_instantiation_per_byte
+                .ref_time()
+                .into(),
+            module_data_section_instantiation_per_byte: self
+                .module_data_section_instantiation_per_byte
+                .ref_time()
+                .into(),
         }
     }
 }

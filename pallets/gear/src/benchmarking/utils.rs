@@ -239,11 +239,12 @@ where
         T::CodeStorage::get_code(context.actor_data().code_id).ok_or("Program code not found")?;
 
     let context = ContextChargedForCode::from((context, code.code().len() as u32));
-    let context = core_processor::precharge_for_memory(
+    let context = core_processor::precharge_for_module_instantiation(
         &block_config,
         ContextChargedForInstrumentation::from(context),
+        code.data_section_bytes(),
     )
-    .map_err(|_| "core_processor::precharge_for_memory failed")?;
+    .map_err(|_| "core_processor::precharge_for_module_instantiation failed")?;
 
     Ok(Exec {
         ext_manager,
