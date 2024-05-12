@@ -18,6 +18,8 @@
 
 //! Module that contains functions to check code.
 
+use core::mem;
+
 use crate::{
     code::{errors::*, GENERIC_OS_PAGE_SIZE},
     message::{DispatchKind, WasmEntryPoint},
@@ -31,6 +33,7 @@ use gear_wasm_instrument::{
     },
     SyscallName, STACK_END_EXPORT_NAME,
 };
+use wasmparser::Payload;
 
 /// Defines maximal permitted count of memory pages.
 pub const MAX_WASM_PAGES_AMOUNT: u16 = 512;
@@ -434,4 +437,82 @@ pub fn get_data_section_bytes(module: &Module) -> Result<u32, CodeError> {
     }
 
     Ok(used_pages.len() as u32 * GENERIC_OS_PAGE_SIZE)
+}
+
+/// Calculates the amount of bytes in the global section will be initialized during module instantiation.
+pub fn get_global_section_bytes(module: &Module) -> Result<u32, CodeError> {
+    let Some(global_section) = module.global_section() else {
+        // No element section
+        return Ok(0);
+    };
+
+    Ok(global_section
+        .entries()
+        .iter()
+        .fold(0, |total_bytes, global| {
+            let value_size = match global.global_type().content_type() {
+                ValueType::I32 | ValueType::F32 => mem::size_of::<i32>(),
+                ValueType::I64 | ValueType::F64 => mem::size_of::<i64>(),
+            } as u32;
+            total_bytes.saturating_add(value_size)
+        }))
+}
+
+/// Calculates the amount of bytes in the table section that will be initialized during module instantiation.
+pub fn get_table_section_bytes(module: &Module) -> Result<u32, CodeError> {
+    if module.table_section().is_none() {
+        return Ok(0);
+    }
+
+    let Some(element_section) = module.elements_section() else {
+        // No element section
+        return Ok(0);
+    };
+
+    Ok(element_section
+        .entries()
+        .iter()
+        .fold(0, |total_bytes, segment| {
+            // Tables may hold only reference types, which are 4 bytes long.
+            const REF_TYPE_SIZE: u32 = 4;
+
+            let count = segment.members().iter().count() as u32;
+            total_bytes.saturating_add(count.saturating_mul(REF_TYPE_SIZE))
+        }))
+}
+
+pub struct CodeTypeSectionSizes {
+    pub code_section_bytes: u32,
+    pub type_section_bytes: u32,
+}
+
+// Calculate the size of the code and type sections in bytes.
+pub fn get_code_type_sections_sizes(code_bytes: &[u8]) -> Result<CodeTypeSectionSizes, CodeError> {
+    let mut code_start_exists = false;
+    let mut code_section_bytes = 0;
+    let mut type_section_bytes = 0;
+
+    let parser = wasmparser::Parser::new(0);
+
+    for item in parser.parse_all(code_bytes) {
+        let item = item.map_err(CodeError::Validation)?;
+        match item {
+            Payload::CodeSectionStart { size, .. } => {
+                code_start_exists = true;
+                code_section_bytes = size;
+            }
+            Payload::CodeSectionEntry(f) if !code_start_exists => {
+                code_section_bytes += f.range().len() as u32;
+            }
+            Payload::TypeSection(t) => {
+                type_section_bytes += t.range().len() as u32;
+            }
+            _ => {}
+        }
+    }
+
+    Ok(CodeTypeSectionSizes {
+        code_section_bytes,
+        type_section_bytes,
+    })
 }

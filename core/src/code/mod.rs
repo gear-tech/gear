@@ -38,6 +38,8 @@ pub use errors::*;
 pub use instrumented::*;
 pub use utils::{ALLOWED_EXPORTS, MAX_WASM_PAGES_AMOUNT, REQUIRED_EXPORTS};
 
+use self::utils::CodeTypeSectionSizes;
+
 /// Generic OS page size. Approximated to 4KB as a most common value.
 const GENERIC_OS_PAGE_SIZE: u32 = 4096;
 
@@ -56,9 +58,8 @@ pub struct Code {
     stack_end: Option<WasmPage>,
     /// Instruction weights version.
     instruction_weights_version: u32,
-    /// Data section size in bytes based on the number of OS pages
-    /// used during data section instantiation (see `GENERIC_OS_PAGE_SIZE`).
-    data_section_bytes: u32,
+    /// Section sizes used for charging during module instantiation.
+    section_sizes: SectionSizes,
 }
 
 /// Configuration for `Code::try_new_mock_`.
@@ -164,6 +165,13 @@ impl Code {
             utils::check_imports(&module)?;
         }
 
+        let CodeTypeSectionSizes {
+            code_section_bytes,
+            type_section_bytes,
+        } = utils::get_code_type_sections_sizes(&original_code)?;
+        let global_section_bytes = utils::get_global_section_bytes(&module)?;
+        let table_section_bytes = utils::get_table_section_bytes(&module)?;
+
         // Get exports set before instrumentations.
         let exports = utils::get_exports(&module);
 
@@ -187,7 +195,13 @@ impl Code {
             static_pages,
             stack_end,
             instruction_weights_version: config.version,
-            data_section_bytes,
+            section_sizes: SectionSizes {
+                code_section_bytes,
+                data_section_bytes,
+                global_section_bytes,
+                table_section_bytes,
+                type_section_bytes,
+            },
         })
     }
 
@@ -348,7 +362,7 @@ impl Code {
                 exports: self.exports,
                 static_pages: self.static_pages,
                 stack_end: self.stack_end,
-                data_section_bytes: self.data_section_bytes,
+                section_sizes: self.section_sizes,
                 version: self.instruction_weights_version,
             },
             self.original_code,
@@ -402,6 +416,8 @@ impl CodeAndId {
 
 #[cfg(test)]
 mod tests {
+    use core::mem;
+
     use crate::code::{
         Code, CodeError, DataSectionError, ExportError, ImportError, StackEndError,
         GENERIC_OS_PAGE_SIZE,
@@ -827,6 +843,7 @@ mod tests {
         assert_eq!(
             try_new_code_from_wat(wat, Some(1024))
                 .unwrap()
+                .section_sizes
                 .data_section_bytes,
             GENERIC_OS_PAGE_SIZE,
         );
@@ -845,6 +862,7 @@ mod tests {
         assert_eq!(
             try_new_code_from_wat(wat, Some(1024))
                 .unwrap()
+                .section_sizes
                 .data_section_bytes,
             GENERIC_OS_PAGE_SIZE * 2,
         );
@@ -863,6 +881,7 @@ mod tests {
         assert_eq!(
             try_new_code_from_wat(wat, Some(1024))
                 .unwrap()
+                .section_sizes
                 .data_section_bytes,
             GENERIC_OS_PAGE_SIZE * 2,
         );
@@ -881,6 +900,7 @@ mod tests {
         assert_eq!(
             try_new_code_from_wat(wat, Some(1024))
                 .unwrap()
+                .section_sizes
                 .data_section_bytes,
             0,
         );
@@ -899,6 +919,7 @@ mod tests {
         assert_eq!(
             try_new_code_from_wat(wat, Some(1024))
                 .unwrap()
+                .section_sizes
                 .data_section_bytes,
             GENERIC_OS_PAGE_SIZE,
         );
@@ -919,6 +940,7 @@ mod tests {
         assert_eq!(
             try_new_code_from_wat(&wat, Some(1024))
                 .unwrap()
+                .section_sizes
                 .data_section_bytes,
             GENERIC_OS_PAGE_SIZE * 2,
         );
@@ -941,6 +963,7 @@ mod tests {
         assert_eq!(
             try_new_code_from_wat(&wat, Some(1024))
                 .unwrap()
+                .section_sizes
                 .data_section_bytes,
             GENERIC_OS_PAGE_SIZE * 4,
         );
@@ -963,8 +986,97 @@ mod tests {
         assert_eq!(
             try_new_code_from_wat(&wat, Some(1024))
                 .unwrap()
+                .section_sizes
                 .data_section_bytes,
             GENERIC_OS_PAGE_SIZE * 4,
+        );
+    }
+
+    #[test]
+    fn code_section_bytes() {
+        let wat = r#"
+            (module
+                (import "env" "memory" (memory 3))
+                (func $init)
+                (export "init" (func $init))
+                (func $sum (param i32 i32) (result i32)
+                    local.get 0
+                    local.get 1
+                    i32.add
+                )
+            )
+        "#;
+
+        assert_eq!(
+            try_new_code_from_wat(wat, Some(1024))
+                .unwrap()
+                .section_sizes
+                .code_section_bytes,
+            11,
+        );
+    }
+
+    #[test]
+    fn global_section_bytes() {
+        let wat = r#"
+            (module
+                (import "env" "memory" (memory 3))
+                (func $init)
+                (export "init" (func $init))
+                (global (mut i32) (i32.const 0))
+                (global (mut i32) (i32.const 0))
+                (global (mut i64) (i64.const 0))
+            )
+        "#;
+
+        assert_eq!(
+            try_new_code_from_wat(wat, Some(1024))
+                .unwrap()
+                .section_sizes
+                .global_section_bytes,
+            (mem::size_of::<i32>() * 2 + mem::size_of::<i64>()) as u32,
+        );
+    }
+
+    #[test]
+    fn table_section_bytes() {
+        let wat = r#"
+            (module
+                (import "env" "memory" (memory 3))
+                (func $init)
+                (export "init" (func $init))
+                (table 10 10 funcref)
+                (elem (i32.const 1) 0 0 0 0)
+            )
+        "#;
+
+        assert_eq!(
+            try_new_code_from_wat(wat, Some(1024))
+                .unwrap()
+                .section_sizes
+                .table_section_bytes,
+            (mem::size_of::<i32>() * 4) as u32,
+        );
+    }
+
+    #[test]
+    fn type_section_bytes() {
+        let wat = r#"
+            (module
+                (import "env" "memory" (memory 3))
+                (type (;35;) (func (param i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32) (result i32)))
+                (type (;36;) (func (param i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32) (result i32)))
+                (func $init)
+                (export "init" (func $init))
+            )
+        "#;
+
+        assert_eq!(
+            try_new_code_from_wat(wat, Some(1024))
+                .unwrap()
+                .section_sizes
+                .type_section_bytes,
+            46,
         );
     }
 }

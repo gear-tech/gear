@@ -21,7 +21,7 @@ use frame_support::{
     traits::{Get, GetStorageVersion, OnRuntimeUpgrade, StorageVersion},
     weights::Weight,
 };
-use gear_core::code::InstrumentedCode;
+use gear_core::code::{InstrumentedCode, SectionSizes};
 use sp_std::marker::PhantomData;
 
 #[cfg(feature = "try-runtime")]
@@ -72,7 +72,14 @@ impl<T: Config> OnRuntimeUpgrade for AppendStackEndMigration<T> {
                         code.static_pages.into(),
                         // Set stack end as None here. Correct value will be set lazily on re-instrumentation.
                         None,
-                        0, // TODO:!!!!!!!!!!
+                        SectionSizes {
+                            // TODO:!!!!!!!!!!
+                            code_section_bytes: 0,
+                            data_section_bytes: 0,
+                            global_section_bytes: 0,
+                            table_section_bytes: 0,
+                            type_section_bytes: 0,
+                        },
                         code.version,
                     )
                 };

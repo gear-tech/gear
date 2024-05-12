@@ -30,6 +30,22 @@ use scale_info::{
     TypeInfo,
 };
 
+/// Section sizes used for charging during module instantiation.
+#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, TypeInfo)]
+pub struct SectionSizes {
+    /// Code section size in bytes.
+    pub code_section_bytes: u32,
+    /// Data section size in bytes based on the number of OS pages
+    /// used during data section instantiation (see `GENERIC_OS_PAGE_SIZE`).
+    pub data_section_bytes: u32,
+    /// Global section size in bytes.
+    pub global_section_bytes: u32,
+    /// Table section size in bytes.
+    pub table_section_bytes: u32,
+    /// Type section size in bytes.
+    pub type_section_bytes: u32,
+}
+
 /// The newtype contains the instrumented code and the corresponding id (hash).
 #[derive(Clone, Debug, Decode, Encode, TypeInfo)]
 pub struct InstrumentedCode {
@@ -38,9 +54,7 @@ pub struct InstrumentedCode {
     pub(crate) exports: BTreeSet<DispatchKind>,
     pub(crate) static_pages: WasmPagesAmount,
     pub(crate) stack_end: Option<WasmPage>,
-    /// Data section size in bytes based on the number of OS pages
-    /// used during data section instantiation (see `GENERIC_OS_PAGE_SIZE`).
-    pub(crate) data_section_bytes: u32,
+    pub(crate) section_sizes: SectionSizes,
     pub(crate) version: u32,
 }
 
@@ -56,7 +70,7 @@ impl InstrumentedCode {
         exports: BTreeSet<DispatchKind>,
         static_pages: WasmPagesAmount,
         stack_end: Option<WasmPage>,
-        data_section_bytes: u32,
+        section_sizes: SectionSizes,
         version: u32,
     ) -> Self {
         Self {
@@ -65,7 +79,7 @@ impl InstrumentedCode {
             exports,
             static_pages,
             stack_end,
-            data_section_bytes,
+            section_sizes,
             version,
         }
     }
@@ -103,7 +117,7 @@ impl InstrumentedCode {
     /// Returns data section size in bytes based on the number of OS pages
     /// used during data section instantiation.
     pub fn data_section_bytes(&self) -> u32 {
-        self.data_section_bytes
+        self.section_sizes.data_section_bytes
     }
 
     /// Consumes the instance and returns the instrumented code.
