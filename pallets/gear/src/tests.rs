@@ -44,7 +44,7 @@ use frame_support::{
 };
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
-    code::{self, Code, CodeAndId, CodeError, ExportError, InstrumentedCodeAndId},
+    code::{self, Code, CodeAndId, CodeError, ExportError, InstrumentedCodeAndId, SectionSizes},
     ids::{CodeId, MessageId, ProgramId},
     message::{
         ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext, Payload,
@@ -6296,10 +6296,42 @@ fn terminated_locking_funds() {
         let reply_duration = demo_init_fail_sender::reply_duration();
 
         let read_cost = DbWeightOf::<Test>::get().reads(1).ref_time();
-        let gas_for_module_instantiation = schedule
-            .module_code_section_instantiation_per_byte
-            .ref_time()
-            .saturating_mul(code_length);
+        let gas_for_module_instantiation = {
+            let SectionSizes {
+                code_section_bytes,
+                data_section_bytes,
+                global_section_bytes,
+                table_section_bytes,
+                type_section_bytes,
+            } = code.section_sizes();
+
+            let mut gas_for_code_instantiation = schedule
+                .module_code_section_instantiation_per_byte
+                .ref_time()
+                .saturating_mul(*code_section_bytes as u64);
+
+            gas_for_code_instantiation += schedule
+                .module_data_section_instantiation_per_byte
+                .ref_time()
+                .saturating_mul(*data_section_bytes as u64);
+
+            gas_for_code_instantiation += schedule
+                .module_global_section_instantiation_per_byte
+                .ref_time()
+                .saturating_mul(*global_section_bytes as u64);
+
+            gas_for_code_instantiation += schedule
+                .module_table_section_instantiation_per_byte
+                .ref_time()
+                .saturating_mul(*table_section_bytes as u64);
+
+            gas_for_code_instantiation += schedule
+                .module_type_section_instantiation_per_byte
+                .ref_time()
+                .saturating_mul(*type_section_bytes as u64);
+
+            gas_for_code_instantiation
+        };
         let gas_for_code_len = read_cost;
         let gas_for_program = read_cost;
         let gas_for_code = schedule
@@ -6307,19 +6339,11 @@ fn terminated_locking_funds() {
             .ref_time()
             .saturating_mul(code_length)
             .saturating_add(read_cost);
-        let gas_for_static_pages = schedule
-            .memory_weights
-            .static_page
-            .ref_time()
-            .saturating_mul(u32::from(code.static_pages()) as u64);
 
         // Additional gas for loading resources on next wake up.
         // Must be exactly equal to gas, which we must pre-charge for program execution.
-        let gas_for_second_init_execution = gas_for_program
-            + gas_for_code_len
-            + gas_for_code
-            + gas_for_module_instantiation
-            + gas_for_static_pages;
+        let gas_for_second_init_execution =
+            gas_for_program + gas_for_code_len + gas_for_code + gas_for_module_instantiation;
 
         // Value which must be returned to `USER1` after init message processing complete.
         let prog_free = 4000u128;
@@ -7486,16 +7510,47 @@ fn gas_spent_precalculated() {
         let get_gas_charged_for_code = |pid| {
             let schedule = <Test as Config>::Schedule::get();
             let read_cost = DbWeightOf::<Test>::get().reads(1).ref_time();
-            let code_len = get_program_code(pid).code().len() as u64;
+            let instrumented_prog = get_program_code(pid);
+            let code_len = instrumented_prog.code().len() as u64;
             let gas_for_code_read = schedule
                 .db_read_per_byte
                 .ref_time()
                 .saturating_mul(code_len)
                 .saturating_add(read_cost);
-            let gas_for_code_instantiation = schedule
+
+            let SectionSizes {
+                code_section_bytes,
+                data_section_bytes,
+                global_section_bytes,
+                table_section_bytes,
+                type_section_bytes,
+            } = instrumented_prog.section_sizes();
+
+            let mut gas_for_code_instantiation = schedule
                 .module_code_section_instantiation_per_byte
                 .ref_time()
-                .saturating_mul(code_len);
+                .saturating_mul(*code_section_bytes as u64);
+
+            gas_for_code_instantiation += schedule
+                .module_data_section_instantiation_per_byte
+                .ref_time()
+                .saturating_mul(*data_section_bytes as u64);
+
+            gas_for_code_instantiation += schedule
+                .module_global_section_instantiation_per_byte
+                .ref_time()
+                .saturating_mul(*global_section_bytes as u64);
+
+            gas_for_code_instantiation += schedule
+                .module_table_section_instantiation_per_byte
+                .ref_time()
+                .saturating_mul(*table_section_bytes as u64);
+
+            gas_for_code_instantiation += schedule
+                .module_type_section_instantiation_per_byte
+                .ref_time()
+                .saturating_mul(*type_section_bytes as u64);
+
             gas_for_code_read + gas_for_code_instantiation
         };
 
@@ -7563,8 +7618,6 @@ fn gas_spent_precalculated() {
                 + read_cost
                 // cost for code loading and instantiation
                 + get_gas_charged_for_code(pid)
-                // cost for one static page in program
-                + <Test as Config>::Schedule::get().memory_weights.static_page.ref_time()
         };
 
         let make_check = |gas_spent_expected| {

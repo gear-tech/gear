@@ -26,14 +26,13 @@ use crate::{
     processing::{process_allowance_exceed, process_execution_error, process_success},
     ContextChargedForCode, ContextChargedForInstrumentation,
 };
-use alloc::{collections::BTreeSet, vec::Vec};
+use alloc::vec::Vec;
 use gear_core::{
     code::SectionSizes,
     costs::BytesAmount,
     gas::{ChargeResult, GasAllowanceCounter, GasCounter},
     ids::ProgramId,
     message::{IncomingDispatch, MessageWaitedType},
-    pages::{WasmPage, WasmPagesAmount},
 };
 
 /// Operation related to gas charging.
@@ -177,24 +176,6 @@ impl<'a> GasPrecharger<'a> {
                 .instrumentation
                 .cost_for_with_bytes(self.costs.instrumentation_per_byte, original_code_len_bytes),
         )
-    }
-
-    /// Charge gas for pages and checks that there is enough gas for that.
-    /// Returns size of wasm memory buffer which must be created in execution environment.
-    pub fn _charge_gas_for_pages(
-        &mut self,
-        allocations: &BTreeSet<WasmPage>,
-        static_pages: WasmPagesAmount,
-    ) -> Result<WasmPagesAmount, PrechargeError> {
-        // Charging gas for static pages.
-        let amount = self.costs.static_page.cost_for(static_pages);
-        self.charge_gas(PreChargeGasOperation::StaticPages, amount)?;
-
-        if let Some(page) = allocations.last() {
-            Ok(page.inc())
-        } else {
-            Ok(static_pages)
-        }
     }
 }
 

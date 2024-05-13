@@ -501,6 +501,15 @@ pub mod constants {
     /// Cost of wasm module data section instantiation before execution per byte
     /// of code.
     pub const MODULE_DATA_SECTION_INSTANTIATION_BYTE_COST: Gas = 40;
+    /// Cost of wasm module global section instantiation before execution per
+    /// byte of code.
+    pub const MODULE_GLOBAL_SECTION_INSTANTIATION_BYTE_COST: Gas = 60;
+    /// Cost of wasm module table section instantiation before execution per
+    /// byte of code.
+    pub const MODULE_TABLE_SECTION_INSTANTIATION_BYTE_COST: Gas = 100;
+    /// Cost of wasm module type section instantiation before execution per byte
+    /// of code.
+    pub const MODULE_TYPE_SECTION_INSTANTIATION_BYTE_COST: Gas = 30;
     /// Cost of instrumenting wasm code on upload.
     pub const MODULE_INSTRUMENTATION_COST: Gas = 297;
     /// Cost of instrumenting wasm code on upload per byte of code.
