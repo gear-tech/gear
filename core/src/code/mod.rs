@@ -36,9 +36,11 @@ mod utils;
 
 pub use errors::*;
 pub use instrumented::*;
-pub use utils::{ALLOWED_EXPORTS, MAX_WASM_PAGES_AMOUNT, REQUIRED_EXPORTS};
+pub use utils::{
+    migration_get_section_sizes, ALLOWED_EXPORTS, MAX_WASM_PAGES_AMOUNT, REQUIRED_EXPORTS,
+};
 
-use self::utils::CodeTypeSectionSizes;
+use utils::CodeTypeSectionSizes;
 
 /// Generic OS page size. Approximated to 4KB as a most common value.
 const GENERIC_OS_PAGE_SIZE: u32 = 4096;
@@ -165,13 +167,6 @@ impl Code {
             utils::check_imports(&module)?;
         }
 
-        let CodeTypeSectionSizes {
-            code_section_bytes,
-            type_section_bytes,
-        } = utils::get_code_type_sections_sizes(&original_code)?;
-        let global_section_bytes = utils::get_global_section_bytes(&module)?;
-        let table_section_bytes = utils::get_table_section_bytes(&module)?;
-
         // Get exports set before instrumentations.
         let exports = utils::get_exports(&module);
 
@@ -184,9 +179,18 @@ impl Code {
         }
         module = instrumentation_builder.instrument(module)?;
 
+        // Use instrumented module to get section sizes.
         let data_section_bytes = utils::get_data_section_bytes(&module)?;
+        let global_section_bytes = utils::get_global_section_bytes(&module)?;
+        let table_section_bytes = utils::get_table_section_bytes(&module)?;
 
         let code = parity_wasm::elements::serialize(module).map_err(CodecError::Encode)?;
+
+        // Use instrumented code to get section sizes.
+        let CodeTypeSectionSizes {
+            code_section_bytes,
+            type_section_bytes,
+        } = utils::get_code_type_sections_sizes(&code)?;
 
         Ok(Self {
             code,

@@ -21,15 +21,18 @@
 use core::mem;
 
 use crate::{
-    code::{errors::*, GENERIC_OS_PAGE_SIZE},
+    code::{errors::*, instrumented::SectionSizes, GENERIC_OS_PAGE_SIZE},
     message::{DispatchKind, WasmEntryPoint},
     pages::{WasmPage, WasmPagesAmount},
 };
 use alloc::collections::BTreeSet;
 use gear_wasm_instrument::{
-    parity_wasm::elements::{
-        ExportEntry, External, GlobalEntry, ImportCountType, InitExpr, Instruction, Internal,
-        Module, Type, ValueType,
+    parity_wasm::{
+        self,
+        elements::{
+            ExportEntry, External, GlobalEntry, ImportCountType, InitExpr, Instruction, Internal,
+            Module, Type, ValueType,
+        },
     },
     SyscallName, STACK_END_EXPORT_NAME,
 };
@@ -513,6 +516,28 @@ pub fn get_code_type_sections_sizes(code_bytes: &[u8]) -> Result<CodeTypeSection
 
     Ok(CodeTypeSectionSizes {
         code_section_bytes,
+        type_section_bytes,
+    })
+}
+
+/// Used for migration.
+pub fn migration_get_section_sizes(code: &[u8]) -> Result<SectionSizes, CodeError> {
+    let module = parity_wasm::deserialize_buffer(code).map_err(CodecError::Decode)?;
+
+    let CodeTypeSectionSizes {
+        code_section_bytes,
+        type_section_bytes,
+    } = get_code_type_sections_sizes(code)?;
+
+    let data_section_bytes = get_data_section_bytes(&module)?;
+    let global_section_bytes = get_global_section_bytes(&module)?;
+    let table_section_bytes = get_table_section_bytes(&module)?;
+
+    Ok(SectionSizes {
+        code_section_bytes,
+        data_section_bytes,
+        global_section_bytes,
+        table_section_bytes,
         type_section_bytes,
     })
 }
