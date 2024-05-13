@@ -20,7 +20,7 @@ use crate::{
     log::RunResult,
     manager::{Balance, ExtManager, MintMode, Program as InnerProgram, TestActor},
     system::System,
-    Result,
+    Result, GAS_ALLOWANCE,
 };
 use codec::{Codec, Decode, Encode};
 use gear_core::{
@@ -569,7 +569,7 @@ impl<'a> Program<'a> {
             source,
             self.id,
             payload.as_ref().to_vec().try_into().unwrap(),
-            Some(u64::MAX),
+            Some(GAS_ALLOWANCE),
             value,
             None,
         );

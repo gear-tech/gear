@@ -5236,6 +5236,7 @@ dependencies = [
  "demo-ping",
  "derive_more",
  "env_logger",
+ "gear-common",
  "gear-core",
  "gear-core-errors",
  "gear-core-processor",

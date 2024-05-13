@@ -17,12 +17,14 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
+    gas_tree::GasTreeManager,
     log::{CoreLog, RunResult},
     program::{Gas, WasmProgram},
     Result, TestError, DISPATCH_HOLD_COST, EPOCH_DURATION_IN_BLOCKS, EXISTENTIAL_DEPOSIT,
-    INITIAL_RANDOM_SEED, MAILBOX_THRESHOLD, MAX_RESERVATIONS, MODULE_INSTANTIATION_BYTE_COST,
-    MODULE_INSTRUMENTATION_BYTE_COST, MODULE_INSTRUMENTATION_COST, READ_COST, READ_PER_BYTE_COST,
-    RESERVATION_COST, RESERVE_FOR, VALUE_PER_GAS, WAITLIST_COST, WRITE_COST,
+    GAS_ALLOWANCE, INITIAL_RANDOM_SEED, MAILBOX_THRESHOLD, MAX_RESERVATIONS,
+    MODULE_INSTANTIATION_BYTE_COST, MODULE_INSTRUMENTATION_BYTE_COST, MODULE_INSTRUMENTATION_COST,
+    READ_COST, READ_PER_BYTE_COST, RESERVATION_COST, RESERVE_FOR, VALUE_PER_GAS, WAITLIST_COST,
+    WRITE_COST,
 };
 use core_processor::{
     common::*,
@@ -244,8 +246,7 @@ pub(crate) struct ExtManager {
     pub(crate) mailbox: HashMap<ProgramId, Vec<StoredMessage>>,
     pub(crate) wait_list: BTreeMap<(ProgramId, MessageId), StoredDispatch>,
     pub(crate) wait_list_schedules: BTreeMap<u32, Vec<(ProgramId, MessageId)>>,
-    pub(crate) wait_init_list: BTreeMap<ProgramId, Vec<MessageId>>,
-    pub(crate) gas_limits: BTreeMap<MessageId, u64>,
+    pub(crate) gas_tree: GasTreeManager,
     pub(crate) delayed_dispatches: HashMap<u32, Vec<Dispatch>>,
 
     // Last run info
@@ -362,7 +363,7 @@ impl ExtManager {
                                     .to_vec()
                                     .try_into()
                                     .unwrap_or_default(),
-                                self.gas_limits.get(&message.id()).copied(),
+                                self.gas_tree.get_limit(message.id()).ok(),
                                 message.value(),
                                 message.details(),
                             );
@@ -453,11 +454,13 @@ impl ExtManager {
     pub(crate) fn run_dispatch(&mut self, dispatch: Dispatch) -> RunResult {
         self.prepare_for(&dispatch);
 
-        self.gas_limits
-            .entry(dispatch.id())
-            .or_insert_with(|| dispatch.gas_limit().unwrap_or(u64::MAX));
-
         if self.is_program(&dispatch.destination()) {
+            // TODO: `gas_limit` being None is an abuse of the `run_dispatch` usage,
+            // as it must be called only for user messages
+            self.gas_tree
+                .create(dispatch.source(), dispatch.id(), dispatch.gas_limit())
+                .unwrap_or_else(|e| unreachable!("GasTree corrupter! {:?}", e));
+
             self.dispatches.push_back(dispatch.into_stored());
         } else {
             let message = dispatch.into_parts().1.into_stored();
@@ -472,18 +475,7 @@ impl ExtManager {
 
         let mut total_processed = 0;
         while let Some(dispatch) = self.dispatches.pop_front() {
-            let message_id = dispatch.id();
             let dest = dispatch.destination();
-
-            if self.check_is_for_wait_list(&dispatch) {
-                self.wait_init_list
-                    .entry(dest)
-                    .or_default()
-                    .push(message_id);
-                self.wait_dispatch(dispatch, None, MessageWaitedType::Wait);
-
-                continue;
-            }
 
             let mut actors = self.actors.borrow_mut();
             let (actor, balance) = actors
@@ -541,7 +533,7 @@ impl ExtManager {
                 Some(program.allocations().clone()),
                 Some((*program_id, program.memory_infix())),
                 payload,
-                u64::MAX,
+                GAS_ALLOWANCE,
                 self.block_info,
             )
             .map_err(TestError::ReadStateError)
@@ -582,7 +574,7 @@ impl ExtManager {
             None,
             None,
             mapping_code_payload,
-            u64::MAX,
+            GAS_ALLOWANCE,
             self.block_info,
         )
         .map_err(TestError::ReadStateError)
@@ -641,7 +633,8 @@ impl ExtManager {
                     message.source(),
                     Some(message.destination()),
                     message.value(),
-                )
+                );
+                self.message_consumed(message.id());
             });
         }
     }
@@ -701,7 +694,7 @@ impl ExtManager {
     }
 
     #[track_caller]
-    fn init_success(&mut self, message_id: MessageId, program_id: ProgramId) {
+    fn init_success(&mut self, program_id: ProgramId) {
         let mut actors = self.actors.borrow_mut();
         let (actor, _) = actors
             .get_mut(&program_id)
@@ -710,7 +703,6 @@ impl ExtManager {
         actor.set_initialized();
 
         drop(actors);
-        self.move_waiting_msgs_to_queue(message_id, program_id);
     }
 
     #[track_caller]
@@ -723,31 +715,7 @@ impl ExtManager {
         *actor = TestActor::Dormant;
 
         drop(actors);
-        self.move_waiting_msgs_to_queue(message_id, program_id);
         self.mark_failed(message_id);
-    }
-
-    fn move_waiting_msgs_to_queue(&mut self, message_id: MessageId, program_id: ProgramId) {
-        if let Some(ids) = self.wait_init_list.remove(&program_id) {
-            for id in ids {
-                self.wake_message(message_id, program_id, id, 0);
-            }
-        }
-    }
-
-    // When called for the `dispatch`, it must be in queue.
-    #[track_caller]
-    fn check_is_for_wait_list(&self, dispatch: &StoredDispatch) -> bool {
-        let actors = self.actors.borrow();
-        let (actor, _) = actors
-            .get(&dispatch.destination())
-            .expect("method called for unknown destination");
-        if let TestActor::Uninitialized(maybe_message_id, _) = actor {
-            let id = maybe_message_id.expect("message in dispatch queue has id");
-            dispatch.reply_details().is_none() && id != dispatch.id()
-        } else {
-            false
-        }
     }
 
     fn process_mock(&mut self, mut mock: Box<dyn WasmProgram>, dispatch: StoredDispatch) {
@@ -876,9 +844,9 @@ impl ExtManager {
     ) {
         let dest = dispatch.destination();
         let gas_limit = self
-            .gas_limits
-            .get(&dispatch.id())
-            .expect("Unable to find gas limit for message");
+            .gas_tree
+            .get_limit(dispatch.id())
+            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
         let block_config = BlockConfig {
             block_info: self.block_info,
             performance_multiplier: gsys::Percent::new(100),
@@ -914,8 +882,9 @@ impl ExtManager {
 
         let precharged_dispatch = match core_processor::precharge_for_program(
             &block_config,
-            u64::MAX,
-            dispatch.into_incoming(*gas_limit),
+            // TODO: use proper changeable value
+            GAS_ALLOWANCE,
+            dispatch.into_incoming(gas_limit),
             dest,
         ) {
             Ok(d) => d,
@@ -980,13 +949,15 @@ impl JournalHandler for ExtManager {
             DispatchOutcome::InitFailure { program_id, .. } => {
                 self.init_failure(message_id, program_id)
             }
-            DispatchOutcome::InitSuccess { program_id, .. } => {
-                self.init_success(message_id, program_id)
-            }
+            DispatchOutcome::InitSuccess { program_id, .. } => self.init_success(program_id),
         }
     }
 
     fn gas_burned(&mut self, message_id: MessageId, amount: u64) {
+        self.gas_tree
+            .spend(message_id, amount)
+            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+
         if self.msg_id == message_id {
             self.main_gas_burned = self.main_gas_burned.saturating_add(Gas(amount));
         } else {
@@ -1001,6 +972,9 @@ impl JournalHandler for ExtManager {
     }
 
     fn message_consumed(&mut self, message_id: MessageId) {
+        self.gas_tree
+            .consume(message_id)
+            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
         if let Some(index) = self.dispatches.iter().position(|d| d.id() == message_id) {
             self.dispatches.remove(index);
         }
@@ -1022,21 +996,32 @@ impl JournalHandler for ExtManager {
 
         log::debug!("[{message_id}] new dispatch#{}", dispatch.id());
 
-        self.gas_limits
-            .entry(dispatch.id())
-            .or_insert_with(|| dispatch.gas_limit().unwrap_or(u64::MAX));
-
         if self.is_program(&dispatch.destination()) {
+            match dispatch.gas_limit() {
+                Some(gas_limit) => {
+                    self.gas_tree
+                        .split_with_value(message_id, dispatch.id(), gas_limit)
+                }
+                None => self.gas_tree.split(message_id, dispatch.id()),
+            }
+            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
+
             self.dispatches.push_back(dispatch.into_stored());
         } else {
-            let message = dispatch.into_stored().into_parts().1;
+            // TODO: change when charge for resources is implemented;
+            let gas_limit = dispatch.gas_limit().unwrap_or_default();
+            let stored_message = dispatch.into_stored().into_parts().1;
+
+            self.gas_tree
+                .cut(message_id, stored_message.id(), gas_limit)
+                .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
             self.mailbox
-                .entry(message.destination())
+                .entry(stored_message.destination())
                 .or_default()
-                .push(message.clone());
+                .push(stored_message.clone());
 
-            self.log.push(message);
+            self.log.push(stored_message);
         }
     }
 
@@ -1242,7 +1227,9 @@ impl JournalHandler for ExtManager {
 
     fn send_signal(&mut self, _message_id: MessageId, _destination: ProgramId, _code: SignalCode) {}
 
-    fn reply_deposit(&mut self, _message_id: MessageId, future_reply_id: MessageId, amount: u64) {
-        self.gas_limits.insert(future_reply_id, amount);
+    fn reply_deposit(&mut self, message_id: MessageId, future_reply_id: MessageId, amount: u64) {
+        self.gas_tree
+            .create_deposit(message_id, future_reply_id, amount)
+            .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
     }
 }
