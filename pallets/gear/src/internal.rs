@@ -934,7 +934,7 @@ where
             }
 
             if !holders.insert(next_inheritor) {
-                log::warn!("Cyclic inheritor detected for {next_inheritor}");
+                log::debug!("Cyclic inheritor detected for {next_inheritor}");
                 break;
             }
         }
