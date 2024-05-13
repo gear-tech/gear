@@ -21,7 +21,7 @@
 use crate as pallet_gear_messenger;
 use frame_support::{
     construct_runtime, parameter_types,
-    traits::{OnFinalize, OnInitialize},
+    traits::{ConstU32, OnFinalize, OnInitialize},
     weights::constants::RocksDbWeight,
 };
 use frame_system::{self as system, pallet_prelude::BlockNumberFor};

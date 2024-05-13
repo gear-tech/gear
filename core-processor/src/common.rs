@@ -515,8 +515,6 @@ pub struct ExecutableActorData {
     pub allocations: BTreeSet<WasmPage>,
     /// The infix of memory pages in a storage.
     pub memory_infix: MemoryInfix,
-    /// Set of gear pages numbers, which has data in storage.
-    pub pages_with_data: BTreeSet<GearPage>,
     /// Id of the program code.
     pub code_id: CodeId,
     /// Exported functions by the program code.
