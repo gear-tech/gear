@@ -327,11 +327,10 @@ mod tests {
         let system = System::new();
         let restricted_user_id = 42;
 
-        Program::from_opt_and_meta_code_with_id(
+        Program::from_binary_with_id(
             &system,
             restricted_user_id,
-            demo_futures_unordered::WASM_BINARY.to_vec(),
-            None,
+            demo_futures_unordered::WASM_BINARY,
         );
 
         // Getting user id that is already registered as a program

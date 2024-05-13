@@ -131,7 +131,7 @@ impl TestActor {
 
     // Gets a new executable actor derived from the inner program.
     fn get_executable_actor_data(&self) -> Option<(ExecutableActorData, CoreProgram)> {
-        let (program, pages_data, code_id, gas_reservation_map) = match self {
+        let (program, _, code_id, gas_reservation_map) = match self {
             TestActor::Initialized(Program::Genuine {
                 program,
                 pages_data,
@@ -163,7 +163,6 @@ impl TestActor {
                 code_id: *code_id,
                 code_exports: program.code().exports().clone(),
                 static_pages: program.code().static_pages(),
-                pages_with_data: pages_data.keys().cloned().collect(),
                 gas_reservation_map,
                 memory_infix: program.memory_infix(),
             },
@@ -293,15 +292,15 @@ impl ExtManager {
         init_message_id: Option<MessageId>,
     ) -> Option<(TestActor, Balance)> {
         if let Program::Genuine { program, .. } = &program {
-            self.store_new_code(program.code_bytes());
+            self.store_new_code(program.code_bytes().to_vec());
         }
         self.actors
             .insert(program_id, (TestActor::new(init_message_id, program), 0))
     }
 
-    pub(crate) fn store_new_code(&mut self, code: &[u8]) -> CodeId {
-        let code_id = CodeId::generate(code);
-        self.opt_binaries.insert(code_id, code.to_vec());
+    pub(crate) fn store_new_code(&mut self, code: Vec<u8>) -> CodeId {
+        let code_id = CodeId::generate(&code);
+        self.opt_binaries.insert(code_id, code);
         code_id
     }
 
@@ -1141,6 +1140,7 @@ impl JournalHandler for ExtManager {
                         schedule.instruction_weights.version,
                         |module| schedule.rules(module),
                         schedule.limits.stack_height,
+                        schedule.limits.data_segments_amount.into(),
                     )
                     .expect("Program can't be constructed with provided code");
 

@@ -161,35 +161,51 @@ pub fn check_imports(module: &Module) -> Result<(), CodeError> {
     let syscalls = SyscallName::instrumentable_map();
 
     let mut visited_imports = BTreeSet::new();
+
     for (import_index, import) in imports.iter().enumerate() {
-        let External::Function(i) = import.external() else {
-            continue;
-        };
+        let import_index: u32 = import_index
+            .try_into()
+            .unwrap_or_else(|_| unreachable!("Import index should fit in u32"));
 
-        // Panic is impossible, unless the Module structure is invalid.
-        let Type::Function(func_type) = &types
-            .get(*i as usize)
-            .unwrap_or_else(|| unreachable!("Module structure is invalid"));
+        match import.external() {
+            External::Function(i) => {
+                // Panic is impossible, unless the Module structure is invalid.
+                let Type::Function(func_type) = &types
+                    .get(*i as usize)
+                    .unwrap_or_else(|| unreachable!("Module structure is invalid"));
 
-        let syscall = syscalls
-            .get(import.field())
-            .ok_or(ImportError::UnknownImport(import_index as u32))?;
+                let syscall = syscalls
+                    .get(import.field())
+                    .ok_or(ImportError::UnknownImport(import_index))?;
 
-        if !visited_imports.insert(*syscall) {
-            Err(ImportError::DuplicateImport(import_index as u32))?;
-        }
+                if !visited_imports.insert(*syscall) {
+                    Err(ImportError::DuplicateImport(import_index))?;
+                }
 
-        let signature = syscall.signature();
+                let signature = syscall.signature();
 
-        let params = signature
-            .params()
-            .iter()
-            .copied()
-            .map(Into::<ValueType>::into);
-        let results = signature.results().unwrap_or(&[]);
+                let params = signature
+                    .params()
+                    .iter()
+                    .copied()
+                    .map(Into::<ValueType>::into);
+                let results = signature.results().unwrap_or(&[]);
 
-        if !(params.eq(func_type.params().iter().copied()) && results == func_type.results()) {
-            Err(ImportError::InvalidImportFnSignature(import_index as u32))?;
+                if !(params.eq(func_type.params().iter().copied())
+                    && results == func_type.results())
+                {
+                    Err(ImportError::InvalidImportFnSignature(import_index))?;
+                }
+            }
+            External::Global(_) => Err(ImportError::UnexpectedImportKind {
+                kind: &"Global",
+                index: import_index,
+            })?,
+            External::Table(_) => Err(ImportError::UnexpectedImportKind {
+                kind: &"Table",
+                index: import_index,
+            })?,
+            _ => continue,
         }
     }
 
@@ -248,11 +264,23 @@ pub fn check_data_section(
     module: &Module,
     static_pages: WasmPagesAmount,
     stack_end: Option<WasmPage>,
+    data_section_amount_limit: Option<u32>,
 ) -> Result<(), CodeError> {
     let Some(data_section) = module.data_section() else {
         // No data section - nothing to check.
         return Ok(());
     };
+
+    // Check that data segments amount does not exceed the limit.
+    if let Some(data_segments_amount_limit) = data_section_amount_limit {
+        let number_of_data_segments = data_section.entries().len() as u32;
+        if number_of_data_segments > data_segments_amount_limit {
+            Err(DataSectionError::DataSegmentsAmountLimit {
+                limit: data_segments_amount_limit,
+                actual: number_of_data_segments,
+            })?;
+        }
+    }
 
     for data_segment in data_section.entries() {
         let data_segment_offset = data_segment

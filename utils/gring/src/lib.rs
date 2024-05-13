@@ -22,7 +22,7 @@ mod pair;
 mod scrypt;
 
 pub mod cmd;
-pub mod ss58;
+pub use gear_ss58 as ss58;
 
 pub use self::{
     keyring::Keyring,

@@ -93,7 +93,6 @@ where
             code_id: program.code_hash.cast(),
             code_exports: program.code_exports,
             static_pages: program.static_pages,
-            pages_with_data: program.pages_with_data,
             gas_reservation_map: program.gas_reservation_map,
             memory_infix: program.memory_infix,
         };

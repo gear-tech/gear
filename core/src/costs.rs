@@ -79,6 +79,14 @@ impl<T> Default for CostOf<T> {
 #[derive(Debug, Default, Clone, Copy, derive_more::From, derive_more::Into)]
 pub struct CallsAmount(u32);
 
+impl CostOf<CallsAmount> {
+    /// Calculate (saturating add) cost for `per_byte` amount of `BytesAmount` (saturating mul).
+    pub fn cost_for_with_bytes(&self, per_byte: CostOf<BytesAmount>, amount: BytesAmount) -> u64 {
+        self.cost_for_one()
+            .saturating_add(per_byte.cost_for(amount))
+    }
+}
+
 /// Bytes amount.
 #[derive(Debug, Default, Clone, Copy, derive_more::From, derive_more::Into)]
 pub struct BytesAmount(u32);
@@ -425,7 +433,7 @@ impl SyscallCosts {
         macro_rules! cost_with_per_byte {
             ($name:ident, $len:expr) => {
                 paste! {
-                    self.$name.cost_for_one().saturating_add(self.[< $name _per_byte >].cost_for($len))
+                    self.$name.cost_for_with_bytes(self.[< $name _per_byte >], $len)
                 }
             };
         }
@@ -483,19 +491,16 @@ impl SyscallCosts {
             WaitFor => self.gr_wait_for.cost_for_one(),
             WaitUpTo => self.gr_wait_up_to.cost_for_one(),
             Wake => self.gr_wake.cost_for_one(),
-            CreateProgram(payload, salt) => self
-                .gr_create_program
-                .cost_for_one()
-                .saturating_add(self.gr_create_program_payload_per_byte.cost_for(payload))
-                .saturating_add(self.gr_create_program_salt_per_byte.cost_for(salt)),
-            CreateProgramWGas(payload, salt) => self
-                .gr_create_program_wgas
-                .cost_for_one()
-                .saturating_add(
-                    self.gr_create_program_wgas_payload_per_byte
-                        .cost_for(payload),
-                )
-                .saturating_add(self.gr_create_program_wgas_salt_per_byte.cost_for(salt)),
+            CreateProgram(payload, salt) => CostOf::from(
+                self.gr_create_program
+                    .cost_for_with_bytes(self.gr_create_program_payload_per_byte, payload),
+            )
+            .cost_for_with_bytes(self.gr_create_program_salt_per_byte, salt),
+            CreateProgramWGas(payload, salt) => CostOf::from(
+                self.gr_create_program_wgas
+                    .cost_for_with_bytes(self.gr_create_program_wgas_payload_per_byte, payload),
+            )
+            .cost_for_with_bytes(self.gr_create_program_wgas_salt_per_byte, salt),
         }
     }
 }

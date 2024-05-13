@@ -119,7 +119,7 @@ pub mod runtime_types {
                     #[derive(
                         Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                     )]
-                    pub enum Bounded<_0> {
+                    pub enum Bounded<_0, _1> {
                         #[codec(index = 0)]
                         Legacy {
                             hash: ::subxt::utils::H256,
@@ -135,7 +135,7 @@ pub mod runtime_types {
                             hash: ::subxt::utils::H256,
                             len: ::core::primitive::u32,
                         },
-                        __Ignore(::core::marker::PhantomData<_0>),
+                        __Ignore(::core::marker::PhantomData<(_0, _1)>),
                     }
                 }
                 pub mod schedule {
@@ -152,6 +152,17 @@ pub mod runtime_types {
                 }
                 pub mod tokens {
                     use super::runtime_types;
+                    pub mod fungible {
+                        use super::runtime_types;
+                        #[derive(
+                            ::subxt::ext::codec::CompactAs,
+                            Debug,
+                            crate::gp::Decode,
+                            crate::gp::DecodeAsType,
+                            crate::gp::Encode,
+                        )]
+                        pub struct HoldConsideration(pub ::core::primitive::u128);
+                    }
                     pub mod misc {
                         use super::runtime_types;
                         #[derive(
@@ -1172,15 +1183,6 @@ pub mod runtime_types {
                         #[codec(compact)]
                         value: ::core::primitive::u128,
                     },
-                    #[codec(index = 1)]
-                    #[doc = "See [`Pallet::set_balance_deprecated`]."]
-                    set_balance_deprecated {
-                        who: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
-                        #[codec(compact)]
-                        new_free: ::core::primitive::u128,
-                        #[codec(compact)]
-                        old_reserved: ::core::primitive::u128,
-                    },
                     #[codec(index = 2)]
                     #[doc = "See [`Pallet::force_transfer`]."]
                     force_transfer {
@@ -1212,13 +1214,6 @@ pub mod runtime_types {
                     #[doc = "See [`Pallet::upgrade_accounts`]."]
                     upgrade_accounts {
                         who: ::std::vec::Vec<::subxt::utils::AccountId32>,
-                    },
-                    #[codec(index = 7)]
-                    #[doc = "See [`Pallet::transfer`]."]
-                    transfer {
-                        dest: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
-                        #[codec(compact)]
-                        value: ::core::primitive::u128,
                     },
                     #[codec(index = 8)]
                     #[doc = "See [`Pallet::force_set_balance`]."]
@@ -1574,6 +1569,24 @@ pub mod runtime_types {
                     #[codec(index = 6)]
                     #[doc = "A bounty expiry is extended."]
                     BountyExtended { index: ::core::primitive::u32 },
+                    #[codec(index = 7)]
+                    #[doc = "A bounty is approved."]
+                    BountyApproved { index: ::core::primitive::u32 },
+                    #[codec(index = 8)]
+                    #[doc = "A bounty curator is proposed."]
+                    CuratorProposed {
+                        bounty_id: ::core::primitive::u32,
+                        curator: ::subxt::utils::AccountId32,
+                    },
+                    #[codec(index = 9)]
+                    #[doc = "A bounty curator is unassigned."]
+                    CuratorUnassigned { bounty_id: ::core::primitive::u32 },
+                    #[codec(index = 10)]
+                    #[doc = "A bounty curator is accepted."]
+                    CuratorAccepted {
+                        bounty_id: ::core::primitive::u32,
+                        curator: ::subxt::utils::AccountId32,
+                    },
                 }
             }
             #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
@@ -2436,6 +2449,7 @@ pub mod runtime_types {
                     pub call_depth: ::core::primitive::u32,
                     pub payload_len: ::core::primitive::u32,
                     pub code_len: ::core::primitive::u32,
+                    pub data_segments_amount: ::core::primitive::u32,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub struct MemoryWeights {
@@ -3151,7 +3165,7 @@ pub mod runtime_types {
                     #[doc = "See [`Pallet::set_identity`]."]
                     set_identity {
                         info:
-                            ::std::boxed::Box<runtime_types::pallet_identity::types::IdentityInfo>,
+                            ::std::boxed::Box<runtime_types::pallet_identity::simple::IdentityInfo>,
                     },
                     #[codec(index = 2)]
                     #[doc = "See [`Pallet::set_subs`]."]
@@ -3196,7 +3210,7 @@ pub mod runtime_types {
                         #[codec(compact)]
                         index: ::core::primitive::u32,
                         fields: runtime_types::pallet_identity::types::BitFlags<
-                            runtime_types::pallet_identity::types::IdentityField,
+                            runtime_types::pallet_identity::simple::IdentityField,
                         >,
                     },
                     #[codec(index = 9)]
@@ -3359,6 +3373,43 @@ pub mod runtime_types {
                     },
                 }
             }
+            pub mod simple {
+                use super::runtime_types;
+                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                pub enum IdentityField {
+                    #[codec(index = 0)]
+                    Display,
+                    #[codec(index = 1)]
+                    Legal,
+                    #[codec(index = 2)]
+                    Web,
+                    #[codec(index = 3)]
+                    Riot,
+                    #[codec(index = 4)]
+                    Email,
+                    #[codec(index = 5)]
+                    PgpFingerprint,
+                    #[codec(index = 6)]
+                    Image,
+                    #[codec(index = 7)]
+                    Twitter,
+                }
+                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                pub struct IdentityInfo {
+                    pub additional: runtime_types::bounded_collections::bounded_vec::BoundedVec<(
+                        runtime_types::pallet_identity::types::Data,
+                        runtime_types::pallet_identity::types::Data,
+                    )>,
+                    pub display: runtime_types::pallet_identity::types::Data,
+                    pub legal: runtime_types::pallet_identity::types::Data,
+                    pub web: runtime_types::pallet_identity::types::Data,
+                    pub riot: runtime_types::pallet_identity::types::Data,
+                    pub email: runtime_types::pallet_identity::types::Data,
+                    pub pgp_fingerprint: ::core::option::Option<[::core::primitive::u8; 20usize]>,
+                    pub image: runtime_types::pallet_identity::types::Data,
+                    pub twitter: runtime_types::pallet_identity::types::Data,
+                }
+            }
             pub mod types {
                 use super::runtime_types;
                 #[derive(
@@ -3452,40 +3503,6 @@ pub mod runtime_types {
                     ShaThree256([::core::primitive::u8; 32usize]),
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-                pub enum IdentityField {
-                    #[codec(index = 1)]
-                    Display,
-                    #[codec(index = 2)]
-                    Legal,
-                    #[codec(index = 4)]
-                    Web,
-                    #[codec(index = 8)]
-                    Riot,
-                    #[codec(index = 16)]
-                    Email,
-                    #[codec(index = 32)]
-                    PgpFingerprint,
-                    #[codec(index = 64)]
-                    Image,
-                    #[codec(index = 128)]
-                    Twitter,
-                }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-                pub struct IdentityInfo {
-                    pub additional: runtime_types::bounded_collections::bounded_vec::BoundedVec<(
-                        runtime_types::pallet_identity::types::Data,
-                        runtime_types::pallet_identity::types::Data,
-                    )>,
-                    pub display: runtime_types::pallet_identity::types::Data,
-                    pub legal: runtime_types::pallet_identity::types::Data,
-                    pub web: runtime_types::pallet_identity::types::Data,
-                    pub riot: runtime_types::pallet_identity::types::Data,
-                    pub email: runtime_types::pallet_identity::types::Data,
-                    pub pgp_fingerprint: ::core::option::Option<[::core::primitive::u8; 20usize]>,
-                    pub image: runtime_types::pallet_identity::types::Data,
-                    pub twitter: runtime_types::pallet_identity::types::Data,
-                }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub enum Judgement<_0> {
                     #[codec(index = 0)]
                     Unknown,
@@ -3503,21 +3520,19 @@ pub mod runtime_types {
                     Erroneous,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-                pub struct RegistrarInfo<_0, _1> {
+                pub struct RegistrarInfo<_0, _1, _2> {
                     pub account: _1,
                     pub fee: _0,
-                    pub fields: runtime_types::pallet_identity::types::BitFlags<
-                        runtime_types::pallet_identity::types::IdentityField,
-                    >,
+                    pub fields: runtime_types::pallet_identity::types::BitFlags<_2>,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-                pub struct Registration<_0> {
+                pub struct Registration<_0, _2> {
                     pub judgements: runtime_types::bounded_collections::bounded_vec::BoundedVec<(
                         ::core::primitive::u32,
                         runtime_types::pallet_identity::types::Judgement<_0>,
                     )>,
                     pub deposit: _0,
-                    pub info: runtime_types::pallet_identity::types::IdentityInfo,
+                    pub info: _2,
                 }
             }
         }
@@ -3900,6 +3915,9 @@ pub mod runtime_types {
                     #[codec(index = 20)]
                     #[doc = "See [`Pallet::claim_commission`]."]
                     claim_commission { pool_id: ::core::primitive::u32 },
+                    #[codec(index = 21)]
+                    #[doc = "See [`Pallet::adjust_pool_deposit`]."]
+                    adjust_pool_deposit { pool_id: ::core::primitive::u32 },
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub enum DefensiveError {
@@ -3946,9 +3964,9 @@ pub mod runtime_types {
                     #[codec(index = 8)]
                     #[doc = "The amount does not meet the minimum bond to either join or create a pool."]
                     #[doc = ""]
-                    #[doc = "The depositor can never unbond to a value less than"]
-                    #[doc = "`Pallet::depositor_min_bond`. The caller does not have nominating"]
-                    #[doc = "permissions for the pool. Members can never unbond to a value below `MinJoinBond`."]
+                    #[doc = "The depositor can never unbond to a value less than `Pallet::depositor_min_bond`. The"]
+                    #[doc = "caller does not have nominating permissions for the pool. Members can never unbond to a"]
+                    #[doc = "value below `MinJoinBond`."]
                     MinimumBondNotMet,
                     #[codec(index = 9)]
                     #[doc = "The transaction could not be executed due to overflow risk for the pool."]
@@ -4018,6 +4036,9 @@ pub mod runtime_types {
                     #[codec(index = 30)]
                     #[doc = "Bonding extra is restricted to the exact pending reward amount."]
                     BondExtraRestricted,
+                    #[codec(index = 31)]
+                    #[doc = "No imbalance in the ED deposit for the pool."]
+                    NothingToAdjust,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 #[doc = "Events of this pallet."]
@@ -4142,6 +4163,23 @@ pub mod runtime_types {
                         pool_id: ::core::primitive::u32,
                         commission: ::core::primitive::u128,
                     },
+                    #[codec(index = 15)]
+                    #[doc = "Topped up deficit in frozen ED of the reward pool."]
+                    MinBalanceDeficitAdjusted {
+                        pool_id: ::core::primitive::u32,
+                        amount: ::core::primitive::u128,
+                    },
+                    #[codec(index = 16)]
+                    #[doc = "Claimed excess frozen ED of af the reward pool."]
+                    MinBalanceExcessAdjusted {
+                        pool_id: ::core::primitive::u32,
+                        amount: ::core::primitive::u128,
+                    },
+                }
+                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                pub enum FreezeReason {
+                    #[codec(index = 0)]
+                    PoolMinBalance,
                 }
             }
             #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
@@ -4290,6 +4328,11 @@ pub mod runtime_types {
                     #[codec(index = 3)]
                     #[doc = "See [`Pallet::unrequest_preimage`]."]
                     unrequest_preimage { hash: ::subxt::utils::H256 },
+                    #[codec(index = 4)]
+                    #[doc = "See [`Pallet::ensure_updated`]."]
+                    ensure_updated {
+                        hashes: ::std::vec::Vec<::subxt::utils::H256>,
+                    },
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 #[doc = "The `Error` enum of this pallet."]
@@ -4312,6 +4355,12 @@ pub mod runtime_types {
                     #[codec(index = 5)]
                     #[doc = "The preimage request cannot be removed since no outstanding requests exist."]
                     NotRequested,
+                    #[codec(index = 6)]
+                    #[doc = "More than `MAX_HASH_UPGRADE_BULK_COUNT` hashes were requested to be upgraded at once."]
+                    TooMany,
+                    #[codec(index = 7)]
+                    #[doc = "Too few hashes were requested to be upgraded (i.e. zero)."]
+                    TooFew,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 #[doc = "The `Event` enum of this pallet"]
@@ -4326,9 +4375,14 @@ pub mod runtime_types {
                     #[doc = "A preimage has ben cleared."]
                     Cleared { hash: ::subxt::utils::H256 },
                 }
+                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                pub enum HoldReason {
+                    #[codec(index = 0)]
+                    Preimage,
+                }
             }
             #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-            pub enum RequestStatus<_0, _1> {
+            pub enum OldRequestStatus<_0, _1> {
                 #[codec(index = 0)]
                 Unrequested {
                     deposit: (_0, _1),
@@ -4339,6 +4393,20 @@ pub mod runtime_types {
                     deposit: ::core::option::Option<(_0, _1)>,
                     count: ::core::primitive::u32,
                     len: ::core::option::Option<::core::primitive::u32>,
+                },
+            }
+            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            pub enum RequestStatus<_0, _1> {
+                #[codec(index = 0)]
+                Unrequested {
+                    ticket: (_0, _1),
+                    len: ::core::primitive::u32,
+                },
+                #[codec(index = 1)]
+                Requested {
+                    maybe_ticket: ::core::option::Option<(_0, _1)>,
+                    count: ::core::primitive::u32,
+                    maybe_len: ::core::option::Option<::core::primitive::u32>,
                 },
             }
         }
@@ -4643,6 +4711,7 @@ pub mod runtime_types {
                             ::std::boxed::Box<runtime_types::vara_runtime::OriginCaller>,
                         proposal: runtime_types::frame_support::traits::preimages::Bounded<
                             runtime_types::vara_runtime::RuntimeCall,
+                            runtime_types::sp_runtime::traits::BlakeTwo256,
                         >,
                         enactment_moment:
                             runtime_types::frame_support::traits::schedule::DispatchTime<
@@ -4687,6 +4756,7 @@ pub mod runtime_types {
                             ::std::boxed::Box<runtime_types::vara_runtime::OriginCaller>,
                         proposal: runtime_types::frame_support::traits::preimages::Bounded<
                             runtime_types::vara_runtime::RuntimeCall,
+                            runtime_types::sp_runtime::traits::BlakeTwo256,
                         >,
                         enactment_moment:
                             runtime_types::frame_support::traits::schedule::DispatchTime<
@@ -4817,6 +4887,7 @@ pub mod runtime_types {
                         track: ::core::primitive::u16,
                         proposal: runtime_types::frame_support::traits::preimages::Bounded<
                             runtime_types::vara_runtime::RuntimeCall,
+                            runtime_types::sp_runtime::traits::BlakeTwo256,
                         >,
                     },
                     #[codec(index = 1)]
@@ -4846,6 +4917,7 @@ pub mod runtime_types {
                         track: ::core::primitive::u16,
                         proposal: runtime_types::frame_support::traits::preimages::Bounded<
                             runtime_types::vara_runtime::RuntimeCall,
+                            runtime_types::sp_runtime::traits::BlakeTwo256,
                         >,
                         tally: runtime_types::pallet_conviction_voting::types::Tally<
                             ::core::primitive::u128,
@@ -4928,6 +5000,7 @@ pub mod runtime_types {
                         track: ::core::primitive::u16,
                         proposal: runtime_types::frame_support::traits::preimages::Bounded<
                             runtime_types::vara_runtime::RuntimeCall,
+                            runtime_types::sp_runtime::traits::BlakeTwo256,
                         >,
                     },
                     #[codec(index = 1)]
@@ -4957,6 +5030,7 @@ pub mod runtime_types {
                         track: ::core::primitive::u16,
                         proposal: runtime_types::frame_support::traits::preimages::Bounded<
                             runtime_types::vara_runtime::RuntimeCall,
+                            runtime_types::sp_runtime::traits::BlakeTwo256,
                         >,
                         tally: runtime_types::pallet_ranked_collective::Tally,
                     },
@@ -5611,9 +5685,12 @@ pub mod runtime_types {
                             remainder: ::core::primitive::u128,
                         },
                         #[codec(index = 1)]
-                        #[doc = "The nominator has been rewarded by this amount."]
+                        #[doc = "The nominator has been rewarded by this amount to this destination."]
                         Rewarded {
                             stash: ::subxt::utils::AccountId32,
+                            dest: runtime_types::pallet_staking::RewardDestination<
+                                ::subxt::utils::AccountId32,
+                            >,
                             amount: ::core::primitive::u128,
                         },
                         #[codec(index = 2)]
@@ -5848,18 +5925,18 @@ pub mod runtime_types {
                 #[doc = "The `Event` enum of this pallet"]
                 pub enum Event {
                     #[codec(index = 0)]
-                    #[doc = "A sudo just took place. \\[result\\]"]
+                    #[doc = "A sudo call just took place."]
                     Sudid {
                         sudo_result:
                             ::core::result::Result<(), runtime_types::sp_runtime::DispatchError>,
                     },
                     #[codec(index = 1)]
-                    #[doc = "The \\[sudoer\\] just switched identity; the old key is supplied if one existed."]
+                    #[doc = "The sudo key has been updated."]
                     KeyChanged {
                         old_sudoer: ::core::option::Option<::subxt::utils::AccountId32>,
                     },
                     #[codec(index = 2)]
-                    #[doc = "A sudo just took place. \\[result\\]"]
+                    #[doc = "A [sudo_as](Pallet::sudo_as) call just took place."]
                     SudoAsDone {
                         sudo_result:
                             ::core::result::Result<(), runtime_types::sp_runtime::DispatchError>,
@@ -5937,8 +6014,8 @@ pub mod runtime_types {
                         proposal_id: ::core::primitive::u32,
                     },
                     #[codec(index = 3)]
-                    #[doc = "See [`Pallet::spend`]."]
-                    spend {
+                    #[doc = "See [`Pallet::spend_local`]."]
+                    spend_local {
                         #[codec(compact)]
                         amount: ::core::primitive::u128,
                         beneficiary: ::subxt::utils::MultiAddress<::subxt::utils::AccountId32, ()>,
@@ -5949,6 +6026,24 @@ pub mod runtime_types {
                         #[codec(compact)]
                         proposal_id: ::core::primitive::u32,
                     },
+                    #[codec(index = 5)]
+                    #[doc = "See [`Pallet::spend`]."]
+                    spend {
+                        asset_kind: ::std::boxed::Box<()>,
+                        #[codec(compact)]
+                        amount: ::core::primitive::u128,
+                        beneficiary: ::std::boxed::Box<::subxt::utils::AccountId32>,
+                        valid_from: ::core::option::Option<::core::primitive::u32>,
+                    },
+                    #[codec(index = 6)]
+                    #[doc = "See [`Pallet::payout`]."]
+                    payout { index: ::core::primitive::u32 },
+                    #[codec(index = 7)]
+                    #[doc = "See [`Pallet::check_status`]."]
+                    check_status { index: ::core::primitive::u32 },
+                    #[codec(index = 8)]
+                    #[doc = "See [`Pallet::void_spend`]."]
+                    void_spend { index: ::core::primitive::u32 },
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 #[doc = "Error for the treasury pallet."]
@@ -5957,7 +6052,7 @@ pub mod runtime_types {
                     #[doc = "Proposer's balance is too low."]
                     InsufficientProposersBalance,
                     #[codec(index = 1)]
-                    #[doc = "No proposal or bounty at that index."]
+                    #[doc = "No proposal, bounty or spend at that index."]
                     InvalidIndex,
                     #[codec(index = 2)]
                     #[doc = "Too many approvals in the queue."]
@@ -5969,6 +6064,27 @@ pub mod runtime_types {
                     #[codec(index = 4)]
                     #[doc = "Proposal has not been approved."]
                     ProposalNotApproved,
+                    #[codec(index = 5)]
+                    #[doc = "The balance of the asset kind is not convertible to the balance of the native asset."]
+                    FailedToConvertBalance,
+                    #[codec(index = 6)]
+                    #[doc = "The spend has expired and cannot be claimed."]
+                    SpendExpired,
+                    #[codec(index = 7)]
+                    #[doc = "The spend is not yet eligible for payout."]
+                    EarlyPayout,
+                    #[codec(index = 8)]
+                    #[doc = "The payment has already been attempted."]
+                    AlreadyAttempted,
+                    #[codec(index = 9)]
+                    #[doc = "There was some issue with the mechanism of payment."]
+                    PayoutError,
+                    #[codec(index = 10)]
+                    #[doc = "The payout was not yet attempted/claimed."]
+                    NotAttempted,
+                    #[codec(index = 11)]
+                    #[doc = "The payment has neither failed nor succeeded yet."]
+                    Inconclusive,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 #[doc = "The `Event` enum of this pallet"]
@@ -6022,7 +6138,45 @@ pub mod runtime_types {
                         reactivated: ::core::primitive::u128,
                         deactivated: ::core::primitive::u128,
                     },
+                    #[codec(index = 9)]
+                    #[doc = "A new asset spend proposal has been approved."]
+                    AssetSpendApproved {
+                        index: ::core::primitive::u32,
+                        asset_kind: (),
+                        amount: ::core::primitive::u128,
+                        beneficiary: ::subxt::utils::AccountId32,
+                        valid_from: ::core::primitive::u32,
+                        expire_at: ::core::primitive::u32,
+                    },
+                    #[codec(index = 10)]
+                    #[doc = "An approved spend was voided."]
+                    AssetSpendVoided { index: ::core::primitive::u32 },
+                    #[codec(index = 11)]
+                    #[doc = "A payment happened."]
+                    Paid {
+                        index: ::core::primitive::u32,
+                        payment_id: (),
+                    },
+                    #[codec(index = 12)]
+                    #[doc = "A payment failed and can be retried."]
+                    PaymentFailed {
+                        index: ::core::primitive::u32,
+                        payment_id: (),
+                    },
+                    #[codec(index = 13)]
+                    #[doc = "A spend was processed and removed from the storage. It might have been successfully"]
+                    #[doc = "paid or it may have expired."]
+                    SpendProcessed { index: ::core::primitive::u32 },
                 }
+            }
+            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            pub enum PaymentState<_0> {
+                #[codec(index = 0)]
+                Pending,
+                #[codec(index = 1)]
+                Attempted { id: _0 },
+                #[codec(index = 2)]
+                Failed,
             }
             #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
             pub struct Proposal<_0, _1> {
@@ -6030,6 +6184,17 @@ pub mod runtime_types {
                 pub value: _1,
                 pub beneficiary: _0,
                 pub bond: _1,
+            }
+            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            pub struct SpendStatus<_0, _1, _2, _3, _4> {
+                pub asset_kind: _0,
+                pub amount: _1,
+                pub beneficiary: _2,
+                pub valid_from: _3,
+                pub expire_at: _3,
+                pub status: runtime_types::pallet_treasury::PaymentState<_0>,
+                #[codec(skip)]
+                pub __subxt_unused_type_params: ::core::marker::PhantomData<_4>,
             }
         }
         pub mod pallet_utility {
@@ -7088,6 +7253,11 @@ pub mod runtime_types {
                     }
                 }
             }
+            pub mod traits {
+                use super::runtime_types;
+                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                pub struct BlakeTwo256;
+            }
             #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
             pub enum DispatchError {
                 #[codec(index = 0)]
@@ -7685,7 +7855,15 @@ pub mod runtime_types {
                 GearDebug(runtime_types::pallet_gear_debug::pallet::Event),
             }
             #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-            pub enum RuntimeHoldReason {}
+            pub enum RuntimeFreezeReason {
+                #[codec(index = 31)]
+                NominationPools(runtime_types::pallet_nomination_pools::pallet::FreezeReason),
+            }
+            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            pub enum RuntimeHoldReason {
+                #[codec(index = 23)]
+                Preimage(runtime_types::pallet_preimage::pallet::HoldReason),
+            }
             #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
             pub struct SessionKeys {
                 pub babe: runtime_types::sp_consensus_babe::app::Public,
@@ -7738,13 +7916,11 @@ pub mod calls {
     #[doc = "Calls of pallet `Balances`."]
     pub enum BalancesCall {
         TransferAllowDeath,
-        SetBalanceDeprecated,
         ForceTransfer,
         TransferKeepAlive,
         TransferAll,
         ForceUnreserve,
         UpgradeAccounts,
-        Transfer,
         ForceSetBalance,
     }
     impl CallInfo for BalancesCall {
@@ -7752,13 +7928,11 @@ pub mod calls {
         fn call_name(&self) -> &'static str {
             match self {
                 Self::TransferAllowDeath => "transfer_allow_death",
-                Self::SetBalanceDeprecated => "set_balance_deprecated",
                 Self::ForceTransfer => "force_transfer",
                 Self::TransferKeepAlive => "transfer_keep_alive",
                 Self::TransferAll => "transfer_all",
                 Self::ForceUnreserve => "force_unreserve",
                 Self::UpgradeAccounts => "upgrade_accounts",
-                Self::Transfer => "transfer",
                 Self::ForceSetBalance => "force_set_balance",
             }
         }
@@ -8078,6 +8252,7 @@ pub mod calls {
         SetCommissionMax,
         SetCommissionChangeRate,
         ClaimCommission,
+        AdjustPoolDeposit,
     }
     impl CallInfo for NominationPoolsCall {
         const PALLET: &'static str = "NominationPools";
@@ -8104,6 +8279,7 @@ pub mod calls {
                 Self::SetCommissionMax => "set_commission_max",
                 Self::SetCommissionChangeRate => "set_commission_change_rate",
                 Self::ClaimCommission => "claim_commission",
+                Self::AdjustPoolDeposit => "adjust_pool_deposit",
             }
         }
     }
@@ -8113,6 +8289,7 @@ pub mod calls {
         UnnotePreimage,
         RequestPreimage,
         UnrequestPreimage,
+        EnsureUpdated,
     }
     impl CallInfo for PreimageCall {
         const PALLET: &'static str = "Preimage";
@@ -8122,6 +8299,7 @@ pub mod calls {
                 Self::UnnotePreimage => "unnote_preimage",
                 Self::RequestPreimage => "request_preimage",
                 Self::UnrequestPreimage => "unrequest_preimage",
+                Self::EnsureUpdated => "ensure_updated",
             }
         }
     }
@@ -8360,8 +8538,12 @@ pub mod calls {
         ProposeSpend,
         RejectProposal,
         ApproveProposal,
-        Spend,
+        SpendLocal,
         RemoveApproval,
+        Spend,
+        Payout,
+        CheckStatus,
+        VoidSpend,
     }
     impl CallInfo for TreasuryCall {
         const PALLET: &'static str = "Treasury";
@@ -8370,8 +8552,12 @@ pub mod calls {
                 Self::ProposeSpend => "propose_spend",
                 Self::RejectProposal => "reject_proposal",
                 Self::ApproveProposal => "approve_proposal",
-                Self::Spend => "spend",
+                Self::SpendLocal => "spend_local",
                 Self::RemoveApproval => "remove_approval",
+                Self::Spend => "spend",
+                Self::Payout => "payout",
+                Self::CheckStatus => "check_status",
+                Self::VoidSpend => "void_spend",
             }
         }
     }
@@ -8699,6 +8885,8 @@ pub mod storage {
     pub enum GearBankStorage {
         Bank,
         UnusedValue,
+        OnFinalizeTransfers,
+        OnFinalizeValue,
     }
     impl StorageInfo for GearBankStorage {
         const PALLET: &'static str = "GearBank";
@@ -8706,6 +8894,8 @@ pub mod storage {
             match self {
                 Self::Bank => "Bank",
                 Self::UnusedValue => "UnusedValue",
+                Self::OnFinalizeTransfers => "OnFinalizeTransfers",
+                Self::OnFinalizeValue => "OnFinalizeValue",
             }
         }
     }
@@ -8913,6 +9103,7 @@ pub mod storage {
     }
     #[doc = "Storage of pallet `NominationPools`."]
     pub enum NominationPoolsStorage {
+        TotalValueLocked,
         MinJoinBond,
         MinCreateBond,
         MaxPools,
@@ -8938,6 +9129,7 @@ pub mod storage {
         const PALLET: &'static str = "NominationPools";
         fn storage_name(&self) -> &'static str {
             match self {
+                Self::TotalValueLocked => "TotalValueLocked",
                 Self::MinJoinBond => "MinJoinBond",
                 Self::MinCreateBond => "MinCreateBond",
                 Self::MaxPools => "MaxPools",
@@ -8978,6 +9170,7 @@ pub mod storage {
     #[doc = "Storage of pallet `Preimage`."]
     pub enum PreimageStorage {
         StatusFor,
+        RequestStatusFor,
         PreimageFor,
     }
     impl StorageInfo for PreimageStorage {
@@ -8985,6 +9178,7 @@ pub mod storage {
         fn storage_name(&self) -> &'static str {
             match self {
                 Self::StatusFor => "StatusFor",
+                Self::RequestStatusFor => "RequestStatusFor",
                 Self::PreimageFor => "PreimageFor",
             }
         }
@@ -9253,6 +9447,8 @@ pub mod storage {
         Proposals,
         Deactivated,
         Approvals,
+        SpendCount,
+        Spends,
     }
     impl StorageInfo for TreasuryStorage {
         const PALLET: &'static str = "Treasury";
@@ -9262,6 +9458,8 @@ pub mod storage {
                 Self::Proposals => "Proposals",
                 Self::Deactivated => "Deactivated",
                 Self::Approvals => "Approvals",
+                Self::SpendCount => "SpendCount",
+                Self::Spends => "Spends",
             }
         }
     }

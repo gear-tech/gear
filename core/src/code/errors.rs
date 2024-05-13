@@ -92,6 +92,14 @@ pub enum DataSectionError {
     /// Data segment end address is out of static memory.
     #[display(fmt = "Data segment {_0:#x}..={_1:#x} is out of static memory 0x0..{_2:#x}")]
     EndAddressOutOfStaticMemory(u32, u32, u64),
+    /// Data segment amount exceeds the limit.
+    #[display(fmt = "Data segment amount limit exceeded: limit={limit}, actual={actual}")]
+    DataSegmentsAmountLimit {
+        /// Limit of data segments.
+        limit: u32,
+        /// Actual amount of data segments.
+        actual: u32,
+    },
 }
 
 /// Export error in WASM module.
@@ -132,6 +140,14 @@ pub enum ImportError {
     /// The signature of an imported function is invalid.
     #[display(fmt = "Invalid function signature for imported function with index `{_0}`")]
     InvalidImportFnSignature(u32),
+    /// Unexpected import kind.
+    #[display(fmt = "Unexpected import kind `{kind}` with index `{index}`")]
+    UnexpectedImportKind {
+        /// Kind of the import.
+        kind: &'static &'static str,
+        /// Index of the import.
+        index: u32,
+    },
 }
 
 /// Module encode/decode error.

@@ -140,15 +140,12 @@ pub mod pallet {
     }
 
     #[pallet::storage]
-    #[pallet::getter(fn debug_mode)]
     pub type DebugMode<T> = StorageValue<_, bool, ValueQuery>;
 
     #[pallet::storage]
-    #[pallet::getter(fn remap_program_id)]
     pub type RemapId<T> = StorageValue<_, bool, ValueQuery>;
 
     #[pallet::storage]
-    #[pallet::getter(fn programs_map)]
     pub type ProgramsMap<T> = StorageValue<_, BTreeMap<H256, H256>, ValueQuery>;
 
     #[pallet::hooks]
@@ -246,11 +243,11 @@ pub mod pallet {
         }
 
         fn is_enabled() -> bool {
-            Self::debug_mode()
+            DebugMode::<T>::get()
         }
 
         fn is_remap_id_enabled() -> bool {
-            Self::remap_program_id()
+            RemapId::<T>::get()
         }
 
         fn remap_id() {
@@ -291,19 +288,20 @@ pub mod pallet {
         /// Used in tests to exhaust block resources.
         ///
         /// Parameters:
-        /// - `_fraction`: the fraction of the `max_extrinsic` the extrinsic will use.
+        /// - `fraction`: the fraction of the `max_extrinsic` the extrinsic will use.
         #[pallet::call_index(1)]
         #[pallet::weight({
             if let Some(max) = T::BlockWeights::get().get(DispatchClass::Normal).max_extrinsic {
-                *_fraction * max
+                *fraction * max
             } else {
                 Weight::zero()
             }
         })]
         pub fn exhaust_block_resources(
             origin: OriginFor<T>,
-            _fraction: Percent,
+            fraction: Percent,
         ) -> DispatchResultWithPostInfo {
+            let _ = fraction; // We dont need to check the weight witness.
             ensure_root(origin)?;
             Ok(Pays::No.into())
         }
