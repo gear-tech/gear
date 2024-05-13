@@ -17,6 +17,7 @@ toml.workspace = true
 tracing.workspace = true
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
 gear-wasm-builder.workspace = true
+glob.workspace = true
 
 [dev-dependencies]
 gtest.workspace = true

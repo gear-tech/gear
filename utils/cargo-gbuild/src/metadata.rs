@@ -16,13 +16,35 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Cargo extension for building gear programs.
+use crate::utils;
+use anyhow::Result;
+use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 
-#![deny(missing_docs)]
+/// Gbuild metadata
+#[derive(Serialize, Deserialize)]
+pub struct GbuildMetadata {
+    /// Gear programs in the workspace.
+    programs: Vec<String>,
+    /// Gear program metas in the workspace.
+    metas: Vec<String>,
+}
 
-mod artifact;
-mod cli;
-mod metadata;
-mod utils;
+impl GbuildMetadata {
+    /// Collect all gear programs
+    pub fn programs(&self) -> Result<Vec<PathBuf>> {
+        utils::collect_crates(&self.programs)
+    }
 
-pub use self::{artifact::Artifact, cli::GBuild};
+    /// Collect all gear metas
+    pub fn metas(&self) -> Result<Vec<PathBuf>> {
+        utils::collect_crates(&self.metas)
+    }
+}
+
+/// Cargo gbuild metadata
+#[derive(Serialize, Deserialize)]
+pub struct Metadata {
+    /// Gbuild metadata,
+    pub gbuild: GbuildMetadata,
+}

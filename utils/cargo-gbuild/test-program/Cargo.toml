@@ -18,3 +18,7 @@ std = []
 crate-type = ["cdylib"]
 
 [workspace]
+
+[workspace.metadata.gbuild]
+programs = []
+metas = []
