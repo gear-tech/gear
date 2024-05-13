@@ -2162,6 +2162,12 @@ pub mod runtime_types {
                     #[codec(index = 7)]
                     #[doc = "See [`Pallet::set_execute_inherent`]."]
                     set_execute_inherent { value: ::core::primitive::bool },
+                    #[codec(index = 8)]
+                    #[doc = "See [`Pallet::transfer_value_to_inheritor`]."]
+                    transfer_value_to_inheritor {
+                        program_id: runtime_types::gear_core::ids::ProgramId,
+                        depth: ::core::num::NonZeroU32,
+                    },
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 #[doc = "The `Error` enum of this pallet."]
@@ -2229,6 +2235,9 @@ pub mod runtime_types {
                     #[codec(index = 15)]
                     #[doc = "The program rent logic is disabled."]
                     ProgramRentDisabled,
+                    #[codec(index = 16)]
+                    #[doc = "Inheritor is not found for the program."]
+                    InheritorNotFound,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 #[doc = "The `Event` enum of this pallet"]
@@ -7956,6 +7965,7 @@ pub mod calls {
         ClaimValue,
         Run,
         SetExecuteInherent,
+        TransferValueToInheritor,
     }
     impl CallInfo for GearCall {
         const PALLET: &'static str = "Gear";
@@ -7969,6 +7979,7 @@ pub mod calls {
                 Self::ClaimValue => "claim_value",
                 Self::Run => "run",
                 Self::SetExecuteInherent => "set_execute_inherent",
+                Self::TransferValueToInheritor => "transfer_value_to_inheritor",
             }
         }
     }
