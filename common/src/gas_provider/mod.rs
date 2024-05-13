@@ -21,6 +21,7 @@ use frame_support::traits::tokens::Balance as BalanceTrait;
 use sp_runtime::{traits::Zero, RuntimeDebug};
 use sp_std::marker::PhantomData;
 
+mod auxiliary;
 mod error;
 mod internal;
 mod lockable;
@@ -32,6 +33,7 @@ mod reservable;
 #[cfg(test)]
 mod property_tests;
 
+pub use auxiliary::*;
 pub use error::Error;
 pub use internal::TreeImpl;
 pub use lockable::{LockId, LockableTree};
