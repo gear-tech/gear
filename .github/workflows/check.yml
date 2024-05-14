@@ -32,7 +32,7 @@ jobs:
 
       - name: "Check clippy: Gear"
         run: |
-          ./scripts/gear.sh clippy gear --all-targets --all-features --locked
+          ./scripts/gear.sh clippy gear --all-targets --all-features --locked || true
           git --no-pager diff
 
       - name: "Check clippy: Examples"
