@@ -159,7 +159,7 @@ pub mod pallet {
         pages::GearPage,
         program::MemoryInfix,
     };
-    use primitive_types::H256;
+
     use sp_runtime::DispatchError;
 
     /// The current storage version.
@@ -187,7 +187,6 @@ pub mod pallet {
         ProgramNotFound,
         NotActiveProgram,
         CannotFindDataForPage,
-        NotSessionOwner,
         ProgramCodeNotFound,
     }
 
@@ -206,10 +205,6 @@ pub mod pallet {
 
         fn cannot_find_page_data() -> Self {
             Self::CannotFindDataForPage
-        }
-
-        fn not_session_owner() -> Self {
-            Self::NotSessionOwner
         }
 
         fn program_code_not_found() -> Self {
@@ -292,10 +287,6 @@ pub mod pallet {
         key3: GearPage,
         value: PageBuf
     );
-
-    #[pallet::storage]
-    pub(crate) type PausedProgramStorage<T: Config> =
-        CountedStorageMap<_, Identity, ProgramId, (BlockNumberFor<T>, H256)>;
 
     impl<T: Config> common::CodeStorage for pallet::Pallet<T> {
         type InstrumentedCodeStorage = CodeStorageWrap<T>;
