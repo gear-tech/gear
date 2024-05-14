@@ -21,7 +21,7 @@ use common::{GasProvider, GasTree};
 use core::cell::RefCell;
 use frame_support::{
     construct_runtime, parameter_types,
-    traits::{ConstBool, ConstU64, FindAuthor, OnFinalize, OnInitialize},
+    traits::{ConstBool, ConstU32, ConstU64, FindAuthor, OnFinalize, OnInitialize},
 };
 use frame_support_test::TestRandomness;
 use frame_system::{self as system, pallet_prelude::BlockNumberFor};
@@ -302,12 +302,14 @@ pub(crate) fn on_initialize(new_block_number: BlockNumberFor<Test>) {
     GearGas::on_initialize(new_block_number);
     GearMessenger::on_initialize(new_block_number);
     Gear::on_initialize(new_block_number);
+    GearBank::on_initialize(new_block_number);
 }
 
 // Run on_finalize hooks (in pallets reverse order, as they appear in AllPalletsWithSystem)
 pub(crate) fn on_finalize(current_blk: BlockNumberFor<Test>) {
     Authorship::on_finalize(current_blk);
     Gear::on_finalize(current_blk);
+    GearBank::on_finalize(current_blk);
     assert!(!System::events().iter().any(|e| {
         matches!(
             e.event,
