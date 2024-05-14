@@ -34,7 +34,22 @@ use gear_core::{
 use gear_lazy_pages::{LazyPagesStorage, LazyPagesVersion};
 use gear_lazy_pages_common::LazyPagesInitContext;
 use path_clean::PathClean;
-use std::{borrow::Cow, cell::RefCell, env, fs, io::Write, path::Path, thread};
+use std::{
+    borrow::Cow,
+    cell::{OnceCell, RefCell},
+    env, fs,
+    io::Write,
+    path::Path,
+    thread,
+};
+
+thread_local! {
+    /// `System` is a singleton with a one instance and no copies returned.
+    ///
+    /// `OnceCell` is used to control one-time instantiation, while `RefCell`
+    /// is needed for interior mutability to uninitialize the global.
+    static SYSTEM_INITIALIZED: RefCell<OnceCell<()>> = const { RefCell::new(OnceCell::new()) };
+}
 
 #[derive(Decode)]
 #[codec(crate = codec)]
@@ -84,37 +99,43 @@ impl LazyPagesStorage for PagesStorage {
 /// use gtest::System;
 ///
 /// // Create a new testing environment.
-/// let system = System::new();
+/// let system = System::new().expect("single instance");
 ///
 /// // Init logger with "gwasm" target set to `debug` level.
 /// system.init_logger();
 /// ```
 pub struct System(pub(crate) RefCell<ExtManager>);
 
-impl Default for System {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl System {
     /// Prefix for lazy pages.
     pub(crate) const PAGE_STORAGE_PREFIX: [u8; 32] = *b"gtestgtestgtestgtestgtestgtest00";
 
     /// Create a new testing environment.
-    pub fn new() -> Self {
-        let ext_manager = ExtManager::new();
+    ///
+    /// If there's only one instance in the current thread of the `System`,
+    /// then `Some` is returned. Otherwise, `None` is returned.
+    /// So when one and only `System` instance is dropped, the new instance
+    /// can be created.
+    pub fn new() -> Option<Self> {
+        SYSTEM_INITIALIZED
+            .with(|ref_cell| ref_cell.borrow().get().is_none())
+            .then(|| {
+                let ext_manager = ExtManager::new();
 
-        let actors = ext_manager.actors.clone();
-        let pages_storage = PagesStorage { actors };
-        gear_lazy_pages::init(
-            LazyPagesVersion::Version1,
-            LazyPagesInitContext::new(Self::PAGE_STORAGE_PREFIX),
-            pages_storage,
-        )
-        .expect("Failed to init lazy-pages");
+                let actors = ext_manager.actors.clone();
+                let pages_storage = PagesStorage { actors };
+                gear_lazy_pages::init(
+                    LazyPagesVersion::Version1,
+                    LazyPagesInitContext::new(Self::PAGE_STORAGE_PREFIX),
+                    pages_storage,
+                )
+                .expect("Failed to init lazy-pages");
 
-        Self(RefCell::new(ext_manager))
+                SYSTEM_INITIALIZED
+                    .with(|ref_cell| ref_cell.borrow().set(()).expect("initialized once; qed."));
+
+                Self(RefCell::new(ext_manager))
+            })
     }
 
     /// Init logger with "gwasm" target set to `debug` level.
@@ -319,5 +340,46 @@ impl System {
     pub fn claim_value_from_mailbox<ID: Into<ProgramIdWrapper>>(&self, id: ID) {
         let actor_id = id.into().0;
         self.0.borrow_mut().claim_value_from_mailbox(&actor_id);
+    }
+}
+
+impl Drop for System {
+    fn drop(&mut self) {
+        // Uninitialize
+        SYSTEM_INITIALIZED.with(|cell| cell.borrow_mut().take());
+        self.0.borrow().gas_tree.reset();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_system_being_singleton() {
+        let first_instance = System::new();
+        assert!(first_instance.is_some());
+
+        let second_instance = System::new();
+        assert!(second_instance.is_none());
+    }
+
+    #[test]
+    fn test_multithread_copy_singleton() {
+        let h = std::thread::spawn(|| {
+            let thread_inst_1 = System::new();
+            assert!(thread_inst_1.is_some());
+
+            let thread_inst_2 = System::new();
+            assert!(thread_inst_2.is_none());
+        });
+
+        h.join().expect("internal error failed joining thread");
+
+        let inst1 = System::new();
+        assert!(inst1.is_some());
+
+        let inst2 = System::new();
+        assert!(inst2.is_none());
     }
 }

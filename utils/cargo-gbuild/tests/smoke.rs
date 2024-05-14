@@ -34,7 +34,7 @@ fn test_compile_program() -> Result<()> {
     .run()?;
 
     // Initialize system environment
-    let system = System::new();
+    let system = System::new().expect("single instance");
     system.init_logger();
 
     // Get program from artifact

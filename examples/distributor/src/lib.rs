@@ -61,7 +61,7 @@ mod tests {
 
     #[test]
     fn program_can_be_initialized() {
-        let system = System::new();
+        let system = System::new().expect("single instance");
         system.init_logger();
 
         let program = Program::current(&system);
@@ -75,7 +75,7 @@ mod tests {
 
     #[test]
     fn single_program() {
-        let system = System::new();
+        let system = System::new().expect("single instance");
         system.init_logger();
 
         let program = Program::current(&system);
@@ -137,7 +137,7 @@ mod tests {
 
     #[test]
     fn composite_program() {
-        let system = System::new();
+        let system = System::new().expect("single instance");
         let (program_1, program_2, _program_3) = multi_program_setup(&system, 1, 2, 3);
 
         let from = 42;
@@ -167,7 +167,7 @@ mod tests {
     // This test show how RefCell will prevent to do conflicting changes (prevent multi-aliasing of the program state)
     #[test]
     fn conflicting_nodes() {
-        let system = System::new();
+        let system = System::new().expect("single instance");
         let (program_1, _program_2, _program_3) = multi_program_setup(&system, 1, 2, 3);
 
         let program_4_id = 4;

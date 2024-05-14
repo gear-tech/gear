@@ -17,7 +17,7 @@ mod tests {
 
     #[test]
     fn gas_burned() {
-        let system = System::new();
+        let system = System::new().expect("single instance");
         system.init_logger();
 
         let from = 42;

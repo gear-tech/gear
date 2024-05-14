@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use super::{auxiliary::Error as AuxiliaryErrorImpl, *};
+use super::*;
 
 pub type MaybeCaughtValue = Option<u64>;
 pub type RemainingNodes = BTreeMap<NodeId, Node>;
@@ -25,7 +25,7 @@ pub type RemovedNodes = BTreeMap<NodeId, Node>;
 /// Consumes node with `consuming` id and returns a map of removed nodes
 pub(super) fn consume_node(
     consuming: NodeId,
-) -> Result<(MaybeCaughtValue, RemainingNodes, RemovedNodes), AuxiliaryErrorImpl> {
+) -> Result<(MaybeCaughtValue, RemainingNodes, RemovedNodes), GasTreeError> {
     let nodes_before_consume = gas_tree_node_clone();
     Gas::consume(consuming).map(|maybe_output| {
         let maybe_caught_value = maybe_output.map(|(imb, ..)| imb.peek());
