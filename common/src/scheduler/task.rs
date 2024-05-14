@@ -78,6 +78,11 @@ pub enum ScheduledTask<AccountId> {
     /// Remove gas reservation.
     #[codec(index = 8)]
     RemoveGasReservation(ProgramId, ReservationId),
+
+    /// Remove resume program session.
+    #[codec(index = 9)]
+    #[deprecated = "Paused program storage was removed in pallet-gear-program"]
+    RemoveResumeSession(u32),
 }
 
 impl<AccountId> ScheduledTask<AccountId> {
@@ -103,6 +108,8 @@ impl<AccountId> ScheduledTask<AccountId> {
             RemoveGasReservation(program_id, reservation_id) => {
                 handler.remove_gas_reservation(program_id, reservation_id)
             }
+            #[allow(deprecated)]
+            RemoveResumeSession(_) => 0,
         }
     }
 }
