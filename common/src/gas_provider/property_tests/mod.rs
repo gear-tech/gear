@@ -75,7 +75,7 @@
 //!
 //! 14. Value catch can be performed only on consumed nodes (not tested).
 
-use super::{auxiliary::Error as AuxiliaryErrorImpl, *};
+use super::*;
 use crate::storage::MapStorage;
 use core::iter::FromIterator;
 use enum_iterator::all;
@@ -222,7 +222,7 @@ proptest! {
         let mut system_reserve_nodes = BTreeSet::new();
 
         for action in actions {
-            // `AuxiliaryErrorImpl::<T>::NodeNotFound` can't occur, because of `ring_get` approach
+            // `GasTreeError::<T>::NodeNotFound` can't occur, because of `ring_get` approach
             match action {
                 GasTreeAction::SplitWithValue(parent_idx, amount) => {
                     let &parent = NonEmpty::from_slice(&node_ids).expect("always has a tree root").ring_get(parent_idx);
@@ -255,7 +255,7 @@ proptest! {
                         if let Err(e) = &res {
                             assertions::assert_not_invariant_error(*e);
                             // The only one possible valid error, because other ones signal about invariant problems.
-                            assert_err!(res, AuxiliaryErrorImpl::InsufficientBalance);
+                            assert_err!(res, GasTreeError::InsufficientBalance);
                         } else {
                             assert_ok!(res);
                             forest.tree_mut(from).spent += amount;
@@ -300,16 +300,16 @@ proptest! {
                         }
                         Err(e) => {
                             match e {
-                                AuxiliaryErrorImpl::NodeWasConsumed => {
+                                GasTreeError::NodeWasConsumed => {
                                     // double consume has happened
                                     assert!(marked_consumed.contains(&consuming));
                                     assertions::assert_not_invariant_error(e);
                                 }
-                                AuxiliaryErrorImpl::ConsumedWithLock => {
+                                GasTreeError::ConsumedWithLock => {
                                     assert!(locked_nodes.contains(&consuming));
                                     assertions::assert_not_invariant_error(e);
                                 }
-                                AuxiliaryErrorImpl::ConsumedWithSystemReservation if matches!(consuming, GasNodeId::Node(_)) => {
+                                GasTreeError::ConsumedWithSystemReservation if matches!(consuming, GasNodeId::Node(_)) => {
                                     assert!(system_reserve_nodes.contains(&consuming.to_node_id().unwrap()));
                                     assertions::assert_not_invariant_error(e);
                                 }

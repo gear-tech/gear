@@ -31,7 +31,7 @@ mod gtest_tests {
 
     #[test]
     fn init_self() {
-        let system = System::new();
+        let system = System::new().expect("single instance");
         system.init_logger();
 
         let this_program = Program::current(&system);

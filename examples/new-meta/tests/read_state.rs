@@ -6,7 +6,7 @@ use gtest::{state_args, state_args_encoded, Program, System};
 
 #[test]
 fn read_state_bytes_returns_full_state() {
-    let system = System::new();
+    let system = System::new().expect("single instance");
     let program = initialize_current_program(&system);
 
     let actual_state = program
@@ -20,7 +20,7 @@ fn read_state_bytes_returns_full_state() {
 
 #[test]
 fn read_state_bytes_with_wasm_func_returns_transformed_state() {
-    let system = System::new();
+    let system = System::new().expect("single instance");
     let program = initialize_current_program(&system);
     const FUNC_NAME: &str = "first_wallet";
     assert!(META_EXPORTS_V1.contains(&FUNC_NAME));
@@ -41,7 +41,7 @@ fn read_state_bytes_with_wasm_func_returns_transformed_state() {
 
 #[test]
 fn read_state_bytes_with_parameterized_wasm_func_returns_transformed_state() {
-    let system = System::new();
+    let system = System::new().expect("single instance");
     let program = initialize_current_program(&system);
     const FUNC_NAME: &str = "wallet_by_person";
     assert!(META_EXPORTS_V2.contains(&FUNC_NAME));
@@ -69,7 +69,7 @@ fn read_state_bytes_with_parameterized_wasm_func_returns_transformed_state() {
 
 #[test]
 fn read_state_bytes_with_two_args_wasm_func_returns_transformed_state() {
-    let system = System::new();
+    let system = System::new().expect("single instance");
     let program = initialize_current_program(&system);
     const FUNC_NAME: &str = "wallet_by_name_and_surname";
     assert!(META_EXPORTS_V2.contains(&FUNC_NAME));
@@ -96,7 +96,7 @@ fn read_state_bytes_with_two_args_wasm_func_returns_transformed_state() {
 
 #[test]
 fn read_state_returns_full_state() {
-    let system = System::new();
+    let system = System::new().expect("single instance");
     let program = initialize_current_program(&system);
 
     let actual_state: Vec<Wallet> = program
@@ -110,7 +110,7 @@ fn read_state_returns_full_state() {
 
 #[test]
 fn read_state_with_wasm_func_returns_transformed_state() {
-    let system = System::new();
+    let system = System::new().expect("single instance");
     let program = initialize_current_program(&system);
     const FUNC_NAME: &str = "first_wallet";
     assert!(META_EXPORTS_V1.contains(&FUNC_NAME));
@@ -131,7 +131,7 @@ fn read_state_with_wasm_func_returns_transformed_state() {
 
 #[test]
 fn read_state_with_parameterized_wasm_func_returns_transformed_state() {
-    let system = System::new();
+    let system = System::new().expect("single instance");
     let program = initialize_current_program(&system);
     const FUNC_NAME: &str = "wallet_by_person";
     assert!(META_EXPORTS_V2.contains(&FUNC_NAME));
@@ -158,7 +158,7 @@ fn read_state_with_parameterized_wasm_func_returns_transformed_state() {
 
 #[test]
 fn read_state_with_two_args_wasm_func_returns_transformed_state() {
-    let system = System::new();
+    let system = System::new().expect("single instance");
     let program = initialize_current_program(&system);
     const FUNC_NAME: &str = "wallet_by_name_and_surname";
     assert!(META_EXPORTS_V2.contains(&FUNC_NAME));

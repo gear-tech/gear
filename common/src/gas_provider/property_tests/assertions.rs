@@ -18,7 +18,7 @@
 
 //! Module contains assertion checks that are used during property tests.
 
-use super::{auxiliary::Error as AuxiliaryErrorImpl, *};
+use super::*;
 use utils::{RemainingNodes, RemovedNodes};
 
 /// Check that removed nodes invariants are met
@@ -207,8 +207,8 @@ fn assert_another_root_not_removed(consumed: NodeId, removed_nodes: &RemovedNode
 
 // Check that returned dispatch error is not of invariant error variants.
 #[track_caller]
-pub(super) fn assert_not_invariant_error(err: AuxiliaryErrorImpl) {
-    use AuxiliaryErrorImpl::*;
+pub(super) fn assert_not_invariant_error(err: GasTreeError) {
+    use GasTreeError::*;
 
     match err {
         ParentIsLost

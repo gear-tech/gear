@@ -65,7 +65,7 @@ mod tests {
 
     #[test]
     fn test_message_send_to_failed_program() {
-        let system = System::new();
+        let system = System::new().expect("single instance");
         system.init_logger();
 
         let from = 42;
@@ -77,7 +77,7 @@ mod tests {
 
     #[test]
     fn program_can_be_initialized() {
-        let system = System::new();
+        let system = System::new().expect("single instance");
         system.init_logger();
 
         let from = 42;
@@ -91,7 +91,7 @@ mod tests {
 
     #[test]
     fn one_node_can_change_status() {
-        let system = System::new();
+        let system = System::new().expect("single instance");
         system.init_logger();
 
         let from = 42;
@@ -123,7 +123,7 @@ mod tests {
 
     #[test]
     fn multiple_nodes_can_prepare_to_change_status() {
-        let system = System::new();
+        let system = System::new().expect("single instance");
         system.init_logger();
 
         let from = 42;

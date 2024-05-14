@@ -46,7 +46,7 @@ mod tests {
 
     #[test]
     fn program_can_be_initialized() {
-        let system = System::new();
+        let system = System::new().expect("single instance");
         system.init_logger();
 
         let program = Program::current(&system);
@@ -60,7 +60,7 @@ mod tests {
 
     #[test]
     fn wake_self() {
-        let system = System::new();
+        let system = System::new().expect("single instance");
         system.init_logger();
 
         let from = 42;
@@ -95,7 +95,7 @@ mod tests {
 
     #[test]
     fn wake_other() {
-        let system = System::new();
+        let system = System::new().expect("single instance");
         system.init_logger();
 
         let from = 42;
