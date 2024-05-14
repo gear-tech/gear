@@ -33,7 +33,22 @@ use gear_core::{
 use gear_lazy_pages::{LazyPagesStorage, LazyPagesVersion};
 use gear_lazy_pages_common::LazyPagesInitContext;
 use path_clean::PathClean;
-use std::{borrow::Cow, cell::RefCell, env, fs, io::Write, path::Path, thread};
+use std::{
+    borrow::Cow,
+    cell::{OnceCell, RefCell},
+    env, fs,
+    io::Write,
+    path::Path,
+    thread,
+};
+
+thread_local! {
+    /// `System` is a singleton with a one instance and no copies returned.
+    ///
+    /// `OnceCell` is used to control one-time instantiation, while `RefCell`
+    /// is needed for interior mutability to uninitialize the global.
+    static SYSTEM_INITIALIZED: RefCell<OnceCell<()>> = const { RefCell::new(OnceCell::new()) };
+}
 
 thread_local! {
     /// `System` is a singleton with a one instance and no copies returned.
@@ -91,7 +106,7 @@ impl LazyPagesStorage for PagesStorage {
 /// use gtest::System;
 ///
 /// // Create a new testing environment.
-/// let system = System::new();
+/// let system = System::new().expect("single instance");
 ///
 /// // Init logger with "gwasm" target set to `debug` level.
 /// system.init_logger();
@@ -336,7 +351,11 @@ impl System {
 impl Drop for System {
     fn drop(&mut self) {
         // Uninitialize
+<<<<<<< HEAD
         SYSTEM_INITIALIZED.with_borrow_mut(|initialized| *initialized = false);
+=======
+        SYSTEM_INITIALIZED.with(|cell| cell.borrow_mut().take());
+>>>>>>> 98c15e321 (Fix CI, introduce `System` singleton)
         self.0.borrow().gas_tree.reset();
     }
 }
@@ -346,15 +365,25 @@ mod tests {
     use super::*;
 
     #[test]
+<<<<<<< HEAD
     #[should_panic(expected = "Impossible to have multiple instances of the `System`.")]
     fn test_system_being_singleton() {
         let _first_instance = System::new();
 
         let _second_instance = System::new();
+=======
+    fn test_system_being_singleton() {
+        let first_instance = System::new();
+        assert!(first_instance.is_some());
+
+        let second_instance = System::new();
+        assert!(second_instance.is_none());
+>>>>>>> 98c15e321 (Fix CI, introduce `System` singleton)
     }
 
     #[test]
     fn test_multithread_copy_singleton() {
+<<<<<<< HEAD
         let first_instance = System::new();
         first_instance.spend_blocks(5);
 
@@ -368,5 +397,22 @@ mod tests {
         });
 
         h.join().expect("internal error failed joining thread");
+=======
+        let h = std::thread::spawn(|| {
+            let thread_inst_1 = System::new();
+            assert!(thread_inst_1.is_some());
+
+            let thread_inst_2 = System::new();
+            assert!(thread_inst_2.is_none());
+        });
+
+        h.join().expect("internal error failed joining thread");
+
+        let inst1 = System::new();
+        assert!(inst1.is_some());
+
+        let inst2 = System::new();
+        assert!(inst2.is_none());
+>>>>>>> 98c15e321 (Fix CI, introduce `System` singleton)
     }
 }

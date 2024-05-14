@@ -147,4 +147,11 @@ impl GasTreeManager {
     pub(crate) fn reset(&self) {
         <AuxiliaryGasProvider as Provider>::reset();
     }
+
+    /// Adapted by argument types version of the gas tree `reset` method.
+    ///
+    /// *Note* Call with caution as it completely resets the storage.
+    pub(crate) fn reset(&self) {
+        <AuxiliaryGasProvider as Provider>::reset();
+    }
 }
