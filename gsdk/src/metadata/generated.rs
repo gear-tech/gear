@@ -610,6 +610,8 @@ pub mod runtime_types {
                             runtime_types::gear_core::ids::ProgramId,
                             runtime_types::gear_core::ids::ReservationId,
                         ),
+                        #[codec(index = 9)]
+                        RemoveResumeSession(::core::primitive::u32),
                     }
                 }
             }
@@ -2745,8 +2747,6 @@ pub mod runtime_types {
                     #[codec(index = 3)]
                     CannotFindDataForPage,
                     #[codec(index = 4)]
-                    NotSessionOwner,
-                    #[codec(index = 5)]
                     ProgramCodeNotFound,
                 }
             }
@@ -8790,8 +8790,6 @@ pub mod storage {
         MetadataStorage,
         ProgramStorage,
         MemoryPages,
-        PausedProgramStorage,
-        CounterForPausedProgramStorage,
     }
     impl StorageInfo for GearProgramStorage {
         const PALLET: &'static str = "GearProgram";
@@ -8803,8 +8801,6 @@ pub mod storage {
                 Self::MetadataStorage => "MetadataStorage",
                 Self::ProgramStorage => "ProgramStorage",
                 Self::MemoryPages => "MemoryPages",
-                Self::PausedProgramStorage => "PausedProgramStorage",
-                Self::CounterForPausedProgramStorage => "CounterForPausedProgramStorage",
             }
         }
     }
