@@ -28,10 +28,11 @@ macro_rules! impl_pallet_balances {
     ($runtime:ty) => {
         impl pallet_balances::Config for $runtime {
             type MaxLocks = ();
-            type MaxHolds = ();
-            type MaxFreezes = ();
+            type MaxHolds = ConstU32<1>;
+            type MaxFreezes = ConstU32<1>;
             type MaxReserves = ();
-            type FreezeIdentifier = ();
+            type RuntimeFreezeReason = RuntimeFreezeReason;
+            type FreezeIdentifier = RuntimeFreezeReason;
             type RuntimeHoldReason = RuntimeHoldReason;
             type ReserveIdentifier = [u8; 8];
             type Balance = Balance;
