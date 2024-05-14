@@ -2040,4 +2040,61 @@ mod tests {
         let res = ext.reservation_send_commit(reservation_id, i, Default::default(), 0);
         assert!(res.is_ok());
     }
+
+    #[test]
+    fn rollback_works() {
+        let mut ext = Ext::new(
+            ProcessorContextBuilder::new()
+                .with_message_context(
+                    MessageContextBuilder::new()
+                        .with_outgoing_limit(u32::MAX)
+                        .build(),
+                )
+                .with_gas(GasCounter::new(1_000_000_000))
+                .build(),
+        );
+
+        let reservation_id = ext.reserve_gas(1_000_000, 1_000).expect("Shouldn't fail");
+        let remaining_gas = ext.context.gas_counter.to_amount();
+        let result = ext.with_changes::<_, ()>(|mutator| {
+            mutator.reduce_gas(42)?;
+            mutator.mark_used(reservation_id)?;
+            Err(FallibleExtError::Charge(ChargeError::GasLimitExceeded))
+        }); 
+        
+        assert!(result.is_err());
+        assert_eq!(ext.context.gas_counter.left(), remaining_gas.left());
+        assert_eq!(ext.context.gas_counter.burned(), remaining_gas.burned());
+        assert!(matches!(ext.context.gas_reserver.states().get(&reservation_id), Some(GasReservationState::Created { amount: 1_000_000, duration: 1_000, used: false })));
+    }
+
+    #[test]
+    fn changes_do_apply() {
+        #[test]
+        fn rollback_works() {
+            let mut ext = Ext::new(
+                ProcessorContextBuilder::new()
+                    .with_message_context(
+                        MessageContextBuilder::new()
+                            .with_outgoing_limit(u32::MAX)
+                            .build(),
+                    )
+                    .with_gas(GasCounter::new(1_000_000_000))
+                    .build(),
+            );
+    
+            let reservation_id = ext.reserve_gas(1_000_000, 1_000).expect("Shouldn't fail");
+            let remaining_gas = ext.context.gas_counter.to_amount();
+            let result = ext.with_changes::<_, ()>(|mutator| {
+                mutator.reduce_gas(42)?;
+                mutator.mark_used(reservation_id)?;
+                Ok(())
+            }); 
+            
+            assert!(result.is_err());
+            assert_eq!(ext.context.gas_counter.left(), remaining_gas.left() - 42);
+            assert_eq!(ext.context.gas_counter.burned(), remaining_gas.burned());
+            assert!(matches!(ext.context.gas_reserver.states().get(&reservation_id), Some(GasReservationState::Created { amount: 1_000_000, duration: 1_000, used: true })));
+        }
+    }
 }
