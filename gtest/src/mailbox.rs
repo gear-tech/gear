@@ -142,7 +142,7 @@ mod tests {
     #[test]
     fn mailbox_walk_through_test() {
         //Arranging data for future messages
-        let system = System::new();
+        let system = System::new().expect("single instance");
         let message_id: MessageId = Default::default();
         let source_user_id = ProgramIdWrapper::from(100).0;
         let destination_user_id = ProgramIdWrapper::from(200).0;
@@ -205,7 +205,7 @@ mod tests {
     #[test]
     fn mailbox_deletes_message_after_reply() {
         //Arranging data for future messages
-        let system = System::new();
+        let system = System::new().expect("single instance");
         let message_id: MessageId = Default::default();
         let source_user_id = ProgramIdWrapper::from(100).0;
         let destination_user_id = ProgramIdWrapper::from(200).0;
@@ -239,7 +239,7 @@ mod tests {
     #[test]
     fn mailbox_reply_bytes_test() {
         //Arranging data for future messages
-        let system = System::new();
+        let system = System::new().expect("single instance");
         let message_id: MessageId = Default::default();
         let source_user_id = ProgramIdWrapper::from(100).0;
         let destination_user_id = ProgramIdWrapper::from(200).0;
@@ -277,7 +277,7 @@ mod tests {
     #[test]
     fn mailbox_deletes_message_after_taking() {
         //Arranging data for future messages
-        let system = System::new();
+        let system = System::new().expect("single instance");
         let message_id: MessageId = Default::default();
         let source_user_id = ProgramIdWrapper::from(100).0;
         let destination_user_id = ProgramIdWrapper::from(200).0;
@@ -310,7 +310,7 @@ mod tests {
     #[should_panic(expected = "No message that satisfies log")]
     fn take_unknown_log_message() {
         // Arranging data for future messages
-        let system = System::new();
+        let system = System::new().expect("single instance");
         let source_user_id = 100;
         let destination_user_id = 200;
         let log = Log::builder().source(source_user_id);
@@ -324,7 +324,7 @@ mod tests {
     #[should_panic(expected = "Mailbox available only for users")]
     fn take_programs_mailbox() {
         // Setting up variables for test
-        let system = System::new();
+        let system = System::new().expect("single instance");
         let restricted_user_id = 42;
 
         Program::from_binary_with_id(
@@ -339,7 +339,7 @@ mod tests {
 
     #[test]
     fn claim_value_from_mailbox() {
-        let system = System::new();
+        let system = System::new().expect("single instance");
         let message_id: MessageId = Default::default();
         let sender_id = 1;
         let receiver_id = 42;
@@ -375,7 +375,7 @@ mod tests {
     #[test]
     fn delayed_dispatches_works() {
         // Arranging data for future messages.
-        let system = System::new();
+        let system = System::new().expect("single instance");
         let message_id: MessageId = Default::default();
         let source_user_id = ProgramIdWrapper::from(100).0;
         let destination_user_id = ProgramIdWrapper::from(200).0;
