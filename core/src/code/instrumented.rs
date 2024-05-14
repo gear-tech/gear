@@ -119,32 +119,6 @@ impl InstrumentedCode {
         &self.section_sizes
     }
 
-    ///// Returns code section size in bytes.
-    //pub fn code_section_bytes(&self) -> u32 {
-    //    self.section_sizes.code_section_bytes
-    //}
-
-    ///// Returns data section size in bytes based on the number of OS pages
-    ///// used during data section instantiation.
-    //pub fn data_section_bytes(&self) -> u32 {
-    //    self.section_sizes.data_section_bytes
-    //}
-
-    ///// Returns global section size in bytes.
-    //pub fn global_section_bytes(&self) -> u32 {
-    //    self.section_sizes.global_section_bytes
-    //}
-
-    ///// Returns table section size in bytes.
-    //pub fn table_section_bytes(&self) -> u32 {
-    //    self.section_sizes.table_section_bytes
-    //}
-
-    ///// Returns type section size in bytes.
-    //pub fn type_section_bytes(&self) -> u32 {
-    //    self.section_sizes.type_section_bytes
-    //}
-
     /// Consumes the instance and returns the instrumented code.
     pub fn into_code(self) -> Vec<u8> {
         self.code
