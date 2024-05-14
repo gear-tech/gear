@@ -36,8 +36,6 @@ pub trait Error {
     /// There is no data for specified `program_id` and `page`.
     fn cannot_find_page_data() -> Self;
 
-    /// Specified user is not an owner of the resume session.
-    fn not_session_owner() -> Self;
     /// Failed to find the program binary code.
     fn program_code_not_found() -> Self;
 }
