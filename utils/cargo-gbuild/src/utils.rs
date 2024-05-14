@@ -24,7 +24,7 @@ pub fn collect_crates(patterns: &[String]) -> Result<Vec<PathBuf>> {
     let mut crates: Vec<PathBuf> = Default::default();
     for p in patterns {
         crates.append(
-            &mut glob::glob(&p)?
+            &mut glob::glob(p)?
                 .filter_map(|p| {
                     p.ok().and_then(|p| {
                         let manifest = p.join("Cargo.toml");

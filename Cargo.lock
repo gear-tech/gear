@@ -1274,6 +1274,7 @@ name = "cargo-gbuild"
 version = "1.4.1"
 dependencies = [
  "anyhow",
+ "cargo_metadata 0.18.1",
  "cargo_toml",
  "clap 4.5.4",
  "colored",

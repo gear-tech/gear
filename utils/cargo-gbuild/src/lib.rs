@@ -19,6 +19,7 @@
 //! Cargo extension for building gear programs.
 
 #![deny(missing_docs)]
+#![allow(unused)]
 
 mod artifact;
 mod cli;

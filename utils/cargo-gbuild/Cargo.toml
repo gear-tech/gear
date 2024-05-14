@@ -10,6 +10,7 @@ repository.workspace = true
 [dependencies]
 anyhow.workspace = true
 cargo_toml.workspace = true
+cargo_metadata.workspace = true
 clap = { workspace = true, features = ["derive"] }
 colored.workspace = true
 serde = { workspace = true, features = ["derive"] }
