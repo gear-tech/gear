@@ -25,6 +25,7 @@ use common::{
 };
 use frame_support::{
     construct_runtime, parameter_types,
+    traits::ConstU32,
     weights::{constants::RocksDbWeight, Weight},
     PalletId,
 };
