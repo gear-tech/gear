@@ -120,7 +120,7 @@ impl<T: Codec + Debug> DecodedCoreLog<T> {
 /// ```ignore
 /// use gtest::{Log, Program, System};
 ///
-/// let system = System::new();
+/// let system = System::new().expect("single instance");
 /// let program = Program::current(&system);
 /// let from = 42;
 /// let res = program.send(from, ());

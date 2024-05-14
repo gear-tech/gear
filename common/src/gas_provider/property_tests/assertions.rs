@@ -18,7 +18,7 @@
 
 //! Module contains assertion checks that are used during property tests.
 
-use super::{auxiliary::Error as AuxiliaryErrorImpl, *};
+use super::*;
 use utils::{RemainingNodes, RemovedNodes};
 
 /// Check that removed nodes invariants are met

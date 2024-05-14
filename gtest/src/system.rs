@@ -33,7 +33,14 @@ use gear_core::{
 use gear_lazy_pages::{LazyPagesStorage, LazyPagesVersion};
 use gear_lazy_pages_common::LazyPagesInitContext;
 use path_clean::PathClean;
-use std::{borrow::Cow, cell::RefCell, env, fs, io::Write, path::Path, thread};
+use std::{
+    borrow::Cow,
+    cell::{OnceCell, RefCell},
+    env, fs,
+    io::Write,
+    path::Path,
+    thread,
+};
 
 thread_local! {
     /// `System` is a singleton with a one instance and no copies returned.
@@ -91,7 +98,7 @@ impl LazyPagesStorage for PagesStorage {
 /// use gtest::System;
 ///
 /// // Create a new testing environment.
-/// let system = System::new();
+/// let system = System::new().expect("single instance");
 ///
 /// // Init logger with "gwasm" target set to `debug` level.
 /// system.init_logger();
