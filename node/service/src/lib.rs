@@ -481,10 +481,14 @@ where
 
     if let Some(hwbench) = hwbench {
         sc_sysinfo::print_hwbench(&hwbench);
-        if !SUBSTRATE_REFERENCE_HARDWARE.check_hardware(&hwbench) && role.is_authority() {
-            log::warn!(
-                "⚠️  The hardware does not meet the minimal requirements for role 'Authority'."
-            );
+        match SUBSTRATE_REFERENCE_HARDWARE.check_hardware(&hwbench) {
+            Err(err) if role.is_authority() => {
+                log::warn!(
+					"⚠️  The hardware does not meet the minimal requirements {} for role 'Authority'.",
+					err
+				);
+            }
+            _ => {}
         }
 
         if let Some(ref mut telemetry) = telemetry {
@@ -505,7 +509,6 @@ where
         let proposer = authorship::ProposerFactory::new(
             task_manager.spawn_handle(),
             client.clone(),
-            backend.clone(),
             transaction_pool.clone(),
             prometheus_registry.as_ref(),
             telemetry.as_ref().map(|x| x.handle()),

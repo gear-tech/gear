@@ -226,7 +226,8 @@ parameter_types! {
     // 8 eras for unbonding
     pub const BondingDuration: u32 = 8;
     pub const SlashDeferDuration: u32 = 7;
-    pub const MaxNominatorRewardedPerValidator: u32 = 256;
+    pub const MaxExposurePageSize: u32 = 512;
+    pub const MaxNominators: u32 = 512;
     pub const OffendingValidatorsThreshold: Perbill = Perbill::from_percent(17);
     pub const MaxActiveValidators: u32 = 100;
     pub const OffchainRepeat: u64 = 5;
@@ -278,7 +279,7 @@ impl pallet_staking::Config for Test {
     type SessionInterface = Self;
     type EraPayout = StakingRewards;
     type NextNewSession = Session;
-    type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
+    type MaxExposurePageSize = MaxExposurePageSize;
     type OffendingValidatorsThreshold = OffendingValidatorsThreshold;
     type VoterList = BagsList;
     type TargetList = pallet_staking::UseValidatorsMap<Self>;
@@ -846,7 +847,7 @@ pub(crate) mod two_block_producers {
         type SessionInterface = Self;
         type EraPayout = StakingRewards;
         type NextNewSession = Session;
-        type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
+        type MaxExposurePageSize = MaxExposurePageSize;
         type OffendingValidatorsThreshold = OffendingValidatorsThreshold;
         type VoterList = BagsList;
         type TargetList = pallet_staking::UseValidatorsMap<Self>;

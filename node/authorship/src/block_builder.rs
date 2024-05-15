@@ -18,47 +18,179 @@
 
 use codec::Encode;
 use pallet_gear_rpc_runtime_api::GearApi as GearRuntimeApi;
-use sc_block_builder::{BlockBuilderApi, BuiltBlock, RecordProof};
-use sc_client_api::backend;
-use sp_api::{ApiExt, ApiRef, Core, ProvideRuntimeApi, TransactionOutcome};
-use sp_blockchain::{ApplyExtrinsicFailed, Error};
+use sc_block_builder::{BlockBuilderApi, BuiltBlock};
+use sp_api::{ApiExt, ApiRef, CallApiAt, Core, ProvideRuntimeApi, TransactionOutcome};
+use sp_blockchain::{ApplyExtrinsicFailed, Error, HeaderBackend};
 use sp_runtime::{
     legacy,
     traits::{Block as BlockT, Hash, HashingFor, Header as HeaderT, NumberFor, One},
     Digest,
 };
-use std::ops::DerefMut;
+use std::{marker::PhantomData, ops::DerefMut};
+
+/// A builder for creating an instance of [`BlockBuilder`].
+pub struct BlockBuilderBuilder<'a, B, C> {
+    call_api_at: &'a C,
+    _phantom: PhantomData<B>,
+}
+
+impl<'a, B, C> BlockBuilderBuilder<'a, B, C>
+where
+    B: BlockT,
+{
+    /// Create a new instance of the builder.
+    ///
+    /// `call_api_at`: Something that implements [`CallApiAt`].
+    pub fn new(call_api_at: &'a C) -> Self {
+        Self {
+            call_api_at,
+            _phantom: PhantomData,
+        }
+    }
+
+    /// Specify the parent block to build on top of.
+    pub fn on_parent_block(self, parent_block: B::Hash) -> BlockBuilderBuilderStage1<'a, B, C> {
+        BlockBuilderBuilderStage1 {
+            call_api_at: self.call_api_at,
+            parent_block,
+        }
+    }
+}
+
+/// The second stage of the [`BlockBuilderBuilder`].
+///
+/// This type can not be instantiated directly. To get an instance of it
+/// [`BlockBuilderBuilder::new`] needs to be used.
+pub struct BlockBuilderBuilderStage1<'a, B: BlockT, C> {
+    call_api_at: &'a C,
+    parent_block: B::Hash,
+}
+
+impl<'a, B, C> BlockBuilderBuilderStage1<'a, B, C>
+where
+    B: BlockT,
+{
+    /// Fetch the parent block number from the given `header_backend`.
+    ///
+    /// The parent block number is used to initialize the block number of the new block.
+    ///
+    /// Returns an error if the parent block specified in
+    /// [`on_parent_block`](BlockBuilderBuilder::on_parent_block) does not exist.
+    #[allow(unused)]
+    pub fn fetch_parent_block_number<H: HeaderBackend<B>>(
+        self,
+        header_backend: &H,
+    ) -> Result<BlockBuilderBuilderStage2<'a, B, C>, Error> {
+        let parent_number = header_backend.number(self.parent_block)?.ok_or_else(|| {
+            Error::Backend(format!(
+                "Could not fetch block number for block: {:?}",
+                self.parent_block
+            ))
+        })?;
+
+        Ok(BlockBuilderBuilderStage2 {
+            call_api_at: self.call_api_at,
+            enable_proof_recording: false,
+            inherent_digests: Default::default(),
+            parent_block: self.parent_block,
+            parent_number,
+        })
+    }
+
+    /// Provide the block number for the parent block directly.
+    ///
+    /// The parent block is specified in [`on_parent_block`](BlockBuilderBuilder::on_parent_block).
+    /// The parent block number is used to initialize the block number of the new block.
+    pub fn with_parent_block_number(
+        self,
+        parent_number: NumberFor<B>,
+    ) -> BlockBuilderBuilderStage2<'a, B, C> {
+        BlockBuilderBuilderStage2 {
+            call_api_at: self.call_api_at,
+            enable_proof_recording: false,
+            inherent_digests: Default::default(),
+            parent_block: self.parent_block,
+            parent_number,
+        }
+    }
+}
+
+/// The second stage of the [`BlockBuilderBuilder`].
+///
+/// This type can not be instantiated directly. To get an instance of it
+/// [`BlockBuilderBuilder::new`] needs to be used.
+pub struct BlockBuilderBuilderStage2<'a, B: BlockT, C> {
+    call_api_at: &'a C,
+    enable_proof_recording: bool,
+    inherent_digests: Digest,
+    parent_block: B::Hash,
+    parent_number: NumberFor<B>,
+}
+
+impl<'a, B: BlockT, C> BlockBuilderBuilderStage2<'a, B, C> {
+    /// Enable proof recording for the block builder.
+    #[allow(unused)]
+    pub fn enable_proof_recording(mut self) -> Self {
+        self.enable_proof_recording = true;
+        self
+    }
+
+    /// Enable/disable proof recording for the block builder.
+    pub fn with_proof_recording(mut self, enable: bool) -> Self {
+        self.enable_proof_recording = enable;
+        self
+    }
+
+    /// Build the block with the given inherent digests.
+    pub fn with_inherent_digests(mut self, inherent_digests: Digest) -> Self {
+        self.inherent_digests = inherent_digests;
+        self
+    }
+
+    /// Create the instance of the [`BlockBuilder`].
+    pub fn build(self) -> Result<BlockBuilder<'a, B, C>, Error>
+    where
+        C: CallApiAt<B> + ProvideRuntimeApi<B>,
+        C::Api: BlockBuilderApi<B> + GearRuntimeApi<B>,
+    {
+        BlockBuilder::new(
+            self.call_api_at,
+            self.parent_block,
+            self.parent_number,
+            self.enable_proof_recording,
+            self.inherent_digests,
+        )
+    }
+}
 
 /// Utility for building new (valid) blocks from a stream of extrinsics.
-pub struct BlockBuilder<'a, Block: BlockT, A: ProvideRuntimeApi<Block>, B> {
+pub struct BlockBuilder<'a, Block: BlockT, C: ProvideRuntimeApi<Block> + 'a> {
     extrinsics: Vec<Block::Extrinsic>,
-    api: ApiRef<'a, A::Api>,
+    api: ApiRef<'a, C::Api>,
+    call_api_at: &'a C,
     version: u32,
     parent_hash: Block::Hash,
-    backend: &'a B,
     /// The estimated size of the block header.
     estimated_header_size: usize,
 }
 
-impl<'a, Block, A, B> BlockBuilder<'a, Block, A, B>
+impl<'a, Block, C> BlockBuilder<'a, Block, C>
 where
     Block: BlockT,
-    A: ProvideRuntimeApi<Block> + 'a,
-    A::Api: ApiExt<Block> + BlockBuilderApi<Block> + GearRuntimeApi<Block>,
-    B: backend::Backend<Block>,
+    C: CallApiAt<Block> + ProvideRuntimeApi<Block> + 'a,
+    C::Api: BlockBuilderApi<Block> + GearRuntimeApi<Block>,
 {
     /// Create a new instance of builder based on the given `parent_hash` and `parent_number`.
     ///
     /// While proof recording is enabled, all accessed trie nodes are saved.
     /// These recorded trie nodes can be used by a third party to prove the
     /// output of this block builder without having access to the full storage.
-    pub fn new(
-        api: &'a A,
+    fn new(
+        call_api_at: &'a C,
         parent_hash: Block::Hash,
         parent_number: NumberFor<Block>,
-        record_proof: RecordProof,
+        record_proof: bool,
         inherent_digests: Digest,
-        backend: &'a B,
     ) -> Result<Self, Error> {
         let header = <<Block as BlockT>::Header as HeaderT>::new(
             parent_number + One::one(),
@@ -70,9 +202,9 @@ where
 
         let estimated_header_size = header.encoded_size();
 
-        let mut api = api.runtime_api();
+        let mut api = call_api_at.runtime_api();
 
-        if record_proof.yes() {
+        if record_proof {
             api.record_proof();
         }
 
@@ -87,8 +219,8 @@ where
             extrinsics: Vec::new(),
             api,
             version,
-            backend,
             estimated_header_size,
+            call_api_at,
         })
     }
 
@@ -180,7 +312,7 @@ where
 
         let proof = self.api.extract_proof();
 
-        let state = self.backend.state_at(self.parent_hash)?;
+        let state = self.call_api_at.state_at(self.parent_hash)?;
 
         let storage_changes = self
             .api
@@ -234,7 +366,7 @@ where
 
     #[cfg(test)]
     pub fn into_storage_changes(self) -> Result<sp_api::StorageChanges<Block>, Error> {
-        let state = self.backend.state_at(self.parent_hash)?;
+        let state = self.call_api_at.state_at(self.parent_hash)?;
 
         let storage_changes = self
             .api
@@ -250,18 +382,18 @@ where
         self,
     ) -> (
         Vec<Block::Extrinsic>,
-        ApiRef<'a, A::Api>,
+        ApiRef<'a, C::Api>,
+        &'a C,
         u32,
         Block::Hash,
-        &'a B,
         usize,
     ) {
         (
             self.extrinsics,
             self.api,
+            self.call_api_at,
             self.version,
             self.parent_hash,
-            self.backend,
             self.estimated_header_size,
         )
     }
@@ -269,24 +401,24 @@ where
     /// Restore a builder instance from its parts.
     pub fn from_parts(
         extrinsics: Vec<Block::Extrinsic>,
-        api: ApiRef<'a, A::Api>,
+        api: ApiRef<'a, C::Api>,
+        call_api_at: &'a C,
         version: u32,
         parent_hash: Block::Hash,
-        backend: &'a B,
         estimated_header_size: usize,
     ) -> Self {
         Self {
             extrinsics,
             api,
+            call_api_at,
             version,
             parent_hash,
-            backend,
             estimated_header_size,
         }
     }
 
     /// Replace the runtime api with the given one.
-    pub fn set_api(&mut self, api: &mut A::Api) {
+    pub fn set_api(&mut self, api: &mut C::Api) {
         std::mem::swap(self.api.deref_mut(), api);
     }
 
@@ -296,20 +428,19 @@ where
     }
 }
 
-impl<'a, Block, A, B> Clone for BlockBuilder<'a, Block, A, B>
+impl<'a, Block, C> Clone for BlockBuilder<'a, Block, C>
 where
     Block: BlockT,
-    A: ProvideRuntimeApi<Block> + 'a,
-    A::Api: ApiExt<Block> + BlockBuilderApi<Block> + GearRuntimeApi<Block> + Clone,
-    B: backend::Backend<Block>,
+    C: CallApiAt<Block> + ProvideRuntimeApi<Block> + 'a,
+    C::Api: BlockBuilderApi<Block> + GearRuntimeApi<Block> + Clone,
 {
     fn clone(&self) -> Self {
         Self {
             extrinsics: self.extrinsics.clone(),
             api: self.api.clone().into(),
+            call_api_at: self.call_api_at,
             version: self.version,
             parent_hash: self.parent_hash,
-            backend: <&B>::clone(&self.backend),
             estimated_header_size: self.estimated_header_size,
         }
     }

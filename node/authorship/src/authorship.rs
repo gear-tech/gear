@@ -27,17 +27,15 @@ use futures::{
 use futures_timer::Delay;
 use log::{debug, error, info, trace, warn};
 use pallet_gear_rpc_runtime_api::GearApi as GearRuntimeApi;
-use sc_block_builder::{BlockBuilderApi, BlockBuilderProvider};
-use sc_client_api::backend;
+use sc_block_builder::BlockBuilderApi;
 use sc_telemetry::{telemetry, TelemetryHandle, CONSENSUS_INFO};
 use sc_transaction_pool_api::{InPoolTransaction, TransactionPool};
-use sp_api::{ApiExt, ApiRef, ProvideRuntimeApi};
+use sp_api::{ApiExt, ApiRef, CallApiAt, ProvideRuntimeApi};
 use sp_blockchain::{ApplyExtrinsicFailed::Validity, Error::ApplyExtrinsicFailed, HeaderBackend};
 use sp_consensus::{DisableProofRecording, EnableProofRecording, ProofRecording, Proposal};
 use sp_core::traits::SpawnNamed;
 use sp_inherents::InherentData;
 use sp_runtime::{
-    generic::BlockId,
     traits::{BlakeTwo256, Block as BlockT, Hash as HashT, Header as HeaderT},
     Digest, Percent, SaturatedConversion,
 };
@@ -49,7 +47,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use crate::block_builder::BlockBuilder;
+use crate::block_builder::{BlockBuilder, BlockBuilderBuilder};
 use prometheus_endpoint::Registry as PrometheusRegistry;
 use sc_proposer_metrics::{EndProposingReason, MetricsLink as PrometheusMetrics};
 
@@ -63,6 +61,8 @@ use sc_proposer_metrics::{EndProposingReason, MetricsLink as PrometheusMetrics};
 pub const DEFAULT_BLOCK_SIZE_LIMIT: usize = 4 * 1024 * 1024 + 512;
 
 const DEFAULT_SOFT_DEADLINE_PERCENT: Percent = Percent::from_percent(50);
+
+const LOG_TARGET: &str = "gear::authorship";
 
 /// A unit type wrapper to express a duration multiplier.
 #[derive(Clone, Copy)]
@@ -99,12 +99,10 @@ pub const DEFAULT_DISPATCH_RATIO: DurationMultiplier = DurationMultiplier(0.25);
 pub const DEFAULT_GAS_ALLOWANCE: u64 = 750_000_000_000;
 
 /// [`Proposer`] factory.
-pub struct ProposerFactory<A, B, C, PR> {
+pub struct ProposerFactory<A, C, PR> {
     spawn_handle: Box<dyn SpawnNamed>,
     /// The client instance.
     client: Arc<C>,
-    /// The backend instance.
-    backend: Arc<B>,
     /// The transaction pool.
     transaction_pool: Arc<A>,
     /// Prometheus Link,
@@ -142,7 +140,7 @@ pub struct ProposerFactory<A, B, C, PR> {
     _phantom: PhantomData<PR>,
 }
 
-impl<A, B, C> ProposerFactory<A, B, C, DisableProofRecording> {
+impl<A, C> ProposerFactory<A, C, DisableProofRecording> {
     /// Create a new proposer factory.
     ///
     /// Proof recording will be disabled when using proposers built by this instance
@@ -150,7 +148,6 @@ impl<A, B, C> ProposerFactory<A, B, C, DisableProofRecording> {
     pub fn new(
         spawn_handle: impl SpawnNamed + 'static,
         client: Arc<C>,
-        backend: Arc<B>,
         transaction_pool: Arc<A>,
         prometheus: Option<&PrometheusRegistry>,
         telemetry: Option<TelemetryHandle>,
@@ -164,7 +161,6 @@ impl<A, B, C> ProposerFactory<A, B, C, DisableProofRecording> {
             soft_deadline_percent: DEFAULT_SOFT_DEADLINE_PERCENT,
             telemetry,
             client,
-            backend,
             include_proof_in_block_size_estimation: false,
             max_gas,
             deadline_slippage: DEFAULT_DEADLINE_SLIPPAGE,
@@ -174,7 +170,7 @@ impl<A, B, C> ProposerFactory<A, B, C, DisableProofRecording> {
     }
 }
 
-impl<A, B, C> ProposerFactory<A, B, C, EnableProofRecording> {
+impl<A, C> ProposerFactory<A, C, EnableProofRecording> {
     /// Create a new proposer factory with proof recording enabled.
     ///
     /// Each proposer created by this instance will record a proof while building a block.
@@ -184,7 +180,6 @@ impl<A, B, C> ProposerFactory<A, B, C, EnableProofRecording> {
     pub fn with_proof_recording(
         spawn_handle: impl SpawnNamed + 'static,
         client: Arc<C>,
-        backend: Arc<B>,
         transaction_pool: Arc<A>,
         prometheus: Option<&PrometheusRegistry>,
         telemetry: Option<TelemetryHandle>,
@@ -192,7 +187,6 @@ impl<A, B, C> ProposerFactory<A, B, C, EnableProofRecording> {
     ) -> Self {
         ProposerFactory {
             client,
-            backend,
             spawn_handle: Box::new(spawn_handle),
             transaction_pool,
             metrics: PrometheusMetrics::new(prometheus),
@@ -213,7 +207,7 @@ impl<A, B, C> ProposerFactory<A, B, C, EnableProofRecording> {
     }
 }
 
-impl<A, B, C, PR> ProposerFactory<A, B, C, PR> {
+impl<A, C, PR> ProposerFactory<A, C, PR> {
     /// Set the default block size limit in bytes.
     ///
     /// The default value for the block size limit is:
@@ -256,24 +250,18 @@ impl<A, B, C, PR> ProposerFactory<A, B, C, PR> {
     }
 }
 
-impl<B, Block, C, A, PR> ProposerFactory<A, B, C, PR>
+impl<Block, C, A, PR> ProposerFactory<A, C, PR>
 where
     A: TransactionPool<Block = Block> + 'static,
-    B: backend::Backend<Block> + Send + Sync + 'static,
     Block: BlockT,
-    C: BlockBuilderProvider<B, Block, C>
-        + HeaderBackend<Block>
-        + ProvideRuntimeApi<Block>
-        + Send
-        + Sync
-        + 'static,
+    C: HeaderBackend<Block> + ProvideRuntimeApi<Block> + Send + Sync + 'static,
     C::Api: ApiExt<Block> + BlockBuilderApi<Block> + GearRuntimeApi<Block> + Clone,
 {
     pub(super) fn init_with_now(
         &mut self,
         parent_header: &<Block as BlockT>::Header,
         now: Box<dyn Fn() -> Instant + Send + Sync>,
-    ) -> Proposer<B, Block, C, A, PR> {
+    ) -> Proposer<Block, C, A, PR> {
         let parent_hash = parent_header.hash();
 
         info!(
@@ -281,10 +269,9 @@ where
             parent_hash
         );
 
-        let proposer = Proposer::<_, _, _, _, PR> {
+        let proposer = Proposer::<_, _, _, PR> {
             spawn_handle: self.spawn_handle.clone(),
             client: self.client.clone(),
-            backend: self.backend.clone(),
             parent_hash,
             parent_number: *parent_header.number(),
             transaction_pool: self.transaction_pool.clone(),
@@ -304,23 +291,17 @@ where
     }
 }
 
-impl<A, B, Block, C, PR> sp_consensus::Environment<Block> for ProposerFactory<A, B, C, PR>
+impl<A, Block, C, PR> sp_consensus::Environment<Block> for ProposerFactory<A, C, PR>
 where
     A: TransactionPool<Block = Block> + 'static,
-    B: backend::Backend<Block> + Send + Sync + 'static,
     Block: BlockT,
-    C: BlockBuilderProvider<B, Block, C>
-        + HeaderBackend<Block>
-        + ProvideRuntimeApi<Block>
-        + Send
-        + Sync
-        + 'static,
+    C: HeaderBackend<Block> + ProvideRuntimeApi<Block> + CallApiAt<Block> + Send + Sync + 'static,
     C::Api:
         ApiExt<Block> + BlockBuilderApi<Block> + GearRuntimeApi<Block> + Clone + Deconstructable<C>,
     PR: ProofRecording,
 {
     type CreateProposer = future::Ready<Result<Self::Proposer, Self::Error>>;
-    type Proposer = Proposer<B, Block, C, A, PR>;
+    type Proposer = Proposer<Block, C, A, PR>;
     type Error = sp_blockchain::Error;
 
     fn init(&mut self, parent_header: &<Block as BlockT>::Header) -> Self::CreateProposer {
@@ -329,10 +310,9 @@ where
 }
 
 /// The proposer logic.
-pub struct Proposer<B, Block: BlockT, C, A: TransactionPool, PR> {
+pub struct Proposer<Block: BlockT, C, A: TransactionPool, PR> {
     spawn_handle: Box<dyn SpawnNamed>,
     client: Arc<C>,
-    backend: Arc<B>,
     parent_hash: Block::Hash,
     parent_number: <<Block as BlockT>::Header as HeaderT>::Number,
     transaction_pool: Arc<A>,
@@ -348,17 +328,11 @@ pub struct Proposer<B, Block: BlockT, C, A: TransactionPool, PR> {
     _phantom: PhantomData<PR>,
 }
 
-impl<A, B, Block, C, PR> sp_consensus::Proposer<Block> for Proposer<B, Block, C, A, PR>
+impl<A, Block, C, PR> sp_consensus::Proposer<Block> for Proposer<Block, C, A, PR>
 where
     A: TransactionPool<Block = Block> + 'static,
-    B: backend::Backend<Block> + Send + Sync + 'static,
     Block: BlockT,
-    C: BlockBuilderProvider<B, Block, C>
-        + HeaderBackend<Block>
-        + ProvideRuntimeApi<Block>
-        + Send
-        + Sync
-        + 'static,
+    C: HeaderBackend<Block> + ProvideRuntimeApi<Block> + CallApiAt<Block> + Send + Sync + 'static,
     C::Api:
         ApiExt<Block> + BlockBuilderApi<Block> + GearRuntimeApi<Block> + Clone + Deconstructable<C>,
     PR: ProofRecording,
@@ -403,17 +377,11 @@ where
 /// It allows us to increase block utilization.
 pub(super) const MAX_SKIPPED_TRANSACTIONS: usize = 5;
 
-impl<A, B, Block, C, PR> Proposer<B, Block, C, A, PR>
+impl<A, Block, C, PR> Proposer<Block, C, A, PR>
 where
     A: TransactionPool<Block = Block>,
-    B: backend::Backend<Block> + Send + Sync + 'static,
     Block: BlockT,
-    C: BlockBuilderProvider<B, Block, C>
-        + HeaderBackend<Block>
-        + ProvideRuntimeApi<Block>
-        + Send
-        + Sync
-        + 'static,
+    C: HeaderBackend<Block> + ProvideRuntimeApi<Block> + CallApiAt<Block> + Send + Sync + 'static,
     C::Api:
         ApiExt<Block> + BlockBuilderApi<Block> + GearRuntimeApi<Block> + Clone + Deconstructable<C>,
     PR: ProofRecording,
@@ -425,20 +393,43 @@ where
         deadline: Instant,
         block_size_limit: Option<usize>,
     ) -> Result<Proposal<Block, PR::Proof>, sp_blockchain::Error> {
-        let propose_with_start = Instant::now();
-        let parent_hash = self.parent_hash;
-        let parent_number = self
-            .client
-            .expect_block_number_from_id(&BlockId::Hash(parent_hash))?;
-        let mut block_builder = BlockBuilder::new(
-            self.client.as_ref(),
-            parent_hash,
-            parent_number,
-            PR::ENABLED.into(),
-            inherent_digests.clone(),
-            self.backend.as_ref(),
-        )?;
+        let block_timer = Instant::now();
+        let mut block_builder = BlockBuilderBuilder::new(self.client.as_ref())
+            .on_parent_block(self.parent_hash)
+            .with_parent_block_number(self.parent_number)
+            .with_proof_recording(PR::ENABLED)
+            .with_inherent_digests(inherent_digests)
+            .build()?;
 
+        self.apply_inherents(&mut block_builder, inherent_data)?;
+
+        // TODO call `after_inherents` and check if we should apply extrinsincs here
+        // <https://github.com/paritytech/substrate/pull/14275/>
+
+        let end_reason = self
+            .apply_extrinsics(&mut block_builder, deadline, block_size_limit)
+            .await?;
+
+        let (block, storage_changes, proof) = block_builder.build()?.into_inner();
+        let block_took = block_timer.elapsed();
+
+        let proof =
+            PR::into_proof(proof).map_err(|e| sp_blockchain::Error::Application(Box::new(e)))?;
+
+        self.print_summary(&block, end_reason, block_took, block_timer.elapsed());
+        Ok(Proposal {
+            block,
+            proof,
+            storage_changes,
+        })
+    }
+
+    /// Apply all inherents to the block.
+    fn apply_inherents(
+        &self,
+        block_builder: &mut BlockBuilder<'_, Block, C>,
+        inherent_data: InherentData,
+    ) -> Result<(), sp_blockchain::Error> {
         let create_inherents_start = Instant::now();
         let inherents = block_builder.create_inherents(inherent_data)?;
         let create_inherents_end = Instant::now();
@@ -454,27 +445,39 @@ where
         for inherent in inherents {
             match block_builder.push(inherent) {
                 Err(ApplyExtrinsicFailed(Validity(e))) if e.exhausted_resources() => {
-                    warn!(target: "gear::authorship", "⚠️  Dropping non-mandatory inherent from overweight block.")
+                    warn!(
+                        target: LOG_TARGET,
+                        "⚠️  Dropping non-mandatory inherent from overweight block."
+                    )
                 }
                 Err(ApplyExtrinsicFailed(Validity(e))) if e.was_mandatory() => {
-                    error!(target: "gear::authorship",
+                    error!(
                         "❌️ Mandatory inherent extrinsic returned error. Block cannot be produced."
                     );
                     return Err(ApplyExtrinsicFailed(Validity(e)));
                 }
                 Err(e) => {
-                    warn!(target: "gear::authorship",
-                        "❗️ Inherent extrinsic returned unexpected error: {}. Dropping.",
-                        e
+                    warn!(
+                        target: LOG_TARGET,
+                        "❗️ Inherent extrinsic returned unexpected error: {}. Dropping.", e
                     );
                 }
                 Ok(_) => {}
             }
         }
+        Ok(())
+    }
 
-        // Proceed with transactions
-        let now = (self.now)();
+    /// Apply as many extrinsics as possible to the block.
+    async fn apply_extrinsics(
+        &self,
+        block_builder: &mut BlockBuilder<'_, Block, C>,
+        deadline: Instant,
+        block_size_limit: Option<usize>,
+    ) -> Result<EndProposingReason, sp_blockchain::Error> {
+        // proceed with transactions
         // Duration until the "ultimate" deadline.
+        let now = (self.now)();
         let remaining_proposal_duration = deadline.saturating_duration_since(now);
         // Calculate the max duration of the extrinsics application phase.
         let deadline_multiplier = self.dispatch_ratio + self.deadline_slippage;
@@ -485,7 +488,6 @@ where
         let left_micros: u64 = left.as_micros().saturated_into();
         let soft_deadline =
             now + Duration::from_micros(self.soft_deadline_percent.mul_floor(left_micros));
-        let block_timer = Instant::now();
         let mut skipped = 0;
         let mut unqueue_invalid = Vec::new();
 
@@ -496,7 +498,7 @@ where
         let mut pending_iterator = select! {
             res = t1 => res,
             _ = t2 => {
-                warn!(target: "gear::authorship",
+                warn!(target: LOG_TARGET,
                     "Timeout fired waiting for transaction pool at block #{}. \
                     Proceeding with production.",
                     self.parent_number,
@@ -507,22 +509,28 @@ where
 
         let block_size_limit = block_size_limit.unwrap_or(self.default_block_size_limit);
 
-        debug!(target: "gear::authorship", "Attempting to push transactions from the pool.");
-        debug!(target: "gear::authorship", "Pool status: {:?}", self.transaction_pool.status());
+        debug!(target: LOG_TARGET, "Attempting to push transactions from the pool.");
+        debug!(target: LOG_TARGET, "Pool status: {:?}", self.transaction_pool.status());
         let mut transaction_pushed = false;
 
         let end_reason = loop {
             let pending_tx = if let Some(pending_tx) = pending_iterator.next() {
                 pending_tx
             } else {
+                debug!(
+                    target: LOG_TARGET,
+                    "No more transactions, proceeding with proposing."
+                );
+
                 break EndProposingReason::NoMoreTransactions;
             };
 
             let now = (self.now)();
             if now > extrinsics_hard_deadline {
-                debug!(target: "gear::authorship",
+                debug!(
+                    target: LOG_TARGET,
                     "Consensus deadline reached when pushing block transactions, \
-                    proceeding with proposing."
+                proceeding with proposing."
                 );
                 break EndProposingReason::HitDeadline;
             }
@@ -536,69 +544,72 @@ where
                 pending_iterator.report_invalid(&pending_tx);
                 if skipped < MAX_SKIPPED_TRANSACTIONS {
                     skipped += 1;
-                    debug!(target: "gear::authorship",
+                    debug!(
+                        target: LOG_TARGET,
                         "Transaction would overflow the block size limit, \
-                         but will try {} more transactions before quitting.",
+                     but will try {} more transactions before quitting.",
                         MAX_SKIPPED_TRANSACTIONS - skipped,
                     );
                     continue;
                 } else if now < soft_deadline {
-                    debug!(target: "gear::authorship",
+                    debug!(
+                        target: LOG_TARGET,
                         "Transaction would overflow the block size limit, \
-                         but we still have time before the soft deadline, so \
-                         we will try a bit more."
+                     but we still have time before the soft deadline, so \
+                     we will try a bit more."
                     );
                     continue;
                 } else {
-                    debug!(target: "gear::authorship", "Reached block size limit, proceeding with proposing.");
+                    debug!(
+                        target: LOG_TARGET,
+                        "Reached block size limit, proceeding with proposing."
+                    );
                     break EndProposingReason::HitBlockSizeLimit;
                 }
             }
 
-            trace!(target: "gear::authorship", "[{:?}] Pushing to the block.", pending_tx_hash);
+            trace!(target: LOG_TARGET, "[{:?}] Pushing to the block.", pending_tx_hash);
             match block_builder.push(pending_tx_data) {
                 Ok(()) => {
                     transaction_pushed = true;
-                    debug!(target: "gear::authorship", "[{:?}] Pushed to the block.", pending_tx_hash);
+                    debug!(target: LOG_TARGET, "[{:?}] Pushed to the block.", pending_tx_hash);
                 }
                 Err(ApplyExtrinsicFailed(Validity(e))) if e.exhausted_resources() => {
                     pending_iterator.report_invalid(&pending_tx);
                     if skipped < MAX_SKIPPED_TRANSACTIONS {
                         skipped += 1;
-                        debug!(target: "gear::authorship",
+                        debug!(target: LOG_TARGET,
                             "Block seems full, but will try {} more transactions before quitting.",
                             MAX_SKIPPED_TRANSACTIONS - skipped,
                         );
                     } else if (self.now)() < soft_deadline {
-                        debug!(target: "gear::authorship",
+                        debug!(target: LOG_TARGET,
                             "Block seems full, but we still have time before the soft deadline, \
                              so we will try a bit more before quitting."
                         );
                     } else {
-                        debug!(target: "gear::authorship", "Reached block weight limit, proceeding with proposing.");
+                        debug!(
+                            target: LOG_TARGET,
+                            "Reached block weight limit, proceeding with proposing."
+                        );
                         break EndProposingReason::HitBlockWeightLimit;
                     }
                 }
-                Err(e) if skipped > 0 => {
-                    pending_iterator.report_invalid(&pending_tx);
-                    trace!(target: "gear::authorship",
-                        "[{:?}] Ignoring invalid transaction when skipping: {}",
-                        pending_tx_hash,
-                        e
-                    );
-                }
                 Err(e) => {
                     pending_iterator.report_invalid(&pending_tx);
-                    debug!(target: "gear::authorship", "[{:?}] Invalid transaction: {}", pending_tx_hash, e);
+                    debug!(
+                        target: LOG_TARGET,
+                        "[{:?}] Invalid transaction: {}", pending_tx_hash, e
+                    );
                     unqueue_invalid.push(pending_tx_hash);
                 }
             }
         };
 
         if matches!(end_reason, EndProposingReason::HitBlockSizeLimit) && !transaction_pushed {
-            warn!(target: "gear::authorship",
-                "Hit block size limit of `{}` without including any transaction!",
-                block_size_limit,
+            warn!(
+                target: LOG_TARGET,
+                "Hit block size limit of `{}` without including any transaction!", block_size_limit,
             );
         }
 
@@ -629,9 +640,10 @@ where
         }
 
         let client = self.client.clone();
-        let backend = self.backend.clone();
-        let (extrinsics, api, version, _, _, estimated_header_size) =
+        let parent_hash = self.parent_hash;
+        let (extrinsics, api, _, version, _, estimated_header_size) =
             block_builder.clone().deconstruct();
+
         // We need the overlay changes and transaction storage cache to send to a new thread.
         // The cloned `RuntimeApi` object can't be sent to a new thread directly so we have to
         // break it down into parts (that are `Send`) and then reconstruct it in the new thread.
@@ -648,16 +660,16 @@ where
                 None,
                 Box::pin(async move {
                     debug!(target: "gear::authorship", "⚙️  Pushing Gear::run extrinsic into the block...");
-                    let mut block_builder = BlockBuilder::<'_, Block, C, B>::from_parts(
+                    let mut local_block_builder = BlockBuilder::<'_, Block, C>::from_parts(
                         extrinsics,
                         ApiRef::from(C::Api::from_parts(client.as_ref(), api_params)),
+                        client.as_ref(),
                         version,
                         parent_hash,
-                        backend.as_ref(),
                         estimated_header_size);
-                    let outcome = block_builder.push_final(max_gas).map(|_| {
+                    let outcome = local_block_builder.push_final(max_gas).map(|_| {
                         let (extrinsics, api, _, _, _, _) =
-                            block_builder.deconstruct();
+                        local_block_builder.deconstruct();
                         let (_, api_params) = api.deref().clone().into_parts();
                         (extrinsics, api_params)
                     });
@@ -708,57 +720,60 @@ where
                 );
             }
         };
-        let (block, storage_changes, proof) = block_builder.build()?.into_inner();
 
+        Ok(end_reason)
+    }
+
+    /// Prints a summary and does telemetry + metrics.
+    ///
+    /// - `block`: The block that was build.
+    /// - `end_reason`: Why did we stop producing the block?
+    /// - `block_took`: How long did it took to produce the actual block?
+    /// - `propose_took`: How long did the entire proposing took?
+    fn print_summary(
+        &self,
+        block: &Block,
+        end_reason: EndProposingReason,
+        block_took: Duration,
+        propose_took: Duration,
+    ) {
+        let extrinsics = block.extrinsics();
         self.metrics.report(|metrics| {
-            metrics
-                .number_of_transactions
-                .set(block.extrinsics().len() as u64);
-            metrics
-                .block_constructed
-                .observe(block_timer.elapsed().as_secs_f64());
-
+            metrics.number_of_transactions.set(extrinsics.len() as u64);
+            metrics.block_constructed.observe(block_took.as_secs_f64());
             metrics.report_end_proposing_reason(end_reason);
+            metrics
+                .create_block_proposal_time
+                .observe(propose_took.as_secs_f64());
         });
 
+        let extrinsics_summary = if extrinsics.is_empty() {
+            "no extrinsics".to_string()
+        } else {
+            format!(
+                "extrinsics ({}): [{}]",
+                extrinsics.len(),
+                extrinsics
+                    .iter()
+                    .map(|xt| BlakeTwo256::hash_of(xt).to_string())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            )
+        };
+
         info!(
-            target: "gear::authorship",
-            "🎁 Prepared block for proposing at {} ({} ms) [hash: {:?}; parent_hash: {}; extrinsics ({}): [{}]]",
-            block.header().number(),
-            block_timer.elapsed().as_millis(),
-            block.header().hash(),
-            block.header().parent_hash(),
-            block.extrinsics().len(),
-            block.extrinsics()
-                .iter()
-                .map(|xt| BlakeTwo256::hash_of(xt).to_string())
-                .collect::<Vec<_>>()
-                .join(", ")
-        );
+			"🎁 Prepared block for proposing at {} ({} ms) [hash: {:?}; parent_hash: {}; {extrinsics_summary}",
+			block.header().number(),
+			block_took.as_millis(),
+			<Block as BlockT>::Hash::from(block.header().hash()),
+			block.header().parent_hash(),
+		);
         telemetry!(
             self.telemetry;
             CONSENSUS_INFO;
             "prepared_block_for_proposing";
             "number" => ?block.header().number(),
-            "hash" => ?block.header().hash(),
+            "hash" => ?<Block as BlockT>::Hash::from(block.header().hash()),
         );
-
-        let proof =
-            PR::into_proof(proof).map_err(|e| sp_blockchain::Error::Application(Box::new(e)))?;
-
-        let propose_with_end = Instant::now();
-        self.metrics.report(|metrics| {
-            metrics.create_block_proposal_time.observe(
-                propose_with_end
-                    .saturating_duration_since(propose_with_start)
-                    .as_secs_f64(),
-            );
-        });
-
-        Ok(Proposal {
-            block,
-            proof,
-            storage_changes,
-        })
     }
 }
