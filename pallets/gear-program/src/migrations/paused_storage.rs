@@ -150,9 +150,8 @@ impl<T: Config> OnRuntimeUpgrade for RemovePausedProgramStorageMigration<T> {
 }
 
 mod onchain {
-    use std::collections::BTreeSet;
-
     use super::*;
+    use alloc::collections::BTreeSet;
     use frame_support::{
         pallet_prelude::{StorageMap, StorageValue},
         traits::StorageInstance,
