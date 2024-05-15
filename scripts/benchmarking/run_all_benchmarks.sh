@@ -12,7 +12,7 @@
 
 # Steps and repeats for main benchmark.
 BENCHMARK_STEPS=50
-BENCHMARK_REPEAT=20
+BENCHMARK_REPEAT=5
 
 # Steps and repeats for benchmarking so called "one-time extrinsics",
 # which may be called only once and require a different benchmarking approach with more repeats.
@@ -83,13 +83,7 @@ EXCLUDED_PALLETS=(
 )
 
 # Load all pallet names in an array.
-ALL_PALLETS=($(
-  $GEAR benchmark pallet --list --chain=$chain_spec |\
-    tail -n+2 |\
-    cut -d',' -f1 |\
-    sort |\
-    uniq
-))
+ALL_PALLETS=(pallet_gear_builtin)
 
 # Filter out the excluded pallets by concatenating the arrays and discarding duplicates.
 PALLETS=($({ printf '%s\n' "${ALL_PALLETS[@]}" "${EXCLUDED_PALLETS[@]}"; } | sort | uniq -u))
@@ -151,19 +145,57 @@ for PALLET in "${PALLETS[@]}"; do
     EXTRINSICS=("*")
   fi
 
-  WEIGHT_FILE="./${WEIGHTS_OUTPUT}/${PALLET}.rs"
+  WEIGHT_FILE="./${WEIGHTS_OUTPUT}/${PALLET}.json"
   echo "[+] Benchmarking $PALLET with weight file $WEIGHT_FILE";
 
   OUTPUT=$(
-    $GEAR benchmark pallet \
+    taskset -c 8 $GEAR benchmark pallet \
     --chain="$chain_spec" \
     --steps=$BENCHMARK_STEPS \
     --repeat=$BENCHMARK_REPEAT \
     --pallet="$PALLET" \
     --extrinsic="$(IFS=, ; echo "${EXTRINSICS[*]}")" \
     --heap-pages=4096 \
-    --output="$WEIGHT_FILE" \
-    --template=.maintain/frame-weight-template.hbs 2>&1
+    --output="./${WEIGHTS_OUTPUT}/${PALLET}_1_cores.json" \
+    --template=.maintain/dump_weights.hbs 2>&1
+  )
+
+  if [ $? -ne 0 ]; then
+    echo "$OUTPUT" >> "$ERR_FILE"
+    echo "[-] Failed to benchmark $PALLET. Error written to $ERR_FILE; continuing..."
+  fi
+
+  echo "[+] Benchmarking $PALLET 3-8 with weight file $WEIGHT_FILE";
+
+  OUTPUT=$(
+    taskset -c 3-8 $GEAR benchmark pallet \
+    --chain="$chain_spec" \
+    --steps=$BENCHMARK_STEPS \
+    --repeat=$BENCHMARK_REPEAT \
+    --pallet="$PALLET" \
+    --extrinsic="$(IFS=, ; echo "${EXTRINSICS[*]}")" \
+    --heap-pages=4096 \
+    --output="./${WEIGHTS_OUTPUT}/${PALLET}_6_cores.json" \
+    --template=.maintain/dump_weights.hbs 2>&1
+  )
+
+  if [ $? -ne 0 ]; then
+    echo "$OUTPUT" >> "$ERR_FILE"
+    echo "[-] Failed to benchmark $PALLET. Error written to $ERR_FILE; continuing..."
+  fi
+
+  echo "[+] Benchmarking $PALLET 3-10 with weight file $WEIGHT_FILE";
+
+  OUTPUT=$(
+    taskset -c 3-10 $GEAR benchmark pallet \
+    --chain="$chain_spec" \
+    --steps=$BENCHMARK_STEPS \
+    --repeat=$BENCHMARK_REPEAT \
+    --pallet="$PALLET" \
+    --extrinsic="$(IFS=, ; echo "${EXTRINSICS[*]}")" \
+    --heap-pages=4096 \
+    --output="./${WEIGHTS_OUTPUT}/${PALLET}_8_cores.json" \
+    --template=.maintain/dump_weights.hbs 2>&1
   )
 
   if [ $? -ne 0 ]; then
@@ -183,8 +215,8 @@ for PALLET in "${PALLETS[@]}"; do
         --pallet="$PALLET" \
         --extrinsic="$(IFS=', '; echo "${ONE_TIME_EXTRINSICS[*]}")" \
         --heap-pages=4096 \
-        --output="./${WEIGHTS_OUTPUT}/${PALLET}_onetime.rs" \
-        --template=.maintain/frame-weight-template.hbs 2>&1
+        --output="./${WEIGHTS_OUTPUT}/${PALLET}_onetime.json" \
+        --template=.maintain/dump_weights.hbs 2>&1
     )
 
     if [ $? -ne 0 ]; then
@@ -224,7 +256,7 @@ else
 fi
 
 # Merge pallet_gear weights.
-./scripts/benchmarking/merge_outputs.sh
+#./scripts/benchmarking/merge_outputs.sh
 
 # Check if the error file exists.
 if [ -f "$ERR_FILE" ]; then
