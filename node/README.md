@@ -2,9 +2,9 @@
 
 Gear substrate-based node, ready for hacking :rocket:
 
-## Installation
+## Building Gear node from source
 
-### 1. Build deps
+### 1. Install dependencies
 
 #### Ubuntu/Debian
 ```
@@ -41,22 +41,27 @@ Windows 10 is supported with WSL!
 
 ### 2. Rust and all toolchains
 
-Rustup if not installed:
+If Rust is not yet installed, read the [Installation](https://doc.rust-lang.org/book/ch01-01-installation.html) part from [The Book](https://doc.rust-lang.org/book/index.html) to install it.
+
+Make sure the `wasm` target is enabled:
+```bash
+rustup target add wasm32-unknown-unknown
 ```
-# Install
-curl https://sh.rustup.rs -sSf | sh
-# Configure
+
+Navigate to the Gear home directory and run
+```
 source ~/.cargo/env
 ```
+to prepare the environment.
 
-Toolchains:
+### 3. Build Gear node
 
+Run the following commands to build the node:
+```bash
+make node-release
 ```
-rustup default stable
-rustup update
-rustup update nightly
-rustup target add wasm32-unknown-unknown --toolchain nightly
-```
+
+The resulting binary will be located at `./target/release/gear`.
 
 ## Test network
 
