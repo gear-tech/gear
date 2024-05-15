@@ -62,9 +62,7 @@ pub fn get_maximum_task_gas<T: Config>(task: &ScheduledTask<T::AccountId>) -> Ga
             <T as Config>::WeightInfo::tasks_remove_gas_reservation().ref_time()
         }
         #[allow(deprecated)]
-        RemoveResumeSession(_) => {
-            0
-        }
+        RemoveResumeSession(_) => 0,
     }
 }
 

@@ -16,26 +16,19 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-
-
-
 use crate::{Config, Pallet};
 use frame_support::{
     traits::{Get, GetStorageVersion, OnRuntimeUpgrade, StorageVersion},
-    weights::Weight
+    weights::Weight,
 };
 use sp_std::marker::PhantomData;
 
 #[cfg(feature = "try-runtime")]
 use {
     frame_support::ensure,
-    sp_runtime::{
-        codec::Encode,
-        TryRuntimeError,
-    },
+    sp_runtime::{codec::Encode, TryRuntimeError},
     sp_std::vec::Vec,
 };
-
 
 pub struct RemovePausedProgramStorageMigration<T: Config>(PhantomData<T>);
 
@@ -43,11 +36,8 @@ const MIGRATE_FROM_VERSION: u16 = 5;
 const MIGRATE_TO_VERSION: u16 = 6;
 const ALLOWED_CURRENT_STORAGE_VERSION: u16 = 6;
 
-
 impl<T: Config> OnRuntimeUpgrade for RemovePausedProgramStorageMigration<T> {
     fn on_runtime_upgrade() -> Weight {
-        
-
         let onchain = Pallet::<T>::on_chain_storage_version();
 
         // 1 read for onchain storage version
@@ -63,13 +53,9 @@ impl<T: Config> OnRuntimeUpgrade for RemovePausedProgramStorageMigration<T> {
             let update_to = StorageVersion::new(MIGRATE_TO_VERSION);
             log::info!("🚚 Running migration from {onchain:?} to {update_to:?}, current storage version is {current:?}.");
 
-
-            
-
             let mut counter = 0;
 
-            let mut removal_result =
-                onchain::PausedProgramStorage::<T>::clear(u32::MAX, None);
+            let mut removal_result = onchain::PausedProgramStorage::<T>::clear(u32::MAX, None);
             // MultiRemovalResults contains two fields on which we calculate weight:
             // - loops: how many iterations of loop were performed, each requiring read
             // - backend: number of elements removed from database, corresponds to a write.
@@ -81,10 +67,7 @@ impl<T: Config> OnRuntimeUpgrade for RemovePausedProgramStorageMigration<T> {
             counter += removal_result.backend;
 
             while let Some(cursor) = removal_result.maybe_cursor.take() {
-                removal_result = onchain::PausedProgramStorage::<T>::clear(
-                    u32::MAX,
-                    Some(&cursor),
-                );
+                removal_result = onchain::PausedProgramStorage::<T>::clear(u32::MAX, Some(&cursor));
                 weight = weight.saturating_add(
                     T::DbWeight::get()
                         .reads_writes(removal_result.loops as u64, removal_result.backend as u64),
@@ -101,10 +84,7 @@ impl<T: Config> OnRuntimeUpgrade for RemovePausedProgramStorageMigration<T> {
             counter += removal_result.backend;
 
             while let Some(cursor) = removal_result.maybe_cursor.take() {
-                removal_result = onchain::ResumeSessions::<T>::clear(
-                    u32::MAX,
-                    Some(&cursor),
-                );
+                removal_result = onchain::ResumeSessions::<T>::clear(u32::MAX, Some(&cursor));
                 weight = weight.saturating_add(
                     T::DbWeight::get()
                         .reads_writes(removal_result.loops as u64, removal_result.backend as u64),
@@ -173,9 +153,16 @@ mod onchain {
     use std::collections::BTreeSet;
 
     use super::*;
-    use frame_support::{pallet_prelude::{StorageMap, StorageValue}, traits::StorageInstance, Identity};
+    use frame_support::{
+        pallet_prelude::{StorageMap, StorageValue},
+        traits::StorageInstance,
+        Identity,
+    };
     use frame_system::pallet_prelude::BlockNumberFor;
-    use gear_core::{ids::{CodeId, ProgramId}, pages::{GearPage, WasmPage}};
+    use gear_core::{
+        ids::{CodeId, ProgramId},
+        pages::{GearPage, WasmPage},
+    };
     use primitive_types::H256;
     use sp_runtime::{
         codec::{self, Decode, Encode},
@@ -199,10 +186,7 @@ mod onchain {
         const STORAGE_PREFIX: &'static str = "PausedProgramStorage";
     }
 
-    pub type ResumeSessionNonce<T> = StorageValue<
-        _GeneratedPrefixForResumeSessionNonce<T>,
-        u32 
-    >;
+    pub type ResumeSessionNonce<T> = StorageValue<_GeneratedPrefixForResumeSessionNonce<T>, u32>;
 
     #[doc(hidden)]
     pub struct _GeneratedPrefixForResumeSessionNonce<T>(PhantomData<(T,)>);
@@ -215,7 +199,6 @@ mod onchain {
         const STORAGE_PREFIX: &'static str = "ResumeSessionNonce";
     }
 
-    
     #[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, TypeInfo)]
     #[codec(crate = codec)]
     #[scale_info(crate = scale_info)]
@@ -245,5 +228,4 @@ mod onchain {
         }
         const STORAGE_PREFIX: &'static str = "ResumeSessions";
     }
-
 }
