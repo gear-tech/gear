@@ -64,7 +64,7 @@ impl<'a> Mailbox<'a> {
         let message = self.remove_message(log);
         self.manager.borrow_mut().send_value(
             message.source(),
-            message.destination(),
+            Some(message.destination()),
             message.value(),
         );
     }

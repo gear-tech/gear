@@ -345,9 +345,9 @@ where
         });
     }
 
-    fn send_value(&mut self, from: ProgramId, to: ProgramId, value: u128) {
+    fn send_value(&mut self, from: ProgramId, to: Option<ProgramId>, value: u128) {
+        let to = to.unwrap_or(from).cast();
         let from = from.cast();
-        let to = to.cast();
         let value = value.unique_saturated_into();
 
         GearBank::<T>::transfer_value(&from, &to, value)

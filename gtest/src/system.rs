@@ -306,7 +306,7 @@ impl System {
         let actor_id = id.into().0;
         self.0
             .borrow_mut()
-            .mint_to(actor_id, value, MintMode::KeepAlive);
+            .mint_to(&actor_id, value, MintMode::KeepAlive);
     }
 
     /// Returns balance of user with given `id`.
