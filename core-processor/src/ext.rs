@@ -115,7 +115,7 @@ impl ProcessorContext {
                 MAX_RESERVATIONS,
             ),
             system_reservation: None,
-            value_counter: ValueCounter::new(0),
+            value_counter: ValueCounter::new(1_000_000),
             allocations_context: AllocationsContext::try_new(
                 Default::default(),
                 Default::default(),
@@ -2020,6 +2020,7 @@ mod tests {
                         .build(),
                 )
                 .with_gas(GasCounter::new(1_000_000_000))
+                .with_allowance(GasAllowanceCounter::new(1_000_000))
                 .build(),
         );
 
@@ -2056,8 +2057,13 @@ mod tests {
 
         let reservation_id = ext.reserve_gas(1_000_000, 1_000).expect("Shouldn't fail");
         let remaining_gas = ext.context.gas_counter.to_amount();
+        let remaining_gas_allowance = ext.context.gas_allowance_counter.left();
+        let remaining_value_counter = ext.context.value_counter.left();
         let result = ext.with_changes::<_, ()>(|mutator| {
             mutator.reduce_gas(42)?;
+            mutator.charge_gas_if_enough(84)?; // changes gas_counter and gas_allowance_counter
+            mutator.charge_message_value(128)?;
+            mutator.changes.outgoing_gasless = 1;
             mutator.mark_used(reservation_id)?;
             Err(FallibleExtError::Charge(ChargeError::GasLimitExceeded))
         });
@@ -2065,6 +2071,12 @@ mod tests {
         assert!(result.is_err());
         assert_eq!(ext.context.gas_counter.left(), remaining_gas.left());
         assert_eq!(ext.context.gas_counter.burned(), remaining_gas.burned());
+        assert_eq!(
+            ext.context.gas_allowance_counter.left(),
+            remaining_gas_allowance
+        );
+        assert_eq!(ext.outgoing_gasless, 0);
+        assert_eq!(ext.context.value_counter.left(), remaining_value_counter);
         assert!(matches!(
             ext.context.gas_reserver.states().get(&reservation_id),
             Some(GasReservationState::Created {
@@ -2085,20 +2097,41 @@ mod tests {
                         .build(),
                 )
                 .with_gas(GasCounter::new(1_000_000_000))
+                .with_allowance(GasAllowanceCounter::new(1_000_000))
                 .build(),
         );
 
         let reservation_id = ext.reserve_gas(1_000_000, 1_000).expect("Shouldn't fail");
         let remaining_gas = ext.context.gas_counter.to_amount();
+        let remaining_gas_allowance = ext.context.gas_allowance_counter.left();
+        let remaining_value_counter = ext.context.value_counter.left();
         let result = ext.with_changes::<_, ()>(|mutator| {
             mutator.reduce_gas(42)?;
+            mutator.charge_gas_if_enough(84)?; // changes gas_counter and gas_allowance_counter
+            mutator.charge_message_value(128)?;
+            mutator.changes.outgoing_gasless = 1;
             mutator.mark_used(reservation_id)?;
             Ok(())
         });
 
         assert!(result.is_ok());
-        assert_eq!(ext.context.gas_counter.left(), remaining_gas.left() - 42);
-        assert_eq!(ext.context.gas_counter.burned(), remaining_gas.burned());
+        assert_eq!(
+            ext.context.gas_counter.left(),
+            remaining_gas.left() - 42 - 84
+        );
+        assert_eq!(ext.outgoing_gasless, 1);
+        assert_eq!(
+            ext.context.gas_counter.burned(),
+            remaining_gas.burned() + 84
+        );
+        assert_eq!(
+            ext.context.gas_allowance_counter.left(),
+            remaining_gas_allowance - 84
+        );
+        assert_eq!(
+            ext.context.value_counter.left(),
+            remaining_value_counter - 128
+        );
         assert!(matches!(
             ext.context.gas_reserver.states().get(&reservation_id),
             Some(GasReservationState::Created {
