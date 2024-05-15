@@ -1,0 +1,12 @@
+{
+{{#each benchmarks as |benchmark|}}
+    "{{benchmark.name}}": {
+        "base": {{benchmark.base_weight}},
+    {{#each benchmark.component_weight as |cw|}}
+        "cw_slope": {{cw.slope}}
+        {{~#unless @last}},{{/unless}}
+    {{/each}}
+    }
+    {{~#unless @last}},{{/unless}}
+{{/each}}
+}

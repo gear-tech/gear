@@ -173,7 +173,7 @@ for PALLET in "${PALLETS[@]}"; do
     EXTRINSICS=("*")
   fi
 
-  WEIGHT_FILE="./${WEIGHTS_OUTPUT}/${PALLET}.rs"
+  WEIGHT_FILE="./${WEIGHTS_OUTPUT}/${PALLET}.json"
   echo "[+] Benchmarking $PALLET with weight file $WEIGHT_FILE";
 
   OUTPUT=$(
@@ -185,7 +185,7 @@ for PALLET in "${PALLETS[@]}"; do
     --extrinsic="$(IFS=, ; echo "${EXTRINSICS[*]}")" \
     --heap-pages=4096 \
     --output="$WEIGHT_FILE" \
-    --template=.maintain/frame-weight-template.hbs 2>&1
+    --template=.maintain/dump_weights.hbs 2>&1
   )
 
   if [ $? -ne 0 ]; then
@@ -205,8 +205,8 @@ for PALLET in "${PALLETS[@]}"; do
         --pallet="$PALLET" \
         --extrinsic="$(IFS=', '; echo "${ONE_TIME_EXTRINSICS[*]}")" \
         --heap-pages=4096 \
-        --output="./${WEIGHTS_OUTPUT}/${PALLET}_onetime.rs" \
-        --template=.maintain/frame-weight-template.hbs 2>&1
+        --output="./${WEIGHTS_OUTPUT}/${PALLET}_onetime.json" \
+        --template=.maintain/dump_weights.hbs 2>&1
     )
 
     if [ $? -ne 0 ]; then
@@ -246,7 +246,7 @@ else
 fi
 
 # Merge pallet_gear weights.
-./scripts/benchmarking/merge_outputs.sh
+#./scripts/benchmarking/merge_outputs.sh
 
 # Check if the error file exists.
 if [ -f "$ERR_FILE" ]; then
