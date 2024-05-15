@@ -61,12 +61,6 @@ Gear Protocol provides a developer-friendly programming platform for decentraliz
 
 For more details refer to the **[Gear Whitepaper](https://whitepaper.gear.foundation)**.
 
-# How does it work?
-
-The internal flow of Gear Protocol:
-
-  <img src="images/internal_flow.jpg" alt="Internal flow of Gear Protocol" style="width:100%;">
-
 Refer to the **[Technical Paper](https://github.com/gear-tech/gear-technical/blob/master/TECHNICAL.pdf)** for some insights about how it works internally.
 
 # Getting Started
