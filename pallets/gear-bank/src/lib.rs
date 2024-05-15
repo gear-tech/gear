@@ -58,9 +58,11 @@ pub mod pallet {
         ensure,
         pallet_prelude::{StorageMap, StorageValue, ValueQuery},
         sp_runtime::{traits::CheckedSub, Saturating},
-        traits::{ExistenceRequirement, Get, ReservableCurrency, WithdrawReasons},
+        traits::{ExistenceRequirement, Get, Hooks, ReservableCurrency},
+        weights::Weight,
         Identity,
     };
+    use frame_system::pallet_prelude::BlockNumberFor;
     use pallet_authorship::Pallet as Authorship;
     use parity_scale_codec::{Decode, Encode, EncodeLike, MaxEncodedLen};
     use scale_info::TypeInfo;
@@ -158,11 +160,60 @@ pub mod pallet {
 
     // Private storage that keeps account bank details.
     #[pallet::storage]
-    pub type Bank<T> = StorageMap<_, Identity, AccountIdOf<T>, BankAccount<BalanceOf<T>>>;
+    type Bank<T> = StorageMap<_, Identity, AccountIdOf<T>, BankAccount<BalanceOf<T>>>;
 
     // Private storage that keeps amount of value that wasn't sent because owner is inexistent account.
     #[pallet::storage]
     pub type UnusedValue<T> = StorageValue<_, BalanceOf<T>, ValueQuery>;
+
+    // Private storage that keeps registry of transfers to be performed at the end of the block.
+    #[pallet::storage]
+    type OnFinalizeTransfers<T> = StorageMap<_, Identity, AccountIdOf<T>, BalanceOf<T>>;
+
+    // Private storage that represents sum of values in OnFinalizeTransfers.
+    #[pallet::storage]
+    pub(crate) type OnFinalizeValue<T> = StorageValue<_, BalanceOf<T>, ValueQuery>;
+
+    #[pallet::hooks]
+    impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
+        /// Start of the block.
+        fn on_initialize(bn: BlockNumberFor<T>) -> Weight {
+            if OnFinalizeTransfers::<T>::iter().next().is_some() {
+                log::error!("Block #{bn:?} started with non-empty on-finalize transfers");
+            }
+
+            if !OnFinalizeValue::<T>::get().is_zero() {
+                log::error!("Block #{bn:?} started with non-zero on-finalize value");
+            }
+
+            T::DbWeight::get().reads(2)
+        }
+
+        /// End of the block.
+        fn on_finalize(bn: BlockNumberFor<T>) {
+            // Take of on-finalize value should always be performed before
+            // `withdraw`s, since `withdraw`s ensure bank balance,
+            // that relies on that value "locked".
+            let expected = OnFinalizeValue::<T>::take();
+
+            let mut total = BalanceOf::<T>::zero();
+
+            while let Some((account_id, value)) = OnFinalizeTransfers::<T>::drain().next() {
+                total = total.saturating_add(value);
+
+                if let Err(e) = Self::withdraw(&account_id, value) {
+                    log::error!(
+                        "Block #{bn:?} ended with unreachable error while performing on-finalize transfer to {account_id:?}: {e:?}"
+                    );
+                }
+            }
+
+            if total != expected {
+                log::error!("Block #{bn:?} ended with unreachable error while performing cleaning of on-finalize value: \
+                total tried to transfer is {total:?}, expected amount is {expected:?}")
+            }
+        }
+    }
 
     impl<T: Config> Pallet<T> {
         /// Transfers value from `account_id` to bank address.
@@ -192,19 +243,13 @@ pub mod pallet {
 
         /// Ensures that bank account is able to transfer requested value.
         fn ensure_bank_can_transfer(value: BalanceOf<T>) -> Result<(), Error<T>> {
-            let bank_address = T::BankAddress::get();
+            let minimum_balance = CurrencyOf::<T>::minimum_balance()
+                .saturating_add(UnusedValue::<T>::get())
+                .saturating_add(OnFinalizeValue::<T>::get());
 
-            CurrencyOf::<T>::free_balance(&bank_address)
+            CurrencyOf::<T>::free_balance(&T::BankAddress::get())
                 .checked_sub(&value)
-                .map_or(false, |new_balance| {
-                    CurrencyOf::<T>::ensure_can_withdraw(
-                        &bank_address,
-                        value,
-                        WithdrawReasons::TRANSFER,
-                        new_balance,
-                    )
-                    .is_ok()
-                })
+                .map_or(false, |balance| balance >= minimum_balance)
                 .then_some(())
                 .ok_or(Error::<T>::InsufficientBankBalance)
         }
@@ -237,6 +282,26 @@ pub mod pallet {
                 ExistenceRequirement::KeepAlive,
             )
             .map_err(|_| Error::<T>::InsufficientBankBalance)
+        }
+
+        /// Transfers value from bank address to `account_id` on block finalize.
+        fn withdraw_on_finalize(
+            account_id: &AccountIdOf<T>,
+            value: BalanceOf<T>,
+        ) -> Result<(), Error<T>> {
+            if value.is_zero() {
+                return Ok(());
+            };
+
+            Self::ensure_bank_can_transfer(value)?;
+
+            OnFinalizeValue::<T>::mutate(|v| *v = v.saturating_add(value));
+            OnFinalizeTransfers::<T>::mutate(account_id, |v| {
+                let inner = v.get_or_insert(Zero::zero());
+                *inner = inner.saturating_add(value);
+            });
+
+            Ok(())
         }
 
         pub fn deposit_gas(
@@ -337,11 +402,8 @@ pub mod pallet {
 
             let value = Self::withdraw_gas_no_transfer(account_id, amount, multiplier)?;
 
-            // All the checks and internal values withdrawals performed in
-            // `*_no_transfer` function above.
-            //
-            // This call does only currency trait final transfer.
-            Self::withdraw(to, value).unwrap_or_else(|e| unreachable!("qed above: {e:?}"));
+            Self::withdraw_on_finalize(to, value)
+                .unwrap_or_else(|e| unreachable!("qed above: {e:?}"));
 
             Ok(())
         }

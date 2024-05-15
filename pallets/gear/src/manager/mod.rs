@@ -238,7 +238,6 @@ where
                 code_id,
                 code_exports: active.code_exports,
                 static_pages: active.static_pages,
-                pages_with_data: active.pages_with_data,
                 gas_reservation_map: active.gas_reservation_map,
                 memory_infix: active.memory_infix,
             },

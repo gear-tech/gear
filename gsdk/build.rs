@@ -5,7 +5,7 @@ const GSDK_API_GEN: &str = "GSDK_API_GEN";
 const GSDK_API_GEN_PKG: &str = "gsdk-api-gen";
 const GSDK_API_GEN_RELATIVE_PATH: &str = "gsdk-api-gen";
 const VARA_RUNTIME_PKG: &str = "vara-runtime";
-const VARA_RUNTIME_RELATIVE_PATH: &str = "wbuild/vara-runtime/vara_runtime.compact.compressed.wasm";
+const VARA_RUNTIME_RELATIVE_PATH: &str = "wbuild/vara-runtime/vara_runtime.wasm";
 const GENERATED_API_PATH: &str = "src/metadata/generated.rs";
 const ENV_RUNTIME_WASM: &str = "RUNTIME_WASM";
 
