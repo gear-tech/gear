@@ -21,7 +21,7 @@ use crate::*;
 /// All migrations that will run on the next runtime upgrade.
 pub type Migrations = (
     /* release v1.3.0 */
-    pallet_gear_program::migration::AppendStackEndMigration<Runtime>,
+    pallet_gear_program::migrations::AppendStackEndMigration<Runtime>,
     // migration for removed waiting init list
     pallet_gear::migrations::MigrateWaitingInitList<Runtime>,
     // substrate v1.3.0
@@ -29,7 +29,7 @@ pub type Migrations = (
     pallet_nomination_pools::migration::versioned_migrations::V6ToV7<Runtime>,
     staking_v13::MigrateToV13<Runtime>,
     // migration for removed paused program storage
-    pallet_gear_program::migration::RemovePausedProgramStorageMigration<Runtime>,
+    pallet_gear_program::migrations::RemovePausedProgramStorageMigration<Runtime>,
 );
 
 mod staking_v13 {

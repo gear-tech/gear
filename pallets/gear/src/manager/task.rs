@@ -63,7 +63,7 @@ pub fn get_maximum_task_gas<T: Config>(task: &ScheduledTask<T::AccountId>) -> Ga
         }
         #[allow(deprecated)]
         RemoveResumeSession(_) => {
-            unreachable!("deprecated")
+            0
         }
     }
 }
@@ -273,5 +273,9 @@ where
         log::trace!("Task gas: tasks_remove_gas_reservation = {gas}");
 
         gas
+    }
+
+    fn remove_resume_session(&mut self, _session_id: u32) -> Gas {
+        0
     }
 }

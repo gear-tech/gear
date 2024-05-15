@@ -146,6 +146,9 @@ pub trait TaskHandler<AccountId> {
         program_id: ProgramId,
         reservation_id: ReservationId,
     ) -> Gas;
+
+    /// Remove data created by resume program session.
+    fn remove_resume_session(&mut self, session_id: u32) -> Gas;
 }
 
 #[test]
