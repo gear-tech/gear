@@ -348,7 +348,6 @@ struct ExtChanges {
     gas_allowance_counter: GasAllowanceCounter,
     value_counter: ValueCounter,
     outgoing_gasless: u64,
-    mailbox_threshold: u64,
     reservation_to_mark: Option<ReservationId>,
 }
 
@@ -368,7 +367,6 @@ impl ExtChanges {
                 gas_allowance_counter: ext.context.gas_allowance_counter.clone(),
                 value_counter: ext.context.value_counter.clone(),
                 outgoing_gasless: ext.outgoing_gasless,
-                mailbox_threshold: ext.context.mailbox_threshold,
                 reservation_to_mark: None,
             }
         }
@@ -450,7 +448,7 @@ impl<'a, 'b> ExtMutator<'a, 'b> {
                 let prev_gasless_fee = self
                     .changes
                     .outgoing_gasless
-                    .saturating_mul(self.changes.mailbox_threshold);
+                    .saturating_mul(self.ext.context.mailbox_threshold);
                 self.reduce_gas(prev_gasless_fee)?;
                 self.changes.outgoing_gasless = 0;
                 Ok(())
@@ -467,7 +465,7 @@ impl<'a, 'b> ExtMutator<'a, 'b> {
                 let prev_gasless_fee = self
                     .changes
                     .outgoing_gasless
-                    .saturating_mul(self.changes.mailbox_threshold);
+                    .saturating_mul(self.ext.context.mailbox_threshold);
                 self.reduce_gas(prev_gasless_fee)?;
                 self.changes.outgoing_gasless = 1;
                 Ok(())
