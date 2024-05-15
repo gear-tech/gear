@@ -26,6 +26,7 @@
 pub use gear_ss58::Ss58Address;
 
 pub mod macros;
+mod utils;
 
 use core::{
     fmt,
@@ -83,7 +84,7 @@ pub struct MessageHandle(u32);
 #[cfg_attr(feature = "codec", derive(TypeInfo, Encode, Decode, MaxEncodedLen), codec(crate = scale))]
 pub struct ActorId([u8; 32]);
 
-macros::impl_primitive!(new zero into_bytes from_u64 from_h256 try_from_slice display debug, ActorId);
+macros::impl_primitive!(new zero into_bytes from_u64 from_h256 try_from_slice debug, ActorId);
 
 impl ActorId {
     /// Returns the ss58-check address with default ss58 version.
@@ -98,6 +99,39 @@ impl ActorId {
         RawSs58Address::from(self.0)
             .to_ss58check_with_prefix(version)
             .map_err(|_| ConversionError::Ss58Encode)
+    }
+}
+
+impl fmt::Display for ActorId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let byte_array = utils::ByteArray(&self.0);
+
+        let is_alternate = f.alternate();
+        if is_alternate {
+            f.write_str(concat!(stringify!(ActorId), "("))?;
+        }
+
+        let version = if f.sign_plus() {
+            Some(gear_ss58::VARA_SS58_PREFIX)
+        } else if let Some(version) = f.width() {
+            Some(version.try_into().map_err(|_| fmt::Error)?)
+        } else {
+            None
+        };
+
+        if let Some(version) = version {
+            self.to_ss58check_with_version(version)
+                .map_err(|_| fmt::Error)?
+                .fmt(f)?;
+        } else {
+            byte_array.fmt(f)?;
+        }
+
+        if is_alternate {
+            f.write_str(")")?;
+        }
+
+        Ok(())
     }
 }
 

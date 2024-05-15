@@ -84,34 +84,20 @@ macro_rules! impl_primitive {
     (@display $ty:ty) => {
         impl fmt::Display for $ty {
             fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                const LEN: usize = 32;
-                const MEDIAN: usize = (LEN + 1) / 2;
+                let byte_array = utils::ByteArray(&self.0);
 
-                let mut e1 = MEDIAN;
-                let mut s2 = MEDIAN;
-
-                if let Some(precision) = f.precision() {
-                    if precision < MEDIAN {
-                        e1 = precision;
-                        s2 = LEN - precision;
-                    }
+                let is_alternate = f.alternate();
+                if is_alternate {
+                    f.write_str(concat!(stringify!($ty), "("))?;
                 }
 
-                let mut out1 = [0; MEDIAN * 2];
-                let mut out2 = [0; MEDIAN * 2];
+                byte_array.fmt(f)?;
 
-                let _ = hex::encode_to_slice(&self.0[..e1], &mut out1[..e1 * 2]);
-                let _ = hex::encode_to_slice(&self.0[s2..], &mut out2[..(LEN - s2) * 2]);
-
-                let p1 = unsafe { str::from_utf8_unchecked(&out1[..e1 * 2]) };
-                let p2 = unsafe { str::from_utf8_unchecked(&out2[..(LEN - s2) * 2]) };
-                let sep = e1.ne(&s2).then_some("..").unwrap_or_default();
-
-                if f.alternate() {
-                    write!(f, "{}(0x{p1}{sep}{p2})", stringify!($ty))
-                } else {
-                    write!(f, "0x{p1}{sep}{p2}")
+                if is_alternate {
+                    f.write_str(")")?;
                 }
+
+                Ok(())
             }
         }
     };

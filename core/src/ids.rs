@@ -192,6 +192,16 @@ mod tests {
             format!("{id:.30?}"),
             "0x6a519a19ffdfd8f45c310b44aecf156b080c713bf841a8cb695b0ea5f765ed3e"
         );
+        // `Debug`/`Display` with sign + (vara address).
+        assert_eq!(
+            format!("{id:+}"),
+            "kGhwPiWGsCZkaUNqotftspabNLRTcNoMe5APCSDJM2uJv6PSm"
+        );
+        // `Debug`/`Display` with width (custom address, 42 means substrate).
+        assert_eq!(
+            format!("{id:42}"),
+            "5EU7B2s4m2XrgSbUyt8U92fDpSi2EtW3Z3kKwUW4drZ1KAZD"
+        );
         // Alternate formatter.
         assert_eq!(
             format!("{id:#}"),
@@ -199,5 +209,15 @@ mod tests {
         );
         // Alternate formatter with precision 2.
         assert_eq!(format!("{id:#.2}"), "ActorId(0x6a51..ed3e)");
+        // Alternate formatter with sign + (vara address).
+        assert_eq!(
+            format!("{id:+#}"),
+            "ActorId(kGhwPiWGsCZkaUNqotftspabNLRTcNoMe5APCSDJM2uJv6PSm)"
+        );
+        // Alternate formatter with width (custom address, 42 means substrate).
+        assert_eq!(
+            format!("{id:#42}"),
+            "ActorId(5EU7B2s4m2XrgSbUyt8U92fDpSi2EtW3Z3kKwUW4drZ1KAZD)"
+        );
     }
 }
