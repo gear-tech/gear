@@ -49,7 +49,7 @@ jobs:
       #     jobs: '["macos-x86 (debug)", "macos-aarch64 (debug)"]'
 
       - name: Fork Win checks
-        if: github.event.label.name == 'E1-forcenatwin'
+        # if: github.event.label.name == 'E1-forcenatwin'
         uses: gear-tech/fork-action@main
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
