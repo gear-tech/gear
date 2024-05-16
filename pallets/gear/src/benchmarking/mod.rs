@@ -623,8 +623,7 @@ benchmarks! {
     }
 
     mem_grow_per_page {
-        let p in 1 .. 800;
-        assert!(p * API_BENCHMARK_BATCH_SIZE < WasmPagesAmount::UPPER.into());
+        let p in 1 .. u32::from(WasmPagesAmount::UPPER) / API_BENCHMARK_BATCH_SIZE;
         let mut store = Store::<HostState<MockExt, BackendMemory<ExecutorMemory>>>::new(None);
         let mem = ExecutorMemory::new(&mut store, 1, None).unwrap();
         let mem = BackendMemory::from(mem);

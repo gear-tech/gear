@@ -654,6 +654,7 @@ pub struct MemoryWeights {
     pub load_page_data: Weight,
     pub upload_page_data: Weight,
     pub static_page: Weight,
+    // TODO: use real weight and add `mem_grow_per_page` #3970
     pub mem_grow: Weight,
     pub parachain_read_heuristic: Weight,
 }

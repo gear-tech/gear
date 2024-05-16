@@ -185,6 +185,7 @@ mod tests {
         assert_eq!(program.static_pages(), WasmPagesAmount::from(2));
 
         // Has no allocations because we do not set them in new
+        // TODO: #3879
         assert_eq!(program.allocations().points_amount(), Some(0));
     }
 }
