@@ -287,7 +287,7 @@ impl<T: Config> BuiltinDispatcher for BuiltinRegistry<T> {
                 };
 
                 // Using the core processor logic create necessary `JournalNote`'s for us.
-                process_success(SuccessfulDispatchResultKind::Success, dispatch_result)
+                process_success(SuccessfulDispatchResultKind::Success, dispatch_result, None)
             }
             Err(err) => {
                 // Builtin actor call failed.
