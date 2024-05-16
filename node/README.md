@@ -1,8 +1,12 @@
 # Gear Node
 
-Gear substrate-based node, ready for hacking :rocket:
+Gear Substrate-based node, ready for hacking :rocket:
 
-## Building Gear node from source
+Gear node is a key element of the Gear blockchain network. In a nutshell, it is a standard Substrate node with many low-level modules being used out-of-the-box, specifically, the consensus layer, libp2p networking etc. There are some modifications though, which cater to the specific needs of the Gear runtime as a platform for Wasm-based dApps. The most notable one is a custom block authorship logic brought to ensure that the main invariants the Gear protocol relies on, are upheld:
+- the messages queue is processed last in a block and the processing has enough time to run;
+- there is always a block within a slot, regardless of potentially indeterministic behavior of the programs execution.
+
+## Building from source
 
 ### 1. Install dependencies
 
