@@ -12,6 +12,7 @@ jobs:
       github.event.label.name == 'A0-pleasereview'
       || github.event.label.name == 'A4-insubstantial'
       || github.event.label.name == 'A2-mergeoncegreen'
+      || github.event.label.name == 'E1-forcenatwin'
       || github.event.label.name == 'E2-forcemacos'
 
     steps:
@@ -43,3 +44,15 @@ jobs:
           workflow_id: ".github/workflows/build-macos.yml"
           prefix: "build"
           jobs: '["macos-x86 (debug)", "macos-aarch64 (debug)"]'
+
+      - name: Fork Win checks
+        if: github.event.label.name == 'E1-forcenatwin'
+        uses: gear-tech/fork-action@main
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          head_sha: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.head_ref || github.ref_name }}
+          repo: "gear-tech/gear"
+          workflow_id: ".github/workflows/build-win-native.yml"
+          prefix: "build"
+          jobs: '["win-native (debug)"]'
