@@ -3,7 +3,7 @@ name: Label
 on:
   pull_request:
     branches: [master]
-    types: [labeled]
+    # types: [labeled]
 
 jobs:
   dispatch:
@@ -17,33 +17,36 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-      - name: Fork Linux checks
-        if: github.event.label.name != 'E2-forcemacos'
-        uses: gear-tech/fork-action@main
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          head_sha: ${{ github.event.pull_request.head.sha }}
-          ref: ${{ github.head_ref || github.ref_name }}
-          repo: "gear-tech/gear"
-          workflow_id: ".github/workflows/build.yml"
-          prefix: "build"
-          needs: '["dynamic-profiles"]'
-          jobs: '["linux (debug)", "win-cross (debug)"]'
-          inputs:
-            '{ "title": "${{ github.event.pull_request.title }}", "number": "${{
-            github.event.number }}" }'
-
-      - name: Fork OSX checks
-        if: github.event.label.name == 'E2-forcemacos'
-        uses: gear-tech/fork-action@main
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          head_sha: ${{ github.event.pull_request.head.sha }}
-          ref: ${{ github.head_ref || github.ref_name }}
-          repo: "gear-tech/gear"
-          workflow_id: ".github/workflows/build-macos.yml"
-          prefix: "build"
-          jobs: '["macos-x86 (debug)", "macos-aarch64 (debug)"]'
+      # - name: Fork Linux checks
+      #   if: >-
+      #     github.event.label.name == 'A0-pleasereview'
+      #       || github.event.label.name == 'A4-insubstantial'
+      #       || github.event.label.name == 'A2-mergeoncegreen'
+      #   uses: gear-tech/fork-action@main
+      #   with:
+      #     token: ${{ secrets.GITHUB_TOKEN }}
+      #     head_sha: ${{ github.event.pull_request.head.sha }}
+      #     ref: ${{ github.head_ref || github.ref_name }}
+      #     repo: "gear-tech/gear"
+      #     workflow_id: ".github/workflows/build.yml"
+      #     prefix: "build"
+      #     needs: '["dynamic-profiles"]'
+      #     jobs: '["linux (debug)", "win-cross (debug)"]'
+      #     inputs:
+      #       '{ "title": "${{ github.event.pull_request.title }}", "number": "${{
+      #       github.event.number }}" }'
+      #
+      # - name: Fork OSX checks
+      #   if: github.event.label.name == 'E2-forcemacos'
+      #   uses: gear-tech/fork-action@main
+      #   with:
+      #     token: ${{ secrets.GITHUB_TOKEN }}
+      #     head_sha: ${{ github.event.pull_request.head.sha }}
+      #     ref: ${{ github.head_ref || github.ref_name }}
+      #     repo: "gear-tech/gear"
+      #     workflow_id: ".github/workflows/build-macos.yml"
+      #     prefix: "build"
+      #     jobs: '["macos-x86 (debug)", "macos-aarch64 (debug)"]'
 
       - name: Fork Win checks
         if: github.event.label.name == 'E1-forcenatwin'
