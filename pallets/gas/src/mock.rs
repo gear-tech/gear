@@ -17,7 +17,9 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate as pallet_gear_gas;
-use frame_support::{construct_runtime, parameter_types, weights::constants::RocksDbWeight};
+use frame_support::{
+    construct_runtime, parameter_types, traits::ConstU32, weights::constants::RocksDbWeight,
+};
 use frame_system::{self as system, pallet_prelude::BlockNumberFor};
 use primitive_types::H256;
 use sp_runtime::{
