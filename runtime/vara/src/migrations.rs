@@ -20,10 +20,8 @@ use crate::*;
 
 /// All migrations that will run on the next runtime upgrade.
 pub type Migrations = (
-    /* release v1.3.0 */
-    pallet_gear_program::migration::AppendStackEndMigration<Runtime>,
     // migration for removed waiting init list
-    pallet_gear::migrations::MigrateWaitingInitList<Runtime>,
+    pallet_gear::migrations::wait_init::MigrateWaitingInitList<Runtime>,
     // substrate v1.3.0
     pallet_nomination_pools::migration::versioned_migrations::V5toV6<Runtime>,
     pallet_nomination_pools::migration::versioned_migrations::V6ToV7<Runtime>,
