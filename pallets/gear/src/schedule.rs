@@ -73,6 +73,9 @@ pub const FUZZER_STACK_HEIGHT_LIMIT: u32 = 65_000;
 /// does not exceed 1024 by a large margin.
 pub const DATA_SEGMENTS_AMOUNT_LIMIT: u32 = 1024;
 
+/// Maximum number of wasm tables in a wasm module.
+pub const TABLE_NUMBER_LIMIT: u32 = 100;
+
 /// Definition of the cost schedule and other parameterization for the wasm vm.
 ///
 /// Its [`Default`] implementation is the designated way to initialize this type. It uses
@@ -202,6 +205,9 @@ pub struct Limits {
     ///
     /// Currently, the only type of element that is allowed in a table is funcref.
     pub table_size: u32,
+
+    /// Maximum number of tables allowed for a program.
+    pub table_number: u32,
 
     /// Maximum number of elements that can appear as immediate value to the br_table instruction.
     pub br_table_size: u32,
@@ -810,6 +816,7 @@ impl Default for Limits {
             memory_pages: MAX_WASM_PAGES_AMOUNT,
             // 4k function pointers (This is in count not bytes).
             table_size: 4096,
+            table_number: TABLE_NUMBER_LIMIT,
             br_table_size: 256,
             subject_len: 32,
             call_depth: 32,
