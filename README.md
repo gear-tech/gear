@@ -89,99 +89,12 @@ Alternatively, you can download pre-built packages for your OS/architecture:
   - **Windows x64**: [gear-nightly-x86_64-pc-windows-msvc.zip](https://get.gear.rs/gear-nightly-x86_64-pc-windows-msvc.zip)
 
 
-### Single-node Vara Dev network
+### Run Vara Dev network locally
 
 Running the following command will start a single-node Vara Dev net with two users - Alice and Bob:
 
   ```bash
   gear --dev
-  ```
-
-By providing an additional argument one can specify the location of the chain database:
-  
-  ```bash
-  gear --dev --base-path /tmp/vara
-  ```
-Now the dev node is listening on the [default] rpc port 9944: https://polkadot.js.org/apps/?rpc=ws%3A%2F%2F127.0.0.1%3A9944
-
-To learn more about available CLI options and subcommands, run:
-
-  ```bash
-  gear --help
-  ```
-
-### Multi-node local Vara network
-
-Running a local testnet with two validator nodes - Alice and Bob, allows to watch the multi-node consensus algorithm in action.
-Note that if you launch both nodes on the same machine, you need to specify different ports for each node.
-
-Start the `alice` node first:
-
-  ```bash
-  gear --alice --chain=local --base-path ./tmp/alice --port 30333 --rpc-port 9944 --validator
-  ```
-
-While the node is starting, inspect the start up log and look for the line that would look like the one below:
-
-  ```bash
-  2024-01-01 11:23:05 🏷  Local node identity is: 12D3KooWMar4rG4kfoCZA1sqaY8FqtPDgpBPfDnQ7Md9x6Sdkgw5
-  ```
-Take note of the node identity string.
-
-Now open another terminal window and start the `bob` node. Note that since both nodes are going to be running on the same machine we should choose different tcp and ws ports (for libp2p and rpc connections) for each node.
-Also, we need to specify the `--bootnodes` parameter by providing the multiaddress of the `alice` node to let `bob` know where to look for its peer:
-
-  ```bash
-  gear \
-    --bob \
-    --chain=local \
-    --base-path ./tmp/bob \
-    --port 30334 \
-    --rpc-port 9945 \
-    --bootnodes /ip4/127.0.0.1/tcp/30333/p2p/12D3KooWMar4rG4kfoCZA1sqaY8FqtPDgpBPfDnQ7Md9x6Sdkgw5
-    --validator
-  ```
-
-Having done this, you should see the `bob` node connecting to the `alice` node and starting to produce blocks.
-
-Check the network status at https://polkadot.js.org/apps/?rpc=ws%3A%2F%2F127.0.0.1%3A9944.
-
-### Connect to the Vara mainnet
-
-Running a node that would sync with the Vara mainnet is as simple as running the following command:
-
-  ```bash
-  gear --chain=vara
-  ```
-
-As before, supplying a variety of CLI arguments allows to customize your node in terms of the chain database location, rpc port, and so on.
-
-### Running an archive node
-
-In some projects it can be useful to store all historical data. To run an archive node, use the following command:
-
-  ```bash
-  gear --chain=vara --blocks-pruning=archive --state-pruning=512
-  ```
-where the `--state-pruning` value specifies the history depth (in terms of the number of blocks) of the state to be kept in the database. All other CLI options apply, as usual.
-
-Turning on the archiving option will significantly increase the disk space usage as well as impact the node's performance. This should be done judiciously.
-
-### Connect to Vara testnet
-
-Finally, calling simply
-  
-  ```bash
-  gear
-  ```
-will connect you to the default chain, which is Vara testnet.
-
-### Connect to a custom chain
-
-To connect to a custom chain, the first thing one needs to do is to obtain the chain specification JSON file. Then calling the following command will start a node which will then try to connect to the bootnodes from the provided chain specification and start syncing blocks:
-
-  ```bash
-  gear --chain=/path/to/your/chain/spec.json
   ```
 
 # Performance
