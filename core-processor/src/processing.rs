@@ -147,12 +147,50 @@ where
                 res.system_reservation_context,
                 ActorExecutionErrorReplyReason::Trap(reason),
             ),
-            DispatchResultKind::Success => process_success(Success, res, Some(system_reservation_ctx)),
+            DispatchResultKind::Success => {
+                if let (Some(current_prev), Some(current_res)) = (
+                    system_reservation_ctx.current_reservation,
+                    res.system_reservation_context.current_reservation,
+                ) {
+                    debug_assert!(current_res <= current_prev);
+                }
+                if let (Some(prev_reservation), Some(prev_res)) = (
+                    system_reservation_ctx.previous_reservation,
+                    res.system_reservation_context.previous_reservation,
+                ) {
+                    debug_assert!(prev_res <= prev_reservation);
+                }
+                process_success(Success, res)
+            }
             DispatchResultKind::Wait(duration, ref waited_type) => {
-                process_success(Wait(duration, waited_type.clone()), res, Some(system_reservation_ctx))
+                if let (Some(current_prev), Some(current_res)) = (
+                    system_reservation_ctx.current_reservation,
+                    res.system_reservation_context.current_reservation,
+                ) {
+                    debug_assert!(current_res <= current_prev);
+                }
+                if let (Some(prev_reservation), Some(prev_res)) = (
+                    system_reservation_ctx.previous_reservation,
+                    res.system_reservation_context.previous_reservation,
+                ) {
+                    debug_assert!(prev_res <= prev_reservation);
+                }
+                process_success(Wait(duration, waited_type.clone()), res)
             }
             DispatchResultKind::Exit(value_destination) => {
-                process_success(Exit(value_destination), res, Some(system_reservation_ctx))
+                if let (Some(current_prev), Some(current_res)) = (
+                    system_reservation_ctx.current_reservation,
+                    res.system_reservation_context.current_reservation,
+                ) {
+                    debug_assert!(current_res <= current_prev);
+                }
+                if let (Some(prev_reservation), Some(prev_res)) = (
+                    system_reservation_ctx.previous_reservation,
+                    res.system_reservation_context.previous_reservation,
+                ) {
+                    debug_assert!(prev_res <= prev_reservation);
+                }
+                process_success(Exit(value_destination), res)
             }
             DispatchResultKind::GasAllowanceExceed => {
                 process_allowance_exceed(dispatch, program_id, res.gas_amount.burned())
@@ -365,18 +403,7 @@ pub fn process_non_executable(
 pub fn process_success(
     kind: SuccessfulDispatchResultKind,
     dispatch_result: DispatchResult,
-    system_reservation_ctx: Option<SystemReservationContext>
 ) -> Vec<JournalNote> {
-
-    if let Some(system_reservation_ctx) = system_reservation_ctx {
-        if let (Some(current_prev), Some(current_res)) = (system_reservation_ctx.current_reservation, dispatch_result.system_reservation_context.current_reservation) {
-            debug_assert!(current_res <= current_prev);
-        }
-        if let (Some(prev_reservation), Some(prev_res)) = (system_reservation_ctx.previous_reservation, dispatch_result.system_reservation_context.previous_reservation) {
-            debug_assert!(prev_res <= prev_reservation);
-        }
-    }
-
     use crate::precharge::SuccessfulDispatchResultKind::*;
 
     let DispatchResult {
