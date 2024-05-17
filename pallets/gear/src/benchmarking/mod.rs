@@ -380,8 +380,8 @@ benchmarks! {
         let c in 0 .. T::Schedule::get().limits.code_len / 1024;
 
         let WasmModule { code, .. } = WasmModule::<T>::sized(c * 1024, Location::Init);
-    }: {
         let ext = Externalities::new(ProcessorContext::new_mock());
+    }: {
         Environment::new(ext, &code, DispatchKind::Init, Default::default(), max_pages::<T>().into()).unwrap();
     }
 
@@ -390,8 +390,8 @@ benchmarks! {
         let d in 0 .. T::Schedule::get().limits.code_len / 1024;
 
         let WasmModule { code, .. } = WasmModule::<T>::sized_data_section(d * 1024, MAX_NUMBER_OF_DATA_SEGMENTS);
-    }: {
         let ext = Externalities::new(ProcessorContext::new_mock());
+    }: {
         Environment::new(ext, &code, DispatchKind::Init, Default::default(), max_pages::<T>().into()).unwrap();
     }
 
@@ -400,8 +400,8 @@ benchmarks! {
         let g in 0 .. T::Schedule::get().limits.code_len / 1024;
 
         let WasmModule { code, .. } = WasmModule::<T>::sized_global_section(g * 1024);
-    }: {
         let ext = Externalities::new(ProcessorContext::new_mock());
+    }: {
         Environment::new(ext, &code, DispatchKind::Init, Default::default(), max_pages::<T>().into()).unwrap();
     }
 
@@ -410,8 +410,8 @@ benchmarks! {
         let t in 0 .. T::Schedule::get().limits.code_len / 1024;
 
         let WasmModule { code, .. } = WasmModule::<T>::sized_table_section(t * 1024);
-    }: {
         let ext = Externalities::new(ProcessorContext::new_mock());
+    }: {
         Environment::new(ext, &code, DispatchKind::Init, Default::default(), max_pages::<T>().into()).unwrap();
     }
 
@@ -420,8 +420,8 @@ benchmarks! {
         let t in 0 .. T::Schedule::get().limits.code_len / 1024;
 
         let WasmModule { code, .. } = WasmModule::<T>::sized_type_section(t * 1024);
-    }: {
         let ext = Externalities::new(ProcessorContext::new_mock());
+    }: {
         Environment::new(ext, &code, DispatchKind::Init, Default::default(), max_pages::<T>().into()).unwrap();
     }
 

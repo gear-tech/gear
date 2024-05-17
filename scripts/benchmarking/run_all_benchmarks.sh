@@ -19,6 +19,22 @@ BENCHMARK_REPEAT=20
 BENCHMARK_STEPS_ONE_TIME_EXTRINSICS=2
 BENCHMARK_REPEAT_ONE_TIME_EXTRINSICS=1000
 
+# Get array of isolated cores from the cpuset file.
+get_isolated_cores() {
+    local isolated_cores=()
+    local cpuset_path="/sys/devices/system/cpu/isolated"
+
+    if [ -f "$cpuset_path" ]; then
+        # Read isolated cores from the cpuset file
+        readarray -t -d, isolated_cores < "$cpuset_path"
+    fi
+
+    echo "${isolated_cores[@]}"
+}
+
+# Get only first isolated core, as we don't use its sibling HT core.
+ISOLATED_CORE=$(get_isolated_cores | cut -d " " -f1)
+
 # List of one-time extrinsics to benchmark.
 # They are retrieved automatically from the pallet_gear benchmarks file by their `r` component range 0..1,
 # which defines them as one-time extrinsics.
@@ -96,6 +112,12 @@ PALLETS=($({ printf '%s\n' "${ALL_PALLETS[@]}" "${EXCLUDED_PALLETS[@]}"; } | sor
 
 echo "[+] Benchmarking ${#PALLETS[@]} Gear pallets by excluding ${#EXCLUDED_PALLETS[@]} from ${#ALL_PALLETS[@]}."
 
+# Populate ISOL_CMD with taskset command if isolated core is set.
+if [ -n "$ISOLATED_CORE" ]; then
+  echo "[+] Running benches on isolated core: $ISOLATED_CORE"
+  ISOL_CMD="taskset -c $ISOLATED_CORE"
+fi
+
 # Define the error file.
 ERR_FILE="scripts/benchmarking/benchmarking_errors.txt"
 # Delete the error file before each run.
@@ -155,7 +177,7 @@ for PALLET in "${PALLETS[@]}"; do
   echo "[+] Benchmarking $PALLET with weight file $WEIGHT_FILE";
 
   OUTPUT=$(
-    $GEAR benchmark pallet \
+    $ISOL_CMD $GEAR benchmark pallet \
     --chain="$chain_spec" \
     --steps=$BENCHMARK_STEPS \
     --repeat=$BENCHMARK_REPEAT \
@@ -176,7 +198,7 @@ for PALLET in "${PALLETS[@]}"; do
   then
     echo "[+] Benchmarking $PALLET one-time syscalls with weight file ./${WEIGHTS_OUTPUT}/${PALLET}_onetime.rs";
     OUTPUT=$(
-        $GEAR benchmark pallet \
+        $ISOL_CMD $GEAR benchmark pallet \
         --chain="$chain_spec" \
         --steps=$BENCHMARK_STEPS_ONE_TIME_EXTRINSICS \
         --repeat=$BENCHMARK_REPEAT_ONE_TIME_EXTRINSICS \
@@ -198,7 +220,7 @@ if [ "$skip_machine_benchmark" != true ]
 then
   echo "[+] Benchmarking the machine..."
   OUTPUT=$(
-    $GEAR benchmark machine --chain=$chain_spec --allow-fail 2>&1
+    $ISOL_CMD $GEAR benchmark machine --chain=$chain_spec --allow-fail 2>&1
   )
   # In any case don't write errors to the error file since they're not benchmarking errors.
   echo "[x] Machine benchmark:\n$OUTPUT"
@@ -208,7 +230,7 @@ fi
 # If `-s` is used, run the storage benchmark.
 if [ ! -z "$storage_folder" ]; then
   OUTPUT=$(
-  $GEAR benchmark storage \
+  $ISOL_CMD $GEAR benchmark storage \
     --chain=$chain_spec \
     --state-version=1 \
     --warmups=10 \
