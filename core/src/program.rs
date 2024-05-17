@@ -140,12 +140,12 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
-    /// Test that ProgramId's `from_slice(...)` constructor causes panic
+    /// Test that ProgramId's `try_from(bytes)` constructor causes panic
     /// when the argument has the wrong length
     fn program_id_from_slice_error_implementation() {
         let bytes = "foobar";
-        let _: ProgramId = bytes.as_bytes().try_into().unwrap();
+        let result: Result<ProgramId, _> = bytes.as_bytes().try_into();
+        assert!(result.is_err());
     }
 
     #[test]
