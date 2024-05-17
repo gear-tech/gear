@@ -1022,6 +1022,8 @@ mod tests {
 
     #[test]
     fn global_section_bytes() {
+        const INSTRUMENTATION_GLOBALS_SIZE: usize = mem::size_of::<i32>() + mem::size_of::<i64>();
+
         let wat = r#"
             (module
                 (import "env" "memory" (memory 3))
@@ -1038,7 +1040,8 @@ mod tests {
                 .unwrap()
                 .section_sizes
                 .global_section_bytes,
-            (mem::size_of::<i32>() * 2 + mem::size_of::<i64>()) as u32,
+            (INSTRUMENTATION_GLOBALS_SIZE + mem::size_of::<i32>() * 2 + mem::size_of::<i64>())
+                as u32,
         );
     }
 
@@ -1080,7 +1083,7 @@ mod tests {
                 .unwrap()
                 .section_sizes
                 .type_section_bytes,
-            46,
+            50,
         );
     }
 }
