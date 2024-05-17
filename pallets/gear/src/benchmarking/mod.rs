@@ -116,6 +116,7 @@ const MAX_PAYLOAD_LEN_KB: u32 = MAX_PAYLOAD_LEN / 1024;
 const MAX_PAGES: u32 = 512;
 const MAX_SALT_SIZE_BYTES: u32 = 4 * 1024 * 1024;
 const MAX_NUMBER_OF_DATA_SEGMENTS: u32 = 1024;
+const MAX_TABLE_ENTRIES: u32 = 10_000_000;
 
 /// How many batches we do per API benchmark.
 const API_BENCHMARK_BATCHES: u32 = 20;
@@ -405,11 +406,22 @@ benchmarks! {
         Environment::new(ext, &code, DispatchKind::Init, Default::default(), max_pages::<T>().into()).unwrap();
     }
 
-    // `t`: Size of the table section in kilobytes.
+    // `t`: Size of the memory allocated for the table after instantiation, in kilobytes.
     instantiate_module_table_section_per_kb {
-        let t in 0 .. T::Schedule::get().limits.code_len / 1024;
+        let t in 0 .. MAX_TABLE_ENTRIES / 1024;
 
-        let WasmModule { code, .. } = WasmModule::<T>::sized_table_section(t * 1024);
+        let WasmModule { code, .. } = WasmModule::<T>::sized_table_section(t * 1024, None);
+        let ext = Externalities::new(ProcessorContext::new_mock());
+    }: {
+        Environment::new(ext, &code, DispatchKind::Init, Default::default(), max_pages::<T>().into()).unwrap();
+    }
+
+    // `e`: Size of the element section in kilobytes.
+    instantiate_module_element_section_per_kb {
+        let e in 0 .. T::Schedule::get().limits.code_len / 1024;
+
+        let max_table_size = T::Schedule::get().limits.code_len;
+        let WasmModule { code, .. } = WasmModule::<T>::sized_table_section(max_table_size, Some(e * 1024));
         let ext = Externalities::new(ProcessorContext::new_mock());
     }: {
         Environment::new(ext, &code, DispatchKind::Init, Default::default(), max_pages::<T>().into()).unwrap();
@@ -1732,6 +1744,7 @@ benchmarks! {
             table: Some(TableSegment {
                 num_elements,
                 function_index: OFFSET_AUX,
+                init_elements: Default::default(),
             }),
             .. Default::default()
         }));
@@ -1756,6 +1769,7 @@ benchmarks! {
             table: Some(TableSegment {
                 num_elements,
                 function_index: OFFSET_AUX,
+                init_elements: Default::default(),
             }),
             .. Default::default()
         }));
