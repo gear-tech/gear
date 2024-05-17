@@ -138,7 +138,6 @@ pub use pallet::*;
 #[cfg(test)]
 mod mock;
 
-pub mod add_section_sizes_migration;
 pub mod migrations;
 pub mod pallet_tests;
 

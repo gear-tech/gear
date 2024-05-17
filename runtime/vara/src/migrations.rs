@@ -27,7 +27,7 @@ pub type Migrations = (
     pallet_nomination_pools::migration::versioned_migrations::V6ToV7<Runtime>,
     staking_v13::MigrateToV13<Runtime>,
     // migration for added section sizes
-    pallet_gear_program::add_section_sizes_migration::AddSectionSizesMigration<Runtime>,
+    pallet_gear_program::migrations::add_section_sizes::AddSectionSizesMigration<Runtime>,
 );
 
 mod staking_v13 {

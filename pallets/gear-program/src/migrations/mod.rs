@@ -17,3 +17,5 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 // no migrations currently for pallet-gear-program
+
+pub mod add_section_sizes;
