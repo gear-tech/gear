@@ -32,8 +32,8 @@ runtime_imports() {
         cargo build -p wasm-proc
     fi
 
-    if [ ! -f target/debug/wbuild/vara-runtime/vara_runtime.compact.wasm ]; then
+    if [ ! -f target/debug/wbuild/vara-runtime/vara_runtime.wasm ]; then
         cargo build -p vara-runtime
     fi
-    ./target/debug/wasm-proc --check-runtime-imports target/debug/wbuild/vara-runtime/vara_runtime.compact.wasm
+    ./target/debug/wasm-proc --check-runtime-imports target/debug/wbuild/vara-runtime/vara_runtime.wasm
 }
