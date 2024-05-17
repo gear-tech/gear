@@ -363,9 +363,11 @@ pub fn async_init(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// # Usage
 ///
 /// ```ignore
+/// use gcore::errors::Result;
+///
 /// #[wait_for_reply]
 /// pub fn send_bytes<T: AsRef<[u8]>>(program: ActorId, payload: T, value: u128) -> Result<MessageId> {
-///   gcore::msg::send(program.into(), payload.as_ref(), value).into_result()
+///   gcore::msg::send(program.into(), payload.as_ref(), value)
 /// }
 /// ```
 ///

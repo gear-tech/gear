@@ -24,9 +24,9 @@
 
 use alloc::vec::Vec;
 use core::{fmt, str};
-use gcore::errors::Error as CoreError;
 
-pub use gcore::errors::*;
+pub use gcore::errors::{Error as CoreError, *};
+pub use scale_info::scale::Error as CodecError;
 
 /// `Result` type with a predefined error type ([`Error`]).
 pub type Result<T, E = Error> = core::result::Result<T, E>;
@@ -35,7 +35,7 @@ pub type Result<T, E = Error> = core::result::Result<T, E>;
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Error {
     /* Protocol under-hood errors */
-    /// [`gcore::errors::Error`] type.
+    /// Error type from `gcore`.
     ///
     /// NOTE: this error could only be returned from syscalls.
     Core(CoreError),
@@ -49,7 +49,7 @@ pub enum Error {
     /// `scale-codec` decoding error.
     ///
     /// NOTE: this error returns from APIs that return specific `Decode` types.
-    Decode(scale_info::scale::Error),
+    Decode(CodecError),
 
     /// Gstd API usage error.
     ///
@@ -183,19 +183,5 @@ impl fmt::Display for UsageError {
             }
             UsageError::ZeroMxLockDuration => write!(f, "Mutex lock duration can not be zero"),
         }
-    }
-}
-
-pub(crate) trait IntoResult<T> {
-    fn into_result(self) -> Result<T>;
-}
-
-impl<T, E, V> IntoResult<V> for core::result::Result<T, E>
-where
-    T: Into<V>,
-    E: Into<Error>,
-{
-    fn into_result(self) -> Result<V> {
-        self.map(Into::into).map_err(Into::into)
     }
 }

@@ -39,7 +39,7 @@ impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Error::SyscallUsage => write!(f, "syscall usage error"),
-            Error::Ext(e) => write!(f, "{}", e),
+            Error::Ext(e) => write!(f, "{e}"),
         }
     }
 }

@@ -16,10 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{
-    errors::{IntoResult, Result},
-    ReservationId,
-};
+use crate::ReservationId;
+use gcore::errors::Result;
 
 /// Reservation identifier extension.
 ///
@@ -79,10 +77,10 @@ pub trait ReservationIdExt: Sized {
 
 impl ReservationIdExt for ReservationId {
     fn reserve(amount: u64, duration: u32) -> Result<Self> {
-        gcore::exec::reserve_gas(amount, duration).into_result()
+        gcore::exec::reserve_gas(amount, duration)
     }
 
     fn unreserve(self) -> Result<u64> {
-        gcore::exec::unreserve_gas(self).into_result()
+        gcore::exec::unreserve_gas(self)
     }
 }
