@@ -24,6 +24,8 @@ jobs:
           linuxJobs='"linux (debug)", "win-cross (debug)"'
           osxJobs='"macos-x86 (debug)", "macos-aarch64 (debug)"'
           winJobs='"win-native (debug)"'
+          release="false"
+          production="false"
 
           if [ "${{ contains(github.event.pull_request.labels.*.name, 'E3-forcerelease') }}" = "true" ];
           then
@@ -31,6 +33,12 @@ jobs:
             linuxJobs+=', "linux (release)", "win-cross (release)"'
             osxJobs+=', "macos-x86 (release)", "macos-aarch64 (release)"'
             winJobs+=', "win-native (release)"'
+            release="true"
+          fi
+
+          if [ "${{ contains(github.event.pull_request.labels.*.name, 'E4-forceproduction') }}" = "true" ];
+          then
+            production="true"
           fi
 
           profiles="[${profiles}]"
@@ -41,6 +49,8 @@ jobs:
           echo "linuxJobs=${linuxJobs}" >> "$GITHUB_OUTPUT"
           echo "osxJobs=${osxJobs}" >> "$GITHUB_OUTPUT"
           echo "winJobs=${winJobs}" >> "$GITHUB_OUTPUT"
+          echo "release=${release}" >> "$GITHUB_OUTPUT"
+          echo "production=${production}" >> "$GITHUB_OUTPUT"
 
       - name: Fork Linux checks
         if: >-
@@ -57,16 +67,11 @@ jobs:
           prefix: "build"
           needs: '["dynamic-profiles"]'
           jobs: ${{ steps.detect-profiles.outputs.linuxJobs }}
-          inputs: |
-            '{
-              "title": "${{ github.event.pull_request.title }}",
-              "number": "${{ github.event.number }}",
-              "release": "${{
-                contains(github.event.pull_request.labels.*.name, 'E3-forcerelease')
-              }}",
-              "production": "${{
-                contains(github.event.pull_request.labels.*.name, 'E4-forceproduction')
-              }}"
+          inputs: '{
+            "title": "${{ github.event.pull_request.title }}",
+            "number": "${{ github.event.number }}",
+            "release": "${{ steps.detect-profiles.outputs.release }}",
+            "production": "${{ steps.detect-profiles.outputs.production }}"
             }'
 
       - name: Fork OSX checks
