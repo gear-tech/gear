@@ -89,7 +89,9 @@ use gear_core::{
 };
 use gear_core_backend::{
     env::Environment,
-    memory::{ExecutorMemory, MemoryWrap},
+    memory::{BackendMemory, ExecutorMemory},
+    mock::MockExt,
+    state::HostState,
 };
 use gear_core_errors::*;
 use gear_sandbox::{default_executor::Store, SandboxMemory, SandboxStore};
@@ -113,6 +115,7 @@ const MAX_PAYLOAD_LEN: u32 = 32 * 64 * 1024;
 const MAX_PAYLOAD_LEN_KB: u32 = MAX_PAYLOAD_LEN / 1024;
 const MAX_PAGES: u32 = 512;
 const MAX_SALT_SIZE_BYTES: u32 = 4 * 1024 * 1024;
+const MAX_NUMBER_OF_DATA_SEGMENTS: u32 = 1024;
 
 /// How many batches we do per API benchmark.
 const API_BENCHMARK_BATCHES: u32 = 20;
@@ -372,13 +375,53 @@ benchmarks! {
         BenchmarkStorage::<T>::get(c).expect("Infallible: Key not found in storage");
     }
 
-    // `c`: Size of the code in kilobytes.
-    instantiate_module_per_kb {
+    // `c`: Size of the code section in kilobytes.
+    instantiate_module_code_section_per_kb {
         let c in 0 .. T::Schedule::get().limits.code_len / 1024;
 
         let WasmModule { code, .. } = WasmModule::<T>::sized(c * 1024, Location::Init);
-    }: {
         let ext = Externalities::new(ProcessorContext::new_mock());
+    }: {
+        Environment::new(ext, &code, DispatchKind::Init, Default::default(), max_pages::<T>().into()).unwrap();
+    }
+
+    // `d`: Size of the data section in kilobytes.
+    instantiate_module_data_section_per_kb {
+        let d in 0 .. T::Schedule::get().limits.code_len / 1024;
+
+        let WasmModule { code, .. } = WasmModule::<T>::sized_data_section(d * 1024, MAX_NUMBER_OF_DATA_SEGMENTS);
+        let ext = Externalities::new(ProcessorContext::new_mock());
+    }: {
+        Environment::new(ext, &code, DispatchKind::Init, Default::default(), max_pages::<T>().into()).unwrap();
+    }
+
+    // `g`: Size of the global section in kilobytes.
+    instantiate_module_global_section_per_kb {
+        let g in 0 .. T::Schedule::get().limits.code_len / 1024;
+
+        let WasmModule { code, .. } = WasmModule::<T>::sized_global_section(g * 1024);
+        let ext = Externalities::new(ProcessorContext::new_mock());
+    }: {
+        Environment::new(ext, &code, DispatchKind::Init, Default::default(), max_pages::<T>().into()).unwrap();
+    }
+
+    // `t`: Size of the table section in kilobytes.
+    instantiate_module_table_section_per_kb {
+        let t in 0 .. T::Schedule::get().limits.code_len / 1024;
+
+        let WasmModule { code, .. } = WasmModule::<T>::sized_table_section(t * 1024);
+        let ext = Externalities::new(ProcessorContext::new_mock());
+    }: {
+        Environment::new(ext, &code, DispatchKind::Init, Default::default(), max_pages::<T>().into()).unwrap();
+    }
+
+    // `t`: Size of the type section in kilobytes.
+    instantiate_module_type_section_per_kb {
+        let t in 0 .. T::Schedule::get().limits.code_len / 1024;
+
+        let WasmModule { code, .. } = WasmModule::<T>::sized_type_section(t * 1024);
+        let ext = Externalities::new(ProcessorContext::new_mock());
+    }: {
         Environment::new(ext, &code, DispatchKind::Init, Default::default(), max_pages::<T>().into()).unwrap();
     }
 
@@ -1439,12 +1482,12 @@ benchmarks! {
 
     mem_grow {
         let r in 0 .. API_BENCHMARK_BATCHES;
-        let mut store = Store::new(None);
+        let mut store = Store::<HostState<MockExt, BackendMemory<ExecutorMemory>>>::new(None);
         let mem = ExecutorMemory::new(&mut store, 1, None).unwrap();
-        let mut mem = MemoryWrap::<gear_core_backend::mock::MockExt>::new(mem, store);
+        let mem = BackendMemory::from(mem);
     }: {
         for _ in 0..(r * API_BENCHMARK_BATCH_SIZE) {
-            mem.grow(1.into()).unwrap();
+            mem.grow(&mut store, 1.into()).unwrap();
         }
     }
 

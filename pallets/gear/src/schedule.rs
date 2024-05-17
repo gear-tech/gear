@@ -68,6 +68,11 @@ pub const STACK_HEIGHT_LIMIT: u32 = 36_743;
 #[cfg(feature = "fuzz")]
 pub const FUZZER_STACK_HEIGHT_LIMIT: u32 = 65_000;
 
+/// Maximum number of data segments in a wasm module.
+/// It has been determined that the maximum number of data segments in a wasm module
+/// does not exceed 1024 by a large margin.
+pub const DATA_SEGMENTS_AMOUNT_LIMIT: u32 = 1024;
+
 /// Definition of the cost schedule and other parameterization for the wasm vm.
 ///
 /// Its [`Default`] implementation is the designated way to initialize this type. It uses
@@ -202,6 +207,9 @@ pub struct Limits {
     /// version of the code. Therefore `instantiate_with_code` can fail even when supplying
     /// a wasm binary below this maximum size.
     pub code_len: u32,
+
+    /// The maximum number of wasm data segments allowed for a program.
+    pub data_segments_amount: u32,
 }
 
 impl Limits {
@@ -755,7 +763,9 @@ impl<T: Config> Default for Schedule<T> {
             memory_weights: Default::default(),
             db_write_per_byte: to_weight!(cost_byte!(db_write_per_kb)),
             db_read_per_byte: to_weight!(cost_byte!(db_read_per_kb)),
-            module_instantiation_per_byte: to_weight!(cost_byte!(instantiate_module_per_kb)),
+            module_instantiation_per_byte: to_weight!(cost_byte!(
+                instantiate_module_code_section_per_kb
+            )),
             code_instrumentation_cost: call_zero!(reinstrument_per_kb, 0),
             code_instrumentation_byte_cost: to_weight!(cost_byte!(reinstrument_per_kb)),
         }
@@ -769,6 +779,7 @@ impl Default for Limits {
             stack_height: Some(STACK_HEIGHT_LIMIT),
             #[cfg(feature = "fuzz")]
             stack_height: Some(FUZZER_STACK_HEIGHT_LIMIT),
+            data_segments_amount: DATA_SEGMENTS_AMOUNT_LIMIT,
             globals: 256,
             locals: 1024,
             parameters: 128,
@@ -787,7 +798,7 @@ impl Default for Limits {
 impl<T: Config> Default for InstructionWeights<T> {
     fn default() -> Self {
         Self {
-            version: 1300,
+            version: 1400,
             i64const: cost_instr!(instr_i64const, 1),
             i64load: cost_instr!(instr_i64load, 0),
             i32load: cost_instr!(instr_i32load, 0),

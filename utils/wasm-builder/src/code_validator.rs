@@ -319,7 +319,13 @@ impl CodeValidator {
     /// Validates wasm code in the same way as
     /// `pallet_gear::pallet::Pallet::upload_program(...)`.
     pub fn validate_program(self) -> anyhow::Result<()> {
-        match Code::try_new(self.code, 1, |_| CustomConstantCostRules::default(), None) {
+        match Code::try_new(
+            self.code,
+            1,
+            |_| CustomConstantCostRules::default(),
+            None,
+            None,
+        ) {
             Err(code_error) => Err(CodeErrorWithContext::from((self.module, code_error)))?,
             _ => Ok(()),
         }
