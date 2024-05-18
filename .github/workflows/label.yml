@@ -19,15 +19,13 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Fork Linux checks
-        # if: >-
-        #   github.event.label.name == 'A0-pleasereview'
-        #     || github.event.label.name == 'A4-insubstantial'
-        #     || github.event.label.name == 'A2-mergeoncegreen'
+        if: >-
+          github.event.label.name == 'A0-pleasereview'
+            || github.event.label.name == 'A4-insubstantial'
+            || github.event.label.name == 'A2-mergeoncegreen'
         uses: gear-tech/fork-action@cl/profiles
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          # head_sha: ${{ github.event.pull_request.head.sha }}
-          # ref: ${{ github.head_ref || github.ref_name }}
           workflow_id: ".github/workflows/build.yml"
           prefix: "build"
           jobs: '["linux", "win-cross"]'
@@ -42,9 +40,6 @@ jobs:
         uses: gear-tech/fork-action@cl/profiles
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          # head_sha: ${{ github.event.pull_request.head.sha }}
-          # ref: ${{ github.head_ref || github.ref_name }}
-          # repo: "gear-tech/gear"
           workflow_id: ".github/workflows/build-macos.yml"
           prefix: "build"
           jobs: '[ "macos-x86", "macos-aarch64" ]'
@@ -55,8 +50,6 @@ jobs:
         uses: gear-tech/fork-action@cl/profiles
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          # head_sha: ${{ github.event.pull_request.head.sha }}
-          # ref: ${{ github.head_ref || github.ref_name }}
           workflow_id: ".github/workflows/build-win-native.yml"
           prefix: "build"
           jobs: '[ "win-native" ]'
