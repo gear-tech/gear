@@ -881,7 +881,7 @@ impl ExtManager {
 
         let precharged_dispatch = match core_processor::precharge_for_program(
             &block_config,
-            // TODO: use proper changeable value
+            // TODO: use proper changeable value # 3977
             GAS_ALLOWANCE,
             dispatch.into_incoming(gas_limit),
             dest,
@@ -1007,7 +1007,6 @@ impl JournalHandler for ExtManager {
 
             self.dispatches.push_back(dispatch.into_stored());
         } else {
-            // TODO: change when charge for resources is implemented;
             let gas_limit = dispatch.gas_limit().unwrap_or_default();
             let stored_message = dispatch.into_stored().into_parts().1;
 
