@@ -85,7 +85,7 @@ use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
     memory::Memory,
     message::DispatchKind,
-    pages::WasmPage,
+    pages::{WasmPage, WasmPagesAmount},
 };
 use gear_core_backend::{
     env::Environment,
@@ -113,7 +113,6 @@ use sp_std::prelude::*;
 
 const MAX_PAYLOAD_LEN: u32 = 32 * 64 * 1024;
 const MAX_PAYLOAD_LEN_KB: u32 = MAX_PAYLOAD_LEN / 1024;
-const MAX_PAGES: u32 = 512;
 const MAX_SALT_SIZE_BYTES: u32 = 4 * 1024 * 1024;
 const MAX_NUMBER_OF_DATA_SEGMENTS: u32 = 1024;
 
@@ -475,10 +474,10 @@ benchmarks! {
         assert!(<T as pallet::Config>::CodeStorage::exists(code_id));
     }
 
-    // The size of the salt influences the runtime because is is hashed in order to
+    // The size of the salt influences the runtime because it is hashed in order to
     // determine the program address.
     //
-    // `s`: Size of the salt in kilobytes.
+    // `s`: Size of the salt in bytes.
     create_program {
         let s in 0 .. MAX_SALT_SIZE_BYTES;
 
@@ -506,7 +505,7 @@ benchmarks! {
     // determine the program address.
     //
     // `c`: Size of the code in kilobytes.
-    // `s`: Size of the salt in kilobytes.
+    // `s`: Size of the salt in bytes.
     //
     // # Note
     //
@@ -514,7 +513,7 @@ benchmarks! {
     // to be larger than the maximum size **after instrumentation**.
     upload_program {
         let c in 0 .. Perbill::from_percent(49).mul_ceil(T::Schedule::get().limits.code_len) / 1024;
-        let s in 0 .. code::max_pages::<T>() as u32 * 64 * 128;
+        let s in 0 .. MAX_SALT_SIZE_BYTES;
         let salt = vec![42u8; s as usize];
         let value = CurrencyOf::<T>::minimum_balance();
         let caller = whitelisted_caller();
@@ -600,11 +599,10 @@ benchmarks! {
         Gear::<T>::reinstrument_code(code_id, &schedule).expect("Re-instrumentation  failed");
     }
 
-    // Alloc there 1 page because `alloc` execution time is non-linear along with other amounts of pages.
     alloc {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;
-        let exec = Benches::<T>::alloc(r, 1)?;
+        let exec = Benches::<T>::alloc(r)?;
     }: {
         res.replace(run_process(exec));
     }
@@ -612,15 +610,27 @@ benchmarks! {
         verify_process(res.unwrap());
     }
 
-    alloc_per_page {
-        let p in 1 .. MAX_PAGES;
-        let mut res = None;
-        let exec = Benches::<T>::alloc(1, p)?;
+    mem_grow {
+        let r in 0 .. API_BENCHMARK_BATCHES;
+        let mut store = Store::<HostState<MockExt, BackendMemory<ExecutorMemory>>>::new(None);
+        let mem = ExecutorMemory::new(&mut store, 1, None).unwrap();
+        let mem = BackendMemory::from(mem);
     }: {
-        res.replace(run_process(exec));
+        for _ in 0..(r * API_BENCHMARK_BATCH_SIZE) {
+            mem.grow(&mut store, 1.into()).unwrap();
+        }
+
     }
-    verify {
-        verify_process(res.unwrap());
+
+    mem_grow_per_page {
+        let p in 1 .. u32::from(WasmPagesAmount::UPPER) / API_BENCHMARK_BATCH_SIZE;
+        let mut store = Store::<HostState<MockExt, BackendMemory<ExecutorMemory>>>::new(None);
+        let mem = ExecutorMemory::new(&mut store, 1, None).unwrap();
+        let mem = BackendMemory::from(mem);
+    }: {
+        for _ in 0..API_BENCHMARK_BATCH_SIZE {
+            mem.grow(&mut store, (p as u16).into()).unwrap();
+        }
     }
 
     free {
@@ -646,7 +656,7 @@ benchmarks! {
     }
 
     free_range_per_page {
-        let p in 1 .. API_BENCHMARK_BATCHES;
+        let p in 1 .. 700;
         let mut res = None;
         let exec = Benches::<T>::free_range(1, p)?;
     }: {
@@ -1478,17 +1488,6 @@ benchmarks! {
     }
     verify {
         verify_process(res.unwrap());
-    }
-
-    mem_grow {
-        let r in 0 .. API_BENCHMARK_BATCHES;
-        let mut store = Store::<HostState<MockExt, BackendMemory<ExecutorMemory>>>::new(None);
-        let mem = ExecutorMemory::new(&mut store, 1, None).unwrap();
-        let mem = BackendMemory::from(mem);
-    }: {
-        for _ in 0..(r * API_BENCHMARK_BATCH_SIZE) {
-            mem.grow(&mut store, 1.into()).unwrap();
-        }
     }
 
     // w_load = w_bench

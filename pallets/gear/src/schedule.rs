@@ -212,13 +212,6 @@ pub struct Limits {
     pub data_segments_amount: u32,
 }
 
-impl Limits {
-    /// The maximum memory size in bytes that a program can occupy.
-    pub fn max_memory_size(&self) -> u32 {
-        self.memory_pages as u32 * 64 * 1024
-    }
-}
-
 /// Describes the weight for all categories of supported wasm instructions.
 ///
 /// There there is one field for each wasm instruction that describes the weight to
@@ -356,9 +349,6 @@ pub struct InstructionWeights<T: Config> {
 pub struct SyscallWeights<T: Config> {
     /// Weight of calling `alloc`.
     pub alloc: Weight,
-
-    /// Weight per page in `alloc`.
-    pub alloc_per_page: Weight,
 
     /// Weight of calling `free`.
     pub free: Weight,
@@ -620,6 +610,9 @@ pub struct MemoryWeights<T: Config> {
 
     /// Cost per one [WasmPage] for memory growing.
     pub mem_grow: Weight,
+
+    /// Cost per one [WasmPage] for memory growing.
+    pub mem_grow_per_page: Weight,
 
     /// Cost per one [GearPage].
     /// When we read page data from storage in para-chain, then it should be sent to relay-chain,
@@ -895,7 +888,6 @@ impl<T: Config> From<SyscallWeights<T>> for SyscallCosts {
     fn from(weights: SyscallWeights<T>) -> SyscallCosts {
         SyscallCosts {
             alloc: weights.alloc.ref_time().into(),
-            alloc_per_page: weights.alloc_per_page.ref_time().into(),
             free: weights.free.ref_time().into(),
             free_range: weights.free_range.ref_time().into(),
             free_range_per_page: weights.free_range_per_page.ref_time().into(),
@@ -1022,14 +1014,11 @@ impl<T: Config> Default for SyscallWeights<T> {
             gr_reply_push_input: to_weight!(cost_batched!(gr_reply_push_input)),
             gr_reply_push_input_per_byte: to_weight!(cost_byte!(gr_reply_push_input_per_kb)),
 
-            // Alloc benchmark causes grow memory calls so we subtract it here as grow is charged separately.
-            alloc: to_weight!(cost_batched!(alloc))
-                .saturating_sub(to_weight!(cost_batched!(alloc_per_page)))
-                .saturating_sub(to_weight!(cost_batched!(mem_grow))),
-            alloc_per_page: to_weight!(cost_batched!(alloc_per_page)),
+            alloc: to_weight!(cost_batched!(alloc)),
             free: to_weight!(cost_batched!(free)),
             free_range: to_weight!(cost_batched!(free_range)),
             free_range_per_page: to_weight!(cost_batched!(free_range_per_page)),
+
             gr_reserve_gas: to_weight!(cost!(gr_reserve_gas)),
             gr_system_reserve_gas: to_weight!(cost_batched!(gr_system_reserve_gas)),
             gr_unreserve_gas: to_weight!(cost!(gr_unreserve_gas)),
@@ -1142,6 +1131,7 @@ impl<T: Config> Default for MemoryWeights<T> {
             // TODO: make benches to calculate static page cost and mem grow cost (issue #2226)
             static_page: Weight::from_parts(100, 0),
             mem_grow: to_weight!(cost_batched!(mem_grow)),
+            mem_grow_per_page: to_weight!(cost_batched!(mem_grow_per_page)),
             // TODO: make it non-zero for para-chains (issue #2225)
             parachain_read_heuristic: Weight::zero(),
             _phantom: PhantomData,
@@ -1180,6 +1170,7 @@ impl<T: Config> Schedule<T> {
                     reservation: CostsPerBlockOf::<T>::reservation().into(),
                 },
                 mem_grow: self.memory_weights.mem_grow.ref_time().into(),
+                mem_grow_per_page: self.memory_weights.mem_grow_per_page.ref_time().into(),
             },
             lazy_pages: self.memory_weights.clone().into(),
             read: DbWeightOf::<T>::get().reads(1).ref_time().into(),
