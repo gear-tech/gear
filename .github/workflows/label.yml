@@ -35,7 +35,7 @@ jobs:
           useMulti: true
           inputs: '{
             "title": "${{ github.event.pull_request.title }}",
-            "number": "${{ github.event.number }}",
+            "number": "${{ github.event.number }}"
           }'
 
       - name: Fork OSX checks
