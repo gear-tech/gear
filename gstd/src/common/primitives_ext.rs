@@ -19,6 +19,14 @@
 use crate::ReservationId;
 use gcore::errors::Result;
 
+mod private {
+    use crate::ReservationId;
+
+    pub trait Sealed {}
+
+    impl Sealed for ReservationId {}
+}
+
 /// Reservation identifier extension.
 ///
 /// The identifier is used to reserve and unreserve gas amount for program
@@ -43,7 +51,7 @@ use gcore::errors::Result;
 ///     reservation_id.unreserve().expect("Unable to unreserve");
 /// }
 /// ```
-pub trait ReservationIdExt: Sized {
+pub trait ReservationIdExt: private::Sealed + Sized {
     /// Reserve the `amount` of gas for further usage.
     ///
     /// `duration` is the block count within which the reserve must be used.

@@ -51,8 +51,19 @@ pub mod prelude {
     //! The purpose of this module is to make it easier to import `gprimitives` extensions.
     use super::*;
 
+    mod private {
+        use super::*;
+
+        pub trait Sealed {}
+
+        impl Sealed for ActorId {}
+        impl Sealed for CodeId {}
+        impl Sealed for MessageId {}
+        impl Sealed for ReservationId {}
+    }
+
     /// Program (actor) identifier extension.
-    pub trait ActorIdExt {
+    pub trait ActorIdExt: private::Sealed {
         /// System program identifier.
         const SYSTEM: Self;
 
@@ -78,7 +89,7 @@ pub mod prelude {
     }
 
     /// Message identifier extension.
-    pub trait MessageIdExt {
+    pub trait MessageIdExt: private::Sealed {
         /// Generates `MessageId` for non-program outgoing message.
         fn generate_from_user(
             block_number: u32,
@@ -132,7 +143,7 @@ pub mod prelude {
     }
 
     /// Code identifier extension.
-    pub trait CodeIdExt {
+    pub trait CodeIdExt: private::Sealed {
         /// Generates `CodeId` from given code.
         fn generate(code: &[u8]) -> Self;
     }
@@ -144,7 +155,7 @@ pub mod prelude {
     }
 
     /// Reservation identifier extension.
-    pub trait ReservationIdExt {
+    pub trait ReservationIdExt: private::Sealed {
         /// Generates `ReservationId` from given message and nonce.
         fn generate(msg_id: MessageId, nonce: u64) -> Self;
     }
