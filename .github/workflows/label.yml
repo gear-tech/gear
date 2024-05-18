@@ -28,7 +28,6 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           # head_sha: ${{ github.event.pull_request.head.sha }}
           # ref: ${{ github.head_ref || github.ref_name }}
-          # repo: "gear-tech/gear"
           workflow_id: ".github/workflows/build.yml"
           prefix: "build"
           jobs: '["linux", "win-cross"]'
@@ -58,7 +57,6 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           # head_sha: ${{ github.event.pull_request.head.sha }}
           # ref: ${{ github.head_ref || github.ref_name }}
-          # repo: "gear-tech/gear"
           workflow_id: ".github/workflows/build-win-native.yml"
           prefix: "build"
           jobs: '[ "win-native" ]'
