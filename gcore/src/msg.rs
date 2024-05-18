@@ -42,7 +42,9 @@
 
 use crate::{
     errors::{Error, Result, SyscallError},
-    stack_buffer, ActorId, MessageHandle, MessageId, ReservationId,
+    stack_buffer,
+    utils::AsRawPtr,
+    ActorId, MessageHandle, MessageId, ReservationId,
 };
 use gear_core_errors::{ReplyCode, SignalCode};
 use gsys::{
@@ -128,7 +130,7 @@ pub fn signal_code() -> Result<Option<SignalCode>> {
 /// ```
 pub fn id() -> MessageId {
     let mut message_id = MessageId::default();
-    unsafe { gsys::gr_message_id(message_id.as_mut().as_mut_ptr() as _) }
+    unsafe { gsys::gr_message_id(message_id.as_mut_ptr()) }
     message_id
 }
 
@@ -1261,7 +1263,7 @@ pub fn size() -> usize {
 /// ```
 pub fn source() -> ActorId {
     let mut source = ActorId::default();
-    unsafe { gsys::gr_source(source.as_mut().as_mut_ptr() as _) }
+    unsafe { gsys::gr_source(source.as_mut_ptr()) }
     source
 }
 
