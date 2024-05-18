@@ -111,13 +111,24 @@ impl fmt::Display for ActorId {
             f.write_str(concat!(stringify!(ActorId), "("))?;
         }
 
-        let version = if f.sign_plus() {
+        let sign_plus = f.sign_plus();
+        let width = f.width();
+
+        if sign_plus && width.is_some() {
+            return Err(fmt::Error);
+        }
+
+        let version = if sign_plus {
             Some(gear_ss58::VARA_SS58_PREFIX)
-        } else if let Some(version) = f.width() {
+        } else if let Some(version) = width {
             Some(version.try_into().map_err(|_| fmt::Error)?)
         } else {
             None
         };
+
+        if version.is_some() && f.precision().is_some() {
+            return Err(fmt::Error);
+        }
 
         if let Some(version) = version {
             self.to_ss58check_with_version(version)
@@ -216,3 +227,96 @@ impl FromStr for CodeId {
 pub struct ReservationId([u8; 32]);
 
 macros::impl_primitive!(new zero into_bytes from_u64 from_h256 display debug, ReservationId);
+
+#[cfg(test)]
+mod tests {
+    extern crate alloc;
+
+    use crate::ActorId;
+    use alloc::format;
+    use core::str::FromStr;
+
+    fn actor_id() -> ActorId {
+        ActorId::from_str("0x6a519a19ffdfd8f45c310b44aecf156b080c713bf841a8cb695b0ea5f765ed3e")
+            .unwrap()
+    }
+
+    #[test]
+    #[should_panic]
+    fn wrong_format1_test() {
+        let id = actor_id();
+        format!("{id:+42}");
+    }
+
+    #[test]
+    #[should_panic]
+    fn wrong_format2_test() {
+        let id = actor_id();
+        format!("{id:+.2}");
+    }
+
+    #[test]
+    fn formatting_test() {
+        let id = actor_id();
+
+        // `Debug`/`Display`.
+        assert_eq!(
+            format!("{id:?}"),
+            "0x6a519a19ffdfd8f45c310b44aecf156b080c713bf841a8cb695b0ea5f765ed3e"
+        );
+        // `Debug`/`Display` with precision 0.
+        assert_eq!(format!("{id:.0?}"), "0x..");
+        // `Debug`/`Display` with precision 1.
+        assert_eq!(format!("{id:.1?}"), "0x6a..3e");
+        // `Debug`/`Display` with precision 2.
+        assert_eq!(format!("{id:.2?}"), "0x6a51..ed3e");
+        // `Debug`/`Display` with precision 4.
+        assert_eq!(format!("{id:.4?}"), "0x6a519a19..f765ed3e");
+        // `Debug`/`Display` with precision 15.
+        assert_eq!(
+            format!("{id:.15?}"),
+            "0x6a519a19ffdfd8f45c310b44aecf15..0c713bf841a8cb695b0ea5f765ed3e"
+        );
+        // `Debug`/`Display` with precision 30 (the same for any case >= 16).
+        assert_eq!(
+            format!("{id:.30?}"),
+            "0x6a519a19ffdfd8f45c310b44aecf156b080c713bf841a8cb695b0ea5f765ed3e"
+        );
+        // `Debug`/`Display` with sign + (vara address).
+        assert_eq!(
+            format!("{id:+}"),
+            "kGhwPiWGsCZkaUNqotftspabNLRTcNoMe5APCSDJM2uJv6PSm"
+        );
+        // `Debug`/`Display` with width (custom address, 42 means substrate).
+        assert_eq!(
+            format!("{id:42}"),
+            "5EU7B2s4m2XrgSbUyt8U92fDpSi2EtW3Z3kKwUW4drZ1KAZD"
+        );
+        // Alternate formatter.
+        assert_eq!(
+            format!("{id:#}"),
+            "ActorId(0x6a519a19ffdfd8f45c310b44aecf156b080c713bf841a8cb695b0ea5f765ed3e)"
+        );
+        // Alternate formatter with precision 2.
+        assert_eq!(format!("{id:#.2}"), "ActorId(0x6a51..ed3e)");
+        // Alternate formatter with sign + (vara address).
+        assert_eq!(
+            format!("{id:+#}"),
+            "ActorId(kGhwPiWGsCZkaUNqotftspabNLRTcNoMe5APCSDJM2uJv6PSm)"
+        );
+        // Alternate formatter with width (custom address, 42 means substrate).
+        assert_eq!(
+            format!("{id:#42}"),
+            "ActorId(5EU7B2s4m2XrgSbUyt8U92fDpSi2EtW3Z3kKwUW4drZ1KAZD)"
+        );
+    }
+
+    /// Test that ActorId's `try_from(bytes)` constructor causes panic
+    /// when the argument has the wrong length
+    #[test]
+    fn actor_id_from_slice_error_implementation() {
+        let bytes = "foobar";
+        let result: Result<ActorId, _> = bytes.as_bytes().try_into();
+        assert!(result.is_err());
+    }
+}
