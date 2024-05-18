@@ -77,7 +77,7 @@ pub struct MessageHandle(u32);
 /// Gear allows user and program interactions via messages. Source and target
 /// program as well as user are represented by 256-bit identifier `ActorId`
 /// struct. The source `ActorId` for a message being processed can be obtained
-/// using `msg::source()` function. Also, each send function has a target
+/// using `gstd::msg::source()` function. Also, each send function has a target
 /// `ActorId` as one of the arguments.
 #[derive(Clone, Copy, Default, Hash, Ord, PartialEq, PartialOrd, Eq, From, Into, AsRef, AsMut)]
 #[as_ref(forward)]
@@ -175,8 +175,8 @@ impl FromStr for ActorId {
 /// Gear allows users and program interactions via messages. Each message has
 /// its own unique 256-bit id. This id is represented via the `MessageId`
 /// struct. The message identifier can be obtained for the currently processed
-/// message using the `msg::id()` function. Also, each send and reply functions
-/// return a message identifier.
+/// message using the `gstd::msg::id()` function. Also, each send and reply
+/// functions return a message identifier.
 #[derive(Clone, Copy, Default, Hash, Ord, PartialEq, PartialOrd, Eq, From, Into, AsRef, AsMut)]
 #[as_ref(forward)]
 #[as_mut(forward)]
@@ -191,8 +191,8 @@ macros::impl_primitive!(new zero into_bytes from_u64 from_h256 display debug, Me
 /// `gear.uploadCode` extrinsic. Actually, the code identifier is the Blake2
 /// hash of the Wasm binary code blob.
 ///
-/// Code identifier is required when creating programs from programs (see `prog`
-/// module for details).
+/// Code identifier is required when creating programs from programs (see
+/// `gstd::prog` module for details).
 #[derive(Clone, Copy, Default, Hash, Ord, PartialEq, PartialOrd, Eq, From, Into, AsRef, AsMut)]
 #[as_ref(forward)]
 #[as_mut(forward)]
