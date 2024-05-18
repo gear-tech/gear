@@ -5322,9 +5322,8 @@ dependencies = [
 name = "gstd-codegen"
 version = "1.4.1"
 dependencies = [
- "gear-ss58",
+ "gprimitives",
  "gstd",
- "hex",
  "proc-macro2",
  "quote",
  "syn 2.0.63",

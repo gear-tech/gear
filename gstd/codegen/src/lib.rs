@@ -19,10 +19,11 @@
 //! Provides macros for async runtime of Gear programs.
 
 use core::fmt::Display;
+use gprimitives::ActorId;
 use proc_macro::TokenStream;
 use proc_macro2::Ident;
 use quote::{quote, ToTokens};
-use std::collections::BTreeSet;
+use std::{collections::BTreeSet, str::FromStr};
 use syn::{
     parse::{Parse, ParseStream},
     punctuated::Punctuated,
@@ -38,17 +39,9 @@ static mut HANDLE_REPLY_FLAG: Flag = Flag(false);
 static mut HANDLE_SIGNAL_FLAG: Flag = Flag(false);
 
 fn literal_to_actor_id(literal: syn::LitStr) -> syn::Result<TokenStream> {
-    let actor_id = if let Some(actor_id_hex) = literal.value().strip_prefix("0x") {
-        if actor_id_hex.len() != 64 {
-            return Err(syn::Error::new_spanned(
-                literal,
-                "ActorId must be 32 bytes in length",
-            ));
-        }
-        hex::decode(actor_id_hex).map_err(|err| syn::Error::new_spanned(literal, err))?
-    } else {
-        gear_ss58::decode(&literal.value()).map_err(|err| syn::Error::new_spanned(literal, err))?
-    };
+    let actor_id: [u8; 32] = ActorId::from_str(&literal.value())
+        .map_err(|err| syn::Error::new_spanned(literal, err))?
+        .into();
 
     let actor_id_array = format!("{actor_id:?}")
         .parse::<proc_macro2::TokenStream>()
