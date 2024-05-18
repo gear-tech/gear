@@ -1,6 +1,6 @@
 [package]
 name = "gprimitives"
-description = "Gear programs primitives"
+description = "Gear programs' primitives"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
