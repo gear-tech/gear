@@ -21,6 +21,7 @@ use frame_support::traits::tokens::Balance as BalanceTrait;
 use sp_runtime::{traits::Zero, RuntimeDebug};
 use sp_std::marker::PhantomData;
 
+#[cfg(feature = "std")]
 mod auxiliary;
 mod error;
 mod internal;
