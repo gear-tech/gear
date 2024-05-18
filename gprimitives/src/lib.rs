@@ -24,6 +24,7 @@
 #![doc(html_favicon_url = "https://gear-tech.io/favicons/favicon.ico")]
 
 pub use gear_ss58::Ss58Address;
+pub use primitive_types;
 
 pub mod macros;
 mod utils;
