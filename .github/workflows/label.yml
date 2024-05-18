@@ -8,93 +8,58 @@ on:
 jobs:
   dispatch:
     runs-on: ubuntu-latest
-    if: >-
-      github.event.label.name == 'A0-pleasereview'
-      || github.event.label.name == 'A4-insubstantial'
-      || github.event.label.name == 'A2-mergeoncegreen'
-      || github.event.label.name == 'E1-forcenatwin'
-      || github.event.label.name == 'E2-forcemacos'
+    # if: >-
+    #   github.event.label.name == 'A0-pleasereview'
+    #   || github.event.label.name == 'A4-insubstantial'
+    #   || github.event.label.name == 'A2-mergeoncegreen'
+    #   || github.event.label.name == 'E1-forcenatwin'
+    #   || github.event.label.name == 'E2-forcemacos'
 
     steps:
       - uses: actions/checkout@v4
-      - name: Detect Profiles
-        id: detect-profiles
-        run: |
-          profiles='{"name": "debug", "flags": ""}'
-          linuxJobs='"linux (debug)", "win-cross (debug)"'
-          osxJobs='"macos-x86 (debug)", "macos-aarch64 (debug)"'
-          winJobs='"win-native (debug)"'
-          release="false"
-          production="false"
-
-          if [ "${{ contains(github.event.pull_request.labels.*.name, 'E3-forcerelease') }}" = "true" ];
-          then
-            profiles+=', {"name": "release", "flags": "--release"}'
-            linuxJobs+=', "linux (release)", "win-cross (release)"'
-            osxJobs+=', "macos-x86 (release)", "macos-aarch64 (release)"'
-            winJobs+=', "win-native (release)"'
-            release="true"
-          fi
-
-          if [ "${{ contains(github.event.pull_request.labels.*.name, 'E4-forceproduction') }}" = "true" ];
-          then
-            production="true"
-          fi
-
-          profiles="[${profiles}]"
-          linuxJobs="[${linuxJobs}]"
-          osxJobs="[${osxJobs}]"
-          winJobs="[${winJobs}]"
-          echo "profiles=${profiles}" >> "$GITHUB_OUTPUT"
-          echo "linuxJobs=${linuxJobs}" >> "$GITHUB_OUTPUT"
-          echo "osxJobs=${osxJobs}" >> "$GITHUB_OUTPUT"
-          echo "winJobs=${winJobs}" >> "$GITHUB_OUTPUT"
-          echo "release=${release}" >> "$GITHUB_OUTPUT"
-          echo "production=${production}" >> "$GITHUB_OUTPUT"
 
       - name: Fork Linux checks
-        if: >-
-          github.event.label.name == 'A0-pleasereview'
-            || github.event.label.name == 'A4-insubstantial'
-            || github.event.label.name == 'A2-mergeoncegreen'
+        # if: >-
+        #   github.event.label.name == 'A0-pleasereview'
+        #     || github.event.label.name == 'A4-insubstantial'
+        #     || github.event.label.name == 'A2-mergeoncegreen'
         uses: gear-tech/fork-action@cl/profiles
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          head_sha: ${{ github.event.pull_request.head.sha }}
-          ref: ${{ github.head_ref || github.ref_name }}
-          repo: "gear-tech/gear"
+          # head_sha: ${{ github.event.pull_request.head.sha }}
+          # ref: ${{ github.head_ref || github.ref_name }}
+          # repo: "gear-tech/gear"
           workflow_id: ".github/workflows/build.yml"
           prefix: "build"
-          needs: '["dynamic-profiles"]'
-          jobs: ${{ steps.detect-profiles.outputs.linuxJobs }}
+          jobs: '["linux", "win-cross"]'
+          useMulti: true
           inputs: '{
             "title": "${{ github.event.pull_request.title }}",
             "number": "${{ github.event.number }}",
-            "release": "${{ steps.detect-profiles.outputs.release }}",
-            "production": "${{ steps.detect-profiles.outputs.production }}"
-            }'
+          }'
 
       - name: Fork OSX checks
-        if: github.event.label.name == 'E2-forcemacos'
+        # if: github.event.label.name == 'E2-forcemacos'
         uses: gear-tech/fork-action@cl/profiles
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          head_sha: ${{ github.event.pull_request.head.sha }}
-          ref: ${{ github.head_ref || github.ref_name }}
-          repo: "gear-tech/gear"
+          # head_sha: ${{ github.event.pull_request.head.sha }}
+          # ref: ${{ github.head_ref || github.ref_name }}
+          # repo: "gear-tech/gear"
           workflow_id: ".github/workflows/build-macos.yml"
           prefix: "build"
-          jobs: ${{ steps.detect-profiles.outputs.osxJobs }}
+          jobs: '[ "macos-x86", "macos-aarch64" ]'
+          useProfiles: true
 
       - name: Fork Win checks
-        if: github.event.label.name == 'E1-forcenatwin'
+        # if: github.event.label.name == 'E1-forcenatwin'
         uses: gear-tech/fork-action@cl/profiles
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          head_sha: ${{ github.event.pull_request.head.sha }}
-          ref: ${{ github.head_ref || github.ref_name }}
-          repo: "gear-tech/gear"
+          # head_sha: ${{ github.event.pull_request.head.sha }}
+          # ref: ${{ github.head_ref || github.ref_name }}
+          # repo: "gear-tech/gear"
           workflow_id: ".github/workflows/build-win-native.yml"
           prefix: "build"
-          jobs: ${{ steps.detect-profiles.outputs.winJobs }}
-          profiles: ${{ steps.detect-profiles.outputs.profiles }}
+          jobs: '[ "win-native" ]'
+          useProfiles: true

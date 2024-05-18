@@ -55,7 +55,7 @@ async function main() {
   const {
     pull_request: {
       title,
-      head: { sha, ref: branch },
+      head: { sha },
       labels: _labels,
     },
     repository: { full_name: fullName },
