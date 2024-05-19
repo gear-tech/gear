@@ -998,6 +998,8 @@ mod tests {
 
     #[test]
     fn code_section_bytes() {
+        const INSTRUMENTATION_CODE_SIZE: u32 = 74;
+
         let wat = r#"
             (module
                 (import "env" "memory" (memory 3))
@@ -1016,7 +1018,7 @@ mod tests {
                 .unwrap()
                 .section_sizes
                 .code_section_bytes,
-            11,
+            INSTRUMENTATION_CODE_SIZE + 11,
         );
     }
 
