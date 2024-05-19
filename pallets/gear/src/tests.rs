@@ -56,7 +56,10 @@ use gear_core_backend::error::{
 };
 use gear_core_errors::*;
 use gear_wasm_instrument::{gas_metering::CustomConstantCostRules, STACK_END_EXPORT_NAME};
-use gstd::{collections::BTreeMap, errors::Error as GstdError};
+use gstd::{
+    collections::BTreeMap,
+    errors::{CoreError, Error as GstdError},
+};
 use pallet_gear_voucher::PrepaidCall;
 use sp_runtime::{
     codec::{Decode, Encode},
@@ -548,9 +551,9 @@ fn delayed_reservations_sending_validation() {
 
         let error_text = format!(
             "panicked with '{SENDING_EXPECT}: {:?}'",
-            GstdError::Core(
-                ExtError::Message(MessageError::InsufficientGasForDelayedSending).into()
-            )
+            CoreError::Ext(ExtError::Message(
+                MessageError::InsufficientGasForDelayedSending
+            ))
         );
 
         assert_failed(
@@ -585,9 +588,9 @@ fn delayed_reservations_sending_validation() {
 
         let error_text = format!(
             "panicked with '{SENDING_EXPECT}: {:?}'",
-            GstdError::Core(
-                ExtError::Message(MessageError::InsufficientGasForDelayedSending).into()
-            )
+            CoreError::Ext(ExtError::Message(
+                MessageError::InsufficientGasForDelayedSending
+            ))
         );
 
         assert_failed(
@@ -7758,7 +7761,7 @@ fn test_create_program_with_value_lt_ed() {
 
         let error_text = format!(
             "panicked with 'Failed to create program: {:?}'",
-            GstdError::Core(ExtError::Message(MessageError::InsufficientValue).into())
+            CoreError::Ext(ExtError::Message(MessageError::InsufficientValue))
         );
 
         assert_failed(
@@ -7808,7 +7811,7 @@ fn test_create_program_with_exceeding_value() {
 
         let error_text = format!(
             "panicked with 'Failed to create program: {:?}'",
-            GstdError::Core(ExtError::Execution(ExecutionError::NotEnoughValue).into())
+            CoreError::Ext(ExtError::Execution(ExecutionError::NotEnoughValue))
         );
         assert_failed(
             msg_id,
