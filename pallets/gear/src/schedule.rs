@@ -74,6 +74,8 @@ pub const FUZZER_STACK_HEIGHT_LIMIT: u32 = 65_000;
 pub const DATA_SEGMENTS_AMOUNT_LIMIT: u32 = 1024;
 
 /// Maximum number of wasm tables in a wasm module.
+/// The same limit also imposed by `wasmrparser`,
+/// see https://github.com/bytecodealliance/wasm-tools/blob/main/crates/wasmparser/src/limits.rs
 pub const TABLE_NUMBER_LIMIT: u32 = 100;
 
 /// Definition of the cost schedule and other parameterization for the wasm vm.
@@ -207,6 +209,8 @@ pub struct Limits {
     pub table_size: u32,
 
     /// Maximum number of tables allowed for a program.
+    /// The same limit also imposed by `wasmrparser`,
+    /// see https://github.com/bytecodealliance/wasm-tools/blob/main/crates/wasmparser/src/limits.rs
     pub table_number: u32,
 
     /// Maximum number of elements that can appear as immediate value to the br_table instruction.
