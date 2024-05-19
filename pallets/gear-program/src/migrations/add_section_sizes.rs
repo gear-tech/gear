@@ -253,7 +253,7 @@ mod test {
                     code_section_bytes: 11,
                     data_section_bytes: 4096,
                     global_section_bytes: 16,
-                    table_section_bytes: 16,
+                    table_section_bytes: 40,
                     element_section_bytes: 16,
                     type_section_bytes: 33,
             });
