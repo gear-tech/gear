@@ -21,9 +21,8 @@
 use crate::{
     code::InstrumentedCode,
     ids::ProgramId,
-    pages::{WasmPage, WasmPagesAmount},
+    pages::{numerated::tree::IntervalsTree, WasmPage, WasmPagesAmount},
 };
-use alloc::collections::BTreeSet;
 use scale_info::{
     scale::{Decode, Encode},
     TypeInfo,
@@ -52,7 +51,7 @@ pub struct Program {
     memory_infix: MemoryInfix,
     code: InstrumentedCode,
     /// Wasm pages allocated by program.
-    allocations: BTreeSet<WasmPage>,
+    allocations: IntervalsTree<WasmPage>,
 }
 
 impl Program {
@@ -71,7 +70,7 @@ impl Program {
         id: ProgramId,
         memory_infix: MemoryInfix,
         code: InstrumentedCode,
-        allocations: BTreeSet<WasmPage>,
+        allocations: IntervalsTree<WasmPage>,
     ) -> Self {
         Self {
             id,
@@ -112,12 +111,12 @@ impl Program {
     }
 
     /// Get allocations as a set of page numbers.
-    pub fn allocations(&self) -> &BTreeSet<WasmPage> {
+    pub fn allocations(&self) -> &IntervalsTree<WasmPage> {
         &self.allocations
     }
 
     /// Set allocations as a set of page numbers.
-    pub fn set_allocations(&mut self, allocations: BTreeSet<WasmPage>) {
+    pub fn set_allocations(&mut self, allocations: IntervalsTree<WasmPage>) {
         self.allocations = allocations;
     }
 }
@@ -187,6 +186,7 @@ mod tests {
         assert_eq!(program.static_pages(), WasmPagesAmount::from(2));
 
         // Has no allocations because we do not set them in new
-        assert_eq!(program.allocations().len(), 0);
+        // TODO: #3879
+        assert_eq!(program.allocations().points_amount(), Some(0));
     }
 }

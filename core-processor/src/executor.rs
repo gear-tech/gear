@@ -24,7 +24,7 @@ use crate::{
     configs::{BlockInfo, ExecutionSettings},
     ext::{ProcessorContext, ProcessorExternalities},
 };
-use alloc::{collections::BTreeSet, format, string::String, vec::Vec};
+use alloc::{format, string::String, vec::Vec};
 use gear_core::{
     code::InstrumentedCode,
     env::Externalities,
@@ -35,7 +35,7 @@ use gear_core::{
         ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext,
         WasmEntryPoint,
     },
-    pages::WasmPage,
+    pages::{numerated::tree::IntervalsTree, WasmPage},
     program::{MemoryInfix, Program},
     reservation::GasReserver,
 };
@@ -249,7 +249,7 @@ where
 pub fn execute_for_reply<Ext, EP>(
     function: EP,
     instrumented_code: InstrumentedCode,
-    allocations: Option<BTreeSet<WasmPage>>,
+    allocations: Option<IntervalsTree<WasmPage>>,
     program_info: Option<(ProgramId, MemoryInfix)>,
     payload: Vec<u8>,
     gas_limit: u64,
@@ -267,7 +267,7 @@ where
     let program = Program::new(program_id, memory_infix, instrumented_code);
     let static_pages = program.static_pages();
     let allocations = allocations.unwrap_or_else(|| program.allocations().clone());
-    let memory_size = allocations.last().map(|p| p.inc()).unwrap_or(static_pages);
+    let memory_size = allocations.end().map(|p| p.inc()).unwrap_or(static_pages);
 
     let message_context = MessageContext::new(
         IncomingDispatch::new(

@@ -387,7 +387,7 @@ pub fn precharge_for_module_instantiation(
             GasPrecharger::new(gas_counter, gas_allowance_counter, &block_config.costs);
 
         // Calculates size of wasm memory buffer which must be created in execution environment
-        let memory_size = if let Some(page) = actor_data.allocations.last() {
+        let memory_size = if let Some(page) = actor_data.allocations.end() {
             page.inc()
         } else {
             actor_data.static_pages

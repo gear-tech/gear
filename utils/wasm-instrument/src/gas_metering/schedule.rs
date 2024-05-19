@@ -288,7 +288,6 @@ impl Default for InstructionWeights {
 
 pub struct SyscallWeights {
     pub alloc: Weight,
-    pub alloc_per_page: Weight,
     pub free: Weight,
     pub free_range: Weight,
     pub free_range_per_page: Weight,
@@ -365,10 +364,6 @@ impl Default for SyscallWeights {
         Self {
             alloc: Weight {
                 ref_time: 8229320,
-                proof_size: 0,
-            },
-            alloc_per_page: Weight {
-                ref_time: 247335,
                 proof_size: 0,
             },
             free: Weight {
@@ -661,6 +656,7 @@ pub struct MemoryWeights {
     pub load_page_data: Weight,
     pub upload_page_data: Weight,
     pub static_page: Weight,
+    // TODO: use real weight and add `mem_grow_per_page` #3970
     pub mem_grow: Weight,
     pub parachain_read_heuristic: Weight,
 }

@@ -16,6 +16,5 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-// no migrations currently for pallet-gear-program
-
 pub mod add_section_sizes;
+pub mod allocations;
