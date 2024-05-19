@@ -37,7 +37,7 @@ use {
 
 const MIGRATE_FROM_VERSION: u16 = 5;
 const MIGRATE_TO_VERSION: u16 = 6;
-const ALLOWED_CURRENT_STORAGE_VERSION: u16 = 6;
+const ALLOWED_CURRENT_STORAGE_VERSION: u16 = 7;
 
 pub struct MigrateAllocations<T: Config>(PhantomData<T>);
 
@@ -118,7 +118,7 @@ impl<T: Config> OnRuntimeUpgrade for MigrateAllocations<T> {
                 "incorrect count of elements old {} != new {}",
             );
             ensure!(
-                Pallet::<T>::current_storage_version() == MIGRATE_TO_VERSION,
+                Pallet::<T>::current_storage_version() == ALLOWED_CURRENT_STORAGE_VERSION,
                 "incorrect storage version after migration"
             );
         }
