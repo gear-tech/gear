@@ -31,7 +31,6 @@ use crate::{
     Error, Event, GasAllowanceOf, GasBalanceOf, GasHandlerOf, GasInfo, GearBank, Limits, MailboxOf,
     ProgramStorageOf, QueueOf, Schedule, TaskPoolOf, WaitlistOf,
 };
-use alloc::collections::BTreeSet;
 use common::{
     event::*, scheduler::*, storage::*, ActiveProgram, CodeStorage, GasTree, LockId, LockableTree,
     Origin as _, Program, ProgramStorage, ReservableTree,
@@ -14880,7 +14879,7 @@ fn allocate_in_init_free_in_handle() {
         };
         assert_eq!(
             program.allocations,
-            BTreeSet::from([WasmPage::from(static_pages)])
+            [WasmPage::from(static_pages)].into_iter().collect()
         );
 
         Gear::send_message(
@@ -14899,7 +14898,7 @@ fn allocate_in_init_free_in_handle() {
         else {
             panic!("program must be active")
         };
-        assert_eq!(program.allocations, BTreeSet::new());
+        assert_eq!(program.allocations, Default::default());
     });
 }
 

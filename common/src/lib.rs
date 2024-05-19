@@ -58,7 +58,7 @@ use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
     memory::PageBuf,
     message::DispatchKind,
-    pages::{GearPage, WasmPage, WasmPagesAmount},
+    pages::{numerated::tree::IntervalsTree, GearPage, WasmPage, WasmPagesAmount},
     program::MemoryInfix,
     reservation::GasReservationMap,
 };
@@ -281,10 +281,10 @@ impl<BlockNumber: Copy + Saturating> core::convert::TryFrom<Program<BlockNumber>
 #[codec(crate = codec)]
 #[scale_info(crate = scale_info)]
 pub struct ActiveProgram<BlockNumber: Copy + Saturating> {
-    /// Set of dynamic wasm page numbers, which are allocated by the program.
-    pub allocations: BTreeSet<WasmPage>,
-    /// Set of gear pages numbers, which has data in storage.
-    pub pages_with_data: BTreeSet<GearPage>,
+    /// Set of wasm pages, that were allocated by the program.
+    pub allocations: IntervalsTree<WasmPage>,
+    /// Set of gear pages, that have data in storage.
+    pub pages_with_data: IntervalsTree<GearPage>,
     pub memory_infix: MemoryInfix,
     pub gas_reservation_map: GasReservationMap,
     pub code_hash: H256,
