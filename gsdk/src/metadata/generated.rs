@@ -742,6 +742,7 @@ pub mod runtime_types {
                         pub data_section_bytes: ::core::primitive::u32,
                         pub global_section_bytes: ::core::primitive::u32,
                         pub table_section_bytes: ::core::primitive::u32,
+                        pub element_section_bytes: ::core::primitive::u32,
                         pub type_section_bytes: ::core::primitive::u32,
                     }
                 }
@@ -2509,6 +2510,8 @@ pub mod runtime_types {
                     pub module_global_section_instantiation_per_byte:
                         runtime_types::sp_weights::weight_v2::Weight,
                     pub module_table_section_instantiation_per_byte:
+                        runtime_types::sp_weights::weight_v2::Weight,
+                    pub module_element_section_instantiation_per_byte:
                         runtime_types::sp_weights::weight_v2::Weight,
                     pub module_type_section_instantiation_per_byte:
                         runtime_types::sp_weights::weight_v2::Weight,
