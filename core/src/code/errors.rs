@@ -77,7 +77,7 @@ pub enum StackEndError {
     OutOfStatic(u32, u64),
 }
 
-/// Stack end error in WASM module.
+/// Data section error in WASM module.
 #[derive(Debug, derive_more::Display)]
 pub enum DataSectionError {
     /// Unsupported initialization of data segment.
@@ -98,6 +98,19 @@ pub enum DataSectionError {
         /// Limit of data segments.
         limit: u32,
         /// Actual amount of data segments.
+        actual: u32,
+    },
+}
+
+/// Table section error in WASM module.
+#[derive(Debug, derive_more::Display)]
+pub enum TableSectionError {
+    /// Number of table exceeds the limit.
+    #[display(fmt = "Number of table limit exceeded: limit={limit}, actual={actual}")]
+    TableNumberLimit {
+        /// Limit on the number of tables.
+        limit: u32,
+        /// Actual number of tables.
         actual: u32,
     },
 }
@@ -182,6 +195,9 @@ pub enum CodeError {
     /// The provided code contains data section error.
     #[display(fmt = "Data section error: {_0}")]
     DataSection(DataSectionError),
+    /// The provided code contains table section error.
+    #[display(fmt = "Table section error: {_0}")]
+    TableSection(TableSectionError),
     /// The provided code contains export error.
     #[display(fmt = "Export error: {_0}")]
     Export(ExportError),

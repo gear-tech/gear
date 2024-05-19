@@ -329,6 +329,28 @@ pub fn check_data_section(
     Ok(())
 }
 
+pub fn check_table_section(
+    module: &Module,
+    table_size_limit: Option<u32>,
+) -> Result<(), CodeError> {
+    let Some(table_section) = module.table_section() else {
+        // No table section - nothing to check.
+        return Ok(());
+    };
+
+    if let Some(table_size_limit) = table_size_limit {
+        let number_of_tables = table_section.entries().len() as u32;
+        if number_of_tables > table_size_limit {
+            Err(TableSectionError::TableNumberLimit {
+                limit: table_size_limit,
+                actual: number_of_tables,
+            })?;
+        }
+    }
+
+    Ok(())
+}
+
 fn get_stack_end_offset(module: &Module) -> Result<Option<u32>, CodeError> {
     let Some((export_index, global_index)) =
         get_export_global_with_index(module, STACK_END_EXPORT_NAME)

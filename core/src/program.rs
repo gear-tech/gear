@@ -177,6 +177,7 @@ mod tests {
             |_| CustomConstantCostRules::default(),
             None,
             None,
+            None,
         )
         .unwrap();
         let (code, _) = code.into_parts();

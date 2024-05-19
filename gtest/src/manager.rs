@@ -1172,6 +1172,7 @@ impl JournalHandler for ExtManager {
                         |module| schedule.rules(module),
                         schedule.limits.stack_height,
                         schedule.limits.data_segments_amount.into(),
+                        schedule.limits.table_number.into(),
                     )
                     .expect("Program can't be constructed with provided code");
 

@@ -73,6 +73,8 @@ pub struct TryNewCodeConfig {
     pub stack_height: Option<u32>,
     /// Limit of data section amount
     pub data_segments_amount_limit: Option<u32>,
+    /// Limit on the number of tables.
+    pub table_number_limit: Option<u32>,
     /// Export `STACK_HEIGHT_EXPORT_NAME` global
     pub export_stack_height: bool,
     /// Check exports (wasm contains init or handle exports)
@@ -87,6 +89,8 @@ pub struct TryNewCodeConfig {
     pub check_start_section: bool,
     /// Check data section
     pub check_data_section: bool,
+    /// Check table section
+    pub check_table_section: bool,
     /// Make wasmparser validation
     pub make_validation: bool,
 }
@@ -97,6 +101,7 @@ impl Default for TryNewCodeConfig {
             version: 1,
             stack_height: None,
             data_segments_amount_limit: None,
+            table_number_limit: None,
             export_stack_height: false,
             check_exports: true,
             check_imports: true,
@@ -104,6 +109,7 @@ impl Default for TryNewCodeConfig {
             check_mut_global_exports: true,
             check_start_section: true,
             check_data_section: true,
+            check_table_section: true,
             make_validation: true,
         }
     }
@@ -153,6 +159,9 @@ impl Code {
                 stack_end,
                 config.data_segments_amount_limit,
             )?;
+        }
+        if config.check_table_section {
+            utils::check_table_section(&module, config.table_number_limit)?;
         }
         if config.check_mut_global_exports {
             utils::check_mut_global_exports(&module)?;
@@ -290,6 +299,7 @@ impl Code {
         get_gas_rules: GetRulesFn,
         stack_height: Option<u32>,
         data_segments_amount_limit: Option<u32>,
+        table_number_limit: Option<u32>,
     ) -> Result<Self, CodeError>
     where
         R: Rules,
@@ -302,6 +312,7 @@ impl Code {
                 version,
                 stack_height,
                 data_segments_amount_limit,
+                table_number_limit,
                 ..Default::default()
             },
         )
@@ -424,7 +435,7 @@ mod tests {
 
     use crate::code::{
         Code, CodeError, DataSectionError, ExportError, ImportError, StackEndError,
-        GENERIC_OS_PAGE_SIZE,
+        TableSectionError, GENERIC_OS_PAGE_SIZE,
     };
     use alloc::{format, vec::Vec};
     use gear_wasm_instrument::{gas_metering::CustomConstantCostRules, STACK_END_EXPORT_NAME};
@@ -459,6 +470,7 @@ mod tests {
         wat: &str,
         stack_height: Option<u32>,
         data_segments_amount_limit: Option<u32>,
+        table_number_limit: Option<u32>,
     ) -> Result<Code, CodeError> {
         Code::try_new(
             wat2wasm(wat),
@@ -466,11 +478,12 @@ mod tests {
             |_| CustomConstantCostRules::default(),
             stack_height,
             data_segments_amount_limit,
+            table_number_limit,
         )
     }
 
     fn try_new_code_from_wat(wat: &str, stack_height: Option<u32>) -> Result<Code, CodeError> {
-        try_new_code_from_wat_with_params(wat, stack_height, None)
+        try_new_code_from_wat_with_params(wat, stack_height, None, None)
     }
 
     #[test]
@@ -756,6 +769,7 @@ mod tests {
             |_| CustomConstantCostRules::default(),
             None,
             None,
+            None,
         );
 
         assert_code_err!(res, CodeError::Validation(_));
@@ -823,11 +837,39 @@ mod tests {
             try_new_code_from_wat_with_params(
                 wat.as_str(),
                 None,
-                DATA_SEGMENTS_AMOUNT_LIMIT.into()
+                DATA_SEGMENTS_AMOUNT_LIMIT.into(),
+                None,
             ),
             CodeError::DataSection(DataSectionError::DataSegmentsAmountLimit {
                 limit: DATA_SEGMENTS_AMOUNT_LIMIT,
                 actual: 1025
+            })
+        );
+    }
+
+    #[test]
+    fn table_number_limit() {
+        const TABLE_NUMBER_LIMIT: u32 = 50;
+
+        let table = r#"(table 10 10 funcref)"#;
+
+        let wat = format!(
+            r#"
+            (module
+                (import "env" "memory" (memory 1))
+                (func $init)
+                (export "init" (func $init))
+                {}
+            )
+        "#,
+            table.repeat(100)
+        );
+
+        assert_code_err!(
+            try_new_code_from_wat_with_params(wat.as_str(), None, None, TABLE_NUMBER_LIMIT.into()),
+            CodeError::TableSection(TableSectionError::TableNumberLimit {
+                limit: TABLE_NUMBER_LIMIT,
+                actual: 100
             })
         );
     }
