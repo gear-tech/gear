@@ -140,6 +140,9 @@ pub struct Schedule<T: Config> {
     /// WASM module table section instantiation per byte cost.
     pub module_table_section_instantiation_per_byte: Weight,
 
+    /// WASM module element section instantiation per byte cost.
+    pub module_element_section_instantiation_per_byte: Weight,
+
     /// WASM module type section instantiation per byte cost.
     pub module_type_section_instantiation_per_byte: Weight,
 
@@ -797,6 +800,9 @@ impl<T: Config> Default for Schedule<T> {
             module_table_section_instantiation_per_byte: to_weight!(cost_byte!(
                 instantiate_module_table_section_per_kb
             )),
+            module_element_section_instantiation_per_byte: to_weight!(cost_byte!(
+                instantiate_module_element_section_per_kb
+            )),
             module_type_section_instantiation_per_byte: to_weight!(cost_byte!(
                 instantiate_module_type_section_per_kb
             )),
@@ -1237,6 +1243,10 @@ impl<T: Config> Schedule<T> {
                 .into(),
             module_table_section_instantiation_per_byte: self
                 .module_table_section_instantiation_per_byte
+                .ref_time()
+                .into(),
+            module_element_section_instantiation_per_byte: self
+                .module_element_section_instantiation_per_byte
                 .ref_time()
                 .into(),
             module_type_section_instantiation_per_byte: self

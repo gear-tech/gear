@@ -40,6 +40,8 @@ use wasmparser::Payload;
 
 /// Defines maximal permitted count of memory pages.
 pub const MAX_WASM_PAGES_AMOUNT: u16 = 512;
+/// Reference type size in bytes.
+pub(crate) const REF_TYPE_SIZE: u32 = 4;
 
 /// Name of exports allowed on chain.
 pub const ALLOWED_EXPORTS: [&str; 6] = [
@@ -483,8 +485,24 @@ pub fn get_global_section_bytes(module: &Module) -> Result<u32, CodeError> {
         }))
 }
 
-/// Calculates the amount of bytes in the table section that will be initialized during module instantiation.
+/// Calculates the amount of bytes in the table section that will be allocated during module instantiation.
 pub fn get_table_section_bytes(module: &Module) -> Result<u32, CodeError> {
+    let Some(table_section) = module.table_section() else {
+        return Ok(0);
+    };
+
+    Ok(table_section
+        .entries()
+        .iter()
+        .fold(0, |total_bytes, table| {
+            let count = table.limits().initial();
+            // Tables may hold only reference types, which are 4 bytes long.
+            total_bytes.saturating_add(count.saturating_mul(REF_TYPE_SIZE))
+        }))
+}
+
+/// Calculates the amount of bytes in the table/element section that will be initialized during module instantiation.
+pub fn get_element_section_bytes(module: &Module) -> Result<u32, CodeError> {
     if module.table_section().is_none() {
         return Ok(0);
     }
@@ -498,10 +516,8 @@ pub fn get_table_section_bytes(module: &Module) -> Result<u32, CodeError> {
         .entries()
         .iter()
         .fold(0, |total_bytes, segment| {
-            // Tables may hold only reference types, which are 4 bytes long.
-            const REF_TYPE_SIZE: u32 = 4;
-
             let count = segment.members().iter().count() as u32;
+            // Tables may hold only reference types, which are 4 bytes long.
             total_bytes.saturating_add(count.saturating_mul(REF_TYPE_SIZE))
         }))
 }
@@ -554,12 +570,14 @@ pub fn migration_get_section_sizes(code: &[u8]) -> Result<SectionSizes, CodeErro
     let data_section_bytes = get_data_section_bytes(&module)?;
     let global_section_bytes = get_global_section_bytes(&module)?;
     let table_section_bytes = get_table_section_bytes(&module)?;
+    let element_section_bytes = get_element_section_bytes(&module)?;
 
     Ok(SectionSizes {
         code_section_bytes,
         data_section_bytes,
         global_section_bytes,
         table_section_bytes,
+        element_section_bytes,
         type_section_bytes,
     })
 }

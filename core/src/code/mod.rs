@@ -192,6 +192,7 @@ impl Code {
         let data_section_bytes = utils::get_data_section_bytes(&module)?;
         let global_section_bytes = utils::get_global_section_bytes(&module)?;
         let table_section_bytes = utils::get_table_section_bytes(&module)?;
+        let element_section_bytes = utils::get_element_section_bytes(&module)?;
 
         let code = parity_wasm::elements::serialize(module).map_err(CodecError::Encode)?;
 
@@ -213,6 +214,7 @@ impl Code {
                 data_section_bytes,
                 global_section_bytes,
                 table_section_bytes,
+                element_section_bytes,
                 type_section_bytes,
             },
         })
@@ -434,8 +436,8 @@ mod tests {
     use core::mem;
 
     use crate::code::{
-        Code, CodeError, DataSectionError, ExportError, ImportError, StackEndError,
-        TableSectionError, GENERIC_OS_PAGE_SIZE,
+        utils::REF_TYPE_SIZE, Code, CodeError, DataSectionError, ExportError, ImportError,
+        StackEndError, TableSectionError, GENERIC_OS_PAGE_SIZE,
     };
     use alloc::{format, vec::Vec};
     use gear_wasm_instrument::{gas_metering::CustomConstantCostRules, STACK_END_EXPORT_NAME};
@@ -1097,6 +1099,37 @@ mod tests {
                 (func $init)
                 (export "init" (func $init))
                 (table 10 10 funcref)
+                (table 10 10 funcref)
+                (table 10 10 funcref)
+                (table 10 10 funcref)
+            )
+        "#;
+
+        assert_eq!(
+            try_new_code_from_wat(wat, Some(1024))
+                .unwrap()
+                .section_sizes
+                .table_section_bytes,
+            40 * REF_TYPE_SIZE,
+        );
+
+        assert_eq!(
+            try_new_code_from_wat(wat, Some(1024))
+                .unwrap()
+                .section_sizes
+                .element_section_bytes,
+            0,
+        );
+    }
+
+    #[test]
+    fn element_section_bytes() {
+        let wat = r#"
+            (module
+                (import "env" "memory" (memory 3))
+                (func $init)
+                (export "init" (func $init))
+                (table 10 10 funcref)
                 (elem (i32.const 1) 0 0 0 0)
             )
         "#;
@@ -1106,7 +1139,15 @@ mod tests {
                 .unwrap()
                 .section_sizes
                 .table_section_bytes,
-            (mem::size_of::<i32>() * 4) as u32,
+            10 * REF_TYPE_SIZE,
+        );
+
+        assert_eq!(
+            try_new_code_from_wat(wat, Some(1024))
+                .unwrap()
+                .section_sizes
+                .element_section_bytes,
+            REF_TYPE_SIZE * 4,
         );
     }
 

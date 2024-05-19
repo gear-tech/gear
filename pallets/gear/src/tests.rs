@@ -6304,6 +6304,7 @@ fn terminated_locking_funds() {
                 data_section_bytes,
                 global_section_bytes,
                 table_section_bytes,
+                element_section_bytes,
                 type_section_bytes,
             } = code.section_sizes();
 
@@ -6326,6 +6327,11 @@ fn terminated_locking_funds() {
                 .module_table_section_instantiation_per_byte
                 .ref_time()
                 .saturating_mul(*table_section_bytes as u64);
+
+            gas_for_code_instantiation += schedule
+                .module_element_section_instantiation_per_byte
+                .ref_time()
+                .saturating_mul(*element_section_bytes as u64);
 
             gas_for_code_instantiation += schedule
                 .module_type_section_instantiation_per_byte
@@ -7526,6 +7532,7 @@ fn gas_spent_precalculated() {
                 data_section_bytes,
                 global_section_bytes,
                 table_section_bytes,
+                element_section_bytes,
                 type_section_bytes,
             } = instrumented_prog.section_sizes();
 
@@ -7548,6 +7555,11 @@ fn gas_spent_precalculated() {
                 .module_table_section_instantiation_per_byte
                 .ref_time()
                 .saturating_mul(*table_section_bytes as u64);
+
+            gas_for_code_instantiation += schedule
+                .module_element_section_instantiation_per_byte
+                .ref_time()
+                .saturating_mul(*element_section_bytes as u64);
 
             gas_for_code_instantiation += schedule
                 .module_type_section_instantiation_per_byte

@@ -62,6 +62,9 @@ pub enum PreChargeGasOperation {
     /// Instantiate the table section of the Wasm module.
     #[display(fmt = "instantiate table section of Wasm module")]
     ModuleTableSectionInstantiation,
+    /// Instantiate the element section of the Wasm module.
+    #[display(fmt = "instantiate element section of Wasm module")]
+    ModuleElementSectionInstantiation,
     /// Instantiate the type section of the Wasm module.
     #[display(fmt = "instantiate type section of Wasm module")]
     ModuleTypeSectionInstantiation,
@@ -158,6 +161,12 @@ impl<'a> GasPrecharger<'a> {
         charge_gas_for_table_section_instantiation,
         ModuleTableSectionInstantiation,
         module_table_section_instantiation_per_byte
+    );
+
+    impl_charge_gas_for_section_instantiation!(
+        charge_gas_for_element_section_instantiation,
+        ModuleElementSectionInstantiation,
+        module_element_section_instantiation_per_byte
     );
 
     impl_charge_gas_for_section_instantiation!(
@@ -393,6 +402,9 @@ pub fn precharge_for_module_instantiation(
         )?;
         charger
             .charge_gas_for_table_section_instantiation(section_sizes.table_section_bytes.into())?;
+        charger.charge_gas_for_element_section_instantiation(
+            section_sizes.element_section_bytes.into(),
+        )?;
         charger
             .charge_gas_for_type_section_instantiation(section_sizes.type_section_bytes.into())?;
 

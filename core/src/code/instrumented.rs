@@ -42,6 +42,8 @@ pub struct SectionSizes {
     pub global_section_bytes: u32,
     /// Table section size in bytes.
     pub table_section_bytes: u32,
+    /// Element section size in bytes.
+    pub element_section_bytes: u32,
     /// Type section size in bytes.
     pub type_section_bytes: u32,
 }

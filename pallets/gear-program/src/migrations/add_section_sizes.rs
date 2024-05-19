@@ -70,6 +70,7 @@ impl<T: Config> OnRuntimeUpgrade for AddSectionSizesMigration<T> {
                         data_section_bytes: 0,
                         global_section_bytes: 0,
                         table_section_bytes: 0,
+                        element_section_bytes: 0,
                         type_section_bytes: 0,
                     }
                 });
@@ -253,6 +254,7 @@ mod test {
                     data_section_bytes: 4096,
                     global_section_bytes: 16,
                     table_section_bytes: 16,
+                    element_section_bytes: 16,
                     type_section_bytes: 33,
             });
         });
