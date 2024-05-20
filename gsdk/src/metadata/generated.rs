@@ -2181,8 +2181,8 @@ pub mod runtime_types {
                     #[doc = "See [`Pallet::set_execute_inherent`]."]
                     set_execute_inherent { value: ::core::primitive::bool },
                     #[codec(index = 8)]
-                    #[doc = "See [`Pallet::transfer_value_to_inheritor`]."]
-                    transfer_value_to_inheritor {
+                    #[doc = "See [`Pallet::claim_value_to_inheritor`]."]
+                    claim_value_to_inheritor {
                         program_id: runtime_types::gear_core::ids::ProgramId,
                         depth: ::core::num::NonZeroU32,
                     },
@@ -8114,7 +8114,7 @@ pub mod calls {
                 Self::ClaimValue => "claim_value",
                 Self::Run => "run",
                 Self::SetExecuteInherent => "set_execute_inherent",
-                Self::TransferValueToInheritor => "transfer_value_to_inheritor",
+                Self::TransferValueToInheritor => "claim_value_to_inheritor",
             }
         }
     }

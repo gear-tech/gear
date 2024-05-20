@@ -6260,7 +6260,7 @@ fn exit_locking_funds() {
         assert_balance(USER_2, user_2_balance, 0u128);
         assert_balance(program_id, value, 0u128);
 
-        assert_ok!(Gear::transfer_value_to_inheritor(
+        assert_ok!(Gear::claim_value_to_inheritor(
             RuntimeOrigin::signed(USER_1),
             program_id,
             NonZeroU32::MAX,
@@ -6453,7 +6453,7 @@ fn terminated_locking_funds() {
             user_1_balance + extra_gas_to_mb
         );
 
-        assert_ok!(Gear::transfer_value_to_inheritor(
+        assert_ok!(Gear::claim_value_to_inheritor(
             RuntimeOrigin::signed(USER_1),
             program_id,
             NonZeroU32::MAX,

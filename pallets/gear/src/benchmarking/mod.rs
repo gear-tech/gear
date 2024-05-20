@@ -536,7 +536,7 @@ benchmarks! {
         assert!(MailboxOf::<T>::is_empty(&caller))
     }
 
-    transfer_value_to_inheritor {
+    claim_value_to_inheritor {
         let d in 1 .. 1024;
 
         let minimum_balance = CurrencyOf::<T>::minimum_balance();

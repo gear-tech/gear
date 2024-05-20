@@ -1634,12 +1634,12 @@ pub mod pallet {
             Ok(())
         }
 
-        /// Transfers value from terminated or exited program to its living inheritor.
+        /// Transfers value from terminated or exited program to its inheritor.
         ///
         /// `depth` parameter is how far to traverse to inheritor.
         #[pallet::call_index(8)]
-        #[pallet::weight(<T as Config>::WeightInfo::transfer_value_to_inheritor(depth.get()))]
-        pub fn transfer_value_to_inheritor(
+        #[pallet::weight(<T as Config>::WeightInfo::claim_value_to_inheritor(depth.get()))]
+        pub fn claim_value_to_inheritor(
             origin: OriginFor<T>,
             program_id: ProgramId,
             depth: NonZeroU32,

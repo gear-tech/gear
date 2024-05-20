@@ -59,7 +59,7 @@ pub trait WeightInfo {
     fn upload_program(c: u32, s: u32, ) -> Weight;
     fn send_message(p: u32, ) -> Weight;
     fn send_reply(p: u32, ) -> Weight;
-    fn transfer_value_to_inheritor(d: u32, ) -> Weight;
+    fn claim_value_to_inheritor(d: u32, ) -> Weight;
     fn reinstrument_per_kb(c: u32, ) -> Weight;
     fn alloc(r: u32, ) -> Weight;
     fn alloc_per_page(p: u32, ) -> Weight;
@@ -463,7 +463,7 @@ impl<T: frame_system::Config> pallet_gear::WeightInfo for SubstrateWeight<T> {
             .saturating_add(T::DbWeight::get().writes(13_u64))
     }
     /// The range of component `d` is `[1, 1024]`.
-    fn transfer_value_to_inheritor(d: u32, ) -> Weight {
+    fn claim_value_to_inheritor(d: u32, ) -> Weight {
         // Proof Size summary in bytes:
         //  Measured:  `0 + d * (207 ±0)`
         //  Estimated: `3593 + d * (2683 ±0)`
@@ -2342,7 +2342,7 @@ impl WeightInfo for () {
             .saturating_add(RocksDbWeight::get().writes(13_u64))
     }
     /// The range of component `d` is `[1, 1024]`.
-    fn transfer_value_to_inheritor(d: u32, ) -> Weight {
+    fn claim_value_to_inheritor(d: u32, ) -> Weight {
         // Proof Size summary in bytes:
         //  Measured:  `0 + d * (207 ±0)`
         //  Estimated: `3593 + d * (2683 ±0)`
