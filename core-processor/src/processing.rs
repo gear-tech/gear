@@ -147,49 +147,59 @@ where
                 res.system_reservation_context,
                 ActorExecutionErrorReplyReason::Trap(reason),
             ),
+
             DispatchResultKind::Success => {
-                if let (Some(current_prev), Some(current_res)) = (
-                    system_reservation_ctx.current_reservation,
-                    res.system_reservation_context.current_reservation,
-                ) {
-                    debug_assert!(current_res <= current_prev);
-                }
-                if let (Some(prev_reservation), Some(prev_res)) = (
-                    system_reservation_ctx.previous_reservation,
-                    res.system_reservation_context.previous_reservation,
-                ) {
-                    debug_assert!(prev_res <= prev_reservation);
-                }
+                debug_assert!(system_reservation_ctx
+                    .current_reservation
+                    .and_then(|current_prev| res
+                        .system_reservation_context
+                        .current_reservation
+                        .map(|current_res| current_res <= current_prev))
+                    .unwrap_or(true));
+
+                debug_assert!(system_reservation_ctx
+                    .previous_reservation
+                    .and_then(|prev_reservation| res
+                        .system_reservation_context
+                        .previous_reservation
+                        .map(|prev_res| prev_res <= prev_reservation))
+                    .unwrap_or(true));
                 process_success(Success, res)
             }
             DispatchResultKind::Wait(duration, ref waited_type) => {
-                if let (Some(current_prev), Some(current_res)) = (
-                    system_reservation_ctx.current_reservation,
-                    res.system_reservation_context.current_reservation,
-                ) {
-                    debug_assert!(current_res <= current_prev);
-                }
-                if let (Some(prev_reservation), Some(prev_res)) = (
-                    system_reservation_ctx.previous_reservation,
-                    res.system_reservation_context.previous_reservation,
-                ) {
-                    debug_assert!(prev_res <= prev_reservation);
-                }
+                debug_assert!(system_reservation_ctx
+                    .current_reservation
+                    .and_then(|current_prev| res
+                        .system_reservation_context
+                        .current_reservation
+                        .map(|current_res| current_res <= current_prev))
+                    .unwrap_or(true));
+
+                debug_assert!(system_reservation_ctx
+                    .previous_reservation
+                    .and_then(|prev_reservation| res
+                        .system_reservation_context
+                        .previous_reservation
+                        .map(|prev_res| prev_res <= prev_reservation))
+                    .unwrap_or(true));
                 process_success(Wait(duration, waited_type.clone()), res)
             }
             DispatchResultKind::Exit(value_destination) => {
-                if let (Some(current_prev), Some(current_res)) = (
-                    system_reservation_ctx.current_reservation,
-                    res.system_reservation_context.current_reservation,
-                ) {
-                    debug_assert!(current_res <= current_prev);
-                }
-                if let (Some(prev_reservation), Some(prev_res)) = (
-                    system_reservation_ctx.previous_reservation,
-                    res.system_reservation_context.previous_reservation,
-                ) {
-                    debug_assert!(prev_res <= prev_reservation);
-                }
+                debug_assert!(system_reservation_ctx
+                    .current_reservation
+                    .and_then(|current_prev| res
+                        .system_reservation_context
+                        .current_reservation
+                        .map(|current_res| current_res <= current_prev))
+                    .unwrap_or(true));
+
+                debug_assert!(system_reservation_ctx
+                    .previous_reservation
+                    .and_then(|prev_reservation| res
+                        .system_reservation_context
+                        .previous_reservation
+                        .map(|prev_res| prev_res <= prev_reservation))
+                    .unwrap_or(true));
                 process_success(Exit(value_destination), res)
             }
             DispatchResultKind::GasAllowanceExceed => {
