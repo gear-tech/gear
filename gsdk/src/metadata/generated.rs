@@ -656,8 +656,12 @@ pub mod runtime_types {
             }
             #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
             pub struct ActiveProgram<_0> {
-                pub allocations: ::std::vec::Vec<runtime_types::gear_core::pages::Page2>,
-                pub pages_with_data: ::std::vec::Vec<runtime_types::gear_core::pages::Page>,
+                pub allocations: runtime_types::numerated::tree::IntervalsTree<
+                    runtime_types::gear_core::pages::Page2,
+                >,
+                pub pages_with_data: runtime_types::numerated::tree::IntervalsTree<
+                    runtime_types::gear_core::pages::Page,
+                >,
                 pub memory_infix: runtime_types::gear_core::program::MemoryInfix,
                 pub gas_reservation_map: ::subxt::utils::KeyedVec<
                     runtime_types::gear_core::ids::ReservationId,
@@ -1032,6 +1036,16 @@ pub mod runtime_types {
                     Manual,
                     #[codec(index = 255)]
                     Unsupported,
+                }
+            }
+        }
+        pub mod numerated {
+            use super::runtime_types;
+            pub mod tree {
+                use super::runtime_types;
+                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                pub struct IntervalsTree<_0> {
+                    pub inner: ::subxt::utils::KeyedVec<_0, _0>,
                 }
             }
         }
@@ -2465,6 +2479,7 @@ pub mod runtime_types {
                     pub upload_page_data: runtime_types::sp_weights::weight_v2::Weight,
                     pub static_page: runtime_types::sp_weights::weight_v2::Weight,
                     pub mem_grow: runtime_types::sp_weights::weight_v2::Weight,
+                    pub mem_grow_per_page: runtime_types::sp_weights::weight_v2::Weight,
                     pub parachain_read_heuristic: runtime_types::sp_weights::weight_v2::Weight,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
@@ -2484,7 +2499,6 @@ pub mod runtime_types {
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub struct SyscallWeights {
                     pub alloc: runtime_types::sp_weights::weight_v2::Weight,
-                    pub alloc_per_page: runtime_types::sp_weights::weight_v2::Weight,
                     pub free: runtime_types::sp_weights::weight_v2::Weight,
                     pub free_range: runtime_types::sp_weights::weight_v2::Weight,
                     pub free_range_per_page: runtime_types::sp_weights::weight_v2::Weight,
