@@ -900,25 +900,12 @@ pub mod pallet {
                 || ProgramStorageOf::<T>::paused_program_exists(&program_id)
         }
 
-        /// Returns exit argument of an exited program.
-        pub fn exit_inheritor_of(program_id: ProgramId) -> Option<ProgramId> {
-            ProgramStorageOf::<T>::get_program(program_id).and_then(|program| {
-                if let Program::Exited(inheritor) = program {
-                    Some(inheritor)
-                } else {
-                    None
-                }
-            })
-        }
-
-        /// Returns inheritor of terminated (failed it's init) program.
-        pub fn termination_inheritor_of(program_id: ProgramId) -> Option<ProgramId> {
-            ProgramStorageOf::<T>::get_program(program_id).and_then(|program| {
-                if let Program::Terminated(inheritor) = program {
-                    Some(inheritor)
-                } else {
-                    None
-                }
+        /// Returns inheritor of an exited/terminated program.
+        pub fn first_inheritor_of(program_id: ProgramId) -> Option<ProgramId> {
+            ProgramStorageOf::<T>::get_program(program_id).and_then(|program| match program {
+                Program::Active(_) => None,
+                Program::Exited(id) => Some(id),
+                Program::Terminated(id) => Some(id),
             })
         }
 

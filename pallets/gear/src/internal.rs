@@ -910,22 +910,19 @@ where
         program_id: ProgramId,
         max_depth: NonZeroUsize,
     ) -> Option<(ProgramId, BTreeSet<ProgramId>)> {
-        let get_inheritor =
-            |id| Self::exit_inheritor_of(id).or_else(|| Self::termination_inheritor_of(id));
-
         let max_depth = max_depth.get();
 
         let mut inheritor = program_id;
         let mut holders: BTreeSet<_> = [program_id].into();
 
         loop {
-            let next_inheritor = get_inheritor(inheritor)?;
+            let next_inheritor = Self::first_inheritor_of(inheritor)?;
 
             inheritor = next_inheritor;
 
             // don't insert user or active program
             // because it's the final inheritor we already return
-            if get_inheritor(next_inheritor).is_none() {
+            if Self::first_inheritor_of(next_inheritor).is_none() {
                 break;
             }
 
