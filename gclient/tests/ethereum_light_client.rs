@@ -510,12 +510,12 @@ async fn ethereum_light_client() -> Result<()> {
 
                 buffer.clone()
             },
-            transaction_hashes: {
-                buffer.clear();
-                transaction_hashes.serialize(&mut buffer).unwrap();
+            // transaction_hashes: {
+            //     buffer.clear();
+            //     transaction_hashes.serialize(&mut buffer).unwrap();
 
-                buffer.clone()
-            }
+            //     buffer.clone()
+            // }
         };
 
         let gas_limit = client

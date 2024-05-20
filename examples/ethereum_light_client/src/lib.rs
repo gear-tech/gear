@@ -678,7 +678,7 @@ pub enum Handle {
         // ssz_rs serialized
         beacon_block_body_light: Vec<u8>,
         // ssz_rs serialized
-        transaction_hashes: Vec<u8>,
+        // transaction_hashes: Vec<u8>,
     }
 }
 

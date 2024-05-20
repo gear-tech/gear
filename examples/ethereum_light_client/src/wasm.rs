@@ -49,7 +49,7 @@ struct LightClientStore {
 
 static mut LAST_CHECKPOINT: Option<Bytes32> = None;
 static mut STORE: Option<LightClientStore> = None;
-static mut BLOCKS: CircularBuffer<256, (ExecutionPayloadHeader, List<Node, 1_048_576>)> = CircularBuffer::new();
+static mut BLOCKS: CircularBuffer<256, ExecutionPayloadHeader> = CircularBuffer::new();
 
 const BUILTIN_BLS381: ActorId = ActorId::new(hex!(
     "6b6e292c382945e80bf51af2ba7fe9f458dcff81ae6075c46f9095e1bbecdc37"
@@ -420,8 +420,8 @@ async fn main() {
 
         Handle::BeaconBlockBody {
             beacon_block_body_light,
-            transaction_hashes,
-        } => handle_beacon_block_body(beacon_block_body_light, transaction_hashes).await,
+            // transaction_hashes,
+        } => handle_beacon_block_body(beacon_block_body_light).await,
     }
 }
 
@@ -562,13 +562,13 @@ async fn handle_beacon_block_body(
     // ssz_rs serialized
     beacon_block_body_light: Vec<u8>,
     // ssz_rs serialized
-    transaction_hashes: Vec<u8>,
+    // transaction_hashes: Vec<u8>,
 ) {
     let mut beacon_block_body_light = BeaconBlockBodyLight::deserialize(&beacon_block_body_light[..]).expect("Unable to deserialize BeaconBlockBodyLight");
     let blocks = unsafe { &mut BLOCKS };
     if blocks
         .iter()
-        .find(|(execution_payload_header, _)| execution_payload_header.block_number() == beacon_block_body_light.execution_payload_header().block_number())
+        .find(|execution_payload_header| execution_payload_header.block_number() == beacon_block_body_light.execution_payload_header().block_number())
         .is_some()
     {
         debug!("already contains the block. Skipping");
@@ -584,12 +584,12 @@ async fn handle_beacon_block_body(
         return;
     }
 
-    let mut transaction_hashes = List::<Node, 1_048_576>::deserialize(&transaction_hashes[..]).expect("Unable to deserialize transaction hashes");
-    let hash = transaction_hashes.hash_tree_root().expect("Unable to calculate transactions root");
-    if hash != beacon_block_body_light.execution_payload_header().transactions_root() {
-        debug!("Wrong transaction hashes");
-        return;
-    }
+    // let mut transaction_hashes = List::<Node, 1_048_576>::deserialize(&transaction_hashes[..]).expect("Unable to deserialize transaction hashes");
+    // let hash = transaction_hashes.hash_tree_root().expect("Unable to calculate transactions root");
+    // if hash != beacon_block_body_light.execution_payload_header().transactions_root() {
+    //     debug!("Wrong transaction hashes");
+    //     return;
+    // }
 
-    blocks.push_back((beacon_block_body_light.execution_payload_header().clone(), transaction_hashes));
+    blocks.push_back(beacon_block_body_light.execution_payload_header().clone());
 }
