@@ -139,73 +139,54 @@ where
     });
 
     match exec_result {
-        Ok(res) => Ok(match res.kind {
-            DispatchResultKind::Trap(reason) => process_execution_error(
-                res.dispatch,
-                program_id,
-                res.gas_amount.burned(),
-                res.system_reservation_context,
-                ActorExecutionErrorReplyReason::Trap(reason),
-            ),
-
-            DispatchResultKind::Success => {
-                debug_assert!(system_reservation_ctx
-                    .current_reservation
-                    .and_then(|current_prev| res
-                        .system_reservation_context
+        Ok(res) => {
+            match res.kind {
+                DispatchResultKind::Success
+                | DispatchResultKind::Wait(_, _)
+                | DispatchResultKind::Exit(_) => {
+                    // assert that after processing the initial reservation is less or equal to the current one.
+                    // during execution reservation amount might increase due to `system_reserve_gas` calls
+                    // thus making initial reservation less than current one.
+                    debug_assert!(system_reservation_ctx
                         .current_reservation
-                        .map(|current_res| current_res <= current_prev))
-                    .unwrap_or(true));
+                        .and_then(|initial| res
+                            .system_reservation_context
+                            .current_reservation
+                            .map(|current| initial <= current))
+                        .unwrap_or(true));
 
-                debug_assert!(system_reservation_ctx
-                    .previous_reservation
-                    .and_then(|prev_reservation| res
-                        .system_reservation_context
+                    debug_assert!(system_reservation_ctx
                         .previous_reservation
-                        .map(|prev_res| prev_res <= prev_reservation))
-                    .unwrap_or(true));
-                process_success(Success, res)
+                        .and_then(|initial| res
+                            .system_reservation_context
+                            .previous_reservation
+                            .map(|current| initial <= current))
+                        .unwrap_or(true));
+                }
+                // reservation does not change in case of failure
+                _ => (),
             }
-            DispatchResultKind::Wait(duration, ref waited_type) => {
-                debug_assert!(system_reservation_ctx
-                    .current_reservation
-                    .and_then(|current_prev| res
-                        .system_reservation_context
-                        .current_reservation
-                        .map(|current_res| current_res <= current_prev))
-                    .unwrap_or(true));
+            Ok(match res.kind {
+                DispatchResultKind::Trap(reason) => process_execution_error(
+                    res.dispatch,
+                    program_id,
+                    res.gas_amount.burned(),
+                    res.system_reservation_context,
+                    ActorExecutionErrorReplyReason::Trap(reason),
+                ),
 
-                debug_assert!(system_reservation_ctx
-                    .previous_reservation
-                    .and_then(|prev_reservation| res
-                        .system_reservation_context
-                        .previous_reservation
-                        .map(|prev_res| prev_res <= prev_reservation))
-                    .unwrap_or(true));
-                process_success(Wait(duration, waited_type.clone()), res)
-            }
-            DispatchResultKind::Exit(value_destination) => {
-                debug_assert!(system_reservation_ctx
-                    .current_reservation
-                    .and_then(|current_prev| res
-                        .system_reservation_context
-                        .current_reservation
-                        .map(|current_res| current_res <= current_prev))
-                    .unwrap_or(true));
-
-                debug_assert!(system_reservation_ctx
-                    .previous_reservation
-                    .and_then(|prev_reservation| res
-                        .system_reservation_context
-                        .previous_reservation
-                        .map(|prev_res| prev_res <= prev_reservation))
-                    .unwrap_or(true));
-                process_success(Exit(value_destination), res)
-            }
-            DispatchResultKind::GasAllowanceExceed => {
-                process_allowance_exceed(dispatch, program_id, res.gas_amount.burned())
-            }
-        }),
+                DispatchResultKind::Success => process_success(Success, res),
+                DispatchResultKind::Wait(duration, ref waited_type) => {
+                    process_success(Wait(duration, waited_type.clone()), res)
+                }
+                DispatchResultKind::Exit(value_destination) => {
+                    process_success(Exit(value_destination), res)
+                }
+                DispatchResultKind::GasAllowanceExceed => {
+                    process_allowance_exceed(dispatch, program_id, res.gas_amount.burned())
+                }
+            })
+        }
         Err(ExecutionError::Actor(e)) => Ok(process_execution_error(
             dispatch,
             program_id,
