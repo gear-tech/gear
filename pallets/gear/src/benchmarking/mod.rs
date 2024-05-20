@@ -553,9 +553,11 @@ benchmarks! {
             benchmarking::set_program::<ProgramStorageOf::<T>, _>(program_id, vec![], 1.into());
 
             ProgramStorageOf::<T>::update_program_if_active(program_id, |program, _bn| {
-                // we set program to terminated state and not exited one because
-                // it's the longest branch in `PalletGear::inheritor_for()`
-                *program = common::Program::Terminated(inheritor);
+                if i % 2 == 0 {
+                    *program = common::Program::Terminated(inheritor);
+                } else {
+                    *program = common::Program::Exited(inheritor);
+                }
             })
             .unwrap();
 
