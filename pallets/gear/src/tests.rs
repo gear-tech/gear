@@ -6241,6 +6241,10 @@ fn exit_locking_funds() {
         ));
         let message_1 = utils::get_last_message_id();
 
+        run_to_next_block(None);
+
+        assert_succeed(message_1);
+
         let calls = Calls::builder().exit(<[u8; 32]>::from(USER_2.into_origin()));
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
@@ -6254,12 +6258,12 @@ fn exit_locking_funds() {
 
         run_to_next_block(None);
 
-        assert_succeed(message_1);
         assert_succeed(message_2);
 
-        assert_balance(USER_2, user_2_balance, 0u128);
-        assert_balance(program_id, value, 0u128);
+        assert_balance(USER_2, user_2_balance + value, 0u128);
+        assert_balance(program_id, 0u128, 0u128);
 
+        // nothing should change
         assert_ok!(Gear::claim_value_to_inheritor(
             RuntimeOrigin::signed(USER_1),
             program_id,

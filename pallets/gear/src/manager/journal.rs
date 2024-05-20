@@ -19,8 +19,8 @@
 use crate::{
     internal::HoldBoundBuilder,
     manager::{CodeInfo, ExtManager},
-    Config, Event, GasAllowanceOf, GasHandlerOf, GasTree, GearBank, Pallet, ProgramStorageOf,
-    QueueOf, TaskPoolOf, WaitlistOf,
+    Config, CurrencyOf, Event, GasAllowanceOf, GasHandlerOf, GasTree, GearBank, Pallet,
+    ProgramStorageOf, QueueOf, TaskPoolOf, WaitlistOf,
 };
 use common::{
     event::*,
@@ -29,7 +29,10 @@ use common::{
     CodeStorage, LockableTree, Origin, Program, ProgramState, ProgramStorage, ReservableTree,
 };
 use core_processor::common::{DispatchOutcome as CoreDispatchOutcome, JournalHandler};
-use frame_support::sp_runtime::Saturating;
+use frame_support::{
+    sp_runtime::Saturating,
+    traits::{Currency, ExistenceRequirement},
+};
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId, ReservationId},
@@ -163,6 +166,20 @@ where
             }
 
             *p = Program::Exited(value_destination);
+
+            // `gr_exit()` argument implies value is sent to destination
+            let id_exited = id_exited.cast();
+            let value_destination = value_destination.cast();
+            let balance = CurrencyOf::<T>::free_balance(&id_exited);
+            if !balance.is_zero() {
+                CurrencyOf::<T>::transfer(
+                    &id_exited,
+                    &value_destination,
+                    balance,
+                    ExistenceRequirement::AllowDeath,
+                )
+                .unwrap_or_else(|e| unreachable!("Failed to transfer value: {e:?}"));
+            }
         })
         .unwrap_or_else(|e| {
             unreachable!("`exit` can be called only from active program: {:?}", e);
