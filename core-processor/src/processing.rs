@@ -223,7 +223,6 @@ fn process_error(
     // execution, where `gr_wait` was called.
     if dispatch.context().is_none() && value != 0 {
         // Send back value
-        // TODO: handle sending back
         journal.push(JournalNote::SendValue {
             from: origin,
             to: None,
