@@ -460,7 +460,7 @@ pub mod constants {
     /// by programs dispatches from execution of the user dispatch.
     pub const GAS_ALLOWANCE: Gas = 750_000_000_000;
 
-    /// Gas mulitplier used to calculate equivalance of gas in token value.
+    /// Gas multiplier used to calculate equivalence of gas in token value.
     pub const GAS_MULTIPLIER: GasMultiplier<Value, Gas> = GasMultiplier::ValuePerGas(6);
 
     /* Currency-related constants */

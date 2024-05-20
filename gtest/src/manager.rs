@@ -999,9 +999,9 @@ impl JournalHandler for ExtManager {
             match dispatch.gas_limit() {
                 Some(gas_limit) => {
                     self.gas_tree
-                        .split_with_value(message_id, dispatch.id(), gas_limit)
+                        .split_with_value(false, message_id, dispatch.id(), gas_limit)
                 }
-                None => self.gas_tree.split(message_id, dispatch.id()),
+                None => self.gas_tree.split(false, message_id, dispatch.id()),
             }
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
@@ -1031,7 +1031,6 @@ impl JournalHandler for ExtManager {
     ) {
         log::debug!("[{}] wait", dispatch.id());
 
-        self.message_consumed(dispatch.id());
         let dest = dispatch.destination();
         let id = dispatch.id();
         self.wait_list.insert((dest, id), dispatch);
