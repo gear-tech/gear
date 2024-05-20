@@ -2254,8 +2254,8 @@ pub mod runtime_types {
                     #[doc = "The program rent logic is disabled."]
                     ProgramRentDisabled,
                     #[codec(index = 16)]
-                    #[doc = "Inheritor is not found for the program."]
-                    InheritorNotFound,
+                    #[doc = "Program is active."]
+                    ActiveProgram,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 #[doc = "The `Event` enum of this pallet"]
@@ -8100,7 +8100,7 @@ pub mod calls {
         ClaimValue,
         Run,
         SetExecuteInherent,
-        TransferValueToInheritor,
+        ClaimValueToInheritor,
     }
     impl CallInfo for GearCall {
         const PALLET: &'static str = "Gear";
@@ -8114,7 +8114,7 @@ pub mod calls {
                 Self::ClaimValue => "claim_value",
                 Self::Run => "run",
                 Self::SetExecuteInherent => "set_execute_inherent",
-                Self::TransferValueToInheritor => "claim_value_to_inheritor",
+                Self::ClaimValueToInheritor => "claim_value_to_inheritor",
             }
         }
     }

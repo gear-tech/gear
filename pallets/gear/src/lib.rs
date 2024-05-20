@@ -433,8 +433,6 @@ pub mod pallet {
         ///
         /// Program init failed, so such message destination is no longer unavailable.
         InactiveProgram,
-        /// Program is active.
-        ActiveProgram,
         /// Message gas tree is not found.
         ///
         /// When a message claimed from the mailbox has a corrupted or non-extant gas tree associated.
@@ -464,6 +462,8 @@ pub mod pallet {
         GearRunAlreadyInBlock,
         /// The program rent logic is disabled.
         ProgramRentDisabled,
+        /// Program is active.
+        ActiveProgram,
     }
 
     #[cfg(feature = "runtime-benchmarks")]
