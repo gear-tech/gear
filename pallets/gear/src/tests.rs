@@ -38,6 +38,7 @@ use common::{
     Origin as _, Program, ProgramStorage, ReservableTree,
 };
 use core_processor::common::ActorExecutionErrorReplyReason;
+use demo_constructor::Scheme;
 use frame_support::{
     assert_noop, assert_ok,
     sp_runtime::traits::{TypedGet, Zero},
@@ -6473,6 +6474,24 @@ fn terminated_locking_funds() {
         assert_eq!(
             Balances::free_balance(USER_1),
             user_1_balance + extra_gas_to_mb + prog_free,
+        );
+    });
+}
+
+#[test]
+fn claim_value_to_inheritor() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let (_init_mid, program_id) = init_constructor(Scheme::empty());
+
+        // other cases are in `*_locking_funds` tests
+        assert_noop!(
+            Gear::claim_value_to_inheritor(
+                RuntimeOrigin::signed(USER_1),
+                program_id,
+                NonZeroU32::MAX
+            ),
+            Error::<Test>::ActiveProgram
         );
     });
 }
