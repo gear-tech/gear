@@ -39,7 +39,10 @@ use gear_core::{
         Dispatch, DispatchKind, Message, MessageWaitedType, ReplyMessage, ReplyPacket,
         StoredDispatch, StoredMessage,
     },
-    pages::{GearPage, WasmPage},
+    pages::{
+        numerated::{iterators::IntervalIterator, tree::IntervalsTree},
+        GearPage, WasmPage,
+    },
     program::Program as CoreProgram,
     reservation::{GasReservationMap, GasReserver},
 };
@@ -49,7 +52,7 @@ use gear_wasm_instrument::gas_metering::Schedule;
 use rand::{rngs::StdRng, RngCore, SeedableRng};
 use std::{
     cell::{Ref, RefCell, RefMut},
-    collections::{BTreeMap, BTreeSet, HashMap, VecDeque},
+    collections::{BTreeMap, HashMap, VecDeque},
     convert::TryInto,
     rc::Rc,
     time::{SystemTime, UNIX_EPOCH},
@@ -861,6 +864,7 @@ impl ExtManager {
                         reservation: RESERVATION_COST.into(),
                     },
                     mem_grow: Default::default(),
+                    mem_grow_per_page: Default::default(),
                 },
                 lazy_pages: LazyPagesCosts::default(),
                 read: READ_COST.into(),
@@ -1066,7 +1070,7 @@ impl JournalHandler for ExtManager {
     }
 
     #[track_caller]
-    fn update_allocations(&mut self, program_id: ProgramId, allocations: BTreeSet<WasmPage>) {
+    fn update_allocations(&mut self, program_id: ProgramId, allocations: IntervalsTree<WasmPage>) {
         let mut actors = self.actors.borrow_mut();
         let (actor, _) = actors
             .get_mut(&program_id)
@@ -1089,6 +1093,7 @@ impl JournalHandler for ExtManager {
                 program
                     .allocations()
                     .difference(&allocations)
+                    .flat_map(IntervalIterator::from)
                     .flat_map(|page| page.to_iter())
                     .for_each(|ref page| {
                         pages_data.remove(page);

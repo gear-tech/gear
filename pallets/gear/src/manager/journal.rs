@@ -35,15 +35,12 @@ use gear_core::{
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::PageBuf,
     message::{Dispatch, MessageWaitedType, StoredDispatch},
-    pages::{GearPage, WasmPage},
+    pages::{numerated::tree::IntervalsTree, GearPage, WasmPage},
     reservation::GasReserver,
 };
 use gear_core_errors::SignalCode;
 use sp_runtime::traits::{UniqueSaturatedInto, Zero};
-use sp_std::{
-    collections::{btree_map::BTreeMap, btree_set::BTreeSet},
-    prelude::*,
-};
+use sp_std::{collections::btree_map::BTreeMap, prelude::*};
 
 impl<T> JournalHandler for ExtManager<T>
 where
@@ -341,11 +338,12 @@ where
         });
     }
 
-    fn update_allocations(&mut self, program_id: ProgramId, allocations: BTreeSet<WasmPage>) {
+    fn update_allocations(&mut self, program_id: ProgramId, allocations: IntervalsTree<WasmPage>) {
         ProgramStorageOf::<T>::update_active_program(program_id, |p| {
-            let removed_pages = p.allocations.difference(&allocations);
-            for page in removed_pages.flat_map(|page| page.to_iter()) {
-                if p.pages_with_data.remove(&page) {
+            for page in p.allocations.difference(&allocations).flat_map(|i| i.iter()).flat_map(|p| p.to_iter()) {
+                // TODO: do not use `contains` #3879
+                if p.pages_with_data.contains(page) {
+                    p.pages_with_data.remove(page);
                     ProgramStorageOf::<T>::remove_program_page_data(program_id, p.memory_infix, page);
                 }
             }
