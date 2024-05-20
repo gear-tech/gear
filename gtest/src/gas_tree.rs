@@ -75,27 +75,45 @@ impl GasTreeManager {
     /// method.
     pub(crate) fn split_with_value(
         &self,
+        is_reply: bool,
         original_mid: MessageId,
         new_mid: MessageId,
         amount: Gas,
     ) -> Result<(), GasTreeError> {
-        <AuxiliaryGasProvider as Provider>::GasTree::split_with_value(
-            GasNodeId::from(original_mid.cast::<PlainNodeId>()),
-            GasNodeId::from(new_mid.cast::<PlainNodeId>()),
-            amount,
-        )
+        if !is_reply
+            && !<AuxiliaryGasProvider as Provider>::GasTree::exists_and_deposit(GasNodeId::from(
+                new_mid.cast::<PlainNodeId>(),
+            ))
+        {
+            return <AuxiliaryGasProvider as Provider>::GasTree::split_with_value(
+                GasNodeId::from(original_mid.cast::<PlainNodeId>()),
+                GasNodeId::from(new_mid.cast::<PlainNodeId>()),
+                amount,
+            );
+        }
+
+        Ok(())
     }
 
     /// Adapted by argument types version of the gas tree `split` method.
     pub(crate) fn split(
         &self,
+        is_reply: bool,
         original_mid: MessageId,
         new_mid: MessageId,
     ) -> Result<(), GasTreeError> {
-        <AuxiliaryGasProvider as Provider>::GasTree::split(
-            GasNodeId::from(original_mid.cast::<PlainNodeId>()),
-            GasNodeId::from(new_mid.cast::<PlainNodeId>()),
-        )
+        if !is_reply
+            && !<AuxiliaryGasProvider as Provider>::GasTree::exists_and_deposit(GasNodeId::from(
+                new_mid.cast::<PlainNodeId>(),
+            ))
+        {
+            return <AuxiliaryGasProvider as Provider>::GasTree::split(
+                GasNodeId::from(original_mid.cast::<PlainNodeId>()),
+                GasNodeId::from(new_mid.cast::<PlainNodeId>()),
+            );
+        }
+
+        Ok(())
     }
 
     /// Adapted by argument types version of the gas tree `cut` method.
