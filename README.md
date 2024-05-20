@@ -46,7 +46,6 @@ Gear Protocol provides a developer-friendly programming platform for decentraliz
 - **Unique** :crown: : The main idea underpinning the Gear Protocol is the Actor model for message communications - secure, effective, clear.
 - **Unique** :crown: : Parallelizable architecture ensures even greater speed.
 - **Unique** :crown: : Continued messaging automation through delayed messages enables truly on-chain dApps.
-- **Unique** :crown: : Gasless transactions through vouchers to leverage the dApps customer base and overall Web3 adoption.
 - **Unique** :crown: : Built-in Actors to provide programs with enhanced access to pallets and to offload high-load computations off-chain.
 - **Unique** :crown: : Create a dApp in minutes using Gear Protocol's libraries.
 - Programs run in a Wasm VM, enabling near-native code execution speed.
