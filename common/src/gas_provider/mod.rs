@@ -34,6 +34,7 @@ mod reservable;
 #[cfg(test)]
 mod property_tests;
 
+#[cfg(feature = "std")]
 pub use auxiliary::*;
 pub use error::Error;
 pub use internal::TreeImpl;
