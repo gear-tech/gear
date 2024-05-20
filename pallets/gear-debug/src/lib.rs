@@ -219,7 +219,7 @@ pub mod pallet {
                     let persistent_pages = T::ProgramStorage::get_program_data_for_pages(
                         id,
                         active.memory_infix,
-                        active.pages_with_data.iter(),
+                        active.pages_with_data.points_iter(),
                     )
                     .unwrap();
 
@@ -288,19 +288,20 @@ pub mod pallet {
         /// Used in tests to exhaust block resources.
         ///
         /// Parameters:
-        /// - `_fraction`: the fraction of the `max_extrinsic` the extrinsic will use.
+        /// - `fraction`: the fraction of the `max_extrinsic` the extrinsic will use.
         #[pallet::call_index(1)]
         #[pallet::weight({
             if let Some(max) = T::BlockWeights::get().get(DispatchClass::Normal).max_extrinsic {
-                *_fraction * max
+                *fraction * max
             } else {
                 Weight::zero()
             }
         })]
         pub fn exhaust_block_resources(
             origin: OriginFor<T>,
-            _fraction: Percent,
+            fraction: Percent,
         ) -> DispatchResultWithPostInfo {
+            let _ = fraction; // We dont need to check the weight witness.
             ensure_root(origin)?;
             Ok(Pays::No.into())
         }

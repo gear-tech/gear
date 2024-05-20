@@ -23,7 +23,7 @@ use frame_support::{
     dispatch::DispatchClass,
     pallet_prelude::*,
     parameter_types,
-    traits::{ConstU64, FindAuthor},
+    traits::{ConstU32, ConstU64, FindAuthor},
     weights::constants::RocksDbWeight,
 };
 use frame_support_test::TestRandomness;

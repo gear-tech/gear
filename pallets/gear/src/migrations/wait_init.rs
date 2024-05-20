@@ -41,7 +41,7 @@ pub struct MigrateWaitingInitList<T>(PhantomData<T>);
 
 const MIGRATE_FROM_VERSION: u16 = 4;
 const MIGRATE_TO_VERSION: u16 = 5;
-const ALLOWED_CURRENT_STORAGE_VERSION: u16 = 5;
+const ALLOWED_CURRENT_STORAGE_VERSION: u16 = 6;
 
 impl<T> OnRuntimeUpgrade for MigrateWaitingInitList<T>
 where
@@ -103,8 +103,8 @@ where
 
     #[cfg(feature = "try-runtime")]
     fn pre_upgrade() -> Result<Vec<u8>, TryRuntimeError> {
-        let current = Pallet::<T>::current_storage_version();
-        let onchain = Pallet::<T>::on_chain_storage_version();
+        let current = pallet_gear_program::Pallet::<T>::current_storage_version();
+        let onchain = pallet_gear_program::Pallet::<T>::on_chain_storage_version();
 
         let data = if onchain == MIGRATE_FROM_VERSION {
             ensure!(
