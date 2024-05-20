@@ -53,6 +53,7 @@ pub use crate::{
 pub use gear_core::{gas::GasInfo, message::ReplyInfo};
 pub use weights::WeightInfo;
 
+use crate::internal::InheritorForError;
 use alloc::{
     format,
     string::{String, ToString},
@@ -1649,8 +1650,16 @@ pub mod pallet {
             let depth = depth.try_into().unwrap_or_else(|e| {
                 unreachable!("NonZeroU32 to NoZeroUsize conversion must be infallible: {e}")
             });
-            let Some((destination, holders)) = Self::inheritor_for(program_id, depth) else {
-                return Err(Error::<T>::InheritorNotFound.into());
+            let (destination, holders) = match Self::inheritor_for(program_id, depth) {
+                Ok(res) => res,
+                Err(InheritorForError::Cyclic) => {
+                    // TODO: send value to treasury (#3979)
+                    log::debug!("Cyclic inheritor detected for {program_id}");
+                    return Ok(());
+                }
+                Err(InheritorForError::NotFound) => {
+                    return Err(Error::<T>::InheritorNotFound.into())
+                }
             };
 
             let destination = destination.cast();

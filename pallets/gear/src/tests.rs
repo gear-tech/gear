@@ -18,11 +18,11 @@
 
 use crate::{
     builtin::BuiltinDispatcherFactory,
-    internal::HoldBoundBuilder,
+    internal::{HoldBoundBuilder, InheritorForError},
     manager::{CodeInfo, HandleKind},
     mock::{
         self, new_test_ext, run_for_blocks, run_to_block, run_to_block_maybe_with_queue,
-        run_to_next_block, Balances, BlockNumber, DynamicSchedule, Gear, GearVoucher,
+        run_to_next_block, Balances, BlockNumber, DynamicSchedule, Gear, GearProgram, GearVoucher,
         RuntimeEvent as MockRuntimeEvent, RuntimeOrigin, System, Test, Timestamp, BLOCK_AUTHOR,
         LOW_BALANCE_USER, RENT_POOL, USER_1, USER_2, USER_3,
     },
@@ -6494,6 +6494,7 @@ fn test_inheritor_of() {
 
         let message_id = MessageId::from(1);
 
+        // serial inheritance
         let mut programs = vec![];
         for i in 1000..1100 {
             let program_id = ProgramId::from(i);
@@ -6534,7 +6535,7 @@ fn test_inheritor_of() {
         };
 
         let res = Gear::inheritor_for(USER_1.into(), NonZeroUsize::MAX);
-        assert_eq!(res, None);
+        assert_eq!(res, Err(InheritorForError::NotFound));
 
         let (inheritor, holders) = inheritor_for(programs[99], usize::MAX);
         assert_eq!(inheritor, USER_1.into());
@@ -6567,6 +6568,49 @@ fn test_inheritor_of() {
         let (inheritor, holders) = inheritor_for(programs[99], 99);
         assert_eq!(inheritor, programs[0]);
         assert_eq!(holders, indexed_programs[1..]);
+
+        <GearProgram as ProgramStorage>::reset();
+
+        // cyclic inheritance
+        let mut cyclic_programs = vec![];
+        for i in 2000..2100 {
+            let program_id = ProgramId::from(i);
+            manager.set_program(
+                program_id,
+                &code_info,
+                message_id,
+                1.unique_saturated_into(),
+            );
+
+            ProgramStorageOf::<Test>::update_program_if_active(program_id, |program, _bn| {
+                let inheritor = cyclic_programs
+                    .last()
+                    .copied()
+                    .unwrap_or_else(|| 2099.into());
+                if i % 2 == 0 {
+                    *program = Program::Exited(inheritor);
+                } else {
+                    *program = Program::Terminated(inheritor);
+                }
+            })
+            .unwrap();
+
+            cyclic_programs.push(program_id);
+        }
+
+        let res = Gear::inheritor_for(2000.into(), NonZeroUsize::MAX);
+        assert_eq!(res, Err(InheritorForError::Cyclic));
+
+        let res = Gear::inheritor_for(2000.into(), NonZeroUsize::new(101).unwrap());
+        assert_eq!(res, Err(InheritorForError::Cyclic));
+
+        let (inheritor, _holders) =
+            Gear::inheritor_for(2000.into(), NonZeroUsize::new(100).unwrap()).unwrap();
+        assert_eq!(inheritor, 2000.into());
+
+        let (inheritor, _holders) =
+            Gear::inheritor_for(2000.into(), NonZeroUsize::new(99).unwrap()).unwrap();
+        assert_eq!(inheritor, 2001.into());
     });
 }
 

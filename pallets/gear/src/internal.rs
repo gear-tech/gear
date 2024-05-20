@@ -189,6 +189,12 @@ where
     }
 }
 
+#[derive(Debug, Eq, PartialEq)]
+pub(crate) enum InheritorForError {
+    Cyclic,
+    NotFound,
+}
+
 // Internal functionality implementation.
 impl<T: Config> Pallet<T>
 where
@@ -909,14 +915,15 @@ where
     pub(crate) fn inheritor_for(
         program_id: ProgramId,
         max_depth: NonZeroUsize,
-    ) -> Option<(ProgramId, BTreeSet<ProgramId>)> {
+    ) -> Result<(ProgramId, BTreeSet<ProgramId>), InheritorForError> {
         let max_depth = max_depth.get();
 
         let mut inheritor = program_id;
         let mut holders: BTreeSet<_> = [program_id].into();
 
         loop {
-            let next_inheritor = Self::first_inheritor_of(inheritor)?;
+            let next_inheritor =
+                Self::first_inheritor_of(inheritor).ok_or(InheritorForError::NotFound)?;
 
             inheritor = next_inheritor;
 
@@ -931,12 +938,11 @@ where
             }
 
             if !holders.insert(next_inheritor) {
-                log::debug!("Cyclic inheritor detected for {next_inheritor}");
-                break;
+                return Err(InheritorForError::Cyclic);
             }
         }
 
-        Some((inheritor, holders))
+        Ok((inheritor, holders))
     }
 
     /// This fn and [`split_with_value`] works the same: they call api of gas
