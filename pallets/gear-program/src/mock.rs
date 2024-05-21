@@ -25,7 +25,7 @@ use frame_support::{
     construct_runtime,
     pallet_prelude::*,
     parameter_types,
-    traits::{ConstU64, FindAuthor},
+    traits::{ConstU32, ConstU64, FindAuthor},
     weights::RuntimeDbWeight,
 };
 use frame_system::{self as system, pallet_prelude::BlockNumberFor};

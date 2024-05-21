@@ -1111,9 +1111,9 @@ impl JournalHandler for ExtManager {
                     .allocations()
                     .difference(&allocations)
                     .flat_map(IntervalIterator::from)
-                    .flat_map(|p| p.to_iter())
-                    .for_each(|ref p| {
-                        pages_data.remove(p);
+                    .flat_map(|page| page.to_iter())
+                    .for_each(|ref page| {
+                        pages_data.remove(page);
                     });
                 program.set_allocations(allocations);
             }

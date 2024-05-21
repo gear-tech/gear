@@ -376,7 +376,7 @@ impl AllocationsContext {
             }
         }
 
-        if let Some(page) = allocations.start() {
+        if let Some(page) = allocations.end() {
             if page >= memory_size {
                 return Err(MemorySetupError::AllocatedPageOutOfAllowedInterval {
                     page,
@@ -385,7 +385,7 @@ impl AllocationsContext {
                 });
             }
         }
-        if let Some(page) = allocations.end() {
+        if let Some(page) = allocations.start() {
             if page < static_pages {
                 return Err(MemorySetupError::AllocatedPageOutOfAllowedInterval {
                     page,
@@ -678,7 +678,7 @@ mod tests {
         assert_eq!(
             AllocationsContext::validate_memory_params(
                 4.into(),
-                &iter::once(WasmPage::from(1)).collect(),
+                &[WasmPage::from(1), WasmPage::from(3)].into_iter().collect(),
                 2.into(),
                 Some(2.into()),
                 4.into(),
@@ -693,7 +693,7 @@ mod tests {
         assert_eq!(
             AllocationsContext::validate_memory_params(
                 4.into(),
-                &iter::once(WasmPage::from(4)).collect(),
+                &[WasmPage::from(2), WasmPage::from(4)].into_iter().collect(),
                 2.into(),
                 Some(2.into()),
                 4.into(),

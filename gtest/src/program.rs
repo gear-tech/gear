@@ -948,7 +948,7 @@ mod tests {
 
     #[test]
     #[should_panic(
-        expected = "An attempt to mint value (1) less than existential deposit (10000000000000)"
+        expected = "An attempt to mint value (1) less than existential deposit (1000000000000)"
     )]
     fn mint_less_than_deposit() {
         System::new().mint_to(1, 1);
@@ -957,7 +957,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "Insufficient value: user \
     (0x0100000000000000000000000000000000000000000000000000000000000000) tries \
-    to send (10000000000001) value, while his balance (10000000000000)")]
+    to send (1000000000001) value, while his balance (1000000000000)")]
     fn fails_on_insufficient_balance() {
         let sys = System::new();
 
