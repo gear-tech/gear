@@ -422,6 +422,22 @@ async fn main() {
             beacon_block_body_light,
             // transaction_hashes,
         } => handle_beacon_block_body(beacon_block_body_light).await,
+
+        Handle::GetReceiptsRoot(block_number) => {
+            let block_number = U64::from(block_number);
+            let blocks = unsafe { &mut BLOCKS };
+            let result = blocks
+                .iter()
+                .find_map(|execution_payload_header| if execution_payload_header.block_number() == &block_number {
+                    let receipts_root = <[u8; 32]>::try_from(execution_payload_header.receipts_root().as_slice()).unwrap();
+
+                    Some(receipts_root)
+                } else {
+                    None
+                });
+
+            msg::reply(result, 0).expect("Unable to reply with receipts root");
+        }
     }
 }
 

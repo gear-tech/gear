@@ -679,7 +679,9 @@ pub enum Handle {
         beacon_block_body_light: Vec<u8>,
         // ssz_rs serialized
         // transaction_hashes: Vec<u8>,
-    }
+    },
+    // get receipts root for the specified block number.
+    GetReceiptsRoot(u64),
 }
 
 pub fn calc_sync_period(slot: u64) -> u64 {
