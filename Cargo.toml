@@ -35,6 +35,7 @@ members = [
     "examples/delayed-sender",
     "examples/distributor",
     "examples/ethereum_light_client",
+    "examples/ethereum_bridge",
     "examples/fungible-token",
     "examples/stack-allocations",
     "examples/futures-unordered",
@@ -402,6 +403,7 @@ demo-constructor = { path = "examples/constructor", default-features = false }
 demo-delayed-sender = { path = "examples/delayed-sender" }
 demo-distributor = { path = "examples/distributor" }
 demo-ethereum_light_client = { path = "examples/ethereum_light_client", default-features = false }
+demo-ethereum_bridge = { path = "examples/ethereum_bridge", default-features = false }
 demo-futures-unordered = { path = "examples/futures-unordered", features = ["debug"] }
 demo-gas-burned = { path = "examples/gas-burned" }
 demo-fungible-token = { path = "examples/fungible-token" }
