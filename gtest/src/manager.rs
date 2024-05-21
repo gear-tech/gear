@@ -326,7 +326,7 @@ impl ExtManager {
             .map(|dispatches| {
                 dispatches
                     .into_iter()
-                    .map(|dispatch| self.run_dispatch(dispatch))
+                    .map(|dispatch| self.run_dispatch(dispatch, true))
                     .collect()
             })
             .unwrap_or_default()
@@ -354,7 +354,7 @@ impl ExtManager {
                                 message.value(),
                                 message.details(),
                             );
-                            self.run_dispatch(Dispatch::new(kind, message))
+                            self.run_dispatch(Dispatch::new(kind, message), true)
                         })
                     })
                     .collect()
@@ -434,19 +434,21 @@ impl ExtManager {
 
     pub(crate) fn validate_and_run_dispatch(&mut self, dispatch: Dispatch) -> RunResult {
         self.validate_dispatch(&dispatch);
-        self.run_dispatch(dispatch)
+        self.run_dispatch(dispatch, false)
     }
 
     #[track_caller]
-    pub(crate) fn run_dispatch(&mut self, dispatch: Dispatch) -> RunResult {
+    pub(crate) fn run_dispatch(&mut self, dispatch: Dispatch, from_task_pool: bool) -> RunResult {
         self.prepare_for(&dispatch);
 
         if self.is_program(&dispatch.destination()) {
             // TODO: `gas_limit` being None is an abuse of the `run_dispatch` usage,
             // as it must be called only for user messages
-            self.gas_tree
-                .create(dispatch.source(), dispatch.id(), dispatch.gas_limit())
-                .unwrap_or_else(|e| unreachable!("GasTree corrupter! {:?}", e));
+            if !from_task_pool {
+                self.gas_tree
+                    .create(dispatch.source(), dispatch.id(), dispatch.gas_limit())
+                    .unwrap_or_else(|e| unreachable!("GasTree corrupter! {:?}", e));
+            }
 
             self.dispatches.push_back(dispatch.into_stored());
         } else {
