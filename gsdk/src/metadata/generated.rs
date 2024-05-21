@@ -205,13 +205,6 @@ pub mod runtime_types {
                     )]
                     pub struct CheckNonZeroSender;
                 }
-                pub mod check_nonce {
-                    use super::runtime_types;
-                    #[derive(
-                        Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
-                    )]
-                    pub struct CheckNonce(#[codec(compact)] pub ::core::primitive::u32);
-                }
                 pub mod check_spec_version {
                     use super::runtime_types;
                     #[derive(
@@ -7472,6 +7465,8 @@ pub mod runtime_types {
                     }
                 }
             }
+            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            pub struct CustomCheckNonce(#[codec(compact)] pub ::core::primitive::u32);
             #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
             pub struct NposSolution16 {
                 pub votes1: ::std::vec::Vec<(
