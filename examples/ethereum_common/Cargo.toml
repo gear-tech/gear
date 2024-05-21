@@ -1,0 +1,29 @@
+[package]
+name = "demo-ethereum_common"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+
+[dependencies]
+hash-db = { version = "0.15.2", default-features = false }
+hash256-std-hasher = { version = "0.15.2", default-features = false }
+trie-db = { version = "0.22.6", default-features = false }
+memory-db = { version = "0.27.0", default-features = false }
+ethereum-types = { version = "0.14.1", default-features = false, features = ["rlp"] }
+rlp = { version = "0.5.2", default-features = false }
+tiny-keccak = { version = "2.0.2", features = ["keccak"] }
+
+[features]
+default = ["std"]
+std = [
+    "hash-db/std",
+    "hash256-std-hasher/std",
+    "trie-db/std",
+    "trie-db/std",
+    "memory-db/std",
+    "ethereum-types/std",
+    "rlp/std",
+]
