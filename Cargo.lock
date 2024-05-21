@@ -8205,6 +8205,7 @@ dependencies = [
  "pallet-babe",
  "pallet-balances",
  "pallet-session",
+ "pallet-staking",
  "pallet-timestamp",
  "parity-scale-codec",
  "primitive-types",
@@ -8214,6 +8215,7 @@ dependencies = [
  "sp-io",
  "sp-runtime",
  "sp-session",
+ "sp-staking",
  "sp-std 8.0.0 (git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-v1.3.0)",
 ]
 

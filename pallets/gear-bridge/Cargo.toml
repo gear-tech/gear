@@ -33,7 +33,9 @@ sp-io.workspace = true
 binary-merkle-tree.workspace = true
 pallet-babe.workspace = true
 pallet-session.workspace = true
+pallet-staking.workspace = true
 sp-session.workspace = true
+sp-staking.workspace = true
 sp-consensus-grandpa.workspace = true
 
 [dev-dependencies]
@@ -60,7 +62,9 @@ std = [
 	"binary-merkle-tree/std",
 	"pallet-babe/std",
 	"pallet-session/std",
+	"pallet-staking/std",
 	"sp-session/std",
+	"sp-staking/std",
 	"sp-consensus-grandpa/std",
 ]
 runtime-benchmarks = [
@@ -73,4 +77,5 @@ try-runtime = [
 	"frame-support/try-runtime",
 	"pallet-babe/try-runtime",
 	"pallet-session/try-runtime",
+	"pallet-staking/try-runtime",
 ]

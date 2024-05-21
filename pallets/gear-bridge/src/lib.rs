@@ -22,102 +22,74 @@
 #![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
 #![doc(html_favicon_url = "https://gear-tech.io/favicons/favicon.ico")]
 
-// TODO (breathx):
-// - [ ] *Consider*: named events for ON/OFF and `switch` naming;
-// - [ ] *Consider*: `NonceStart` storage;
-// - [ ] *Consider*: storages visibility;
-// - [ ] *Consider*: RPC-call with validator set;
-// - [ ] *Code*: reset + set hash of validators on epoch change (beginning of second block of the epoch);
-// - [ ] *Code*: tests coverage;
-// - [ ] *Code*: impl builtin.
-
-// Move nonce before payload
-// keep hash of val set here.
-
-// Runtime mock for running tests.
-#[cfg(test)]
-mod mock;
-
-// Unit tests module.
-#[cfg(test)]
-mod tests;
-
-// Module with internal implementation details.
 mod internal;
 
-// Public exports from pallet.
 pub use pallet::*;
 
 pub use crate::internal::Proof;
 
-// Gear Bridge Pallet module.
 #[frame_support::pallet]
 pub mod pallet {
-    use crate::internal::{EthMessage, EthMessageData, FirstNonce, Proof};
+    use crate::internal::{EthMessage, EthMessageData, Proof};
     use common::Origin;
     use frame_support::{pallet_prelude::*, traits::StorageVersion, StorageHasher};
     use frame_system::pallet_prelude::*;
     use gear_core::message::PayloadSizeError;
     use primitive_types::{H160, H256, U256};
     use sp_runtime::{key_types, traits::OpaqueKeys};
+    use sp_staking::SessionIndex;
     use sp_std::vec::Vec;
 
     pub(crate) use binary_merkle_tree as merkle_tree;
 
-    pub type Hasher = sp_runtime::traits::Keccak256;
+    pub type KeccakHasher = sp_runtime::traits::Keccak256;
 
     pub use frame_support::weights::Weight;
 
-    /// The current storage version.
     pub const BRIDGE_STORAGE_VERSION: StorageVersion = StorageVersion::new(0);
 
-    /// Gear Bridge Pallet's `Config`.
     #[pallet::config]
-    pub trait Config: frame_system::Config + pallet_babe::Config + pallet_session::Config {
-        /// Because this pallet emits events, it depends on the runtime's definition of an event.
+    pub trait Config:
+        frame_system::Config + pallet_session::Config + pallet_staking::Config
+    {
         type RuntimeEvent: From<Event<Self>>
             + TryInto<Event<Self>>
             + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 
-        /// Limit of messages to be bridged within the era.
         #[pallet::constant]
         type QueueLimit: Get<u32>;
     }
 
-    // Gear Bridge Pallet event type.
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
     pub enum Event<T> {
-        ModeSwitched,
+        MessageQueued { nonce: U256, hash: H256 },
+        Reset,
         RootUpdated(H256),
-        MessageQueued { message: EthMessage, hash: H256 },
-        ValidatorSetUpdated(H256),
-        QueueReset,
+        SetPaused(bool),
+        ValidatorsSetUpdated(H256),
     }
 
-    // Gear Bridge Pallet error type.
     #[pallet::error]
     pub enum Error<T> {
-        QueueAccessRefused,
+        BridgePaused,
         QueueLimitExceeded,
     }
 
-    // Gear Bridge Pallet itself.
-    //
-    // Uses without storage info to avoid direct access to pallet's
-    // storage from outside.
-    //
-    // Uses `BRIDGE_STORAGE_VERSION` as current storage version.
     #[pallet::pallet]
-    #[pallet::without_storage_info]
     #[pallet::storage_version(BRIDGE_STORAGE_VERSION)]
     pub struct Pallet<T>(_);
 
     #[pallet::storage]
-    pub(crate) type AcceptRequests<T> = StorageValue<_, bool, ValueQuery>;
+    pub(crate) type NextNonce<T> = StorageValue<_, U256, ValueQuery>;
 
+    // TODO (breathx): impl migrations for me.
     #[pallet::storage]
-    pub(crate) type Nonce<T> = StorageValue<_, U256, ValueQuery, FirstNonce>;
+    pub(crate) type ParentSessionIdx<T> = StorageValue<_, SessionIndex, ValueQuery>;
+
+    // TODO (breathx): consider what pause should stop: incoming requests vs whole workflow
+    #[pallet::storage]
+    pub(crate) type Paused<T> = StorageValue<_, bool, ValueQuery>;
 
     #[pallet::storage]
     pub(crate) type Queue<T> =
@@ -127,16 +99,13 @@ pub mod pallet {
     pub(crate) type QueueChanged<T> = StorageValue<_, bool, ValueQuery>;
 
     #[pallet::storage]
-    pub(crate) type QueueMerkleRoot<T> = StorageValue<_, H256>;
+    pub(crate) type QueueRoot<T> = StorageValue<_, H256>;
 
     #[pallet::storage]
-    pub(crate) type ValidatorSet<T> = StorageValue<_, H256>;
+    pub(crate) type ResetOnSessionChange<T> = StorageValue<_, bool, ValueQuery>;
 
     #[pallet::storage]
-    pub(crate) type EpochIndex<T> = StorageValue<_, u64, ValueQuery>;
-
-    #[pallet::storage]
-    pub(crate) type ResetOnInitialize<T> = StorageValue<_, bool, ValueQuery>;
+    pub(crate) type ValidatorsSet<T> = StorageValue<_, H256>;
 
     #[pallet::call]
     impl<T: Config> Pallet<T>
@@ -145,17 +114,17 @@ pub mod pallet {
     {
         #[pallet::call_index(0)]
         #[pallet::weight(Weight::zero())]
-        pub fn switch(origin: OriginFor<T>) -> DispatchResultWithPostInfo {
+        pub fn set_paused(origin: OriginFor<T>, paused: bool) -> DispatchResultWithPostInfo {
             ensure_root(origin)?;
 
-            AcceptRequests::<T>::mutate(|v| *v = !*v);
-
-            Self::deposit_event(Event::<T>::ModeSwitched);
+            if Paused::<T>::get() != paused {
+                Paused::<T>::put(paused);
+                Self::deposit_event(Event::<T>::SetPaused(paused));
+            }
 
             Ok(().into())
         }
 
-        /// Queues new hash into hash queue.
         #[pallet::call_index(1)]
         #[pallet::weight(Weight::zero())]
         pub fn send(
@@ -165,26 +134,113 @@ pub mod pallet {
         ) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
 
-            AcceptRequests::<T>::get()
-                .then_some(())
-                .ok_or(Error::<T>::QueueAccessRefused)?;
+            ensure!(!Paused::<T>::get(), Error::<T>::BridgePaused);
 
             let payload = payload
                 .try_into()
                 .map_err(|e: PayloadSizeError| DispatchError::Other(e.into()))?;
 
-            let data = EthMessageData::new(destination, payload);
-
-            let nonce = Nonce::<T>::mutate(|v| {
-                let res = *v;
-                *v = v.saturating_add(U256::one());
-                res
-            });
-
+            let nonce = Self::fetch_inc_nonce();
             let source = who.into_origin();
+            let data = EthMessageData::new(destination, payload);
 
             let message = EthMessage::from_data(nonce, source, data);
 
+            Self::queue(&message)?;
+
+            Ok(().into())
+        }
+    }
+
+    #[pallet::hooks]
+    impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T>
+    where
+        T::AccountId: Origin,
+    {
+        // TODO (breathx): add max weight of root calculation
+        fn on_initialize(_n: BlockNumberFor<T>) -> Weight {
+            let mut weight = Weight::zero();
+
+            weight = weight.saturating_add(T::DbWeight::get().writes(1));
+            QueueChanged::<T>::kill();
+
+            weight = weight.saturating_add(T::DbWeight::get().reads(2));
+            let current_session_idx = <pallet_session::Pallet<T>>::current_index();
+            let parent_session_idx = ParentSessionIdx::<T>::get();
+
+            if parent_session_idx != current_session_idx {
+                weight = weight.saturating_add(T::DbWeight::get().writes(1));
+                ParentSessionIdx::<T>::put(current_session_idx);
+
+                weight = weight.saturating_add(T::DbWeight::get().reads(2));
+                let active_era = <pallet_staking::Pallet<T>>::active_era()
+                    .map(|info| info.index)
+                    .unwrap_or_else(|| {
+                        // TODO (breathx): should we panic here?
+                        log::error!("Active era wasn't found");
+                        Default::default()
+                    });
+                let current_era = <pallet_staking::Pallet<T>>::current_era().unwrap_or_else(|| {
+                    // TODO (breathx): should we panic here?
+                    log::error!("Current era wasn't found");
+                    Default::default()
+                });
+
+                if active_era != current_era {
+                    Self::update_validators_set(&mut weight);
+
+                    weight = weight.saturating_add(T::DbWeight::get().writes(1));
+                    ResetOnSessionChange::<T>::put(true);
+                } else {
+                    weight = weight.saturating_add(T::DbWeight::get().reads(1));
+                    if ResetOnSessionChange::<T>::get() {
+                        weight = weight.saturating_add(T::DbWeight::get().writes(4));
+                        ResetOnSessionChange::<T>::kill();
+                        Queue::<T>::kill();
+                        QueueRoot::<T>::kill();
+                        ValidatorsSet::<T>::kill();
+
+                        Self::deposit_event(Event::<T>::Reset);
+                    }
+                }
+            }
+
+            weight
+        }
+
+        fn on_finalize(_bn: BlockNumberFor<T>) {
+            if !QueueChanged::<T>::get() {
+                return;
+            }
+
+            let queue = Queue::<T>::get();
+
+            if queue.is_empty() {
+                log::error!("Queue supposed to be non-empty");
+                return;
+            };
+
+            let root = merkle_tree::merkle_root::<KeccakHasher, _>(queue);
+
+            QueueRoot::<T>::put(root);
+
+            Self::deposit_event(Event::<T>::RootUpdated(root));
+        }
+    }
+
+    impl<T: Config> Pallet<T>
+    where
+        T::AccountId: Origin,
+    {
+        fn fetch_inc_nonce() -> U256 {
+            NextNonce::<T>::mutate(|v| {
+                let nonce = *v;
+                *v = nonce.saturating_add(U256::one());
+                nonce
+            })
+        }
+
+        fn queue(message: &EthMessage) -> Result<(), Error<T>> {
             let hash = Queue::<T>::mutate(|v| {
                 (v.len() < T::QueueLimit::get() as usize)
                     .then(|| {
@@ -199,111 +255,45 @@ pub mod pallet {
 
             QueueChanged::<T>::put(true);
 
-            Self::deposit_event(Event::<T>::MessageQueued { message, hash });
+            Self::deposit_event(Event::<T>::MessageQueued {
+                nonce: message.nonce(),
+                hash,
+            });
 
-            Ok(().into())
+            Ok(())
         }
-    }
 
-    #[pallet::hooks]
-    impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T>
-    where
-        T::AccountId: Origin,
-    {
-        fn on_initialize(_n: BlockNumberFor<T>) -> Weight {
-            let mut weight = Weight::zero();
+        fn update_validators_set(weight: &mut Weight) {
+            *weight = weight.saturating_add(T::DbWeight::get().reads(1));
+            let queued_keys = <pallet_session::Pallet<T>>::queued_keys();
 
-            QueueChanged::<T>::kill();
-            weight = weight.saturating_add(T::DbWeight::get().writes(1));
-
-            let reset = ResetOnInitialize::<T>::take();
-            weight = weight.saturating_add(T::DbWeight::get().reads(1));
-
-            if reset {
-                weight = weight.saturating_add(T::DbWeight::get().writes(1));
-
-                Queue::<T>::kill();
-                weight = weight.saturating_add(T::DbWeight::get().writes(1));
-
-                QueueMerkleRoot::<T>::kill();
-                weight = weight.saturating_add(T::DbWeight::get().writes(1));
-
-                Self::deposit_event(Event::<T>::QueueReset);
-            } else {
-                let current_epoch = EpochIndex::<T>::get();
-                weight = weight.saturating_add(T::DbWeight::get().reads(1));
-
-                let babe_current_epoch = <pallet_babe::Pallet<T>>::epoch_index();
-                weight = weight.saturating_add(T::DbWeight::get().reads(1));
-
-                if babe_current_epoch != current_epoch {
-                    EpochIndex::<T>::put(babe_current_epoch);
-                    weight = weight.saturating_add(T::DbWeight::get().writes(1));
-
-                    ResetOnInitialize::<T>::put(true);
-                    weight = weight.saturating_add(T::DbWeight::get().writes(1));
-
-                    let queued_keys = <pallet_session::Pallet<T>>::queued_keys();
-                    weight = weight.saturating_add(T::DbWeight::get().reads(1));
-
-                    let grandpa_keys: Vec<[u8; 32]> = queued_keys
-                        .into_iter()
-                        .map(|(_, keys)| {
-                            keys.get(key_types::GRANDPA)
-                                .expect("TODO (breathx): consider type safety here")
-                        })
+            let concat_grandpa_keys: Vec<_> = queued_keys
+                .into_iter()
+                .flat_map(|(_, keys)| {
+                    keys.get(key_types::GRANDPA)
                         .map(|v: sp_consensus_grandpa::AuthorityId| v.into_inner().0)
-                        .collect();
+                        .unwrap_or_else(|| {
+                            // TODO (breathx): should we panic here?
+                            log::error!("Grandpa keys weren't found");
+                            Default::default()
+                        })
+                })
+                .collect();
 
-                    let validator_set_hash =
-                        Blake2_256::hash(grandpa_keys.concat().as_ref()).into();
+            let validators_set_hash = Blake2_256::hash(&concat_grandpa_keys).into();
 
-                    ValidatorSet::<T>::put(validator_set_hash);
-                    weight = weight.saturating_add(T::DbWeight::get().writes(1));
+            *weight = weight.saturating_add(T::DbWeight::get().writes(1));
+            ValidatorsSet::<T>::put(validators_set_hash);
 
-                    Self::deposit_event(Event::<T>::ValidatorSetUpdated(validator_set_hash));
-                }
-            }
-
-            weight
+            Self::deposit_event(Event::<T>::ValidatorsSetUpdated(validators_set_hash));
         }
 
-        /// End of the block.
-        fn on_finalize(_bn: BlockNumberFor<T>) {
-            // Check if queue was changed.
-            if !QueueChanged::<T>::get() {
-                return;
-            }
-
-            // Querying non-empty queue.
-            let queue = Queue::<T>::get();
-
-            if queue.is_empty() {
-                log::error!("Queue supposed to be non-empty");
-                return;
-            };
-
-            // Merkle root calculation.
-            let root = merkle_tree::merkle_root::<Hasher, _>(queue);
-
-            // Storing new root.
-            QueueMerkleRoot::<T>::put(root);
-
-            // Depositing event.
-            Self::deposit_event(Event::<T>::RootUpdated(root));
-        }
-    }
-
-    impl<T: Config> Pallet<T>
-    where
-        T::AccountId: Origin,
-    {
         pub fn merkle_proof(hash: H256) -> Option<Proof> {
             let queue = Queue::<T>::get();
 
             let idx = queue.iter().position(|&v| v == hash)?;
 
-            let proof = merkle_tree::merkle_proof::<Hasher, _, _>(queue, idx);
+            let proof = merkle_tree::merkle_proof::<KeccakHasher, _, _>(queue, idx);
 
             Some(proof.into())
         }

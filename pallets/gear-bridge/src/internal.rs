@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{merkle_tree::MerkleProof, Hasher};
+use crate::{merkle_tree::MerkleProof, KeccakHasher};
 use frame_support::traits::Get;
 use gear_core::message::Payload;
 use parity_scale_codec::{Decode, Encode};
@@ -108,6 +108,10 @@ impl EthMessage {
         ]
         .concat();
 
-        Hasher::hash(&arg)
+        KeccakHasher::hash(&arg)
+    }
+
+    pub fn nonce(&self) -> U256 {
+        self.nonce
     }
 }
