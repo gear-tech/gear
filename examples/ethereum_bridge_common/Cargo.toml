@@ -1,5 +1,5 @@
 [package]
-name = "demo-ethereum_bridge"
+name = "demo-ethereum_bridge_common"
 version = "0.1.0"
 authors.workspace = true
 edition.workspace = true
@@ -8,11 +8,7 @@ homepage.workspace = true
 repository.workspace = true
 
 [dependencies]
-gstd = { workspace = true, features = ["debug"] }
 alloy-sol-types = { version = "0.7.4", default-features = false, features = ["json"] }
-
-[build-dependencies]
-gear-wasm-builder.workspace = true
 
 [features]
 default = ["std"]
