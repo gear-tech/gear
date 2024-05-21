@@ -36,6 +36,8 @@ use core::{
 };
 use derive_more::{AsMut, AsRef, Display, From, Into};
 use gear_ss58::RawSs58Address;
+#[cfg(feature = "serde")]
+use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 #[cfg(feature = "codec")]
 use {
     primitive_types::H256,
@@ -172,10 +174,10 @@ impl FromStr for ActorId {
 }
 
 #[cfg(feature = "serde")]
-impl serde::Serialize for ActorId {
+impl Serialize for ActorId {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
-        S: serde::Serializer,
+        S: Serializer,
     {
         let address = self
             .to_ss58check_with_version(gear_ss58::VARA_SS58_PREFIX)
@@ -185,14 +187,14 @@ impl serde::Serialize for ActorId {
 }
 
 #[cfg(feature = "serde")]
-impl<'de> serde::Deserialize<'de> for ActorId {
+impl<'de> Deserialize<'de> for ActorId {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
-        D: serde::Deserializer<'de>,
+        D: Deserializer<'de>,
     {
         struct ActorIdVisitor;
 
-        impl<'de> serde::de::Visitor<'de> for ActorIdVisitor {
+        impl<'de> de::Visitor<'de> for ActorIdVisitor {
             type Value = ActorId;
 
             fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
@@ -201,10 +203,10 @@ impl<'de> serde::Deserialize<'de> for ActorId {
 
             fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
             where
-                E: serde::de::Error,
+                E: de::Error,
             {
                 let raw_address = RawSs58Address::from_ss58check(value)
-                    .map_err(serde::de::Error::custom)?
+                    .map_err(|_| de::Error::invalid_value(de::Unexpected::Str(value), &self))?
                     .into();
                 Ok(Self::Value::new(raw_address))
             }
