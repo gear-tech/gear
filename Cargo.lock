@@ -2658,6 +2658,7 @@ dependencies = [
  "hash-db 0.15.2",
  "hash256-std-hasher",
  "memory-db 0.27.0",
+ "parity-scale-codec",
  "rlp",
  "tiny-keccak",
  "trie-db 0.22.6",
@@ -3685,7 +3686,9 @@ checksum = "c22d4b5885b6aa2fe5e8b9329fb8d232bf739e434e6b87347c63bdd00c120f60"
 dependencies = [
  "crunchy",
  "fixed-hash",
+ "impl-codec",
  "impl-rlp",
+ "scale-info",
  "tiny-keccak",
 ]
 
@@ -3697,8 +3700,10 @@ checksum = "02d215cbf040552efcbe99a38372fe80ab9d00268e20012b79fcd0f073edd8ee"
 dependencies = [
  "ethbloom",
  "fixed-hash",
+ "impl-codec",
  "impl-rlp",
  "primitive-types",
+ "scale-info",
  "uint",
 ]
 

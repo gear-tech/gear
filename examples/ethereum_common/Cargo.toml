@@ -12,9 +12,10 @@ hash-db = { version = "0.15.2", default-features = false }
 hash256-std-hasher = { version = "0.15.2", default-features = false }
 trie-db = { version = "0.22.6", default-features = false }
 memory-db = { version = "0.27.0", default-features = false }
-ethereum-types = { version = "0.14.1", default-features = false, features = ["rlp"] }
+ethereum-types = { version = "0.14.1", default-features = false, features = ["rlp", "codec"] }
 rlp = { version = "0.5.2", default-features = false }
 tiny-keccak = { version = "2.0.2", features = ["keccak"] }
+codec.workspace = true
 
 [features]
 default = ["std"]
@@ -26,4 +27,5 @@ std = [
     "memory-db/std",
     "ethereum-types/std",
     "rlp/std",
+    "codec/std",
 ]

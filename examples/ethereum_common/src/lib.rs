@@ -18,6 +18,27 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
+#[cfg(not(feature = "std"))]
+extern crate alloc;
+
+#[cfg(not(feature = "std"))]
+use alloc::vec::Vec;
+
+pub use ethereum_types;
+pub use trie_db;
+pub use hash_db;
+pub use memory_db;
+pub use rlp;
+
 pub mod keccak_hasher;
 pub mod rlp_node_codec;
 pub mod patricia_trie;
+pub mod types;
+
+use keccak_hasher::KeccakHasher;
+
+pub type MemoryDB = memory_db::MemoryDB::<KeccakHasher, memory_db::HashKey<KeccakHasher>, Vec<u8>>;
+
+pub fn new_memory_db() -> MemoryDB {
+    memory_db::MemoryDB::from_null_node(&rlp::NULL_RLP, rlp::NULL_RLP.as_ref().into())
+}
