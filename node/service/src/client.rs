@@ -23,7 +23,7 @@ use sc_client_api::{
     UsageProvider,
 };
 use sc_executor::NativeElseWasmExecutor;
-use sp_api::{CallApiAt, NumberFor, ProvideRuntimeApi};
+use sp_api::{CallApiAt, NumberFor, ProvideRuntimeApi, StateBackend};
 use sp_blockchain::{HeaderBackend, HeaderMetadata};
 use sp_consensus::BlockStatus;
 use sp_core::H256;
@@ -33,6 +33,7 @@ use sp_runtime::{
     Justifications, OpaqueExtrinsic,
 };
 use sp_storage::{ChildInfo, StorageData, StorageKey};
+use sp_trie::MerkleValue;
 use std::sync::Arc;
 
 pub type FullBackend = sc_service::TFullBackend<Block>;
@@ -458,6 +459,39 @@ impl sc_client_api::StorageProvider<Block, crate::FullBackend> for Client {
             client,
             {
                 client.child_storage_hash(id, child_info, key)
+            }
+        }
+    }
+
+    fn closest_merkle_value(
+        &self,
+        hash: <Block as BlockT>::Hash,
+        key: &StorageKey,
+    ) -> sp_blockchain::Result<Option<MerkleValue<<Block as BlockT>::Hash>>> {
+        with_client! {
+            self,
+            client,
+            {
+                client.state_at(hash)?
+                    .closest_merkle_value(&key.0)
+                    .map_err(|e| sp_blockchain::Error::from_state(Box::new(e)))
+            }
+        }
+    }
+
+    fn child_closest_merkle_value(
+        &self,
+        hash: <Block as BlockT>::Hash,
+        child_info: &ChildInfo,
+        key: &StorageKey,
+    ) -> sp_blockchain::Result<Option<MerkleValue<<Block as BlockT>::Hash>>> {
+        with_client! {
+            self,
+            client,
+            {
+                client.state_at(hash)?
+                .child_closest_merkle_value(child_info, &key.0)
+                    .map_err(|e| sp_blockchain::Error::from_state(Box::new(e)))
             }
         }
     }

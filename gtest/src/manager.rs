@@ -37,7 +37,10 @@ use gear_core::{
         Dispatch, DispatchKind, Message, MessageWaitedType, ReplyMessage, ReplyPacket,
         StoredDispatch, StoredMessage,
     },
-    pages::{GearPage, WasmPage},
+    pages::{
+        numerated::{iterators::IntervalIterator, tree::IntervalsTree},
+        GearPage, WasmPage,
+    },
     program::Program as CoreProgram,
     reservation::{GasReservationMap, GasReserver},
 };
@@ -47,7 +50,7 @@ use gear_wasm_instrument::gas_metering::Schedule;
 use rand::{rngs::StdRng, RngCore, SeedableRng};
 use std::{
     cell::{Ref, RefCell, RefMut},
-    collections::{BTreeMap, BTreeSet, HashMap, VecDeque},
+    collections::{BTreeMap, HashMap, VecDeque},
     convert::TryInto,
     rc::Rc,
     time::{SystemTime, UNIX_EPOCH},
@@ -129,7 +132,7 @@ impl TestActor {
 
     // Gets a new executable actor derived from the inner program.
     fn get_executable_actor_data(&self) -> Option<(ExecutableActorData, CoreProgram)> {
-        let (program, pages_data, code_id, gas_reservation_map) = match self {
+        let (program, _, code_id, gas_reservation_map) = match self {
             TestActor::Initialized(Program::Genuine {
                 program,
                 pages_data,
@@ -161,7 +164,6 @@ impl TestActor {
                 code_id: *code_id,
                 code_exports: program.code().exports().clone(),
                 static_pages: program.code().static_pages(),
-                pages_with_data: pages_data.keys().cloned().collect(),
                 gas_reservation_map,
                 memory_infix: program.memory_infix(),
             },
@@ -292,15 +294,15 @@ impl ExtManager {
         init_message_id: Option<MessageId>,
     ) -> Option<(TestActor, Balance)> {
         if let Program::Genuine { program, .. } = &program {
-            self.store_new_code(program.code_bytes());
+            self.store_new_code(program.code_bytes().to_vec());
         }
         self.actors
             .insert(program_id, (TestActor::new(init_message_id, program), 0))
     }
 
-    pub(crate) fn store_new_code(&mut self, code: &[u8]) -> CodeId {
-        let code_id = CodeId::generate(code);
-        self.opt_binaries.insert(code_id, code.to_vec());
+    pub(crate) fn store_new_code(&mut self, code: Vec<u8>) -> CodeId {
+        let code_id = CodeId::generate(&code);
+        self.opt_binaries.insert(code_id, code);
         code_id
     }
 
@@ -894,6 +896,7 @@ impl ExtManager {
                         reservation: RESERVATION_COST.into(),
                     },
                     mem_grow: Default::default(),
+                    mem_grow_per_page: Default::default(),
                 },
                 lazy_pages: LazyPagesCosts::default(),
                 read: READ_COST.into(),
@@ -1084,7 +1087,7 @@ impl JournalHandler for ExtManager {
     }
 
     #[track_caller]
-    fn update_allocations(&mut self, program_id: ProgramId, allocations: BTreeSet<WasmPage>) {
+    fn update_allocations(&mut self, program_id: ProgramId, allocations: IntervalsTree<WasmPage>) {
         let mut actors = self.actors.borrow_mut();
         let (actor, _) = actors
             .get_mut(&program_id)
@@ -1107,6 +1110,7 @@ impl JournalHandler for ExtManager {
                 program
                     .allocations()
                     .difference(&allocations)
+                    .flat_map(IntervalIterator::from)
                     .flat_map(|page| page.to_iter())
                     .for_each(|ref page| {
                         pages_data.remove(page);
@@ -1156,6 +1160,7 @@ impl JournalHandler for ExtManager {
                         schedule.instruction_weights.version,
                         |module| schedule.rules(module),
                         schedule.limits.stack_height,
+                        schedule.limits.data_segments_amount.into(),
                     )
                     .expect("Program can't be constructed with provided code");
 

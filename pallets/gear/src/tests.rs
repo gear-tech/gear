@@ -31,7 +31,6 @@ use crate::{
     Error, Event, GasAllowanceOf, GasBalanceOf, GasHandlerOf, GasInfo, GearBank, Limits, MailboxOf,
     ProgramStorageOf, QueueOf, Schedule, TaskPoolOf, WaitlistOf,
 };
-use alloc::collections::BTreeSet;
 use common::{
     event::*, scheduler::*, storage::*, ActiveProgram, CodeStorage, GasTree, LockId, LockableTree,
     Origin as _, Program, ProgramStorage, ReservableTree,
@@ -224,6 +223,7 @@ fn state_rpc_calls_trigger_reinstrumentation() {
             0, // invalid version
             |module| schedule.rules(module),
             schedule.limits.stack_height,
+            schedule.limits.data_segments_amount.into(),
         )
         .expect("Failed to create dummy code");
 
@@ -2133,15 +2133,8 @@ fn delayed_send_user_message_with_reservation() {
 
         run_to_next_block(None);
 
-        // Check that last event is UserMessageSent.
-        let last_event = match get_last_event() {
-            MockRuntimeEvent::Gear(e) => e,
-            _ => panic!("Should be one Gear event"),
-        };
-        match last_event {
-            Event::UserMessageSent { message, .. } => assert_eq!(delayed_id, message.id()),
-            _ => panic!("Test failed: expected Event::UserMessageSent"),
-        }
+        let last_mail = get_last_mail(USER_2);
+        assert_eq!(last_mail.id(), delayed_id);
 
         // Mailbox should not be empty.
         assert!(!MailboxOf::<Test>::is_empty(&USER_2));
@@ -4808,12 +4801,16 @@ fn claim_value_works() {
         let expected_sender_balance =
             sender_balance + charged_for_page_load - value_sent - gas_burned - burned_for_hold;
         assert_eq!(Balances::free_balance(USER_2), expected_sender_balance);
+
+        // To trigger GearBank::on_finalize -> transfer to pool performed.
+        run_to_next_block(Some(0));
+
         assert_eq!(
             Balances::free_balance(RENT_POOL),
             balance_rent_pool + burned_for_hold
         );
 
-        System::assert_last_event(
+        System::assert_has_event(
             Event::UserMessageRead {
                 id: reply_to_id,
                 reason: UserMessageReadRuntimeReason::MessageClaimed.into_reason(),
@@ -4970,6 +4967,7 @@ fn test_code_submission_pass() {
             schedule.instruction_weights.version,
             |module| schedule.rules(module),
             schedule.limits.stack_height,
+            schedule.limits.data_segments_amount.into(),
         )
         .expect("Error creating Code");
         assert_eq!(saved_code.unwrap().code(), code.code());
@@ -6465,6 +6463,7 @@ fn test_create_program_works() {
             schedule.instruction_weights.version,
             |module| schedule.rules(module),
             schedule.limits.stack_height,
+            schedule.limits.data_segments_amount.into(),
         )
         .expect("Code failed to load");
 
@@ -10004,6 +10003,7 @@ fn test_mad_big_prog_instrumentation() {
             schedule.instruction_weights.version,
             |module| schedule.rules(module),
             schedule.limits.stack_height,
+            schedule.limits.data_segments_amount.into(),
         );
         // In any case of the defined weights on the platform, instrumentation of the valid
         // huge wasm mustn't fail
@@ -13052,45 +13052,6 @@ fn relay_messages() {
     );
 }
 
-// TODO: move to gear-core after #3736
-#[test]
-fn module_instantiation_error() {
-    // Unknown global import leads to instantiation error.
-    let wat = r#"
-        (module
-            (import "env" "memory" (memory 1))
-            (import "env" "unknown" (global $unknown i32))
-            (export "init" (func $init))
-            (func $init)
-        )
-    "#;
-
-    init_logger();
-    new_test_ext().execute_with(|| {
-        let code = ProgramCodeKind::Custom(wat).to_bytes();
-        let salt = DEFAULT_SALT.to_vec();
-        let prog_id = generate_program_id(&code, &salt);
-        Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            code,
-            salt,
-            EMPTY_PAYLOAD.to_vec(),
-            50_000_000_000,
-            0,
-            false,
-        )
-        .unwrap();
-
-        let mid = get_last_message_id();
-
-        run_to_next_block(None);
-
-        assert!(Gear::is_terminated(prog_id));
-        let err = get_last_event_error(mid);
-        assert!(err.starts_with(&ActorExecutionErrorReplyReason::Environment.to_string()));
-    });
-}
-
 #[test]
 fn wrong_entry_type() {
     let wat = r#"
@@ -13108,7 +13069,8 @@ fn wrong_entry_type() {
                 ProgramCodeKind::Custom(wat).to_bytes(),
                 1,
                 |_| CustomConstantCostRules::default(),
-                None
+                None,
+                None,
             ),
             Err(CodeError::Export(ExportError::InvalidExportFnSignature(0)))
         ));
@@ -14912,7 +14874,7 @@ fn allocate_in_init_free_in_handle() {
         };
         assert_eq!(
             program.allocations,
-            BTreeSet::from([WasmPage::from(static_pages)])
+            [WasmPage::from(static_pages)].into_iter().collect()
         );
 
         Gear::send_message(
@@ -14931,7 +14893,7 @@ fn allocate_in_init_free_in_handle() {
         else {
             panic!("program must be active")
         };
-        assert_eq!(program.allocations, BTreeSet::new());
+        assert_eq!(program.allocations, Default::default());
     });
 }
 

@@ -37,6 +37,52 @@ static mut HANDLE_REPLY_FLAG: Flag = Flag(false);
 /// A global flag, determining if `handle_signal` already was generated.
 static mut HANDLE_SIGNAL_FLAG: Flag = Flag(false);
 
+fn literal_to_actor_id(literal: syn::LitStr) -> syn::Result<TokenStream> {
+    let actor_id = if let Some(actor_id_hex) = literal.value().strip_prefix("0x") {
+        if actor_id_hex.len() != 64 {
+            return Err(syn::Error::new_spanned(
+                literal,
+                "ActorId must be 32 bytes in length",
+            ));
+        }
+        hex::decode(actor_id_hex).map_err(|err| syn::Error::new_spanned(literal, err))?
+    } else {
+        gear_ss58::decode(literal.value().as_bytes(), 32)
+            .map_err(|err| syn::Error::new_spanned(literal, err))?
+    };
+
+    let actor_id_array = format!("{actor_id:?}")
+        .parse::<proc_macro2::TokenStream>()
+        .expect("failed to parse token stream");
+
+    Ok(quote! { gstd::ActorId::new(#actor_id_array) }.into())
+}
+
+/// Macro to declare `ActorId` from hexadecimal and ss58 format.
+///
+/// # Example
+/// ```
+/// use gstd::{actor_id, ActorId};
+///
+/// # fn main() {
+/// //polkadot address
+/// let alice_1: ActorId = actor_id!("5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY");
+/// //vara address
+/// let alice_2: ActorId = actor_id!("kGkLEU3e3XXkJp2WK4eNpVmSab5xUNL9QtmLPh8QfCL2EgotW");
+/// //hex address
+/// let alice_3: ActorId =
+///     actor_id!("0xd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d");
+///
+/// assert_eq!(alice_1, alice_2);
+/// assert_eq!(alice_2, alice_3);
+/// # }
+/// ```
+#[proc_macro]
+pub fn actor_id(input: TokenStream) -> TokenStream {
+    literal_to_actor_id(syn::parse_macro_input!(input as syn::LitStr))
+        .unwrap_or_else(|err| err.to_compile_error().into())
+}
+
 struct Flag(bool);
 
 impl Flag {
@@ -196,7 +242,8 @@ fn generate_if_required(code: TokenStream, attrs: MainAttrs) -> TokenStream {
 /// Can be used together with [`macro@async_init`].
 ///
 /// When this macro is used, it’s not possible to specify the `handle` function.
-/// If you need to specify the `handle` function explicitly, don't use this macro.
+/// If you need to specify the `handle` function explicitly, don't use this
+/// macro.
 ///
 /// # Examples
 ///
@@ -210,8 +257,9 @@ fn generate_if_required(code: TokenStream, attrs: MainAttrs) -> TokenStream {
 /// # fn main() {}
 /// ```
 ///
-/// Use `handle_reply` and `handle_signal` parameters to specify corresponding handlers.
-/// Note that custom reply and signal handlers derive their default behavior.
+/// Use `handle_reply` and `handle_signal` parameters to specify corresponding
+/// handlers. Note that custom reply and signal handlers derive their default
+/// behavior.
 ///
 /// ```
 /// #[gstd::async_main(handle_reply = my_handle_reply)]
@@ -272,8 +320,9 @@ pub fn async_main(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// }
 /// ```
 ///
-/// Use `handle_reply` and `handle_signal` parameters to specify corresponding handlers.
-/// Note that custom reply and signal handlers derive their default behavior.
+/// Use `handle_reply` and `handle_signal` parameters to specify corresponding
+/// handlers. Note that custom reply and signal handlers derive their default
+/// behavior.
 ///
 /// ```
 /// #[gstd::async_init(handle_signal = my_handle_signal)]
@@ -477,8 +526,8 @@ pub fn wait_for_reply(attr: TokenStream, item: TokenStream) -> TokenStream {
     .into()
 }
 
-/// Similar to [`macro@wait_for_reply`], but works with functions that create programs:
-/// It returns a message id with a newly created program id.
+/// Similar to [`macro@wait_for_reply`], but works with functions that create
+/// programs: It returns a message id with a newly created program id.
 #[proc_macro_attribute]
 pub fn wait_create_program_for_reply(attr: TokenStream, item: TokenStream) -> TokenStream {
     let function = syn::parse_macro_input!(item as syn::ItemFn);

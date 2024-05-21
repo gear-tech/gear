@@ -23,7 +23,10 @@ use frame_election_provider_support::{
 };
 use frame_support::{
     construct_runtime, parameter_types,
-    traits::{ConstU32, Contains, Currency, FindAuthor, Hooks, NeverEnsureOrigin},
+    traits::{
+        tokens::{PayFromAccount, UnityAssetBalanceConversion},
+        ConstU32, ConstU64, Contains, Currency, FindAuthor, Hooks, NeverEnsureOrigin,
+    },
     weights::{constants::RocksDbWeight, Weight},
     PalletId,
 };
@@ -34,7 +37,7 @@ use sp_core::{crypto::key_types, H256};
 use sp_runtime::{
     testing::{Block as TestBlock, UintAuthorityId},
     traits::{BlakeTwo256, IdentityLookup, One, OpaqueKeys, Scale},
-    BuildStorage, KeyTypeId, Perbill, Permill, Perquintill,
+    BuildStorage, KeyTypeId, Perbill, Percent, Permill, Perquintill,
 };
 use sp_std::convert::{TryFrom, TryInto};
 
@@ -340,6 +343,7 @@ parameter_types! {
     pub const SpendPeriod: u32 = 100;
     pub const Burn: Permill = Permill::from_percent(50);
     pub const TreasuryPalletId: PalletId = PalletId(*b"py/trsry");
+    pub TreasuryAccount: AccountId = Treasury::account_id();
     pub const MaxApprovals: u32 = 100;
 }
 
@@ -360,6 +364,12 @@ impl pallet_treasury::Config for Test {
     type WeightInfo = ();
     type MaxApprovals = MaxApprovals;
     type SpendOrigin = NeverEnsureOrigin<u128>;
+    type AssetKind = ();
+    type Beneficiary = Self::AccountId;
+    type BeneficiaryLookup = IdentityLookup<Self::Beneficiary>;
+    type Paymaster = PayFromAccount<Balances, TreasuryAccount>;
+    type BalanceConverter = UnityAssetBalanceConversion;
+    type PayoutPeriod = ConstU64<10>;
 }
 
 parameter_types! {
@@ -375,6 +385,10 @@ parameter_types! {
     pub static SignedMaxRefunds: u32 = 2;
     pub BetterUnsignedThreshold: Perbill = Perbill::zero();
     pub SignedMaxWeight: Weight = Weight::from_parts(u64::MAX, u64::MAX);
+
+    pub static MaxVotesPerVoter: u32 = 16;
+    pub static SignedFixedDeposit: Balance = 1;
+    pub static SignedDepositIncreaseFactor: Percent = Percent::from_percent(10);
 
     // miner configs
     pub static MinerTxPriority: u64 = 100;
@@ -419,7 +433,8 @@ impl multi_phase::Config for Test {
     type OffchainRepeat = OffchainRepeat;
     type MinerTxPriority = MinerTxPriority;
     type SignedRewardBase = SignedRewardBase;
-    type SignedDepositBase = SignedDepositBase;
+    type SignedDepositBase =
+        multi_phase::GeometricDepositBase<Balance, SignedFixedDeposit, SignedDepositIncreaseFactor>;
     type SignedDepositByte = ();
     type SignedDepositWeight = ();
     type SignedMaxWeight = SignedMaxWeight;
@@ -860,6 +875,10 @@ pub(crate) mod two_block_producers {
         type FullIdentificationOf = pallet_staking::ExposureOf<Test>;
     }
 
+    parameter_types! {
+        pub TreasuryAccount: AccountId = Treasury::account_id();
+    }
+
     impl pallet_treasury::Config for Test {
         type PalletId = TreasuryPalletId;
         type Currency = Balances;
@@ -877,6 +896,12 @@ pub(crate) mod two_block_producers {
         type WeightInfo = ();
         type MaxApprovals = MaxApprovals;
         type SpendOrigin = NeverEnsureOrigin<u128>;
+        type AssetKind = ();
+        type Beneficiary = Self::AccountId;
+        type BeneficiaryLookup = IdentityLookup<Self::Beneficiary>;
+        type Paymaster = PayFromAccount<Balances, TreasuryAccount>;
+        type BalanceConverter = UnityAssetBalanceConversion;
+        type PayoutPeriod = ConstU64<10>;
     }
 
     impl pallet_bags_list::Config<pallet_bags_list::Instance1> for Test {
@@ -926,7 +951,11 @@ pub(crate) mod two_block_producers {
         type OffchainRepeat = OffchainRepeat;
         type MinerTxPriority = MinerTxPriority;
         type SignedRewardBase = SignedRewardBase;
-        type SignedDepositBase = SignedDepositBase;
+        type SignedDepositBase = multi_phase::GeometricDepositBase<
+            Balance,
+            SignedFixedDeposit,
+            SignedDepositIncreaseFactor,
+        >;
         type SignedDepositByte = ();
         type SignedDepositWeight = ();
         type SignedMaxWeight = SignedMaxWeight;

@@ -90,6 +90,7 @@ fn main() -> anyhow::Result<()> {
             schedule.instruction_weights.version,
             |module| schedule.rules(module),
             Some(mid),
+            schedule.limits.data_segments_amount.into(),
         )
         .map_err(|e| anyhow::anyhow!("{e}"))?;
 

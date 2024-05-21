@@ -26,13 +26,13 @@ use crate::{
     processing::{process_allowance_exceed, process_execution_error, process_success},
     ContextChargedForCode, ContextChargedForInstrumentation,
 };
-use alloc::{collections::BTreeSet, vec::Vec};
+use alloc::vec::Vec;
 use gear_core::{
     costs::BytesAmount,
     gas::{ChargeResult, GasAllowanceCounter, GasCounter},
     ids::ProgramId,
     message::{IncomingDispatch, MessageWaitedType},
-    pages::{WasmPage, WasmPagesAmount},
+    pages::{numerated::tree::IntervalsTree, WasmPage, WasmPagesAmount},
 };
 
 /// Operation related to gas charging.
@@ -120,8 +120,7 @@ impl<'a> GasPrecharger<'a> {
             PreChargeGasOperation::ProgramCode,
             self.costs
                 .read
-                .cost_for_one()
-                .saturating_add(self.costs.read_per_byte.cost_for(code_len)),
+                .cost_for_with_bytes(self.costs.read_per_byte, code_len),
         )
     }
 
@@ -141,12 +140,9 @@ impl<'a> GasPrecharger<'a> {
     ) -> Result<(), PrechargeError> {
         self.charge_gas(
             PreChargeGasOperation::ModuleInstrumentation,
-            // TODO: use `calc_for_with_bytes` here and in other places method #3838
-            self.costs.instrumentation.cost_for_one().saturating_add(
-                self.costs
-                    .instrumentation_per_byte
-                    .cost_for(original_code_len_bytes),
-            ),
+            self.costs
+                .instrumentation
+                .cost_for_with_bytes(self.costs.instrumentation_per_byte, original_code_len_bytes),
         )
     }
 
@@ -154,14 +150,14 @@ impl<'a> GasPrecharger<'a> {
     /// Returns size of wasm memory buffer which must be created in execution environment.
     pub fn charge_gas_for_pages(
         &mut self,
-        allocations: &BTreeSet<WasmPage>,
+        allocations: &IntervalsTree<WasmPage>,
         static_pages: WasmPagesAmount,
     ) -> Result<WasmPagesAmount, PrechargeError> {
         // Charging gas for static pages.
         let amount = self.costs.static_page.cost_for(static_pages);
         self.charge_gas(PreChargeGasOperation::StaticPages, amount)?;
 
-        if let Some(page) = allocations.last() {
+        if let Some(page) = allocations.end() {
             Ok(page.inc())
         } else {
             Ok(static_pages)

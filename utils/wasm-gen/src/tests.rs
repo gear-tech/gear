@@ -59,7 +59,7 @@ proptest! {
         let original_code = generate_gear_program_code(&mut u, configs_bundle)
             .expect("failed generating wasm");
 
-        let code_res = Code::try_new(original_code, 1, |_| CustomConstantCostRules::default(), None);
+        let code_res = Code::try_new(original_code, 1, |_| CustomConstantCostRules::default(), None, None);
         assert!(code_res.is_ok());
     }
 
@@ -767,8 +767,14 @@ fn execute_wasm_with_custom_configs(
 
     let code =
         generate_gear_program_code(unstructured, gear_config).expect("failed wasm generation");
-    let code = Code::try_new(code, 1, |_| CustomConstantCostRules::new(0, 0, 0), None)
-        .expect("Failed to create Code");
+    let code = Code::try_new(
+        code,
+        1,
+        |_| CustomConstantCostRules::new(0, 0, 0),
+        None,
+        None,
+    )
+    .expect("Failed to create Code");
 
     let code_id = CodeId::generate(code.original_code());
     let program_id = ProgramId::generate_from_user(code_id, b"");
@@ -811,13 +817,14 @@ fn execute_wasm_with_custom_configs(
     )
     .expect("Failed to create environment");
 
-    env.execute(|mem, globals_config| {
+    env.execute(|ctx, mem, globals_config| {
         gear_core_processor::Ext::lazy_pages_init_for_program(
+            ctx,
             mem,
             program_id,
             Default::default(),
             Some(
-                mem.size()
+                mem.size(ctx)
                     .to_page_number()
                     .expect("Memory size is 4GB, so cannot be stack end"),
             ),
@@ -826,7 +833,7 @@ fn execute_wasm_with_custom_configs(
         );
 
         if let Some(mem_write) = initial_memory_write {
-            mem.write(mem_write.offset, &mem_write.content)
+            mem.write(ctx, mem_write.offset, &mem_write.content)
                 .expect("Failed to write to memory");
         };
     })

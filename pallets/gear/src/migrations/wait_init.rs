@@ -23,7 +23,7 @@ use common::{
     Origin,
 };
 use frame_support::{
-    traits::{Get, GetStorageVersion, OnRuntimeUpgrade},
+    traits::{Get, GetStorageVersion, OnRuntimeUpgrade, StorageVersion},
     weights::Weight,
 };
 use gear_core::ids::MessageId;
@@ -32,11 +32,16 @@ use sp_std::{marker::PhantomData, vec::Vec};
 #[cfg(feature = "try-runtime")]
 use {
     common::storage::IterableMap,
+    frame_support::ensure,
     parity_scale_codec::{Decode, Encode},
     sp_runtime::TryRuntimeError,
 };
 
 pub struct MigrateWaitingInitList<T>(PhantomData<T>);
+
+const MIGRATE_FROM_VERSION: u16 = 4;
+const MIGRATE_TO_VERSION: u16 = 5;
+const ALLOWED_CURRENT_STORAGE_VERSION: u16 = 6;
 
 impl<T> OnRuntimeUpgrade for MigrateWaitingInitList<T>
 where
@@ -44,17 +49,21 @@ where
     T::AccountId: Origin,
 {
     fn on_runtime_upgrade() -> Weight {
-        let current = pallet_gear_program::Pallet::<T>::current_storage_version();
         let onchain = pallet_gear_program::Pallet::<T>::on_chain_storage_version();
-
-        log::info!(
-            "🚚 Running migration with current storage version {current:?} / onchain {onchain:?}"
-        );
 
         // 1 read for the on-chain storage version
         let mut weight = T::DbWeight::get().reads(1);
 
-        if current == 4 && onchain == 3 {
+        if onchain == MIGRATE_FROM_VERSION {
+            let current = pallet_gear_program::Pallet::<T>::current_storage_version();
+            if current != ALLOWED_CURRENT_STORAGE_VERSION {
+                log::error!("❌ Migration is not allowed for current storage version {current:?}.");
+                return weight;
+            }
+
+            let update_to = StorageVersion::new(MIGRATE_TO_VERSION);
+            log::info!("🚚 Running migration from {onchain:?} to {update_to:?}, current storage version is {current:?}.");
+
             waiting_init_list::WaitingInitStorage::<T>::translate(
                 |program_id, messages: Vec<MessageId>| {
                     // read and remove an element
@@ -82,11 +91,11 @@ where
                 },
             );
 
-            current.put::<pallet_gear_program::Pallet<T>>();
+            update_to.put::<pallet_gear_program::Pallet<T>>();
 
-            log::info!("Successfully migrated storage");
+            log::info!("✅ Successfully migrated storage");
         } else {
-            log::info!("❌ Migration did not execute. This probably should be removed");
+            log::info!("🟠 Migration requires onchain version {MIGRATE_FROM_VERSION}, so was skipped for {onchain:?}");
         }
 
         weight
@@ -94,9 +103,15 @@ where
 
     #[cfg(feature = "try-runtime")]
     fn pre_upgrade() -> Result<Vec<u8>, TryRuntimeError> {
-        let onchain = Pallet::<T>::on_chain_storage_version();
+        let current = pallet_gear_program::Pallet::<T>::current_storage_version();
+        let onchain = pallet_gear_program::Pallet::<T>::on_chain_storage_version();
 
-        let data = if onchain == 3 {
+        let data = if onchain == MIGRATE_FROM_VERSION {
+            ensure!(
+                current == ALLOWED_CURRENT_STORAGE_VERSION,
+                "Current storage version is not allowed for migration, check migration code in order to allow it."
+            );
+
             let init_msgs: usize = waiting_init_list::WaitingInitStorage::<T>::iter_values()
                 .map(|d| d.len())
                 .sum();
@@ -256,7 +271,7 @@ mod tests {
         init_logger();
 
         new_test_ext().execute_with(|| {
-            StorageVersion::new(3).put::<GearProgram>();
+            StorageVersion::new(MIGRATE_FROM_VERSION).put::<GearProgram>();
 
             let multiplier = <Test as pallet_gear_bank::Config>::GasMultiplier::get();
 
@@ -329,7 +344,7 @@ mod tests {
             assert!(!weight.is_zero());
             MigrateWaitingInitList::<Test>::post_upgrade(state).unwrap();
 
-            assert_eq!(StorageVersion::get::<GearProgram>(), 4);
+            assert_eq!(StorageVersion::get::<GearProgram>(), MIGRATE_TO_VERSION);
 
             assert_eq!(
                 waiting_init_list::WaitingInitStorage::<Test>::iter().count(),
