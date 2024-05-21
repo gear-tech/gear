@@ -1814,7 +1814,9 @@ fn terminated_program_zero_gas() {
 }
 
 #[test]
-fn exited_program_zero_gas() {
+fn exited_program_zero_gas_and_value() {
+    use crate::{fungible, Fortitude, Preservation};
+
     init_logger();
 
     let wat = r#"
@@ -1830,6 +1832,7 @@ fn exited_program_zero_gas() {
 
     new_test_ext().execute_with(|| {
         let code = ProgramCodeKind::Custom(wat).to_bytes();
+        let ed = get_ed();
 
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(USER_1),
@@ -1842,6 +1845,19 @@ fn exited_program_zero_gas() {
         ));
 
         let program_id = utils::get_last_program_id();
+
+        let program_account = program_id.cast();
+        // Account exists for the program and has exactly ED as its free balance.
+        assert_eq!(Balances::free_balance(program_account), ed);
+        // Reducible balance of an active program doesn't include the ED (runtime guarantee)
+        assert_eq!(
+            <CurrencyOf<Test> as fungible::Inspect<_>>::reducible_balance(
+                &program_account,
+                Preservation::Expendable,
+                Fortitude::Polite,
+            ),
+            0
+        );
 
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
@@ -1857,6 +1873,9 @@ fn exited_program_zero_gas() {
 
         // Nothing panics here.
         assert_total_dequeued(2);
+
+        // Program's account should have been completely drained.
+        assert_eq!(Balances::free_balance(program_account), 0);
     })
 }
 
@@ -6445,6 +6464,9 @@ fn terminated_locking_funds() {
 
         let program_id = get_last_program_id();
         let message_id = get_last_message_id();
+
+        // Before the `init` message is processed the program only has ED on its account.
+        assert_balance(program_id, ed, 0u128);
 
         run_to_next_block(None);
 

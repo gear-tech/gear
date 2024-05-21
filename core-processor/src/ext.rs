@@ -1328,6 +1328,18 @@ mod tests {
 
             self
         }
+
+        fn with_exitstential_deposit(mut self, ed: u128) -> Self {
+            self.0.existential_deposit = ed;
+
+            self
+        }
+
+        fn with_value(mut self, value: u128) -> Self {
+            self.0.value_counter = ValueCounter::new(value);
+
+            self
+        }
     }
 
     // Invariant: Refund never occurs in `free` call.
@@ -1824,5 +1836,94 @@ mod tests {
             res.unwrap_err(),
             ReservationError::InvalidReservationId.into()
         );
+    }
+
+    #[test]
+    // This function tests:
+    //
+    // - `create_program` fails due to lack of value to pay for ED
+    // - `create_program` is successful
+    fn test_create_program() {
+        let mut ext = Ext::new(
+            ProcessorContextBuilder::new()
+                .with_message_context(MessageContextBuilder::new().build())
+                .with_exitstential_deposit(500)
+                .build(),
+        );
+
+        let data = InitPacket::default();
+
+        let msg = ext.create_program(data.clone(), 0);
+        assert_eq!(
+            msg.unwrap_err(),
+            FallibleExtError::Core(FallibleExtErrorCore::Execution(
+                FallibleExecutionError::NotEnoughValue
+            ))
+        );
+
+        let mut ext = Ext::new(
+            ProcessorContextBuilder::new()
+                .with_gas(GasCounter::new(u64::MAX))
+                .with_message_context(MessageContextBuilder::new().build())
+                .with_exitstential_deposit(500)
+                .with_value(1500)
+                .build(),
+        );
+
+        let msg = ext.create_program(data.clone(), 0);
+        assert!(msg.is_ok());
+    }
+
+    #[test]
+    // This function tests:
+    //
+    // - `send_commit` with value greater than the ED
+    // - `send_commit` with value below the ED
+    fn test_send_commit_with_value() {
+        let mut ext = Ext::new(
+            ProcessorContextBuilder::new()
+                .with_message_context(
+                    MessageContextBuilder::new()
+                        .with_outgoing_limit(u32::MAX)
+                        .build(),
+                )
+                .with_exitstential_deposit(500)
+                .build(),
+        );
+
+        let data = HandlePacket::new(ProgramId::default(), Payload::default(), 1000);
+
+        let handle = ext.send_init().expect("No outgoing limit");
+
+        let msg = ext.send_commit(handle, data.clone(), 0);
+        assert_eq!(
+            msg.unwrap_err(),
+            FallibleExtError::Core(FallibleExtErrorCore::Execution(
+                FallibleExecutionError::NotEnoughValue
+            ))
+        );
+
+        let mut ext = Ext::new(
+            ProcessorContextBuilder::new()
+                .with_message_context(
+                    MessageContextBuilder::new()
+                        .with_outgoing_limit(u32::MAX)
+                        .build(),
+                )
+                .with_exitstential_deposit(500)
+                .with_value(5000)
+                .build(),
+        );
+
+        let handle = ext.send_init().expect("No outgoing limit");
+        // Sending value greater than ED is ok
+        let msg = ext.send_commit(handle, data.clone(), 0);
+        assert!(msg.is_ok());
+
+        let data = HandlePacket::new(ProgramId::default(), Payload::default(), 100);
+        let handle = ext.send_init().expect("No outgoing limit");
+        let msg = ext.send_commit(handle, data, 0);
+        // Sending value below ED is also fine
+        assert!(msg.is_ok());
     }
 }
