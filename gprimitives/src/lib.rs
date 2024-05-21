@@ -154,22 +154,22 @@ impl FromStr for ActorId {
     type Err = ConversionError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let mut actor_id = Self::zero();
-
-        if let Some(s) = s.strip_prefix("0x") {
+        let actod_id = if let Some(s) = s.strip_prefix("0x") {
             if s.len() != 64 {
                 return Err(ConversionError::InvalidHexString);
             }
+            let mut actor_id = Self::zero();
             hex::decode_to_slice(s, &mut actor_id.0)
                 .map_err(|_| ConversionError::InvalidHexString)?;
+            actor_id
         } else {
-            let raw_address: [u8; 32] = RawSs58Address::from_ss58check(s)
+            let raw_address = RawSs58Address::from_ss58check(s)
                 .map_err(|_| ConversionError::InvalidSs58Address)?
                 .into();
-            actor_id.0[..].copy_from_slice(&raw_address);
-        }
+            Self::new(raw_address)
+        };
 
-        Ok(actor_id)
+        Ok(actod_id)
     }
 }
 
