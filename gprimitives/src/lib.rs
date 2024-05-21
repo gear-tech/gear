@@ -162,12 +162,55 @@ impl FromStr for ActorId {
                 .map_err(|_| ConversionError::InvalidHexString)?;
         } else {
             let raw_address: [u8; 32] = RawSs58Address::from_ss58check(s)
-                .map(Into::into)
-                .map_err(|_| ConversionError::InvalidSs58Address)?;
+                .map_err(|_| ConversionError::InvalidSs58Address)?
+                .into();
             actor_id.0[..].copy_from_slice(&raw_address);
         }
 
         Ok(actor_id)
+    }
+}
+
+#[cfg(feature = "serde")]
+impl serde::Serialize for ActorId {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let address = self
+            .to_ss58check_with_version(gear_ss58::VARA_SS58_PREFIX)
+            .map_err(serde::ser::Error::custom)?;
+        serializer.serialize_str(address.as_str())
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<'de> serde::Deserialize<'de> for ActorId {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        struct ActorIdVisitor;
+
+        impl<'de> serde::de::Visitor<'de> for ActorIdVisitor {
+            type Value = ActorId;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("a string in SS58 format")
+            }
+
+            fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                let raw_address = RawSs58Address::from_ss58check(value)
+                    .map_err(serde::de::Error::custom)?
+                    .into();
+                Ok(Self::Value::new(raw_address))
+            }
+        }
+
+        deserializer.deserialize_identifier(ActorIdVisitor)
     }
 }
 

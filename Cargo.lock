@@ -5201,6 +5201,7 @@ dependencies = [
  "parity-scale-codec",
  "primitive-types",
  "scale-info",
+ "serde",
 ]
 
 [[package]]
