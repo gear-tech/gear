@@ -1,0 +1,32 @@
+[package]
+name = "demo-ethereum_bridge"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+
+[dependencies]
+#gstd = { workspace = true }
+gstd = { workspace = true, features = ["debug"] }
+demo-ethereum_light_client.workspace = true
+demo-ethereum_bridge_common.workspace = true
+demo-ethereum_common.workspace = true
+codec.workspace = true
+alloy-sol-types = { version = "0.7.4", default-features = false, features = ["json"] }
+ruint = { version = "1.12.1", default-features = false }
+
+[build-dependencies]
+gear-wasm-builder.workspace = true
+
+[features]
+default = ["std"]
+std = [
+    "demo-ethereum_bridge_common/std",
+    "demo-ethereum_light_client/std",
+    "demo-ethereum_common/std",
+    "codec/std",
+    "alloy-sol-types/std",
+    "ruint/std",
+]

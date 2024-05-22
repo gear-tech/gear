@@ -2644,6 +2644,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-ethereum_bridge"
+version = "0.1.0"
+dependencies = [
+ "alloy-sol-types",
+ "demo-ethereum_bridge_common",
+ "demo-ethereum_common",
+ "demo-ethereum_light_client",
+ "gear-wasm-builder",
+ "gstd",
+ "parity-scale-codec",
+ "ruint",
+]
+
+[[package]]
 name = "demo-ethereum_bridge_common"
 version = "0.1.0"
 dependencies = [
