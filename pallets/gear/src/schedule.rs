@@ -21,6 +21,8 @@
 
 #![allow(unused_parens)]
 
+use core::num;
+
 use crate::{weights::WeightInfo, Config, CostsPerBlockOf, DbWeightOf};
 use common::scheduler::SchedulingCostsPerBlock;
 use core_processor::configs::{ExtCosts, ProcessCosts, RentCosts};
@@ -747,6 +749,84 @@ macro_rules! to_weight {
     };
 }
 
+#[inline]
+fn cost(w: fn(u32) -> Weight) -> Weight {
+    Weight::from_parts(w(1).saturating_sub(w(0)).ref_time(), 0)
+}
+
+#[inline]
+fn cost_byte(w: fn(u32) -> Weight) -> Weight {
+    Weight::from_parts(cost(w).ref_time() / 1024, 0)
+}
+
+#[inline]
+fn cost_batched(w: fn(u32) -> Weight) -> Weight {
+    Weight::from_parts(cost(w).ref_time() / u64::from(API_BENCHMARK_BATCH_SIZE), 0)
+}
+
+#[inline]
+fn cost_byte_batched(w: fn(u32) -> Weight) -> Weight {
+    Weight::from_parts(cost_batched(w).ref_time() / 1024, 0)
+}
+
+#[inline]
+fn cost_byte_batched_args(w: fn(u32, u32) -> Weight, arg1: u32, arg2: u32) -> Weight {
+    Weight::from_parts(
+        w(arg1, arg2).saturating_sub(w(0, 0)).ref_time()
+            / u64::from(API_BENCHMARK_BATCH_SIZE)
+            / 1024,
+        0,
+    )
+}
+
+#[inline]
+fn cost_zero(w: fn(u32) -> Weight) -> Weight {
+    let ref_time = w(0).ref_time();
+    Weight::from_parts(ref_time, w(0).proof_size())
+}
+
+#[inline]
+fn cost_instr_no_params_with_batch_size(w: fn(u32) -> Weight) -> u32 {
+    ((w(1).saturating_sub(w(0))).ref_time() / u64::from(INSTR_BENCHMARK_BATCH_SIZE)) as u32
+}
+
+#[inline]
+fn cost_instr<T: Config>(w: fn(u32) -> Weight, num_params: u32) -> u32 {
+    type W<T> = <T as Config>::WeightInfo;
+
+    cost_instr_no_params_with_batch_size(w).saturating_sub(
+        (cost_instr_no_params_with_batch_size(W::<T>::instr_i64const) / 2)
+            .saturating_mul(num_params),
+    )
+}
+
+#[test]
+fn it_tests_schedule_eq() {
+    impl<T: Config> Schedule<T> {
+        fn test() -> Self {
+            type W<T> = <T as Config>::WeightInfo;
+            Self {
+                limits: Default::default(),
+                instruction_weights: Default::default(),
+                syscall_weights: Default::default(),
+                memory_weights: Default::default(),
+                db_write_per_byte: cost_byte(W::<T>::db_write_per_kb),
+                db_read_per_byte: cost_byte(W::<T>::db_read_per_kb),
+                module_instantiation_per_byte: cost_byte(
+                    W::<T>::instantiate_module_code_section_per_kb,
+                ),
+                code_instrumentation_cost: cost_zero(W::<T>::reinstrument_per_kb),
+                code_instrumentation_byte_cost: cost_byte(W::<T>::reinstrument_per_kb),
+            }
+        }
+    }
+
+    let macro_default = Schedule::<crate::mock::Test>::default();
+    let test = Schedule::<crate::mock::Test>::test();
+
+    assert_eq!(macro_default, test);
+}
+
 impl<T: Config> Default for Schedule<T> {
     fn default() -> Self {
         Self {
@@ -786,6 +866,111 @@ impl Default for Limits {
             code_len: 512 * 1024,
         }
     }
+}
+
+#[test]
+fn it_tests_instruction_weights_eq() {
+    impl<T: Config> InstructionWeights<T> {
+        fn test() -> Self {
+            type W<T> = <T as Config>::WeightInfo;
+            Self {
+                version: 1400,
+                i64const: cost_instr::<T>(W::<T>::instr_i64const, 1),
+                i64load: cost_instr::<T>(W::<T>::instr_i64load, 0),
+                i32load: cost_instr::<T>(W::<T>::instr_i32load, 0),
+                i64store: cost_instr::<T>(W::<T>::instr_i64store, 1),
+                i32store: cost_instr::<T>(W::<T>::instr_i32store, 0),
+                select: cost_instr::<T>(W::<T>::instr_select, 2),
+                r#if: cost_instr::<T>(W::<T>::instr_if, 0),
+                br: cost_instr::<T>(W::<T>::instr_br, 0),
+                br_if: cost_instr::<T>(W::<T>::instr_br_if, 1),
+                br_table: cost_instr::<T>(W::<T>::instr_br_table, 0),
+                br_table_per_entry: cost_instr::<T>(W::<T>::instr_br_table_per_entry, 0),
+                call: cost_instr::<T>(W::<T>::instr_call, 2),
+                call_indirect: cost_instr::<T>(W::<T>::instr_call_indirect, 1),
+                call_indirect_per_param: cost_instr::<T>(W::<T>::instr_call_indirect_per_param, 1),
+                call_per_local: cost_instr::<T>(W::<T>::instr_call_per_local, 1),
+                local_get: cost_instr::<T>(W::<T>::instr_local_get, 0),
+                local_set: cost_instr::<T>(W::<T>::instr_local_set, 1),
+                local_tee: cost_instr::<T>(W::<T>::instr_local_tee, 1),
+                global_get: cost_instr::<T>(W::<T>::instr_global_get, 0),
+                global_set: cost_instr::<T>(W::<T>::instr_global_set, 1),
+                memory_current: cost_instr::<T>(W::<T>::instr_memory_current, 1),
+                i64clz: cost_instr::<T>(W::<T>::instr_i64clz, 1),
+                i32clz: cost_instr::<T>(W::<T>::instr_i32clz, 1),
+                i64ctz: cost_instr::<T>(W::<T>::instr_i64ctz, 1),
+                i32ctz: cost_instr::<T>(W::<T>::instr_i32ctz, 1),
+                i64popcnt: cost_instr::<T>(W::<T>::instr_i64popcnt, 1),
+                i32popcnt: cost_instr::<T>(W::<T>::instr_i32popcnt, 1),
+                i64eqz: cost_instr::<T>(W::<T>::instr_i64eqz, 1),
+                i32eqz: cost_instr::<T>(W::<T>::instr_i32eqz, 1),
+                i32extend8s: cost_instr::<T>(W::<T>::instr_i32extend8s, 0),
+                i32extend16s: cost_instr::<T>(W::<T>::instr_i32extend16s, 0),
+                i64extend8s: cost_instr::<T>(W::<T>::instr_i64extend8s, 1),
+                i64extend16s: cost_instr::<T>(W::<T>::instr_i64extend16s, 1),
+                i64extend32s: cost_instr::<T>(W::<T>::instr_i64extend32s, 1),
+                i64extendsi32: cost_instr::<T>(W::<T>::instr_i64extendsi32, 0),
+                i64extendui32: cost_instr::<T>(W::<T>::instr_i64extendui32, 0),
+                i32wrapi64: cost_instr::<T>(W::<T>::instr_i32wrapi64, 1),
+                i64eq: cost_instr::<T>(W::<T>::instr_i64eq, 2),
+                i32eq: cost_instr::<T>(W::<T>::instr_i32eq, 2),
+                i64ne: cost_instr::<T>(W::<T>::instr_i64ne, 2),
+                i32ne: cost_instr::<T>(W::<T>::instr_i32ne, 2),
+                i64lts: cost_instr::<T>(W::<T>::instr_i64lts, 2),
+                i32lts: cost_instr::<T>(W::<T>::instr_i32lts, 2),
+                i64ltu: cost_instr::<T>(W::<T>::instr_i64ltu, 2),
+                i32ltu: cost_instr::<T>(W::<T>::instr_i32ltu, 2),
+                i64gts: cost_instr::<T>(W::<T>::instr_i64gts, 2),
+                i32gts: cost_instr::<T>(W::<T>::instr_i32gts, 2),
+                i64gtu: cost_instr::<T>(W::<T>::instr_i64gtu, 2),
+                i32gtu: cost_instr::<T>(W::<T>::instr_i32gtu, 2),
+                i64les: cost_instr::<T>(W::<T>::instr_i64les, 2),
+                i32les: cost_instr::<T>(W::<T>::instr_i32les, 2),
+                i64leu: cost_instr::<T>(W::<T>::instr_i64leu, 2),
+                i32leu: cost_instr::<T>(W::<T>::instr_i32leu, 2),
+                i64ges: cost_instr::<T>(W::<T>::instr_i64ges, 2),
+                i32ges: cost_instr::<T>(W::<T>::instr_i32ges, 2),
+                i64geu: cost_instr::<T>(W::<T>::instr_i64geu, 2),
+                i32geu: cost_instr::<T>(W::<T>::instr_i32geu, 2),
+                i64add: cost_instr::<T>(W::<T>::instr_i64add, 2),
+                i32add: cost_instr::<T>(W::<T>::instr_i32add, 2),
+                i64sub: cost_instr::<T>(W::<T>::instr_i64sub, 2),
+                i32sub: cost_instr::<T>(W::<T>::instr_i32sub, 2),
+                i64mul: cost_instr::<T>(W::<T>::instr_i64mul, 2),
+                i32mul: cost_instr::<T>(W::<T>::instr_i32mul, 2),
+                i64divs: cost_instr::<T>(W::<T>::instr_i64divs, 2),
+                i32divs: cost_instr::<T>(W::<T>::instr_i32divs, 2),
+                i64divu: cost_instr::<T>(W::<T>::instr_i64divu, 2),
+                i32divu: cost_instr::<T>(W::<T>::instr_i32divu, 2),
+                i64rems: cost_instr::<T>(W::<T>::instr_i64rems, 2),
+                i32rems: cost_instr::<T>(W::<T>::instr_i32rems, 2),
+                i64remu: cost_instr::<T>(W::<T>::instr_i64remu, 2),
+                i32remu: cost_instr::<T>(W::<T>::instr_i32remu, 2),
+                i64and: cost_instr::<T>(W::<T>::instr_i64and, 2),
+                i32and: cost_instr::<T>(W::<T>::instr_i32and, 2),
+                i64or: cost_instr::<T>(W::<T>::instr_i64or, 2),
+                i32or: cost_instr::<T>(W::<T>::instr_i32or, 2),
+                i64xor: cost_instr::<T>(W::<T>::instr_i64xor, 2),
+                i32xor: cost_instr::<T>(W::<T>::instr_i32xor, 2),
+                i64shl: cost_instr::<T>(W::<T>::instr_i64shl, 2),
+                i32shl: cost_instr::<T>(W::<T>::instr_i32shl, 2),
+                i64shrs: cost_instr::<T>(W::<T>::instr_i64shrs, 2),
+                i32shrs: cost_instr::<T>(W::<T>::instr_i32shrs, 2),
+                i64shru: cost_instr::<T>(W::<T>::instr_i64shru, 2),
+                i32shru: cost_instr::<T>(W::<T>::instr_i32shru, 2),
+                i64rotl: cost_instr::<T>(W::<T>::instr_i64rotl, 2),
+                i32rotl: cost_instr::<T>(W::<T>::instr_i32rotl, 2),
+                i64rotr: cost_instr::<T>(W::<T>::instr_i64rotr, 2),
+                i32rotr: cost_instr::<T>(W::<T>::instr_i32rotr, 2),
+                _phantom: PhantomData,
+            }
+        }
+    }
+
+    let macro_default = InstructionWeights::<crate::mock::Test>::default();
+    let test = InstructionWeights::<crate::mock::Test>::test();
+
+    assert_eq!(macro_default, test);
 }
 
 impl<T: Config> Default for InstructionWeights<T> {
@@ -973,6 +1158,115 @@ impl<T: Config> From<SyscallWeights<T>> for SyscallCosts {
     }
 }
 
+#[test]
+fn it_tests_syscall_weights_eq() {
+    impl<T: Config> SyscallWeights<T> {
+        fn test() -> Self {
+            type W<T> = <T as Config>::WeightInfo;
+            Self {
+                gr_reply_deposit: cost_batched(W::<T>::gr_reply_deposit)
+                    .saturating_sub(cost_batched(W::<T>::gr_send)),
+
+                gr_send: cost_batched(W::<T>::gr_send),
+                gr_send_per_byte: cost_byte_batched(W::<T>::gr_send_per_kb),
+                gr_send_wgas: cost_batched(W::<T>::gr_send_wgas),
+                gr_send_wgas_per_byte: cost_byte_batched(W::<T>::gr_send_wgas_per_kb),
+                gr_send_init: cost_batched(W::<T>::gr_send_init),
+                gr_send_push: cost_batched(W::<T>::gr_send_push),
+                gr_send_push_per_byte: cost_byte_batched(W::<T>::gr_send_push_per_kb),
+                gr_send_commit: cost_batched(W::<T>::gr_send_commit),
+                gr_send_commit_wgas: cost_batched(W::<T>::gr_send_commit_wgas),
+                gr_reservation_send: cost_batched(W::<T>::gr_reservation_send),
+                gr_reservation_send_per_byte: cost_byte_batched(W::<T>::gr_reservation_send_per_kb),
+                gr_reservation_send_commit: cost_batched(W::<T>::gr_reservation_send_commit),
+                gr_send_input: cost_batched(W::<T>::gr_send_input),
+                gr_send_input_wgas: cost_batched(W::<T>::gr_send_input_wgas),
+                gr_send_push_input: cost_batched(W::<T>::gr_send_push_input),
+                gr_send_push_input_per_byte: cost_byte_batched(W::<T>::gr_send_push_input_per_kb),
+
+                gr_reply: cost(W::<T>::gr_reply),
+                gr_reply_per_byte: cost_byte(W::<T>::gr_reply_per_kb),
+                gr_reply_wgas: cost(W::<T>::gr_reply_wgas),
+                gr_reply_wgas_per_byte: cost_byte(W::<T>::gr_reply_wgas_per_kb),
+                gr_reply_push: cost_batched(W::<T>::gr_reply_push),
+                gr_reply_push_per_byte: cost_byte(W::<T>::gr_reply_push_per_kb),
+                gr_reply_commit: cost(W::<T>::gr_reply_commit),
+                gr_reply_commit_wgas: cost(W::<T>::gr_reply_commit_wgas),
+                gr_reservation_reply: cost(W::<T>::gr_reservation_reply),
+                gr_reservation_reply_per_byte: cost(W::<T>::gr_reservation_reply_per_kb),
+                gr_reservation_reply_commit: cost(W::<T>::gr_reservation_reply_commit),
+                gr_reply_input: cost(W::<T>::gr_reply_input),
+                gr_reply_input_wgas: cost(W::<T>::gr_reply_input_wgas),
+                gr_reply_push_input: cost_batched(W::<T>::gr_reply_push_input),
+                gr_reply_push_input_per_byte: cost_byte(W::<T>::gr_reply_push_input_per_kb),
+
+                alloc: cost_batched(W::<T>::alloc),
+                free: cost_batched(W::<T>::free),
+                free_range: cost_batched(W::<T>::free_range),
+                free_range_per_page: cost_batched(W::<T>::free_range_per_page),
+
+                gr_reserve_gas: cost(W::<T>::gr_reserve_gas),
+                gr_system_reserve_gas: cost_batched(W::<T>::gr_system_reserve_gas),
+                gr_unreserve_gas: cost(W::<T>::gr_unreserve_gas),
+                gr_gas_available: cost_batched(W::<T>::gr_gas_available),
+                gr_message_id: cost_batched(W::<T>::gr_message_id),
+                gr_program_id: cost_batched(W::<T>::gr_program_id),
+                gr_source: cost_batched(W::<T>::gr_source),
+                gr_value: cost_batched(W::<T>::gr_value),
+                gr_value_available: cost_batched(W::<T>::gr_value_available),
+                gr_size: cost_batched(W::<T>::gr_size),
+                gr_read: cost_batched(W::<T>::gr_read),
+                gr_read_per_byte: cost_byte_batched(W::<T>::gr_read_per_kb),
+                gr_env_vars: cost_batched(W::<T>::gr_env_vars),
+                gr_block_height: cost_batched(W::<T>::gr_block_height),
+                gr_block_timestamp: cost_batched(W::<T>::gr_block_timestamp),
+                gr_random: cost_batched(W::<T>::gr_random),
+                gr_debug: cost_batched(W::<T>::gr_debug),
+                gr_debug_per_byte: cost_byte_batched(W::<T>::gr_debug_per_kb),
+                gr_reply_to: cost_batched(W::<T>::gr_reply_to),
+                gr_signal_code: cost_batched(W::<T>::gr_signal_code),
+                gr_signal_from: cost_batched(W::<T>::gr_signal_from),
+                gr_reply_code: cost_batched(W::<T>::gr_reply_code),
+                gr_exit: cost(W::<T>::gr_exit),
+                gr_leave: cost(W::<T>::gr_leave),
+                gr_wait: cost(W::<T>::gr_wait),
+                gr_wait_for: cost(W::<T>::gr_wait_for),
+                gr_wait_up_to: cost(W::<T>::gr_wait_up_to),
+                gr_wake: cost_batched(W::<T>::gr_wake),
+
+                gr_create_program: cost_batched(W::<T>::gr_create_program),
+                gr_create_program_payload_per_byte: cost_byte_batched_args(
+                    W::<T>::gr_create_program_per_kb,
+                    1,
+                    0,
+                ),
+                gr_create_program_salt_per_byte: cost_byte_batched_args(
+                    W::<T>::gr_create_program_per_kb,
+                    0,
+                    1,
+                ),
+                gr_create_program_wgas: cost_batched(W::<T>::gr_create_program_wgas),
+                gr_create_program_wgas_payload_per_byte: cost_byte_batched_args(
+                    W::<T>::gr_create_program_wgas_per_kb,
+                    1,
+                    0,
+                ),
+                gr_create_program_wgas_salt_per_byte: cost_byte_batched_args(
+                    W::<T>::gr_create_program_wgas_per_kb,
+                    0,
+                    1,
+                ),
+                _phantom: PhantomData,
+            }
+        }
+    }
+
+    let macros_default = SyscallWeights::<crate::mock::Test>::default();
+    let test = SyscallWeights::<crate::mock::Test>::test();
+
+    assert_eq!(macros_default, test);
+}
+
 impl<T: Config> Default for SyscallWeights<T> {
     fn default() -> Self {
         Self {
@@ -1073,6 +1367,84 @@ impl<T: Config> Default for SyscallWeights<T> {
             _phantom: PhantomData,
         }
     }
+}
+
+#[test]
+fn it_tests_memory_weights() {
+    impl<T: Config> MemoryWeights<T> {
+        fn test() -> Self {
+            // In benchmarks we calculate cost per wasm page,
+            // so here we must convert it to cost per gear page.
+            fn to_cost_per_gear_page(w: fn(u32) -> Weight) -> Weight {
+                Weight::from_parts(
+                    cost(w).ref_time() / (WasmPage::SIZE / GearPage::SIZE) as u64,
+                    0,
+                )
+            }
+
+            const KB_SIZE: u64 = 1024;
+
+            // Memory access thru host function benchmark uses a syscall,
+            // which accesses memory. So, we have to subtract corresponding syscall weight.
+            fn host_func_access(w: fn(u32) -> Weight, syscall: fn(u32) -> Weight) -> Weight {
+                let syscall_per_kb_weight = cost_batched(syscall).ref_time();
+                let syscall_per_gear_page_weight =
+                    (syscall_per_kb_weight / KB_SIZE) * GearPage::SIZE as u64;
+
+                let ref_time = to_cost_per_gear_page(w)
+                    .ref_time()
+                    .saturating_sub(syscall_per_gear_page_weight);
+
+                Weight::from_parts(ref_time, 0)
+            }
+
+            const KB_AMOUNT_IN_ONE_GEAR_PAGE: u64 = GearPage::SIZE as u64 / KB_SIZE;
+            const _: () = assert!(KB_AMOUNT_IN_ONE_GEAR_PAGE > 0);
+            const _: () = assert!(GearPage::SIZE as u64 % KB_SIZE == 0);
+
+            type W<T> = <T as Config>::WeightInfo;
+
+            Self {
+                lazy_pages_signal_read: to_cost_per_gear_page(W::<T>::lazy_pages_signal_read),
+                lazy_pages_signal_write: to_cost_per_gear_page(W::<T>::lazy_pages_signal_write),
+                lazy_pages_signal_write_after_read: to_cost_per_gear_page(
+                    W::<T>::lazy_pages_signal_write_after_read,
+                ),
+                lazy_pages_host_func_read: host_func_access(
+                    W::<T>::lazy_pages_host_func_read,
+                    W::<T>::gr_debug_per_kb,
+                ),
+                lazy_pages_host_func_write: host_func_access(
+                    W::<T>::lazy_pages_host_func_write,
+                    W::<T>::gr_read_per_kb,
+                ),
+                lazy_pages_host_func_write_after_read: host_func_access(
+                    W::<T>::lazy_pages_host_func_write_after_read,
+                    W::<T>::gr_read_per_kb,
+                ),
+                // As you can see from calculation: `load_page_data` doesn't include weight for db read.
+                // This is correct situation, because this weight is already included in above
+                // lazy-pages weights.
+                load_page_data: to_cost_per_gear_page(W::<T>::lazy_pages_load_page_storage_data)
+                    .saturating_sub(to_cost_per_gear_page(W::<T>::lazy_pages_signal_read)),
+                upload_page_data: cost(W::<T>::db_write_per_kb)
+                    .saturating_mul(KB_AMOUNT_IN_ONE_GEAR_PAGE)
+                    .saturating_add(T::DbWeight::get().writes(1)),
+                // TODO: make benches to calculate static page cost and mem grow cost (issue #2226)
+                static_page: Weight::from_parts(100, 0),
+                mem_grow: cost_batched(W::<T>::mem_grow),
+                mem_grow_per_page: cost_batched(W::<T>::mem_grow_per_page),
+                // TODO: make it non-zero for para-chains (issue #2225)
+                parachain_read_heuristic: Weight::zero(),
+                _phantom: PhantomData,
+            }
+        }
+    }
+
+    let macros_default = MemoryWeights::<crate::mock::Test>::default();
+    let test = MemoryWeights::<crate::mock::Test>::test();
+
+    assert_eq!(macros_default, test);
 }
 
 impl<T: Config> Default for MemoryWeights<T> {
