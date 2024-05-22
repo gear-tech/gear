@@ -20,7 +20,13 @@
 
 use crate::common::{ExecutableActorData, Program};
 use gear_core::{
-    code::InstrumentedCode, gas::{GasAllowanceCounter, GasCounter}, ids::ProgramId, message::IncomingDispatch, pages::WasmPagesAmount, program::MemoryInfix, reservation::GasReserver
+    code::InstrumentedCode,
+    gas::{GasAllowanceCounter, GasCounter},
+    ids::ProgramId,
+    message::IncomingDispatch,
+    pages::WasmPagesAmount,
+    program::MemoryInfix,
+    reservation::GasReserver,
 };
 
 pub(crate) struct ContextData {
