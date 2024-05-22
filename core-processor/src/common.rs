@@ -26,16 +26,9 @@ use alloc::{
     vec::Vec,
 };
 use gear_core::{
-    code::InstrumentedCode,
-    gas::{GasAllowanceCounter, GasAmount, GasCounter},
-    ids::{CodeId, MessageId, ProgramId, ReservationId},
-    memory::{MemoryError, MemorySetupError, PageBuf},
-    message::{
+    code::InstrumentedCode, gas::{GasAllowanceCounter, GasAmount, GasCounter}, ids::{CodeId, MessageId, ProgramId, ReservationId}, memory::{MemoryError, MemorySetupError, PageBuf}, message::{
         ContextStore, Dispatch, DispatchKind, IncomingDispatch, MessageWaitedType, StoredDispatch,
-    },
-    pages::{numerated::tree::IntervalsTree, GearPage, WasmPage, WasmPagesAmount},
-    program::MemoryInfix,
-    reservation::{GasReservationMap, GasReserver},
+    }, pages::{numerated::tree::IntervalsTree, GearPage, WasmPage, WasmPagesAmount}, program::MemoryInfix, reservation::{GasReservationMap, GasReserver}
 };
 pub use gear_core_backend::error::TrapExplanation;
 use gear_core_backend::{env::SystemEnvironmentError, error::SystemTerminationReason};
