@@ -16,6 +16,12 @@
 
 //! `NodeCodec` implementation for Rlp
 
+#[cfg(not(feature = "std"))]
+extern crate alloc;
+
+#[cfg(not(feature = "std"))]
+use alloc::vec::Vec;
+
 use ethereum_types::H256;
 use hash_db::Hasher;
 use crate::keccak_hasher::KeccakHasher;
