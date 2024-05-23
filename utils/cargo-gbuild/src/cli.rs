@@ -16,8 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! TODO: Introduce a standard for the project structure of gear programs (#3866)
-
 use crate::{artifact::Artifacts, metadata::Metadata, Artifact};
 use anyhow::{anyhow, Result};
 use cargo_toml::Manifest;

@@ -23,7 +23,10 @@ use gear_wasm_builder::{
     optimize::{self, OptType, Optimizer},
     CargoCommand,
 };
-use std::{fs, path::PathBuf};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 
 const ARTIFACT_DIR: &str = "gbuild";
 
@@ -32,14 +35,12 @@ const ARTIFACT_DIR: &str = "gbuild";
 /// This instance simply holds the paths of the built binaries
 /// for re-using stuffs.
 pub struct Artifacts {
+    /// cargo command
+    kargo: CargoCommand,
     /// The path of the cargo wasm artifacts.
     pub root: PathBuf,
-    /// cargo command
-    pub kargo: CargoCommand,
-    /// Built programs
-    pub programs: Vec<Artifact>,
-    /// Built programs
-    pub metas: Vec<Artifact>,
+    /// artifact informations
+    pub artifacts: Vec<Artifact>,
 }
 
 impl Artifacts {
@@ -51,8 +52,10 @@ impl Artifacts {
         Ok(Artifacts {
             root,
             kargo,
-            programs: collect_crates(&metadata.gbuild.programs)?,
-            metas: collect_crates(&metadata.gbuild.metas)?,
+            artifacts: collect_crates(&metadata.gbuild.programs, OptType::Opt)?
+                .into_iter()
+                .chain(collect_crates(&metadata.gbuild.metas, OptType::Meta)?)
+                .collect(),
         })
     }
 
@@ -65,19 +68,14 @@ impl Artifacts {
             .expect("Checked before passing in.")
             .join("gbuild");
 
-        for program in self.programs.iter() {
-            tracing::info!("Compile program {}", program.name);
+        for artifact in self.artifacts.iter() {
+            tracing::info!("Compile package {}", artifact.name);
             let mut kargo = self.kargo.clone();
-            kargo.set_manifest_path(program.manifest.clone());
+            kargo.set_manifest_path(artifact.manifest.clone());
             kargo.run();
 
-            tracing::info!("Optimizing program {}", program.name);
-            program.process_program(&self.root, &gbuild)?;
-        }
-
-        for meta in self.metas.iter() {
-            tracing::info!("Optimizing meta {}", meta.name);
-            meta.process_meta(&self.root, &gbuild)?;
+            tracing::info!("Optimizing package {}", artifact.name);
+            artifact.optimize(&self.root, &gbuild)?;
         }
 
         Ok(())
@@ -88,33 +86,42 @@ impl Artifacts {
 pub struct Artifact {
     /// The original manifest path.
     pub manifest: PathBuf,
+    /// Optimization type
+    pub opt: OptType,
     /// Program name of this artifact.
     pub name: String,
 }
 
 impl Artifact {
+    fn file_name(&self) -> String {
+        self.name.clone()
+            + if self.opt.is_meta() {
+                ".meta.wasm"
+            } else {
+                ".wasm"
+            }
+    }
+
     /// Fetch and optimize artifact
-    pub fn process_program(&self, src: &PathBuf, root: &PathBuf) -> Result<()> {
-        let name = format!("{}.wasm", &self.name);
+    pub fn optimize(&self, src: &Path, root: &Path) -> Result<()> {
+        let name = self.file_name();
         let output = root.join(&name);
 
         optimize::optimize_wasm(src.join(&name), output.clone(), "4", true)?;
         let mut optimizer = Optimizer::new(output.clone())?;
-        optimizer
-            .insert_stack_end_export()
-            .map_err(|e| anyhow!(e))?;
-        optimizer.strip_custom_sections();
-        fs::write(output, optimizer.optimize(OptType::Opt)?).map_err(Into::into)
-    }
+        if !self.opt.is_meta() {
+            optimizer
+                .insert_stack_end_export()
+                .map_err(|e| anyhow!(e))?;
+            optimizer.strip_custom_sections();
+        }
 
-    /// Fetch and optimize metadata
-    pub fn process_meta(&self, src: &PathBuf, root: &PathBuf) -> Result<()> {
-        todo!("Process metadata")
+        fs::write(output, optimizer.optimize(self.opt)?).map_err(Into::into)
     }
 }
 
 /// Collection crate manifests from the provided glob patterns.
-fn collect_crates(patterns: &[String]) -> Result<Vec<Artifact>> {
+fn collect_crates(patterns: &[String], opt: OptType) -> Result<Vec<Artifact>> {
     let mut crates: Vec<PathBuf> = Default::default();
     for p in patterns {
         crates.append(
@@ -139,6 +146,7 @@ fn collect_crates(patterns: &[String]) -> Result<Vec<Artifact>> {
         .map(|manifest| -> Result<Artifact> {
             Ok(Artifact {
                 name: Manifest::from_path(&manifest).map(|m| m.package().name().into())?,
+                opt,
                 manifest,
             })
         })

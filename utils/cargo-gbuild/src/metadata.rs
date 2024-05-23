@@ -18,6 +18,7 @@
 
 use anyhow::{anyhow, Result};
 use cargo_metadata::{CargoOpt, Message, MetadataCommand};
+use gear_wasm_builder::optimize::OptType;
 use serde::{Deserialize, Serialize};
 use std::{
     io::BufReader,

@@ -55,6 +55,13 @@ pub enum OptType {
     Opt,
 }
 
+impl OptType {
+    /// If the optimization type if meta
+    pub fn is_meta(&self) -> bool {
+        self.eq(&OptType::Meta)
+    }
+}
+
 #[derive(Debug, thiserror::Error)]
 #[error("Optimizer failed: {0:?}")]
 pub struct OptimizerError(pwasm_utils::OptimizerError);
