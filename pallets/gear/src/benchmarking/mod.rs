@@ -68,7 +68,7 @@ use common::{
     self, benchmarking,
     scheduler::{ScheduledTask, TaskHandler},
     storage::{Counter, *},
-    ActiveProgram, CodeMetadata, CodeStorage, GasTree, Origin, ProgramStorage, ReservableTree,
+    CodeMetadata, CodeStorage, GasTree, Origin, ProgramStorage, ReservableTree,
 };
 use core_processor::{
     common::{DispatchOutcome, JournalNote},
@@ -86,6 +86,7 @@ use gear_core::{
     memory::Memory,
     message::DispatchKind,
     pages::{WasmPage, WasmPagesAmount},
+    program::ActiveProgram,
 };
 use gear_core_backend::{
     env::Environment,

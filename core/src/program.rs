@@ -18,6 +18,14 @@
 
 //! Module for programs.
 
+use crate::{
+    ids::MessageId,
+    message::DispatchKind,
+    pages::{numerated::tree::IntervalsTree, GearPage, WasmPage, WasmPagesAmount},
+    reservation::GasReservationMap,
+};
+use alloc::collections::BTreeSet;
+use primitive_types::H256;
 use scale_info::{
     scale::{Decode, Encode},
     TypeInfo,
@@ -37,4 +45,40 @@ impl MemoryInfix {
     pub fn inner(&self) -> u32 {
         self.0
     }
+}
+
+/// +_+_+
+#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]
+pub struct ActiveProgram<BlockNumber: Copy> {
+    /// Set of wasm pages, that were allocated by the program.
+    pub allocations: IntervalsTree<WasmPage>,
+    /// Set of gear pages, that have data in storage.
+    pub pages_with_data: IntervalsTree<GearPage>,
+    /// +_+_+
+    pub memory_infix: MemoryInfix,
+    /// +_+_+
+    pub gas_reservation_map: GasReservationMap,
+    /// +_+_+
+    pub code_hash: H256,
+    /// +_+_+
+    pub code_exports: BTreeSet<DispatchKind>,
+    /// +_+_+
+    pub static_pages: WasmPagesAmount,
+    /// +_+_+
+    pub state: ProgramState,
+    /// +_+_+
+    pub expiration_block: BlockNumber,
+}
+
+/// Enumeration contains variants for program state.
+#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]
+pub enum ProgramState {
+    /// `init` method of a program has not yet finished its execution so
+    /// the program is not considered as initialized.
+    Uninitialized {
+        /// identifier of the initialization message.
+        message_id: MessageId,
+    },
+    /// Program has been successfully initialized and can process messages.
+    Initialized,
 }

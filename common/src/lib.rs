@@ -57,9 +57,8 @@ use frame_support::{
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
     memory::PageBuf,
-    message::DispatchKind,
-    pages::{numerated::tree::IntervalsTree, GearPage, WasmPage, WasmPagesAmount},
-    program::MemoryInfix,
+    pages::{GearPage, WasmPage},
+    program::{ActiveProgram, MemoryInfix, ProgramState},
     reservation::GasReservationMap,
 };
 use primitive_types::H256;
@@ -275,37 +274,6 @@ impl<BlockNumber: Copy + Saturating> core::convert::TryFrom<Program<BlockNumber>
             _ => Err(InactiveProgramError),
         }
     }
-}
-
-#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]
-#[codec(crate = codec)]
-#[scale_info(crate = scale_info)]
-pub struct ActiveProgram<BlockNumber: Copy + Saturating> {
-    /// Set of wasm pages, that were allocated by the program.
-    pub allocations: IntervalsTree<WasmPage>,
-    /// Set of gear pages, that have data in storage.
-    pub pages_with_data: IntervalsTree<GearPage>,
-    pub memory_infix: MemoryInfix,
-    pub gas_reservation_map: GasReservationMap,
-    pub code_hash: H256,
-    pub code_exports: BTreeSet<DispatchKind>,
-    pub static_pages: WasmPagesAmount,
-    pub state: ProgramState,
-    pub expiration_block: BlockNumber,
-}
-
-/// Enumeration contains variants for program state.
-#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]
-#[codec(crate = codec)]
-#[scale_info(crate = scale_info)]
-pub enum ProgramState {
-    /// `init` method of a program has not yet finished its execution so
-    /// the program is not considered as initialized. All messages to such a
-    /// program go to the wait list.
-    /// `message_id` contains identifier of the initialization message.
-    Uninitialized { message_id: MessageId },
-    /// Program has been successfully initialized and can process messages.
-    Initialized,
 }
 
 #[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]
