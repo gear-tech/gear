@@ -29,7 +29,6 @@ use std::{
     path::{Path, PathBuf},
 };
 
-const ARTIFACT_DIR: &str = "gbuild";
 const DEV_PROFILE: &str = "dev";
 const DEBUG_ARTIFACT: &str = "debug";
 const RELEASE_PROFILE: &str = "release";
@@ -69,70 +68,54 @@ impl GBuild {
             .clone()
             .unwrap_or(etc::find_up("Cargo.toml")?);
 
-        let metadata = Metadata::parse(manifest_path.clone(), self.features.clone())?;
-        let cargo_target_dir: PathBuf = metadata.workspace.target_directory.clone().into();
-
-        // Set up gbuild artifacts.
-        let artifacts = Artifacts::new(
-            self.target_dir
-                .clone()
-                .unwrap_or(cargo_target_dir.clone())
-                .join(ARTIFACT_DIR),
-            metadata,
-        )?;
-
-        // Run the cargo command.
         let (artifact, profile) = self.artifact_and_profile();
-        let cargo_artifact_dir =
-            cargo_target_dir.join(format!("wasm32-unknown-unknown/{}", artifact));
-        self.cargo(profile, &cargo_target_dir, &manifest_path.clone())?;
-        artifacts.process(cargo_artifact_dir)?;
+        let metadata = Metadata::parse(manifest_path.clone(), self.features.clone())?;
+        let target_dir = self
+            .target_dir
+            .unwrap_or(metadata.workspace.target_directory.clone().into());
+
+        // 1. setup cargo command
+        let mut kargo = CargoCommand::default();
+        kargo.set_features(&self.features);
+        kargo.set_target_dir(target_dir.clone());
+        if let Some(profile) = profile {
+            kargo.set_profile(profile);
+        }
+
+        // 2. setup gbuild artifacts.
+        let artifacts = Artifacts::new(
+            target_dir.join("wasm32-unknown-unknown").join(artifact),
+            metadata,
+            kargo,
+        )?;
         Ok(artifacts)
     }
 
     fn artifact_and_profile(&self) -> (String, Option<String>) {
-        if let Some(profile) = &self.profile {
+        let mut artifact = DEBUG_ARTIFACT.to_string();
+        let mut profile: Option<String> = None;
+
+        if let Some(p) = &self.profile {
             if self.release {
                 eprintln!(
                     "{}: conflicting usage of --profile={} and --release
 The `--release` flag is the same as `--profile=release`.
 Remove one flag or the other to continue.",
                     "error".red().bold(),
-                    profile
+                    p
                 );
                 std::process::exit(1);
             }
 
-            (
-                if profile != DEV_PROFILE {
-                    profile.clone()
-                } else {
-                    DEBUG_ARTIFACT.into()
-                },
-                Some(profile.into()),
-            )
+            profile = Some(p.to_string());
+            if p != DEV_PROFILE {
+                artifact = p.into()
+            }
         } else if self.release {
-            (RELEASE_PROFILE.into(), Some(RELEASE_PROFILE.into()))
-        } else {
-            (DEBUG_ARTIFACT.into(), None)
-        }
-    }
-
-    /// Process the cargo command.
-    fn cargo(
-        &self,
-        profile: Option<String>,
-        cargo_target_dir: &Path,
-        manifest_path: &Path,
-    ) -> Result<()> {
-        let mut kargo = CargoCommand::default();
-        if let Some(profile) = profile {
-            kargo.set_profile(profile);
+            artifact = RELEASE_PROFILE.into();
+            profile = Some(artifact.clone());
         }
 
-        kargo.set_manifest_path(manifest_path.to_path_buf());
-        kargo.set_target_dir(cargo_target_dir.to_path_buf());
-        kargo.set_features(&self.features);
-        kargo.run()
+        (artifact, profile)
     }
 }
