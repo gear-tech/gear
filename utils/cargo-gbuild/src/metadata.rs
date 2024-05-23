@@ -16,7 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::utils;
 use anyhow::{anyhow, Result};
 use cargo_metadata::{CargoOpt, Message, MetadataCommand};
 use serde::{Deserialize, Serialize};
@@ -38,7 +37,6 @@ pub struct Metadata {
 impl Metadata {
     /// Get project metadata from command `cargo-metadata`
     pub fn parse(manifest: PathBuf, features: Vec<String>) -> Result<Self> {
-        tracing::info!("Running cargo metadata for manifest: {manifest:?}");
         let mut command = MetadataCommand::new();
         command.features(CargoOpt::SomeFeatures(features));
         command.manifest_path(&manifest);
@@ -67,19 +65,7 @@ pub struct MetadataField {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct GbuildMetadata {
     /// Gear programs in the workspace.
-    programs: Vec<String>,
+    pub programs: Vec<String>,
     /// Gear program metas in the workspace.
-    metas: Vec<String>,
-}
-
-impl GbuildMetadata {
-    /// Collect all gear programs
-    pub fn programs(&self) -> Result<Vec<PathBuf>> {
-        utils::collect_crates(&self.programs)
-    }
-
-    /// Collect all gear metas
-    pub fn metas(&self) -> Result<Vec<PathBuf>> {
-        utils::collect_crates(&self.metas)
-    }
+    pub metas: Vec<String>,
 }

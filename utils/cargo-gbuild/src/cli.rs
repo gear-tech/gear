@@ -18,7 +18,7 @@
 
 //! TODO: Introduce a standard for the project structure of gear programs (#3866)
 
-use crate::{metadata::Metadata, Artifact};
+use crate::{artifact::Artifacts, metadata::Metadata, Artifact};
 use anyhow::{anyhow, Result};
 use cargo_toml::Manifest;
 use clap::Parser;
@@ -63,37 +63,34 @@ pub struct GBuild {
 
 impl GBuild {
     /// Run the gbuild command
-    ///
-    /// TODO: Support `gtest::Program::current` (#3851)
-    pub fn run(self) -> Result<Artifact> {
+    pub fn run(self) -> Result<Artifacts> {
         let manifest_path = self
             .manifest_path
             .clone()
             .unwrap_or(etc::find_up("Cargo.toml")?);
 
         let metadata = Metadata::parse(manifest_path.clone(), self.features.clone())?;
-        let cargo_target_dir: PathBuf = metadata.workspace.target_directory.into();
+        let cargo_target_dir: PathBuf = metadata.workspace.target_directory.clone().into();
 
-        // Run the cargo command, process optimizations and collect artifacts.
-        let artifact = self.cargo(&manifest_path.clone(), &cargo_target_dir)?;
-        let gbuild_artifact_dir = self
-            .target_dir
-            .unwrap_or(cargo_target_dir.clone())
-            .join(ARTIFACT_DIR);
-
-        let artifact = Artifact::new(
-            gbuild_artifact_dir,
-            Manifest::from_path(manifest_path)?.package().name.as_ref(),
+        // Set up gbuild artifacts.
+        let artifacts = Artifacts::new(
+            self.target_dir
+                .clone()
+                .unwrap_or(cargo_target_dir.clone())
+                .join(ARTIFACT_DIR),
+            metadata,
         )?;
-        artifact.process(cargo_target_dir)?;
-        Ok(artifact)
+
+        // Run the cargo command.
+        let (artifact, profile) = self.artifact_and_profile();
+        let cargo_artifact_dir =
+            cargo_target_dir.join(format!("wasm32-unknown-unknown/{}", artifact));
+        self.cargo(profile, &cargo_target_dir, &manifest_path.clone())?;
+        artifacts.process(cargo_artifact_dir)?;
+        Ok(artifacts)
     }
 
-    /// Process the cargo command.
-    fn cargo(&self, manifest_path: &Path, cargo_target_dir: &Path) -> Result<PathBuf> {
-        let mut kargo = CargoCommand::default();
-        let mut artifact = DEBUG_ARTIFACT;
-
+    fn artifact_and_profile(&self) -> (String, Option<String>) {
         if let Some(profile) = &self.profile {
             if self.release {
                 eprintln!(
@@ -106,21 +103,36 @@ Remove one flag or the other to continue.",
                 std::process::exit(1);
             }
 
-            kargo.set_profile(profile.clone());
-            if profile != DEV_PROFILE {
-                artifact = profile;
-            }
+            (
+                if profile != DEV_PROFILE {
+                    profile.clone()
+                } else {
+                    DEBUG_ARTIFACT.into()
+                },
+                Some(profile.into()),
+            )
         } else if self.release {
-            kargo.set_profile(RELEASE_PROFILE.into());
-            artifact = RELEASE_PROFILE;
+            (RELEASE_PROFILE.into(), Some(RELEASE_PROFILE.into()))
+        } else {
+            (DEBUG_ARTIFACT.into(), None)
+        }
+    }
+
+    /// Process the cargo command.
+    fn cargo(
+        &self,
+        profile: Option<String>,
+        cargo_target_dir: &Path,
+        manifest_path: &Path,
+    ) -> Result<()> {
+        let mut kargo = CargoCommand::default();
+        if let Some(profile) = profile {
+            kargo.set_profile(profile);
         }
 
         kargo.set_manifest_path(manifest_path.to_path_buf());
         kargo.set_target_dir(cargo_target_dir.to_path_buf());
         kargo.set_features(&self.features);
-        kargo.run()?;
-
-        // Returns the root of the built artifact
-        Ok(cargo_target_dir.join(format!("wasm32-unknown-unknown/{}", artifact)))
+        kargo.run()
     }
 }

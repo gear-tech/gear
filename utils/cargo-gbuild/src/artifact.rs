@@ -16,7 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use crate::metadata::Metadata;
 use anyhow::{anyhow, Result};
+use cargo_toml::Manifest;
 use gear_wasm_builder::optimize::{self, OptType, Optimizer};
 use std::{fs, path::PathBuf};
 
@@ -24,43 +26,92 @@ use std::{fs, path::PathBuf};
 ///
 /// This instance simply holds the paths of the built binaries
 /// for re-using stuffs.
-///
-/// TODO: support workspace format, abstract instance for different programs (#3852)
-pub struct Artifact {
+pub struct Artifacts {
     /// The directory path of the artifact.
     pub root: PathBuf,
-    /// Program name of this artifact.
-    pub name: String,
-    /// The path to the built program.
-    pub program: PathBuf,
+    /// Built programs
+    pub programs: Vec<Artifact>,
+    /// Built programs
+    pub metas: Vec<Artifact>,
 }
 
-impl Artifact {
+impl Artifacts {
     /// Create a new artifact registry.
-    pub fn new(root: PathBuf, name: &str) -> Result<Self> {
+    pub fn new(root: PathBuf, metadata: Metadata) -> Result<Self> {
         fs::create_dir_all(&root)
             .map_err(|e| anyhow!("Failed to create the artifact directory, {e}"))?;
 
-        Ok(Self {
-            program: root.join(format!("{name}.wasm")),
-            name: name.replace('-', "_"),
+        Ok(Artifacts {
             root,
+            programs: collect_crates(&metadata.gbuild.programs)?,
+            metas: collect_crates(&metadata.gbuild.metas)?,
         })
     }
 
-    /// Build artifacts with optimization.
+    /// Process all artifacts
+    //
+    // TODO :process metas
     pub fn process(&self, src: PathBuf) -> Result<()> {
-        optimize::optimize_wasm(
-            src.join(format!("{}.wasm", self.name)),
-            self.program.clone(),
-            "4",
-            true,
-        )?;
-        let mut optimizer = Optimizer::new(self.program.clone())?;
+        for program in self.programs.iter() {
+            program.process_program(&src, &self.root)?;
+        }
+
+        Ok(())
+    }
+}
+
+/// Program atrifact
+pub struct Artifact {
+    /// The original manifest path.
+    pub manifest: PathBuf,
+    /// Program name of this artifact.
+    pub name: String,
+}
+
+impl Artifact {
+    /// Fetch and optimize artifact
+    pub fn process_program(&self, src: &PathBuf, root: &PathBuf) -> Result<()> {
+        let name = format!("{}.wasm", &self.name);
+        let output = root.join(&name);
+
+        optimize::optimize_wasm(src.join(&name), output.clone(), "4", true)?;
+        let mut optimizer = Optimizer::new(output.clone())?;
         optimizer
             .insert_stack_end_export()
             .map_err(|e| anyhow!(e))?;
         optimizer.strip_custom_sections();
-        fs::write(self.program.clone(), optimizer.optimize(OptType::Opt)?).map_err(Into::into)
+        fs::write(output, optimizer.optimize(OptType::Opt)?).map_err(Into::into)
     }
+}
+
+/// Collection crate manifests from the provided glob patterns.
+fn collect_crates(patterns: &[String]) -> Result<Vec<Artifact>> {
+    let mut crates: Vec<PathBuf> = Default::default();
+    for p in patterns {
+        crates.append(
+            &mut glob::glob(p)?
+                .filter_map(|p| {
+                    p.ok().and_then(|p| {
+                        let manifest = p.join("Cargo.toml");
+                        if manifest.exists() {
+                            Some(manifest)
+                        } else {
+                            tracing::warn!("Invalid manifest: {manifest:?}");
+                            None
+                        }
+                    })
+                })
+                .collect(),
+        );
+    }
+
+    crates
+        .into_iter()
+        .map(|manifest| -> Result<Artifact> {
+            Ok(Artifact {
+                name: Manifest::from_path(&manifest).map(|m| m.package().name().into())?,
+                manifest,
+            })
+        })
+        .collect()
 }
