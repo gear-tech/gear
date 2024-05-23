@@ -457,7 +457,7 @@ pub mod constants {
     pub const UNITS: Value = 1_000_000_000_000;
     /// Minimal amount of value able to be sent. Defines accounts existence
     /// requirement.
-    pub const EXISTENTIAL_DEPOSIT: Value = 10 * UNITS;
+    pub const EXISTENTIAL_DEPOSIT: Value = UNITS;
     /// Value per gas.
     pub const VALUE_PER_GAS: Value = 6;
     /// Duration of one block in msecs.
