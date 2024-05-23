@@ -36,9 +36,8 @@ use gear_core::{
     memory::PageBuf,
     message::{Dispatch, MessageWaitedType, StoredDispatch},
     pages::{numerated::tree::IntervalsTree, GearPage, WasmPage},
+    program::{Program, ProgramState},
     reservation::GasReserver,
-    program::ProgramState,
-    program::Program,
 };
 use gear_core_errors::SignalCode;
 use sp_runtime::traits::{UniqueSaturatedInto, Zero};
