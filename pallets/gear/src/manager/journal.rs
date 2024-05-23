@@ -26,7 +26,7 @@ use common::{
     event::*,
     scheduler::{ScheduledTask, StorageType, TaskHandler, TaskPool},
     storage::*,
-    CodeStorage, LockableTree, Origin, Program, ProgramStorage, ReservableTree,
+    CodeStorage, LockableTree, Origin, ProgramStorage, ReservableTree,
 };
 use core_processor::common::{DispatchOutcome as CoreDispatchOutcome, JournalHandler};
 use frame_support::sp_runtime::Saturating;
@@ -38,6 +38,7 @@ use gear_core::{
     pages::{numerated::tree::IntervalsTree, GearPage, WasmPage},
     reservation::GasReserver,
     program::ProgramState,
+    program::Program,
 };
 use gear_core_errors::SignalCode;
 use sp_runtime::traits::{UniqueSaturatedInto, Zero};

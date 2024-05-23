@@ -58,7 +58,7 @@ use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
     memory::PageBuf,
     pages::{GearPage, WasmPage},
-    program::{ActiveProgram, MemoryInfix, ProgramState},
+    program::{ActiveProgram, MemoryInfix, Program},
     reservation::GasReservationMap,
 };
 use primitive_types::H256;
@@ -224,56 +224,6 @@ pub trait BlockLimiter {
 
     /// Type manages a gas that is available at the moment of call.
     type GasAllowance: storage::Limiter<Value = Self::Balance>;
-}
-
-#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]
-#[codec(crate = codec)]
-#[scale_info(crate = scale_info)]
-pub enum Program<BlockNumber: Copy + Saturating> {
-    Active(ActiveProgram<BlockNumber>),
-    Exited(ProgramId),
-    Terminated(ProgramId),
-}
-
-impl<BlockNumber: Copy + Saturating> Program<BlockNumber> {
-    pub fn is_active(&self) -> bool {
-        matches!(self, Program::Active(_))
-    }
-
-    pub fn is_exited(&self) -> bool {
-        matches!(self, Program::Exited(_))
-    }
-
-    pub fn is_terminated(&self) -> bool {
-        matches!(self, Program::Terminated(_))
-    }
-
-    pub fn is_initialized(&self) -> bool {
-        matches!(
-            self,
-            Program::Active(ActiveProgram {
-                state: ProgramState::Initialized,
-                ..
-            })
-        )
-    }
-}
-
-#[derive(Clone, Debug, derive_more::Display)]
-#[display(fmt = "Program is not an active one")]
-pub struct InactiveProgramError;
-
-impl<BlockNumber: Copy + Saturating> core::convert::TryFrom<Program<BlockNumber>>
-    for ActiveProgram<BlockNumber>
-{
-    type Error = InactiveProgramError;
-
-    fn try_from(prog_with_status: Program<BlockNumber>) -> Result<Self, Self::Error> {
-        match prog_with_status {
-            Program::Active(p) => Ok(p),
-            _ => Err(InactiveProgramError),
-        }
-    }
 }
 
 #[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]

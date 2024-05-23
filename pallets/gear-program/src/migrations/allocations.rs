@@ -17,13 +17,12 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{Config, Pallet, ProgramStorage};
-use common::Program;
 use frame_support::{
     traits::{Get, GetStorageVersion, OnRuntimeUpgrade, StorageVersion},
     weights::Weight,
 };
 use frame_system::pallet_prelude::BlockNumberFor;
-use gear_core::program::ActiveProgram;
+use gear_core::program::{ActiveProgram, Program};
 use sp_std::marker::PhantomData;
 
 #[cfg(feature = "try-runtime")]

@@ -59,7 +59,7 @@ use common::{
     event::*,
     scheduler::{ScheduledTask, StorageType, TaskPool},
     storage::{Interval, IterableByKeyMap, Queue},
-    CodeStorage, Origin, Program, ProgramStorage, ReservableTree,
+    CodeStorage, Origin, ProgramStorage, ReservableTree,
 };
 use core::fmt;
 use core_processor::common::{Actor, ExecutableActorData};
@@ -70,7 +70,7 @@ use gear_core::{
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     message::{DispatchKind, SignalMessage},
     pages::WasmPagesAmount,
-    program::{ActiveProgram, MemoryInfix, ProgramState},
+    program::{ActiveProgram, MemoryInfix, ProgramState, Program},
     reservation::GasReservationSlot,
 };
 use primitive_types::H256;

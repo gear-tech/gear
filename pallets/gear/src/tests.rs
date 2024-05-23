@@ -33,7 +33,7 @@ use crate::{
 };
 use common::{
     event::*, scheduler::*, storage::*, CodeStorage, GasTree, LockId, LockableTree,
-    Origin as _, Program, ProgramStorage, ReservableTree,
+    Origin as _, ProgramStorage, ReservableTree,
 };
 use core_processor::common::ActorExecutionErrorReplyReason;
 use frame_support::{
@@ -51,6 +51,7 @@ use gear_core::{
     },
     pages::WasmPage,
     program::ActiveProgram,
+    program::Program,
 };
 use gear_core_backend::error::{
     TrapExplanation, UnrecoverableExecutionError, UnrecoverableExtError, UnrecoverableWaitError,
@@ -14929,6 +14930,7 @@ pub(crate) mod utils {
         message::{Message, Payload, ReplyDetails, UserMessage, UserStoredMessage},
         reservation::GasReservationMap,
         program::ActiveProgram,
+        program::Program,
     };
     use gear_core_errors::*;
     use pallet_gear_voucher::VoucherId;
@@ -15610,7 +15612,7 @@ pub(crate) mod utils {
     #[track_caller]
     pub(super) fn get_reservation_map(pid: ProgramId) -> Option<GasReservationMap> {
         let program = ProgramStorageOf::<Test>::get_program(pid).unwrap();
-        if let common::Program::Active(ActiveProgram {
+        if let Program::Active(ActiveProgram {
             gas_reservation_map,
             ..
         }) = program
