@@ -19,11 +19,13 @@
 use crate::metadata::Metadata;
 use anyhow::{anyhow, Result};
 use cargo_toml::Manifest;
+use colored::Colorize;
 use gear_wasm_builder::{
     optimize::{self, OptType, Optimizer},
     CargoCommand,
 };
 use std::{
+    env::{self, current_dir},
     fs,
     path::{Path, PathBuf},
 };
@@ -49,13 +51,18 @@ impl Artifacts {
         fs::create_dir_all(&root)
             .map_err(|e| anyhow!("Failed to create the artifact directory, {e}"))?;
 
+        let cwd = env::current_dir()?;
+        env::set_current_dir(metadata.workspace.workspace_root);
+        let artifacts = collect_crates(&cwd, &metadata.gbuild.programs, OptType::Opt)?
+            .into_iter()
+            .chain(collect_crates(&cwd, &metadata.gbuild.metas, OptType::Meta)?)
+            .collect();
+
+        env::set_current_dir(cwd)?;
         Ok(Artifacts {
             root,
             kargo,
-            artifacts: collect_crates(&metadata.gbuild.programs, OptType::Opt)?
-                .into_iter()
-                .chain(collect_crates(&metadata.gbuild.metas, OptType::Meta)?)
-                .collect(),
+            artifacts,
         })
     }
 
@@ -68,21 +75,27 @@ impl Artifacts {
             .expect("Checked before passing in.")
             .join("gbuild");
 
-        for artifact in self.artifacts.iter() {
-            tracing::info!("Compile package {}", artifact.name);
+        fs::create_dir_all(&gbuild);
+        let all = self.artifacts.len();
+        for (idx, artifact) in self.artifacts.iter().enumerate() {
+            tracing::info!(
+                "[{}/{all}] Compiling package {} ...",
+                idx + 1,
+                artifact.name.bold()
+            );
             let mut kargo = self.kargo.clone();
             kargo.set_manifest_path(artifact.manifest.clone());
-            kargo.run();
-
-            tracing::info!("Optimizing package {}", artifact.name);
+            kargo.run()?;
             artifact.optimize(&self.root, &gbuild)?;
         }
 
+        tracing::info!("Finished ({})", gbuild.to_string_lossy());
         Ok(())
     }
 }
 
 /// Program atrifact
+#[derive(Debug)]
 pub struct Artifact {
     /// The original manifest path.
     pub manifest: PathBuf,
@@ -94,7 +107,7 @@ pub struct Artifact {
 
 impl Artifact {
     fn file_name(&self) -> String {
-        self.name.clone()
+        self.name.replace('-', "_")
             + if self.opt.is_meta() {
                 ".meta.wasm"
             } else {
@@ -121,14 +134,16 @@ impl Artifact {
 }
 
 /// Collection crate manifests from the provided glob patterns.
-fn collect_crates(patterns: &[String], opt: OptType) -> Result<Vec<Artifact>> {
+fn collect_crates(cwd: &Path, patterns: &[String], opt: OptType) -> Result<Vec<Artifact>> {
+    let cwd = current_dir()?;
     let mut crates: Vec<PathBuf> = Default::default();
     for p in patterns {
         crates.append(
             &mut glob::glob(p)?
                 .filter_map(|p| {
                     p.ok().and_then(|p| {
-                        let manifest = p.join("Cargo.toml");
+                        tracing::trace!("checking {p:?}");
+                        let manifest = cwd.join(p.join("Cargo.toml"));
                         if manifest.exists() {
                             Some(manifest)
                         } else {

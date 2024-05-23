@@ -16,8 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use crate::Artifact;
 use anyhow::{anyhow, Result};
 use cargo_metadata::{CargoOpt, Message, MetadataCommand};
+use cargo_toml::Manifest;
 use gear_wasm_builder::optimize::OptType;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -43,13 +45,16 @@ impl Metadata {
         command.manifest_path(&manifest);
 
         let workspace = command.exec()?;
-        let metadata =
-            serde_json::from_value::<MetadataField>(workspace.workspace_metadata.clone())?;
+        let mut gbuild =
+            serde_json::from_value::<MetadataField>(workspace.workspace_metadata.clone())?.gbuild;
 
-        Ok(Self {
-            workspace,
-            gbuild: metadata.gbuild,
-        })
+        if let Some(pkg) = Manifest::from_path(&manifest)?.package {
+            gbuild.programs.push(".".into());
+        }
+
+        gbuild.programs.dedup();
+        gbuild.metas.dedup();
+        Ok(Self { workspace, gbuild })
     }
 }
 

@@ -60,7 +60,7 @@ pub struct GBuild {
 
 impl GBuild {
     /// Run the gbuild command
-    pub fn run(self) -> Result<Artifacts> {
+    pub fn run(self) -> Result<()> {
         let manifest_path = self
             .manifest_path
             .clone()
@@ -86,7 +86,9 @@ impl GBuild {
             metadata,
             kargo,
         )?;
-        Ok(artifacts)
+
+        // 3. process artifacts
+        artifacts.process()
     }
 
     fn artifact_and_profile(&self) -> (String, Option<String>) {

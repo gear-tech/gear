@@ -49,7 +49,7 @@ const OPTIMIZED_EXPORTS: [&str; 7] = [
 ];
 
 /// Type of the output wasm.
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum OptType {
     Meta,
     Opt,

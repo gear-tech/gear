@@ -18,6 +18,7 @@ std = []
 crate-type = ["cdylib"]
 
 [workspace]
+members = [ "foo", "bar" ]
 
 [workspace.metadata.gbuild]
 programs = [ "foo", "bar" ]
