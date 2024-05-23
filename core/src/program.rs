@@ -19,7 +19,7 @@
 //! Module for programs.
 
 use crate::{
-    ids::MessageId,
+    ids::{MessageId, ProgramId},
     message::DispatchKind,
     pages::{numerated::tree::IntervalsTree, GearPage, WasmPage, WasmPagesAmount},
     reservation::GasReservationMap,
@@ -31,19 +31,60 @@ use scale_info::{
     TypeInfo,
 };
 
-/// Struct defines infix of memory pages storage.
-#[derive(Clone, Copy, Debug, Default, Decode, Encode, PartialEq, Eq, TypeInfo)]
-pub struct MemoryInfix(u32);
+/// +_+_+
+#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]
+pub enum Program<BlockNumber: Copy> {
+    /// +_+_+
+    Active(ActiveProgram<BlockNumber>),
+    /// +_+_+
+    Exited(ProgramId),
+    /// +_+_+
+    Terminated(ProgramId),
+}
 
-impl MemoryInfix {
-    /// Constructing function from u32 number.
-    pub const fn new(value: u32) -> Self {
-        Self(value)
+impl<BlockNumber: Copy> Program<BlockNumber> {
+    /// +_+_+
+    pub fn is_active(&self) -> bool {
+        matches!(self, Program::Active(_))
     }
 
-    /// Return inner u32 value.
-    pub fn inner(&self) -> u32 {
-        self.0
+    /// +_+_+
+    pub fn is_exited(&self) -> bool {
+        matches!(self, Program::Exited(_))
+    }
+
+    /// +_+_+
+    pub fn is_terminated(&self) -> bool {
+        matches!(self, Program::Terminated(_))
+    }
+
+    /// +_+_+
+    pub fn is_initialized(&self) -> bool {
+        matches!(
+            self,
+            Program::Active(ActiveProgram {
+                state: ProgramState::Initialized,
+                ..
+            })
+        )
+    }
+}
+
+/// Program is not an active one.
+#[derive(Clone, Debug, derive_more::Display)]
+#[display(fmt = "Program is not an active one")]
+pub struct InactiveProgramError;
+
+impl<BlockNumber: Copy> core::convert::TryFrom<Program<BlockNumber>>
+    for ActiveProgram<BlockNumber>
+{
+    type Error = InactiveProgramError;
+
+    fn try_from(prog_with_status: Program<BlockNumber>) -> Result<Self, Self::Error> {
+        match prog_with_status {
+            Program::Active(p) => Ok(p),
+            _ => Err(InactiveProgramError),
+        }
     }
 }
 
@@ -81,4 +122,20 @@ pub enum ProgramState {
     },
     /// Program has been successfully initialized and can process messages.
     Initialized,
+}
+
+/// Struct defines infix of memory pages storage.
+#[derive(Clone, Copy, Debug, Default, Decode, Encode, PartialEq, Eq, TypeInfo)]
+pub struct MemoryInfix(u32);
+
+impl MemoryInfix {
+    /// Constructing function from u32 number.
+    pub const fn new(value: u32) -> Self {
+        Self(value)
+    }
+
+    /// Return inner u32 value.
+    pub fn inner(&self) -> u32 {
+        self.0
+    }
 }

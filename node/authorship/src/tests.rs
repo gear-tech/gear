@@ -27,7 +27,6 @@
 use crate::{authorship::MAX_SKIPPED_TRANSACTIONS, block_builder::BlockBuilder, ProposerFactory};
 
 use codec::{Decode, Encode};
-use common::Program;
 use core::convert::TryFrom;
 use demo_constructor::{Calls, Scheme, WASM_BINARY};
 use frame_support::{assert_ok, storage::storage_prefix, traits::PalletInfoAccess};
@@ -73,6 +72,7 @@ use testing::{
 use vara_runtime::{
     AccountId, Runtime, RuntimeApi as RA, RuntimeCall, UncheckedExtrinsic, SLOT_DURATION, VERSION,
 };
+use gear_core::program::Program;
 
 type TestProposal = sp_consensus::Proposal<TestBlock, ()>;
 

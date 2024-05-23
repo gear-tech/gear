@@ -21,6 +21,7 @@ use super::*;
 use gear_core::{
     pages::{WasmPage, WasmPagesAmount},
     program::MemoryInfix,
+    program::ProgramState,
 };
 use gear_wasm_instrument::parity_wasm::{self, elements::*};
 use sp_io::hashing::blake2_256;
