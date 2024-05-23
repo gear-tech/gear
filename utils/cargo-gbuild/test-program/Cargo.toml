@@ -20,5 +20,5 @@ crate-type = ["cdylib"]
 [workspace]
 
 [workspace.metadata.gbuild]
-programs = []
+programs = [ "foo", "bar" ]
 metas = []

@@ -18,7 +18,7 @@
 
 //! TODO: Introduce a standard for the project structure of gear programs (#3866)
 
-use crate::Artifact;
+use crate::{metadata::Metadata, Artifact};
 use anyhow::{anyhow, Result};
 use cargo_toml::Manifest;
 use clap::Parser;
@@ -38,8 +38,8 @@ const RELEASE_PROFILE: &str = "release";
 #[derive(Parser)]
 pub struct GBuild {
     /// The path to the program manifest
-    #[clap(short, long, default_value = "Cargo.toml")]
-    pub manifest_path: PathBuf,
+    #[clap(short, long)]
+    pub manifest_path: Option<PathBuf>,
 
     /// Space or comma separated list of features to activate
     #[clap(short = 'F', long)]
@@ -66,20 +66,16 @@ impl GBuild {
     ///
     /// TODO: Support `gtest::Program::current` (#3851)
     pub fn run(self) -> Result<Artifact> {
-        // 1. Get the cargo target directory
-        //
-        // TODO: Detect if the package is part of a workspace. (#3852)
-        // TODO: Support target dir defined in `.cargo/config.toml` (#3852)
-        let absolute_root = fs::canonicalize(self.manifest_path.clone())?;
-        let cargo_target_dir = env::var("CARGO_TARGET_DIR").map(PathBuf::from).unwrap_or(
-            absolute_root
-                .parent()
-                .ok_or_else(|| anyhow!("Failed to parse the root directory."))?
-                .join("target"),
-        );
+        let manifest_path = self
+            .manifest_path
+            .clone()
+            .unwrap_or(etc::find_up("Cargo.toml")?);
 
-        // 2. Run the cargo command, process optimizations and collect artifacts.
-        let cargo_artifact_dir = self.cargo(&cargo_target_dir)?;
+        let metadata = Metadata::parse(manifest_path.clone(), self.features.clone())?;
+        let cargo_target_dir: PathBuf = metadata.workspace.target_directory.into();
+
+        // Run the cargo command, process optimizations and collect artifacts.
+        let artifact = self.cargo(&manifest_path.clone(), &cargo_target_dir)?;
         let gbuild_artifact_dir = self
             .target_dir
             .unwrap_or(cargo_target_dir.clone())
@@ -87,19 +83,14 @@ impl GBuild {
 
         let artifact = Artifact::new(
             gbuild_artifact_dir,
-            Manifest::from_path(self.manifest_path.clone())?
-                .package()
-                .name
-                .replace('-', "_"),
+            Manifest::from_path(manifest_path)?.package().name.as_ref(),
         )?;
-        artifact.process(cargo_artifact_dir)?;
+        artifact.process(cargo_target_dir)?;
         Ok(artifact)
     }
 
     /// Process the cargo command.
-    ///
-    /// TODO: Support workspace build. (#3852)
-    fn cargo(&self, target_dir: &Path) -> Result<PathBuf> {
+    fn cargo(&self, manifest_path: &Path, cargo_target_dir: &Path) -> Result<PathBuf> {
         let mut kargo = CargoCommand::default();
         let mut artifact = DEBUG_ARTIFACT;
 
@@ -124,12 +115,12 @@ Remove one flag or the other to continue.",
             artifact = RELEASE_PROFILE;
         }
 
-        kargo.set_manifest_path(self.manifest_path.clone());
-        kargo.set_target_dir(target_dir.to_path_buf());
+        kargo.set_manifest_path(manifest_path.to_path_buf());
+        kargo.set_target_dir(cargo_target_dir.to_path_buf());
         kargo.set_features(&self.features);
         kargo.run()?;
 
         // Returns the root of the built artifact
-        Ok(target_dir.join(format!("wasm32-unknown-unknown/{}", artifact)))
+        Ok(cargo_target_dir.join(format!("wasm32-unknown-unknown/{}", artifact)))
     }
 }

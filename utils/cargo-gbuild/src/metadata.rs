@@ -18,7 +18,7 @@
 
 use crate::utils;
 use anyhow::{anyhow, Result};
-use cargo_metadata::{Artifact, CargoOpt, Message, MetadataCommand};
+use cargo_metadata::{CargoOpt, Message, MetadataCommand};
 use serde::{Deserialize, Serialize};
 use std::{
     io::BufReader,
@@ -28,55 +28,43 @@ use std::{
 
 /// Cargo metadata
 pub struct Metadata {
-    artifact: Vec<Artifact>,
-    inner: cargo_metadata::Metadata,
+    /// Raw cargo metadata
+    pub workspace: cargo_metadata::Metadata,
+
+    /// Gbuild metadata
+    pub gbuild: GbuildMetadata,
 }
 
 impl Metadata {
     /// Get project metadata from command `cargo-metadata`
-    pub fn parse(manifest: Option<PathBuf>, features: Vec<String>) -> Result<Self> {
+    pub fn parse(manifest: PathBuf, features: Vec<String>) -> Result<Self> {
+        tracing::info!("Running cargo metadata for manifest: {manifest:?}");
         let mut command = MetadataCommand::new();
         command.features(CargoOpt::SomeFeatures(features));
-        if let Some(manifest) = manifest {
-            command.manifest_path(manifest);
-        }
+        command.manifest_path(&manifest);
+
+        let workspace = command.exec()?;
+        let metadata =
+            serde_json::from_value::<MetadataField>(workspace.workspace_metadata.clone())?;
 
         Ok(Self {
-            artifact: Self::artifacts()?,
-            inner: command.exec()?,
+            workspace,
+            gbuild: metadata.gbuild,
         })
-    }
-
-    /// Parse the artifact path
-    fn artifacts() -> Result<Vec<Artifact>> {
-        let mut check = Command::new("cargo")
-            .args([
-                "check",
-                "--workspace",
-                "--message-format=json-render-diagnostics",
-            ])
-            .stdout(Stdio::piped())
-            .spawn()?;
-
-        let reader = BufReader::new(
-            check
-                .stdout
-                .take()
-                .ok_or(anyhow!("Failed to get stdout, strerr: {:?}", check.stderr))?,
-        );
-        let mut artifacts: Vec<Artifact> = Default::default();
-        for message in Message::parse_stream(reader).flatten() {
-            if let Message::CompilerArtifact(artifact) = message {
-                artifacts.push(artifact);
-            }
-        }
-
-        Ok(artifacts)
     }
 }
 
+/// Cargo gbuild metadata
+///
+/// In the root cargo.toml: [workspace.metadata.gbuild]
+#[derive(Debug, Serialize, Deserialize)]
+pub struct MetadataField {
+    /// Gbuild metadata,
+    pub gbuild: GbuildMetadata,
+}
+
 /// Gbuild metadata
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct GbuildMetadata {
     /// Gear programs in the workspace.
     programs: Vec<String>,
@@ -94,11 +82,4 @@ impl GbuildMetadata {
     pub fn metas(&self) -> Result<Vec<PathBuf>> {
         utils::collect_crates(&self.metas)
     }
-}
-
-/// Cargo gbuild metadata
-#[derive(Serialize, Deserialize)]
-pub struct MetadataField {
-    /// Gbuild metadata,
-    pub gbuild: GbuildMetadata,
 }

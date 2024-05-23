@@ -37,13 +37,13 @@ pub struct Artifact {
 
 impl Artifact {
     /// Create a new artifact registry.
-    pub fn new(root: PathBuf, name: String) -> Result<Self> {
+    pub fn new(root: PathBuf, name: &str) -> Result<Self> {
         fs::create_dir_all(&root)
             .map_err(|e| anyhow!("Failed to create the artifact directory, {e}"))?;
 
         Ok(Self {
             program: root.join(format!("{name}.wasm")),
-            name,
+            name: name.replace('-', "_"),
             root,
         })
     }
