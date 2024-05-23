@@ -64,7 +64,7 @@ use common::{
 };
 use core::marker::PhantomData;
 use core_processor::{
-    common::{DispatchOutcome as CoreDispatchOutcome, ExecutableActorData, JournalNote},
+    common::{DispatchOutcome as CoreDispatchOutcome, JournalNote},
     configs::{BlockConfig, BlockInfo},
     Ext,
 };

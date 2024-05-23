@@ -26,7 +26,7 @@ use alloc::{
     vec::Vec,
 };
 use gear_core::{
-    code::InstrumentedCode,
+    code::{CodeError, InstrumentedCode},
     gas::{GasAllowanceCounter, GasAmount, GasCounter},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{MemoryError, MemorySetupError, PageBuf},
@@ -34,7 +34,7 @@ use gear_core::{
         ContextStore, Dispatch, DispatchKind, IncomingDispatch, MessageWaitedType, StoredDispatch,
     },
     pages::{numerated::tree::IntervalsTree, GearPage, WasmPage, WasmPagesAmount},
-    program::MemoryInfix,
+    program::{ActiveProgram, MemoryInfix, ProgramState},
     reservation::{GasReservationMap, GasReserver},
 };
 pub use gear_core_backend::error::TrapExplanation;
@@ -580,4 +580,51 @@ impl PrechargedDispatch {
     pub fn into_parts(self) -> (IncomingDispatch, GasCounter, GasAllowanceCounter) {
         (self.dispatch, self.gas, self.allowance)
     }
+}
+
+/// +_+_+
+pub struct ProgramInfo {
+    /// +_+_+
+    pub(crate) allocations: IntervalsTree<WasmPage>,
+    /// +_+_+
+    pub(crate) code_id: CodeId,
+    /// +_+_+
+    pub(crate) code_exports: BTreeSet<DispatchKind>,
+    /// +_+_+
+    pub(crate) memory_infix: MemoryInfix,
+    /// +_+_+
+    pub(crate) gas_reservation_map: GasReservationMap,
+    /// +_+_+
+    pub(crate) state: ProgramState,
+}
+
+impl<BlockNumber: Copy> From<ActiveProgram<BlockNumber>> for ProgramInfo {
+    fn from(program: ActiveProgram<BlockNumber>) -> Self {
+        Self {
+            allocations: program.allocations,
+            code_id: CodeId::from(program.code_hash.as_bytes()),
+            code_exports: program.code_exports,
+            memory_infix: program.memory_infix,
+            gas_reservation_map: program.gas_reservation_map,
+            state: program.state,
+        }
+    }
+}
+
+/// +_+_+
+pub trait LazyStorageAccess {
+    /// Get program info.
+    fn program_info(&self, program_id: ProgramId) -> Option<ProgramInfo>;
+
+    /// Get code length.
+    fn code_len(&self, code_id: CodeId) -> Option<u32>;
+
+    /// Get code info.
+    fn code(&self, code_id: CodeId) -> Option<InstrumentedCode>;
+
+    /// +_+_+
+    fn need_reinstrumentation(&self, code: &InstrumentedCode) -> bool;
+
+    /// +_+_+
+    fn reinstrument_code(&self, code_id: CodeId) -> Result<InstrumentedCode, CodeError>;
 }

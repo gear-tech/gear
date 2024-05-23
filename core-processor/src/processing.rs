@@ -169,7 +169,7 @@ where
     }
 }
 
-enum ProcessErrorCase {
+pub(crate) enum ProcessErrorCase {
     /// Message is not executable error.
     NonExecutable,
     /// Error is considered as an execution failure.
@@ -196,7 +196,7 @@ impl ProcessErrorCase {
     }
 }
 
-fn process_error(
+pub(crate) fn process_error(
     dispatch: IncomingDispatch,
     program_id: ProgramId,
     gas_burned: u64,

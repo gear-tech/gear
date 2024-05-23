@@ -17,23 +17,176 @@
 use crate::{
     common::{
         ActorExecutionErrorReplyReason, DispatchResult, ExecutableActorData, JournalNote,
-        PrechargedDispatch,
+        LazyStorageAccess, PrechargedDispatch, Program,
     },
     configs::{BlockConfig, ProcessCosts},
     context::{
         ContextChargedForCodeLength, ContextChargedForMemory, ContextData, SystemReservationContext,
     },
-    processing::{process_allowance_exceed, process_execution_error, process_success},
-    ContextChargedForCode, ContextChargedForInstrumentation,
+    processing::{
+        process_allowance_exceed, process_error, process_execution_error, process_success,
+        ProcessErrorCase,
+    },
+    ContextChargedForCode, ContextChargedForInstrumentation, ProcessExecutionContext,
 };
 use alloc::vec::Vec;
 use gear_core::{
     costs::BytesAmount,
     gas::{ChargeResult, GasAllowanceCounter, GasCounter},
     ids::ProgramId,
-    message::{IncomingDispatch, MessageWaitedType},
+    message::{DispatchKind, IncomingDispatch, MessageWaitedType},
     pages::{numerated::tree::IntervalsTree, WasmPage, WasmPagesAmount},
+    program::ProgramState,
+    reservation::GasReserver,
 };
+
+/// +_+_+
+pub fn precharge(
+    storage: &impl LazyStorageAccess,
+    block_config: &BlockConfig,
+    gas_allowance: u64,
+    dispatch: IncomingDispatch,
+    program_id: ProgramId,
+    balance: u128,
+) -> Result<ProcessExecutionContext, Vec<JournalNote>> {
+    let mut gas_counter = GasCounter::new(dispatch.gas_limit());
+    let mut gas_allowance_counter = GasAllowanceCounter::new(gas_allowance);
+    let mut charger = GasPrecharger::new(
+        &mut gas_counter,
+        &mut gas_allowance_counter,
+        &block_config.costs,
+    );
+
+    let process_pre_charge_error =
+        |err: PrechargeError, gas_counter: GasCounter, dispatch: IncomingDispatch| match err {
+            PrechargeError::BlockGasExceeded => {
+                process_allowance_exceed(dispatch, program_id, gas_counter.burned())
+            }
+            PrechargeError::GasExceeded(op) => {
+                let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
+                process_execution_error(
+                    dispatch,
+                    program_id,
+                    gas_counter.burned(),
+                    system_reservation_ctx,
+                    ActorExecutionErrorReplyReason::PreChargeGasLimitExceeded(op),
+                )
+            }
+        };
+
+    let process_error =
+        |err_case: ProcessErrorCase, gas_counter: GasCounter, dispatch: IncomingDispatch| {
+            let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
+            process_error(
+                dispatch,
+                program_id,
+                gas_counter.burned(),
+                system_reservation_ctx,
+                err_case,
+            )
+        };
+
+    if let Err(err) = charger.charge_gas_for_program_data() {
+        return Err(process_pre_charge_error(err, gas_counter, dispatch));
+    }
+
+    let program = storage.program_info(program_id).unwrap_or_else(|| {
+        unreachable!("+_+_+");
+    });
+
+    if program.state == ProgramState::Initialized && dispatch.kind() == DispatchKind::Init {
+        unreachable!("+_+_+");
+    }
+
+    // If the destination program is uninitialized, then we allow
+    // to process message, if it's a reply or init message.
+    // Otherwise, we return error reply.
+    if matches!(program.state, ProgramState::Uninitialized { message_id }
+            if message_id != dispatch.message().id() && dispatch.kind() != DispatchKind::Reply)
+    {
+        if dispatch.kind() == DispatchKind::Init {
+            unreachable!("+_+_+");
+        }
+
+        return Err(process_error(
+            ProcessErrorCase::NonExecutable,
+            gas_counter,
+            dispatch,
+        ));
+    }
+
+    if !program.code_exports.contains(&dispatch.kind()) {
+        return Err(process_success(
+            SuccessfulDispatchResultKind::Success,
+            DispatchResult::success(dispatch, program_id, gas_counter.to_amount()),
+        ));
+    }
+
+    if let Err(err) = charger.charge_gas_for_program_code_len() {
+        return Err(process_pre_charge_error(err, gas_counter, dispatch));
+    }
+
+    let code_len_bytes = storage
+        .code_len(program.code_id)
+        .unwrap_or_else(|| unreachable!("+_+_+"));
+
+    if let Err(err) = charger.charge_gas_for_program_code(code_len_bytes.into()) {
+        return Err(process_pre_charge_error(err, gas_counter, dispatch));
+    }
+
+    let mut code = storage
+        .code(program.code_id)
+        .unwrap_or_else(|| unreachable!("+_+_+"));
+
+    // Reinstrument the code if necessary.
+    if storage.need_reinstrumentation(&code) {
+        if let Err(err) = charger.charge_gas_for_instrumentation(code.original_code_len().into()) {
+            return Err(process_pre_charge_error(err, gas_counter, dispatch));
+        }
+
+        match storage.reinstrument_code(program.code_id) {
+            Ok(new_code) => code = new_code,
+            Err(_) => {
+                return Err(process_error(
+                    ProcessErrorCase::ReinstrumentationFailed,
+                    gas_counter,
+                    dispatch,
+                ))
+            }
+        }
+    };
+
+    let memory_size = match charger.charge_gas_for_pages(&program.allocations, code.static_pages())
+    {
+        Ok(memory_size) => memory_size,
+        Err(err) => return Err(process_pre_charge_error(err, gas_counter, dispatch)),
+    };
+
+    if let Err(err) = charger.charge_gas_for_instantiation((code.code().len() as u32).into()) {
+        return Err(process_pre_charge_error(err, gas_counter, dispatch));
+    }
+
+    let gas_reserver = GasReserver::new(
+        &dispatch,
+        program.gas_reservation_map,
+        block_config.max_reservations,
+    );
+
+    Ok(ProcessExecutionContext {
+        gas_counter,
+        gas_allowance_counter,
+        dispatch,
+        gas_reserver,
+        balance,
+        program: Program {
+            id: program_id,
+            memory_infix: program.memory_infix,
+            code,
+            allocations: program.allocations,
+        },
+        memory_size,
+    })
+}
 
 /// Operation related to gas charging.
 #[derive(Debug, PartialEq, Eq, derive_more::Display)]
@@ -165,6 +318,7 @@ impl<'a> GasPrecharger<'a> {
     }
 }
 
+// +_+_+ move to common
 /// Possible variants of the `DispatchResult` if the latter contains value.
 #[allow(missing_docs)]
 #[derive(Debug)]

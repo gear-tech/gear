@@ -17,14 +17,43 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::*;
-use core_processor::ContextChargedForInstrumentation;
-use gear_core::program::ProgramState;
+use core_processor::common::{LazyStorageAccess, ProgramInfo};
 
 pub(crate) struct QueueStep<'a, T: Config> {
     pub block_config: &'a BlockConfig,
     pub gas_limit: GasBalanceOf<T>,
     pub dispatch: StoredDispatch,
     pub balance: u128,
+}
+
+struct StorageAccess<T>(PhantomData<T>);
+
+impl<T: Config> LazyStorageAccess for StorageAccess<T>
+where
+    T::AccountId: Origin,
+{
+    fn program_info(&self, program_id: ProgramId) -> Option<ProgramInfo> {
+        match ProgramStorageOf::<T>::get_program(program_id) {
+            Some(Program::Active(program)) => Some(program.into()),
+            _ => None,
+        }
+    }
+
+    fn code_len(&self, code_id: CodeId) -> Option<u32> {
+        T::CodeStorage::get_code_len(code_id)
+    }
+
+    fn code(&self, code_id: CodeId) -> Option<InstrumentedCode> {
+        T::CodeStorage::get_code(code_id)
+    }
+
+    fn need_reinstrumentation(&self, code: &InstrumentedCode) -> bool {
+        code.instruction_weights_version() != T::Schedule::get().instruction_weights.version
+    }
+
+    fn reinstrument_code(&self, code_id: CodeId) -> Result<InstrumentedCode, CodeError> {
+        Pallet::<T>::reinstrument_code(code_id, &T::Schedule::get())
+    }
 }
 
 impl<T: Config> pallet::Pallet<T>
@@ -39,124 +68,20 @@ where
             balance,
         } = queue_step;
 
-        let destination_id = dispatch.destination();
+        let storage = StorageAccess::<T>(PhantomData);
+        let program_id = dispatch.destination();
         let dispatch_id = dispatch.id();
-        let dispatch_kind = dispatch.kind();
+        let dispatch = dispatch.into_incoming(gas_limit);
 
-        // To start executing a message resources of a destination program should be
-        // fetched from the storage.
-        // The first step is to get program data so charge gas for the operation.
-        let precharged_dispatch = match core_processor::precharge_for_program(
+        let execution_context = match core_processor::precharge(
+            &storage,
             block_config,
             GasAllowanceOf::<T>::get(),
-            dispatch.into_incoming(gas_limit),
-            destination_id,
+            dispatch,
+            program_id,
+            balance,
         ) {
-            Ok(dispatch) => dispatch,
-            Err(journal) => return journal,
-        };
-
-        let Some(Program::Active(program)) = ProgramStorageOf::<T>::get_program(destination_id)
-        else {
-            log::trace!("Message is sent to non-active program {destination_id:?}");
-            return core_processor::process_non_executable(precharged_dispatch, destination_id);
-        };
-
-        if program.state == ProgramState::Initialized && dispatch_kind == DispatchKind::Init {
-            // Panic is impossible, because gear protocol does not provide functionality
-            // to send second init message to any already existing program.
-            unreachable!(
-                "Init message {dispatch_id:?} is sent to already initialized program {destination_id:?}"
-            );
-        }
-
-        // If the destination program is uninitialized, then we allow
-        // to process message, if it's a reply or init message.
-        // Otherwise, we return error reply.
-        if matches!(program.state, ProgramState::Uninitialized { message_id }
-            if message_id != dispatch_id && dispatch_kind != DispatchKind::Reply)
-        {
-            if dispatch_kind == DispatchKind::Init {
-                // Panic is impossible, because gear protocol does not provide functionality
-                // to send second init message to any existing program.
-                unreachable!(
-                    "Init message {dispatch_id:?} is not the first init message to the program {destination_id:?}"
-                );
-            }
-
-            return core_processor::process_non_executable(precharged_dispatch, destination_id);
-        }
-
-        let actor_data = ExecutableActorData {
-            allocations: program.allocations,
-            code_id: program.code_hash.cast(),
-            code_exports: program.code_exports,
-            static_pages: program.static_pages,
-            gas_reservation_map: program.gas_reservation_map,
-            memory_infix: program.memory_infix,
-        };
-
-        // The second step is to load instrumented binary code of the program but
-        // first its correct length should be obtained.
-        let context = match core_processor::precharge_for_code_length(
-            block_config,
-            precharged_dispatch,
-            destination_id,
-            actor_data,
-        ) {
-            Ok(context) => context,
-            Err(journal) => return journal,
-        };
-
-        // Load correct code length value.
-        let code_id = context.actor_data().code_id;
-        let code_len_bytes = T::CodeStorage::get_code_len(code_id).unwrap_or_else(|| {
-            unreachable!("Program '{destination_id:?}' exists so do code len '{code_id:?}'")
-        });
-
-        // Adjust gas counters for fetching instrumented binary code.
-        let context =
-            match core_processor::precharge_for_code(block_config, context, code_len_bytes) {
-                Ok(context) => context,
-                Err(journal) => return journal,
-            };
-
-        // Load instrumented binary code from storage.
-        let code = T::CodeStorage::get_code(code_id).unwrap_or_else(|| {
-            unreachable!("Program '{destination_id:?}' exists so do code '{code_id:?}'")
-        });
-
-        // Reinstrument the code if necessary.
-        let schedule = T::Schedule::get();
-        let (code, context) =
-            if code.instruction_weights_version() == schedule.instruction_weights.version {
-                (code, ContextChargedForInstrumentation::from(context))
-            } else {
-                log::debug!("Re-instrumenting code for program '{destination_id:?}'");
-
-                let context = match core_processor::precharge_for_instrumentation(
-                    block_config,
-                    context,
-                    code.original_code_len(),
-                ) {
-                    Ok(context) => context,
-                    Err(journal) => return journal,
-                };
-
-                let code = match Pallet::<T>::reinstrument_code(code_id, &schedule) {
-                    Ok(code) => code,
-                    Err(e) => {
-                        log::debug!("Re-instrumentation error for code {code_id:?}: {e:?}");
-                        return core_processor::process_reinstrumentation_error(context);
-                    }
-                };
-
-                (code, context)
-            };
-
-        // The last one thing is to load program memory. Adjust gas counters for memory pages.
-        let context = match core_processor::precharge_for_memory(block_config, context) {
-            Ok(context) => context,
+            Ok(ctx) => ctx,
             Err(journal) => return journal,
         };
 
@@ -164,7 +89,7 @@ where
 
         core_processor::process::<Ext>(
             block_config,
-            (context, code, balance).into(),
+            execution_context,
             (random.encode(), bn.unique_saturated_into()),
         )
         .unwrap_or_else(|e| unreachable!("{e}"))
