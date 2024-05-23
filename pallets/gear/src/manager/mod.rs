@@ -70,7 +70,7 @@ use gear_core::{
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     message::{DispatchKind, SignalMessage},
     pages::WasmPagesAmount,
-    program::{ActiveProgram, MemoryInfix, ProgramState, Program},
+    program::{ActiveProgram, MemoryInfix, Program, ProgramState},
     reservation::GasReservationSlot,
 };
 use primitive_types::H256;

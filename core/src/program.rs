@@ -31,34 +31,34 @@ use scale_info::{
     TypeInfo,
 };
 
-/// +_+_+
+/// Program in different states in storage.
 #[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]
 pub enum Program<BlockNumber: Copy> {
-    /// +_+_+
+    /// Program in active state.
     Active(ActiveProgram<BlockNumber>),
-    /// +_+_+
+    /// Program has been exited (gr_exit was called)
     Exited(ProgramId),
-    /// +_+_+
+    /// Program has been terminated (`init` was failed)
     Terminated(ProgramId),
 }
 
 impl<BlockNumber: Copy> Program<BlockNumber> {
-    /// +_+_+
+    /// Returns whether the program is active.
     pub fn is_active(&self) -> bool {
         matches!(self, Program::Active(_))
     }
 
-    /// +_+_+
+    /// Returns whether the program is exited.
     pub fn is_exited(&self) -> bool {
         matches!(self, Program::Exited(_))
     }
 
-    /// +_+_+
+    /// Returns whether the program is terminated.
     pub fn is_terminated(&self) -> bool {
         matches!(self, Program::Terminated(_))
     }
 
-    /// +_+_+
+    /// Returns whether the program is active and initialized.
     pub fn is_initialized(&self) -> bool {
         matches!(
             self,
@@ -88,26 +88,26 @@ impl<BlockNumber: Copy> core::convert::TryFrom<Program<BlockNumber>>
     }
 }
 
-/// +_+_+
+/// Active program in storage.
 #[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]
 pub struct ActiveProgram<BlockNumber: Copy> {
     /// Set of wasm pages, that were allocated by the program.
     pub allocations: IntervalsTree<WasmPage>,
     /// Set of gear pages, that have data in storage.
     pub pages_with_data: IntervalsTree<GearPage>,
-    /// +_+_+
+    /// Infix of memory pages storage (is used for memory wake after pausing)
     pub memory_infix: MemoryInfix,
-    /// +_+_+
+    /// Gas reservation map.
     pub gas_reservation_map: GasReservationMap,
-    /// +_+_+
+    /// Code hash of the program.
     pub code_hash: H256,
-    /// +_+_+
+    /// Set of supported dispatch kinds.
     pub code_exports: BTreeSet<DispatchKind>,
-    /// +_+_+
+    /// Amount of static pages.
     pub static_pages: WasmPagesAmount,
-    /// +_+_+
+    /// Initialization state of the program.
     pub state: ProgramState,
-    /// +_+_+
+    /// Block number when the program will be expired.
     pub expiration_block: BlockNumber,
 }
 

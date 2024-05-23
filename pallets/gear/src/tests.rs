@@ -32,8 +32,8 @@ use crate::{
     ProgramStorageOf, QueueOf, Schedule, TaskPoolOf, WaitlistOf,
 };
 use common::{
-    event::*, scheduler::*, storage::*, CodeStorage, GasTree, LockId, LockableTree,
-    Origin as _, ProgramStorage, ReservableTree,
+    event::*, scheduler::*, storage::*, CodeStorage, GasTree, LockId, LockableTree, Origin as _,
+    ProgramStorage, ReservableTree,
 };
 use core_processor::common::ActorExecutionErrorReplyReason;
 use frame_support::{
@@ -50,8 +50,7 @@ use gear_core::{
         ReplyInfo, StoredDispatch, UserStoredMessage,
     },
     pages::WasmPage,
-    program::ActiveProgram,
-    program::Program,
+    program::{ActiveProgram, Program},
 };
 use gear_core_backend::error::{
     TrapExplanation, UnrecoverableExecutionError, UnrecoverableExtError, UnrecoverableWaitError,
@@ -14928,9 +14927,8 @@ pub(crate) mod utils {
     use gear_core::{
         ids::{CodeId, MessageId, ProgramId},
         message::{Message, Payload, ReplyDetails, UserMessage, UserStoredMessage},
+        program::{ActiveProgram, Program},
         reservation::GasReservationMap,
-        program::ActiveProgram,
-        program::Program,
     };
     use gear_core_errors::*;
     use pallet_gear_voucher::VoucherId;
