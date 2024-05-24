@@ -136,24 +136,12 @@ impl TestActor {
     }
 
     // Gets a new executable actor derived from the inner program.
-    fn get_executable_actor_data(&self) -> Option<(ExecutableActorData, InstrumentedCode)> {
-        self.genuine_program().map(|program| {
-            (
-                ExecutableActorData {
-                    allocations: program.allocations.clone(),
-                    code_id: program.code_id,
-                    code_exports: program.code.exports().clone(),
-                    static_pages: program.code.static_pages(),
-                    gas_reservation_map: program.gas_reservation_map.clone(),
-                    memory_infix: Default::default(),
-                },
-                program.code.clone(),
-            )
-        })
+    fn get_program(&self) -> Option<GenuineProgram> {
+        self.genuine_program().cloned()
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct GenuineProgram {
     pub code_id: CodeId,
     pub code: InstrumentedCode,
@@ -481,9 +469,9 @@ impl ExtManager {
             if actor.is_dormant() {
                 drop(actors);
                 self.process_dormant(balance, dispatch);
-            } else if let Some((data, code)) = actor.get_executable_actor_data() {
+            } else if let Some(program) = actor.get_program() {
                 drop(actors);
-                self.process_normal(balance, data, code, dispatch);
+                self.process_normal(balance, program, dispatch);
             } else if let Some(mock) = actor.take_mock() {
                 drop(actors);
                 self.process_mock(mock, dispatch);
@@ -519,13 +507,13 @@ impl ExtManager {
             .get_mut(program_id)
             .ok_or_else(|| TestError::ActorNotFound(*program_id))?;
 
-        if let Some((data, code)) = actor.get_executable_actor_data() {
+        if let Some(program) = actor.get_program() {
             drop(actors);
 
             core_processor::informational::execute_for_reply::<Ext, _>(
                 String::from("state"),
-                code,
-                Some(data.allocations),
+                program.code,
+                Some(program.allocations),
                 Some((*program_id, Default::default())),
                 payload,
                 u64::MAX,
@@ -840,14 +828,8 @@ impl ExtManager {
             });
     }
 
-    fn process_normal(
-        &mut self,
-        balance: u128,
-        data: ExecutableActorData,
-        code: InstrumentedCode,
-        dispatch: StoredDispatch,
-    ) {
-        self.process_dispatch(balance, Some((data, code)), dispatch);
+    fn process_normal(&mut self, balance: u128, program: GenuineProgram, dispatch: StoredDispatch) {
+        self.process_dispatch(balance, Some(program), dispatch);
     }
 
     fn process_dormant(&mut self, balance: u128, dispatch: StoredDispatch) {
@@ -858,7 +840,7 @@ impl ExtManager {
     fn process_dispatch(
         &mut self,
         balance: u128,
-        data: Option<(ExecutableActorData, InstrumentedCode)>,
+        program: Option<GenuineProgram>,
         dispatch: StoredDispatch,
     ) {
         let dest = dispatch.destination();
@@ -900,27 +882,29 @@ impl ExtManager {
             outgoing_bytes_limit: OUTGOING_BYTES_LIMIT,
         };
 
-        struct StorageAccess(Option<(ExecutableActorData, InstrumentedCode)>);
+        struct StorageAccess(Option<GenuineProgram>);
 
         impl LazyStorageAccess for StorageAccess {
             fn program_info(&self, _program_id: ProgramId) -> Option<ProgramInfo> {
-                self.0.as_ref().map(|(data, _)| ProgramInfo {
-                    code_id: data.code_id,
-                    allocations: data.allocations.clone(),
-                    code_exports: data.code_exports.clone(),
-                    memory_infix: data.memory_infix,
+                self.0.as_ref().map(|program| ProgramInfo {
+                    code_id: program.code_id,
+                    allocations: program.allocations.clone(),
+                    code_exports: program.code.exports().clone(),
+                    memory_infix: Default::default(),
                     state: ProgramState::Initialized,
-                    gas_reservation_map: data.gas_reservation_map.clone(),
+                    gas_reservation_map: program.gas_reservation_map.clone(),
                 })
             }
 
             fn code_len(&self, _code_id: CodeId) -> Option<u32> {
-                self.0.as_ref().map(|(_, code)| code.code().len() as u32)
+                self.0
+                    .as_ref()
+                    .map(|program| program.code.code().len() as u32)
             }
 
             #[allow(clippy::useless_asref)]
             fn code(&self, _code_id: CodeId) -> Option<InstrumentedCode> {
-                self.0.as_ref().map(|(_, code)| code.clone())
+                self.0.as_ref().map(|program| program.code.clone())
             }
 
             fn need_reinstrumentation(&self, _code: &InstrumentedCode) -> bool {
@@ -928,11 +912,11 @@ impl ExtManager {
             }
 
             fn reinstrument_code(&self, _code_id: CodeId) -> Result<InstrumentedCode, CodeError> {
-                unreachable!()
+                unreachable!("+_+_+")
             }
         }
 
-        let storage = StorageAccess(data);
+        let storage = StorageAccess(program);
         let dispatch = dispatch.into_incoming(*gas_limit);
         let execution_context = match core_processor::precharge(
             &storage,
