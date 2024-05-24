@@ -60,11 +60,28 @@ impl Artifacts {
             .map_err(|e| anyhow!("Failed to create the artifact directory, {e}"))?;
 
         let cwd = env::current_dir()?;
-        env::set_current_dir(metadata.workspace.workspace_root);
-        let artifacts = collect_crates(&cwd, &metadata.gbuild.programs, OptType::Opt)?
-            .into_iter()
-            .chain(collect_crates(&cwd, &metadata.gbuild.metas, OptType::Meta)?)
-            .collect();
+        env::set_current_dir(&metadata.workspace_root);
+
+        // Collect all possible packages from metadata
+        let mut artifacts: Vec<Artifact> =
+            collect_crates(&cwd, &metadata.gbuild.programs, OptType::Opt)?
+                .into_iter()
+                .chain(collect_crates(&cwd, &metadata.gbuild.metas, OptType::Meta)?)
+                .collect();
+
+        // If not using workspace build, filter out the matched package
+        // from metas and programs.
+        if !metadata.workspace {
+            let current: Vec<Artifact> = artifacts
+                .iter()
+                .filter(|a| a.manifest.eq(&metadata.manifest))
+                .cloned()
+                .collect();
+
+            if !current.is_empty() {
+                artifacts = current;
+            }
+        }
 
         env::set_current_dir(cwd)?;
         Ok(Artifacts {
@@ -104,7 +121,7 @@ impl Artifacts {
 }
 
 /// Program artifact
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Artifact {
     /// The original manifest path.
     pub manifest: PathBuf,

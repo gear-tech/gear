@@ -34,13 +34,17 @@ const RELEASE_PROFILE: &str = "release";
 /// Command `gbuild` as cargo extension.
 #[derive(Parser)]
 pub struct GBuild {
+    /// Space or comma separated list of features to activate
+    #[clap(short = 'F', long)]
+    pub features: Vec<String>,
+
     /// The path to the program manifest
     #[clap(short, long)]
     pub manifest_path: Option<PathBuf>,
 
-    /// Space or comma separated list of features to activate
-    #[clap(short = 'F', long)]
-    pub features: Vec<String>,
+    /// Build artifacts with the specified profile
+    #[clap(long)]
+    pub profile: Option<String>,
 
     /// If enables the release profile.
     #[clap(short, long)]
@@ -53,9 +57,9 @@ pub struct GBuild {
     #[clap(short, long)]
     pub target_dir: Option<PathBuf>,
 
-    /// Build artifacts with the specified profile
-    #[clap(long)]
-    pub profile: Option<String>,
+    /// If enable workspace build
+    #[clap(short, long)]
+    pub workspace: bool,
 }
 
 impl GBuild {
@@ -67,10 +71,11 @@ impl GBuild {
             .unwrap_or(etc::find_up("Cargo.toml")?);
 
         let (artifact, profile) = self.artifact_and_profile();
-        let metadata = Metadata::parse(manifest_path.clone(), self.features.clone())?;
+        let metadata =
+            Metadata::parse(self.workspace, manifest_path.clone(), self.features.clone())?;
         let target_dir = self
             .target_dir
-            .unwrap_or(metadata.workspace.target_directory.clone().into());
+            .unwrap_or(metadata.target_directory.clone().into());
 
         // 1. setup cargo command
         let mut kargo = CargoCommand::default();

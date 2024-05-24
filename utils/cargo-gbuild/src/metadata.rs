@@ -24,6 +24,7 @@ use gear_wasm_builder::optimize::OptType;
 use serde::{Deserialize, Serialize};
 use std::{
     io::BufReader,
+    ops::Deref,
     path::PathBuf,
     process::{Command, Stdio},
 };
@@ -31,44 +32,67 @@ use std::{
 /// Cargo metadata
 pub struct Metadata {
     /// Raw cargo metadata
-    pub workspace: cargo_metadata::Metadata,
+    inner: cargo_metadata::Metadata,
 
     /// Gbuild metadata
     pub gbuild: GbuildMetadata,
+
+    /// Which manifest this metadata if parsed by
+    pub manifest: PathBuf,
+
+    /// If workspace flag is enabled
+    pub workspace: bool,
 }
 
 impl Metadata {
     /// Get project metadata from command `cargo-metadata`
-    pub fn parse(manifest: PathBuf, features: Vec<String>) -> Result<Self> {
+    pub fn parse(workspace: bool, manifest: PathBuf, features: Vec<String>) -> Result<Self> {
         let mut command = MetadataCommand::new();
         command.features(CargoOpt::SomeFeatures(features));
         command.manifest_path(&manifest);
 
-        let workspace = command.exec()?;
+        let inner = command.exec()?;
+
+        // Use workspace packages if
+        // - workspace flag is enabled
+        // - the parsed manifest is workspace manifest
+        // - no package found for the parsed package
+        let root_package = Manifest::from_path(&manifest)?.package.is_some();
+        let workspace = workspace || manifest.eq(&inner.workspace_root) || !root_package;
+
         let mut gbuild =
-            serde_json::from_value::<MetadataField>(workspace.workspace_metadata.clone())?.gbuild;
-
-        if let Some(pkg) = Manifest::from_path(&manifest)?.package {
-            gbuild.programs.push(".".into());
-        }
-
+            serde_json::from_value::<MetadataField>(inner.workspace_metadata.clone())?.gbuild;
         gbuild.programs.dedup();
         gbuild.metas.dedup();
-        Ok(Self { workspace, gbuild })
+
+        Ok(Self {
+            inner,
+            workspace,
+            gbuild,
+            manifest,
+        })
+    }
+}
+
+impl Deref for Metadata {
+    type Target = cargo_metadata::Metadata;
+
+    fn deref(&self) -> &Self::Target {
+        &self.inner
     }
 }
 
 /// Cargo gbuild metadata
 ///
 /// In the root cargo.toml: [workspace.metadata.gbuild]
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Default, Serialize, Deserialize)]
 pub struct MetadataField {
     /// Gbuild metadata,
     pub gbuild: GbuildMetadata,
 }
 
 /// Gbuild metadata
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Default, Serialize, Deserialize)]
 pub struct GbuildMetadata {
     /// Gear programs in the workspace.
     pub programs: Vec<String>,
