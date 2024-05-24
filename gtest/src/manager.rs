@@ -136,8 +136,19 @@ impl TestActor {
     }
 
     // Gets a new executable actor derived from the inner program.
-    fn get_program(&self) -> Option<GenuineProgram> {
-        self.genuine_program().cloned()
+    fn get_program(&self) -> Option<(GenuineProgram, ProgramState)> {
+        match self {
+            TestActor::Initialized(Program::Genuine(program)) => {
+                Some((program.clone(), ProgramState::Initialized))
+            }
+            TestActor::Uninitialized(Some(message_id), Some(Program::Genuine(program))) => Some((
+                program.clone(),
+                ProgramState::Uninitialized {
+                    message_id: *message_id,
+                },
+            )),
+            _ => None,
+        }
     }
 }
 
@@ -469,9 +480,9 @@ impl ExtManager {
             if actor.is_dormant() {
                 drop(actors);
                 self.process_dormant(balance, dispatch);
-            } else if let Some(program) = actor.get_program() {
+            } else if let Some((program, state)) = actor.get_program() {
                 drop(actors);
-                self.process_normal(balance, program, dispatch);
+                self.process_normal(balance, program, state, dispatch);
             } else if let Some(mock) = actor.take_mock() {
                 drop(actors);
                 self.process_mock(mock, dispatch);
@@ -507,7 +518,7 @@ impl ExtManager {
             .get_mut(program_id)
             .ok_or_else(|| TestError::ActorNotFound(*program_id))?;
 
-        if let Some(program) = actor.get_program() {
+        if let Some((program, _)) = actor.get_program() {
             drop(actors);
 
             core_processor::informational::execute_for_reply::<Ext, _>(
@@ -828,8 +839,14 @@ impl ExtManager {
             });
     }
 
-    fn process_normal(&mut self, balance: u128, program: GenuineProgram, dispatch: StoredDispatch) {
-        self.process_dispatch(balance, Some(program), dispatch);
+    fn process_normal(
+        &mut self,
+        balance: u128,
+        program: GenuineProgram,
+        state: ProgramState,
+        dispatch: StoredDispatch,
+    ) {
+        self.process_dispatch(balance, Some((program, state)), dispatch);
     }
 
     fn process_dormant(&mut self, balance: u128, dispatch: StoredDispatch) {
@@ -840,7 +857,7 @@ impl ExtManager {
     fn process_dispatch(
         &mut self,
         balance: u128,
-        program: Option<GenuineProgram>,
+        program: Option<(GenuineProgram, ProgramState)>,
         dispatch: StoredDispatch,
     ) {
         let dest = dispatch.destination();
@@ -882,29 +899,29 @@ impl ExtManager {
             outgoing_bytes_limit: OUTGOING_BYTES_LIMIT,
         };
 
-        struct StorageAccess(Option<GenuineProgram>);
+        struct StorageAccess(Option<(GenuineProgram, ProgramState)>);
 
         impl LazyStorageAccess for StorageAccess {
             fn program_info(&self, _program_id: ProgramId) -> Option<ProgramInfo> {
                 self.0.as_ref().map(|program| ProgramInfo {
-                    code_id: program.code_id,
-                    allocations: program.allocations.clone(),
-                    code_exports: program.code.exports().clone(),
+                    code_id: program.0.code_id,
+                    allocations: program.0.allocations.clone(),
+                    code_exports: program.0.code.exports().clone(),
                     memory_infix: Default::default(),
-                    state: ProgramState::Initialized,
-                    gas_reservation_map: program.gas_reservation_map.clone(),
+                    state: program.1.clone(),
+                    gas_reservation_map: program.0.gas_reservation_map.clone(),
                 })
             }
 
             fn code_len(&self, _code_id: CodeId) -> Option<u32> {
                 self.0
                     .as_ref()
-                    .map(|program| program.code.code().len() as u32)
+                    .map(|program| program.0.code.code().len() as u32)
             }
 
             #[allow(clippy::useless_asref)]
             fn code(&self, _code_id: CodeId) -> Option<InstrumentedCode> {
-                self.0.as_ref().map(|program| program.code.clone())
+                self.0.as_ref().map(|program| program.0.code.clone())
             }
 
             fn need_reinstrumentation(&self, _code: &InstrumentedCode) -> bool {
