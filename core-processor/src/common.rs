@@ -498,17 +498,6 @@ pub enum SystemExecutionError {
     // MessageStoreOutgoingBytesOverflow,
 }
 
-/// Actor.
-#[derive(Clone, Debug)]
-pub struct Actor {
-    /// Program value balance.
-    pub balance: u128,
-    /// Destination program.
-    pub destination_program: ProgramId,
-    /// Executable actor data
-    pub executable_data: ExecutableActorData,
-}
-
 /// Executable actor data.
 #[derive(Clone, Debug)]
 pub struct ExecutableActorData {

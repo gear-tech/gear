@@ -23,11 +23,7 @@ use crate::{
     builtin::BuiltinDispatcherFactory,
     manager::{CodeInfo, ExtManager, HandleKind},
     queue::StorageAccess,
-    Config,
-    CurrencyOf,
-    MailboxOf,
-    Pallet as Gear,
-    ProgramStorageOf,
+    Config, CurrencyOf, MailboxOf, Pallet as Gear, ProgramStorageOf,
 };
 use common::{storage::*, CodeStorage, Origin, ProgramStorage};
 use core::marker::PhantomData;
