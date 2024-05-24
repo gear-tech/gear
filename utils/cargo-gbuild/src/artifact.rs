@@ -43,7 +43,7 @@ pub struct Artifacts {
     pub source: PathBuf,
     /// The path of the gbuild wasm artifacts.
     pub root: PathBuf,
-    /// artifact informations
+    /// artifact information
     pub artifacts: Vec<Artifact>,
 }
 
@@ -103,7 +103,7 @@ impl Artifacts {
     }
 }
 
-/// Program atrifact
+/// Program artifact
 #[derive(Debug)]
 pub struct Artifact {
     /// The original manifest path.
