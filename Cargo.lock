@@ -8390,6 +8390,7 @@ dependencies = [
  "pallet-gear-gas",
  "pallet-gear-scheduler",
  "pallet-timestamp",
+ "pallet-treasury",
  "parity-scale-codec",
  "primitive-types",
  "scale-info",
