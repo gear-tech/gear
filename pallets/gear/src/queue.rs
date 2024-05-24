@@ -26,7 +26,7 @@ pub(crate) struct QueueStep<'a, T: Config> {
     pub balance: u128,
 }
 
-struct StorageAccess<T>(PhantomData<T>);
+pub(crate) struct StorageAccess<T>(pub PhantomData<T>);
 
 impl<T: Config> LazyStorageAccess for StorageAccess<T>
 where

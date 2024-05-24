@@ -18,9 +18,8 @@
 
 //! Module contains context-structures for processing.
 
-use crate::common::{ExecutableActorData, Program};
+use crate::common::Program;
 use gear_core::{
-    code::InstrumentedCode,
     gas::{GasAllowanceCounter, GasCounter},
     ids::ProgramId,
     message::IncomingDispatch,
@@ -28,77 +27,6 @@ use gear_core::{
     program::MemoryInfix,
     reservation::GasReserver,
 };
-
-pub(crate) struct ContextData {
-    pub(crate) gas_counter: GasCounter,
-    pub(crate) gas_allowance_counter: GasAllowanceCounter,
-    pub(crate) dispatch: IncomingDispatch,
-    pub(crate) destination_id: ProgramId,
-    pub(crate) actor_data: ExecutableActorData,
-}
-
-pub struct ContextChargedForCodeLength {
-    pub(crate) data: ContextData,
-}
-
-impl ContextChargedForCodeLength {
-    /// Returns reference to the ExecutableActorData.
-    pub fn actor_data(&self) -> &ExecutableActorData {
-        &self.data.actor_data
-    }
-}
-
-/// The instance returned by `precharge_for_code`.
-/// Existence of the instance means that corresponding counters were
-/// successfully charged for fetching the binary code from storage.
-pub struct ContextChargedForCode {
-    pub(crate) data: ContextData,
-    pub(crate) code_len_bytes: u32,
-}
-
-impl From<(ContextChargedForCodeLength, u32)> for ContextChargedForCode {
-    fn from((context, code_len_bytes): (ContextChargedForCodeLength, u32)) -> Self {
-        Self {
-            data: context.data,
-            code_len_bytes,
-        }
-    }
-}
-
-/// The instance returned by `precharge_for_instrumentation`.
-/// Existence of the instance means that corresponding counters were
-/// successfully charged for reinstrumentation of the code.
-pub struct ContextChargedForInstrumentation {
-    pub(crate) data: ContextData,
-    pub(crate) code_len_bytes: u32,
-}
-
-impl From<ContextChargedForCode> for ContextChargedForInstrumentation {
-    fn from(context: ContextChargedForCode) -> Self {
-        Self {
-            data: context.data,
-            code_len_bytes: context.code_len_bytes,
-        }
-    }
-}
-
-pub struct ContextChargedForMemory {
-    pub(crate) data: ContextData,
-    pub(crate) max_reservations: u64,
-    pub(crate) memory_size: WasmPagesAmount,
-}
-
-impl ContextChargedForMemory {
-    /// Returns reference to the ExecutableActorData.
-    pub fn actor_data(&self) -> &ExecutableActorData {
-        &self.data.actor_data
-    }
-
-    /// Returns reference to the GasCounter.
-    pub fn gas_counter(&self) -> &GasCounter {
-        &self.data.gas_counter
-    }
-}
 
 /// Checked parameters for message execution across processing runs.
 pub struct ProcessExecutionContext {
@@ -120,46 +48,6 @@ impl ProcessExecutionContext {
     /// Returns memory infix.
     pub fn memory_infix(&self) -> MemoryInfix {
         self.program.memory_infix
-    }
-}
-
-impl From<(ContextChargedForMemory, InstrumentedCode, u128)> for ProcessExecutionContext {
-    fn from(args: (ContextChargedForMemory, InstrumentedCode, u128)) -> Self {
-        let (context, code, balance) = args;
-
-        let ContextChargedForMemory {
-            data:
-                ContextData {
-                    gas_counter,
-                    gas_allowance_counter,
-                    dispatch,
-                    destination_id,
-                    actor_data,
-                },
-            max_reservations,
-            memory_size,
-        } = context;
-
-        let program = Program {
-            id: destination_id,
-            memory_infix: actor_data.memory_infix,
-            code,
-            allocations: actor_data.allocations,
-        };
-
-        // Must be created once per taken from the queue dispatch by program.
-        let gas_reserver =
-            GasReserver::new(&dispatch, actor_data.gas_reservation_map, max_reservations);
-
-        Self {
-            gas_counter,
-            gas_allowance_counter,
-            gas_reserver,
-            dispatch,
-            balance,
-            program,
-            memory_size,
-        }
     }
 }
 

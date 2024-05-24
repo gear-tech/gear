@@ -35,23 +35,14 @@ mod handler;
 mod precharge;
 mod processing;
 
-pub use context::{
-    ContextChargedForCode, ContextChargedForInstrumentation, ProcessExecutionContext,
-    SystemReservationContext,
-};
+pub use context::{ProcessExecutionContext, SystemReservationContext};
 pub use ext::{
     AllocExtError, Ext, FallibleExtError, ProcessorContext, ProcessorExternalities,
     UnrecoverableExtError,
 };
 pub use handler::handle_journal;
-pub use precharge::{
-    precharge_for_code, precharge_for_code_length, precharge_for_instrumentation,
-    precharge_for_memory, precharge_for_program, SuccessfulDispatchResultKind, precharge,
-};
-pub use processing::{
-    process, process_execution_error, process_non_executable, process_reinstrumentation_error,
-    process_success,
-};
+pub use precharge::{precharge, SuccessfulDispatchResultKind};
+pub use processing::{process, process_execution_error, process_success};
 
 /// Informational functions for core-processor and executor.
 pub mod informational {

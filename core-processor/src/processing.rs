@@ -19,8 +19,7 @@
 use crate::{
     common::{
         ActorExecutionErrorReplyReason, DispatchOutcome, DispatchResult, DispatchResultKind,
-        ExecutionError, JournalNote, PrechargedDispatch, SystemExecutionError,
-        WasmExecutionContext,
+        ExecutionError, JournalNote, SystemExecutionError, WasmExecutionContext,
     },
     configs::{BlockConfig, ExecutionSettings},
     context::*,
@@ -323,41 +322,6 @@ pub fn process_execution_error(
         gas_burned,
         system_reservation_ctx,
         ProcessErrorCase::ExecutionFailed(err.into()),
-    )
-}
-
-/// Helper function for journal creation in case of re-instrumentation error.
-pub fn process_reinstrumentation_error(
-    context: ContextChargedForInstrumentation,
-) -> Vec<JournalNote> {
-    let dispatch = context.data.dispatch;
-    let program_id = context.data.destination_id;
-    let gas_burned = context.data.gas_counter.burned();
-    let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
-
-    process_error(
-        dispatch,
-        program_id,
-        gas_burned,
-        system_reservation_ctx,
-        ProcessErrorCase::ReinstrumentationFailed,
-    )
-}
-
-/// Helper function for journal creation in message no execution case.
-pub fn process_non_executable(
-    context: PrechargedDispatch,
-    destination_id: ProgramId,
-) -> Vec<JournalNote> {
-    let (dispatch, gas_counter, _) = context.into_parts();
-    let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
-
-    process_error(
-        dispatch,
-        destination_id,
-        gas_counter.burned(),
-        system_reservation_ctx,
-        ProcessErrorCase::NonExecutable,
     )
 }
 

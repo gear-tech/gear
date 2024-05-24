@@ -22,13 +22,17 @@ use super::Exec;
 use crate::{
     builtin::BuiltinDispatcherFactory,
     manager::{CodeInfo, ExtManager, HandleKind},
-    Config, MailboxOf, Pallet as Gear, ProgramStorageOf, QueueOf,
+    queue::StorageAccess,
+    Config,
+    CurrencyOf,
+    MailboxOf,
+    Pallet as Gear,
+    ProgramStorageOf,
 };
 use common::{storage::*, CodeStorage, Origin, ProgramStorage};
-use core_processor::{
-    configs::BlockConfig, ContextChargedForCode, ContextChargedForInstrumentation,
-};
-use frame_support::traits::Get;
+use core::marker::PhantomData;
+use core_processor::configs::BlockConfig;
+use frame_support::traits::{Currency, Get};
 use gear_core::{
     code::{Code, CodeAndId},
     ids::{CodeId, MessageId, ProgramId},
@@ -194,22 +198,10 @@ where
         }
     };
 
-    let dispatch = dispatch.into_stored();
-
-    QueueOf::<T>::clear();
-
-    QueueOf::<T>::queue(dispatch).map_err(|_| "Messages storage corrupted")?;
-
-    let queued_dispatch = match QueueOf::<T>::dequeue().map_err(|_| "MQ storage corrupted")? {
-        Some(d) => d,
-        None => return Err("Dispatch not found"),
-    };
-
-    let actor_id = queued_dispatch.destination();
-    let actor = ext_manager
-        .get_actor(actor_id)
-        .ok_or("Program not found in the storage")?;
-
+    let storage = StorageAccess::<T>(PhantomData);
+    let program_id = dispatch.destination();
+    let dispatch = dispatch.into_stored().into_incoming(config.gas_limit);
+    let balance = CurrencyOf::<T>::free_balance(&program_id.cast()).unique_saturated_into();
     let pallet_config = Gear::<T>::block_config();
     let block_config = BlockConfig {
         outgoing_limit: 2048,
@@ -218,37 +210,22 @@ where
         ..pallet_config
     };
 
-    let precharged_dispatch = core_processor::precharge_for_program(
+    let context = match core_processor::precharge(
+        &storage,
         &block_config,
         config.gas_allowance,
-        queued_dispatch.into_incoming(config.gas_limit),
-        actor_id,
-    )
-    .map_err(|_| "core_processor::precharge_for_program failed")?;
-
-    let balance = actor.balance;
-    let context = core_processor::precharge_for_code_length(
-        &block_config,
-        precharged_dispatch,
-        actor_id,
-        actor.executable_data,
-    )
-    .map_err(|_| "core_processor::precharge_for_code failed")?;
-
-    let code =
-        T::CodeStorage::get_code(context.actor_data().code_id).ok_or("Program code not found")?;
-
-    let context = ContextChargedForCode::from((context, code.code().len() as u32));
-    let context = core_processor::precharge_for_memory(
-        &block_config,
-        ContextChargedForInstrumentation::from(context),
-    )
-    .map_err(|_| "core_processor::precharge_for_memory failed")?;
+        dispatch,
+        program_id,
+        balance,
+    ) {
+        Ok(ctx) => ctx,
+        Err(_) => return Err("error in +_+_+"),
+    };
 
     Ok(Exec {
         ext_manager,
         block_config,
-        context: (context, code, balance).into(),
+        context,
         random_data: (vec![0u8; 32], 0),
     })
 }

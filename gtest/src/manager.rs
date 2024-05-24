@@ -27,10 +27,10 @@ use crate::{
 use core_processor::{
     common::*,
     configs::{BlockConfig, BlockInfo, ExtCosts, ProcessCosts, RentCosts, TESTS_MAX_PAGES_NUMBER},
-    ContextChargedForCode, ContextChargedForInstrumentation, Ext,
+    Ext,
 };
 use gear_core::{
-    code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId, TryNewCodeConfig},
+    code::{Code, CodeAndId, CodeError, InstrumentedCode, InstrumentedCodeAndId, TryNewCodeConfig},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::PageBuf,
     message::{
@@ -41,6 +41,7 @@ use gear_core::{
         numerated::{iterators::IntervalIterator, tree::IntervalsTree},
         GearPage, WasmPage,
     },
+    program::ProgramState,
     reservation::{GasReservationMap, GasReserver},
 };
 use gear_core_errors::{ErrorReplyReason, SignalCode, SimpleExecutionError};
@@ -899,42 +900,49 @@ impl ExtManager {
             outgoing_bytes_limit: OUTGOING_BYTES_LIMIT,
         };
 
-        let precharged_dispatch = match core_processor::precharge_for_program(
+        struct StorageAccess(Option<(ExecutableActorData, InstrumentedCode)>);
+
+        impl LazyStorageAccess for StorageAccess {
+            fn program_info(&self, _program_id: ProgramId) -> Option<ProgramInfo> {
+                self.0.as_ref().map(|(data, _)| ProgramInfo {
+                    code_id: data.code_id,
+                    allocations: data.allocations.clone(),
+                    code_exports: data.code_exports.clone(),
+                    memory_infix: data.memory_infix,
+                    state: ProgramState::Initialized,
+                    gas_reservation_map: data.gas_reservation_map.clone(),
+                })
+            }
+
+            fn code_len(&self, _code_id: CodeId) -> Option<u32> {
+                self.0.as_ref().map(|(_, code)| code.code().len() as u32)
+            }
+
+            #[allow(clippy::useless_asref)]
+            fn code(&self, _code_id: CodeId) -> Option<InstrumentedCode> {
+                self.0.as_ref().map(|(_, code)| code.clone())
+            }
+
+            fn need_reinstrumentation(&self, _code: &InstrumentedCode) -> bool {
+                false
+            }
+
+            fn reinstrument_code(&self, _code_id: CodeId) -> Result<InstrumentedCode, CodeError> {
+                unreachable!()
+            }
+        }
+
+        let storage = StorageAccess(data);
+        let dispatch = dispatch.into_incoming(*gas_limit);
+        let execution_context = match core_processor::precharge(
+            &storage,
             &block_config,
             u64::MAX,
-            dispatch.into_incoming(*gas_limit),
+            dispatch,
             dest,
+            balance,
         ) {
-            Ok(d) => d,
-            Err(journal) => {
-                core_processor::handle_journal(journal, self);
-                return;
-            }
-        };
-
-        let Some((actor_data, code)) = data else {
-            let journal = core_processor::process_non_executable(precharged_dispatch, dest);
-            core_processor::handle_journal(journal, self);
-            return;
-        };
-
-        let context = match core_processor::precharge_for_code_length(
-            &block_config,
-            precharged_dispatch,
-            dest,
-            actor_data,
-        ) {
-            Ok(c) => c,
-            Err(journal) => {
-                core_processor::handle_journal(journal, self);
-                return;
-            }
-        };
-
-        let context = ContextChargedForCode::from((context, code.code().len() as u32));
-        let context = ContextChargedForInstrumentation::from(context);
-        let context = match core_processor::precharge_for_memory(&block_config, context) {
-            Ok(c) => c,
+            Ok(ctx) => ctx,
             Err(journal) => {
                 core_processor::handle_journal(journal, self);
                 return;
@@ -943,7 +951,7 @@ impl ExtManager {
 
         let journal = core_processor::process::<Ext>(
             &block_config,
-            (context, code, balance).into(),
+            execution_context,
             self.random_data.clone(),
         )
         .unwrap_or_else(|e| unreachable!("core-processor logic violated: {}", e));

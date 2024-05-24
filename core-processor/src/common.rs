@@ -554,48 +554,20 @@ pub(crate) struct WasmExecutionContext {
     pub memory_size: WasmPagesAmount,
 }
 
-/// Struct with dispatch and counters charged for program data.
-#[derive(Debug)]
-pub struct PrechargedDispatch {
-    dispatch: IncomingDispatch,
-    gas: GasCounter,
-    allowance: GasAllowanceCounter,
-}
-
-impl PrechargedDispatch {
-    /// Create new instance from parts.
-    pub(crate) fn from_parts(
-        dispatch: IncomingDispatch,
-        gas: GasCounter,
-        allowance: GasAllowanceCounter,
-    ) -> Self {
-        Self {
-            dispatch,
-            gas,
-            allowance,
-        }
-    }
-
-    /// Decompose the instance into parts.
-    pub fn into_parts(self) -> (IncomingDispatch, GasCounter, GasAllowanceCounter) {
-        (self.dispatch, self.gas, self.allowance)
-    }
-}
-
 /// +_+_+
 pub struct ProgramInfo {
     /// +_+_+
-    pub(crate) allocations: IntervalsTree<WasmPage>,
+    pub allocations: IntervalsTree<WasmPage>,
     /// +_+_+
-    pub(crate) code_id: CodeId,
+    pub code_id: CodeId,
     /// +_+_+
-    pub(crate) code_exports: BTreeSet<DispatchKind>,
+    pub code_exports: BTreeSet<DispatchKind>,
     /// +_+_+
-    pub(crate) memory_infix: MemoryInfix,
+    pub memory_infix: MemoryInfix,
     /// +_+_+
-    pub(crate) gas_reservation_map: GasReservationMap,
+    pub gas_reservation_map: GasReservationMap,
     /// +_+_+
-    pub(crate) state: ProgramState,
+    pub state: ProgramState,
 }
 
 impl<BlockNumber: Copy> From<ActiveProgram<BlockNumber>> for ProgramInfo {
