@@ -64,5 +64,5 @@ fn main() -> Result<()> {
         .without_time()
         .with_target(false)
         .init();
-    app.command.run()
+    app.command.run().map(|_| ())
 }

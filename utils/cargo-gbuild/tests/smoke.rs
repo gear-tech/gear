@@ -24,8 +24,8 @@ use std::{path::PathBuf, process::Command};
 #[test]
 fn test_compile_program() -> Result<()> {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-program/Cargo.toml");
-    let artifact = GBuild {
-        manifest_path: root.to_string_lossy().to_string().into(),
+    let artifacts = GBuild {
+        manifest_path: Some(root.to_string_lossy().to_string().into()),
         features: vec!["debug".into()],
         profile: None,
         target_dir: None,
@@ -39,7 +39,7 @@ fn test_compile_program() -> Result<()> {
 
     // Get program from artifact
     let user = 0;
-    let program = Program::from_file(&system, artifact.program);
+    let program = Program::from_file(&system, artifacts.root.join("gbuild_test_program.wasm"));
 
     // Init program
     let res = program.send_bytes(user, b"PING");

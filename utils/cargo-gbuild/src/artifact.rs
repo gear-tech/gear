@@ -40,6 +40,8 @@ pub struct Artifacts {
     /// cargo command
     kargo: CargoCommand,
     /// The path of the cargo wasm artifacts.
+    pub source: PathBuf,
+    /// The path of the gbuild wasm artifacts.
     pub root: PathBuf,
     /// artifact informations
     pub artifacts: Vec<Artifact>,
@@ -47,7 +49,13 @@ pub struct Artifacts {
 
 impl Artifacts {
     /// Create a new artifact registry.
-    pub fn new(root: PathBuf, metadata: Metadata, kargo: CargoCommand) -> Result<Self> {
+    pub fn new(source: PathBuf, metadata: Metadata, kargo: CargoCommand) -> Result<Self> {
+        let root = source
+            .ancestors()
+            .nth(2)
+            .expect("Checked before passing in.")
+            .join("gbuild");
+
         fs::create_dir_all(&root)
             .map_err(|e| anyhow!("Failed to create the artifact directory, {e}"))?;
 
@@ -60,6 +68,7 @@ impl Artifacts {
 
         env::set_current_dir(cwd)?;
         Ok(Artifacts {
+            source,
             root,
             kargo,
             artifacts,
@@ -68,14 +77,6 @@ impl Artifacts {
 
     /// Process all artifacts
     pub fn process(&self) -> Result<()> {
-        let gbuild = self
-            .root
-            .ancestors()
-            .nth(2)
-            .expect("Checked before passing in.")
-            .join("gbuild");
-
-        fs::create_dir_all(&gbuild);
         let all = self.artifacts.len();
         for (idx, artifact) in self.artifacts.iter().enumerate() {
             tracing::info!(
@@ -86,11 +87,19 @@ impl Artifacts {
             let mut kargo = self.kargo.clone();
             kargo.set_manifest_path(artifact.manifest.clone());
             kargo.run()?;
-            artifact.optimize(&self.root, &gbuild)?;
+            artifact.optimize(&self.source, &self.root)?;
         }
 
-        tracing::info!("Finished ({})", gbuild.to_string_lossy());
+        tracing::info!("Finished ({})", self.root.to_string_lossy());
         Ok(())
+    }
+
+    /// List all artifacts
+    pub fn list(&self) -> Vec<PathBuf> {
+        self.artifacts
+            .iter()
+            .map(|a| self.root.join(a.file_name()))
+            .collect()
     }
 }
 
