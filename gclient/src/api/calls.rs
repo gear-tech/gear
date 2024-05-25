@@ -36,10 +36,8 @@ use gsdk::{
         gear::Event as GearEvent,
         runtime_types::{
             frame_system::pallet::Call as SystemCall,
-            gear_common::{
-                event::{CodeChangeKind, MessageEntry},
-                ActiveProgram,
-            },
+            gear_common::event::{CodeChangeKind, MessageEntry},
+            gear_core::program::ActiveProgram,
             pallet_balances::{pallet::Call as BalancesCall, types::AccountData},
             pallet_gear::pallet::Call as GearCall,
             pallet_gear_bank::pallet::BankAccount,
