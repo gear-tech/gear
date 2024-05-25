@@ -17,6 +17,7 @@
 use crate::{
     common::{
         ActorExecutionErrorReplyReason, DispatchResult, JournalNote, LazyStorageAccess, Program,
+        SuccessfulDispatchResultKind,
     },
     configs::{BlockConfig, ProcessCosts},
     context::SystemReservationContext,
@@ -32,7 +33,7 @@ use gear_core::{
     costs::BytesAmount,
     gas::{ChargeResult, GasAllowanceCounter, GasCounter},
     ids::{CodeId, MessageId, ProgramId},
-    message::{DispatchKind, IncomingDispatch, MessageWaitedType},
+    message::{DispatchKind, IncomingDispatch},
     pages::{numerated::tree::IntervalsTree, WasmPage, WasmPagesAmount},
     program::ProgramState,
     reservation::GasReserver,
@@ -398,16 +399,6 @@ impl<'a> GasPrecharger<'a> {
             Ok(static_pages)
         }
     }
-}
-
-// +_+_+ move to common
-/// Possible variants of the `DispatchResult` if the latter contains value.
-#[allow(missing_docs)]
-#[derive(Debug)]
-pub enum SuccessfulDispatchResultKind {
-    Exit(ProgramId),
-    Wait(Option<u32>, MessageWaitedType),
-    Success,
 }
 
 #[cfg(test)]

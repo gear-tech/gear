@@ -18,7 +18,7 @@
 
 //! # Gear Builtin Actors Pallet
 //!
-//! The Builtn Actors pallet provides a registry of the builtin actors available in the Runtime.
+//! The Builtin Actors pallet provides a registry of the builtin actors available in the Runtime.
 //!
 //! - [`Config`]
 //!
@@ -50,9 +50,11 @@ use alloc::{
     string::ToString,
 };
 use core_processor::{
-    common::{ActorExecutionErrorReplyReason, DispatchResult, JournalNote, TrapExplanation},
-    process_execution_error, process_success, SuccessfulDispatchResultKind,
-    SystemReservationContext,
+    common::{
+        ActorExecutionErrorReplyReason, DispatchResult, JournalNote, SuccessfulDispatchResultKind,
+        TrapExplanation,
+    },
+    process_execution_error, process_success, SystemReservationContext,
 };
 use gear_core::{
     gas::GasCounter,

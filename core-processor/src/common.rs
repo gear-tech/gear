@@ -139,6 +139,15 @@ impl DispatchResult {
     }
 }
 
+/// Possible variants of the [`DispatchResult`] if the latter contains value.
+#[allow(missing_docs)]
+#[derive(Debug)]
+pub enum SuccessfulDispatchResultKind {
+    Exit(ProgramId),
+    Wait(Option<u32>, MessageWaitedType),
+    Success,
+}
+
 /// Dispatch outcome of the specific message.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum DispatchOutcome {
@@ -497,6 +506,7 @@ pub enum SystemExecutionError {
     // #[display(fmt = "Incoming dispatch store has too many outgoing messages total bytes")]
     // MessageStoreOutgoingBytesOverflow,
 }
+
 
 /// Program.
 #[derive(Clone, Debug)]

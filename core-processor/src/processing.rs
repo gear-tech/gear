@@ -19,13 +19,13 @@
 use crate::{
     common::{
         ActorExecutionErrorReplyReason, DispatchOutcome, DispatchResult, DispatchResultKind,
-        ExecutionError, JournalNote, SystemExecutionError, WasmExecutionContext,
+        ExecutionError, JournalNote, SuccessfulDispatchResultKind, SystemExecutionError,
+        WasmExecutionContext,
     },
     configs::{BlockConfig, ExecutionSettings},
     context::*,
     executor,
     ext::ProcessorExternalities,
-    precharge::SuccessfulDispatchResultKind,
 };
 use alloc::{
     string::{String, ToString},
@@ -56,7 +56,7 @@ where
     RunFallibleError: From<Ext::FallibleError>,
     <Ext as Externalities>::UnrecoverableError: BackendSyscallError,
 {
-    use crate::precharge::SuccessfulDispatchResultKind::*;
+    use SuccessfulDispatchResultKind::*;
 
     let BlockConfig {
         block_info,
@@ -330,7 +330,7 @@ pub fn process_success(
     kind: SuccessfulDispatchResultKind,
     dispatch_result: DispatchResult,
 ) -> Vec<JournalNote> {
-    use crate::precharge::SuccessfulDispatchResultKind::*;
+    use SuccessfulDispatchResultKind::*;
 
     let DispatchResult {
         dispatch,
