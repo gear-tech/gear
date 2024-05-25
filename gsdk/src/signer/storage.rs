@@ -22,8 +22,10 @@ use crate::{
     metadata::{
         runtime_types::{
             frame_system::pallet::Call,
-            gear_common::{ActiveProgram, Program},
-            gear_core::code::instrumented::InstrumentedCode,
+            gear_core::{
+                code::instrumented::InstrumentedCode,
+                program::{ActiveProgram, Program},
+            },
             pallet_gear_bank::pallet::BankAccount,
         },
         storage::{GearBankStorage, GearGasStorage, GearProgramStorage},
