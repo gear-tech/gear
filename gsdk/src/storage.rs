@@ -21,8 +21,12 @@ use crate::{
     metadata::{
         runtime_types::{
             frame_system::{AccountInfo, EventRecord},
-            gear_common::{storage::primitives::Interval, ActiveProgram, Program},
-            gear_core::{code::instrumented::InstrumentedCode, message::user::UserStoredMessage},
+            gear_common::storage::primitives::Interval,
+            gear_core::{
+                code::instrumented::InstrumentedCode,
+                message::user::UserStoredMessage,
+                program::{ActiveProgram, Program},
+            },
             pallet_balances::types::AccountData,
             pallet_gear_bank::pallet::BankAccount,
         },
