@@ -86,7 +86,7 @@ pub enum SystemPrepareError {
     },
 }
 
-/// +_+_+
+/// Prepare execution context for processing.
 pub fn prepare(
     storage: &impl LazyStorageAccess,
     block_config: &BlockConfig,

@@ -38,6 +38,7 @@ use gear_core::{
 use sp_core::H256;
 use sp_runtime::traits::UniqueSaturatedInto;
 use sp_std::{convert::TryInto, prelude::*};
+use core_processor::PrepareError;
 
 const DEFAULT_BLOCK_NUMBER: u32 = 0;
 const DEFAULT_INTERVAL: u32 = 1_000;
@@ -215,7 +216,8 @@ where
         balance,
     ) {
         Ok(ctx) => ctx,
-        Err(_) => return Err("error in +_+_+"),
+        Err(PrepareError::Actor(_)) => return Err("actor prepare error"),
+        Err(PrepareError::System(_)) => return Err("system prepare error"),
     };
 
     Ok(Exec {

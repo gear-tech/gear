@@ -929,7 +929,7 @@ impl ExtManager {
             }
 
             fn reinstrument_code(&self, _code_id: CodeId) -> Result<InstrumentedCode, CodeError> {
-                unreachable!("+_+_+")
+                unreachable!("reinstrumentation should not be called")
             }
         }
 

@@ -536,19 +536,19 @@ pub(crate) struct WasmExecutionContext {
     pub memory_size: WasmPagesAmount,
 }
 
-/// +_+_+
+/// Program info.
 pub struct ProgramInfo {
-    /// +_+_+
+    /// Allocated wasm memory pages numbers.
     pub allocations: IntervalsTree<WasmPage>,
-    /// +_+_+
+    /// Code id.
     pub code_id: CodeId,
-    /// +_+_+
+    /// Code supported dispatches.
     pub code_exports: BTreeSet<DispatchKind>,
-    /// +_+_+
+    /// Memory infix.
     pub memory_infix: MemoryInfix,
-    /// +_+_+
+    /// Gas reservation map.
     pub gas_reservation_map: GasReservationMap,
-    /// +_+_+
+    /// Program initialization state.
     pub state: ProgramState,
 }
 
@@ -565,7 +565,7 @@ impl<BlockNumber: Copy> From<ActiveProgram<BlockNumber>> for ProgramInfo {
     }
 }
 
-/// +_+_+
+/// Trait for accessing storage inside processor preparation.
 pub trait LazyStorageAccess {
     /// Get program info.
     fn program_info(&self, program_id: ProgramId) -> Option<ProgramInfo>;
@@ -576,9 +576,9 @@ pub trait LazyStorageAccess {
     /// Get code.
     fn code(&self, code_id: CodeId) -> Option<InstrumentedCode>;
 
-    /// +_+_+
+    /// Check if code needs reinstrumentation.
     fn need_reinstrumentation(&self, code: &InstrumentedCode) -> bool;
 
-    /// +_+_+
+    /// Reinstrument code.
     fn reinstrument_code(&self, code_id: CodeId) -> Result<InstrumentedCode, CodeError>;
 }
