@@ -26,16 +26,64 @@ use crate::{
     },
     ProcessExecutionContext,
 };
+use actor_system_error::actor_system_error;
 use alloc::vec::Vec;
 use gear_core::{
     costs::BytesAmount,
     gas::{ChargeResult, GasAllowanceCounter, GasCounter},
-    ids::ProgramId,
+    ids::{CodeId, MessageId, ProgramId},
     message::{DispatchKind, IncomingDispatch, MessageWaitedType},
     pages::{numerated::tree::IntervalsTree, WasmPage, WasmPagesAmount},
     program::ProgramState,
     reservation::GasReserver,
 };
+
+actor_system_error! {
+    /// Prepare for processing error.
+    pub type PrepareError = ActorSystemError<ActorPrepareError, SystemPrepareError>;
+}
+
+/// Actor prepare error.
+#[derive(Debug, PartialEq, Eq, derive_more::Display)]
+#[display(fmt = "Actor prepare error")]
+pub struct ActorPrepareError(pub Vec<JournalNote>);
+
+/// System prepare error.
+#[derive(Debug, PartialEq, Eq, derive_more::Display)]
+pub enum SystemPrepareError {
+    /// Init message was sent to already initialized program.
+    #[display(fmt = "Init message {message} was sent to already initialized program {program}")]
+    InitMessageToInitializedProgram {
+        /// Program id.
+        program: ProgramId,
+        /// Message id.
+        message: MessageId,
+    },
+    /// Unknown init message was sent to uninitialized program.
+    #[display(fmt = "Unknown init message {message} was sent to uninitialized program {program}")]
+    UnknownInitMessageToUninitializedProgram {
+        /// Program id.
+        program: ProgramId,
+        /// Message id.
+        message: MessageId,
+    },
+    /// Program exists, but cannot get code len.
+    #[display(fmt = "Program {program} exists, but cannot get code {code_id} len")]
+    CodeLenUnavailable {
+        /// Program id.
+        program: ProgramId,
+        /// Program code id.
+        code_id: CodeId,
+    },
+    /// Program exists, but cannot get code.
+    #[display(fmt = "Program {program} exists, but cannot get code {code_id}")]
+    CodeUnavailable {
+        /// Program id.
+        program: ProgramId,
+        /// Program code id.
+        code_id: CodeId,
+    },
+}
 
 /// +_+_+
 pub fn precharge(
@@ -45,7 +93,9 @@ pub fn precharge(
     dispatch: IncomingDispatch,
     program_id: ProgramId,
     balance: u128,
-) -> Result<ProcessExecutionContext, Vec<JournalNote>> {
+) -> Result<ProcessExecutionContext, PrepareError> {
+    use SystemPrepareError::*;
+
     let mut gas_counter = GasCounter::new(dispatch.gas_limit());
     let mut gas_allowance_counter = GasAllowanceCounter::new(gas_allowance);
     let mut charger = GasPrecharger::new(
@@ -55,32 +105,38 @@ pub fn precharge(
     );
 
     let process_pre_charge_error =
-        |err: PrechargeError, gas_counter: GasCounter, dispatch: IncomingDispatch| match err {
-            PrechargeError::BlockGasExceeded => {
-                process_allowance_exceed(dispatch, program_id, gas_counter.burned())
-            }
-            PrechargeError::GasExceeded(op) => {
-                let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
-                process_execution_error(
+        |err: PrechargeError, gas_counter: GasCounter, dispatch: IncomingDispatch| {
+            match err {
+                PrechargeError::BlockGasExceeded => ActorPrepareError(process_allowance_exceed(
                     dispatch,
                     program_id,
                     gas_counter.burned(),
-                    system_reservation_ctx,
-                    ActorExecutionErrorReplyReason::PreChargeGasLimitExceeded(op),
-                )
+                )),
+                PrechargeError::GasExceeded(op) => {
+                    let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
+                    ActorPrepareError(process_execution_error(
+                        dispatch,
+                        program_id,
+                        gas_counter.burned(),
+                        system_reservation_ctx,
+                        ActorExecutionErrorReplyReason::PreChargeGasLimitExceeded(op),
+                    ))
+                }
             }
+            .into()
         };
 
     let process_error =
         |err_case: ProcessErrorCase, gas_counter: GasCounter, dispatch: IncomingDispatch| {
             let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
-            process_error(
+            ActorPrepareError(process_error(
                 dispatch,
                 program_id,
                 gas_counter.burned(),
                 system_reservation_ctx,
                 err_case,
-            )
+            ))
+            .into()
         };
 
     if let Err(err) = charger.charge_gas_for_program_data() {
@@ -99,7 +155,11 @@ pub fn precharge(
     };
 
     if program.state == ProgramState::Initialized && dispatch.kind() == DispatchKind::Init {
-        unreachable!("+_+_+");
+        return Err(InitMessageToInitializedProgram {
+            program: program_id,
+            message: dispatch.message().id(),
+        }
+        .into());
     }
 
     // If the destination program is uninitialized, then we allow
@@ -109,7 +169,10 @@ pub fn precharge(
             if message_id != dispatch.message().id() && dispatch.kind() != DispatchKind::Reply)
     {
         if dispatch.kind() == DispatchKind::Init {
-            unreachable!("+_+_+");
+            Err(UnknownInitMessageToUninitializedProgram {
+                program: program_id,
+                message: dispatch.message().id(),
+            })?
         }
 
         return Err(process_error(
@@ -120,27 +183,42 @@ pub fn precharge(
     }
 
     if !program.code_exports.contains(&dispatch.kind()) {
-        return Err(process_success(
+        return Err(ActorPrepareError(process_success(
             SuccessfulDispatchResultKind::Success,
             DispatchResult::success(dispatch, program_id, gas_counter.to_amount()),
-        ));
+        ))
+        .into());
     }
 
     if let Err(err) = charger.charge_gas_for_program_code_len() {
         return Err(process_pre_charge_error(err, gas_counter, dispatch));
     }
 
-    let code_len_bytes = storage
-        .code_len(program.code_id)
-        .unwrap_or_else(|| unreachable!("+_+_+"));
+    let code_len = match storage.code_len(program.code_id) {
+        Some(len) => len,
+        None => {
+            return Err(CodeLenUnavailable {
+                program: program_id,
+                code_id: program.code_id,
+            }
+            .into())
+        }
+    };
 
-    if let Err(err) = charger.charge_gas_for_program_code(code_len_bytes.into()) {
+    if let Err(err) = charger.charge_gas_for_program_code(code_len.into()) {
         return Err(process_pre_charge_error(err, gas_counter, dispatch));
     }
 
-    let mut code = storage
-        .code(program.code_id)
-        .unwrap_or_else(|| unreachable!("+_+_+"));
+    let mut code = match storage.code(program.code_id) {
+        Some(code) => code,
+        None => {
+            return Err(CodeUnavailable {
+                program: program_id,
+                code_id: program.code_id,
+            }
+            .into())
+        }
+    };
 
     // Reinstrument the code if necessary.
     if storage.need_reinstrumentation(&code) {

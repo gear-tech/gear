@@ -27,7 +27,7 @@ use crate::{
 use core_processor::{
     common::*,
     configs::{BlockConfig, BlockInfo, ExtCosts, ProcessCosts, RentCosts, TESTS_MAX_PAGES_NUMBER},
-    Ext,
+    ActorPrepareError, Ext, PrepareError,
 };
 use gear_core::{
     code::{Code, CodeAndId, CodeError, InstrumentedCode, InstrumentedCodeAndId, TryNewCodeConfig},
@@ -944,9 +944,12 @@ impl ExtManager {
             balance,
         ) {
             Ok(ctx) => ctx,
-            Err(journal) => {
+            Err(PrepareError::Actor(ActorPrepareError(journal))) => {
                 core_processor::handle_journal(journal, self);
                 return;
+            }
+            Err(PrepareError::System(err)) => {
+                unreachable!("Program processing preparation failed: {}", err)
             }
         };
 

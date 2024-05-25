@@ -17,7 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::*;
-use core_processor::common::{LazyStorageAccess, ProgramInfo};
+use core_processor::{
+    common::{LazyStorageAccess, ProgramInfo},
+    PrepareError,
+};
 
 pub(crate) struct QueueStep<'a, T: Config> {
     pub block_config: &'a BlockConfig,
@@ -82,7 +85,10 @@ where
             balance,
         ) {
             Ok(ctx) => ctx,
-            Err(journal) => return journal,
+            Err(PrepareError::Actor(err)) => return err.0,
+            Err(PrepareError::System(err)) => {
+                unreachable!("{err}")
+            }
         };
 
         let (random, bn) = T::Randomness::random(dispatch_id.as_ref());

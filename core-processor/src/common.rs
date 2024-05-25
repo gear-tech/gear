@@ -140,7 +140,7 @@ impl DispatchResult {
 }
 
 /// Dispatch outcome of the specific message.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum DispatchOutcome {
     /// Message was a exit.
     Exit {
@@ -175,7 +175,7 @@ pub enum DispatchOutcome {
 }
 
 /// Journal record for the state update.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum JournalNote {
     /// Message was successfully dispatched.
     MessageDispatched {
@@ -563,7 +563,7 @@ pub trait LazyStorageAccess {
     /// Get code length.
     fn code_len(&self, code_id: CodeId) -> Option<u32>;
 
-    /// Get code info.
+    /// Get code.
     fn code(&self, code_id: CodeId) -> Option<InstrumentedCode>;
 
     /// +_+_+

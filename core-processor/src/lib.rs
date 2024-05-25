@@ -41,7 +41,9 @@ pub use ext::{
     UnrecoverableExtError,
 };
 pub use handler::handle_journal;
-pub use precharge::{precharge, SuccessfulDispatchResultKind};
+pub use precharge::{
+    precharge, ActorPrepareError, PrepareError, SuccessfulDispatchResultKind, SystemPrepareError,
+};
 pub use processing::{process, process_execution_error, process_success};
 
 /// Informational functions for core-processor and executor.
