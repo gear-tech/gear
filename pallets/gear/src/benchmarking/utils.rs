@@ -27,7 +27,7 @@ use crate::{
 };
 use common::{storage::*, CodeStorage, Origin, ProgramStorage};
 use core::marker::PhantomData;
-use core_processor::configs::BlockConfig;
+use core_processor::{configs::BlockConfig, PrepareError};
 use frame_support::traits::{Currency, Get};
 use gear_core::{
     code::{Code, CodeAndId},
@@ -38,7 +38,6 @@ use gear_core::{
 use sp_core::H256;
 use sp_runtime::traits::UniqueSaturatedInto;
 use sp_std::{convert::TryInto, prelude::*};
-use core_processor::PrepareError;
 
 const DEFAULT_BLOCK_NUMBER: u32 = 0;
 const DEFAULT_INTERVAL: u32 = 1_000;

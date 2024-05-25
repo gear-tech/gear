@@ -507,7 +507,6 @@ pub enum SystemExecutionError {
     // MessageStoreOutgoingBytesOverflow,
 }
 
-
 /// Program.
 #[derive(Clone, Debug)]
 pub(crate) struct Program {
