@@ -76,7 +76,7 @@ where
         let dispatch_id = dispatch.id();
         let dispatch = dispatch.into_incoming(gas_limit);
 
-        let execution_context = match core_processor::precharge(
+        let execution_context = match core_processor::prepare(
             &storage,
             block_config,
             GasAllowanceOf::<T>::get(),

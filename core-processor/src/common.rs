@@ -18,7 +18,7 @@
 
 //! Common structures for processing.
 
-use crate::{context::SystemReservationContext, precharge::PreChargeGasOperation};
+use crate::{context::SystemReservationContext, preparing::PreChargeGasOperation};
 use actor_system_error::actor_system_error;
 use alloc::{
     collections::{BTreeMap, BTreeSet},

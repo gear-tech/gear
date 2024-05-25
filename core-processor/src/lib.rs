@@ -32,7 +32,7 @@ mod context;
 mod executor;
 mod ext;
 mod handler;
-mod precharge;
+mod preparing;
 mod processing;
 
 pub use context::{ProcessExecutionContext, SystemReservationContext};
@@ -41,7 +41,7 @@ pub use ext::{
     UnrecoverableExtError,
 };
 pub use handler::handle_journal;
-pub use precharge::{precharge, ActorPrepareError, PrepareError, SystemPrepareError};
+pub use preparing::{prepare, ActorPrepareError, PrepareError, SystemPrepareError};
 pub use processing::{process, process_execution_error, process_success};
 
 /// Informational functions for core-processor and executor.

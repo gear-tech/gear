@@ -206,7 +206,7 @@ where
         ..pallet_config
     };
 
-    let context = match core_processor::precharge(
+    let context = match core_processor::prepare(
         &storage,
         &block_config,
         config.gas_allowance,

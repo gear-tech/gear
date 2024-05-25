@@ -935,7 +935,7 @@ impl ExtManager {
 
         let storage = StorageAccess(program);
         let dispatch = dispatch.into_incoming(*gas_limit);
-        let execution_context = match core_processor::precharge(
+        let execution_context = match core_processor::prepare(
             &storage,
             &block_config,
             u64::MAX,

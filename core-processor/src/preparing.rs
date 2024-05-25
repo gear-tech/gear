@@ -87,7 +87,7 @@ pub enum SystemPrepareError {
 }
 
 /// +_+_+
-pub fn precharge(
+pub fn prepare(
     storage: &impl LazyStorageAccess,
     block_config: &BlockConfig,
     gas_allowance: u64,
