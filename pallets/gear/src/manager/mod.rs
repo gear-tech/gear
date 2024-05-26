@@ -63,7 +63,7 @@ use common::{
 };
 use core::{fmt, mem};
 use core_processor::common::{Actor, ExecutableActorData};
-use frame_support::traits::Currency;
+use frame_support::traits::{Currency, ExistenceRequirement};
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
     code::{CodeAndId, InstrumentedCode},
@@ -76,7 +76,7 @@ use primitive_types::H256;
 use scale_info::TypeInfo;
 use sp_runtime::{
     codec::{Decode, Encode},
-    traits::UniqueSaturatedInto,
+    traits::{UniqueSaturatedInto, Zero},
 };
 use sp_std::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
@@ -370,10 +370,24 @@ where
     fn clean_inactive_program(
         program_id: ProgramId,
         program: &mut ActiveProgram<BlockNumberFor<T>>,
+        value_destination: ProgramId,
     ) {
         Self::remove_gas_reservation_map(program_id, mem::take(&mut program.gas_reservation_map));
 
         ProgramStorageOf::<T>::remove_program_pages(program_id, program.memory_infix);
+
+        let program_id = program_id.cast();
+        let value_destination = value_destination.cast();
+        let balance = CurrencyOf::<T>::free_balance(&program_id);
+        if !balance.is_zero() {
+            CurrencyOf::<T>::transfer(
+                &program_id,
+                &value_destination,
+                balance,
+                ExistenceRequirement::AllowDeath,
+            )
+            .unwrap_or_else(|e| unreachable!("Failed to transfer value: {e:?}"));
+        }
     }
 
     /// Removes all messages to `program_id` from the waitlist.
@@ -400,7 +414,7 @@ where
             let _ = TaskPoolOf::<T>::delete(bn, ScheduledTask::PauseProgram(program_id));
 
             if let Program::Active(program) = p {
-                Self::clean_inactive_program(program_id, program);
+                Self::clean_inactive_program(program_id, program, origin);
             }
 
             *p = Program::Terminated(origin);

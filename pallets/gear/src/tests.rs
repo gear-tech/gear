@@ -37,7 +37,7 @@ use common::{
     Origin as _, Program, ProgramStorage, ReservableTree,
 };
 use core_processor::common::ActorExecutionErrorReplyReason;
-use demo_constructor::Scheme;
+use demo_constructor::{Calls, Scheme};
 use frame_support::{
     assert_noop, assert_ok,
     sp_runtime::traits::{TypedGet, Zero},
@@ -6362,7 +6362,7 @@ fn terminated_locking_funds() {
         // to user. This is because program will stop his execution on first wasm block, because of gas
         // limit exceeded. So, gas counter will be equal to amount of returned from wait list gas in handle reply.
         let expected_balance_difference =
-            returned_from_wait_list + returned_from_system_reservation;
+            prog_free + returned_from_wait_list + returned_from_system_reservation;
 
         assert_ok!(Gear::create_program(
             RuntimeOrigin::signed(USER_1),
@@ -6430,7 +6430,7 @@ fn terminated_locking_funds() {
             ActorExecutionErrorReplyReason::Trap(TrapExplanation::GasLimitExceeded),
         );
         assert!(Gear::is_terminated(program_id));
-        assert_balance(program_id, prog_free, prog_reserve);
+        assert_balance(program_id, 0u128, prog_reserve);
 
         let expected_balance = user_1_balance + expected_balance_difference;
         let user_1_balance = Balances::free_balance(USER_1);
@@ -6450,7 +6450,7 @@ fn terminated_locking_funds() {
                 * GasBalanceOf::<Test>::saturated_from(CostsPerBlockOf::<Test>::reserve_for()),
         );
 
-        assert_balance(program_id, prog_free, 0u128);
+        assert_balance(program_id, 0u128, 0u128);
         assert_eq!(
             Balances::free_balance(USER_3),
             user_3_balance + prog_reserve
@@ -6460,6 +6460,7 @@ fn terminated_locking_funds() {
             user_1_balance + extra_gas_to_mb
         );
 
+        // nothing should change
         assert_ok!(Gear::claim_value_to_inheritor(
             RuntimeOrigin::signed(USER_1),
             program_id,
@@ -6475,7 +6476,7 @@ fn terminated_locking_funds() {
         );
         assert_eq!(
             Balances::free_balance(USER_1),
-            user_1_balance + extra_gas_to_mb + prog_free,
+            user_1_balance + extra_gas_to_mb,
         );
     });
 }
@@ -6484,17 +6485,119 @@ fn terminated_locking_funds() {
 fn claim_value_to_inheritor() {
     init_logger();
     new_test_ext().execute_with(|| {
-        let (_init_mid, program_id) = init_constructor(Scheme::empty());
+        let (_init_mid, pid1) =
+            submit_constructor_with_args(USER_1, "constructor1", Scheme::empty(), 0);
+        let (_init_mid, pid2) =
+            submit_constructor_with_args(USER_1, "constructor2", Scheme::empty(), 0);
+        let (_init_mid, pid3) =
+            submit_constructor_with_args(USER_1, "constructor3", Scheme::empty(), 0);
 
-        // other cases are in `*_locking_funds` tests
+        run_to_next_block(None);
+
+        // also, noop cases are in `*_locking_funds` tests
         assert_noop!(
-            Gear::claim_value_to_inheritor(
-                RuntimeOrigin::signed(USER_1),
-                program_id,
-                NonZeroU32::MAX
-            ),
+            Gear::claim_value_to_inheritor(RuntimeOrigin::signed(USER_1), pid1, NonZeroU32::MAX),
             Error::<Test>::ActiveProgram
         );
+
+        run_to_next_block(None);
+
+        let user_2_balance = Balances::free_balance(USER_2);
+
+        // add value to `pid1`
+        let value1 = 1_000;
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid1,
+            Calls::default().encode(),
+            10_000_000_000,
+            value1,
+            false,
+        ));
+        let value_mid1 = utils::get_last_message_id();
+
+        // add value to `pid2`
+        let value2 = 4_000;
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid2,
+            Calls::default().encode(),
+            10_000_000_000,
+            value2,
+            false,
+        ));
+        let value_mid2 = utils::get_last_message_id();
+
+        run_to_next_block(None);
+
+        assert_succeed(value_mid1);
+        assert_succeed(value_mid2);
+
+        assert_balance(pid1, value1, 0u128);
+        assert_balance(pid2, value2, 0u128);
+        assert_balance(pid3, 0u128, 0u128);
+
+        // exit in reverse order so the chain of inheritors will not transfer
+        // all the balances to `USER_2`
+
+        // make `pid3` exit and refer to `USER_2`
+        let calls = Calls::builder().exit(<[u8; 32]>::from(USER_2.into_origin()));
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid3,
+            calls.encode(),
+            10_000_000_000,
+            0,
+            false,
+        ));
+        let mid3 = utils::get_last_message_id();
+
+        // make `pid2` exit and refer to `pid3`
+        let calls = Calls::builder().exit(pid3.into_bytes());
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid2,
+            calls.encode(),
+            10_000_000_000,
+            0,
+            false,
+        ));
+        let mid2 = utils::get_last_message_id();
+
+        // make `pid1` exit and refer to `pid2`
+        let calls = Calls::builder().exit(pid2.into_bytes());
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid1,
+            calls.encode(),
+            10_000_000_000,
+            0,
+            false,
+        ));
+        let mid1 = utils::get_last_message_id();
+
+        run_to_next_block(None);
+
+        assert_succeed(mid1);
+        assert_succeed(mid2);
+        assert_succeed(mid3);
+
+        assert_balance(pid1, 0u128, 0u128);
+        assert_balance(pid2, value1, 0u128);
+        assert_balance(pid3, value2, 0u128);
+
+        assert_ok!(Gear::claim_value_to_inheritor(
+            RuntimeOrigin::signed(USER_1),
+            pid1,
+            NonZeroU32::MAX,
+        ));
+
+        run_to_next_block(None);
+
+        assert_balance(pid1, 0u128, 0u128);
+        assert_balance(pid2, 0u128, 0u128);
+        assert_balance(pid3, 0u128, 0u128);
+        assert_balance(USER_2, user_2_balance + value1 + value2, 0u128);
     });
 }
 
