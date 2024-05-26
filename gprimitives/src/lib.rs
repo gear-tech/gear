@@ -25,7 +25,7 @@
 
 pub use gear_ss58::Ss58Address;
 #[cfg(feature = "codec")]
-pub use primitive_types;
+pub use primitive_types::{H160, H256, U256};
 
 pub mod macros;
 mod utils;
@@ -36,16 +36,13 @@ use core::{
 };
 use derive_more::{AsMut, AsRef, Display, From, Into};
 use gear_ss58::RawSs58Address;
+#[cfg(feature = "codec")]
+use scale_info::{
+    scale::{self, Decode, Encode, MaxEncodedLen},
+    TypeInfo,
+};
 #[cfg(feature = "serde")]
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
-#[cfg(feature = "codec")]
-use {
-    primitive_types::H256,
-    scale_info::{
-        scale::{self, Decode, Encode, MaxEncodedLen},
-        TypeInfo,
-    },
-};
 
 /// The error type returned when conversion fails.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Display)]
