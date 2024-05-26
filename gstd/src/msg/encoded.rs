@@ -21,11 +21,8 @@
 //! decoded/encoded via SCALE Codec (<https://docs.substrate.io/v3/advanced/scale-codec/>).
 
 use crate::{
-    errors::{Error, Result as GstdResult},
-    msg::utils,
-    prelude::ops::RangeBounds,
-    util::with_optimized_encode,
-    ActorId, MessageId, ReservationId,
+    errors::Error, msg::utils, prelude::ops::RangeBounds, util::with_optimized_encode, ActorId,
+    MessageId, ReservationId,
 };
 use gcore::errors::Result;
 use gstd_codegen::wait_for_reply;
@@ -59,11 +56,13 @@ use scale_info::scale::{Decode, Encode};
 ///
 /// - [`load_bytes`](super::load_bytes) function returns a payload as a byte
 ///   vector.
-pub fn load<D: Decode>() -> GstdResult<D> {
-    super::with_read_on_stack(|read_result: Result<&mut [u8]>| -> GstdResult<D> {
-        let mut buffer = read_result? as &[u8];
-        D::decode(&mut buffer).map_err(Error::Decode)
-    })
+pub fn load<D: Decode>() -> crate::errors::Result<D> {
+    super::with_read_on_stack(
+        |read_result: Result<&mut [u8]>| -> crate::errors::Result<D> {
+            let mut buffer = read_result? as &[u8];
+            D::decode(&mut buffer).map_err(Error::Decode)
+        },
+    )
 }
 
 /// Send a new message as a reply to the message being
