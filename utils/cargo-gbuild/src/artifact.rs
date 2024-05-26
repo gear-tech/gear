@@ -147,9 +147,9 @@ impl Artifact {
     /// Fetch and optimize artifact
     pub fn optimize(&self, src: &Path, root: &Path) -> Result<()> {
         let (input, output) = self.names();
-        let output = root.join(&output);
+        let output = root.join(output);
 
-        optimize::optimize_wasm(src.join(&input), output.clone(), "4", true)?;
+        optimize::optimize_wasm(src.join(input), output.clone(), "4", true)?;
         let mut optimizer = Optimizer::new(output.clone())?;
         if !self.opt.is_meta() {
             optimizer
