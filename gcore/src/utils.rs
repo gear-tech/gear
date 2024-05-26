@@ -18,7 +18,7 @@
 
 use gprimitives::{ActorId, CodeId, MessageId, ReservationId};
 
-pub trait AsRawPtr: AsRef<[u8]> + AsMut<[u8]> {
+pub(crate) trait AsRawPtr: AsRef<[u8]> + AsMut<[u8]> {
     fn as_ptr(&self) -> *const [u8; 32] {
         self.as_ref().as_ptr() as *const _
     }
