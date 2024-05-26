@@ -604,6 +604,15 @@ pub mod pallet {
                 Error::<T>::ProgramAlreadyExists
             );
 
+            // Create an account for the program
+            CurrencyOf::<T>::transfer(
+                &who,
+                &program_id.cast(),
+                CurrencyOf::<T>::minimum_balance(),
+                ExistenceRequirement::KeepAlive,
+            )?;
+            System::<T>::inc_consumers(&program_id.cast())?;
+
             // First we reserve enough funds on the account to pay for `gas_limit`
             // and to transfer declared value.
             GearBank::<T>::deposit_gas(&who, gas_limit, false)?;
