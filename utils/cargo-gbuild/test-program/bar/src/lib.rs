@@ -20,6 +20,8 @@
 
 use gstd::msg;
 
+static mut STATE: bool = false;
+
 #[no_mangle]
 extern "C" fn init() {
     let payload = msg::load_bytes().expect("Failed to load payload");
@@ -36,6 +38,14 @@ extern "C" fn handle() {
     if payload == b"PING" {
         msg::reply_bytes("HANDLE_PONG", 0).expect("Failed to send reply");
     }
+
+    unsafe { STATE = true };
+}
+
+// State-sharing function
+#[no_mangle]
+extern "C" fn state() {
+    msg::reply(unsafe { STATE.clone() }, 0).expect("Failed to share state");
 }
 
 #[cfg(test)]

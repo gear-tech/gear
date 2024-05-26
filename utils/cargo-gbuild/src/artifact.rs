@@ -115,7 +115,7 @@ impl Artifacts {
     pub fn list(&self) -> Vec<PathBuf> {
         self.artifacts
             .iter()
-            .map(|a| self.root.join(a.file_name()))
+            .map(|a| self.root.join(a.names().1))
             .collect()
     }
 }
@@ -132,21 +132,24 @@ pub struct Artifact {
 }
 
 impl Artifact {
-    fn file_name(&self) -> String {
-        self.name.replace('-', "_")
-            + if self.opt.is_meta() {
-                ".meta.wasm"
-            } else {
-                ".wasm"
-            }
+    /// Returns the input and the ouput name of the program
+    fn names(&self) -> (String, String) {
+        let name = self.name.replace('-', "_");
+        let input = name.clone() + ".wasm";
+        let output = if self.opt.is_meta() {
+            name + ".meta.wasm"
+        } else {
+            input.clone()
+        };
+        (input, output)
     }
 
     /// Fetch and optimize artifact
     pub fn optimize(&self, src: &Path, root: &Path) -> Result<()> {
-        let name = self.file_name();
-        let output = root.join(&name);
+        let (input, output) = self.names();
+        let output = root.join(&output);
 
-        optimize::optimize_wasm(src.join(&name), output.clone(), "4", true)?;
+        optimize::optimize_wasm(src.join(&input), output.clone(), "4", true)?;
         let mut optimizer = Optimizer::new(output.clone())?;
         if !self.opt.is_meta() {
             optimizer

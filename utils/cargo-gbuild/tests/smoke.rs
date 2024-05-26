@@ -18,13 +18,10 @@
 
 use anyhow::Result;
 use cargo_gbuild::GBuild;
-use gtest::{Program, System};
-use std::{
-    path::{Path, PathBuf},
-    process::Command,
-};
+use gtest::{state_args, Program, System};
+use std::{fs, path::PathBuf, process::Command};
 
-fn ping(sys: &System, prog: &Path) {
+fn ping<'p>(sys: &'p System, prog: PathBuf) -> Program<'p> {
     // Get program from artifact
     let user = 0;
     let program = Program::from_file(&sys, prog);
@@ -38,6 +35,8 @@ fn ping(sys: &System, prog: &Path) {
     let res = program.send_bytes(user, b"PING");
     assert!(!res.main_failed());
     assert!(res.contains(&(user, b"HANDLE_PONG")));
+
+    program
 }
 
 #[test]
@@ -49,13 +48,21 @@ fn test_compile() -> Result<()> {
     // Test single package build.
     let mut gbuild = GBuild::default().manifest_path(root);
     let artifacts = gbuild.run()?;
-    ping(&system, &artifacts.root.join("gbuild_test_program.wasm"));
+    ping(&system, artifacts.root.join("gbuild_test_program.wasm"));
 
     // Test workspace build.
     gbuild = gbuild.workspace();
     let artifacts = gbuild.run()?;
-    ping(&system, &artifacts.root.join("gbuild_test_bar.wasm"));
-    ping(&system, &artifacts.root.join("gbuild_test_foo.wasm"));
+    ping(&system, artifacts.root.join("gbuild_test_foo.wasm"));
+    let prog = ping(&system, artifacts.root.join("gbuild_test_bar.wasm"));
+
+    // Test meta
+    let metawasm = fs::read(&artifacts.root.join("gbuild_test_meta.meta.wasm"))?;
+    let modified: bool = prog
+        .read_state_using_wasm(Vec::<u8>::default(), "modified", metawasm, state_args!())
+        .expect("Failed to read program state");
+
+    assert!(modified);
     Ok(())
 }
 
