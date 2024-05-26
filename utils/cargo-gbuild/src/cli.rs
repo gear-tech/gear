@@ -32,7 +32,7 @@ const DEBUG_ARTIFACT: &str = "debug";
 const RELEASE_PROFILE: &str = "release";
 
 /// Command `gbuild` as cargo extension.
-#[derive(Parser)]
+#[derive(Parser, Default)]
 pub struct GBuild {
     /// Space or comma separated list of features to activate
     #[clap(short = 'F', long)]
@@ -63,8 +63,20 @@ pub struct GBuild {
 }
 
 impl GBuild {
+    /// Set manifest and return self
+    pub fn manifest_path(mut self, manifest: PathBuf) -> Self {
+        self.manifest_path = Some(manifest);
+        self
+    }
+
+    /// Set workspace with true
+    pub fn workspace(mut self) -> Self {
+        self.workspace = true;
+        self
+    }
+
     /// Run the gbuild command
-    pub fn run(self) -> Result<Artifacts> {
+    pub fn run(&self) -> Result<Artifacts> {
         let manifest_path = self
             .manifest_path
             .clone()
@@ -75,6 +87,7 @@ impl GBuild {
             Metadata::parse(self.workspace, manifest_path.clone(), self.features.clone())?;
         let target_dir = self
             .target_dir
+            .clone()
             .unwrap_or(metadata.target_directory.clone().into());
 
         // 1. setup cargo command

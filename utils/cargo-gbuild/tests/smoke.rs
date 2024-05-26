@@ -19,27 +19,15 @@
 use anyhow::Result;
 use cargo_gbuild::GBuild;
 use gtest::{Program, System};
-use std::{path::PathBuf, process::Command};
+use std::{
+    path::{Path, PathBuf},
+    process::Command,
+};
 
-#[test]
-fn test_compile_program() -> Result<()> {
-    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-program/Cargo.toml");
-    let artifacts = GBuild {
-        manifest_path: Some(root.to_string_lossy().to_string().into()),
-        features: vec!["debug".into()],
-        profile: None,
-        target_dir: None,
-        release: false,
-    }
-    .run()?;
-
-    // Initialize system environment
-    let system = System::new();
-    system.init_logger();
-
+fn ping(sys: &System, prog: &Path) {
     // Get program from artifact
     let user = 0;
-    let program = Program::from_file(&system, artifacts.root.join("gbuild_test_program.wasm"));
+    let program = Program::from_file(&sys, prog);
 
     // Init program
     let res = program.send_bytes(user, b"PING");
@@ -50,6 +38,24 @@ fn test_compile_program() -> Result<()> {
     let res = program.send_bytes(user, b"PING");
     assert!(!res.main_failed());
     assert!(res.contains(&(user, b"HANDLE_PONG")));
+}
+
+#[test]
+fn test_compile() -> Result<()> {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-program/Cargo.toml");
+    let system = System::new();
+    system.init_logger();
+
+    // Test single package build.
+    let mut gbuild = GBuild::default().manifest_path(root);
+    let artifacts = gbuild.run()?;
+    ping(&system, &artifacts.root.join("gbuild_test_program.wasm"));
+
+    // Test workspace build.
+    gbuild = gbuild.workspace();
+    let artifacts = gbuild.run()?;
+    ping(&system, &artifacts.root.join("gbuild_test_bar.wasm"));
+    ping(&system, &artifacts.root.join("gbuild_test_foo.wasm"));
     Ok(())
 }
 
