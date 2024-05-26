@@ -29,7 +29,7 @@ pub type Migrations = (
     pallet_nomination_pools::migration::versioned_migrations::V6ToV7<Runtime>,
     staking_v13::MigrateToV13<Runtime>,
     // migration for removed paused program storage
-    pallet_gear_program::migrations::RemovePausedProgramStorageMigration<Runtime>,
+    pallet_gear_program::migrations::paused_storage::RemovePausedProgramStorageMigration<Runtime>,
 );
 
 mod staking_v13 {
