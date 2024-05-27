@@ -40,16 +40,16 @@ mod wasm;
 
 #[derive(Clone, Debug, Decode, Encode)]
 #[codec(crate = codec)]
-struct EthToVaraEvent {
-    block_number: u64,
-    proof: Vec<Bytes>,
-    transaction_index: u64,
-    receipt: Receipt,
+pub struct EthToVaraEvent {
+    pub block_number: u64,
+    pub proof: Vec<Bytes>,
+    pub transaction_index: u64,
+    pub receipt: Receipt,
 }
 
 #[derive(Clone, Debug, Decode, Encode)]
 #[codec(crate = codec)]
-struct Init {
-    light_client: [u8; 32],
-    fungible_token: [u8; 32],
+pub struct Init {
+    pub light_client: [u8; 32],
+    pub fungible_token: [u8; 32],
 }

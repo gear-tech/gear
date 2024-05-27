@@ -10,12 +10,13 @@ repository.workspace = true
 [dependencies]
 #gstd = { workspace = true }
 gstd = { workspace = true, features = ["debug"] }
-demo-ethereum_light_client.workspace = true
+demo-ethereum_light_client = { workspace = true, features = ["wasm-wrapper"] }
 demo-ethereum_bridge_common.workspace = true
 demo-ethereum_common.workspace = true
 codec.workspace = true
 alloy-sol-types = { version = "0.7.4", default-features = false, features = ["json"] }
 ruint = { version = "1.12.1", default-features = false }
+ft-io = { path = "../fungible-token/io" }
 
 [build-dependencies]
 gear-wasm-builder.workspace = true

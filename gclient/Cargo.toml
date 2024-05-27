@@ -45,6 +45,8 @@ demo-program-factory.workspace = true
 demo-proxy = { workspace = true, features = ["std"] }
 demo-proxy-relay.workspace = true
 demo-reserve-gas = { workspace = true, features = ["std"] }
+demo-fungible-token = { workspace = true, features = ["std"] }
+ft-io = { path = "../examples/fungible-token/io" }
 gmeta = { workspace = true }
 gstd = { workspace = true, features = ["debug"] }
 demo-wat.workspace = true
@@ -56,7 +58,37 @@ ark-ec = { workspace = true }
 ark-ff = { workspace = true }
 ark-std = { workspace = true }
 serde = { workspace = true, features = ["derive", "std"] }
-reqwest = "0.11.27"
+reqwest = { version = "0.11.27", features = ["json"] }
 eyre = "0.6.12"
 serde_json.workspace = true
 ssz_rs = { version = "0.9.0" }
+futures-util = "0.3.30"
+alloy = { git = "https://github.com/alloy-rs/alloy", rev = "e22d9be", features = [
+    "consensus",
+    "kzg",
+    "eips",
+    "contract",
+    "network",
+    "node-bindings",
+    "providers",
+    "provider-http",
+    "provider-ipc",
+    "provider-ws",
+    "rpc-client",
+    "rpc-client-ipc",
+    "rpc-client-ws",
+    "rpc-types-eth",
+    "rpc-types-trace",
+    "signers",
+    "signer-aws",
+    "signer-keystore",
+    "signer-ledger",
+    "signer-mnemonic",
+    "signer-trezor",
+    "signer-wallet",
+    "signer-yubihsm",
+] }
+circular-buffer = "0.1.7"
+demo-ethereum_bridge = { workspace = true, features = ["std"] }
+demo-ethereum_bridge_common = { workspace = true, features = ["std"] }
+demo-ethereum_common = { workspace = true, features = ["std"] }

@@ -419,9 +419,10 @@ async fn main() {
         } => handle_update(update, signature_slot, next_sync_committee, finalized_header, sync_committee_signature, next_sync_committee_keys, next_sync_committee_branch, finality_branch).await,
 
         Handle::BeaconBlockBody {
-            beacon_block_body_light,
+            finality_block_body,
+            previous_blocks,
             // transaction_hashes,
-        } => handle_beacon_block_body(beacon_block_body_light).await,
+        } => handle_beacon_block_body(finality_block_body, previous_blocks).await,
 
         Handle::GetReceiptsRoot(block_number) => {
             let block_number = U64::from(block_number);
@@ -575,19 +576,17 @@ async fn handle_update(
 }
 
 async fn handle_beacon_block_body(
-    // ssz_rs serialized
-    beacon_block_body_light: Vec<u8>,
-    // ssz_rs serialized
-    // transaction_hashes: Vec<u8>,
+    finality_block_body: Vec<u8>,
+    mut previous_blocks: Vec<(BeaconBlockHeader, Vec<u8>)>,
 ) {
-    let mut beacon_block_body_light = BeaconBlockBodyLight::deserialize(&beacon_block_body_light[..]).expect("Unable to deserialize BeaconBlockBodyLight");
+    let mut beacon_block_body_light = BeaconBlockBodyLight::deserialize(&finality_block_body[..]).expect("Unable to deserialize finality_block_body");
     let blocks = unsafe { &mut BLOCKS };
     if blocks
         .iter()
         .find(|execution_payload_header| execution_payload_header.block_number() == beacon_block_body_light.execution_payload_header().block_number())
         .is_some()
     {
-        debug!("already contains the block. Skipping");
+        debug!("already contains the finality block. Skipping");
         return;
     }
 
@@ -600,12 +599,46 @@ async fn handle_beacon_block_body(
         return;
     }
 
-    // let mut transaction_hashes = List::<Node, 1_048_576>::deserialize(&transaction_hashes[..]).expect("Unable to deserialize transaction hashes");
-    // let hash = transaction_hashes.hash_tree_root().expect("Unable to calculate transactions root");
-    // if hash != beacon_block_body_light.execution_payload_header().transactions_root() {
-    //     debug!("Wrong transaction hashes");
-    //     return;
-    // }
+    let mut blocks_to_insert = Vec::with_capacity(previous_blocks.len() + 1);
+    blocks_to_insert.push(beacon_block_body_light.execution_payload_header().clone());
 
-    blocks.push_back(beacon_block_body_light.execution_payload_header().clone());
+    let mut parent_root = store.finalized_header.parent_root;
+    previous_blocks.sort_unstable_by(|(a, _), (b, _)| {
+        if a.slot < b.slot {
+            core::cmp::Ordering::Less
+        } else if a.slot == b.slot {
+            core::cmp::Ordering::Equal
+        } else {
+            core::cmp::Ordering::Greater
+        }
+    });
+
+    while let Some((header, encoded_body)) = previous_blocks.pop() {
+        let block_root = header.tree_hash_root();
+        if parent_root != block_root {
+            debug!("invalid parent_root");
+            break;
+        }
+
+        parent_root = header.parent_root;
+        let mut beacon_block_body_light = BeaconBlockBodyLight::deserialize(&encoded_body[..]).expect("Unable to deserialize beacon_block_body_light");
+        let block_hash = beacon_block_body_light.hash_tree_root().expect("Unable to calculate hash of beacon block body");
+        if header.body_root.as_ref() != block_hash.as_ref() {
+            debug!("Wrong beacon body for a previous block");
+            break;
+        }
+
+        blocks_to_insert.push(beacon_block_body_light.execution_payload_header().clone());
+    }
+
+    while let Some(block) = blocks_to_insert.pop() {
+        blocks.push_back(block);
+    }
+
+    let blocks = blocks
+        .iter()
+        .map(|block| block.block_number())
+        .collect::<Vec<_>>();
+
+    debug!("blocks = {blocks:?}");
 }

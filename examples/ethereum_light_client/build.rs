@@ -17,5 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 fn main() {
-    gear_wasm_builder::build();
+    // gear_wasm_builder::build();
+    gear_wasm_builder::WasmBuilder::new()
+        .exclude_features(vec!["std", "wasm-wrapper"])
+        .build();
 }

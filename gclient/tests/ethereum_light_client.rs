@@ -18,13 +18,14 @@
 
 use ark_bls12_381::{G1Projective as G1, G2Projective as G2};
 use ark_serialize::CanonicalDeserialize;
-use demo_ethereum_light_client::{primitives::U64, ArkScale, BeaconBlock, BeaconBlockBody, BeaconBlockBodyLight, Bytes32, Handle, Header, Init, SyncAggregate, SyncCommittee, WASM_BINARY, SyncCommittee2, Array512, BeaconBlockHeader, Hash256};
+use demo_ethereum_light_client::{primitives::U64, ArkScale, Array512, BeaconBlock, BeaconBlockBody, BeaconBlockBodyLight, BeaconBlockHeader, Bytes32, Handle, Hash256, Header, Init, SyncAggregate, SyncCommittee, SyncCommittee2, SLOTS_PER_EPOCH, WASM_BINARY, tree_hash::TreeHash};
 use gclient::{EventListener, EventProcessor, GearApi, Result};
 use gstd::prelude::*;
 use serde::{Deserialize, de::DeserializeOwned};
 use eyre::Result as EyreResult;
 use ssz_rs::{List, Merkleized, Node, Serialize};
 use std::cmp;
+use futures::FutureExt;
 
 // https://github.com/ethereum/consensus-specs/blob/dev/specs/altair/light-client/p2p-interface.md#configuration
 pub const MAX_REQUEST_LIGHT_CLIENT_UPDATES: u8 = 128;
@@ -99,6 +100,21 @@ struct BeaconBlockData {
 }
 
 #[derive(serde::Deserialize, Debug)]
+struct BeaconBlockHeaderResponse {
+    data: BeaconBlockHeaderData,
+}
+
+#[derive(serde::Deserialize, Debug)]
+struct BeaconBlockHeaderData {
+    header: BeaconBlockHeader2,
+}
+
+#[derive(serde::Deserialize, Debug)]
+struct BeaconBlockHeader2 {
+    message: BeaconBlockHeader,
+}
+
+#[derive(serde::Deserialize, Debug)]
 struct FinalityUpdateResponse {
     data: FinalityUpdate,
 }
@@ -117,7 +133,9 @@ pub struct FinalityUpdate {
 async fn get<R: DeserializeOwned>(req: &str) -> EyreResult<R> {
     let bytes = reqwest::get(req).await?.bytes().await?;
 
-    Ok(serde_json::from_slice::<R>(&bytes)?)
+    Ok(serde_json::from_slice::<R>(&bytes)?
+        // .map_err(|e| eyre::Report::msg(format!("{}; req = {req}", e.to_string())))?
+    )
 }
 
 async fn get_bootstrap(checkpoint: &str) -> EyreResult<Bootstrap> {
@@ -164,6 +182,18 @@ async fn get_block_body(slot: u64) -> EyreResult<BeaconBlockBody> {
     })?;
 
     Ok(res.data.message.body)
+}
+
+async fn get_block_header(slot: u64) -> EyreResult<BeaconBlockHeader> {
+    let req = format!("{RPC_URL}/eth/v1/beacon/headers/{slot}");
+
+    let res: BeaconBlockHeaderResponse = get(&req).await.map_err(|e| {
+        println!("get_block_body: {e:?}");
+
+        e
+    })?;
+
+    Ok(res.data.header.message)
 }
 
 async fn get_finality_update() -> EyreResult<FinalityUpdate> {
@@ -218,6 +248,15 @@ fn create_payload(update: Update) -> Handle {
         aggregate_pubkey: <[u8; 48]>::try_from(update.next_sync_committee.aggregate_pubkey.as_ref()).unwrap(),
     };
 
+    let finalized_header = BeaconBlockHeader {
+        slot: update.finalized_header.slot.into(),
+        proposer_index: update.finalized_header.proposer_index.into(),
+        parent_root: Hash256::from_slice(update.finalized_header.parent_root.as_ref()),
+        state_root: Hash256::from_slice(update.finalized_header.state_root.as_ref()),
+        body_root: Hash256::from_slice(update.finalized_header.body_root.as_ref()),
+    };
+    println!("finalized_header = {finalized_header:?}");
+
     Handle::Update {
         update: {
             let update = demo_ethereum_light_client::Update {
@@ -232,13 +271,7 @@ fn create_payload(update: Update) -> Handle {
         },
         signature_slot: update.signature_slot.into(),
         next_sync_committee: Some(next_sync_committee),
-        finalized_header: BeaconBlockHeader {
-            slot: update.finalized_header.slot.into(),
-            proposer_index: update.finalized_header.proposer_index.into(),
-            parent_root: Hash256::from_slice(update.finalized_header.parent_root.as_ref()),
-            state_root: Hash256::from_slice(update.finalized_header.state_root.as_ref()),
-            body_root: Hash256::from_slice(update.finalized_header.body_root.as_ref()),
-        },
+        finalized_header,
         sync_committee_signature: signature.into(),
         next_sync_committee_keys,
         next_sync_committee_branch: Some(update
@@ -296,8 +329,10 @@ async fn upload_program(
 
 #[tokio::test]
 async fn ethereum_light_client() -> Result<()> {
-    // 0xe8897518856db6c1585a4fb26c4f2192d4fa60a48ca68e2d971b5800932428b0
-    let checkpoint = [232, 137, 117, 24, 133, 109, 182, 193, 88, 90, 79, 178, 108, 79, 33, 146, 212, 250, 96, 164, 140, 166, 142, 45, 151, 27, 88, 0, 147, 36, 40, 176];
+    // 0x865cdce6683d857e1f0458376ffef6790e9dfd6cddbba0d898c1d3b790bdcca6
+    // let checkpoint = [134, 92, 220, 230, 104, 61, 133, 126, 31, 4, 88, 55, 111, 254, 246, 121, 14, 157, 253, 108, 221, 187, 160, 216, 152, 193, 211, 183, 144, 189, 204, 166];
+    // 0x3bdc4be1121cb51c01bc9e430309ad6df9720336abde88b64840350270c62e9c
+    let checkpoint = [59, 220, 75, 225, 18, 28, 181, 28, 1, 188, 158, 67, 3, 9, 173, 109, 249, 114, 3, 54, 171, 222, 136, 182, 72, 64, 53, 2, 112, 198, 46, 156];
     let checkpoint_hex = hex::encode(checkpoint);
     let bootstrap = get_bootstrap(&checkpoint_hex).await.map_err(|e| anyhow::Error::msg(e.to_string()))?;
     // println!("bootstrap = {bootstrap:?}");
@@ -372,32 +407,45 @@ async fn ethereum_light_client() -> Result<()> {
     )
     .await?;
 
+    println!("program_id = {:?}", hex::encode(&program_id));
+
+    send_blocks(&client, &mut listener, program_id, bootstrap.header.slot.into()).await?;
+
+    return Ok(());
+
     let current_period = demo_ethereum_light_client::calc_sync_period(bootstrap.header.slot.into());
     let updates = get_updates(current_period, MAX_REQUEST_LIGHT_CLIENT_UPDATES)
         .await
         .map_err(|e| anyhow::Error::msg(e.to_string()))?;
 
+    let slots_update = updates
+        .iter()
+        .map(|u| u.finalized_header.slot)
+        .collect::<Vec<_>>();
+    println!("bootstrap slot = {:?}, updates len = {}, slots_update = {slots_update:?}", bootstrap.header.slot, updates.len());
+
     for update in updates {
+        let slot = update.finalized_header.slot;
         let payload = create_payload(update);
 
         let gas_limit = client
             .calculate_handle_gas(None, program_id.into(), payload.encode(), 0, true)
             .await?
             .min_limit;
-        println!("gas_limit {gas_limit:?}");
+        println!("update gas_limit {gas_limit:?}");
 
         let (message_id, _) = client
             .send_message(program_id.into(), payload, gas_limit, 0)
             .await?;
 
         assert!(listener.message_processed(message_id).await?.succeed());
+
     }
 
     println!();
     println!("before loop");
     println!();
 
-    let mut last_period = current_period;
     for _ in 0..1_000 {
         let update = get_finality_update()
             .await
@@ -405,30 +453,27 @@ async fn ethereum_light_client() -> Result<()> {
 
         let slot: u64 = update.finalized_header.slot.into();
         let current_period = demo_ethereum_light_client::calc_sync_period(slot);
-        if current_period == last_period + 1 {
-            println!("checking for sync committee update");
-            let mut updates = get_updates(current_period, 1)
-                .await
-                .map_err(|e| anyhow::Error::msg(e.to_string()))?;
-            match updates.pop() {
-                Some(update) if updates.is_empty() => {
-                    let payload = create_payload(update);
-                    let gas_limit = client
-                        .calculate_handle_gas(None, program_id.into(), payload.encode(), 0, true)
-                        .await?
-                        .min_limit;
-                    println!("update gas_limit {gas_limit:?}");
-    
-                    let (message_id, _) = client
-                        .send_message(program_id.into(), payload, gas_limit, 0)
-                        .await?;
-    
-                    assert!(listener.message_processed(message_id).await?.succeed());
-                }
-    
-                _ => ()
+        let mut updates = get_updates(current_period, 1)
+            .await
+            .map_err(|e| anyhow::Error::msg(e.to_string()))?;
+        match updates.pop() {
+            Some(update) if updates.is_empty() && update.finalized_header.slot >= slot.into() => {
+                println!("update sync committee");
+                let payload = create_payload(update);
+                let gas_limit = client
+                    .calculate_handle_gas(None, program_id.into(), payload.encode(), 0, true)
+                    .await?
+                    .min_limit;
+                println!("update gas_limit {gas_limit:?}");
+
+                let (message_id, _) = client
+                    .send_message(program_id.into(), payload, gas_limit, 0)
+                    .await?;
+
+                assert!(listener.message_processed(message_id).await?.succeed());
             }
-        } else {
+
+            _ => {
 
         println!("111 slot = {slot:?}, attested slot = {:?}, signature slot = {:?}", update.attested_header.slot, update.signature_slot);
         let signature = <G2 as ark_serialize::CanonicalDeserialize>::deserialize_compressed(update.sync_aggregate.sync_committee_signature.as_ref());
@@ -439,6 +484,14 @@ async fn ethereum_light_client() -> Result<()> {
             continue;
         };
 
+        let finalized_header = BeaconBlockHeader {
+            slot,
+            proposer_index: update.finalized_header.proposer_index.into(),
+            parent_root: Hash256::from_slice(update.finalized_header.parent_root.as_ref()),
+            state_root: Hash256::from_slice(update.finalized_header.state_root.as_ref()),
+            body_root: Hash256::from_slice(update.finalized_header.body_root.as_ref()),
+        };
+        println!("finalized_header = {finalized_header:?}");
         let payload = Handle::Update {
             update: {
                 let update = demo_ethereum_light_client::Update {
@@ -453,13 +506,7 @@ async fn ethereum_light_client() -> Result<()> {
             },
             signature_slot: update.signature_slot.into(),
             next_sync_committee: None,
-            finalized_header: BeaconBlockHeader {
-                slot,
-                proposer_index: update.finalized_header.proposer_index.into(),
-                parent_root: Hash256::from_slice(update.finalized_header.parent_root.as_ref()),
-                state_root: Hash256::from_slice(update.finalized_header.state_root.as_ref()),
-                body_root: Hash256::from_slice(update.finalized_header.body_root.as_ref()),
-            },
+            finalized_header,
             sync_committee_signature: signature.into(),
             next_sync_committee_keys: None,
             next_sync_committee_branch: None,
@@ -484,54 +531,102 @@ async fn ethereum_light_client() -> Result<()> {
 
         }
 
-        // send block
-        let block_body = get_block_body(slot)
-            .await
-            .map_err(|e| anyhow::Error::msg(e.to_string()))?;
-        let block_body_light: BeaconBlockBodyLight = block_body.to_ref().into();
+        } // match
 
-        let exec_payload = block_body.execution_payload().clone();
-
-        let transactions = exec_payload.transactions();
-        println!("transaction count = {}", transactions.len());
-        let mut transaction_hashes: List<Node, 1_048_576> = Default::default();
-        for transaction in transactions.iter() {
-            transaction_hashes.push(transaction.clone().hash_tree_root().unwrap());
-        }
-
-        let payload = Handle::BeaconBlockBody {
-            beacon_block_body_light: {
-                buffer.clear();
-                block_body_light.serialize(&mut buffer).unwrap();
-
-                // let deserialized = BeaconBlockBodyLight::deserialize(&buffer[..]).unwrap();
-                // println!("deserialized: {:?}", deserialized);
-                // println!("light origin: {:?}", block_body_light);
-
-                buffer.clone()
-            },
-            // transaction_hashes: {
-            //     buffer.clear();
-            //     transaction_hashes.serialize(&mut buffer).unwrap();
-
-            //     buffer.clone()
-            // }
-        };
-
-        let gas_limit = client
-            .calculate_handle_gas(None, program_id.into(), payload.encode(), 0, true)
-            .await?
-            .min_limit;
-        println!("send_block gas_limit {gas_limit:?}");
-
-        let (message_id, _) = client
-            .send_message(program_id.into(), payload, gas_limit, 0)
-            .await?;
-
-        assert!(listener.message_processed(message_id).await?.succeed());
+        send_blocks(&client, &mut listener, program_id, slot).await?;
 
         println!();
+        println!();
     }
+
+    Ok(())
+}
+
+async fn send_blocks(
+    client: &GearApi,
+    listener: &mut EventListener,
+    program_id: [u8; 32],
+    slot: u64,
+) -> Result<()> {
+    // get block for finality update
+    let finality_block = get_block_body(slot)
+        .await
+        .map_err(|e| anyhow::Error::msg(e.to_string()))?;
+
+    // get previous 31 blocks (header and its body)
+    let mut requests = Vec::with_capacity(SLOTS_PER_EPOCH as usize);
+    let mut requests_headers = Vec::with_capacity(requests.capacity());
+    for i in 1 .. SLOTS_PER_EPOCH {
+        let slot = slot - i;
+        requests.push(get_block_body(slot)
+            .map(move |r| (slot, r))
+        );
+        requests_headers.push(get_block_header(slot));
+    }
+
+    let mut buffer = Vec::with_capacity(10_000);
+
+    let responses = futures::future::join_all(requests);
+    let responses_headers = futures::future::join_all(requests_headers);
+    let (responses, responses_headers) = futures::join!(responses, responses_headers);
+    // process responses and construct the array of the related pairs
+    let mut blocks = Vec::with_capacity(responses_headers.len());
+    for response in responses_headers {
+        let block_header = match response {
+            Ok(block_header) => block_header, /*BeaconBlockHeader {
+                slot: block_header.slot.into(),
+                proposer_index: block_header.proposer_index.into(),
+                parent_root: Hash256::from_slice(block_header.parent_root.as_ref()),
+                state_root: Hash256::from_slice(block_header.state_root.as_ref()),
+                body_root: Hash256::from_slice(block_header.body_root.as_ref()),
+            },*/
+
+            Err(e) => {
+                println!("request failed: {e:?}");
+                continue;
+            }
+        };
+
+        match responses.iter().find_map(|(slot, block_body)| {
+            match block_body {
+                Ok(block_body) if *slot == block_header.slot =>  {
+                    let mut block_body_light: BeaconBlockBodyLight = block_body.to_ref().into();
+
+                    buffer.clear();
+                    block_body_light.serialize(&mut buffer).unwrap();
+
+                    Some(buffer.clone())
+                }
+                _ => None,
+            }
+        }) {
+            Some(block_body) => blocks.push((block_header, block_body)),
+            None => println!("unable to find block body for the slot {}", block_header.slot),
+        }
+    }
+
+    let payload = Handle::BeaconBlockBody {
+        finality_block_body: {
+            let mut block_body_light: BeaconBlockBodyLight = finality_block.to_ref().into();
+
+            buffer.clear();
+            block_body_light.serialize(&mut buffer).unwrap();
+            buffer.clone()
+        },
+        previous_blocks: blocks,
+    };
+
+    let gas_limit = client
+        .calculate_handle_gas(None, program_id.into(), payload.encode(), 0, true)
+        .await?
+        .min_limit;
+    println!("send_block gas_limit {gas_limit:?}");
+
+    let (message_id, _) = client
+        .send_message(program_id.into(), payload, gas_limit, 0)
+        .await?;
+
+    assert!(listener.message_processed(message_id).await?.succeed());
 
     Ok(())
 }

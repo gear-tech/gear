@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::*;
-use gstd::{ActorId, debug, Vec, msg};
+use gstd::{ActorId, debug, Vec, msg, exec};
 use demo_ethereum_bridge_common::ETH_BRIDGE::EthToVaraTransferEvent;
 use demo_ethereum_common::{
     hash_db,
@@ -81,8 +81,8 @@ async fn main() {
 
         // verify Merkle-PATRICIA proof
         let mut memory_db = demo_ethereum_common::new_memory_db();
-        for proof_node in message.proof {
-            memory_db.insert(hash_db::EMPTY_PREFIX, &proof_node);
+        for proof_node in &message.proof {
+            memory_db.insert(hash_db::EMPTY_PREFIX, proof_node);
         }
 
         let trie = match TrieDB::new(&memory_db, &receipts_root) {
@@ -96,7 +96,27 @@ async fn main() {
             Ok(Some(found_value)) if found_value == value_db => {
                 debug!("proof verified. Mint wrapped ETH");
 
-                todo!()
+                let amount: u128 = event.amount.try_into().unwrap();
+                let request = ft_io::FTAction::Mint(amount).encode();
+                let reply = msg::send_bytes_for_reply(state.fungible_token, &request, 0, 0)
+                    .expect("Failed to send message")
+                    .await
+                    .expect("Received error reply");
+                let response = ft_io::FTEvent::decode(&mut reply.as_slice()).expect("Unable to decode response from eth light client");
+                debug!("mint result = {response:?}");
+
+                let recipient = ActorId::from_bs58(event.recipient.clone()).unwrap();
+                let request = ft_io::FTAction::Transfer {
+                    from: exec::program_id(),
+                    to: recipient,
+                    amount,
+                }.encode();
+                let reply = msg::send_bytes_for_reply(state.fungible_token, &request, 0, 0)
+                    .expect("Failed to send message")
+                    .await
+                    .expect("Received error reply");
+                let response = ft_io::FTEvent::decode(&mut reply.as_slice()).expect("Unable to decode response from eth light client");
+                debug!("transfer result = {response:?}");
             }
 
             result => panic!("proof invalid: {result:?}"),

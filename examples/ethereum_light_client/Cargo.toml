@@ -23,13 +23,13 @@ ark-ec.workspace = true
 ark-ff.workspace = true
 sha2.workspace = true
 superstruct = "0.7.0"
-ethereum-types = { version = "0.14.1", default-features = false, optional = true }
+ethereum-types = { version = "0.14.1", default-features = false, optional = true, features = ["serialize"] }
 circular-buffer = { version = "0.1.7", default-features = false }
 paste = "1.0.14"
 ring = { git = "file:///home/user/devel/gear-tech/ring", branch = "gshep/excess_export", default-features = false, features = ["alloc"] }
 tree_hash = { git = "file:///home/user/devel/gear-tech/tree_hash", branch = "gshep/no_std", default-features = false }
 tree_hash_derive = { git = "file:///home/user/devel/gear-tech/tree_hash", branch = "gshep/no_std" }
-primitive-types = { version = "0.12.2", default-features = false, features = ["codec"] }
+primitive-types = { version = "0.12.2", default-features = false, features = ["codec", "serde_no_std"] }
 
 [target.'cfg(all(target_arch = "wasm32", target_os = "unknown"))'.dependencies]
 getrandom = { version = "0.2", default-features = false, features = ["js"] }
@@ -40,7 +40,9 @@ gear-wasm-builder.workspace = true
 
 [features]
 default = ["std"]
+wasm-wrapper = []
 std = [
+    "wasm-wrapper",
     "codec/std",
     "ssz_rs/std",
     "serde?/std",

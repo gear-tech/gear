@@ -26,9 +26,9 @@ use ark_bls12_381::{G1Projective as G1, G2Projective as G2};
 use codec::{Decode, Encode};
 use ssz_rs::{prelude::*, Deserialize, DeserializeError, Sized, Bitvector};
 use superstruct::superstruct;
-pub use tree_hash::Hash256;
+pub use tree_hash::{self, Hash256};
 
-#[cfg(feature = "std")]
+#[cfg(feature = "wasm-wrapper")]
 mod code {
     include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 }
@@ -36,10 +36,10 @@ mod code {
 pub mod primitives;
 use primitives::*;
 
-#[cfg(feature = "std")]
+#[cfg(feature = "wasm-wrapper")]
 pub use code::WASM_BINARY_OPT as WASM_BINARY;
 
-#[cfg(not(feature = "std"))]
+#[cfg(not(feature = "wasm-wrapper"))]
 mod wasm;
 
 pub type ArkScale<T> = ark_scale::ArkScale<T, { ark_scale::HOST_CALL }>;
@@ -379,6 +379,19 @@ where
     Ok(U256::from_bytes_le(x_bytes))
 }
 
+#[cfg(feature = "serde")]
+pub fn u64_deserialize<'de, D>(deserializer: D) -> Result<u64, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use core::str::FromStr;
+
+    let value: &str = serde::Deserialize::deserialize(deserializer)?;
+
+    Ok(u64::from_str(value)
+        .map_err(|e| <D::Error as serde::de::Error>::custom(e))?)
+}
+
 #[superstruct(
     variants(Bellatrix, Capella, Deneb),
     variant_attributes(
@@ -550,9 +563,12 @@ pub struct Header {
 }
 
 #[derive(Debug, Clone, tree_hash_derive::TreeHash, Decode, Encode)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize))]
 #[codec(crate = codec)]
 pub struct BeaconBlockHeader {
+    #[cfg_attr(feature = "serde", serde(deserialize_with = "u64_deserialize"))]
     pub slot: u64,
+    #[cfg_attr(feature = "serde", serde(deserialize_with = "u64_deserialize"))]
     pub proposer_index: u64,
     pub parent_root: Hash256,
     pub state_root: Hash256,
@@ -675,8 +691,9 @@ pub enum Handle {
         finality_branch: Vec<[u8; 32]>,
     },
     BeaconBlockBody {
-        // ssz_rs serialized
-        beacon_block_body_light: Vec<u8>,
+        // block bodies are ssz_rs serialized
+        finality_block_body: Vec<u8>,
+        previous_blocks: Vec<(BeaconBlockHeader, Vec<u8>)>,
         // ssz_rs serialized
         // transaction_hashes: Vec<u8>,
     },
