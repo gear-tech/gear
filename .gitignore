@@ -10,3 +10,5 @@ weight-dumps/
 .idea
 .log
 *.meta.txt
+utils/runtime-fuzzer/fuzz/corpus/*
+utils/runtime-fuzzer/fuzz/coverage/*
