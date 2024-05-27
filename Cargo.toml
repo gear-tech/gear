@@ -1,5 +1,5 @@
 [workspace.package]
-version = "1.4.1"
+version = "1.4.2"
 authors = ["Gear Technologies"]
 edition = "2021"
 license = "GPL-3.0"
@@ -97,7 +97,7 @@ members = [
 ]
 
 [workspace.dependencies]
-anyhow = "1.0.83"
+anyhow = "1.0.86"
 arbitrary = "1.3.2"
 async-recursion = "1.1.1"
 async-trait = "0.1.80"
@@ -153,8 +153,8 @@ sha-1 = "0.10.1"
 subxt = "0.32.1"
 subxt-metadata = "0.32.1"
 subxt-codegen = "0.32.1"
-syn = "2.0.63"
-thiserror = "1.0.60"
+syn = "2.0.64"
+thiserror = "1.0.61"
 tokio = { version = "1.37.0" }
 uluru = "3.1.0"
 url = "2.5.0"
@@ -461,7 +461,7 @@ schnorrkel = "0.9.1"                                                      # gcli
 scopeguard = { version = "1.2.0", default-features = false }              # pallets/gear
 tabled = "0.10.0"                                                         # utils/regression-analysis
 thousands = "0.2.0"                                                       # utils/regression-analysis
-toml = "0.8.12"                                                           # utils/wasm-builder
+toml = "0.8.13"                                                           # utils/wasm-builder
 tracing = "0.1.40"                                                        # utils/node-loader
 tracing-appender = "0.2"                                                  # utils/node-loader
 tracing-subscriber = "0.3.18"                                             # utils/node-loader
