@@ -338,12 +338,8 @@ impl<Context> GrowHandler<Context> for LazyGrowHandler {
 /// incrementally builds list of changes.
 ///
 /// Changes are applied after operation is completed
-struct ExtMutator<'a, 'b> {
+struct ExtMutator<'a> {
     ext: &'a mut Ext,
-    changes: &'b mut ExtChanges,
-}
-
-struct ExtChanges {
     gas_counter: GasCounter,
     gas_allowance_counter: GasAllowanceCounter,
     value_counter: ValueCounter,
@@ -351,7 +347,7 @@ struct ExtChanges {
     reservation_to_mark: Option<ReservationId>,
 }
 
-impl<'a, 'b> core::ops::Deref for ExtMutator<'a, 'b> {
+impl<'a> core::ops::Deref for ExtMutator<'a> {
     type Target = Ext;
 
     fn deref(&self) -> &Ext {
@@ -359,8 +355,9 @@ impl<'a, 'b> core::ops::Deref for ExtMutator<'a, 'b> {
     }
 }
 
-impl ExtChanges {
-    fn new(ext: &Ext) -> Self {
+impl<'a> ExtMutator<'a> {
+    fn new(ext: &'a mut Ext) -> Self {
+        // SAFETY: counters are cloned and modified *only* by mutator
         unsafe {
             Self {
                 gas_counter: ext.context.gas_counter.clone(),
@@ -368,14 +365,9 @@ impl ExtChanges {
                 value_counter: ext.context.value_counter.clone(),
                 outgoing_gasless: ext.outgoing_gasless,
                 reservation_to_mark: None,
+                ext,
             }
         }
-    }
-}
-
-impl<'a, 'b> ExtMutator<'a, 'b> {
-    fn new(ext: &'a mut Ext, changes: &'b mut ExtChanges) -> Self {
-        Self { changes, ext }
     }
 
     fn alloc<Context>(
@@ -390,13 +382,11 @@ impl<'a, 'b> ExtMutator<'a, 'b> {
             .alloc::<Context, LazyGrowHandler>(ctx, mem, pages, |pages| {
                 let cost = self.ext.context.costs.mem_grow.cost_for(pages);
                 // Inline charge_gas_if_enough because otherwise we have borrow error due to access to `allocations_context` mutable
-                if self.changes.gas_counter.charge_if_enough(cost) == ChargeResult::NotEnough {
+                if self.gas_counter.charge_if_enough(cost) == ChargeResult::NotEnough {
                     return Err(ChargeError::GasLimitExceeded);
                 }
 
-                if self.changes.gas_allowance_counter.charge_if_enough(cost)
-                    == ChargeResult::NotEnough
-                {
+                if self.gas_allowance_counter.charge_if_enough(cost) == ChargeResult::NotEnough {
                     return Err(ChargeError::GasAllowanceExceeded);
                 }
                 Ok(())
@@ -405,7 +395,7 @@ impl<'a, 'b> ExtMutator<'a, 'b> {
     }
 
     fn reduce_gas(&mut self, limit: GasLimit) -> Result<(), FallibleExtError> {
-        if self.changes.gas_counter.reduce(limit) == ChargeResult::NotEnough {
+        if self.gas_counter.reduce(limit) == ChargeResult::NotEnough {
             return Err(FallibleExecutionError::NotEnoughGas.into());
         }
 
@@ -413,7 +403,7 @@ impl<'a, 'b> ExtMutator<'a, 'b> {
     }
 
     fn charge_message_value(&mut self, value: u128) -> Result<(), FallibleExtError> {
-        if self.changes.value_counter.reduce(value) == ChargeResult::NotEnough {
+        if self.value_counter.reduce(value) == ChargeResult::NotEnough {
             return Err(FallibleExecutionError::NotEnoughValue.into());
         }
 
@@ -446,11 +436,10 @@ impl<'a, 'b> ExtMutator<'a, 'b> {
             // sent with this `packet`.
             (Some(_), _) => {
                 let prev_gasless_fee = self
-                    .changes
                     .outgoing_gasless
                     .saturating_mul(self.ext.context.mailbox_threshold);
                 self.reduce_gas(prev_gasless_fee)?;
-                self.changes.outgoing_gasless = 0;
+                self.outgoing_gasless = 0;
                 Ok(())
             }
 
@@ -463,11 +452,10 @@ impl<'a, 'b> ExtMutator<'a, 'b> {
             // It doesn't guarantee threshold for itself.
             (None, true) => {
                 let prev_gasless_fee = self
-                    .changes
                     .outgoing_gasless
                     .saturating_mul(self.ext.context.mailbox_threshold);
                 self.reduce_gas(prev_gasless_fee)?;
-                self.changes.outgoing_gasless = 1;
+                self.outgoing_gasless = 1;
                 Ok(())
             }
 
@@ -488,10 +476,10 @@ impl<'a, 'b> ExtMutator<'a, 'b> {
                 Err(ReservationError::InvalidReservationId)
             } else {
                 debug_assert!(
-                    self.changes.reservation_to_mark.is_none(),
+                    self.reservation_to_mark.is_none(),
                     "attempt to mark another reservation"
                 );
-                self.changes.reservation_to_mark = Some(reservation_id);
+                self.reservation_to_mark = Some(reservation_id);
                 Ok(())
             }
         } else {
@@ -500,11 +488,11 @@ impl<'a, 'b> ExtMutator<'a, 'b> {
     }
 
     fn charge_gas_if_enough(&mut self, gas: u64) -> Result<(), ChargeError> {
-        if self.changes.gas_counter.charge_if_enough(gas) == ChargeResult::NotEnough {
+        if self.gas_counter.charge_if_enough(gas) == ChargeResult::NotEnough {
             return Err(ChargeError::GasLimitExceeded);
         }
 
-        if self.changes.gas_allowance_counter.charge_if_enough(gas) == ChargeResult::NotEnough {
+        if self.gas_allowance_counter.charge_if_enough(gas) == ChargeResult::NotEnough {
             return Err(ChargeError::GasAllowanceExceeded);
         }
         Ok(())
@@ -558,26 +546,16 @@ impl<'a, 'b> ExtMutator<'a, 'b> {
         Ok(())
     }
 
-    fn apply(self) {
-        if let Some(reservation) = self.changes.reservation_to_mark.take() {
+    fn apply(mut self) {
+        if let Some(reservation) = self.reservation_to_mark.take() {
             let result = self.ext.context.gas_reserver.mark_used(reservation);
             debug_assert!(result.is_ok());
         }
 
-        core::mem::swap(
-            &mut self.ext.context.value_counter,
-            &mut self.changes.value_counter,
-        );
-        core::mem::swap(
-            &mut self.ext.context.gas_counter,
-            &mut self.changes.gas_counter,
-        );
-        core::mem::swap(
-            &mut self.ext.context.gas_allowance_counter,
-            &mut self.changes.gas_allowance_counter,
-        );
-
-        self.ext.outgoing_gasless = self.changes.outgoing_gasless;
+        self.ext.context.gas_counter = self.gas_counter;
+        self.ext.context.value_counter = self.value_counter;
+        self.ext.context.gas_allowance_counter = self.gas_allowance_counter;
+        self.ext.outgoing_gasless = self.outgoing_gasless;
     }
 }
 
@@ -724,34 +702,11 @@ impl BackendExternalities for Ext {
 }
 
 impl Ext {
-    fn with_changes<F, R>(&mut self, callback: F) -> Result<R, FallibleExtError>
+    fn with_changes<F, R, E>(&mut self, callback: F) -> Result<R, E>
     where
-        F: FnOnce(&mut ExtMutator) -> Result<R, FallibleExtError>,
+        F: FnOnce(&mut ExtMutator) -> Result<R, E>,
     {
-        let mut changes = ExtChanges::new(self);
-        let mut mutator = ExtMutator::new(self, &mut changes);
-        let result = callback(&mut mutator)?;
-        mutator.apply();
-        Ok(result)
-    }
-
-    fn with_changes_unrecoverable<F, R>(&mut self, callback: F) -> Result<R, UnrecoverableExtError>
-    where
-        F: FnOnce(&mut ExtMutator) -> Result<R, UnrecoverableExtError>,
-    {
-        let mut changes = ExtChanges::new(self);
-        let mut mutator = ExtMutator::new(self, &mut changes);
-        let result = callback(&mut mutator)?;
-        mutator.apply();
-        Ok(result)
-    }
-
-    fn with_changes_for_alloc<F, R>(&mut self, callback: F) -> Result<R, AllocExtError>
-    where
-        F: FnOnce(&mut ExtMutator) -> Result<R, AllocExtError>,
-    {
-        let mut changes = ExtChanges::new(self);
-        let mut mutator = ExtMutator::new(self, &mut changes);
+        let mut mutator = ExtMutator::new(self);
         let result = callback(&mut mutator)?;
         mutator.apply();
         Ok(result)
@@ -926,7 +881,7 @@ impl Externalities for Ext {
         let pages = WasmPagesAmount::try_from(pages_num)
             .map_err(|_| AllocError::ProgramAllocOutOfBounds)?;
 
-        self.with_changes_for_alloc(|mutator| {
+        self.with_changes(|mutator| {
             // charge for pages amount
             mutator.charge_gas_if_enough(
                 mutator
@@ -951,7 +906,7 @@ impl Externalities for Ext {
     fn free_range(&mut self, start: WasmPage, end: WasmPage) -> Result<(), Self::AllocError> {
         let interval = Interval::try_from(start..=end)
             .map_err(|_| AllocExtError::Alloc(AllocError::InvalidFreeRange(start, end)))?;
-        self.with_changes_for_alloc(|mutator| {
+        self.with_changes(|mutator| {
             mutator.charge_gas_if_enough(
                 mutator
                     .context
@@ -1312,7 +1267,7 @@ impl Externalities for Ext {
     }
 
     fn wait(&mut self) -> Result<(), Self::UnrecoverableError> {
-        self.with_changes_unrecoverable(|mutator| {
+        self.with_changes(|mutator| {
             mutator.charge_gas_if_enough(mutator.context.message_context.settings().waiting_fee)?;
 
             if mutator.context.message_context.reply_sent() {
@@ -1335,7 +1290,7 @@ impl Externalities for Ext {
     }
 
     fn wait_for(&mut self, duration: u32) -> Result<(), Self::UnrecoverableError> {
-        self.with_changes_unrecoverable(|mutator| {
+        self.with_changes(|mutator| {
             mutator.charge_gas_if_enough(mutator.context.message_context.settings().waiting_fee)?;
 
             if mutator.context.message_context.reply_sent() {
@@ -1353,7 +1308,7 @@ impl Externalities for Ext {
                 .waitlist
                 .cost_for(mutator.context.reserve_for.saturating_add(duration).into());
 
-            if mutator.changes.gas_counter.reduce(reserve) != ChargeResult::Enough {
+            if mutator.gas_counter.reduce(reserve) != ChargeResult::Enough {
                 return Err(UnrecoverableExecutionError::NotEnoughGas.into());
             }
 
@@ -1362,7 +1317,7 @@ impl Externalities for Ext {
     }
 
     fn wait_up_to(&mut self, duration: u32) -> Result<bool, Self::UnrecoverableError> {
-        self.with_changes_unrecoverable(|mutator| {
+        self.with_changes(|mutator| {
             mutator.charge_gas_if_enough(mutator.context.message_context.settings().waiting_fee)?;
 
             if mutator.context.message_context.reply_sent() {
@@ -1380,7 +1335,7 @@ impl Externalities for Ext {
                 .waitlist
                 .cost_for(mutator.context.reserve_for.saturating_add(1).into());
 
-            if mutator.changes.gas_counter.reduce(reserve) != ChargeResult::Enough {
+            if mutator.gas_counter.reduce(reserve) != ChargeResult::Enough {
                 return Err(UnrecoverableExecutionError::NotEnoughGas.into());
             }
 
@@ -1393,7 +1348,7 @@ impl Externalities for Ext {
 
             let reserve_diff = reserve_full - reserve;
 
-            Ok(mutator.changes.gas_counter.reduce(reserve_diff) == ChargeResult::Enough)
+            Ok(mutator.gas_counter.reduce(reserve_diff) == ChargeResult::Enough)
         })
     }
 
@@ -2057,11 +2012,11 @@ mod tests {
         let remaining_gas = ext.context.gas_counter.to_amount();
         let remaining_gas_allowance = ext.context.gas_allowance_counter.left();
         let remaining_value_counter = ext.context.value_counter.left();
-        let result = ext.with_changes::<_, ()>(|mutator| {
+        let result = ext.with_changes::<_, (), _>(|mutator| {
             mutator.reduce_gas(42)?;
             mutator.charge_gas_if_enough(84)?; // changes gas_counter and gas_allowance_counter
             mutator.charge_message_value(128)?;
-            mutator.changes.outgoing_gasless = 1;
+            mutator.outgoing_gasless = 1;
             mutator.mark_used(reservation_id)?;
             Err(FallibleExtError::Charge(ChargeError::GasLimitExceeded))
         });
@@ -2103,11 +2058,11 @@ mod tests {
         let remaining_gas = ext.context.gas_counter.to_amount();
         let remaining_gas_allowance = ext.context.gas_allowance_counter.left();
         let remaining_value_counter = ext.context.value_counter.left();
-        let result = ext.with_changes::<_, ()>(|mutator| {
+        let result = ext.with_changes::<_, (), FallibleExtError>(|mutator| {
             mutator.reduce_gas(42)?;
             mutator.charge_gas_if_enough(84)?; // changes gas_counter and gas_allowance_counter
             mutator.charge_message_value(128)?;
-            mutator.changes.outgoing_gasless = 1;
+            mutator.outgoing_gasless = 1;
             mutator.mark_used(reservation_id)?;
             Ok(())
         });
