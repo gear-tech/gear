@@ -379,13 +379,14 @@ impl<'a> ExtMutator<'a> {
         mem: &mut impl Memory<Context>,
         pages: WasmPagesAmount,
     ) -> Result<WasmPage, AllocError> {
+        // can't access context inside `alloc` so move here
         let gas_for_call = self.context.costs.mem_grow.cost_for_one();
-        let gas_for_pages = self.context.costs.mem_grow_per_page.cost_for(pages);
+        let gas_for_pages = self.context.costs.mem_grow_per_page;
         self.ext
             .context
             .allocations_context
             .alloc::<Context, LazyGrowHandler>(ctx, mem, pages, |pages| {
-                let cost = gas_for_call.saturating_add(gas_for_pages);
+                let cost = gas_for_call.saturating_add(gas_for_pages.cost_for(pages));
                 // Inline charge_gas_if_enough because otherwise we have borrow error due to access to `allocations_context` mutable
                 if self.gas_counter.charge_if_enough(cost) == ChargeResult::NotEnough {
                     return Err(ChargeError::GasLimitExceeded);
@@ -1364,6 +1365,7 @@ impl Externalities for Ext {
         delay: u32,
     ) -> Result<(MessageId, ProgramId), Self::FallibleError> {
         self.with_changes(|mutator| {
+            // We don't check for forbidden destination here, since dest is always unique and almost impossible to match SYSTEM_ID
             mutator.safe_gasfull_sends(&packet, delay)?;
             mutator.charge_expiring_resources(&packet, true)?;
             mutator.charge_sending_fee(delay)?;
