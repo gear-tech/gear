@@ -47,7 +47,11 @@ impl From<(BTreeSet<WasmPage>, H256, MemoryMap)> for Item {
 
 impl<BlockNumber: Copy + Saturating> From<(ActiveProgram<BlockNumber>, MemoryMap)> for Item {
     fn from((program, memory_pages): (ActiveProgram<BlockNumber>, MemoryMap)) -> Self {
-        From::from((program.allocations, program.code_hash, memory_pages))
+        From::from((
+            program.allocations.points_iter().collect(),
+            program.code_hash,
+            memory_pages,
+        ))
     }
 }
 
@@ -130,7 +134,7 @@ pub trait PausedProgramStorage: super::ProgramStorage {
             let memory_pages = match Self::get_program_data_for_pages(
                 program_id,
                 program.memory_infix,
-                program.pages_with_data.iter(),
+                program.pages_with_data.points_iter(),
             ) {
                 Ok(memory_pages) => memory_pages,
                 Err(e) => {
@@ -268,7 +272,7 @@ pub trait PausedProgramStorage: super::ProgramStorage {
             let memory_pages = Self::get_program_data_for_pages(
                 session.program_id,
                 MemoryInfix::new(session_id),
-                session.pages_with_data.iter(),
+                session.pages_with_data.iter().copied(),
             )
             .unwrap_or_default();
             let code_hash = session.code_hash.into_origin();
@@ -285,7 +289,7 @@ pub trait PausedProgramStorage: super::ProgramStorage {
                 remaining_pages,
             } = item;
             let program = ActiveProgram {
-                allocations,
+                allocations: allocations.into_iter().collect(),
                 pages_with_data: memory_pages
                     .keys()
                     .copied()

@@ -40,7 +40,10 @@ use gear_core::{
         ContextOutcomeDrain, ContextStore, Dispatch, GasLimit, HandlePacket, InitPacket,
         MessageContext, Packet, ReplyPacket,
     },
-    pages::{numerated::interval::Interval, GearPage, WasmPage, WasmPagesAmount},
+    pages::{
+        numerated::{interval::Interval, tree::IntervalsTree},
+        GearPage, WasmPage, WasmPagesAmount,
+    },
     program::MemoryInfix,
     reservation::{GasReservationState, GasReserver},
 };
@@ -150,7 +153,7 @@ pub struct ExtInfo {
     pub gas_amount: GasAmount,
     pub gas_reserver: GasReserver,
     pub system_reservation_context: SystemReservationContext,
-    pub allocations: Option<BTreeSet<WasmPage>>,
+    pub allocations: Option<IntervalsTree<WasmPage>>,
     pub pages_data: BTreeMap<GearPage, PageBuf>,
     pub generated_dispatches: Vec<(Dispatch, u32, Option<ReservationId>)>,
     pub awakening: Vec<(MessageId, u32)>,
@@ -380,7 +383,9 @@ impl<'a> ExtMutator<'a> {
             .context
             .allocations_context
             .alloc::<Context, LazyGrowHandler>(ctx, mem, pages, |pages| {
-                let cost = self.ext.context.costs.mem_grow.cost_for(pages);
+                let gas_for_call = self.context.costs.mem_grow.cost_for_one();
+                let gas_for_pages = self.context.costs.mem_grow_per_page.cost_for(pages);
+                let cost = gas_for_call.saturating_add(gas_for_pages);
                 // Inline charge_gas_if_enough because otherwise we have borrow error due to access to `allocations_context` mutable
                 if self.gas_counter.charge_if_enough(cost) == ChargeResult::NotEnough {
                     return Err(ChargeError::GasLimitExceeded);
@@ -609,7 +614,7 @@ impl ProcessorExternalities for Ext {
         let mut accessed_pages = gear_lazy_pages_interface::get_write_accessed_pages();
         accessed_pages.retain(|p| {
             let wasm_page: WasmPage = p.to_page();
-            wasm_page < static_pages || allocations.contains(&wasm_page)
+            wasm_page < static_pages || allocations.contains(wasm_page)
         });
         log::trace!("accessed pages numbers = {:?}", accessed_pages);
 
@@ -882,16 +887,6 @@ impl Externalities for Ext {
             .map_err(|_| AllocError::ProgramAllocOutOfBounds)?;
 
         self.with_changes(|mutator| {
-            // charge for pages amount
-            mutator.charge_gas_if_enough(
-                mutator
-                    .context
-                    .costs
-                    .syscalls
-                    .alloc_per_page
-                    .cost_for(pages),
-            )?;
-
             mutator.alloc(ctx, mem, pages).map_err(Into::into)
         })
     }
@@ -1520,7 +1515,7 @@ mod tests {
 
         let allocations_context = AllocationsContext::try_new(
             512.into(),
-            BTreeSet::from([existing_page]),
+            [existing_page].into_iter().collect(),
             1.into(),
             None,
             512.into(),
