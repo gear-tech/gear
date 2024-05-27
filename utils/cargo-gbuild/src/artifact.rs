@@ -78,7 +78,14 @@ impl Artifacts {
                 .cloned()
                 .collect();
 
-            if !current.is_empty() {
+            if current.is_empty() {
+                let manifest = Manifest::from_path(&metadata.manifest)?;
+                artifacts.push(Artifact {
+                    manifest: metadata.manifest,
+                    opt: OptType::Opt,
+                    name: manifest.package().name.clone(),
+                });
+            } else {
                 artifacts = current;
             }
         }

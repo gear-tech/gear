@@ -21,10 +21,10 @@ use cargo_gbuild::GBuild;
 use gtest::{state_args, Program, System};
 use std::{fs, path::PathBuf, process::Command};
 
-fn ping<'p>(sys: &'p System, prog: PathBuf) -> Program<'p> {
+fn ping(sys: &System, prog: PathBuf) -> Program<'_> {
     // Get program from artifact
     let user = 0;
-    let program = Program::from_file(&sys, prog);
+    let program = Program::from_file(sys, prog);
 
     // Init program
     let res = program.send_bytes(user, b"PING");
@@ -57,7 +57,7 @@ fn test_compile() -> Result<()> {
     let prog = ping(&system, artifacts.root.join("gbuild_test_bar.wasm"));
 
     // Test meta
-    let metawasm = fs::read(&artifacts.root.join("gbuild_test_meta.meta.wasm"))?;
+    let metawasm = fs::read(artifacts.root.join("gbuild_test_meta.meta.wasm"))?;
     let modified: bool = prog
         .read_state_using_wasm(Vec::<u8>::default(), "modified", metawasm, state_args!())
         .expect("Failed to read program state");
@@ -82,6 +82,11 @@ fn test_program_tests() {
                 .args(["install", "stable"])
                 .status()
                 .expect("Failed to install stable toolchain");
+
+            Command::new("rustup")
+                .args(["+stable", "target", "add", "wasm32-unknown-unknown"])
+                .status()
+                .expect("Failed to install +stable wasm toolchain");
         }
     }
 
