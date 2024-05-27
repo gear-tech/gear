@@ -24,6 +24,7 @@ statrs = "0.16"
 
 [build-dependencies]
 gear-wasm-builder.workspace = true
+ft-io = { path = "io" }
 
 [features]
 debug = ["gstd/debug"]

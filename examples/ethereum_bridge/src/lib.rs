@@ -52,4 +52,5 @@ pub struct EthToVaraEvent {
 pub struct Init {
     pub light_client: [u8; 32],
     pub fungible_token: [u8; 32],
+    pub eth_contract: [u8; 20],
 }

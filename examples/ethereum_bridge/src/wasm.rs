@@ -25,7 +25,7 @@ use demo_ethereum_common::{
     rlp_node_codec::RlpNodeCodec,
     types,
     rlp::RlpStream,
-    ethereum_types::{H256, U256},
+    ethereum_types::{H160, H256, U256},
     patricia_trie::TrieDB,
 };
 use alloy_sol_types::SolEvent;
@@ -33,6 +33,7 @@ use alloy_sol_types::SolEvent;
 struct State {
     light_client: ActorId,
     fungible_token: ActorId,
+    eth_contract: H160,
     nonce: U256,
 }
 
@@ -46,6 +47,7 @@ extern "C" fn init() {
         STATE = Some(State {
             light_client: ActorId::from(init.light_client),
             fungible_token: ActorId::from(init.fungible_token),
+            eth_contract: H160(init.eth_contract),
             nonce: 0.into(),
         })
     }
@@ -58,6 +60,10 @@ async fn main() {
 
     let receipt = message.receipt;
     for log in &receipt.logs {
+        if log.address != state.eth_contract {
+            continue;
+        }
+
         let Ok(event) = EthToVaraTransferEvent::decode_raw_log(log.topics.iter().map(|hash| hash.0), &log.data, true) else {
             continue;
         };

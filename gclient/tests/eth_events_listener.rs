@@ -24,7 +24,8 @@ const ENDPOINT: &str = "https://eth-sepolia.g.alchemy.com/v2/_YDfAxTPJpWTXrxR8a_
 
 type BlockReceipt = (U256, Receipt);
 
-const LIGHT_CLIENT: [u8; 32] = [75, 71, 158, 8, 27, 93, 195, 239, 189, 11, 224, 76, 225, 92, 164, 242, 242, 3, 223, 169, 90, 116, 97, 23, 19, 154, 80, 98, 20, 251, 86, 26];
+const LIGHT_CLIENT: [u8; 32] = hex_literal::hex!("cba0e9decc26befe3510822090c08ada4e961216b3b53b28cb176bee22f228f0");
+const ETH_CONTRACT: [u8; 20] = hex_literal::hex!("EB4DCF1b4E01C792E46999A461E52c06957640C7");
 
 async fn common_upload_program(
     client: &GearApi,
@@ -93,6 +94,7 @@ async fn eth_events_listener() -> Result<()> {
         Init {
             light_client: LIGHT_CLIENT,
             fungible_token: fungible_token_id,
+            eth_contract: ETH_CONTRACT,
         },
         WASM_BINARY.to_vec(),
     )

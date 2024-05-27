@@ -16,6 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use ft_io::FungibleTokenMetadata;
+
 fn main() {
-    gear_wasm_builder::build();
+    gear_wasm_builder::build_with_metadata::<FungibleTokenMetadata>();
 }

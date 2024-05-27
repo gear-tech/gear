@@ -342,6 +342,10 @@ async fn verify_sync_committee_signture(
 
 #[no_mangle]
 extern "C" fn init() {
+    debug!("size_of::<ExecutionPayloadHeader> = {}", core::mem::size_of::<ExecutionPayloadHeader>());
+    debug!("size_of::<BeaconBlockBodyLight> = {}", core::mem::size_of::<BeaconBlockBodyLight>());
+    debug!("size_of::<BeaconBlockHeader> = {}", core::mem::size_of::<BeaconBlockHeader>());
+
     let init_msg: Init = msg::load().expect("Unable to decode `Init` message");
 
     let last_checkpoint = Bytes32::try_from(&init_msg.last_checkpoint[..]).expect("Unable to create Bytes32 from [u8; 32]");
