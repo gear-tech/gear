@@ -165,17 +165,17 @@ for PALLET in "${PALLETS[@]}"; do
     echo "[-] Failed to benchmark $PALLET. Error written to $ERR_FILE; continuing..."
   fi
 
-  echo "[+] Benchmarking $PALLET 3-8 with weight file $WEIGHT_FILE";
+  echo "[+] Benchmarking $PALLET 3-4 with weight file $WEIGHT_FILE";
 
   OUTPUT=$(
-    taskset -c 3-8 $GEAR benchmark pallet \
+    taskset -c 3-4 $GEAR benchmark pallet \
     --chain="$chain_spec" \
     --steps=$BENCHMARK_STEPS \
     --repeat=$BENCHMARK_REPEAT \
     --pallet="$PALLET" \
     --extrinsic="$(IFS=, ; echo "${EXTRINSICS[*]}")" \
     --heap-pages=4096 \
-    --output="./${WEIGHTS_OUTPUT}/${PALLET}_6_cores.json" \
+    --output="./${WEIGHTS_OUTPUT}/${PALLET}_2_cores.json" \
     --template=.maintain/dump_weights.hbs 2>&1
   )
 
@@ -184,17 +184,17 @@ for PALLET in "${PALLETS[@]}"; do
     echo "[-] Failed to benchmark $PALLET. Error written to $ERR_FILE; continuing..."
   fi
 
-  echo "[+] Benchmarking $PALLET 3-10 with weight file $WEIGHT_FILE";
+  echo "[+] Benchmarking $PALLET 3-6 with weight file $WEIGHT_FILE";
 
   OUTPUT=$(
-    taskset -c 3-10 $GEAR benchmark pallet \
+    taskset -c 3-6 $GEAR benchmark pallet \
     --chain="$chain_spec" \
     --steps=$BENCHMARK_STEPS \
     --repeat=$BENCHMARK_REPEAT \
     --pallet="$PALLET" \
     --extrinsic="$(IFS=, ; echo "${EXTRINSICS[*]}")" \
     --heap-pages=4096 \
-    --output="./${WEIGHTS_OUTPUT}/${PALLET}_8_cores.json" \
+    --output="./${WEIGHTS_OUTPUT}/${PALLET}_4_cores.json" \
     --template=.maintain/dump_weights.hbs 2>&1
   )
 
