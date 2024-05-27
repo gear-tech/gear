@@ -379,12 +379,12 @@ impl<'a> ExtMutator<'a> {
         mem: &mut impl Memory<Context>,
         pages: WasmPagesAmount,
     ) -> Result<WasmPage, AllocError> {
+        let gas_for_call = self.context.costs.mem_grow.cost_for_one();
+        let gas_for_pages = self.context.costs.mem_grow_per_page.cost_for(pages);
         self.ext
             .context
             .allocations_context
             .alloc::<Context, LazyGrowHandler>(ctx, mem, pages, |pages| {
-                let gas_for_call = self.context.costs.mem_grow.cost_for_one();
-                let gas_for_pages = self.context.costs.mem_grow_per_page.cost_for(pages);
                 let cost = gas_for_call.saturating_add(gas_for_pages);
                 // Inline charge_gas_if_enough because otherwise we have borrow error due to access to `allocations_context` mutable
                 if self.gas_counter.charge_if_enough(cost) == ChargeResult::NotEnough {
@@ -886,9 +886,7 @@ impl Externalities for Ext {
         let pages = WasmPagesAmount::try_from(pages_num)
             .map_err(|_| AllocError::ProgramAllocOutOfBounds)?;
 
-        self.with_changes(|mutator| {
-            mutator.alloc(ctx, mem, pages).map_err(Into::into)
-        })
+        self.with_changes(|mutator| mutator.alloc(ctx, mem, pages).map_err(Into::into))
     }
 
     fn free(&mut self, page: WasmPage) -> Result<(), Self::AllocError> {
