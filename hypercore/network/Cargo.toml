@@ -1,5 +1,5 @@
 [package]
-name = "hypercore-cli"
+name = "hypercore-network"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
@@ -10,12 +10,4 @@ repository.workspace = true
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-clap = { workspace = true, features = ["derive"] }
-log.workspace = true
-env_logger.workspace = true
-directories.workspace  = true
 anyhow.workspace = true
-
-hypercore-db = { path = "../db" }
-hypercore-network = { path = "../network" }
-hypercore-observer = { path = "../observer" }

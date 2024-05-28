@@ -20,9 +20,9 @@
 
 use crate::args::Args;
 
-use std::path::PathBuf;
-use anyhow::{Result, Context as _};
+use anyhow::{Context as _, Result};
 use directories::ProjectDirs;
+use std::path::PathBuf;
 
 pub struct Config {
     /// RPC of the Ethereum endpoint
@@ -39,7 +39,6 @@ pub struct Config {
 }
 
 impl TryFrom<Args> for Config {
-
     type Error = anyhow::Error;
 
     fn try_from(args: Args) -> Result<Self> {
@@ -60,5 +59,3 @@ impl TryFrom<Args> for Config {
         })
     }
 }
-
-

@@ -105,6 +105,7 @@ members = [
     "utils/runtime-fuzzer/fuzz",
     "utils/lazy-pages-fuzzer/fuzz",
     "hypercore/cli",
+    "hypercore/db", "hypercore/network", "hypercore/observer",
 ]
 
 [workspace.dependencies]

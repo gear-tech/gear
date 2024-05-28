@@ -16,25 +16,31 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Cargo extension for building gear programs.
+//! Network library for Hypercore.
 
-mod args;
-mod config;
-mod service;
+use anyhow::Result;
 
-use crate::{args::Args, config::Config};
-use anyhow::Context;
-use clap::Parser;
+/// Network for Hypercore nodes.
+///
+/// It is cloneable under the hood (manages locks and shared state on it's own).
+#[derive(Debug, Clone)]
+pub struct Network;
 
-fn main() -> anyhow::Result<()> {
-    let args = Args::parse();
+impl Network {
+    //! Start the networking service
+    pub fn start() -> Result<Self> {
+        Ok(Self)
+    }
+}
 
-    let config = Config::try_from(args).with_context(|| "Failed to create configuration")?;
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-    env_logger::try_init().with_context(|| "Failed to initialize logger")?;
+    #[test]
+    fn is_cloneable() {
+        let net = Network::start().expect("failed to create network service");
 
-    log::info!("Ethereum observerl RPC: {}", config.ethereum_rpc);
-    log::info!("Database directory: {:?}", config.database_path);
-
-    Ok(())
+        let _ = net.clone();
+    }
 }
