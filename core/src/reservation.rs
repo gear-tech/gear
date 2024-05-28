@@ -254,6 +254,20 @@ impl GasReserver {
         }
     }
 
+    /// Check if reservation is used.
+    ///
+    /// If reservation does not exist returns `InvalidReservationId` error.
+    pub fn check_used(&mut self, id: ReservationId) -> Result<bool, ReservationError> {
+        if let Some(
+            GasReservationState::Created { used, .. } | GasReservationState::Exists { used, .. },
+        ) = self.states.get_mut(&id)
+        {
+            Ok(*used)
+        } else {
+            Err(ReservationError::InvalidReservationId)
+        }
+    }
+
     /// Returns gas reservations current nonce.
     pub fn nonce(&self) -> ReservationNonce {
         (&self.nonce).into()

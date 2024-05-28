@@ -341,6 +341,7 @@ impl<Context> GrowHandler<Context> for LazyGrowHandler {
 /// incrementally builds list of changes.
 ///
 /// Changes are applied after operation is completed
+#[must_use]
 struct ExtMutator<'a> {
     ext: &'a mut Ext,
     gas_counter: GasCounter,
@@ -473,21 +474,13 @@ impl<'a> ExtMutator<'a> {
         }
     }
 
-    fn mark_used(&mut self, reservation_id: ReservationId) -> Result<(), ReservationError> {
-        if let Some(
-            GasReservationState::Created { used, .. } | GasReservationState::Exists { used, .. },
-        ) = self.ext.context.gas_reserver.states().get(&reservation_id)
-        {
-            if *used {
-                Err(ReservationError::InvalidReservationId)
-            } else {
-                debug_assert!(
-                    self.reservation_to_mark.is_none(),
-                    "attempt to mark another reservation"
-                );
-                self.reservation_to_mark = Some(reservation_id);
-                Ok(())
-            }
+    fn mark_reservation_used(
+        &mut self,
+        reservation_id: ReservationId,
+    ) -> Result<(), ReservationError> {
+        if !self.ext.context.gas_reserver.check_used(reservation_id)? {
+            self.reservation_to_mark = Some(reservation_id);
+            Ok(())
         } else {
             Err(ReservationError::InvalidReservationId)
         }
@@ -1013,7 +1006,7 @@ impl Externalities for Ext {
             mutator.charge_message_value(msg.value())?;
             mutator.charge_sending_fee(delay)?;
 
-            mutator.mark_used(id)?;
+            mutator.mark_reservation_used(id)?;
 
             mutator
                 .ext
@@ -1060,7 +1053,7 @@ impl Externalities for Ext {
             mutator.charge_message_value(msg.value())?;
             mutator.charge_sending_fee(0)?;
 
-            mutator.mark_used(id)?;
+            mutator.mark_reservation_used(id)?;
 
             mutator
                 .ext
@@ -2012,7 +2005,7 @@ mod tests {
             mutator.charge_gas_if_enough(84)?; // changes gas_counter and gas_allowance_counter
             mutator.charge_message_value(128)?;
             mutator.outgoing_gasless = 1;
-            mutator.mark_used(reservation_id)?;
+            mutator.mark_reservation_used(reservation_id)?;
             Err(FallibleExtError::Charge(ChargeError::GasLimitExceeded))
         });
 
@@ -2058,7 +2051,7 @@ mod tests {
             mutator.charge_gas_if_enough(84)?; // changes gas_counter and gas_allowance_counter
             mutator.charge_message_value(128)?;
             mutator.outgoing_gasless = 1;
-            mutator.mark_used(reservation_id)?;
+            mutator.mark_reservation_used(reservation_id)?;
             Ok(())
         });
 
