@@ -4610,7 +4610,7 @@ dependencies = [
 [[package]]
 name = "ethereum_hashing"
 version = "0.6.0"
-source = "git+file:///home/user/devel/gear-tech/ethereum_hashing?branch=gshep/no_std#6bcf557ea5f55c92bdb9fbd6d99f37cbdb729dd1"
+source = "git+https://github.com/gear-tech/ethereum_hashing.git?branch=gear-v0.6.0#cf086a5e4b1cd85c7ca5c27999b0461d92144ea1"
 dependencies = [
  "lazy_static",
  "ring 0.17.8",
@@ -11556,7 +11556,7 @@ dependencies = [
 [[package]]
 name = "ring"
 version = "0.17.8"
-source = "git+file:///home/user/devel/gear-tech/ring?branch=gshep/excess_export#3fdc2f25f69a9436a6f4a9ba72de4a2512190e2e"
+source = "git+https://github.com/gear-tech/ring.git?branch=gear-v0.17.8#6071e95b036bbf7ac1893d5a0345ca154e1f4710"
 dependencies = [
  "cc",
  "cfg-if",
@@ -15589,7 +15589,7 @@ dependencies = [
 [[package]]
 name = "tree_hash"
 version = "0.6.0"
-source = "git+file:///home/user/devel/gear-tech/tree_hash?branch=gshep/no_std#6b00ef65e40896976c8c9413de65a5fd69b78b6e"
+source = "git+file:///home/user/devel/gear-tech/tree_hash?branch=gshep/no_std#963905ffd9f836d7156ee8db44c627cbe535b9f7"
 dependencies = [
  "ethereum-types",
  "ethereum_hashing",
@@ -15599,7 +15599,7 @@ dependencies = [
 [[package]]
 name = "tree_hash_derive"
 version = "0.6.0"
-source = "git+file:///home/user/devel/gear-tech/tree_hash?branch=gshep/no_std#6b00ef65e40896976c8c9413de65a5fd69b78b6e"
+source = "git+file:///home/user/devel/gear-tech/tree_hash?branch=gshep/no_std#963905ffd9f836d7156ee8db44c627cbe535b9f7"
 dependencies = [
  "darling 0.13.4",
  "quote",
@@ -15792,7 +15792,7 @@ checksum = "97fee6b57c6a41524a810daee9286c02d7752c4253064d0b05472833a438f675"
 dependencies = [
  "cfg-if",
  "digest 0.10.7",
- "rand 0.8.5",
+ "rand 0.7.3",
  "static_assertions",
 ]
 
