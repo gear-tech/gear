@@ -103,7 +103,8 @@ members = [
     "runtime-interface/sandbox",
     "utils/*",
     "utils/runtime-fuzzer/fuzz",
-    "utils/lazy-pages-fuzzer/fuzz"
+    "utils/lazy-pages-fuzzer/fuzz",
+    "hypercore/cli",
 ]
 
 [workspace.dependencies]
