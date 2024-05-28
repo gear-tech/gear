@@ -45,7 +45,7 @@ use gear_core::{
         GearPage, WasmPage, WasmPagesAmount,
     },
     program::MemoryInfix,
-    reservation::{GasReservationState, GasReserver},
+    reservation::GasReserver,
 };
 use gear_core_backend::{
     error::{
