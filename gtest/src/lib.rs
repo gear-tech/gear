@@ -197,17 +197,14 @@
 //!     );
 //!     ```
 //!
-//! - Initialize a program from a Wasm-file with a custom id using the
-//!   [`Program::from_file_with_id`] function:
+//! - Initialize a program via builder:
 //!
 //!     ```no_run
-//!     # use gtest::Program;
+//!     # use gtest::ProgramBuilder;
 //!     # let sys = gtest::System::new();
-//!     let prog = Program::from_file_with_id(
-//!         &sys,
-//!         105,
-//!         "./target/wasm32-unknown-unknown/release/demo_ping.wasm",
-//!     );
+//!     let prog = ProgramBuilder::from_file("your_gear_program.wasm")
+//!         .with_id(105)
+//!         .build(&sys);
 //!     ```
 //!
 //!     Every place in this lib, where you need to specify some ids, it requires
@@ -231,7 +228,7 @@
 //!
 //! ```no_run
 //! # let sys = gtest::System::new();
-//! let prog = sys.get_program(105);
+//! let prog = sys.get_program(105).unwrap();
 //! ```
 //!
 //! ## Initialization of styled `env_logger`
@@ -311,7 +308,7 @@
 //! let log = Log::builder();
 //!
 //! // Constructor for error reply log.
-//! let log = Log::error_builder(ErrorReplyReason::InactiveProgram);
+//! let log = Log::error_builder(ErrorReplyReason::InactiveActor);
 //! # let sys = gtest::System::new();
 //! # let prog = gtest::Program::current(&sys);
 //! // Other fields are set optionally by `dest()`, `source()`, `payload()`, `payload_bytes()`.
@@ -433,7 +430,10 @@ mod system;
 pub use crate::log::{CoreLog, Log, RunResult};
 pub use codec;
 pub use error::{Result, TestError};
-pub use program::{calculate_program_id, Gas, Program, WasmProgram};
+pub use program::{
+    calculate_program_id, gbuild::ensure_gbuild, Gas, Program, ProgramBuilder, ProgramIdWrapper,
+    WasmProgram,
+};
 pub use system::System;
 
 pub(crate) use constants::*;
@@ -457,7 +457,7 @@ pub mod constants {
     pub const UNITS: Value = 1_000_000_000_000;
     /// Minimal amount of value able to be sent. Defines accounts existence
     /// requirement.
-    pub const EXISTENTIAL_DEPOSIT: Value = 10 * UNITS;
+    pub const EXISTENTIAL_DEPOSIT: Value = UNITS;
     /// Value per gas.
     pub const VALUE_PER_GAS: Value = 6;
     /// Duration of one block in msecs.

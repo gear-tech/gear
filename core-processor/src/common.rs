@@ -26,14 +26,15 @@ use alloc::{
     vec::Vec,
 };
 use gear_core::{
+    code::InstrumentedCode,
     gas::{GasAllowanceCounter, GasAmount, GasCounter},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
-    memory::{MemoryError, PageBuf},
+    memory::{MemoryError, MemorySetupError, PageBuf},
     message::{
         ContextStore, Dispatch, DispatchKind, IncomingDispatch, MessageWaitedType, StoredDispatch,
     },
-    pages::{GearPage, WasmPage},
-    program::{MemoryInfix, Program},
+    pages::{numerated::tree::IntervalsTree, GearPage, WasmPage, WasmPagesAmount},
+    program::MemoryInfix,
     reservation::{GasReservationMap, GasReserver},
 };
 pub use gear_core_backend::error::TrapExplanation;
@@ -82,7 +83,7 @@ pub struct DispatchResult {
     /// Page updates.
     pub page_update: BTreeMap<GearPage, PageBuf>,
     /// New allocations set for program if it has been changed.
-    pub allocations: BTreeSet<WasmPage>,
+    pub allocations: Option<IntervalsTree<WasmPage>>,
     /// Whether this execution sent out a reply.
     pub reply_sent: bool,
 }
@@ -250,7 +251,7 @@ pub enum JournalNote {
         /// Program id.
         program_id: ProgramId,
         /// New allocations set for the program.
-        allocations: BTreeSet<WasmPage>,
+        allocations: IntervalsTree<WasmPage>,
     },
     /// Send value
     SendValue {
@@ -334,13 +335,6 @@ pub enum JournalNote {
         /// Amount of gas for reply.
         amount: u64,
     },
-    /// Append message to waiting init list and wait list for future wake.
-    WaitingInitMessage {
-        /// Incoming dispatch of the message.
-        dispatch: IncomingDispatch,
-        /// Destination of the message.
-        destination: ProgramId,
-    },
 }
 
 /// Journal handler.
@@ -386,7 +380,7 @@ pub trait JournalHandler {
     /// Process page update.
     fn update_pages_data(&mut self, program_id: ProgramId, pages_data: BTreeMap<GearPage, PageBuf>);
     /// Process [JournalNote::UpdateAllocations].
-    fn update_allocations(&mut self, program_id: ProgramId, allocations: BTreeSet<WasmPage>);
+    fn update_allocations(&mut self, program_id: ProgramId, allocations: IntervalsTree<WasmPage>);
     /// Send value.
     fn send_value(&mut self, from: ProgramId, to: Option<ProgramId>, value: u128);
     /// Store new programs in storage.
@@ -423,8 +417,6 @@ pub trait JournalHandler {
     fn send_signal(&mut self, message_id: MessageId, destination: ProgramId, code: SignalCode);
     /// Create deposit for future reply.
     fn reply_deposit(&mut self, message_id: MessageId, future_reply_id: MessageId, amount: u64);
-    /// Append message to waiting init list and wait list for future wake.
-    fn waiting_init_message(&mut self, dispatch: IncomingDispatch, destination: ProgramId);
 }
 
 actor_system_error! {
@@ -483,47 +475,6 @@ impl ActorExecutionErrorReplyReason {
     }
 }
 
-/// Inconsistency in memory parameters provided for wasm execution.
-#[derive(Debug, PartialEq, Eq, derive_more::Display)]
-pub enum MemorySetupError {
-    /// Memory size exceeds max pages
-    #[display(fmt = "Memory size {memory_size:?} must be less than or equal to {max_pages:?}")]
-    MemorySizeExceedsMaxPages {
-        /// Memory size
-        memory_size: WasmPage,
-        /// Max allowed memory size
-        max_pages: WasmPage,
-    },
-    /// Insufficient memory size
-    #[display(fmt = "Memory size {memory_size:?} must be at least {static_pages:?}")]
-    InsufficientMemorySize {
-        /// Memory size
-        memory_size: WasmPage,
-        /// Static memory size
-        static_pages: WasmPage,
-    },
-    /// Stack end is out of static memory
-    #[display(fmt = "Stack end {stack_end:?} is out of static memory 0..{static_pages:?}")]
-    StackEndOutOfStaticMemory {
-        /// Stack end
-        stack_end: WasmPage,
-        /// Static memory size
-        static_pages: WasmPage,
-    },
-    /// Allocated page is out of allowed memory interval
-    #[display(
-        fmt = "Allocated page {page:?} is out of allowed memory interval {static_pages:?}..{memory_size:?}"
-    )]
-    AllocatedPageOutOfAllowedInterval {
-        /// Allocated page
-        page: WasmPage,
-        /// Static memory size
-        static_pages: WasmPage,
-        /// Memory size
-        memory_size: WasmPage,
-    },
-}
-
 /// System execution error
 #[derive(Debug, derive_more::Display, derive_more::From)]
 pub enum SystemExecutionError {
@@ -561,25 +512,36 @@ pub struct Actor {
 /// Executable actor data.
 #[derive(Clone, Debug)]
 pub struct ExecutableActorData {
-    /// Set of dynamic wasm page numbers, which are allocated by the program.
-    pub allocations: BTreeSet<WasmPage>,
+    /// Set of wasm pages, which are allocated by the program.
+    pub allocations: IntervalsTree<WasmPage>,
     /// The infix of memory pages in a storage.
     pub memory_infix: MemoryInfix,
-    /// Set of gear pages numbers, which has data in storage.
-    pub pages_with_data: BTreeSet<GearPage>,
     /// Id of the program code.
     pub code_id: CodeId,
     /// Exported functions by the program code.
     pub code_exports: BTreeSet<DispatchKind>,
     /// Count of static memory pages.
-    pub static_pages: WasmPage,
+    pub static_pages: WasmPagesAmount,
     /// Gas reservation map.
     pub gas_reservation_map: GasReservationMap,
 }
 
+/// Program.
+#[derive(Clone, Debug)]
+pub(crate) struct Program {
+    /// Program id.
+    pub id: ProgramId,
+    /// Memory infix.
+    pub memory_infix: MemoryInfix,
+    /// Instrumented code.
+    pub code: InstrumentedCode,
+    /// Allocations.
+    pub allocations: IntervalsTree<WasmPage>,
+}
+
 /// Execution context.
 #[derive(Debug)]
-pub struct WasmExecutionContext {
+pub(crate) struct WasmExecutionContext {
     /// A counter for gas.
     pub gas_counter: GasCounter,
     /// A counter for gas allowance.
@@ -589,7 +551,7 @@ pub struct WasmExecutionContext {
     /// Program to be executed.
     pub program: Program,
     /// Size of the memory block.
-    pub memory_size: WasmPage,
+    pub memory_size: WasmPagesAmount,
 }
 
 /// Struct with dispatch and counters charged for program data.

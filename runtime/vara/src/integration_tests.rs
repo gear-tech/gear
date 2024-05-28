@@ -61,6 +61,7 @@ pub(crate) fn on_initialize(new_block_number: BlockNumberFor<Runtime>) {
     GearProgram::on_initialize(new_block_number);
     GearMessenger::on_initialize(new_block_number);
     Gear::on_initialize(new_block_number);
+    GearBank::on_initialize(new_block_number);
     GearGas::on_initialize(new_block_number);
     // Session::on_initialize(new_block_number);
 }
@@ -71,6 +72,7 @@ pub(crate) fn on_finalize(current_blk: BlockNumberFor<Runtime>) {
     GearPayment::on_finalize(current_blk);
     GearGas::on_finalize(current_blk);
     Gear::on_finalize(current_blk);
+    GearBank::on_finalize(current_blk);
     GearMessenger::on_finalize(current_blk);
     GearProgram::on_finalize(current_blk);
     Treasury::on_finalize(current_blk);
@@ -421,7 +423,7 @@ fn treasury_surplus_is_not_burned() {
             let initial_total_issuance = Balances::total_issuance();
 
             // Top up treasury balance
-            assert_ok!(Balances::transfer(
+            assert_ok!(Balances::transfer_allow_death(
                 RuntimeOrigin::signed(charlie.to_account_id()),
                 sp_runtime::MultiAddress::Id(treasury_id.clone()),
                 1_000 * UNITS,
@@ -503,7 +505,7 @@ fn dust_ends_up_in_offset_pool() {
             let initial_total_issuance = Balances::total_issuance();
 
             // Sending ED to `ferdie` to create the account in storage
-            assert_ok!(Balances::transfer(
+            assert_ok!(Balances::transfer_allow_death(
                 RuntimeOrigin::signed(charlie.to_account_id()),
                 sp_runtime::MultiAddress::Id(ferdie.to_account_id()),
                 EXISTENTIAL_DEPOSIT,
@@ -515,7 +517,7 @@ fn dust_ends_up_in_offset_pool() {
             );
 
             // Sending ED / 2 out of `ferdie` creates dust
-            assert_ok!(Balances::transfer(
+            assert_ok!(Balances::transfer_allow_death(
                 RuntimeOrigin::signed(ferdie.to_account_id()),
                 sp_runtime::MultiAddress::Id(dave.to_account_id()),
                 EXISTENTIAL_DEPOSIT / 2,
@@ -577,7 +579,7 @@ fn slashed_proposals_back_to_treasury() {
             let initial_total_issuance = Balances::total_issuance();
 
             // Top up treasury balance
-            assert_ok!(Balances::transfer(
+            assert_ok!(Balances::transfer_allow_death(
                 RuntimeOrigin::signed(charlie.to_account_id()),
                 sp_runtime::MultiAddress::Id(treasury_id.clone()),
                 1_000 * UNITS,

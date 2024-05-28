@@ -30,15 +30,17 @@ use frame_election_provider_support::{
     bounds::ElectionBoundsBuilder, onchain, ElectionDataProvider, NposSolution, SequentialPhragmen,
     VoteWeight,
 };
-use frame_support::weights::ConstantMultiplier;
 pub use frame_support::{
     construct_runtime,
     dispatch::{DispatchClass, WeighData},
     parameter_types,
     traits::{
+        fungible::HoldConsideration,
+        tokens::{PayFromAccount, UnityAssetBalanceConversion},
         ConstU128, ConstU16, ConstU32, Contains, Currency, EitherOf, EitherOfDiverse,
         EqualPrivilegeOnly, Everything, FindAuthor, InstanceFilter, KeyOwnerProofSystem,
-        LockIdentifier, Nothing, OnUnbalanced, Randomness, StorageInfo, WithdrawReasons,
+        LinearStoragePrice, LockIdentifier, Nothing, OnUnbalanced, Randomness, StorageInfo,
+        WithdrawReasons,
     },
     weights::{
         constants::{
@@ -49,17 +51,25 @@ pub use frame_support::{
     },
     PalletId, StorageValue,
 };
+use frame_support::{
+    dispatch::DispatchInfo,
+    pallet_prelude::{
+        InvalidTransaction, TransactionLongevity, TransactionValidityError, ValidTransaction,
+    },
+    weights::ConstantMultiplier,
+};
 use frame_system::{
     limits::{BlockLength, BlockWeights},
     EnsureRoot,
 };
-use pallet_election_provider_multi_phase::SolutionAccuracyOf;
+use pallet_election_provider_multi_phase::{GeometricDepositBase, SolutionAccuracyOf};
 pub use pallet_gear::manager::{ExtManager, HandleKind};
 pub use pallet_gear_payment::CustomChargeTransactionPayment;
 pub use pallet_gear_staking_rewards::StakingBlackList;
 use pallet_grandpa::{
     fg_primitives, AuthorityId as GrandpaId, AuthorityList as GrandpaAuthorityList,
 };
+use pallet_identity::simple::IdentityInfo;
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use pallet_session::historical::{self as pallet_session_historical};
 pub use pallet_timestamp::Call as TimestampCall;
@@ -77,6 +87,7 @@ pub use runtime_common::{
 };
 pub use runtime_primitives::{AccountId, Signature, VARA_SS58_PREFIX};
 use runtime_primitives::{Balance, BlockNumber, Hash, Moment, Nonce};
+use scale_info::TypeInfo;
 use sp_api::impl_runtime_apis;
 #[cfg(any(feature = "std", test))]
 use sp_api::{CallApiAt, CallContext, Extensions, OverlayedChanges, ProofRecorder};
@@ -86,7 +97,10 @@ use sp_runtime::traits::HashingFor;
 use sp_runtime::{
     codec::{Decode, Encode, MaxEncodedLen},
     create_runtime_str, generic, impl_opaque_keys,
-    traits::{AccountIdLookup, BlakeTwo256, Block as BlockT, ConvertInto, NumberFor, OpaqueKeys},
+    traits::{
+        AccountIdLookup, BlakeTwo256, Block as BlockT, ConvertInto, DispatchInfoOf, Dispatchable,
+        IdentityLookup, NumberFor, One, OpaqueKeys, SignedExtension,
+    },
     transaction_validity::{TransactionPriority, TransactionSource, TransactionValidity},
     ApplyExtrinsicResult, FixedU128, Perbill, Percent, Permill, Perquintill, RuntimeDebug,
 };
@@ -155,7 +169,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     // The version of the runtime specification. A full node will not attempt to use its native
     //   runtime in substitute for the on-chain Wasm runtime unless all of `spec_name`,
     //   `spec_version`, and `authoring_version` are the same between Wasm and native.
-    spec_version: 1210,
+    spec_version: 1420,
     impl_version: 1,
     apis: RUNTIME_API_VERSIONS,
     transaction_version: 1,
@@ -324,9 +338,9 @@ impl pallet_scheduler::Config for Runtime {
 }
 
 parameter_types! {
-    pub const PreimageMaxSize: u32 = 4096 * 1024;
     pub const PreimageBaseDeposit: Balance = ECONOMIC_UNITS;
     pub const PreimageByteDeposit: Balance = ECONOMIC_CENTIUNITS;
+    pub const PreimageHoldReason: RuntimeHoldReason = RuntimeHoldReason::Preimage(pallet_preimage::HoldReason::Preimage);
 }
 
 impl pallet_preimage::Config for Runtime {
@@ -334,8 +348,12 @@ impl pallet_preimage::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type Currency = Balances;
     type ManagerOrigin = EnsureRoot<AccountId>;
-    type BaseDeposit = PreimageBaseDeposit;
-    type ByteDeposit = PreimageByteDeposit;
+    type Consideration = HoldConsideration<
+        AccountId,
+        Balances,
+        PreimageHoldReason,
+        LinearStoragePrice<PreimageBaseDeposit, PreimageByteDeposit, Balance>,
+    >;
 }
 
 parameter_types! {
@@ -355,8 +373,9 @@ impl pallet_balances::Config for Runtime {
     type ExistentialDeposit = ConstU128<EXISTENTIAL_DEPOSIT>;
     type AccountStore = System;
     type WeightInfo = ();
-    type FreezeIdentifier = ();
-    type MaxFreezes = ();
+    type RuntimeFreezeReason = RuntimeFreezeReason;
+    type FreezeIdentifier = RuntimeFreezeReason;
+    type MaxFreezes = ConstU32<8>;
     type RuntimeHoldReason = RuntimeHoldReason;
     type MaxHolds = ConstU32<2>;
 }
@@ -472,6 +491,9 @@ parameter_types! {
     pub const UnsignedPhase: u32 = EPOCH_DURATION_IN_BLOCKS / 4;
 
     // signed config
+    pub const SignedFixedDeposit: Balance = deposit(2, 0);
+    pub const SignedDepositIncreaseFactor: Percent = Percent::from_percent(10);
+
     pub const SignedRewardBase: Balance = ECONOMIC_UNITS;
     pub const SignedDepositBase: Balance = ECONOMIC_UNITS;
     pub const SignedDepositByte: Balance = ECONOMIC_CENTIUNITS;
@@ -574,7 +596,8 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
     type MinerConfig = Self;
     type SignedMaxSubmissions = ConstU32<10>;
     type SignedRewardBase = SignedRewardBase;
-    type SignedDepositBase = SignedDepositBase;
+    type SignedDepositBase =
+        GeometricDepositBase<Balance, SignedFixedDeposit, SignedDepositIncreaseFactor>;
     type SignedDepositByte = SignedDepositByte;
     type SignedMaxRefunds = ConstU32<3>;
     type SignedDepositWeight = ();
@@ -682,6 +705,7 @@ impl pallet_nomination_pools::Config for Runtime {
     type WeightInfo = ();
     type RuntimeEvent = RuntimeEvent;
     type Currency = Balances;
+    type RuntimeFreezeReason = RuntimeFreezeReason;
     type RewardCounter = FixedU128;
     type BalanceToU256 = BalanceToU256;
     type U256ToBalance = U256ToBalance;
@@ -710,8 +734,11 @@ parameter_types! {
     pub const TipReportDepositBase: Balance = ECONOMIC_UNITS;
     pub const DataDepositPerByte: Balance = ECONOMIC_CENTIUNITS;
     pub const TreasuryPalletId: PalletId = PalletId(*b"py/trsry");
+    pub const PayoutSpendPeriod: BlockNumber = 30 * DAYS;
+    pub TreasuryAccount: AccountId = Treasury::account_id();
     pub const MaximumReasonLength: u32 = 300;
     pub const MaxApprovals: u32 = 100;
+    pub const MaxBalance: Balance = Balance::max_value();
 }
 
 impl pallet_treasury::Config for Runtime {
@@ -731,6 +758,12 @@ impl pallet_treasury::Config for Runtime {
     type WeightInfo = pallet_treasury::weights::SubstrateWeight<Runtime>;
     type MaxApprovals = MaxApprovals;
     type SpendOrigin = TreasurySpender;
+    type AssetKind = ();
+    type Beneficiary = Self::AccountId;
+    type BeneficiaryLookup = IdentityLookup<Self::Beneficiary>;
+    type Paymaster = PayFromAccount<Balances, TreasuryAccount>;
+    type BalanceConverter = UnityAssetBalanceConversion;
+    type PayoutPeriod = PayoutSpendPeriod;
 }
 
 parameter_types! {
@@ -812,6 +845,7 @@ impl pallet_identity::Config for Runtime {
     type SubAccountDeposit = SubAccountDeposit;
     type MaxSubAccounts = MaxSubAccounts;
     type MaxAdditionalFields = MaxAdditionalFields;
+    type IdentityInformation = IdentityInfo<MaxAdditionalFields>;
     type MaxRegistrars = MaxRegistrars;
     type Slashed = Treasury;
     type ForceOrigin = EitherOf<EnsureRoot<AccountId>, GeneralAdmin>;
@@ -1059,10 +1093,7 @@ impl pallet_gear_messenger::Config for Runtime {
 }
 
 /// Builtin actors arranged in a tuple.
-#[cfg(not(feature = "runtime-benchmarks"))]
 pub type BuiltinActors = (pallet_gear_builtin::bls12_381::Actor<Runtime>,);
-#[cfg(feature = "runtime-benchmarks")]
-pub type BuiltinActors = pallet_gear_builtin::benchmarking::BenchmarkingBuiltinActor<Runtime>;
 
 parameter_types! {
     pub const BuiltinActorPalletId: PalletId = PalletId(*b"py/biact");
@@ -1107,7 +1138,7 @@ impl pallet_gear_payment::Config for Runtime {
 
 parameter_types! {
     pub const VoucherPalletId: PalletId = PalletId(*b"py/vouch");
-    pub const MinVoucherDuration: BlockNumber = 30 * MINUTES;
+    pub const MinVoucherDuration: BlockNumber = MINUTES;
     pub const MaxVoucherDuration: BlockNumber = 3 * MONTHS;
 }
 
@@ -1281,7 +1312,7 @@ pub type SignedExtra = (
     frame_system::CheckTxVersion<Runtime>,
     frame_system::CheckGenesis<Runtime>,
     frame_system::CheckEra<Runtime>,
-    frame_system::CheckNonce<Runtime>,
+    CustomCheckNonce<Runtime>,
     frame_system::CheckWeight<Runtime>,
     CustomChargeTransactionPayment<Runtime>,
 );
@@ -1530,5 +1561,105 @@ where
             extensions: core::cell::RefCell::new(params.4),
             extensions_generated_for: core::cell::RefCell::new(params.5),
         }
+    }
+}
+
+/// Nonce check and increment to give replay protection for transactions.
+///
+/// # Transaction Validity
+///
+/// This extension affects `requires` and `provides` tags of validity, but DOES NOT
+/// set the `priority` field. Make sure that AT LEAST one of the signed extension sets
+/// some kind of priority upon validating transactions.
+///
+/// NOTE: Copy-paste from substrate/frame/system/src/extensions/check_nonce.rs,
+/// but without providers and sufficients checks, so contains revert of changes
+/// from substrate v1.3.0 https://github.com/paritytech/polkadot-sdk/pull/1578.
+#[derive(Encode, Decode, Clone, Eq, PartialEq, TypeInfo)]
+#[scale_info(skip_type_params(T))]
+pub struct CustomCheckNonce<T: frame_system::Config>(#[codec(compact)] pub T::Nonce);
+
+impl<T: frame_system::Config> CustomCheckNonce<T> {
+    /// utility constructor. Used only in client/factory code.
+    pub fn from(nonce: T::Nonce) -> Self {
+        Self(nonce)
+    }
+}
+
+impl<T: frame_system::Config> sp_std::fmt::Debug for CustomCheckNonce<T> {
+    #[cfg(feature = "std")]
+    fn fmt(&self, f: &mut sp_std::fmt::Formatter) -> sp_std::fmt::Result {
+        write!(f, "CustomCheckNonce({})", self.0)
+    }
+
+    #[cfg(not(feature = "std"))]
+    fn fmt(&self, _: &mut sp_std::fmt::Formatter) -> sp_std::fmt::Result {
+        Ok(())
+    }
+}
+
+impl<T: frame_system::Config> SignedExtension for CustomCheckNonce<T>
+where
+    T::RuntimeCall: Dispatchable<Info = DispatchInfo>,
+{
+    type AccountId = <frame_system::CheckNonce<T> as SignedExtension>::AccountId;
+    type Call = <frame_system::CheckNonce<T> as SignedExtension>::Call;
+    type AdditionalSigned = <frame_system::CheckNonce<T> as SignedExtension>::AdditionalSigned;
+    type Pre = <frame_system::CheckNonce<T> as SignedExtension>::Pre;
+    const IDENTIFIER: &'static str = <frame_system::CheckNonce<T> as SignedExtension>::IDENTIFIER;
+
+    fn additional_signed(&self) -> sp_std::result::Result<(), TransactionValidityError> {
+        Ok(())
+    }
+
+    fn pre_dispatch(
+        self,
+        who: &Self::AccountId,
+        _call: &Self::Call,
+        _info: &DispatchInfoOf<Self::Call>,
+        _len: usize,
+    ) -> Result<(), TransactionValidityError> {
+        let mut account = frame_system::Account::<T>::get(who);
+
+        if self.0 != account.nonce {
+            return Err(if self.0 < account.nonce {
+                InvalidTransaction::Stale
+            } else {
+                InvalidTransaction::Future
+            }
+            .into());
+        }
+        account.nonce += T::Nonce::one();
+        frame_system::Account::<T>::insert(who, account);
+        Ok(())
+    }
+
+    fn validate(
+        &self,
+        who: &Self::AccountId,
+        _call: &Self::Call,
+        _info: &DispatchInfoOf<Self::Call>,
+        _len: usize,
+    ) -> TransactionValidity {
+        let account = frame_system::Account::<T>::get(who);
+
+        if self.0 < account.nonce {
+            return InvalidTransaction::Stale.into();
+        }
+
+        let provides = vec![Encode::encode(&(who, self.0))];
+        let requires = if account.nonce < self.0 {
+            vec![Encode::encode(&(who, self.0 - One::one()))]
+        } else {
+            vec![]
+        };
+
+        Ok(ValidTransaction {
+            priority: 0,
+            requires,
+            provides,
+            longevity: TransactionLongevity::max_value(),
+            propagate: true,
+        })
     }
 }

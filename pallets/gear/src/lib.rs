@@ -41,6 +41,7 @@ mod mock;
 #[cfg(test)]
 mod tests;
 
+pub mod migrations;
 pub mod pallet_tests;
 
 pub use crate::{
@@ -471,7 +472,6 @@ pub mod pallet {
     /// If not set, the inherent extrinsic that processes the queue will keep throwing an error
     /// thereby making the block builder exclude it from the block.
     #[pallet::storage]
-    #[pallet::getter(fn execute_inherent)]
     pub(crate) type ExecuteInherent<T> = StorageValue<_, bool, ValueQuery, ConstBool<true>>;
 
     /// The current block number being processed.
@@ -479,7 +479,6 @@ pub mod pallet {
     /// It shows block number in which queue is processed.
     /// May be less than system pallet block number if panic occurred previously.
     #[pallet::storage]
-    #[pallet::getter(fn block_number)]
     pub(crate) type BlockNumber<T: Config> = StorageValue<_, BlockNumberFor<T>, ValueQuery>;
 
     impl<T: Config> Get<BlockNumberFor<T>> for Pallet<T> {
@@ -504,7 +503,9 @@ pub mod pallet {
         /// Initialization
         fn on_initialize(bn: BlockNumberFor<T>) -> Weight {
             // Incrementing Gear block number
-            BlockNumber::<T>::mutate(|bn| *bn = bn.saturating_add(One::one()));
+            BlockNumber::<T>::mutate(|bn| {
+                *bn = bn.saturating_add(One::one());
+            });
 
             log::debug!(target: "gear::runtime", "⚙️  Initialization of block #{bn:?} (gear #{:?})", Self::block_number());
 
@@ -516,12 +517,21 @@ pub mod pallet {
             // Check if the queue has been processed.
             // If not (while the queue processing enabled), fire an event and revert
             // the Gear internal block number increment made in `on_initialize()`.
-            if GearRunInBlock::<T>::take().is_none() && Self::execute_inherent() {
+            if GearRunInBlock::<T>::take().is_none() && ExecuteInherent::<T>::get() {
                 Self::deposit_event(Event::QueueNotProcessed);
-                BlockNumber::<T>::mutate(|bn| *bn = bn.saturating_sub(One::one()));
+                BlockNumber::<T>::mutate(|bn| {
+                    *bn = bn.saturating_sub(One::one());
+                });
             }
 
             log::debug!(target: "gear::runtime", "⚙️  Finalization of block #{bn:?} (gear #{:?})", Self::block_number());
+        }
+    }
+
+    impl<T: Config> Pallet<T> {
+        /// Getter for [`BlockNumberFor<T>`] (BlockNumberFor)
+        pub(crate) fn block_number() -> BlockNumberFor<T> {
+            BlockNumber::<T>::get()
         }
     }
 
@@ -549,19 +559,19 @@ pub mod pallet {
             value: BalanceOf<T>,
         ) -> DispatchResultWithPostInfo {
             use gear_core::code::TryNewCodeConfig;
+            use gear_wasm_instrument::gas_metering::CustomConstantCostRules;
 
             let who = ensure_signed(origin)?;
 
-            let code = Code::try_new_mock_const_or_no_rules(
+            let code = Code::try_new_mock_with_rules(
                 code,
-                true,
+                |_| CustomConstantCostRules::new(0, 0, 0),
                 TryNewCodeConfig {
                     // actual version to avoid re-instrumentation
                     version: T::Schedule::get().instruction_weights.version,
                     // some benchmarks have data in user stack memory
-                    check_and_canonize_stack_end: false,
-                    // without stack end canonization, program has mutable globals.
-                    check_mut_global_exports: false,
+                    // TODO: consider to remove checking data section and stack overlap #3875
+                    check_data_section: false,
                     ..Default::default()
                 },
             )
@@ -1113,16 +1123,19 @@ pub mod pallet {
 
             // By the invariant set in CodeStorage trait, original code can't exist in storage
             // without the instrumented code
-            let original_code = T::CodeStorage::get_original_code(code_id).unwrap_or_else(|| unreachable!(
-                "Code storage is corrupted: instrumented code with id {:?} exists while original not",
-                code_id
-            ));
+            let original_code = T::CodeStorage::get_original_code(code_id).unwrap_or_else(||
+                unreachable!(
+                    "Code storage is corrupted: instrumented code with id {:?} exists while original not",
+                    code_id
+                )
+            );
 
             let code = Code::try_new(
                 original_code,
                 schedule.instruction_weights.version,
                 |module| schedule.rules(module),
                 schedule.limits.stack_height,
+                schedule.limits.data_segments_amount.into(),
             )?;
 
             let code_and_id = CodeAndId::from_parts_unchecked(code, code_id);
@@ -1137,7 +1150,7 @@ pub mod pallet {
             let schedule = T::Schedule::get();
 
             ensure!(
-                code.len() as u32 <= schedule.limits.code_len,
+                (code.len() as u32) <= schedule.limits.code_len,
                 Error::<T>::CodeTooLarge
             );
 
@@ -1146,6 +1159,7 @@ pub mod pallet {
                 schedule.instruction_weights.version,
                 |module| schedule.rules(module),
                 schedule.limits.stack_height,
+                schedule.limits.data_segments_amount.into(),
             )
             .map_err(|e| {
                 log::debug!("Code checking or instrumentation failed: {e}");
@@ -1153,7 +1167,7 @@ pub mod pallet {
             })?;
 
             ensure!(
-                code.code().len() as u32 <= schedule.limits.code_len,
+                (code.code().len() as u32) <= schedule.limits.code_len,
                 Error::<T>::CodeTooLarge
             );
 
@@ -1291,9 +1305,7 @@ pub mod pallet {
         /// Emits the following events:
         /// - `SavedCode(H256)` - when the code is saved in storage.
         #[pallet::call_index(0)]
-        #[pallet::weight(
-            <T as Config>::WeightInfo::upload_code(code.len() as u32 / 1024)
-        )]
+        #[pallet::weight(<T as Config>::WeightInfo::upload_code((code.len() as u32) / 1024))]
         pub fn upload_code(origin: OriginFor<T>, code: Vec<u8>) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
 
@@ -1340,7 +1352,7 @@ pub mod pallet {
         /// has been removed.
         #[pallet::call_index(1)]
         #[pallet::weight(
-            <T as Config>::WeightInfo::upload_program(code.len() as u32 / 1024, salt.len() as u32)
+            <T as Config>::WeightInfo::upload_program((code.len() as u32) / 1024, salt.len() as u32)
         )]
         pub fn upload_program(
             origin: OriginFor<T>,
@@ -1553,14 +1565,17 @@ pub mod pallet {
                 // Queueing dispatch.
                 QueueOf::<T>::queue(dispatch)
                     .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
-            };
+            }
 
             Ok(().into())
         }
 
         /// Process message queue
         #[pallet::call_index(6)]
-        #[pallet::weight((<T as frame_system::Config>::BlockWeights::get().max_block, DispatchClass::Mandatory))]
+        #[pallet::weight((
+            <T as frame_system::Config>::BlockWeights::get().max_block,
+            DispatchClass::Mandatory,
+        ))]
         pub fn run(
             origin: OriginFor<T>,
             max_gas: Option<GasBalanceOf<T>>,
@@ -1594,7 +1609,7 @@ pub mod pallet {
             // Gas for queue processing can never exceed the hard limit, if the latter is provided.
             if let Some(max_gas) = max_gas {
                 adjusted_gas = adjusted_gas.min(max_gas);
-            };
+            }
 
             log::debug!(
                 target: "gear::runtime",
@@ -1843,7 +1858,7 @@ pub mod pallet {
                     <T as Config>::WeightInfo::send_reply(payload.len() as u32)
                 }
                 PrepaidCall::UploadCode { code } => {
-                    <T as Config>::WeightInfo::upload_code(code.len() as u32 / 1024)
+                    <T as Config>::WeightInfo::upload_code((code.len() as u32) / 1024)
                 }
                 PrepaidCall::DeclineVoucher => {
                     <T as pallet_gear_voucher::Config>::WeightInfo::decline()

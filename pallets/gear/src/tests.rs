@@ -33,7 +33,7 @@ use crate::{
 };
 use common::{
     event::*, scheduler::*, storage::*, ActiveProgram, CodeStorage, GasTree, LockId, LockableTree,
-    Origin as _, ProgramStorage, ReservableTree,
+    Origin as _, Program, ProgramStorage, ReservableTree,
 };
 use core_processor::common::ActorExecutionErrorReplyReason;
 use frame_support::{
@@ -49,7 +49,7 @@ use gear_core::{
         ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext, Payload,
         ReplyInfo, StoredDispatch, UserStoredMessage,
     },
-    pages::PageNumber,
+    pages::WasmPage,
 };
 use gear_core_backend::error::{
     TrapExplanation, UnrecoverableExecutionError, UnrecoverableExtError, UnrecoverableWaitError,
@@ -100,7 +100,7 @@ fn calculate_reply_for_handle_works() {
 
         // Out of gas panic case.
         let res =
-            Gear::calculate_reply_for_handle(USER_1, ping_pong, b"PING".to_vec(), 1_000_000_000, 0)
+            Gear::calculate_reply_for_handle(USER_1, ping_pong, b"PING".to_vec(), 333_333_333, 0)
                 .expect("Failed to query reply");
 
         assert_eq!(
@@ -223,6 +223,7 @@ fn state_rpc_calls_trigger_reinstrumentation() {
             0, // invalid version
             |module| schedule.rules(module),
             schedule.limits.stack_height,
+            schedule.limits.data_segments_amount.into(),
         )
         .expect("Failed to create dummy code");
 
@@ -2132,15 +2133,8 @@ fn delayed_send_user_message_with_reservation() {
 
         run_to_next_block(None);
 
-        // Check that last event is UserMessageSent.
-        let last_event = match get_last_event() {
-            MockRuntimeEvent::Gear(e) => e,
-            _ => panic!("Should be one Gear event"),
-        };
-        match last_event {
-            Event::UserMessageSent { message, .. } => assert_eq!(delayed_id, message.id()),
-            _ => panic!("Test failed: expected Event::UserMessageSent"),
-        }
+        let last_mail = get_last_mail(USER_2);
+        assert_eq!(last_mail.id(), delayed_id);
 
         // Mailbox should not be empty.
         assert!(!MailboxOf::<Test>::is_empty(&USER_2));
@@ -3858,7 +3852,7 @@ fn gas_limit_exceeded_oob_case() {
 
 #[test]
 fn lazy_pages() {
-    use gear_core::pages::{GearPage, PageU32Size};
+    use gear_core::pages::GearPage;
     use gear_runtime_interface as gear_ri;
     use std::collections::BTreeSet;
 
@@ -3953,14 +3947,14 @@ fn lazy_pages() {
         expected_write_accessed_pages.insert(0);
 
         // released from 2 wasm page:
-        expected_write_accessed_pages.insert(0x23ffe / GearPage::size());
-        expected_write_accessed_pages.insert(0x24001 / GearPage::size());
+        expected_write_accessed_pages.insert(0x23ffe / GearPage::SIZE);
+        expected_write_accessed_pages.insert(0x24001 / GearPage::SIZE);
 
         // nothing for 5 wasm page, because it's just read access
 
         // released from 8 and 9 wasm pages, must be several gear pages:
-        expected_write_accessed_pages.insert(0x8fffc / GearPage::size());
-        expected_write_accessed_pages.insert(0x90003 / GearPage::size());
+        expected_write_accessed_pages.insert(0x8fffc / GearPage::SIZE);
+        expected_write_accessed_pages.insert(0x90003 / GearPage::SIZE);
 
         assert_eq!(write_accessed_pages, expected_write_accessed_pages);
     });
@@ -4467,14 +4461,14 @@ fn events_logging_works() {
                 Some(ActorExecutionErrorReplyReason::Trap(
                     TrapExplanation::GasLimitExceeded,
                 )),
-                Some(ErrorReplyReason::InactiveProgram.into()),
+                Some(ErrorReplyReason::InactiveActor.into()),
             ),
             (
                 ProgramCodeKind::Custom(wat_trap_in_init),
                 Some(ActorExecutionErrorReplyReason::Trap(
                     TrapExplanation::Unknown,
                 )),
-                Some(ErrorReplyReason::InactiveProgram.into()),
+                Some(ErrorReplyReason::InactiveActor.into()),
             ),
             // First try asserts by status code.
             (
@@ -4807,12 +4801,16 @@ fn claim_value_works() {
         let expected_sender_balance =
             sender_balance + charged_for_page_load - value_sent - gas_burned - burned_for_hold;
         assert_eq!(Balances::free_balance(USER_2), expected_sender_balance);
+
+        // To trigger GearBank::on_finalize -> transfer to pool performed.
+        run_to_next_block(Some(0));
+
         assert_eq!(
             Balances::free_balance(RENT_POOL),
             balance_rent_pool + burned_for_hold
         );
 
-        System::assert_last_event(
+        System::assert_has_event(
             Event::UserMessageRead {
                 id: reply_to_id,
                 reason: UserMessageReadRuntimeReason::MessageClaimed.into_reason(),
@@ -4969,6 +4967,7 @@ fn test_code_submission_pass() {
             schedule.instruction_weights.version,
             |module| schedule.rules(module),
             schedule.limits.stack_height,
+            schedule.limits.data_segments_amount.into(),
         )
         .expect("Error creating Code");
         assert_eq!(saved_code.unwrap().code(), code.code());
@@ -5125,7 +5124,7 @@ fn messages_to_uninitialized_program_wait() {
         assert!(utils::is_active(program_id));
 
         assert_ok!(Gear::send_message(
-            RuntimeOrigin::signed(1),
+            RuntimeOrigin::signed(USER_1),
             program_id,
             vec![],
             10_000u64,
@@ -5135,9 +5134,15 @@ fn messages_to_uninitialized_program_wait() {
 
         run_to_block(3, None);
 
+        let auto_reply = maybe_last_message(USER_1).expect("Should be");
+        assert!(auto_reply.details().is_some());
         assert_eq!(
-            ProgramStorageOf::<Test>::waiting_init_take_messages(program_id).len(),
-            1
+            auto_reply.payload_bytes(),
+            ErrorReplyReason::InactiveActor.to_string().as_bytes()
+        );
+        assert_eq!(
+            auto_reply.reply_code().expect("Should be"),
+            ReplyCode::Error(ErrorReplyReason::InactiveActor)
         );
     })
 }
@@ -5270,8 +5275,7 @@ fn wake_messages_after_program_inited() {
 
         run_to_block(2, None);
 
-        // While program is not inited all messages addressed to it are waiting.
-        // There could be dozens of them.
+        // While program is not inited all messages addressed to it got error reply
         let n = 10;
         for _ in 0..n {
             assert_ok!(Gear::send_message(
@@ -5308,7 +5312,10 @@ fn wake_messages_after_program_inited() {
                 MockRuntimeEvent::Gear(Event::UserMessageSent { message, .. })
                     if message.destination().into_origin() == USER_3.into_origin() =>
                 {
-                    assert_eq!(message.payload_bytes().to_vec(), b"Hello, world!".encode());
+                    assert_eq!(
+                        message.reply_code(),
+                        Some(ReplyCode::Error(ErrorReplyReason::InactiveActor))
+                    );
                     Some(())
                 }
                 _ => None,
@@ -6303,7 +6310,7 @@ fn terminated_locking_funds() {
             .memory_weights
             .static_page
             .ref_time()
-            .saturating_mul(code.static_pages().raw() as u64);
+            .saturating_mul(u32::from(code.static_pages()) as u64);
 
         // Additional gas for loading resources on next wake up.
         // Must be exactly equal to gas, which we must pre-charge for program execution.
@@ -6456,6 +6463,7 @@ fn test_create_program_works() {
             schedule.instruction_weights.version,
             |module| schedule.rules(module),
             schedule.limits.stack_height,
+            schedule.limits.data_segments_amount.into(),
         )
         .expect("Code failed to load");
 
@@ -6650,7 +6658,7 @@ fn test_create_program_simple() {
             RuntimeOrigin::signed(USER_1),
             factory_id,
             CreateProgram::Custom(
-                vec![(child_code_hash, b"some_data".to_vec(), 300_000)] // too little gas
+                vec![(child_code_hash, b"some_data".to_vec(), 150_000)] // too little gas
             )
             .encode(),
             10_000_000_000,
@@ -6686,8 +6694,8 @@ fn test_create_program_simple() {
             RuntimeOrigin::signed(USER_1),
             factory_id,
             CreateProgram::Custom(vec![
-                (child_code_hash, b"salt3".to_vec(), 300_000), // too little gas
-                (child_code_hash, b"salt4".to_vec(), 300_000), // too little gas
+                (child_code_hash, b"salt3".to_vec(), 150_000), // too little gas
+                (child_code_hash, b"salt4".to_vec(), 150_000), // too little gas
             ])
             .encode(),
             50_000_000_000,
@@ -6985,7 +6993,7 @@ fn test_create_program_miscellaneous() {
             CreateProgram::Custom(vec![
                 // init fail (not enough gas) and reply generated (+2 dequeued, +1 dispatched),
                 // handle message is processed, but not executed, reply generated (+2 dequeued, +1 dispatched)
-                (child2_code_hash, b"salt1".to_vec(), 300_000),
+                (child2_code_hash, b"salt1".to_vec(), 150_000),
                 // one successful init with one handle message (+2 dequeued, +1 dispatched, +1 successful init)
                 (child2_code_hash, b"salt2".to_vec(), 200_000_000),
             ])
@@ -7159,12 +7167,17 @@ fn init_wait_reply_exit_cleaned_storage() {
 
         // block 3
         //
-        // - count waiting init messages
+        // - assert responses in events
         // - reply and wake program
         // - check program status
         run_to_block(3, None);
-        assert_eq!(waiting_init_messages(pid).len(), count);
-        assert_eq!(WaitlistOf::<Test>::iter_key(pid).count(), count + 1);
+
+        let mut responses =
+            vec![Assertion::ReplyCode(ReplyCode::Error(ErrorReplyReason::InactiveActor)); count];
+        responses.insert(0, Assertion::Payload(vec![])); // init response
+        assert_responses_to_user(USER_1, responses);
+
+        assert_eq!(WaitlistOf::<Test>::iter_key(pid).count(), 1);
 
         let msg_id = MailboxOf::<Test>::iter_key(USER_1)
             .next()
@@ -7186,12 +7199,10 @@ fn init_wait_reply_exit_cleaned_storage() {
         // block 4
         //
         // - check if program has terminated
-        // - check waiting_init storage is empty
         // - check wait list is empty
         run_to_block(4, None);
         assert!(!Gear::is_initialized(pid));
         assert!(!utils::is_active(pid));
-        assert_eq!(waiting_init_messages(pid).len(), 0);
         assert_eq!(WaitlistOf::<Test>::iter_key(pid).count(), 0);
     })
 }
@@ -9807,14 +9818,16 @@ fn missing_handle_is_not_executed() {
 
 #[test]
 fn invalid_memory_page_amount_rejected() {
+    let incorrect_amount = code::MAX_WASM_PAGES_AMOUNT + 1;
+
     let wat = format!(
         r#"
-    (module
-        (import "env" "memory" (memory {}))
-        (export "init" (func $init))
-        (func $init)
-    )"#,
-        code::MAX_WASM_PAGE_AMOUNT + 1
+            (module
+                (import "env" "memory" (memory {incorrect_amount}))
+                (export "init" (func $init))
+                (func $init)
+            )
+        "#
     );
 
     init_logger();
@@ -9990,6 +10003,7 @@ fn test_mad_big_prog_instrumentation() {
             schedule.instruction_weights.version,
             |module| schedule.rules(module),
             schedule.limits.stack_height,
+            schedule.limits.data_segments_amount.into(),
         );
         // In any case of the defined weights on the platform, instrumentation of the valid
         // huge wasm mustn't fail
@@ -12482,14 +12496,35 @@ fn async_init() {
     };
 
     new_test_ext().execute_with(|| {
+        // upload and send to uninitialized program
         let demo = upload();
         send_payloads(USER_1, demo, vec![b"PING".to_vec()]);
+
         run_to_next_block(None);
 
         assert_responses_to_user(
             USER_1,
             vec![
+                // `demo_async_init` sent error reply on "PING" message
+                Assertion::ReplyCode(ErrorReplyReason::InactiveActor.into()),
+                // `demo_async_init`'s `init` was successful
                 Assertion::ReplyCode(SuccessReplyReason::Auto.into()),
+            ],
+        );
+
+        print_gear_events();
+
+        System::reset_events();
+
+        // send to already initialized program
+        send_payloads(USER_1, demo, vec![b"PING".to_vec()]);
+
+        run_to_next_block(None);
+
+        assert_responses_to_user(
+            USER_1,
+            vec![
+                // `demo_async_init` sent amount of responses it got from `demo_ping`
                 Assertion::Payload(2u8.encode()),
             ],
         );
@@ -13017,45 +13052,6 @@ fn relay_messages() {
     );
 }
 
-// TODO: move to gear-core after #3736
-#[test]
-fn module_instantiation_error() {
-    // Unknown global import leads to instantiation error.
-    let wat = r#"
-        (module
-            (import "env" "memory" (memory 1))
-            (import "env" "unknown" (global $unknown i32))
-            (export "init" (func $init))
-            (func $init)
-        )
-    "#;
-
-    init_logger();
-    new_test_ext().execute_with(|| {
-        let code = ProgramCodeKind::Custom(wat).to_bytes();
-        let salt = DEFAULT_SALT.to_vec();
-        let prog_id = generate_program_id(&code, &salt);
-        Gear::upload_program(
-            RuntimeOrigin::signed(USER_1),
-            code,
-            salt,
-            EMPTY_PAYLOAD.to_vec(),
-            50_000_000_000,
-            0,
-            false,
-        )
-        .unwrap();
-
-        let mid = get_last_message_id();
-
-        run_to_next_block(None);
-
-        assert!(Gear::is_terminated(prog_id));
-        let err = get_last_event_error(mid);
-        assert!(err.starts_with(&ActorExecutionErrorReplyReason::Environment.to_string()));
-    });
-}
-
 #[test]
 fn wrong_entry_type() {
     let wat = r#"
@@ -13073,7 +13069,8 @@ fn wrong_entry_type() {
                 ProgramCodeKind::Custom(wat).to_bytes(),
                 1,
                 |_| CustomConstantCostRules::default(),
-                None
+                None,
+                None,
             ),
             Err(CodeError::Export(ExportError::InvalidExportFnSignature(0)))
         ));
@@ -14040,7 +14037,7 @@ fn test_send_to_terminated_from_program() {
             .expect("internal error: no message from proxy");
         assert_eq!(
             mail_from_proxy.payload_bytes().to_vec(),
-            ReplyCode::Error(ErrorReplyReason::InactiveProgram).encode()
+            ReplyCode::Error(ErrorReplyReason::InactiveActor).encode()
         );
         assert_eq!(mails_from_proxy_iter.next(), None);
 
@@ -14832,7 +14829,75 @@ fn incorrect_store_context() {
     });
 }
 
-mod utils {
+#[test]
+fn allocate_in_init_free_in_handle() {
+    let static_pages = 16u16;
+    let wat = format!(
+        r#"
+        (module
+            (import "env" "memory" (memory {static_pages}))
+            (import "env" "alloc" (func $alloc (param i32) (result i32)))
+            (import "env" "free" (func $free (param i32) (result i32)))
+            (export "init" (func $init))
+            (export "handle" (func $handle))
+            (func $init
+                (call $alloc (i32.const 1))
+                drop
+            )
+            (func $handle
+                (call $free (i32.const {static_pages}))
+                drop
+            )
+        )
+    "#
+    );
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            ProgramCodeKind::Custom(wat.as_str()).to_bytes(),
+            DEFAULT_SALT.to_vec(),
+            vec![],
+            1_000_000_000,
+            0,
+            false,
+        ));
+
+        let program_id = get_last_program_id();
+
+        run_to_next_block(None);
+
+        let Some(Program::Active(program)) = ProgramStorageOf::<Test>::get_program(program_id)
+        else {
+            panic!("program must be active")
+        };
+        assert_eq!(
+            program.allocations,
+            [WasmPage::from(static_pages)].into_iter().collect()
+        );
+
+        Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            program_id,
+            vec![],
+            1_000_000_000,
+            0,
+            true,
+        )
+        .unwrap();
+
+        run_to_next_block(None);
+
+        let Some(Program::Active(program)) = ProgramStorageOf::<Test>::get_program(program_id)
+        else {
+            panic!("program must be active")
+        };
+        assert_eq!(program.allocations, Default::default());
+    });
+}
+
+pub(crate) mod utils {
     #![allow(unused)]
 
     use super::{
@@ -14869,6 +14934,7 @@ mod utils {
     use sp_core::H256;
     use sp_runtime::{codec::Decode, traits::UniqueSaturatedInto};
     use sp_std::{convert::TryFrom, fmt::Debug};
+    use std::iter;
 
     pub(super) const DEFAULT_GAS_LIMIT: u64 = 200_000_000;
     pub(super) const DEFAULT_SALT: &[u8; 4] = b"salt";
@@ -15020,7 +15086,7 @@ mod utils {
     }
 
     #[track_caller]
-    pub(super) fn assert_last_dequeued(expected: u32) {
+    pub(crate) fn assert_last_dequeued(expected: u32) {
         let last_dequeued = System::events()
             .iter()
             .filter_map(|e| {
@@ -15657,7 +15723,7 @@ mod utils {
         }
     }
 
-    pub(super) fn print_gear_events() {
+    pub(crate) fn print_gear_events() {
         let v = System::events()
             .into_iter()
             .map(|r| r.event)
@@ -15667,10 +15733,6 @@ mod utils {
         for (pos, line) in v.iter().enumerate() {
             println!("{pos}). {line:?}");
         }
-    }
-
-    pub(super) fn waiting_init_messages(pid: ProgramId) -> Vec<MessageId> {
-        ProgramStorageOf::<Test>::waiting_init_get_messages(pid)
     }
 
     #[track_caller]
@@ -15697,32 +15759,45 @@ mod utils {
     }
 
     #[derive(Clone, Debug, Eq, PartialEq)]
-    pub(super) enum Assertion {
+    pub(crate) enum Assertion {
         Payload(Vec<u8>),
         ReplyCode(ReplyCode),
     }
 
     #[track_caller]
-    pub(super) fn assert_responses_to_user(user_id: AccountId, assertions: Vec<Assertion>) {
-        let mut res = vec![];
+    pub(crate) fn assert_responses_to_user(user_id: AccountId, assertions: Vec<Assertion>) {
+        let messages: Vec<UserMessage> = System::events()
+            .into_iter()
+            .filter_map(|e| {
+                if let MockRuntimeEvent::Gear(Event::UserMessageSent { message, .. }) = e.event {
+                    Some(message)
+                } else {
+                    None
+                }
+            })
+            .filter(|message| message.destination() == user_id.into())
+            .collect();
 
-        System::events().iter().for_each(|e| {
-            if let MockRuntimeEvent::Gear(Event::UserMessageSent { message, .. }) = &e.event {
-                if message.destination() == user_id.into() {
-                    match assertions[res.len()] {
-                        Assertion::Payload(_) => {
-                            res.push(Assertion::Payload(message.payload_bytes().to_vec()))
-                        }
-                        Assertion::ReplyCode(_) => {
-                            // `ReplyCode::Unsupported` used to avoid options here.
-                            res.push(Assertion::ReplyCode(
-                                message.reply_code().unwrap_or(ReplyCode::Unsupported),
-                            ))
-                        }
+        if messages.len() != assertions.len() {
+            panic!(
+                "Expected {} messages, you assert only {} of them\n{:?}",
+                messages.len(),
+                assertions.len(),
+                messages
+            )
+        }
+
+        let res: Vec<Assertion> = iter::zip(messages, &assertions)
+            .map(|(message, assertion)| {
+                match assertion {
+                    Assertion::Payload(_) => Assertion::Payload(message.payload_bytes().to_vec()),
+                    Assertion::ReplyCode(_) => {
+                        // `ReplyCode::Unsupported` used to avoid options here.
+                        Assertion::ReplyCode(message.reply_code().unwrap_or(ReplyCode::Unsupported))
                     }
                 }
-            }
-        });
+            })
+            .collect();
 
         assert_eq!(res, assertions);
     }

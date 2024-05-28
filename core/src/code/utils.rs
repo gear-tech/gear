@@ -21,7 +21,7 @@
 use crate::{
     code::errors::*,
     message::{DispatchKind, WasmEntryPoint},
-    pages::{PageNumber, PageU32Size, WasmPage},
+    pages::{WasmPage, WasmPagesAmount},
 };
 use alloc::collections::BTreeSet;
 use gear_wasm_instrument::{
@@ -33,7 +33,7 @@ use gear_wasm_instrument::{
 };
 
 /// Defines maximal permitted count of memory pages.
-pub const MAX_WASM_PAGE_AMOUNT: u16 = 512;
+pub const MAX_WASM_PAGES_AMOUNT: u16 = 512;
 
 /// Name of exports allowed on chain.
 pub const ALLOWED_EXPORTS: [&str; 6] = [
@@ -48,7 +48,7 @@ pub const ALLOWED_EXPORTS: [&str; 6] = [
 /// Name of exports required on chain (only 1 of these is required).
 pub const REQUIRED_EXPORTS: [&str; 2] = ["init", "handle"];
 
-pub fn get_static_pages(module: &Module) -> Result<WasmPage, CodeError> {
+pub fn get_static_pages(module: &Module) -> Result<WasmPagesAmount, CodeError> {
     // get initial memory size from memory import
     let static_pages = module
         .import_section()
@@ -59,11 +59,11 @@ pub fn get_static_pages(module: &Module) -> Result<WasmPage, CodeError> {
             External::Memory(mem_ty) => Some(mem_ty.limits().initial()),
             _ => None,
         })
-        .map(WasmPage::new)
+        .map(WasmPagesAmount::try_from)
         .ok_or(MemoryError::EntryNotFound)?
         .map_err(|_| MemoryError::InvalidStaticPageCount)?;
 
-    if static_pages.raw() > MAX_WASM_PAGE_AMOUNT as u32 {
+    if static_pages > WasmPagesAmount::from(MAX_WASM_PAGES_AMOUNT) {
         Err(MemoryError::InvalidStaticPageCount)?;
     }
 
@@ -161,35 +161,51 @@ pub fn check_imports(module: &Module) -> Result<(), CodeError> {
     let syscalls = SyscallName::instrumentable_map();
 
     let mut visited_imports = BTreeSet::new();
+
     for (import_index, import) in imports.iter().enumerate() {
-        let External::Function(i) = import.external() else {
-            continue;
-        };
+        let import_index: u32 = import_index
+            .try_into()
+            .unwrap_or_else(|_| unreachable!("Import index should fit in u32"));
 
-        // Panic is impossible, unless the Module structure is invalid.
-        let Type::Function(func_type) = &types
-            .get(*i as usize)
-            .unwrap_or_else(|| unreachable!("Module structure is invalid"));
+        match import.external() {
+            External::Function(i) => {
+                // Panic is impossible, unless the Module structure is invalid.
+                let Type::Function(func_type) = &types
+                    .get(*i as usize)
+                    .unwrap_or_else(|| unreachable!("Module structure is invalid"));
 
-        let syscall = syscalls
-            .get(import.field())
-            .ok_or(ImportError::UnknownImport(import_index as u32))?;
+                let syscall = syscalls
+                    .get(import.field())
+                    .ok_or(ImportError::UnknownImport(import_index))?;
 
-        if !visited_imports.insert(*syscall) {
-            Err(ImportError::DuplicateImport(import_index as u32))?;
-        }
+                if !visited_imports.insert(*syscall) {
+                    Err(ImportError::DuplicateImport(import_index))?;
+                }
 
-        let signature = syscall.signature();
+                let signature = syscall.signature();
 
-        let params = signature
-            .params()
-            .iter()
-            .copied()
-            .map(Into::<ValueType>::into);
-        let results = signature.results().unwrap_or(&[]);
+                let params = signature
+                    .params()
+                    .iter()
+                    .copied()
+                    .map(Into::<ValueType>::into);
+                let results = signature.results().unwrap_or(&[]);
 
-        if !(params.eq(func_type.params().iter().copied()) && results == func_type.results()) {
-            Err(ImportError::InvalidImportFnSignature(import_index as u32))?;
+                if !(params.eq(func_type.params().iter().copied())
+                    && results == func_type.results())
+                {
+                    Err(ImportError::InvalidImportFnSignature(import_index))?;
+                }
+            }
+            External::Global(_) => Err(ImportError::UnexpectedImportKind {
+                kind: &"Global",
+                index: import_index,
+            })?,
+            External::Table(_) => Err(ImportError::UnexpectedImportKind {
+                kind: &"Table",
+                index: import_index,
+            })?,
+            _ => continue,
         }
     }
 
@@ -246,13 +262,25 @@ fn get_export_global_entry(
 /// Check that data segments are not overlapping with stack and are inside static pages.
 pub fn check_data_section(
     module: &Module,
-    static_pages: WasmPage,
+    static_pages: WasmPagesAmount,
     stack_end: Option<WasmPage>,
+    data_section_amount_limit: Option<u32>,
 ) -> Result<(), CodeError> {
     let Some(data_section) = module.data_section() else {
         // No data section - nothing to check.
         return Ok(());
     };
+
+    // Check that data segments amount does not exceed the limit.
+    if let Some(data_segments_amount_limit) = data_section_amount_limit {
+        let number_of_data_segments = data_section.entries().len() as u32;
+        if number_of_data_segments > data_segments_amount_limit {
+            Err(DataSectionError::DataSegmentsAmountLimit {
+                limit: data_segments_amount_limit,
+                actual: number_of_data_segments,
+            })?;
+        }
+    }
 
     for data_segment in data_section.entries() {
         let data_segment_offset = data_segment
@@ -283,7 +311,7 @@ pub fn check_data_section(
             .checked_add(size)
             .ok_or(DataSectionError::EndAddressOverflow(data_segment_offset))?;
 
-        (data_segment_last_byte_offset < static_pages.offset())
+        ((data_segment_last_byte_offset as u64) < static_pages.offset())
             .then_some(())
             .ok_or(DataSectionError::EndAddressOutOfStaticMemory(
                 data_segment_offset,
@@ -312,7 +340,7 @@ fn get_stack_end_offset(module: &Module) -> Result<Option<u32>, CodeError> {
 
 pub fn check_and_canonize_gear_stack_end(
     module: &mut Module,
-    static_pages: WasmPage,
+    static_pages: WasmPagesAmount,
 ) -> Result<Option<WasmPage>, CodeError> {
     let Some(stack_end_offset) = get_stack_end_offset(module)? else {
         return Ok(None);
@@ -326,7 +354,7 @@ pub fn check_and_canonize_gear_stack_end(
         .entries_mut()
         .retain(|export| export.field() != STACK_END_EXPORT_NAME);
 
-    if stack_end_offset % WasmPage::size() != 0 {
+    if stack_end_offset % WasmPage::SIZE != 0 {
         return Err(StackEndError::NotAligned(stack_end_offset).into());
     }
 

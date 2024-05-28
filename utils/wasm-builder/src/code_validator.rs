@@ -201,6 +201,8 @@ pub enum ImportErrorWithContext {
         Actual signature: `{2}`"
     )]
     InvalidImportFnSignature(String, PrintableFunctionType, PrintableFunctionType),
+    #[error("Unexpected import `{name}` of kind `{kind}`")]
+    UnexpectedImportKind { kind: String, name: String },
 }
 
 impl TryFrom<(&Module, &ImportError)> for ImportErrorWithContext {
@@ -209,8 +211,12 @@ impl TryFrom<(&Module, &ImportError)> for ImportErrorWithContext {
     fn try_from((module, import_error): (&Module, &ImportError)) -> Result<Self, Self::Error> {
         use ImportError::*;
 
-        let (UnknownImport(idx) | DuplicateImport(idx) | InvalidImportFnSignature(idx)) =
-            import_error;
+        let idx = match import_error {
+            UnknownImport(idx)
+            | DuplicateImport(idx)
+            | InvalidImportFnSignature(idx)
+            | UnexpectedImportKind { index: idx, .. } => idx,
+        };
 
         let Some(import_entry) = module
             .import_section()
@@ -219,19 +225,23 @@ impl TryFrom<(&Module, &ImportError)> for ImportErrorWithContext {
             bail!("failed to get import entry by index");
         };
 
-        let &External::Function(func_index) = import_entry.external() else {
-            bail!("import must be function");
-        };
-
         let import_name = import_entry.field().to_owned();
 
         Ok(match import_error {
             UnknownImport(_) => Self::UnknownImport(import_name),
             DuplicateImport(_) => Self::DuplicateImport(import_name),
+            UnexpectedImportKind { kind, .. } => Self::UnexpectedImportKind {
+                kind: kind.to_string(),
+                name: import_name,
+            },
             InvalidImportFnSignature(_) => {
                 let syscalls = SyscallName::instrumentable_map();
                 let Some(syscall) = syscalls.get(&import_name) else {
                     bail!("failed to get syscall by name");
+                };
+
+                let &External::Function(func_index) = import_entry.external() else {
+                    bail!("import must be function");
                 };
 
                 let expected_signature =
@@ -309,7 +319,13 @@ impl CodeValidator {
     /// Validates wasm code in the same way as
     /// `pallet_gear::pallet::Pallet::upload_program(...)`.
     pub fn validate_program(self) -> anyhow::Result<()> {
-        match Code::try_new(self.code, 1, |_| CustomConstantCostRules::default(), None) {
+        match Code::try_new(
+            self.code,
+            1,
+            |_| CustomConstantCostRules::default(),
+            None,
+            None,
+        ) {
             Err(code_error) => Err(CodeErrorWithContext::from((self.module, code_error)))?,
             _ => Ok(()),
         }

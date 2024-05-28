@@ -24,6 +24,7 @@ use crate::{
 };
 use alloc::string::String;
 use gear_sandbox_env::GLOBAL_NAME_GAS;
+use sp_core::RuntimeDebug;
 use sp_std::{collections::btree_map::BTreeMap, marker::PhantomData, mem, prelude::*};
 use sp_wasm_interface_common::HostPointer;
 use wasmi::{
@@ -36,6 +37,7 @@ use wasmi::{
 pub trait AsContext: wasmi::AsContext + wasmi::AsContextMut {}
 
 /// wasmi store wrapper.
+#[derive(RuntimeDebug)]
 pub struct Store<T>(wasmi::Store<T>);
 
 impl<T> Store<T> {
@@ -44,7 +46,7 @@ impl<T> Store<T> {
     }
 }
 
-impl<T> SandboxStore<T> for Store<T> {
+impl<T> SandboxStore for Store<T> {
     fn new(state: T) -> Self {
         let register_len = mem::size_of::<UntypedValue>();
 
@@ -82,8 +84,10 @@ impl<T> wasmi::AsContextMut for Store<T> {
     }
 }
 
-impl<T> AsContextExt<T> for Store<T> {
-    fn data_mut(&mut self) -> &mut T {
+impl<T> AsContextExt for Store<T> {
+    type State = T;
+
+    fn data_mut(&mut self) -> &mut Self::State {
         self.0.data_mut()
     }
 }
@@ -107,8 +111,10 @@ impl<T> wasmi::AsContextMut for Caller<'_, T> {
     }
 }
 
-impl<T> AsContextExt<T> for Caller<'_, T> {
-    fn data_mut(&mut self) -> &mut T {
+impl<T> AsContextExt for Caller<'_, T> {
+    type State = T;
+
+    fn data_mut(&mut self) -> &mut Self::State {
         self.0.data_mut()
     }
 }
@@ -130,7 +136,7 @@ impl<T> super::SandboxMemory<T> for Memory {
 
     fn read<Context>(&self, ctx: &Context, ptr: u32, buf: &mut [u8]) -> Result<(), Error>
     where
-        Context: AsContextExt<T>,
+        Context: AsContextExt<State = T>,
     {
         let data = self
             .memref
@@ -143,7 +149,7 @@ impl<T> super::SandboxMemory<T> for Memory {
 
     fn write<Context>(&self, ctx: &mut Context, ptr: u32, value: &[u8]) -> Result<(), Error>
     where
-        Context: AsContextExt<T>,
+        Context: AsContextExt<State = T>,
     {
         let data = self
             .memref
@@ -156,7 +162,7 @@ impl<T> super::SandboxMemory<T> for Memory {
 
     fn grow<Context>(&self, ctx: &mut Context, pages: u32) -> Result<u32, Error>
     where
-        Context: AsContextExt<T>,
+        Context: AsContextExt<State = T>,
     {
         let pages = Pages::new(pages).ok_or(Error::MemoryGrow)?;
         self.memref
@@ -167,16 +173,16 @@ impl<T> super::SandboxMemory<T> for Memory {
 
     fn size<Context>(&self, ctx: &Context) -> u32
     where
-        Context: AsContextExt<T>,
+        Context: AsContextExt<State = T>,
     {
         self.memref.current_pages(ctx).into()
     }
 
-    unsafe fn get_buff<Context>(&self, ctx: &mut Context) -> u64
+    unsafe fn get_buff<Context>(&self, ctx: &Context) -> u64
     where
-        Context: AsContextExt<T>,
+        Context: AsContextExt<State = T>,
     {
-        self.memref.data_mut(ctx).as_mut_ptr() as usize as u64
+        self.memref.data(ctx).as_ptr() as usize as u64
     }
 }
 

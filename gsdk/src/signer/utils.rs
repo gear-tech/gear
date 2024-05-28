@@ -177,13 +177,13 @@ impl Inner {
     ///         Value::unnamed_variant("Id", [Value::from_bytes(dest.into())]),
     ///         Value::u128(value),
     ///     ];
-    ///     let in_block = signer.run_tx(BalancesCall::Transfer, args).await?;
+    ///     let in_block = signer.run_tx(BalancesCall::TransferKeepAlive, args).await?;
     /// }
     ///
     /// // The code above euqals to:
     ///
     /// {
-    ///    let in_block = signer.calls.transfer(dest, value).await?;
+    ///    let in_block = signer.calls.transfer_keep_alive(dest, value).await?;
     /// }
     ///
     /// // ...

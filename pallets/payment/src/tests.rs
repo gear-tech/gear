@@ -934,7 +934,7 @@ fn voucher_call_deprecated_send_payer_ok() {
             GearVoucher::call_deprecated_sponsor(&BOB, &prepaid_send(program_id))
                 .expect("Shouldn't return None");
 
-        assert_ok!(Balances::transfer(
+        assert_ok!(Balances::transfer_allow_death(
             RuntimeOrigin::signed(ALICE),
             voucher_account_id,
             voucher_initial_balance,
@@ -1120,7 +1120,7 @@ fn voucher_call_deprecated_reply_payer_ok() {
             GearVoucher::call_deprecated_sponsor(&BOB, &prepaid_reply(reply_to_id))
                 .expect("Shouldn't return None");
 
-        assert_ok!(Balances::transfer(
+        assert_ok!(Balances::transfer_allow_death(
             RuntimeOrigin::signed(ALICE),
             voucher_account_id,
             voucher_initial_balance,

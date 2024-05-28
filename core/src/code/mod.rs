@@ -18,7 +18,11 @@
 
 //! Module for checked code.
 
-use crate::{ids::CodeId, message::DispatchKind, pages::WasmPage};
+use crate::{
+    ids::CodeId,
+    message::DispatchKind,
+    pages::{WasmPage, WasmPagesAmount},
+};
 use alloc::{collections::BTreeSet, vec::Vec};
 use gear_wasm_instrument::{
     gas_metering::{CustomConstantCostRules, Rules},
@@ -32,7 +36,7 @@ mod utils;
 
 pub use errors::*;
 pub use instrumented::*;
-pub use utils::{ALLOWED_EXPORTS, MAX_WASM_PAGE_AMOUNT, REQUIRED_EXPORTS};
+pub use utils::{ALLOWED_EXPORTS, MAX_WASM_PAGES_AMOUNT, REQUIRED_EXPORTS};
 
 /// Contains instrumented binary code of a program and initial memory size from memory import.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -44,7 +48,7 @@ pub struct Code {
     /// Exports of the wasm module.
     exports: BTreeSet<DispatchKind>,
     /// Static pages count from memory import.
-    static_pages: WasmPage,
+    static_pages: WasmPagesAmount,
     /// Stack end page.
     stack_end: Option<WasmPage>,
     /// Instruction weights version.
@@ -58,6 +62,8 @@ pub struct TryNewCodeConfig {
     pub version: u32,
     /// Stack height limit
     pub stack_height: Option<u32>,
+    /// Limit of data section amount
+    pub data_segments_amount_limit: Option<u32>,
     /// Export `STACK_HEIGHT_EXPORT_NAME` global
     pub export_stack_height: bool,
     /// Check exports (wasm contains init or handle exports)
@@ -81,6 +87,7 @@ impl Default for TryNewCodeConfig {
         Self {
             version: 1,
             stack_height: None,
+            data_segments_amount_limit: None,
             export_stack_height: false,
             check_exports: true,
             check_imports: true,
@@ -131,7 +138,12 @@ impl Code {
 
         // Not changing steps
         if config.check_data_section {
-            utils::check_data_section(&module, static_pages, stack_end)?;
+            utils::check_data_section(
+                &module,
+                static_pages,
+                stack_end,
+                config.data_segments_amount_limit,
+            )?;
         }
         if config.check_mut_global_exports {
             utils::check_mut_global_exports(&module)?;
@@ -250,6 +262,7 @@ impl Code {
         version: u32,
         get_gas_rules: GetRulesFn,
         stack_height: Option<u32>,
+        data_segments_amount_limit: Option<u32>,
     ) -> Result<Self, CodeError>
     where
         R: Rules,
@@ -261,6 +274,7 @@ impl Code {
             TryNewCodeConfig {
                 version,
                 stack_height,
+                data_segments_amount_limit,
                 ..Default::default()
             },
         )
@@ -311,7 +325,7 @@ impl Code {
     }
 
     /// Returns initial memory size from memory import.
-    pub fn static_pages(&self) -> WasmPage {
+    pub fn static_pages(&self) -> WasmPagesAmount {
         self.static_pages
     }
 
@@ -378,17 +392,21 @@ impl CodeAndId {
 
 #[cfg(test)]
 mod tests {
-    use crate::code::{Code, CodeError, DataSectionError, ExportError, StackEndError};
+    use crate::code::{Code, CodeError, DataSectionError, ExportError, ImportError, StackEndError};
     use alloc::{format, vec::Vec};
     use gear_wasm_instrument::{gas_metering::CustomConstantCostRules, STACK_END_EXPORT_NAME};
 
-    fn wat2wasm(s: &str) -> Vec<u8> {
+    fn wat2wasm_with_validate(s: &str, validate: bool) -> Vec<u8> {
         wabt::Wat2Wasm::new()
-            .validate(true)
+            .validate(validate)
             .convert(s)
             .unwrap()
             .as_ref()
             .to_vec()
+    }
+
+    fn wat2wasm(s: &str) -> Vec<u8> {
+        wat2wasm_with_validate(s, true)
     }
 
     macro_rules! assert_code_err {
@@ -404,13 +422,22 @@ mod tests {
         };
     }
 
-    fn try_new_code_from_wat(wat: &str, stack_height: Option<u32>) -> Result<Code, CodeError> {
+    fn try_new_code_from_wat_with_params(
+        wat: &str,
+        stack_height: Option<u32>,
+        data_segments_amount_limit: Option<u32>,
+    ) -> Result<Code, CodeError> {
         Code::try_new(
             wat2wasm(wat),
             1,
             |_| CustomConstantCostRules::default(),
             stack_height,
+            data_segments_amount_limit,
         )
+    }
+
+    fn try_new_code_from_wat(wat: &str, stack_height: Option<u32>) -> Result<Code, CodeError> {
+        try_new_code_from_wat_with_params(wat, stack_height, None)
     }
 
     #[test]
@@ -676,6 +703,99 @@ mod tests {
         assert_code_err!(
             try_new_code_from_wat(wat, None),
             CodeError::Export(ExportError::ExportReferencesToImportGlobal(1, 0))
+        );
+    }
+
+    #[test]
+    fn multi_memory_import() {
+        let wat = r#"
+            (module
+                (import "env" "memory" (memory 1))
+                (import "env" "memory2" (memory 2))
+                (export "init" (func $init))
+                (func $init)
+            )
+        "#;
+
+        let res = Code::try_new(
+            wat2wasm_with_validate(wat, false),
+            1,
+            |_| CustomConstantCostRules::default(),
+            None,
+            None,
+        );
+
+        assert_code_err!(res, CodeError::Validation(_));
+    }
+
+    #[test]
+    fn global_import() {
+        let wat = r#"
+            (module
+                (import "env" "memory" (memory 1))
+                (import "env" "unknown" (global $unknown i32))
+                (export "init" (func $init))
+                (func $init)
+            )
+        "#;
+
+        assert_code_err!(
+            try_new_code_from_wat(wat, None),
+            CodeError::Import(ImportError::UnexpectedImportKind {
+                kind: &"Global",
+                index: 1
+            })
+        );
+    }
+
+    #[test]
+    fn table_import() {
+        let wat = r#"
+            (module
+                (import "env" "memory" (memory 1))
+                (import "env" "unknown" (table $unknown 10 20 funcref))
+                (export "init" (func $init))
+                (func $init)
+            )
+        "#;
+
+        assert_code_err!(
+            try_new_code_from_wat(wat, None),
+            CodeError::Import(ImportError::UnexpectedImportKind {
+                kind: &"Table",
+                index: 1
+            })
+        );
+    }
+
+    #[test]
+    fn data_segments_amount_limit() {
+        const DATA_SEGMENTS_AMOUNT_LIMIT: u32 = 1024;
+
+        let segment = r#"(data (i32.const 0x0) "gear")"#;
+
+        let wat = format!(
+            r#"
+            (module
+                (import "env" "memory" (memory 1))
+                (func $init)
+                (export "init" (func $init))
+                {}
+            )
+        "#,
+            segment.repeat(1025)
+        );
+
+        assert_code_err!(
+            try_new_code_from_wat_with_params(
+                wat.as_str(),
+                None,
+                DATA_SEGMENTS_AMOUNT_LIMIT.into()
+            ),
+            CodeError::DataSection(DataSectionError::DataSegmentsAmountLimit {
+                limit: DATA_SEGMENTS_AMOUNT_LIMIT,
+                actual: 1025
+            })
         );
     }
 }

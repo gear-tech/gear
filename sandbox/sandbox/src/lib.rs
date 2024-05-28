@@ -52,7 +52,7 @@ use sp_core::RuntimeDebug;
 use sp_std::prelude::*;
 use sp_wasm_interface_common::HostPointer;
 
-pub use sp_wasm_interface_common::{IntoValue, ReturnValue, Value};
+pub use sp_wasm_interface_common::{IntoValue, ReturnValue, TryFromValue, Value};
 
 #[cfg(feature = "std")]
 pub use self::embedded_executor as default_executor;
@@ -95,15 +95,18 @@ pub type HostFuncType<T> =
     fn(&mut default_executor::Caller<'_, T>, &[Value]) -> Result<env::WasmReturnValue, HostError>;
 
 /// Sandbox store.
-pub trait SandboxStore<T>: AsContextExt<T> {
+pub trait SandboxStore: AsContextExt {
     /// Create a new sandbox store.
-    fn new(state: T) -> Self;
+    fn new(state: Self::State) -> Self;
 }
 
 /// Sandbox context.
-pub trait AsContextExt<T>: default_executor::AsContext {
+pub trait AsContextExt: default_executor::AsContext {
+    /// Context state.
+    type State;
+
     /// Return mutable reference to state.
-    fn data_mut(&mut self) -> &mut T;
+    fn data_mut(&mut self) -> &mut Self::State;
 }
 
 /// Reference to a sandboxed linear memory, that
@@ -133,35 +136,35 @@ pub trait SandboxMemory<T>: Sized + Clone {
     /// Returns `Err` if the range is out-of-bounds.
     fn read<Context>(&self, ctx: &Context, ptr: u32, buf: &mut [u8]) -> Result<(), Error>
     where
-        Context: AsContextExt<T>;
+        Context: AsContextExt<State = T>;
 
     /// Write a memory area at the address `ptr` with contents of the provided slice `buf`.
     ///
     /// Returns `Err` if the range is out-of-bounds.
     fn write<Context>(&self, ctx: &mut Context, ptr: u32, value: &[u8]) -> Result<(), Error>
     where
-        Context: AsContextExt<T>;
+        Context: AsContextExt<State = T>;
 
     /// Grow memory with provided number of pages.
     ///
     /// Returns `Err` if attempted to allocate more memory than permitted by the limit.
     fn grow<Context>(&self, ctx: &mut Context, pages: u32) -> Result<u32, Error>
     where
-        Context: AsContextExt<T>;
+        Context: AsContextExt<State = T>;
 
     /// Returns current memory size.
     ///
     /// Maximum memory size cannot exceed 65536 pages or 4GiB.
     fn size<Context>(&self, ctx: &Context) -> u32
     where
-        Context: AsContextExt<T>;
+        Context: AsContextExt<State = T>;
 
     /// Returns pointer to the begin of wasm mem buffer
     /// # Safety
     /// Pointer is intended to use by `mprotect` function.
-    unsafe fn get_buff<Context>(&self, ctx: &mut Context) -> HostPointer
+    unsafe fn get_buff<Context>(&self, ctx: &Context) -> HostPointer
     where
-        Context: AsContextExt<T>;
+        Context: AsContextExt<State = T>;
 }
 
 /// Struct that can be used for defining an environment for a sandboxed module.

@@ -18,14 +18,14 @@
 
 //! Module contains context-structures for processing.
 
-use crate::common::ExecutableActorData;
+use crate::common::{ExecutableActorData, Program};
 use gear_core::{
     code::InstrumentedCode,
     gas::{GasAllowanceCounter, GasCounter},
     ids::ProgramId,
     message::IncomingDispatch,
-    pages::WasmPage,
-    program::Program,
+    pages::WasmPagesAmount,
+    program::MemoryInfix,
     reservation::GasReserver,
 };
 
@@ -85,7 +85,7 @@ impl From<ContextChargedForCode> for ContextChargedForInstrumentation {
 pub struct ContextChargedForMemory {
     pub(crate) data: ContextData,
     pub(crate) max_reservations: u64,
-    pub(crate) memory_size: WasmPage,
+    pub(crate) memory_size: WasmPagesAmount,
 }
 
 impl ContextChargedForMemory {
@@ -108,7 +108,19 @@ pub struct ProcessExecutionContext {
     pub(crate) dispatch: IncomingDispatch,
     pub(crate) balance: u128,
     pub(crate) program: Program,
-    pub(crate) memory_size: WasmPage,
+    pub(crate) memory_size: WasmPagesAmount,
+}
+
+impl ProcessExecutionContext {
+    /// Returns program id.
+    pub fn program_id(&self) -> ProgramId {
+        self.program.id
+    }
+
+    /// Returns memory infix.
+    pub fn memory_infix(&self) -> MemoryInfix {
+        self.program.memory_infix
+    }
 }
 
 impl From<(ContextChargedForMemory, InstrumentedCode, u128)> for ProcessExecutionContext {
@@ -128,12 +140,12 @@ impl From<(ContextChargedForMemory, InstrumentedCode, u128)> for ProcessExecutio
             memory_size,
         } = context;
 
-        let program = Program::from_parts(
-            destination_id,
-            actor_data.memory_infix,
+        let program = Program {
+            id: destination_id,
+            memory_infix: actor_data.memory_infix,
             code,
-            actor_data.allocations,
-        );
+            allocations: actor_data.allocations,
+        };
 
         // Must be created once per taken from the queue dispatch by program.
         let gas_reserver =
@@ -148,13 +160,6 @@ impl From<(ContextChargedForMemory, InstrumentedCode, u128)> for ProcessExecutio
             program,
             memory_size,
         }
-    }
-}
-
-impl ProcessExecutionContext {
-    /// Returns ref to program.
-    pub fn program(&self) -> &Program {
-        &self.program
     }
 }
 

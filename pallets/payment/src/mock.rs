@@ -21,7 +21,8 @@ use common::storage::Messenger;
 use frame_support::{
     construct_runtime, parameter_types,
     traits::{
-        ConstU128, ConstU8, Contains, Currency, FindAuthor, OnFinalize, OnInitialize, OnUnbalanced,
+        ConstU128, ConstU32, ConstU8, Contains, Currency, FindAuthor, OnFinalize, OnInitialize,
+        OnUnbalanced,
     },
     weights::{constants::WEIGHT_REF_TIME_PER_SECOND, ConstantMultiplier, Weight},
     PalletId,

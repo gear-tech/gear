@@ -69,7 +69,7 @@ use gear_core::{
     code::{CodeAndId, InstrumentedCode},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     message::{DispatchKind, SignalMessage},
-    pages::WasmPage,
+    pages::WasmPagesAmount,
     program::MemoryInfix,
     reservation::GasReservationSlot,
 };
@@ -111,7 +111,7 @@ impl fmt::Debug for HandleKind {
 pub struct CodeInfo {
     id: H256,
     exports: BTreeSet<DispatchKind>,
-    static_pages: WasmPage,
+    static_pages: WasmPagesAmount,
 }
 
 impl CodeInfo {
@@ -138,8 +138,6 @@ pub struct ExtManager<T: Config> {
     users: BTreeSet<ProgramId>,
     /// Ids checked that they are programs.
     programs: BTreeSet<ProgramId>,
-    /// Ids of programs which memory pages have been loaded earlier during processing a block.
-    program_loaded_pages: BTreeSet<ProgramId>,
     /// Messages dispatches.
     dispatch_statuses: BTreeMap<MessageId, DispatchStatus>,
     /// Programs, which state changed.
@@ -178,7 +176,6 @@ where
             _phantom: PhantomData,
             users: Default::default(),
             programs: Default::default(),
-            program_loaded_pages: Default::default(),
             dispatch_statuses: Default::default(),
             state_changes: Default::default(),
             builtins,
@@ -210,18 +207,6 @@ where
         !self.check_program_id(id)
     }
 
-    /// Checks if memory pages of a program were loaded.
-    pub fn program_pages_loaded(&self, id: &ProgramId) -> bool {
-        self.program_loaded_pages.contains(id)
-    }
-
-    /// Adds program's id to the collection of programs with
-    /// loaded memory pages.
-    pub fn insert_program_id_loaded_pages(&mut self, id: ProgramId) {
-        debug_assert!(self.check_program_id(&id));
-
-        self.program_loaded_pages.insert(id);
-    }
     /// NOTE: By calling this function we can't differ whether `None` returned, because
     /// program with `id` doesn't exist or it's terminated
     pub fn get_actor(&self, id: ProgramId) -> Option<Actor> {
@@ -238,7 +223,6 @@ where
                 code_id,
                 code_exports: active.code_exports,
                 static_pages: active.static_pages,
-                pages_with_data: active.pages_with_data,
                 gas_reservation_map: active.gas_reservation_map,
                 memory_infix: active.memory_infix,
             },
@@ -401,8 +385,6 @@ where
             QueueOf::<T>::queue(message)
                 .unwrap_or_else(|e| unreachable!("Message queue corrupted! {e:?}"));
         });
-
-        ProgramStorageOf::<T>::waiting_init_remove(program_id);
     }
 
     fn process_failed_init(program_id: ProgramId, origin: ProgramId) {

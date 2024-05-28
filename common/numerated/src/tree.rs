@@ -18,7 +18,11 @@
 
 //! [`IntervalsTree`] implementation.
 
-use crate::{DifferenceIterator, Interval, IntervalIterator, Numerated, VoidsIterator};
+use crate::{
+    interval::Interval,
+    iterators::{DifferenceIterator, IntervalIterator, VoidsIterator},
+    numerated::Numerated,
+};
 use alloc::{collections::BTreeMap, fmt, fmt::Debug, vec::Vec};
 use core::{fmt::Formatter, ops::RangeInclusive};
 use num_traits::{CheckedAdd, Zero};
@@ -37,7 +41,7 @@ use scale_info::{
 ///
 /// # Examples
 /// ```
-/// use numerated::{IntervalsTree, Interval};
+/// use numerated::{tree::IntervalsTree, interval::Interval};
 /// use std::collections::BTreeSet;
 /// use std::ops::RangeInclusive;
 ///

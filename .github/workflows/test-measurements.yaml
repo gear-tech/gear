@@ -36,20 +36,16 @@ jobs:
           sudo wget -c https://github.com/WebAssembly/binaryen/releases/download/$BINARYEN_VERSION/binaryen-$BINARYEN_VERSION-x86_64-linux.tar.gz -O - | sudo tar -xz -C .
           sudo cp binaryen-$BINARYEN_VERSION/bin/wasm-opt /usr/bin/
 
-      - name: "Cache: Unpack"
-        continue-on-error: true
-        run: |
-          tar -xf /cache/check_cargo_registry_${{ github.ref_name }}.tar -C /
-
       - name: "Build: Gear"
         run: ./scripts/gear.sh build gear --release --locked --features=runtime-benchmarks
 
       - name: "Collect: Gear workspace tests"
         run: |
+          ./scripts/gear.sh check_extensions
           mkdir -p ./target/analysis/tests/
           mkdir -p ./target/analysis/output/
           cargo build --release --package regression-analysis
-          for i in `seq 1 $COUNT`; do echo $i; ./scripts/gear.sh test gear --exclude gclient --exclude gcli --release -j1 > ./target/analysis/output/$i 2>&1 ; mv ./target/nextest/ci/junit.xml ./target/analysis/tests/$i; done
+          for i in `seq 1 $COUNT`; do echo $i; cargo nextest run --package pallet-* --profile ci --no-fail-fast --release -j1 > ./target/analysis/output/$i 2>&1 || { exit_code=$?; if [ x$exit_code != x0 ]; then cat ./target/analysis/output/$i; fi; exit $exit_code; }; mv ./target/nextest/ci/junit.xml ./target/analysis/tests/$i; done
           ./target/release/regression-analysis collect-data --data-folder-path ./target/analysis/tests/ --output-path ./target/pallet-tests.json
 
       - name: "Generate report: Gear workspace tests"

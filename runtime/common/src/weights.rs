@@ -1,7 +1,9 @@
+use gear_core::{costs::CostOf, pages::GearPagesAmount};
 use gear_lazy_pages_common::LazyPagesCosts;
-use pallet_gear::InstructionWeights;
+use pallet_gear::{InstructionWeights, MemoryWeights, SyscallWeights};
 
 const INSTRUCTIONS_SPREAD: u8 = 50;
+const SYSCALL_SPREAD: u8 = 10;
 const PAGES_SPREAD: u8 = 10;
 
 #[track_caller]
@@ -18,6 +20,11 @@ fn check_spreading(weight: u64, expected: u64, spread: u8) {
 #[track_caller]
 fn check_instruction_weight(weight: u32, expected: u32) {
     check_spreading(weight.into(), expected.into(), INSTRUCTIONS_SPREAD);
+}
+
+#[track_caller]
+fn check_syscall_weight(weight: u64, expected: u64) {
+    check_spreading(weight, expected, SYSCALL_SPREAD);
 }
 
 #[track_caller]
@@ -123,6 +130,92 @@ pub fn check_instructions_weights<T: pallet_gear::Config>(
     check_instruction_weight(weights.i32rotr, expected.i32rotr);
 }
 
+/// Check that the weights of syscalls are within the expected range
+pub fn check_syscall_weights<T: pallet_gear::Config>(
+    weights: SyscallWeights<T>,
+    expected: SyscallWeights<T>,
+) {
+    macro_rules! check {
+        ($inst_name:ident) => {
+            check_syscall_weight(
+                weights.$inst_name.ref_time(),
+                expected.$inst_name.ref_time(),
+            );
+        };
+    }
+
+    check!(alloc);
+    check!(free);
+    check!(free_range);
+    check!(free_range_per_page);
+    check!(gr_reserve_gas);
+    check!(gr_unreserve_gas);
+    check!(gr_system_reserve_gas);
+    check!(gr_gas_available);
+    check!(gr_message_id);
+    check!(gr_program_id);
+    check!(gr_source);
+    check!(gr_value);
+    check!(gr_value_available);
+    check!(gr_size);
+    check!(gr_read);
+    check!(gr_read_per_byte);
+    check!(gr_env_vars);
+    check!(gr_block_height);
+    check!(gr_block_timestamp);
+    check!(gr_random);
+    check!(gr_reply_deposit);
+    check!(gr_send);
+    check!(gr_send_per_byte);
+    check!(gr_send_wgas);
+    check!(gr_send_wgas_per_byte);
+    check!(gr_send_init);
+    check!(gr_send_push);
+    check!(gr_send_push_per_byte);
+    check!(gr_send_commit);
+    check!(gr_send_commit_wgas);
+    check!(gr_reservation_send);
+    check!(gr_reservation_send_per_byte);
+    check!(gr_reservation_send_commit);
+    check!(gr_reply_commit);
+    check!(gr_reply_commit_wgas);
+    check!(gr_reservation_reply);
+    check!(gr_reservation_reply_per_byte);
+    check!(gr_reservation_reply_commit);
+    check!(gr_reply_push);
+    check!(gr_reply);
+    check!(gr_reply_per_byte);
+    check!(gr_reply_wgas);
+    check!(gr_reply_wgas_per_byte);
+    check!(gr_reply_push_per_byte);
+    check!(gr_reply_to);
+    check!(gr_signal_code);
+    check!(gr_signal_from);
+    check!(gr_reply_input);
+    check!(gr_reply_input_wgas);
+    check!(gr_reply_push_input);
+    check!(gr_reply_push_input_per_byte);
+    check!(gr_send_input);
+    check!(gr_send_input_wgas);
+    check!(gr_send_push_input);
+    check!(gr_send_push_input_per_byte);
+    check!(gr_debug);
+    check!(gr_debug_per_byte);
+    check!(gr_reply_code);
+    check!(gr_exit);
+    check!(gr_leave);
+    check!(gr_wait);
+    check!(gr_wait_for);
+    check!(gr_wait_up_to);
+    check!(gr_wake);
+    check!(gr_create_program);
+    check!(gr_create_program_payload_per_byte);
+    check!(gr_create_program_salt_per_byte);
+    check!(gr_create_program_wgas);
+    check!(gr_create_program_wgas_payload_per_byte);
+    check!(gr_create_program_wgas_salt_per_byte);
+}
+
 /// Check that the lazy-pages costs are within the expected range
 pub fn check_lazy_pages_costs(
     lazy_pages_costs: LazyPagesCosts,
@@ -161,5 +254,61 @@ pub fn check_lazy_pages_costs(
         expected_lazy_pages_costs
             .load_page_storage_data
             .cost_for_one(),
+    );
+}
+
+/// Memory pages access costs.
+pub struct PagesCosts {
+    pub load_page_data: CostOf<GearPagesAmount>,
+    pub upload_page_data: CostOf<GearPagesAmount>,
+    pub static_page: CostOf<GearPagesAmount>,
+    pub mem_grow: CostOf<GearPagesAmount>,
+    pub mem_grow_per_page: CostOf<GearPagesAmount>,
+    pub parachain_read_heuristic: CostOf<GearPagesAmount>,
+}
+
+impl<T: pallet_gear::Config> From<MemoryWeights<T>> for PagesCosts {
+    fn from(val: MemoryWeights<T>) -> Self {
+        Self {
+            load_page_data: val.load_page_data.ref_time().into(),
+            upload_page_data: val.upload_page_data.ref_time().into(),
+            static_page: val.static_page.ref_time().into(),
+            mem_grow: val.mem_grow.ref_time().into(),
+            mem_grow_per_page: val.mem_grow_per_page.ref_time().into(),
+            parachain_read_heuristic: val.parachain_read_heuristic.ref_time().into(),
+        }
+    }
+}
+
+/// Check that the pages costs are within the expected range
+pub fn check_pages_costs(page_costs: PagesCosts, expected_page_costs: PagesCosts) {
+    check_pages_weight(
+        page_costs.load_page_data.cost_for_one(),
+        expected_page_costs.load_page_data.cost_for_one(),
+    );
+
+    check_pages_weight(
+        page_costs.upload_page_data.cost_for_one(),
+        expected_page_costs.upload_page_data.cost_for_one(),
+    );
+
+    check_pages_weight(
+        page_costs.static_page.cost_for_one(),
+        expected_page_costs.static_page.cost_for_one(),
+    );
+
+    check_pages_weight(
+        page_costs.mem_grow.cost_for_one(),
+        expected_page_costs.mem_grow.cost_for_one(),
+    );
+
+    check_pages_weight(
+        page_costs.mem_grow_per_page.cost_for_one(),
+        expected_page_costs.mem_grow_per_page.cost_for_one(),
+    );
+
+    check_pages_weight(
+        page_costs.parachain_read_heuristic.cost_for_one(),
+        expected_page_costs.parachain_read_heuristic.cost_for_one(),
     );
 }

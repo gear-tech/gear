@@ -90,7 +90,7 @@ where
 
     let dispatch = execution_context.dispatch;
     let balance = execution_context.balance;
-    let program_id = execution_context.program.id();
+    let program_id = execution_context.program.id;
     let execution_context = WasmExecutionContext {
         gas_counter: execution_context.gas_counter,
         gas_allowance_counter: execution_context.gas_allowance_counter,
@@ -182,7 +182,7 @@ impl ProcessErrorCase {
     pub fn to_reason_and_payload(&self) -> (ErrorReplyReason, String) {
         match self {
             ProcessErrorCase::NonExecutable => {
-                let reason = ErrorReplyReason::InactiveProgram;
+                let reason = ErrorReplyReason::InactiveActor;
                 (reason, reason.to_string())
             }
             ProcessErrorCase::ExecutionFailed(reason) => {
@@ -505,7 +505,7 @@ pub fn process_success(
         })
     }
 
-    if !allocations.is_empty() {
+    if let Some(allocations) = allocations {
         journal.push(JournalNote::UpdateAllocations {
             program_id,
             allocations,

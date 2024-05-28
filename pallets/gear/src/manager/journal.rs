@@ -34,16 +34,13 @@ use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::PageBuf,
-    message::{Dispatch, IncomingDispatch, MessageWaitedType, StoredDispatch},
-    pages::{GearPage, PageU32Size, WasmPage},
+    message::{Dispatch, MessageWaitedType, StoredDispatch},
+    pages::{numerated::tree::IntervalsTree, GearPage, WasmPage},
     reservation::GasReserver,
 };
 use gear_core_errors::SignalCode;
 use sp_runtime::traits::{UniqueSaturatedInto, Zero};
-use sp_std::{
-    collections::{btree_map::BTreeMap, btree_set::BTreeSet},
-    prelude::*,
-};
+use sp_std::{collections::btree_map::BTreeMap, prelude::*};
 
 impl<T> JournalHandler for ExtManager<T>
 where
@@ -57,21 +54,6 @@ where
         outcome: CoreDispatchOutcome,
     ) {
         use CoreDispatchOutcome::*;
-
-        let wake_waiting_init_msgs = |program_id: ProgramId| {
-            ProgramStorageOf::<T>::waiting_init_take_messages(program_id)
-                .into_iter()
-                .for_each(|message_id| {
-                    if let Some(dispatch) = Pallet::<T>::wake_dispatch(
-                        program_id,
-                        message_id,
-                        MessageWokenSystemReason::ProgramGotInitialized.into_reason(),
-                    ) {
-                        QueueOf::<T>::queue(dispatch)
-                            .unwrap_or_else(|e| unreachable!("Message queue corrupted! {:?}", e));
-                    }
-                })
-        };
 
         let status = match outcome {
             Exit { program_id } => {
@@ -106,7 +88,6 @@ where
                     program_id
                 );
 
-                wake_waiting_init_msgs(program_id);
                 let expiration =
                     ProgramStorageOf::<T>::update_program_if_active(program_id, |p, bn| {
                         match p {
@@ -357,11 +338,12 @@ where
         });
     }
 
-    fn update_allocations(&mut self, program_id: ProgramId, allocations: BTreeSet<WasmPage>) {
+    fn update_allocations(&mut self, program_id: ProgramId, allocations: IntervalsTree<WasmPage>) {
         ProgramStorageOf::<T>::update_active_program(program_id, |p| {
-            let removed_pages = p.allocations.difference(&allocations);
-            for page in removed_pages.flat_map(|page| page.to_pages_iter()) {
-                if p.pages_with_data.remove(&page) {
+            for page in p.allocations.difference(&allocations).flat_map(|i| i.iter()).flat_map(|p| p.to_iter()) {
+                // TODO: do not use `contains` #3879
+                if p.pages_with_data.contains(page) {
+                    p.pages_with_data.remove(page);
                     ProgramStorageOf::<T>::remove_program_page_data(program_id, p.memory_infix, page);
                 }
             }
@@ -534,28 +516,5 @@ where
 
         GasHandlerOf::<T>::create_deposit(message_id, future_reply_id, amount)
             .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
-    }
-
-    fn waiting_init_message(&mut self, dispatch: IncomingDispatch, destination: ProgramId) {
-        let (kind, message, context) = dispatch.into();
-
-        log::trace!(
-            "Append message {:?} to the waiting init messages list",
-            message.id()
-        );
-
-        let dispatch = StoredDispatch::new(kind, message.into_stored(destination), context);
-
-        // Adding id in on-init wake list.
-        ProgramStorageOf::<T>::waiting_init_append_message_id(
-            dispatch.destination(),
-            dispatch.id(),
-        );
-
-        Pallet::<T>::wait_dispatch(
-            dispatch,
-            None,
-            MessageWaitedSystemReason::ProgramIsNotInitialized.into_reason(),
-        );
     }
 }

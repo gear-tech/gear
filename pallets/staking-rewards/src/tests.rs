@@ -22,7 +22,7 @@
 
 use crate::{mock::*, *};
 use frame_support::{assert_noop, assert_ok, assert_storage_noop, traits::EstimateNextNewSession};
-use sp_runtime::{DispatchError, PerThing, Perbill};
+use sp_runtime::{traits::Convert, DispatchError, PerThing, Perbill};
 
 macro_rules! assert_approx_eq {
     ($left:expr, $right:expr, $tol:expr) => {{
@@ -440,7 +440,7 @@ fn nominators_rewards_disbursement_works() {
         run_to_block(10);
 
         // Send some funds to the nominator
-        assert_ok!(Balances::transfer(
+        assert_ok!(Balances::transfer_allow_death(
             RuntimeOrigin::signed(SIGNER),
             NOM_1_STASH,
             VALIDATOR_STAKE * 5, // 500 UNITS
@@ -659,7 +659,7 @@ fn staking_blacklist_works() {
     );
 
     let valid_call = TestXt::<RuntimeCall, SignedExtra>::new(
-        RuntimeCall::Balances(pallet_balances::Call::transfer {
+        RuntimeCall::Balances(pallet_balances::Call::transfer_allow_death {
             dest: NOM_1_STASH,
             value: 10_000_u128,
         }),
@@ -786,7 +786,7 @@ fn inflation_at_ideal_staked_adds_up() {
         let nominator_stake = ideal_staked_value.saturating_sub(initial_validators_balance);
 
         // Send some funds to the nominator
-        assert_ok!(Balances::transfer(
+        assert_ok!(Balances::transfer_allow_death(
             RuntimeOrigin::signed(SIGNER),
             NOM_1_STASH,
             nominator_stake,
@@ -927,7 +927,7 @@ fn inflation_when_nobody_stakes_adds_up() {
         let yearly_inflation = Perquintill::from_parts(15_623_529_411_764_700);
 
         // Send some funds to the nominator
-        assert_ok!(Balances::transfer(
+        assert_ok!(Balances::transfer_allow_death(
             RuntimeOrigin::signed(SIGNER),
             NOM_1_STASH,
             nominator_stake,
@@ -1075,7 +1075,7 @@ fn inflation_with_too_many_stakers_adds_up() {
         let yearly_inflation = Perquintill::from_parts(14_224_963_017_589_600);
 
         // Send some funds to the nominator
-        assert_ok!(Balances::transfer(
+        assert_ok!(Balances::transfer_allow_death(
             RuntimeOrigin::signed(SIGNER),
             NOM_1_STASH,
             nominator_stake,
@@ -1194,7 +1194,7 @@ fn unclaimed_rewards_burn() {
         let nominator_stake = ideal_staked_value.saturating_sub(initial_validators_balance);
 
         // Send some funds to the nominator
-        assert_ok!(Balances::transfer(
+        assert_ok!(Balances::transfer_allow_death(
             RuntimeOrigin::signed(SIGNER),
             NOM_1_STASH,
             nominator_stake,
@@ -1410,6 +1410,7 @@ fn election_solution_rewards_add_up() {
             round: 1,
         };
         let solutions = vec![good_solution.clone(), bad_solution, good_solution];
+        let solutions_len = solutions.len();
         for (i, s) in solutions.into_iter().enumerate() {
             let account = 100_u64 + i as u64;
             assert_ok!(ElectionProviderMultiPhase::submit(
@@ -1418,7 +1419,7 @@ fn election_solution_rewards_add_up() {
             ));
             assert_eq!(
                 Balances::free_balance(account),
-                ENDOWMENT - <Test as MPConfig>::SignedDepositBase::get()
+                ENDOWMENT - <Test as MPConfig>::SignedDepositBase::convert(solutions_len)
             );
         }
 
@@ -1440,7 +1441,7 @@ fn election_solution_rewards_add_up() {
         // 3. the account whose solution was rejected got slashed and lost the deposit and fee
         assert_eq!(
             Balances::free_balance(101),
-            ENDOWMENT - <Test as MPConfig>::SignedDepositBase::get()
+            ENDOWMENT - <Test as MPConfig>::SignedDepositBase::convert(solutions_len)
         );
         // 4. the third account got deposit unreserved and tx fee returned
         assert_eq!(
@@ -1450,7 +1451,8 @@ fn election_solution_rewards_add_up() {
         // 5. the slashed deposit went to `Treasury`
         assert_eq!(
             treasury_balance,
-            initial_treasury_balance + <Test as MPConfig>::SignedDepositBase::get()
+            initial_treasury_balance
+                + <Test as MPConfig>::SignedDepositBase::convert(solutions_len)
         );
         // 6. the rewards offset pool's balanced decreased to compensate for reward and rebates.
         assert_eq!(

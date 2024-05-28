@@ -18,7 +18,7 @@
 
 use crate as pallet_gear_bank;
 use frame_support::{
-    construct_runtime, parameter_types, traits::FindAuthor, weights::constants::RocksDbWeight,
+    construct_runtime, parameter_types, traits::{ConstU32, FindAuthor}, weights::constants::RocksDbWeight,
     PalletId,
 };
 use primitive_types::H256;

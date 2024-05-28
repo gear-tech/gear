@@ -21,7 +21,6 @@ use core_processor::ContextChargedForInstrumentation;
 
 pub(crate) struct QueueStep<'a, T: Config> {
     pub block_config: &'a BlockConfig,
-    pub ext_manager: &'a mut ExtManager<T>,
     pub gas_limit: GasBalanceOf<T>,
     pub dispatch: StoredDispatch,
     pub balance: u128,
@@ -34,7 +33,6 @@ where
     pub(crate) fn run_queue_step(queue_step: QueueStep<'_, T>) -> Vec<JournalNote> {
         let QueueStep {
             block_config,
-            ext_manager,
             gas_limit,
             dispatch,
             balance,
@@ -73,7 +71,7 @@ where
 
         // If the destination program is uninitialized, then we allow
         // to process message, if it's a reply or init message.
-        // Otherwise, we append the message to the waiting init message list.
+        // Otherwise, we return error reply.
         if matches!(program.state, ProgramState::Uninitialized { message_id }
             if message_id != dispatch_id && dispatch_kind != DispatchKind::Reply)
         {
@@ -85,17 +83,7 @@ where
                 );
             }
 
-            let (dispatch, gas, _) = precharged_dispatch.into_parts();
-            return vec![
-                JournalNote::GasBurned {
-                    message_id: dispatch.id(),
-                    amount: gas.burned(),
-                },
-                JournalNote::WaitingInitMessage {
-                    dispatch,
-                    destination: destination_id,
-                },
-            ];
+            return core_processor::process_non_executable(precharged_dispatch, destination_id);
         }
 
         let actor_data = ExecutableActorData {
@@ -103,7 +91,6 @@ where
             code_id: program.code_hash.cast(),
             code_exports: program.code_exports,
             static_pages: program.static_pages,
-            pages_with_data: program.pages_with_data,
             gas_reservation_map: program.gas_reservation_map,
             memory_infix: program.memory_infix,
         };
@@ -171,9 +158,6 @@ where
             Ok(context) => context,
             Err(journal) => return journal,
         };
-
-        // Load program memory pages.
-        ext_manager.insert_program_id_loaded_pages(destination_id);
 
         let (random, bn) = T::Randomness::random(dispatch_id.as_ref());
 
@@ -244,7 +228,6 @@ where
 
             let journal = Self::run_queue_step(QueueStep {
                 block_config: &block_config,
-                ext_manager: &mut ext_manager,
                 gas_limit,
                 dispatch,
                 balance: balance.unique_saturated_into(),
