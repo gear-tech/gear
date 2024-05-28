@@ -1419,6 +1419,7 @@ mod tests {
     use gear_core::{
         costs::SyscallCosts,
         message::{ContextSettings, IncomingDispatch, Payload, MAX_PAYLOAD_SIZE},
+        reservation::GasReservationState,
     };
 
     struct MessageContextBuilder {
