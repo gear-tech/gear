@@ -68,9 +68,32 @@ fn test_compile() -> Result<()> {
 
 #[test]
 fn test_program_tests() {
+    // NOTE: workaround for installing stable toolchain if not exist
+    // This is momently only for adapting the environment (nightly)
+    // of our CI.
+    {
+        let toolchains = Command::new("rustup")
+            .args(["toolchain", "list"])
+            .output()
+            .expect("Failed to list rust toolchains")
+            .stdout;
+
+        if !String::from_utf8_lossy(&toolchains).contains("stable") {
+            Command::new("rustup")
+                .args(["install", "stable"])
+                .status()
+                .expect("Failed to install stable toolchain");
+
+            Command::new("rustup")
+                .args(["+stable", "target", "add", "wasm32-unknown-unknown"])
+                .status()
+                .expect("Failed to install +stable wasm toolchain");
+        }
+    }
+
     assert!(Command::new("cargo")
         .current_dir("test-program")
-        .args(["test"])
+        .args(["+stable", "test"])
         .status()
         .expect("Failed to run the tests of cargo-gbuild/test-program")
         .success())
