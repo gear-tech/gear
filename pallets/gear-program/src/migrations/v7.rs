@@ -183,7 +183,7 @@ where
                 "Active programs total balance is not as expected: {} != {}",
             );
             ensure!(
-                Pallet::<T>::current_storage_version() == MIGRATE_TO_VERSION,
+                Pallet::<T>::on_chain_storage_version() == MIGRATE_TO_VERSION,
                 "incorrect storage version after migration"
             );
         }
