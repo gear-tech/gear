@@ -18,7 +18,7 @@
 
 use crate::{
     log::RunResult,
-    manager::{Balance, ExtManager, MintMode, Program as InnerProgram, TestActor},
+    manager::{Balance, ExtManager, GenuineProgram, MintMode, Program as InnerProgram, TestActor},
     system::System,
     Result,
 };
@@ -27,7 +27,6 @@ use gear_core::{
     code::{Code, CodeAndId, InstrumentedCodeAndId},
     ids::{CodeId, MessageId, ProgramId},
     message::{Dispatch, DispatchKind, Message, SignalMessage},
-    program::Program as CoreProgram,
 };
 use gear_core_errors::SignalCode;
 use gear_utils::{MemoryPageDump, ProgramMemoryDump};
@@ -371,17 +370,16 @@ impl ProgramBuilder {
                 .insert(code_id, metadata);
         }
 
-        let program = CoreProgram::new(id.0, Default::default(), code);
-
         Program::program_with_id(
             system,
             id,
-            InnerProgram::Genuine {
-                program,
+            InnerProgram::Genuine(GenuineProgram {
+                code,
                 code_id,
+                allocations: Default::default(),
                 pages_data: Default::default(),
                 gas_reservation_map: Default::default(),
-            },
+            }),
         )
     }
 }
@@ -948,7 +946,7 @@ mod tests {
 
     #[test]
     #[should_panic(
-        expected = "An attempt to mint value (1) less than existential deposit (10000000000000)"
+        expected = "An attempt to mint value (1) less than existential deposit (1000000000000)"
     )]
     fn mint_less_than_deposit() {
         System::new().mint_to(1, 1);
@@ -957,7 +955,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "Insufficient value: user \
     (0x0100000000000000000000000000000000000000000000000000000000000000) tries \
-    to send (10000000000001) value, while his balance (10000000000000)")]
+    to send (1000000000001) value, while his balance (1000000000000)")]
     fn fails_on_insufficient_balance() {
         let sys = System::new();
 

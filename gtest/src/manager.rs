@@ -41,7 +41,6 @@ use gear_core::{
         numerated::{iterators::IntervalIterator, tree::IntervalsTree},
         GearPage, WasmPage,
     },
-    program::Program as CoreProgram,
     reservation::{GasReservationMap, GasReserver},
 };
 use gear_core_errors::{ErrorReplyReason, SignalCode, SimpleExecutionError};
@@ -101,24 +100,29 @@ impl TestActor {
         matches!(self, TestActor::Uninitialized(..))
     }
 
-    pub fn get_pages_data(&self) -> Option<&BTreeMap<GearPage, PageBuf>> {
+    fn genuine_program(&self) -> Option<&GenuineProgram> {
         match self {
-            TestActor::Initialized(Program::Genuine { pages_data, .. })
-            | TestActor::Uninitialized(_, Some(Program::Genuine { pages_data, .. })) => {
-                Some(pages_data)
-            }
+            TestActor::Initialized(Program::Genuine(program))
+            | TestActor::Uninitialized(_, Some(Program::Genuine(program))) => Some(program),
             _ => None,
         }
     }
 
-    fn get_pages_data_mut(&mut self) -> Option<&mut BTreeMap<GearPage, PageBuf>> {
+    fn genuine_program_mut(&mut self) -> Option<&mut GenuineProgram> {
         match self {
-            TestActor::Initialized(Program::Genuine { pages_data, .. })
-            | TestActor::Uninitialized(_, Some(Program::Genuine { pages_data, .. })) => {
-                Some(pages_data)
-            }
+            TestActor::Initialized(Program::Genuine(program))
+            | TestActor::Uninitialized(_, Some(Program::Genuine(program))) => Some(program),
             _ => None,
         }
+    }
+
+    pub fn get_pages_data(&self) -> Option<&BTreeMap<GearPage, PageBuf>> {
+        self.genuine_program().map(|program| &program.pages_data)
+    }
+
+    fn get_pages_data_mut(&mut self) -> Option<&mut BTreeMap<GearPage, PageBuf>> {
+        self.genuine_program_mut()
+            .map(|program| &mut program.pages_data)
     }
 
     // Takes ownership over mock program, putting `None` value instead of it.
@@ -131,55 +135,35 @@ impl TestActor {
     }
 
     // Gets a new executable actor derived from the inner program.
-    fn get_executable_actor_data(&self) -> Option<(ExecutableActorData, CoreProgram)> {
-        let (program, _, code_id, gas_reservation_map) = match self {
-            TestActor::Initialized(Program::Genuine {
-                program,
-                pages_data,
-                code_id,
-                gas_reservation_map,
-                ..
-            })
-            | TestActor::Uninitialized(
-                _,
-                Some(Program::Genuine {
-                    program,
-                    pages_data,
-                    code_id,
-                    gas_reservation_map,
-                    ..
-                }),
-            ) => (
-                program.clone(),
-                pages_data,
-                code_id,
-                gas_reservation_map.clone(),
-            ),
-            _ => return None,
-        };
-
-        Some((
-            ExecutableActorData {
-                allocations: program.allocations().clone(),
-                code_id: *code_id,
-                code_exports: program.code().exports().clone(),
-                static_pages: program.code().static_pages(),
-                gas_reservation_map,
-                memory_infix: program.memory_infix(),
-            },
-            program,
-        ))
+    fn get_executable_actor_data(&self) -> Option<(ExecutableActorData, InstrumentedCode)> {
+        self.genuine_program().map(|program| {
+            (
+                ExecutableActorData {
+                    allocations: program.allocations.clone(),
+                    code_id: program.code_id,
+                    code_exports: program.code.exports().clone(),
+                    static_pages: program.code.static_pages(),
+                    gas_reservation_map: program.gas_reservation_map.clone(),
+                    memory_infix: Default::default(),
+                },
+                program.code.clone(),
+            )
+        })
     }
 }
 
 #[derive(Debug)]
+pub(crate) struct GenuineProgram {
+    pub code_id: CodeId,
+    pub code: InstrumentedCode,
+    pub allocations: IntervalsTree<WasmPage>,
+    pub pages_data: BTreeMap<GearPage, PageBuf>,
+    pub gas_reservation_map: GasReservationMap,
+}
+
+#[derive(Debug)]
 pub(crate) enum Program {
-    Genuine {
-        program: CoreProgram,
-        code_id: CodeId,
-        pages_data: BTreeMap<GearPage, PageBuf>,
-        gas_reservation_map: GasReservationMap,
-    },
+    Genuine(GenuineProgram),
     // Contract: is always `Some`, option is used to take ownership
     Mock(Option<Box<dyn WasmProgram>>),
 }
@@ -293,8 +277,8 @@ impl ExtManager {
         program: Program,
         init_message_id: Option<MessageId>,
     ) -> Option<(TestActor, Balance)> {
-        if let Program::Genuine { program, .. } = &program {
-            self.store_new_code(program.code_bytes().to_vec());
+        if let Program::Genuine(GenuineProgram { code, .. }) = &program {
+            self.store_new_code(code.code().to_vec());
         }
         self.actors
             .insert(program_id, (TestActor::new(init_message_id, program), 0))
@@ -496,9 +480,9 @@ impl ExtManager {
             if actor.is_dormant() {
                 drop(actors);
                 self.process_dormant(balance, dispatch);
-            } else if let Some((data, program)) = actor.get_executable_actor_data() {
+            } else if let Some((data, code)) = actor.get_executable_actor_data() {
                 drop(actors);
-                self.process_normal(balance, data, program.code().clone(), dispatch);
+                self.process_normal(balance, data, code, dispatch);
             } else if let Some(mock) = actor.take_mock() {
                 drop(actors);
                 self.process_mock(mock, dispatch);
@@ -534,14 +518,14 @@ impl ExtManager {
             .get_mut(program_id)
             .ok_or_else(|| TestError::ActorNotFound(*program_id))?;
 
-        if let Some((_, program)) = actor.get_executable_actor_data() {
+        if let Some((data, code)) = actor.get_executable_actor_data() {
             drop(actors);
 
             core_processor::informational::execute_for_reply::<Ext, _>(
                 String::from("state"),
-                program.code().clone(),
-                Some(program.allocations().clone()),
-                Some((*program_id, program.memory_infix())),
+                code,
+                Some(data.allocations),
+                Some((*program_id, Default::default())),
                 payload,
                 u64::MAX,
                 self.block_info,
@@ -678,7 +662,7 @@ impl ExtManager {
         };
 
         match program {
-            Program::Genuine { pages_data, .. } => pages_data.clone(),
+            Program::Genuine(program) => program.pages_data.clone(),
             Program::Mock(_) => panic!("Can't read memory of mock program"),
         }
     }
@@ -1093,32 +1077,20 @@ impl JournalHandler for ExtManager {
             .get_mut(&program_id)
             .expect("Can't find existing program");
 
-        match actor {
-            TestActor::Initialized(Program::Genuine {
-                program,
-                pages_data,
-                ..
-            })
-            | TestActor::Uninitialized(
-                _,
-                Some(Program::Genuine {
-                    program,
-                    pages_data,
-                    ..
-                }),
-            ) => {
+        actor
+            .genuine_program_mut()
+            .map(|program| {
                 program
-                    .allocations()
+                    .allocations
                     .difference(&allocations)
                     .flat_map(IntervalIterator::from)
                     .flat_map(|page| page.to_iter())
                     .for_each(|ref page| {
-                        pages_data.remove(page);
+                        program.pages_data.remove(page);
                     });
-                program.set_allocations(allocations);
-            }
-            _ => unreachable!("No pages data found for program"),
-        }
+                program.allocations = allocations;
+            })
+            .expect("No genuine program found for program");
     }
 
     #[track_caller]
@@ -1167,15 +1139,15 @@ impl JournalHandler for ExtManager {
                     let code_and_id: InstrumentedCodeAndId =
                         CodeAndId::from_parts_unchecked(code, code_id).into();
                     let (code, code_id) = code_and_id.into_parts();
-                    let candidate = CoreProgram::new(candidate_id, Default::default(), code);
                     self.store_new_actor(
                         candidate_id,
-                        Program::Genuine {
-                            program: candidate,
+                        Program::Genuine(GenuineProgram {
+                            code,
                             code_id,
+                            allocations: Default::default(),
                             pages_data: Default::default(),
                             gas_reservation_map: Default::default(),
-                        },
+                        }),
                         Some(init_message_id),
                     );
                 } else {
@@ -1222,23 +1194,13 @@ impl JournalHandler for ExtManager {
             .get_mut(&program_id)
             .expect("gas reservation update guaranteed to be called only on existing program");
 
-        if let TestActor::Initialized(Program::Genuine {
-            gas_reservation_map: prog_gas_reservation_map,
-            ..
-        })
-        | TestActor::Uninitialized(
-            _,
-            Some(Program::Genuine {
-                gas_reservation_map: prog_gas_reservation_map,
-                ..
-            }),
-        ) = actor
-        {
-            *prog_gas_reservation_map =
-                reserver.into_map(block_height, |duration| block_height + duration);
-        } else {
-            panic!("no gas reservation map found in program");
-        }
+        actor
+            .genuine_program_mut()
+            .map(|prog| {
+                prog.gas_reservation_map =
+                    reserver.into_map(block_height, |duration| block_height + duration);
+            })
+            .expect("no genuine program found for program");
     }
 
     fn system_reserve_gas(&mut self, _message_id: MessageId, _amount: u64) {}
