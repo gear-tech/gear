@@ -27,8 +27,8 @@ ethereum-types = { version = "0.14.1", default-features = false, optional = true
 circular-buffer = { version = "0.1.7", default-features = false }
 paste = "1.0.14"
 ring = { git = "https://github.com/gear-tech/ring.git", branch = "gear-v0.17.8", default-features = false, features = ["alloc"] }
-tree_hash = { git = "file:///home/user/devel/gear-tech/tree_hash", branch = "gshep/no_std", default-features = false }
-tree_hash_derive = { git = "file:///home/user/devel/gear-tech/tree_hash", branch = "gshep/no_std" }
+tree_hash = { git = "https://github.com/gear-tech/tree_hash.git", branch = "gear-v0.6.0", default-features = false }
+tree_hash_derive = { git = "https://github.com/gear-tech/tree_hash.git", branch = "gear-v0.6.0" }
 primitive-types = { version = "0.12.2", default-features = false, features = ["codec", "serde_no_std"] }
 
 [target.'cfg(all(target_arch = "wasm32", target_os = "unknown"))'.dependencies]
