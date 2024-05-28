@@ -25,8 +25,7 @@ use gear_wasm_builder::{
     CargoCommand,
 };
 use std::{
-    env::{self, current_dir},
-    fs,
+    env, fs,
     path::{Path, PathBuf},
 };
 
@@ -80,11 +79,13 @@ impl Artifacts {
 
             if current.is_empty() {
                 let manifest = Manifest::from_path(&metadata.manifest)?;
-                artifacts.push(Artifact {
-                    manifest: metadata.manifest,
-                    opt: OptType::Opt,
-                    name: manifest.package().name.clone(),
-                });
+                if manifest.package.is_some() {
+                    artifacts = vec![Artifact {
+                        manifest: metadata.manifest,
+                        opt: OptType::Opt,
+                        name: manifest.package().name.clone(),
+                    }];
+                }
             } else {
                 artifacts = current;
             }
@@ -171,7 +172,7 @@ impl Artifact {
 
 /// Collection crate manifests from the provided glob patterns.
 fn collect_crates(cwd: &Path, patterns: &[String], opt: OptType) -> Result<Vec<Artifact>> {
-    let cwd = current_dir()?;
+    let cwd = env::current_dir()?;
     let mut crates: Vec<PathBuf> = Default::default();
     for p in patterns {
         crates.append(

@@ -798,13 +798,18 @@ pub mod gbuild {
     /// NOTE: Release or Debug is decided by the users
     /// who run the command `cargo-gbuild`.
     pub fn wasm_path() -> Result<PathBuf> {
-        let target = etc::find_up("target")
-            .map_err(|_| Error::GbuildArtifactNotFound("Could not find target folder".into()))?;
-        let manifest = Manifest::from_path(
-            etc::find_up("Cargo.toml")
-                .map_err(|_| Error::GbuildArtifactNotFound("Could not find manifest".into()))?,
-        )
-        .map_err(|_| Error::GbuildArtifactNotFound("Failed to parse manifest".into()))?;
+        let manifest_path = etc::find_up("Cargo.toml")
+            .map_err(|_| Error::GbuildArtifactNotFound("Could not find manifest".into()))?;
+        let manifest = Manifest::from_path(&manifest_path)
+            .map_err(|_| Error::GbuildArtifactNotFound("Could not parse mainfest".into()))?;
+        let target = etc::find_up("target").unwrap_or(
+            manifest_path
+                .parent()
+                .ok_or(Error::GbuildArtifactNotFound(
+                    "Could not parse target directory".into(),
+                ))?
+                .to_path_buf(),
+        );
 
         let artifact = target
             .join(format!(

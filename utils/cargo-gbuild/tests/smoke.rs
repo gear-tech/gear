@@ -39,70 +39,42 @@ fn ping(sys: &System, prog: PathBuf) -> Program<'_> {
     program
 }
 
+// NOTE:
+//
+// This test gathers both workspace build and single package build
+// for avoiding asynchronous I/O of the built programs, use [`tokio::fs`]
+// when this test grows.
 #[test]
-fn test_compile() -> Result<()> {
+fn test_all() -> Result<()> {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-program/Cargo.toml");
     let system = System::new();
     system.init_logger();
 
-    // Test single package build.
+    // 1. Test single package build.
     let mut gbuild = GBuild::default().manifest_path(root);
     let artifacts = gbuild.run()?;
     ping(&system, artifacts.root.join("gbuild_test_program.wasm"));
 
-    // Test workspace build.
+    // 2. Test workspace build.
     gbuild = gbuild.workspace();
     let artifacts = gbuild.run()?;
     ping(&system, artifacts.root.join("gbuild_test_foo.wasm"));
     let prog = ping(&system, artifacts.root.join("gbuild_test_bar.wasm"));
 
-    // Test meta
+    // 3. Test meta build.
     let metawasm = fs::read(artifacts.root.join("gbuild_test_meta.meta.wasm"))?;
     let modified: bool = prog
         .read_state_using_wasm(Vec::<u8>::default(), "modified", metawasm, state_args!())
         .expect("Failed to read program state");
-
     assert!(modified);
-    Ok(())
-}
 
-#[test]
-fn test_program_tests() {
-    // NOTE: workaround for installing stable toolchain if not exist
-    // This is momently only for adapting the environment (nightly)
-    // in our CI.
+    // 4. Embeddd program tests
     //
-    // see issue #48556 <https://github.com/rust-lang/rust/issues/48556>
-    {
-        let toolchains = Command::new("rustup")
-            .args(["toolchain", "list"])
-            .output()
-            .expect("Failed to list rust toolchains")
-            .stdout;
-
-        if !String::from_utf8_lossy(&toolchains).contains("stable") {
-            Command::new("rustup")
-                .args(["install", "stable", "--profile", "minimal"])
-                .status()
-                .expect("Failed to install stable toolchain");
-
-            Command::new("rustup")
-                .args(["+stable", "target", "add", "wasm32-unknown-unknown"])
-                .status()
-                .expect("Failed to install stable toolchain");
-        }
-
-        Command::new("rustup")
-            .current_dir("test-program")
-            .args(["override", "set", "stable"])
-            .status()
-            .expect("Failed to override current toolchain");
-    }
-
+    // TODO: Split this out from this test (#3915)
     assert!(Command::new("cargo")
-        .current_dir("test-program")
-        .arg("test")
+        .args(["test", "--manifest-path", "test-program/Cargo.toml"])
         .status()
         .expect("Failed to run the tests of cargo-gbuild/test-program")
-        .success())
+        .success());
+    Ok(())
 }
