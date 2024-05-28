@@ -139,7 +139,7 @@ pub struct Artifact {
 }
 
 impl Artifact {
-    /// Returns the input and the ouput name of the program
+    /// Returns the input and the output name of the program
     fn names(&self) -> (String, String) {
         let name = self.name.replace('-', "_");
         let input = name.clone() + ".wasm";

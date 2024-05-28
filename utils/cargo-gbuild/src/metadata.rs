@@ -52,12 +52,6 @@ impl Metadata {
         command.manifest_path(&manifest);
 
         let inner = command.exec()?;
-
-        // Use workspace packages if
-        // - workspace flag is enabled
-        // - the parsed manifest is the workspace manifest
-        // - no packages found for the parsed manifest
-        let workspace = workspace || manifest.eq(&inner.workspace_root);
         let mut gbuild =
             serde_json::from_value::<MetadataField>(inner.workspace_metadata.clone())?.gbuild;
         gbuild.programs.dedup();

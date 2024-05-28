@@ -827,15 +827,6 @@ pub mod gbuild {
         if wasm_path().is_err() {
             let manifest = etc::find_up("Cargo.toml").expect("Unable to find project manifest.");
             if !Command::new("cargo")
-                // NOTE: The `cargo-gbuild` command could be overridden by user defined alias,
-                // this is a workaround for our workspace, for the details, see: issue #10049
-                // <https://github.com/rust-lang/cargo/issues/10049>.
-                .current_dir(
-                    manifest
-                        .ancestors()
-                        .nth(2)
-                        .expect("The project is under the root directory"),
-                )
                 .args(["gbuild", "-m"])
                 .arg(&manifest)
                 .status()

@@ -153,7 +153,7 @@ impl CargoCommand {
 
             // The environment variable `CARGO_ENCODED_RUSTFLAGS` is used to globally remap path prefix.
             // It is also separated by `\x1f` to support folders with spaces or any unusual characters.
-            // Unlike `cargo rust`, tphis is useful for passing flags to all dependencies (i.e. globally).
+            // Unlike `cargo rust`, this is useful for passing flags to all dependencies (i.e. globally).
             cargo.env("CARGO_ENCODED_RUSTFLAGS", global_encoded_rustflags);
         }
 

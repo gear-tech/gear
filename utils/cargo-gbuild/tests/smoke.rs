@@ -70,7 +70,9 @@ fn test_compile() -> Result<()> {
 fn test_program_tests() {
     // NOTE: workaround for installing stable toolchain if not exist
     // This is momently only for adapting the environment (nightly)
-    // of our CI.
+    // in our CI.
+    //
+    // see issue #48556 <https://github.com/rust-lang/rust/issues/48556>
     {
         let toolchains = Command::new("rustup")
             .args(["toolchain", "list"])
@@ -80,20 +82,26 @@ fn test_program_tests() {
 
         if !String::from_utf8_lossy(&toolchains).contains("stable") {
             Command::new("rustup")
-                .args(["install", "stable"])
+                .args(["install", "stable", "--profile", "minimal"])
                 .status()
                 .expect("Failed to install stable toolchain");
 
             Command::new("rustup")
                 .args(["+stable", "target", "add", "wasm32-unknown-unknown"])
                 .status()
-                .expect("Failed to install +stable wasm toolchain");
+                .expect("Failed to install stable toolchain");
         }
+
+        Command::new("rustup")
+            .current_dir("test-program")
+            .args(["override", "set", "stable"])
+            .status()
+            .expect("Failed to override current toolchain");
     }
 
     assert!(Command::new("cargo")
         .current_dir("test-program")
-        .args(["+stable", "test"])
+        .arg("test")
         .status()
         .expect("Failed to run the tests of cargo-gbuild/test-program")
         .success())
