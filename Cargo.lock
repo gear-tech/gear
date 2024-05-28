@@ -5784,6 +5784,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "hypercore-cli"
+version = "1.4.2"
+dependencies = [
+ "anyhow",
+ "clap 4.5.4",
+ "directories",
+ "env_logger",
+ "log",
+]
+
+[[package]]
 name = "iana-time-zone"
 version = "0.1.57"
 source = "registry+https://github.com/rust-lang/crates.io-index"
