@@ -16,25 +16,18 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Cargo extension for building gear programs.
+//! Database library for hypercore.
 
-mod args;
-mod config;
-mod service;
+mod code;
+mod io;
+mod rocks;
+mod state;
 
-use crate::{args::Args, config::Config};
-use anyhow::Context;
-use clap::Parser;
+pub use code::{Code, CodeHash};
+pub use state::{ProgramId, State, StateHash};
 
-fn main() -> anyhow::Result<()> {
-    let args = Args::parse();
+pub use io::Database;
+pub use rocks::RocksDatabase;
 
-    let config = Config::try_from(args).with_context(|| "Failed to create configuration")?;
-
-    env_logger::try_init().with_context(|| "Failed to initialize logger")?;
-
-    log::info!("Ethereum observerl RPC: {}", config.ethereum_rpc);
-    log::info!("Database directory: {:?}", config.database_path);
-
-    Ok(())
-}
+use anyhow::Result;
+use std::path::PathBuf;

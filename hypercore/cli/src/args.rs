@@ -18,8 +18,8 @@
 
 //! Cargo extension for building gear programs.
 
-use std::path::PathBuf;
 use clap::Parser;
+use std::path::PathBuf;
 
 #[derive(Debug, Parser)]
 #[command(version, about, long_about = None)]

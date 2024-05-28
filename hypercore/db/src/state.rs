@@ -16,25 +16,21 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Cargo extension for building gear programs.
+//! State-related data structures.
 
-mod args;
-mod config;
-mod service;
+pub struct StateHash([u8; 32]);
 
-use crate::{args::Args, config::Config};
-use anyhow::Context;
-use clap::Parser;
+pub struct ProgramId([u8; 32]);
 
-fn main() -> anyhow::Result<()> {
-    let args = Args::parse();
+/// Hypercore program state.
+pub struct State {
+    /// Program ID.
+    program_id: ProgramId,
+    // TODO: list all program state members
+}
 
-    let config = Config::try_from(args).with_context(|| "Failed to create configuration")?;
-
-    env_logger::try_init().with_context(|| "Failed to initialize logger")?;
-
-    log::info!("Ethereum observerl RPC: {}", config.ethereum_rpc);
-    log::info!("Database directory: {:?}", config.database_path);
-
-    Ok(())
+impl State {
+    pub fn hash(&self) -> StateHash {
+        unimplemented!()
+    }
 }

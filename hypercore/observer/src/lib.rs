@@ -16,25 +16,20 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Cargo extension for building gear programs.
+//! Ethereum state observer for Hypercore.
 
-mod args;
-mod config;
-mod service;
+use anyhow::Result;
 
-use crate::{args::Args, config::Config};
-use anyhow::Context;
-use clap::Parser;
+/// Ethereum state observer.
+///
+/// Generally, it should exist in single state and should not be cloned.
+pub struct Observer {
+    ethereum_rpc: String,
+    db: Box<dyn hypercore_db::Database>,
+}
 
-fn main() -> anyhow::Result<()> {
-    let args = Args::parse();
-
-    let config = Config::try_from(args).with_context(|| "Failed to create configuration")?;
-
-    env_logger::try_init().with_context(|| "Failed to initialize logger")?;
-
-    log::info!("Ethereum observerl RPC: {}", config.ethereum_rpc);
-    log::info!("Database directory: {:?}", config.database_path);
-
-    Ok(())
+impl Observer {
+    pub fn new(ethereum_rpc: String, db: Box<dyn hypercore_db::Database>) -> Result<Self> {
+        Ok(Self { ethereum_rpc, db })
+    }
 }

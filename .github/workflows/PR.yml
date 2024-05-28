@@ -25,5 +25,15 @@ jobs:
       - name: "Build: Hypercore"
         run: cargo build --release -p hypercore-cli
 
-      - name: "Test: Hypercore"
+      - name: "Test: Hypercore CLI"
         run: cargo test --release -p hypercore-cli
+
+      - name: "Test: Hypercore Network"
+        run: cargo test --release -p hypercore-network
+
+      - name: "Test: Hypercore Db"
+        run: cargo test --release -p hypercore-db
+
+      - name: "Test: Hypercore Observer"
+        run: cargo test --release -p hypercore-observer
+
