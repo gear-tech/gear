@@ -37,7 +37,8 @@ macro_rules! impl_config {
             type Currency = Balances;
             type BankAddress = BankAddress;
             type GasMultiplier = GasMultiplier;
-            type SplitFee = SplitFee;
+            type SplitGas = SplitGas;
+            type SplitTxFeeRatio = SplitTxFeeRatio;
         }
     };
 }
@@ -88,7 +89,10 @@ pub mod pallet {
         /// Gas price converter.
         type GasMultiplier: Get<GasMultiplier<Self>>;
 
-        type SplitFee: Get<Option<(Perbill, AccountIdOf<Self>)>>;
+        type SplitGas: Get<Option<(Perbill, AccountIdOf<Self>)>>;
+
+        /// The ratio of how much of the tx fees goes to the treasury
+        type SplitTxFeeRatio: Get<Option<u32>>;
     }
 
     // Funds pallets error.
@@ -299,8 +303,8 @@ pub mod pallet {
             Self::ensure_bank_can_transfer(value)?;
 
             OnFinalizeValue::<T>::mutate(|v| *v = v.saturating_add(value));
-            if let Some((gas_split, split_dest)) = T::SplitFee::get() {
-                // split value by `SplitFee`
+            if let Some((gas_split, split_dest)) = T::SplitGas::get() {
+                // split value by `SplitGas`
                 let to_split = gas_split.mul_floor(value);
                 let to_user = value - to_split;
 

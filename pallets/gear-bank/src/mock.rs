@@ -65,7 +65,8 @@ parameter_types! {
     pub const GasMultiplier: common::GasMultiplier<Balance, u64> = common::GasMultiplier::ValuePerGas(VALUE_PER_GAS);
     pub const BlockHashCount: BlockNumber = 250;
     pub const ExistentialDeposit: Balance = EXISTENTIAL_DEPOSIT;
-    pub SplitFee: Option<(Perbill, AccountId)> = Some((Perbill::from_percent(50), PalletId(*b"py/trsry").into_account_truncating()));
+    pub SplitGas: Option<(Perbill, AccountId)> = Some((Perbill::from_percent(50), PalletId(*b"py/trsry").into_account_truncating()));
+    pub SplitTxFeeRatio: Option<u32> = None;
 }
 
 construct_runtime!(

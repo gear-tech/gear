@@ -22,6 +22,8 @@ mod apis;
 pub mod constants;
 pub mod weights;
 
+use sp_runtime::traits::Get;
+
 use frame_support::{
     pallet_prelude::DispatchClass,
     parameter_types,
@@ -97,7 +99,10 @@ where
 pub struct DealWithFees<R>(sp_std::marker::PhantomData<R>);
 impl<R> OnUnbalanced<NegativeImbalance<R>> for DealWithFees<R>
 where
-    R: pallet_balances::Config + pallet_treasury::Config + pallet_authorship::Config,
+    R: pallet_balances::Config
+        + pallet_treasury::Config
+        + pallet_authorship::Config
+        + pallet_gear_bank::Config,
     pallet_treasury::Pallet<R>: OnUnbalanced<NegativeImbalance<R>>,
     <R as frame_system::Config>::AccountId: From<AccountId>,
     <R as frame_system::Config>::AccountId: Into<AccountId>,
@@ -106,17 +111,25 @@ where
         use pallet_treasury::Pallet as Treasury;
 
         if let Some(fees) = fees_then_tips.next() {
-            // for fees, SPLIT_TX_FEE_PERCENT to treasury else to author
-            let (mut to_author, to_treasury) = fees.ration(
-                100 - constants::SPLIT_TX_FEE_PERCENT,
-                constants::SPLIT_TX_FEE_PERCENT,
-            );
-            if let Some(tips) = fees_then_tips.next() {
-                // for tips, if any, 100% to author
-                tips.merge_into(&mut to_author);
+            let split_tx_fee_ratio = R::SplitTxFeeRatio::get();
+            if let Some(split_tx_fee_ratio) = split_tx_fee_ratio {
+                // for fees, SplitTxFeeRatio to treasury else to author
+                let (mut to_author, to_treasury) =
+                    fees.ration(100 - split_tx_fee_ratio, split_tx_fee_ratio);
+                if let Some(tips) = fees_then_tips.next() {
+                    // for tips, if any, 100% to author
+                    tips.merge_into(&mut to_author);
+                }
+                <Treasury<R> as OnUnbalanced<_>>::on_unbalanced(to_treasury);
+                <ToAuthor<R> as OnUnbalanced<_>>::on_unbalanced(to_author);
+            } else {
+                let mut to_author = fees;
+                if let Some(tips) = fees_then_tips.next() {
+                    // for tips, if any, 100% to author
+                    tips.merge_into(&mut to_author);
+                }
+                <ToAuthor<R> as OnUnbalanced<_>>::on_unbalanced(to_author);
             }
-            <Treasury<R> as OnUnbalanced<_>>::on_unbalanced(to_treasury);
-            <ToAuthor<R> as OnUnbalanced<_>>::on_unbalanced(to_author);
         }
     }
 }
