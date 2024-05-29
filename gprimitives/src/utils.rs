@@ -19,8 +19,8 @@
 use core::{fmt, str};
 #[cfg(feature = "serde")]
 use {
+    core::{marker::PhantomData, str::FromStr},
     serde::de,
-    std::{marker::PhantomData, str::FromStr},
 };
 
 const LEN: usize = 32;
