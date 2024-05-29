@@ -45,7 +45,7 @@ fn ping(sys: &System, prog: PathBuf) -> Program<'_> {
 // for avoiding asynchronous I/O of the built programs, use [`tokio::fs`]
 // when this test grows.
 #[test]
-fn test_all() -> Result<()> {
+fn test_compile() -> Result<()> {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-program/Cargo.toml");
     let system = System::new();
     system.init_logger();
@@ -71,7 +71,7 @@ fn test_all() -> Result<()> {
 }
 
 #[test]
-fn program_tests() {
+fn test_program_tests() {
     // NOTE: workaround for installing stable toolchain if not exist
     // This is momently only for adapting the environment (nightly)
     // of our CI.
