@@ -29,7 +29,7 @@ use crate::Config;
 use common::Origin;
 use frame_support::traits::Get;
 use gear_core::{
-    ids::CodeId,
+    ids::{prelude::*, CodeId},
     pages::{WasmPage, WasmPagesAmount},
 };
 use gear_sandbox::{

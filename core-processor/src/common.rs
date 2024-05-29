@@ -26,6 +26,7 @@ use alloc::{
     vec::Vec,
 };
 use gear_core::{
+    code::InstrumentedCode,
     gas::{GasAllowanceCounter, GasAmount, GasCounter},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{MemoryError, MemorySetupError, PageBuf},
@@ -33,7 +34,7 @@ use gear_core::{
         ContextStore, Dispatch, DispatchKind, IncomingDispatch, MessageWaitedType, StoredDispatch,
     },
     pages::{numerated::tree::IntervalsTree, GearPage, WasmPage, WasmPagesAmount},
-    program::{MemoryInfix, Program},
+    program::MemoryInfix,
     reservation::{GasReservationMap, GasReserver},
 };
 pub use gear_core_backend::error::TrapExplanation;
@@ -525,9 +526,22 @@ pub struct ExecutableActorData {
     pub gas_reservation_map: GasReservationMap,
 }
 
+/// Program.
+#[derive(Clone, Debug)]
+pub(crate) struct Program {
+    /// Program id.
+    pub id: ProgramId,
+    /// Memory infix.
+    pub memory_infix: MemoryInfix,
+    /// Instrumented code.
+    pub code: InstrumentedCode,
+    /// Allocations.
+    pub allocations: IntervalsTree<WasmPage>,
+}
+
 /// Execution context.
 #[derive(Debug)]
-pub struct WasmExecutionContext {
+pub(crate) struct WasmExecutionContext {
     /// A counter for gas.
     pub gas_counter: GasCounter,
     /// A counter for gas allowance.

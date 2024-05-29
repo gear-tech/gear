@@ -16,7 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{common::errors::Result, ActorId, CodeId, MessageId};
+use crate::{ActorId, CodeId, MessageId};
+use gcore::errors::Result;
 use gstd_codegen::wait_create_program_for_reply;
 
 /// Create a new program from the already existing on-chain code identified by
@@ -84,15 +85,7 @@ pub fn create_program_bytes_delayed(
     value: u128,
     delay: u32,
 ) -> Result<(MessageId, ActorId)> {
-    let (message_id, program_id) = gcore::prog::create_program_delayed(
-        code_id.into(),
-        salt.as_ref(),
-        payload.as_ref(),
-        value,
-        delay,
-    )?;
-
-    Ok((message_id.into(), program_id.into()))
+    gcore::prog::create_program_delayed(code_id, salt.as_ref(), payload.as_ref(), value, delay)
 }
 
 /// Same as [`create_program_bytes`], but with an explicit gas limit.
@@ -117,14 +110,12 @@ pub fn create_program_bytes_with_gas_delayed(
     value: u128,
     delay: u32,
 ) -> Result<(MessageId, ActorId)> {
-    let (message_id, program_id) = gcore::prog::create_program_with_gas_delayed(
-        code_id.into(),
+    gcore::prog::create_program_with_gas_delayed(
+        code_id,
         salt.as_ref(),
         payload.as_ref(),
         gas_limit,
         value,
         delay,
-    )?;
-
-    Ok((message_id.into(), program_id.into()))
+    )
 }

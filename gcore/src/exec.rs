@@ -23,6 +23,7 @@
 
 use crate::{
     errors::{Result, SyscallError},
+    utils::AsRawPtr,
     ActorId, EnvVars, MessageId, ReservationId,
 };
 use core::mem::MaybeUninit;

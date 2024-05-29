@@ -18,9 +18,8 @@
 
 //! Program generation module
 
-use crate::{
-    common::errors::Result, prog, util::with_optimized_encode, ActorId, CodeId, MessageId,
-};
+use crate::{prog, util::with_optimized_encode, ActorId, CodeId, MessageId};
+use gcore::errors::Result;
 use gstd_codegen::wait_create_program_for_reply;
 use scale_info::scale::{alloc::vec::Vec, Encode};
 
