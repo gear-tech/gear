@@ -28,7 +28,7 @@ use crate::{
 };
 use alloc::vec::Vec;
 use gear_core::{
-    code::SectionSizes,
+    code::{SectionName, SectionSizes},
     costs::BytesAmount,
     gas::{ChargeResult, GasAllowanceCounter, GasCounter},
     ids::ProgramId,
@@ -50,24 +50,9 @@ pub enum PreChargeGasOperation {
     /// Handle program code.
     #[display(fmt = "handle program code")]
     ProgramCode,
-    /// Instantiate the code section of the Wasm module.
-    #[display(fmt = "instantiate code section of Wasm module")]
-    ModuleCodeSectionInstantiation,
-    /// Instantiate the data section of the Wasm module.
-    #[display(fmt = "instantiate data section of Wasm module")]
-    ModuleDataSectionInstantiation,
-    /// Instantiate the global section of the Wasm module.
-    #[display(fmt = "instantiate global section of Wasm module")]
-    ModuleGlobalSectionInstantiation,
-    /// Instantiate the table section of the Wasm module.
-    #[display(fmt = "instantiate table section of Wasm module")]
-    ModuleTableSectionInstantiation,
-    /// Instantiate the element section of the Wasm module.
-    #[display(fmt = "instantiate element section of Wasm module")]
-    ModuleElementSectionInstantiation,
     /// Instantiate the type section of the Wasm module.
-    #[display(fmt = "instantiate type section of Wasm module")]
-    ModuleTypeSectionInstantiation,
+    #[display(fmt = "instantiate {_0} of Wasm module")]
+    ModuleInstantiation(SectionName),
     /// Instrument Wasm module.
     #[display(fmt = "instrument Wasm module")]
     ModuleInstrumentation,
@@ -139,41 +124,56 @@ impl<'a> GasPrecharger<'a> {
         )
     }
 
-    impl_charge_gas_for_section_instantiation!(
-        charge_gas_for_code_section_instantiation,
-        ModuleCodeSectionInstantiation,
-        module_code_section_instantiation_per_byte
-    );
+    pub fn charge_gas_for_section_instantiation(
+        &mut self,
+        section_name: SectionName,
+        section_len: BytesAmount,
+    ) -> Result<(), PrechargeError> {
+        let cost_per_byte = match section_name {
+            SectionName::Function => {
+                &self
+                    .costs
+                    .instantiation_costs
+                    .code_section_instantiation_per_byte
+            }
+            SectionName::Data => {
+                &self
+                    .costs
+                    .instantiation_costs
+                    .data_section_instantiation_per_byte
+            }
+            SectionName::Global => {
+                &self
+                    .costs
+                    .instantiation_costs
+                    .global_section_instantiation_per_byte
+            }
+            SectionName::Table => {
+                &self
+                    .costs
+                    .instantiation_costs
+                    .table_section_instantiation_per_byte
+            }
+            SectionName::Element => {
+                &self
+                    .costs
+                    .instantiation_costs
+                    .element_section_instantiation_per_byte
+            }
+            SectionName::Type => {
+                &self
+                    .costs
+                    .instantiation_costs
+                    .type_section_instantiation_per_byte
+            }
+            _ => unimplemented!("Wrong {section_name:?} for section instantiation"),
+        };
 
-    impl_charge_gas_for_section_instantiation!(
-        charge_gas_for_data_section_instantiation,
-        ModuleDataSectionInstantiation,
-        module_data_section_instantiation_per_byte
-    );
-
-    impl_charge_gas_for_section_instantiation!(
-        charge_gas_for_global_section_instantiation,
-        ModuleGlobalSectionInstantiation,
-        module_global_section_instantiation_per_byte
-    );
-
-    impl_charge_gas_for_section_instantiation!(
-        charge_gas_for_table_section_instantiation,
-        ModuleTableSectionInstantiation,
-        module_table_section_instantiation_per_byte
-    );
-
-    impl_charge_gas_for_section_instantiation!(
-        charge_gas_for_element_section_instantiation,
-        ModuleElementSectionInstantiation,
-        module_element_section_instantiation_per_byte
-    );
-
-    impl_charge_gas_for_section_instantiation!(
-        charge_gas_for_type_section_instantiation,
-        ModuleTypeSectionInstantiation,
-        module_type_section_instantiation_per_byte
-    );
+        self.charge_gas(
+            PreChargeGasOperation::ModuleInstantiation(section_name),
+            cost_per_byte.cost_for(section_len),
+        )
+    }
 
     pub fn charge_gas_for_instrumentation(
         &mut self,
@@ -393,20 +393,30 @@ pub fn precharge_for_module_instantiation(
             actor_data.static_pages
         };
 
-        charger
-            .charge_gas_for_code_section_instantiation(section_sizes.code_section_bytes.into())?;
-        charger
-            .charge_gas_for_data_section_instantiation(section_sizes.data_section_bytes.into())?;
-        charger.charge_gas_for_global_section_instantiation(
+        charger.charge_gas_for_section_instantiation(
+            SectionName::Function,
+            section_sizes.code_section_bytes.into(),
+        )?;
+        charger.charge_gas_for_section_instantiation(
+            SectionName::Data,
+            section_sizes.data_section_bytes.into(),
+        )?;
+        charger.charge_gas_for_section_instantiation(
+            SectionName::Global,
             section_sizes.global_section_bytes.into(),
         )?;
-        charger
-            .charge_gas_for_table_section_instantiation(section_sizes.table_section_bytes.into())?;
-        charger.charge_gas_for_element_section_instantiation(
+        charger.charge_gas_for_section_instantiation(
+            SectionName::Table,
+            section_sizes.table_section_bytes.into(),
+        )?;
+        charger.charge_gas_for_section_instantiation(
+            SectionName::Element,
             section_sizes.element_section_bytes.into(),
         )?;
-        charger
-            .charge_gas_for_type_section_instantiation(section_sizes.type_section_bytes.into())?;
+        charger.charge_gas_for_section_instantiation(
+            SectionName::Type,
+            section_sizes.type_section_bytes.into(),
+        )?;
 
         Ok(memory_size)
     };
@@ -443,16 +453,3 @@ pub fn precharge_for_module_instantiation(
         }
     }
 }
-
-macro_rules! impl_charge_gas_for_section_instantiation {
-    ($fn_name:ident, $section_op:ident, $section_field:ident) => {
-        pub fn $fn_name(&mut self, section_len: BytesAmount) -> Result<(), PrechargeError> {
-            self.charge_gas(
-                PreChargeGasOperation::$section_op,
-                self.costs.$section_field.cost_for(section_len),
-            )
-        }
-    };
-}
-
-use impl_charge_gas_for_section_instantiation;

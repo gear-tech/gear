@@ -23,7 +23,7 @@
 
 use crate::{weights::WeightInfo, Config, CostsPerBlockOf, DbWeightOf};
 use common::scheduler::SchedulingCostsPerBlock;
-use core_processor::configs::{ExtCosts, ProcessCosts, RentCosts};
+use core_processor::configs::{ExtCosts, InstantiationCosts, ProcessCosts, RentCosts};
 use frame_support::{traits::Get, weights::Weight};
 use gear_core::{
     code::MAX_WASM_PAGES_AMOUNT,
@@ -74,7 +74,7 @@ pub const FUZZER_STACK_HEIGHT_LIMIT: u32 = 65_000;
 pub const DATA_SEGMENTS_AMOUNT_LIMIT: u32 = 1024;
 
 /// Maximum number of wasm tables in a wasm module.
-/// The same limit also imposed by `wasmrparser`,
+/// The same limit also imposed by `wasmparser`,
 /// see <https://github.com/bytecodealliance/wasm-tools/blob/main/crates/wasmparser/src/limits.rs>
 pub const TABLE_NUMBER_LIMIT: u32 = 100;
 
@@ -129,22 +129,22 @@ pub struct Schedule<T: Config> {
     pub memory_weights: MemoryWeights<T>,
 
     /// WASM module code section instantiation per byte cost.
-    pub module_code_section_instantiation_per_byte: Weight,
+    pub code_section_instantiation_per_byte: Weight,
 
     /// WASM module data section instantiation per byte cost.
-    pub module_data_section_instantiation_per_byte: Weight,
+    pub data_section_instantiation_per_byte: Weight,
 
     /// WASM module global section instantiation per byte cost.
-    pub module_global_section_instantiation_per_byte: Weight,
+    pub global_section_instantiation_per_byte: Weight,
 
     /// WASM module table section instantiation per byte cost.
-    pub module_table_section_instantiation_per_byte: Weight,
+    pub table_section_instantiation_per_byte: Weight,
 
     /// WASM module element section instantiation per byte cost.
-    pub module_element_section_instantiation_per_byte: Weight,
+    pub element_section_instantiation_per_byte: Weight,
 
     /// WASM module type section instantiation per byte cost.
-    pub module_type_section_instantiation_per_byte: Weight,
+    pub type_section_instantiation_per_byte: Weight,
 
     /// Single db write per byte cost.
     pub db_write_per_byte: Weight,
@@ -212,7 +212,7 @@ pub struct Limits {
     pub table_size: u32,
 
     /// Maximum number of tables allowed for a program.
-    /// The same limit also imposed by `wasmrparser`,
+    /// The same limit also imposed by `wasmparser`,
     /// see <https://github.com/bytecodealliance/wasm-tools/blob/main/crates/wasmparser/src/limits.rs>
     pub table_number: u32,
 
@@ -781,22 +781,22 @@ impl<T: Config> Default for Schedule<T> {
             memory_weights: Default::default(),
             db_write_per_byte: to_weight!(cost_byte!(db_write_per_kb)),
             db_read_per_byte: to_weight!(cost_byte!(db_read_per_kb)),
-            module_code_section_instantiation_per_byte: to_weight!(cost_byte!(
+            code_section_instantiation_per_byte: to_weight!(cost_byte!(
                 instantiate_module_code_section_per_kb
             )),
-            module_data_section_instantiation_per_byte: to_weight!(cost_byte!(
+            data_section_instantiation_per_byte: to_weight!(cost_byte!(
                 instantiate_module_data_section_per_kb
             )),
-            module_global_section_instantiation_per_byte: to_weight!(cost_byte!(
+            global_section_instantiation_per_byte: to_weight!(cost_byte!(
                 instantiate_module_global_section_per_kb
             )),
-            module_table_section_instantiation_per_byte: to_weight!(cost_byte!(
+            table_section_instantiation_per_byte: to_weight!(cost_byte!(
                 instantiate_module_table_section_per_kb
             )),
-            module_element_section_instantiation_per_byte: to_weight!(cost_byte!(
+            element_section_instantiation_per_byte: to_weight!(cost_byte!(
                 instantiate_module_element_section_per_kb
             )),
-            module_type_section_instantiation_per_byte: to_weight!(cost_byte!(
+            type_section_instantiation_per_byte: to_weight!(cost_byte!(
                 instantiate_module_type_section_per_kb
             )),
             code_instrumentation_cost: call_zero!(reinstrument_per_kb, 0),
@@ -1220,30 +1220,32 @@ impl<T: Config> Schedule<T> {
             static_page: self.memory_weights.static_page.ref_time().into(),
             instrumentation: self.code_instrumentation_cost.ref_time().into(),
             instrumentation_per_byte: self.code_instrumentation_byte_cost.ref_time().into(),
-            module_code_section_instantiation_per_byte: self
-                .module_code_section_instantiation_per_byte
-                .ref_time()
-                .into(),
-            module_data_section_instantiation_per_byte: self
-                .module_data_section_instantiation_per_byte
-                .ref_time()
-                .into(),
-            module_global_section_instantiation_per_byte: self
-                .module_global_section_instantiation_per_byte
-                .ref_time()
-                .into(),
-            module_table_section_instantiation_per_byte: self
-                .module_table_section_instantiation_per_byte
-                .ref_time()
-                .into(),
-            module_element_section_instantiation_per_byte: self
-                .module_element_section_instantiation_per_byte
-                .ref_time()
-                .into(),
-            module_type_section_instantiation_per_byte: self
-                .module_type_section_instantiation_per_byte
-                .ref_time()
-                .into(),
+            instantiation_costs: InstantiationCosts {
+                code_section_instantiation_per_byte: self
+                    .code_section_instantiation_per_byte
+                    .ref_time()
+                    .into(),
+                data_section_instantiation_per_byte: self
+                    .data_section_instantiation_per_byte
+                    .ref_time()
+                    .into(),
+                global_section_instantiation_per_byte: self
+                    .global_section_instantiation_per_byte
+                    .ref_time()
+                    .into(),
+                table_section_instantiation_per_byte: self
+                    .table_section_instantiation_per_byte
+                    .ref_time()
+                    .into(),
+                element_section_instantiation_per_byte: self
+                    .element_section_instantiation_per_byte
+                    .ref_time()
+                    .into(),
+                type_section_instantiation_per_byte: self
+                    .type_section_instantiation_per_byte
+                    .ref_time()
+                    .into(),
+            },
         }
     }
 }

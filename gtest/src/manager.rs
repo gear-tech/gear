@@ -30,7 +30,10 @@ use crate::{
 };
 use core_processor::{
     common::*,
-    configs::{BlockConfig, BlockInfo, ExtCosts, ProcessCosts, RentCosts, TESTS_MAX_PAGES_NUMBER},
+    configs::{
+        BlockConfig, BlockInfo, ExtCosts, InstantiationCosts, ProcessCosts, RentCosts,
+        TESTS_MAX_PAGES_NUMBER,
+    },
     ContextChargedForCode, ContextChargedForInstrumentation, Ext,
 };
 use gear_core::{
@@ -893,18 +896,20 @@ impl ExtManager {
                 instrumentation: MODULE_INSTRUMENTATION_COST.into(),
                 instrumentation_per_byte: MODULE_INSTRUMENTATION_BYTE_COST.into(),
                 static_page: Default::default(),
-                module_code_section_instantiation_per_byte:
-                    MODULE_CODE_SECTION_INSTANTIATION_BYTE_COST.into(),
-                module_data_section_instantiation_per_byte:
-                    MODULE_DATA_SECTION_INSTANTIATION_BYTE_COST.into(),
-                module_global_section_instantiation_per_byte:
-                    MODULE_GLOBAL_SECTION_INSTANTIATION_BYTE_COST.into(),
-                module_table_section_instantiation_per_byte:
-                    MODULE_TABLE_SECTION_INSTANTIATION_BYTE_COST.into(),
-                module_element_section_instantiation_per_byte:
-                    MODULE_ELEMENT_SECTION_INSTANTIATION_BYTE_COST.into(),
-                module_type_section_instantiation_per_byte:
-                    MODULE_TYPE_SECTION_INSTANTIATION_BYTE_COST.into(),
+                instantiation_costs: InstantiationCosts {
+                    code_section_instantiation_per_byte:
+                        MODULE_CODE_SECTION_INSTANTIATION_BYTE_COST.into(),
+                    data_section_instantiation_per_byte:
+                        MODULE_DATA_SECTION_INSTANTIATION_BYTE_COST.into(),
+                    global_section_instantiation_per_byte:
+                        MODULE_GLOBAL_SECTION_INSTANTIATION_BYTE_COST.into(),
+                    table_section_instantiation_per_byte:
+                        MODULE_TABLE_SECTION_INSTANTIATION_BYTE_COST.into(),
+                    element_section_instantiation_per_byte:
+                        MODULE_ELEMENT_SECTION_INSTANTIATION_BYTE_COST.into(),
+                    type_section_instantiation_per_byte:
+                        MODULE_TYPE_SECTION_INSTANTIATION_BYTE_COST.into(),
+                },
             },
             existential_deposit: EXISTENTIAL_DEPOSIT,
             mailbox_threshold: MAILBOX_THRESHOLD,

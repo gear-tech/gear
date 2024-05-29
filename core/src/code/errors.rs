@@ -22,7 +22,7 @@ pub use gear_wasm_instrument::{parity_wasm::SerializationError, InstrumentationE
 pub use wasmparser::BinaryReaderError;
 
 /// Section name in WASM module.
-#[derive(Debug, derive_more::Display)]
+#[derive(PartialEq, Eq, Debug, derive_more::Display)]
 pub enum SectionName {
     /// Type section.
     #[display(fmt = "Type section")]
@@ -30,9 +30,21 @@ pub enum SectionName {
     /// Import section.
     #[display(fmt = "Import section")]
     Import,
-    /// Function section.
+    /// Function (Code) section.
     #[display(fmt = "Function section")]
     Function,
+    /// Data section.
+    #[display(fmt = "Data section")]
+    Data,
+    /// Global section.
+    #[display(fmt = "Global section")]
+    Global,
+    /// Table section.
+    #[display(fmt = "Table section")]
+    Table,
+    /// Element section.
+    #[display(fmt = "Element section")]
+    Element,
     /// Export section.
     #[display(fmt = "Export section")]
     Export,
