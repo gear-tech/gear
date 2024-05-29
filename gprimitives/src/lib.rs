@@ -27,7 +27,7 @@ pub use gear_ss58::Ss58Address;
 #[cfg(feature = "codec")]
 pub use primitive_types::{H160, H256, U256};
 
-pub mod macros;
+mod macros;
 mod utils;
 
 use core::{
