@@ -1,0 +1,6 @@
+[submodule "hypercore/contracts/lib/forge-std"]
+	path = hypercore/contracts/lib/forge-std
+	url = https://github.com/foundry-rs/forge-std
+[submodule "hypercore/contracts/lib/openzeppelin-contracts"]
+	path = hypercore/contracts/lib/openzeppelin-contracts
+	url = https://github.com/OpenZeppelin/openzeppelin-contracts

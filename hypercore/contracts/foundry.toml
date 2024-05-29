@@ -1,0 +1,14 @@
+[profile.default]
+src = "src"
+out = "out"
+libs = ["lib"]
+evm_version = "cancun"
+optimizer_runs = 100_000
+
+[rpc_endpoints]
+holesky = "${HOLESKY_RPC_URL}"
+
+[etherscan]
+holesky = { key = "${ETHERSCAN_API_KEY}" }
+
+# See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
