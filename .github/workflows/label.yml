@@ -10,22 +10,47 @@ jobs:
     runs-on: ubuntu-latest
     if: >-
       github.event.label.name == 'A0-pleasereview'
-      || github.event.label.name == 'E2-forcemacos'
       || github.event.label.name == 'A4-insubstantial'
       || github.event.label.name == 'A2-mergeoncegreen'
+      || github.event.label.name == 'E1-forcenatwin'
+      || github.event.label.name == 'E2-forcemacos'
+
     steps:
       - uses: actions/checkout@v4
+
+      - name: Fork Linux checks
+        if: >-
+          github.event.label.name == 'A0-pleasereview'
+            || github.event.label.name == 'A4-insubstantial'
+            || github.event.label.name == 'A2-mergeoncegreen'
+        uses: gear-tech/fork-action@main
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
-      - uses: actions/github-script@v7
-        env:
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          LABEL: ${{ github.event.label.name }}
-          REF: ${{ github.head_ref || github.ref_name }}
-          TITLE: ${{ github.event.pull_request.title }}
-          NUMBER: ${{ github.event.number }}
-          REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          workflow_id: ".github/workflows/build.yml"
+          prefix: "build"
+          jobs: '["linux", "win-cross"]'
+          useMulti: true
+          inputs: '{
+            "title": "${{ github.event.pull_request.title }}",
+            "number": "${{ github.event.number }}"
+          }'
+
+      - name: Fork OSX checks
+        if: github.event.label.name == 'E2-forcemacos'
+        uses: gear-tech/fork-action@main
         with:
-          script: |
-            const script = require('./.github/actions/label/build.js');
-            await script({ github, core });
+          token: ${{ secrets.GITHUB_TOKEN }}
+          workflow_id: ".github/workflows/build-macos.yml"
+          prefix: "build"
+          jobs: '[ "macos-x86", "macos-aarch64" ]'
+          useProfiles: true
+
+      - name: Fork Win checks
+        if: github.event.label.name == 'E1-forcenatwin'
+        uses: gear-tech/fork-action@main
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          workflow_id: ".github/workflows/build-win-native.yml"
+          prefix: "build"
+          jobs: '[ "win-native" ]'
+          useProfiles: true
