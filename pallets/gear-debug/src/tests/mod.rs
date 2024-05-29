@@ -21,7 +21,7 @@ use crate::mock::*;
 use common::{self, event::MessageEntry, CodeStorage, Origin as _};
 use frame_support::assert_ok;
 use gear_core::{
-    ids::{CodeId, MessageId, ProgramId},
+    ids::{prelude::*, CodeId, MessageId, ProgramId},
     memory::PageBuf,
     message::{DispatchKind, StoredDispatch, StoredMessage, UserMessage},
     pages::{GearPage, WasmPage},

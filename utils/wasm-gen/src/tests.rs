@@ -21,7 +21,7 @@ use arbitrary::Unstructured;
 use gear_core::{
     code::Code,
     gas::{GasAllowanceCounter, GasCounter, ValueCounter},
-    ids::{CodeId, ProgramId},
+    ids::{prelude::*, CodeId, ProgramId},
     memory::Memory,
     message::{
         ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext,
@@ -287,7 +287,7 @@ fn test_existing_address_as_address_param() {
 
     assert_eq!(
         dispatch.destination(),
-        ProgramId::from(some_address.as_ref())
+        ProgramId::try_from(some_address.as_ref()).unwrap()
     );
 }
 
@@ -418,7 +418,10 @@ fn test_msg_value_ptr_dest() {
                 match dest_var {
                     ActorKind::Source => assert_eq!(destination, message_sender()),
                     ActorKind::ExistingAddresses(_) => {
-                        assert_eq!(destination, ProgramId::from(some_address.as_ref()))
+                        assert_eq!(
+                            destination,
+                            ProgramId::try_from(some_address.as_ref()).unwrap()
+                        )
                     }
                     ActorKind::Random => {}
                 }
@@ -842,5 +845,5 @@ fn execute_wasm_with_custom_configs(
 
 fn message_sender() -> ProgramId {
     let bytes = [1, 2, 3, 4].repeat(8);
-    ProgramId::from(bytes.as_ref())
+    ProgramId::try_from(bytes.as_ref()).unwrap()
 }

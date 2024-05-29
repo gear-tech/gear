@@ -31,7 +31,7 @@ use core_processor::{
 use frame_support::traits::Get;
 use gear_core::{
     code::{Code, CodeAndId},
-    ids::{CodeId, MessageId, ProgramId},
+    ids::{prelude::*, CodeId, MessageId, ProgramId},
     message::{Dispatch, DispatchKind, Message, ReplyDetails, SignalDetails},
     pages::WasmPagesAmount,
 };
