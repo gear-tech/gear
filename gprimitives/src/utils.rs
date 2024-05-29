@@ -61,6 +61,7 @@ impl<'a> fmt::Display for ByteArray<'a> {
 #[cfg(feature = "serde")]
 pub(crate) struct HexStrVisitor<T: FromStr>(PhantomData<T>);
 
+#[cfg(feature = "serde")]
 impl<T: FromStr> HexStrVisitor<T> {
     pub fn new() -> Self {
         Self(PhantomData)
