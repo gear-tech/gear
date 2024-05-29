@@ -16,18 +16,18 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{Code, CodeHash, State, StateHash};
+use crate::{Code, Hash, State};
 
 pub trait Database {
-    fn read_state(&self, hash: StateHash) -> Option<State>;
+    fn read_state(&self, hash: Hash) -> Option<State>;
     fn write_state(&self, state: &State);
-    fn read_code(&self, code_hash: CodeHash) -> Option<Code>;
+    fn read_code(&self, code_hash: Hash) -> Option<Code>;
     fn write_code(&self, code: &Code);
     fn clone_boxed(&self) -> Box<dyn Database>;
 }
 
 impl Database for crate::RocksDatabase {
-    fn read_state(&self, hash: StateHash) -> Option<State> {
+    fn read_state(&self, hash: Hash) -> Option<State> {
         self.read_state(hash)
     }
 
@@ -35,7 +35,7 @@ impl Database for crate::RocksDatabase {
         self.write_state(state);
     }
 
-    fn read_code(&self, code_hash: CodeHash) -> Option<Code> {
+    fn read_code(&self, code_hash: Hash) -> Option<Code> {
         self.read_code(code_hash)
     }
 

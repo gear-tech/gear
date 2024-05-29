@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{Code, CodeHash, State, StateHash};
+use crate::{Code, Hash, State};
 
 use anyhow::Result;
 use std::path::PathBuf;
@@ -31,7 +31,7 @@ impl RocksDatabase {
         Ok(Self)
     }
 
-    pub fn read_state(&self, hash: StateHash) -> Option<State> {
+    pub fn read_state(&self, hash: Hash) -> Option<State> {
         unimplemented!()
     }
 
@@ -39,7 +39,7 @@ impl RocksDatabase {
         unimplemented!()
     }
 
-    pub fn read_code(&self, code_hash: CodeHash) -> Option<Code> {
+    pub fn read_code(&self, code_hash: Hash) -> Option<Code> {
         unimplemented!()
     }
 

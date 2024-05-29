@@ -23,11 +23,8 @@ mod io;
 mod rocks;
 mod state;
 
-pub use code::{Code, CodeHash};
-pub use state::{ProgramId, State, StateHash};
+pub use code::Code;
+pub use state::{Hash, ProgramId, State};
 
 pub use io::Database;
 pub use rocks::RocksDatabase;
-
-use anyhow::Result;
-use std::path::PathBuf;
