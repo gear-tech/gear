@@ -14990,6 +14990,117 @@ fn allocate_in_init_free_in_handle() {
     });
 }
 
+#[test]
+fn create_program_with_reentrance_works() {
+    use crate::{fungible, Fortitude, Preservation};
+    use demo_constructor::demo_ping;
+    use demo_create_program_reentrance::WASM_BINARY;
+    use demo_distributor::WASM_BINARY as CHILD_WASM_BINARY;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        // Preparatory steps:
+        // - upload `demo_ping` program;
+        // - upload example program with the logic being tested;
+        // - upload some wasm code to get a valid code id for future use.
+        let (_init_mid, ping_pid) = init_constructor(demo_ping::scheme());
+
+        run_to_next_block(None);
+
+        assert_ok!(Gear::upload_code(
+            RuntimeOrigin::signed(USER_1),
+            CHILD_WASM_BINARY.to_vec(),
+        ));
+        let code_id = get_last_code_id();
+
+        run_to_next_block(None);
+
+        // Deploy reentrant program (without value first)
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            ping_pid.into_origin().as_fixed_bytes().encode(),
+            10_000_000_000,
+            0,
+            false,
+        ));
+
+        let program_id = get_last_program_id();
+
+        run_to_next_block(None);
+
+        // Test case 1
+        // - Send message to the reentrant program with some `value` and a valid code id.
+        // - Expect: the balance of the `demo_ping` program remains intact because a program
+        //   creation inside the example program should have succeeded and the
+        //   EXISTENTIAL_DEPOSIT has been charged for it thereby effectively having offset
+        //   the available `value` amount.
+
+        let amount = 10_000_u128;
+
+        assert_eq!(
+            <CurrencyOf<Test> as fungible::Inspect<_>>::reducible_balance(
+                &ping_pid.cast(),
+                Preservation::Expendable,
+                Fortitude::Polite,
+            ),
+            0
+        );
+
+        let payload = (code_id.into_origin().as_fixed_bytes(), amount).encode();
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            program_id,
+            payload,
+            10_000_000_000,
+            amount,
+            false,
+        ));
+
+        run_to_next_block(None);
+
+        assert_eq!(
+            <CurrencyOf<Test> as fungible::Inspect<_>>::reducible_balance(
+                &ping_pid.cast(),
+                Preservation::Expendable,
+                Fortitude::Polite,
+            ),
+            0
+        );
+
+        // Test case 2
+        // - Send message to the reentrant program with some `value` and a non-existing code id.
+        // - Expect: the balance of the `demo_ping` program is topped up by exactly `amount`
+        //   owing to two things:
+        //   * EXISTENTIAL_DEPOSIT is not charged when code id in `gr_create_program` is unknown;
+        //   * there's a wait/wake cycle before the transfer attempt that resets the value counter.
+
+        let payload = (crate::H256::random().as_fixed_bytes(), amount).encode();
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            program_id,
+            payload,
+            10_000_000_000,
+            amount,
+            false,
+        ));
+
+        run_to_next_block(None);
+
+        assert_eq!(
+            <CurrencyOf<Test> as fungible::Inspect<_>>::reducible_balance(
+                &ping_pid.cast(),
+                Preservation::Expendable,
+                Fortitude::Polite,
+            ),
+            amount
+        );
+    })
+}
+
 pub(crate) mod utils {
     #![allow(unused)]
 

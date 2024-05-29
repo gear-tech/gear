@@ -32,6 +32,7 @@ members = [
     "examples/delayed-reservation-sender",
     "examples/compose",
     "examples/constructor",
+    "examples/create-program-reentrance",
     "examples/delayed-sender",
     "examples/distributor",
     "examples/fungible-token",
@@ -399,6 +400,7 @@ demo-custom = { path = "examples/custom" }
 demo-delayed-reservation-sender = { path = "examples/delayed-reservation-sender" }
 demo-compose = { path = "examples/compose" }
 demo-constructor = { path = "examples/constructor", default-features = false }
+demo-create-program-reentrance = { path = "examples/create-program-reentrance" }
 demo-delayed-sender = { path = "examples/delayed-sender" }
 demo-distributor = { path = "examples/distributor" }
 demo-futures-unordered = { path = "examples/futures-unordered", features = ["debug"] }
