@@ -16,10 +16,14 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct MemDb {
+    data: Arc<RwLock<MemDbData>>,
+}
+
+struct MemDbData {
     states: HashMap<Hash, State>,
-    codes: HashMap<Hash, Code>,
+    codes: HashMap<Hash, Code
 }
 
 impl MemDb {
@@ -29,26 +33,30 @@ impl MemDb {
             codes: HashMap::new(),
         }
     }
+
+    pub fn ref_clone(&self) -> Self {
+        Self { data: self.data.clone() }
+    }
 }
 
 impl Database for MemDb {
     fn read_state(&self, hash: Hash) -> Option<State> {
-        self.states.get(&hash).cloned()
+        self.data.read().unwrap().states.get(&hash).cloned()
     }
 
     fn write_state(&mut self, state: &State) {
-        self.states.insert(state.hash(), state.clone());
+        self.data.write().unwrap().states.insert(state.hash(), state.clone());
     }
 
     fn read_code(&self, code_hash: Hash) -> Option<Code> {
-        self.codes.get(&code_hash).cloned()
+        self.data.read().unwrap().codes.get(&code_hash).cloned()
     }
 
     fn write_code(&mut self, code: &Code) {
-        self.codes.insert(code.hash(), code.clone());
+        self.data.write().unwrap().codes.insert(code.hash(), code.clone());
     }
 
     fn clone_boxed(&self) -> Box<dyn Database> {
-        Box::new(self.clone())
+        Box::new(self.ref_clone())
     }
 }
