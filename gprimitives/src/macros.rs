@@ -65,6 +65,23 @@ macro_rules! impl_primitive {
             }
         }
     };
+    (@from_str $ty:ty) => {
+        impl FromStr for $ty {
+            type Err = ConversionError;
+
+            fn from_str(s: &str) -> Result<Self, Self::Err> {
+                match s.strip_prefix("0x") {
+                    Some(s) if s.len() == 64 => {
+                        let mut id = Self::zero();
+                        hex::decode_to_slice(s, &mut id.0)
+                            .map_err(|_| ConversionError::InvalidHexString)?;
+                        Ok(id)
+                    }
+                    _ => Err(ConversionError::InvalidHexString),
+                }
+            }
+        }
+    };
     (@try_from_slice $ty:ty) => {
         impl TryFrom<&[u8]> for $ty {
             type Error = ConversionError;
@@ -105,6 +122,27 @@ macro_rules! impl_primitive {
         impl fmt::Debug for $ty {
             fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
                 fmt::Display::fmt(self, f)
+            }
+        }
+    };
+    (@serde $ty:ty) => {
+        #[cfg(feature = "serde")]
+        impl Serialize for $ty {
+            fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+            where
+                S: Serializer,
+            {
+                serializer.collect_str(self)
+            }
+        }
+
+        #[cfg(feature = "serde")]
+        impl<'de> Deserialize<'de> for $ty {
+            fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+            where
+                D: Deserializer<'de>,
+            {
+                deserializer.deserialize_identifier(utils::HexStrVisitor::new())
             }
         }
     };

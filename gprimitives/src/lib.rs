@@ -127,14 +127,30 @@ impl fmt::Display for ActorId {
             None
         };
 
-        if version.is_some() && f.precision().is_some() {
-            return Err(fmt::Error);
-        }
-
         if let Some(version) = version {
-            self.to_ss58check_with_version(version)
-                .map_err(|_| fmt::Error)?
-                .fmt(f)?;
+            let address = self
+                .to_ss58check_with_version(version)
+                .map_err(|_| fmt::Error)?;
+            let address_str = address.as_str();
+
+            let len = address.as_str().len();
+            let median = (len + 1) / 2;
+
+            let mut e1 = median;
+            let mut s2 = median;
+
+            if let Some(precision) = f.precision() {
+                if precision < median {
+                    e1 = precision;
+                    s2 = len - precision;
+                }
+            }
+
+            let p1 = &address_str[..e1];
+            let p2 = &address_str[s2..];
+            let sep = e1.ne(&s2).then_some("..").unwrap_or_default();
+
+            write!(f, "{p1}{sep}{p2}")?;
         } else {
             byte_array.fmt(f)?;
         }
@@ -226,7 +242,7 @@ impl<'de> Deserialize<'de> for ActorId {
 #[cfg_attr(feature = "codec", derive(TypeInfo, Encode, Decode, MaxEncodedLen), codec(crate = scale))]
 pub struct MessageId([u8; 32]);
 
-macros::impl_primitive!(new zero into_bytes from_u64 from_h256 display debug, MessageId);
+macros::impl_primitive!(new zero into_bytes from_u64 from_h256 from_str display debug serde, MessageId);
 
 /// Code identifier.
 ///
@@ -242,23 +258,7 @@ macros::impl_primitive!(new zero into_bytes from_u64 from_h256 display debug, Me
 #[cfg_attr(feature = "codec", derive(TypeInfo, Encode, Decode, MaxEncodedLen), codec(crate = scale))]
 pub struct CodeId([u8; 32]);
 
-macros::impl_primitive!(new zero into_bytes from_u64 from_h256 try_from_slice display debug, CodeId);
-
-impl FromStr for CodeId {
-    type Err = ConversionError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.strip_prefix("0x") {
-            Some(s) if s.len() == 64 => {
-                let mut code_id = Self::zero();
-                hex::decode_to_slice(s, &mut code_id.0)
-                    .map_err(|_| ConversionError::InvalidHexString)?;
-                Ok(code_id)
-            }
-            _ => Err(ConversionError::InvalidHexString),
-        }
-    }
-}
+macros::impl_primitive!(new zero into_bytes from_u64 from_h256 from_str try_from_slice display debug serde, CodeId);
 
 /// Reservation identifier.
 ///
@@ -270,7 +270,7 @@ impl FromStr for CodeId {
 #[cfg_attr(feature = "codec", derive(TypeInfo, Encode, Decode, MaxEncodedLen), codec(crate = scale))]
 pub struct ReservationId([u8; 32]);
 
-macros::impl_primitive!(new zero into_bytes from_u64 from_h256 display debug, ReservationId);
+macros::impl_primitive!(new zero into_bytes from_u64 from_h256 from_str display debug serde, ReservationId);
 
 #[cfg(test)]
 mod tests {
@@ -285,18 +285,13 @@ mod tests {
             .unwrap()
     }
 
+    /// Test that ActorId cannot be formatted using
+    /// Vara format and custom version at the same time.
     #[test]
     #[should_panic]
-    fn wrong_format1_test() {
+    fn duplicate_version_in_actor_id_fmt_test() {
         let id = actor_id();
         format!("{id:+42}");
-    }
-
-    #[test]
-    #[should_panic]
-    fn wrong_format2_test() {
-        let id = actor_id();
-        format!("{id:+.2}");
     }
 
     #[test]
@@ -336,6 +331,21 @@ mod tests {
             format!("{id:42}"),
             "5EU7B2s4m2XrgSbUyt8U92fDpSi2EtW3Z3kKwUW4drZ1KAZD"
         );
+        // `Debug`/`Display` with sign + (vara address) and with precision 0.
+        assert_eq!(format!("{id:+.0}"), "..");
+        // `Debug`/`Display` with sign + (vara address) and with precision 1.
+        assert_eq!(format!("{id:+.1}"), "k..m");
+        // `Debug`/`Display` with sign + (vara address) and with precision 2.
+        assert_eq!(format!("{id:+.2}"), "kG..Sm");
+        // `Debug`/`Display` with sign + (vara address) and with precision 4.
+        assert_eq!(format!("{id:+.4}"), "kGhw..6PSm");
+        // `Debug`/`Display` with sign + (vara address) and with precision 15.
+        assert_eq!(format!("{id:+.15}"), "kGhwPiWGsCZkaUN..APCSDJM2uJv6PSm");
+        // `Debug`/`Display` with sign + (vara address) and with precision 25 (the same for any case >= 25).
+        assert_eq!(
+            format!("{id:+.25}"),
+            "kGhwPiWGsCZkaUNqotftspabNLRTcNoMe5APCSDJM2uJv6PSm"
+        );
         // Alternate formatter.
         assert_eq!(
             format!("{id:#}"),
@@ -343,6 +353,8 @@ mod tests {
         );
         // Alternate formatter with precision 2.
         assert_eq!(format!("{id:#.2}"), "ActorId(0x6a51..ed3e)");
+        // Alternate formatter with precision 2.
+        assert_eq!(format!("{id:+#.2}"), "ActorId(kG..Sm)");
         // Alternate formatter with sign + (vara address).
         assert_eq!(
             format!("{id:+#}"),

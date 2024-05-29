@@ -16,7 +16,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use core::{fmt, str};
+use core::{
+    fmt,
+    marker::PhantomData,
+    str::{self, FromStr},
+};
+#[cfg(feature = "serde")]
+use serde::de;
 
 const LEN: usize = 32;
 const MEDIAN: usize = (LEN + 1) / 2;
@@ -49,5 +55,32 @@ impl<'a> fmt::Display for ByteArray<'a> {
         let sep = e1.ne(&s2).then_some("..").unwrap_or_default();
 
         write!(f, "0x{p1}{sep}{p2}")
+    }
+}
+
+#[cfg(feature = "serde")]
+pub(crate) struct HexStrVisitor<T: FromStr>(PhantomData<T>);
+
+impl<T: FromStr> HexStrVisitor<T> {
+    pub fn new() -> Self {
+        Self(PhantomData)
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<'de, T: FromStr> de::Visitor<'de> for HexStrVisitor<T> {
+    type Value = T;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("a string in hex format starting with 0x")
+    }
+
+    fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+    where
+        E: de::Error,
+    {
+        value
+            .parse()
+            .map_err(|_| de::Error::invalid_value(de::Unexpected::Str(value), &self))
     }
 }

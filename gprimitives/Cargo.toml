@@ -17,4 +17,4 @@ gear-ss58.workspace = true
 
 [features]
 codec = ["parity-scale-codec", "primitive-types", "scale-info"]
-serde = ["dep:serde"]
+serde = ["dep:serde", "primitive-types?/serde_no_std"]
