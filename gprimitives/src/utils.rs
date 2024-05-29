@@ -16,13 +16,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use core::{
-    fmt,
-    marker::PhantomData,
-    str::{self, FromStr},
-};
+use core::{fmt, str};
 #[cfg(feature = "serde")]
-use serde::de;
+use {
+    serde::de,
+    std::{marker::PhantomData, str::FromStr},
+};
 
 const LEN: usize = 32;
 const MEDIAN: usize = (LEN + 1) / 2;
