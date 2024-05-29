@@ -16,8 +16,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::config::Config;
 use anyhow::Result;
+use tokio::signal;
+use futures::stream::StreamExt;
+
+use crate::config::Config;
 
 /// Hypercore service.
 pub struct Service {
@@ -27,7 +30,7 @@ pub struct Service {
 }
 
 impl Service {
-    pub fn start(config: &Config) -> Result<Self> {
+    pub fn new(config: &Config) -> Result<Self> {
         let db: Box<dyn hypercore_db::Database> = Box::new(hypercore_db::RocksDatabase::open(
             config.database_path.clone(),
         )?);
@@ -41,6 +44,26 @@ impl Service {
             observer,
         })
     }
+
+    pub async fn run(self) -> Result<()> {
+        let Service { db, network, observer } = self;
+
+        let mut observer_events = observer.listen();
+
+        loop {
+            tokio::select! {
+                _ = signal::ctrl_c() => {
+                    log::info!("Received SIGINT, shutting down...");
+                    break;
+                }
+                event = observer_events.next() => {
+                    log::debug!("[ETH] {:?}", event);
+                }
+            }
+        }
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -51,7 +74,7 @@ mod tests {
 
     #[test]
     fn basics() {
-        let service = Service::start(&Config {
+        let service = Service::new(&Config {
             database_path: "/tmp/db".into(),
             ethereum_rpc: "http://localhost:8545".into(),
             key_path: "/tmp/key".into(),

@@ -12,3 +12,4 @@ repository.workspace = true
 [dependencies]
 anyhow.workspace = true
 hypercore-db = { path = "../db" }
+futures = { workspace = true, features = ["alloc"] }

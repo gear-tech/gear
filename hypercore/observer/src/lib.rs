@@ -28,8 +28,26 @@ pub struct Observer {
     db: Box<dyn hypercore_db::Database>,
 }
 
+#[derive(Debug)]
+pub enum ObserverEvent {
+    /// New chain head is known.
+    //
+    // TODO: use proper ethereum types
+    NewHead([u8; 32]),
+}
+
 impl Observer {
     pub fn new(ethereum_rpc: String, db: Box<dyn hypercore_db::Database>) -> Result<Self> {
         Ok(Self { ethereum_rpc, db })
+    }
+
+    // TODO: change to impl futures::Stream<Item = ObserverEvent> once implemented
+    pub fn listen(self) -> impl futures::Stream<Item = ObserverEvent> {
+        use futures::stream::poll_fn;
+        use futures::task::Poll;
+
+        futures::stream::poll_fn(move |_| {
+            Poll::Pending
+        })
     }
 }
