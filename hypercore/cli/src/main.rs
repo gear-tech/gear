@@ -22,11 +22,12 @@ mod args;
 mod config;
 mod service;
 
-use crate::{args::Args, config::Config};
+use crate::{args::Args, config::Config, service::Service};
 use anyhow::Context;
 use clap::Parser;
 
-fn main() -> anyhow::Result<()> {
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
 
     let config = Config::try_from(args).with_context(|| "Failed to create configuration")?;
@@ -35,6 +36,10 @@ fn main() -> anyhow::Result<()> {
 
     log::info!("Ethereum observerl RPC: {}", config.ethereum_rpc);
     log::info!("Database directory: {:?}", config.database_path);
+
+    let service = Service::new(&config)?;
+
+    service.run().await?;
 
     Ok(())
 }

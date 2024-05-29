@@ -5791,10 +5791,12 @@ dependencies = [
  "clap 4.5.4",
  "directories",
  "env_logger",
+ "futures",
  "hypercore-db",
  "hypercore-network",
  "hypercore-observer",
  "log",
+ "tokio",
 ]
 
 [[package]]
@@ -5816,6 +5818,7 @@ name = "hypercore-observer"
 version = "1.4.2"
 dependencies = [
  "anyhow",
+ "futures",
  "hypercore-db",
 ]
 
