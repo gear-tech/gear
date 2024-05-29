@@ -19,7 +19,6 @@
 use gstd::{debug, msg, prog, ActorId, CodeId};
 
 static mut DST_PROGRAM_ID: ActorId = ActorId::new([0u8; 32]);
-static mut BENEFICIARY: ActorId = ActorId::new([0u8; 32]);
 
 type HandleParams = ([u8; 32], u128);
 

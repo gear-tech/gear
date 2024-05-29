@@ -193,7 +193,7 @@ where
 }
 
 #[cfg(all(feature = "try-runtime", test))]
-mod test {
+mod tests {
     use super::*;
     use crate::mock::*;
     use common::{ActiveProgram, ProgramState};
