@@ -43,11 +43,8 @@ impl Observer {
 
     // TODO: change to impl futures::Stream<Item = ObserverEvent> once implemented
     pub fn listen(self) -> impl futures::Stream<Item = ObserverEvent> {
-        use futures::stream::poll_fn;
-        use futures::task::Poll;
+        use futures::{stream::poll_fn, task::Poll};
 
-        futures::stream::poll_fn(move |_| {
-            Poll::Pending
-        })
+        futures::stream::poll_fn(move |_| Poll::Pending)
     }
 }

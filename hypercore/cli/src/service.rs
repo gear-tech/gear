@@ -17,8 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use anyhow::Result;
-use tokio::signal;
 use futures::stream::StreamExt;
+use tokio::signal;
 
 use crate::config::Config;
 
@@ -46,7 +46,11 @@ impl Service {
     }
 
     pub async fn run(self) -> Result<()> {
-        let Service { db, network, observer } = self;
+        let Service {
+            db,
+            network,
+            observer,
+        } = self;
 
         let mut observer_events = observer.listen();
 

@@ -16,24 +16,39 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Code-related datastructures.
+#[derive(Debug, Clone)]
+pub struct MemDb {
+    states: HashMap<Hash, State>,
+    codes: HashMap<Hash, Code>,
+}
 
-use crate::Hash;
+impl MemDb {
+    pub fn new() -> Self {
+        Self {
+            states: HashMap::new(),
+            codes: HashMap::new(),
+        }
+    }
+}
 
-use blake2_rfc::blake2b::blake2b;
+impl Database for MemDb {
+    fn read_state(&self, hash: Hash) -> Option<State> {
+        self.states.get(&hash).cloned()
+    }
 
-/// Hypercore code.
-pub struct Code(pub Vec<u8>);
+    fn write_state(&mut self, state: &State) {
+        self.states.insert(state.hash(), state.clone());
+    }
 
-impl Code {
-    pub fn hash(&self) -> Hash {
-        Hash(
-            blake2b(32, &[], &self.0)
-                .as_bytes()
-                .try_into()
-                .unwrap_or_else(|e| {
-                    unreachable!("`nn` argument in `blake2b()` must be equal to bytes amount: {e}")
-                }),
-        )
+    fn read_code(&self, code_hash: Hash) -> Option<Code> {
+        self.codes.get(&code_hash).cloned()
+    }
+
+    fn write_code(&mut self, code: &Code) {
+        self.codes.insert(code.hash(), code.clone());
+    }
+
+    fn clone_boxed(&self) -> Box<dyn Database> {
+        Box::new(self.clone())
     }
 }
