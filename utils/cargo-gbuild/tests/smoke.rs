@@ -67,14 +67,33 @@ fn test_all() -> Result<()> {
         .read_state_using_wasm(Vec::<u8>::default(), "modified", metawasm, state_args!())
         .expect("Failed to read program state");
     assert!(modified);
+    Ok(())
+}
 
-    // 4. Embeddd program tests
-    //
-    // TODO: Split this out from this test (#3915)
+#[test]
+fn program_tests() {
+    // NOTE: workaround for installing stable toolchain if not exist
+    // This is momently only for adapting the environment (nightly)
+    // of our CI.
+    {
+        let toolchains = Command::new("rustup")
+            .args(["toolchain", "list"])
+            .output()
+            .expect("Failed to list rust toolchains")
+            .stdout;
+
+        if !String::from_utf8_lossy(&toolchains).contains("stable") {
+            Command::new("rustup")
+                .args(["install", "stable"])
+                .status()
+                .expect("Failed to install stable toolchain");
+        }
+    }
+
     assert!(Command::new("cargo")
-        .args(["test", "--manifest-path", "test-program/Cargo.toml"])
+        .current_dir("test-program")
+        .args(["+stable", "test", "--manifest-path", "Cargo.toml"])
         .status()
         .expect("Failed to run the tests of cargo-gbuild/test-program")
         .success());
-    Ok(())
 }
