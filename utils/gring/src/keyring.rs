@@ -151,7 +151,7 @@ impl Keyring {
             tracing::info!("Generating vanity key with prefix {vanity}...");
             let mut keypair = Keypair::generate();
 
-            while !ss58::encode(&keypair.public.to_bytes()).starts_with(vanity) {
+            while !ss58::encode(&keypair.public.to_bytes())?.starts_with(vanity) {
                 keypair = Keypair::generate();
             }
 

@@ -105,8 +105,8 @@ async fn stress_test() -> Result<()> {
 
     for user in users {
         let api = api.clone().with(user)?;
-        let actor_id =
-            ActorId::from_slice(&api.account_id().encode()).expect("failed to create actor id");
+        let actor_id = ActorId::try_from(api.account_id().encode().as_ref())
+            .expect("failed to create actor id");
 
         // Mint 1_000_000 tokens to main user
         let mint_payload = FTAction::Mint(1_000_000);
