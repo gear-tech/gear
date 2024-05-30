@@ -16,44 +16,28 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Ethereum state observer for Hypercore.
+//! Program's execution service for eGPU.
 
 use anyhow::Result;
-// TODO: replace with `gprimitives`, once gear-tech/gear master is merged.
 use gear_core::ids::ProgramId;
 use primitive_types::H256;
 use std::collections::HashMap;
 
-/// Ethereum state observer.
-///
-/// Generally, it should exist in single state and should not be cloned.
-pub struct Observer {
-    ethereum_rpc: String,
+pub struct Processor {
     db: Box<dyn hypercore_db::Database>,
 }
 
-#[derive(Debug)]
-pub enum Event {
-    /// New chain head is known.
-    NewHead {
-        hash: H256,
-        programs: Vec<ProgramId>,
-        // TODO: replace `Message` with `StoredDispatch` with gas from `gear-core`
-        messages: HashMap<ProgramId, Vec<Message>>,
-    },
-}
-
-#[derive(Debug)]
-pub struct Message(pub ());
-
-impl Observer {
-    pub fn new(ethereum_rpc: String, db: Box<dyn hypercore_db::Database>) -> Result<Self> {
-        Ok(Self { ethereum_rpc, db })
+impl Processor {
+    pub fn new(db: Box<dyn hypercore_db::Database>) -> Self {
+        Self { db }
     }
 
-    pub fn listen(self) -> impl futures::Stream<Item = Event> {
-        use futures::{stream::poll_fn, task::Poll};
-
-        futures::stream::poll_fn(move |_| Poll::Pending)
+    // TODO: use proper `Message` type here instead of unit.
+    pub async fn run(
+        chain_head: H256,
+        programs: Vec<ProgramId>,
+        messages: HashMap<ProgramId, Vec<()>>,
+    ) -> Result<()> {
+        Ok(())
     }
 }
