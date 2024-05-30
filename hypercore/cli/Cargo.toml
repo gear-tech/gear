@@ -15,9 +15,10 @@ log.workspace = true
 env_logger.workspace = true
 directories.workspace  = true
 anyhow.workspace = true
-tokio = { workspace = true, features = ["signal", "macros", "rt", "rt-multi-thread"] }
+tokio = { workspace = true, features = ["signal", "macros", "rt", "rt-multi-thread", "time"] }
 futures.workspace = true
 
 hypercore-db.workspace = true
 hypercore-network.workspace = true
 hypercore-observer.workspace = true
+hypercore-processor.workspace = true

@@ -16,17 +16,19 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use anyhow::Result;
-use futures::stream::StreamExt;
-use tokio::signal;
-
 use crate::config::Config;
+use anyhow::Result;
+use futures::{future, stream::StreamExt};
+use hypercore_observer::Event;
+use std::time::Duration;
+use tokio::signal;
 
 /// Hypercore service.
 pub struct Service {
     db: Box<dyn hypercore_db::Database>,
     network: hypercore_network::Network,
     observer: hypercore_observer::Observer,
+    processor: hypercore_processor::Processor,
 }
 
 impl Service {
@@ -37,11 +39,13 @@ impl Service {
         let network = hypercore_network::Network::start()?;
         let observer =
             hypercore_observer::Observer::new(config.ethereum_rpc.clone(), db.clone_boxed())?;
+        let processor = hypercore_processor::Processor::new(db.clone_boxed());
 
         Ok(Self {
             db,
             network,
             observer,
+            processor,
         })
     }
 
@@ -50,6 +54,7 @@ impl Service {
             db,
             network,
             observer,
+            mut processor,
         } = self;
 
         let mut observer_events = observer.listen();
@@ -60,8 +65,15 @@ impl Service {
                     log::info!("Received SIGINT, shutting down...");
                     break;
                 }
-                event = observer_events.next() => {
+                (Some(event), ()) = future::join(observer_events.next(), tokio::time::sleep(Duration::from_secs(1))) => {
                     log::debug!("Received [ETH]: {event:?}");
+
+
+                    match event {
+                        Event::NewHead { hash: chain_head, programs, messages } => {
+                            processor.run(chain_head, programs, messages)?
+                        }
+                    }
                 }
             }
         }

@@ -47,6 +47,8 @@ pub struct WasmBuilder {
     wasm_project: WasmProject,
     cargo: CargoCommand,
     excluded_features: Vec<&'static str>,
+    code_checks: bool,
+    dump_binpath: bool,
 }
 
 impl WasmBuilder {
@@ -70,6 +72,8 @@ impl WasmBuilder {
             wasm_project,
             cargo: CargoCommand::new(),
             excluded_features: vec![],
+            code_checks: true,
+            dump_binpath: true,
         }
     }
 
@@ -82,6 +86,23 @@ impl WasmBuilder {
     /// Add pre-processor for wasm file.
     pub fn with_pre_processor(mut self, pre_processor: Box<dyn PreProcessor>) -> Self {
         self.wasm_project.add_preprocessor(pre_processor);
+        self
+    }
+
+    /// Disable code check on post processing.
+    pub fn without_code_checks(mut self) -> Self {
+        self.code_checks = false;
+        self
+    }
+
+    /// Disable dump of binpath.
+    pub fn without_binpath(mut self) -> Self {
+        self.dump_binpath = false;
+        self
+    }
+
+    pub fn without_import_memory(mut self) -> Self {
+        self.cargo.set_rustc_flags(vec!["-C", "linker-plugin-lto"]);
         self
     }
 
@@ -134,7 +155,8 @@ impl WasmBuilder {
         }
 
         self.cargo.run()?;
-        self.wasm_project.postprocess()
+        self.wasm_project
+            .postprocess(self.code_checks, self.dump_binpath)
     }
 
     fn manifest_path(&self) -> Result<String> {
