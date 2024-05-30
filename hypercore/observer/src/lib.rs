@@ -19,10 +19,10 @@
 //! Ethereum state observer for Hypercore.
 
 use anyhow::Result;
-// TODO: replace with `gprimitives`, once gear-tech/gear master is merged.
 use gear_core::ids::ProgramId;
+use hypercore_db::Message;
 use primitive_types::H256;
-use std::collections::HashMap;
+use std::{collections::HashMap, time::Duration};
 
 /// Ethereum state observer.
 ///
@@ -43,8 +43,15 @@ pub enum Event {
     },
 }
 
-#[derive(Debug)]
-pub struct Message(pub ());
+impl Default for Event {
+    fn default() -> Self {
+        Self::NewHead {
+            hash: Default::default(),
+            programs: Default::default(),
+            messages: Default::default(),
+        }
+    }
+}
 
 impl Observer {
     pub fn new(ethereum_rpc: String, db: Box<dyn hypercore_db::Database>) -> Result<Self> {
@@ -54,6 +61,9 @@ impl Observer {
     pub fn listen(self) -> impl futures::Stream<Item = Event> {
         use futures::{stream::poll_fn, task::Poll};
 
-        futures::stream::poll_fn(move |_| Poll::Pending)
+        futures::stream::poll_fn(move |_| {
+            std::thread::sleep(Duration::from_millis(1500));
+            Poll::Ready(Some(Default::default()))
+        })
     }
 }

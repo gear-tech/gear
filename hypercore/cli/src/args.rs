@@ -25,7 +25,11 @@ use std::path::PathBuf;
 #[command(version, about, long_about = None)]
 pub struct Args {
     /// URL of Ethereum RPC endpoint
-    #[arg(long = "ethereum-rpc")]
+    #[arg(
+        long = "ethereum-rpc",
+        alias = "rpc",
+        default_value = "http://localhost:8545"
+    )]
     pub ethereum_rpc: String,
 
     /// Base path where application settings are stored

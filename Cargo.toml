@@ -275,6 +275,13 @@ testing = { package = "gear-node-testing", path = "node/testing" }
 vara-runtime = { path = "runtime/vara", default-features = false }
 wasm-smith = { version = "0.12.21", git = "https://github.com/gear-tech/wasm-tools.git", branch = "gear-stable" }
 
+# Hypercore deps
+hypercore-cli = { path = "hypercore/cli" }
+hypercore-observer = { path = "hypercore/observer" }
+hypercore-db = { path = "hypercore/db" }
+hypercore-network = { path = "hypercore/network" }
+hypercore-processor = { path = "hypercore/processor" }
+
 # Common executors between `sandbox-host` and `calc-stack-height`
 sandbox-wasmer = { package = "wasmer", version = "2.2", features = ["singlepass"] }
 sandbox-wasmer-types = { package = "wasmer-types", version = "2.2" }

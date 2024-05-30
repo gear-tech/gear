@@ -10,6 +10,6 @@ repository.workspace = true
 
 [dependencies]
 anyhow.workspace = true
-hypercore-db = { path = "../db" }
+hypercore-db.workspace = true
 primitive-types.workspace = true
 gear-core.workspace = true

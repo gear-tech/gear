@@ -24,7 +24,6 @@ mod rocks;
 mod state;
 
 pub use code::Code;
-pub use state::{Hash, ProgramId, State};
-
 pub use io::Database;
 pub use rocks::RocksDatabase;
+pub use state::{Message, State};

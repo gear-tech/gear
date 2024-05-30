@@ -16,14 +16,16 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use gprimitives::H256;
+
 #[derive(Debug)]
 pub struct MemDb {
     data: Arc<RwLock<MemDbData>>,
 }
 
 struct MemDbData {
-    states: HashMap<Hash, State>,
-    codes: HashMap<Hash, Code
+    states: HashMap<H256, State>,
+    codes: HashMap<H256, Code>,
 }
 
 impl MemDb {
@@ -40,7 +42,7 @@ impl MemDb {
 }
 
 impl Database for MemDb {
-    fn read_state(&self, hash: Hash) -> Option<State> {
+    fn read_state(&self, hash: H256) -> Option<State> {
         self.data.read().unwrap().states.get(&hash).cloned()
     }
 
@@ -48,7 +50,7 @@ impl Database for MemDb {
         self.data.write().unwrap().states.insert(state.hash(), state.clone());
     }
 
-    fn read_code(&self, code_hash: Hash) -> Option<Code> {
+    fn read_code(&self, code_hash: H256) -> Option<Code> {
         self.data.read().unwrap().codes.get(&code_hash).cloned()
     }
 

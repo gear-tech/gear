@@ -5804,7 +5804,8 @@ name = "hypercore-db"
 version = "1.4.2"
 dependencies = [
  "anyhow",
- "blake2-rfc",
+ "gear-core",
+ "gprimitives",
 ]
 
 [[package]]
