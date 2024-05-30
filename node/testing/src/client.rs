@@ -31,6 +31,7 @@ impl sc_executor::NativeExecutionDispatch for LocalExecutorDispatch {
         frame_benchmarking::benchmarking::HostFunctions,
         gear_runtime_interface::gear_ri::HostFunctions,
         gear_runtime_interface::sandbox::HostFunctions,
+        gear_runtime_interface::runtime_tasks::HostFunctions,
         sp_crypto_ec_utils::bls12_381::host_calls::HostFunctions,
     );
 

@@ -56,6 +56,7 @@ impl sc_executor::NativeExecutionDispatch for VaraExecutorDispatch {
         frame_benchmarking::benchmarking::HostFunctions,
         gear_ri::gear_ri::HostFunctions,
         gear_ri::sandbox::HostFunctions,
+        gear_ri::runtime_tasks::HostFunctions,
         sp_crypto_ec_utils::bls12_381::host_calls::HostFunctions,
     );
     /// Otherwise we only use the default Substrate host functions.
@@ -63,6 +64,7 @@ impl sc_executor::NativeExecutionDispatch for VaraExecutorDispatch {
     type ExtendHostFunctions = (
         gear_ri::gear_ri::HostFunctions,
         gear_ri::sandbox::HostFunctions,
+        gear_ri::runtime_tasks::HostFunctions,
         sp_crypto_ec_utils::bls12_381::host_calls::HostFunctions,
     );
 

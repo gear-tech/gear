@@ -345,6 +345,11 @@ benchmarks! {
         tests::lazy_pages::lazy_pages_gas_exceed::<T>();
     }: {}
 
+    #[extra]
+    check_gear_tasks {
+        tests::gear_tasks::smoke();
+    }: {}
+
     // This bench uses `StorageMap` as a storage, due to the fact that
     // the most of the gear storages represented with this type.
     db_write_per_kb {

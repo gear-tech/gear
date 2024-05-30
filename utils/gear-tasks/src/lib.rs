@@ -32,17 +32,17 @@ use std::{
 const TASKS_AMOUNT: usize = 4;
 
 sp_externalities::decl_extension! {
-    struct TaskSpawnerExt(TaskSpawner);
+    pub struct TaskSpawnerExt(TaskSpawner);
 }
 
-struct TaskSpawner {
+pub struct TaskSpawner {
     thread_pool: ThreadPool,
     handle_counter: AtomicU64,
     tasks: HashMap<u64, mpsc::Receiver<Vec<u8>>>,
 }
 
 impl TaskSpawner {
-    fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             thread_pool: ThreadPool::builder()
                 .pool_size(TASKS_AMOUNT)
@@ -122,7 +122,7 @@ impl TaskSpawner {
 
 /// WASM host functions for managing tasks.
 #[runtime_interface(wasm_only)]
-trait RuntimeTasks {
+pub trait RuntimeTasks {
     fn spawn(dispatcher_ref: u32, entry: u32, payload: Vec<u8>) -> u64 {
         sp_externalities::with_externalities(|mut ext| {
             let spawner = ext
