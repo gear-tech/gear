@@ -18,6 +18,9 @@ sp-externalities.workspace = true
 futures-executor = "0.3.30"
 log.workspace = true
 
+[dev-dependencies]
+sp-io.workspace = true
+
 [features]
 default = ["std"]
 std = []

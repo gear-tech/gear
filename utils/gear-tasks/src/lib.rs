@@ -225,3 +225,45 @@ mod inner {
         JoinHandle { inner: handle }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn new_test_ext() -> sp_io::TestExternalities {
+        let mut ext = sp_io::TestExternalities::new_empty();
+
+        let spawner = TaskSpawnerExt(TaskSpawner::new());
+        ext.register_extension::<TaskSpawnerExt>(spawner);
+
+        ext
+    }
+
+    #[test]
+    fn smoke() {
+        new_test_ext().execute_with(|| {
+            const PAYLOAD_SIZE: usize = 32 * 1024 * 1024;
+
+            let payload = vec![0xff; PAYLOAD_SIZE];
+            let handles = (0..TASKS_AMOUNT).map(|i| {
+                let mut payload = payload.clone();
+                payload[i * (PAYLOAD_SIZE / TASKS_AMOUNT)] = 0xfe;
+                spawn(
+                    |mut payload| {
+                        payload.sort();
+                        payload
+                    },
+                    payload,
+                )
+            });
+
+            let mut expected = vec![0xff; PAYLOAD_SIZE];
+            expected[0] = 0xfe;
+
+            for handle in handles {
+                let payload = handle.join();
+                assert_eq!(payload, expected);
+            }
+        })
+    }
+}

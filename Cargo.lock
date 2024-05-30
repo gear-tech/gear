@@ -4908,6 +4908,7 @@ dependencies = [
  "sc-executor",
  "sc-executor-common",
  "sp-externalities",
+ "sp-io",
  "sp-runtime-interface",
 ]
 
