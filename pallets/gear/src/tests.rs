@@ -6308,37 +6308,37 @@ fn terminated_locking_funds() {
                 table_section_bytes,
                 element_section_bytes,
                 type_section_bytes,
-            } = code.section_sizes();
+            } = *code.section_sizes();
 
             let mut gas_for_code_instantiation = schedule
                 .code_section_instantiation_per_byte
                 .ref_time()
-                .saturating_mul(*code_section_bytes as u64);
+                .saturating_mul(code_section_bytes as u64);
 
             gas_for_code_instantiation += schedule
                 .data_section_instantiation_per_byte
                 .ref_time()
-                .saturating_mul(*data_section_bytes as u64);
+                .saturating_mul(data_section_bytes as u64);
 
             gas_for_code_instantiation += schedule
                 .global_section_instantiation_per_byte
                 .ref_time()
-                .saturating_mul(*global_section_bytes as u64);
+                .saturating_mul(global_section_bytes as u64);
 
             gas_for_code_instantiation += schedule
                 .table_section_instantiation_per_byte
                 .ref_time()
-                .saturating_mul(*table_section_bytes as u64);
+                .saturating_mul(table_section_bytes as u64);
 
             gas_for_code_instantiation += schedule
                 .element_section_instantiation_per_byte
                 .ref_time()
-                .saturating_mul(*element_section_bytes as u64);
+                .saturating_mul(element_section_bytes as u64);
 
             gas_for_code_instantiation += schedule
                 .type_section_instantiation_per_byte
                 .ref_time()
-                .saturating_mul(*type_section_bytes as u64);
+                .saturating_mul(type_section_bytes as u64);
 
             gas_for_code_instantiation
         };

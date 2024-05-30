@@ -629,10 +629,6 @@ pub struct MemoryWeights<T: Config> {
     /// cause it is taken in account separately.
     pub upload_page_data: Weight,
 
-    /// Cost per one [WasmPage] static page. Static pages can have static data,
-    /// and executor must to move this data to static pages before execution.
-    pub static_page: Weight,
-
     /// Cost per one [WasmPage] for memory growing.
     pub mem_grow: Weight,
 
@@ -1169,8 +1165,6 @@ impl<T: Config> Default for MemoryWeights<T> {
             upload_page_data: to_weight!(cost!(db_write_per_kb)
                 .saturating_mul(KB_AMOUNT_IN_ONE_GEAR_PAGE)
                 .saturating_add(T::DbWeight::get().writes(1).ref_time())),
-            // TODO: make benches to calculate static page cost and mem grow cost (issue #2226)
-            static_page: Weight::from_parts(100, 0),
             mem_grow: to_weight!(cost_batched!(mem_grow)),
             mem_grow_per_page: to_weight!(cost_batched!(mem_grow_per_page)),
             // TODO: make it non-zero for para-chains (issue #2225)
@@ -1217,7 +1211,6 @@ impl<T: Config> Schedule<T> {
             read: DbWeightOf::<T>::get().reads(1).ref_time().into(),
             read_per_byte: self.db_read_per_byte.ref_time().into(),
             write: DbWeightOf::<T>::get().writes(1).ref_time().into(),
-            static_page: self.memory_weights.static_page.ref_time().into(),
             instrumentation: self.code_instrumentation_cost.ref_time().into(),
             instrumentation_per_byte: self.code_instrumentation_byte_cost.ref_time().into(),
             instantiation_costs: InstantiationCosts {

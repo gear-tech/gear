@@ -895,7 +895,6 @@ impl ExtManager {
                 write: WRITE_COST.into(),
                 instrumentation: MODULE_INSTRUMENTATION_COST.into(),
                 instrumentation_per_byte: MODULE_INSTRUMENTATION_BYTE_COST.into(),
-                static_page: Default::default(),
                 instantiation_costs: InstantiationCosts {
                     code_section_instantiation_per_byte:
                         MODULE_CODE_SECTION_INSTANTIATION_BYTE_COST.into(),

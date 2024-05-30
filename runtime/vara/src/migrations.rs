@@ -24,12 +24,12 @@ pub type Migrations = (
     pallet_gear::migrations::wait_init::MigrateWaitingInitList<Runtime>,
     // migrate allocations from BTreeSet to IntervalsTree
     pallet_gear_program::migrations::allocations::MigrateAllocations<Runtime>,
-    // migration for added section sizes
-    pallet_gear_program::migrations::add_section_sizes::AddSectionSizesMigration<Runtime>,
     // substrate v1.3.0
     pallet_nomination_pools::migration::versioned_migrations::V5toV6<Runtime>,
     pallet_nomination_pools::migration::versioned_migrations::V6ToV7<Runtime>,
     staking_v13::MigrateToV13<Runtime>,
+    // migration for added section sizes
+    pallet_gear_program::migrations::add_section_sizes::AddSectionSizesMigration<Runtime>,
 );
 
 mod staking_v13 {

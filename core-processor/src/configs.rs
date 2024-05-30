@@ -96,8 +96,6 @@ pub struct ProcessCosts {
     pub instrumentation: CostOf<CallsAmount>,
     /// Code instrumentation per byte cost.
     pub instrumentation_per_byte: CostOf<BytesAmount>,
-    /// Static page cost.
-    pub static_page: CostOf<WasmPagesAmount>,
     /// Module instantiation costs.
     pub instantiation_costs: InstantiationCosts,
 }
