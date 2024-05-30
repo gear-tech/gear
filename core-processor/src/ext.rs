@@ -478,12 +478,13 @@ impl<'a> ExtMutator<'a> {
         &mut self,
         reservation_id: ReservationId,
     ) -> Result<(), ReservationError> {
-        if !self.ext.context.gas_reserver.check_used(reservation_id)? {
-            self.reservation_to_mark = Some(reservation_id);
-            Ok(())
-        } else {
-            Err(ReservationError::InvalidReservationId)
-        }
+        let _ = self
+            .ext
+            .context
+            .gas_reserver
+            .check_not_used(reservation_id)?;
+        self.reservation_to_mark = Some(reservation_id);
+        Ok(())
     }
 
     fn charge_gas_if_enough(&mut self, gas: u64) -> Result<(), ChargeError> {
