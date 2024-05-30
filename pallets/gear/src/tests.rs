@@ -44,7 +44,7 @@ use frame_support::{
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
     code::{self, Code, CodeAndId, CodeError, ExportError, InstrumentedCodeAndId},
-    ids::{CodeId, MessageId, ProgramId},
+    ids::{prelude::*, CodeId, MessageId, ProgramId},
     message::{
         ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext, Payload,
         ReplyInfo, StoredDispatch, UserStoredMessage,
@@ -56,7 +56,10 @@ use gear_core_backend::error::{
 };
 use gear_core_errors::*;
 use gear_wasm_instrument::{gas_metering::CustomConstantCostRules, STACK_END_EXPORT_NAME};
-use gstd::{collections::BTreeMap, errors::Error as GstdError};
+use gstd::{
+    collections::BTreeMap,
+    errors::{CoreError, Error as GstdError},
+};
 use pallet_gear_voucher::PrepaidCall;
 use sp_runtime::{
     codec::{Decode, Encode},
@@ -542,9 +545,9 @@ fn delayed_reservations_sending_validation() {
 
         let error_text = format!(
             "panicked with '{SENDING_EXPECT}: {:?}'",
-            GstdError::Core(
-                ExtError::Message(MessageError::InsufficientGasForDelayedSending).into()
-            )
+            CoreError::Ext(ExtError::Message(
+                MessageError::InsufficientGasForDelayedSending
+            ))
         );
 
         assert_failed(
@@ -579,9 +582,9 @@ fn delayed_reservations_sending_validation() {
 
         let error_text = format!(
             "panicked with '{SENDING_EXPECT}: {:?}'",
-            GstdError::Core(
-                ExtError::Message(MessageError::InsufficientGasForDelayedSending).into()
-            )
+            CoreError::Ext(ExtError::Message(
+                MessageError::InsufficientGasForDelayedSending
+            ))
         );
 
         assert_failed(
@@ -7899,7 +7902,7 @@ fn test_create_program_with_exceeding_value() {
 
         let error_text = format!(
             "panicked with 'Failed to create program: {:?}'",
-            GstdError::Core(ExtError::Execution(ExecutionError::NotEnoughValue).into())
+            CoreError::Ext(ExtError::Execution(ExecutionError::NotEnoughValue))
         );
         assert_failed(
             msg_id,
@@ -9664,7 +9667,7 @@ fn program_generator_works() {
         assert_succeed(message_id);
         let expected_salt = [b"salt_generator", message_id.as_ref(), &0u64.to_be_bytes()].concat();
         let expected_child_id =
-            ProgramId::generate_from_program(code_id, &expected_salt, message_id);
+            ProgramId::generate_from_program(message_id, code_id, &expected_salt);
         assert!(ProgramStorageOf::<Test>::program_exists(expected_child_id))
     });
 }
@@ -12763,7 +12766,11 @@ fn check_reply_push_payload_exceed() {
 /// Check that random works and it's changing on next epoch.
 #[test]
 fn check_random_works() {
-    use blake2_rfc::blake2b::blake2b;
+    use blake2::{digest::typenum::U32, Blake2b, Digest};
+
+    /// BLAKE2b-256 hasher state.
+    type Blake2b256 = Blake2b<U32>;
+
     let wat = r#"
         (module
             (import "env" "gr_send_wgas" (func $send (param i32 i32 i32 i64 i32 i32)))
@@ -12829,10 +12836,11 @@ fn check_random_works() {
             .iter()
             .zip(random_data.iter())
             .for_each(|((msg, _bn), random_data)| {
-                assert_eq!(
-                    blake2b(32, &[], random_data).as_bytes(),
-                    msg.payload_bytes()
-                );
+                let mut ctx = Blake2b256::new();
+                ctx.update(random_data);
+                let expected = ctx.finalize();
+
+                assert_eq!(expected.as_slice(), msg.payload_bytes());
             });
 
         // assert_last_dequeued(1);
@@ -15128,7 +15136,7 @@ pub(crate) mod utils {
     };
     use frame_system::pallet_prelude::{BlockNumberFor, OriginFor};
     use gear_core::{
-        ids::{CodeId, MessageId, ProgramId},
+        ids::{prelude::*, CodeId, MessageId, ProgramId},
         message::{Message, Payload, ReplyDetails, UserMessage, UserStoredMessage},
         reservation::GasReservationMap,
     };

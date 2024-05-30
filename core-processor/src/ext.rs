@@ -32,7 +32,7 @@ use gear_core::{
         ChargeError, ChargeResult, CounterType, CountersOwner, GasAllowanceCounter, GasAmount,
         GasCounter, GasLeft, ValueCounter,
     },
-    ids::{CodeId, MessageId, ProgramId, ReservationId},
+    ids::{prelude::*, CodeId, MessageId, ProgramId, ReservationId},
     memory::{
         AllocError, AllocationsContext, GrowHandler, Memory, MemoryError, MemoryInterval, PageBuf,
     },

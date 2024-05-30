@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use gstd::{
-    errors::{Error, ExecutionError, ExtError},
+    errors::{CoreError, ExecutionError, ExtError},
     msg,
     prelude::*,
     ActorId,
@@ -28,8 +28,8 @@ extern "C" fn init() {
     let res = msg::send(ActorId::default(), "dummy", u128::MAX / 2);
     assert_eq!(
         res,
-        Err(Error::Core(
-            ExtError::Execution(ExecutionError::NotEnoughValue).into()
-        ))
+        Err(CoreError::Ext(ExtError::Execution(
+            ExecutionError::NotEnoughValue
+        )))
     );
 }

@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    ids::{MessageId, ProgramId},
+    ids::{prelude::*, MessageId, ProgramId},
     message::{Dispatch, DispatchKind, Message, SignalDetails},
 };
 use gear_core_errors::SignalCode;
