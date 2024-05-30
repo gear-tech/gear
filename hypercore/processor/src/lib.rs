@@ -22,7 +22,11 @@ use anyhow::Result;
 use gear_core::ids::ProgramId;
 use hypercore_db::Message;
 use primitive_types::H256;
-use std::collections::HashMap;
+use std::{collections::HashMap, ptr};
+use wasmtime::{
+    AsContext, Caller, Engine, Extern, ImportType, Instance, Linker, Memory, MemoryType, Module,
+    Store,
+};
 
 pub struct Processor {
     db: Box<dyn hypercore_db::Database>,
@@ -33,12 +37,46 @@ impl Processor {
         Self { db }
     }
 
+    fn execute(&mut self) -> anyhow::Result<()> {
+        let mut store: Store<()> = Store::default();
+
+        let module = Module::new(store.engine(), hypercore_runtime::WASM_BINARY)?;
+
+        let mut linker = Linker::new(store.engine());
+
+        linker.func_wrap(
+            "env",
+            "debug",
+            move |mut caller: Caller<'_, ()>, ptr: u32, len: u32| {
+                let mut buffer = vec![0; len as usize];
+
+                let mem = caller.get_export("memory").unwrap().into_memory().unwrap();
+                mem.read(caller, ptr as usize, &mut buffer).unwrap();
+
+                let message = unsafe { std::str::from_utf8_unchecked(&buffer) };
+
+                log::debug!("Program said: {message:?}");
+            },
+        )?;
+
+        let instance = linker.instantiate(&mut store, &module)?;
+
+        let greet = instance.get_typed_func::<(), ()>(&mut store, "greet")?;
+
+        greet.call(&mut store, ())?;
+
+        Ok(())
+    }
+
     // TODO: use proper `Dispatch` type here instead of db's.
-    pub async fn run(
+    pub fn run(
+        &mut self,
         chain_head: H256,
         programs: Vec<ProgramId>,
         messages: HashMap<ProgramId, Vec<Message>>,
     ) -> Result<()> {
+        self.execute()?;
+
         Ok(())
     }
 }

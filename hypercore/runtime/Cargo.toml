@@ -1,0 +1,19 @@
+[package]
+name = "hypercore-runtime"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+
+[dependencies]
+gprimitives.workspace = true
+galloc.workspace = true
+
+[build-dependencies]
+gear-wasm-builder.workspace = true
+
+[features]
+default = ["export"]
+export = []

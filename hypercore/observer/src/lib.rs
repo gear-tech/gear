@@ -61,9 +61,6 @@ impl Observer {
     pub fn listen(self) -> impl futures::Stream<Item = Event> {
         use futures::{stream::poll_fn, task::Poll};
 
-        futures::stream::poll_fn(move |_| {
-            std::thread::sleep(Duration::from_millis(1500));
-            Poll::Ready(Some(Default::default()))
-        })
+        futures::stream::poll_fn(move |_| Poll::Ready(Some(Default::default())))
     }
 }

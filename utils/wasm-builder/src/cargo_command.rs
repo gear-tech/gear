@@ -94,6 +94,11 @@ impl CargoCommand {
         self.force_recommended_toolchain = force_recommended_toolchain;
     }
 
+    /// Sets rustc flags to be used.
+    pub(crate) fn set_rustc_flags(&mut self, rustc_flags: Vec<&'static str>) {
+        self.rustc_flags = rustc_flags;
+    }
+
     /// Set paths to remap.
     ///
     /// Used to hide the username from the panic message.
