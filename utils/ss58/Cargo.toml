@@ -7,6 +7,10 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
-anyhow.workspace = true
+bs58.workspace = true
 blake2.workspace = true
-bs58 = { workspace = true, features = ["alloc"] }
+hex.workspace = true
+
+[features]
+alloc = []
+std = ["alloc"]

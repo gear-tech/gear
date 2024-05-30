@@ -79,6 +79,7 @@ members = [
     "gcore",
     "gmeta",
     "gmeta/codegen",
+    "gprimitives",
     "gsdk",
     "gsdk/codegen",
     "gsdk/api-gen",
@@ -103,7 +104,7 @@ async-recursion = "1.1.1"
 async-trait = "0.1.80"
 base64 = "0.21.7"
 byteorder = { version = "1.5.0", default-features = false }
-blake2-rfc = { version = "0.2.18", default-features = false }
+blake2 = { version = "0.10.6", default-features = false }
 bs58 = { version = "0.5.1", default-features = false }
 cargo_toml = "0.19.2"
 cargo_metadata = "0.18.1"
@@ -146,7 +147,7 @@ regex = "^1.9"
 region = "3.0.2"
 reqwest = { version = "0.11.27", default-features = false }
 scale-info = { version = "2.5.0", default-features = false }
-serde = "^1"
+serde = { version = "^1", default-features = false }
 serde_json = "^1"
 serde_yaml = "0.8.26"
 sha-1 = "0.10.1"
@@ -204,6 +205,7 @@ gsys = { path = "gsys" }
 gtest = { path = "gtest" }
 gmeta = { path = "gmeta" }
 gmeta-codegen = { path = "gmeta/codegen" }
+gprimitives = { path = "gprimitives", default-features = false }
 gear-authorship = { path = "node/authorship" }
 gear-core-backend = { path = "core-backend", default-features = false }
 gear-call-gen = { path = "utils/call-gen" }
@@ -224,7 +226,7 @@ gear-sandbox-env = { path = "sandbox/env", default-features = false }
 gear-sandbox-host = { path = "sandbox/host" }
 gear-service = { path = "node/service", default-features = false }
 gear-stack-buffer = { path = "stack-buffer" }
-gear-ss58 = { path = "utils/ss58" }
+gear-ss58 = { path = "utils/ss58", default-features = false }
 gear-utils = { path = "utils/utils" }
 gear-wasm-builder = { path = "utils/wasm-builder", default-features = false }
 gear-wasm-gen = { path = "utils/wasm-gen" }
@@ -476,7 +478,6 @@ toml_edit = "0.22.12"                                                      # cra
 scale-decode = "0.9.0"                                                    # gsdk
 directories = "5.0.1"                                                     # utils/key-finder
 num-traits = { version = "0.2", default-features = false }                # gear-core
-blake2 = "0.10.6"                                                         # gring
 
 # TODO: remove after wasmer bug is fixed:
 # `misaligned pointer dereference: address must be a multiple of 0x8 but is...`

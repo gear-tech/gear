@@ -17,12 +17,11 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    errors::{Error, IntoResult, Result},
-    msg::utils,
+    msg::{self, utils},
     prelude::{ops::RangeBounds, vec, Vec},
     ActorId, MessageId, ReservationId,
 };
-use gear_core_errors::{ReplyCode, SignalCode};
+use gcore::errors::Result;
 use gstd_codegen::wait_for_reply;
 use scale_info::scale::Output;
 
@@ -71,7 +70,7 @@ impl MessageHandle {
     /// parts. This function initializes a message built in parts and
     /// returns the corresponding `MessageHandle`.
     pub fn init() -> Result<Self> {
-        gcore::msg::send_init().into_result()
+        gcore::msg::send_init().map(Into::into)
     }
 
     /// Push a payload part of the message to be sent in parts.
@@ -79,7 +78,7 @@ impl MessageHandle {
     /// Gear allows programs to work with messages in parts.
     /// This function adds a `payload` part to the message.
     pub fn push<T: AsRef<[u8]>>(&self, payload: T) -> Result<()> {
-        gcore::msg::send_push(self.0, payload.as_ref()).into_result()
+        gcore::msg::send_push(self.0, payload.as_ref())
     }
 
     /// Same as [`push`](Self::push) but uses the input buffer as a payload
@@ -106,9 +105,10 @@ impl MessageHandle {
     ///         .expect("Unable to commit");
     /// }
     /// ```
-    pub fn push_input<Range: RangeBounds<usize>>(&self, range: Range) -> Result<()> {
+    pub fn push_input(&self, range: impl RangeBounds<usize>) -> Result<()> {
         let (offset, len) = utils::decay_range(range);
-        gcore::msg::send_push_input(self.0, offset, len).into_result()
+
+        gcore::msg::send_push_input(self.0, offset, len)
     }
 
     /// Finalize and send the message formed in parts.
@@ -122,13 +122,13 @@ impl MessageHandle {
     /// to the message target account.
     #[wait_for_reply(self)]
     pub fn commit(self, program: ActorId, value: u128) -> Result<MessageId> {
-        gcore::msg::send_commit(self.0, program.into(), value).into_result()
+        gcore::msg::send_commit(self.0, program, value)
     }
 
     /// Same as [`commit`](Self::commit), but sends the message after the
     /// `delay` expressed in block count.
     pub fn commit_delayed(self, program: ActorId, value: u128, delay: u32) -> Result<MessageId> {
-        gcore::msg::send_commit_delayed(self.0, program.into(), value, delay).into_result()
+        gcore::msg::send_commit_delayed(self.0, program, value, delay)
     }
 
     /// Same as [`commit`](Self::commit), but with an explicit gas
@@ -156,7 +156,7 @@ impl MessageHandle {
         gas_limit: u64,
         value: u128,
     ) -> Result<MessageId> {
-        gcore::msg::send_commit_with_gas(self.0, program.into(), gas_limit, value).into_result()
+        gcore::msg::send_commit_with_gas(self.0, program, gas_limit, value)
     }
 
     /// Same as [`commit_with_gas`](Self::commit_with_gas), but sends
@@ -168,8 +168,7 @@ impl MessageHandle {
         value: u128,
         delay: u32,
     ) -> Result<MessageId> {
-        gcore::msg::send_commit_with_gas_delayed(self.0, program.into(), gas_limit, value, delay)
-            .into_result()
+        gcore::msg::send_commit_with_gas_delayed(self.0, program, gas_limit, value, delay)
     }
 
     /// Same as [`commit`](Self::commit), but it spends gas from the
@@ -181,6 +180,7 @@ impl MessageHandle {
     /// ```
     /// use gstd::{
     ///     msg::{self, MessageHandle},
+    ///     prelude::*,
     ///     ReservationId,
     /// };
     ///
@@ -202,8 +202,7 @@ impl MessageHandle {
         program: ActorId,
         value: u128,
     ) -> Result<MessageId> {
-        gcore::msg::send_commit_from_reservation(id.into(), self.into(), program.into(), value)
-            .into_result()
+        gcore::msg::send_commit_from_reservation(id, self.into(), program, value)
     }
 
     /// Same as [`commit_from_reservation`](Self::commit_from_reservation), but
@@ -215,14 +214,7 @@ impl MessageHandle {
         value: u128,
         delay: u32,
     ) -> Result<MessageId> {
-        gcore::msg::send_commit_delayed_from_reservation(
-            id.into(),
-            self.into(),
-            program.into(),
-            value,
-            delay,
-        )
-        .into_result()
+        gcore::msg::send_commit_delayed_from_reservation(id, self.into(), program, value, delay)
     }
 }
 
@@ -250,66 +242,6 @@ impl From<gcore::MessageHandle> for MessageHandle {
     }
 }
 
-/// Get the reply code of the message being processed.
-///
-/// This function is used in the reply handler to check whether the message was
-/// processed successfully or not.
-///
-/// # Examples
-///
-/// ```
-/// use gstd::msg;
-///
-/// #[no_mangle]
-/// extern "C" fn handle_reply() {
-///     let reply_code = msg::reply_code().expect("Unable to get reply code");
-/// }
-/// ```
-pub fn reply_code() -> Result<ReplyCode> {
-    gcore::msg::reply_code().map_err(Into::into)
-}
-
-/// Get the signal code of the message being processed.
-///
-/// This function is used in the reply handler to check whether the message was
-/// processed successfully or not.
-///
-/// # Examples
-///
-/// ```
-/// use gstd::msg;
-///
-/// #[no_mangle]
-/// extern "C" fn handle_signal() {
-///     let signal_code = msg::signal_code().expect("Unable to get signal code");
-/// }
-/// ```
-pub fn signal_code() -> Result<Option<SignalCode>> {
-    gcore::msg::signal_code().map_err(Into::into)
-}
-
-/// Get an identifier of the message that is currently being processed.
-///
-/// One can get an identifier for the currently processing message; each send
-/// and reply function also returns a message identifier.
-///
-/// # Examples
-///
-/// ```
-/// use gstd::{msg, MessageId};
-///
-/// #[no_mangle]
-/// extern "C" fn handle() {
-///     let current_message_id = msg::id();
-///     if current_message_id != MessageId::zero() {
-///         msg::reply(b"Real message", 0).expect("Unable to reply");
-///     }
-/// }
-/// ```
-pub fn id() -> MessageId {
-    gcore::msg::id().into()
-}
-
 /// Get a payload of the message that is currently being processed.
 ///
 /// This function returns the message's payload as a byte vector.
@@ -329,30 +261,9 @@ pub fn id() -> MessageId {
 ///
 /// - [`load`](super::load) function returns a decoded payload of a custom type.
 pub fn load_bytes() -> Result<Vec<u8>> {
-    let mut result = vec![0u8; size()];
+    let mut result = vec![0u8; msg::size()];
     gcore::msg::read(result.as_mut())?;
     Ok(result)
-}
-
-/// Calls function `f` with read message payload on stack buffer.
-///
-/// Returns the function `f` result `T`.
-///
-/// # Examples
-///
-/// ```
-/// use gstd::msg;
-///
-/// #[no_mangle]
-/// extern "C" fn handle() {
-///     msg::with_read_on_stack(|read_res| {
-///         let payload: &mut [u8] = read_res.expect("Unable to read");
-///         // Do something with `payload`
-///     });
-/// }
-/// ```
-pub fn with_read_on_stack<T>(f: impl FnOnce(Result<&mut [u8]>) -> T) -> T {
-    gcore::msg::with_read_on_stack(|read_res| f(read_res.map_err(Error::Core)))
 }
 
 /// Send a new message as a reply to the message that is currently being
@@ -390,7 +301,7 @@ pub fn with_read_on_stack<T>(f: impl FnOnce(Result<&mut [u8]>) -> T) -> T {
 ///   in parts.
 /// - [`send_bytes`] function sends a new message to the program or user.
 pub fn reply_bytes(payload: impl AsRef<[u8]>, value: u128) -> Result<MessageId> {
-    gcore::msg::reply(payload.as_ref(), value).into_result()
+    gcore::msg::reply(payload.as_ref(), value)
 }
 
 /// Same as [`reply_bytes`], but it spends gas from a reservation instead of
@@ -404,7 +315,7 @@ pub fn reply_bytes(payload: impl AsRef<[u8]>, value: u128) -> Result<MessageId> 
 /// # Examples
 ///
 /// ```
-/// use gstd::{msg, ReservationId};
+/// use gstd::{msg, prelude::*, ReservationId};
 ///
 /// #[no_mangle]
 /// extern "C" fn handle() {
@@ -422,7 +333,7 @@ pub fn reply_bytes_from_reservation(
     payload: impl AsRef<[u8]>,
     value: u128,
 ) -> Result<MessageId> {
-    gcore::msg::reply_from_reservation(id.into(), payload.as_ref(), value).into_result()
+    gcore::msg::reply_from_reservation(id, payload.as_ref(), value)
 }
 
 /// Same as [`reply_bytes`], but with an explicit gas limit.
@@ -442,7 +353,7 @@ pub fn reply_bytes_with_gas(
     gas_limit: u64,
     value: u128,
 ) -> Result<MessageId> {
-    gcore::msg::reply_with_gas(payload.as_ref(), gas_limit, value).into_result()
+    gcore::msg::reply_with_gas(payload.as_ref(), gas_limit, value)
 }
 
 /// Finalize and send the current reply message.
@@ -482,7 +393,7 @@ pub fn reply_bytes_with_gas(
 /// - [`MessageHandle::commit`] function finalizes and sends a message formed in
 ///   parts.
 pub fn reply_commit(value: u128) -> Result<MessageId> {
-    gcore::msg::reply_commit(value).into_result()
+    gcore::msg::reply_commit(value)
 }
 
 /// Same as [`reply_commit`], but it spends gas from a reservation instead of
@@ -491,7 +402,7 @@ pub fn reply_commit(value: u128) -> Result<MessageId> {
 /// # Examples
 ///
 /// ```
-/// use gstd::{msg, ReservationId};
+/// use gstd::{msg, prelude::*, ReservationId};
 ///
 /// #[no_mangle]
 /// extern "C" fn handle() {
@@ -507,7 +418,7 @@ pub fn reply_commit(value: u128) -> Result<MessageId> {
 /// - [`reply_push`] function allows forming a reply message in parts.
 /// - [`ReservationId`] struct allows reserve gas for later use.
 pub fn reply_commit_from_reservation(id: ReservationId, value: u128) -> Result<MessageId> {
-    gcore::msg::reply_commit_from_reservation(id.into(), value).into_result()
+    gcore::msg::reply_commit_from_reservation(id, value)
 }
 
 /// Same as [`reply_commit`], but with an explicit gas limit.
@@ -529,7 +440,7 @@ pub fn reply_commit_from_reservation(id: ReservationId, value: u128) -> Result<M
 ///
 /// - [`reply_push`] function allows forming a reply message in parts.
 pub fn reply_commit_with_gas(gas_limit: u64, value: u128) -> Result<MessageId> {
-    gcore::msg::reply_commit_with_gas(gas_limit, value).into_result()
+    gcore::msg::reply_commit_with_gas(gas_limit, value)
 }
 
 /// Push a payload part to the current reply message.
@@ -553,48 +464,7 @@ pub fn reply_commit_with_gas(gas_limit: u64, value: u128) -> Result<MessageId> {
 ///
 /// - [`reply_commit`] function finalizes and sends the current reply message.
 pub fn reply_push<T: AsRef<[u8]>>(payload: T) -> Result<()> {
-    gcore::msg::reply_push(payload.as_ref()).into_result()
-}
-
-/// Get an identifier of the initial message on which the current `handle_reply`
-/// function is called.
-///
-/// The Gear program processes the reply to the message using the `handle_reply`
-/// function. Therefore, a program should call this function to obtain the
-/// original message identifier on which the reply has been posted.
-///
-/// # Examples
-///
-/// ```
-/// use gstd::msg;
-///
-/// #[no_mangle]
-/// extern "C" fn handle_reply() {
-///     let original_message_id = msg::reply_to().unwrap();
-/// }
-/// ```
-pub fn reply_to() -> Result<MessageId> {
-    gcore::msg::reply_to().into_result()
-}
-
-/// Get an identifier of the message which issued a signal.
-///
-/// The Gear program processes the signal using the `handle_signal`
-/// function. Therefore, a program should call this function to obtain the
-/// original message identifier which issued a signal.
-///
-/// # Examples
-///
-/// ```
-/// use gstd::msg;
-///
-/// #[no_mangle]
-/// extern "C" fn handle_signal() {
-///     let erroneous_message = msg::signal_from().unwrap();
-/// }
-/// ```
-pub fn signal_from() -> Result<MessageId> {
-    gcore::msg::signal_from().into_result()
+    gcore::msg::reply_push(payload.as_ref())
 }
 
 /// Same as [`reply_push`] but uses the input buffer as a payload source.
@@ -620,10 +490,10 @@ pub fn signal_from() -> Result<MessageId> {
 ///
 /// - [`MessageHandle::push_input`] function allows using the input buffer as a
 ///   payload source for an outgoing message.
-pub fn reply_push_input<Range: RangeBounds<usize>>(range: Range) -> Result<()> {
+pub fn reply_push_input(range: impl RangeBounds<usize>) -> Result<()> {
     let (offset, len) = utils::decay_range(range);
 
-    gcore::msg::reply_push_input(offset, len).into_result()
+    gcore::msg::reply_push_input(offset, len)
 }
 
 /// Send a new message to the program or user.
@@ -663,7 +533,7 @@ pub fn reply_push_input<Range: RangeBounds<usize>>(range: Range) -> Result<()> {
 ///   parts.
 #[wait_for_reply]
 pub fn send_bytes<T: AsRef<[u8]>>(program: ActorId, payload: T, value: u128) -> Result<MessageId> {
-    gcore::msg::send(program.into(), payload.as_ref(), value).into_result()
+    gcore::msg::send(program, payload.as_ref(), value)
 }
 
 /// Same as [`send_bytes`], but sends the message after the `delay` expressed in
@@ -674,7 +544,7 @@ pub fn send_bytes_delayed<T: AsRef<[u8]>>(
     value: u128,
     delay: u32,
 ) -> Result<MessageId> {
-    gcore::msg::send_delayed(program.into(), payload.as_ref(), value, delay).into_result()
+    gcore::msg::send_delayed(program, payload.as_ref(), value, delay)
 }
 
 /// Same as [`send_bytes`], but with an explicit gas limit.
@@ -710,7 +580,7 @@ pub fn send_bytes_with_gas<T: AsRef<[u8]>>(
     gas_limit: u64,
     value: u128,
 ) -> Result<MessageId> {
-    gcore::msg::send_with_gas(program.into(), payload.as_ref(), gas_limit, value).into_result()
+    gcore::msg::send_with_gas(program, payload.as_ref(), gas_limit, value)
 }
 
 /// Same as [`send_bytes_with_gas`], but sends the message after the `delay`
@@ -722,8 +592,7 @@ pub fn send_bytes_with_gas_delayed<T: AsRef<[u8]>>(
     value: u128,
     delay: u32,
 ) -> Result<MessageId> {
-    gcore::msg::send_with_gas_delayed(program.into(), payload.as_ref(), gas_limit, value, delay)
-        .into_result()
+    gcore::msg::send_with_gas_delayed(program, payload.as_ref(), gas_limit, value, delay)
 }
 
 /// Same as [`send_bytes`], but it spends gas from a reservation instead of
@@ -740,7 +609,7 @@ pub fn send_bytes_with_gas_delayed<T: AsRef<[u8]>>(
 /// Send a message with value to the sender's address:
 ///
 /// ```
-/// use gstd::{msg, ReservationId};
+/// use gstd::{msg, prelude::*, ReservationId};
 ///
 /// #[no_mangle]
 /// extern "C" fn handle() {
@@ -766,8 +635,7 @@ pub fn send_bytes_from_reservation<T: AsRef<[u8]>>(
     payload: T,
     value: u128,
 ) -> Result<MessageId> {
-    gcore::msg::send_from_reservation(id.into(), program.into(), payload.as_ref(), value)
-        .into_result()
+    gcore::msg::send_from_reservation(id, program, payload.as_ref(), value)
 }
 
 /// Same as [`send_bytes_from_reservation`], but sends the message after the
@@ -779,69 +647,5 @@ pub fn send_bytes_delayed_from_reservation<T: AsRef<[u8]>>(
     value: u128,
     delay: u32,
 ) -> Result<MessageId> {
-    gcore::msg::send_delayed_from_reservation(
-        id.into(),
-        program.into(),
-        payload.as_ref(),
-        value,
-        delay,
-    )
-    .into_result()
-}
-
-/// Get the payload size of the message that is being processed.
-///
-/// This function returns the payload size of the current message that is being
-/// processed.
-///
-/// # Examples
-///
-/// ```
-/// use gstd::msg;
-///
-/// #[no_mangle]
-/// extern "C" fn handle() {
-///     let payload_size = msg::size();
-/// }
-/// ```
-pub fn size() -> usize {
-    gcore::msg::size()
-}
-
-/// Get the identifier of the message source (256-bit address).
-///
-/// This function is used to obtain the [`ActorId`] of the account that sends
-/// the currently processing message (either a program or a user).
-///
-/// # Examples
-///
-/// ```
-/// use gstd::msg;
-///
-/// #[no_mangle]
-/// extern "C" fn handle() {
-///     let who_sends_message = msg::source();
-/// }
-/// ```
-pub fn source() -> ActorId {
-    gcore::msg::source().into()
-}
-
-/// Get the value associated with the message that is being processed.
-///
-/// This function returns the value sent along with a current
-/// message being processed.
-///
-/// # Examples
-///
-/// ```
-/// use gstd::msg;
-///
-/// #[no_mangle]
-/// extern "C" fn handle() {
-///     let amount_sent_with_message = msg::value();
-/// }
-/// ```
-pub fn value() -> u128 {
-    gcore::msg::value()
+    gcore::msg::send_delayed_from_reservation(id, program, payload.as_ref(), value, delay)
 }

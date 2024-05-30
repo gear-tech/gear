@@ -133,10 +133,10 @@ fn generate_runtime_types(metadata: Metadata) -> TokenStream {
     );
 
     for ty in [
-        parse_quote!(gear_core::ids::CodeId),
-        parse_quote!(gear_core::ids::MessageId),
-        parse_quote!(gear_core::ids::ProgramId),
-        parse_quote!(gear_core::ids::ReservationId),
+        parse_quote!(gprimitives::CodeId),
+        parse_quote!(gprimitives::MessageId),
+        parse_quote!(gprimitives::ActorId),
+        parse_quote!(gprimitives::ReservationId),
     ] {
         derives.extend_for_type(ty, [parse_quote!(Copy)], []);
     }

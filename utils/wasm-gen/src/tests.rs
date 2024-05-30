@@ -21,7 +21,7 @@ use arbitrary::Unstructured;
 use gear_core::{
     code::Code,
     gas::{GasAllowanceCounter, GasCounter, ValueCounter},
-    ids::{CodeId, ProgramId},
+    ids::{prelude::*, CodeId, ProgramId},
     memory::Memory,
     message::{
         ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext,
@@ -287,7 +287,7 @@ fn test_existing_address_as_address_param() {
 
     assert_eq!(
         dispatch.destination(),
-        ProgramId::from(some_address.as_ref())
+        ProgramId::try_from(some_address.as_ref()).unwrap()
     );
 }
 
@@ -418,7 +418,10 @@ fn test_msg_value_ptr_dest() {
                 match dest_var {
                     ActorKind::Source => assert_eq!(destination, message_sender()),
                     ActorKind::ExistingAddresses(_) => {
-                        assert_eq!(destination, ProgramId::from(some_address.as_ref()))
+                        assert_eq!(
+                            destination,
+                            ProgramId::try_from(some_address.as_ref()).unwrap()
+                        )
                     }
                     ActorKind::Random => {}
                 }
@@ -602,7 +605,8 @@ fn test_code_id_with_value_ptr() {
 
     const INITIAL_BALANCE: u128 = 10_000;
     const REPLY_VALUE: u128 = 1_000;
-    const SOME_CODE_ID: CodeId = CodeId::test_new([10; 32]);
+
+    let some_code_id = CodeId::from([10; 32]);
 
     let tested_syscalls = [
         InvocableSyscall::Loose(SyscallName::CreateProgram),
@@ -613,7 +617,7 @@ fn test_code_id_with_value_ptr() {
         .with_default_regular_config()
         .with_rule(RegularParamType::Gas, (0..=0).into())
         .with_ptr_rule(PtrParamAllowedValues::CodeIdsWithValue {
-            code_ids: vec![SOME_CODE_ID],
+            code_ids: vec![some_code_id],
             range: REPLY_VALUE..=REPLY_VALUE,
         });
 
@@ -648,7 +652,7 @@ fn test_code_id_with_value_ptr() {
             .ext
             .context
             .program_candidates_data
-            .contains_key(&SOME_CODE_ID));
+            .contains_key(&some_code_id));
         assert_eq!(
             backend_report.termination_reason,
             TerminationReason::Actor(ActorTerminationReason::Success)
@@ -902,5 +906,5 @@ fn execute_wasm_with_custom_configs(
 
 fn message_sender() -> ProgramId {
     let bytes = [1, 2, 3, 4].repeat(8);
-    ProgramId::from(bytes.as_ref())
+    ProgramId::try_from(bytes.as_ref()).unwrap()
 }
