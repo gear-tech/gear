@@ -21,7 +21,8 @@
 //! It is capable of managing multiple gas reservations
 //! providing simple interface to user.
 
-use crate::{errors::Result, prelude::*};
+use crate::prelude::*;
+use gcore::errors::Result;
 use parity_scale_codec::{Decode, Encode};
 
 #[cfg(not(test))]
@@ -278,8 +279,8 @@ impl Reservations {
 
 #[cfg(test)]
 mod tests {
-    use super::Reservations;
-    use crate::{errors::Result, prelude::*};
+    use crate::{prelude::*, Reservations};
+    use gcore::errors::Result;
     use parity_scale_codec::{Decode, Encode};
 
     #[must_use]

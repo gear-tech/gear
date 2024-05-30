@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{HandleAction, WAIT_AND_RESERVE_WITH_PANIC_GAS};
-use gear_core::ids::ProgramId;
+use gear_core::ids::{prelude::*, ProgramId};
 use gstd::{
     debug,
     errors::{ExtError, ReservationError, SignalCode, SimpleExecutionError},
