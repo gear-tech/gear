@@ -433,7 +433,7 @@ pub fn check_start_section(module: &Module) -> Result<(), CodeError> {
 }
 
 /// Calculates the data section size based on the number of OS pages used (see `GENERIC_OS_PAGE_SIZE`).
-pub fn get_data_section_bytes(module: &Module) -> Result<u32, CodeError> {
+pub fn get_data_section_size(module: &Module) -> Result<u32, CodeError> {
     let Some(data_section) = module.data_section() else {
         // No data section
         return Ok(0);
@@ -449,25 +449,24 @@ pub fn get_data_section_bytes(module: &Module) -> Result<u32, CodeError> {
         let data_segment_start = data_segment_offset / GENERIC_OS_PAGE_SIZE;
 
         let data_segment_size = data_segment.value().len() as u32;
-        let data_segment_end = if data_segment_size == 0 {
-            data_segment_start
-        } else {
-            (data_segment_offset // We should use `offset` here and not `start`
-                .saturating_add(data_segment_size)
-                .saturating_add(GENERIC_OS_PAGE_SIZE - 1)) // Round up to the nearest whole number
-                / GENERIC_OS_PAGE_SIZE
-        };
 
-        for page in data_segment_start..data_segment_end {
-            used_pages.insert(page);
+        if data_segment_size == 0 {
+            // Zero size data segment
+            continue;
         }
+
+        let data_segment_end = data_segment_offset // We should use `offset` here and not `start`
+                .saturating_add(data_segment_size.saturating_sub(1)) // Round up to the nearest whole number
+                / GENERIC_OS_PAGE_SIZE;
+
+        used_pages.extend(data_segment_start..=data_segment_end);
     }
 
     Ok(used_pages.len() as u32 * GENERIC_OS_PAGE_SIZE)
 }
 
 /// Calculates the amount of bytes in the global section will be initialized during module instantiation.
-pub fn get_global_section_bytes(module: &Module) -> Result<u32, CodeError> {
+pub fn get_global_section_size(module: &Module) -> Result<u32, CodeError> {
     let Some(global_section) = module.global_section() else {
         // No element section
         return Ok(0);
@@ -486,7 +485,7 @@ pub fn get_global_section_bytes(module: &Module) -> Result<u32, CodeError> {
 }
 
 /// Calculates the amount of bytes in the table section that will be allocated during module instantiation.
-pub fn get_table_section_bytes(module: &Module) -> Result<u32, CodeError> {
+pub fn get_table_section_size(module: &Module) -> Result<u32, CodeError> {
     let Some(table_section) = module.table_section() else {
         return Ok(0);
     };
@@ -502,7 +501,7 @@ pub fn get_table_section_bytes(module: &Module) -> Result<u32, CodeError> {
 }
 
 /// Calculates the amount of bytes in the table/element section that will be initialized during module instantiation.
-pub fn get_element_section_bytes(module: &Module) -> Result<u32, CodeError> {
+pub fn get_element_section_size(module: &Module) -> Result<u32, CodeError> {
     if module.table_section().is_none() {
         return Ok(0);
     }
@@ -523,15 +522,15 @@ pub fn get_element_section_bytes(module: &Module) -> Result<u32, CodeError> {
 }
 
 pub struct CodeTypeSectionSizes {
-    pub code_section_bytes: u32,
-    pub type_section_bytes: u32,
+    pub code_section: u32,
+    pub type_section: u32,
 }
 
 // Calculate the size of the code and type sections in bytes.
 pub fn get_code_type_sections_sizes(code_bytes: &[u8]) -> Result<CodeTypeSectionSizes, CodeError> {
     let mut code_start_exists = false;
-    let mut code_section_bytes = 0;
-    let mut type_section_bytes = 0;
+    let mut code_section_size = 0;
+    let mut type_section_size = 0;
 
     let parser = wasmparser::Parser::new(0);
 
@@ -540,21 +539,21 @@ pub fn get_code_type_sections_sizes(code_bytes: &[u8]) -> Result<CodeTypeSection
         match item {
             Payload::CodeSectionStart { size, .. } => {
                 code_start_exists = true;
-                code_section_bytes = size;
+                code_section_size = size;
             }
             Payload::CodeSectionEntry(f) if !code_start_exists => {
-                code_section_bytes += f.range().len() as u32;
+                code_section_size += f.range().len() as u32;
             }
             Payload::TypeSection(t) => {
-                type_section_bytes += t.range().len() as u32;
+                type_section_size += t.range().len() as u32;
             }
             _ => {}
         }
     }
 
     Ok(CodeTypeSectionSizes {
-        code_section_bytes,
-        type_section_bytes,
+        code_section: code_section_size,
+        type_section: type_section_size,
     })
 }
 
@@ -563,21 +562,21 @@ pub fn migration_get_section_sizes(code: &[u8]) -> Result<SectionSizes, CodeErro
     let module = parity_wasm::deserialize_buffer(code).map_err(CodecError::Decode)?;
 
     let CodeTypeSectionSizes {
-        code_section_bytes,
-        type_section_bytes,
+        code_section,
+        type_section,
     } = get_code_type_sections_sizes(code)?;
 
-    let data_section_bytes = get_data_section_bytes(&module)?;
-    let global_section_bytes = get_global_section_bytes(&module)?;
-    let table_section_bytes = get_table_section_bytes(&module)?;
-    let element_section_bytes = get_element_section_bytes(&module)?;
+    let data_section_size = get_data_section_size(&module)?;
+    let global_section_size = get_global_section_size(&module)?;
+    let table_section_size = get_table_section_size(&module)?;
+    let element_section_size = get_element_section_size(&module)?;
 
     Ok(SectionSizes {
-        code_section_bytes,
-        data_section_bytes,
-        global_section_bytes,
-        table_section_bytes,
-        element_section_bytes,
-        type_section_bytes,
+        code_section,
+        data_section: data_section_size,
+        global_section: global_section_size,
+        table_section: table_section_size,
+        element_section: element_section_size,
+        type_section,
     })
 }

@@ -66,12 +66,12 @@ impl<T: Config> OnRuntimeUpgrade for AddSectionSizesMigration<T> {
                     log::error!("❌ Failed to get section sizes for code with id {code_id:?}, error: {err:?}");
                     // Fallback, should never happen.
                     SectionSizes {
-                        code_section_bytes: code.code.len() as u32,
-                        data_section_bytes: 0,
-                        global_section_bytes: 0,
-                        table_section_bytes: 0,
-                        element_section_bytes: 0,
-                        type_section_bytes: 0,
+                        code_section: code.code.len() as u32,
+                        data_section: 0,
+                        global_section: 0,
+                        table_section: 0,
+                        element_section: 0,
+                        type_section: 0,
                     }
                 });
 
@@ -250,12 +250,12 @@ mod test {
 
             assert_eq!(new_code.section_sizes(),
                 &SectionSizes {
-                    code_section_bytes: 11,
-                    data_section_bytes: 4096,
-                    global_section_bytes: 16,
-                    table_section_bytes: 40,
-                    element_section_bytes: 16,
-                    type_section_bytes: 33,
+                    code_section: 11,
+                    data_section: 4096,
+                    global_section: 16,
+                    table_section: 40,
+                    element_section: 16,
+                    type_section: 33,
             });
         });
     }

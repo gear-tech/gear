@@ -6302,12 +6302,12 @@ fn terminated_locking_funds() {
         let read_cost = DbWeightOf::<Test>::get().reads(1).ref_time();
         let gas_for_module_instantiation = {
             let SectionSizes {
-                code_section_bytes,
-                data_section_bytes,
-                global_section_bytes,
-                table_section_bytes,
-                element_section_bytes,
-                type_section_bytes,
+                code_section: code_section_bytes,
+                data_section: data_section_bytes,
+                global_section: global_section_bytes,
+                table_section: table_section_bytes,
+                element_section: element_section_bytes,
+                type_section: type_section_bytes,
             } = *code.section_sizes();
 
             let mut gas_for_code_instantiation = schedule
@@ -7530,12 +7530,12 @@ fn gas_spent_precalculated() {
                 .saturating_add(read_cost);
 
             let SectionSizes {
-                code_section_bytes,
-                data_section_bytes,
-                global_section_bytes,
-                table_section_bytes,
-                element_section_bytes,
-                type_section_bytes,
+                code_section: code_section_bytes,
+                data_section: data_section_bytes,
+                global_section: global_section_bytes,
+                table_section: table_section_bytes,
+                element_section: element_section_bytes,
+                type_section: type_section_bytes,
             } = instrumented_prog.section_sizes();
 
             let mut gas_for_code_instantiation = schedule

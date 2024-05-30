@@ -189,17 +189,17 @@ impl Code {
         module = instrumentation_builder.instrument(module)?;
 
         // Use instrumented module to get section sizes.
-        let data_section_bytes = utils::get_data_section_bytes(&module)?;
-        let global_section_bytes = utils::get_global_section_bytes(&module)?;
-        let table_section_bytes = utils::get_table_section_bytes(&module)?;
-        let element_section_bytes = utils::get_element_section_bytes(&module)?;
+        let data_section_size = utils::get_data_section_size(&module)?;
+        let global_section_size = utils::get_global_section_size(&module)?;
+        let table_section_size = utils::get_table_section_size(&module)?;
+        let element_section_size = utils::get_element_section_size(&module)?;
 
         let code = parity_wasm::elements::serialize(module).map_err(CodecError::Encode)?;
 
         // Use instrumented code to get section sizes.
         let CodeTypeSectionSizes {
-            code_section_bytes,
-            type_section_bytes,
+            code_section,
+            type_section,
         } = utils::get_code_type_sections_sizes(&code)?;
 
         Ok(Self {
@@ -210,12 +210,12 @@ impl Code {
             stack_end,
             instruction_weights_version: config.version,
             section_sizes: SectionSizes {
-                code_section_bytes,
-                data_section_bytes,
-                global_section_bytes,
-                table_section_bytes,
-                element_section_bytes,
-                type_section_bytes,
+                code_section,
+                data_section: data_section_size,
+                global_section: global_section_size,
+                table_section: table_section_size,
+                element_section: element_section_size,
+                type_section,
             },
         })
     }
@@ -892,7 +892,7 @@ mod tests {
             try_new_code_from_wat(wat, Some(1024))
                 .unwrap()
                 .section_sizes
-                .data_section_bytes,
+                .data_section,
             GENERIC_OS_PAGE_SIZE,
         );
 
@@ -911,7 +911,7 @@ mod tests {
             try_new_code_from_wat(wat, Some(1024))
                 .unwrap()
                 .section_sizes
-                .data_section_bytes,
+                .data_section,
             GENERIC_OS_PAGE_SIZE * 2,
         );
 
@@ -930,7 +930,7 @@ mod tests {
             try_new_code_from_wat(wat, Some(1024))
                 .unwrap()
                 .section_sizes
-                .data_section_bytes,
+                .data_section,
             GENERIC_OS_PAGE_SIZE * 2,
         );
 
@@ -949,7 +949,7 @@ mod tests {
             try_new_code_from_wat(wat, Some(1024))
                 .unwrap()
                 .section_sizes
-                .data_section_bytes,
+                .data_section,
             0,
         );
 
@@ -968,7 +968,7 @@ mod tests {
             try_new_code_from_wat(wat, Some(1024))
                 .unwrap()
                 .section_sizes
-                .data_section_bytes,
+                .data_section,
             GENERIC_OS_PAGE_SIZE,
         );
 
@@ -989,7 +989,7 @@ mod tests {
             try_new_code_from_wat(&wat, Some(1024))
                 .unwrap()
                 .section_sizes
-                .data_section_bytes,
+                .data_section,
             GENERIC_OS_PAGE_SIZE * 2,
         );
 
@@ -1012,7 +1012,7 @@ mod tests {
             try_new_code_from_wat(&wat, Some(1024))
                 .unwrap()
                 .section_sizes
-                .data_section_bytes,
+                .data_section,
             GENERIC_OS_PAGE_SIZE * 4,
         );
 
@@ -1035,7 +1035,7 @@ mod tests {
             try_new_code_from_wat(&wat, Some(1024))
                 .unwrap()
                 .section_sizes
-                .data_section_bytes,
+                .data_section,
             GENERIC_OS_PAGE_SIZE * 4,
         );
     }
@@ -1061,7 +1061,7 @@ mod tests {
             try_new_code_from_wat(wat, Some(1024))
                 .unwrap()
                 .section_sizes
-                .code_section_bytes,
+                .code_section,
             INSTRUMENTATION_CODE_SIZE + 11,
         );
     }
@@ -1085,7 +1085,7 @@ mod tests {
             try_new_code_from_wat(wat, Some(1024))
                 .unwrap()
                 .section_sizes
-                .global_section_bytes,
+                .global_section,
             (INSTRUMENTATION_GLOBALS_SIZE + mem::size_of::<i32>() * 2 + mem::size_of::<i64>())
                 as u32,
         );
@@ -1109,7 +1109,7 @@ mod tests {
             try_new_code_from_wat(wat, Some(1024))
                 .unwrap()
                 .section_sizes
-                .table_section_bytes,
+                .table_section,
             40 * REF_TYPE_SIZE,
         );
 
@@ -1117,7 +1117,7 @@ mod tests {
             try_new_code_from_wat(wat, Some(1024))
                 .unwrap()
                 .section_sizes
-                .element_section_bytes,
+                .element_section,
             0,
         );
     }
@@ -1138,7 +1138,7 @@ mod tests {
             try_new_code_from_wat(wat, Some(1024))
                 .unwrap()
                 .section_sizes
-                .table_section_bytes,
+                .table_section,
             10 * REF_TYPE_SIZE,
         );
 
@@ -1146,7 +1146,7 @@ mod tests {
             try_new_code_from_wat(wat, Some(1024))
                 .unwrap()
                 .section_sizes
-                .element_section_bytes,
+                .element_section,
             REF_TYPE_SIZE * 4,
         );
     }
@@ -1167,7 +1167,7 @@ mod tests {
             try_new_code_from_wat(wat, Some(1024))
                 .unwrap()
                 .section_sizes
-                .type_section_bytes,
+                .type_section,
             50,
         );
     }

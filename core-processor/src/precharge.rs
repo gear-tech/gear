@@ -129,44 +129,19 @@ impl<'a> GasPrecharger<'a> {
         section_name: SectionName,
         section_len: BytesAmount,
     ) -> Result<(), PrechargeError> {
+        let instantiation_costs = &self.costs.instantiation_costs;
+
         let cost_per_byte = match section_name {
-            SectionName::Function => {
-                &self
-                    .costs
-                    .instantiation_costs
-                    .code_section_instantiation_per_byte
+            SectionName::Function => &instantiation_costs.code_section_instantiation_per_byte,
+            SectionName::Data => &instantiation_costs.data_section_instantiation_per_byte,
+            SectionName::Global => &instantiation_costs.global_section_instantiation_per_byte,
+            SectionName::Table => &instantiation_costs.table_section_instantiation_per_byte,
+            SectionName::Element => &instantiation_costs.element_section_instantiation_per_byte,
+            SectionName::Type => &instantiation_costs.type_section_instantiation_per_byte,
+            _ => {
+                // TODO: change this to a system error in future
+                unimplemented!("Wrong {section_name:?} for section instantiation")
             }
-            SectionName::Data => {
-                &self
-                    .costs
-                    .instantiation_costs
-                    .data_section_instantiation_per_byte
-            }
-            SectionName::Global => {
-                &self
-                    .costs
-                    .instantiation_costs
-                    .global_section_instantiation_per_byte
-            }
-            SectionName::Table => {
-                &self
-                    .costs
-                    .instantiation_costs
-                    .table_section_instantiation_per_byte
-            }
-            SectionName::Element => {
-                &self
-                    .costs
-                    .instantiation_costs
-                    .element_section_instantiation_per_byte
-            }
-            SectionName::Type => {
-                &self
-                    .costs
-                    .instantiation_costs
-                    .type_section_instantiation_per_byte
-            }
-            _ => unimplemented!("Wrong {section_name:?} for section instantiation"),
         };
 
         self.charge_gas(
@@ -395,27 +370,27 @@ pub fn precharge_for_module_instantiation(
 
         charger.charge_gas_for_section_instantiation(
             SectionName::Function,
-            section_sizes.code_section_bytes.into(),
+            section_sizes.code_section.into(),
         )?;
         charger.charge_gas_for_section_instantiation(
             SectionName::Data,
-            section_sizes.data_section_bytes.into(),
+            section_sizes.data_section.into(),
         )?;
         charger.charge_gas_for_section_instantiation(
             SectionName::Global,
-            section_sizes.global_section_bytes.into(),
+            section_sizes.global_section.into(),
         )?;
         charger.charge_gas_for_section_instantiation(
             SectionName::Table,
-            section_sizes.table_section_bytes.into(),
+            section_sizes.table_section.into(),
         )?;
         charger.charge_gas_for_section_instantiation(
             SectionName::Element,
-            section_sizes.element_section_bytes.into(),
+            section_sizes.element_section.into(),
         )?;
         charger.charge_gas_for_section_instantiation(
             SectionName::Type,
-            section_sizes.type_section_bytes.into(),
+            section_sizes.type_section.into(),
         )?;
 
         Ok(memory_size)

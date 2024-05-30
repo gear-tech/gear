@@ -34,18 +34,18 @@ use scale_info::{
 #[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, TypeInfo)]
 pub struct SectionSizes {
     /// Code section size in bytes.
-    pub code_section_bytes: u32,
+    pub code_section: u32,
     /// Data section size in bytes based on the number of OS pages
     /// used during data section instantiation (see `GENERIC_OS_PAGE_SIZE`).
-    pub data_section_bytes: u32,
+    pub data_section: u32,
     /// Global section size in bytes.
-    pub global_section_bytes: u32,
+    pub global_section: u32,
     /// Table section size in bytes.
-    pub table_section_bytes: u32,
+    pub table_section: u32,
     /// Element section size in bytes.
-    pub element_section_bytes: u32,
+    pub element_section: u32,
     /// Type section size in bytes.
-    pub type_section_bytes: u32,
+    pub type_section: u32,
 }
 
 /// The newtype contains the instrumented code and the corresponding id (hash).
