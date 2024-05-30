@@ -16,9 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{Code, Hash, State};
-
+use crate::{Code, State};
 use anyhow::Result;
+use gprimitives::H256;
 use std::path::PathBuf;
 
 /// Database for storing states and codes in memory.
@@ -31,7 +31,7 @@ impl RocksDatabase {
         Ok(Self)
     }
 
-    pub fn read_state(&self, hash: Hash) -> Option<State> {
+    pub fn read_state(&self, hash: H256) -> Option<State> {
         unimplemented!()
     }
 
@@ -39,7 +39,7 @@ impl RocksDatabase {
         unimplemented!()
     }
 
-    pub fn read_code(&self, code_hash: Hash) -> Option<Code> {
+    pub fn read_code(&self, code_hash: H256) -> Option<Code> {
         unimplemented!()
     }
 

@@ -18,22 +18,14 @@
 
 //! Code-related datastructures.
 
-use crate::Hash;
-
-use blake2_rfc::blake2b::blake2b;
+use gear_core::ids;
+use gprimitives::H256;
 
 /// Hypercore code.
 pub struct Code(pub Vec<u8>);
 
 impl Code {
-    pub fn hash(&self) -> Hash {
-        Hash(
-            blake2b(32, &[], &self.0)
-                .as_bytes()
-                .try_into()
-                .unwrap_or_else(|e| {
-                    unreachable!("`nn` argument in `blake2b()` must be equal to bytes amount: {e}")
-                }),
-        )
+    pub fn hash(&self) -> H256 {
+        ids::hash(&self.0).into()
     }
 }

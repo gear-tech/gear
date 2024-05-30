@@ -11,7 +11,7 @@ repository.workspace = true
 
 [dependencies]
 anyhow.workspace = true
-hypercore-db = { path = "../db" }
+hypercore-db.workspace = true
 futures = { workspace = true, features = ["alloc"] }
 primitive-types.workspace = true
 gear-core.workspace = true

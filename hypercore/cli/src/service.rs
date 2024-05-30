@@ -61,7 +61,7 @@ impl Service {
                     break;
                 }
                 event = observer_events.next() => {
-                    log::debug!("[ETH] {:?}", event);
+                    log::debug!("Received [ETH]: {event:?}");
                 }
             }
         }

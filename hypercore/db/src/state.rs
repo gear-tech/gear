@@ -18,14 +18,10 @@
 
 //! State-related data structures.
 
-use blake2_rfc::blake2b::blake2b;
+use gear_core::ids::{self, ProgramId};
+use gprimitives::H256;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ProgramId(pub(crate) [u8; 32]);
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Hash(pub(crate) [u8; 32]);
-
+#[derive(Debug)]
 pub struct Message {
     pub sender: ProgramId,
     pub gas_limit: u64,
@@ -47,9 +43,9 @@ pub struct State {
 }
 
 impl State {
-    pub fn hash(&self) -> Hash {
+    pub fn hash(&self) -> H256 {
         let mut array = Vec::new();
-        array.extend_from_slice(self.program_id.0.as_ref());
+        array.extend_from_slice(self.program_id.as_ref());
 
         for queue_item in &self.queue {
             array.extend_from_slice(&queue_item.hash().0);
@@ -59,49 +55,28 @@ impl State {
             array.extend_from_slice(&page.hash().0);
         }
 
-        let hash: [u8; 32] = blake2b(32, &[], &array)
-            .as_bytes()
-            .try_into()
-            .unwrap_or_else(|e| {
-                unreachable!("`nn` argument in `blake2b()` must be equal to bytes amount: {e}")
-            });
-
-        Hash(hash)
+        ids::hash(&array).into()
     }
 }
 
 impl Page {
-    pub fn hash(&self) -> Hash {
+    pub fn hash(&self) -> H256 {
         let mut array = Vec::new();
         array.extend_from_slice(&self.data);
         array.extend_from_slice(&self.index.to_le_bytes());
 
-        Hash(
-            blake2b(32, &[], &array)
-                .as_bytes()
-                .try_into()
-                .unwrap_or_else(|e| {
-                    unreachable!("`nn` argument in `blake2b()` must be equal to bytes amount: {e}")
-                }),
-        )
+        ids::hash(&array).into()
     }
 }
 
 impl Message {
-    pub fn hash(&self) -> Hash {
+    pub fn hash(&self) -> H256 {
         let mut array = Vec::new();
-        array.extend_from_slice(self.sender.0.as_ref());
+        array.extend_from_slice(self.sender.as_ref());
         array.extend_from_slice(&self.gas_limit.to_le_bytes());
         array.extend_from_slice(&self.value.to_le_bytes());
         array.extend_from_slice(&self.data);
 
-        Hash(
-            blake2b(32, &[], &array)
-                .as_bytes()
-                .try_into()
-                .unwrap_or_else(|e| {
-                    unreachable!("`nn` argument in `blake2b()` must be equal to bytes amount: {e}")
-                }),
-        )
+        ids::hash(&array).into()
     }
 }

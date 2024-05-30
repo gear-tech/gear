@@ -20,6 +20,7 @@
 
 use anyhow::Result;
 use gear_core::ids::ProgramId;
+use hypercore_db::Message;
 use primitive_types::H256;
 use std::collections::HashMap;
 
@@ -32,11 +33,11 @@ impl Processor {
         Self { db }
     }
 
-    // TODO: use proper `Message` type here instead of unit.
+    // TODO: use proper `Dispatch` type here instead of db's.
     pub async fn run(
         chain_head: H256,
         programs: Vec<ProgramId>,
-        messages: HashMap<ProgramId, Vec<()>>,
+        messages: HashMap<ProgramId, Vec<Message>>,
     ) -> Result<()> {
         Ok(())
     }
