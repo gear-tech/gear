@@ -6,9 +6,11 @@ evm_version = "cancun"
 optimizer_runs = 100_000
 
 [rpc_endpoints]
+sepolia = "${SEPOLIA_RPC_URL}"
 holesky = "${HOLESKY_RPC_URL}"
 
 [etherscan]
+sepolia = { key = "${ETHERSCAN_API_KEY}" }
 holesky = { key = "${ETHERSCAN_API_KEY}" }
 
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options

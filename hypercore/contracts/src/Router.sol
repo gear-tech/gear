@@ -26,7 +26,7 @@ contract Router {
         UpdateProgramData[] updateProgramsArray;
     }
 
-    event UploadCode(address origin, bytes32 blobTx);
+    event UploadCode(address origin, bytes32 codeId, bytes32 blobTx);
 
     event UploadedCode(bytes32 codeId);
 
@@ -38,8 +38,8 @@ contract Router {
         owner = msg.sender;
     }
 
-    function uploadCode(bytes32 blobTx) external {
-        emit UploadCode(tx.origin, blobTx);
+    function uploadCode(bytes32 codeId, bytes32 blobTx) external {
+        emit UploadCode(tx.origin, codeId, blobTx);
     }
 
     function createProgram(
@@ -55,6 +55,7 @@ contract Router {
 
     function setProgram(address _program) external {
         require(msg.sender == owner, "not owner");
+        require(program == address(0), "program already set");
         program = _program;
     }
 
