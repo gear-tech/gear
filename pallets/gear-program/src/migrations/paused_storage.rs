@@ -111,7 +111,6 @@ impl<T: Config> OnRuntimeUpgrade for RemovePausedProgramStorageMigration<T> {
 
     #[cfg(feature = "try-runtime")]
     fn pre_upgrade() -> Result<Vec<u8>, TryRuntimeError> {
-        const MIGRATE_FROM_VERSION: u16 = 5;
         let current = Pallet::<T>::current_storage_version();
         let onchain = Pallet::<T>::on_chain_storage_version();
 
