@@ -25,7 +25,7 @@ use crate::{
 use codec::{Codec, Decode, Encode};
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCodeAndId},
-    ids::{CodeId, MessageId, ProgramId},
+    ids::{prelude::*, CodeId, MessageId, ProgramId},
     message::{Dispatch, DispatchKind, Message, SignalMessage},
 };
 use gear_core_errors::SignalCode;
@@ -40,6 +40,7 @@ use std::{
     fmt::Debug,
     fs,
     path::{Path, PathBuf},
+    str::FromStr,
 };
 
 /// Gas for gear programs.
@@ -142,9 +143,7 @@ impl From<ProgramId> for ProgramIdWrapper {
 
 impl From<u64> for ProgramIdWrapper {
     fn from(other: u64) -> Self {
-        let mut id = [0; 32];
-        id[0..8].copy_from_slice(&other.to_le_bytes()[..]);
-        Self(id.into())
+        Self(other.into())
     }
 }
 
@@ -157,14 +156,9 @@ impl From<[u8; 32]> for ProgramIdWrapper {
 impl From<&[u8]> for ProgramIdWrapper {
     #[track_caller]
     fn from(other: &[u8]) -> Self {
-        if other.len() != 32 {
-            panic!("Invalid identifier: {:?}", other)
-        }
-
-        let mut bytes = [0; 32];
-        bytes.copy_from_slice(other);
-
-        bytes.into()
+        ProgramId::try_from(other)
+            .expect("invalid identifier")
+            .into()
     }
 }
 
@@ -189,15 +183,9 @@ impl From<String> for ProgramIdWrapper {
 impl From<&str> for ProgramIdWrapper {
     #[track_caller]
     fn from(other: &str) -> Self {
-        let id = other.strip_prefix("0x").unwrap_or(other);
-
-        let mut bytes = [0u8; 32];
-
-        if hex::decode_to_slice(id, &mut bytes).is_err() {
-            panic!("Invalid identifier: {:?}", other)
-        }
-
-        Self(bytes.into())
+        ProgramId::from_str(other)
+            .expect("invalid identifier")
+            .into()
     }
 }
 
@@ -778,7 +766,7 @@ impl<'a> Program<'a> {
 /// Calculate program id from code id and salt.
 pub fn calculate_program_id(code_id: CodeId, salt: &[u8], id: Option<MessageId>) -> ProgramId {
     if let Some(id) = id {
-        ProgramId::generate_from_program(code_id, salt, id)
+        ProgramId::generate_from_program(id, code_id, salt)
     } else {
         ProgramId::generate_from_user(code_id, salt)
     }

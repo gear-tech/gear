@@ -415,7 +415,10 @@ async fn create_renew_balance_task(
                     e
                 })?;
             root_api
-                .transfer_keep_alive(ProgramId::from(user_address.as_ref()), user_balance_demand)
+                .transfer_keep_alive(
+                    ProgramId::new(user_address.clone().into()),
+                    user_balance_demand,
+                )
                 .await
                 .map_err(|e| {
                     tracing::debug!("Failed to transfer to user address: {e}");

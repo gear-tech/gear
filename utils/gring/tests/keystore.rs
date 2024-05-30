@@ -27,7 +27,7 @@ fn scrypt() -> Result<()> {
 #[test]
 fn nopasswd() -> Result<()> {
     let pair = Keypair::generate();
-    let store = Keystore::encrypt_none(pair.clone().into());
+    let store = Keystore::encrypt_none(pair.clone().into())?;
 
     assert_eq!(pair.secret, store.decrypt_none()?.secret);
     Ok(())

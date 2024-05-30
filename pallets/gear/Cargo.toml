@@ -71,7 +71,7 @@ demo-signal-entry = { workspace = true, optional = true }
 [dev-dependencies]
 wabt.workspace = true
 hex.workspace = true
-blake2-rfc.workspace = true
+blake2.workspace = true
 gstd.workspace = true
 demo-async.workspace = true
 demo-async-init.workspace = true
