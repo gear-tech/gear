@@ -11,6 +11,8 @@ resolver = "2"
 
 default-members = ["node/cli"]
 
+exclude = ["hypercore/contracts"]
+
 members = [
     "common",
     "common/codegen",
@@ -104,8 +106,7 @@ members = [
     "utils/*",
     "utils/runtime-fuzzer/fuzz",
     "utils/lazy-pages-fuzzer/fuzz",
-    "hypercore/cli",
-    "hypercore/db", "hypercore/network", "hypercore/observer",
+    "hypercore/*",
 ]
 
 [workspace.dependencies]

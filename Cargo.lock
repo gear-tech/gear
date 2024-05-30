@@ -5820,7 +5820,19 @@ version = "1.4.2"
 dependencies = [
  "anyhow",
  "futures",
+ "gear-core",
  "hypercore-db",
+ "primitive-types",
+]
+
+[[package]]
+name = "hypercore-processor"
+version = "1.4.2"
+dependencies = [
+ "anyhow",
+ "gear-core",
+ "hypercore-db",
+ "primitive-types",
 ]
 
 [[package]]

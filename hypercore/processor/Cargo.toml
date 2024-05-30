@@ -1,5 +1,5 @@
 [package]
-name = "hypercore-observer"
+name = "hypercore-processor"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
@@ -7,11 +7,9 @@ license.workspace = true
 homepage.workspace = true
 repository.workspace = true
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 anyhow.workspace = true
 hypercore-db = { path = "../db" }
-futures = { workspace = true, features = ["alloc"] }
 primitive-types.workspace = true
 gear-core.workspace = true
