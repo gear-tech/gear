@@ -168,9 +168,12 @@ pub mod sync;
 pub mod util;
 
 pub use async_runtime::{handle_signal, message_loop, record_reply};
-pub use common::{errors, primitives::*};
+pub use common::{errors, primitives_ext::*};
 pub use config::Config;
-pub use gcore::{ext, BlockCount, BlockNumber, EnvVars, Gas, GasMultiplier, Percent, Value};
+pub use gcore::{
+    ext, ActorId, BlockCount, BlockNumber, CodeId, EnvVars, Gas, GasMultiplier, MessageId, Percent,
+    ReservationId, Ss58Address, Value,
+};
 pub use gstd_codegen::{actor_id, async_init, async_main};
 pub use prelude::*;
 pub use reservations::*;

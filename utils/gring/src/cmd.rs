@@ -126,7 +126,7 @@ impl Command {
             } => {
                 let mut keystore = serde_json::from_str::<Keystore>(&fs::read_to_string(&path)?)?;
                 if convert_to_vara {
-                    keystore.address = ss58::recode(&keystore.address)?;
+                    keystore.address = ss58::recode(&keystore.address).map_err(|e| anyhow!(e))?;
                 }
 
                 let name = path
@@ -206,7 +206,7 @@ impl Command {
                 if primary {
                     let mut key = keyring.primary()?;
                     if force_vara {
-                        key.address = ss58::recode(&key.address)?;
+                        key.address = ss58::recode(&key.address).map_err(|e| anyhow!(e))?;
                     }
                     Self::print_key(&key);
                     return Ok(());
@@ -219,7 +219,7 @@ impl Command {
                     let mut name: ColoredString = key.meta.name.clone().into();
                     let mut address: ColoredString = key.address.clone().into();
                     if force_vara {
-                        address = ss58::recode(&address)?.into();
+                        address = ss58::recode(&address).map_err(|e| anyhow!(e))?.into();
                     }
 
                     if key.meta.name == keyring.primary {
@@ -262,11 +262,11 @@ impl Command {
                     if let Some(encoded) = address.strip_prefix("0x") {
                         hex::decode(encoded).map_err(Into::into)
                     } else {
-                        ss58::decode(address.as_bytes(), 32)
+                        ss58::decode(&address).map_err(|e| anyhow!(e))
                     }
                 } else {
                     let key = keyring.primary()?;
-                    ss58::decode(key.address.as_bytes(), 32)
+                    ss58::decode(&key.address).map_err(|e| anyhow!(e))
                 }?;
 
                 let pk = PublicKey::from_bytes(&pk_bytes)
@@ -290,7 +290,7 @@ impl Command {
                 println!("{:<16}{message}", "Message:");
                 println!("{:<16}0x{signature}", "Signature:");
                 println!("{:<16}0x{}", "Public Key:", hex::encode(&pk_bytes));
-                println!("{:<16}{}", "SS58 Address:", ss58::encode(&pk_bytes));
+                println!("{:<16}{}", "SS58 Address:", ss58::encode(&pk_bytes)?);
             }
         }
         Ok(())

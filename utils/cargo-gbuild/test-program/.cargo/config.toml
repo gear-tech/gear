@@ -1,0 +1,2 @@
+[alias]
+gbuild = "run --manifest-path ../Cargo.toml --"

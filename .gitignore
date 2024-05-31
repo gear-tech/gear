@@ -10,3 +10,4 @@ weight-dumps/
 .idea
 .log
 *.meta.txt
+.terraform*

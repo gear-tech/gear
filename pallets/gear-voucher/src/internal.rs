@@ -22,7 +22,7 @@ use common::{
     Origin,
 };
 use frame_system::pallet_prelude::BlockNumberFor;
-use gear_core::{declare_id, ids};
+use gear_core::ids;
 use sp_std::collections::btree_set::BTreeSet;
 
 impl<T: Config> crate::Call<T>
@@ -161,7 +161,24 @@ pub trait PrepaidCallsDispatcher {
     ) -> DispatchResultWithPostInfo;
 }
 
-declare_id!(VoucherId: "Voucher identifier");
+/// Voucher identifier.
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    Default,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+    Eq,
+    derive_more::From,
+    TypeInfo,
+    Encode,
+    Decode,
+    MaxEncodedLen,
+)]
+pub struct VoucherId([u8; 32]);
 
 impl VoucherId {
     pub fn generate<T: Config>() -> Self {
@@ -170,8 +187,7 @@ impl VoucherId {
         CounterImpl::<u64, IssuedWrap<T>>::increase();
         let nonce = CounterImpl::<u64, IssuedWrap<T>>::get();
 
-        let argument = [SALT, &nonce.to_le_bytes()].concat();
-        ids::hash(&argument).into()
+        ids::hash_of_array([SALT, &nonce.to_le_bytes()]).into()
     }
 }
 
