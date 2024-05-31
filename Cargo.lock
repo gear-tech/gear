@@ -1274,12 +1274,16 @@ name = "cargo-gbuild"
 version = "1.4.2"
 dependencies = [
  "anyhow",
+ "cargo_metadata 0.18.1",
  "cargo_toml",
  "clap 4.5.4",
  "colored",
+ "etc",
  "gear-wasm-builder",
+ "glob 0.3.1",
  "gtest",
  "serde",
+ "serde_json",
  "toml 0.8.13",
  "tracing",
  "tracing-subscriber 0.3.18",
