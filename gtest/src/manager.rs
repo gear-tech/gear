@@ -31,7 +31,7 @@ use core_processor::{
 };
 use gear_core::{
     code::{Code, CodeAndId, CodeError, InstrumentedCode, InstrumentedCodeAndId, TryNewCodeConfig},
-    ids::{CodeId, MessageId, ProgramId, ReservationId},
+    ids::{prelude::*, CodeId, MessageId, ProgramId, ReservationId},
     memory::PageBuf,
     message::{
         Dispatch, DispatchKind, Message, MessageWaitedType, ReplyMessage, ReplyPacket,

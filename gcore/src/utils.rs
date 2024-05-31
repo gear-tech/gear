@@ -16,6 +16,23 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use gprimitives::{ActorId, CodeId, MessageId, ReservationId};
+
+pub(crate) trait AsRawPtr: AsRef<[u8]> + AsMut<[u8]> {
+    fn as_ptr(&self) -> *const [u8; 32] {
+        self.as_ref().as_ptr() as *const _
+    }
+
+    fn as_mut_ptr(&mut self) -> *mut [u8; 32] {
+        self.as_mut().as_mut_ptr() as *mut _
+    }
+}
+
+impl AsRawPtr for ActorId {}
+impl AsRawPtr for CodeId {}
+impl AsRawPtr for MessageId {}
+impl AsRawPtr for ReservationId {}
+
 /// Extensions for additional features.
 pub mod ext {
     #[cfg(any(feature = "debug", debug_assertions))]

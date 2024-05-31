@@ -18,7 +18,7 @@
 
 //! Requires node to be built in release mode
 
-use gear_core::ids::{CodeId, ProgramId};
+use gear_core::ids::{prelude::*, CodeId, ProgramId};
 use gsdk::{Api, Error, Result};
 use jsonrpsee::types::error::{CallError, ErrorObject};
 use parity_scale_codec::Encode;

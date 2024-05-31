@@ -31,7 +31,7 @@ use core_processor::{configs::BlockConfig, PrepareError};
 use frame_support::traits::{Currency, Get};
 use gear_core::{
     code::{Code, CodeAndId},
-    ids::{CodeId, MessageId, ProgramId},
+    ids::{prelude::*, CodeId, MessageId, ProgramId},
     message::{Dispatch, DispatchKind, Message, ReplyDetails, SignalDetails},
     pages::WasmPagesAmount,
 };

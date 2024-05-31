@@ -1274,12 +1274,16 @@ name = "cargo-gbuild"
 version = "1.4.2"
 dependencies = [
  "anyhow",
+ "cargo_metadata 0.18.1",
  "cargo_toml",
  "clap 4.5.4",
  "colored",
+ "etc",
  "gear-wasm-builder",
+ "glob 0.3.1",
  "gtest",
  "serde",
+ "serde_json",
  "toml 0.8.13",
  "tracing",
  "tracing-subscriber 0.3.18",
@@ -4318,6 +4322,7 @@ dependencies = [
  "galloc",
  "gear-core-errors",
  "gear-stack-buffer",
+ "gprimitives",
  "gsys",
  "hex-literal",
  "parity-scale-codec",
@@ -4464,13 +4469,14 @@ dependencies = [
 name = "gear-core"
 version = "1.4.2"
 dependencies = [
- "blake2-rfc",
+ "blake2 0.10.6",
  "byteorder",
  "derive_more",
  "enum-iterator 1.5.0",
  "env_logger",
  "gear-core-errors",
  "gear-wasm-instrument",
+ "gprimitives",
  "gsys",
  "hashbrown 0.14.5",
  "hex",
@@ -4493,7 +4499,7 @@ name = "gear-core-backend"
 version = "1.4.2"
 dependencies = [
  "actor-system-error",
- "blake2-rfc",
+ "blake2 0.10.6",
  "derive_more",
  "gear-core",
  "gear-core-errors",
@@ -4886,9 +4892,9 @@ dependencies = [
 name = "gear-ss58"
 version = "1.4.2"
 dependencies = [
- "anyhow",
  "blake2 0.10.6",
  "bs58 0.5.1",
+ "hex",
 ]
 
 [[package]]
@@ -5167,7 +5173,7 @@ dependencies = [
 name = "gmeta"
 version = "1.4.2"
 dependencies = [
- "blake2-rfc",
+ "blake2 0.10.6",
  "derive_more",
  "gear-wasm-builder",
  "gmeta-codegen",
@@ -5188,6 +5194,19 @@ dependencies = [
  "quote",
  "scale-info",
  "syn 2.0.64",
+]
+
+[[package]]
+name = "gprimitives"
+version = "1.4.2"
+dependencies = [
+ "derive_more",
+ "gear-ss58",
+ "hex",
+ "parity-scale-codec",
+ "primitive-types",
+ "scale-info",
+ "serde",
 ]
 
 [[package]]
@@ -5266,6 +5285,7 @@ dependencies = [
  "gear-runtime-interface",
  "gear-utils",
  "heck 0.5.0",
+ "hex",
  "parity-scale-codec",
  "proc-macro2",
  "quote",
@@ -5302,7 +5322,6 @@ dependencies = [
  "hashbrown 0.14.5",
  "hex",
  "parity-scale-codec",
- "primitive-types",
  "scale-info",
 ]
 
@@ -5310,9 +5329,8 @@ dependencies = [
 name = "gstd-codegen"
 version = "1.4.2"
 dependencies = [
- "gear-ss58",
+ "gprimitives",
  "gstd",
- "hex",
  "proc-macro2",
  "quote",
  "syn 2.0.64",
@@ -8067,7 +8085,7 @@ dependencies = [
 name = "pallet-gear"
 version = "1.4.2"
 dependencies = [
- "blake2-rfc",
+ "blake2 0.10.6",
  "demo-async",
  "demo-async-critical",
  "demo-async-custom-entry",

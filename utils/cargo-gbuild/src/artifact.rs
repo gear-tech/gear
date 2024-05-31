@@ -16,51 +16,190 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use crate::metadata::Metadata;
 use anyhow::{anyhow, Result};
-use gear_wasm_builder::optimize::{self, OptType, Optimizer};
-use std::{fs, path::PathBuf};
+use cargo_toml::Manifest;
+use colored::Colorize;
+use gear_wasm_builder::{
+    optimize::{self, OptType, Optimizer},
+    CargoCommand,
+};
+use std::{
+    env, fs,
+    path::{Path, PathBuf},
+};
+
+const ARTIFACT_DIR: &str = "gbuild";
 
 /// Gbuild artifact registry
 ///
 /// This instance simply holds the paths of the built binaries
 /// for re-using stuffs.
-///
-/// TODO: support workspace format, abstract instance for different programs (#3852)
-pub struct Artifact {
-    /// The directory path of the artifact.
+pub struct Artifacts {
+    /// cargo command
+    kargo: CargoCommand,
+    /// The path of the cargo wasm artifacts.
+    pub source: PathBuf,
+    /// The path of the gbuild wasm artifacts.
     pub root: PathBuf,
-    /// Program name of this artifact.
-    pub name: String,
-    /// The path to the built program.
-    pub program: PathBuf,
+    /// artifact information
+    pub artifacts: Vec<Artifact>,
 }
 
-impl Artifact {
+impl Artifacts {
     /// Create a new artifact registry.
-    pub fn new(root: PathBuf, name: String) -> Result<Self> {
+    pub fn new(
+        root: PathBuf,
+        source: PathBuf,
+        metadata: Metadata,
+        kargo: CargoCommand,
+    ) -> Result<Self> {
         fs::create_dir_all(&root)
             .map_err(|e| anyhow!("Failed to create the artifact directory, {e}"))?;
 
-        Ok(Self {
-            program: root.join(format!("{name}.wasm")),
-            name,
+        let cwd = env::current_dir()?;
+        env::set_current_dir(&metadata.workspace_root);
+
+        // Collect all possible packages from metadata
+        let mut artifacts: Vec<Artifact> =
+            collect_crates(&cwd, &metadata.gbuild.programs, OptType::Opt)?
+                .into_iter()
+                .chain(collect_crates(&cwd, &metadata.gbuild.metas, OptType::Meta)?)
+                .collect();
+
+        // If not using workspace build, filter out the matched package
+        // from metas and programs.
+        if !metadata.workspace {
+            let current: Vec<Artifact> = artifacts
+                .iter()
+                .filter(|a| a.manifest.eq(&metadata.manifest))
+                .cloned()
+                .collect();
+
+            if current.is_empty() {
+                let manifest = Manifest::from_path(&metadata.manifest)?;
+                if manifest.package.is_some() {
+                    artifacts = vec![Artifact {
+                        manifest: metadata.manifest,
+                        opt: OptType::Opt,
+                        name: manifest.package().name.clone(),
+                    }];
+                }
+            } else {
+                artifacts = current;
+            }
+        }
+
+        env::set_current_dir(cwd)?;
+        Ok(Artifacts {
+            source,
             root,
+            kargo,
+            artifacts,
         })
     }
 
-    /// Build artifacts with optimization.
-    pub fn process(&self, src: PathBuf) -> Result<()> {
-        optimize::optimize_wasm(
-            src.join(format!("{}.wasm", self.name)),
-            self.program.clone(),
-            "4",
-            true,
-        )?;
-        let mut optimizer = Optimizer::new(self.program.clone())?;
-        optimizer
-            .insert_stack_end_export()
-            .map_err(|e| anyhow!(e))?;
-        optimizer.strip_custom_sections();
-        fs::write(self.program.clone(), optimizer.optimize(OptType::Opt)?).map_err(Into::into)
+    /// Process all artifacts
+    pub fn process(&self) -> Result<()> {
+        let all = self.artifacts.len();
+        for (idx, artifact) in self.artifacts.iter().enumerate() {
+            tracing::info!(
+                "[{}/{all}] Compiling package {} ...",
+                idx + 1,
+                artifact.name.bold()
+            );
+            let mut kargo = self.kargo.clone();
+            kargo.set_manifest_path(artifact.manifest.clone());
+            kargo.run()?;
+            artifact.optimize(&self.source, &self.root)?;
+        }
+
+        tracing::info!("Finished ({})", self.root.to_string_lossy());
+        Ok(())
     }
+
+    /// List all artifacts
+    pub fn list(&self) -> Vec<PathBuf> {
+        self.artifacts
+            .iter()
+            .map(|a| self.root.join(a.names().1))
+            .collect()
+    }
+}
+
+/// Program artifact
+#[derive(Clone, Debug)]
+pub struct Artifact {
+    /// The original manifest path.
+    pub manifest: PathBuf,
+    /// Optimization type
+    pub opt: OptType,
+    /// Program name of this artifact.
+    pub name: String,
+}
+
+impl Artifact {
+    /// Returns the input and the output name of the program
+    fn names(&self) -> (String, String) {
+        let name = self.name.replace('-', "_");
+        let input = name.clone() + ".wasm";
+        let output = if self.opt.is_meta() {
+            name + ".meta.wasm"
+        } else {
+            input.clone()
+        };
+        (input, output)
+    }
+
+    /// Fetch and optimize artifact
+    pub fn optimize(&self, src: &Path, root: &Path) -> Result<()> {
+        let (input, output) = self.names();
+        let output = root.join(output);
+
+        optimize::optimize_wasm(src.join(input), output.clone(), "4", true)?;
+        let mut optimizer = Optimizer::new(output.clone())?;
+        if !self.opt.is_meta() {
+            optimizer
+                .insert_stack_end_export()
+                .map_err(|e| anyhow!(e))?;
+            optimizer.strip_custom_sections();
+        }
+
+        fs::write(output, optimizer.optimize(self.opt)?).map_err(Into::into)
+    }
+}
+
+/// Collection crate manifests from the provided glob patterns.
+fn collect_crates(cwd: &Path, patterns: &[String], opt: OptType) -> Result<Vec<Artifact>> {
+    let cwd = env::current_dir()?;
+    let mut crates: Vec<PathBuf> = Default::default();
+    for p in patterns {
+        crates.append(
+            &mut glob::glob(p)?
+                .filter_map(|p| {
+                    p.ok().and_then(|p| {
+                        tracing::trace!("checking {p:?}");
+                        let manifest = cwd.join(p.join("Cargo.toml"));
+                        if manifest.exists() {
+                            Some(manifest)
+                        } else {
+                            tracing::warn!("Invalid manifest: {manifest:?}");
+                            None
+                        }
+                    })
+                })
+                .collect(),
+        );
+    }
+
+    crates
+        .into_iter()
+        .map(|manifest| -> Result<Artifact> {
+            Ok(Artifact {
+                name: Manifest::from_path(&manifest).map(|m| m.package().name().into())?,
+                opt,
+                manifest,
+            })
+        })
+        .collect()
 }

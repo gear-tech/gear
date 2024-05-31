@@ -19,8 +19,10 @@
 //! Cargo extension for building gear programs.
 
 #![deny(missing_docs)]
+#![allow(unused)]
 
 mod artifact;
 mod cli;
+mod metadata;
 
 pub use self::{artifact::Artifact, cli::GBuild};

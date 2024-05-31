@@ -19,6 +19,7 @@
 use super::*;
 
 use gear_core::{
+    ids::prelude::*,
     pages::{WasmPage, WasmPagesAmount},
     program::{MemoryInfix, ProgramState},
 };
