@@ -72,7 +72,7 @@ impl PublicKey {
 
 impl Signature {
     pub fn to_hex(&self) -> String {
-        hex::encode(&self.0)
+        hex::encode(self.0)
     }
 }
 
@@ -237,16 +237,13 @@ mod tests {
         let ethers_sig = ethers::core::types::Signature::try_from(&signature.0[..])
             .expect("failed to parse sig");
 
-        let recovered_address = ethers_sig
-            .recover(*&hash)
-            .expect("Failed to recover address");
+        let recovered_address = ethers_sig.recover(hash).expect("Failed to recover address");
 
         // Verify the recovered address matches the expected address
         assert_eq!(
             format!("{:?}", recovered_address),
             format!("{}", public_key.to_address())
         );
-
 
         // Clean up the key store directory
         signer.clear_keys().unwrap();

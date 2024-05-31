@@ -16,15 +16,30 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-mod greet;
-mod read_code;
+use super::utils;
+use alloc::{vec, vec::Vec};
+use core::fmt::{self, Write};
+use gprimitives::CodeId;
+use log::{Level, LevelFilter, Metadata, Record};
 
-#[no_mangle]
-extern "C" fn greet() {
-    greet::greet();
+mod sys {
+    extern "C" {
+        pub fn code_len_v1(code_id: *const [u8; 32]) -> i32;
+
+        pub fn code_read_v1(code_id: *const [u8; 32], buffer: *mut u8);
+    }
 }
 
-#[no_mangle]
-extern "C" fn read_code() {
-    read_code::read_code();
+pub fn code_len(code_id: CodeId) -> usize {
+    unsafe { sys::code_len_v1(code_id.into_bytes().as_ptr() as _) as usize }
+}
+
+pub fn code_read(code_id: CodeId) -> Vec<u8> {
+    let code_len = code_len(code_id);
+
+    let mut buffer = vec![0; code_len];
+
+    unsafe { sys::code_read_v1(code_id.into_bytes().as_ptr() as _, buffer.as_mut_ptr() as _) }
+
+    buffer
 }

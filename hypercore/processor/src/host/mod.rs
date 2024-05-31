@@ -29,6 +29,7 @@ pub(crate) mod utils;
 
 pub struct HostState {
     program_id: ProgramId,
+    db: Box<dyn hypercore_db::Database>,
 }
 
 pub struct Executor {
@@ -37,19 +38,24 @@ pub struct Executor {
 }
 
 impl Executor {
-    pub fn new(program_id: ProgramId) -> Result<Self> {
+    pub fn new(program_id: ProgramId, db: Box<dyn hypercore_db::Database>) -> Result<Self> {
         let mut runtime = Runtime::new();
 
         runtime.add_start_section();
 
-        let mut store: Store<HostState> = Store::new(&Engine::default(), HostState { program_id });
+        let mut store: Store<HostState> =
+            Store::new(&Engine::default(), HostState { program_id, db });
         let module = Module::new(store.engine(), runtime.into_bytes())?;
 
         let mut linker = Linker::new(store.engine());
 
         // Logging host module.
-        linker.func_wrap("env", "logging_log_v1", calls::log_v1)?;
-        linker.func_wrap("env", "logging_max_level_v1", calls::max_level_v1)?;
+        linker.func_wrap("env", "logging_log_v1", calls::logging::log)?;
+        linker.func_wrap("env", "logging_max_level_v1", calls::logging::max_level)?;
+
+        // Code host module.
+        linker.func_wrap("env", "code_len_v1", calls::code::len)?;
+        linker.func_wrap("env", "code_read_v1", calls::code::read)?;
 
         // Tmp host module.
         linker.func_wrap("env", "program_id", calls::program_id)?;
@@ -63,6 +69,16 @@ impl Executor {
         let func = self
             .instance
             .get_typed_func::<(), ()>(&mut self.store, "greet")?;
+
+        func.call(&mut self.store, ())?;
+
+        Ok(())
+    }
+
+    pub fn read_code(&mut self) -> Result<()> {
+        let func = self
+            .instance
+            .get_typed_func::<(), ()>(&mut self.store, "read_code")?;
 
         func.call(&mut self.store, ())?;
 

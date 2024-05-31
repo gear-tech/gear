@@ -21,7 +21,7 @@
 use gear_core::ids::{self, ProgramId};
 use gprimitives::H256;
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Message {
     pub sender: ProgramId,
     pub gas_limit: u64,
@@ -29,12 +29,14 @@ pub struct Message {
     pub data: Vec<u8>,
 }
 
+#[derive(Clone, Debug)]
 pub struct Page {
     pub index: u32,
     pub data: Vec<u8>,
 }
 
 /// Hypercore program state.
+#[derive(Clone, Debug)]
 pub struct State {
     /// Program ID.
     pub program_id: ProgramId,

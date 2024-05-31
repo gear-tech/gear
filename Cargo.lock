@@ -6319,6 +6319,7 @@ dependencies = [
  "log",
  "parity-wasm",
  "primitive-types",
+ "rand 0.8.5",
  "wasmtime",
 ]
 
