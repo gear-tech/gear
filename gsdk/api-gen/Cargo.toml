@@ -17,6 +17,7 @@ quote.workspace = true
 parity-scale-codec.workspace = true
 scale-info.workspace = true
 heck.workspace = true
+hex.workspace = true
 # NOTE: only required by this package.
 #
 # Same version from `/Cargo.lock`
