@@ -30,9 +30,7 @@ use wasmtime::{
     Store,
 };
 
-pub struct HostState {
-    program_id: ProgramId,
-}
+mod host;
 
 pub struct Processor {
     db: Box<dyn hypercore_db::Database>,
@@ -52,101 +50,10 @@ impl Processor {
     ) -> Result<()> {
         let program_id = messages.keys().next().cloned().unwrap_or_default();
 
-        let mut pwasm_module = PwasmModule::from_bytes(hypercore_runtime::WASM_BINARY).unwrap();
+        let mut executor = host::Executor::new(program_id)?;
 
-        let start_fn_idx = pwasm_module
-            .export_section()
-            .and_then(|section| {
-                section.entries().iter().find_map(|export| {
-                    if export.field() == "_start" {
-                        if let PwasmInternal::Function(idx) = export.internal() {
-                            Some(*idx)
-                        } else {
-                            None
-                        }
-                    } else {
-                        None
-                    }
-                })
-            })
-            .unwrap();
-
-        pwasm_module.set_start_section(start_fn_idx);
-
-        let mut store: Store<HostState> = Store::new(&Engine::default(), HostState { program_id });
-        let module = Module::new(store.engine(), pwasm_module.into_bytes().unwrap())?;
-
-        let mut linker = Linker::new(store.engine());
-
-        linker.func_wrap(
-            "env",
-            "logging_log_v1",
-            |mut caller: Caller<'_, HostState>, level: i32, target: i64, message: i64| {
-                let level = match level {
-                    1 => Level::Error,
-                    2 => Level::Warn,
-                    3 => Level::Info,
-                    4 => Level::Debug,
-                    _ => Level::Trace,
-                };
-
-                let mem = caller.get_export("memory").unwrap().into_memory().unwrap();
-                let target = utils::read_ri_slice(&mem, &mut caller, target);
-                let target = core::str::from_utf8(&target).unwrap_or_default();
-
-                let message = utils::read_ri_slice(&mem, &mut caller, message);
-                let message = core::str::from_utf8(&message).unwrap_or_default();
-
-                log::log!(target: target, level, "{message}");
-            },
-        )?;
-
-        linker.func_wrap(
-            "env",
-            "logging_max_level_v1",
-            |_: Caller<'_, HostState>| -> i32 { log::max_level() as usize as i32 },
-        )?;
-
-        linker.func_wrap(
-            "env",
-            "program_id",
-            |mut caller: Caller<'_, HostState>, ptr: u32| {
-                let program_id = caller.data().program_id;
-
-                let mem = caller.get_export("memory").unwrap().into_memory().unwrap();
-                mem.write(caller, ptr as usize, program_id.as_ref())
-                    .unwrap();
-            },
-        )?;
-
-        let instance = linker.instantiate(&mut store, &module)?;
-
-        let greet = instance.get_typed_func::<(), ()>(&mut store, "greet")?;
-
-        greet.call(&mut store, ())?;
+        executor.greet()?;
 
         Ok(())
-    }
-}
-
-mod utils {
-    use super::*;
-
-    pub fn read_ri_slice(memory: &Memory, store: &mut Caller<'_, HostState>, data: i64) -> Vec<u8> {
-        let data_bytes = data.to_le_bytes();
-
-        let mut ptr_bytes = [0; 4];
-        ptr_bytes.copy_from_slice(&data_bytes[..4]);
-        let ptr = i32::from_le_bytes(ptr_bytes);
-
-        let mut len_bytes = [0; 4];
-        len_bytes.copy_from_slice(&data_bytes[4..]);
-        let len = i32::from_le_bytes(len_bytes);
-
-        let mut buffer = vec![0; len as usize];
-
-        memory.read(store, ptr as usize, &mut buffer).unwrap();
-
-        buffer
     }
 }
