@@ -555,7 +555,7 @@ impl<BlockNumber: Copy> From<ActiveProgram<BlockNumber>> for ProgramInfo {
     fn from(program: ActiveProgram<BlockNumber>) -> Self {
         Self {
             allocations: program.allocations,
-            code_id: CodeId::from(program.code_hash.as_bytes()),
+            code_id: CodeId::from(program.code_hash),
             code_exports: program.code_exports,
             memory_infix: program.memory_infix,
             gas_reservation_map: program.gas_reservation_map,
