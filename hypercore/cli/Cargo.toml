@@ -7,6 +7,10 @@ license.workspace = true
 homepage.workspace = true
 repository.workspace = true
 
+[[bin]]
+name = "ethgpu"
+path = "src/main.rs"
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
@@ -22,3 +26,4 @@ hypercore-db.workspace = true
 hypercore-network.workspace = true
 hypercore-observer.workspace = true
 hypercore-processor.workspace = true
+hypercore-signer = { path = "../signer"}

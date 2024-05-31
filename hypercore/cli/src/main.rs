@@ -28,16 +28,20 @@ use clap::Parser;
 async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
 
-    let config = Config::try_from(args).with_context(|| "Failed to create configuration")?;
+    let config = Config::try_from(args.clone()).with_context(|| "Failed to create configuration")?;
 
     env_logger::try_init().with_context(|| "Failed to initialize logger")?;
 
-    log::info!("Ethereum observerl RPC: {}", config.ethereum_rpc);
-    log::info!("Database directory: {:?}", config.database_path);
+    if let Some(extra_command) = args.extra_command {
+        extra_command.run(&config)?;
+    } else {
+        log::info!("Ethereum observer RPC: {}", config.ethereum_rpc);
+        log::info!("Database directory: {:?}", config.database_path);
 
-    let service = Service::new(&config)?;
+        let service = Service::new(&config)?;
 
-    service.run().await?;
+        service.run().await?;
+    }
 
     Ok(())
 }

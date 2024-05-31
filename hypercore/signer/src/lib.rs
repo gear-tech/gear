@@ -19,17 +19,20 @@
 //! Signer library for hypercore.
 
 use anyhow::{Context as _, Result};
-use std::{fs, path::PathBuf};
-
+use std::{fmt, fs, path::PathBuf};
 use secp256k1::{
     hashes::{sha256, Hash},
     Message,
 };
+use sha3::Digest as _;
 
 #[derive(Debug, Clone, Copy)]
 pub struct PublicKey(pub(crate) [u8; 33]);
 
 pub struct PrivateKey(pub [u8; 32]);
+
+#[derive(Debug, Clone)]
+pub struct Signature(pub Vec<u8>);
 
 impl PublicKey {
     pub fn from_bytes(bytes: [u8; 33]) -> Self {
@@ -38,6 +41,41 @@ impl PublicKey {
 
     pub fn to_hex(&self) -> String {
         hex::encode(&self.0)
+    }
+
+    pub fn to_address(&self) -> String {
+        let hash = sha3::Keccak256::digest(&self.0[1..]);
+        let address = hex::encode(&hash[12..32]);
+        format!("0x{}", address)
+    }
+
+    pub fn from_hex(s: &str) -> Result<Self> {
+        let bytes = match hex::decode(s) {
+            Ok(bytes) => bytes,
+            _ => anyhow::bail!("Invalid hex format for {:?}", s),
+        };
+
+        let mut buf = [0u8; 33];
+        buf.copy_from_slice(&bytes);
+        Ok(Self(buf))
+    }
+}
+
+impl Signature {
+    pub fn to_hex(&self) -> String {
+        hex::encode(&self.0)
+    }
+}
+
+impl fmt::Display for PublicKey {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.to_hex())
+    }
+}
+
+impl fmt::Display for Signature {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.to_hex())
     }
 }
 
@@ -55,18 +93,18 @@ impl Signer {
         Ok(Self { key_store })
     }
 
-    pub fn sign(&self, public_key: PublicKey, data: &[u8]) -> Result<Vec<u8>> {
+    pub fn sign(&self, public_key: PublicKey, data: &[u8]) -> Result<Signature> {
         let secret_key = self.get_key(public_key)?;
 
         let secp_secret_key = secp256k1::SecretKey::from_slice(&secret_key.0)
             .with_context(|| "Invalid secret key format for {:?}")?;
 
-        let digest = sha256::Hash::hash(data);
-        let message = Message::from_digest(digest.to_byte_array());
+        let digest = sha3::Keccak256::digest(data);
+        let message = Message::from_digest(digest.into());
 
         let signature = secp_secret_key.sign_ecdsa(message);
 
-        Ok(signature.serialize_der().to_vec())
+        Ok(Signature(signature.serialize_der().to_vec()))
     }
 
     pub fn has_key(&self, key: PublicKey) -> Result<bool> {
@@ -85,6 +123,35 @@ impl Signer {
         let key_file = self.key_store.join(local_public.to_hex());
         fs::write(key_file, secret_key.secret_bytes())?;
         Ok(local_public)
+    }
+
+    pub fn generate_key(&self) -> Result<PublicKey> {
+        let (secret_key, public_key) = secp256k1::generate_keypair(&mut secp256k1::rand::thread_rng());
+
+        let local_public = PublicKey::from_bytes(public_key.serialize());
+
+        let key_file = self.key_store.join(local_public.to_hex());
+        fs::write(key_file, secret_key.secret_bytes())?;
+        Ok(local_public)
+    }
+
+    pub fn clear_keys(&self) -> Result<()> {
+        fs::remove_dir_all(&self.key_store)?;
+
+        Ok(())
+    }
+
+    pub fn list_keys(&self) -> Result<Vec<PublicKey>> {
+        let mut keys = vec![];
+
+        for entry in fs::read_dir(&self.key_store)? {
+            let entry = entry?;
+            let file_name = entry.file_name();
+            let key = PublicKey::from_hex(file_name.to_string_lossy().as_ref())?;
+            keys.push(key);
+        }
+
+        Ok(keys)
     }
 
     fn get_key(&self, key: PublicKey) -> Result<PrivateKey> {
@@ -128,7 +195,7 @@ mod tests {
         let secp_secret_key = secp256k1::SecretKey::from_slice(&secret_key.0).unwrap();
         let secp_public_key = secp256k1::PublicKey::from_secret_key_global(&secp_secret_key);
 
-        let message = Message::from_digest(sha256::Hash::hash(data).to_byte_array());
+        let message = Message::from_digest(sha3::Keccak256::digest(data).into());
         let signature = Signature::from_der(&signature).unwrap();
 
         assert!(signature.verify(&message, &secp_public_key).is_ok());
