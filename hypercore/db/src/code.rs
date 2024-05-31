@@ -22,6 +22,7 @@ use gear_core::ids;
 use gprimitives::H256;
 
 /// Hypercore code.
+#[derive(Clone, Debug)]
 pub struct Code(pub Vec<u8>);
 
 impl Code {

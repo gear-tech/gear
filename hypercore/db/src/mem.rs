@@ -16,13 +16,25 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use crate::{Code, Database, State};
 use gprimitives::H256;
+use std::{
+    collections::HashMap,
+    sync::{Arc, RwLock},
+};
 
 #[derive(Debug)]
 pub struct MemDb {
     data: Arc<RwLock<MemDbData>>,
 }
 
+impl Default for MemDb {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[derive(Clone, Debug)]
 struct MemDbData {
     states: HashMap<H256, State>,
     codes: HashMap<H256, Code>,
@@ -31,13 +43,17 @@ struct MemDbData {
 impl MemDb {
     pub fn new() -> Self {
         Self {
-            states: HashMap::new(),
-            codes: HashMap::new(),
+            data: Arc::new(RwLock::new(MemDbData {
+                states: HashMap::new(),
+                codes: HashMap::new(),
+            })),
         }
     }
 
     pub fn ref_clone(&self) -> Self {
-        Self { data: self.data.clone() }
+        Self {
+            data: self.data.clone(),
+        }
     }
 }
 
@@ -46,16 +62,24 @@ impl Database for MemDb {
         self.data.read().unwrap().states.get(&hash).cloned()
     }
 
-    fn write_state(&mut self, state: &State) {
-        self.data.write().unwrap().states.insert(state.hash(), state.clone());
+    fn write_state(&self, state: &State) {
+        self.data
+            .write()
+            .unwrap()
+            .states
+            .insert(state.hash(), state.clone());
     }
 
     fn read_code(&self, code_hash: H256) -> Option<Code> {
         self.data.read().unwrap().codes.get(&code_hash).cloned()
     }
 
-    fn write_code(&mut self, code: &Code) {
-        self.data.write().unwrap().codes.insert(code.hash(), code.clone());
+    fn write_code(&self, code: &Code) {
+        self.data
+            .write()
+            .unwrap()
+            .codes
+            .insert(code.hash(), code.clone());
     }
 
     fn clone_boxed(&self) -> Box<dyn Database> {

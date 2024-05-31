@@ -48,11 +48,21 @@ impl Processor {
         programs: Vec<ProgramId>,
         messages: HashMap<ProgramId, Vec<Message>>,
     ) -> Result<()> {
-        let program_id = messages.keys().next().cloned().unwrap_or_default();
+        use rand::Rng as _;
+        let len = rand::random::<u8>();
+        let mut v = vec![0u8; len as usize];
+        rand::thread_rng().fill(&mut v[..]);
 
-        let mut executor = host::Executor::new(program_id)?;
+        let code = hypercore_db::Code(v);
+        let code_hash = code.hash();
+        let program_id = code_hash.to_fixed_bytes().into();
+
+        self.db.write_code(&code);
+
+        let mut executor = host::Executor::new(program_id, self.db.clone_boxed())?;
 
         executor.greet()?;
+        executor.read_code()?;
 
         Ok(())
     }

@@ -16,6 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+#[path = "code.rs"]
+pub(crate) mod code_ri;
+
 #[path = "logging.rs"]
 pub(crate) mod logging_ri;
 

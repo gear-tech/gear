@@ -35,9 +35,7 @@ pub struct Service {
 
 impl Service {
     pub fn new(config: &Config) -> Result<Self> {
-        let db: Box<dyn hypercore_db::Database> = Box::new(hypercore_db::RocksDatabase::open(
-            config.database_path.clone(),
-        )?);
+        let db: Box<dyn hypercore_db::Database> = Box::new(hypercore_db::MemDb::new());
         let network = hypercore_network::Network::start()?;
         let observer =
             hypercore_observer::Observer::new(config.ethereum_rpc.clone(), db.clone_boxed())?;

@@ -16,15 +16,15 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-mod greet;
-mod read_code;
+use crate::interface::{code_ri, program_ri};
 
-#[no_mangle]
-extern "C" fn greet() {
-    greet::greet();
-}
+pub fn read_code() {
+    log::info!("You're calling 'read_code()'");
 
-#[no_mangle]
-extern "C" fn read_code() {
-    read_code::read_code();
+    let program_id = program_ri::program_id();
+    let code_id = program_id.into_bytes().into();
+
+    let code = code_ri::code_read(code_id);
+
+    log::debug!("Just read code with len = {}", code.len());
 }
