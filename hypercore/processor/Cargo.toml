@@ -13,6 +13,6 @@ anyhow.workspace = true
 hypercore-db.workspace = true
 primitive-types.workspace = true
 gear-core.workspace = true
-hypercore-runtime.workspace = true
+hypercore-runtime = { workspace = true, features = ["export"] }
 wasmtime.workspace = true
 log.workspace = true

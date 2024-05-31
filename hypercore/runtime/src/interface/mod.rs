@@ -16,34 +16,41 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-#![cfg_attr(not(feature = "export"), no_std)]
+#[path = "logging.rs"]
+pub(crate) mod logging_ri;
 
-#[cfg(feature = "export")]
-mod code {
-    include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
+pub(crate) mod utils {
+    pub fn repr_ri_slice(slice: impl AsRef<[u8]>) -> i64 {
+        let slice = slice.as_ref();
+
+        let ptr = slice.as_ptr() as i32;
+        let len = slice.len() as i32;
+
+        let mut res = [0u8; 8];
+        res[..4].copy_from_slice(&ptr.to_le_bytes());
+        res[4..].copy_from_slice(&len.to_le_bytes());
+
+        i64::from_le_bytes(res)
+    }
 }
 
-#[cfg(feature = "export")]
-pub use code::WASM_BINARY;
+// TODO: remove me
+pub(crate) mod program_ri {
+    use gprimitives::ActorId as ProgramId;
 
-#[cfg(not(feature = "export"))]
-extern crate alloc;
+    mod sys {
+        extern "C" {
+            pub fn program_id(program_id_ptr: *mut [u8; 32]);
+        }
+    }
 
-#[cfg(not(feature = "export"))]
-mod api;
+    pub fn program_id() -> ProgramId {
+        let mut buffer = [0; 32];
 
-#[cfg(not(feature = "export"))]
-mod interface;
+        unsafe {
+            sys::program_id(buffer.as_mut_ptr() as _);
+        }
 
-#[cfg(all(not(feature = "export"), target_arch = "wasm32"))]
-mod wasm {
-    use core::panic::PanicInfo;
-
-    #[global_allocator]
-    pub static ALLOC: dlmalloc_rs::GlobalDlmalloc = dlmalloc_rs::GlobalDlmalloc;
-
-    #[panic_handler]
-    fn panic_handler(_: &PanicInfo) -> ! {
-        core::arch::wasm32::unreachable()
+        buffer.into()
     }
 }

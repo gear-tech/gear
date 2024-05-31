@@ -15,3 +15,4 @@ hypercore-db.workspace = true
 futures = { workspace = true, features = ["alloc"] }
 primitive-types.workspace = true
 gear-core.workspace = true
+rand = { workspace = true, features = ["std", "std_rng"] }
