@@ -48,13 +48,12 @@ pub struct Artifacts {
 
 impl Artifacts {
     /// Create a new artifact registry.
-    pub fn new(source: PathBuf, metadata: Metadata, kargo: CargoCommand) -> Result<Self> {
-        let root = source
-            .ancestors()
-            .nth(2)
-            .expect("Checked before passing in.")
-            .join("gbuild");
-
+    pub fn new(
+        root: PathBuf,
+        source: PathBuf,
+        metadata: Metadata,
+        kargo: CargoCommand,
+    ) -> Result<Self> {
         fs::create_dir_all(&root)
             .map_err(|e| anyhow!("Failed to create the artifact directory, {e}"))?;
 

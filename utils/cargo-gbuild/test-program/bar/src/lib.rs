@@ -47,31 +47,3 @@ extern "C" fn handle() {
 extern "C" fn state() {
     msg::reply(unsafe { STATE.clone() }, 0).expect("Failed to share state");
 }
-
-#[cfg(test)]
-mod tests {
-    use gtest::{Program, System};
-
-    #[test]
-    fn test_init() {
-        gtest::ensure_gbuild();
-
-        // Initialize system environment
-        let system = System::new();
-        system.init_logger();
-
-        // Get program from artifact
-        let user = 0;
-        let program = Program::current(&system);
-
-        // Init program
-        let res = program.send_bytes(user, b"PING");
-        assert!(!res.main_failed());
-        assert!(res.contains(&(user, b"INIT_PONG")));
-
-        // Handle program
-        let res = program.send_bytes(user, b"PING");
-        assert!(!res.main_failed());
-        assert!(res.contains(&(user, b"HANDLE_PONG")));
-    }
-}

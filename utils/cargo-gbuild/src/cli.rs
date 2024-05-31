@@ -100,6 +100,7 @@ impl GBuild {
 
         // 2. setup gbuild artifacts.
         let artifacts = Artifacts::new(
+            target_dir.join("gbuild"),
             target_dir.join("wasm32-unknown-unknown").join(artifact),
             metadata,
             kargo,
