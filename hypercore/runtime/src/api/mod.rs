@@ -16,34 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-#![cfg_attr(not(feature = "export"), no_std)]
+mod greet;
 
-#[cfg(feature = "export")]
-mod code {
-    include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
-}
-
-#[cfg(feature = "export")]
-pub use code::WASM_BINARY;
-
-#[cfg(not(feature = "export"))]
-extern crate alloc;
-
-#[cfg(not(feature = "export"))]
-mod api;
-
-#[cfg(not(feature = "export"))]
-mod interface;
-
-#[cfg(all(not(feature = "export"), target_arch = "wasm32"))]
-mod wasm {
-    use core::panic::PanicInfo;
-
-    #[global_allocator]
-    pub static ALLOC: dlmalloc_rs::GlobalDlmalloc = dlmalloc_rs::GlobalDlmalloc;
-
-    #[panic_handler]
-    fn panic_handler(_: &PanicInfo) -> ! {
-        core::arch::wasm32::unreachable()
-    }
+#[no_mangle]
+extern "C" fn greet() {
+    greet::greet();
 }

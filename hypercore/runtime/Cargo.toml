@@ -9,11 +9,12 @@ repository.workspace = true
 
 [dependencies]
 gprimitives.workspace = true
-galloc.workspace = true
+log.workspace = true
+dlmalloc-rs = { workspace = true, features = ["global"] }
 
 [build-dependencies]
 gear-wasm-builder.workspace = true
 
 [features]
-default = ["export"]
+default = []
 export = []
