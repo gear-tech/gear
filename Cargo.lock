@@ -5265,6 +5265,7 @@ dependencies = [
  "gear-runtime-interface",
  "gear-utils",
  "heck 0.5.0",
+ "hex",
  "parity-scale-codec",
  "proc-macro2",
  "quote",
