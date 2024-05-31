@@ -244,7 +244,7 @@ impl GasReserver {
         Ok(())
     }
 
-    /// Check if reservation is used.
+    /// Check if reservation is not used.
     ///
     /// If reservation does not exist returns `InvalidReservationId` error.
     pub fn check_not_used(&mut self, id: ReservationId) -> Result<&mut bool, ReservationError> {
