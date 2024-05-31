@@ -16,6 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Main service in hypercore node.
+
 use crate::config::Config;
 use anyhow::Result;
 use futures::{future, stream::StreamExt};

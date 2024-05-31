@@ -16,8 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Cargo extension for building gear programs.
-
 mod args;
 mod config;
 mod service;
