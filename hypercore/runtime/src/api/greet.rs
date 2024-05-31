@@ -16,11 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::interface::{logging_ri::RuntimeLogger, program_ri};
+use crate::interface::program_ri;
 
 pub fn greet() {
-    RuntimeLogger::init();
-
     log::info!("You're calling 'greet()'");
 
     let program_id = program_ri::program_id();
