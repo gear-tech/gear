@@ -185,7 +185,7 @@ pub fn prepare(
 
     if !program.code_exports.contains(&dispatch.kind()) {
         return Err(ActorPrepareError(process_success(
-            SuccessfulDispatchResultKind::Success,
+            SuccessfulDispatchResultKind::Finish,
             DispatchResult::success(dispatch, program_id, gas_counter.to_amount()),
         ))
         .into());

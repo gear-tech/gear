@@ -56,8 +56,6 @@ where
     RunFallibleError: From<Ext::FallibleError>,
     <Ext as Externalities>::UnrecoverableError: BackendSyscallError,
 {
-    use SuccessfulDispatchResultKind::*;
-
     let BlockConfig {
         block_info,
         performance_multiplier,
@@ -146,13 +144,7 @@ where
                 res.system_reservation_context,
                 ActorExecutionErrorReplyReason::Trap(reason),
             ),
-            DispatchResultKind::Success => process_success(Success, res),
-            DispatchResultKind::Wait(duration, ref waited_type) => {
-                process_success(Wait(duration, waited_type.clone()), res)
-            }
-            DispatchResultKind::Exit(value_destination) => {
-                process_success(Exit(value_destination), res)
-            }
+            DispatchResultKind::Success(ref kind) => process_success(kind.clone(), res),
             DispatchResultKind::GasAllowanceExceed => {
                 process_allowance_exceed(dispatch, program_id, res.gas_amount.burned())
             }
@@ -415,8 +407,8 @@ pub fn process_success(
         });
     }
 
-    // Sending auto-generated reply about success execution.
-    if matches!(kind, SuccessfulDispatchResultKind::Success)
+    // Sending auto-generated reply about success execution finish.
+    if matches!(kind, SuccessfulDispatchResultKind::Finish)
         && !reply_sent
         && !dispatch.is_reply()
         && dispatch.kind() != DispatchKind::Signal
@@ -486,7 +478,7 @@ pub fn process_success(
 
             return journal;
         }
-        Success => match dispatch.kind() {
+        Finish => match dispatch.kind() {
             DispatchKind::Init => DispatchOutcome::InitSuccess { program_id },
             _ => DispatchOutcome::Success,
         },

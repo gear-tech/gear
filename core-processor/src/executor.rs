@@ -19,7 +19,8 @@
 use crate::{
     common::{
         ActorExecutionError, ActorExecutionErrorReplyReason, DispatchResult, DispatchResultKind,
-        ExecutionError, Program, SystemExecutionError, WasmExecutionContext,
+        ExecutionError, Program, SuccessfulDispatchResultKind, SystemExecutionError,
+        WasmExecutionContext,
     },
     configs::{BlockInfo, ExecutionSettings},
     ext::{ProcessorContext, ProcessorExternalities},
@@ -203,9 +204,11 @@ where
 
     // Parsing outcome.
     let kind = match termination {
-        ActorTerminationReason::Exit(value_dest) => DispatchResultKind::Exit(value_dest),
+        ActorTerminationReason::Exit(value_dest) => {
+            DispatchResultKind::Success(SuccessfulDispatchResultKind::Exit(value_dest))
+        }
         ActorTerminationReason::Leave | ActorTerminationReason::Success => {
-            DispatchResultKind::Success
+            DispatchResultKind::Success(SuccessfulDispatchResultKind::Finish)
         }
         ActorTerminationReason::Trap(explanation) => {
             log::debug!(
@@ -215,7 +218,7 @@ where
             DispatchResultKind::Trap(explanation)
         }
         ActorTerminationReason::Wait(duration, waited_type) => {
-            DispatchResultKind::Wait(duration, waited_type)
+            DispatchResultKind::Success(SuccessfulDispatchResultKind::Wait(duration, waited_type))
         }
         ActorTerminationReason::GasAllowanceExceeded => DispatchResultKind::GasAllowanceExceed,
     };

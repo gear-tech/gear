@@ -42,16 +42,12 @@ use gear_core_backend::{env::SystemEnvironmentError, error::SystemTerminationRea
 use gear_core_errors::{SignalCode, SimpleExecutionError};
 
 /// Kind of the dispatch result.
-#[derive(Clone)]
+#[derive(Debug)]
 pub enum DispatchResultKind {
     /// Successful dispatch
-    Success,
+    Success(SuccessfulDispatchResultKind),
     /// Trap dispatch.
     Trap(TrapExplanation),
-    /// Wait dispatch.
-    Wait(Option<u32>, MessageWaitedType),
-    /// Exit dispatch.
-    Exit(ProgramId),
     /// Gas allowance exceed.
     GasAllowanceExceed,
 }
@@ -119,7 +115,7 @@ impl DispatchResult {
         let system_reservation_context = SystemReservationContext::from_dispatch(&dispatch);
 
         Self {
-            kind: DispatchResultKind::Success,
+            kind: DispatchResultKind::Success(SuccessfulDispatchResultKind::Finish),
             dispatch,
             program_id,
             context_store: Default::default(),
@@ -140,12 +136,14 @@ impl DispatchResult {
 }
 
 /// Possible variants of the [`DispatchResult`] if the latter contains value.
-#[allow(missing_docs)]
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum SuccessfulDispatchResultKind {
+    /// Program was exited by the message.
     Exit(ProgramId),
+    /// Message execution was stopped by wait.
     Wait(Option<u32>, MessageWaitedType),
-    Success,
+    /// Message finished execution.
+    Finish,
 }
 
 /// Dispatch outcome of the specific message.
