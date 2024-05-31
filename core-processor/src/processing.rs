@@ -26,6 +26,8 @@ use crate::{
     context::*,
     executor,
     ext::ProcessorExternalities,
+    preparing::{PrechargeError, PrepareErrorReason},
+    ActorPrepareError,
 };
 use alloc::{
     string::{String, ToString},
@@ -160,6 +162,7 @@ where
     }
 }
 
+#[derive(Debug, PartialEq, Eq, derive_more::Display)]
 pub(crate) enum ProcessErrorCase {
     /// Message is not executable error.
     NonExecutable,
@@ -522,4 +525,38 @@ pub fn process_allowance_exceed(
     });
 
     journal
+}
+
+/// Process prepare error and return journal for updates.
+pub fn process_prepare_error(err: ActorPrepareError) -> Vec<JournalNote> {
+    let ActorPrepareError {
+        gas_amount,
+        dispatch,
+        program_id,
+        reason,
+    } = err;
+    let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
+    match reason {
+        PrepareErrorReason::Precharge(PrechargeError::GasExceeded(op)) => process_execution_error(
+            dispatch,
+            program_id,
+            gas_amount.burned(),
+            system_reservation_ctx,
+            ActorExecutionErrorReplyReason::PreChargeGasLimitExceeded(op),
+        ),
+        PrepareErrorReason::Precharge(PrechargeError::BlockGasExceeded) => {
+            process_allowance_exceed(dispatch, program_id, gas_amount.burned())
+        }
+        PrepareErrorReason::Process(case) => process_error(
+            dispatch,
+            program_id,
+            gas_amount.burned(),
+            system_reservation_ctx,
+            case,
+        ),
+        PrepareErrorReason::EmptyExport => process_success(
+            SuccessfulDispatchResultKind::Finish,
+            DispatchResult::success(dispatch, program_id, gas_amount),
+        ),
+    }
 }

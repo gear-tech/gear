@@ -15,23 +15,15 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    common::{
-        ActorExecutionErrorReplyReason, DispatchResult, JournalNote, LazyStorageAccess, Program,
-        SuccessfulDispatchResultKind,
-    },
+    common::{LazyStorageAccess, Program},
     configs::{BlockConfig, ProcessCosts},
-    context::SystemReservationContext,
-    processing::{
-        process_allowance_exceed, process_error, process_execution_error, process_success,
-        ProcessErrorCase,
-    },
+    processing::ProcessErrorCase,
     ProcessExecutionContext,
 };
 use actor_system_error::actor_system_error;
-use alloc::vec::Vec;
 use gear_core::{
     costs::BytesAmount,
-    gas::{ChargeResult, GasAllowanceCounter, GasCounter},
+    gas::{ChargeResult, GasAllowanceCounter, GasAmount, GasCounter},
     ids::{CodeId, MessageId, ProgramId},
     message::{DispatchKind, IncomingDispatch},
     pages::{numerated::tree::IntervalsTree, WasmPage, WasmPagesAmount},
@@ -46,8 +38,20 @@ actor_system_error! {
 
 /// Actor prepare error.
 #[derive(Debug, PartialEq, Eq, derive_more::Display)]
-#[display(fmt = "Actor prepare error")]
-pub struct ActorPrepareError(pub Vec<JournalNote>);
+#[display(fmt = "Cannot prepare context for program {program_id} execution: {reason:?}")]
+pub struct ActorPrepareError {
+    pub(crate) gas_amount: GasAmount,
+    pub(crate) dispatch: IncomingDispatch,
+    pub(crate) program_id: ProgramId,
+    pub(crate) reason: PrepareErrorReason,
+}
+
+#[derive(Debug, PartialEq, Eq, derive_more::Display, derive_more::From)]
+pub(crate) enum PrepareErrorReason {
+    Precharge(PrechargeError),
+    Process(ProcessErrorCase),
+    EmptyExport,
+}
 
 /// System prepare error.
 #[derive(Debug, PartialEq, Eq, derive_more::Display)]
@@ -105,67 +109,38 @@ pub fn prepare(
         &block_config.costs,
     );
 
-    let process_pre_charge_error =
-        |err: PrechargeError, gas_counter: GasCounter, dispatch: IncomingDispatch| {
-            match err {
-                PrechargeError::BlockGasExceeded => ActorPrepareError(process_allowance_exceed(
-                    dispatch,
-                    program_id,
-                    gas_counter.burned(),
-                )),
-                PrechargeError::GasExceeded(op) => {
-                    let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
-                    ActorPrepareError(process_execution_error(
-                        dispatch,
-                        program_id,
-                        gas_counter.burned(),
-                        system_reservation_ctx,
-                        ActorExecutionErrorReplyReason::PreChargeGasLimitExceeded(op),
-                    ))
-                }
-            }
-            .into()
-        };
-
-    let process_error =
-        |err_case: ProcessErrorCase, gas_counter: GasCounter, dispatch: IncomingDispatch| {
-            let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
-            ActorPrepareError(process_error(
-                dispatch,
-                program_id,
-                gas_counter.burned(),
-                system_reservation_ctx,
-                err_case,
-            ))
-            .into()
-        };
+    let actor_error = |reason, gas_counter: GasCounter, dispatch| {
+        ActorPrepareError {
+            gas_amount: gas_counter.to_amount(),
+            dispatch,
+            program_id,
+            reason,
+        }
+        .into()
+    };
 
     if let Err(err) = charger.charge_gas_for_program_data() {
-        return Err(process_pre_charge_error(err, gas_counter, dispatch));
+        return Err(actor_error(err.into(), gas_counter, dispatch));
     }
 
     let program = match storage.program_info(program_id) {
         Some(program) => program,
         None => {
-            return Err(process_error(
-                ProcessErrorCase::NonExecutable,
-                gas_counter,
-                dispatch,
-            ))
+            let reason = ProcessErrorCase::NonExecutable.into();
+            return Err(actor_error(reason, gas_counter, dispatch));
         }
     };
 
     if program.state == ProgramState::Initialized && dispatch.kind() == DispatchKind::Init {
-        return Err(InitMessageToInitializedProgram {
+        Err(InitMessageToInitializedProgram {
             program: program_id,
             message: dispatch.message().id(),
-        }
-        .into());
+        })?
     }
 
     // If the destination program is uninitialized, then we allow
-    // to process message, if it's a reply or init message.
-    // Otherwise, we return error reply.
+    // to process message, if it's a reply or init message only.
+    // Otherwise, we return an error reply.
     if matches!(program.state, ProgramState::Uninitialized { message_id }
             if message_id != dispatch.message().id() && dispatch.kind() != DispatchKind::Reply)
     {
@@ -176,65 +151,51 @@ pub fn prepare(
             })?
         }
 
-        return Err(process_error(
-            ProcessErrorCase::NonExecutable,
-            gas_counter,
-            dispatch,
-        ));
+        let reason = ProcessErrorCase::NonExecutable.into();
+        return Err(actor_error(reason, gas_counter, dispatch));
     }
 
     if !program.code_exports.contains(&dispatch.kind()) {
-        return Err(ActorPrepareError(process_success(
-            SuccessfulDispatchResultKind::Finish,
-            DispatchResult::success(dispatch, program_id, gas_counter.to_amount()),
-        ))
-        .into());
+        let reason = PrepareErrorReason::EmptyExport;
+        return Err(actor_error(reason, gas_counter, dispatch));
     }
 
     if let Err(err) = charger.charge_gas_for_program_code_len() {
-        return Err(process_pre_charge_error(err, gas_counter, dispatch));
+        return Err(actor_error(err.into(), gas_counter, dispatch));
     }
 
     let code_len = match storage.code_len(program.code_id) {
         Some(len) => len,
-        None => {
-            return Err(CodeLenUnavailable {
-                program: program_id,
-                code_id: program.code_id,
-            }
-            .into())
-        }
+        None => Err(CodeLenUnavailable {
+            program: program_id,
+            code_id: program.code_id,
+        })?,
     };
 
     if let Err(err) = charger.charge_gas_for_program_code(code_len.into()) {
-        return Err(process_pre_charge_error(err, gas_counter, dispatch));
+        return Err(actor_error(err.into(), gas_counter, dispatch));
     }
 
     let mut code = match storage.code(program.code_id) {
         Some(code) => code,
-        None => {
-            return Err(CodeUnavailable {
-                program: program_id,
-                code_id: program.code_id,
-            }
-            .into())
-        }
+        None => Err(CodeUnavailable {
+            program: program_id,
+            code_id: program.code_id,
+        })?,
     };
 
     // Reinstrument the code if necessary.
     if storage.need_reinstrumentation(&code) {
         if let Err(err) = charger.charge_gas_for_instrumentation(code.original_code_len().into()) {
-            return Err(process_pre_charge_error(err, gas_counter, dispatch));
+            return Err(actor_error(err.into(), gas_counter, dispatch));
         }
 
         match storage.reinstrument_code(program.code_id) {
             Ok(new_code) => code = new_code,
-            Err(_) => {
-                return Err(process_error(
-                    ProcessErrorCase::ReinstrumentationFailed,
-                    gas_counter,
-                    dispatch,
-                ))
+            Err(err) => {
+                log::debug!("Reinstrumentation failed: {:?}", err);
+                let reason = ProcessErrorCase::ReinstrumentationFailed.into();
+                return Err(actor_error(reason, gas_counter, dispatch));
             }
         }
     };
@@ -242,11 +203,11 @@ pub fn prepare(
     let memory_size = match charger.charge_gas_for_pages(&program.allocations, code.static_pages())
     {
         Ok(memory_size) => memory_size,
-        Err(err) => return Err(process_pre_charge_error(err, gas_counter, dispatch)),
+        Err(err) => return Err(actor_error(err.into(), gas_counter, dispatch)),
     };
 
     if let Err(err) = charger.charge_gas_for_instantiation((code.code().len() as u32).into()) {
-        return Err(process_pre_charge_error(err, gas_counter, dispatch));
+        return Err(actor_error(err.into(), gas_counter, dispatch));
     }
 
     let gas_reserver = GasReserver::new(
@@ -294,9 +255,12 @@ pub enum PreChargeGasOperation {
     ModuleInstrumentation,
 }
 
-#[derive(Debug, Eq, PartialEq)]
-enum PrechargeError {
+/// Not enough gas to precharge for execution.
+#[derive(Debug, Eq, PartialEq, derive_more::Display)]
+pub enum PrechargeError {
+    /// Out of gas allowance.
     BlockGasExceeded,
+    /// Out of gas.
     GasExceeded(PreChargeGasOperation),
 }
 

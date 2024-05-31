@@ -27,7 +27,7 @@ use crate::{
 use core_processor::{
     common::*,
     configs::{BlockConfig, BlockInfo, ExtCosts, ProcessCosts, RentCosts, TESTS_MAX_PAGES_NUMBER},
-    ActorPrepareError, Ext, PrepareError,
+    Ext, PrepareError,
 };
 use gear_core::{
     code::{Code, CodeAndId, CodeError, InstrumentedCode, InstrumentedCodeAndId, TryNewCodeConfig},
@@ -944,7 +944,8 @@ impl ExtManager {
             balance,
         ) {
             Ok(ctx) => ctx,
-            Err(PrepareError::Actor(ActorPrepareError(journal))) => {
+            Err(PrepareError::Actor(err)) => {
+                let journal = core_processor::process_prepare_error(err);
                 core_processor::handle_journal(journal, self);
                 return;
             }

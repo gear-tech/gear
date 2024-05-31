@@ -92,7 +92,7 @@ where
             balance,
         ) {
             Ok(ctx) => ctx,
-            Err(PrepareError::Actor(err)) => return err.0,
+            Err(PrepareError::Actor(err)) => return core_processor::process_prepare_error(err),
             Err(PrepareError::System(err)) => {
                 unreachable!("{err}")
             }
