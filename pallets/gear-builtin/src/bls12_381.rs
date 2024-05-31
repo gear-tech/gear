@@ -405,9 +405,18 @@ fn aggregate_g1<T: Config>(
     gas_spent += to_spend;
 
     (
-        Ok(Response::AggregateG1(
-            gear_runtime_interface::gear_bls_12_381::aggregate_g1(&points),
-        )),
+        gear_runtime_interface::gear_bls_12_381::aggregate_g1(&points)
+            .map(Response::AggregateG1)
+            .map_err(|e| {
+                log::debug!(
+                    target: LOG_TARGET,
+                    "Failed to aggregate G1-points: {e}"
+                );
+
+                BuiltinActorError::Custom(LimitedStr::from_small_str(
+                    "Aggregate G1-points: computation error",
+                ))
+            }),
         gas_spent,
     )
 }
@@ -440,15 +449,19 @@ fn map_to_g2affine<T: Config>(
 
     let gas_spent = to_spend;
 
-    let result = gear_runtime_interface::gear_bls_12_381::map_to_g2affine(payload);
-    if result.is_empty() {
-        return (
-            Err(BuiltinActorError::Custom(LimitedStr::from_small_str(
-                "Mapping message: computation error",
-            ))),
-            gas_spent,
-        );
-    }
+    (
+        gear_runtime_interface::gear_bls_12_381::map_to_g2affine(payload)
+            .map(Response::MapToG2Affine)
+            .map_err(|e| {
+                log::debug!(
+                    target: LOG_TARGET,
+                    "Failed to map a message: {e}"
+                );
 
-    (Ok(Response::MapToG2Affine(result)), gas_spent)
+                BuiltinActorError::Custom(LimitedStr::from_small_str(
+                    "Mapping message: computation error",
+                ))
+            }),
+        gas_spent,
+    )
 }

@@ -314,46 +314,62 @@ pub trait GearDebug {
     }
 }
 
+/// Describes possible errors for `GearBls12_381`.
+#[repr(u32)]
+enum GearBls12_381Error {
+    /// Failed to decode an array of G1-points.
+    Decode,
+    /// The array of G1-points is empty.
+    EmptyPointList,
+    /// Failed to create `MapToCurveBasedHasher`.
+    MapperCreation,
+    /// Failed to map a message to a G2-point.
+    MessageMapping,
+}
+
+impl From<GearBls12_381Error> for u32 {
+    fn from(value: GearBls12_381Error) -> Self {
+        value as u32
+    }
+}
+
 #[runtime_interface]
 pub trait GearBls12_381 {
     /// Aggregate provided G1-points. Useful for cases with hundreds or more items.
     /// Accepts scale-encoded `ArkScale<Vec<G1Projective>>`.
-    /// Result is scale-encoded `ArkScale<G1Projective>`. Returns an empty array on failure.
-    fn aggregate_g1(points: &[u8]) -> Vec<u8> {
+    /// Result is scale-encoded `ArkScale<G1Projective>`.
+    fn aggregate_g1(points: &[u8]) -> Result<Vec<u8>, u32> {
         type ArkScale<T> = ark_scale::ArkScale<T, { ark_scale::HOST_CALL }>;
 
-        let Ok(ArkScale(points)) = ArkScale::<Vec<G1>>::decode(&mut &points[..]) else {
-            return vec![];
-        };
+        let ArkScale(points) = ArkScale::<Vec<G1>>::decode(&mut &points[..])
+            .map_err(|_| u32::from(GearBls12_381Error::Decode))?;
 
-        let Some(point_first) = points.first() else {
-            return vec![];
-        };
+        let point_first = points
+            .first()
+            .ok_or(u32::from(GearBls12_381Error::EmptyPointList))?;
 
         let point_aggregated = points
             .iter()
             .skip(1)
             .fold(*point_first, |aggregated, point| aggregated + *point);
 
-        ArkScale::<G1>::from(point_aggregated).encode()
+        Ok(ArkScale::<G1>::from(point_aggregated).encode())
     }
 
     /// Map a message to G2Affine-point using the domain separation tag from `milagro_bls`.
-    /// Result is encoded `ArkScale<G2Affine>`. Returns an empty array on failure.
-    fn map_to_g2affine(message: &[u8]) -> Vec<u8> {
+    /// Result is encoded `ArkScale<G2Affine>`.
+    fn map_to_g2affine(message: &[u8]) -> Result<Vec<u8>, u32> {
         type ArkScale<T> = ark_scale::ArkScale<T, { ark_scale::HOST_CALL }>;
         type WBMap = wb::WBMap<<ark_bls12_381::Config as Bls12Config>::G2Config>;
 
-        let Ok(mapper) =
+        let mapper =
             MapToCurveBasedHasher::<G2, DefaultFieldHasher<sha2::Sha256>, WBMap>::new(DST_G2)
-        else {
-            return vec![];
-        };
+                .map_err(|_| u32::from(GearBls12_381Error::MapperCreation))?;
 
-        let Ok(point) = mapper.hash(message) else {
-            return vec![];
-        };
+        let point = mapper
+            .hash(message)
+            .map_err(|_| u32::from(GearBls12_381Error::MessageMapping))?;
 
-        ArkScale::<G2Affine>::from(point).encode()
+        Ok(ArkScale::<G2Affine>::from(point).encode())
     }
 }

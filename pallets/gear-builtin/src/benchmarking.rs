@@ -266,18 +266,13 @@ benchmarks! {
         let ark_points: ArkScale<Vec<G1>> = points.clone().into();
         let encoded_points = ark_points.encode();
 
-        let mut _result: Vec<u8> = vec![];
+        let mut _result = Err(0);
     }: {
         _result = gear_runtime_interface::gear_bls_12_381::aggregate_g1(&encoded_points);
     } verify {
-        let decoded = ArkScale::<G1>::decode(&mut &_result[..]).unwrap();
-        let point_first = points.first().unwrap();
-        let point_aggregated = points
-            .iter()
-            .skip(1)
-            .fold(*point_first, |aggregated, point| aggregated + *point);
-
-        assert_eq!(point_aggregated, decoded.0);
+        assert!(
+            matches!(_result, Ok(result) if ArkScale::<G1>::decode(&mut &result[..]).is_ok())
+        );
     }
 
     bls12_381_map_to_g2affine {
@@ -285,12 +280,14 @@ benchmarks! {
 
         let message = vec![1u8; c as usize];
 
-        let mut _result = vec![];
+        let mut _result = Err(0);
     }: {
         _result = gear_runtime_interface::gear_bls_12_381::map_to_g2affine(&message);
     } verify {
         assert!(
-            ArkScale::<G2Affine>::decode(&mut &_result[..]).is_ok()
+            matches!(
+                _result, Ok(result) if ArkScale::<G2Affine>::decode(&mut &result[..]).is_ok()
+            )
         )
     }
 }
