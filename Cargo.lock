@@ -5842,6 +5842,7 @@ dependencies = [
  "hypercore-db",
  "hypercore-runtime",
  "log",
+ "parity-wasm",
  "primitive-types",
  "wasmtime",
 ]

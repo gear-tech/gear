@@ -22,6 +22,7 @@ use anyhow::Result;
 use gear_core::ids::ProgramId;
 use hypercore_db::Message;
 use log::Level;
+use parity_wasm::elements::{Internal as PwasmInternal, Module as PwasmModule};
 use primitive_types::H256;
 use std::{collections::HashMap, ptr};
 use wasmtime::{
@@ -51,9 +52,29 @@ impl Processor {
     ) -> Result<()> {
         let program_id = messages.keys().next().cloned().unwrap_or_default();
 
-        let mut store: Store<HostState> = Store::new(&Engine::default(), HostState { program_id });
+        let mut pwasm_module = PwasmModule::from_bytes(hypercore_runtime::WASM_BINARY).unwrap();
 
-        let module = Module::new(store.engine(), hypercore_runtime::WASM_BINARY)?;
+        let start_fn_idx = pwasm_module
+            .export_section()
+            .and_then(|section| {
+                section.entries().iter().find_map(|export| {
+                    if export.field() == "_start" {
+                        if let PwasmInternal::Function(idx) = export.internal() {
+                            Some(*idx)
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    }
+                })
+            })
+            .unwrap();
+
+        pwasm_module.set_start_section(start_fn_idx);
+
+        let mut store: Store<HostState> = Store::new(&Engine::default(), HostState { program_id });
+        let module = Module::new(store.engine(), pwasm_module.into_bytes().unwrap())?;
 
         let mut linker = Linker::new(store.engine());
 

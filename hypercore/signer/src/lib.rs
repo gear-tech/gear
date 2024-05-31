@@ -40,7 +40,7 @@ impl PublicKey {
     }
 
     pub fn to_hex(&self) -> String {
-        hex::encode(&self.0)
+        hex::encode(self.0)
     }
 
     pub fn to_address(&self) -> String {
@@ -85,9 +85,7 @@ pub struct Signer {
 }
 
 impl Signer {
-
     pub fn new(key_store: PathBuf) -> Result<Self> {
-
         fs::create_dir_all(key_store.as_path())?;
 
         Ok(Self { key_store })

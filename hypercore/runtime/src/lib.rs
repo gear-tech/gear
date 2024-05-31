@@ -37,6 +37,7 @@ mod interface;
 
 #[cfg(all(not(feature = "export"), target_arch = "wasm32"))]
 mod wasm {
+    use crate::interface::logging_ri::RuntimeLogger;
     use core::panic::PanicInfo;
 
     #[global_allocator]
@@ -45,5 +46,10 @@ mod wasm {
     #[panic_handler]
     fn panic_handler(_: &PanicInfo) -> ! {
         core::arch::wasm32::unreachable()
+    }
+
+    #[no_mangle]
+    extern "C" fn _start() {
+        RuntimeLogger::init();
     }
 }

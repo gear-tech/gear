@@ -16,3 +16,4 @@ gear-core.workspace = true
 hypercore-runtime = { workspace = true, features = ["export"] }
 wasmtime.workspace = true
 log.workspace = true
+parity-wasm.workspace = true
