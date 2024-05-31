@@ -28,7 +28,8 @@ use clap::Parser;
 async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
 
-    let config = Config::try_from(args.clone()).with_context(|| "Failed to create configuration")?;
+    let config =
+        Config::try_from(args.clone()).with_context(|| "Failed to create configuration")?;
 
     env_logger::try_init().with_context(|| "Failed to initialize logger")?;
 

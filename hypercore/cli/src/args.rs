@@ -50,10 +50,9 @@ pub enum ExtraCommands {
     Sign(SigningArgs),
 }
 
-
 #[derive(Clone, Debug, Parser)]
 pub struct SigningArgs {
-    message: String
+    message: String,
 }
 
 impl ExtraCommands {
@@ -66,7 +65,7 @@ impl ExtraCommands {
 
                 println!("New public key stored: {}", new_pub);
                 println!("Ethereum address: {}", new_pub.to_address());
-            },
+            }
 
             ExtraCommands::ClearKeys => {
                 let signer = hypercore_signer::Signer::new(config.key_path.clone())?;
@@ -74,7 +73,7 @@ impl ExtraCommands {
                 println!("Total {} keys will be cleared: ", signer.list_keys()?.len());
                 signer.clear_keys()?;
                 println!("Total {} keys left: ", signer.list_keys()?.len());
-            },
+            }
 
             ExtraCommands::ListKeys => {
                 let signer = hypercore_signer::Signer::new(config.key_path.clone())?;
@@ -86,7 +85,7 @@ impl ExtraCommands {
                 }
 
                 println!("Total {}", key_list.len())
-            },
+            }
 
             ExtraCommands::Sign(ref signing_args) => {
                 let signer = hypercore_signer::Signer::new(config.key_path.clone())?;

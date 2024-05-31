@@ -19,12 +19,13 @@
 //! Signer library for hypercore.
 
 use anyhow::{Context as _, Result};
-use std::{fmt, fs, path::PathBuf};
 use secp256k1::{
+    ecdsa::RecoverableSignature,
     hashes::{sha256, Hash},
     Message,
 };
 use sha3::Digest as _;
+use std::{fmt, fs, path::PathBuf};
 
 #[derive(Debug, Clone, Copy)]
 pub struct PublicKey(pub(crate) [u8; 33]);
@@ -32,7 +33,7 @@ pub struct PublicKey(pub(crate) [u8; 33]);
 pub struct PrivateKey(pub [u8; 32]);
 
 #[derive(Debug, Clone)]
-pub struct Signature(pub Vec<u8>);
+pub struct Signature([u8; 65]);
 
 impl PublicKey {
     pub fn from_bytes(bytes: [u8; 33]) -> Self {
@@ -79,6 +80,22 @@ impl fmt::Display for Signature {
     }
 }
 
+impl Default for Signature {
+    fn default() -> Self {
+        Signature([0u8; 65])
+    }
+}
+
+impl From<RecoverableSignature> for Signature {
+    fn from(recsig: RecoverableSignature) -> Signature {
+        let mut r = Self::default();
+        let (recid, sig) = recsig.serialize_compact();
+        r.0[..64].copy_from_slice(&sig);
+        r.0[64] = recid.to_i32() as u8;
+        r
+    }
+}
+
 #[derive(Debug)]
 pub struct Signer {
     key_store: PathBuf,
@@ -100,9 +117,10 @@ impl Signer {
         let digest = sha3::Keccak256::digest(data);
         let message = Message::from_digest(digest.into());
 
-        let signature = secp_secret_key.sign_ecdsa(message);
+        let signature =
+            secp256k1::global::SECP256K1.sign_ecdsa_recoverable(&message, &secp_secret_key);
 
-        Ok(Signature(signature.serialize_der().to_vec()))
+        Ok(signature.into())
     }
 
     pub fn has_key(&self, key: PublicKey) -> Result<bool> {
@@ -124,7 +142,8 @@ impl Signer {
     }
 
     pub fn generate_key(&self) -> Result<PublicKey> {
-        let (secret_key, public_key) = secp256k1::generate_keypair(&mut secp256k1::rand::thread_rng());
+        let (secret_key, public_key) =
+            secp256k1::generate_keypair(&mut secp256k1::rand::thread_rng());
 
         let local_public = PublicKey::from_bytes(public_key.serialize());
 
