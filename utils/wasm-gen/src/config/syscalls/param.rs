@@ -269,7 +269,7 @@ pub enum PtrParamAllowedValues {
     ReservationId,
     /// Variant of `Ptr::Hash` pointer type, where hash is code id.
     CodeIdsWithValue {
-        code_ids: Vec<CodeId>,
+        code_ids: NonEmpty<CodeId>,
         range: RangeInclusive<u128>,
     },
 }

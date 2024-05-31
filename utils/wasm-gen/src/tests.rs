@@ -617,7 +617,7 @@ fn test_code_id_with_value_ptr() {
         .with_default_regular_config()
         .with_rule(RegularParamType::Gas, (0..=0).into())
         .with_ptr_rule(PtrParamAllowedValues::CodeIdsWithValue {
-            code_ids: vec![some_code_id],
+            code_ids: NonEmpty::new(some_code_id),
             range: REPLY_VALUE..=REPLY_VALUE,
         });
 

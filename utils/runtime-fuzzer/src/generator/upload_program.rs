@@ -154,9 +154,7 @@ fn config(
         .map(ActorKind::ExistingAddresses)
         .unwrap_or(ActorKind::Source);
 
-    let code_ids = codes
-        .map(|non_empty| non_empty.into_iter().cloned().collect::<Vec<_>>())
-        .unwrap_or_default();
+    let code_ids = codes.and_then(|non_empty| NonEmpty::collect(non_empty.into_iter().cloned()));
 
     log::trace!("Messages destination config: {:?}", actor_kind);
 
@@ -173,11 +171,14 @@ fn config(
             actor_kind: actor_kind.clone(),
             range: EXISTENTIAL_DEPOSIT..=max_value,
         })
-        .with_ptr_rule(PtrParamAllowedValues::ReservationId)
-        .with_ptr_rule(PtrParamAllowedValues::CodeIdsWithValue {
+        .with_ptr_rule(PtrParamAllowedValues::ReservationId);
+
+    if let Some(code_ids) = code_ids {
+        params_config = params_config.with_ptr_rule(PtrParamAllowedValues::CodeIdsWithValue {
             code_ids,
             range: EXISTENTIAL_DEPOSIT..=max_value,
         });
+    }
 
     StandardGearWasmConfigsBundle {
         entry_points_set: EntryPointsSet::InitHandleHandleReply,

@@ -30,6 +30,7 @@ use crate::{
 };
 use arbitrary::{Result, Unstructured};
 use gear_core::ids::CodeId;
+use gear_utils::NonEmpty;
 use gear_wasm_instrument::{
     parity_wasm::elements::{BlockType, Instruction, Internal, ValueType},
     syscalls::{
@@ -722,18 +723,15 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
 
     fn build_code_id_instructions(
         &mut self,
-        code_ids: Vec<CodeId>,
+        code_ids: NonEmpty<CodeId>,
         (start_offset, end_offset): (i32, Option<i32>),
     ) -> Result<Vec<Instruction>> {
-        let ret = if code_ids.is_empty() {
-            let random_address: [u8; 32] = self.unstructured.arbitrary()?;
-            utils::translate_ptr_data(WasmWords::new(random_address), (start_offset, end_offset))
-        } else {
-            let address = self.unstructured.choose(&code_ids)?;
-            utils::translate_ptr_data(WasmWords::new(*address), (start_offset, end_offset))
-        };
-
-        Ok(ret)
+        let code_ids = utils::non_empty_to_vec(code_ids);
+        let address = self.unstructured.choose(&code_ids)?;
+        Ok(utils::translate_ptr_data(
+            WasmWords::new(*address),
+            (start_offset, end_offset),
+        ))
     }
 
     fn build_error_processing(
