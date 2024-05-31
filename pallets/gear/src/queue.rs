@@ -37,7 +37,14 @@ where
 {
     fn program_info(&self, program_id: ProgramId) -> Option<ProgramInfo> {
         match ProgramStorageOf::<T>::get_program(program_id) {
-            Some(Program::Active(program)) => Some(program.into()),
+            Some(Program::Active(program)) => Some(ProgramInfo {
+                allocations: program.allocations,
+                code_id: program.code_hash.into(),
+                code_exports: program.code_exports,
+                memory_infix: program.memory_infix,
+                gas_reservation_map: program.gas_reservation_map,
+                state: program.state,
+            }),
             _ => None,
         }
     }

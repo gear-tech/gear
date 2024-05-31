@@ -34,7 +34,7 @@ use gear_core::{
         ContextStore, Dispatch, DispatchKind, IncomingDispatch, MessageWaitedType, StoredDispatch,
     },
     pages::{numerated::tree::IntervalsTree, GearPage, WasmPage, WasmPagesAmount},
-    program::{ActiveProgram, MemoryInfix, ProgramState},
+    program::{MemoryInfix, ProgramState},
     reservation::{GasReservationMap, GasReserver},
 };
 pub use gear_core_backend::error::TrapExplanation;
@@ -547,19 +547,6 @@ pub struct ProgramInfo {
     pub gas_reservation_map: GasReservationMap,
     /// Program initialization state.
     pub state: ProgramState,
-}
-
-impl<BlockNumber: Copy> From<ActiveProgram<BlockNumber>> for ProgramInfo {
-    fn from(program: ActiveProgram<BlockNumber>) -> Self {
-        Self {
-            allocations: program.allocations,
-            code_id: CodeId::from(program.code_hash),
-            code_exports: program.code_exports,
-            memory_infix: program.memory_infix,
-            gas_reservation_map: program.gas_reservation_map,
-            state: program.state,
-        }
-    }
 }
 
 /// Trait for accessing storage inside processor preparation.
