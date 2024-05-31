@@ -51,7 +51,7 @@ fn main() -> Result<()> {
         panic!("Invalid metadata, doesn't even have enough bytes for the magic number.");
     }
 
-    if let Ok(_) = env::var(PRINT_SCALE) {
+    if env::var(PRINT_SCALE).is_ok() {
         io::stdout().write_all(("0x".to_owned() + &hex::encode(&encoded[4..])).as_bytes())?;
         return Ok(());
     }
