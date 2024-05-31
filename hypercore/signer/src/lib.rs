@@ -28,7 +28,7 @@ use sha3::Digest as _;
 use std::{fmt, fs, path::PathBuf};
 
 #[derive(Debug, Clone, Copy)]
-pub struct PublicKey(pub(crate) [u8; 33]);
+pub struct PublicKey(pub [u8; 33]);
 
 pub struct PrivateKey(pub [u8; 32]);
 
@@ -45,8 +45,16 @@ impl PublicKey {
     }
 
     pub fn to_address(&self) -> String {
-        let hash = sha3::Keccak256::digest(&self.0[1..]);
-        let address = hex::encode(&hash[12..32]);
+        // Skip the first byte (0x04 for uncompressed, or compression flag for compressed)
+        let public_key_uncompressed = secp256k1::PublicKey::from_slice(&self.0)
+            .expect("Invalid public key")
+            .serialize_uncompressed();
+
+        // Keccak256 hash of the uncompressed public key (excluding the first byte)
+        let hash = sha3::Keccak256::digest(&public_key_uncompressed[1..]);
+
+        // Last 20 bytes of the hash
+        let address = hex::encode(&hash[12..]);
         format!("0x{}", address)
     }
 
@@ -91,7 +99,7 @@ impl From<RecoverableSignature> for Signature {
         let mut r = Self::default();
         let (recid, sig) = recsig.serialize_compact();
         r.0[..64].copy_from_slice(&sig);
-        r.0[64] = recid.to_i32() as u8;
+        r.0[64] = 27 + recid.to_i32() as u8;
         r
     }
 }
@@ -115,6 +123,7 @@ impl Signer {
             .with_context(|| "Invalid secret key format for {:?}")?;
 
         let digest = sha3::Keccak256::digest(data);
+
         let message = Message::from_digest(digest.into());
 
         let signature =
@@ -191,30 +200,55 @@ impl Signer {
 mod tests {
     use super::*;
 
-    use secp256k1::{ecdsa::Signature, generate_keypair, rand::rngs::OsRng};
+    use ethers::utils::keccak256;
+    use secp256k1::{
+        ecdsa::RecoverableSignature, generate_keypair, rand::rngs::OsRng, Message, Secp256k1,
+    };
+    use std::str::FromStr;
 
     #[test]
-    fn test_signer() {
-        let key_store = PathBuf::from("/tmp/key-store");
-        let signer = Signer::new(key_store).expect("Failed to create signer");
+    fn test_signer_with_known_vectors() {
+        // Known test vector data
+        let private_key_hex = "4c0883a69102937d6231471b5dbb6204fe51296170827936ea5cce4b76994b0f";
 
-        let (secp_secret, _) = generate_keypair(&mut OsRng);
-        let public_key = signer
-            .add_key(PrivateKey(secp_secret.secret_bytes()))
-            .unwrap();
+        let message = b"hello world";
 
+        // Create the signer with a temporary key store path
+        let key_store = PathBuf::from("/tmp/key-store-test-vectors");
+        let signer = Signer::new(key_store.clone()).expect("Failed to create signer");
+
+        // Convert the private key hex to bytes and add it to the signer
+        let private_key_bytes = hex::decode(private_key_hex).expect("Invalid private key hex");
+        let private_key = PrivateKey(private_key_bytes.try_into().expect("Invalid length"));
+        let public_key = signer.add_key(private_key).expect("Failed to add key");
+
+        // Ensure the key store has the key
         assert!(signer.has_key(public_key).unwrap());
 
-        let data = b"hello world";
-        let signature = signer.sign(public_key, data).unwrap();
+        // Sign the message
+        let signature = signer
+            .sign(public_key, message)
+            .expect("Failed to sign message");
 
-        let secret_key = signer.get_key(public_key).unwrap();
-        let secp_secret_key = secp256k1::SecretKey::from_slice(&secret_key.0).unwrap();
-        let secp_public_key = secp256k1::PublicKey::from_secret_key_global(&secp_secret_key);
+        // Hash the message using Keccak256
+        let hash = keccak256(message);
 
-        let message = Message::from_digest(sha3::Keccak256::digest(data).into());
-        let signature = Signature::from_der(&signature).unwrap();
+        // Recover the address using the signature
+        let ethers_sig = ethers::core::types::Signature::try_from(&signature.0[..])
+            .expect("failed to parse sig");
 
-        assert!(signature.verify(&message, &secp_public_key).is_ok());
+        let recovered_address = ethers_sig
+            .recover(*&hash)
+            .expect("Failed to recover address");
+
+        // Verify the recovered address matches the expected address
+        assert_eq!(
+            format!("{:?}", recovered_address),
+            format!("{}", public_key.to_address())
+        );
+
+
+        // Clean up the key store directory
+        signer.clear_keys().unwrap();
     }
 }
