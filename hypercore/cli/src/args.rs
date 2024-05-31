@@ -18,10 +18,12 @@
 
 //! CLI arguments in one place.
 
-use clap::Parser;
+use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
-#[derive(Debug, Parser)]
+use crate::config;
+
+#[derive(Clone, Debug, Parser)]
 #[command(version, about, long_about = None)]
 pub struct Args {
     /// URL of Ethereum RPC endpoint
@@ -35,4 +37,79 @@ pub struct Args {
     /// Base path where application settings are stored
     #[arg(long = "base-path")]
     pub base_path: Option<PathBuf>,
+
+    #[command(subcommand)]
+    pub extra_command: Option<ExtraCommands>,
+}
+
+#[derive(Clone, Debug, Subcommand)]
+pub enum ExtraCommands {
+    GenerateKey,
+    ListKeys,
+    ClearKeys,
+    Sign(SigningArgs),
+}
+
+
+#[derive(Clone, Debug, Parser)]
+pub struct SigningArgs {
+    message: String
+}
+
+impl ExtraCommands {
+    pub fn run(&self, config: &config::Config) -> anyhow::Result<()> {
+        match self {
+            ExtraCommands::GenerateKey => {
+                let signer = hypercore_signer::Signer::new(config.key_path.clone())?;
+
+                let new_pub = signer.generate_key()?;
+
+                println!("New public key stored: {}", new_pub);
+                println!("Ethereum address: {}", new_pub.to_address());
+            },
+
+            ExtraCommands::ClearKeys => {
+                let signer = hypercore_signer::Signer::new(config.key_path.clone())?;
+
+                println!("Total {} keys will be cleared: ", signer.list_keys()?.len());
+                signer.clear_keys()?;
+                println!("Total {} keys left: ", signer.list_keys()?.len());
+            },
+
+            ExtraCommands::ListKeys => {
+                let signer = hypercore_signer::Signer::new(config.key_path.clone())?;
+
+                let key_list = signer.list_keys()?;
+
+                for key in &key_list {
+                    println!("Ethereum Address: {}, public: {}", key.to_address(), key);
+                }
+
+                println!("Total {}", key_list.len())
+            },
+
+            ExtraCommands::Sign(ref signing_args) => {
+                let signer = hypercore_signer::Signer::new(config.key_path.clone())?;
+
+                let message = &signing_args.message;
+
+                let key_list = signer.list_keys()?;
+
+                if key_list.is_empty() {
+                    println!("No keys found, please generate a key first");
+                    return Ok(());
+                }
+
+                println!("Signing with all ({}) keys:", key_list.len());
+
+                for key in &key_list {
+                    println!("Ethereum Address: {}, public: {}", key.to_address(), key);
+                    println!("Signature: {}", &signer.sign(*key, message.as_bytes())?);
+                    println!("--------------------------------------------");
+                }
+            }
+        }
+
+        Ok(())
+    }
 }

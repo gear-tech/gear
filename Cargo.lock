@@ -5800,6 +5800,7 @@ dependencies = [
  "hypercore-network",
  "hypercore-observer",
  "hypercore-processor",
+ "hypercore-signer",
  "log",
  "tokio",
 ]
@@ -5862,6 +5863,7 @@ dependencies = [
  "anyhow",
  "hex",
  "secp256k1 0.29.0",
+ "sha3",
 ]
 
 [[package]]
