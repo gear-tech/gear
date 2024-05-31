@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Cargo extension for building gear programs.
+//! CLI arguments in one place.
 
 use clap::Parser;
 use std::path::PathBuf;
