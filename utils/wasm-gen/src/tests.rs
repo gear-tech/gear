@@ -600,6 +600,67 @@ fn test_reservation_id_ptr() {
 }
 
 #[test]
+fn test_code_id_with_value_ptr() {
+    gear_utils::init_default_logger();
+
+    const INITIAL_BALANCE: u128 = 10_000;
+    const REPLY_VALUE: u128 = 1_000;
+
+    let some_code_id = CodeId::from([10; 32]);
+
+    let tested_syscalls = [
+        InvocableSyscall::Loose(SyscallName::CreateProgram),
+        InvocableSyscall::Loose(SyscallName::CreateProgramWGas),
+    ];
+
+    let params_config = SyscallsParamsConfig::new()
+        .with_default_regular_config()
+        .with_rule(RegularParamType::Gas, (0..=0).into())
+        .with_ptr_rule(PtrParamAllowedValues::CodeIdsWithValue {
+            code_ids: NonEmpty::new(some_code_id),
+            range: REPLY_VALUE..=REPLY_VALUE,
+        });
+
+    for syscall in tested_syscalls {
+        let mut rng = SmallRng::seed_from_u64(123);
+        let mut buf = vec![0; UNSTRUCTURED_SIZE];
+        rng.fill_bytes(&mut buf);
+        let mut unstructured = Unstructured::new(&buf);
+
+        let mut injection_types = SyscallsInjectionTypes::all_never();
+        injection_types.set(syscall, 1, 1);
+        let syscalls_config = SyscallsConfigBuilder::new(injection_types)
+            .with_params_config(params_config.clone())
+            .with_error_processing_config(ErrorProcessingConfig::All)
+            .build();
+
+        let backend_report = execute_wasm_with_custom_configs(
+            &mut unstructured,
+            syscalls_config,
+            None,
+            1024,
+            false,
+            INITIAL_BALANCE,
+            0,
+        );
+
+        assert_eq!(
+            backend_report.ext.context.value_counter.left(),
+            INITIAL_BALANCE - REPLY_VALUE
+        );
+        assert!(backend_report
+            .ext
+            .context
+            .program_candidates_data
+            .contains_key(&some_code_id));
+        assert_eq!(
+            backend_report.termination_reason,
+            TerminationReason::Actor(ActorTerminationReason::Success)
+        );
+    }
+}
+
+#[test]
 fn error_processing_works_for_fallible_syscalls() {
     gear_utils::init_default_logger();
 
