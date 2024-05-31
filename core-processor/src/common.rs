@@ -147,7 +147,7 @@ pub enum SuccessfulDispatchResultKind {
 }
 
 /// Dispatch outcome of the specific message.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug)]
 pub enum DispatchOutcome {
     /// Message was a exit.
     Exit {
@@ -182,7 +182,7 @@ pub enum DispatchOutcome {
 }
 
 /// Journal record for the state update.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug)]
 pub enum JournalNote {
     /// Message was successfully dispatched.
     MessageDispatched {
