@@ -32,8 +32,8 @@ use crate::{
     ProgramStorageOf, QueueOf, Schedule, TaskPoolOf, WaitlistOf,
 };
 use common::{
-    event::*, scheduler::*, storage::*, ActiveProgram, CodeStorage, GasTree, LockId, LockableTree,
-    Origin as _, Program, ProgramStorage, ReservableTree,
+    event::*, scheduler::*, storage::*, CodeStorage, GasTree, LockId, LockableTree, Origin as _,
+    ProgramStorage, ReservableTree,
 };
 use core_processor::common::ActorExecutionErrorReplyReason;
 use frame_support::{
@@ -50,6 +50,7 @@ use gear_core::{
         ReplyInfo, StoredDispatch, UserStoredMessage,
     },
     pages::WasmPage,
+    program::{ActiveProgram, Program},
 };
 use gear_core_backend::error::{
     TrapExplanation, UnrecoverableExecutionError, UnrecoverableExtError, UnrecoverableWaitError,
@@ -7477,7 +7478,7 @@ fn gas_spent_precalculated() {
 
         let get_program_code = |pid| {
             let code_id = ProgramStorageOf::<Test>::get_program(pid)
-                .and_then(|program| common::ActiveProgram::try_from(program).ok())
+                .and_then(|program| ActiveProgram::try_from(program).ok())
                 .expect("program must exist")
                 .code_hash
                 .cast();
@@ -14934,6 +14935,7 @@ pub(crate) mod utils {
     use gear_core::{
         ids::{prelude::*, CodeId, MessageId, ProgramId},
         message::{Message, Payload, ReplyDetails, UserMessage, UserStoredMessage},
+        program::{ActiveProgram, Program},
         reservation::GasReservationMap,
     };
     use gear_core_errors::*;
@@ -15171,7 +15173,7 @@ pub(crate) mod utils {
             let expected_code = ProgramCodeKind::OutgoingWithValueInHandle.to_bytes();
             assert_eq!(
                 ProgramStorageOf::<Test>::get_program(prog_id)
-                    .and_then(|program| common::ActiveProgram::try_from(program).ok())
+                    .and_then(|program| ActiveProgram::try_from(program).ok())
                     .expect("program must exist")
                     .code_hash,
                 generate_code_hash(&expected_code).into(),
@@ -15191,7 +15193,7 @@ pub(crate) mod utils {
         )
         .into();
         let actual_code_hash = ProgramStorageOf::<Test>::get_program(program_id)
-            .and_then(|program| common::ActiveProgram::try_from(program).ok())
+            .and_then(|program| ActiveProgram::try_from(program).ok())
             .map(|prog| prog.code_hash)
             .expect("invalid program address for the test");
         assert_eq!(
@@ -15616,7 +15618,7 @@ pub(crate) mod utils {
     #[track_caller]
     pub(super) fn get_reservation_map(pid: ProgramId) -> Option<GasReservationMap> {
         let program = ProgramStorageOf::<Test>::get_program(pid).unwrap();
-        if let common::Program::Active(common::ActiveProgram {
+        if let Program::Active(ActiveProgram {
             gas_reservation_map,
             ..
         }) = program

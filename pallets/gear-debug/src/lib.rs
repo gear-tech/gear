@@ -32,7 +32,7 @@ mod tests;
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
-    use common::{self, storage::*, CodeStorage, Origin, Program, ProgramStorage};
+    use common::{self, storage::*, CodeStorage, Origin, ProgramStorage};
     use core::fmt;
     use frame_support::{dispatch::DispatchResultWithPostInfo, pallet_prelude::*};
     use frame_system::pallet_prelude::*;
@@ -41,6 +41,7 @@ pub mod pallet {
         memory::PageBuf,
         message::{StoredDelayedDispatch, StoredDispatch, StoredMessage},
         pages::{GearPage, WasmPagesAmount},
+        program::Program,
     };
     use primitive_types::H256;
     use scale_info::TypeInfo;
@@ -68,7 +69,7 @@ pub mod pallet {
         >;
 
         type ProgramStorage: ProgramStorage
-            + IterableMap<(ProgramId, common::Program<BlockNumberFor<Self>>)>;
+            + IterableMap<(ProgramId, Program<BlockNumberFor<Self>>)>;
     }
 
     #[pallet::pallet]

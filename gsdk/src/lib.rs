@@ -31,9 +31,9 @@ pub use crate::{
 pub use gear_core::gas::GasInfo;
 pub use subxt::dynamic::Value;
 
-use crate::metadata::runtime_types::gear_common::{
-    gas_provider::node::{GasNode, GasNodeId},
-    ActiveProgram,
+use crate::metadata::runtime_types::{
+    gear_common::gas_provider::node::{GasNode, GasNodeId},
+    gear_core::program::ActiveProgram,
 };
 use gear_core::ids::{MessageId, ReservationId};
 use parity_scale_codec::Decode;
