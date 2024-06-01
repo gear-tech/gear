@@ -34,6 +34,14 @@ pub struct Args {
     )]
     pub ethereum_rpc: String,
 
+    /// URL of Ethereum Beacon Chain RPC endpoint
+    #[arg(
+        long = "ethereum-beacon-rpc",
+        alias = "beacon-rpc",
+        default_value = "http://localhost:5052"
+    )]
+    pub ethereum_beacon_rpc: String,
+
     /// Base path where application settings are stored
     #[arg(long = "base-path")]
     pub base_path: Option<PathBuf>,

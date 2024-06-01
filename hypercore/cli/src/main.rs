@@ -39,7 +39,7 @@ async fn main() -> anyhow::Result<()> {
         log::info!("Ethereum observer RPC: {}", config.ethereum_rpc);
         log::info!("Database directory: {:?}", config.database_path);
 
-        let service = Service::new(&config)?;
+        let service = Service::new(&config).await?;
 
         service.run().await?;
     }
