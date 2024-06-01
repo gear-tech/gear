@@ -37,3 +37,6 @@ jobs:
       - name: "Test: Hypercore Observer"
         run: cargo test --release -p hypercore-observer
 
+      - name: "Test: Hypercore processor"
+        run: cargo test --release -p hypercore-processor
+
