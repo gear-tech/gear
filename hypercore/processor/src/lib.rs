@@ -20,7 +20,9 @@
 
 use anyhow::Result;
 use gear_core::ids::{prelude::CodeIdExt, CodeId, ProgramId};
-use hypercore_db::{Code, Message};
+use host::context::CodeContext;
+use hypercore_db::Message;
+use hypercore_observer::EventsBlock;
 use log::Level;
 use parity_wasm::elements::{Internal as PwasmInternal, Module as PwasmModule};
 use primitive_types::H256;
@@ -29,7 +31,6 @@ use wasmtime::{
     AsContext, Caller, Engine, Extern, ImportType, Instance, Linker, Memory, MemoryType, Module,
     Store,
 };
-use hypercore_observer::EventsBlock;
 
 mod host;
 
@@ -42,8 +43,8 @@ impl Processor {
         Self { db }
     }
 
-    pub fn new_code(&mut self, hash: H256, code: Vec<u8>) -> Result<bool> {
-        if CodeId::from(hash) != CodeId::generate(&code) {
+    pub fn new_code(&mut self, hash: CodeId, code: Vec<u8>) -> Result<bool> {
+        if hash != CodeId::generate(&code) {
             return Ok(false);
         }
 
@@ -52,8 +53,9 @@ impl Processor {
         let res = executor.verify()?;
 
         if res {
-            let store = executor.into_store();
-            self.db.write_code(&Code(store.into_data().code))
+            let context = executor.into_store().into_data();
+            let code_id = CodeContext::id(&context);
+            self.db.write_code(code_id, &context.code)
         }
 
         Ok(res)
@@ -82,7 +84,7 @@ mod tests {
     use hypercore_db::{Database, MemDb};
     use wabt::wat2wasm;
 
-    fn valid_code() -> Code {
+    fn valid_code() -> Vec<u8> {
         let wat = r#"
             (module
             (import "env" "memory" (memory 1))
@@ -93,7 +95,7 @@ mod tests {
             )
         )"#;
 
-        Code(wat2wasm(wat).unwrap())
+        wat2wasm(wat).unwrap()
     }
 
     fn init_logger() {
@@ -111,18 +113,18 @@ mod tests {
         let mut processor = Processor::new(db.clone_boxed());
 
         let valid = valid_code();
-        let valid_hash = valid.hash();
+        let valid_id = CodeId::generate(&valid);
 
-        assert!(db.read_code(valid_hash).is_none());
-        assert!(processor.new_code(valid_hash, valid.0).unwrap());
-        assert!(db.read_code(valid_hash).is_some());
+        assert!(db.read_code(valid_id).is_none());
+        assert!(processor.new_code(valid_id, valid).unwrap());
+        assert!(db.read_code(valid_id).is_some());
 
-        let invalid = Code(vec![0; 42]);
-        let invalid_hash = invalid.hash();
+        let invalid = vec![0; 42];
+        let invalid_id = CodeId::generate(&invalid);
 
-        assert!(db.read_code(invalid_hash).is_none());
-        assert!(!processor.new_code(invalid_hash, invalid.0).unwrap());
-        assert!(db.read_code(invalid_hash).is_none());
+        assert!(db.read_code(invalid_id).is_none());
+        assert!(!processor.new_code(invalid_id, invalid).unwrap());
+        assert!(db.read_code(invalid_id).is_none());
     }
 
     #[test]
@@ -133,9 +135,9 @@ mod tests {
         let mut processor = Processor::new(db.clone_boxed());
 
         let valid = valid_code();
-        let valid_hash = valid.hash();
+        let valid_id = CodeId::generate(&valid).into_bytes().into();
 
-        assert!(processor.new_code(valid_hash, valid.0.clone()).unwrap());
-        assert!(!processor.new_code(H256::zero(), valid.0).unwrap());
+        assert!(processor.new_code(valid_id, valid.clone()).unwrap());
+        assert!(!processor.new_code(H256::zero().into(), valid).unwrap());
     }
 }

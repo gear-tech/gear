@@ -16,8 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{Code, Database, State};
-use gprimitives::H256;
+use crate::{Database, State};
+use gear_core::{code::InstrumentedCode, ids::prelude::CodeIdExt};
+use gprimitives::{CodeId, H256};
 use std::{
     collections::HashMap,
     sync::{Arc, RwLock},
@@ -37,7 +38,8 @@ impl Default for MemDb {
 #[derive(Clone, Debug)]
 struct MemDbData {
     states: HashMap<H256, State>,
-    codes: HashMap<H256, Code>,
+    original_codes: HashMap<CodeId, Vec<u8>>,
+    instrumented_codes: HashMap<CodeId, InstrumentedCode>,
 }
 
 impl MemDb {
@@ -45,7 +47,8 @@ impl MemDb {
         Self {
             data: Arc::new(RwLock::new(MemDbData {
                 states: HashMap::new(),
-                codes: HashMap::new(),
+                original_codes: HashMap::new(),
+                instrumented_codes: HashMap::new(),
             })),
         }
     }
@@ -58,6 +61,44 @@ impl MemDb {
 }
 
 impl Database for MemDb {
+    fn clone_boxed(&self) -> Box<dyn Database> {
+        Box::new(self.ref_clone())
+    }
+
+    fn read_code(&self, code_id: CodeId) -> Option<Vec<u8>> {
+        self.data
+            .read()
+            .unwrap()
+            .original_codes
+            .get(&code_id)
+            .cloned()
+    }
+
+    fn write_code(&self, code_id: CodeId, code: &[u8]) {
+        self.data
+            .write()
+            .unwrap()
+            .original_codes
+            .insert(code_id, code.to_vec());
+    }
+
+    fn read_instrumented_code(&self, code_id: CodeId) -> Option<InstrumentedCode> {
+        self.data
+            .read()
+            .unwrap()
+            .instrumented_codes
+            .get(&code_id)
+            .cloned()
+    }
+
+    fn write_instrumented_code(&self, code_id: CodeId, code: &InstrumentedCode) {
+        self.data
+            .write()
+            .unwrap()
+            .instrumented_codes
+            .insert(code_id, code.clone());
+    }
+
     fn read_state(&self, hash: H256) -> Option<State> {
         self.data.read().unwrap().states.get(&hash).cloned()
     }
@@ -68,25 +109,5 @@ impl Database for MemDb {
             .unwrap()
             .states
             .insert(state.hash(), state.clone());
-    }
-
-    fn read_code(&self, code_hash: H256) -> Option<Code> {
-        self.data.read().unwrap().codes.get(&code_hash).cloned()
-    }
-
-    fn remove_code(&self, code_hash: H256) {
-        self.data.write().unwrap().codes.remove(&code_hash);
-    }
-
-    fn write_code(&self, code: &Code) {
-        self.data
-            .write()
-            .unwrap()
-            .codes
-            .insert(code.hash(), code.clone());
-    }
-
-    fn clone_boxed(&self) -> Box<dyn Database> {
-        Box::new(self.ref_clone())
     }
 }
