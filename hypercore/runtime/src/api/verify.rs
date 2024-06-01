@@ -16,19 +16,24 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::interface::{code_ri, program_ri};
-use gear_core::code::Code;
+use crate::interface::code_ri;
+use gear_core::code::{Code, CodeAndId};
 use gear_wasm_instrument::gas_metering::CustomConstantCostRules;
 
-pub fn verify() {
-    let code_id = code_ri::id();
+pub fn verify(code_len: usize) -> bool {
+    log::info!("You're calling 'verify(code_len={code_len})'");
 
-    log::info!("You're calling 'verify({code_id:.4})'");
+    let code = code_ri::load(code_len);
 
-    let code = code_ri::read(code_id);
-
-    assert!(
-        Code::try_new(code, 42, |_| CustomConstantCostRules::default(), None, None,).is_ok(),
-        "Submitted code is invalid"
-    );
+    match Code::try_new(code, 42, |_| CustomConstantCostRules::default(), None, None) {
+        Ok(code) => {
+            let code_id = CodeAndId::new(code).code_id();
+            log::debug!("Nice code! Code id is {code_id}");
+            true
+        }
+        Err(e) => {
+            log::debug!("Bad code: {e:?}!");
+            false
+        }
+    }
 }

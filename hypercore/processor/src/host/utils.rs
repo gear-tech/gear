@@ -16,10 +16,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use super::HostState;
 use wasmtime::{Caller, Memory};
 
-pub fn read_ri_slice(memory: &Memory, store: &mut Caller<'_, HostState>, data: i64) -> Vec<u8> {
+pub fn mem_of<T>(caller: &mut Caller<'_, T>) -> Memory {
+    caller.get_export("memory").unwrap().into_memory().unwrap()
+}
+
+pub fn read_ri_slice<T>(memory: &Memory, store: &mut Caller<'_, T>, data: i64) -> Vec<u8> {
     let data_bytes = data.to_le_bytes();
 
     let mut ptr_bytes = [0; 4];

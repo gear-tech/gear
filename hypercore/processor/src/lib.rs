@@ -19,7 +19,7 @@
 //! Program's execution service for eGPU.
 
 use anyhow::Result;
-use gear_core::ids::ProgramId;
+use gear_core::ids::{prelude::CodeIdExt, CodeId, ProgramId};
 use hypercore_db::{Code, Message};
 use log::Level;
 use parity_wasm::elements::{Internal as PwasmInternal, Module as PwasmModule};
@@ -42,24 +42,20 @@ impl Processor {
     }
 
     pub fn new_code(&mut self, hash: H256, code: Vec<u8>) -> Result<bool> {
-        let code = Code(code);
-        let code_hash = code.hash();
-
-        if code_hash != hash {
+        if CodeId::from(hash) != CodeId::generate(&code) {
             return Ok(false);
         }
 
-        self.db.write_code(&code);
+        let mut executor = host::Executor::verifier(code)?;
 
-        let mut executor =
-            host::Executor::new(Default::default(), code_hash.into(), self.db.clone_boxed())?;
+        let res = executor.verify()?;
 
-        if executor.verify().is_err() {
-            self.db.remove_code(code_hash);
-            Ok(false)
-        } else {
-            Ok(true)
+        if res {
+            let store = executor.into_store();
+            self.db.write_code(&Code(store.into_data().code))
         }
+
+        Ok(res)
     }
 
     // TODO: use proper `Dispatch` type here instead of db's.
@@ -69,14 +65,6 @@ impl Processor {
         programs: Vec<ProgramId>,
         messages: HashMap<ProgramId, Vec<Message>>,
     ) -> Result<()> {
-        let mut executor = host::Executor::new(
-            rand::random::<[u8; 32]>().into(),
-            rand::random::<[u8; 32]>().into(),
-            self.db.clone_boxed(),
-        )?;
-
-        executor.greet()?;
-
         Ok(())
     }
 }
