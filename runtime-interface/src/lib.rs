@@ -50,6 +50,10 @@ pub use gear_tasks::runtime_tasks;
 
 const _: () = assert!(core::mem::size_of::<HostPointer>() >= core::mem::size_of::<usize>());
 
+pub fn init_tasks() {
+    gear_tasks::runtime_tasks::init();
+}
+
 #[derive(Debug, Clone, Encode, Decode)]
 #[codec(crate = codec)]
 pub struct LazyPagesProgramContext {

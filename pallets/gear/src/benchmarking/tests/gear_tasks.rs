@@ -17,18 +17,13 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::benchmarking::tests::utils;
-use gear_tasks::{TaskSpawner, TaskSpawnerExt};
-use sp_externalities::ExternalitiesExt;
+use alloc::vec;
 
 pub fn smoke() {
     #[cfg(feature = "std")]
     utils::init_logger();
 
-    sp_externalities::with_externalities(|mut ext| {
-        ext.register_extension(TaskSpawnerExt(TaskSpawner::new()))
-            .unwrap();
-    })
-    .unwrap();
+    gear_runtime_interface::init_tasks();
 
     let payload = vec![9, 7, 5, 3, 2, 1];
     let handle = gear_tasks::spawn(

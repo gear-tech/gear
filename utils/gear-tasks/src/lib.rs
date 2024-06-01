@@ -16,117 +16,31 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use futures_executor::ThreadPool;
-use sc_executor::GearVersionedRuntimeExt;
-use sc_executor_common::wasm_runtime::InvokeMethod;
+#![cfg_attr(not(feature = "std"), no_std)]
+
+extern crate alloc;
+
+pub use inner::{spawn, JoinHandle};
+
+use alloc::vec::Vec;
 use sp_externalities::ExternalitiesExt;
 use sp_runtime_interface::runtime_interface;
-use std::{
-    collections::HashMap,
-    sync::{
-        atomic::{AtomicU64, Ordering},
-        mpsc,
-    },
-};
-
-const TASKS_AMOUNT: usize = 4;
-
-sp_externalities::decl_extension! {
-    pub struct TaskSpawnerExt(TaskSpawner);
-}
-
-pub struct TaskSpawner {
-    thread_pool: ThreadPool,
-    handle_counter: AtomicU64,
-    tasks: HashMap<u64, mpsc::Receiver<Vec<u8>>>,
-}
-
-impl TaskSpawner {
-    pub fn new() -> Self {
-        Self {
-            thread_pool: ThreadPool::builder()
-                .pool_size(TASKS_AMOUNT)
-                .name_prefix("gear-tasks-")
-                .create()
-                .expect("Thread pool creation failed"),
-            handle_counter: AtomicU64::new(0),
-            tasks: HashMap::new(),
-        }
-    }
-
-    fn spawn_inner(
-        &mut self,
-        f: impl FnOnce(Vec<u8>) -> Vec<u8> + Send + 'static,
-        payload: Vec<u8>,
-    ) -> JoinHandle {
-        let handle = self.handle_counter.fetch_add(1, Ordering::Relaxed);
-        let (rx, tx) = mpsc::sync_channel(1);
-        self.thread_pool.spawn_ok(async move {
-            if let Err(_e) = rx.send(f(payload)) {
-                log::debug!("Receiver has been disconnected for {handle}");
-            }
-        });
-        self.tasks.insert(handle, tx);
-        JoinHandle { inner: handle }
-    }
-
-    fn spawn(&mut self, f: fn(Vec<u8>) -> Vec<u8>, payload: Vec<u8>) -> JoinHandle {
-        self.spawn_inner(f, payload)
-    }
-
-    fn spawn_via_dispatcher(
-        &mut self,
-        dispatcher_ref: u32,
-        entry: u32,
-        payload: Vec<u8>,
-    ) -> JoinHandle {
-        self.spawn_inner(
-            move |payload| {
-                sp_externalities::with_externalities(|mut ext| {
-                    let runtime = ext
-                        .extension::<GearVersionedRuntimeExt>()
-                        .expect("`GearVersionedRuntimeExt` is not set")
-                        .clone();
-                    runtime
-                        .with_instance(ext, |_module, instance, _version, _ext| {
-                            let payload = instance
-                                .call(
-                                    InvokeMethod::TableWithWrapper {
-                                        dispatcher_ref,
-                                        func: entry,
-                                    },
-                                    &payload,
-                                )
-                                .expect("WASM execution failed");
-                            Ok(payload)
-                        })
-                        .expect("Instantiation failed")
-                })
-                .expect(
-                    "`TaskSpawner::spawn_via_dispatcher`: called outside of externalities context",
-                )
-            },
-            payload,
-        )
-    }
-
-    fn join(&mut self, handle: JoinHandle) -> Vec<u8> {
-        let tx = self
-            .tasks
-            .remove(&handle.inner)
-            .expect("`JoinHandle` is duplicated so task not found");
-        tx.recv()
-            .expect("Sender has been disconnected which means thread was somehow terminated")
-    }
-}
 
 /// WASM host functions for managing tasks.
-#[runtime_interface(wasm_only)]
+#[runtime_interface]
 pub trait RuntimeTasks {
+    fn init() {
+        sp_externalities::with_externalities(|mut ext| {
+            ext.register_extension(inner::TaskSpawnerExt(inner::TaskSpawner::new()))
+                .expect("`RuntimeTasks` initialized twice");
+        })
+        .expect("`RuntimeTasks::spawn`: called outside of externalities context")
+    }
+
     fn spawn(dispatcher_ref: u32, entry: u32, payload: Vec<u8>) -> u64 {
         sp_externalities::with_externalities(|mut ext| {
             let spawner = ext
-                .extension::<TaskSpawnerExt>()
+                .extension::<inner::TaskSpawnerExt>()
                 .expect("Cannot spawn without dynamic runtime dispatcher (TaskSpawnerExt)");
             let handle = spawner.spawn_via_dispatcher(dispatcher_ref, entry, payload);
             handle.inner
@@ -137,7 +51,7 @@ pub trait RuntimeTasks {
     fn join(handle: u64) -> Vec<u8> {
         sp_externalities::with_externalities(|mut ext| {
             let spawner = ext
-                .extension::<TaskSpawnerExt>()
+                .extension::<inner::TaskSpawnerExt>()
                 .expect("Cannot join without dynamic runtime dispatcher (TaskSpawnerExt)");
             spawner.join(JoinHandle { inner: handle })
         })
@@ -145,11 +59,111 @@ pub trait RuntimeTasks {
     }
 }
 
-pub use inner::{spawn, JoinHandle};
-
 #[cfg(feature = "std")]
 mod inner {
     use super::*;
+
+    use futures_executor::ThreadPool;
+    use sc_executor::GearVersionedRuntimeExt;
+    use sc_executor_common::wasm_runtime::InvokeMethod;
+    use std::{
+        collections::HashMap,
+        sync::{
+            atomic::{AtomicU64, Ordering},
+            mpsc,
+        },
+    };
+
+    const TASKS_AMOUNT: usize = 4;
+
+    sp_externalities::decl_extension! {
+        pub struct TaskSpawnerExt(TaskSpawner);
+    }
+
+    pub struct TaskSpawner {
+        thread_pool: ThreadPool,
+        handle_counter: AtomicU64,
+        tasks: HashMap<u64, mpsc::Receiver<Vec<u8>>>,
+    }
+
+    impl TaskSpawner {
+        pub fn new() -> Self {
+            Self {
+                thread_pool: ThreadPool::builder()
+                    .pool_size(TASKS_AMOUNT)
+                    .name_prefix("gear-tasks-")
+                    .create()
+                    .expect("Thread pool creation failed"),
+                handle_counter: AtomicU64::new(0),
+                tasks: HashMap::new(),
+            }
+        }
+
+        fn spawn_inner(
+            &mut self,
+            f: impl FnOnce(Vec<u8>) -> Vec<u8> + Send + 'static,
+            payload: Vec<u8>,
+        ) -> JoinHandle {
+            let handle = self.handle_counter.fetch_add(1, Ordering::Relaxed);
+            let (rx, tx) = mpsc::sync_channel(1);
+            self.thread_pool.spawn_ok(async move {
+                if let Err(_e) = rx.send(f(payload)) {
+                    log::debug!("Receiver has been disconnected for {handle}");
+                }
+            });
+            self.tasks.insert(handle, tx);
+            JoinHandle { inner: handle }
+        }
+
+        fn spawn(&mut self, f: fn(Vec<u8>) -> Vec<u8>, payload: Vec<u8>) -> JoinHandle {
+            self.spawn_inner(f, payload)
+        }
+
+        pub(crate) fn spawn_via_dispatcher(
+            &mut self,
+            dispatcher_ref: u32,
+            entry: u32,
+            payload: Vec<u8>,
+        ) -> JoinHandle {
+            self.spawn_inner(
+                move |payload| {
+                    sp_externalities::with_externalities(|mut ext| {
+                        let runtime = ext
+                            .extension::<GearVersionedRuntimeExt>()
+                            .expect("`GearVersionedRuntimeExt` is not set")
+                            .clone();
+                        runtime
+                            .with_instance(ext, |_module, instance, _version, _ext| {
+                                let payload = instance
+                                    .call(
+                                        InvokeMethod::TableWithWrapper {
+                                            dispatcher_ref,
+                                            func: entry,
+                                        },
+                                        &payload,
+                                    )
+                                    .expect("WASM execution failed");
+                                Ok(payload)
+                            })
+                            .expect("Instantiation failed")
+                    })
+                        .expect(
+                            "`TaskSpawner::spawn_via_dispatcher`: called outside of externalities context",
+                        )
+                },
+                payload,
+            )
+        }
+
+        pub(crate) fn join(&mut self, handle: JoinHandle) -> Vec<u8> {
+            let tx = self
+                .tasks
+                .remove(&handle.inner)
+                .expect("`JoinHandle` is duplicated so task not found");
+            tx.recv()
+                .expect("Sender has been disconnected which means thread was somehow terminated")
+        }
+    }
 
     #[derive(Debug, Eq, PartialEq)]
     pub struct JoinHandle {
@@ -177,12 +191,56 @@ mod inner {
         })
         .expect("`spawn`: called outside of externalities context")
     }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        fn new_test_ext() -> sp_io::TestExternalities {
+            let mut ext = sp_io::TestExternalities::new_empty();
+
+            let spawner = TaskSpawnerExt(TaskSpawner::new());
+            ext.register_extension::<TaskSpawnerExt>(spawner);
+
+            ext
+        }
+
+        #[test]
+        fn smoke() {
+            new_test_ext().execute_with(|| {
+                const PAYLOAD_SIZE: usize = 32 * 1024 * 1024;
+
+                let payload = vec![0xff; PAYLOAD_SIZE];
+                let handles = (0..TASKS_AMOUNT).map(|i| {
+                    let mut payload = payload.clone();
+                    payload[i * (PAYLOAD_SIZE / TASKS_AMOUNT)] = 0xfe;
+                    spawn(
+                        |mut payload| {
+                            payload.sort();
+                            payload
+                        },
+                        payload,
+                    )
+                });
+
+                let mut expected = vec![0xff; PAYLOAD_SIZE];
+                expected[0] = 0xfe;
+
+                for handle in handles {
+                    let payload = handle.join();
+                    assert_eq!(payload, expected);
+                }
+            })
+        }
+    }
 }
 
 #[cfg(not(feature = "std"))]
 #[cfg(target_arch = "wasm32")]
 mod inner {
     use super::*;
+
+    use core::mem;
 
     /// Dispatch wrapper for WASM blob.
     ///
@@ -220,50 +278,8 @@ mod inner {
     }
 
     pub fn spawn(f: fn(Vec<u8>) -> Vec<u8>, payload: Vec<u8>) -> JoinHandle {
-        let func_ref = f as *const fn(Vec<u8>) -> Vec<u8> as *const u8;
+        let func_ref = f as usize as u32;
         let handle = runtime_tasks::spawn(dispatch_wrapper as usize as u32, func_ref, payload);
         JoinHandle { inner: handle }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn new_test_ext() -> sp_io::TestExternalities {
-        let mut ext = sp_io::TestExternalities::new_empty();
-
-        let spawner = TaskSpawnerExt(TaskSpawner::new());
-        ext.register_extension::<TaskSpawnerExt>(spawner);
-
-        ext
-    }
-
-    #[test]
-    fn smoke() {
-        new_test_ext().execute_with(|| {
-            const PAYLOAD_SIZE: usize = 32 * 1024 * 1024;
-
-            let payload = vec![0xff; PAYLOAD_SIZE];
-            let handles = (0..TASKS_AMOUNT).map(|i| {
-                let mut payload = payload.clone();
-                payload[i * (PAYLOAD_SIZE / TASKS_AMOUNT)] = 0xfe;
-                spawn(
-                    |mut payload| {
-                        payload.sort();
-                        payload
-                    },
-                    payload,
-                )
-            });
-
-            let mut expected = vec![0xff; PAYLOAD_SIZE];
-            expected[0] = 0xfe;
-
-            for handle in handles {
-                let payload = handle.join();
-                assert_eq!(payload, expected);
-            }
-        })
     }
 }
