@@ -1,8 +1,4 @@
-use crate::{
-    consts::{BEACON_BLOCK_TIME, BEACON_GENESIS_BLOCK_TIME, BEACON_RPC_URL},
-    event::{Event, EventsBlock},
-    Program, Router,
-};
+use crate::{Event, EventsBlock, Program, Router};
 use alloy::{
     consensus::{SidecarCoder, SimpleCoder},
     eips::eip4844::kzg_to_versioned_hash,
@@ -17,7 +13,8 @@ use alloy::{
 };
 use anyhow::{anyhow, Result};
 use futures::{Stream, StreamExt};
-use gear_core::ids::{prelude::*, CodeId};
+use gear_core::ids::{prelude::*, ActorId, CodeId, MessageId};
+use gprimitives::H256;
 use reqwest::Client;
 use std::{collections::HashSet, hash::RandomState, marker::PhantomData};
 use tokio::time::{self, Duration};
@@ -52,34 +49,30 @@ impl<T: Transport + Clone, P: Provider<T> + Clone + 'static> Observer<T, P> {
             let block_subscription = self.provider.subscribe_blocks().await?;
             let mut block_stream = block_subscription.into_stream();
 
-            loop {
-                if let Some(block) = block_stream.next().await {
-                    let block_header = block.header;
-                    let block_number = block_header
-                        .number
-                        .ok_or_else(|| anyhow!("failed to get block number"))?;
-                    let block_hash = block_header
-                        .hash
-                        .ok_or_else(|| anyhow!("failed to get block hash"))?;
-                    log::debug!("block {block_number}, hash {block_hash}");
+            while let Some(block) = block_stream.next().await {
+                let block_header = block.header;
+                let block_number = block_header
+                    .number
+                    .ok_or_else(|| anyhow!("failed to get block number"))?;
+                let block_hash = block_header
+                    .hash
+                    .ok_or_else(|| anyhow!("failed to get block hash"))?;
+                log::debug!("block {block_number}, hash {block_hash}");
 
-                    let events_result = self.read_events(block_hash).await;
-                    if let Err(ref err) = events_result {
-                        log::error!("failed to handle events: {err}")
-                    }
+                let events_result = self.read_events(block_hash).await;
+                if let Err(ref err) = events_result {
+                    log::error!("failed to handle events: {err}")
+                }
 
-                    if let Some(events) = events_result? {
-                        yield EventsBlock {
-                            block_hash,
-                            events: events.into_iter().map(|(event, _)| event).collect(),
-                        }
-                    }
-                } else { break; }
+                if let Some(events) = events_result? {
+                    let block_hash = H256(block_hash.0);
+                    yield EventsBlock { block_hash, events }
+                }
             }
         }
     }
 
-    async fn read_events(&mut self, block_hash: B256) -> Result<Option<Vec<(Event, Log)>>> {
+    async fn read_events(&mut self, block_hash: B256) -> Result<Option<Vec<Event>>> {
         let [router_filter, program_filter] = self.event_filters(block_hash);
 
         let mut logs = self.provider.get_logs(&router_filter).await?;
@@ -95,26 +88,80 @@ impl<T: Transport + Clone, P: Provider<T> + Clone + 'static> Observer<T, P> {
         let logs: Vec<_> = logs
             .into_iter()
             .filter_map(|log| match log.topic0().copied() {
-                Some(<Router::UploadCode as SolEvent>::SIGNATURE_HASH) => Some((
-                    Event::UploadCode(Self::decode_log::<Router::UploadCode>(&log).ok()?),
-                    log,
-                )),
-                Some(<Router::CreateProgram as SolEvent>::SIGNATURE_HASH) => Some((
-                    Event::CreateProgram(Self::decode_log::<Router::CreateProgram>(&log).ok()?),
-                    log,
-                )),
-                Some(<Program::SendMessage as SolEvent>::SIGNATURE_HASH) => Some((
-                    Event::SendMessage(Self::decode_log::<Program::SendMessage>(&log).ok()?),
-                    log,
-                )),
-                Some(<Program::SendReply as SolEvent>::SIGNATURE_HASH) => Some((
-                    Event::SendReply(Self::decode_log::<Program::SendReply>(&log).ok()?),
-                    log,
-                )),
-                Some(<Program::ClaimValue as SolEvent>::SIGNATURE_HASH) => Some((
-                    Event::ClaimValue(Self::decode_log::<Program::ClaimValue>(&log).ok()?),
-                    log,
-                )),
+                Some(<Router::UploadCode as SolEvent>::SIGNATURE_HASH) => {
+                    let event = Self::decode_log::<Router::UploadCode>(&log).ok()?;
+
+                    let origin = ActorId::new(event.origin.into_word().0);
+                    let code_id = CodeId::new(event.codeId.0);
+                    let blob_tx = H256(event.blobTx.0);
+
+                    Some(Event::UploadCode {
+                        origin,
+                        code_id,
+                        blob_tx,
+                    })
+                }
+                Some(<Router::CreateProgram as SolEvent>::SIGNATURE_HASH) => {
+                    let event = Self::decode_log::<Router::CreateProgram>(&log).ok()?;
+
+                    let origin = ActorId::new(event.origin.into_word().0);
+                    let code_id = CodeId::new(event.codeId.0);
+                    let salt = event.salt.to_vec();
+                    let init_payload = event.initPayload.to_vec();
+                    let gas_limit = event.gasLimit;
+                    let value = event.value;
+
+                    Some(Event::CreateProgram {
+                        origin,
+                        code_id,
+                        salt,
+                        init_payload,
+                        gas_limit,
+                        value,
+                    })
+                }
+                Some(<Program::SendMessage as SolEvent>::SIGNATURE_HASH) => {
+                    let event = Self::decode_log::<Program::SendMessage>(&log).ok()?;
+
+                    let origin = ActorId::new(event.origin.into_word().0);
+                    let destination = ActorId::new(event.destination.into_word().0);
+                    let payload = event.payload.to_vec();
+                    let gas_limit = event.gasLimit;
+                    let value = event.value;
+
+                    Some(Event::SendMessage {
+                        origin,
+                        destination,
+                        payload,
+                        gas_limit,
+                        value,
+                    })
+                }
+                Some(<Program::SendReply as SolEvent>::SIGNATURE_HASH) => {
+                    let event = Self::decode_log::<Program::SendReply>(&log).ok()?;
+
+                    let origin = ActorId::new(event.origin.into_word().0);
+                    let reply_to_id = MessageId::new(event.replyToId.0);
+                    let payload = event.payload.to_vec();
+                    let gas_limit = event.gasLimit;
+                    let value = event.value;
+
+                    Some(Event::SendReply {
+                        origin,
+                        reply_to_id,
+                        payload,
+                        gas_limit,
+                        value,
+                    })
+                }
+                Some(<Program::ClaimValue as SolEvent>::SIGNATURE_HASH) => {
+                    let event = Self::decode_log::<Program::ClaimValue>(&log).ok()?;
+
+                    let origin = ActorId::new(event.origin.into_word().0);
+                    let message_id = MessageId::new(event.messageId.0);
+
+                    Some(Event::ClaimValue { origin, message_id })
+                }
                 _ => None,
             })
             .collect();
@@ -142,13 +189,15 @@ impl<T: Transport + Clone, P: Provider<T> + Clone + 'static> Observer<T, P> {
     pub async fn read_code_from_tx_hash(
         provider: P,
         http_client: Client,
+        beacon_rpc_url: &str,
         tx_hash: TxHash,
         attempts: Option<u8>,
         expected_code_id: FixedBytes<32>,
     ) -> Result<Vec<u8>> {
-        let code = Self::read_blob_from_tx_hash(provider, http_client, tx_hash, attempts)
-            .await
-            .map_err(|err| anyhow!("failed to read blob: {err}"))?;
+        let code =
+            Self::read_blob_from_tx_hash(provider, http_client, beacon_rpc_url, tx_hash, attempts)
+                .await
+                .map_err(|err| anyhow!("failed to read blob: {err}"))?;
 
         (CodeId::generate(&code).into_bytes() == expected_code_id)
             .then_some(())
@@ -160,9 +209,14 @@ impl<T: Transport + Clone, P: Provider<T> + Clone + 'static> Observer<T, P> {
     async fn read_blob_from_tx_hash(
         provider: P,
         http_client: Client,
+        beacon_rpc_url: &str,
         tx_hash: TxHash,
         attempts: Option<u8>,
     ) -> Result<Vec<u8>> {
+        //TODO: read genesis from `{beacon_rpc_url}/eth/v1/beacon/genesis` with caching into some static
+        const BEACON_GENESIS_BLOCK_TIME: u64 = 1695902400;
+        const BEACON_BLOCK_TIME: u64 = 12;
+
         let tx = provider
             .get_transaction_by_hash(tx_hash)
             .await?
@@ -185,7 +239,7 @@ impl<T: Transport + Clone, P: Provider<T> + Clone + 'static> Observer<T, P> {
                 loop {
                     log::debug!("trying to get blob, attempt #{}", count + 1);
                     let blob_bundle_result =
-                        Self::read_blob_bundle(http_client.clone(), slot).await;
+                        Self::read_blob_bundle(http_client.clone(), beacon_rpc_url, slot).await;
                     if blob_bundle_result.is_ok() || count >= attempts {
                         break blob_bundle_result;
                     } else {
@@ -194,7 +248,7 @@ impl<T: Transport + Clone, P: Provider<T> + Clone + 'static> Observer<T, P> {
                     }
                 }
             }
-            None => Self::read_blob_bundle(http_client, slot).await,
+            None => Self::read_blob_bundle(http_client, beacon_rpc_url, slot).await,
         };
         let blob_bundle = blob_bundle_result?;
 
@@ -215,10 +269,14 @@ impl<T: Transport + Clone, P: Provider<T> + Clone + 'static> Observer<T, P> {
         Ok(data)
     }
 
-    async fn read_blob_bundle(http_client: Client, slot: u64) -> reqwest::Result<BeaconBlobBundle> {
+    async fn read_blob_bundle(
+        http_client: Client,
+        beacon_rpc_url: &str,
+        slot: u64,
+    ) -> reqwest::Result<BeaconBlobBundle> {
         http_client
             .get(format!(
-                "{BEACON_RPC_URL}/eth/v1/beacon/blob_sidecars/{slot}"
+                "{beacon_rpc_url}/eth/v1/beacon/blob_sidecars/{slot}"
             ))
             .send()
             .await?
