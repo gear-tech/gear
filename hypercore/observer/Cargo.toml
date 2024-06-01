@@ -35,3 +35,4 @@ futures.workspace = true
 reqwest = { workspace = true, features = ["json"] }
 log.workspace = true
 gear-core.workspace = true
+gprimitives.workspace = true

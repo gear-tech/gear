@@ -20,14 +20,13 @@
 
 pub use alloy;
 
-pub mod consts;
 pub mod eip1167;
 mod event;
 mod observer;
 mod program;
 mod router;
 
-pub use event::Event;
+pub use event::{Event, EventsBlock};
 pub use observer::Observer;
-pub use program::Program;
-pub use router::Router;
+pub(crate) use program::Program;
+pub(crate) use router::Router;
