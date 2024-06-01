@@ -24,9 +24,9 @@ use runtime::Runtime;
 use wasmtime::{AsContextMut, Caller, Engine, Instance, Linker, Module, Store};
 
 mod calls;
-mod context;
 mod runtime;
 
+pub(crate) mod context;
 pub(crate) mod utils;
 
 pub struct Executor<T> {

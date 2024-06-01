@@ -16,9 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{Code, State};
+use crate::{Database, State};
 use anyhow::Result;
-use gprimitives::H256;
+use gear_core::code::InstrumentedCode;
+use gprimitives::{CodeId, H256};
 use std::path::PathBuf;
 
 /// Database for storing states and codes in memory.
@@ -30,24 +31,34 @@ impl RocksDatabase {
     pub fn open(path: PathBuf) -> Result<Self> {
         Ok(Self)
     }
+}
 
-    pub fn read_state(&self, hash: H256) -> Option<State> {
+impl Database for crate::RocksDatabase {
+    fn clone_boxed(&self) -> Box<dyn Database> {
+        Box::new(self.clone())
+    }
+
+    fn read_code(&self, _code_id: CodeId) -> Option<Vec<u8>> {
         unimplemented!()
     }
 
-    pub fn write_state(&self, state: &State) {
+    fn read_instrumented_code(&self, _code_id: CodeId) -> Option<InstrumentedCode> {
         unimplemented!()
     }
 
-    pub fn read_code(&self, code_hash: H256) -> Option<Code> {
+    fn write_instrumented_code(&self, _code_id: CodeId, _code: &InstrumentedCode) {
         unimplemented!()
     }
 
-    pub fn remove_code(&self, code_hash: H256) {
+    fn write_code(&self, _code_id: CodeId, _code: &[u8]) {
         unimplemented!()
     }
 
-    pub fn write_code(&self, code: &Code) {
+    fn read_state(&self, _hash: H256) -> Option<State> {
+        unimplemented!()
+    }
+
+    fn write_state(&self, state: &State) {
         unimplemented!()
     }
 }

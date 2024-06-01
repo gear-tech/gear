@@ -18,14 +18,33 @@
 
 //! Database library for hypercore.
 
-mod code;
-mod io;
+use gear_core::code::InstrumentedCode;
+use gprimitives::{CodeId, H256};
+
 mod mem;
 mod rocks;
 mod state;
 
-pub use code::Code;
-pub use io::Database;
 pub use mem::MemDb;
 pub use rocks::RocksDatabase;
 pub use state::{Message, State};
+
+pub trait Database {
+    // General section.
+    fn clone_boxed(&self) -> Box<dyn Database>;
+
+    // Original code section.
+    fn read_code(&self, code_id: CodeId) -> Option<Vec<u8>>;
+
+    fn write_code(&self, code_id: CodeId, code: &[u8]);
+
+    // Instrumented code section.
+    fn read_instrumented_code(&self, code_id: CodeId) -> Option<InstrumentedCode>;
+
+    fn write_instrumented_code(&self, code_id: CodeId, code: &InstrumentedCode);
+
+    // State section.
+    fn read_state(&self, hash: H256) -> Option<State>;
+
+    fn write_state(&self, state: &State);
+}
