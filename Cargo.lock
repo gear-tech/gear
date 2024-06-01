@@ -7068,6 +7068,7 @@ dependencies = [
  "env_logger",
  "gear-core",
  "hypercore-db",
+ "hypercore-observer",
  "hypercore-runtime",
  "log",
  "parity-wasm",

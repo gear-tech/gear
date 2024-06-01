@@ -29,6 +29,7 @@ use wasmtime::{
     AsContext, Caller, Engine, Extern, ImportType, Instance, Linker, Memory, MemoryType, Module,
     Store,
 };
+use hypercore_observer::EventsBlock;
 
 mod host;
 
@@ -65,6 +66,12 @@ impl Processor {
         programs: Vec<ProgramId>,
         messages: HashMap<ProgramId, Vec<Message>>,
     ) -> Result<()> {
+        Ok(())
+    }
+
+    pub fn process_block_events(&mut self, events: EventsBlock) -> Result<()> {
+        log::debug!("Processing events for {:?}", events.block_hash);
+
         Ok(())
     }
 }
